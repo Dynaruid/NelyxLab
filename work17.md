@@ -10,6 +10,8 @@
 
 [W16](work16.md)의 실행 계획은 **CLOSED / SUPERSEDED BY W17**이다. 기존 구현과 실패 기록은 근거로 보존하고, 이번 문제의 현재 계획·진행 상태·잔여 작업은 이 문서 하나에서 관리한다. W14 전체 개편을 재개하지 않으며 W15A의 과거 AOT coverage와 타입 정책 결과를 신규 성능 수락으로 승격하지 않는다. W16의 G6 통과를 새 host 시제품의 선행조건으로 요구하지 않는다.
 
+**W17 구현은 기준선 불일치 수정까지 포함한다.** 작업 중 기존 코드·공급·도구·샘플·문서가 아래 W17 기준선과 맞지 않으면 해당 경로를 고치면서 진행한다. 새 host만 추가한 뒤 기존 불일치를 그대로 두거나, 작업 표에 개별 파일이 없다는 이유로 필요한 수정을 후속 작업으로 넘기지 않는다. 적용 범위와 완료 조건은 §5.1을 따른다.
+
 ## 1. 현재 판단과 근거
 
 ### 1.1 레이아웃 책임부터 분리한다
@@ -159,9 +161,21 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 
 ## 5. 실행 작업과 완료 조건
 
+### 5.1 W17 기준선 점검·수정을 모든 단계에 적용
+
+여기서 **W17 기준선은 목표 구조·제품 계약**이고, W17-00의 **성능 비교 baseline은 현재 실행의 측정 기준**이다. 불일치를 수정해도 수정 전 비교 조건·실패 사실을 새 결과로 덮어쓰지 않는다.
+
+- **점검 기준:** Hermes 기본 엔진과 bytecode·Static Hermes의 독립 수락, Nelyx 자체 build/layout·hit test·scroll physics, 목표 D의 RN/Fabric/Yoga·Node-API JSI 비의존 경로, iOS에서도 구현 가능한 공통 계약과 Windows adapter 분리, 입력·IME·UIA·자원/종료 계약, source→공급→실제 실행의 일치를 기준으로 삼는다. 세부 계약은 §1.5·§3·§7을 적용한다.
+- **점검 범위:** 작업 대상과 연결된 Core·Skia·SDK/native host·공급 manifest·build/CLI·템플릿/launcher·두 Testbed·검증 도구·README를 함께 확인한다. 이전 기본값·RN 전제·중복 경로·누락 서비스·잘못된 공급/실행 옵션 등 기준선에 맞지 않는 부분은 실제 호출·의존 경로를 확인하고 해당 단계에서 함께 수정한다. 구조·정확성·공급 계약 위반의 수정은 성능 병목 입증을 선행조건으로 삼지 않는다.
+- **단계별 처리:** W17-00에서 현재 불일치와 수정할 단계/owner를 정하고, W17-01~08에서도 단계 시작과 완료 전에 다시 확인한다. 새로 발견한 불일치도 현재 단계 또는 의존하는 후속 단계의 필수 작업으로 편입한다. 해당 단계의 완료 조건을 깨는 불일치는 수정·관련 회귀 확인 전까지 그 단계를 완료 처리하지 않는다.
+- **진행과 기록:** 독립 작업은 계속 진행하되 해결하지 못한 항목은 이 문서의 짧은 현재 상태에 `불일치 / 영향 경로 / 수정 단계·owner / 상태·검증 결과`로 남긴다. 이전부터 있었다는 이유만으로 제외하거나, 문구·상태값만 바꿔 일치한 것으로 처리하지 않는다. 최종 수락에 필요한 미해결 항목이 있으면 전체는 `PARTIAL`이다.
+- **전환 순서와 범위:** 기존 RNW 비교 경로와 명시적 V8/JSC 선택은 유지하고 목표 D에 W17 계약을 적용한다. Hermes 기본 엔진 반영은 W17-08, 직접 host 기본 전환은 H0~H5 수락 후라는 순서를 지킨다. 관련 없는 전면 재작성이나 iOS host 전체 구현으로 범위를 넓히지 않으며, 새 경로의 성공으로 기존 경로의 실패를 해결 처리하지 않는다.
+
+### 5.2 실행 작업
+
 | ID | 구현 범위 | 완료 조건 |
 |---|---|---|
-| **W17-00 현재 공급·실패 기준선 고정** | source/dist/설치·native input locator·실제 loaded VM/host/HBC/AOT·toolchain 확인. 모니터/DPI/실제 viewport·접근성·전체 catalog·입력 정책 고정. AV/입력 거리·종료 실패를 작은 재현으로 분리 | 현재 Nelyx로 실행 가능한 baseline과 unresolved 목록 확보. 옛 수치를 신규 baseline으로 사용하지 않음 |
+| **W17-00 현재 공급·실패 기준선 고정과 불일치 점검** | source/dist/설치·native input locator·실제 loaded VM/host/HBC/AOT·toolchain 확인. 모니터/DPI/실제 viewport·접근성·전체 catalog·입력 정책 고정. AV/입력 거리·종료 실패를 작은 재현으로 분리. §5.1 기준선 불일치와 수정 단계/owner 확인, 기준선 실행을 막는 문제 수정 | 현재 Nelyx로 실행 가능한 baseline과 unresolved 목록, 각 불일치의 수정 단계 확보. 기준선 확보 전 수정은 변경 내용·공급 identity를 구분하고 옛 수치를 신규 baseline으로 사용하지 않음 |
 | **W17-01 RN 없는 Hermes vertical slice** | HWND+전용 Hermes thread+직접 API+Skia surface, 최소 SDK bootstrap, 동일 고정 ListView·한국어 font, HBC 우선/Static Hermes 연결 | RN/Fabric/Yoga 없는 실제 새 frame·scroll·resize·close 확인. 두 Hermes 모드 로더·thread/자원 소유권 확인. rendering-only 한계 표시 |
 | **W17-02 host 서비스와 공통 native 경계** | runtime event loop·timers/microtasks·환경·assets/font/image·platform service 계약. 기존 RNW 결합에서 공통 native 계층 추출. iOS에서도 구현 가능한 공통 계약과 Windows adapter 분리 | 최종 graph/링크/loaded modules에서 RN runtime 의존성 없음. 공통 계약에 Windows 전용 타입 없음. 생성 실패·숨김/복귀·shutdown 정리 확인 |
 | **W17-03 native display-list 경로** | versioned bounded packet·handle table·native recording·retained resource, 기존 paint 명령 parity | 실제 사용 명령의 출력·오류·자원 수명 동등. encode/validation/replay/전체 frame 비용 구분. 숨은 fallback 없음 |
@@ -169,10 +183,10 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 | **W17-05 TSF/IME·UIA 정식 경로** | RN proxy 없이 native editor endpoint·Core semantics delta·UIA virtual tree·native action·좌표 변환 | 한글 조합/selection/caret·Tab/focus·screen reader·text/action 기능 유지. accessibility on에서 정상 동작 |
 | **W17-06 남은 공통 Core 비용 축소** | owner별 증분 sync·생성/할당·text/semantics·paint snapshot을 한 변경씩 개선 | 기존 State/Key/layout/편집/자원 회귀 통과. Hermes 각 모드에서 해당 비용과 전체 frame 효과를 대응 |
 | **W17-07 조건부 RNW/VM 개선** | §4 B/C 비교, 필요한 RNW/Node-API/VM patch 또는 관련 upstream fix | 개선 근거·유지 비용·ABI·rollback 명시. 불필요하면 `SKIPPED / 근거`로 닫음. 필수 기능/성능 실패를 SKIPPED로 덮지 않음 |
-| **W17-08 제품 공급·실제 Testbed 전환** | SDK/CLI·템플릿·일반 launcher의 Hermes 기본 엔진 계약, 명시적 host 선택과 새 entry, 전체 gallery 소비, 두 Release 앱·설치/실행·기존 host 회귀 | 사용자는 기존 Nelyx 앱 API로 실행 가능. 엔진/host 옵션과 iOS 포함 선택 근거 문서화. 직접 host 기본 전환은 최종 수락 후 |
-| **W17-09 최종 성능·물리 수락과 정리** | §6 부하·§7 gate, 최신 결과·잔여 작업·사용법 갱신 | 두 모드의 결과와 실제 표시·입력·안정성·자원 수락. 실패 시 PARTIAL과 다음 owner 기록 |
+| **W17-08 제품 공급·실제 Testbed 전환** | SDK/CLI·템플릿·일반 launcher의 Hermes 기본 엔진 계약, 명시적 host 선택과 새 entry, 전체 gallery 소비, 두 Release 앱·설치/실행·기존 host 회귀. 제품 진입점·공급·검증 도구·README의 잔여 기준선 불일치 수정 | 사용자는 기존 Nelyx 앱 API로 실행 가능. 실제 기본값·옵션·공급·사용법이 W17 계약과 일치. 엔진/host 옵션과 iOS 포함 선택 근거 문서화. 직접 host 기본 전환은 최종 수락 후 |
+| **W17-09 최종 성능·물리 수락과 정리** | §6 부하·§7 gate, §5.1 기준선 불일치 최종 점검과 필요한 수정·재검증, 최신 결과·잔여 작업·사용법 갱신 | 두 모드의 결과와 실제 표시·입력·안정성·자원 수락. 필수 기준선 불일치 미해결 0. 실패·미해결 시 PARTIAL과 다음 수정 단계/owner 기록 |
 
-**의존 순서:** 00 → 01 → 02 → 03/04 → 05/06 → 08 → 09. 07은 관찰된 병목에 따라 삽입한다. 먼저 layout 엔진을 다시 쓰거나 full-gallery AOT를 매번 재컴파일하지 않는다. 시제품 비교에서 효과가 작아도 측정된 Core/recording 병목으로 이어가며, RN 제거만으로 버벅임이 없어졌다고 결론내리지 않는다.
+**의존 순서:** 00 → 01 → 02 → 03/04 → 05/06 → 08 → 09. 07은 관찰된 병목에 따라 삽입한다. **모든 단계는 §5.1의 불일치 점검·수정·관련 검증을 포함한다.** 먼저 layout 엔진을 다시 쓰거나 full-gallery AOT를 매번 재컴파일하지 않는다. 시제품 비교에서 효과가 작아도 측정된 Core/recording 병목으로 이어가며, RN 제거만으로 버벅임이 없어졌다고 결론내리지 않는다.
 
 ## 6. 제한된 검증과 측정
 
@@ -219,10 +233,11 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 |---|---|
 | 이번 조사·후보 검토·계획 작성 | COMPLETE / 문서 범위 |
 | 현재 활성 실행 계획 | **W17 READY** / W16 CLOSED / SUPERSEDED |
+| 기준선 불일치 처리 | **§5.1을 모든 단계의 필수 작업·완료 조건으로 적용** / 실제 점검·수정 결과는 구현 중 갱신 |
 | 기본 엔진 결정 | **Hermes** / iOS 포함 플랫폼 지원을 고려한 제품 방향. 실제 기본값 적용은 W17-08에서 구현 |
 | W17-00~09 구현 | **NOT_STARTED** / 조건부 W17-07은 아직 판단 전 |
 | RN 없는 직접 host·RNW/VM 신규 포크 | 미구현 |
 | 신규 baseline·성능·실제 display·물리 입력 | 미실행 / `performanceAccepted=false`, 나머지 `notVerified` |
 | 사용자 버벅임 문제 | **미해결 / PARTIAL** |
 
-**다음 시작점:** W17-00에서 이름 변경 후 공급과 unresolved AV/입력 상태를 고정하고, W17-01의 **같은 Nelyx ListView를 실행하는 RN 없는 Hermes host**를 만든다. 그 결과로 host/어댑터 비용과 Core 비용을 구분한 뒤 W17-02~06을 이어간다. 기존 W16 matrix 반복이나 Yoga만 생략하는 수정부터 재개하지 않는다.
+**다음 시작점:** W17-00에서 이름 변경 후 공급과 unresolved AV/입력 상태, §5.1의 기준선 불일치와 수정 단계/owner를 확인하고 기준선 실행을 막는 문제부터 고친다. 이어 W17-01의 **같은 Nelyx ListView를 실행하는 RN 없는 Hermes host**를 만들며 관련 불일치를 함께 수정한다. 그 결과로 host/어댑터 비용과 Core 비용을 구분한 뒤 같은 점검·수정 원칙으로 W17-02~06을 이어간다. 기존 W16 matrix 반복이나 Yoga만 생략하는 수정부터 재개하지 않는다.
