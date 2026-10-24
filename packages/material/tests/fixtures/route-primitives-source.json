@@ -1,0 +1,1784 @@
+{
+  "scope": "14 unchanged complete declarations and unchanged source Cubic/default curve fields on finite VM widget-construction/animation/shape/type/default receivers. Full ModalRoute/parent rendering/runtime/hash/native/physical behavior is not inferred; actual owned Root lifetime, input and CPU/GPU checks are separate.",
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "PageTransitionsBuilder",
+      "offset": 411,
+      "length": 3567,
+      "sha256": "d1416d373e89b04a2210735b5b078c48a72e3bab2ed6a464f7d14a8e50753cf2"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "_FadeUpwardsPageTransition",
+      "offset": 4138,
+      "length": 1156,
+      "sha256": "93bd1843ba6385a8f00e25d6da616a3da52b1d40147d6195b99a088881f36c7e"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "FadeUpwardsPageTransitionsBuilder",
+      "offset": 5298,
+      "length": 1496,
+      "sha256": "f6069a97491b7e3ed8fd0731cf590dd0e8a6a7e362086e3e2c7c98c3a90eb904"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "_OpenUpwardsPageTransition",
+      "offset": 6866,
+      "length": 1292,
+      "sha256": "f512150861c3e4ffb3d1685dea5ae160716695a6614dacd7fc33587ed984f229"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "_OpenUpwardsPageTransitionState",
+      "offset": 8162,
+      "length": 3405,
+      "sha256": "bc320bf837722e22169b95ce817059d02749ea8068bf6e0ac41454cccb3063bd"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "OpenUpwardsPageTransitionsBuilder",
+      "offset": 11571,
+      "length": 1912,
+      "sha256": "a208bc83e93db49deb5d1bc72642c3676f6cebc1704a101ad3fefe734469d650"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "symbol": "AnimatedTransitionBuilder",
+      "offset": 219,
+      "length": 753,
+      "sha256": "628c9c7951c1b6a228bea0fec2e9fd05777578064a0cb8a60076bf767c61c06e"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "symbol": "DualTransitionBuilder",
+      "offset": 976,
+      "length": 3199,
+      "sha256": "f846ae0283f77a45faaa16d0a4c07c87d7a9e179bea3de86eaadc3296cc5de1c"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "symbol": "_DualTransitionBuilderState",
+      "offset": 4179,
+      "length": 3215,
+      "sha256": "c3fa7d248bf9db7f9e23538bfe5a976f84cfa75f40cf6a0f0cec16f7d00f2228"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/pages.dart",
+      "symbol": "PageRoute",
+      "offset": 288,
+      "length": 1880,
+      "sha256": "2d28d676740a15ed13727b957f078c67a69e7b6d795919abdb70b0bb708f102a"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/pages.dart",
+      "symbol": "PageRouteBuilder",
+      "offset": 2350,
+      "length": 2898,
+      "sha256": "0889f15f547513c5b468664d52c4ecc5960ff19638f29ae34409402adf31b9ad"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/navigator.dart",
+      "symbol": "RouteSettings",
+      "offset": 27340,
+      "length": 619,
+      "sha256": "153099fea3f95bc7f4079914efda65429e6290ea107b39efa60e91fc489361be"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "RoutePageBuilder",
+      "offset": 109860,
+      "length": 354,
+      "sha256": "c26634cbb391180ad929588b8640d0275b8203f1699f16714c6b4bc5ce6c468c"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "RouteTransitionsBuilder",
+      "offset": 110218,
+      "length": 1070,
+      "sha256": "d87c294699208cf911de889ac4a1195819cd5024d7698ecb5b66503928695c71"
+    }
+  ],
+  "supportingSourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Cubic",
+      "offset": 15023,
+      "length": 2062,
+      "sha256": "2377fa78bcffa8d5eb2c581cb7c51b9792bd1b7e15f1ca62cc2f1f7f45e06889"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.easeIn",
+      "offset": 62674,
+      "length": 55,
+      "sha256": "4a06c76f6d3e03614f3ef87615d94df3fa7ac6a6148883ab1ef1c6482a7b2238"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.fastOutSlowIn",
+      "offset": 79257,
+      "length": 61,
+      "sha256": "1d0099445fc91287599cd8df33d6f8a287fa0d929471cd7c891beba4347f9b81"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/transitions.dart",
+      "symbol": "DelegatedTransitionBuilder",
+      "offset": 6018,
+      "length": 201,
+      "sha256": "c3a3a92bcfde80700de7e69c1e5c11fdc24dc7b89cd1e30cb4d25a3aa78f9be1"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/pages.dart",
+      "symbol": "_defaultTransitionsBuilder",
+      "offset": 2172,
+      "length": 174,
+      "sha256": "2fd61efb6bd791adc00d4134578a625fb0be57dada7d4965f70919697e3760a3"
+    }
+  ],
+  "visual": [
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.25
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.25
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.24356896057724953
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.016937287524342537
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.24356896057724953
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.016937287524342537
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.1907534897327423
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.09407757222652435
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.1907534897327423
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.09407757222652435
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.0561048798263073
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.31640625
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.0561048798263073
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.31640625
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.010109931230545044
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6219428777694702
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.010109931230545044
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6219428777694702
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.25
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.25
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.24356896057724953
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.016937287524342537
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.24356896057724953
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.016937287524342537
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.1907534897327423
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.09407757222652435
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.1907534897327423
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.09407757222652435
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.0561048798263073
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.31640625
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.0561048798263073
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.31640625
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.010109931230545044
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6219428777694702
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0.010109931230545044
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6219428777694702
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "FadeUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 0
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.05
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 0
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.02193450927734375
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.05
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 167772160
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 25
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0421875
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 167772160
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 25
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.02193450927734375
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0421875
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 654311424
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 97.22298383712769
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0196178175508976
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 654311424
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 97.22298383712769
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.02193450927734375
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0196178175508976
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 939524096
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 140.380859375
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.006130981445312503
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 939524096
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 140.380859375
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.02193450927734375
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.006130981445312503
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 1040187392
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 156.044921875
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0012359619140625
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 1040187392
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 156.044921875
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.02193450927734375
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0012359619140625
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 1073741824
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 160
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0.5,
+      "status": "forward",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 1073741824
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 160
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.02193450927734375
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 0
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.05
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 0
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.00306549072265625
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.05
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 0.5635634437203407
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.049823886423837394
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 0.5635634437203407
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.00306549072265625
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.049823886423837394
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 33554432
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 3.955078125
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0487640380859375
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 33554432
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 3.955078125
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.00306549072265625
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0487640380859375
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 134217728
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 19.619140625
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0438690185546875
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 134217728
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 19.619140625
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.00306549072265625
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0438690185546875
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 419430400
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 62.777016162872314
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0303821824491024
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 419430400
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 62.777016162872314
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.00306549072265625
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0.0303821824491024
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 1073741824
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 160
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "builder": "OpenUpwardsPageTransitionsBuilder",
+      "primary": 1,
+      "secondary": 0.5,
+      "status": "reverse",
+      "tree": [
+        {
+          "kind": "colored",
+          "color": 1073741824
+        },
+        {
+          "kind": "align"
+        },
+        {
+          "kind": "clip"
+        },
+        {
+          "kind": "size",
+          "height": 160
+        },
+        {
+          "kind": "overflow",
+          "maxHeight": 160
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            -0.00306549072265625
+          ]
+        },
+        {
+          "kind": "translation",
+          "translation": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    }
+  ],
+  "dual": [
+    {
+      "input": 0,
+      "status": "dismissed",
+      "forward": 0,
+      "reverse": 0
+    },
+    {
+      "input": 0.4,
+      "status": "forward",
+      "forward": 0.4,
+      "reverse": 0
+    },
+    {
+      "input": 0.2,
+      "status": "reverse",
+      "forward": 0.2,
+      "reverse": 0
+    },
+    {
+      "input": 1,
+      "status": "completed",
+      "forward": 1,
+      "reverse": 0
+    },
+    {
+      "input": 0.7,
+      "status": "reverse",
+      "forward": 1,
+      "reverse": 0.30000000000000004
+    },
+    {
+      "input": 0.8,
+      "status": "forward",
+      "forward": 1,
+      "reverse": 0.19999999999999996
+    },
+    {
+      "input": 0,
+      "status": "dismissed",
+      "forward": 0,
+      "reverse": 0
+    }
+  ],
+  "sameStatusReplacement": {
+    "forward": 0.4,
+    "reverse": 0
+  },
+  "pages": [
+    {
+      "custom": false,
+      "duration": 300,
+      "reverseDuration": 300,
+      "opaque": true,
+      "barrierDismissible": false,
+      "barrierColor": null,
+      "barrierLabel": null,
+      "maintainState": true,
+      "fullscreenDialog": false,
+      "allowSnapshotting": true,
+      "requestFocus": null,
+      "baseAllowsGesture": true
+    },
+    {
+      "custom": true,
+      "duration": 450,
+      "reverseDuration": 120,
+      "opaque": false,
+      "barrierDismissible": true,
+      "barrierColor": 2147483648,
+      "barrierLabel": "close page",
+      "maintainState": false,
+      "fullscreenDialog": true,
+      "allowSnapshotting": false,
+      "requestFocus": false,
+      "baseAllowsGesture": false
+    }
+  ],
+  "settings": [
+    "RouteSettings(none, null)",
+    "RouteSettings(\"a\", 3)"
+  ]
+}

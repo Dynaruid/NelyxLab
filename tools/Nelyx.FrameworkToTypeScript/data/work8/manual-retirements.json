@@ -1,0 +1,249 @@
+{
+  "schema": "nelyx.w8-manual-retirements/v1",
+  "origins": [
+    {
+      "qualifiedId": "package:flutter/src/animation/tween_sequence.dart::TweenSequenceItem:CLASS",
+      "retiredAt": "2026-10-13T17:21:36.380Z",
+      "reason": "Replaced by accepted resolved whole-class generic field-formal generation. Direct owner is framework/animation/tween-sequence-item; no duplicate manual class or re-export facade remains.",
+      "replacement": {
+        "state": "tools/Nelyx.FrameworkToTypeScript/data/work8/state.json",
+        "batch": "tween-sequence-item",
+        "acceptedFingerprint": "3969b01ddf4863823559a956802f18db05dc4faf401f3a5f32ae55b78d52e683",
+        "destination": "Nelyx/src/framework/animation/tween-sequence-item.ts"
+      },
+      "previous": {
+        "id": "e7fec0dae9ea62204769",
+        "qualifiedId": "package:flutter/src/animation/tween_sequence.dart::TweenSequenceItem:CLASS",
+        "package": "@nelyx/core",
+        "source": {
+          "file": "packages/flutter/lib/src/animation/tween_sequence.dart",
+          "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+          "fileSha256": "a3028f8dc8cdef63d17ad1527d8f8db87703ae76de60e204da77ee0699dfa5a3",
+          "span": {
+            "file": "18d008f9adcce57e4a77",
+            "offset": 4083,
+            "length": 1112,
+            "line": 120,
+            "sha256": "7376e7773946a05f8501490f19020b1ae835e914e5ee11f088ed27215ff36087"
+          },
+          "pinnedSpanSha256": "7376e7773946a05f8501490f19020b1ae835e914e5ee11f088ed27215ff36087",
+          "inventorySpanMatches": true,
+          "spanEncoding": "Analyzer offsets/hash retain checkout line endings and UTF-16 indices; whole file verified against pinned Git blob after LF normalization",
+          "canonicalSpan": {
+            "offset": 3964,
+            "length": 1083,
+            "sha256": "9e6edd34d152d0f0fbb98c219e97719985f7cc47b9288080ae255627397718dd",
+            "encoding": "UTF-16 indices, LF line endings"
+          }
+        },
+        "destination": {
+          "file": "Nelyx/src/framework/animation/tween-sequence.ts",
+          "module": "@nelyx/core/framework/animation/tween-sequence",
+          "sha256": "0d41ba7d04c6d8d4dda29bba709c8f11fa73cb83fa22efe74a608f8cccf43adb"
+        },
+        "mode": "manual-port",
+        "status": "PARTIAL",
+        "acceptance": [
+          ".tmp/work8/animation-family-result.json"
+        ],
+        "scope": "Source-derived implementation with scoped algorithm/Root evidence. Full class diagnostics, instrumentation, original layout and complete UI/native acceptance are not promoted by this provenance."
+      }
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls:CLASS",
+      "retiredAt": "2026-10-15T08:44:07.943770+00:00",
+      "reason": "Explicit user-requested selection legacy API removal. Replaced by handle-only controls and contextMenuBuilder; no compatibility aliases.",
+      "replacement": {
+        "policy": "tools/Nelyx.FrameworkToTypeScript/data/work8/selection-api-retirements.json",
+        "acceptance": ".tmp/work8/w9-01-no-legacy-acceptance.json",
+        "destination": "packages/material/src/text-selection.ts"
+      },
+      "previous": {
+        "id": "9ad8283bce820abcf503",
+        "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls:CLASS",
+        "package": "@nelyx/material",
+        "source": {
+          "file": "packages/flutter/lib/src/material/text_selection.dart",
+          "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+          "fileSha256": "5115d759e4376e1a0d7cab67d8682c1584bb228fa623c9415f72a247b41a0ca4",
+          "span": {
+            "file": "3bb6faa286675da68f77",
+            "offset": 1106,
+            "length": 3774,
+            "line": 34,
+            "sha256": "3b2befd2e764b1b5eb073445e4756b7678e78419ebcb773a418acd989d124cf8"
+          },
+          "pinnedSpanSha256": "3b2befd2e764b1b5eb073445e4756b7678e78419ebcb773a418acd989d124cf8",
+          "inventorySpanMatches": true
+        },
+        "destination": {
+          "file": "packages/material/src/text-selection.ts",
+          "module": "@nelyx/material/text-selection",
+          "sha256": "817134fa5a03b2d8c079a53d5fe351d205fb75514774d0e7caa9af9171a03af2"
+        },
+        "mode": "manual-port",
+        "status": "PARTIAL",
+        "acceptance": [
+          ".tmp/work8/receipt-history/6203459cda15f5373cc57f6a32cacd8a6694bef7d834e8a65e73eab0a32f7eae-lifetime-result.json",
+          ".tmp/work8/receipt-history/9b412723f669a441780708a2765e2f025d9ab599ae00d9f9d6ff8955b742080a-theme-root-result.json",
+          ".tmp/work8/receipt-history/700a84818ca51b6d256886ac98bc7fe572823b836784840811727d95dafecaee-result.json",
+          ".tmp/work8/receipt-history/4972aa1c0aae3d489726719e6cf72953039dab21e5691bf3ffe2658d157e0a6f-design-root-result.json",
+          ".tmp/work8/receipt-history/4754c6768d0c8c290ac82bc2636f8b910df9a2feffff3fac81f8e03d754061fb-result.json",
+          ".tmp/work8/receipt-history/673e59530ec7af71e3b53b84af9aa8bf90c09230288a01e9b9e05d8e09e0fb82-result.json",
+          ".tmp/work8/receipt-history/d1ec33fff03a68ffb75d0342ec9cc7c74642ad9193fe7609290e79fd3ae3a172-toolbar-root-result.json",
+          ".tmp/work8/receipt-history/fc6da512d5f392c6186925843324d89c900505ddbd0454fff717a95f06c25467-result.json",
+          ".tmp/work8/receipt-history/a33a4967da698a093d77444bf345adc14e77cc000706931fa7459c7dc4c775ba-result.json",
+          ".tmp/work8/receipt-history/853193ac64387e26e2e54af26d35459e6e6598437fbaad8f719da5259ebd2a1f-localizations-generation.json"
+        ],
+        "scope": "Source legacy toolbar builder/clipboard subscription and selection handles; canonical selection colors and localized button labels. Actual host gesture/semantics adapters and lifecycle checked in Root/browser."
+      }
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls:CLASS",
+      "retiredAt": "2026-10-15T08:44:07.943770+00:00",
+      "reason": "Explicit user-requested selection legacy API removal. Replaced by handle-only controls and contextMenuBuilder; no compatibility aliases.",
+      "replacement": {
+        "policy": "tools/Nelyx.FrameworkToTypeScript/data/work8/selection-api-retirements.json",
+        "acceptance": ".tmp/work8/w9-01-no-legacy-acceptance.json",
+        "destination": "packages/material/src/text-selection.ts"
+      },
+      "previous": {
+        "id": "f0324dd48028cede2ea4",
+        "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls:CLASS",
+        "package": "@nelyx/material",
+        "source": {
+          "file": "packages/flutter/lib/src/material/desktop_text_selection.dart",
+          "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+          "fileSha256": "7bcdd2c8cb06683d84170aa28d4d6fdffc7b8d851aa79b237a0f175d09117759",
+          "span": {
+            "file": "f6253515e21e2cd973df",
+            "offset": 745,
+            "length": 2846,
+            "line": 20,
+            "sha256": "d4788197ce57efb4f802e6bb746f94b6663c7cf3c2074a7826347cc4ae056a73"
+          },
+          "pinnedSpanSha256": "d4788197ce57efb4f802e6bb746f94b6663c7cf3c2074a7826347cc4ae056a73",
+          "inventorySpanMatches": true
+        },
+        "destination": {
+          "file": "packages/material/src/text-selection.ts",
+          "module": "@nelyx/material/text-selection",
+          "sha256": "817134fa5a03b2d8c079a53d5fe351d205fb75514774d0e7caa9af9171a03af2"
+        },
+        "mode": "manual-port",
+        "status": "PARTIAL",
+        "acceptance": [
+          ".tmp/work8/receipt-history/6203459cda15f5373cc57f6a32cacd8a6694bef7d834e8a65e73eab0a32f7eae-lifetime-result.json",
+          ".tmp/work8/receipt-history/9b412723f669a441780708a2765e2f025d9ab599ae00d9f9d6ff8955b742080a-theme-root-result.json",
+          ".tmp/work8/receipt-history/700a84818ca51b6d256886ac98bc7fe572823b836784840811727d95dafecaee-result.json",
+          ".tmp/work8/receipt-history/4972aa1c0aae3d489726719e6cf72953039dab21e5691bf3ffe2658d157e0a6f-design-root-result.json",
+          ".tmp/work8/receipt-history/4754c6768d0c8c290ac82bc2636f8b910df9a2feffff3fac81f8e03d754061fb-result.json",
+          ".tmp/work8/receipt-history/673e59530ec7af71e3b53b84af9aa8bf90c09230288a01e9b9e05d8e09e0fb82-result.json",
+          ".tmp/work8/receipt-history/d1ec33fff03a68ffb75d0342ec9cc7c74642ad9193fe7609290e79fd3ae3a172-toolbar-root-result.json",
+          ".tmp/work8/receipt-history/fc6da512d5f392c6186925843324d89c900505ddbd0454fff717a95f06c25467-result.json",
+          ".tmp/work8/receipt-history/a33a4967da698a093d77444bf345adc14e77cc000706931fa7459c7dc4c775ba-result.json",
+          ".tmp/work8/receipt-history/853193ac64387e26e2e54af26d35459e6e6598437fbaad8f719da5259ebd2a1f-localizations-generation.json"
+        ],
+        "scope": "Source legacy desktop toolbar, no visible handles and select-all policies. Host clipboard/listenable adapter; native source consumers retain own artifact identities."
+      }
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls:CLASS",
+      "retiredAt": "2026-10-15T08:44:07.943770+00:00",
+      "reason": "Explicit user-requested selection legacy API removal. Replaced by handle-only controls and contextMenuBuilder; no compatibility aliases.",
+      "replacement": {
+        "policy": "tools/Nelyx.FrameworkToTypeScript/data/work8/selection-api-retirements.json",
+        "acceptance": ".tmp/work8/w9-01-no-legacy-acceptance.json",
+        "destination": "packages/cupertino/src/text-selection.ts"
+      },
+      "previous": {
+        "id": "2c1cbdd49fedc37e778e",
+        "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls:CLASS",
+        "package": "@nelyx/cupertino",
+        "source": {
+          "file": "packages/flutter/lib/src/cupertino/text_selection.dart",
+          "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+          "fileSha256": "725af0496756983cdbe4cc16e4b278d7c66c1ddeec4d620414bfd9c995431805",
+          "span": {
+            "file": "e66b007f897f75478fe3",
+            "offset": 2358,
+            "length": 4385,
+            "line": 68,
+            "sha256": "528dbfc263a645f2c8ade297f6016eca6b9e8a918cf876ddbdcd164ac2c38909"
+          },
+          "pinnedSpanSha256": "528dbfc263a645f2c8ade297f6016eca6b9e8a918cf876ddbdcd164ac2c38909",
+          "inventorySpanMatches": true
+        },
+        "destination": {
+          "file": "packages/cupertino/src/text-selection.ts",
+          "module": "@nelyx/cupertino/text-selection",
+          "sha256": "601ecb958279845557e932cc64f62260172bb4bd869c37bec1a1050656b1677d"
+        },
+        "mode": "manual-port",
+        "status": "PARTIAL",
+        "acceptance": [
+          ".tmp/work8/receipt-history/6203459cda15f5373cc57f6a32cacd8a6694bef7d834e8a65e73eab0a32f7eae-lifetime-result.json",
+          ".tmp/work8/receipt-history/9b412723f669a441780708a2765e2f025d9ab599ae00d9f9d6ff8955b742080a-theme-root-result.json",
+          ".tmp/work8/receipt-history/700a84818ca51b6d256886ac98bc7fe572823b836784840811727d95dafecaee-result.json",
+          ".tmp/work8/receipt-history/4972aa1c0aae3d489726719e6cf72953039dab21e5691bf3ffe2658d157e0a6f-design-root-result.json",
+          ".tmp/work8/receipt-history/4754c6768d0c8c290ac82bc2636f8b910df9a2feffff3fac81f8e03d754061fb-result.json",
+          ".tmp/work8/receipt-history/673e59530ec7af71e3b53b84af9aa8bf90c09230288a01e9b9e05d8e09e0fb82-result.json",
+          ".tmp/work8/receipt-history/d1ec33fff03a68ffb75d0342ec9cc7c74642ad9193fe7609290e79fd3ae3a172-toolbar-root-result.json",
+          ".tmp/work8/receipt-history/fc6da512d5f392c6186925843324d89c900505ddbd0454fff717a95f06c25467-result.json",
+          ".tmp/work8/receipt-history/a33a4967da698a093d77444bf345adc14e77cc000706931fa7459c7dc4c775ba-result.json",
+          ".tmp/work8/receipt-history/853193ac64387e26e2e54af26d35459e6e6598437fbaad8f719da5259ebd2a1f-localizations-generation.json"
+        ],
+        "scope": "Source legacy toolbar builder/clipboard subscription and selection handles; canonical selection colors and localized button labels. Actual host gesture/semantics adapters and lifecycle checked in Root/browser."
+      }
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls:CLASS",
+      "retiredAt": "2026-10-15T08:44:07.943770+00:00",
+      "reason": "Explicit user-requested selection legacy API removal. Replaced by handle-only controls and contextMenuBuilder; no compatibility aliases.",
+      "replacement": {
+        "policy": "tools/Nelyx.FrameworkToTypeScript/data/work8/selection-api-retirements.json",
+        "acceptance": ".tmp/work8/w9-01-no-legacy-acceptance.json",
+        "destination": "packages/cupertino/src/text-selection.ts"
+      },
+      "previous": {
+        "id": "ea29fe83067a3d2e995d",
+        "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls:CLASS",
+        "package": "@nelyx/cupertino",
+        "source": {
+          "file": "packages/flutter/lib/src/cupertino/desktop_text_selection.dart",
+          "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+          "fileSha256": "dc100da74f944c5f9f5749e5e6fbbf368b68a655f63a55741d745540694fc4a6",
+          "span": {
+            "file": "b2a00c4c610e793b420f",
+            "offset": 731,
+            "length": 2309,
+            "line": 19,
+            "sha256": "0f1514d97915f3fbd31334431aaf1994e50db21dcbf0e0086bf935825f59be0e"
+          },
+          "pinnedSpanSha256": "0f1514d97915f3fbd31334431aaf1994e50db21dcbf0e0086bf935825f59be0e",
+          "inventorySpanMatches": true
+        },
+        "destination": {
+          "file": "packages/cupertino/src/text-selection.ts",
+          "module": "@nelyx/cupertino/text-selection",
+          "sha256": "601ecb958279845557e932cc64f62260172bb4bd869c37bec1a1050656b1677d"
+        },
+        "mode": "manual-port",
+        "status": "PARTIAL",
+        "acceptance": [
+          ".tmp/work8/receipt-history/6203459cda15f5373cc57f6a32cacd8a6694bef7d834e8a65e73eab0a32f7eae-lifetime-result.json",
+          ".tmp/work8/receipt-history/9b412723f669a441780708a2765e2f025d9ab599ae00d9f9d6ff8955b742080a-theme-root-result.json",
+          ".tmp/work8/receipt-history/700a84818ca51b6d256886ac98bc7fe572823b836784840811727d95dafecaee-result.json",
+          ".tmp/work8/receipt-history/4972aa1c0aae3d489726719e6cf72953039dab21e5691bf3ffe2658d157e0a6f-design-root-result.json",
+          ".tmp/work8/receipt-history/4754c6768d0c8c290ac82bc2636f8b910df9a2feffff3fac81f8e03d754061fb-result.json",
+          ".tmp/work8/receipt-history/673e59530ec7af71e3b53b84af9aa8bf90c09230288a01e9b9e05d8e09e0fb82-result.json",
+          ".tmp/work8/receipt-history/d1ec33fff03a68ffb75d0342ec9cc7c74642ad9193fe7609290e79fd3ae3a172-toolbar-root-result.json",
+          ".tmp/work8/receipt-history/fc6da512d5f392c6186925843324d89c900505ddbd0454fff717a95f06c25467-result.json",
+          ".tmp/work8/receipt-history/a33a4967da698a093d77444bf345adc14e77cc000706931fa7459c7dc4c775ba-result.json",
+          ".tmp/work8/receipt-history/853193ac64387e26e2e54af26d35459e6e6598437fbaad8f719da5259ebd2a1f-localizations-generation.json"
+        ],
+        "scope": "Source legacy desktop toolbar, no visible handles and select-all policies. Host clipboard/listenable adapter; native source consumers retain own artifact identities."
+      }
+    }
+  ]
+}

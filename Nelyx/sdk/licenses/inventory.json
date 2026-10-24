@@ -1,0 +1,165 @@
+{
+  "schema": "nelyx.licenses/v1",
+  "scope": "Retained third-party notices; active supplier pins are in skia/vendor and upstream. Redistribution qualification remains incomplete.",
+  "packages": [
+    {
+      "name": "react",
+      "version": "19.2.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/facebook/react.git",
+        "directory": "packages/react"
+      },
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "react-native",
+      "version": "0.83.10",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/facebook/react-native.git",
+        "directory": "packages/react-native"
+      },
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "react-native-skia",
+      "version": "3.0.8",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/wcandillon/react-native-skia.git",
+        "baseUrl": "https://github.com/wcandillon/react-native-skia"
+      },
+      "notices": [
+        "LICENSE.md"
+      ]
+    },
+    {
+      "name": "react-native-skia-graphite-android",
+      "version": "154.1.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wcandillon/react-native-skia.git",
+        "directory": "packages/skia-binaries/dist/react-native-skia-graphite-android"
+      },
+      "notices": []
+    },
+    {
+      "name": "hermes-compiler",
+      "version": "0.14.0",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+ssh://git@github.com/facebook/hermes.git"
+      },
+      "notices": []
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/microsoft/TypeScript.git"
+      },
+      "notices": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "@react-native/metro-config",
+      "version": "0.83.1",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/facebook/react-native.git",
+        "directory": "packages/metro-config"
+      },
+      "notices": []
+    }
+  ],
+  "font": {
+    "license": "SIL-OFL-1.1",
+    "notice": "Nelyx/sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR-OFL.txt"
+  },
+  "windowsProvider": {
+    "license": "Skia BSD-3-Clause; packaged core notice and pinned source DEPS notices recorded; exact linked binary inventory still notVerified",
+    "notice": "licenses/windows-skia-cpp-LICENSE_SKIA",
+    "transitiveSourceInventory": "licenses/transitive-sources.json",
+    "historicalProviderNotice": "licenses/windows-skia-THIRD-PARTY-NOTICES.txt"
+  },
+  "androidProvider": {
+    "packageLicenseField": "MIT applies to the package metadata; it is not a complete Skia/Dawn binary notice inventory",
+    "packagedNativeNotices": "absent in 154.1.0 tarball; source/build inventory required"
+  },
+  "hashes": [
+    {
+      "file": "react-LICENSE",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "file": "react-native-LICENSE",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "file": "react-native-skia-LICENSE.md",
+      "sha256": "0f640925534e9644a79e942b814510fb757e5727bd3648d49fe685fea640c8ea"
+    },
+    {
+      "file": "typescript-LICENSE.txt",
+      "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+    },
+    {
+      "file": "windows-deps-harfbuzz-COPYING",
+      "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64"
+    },
+    {
+      "file": "windows-deps-icu-LICENSE",
+      "sha256": "e55522d81edc687a341a4411e0776e54ca654e90147f354a90458aaced4116af"
+    },
+    {
+      "file": "windows-deps-libjpeg-turbo-LICENSE.md",
+      "sha256": "96f5b328adbb78eeaaec6980d73fd558cb1e4d62560ed615646bc3cf5e532430"
+    },
+    {
+      "file": "windows-deps-libpng-LICENSE",
+      "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526"
+    },
+    {
+      "file": "windows-deps-zlib-LICENSE",
+      "sha256": "e1cfcc55c325b3f78cf55df9664abaa066e2271dffe8213347d9fccdfbac8f2c"
+    },
+    {
+      "file": "windows-skia-cpp-LICENSE_SKIA",
+      "sha256": "138ca93b23032de20f9ec3838e3bec7120bbb16a791b2bf02e4ba469e0bab558"
+    },
+    {
+      "file": "windows-skia-LICENSE.txt",
+      "sha256": "89101e35a8c66fd4d6dffc1763259161d35cb564c169714ec227a768c89f2938"
+    },
+    {
+      "file": "windows-skia-THIRD-PARTY-NOTICES.txt",
+      "sha256": "21504c46c4c58aa64c1055bd2dcbc5f9a136b4b8c412ed3cc6740e22c5b127f5"
+    },
+    {
+      "file": "FlutterEngine-LICENSE.md",
+      "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+    }
+  ],
+  "engineKeyboardSelections": {
+    "repository": "https://github.com/flutter/flutter",
+    "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+    "license": "BSD-3-Clause",
+    "notice": "FlutterEngine-LICENSE.md",
+    "source": "engine/src/flutter/shell/platform/android/io/flutter/embedding/android/KeyboardManager.java",
+    "scope": "Pinned CharacterCombiner adapted to app-owned Kotlin raw and modern down-only keyboard processing. Dedicated source notice retained; whole native supplier/redistribution qualification remains incomplete."
+  }
+}

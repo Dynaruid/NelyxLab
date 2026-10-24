@@ -1,0 +1,67 @@
+{
+  "schema": "nelyx.route-primitives-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "sha256": "3ec4977b4bb26df5014fa6ead3ae62a7b8a1a1c8297a89669cda53663763a58d"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "sha256": "1f59ade612bd272a8f9b97bdea7b739dc2ac1736970f825c00ee7e094e8c22ca"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/pages.dart",
+      "sha256": "ef33930a029ad1dd66ff72df516476bfd4aac4c481ab4920b5c196fbf67d1490"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/navigator.dart",
+      "sha256": "56be8abbfbcb0e18039ab7d73fda7074107a5d322356a5e772d31843d9ae5615"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/transitions.dart",
+      "sha256": "559c9b6aac7132104a2b06ee7290c11a8ac0d2f6ca37747f73b6b4d63f65a697"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/modal_barrier.dart",
+      "sha256": "c5d8a25afa8536210fe7272805d306a7f7bf533fbbb5a9dd2fa4c086922cc5ac"
+    },
+    {
+      "file": "packages/flutter/lib/src/animation/curves.dart",
+      "sha256": "662c3ef5fc48fe8e2a5f8480c6fe0c3334b52633258836d4176aa542e45419d1"
+    }
+  ],
+  "references": [
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/page_transitions_builder.cs",
+      "sha256": "c19f38bdde1b34ca77dbd07d11dca52d14f89d5d19fb75ba87faa8d4656fe155"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/dual_transition_builder.cs",
+      "sha256": "572269e98081a8a4f47e6bbe56a2c419db5951e04c304c99ad88ffe5fc6bd943"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/pages.cs",
+      "sha256": "93153d815149acb165b331135b70047349ac38b318226bae731f2253851891b4"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/routes.cs",
+      "sha256": "005238183ff82974b06c6c550434ed57756a4ec5174d36c2554f2ee4827c34a3"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/navigator.cs",
+      "sha256": "7eb69fc57ea958fc0f775489ac48190bf5b86246629e451b548a3c0837a6b94b"
+    },
+    {
+      "file": "packages/Doroti.Material/src/page_transitions_theme.cs",
+      "sha256": "feba214ea53e965bfe9f0fce583c928f30fe00952af3a0eab03c15d7cb637038"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "scope": "Complete current-host common FadeUpwards/OpenUpwards/DualTransitionBuilder policy and actual canonical Root/Navigator primary/secondary/reverse/train handoff/focus/State/guarded barrier contacts. PageRoute/PageRouteBuilder adapt the existing JSON-bounded Route ABI; full ModalRoute/Navigation/history/delegation/predictive/system back, Material/Cupertino/default-theme builders and snapshotting remain partial. No source hierarchy closure or second framework owner."
+}

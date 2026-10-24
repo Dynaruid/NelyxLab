@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "name": "nelyx-testbed-web-runner",
+  "scripts": {
+    "prepare:native": "node prepare.mjs",
+    "check": "node check.mjs",
+    "build": "node build.mjs",
+    "dev": "nelyx dev --app ../.. --target web"
+  },
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/skia-web": "0.6.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native-web": "0.21.3",
+    "@nelyx/material": "0.1.0",
+    "@nelyx/cupertino": "0.1.0"
+  },
+  "devDependencies": {
+    "@nelyx/metro": "0.10.0",
+    "@nelyx/cli": "0.10.0",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,16 @@
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @noformat
+ */
+
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2014 Arnout Kazemier
+ *
+ * This is a vendored file based on EventEmitter3: https://github.com/primus/eventemitter3
+ */

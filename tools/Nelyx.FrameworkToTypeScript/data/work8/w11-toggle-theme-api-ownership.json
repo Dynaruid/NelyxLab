@@ -1,0 +1,945 @@
+{
+  "status": "PASS-scoped",
+  "previousOwnership": {
+    "file": ".tmp/work8/receipt-history/6c7810780ccabab0c65dd025653a3f1361684b6300658affd139d7a0f81ebca7-w11-toggle-theme-api-before-w11-toggle-theme-api-ownership.json",
+    "sha256": "6c7810780ccabab0c65dd025653a3f1361684b6300658affd139d7a0f81ebca7"
+  },
+  "candidate": {
+    "file": ".tmp/work8/w11-toggle-foundation-candidate/result.json",
+    "sha256": "f199079e57d91dd9280024f65ffcde61d33abb4ed25ea265f06dbde29047b878"
+  },
+  "ir": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-toggle-foundation-candidate\\ir.json",
+    "sha256": "677c400cf48755ddba2132bbaef177e304913b915639184e75b3e1cb676416dd"
+  },
+  "outputs": [
+    {
+      "file": "packages/material/src/generated/theme/toggle-theme-data.generated.ts",
+      "sha256": "c8c3081a97475add16695e6df7668b0c8d6d3ca3e12b0c30008ee85e9744130b"
+    }
+  ],
+  "records": [
+    {
+      "symbol": "CheckboxThemeData",
+      "fields": [
+        {
+          "name": "mouseCursor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "package:flutter/src/services/mouse_cursor.dart::MouseCursor:CLASS",
+                  "name": "MouseCursor",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "fillColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "checkColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "overlayColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "splashRadius",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::double:CLASS",
+              "name": "double",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "materialTapTargetSize",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/material/theme_data.dart::MaterialTapTargetSize:ENUM",
+              "name": "MaterialTapTargetSize",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "visualDensity",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/material/theme_data.dart::VisualDensity:CLASS",
+              "name": "VisualDensity",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "shape",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/painting/borders.dart::OutlinedBorder:CLASS",
+              "name": "OutlinedBorder",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "side",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/painting/borders.dart::BorderSide:CLASS",
+              "name": "BorderSide",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        }
+      ],
+      "numericParameters": [
+        {
+          "name": "splashRadius",
+          "numeric": {
+            "type": "double?",
+            "inferred": true,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "RadioThemeData",
+      "fields": [
+        {
+          "name": "mouseCursor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "package:flutter/src/services/mouse_cursor.dart::MouseCursor:CLASS",
+                  "name": "MouseCursor",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "fillColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "overlayColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "splashRadius",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::double:CLASS",
+              "name": "double",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "materialTapTargetSize",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/material/theme_data.dart::MaterialTapTargetSize:ENUM",
+              "name": "MaterialTapTargetSize",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "visualDensity",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/material/theme_data.dart::VisualDensity:CLASS",
+              "name": "VisualDensity",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "backgroundColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "side",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/painting/borders.dart::BorderSide:CLASS",
+              "name": "BorderSide",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "innerRadius",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:core::double:CLASS",
+                  "name": "double",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": {
+            "type": "WidgetStateProperty<double?>?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+                "name": "WidgetStateProperty",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": [
+                {
+                  "kind": "interface",
+                  "nullable": true,
+                  "reference": {
+                    "id": "dart:core::double:CLASS",
+                    "name": "double",
+                    "owner": null,
+                    "local": false,
+                    "static": false
+                  },
+                  "arguments": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "numericParameters": [
+        {
+          "name": "splashRadius",
+          "numeric": {
+            "type": "double?",
+            "inferred": true,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "innerRadius",
+          "numeric": {
+            "type": "WidgetStateProperty<double?>?",
+            "inferred": true,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+                "name": "WidgetStateProperty",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": [
+                {
+                  "kind": "interface",
+                  "nullable": true,
+                  "reference": {
+                    "id": "dart:core::double:CLASS",
+                    "name": "double",
+                    "owner": null,
+                    "local": false,
+                    "static": false
+                  },
+                  "arguments": []
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "SwitchThemeData",
+      "fields": [
+        {
+          "name": "thumbColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "trackColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "trackOutlineColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "trackOutlineWidth",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:core::double:CLASS",
+                  "name": "double",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": {
+            "type": "WidgetStateProperty<double?>?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+                "name": "WidgetStateProperty",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": [
+                {
+                  "kind": "interface",
+                  "nullable": true,
+                  "reference": {
+                    "id": "dart:core::double:CLASS",
+                    "name": "double",
+                    "owner": null,
+                    "local": false,
+                    "static": false
+                  },
+                  "arguments": []
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "materialTapTargetSize",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/material/theme_data.dart::MaterialTapTargetSize:ENUM",
+              "name": "MaterialTapTargetSize",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        },
+        {
+          "name": "mouseCursor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "package:flutter/src/services/mouse_cursor.dart::MouseCursor:CLASS",
+                  "name": "MouseCursor",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "overlayColor",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:ui::Color:CLASS",
+                  "name": "Color",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "splashRadius",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::double:CLASS",
+              "name": "double",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "thumbIcon",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+              "name": "WidgetStateProperty",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "package:flutter/src/widgets/icon.dart::Icon:CLASS",
+                  "name": "Icon",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "numeric": null
+        },
+        {
+          "name": "padding",
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/painting/edge_insets.dart::EdgeInsetsGeometry:CLASS",
+              "name": "EdgeInsetsGeometry",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "numeric": null
+        }
+      ],
+      "numericParameters": [
+        {
+          "name": "trackOutlineWidth",
+          "numeric": {
+            "type": "WidgetStateProperty<double?>?",
+            "inferred": true,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+                "name": "WidgetStateProperty",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": [
+                {
+                  "kind": "interface",
+                  "nullable": true,
+                  "reference": {
+                    "id": "dart:core::double:CLASS",
+                    "name": "double",
+                    "owner": null,
+                    "local": false,
+                    "static": false
+                  },
+                  "arguments": []
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "splashRadius",
+          "numeric": {
+            "type": "double?",
+            "inferred": true,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scope": "All resolved9 Checkbox,9 Radio and10 Switch theme data fields/defaults, source null-retaining copy, nullable endpoints/non-null result lerp, property/color/double/side/shape/padding/step policies, runtime class equality/hash relations and diagnostic fields on canonical Core. Generic source double values retain explicit DartDouble carriers; no raw-number provenance. Full source body emission, native hierarchy/VM hash and complete toggle-control implementation are not inferred.",
+  "w12ModuleRelocation": {
+    "recordedAt": "2026-10-18T12:00:19.948Z",
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-toggle-theme-api-ownership.json",
+      "sha256": "28c72272fe988270727f5dbc081bef25c0d4eb98071fc0f8f05b309894034e09"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  }
+}

@@ -1,0 +1,781 @@
+{
+  "name": "@nelyx/material",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "license": "BSD-3-Clause",
+  "files": [
+    "src",
+    "dist",
+    "README.md",
+    "LICENSE.md",
+    "licenses",
+    "assets"
+  ],
+  "exports": {
+    "./widgets": {
+      "types": "./dist/widgets.d.ts",
+      "default": "./dist/widgets.js"
+    },
+    "./text-selection": {
+      "types": "./dist/text-selection.d.ts",
+      "default": "./dist/text-selection.js"
+    },
+    "./selection-area": {
+      "types": "./dist/selection-area.d.ts",
+      "default": "./dist/selection-area.js"
+    },
+    "./adaptive-text-selection-toolbar": {
+      "types": "./dist/adaptive-text-selection-toolbar.d.ts",
+      "default": "./dist/adaptive-text-selection-toolbar.js"
+    },
+    "./theme": {
+      "types": "./dist/theme.d.ts",
+      "default": "./dist/theme.js"
+    },
+    "./magnifier": {
+      "types": "./dist/magnifier.d.ts",
+      "default": "./dist/magnifier.js"
+    },
+    "./material-localizations": {
+      "types": "./dist/material-localizations.d.ts",
+      "default": "./dist/material-localizations.js"
+    },
+    "./text-selection-theme": {
+      "types": "./dist/text-selection-theme.d.ts",
+      "default": "./dist/text-selection-theme.js"
+    },
+    "./text-selection-toolbar": {
+      "types": "./dist/text-selection-toolbar.d.ts",
+      "default": "./dist/text-selection-toolbar.js"
+    },
+    "./text-selection-toolbar-text-button": {
+      "types": "./dist/text-selection-toolbar-text-button.d.ts",
+      "default": "./dist/text-selection-toolbar-text-button.js"
+    },
+    "./desktop-text-selection-toolbar": {
+      "types": "./dist/desktop-text-selection-toolbar.d.ts",
+      "default": "./dist/desktop-text-selection-toolbar.js"
+    },
+    "./desktop-text-selection": {
+      "types": "./dist/text-selection.d.ts",
+      "default": "./dist/text-selection.js"
+    },
+    "./desktop-text-selection-toolbar-button": {
+      "types": "./dist/desktop-text-selection-toolbar.d.ts",
+      "default": "./dist/desktop-text-selection-toolbar.js"
+    },
+    "./theme-data": {
+      "types": "./dist/theme-data.d.ts",
+      "default": "./dist/theme-data.js"
+    },
+    "./color-scheme": {
+      "types": "./dist/color-scheme.d.ts",
+      "default": "./dist/color-scheme.js"
+    },
+    "./scrollbar": {
+      "types": "./dist/scrollbar.d.ts",
+      "default": "./dist/scrollbar.js"
+    },
+    "./scrollbar-theme": {
+      "types": "./dist/scrollbar-theme.d.ts",
+      "default": "./dist/scrollbar-theme.js"
+    },
+    "./scroll-behavior": {
+      "types": "./dist/scroll-behavior.d.ts",
+      "default": "./dist/scroll-behavior.js"
+    },
+    "./colors": {
+      "types": "./dist/colors.d.ts",
+      "default": "./dist/colors.js"
+    },
+    "./text-theme": {
+      "default": "./dist/text-theme.js",
+      "types": "./dist/text-theme.d.ts"
+    },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
+    "./button-style": {
+      "types": "./dist/button-style.d.ts",
+      "default": "./dist/button-style.js"
+    },
+    "./progress-indicator": {
+      "types": "./dist/progress-indicator.d.ts",
+      "default": "./dist/progress-indicator.js"
+    },
+    "./progress-indicator-theme": {
+      "types": "./dist/progress-indicator-theme.d.ts",
+      "default": "./dist/progress-indicator-theme.js"
+    },
+    "./slider-theme": {
+      "default": "./dist/slider-theme.js",
+      "types": "./dist/slider-theme.d.ts"
+    },
+    "./slider-shapes": {
+      "default": "./dist/slider-shapes.js",
+      "types": "./dist/slider-shapes.d.ts"
+    },
+    "./range-slider-values": {
+      "default": "./dist/range-slider-values.js",
+      "types": "./dist/range-slider-values.d.ts"
+    },
+    "./slider": {
+      "types": "./dist/slider.d.ts",
+      "default": "./dist/slider.js"
+    },
+    "./range-slider": {
+      "types": "./dist/range-slider.d.ts",
+      "default": "./dist/range-slider.js"
+    },
+    "./material": {
+      "types": "./dist/material.d.ts",
+      "default": "./dist/material.js"
+    },
+    "./elevation-overlay": {
+      "types": "./dist/elevation-overlay.d.ts",
+      "default": "./dist/elevation-overlay.js"
+    },
+    "./ink-decoration": {
+      "types": "./dist/ink-decoration.d.ts",
+      "default": "./dist/ink-decoration.js"
+    },
+    "./ink-feature": {
+      "types": "./dist/ink-feature.d.ts",
+      "default": "./dist/ink-feature.js"
+    },
+    "./ink-highlight": {
+      "types": "./dist/ink-highlight.d.ts",
+      "default": "./dist/ink-highlight.js"
+    },
+    "./ink-splash": {
+      "types": "./dist/ink-splash.d.ts",
+      "default": "./dist/ink-splash.js"
+    },
+    "./ink-ripple": {
+      "types": "./dist/ink-ripple.d.ts",
+      "default": "./dist/ink-ripple.js"
+    },
+    "./ink-well": {
+      "types": "./dist/ink-well.d.ts",
+      "default": "./dist/ink-well.js"
+    },
+    "./feedback": {
+      "types": "./dist/feedback.d.ts",
+      "default": "./dist/feedback.js"
+    },
+    "./no-splash": {
+      "types": "./dist/no-splash.d.ts",
+      "default": "./dist/no-splash.js"
+    },
+    "./chip-theme": {
+      "types": "./dist/chip-theme.d.ts",
+      "default": "./dist/chip-theme.js"
+    },
+    "./chip-animation-style": {
+      "types": "./dist/chip-animation-style.d.ts",
+      "default": "./dist/chip-animation-style.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "default": "./dist/icons.js"
+    },
+    "./icon-assets": {
+      "types": "./dist/icon-assets.d.ts",
+      "default": "./dist/icon-assets.js"
+    },
+    "./assets/MaterialIcons.otf": "./assets/MaterialIcons.otf",
+    "./licenses/MaterialIcons-LICENSE.txt": "./licenses/MaterialIcons-LICENSE.txt",
+    "./tooltip": {
+      "types": "./dist/tooltip.d.ts",
+      "default": "./dist/tooltip.js"
+    },
+    "./tooltip-theme": {
+      "types": "./dist/tooltip-theme.d.ts",
+      "default": "./dist/tooltip-theme.js"
+    },
+    "./tooltip-visibility": {
+      "types": "./dist/tooltip-visibility.d.ts",
+      "default": "./dist/tooltip-visibility.js"
+    },
+    "./chip": {
+      "types": "./dist/chip.d.ts",
+      "default": "./dist/chip.js"
+    },
+    "./action-chip": {
+      "types": "./dist/action-chip.d.ts",
+      "default": "./dist/action-chip.js"
+    },
+    "./choice-chip": {
+      "types": "./dist/choice-chip.d.ts",
+      "default": "./dist/choice-chip.js"
+    },
+    "./filter-chip": {
+      "types": "./dist/filter-chip.d.ts",
+      "default": "./dist/filter-chip.js"
+    },
+    "./input-chip": {
+      "types": "./dist/input-chip.d.ts",
+      "default": "./dist/input-chip.js"
+    },
+    "./ink-sparkle": {
+      "types": "./dist/ink-sparkle.d.ts",
+      "default": "./dist/ink-sparkle.js"
+    },
+    "./divider": {
+      "types": "./dist/divider.d.ts",
+      "default": "./dist/divider.js"
+    },
+    "./divider-theme": {
+      "types": "./dist/divider-theme.d.ts",
+      "default": "./dist/divider-theme.js"
+    },
+    "./list-tile": {
+      "types": "./dist/list-tile.d.ts",
+      "default": "./dist/list-tile.js"
+    },
+    "./list-tile-theme": {
+      "types": "./dist/list-tile-theme.d.ts",
+      "default": "./dist/list-tile-theme.js"
+    },
+    "./icon-button-theme": {
+      "types": "./dist/icon-button-theme.d.ts",
+      "default": "./dist/icon-button-theme.js"
+    },
+    "./checkbox-theme": {
+      "types": "./dist/checkbox-theme.d.ts",
+      "default": "./dist/checkbox-theme.js"
+    },
+    "./radio-theme": {
+      "types": "./dist/radio-theme.d.ts",
+      "default": "./dist/radio-theme.js"
+    },
+    "./switch-theme": {
+      "types": "./dist/switch-theme.d.ts",
+      "default": "./dist/switch-theme.js"
+    },
+    "./checkbox": {
+      "types": "./dist/checkbox.d.ts",
+      "default": "./dist/checkbox.js"
+    },
+    "./scaffold": {
+      "types": "./dist/scaffold.d.ts",
+      "default": "./dist/scaffold.js"
+    },
+    "./text-field": {
+      "types": "./dist/text-field.d.ts",
+      "default": "./dist/text-field.js"
+    },
+    "./dialog": {
+      "types": "./dist/dialog.d.ts",
+      "default": "./dist/dialog.js"
+    },
+    "./radio": {
+      "types": "./dist/radio.d.ts",
+      "default": "./dist/radio.js"
+    },
+    "./switch": {
+      "types": "./dist/switch.d.ts",
+      "default": "./dist/switch.js"
+    },
+    "./button-style-button": {
+      "types": "./dist/button-style-button.d.ts",
+      "default": "./dist/button-style-button.js"
+    },
+    "./filled-button": {
+      "types": "./dist/filled-button.d.ts",
+      "default": "./dist/filled-button.js"
+    },
+    "./text-button": {
+      "types": "./dist/text-button.d.ts",
+      "default": "./dist/text-button.js"
+    },
+    "./outlined-button": {
+      "types": "./dist/outlined-button.d.ts",
+      "default": "./dist/outlined-button.js"
+    },
+    "./elevated-button": {
+      "types": "./dist/elevated-button.d.ts",
+      "default": "./dist/elevated-button.js"
+    },
+    "./filled-button-theme": {
+      "types": "./dist/filled-button-theme.d.ts",
+      "default": "./dist/filled-button-theme.js"
+    },
+    "./text-button-theme": {
+      "types": "./dist/text-button-theme.d.ts",
+      "default": "./dist/text-button-theme.js"
+    },
+    "./outlined-button-theme": {
+      "types": "./dist/outlined-button-theme.d.ts",
+      "default": "./dist/outlined-button-theme.js"
+    },
+    "./elevated-button-theme": {
+      "types": "./dist/elevated-button-theme.d.ts",
+      "default": "./dist/elevated-button-theme.js"
+    },
+    "./raw-chip": {
+      "types": "./dist/raw-chip.d.ts",
+      "default": "./dist/raw-chip.js"
+    },
+    "./chip-theme-data": {
+      "types": "./dist/chip-theme-data.d.ts",
+      "default": "./dist/chip-theme-data.js"
+    },
+    "./divider-theme-data": {
+      "types": "./dist/divider-theme-data.d.ts",
+      "default": "./dist/divider-theme-data.js"
+    },
+    "./icon-button-theme-data": {
+      "types": "./dist/icon-button-theme-data.d.ts",
+      "default": "./dist/icon-button-theme-data.js"
+    },
+    "./text-selection-theme-data": {
+      "types": "./dist/text-selection-theme-data.d.ts",
+      "default": "./dist/text-selection-theme-data.js"
+    },
+    "./tooltip-theme-data": {
+      "types": "./dist/tooltip-theme-data.d.ts",
+      "default": "./dist/tooltip-theme-data.js"
+    },
+    "./scrollbar-theme-data": {
+      "types": "./dist/scrollbar-theme-data.d.ts",
+      "default": "./dist/scrollbar-theme-data.js"
+    },
+    "./checkbox-list-tile": {
+      "types": "./dist/checkbox-list-tile.d.ts",
+      "default": "./dist/checkbox-list-tile.js"
+    },
+    "./radio-list-tile": {
+      "types": "./dist/radio-list-tile.d.ts",
+      "default": "./dist/radio-list-tile.js"
+    },
+    "./switch-list-tile": {
+      "types": "./dist/switch-list-tile.d.ts",
+      "default": "./dist/switch-list-tile.js"
+    },
+    "./adaptation": {
+      "types": "./dist/adaptation.d.ts",
+      "default": "./dist/adaptation.js"
+    },
+    "./theme-extension": {
+      "types": "./dist/theme-extension.d.ts",
+      "default": "./dist/theme-extension.js"
+    },
+    "./typography": {
+      "types": "./dist/typography.d.ts",
+      "default": "./dist/typography.js"
+    },
+    "./script-category": {
+      "types": "./dist/script-category.d.ts",
+      "default": "./dist/script-category.js"
+    },
+    "./dynamic-scheme-variant": {
+      "types": "./dist/dynamic-scheme-variant.d.ts",
+      "default": "./dist/dynamic-scheme-variant.js"
+    },
+    "./icon-alignment": {
+      "types": "./dist/icon-alignment.d.ts",
+      "default": "./dist/icon-alignment.js"
+    },
+    "./icon-button": {
+      "types": "./dist/icon-button.d.ts",
+      "default": "./dist/icon-button.js"
+    },
+    "./filled-button-theme-data": {
+      "types": "./dist/filled-button-theme-data.d.ts",
+      "default": "./dist/filled-button-theme-data.js"
+    },
+    "./elevated-button-theme-data": {
+      "types": "./dist/elevated-button-theme-data.d.ts",
+      "default": "./dist/elevated-button-theme-data.js"
+    },
+    "./text-button-theme-data": {
+      "types": "./dist/text-button-theme-data.d.ts",
+      "default": "./dist/text-button-theme-data.js"
+    },
+    "./outlined-button-theme-data": {
+      "types": "./dist/outlined-button-theme-data.d.ts",
+      "default": "./dist/outlined-button-theme-data.js"
+    },
+    "./action-icon-theme-data": {
+      "types": "./dist/action-icon-theme-data.d.ts",
+      "default": "./dist/action-icon-theme-data.js"
+    },
+    "./action-icon-theme": {
+      "types": "./dist/action-icon-theme.d.ts",
+      "default": "./dist/action-icon-theme.js"
+    },
+    "./badge-theme-data": {
+      "types": "./dist/badge-theme-data.d.ts",
+      "default": "./dist/badge-theme-data.js"
+    },
+    "./badge-theme": {
+      "types": "./dist/badge-theme.d.ts",
+      "default": "./dist/badge-theme.js"
+    },
+    "./card-theme-data": {
+      "types": "./dist/card-theme-data.d.ts",
+      "default": "./dist/card-theme-data.js"
+    },
+    "./card-theme": {
+      "types": "./dist/card-theme.d.ts",
+      "default": "./dist/card-theme.js"
+    },
+    "./carousel-view-theme-data": {
+      "types": "./dist/carousel-view-theme-data.d.ts",
+      "default": "./dist/carousel-view-theme-data.js"
+    },
+    "./carousel-view-theme": {
+      "types": "./dist/carousel-view-theme.d.ts",
+      "default": "./dist/carousel-view-theme.js"
+    },
+    "./drawer-theme-data": {
+      "types": "./dist/drawer-theme-data.d.ts",
+      "default": "./dist/drawer-theme-data.js"
+    },
+    "./drawer-theme": {
+      "types": "./dist/drawer-theme.d.ts",
+      "default": "./dist/drawer-theme.js"
+    },
+    "./expansion-tile-theme-data": {
+      "types": "./dist/expansion-tile-theme-data.d.ts",
+      "default": "./dist/expansion-tile-theme-data.js"
+    },
+    "./expansion-tile-theme": {
+      "types": "./dist/expansion-tile-theme.d.ts",
+      "default": "./dist/expansion-tile-theme.js"
+    },
+    "./navigation-bar-theme-data": {
+      "types": "./dist/navigation-bar-theme-data.d.ts",
+      "default": "./dist/navigation-bar-theme-data.js"
+    },
+    "./navigation-bar-theme": {
+      "types": "./dist/navigation-bar-theme.d.ts",
+      "default": "./dist/navigation-bar-theme.js"
+    },
+    "./navigation-drawer-theme-data": {
+      "types": "./dist/navigation-drawer-theme-data.d.ts",
+      "default": "./dist/navigation-drawer-theme-data.js"
+    },
+    "./navigation-drawer-theme": {
+      "types": "./dist/navigation-drawer-theme.d.ts",
+      "default": "./dist/navigation-drawer-theme.js"
+    },
+    "./search-bar-theme-data": {
+      "types": "./dist/search-bar-theme-data.d.ts",
+      "default": "./dist/search-bar-theme-data.js"
+    },
+    "./search-bar-theme": {
+      "types": "./dist/search-bar-theme.d.ts",
+      "default": "./dist/search-bar-theme.js"
+    },
+    "./search-view-theme-data": {
+      "types": "./dist/search-view-theme-data.d.ts",
+      "default": "./dist/search-view-theme-data.js"
+    },
+    "./search-view-theme": {
+      "types": "./dist/search-view-theme.d.ts",
+      "default": "./dist/search-view-theme.js"
+    },
+    "./segmented-button-theme-data": {
+      "types": "./dist/segmented-button-theme-data.d.ts",
+      "default": "./dist/segmented-button-theme-data.js"
+    },
+    "./segmented-button-theme": {
+      "types": "./dist/segmented-button-theme.d.ts",
+      "default": "./dist/segmented-button-theme.js"
+    },
+    "./menu-bar-theme-data": {
+      "types": "./dist/menu-bar-theme-data.d.ts",
+      "default": "./dist/menu-bar-theme-data.js"
+    },
+    "./menu-bar-theme": {
+      "types": "./dist/menu-bar-theme.d.ts",
+      "default": "./dist/menu-bar-theme.js"
+    },
+    "./menu-button-theme-data": {
+      "types": "./dist/menu-button-theme-data.d.ts",
+      "default": "./dist/menu-button-theme-data.js"
+    },
+    "./menu-button-theme": {
+      "types": "./dist/menu-button-theme.d.ts",
+      "default": "./dist/menu-button-theme.js"
+    },
+    "./menu-theme-data": {
+      "types": "./dist/menu-theme-data.d.ts",
+      "default": "./dist/menu-theme-data.js"
+    },
+    "./menu-theme": {
+      "types": "./dist/menu-theme.d.ts",
+      "default": "./dist/menu-theme.js"
+    },
+    "./floating-action-button-theme-data": {
+      "types": "./dist/floating-action-button-theme-data.d.ts",
+      "default": "./dist/floating-action-button-theme-data.js"
+    },
+    "./floating-action-button-theme": {
+      "types": "./dist/floating-action-button-theme.d.ts",
+      "default": "./dist/floating-action-button-theme.js"
+    },
+    "./dialog-theme-data": {
+      "types": "./dist/dialog-theme-data.d.ts",
+      "default": "./dist/dialog-theme-data.js"
+    },
+    "./dialog-theme": {
+      "types": "./dist/dialog-theme.d.ts",
+      "default": "./dist/dialog-theme.js"
+    },
+    "./menu-style": {
+      "types": "./dist/menu-style.d.ts",
+      "default": "./dist/menu-style.js"
+    },
+    "./navigation-destination-label-behavior": {
+      "types": "./dist/navigation-destination-label-behavior.d.ts",
+      "default": "./dist/navigation-destination-label-behavior.js"
+    },
+    "./input-border": {
+      "types": "./dist/input-border.d.ts",
+      "default": "./dist/input-border.js"
+    },
+    "./input-decoration-theme-data": {
+      "types": "./dist/input-decoration-theme-data.d.ts",
+      "default": "./dist/input-decoration-theme-data.js"
+    },
+    "./input-decoration-theme": {
+      "types": "./dist/input-decoration-theme.d.ts",
+      "default": "./dist/input-decoration-theme.js"
+    },
+    "./floating-label-behavior": {
+      "types": "./dist/floating-label-behavior.d.ts",
+      "default": "./dist/floating-label-behavior.js"
+    },
+    "./floating-label-alignment": {
+      "types": "./dist/floating-label-alignment.d.ts",
+      "default": "./dist/floating-label-alignment.js"
+    },
+    "./app-bar-theme-data": {
+      "types": "./dist/app-bar-theme-data.d.ts",
+      "default": "./dist/app-bar-theme-data.js"
+    },
+    "./app-bar-theme": {
+      "types": "./dist/app-bar-theme.d.ts",
+      "default": "./dist/app-bar-theme.js"
+    },
+    "./material-banner-theme-data": {
+      "types": "./dist/material-banner-theme-data.d.ts",
+      "default": "./dist/material-banner-theme-data.js"
+    },
+    "./material-banner-theme": {
+      "types": "./dist/material-banner-theme.d.ts",
+      "default": "./dist/material-banner-theme.js"
+    },
+    "./bottom-app-bar-theme-data": {
+      "types": "./dist/bottom-app-bar-theme-data.d.ts",
+      "default": "./dist/bottom-app-bar-theme-data.js"
+    },
+    "./bottom-app-bar-theme": {
+      "types": "./dist/bottom-app-bar-theme.d.ts",
+      "default": "./dist/bottom-app-bar-theme.js"
+    },
+    "./bottom-navigation-bar-theme-data": {
+      "types": "./dist/bottom-navigation-bar-theme-data.d.ts",
+      "default": "./dist/bottom-navigation-bar-theme-data.js"
+    },
+    "./bottom-navigation-bar-theme": {
+      "types": "./dist/bottom-navigation-bar-theme.d.ts",
+      "default": "./dist/bottom-navigation-bar-theme.js"
+    },
+    "./bottom-sheet-theme-data": {
+      "types": "./dist/bottom-sheet-theme-data.d.ts",
+      "default": "./dist/bottom-sheet-theme-data.js"
+    },
+    "./data-table-theme-data": {
+      "types": "./dist/data-table-theme-data.d.ts",
+      "default": "./dist/data-table-theme-data.js"
+    },
+    "./data-table-theme": {
+      "types": "./dist/data-table-theme.d.ts",
+      "default": "./dist/data-table-theme.js"
+    },
+    "./date-picker-theme-data": {
+      "types": "./dist/date-picker-theme-data.d.ts",
+      "default": "./dist/date-picker-theme-data.js"
+    },
+    "./date-picker-theme": {
+      "types": "./dist/date-picker-theme.d.ts",
+      "default": "./dist/date-picker-theme.js"
+    },
+    "./dropdown-menu-theme-data": {
+      "types": "./dist/dropdown-menu-theme-data.d.ts",
+      "default": "./dist/dropdown-menu-theme-data.js"
+    },
+    "./dropdown-menu-theme": {
+      "types": "./dist/dropdown-menu-theme.d.ts",
+      "default": "./dist/dropdown-menu-theme.js"
+    },
+    "./navigation-rail-theme-data": {
+      "types": "./dist/navigation-rail-theme-data.d.ts",
+      "default": "./dist/navigation-rail-theme-data.js"
+    },
+    "./navigation-rail-theme": {
+      "types": "./dist/navigation-rail-theme.d.ts",
+      "default": "./dist/navigation-rail-theme.js"
+    },
+    "./popup-menu-theme-data": {
+      "types": "./dist/popup-menu-theme-data.d.ts",
+      "default": "./dist/popup-menu-theme-data.js"
+    },
+    "./popup-menu-theme": {
+      "types": "./dist/popup-menu-theme.d.ts",
+      "default": "./dist/popup-menu-theme.js"
+    },
+    "./snack-bar-theme-data": {
+      "types": "./dist/snack-bar-theme-data.d.ts",
+      "default": "./dist/snack-bar-theme-data.js"
+    },
+    "./snack-bar-theme": {
+      "types": "./dist/snack-bar-theme.d.ts",
+      "default": "./dist/snack-bar-theme.js"
+    },
+    "./tab-bar-theme-data": {
+      "types": "./dist/tab-bar-theme-data.d.ts",
+      "default": "./dist/tab-bar-theme-data.js"
+    },
+    "./tab-bar-theme": {
+      "types": "./dist/tab-bar-theme.d.ts",
+      "default": "./dist/tab-bar-theme.js"
+    },
+    "./time-picker-theme-data": {
+      "types": "./dist/time-picker-theme-data.d.ts",
+      "default": "./dist/time-picker-theme-data.js"
+    },
+    "./time-picker-theme": {
+      "types": "./dist/time-picker-theme.d.ts",
+      "default": "./dist/time-picker-theme.js"
+    },
+    "./toggle-buttons-theme-data": {
+      "types": "./dist/toggle-buttons-theme-data.d.ts",
+      "default": "./dist/toggle-buttons-theme-data.js"
+    },
+    "./toggle-buttons-theme": {
+      "types": "./dist/toggle-buttons-theme.d.ts",
+      "default": "./dist/toggle-buttons-theme.js"
+    },
+    "./popup-menu-position": {
+      "types": "./dist/popup-menu-position.d.ts",
+      "default": "./dist/popup-menu-position.js"
+    },
+    "./snack-bar-behavior": {
+      "types": "./dist/snack-bar-behavior.d.ts",
+      "default": "./dist/snack-bar-behavior.js"
+    },
+    "./navigation-rail-label-type": {
+      "types": "./dist/navigation-rail-label-type.d.ts",
+      "default": "./dist/navigation-rail-label-type.js"
+    },
+    "./bottom-navigation-bar-type": {
+      "types": "./dist/bottom-navigation-bar-type.d.ts",
+      "default": "./dist/bottom-navigation-bar-type.js"
+    },
+    "./bottom-navigation-bar-landscape-layout": {
+      "types": "./dist/bottom-navigation-bar-landscape-layout.d.ts",
+      "default": "./dist/bottom-navigation-bar-landscape-layout.js"
+    },
+    "./tab-alignment": {
+      "types": "./dist/tab-alignment.d.ts",
+      "default": "./dist/tab-alignment.js"
+    },
+    "./tab-bar-indicator-size": {
+      "types": "./dist/tab-bar-indicator-size.d.ts",
+      "default": "./dist/tab-bar-indicator-size.js"
+    },
+    "./tab-indicator-animation": {
+      "types": "./dist/tab-indicator-animation.d.ts",
+      "default": "./dist/tab-indicator-animation.js"
+    },
+    "./page-transitions-theme": {
+      "types": "./dist/page-transitions-theme.d.ts",
+      "default": "./dist/page-transitions-theme.js"
+    },
+    "./internal/route/zoom-transition": {
+      "types": "./dist/internal/route/zoom-transition.d.ts",
+      "default": "./dist/internal/route/zoom-transition.js"
+    },
+    "./internal/route/zoom-profile": {
+      "types": "./dist/internal/route/zoom-profile.d.ts",
+      "default": "./dist/internal/route/zoom-profile.js"
+    },
+    "./predictive-back-page-transitions-builder": {
+      "types": "./dist/predictive-back-page-transitions-builder.d.ts",
+      "default": "./dist/predictive-back-page-transitions-builder.js"
+    },
+    "./internal/route/page-transition-builders": {
+      "types": "./dist/internal/route/page-transition-builders.d.ts",
+      "default": "./dist/internal/route/page-transition-builders.js"
+    },
+    "./slider-theme-data": {
+      "types": "./dist/slider-theme-data.d.ts",
+      "default": "./dist/slider-theme-data.js"
+    },
+    "./progress-indicator-theme-data": {
+      "types": "./dist/progress-indicator-theme-data.d.ts",
+      "default": "./dist/progress-indicator-theme-data.js"
+    },
+    "./internal/theme/transition-theme-context": {
+      "types": "./dist/internal/theme/transition-theme-context.d.ts",
+      "default": "./dist/internal/theme/transition-theme-context.js"
+    },
+    "./page": {
+      "types": "./dist/page.d.ts",
+      "default": "./dist/page.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
+    },
+    "./refresh-indicator": {
+      "types": "./dist/refresh-indicator.d.ts",
+      "default": "./dist/refresh-indicator.js"
+    },
+    "./card": {
+      "types": "./dist/card.d.ts",
+      "default": "./dist/card.js"
+    },
+    "./badge": {
+      "types": "./dist/badge.d.ts",
+      "import": "./dist/badge.js",
+      "default": "./dist/badge.js"
+    },
+    "./circle-avatar": {
+      "types": "./dist/circle-avatar.d.ts",
+      "import": "./dist/circle-avatar.js",
+      "default": "./dist/circle-avatar.js"
+    },
+    "./input-decoration": {
+      "types": "./dist/input-decoration.d.ts",
+      "default": "./dist/input-decoration.js"
+    },
+    "./input-decorator": {
+      "types": "./dist/input-decorator.d.ts",
+      "default": "./dist/input-decorator.js"
+    },
+    "./text-form-field": {
+      "types": "./dist/text-form-field.d.ts",
+      "default": "./dist/text-form-field.js"
+    }
+  },
+  "peerDependencies": {
+    "@nelyx/core": "0.16.0"
+  },
+  "scripts": {
+    "build": "node ../../Nelyx/eng/build-packages.mjs material",
+    "check": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@material/material-color-utilities": "0.3.0",
+    "@nelyx/cupertino": "0.1.0"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schema": "nelyx.feature-contract/v1",
+  "id": "nelyx.w9-03.accessibility-settings.v1",
+  "stage": "W9-03",
+  "classification": "nelyx-replacement",
+  "ownership": "adopted",
+  "api": ["AccessibilityFeatures", "PlatformDispatcher", "SemanticsBinding", "mediaFromView", "PlatformAccessibility"],
+  "requirements": [
+    "Each application owns its OS observation and dispatcher; each View owns its framework subscription and handles.",
+    "Replacing or throwing from an application callback cannot detach internal View subscriptions. Public configuration callback precedes the public feature/enabled callback; its exception still reaches the caller.",
+    "Changes during build/layout/paint/semantics are coalesced to one post-frame update using the latest snapshot. Disposed Views receive no pending update.",
+    "Action delivery uses the current View identity. An unrelated View or application receives no action.",
+    "OS listener initialization rolls back every successful registration on failure. Stop synchronously gates and removes observers before asynchronous request drain.",
+    "An observer returned after a reentrant stop is immediately disposed. Cleanup attempts all registrations and preserves errors.",
+    "Native protocol, feature masks, unavailable APIs and query errors are validated; missing producers are not represented as successful empty snapshots."
+  ],
+  "platforms": {
+    "web": {"supportedFeatures": 52, "observation": "event", "semanticsEnabled": null, "mapping": "prefers-reduced-motion -> disableAnimations/reduceMotion; forced-colors -> highContrast"},
+    "android": {"supportedFeatures": 21, "observation": "poll", "pollIntervalMs": 1000, "mapping": "AccessibilityManager touch exploration -> accessibleNavigation; ANIMATOR_DURATION_SCALE == 0 -> disableAnimations/reduceMotion; AccessibilityManager.isEnabled -> semanticsEnabled"},
+    "windows": {"supportedFeatures": 52, "observation": "poll", "pollIntervalMs": 1000, "semanticsEnabled": null, "mapping": "SPI_GETCLIENTAREAANIMATION -> disableAnimations/reduceMotion; SPI_GETHIGHCONTRAST -> highContrast; SPI_GETSCREENREADER is not used because it does not detect Narrator"},
+    "iosMacosLinux": {"settingsProducer": "notImplemented", "dedicatedNativeValidation": "SKIPPED", "provider": "notVerified"}
+  },
+  "differences": [
+    "Flutter process-singleton/Zone behavior is replaced by app-owned dispatcher and explicit JavaScript callback context.",
+    "One pending settings update per View per frame replaces multiple redundant source callbacks. The optional Flutter comparison must remain FAIL for this difference, not be relabeled source parity.",
+    "Native OS settings use a bounded shared locale/settings poll per application, plus existing lifecycle/configuration notifications.",
+    "FrameworkRoot currently owns a semantics handle throughout its lifetime; platform enabled state owns an additional handle. Optional engine tree toggling is not native acknowledgement. View/native tree submission acknowledgement remains open."
+  ],
+  "numericPolicy": "Feature values and masks must be nonnegative safe integers; unknown bits outside the exact platform mask reject. No Dart numeric wrapper or generated code is introduced.",
+  "performance": "At most one queued settings notification per View per frame and one 1000ms native poll per observed application. No background polling after stop. Browser integration checks zero retained media-query listeners.",
+  "validation": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/accessibility-contract.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/accessibility-web.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/paragraph-selection-root.mjs"
+  ],
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/accessibility-features-source.mjs",
+  "sourcePin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceLibraries": ["engine/src/flutter/lib/ui/platform_dispatcher.dart", "packages/flutter/lib/src/semantics/binding.dart"],
+  "osReferences": [
+    "https://developer.android.com/reference/android/view/accessibility/AccessibilityManager",
+    "https://developer.android.com/reference/android/provider/Settings.Global#ANIMATOR_DURATION_SCALE",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow"
+  ],
+  "stageBoundary": "This contract does not close W9-03 rendering/image/asset recovery, all platform producers or native semantics acknowledgement, nor W9-09 physical reader/IME/FPS acceptance."
+}

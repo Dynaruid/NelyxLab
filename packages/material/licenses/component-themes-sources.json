@@ -1,0 +1,171 @@
+{
+  "schema": "nelyx.material-component-themes-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/app_bar_theme.dart",
+      "sha256": "4c13ed202c5c1411dbdb25d4bb3dce8d62f739155eb56fcb12cf2e821138a1b9"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/banner_theme.dart",
+      "sha256": "cc3c3e493d9b0005381ebfcb02e4aa922ce696ffd25146f0b819494eae50d7cf"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/bottom_app_bar_theme.dart",
+      "sha256": "d30703efefcbd4a733e1dfc7170d43bf8a215027b046a767b7ed22f2c0ad91a4"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/bottom_navigation_bar_theme.dart",
+      "sha256": "dd84acd2c021612014fd47ed0d59cd96e9df52f270132460782a523817557f9e"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/bottom_sheet_theme.dart",
+      "sha256": "b7be1e3d5cc5ecc240c01d086ce81f4e7d4a71087fd93ebf5cd8cd06853afce2"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/data_table_theme.dart",
+      "sha256": "e3c30dd9187d6fdcb32c738d93c1cb3eb47014251a901d515d8a863aaaaf97e5"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/date_picker_theme.dart",
+      "sha256": "2c925026ba8efe7280d216ea9a06a69fc005f1be6defdfc31440d0366a34e291"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/dropdown_menu_theme.dart",
+      "sha256": "a77f8bb32d9674a7f6440aaa80218a3a00f7c77c3e8bf118724308594f7205bd"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/navigation_rail_theme.dart",
+      "sha256": "2c9897ab71e98e8885417f60bb836720d0a7e53c4ffa908de07c32135636995f"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/popup_menu_theme.dart",
+      "sha256": "603bd1e100ed3f1d431acee2825e2531bd7ce5803639da39f22ce136e7191a04"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/snack_bar_theme.dart",
+      "sha256": "2d3391c0aa30716a252e74968b30e5f71be885a85fb992ffdd9efc35a6ed7d07"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/tab_bar_theme.dart",
+      "sha256": "c6cef04bebc8e46c1f42a6450daceaf8dd297ffd90bc5f6279e554c7d43f2446"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/time_picker_theme.dart",
+      "sha256": "d28b254aa8feec520d80ae856eea33e75da3b0ebb791afb1b0436344eee2be92"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/toggle_buttons_theme.dart",
+      "sha256": "b3eda4677ecbaee1b5150cde068b01686110b6b4473c7f8d112ef4c8b10381b9"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/navigation_rail.dart",
+      "sha256": "69026ab4ddda0a0b0abc86fbd90635d2fa8430768fb7f6158a689c6e773229d0"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/bottom_navigation_bar.dart",
+      "sha256": "86bdbe4d1e7e83ceb1b302cb9a98ba3bb32bcc5db978ad7d20cda853d6f75c7e"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/tabs.dart",
+      "sha256": "6f55722b4b5fadaf7e598082ad446e6681c68fda0c49f33505044800f8cb2f6d"
+    },
+    {
+      "file": "packages/flutter/lib/src/services/system_chrome.dart",
+      "sha256": "cd8609523b635acec981f13b3f91b9bd29db276a834ae3dcfd3b54caf42d8dce"
+    },
+    {
+      "file": "packages/flutter/lib/src/painting/notched_shapes.dart",
+      "sha256": "f9c5d4f9027f12c0808c513db1a336684f53f9fd2ac2237159eea661cab6b884"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/dismissible.dart",
+      "sha256": "fa5aa2c44e37b4ce628617cf68d9d8a3c52097bc3f70a006fe0d395243af2598"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/app_bar_theme.cs",
+      "sha256": "79b5096102566bfb600efc3b21497fe5f711ce20be6fe981d67a2051571b8fea"
+    },
+    {
+      "file": "packages/Doroti.Material/src/banner_theme.cs",
+      "sha256": "bf9b351f9ad70133963c17db211b9d87a89d503e16fc5620d4387ece7efb6dfc"
+    },
+    {
+      "file": "packages/Doroti.Material/src/bottom_app_bar_theme.cs",
+      "sha256": "79be6a518393bc1946db6b013944d10704622db3b50965e350f8a13f2b141e28"
+    },
+    {
+      "file": "packages/Doroti.Material/src/bottom_navigation_bar_theme.cs",
+      "sha256": "2b7256a0b75b26543cf9c598a130eda10b6970c781a9a2a9c5529d2d40baf76b"
+    },
+    {
+      "file": "packages/Doroti.Material/src/bottom_sheet_theme.cs",
+      "sha256": "b97d686bb826fe7a5db319629bcd07cadd9685a9f0e25238ec7537f4ff4e74d9"
+    },
+    {
+      "file": "packages/Doroti.Material/src/data_table_theme.cs",
+      "sha256": "e3a92d69d97094cb72e8e18e69cad656223d1b91c9c5c8865c1b332aa59f2915"
+    },
+    {
+      "file": "packages/Doroti.Material/src/date_picker_theme.cs",
+      "sha256": "92f384022b9be7cf0a5c0bdeee942c0f1c0af147a38c765275d75c24f26bffc0"
+    },
+    {
+      "file": "packages/Doroti.Material/src/dropdown_menu_theme.cs",
+      "sha256": "c48f8fdc52c9bd03e677356184d51a3518fcb35cfb167e891b28ab4ca174e9a9"
+    },
+    {
+      "file": "packages/Doroti.Material/src/navigation_rail_theme.cs",
+      "sha256": "01bf90f672d6ba36e624535187ace3ce460e57efca2f816bcec04edfb84c8d17"
+    },
+    {
+      "file": "packages/Doroti.Material/src/popup_menu_theme.cs",
+      "sha256": "d96ebb707712d924814efa899a06055bb8c46595ea410c750ec98cf3321edf61"
+    },
+    {
+      "file": "packages/Doroti.Material/src/snack_bar_theme.cs",
+      "sha256": "3835292c5464f7956606dd86c02ddb2787838ec3248bd9accd4cb8d242ad4a6f"
+    },
+    {
+      "file": "packages/Doroti.Material/src/tab_bar_theme.cs",
+      "sha256": "e70eb4c351c37c6fe80fc649968e1f45448a387c4cdec0bf637ab970b18541ea"
+    },
+    {
+      "file": "packages/Doroti.Material/src/time_picker_theme.cs",
+      "sha256": "bbcecdf814ef46954b9f2eb5e69456ebe300377ccb8a875ce8dabf168fd18698"
+    },
+    {
+      "file": "packages/Doroti.Material/src/toggle_buttons_theme.cs",
+      "sha256": "1a4d12f5f3babda1026ec6cb9c5891f07c620555910132b861a7f14c691a89b9"
+    },
+    {
+      "file": "packages/Doroti.Material/src/navigation_rail.cs",
+      "sha256": "e1a9be01656e13f90249c94e160af49af628c82f415be582ccd1e8b24ff8c500"
+    },
+    {
+      "file": "packages/Doroti.Material/src/bottom_navigation_bar.cs",
+      "sha256": "4e63fbfe9c1118f5dcdcf4917879493cf82d494d69335596771230b08c24911b"
+    },
+    {
+      "file": "packages/Doroti.Material/src/tabs.cs",
+      "sha256": "aac8a0262c02398f14445ae5a12164a5b0ac0ba746d7615762ead36c6089fff4"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Services/system_chrome.cs",
+      "sha256": "7cf0a3d2d944022f54673ac77f8f955597a68019576dfa1f906a143f8605c1f8"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Painting/notched_shapes.cs",
+      "sha256": "590f6e7c17e11064d74ff6b4a832a0aa201e8aab3a3a928599c796cdad3a6465"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/dismissible.cs",
+      "sha256": "1af81c2bd36cbcb307bb2f2022526b3a33ba6a8521e2c0a6d656165a04156fa2"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "scope": "14 canonical M3 component data values (216 fields), 13 inherited themes, 8 source enums, DatePicker current-host M3 defaults on existing Core parents. Modern data path excludes obsolete standalone AppBar/BottomAppBar/TabBar aliases and AppBar color/DataTable rowHeight aliases. InputDecorationThemeData replaces legacy widget-typed input data. Actual component widgets, PageTransitions/full ThemeData raw/value/lerp/AnimatedTheme and native/physical qualification remain separate."
+}

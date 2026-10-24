@@ -1,0 +1,62 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "matrix",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/painting/matrix_utils.dart",
+      "sha256": "a017d3af30f73868861159dbffeb58d89617b1d871db146ddd2f30768965ea78",
+      "symbols": [
+        "MatrixUtils._minMax",
+        "MatrixUtils.multiplyInPlace",
+        "MatrixUtils.matrixEquals",
+        "MatrixUtils.isIdentity",
+        "MatrixUtils.transformPoint",
+        "MatrixUtils._safeTransformRect",
+        "MatrixUtils._accumulate",
+        "MatrixUtils.transformRect",
+        "MatrixUtils._min4",
+        "MatrixUtils._max4",
+        "MatrixUtils.forceToPoint"
+      ],
+      "destination": "Nelyx/src/framework/painting/matrix-utils-base.ts",
+      "classNames": {
+        "MatrixUtils": "MatrixUtilsBase"
+      },
+      "imports": {
+        "Matrix4": "../../math/matrix4.ts",
+        "Offset": "../../ui/offset.ts",
+        "Rect": "../../ui/rect.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts"
+      },
+      "adapters": {
+        "dart:core::identical:FUNCTION": {
+          "target": "identity",
+          "kind": "identity"
+        }
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/first-batch.ts",
+  "contract": {
+    "id": "nelyx.generated.matrix/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "MatrixUtilsBase.multiplyInPlace/transformPoint/transformRect/matrixEquals/isIdentity/forceToPoint"
+    ],
+    "requirements": [
+      "affine geometry, null identity, in-place multiplication and forced point"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [
+      "Matrix4 Float64Array and Nelyx geometry adapters; no Dart UI engine parity"
+    ],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

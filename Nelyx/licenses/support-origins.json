@@ -1,0 +1,665 @@
+{
+  "schema": "nelyx.w8-support-origins/v1",
+  "origins": [
+    {
+      "package": "Dart SDK",
+      "version": "3.14.0-296.0.dev",
+      "revision": "26d3f09d711197c8dba4ee6fb90604bcbd52e564",
+      "source": "lib/_internal/vm/lib/math_patch.dart",
+      "sha256": "3cd16c96c4c1b6985317c6d3f9fab3e4b0466b87a9450230784249070d687790",
+      "symbols": [
+        "_Random._setupSeed",
+        "_Random._nextState",
+        "_Random.nextDouble"
+      ],
+      "destination": "Nelyx/src/math/seeded-random.ts",
+      "destinationSha256": "367f7e46088496f4aeaa2552f3b2b8696a6361996cca2eff126deed8bc478fb2",
+      "license": "Nelyx/licenses/Dart-LICENSE.md",
+      "acceptance": [],
+      "scope": "Internal fixed seeded MWC for deterministic Curve2D sampling. This is not a Dart VM or secure random replacement."
+    },
+    {
+      "package": "Flutter engine",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "engine/src/flutter/display_list/skia/dl_sk_dispatcher.cc",
+      "sha256": "bc997c333fc5caf267792ff361deb46987a632543472d8b8a8980969e5ff5854",
+      "span": {
+        "file": "engine/src/flutter/display_list/skia/dl_sk_dispatcher.cc",
+        "offset": 14261,
+        "length": 1215,
+        "sha256": "b6ec10becddf9bf6c7ad27607c41c25b4332a9285b1d1d4a9e3246e3c0b9c9d2",
+        "scope": "Source inspection of tonal/directional shadow formula; not C++ execution"
+      },
+      "symbols": [
+        "DlSkCanvasDispatcher::DrawShadow"
+      ],
+      "destinations": [
+        {
+          "file": "Nelyx/skia/packages/web/src/library.ts",
+          "sha256": "2c23244911d96bdc7f0e9296f2aa882966a228f2d7fe829ea94d672e0c916b77"
+        },
+        {
+          "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkCanvas.ts",
+          "sha256": "6f8d311fa95fc80fb31089b0cce924b28e8897854e5b2205626feb494ecbee2b"
+        },
+        {
+          "file": "Nelyx/skia/packages/rn/cpp/api/JsiSkCanvas.h",
+          "sha256": "1584916f4b634ed78e527acf12a5692704af0bec9fdb4e81d00b734a6b5c189f"
+        },
+        {
+          "file": "Nelyx/skia/native/core/core.cpp",
+          "sha256": "37862e067f2909763c4546d82461876c4aa419c3a08bc9bb78b7ca8c5eb91b8d"
+        },
+        {
+          "file": "Nelyx/skia/native/core/nelyx_skia/core.h",
+          "sha256": "6b7342638a881823143ac0960f37e283da5bf93524269ba9d1baa18328bd54cd"
+        }
+      ],
+      "license": "Nelyx/licenses/FlutterEngine-LICENSE.md",
+      "acceptance": [],
+      "scope": "Pinned tonal/directional SkShadowUtils formula, float/ARGB adapter, actual CanvasKit pixels and shared native wire9 Windows offscreen Graphite/Vulkan pixels. New JSI binding/common core compiled/linked in current x86_64 APK; RN JSI execution/native window/physical pixels remain notVerified."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/material/switch.dart",
+      "sha256": "cf8a8ee418eab659bd635faef74463c9a26256eadd796b026d284f9dc9be3de2",
+      "supportingSource": [
+        {
+          "file": "packages/flutter/lib/src/cupertino/switch.dart",
+          "sha256": "46010a2a58540e5e8b0a7cc3e1ed3c2601d4770e7674ce98178e70acd9a173a9"
+        },
+        {
+          "file": "packages/flutter/lib/src/cupertino/colors.dart",
+          "sha256": "33284f9bd3dc23068904c52d92fb4919eea6d8b5b632e27c058969a5d5000d21"
+        },
+        {
+          "file": "engine/src/flutter/lib/ui/painting.dart",
+          "sha256": "de89ce72b6d72c69163b45963d1994b464655d7502c4c573af609587c83ec1eb"
+        },
+        {
+          "file": "engine/src/flutter/lib/ui/lerp.dart",
+          "sha256": "1e6a9e6177c6f2dc770a8725d2f784e6c5af771e9284577d3161b12cba61c626"
+        }
+      ],
+      "symbols": [
+        "_SwitchPainter (Material and Cupertino)",
+        "Cupertino switch labels and thumb geometry"
+      ],
+      "destination": "Nelyx/src/framework/widgets/switch-painter.ts",
+      "destinationSha256": "905deae5852812b33a5ee2c890e90cd563c2640e8bdf5a269787e19d8a0fed86",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "One canonical Core actual painter and resource owner with separate source Material/adaptive/Cupertino policy inputs; finite source VM geometry, actual CPU/GPU/view tests are separately scoped."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/services/text_input.dart",
+      "sha256": "f6e8c25b253fe78697530f04d0ede55971afe2442e63e9a619b3ad22609c1e74",
+      "symbols": [
+        "TextCapitalization"
+      ],
+      "destination": "Nelyx/src/services/text-capitalization.ts",
+      "destinationSha256": "1b8d711a1a78a066f1443eaedb7939e2417b8c9ccde6d13ec9a03bc5e51674b1",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Canonical immutable source enum identity and resolved int index. Own metadata adapter separately admits existing Core Widget/IconThemeData generic values."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/services/system_chrome.dart",
+      "sha256": "cd8609523b635acec981f13b3f91b9bd29db276a834ae3dcfd3b54caf42d8dce",
+      "symbols": [
+        "SystemUiOverlayStyle"
+      ],
+      "destination": "Nelyx/src/services/system-ui-overlay-style.ts",
+      "destinationSha256": "5524ebd395dfe75858ab1eff35ac18a89954ae54a7bd509db33bcd45bb8e92a6",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Canonical existing Core value/path owner; source VM and actual engine contour/pixel evidence scoped separately."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/services/system_chrome.dart",
+      "sha256": "cd8609523b635acec981f13b3f91b9bd29db276a834ae3dcfd3b54caf42d8dce",
+      "symbols": [
+        "SystemUiOverlayStyle"
+      ],
+      "destination": "Nelyx/src/services/system-ui-overlay-style-source.ts",
+      "destinationSha256": "f0039367b0756765e9ccba3365eba984dcb5c1feb2cebdbc16f493de9450661c",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Own immutable platform payload projection of source-private _toMap; no OS apply claim."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/painting/notched_shapes.dart",
+      "sha256": "f9c5d4f9027f12c0808c513db1a336684f53f9fd2ac2237159eea661cab6b884",
+      "symbols": [
+        "CircularNotchedRectangle",
+        "NotchedShape"
+      ],
+      "destination": "Nelyx/src/framework/painting/notched-shapes.ts",
+      "destinationSha256": "f5ab0dab69f5471fe2f7ceff6eab0e045060e32dcc65fef0fdc318672b203acd",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Canonical existing Core value/path owner; source VM and actual engine contour/pixel evidence scoped separately.",
+      "supportingSource": [
+        {
+          "package": "Skia",
+          "revision": "3136abef8f582a75e9a2791261be3fe5f2f770d1",
+          "source": "src/core/SkPathBuilder.cpp",
+          "url": "https://raw.githubusercontent.com/google/skia/3136abef8f582a75e9a2791261be3fe5f2f770d1/src/core/SkPathBuilder.cpp",
+          "sha256": "8741c35d9ff036f44a4420b8dd6649bb0623338d7f631f43d4a88d1dfe2579d5",
+          "license": "Nelyx/licenses/Skia-LICENSE.md",
+          "scope": "Unrotated circular small CCW endpoint arc specialization; native Float32/conic segmentation on existing path ABI."
+        }
+      ]
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/dismissible.dart",
+      "sha256": "fa5aa2c44e37b4ce628617cf68d9d8a3c52097bc3f70a006fe0d395243af2598",
+      "symbols": [
+        "DismissDirection"
+      ],
+      "destination": "Nelyx/src/framework/widgets/dismissible.ts",
+      "destinationSha256": "88c1a72bf3b33f1bcb22c87d4b1e0357d351aa684cae261af80a811311201a46",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Only source enum nominal identity/index/order/freeze added; existing own swipe lifecycle unchanged."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "sha256": "1f59ade612bd272a8f9b97bdea7b739dc2ac1736970f825c00ee7e094e8c22ca",
+      "symbols": [
+        "DualTransitionBuilder",
+        "AnimatedTransitionBuilder",
+        "_DualTransitionBuilderState"
+      ],
+      "destination": "Nelyx/src/framework/widgets/dual-transition-builder.ts",
+      "destinationSha256": "3b0a5d676f5f921a1fe9a6e5cb24e12a276f8e5fe900bf338afa84a2edfd495f",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source common page/dual transition contracts and selected own Route/Navigator contacts on canonical Core. Full ModalRoute/Navigator/Material/Cupertino page policies, snapshotting and native/physical qualification remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "sha256": "3ec4977b4bb26df5014fa6ead3ae62a7b8a1a1c8297a89669cda53663763a58d",
+      "symbols": [
+        "PageTransitionsBuilder",
+        "FadeUpwardsPageTransitionsBuilder",
+        "OpenUpwardsPageTransitionsBuilder"
+      ],
+      "destination": "Nelyx/src/framework/widgets/page-transitions-builder.ts",
+      "destinationSha256": "d981a57cb844997915c51be9d3352442153dcf9a7f069b67cd1d0f22c024fd4f",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source common page/dual transition contracts and selected own Route/Navigator contacts on canonical Core. Full ModalRoute/Navigator/Material/Cupertino page policies, snapshotting and native/physical qualification remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/pages.dart",
+      "sha256": "ef33930a029ad1dd66ff72df516476bfd4aac4c481ab4920b5c196fbf67d1490",
+      "symbols": [
+        "PageRoute",
+        "PageRouteBuilder",
+        "RouteSettings and route callback type contacts"
+      ],
+      "destination": "Nelyx/src/framework/widgets/pages.ts",
+      "destinationSha256": "c01159ede9c7017dc8a39623564ac3f3a68f8a35546b610c0a17bee4747e294d",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source common page/dual transition contracts and selected own Route/Navigator contacts on canonical Core. Full ModalRoute/Navigator/Material/Cupertino page policies, snapshotting and native/physical qualification remain separate.",
+      "additionalSources": [
+        {
+          "source": "packages/flutter/lib/src/widgets/routes.dart",
+          "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214",
+          "symbols": [
+            "ModalRoute.delegatedTransition",
+            "ModalRoute.receivedTransition",
+            "ModalRoute._buildFlexibleTransitions",
+            "TransitionRoute.debugLabel"
+          ],
+          "scope": "Selected source modal-transition contacts on existing own JSON-bounded PageRoute adapter; no whole ModalRoute hierarchy claim."
+        }
+      ]
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214",
+      "symbols": [
+        "TransitionRoute selected primary/secondary/reverse/train-handoff contacts on own Navigator"
+      ],
+      "destination": "Nelyx/src/framework/widgets/navigation-transitions.ts",
+      "destinationSha256": "a905a2dc52df14478f237b2e986823e42e6af895cf29c4963ab77fde635cb01a",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source common page/dual transition contracts and selected own Route/Navigator contacts on canonical Core. Full ModalRoute/Navigator/Material/Cupertino page policies, snapshotting and native/physical qualification remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/navigator.dart",
+      "sha256": "56be8abbfbcb0e18039ab7d73fda7074107a5d322356a5e772d31843d9ae5615",
+      "symbols": [
+        "Selected PageRoute entry/gesture/pop/focus lifetime contacts; existing own bounded Navigator"
+      ],
+      "destination": "Nelyx/src/framework/widgets/navigation.ts",
+      "destinationSha256": "d8fc2c39241c77770aa9fdc2aa3a65e9303c55d48ebbc8cb1731408850934601",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source common page/dual transition contracts and selected own Route/Navigator contacts on canonical Core. Full ModalRoute/Navigator/Material/Cupertino page policies, snapshotting and native/physical qualification remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "sha256": "bb3f91d10a5db1ba793a37d3fa7662c9f10c7dde74f76b501f1a670cf30feba0",
+      "symbols": [
+        "SnapshotMode",
+        "SnapshotController",
+        "SnapshotWidget",
+        "SnapshotPainter",
+        "_RenderSnapshotWidget",
+        "_DefaultSnapshotPainter"
+      ],
+      "destination": "Nelyx/src/framework/widgets/snapshot-widget.ts",
+      "destinationSha256": "291848a2b68a762e541045ae331135e15a03a5f37183689b0b279ac28af1dcb5",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source snapshot policy/controller/painter and selected render lifecycle on canonical Core layer/Scene/Image. Own View rasterizer injection and RGBA8 image storage use existing owners. Source VM uses finite parents; actual Core CPU/offline/hardware GPU qualification is separately scoped in acceptance. Full source renderer/deferred-image engine ABI/native platform views/textures and native/physical execution remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/rendering/object.dart",
+      "sha256": "e37141c5e02ee2acb93fde949fb64193d7bdb1cbb4494357eafec1e8f1d717c2",
+      "symbols": [
+        "PaintingContext.pushTransform",
+        "PaintingContext.pushOpacity"
+      ],
+      "destination": "Nelyx/src/framework/painting/context.ts",
+      "destinationSha256": "069c7f2e597d1bdaede5262a141ec006cc6b02fabf03c6f95aca38b0b76e67d2",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected source transform offset conjugation/layer/direct-paint and existing opacity contact, on the canonical Core recording/Scene owner. Source-resolved alpha int signature and unchanged original source VM use explicitly finite parents. Actual current Core/CPU/offline/hardware GPU evidence is separately scoped in acceptance; the constructor/recording adapter, full source render pipeline/engine ABI and native/physical behavior remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/services/predictive_back_event.dart",
+      "sha256": "be3d50ce8e37ae0631871d48ed73994c85c3deb4468d4435a777219e8f4b6631",
+      "symbols": [
+        "SwipeEdge",
+        "PredictiveBackEvent"
+      ],
+      "destination": "Nelyx/src/services/predictive-back-event.ts",
+      "destinationSha256": "ca6c315e940dcdea8da836050b3fff02f0252cd3d5e6984898ce8466e34f9dc0",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Resolved source event fields/factory/value/button semantics. Map transport validation and structural JS numeric representation are explicit host bounds; original RTTI/hash binary ABI is not claimed."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/binding.dart",
+      "sha256": "0a704a4cd7f4706f9422dffa678d53ad3cb536ba7597df734e708a9396b5f7a0",
+      "symbols": [
+        "WidgetsBinding selected backgesture dispatcher/observer removal contacts"
+      ],
+      "destination": "Nelyx/src/services/binding.ts",
+      "destinationSha256": "845404d71109ce09d2a36993407ebd17382da2e8ecc59da88aaccc9f1027e9fc",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source predictive back enrollment/update/commit/cancel contacts implemented on existing app ServicesBinding/channel ownership. Existing service observer lifetime/reverse normal-pop dispatch remain canonical; full WidgetsBinding and physical Android transport are separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214",
+      "symbols": [
+        "TransitionRoute.handleStartBackGesture",
+        "TransitionRoute.handleUpdateBackGestureProgress",
+        "TransitionRoute.handleCancelBackGesture",
+        "TransitionRoute.handleCommitBackGesture",
+        "TransitionRoute._handleDragEnd"
+      ],
+      "destination": "Nelyx/src/framework/widgets/pages.ts",
+      "destinationSha256": "c01159ede9c7017dc8a39623564ac3f3a68f8a35546b610c0a17bee4747e294d",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source controller seeking, current-route guard, commit restart from upper bound and cancel settlement over the existing Navigator binding. Borrowed status/retirement cleanup is own host lifetime metadata; full ModalRoute remains separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "5d543f3e093bfcfa5dc889f8f67d87fa7a4e92dee44dc8630cdc613b9cee8183",
+      "symbols": [
+        "MediaQueryData.displayCornerRadii",
+        "MediaQuery.displayCornerRadiiOf",
+        "MediaQueryData.removePadding",
+        "MediaQuery.removePadding",
+        "MediaQuery.paddingOf",
+        "MediaQuery.viewPaddingOf",
+        "MediaQuery.viewInsetsOf",
+        "MediaQuery.withNoTextScaling",
+        "MediaQuery.withClampedTextScaling"
+      ],
+      "destination": "Nelyx/src/framework/widgets/app-data.ts",
+      "destinationSha256": "92258cec0407bb9b9ef7d9306669441f5fd11e7d505bccab9b070fc8a476517c",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected nullable display-corner BorderRadius metadata/accessor on the existing MediaData owner. Native display-corner producer transport and full MediaQuery are separate. Selected SafeArea padding/viewPadding/viewInsets/removePadding on the existing MediaData/MediaQuery owner; raw host/keyboard projection and canonical EdgeInsets notifications. Full MediaQuery/InheritedModel and native/physical producer evidence remain separate. Source withNoTextScaling child scope on canonical MediaData; host millisecond/ARGB and typed getter projection are own adapters. Source clamped text scaling with nonlinear canonical TextScaler and inherited host value preservation; source unused key policy retained."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214",
+      "symbols": [
+        "ModalRoute._subtreeKey",
+        "_ModalScopeState cached page subtree key contact"
+      ],
+      "destination": "Nelyx/src/framework/widgets/navigation-transitions.ts",
+      "destinationSha256": "a905a2dc52df14478f237b2e986823e42e6af895cf29c4963ab77fde635cb01a",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Canonical GlobalKey on the cached route page builder preserves the existing child State across fallback/predictive recipe reparenting. The selected source page-key responsibility is adopted on the own Navigator owner; full source ModalScope/repaint/focus/cache pipeline is not claimed."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "sha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371",
+      "symbols": [
+        "SystemColor",
+        "SystemColorPalette"
+      ],
+      "destination": "Nelyx/src/ui/system-color.ts",
+      "destinationSha256": "36c92fdc596e3e5a3ce6f6789ee271fe2e4614ad8f68be67b91bd9ed878c0078",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Source immutable named system color values, native-unavailable palette getters and stable brightness palettes. Browser values arrive through a typed borrowed embedding provider; full native implementation is unavailable in the pinned source."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/app.dart",
+      "sha256": "b4b21473f017a853ba008670426d647a0cd649c4af6eb2847be9fddb674644f6",
+      "symbols": [
+        "WidgetsApp.pageRouteBuilder",
+        "WidgetsApp Navigator key ownership"
+      ],
+      "destination": "Nelyx/src/framework/widgets/app.ts",
+      "destinationSha256": "c6195d26efbc03cc447d311a9d2e5d4d911b01b61a800c345fc91cf8ce8f0069",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected design route factory and canonical GlobalKey retention on the existing Core per-View WidgetsApp/Navigator. Complete source WidgetsApp API and engine lifecycle are separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "sha256": "7f3dc2c5e4523799c54a2da3536309970feda6984877f3c0402c83fac63bf1c6",
+      "symbols": [
+        "SafeArea",
+        "SliverSafeArea"
+      ],
+      "destination": "Nelyx/src/framework/widgets/safe-area.ts",
+      "destinationSha256": "2120c5a8a7e743a803dda4e7366147674e9f1087940628a52a80efea9fe2a9e4",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Public source SafeArea/SliverSafeArea box/sliver padding, key/child/diagnostics/minimum/maintainBottomViewPadding and child source removal on canonical Core owners."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/scroll_view.dart",
+      "sha256": "40f4ed59241263b1f69f0bee1e9e58746c1467d20381faab7a5850356955c3d5",
+      "symbols": [
+        "BoxScrollView.buildSlivers"
+      ],
+      "destination": "Nelyx/src/framework/widgets/scroll-view.ts",
+      "destinationSha256": "7ad61bc0b9903625b62db4ac6cb50eea00d81b720911fc818c86900ef21563ac",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected axis-based automatic padding consumption with original viewPadding retained; existing ScrollView/viewport/State owners preserved. Full ScrollView source API/native/physical scope is separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "sha256": "4aaa8f5175a7b02f4055c697c51d244a0a6655fac9fced13ef88d12b9a555e7a",
+      "symbols": [
+        "OverflowBar",
+        "OverflowBarAlignment",
+        "_RenderOverflowBar selected layout/intrinsic/baseline responsibility"
+      ],
+      "destination": "Nelyx/src/framework/widgets/overflow-bar.ts",
+      "destinationSha256": "96200e1089c81f610640bb41349c758d54f91bf99022ff026f8e87fbdc739ea3",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Unchanged OverflowBar widget/enum/private render/parent data and MediaQuery.withClampedTextScaling plus original BaselineOffset extension execute on explicit finite Widget/context/diagnostics/constraints/child-intrinsic/container parents. Layout/positions/intrinsics/baselines/default/clamp are source algorithms; full original RenderBox/mixin/text-scaler/parent/renderer/engine/native/physical ABI remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/widget_state.dart",
+      "sha256": "5caa69ece300d67a1984df9cb1ea7456fce7b30dc339c0a804540443242e916a",
+      "symbols": [
+        "WidgetStateTextStyle"
+      ],
+      "destination": "Nelyx/src/framework/widgets/widget-state-text-style.ts",
+      "destinationSha256": "ee17f68bddd5b199cbd89d9dfaf06c0f62df2bd2b9e480d1440f8ca25c15d279",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Hand-authored adapter of resolver/map behavior on canonical Core TextStyle, DartMap, source state constraints and type witnesses; full widget/style/native behavior is separate.",
+      "sourceByteFormat": "upstream git blob UTF-8 LF"
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/painting/alignment.dart",
+      "sha256": "8ae61812b0c970504a51aef58da0d88a21f568e4e7852aea84c7fc4ec28d0355",
+      "symbols": [
+        "TextAlignVertical"
+      ],
+      "destination": "Nelyx/src/framework/painting/text-align-vertical.ts",
+      "destinationSha256": "0c28e4699349cdd7293a43e3d0ddef73f53d7b8880db2b25e7e66713b9e28347",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Hand-authored immutable vertical alignment value with canonical Core equality/hash; not an unchanged generated body or analyzer numeric provenance.",
+      "sourceByteFormat": "upstream git blob UTF-8 LF"
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/rendering/editable.dart",
+      "sha256": "6ea670331e95a6ba3f3cd7bad6e8e6f1f8f8c8e2f9d44993a054748f814b288e",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "RenderEditable._preferredHeight",
+        "RenderEditable._countHardLineBreaks",
+        "RenderEditable.computeDryLayout",
+        "RenderEditable.computeDryBaseline",
+        "RenderEditable.offset",
+        "RenderEditable.performLayout viewport/content dimensions",
+        "RenderEditable.attach/detach offset listener lifetime"
+      ],
+      "destination": "Nelyx/src/framework/rendering/editable.ts",
+      "destinationSha256": "84900f3c7565aa55227c9ef47c5a33a44a578ba322194166edf29679454bffd8",
+      "reference": {
+        "file": "Doroti/src/Doroti.Framework.Rendering/editable.cs",
+        "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+        "sha256": "e039c5d8f0873332303b46a7510622521835de57adce1fb35849af1422275a3d"
+      },
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Hand-authored Core plain-text paragraph layout/paint, directional selection/composing/caret geometry and clipped reveal, using the owning View TextPainter/SkParagraph. Visual character navigation walks shaped grapheme edges with a bounded 16-line cache and original UTF-16 boundaries, including CRLF and soft-wrap affinity. Core internal selection scrolling uses the same paragraph extent. Layer leaders anchor handles/toolbar/magnifier. This is not the full source RenderEditable body; complete selection/geometry/public API and OS/physical qualification remain W13 work. Exposes the same painted paragraph WordBoundary for Core movement and deletion. Core activeSelectionEdge is an internal paint hint for the moving handle target, not an additional Dart RenderEditable API. The same borrowed ViewportOffset drives Core text/caret/selection paint and hit coordinates. Scrollable owns gestures, activities, controllers and restoration. A raw renderer defaults to the canonical fixed zero offset. Core reveal is deferred outside paint rather than mutating a ScrollPosition during rendering. An unchanged paragraph/viewport relayout preserves the newer explicit offset, while actual paragraph/viewport changes may request a caret reveal. This remains a hand-authored SkParagraph renderer, not full source-body parity. Core semantics now publishes cached UTF-16 grapheme, backend word and actual wrapped-line navigation units from this same paragraph. This navigation transport is an Nelyx adaptation; it does not claim source UIA behavior."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/editable_text.dart",
+      "sha256": "380de45e89c4920ba8d7fc34f5a8302b9ea16614876891f5cf5d24d8139d72de",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "EditableText minLines/maxLines/expands contacts",
+        "EditableTextState._finalizeEditing selected focus/callback order",
+        "EditableTextState._moveBeyondTextBoundary and selected _DeleteTextAction/_UpdateTextSelectionAction boundary, expansion and reversal policies",
+        "EditableTextState._onTapOutside/_onTapUpOutside and _EditableTextTapOutsideAction/_EditableTextTapUpOutsideAction",
+        "EditableTextState DirectionalFocusAction.forTextField mapping",
+        "EditableTextState._updateSelection / bringIntoView",
+        "EditableTextState.userUpdateTextEditingValue caret reveal scheduling",
+        "EditableTextState.requestKeyboard",
+        "EditableTextState.userUpdateTextEditingValue / _formatAndSetValue / _handleSelectionChanged",
+        "EditableTextState.copySelection / cutSelection / pasteText / selectAll",
+        "EditableTextState selection action enabled policies",
+        "EditableTextState.build Scrollable/scrollController/scrollPhysics/scrollBehavior/restorationId",
+        "_NeverUserScrollableScrollPhysics"
+      ],
+      "destination": "Nelyx/src/framework/widgets/editable-text.ts",
+      "destinationSha256": "0eb1df6412162f119e957de43ae66bf355d945e5f3ef2ef47876cd455895488f",
+      "reference": {
+        "file": "Doroti/src/Doroti.Framework.Widgets/editable_text.cs",
+        "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+        "sha256": "7d31c34015b0d2589428fbb985f4098be58f1111dcf5a5bfd3c5a7f577b8f232"
+      },
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Hand-authored Core controller/paragraph/session composition with synchronous Core commands and serialized OS acknowledgements. Actual Focus descendants expose the editor Actions scope; supported text intents use overridable Actions and nested ReplaceText/UpdateSelection intents. View-owned late key defaults preserve nearer custom shortcuts and borrowed key handlers. Grapheme transpose, page/document scroll and a caret-reveal policy retain explicit scrolling across paint/blink. Core input hooks remain nonvisual OS commands. Existing visual bidi/grapheme movement, word/line/document/paragraph boundaries, clipping, gesture/handle/toolbar/magnifier, clipboard/formatter/history and observed composition lifetimes remain. This is a scoped source adaptation, not whole source-body/public API parity: remaining public editing/restoration/Actions integration and native/physical qualification remain separate. Outside pointer down/up callbacks and overridable intents use the actual TextFieldTapRegion, canonical group identity and pinned mobile-native touch versus web/desktop pointer focus policy. Pending up notifications are fenced across logical editor replacement, disabling, deactivation and retirement without coupling to native input reconfiguration. Explicit directional focus intents use the existing forTextField action. Core bringIntoView uses current paragraph caret geometry and real ancestor showOnScreen. User edits schedule reveal after the owning frame; programmatic OS acknowledgements only synchronize geometry. The existing View selection ticker now steps actual ancestor ScrollPositions in their axes with physics, reversed extents and editor-bounded targets; this is an Nelyx adaptation, not a claim that pinned EditableText directly uses EdgeDraggingAutoScroller. Logical owner and controller revision fences retire reentrant selection defaults or drag hits after a newer observer edit. Deferred reconfiguration restores focus only for the same live logical owner, connection and focus node, and rechecks after reentrant caret reveal. requestKeyboard follows the pinned focused/open versus request-focus policy. Input timestamps and restoration metadata are Nelyx host extensions, not invented Dart parameters. Deferred autofocus is fenced by logical editor identity and requests scope autofocus, preserving a newer explicit focus decision. New keyboard intent retires queued restoration; the View focus-request generation also fences decisions awaiting their microtask. Public delegate values carry selection causes, formatter batching and guarded callbacks. Clipboard cut is immediate; paste reads the current same-editor value after awaiting clipboard data. Interactive selection uses design-specific defaults. Pointer and native selection callbacks share the delegate policy. Selection-only transport preserves an actual observed composition, with native completion remaining authoritative. Host revision/focus metadata and transport adaptations are Nelyx-owned. Advanced lookup/search/share/live-text services, arbitrary new active composing values and full restoration parity remain open. Native and public user formatters share atomic failure reporting and per-formatter logical/revision fences; native selection-only/range-only observations do not reformat. Nonvisual OS composition remains untouched until actual completion and validates against the retained pre-composition document, an explicit Nelyx transport adaptation. Renderer offsets now use the real Scrollable/ScrollPosition, including borrowed controller transfer, wheel/touch/animation/physics and offset-only restoration. Automatic local caret reveal is deferred outside paint and does not replace ancestor user-reveal policy or newer explicit scroll. External scroll observers are fenced before continuing a suspended hit/reveal. Design text/controller restoration remains open. The independent content-only textRevision is Nelyx-owned: selection, focus, attachment and native acknowledgement do not increment it; actual body changes retain ABA evidence across coalesced semantics frames."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/material/text_form_field.dart",
+      "sha256": "af1262dd3dafcb6265337167f1cf755e7dc720bb8a1a098999812f335f69240f",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "_TextFormFieldState controller ownership and handoff",
+        "_TextFormFieldState value synchronization/reset"
+      ],
+      "destination": "Nelyx/src/framework/widgets/text-form-field.ts",
+      "destinationSha256": "cac996e10e539fe687978ff77f9d667a96ef6dd70221d4d13581e6a0864fdf2f",
+      "reference": {
+        "file": "packages/Doroti.Material/src/text_form_field.cs",
+        "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+        "sha256": "5a4c6b4896ec2e0e3752dbbc99c52e8255c0cfb89b058a8f230efa888fdcf9d9"
+      },
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected shared hand-authored Form/editor controller state. Core owns registration, validation, borrowed/owned controller lifetime, text/UTF-16 selection handoff and history boundaries. fieldBuilder delegates design composition without introducing another Form state. Source restoration/full editing/native behavior remain separate."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/text_selection.dart",
+      "sha256": "6b599ed1b276de43d5e9e0da4ee730ec82940c33be979864fe4888af50b55fe3",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "TextSelectionOverlay._handleSelectionStartHandleDragStart",
+        "TextSelectionOverlay._handleSelectionStartHandleDragUpdate",
+        "TextSelectionOverlay._handleSelectionEndHandleDragUpdate"
+      ],
+      "destination": "Nelyx/src/framework/widgets/editable-text.ts",
+      "destinationSha256": "0eb1df6412162f119e957de43ae66bf355d945e5f3ef2ef47876cd455895488f",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected handle-to-line-centre tracking, collapsed caret movement and platform-specific handle order policy. Existing Core SelectionOverlay supplies the painted handles and magnifier; Core ticker-driven paragraph scrolling is an owned adaptation, not source-wide TextSelectionOverlay parity. The moving handle edge is passed to Core painting so dragging the anchor does not reveal the fixed opposite end."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/focus_scope.dart",
+      "sha256": "e880797f43b6a6739ce507b21e86515296fafe1b25d9ece6da0533e29524eed3",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "Focus",
+        "FocusScope",
+        "_FocusState attachment lifecycle"
+      ],
+      "destination": "Nelyx/src/framework/widgets/focus-scope.ts",
+      "destinationSha256": "55e5fba717e1500811862a02ae9902aa9a990b0cb4306b4357d1b30efa166ed2",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "The existing reviewed Focus/Scope/ExcludeFocus adaptation owns attachment, inherited focus, reparenting and borrowed-node lifetime. An internal Core-owned attachmentCommands hook connects nonvisual text-input focus/blur/reveal without replacing public focus or keyboard callbacks; it is not a Dart API declaration."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/default_text_editing_shortcuts.dart",
+      "sha256": "c5a9f1e7adca39df166988ed671c9779a3ab480083d4928f6d56c5625c312dd4",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "DefaultTextEditingShortcuts",
+        "intentForMacOSSelector"
+      ],
+      "destination": "Nelyx/src/framework/widgets/default-text-editing-shortcuts.ts",
+      "destinationSha256": "b9224aecfa6e102d04243ba77956e74988f90a604ba6fa235697a4ca2986a1b0",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "The wrapper uses the pinned canonical platform shortcut data and selector identities. Core owns visible editing, so disabling wrappers intended for native/visible DOM editors are not installed. Complete map data provenance remains in upstream/text-editing-shortcuts.json; this wrapper policy is a Core rendering adaptation."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/focus_manager.dart",
+      "sha256": "a56852a602472cc91728e975561dcb4f40e245e5fb551336129ebe36c425afe7",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "FocusManager"
+      ],
+      "destination": "Nelyx/src/framework/widgets/focus.ts",
+      "destinationSha256": "2ef66c115fade87a74eb81c31f2bd240a3b593f247961c6e4690cc069c136921",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Existing reviewed View-owned focus/key routing with a Core-owned node/context snapshot for post-focus text-input defaults. Nested dispatch restores the outer route and a reentrant focus change or replacement context cannot redirect the prior key default. The internal target hook is not a Dart API declaration; full FocusManager/native parity is separate. View-local Nelyx input-origin scope captures optional host focus metadata through deferred application without a process-global input owner; the callback scope unwinds in finally. An Nelyx request generation records pending focus decisions for automatic-restoration leases; native acknowledgement remains distinct from a new keyboard show intent."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/widgets/app.dart",
+      "sha256": "990972e4d948d4c5d95292baac25129177a78696d4fec63be4196923f81baf99",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "WidgetsAppState.build keyboard shortcut nesting"
+      ],
+      "destination": "Nelyx/src/framework/widgets/app-focus.ts",
+      "destinationSha256": "d83c86ac8a0c22b365528c386ea34dc141a8886c777d07e88356259a7937a36b",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected application composition places DefaultTextEditingShortcuts inside application Shortcuts so editor Actions handle arrows before directional focus traversal, with nearer custom Shortcuts preserved and unhandled keys falling through. Existing shared AppFocus owns View-local traversal; this is not full WidgetsApp source/API parity."
+    },
+    {
+      "package": "Flutter",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "source": "packages/flutter/lib/src/rendering/editable.dart",
+      "sha256": "6ea670331e95a6ba3f3cd7bad6e8e6f1f8f8c8e2f9d44993a054748f814b288e",
+      "sourceByteFormat": "upstream git blob UTF-8 LF",
+      "symbols": [
+        "RenderEditable._handleSetText",
+        "RenderEditable._handleSetSelection"
+      ],
+      "destination": "Nelyx/src/framework/widgets/editable-text.ts",
+      "destinationSha256": "0eb1df6412162f119e957de43ae66bf355d945e5f3ef2ef47876cd455895488f",
+      "license": "Nelyx/licenses/Flutter-LICENSE.md",
+      "acceptance": [],
+      "scope": "Selected accessibility text/selection handlers route through the existing userUpdateTextEditingValue delegate with keyboard cause. SetText collapses selection at the replacement end; selection-only changes preserve observed composition. Nelyx exposes enabled unfocused fields for host accessibility, unlike Flutter focus gating. Core revision/controller lifetime, formatter/history and actual composition-cancellation acknowledgements remain authoritative. Native UIA attachment, screen geometry and reader execution remain separate."
+    }
+  ]
+}

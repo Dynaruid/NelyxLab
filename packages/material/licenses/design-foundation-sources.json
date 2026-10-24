@@ -1,0 +1,224 @@
+{
+  "schema": "nelyx.design-source-notices/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "scope": "Selected W11 palette data, functional theme/text-role/application and selected button/check/radio/switch/activity/progress/Cupertino and Material sliders, slider theme/value compositions and generated original shape bodies; no whole design library/native/font/asset qualification.",
+  "sources": [
+    {
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "sha256": "2863b158929eabea9f827e48ce50766193fe52731bd193c94fb4f80977571e04"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/text_theme.dart",
+      "sha256": "e68596eb8c553ffa5560d4dbcd6e8b8b86c14e336531065a5804df17b081498f"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/typography.dart",
+      "sha256": "5f015b9a0514c198643d297a5f155ae518c2b2150f35673f814c7aa3cf41ec53"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "sha256": "bc0458fef7d00d32f187bf263e1314018ad06b0ebe39aeb61d607fdc012ff884"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/app.dart",
+      "sha256": "c5db0fa180d34b9347720c6fc5daf119a42446e66958f1418b4d810587e0c29e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/button_style.dart",
+      "sha256": "fa3b473dbb43a28efac12c0bc19c783a2351360025c157dc024e1fde272ecd3e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/button_style_button.dart",
+      "sha256": "1ae2205b2c0011d8b482a767a71a962faddda1b781134442beceb6ac1e0ceb8a"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/filled_button.dart",
+      "sha256": "d46bbbeb86a8959a8468f1116382ba4492125fc1dc5ad512b3e550b2b871303e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/text_button.dart",
+      "sha256": "20264916adf96b721cbedf3965b8fa115d31f2b1ffec5ea1cd7f546d6236aa7c"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/outlined_button.dart",
+      "sha256": "35666976086be5d5b0f6f730741504eec35567366983bb552803322da9a41694"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/elevated_button.dart",
+      "sha256": "c6c7ec070ae18845ae4ae1e7f39eec433b6c611a028ee4bc65a7c951e734e5d1"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/checkbox.dart",
+      "sha256": "8cb4a90a7bb92104f3431866d39612747fbd8070b7b11eebf31175f3e5c4ca62"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/radio.dart",
+      "sha256": "7f1b46deaec6290ab5b054bcf21c0e4483f9b6be369186c467e77cf5e958f8d7"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/switch.dart",
+      "sha256": "cf8a8ee418eab659bd635faef74463c9a26256eadd796b026d284f9dc9be3de2"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/checkbox_theme.dart",
+      "sha256": "c15bcbc727a6b9b38c609db6d269a5bb9ad021b8b6704e117c1634fef3f9f369"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/radio_theme.dart",
+      "sha256": "4a4afbb59bbe87c63dcb71e3d46403694145f6cecb092c7f8c4a25c13d550f3e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/switch_theme.dart",
+      "sha256": "1cf4e381709827b1eed82e677ef8a6d83f0336cf821894a6ad71c7f77d3f7861"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/progress_indicator.dart",
+      "sha256": "e0ff64b6b68729f09f6c79e353c2d4f13befabe6c6db716944913ba1b9913a91"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/progress_indicator_theme.dart",
+      "sha256": "fe25218db56d0632a8333cfea0ef955ef6b6d342c29542aa58e7c36c2b5772b4"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/slider.dart",
+      "sha256": "0481b2b0e1a0ab2d32a3256a53367ec8d69a6ade1eb0f4c7a8e4366c5bffd2b1"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/slider_theme.dart",
+      "sha256": "a3c9e827bd775caa82f321586715116c768292cbe83d740858a832460737b0f2"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/range_slider.dart",
+      "sha256": "ed91af249780d8da68b8a99b4fb31b8bfb06b35d96c9d8355a717fa178983c86"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/range_slider_parts.dart",
+      "sha256": "b1646fab532074ae4d994477b663ed8c102e8ea34236caf239a44774dde2b8c1"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/slider_parts.dart",
+      "sha256": "23f3e459670173387dfa5ad1c7b1335c20b3b4480c3df0c3551d773813e76751"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/slider_value_indicator_shape.dart",
+      "sha256": "eb95278b948b7f2a3a667f4c4421048e926d021ba787b2f1946654bc5fbcf89f"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/material.dart",
+      "sha256": "33d00dd364afaafc8bc1da0a51de6142a42c3f51cfc6262aa54071988c3b4888"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/elevation_overlay.dart",
+      "sha256": "9a225fd5185194898463bac9f3e6903f047e156cb30e27fb68631152c44d24f0"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/ink_decoration.dart",
+      "sha256": "8d6dd704f4ed76bdf64fcb6ee04f53ebcb000c4ece91ef69af7f1b2d993dc292"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/ink_well.dart",
+      "sha256": "fc71e6b71b0c2cfb1ea603a4aa078474875401277401ebd8cc0d4ec115e177a6"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/ink_highlight.dart",
+      "sha256": "ef3c0b8ce32aa70da49c4b8db2a29053a7d67cc383382ee7b5eeaf23ab98ef5a"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/ink_splash.dart",
+      "sha256": "80bd74f8af41f1c8cc920a9872b806ae2e1b17871f36a67f08a1ea739c764a93"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/ink_ripple.dart",
+      "sha256": "3769b0e1ba191b88138ded7d61349fe56d79f9927c3bf313c14bc3178777ba6a"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/no_splash.dart",
+      "sha256": "316bd01eb1ed5b23e72ed401c5d2fcba5e8239fd2993ed7533c3e954611197c8"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/chip_theme.dart",
+      "sha256": "625f6a8ad971ca62781bf2cb2b1657d2e0a349519452e0e9147d4fe9eab44804"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/chip.dart",
+      "sha256": "c8ce534a371d1522f49a997353e052eca888a69a655fab5bae84b2257c6561fc"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/action_chip.dart",
+      "sha256": "db0415651155718fca57b889a9ac35ad57e2ee42980d32df32236d4f32b1c71e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/choice_chip.dart",
+      "sha256": "c40f44cf62e2a0453a6dcecef6e2b044671becbb1ee1777749ebf63268041fba"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/filter_chip.dart",
+      "sha256": "323287c051c187a1dc2889166dd9133a545a11909bb902d63fd670afd4ce5a62"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/input_chip.dart",
+      "sha256": "9324377088e2da811287ba4221c45df8d6f286d916ce2a0ddb87c8c78443f456"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/icons.dart",
+      "sha256": "ba88e3e23962ada6537523aa113811d9719b988412815bf084f50a0aa78137f0"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/tooltip.dart",
+      "sha256": "37a5ec1a74e172b0db2a8b2572b8925fe9e1021fb2f13a70c6695649f6706d86"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/tooltip_theme.dart",
+      "sha256": "b8f6e01ee817ea001b8b1bc9713ff1ba50d56a4183220fd3d860c58d630b0c2f"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/tooltip_visibility.dart",
+      "sha256": "0926f829146b3632febd1826ae6dc7a7f1d27cf33bc8c9819bc07b5921699225"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/divider.dart",
+      "sha256": "a25e9ee7f4a30726ba08609f366c1b7d52b8f76de8cb16489aba905f5d240532"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/divider_theme.dart",
+      "sha256": "7a2fdfb372306c84749328f079a060061003154f0d5e03138eeac1bdc59d136d"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/list_tile.dart",
+      "sha256": "1a8f770669a2e7900d4cce2ac925b6cec9dda6ca06fb33d03da574a067bcaf6a"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/list_tile_theme.dart",
+      "sha256": "1d930b715e04d27aec11ec76e1736361be4e79cc00991b53694e3080f88cadeb"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/icon_button_theme.dart",
+      "sha256": "413940193917b7d66fe652e9bc3343894bdad8042c37cc82ede1be91d72809e8"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "sha256": "7f3dc2c5e4523799c54a2da3536309970feda6984877f3c0402c83fac63bf1c6"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/feedback.dart",
+      "sha256": "c3bf4bdf3262096d69849e5c3a53ca66dd776ab8e9ab502efc857bb6e25203cf"
+    },
+    {
+      "source": "packages/flutter/lib/src/painting/shape_decoration.dart",
+      "sha256": "e9cb17abc299931434c095993673fb2542cfff5ff692164e2cd2e6dd0d25aa70"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/ink_sparkle.dart",
+      "sha256": "7e0415271ce673c2a2943473370b3aa88852cfcb49667977478c9e6b267c13d3"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/shaders/ink_sparkle.frag",
+      "sha256": "ed126d87b7df031187485bc37345a84aac211ee5efdeeb488ba28f6b0b817592"
+    }
+  ],
+  "numericPolicy": "Generated and finite field-projection Dart annotations retain resolved analyzer provenance. Handwritten TypeScript uses the existing Core ARGB/TextStyle ABI and adds no fictitious Dart annotations. Core IconData.codePoint and its constructor parameter annotations are checked against their exact analyzer-resolved int field/parameter records; generated catalog literal arguments preserve those resolved records.",
+  "ownership": "Palette/M3 role and typography data: finite AST extraction with edit conflict rejection. Swatch/theme/text-role/App/button/check/radio/switch/progress compositions: explicit functional TypeScript source using shared Core contracts; selected M3 button color decisions are compared with original bodies. Slider data fields are a managed resolved-IR projection and RangeValues/RangeLabels/enums are complete finite body generation; Material Slider/defaults/overlay are finite functional ports on current Core owners. Three original slider/range/value-indicator libraries supply40 complete generated declarations with private helpers; RangeSlider is a finite functional State/Render port with actual two-focus/two-source-node input/overlay ownership. Original range default getters, preferred geometry and callback/selection/semantic decision bodies are compared independently. Tooltip/theme/visibility are explicit source-shaped ports on Core RawTooltip with fifteen theme fields, source duration copy/lerp omissions and actual glyph/semantics/hover/touch/Escape/retirement verification; whole source hierarchy and latest native delivery remain separate. MaterialType is a complete managed resolved-IR enum preserving canonical values/index/name/toString and integer provenance. Material surface/InkFeature/elevation and Ink/InkDecoration/image are finite functional ports on existing physical shape, decoration/image, ticker and render owners; unchanged original build/elevation/circle/decoration bodies are compared independently. InkResponse/InkWell and Highlight/Splash/Ripple/NoSplash are finite functional ports using actual Core gesture/focus/keep-alive/ticker/Material owners. Interactive base clipping and effect bodies/private helpers, selected response callbacks/enable decisions and complete Feedback platform decisions are compared independently with unchanged native Dart bodies. Feedback uses explicit per-View messengers. Material is M3-only: source M3 Sparkle on supported Android uses current RuntimeShader suppliers, otherwise Ripple. M2 selection/factories/defaults are removed. Current emulator/shader receipts qualify their declared scope; broader native delivery remains separate. RefreshProgressIndicator uses actual circular Material, geometry/arrow, opacity/rotation/phase/semantics/ticker ownership. Complete original Refresh widget/State/painter and source progress theme16-field diagnostics/hash equality relations are compared independently; public progress fields are supplied. Host hash values are not native VM hash numbers. Complete8825 Material icon constants and20 adaptive getters are resolved-IR data on Core IconData with the unchanged Google Material icon font and CC BY4.0 notice. ChipThemeData supplies all23 source fields/copy/lerp/equality/hash/diagnostics and actual inherited ChipTheme; ChipAnimationStyle supplies four nullable styles. Native original-body comparisons retain source state-side empty-state interpolation and invalid dual-null resolution. ThemeData supplies canonical Core icon and Material chip data. Checkbox/Radio/Switch theme data supplies all28 source fields, null-retaining copy/non-null empty lerp, numeric generic DartDouble carriers, property/side/shape/padding interpolation and equality/diagnostics. Three inherited themes use source value-based notification and nearest/global lookup. Private M3 defaults have full unchanged finite native source comparisons; original control State/paint/public API and tile wrappers remain separate. RawChip/Chip/Action/Choice/Filter/Input resolved public APIs, complete defaults and functional State/render/input/ink/tooltip/focus/semantics/animation owners are supplied on Core. Complete original private renderer/layout/hit/noncompositing paint and M3 defaults/background methods have independent finite native comparisons. Core AnimatedSwitcher retains keyed outgoing-child fade/layout/controller lifetime. Color/shape-only chip ink adapts the original outlined-border interior inset. Transport-only source semantics ids add no synthetic enabled flag; actual SDK nested DOM buttons dispatch only their owning semantic action. Source constructor assertions are enforced in host modes. Divider/VerticalDivider and DividerThemeData use source build/default/border-selection/copy/lerp/equality/diagnostic contracts on canonical Core Container/Border/InheritedTheme owners, including explicit zero-area hairlines and M3 outlineVariant. Twelve public numeric fields retain resolved analyzer provenance. ThemeData supplies source dividerTheme and M3 dividerColor defaults. Independent unchanged source-body/actual CPU pixel/RN Babel/public archive checks cover this selection. ListTile and its theme supply the resolved source public API and canonical enums, four-slot wet/dry/intrinsic/baseline/RTL/paint/hit decisions, selected M3 defaults, state color/cursor precedence, actual Material/Ink/focus/semantics ownership, source modern merge/wrap omissions, diagnostics and divideTiles. Obsolete ListTileTheme constructor/getter aliases are omitted. The private selected SafeArea composition consumes horizontal safe insets; it does not supply the full public SafeArea/SliverSafeArea API. IconButtonThemeData and inherited theme use the existing finite seven-field ButtonStyle ABI, whose supported field interpolation/equality/hash are supplied; arbitrary source ButtonStyle properties and IconButton widget remain open. Eight ListTile/theme nullable double fields preserve resolved provenance. Full native hierarchy/retained compositor/serialized diagnostics/swipe RefreshIndicator, every-shape paint/font and broader native/physical delivery remain open."
+}

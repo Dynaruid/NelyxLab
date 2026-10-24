@@ -1,0 +1,62 @@
+{
+  "schema": "nelyx.material-color-scheme-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "flutter": {
+    "file": "packages/flutter/lib/src/material/color_scheme.dart",
+    "sha256": "8033eb4fc2b19144fe3d05f7f15e7e9c0000e8ee227d32c6acaa87fabfc90277",
+    "license": "BSD-3-Clause",
+    "notice": "Flutter-LICENSE.md"
+  },
+  "doroti": {
+    "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+    "file": "packages/Doroti.Material/src/color_scheme.cs",
+    "sha256": "49d8e1015437d56b10143785a74c6d14e390ceb1284630890445c00c954d3d14",
+    "notice": "Doroti-LICENSE.md",
+    "scope": "Value/utility/image-owner responsibilities; no .NET runtime"
+  },
+  "utility": {
+    "npm": {
+      "package": "@material/material-color-utilities",
+      "version": "0.3.0",
+      "gitHead": "6bda88814da380664aaecc163ecdb8ac8caebb0a",
+      "integrity": "sha512-ztmtTd6xwnuh2/xu+Vb01btgV8SQWYCaK56CkRK8gEkWe5TuDyBcYJ0wgkMRn+2VcE9KUmhvkz+N9GHrqw/C0g==",
+      "archiveSha256": "438fc5b3ae9beef804bf7cee8ce2c235dcf596c98f45490b77d97a20e0276b14",
+      "license": "Apache-2.0",
+      "notice": "Material-Color-Utilities-LICENSE.md",
+      "noticeSha256": "8ded460ad5bd3ab9082eaa2f7502cc9bb621eaff87cecc55d823f21758707cea"
+    },
+    "dart": {
+      "package": "material_color_utilities",
+      "version": "0.13.0",
+      "archiveSha256": "9c337007e82b1889149c82ed242ed1cb24a66044e30979c44912381e9be4c48b",
+      "sources": [
+        {
+          "uri": "package:material_color_utilities/quantize/quantizer_wsmeans.dart",
+          "sha256": "db8a616c1716395ce4060c20d4e5f2e3d34805c8a472afca31f6b99dbfb4f163"
+        },
+        {
+          "uri": "package:material_color_utilities/quantize/src/point_provider_lab.dart",
+          "sha256": "25e5d875c0922be50b04f3cb85457e300932d20f0149ec667159604263d306ad"
+        },
+        {
+          "uri": "package:material_color_utilities/quantize/quantizer_wu.dart",
+          "sha256": "7f0743c175702721cf589798bfa7d657c70c5ec189e227c5381aa7c480673c56"
+        },
+        {
+          "uri": "package:material_color_utilities/quantize/quantizer_celebi.dart",
+          "sha256": "fd1856e14b032719b60142ce2479e9e238740d51117f51dbf384b89e8ede79de"
+        },
+        {
+          "uri": "package:material_color_utilities/score/score.dart",
+          "sha256": "b76b8f71076970202f4b697feeb28d4ec5699fc65d73d078ac70f4fb58a6e9a6"
+        }
+      ]
+    },
+    "scope": "Official TypeScript pure calculations with bounded source-aligned Wsmeans adapter; source role/dispatch/quantizer/score numeric provenance and native comparisons. Dart SDK used for verification only."
+  },
+  "coreContacts": {
+    "random": "Existing canonical SeededRandom MWC owner extended with nextInt; existing Dart BSD notice remains in Core",
+    "imageJobs": "Own host ABI: decoded-image processing included in ImageService owner drain; no invented Dart API attribution"
+  },
+  "scope": "46 M3 ARGB roles, nine source variants, fromSeed/fromImageProvider and shared theme seed hookup; three deprecated role aliases removed. Existing Nelyx ARGB role ABI retained; full floating/wide-gamut role and remaining ThemeData/source constructor/fallback contracts stay PARTIAL."
+}

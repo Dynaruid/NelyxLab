@@ -1,0 +1,17 @@
+{
+  "schema": "nelyx.design-theme-foundation-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "source": "packages/flutter/lib/src/material/theme_data.dart",
+  "normalizedSha256": "dada21acdd5cde8e973826b572cf64a3400c20643223bf89f2d71842a23d6ba6",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "structuralReference": {
+    "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+    "file": "packages/Doroti.Material/src/theme_data.cs",
+    "sha256": "fddabfe0d0c13ed505618092684eb4ad59c672f80afe3c5dcd89aa090450a603",
+    "notice": "Doroti-LICENSE.md",
+    "noticeSha256": "078b6abd9a0117e7ca3027da0c03f17f0a4d4f9f7ed405f659ced31f53c9a423"
+  },
+  "scope": "Adaptation/ThemeExtension class contracts, ThemeData typed map construction/copy/lookup and custom adaptive Switch hookup; full ThemeData is PARTIAL"
+}

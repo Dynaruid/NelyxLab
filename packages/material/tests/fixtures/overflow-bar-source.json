@@ -1,0 +1,3198 @@
+{
+  "schema": "nelyx.overflow-bar-source/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "environments": [
+    "native",
+    "web"
+  ],
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "OverflowBarAlignment",
+      "offset": 355,
+      "length": 518,
+      "sha256": "cdbbb340c230b11513bcadcd195d1ed2c55f241ed9ea7da985dee4e4a8c63983"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "OverflowBar",
+      "offset": 877,
+      "length": 8733,
+      "sha256": "9662f1936f4b2b6b92ed3c2a5da7425e7825199c4547486613a29ab4f374dd16"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "_OverflowBarParentData",
+      "offset": 9614,
+      "length": 73,
+      "sha256": "1200123845e05817ad756feb3d8bc2cb6acb59ddbadbf4ca379d46b313cafd1b"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "_RenderOverflowBar",
+      "offset": 9691,
+      "length": 12534,
+      "sha256": "908a02c23964555ba47b5045614bc21fa88d9ccd0361a1bac2f86736d5b37cda"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.withClampedTextScaling",
+      "offset": 66112,
+      "length": 1387,
+      "sha256": "3887690ac482e42c576e1394147245c2d598c17f1d20b52b76f6fa59f4a35103"
+    },
+    {
+      "source": "packages/flutter/lib/src/rendering/box.dart",
+      "symbol": "BaselineOffset",
+      "offset": 37332,
+      "length": 1393,
+      "sha256": "cdb1d51dcebfaec0c6f8719d611f955eded3d1fe91ed2337e249f95aaaf78e9c"
+    }
+  ],
+  "result": {
+    "rows": [
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          136,
+          30
+        ],
+        "offsets": [
+          [
+            0,
+            10
+          ],
+          [
+            48,
+            0
+          ],
+          [
+            106,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          136,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "start",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "start",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            0,
+            10
+          ],
+          [
+            48,
+            0
+          ],
+          [
+            106,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "end",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "end",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            104,
+            10
+          ],
+          [
+            152,
+            0
+          ],
+          [
+            210,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "center",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "center",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            52,
+            10
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            158,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceBetween",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "spaceBetween",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            0,
+            10
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            210,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceAround",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "spaceAround",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            20,
+            10
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            190,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceEvenly",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "spaceEvenly",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            30,
+            10
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            180,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          136,
+          30
+        ],
+        "offsets": [
+          [
+            96,
+            10
+          ],
+          [
+            38,
+            0
+          ],
+          [
+            0,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          136,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "start",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "start",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            200,
+            10
+          ],
+          [
+            142,
+            0
+          ],
+          [
+            104,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "end",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "end",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            96,
+            10
+          ],
+          [
+            38,
+            0
+          ],
+          [
+            0,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "center",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "center",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            148,
+            10
+          ],
+          [
+            90,
+            0
+          ],
+          [
+            52,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceBetween",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "spaceBetween",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            200,
+            10
+          ],
+          [
+            90,
+            0
+          ],
+          [
+            0,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceAround",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "spaceAround",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            180,
+            10
+          ],
+          [
+            90,
+            0
+          ],
+          [
+            20,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceEvenly",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "spaceEvenly",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            170,
+            10
+          ],
+          [
+            90,
+            0
+          ],
+          [
+            30,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "up",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            60
+          ],
+          [
+            0,
+            25
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 43,
+        "actualBaseline": 43,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "end",
+        "vertical": "up",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            60
+          ],
+          [
+            30,
+            25
+          ],
+          [
+            50,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 43,
+        "actualBaseline": 43,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "end",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "center",
+        "vertical": "up",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            20,
+            60
+          ],
+          [
+            15,
+            25
+          ],
+          [
+            25,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 43,
+        "actualBaseline": 43,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "center",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            20,
+            0
+          ],
+          [
+            15,
+            15
+          ],
+          [
+            25,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "up",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            60
+          ],
+          [
+            30,
+            25
+          ],
+          [
+            50,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 43,
+        "actualBaseline": 43,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ],
+          [
+            30,
+            15
+          ],
+          [
+            50,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "end",
+        "vertical": "up",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            60
+          ],
+          [
+            0,
+            25
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 43,
+        "actualBaseline": 43,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "end",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "center",
+        "vertical": "up",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            20,
+            60
+          ],
+          [
+            15,
+            25
+          ],
+          [
+            25,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 43,
+        "actualBaseline": 43,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "center",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          70
+        ],
+        "offsets": [
+          [
+            20,
+            0
+          ],
+          [
+            15,
+            15
+          ],
+          [
+            25,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          80,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [],
+        "width": 80,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          0,
+          0
+        ],
+        "offsets": [],
+        "childSizes": [],
+        "drySize": [
+          0,
+          0
+        ],
+        "dryBaseline": null,
+        "actualBaseline": null,
+        "minWidth": 0,
+        "maxWidth": 0,
+        "minHeight": 0,
+        "maxHeight": 0
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceBetween",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          10
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ]
+        ],
+        "drySize": [
+          80,
+          10
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 40,
+        "maxWidth": 40,
+        "minHeight": 10,
+        "maxHeight": 10
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ]
+        ],
+        "width": 80,
+        "alignment": "spaceBetween",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "rtl",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          80,
+          10
+        ],
+        "offsets": [
+          [
+            40,
+            0
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ]
+        ],
+        "drySize": [
+          80,
+          10
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 40,
+        "maxWidth": 40,
+        "minHeight": 10,
+        "maxHeight": 10
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 136,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          136,
+          30
+        ],
+        "offsets": [
+          [
+            0,
+            10
+          ],
+          [
+            48,
+            0
+          ],
+          [
+            106,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          136,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 30,
+        "maxHeight": 30
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 135.5,
+        "alignment": null,
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": 8,
+        "overflowSpacing": 5,
+        "size": [
+          135.5,
+          70
+        ],
+        "offsets": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            50
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          135.5,
+          70
+        ],
+        "dryBaseline": 8,
+        "actualBaseline": 8,
+        "minWidth": 136,
+        "maxWidth": 136,
+        "minHeight": 70,
+        "maxHeight": 70
+      },
+      {
+        "input": [
+          [
+            40,
+            10,
+            8
+          ],
+          [
+            50,
+            30,
+            18
+          ],
+          [
+            30,
+            20,
+            null
+          ]
+        ],
+        "width": 240,
+        "alignment": "center",
+        "overflowAlignment": "start",
+        "vertical": "down",
+        "direction": "ltr",
+        "spacing": -2,
+        "overflowSpacing": 5,
+        "size": [
+          240,
+          30
+        ],
+        "offsets": [
+          [
+            62,
+            10
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            148,
+            5
+          ]
+        ],
+        "childSizes": [
+          [
+            40,
+            10
+          ],
+          [
+            50,
+            30
+          ],
+          [
+            30,
+            20
+          ]
+        ],
+        "drySize": [
+          240,
+          30
+        ],
+        "dryBaseline": 18,
+        "actualBaseline": 18,
+        "minWidth": 116,
+        "maxWidth": 116,
+        "minHeight": 30,
+        "maxHeight": 30
+      }
+    ],
+    "clamps": [
+      {
+        "input": [
+          0.5,
+          0,
+          1.5
+        ],
+        "sizes": [
+          5,
+          10,
+          20
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      },
+      {
+        "input": [
+          1,
+          0,
+          1.5
+        ],
+        "sizes": [
+          10,
+          20,
+          40
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      },
+      {
+        "input": [
+          3,
+          0,
+          1.5
+        ],
+        "sizes": [
+          15,
+          30,
+          60
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      },
+      {
+        "input": [
+          0.5,
+          1,
+          2
+        ],
+        "sizes": [
+          10,
+          20,
+          40
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      },
+      {
+        "input": [
+          3,
+          1,
+          2
+        ],
+        "sizes": [
+          20,
+          40,
+          80
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      },
+      {
+        "input": [
+          3,
+          1.5,
+          1.5
+        ],
+        "sizes": [
+          15,
+          30,
+          60
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      },
+      {
+        "input": [
+          3,
+          0,
+          0
+        ],
+        "sizes": [
+          0,
+          0,
+          0
+        ],
+        "token": "retained",
+        "keyIsNull": true,
+        "childSame": true
+      }
+    ]
+  },
+  "scope": "Unchanged OverflowBar widget/enum/private render/parent data and MediaQuery.withClampedTextScaling plus original BaselineOffset extension execute on explicit finite Widget/context/diagnostics/constraints/child-intrinsic/container parents. Layout/positions/intrinsics/baselines/default/clamp are source algorithms; full original RenderBox/mixin/text-scaler/parent/renderer/engine/native/physical ABI remain separate."
+}

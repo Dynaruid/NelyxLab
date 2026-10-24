@@ -1,0 +1,333 @@
+{
+  "schema": "nelyx.theme-factory-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/theme_data.dart",
+      "sha256": "bc0458fef7d00d32f187bf263e1314018ad06b0ebe39aeb61d607fdc012ff884"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/constants.dart",
+      "sha256": "cb4bbbd48f9729eecbd1624a8c57485f766794a5062417ba4b4a2e750e501e22"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/icon_button.dart",
+      "sha256": "4af0de64e90fda46e22da0c62d9167357614737d27a6e1acd8d855c170e5d5aa"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/colors.dart",
+      "sha256": "2863b158929eabea9f827e48ce50766193fe52731bd193c94fb4f80977571e04"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/painting.dart",
+      "sha256": "de89ce72b6d72c69163b45963d1994b464655d7502c4c573af609587c83ec1eb"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "sha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/theme_data.cs",
+      "sha256": "fddabfe0d0c13ed505618092684eb4ad59c672f80afe3c5dcd89aa090450a603"
+    },
+    {
+      "file": "packages/Doroti.Material/src/constants.cs",
+      "sha256": "68dee8ba1ab34bb71d84d08f69b1163b92e50118a630709ad7442e13bba5065a"
+    },
+    {
+      "file": "packages/Doroti.Material/src/icon_button.cs",
+      "sha256": "540f089d0ceccf925e295902c9013484244dfaaa874b4e5670539bf61d9d4fc9"
+    },
+    {
+      "file": "packages/Doroti.Material/src/app_bar_theme.cs",
+      "sha256": "79b5096102566bfb600efc3b21497fe5f711ce20be6fe981d67a2051571b8fea"
+    },
+    {
+      "file": "packages/Doroti.Material/src/input_decorator.cs",
+      "sha256": "f38cfc21b2c17dca50047420fc98e19c5e11fdaba818a7dac20aa889cd841429"
+    }
+  ],
+  "sourceSpans": [
+    {
+      "symbol": "static double _linearizeColorComponent",
+      "source": "engine/src/flutter/lib/ui/painting.dart",
+      "offset": 14262,
+      "length": 197,
+      "sha256": "679fab10286718dab513a059450680a08c2f1062ff9eb66114c19a7b4c9908e1"
+    },
+    {
+      "symbol": "double computeLuminance",
+      "source": "engine/src/flutter/lib/ui/painting.dart",
+      "offset": 14726,
+      "length": 345,
+      "sha256": "828d6486bbe57376dbf47024f96660cafac80cdc28e3f0b0930fb1ed988c74be"
+    },
+    {
+      "symbol": "Color withOpacity",
+      "source": "engine/src/flutter/lib/ui/painting.dart",
+      "offset": 13258,
+      "length": 134,
+      "sha256": "031acd6dc604aaf91512fe1f1c3bc029cbc2927b08ae063676d2a62b99fe7028"
+    },
+    {
+      "symbol": "Color withAlpha",
+      "source": "engine/src/flutter/lib/ui/painting.dart",
+      "offset": 12911,
+      "length": 76,
+      "sha256": "50fda9ef095dcd6d99650e459bcc6f288b44cf2543d96ec8c6615d6deb97bda5"
+    },
+    {
+      "symbol": "Colors.black",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 11826,
+      "length": 45,
+      "sha256": "58353c228085fda7b9dd2939dc7baa987f1e715bfb13fa9ecb169e73a0bcdd46"
+    },
+    {
+      "symbol": "Colors.white",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 16058,
+      "length": 45,
+      "sha256": "9176e70f6916b9b96d2e3a35022b617f812a575d31125fe248eaec142104d3ad"
+    },
+    {
+      "symbol": "Colors.black87",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 12474,
+      "length": 47,
+      "sha256": "dd1f53d39b074f3939a1d9441d1902052b377395e91f776d76530ff2808be5a0"
+    },
+    {
+      "symbol": "Colors.black54",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 13181,
+      "length": 47,
+      "sha256": "bcc6f4cf0bef1ec692984d74867916b7c43c0487c0b9ba9822e3d06da07020af"
+    },
+    {
+      "symbol": "Colors.black38",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 14096,
+      "length": 47,
+      "sha256": "65a5710af33c6e23e70e6a081d3bfd542e2a6f22258da3b1225deaf960ee6307"
+    },
+    {
+      "symbol": "Colors.white70",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 16727,
+      "length": 47,
+      "sha256": "d9c4cee0abc996344cb842f168555e036d4650bebbdcdfd3c66f91b8cac1cddb"
+    },
+    {
+      "symbol": "Colors.white60",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 17416,
+      "length": 47,
+      "sha256": "6ec38a0d9525aa73c1e9fa6738d6c13df1c18e00679f110239869828fbb8eb7f"
+    },
+    {
+      "symbol": "Colors.white38",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 18631,
+      "length": 47,
+      "sha256": "2913d5d265e9c2b75b512034f6f9bdee14ea5ac1b9f8b27ade82c6efd144fc92"
+    },
+    {
+      "symbol": "Colors.blue",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 36511,
+      "length": 383,
+      "sha256": "10a39a2cba75d55874ef51a8f885ae7a765b165134137e88aa3ca8784b564c06"
+    },
+    {
+      "symbol": "Colors.grey",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 71264,
+      "length": 539,
+      "sha256": "b1c6be530ce0ab72d7d7e74f913d3f115b88ae4431d5dcced87c7fc61f2296e0"
+    },
+    {
+      "symbol": "Colors.red",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 21643,
+      "length": 380,
+      "sha256": "094c777f8ec360ed62d16cb34ccc8da6692b26d7095e51e6a8c5267fca983768"
+    },
+    {
+      "symbol": "Colors.tealAccent",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 46979,
+      "length": 266,
+      "sha256": "f31507e69c3e14f35e78a4e3e417716afcc39ce324e977d4e51f038f329c85b5"
+    },
+    {
+      "symbol": "Colors._bluePrimaryValue",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 36898,
+      "length": 48,
+      "sha256": "a2f2af021595fc3256e0ea79a6bc5ae49bfa30440e16f2eb4af211a6a20562aa"
+    },
+    {
+      "symbol": "Colors._greyPrimaryValue",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 71807,
+      "length": 48,
+      "sha256": "6b0c67f3702646c4371926226ad59a55e451a64e50712b46f939f0e976af6678"
+    },
+    {
+      "symbol": "Colors._redPrimaryValue",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 22027,
+      "length": 47,
+      "sha256": "52498914f1f069b4cbd3ec5609082b36dc8e08656678160b0cdcf4326c46432e"
+    },
+    {
+      "symbol": "Colors._tealAccentPrimaryValue",
+      "source": "packages/flutter/lib/src/material/colors.dart",
+      "offset": 47249,
+      "length": 54,
+      "sha256": "6dc2afc3b8911bc0588d02b08bfe97389a329245ed6201778af252e40f3aa966"
+    },
+    {
+      "symbol": "_colorSchemeLightM3",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 136966,
+      "length": 2014,
+      "sha256": "2cf0a841ca7feb9f447d70e34cfc99d1820e6a950012d13f482e1f2ee8d87111"
+    },
+    {
+      "symbol": "_colorSchemeDarkM3",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 138984,
+      "length": 2012,
+      "sha256": "f46873f18a385205c389907ad23ee233d9eed43738442b8ebd2aacfa369fc084"
+    },
+    {
+      "symbol": "ThemeData._createAdaptationMap",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 38116,
+      "length": 300,
+      "sha256": "feeb74af0491b99fff01715068f3642f39f7181022c049791a0cc509afb27d8e"
+    },
+    {
+      "symbol": "ThemeData._themeExtensionIterableToMap",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 79727,
+      "length": 641,
+      "sha256": "c84181f7fc2150ee037f77aae45374c10a634fa0fff52a3992fea0415bd3244e"
+    },
+    {
+      "symbol": "ThemeData.estimateBrightnessForColor",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 77869,
+      "length": 973,
+      "sha256": "c0596c44938c241ddf61c124ef36f92c0fd42d56b9c991e2d41642cf6da103af"
+    },
+    {
+      "symbol": "ThemeData.copyWith",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 63685,
+      "length": 11997,
+      "sha256": "8108eb78f5b10f6982d5e92d2808b7f8758b1ae3c53ba459105eea81c3cbe0d2"
+    },
+    {
+      "symbol": "ThemeData.brightness",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 38422,
+      "length": 290,
+      "sha256": "f261565a8a95558f282c6b888138d2d2fca62552300139f291db742dc233ff6e"
+    },
+    {
+      "symbol": "ThemeData.buttonBarTheme",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 62931,
+      "length": 253,
+      "sha256": "35274d4a892dd51f7568da008e0d7eab4e4ada6f5e606770b1612641a8cf2821"
+    },
+    {
+      "symbol": "ThemeData._overrideWithSystemColors",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 80374,
+      "length": 4245,
+      "sha256": "a03033613ade52354d4eecc3d465def9bce2b231a9e5165f34697da95bec1896"
+    },
+    {
+      "symbol": "ThemeData.raw",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 29931,
+      "length": 4633,
+      "sha256": "0388f9a37c9c523a51f6e90c7c9352a2977151d0d7710df53bc98fb9a7da98a7"
+    },
+    {
+      "symbol": "ThemeData.new",
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "offset": 8203,
+      "length": 21722,
+      "sha256": "83a3e4a1e00e580cbda89cf57b7f22026c56f72df95f02d1f75761dabec812a5"
+    },
+    {
+      "symbol": "SystemColor",
+      "source": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "offset": 70180,
+      "length": 3842,
+      "sha256": "cd6ef9b732f9f23314c90964c2a0a2700d93497cdc34ac79324f9b579dea18aa"
+    },
+    {
+      "symbol": "SystemColorPalette",
+      "source": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "offset": 74024,
+      "length": 4595,
+      "sha256": "e0f1a5cd366446e8c804a4a09c776e6249ec32547f70dec52ed930b9f277705f"
+    },
+    {
+      "symbol": "kDefaultIconLightColor",
+      "source": "packages/flutter/lib/src/material/constants.dart",
+      "offset": 2594,
+      "length": 55,
+      "sha256": "562a4fdf5fca1f04a7a3593c70d715c4637de67a279a0fe40caf53c966b12269"
+    },
+    {
+      "symbol": "kDefaultIconDarkColor",
+      "source": "packages/flutter/lib/src/material/constants.dart",
+      "offset": 2943,
+      "length": 54,
+      "sha256": "400ced5ecad51e12a67c5d036a8be0db4316b0f41724e7984d47df6cc3142867"
+    }
+  ],
+  "iconPolicySpans": [
+    {
+      "source": "packages/flutter/lib/src/material/icon_button.dart",
+      "offset": 39028,
+      "length": 687,
+      "sha256": "92a2cbfc4e7ae3b9a2203a6fc4298db3e99638128a48f4e064b1f7b670243acb"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/icon_button.dart",
+      "offset": 40584,
+      "length": 373,
+      "sha256": "4a1a5d779cf872073b9619e7ed085314a0a20cdb00dfd5d0b0b083b877cbf938"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/material/src/internal/theme/factory-defaults.ts",
+      "sha256": "07d6d86b7b9993b855e798570962ea60bcd4b9e75dde5151e3723da333c3d13d"
+    },
+    {
+      "file": "packages/material/src/internal/theme/default-color-schemes.ts",
+      "sha256": "d7cc992bf5663947bc5d544e44c1dbac999b8e122c56f1c8ba1f2df51502c519"
+    },
+    {
+      "file": "packages/material/src/internal/theme/theme-value-wrappers.ts",
+      "sha256": "997df7a4c3ef15181b4ce0af54b268ba5f6646634baeae228de13a39207f0b94"
+    },
+    {
+      "file": "packages/material/src/constants.ts",
+      "sha256": "34fe6943018d8525b3834b011f354bc582282e7d8d086c8a9225d3945fe2021d"
+    }
+  ],
+  "scope": "Selected M3 factory84-parameter surface, pinned const/default expressions and source final Icon sentinel identities; canonical AppBar/Input data wrappers and factory/copy type getter order. Complete factory body and supporting methods execute on explicit finite component/Typography/ColorScheme/WidgetStateProperty parents. Full source component constructors, general const/type/generic runtime, custom ColorScheme role alias provenance and native/physical scope remain separate."
+}

@@ -1,0 +1,11 @@
+node_modules/
+**/node_modules/
+.nelyx/
+**/.metro-cache/
+**/tsconfig.generated.json
+android/app/debug.keystore
+android/local.properties
+android/.gradle/
+android/app/build/
+**/bin/
+**/obj/

@@ -1,0 +1,73 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "desktop-selection-toolbar-layout",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/desktop_text_selection_toolbar_layout_delegate.dart",
+      "sha256": "026363587d7411c1488761105e68147bf41093dd48b769b68b33c983812a5876",
+      "symbols": [
+        "DesktopTextSelectionToolbarLayoutDelegate"
+      ],
+      "destination": "Nelyx/src/framework/widgets/desktop-text-selection-toolbar-layout-delegate.ts",
+      "imports": {
+        "SingleChildLayoutDelegate": "../rendering/custom-layout.ts",
+        "BoxConstraints": "../rendering/constraints.ts",
+        "Offset": "../../ui/offset.ts",
+        "protect": "../../ui/value-math.ts"
+      },
+      "typeImports": {
+        "Size": "../../ui/geometry.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/rendering/shifted_box.dart::SingleChildLayoutDelegate:CLASS": "SingleChildLayoutDelegate",
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": "BoxConstraints",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Size:CLASS": "Size"
+      },
+      "superConstructors": {
+        "package:flutter/src/rendering/shifted_box.dart::SingleChildLayoutDelegate.SingleChildLayoutDelegate.new:CONSTRUCTOR": {
+          "target": "SingleChildLayoutDelegate",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "adapters": {
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.loosen:METHOD": {
+          "target": "loosen",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.Offset.new:CONSTRUCTOR": {
+          "target": "Offset",
+          "kind": "new"
+        }
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/desktop-selection-toolbar-layout.ts",
+  "contract": {
+    "id": "nelyx.generated.desktop-selection-toolbar-layout/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "DesktopTextSelectionToolbarLayoutDelegate"
+    ],
+    "requirements": [
+      "viewport clamping, loose child constraints, anchor value equality and immutable ownership"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [
+      "Nelyx SingleChildLayoutDelegate identity and superclass adapter; no native menu parity"
+    ],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

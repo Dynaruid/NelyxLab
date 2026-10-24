@@ -1,0 +1,1172 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w11-cupertino-palette",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/cupertino",
+  "modules": [
+    {
+      "imports": {
+        "protect": "@nelyx/core/internal/ui/value-math",
+        "checkedInteger": "../../../../../Nelyx/src/ui/value-math.ts",
+        "invariant": "@nelyx/core/foundation/errors",
+        "FoundationBuildMode": "@nelyx/core/foundation/constants",
+        "dartMethodTearOff": "../../../../../Nelyx/src/foundation/dart-method-tear-off.ts",
+        "dartLateRead": "@nelyx/core/internal/foundation/dart-late",
+        "dartLateWrite": "@nelyx/core/internal/foundation/dart-late",
+        "dartLateInitialize": "../../../../../Nelyx/src/foundation/dart-late.ts",
+        "dartLateLocal": "../../../../../Nelyx/src/foundation/dart-late.ts",
+        "dartStaticRead": "../../../../../Nelyx/src/foundation/dart-static-field.ts",
+        "dartStaticWrite": "../../../../../Nelyx/src/foundation/dart-static-field.ts",
+        "dartStaticSeal": "../../../../../Nelyx/src/foundation/dart-static-field.ts",
+        "Color": "@nelyx/core/ui/color",
+        "Radius": "@nelyx/core/ui/radius",
+        "ChangeNotifier": "../../../../../Nelyx/src/foundation/notifier.ts",
+        "Canvas": "../../../../../Nelyx/src/ui/canvas.ts",
+        "Offset": "@nelyx/core/ui/offset",
+        "Size": "../../../../../Nelyx/src/ui/size.ts",
+        "Rect": "../../../../../Nelyx/src/ui/rect.ts",
+        "RRect": "../../../../../Nelyx/src/ui/rrect.ts",
+        "Path": "../../../../../Nelyx/src/ui/path.ts",
+        "PointerDeviceKind": "../../../../../Nelyx/src/ui/pointer.ts",
+        "AxisDirection": "../../../../../Nelyx/src/framework/painting/basic-types.ts",
+        "EdgeInsets": "../../../../../Nelyx/src/framework/painting/edge-insets.ts",
+        "EdgeInsetsDirectional": "../../../../../Nelyx/src/framework/painting/edge-insets.ts",
+        "EdgeInsetsGeometry": "../../../../../Nelyx/src/framework/painting/edge-insets.ts",
+        "OutlinedBorder": "../../../../../Nelyx/src/framework/painting/borders.ts",
+        "CustomPainterSemantics": "../../../../../Nelyx/src/framework/rendering/custom-paint.ts",
+        "clampDouble": "../../../../../Nelyx/src/ui/math.ts",
+        "describeIdentity": "../../../../../Nelyx/src/foundation/diagnostics-identity.ts",
+        "ScrollbarSourcePaint": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarValueEquals": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarObjectEquals": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarIsDirectional": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarCastDirectional": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarIsInfinite": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarDouble": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarEnumString": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "ScrollbarPainterNotifier": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarIsPainter": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "scrollbarCastPainter": "../../../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "GlobalKey": "../../../../../Nelyx/src/framework/widgets/global-key.ts",
+        "State": "../../../../../Nelyx/src/framework/widgets/framework.ts",
+        "StatefulWidget": "../../../../../Nelyx/src/framework/widgets/framework.ts",
+        "Widget": "@nelyx/core/framework/widgets/framework",
+        "Element": "../../../../../Nelyx/src/framework/widgets/framework.ts",
+        "RenderBox": "../../../../../Nelyx/src/framework/rendering/object.ts",
+        "CustomPaint": "../../../../../Nelyx/src/framework/widgets/custom-paint.ts",
+        "PointerEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "PointerDownEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "PointerPanZoomStartEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "TapGestureRecognizer": "../../../../../Nelyx/src/framework/gestures/tap.ts",
+        "VerticalDragGestureRecognizer": "../../../../../Nelyx/src/framework/gestures/monodrag.ts",
+        "HorizontalDragGestureRecognizer": "../../../../../Nelyx/src/framework/gestures/monodrag.ts",
+        "ScrollbarTapHost": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "ScrollbarVerticalDragHost": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "ScrollbarHorizontalDragHost": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarKeyContext": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarRenderObject": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarIsRenderBox": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarCastRenderBox": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarIsCustomPaint": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarCastCustomPaint": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarForegroundPainter": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "scrollbarGlobalToLocal": "../../../../../Nelyx/src/framework/widgets/scrollbar-gesture-source-adapter.ts",
+        "Key": "@nelyx/core/foundation/key",
+        "AnimationController": "@nelyx/core/framework/animation/animation-controller",
+        "Curves": "../../../../../Nelyx/src/framework/animation/curves.ts",
+        "Axis": "@nelyx/core/framework/painting/basic-types",
+        "PointerSignalEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "PointerScrollEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "viewerListener": "../../../../../Nelyx/src/framework/widgets/viewer-widget-source-adapter.ts",
+        "viewerIsScrollEvent": "../../../../../Nelyx/src/framework/widgets/viewer-widget-source-adapter.ts",
+        "viewerCastScrollEvent": "../../../../../Nelyx/src/framework/widgets/viewer-widget-source-adapter.ts",
+        "DartSet": "../../../../../Nelyx/src/foundation/dart-collections.ts",
+        "DartMap": "../../../../../Nelyx/src/foundation/dart-collections.ts",
+        "DartIterable": "../../../../../Nelyx/src/foundation/dart-collections.ts",
+        "describeDartType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "WidgetStateDiagnosticableBase": "../../../../../Nelyx/src/framework/widgets/widget-state-diagnostic-source-adapter.ts",
+        "widgetStateSetString": "../../../../../Nelyx/src/framework/widgets/widget-state-map-source-adapter.ts",
+        "widgetStateMapString": "../../../../../Nelyx/src/framework/widgets/widget-state-map-source-adapter.ts",
+        "FlutterError": "../../../../../Nelyx/src/foundation/flutter-error.ts",
+        "ErrorSummary": "../../../../../Nelyx/src/foundation/diagnostics.ts",
+        "ErrorDescription": "../../../../../Nelyx/src/foundation/diagnostics.ts",
+        "ErrorHint": "../../../../../Nelyx/src/foundation/diagnostics.ts",
+        "isSourceDartDouble": "../../../../../Nelyx/src/foundation/dart-numeric.ts",
+        "castSourceDartDouble": "@nelyx/core/internal/foundation/dart-numeric",
+        "ScrollController": "@nelyx/core/framework/widgets/scroll-controller",
+        "ScrollNotification": "@nelyx/core/framework/widgets/scroll-notification",
+        "MouseCursor": "../../../../../Nelyx/src/services/mouse-cursor.ts",
+        "TickerProviderStateMixin": "../../../../../Nelyx/src/framework/widgets/ticker-provider.ts",
+        "CurvedAnimation": "../../../../../Nelyx/src/framework/animation/animations.ts",
+        "Drag": "../../../../../Nelyx/src/framework/gestures/drag.ts",
+        "ScrollHoldController": "../../../../../Nelyx/src/framework/widgets/scroll-activity.ts",
+        "RawGestureDetectorState": "../../../../../Nelyx/src/framework/widgets/raw-gesture-detector.ts",
+        "AnimationStatus": "../../../../../Nelyx/src/framework/animation/animation.ts",
+        "Cubic": "../../../../../Nelyx/src/framework/animation/curves.ts",
+        "Curve": "../../../../../Nelyx/src/framework/animation/curves.ts",
+        "ScrollPosition": "../../../../../Nelyx/src/framework/widgets/scroll-position.ts",
+        "TickerFuture": "../../../../../Nelyx/src/framework/animation/ticker-future.ts",
+        "ScrollPhysics": "../../../../../Nelyx/src/framework/widgets/scroll-physics.ts",
+        "ScrollBehavior": "../../../../../Nelyx/src/framework/widgets/scroll-configuration.ts",
+        "RenderObject": "../../../../../Nelyx/src/framework/rendering/object.ts",
+        "DragStartDetails": "../../../../../Nelyx/src/framework/gestures/drag-details.ts",
+        "DragUpdateDetails": "../../../../../Nelyx/src/framework/gestures/drag-details.ts",
+        "Velocity": "@nelyx/core/framework/gestures/velocity-tracker",
+        "DragEndDetails": "../../../../../Nelyx/src/framework/gestures/drag-details.ts",
+        "TapDownDetails": "@nelyx/core/framework/gestures/tap",
+        "ScrollableState": "../../../../../Nelyx/src/framework/widgets/scrollable.ts",
+        "ScrollIntent": "../../../../../Nelyx/src/framework/widgets/scrollable-helpers.ts",
+        "ScrollIncrementType": "../../../../../Nelyx/src/framework/widgets/scrollable-helpers.ts",
+        "ScrollMetricsNotification": "../../../../../Nelyx/src/framework/widgets/scroll-position.ts",
+        "ScrollUpdateNotification": "../../../../../Nelyx/src/framework/widgets/scroll-notification.ts",
+        "OverscrollNotification": "../../../../../Nelyx/src/framework/widgets/scroll-notification.ts",
+        "ScrollEndNotification": "../../../../../Nelyx/src/framework/widgets/scroll-notification.ts",
+        "DragDownDetails": "../../../../../Nelyx/src/framework/gestures/drag-details.ts",
+        "DragGestureRecognizer": "../../../../../Nelyx/src/framework/gestures/monodrag.ts",
+        "DeviceGestureSettings": "../../../../../Nelyx/src/framework/gestures/gesture-settings.ts",
+        "DragStartBehavior": "../../../../../Nelyx/src/framework/gestures/recognizer.ts",
+        "GestureRecognizerFactory": "../../../../../Nelyx/src/framework/widgets/raw-gesture-detector.ts",
+        "GestureRecognizer": "../../../../../Nelyx/src/framework/gestures/recognizer.ts",
+        "GestureRecognizerFactoryWithHandlers": "../../../../../Nelyx/src/framework/widgets/raw-gesture-detector.ts",
+        "PointerHoverEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "PointerExitEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "PointerSignalResolver": "../../../../../Nelyx/src/framework/gestures/pointer-signal-resolver.ts",
+        "PointerScrollInertiaCancelEvent": "../../../../../Nelyx/src/framework/gestures/events.ts",
+        "RepaintBoundary": "../../../../../Nelyx/src/framework/widgets/repaint-boundary.ts",
+        "MouseRegion": "../../../../../Nelyx/src/framework/widgets/mouse-region.ts",
+        "RawGestureDetector": "../../../../../Nelyx/src/framework/widgets/raw-gesture-detector.ts",
+        "Listener": "../../../../../Nelyx/src/framework/widgets/listener.ts",
+        "NotificationListener": "../../../../../Nelyx/src/framework/widgets/notification-listener.ts",
+        "SourceWidgetState": "../../../../../Nelyx/src/framework/widgets/widget-state.generated.ts",
+        "SourceWidgetStateProperty": "../../../../../Nelyx/src/framework/widgets/widget-state.generated.ts",
+        "ScrollbarTimer": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "ScrollbarStatefulHost": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "ScrollbarStateHost": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "PrimaryScrollController": "../../../../../Nelyx/src/framework/widgets/primary-scroll-controller.ts",
+        "Directionality": "@nelyx/core/framework/widgets/app-data",
+        "ScrollConfiguration": "@nelyx/core/framework/widgets/scroll-configuration",
+        "Scrollable": "../../../../../Nelyx/src/framework/widgets/scrollable.ts",
+        "ScrollAction": "../../../../../Nelyx/src/framework/widgets/scrollable-helpers.ts",
+        "defaultScrollNotificationPredicate": "@nelyx/core/framework/widgets/scroll-notification",
+        "axisDirectionIsReversed": "../../../../../Nelyx/src/framework/painting/basic-types.ts",
+        "axisDirectionToAxis": "../../../../../Nelyx/src/framework/painting/basic-types.ts",
+        "scrollbarMediaPadding": "@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter",
+        "scrollbarLocalToGlobal": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarPostFrame": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarRegisterSignal": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarRepaintBoundary": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarListener": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarRawGestureDetector": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarMouseRegion": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarCustomPaint": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarConstGestureSettings": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarGlobalKey": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarGestureKey": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarHorizontalFactory": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-gesture-factories.ts",
+        "scrollbarVerticalFactory": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-gesture-factories.ts",
+        "scrollbarTrackFactory": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-gesture-factories.ts",
+        "scrollbarMetricsListener": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarNotificationListener": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIsScrollUpdate": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIsOverscroll": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIsScrollEnd": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIsPointerScroll": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarCastPointerScroll": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIsInertiaCancel": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarGestureMap": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "emptyWidgetStateSet": "../../../../../Nelyx/src/framework/widgets/widget-state-full-collections.ts",
+        "captureDartException": "../../../../../Nelyx/src/foundation/dart-exceptions.ts",
+        "applyDartType": "@nelyx/core/internal/foundation/dart-type-witness",
+        "captureDartType": "@nelyx/core/internal/foundation/dart-type-witness",
+        "readDartType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "isDartType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "castDartType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "nullableDartType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "scrollbarStatefulType": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarStateType": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarTickerStateType": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarSetGesture": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIsWeb": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarIterableLength": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarRawObjectEquals": "@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter",
+        "scrollbarCastScrollUpdate": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarCastOverscroll": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarCastScrollEnd": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "scrollbarCastInertiaCancel": "../../../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "constSourceRadiusCircular": "@nelyx/core/internal/ui/radius-source-adapter",
+        "constSourceColor": "@nelyx/core/internal/ui/color-source-adapter",
+        "SourceScrollbarOrientation": "@nelyx/core/internal/framework/widgets/scrollbar.generated",
+        "SourceScrollbarPainter": "../../../../../Nelyx/src/framework/widgets/scrollbar.generated.ts",
+        "SourceRawScrollbar": "@nelyx/core/internal/framework/widgets/scrollbar.generated",
+        "SourceRawScrollbarState": "@nelyx/core/internal/framework/widgets/scrollbar.generated",
+        "boxSourceDartInt": "../../../../../Nelyx/src/foundation/dart-numeric.ts",
+        "boxSourceDartDouble": "@nelyx/core/internal/foundation/dart-numeric",
+        "castSourceDartInt": "../../../../../Nelyx/src/foundation/dart-numeric.ts",
+        "dartObjectType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "dartBoolType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "dartDoubleType": "../../../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "dartValueEquals": "../../../../../Nelyx/src/foundation/dart-value.ts",
+        "dartValueHash": "../../../../../Nelyx/src/foundation/dart-value.ts",
+        "dartValueIdentical": "../../../../../Nelyx/src/foundation/dart-identity.ts",
+        "dartRecord": "@nelyx/core/internal/foundation/dart-record",
+        "dartRecordRead": "@nelyx/core/internal/foundation/dart-record",
+        "bridgeDartFunction": "../../../../../Nelyx/src/foundation/dart-function.ts",
+        "unwrapSourceDartNum": "../../../../../Nelyx/src/foundation/dart-numeric.ts",
+        "SourceBrightness": "../../internal/scrollbar/scrollbar-style-source-adapter.ts",
+        "StatelessWidget": "../../../../../Nelyx/src/framework/widgets/framework.ts",
+        "InheritedTheme": "../../../../../Nelyx/src/framework/widgets/inherited-theme.ts",
+        "DiagnosticPropertiesBuilder": "../../../../../Nelyx/src/foundation/diagnostics.ts",
+        "DiagnosticsProperty": "../../../../../Nelyx/src/foundation/diagnostics.ts",
+        "CupertinoDynamicColor": "./dynamic-color.generated.ts",
+        "constCupertinoDynamicColorWithBrightness": "./dynamic-color.generated.ts",
+        "scrollbarRawWidgetType": "@nelyx/core/internal/framework/widgets/scrollbar-themed-source-adapter",
+        "scrollbarRawStateType": "@nelyx/core/internal/framework/widgets/scrollbar-themed-source-adapter",
+        "sourceColorType": "../../../../../Nelyx/src/ui/color-source-adapter.ts",
+        "lerpDouble": "../../../../../Nelyx/src/ui/lerp-double.generated.ts",
+        "sourceStyleRuntimeType": "../../internal/scrollbar/scrollbar-style-source-adapter.ts",
+        "sourceStyleHash": "../../internal/scrollbar/scrollbar-style-source-adapter.ts",
+        "scrollbarMediumImpact": "@nelyx/core/internal/framework/widgets/scrollbar-themed-source-adapter",
+        "scrollbarDoubleAbs": "@nelyx/core/internal/framework/widgets/scrollbar-themed-source-adapter",
+        "sourceColorWithOpacity": "../../../../../Nelyx/src/ui/color-source-adapter.ts",
+        "sourceColorLerp": "../../../../../Nelyx/src/ui/color-source-adapter.ts",
+        "constSourceColorARGB": "@nelyx/core/internal/ui/color-source-adapter",
+        "constCupertinoDynamicColor": "./dynamic-color.generated.ts",
+        "constCupertinoDynamicColorWithBrightnessAndContrast": "./dynamic-color.generated.ts"
+      },
+      "typeImports": {
+        "Animation": "../../../Nelyx/src/framework/animation/animation.ts",
+        "ScrollMetrics": "../../../Nelyx/src/framework/widgets/scroll-metrics.ts",
+        "ScrollbarTextDirection": "../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "ScrollbarSourceList": "../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "ScrollbarCustomPainterContract": "../../../Nelyx/src/framework/widgets/scrollbar-painter-source-adapter.ts",
+        "BuildContext": "../../../Nelyx/src/framework/widgets/framework.ts",
+        "DiagnosticsNode": "../../../Nelyx/src/foundation/diagnostics.ts",
+        "TickerProvider": "../../../Nelyx/src/framework/animation/ticker.ts",
+        "TargetPlatform": "../../../Nelyx/src/foundation/platform.ts",
+        "ScrollContext": "../../../Nelyx/src/framework/widgets/scroll-context.ts",
+        "GestureRecognizerType": "../../../Nelyx/src/framework/widgets/raw-gesture-detector.ts",
+        "ScrollbarFuture": "@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter",
+        "DartTypeWitness": "../../../Nelyx/src/foundation/dart-type-witness.ts",
+        "ScrollbarIterable": "../../../Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+        "DartInt": "../../../Nelyx/src/foundation/dart-numeric.ts",
+        "DartDouble": "../../../Nelyx/src/foundation/dart-numeric.ts",
+        "DartNumeric": "../../../Nelyx/src/foundation/dart-numeric.ts",
+        "DartRecord": "../../../Nelyx/src/foundation/dart-record.ts",
+        "SourceObject": "./scrollbar-style-source-adapter.ts"
+      },
+      "typeBindings": {
+        "dart:ui::Color:CLASS": "Color",
+        "dart:ui::Radius:CLASS": "Radius",
+        "dart:ui::Canvas:CLASS": "Canvas",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Size:CLASS": "Size",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:ui::RRect:CLASS": "RRect",
+        "dart:ui::Path:CLASS": "Path",
+        "dart:ui::Paint:CLASS": "ScrollbarSourcePaint",
+        "dart:ui::PointerDeviceKind:ENUM": "PointerDeviceKind",
+        "dart:ui::TextDirection:ENUM": "ScrollbarTextDirection",
+        "dart:core::List:CLASS": "ScrollbarSourceList",
+        "package:listen/src/listen.dart::ChangeNotifier:CLASS": "ChangeNotifier",
+        "package:flutter/src/animation/animation.dart::Animation:CLASS": "Animation",
+        "package:flutter/src/widgets/scroll_metrics.dart::ScrollMetrics:MIXIN": "ScrollMetrics",
+        "package:flutter/src/rendering/custom_paint.dart::CustomPainter:CLASS": "ScrollbarCustomPainterContract",
+        "package:flutter/src/rendering/custom_paint.dart::CustomPainterSemantics:CLASS": "CustomPainterSemantics",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection",
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsets:CLASS": "EdgeInsets",
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsetsDirectional:CLASS": "EdgeInsetsDirectional",
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsetsGeometry:CLASS": "EdgeInsetsGeometry",
+        "package:flutter/src/painting/borders.dart::OutlinedBorder:CLASS": "OutlinedBorder",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::Element:CLASS": "Element",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/widgets/framework.dart::GlobalKey:CLASS": "GlobalKey",
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/widgets/basic.dart::CustomPaint:CLASS": "CustomPaint",
+        "package:flutter/src/gestures/events.dart::PointerEvent:CLASS": "PointerEvent",
+        "package:flutter/src/gestures/events.dart::PointerDownEvent:CLASS": "PointerDownEvent",
+        "package:flutter/src/gestures/events.dart::PointerPanZoomStartEvent:CLASS": "PointerPanZoomStartEvent",
+        "package:flutter/src/gestures/tap.dart::TapGestureRecognizer:CLASS": "TapGestureRecognizer",
+        "package:flutter/src/gestures/monodrag.dart::VerticalDragGestureRecognizer:CLASS": "VerticalDragGestureRecognizer",
+        "package:flutter/src/gestures/monodrag.dart::HorizontalDragGestureRecognizer:CLASS": "HorizontalDragGestureRecognizer",
+        "package:flutter/src/animation/animation_controller.dart::AnimationController:CLASS": "AnimationController",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/gestures/events.dart::PointerScrollEvent:CLASS": "PointerScrollEvent",
+        "package:flutter/src/gestures/events.dart::PointerSignalEvent:CLASS": "PointerSignalEvent",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "dart:core::Set:CLASS": "DartSet",
+        "dart:core::Map:CLASS": "DartMap",
+        "dart:core::Iterable:CLASS": "ScrollbarIterable",
+        "dart:core::Object:CLASS": "SourceObject",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsNode:CLASS": "DiagnosticsNode",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary:CLASS": "ErrorSummary",
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/assertions.dart::ErrorHint:CLASS": "ErrorHint",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController:CLASS": "ScrollController",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollNotification:CLASS": "ScrollNotification",
+        "package:flutter/src/services/mouse_cursor.dart::MouseCursor:CLASS": "MouseCursor",
+        "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin:MIXIN": "TickerProviderStateMixin",
+        "package:flutter/src/animation/animations.dart::CurvedAnimation:CLASS": "CurvedAnimation",
+        "package:flutter/src/gestures/drag.dart::Drag:CLASS": "Drag",
+        "package:flutter/src/widgets/scroll_activity.dart::ScrollHoldController:CLASS": "ScrollHoldController",
+        "package:flutter/src/widgets/gesture_detector.dart::RawGestureDetectorState:CLASS": "RawGestureDetectorState",
+        "package:flutter/src/scheduler/ticker.dart::TickerProvider:CLASS": "TickerProvider",
+        "package:flutter/src/animation/animation.dart::AnimationStatus:ENUM": "AnimationStatus",
+        "package:flutter/src/animation/curves.dart::Cubic:CLASS": "Cubic",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition:CLASS": "ScrollPosition",
+        "package:flutter/src/scheduler/ticker.dart::TickerFuture:CLASS": "TickerFuture",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior:CLASS": "ScrollBehavior",
+        "package:flutter/src/foundation/platform.dart::TargetPlatform:ENUM": "TargetPlatform",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/gestures/drag_details.dart::DragStartDetails:CLASS": "DragStartDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragUpdateDetails:CLASS": "DragUpdateDetails",
+        "package:flutter/src/gestures/velocity_tracker.dart::Velocity:CLASS": "Velocity",
+        "package:flutter/src/gestures/drag_details.dart::DragEndDetails:CLASS": "DragEndDetails",
+        "package:flutter/src/gestures/tap.dart::TapDownDetails:CLASS": "TapDownDetails",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState:CLASS": "ScrollableState",
+        "package:flutter/src/widgets/scroll_context.dart::ScrollContext:CLASS": "ScrollContext",
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollIntent:CLASS": "ScrollIntent",
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollIncrementType:ENUM": "ScrollIncrementType",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollMetricsNotification:CLASS": "ScrollMetricsNotification",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollUpdateNotification:CLASS": "ScrollUpdateNotification",
+        "package:flutter/src/widgets/scroll_notification.dart::OverscrollNotification:CLASS": "OverscrollNotification",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollEndNotification:CLASS": "ScrollEndNotification",
+        "package:flutter/src/gestures/drag_details.dart::DragDownDetails:CLASS": "DragDownDetails",
+        "package:flutter/src/gestures/monodrag.dart::DragGestureRecognizer:CLASS": "DragGestureRecognizer",
+        "package:flutter/src/gestures/gesture_settings.dart::DeviceGestureSettings:CLASS": "DeviceGestureSettings",
+        "package:flutter/src/gestures/recognizer.dart::DragStartBehavior:ENUM": "DragStartBehavior",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactory:CLASS": "GestureRecognizerFactory",
+        "package:flutter/src/gestures/recognizer.dart::GestureRecognizer:CLASS": "GestureRecognizer",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactoryWithHandlers:CLASS": "GestureRecognizerFactoryWithHandlers",
+        "package:flutter/src/gestures/events.dart::PointerHoverEvent:CLASS": "PointerHoverEvent",
+        "package:flutter/src/gestures/events.dart::PointerExitEvent:CLASS": "PointerExitEvent",
+        "package:flutter/src/gestures/pointer_signal_resolver.dart::PointerSignalResolver:CLASS": "PointerSignalResolver",
+        "package:flutter/src/gestures/events.dart::PointerScrollInertiaCancelEvent:CLASS": "PointerScrollInertiaCancelEvent",
+        "package:flutter/src/widgets/basic.dart::RepaintBoundary:CLASS": "RepaintBoundary",
+        "package:flutter/src/widgets/basic.dart::MouseRegion:CLASS": "MouseRegion",
+        "package:flutter/src/widgets/gesture_detector.dart::RawGestureDetector:CLASS": "RawGestureDetector",
+        "package:flutter/src/widgets/basic.dart::Listener:CLASS": "Listener",
+        "package:flutter/src/widgets/notification_listener.dart::NotificationListener:CLASS": "NotificationListener",
+        "package:flutter/src/widgets/widget_state.dart::WidgetState:ENUM": "SourceWidgetState",
+        "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS": "SourceWidgetStateProperty",
+        "dart:async::Timer:CLASS": "ScrollbarTimer",
+        "dart:core::Type:CLASS": "GestureRecognizerType",
+        "package:flutter/src/widgets/scrollbar.dart::ScrollbarOrientation:ENUM": "SourceScrollbarOrientation",
+        "package:flutter/src/widgets/scrollbar.dart::ScrollbarPainter:CLASS": "SourceScrollbarPainter",
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbar:CLASS": "SourceRawScrollbar",
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState:CLASS": "SourceRawScrollbarState",
+        "dart:ui::Brightness:ENUM": "SourceBrightness",
+        "package:flutter/src/widgets/framework.dart::StatelessWidget:CLASS": "StatelessWidget",
+        "package:flutter/src/widgets/inherited_theme.dart::InheritedTheme:CLASS": "InheritedTheme",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder:CLASS": "DiagnosticPropertiesBuilder",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty:CLASS": "DiagnosticsProperty",
+        "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor:CLASS": "CupertinoDynamicColor"
+      },
+      "values": {
+        "dart:ui::TextDirection.ltr:GETTER": "ltr",
+        "dart:ui::TextDirection.rtl:GETTER": "rtl",
+        "dart:ui::PaintingStyle.stroke:GETTER": "stroke",
+        "package:flutter/src/foundation/constants.dart::precisionErrorTolerance:GETTER": 1e-10,
+        "package:flutter/src/foundation/platform.dart::TargetPlatform.fuchsia:GETTER": "fuchsia",
+        "package:flutter/src/foundation/platform.dart::TargetPlatform.linux:GETTER": "linux",
+        "package:flutter/src/foundation/platform.dart::TargetPlatform.macOS:GETTER": "macOS",
+        "package:flutter/src/foundation/platform.dart::TargetPlatform.windows:GETTER": "windows",
+        "package:flutter/src/foundation/platform.dart::TargetPlatform.iOS:GETTER": "iOS",
+        "package:flutter/src/foundation/platform.dart::TargetPlatform.android:GETTER": "android",
+        "dart:core::Duration.zero:GETTER": 0
+      },
+      "adapters": {
+        "dart:math::min:FUNCTION": {
+          "target": "Math.min",
+          "kind": "call"
+        },
+        "dart:math::max:FUNCTION": {
+          "target": "Math.max",
+          "kind": "call"
+        },
+        "dart:ui::clampDouble:FUNCTION": {
+          "target": "clampDouble",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::describeIdentity:FUNCTION": {
+          "target": "describeIdentity",
+          "kind": "call"
+        },
+        "dart:ui::Offset.Offset.new:CONSTRUCTOR": {
+          "target": "Offset",
+          "kind": "new"
+        },
+        "dart:ui::Size.Size.new:CONSTRUCTOR": {
+          "target": "Size",
+          "kind": "new"
+        },
+        "dart:ui::Paint.Paint.new:CONSTRUCTOR": {
+          "target": "ScrollbarSourcePaint",
+          "kind": "new"
+        },
+        "dart:ui::Rect.Rect.fromCircle:CONSTRUCTOR": {
+          "target": "Rect.fromCircle",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "dart:ui::RRect.RRect.fromRectAndRadius:CONSTRUCTOR": {
+          "target": "RRect.fromRectAndRadius",
+          "kind": "call"
+        },
+        "dart:ui::Canvas.drawRect:METHOD": {
+          "target": "drawRect",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Canvas.drawRRect:METHOD": {
+          "target": "drawRRect",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Canvas.drawLine:METHOD": {
+          "target": "drawLine",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Canvas.drawPath:METHOD": {
+          "target": "drawPath",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Rect.contains:METHOD": {
+          "target": "contains",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Rect.expandToInclude:METHOD": {
+          "target": "expandToInclude",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withOpacity:METHOD": {
+          "kind": "call",
+          "target": "sourceColorWithOpacity",
+          "receiver": "first"
+        },
+        "dart:ui::Offset.+:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.&:METHOD": {
+          "target": "and",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Color.==:METHOD": {
+          "target": "scrollbarValueEquals",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:ui::Radius.==:METHOD": {
+          "target": "scrollbarValueEquals",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:ui::Rect.==:METHOD": {
+          "target": "scrollbarValueEquals",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsetsGeometry.==:METHOD": {
+          "target": "scrollbarValueEquals",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "scrollbarRawObjectEquals",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.isInfinite:GETTER": {
+          "target": "scrollbarIsInfinite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsetsGeometry.resolve:METHOD": {
+          "target": "resolve",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/painting/borders.dart::ShapeBorder.paint:METHOD": {
+          "target": "paint",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/painting/borders.dart::ShapeBorder.paintInterior:METHOD": {
+          "target": "paintInterior",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/painting/borders.dart::ShapeBorder.getOuterPath:METHOD": {
+          "target": "getOuterPath",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/animation/animation.dart::Animation.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation.dart::Animation.removeListener:METHOD": {
+          "target": "removeListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.notifyListeners:METHOD": {
+          "target": "notifyListeners",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::GlobalKey.currentContext:GETTER": {
+          "target": "scrollbarKeyContext",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/basic.dart::CustomPaint.foregroundPainter:GETTER": {
+          "target": "scrollbarForegroundPainter",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildContext.findRenderObject:METHOD": {
+          "target": "scrollbarRenderObject",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/gestures/tap.dart::TapGestureRecognizer.isPointerAllowed:METHOD": {
+          "target": "isPointerAllowed",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/gestures/monodrag.dart::DragGestureRecognizer.isPointerAllowed:METHOD": {
+          "target": "isPointerAllowed",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.globalToLocal:METHOD": {
+          "kind": "call",
+          "target": "scrollbarGlobalToLocal",
+          "receiver": "first"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.forward:METHOD": {
+          "target": "forward",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didUpdateWidget:METHOD": {
+          "target": "didUpdateWidget",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.initState:METHOD": {
+          "target": "initState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.setState:METHOD": {
+          "target": "setState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.AnimationController.new:CONSTRUCTOR": {
+          "target": "AnimationController",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::Listener.Listener.new:CONSTRUCTOR": {
+          "target": "scrollbarListener",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterError.FlutterError.fromParts:CONSTRUCTOR": {
+          "kind": "call",
+          "target": "FlutterError.fromParts"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary.ErrorSummary.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "ErrorSummary"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "ErrorDescription"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorHint.ErrorHint.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "ErrorHint"
+        },
+        "package:flutter/src/animation/listener_helpers.dart::AnimationLocalStatusListenersMixin.addStatusListener:METHOD": {
+          "target": "addStatusListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didChangeDependencies:METHOD": {
+          "target": "didChangeDependencies",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:async::Timer.cancel:METHOD": {
+          "target": "cancel",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.animateTo:METHOD": {
+          "target": "animateTo",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.reverse:METHOD": {
+          "target": "reverse",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.applyBoundaryConditions:METHOD": {
+          "target": "applyBoundaryConditions",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.getPlatform:METHOD": {
+          "target": "getPlatform",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.hold:METHOD": {
+          "target": "hold",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.drag:METHOD": {
+          "target": "drag",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.shouldAcceptUserOffset:METHOD": {
+          "target": "shouldAcceptUserOffset",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/gestures/drag.dart::Drag.update:METHOD": {
+          "target": "update",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/gestures/drag.dart::Drag.end:METHOD": {
+          "target": "end",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.moveTo:METHOD": {
+          "target": "moveTo",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollMetricsNotification.asScrollUpdate:METHOD": {
+          "target": "asScrollUpdate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_activity.dart::ScrollHoldController.cancel:METHOD": {
+          "target": "cancel",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/gestures/drag.dart::Drag.cancel:METHOD": {
+          "target": "cancel",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty.resolve:METHOD": {
+          "target": "resolve",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.pointerScroll:METHOD": {
+          "target": "pointerScroll",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.jumpTo:METHOD": {
+          "target": "jumpTo",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animations.dart::CurvedAnimation.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/primary_scroll_controller.dart::PrimaryScrollController.maybeOf:METHOD": {
+          "target": "PrimaryScrollController.maybeOf",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/basic.dart::Directionality.of:METHOD": {
+          "target": "Directionality.of",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollConfiguration.of:METHOD": {
+          "target": "ScrollConfiguration.of",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/scrollable.dart::Scrollable.maybeOf:METHOD": {
+          "target": "Scrollable.maybeOf",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollAction.getDirectionalIncrement:METHOD": {
+          "target": "ScrollAction.getDirectionalIncrement",
+          "kind": "call"
+        },
+        "package:flutter/src/painting/basic_types.dart::axisDirectionIsReversed:FUNCTION": {
+          "target": "axisDirectionIsReversed",
+          "kind": "call"
+        },
+        "package:flutter/src/painting/basic_types.dart::axisDirectionToAxis:FUNCTION": {
+          "target": "axisDirectionToAxis",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/media_query.dart::MediaQuery.paddingOf:METHOD": {
+          "target": "scrollbarMediaPadding",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.localToGlobal:METHOD": {
+          "target": "scrollbarLocalToGlobal",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/scheduler/binding.dart::SchedulerBinding.addPostFrameCallback:METHOD": {
+          "target": "scrollbarPostFrame",
+          "kind": "call",
+          "receiver": "owner",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/gestures/pointer_signal_resolver.dart::PointerSignalResolver.register:METHOD": {
+          "target": "scrollbarRegisterSignal",
+          "kind": "call",
+          "receiver": "owner"
+        },
+        "package:flutter/src/animation/animations.dart::CurvedAnimation.CurvedAnimation.new:CONSTRUCTOR": {
+          "target": "CurvedAnimation",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "dart:async::Timer.Timer.new:CONSTRUCTOR": {
+          "target": "ScrollbarTimer",
+          "kind": "new"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragStartDetails.DragStartDetails.new:CONSTRUCTOR": {
+          "target": "DragStartDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragUpdateDetails.DragUpdateDetails.new:CONSTRUCTOR": {
+          "target": "DragUpdateDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragEndDetails.DragEndDetails.new:CONSTRUCTOR": {
+          "target": "DragEndDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollIntent.ScrollIntent.new:CONSTRUCTOR": {
+          "target": "ScrollIntent",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::RepaintBoundary.RepaintBoundary.new:CONSTRUCTOR": {
+          "target": "scrollbarRepaintBoundary",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/gesture_detector.dart::RawGestureDetector.RawGestureDetector.new:CONSTRUCTOR": {
+          "target": "scrollbarRawGestureDetector",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::MouseRegion.MouseRegion.new:CONSTRUCTOR": {
+          "target": "scrollbarMouseRegion",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::CustomPaint.CustomPaint.new:CONSTRUCTOR": {
+          "target": "scrollbarCustomPaint",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/velocity_tracker.dart::Velocity.unary-:METHOD": {
+          "target": "negate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "target": "scrollbarSetGesture",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/foundation/constants.dart::kIsWeb:GETTER": {
+          "target": "scrollbarIsWeb",
+          "kind": "call"
+        },
+        "dart:core::Iterable.length:GETTER": {
+          "kind": "call",
+          "target": "scrollbarIterableLength",
+          "receiver": "first"
+        },
+        "dart:ui::lerpDouble:FUNCTION": {
+          "kind": "call",
+          "target": "lerpDouble",
+          "numericAbi": "scalar-numeric"
+        },
+        "dart:core::identical:FUNCTION": {
+          "kind": "call",
+          "target": "dartValueIdentical"
+        },
+        "dart:core::Object.runtimeType:GETTER": {
+          "kind": "call",
+          "target": "sourceStyleRuntimeType",
+          "receiver": "first"
+        },
+        "dart:core::Type.==:METHOD": {
+          "kind": "identity",
+          "target": "",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.initState:METHOD": {
+          "kind": "call",
+          "target": "initState",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.getScrollbarDirection:METHOD": {
+          "kind": "call",
+          "target": "getScrollbarDirection",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.handleThumbPress:METHOD": {
+          "kind": "call",
+          "target": "handleThumbPress",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.handleThumbPressStart:METHOD": {
+          "kind": "call",
+          "target": "handleThumbPressStart",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.handleThumbPressEnd:METHOD": {
+          "kind": "call",
+          "target": "handleThumbPressEnd",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.handleTrackTapDown:METHOD": {
+          "kind": "call",
+          "target": "handleTrackTapDown",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollbar.dart::RawScrollbarState.dispose:METHOD": {
+          "kind": "call",
+          "target": "dispose",
+          "receiver": "target"
+        },
+        "dart:core::Set.contains:METHOD": {
+          "kind": "call",
+          "target": "contains",
+          "receiver": "target"
+        },
+        "dart:core::Object.hash:METHOD": {
+          "kind": "call",
+          "target": "sourceStyleHash"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::Diagnosticable.debugFillProperties:METHOD": {
+          "kind": "call",
+          "target": "debugFillProperties",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder.add:METHOD": {
+          "kind": "call",
+          "target": "add",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/listener_helpers.dart::AnimationLocalListenersMixin.addListener:METHOD": {
+          "kind": "call",
+          "target": "addListener",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/listener_helpers.dart::AnimationLocalListenersMixin.removeListener:METHOD": {
+          "kind": "call",
+          "target": "removeListener",
+          "receiver": "target"
+        },
+        "package:flutter/src/scheduler/ticker.dart::TickerFuture.then:METHOD": {
+          "kind": "call",
+          "target": "then",
+          "receiver": "target",
+          "typeArguments": [
+            "void"
+          ]
+        },
+        "package:flutter/src/services/haptic_feedback.dart::HapticFeedback.mediumImpact:METHOD": {
+          "kind": "call",
+          "target": "scrollbarMediumImpact",
+          "receiver": "owner"
+        },
+        "dart:core::double.abs:METHOD": {
+          "kind": "call",
+          "target": "scrollbarDoubleAbs",
+          "receiver": "first"
+        },
+        "dart:ui::Color.lerp:METHOD": {
+          "kind": "call",
+          "target": "sourceColorLerp",
+          "numericAbi": "scalar-numeric"
+        }
+      },
+      "constantConstructors": {
+        "dart:ui::Color.Color.new:CONSTRUCTOR": {
+          "factory": "constSourceColor",
+          "ownerType": "dart:ui::Color:CLASS",
+          "policy": "canonical-immutable-host-fields"
+        },
+        "dart:ui::Radius.Radius.circular:CONSTRUCTOR": {
+          "factory": "constSourceRadiusCircular",
+          "policy": "canonical-immutable-host",
+          "ownerType": "dart:ui::Radius:CLASS"
+        },
+        "package:flutter/src/gestures/gesture_settings.dart::DeviceGestureSettings.DeviceGestureSettings.new:CONSTRUCTOR": {
+          "factory": "scrollbarConstGestureSettings",
+          "policy": "canonical-immutable-host",
+          "ownerType": "package:flutter/src/gestures/gesture_settings.dart::DeviceGestureSettings:CLASS",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor.CupertinoDynamicColor.withBrightness:CONSTRUCTOR": {
+          "factory": "constCupertinoDynamicColorWithBrightness",
+          "policy": "canonical-generated-external-fields",
+          "ownerType": "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor:CLASS",
+          "namedArguments": "options"
+        },
+        "dart:ui::Color.Color.fromARGB:CONSTRUCTOR": {
+          "factory": "constSourceColorARGB",
+          "ownerType": "dart:ui::Color:CLASS",
+          "policy": "canonical-immutable-host-fields"
+        },
+        "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor.CupertinoDynamicColor.new:CONSTRUCTOR": {
+          "factory": "constCupertinoDynamicColor",
+          "policy": "canonical-generated-external-fields",
+          "ownerType": "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor:CLASS",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor.CupertinoDynamicColor.withBrightnessAndContrast:CONSTRUCTOR": {
+          "factory": "constCupertinoDynamicColorWithBrightnessAndContrast",
+          "policy": "canonical-generated-external-fields",
+          "ownerType": "package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor:CLASS",
+          "namedArguments": "options"
+        }
+      },
+      "staticFields": {
+        "read": "dartStaticRead",
+        "write": "dartStaticWrite",
+        "seal": "dartStaticSeal",
+        "policy": "lazy-class-fields"
+      },
+      "importEmission": {
+        "policy": "used-identifiers"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::Type:CLASS",
+                  "name": "Type",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactory:CLASS",
+                  "name": "GestureRecognizerFactory",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "interface",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/gestures/recognizer.dart::GestureRecognizer:CLASS",
+                      "name": "GestureRecognizer",
+                      "owner": null,
+                      "local": false,
+                      "static": false
+                    },
+                    "arguments": []
+                  }
+                ]
+              }
+            ]
+          },
+          "factory": "scrollbarGestureMap",
+          "policy": "ordered-dart-collection"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Set:CLASS",
+              "name": "Set",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/widget_state.dart::WidgetState:ENUM",
+                  "name": "WidgetState",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "emptyWidgetStateSet",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "numericValues": {
+        "policy": "source-numeric-erasure",
+        "int": "boxSourceDartInt",
+        "double": "boxSourceDartDouble",
+        "castInt": "castSourceDartInt",
+        "castDouble": "castSourceDartDouble",
+        "numType": "DartNumeric",
+        "genericTypes": {
+          "int": "DartInt",
+          "double": "DartDouble"
+        }
+      },
+      "numericFunctions": {
+        "policy": "source-function-representation",
+        "bridge": "bridgeDartFunction",
+        "identity": "dartValueIdentical",
+        "unwrapNum": "unwrapSourceDartNum"
+      },
+      "source": "packages/flutter/lib/src/cupertino/colors.dart",
+      "sha256": "2fc790aaae0252327e59ed52d4e167cb85933d1959ffcb91da33496e2d4f98e7",
+      "symbols": [
+        "CupertinoColors"
+      ],
+      "destination": "packages/cupertino/src/generated/colors/palette.generated.ts"
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/w11-cupertino-palette.mjs",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/w11-cupertino-palette-source.mjs",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/w11-cupertino-palette.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/scrollbar-style-oracle.ts"
+  ],
+  "validationSources": [
+    "packages/cupertino/src/dynamic-color.generated.ts",
+    "packages/cupertino/src/interface-level.generated.ts"
+  ],
+  "contract": {
+    "id": "w11-cupertino-palette",
+    "classification": "compatible",
+    "ownership": "adopted",
+    "api": [
+      "CupertinoColors: all 47 public fields"
+    ],
+    "requirements": [
+      "all eight adaptive variants",
+      "shared canonical Core Color",
+      "alias identity",
+      "immutable fields",
+      "actual package export"
+    ],
+    "numericPolicy": "Analyzer-resolved Core Color int/double constructor provenance; no inferred numeric meaning.",
+    "differences": [
+      "Static-only Dart abstract-final namespace is a TypeScript abstract class; palette values and aliases preserved."
+    ],
+    "performance": "Static palette values initialize once; resolution reuses the existing CupertinoDynamicColor implementation."
+  },
+  "w12ModuleRelocation": {
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w11-cupertino-palette.json",
+      "sha256": "fbed224394272a5cb8abb07f858113815753f936d0bcf414d1a5b42fe7014a07"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Requires an explicit current product validator before recipe reuse; deleted checks are not restored"
+  }
+}

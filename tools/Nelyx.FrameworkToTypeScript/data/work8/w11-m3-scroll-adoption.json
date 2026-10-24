@@ -1,0 +1,27 @@
+{
+  "schema": "nelyx.w11-m3-scroll-adoption/v1",
+  "recordedAt": "2026-10-18T08:52:26.152Z",
+  "policy": "User-directed Material3 only",
+  "previous": {
+    "destination": "packages/material/src/scroll-behavior.generated.ts",
+    "mode": "generated",
+    "baseHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
+    "productHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
+    "fingerprint": "9d7192abeda613add4d5fd7bdd1e6a0819bf9e8373d23b17b046a0381d4c0141",
+    "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scroll-behavior.json"
+  },
+  "adopted": {
+    "destination": "packages/material/src/scroll-behavior.generated.ts",
+    "mode": "adopted",
+    "baseHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
+    "productHash": "9834e91c9e20e0958f027f027b3850d02a1eb296a4f4a19a9ea7b507e9255510",
+    "fingerprint": "9d7192abeda613add4d5fd7bdd1e6a0819bf9e8373d23b17b046a0381d4c0141",
+    "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scroll-behavior.json"
+  },
+  "previousState": {
+    "file": ".tmp/work8/receipt-history/3819a98079dd91caec75e1a064c37c39dd6886f9efd2c8e3b0b2c76bc0cf7a76-before-m3-policy-state.json",
+    "sha256": "3819a98079dd91caec75e1a064c37c39dd6886f9efd2c8e3b0b2c76bc0cf7a76"
+  },
+  "sourceRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "scope": "Explicit generated-to-adopted ownership transition. Existing base/fingerprint and immutable W10 receipt are historical. Current product source owns M3-only platform behavior; recipe source base fixes the exact resolved useMaterial3 getter to true for fresh reference generation. No new batch promotion or renewed W10 acceptance."
+}

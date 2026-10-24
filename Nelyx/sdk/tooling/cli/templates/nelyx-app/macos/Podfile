@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: BSD-3-Clause
+ENV['NELYX_APPLE_TARGET'] = 'macos'
+ENV['NELYX_APPLE_DAWN_PROVIDER'] = 'skia'
+ENV['RCT_NEW_ARCH_ENABLED'] = '1'
+ENV['RCT_USE_PREBUILT_RNCORE'] = '0' # Runtime host hooks compile from the pinned source.
+runner_root = File.expand_path('runner', __dir__)
+Pod::Executable.execute_command('node', [File.join(runner_root, 'prepare.mjs')])
+require Pod::Executable.execute_command('node', ['-p', 'require.resolve("react-native-macos/scripts/react_native_pods.rb", {paths:[process.argv[1]]})', runner_root]).strip
+platform :macos, '14.0'
+prepare_react_native_project!
+target 'NelyxTestbed-macOS' do
+  command = ['node', '-e', 'const root=process.argv[1];process.chdir(root);process.argv=["node","react-native","config"];require(require.resolve("@react-native-community/cli",{paths:[root]})).run()', runner_root]
+  config = use_native_modules!(command)
+  pod 'NelyxPlatformServices', :path => File.join(runner_root, 'node_modules', '@nelyx', 'sdk')
+  use_react_native!(:path => config[:reactNativePath], :hermes_enabled => true, :fabric_enabled => true, :app_path => runner_root)
+  post_install do |installer|
+    react_native_post_install(installer, config[:reactNativePath], :mac_catalyst_enabled => false)
+  end
+end

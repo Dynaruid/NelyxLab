@@ -1,0 +1,127 @@
+{
+  "schema": "nelyx.theme-widget-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/theme.dart",
+      "sha256": "6f96391531ad175f3b461ab291a430170b6aa57712d9120581b1211d17d2b05a"
+    },
+    {
+      "file": "packages/flutter/lib/src/cupertino/theme.dart",
+      "sha256": "1e4e46805fd8923d31af7be8f1137a96b73c7e0d928a53d1b2f0a9fa21a00e72"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/theme.cs",
+      "sha256": "991750eab7cc4775d766836e80106a1910871526e42dd7f6687ea3cc93405d80"
+    },
+    {
+      "file": "packages/Doroti.Cupertino/src/theme.cs",
+      "sha256": "5f68d3c40743362e6aff68f557f5e3596cacec54a20da93d7ff7afb98e260be4"
+    }
+  ],
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "const Duration kThemeAnimationDuration",
+      "offset": 605,
+      "length": 69,
+      "sha256": "fa54a55a29b16a1848b448a75ec19e8ec5361b8aca8d7ad8cd03f11b3e248cad"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class Theme extends",
+      "offset": 2145,
+      "length": 7103,
+      "sha256": "ec7ab4d9fed251b6c4e8bebb281a76c067051e70aae620b71f8fe8ad5dc50197"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class _InheritedTheme extends",
+      "offset": 9252,
+      "length": 364,
+      "sha256": "f7c7848abb8e4a356c1c40c167000d1a676f707dc21f21aa56a4bbcffc836f1d"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class ThemeDataTween extends",
+      "offset": 9859,
+      "length": 397,
+      "sha256": "596da48205cebdeee6b162fc1d412c53870ce4bd4946cab8d77504aaaca712ab"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class AnimatedTheme extends",
+      "offset": 10941,
+      "length": 669,
+      "sha256": "138ed6a898423bfb3135e53db0de4d450fa64be340c2370c266d6141d7122020"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class _AnimatedThemeState extends",
+      "offset": 11614,
+      "length": 718,
+      "sha256": "76dbddca819fb639bbeb80b69114c1474fd1fbf91f3a162ddac1024b089f86e3"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/theme.dart",
+      "symbol": "class CupertinoTheme extends",
+      "offset": 2132,
+      "length": 3565,
+      "sha256": "a9d51ef773a667650465d7f1f152ce0c8bb655d1724159a02ef49d9b5cc332a6"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/theme.dart",
+      "symbol": "class InheritedCupertinoTheme extends",
+      "offset": 5754,
+      "length": 599,
+      "sha256": "662fa37510cdc4a55d00332d8c93c52814ec34871448373c5840da3e84fb253e"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/material/src/theme.ts",
+      "sha256": "b71b4bb7a4142fd5ea63eb17623c2c78a570f1720880780184b580ccb61718d6"
+    },
+    {
+      "file": "packages/material/src/internal/theme/theme-scope.ts",
+      "sha256": "580242651eabfdc219ea1816a6ed1d6c3a6fc2773e270e6cf315fd138cf58afd"
+    },
+    {
+      "file": "packages/cupertino/src/theme.ts",
+      "sha256": "b9b5499d834593d7883f0e5ac34fe104d683f6df6fadda8086467aa5227c4cab"
+    },
+    {
+      "file": "packages/cupertino/src/theme-data.ts",
+      "sha256": "03345c4d79e46caf3608f5db93866d30288468a481f49efae11703fc4420b007"
+    },
+    {
+      "file": "packages/cupertino/src/internal/colors/color-values.ts",
+      "sha256": "91a61a2441de3f7dedbe1f23eae5154f1cca6f5f77a8307d79f29c6cb56504a2"
+    },
+    {
+      "file": "packages/material/src/internal/theme/transition-theme-context.ts",
+      "sha256": "2422b8ddb3b0ea3383b745aa8c871550f136e19956026e99c5b56bf2cfab7598"
+    },
+    {
+      "file": "packages/material/src/app.ts",
+      "sha256": "840f884ff7caf113e5814e1cbb734c8b2688cc83e4ee36764d83e9692a90061a"
+    },
+    {
+      "file": "packages/cupertino/src/app.ts",
+      "sha256": "2ce47929bb35380c2bdbaadab876eb3177427853309814fc439c8dd63c033072"
+    }
+  ],
+  "scope": "Complete unchanged Theme/InheritedTheme/CupertinoTheme/InheritedCupertinoTheme/ThemeDataTween/AnimatedTheme/State declarations and Duration constant on explicit finite context/value/typography/animation/diagnostic/Color parents. Widget tree ownership, public field/key/default/wrap/brightness/dependency policy; full parent runtime/layout/renderer and whole App are separate. Original Theme wrappers preserve ambient DefaultTextStyle; existing app palette/text style belongs to app composition. Cupertino ARGB adapter retains canonical source Color receiver until IconTheme resolves; custom general Color identity/whole ThemeData/App/typography remains separate.",
+  "appComposition": {
+    "ownership": "hand-authored Nelyx product composition; not a generated source body",
+    "reference": {
+      "file": "packages/Doroti.Cupertino/src/app.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "a317e7c6b116619accbf5add6fa0e9d0641be4e0239fbde5ebc2400df995109c"
+    },
+    "behavior": "Default home/named routes use canonical CupertinoPageRoute and Core RouteSettings; explicit route factories keep their ownership. Existing Theme source comparisons do not qualify the entire App."
+  }
+}

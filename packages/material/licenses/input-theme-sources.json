@@ -1,0 +1,43 @@
+{
+  "schema": "nelyx.material-input-theme-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/input_border.dart",
+      "sha256": "f3f257e56ddb4b835ab78af19a48f7a2604627291c2598cf608861f76b49d091"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/input_decorator.dart",
+      "sha256": "04678cda4b10df3a024ab7f927fe7053822d902f55e305618349beab49c10777"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/geometry.dart",
+      "sha256": "79f3a31372633f5ecb4110f31ee09f97bd3cf86272e51381d98d779ba58a0048"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/painting.dart",
+      "sha256": "de89ce72b6d72c69163b45963d1994b464655d7502c4c573af609587c83ec1eb"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/lerp.dart",
+      "sha256": "1e6a9e6177c6f2dc770a8725d2f784e6c5af771e9284577d3161b12cba61c626"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/input_border.cs",
+      "sha256": "eec04e1c349282d399f13e278efe21f0dd2beab65b1bcd7fc2969800c0821d03"
+    },
+    {
+      "file": "packages/Doroti.Material/src/input_decorator.cs",
+      "sha256": "f38cfc21b2c17dca50047420fc98e19c5e11fdaba818a7dac20aa889cd841429"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "sourceIr": {
+    "completeRecords": 8,
+    "broaderThemeClosureRecords": 48
+  },
+  "scope": "Complete current-host 37-field InputDecorationThemeData value/copy/merge/diagnostic contract and modern inherited data/child mode, canonical floating label values and actual standard InputBorder.none/Underline/Outline geometry/paint. Obsolete standalone InputDecorationTheme aliases excluded. ShapedInputBorder/boolean path combination, InputDecoration/InputDecorator/TextField full control flow and remaining theme/route/floating/native/physical contracts remain PARTIAL."
+}

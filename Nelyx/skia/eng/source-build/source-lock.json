@@ -1,0 +1,152 @@
+{
+  "schema": "nelyx.skia-build-inputs/v1",
+  "skia": {
+    "repository": "https://skia.googlesource.com/skia.git",
+    "revision": "2466dcf3937437e217e7f284afe0e1aae15891ce",
+    "depsSha256": "4bd5e5900c97ca6f5bc028cf829de33314333724f5ae68f714955a9e4fbbca5c"
+  },
+  "dawnRevision": "3d786993a7ded64c4ebb4884b9b079db9ad0e580",
+  "emsdk": {
+    "revision": "c69d433d8509c5c64564c2f0d054bf102a5cf67e",
+    "version": "4.0.7"
+  },
+  "gnRevision": "b2afae122eeb6ce09c52d63f67dc53fc517dbdc8",
+  "dependencies": [
+    {
+      "path": "buildtools",
+      "repository": "https://chromium.googlesource.com/chromium/src/buildtools.git",
+      "revision": "729495f2ffa69080907780591fa2a630b2556e98"
+    },
+    {
+      "path": "third_party/externals/brotli",
+      "repository": "https://skia.googlesource.com/external/github.com/google/brotli.git",
+      "revision": "6d03dfbedda1615c4cba1211f8d81735575209c8"
+    },
+    {
+      "path": "third_party/externals/d3d12allocator",
+      "repository": "https://skia.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator.git",
+      "revision": "169895d529dfce00390a20e69c2f516066fe7a3b"
+    },
+    {
+      "path": "third_party/externals/dawn",
+      "repository": "https://dawn.googlesource.com/dawn.git",
+      "revision": "3d786993a7ded64c4ebb4884b9b079db9ad0e580"
+    },
+    {
+      "path": "third_party/externals/abseil-cpp",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp",
+      "revision": "3a994d3a4560406a1101ae4fb3a496e7c6604ca9"
+    },
+    {
+      "path": "third_party/externals/jinja2",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/jinja2",
+      "revision": "c3027d884967773057bf74b957e3fea87e5df4d7"
+    },
+    {
+      "path": "third_party/externals/markupsafe",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/markupsafe",
+      "revision": "4256084ae14175d38a3ff7d739dca83ae49ccec6"
+    },
+    {
+      "path": "third_party/externals/glslang",
+      "repository": "https://chromium.googlesource.com/external/github.com/KhronosGroup/glslang",
+      "revision": "1d47ffa8ac4374a19b302021e216a20f22a3de92"
+    },
+    {
+      "path": "third_party/externals/webgpu-headers",
+      "repository": "https://chromium.googlesource.com/external/github.com/webgpu-native/webgpu-headers",
+      "revision": "706853a9da45b8e89b7ea005aa267294d115f8ce"
+    },
+    {
+      "path": "third_party/externals/egl-registry",
+      "repository": "https://skia.googlesource.com/external/github.com/KhronosGroup/EGL-Registry",
+      "revision": "b055c9b483e70ecd57b3cf7204db21f5a06f9ffe"
+    },
+    {
+      "path": "third_party/externals/emsdk",
+      "repository": "https://skia.googlesource.com/external/github.com/emscripten-core/emsdk.git",
+      "revision": "c69d433d8509c5c64564c2f0d054bf102a5cf67e"
+    },
+    {
+      "path": "third_party/externals/expat",
+      "repository": "https://chromium.googlesource.com/external/github.com/libexpat/libexpat.git",
+      "revision": "6154446fccefbf3ca644894f598969113b0c7bcd"
+    },
+    {
+      "path": "third_party/externals/freetype",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/freetype2.git",
+      "revision": "264b5fbf5b912b39f98d038bf75d39be0a73f21b"
+    },
+    {
+      "path": "third_party/externals/harfbuzz",
+      "repository": "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git",
+      "revision": "9cb1fee51069b206effb4736e443b038d230789d"
+    },
+    {
+      "path": "third_party/externals/highway",
+      "repository": "https://chromium.googlesource.com/external/github.com/google/highway.git",
+      "revision": "457c891775a7397bdb0376bb1031e6e027af1c48"
+    },
+    {
+      "path": "third_party/externals/icu",
+      "repository": "https://chromium.googlesource.com/chromium/deps/icu.git",
+      "revision": "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738"
+    },
+    {
+      "path": "third_party/externals/libjpeg-turbo",
+      "repository": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git",
+      "revision": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad"
+    },
+    {
+      "path": "third_party/externals/libpng",
+      "repository": "https://skia.googlesource.com/third_party/libpng.git",
+      "revision": "d5515b5b8be3901aac04e5bd8bd5c89f287bcd33"
+    },
+    {
+      "path": "third_party/externals/libwebp",
+      "repository": "https://chromium.googlesource.com/webm/libwebp.git",
+      "revision": "845d5476a866141ba35ac133f856fa62f0b7445f"
+    },
+    {
+      "path": "third_party/externals/opengl-registry",
+      "repository": "https://skia.googlesource.com/external/github.com/KhronosGroup/OpenGL-Registry",
+      "revision": "14b80ebeab022b2c78f84a573f01028c96075553"
+    },
+    {
+      "path": "third_party/externals/swiftshader",
+      "repository": "https://swiftshader.googlesource.com/SwiftShader",
+      "revision": "694585a05946e1ed49b6bd577ca6537cbb57f025"
+    },
+    {
+      "path": "third_party/externals/spirv-headers",
+      "repository": "https://skia.googlesource.com/external/github.com/KhronosGroup/SPIRV-Headers.git",
+      "revision": "496543121ce6419f23d6fa5d7194ba66c36212d2"
+    },
+    {
+      "path": "third_party/externals/spirv-tools",
+      "repository": "https://skia.googlesource.com/external/github.com/KhronosGroup/SPIRV-Tools.git",
+      "revision": "d693d2289e69f47135918089ab8038a929e43661"
+    },
+    {
+      "path": "third_party/externals/vulkan-headers",
+      "repository": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Headers",
+      "revision": "31386378257ac8653ce5b32c93baec385259ebbe"
+    },
+    {
+      "path": "third_party/externals/vulkan-utility-libraries",
+      "repository": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Utility-Libraries",
+      "revision": "634022187b2cd1e02e4793e75cdc569ed90e1f51"
+    },
+    {
+      "path": "third_party/externals/wuffs",
+      "repository": "https://skia.googlesource.com/external/github.com/google/wuffs-mirror-release-c.git",
+      "revision": "e3f919ccfe3ef542cfc983a82146070258fb57f8"
+    },
+    {
+      "path": "third_party/externals/zlib",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/zlib",
+      "revision": "646b7f569718921d7d4b5b8e22572ff6c76f2596"
+    }
+  ],
+  "qualification": "source inputs selected; builds and old binary correspondence notVerified"
+}

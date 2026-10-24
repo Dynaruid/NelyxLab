@@ -1,0 +1,47 @@
+{
+  "schema": "nelyx.cupertino-routes-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/cupertino/route.dart",
+      "sha256": "72a5bae68c5e8b24651aa845f086d9e6396e2311b0f19183132d6a6828830eb9"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/navigator.dart",
+      "sha256": "56be8abbfbcb0e18039ab7d73fda7074107a5d322356a5e772d31843d9ae5615"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/pages.dart",
+      "sha256": "ef33930a029ad1dd66ff72df516476bfd4aac4c481ab4920b5c196fbf67d1490"
+    },
+    {
+      "file": "packages/flutter/lib/src/gestures/monodrag.dart",
+      "sha256": "b5189accdc245e2ed58cd8c85336254a8423862073b258ceff24f0b3e2e16b47"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Cupertino/src/route.cs",
+      "sha256": "74c5ed4496bd44ef3ade3a684664510ed562a8aa6bc4d8aa09550a81a2500566"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/routes.cs",
+      "sha256": "005238183ff82974b06c6c550434ed57756a4ec5174d36c2554f2ee4827c34a3"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/navigator.cs",
+      "sha256": "7eb69fc57ea958fc0f775489ac48190bf5b86246629e451b548a3c0837a6b94b"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Gestures/monodrag.cs",
+      "sha256": "79485d87c00fa0ef92dd3c8757b3530b3cf99a017a52292a5169cc67176f30ba"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "scope": "Canonical Core adaptation of Cupertino route/mixin/back-gesture/builder with 500ms route and 350ms gesture settle policy, previousTitle, selected lifecycle/delegation, source callback normalization and current host MediaQuery.safeArea padding. Unchanged original source VM uses explicitly finite animation/Navigator/Widget/value parents; previous development verification artifacts were removed during emergency cleanup. Full source ModalRoute/page-based Router/history/generic runtime and native/physical behavior remain partial."
+}

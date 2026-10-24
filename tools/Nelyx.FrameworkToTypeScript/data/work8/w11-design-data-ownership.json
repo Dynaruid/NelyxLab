@@ -1,0 +1,634 @@
+{
+  "schema": "nelyx.w11-design-data-ownership/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "mode": "generated-immutable-data-fail-on-product-edit",
+  "parser": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/dart/bin/design_values.dart",
+    "sha256": "b0488dfef6679e0b8d188162e3cef48fec064846a44c0958b67ebf88afb45ffd"
+  },
+  "generator": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-design-data.mjs",
+    "sha256": "e9b6d9b6259e40eb5805179b60480d30cd58bebfe34a1961d9ef3e22a9e58e2e"
+  },
+  "inputs": [
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/colors.dart",
+      "sha256": "2863b158929eabea9f827e48ce50766193fe52731bd193c94fb4f80977571e04",
+      "symbol": "Colors"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/typography.dart",
+      "sha256": "5f015b9a0514c198643d297a5f155ae518c2b2150f35673f814c7aa3cf41ec53",
+      "symbol": "_M3Typography"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/typography.dart",
+      "sha256": "5f015b9a0514c198643d297a5f155ae518c2b2150f35673f814c7aa3cf41ec53",
+      "symbol": "Typography"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/theme_data.dart",
+      "sha256": "bc0458fef7d00d32f187bf263e1314018ad06b0ebe39aeb61d607fdc012ff884",
+      "symbol": "topLevel"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_af.arb",
+      "sha256": "ea41fdb704879a888171a7e7a6cecbcf553d160fe34bfea51efac2776ecaad9b",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_am.arb",
+      "sha256": "76301cf47f41c088af3a1d886c9fef39a327b326f316e77d677f103e17092d68",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ar.arb",
+      "sha256": "9f6f2ffaa6328902af59e584bdb59bcf3c3d7173586b10add8a767d73c791217",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_as.arb",
+      "sha256": "0ed2a68b0506f7c392e08a2169e7a4aae106e2c84ee5c41dc7fd67ec824724f6",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_az.arb",
+      "sha256": "ba218f7c426150c2a1eb953305176b47e6d08634932f7688aafc74aefbf619ef",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_be.arb",
+      "sha256": "4d4866939118fd70b2e3c94728be511844cf17483fca9a6b388abca0820c8f41",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_bg.arb",
+      "sha256": "0225b3095144289f9ffffe547cb0dddc320830536170ad32eac8d5b93ab6a41a",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_bn.arb",
+      "sha256": "e17158e9c26b0c7b06f623e63cd51861847c4b7f61411e6fb9c709878c8ca450",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_bo.arb",
+      "sha256": "6e434bd7e67056049fa8a3317f0af2126f2e18cd8ccd797d447524e47d68b0a5",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_bs.arb",
+      "sha256": "29b47d6b33129250ce7077f20f97bdb23dacff33eeb06fe9721c0b582466eac5",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ca.arb",
+      "sha256": "a1a193a3467230239e6b06fdd065e549b86d120470847d7019462aade925ef3e",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_cs.arb",
+      "sha256": "7ecf054df4ecdb6ffc66f8f0219f89574fb0b52518bcab180949885ec162d646",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_cy.arb",
+      "sha256": "5de5388ced555f11067219f00fd270c02cb94c823e4f7250ca1951f70a9e8237",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_da.arb",
+      "sha256": "078afbc74f0a7376340f0c7b45915205ce2bcf87e8b1dc9eadf1ce2e1199de49",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_de.arb",
+      "sha256": "360d15486e8e56a53162020d40a6023c56ec63cae62e0f70d14625423806338c",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_de_CH.arb",
+      "sha256": "8909d0071ed4dc8f91e99ac8ee5254abeaaef794667a64a45aaaf6ad2e4d6e44",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_el.arb",
+      "sha256": "d8ab5e1f4d1cd2f27f534771c3f49f6e0615253f56ca9de146444d6f1b8d78e6",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en.arb",
+      "sha256": "87ca79b2d4962145ced7accbbae07f72692c1da5c2f2cdc026cd4626d825ad20",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_AU.arb",
+      "sha256": "6f1f3db2d12ceed79e6ca49a3d8f4f70b1aae21d4d24a5d52d80f2cb9f5fb302",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_CA.arb",
+      "sha256": "6ba9aa75422df91de3c9495300ae235d65c291fcfe0ba4e97aa46093c47df31d",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_GB.arb",
+      "sha256": "e553f47983429c81cb0027174159746bc5b50669297847b7d8ee9ac12e523295",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_IE.arb",
+      "sha256": "e553f47983429c81cb0027174159746bc5b50669297847b7d8ee9ac12e523295",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_IN.arb",
+      "sha256": "6f1f3db2d12ceed79e6ca49a3d8f4f70b1aae21d4d24a5d52d80f2cb9f5fb302",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_NZ.arb",
+      "sha256": "340bc7ff96366b555af5230d564097ed78141a4444004e580deb38292be940c7",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_SG.arb",
+      "sha256": "6f1f3db2d12ceed79e6ca49a3d8f4f70b1aae21d4d24a5d52d80f2cb9f5fb302",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_en_ZA.arb",
+      "sha256": "e553f47983429c81cb0027174159746bc5b50669297847b7d8ee9ac12e523295",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es.arb",
+      "sha256": "e072f9b553b0525ab87aa0a9686ab8bc2db25c100cf5f592fffa32cd3999065e",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_419.arb",
+      "sha256": "d88784ffd2880657e477abe798f6fb061d66641160ddf05e068d691a39457d20",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_AR.arb",
+      "sha256": "d88784ffd2880657e477abe798f6fb061d66641160ddf05e068d691a39457d20",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_BO.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_CL.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_CO.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_CR.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_DO.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_EC.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_GT.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_HN.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_MX.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_NI.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_PA.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_PE.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_PR.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_PY.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_SV.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_US.arb",
+      "sha256": "6ec2dc8e8b382e8d259ae7a2e4d0b8ff45839a04bb257b1908ea95f3415d11f8",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_UY.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_es_VE.arb",
+      "sha256": "7aa10f3231b8d8f8e3facbed3243192f32a46994b36f6e8ba197677522e3d075",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_et.arb",
+      "sha256": "c3f739392e40adbd438d754c85d3e6f85f350635ee9ba17cea2c7d177c394d21",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_eu.arb",
+      "sha256": "b6baac69697efccadbe232a614cd158a1da215d2bede190b98d483b7c43628c0",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_fa.arb",
+      "sha256": "4978c2bef5987eca711b5ed6ed776cbe3eabf9dd3f527c41f6768290232acad9",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_fi.arb",
+      "sha256": "9711eca9760d57f1f75543e1b46a3b0870d4ae4f1069401472a0f449bfec29a8",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_fil.arb",
+      "sha256": "331679c0a1d8b52dd304be5b11e4a12870c699bb3bcba6e42f13f046320f7b77",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_fr.arb",
+      "sha256": "30ef42845ad6d4265f930aba5cacb6dd1ae313c6e4526149eec6b3c99a20a7b7",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_fr_CA.arb",
+      "sha256": "66974a2d12ded04d02b62fa9bb9be86a8fbe658822548c10e82c14ffa11edff2",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ga.arb",
+      "sha256": "541d16a7d37513ea27ba6b81d54671ea2dbd12e3221d866b149cb02aedee4edf",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_gl.arb",
+      "sha256": "09a4241b79ed9045d5835ac6663f6cecb66b6b5686406316fa147992d7aeab58",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_gsw.arb",
+      "sha256": "f3702c70d9976fa596fd6cbfa77c133ee382fceab9b2bf54b359c29ea9858d31",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_gu.arb",
+      "sha256": "09206200eca190ffa9edcc189a6de140e7b7de84f6bd8f73986bfb7ad151a136",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_he.arb",
+      "sha256": "4958e9bb91ee8e6cc9e4f886319c86ac8eab8ce6bdceb2eae0f8a5cd2c7ce1c0",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_hi.arb",
+      "sha256": "e73b02524f071f6cec3cae7e3d62223db6741dff3c3377aa1feb18dcc3d55c70",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_hr.arb",
+      "sha256": "56935b3a7228cc2a1b74957562c0ddb4084286556493f8d22bae2d39c23e80c8",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_hu.arb",
+      "sha256": "c9fc0fbd0471695d2d570e9c1f95d0456b78beb220868d51c4404b043feaf631",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_hy.arb",
+      "sha256": "1a73c4e6416595a6f2c78169b4b824938084ca8a96628bbbde688b5f2df9252c",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_id.arb",
+      "sha256": "6f9704884ee2e7b67a4a7bcc726ef0768bf28718b3363a578b7980cea4485472",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_is.arb",
+      "sha256": "bfcedf6e792e9deab2c8235663088531e519a343ceeb65cf3ab7447a6484a8c4",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_it.arb",
+      "sha256": "919904d1942968dc5274b4fd90562ba3d2d926e13330500cbf1e57264a09012f",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ja.arb",
+      "sha256": "237b607623403a4bf28d8c8ab566e2243d8f59d50d46c120613c9bcd5dadb7dd",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ka.arb",
+      "sha256": "b651b722195cdaab7df4c20d4ea97cd84006aea981ee43bb7fc7f421ef19f007",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_kk.arb",
+      "sha256": "cc1b578d7182784e75f68ce977b4af9745a638f784909f1d71a1a909905e9379",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_km.arb",
+      "sha256": "79182bc095f4647512f2f1882b6a2d5df7077528b40dd94244f9d02be1405a82",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_kn.arb",
+      "sha256": "d8fb60af2f1bc650fd03c629e07a82da1f585c1b60d200723f340749ab9986bf",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ko.arb",
+      "sha256": "d1e8d053b49c151eaf87d99489956c42a5864ceadc142fd553b2ea64939b40c8",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ky.arb",
+      "sha256": "9fa37ffbdd863c63132bf679cd3f34f7c8aef2fc3ec0b8b3a797a01070301899",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_lo.arb",
+      "sha256": "7752fc923da859dc0d14a5a48bf61df8ae57f37f6f28d5c275213714a4d5b3b2",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_lt.arb",
+      "sha256": "1c84d50af39f4d4f9713927dbc6836c61368d233e5fa48588a50a3bf2aa3e13a",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_lv.arb",
+      "sha256": "95bba5b4b05afd34f4223995dd5a50317be481684064b9d99960c1b709fbe515",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_mk.arb",
+      "sha256": "77be43cd4e8a43886b7f2bc14c24d3a0cc00c5cdd76ec1ae71cb0e8bccb086ea",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ml.arb",
+      "sha256": "5c10d15fd0e020677c434f2f1f038f56c1dd839ee609113bbac2e409a6672af5",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_mn.arb",
+      "sha256": "f56649596b56d522689c48beca42643af843942eb1abd61e7348fa033076b7ea",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_mr.arb",
+      "sha256": "b90061239483460f91802eb1f9cd1c8d9e8acb386483dfdb011daecfe6608dcd",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ms.arb",
+      "sha256": "0e1c156ffa6b25f174d6abf4dc454c943d00313ee918f4cd246f090ceef29c22",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_my.arb",
+      "sha256": "5c3e94d5e8c555b82cf4f6c6f44b323db5b16f60e7f9046122a2ed12fa0f59b0",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_nb.arb",
+      "sha256": "9d318b92171caccf170f6679af48da61505aa5c162c8e4371e91cc1e6e9ba002",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ne.arb",
+      "sha256": "04c0a7d3742804016213928595f94a6d9cc8a0cad6169fcdd8cc2a3d39d1b7b4",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_nl.arb",
+      "sha256": "dc4a3d83df3fd92b9005daae9c97e5db0d4736992b17ebe56c1de8e0f0799f66",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_no.arb",
+      "sha256": "9d318b92171caccf170f6679af48da61505aa5c162c8e4371e91cc1e6e9ba002",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_or.arb",
+      "sha256": "baa8a5b838b5d1ea0056a18ac9ad4bfd2d65670498ca07fc1eb8bec1720ed5d0",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_pa.arb",
+      "sha256": "b3b82880e88cde9c9ab65fe73ead4eb2e3932db6d6649e987d4dacb2a9639a46",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_pl.arb",
+      "sha256": "249b438f93a954ca2b23249f3db52f6a33b1c40beaf7532c4cc72e82d6116c10",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ps.arb",
+      "sha256": "1de9630a82d061dbf7e34820fc9bf30ea70fc55d4e121e35228cb637bab64e18",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_pt.arb",
+      "sha256": "b5b5980ab491fcaf295b662a7635b57492f58e98e92825bb1ee633c3429cd82c",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_pt_PT.arb",
+      "sha256": "46623e77ab02ef85111323390bf8717ed3923706cb2d5c1b1619de3720804053",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ro.arb",
+      "sha256": "b46f677a8020ea23b2cacee3b2c809a0b4ae36035adb0720f159168a9e626980",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ru.arb",
+      "sha256": "bbff00763c675a15768c4bc8c779f18832e5f89e860740dea00fa93f87cd50c1",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_si.arb",
+      "sha256": "dda593d6302f1fc5c2447b9663dcc2eb1f70a853a63753b9418cb8f24e2b11be",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sk.arb",
+      "sha256": "8115f4767e76627ea97b4ce48482fe6f8c177e2f5a000a570582565a4b411858",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sl.arb",
+      "sha256": "02fe54227f0a4eb79df78b069d9df9bc85ede4e7a78b80349b8abf30773be570",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sq.arb",
+      "sha256": "541bcf68275f52e3b467fdbfff6240f002be36f81928d93d7999d1938368a806",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sr.arb",
+      "sha256": "d1ad1110752ef9135c7a2c7511f7da4861018ae1677d8deb6515d26d4e9e56fd",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sr_Latn.arb",
+      "sha256": "f3ea5ef11f1f57d04b571829d85824fc37e4a00e027a0cffec0bc4e104476cfc",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sv.arb",
+      "sha256": "8e235c64f45ec6ef675750f56fbcbbf93e24dcba8490316d9d6311ede6db5f00",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_sw.arb",
+      "sha256": "fdb66a35d9f11e6264d4943685b8cbbf4d961277db3f5db71b57a7cc594824bf",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ta.arb",
+      "sha256": "cd2680867203dbae7b8ac92ae40e4bf35387235bc851e100b91362a0447915be",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_te.arb",
+      "sha256": "e003cfa63fd6c6a382fda349eba9b24c75b5fc6b5c1c325d578b4fe9716e4c3e",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_th.arb",
+      "sha256": "2450076e4123e331db8b4acce9caa8bb5bae3ab987b2b6f81453122171efe651",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_tl.arb",
+      "sha256": "331679c0a1d8b52dd304be5b11e4a12870c699bb3bcba6e42f13f046320f7b77",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_tr.arb",
+      "sha256": "96529331746ff38e7d5d6c14bff9873590c37cfa86479369554bd27ea2479f22",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ug.arb",
+      "sha256": "792372d7a12ded7c7910113e8e5a064760e1399c6c514c4475b5821f72e10c8e",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_uk.arb",
+      "sha256": "667b4b5fb16764cd56e9b62dfadcf33c4734f0639180d2611e6c13eec2ae0863",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_ur.arb",
+      "sha256": "c5f74f6fefef2cdd4767cfedcf17f7d721ad81e0e7d5351d09070b1bc52b58bb",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_uz.arb",
+      "sha256": "cdbe79f2a56e3cfc84da62e9c913607bf8b25e59f7cf049784e478619337d984",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_vi.arb",
+      "sha256": "b3b9e8fadb8fa7fbd43a991a502c773f69ce2e24ff98172a6815b405e8efb9e8",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_zh.arb",
+      "sha256": "a4de1a11d5eb37885cad48d76feef420281f8db8090be82afdeeb66de7466193",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_zh_HK.arb",
+      "sha256": "1c77ef7b0c6a04fbf8c9a2701fb1acd5b86390ae8cee1fc74a441eae8204a670",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_zh_TW.arb",
+      "sha256": "4847d55cfd12301c2d1253db48e5a6da3451ef4a3779d3e96431c496ca3f50fc",
+      "symbol": "scriptCategory"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/material_zu.arb",
+      "sha256": "2f3189bca83e7ad2b6832368352e19c36dafb996fb0dd33a2b409005a05a9023",
+      "symbol": "scriptCategory"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/material/src/generated/colors/colors.generated.ts",
+      "sha256": "9e61aecff2252b005b3bf486740ea831c2dac8b68eeae16032a02b510abebff2"
+    },
+    {
+      "file": "packages/material/src/generated/theme/typography-data.ts",
+      "sha256": "f6104799dad786ce32cd2643fb07a3d2460fe93c77167ac8baaaa329f8a79b2b"
+    },
+    {
+      "file": "packages/material/src/generated/theme/color-scheme-data.ts",
+      "sha256": "c6a43c5d8847aa46da2b83f73357e4851d12987cf72bc7523912396a8bd97c65"
+    },
+    {
+      "file": "packages/material/src/generated/localizations/script-categories.ts",
+      "sha256": "0ff5958095eb596eb451a3cdbab3960190f8265b630907745886d31cb8424ba2"
+    }
+  ],
+  "scope": "Full original Material palette values, M3 geometry scales, all ten platform color/font themes, ARB script categories and ThemeData M3 default role tokens. Data output is separate from handwritten functional classes. No Dart dependency in product build/runtime."
+}

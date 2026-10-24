@@ -1,0 +1,208 @@
+# Nelyx workspace ignore rules
+# Generated Metro asset modules live in the consuming app.
+**/.nelyx-metro/
+**/.nelyx/
+**/.cache/
+
+# Local upstream/reference source snapshots
+# Keep Nelyx-owned source and future tools/* projects tracked.
+/reference/react-native-skia-main
+/reference/flutter-master
+
+
+# .NET build output
+# Legacy local web font cache; production fonts/decoder load from CDN.
+/Doroti/src/Doroti.Host.Web/wwwroot/fonts/
+# Project-local temporary workspaces and reusable build caches.
+**/.doroti/
+**/[Bb]in/[Dd]ebug/
+**/[Bb]in/[Rr]elease/
+**/[Bb]in/[Ww]eb/
+**/[Bb]in/[Aa]ndroid/
+**/[Bb]in/[Aa]ndroid-x64/
+**/[Bb]in/
+# Dart migration entry points are source files, not build output.
+!/tools/Nelyx.FrameworkToTypeScript/dart/bin/
+!/tools/Nelyx.FrameworkToTypeScript/dart/bin/*.dart
+**/[Oo]bj/
+**/[Tt]est[Rr]esults/
+**/[Bb]enchmark[Dd]ot[Nn]et.[Aa]rtifacts/
+**/[Aa]rtifacts/
+/Regolith/migration/generated/
+/Regolith/migration/promotions/
+
+# Local converter/migration scratch and regenerable IR dumps.
+/.tmp/
+**/.dart_tool/
+/temp/
+/migration/generated/.cache/
+**/migration-ir.json
+
+*.nupkg
+*.snupkg
+
+# NuGet package lock files are generated per restore target and build mode.
+*.lock.json
+!/Nelyx/skia/vendor/*.lock.json
+!/Nelyx/skia/eng/source-build/libwebp.lock.json
+!/Nelyx/skia/eng/source-build/canvaskit.lock.json
+
+# Coverage and test-run output
+**/[Cc]overage/
+**/coverage.xml
+**/coverage.cobertura.xml
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+
+# Python bytecode is generated state, never validation source.
+**/__pycache__/
+*.py[cod]
+
+# Visual Studio and MSBuild user state
+**/.vs/
+**/.mono/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.csproj.user
+*.fsproj.user
+*.vbproj.user
+*.vcxproj.user
+*.publishproj.user
+
+# JetBrains Rider / ReSharper
+**/.idea/
+*.sln.iml
+_ReSharper*/
+*.DotSettings.user
+
+# Eclipse / Buildship local metadata
+**/.project
+
+# Local editor state
+/.vscode/*
+!/.vscode/tasks.json
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Dart / Flutter generated state
+**/.dart_tool/
+**/.pub/
+**/.pub-cache/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/doc/api/
+
+# JavaScript tooling
+**/node_modules/
+**/.npm/
+**/.yarn/cache/
+**/.yarn/unplugged/
+**/.pnpm-store/
+
+# CMake and native build-system output
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/compile_commands.json
+**/Testing/Temporary/
+**/.gradle/
+**/native/**/[Bb]uild/
+**/DerivedData/
+**/xcuserdata/
+**/.xcode.env.local
+**/native/**/*.aar
+**/native/**/*.xcframework/
+*.ilk
+*.exp
+
+# Logs, traces, crash dumps, and profiling sessions
+**/[Ll]ogs/
+*.log
+*.binlog
+*.trace
+*.etl
+*.dmp
+*.mdmp
+*.vsp
+*.vspx
+*.diagsession
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+appsettings.Local.json
+appsettings.*.local.json
+
+# Generated local packaging/publish directories
+**/[Pp]ublish/
+**/[Aa]pp[Pp]ackages/
+**/[Pp]ackage[Ss]tore/
+
+# Operating-system metadata
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.pid
+
+# Nelyx SDK, Metro and native generated output
+/Nelyx/dist/
+/Nelyx/.cache/
+/Nelyx/sdk/.cache/
+/Nelyx/skia/packages/*/.cache/
+/Nelyx/skia/packages/rn/cpp/skia/
+/Nelyx/skia/packages/rn/cpp/dawn/
+/Nelyx/skia/packages/rn/generated/
+/Nelyx/skia/packages/web/generated/
+**/.cxx/
+**/android/**/build/
+**/android/local.properties
+**/.metro-cache/
+**/*.jsbundle
+**/*.hbc
+**/dist/
+**/build/generated/
+**/android/app/debug.keystore
+
+# Independent platform runner outputs
+**/runner/.bundle/
+**/runner/tsconfig.generated.json
+**/android/runner/app-config.json
+**/web/runner/app-config.json
+**/ios/generated-codegen/
+**/macos/generated-codegen/
+
+# Generated CLI supply assets; canonical inputs live in Nelyx/upstream.
+/Nelyx/sdk/tooling/cli/upstream/
+
+# Native app compiler outputs are excluded from templates.
+**/windows/**/Bundle/
+**/windows/**/Generated Files/
+**/windows/**/x64/
+**/windows/Directory.Build.targets
+**/.kotlin/
+
+# Explicit local supplier inputs are pinned by vendor locks and retained separately from cache.
+/Nelyx/skia/vendor/inputs/
+/Nelyx/upstream

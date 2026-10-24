@@ -1,0 +1,297 @@
+{
+  "schema": "nelyx.provider/v4",
+  "id": "nelyx.linux",
+  "version": "0.20.0",
+  "coreRange": ">=0.16.0 <0.17.0",
+  "protocolVersion": 1,
+  "target": "linux",
+  "runtime": "hermes",
+  "host": "fabric",
+  "renderer": "skia-graphite",
+  "entry": "@nelyx/sdk/platforms/linux/application",
+  "defaultProfile": "rn-graphite-vulkan-x11",
+  "cohorts": [
+    {
+      "id": "rn-0.81.6",
+      "react": "19.1.4",
+      "reactNative": "0.81.6",
+      "nativeReactNative": "0.81.6",
+      "framework": "react-native-linux",
+      "frameworkVersion": "0.0.1",
+      "frameworkRevision": "9412cf605c7cc77f920916401926ff9a9873ecd3",
+      "engine": "hermes",
+      "engineVersion": "0.12.0",
+      "engineRevision": "e0fc67142ec0763c6b6153ca2bf96df815539782",
+      "bytecodeVersion": 96
+    }
+  ],
+  "defaultCohort": "rn-0.81.6",
+  "hostOperatingSystems": {
+    "doctor": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "build": [
+      "linux"
+    ],
+    "run": [
+      "linux"
+    ],
+    "dev": [
+      "linux"
+    ],
+    "pack": [
+      "windows",
+      "darwin",
+      "linux"
+    ]
+  },
+  "operations": [
+    "doctor",
+    "build",
+    "run",
+    "dev",
+    "pack"
+  ],
+  "architectures": [
+    "x86_64"
+  ],
+  "tooling": [
+    {
+      "id": "node",
+      "kind": "executable",
+      "versionRange": ">=24.3.0 <25.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "run",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "npm",
+      "kind": "executable",
+      "versionRange": ">=11.0.0 <12.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "react-native",
+      "kind": "package",
+      "versionRange": "0.81.6",
+      "operations": [
+        "build",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "linux"
+      ]
+    },
+    {
+      "id": "cmake",
+      "kind": "executable",
+      "versionRange": ">=3.25.0 <5.0.0",
+      "operations": [
+        "build"
+      ],
+      "hostOperatingSystems": [
+        "linux"
+      ]
+    },
+    {
+      "id": "gtk4",
+      "kind": "sdk",
+      "versionRange": ">=4.14.0 <5.0.0",
+      "operations": [
+        "build"
+      ],
+      "hostOperatingSystems": [
+        "linux"
+      ]
+    }
+  ],
+  "artifactManifest": {
+    "entry": "@nelyx/skia-rn/native-manifest.json",
+    "kind": "recipe",
+    "required": [
+      "skia-linux-rn"
+    ]
+  },
+  "nativeAbi": {
+    "host": null,
+    "skia": 1
+  },
+  "wireAbi": 10,
+  "capabilities": {
+    "rendering": {
+      "admission": "bounded",
+      "completion": "gpu-retired",
+      "present": "unobserved",
+      "notifications": "submitted-and-retired",
+      "nativeIdentity": true,
+      "textRanges": true
+    },
+    "editing": {
+      "indexUnit": "utf16",
+      "composing": "unavailable",
+      "selectionDirection": "unavailable",
+      "nativeRevision": "event-count"
+    },
+    "semantics": "native-controls"
+  },
+  "qualification": {
+    "status": "notVerified",
+    "scope": "Linux RNL/Vulkan source implementation",
+    "architectures": [],
+    "evidence": [],
+    "limitations": [
+      "Only the pinned x86_64 X11/Wayland recipe is admitted; GPU execution is not verified",
+      "ARM64, full reload/loss recovery, deployment and physical input/accessibility remain incomplete",
+      "Hardware preparation and matching native runtime generations are required"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "rn-graphite-vulkan-x11",
+      "cohorts": [
+        "rn-0.81.6"
+      ],
+      "identity": {
+        "target": "linux",
+        "runtime": "hermes",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "native-vulkan",
+        "profile": "rn-graphite-vulkan-x11"
+      },
+      "status": "implemented",
+      "reason": "Owned native Linux hardware host/status and per-view backing gates required; GPU execution qualification notVerified",
+      "executionOperatingSystems": [
+        "linux"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-linux-rn"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Linux RNL/Vulkan source implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Only the pinned x86_64 X11/Wayland recipe is admitted; GPU execution is not verified",
+          "ARM64, full reload/loss recovery, deployment and physical input/accessibility remain incomplete",
+          "Hardware preparation and matching native runtime generations are required"
+        ]
+      }
+    },
+    {
+      "id": "rn-graphite-vulkan-wayland",
+      "cohorts": [
+        "rn-0.81.6"
+      ],
+      "identity": {
+        "target": "linux",
+        "runtime": "hermes",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "native-vulkan",
+        "profile": "rn-graphite-vulkan-wayland"
+      },
+      "status": "implemented",
+      "reason": "Owned native Linux hardware host/status and per-view backing gates required; GPU execution qualification notVerified",
+      "executionOperatingSystems": [
+        "linux"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-linux-rn"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Linux RNL/Vulkan source implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Only the pinned x86_64 X11/Wayland recipe is admitted; GPU execution is not verified",
+          "ARM64, full reload/loss recovery, deployment and physical input/accessibility remain incomplete",
+          "Hardware preparation and matching native runtime generations are required"
+        ]
+      }
+    }
+  ]
+}

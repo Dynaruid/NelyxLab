@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <TextInputModule.h>
+#include <thread>
+#include <iostream>
+
+using namespace Nelyx::WindowsInput;
+namespace {
+void check(bool value,char const* message){if(!value)throw std::runtime_error(message);}
+void hr(HRESULT result,char const* message){if(FAILED(result))throw TextInputFailure(result,message);}
+class Read final : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,ITfEditSession> {
+public:
+  explicit Read(ITfContext* context):context(context){}
+  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie cookie)override{Microsoft::WRL::ComPtr<ITfRange> range;const auto result=context->GetStart(cookie,&range);if(FAILED(result))return result;WCHAR text[16]{};ULONG count=0;const auto read=range->GetText(cookie,0,text,16,&count);copied.assign(text,count);return read;}
+  Microsoft::WRL::ComPtr<ITfContext> context;std::wstring copied;
+};
+}
+void testWindowsInputService(winrt::Microsoft::UI::Content::ContentIsland const& island,HWND window){
+  auto root=TextInputRoot::create(island,window,[](std::string const& message){throw std::runtime_error(message);});const auto client=root->thread()->clientId();auto ingress=std::make_shared<std::atomic_bool>(true);std::vector<RN::JSValue> events;
+  TextInputProtocolCallbacks mapping;mapping.screenRect=[&](Rect const& rect,CoreGeometry const&)->std::optional<ScreenRect>{const auto screen=island.CoordinateConverter().ConvertLocalToScreen(winrt::Windows::Foundation::Rect{float(rect.x),float(rect.y),float(rect.width),float(rect.height)});return RECT{screen.X,screen.Y,screen.X+screen.Width,screen.Y+screen.Height};};mapping.viewPoint=[&](POINT point,DWORD,CoreGeometry const&)->std::optional<ViewPoint>{const auto view=island.CoordinateConverter().ConvertScreenToLocal(winrt::Windows::Graphics::PointInt32{point.x,point.y});return ViewPoint{view.X,view.Y};};mapping.focusSurface=[&]{return winrt::Microsoft::UI::Input::InputFocusController::GetForIsland(island).TrySetFocus();};
+  const Owner owner{"service",9};const RN::JSValue initial{RN::JSValueObject{{"owner",RN::JSValueObject{{"id",owner.id},{"generation",double(owner.generation)}}},{"text","seed"},{"anchor",4},{"focus",0}}};
+  std::shared_ptr<TextInputService> service;bool reenter=false;
+  const auto emit=[&](RN::JSValueObject value){events.emplace_back(std::move(value));if(reenter)service->close();};
+  service=TextInputService::create(root,owner,mapping,emit,ingress);const auto identity=service->identity();service->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));check(service->command(1,L"replace",{"first",5,1,0,40}),"Service lost its first command");check(events.back()["service"].AsDouble()==double(identity)&&events.back()["client"].AsDouble()==1&&events.back()["value"]["request"].AsDouble()==40,"Service events lost their lease/client/request identity");
+  bool reused=false;try{service->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));}catch(std::invalid_argument const&){reused=true;}check(reused,"Service reused a native client identity");check(service->closeClient(1)&&!service->closeClient(1)&&!service->command(1,L"replace",{"late",4,4,1,41}),"Retired service client accepted input");
+  service->open(2,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));check(service->command(2,L"focus",{}),"Service focus command failed");
+  const auto epoch=root->thread()->focusEpoch(),revision=InputWire::counter(events.back()["value"]["revision"],true);const auto staleText=service->keyboardText(2,L"wrong",revision,epoch+1);check(staleText.at("status").AsString()=="unavailable"&&staleText.at("revision").AsDouble()==double(revision),"A foreign TSF focus epoch wrote into the live client");
+  const auto keyboard=service->keyboardText(2,L"\uD55c\U0001f600",revision,epoch);check(keyboard.at("status").AsString()=="applied"&&events.back()["value"]["text"].AsString()==winrt::to_string(L"\uD55c\U0001f600")&&events.back()["value"]["source"].AsString()=="native","Matching native focus provenance did not reach its actual TSF shadow");
+  Microsoft::WRL::ComPtr<ITfDocumentMgr> document;hr(root->thread()->manager()->GetFocus(&document),"Read actual service TSF focus");check(bool(document),"Service did not focus its real TSF document");Microsoft::WRL::ComPtr<ITfContext> context;hr(document->GetTop(&context),"Read focused service TSF context");
+  std::thread stopper([&]{ingress->store(false);});stopper.join();auto read=Microsoft::WRL::Make<Read>(context.Get());HRESULT result=E_FAIL;const auto request=context->RequestEditSession(client,read.Get(),TF_ES_SYNC|TF_ES_READ,&result);check((FAILED(request)||FAILED(result))&&read->copied.empty(),"A stopped off-thread module fence still exposed native text");
+  bool stopped=false;try{service->command(2,L"replace",{"late",4,4,0,42});}catch(std::logic_error const&){stopped=true;}check(stopped,"Module ingress stop admitted a queued Core command");service->close();check(service->closed(),"Fenced service did not finish real UI context retirement");read.Reset();context.Reset();document.Reset();service.reset();
+  ingress=std::make_shared<std::atomic_bool>(true);service=TextInputService::create(root,owner,mapping,emit,ingress);check(service->identity()>identity,"New service lease reused an old event identity");service->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));
+  auto sibling=TextInputService::create(root,owner,mapping,[&](RN::JSValueObject value){events.emplace_back(std::move(value));},ingress);sibling->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));reenter=true;service->command(1,L"replace",{"close",5,0,0,43});check(service->closed(),"Service could not retire from its own event transport");reenter=false;check(sibling->command(1,L"replace",{"sibling",7,0,0,44})&&events.back()["value"]["request"].AsDouble()==44,"Closing one service retired its sibling");
+  service.reset();const auto weakRoot=std::weak_ptr<TextInputRoot>(root);root.reset();check(weakRoot.expired()&&sibling->closed(),"Last root owner release left a registered service/context alive");sibling.reset();
+  std::vector<std::string> failures;root=TextInputRoot::create(island,window,[&](std::string const& reason){failures.push_back(reason);});
+  std::function<void(std::string const&)> retireSurface;unsigned unwatched=0;auto watched=mapping;watched.watchRetirement=[&](auto callback){retireSurface=std::move(callback);return [&]{retireSurface={};unwatched++;};};
+  service=TextInputService::create(root,owner,watched,emit,ingress);service->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));sibling=TextInputService::create(root,owner,mapping,[](RN::JSValueObject){},ingress);sibling->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));
+  auto retirement=retireSurface;retirement("actual surface lifetime ended");check(service->closed()&&unwatched==1&&!retireSurface&&events.back()["type"].AsString()=="serviceError","Surface retirement did not close its real TSF clients and unsubscribe its own lease");check(sibling->command(1,L"replace",{"survivor",8,0,0,45}),"Surface retirement crossed into a sibling service");sibling->close();sibling.reset();service.reset();
+  watched.watchRetirement=[&](auto callback){callback("retired during subscription");return [&]{unwatched++;};};service=TextInputService::create(root,owner,watched,emit,ingress);check(service->closed()&&unwatched==2,"A reentrant surface subscription leaked its returned native observer");service.reset();
+  service=TextInputService::create(root,owner,mapping,emit,ingress);service->open(1,initial,128,IS_DEFAULT,std::chrono::milliseconds(50));auto retiredThread=root->thread();TextInputRoot::ClientId fault=0;fault=root->registerClient([&](std::string const&){root->unregisterClient(fault);},[]{throw std::runtime_error("controlled mapping observer failure");});root->screenCoordinatesChanged();check(service->closed()&&failures.size()==1&&events.back()["type"].AsString()=="serviceError"&&events.back()["value"]["message"].AsString()==failures.front(),"Root failure retired input without reporting its service error");
+  // RNW property bags can release their final native values on a worker after
+  // UI close. No active context/observer/COM owner may remain at this boundary.
+  std::thread([service=std::move(service),root=std::move(root),thread=std::move(retiredThread)]()mutable{service.reset();root.reset();thread.reset();}).join();
+  std::cout<<"PASS-service: real TSF service/client leases and event identities, independent sibling lifetime, off-thread ingress fence blocks text reads before UI retirement, stale/reused client rejection, reentrant/last-root-owner context drain, root-failure notification and final worker release of UI-retired owners. Module metadata compiled; actual JS dispatch/surface producer/default provider remain notVerified.\n";
+}

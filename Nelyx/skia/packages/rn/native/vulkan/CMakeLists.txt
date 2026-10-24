@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: BSD-3-Clause
+cmake_minimum_required(VERSION 3.25)
+project(nelyx_skia_rn_vulkan LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+get_filename_component(NELYX_RN_PACKAGE "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+set(NELYX_SKIA_SDK "" CACHE FILEPATH "Explicit hash-verified native Vulkan SDK CMake input")
+set(NELYX_REACT_NATIVE_ROOT "" CACHE PATH "Exact cohort's installed react-native package")
+set(NELYX_REACT_NATIVE_WINDOWS_ROOT "" CACHE PATH "Optional exact RNW ABI/JSI header owner")
+if(NOT EXISTS "${NELYX_SKIA_SDK}" OR NOT EXISTS "${NELYX_REACT_NATIVE_ROOT}/package.json")
+  message(FATAL_ERROR "Prepare pinned native SDK and independent RN cohort; set NELYX_SKIA_SDK and NELYX_REACT_NATIVE_ROOT. No runtime download or source fallback.")
+endif()
+if(TARGET rnskia OR TARGET webgpu_dawn)
+  message(FATAL_ERROR "Do not link native Vulkan and the Dawn RN binding in one process")
+endif()
+if(NOT TARGET nelyx_vendor_skia)
+  include("${NELYX_SKIA_SDK}")
+endif()
+file(READ "${NELYX_REACT_NATIVE_ROOT}/package.json" NELYX_RN_PACKAGE_JSON)
+string(JSON NELYX_RN_VERSION GET "${NELYX_RN_PACKAGE_JSON}" version)
+if(WIN32)
+  if(NOT NELYX_SKIA_SDK_PROFILE STREQUAL "windows-x64-graphite-text-probe" OR NOT NELYX_RN_VERSION STREQUAL "0.83.10")
+    message(FATAL_ERROR "Windows RN Vulkan requires the pinned x64 m153 Graphite/text SDK and RN0.83.10 headers")
+  endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  if(NOT NELYX_SKIA_SDK_PROFILE STREQUAL "linux-x64-graphite-text-probe" OR NOT NELYX_RN_VERSION STREQUAL "0.81.6" OR NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+    message(FATAL_ERROR "Linux RN Vulkan requires pinned x86_64 m153 Graphite/text SDK and RN0.81.6 headers")
+  endif()
+else()
+  message(FATAL_ERROR "This native Vulkan RN recipe supports only Windows/Linux")
+endif()
+if(NOT TARGET nelyx_skia_core)
+  add_subdirectory("${NELYX_RN_PACKAGE}/generated/core" "${CMAKE_CURRENT_BINARY_DIR}/nelyx-core")
+endif()
+add_library(nelyx_skia_rn_vulkan STATIC
+  RNSkVulkanPlatformContext.cpp
+  "${NELYX_RN_PACKAGE}/generated/vulkan/device.cpp"
+  "${NELYX_RN_PACKAGE}/generated/vulkan/gpu_context.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/rnskia/RNSkManager.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/rnskia/RNSkGraphiteProducer.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/jsi/JSICache.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/jsi/JsiPromises.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/jsi/Promise.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/jsi/ViewProperty.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/api/JsiSkDispatcher.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/api/third_party/CSSColorParser.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/api/third_party/base64.cpp"
+  "${NELYX_RN_PACKAGE}/cpp/api/third_party/SkottieUtils.cpp")
+target_include_directories(nelyx_skia_rn_vulkan PUBLIC
+  "${CMAKE_CURRENT_LIST_DIR}" "${NELYX_RN_PACKAGE}/generated/gpu" "${NELYX_RN_PACKAGE}/generated/vulkan"
+  "${NELYX_RN_PACKAGE}/cpp" "${NELYX_RN_PACKAGE}/cpp/api" "${NELYX_RN_PACKAGE}/cpp/jsi"
+  "${NELYX_RN_PACKAGE}/cpp/rnskia" "${NELYX_RN_PACKAGE}/cpp/utils"
+  "${NELYX_REACT_NATIVE_ROOT}/ReactCommon/jsi" "${NELYX_REACT_NATIVE_ROOT}/ReactCommon/callinvoker"
+  "${NELYX_REACT_NATIVE_ROOT}/ReactCommon")
+if(NELYX_REACT_NATIVE_WINDOWS_ROOT)
+  file(READ "${NELYX_REACT_NATIVE_WINDOWS_ROOT}/package.json" NELYX_RNW_PACKAGE_JSON)
+  string(JSON NELYX_RNW_VERSION GET "${NELYX_RNW_PACKAGE_JSON}" version)
+  if(NOT WIN32 OR NOT NELYX_RNW_VERSION STREQUAL "0.83.2" OR
+      NOT EXISTS "${NELYX_REACT_NATIVE_WINDOWS_ROOT}/Microsoft.ReactNative.Cxx/JSI/jsi.h")
+    message(FATAL_ERROR "RNW binding requires Windows and exact RNW0.83.2 ABI headers")
+  endif()
+  # RNW's ABI proxy is compiled with its versioned JSI21 header. Do not mix a
+  # static binding built from generic RN headers with that proxy's vtable.
+  target_include_directories(nelyx_skia_rn_vulkan BEFORE PUBLIC
+    "${NELYX_REACT_NATIVE_WINDOWS_ROOT}/Microsoft.ReactNative.Cxx")
+  target_compile_definitions(nelyx_skia_rn_vulkan PUBLIC JSI_VERSION=21)
+endif()
+target_compile_definitions(nelyx_skia_rn_vulkan PUBLIC SK_GRAPHITE SK_VULKAN SK_USE_INTERNAL_VULKAN_HEADERS VK_NO_PROTOTYPES)
+target_link_libraries(nelyx_skia_rn_vulkan PUBLIC nelyx_skia_core ${NELYX_SKIA_VENDOR_LIBRARIES})
+# The host owns its matching JSI/Hermes implementation and native registration.
+# SVG/Skottie/resource/jsonreader module closure must also be linked from the
+# same SDK revision. Static archive creation alone does not prove that closure.
+if(DEFINED NELYX_SKIA_RN_MODULES_CMAKE)
+  include("${NELYX_SKIA_RN_MODULES_CMAKE}")
+  target_compile_definitions(nelyx_skia_rn_vulkan PUBLIC NELYX_SKOTTIE_PROPERTY_IMPLEMENTED=1)
+  if(NOT MSVC)
+    # This helper derives from the original no-RTTI Skottie observer. Its
+    # implementation uses no dynamic_cast/typeid; preserve the base's policy.
+    set_source_files_properties("${NELYX_RN_PACKAGE}/cpp/api/third_party/SkottieUtils.cpp"
+      PROPERTIES COMPILE_OPTIONS "-fno-rtti")
+  endif()
+  target_link_libraries(nelyx_skia_rn_vulkan PUBLIC ${NELYX_SKIA_RN_MODULE_LIBRARIES})
+endif()
+if(WIN32)
+  target_compile_definitions(nelyx_skia_rn_vulkan PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN VK_USE_PLATFORM_WIN32_KHR)
+  set_property(TARGET nelyx_skia_rn_vulkan PROPERTY MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
+  set_property(TARGET nelyx_skia_core PROPERTY MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
+  target_compile_options(nelyx_skia_rn_vulkan PRIVATE /bigobj /utf-8)
+  target_link_libraries(nelyx_skia_rn_vulkan PUBLIC user32 gdi32 dwrite ole32 uuid usp10)
+else()
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(NELYX_RN_X11 REQUIRED IMPORTED_TARGET x11)
+  pkg_check_modules(NELYX_RN_WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
+  pkg_check_modules(NELYX_RN_FREETYPE REQUIRED IMPORTED_TARGET freetype2)
+  target_compile_definitions(nelyx_skia_rn_vulkan PUBLIC VK_USE_PLATFORM_XLIB_KHR VK_USE_PLATFORM_WAYLAND_KHR)
+  target_link_libraries(nelyx_skia_rn_vulkan PUBLIC PkgConfig::NELYX_RN_X11 PkgConfig::NELYX_RN_WAYLAND PkgConfig::NELYX_RN_FREETYPE dl pthread)
+endif()

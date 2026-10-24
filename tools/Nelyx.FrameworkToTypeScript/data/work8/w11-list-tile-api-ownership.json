@@ -1,0 +1,52 @@
+{
+  "schema": "nelyx.w11-list-tile-api-ownership/v1",
+  "status": "PASS-scoped",
+  "candidate": {
+    "file": ".tmp/work8/w11-list-family-candidate/result.json",
+    "sha256": "e4705da3d44d0fe4d42f95d81ebf175e2d56f3bfc800076080965b4bb7b76076"
+  },
+  "ir": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-list-family-candidate\\ir.json",
+    "sha256": "dcb0e608420af85e77a2d5342171a5cea148cbdd8399b81855f1ff485c1383b6"
+  },
+  "generator": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-list-tile-api.mjs",
+    "sha256": "f12a10f322edda2fc3357933556b766658dad65a239974ea812f95442a4d1bc0"
+  },
+  "outputs": [
+    {
+      "file": "packages/material/src/generated/list/list-tile-types.ts",
+      "sha256": "3d6af26ab346c78b1441ac016547ab0ef3a163105b68ea92a97351228ae7a27e"
+    },
+    {
+      "file": "packages/material/src/list-tile.ts",
+      "sha256": "6dacc55b435ecfbcb5003225768ab260640114d4887c8e963e3c6c8152a99cbc"
+    },
+    {
+      "file": "packages/material/src/list-tile-theme-data.ts",
+      "sha256": "3d5317e88eedb658c1074ea418038e09ed8078f9d101b8e8c5d92f29659085f3"
+    }
+  ],
+  "numericFields": 8,
+  "scope": "Exact resolved ListTile/ListTileThemeData public field/default/constructor projections and three canonical enum catalogs; functional State/render/theme/input owners and original-body comparisons are separate. Host id/positional constructor are existing Nelyx ingress, normalized to source Widget title/onTap; no fictitious Dart provenance.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "a95dd087d42bb5f3feabbb43b87b74ce46c752ea1ef072f4389ad5d9faec696e",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-list-tile-api.mjs"
+    ],
+    "scope": "Canonical relative paths and exact generator storage-path changes only; no behavior/native requalification."
+  },
+  "w12ModuleRelocation": {
+    "recordedAt": "2026-10-18T12:00:19.928Z",
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-list-tile-api-ownership.json",
+      "sha256": "59ee0af11c899b7b4ca22a20680854673764c35e79155b036cb53ea98d869ebc"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  }
+}

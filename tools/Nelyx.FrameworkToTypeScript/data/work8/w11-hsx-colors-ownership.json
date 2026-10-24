@@ -1,0 +1,41 @@
+{
+  "schema": "nelyx.w11-hsx-colors-ownership/v1",
+  "status": "PASS-scoped",
+  "candidate": {
+    "file": ".tmp/work8/w11-cupertino-checkbox-candidate/result.json",
+    "sha256": "31ff6c8259c5a23c542e6d46e7beb5440bd5bae7797b4aa2ad8182c5fe5e91ab"
+  },
+  "ir": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-cupertino-checkbox-candidate\\ir.json",
+    "sha256": "c9e62a5c1933c0bcbef319340df0cb670b1ad099d10d0a34c1e1934f53353675"
+  },
+  "generator": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-hsx-colors.mjs",
+    "sha256": "2acabe1276086292d49cd5ecb6bdfb5bf0208a57571f1984ff646d7f2b8b1df0"
+  },
+  "output": {
+    "file": "Nelyx/src/framework/painting/colors.ts",
+    "sha256": "a529c0ec32e5e22cdd8f0bf4d47ae25d305593a551597821699ab41b05a43fed"
+  },
+  "previous": {
+    "ownership": {
+      "file": ".tmp/work8/receipt-history/3a8239411547d021d18aa0ea8940396c9b042966834069f5b37556f0c0dd5cc1-w11-hsx-w11-hsx-colors-ownership.json",
+      "sha256": "3a8239411547d021d18aa0ea8940396c9b042966834069f5b37556f0c0dd5cc1"
+    },
+    "output": {
+      "file": ".tmp/work8/receipt-history/14ca3254c0ea036ccb96bd7d1972d1a1200db8ac39830b645f47183508469d21-w11-hsx-colors.ts",
+      "sha256": "14ca3254c0ea036ccb96bd7d1972d1a1200db8ac39830b645f47183508469d21"
+    }
+  },
+  "numericFields": 8,
+  "helpers": 3,
+  "scope": "Complete selected HSV/HSL fields/named/TS constructor/copy/conversion/lerp/equality/local hash/source text; explicit functional bodies with resolved numeric field/parameter/return annotations. Core ColorSwatch is reexported from its existing owner. Source debug assertions are preserved; resolved pure const constructors/root witnesses/virtual value ownership; no VM hash or wide-gamut qualification.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "561a597775ffc6f10a3736b4edf0856a29fc688dbd48ca100348eb0356330eba",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-hsx-colors.mjs"
+    ],
+    "scope": "Canonical relative paths and exact generator storage-path changes only; no behavior/native requalification."
+  }
+}

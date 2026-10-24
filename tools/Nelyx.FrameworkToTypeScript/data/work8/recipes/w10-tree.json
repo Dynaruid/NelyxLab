@@ -1,0 +1,1892 @@
+{
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/sliver_tree.dart",
+      "sha256": "e375ca7e7bca6a448dd3e88cb1bf07096e8d82ec5a006e03b070fbe7bdcf0cd2",
+      "symbols": [
+        "_kDefaultRowExtent",
+        "TreeSliverNode",
+        "TreeSliverStateMixin",
+        "TreeSliverController",
+        "_kDefaultSemanticIndexCallback",
+        "TreeSliver",
+        "_TreeSliverState",
+        "_TreeNodeParentDataWidget",
+        "_SliverTree",
+        "TreeSliverNodeBuilder",
+        "TreeSliverRowExtentBuilder",
+        "TreeSliverNodeCallback",
+        "_AnimationRecord"
+      ],
+      "destination": "Nelyx/src/framework/widgets/sliver-tree.generated.ts",
+      "classNames": {
+        "TreeSliverNode": "SourceTreeSliverNode",
+        "TreeSliverStateMixin": "SourceTreeSliverStateMixin",
+        "TreeSliverController": "SourceTreeSliverController",
+        "TreeSliver": "SourceTreeSliver",
+        "_TreeSliverState": "SourceTreeSliverState",
+        "_TreeNodeParentDataWidget": "SourceTreeNodeParentDataWidget",
+        "_SliverTree": "SourceSliverTree",
+        "TreeSliverNodeParentData": "SourceTreeSliverNodeParentData",
+        "TreeSliverIndentationType": "SourceTreeSliverIndentationType",
+        "RenderTreeSliver": "SourceRenderTreeSliver",
+        "IconData": "TreeArrowIconData",
+        "Icon": "TreeArrowIcon"
+      },
+      "imports": {
+        "Widget": "../widgets/framework.ts",
+        "StatefulWidget": "../widgets/framework.ts",
+        "State": "../widgets/framework.ts",
+        "ParentDataWidget": "../widgets/framework.ts",
+        "Key": "../../foundation/key.ts",
+        "UniqueKey": "../../foundation/key.ts",
+        "ValueKey": "../../foundation/key.ts",
+        "IntProperty": "../../foundation/diagnostic-properties.ts",
+        "RenderObject": "../rendering/object.ts",
+        "RenderBox": "../rendering/object.ts",
+        "SliverMultiBoxAdaptorParentData": "../rendering/sliver-multi-box-adaptor.ts",
+        "RenderSliverBoxChildManager": "../rendering/sliver-multi-box-adaptor.ts",
+        "RenderSliverVariedExtentList": "../rendering/sliver-fixed-extent-list.ts",
+        "SliverVariedExtentList": "../widgets/sliver.ts",
+        "AnimationStyle": "../animation/animation-style.ts",
+        "Curve": "../animation/curves.ts",
+        "Curves": "../animation/curves.ts",
+        "AnimationController": "../animation/animation-controller.ts",
+        "CurvedAnimation": "../animation/animations.ts",
+        "Offset": "../../ui/offset.ts",
+        "Rect": "../../ui/rect.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "dartNamedRecord": "../../foundation/dart-named-record.ts",
+        "dartNamedRecordRead": "../../foundation/dart-named-record.ts",
+        "dartStaticRead": "../../foundation/dart-static-field.ts",
+        "dartStaticWrite": "../../foundation/dart-static-field.ts",
+        "dartStaticSeal": "../../foundation/dart-static-field.ts",
+        "SourceTreeSliverNodeParentData": "../rendering/sliver-tree.generated.ts",
+        "SourceTreeSliverIndentationType": "../rendering/sliver-tree.generated.ts",
+        "SourceRenderTreeSliver": "../rendering/sliver-tree.generated.ts",
+        "treeContentString": "../widgets/tree-sliver-source-adapter.ts",
+        "treeDepthString": "../widgets/tree-sliver-source-adapter.ts",
+        "findTreeSliverState": "./tree-widget-source-types.ts",
+        "DiagnosticsNode": "../../foundation/diagnostics.ts",
+        "ErrorSummary": "../../foundation/diagnostics.ts",
+        "ErrorDescription": "../../foundation/diagnostics.ts",
+        "ErrorHint": "../../foundation/diagnostics.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "TreeStatefulHost": "./tree-sliver-source-adapter.ts",
+        "SliverLayoutDimensions": "../rendering/sliver.ts",
+        "treeAnimationStyleConstant": "./tree-sliver-source-adapter.ts",
+        "Builder": "./basic.ts",
+        "Padding": "./basic.ts",
+        "Row": "./basic.ts",
+        "SizedBox": "./basic.ts",
+        "Text": "./basic.ts",
+        "IndexedSemantics": "./basic.ts",
+        "EdgeInsets": "../painting/edge-insets.ts",
+        "GestureDetector": "./gesture-detector.ts",
+        "AnimatedRotation": "./implicit-animations.ts",
+        "treeBuilder": "./tree-sliver-source-adapter.ts",
+        "treePadding": "./tree-sliver-source-adapter.ts",
+        "treeRow": "./tree-sliver-source-adapter.ts",
+        "treeSquare": "./tree-sliver-source-adapter.ts",
+        "treeEdgeInsetsConstant": "./tree-sliver-source-adapter.ts",
+        "treeSpacerConstant": "./tree-sliver-source-adapter.ts",
+        "TreeArrowIconData": "./tree-sliver-source-adapter.ts",
+        "treeArrowDataConstant": "./tree-sliver-source-adapter.ts",
+        "TreeArrowIcon": "./tree-sliver-source-adapter.ts",
+        "treeArrowConstant": "./tree-sliver-source-adapter.ts",
+        "treeIndexKey": "./tree-sliver-source-adapter.ts",
+        "TreeStateHost": "./tree-sliver-source-adapter.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "treeNodeAnimationMap": "./tree-widget-source-types.ts",
+        "treeNodesAnimationMap": "./tree-widget-source-types.ts",
+        "treeListEmpty": "./tree-sliver-source-adapter.ts",
+        "treeListNotEmpty": "./tree-sliver-source-adapter.ts",
+        "treeListRead": "./tree-sliver-source-adapter.ts",
+        "treeListClear": "./tree-sliver-source-adapter.ts",
+        "treeListAdd": "./tree-sliver-source-adapter.ts",
+        "treeListAddAll": "./tree-sliver-source-adapter.ts",
+        "treeListIndexOf": "./tree-sliver-source-adapter.ts",
+        "treeListContains": "./tree-sliver-source-adapter.ts",
+        "treeListReversed": "./tree-sliver-source-adapter.ts",
+        "dartMapRead": "../../foundation/dart-collections.ts",
+        "dartMapWrite": "../../foundation/dart-collections.ts",
+        "treeIterableForEach": "./tree-sliver-source-adapter.ts",
+        "RepaintBoundary": "./repaint-boundary.ts",
+        "AnimationStatus": "../animation/animation.ts",
+        "TreeParentDataHost": "./tree-widget-source-types.ts",
+        "isTreeParentData": "../rendering/tree-sliver-source-types.ts",
+        "castTreeParentData": "../rendering/tree-sliver-source-types.ts",
+        "isTreeSliverElement": "./tree-widget-source-types.ts",
+        "castTreeSliverElement": "./tree-widget-source-types.ts",
+        "isTreeRenderObject": "./tree-widget-source-types.ts",
+        "castTreeRenderObject": "./tree-widget-source-types.ts",
+        "treeRenderParent": "./tree-sliver-source-adapter.ts",
+        "treeRepaintBoundary": "./tree-sliver-source-adapter.ts",
+        "SliverChildBuilderDelegate": "./scroll-delegate.ts",
+        "RenderTreeSliver": "../rendering/tree-sliver.ts",
+        "SliverMultiBoxAdaptorElement": "./sliver.ts",
+        "treeDescribeElement": "./tree-sliver-source-adapter.ts",
+        "treeTapDetector": "./tree-sliver-source-adapter.ts",
+        "treeFindChildIndex": "./tree-widget-source-types.ts",
+        "treeSliverWithExtentContract": "./tree-widget-source-types.ts",
+        "boxSourceDartInt": "../../foundation/dart-numeric.ts",
+        "boxSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "castSourceDartInt": "../../foundation/dart-numeric.ts",
+        "castSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "applyDartType": "../../foundation/dart-type-witness.ts",
+        "captureDartType": "../../foundation/dart-type-witness.ts",
+        "readDartType": "../../foundation/dart-type-witness.ts",
+        "nullableDartType": "../../foundation/dart-type-witness.ts",
+        "isDartType": "../../foundation/dart-type-witness.ts",
+        "castDartType": "../../foundation/dart-type-witness.ts",
+        "dartStringType": "../../foundation/dart-type-witness.ts",
+        "dartObjectType": "../../foundation/dart-type-witness.ts",
+        "dartNullType": "../../foundation/dart-type-witness.ts",
+        "dartIntType": "../../foundation/dart-type-witness.ts",
+        "dartDoubleType": "../../foundation/dart-type-witness.ts",
+        "dartNumType": "../../foundation/dart-type-witness.ts",
+        "dartBoolType": "../../foundation/dart-type-witness.ts",
+        "createDartListLiteral": "../../foundation/dart-mutable-list.ts",
+        "dartListType": "../../foundation/dart-mutable-list.ts",
+        "dartIterableType": "../../foundation/dart-mutable-list.ts",
+        "treeCoreStateType": "./tree-generic-witnesses.ts",
+        "treeTickerStateType": "./tree-generic-witnesses.ts",
+        "treeStateMixinType": "./tree-generic-witnesses.ts",
+        "treeStatefulWidgetType": "./tree-generic-witnesses.ts",
+        "castSourceDartType": "../../foundation/dart-source-type.ts",
+        "treeObjectEquals": "./tree-widget-source-types.ts",
+        "captureTreeDartType": "./tree-widget-source-types.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "TreeStatefulHost",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/widgets/framework.dart::ParentDataWidget:CLASS": "ParentDataWidget",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/foundation/key.dart::UniqueKey:CLASS": "UniqueKey",
+        "package:flutter/src/foundation/key.dart::ValueKey:CLASS": "ValueKey",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder:CLASS": "DiagnosticPropertiesBuilder",
+        "package:flutter/src/foundation/diagnostics.dart::IntProperty:CLASS": "IntProperty",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::SliverMultiBoxAdaptorParentData:CLASS": "SliverMultiBoxAdaptorParentData",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::RenderSliverBoxChildManager:CLASS": "RenderSliverBoxChildManager",
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverVariedExtentList:CLASS": "RenderSliverVariedExtentList",
+        "package:flutter/src/widgets/sliver.dart::SliverVariedExtentList:CLASS": "SliverVariedExtentList",
+        "package:flutter/src/animation/animation_style.dart::AnimationStyle:CLASS": "AnimationStyle",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/animation/animation_controller.dart::AnimationController:CLASS": "AnimationController",
+        "package:flutter/src/animation/animations.dart::CurvedAnimation:CLASS": "CurvedAnimation",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:core::List:CLASS": "DartMutableList",
+        "dart:core::Map:CLASS": "DartMap",
+        "package:flutter/src/rendering/sliver_tree.dart::TreeSliverNodeParentData:CLASS": "SourceTreeSliverNodeParentData",
+        "package:flutter/src/rendering/sliver_tree.dart::TreeSliverIndentationType:CLASS": "SourceTreeSliverIndentationType",
+        "package:flutter/src/rendering/sliver_tree.dart::RenderTreeSliver:CLASS": "SourceRenderTreeSliver",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsNode:CLASS": "DiagnosticsNode",
+        "package:flutter/src/foundation/diagnostics.dart::ErrorSummary:CLASS": "ErrorSummary",
+        "package:flutter/src/foundation/diagnostics.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/diagnostics.dart::ErrorHint:CLASS": "ErrorHint",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/rendering/sliver.dart::SliverLayoutDimensions:CLASS": "SliverLayoutDimensions",
+        "package:flutter/src/widgets/basic.dart::Builder:CLASS": "Builder",
+        "package:flutter/src/widgets/basic.dart::Padding:CLASS": "Padding",
+        "package:flutter/src/widgets/basic.dart::Row:CLASS": "Row",
+        "package:flutter/src/widgets/basic.dart::SizedBox:CLASS": "SizedBox",
+        "package:flutter/src/widgets/text.dart::Text:CLASS": "Text",
+        "package:flutter/src/widgets/basic.dart::IndexedSemantics:CLASS": "IndexedSemantics",
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsets:CLASS": "EdgeInsets",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureDetector:CLASS": "GestureDetector",
+        "package:flutter/src/widgets/implicit_animations.dart::AnimatedRotation:CLASS": "AnimatedRotation",
+        "package:flutter/src/widgets/icon_data.dart::IconData:CLASS": "TreeArrowIconData",
+        "package:flutter/src/widgets/icon.dart::Icon:CLASS": "TreeArrowIcon",
+        "package:flutter/src/widgets/basic.dart::RepaintBoundary:CLASS": "RepaintBoundary",
+        "package:flutter/src/animation/animation.dart::AnimationStatus:ENUM": "AnimationStatus",
+        "package:flutter/src/widgets/sliver.dart::SliverMultiBoxAdaptorElement:CLASS": "SliverMultiBoxAdaptorElement",
+        "dart:core::Type:CLASS": "TreeRuntimeType"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "durationUnit": "milliseconds",
+      "namedRecords": {
+        "type": "DartNamedRecord",
+        "create": "dartNamedRecord",
+        "read": "dartNamedRecordRead",
+        "policy": "immutable-named-record"
+      },
+      "staticFields": {
+        "read": "dartStaticRead",
+        "write": "dartStaticWrite",
+        "seal": "dartStaticSeal",
+        "policy": "lazy-class-fields"
+      },
+      "typeImports": {
+        "BuildContext": "../widgets/framework.ts",
+        "DartNamedRecord": "../../foundation/dart-named-record.ts",
+        "DiagnosticPropertiesBuilder": "../../foundation/diagnostics.ts",
+        "TreeSourceList": "../rendering/tree-sliver-source-adapter.ts",
+        "TreeRuntimeType": "./tree-sliver-source-adapter.ts",
+        "DartTypeWitness": "../../foundation/dart-type-witness.ts",
+        "DartInt": "../../foundation/dart-numeric.ts",
+        "DartDouble": "../../foundation/dart-numeric.ts",
+        "DartNumeric": "../../foundation/dart-numeric.ts",
+        "DartMutableList": "../../foundation/dart-mutable-list.ts"
+      },
+      "stringConversions": {
+        "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode.T:TYPE_PARAMETER": "treeContentString",
+        "dart:core::Object:CLASS": "treeDepthString"
+      },
+      "adapters": {
+        "package:flutter/src/widgets/framework.dart::BuildContext.findAncestorStateOfType:METHOD": {
+          "target": "findTreeSliverState",
+          "kind": "call",
+          "receiver": "first",
+          "typeArguments": [
+            "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState:CLASS<dart:core::Object:CLASS?>"
+          ]
+        },
+        "package:flutter/src/foundation/diagnostics.dart::ErrorSummary.ErrorSummary.new:CONSTRUCTOR": {
+          "target": "ErrorSummary",
+          "kind": "new"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "target": "ErrorDescription",
+          "kind": "new"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::ErrorHint.ErrorHint.new:CONSTRUCTOR": {
+          "target": "ErrorHint",
+          "kind": "new"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterError.FlutterError.fromParts:CONSTRUCTOR": {
+          "target": "FlutterError.fromParts",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildContext.describeElement:METHOD": {
+          "target": "treeDescribeElement",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/basic.dart::Builder.Builder.new:CONSTRUCTOR": {
+          "target": "treeBuilder",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::Padding.Padding.new:CONSTRUCTOR": {
+          "target": "treePadding",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::Row.Row.new:CONSTRUCTOR": {
+          "target": "treeRow",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::SizedBox.SizedBox.square:CONSTRUCTOR": {
+          "target": "treeSquare",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/gesture_detector.dart::GestureDetector.GestureDetector.new:CONSTRUCTOR": {
+          "target": "treeTapDetector",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/implicit_animations.dart::AnimatedRotation.AnimatedRotation.new:CONSTRUCTOR": {
+          "target": "AnimatedRotation",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/text.dart::Text.Text.new:CONSTRUCTOR": {
+          "target": "Text",
+          "kind": "new"
+        },
+        "dart:core::Object.toString:METHOD": {
+          "target": "treeContentString",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.isEmpty:GETTER": {
+          "target": "treeListEmpty",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.isNotEmpty:GETTER": {
+          "target": "treeListNotEmpty",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.[]:METHOD": {
+          "target": "treeListRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.clear:METHOD": {
+          "target": "treeListClear",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.add:METHOD": {
+          "target": "treeListAdd",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.addAll:METHOD": {
+          "target": "treeListAddAll",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.indexOf:METHOD": {
+          "target": "treeListIndexOf",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.contains:METHOD": {
+          "target": "treeListContains",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.reversed:GETTER": {
+          "target": "treeListReversed",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]:METHOD": {
+          "target": "dartMapRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "target": "dartMapWrite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.clear:METHOD": {
+          "target": "clear",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.forEach:METHOD": {
+          "target": "treeIterableForEach",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "treeObjectEquals",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::State.initState:METHOD": {
+          "target": "initState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didUpdateWidget:METHOD": {
+          "target": "didUpdateWidget",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animations.dart::CurvedAnimation.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.setState:METHOD": {
+          "target": "setState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/listener_helpers.dart::AnimationLocalStatusListenersMixin.addStatusListener:METHOD": {
+          "target": "addStatusListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/listener_helpers.dart::AnimationLocalListenersMixin.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.stop:METHOD": {
+          "target": "stop",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.forward:METHOD": {
+          "target": "forward",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.reverse:METHOD": {
+          "target": "reverse",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsLayout:METHOD": {
+          "target": "markNeedsLayout",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Widget.debugFillProperties:METHOD": {
+          "target": "debugFillProperties",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder.add:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/basic.dart::RepaintBoundary.RepaintBoundary.new:CONSTRUCTOR": {
+          "target": "treeRepaintBoundary",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::IndexedSemantics.IndexedSemantics.new:CONSTRUCTOR": {
+          "target": "IndexedSemantics",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.AnimationController.new:CONSTRUCTOR": {
+          "target": "AnimationController",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/animation/animations.dart::CurvedAnimation.CurvedAnimation.new:CONSTRUCTOR": {
+          "target": "CurvedAnimation",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/foundation/key.dart::UniqueKey.UniqueKey.new:CONSTRUCTOR": {
+          "target": "UniqueKey",
+          "kind": "new"
+        },
+        "package:flutter/src/animation/animation_style.dart::AnimationStyle.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Duration.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parent:GETTER": {
+          "target": "treeRenderParent",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::IntProperty.IntProperty.new:CONSTRUCTOR": {
+          "target": "IntProperty",
+          "kind": "new"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::SliverChildBuilderDelegate.SliverChildBuilderDelegate.new:CONSTRUCTOR": {
+          "target": "SliverChildBuilderDelegate",
+          "kind": "new",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/rendering/sliver_tree.dart::RenderTreeSliver.RenderTreeSliver.new:CONSTRUCTOR": {
+          "target": "RenderTreeSliver",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/sliver_tree.dart::TreeSliver.findChildIndexCallback:GETTER": {
+          "target": "treeFindChildIndex",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/sliver_tree.dart::_SliverTree._SliverTree.new:CONSTRUCTOR": {
+          "target": "treeSliverWithExtentContract",
+          "kind": "call",
+          "receiver": "owner",
+          "namedArguments": "options"
+        }
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/framework.dart::StatefulWidget.StatefulWidget.new:CONSTRUCTOR": {
+          "target": "TreeStatefulHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::State.State.new:CONSTRUCTOR": {
+          "target": "TreeStateHost",
+          "baseType": "State",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin:MIXIN<package:flutter/src/widgets/sliver_tree.dart::TreeSliver:CLASS<package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER>>",
+            "package:flutter/src/widgets/sliver_tree.dart::TreeSliverStateMixin:MIXIN<package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER>"
+          ]
+        },
+        "package:flutter/src/widgets/framework.dart::ParentDataWidget.ParentDataWidget.new:CONSTRUCTOR": {
+          "target": "TreeParentDataHost",
+          "baseType": "ParentDataWidget",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/sliver.dart::SliverVariedExtentList.SliverVariedExtentList.new:CONSTRUCTOR": {
+          "target": "SliverVariedExtentList",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "constantConstructors": {
+        "package:flutter/src/animation/animation_style.dart::AnimationStyle.AnimationStyle.new:CONSTRUCTOR": {
+          "ownerType": "package:flutter/src/animation/animation_style.dart::AnimationStyle:CLASS",
+          "factory": "treeAnimationStyleConstant",
+          "policy": "canonical-immutable-host",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsets.EdgeInsets.all:CONSTRUCTOR": {
+          "ownerType": "package:flutter/src/painting/edge_insets.dart::EdgeInsets:CLASS",
+          "factory": "treeEdgeInsetsConstant",
+          "policy": "canonical-immutable-host"
+        },
+        "package:flutter/src/widgets/basic.dart::SizedBox.SizedBox.new:CONSTRUCTOR": {
+          "ownerType": "package:flutter/src/widgets/basic.dart::SizedBox:CLASS",
+          "factory": "treeSpacerConstant",
+          "policy": "canonical-immutable-host",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/icon_data.dart::IconData.IconData.new:CONSTRUCTOR": {
+          "ownerType": "package:flutter/src/widgets/icon_data.dart::IconData:CLASS",
+          "factory": "treeArrowDataConstant",
+          "policy": "canonical-immutable-host"
+        },
+        "package:flutter/src/widgets/icon.dart::Icon.Icon.new:CONSTRUCTOR": {
+          "ownerType": "package:flutter/src/widgets/icon.dart::Icon:CLASS",
+          "factory": "treeArrowConstant",
+          "policy": "canonical-immutable-host",
+          "namedArguments": "trailing-options"
+        }
+      },
+      "constructorSpecializations": {
+        "package:flutter/src/foundation/key.dart::ValueKey.ValueKey.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "dart:core::int:CLASS"
+            ],
+            "target": "treeIndexKey",
+            "kind": "call"
+          }
+        ]
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+                  "name": "TreeSliverNode",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "parameter",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                      "name": "T",
+                      "owner": "_TreeSliverState",
+                      "local": false,
+                      "static": false
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "namedRecord",
+                "nullable": false,
+                "positional": [],
+                "named": [
+                  {
+                    "name": "animation",
+                    "type": {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "package:flutter/src/animation/animations.dart::CurvedAnimation:CLASS",
+                        "name": "CurvedAnimation",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
+                    "name": "controller",
+                    "type": {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "package:flutter/src/animation/animation_controller.dart::AnimationController:CLASS",
+                        "name": "AnimationController",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
+                    "name": "key",
+                    "type": {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "package:flutter/src/foundation/key.dart::UniqueKey:CLASS",
+                        "name": "UniqueKey",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "factory": "treeNodeAnimationMap",
+          "policy": "ordered-dart-collection",
+          "typeParameters": [
+            "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER"
+          ],
+          "witnessArgumentPaths": [
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/foundation/key.dart::UniqueKey:CLASS",
+                  "name": "UniqueKey",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "namedRecord",
+                "nullable": false,
+                "positional": [],
+                "named": [
+                  {
+                    "name": "fromIndex",
+                    "type": {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "dart:core::int:CLASS",
+                        "name": "int",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
+                    "name": "toIndex",
+                    "type": {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "dart:core::int:CLASS",
+                        "name": "int",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
+                    "name": "value",
+                    "type": {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "dart:core::double:CLASS",
+                        "name": "double",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "factory": "treeNodesAnimationMap",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "memberBindings": {
+        "package:flutter/src/widgets/framework.dart::State.widget:GETTER": "widget",
+        "package:flutter/src/widgets/sliver.dart::SliverVariedExtentList.itemExtentBuilder:GETTER": "itemExtentBuilder"
+      },
+      "values": {
+        "dart:core::Duration.zero:GETTER": 0
+      },
+      "runtimeTypeApplications": [],
+      "runtimeTypes": {
+        "package:flutter/src/rendering/sliver_tree.dart::TreeSliverNodeParentData:CLASS": {
+          "is": "isTreeParentData",
+          "cast": "castTreeParentData"
+        },
+        "package:flutter/src/widgets/sliver.dart::SliverMultiBoxAdaptorElement:CLASS": {
+          "is": "isTreeSliverElement",
+          "cast": "castTreeSliverElement"
+        },
+        "package:flutter/src/rendering/sliver_tree.dart::RenderTreeSliver:CLASS": {
+          "is": "isTreeRenderObject",
+          "cast": "castTreeRenderObject"
+        }
+      },
+      "implicitTypeParameterBound": "dart-object-nullable",
+      "numericValues": {
+        "policy": "source-numeric-erasure",
+        "int": "boxSourceDartInt",
+        "double": "boxSourceDartDouble",
+        "castInt": "castSourceDartInt",
+        "castDouble": "castSourceDartDouble",
+        "numType": "DartNumeric",
+        "genericTypes": {
+          "int": "DartInt",
+          "double": "DartDouble"
+        }
+      },
+      "listLiterals": [
+        {
+          "elementType": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+              "name": "TreeSliverNode",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "parameter",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode.T:TYPE_PARAMETER",
+                  "name": "T",
+                  "owner": "TreeSliverNode",
+                  "local": false,
+                  "static": false
+                }
+              }
+            ]
+          },
+          "factory": "createDartListLiteral",
+          "policy": "witnessed-mutable-list"
+        },
+        {
+          "elementType": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+              "name": "TreeSliverNode",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "parameter",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                  "name": "T",
+                  "owner": "_TreeSliverState",
+                  "local": false,
+                  "static": false
+                }
+              }
+            ]
+          },
+          "factory": "createDartListLiteral",
+          "policy": "witnessed-mutable-list"
+        }
+      ],
+      "parameterTypeWitnesses": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::List:CLASS",
+              "name": "List",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+                  "name": "TreeSliverNode",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "parameter",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode.T:TYPE_PARAMETER",
+                      "name": "T",
+                      "owner": "TreeSliverNode",
+                      "local": false,
+                      "static": false
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+              "name": "TreeSliverNode",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "parameter",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverStateMixin.T:TYPE_PARAMETER",
+                  "name": "T",
+                  "owner": "TreeSliverStateMixin",
+                  "local": false,
+                  "static": false
+                }
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+              "name": "TreeSliverNode",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": true,
+                "reference": {
+                  "id": "dart:core::Object:CLASS",
+                  "name": "Object",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::List:CLASS",
+              "name": "List",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+                  "name": "TreeSliverNode",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "parameter",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliver.T:TYPE_PARAMETER",
+                      "name": "T",
+                      "owner": "TreeSliver",
+                      "local": false,
+                      "static": false
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+              "name": "TreeSliverNode",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "parameter",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                  "name": "T",
+                  "owner": "_TreeSliverState",
+                  "local": false,
+                  "static": false
+                }
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::List:CLASS",
+              "name": "List",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+                  "name": "TreeSliverNode",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "parameter",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                      "name": "T",
+                      "owner": "_TreeSliverState",
+                      "local": false,
+                      "static": false
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+              "name": "TreeSliverNode",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "parameter",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                  "name": "T",
+                  "owner": "_TreeSliverState",
+                  "local": false,
+                  "static": false
+                }
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliver:CLASS",
+              "name": "TreeSliver",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "parameter",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                  "name": "T",
+                  "owner": "_TreeSliverState",
+                  "local": false,
+                  "static": false
+                }
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::List:CLASS",
+              "name": "List",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+                  "name": "TreeSliverNode",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "parameter",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState.T:TYPE_PARAMETER",
+                      "name": "T",
+                      "owner": "_TreeSliverState",
+                      "local": false,
+                      "static": false
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "policy": "checked-parameter-application"
+        }
+      ],
+      "methodTypeWitnesses": {
+        "policy": "checked-method-type-witness",
+        "methods": [],
+        "type": "DartTypeWitness",
+        "is": "isDartType",
+        "cast": "castSourceDartType",
+        "nullable": "nullableDartType",
+        "types": {
+          "dart:core::String:CLASS": "dartStringType",
+          "dart:core::Object:CLASS": "dartObjectType",
+          "dart:core::Null:CLASS": "dartNullType",
+          "dart:core::int:CLASS": "dartIntType",
+          "dart:core::double:CLASS": "dartDoubleType",
+          "dart:core::num:CLASS": "dartNumType",
+          "dart:core::bool:CLASS": "dartBoolType",
+          "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "treeStatefulWidgetType"
+        },
+        "applications": {
+          "dart:core::List:CLASS": {
+            "factory": "dartListType",
+            "arity": 1
+          },
+          "dart:core::Iterable:CLASS": {
+            "factory": "dartIterableType",
+            "arity": 1
+          },
+          "package:flutter/src/widgets/framework.dart::State:CLASS": {
+            "factory": "treeCoreStateType",
+            "arity": 1
+          },
+          "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin:MIXIN": {
+            "factory": "treeTickerStateType",
+            "arity": 1
+          },
+          "package:flutter/src/widgets/sliver_tree.dart::TreeSliverStateMixin:MIXIN": {
+            "factory": "treeStateMixinType",
+            "arity": 1
+          }
+        }
+      },
+      "classTypeWitnesses": {
+        "policy": "captured-class-type-witness",
+        "classes": [
+          "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS",
+          "package:flutter/src/widgets/sliver_tree.dart::TreeSliver:CLASS",
+          "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState:CLASS",
+          "package:flutter/src/widgets/sliver_tree.dart::TreeSliverController:CLASS"
+        ],
+        "apply": "applyDartType",
+        "capture": "captureTreeDartType",
+        "read": "readDartType"
+      },
+      "importEmission": {
+        "policy": "used-identifiers"
+      },
+      "fieldTypeWitnesses": {
+        "policy": "checked-field-type-application",
+        "fields": [
+          "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode._parent:FIELD"
+        ]
+      }
+    },
+    {
+      "source": "packages/flutter/lib/src/rendering/sliver_tree.dart",
+      "sha256": "8296931c4f365bf4dee6fb15ddf7d3281beeb604364c2c2b56384323319672f5",
+      "symbols": [
+        "TreeSliverNodeParentData",
+        "TreeSliverIndentationType",
+        "RenderTreeSliver",
+        "TreeSliverNodesAnimation",
+        "_PaintSegment"
+      ],
+      "destination": "Nelyx/src/framework/rendering/sliver-tree.generated.ts",
+      "classNames": {
+        "TreeSliverNode": "SourceTreeSliverNode",
+        "TreeSliverStateMixin": "SourceTreeSliverStateMixin",
+        "TreeSliverController": "SourceTreeSliverController",
+        "TreeSliver": "SourceTreeSliver",
+        "_TreeSliverState": "SourceTreeSliverState",
+        "_TreeNodeParentDataWidget": "SourceTreeNodeParentDataWidget",
+        "_SliverTree": "SourceSliverTree",
+        "TreeSliverNodeParentData": "SourceTreeSliverNodeParentData",
+        "TreeSliverIndentationType": "SourceTreeSliverIndentationType",
+        "RenderTreeSliver": "SourceRenderTreeSliver"
+      },
+      "imports": {
+        "Widget": "../widgets/framework.ts",
+        "StatefulWidget": "../widgets/framework.ts",
+        "State": "../widgets/framework.ts",
+        "ParentDataWidget": "../widgets/framework.ts",
+        "Key": "../../foundation/key.ts",
+        "UniqueKey": "../../foundation/key.ts",
+        "ValueKey": "../../foundation/key.ts",
+        "RenderObject": "../rendering/object.ts",
+        "RenderBox": "../rendering/object.ts",
+        "SliverMultiBoxAdaptorParentData": "../rendering/sliver-multi-box-adaptor.ts",
+        "RenderSliverBoxChildManager": "../rendering/sliver-multi-box-adaptor.ts",
+        "RenderSliverVariedExtentList": "../rendering/sliver-fixed-extent-list.ts",
+        "SliverVariedExtentList": "../widgets/sliver.ts",
+        "AnimationStyle": "../animation/animation-style.ts",
+        "Curve": "../animation/curves.ts",
+        "Curves": "../animation/curves.ts",
+        "AnimationController": "../animation/animation-controller.ts",
+        "CurvedAnimation": "../animation/animations.ts",
+        "Offset": "../../ui/offset.ts",
+        "Rect": "../../ui/rect.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "dartNamedRecord": "../../foundation/dart-named-record.ts",
+        "dartNamedRecordRead": "../../foundation/dart-named-record.ts",
+        "dartStaticRead": "../../foundation/dart-static-field.ts",
+        "dartStaticWrite": "../../foundation/dart-static-field.ts",
+        "dartStaticSeal": "../../foundation/dart-static-field.ts",
+        "treeIndentationConstant": "../widgets/tree-sliver-source-adapter.ts",
+        "LayerHandle": "./layer.ts",
+        "ClipRectLayer": "./layer.ts",
+        "SliverLayoutDimensions": "./sliver.ts",
+        "TreeRenderHost": "./tree-sliver-source-adapter.ts",
+        "treeIndexKeyMap": "./tree-sliver-source-adapter.ts",
+        "treeKeyOffsetMap": "./tree-sliver-source-adapter.ts",
+        "treeKeyClipMap": "./tree-sliver-source-adapter.ts",
+        "treeClipHandle": "./tree-sliver-source-adapter.ts",
+        "treeMapRemoveWhere": "./tree-sliver-source-adapter.ts",
+        "treeListAdd": "./tree-sliver-source-adapter.ts",
+        "treeListRemoveAt": "./tree-sliver-source-adapter.ts",
+        "treeSortIndices": "./tree-sliver-source-adapter.ts",
+        "treeListNotEmpty": "./tree-sliver-source-adapter.ts",
+        "treeAxisString": "./tree-sliver-source-adapter.ts",
+        "dartMapRead": "../../foundation/dart-collections.ts",
+        "dartMapWrite": "../../foundation/dart-collections.ts",
+        "wheelPaintChild": "./list-wheel-renderer-adapter.ts",
+        "AxisDirection": "../painting/basic-types.ts",
+        "isTreeParentData": "./tree-sliver-source-types.ts",
+        "castTreeParentData": "./tree-sliver-source-types.ts",
+        "isWheelBox": "./list-wheel-renderer-adapter.ts",
+        "castWheelBox": "./list-wheel-renderer-adapter.ts",
+        "isWheelRenderObject": "./list-wheel-renderer-adapter.ts",
+        "castWheelRenderObject": "./list-wheel-renderer-adapter.ts",
+        "treePushClipRect": "./tree-sliver-source-adapter.ts",
+        "treePaintAnimationIndices": "./tree-sliver-source-adapter.ts",
+        "boxSourceDartInt": "../../foundation/dart-numeric.ts",
+        "boxSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "castSourceDartInt": "../../foundation/dart-numeric.ts",
+        "castSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "applyDartType": "../../foundation/dart-type-witness.ts",
+        "captureDartType": "../../foundation/dart-type-witness.ts",
+        "readDartType": "../../foundation/dart-type-witness.ts",
+        "nullableDartType": "../../foundation/dart-type-witness.ts",
+        "isDartType": "../../foundation/dart-type-witness.ts",
+        "castDartType": "../../foundation/dart-type-witness.ts",
+        "dartStringType": "../../foundation/dart-type-witness.ts",
+        "dartObjectType": "../../foundation/dart-type-witness.ts",
+        "dartNullType": "../../foundation/dart-type-witness.ts",
+        "dartIntType": "../../foundation/dart-type-witness.ts",
+        "dartDoubleType": "../../foundation/dart-type-witness.ts",
+        "dartNumType": "../../foundation/dart-type-witness.ts",
+        "dartBoolType": "../../foundation/dart-type-witness.ts",
+        "createDartListLiteral": "../../foundation/dart-mutable-list.ts",
+        "dartListType": "../../foundation/dart-mutable-list.ts",
+        "dartIterableType": "../../foundation/dart-mutable-list.ts",
+        "maxSourceDartNum": "../../foundation/dart-numeric-math.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/widgets/framework.dart::ParentDataWidget:CLASS": "ParentDataWidget",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/foundation/key.dart::UniqueKey:CLASS": "UniqueKey",
+        "package:flutter/src/foundation/key.dart::ValueKey:CLASS": "ValueKey",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder:CLASS": "DiagnosticPropertiesBuilder",
+        "package:flutter/src/foundation/diagnostics.dart::IntProperty:CLASS": "IntProperty",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::SliverMultiBoxAdaptorParentData:CLASS": "SliverMultiBoxAdaptorParentData",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::RenderSliverBoxChildManager:CLASS": "RenderSliverBoxChildManager",
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverVariedExtentList:CLASS": "TreeRenderHost",
+        "package:flutter/src/widgets/sliver.dart::SliverVariedExtentList:CLASS": "SliverVariedExtentList",
+        "package:flutter/src/animation/animation_style.dart::AnimationStyle:CLASS": "AnimationStyle",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/animation/animation_controller.dart::AnimationController:CLASS": "AnimationController",
+        "package:flutter/src/animation/animations.dart::CurvedAnimation:CLASS": "CurvedAnimation",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:core::List:CLASS": "DartMutableList",
+        "dart:core::Map:CLASS": "DartMap",
+        "package:flutter/src/widgets/sliver_tree.dart::TreeSliverNode:CLASS": "SourceTreeSliverNode",
+        "package:flutter/src/widgets/sliver_tree.dart::TreeSliverStateMixin:MIXIN": "SourceTreeSliverStateMixin",
+        "package:flutter/src/widgets/sliver_tree.dart::TreeSliverController:CLASS": "SourceTreeSliverController",
+        "package:flutter/src/widgets/sliver_tree.dart::TreeSliver:CLASS": "SourceTreeSliver",
+        "package:flutter/src/widgets/sliver_tree.dart::_TreeSliverState:CLASS": "SourceTreeSliverState",
+        "package:flutter/src/widgets/sliver_tree.dart::_TreeNodeParentDataWidget:CLASS": "SourceTreeNodeParentDataWidget",
+        "package:flutter/src/widgets/sliver_tree.dart::_SliverTree:CLASS": "SourceSliverTree",
+        "package:flutter/src/rendering/layer.dart::LayerHandle:CLASS": "LayerHandle",
+        "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS": "ClipRectLayer",
+        "package:flutter/src/rendering/sliver.dart::SliverLayoutDimensions:CLASS": "SliverLayoutDimensions",
+        "package:flutter/src/rendering/object.dart::PaintingContext:CLASS": "PaintingContext",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "durationUnit": "milliseconds",
+      "namedRecords": {
+        "type": "DartNamedRecord",
+        "create": "dartNamedRecord",
+        "read": "dartNamedRecordRead",
+        "policy": "immutable-named-record"
+      },
+      "staticFields": {
+        "read": "dartStaticRead",
+        "write": "dartStaticWrite",
+        "seal": "dartStaticSeal",
+        "policy": "lazy-class-fields"
+      },
+      "typeImports": {
+        "BuildContext": "../widgets/framework.ts",
+        "DartList": "../../foundation/dart-list.ts",
+        "DartNamedRecord": "../../foundation/dart-named-record.ts",
+        "DiagnosticPropertiesBuilder": "../../foundation/diagnostics.ts",
+        "PaintingContext": "../painting/context.ts",
+        "TreeSourceList": "./tree-sliver-source-adapter.ts",
+        "DartTypeWitness": "../../foundation/dart-type-witness.ts",
+        "DartInt": "../../foundation/dart-numeric.ts",
+        "DartDouble": "../../foundation/dart-numeric.ts",
+        "DartNumeric": "../../foundation/dart-numeric.ts",
+        "DartMutableList": "../../foundation/dart-mutable-list.ts"
+      },
+      "constantConstructors": {
+        "package:flutter/src/rendering/sliver_tree.dart::TreeSliverIndentationType.TreeSliverIndentationType._internal:CONSTRUCTOR": {
+          "factory": "treeIndentationConstant",
+          "policy": "canonical-immutable-generated-named"
+        }
+      },
+      "superConstructors": {
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::SliverMultiBoxAdaptorParentData.SliverMultiBoxAdaptorParentData.new:CONSTRUCTOR": {
+          "target": "SliverMultiBoxAdaptorParentData",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverVariedExtentList.RenderSliverVariedExtentList.new:CONSTRUCTOR": {
+          "target": "TreeRenderHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "renames": {
+        "paint": "sourcePaint"
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "values": {},
+      "stringConversions": {
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "treeAxisString"
+      },
+      "adapters": {
+        "dart:core::Map.clear:METHOD": {
+          "target": "clear",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.forEach:METHOD": {
+          "target": "forEach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.[]:METHOD": {
+          "target": "dartMapRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "target": "dartMapWrite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.removeWhere:METHOD": {
+          "target": "treeMapRemoveWhere",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.add:METHOD": {
+          "target": "treeListAdd",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.removeAt:METHOD": {
+          "target": "treeListRemoveAt",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.sort:METHOD": {
+          "target": "treeSortIndices",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.contains:METHOD": {
+          "target": "contains",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.toList:METHOD": {
+          "target": "treePaintAnimationIndices",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.isNotEmpty:GETTER": {
+          "target": "treeListNotEmpty",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:ui::Offset.+:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:math::max:FUNCTION": {
+          "target": "maxSourceDartNum",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.paintChild:METHOD": {
+          "target": "wheelPaintChild",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushClipRect:METHOD": {
+          "target": "treePushClipRect",
+          "kind": "call",
+          "receiver": "first",
+          "namedArguments": "trailing-options"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsLayout:METHOD": {
+          "target": "markNeedsLayout",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverFixedExtentBoxAdaptor.performLayout:METHOD": {
+          "target": "performLayout",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::RenderSliverMultiBoxAdaptor.indexOf:METHOD": {
+          "target": "indexOf",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::RenderSliverMultiBoxAdaptor.childMainAxisPosition:METHOD": {
+          "target": "childMainAxisPosition",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverFixedExtentBoxAdaptor.paintExtentOf:METHOD": {
+          "target": "paintExtentOf",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.childAfter:METHOD": {
+          "target": "childAfter",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.Offset.new:CONSTRUCTOR": {
+          "target": "Offset",
+          "kind": "new"
+        },
+        "dart:ui::Rect.Rect.fromPoints:CONSTRUCTOR": {
+          "target": "Rect.fromPoints",
+          "kind": "call"
+        }
+      },
+      "memberBindings": {
+        "dart:core::Map.keys:GETTER": "keys",
+        "package:flutter/src/rendering/layer.dart::LayerHandle.layer:SETTER": "layer",
+        "package:flutter/src/rendering/object.dart::RenderObject.parentData:GETTER": "parentData",
+        "package:flutter/src/rendering/object.dart::RenderObject.parentData:SETTER": "parentData",
+        "package:flutter/src/rendering/sliver.dart::SliverConstraints.axisDirection:GETTER": "axisDirection",
+        "package:flutter/src/rendering/sliver.dart::RenderSliver.constraints:GETTER": "constraints",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::RenderSliverBoxChildManager.estimatedChildCount:GETTER": "estimatedChildCount",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::RenderSliverMultiBoxAdaptor.childManager:GETTER": "childManager",
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverVariedExtentList.itemExtentBuilder:GETTER": "itemExtentBuilder",
+        "package:flutter/src/rendering/sliver_fixed_extent_list.dart::RenderSliverFixedExtentBoxAdaptor.layoutDimensions:GETTER": "layoutDimensions",
+        "package:flutter/src/rendering/sliver.dart::SliverConstraints.scrollOffset:GETTER": "scrollOffset",
+        "package:flutter/src/rendering/sliver.dart::SliverConstraints.remainingCacheExtent:GETTER": "remainingCacheExtent",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.firstChild:GETTER": "firstChild",
+        "package:flutter/src/rendering/sliver.dart::SliverLogicalParentData.layoutOffset:GETTER": "layoutOffset",
+        "package:flutter/src/rendering/sliver.dart::SliverConstraints.remainingPaintExtent:GETTER": "remainingPaintExtent",
+        "dart:core::Map.isEmpty:GETTER": "isEmpty",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.lastChild:GETTER": "lastChild",
+        "package:flutter/src/rendering/sliver.dart::SliverConstraints.crossAxisExtent:GETTER": "crossAxisExtent",
+        "package:flutter/src/rendering/object.dart::RenderObject.needsCompositing:GETTER": "needsCompositing",
+        "package:flutter/src/rendering/layer.dart::LayerHandle.layer:GETTER": "layer"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::int:CLASS",
+                  "name": "int",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/foundation/key.dart::UniqueKey:CLASS",
+                  "name": "UniqueKey",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "treeIndexKeyMap",
+          "policy": "ordered-dart-collection"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/foundation/key.dart::UniqueKey:CLASS",
+                  "name": "UniqueKey",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::double:CLASS",
+                  "name": "double",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "treeKeyOffsetMap",
+          "policy": "ordered-dart-collection"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/foundation/key.dart::UniqueKey:CLASS",
+                  "name": "UniqueKey",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/rendering/layer.dart::LayerHandle:CLASS",
+                  "name": "LayerHandle",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "interface",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS",
+                      "name": "ClipRectLayer",
+                      "owner": null,
+                      "local": false,
+                      "static": false
+                    },
+                    "arguments": []
+                  }
+                ]
+              }
+            ]
+          },
+          "factory": "treeKeyClipMap",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "constructorSpecializations": {
+        "package:flutter/src/rendering/layer.dart::LayerHandle.LayerHandle.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS"
+            ],
+            "target": "treeClipHandle",
+            "kind": "call"
+          }
+        ]
+      },
+      "runtimeTypes": {
+        "package:flutter/src/rendering/sliver_tree.dart::TreeSliverNodeParentData:CLASS": {
+          "is": "isTreeParentData",
+          "cast": "castTreeParentData"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": {
+          "is": "isWheelBox",
+          "cast": "castWheelBox"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": {
+          "is": "isWheelRenderObject",
+          "cast": "castWheelRenderObject"
+        }
+      },
+      "numericValues": {
+        "policy": "source-numeric-erasure",
+        "int": "boxSourceDartInt",
+        "double": "boxSourceDartDouble",
+        "castInt": "castSourceDartInt",
+        "castDouble": "castSourceDartDouble",
+        "numType": "DartNumeric",
+        "genericTypes": {
+          "int": "DartInt",
+          "double": "DartDouble"
+        }
+      },
+      "listLiterals": [],
+      "parameterTypeWitnesses": [],
+      "importEmission": {
+        "policy": "used-identifiers"
+      }
+    }
+  ],
+  "schema": "nelyx.batch/v1",
+  "id": "w10-tree",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "adoptExisting": {
+    "Nelyx/src/framework/widgets/sliver-tree.generated.ts": "91cea8756fb3935bb3b962d8479cda4e62a047bbe001a91966c6fd7b36135e42",
+    "Nelyx/src/framework/rendering/sliver-tree.generated.ts": "2d01ecd85008ff0a9540e609c23d99ecbf08d4707e54ae56c84fe593ccd00f0d"
+  },
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/tree-effective-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/tree-effective-batch-source.ts",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-batch-run.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-test-candidate.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-widget-root.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-widget-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-renderer-core.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-renderer-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-facade.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-facade-contract.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-view.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/selection-overlay-root.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/canvaskit-runtime.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-nested-animation.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-effective-batch-run.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-effective-stage.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-alias-contract.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-generic-stage.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-generic-regression.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-generic-contract.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-generic-public.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-generic-package.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-generic-compiled-native.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/package-build-stage.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/used-imports.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-product-context.ts"
+  ],
+  "validationSources": [
+    "Nelyx/src/framework/widgets/tree-view.ts",
+    "Nelyx/src/framework/widgets/tree-sliver-source-adapter.ts",
+    "Nelyx/src/framework/widgets/tree-widget-source-types.ts",
+    "Nelyx/src/framework/widgets/tree-generic-witnesses.ts",
+    "Nelyx/src/framework/rendering/tree-sliver-source-adapter.ts",
+    "Nelyx/src/framework/rendering/tree-sliver.ts",
+    "Nelyx/src/framework/widgets/tree-sliver.ts",
+    "Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+    "Nelyx/src/framework/widgets/scrollbar-themed-source-adapter.ts",
+    "Nelyx/src/framework/rendering/tree-sliver-source-types.ts",
+    "Nelyx/src/framework/widgets/tree-sliver-facade.ts",
+    "Nelyx/src/framework/widgets/sliver-tree.ts",
+    "Nelyx/src/framework/rendering/sliver-tree.ts",
+    "Nelyx/src/foundation/dart-numeric-math.ts",
+    "Nelyx/src/foundation/dart-source-type.ts",
+    "Nelyx/src/framework/widgets/framework-source-types.ts"
+  ],
+  "contract": {
+    "id": "nelyx.generated.w10-tree/v2",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "TreeNode",
+      "TreeModel",
+      "TreeController",
+      "TreeView",
+      "TreeSliverNode",
+      "TreeSliverStateMixin",
+      "TreeSliverController",
+      "TreeSliver",
+      "TreeSliverNodeParentData",
+      "TreeSliverIndentationType",
+      "RenderTreeSliver",
+      "TreeSliverNodeBuilder",
+      "TreeSliverRowExtentBuilder",
+      "TreeSliverNodeCallback",
+      "TreeSliverNodesAnimation"
+    ],
+    "requirements": [
+      "All18 selected pinned declarations and original public4/private2 aliases retain complete source bodies and analyzer numeric provenance through d.ts",
+      "Owning effective bodies and current hosts/public manifests are copied unchanged; no candidate emission or archived host overlay",
+      "Actual Core/RN Babel Root, nested renderer, fixed TreeView and generic original7/typedef4 public gates retain user edits",
+      "Independent unchanged Dart comparisons cover widget11/renderer24/generic18 states per assertion mode",
+      "Independent Core/Cupertino/Material builds and compiled Node/RN Babel/supplier verified Hermes3 consume actual public package APIs"
+    ],
+    "numericPolicy": "Explicit reified generic node/List/Map boundaries and registered Dart content/numeric carriers; analyzer-derived callback/record numeric metadata. Raw numeric Object payloads and unsupported storage rejected. The existing immutable-ID TreeView retains its fixed positive extent contract.",
+    "differences": [
+      "Raw generated source and independent sourceComparison remain separate from reviewed Core State/renderer corrections.",
+      "Renderer corrects repeated segment subtraction, viewport clip coordinates, off-cache paint segments, empty inverse queries and matching hit bounds.",
+      "State retires disabled/removed animations and aborted callback owners; immediate bulk collapse visits children before parents.",
+      "The public immutable-ID facade retains its existing fixed-height/no-toggle-animation contract, restoration/reveal and directional indentation; full source traversal owns active rows and a derived index cache serves synchronous ID queries.",
+      "Source parent-data host propagates a local wrapper of the original row key and unwraps findChildIndexCallback, preserving State without duplicating GlobalKey ownership.",
+      "Explicit constant row builders admit a bounded fixed extent inverse path only when no animation is active.",
+      "Reviewed State ranges include every active descendant and refresh after source unpack; inactive child animations do not address root rows.",
+      "Nested renderer displacement composes source-captured cache prefixes without double subtraction; inner clips and hits respect enclosing parents.",
+      "Nested immediate/reversal/bulk/cache/variable-extent/insertion/ticker cases are qualified in Core/Babel; arbitrary custom curves and broader source API/native animation combinations remain separate.",
+      "Original Node/Controller/parent-data/indentation retain exact source constructors. Public Widget/renderer export reviewed Core owners with original ancestry; abstract StateMixin is type-only and private State is internal.",
+      "Generic node storage and exact List/Map/named record numeric carriers use qualified shared witnesses; native app delivery is a separate current-artifact gate."
+    ],
+    "performance": "10000-node actual Root seek has bounded materialization and extent queries; timing is not physical FPS evidence."
+  },
+  "validationData": [
+    "tools/Nelyx.FrameworkToTypeScript/data/work8/inputs/w10-tree-generic-gates.json"
+  ]
+}

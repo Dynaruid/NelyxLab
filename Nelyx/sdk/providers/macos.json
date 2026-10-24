@@ -1,0 +1,227 @@
+{
+  "schema": "nelyx.provider/v4",
+  "id": "nelyx.macos",
+  "version": "0.20.0",
+  "coreRange": ">=0.16.0 <0.17.0",
+  "protocolVersion": 1,
+  "target": "macos",
+  "runtime": "hermes",
+  "host": "fabric",
+  "renderer": "skia-graphite",
+  "entry": "@nelyx/sdk/platforms/macos/application",
+  "defaultProfile": "rn-graphite-metal",
+  "cohorts": [
+    {
+      "id": "rn-0.83.10",
+      "react": "19.2.0",
+      "reactNative": "0.83.10",
+      "nativeReactNative": "0.83.0",
+      "framework": "react-native-macos",
+      "frameworkVersion": "0.83.0",
+      "frameworkRevision": null,
+      "engine": "hermes",
+      "engineVersion": "0.14.1",
+      "engineRevision": "5a1485fd688eafdf40637f4f2f44ec830f099b80",
+      "bytecodeVersion": 96
+    }
+  ],
+  "defaultCohort": "rn-0.83.10",
+  "hostOperatingSystems": {
+    "doctor": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "build": [
+      "darwin"
+    ],
+    "run": [
+      "darwin"
+    ],
+    "dev": [
+      "darwin"
+    ],
+    "pack": [
+      "windows",
+      "darwin",
+      "linux"
+    ]
+  },
+  "operations": [
+    "doctor",
+    "build",
+    "run",
+    "dev",
+    "pack"
+  ],
+  "architectures": [
+    "x86_64",
+    "arm64"
+  ],
+  "tooling": [
+    {
+      "id": "node",
+      "kind": "executable",
+      "versionRange": ">=24.3.0 <25.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "run",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "npm",
+      "kind": "executable",
+      "versionRange": ">=11.0.0 <12.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "react-native",
+      "kind": "package",
+      "versionRange": "0.83.10",
+      "operations": [
+        "build",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "darwin"
+      ]
+    },
+    {
+      "id": "xcode",
+      "kind": "component",
+      "versionRange": null,
+      "operations": [
+        "build",
+        "run",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "darwin"
+      ]
+    }
+  ],
+  "artifactManifest": {
+    "entry": "@nelyx/skia-rn/native-manifest.json",
+    "kind": "recipe",
+    "required": [
+      "skia-macos-framework"
+    ]
+  },
+  "nativeAbi": {
+    "host": null,
+    "skia": 1
+  },
+  "wireAbi": 10,
+  "capabilities": {
+    "rendering": {
+      "admission": "bounded",
+      "completion": "gpu-retired",
+      "present": "unobserved",
+      "notifications": "submitted-and-retired",
+      "nativeIdentity": true,
+      "textRanges": true
+    },
+    "editing": {
+      "indexUnit": "utf16",
+      "composing": "unavailable",
+      "selectionDirection": "unavailable",
+      "nativeRevision": "event-count"
+    },
+    "semantics": "native-controls"
+  },
+  "qualification": {
+    "status": "notVerified",
+    "scope": "Apple RN/Metal source implementation",
+    "architectures": [],
+    "evidence": [],
+    "limitations": [
+      "Native build, runtime, Metal and signing are not verified",
+      "Exact protocol3 patched RN/RNM source and hardware Metal/Dawn preparation are required",
+      "Forced teardown, native loss recovery and physical acceptance remain incomplete"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "rn-graphite-metal",
+      "cohorts": [
+        "rn-0.83.10"
+      ],
+      "identity": {
+        "target": "macos",
+        "runtime": "hermes",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "metal",
+        "gpuImplementation": "dawn",
+        "profile": "rn-graphite-metal"
+      },
+      "status": "implemented",
+      "reason": "Owned Apple host protocol3, exact RN cohort, JS Metal GPU preparation and per-view/runtime drain gates required; code-only scope, native execution notVerified",
+      "executionOperatingSystems": [
+        "darwin"
+      ],
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-macos-framework"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Apple RN/Metal source implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Native build, runtime, Metal and signing are not verified",
+          "Exact protocol3 patched RN/RNM source and hardware Metal/Dawn preparation are required",
+          "Forced teardown, native loss recovery and physical acceptance remain incomplete"
+        ]
+      }
+    }
+  ]
+}

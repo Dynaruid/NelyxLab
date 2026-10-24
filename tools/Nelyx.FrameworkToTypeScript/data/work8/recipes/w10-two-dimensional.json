@@ -1,0 +1,2496 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-two-dimensional",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "imports": {
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "hashValues": "../painting/value-equality.ts",
+        "isChildVicinity": "./child-vicinity-adapter.ts",
+        "castChildVicinity": "./child-vicinity-adapter.ts",
+        "constantChildVicinity": "./child-vicinity-constant.ts",
+        "integerString": "./child-vicinity-adapter.ts"
+      },
+      "typeImports": {
+        "DartComparable": "./child-vicinity-adapter.ts"
+      },
+      "typeBindings": {},
+      "adapters": {
+        "dart:core::Object.hash:METHOD": {
+          "target": "hashValues",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        }
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS": {
+          "is": "isChildVicinity",
+          "cast": "castChildVicinity"
+        }
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        }
+      },
+      "renames": {
+        "==": "equals"
+      },
+      "source": "packages/flutter/lib/src/widgets/two_dimensional_viewport.dart",
+      "sha256": "a3bca9a23d5367265ebb00bf6618ac912a74c4b008568ba0d0da1364a66cf69e",
+      "symbols": [
+        "ChildVicinity"
+      ],
+      "destination": "Nelyx/src/framework/widgets/child-vicinity.generated.ts",
+      "classNames": {
+        "ChildVicinity": "ChildVicinity"
+      },
+      "interfaceBindings": {
+        "dart:core::Comparable:CLASS": "DartComparable"
+      },
+      "constantConstructors": {
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity.ChildVicinity.new:CONSTRUCTOR": {
+          "factory": "constantChildVicinity",
+          "policy": "canonical-immutable-generated"
+        }
+      },
+      "stringConversions": {
+        "dart:core::int:CLASS": "integerString"
+      }
+    },
+    {
+      "imports": {
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "ChangeNotifier": "../../foundation/notifier.ts",
+        "State": "./framework.ts",
+        "StatefulWidget": "./framework.ts",
+        "ErrorWidget": "./framework.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "FlutterErrorDetails": "../../foundation/assertions.ts",
+        "ErrorDescription": "../../foundation/diagnostics.ts",
+        "RepaintBoundary": "./repaint-boundary.ts",
+        "AutomaticKeepAlive": "./automatic-keep-alive.ts",
+        "AutomaticKeepAliveClientMixin": "./automatic-keep-alive.ts",
+        "SelectionContainer": "./selection-container.ts",
+        "SelectionRegistrarScope": "./selection-container.ts",
+        "ChildVicinity": "./child-vicinity.generated.ts",
+        "dartListGet": "../../foundation/dart-list.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "DartSet": "../../foundation/dart-collections.ts",
+        "dartMapRead": "../../foundation/dart-collections.ts",
+        "dartMapWrite": "../../foundation/dart-collections.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "captureDartException": "../../foundation/dart-exceptions.ts",
+        "createSelectableMap": "./two-dimensional-delegate-adapter.ts",
+        "createSelectableSet": "./two-dimensional-delegate-adapter.ts",
+        "isChildVicinity": "./child-vicinity-adapter.ts",
+        "castChildVicinity": "./child-vicinity-adapter.ts",
+        "isTwoDimensionalChildDelegate": "./two-dimensional-delegate-adapter.ts",
+        "castTwoDimensionalChildDelegate": "./two-dimensional-delegate-adapter.ts",
+        "isTwoDimensionalChildListDelegate": "./two-dimensional-delegate-adapter.ts",
+        "castTwoDimensionalChildListDelegate": "./two-dimensional-delegate-adapter.ts",
+        "createTwoDimensionalRepaintBoundary": "./two-dimensional-delegate-adapter.ts",
+        "TwoDimensionalSelectionHost": "./two-dimensional-selection-host.ts",
+        "selectionParentFor": "./two-dimensional-selection-host.ts",
+        "selectionAddListener": "./two-dimensional-selection-host.ts",
+        "selectionRemoveListener": "./two-dimensional-selection-host.ts"
+      },
+      "typeImports": {
+        "Widget": "./framework.ts",
+        "BuildContext": "./framework.ts",
+        "Selectable": "../rendering/selection.ts",
+        "SelectionRegistrar": "../rendering/selection.ts",
+        "DartList": "../../foundation/dart-list.ts",
+        "HostStackTrace": "./two-dimensional-delegate-adapter.ts"
+      },
+      "typeBindings": {
+        "package:listen/src/listen.dart::ChangeNotifier:CLASS": "ChangeNotifier",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS": "ChildVicinity",
+        "package:flutter/src/widgets/basic.dart::RepaintBoundary:CLASS": "RepaintBoundary",
+        "package:flutter/src/widgets/automatic_keep_alive.dart::AutomaticKeepAlive:CLASS": "AutomaticKeepAlive",
+        "dart:core::List:CLASS": "DartList",
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/rendering/selection.dart::SelectionRegistrar:CLASS": "SelectionRegistrar",
+        "package:flutter/src/widgets/automatic_keep_alive.dart::AutomaticKeepAliveClientMixin:MIXIN": "AutomaticKeepAliveClientMixin",
+        "dart:core::Set:CLASS": "DartSet",
+        "package:flutter/src/rendering/selection.dart::Selectable:MIXIN": "Selectable",
+        "dart:core::Map:CLASS": "DartMap",
+        "package:flutter/src/widgets/selection_container.dart::SelectionContainer:CLASS": "SelectionContainer",
+        "package:flutter/src/widgets/selection_container.dart::SelectionRegistrarScope:CLASS": "SelectionRegistrarScope",
+        "dart:core::StackTrace:CLASS": "HostStackTrace",
+        "package:flutter/src/foundation/assertions.dart::FlutterErrorDetails:CLASS": "FlutterErrorDetails",
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/widgets/framework.dart::ErrorWidget:CLASS": "ErrorWidget"
+      },
+      "adapters": {
+        "package:flutter/src/widgets/basic.dart::RepaintBoundary.RepaintBoundary.new:CONSTRUCTOR": {
+          "target": "createTwoDimensionalRepaintBoundary",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/automatic_keep_alive.dart::AutomaticKeepAlive.AutomaticKeepAlive.new:CONSTRUCTOR": {
+          "target": "AutomaticKeepAlive",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/selection_container.dart::SelectionRegistrarScope.SelectionRegistrarScope.new:CONSTRUCTOR": {
+          "target": "SelectionRegistrarScope",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterErrorDetails.FlutterErrorDetails.new:CONSTRUCTOR": {
+          "target": "FlutterErrorDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "target": "ErrorDescription",
+          "kind": "new"
+        },
+        "dart:core::List.[]:METHOD": {
+          "target": "dartListGet",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]:METHOD": {
+          "target": "dartMapRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "target": "dartMapWrite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.maybeDispatchObjectCreation:METHOD": {
+          "target": "maybeDispatchObjectCreation",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.notifyListeners:METHOD": {
+          "target": "notifyListeners",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/automatic_keep_alive.dart::AutomaticKeepAliveClientMixin.updateKeepAlive:METHOD": {
+          "target": "updateKeepAlive",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Set.add:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Set.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didChangeDependencies:METHOD": {
+          "target": "sourceBaseDidChangeDependencies",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.forEach:METHOD": {
+          "target": "forEach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/selection.dart::SelectionRegistrar.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/selection.dart::SelectionRegistrar.add:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::Listenable.addListener:METHOD": {
+          "target": "selectionAddListener",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.containsKey:METHOD": {
+          "target": "containsKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::Listenable.removeListener:METHOD": {
+          "target": "selectionRemoveListener",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::State.dispose:METHOD": {
+          "target": "sourceBaseDispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/automatic_keep_alive.dart::AutomaticKeepAliveClientMixin.build:METHOD": {
+          "target": "build",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/selection_container.dart::SelectionContainer.maybeOf:METHOD": {
+          "target": "selectionParentFor",
+          "kind": "call",
+          "receiver": "owner"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::_SelectionKeepAliveState.listensTo:METHOD": {
+          "target": "guardedSourceListener",
+          "kind": "call",
+          "receiver": "target"
+        }
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS": {
+          "is": "isChildVicinity",
+          "cast": "castChildVicinity"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildDelegate:CLASS": {
+          "is": "isTwoDimensionalChildDelegate",
+          "cast": "castTwoDimensionalChildDelegate"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildListDelegate:CLASS": {
+          "is": "isTwoDimensionalChildListDelegate",
+          "cast": "castTwoDimensionalChildListDelegate"
+        }
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        }
+      },
+      "renames": {
+        "==": "equals",
+        "_selectableAttachments": "sourceAttachments",
+        "_selectablesWithSelections": "sourceSelections",
+        "_registrar": "sourceRegistrar",
+        "add": "sourceAdd",
+        "remove": "sourceRemove",
+        "dispose": "sourceDispose",
+        "didChangeDependencies": "sourceDidChangeDependencies",
+        "listensTo": "sourceListensTo"
+      },
+      "source": "packages/flutter/lib/src/widgets/scroll_delegate.dart",
+      "sha256": "e9cec65374b38d38a3ef8cce7410076f26b5a942145b2742506499ae81834383",
+      "symbols": [
+        "TwoDimensionalChildDelegate",
+        "TwoDimensionalChildBuilderDelegate",
+        "TwoDimensionalChildListDelegate",
+        "_SelectionKeepAlive",
+        "_SelectionKeepAliveState",
+        "_createErrorWidget"
+      ],
+      "destination": "Nelyx/src/framework/widgets/two-dimensional-delegate.generated.ts",
+      "classNames": {
+        "TwoDimensionalChildDelegate": "SourceTwoDimensionalChildDelegate",
+        "TwoDimensionalChildBuilderDelegate": "SourceTwoDimensionalChildBuilderDelegate",
+        "TwoDimensionalChildListDelegate": "SourceTwoDimensionalChildListDelegate"
+      },
+      "memberBindings": {
+        "package:flutter/src/widgets/framework.dart::State.context:GETTER": "context",
+        "package:flutter/src/widgets/framework.dart::State.widget:GETTER": "widget"
+      },
+      "superConstructors": {
+        "package:listen/src/listen.dart::ChangeNotifier.ChangeNotifier.new:CONSTRUCTOR": {
+          "target": "ChangeNotifier",
+          "baseType": "ChangeNotifier",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/framework.dart::StatefulWidget.StatefulWidget.new:CONSTRUCTOR": {
+          "target": "StatefulWidget",
+          "baseType": "StatefulWidget",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/framework.dart::State.State.new:CONSTRUCTOR": {
+          "target": "TwoDimensionalSelectionHost",
+          "baseType": "State",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/widgets/automatic_keep_alive.dart::AutomaticKeepAliveClientMixin:MIXIN<package:flutter/src/widgets/scroll_delegate.dart::_SelectionKeepAlive:CLASS>"
+          ]
+        }
+      },
+      "values": {
+        "package:flutter/src/foundation/memory_allocations.dart::kFlutterMemoryAllocationsEnabled:GETTER": false
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "exceptions": {
+        "capture": "captureDartException",
+        "policy": "host-exception-stack"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Set:CLASS",
+              "name": "Set",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/rendering/selection.dart::Selectable:MIXIN",
+                  "name": "Selectable",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "createSelectableSet",
+          "policy": "ordered-dart-collection"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/rendering/selection.dart::Selectable:MIXIN",
+                  "name": "Selectable",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "function",
+                "nullable": false,
+                "returnType": {
+                  "kind": "void",
+                  "nullable": false
+                },
+                "parameters": []
+              }
+            ]
+          },
+          "factory": "createSelectableMap",
+          "policy": "ordered-dart-collection"
+        }
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/two_dimensional_viewport.dart",
+      "sha256": "a3bca9a23d5367265ebb00bf6618ac912a74c4b008568ba0d0da1364a66cf69e",
+      "symbols": [
+        "TwoDimensionalViewport",
+        "_TwoDimensionalViewportElement",
+        "TwoDimensionalViewportParentData",
+        "RenderTwoDimensionalViewport",
+        "TwoDimensionalChildManager"
+      ],
+      "destination": "Nelyx/src/framework/widgets/two-dimensional-viewport.generated.ts",
+      "classNames": {
+        "TwoDimensionalViewport": "SourceTwoDimensionalViewport",
+        "_TwoDimensionalViewportElement": "SourceTwoDimensionalViewportElement",
+        "TwoDimensionalViewportParentData": "SourceTwoDimensionalViewportParentData",
+        "RenderTwoDimensionalViewport": "SourceRenderTwoDimensionalViewport",
+        "TwoDimensionalChildManager": "SourceTwoDimensionalChildManager"
+      },
+      "imports": {
+        "createWheelClipHandle": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelBoxSize": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelConstraintsBiggest": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelParentData": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelParent": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelPaintBounds": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelPushClipRect": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelPaintChild": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelGetTransform": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelBoxHitTest": "../rendering/list-wheel-renderer-adapter.ts",
+        "isWheelBox": "../rendering/list-wheel-renderer-adapter.ts",
+        "castWheelBox": "../rendering/list-wheel-renderer-adapter.ts",
+        "isWheelConstraints": "../rendering/list-wheel-renderer-adapter.ts",
+        "RenderBox": "../rendering/object.ts",
+        "RenderObject": "../rendering/object.ts",
+        "BoxConstraints": "../rendering/constraints.ts",
+        "LayerHandle": "../rendering/layer.ts",
+        "Offset": "../../ui/offset.ts",
+        "Size": "../../ui/size.ts",
+        "Rect": "../../ui/rect.ts",
+        "Matrix4": "../../math/matrix4.ts",
+        "MatrixUtils": "../painting/matrix-utils.ts",
+        "Curves": "../animation/curves.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "createWheelRevealedOffset": "../rendering/list-wheel-renderer-adapter.ts",
+        "isChildVicinity": "./child-vicinity-adapter.ts",
+        "castChildVicinity": "./child-vicinity-adapter.ts",
+        "integerString": "./child-vicinity-adapter.ts",
+        "ErrorDescription": "../../foundation/diagnostics.ts",
+        "ChildVicinity": "./child-vicinity.generated.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "dartMapRead": "../../foundation/dart-collections.ts",
+        "dartMapWrite": "../../foundation/dart-collections.ts",
+        "isTwoDimensionalChildDelegate": "./two-dimensional-delegate-adapter.ts",
+        "Element": "./framework.ts",
+        "RenderObjectElement": "./framework.ts",
+        "RenderObjectWidget": "./framework.ts",
+        "Key": "../../foundation/key.ts",
+        "CacheExtentStyle": "../rendering/viewport.ts",
+        "ScrollCacheExtent": "../rendering/viewport.ts",
+        "SourceTwoDimensionalChildDelegate": "./two-dimensional-delegate.generated.ts",
+        "dartRecord": "../../foundation/dart-record.ts",
+        "dartRecordRead": "../../foundation/dart-record.ts",
+        "Exception": "./two-dimensional-viewport-adapter.ts",
+        "TwoDimensionalRenderHost": "./two-dimensional-viewport-adapter.ts",
+        "TwoDimensionalElementHost": "./two-dimensional-viewport-adapter.ts",
+        "TwoDimensionalWidgetHost": "./two-dimensional-viewport-adapter.ts",
+        "TwoDimensionalParentDataHost": "./two-dimensional-viewport-adapter.ts",
+        "TwoDimensionalHitTestResult": "./two-dimensional-viewport-adapter.ts",
+        "createChildVicinityElementMap": "./two-dimensional-viewport-adapter.ts",
+        "createKeyElementMap": "./two-dimensional-viewport-adapter.ts",
+        "createChildVicinityRenderBoxMap": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalListAdd": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalListRemove": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalListClear": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalListSort": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalIterableIsEmpty": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalNumberCompare": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalObjectString": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalBuildScope": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalElementSlot": "./two-dimensional-viewport-adapter.ts",
+        "castSourceTwoDimensionalViewport": "./two-dimensional-viewport-types.ts",
+        "castSourceRenderTwoDimensionalViewport": "./two-dimensional-viewport-types.ts",
+        "isSourceTwoDimensionalViewportParentData": "./two-dimensional-viewport-types.ts",
+        "castSourceTwoDimensionalViewportParentData": "./two-dimensional-viewport-types.ts",
+        "castScrollPosition": "./two-dimensional-viewport-types.ts",
+        "ErrorSummary": "../../foundation/diagnostics.ts",
+        "ErrorHint": "../../foundation/diagnostics.ts",
+        "DiagnosticsNode": "../../foundation/diagnostics.ts",
+        "AxisDirection": "../painting/basic-types.ts",
+        "dartLateRead": "../../foundation/dart-late.ts",
+        "dartLateWrite": "../../foundation/dart-late.ts",
+        "constantPixelCacheExtent": "./two-dimensional-viewport-constants.ts",
+        "Axis": "../painting/basic-types.ts",
+        "debugCheckHasBoundedAxis": "./two-dimensional-viewport-adapter.ts",
+        "RevealedOffset": "../rendering/viewport.ts",
+        "twoDimensionalTypeString": "./two-dimensional-viewport-adapter.ts",
+        "ParentData": "../rendering/object.ts",
+        "twoDimensionalRuntimeType": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalContainsBox": "./two-dimensional-viewport-adapter.ts",
+        "twoDimensionalMoveTo": "./two-dimensional-viewport-adapter.ts"
+      },
+      "typeImports": {
+        "PipelineOwner": "../rendering/object.ts",
+        "ViewportOffset": "../rendering/viewport-offset.ts",
+        "ClipRectLayer": "../rendering/layer.ts",
+        "PaintingContext": "../painting/context.ts",
+        "Clip": "../../ui/clip.ts",
+        "Curve": "../animation/curves.ts",
+        "Widget": "./framework.ts",
+        "BuildContext": "./framework.ts",
+        "DartMutableList": "./two-dimensional-viewport-adapter.ts",
+        "TwoDimensionalViewportContract": "./two-dimensional-viewport-adapter.ts",
+        "DartRecord": "../../foundation/dart-record.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/rendering/object.dart::PipelineOwner:CLASS": "PipelineOwner",
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": "BoxConstraints",
+        "package:flutter/src/rendering/box.dart::BoxHitTestResult:CLASS": "TwoDimensionalHitTestResult",
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport:CLASS": "WheelViewportContract",
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset:CLASS": "RevealedOffset",
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset:CLASS": "ViewportOffset",
+        "package:flutter/src/rendering/layer.dart::LayerHandle:CLASS": "LayerHandle",
+        "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS": "ClipRectLayer",
+        "package:flutter/src/rendering/object.dart::PaintingContext:CLASS": "PaintingContext",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Size:CLASS": "Size",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:ui::Clip:ENUM": "Clip",
+        "package:vector_math/vector_math_64.dart::Matrix4:CLASS": "Matrix4",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "dart:core::List:CLASS": "DartMutableList",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS": "ChildVicinity",
+        "dart:core::Map:CLASS": "DartMap",
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/widgets/framework.dart::RenderObjectWidget:CLASS": "RenderObjectWidget",
+        "package:flutter/src/rendering/viewport.dart::CacheExtentStyle:ENUM": "CacheExtentStyle",
+        "package:flutter/src/rendering/viewport.dart::ScrollCacheExtent:CLASS": "ScrollCacheExtent",
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildDelegate:CLASS": "SourceTwoDimensionalChildDelegate",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement:CLASS": "RenderObjectElement",
+        "package:flutter/src/widgets/framework.dart::Element:CLASS": "Element",
+        "package:flutter/src/rendering/object.dart::ParentData:CLASS": "ParentData",
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils:CLASS": "MatrixUtils",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition:CLASS": "ScrollPosition",
+        "dart:core::Exception:CLASS": "Exception",
+        "dart:core::Type:CLASS": "HostType",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsNode:CLASS": "DiagnosticsNode",
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary:CLASS": "ErrorSummary",
+        "package:flutter/src/foundation/assertions.dart::ErrorHint:CLASS": "ErrorHint"
+      },
+      "memberBindings": {
+        "package:flutter/src/rendering/object.dart::RenderObject.attached:GETTER": "attached",
+        "package:flutter/src/rendering/object.dart::RenderObject.needsCompositing:GETTER": "needsCompositing",
+        "package:flutter/src/rendering/box.dart::RenderBox.hasSize:GETTER": "hasSize",
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": "sourceSize",
+        "package:flutter/src/widgets/framework.dart::Element.widget:GETTER": "widget",
+        "package:flutter/src/widgets/framework.dart::Element.owner:GETTER": "owner",
+        "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::KeepAliveParentDataMixin.keepAlive:GETTER": "keepAlive",
+        "package:flutter/src/rendering/object.dart::RenderObject.debugDoingThisLayout:GETTER": "debugDoingThisLayout",
+        "dart:core::Object.runtimeType:GETTER": "sourceRuntimeType"
+      },
+      "adapters": {
+        "package:flutter/src/rendering/box.dart::RenderBox.markNeedsLayout:METHOD": {
+          "target": "markNeedsLayout",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsPaint:METHOD": {
+          "target": "markNeedsPaint",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsSemanticsUpdate:METHOD": {
+          "target": "markNeedsSemanticsUpdate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.removeListener:METHOD": {
+          "target": "removeListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.applyViewportDimension:METHOD": {
+          "target": "applyViewportDimension",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": {
+          "target": "wheelBoxSize",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.biggest:GETTER": {
+          "target": "wheelConstraintsBiggest",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parentData:GETTER": {
+          "target": "wheelParentData",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parent:GETTER": {
+          "target": "wheelParent",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.paintBounds:GETTER": {
+          "target": "wheelPaintBounds",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushClipRect:METHOD": {
+          "target": "wheelPushClipRect",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.paintChild:METHOD": {
+          "target": "wheelPaintChild",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.getTransformTo:METHOD": {
+          "target": "wheelGetTransform",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.hitTest:METHOD": {
+          "target": "wheelBoxHitTest",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.invokeLayoutCallback:METHOD": {
+          "target": "sourceInvokeLayout",
+          "kind": "call",
+          "receiver": "target",
+          "typeArguments": [
+            "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS"
+          ]
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.showOnScreen:METHOD": {
+          "target": "sourceForwardShowOnScreen",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "dart:ui::Offset.+:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.&:METHOD": {
+          "target": "and",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Rect.translate:METHOD": {
+          "target": "translate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.transformRect:METHOD": {
+          "target": "MatrixUtils.transformRect",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset.RevealedOffset.new:CONSTRUCTOR": {
+          "target": "createWheelRevealedOffset",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "target": "ErrorDescription",
+          "kind": "new"
+        },
+        "dart:core::Map.[]:METHOD": {
+          "target": "dartMapRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "target": "dartMapWrite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.forEach:METHOD": {
+          "target": "forEach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.containsKey:METHOD": {
+          "target": "containsKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.forgetChild:METHOD": {
+          "target": "forgetChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.toList:METHOD": {
+          "target": "toList",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.toDiagnosticsNode:METHOD": {
+          "target": "toDiagnosticsNode",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity.compareTo:METHOD": {
+          "target": "compareTo",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildDelegate.build:METHOD": {
+          "target": "build",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.updateChild:METHOD": {
+          "target": "updateChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::Map.containsValue:METHOD": {
+          "target": "containsValue",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildDelegate.shouldRebuild:METHOD": {
+          "target": "shouldRebuild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.contains:METHOD": {
+          "target": "twoDimensionalContainsBox",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.attach:METHOD": {
+          "target": "attach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.detach:METHOD": {
+          "target": "detach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.redepthChildren:METHOD": {
+          "target": "redepthChildren",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.redepthChild:METHOD": {
+          "target": "sourceRedepthChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.map:METHOD": {
+          "target": "map",
+          "kind": "call",
+          "receiver": "target",
+          "typeArguments": [
+            "package:flutter/src/foundation/diagnostics.dart::DiagnosticsNode:CLASS"
+          ]
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity.toString:METHOD": {
+          "target": "toString",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.performResize:METHOD": {
+          "target": "performResize",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset.clampOffset:METHOD": {
+          "target": "clampOffset",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.moveTo:METHOD": {
+          "target": "twoDimensionalMoveTo",
+          "kind": "call",
+          "receiver": "first",
+          "namedArguments": "trailing-options"
+        },
+        "dart:core::Map.clear:METHOD": {
+          "target": "clear",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.where:METHOD": {
+          "target": "where",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Set.difference:METHOD": {
+          "target": "difference",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.toSet:METHOD": {
+          "target": "toSet",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.adoptChild:METHOD": {
+          "target": "sourceAdoptChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.dropChild:METHOD": {
+          "target": "sourceDropChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.translate:METHOD": {
+          "target": "translate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Widget.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::Type.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::List.add:METHOD": {
+          "target": "twoDimensionalListAdd",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.remove:METHOD": {
+          "target": "twoDimensionalListRemove",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.clear:METHOD": {
+          "target": "twoDimensionalListClear",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.sort:METHOD": {
+          "target": "twoDimensionalListSort",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.isEmpty:GETTER": {
+          "target": "twoDimensionalIterableIsEmpty",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.compareTo:METHOD": {
+          "target": "twoDimensionalNumberCompare",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Object.toString:METHOD": {
+          "target": "twoDimensionalObjectString",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildOwner.buildScope:METHOD": {
+          "target": "twoDimensionalBuildScope",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.slot:GETTER": {
+          "target": "twoDimensionalElementSlot",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxHitTestResult.addWithPaintOffset:METHOD": {
+          "target": "addWithPaintOffset",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.performRebuild:METHOD": {
+          "target": "performRebuildBase",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport.dart::ScrollCacheExtent.ScrollCacheExtent.pixels:CONSTRUCTOR": {
+          "target": "ScrollCacheExtent.pixels",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/viewport.dart::ScrollCacheExtent.ScrollCacheExtent.viewport:CONSTRUCTOR": {
+          "target": "ScrollCacheExtent.viewport",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticableTreeMixin.toDiagnosticsNode:METHOD": {
+          "target": "toDiagnosticsNode",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "dart:ui::Size.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Rect.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.-:METHOD": {
+          "target": "subtract",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.runtimeType:GETTER": {
+          "target": "twoDimensionalRuntimeType",
+          "kind": "call",
+          "receiver": "first"
+        }
+      },
+      "renames": {
+        "performLayout": "sourcePerformLayout",
+        "paint": "sourcePaint",
+        "hitTestChildren": "sourceHitTestChildren",
+        "showOnScreen": "sourceShowOnScreen",
+        "==": "equals",
+        "performRebuild": "sourcePerformRebuild",
+        "insertRenderObjectChild": "sourceInsertRenderObjectChild",
+        "moveRenderObjectChild": "sourceMoveRenderObjectChild",
+        "removeRenderObjectChild": "sourceRemoveRenderObjectChild",
+        "_vicinityToChild": "sourceVicinityToChild",
+        "_keyToChild": "sourceKeyToChild",
+        "_newVicinityToChild": "sourceNewVicinityToChild",
+        "_newKeyToChild": "sourceNewKeyToChild",
+        "_children": "sourceChildren",
+        "_keepAliveBucket": "sourceKeepAliveBucket",
+        "_activeChildrenForLayoutPass": "sourceActiveChildren",
+        "renderObject": "sourceRenderObject",
+        "getOffsetToReveal": "sourceGetOffsetToReveal",
+        "_currentChildVicinities": "sourceCurrentVicinities",
+        "_firstChild": "sourceFirstChild",
+        "_lastChild": "sourceLastChild",
+        "_debugOrphans": "sourceDebugOrphans",
+        "_debugDanglingKeepAlives": "sourceDanglingKeepAlives",
+        "_needsDelegateRebuild": "sourceNeedsDelegateRebuild",
+        "_didResize": "sourceDidResize"
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/framework.dart::RenderObjectWidget.RenderObjectWidget.new:CONSTRUCTOR": {
+          "target": "TwoDimensionalWidgetHost",
+          "baseType": "RenderObjectWidget",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.RenderObjectElement.new:CONSTRUCTOR": {
+          "target": "TwoDimensionalElementHost",
+          "baseType": "RenderObjectElement",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/widgets/framework.dart::NotifiableElementMixin:MIXIN",
+            "package:flutter/src/widgets/scroll_notification.dart::ViewportElementMixin:MIXIN"
+          ]
+        },
+        "package:flutter/src/rendering/object.dart::ParentData.ParentData.new:CONSTRUCTOR": {
+          "target": "TwoDimensionalParentDataHost",
+          "baseType": "ParentData",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/rendering/sliver_multi_box_adaptor.dart::KeepAliveParentDataMixin:MIXIN"
+          ]
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.RenderBox.new:CONSTRUCTOR": {
+          "target": "TwoDimensionalRenderHost",
+          "baseType": "RenderBox",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "interfaceBindings": {
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport:CLASS": "TwoDimensionalViewportContract"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "durationUnit": "milliseconds",
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "constructorSpecializations": {
+        "package:flutter/src/rendering/layer.dart::LayerHandle.LayerHandle.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS"
+            ],
+            "target": "createWheelClipHandle",
+            "kind": "call"
+          },
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::OpacityLayer:CLASS"
+            ],
+            "target": "createWheelOpacityHandle",
+            "kind": "call"
+          }
+        ]
+      },
+      "values": {
+        "dart:ui::Clip.none:GETTER": "none",
+        "dart:ui::Clip.hardEdge:GETTER": "hardEdge",
+        "dart:core::Duration.zero:GETTER": 0,
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport.defaultCacheExtent:GETTER": 250
+      },
+      "runtimeTypes": {
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": {
+          "is": "isWheelBox",
+          "cast": "castWheelBox"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": {
+          "is": "isWheelConstraints",
+          "cast": "castWheelConstraints"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": {
+          "is": "isWheelRenderObject",
+          "cast": "castWheelRenderObject"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS": {
+          "is": "isChildVicinity",
+          "cast": "castChildVicinity"
+        },
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildDelegate:CLASS": {
+          "is": "isTwoDimensionalChildDelegate",
+          "cast": "castTwoDimensionalChildDelegate"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::TwoDimensionalViewport:CLASS": {
+          "is": "isSourceTwoDimensionalViewport",
+          "cast": "castSourceTwoDimensionalViewport"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::RenderTwoDimensionalViewport:CLASS": {
+          "is": "isSourceRenderTwoDimensionalViewport",
+          "cast": "castSourceRenderTwoDimensionalViewport"
+        },
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::TwoDimensionalViewportParentData:CLASS": {
+          "is": "isSourceTwoDimensionalViewportParentData",
+          "cast": "castSourceTwoDimensionalViewportParentData"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition:CLASS": {
+          "is": "isScrollPosition",
+          "cast": "castScrollPosition"
+        }
+      },
+      "stringConversions": {
+        "dart:ui::Offset:CLASS": "twoDimensionalObjectString",
+        "dart:core::int:CLASS": "integerString",
+        "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS": "twoDimensionalObjectString",
+        "dart:ui::Size:CLASS": "twoDimensionalObjectString",
+        "dart:core::Type:CLASS": "twoDimensionalTypeString"
+      },
+      "assertion": {
+        "code": "source-two-dimensional-viewport",
+        "message": "Pinned two-dimensional viewport assertion failed"
+      },
+      "constantConstructors": {
+        "package:flutter/src/rendering/viewport.dart::ScrollCacheExtent.ScrollCacheExtent.pixels:CONSTRUCTOR": {
+          "factory": "constantPixelCacheExtent",
+          "ownerType": "package:flutter/src/rendering/viewport.dart::ScrollCacheExtent:CLASS",
+          "policy": "canonical-immutable-host"
+        }
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "exceptions": {
+        "capture": "captureDartException",
+        "policy": "host-exception-stack"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS",
+                  "name": "ChildVicinity",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/framework.dart::Element:CLASS",
+                  "name": "Element",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "createChildVicinityElementMap",
+          "policy": "ordered-dart-collection"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/foundation/key.dart::Key:CLASS",
+                  "name": "Key",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/framework.dart::Element:CLASS",
+                  "name": "Element",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "createKeyElementMap",
+          "policy": "ordered-dart-collection"
+        },
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/two_dimensional_viewport.dart::ChildVicinity:CLASS",
+                  "name": "ChildVicinity",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/rendering/box.dart::RenderBox:CLASS",
+                  "name": "RenderBox",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "createChildVicinityRenderBoxMap",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "records": {
+        "type": "DartRecord",
+        "create": "dartRecord",
+        "read": "dartRecordRead",
+        "policy": "immutable-positional-record"
+      },
+      "lateFields": {
+        "read": "dartLateRead",
+        "write": "dartLateWrite",
+        "policy": "checked-late-instance"
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      }
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/scrollable_helpers.dart",
+      "sha256": "1739ef2234d5f613ca1aa52ff6016fdce8fd9afe0ae31aba2f1ed2d698df614b",
+      "symbols": [
+        "ScrollableDetails"
+      ],
+      "destination": "Nelyx/src/framework/widgets/scrollable-details.generated.ts",
+      "classNames": {
+        "ScrollableDetails": "SourceScrollableDetails"
+      },
+      "imports": {
+        "AxisDirection": "../painting/basic-types.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "hashValues": "../painting/value-equality.ts",
+        "describeIdentity": "../../foundation/diagnostics-identity.ts",
+        "detailsObjectString": "./scrollable-details-adapter.ts",
+        "detailsRuntimeType": "./scrollable-details-adapter.ts",
+        "isSourceScrollableDetails": "./scrollable-details-types.ts",
+        "castSourceScrollableDetails": "./scrollable-details-types.ts",
+        "detailsStringConcat": "./scrollable-details-adapter.ts"
+      },
+      "typeImports": {
+        "Clip": "../../ui/clip.ts",
+        "ScrollController": "./scroll-controller.ts",
+        "ScrollPhysics": "./scroll-physics.ts",
+        "MutableDetailsList": "./scrollable-details-adapter.ts",
+        "HostType": "./scrollable-details-adapter.ts"
+      },
+      "typeBindings": {
+        "dart:ui::Clip:ENUM": "Clip",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController:CLASS": "ScrollController",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "dart:core::List:CLASS": "MutableDetailsList",
+        "dart:core::Type:CLASS": "HostType"
+      },
+      "adapters": {
+        "dart:core::Object.hash:METHOD": {
+          "target": "hashValues",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::describeIdentity:FUNCTION": {
+          "target": "describeIdentity",
+          "kind": "call"
+        },
+        "dart:core::Object.toString:METHOD": {
+          "target": "detailsObjectString",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Object.runtimeType:GETTER": {
+          "target": "detailsRuntimeType",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.add:METHOD": {
+          "target": "push",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Iterable.join:METHOD": {
+          "target": "join",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::Type.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::String.+:METHOD": {
+          "target": "detailsStringConcat",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::identical:FUNCTION": {
+          "target": "identity",
+          "kind": "identity"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        }
+      },
+      "renames": {
+        "==": "equals"
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails:CLASS": {
+          "is": "isSourceScrollableDetails",
+          "cast": "castSourceScrollableDetails"
+        }
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "stringConversions": {
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "detailsObjectString"
+      },
+      "memberBindings": {
+        "dart:core::Object.runtimeType:GETTER": "constructor"
+      }
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/scrollable.dart",
+      "sha256": "b8f9773bed19bb9d83fae2e253e173dcf1297a14832989cdb01c840dc572e377",
+      "symbols": [
+        "TwoDimensionalScrollable",
+        "TwoDimensionalScrollableState",
+        "_TwoDimensionalScrollableScope",
+        "_VerticalOuterDimension",
+        "_VerticalOuterDimensionState",
+        "_HorizontalInnerDimension",
+        "_HorizontalInnerDimensionState"
+      ],
+      "destination": "Nelyx/src/framework/widgets/two-dimensional-scrollable.generated.ts",
+      "classNames": {
+        "TwoDimensionalScrollable": "SourceTwoDimensionalScrollable",
+        "TwoDimensionalScrollableState": "SourceTwoDimensionalScrollableState",
+        "_TwoDimensionalScrollableScope": "SourceTwoDimensionalScrollableScope",
+        "_VerticalOuterDimension": "SourceVerticalOuterDimension",
+        "_VerticalOuterDimensionState": "SourceVerticalOuterDimensionState",
+        "_HorizontalInnerDimension": "SourceHorizontalInnerDimension",
+        "_HorizontalInnerDimensionState": "SourceHorizontalInnerDimensionState"
+      },
+      "imports": {
+        "StatefulWidget": "./framework.ts",
+        "State": "./framework.ts",
+        "InheritedWidget": "./framework.ts",
+        "Scrollable": "./scrollable.ts",
+        "ScrollableState": "./scrollable.ts",
+        "SourceScrollableDetails": "./scrollable-details.generated.ts",
+        "ScrollController": "./scroll-controller.ts",
+        "GlobalKey": "./global-key.ts",
+        "RestorationScope": "./restoration.ts",
+        "Axis": "../painting/basic-types.ts",
+        "AxisDirection": "../painting/basic-types.ts",
+        "axisDirectionToAxis": "../painting/basic-types.ts",
+        "DragStartBehavior": "../gestures/recognizer.ts",
+        "GestureRecognizer": "../gestures/recognizer.ts",
+        "PanGestureRecognizer": "../gestures/monodrag.ts",
+        "DragDownDetails": "../gestures/drag-details.ts",
+        "DragStartDetails": "../gestures/drag-details.ts",
+        "DragUpdateDetails": "../gestures/drag-details.ts",
+        "DragEndDetails": "../gestures/drag-details.ts",
+        "Velocity": "../gestures/velocity-tracker.ts",
+        "HitTestBehavior": "../rendering/pointer-listener.ts",
+        "Curves": "../animation/curves.ts",
+        "ScrollPositionAlignmentPolicy": "./scroll-position.ts",
+        "GestureRecognizerFactory": "./raw-gesture-detector.ts",
+        "GestureRecognizerFactoryWithHandlers": "./raw-gesture-detector.ts",
+        "Offset": "../../ui/offset.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "dartRecord": "../../foundation/dart-record.ts",
+        "dartRecordRead": "../../foundation/dart-record.ts",
+        "dartLateRead": "../../foundation/dart-late.ts",
+        "dartLateWrite": "../../foundation/dart-late.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "ErrorSummary": "../../foundation/diagnostics.ts",
+        "ErrorDescription": "../../foundation/diagnostics.ts",
+        "DiagonalDragBehavior": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisStatefulHost": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisInheritedHost": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisScrollableHost": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisScrollableStateHost": "./two-dimensional-scrollable-adapter.ts",
+        "createSourceGestureFactories": "./two-dimensional-scrollable-adapter.ts",
+        "emptySourceGestureFactories": "./two-dimensional-scrollable-adapter.ts",
+        "createSourcePan": "./two-dimensional-scrollable-adapter.ts",
+        "createSourcePanFactory": "./two-dimensional-scrollable-adapter.ts",
+        "createSourceScrollableKey": "./two-dimensional-scrollable-adapter.ts",
+        "sourceCurrentScrollable": "./two-dimensional-scrollable-adapter.ts",
+        "sourceCurrentGestureDetector": "./two-dimensional-scrollable-adapter.ts",
+        "replaceSourceGestureRecognizers": "./two-dimensional-scrollable-adapter.ts",
+        "sourceObjectString": "./two-dimensional-scrollable-adapter.ts",
+        "dependOnSourceTwoAxis": "./two-dimensional-scrollable-types.ts",
+        "isSourceVerticalOuterDimension": "./two-dimensional-scrollable-types.ts",
+        "castSourceVerticalOuterDimension": "./two-dimensional-scrollable-types.ts",
+        "isSourceHorizontalInnerDimension": "./two-dimensional-scrollable-types.ts",
+        "castSourceHorizontalInnerDimension": "./two-dimensional-scrollable-types.ts",
+        "twoAxisSourcePosition": "./two-dimensional-scrollable-adapter.ts",
+        "twoAxisEnsureVisible": "./two-dimensional-scrollable-adapter.ts"
+      },
+      "typeImports": {
+        "Widget": "./framework.ts",
+        "BuildContext": "./framework.ts",
+        "Curve": "../animation/curves.ts",
+        "ViewportOffset": "../rendering/viewport-offset.ts",
+        "ScrollIncrementDetails": "./scrollable-helpers.ts",
+        "ScrollPhysics": "./scroll-physics.ts",
+        "PointerEvent": "../gestures/events.ts",
+        "VelocityTracker": "../gestures/velocity-tracker.ts",
+        "RenderObject": "../rendering/object.ts",
+        "Clip": "../../ui/clip.ts",
+        "DartRecord": "../../foundation/dart-record.ts",
+        "SourceMutableList": "./two-dimensional-scrollable-adapter.ts",
+        "SourceGestureType": "./two-dimensional-scrollable-adapter.ts",
+        "Key": "../../foundation/key.ts",
+        "SourceFuture": "./two-dimensional-scrollable-adapter.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/scrollable.dart::DiagonalDragBehavior:ENUM": "DiagonalDragBehavior",
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails:CLASS": "SourceScrollableDetails",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset:CLASS": "ViewportOffset",
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollIncrementDetails:CLASS": "ScrollIncrementDetails",
+        "package:flutter/src/rendering/proxy_box.dart::HitTestBehavior:ENUM": "HitTestBehavior",
+        "package:flutter/src/gestures/recognizer.dart::DragStartBehavior:ENUM": "DragStartBehavior",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary:CLASS": "ErrorSummary",
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController:CLASS": "ScrollController",
+        "package:flutter/src/widgets/framework.dart::GlobalKey:CLASS": "GlobalKey",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState:CLASS": "ScrollableState",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "dart:ui::Clip:ENUM": "Clip",
+        "package:flutter/src/widgets/restoration.dart::RestorationScope:CLASS": "RestorationScope",
+        "package:flutter/src/widgets/framework.dart::InheritedWidget:CLASS": "InheritedWidget",
+        "package:flutter/src/widgets/scrollable.dart::Scrollable:CLASS": "Scrollable",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:core::List:CLASS": "SourceMutableList",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPositionAlignmentPolicy:ENUM": "ScrollPositionAlignmentPolicy",
+        "package:flutter/src/gestures/drag_details.dart::DragDownDetails:CLASS": "DragDownDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragStartDetails:CLASS": "DragStartDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragUpdateDetails:CLASS": "DragUpdateDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragEndDetails:CLASS": "DragEndDetails",
+        "package:flutter/src/gestures/velocity_tracker.dart::Velocity:CLASS": "Velocity",
+        "dart:core::Map:CLASS": "DartMap",
+        "dart:core::Type:CLASS": "SourceGestureType",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactory:CLASS": "GestureRecognizerFactory",
+        "package:flutter/src/gestures/recognizer.dart::GestureRecognizer:CLASS": "GestureRecognizer",
+        "package:flutter/src/gestures/monodrag.dart::PanGestureRecognizer:CLASS": "PanGestureRecognizer",
+        "package:flutter/src/gestures/velocity_tracker.dart::VelocityTracker:CLASS": "VelocityTracker",
+        "package:flutter/src/gestures/events.dart::PointerEvent:CLASS": "PointerEvent",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactoryWithHandlers:CLASS": "GestureRecognizerFactoryWithHandlers",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key"
+      },
+      "adapters": {
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.-:METHOD": {
+          "target": "subtract",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildContext.dependOnInheritedWidgetOfExactType:METHOD": {
+          "target": "dependOnSourceTwoAxis",
+          "kind": "call",
+          "receiver": "first",
+          "typeArguments": [
+            "package:flutter/src/widgets/scrollable.dart::_TwoDimensionalScrollableScope:CLASS"
+          ]
+        },
+        "package:flutter/src/widgets/framework.dart::State.initState:METHOD": {
+          "target": "initState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didUpdateWidget:METHOD": {
+          "target": "didUpdateWidget",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragDown:METHOD": {
+          "target": "handleDragDown",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragStart:METHOD": {
+          "target": "handleDragStart",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragUpdate:METHOD": {
+          "target": "handleDragUpdate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragEnd:METHOD": {
+          "target": "handleDragEnd",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragCancel:METHOD": {
+          "target": "handleDragCancel",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.setCanDrag:METHOD": {
+          "target": "setCanDrag",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.velocityTrackerBuilder:METHOD": {
+          "target": "velocityTrackerBuilder",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/gesture_detector.dart::RawGestureDetectorState.replaceGestureRecognizers:METHOD": {
+          "target": "replaceSourceGestureRecognizers",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.buildOverscrollIndicator:METHOD": {
+          "target": "buildOverscrollIndicator",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::Scrollable.of:METHOD": {
+          "target": "of",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.didChangeDependencies:METHOD": {
+          "target": "didChangeDependencies",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.ensureVisible:METHOD": {
+          "target": "twoAxisEnsureVisible",
+          "kind": "call",
+          "receiver": "first",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/painting/basic_types.dart::axisDirectionToAxis:FUNCTION": {
+          "target": "axisDirectionToAxis",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterError.FlutterError.fromParts:CONSTRUCTOR": {
+          "target": "FlutterError.fromParts",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary.ErrorSummary.new:CONSTRUCTOR": {
+          "target": "ErrorSummary",
+          "kind": "new"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "target": "ErrorDescription",
+          "kind": "new"
+        },
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.ScrollController.new:CONSTRUCTOR": {
+          "target": "ScrollController",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragUpdateDetails.DragUpdateDetails.new:CONSTRUCTOR": {
+          "target": "DragUpdateDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragEndDetails.DragEndDetails.new:CONSTRUCTOR": {
+          "target": "DragEndDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/velocity_tracker.dart::Velocity.Velocity.new:CONSTRUCTOR": {
+          "target": "Velocity",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/restoration.dart::RestorationScope.RestorationScope.new:CONSTRUCTOR": {
+          "target": "RestorationScope",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails.ScrollableDetails.new:CONSTRUCTOR": {
+          "target": "SourceScrollableDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/monodrag.dart::PanGestureRecognizer.PanGestureRecognizer.new:CONSTRUCTOR": {
+          "target": "createSourcePan",
+          "kind": "call",
+          "receiver": "owner",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::GlobalKey.currentState:GETTER": {
+          "target": "sourceCurrentScrollable",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.position:GETTER": {
+          "target": "twoAxisSourcePosition",
+          "kind": "call",
+          "receiver": "first"
+        }
+      },
+      "memberBindings": {
+        "package:flutter/src/widgets/framework.dart::State.widget:GETTER": "widget",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._gestureRecognizers:SETTER": "sourceGestureRecognizers",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._configuration:GETTER": "sourceConfiguration",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._physics:GETTER": "sourcePhysics",
+        "package:flutter/src/widgets/framework.dart::State.context:GETTER": "context",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._mediaQueryGestureSettings:GETTER": "sourceGestureSettings",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._lastCanDrag:SETTER": "sourceLastCanDrag",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._lastAxisDirection:SETTER": "sourceLastAxis",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._gestureDetectorKey:GETTER": "sourceGestureKey",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._gestureRecognizers:GETTER": "sourceGestureRecognizers",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._effectiveScrollController:GETTER": "sourceEffectiveController",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.axisDirection:GETTER": "axisDirection",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.position:GETTER": "sourcePosition"
+      },
+      "renames": {
+        "_handleDragDown": "handleDragDown",
+        "_handleDragStart": "handleDragStart",
+        "_handleDragUpdate": "handleDragUpdate",
+        "_handleDragEnd": "handleDragEnd",
+        "_handleDragCancel": "handleDragCancel",
+        "_buildChrome": "buildChrome",
+        "_performEnsureVisible": "sourcePerformEnsureVisible"
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/framework.dart::StatefulWidget.StatefulWidget.new:CONSTRUCTOR": {
+          "target": "TwoAxisStatefulHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options",
+          "baseType": "StatefulWidget"
+        },
+        "package:flutter/src/widgets/framework.dart::InheritedWidget.InheritedWidget.new:CONSTRUCTOR": {
+          "target": "TwoAxisInheritedHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options",
+          "baseType": "InheritedWidget"
+        },
+        "package:flutter/src/widgets/framework.dart::State.State.new:CONSTRUCTOR": {
+          "target": "State",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/scrollable.dart::Scrollable.Scrollable.new:CONSTRUCTOR": {
+          "target": "TwoAxisScrollableHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options",
+          "baseType": "Scrollable"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.ScrollableState.new:CONSTRUCTOR": {
+          "target": "TwoAxisScrollableStateHost",
+          "policy": "no-derived-state-observation",
+          "baseType": "ScrollableState"
+        }
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/scrollable.dart::_VerticalOuterDimension:CLASS": {
+          "is": "isSourceVerticalOuterDimension",
+          "cast": "castSourceVerticalOuterDimension"
+        },
+        "package:flutter/src/widgets/scrollable.dart::_HorizontalInnerDimension:CLASS": {
+          "is": "isSourceHorizontalInnerDimension",
+          "cast": "castSourceHorizontalInnerDimension"
+        }
+      },
+      "constructorSpecializations": {
+        "package:flutter/src/widgets/framework.dart::GlobalKey.GlobalKey.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/widgets/scrollable.dart::ScrollableState:CLASS"
+            ],
+            "target": "createSourceScrollableKey",
+            "kind": "call"
+          }
+        ],
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactoryWithHandlers.GestureRecognizerFactoryWithHandlers.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/gestures/monodrag.dart::PanGestureRecognizer:CLASS"
+            ],
+            "target": "createSourcePanFactory",
+            "kind": "call"
+          }
+        ]
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::Type:CLASS",
+                  "name": "Type",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactory:CLASS",
+                  "name": "GestureRecognizerFactory",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": [
+                  {
+                    "kind": "interface",
+                    "nullable": false,
+                    "reference": {
+                      "id": "package:flutter/src/gestures/recognizer.dart::GestureRecognizer:CLASS",
+                      "name": "GestureRecognizer",
+                      "owner": null,
+                      "local": false,
+                      "static": false
+                    },
+                    "arguments": []
+                  }
+                ]
+              }
+            ]
+          },
+          "factory": "createSourceGestureFactories",
+          "constantFactory": "emptySourceGestureFactories",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "values": {
+        "dart:ui::Clip.hardEdge:GETTER": "hardEdge",
+        "dart:ui::Clip.hardEdge:FIELD": "hardEdge",
+        "dart:core::Duration.zero:GETTER": 0,
+        "package:flutter/src/gestures/constants.dart::kTouchSlop:GETTER": 18
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "durationUnit": "milliseconds",
+      "asyncRuntime": {
+        "policy": "host-promise",
+        "futureType": "SourceFuture"
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "lateFields": {
+        "read": "dartLateRead",
+        "write": "dartLateWrite",
+        "policy": "checked-late-instance"
+      },
+      "records": {
+        "type": "DartRecord",
+        "create": "dartRecord",
+        "read": "dartRecordRead",
+        "policy": "immutable-positional-record"
+      },
+      "stringConversions": {
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "sourceObjectString"
+      },
+      "assertion": {
+        "code": "source-two-dimensional-scrollable",
+        "message": "Pinned two-axis Scrollable assertion failed"
+      }
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/two_dimensional_scroll_view.dart",
+      "sha256": "518f7e9ce9cd58b2a364e6998184b2cf938d069cab753940caac101197c06d64",
+      "symbols": [
+        "TwoDimensionalScrollView"
+      ],
+      "destination": "Nelyx/src/framework/widgets/two-dimensional-scroll-view.generated.ts",
+      "classNames": {
+        "TwoDimensionalScrollView": "SourceTwoDimensionalScrollView"
+      },
+      "imports": {
+        "StatefulWidget": "./framework.ts",
+        "State": "./framework.ts",
+        "InheritedWidget": "./framework.ts",
+        "Scrollable": "./scrollable.ts",
+        "ScrollableState": "./scrollable.ts",
+        "SourceScrollableDetails": "./scrollable-details.generated.ts",
+        "ScrollController": "./scroll-controller.ts",
+        "GlobalKey": "./global-key.ts",
+        "RestorationScope": "./restoration.ts",
+        "Axis": "../painting/basic-types.ts",
+        "AxisDirection": "../painting/basic-types.ts",
+        "axisDirectionToAxis": "../painting/basic-types.ts",
+        "DragStartBehavior": "../gestures/recognizer.ts",
+        "GestureRecognizer": "../gestures/recognizer.ts",
+        "PanGestureRecognizer": "../gestures/monodrag.ts",
+        "DragDownDetails": "../gestures/drag-details.ts",
+        "DragStartDetails": "../gestures/drag-details.ts",
+        "DragUpdateDetails": "../gestures/drag-details.ts",
+        "DragEndDetails": "../gestures/drag-details.ts",
+        "Velocity": "../gestures/velocity-tracker.ts",
+        "HitTestBehavior": "../rendering/pointer-listener.ts",
+        "Curves": "../animation/curves.ts",
+        "ScrollPositionAlignmentPolicy": "./scroll-position.ts",
+        "GestureRecognizerFactory": "./raw-gesture-detector.ts",
+        "GestureRecognizerFactoryWithHandlers": "./raw-gesture-detector.ts",
+        "Offset": "../../ui/offset.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "dartRecord": "../../foundation/dart-record.ts",
+        "dartRecordRead": "../../foundation/dart-record.ts",
+        "dartLateRead": "../../foundation/dart-late.ts",
+        "dartLateWrite": "../../foundation/dart-late.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "ErrorSummary": "../../foundation/diagnostics.ts",
+        "ErrorDescription": "../../foundation/diagnostics.ts",
+        "DiagonalDragBehavior": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisStatefulHost": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisInheritedHost": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisScrollableHost": "./two-dimensional-scrollable-adapter.ts",
+        "TwoAxisScrollableStateHost": "./two-dimensional-scrollable-adapter.ts",
+        "createSourceGestureFactories": "./two-dimensional-scrollable-adapter.ts",
+        "emptySourceGestureFactories": "./two-dimensional-scrollable-adapter.ts",
+        "createSourcePan": "./two-dimensional-scrollable-adapter.ts",
+        "createSourcePanFactory": "./two-dimensional-scrollable-adapter.ts",
+        "createSourceScrollableKey": "./two-dimensional-scrollable-adapter.ts",
+        "sourceCurrentScrollable": "./two-dimensional-scrollable-adapter.ts",
+        "sourceCurrentGestureDetector": "./two-dimensional-scrollable-adapter.ts",
+        "replaceSourceGestureRecognizers": "./two-dimensional-scrollable-adapter.ts",
+        "sourceObjectString": "./two-dimensional-scrollable-adapter.ts",
+        "dependOnSourceTwoAxis": "./two-dimensional-scrollable-types.ts",
+        "isSourceVerticalOuterDimension": "./two-dimensional-scrollable-types.ts",
+        "castSourceVerticalOuterDimension": "./two-dimensional-scrollable-types.ts",
+        "isSourceHorizontalInnerDimension": "./two-dimensional-scrollable-types.ts",
+        "castSourceHorizontalInnerDimension": "./two-dimensional-scrollable-types.ts",
+        "StatelessWidget": "./framework.ts",
+        "TwoAxisStatelessHost": "./two-dimensional-scroll-view-adapter.ts",
+        "createTwoAxisUpdateListener": "./two-dimensional-scroll-view-adapter.ts",
+        "currentTwoAxisFocusManager": "./two-dimensional-scroll-view-adapter.ts",
+        "SourceTwoDimensionalScrollable": "./two-dimensional-scrollable.generated.ts",
+        "SourceTwoDimensionalChildDelegate": "./two-dimensional-delegate.generated.ts",
+        "constantVerticalDetails": "./scrollable-details-constants.ts",
+        "constantHorizontalDetails": "./scrollable-details-constants.ts",
+        "ScrollCacheExtent": "../rendering/viewport.ts",
+        "CacheExtentStyle": "../rendering/viewport.ts",
+        "PrimaryScrollController": "./primary-scroll-controller.ts",
+        "ScrollViewKeyboardDismissBehavior": "./scroll-view.ts",
+        "ScrollConfiguration": "./scroll-configuration.ts",
+        "NotificationListener": "./notification-listener.ts",
+        "ScrollUpdateNotification": "./scroll-notification.ts",
+        "FocusScope": "./focus-scope.ts",
+        "FocusManager": "./focus.ts",
+        "FocusScopeNode": "./focus.ts",
+        "DiagnosticPropertiesBuilder": "../../foundation/diagnostics.ts",
+        "DiagnosticsProperty": "../../foundation/diagnostics.ts",
+        "EnumProperty": "../../foundation/diagnostic-properties.ts",
+        "FlagProperty": "../../foundation/diagnostic-properties.ts",
+        "createTwoAxisFlag": "./two-dimensional-scroll-view-adapter.ts"
+      },
+      "typeImports": {
+        "Widget": "./framework.ts",
+        "BuildContext": "./framework.ts",
+        "Curve": "../animation/curves.ts",
+        "ViewportOffset": "../rendering/viewport-offset.ts",
+        "ScrollIncrementDetails": "./scrollable-helpers.ts",
+        "ScrollPhysics": "./scroll-physics.ts",
+        "PointerEvent": "../gestures/events.ts",
+        "VelocityTracker": "../gestures/velocity-tracker.ts",
+        "RenderObject": "../rendering/object.ts",
+        "Clip": "../../ui/clip.ts",
+        "DartRecord": "../../foundation/dart-record.ts",
+        "SourceMutableList": "./two-dimensional-scrollable-adapter.ts",
+        "SourceGestureType": "./two-dimensional-scrollable-adapter.ts",
+        "Key": "../../foundation/key.ts",
+        "SourceFuture": "./two-dimensional-scrollable-adapter.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/scrollable.dart::DiagonalDragBehavior:ENUM": "DiagonalDragBehavior",
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails:CLASS": "SourceScrollableDetails",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset:CLASS": "ViewportOffset",
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollIncrementDetails:CLASS": "ScrollIncrementDetails",
+        "package:flutter/src/rendering/proxy_box.dart::HitTestBehavior:ENUM": "HitTestBehavior",
+        "package:flutter/src/gestures/recognizer.dart::DragStartBehavior:ENUM": "DragStartBehavior",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary:CLASS": "ErrorSummary",
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController:CLASS": "ScrollController",
+        "package:flutter/src/widgets/framework.dart::GlobalKey:CLASS": "GlobalKey",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState:CLASS": "ScrollableState",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "dart:ui::Clip:ENUM": "Clip",
+        "package:flutter/src/widgets/restoration.dart::RestorationScope:CLASS": "RestorationScope",
+        "package:flutter/src/widgets/framework.dart::InheritedWidget:CLASS": "InheritedWidget",
+        "package:flutter/src/widgets/scrollable.dart::Scrollable:CLASS": "Scrollable",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:core::List:CLASS": "SourceMutableList",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPositionAlignmentPolicy:ENUM": "ScrollPositionAlignmentPolicy",
+        "package:flutter/src/gestures/drag_details.dart::DragDownDetails:CLASS": "DragDownDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragStartDetails:CLASS": "DragStartDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragUpdateDetails:CLASS": "DragUpdateDetails",
+        "package:flutter/src/gestures/drag_details.dart::DragEndDetails:CLASS": "DragEndDetails",
+        "package:flutter/src/gestures/velocity_tracker.dart::Velocity:CLASS": "Velocity",
+        "dart:core::Map:CLASS": "DartMap",
+        "dart:core::Type:CLASS": "SourceGestureType",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactory:CLASS": "GestureRecognizerFactory",
+        "package:flutter/src/gestures/recognizer.dart::GestureRecognizer:CLASS": "GestureRecognizer",
+        "package:flutter/src/gestures/monodrag.dart::PanGestureRecognizer:CLASS": "PanGestureRecognizer",
+        "package:flutter/src/gestures/velocity_tracker.dart::VelocityTracker:CLASS": "VelocityTracker",
+        "package:flutter/src/gestures/events.dart::PointerEvent:CLASS": "PointerEvent",
+        "package:flutter/src/widgets/gesture_detector.dart::GestureRecognizerFactoryWithHandlers:CLASS": "GestureRecognizerFactoryWithHandlers",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/widgets/framework.dart::StatelessWidget:CLASS": "StatelessWidget",
+        "package:flutter/src/widgets/scroll_delegate.dart::TwoDimensionalChildDelegate:CLASS": "SourceTwoDimensionalChildDelegate",
+        "package:flutter/src/rendering/viewport.dart::CacheExtentStyle:ENUM": "CacheExtentStyle",
+        "package:flutter/src/rendering/viewport.dart::ScrollCacheExtent:CLASS": "ScrollCacheExtent",
+        "package:flutter/src/widgets/scroll_view.dart::ScrollViewKeyboardDismissBehavior:ENUM": "ScrollViewKeyboardDismissBehavior",
+        "package:flutter/src/widgets/primary_scroll_controller.dart::PrimaryScrollController:CLASS": "PrimaryScrollController",
+        "package:flutter/src/widgets/scrollable.dart::TwoDimensionalScrollable:CLASS": "SourceTwoDimensionalScrollable",
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollConfiguration:CLASS": "ScrollConfiguration",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollUpdateNotification:CLASS": "ScrollUpdateNotification",
+        "package:flutter/src/widgets/focus_manager.dart::FocusScopeNode:CLASS": "FocusScopeNode",
+        "package:flutter/src/widgets/focus_scope.dart::FocusScope:CLASS": "FocusScope",
+        "package:flutter/src/widgets/focus_manager.dart::FocusManager:CLASS": "FocusManager",
+        "package:flutter/src/widgets/notification_listener.dart::NotificationListener:CLASS": "NotificationListener",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder:CLASS": "DiagnosticPropertiesBuilder",
+        "package:flutter/src/foundation/diagnostics.dart::EnumProperty:CLASS": "EnumProperty",
+        "package:flutter/src/foundation/diagnostics.dart::FlagProperty:CLASS": "FlagProperty",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty:CLASS": "DiagnosticsProperty"
+      },
+      "adapters": {
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.-:METHOD": {
+          "target": "subtract",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildContext.dependOnInheritedWidgetOfExactType:METHOD": {
+          "target": "dependOnSourceTwoAxis",
+          "kind": "call",
+          "receiver": "first",
+          "typeArguments": [
+            "package:flutter/src/widgets/scrollable.dart::_TwoDimensionalScrollableScope:CLASS"
+          ]
+        },
+        "package:flutter/src/widgets/framework.dart::State.initState:METHOD": {
+          "target": "initState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didUpdateWidget:METHOD": {
+          "target": "didUpdateWidget",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragDown:METHOD": {
+          "target": "handleDragDown",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragStart:METHOD": {
+          "target": "handleDragStart",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragUpdate:METHOD": {
+          "target": "handleDragUpdate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragEnd:METHOD": {
+          "target": "handleDragEnd",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState._handleDragCancel:METHOD": {
+          "target": "handleDragCancel",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.setCanDrag:METHOD": {
+          "target": "setCanDrag",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.velocityTrackerBuilder:METHOD": {
+          "target": "velocityTrackerBuilder",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/gesture_detector.dart::RawGestureDetectorState.replaceGestureRecognizers:METHOD": {
+          "target": "replaceSourceGestureRecognizers",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.buildOverscrollIndicator:METHOD": {
+          "target": "buildOverscrollIndicator",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::Scrollable.of:METHOD": {
+          "target": "of",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.didChangeDependencies:METHOD": {
+          "target": "didChangeDependencies",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.ensureVisible:METHOD": {
+          "target": "ensureVisible",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/painting/basic_types.dart::axisDirectionToAxis:FUNCTION": {
+          "target": "axisDirectionToAxis",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterError.FlutterError.fromParts:CONSTRUCTOR": {
+          "target": "FlutterError.fromParts",
+          "kind": "call"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary.ErrorSummary.new:CONSTRUCTOR": {
+          "target": "ErrorSummary",
+          "kind": "new"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "target": "ErrorDescription",
+          "kind": "new"
+        },
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.ScrollController.new:CONSTRUCTOR": {
+          "target": "ScrollController",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragUpdateDetails.DragUpdateDetails.new:CONSTRUCTOR": {
+          "target": "DragUpdateDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/drag_details.dart::DragEndDetails.DragEndDetails.new:CONSTRUCTOR": {
+          "target": "DragEndDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/velocity_tracker.dart::Velocity.Velocity.new:CONSTRUCTOR": {
+          "target": "Velocity",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/restoration.dart::RestorationScope.RestorationScope.new:CONSTRUCTOR": {
+          "target": "RestorationScope",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails.ScrollableDetails.new:CONSTRUCTOR": {
+          "target": "SourceScrollableDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/monodrag.dart::PanGestureRecognizer.PanGestureRecognizer.new:CONSTRUCTOR": {
+          "target": "createSourcePan",
+          "kind": "call",
+          "receiver": "owner",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::GlobalKey.currentState:GETTER": {
+          "target": "sourceCurrentScrollable",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails.copyWith:METHOD": {
+          "target": "copyWith",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.getKeyboardDismissBehavior:METHOD": {
+          "target": "getKeyboardDismissBehavior",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/focus_manager.dart::FocusNode.unfocus:METHOD": {
+          "target": "unfocus",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/two_dimensional_scroll_view.dart::TwoDimensionalScrollView.debugFillProperties:METHOD": {
+          "target": "debugFillProperties",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Widget.debugFillProperties:METHOD": {
+          "target": "debugFillProperties",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder.add:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/primary_scroll_controller.dart::PrimaryScrollController.PrimaryScrollController.none:CONSTRUCTOR": {
+          "target": "PrimaryScrollController.none",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scrollable.dart::TwoDimensionalScrollable.TwoDimensionalScrollable.new:CONSTRUCTOR": {
+          "target": "SourceTwoDimensionalScrollable",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::FlagProperty.FlagProperty.new:CONSTRUCTOR": {
+          "target": "createTwoAxisFlag",
+          "kind": "call",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/focus_manager.dart::FocusManager.instance:GETTER": {
+          "target": "currentTwoAxisFocusManager",
+          "kind": "call",
+          "receiver": "first"
+        }
+      },
+      "memberBindings": {},
+      "renames": {
+        "build": "sourceBuild"
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/framework.dart::StatelessWidget.StatelessWidget.new:CONSTRUCTOR": {
+          "target": "TwoAxisStatelessHost",
+          "baseType": "StatelessWidget",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "runtimeTypes": {},
+      "constructorSpecializations": {
+        "package:flutter/src/widgets/notification_listener.dart::NotificationListener.NotificationListener.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/widgets/scroll_notification.dart::ScrollUpdateNotification:CLASS"
+            ],
+            "target": "createTwoAxisUpdateListener",
+            "kind": "call",
+            "namedArguments": "options"
+          }
+        ],
+        "package:flutter/src/foundation/diagnostics.dart::EnumProperty.EnumProperty.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/painting/basic_types.dart::Axis:ENUM"
+            ],
+            "target": "EnumProperty",
+            "kind": "new",
+            "namedArguments": "trailing-options"
+          },
+          {
+            "typeArguments": [
+              "package:flutter/src/widgets/scrollable.dart::DiagonalDragBehavior:ENUM"
+            ],
+            "target": "EnumProperty",
+            "kind": "new",
+            "namedArguments": "trailing-options"
+          }
+        ],
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty.DiagnosticsProperty.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails:CLASS"
+            ],
+            "target": "DiagnosticsProperty",
+            "kind": "new",
+            "namedArguments": "trailing-options"
+          }
+        ]
+      },
+      "collectionLiterals": [],
+      "values": {
+        "dart:ui::Clip.hardEdge:GETTER": "hardEdge",
+        "dart:ui::Clip.hardEdge:FIELD": "hardEdge",
+        "dart:core::Duration.zero:GETTER": 0,
+        "package:flutter/src/gestures/constants.dart::kTouchSlop:GETTER": 18
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "durationUnit": "milliseconds",
+      "asyncRuntime": {
+        "policy": "host-promise",
+        "futureType": "SourceFuture"
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "lateFields": {
+        "read": "dartLateRead",
+        "write": "dartLateWrite",
+        "policy": "checked-late-instance"
+      },
+      "records": {
+        "type": "DartRecord",
+        "create": "dartRecord",
+        "read": "dartRecordRead",
+        "policy": "immutable-positional-record"
+      },
+      "stringConversions": {
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "sourceObjectString"
+      },
+      "assertion": {
+        "code": "source-two-dimensional-scrollable",
+        "message": "Pinned two-axis Scrollable assertion failed"
+      },
+      "constantConstructors": {
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails.ScrollableDetails.vertical:CONSTRUCTOR": {
+          "factory": "constantVerticalDetails",
+          "ownerType": "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails:CLASS",
+          "policy": "canonical-immutable-host",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails.ScrollableDetails.horizontal:CONSTRUCTOR": {
+          "factory": "constantHorizontalDetails",
+          "ownerType": "package:flutter/src/widgets/scrollable_helpers.dart::ScrollableDetails:CLASS",
+          "policy": "canonical-immutable-host",
+          "namedArguments": "options"
+        }
+      }
+    }
+  ],
+  "adoptExisting": {
+    "Nelyx/src/framework/widgets/child-vicinity.generated.ts": "42b5f99f875fc47600bad51d1a36aa0244397ce912a23fc9b105b54f075ed649",
+    "Nelyx/src/framework/widgets/two-dimensional-delegate.generated.ts": "eb7d3c335e3be616ad54f4291e24510650eda1db0fded9fe0304660d0df830bd",
+    "Nelyx/src/framework/widgets/two-dimensional-viewport.generated.ts": "59b6f5f1355852366f5cbf004201adfd69403d7a33223983290cfc9925edf91c",
+    "Nelyx/src/framework/widgets/scrollable-details.generated.ts": "e481c1fd69f15cfea8c3e454193afc87c3f8f88e57867fe4d7aff5d4508482a9",
+    "Nelyx/src/framework/widgets/two-dimensional-scrollable.generated.ts": "2cd24c45ff3fc85e65cbc79aac9742391b76923240f8091f2bb01a2b9d54ccf5",
+    "Nelyx/src/framework/widgets/two-dimensional-scroll-view.generated.ts": "6cb2713f90f183756e6f92c5c0affb03c778e04788de1a8a7b5091b6a6ad6be1"
+  },
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-batch-source.ts",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scrollable-root.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-selection-recovery.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/selection-overlay-root.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/canvaskit-runtime.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-delegate-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-viewport-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scrollable-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-viewport-host.dart.fixture",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-viewport-main.dart.fixture",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scrollable-host.ts.fixture",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scrollable-main.ts.fixture",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scrollable-host.dart.fixture",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scrollable-main.dart.fixture",
+    "tools/Nelyx.FrameworkToTypeScript/checks/two-dimensional-scroll.mjs"
+  ],
+  "contract": {
+    "id": "nelyx.generated.w10-two-dimensional/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "ChildVicinity",
+      "TwoDimensionalChildDelegate",
+      "TwoDimensionalViewport",
+      "ScrollableDetails",
+      "TwoDimensionalScrollable",
+      "TwoDimensionalScrollView"
+    ],
+    "requirements": [
+      "All 21 selected declarations retain complete pinned bodies",
+      "Actual Core Root axis, gesture, selection and lifetime gate on effective generated tree",
+      "Independent unchanged Dart comparisons of all 21 declarations in both assertion modes"
+    ],
+    "numericPolicy": "Safe integer cell coordinates; finite viewport offsets; exact keyed/vicinity collection bindings",
+    "differences": [
+      "Hit testing admits only sourceActiveChildren; raw pinned source retains a stale cached-cell hit, explicitly preserved in the reference oracle.",
+      "Cached keyed reactivation runs original active move bookkeeping and retires the previous bucket slot.",
+      "A failed source layout retires its partial local window and retries the same offsets/delegate; child State preservation across failed layout is not promised.",
+      "Unmount/dispose release source maps and first/last references.",
+      "Public Core showOnScreen preserves descendant rect coordinates, and original subrect for a no-movement two-axis reveal.",
+      "Public reveal scope aborts the second axis if the owning renderer closes synchronously after offset.moveTo; arbitrary offset errors still propagate.",
+      "Core queued Element and selection listener ownership adapters preserve explicit host lifecycle boundaries.",
+      "The finite facade retains vector wheel admission, axis physics, bounded fixed-cell layout, original x/y restoration keys and outer model key identity; source owns viewport/Element/selection/axis state machines. Current browser/packed/copied native and physical FPS are separate acceptance."
+    ],
+    "performance": "Bounded distant seek over a 100M-cell fixture; actual physical FPS remains unverified"
+  }
+}

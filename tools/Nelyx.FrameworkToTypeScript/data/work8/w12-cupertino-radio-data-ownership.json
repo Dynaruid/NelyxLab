@@ -1,0 +1,81 @@
+{
+  "schema": "nelyx.w12-cupertino-radio-data-ownership/v1",
+  "status": "PASS-scoped",
+  "source": {
+    "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/radio.dart",
+    "sha256": "b7bbcd98fddeb6cba638d8a8bac8f4ce6fe531f5fb7b23b8ea667b4fb2de2397"
+  },
+  "normalizedSourceSha256": "c6b645560e8a94248dfcde97cae6b7377b91b957bf8fec92140bd634b0765273",
+  "candidate": {
+    "file": ".tmp/work8/w11-controls-candidate/result.json",
+    "sha256": "6a9d65cc1a87acaa2efe7f8bfad448def6d5b589942c1067c66381056f756ac7"
+  },
+  "controls": {
+    "file": ".tmp/work8/w11-controls-candidate/ir.json",
+    "sha256": "30b73238035e5d37f07076d49a97e5b10d16a4df21a4ae4473fdfc7168c9b12d"
+  },
+  "localizationSource": {
+    "file": ".tmp/work6/flutter-source/packages/flutter_localizations/lib/src/l10n/generated_widgets_localizations.dart",
+    "sha256": "49e8a8ec88c570433921efa49d2f953c0b0ecf5222ccaa26f55af33bb7dd2dc9"
+  },
+  "generator": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\tools\\Nelyx.FrameworkToTypeScript\\generate-cupertino-radio-data.mjs",
+    "sha256": "01a4e596ff2dc262fe234a8e48f76cc01afbd1e54a5f0e039cccba7a9ed7b395"
+  },
+  "outputs": [
+    {
+      "file": "packages/cupertino/src/generated/radio/radio-defaults.generated.ts",
+      "sha256": "1705b302110b54b57fcbfeabece5859fbd3d0e06bf0571cd6380729f41940ecc"
+    },
+    {
+      "file": "Nelyx/src/framework/widgets/radio-localizations.generated.ts",
+      "sha256": "6a24bd577bdebf053cbd3614e335dc00397cfaefc90ccf5632a34ec18923936c"
+    },
+    {
+      "file": "Nelyx/licenses/radio-localizations-sources.json",
+      "sha256": "38672551a60ec9d33c88b562a9be63f44b895abd9c9b1cfe9149f75f73e315a6"
+    }
+  ],
+  "constants": 15,
+  "localeClasses": 120,
+  "localeKeys": 122,
+  "numeric": [
+    {
+      "symbol": "_kOuterRadius",
+      "type": "double"
+    },
+    {
+      "symbol": "_kInnerRadius",
+      "type": "double"
+    },
+    {
+      "symbol": "_kPressedOverlayOpacity",
+      "type": "double"
+    },
+    {
+      "symbol": "_kCheckmarkStrokeWidth",
+      "type": "double"
+    },
+    {
+      "symbol": "_kFocusOutlineStrokeWidth",
+      "type": "double"
+    },
+    {
+      "symbol": "_kBorderOutlineStrokeWidth",
+      "type": "double"
+    },
+    {
+      "symbol": "_kDarkGradientOpacities",
+      "type": "List<double>"
+    },
+    {
+      "symbol": "_kDisabledDarkGradientOpacities",
+      "type": "List<double>"
+    }
+  ],
+  "previous": {
+    "file": ".tmp/work12/receipts/fdbe8a16963c0a2f87fed03f68ddd4b6b541c5c1f492aba9904ddb2c055a0c39-w12-cupertino-radio-data-ownership.json",
+    "sha256": "fdbe8a16963c0a2f87fed03f68ddd4b6b541c5c1f492aba9904ddb2c055a0c39"
+  },
+  "scope": "All 15 radio constants with resolved numeric/const Color/Size/list identities and complete source radio hint locale tables; functional behavior and native delivery qualify separately"
+}

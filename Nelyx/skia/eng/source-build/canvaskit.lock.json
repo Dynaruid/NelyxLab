@@ -1,0 +1,121 @@
+{
+  "schema": "nelyx.canvaskit-source/v1",
+  "skia": {
+    "revision": "61e7ca4e99062cdd0ab69445d5963fb3365778f6",
+    "archivePrefix": "skia-61e7ca4e99062cdd0ab69445d5963fb3365778f6",
+    "archiveSha256": "8401d0de878582a03abc1029bb62330aea58cda89904ae6ab187302e6d48ba5d",
+    "depsSha256": "765be0ad1aff9088cdaad44d06ea9253293aec89a9647a5f5f4e13cdd6750e02"
+  },
+  "emsdkVersion": "4.0.7",
+  "emsdkSelection": "The exact 4.0.7 version required by Skia bin/activate-emsdk, from the previously pinned emsdk repository revision. No permanent activation.",
+  "dependencies": [
+    {
+      "path": "third_party/externals/brotli",
+      "repository": "https://skia.googlesource.com/external/github.com/google/brotli.git",
+      "revision": "6d03dfbedda1615c4cba1211f8d81735575209c8"
+    },
+    {
+      "path": "third_party/externals/d3d12allocator",
+      "repository": "https://skia.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator.git",
+      "revision": "169895d529dfce00390a20e69c2f516066fe7a3b"
+    },
+    {
+      "path": "third_party/externals/expat",
+      "repository": "https://chromium.googlesource.com/external/github.com/libexpat/libexpat.git",
+      "revision": "6154446fccefbf3ca644894f598969113b0c7bcd"
+    },
+    {
+      "path": "third_party/externals/freetype",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/freetype2.git",
+      "revision": "264b5fbf5b912b39f98d038bf75d39be0a73f21b"
+    },
+    {
+      "path": "third_party/externals/harfbuzz",
+      "repository": "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git",
+      "revision": "9cb1fee51069b206effb4736e443b038d230789d"
+    },
+    {
+      "path": "third_party/externals/icu",
+      "repository": "https://chromium.googlesource.com/chromium/deps/icu.git",
+      "revision": "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738"
+    },
+    {
+      "path": "third_party/externals/libjpeg-turbo",
+      "repository": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git",
+      "revision": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad"
+    },
+    {
+      "path": "third_party/externals/libpng",
+      "repository": "https://skia.googlesource.com/third_party/libpng.git",
+      "revision": "d5515b5b8be3901aac04e5bd8bd5c89f287bcd33"
+    },
+    {
+      "path": "third_party/externals/libwebp",
+      "repository": "https://chromium.googlesource.com/webm/libwebp.git",
+      "revision": "845d5476a866141ba35ac133f856fa62f0b7445f"
+    },
+    {
+      "path": "third_party/externals/vulkanmemoryallocator",
+      "repository": "https://chromium.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator",
+      "revision": "eb744ea7a2b17040121b4bbb4d6f9e8a77e3cae7"
+    },
+    {
+      "path": "third_party/externals/spirv-cross",
+      "repository": "https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Cross",
+      "revision": "b8fcf307f1f347089e3c46eb4451d27f32ebc8d3"
+    },
+    {
+      "path": "third_party/externals/wuffs",
+      "repository": "https://skia.googlesource.com/external/github.com/google/wuffs-mirror-release-c.git",
+      "revision": "e3f919ccfe3ef542cfc983a82146070258fb57f8"
+    },
+    {
+      "path": "third_party/externals/zlib",
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party/zlib",
+      "revision": "646b7f569718921d7d4b5b8e22572ff6c76f2596"
+    },
+    {
+      "path": "third_party/externals/emsdk",
+      "repository": "https://skia.googlesource.com/external/github.com/emscripten-core/emsdk.git",
+      "revision": "c69d433d8509c5c64564c2f0d054bf102a5cf67e"
+    }
+  ],
+  "patch": {
+    "path": "canvaskit-paragraph.patch",
+    "sha256": "2285b23bb7f5ceed11f4a8f9c8b53ca6a3555f7bca0fc8785a0c2bdb87b98526",
+    "files": [
+      {
+        "path": "modules/canvaskit/paragraph_bindings.cpp",
+        "before": "7324865f030e6d24953cbafbcca6d968c637a3d78c719030629f0de6e6133a34",
+        "after": "cbcf4ad64ae63af0dc509b9909a60a39604bd5f99fcb9d2042157b9c7d01d66f"
+      },
+      {
+        "path": "modules/canvaskit/paragraph.js",
+        "before": "36681ae56635c2633c856d9b56ea107f44b41a7df1edeb2f6fb7f7db715450dc",
+        "after": "93dfdfa4f1523858e8b4bd21f5f79b5addf50404501dbc3c52b678d768a089e6"
+      },
+      {
+        "path": "modules/canvaskit/compile.sh",
+        "before": "8b88398fd494e3d2ff6049df97e5f4d3f687dd21b7872ec39034ad6f23120bb5",
+        "after": "24529165bfea387e820e3874de88f1ab40cf1f056b46ea912a992baec0110ab0"
+      },
+      {
+        "path": "bin/activate-emsdk",
+        "before": "8c77efe2b3faf20c95d847ad5a45dbf98b0e7aaa0931d44a86c9318121f975a8",
+        "after": "675e81076cac491055cc40cf4671b2869bfc85a3a872846e02ce602dc8439f5b"
+      },
+      {
+        "path": "BUILD.gn",
+        "before": "92c27b8314cc2c34de9b237df7cb95832ffae058f8032797c8b8734f05981c3b",
+        "after": "844e2eef478e0d3a03bb5b54b3a962863968793e4a4d52ff4e3a4cf0875925fd"
+      }
+    ]
+  },
+  "buildAdaptations": [
+    "Use Skia bundled raw_ptr fallback (partition_alloc is absent from the locked standalone DEPS).",
+    "Set the explicit local emsdk path; this source supplier leaves it unset.",
+    "Disable global emsdk activation; all compiler setup stays inside the build root.",
+    "Limit Ninja concurrency without removing rendering/font/codec features.",
+    "Add CanvasKit to the supplier standalone modules target only for is_canvaskit builds."
+  ]
+}

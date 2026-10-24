@@ -1,0 +1,51 @@
+{
+  "schema": "nelyx.windows-tools/v1",
+  "policy": "reuse-existing; install only missing selected versions; no global upgrade",
+  "wingetCandidates": [
+    {
+      "id": "Kitware.CMake",
+      "source": "winget",
+      "version": "4.3.2",
+      "architecture": "x64",
+      "scope": "machine"
+    },
+    {
+      "id": "Ninja-build.Ninja",
+      "source": "winget",
+      "version": "1.13.2",
+      "architecture": "x64",
+      "scope": "user"
+    },
+    {
+      "id": "LLVM.LLVM",
+      "source": "winget",
+      "version": "22.1.4",
+      "architecture": "x64",
+      "scope": "machine"
+    }
+  ],
+  "node": {
+    "manager": "nvm-windows",
+    "version": "24.15.0"
+  },
+  "android": {
+    "compileSdk": 36,
+    "targetSdk": 36,
+    "minSdk": 26,
+    "ndk": "27.1.12297006",
+    "buildTools": "36.0.0"
+  },
+  "jdk": {
+    "version": "21.0.11",
+    "distribution": "Temurin",
+    "qualification": "build-required"
+  },
+  "visualStudio": {
+    "components": [
+      "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+      "Microsoft.VisualStudio.Component.Windows11SDK.26100"
+    ],
+    "toolset": "14.51.36231",
+    "sdk": "10.0.26100.0"
+  }
+}

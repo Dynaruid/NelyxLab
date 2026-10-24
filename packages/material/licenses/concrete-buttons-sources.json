@@ -1,0 +1,80 @@
+{
+  "schema": "nelyx.material-concrete-buttons-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/filled_button.dart",
+      "sha256": "d46bbbeb86a8959a8468f1116382ba4492125fc1dc5ad512b3e550b2b871303e"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/filled_button_theme.dart",
+      "sha256": "7d4f93b0062354030f4a7ba46dd5bfbdf4f5093fbb8d3197bdaa179d5ef35466"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/elevated_button.dart",
+      "sha256": "c6c7ec070ae18845ae4ae1e7f39eec433b6c611a028ee4bc65a7c951e734e5d1"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/elevated_button_theme.dart",
+      "sha256": "48783d8b8df2d92f815e595cc62c4ee04eec21562178ba31f68ffe560f74b3c4"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/text_button.dart",
+      "sha256": "20264916adf96b721cbedf3965b8fa115d31f2b1ffec5ea1cd7f546d6236aa7c"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/text_button_theme.dart",
+      "sha256": "47fb4ae1f91fbc29f7e0e51e1ab9927255d1bab9d04d5b94b3fcb1ae892b635e"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/outlined_button.dart",
+      "sha256": "35666976086be5d5b0f6f730741504eec35567366983bb552803322da9a41694"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/outlined_button_theme.dart",
+      "sha256": "906b0dbad7b8cb626125da622e22a2a676957a41946dbbca42bee4fd6cf1c615"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/filled_button.cs",
+      "sha256": "29aab9cb0d62ddfa3927dbcd28c4496cdef25769507ee72fcfe378ec212d8639"
+    },
+    {
+      "file": "packages/Doroti.Material/src/filled_button_theme.cs",
+      "sha256": "4f9e8e39ee9953496573fc5d3856ee71143f552b1acfd167f0410967a18755b6"
+    },
+    {
+      "file": "packages/Doroti.Material/src/elevated_button.cs",
+      "sha256": "4e886f227c2535508d5db01739132ed182d78b9c11827c3637c83e6a25173962"
+    },
+    {
+      "file": "packages/Doroti.Material/src/elevated_button_theme.cs",
+      "sha256": "58eed0c06eb887dad5ecd06a2eaab23814c766b09e89c37cb1dcf5b5f25a85de"
+    },
+    {
+      "file": "packages/Doroti.Material/src/text_button.cs",
+      "sha256": "ce4bb774b2b2df08c1ec0cceba819a4d4107a0eee2766837268c43e58e0d224a"
+    },
+    {
+      "file": "packages/Doroti.Material/src/text_button_theme.cs",
+      "sha256": "94a5c17f396c4815a021964c6341e1b386c089dfdc25481a4e9f3ddcf0c4721e"
+    },
+    {
+      "file": "packages/Doroti.Material/src/outlined_button.cs",
+      "sha256": "55a469a138ce7a3f3c5f6a427eafdd9373e7aef4b581c82e678d8b0218c637f3"
+    },
+    {
+      "file": "packages/Doroti.Material/src/outlined_button_theme.cs",
+      "sha256": "719c7f8deac8c34aad234ed9b3e9593ddc2e315656eab3fdeacced1b3139533e"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "sourceIr": {
+    "records": 20,
+    "completeRecords": 20,
+    "reusedTokenRecords": 5
+  },
+  "scope": "Complete eligible M3 Filled/Elevated/Text/Outlined constructor/styleFrom/icon/tonal API and four theme value/lookup contracts; five token policies on actual canonical Core/Material/Ink/layout/input. Deprecated/M2 APIs excluded. Full source icon/theme animation, complete ThemeData and whole package/native/physical qualification remain PARTIAL. Source numeric tags come from resolved IR; generic double values use canonical DartDouble and Duration remains host milliseconds."
+}

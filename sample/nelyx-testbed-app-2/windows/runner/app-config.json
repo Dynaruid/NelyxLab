@@ -1,0 +1,56 @@
+{
+  "name": "NelyxTestbed2",
+  "assets": [
+    {
+      "id": "sample-font",
+      "kind": "font",
+      "path": "./assets/NotoSansKR.ttf",
+      "fontFamily": "NelyxSample",
+      "notice": {
+        "path": "./assets/NotoSansKR-OFL.txt",
+        "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9"
+      },
+      "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252"
+    },
+    {
+      "id": "nelyx-material-icons",
+      "kind": "font",
+      "path": "./assets/nelyx/MaterialIcons.otf",
+      "fontFamily": "MaterialIcons",
+      "notice": {
+        "path": "./assets/nelyx/MaterialIcons-LICENSE.txt",
+        "sha256": "be698262aecd042c0de6f886cc0af622f8def446462026992cc530275d8a9e74"
+      },
+      "packageSource": {
+        "package": "@nelyx/material",
+        "path": "./assets/MaterialIcons.otf",
+        "noticePath": "./licenses/MaterialIcons-LICENSE.txt"
+      },
+      "sha256": "d9865b671a09d683d13a863089d8825e0f61a37696ce5d7d448bc8023aa62453"
+    },
+    {
+      "id": "nelyx-cupertino-icons",
+      "kind": "font",
+      "path": "./assets/nelyx/CupertinoIcons.ttf",
+      "fontFamily": "packages/cupertino_icons/CupertinoIcons",
+      "notice": {
+        "path": "./assets/nelyx/CupertinoIcons-LICENSE.txt",
+        "sha256": "310d6ab6483280280c9db122bded0a63c09558bc5743720f61dbcbb494db370a"
+      },
+      "packageSource": {
+        "package": "@nelyx/cupertino",
+        "path": "./assets/CupertinoIcons.ttf",
+        "noticePath": "./licenses/CupertinoIcons-LICENSE.txt"
+      },
+      "sha256": "67c44fe9183b002e79dde7f6977e2988661c9a3e4a3c5fce968787efdbed823c"
+    },
+    {
+      "id": "component-image",
+      "kind": "image",
+      "path": "./assets/component-image.webp",
+      "sha256": "2e6e6e3af6ba6c1d3d9daeb40f3bc6aabddba739f4a9beca4fe4daab4c67a78f"
+    }
+  ],
+  "cohort": "rn-0.83.10-jsc",
+  "profile": "rn-jsc-graphite-vulkan"
+}

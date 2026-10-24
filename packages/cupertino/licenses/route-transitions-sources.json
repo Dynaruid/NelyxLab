@@ -1,0 +1,43 @@
+{
+  "schema": "nelyx.cupertino-route-transitions-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/cupertino/route.dart",
+      "sha256": "72a5bae68c5e8b24651aa845f086d9e6396e2311b0f19183132d6a6828830eb9"
+    },
+    {
+      "file": "packages/flutter/lib/src/animation/curves.dart",
+      "sha256": "662c3ef5fc48fe8e2a5f8480c6fe0c3334b52633258836d4176aa542e45419d1"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/transitions.dart",
+      "sha256": "559c9b6aac7132104a2b06ee7290c11a8ac0d2f6ca37747f73b6b4d63f65a697"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/implicit_animations.dart",
+      "sha256": "fc7dc211c1e054ff0e70e0c5fc5ccfe4c1c817f3520036792661b100ccd986dd"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/painting.dart",
+      "sha256": "de89ce72b6d72c69163b45963d1994b464655d7502c4c573af609587c83ec1eb"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Cupertino/src/route.cs",
+      "sha256": "74c5ed4496bd44ef3ade3a684664510ed562a8aa6bc4d8aa09550a81a2500566"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/transitions.cs",
+      "sha256": "f6da70da981bfb9b6efdf4648b214a5e2a494869e998a569eded3e9be6857f16"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Painting/decoration.cs",
+      "sha256": "27bca5a2ad19064e28e5b4e5b5c6ef7b74efd7e6533777f116dd3059218939e7"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "scope": "Complete current-host CupertinoPageTransition/FullscreenDialogTransition and source-private edge decoration/painter on canonical Core. Full CupertinoPageRoute/back gesture/default builder/ModalRoute and native/physical qualification remain separate; local list identity hash contract does not claim exact Dart hash integers."
+}

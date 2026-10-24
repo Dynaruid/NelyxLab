@@ -1,0 +1,44 @@
+{
+  "schema": "nelyx.cupertino-switch-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/cupertino/switch.dart",
+      "sha256": "46010a2a58540e5e8b0a7cc3e1ed3c2601d4770e7674ce98178e70acd9a173a9"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/switch.dart",
+      "sha256": "cf8a8ee418eab659bd635faef74463c9a26256eadd796b026d284f9dc9be3de2"
+    },
+    {
+      "file": "packages/flutter/lib/src/cupertino/colors.dart",
+      "sha256": "33284f9bd3dc23068904c52d92fb4919eea6d8b5b632e27c058969a5d5000d21"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/painting.dart",
+      "sha256": "de89ce72b6d72c69163b45963d1994b464655d7502c4c573af609587c83ec1eb"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/lerp.dart",
+      "sha256": "1e6a9e6177c6f2dc770a8725d2f784e6c5af771e9284577d3161b12cba61c626"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Cupertino/src/switch.cs",
+      "sha256": "35f76ab6ece2dcea1feb50af9d4070821c70a70358fac80766b9de6b36441b72"
+    },
+    {
+      "file": "packages/Doroti.Material/src/switch.cs",
+      "sha256": "7e202e2c0bc2d1a851160ce5214d9cea6d8e57d107e4625ff4f76eaccb7b3e03"
+    }
+  ],
+  "sourceIr": {
+    "completeRecords": 19,
+    "unsupported": 0
+  },
+  "sharedOwner": "Nelyx/src/framework/widgets/switch-painter.ts",
+  "notice": "Flutter-LICENSE.md",
+  "scope": "Complete eligible 23-argument CupertinoSwitch current-host source value/State/paint/labels/icon/image/feedback/controlled drag and retirement contract. Common real painter moved from Material to canonical Core; Material/adaptive source policy remains distinct. Deprecated activeColor/trackColor aliases removed. Resolved double generic outline retains DartDouble. Ten new private Core numeric constant tags remain in source, six new Cupertino tags reach declarations. Actual native/physical input/output/haptic/reader qualification remains separate."
+}

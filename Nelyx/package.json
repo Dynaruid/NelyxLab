@@ -1,0 +1,2095 @@
+{
+  "name": "@nelyx/core",
+  "version": "0.16.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE.md",
+    "licenses",
+    "upstream/framework-imports.json",
+    "upstream/flutter-coverage.json"
+  ],
+  "exports": {
+    "./services/text-editing": {
+      "types": "./dist/services/text-editing.d.ts",
+      "default": "./dist/services/text-editing.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "default": "./dist/version.js"
+    },
+    "./foundation/disposable": {
+      "types": "./dist/foundation/disposable.d.ts",
+      "default": "./dist/foundation/disposable.js"
+    },
+    "./foundation/clock": {
+      "types": "./dist/foundation/clock.d.ts",
+      "default": "./dist/foundation/clock.js"
+    },
+    "./foundation/assets": {
+      "types": "./dist/foundation/assets.d.ts",
+      "default": "./dist/foundation/assets.js"
+    },
+    "./foundation/errors": {
+      "types": "./dist/foundation/errors.d.ts",
+      "default": "./dist/foundation/errors.js"
+    },
+    "./foundation/diagnostics": {
+      "types": "./dist/foundation/diagnostics.d.ts",
+      "default": "./dist/foundation/diagnostics.js"
+    },
+    "./foundation/assertions": {
+      "types": "./dist/foundation/assertions.d.ts",
+      "default": "./dist/foundation/assertions.js"
+    },
+    "./foundation/binding": {
+      "types": "./dist/foundation/binding.d.ts",
+      "default": "./dist/foundation/binding.js"
+    },
+    "./foundation/stack-frame": {
+      "types": "./dist/foundation/stack-frame.d.ts",
+      "default": "./dist/foundation/stack-frame.js"
+    },
+    "./foundation/numbers": {
+      "types": "./dist/foundation/numbers.d.ts",
+      "default": "./dist/foundation/numbers.js"
+    },
+    "./ui/types": {
+      "types": "./dist/ui/types.d.ts",
+      "default": "./dist/ui/types.js"
+    },
+    "./ui/frame": {
+      "types": "./dist/ui/frame.d.ts",
+      "default": "./dist/ui/frame.js"
+    },
+    "./ui/editing": {
+      "types": "./dist/ui/editing.d.ts",
+      "default": "./dist/ui/editing.js"
+    },
+    "./ui/text": {
+      "types": "./dist/ui/text.d.ts",
+      "default": "./dist/ui/text.js"
+    },
+    "./hosting/runtime": {
+      "types": "./dist/hosting/runtime.d.ts",
+      "default": "./dist/hosting/runtime.js"
+    },
+    "./hosting/resources": {
+      "types": "./dist/hosting/resources.d.ts",
+      "default": "./dist/hosting/resources.js"
+    },
+    "./hosting/platform": {
+      "types": "./dist/hosting/platform.d.ts",
+      "default": "./dist/hosting/platform.js"
+    },
+    "./hosting/renderer-events": {
+      "types": "./dist/hosting/renderer-events.d.ts",
+      "default": "./dist/hosting/renderer-events.js"
+    },
+    "./hosting/services": {
+      "types": "./dist/hosting/services.d.ts",
+      "default": "./dist/hosting/services.js"
+    },
+    "./hosting/interaction": {
+      "types": "./dist/hosting/interaction.d.ts",
+      "default": "./dist/hosting/interaction.js"
+    },
+    "./foundation/key": {
+      "types": "./dist/foundation/key.d.ts",
+      "default": "./dist/foundation/key.js"
+    },
+    "./foundation/collections": {
+      "types": "./dist/foundation/collections.d.ts",
+      "default": "./dist/foundation/collections.js"
+    },
+    "./foundation/observer-list": {
+      "types": "./dist/foundation/observer-list.d.ts",
+      "default": "./dist/foundation/observer-list.js"
+    },
+    "./foundation/notifier": {
+      "types": "./dist/foundation/notifier.d.ts",
+      "default": "./dist/foundation/notifier.js"
+    },
+    "./ui/geometry": {
+      "types": "./dist/ui/geometry.d.ts",
+      "default": "./dist/ui/geometry.js"
+    },
+    "./ui/input": {
+      "types": "./dist/ui/input.d.ts",
+      "default": "./dist/ui/input.js"
+    },
+    "./framework/scheduler/scheduler": {
+      "types": "./dist/framework/scheduler/scheduler.d.ts",
+      "default": "./dist/framework/scheduler/scheduler.js"
+    },
+    "./framework/rendering/constraints": {
+      "types": "./dist/framework/rendering/constraints.d.ts",
+      "default": "./dist/framework/rendering/constraints.js"
+    },
+    "./framework/rendering/error-box": {
+      "types": "./dist/framework/rendering/error-box.d.ts",
+      "default": "./dist/framework/rendering/error-box.js"
+    },
+    "./framework/rendering/object": {
+      "types": "./dist/framework/rendering/object.d.ts",
+      "default": "./dist/framework/rendering/object.js"
+    },
+    "./framework/rendering/boxes": {
+      "types": "./dist/framework/rendering/boxes.d.ts",
+      "default": "./dist/framework/rendering/boxes.js"
+    },
+    "./framework/painting/binding": {
+      "types": "./dist/framework/painting/binding.d.ts",
+      "default": "./dist/framework/painting/binding.js"
+    },
+    "./framework/painting/context": {
+      "types": "./dist/framework/painting/context.d.ts",
+      "default": "./dist/framework/painting/context.js"
+    },
+    "./framework/painting/text-painter": {
+      "types": "./dist/framework/painting/text-painter.d.ts",
+      "default": "./dist/framework/painting/text-painter.js"
+    },
+    "./framework/widgets/framework": {
+      "types": "./dist/framework/widgets/framework.d.ts",
+      "default": "./dist/framework/widgets/framework.js"
+    },
+    "./framework/widgets/basic": {
+      "types": "./dist/framework/widgets/basic.d.ts",
+      "default": "./dist/framework/widgets/basic.js"
+    },
+    "./framework/widgets/gesture-detector": {
+      "types": "./dist/framework/widgets/gesture-detector.d.ts",
+      "default": "./dist/framework/widgets/gesture-detector.js"
+    },
+    "./framework/widgets/root": {
+      "types": "./dist/framework/widgets/root.d.ts",
+      "default": "./dist/framework/widgets/root.js"
+    },
+    "./framework/gestures/arena": {
+      "types": "./dist/framework/gestures/arena.d.ts",
+      "default": "./dist/framework/gestures/arena.js"
+    },
+    "./framework/gestures/recognizers": {
+      "types": "./dist/framework/gestures/recognizers.d.ts",
+      "default": "./dist/framework/gestures/recognizers.js"
+    },
+    "./framework/physics/tolerance": {
+      "types": "./dist/framework/physics/tolerance.d.ts",
+      "default": "./dist/framework/physics/tolerance.js"
+    },
+    "./framework/animation/ticker": {
+      "types": "./dist/framework/animation/ticker.d.ts",
+      "default": "./dist/framework/animation/ticker.js"
+    },
+    "./framework/animation/animation": {
+      "types": "./dist/framework/animation/animation.d.ts",
+      "default": "./dist/framework/animation/animation.js"
+    },
+    "./framework/animation/ticker-future": {
+      "types": "./dist/framework/animation/ticker-future.d.ts",
+      "default": "./dist/framework/animation/ticker-future.js"
+    },
+    "./framework/physics/spring": {
+      "types": "./dist/framework/physics/spring.d.ts",
+      "default": "./dist/framework/physics/spring.js"
+    },
+    "./framework/widgets/listenable-builder": {
+      "types": "./dist/framework/widgets/listenable-builder.d.ts",
+      "default": "./dist/framework/widgets/listenable-builder.js"
+    },
+    "./framework/widgets/focus": {
+      "types": "./dist/framework/widgets/focus.d.ts",
+      "default": "./dist/framework/widgets/focus.js"
+    },
+    "./framework/widgets/editable-text": {
+      "types": "./dist/framework/widgets/editable-text.d.ts",
+      "default": "./dist/framework/widgets/editable-text.js"
+    },
+    "./framework/widgets/scroll": {
+      "types": "./dist/framework/widgets/scroll.d.ts",
+      "default": "./dist/framework/widgets/scroll.js"
+    },
+    "./framework/widgets/repaint-boundary": {
+      "types": "./dist/framework/widgets/repaint-boundary.d.ts",
+      "default": "./dist/framework/widgets/repaint-boundary.js"
+    },
+    "./framework/widgets/navigation": {
+      "types": "./dist/framework/widgets/navigation.d.ts",
+      "default": "./dist/framework/widgets/navigation.js"
+    },
+    "./framework/widgets/app-data": {
+      "types": "./dist/framework/widgets/app-data.d.ts",
+      "default": "./dist/framework/widgets/app-data.js"
+    },
+    "./framework/semantics/semantics": {
+      "types": "./dist/framework/semantics/semantics.d.ts",
+      "default": "./dist/framework/semantics/semantics.js"
+    },
+    "./framework/widgets/feedback": {
+      "types": "./dist/framework/widgets/feedback.d.ts",
+      "default": "./dist/framework/widgets/feedback.js"
+    },
+    "./framework/widgets/semantics": {
+      "types": "./dist/framework/widgets/semantics.d.ts",
+      "default": "./dist/framework/widgets/semantics.js"
+    },
+    "./framework/widgets/ticker-mode": {
+      "types": "./dist/framework/widgets/ticker-mode.d.ts",
+      "default": "./dist/framework/widgets/ticker-mode.js"
+    },
+    "./framework/widgets/global-key": {
+      "types": "./dist/framework/widgets/global-key.d.ts",
+      "default": "./dist/framework/widgets/global-key.js"
+    },
+    "./framework/widgets/inherited-notifier": {
+      "types": "./dist/framework/widgets/inherited-notifier.d.ts",
+      "default": "./dist/framework/widgets/inherited-notifier.js"
+    },
+    "./framework/widgets/inherited-model": {
+      "types": "./dist/framework/widgets/inherited-model.d.ts",
+      "default": "./dist/framework/widgets/inherited-model.js"
+    },
+    "./framework/widgets/inherited-theme": {
+      "types": "./dist/framework/widgets/inherited-theme.d.ts",
+      "default": "./dist/framework/widgets/inherited-theme.js"
+    },
+    "./framework/widgets/shortcuts": {
+      "types": "./dist/framework/widgets/shortcuts.d.ts",
+      "default": "./dist/framework/widgets/shortcuts.js"
+    },
+    "./framework/rendering/wrap": {
+      "types": "./dist/framework/rendering/wrap.d.ts",
+      "default": "./dist/framework/rendering/wrap.js"
+    },
+    "./framework/rendering/list-body": {
+      "types": "./dist/framework/rendering/list-body.d.ts",
+      "default": "./dist/framework/rendering/list-body.js"
+    },
+    "./framework/widgets/wrap": {
+      "types": "./dist/framework/widgets/wrap.d.ts",
+      "default": "./dist/framework/widgets/wrap.js"
+    },
+    "./framework/widgets/list-body": {
+      "types": "./dist/framework/widgets/list-body.d.ts",
+      "default": "./dist/framework/widgets/list-body.js"
+    },
+    "./framework/rendering/custom-layout": {
+      "types": "./dist/framework/rendering/custom-layout.d.ts",
+      "default": "./dist/framework/rendering/custom-layout.js"
+    },
+    "./framework/widgets/custom-layout": {
+      "types": "./dist/framework/widgets/custom-layout.d.ts",
+      "default": "./dist/framework/widgets/custom-layout.js"
+    },
+    "./framework/rendering/table": {
+      "types": "./dist/framework/rendering/table.d.ts",
+      "default": "./dist/framework/rendering/table.js"
+    },
+    "./framework/widgets/table": {
+      "types": "./dist/framework/widgets/table.d.ts",
+      "default": "./dist/framework/widgets/table.js"
+    },
+    "./ui/paint": {
+      "types": "./dist/ui/paint.d.ts",
+      "default": "./dist/ui/paint.js"
+    },
+    "./ui/frame-wire": {
+      "types": "./dist/ui/frame-wire.d.ts",
+      "default": "./dist/ui/frame-wire.js"
+    },
+    "./framework/rendering/opacity": {
+      "types": "./dist/framework/rendering/opacity.d.ts",
+      "default": "./dist/framework/rendering/opacity.js"
+    },
+    "./framework/widgets/opacity": {
+      "types": "./dist/framework/widgets/opacity.d.ts",
+      "default": "./dist/framework/widgets/opacity.js"
+    },
+    "./ui/canvas": {
+      "types": "./dist/ui/canvas.d.ts",
+      "default": "./dist/ui/canvas.js"
+    },
+    "./framework/rendering/custom-paint": {
+      "types": "./dist/framework/rendering/custom-paint.d.ts",
+      "default": "./dist/framework/rendering/custom-paint.js"
+    },
+    "./framework/widgets/custom-paint": {
+      "types": "./dist/framework/widgets/custom-paint.d.ts",
+      "default": "./dist/framework/widgets/custom-paint.js"
+    },
+    "./ui/matrix4": {
+      "types": "./dist/ui/matrix4.d.ts",
+      "default": "./dist/ui/matrix4.js"
+    },
+    "./framework/rendering/flow": {
+      "types": "./dist/framework/rendering/flow.d.ts",
+      "default": "./dist/framework/rendering/flow.js"
+    },
+    "./framework/widgets/flow": {
+      "types": "./dist/framework/widgets/flow.d.ts",
+      "default": "./dist/framework/widgets/flow.js"
+    },
+    "./ui/path": {
+      "types": "./dist/ui/path.d.ts",
+      "default": "./dist/ui/path.js"
+    },
+    "./ui/clip": {
+      "types": "./dist/ui/clip.d.ts",
+      "default": "./dist/ui/clip.js"
+    },
+    "./framework/rendering/clip": {
+      "types": "./dist/framework/rendering/clip.d.ts",
+      "default": "./dist/framework/rendering/clip.js"
+    },
+    "./framework/widgets/clip": {
+      "types": "./dist/framework/widgets/clip.d.ts",
+      "default": "./dist/framework/widgets/clip.js"
+    },
+    "./ui/radius": {
+      "types": "./dist/ui/radius.d.ts",
+      "default": "./dist/ui/radius.js"
+    },
+    "./ui/rrect": {
+      "types": "./dist/ui/rrect.d.ts",
+      "default": "./dist/ui/rrect.js"
+    },
+    "./framework/painting/border-radius": {
+      "types": "./dist/framework/painting/border-radius.d.ts",
+      "default": "./dist/framework/painting/border-radius.js"
+    },
+    "./ui/rect": {
+      "types": "./dist/ui/rect.d.ts",
+      "default": "./dist/ui/rect.js"
+    },
+    "./ui/offset-base": {
+      "types": "./dist/ui/offset-base.d.ts",
+      "default": "./dist/ui/offset-base.js"
+    },
+    "./ui/offset": {
+      "types": "./dist/ui/offset.d.ts",
+      "default": "./dist/ui/offset.js"
+    },
+    "./ui/size": {
+      "types": "./dist/ui/size.d.ts",
+      "default": "./dist/ui/size.js"
+    },
+    "./framework/painting/alignment": {
+      "types": "./dist/framework/painting/alignment.d.ts",
+      "default": "./dist/framework/painting/alignment.js"
+    },
+    "./math/vector": {
+      "types": "./dist/math/vector.d.ts",
+      "default": "./dist/math/vector.js"
+    },
+    "./math/vector2": {
+      "types": "./dist/math/vector2.d.ts",
+      "default": "./dist/math/vector2.js"
+    },
+    "./math/vector3": {
+      "types": "./dist/math/vector3.d.ts",
+      "default": "./dist/math/vector3.js"
+    },
+    "./math/vector4": {
+      "types": "./dist/math/vector4.d.ts",
+      "default": "./dist/math/vector4.js"
+    },
+    "./math/matrix2": {
+      "types": "./dist/math/matrix2.d.ts",
+      "default": "./dist/math/matrix2.js"
+    },
+    "./math/matrix3": {
+      "types": "./dist/math/matrix3.d.ts",
+      "default": "./dist/math/matrix3.js"
+    },
+    "./math/matrix4": {
+      "types": "./dist/math/matrix4.d.ts",
+      "default": "./dist/math/matrix4.js"
+    },
+    "./framework/rendering/overflow-box": {
+      "types": "./dist/framework/rendering/overflow-box.d.ts",
+      "default": "./dist/framework/rendering/overflow-box.js"
+    },
+    "./framework/widgets/overflow-box": {
+      "types": "./dist/framework/widgets/overflow-box.d.ts",
+      "default": "./dist/framework/widgets/overflow-box.js"
+    },
+    "./framework/painting/edge-insets": {
+      "types": "./dist/framework/painting/edge-insets.d.ts",
+      "default": "./dist/framework/painting/edge-insets.js"
+    },
+    "./framework/rendering/shifted-box": {
+      "types": "./dist/framework/rendering/shifted-box.d.ts",
+      "default": "./dist/framework/rendering/shifted-box.js"
+    },
+    "./math/quaternion": {
+      "types": "./dist/math/quaternion.d.ts",
+      "default": "./dist/math/quaternion.js"
+    },
+    "./framework/painting/box-fit": {
+      "types": "./dist/framework/painting/box-fit.d.ts",
+      "default": "./dist/framework/painting/box-fit.js"
+    },
+    "./framework/rendering/fitted-box": {
+      "types": "./dist/framework/rendering/fitted-box.d.ts",
+      "default": "./dist/framework/rendering/fitted-box.js"
+    },
+    "./framework/rendering/rotated-box": {
+      "types": "./dist/framework/rendering/rotated-box.d.ts",
+      "default": "./dist/framework/rendering/rotated-box.js"
+    },
+    "./framework/widgets/fitted-box": {
+      "types": "./dist/framework/widgets/fitted-box.d.ts",
+      "default": "./dist/framework/widgets/fitted-box.js"
+    },
+    "./framework/widgets/rotated-box": {
+      "types": "./dist/framework/widgets/rotated-box.d.ts",
+      "default": "./dist/framework/widgets/rotated-box.js"
+    },
+    "./framework/rendering/fractional-translation": {
+      "types": "./dist/framework/rendering/fractional-translation.d.ts",
+      "default": "./dist/framework/rendering/fractional-translation.js"
+    },
+    "./framework/rendering/offstage": {
+      "types": "./dist/framework/rendering/offstage.d.ts",
+      "default": "./dist/framework/rendering/offstage.js"
+    },
+    "./framework/rendering/pointer-blocking": {
+      "types": "./dist/framework/rendering/pointer-blocking.d.ts",
+      "default": "./dist/framework/rendering/pointer-blocking.js"
+    },
+    "./framework/widgets/fractional-translation": {
+      "types": "./dist/framework/widgets/fractional-translation.d.ts",
+      "default": "./dist/framework/widgets/fractional-translation.js"
+    },
+    "./framework/widgets/offstage": {
+      "types": "./dist/framework/widgets/offstage.d.ts",
+      "default": "./dist/framework/widgets/offstage.js"
+    },
+    "./framework/widgets/pointer-blocking": {
+      "types": "./dist/framework/widgets/pointer-blocking.d.ts",
+      "default": "./dist/framework/widgets/pointer-blocking.js"
+    },
+    "./framework/widgets/ticker-provider": {
+      "types": "./dist/framework/widgets/ticker-provider.d.ts",
+      "default": "./dist/framework/widgets/ticker-provider.js"
+    },
+    "./framework/widgets/focus-scope": {
+      "types": "./dist/framework/widgets/focus-scope.d.ts",
+      "default": "./dist/framework/widgets/focus-scope.js"
+    },
+    "./framework/widgets/visibility": {
+      "types": "./dist/framework/widgets/visibility.d.ts",
+      "default": "./dist/framework/widgets/visibility.js"
+    },
+    "./framework/widgets/indexed-stack": {
+      "types": "./dist/framework/widgets/indexed-stack.d.ts",
+      "default": "./dist/framework/widgets/indexed-stack.js"
+    },
+    "./framework/rendering/indexed-stack": {
+      "types": "./dist/framework/rendering/indexed-stack.d.ts",
+      "default": "./dist/framework/rendering/indexed-stack.js"
+    },
+    "./framework/rendering/layout-callback": {
+      "types": "./dist/framework/rendering/layout-callback.d.ts",
+      "default": "./dist/framework/rendering/layout-callback.js"
+    },
+    "./framework/widgets/layout-builder": {
+      "types": "./dist/framework/widgets/layout-builder.d.ts",
+      "default": "./dist/framework/widgets/layout-builder.js"
+    },
+    "./framework/widgets/orientation-builder": {
+      "types": "./dist/framework/widgets/orientation-builder.d.ts",
+      "default": "./dist/framework/widgets/orientation-builder.js"
+    },
+    "./foundation/constants": {
+      "types": "./dist/foundation/constants.d.ts",
+      "default": "./dist/foundation/constants.js"
+    },
+    "./foundation/diagnostics-text": {
+      "types": "./dist/foundation/diagnostics-text.d.ts",
+      "default": "./dist/foundation/diagnostics-text.js"
+    },
+    "./foundation/diagnostics-serialization": {
+      "types": "./dist/foundation/diagnostics-serialization.d.ts",
+      "default": "./dist/foundation/diagnostics-serialization.js"
+    },
+    "./foundation/debug": {
+      "types": "./dist/foundation/debug.d.ts",
+      "default": "./dist/foundation/debug.js"
+    },
+    "./foundation/diagnostic-properties": {
+      "types": "./dist/foundation/diagnostic-properties.d.ts",
+      "default": "./dist/foundation/diagnostic-properties.js"
+    },
+    "./foundation/object": {
+      "types": "./dist/foundation/object.d.ts",
+      "default": "./dist/foundation/object.js"
+    },
+    "./foundation/diagnostics-identity": {
+      "types": "./dist/foundation/diagnostics-identity.d.ts",
+      "default": "./dist/foundation/diagnostics-identity.js"
+    },
+    "./foundation/diagnosticable": {
+      "types": "./dist/foundation/diagnosticable.d.ts",
+      "default": "./dist/foundation/diagnosticable.js"
+    },
+    "./foundation/basic-types": {
+      "types": "./dist/foundation/basic-types.d.ts",
+      "default": "./dist/foundation/basic-types.js"
+    },
+    "./foundation/print": {
+      "types": "./dist/foundation/print.d.ts",
+      "default": "./dist/foundation/print.js"
+    },
+    "./foundation/flutter-error": {
+      "types": "./dist/foundation/flutter-error.d.ts",
+      "default": "./dist/foundation/flutter-error.js"
+    },
+    "./foundation/platform": {
+      "types": "./dist/foundation/platform.d.ts",
+      "default": "./dist/foundation/platform.js"
+    },
+    "./foundation/serialization": {
+      "types": "./dist/foundation/serialization.d.ts",
+      "default": "./dist/foundation/serialization.js"
+    },
+    "./services/message-codec": {
+      "types": "./dist/services/message-codec.d.ts",
+      "default": "./dist/services/message-codec.js"
+    },
+    "./services/message-codecs": {
+      "types": "./dist/services/message-codecs.d.ts",
+      "default": "./dist/services/message-codecs.js"
+    },
+    "./ui/channel-buffers": {
+      "types": "./dist/ui/channel-buffers.d.ts",
+      "default": "./dist/ui/channel-buffers.js"
+    },
+    "./services/binary-messenger": {
+      "types": "./dist/services/binary-messenger.d.ts",
+      "default": "./dist/services/binary-messenger.js"
+    },
+    "./hosting/platform-messages": {
+      "types": "./dist/hosting/platform-messages.d.ts",
+      "default": "./dist/hosting/platform-messages.js"
+    },
+    "./services/platform-channel": {
+      "types": "./dist/services/platform-channel.d.ts",
+      "default": "./dist/services/platform-channel.js"
+    },
+    "./services/channel-binding": {
+      "types": "./dist/services/channel-binding.d.ts",
+      "default": "./dist/services/channel-binding.js"
+    },
+    "./services/event-stream": {
+      "types": "./dist/services/event-stream.d.ts",
+      "default": "./dist/services/event-stream.js"
+    },
+    "./services/system-channels": {
+      "types": "./dist/services/system-channels.d.ts",
+      "default": "./dist/services/system-channels.js"
+    },
+    "./services/system-sound": {
+      "types": "./dist/services/system-sound.d.ts",
+      "default": "./dist/services/system-sound.js"
+    },
+    "./services/haptic-feedback": {
+      "types": "./dist/services/haptic-feedback.d.ts",
+      "default": "./dist/services/haptic-feedback.js"
+    },
+    "./services/clipboard": {
+      "types": "./dist/services/clipboard.d.ts",
+      "default": "./dist/services/clipboard.js"
+    },
+    "./services/system-navigator": {
+      "types": "./dist/services/system-navigator.d.ts",
+      "default": "./dist/services/system-navigator.js"
+    },
+    "./services/keyboard-key": {
+      "types": "./dist/services/keyboard-key.d.ts",
+      "default": "./dist/services/keyboard-key.js"
+    },
+    "./services/hardware-keyboard": {
+      "types": "./dist/services/hardware-keyboard.d.ts",
+      "default": "./dist/services/hardware-keyboard.js"
+    },
+    "./framework/widgets/actions": {
+      "types": "./dist/framework/widgets/actions.d.ts",
+      "default": "./dist/framework/widgets/actions.js"
+    },
+    "./framework/widgets/focus-traversal": {
+      "types": "./dist/framework/widgets/focus-traversal.d.ts",
+      "default": "./dist/framework/widgets/focus-traversal.js"
+    },
+    "./services/binding": {
+      "types": "./dist/services/binding.d.ts",
+      "default": "./dist/services/binding.js"
+    },
+    "./ui/paint-effects-data": {
+      "types": "./dist/ui/paint-effects-data.d.ts",
+      "default": "./dist/ui/paint-effects-data.js"
+    },
+    "./ui/shader": {
+      "types": "./dist/ui/shader.d.ts",
+      "default": "./dist/ui/shader.js"
+    },
+    "./ui/color-filter": {
+      "types": "./dist/ui/color-filter.d.ts",
+      "default": "./dist/ui/color-filter.js"
+    },
+    "./ui/image-filter": {
+      "types": "./dist/ui/image-filter.d.ts",
+      "default": "./dist/ui/image-filter.js"
+    },
+    "./ui/mask-filter": {
+      "types": "./dist/ui/mask-filter.d.ts",
+      "default": "./dist/ui/mask-filter.js"
+    },
+    "./ui/root-isolate-token": {
+      "types": "./dist/ui/root-isolate-token.d.ts",
+      "default": "./dist/ui/root-isolate-token.js"
+    },
+    "./ui/accessibility-features": {
+      "types": "./dist/ui/accessibility-features.d.ts",
+      "default": "./dist/ui/accessibility-features.js"
+    },
+    "./ui/platform-dispatcher": {
+      "types": "./dist/ui/platform-dispatcher.d.ts",
+      "default": "./dist/ui/platform-dispatcher.js"
+    },
+    "./services/background-isolate-binary-messenger": {
+      "types": "./dist/services/background-isolate-binary-messenger.d.ts",
+      "default": "./dist/services/background-isolate-binary-messenger.js"
+    },
+    "./services/background-isolate-binary-messenger-web": {
+      "types": "./dist/services/background-isolate-binary-messenger-web.d.ts",
+      "default": "./dist/services/background-isolate-binary-messenger-web.js"
+    },
+    "./ui/shadow": {
+      "types": "./dist/ui/shadow.d.ts",
+      "default": "./dist/ui/shadow.js"
+    },
+    "./framework/painting/gradient": {
+      "types": "./dist/framework/painting/gradient.d.ts",
+      "default": "./dist/framework/painting/gradient.js"
+    },
+    "./framework/painting/box-shadow": {
+      "types": "./dist/framework/painting/box-shadow.d.ts",
+      "default": "./dist/framework/painting/box-shadow.js"
+    },
+    "./framework/painting/debug": {
+      "types": "./dist/framework/painting/debug.d.ts",
+      "default": "./dist/framework/painting/debug.js"
+    },
+    "./framework/painting/borders": {
+      "types": "./dist/framework/painting/borders.d.ts",
+      "default": "./dist/framework/painting/borders.js"
+    },
+    "./framework/painting/box-border": {
+      "types": "./dist/framework/painting/box-border.d.ts",
+      "default": "./dist/framework/painting/box-border.js"
+    },
+    "./framework/painting/decoration": {
+      "types": "./dist/framework/painting/decoration.d.ts",
+      "default": "./dist/framework/painting/decoration.js"
+    },
+    "./framework/painting/box-decoration": {
+      "types": "./dist/framework/painting/box-decoration.d.ts",
+      "default": "./dist/framework/painting/box-decoration.js"
+    },
+    "./framework/painting/image-configuration": {
+      "types": "./dist/framework/painting/image-configuration.d.ts",
+      "default": "./dist/framework/painting/image-configuration.js"
+    },
+    "./ui/image": {
+      "types": "./dist/ui/image.d.ts",
+      "default": "./dist/ui/image.js"
+    },
+    "./hosting/images": {
+      "types": "./dist/hosting/images.d.ts",
+      "default": "./dist/hosting/images.js"
+    },
+    "./ui/codec": {
+      "types": "./dist/ui/codec.d.ts",
+      "default": "./dist/ui/codec.js"
+    },
+    "./framework/painting/decoration-image": {
+      "types": "./dist/framework/painting/decoration-image.d.ts",
+      "default": "./dist/framework/painting/decoration-image.js"
+    },
+    "./framework/painting/image-stream": {
+      "types": "./dist/framework/painting/image-stream.d.ts",
+      "default": "./dist/framework/painting/image-stream.js"
+    },
+    "./framework/painting/image-cache": {
+      "types": "./dist/framework/painting/image-cache.d.ts",
+      "default": "./dist/framework/painting/image-cache.js"
+    },
+    "./framework/painting/image-provider": {
+      "types": "./dist/framework/painting/image-provider.d.ts",
+      "default": "./dist/framework/painting/image-provider.js"
+    },
+    "./services/asset-bundle": {
+      "types": "./dist/services/asset-bundle.d.ts",
+      "default": "./dist/services/asset-bundle.js"
+    },
+    "./services/asset-manifest": {
+      "types": "./dist/services/asset-manifest.d.ts",
+      "default": "./dist/services/asset-manifest.js"
+    },
+    "./framework/rendering/image": {
+      "types": "./dist/framework/rendering/image.d.ts",
+      "default": "./dist/framework/rendering/image.js"
+    },
+    "./framework/widgets/raw-image": {
+      "types": "./dist/framework/widgets/raw-image.d.ts",
+      "default": "./dist/framework/widgets/raw-image.js"
+    },
+    "./framework/widgets/image": {
+      "types": "./dist/framework/widgets/image.d.ts",
+      "default": "./dist/framework/widgets/image.js"
+    },
+    "./framework/widgets/default-asset-bundle": {
+      "types": "./dist/framework/widgets/default-asset-bundle.d.ts",
+      "default": "./dist/framework/widgets/default-asset-bundle.js"
+    },
+    "./framework/widgets/disposable-build-context": {
+      "types": "./dist/framework/widgets/disposable-build-context.d.ts",
+      "default": "./dist/framework/widgets/disposable-build-context.js"
+    },
+    "./framework/widgets/scroll-aware-image-provider": {
+      "types": "./dist/framework/widgets/scroll-aware-image-provider.d.ts",
+      "default": "./dist/framework/widgets/scroll-aware-image-provider.js"
+    },
+    "./framework/painting/network-image-load-exception": {
+      "types": "./dist/framework/painting/network-image-load-exception.d.ts",
+      "default": "./dist/framework/painting/network-image-load-exception.js"
+    },
+    "./ui/picture": {
+      "types": "./dist/ui/picture.d.ts",
+      "default": "./dist/ui/picture.js"
+    },
+    "./ui/picture-recorder": {
+      "types": "./dist/ui/picture-recorder.d.ts",
+      "default": "./dist/ui/picture-recorder.js"
+    },
+    "./ui/scene": {
+      "types": "./dist/ui/scene.d.ts",
+      "default": "./dist/ui/scene.js"
+    },
+    "./framework/rendering/layer": {
+      "types": "./dist/framework/rendering/layer.d.ts",
+      "default": "./dist/framework/rendering/layer.js"
+    },
+    "./framework/rendering/filter": {
+      "types": "./dist/framework/rendering/filter.d.ts",
+      "default": "./dist/framework/rendering/filter.js"
+    },
+    "./framework/widgets/color-filtered": {
+      "types": "./dist/framework/widgets/color-filtered.d.ts",
+      "default": "./dist/framework/widgets/color-filtered.js"
+    },
+    "./framework/widgets/image-filtered": {
+      "types": "./dist/framework/widgets/image-filtered.d.ts",
+      "default": "./dist/framework/widgets/image-filtered.js"
+    },
+    "./framework/rendering/proxy-layer": {
+      "types": "./dist/framework/rendering/proxy-layer.d.ts",
+      "default": "./dist/framework/rendering/proxy-layer.js"
+    },
+    "./framework/widgets/composited-transform": {
+      "types": "./dist/framework/widgets/composited-transform.d.ts",
+      "default": "./dist/framework/widgets/composited-transform.js"
+    },
+    "./framework/rendering/annotated-region": {
+      "types": "./dist/framework/rendering/annotated-region.d.ts",
+      "default": "./dist/framework/rendering/annotated-region.js"
+    },
+    "./framework/widgets/annotated-region": {
+      "types": "./dist/framework/widgets/annotated-region.d.ts",
+      "default": "./dist/framework/widgets/annotated-region.js"
+    },
+    "./hosting/rasterization": {
+      "types": "./dist/hosting/rasterization.d.ts",
+      "default": "./dist/hosting/rasterization.js"
+    },
+    "./framework/rendering/repaint-boundary": {
+      "types": "./dist/framework/rendering/repaint-boundary.d.ts",
+      "default": "./dist/framework/rendering/repaint-boundary.js"
+    },
+    "./hosting/pictures": {
+      "types": "./dist/hosting/pictures.d.ts",
+      "default": "./dist/hosting/pictures.js"
+    },
+    "./framework/painting/text-scaler": {
+      "types": "./dist/framework/painting/text-scaler.d.ts",
+      "default": "./dist/framework/painting/text-scaler.js"
+    },
+    "./framework/painting/text-selection-controller": {
+      "types": "./dist/framework/painting/text-selection-controller.d.ts",
+      "default": "./dist/framework/painting/text-selection-controller.js"
+    },
+    "./framework/rendering/selectable-paragraph": {
+      "types": "./dist/framework/rendering/selectable-paragraph.d.ts",
+      "default": "./dist/framework/rendering/selectable-paragraph.js"
+    },
+    "./framework/widgets/selectable-text": {
+      "types": "./dist/framework/widgets/selectable-text.d.ts",
+      "default": "./dist/framework/widgets/selectable-text.js"
+    },
+    "./ui/typography": {
+      "types": "./dist/ui/typography.d.ts",
+      "default": "./dist/ui/typography.js"
+    },
+    "./ui/text-styles": {
+      "types": "./dist/ui/text-styles.d.ts",
+      "default": "./dist/ui/text-styles.js"
+    },
+    "./ui/paragraph-style": {
+      "types": "./dist/ui/paragraph-style.d.ts",
+      "default": "./dist/ui/paragraph-style.js"
+    },
+    "./ui/text-builder": {
+      "types": "./dist/ui/text-builder.d.ts",
+      "default": "./dist/ui/text-builder.js"
+    },
+    "./hosting/text-fonts": {
+      "types": "./dist/hosting/text-fonts.d.ts",
+      "default": "./dist/hosting/text-fonts.js"
+    },
+    "./hosting/text-layout-cache": {
+      "types": "./dist/hosting/text-layout-cache.d.ts",
+      "default": "./dist/hosting/text-layout-cache.js"
+    },
+    "./hosting/text-layout-budget": {
+      "types": "./dist/hosting/text-layout-budget.d.ts",
+      "default": "./dist/hosting/text-layout-budget.js"
+    },
+    "./hosting/text-paints": {
+      "types": "./dist/hosting/text-paints.d.ts",
+      "default": "./dist/hosting/text-paints.js"
+    },
+    "./framework/painting/text-style": {
+      "types": "./dist/framework/painting/text-style.d.ts",
+      "default": "./dist/framework/painting/text-style.js"
+    },
+    "./framework/painting/strut-style": {
+      "types": "./dist/framework/painting/strut-style.d.ts",
+      "default": "./dist/framework/painting/strut-style.js"
+    },
+    "./framework/painting/inline-span": {
+      "types": "./dist/framework/painting/inline-span.d.ts",
+      "default": "./dist/framework/painting/inline-span.js"
+    },
+    "./framework/painting/text-span": {
+      "types": "./dist/framework/painting/text-span.d.ts",
+      "default": "./dist/framework/painting/text-span.js"
+    },
+    "./framework/painting/placeholder-span": {
+      "types": "./dist/framework/painting/placeholder-span.d.ts",
+      "default": "./dist/framework/painting/placeholder-span.js"
+    },
+    "./framework/painting/inline-layout": {
+      "types": "./dist/framework/painting/inline-layout.d.ts",
+      "default": "./dist/framework/painting/inline-layout.js"
+    },
+    "./framework/widgets/widget-span": {
+      "types": "./dist/framework/widgets/widget-span.d.ts",
+      "default": "./dist/framework/widgets/widget-span.js"
+    },
+    "./framework/widgets/default-text-style": {
+      "types": "./dist/framework/widgets/default-text-style.d.ts",
+      "default": "./dist/framework/widgets/default-text-style.js"
+    },
+    "./framework/widgets/rich-text": {
+      "types": "./dist/framework/widgets/rich-text.d.ts",
+      "default": "./dist/framework/widgets/rich-text.js"
+    },
+    "./framework/rendering/layout-helper": {
+      "types": "./dist/framework/rendering/layout-helper.d.ts",
+      "default": "./dist/framework/rendering/layout-helper.js"
+    },
+    "./framework/rendering/paragraph": {
+      "types": "./dist/framework/rendering/paragraph.d.ts",
+      "default": "./dist/framework/rendering/paragraph.js"
+    },
+    "./framework/widgets/focus-traversal-policy": {
+      "types": "./dist/framework/widgets/focus-traversal-policy.d.ts",
+      "default": "./dist/framework/widgets/focus-traversal-policy.js"
+    },
+    "./framework/widgets/focus-traversal-order": {
+      "types": "./dist/framework/widgets/focus-traversal-order.d.ts",
+      "default": "./dist/framework/widgets/focus-traversal-order.js"
+    },
+    "./framework/widgets/focus-traversal-group": {
+      "types": "./dist/framework/widgets/focus-traversal-group.d.ts",
+      "default": "./dist/framework/widgets/focus-traversal-group.js"
+    },
+    "./services/mouse-tracking": {
+      "types": "./dist/services/mouse-tracking.d.ts",
+      "default": "./dist/services/mouse-tracking.js"
+    },
+    "./framework/rendering/mouse-region": {
+      "types": "./dist/framework/rendering/mouse-region.d.ts",
+      "default": "./dist/framework/rendering/mouse-region.js"
+    },
+    "./framework/rendering/mouse-tracker": {
+      "types": "./dist/framework/rendering/mouse-tracker.d.ts",
+      "default": "./dist/framework/rendering/mouse-tracker.js"
+    },
+    "./framework/widgets/mouse-region": {
+      "types": "./dist/framework/widgets/mouse-region.d.ts",
+      "default": "./dist/framework/widgets/mouse-region.js"
+    },
+    "./framework/widgets/focusable-action-detector": {
+      "types": "./dist/framework/widgets/focusable-action-detector.d.ts",
+      "default": "./dist/framework/widgets/focusable-action-detector.js"
+    },
+    "./services/keyboard-platform-maps": {
+      "types": "./dist/services/keyboard-platform-maps.d.ts",
+      "default": "./dist/services/keyboard-platform-maps.js"
+    },
+    "./services/raw-keyboard-data": {
+      "types": "./dist/services/raw-keyboard-data.d.ts",
+      "default": "./dist/services/raw-keyboard-data.js"
+    },
+    "./services/raw-keyboard-windows": {
+      "types": "./dist/services/raw-keyboard-windows.d.ts",
+      "default": "./dist/services/raw-keyboard-windows.js"
+    },
+    "./services/raw-keyboard-android": {
+      "types": "./dist/services/raw-keyboard-android.d.ts",
+      "default": "./dist/services/raw-keyboard-android.js"
+    },
+    "./services/raw-keyboard-fuchsia": {
+      "types": "./dist/services/raw-keyboard-fuchsia.d.ts",
+      "default": "./dist/services/raw-keyboard-fuchsia.js"
+    },
+    "./services/raw-keyboard-web": {
+      "types": "./dist/services/raw-keyboard-web.d.ts",
+      "default": "./dist/services/raw-keyboard-web.js"
+    },
+    "./services/raw-keyboard-macos": {
+      "types": "./dist/services/raw-keyboard-macos.d.ts",
+      "default": "./dist/services/raw-keyboard-macos.js"
+    },
+    "./services/raw-keyboard-ios": {
+      "types": "./dist/services/raw-keyboard-ios.d.ts",
+      "default": "./dist/services/raw-keyboard-ios.js"
+    },
+    "./services/raw-keyboard-linux": {
+      "types": "./dist/services/raw-keyboard-linux.d.ts",
+      "default": "./dist/services/raw-keyboard-linux.js"
+    },
+    "./services/raw-keyboard-linux-key-helper": {
+      "types": "./dist/services/raw-keyboard-linux-key-helper.d.ts",
+      "default": "./dist/services/raw-keyboard-linux-key-helper.js"
+    },
+    "./services/raw-key-event": {
+      "types": "./dist/services/raw-key-event.d.ts",
+      "default": "./dist/services/raw-key-event.js"
+    },
+    "./services/raw-keyboard": {
+      "types": "./dist/services/raw-keyboard.d.ts",
+      "default": "./dist/services/raw-keyboard.js"
+    },
+    "./services/key-message": {
+      "types": "./dist/services/key-message.d.ts",
+      "default": "./dist/services/key-message.js"
+    },
+    "./services/key-event-manager": {
+      "types": "./dist/services/key-event-manager.d.ts",
+      "default": "./dist/services/key-event-manager.js"
+    },
+    "./ui/key-data": {
+      "types": "./dist/ui/key-data.d.ts",
+      "default": "./dist/ui/key-data.js"
+    },
+    "./services/windows-engine-key-map": {
+      "types": "./dist/services/windows-engine-key-map.d.ts",
+      "default": "./dist/services/windows-engine-key-map.js"
+    },
+    "./framework/widgets/keyboard-listener": {
+      "types": "./dist/framework/widgets/keyboard-listener.d.ts",
+      "default": "./dist/framework/widgets/keyboard-listener.js"
+    },
+    "./framework/widgets/raw-keyboard-listener": {
+      "types": "./dist/framework/widgets/raw-keyboard-listener.d.ts",
+      "default": "./dist/framework/widgets/raw-keyboard-listener.js"
+    },
+    "./services/android-key-map": {
+      "types": "./dist/services/android-key-map.d.ts",
+      "default": "./dist/services/android-key-map.js"
+    },
+    "./framework/gestures/pointer-router": {
+      "types": "./dist/framework/gestures/pointer-router.d.ts",
+      "default": "./dist/framework/gestures/pointer-router.js"
+    },
+    "./framework/semantics/debug": {
+      "types": "./dist/framework/semantics/debug.d.ts",
+      "default": "./dist/framework/semantics/debug.js"
+    },
+    "./framework/semantics/binding": {
+      "types": "./dist/framework/semantics/binding.d.ts",
+      "default": "./dist/framework/semantics/binding.js"
+    },
+    "./ui/semantics-action": {
+      "types": "./dist/ui/semantics-action.d.ts",
+      "default": "./dist/ui/semantics-action.js"
+    },
+    "./framework/gestures/events": {
+      "types": "./dist/framework/gestures/events.d.ts",
+      "default": "./dist/framework/gestures/events.js"
+    },
+    "./framework/gestures/gesture-settings": {
+      "types": "./dist/framework/gestures/gesture-settings.d.ts",
+      "default": "./dist/framework/gestures/gesture-settings.js"
+    },
+    "./framework/gestures/constants": {
+      "types": "./dist/framework/gestures/constants.d.ts",
+      "default": "./dist/framework/gestures/constants.js"
+    },
+    "./ui/pointer": {
+      "types": "./dist/ui/pointer.d.ts",
+      "default": "./dist/ui/pointer.js"
+    },
+    "./framework/gestures/pointer-event-adapter": {
+      "types": "./dist/framework/gestures/pointer-event-adapter.d.ts",
+      "default": "./dist/framework/gestures/pointer-event-adapter.js"
+    },
+    "./framework/gestures/converter": {
+      "types": "./dist/framework/gestures/converter.d.ts",
+      "default": "./dist/framework/gestures/converter.js"
+    },
+    "./framework/gestures/pointer-signal-resolver": {
+      "types": "./dist/framework/gestures/pointer-signal-resolver.d.ts",
+      "default": "./dist/framework/gestures/pointer-signal-resolver.js"
+    },
+    "./framework/gestures/hit-test": {
+      "types": "./dist/framework/gestures/hit-test.d.ts",
+      "default": "./dist/framework/gestures/hit-test.js"
+    },
+    "./framework/gestures/resampler": {
+      "types": "./dist/framework/gestures/resampler.d.ts",
+      "default": "./dist/framework/gestures/resampler.js"
+    },
+    "./framework/gestures/binding": {
+      "types": "./dist/framework/gestures/binding.d.ts",
+      "default": "./dist/framework/gestures/binding.js"
+    },
+    "./framework/rendering/pointer-listener": {
+      "types": "./dist/framework/rendering/pointer-listener.d.ts",
+      "default": "./dist/framework/rendering/pointer-listener.js"
+    },
+    "./framework/widgets/listener": {
+      "types": "./dist/framework/widgets/listener.d.ts",
+      "default": "./dist/framework/widgets/listener.js"
+    },
+    "./framework/gestures/team": {
+      "types": "./dist/framework/gestures/team.d.ts",
+      "default": "./dist/framework/gestures/team.js"
+    },
+    "./framework/gestures/debug": {
+      "types": "./dist/framework/gestures/debug.d.ts",
+      "default": "./dist/framework/gestures/debug.js"
+    },
+    "./framework/gestures/gesture-details": {
+      "types": "./dist/framework/gestures/gesture-details.d.ts",
+      "default": "./dist/framework/gestures/gesture-details.js"
+    },
+    "./framework/gestures/recognizer": {
+      "types": "./dist/framework/gestures/recognizer.d.ts",
+      "default": "./dist/framework/gestures/recognizer.js"
+    },
+    "./framework/gestures/tap": {
+      "types": "./dist/framework/gestures/tap.d.ts",
+      "default": "./dist/framework/gestures/tap.js"
+    },
+    "./framework/gestures/lsq-solver": {
+      "types": "./dist/framework/gestures/lsq-solver.d.ts",
+      "default": "./dist/framework/gestures/lsq-solver.js"
+    },
+    "./framework/gestures/velocity-tracker": {
+      "types": "./dist/framework/gestures/velocity-tracker.d.ts",
+      "default": "./dist/framework/gestures/velocity-tracker.js"
+    },
+    "./framework/gestures/drag-details": {
+      "types": "./dist/framework/gestures/drag-details.d.ts",
+      "default": "./dist/framework/gestures/drag-details.js"
+    },
+    "./framework/gestures/monodrag": {
+      "types": "./dist/framework/gestures/monodrag.d.ts",
+      "default": "./dist/framework/gestures/monodrag.js"
+    },
+    "./framework/rendering/semantics-gesture-handler": {
+      "types": "./dist/framework/rendering/semantics-gesture-handler.d.ts",
+      "default": "./dist/framework/rendering/semantics-gesture-handler.js"
+    },
+    "./framework/widgets/raw-gesture-detector": {
+      "types": "./dist/framework/widgets/raw-gesture-detector.d.ts",
+      "default": "./dist/framework/widgets/raw-gesture-detector.js"
+    },
+    "./framework/gestures/force-press": {
+      "types": "./dist/framework/gestures/force-press.d.ts",
+      "default": "./dist/framework/gestures/force-press.js"
+    },
+    "./framework/gestures/long-press": {
+      "types": "./dist/framework/gestures/long-press.d.ts",
+      "default": "./dist/framework/gestures/long-press.js"
+    },
+    "./framework/gestures/multitap": {
+      "types": "./dist/framework/gestures/multitap.d.ts",
+      "default": "./dist/framework/gestures/multitap.js"
+    },
+    "./framework/gestures/scale": {
+      "types": "./dist/framework/gestures/scale.d.ts",
+      "default": "./dist/framework/gestures/scale.js"
+    },
+    "./framework/gestures/drag": {
+      "types": "./dist/framework/gestures/drag.d.ts",
+      "default": "./dist/framework/gestures/drag.js"
+    },
+    "./framework/gestures/eager": {
+      "types": "./dist/framework/gestures/eager.d.ts",
+      "default": "./dist/framework/gestures/eager.js"
+    },
+    "./framework/gestures/multidrag": {
+      "types": "./dist/framework/gestures/multidrag.d.ts",
+      "default": "./dist/framework/gestures/multidrag.js"
+    },
+    "./framework/widgets/tap-region": {
+      "types": "./dist/framework/widgets/tap-region.d.ts",
+      "default": "./dist/framework/widgets/tap-region.js"
+    },
+    "./services/mouse-cursor": {
+      "types": "./dist/services/mouse-cursor.d.ts",
+      "default": "./dist/services/mouse-cursor.js"
+    },
+    "./framework/widgets/overlay": {
+      "types": "./dist/framework/widgets/overlay.d.ts",
+      "default": "./dist/framework/widgets/overlay.js"
+    },
+    "./framework/widgets/drag-target": {
+      "types": "./dist/framework/widgets/drag-target.d.ts",
+      "default": "./dist/framework/widgets/drag-target.js"
+    },
+    "./framework/rendering/meta-data": {
+      "types": "./dist/framework/rendering/meta-data.d.ts",
+      "default": "./dist/framework/rendering/meta-data.js"
+    },
+    "./ui/gesture-settings": {
+      "types": "./dist/ui/gesture-settings.d.ts",
+      "default": "./dist/ui/gesture-settings.js"
+    },
+    "./framework/physics/simulation": {
+      "types": "./dist/framework/physics/simulation.d.ts",
+      "default": "./dist/framework/physics/simulation.js"
+    },
+    "./framework/physics/utils": {
+      "types": "./dist/framework/physics/utils.d.ts",
+      "default": "./dist/framework/physics/utils.js"
+    },
+    "./framework/physics/friction-simulation": {
+      "types": "./dist/framework/physics/friction-simulation.d.ts",
+      "default": "./dist/framework/physics/friction-simulation.js"
+    },
+    "./framework/physics/gravity-simulation": {
+      "types": "./dist/framework/physics/gravity-simulation.d.ts",
+      "default": "./dist/framework/physics/gravity-simulation.js"
+    },
+    "./framework/physics/clamped-simulation": {
+      "types": "./dist/framework/physics/clamped-simulation.d.ts",
+      "default": "./dist/framework/physics/clamped-simulation.js"
+    },
+    "./framework/physics/spring-simulation": {
+      "types": "./dist/framework/physics/spring-simulation.d.ts",
+      "default": "./dist/framework/physics/spring-simulation.js"
+    },
+    "./framework/painting/basic-types": {
+      "types": "./dist/framework/painting/basic-types.d.ts",
+      "default": "./dist/framework/painting/basic-types.js"
+    },
+    "./framework/widgets/scroll-metrics": {
+      "types": "./dist/framework/widgets/scroll-metrics.d.ts",
+      "default": "./dist/framework/widgets/scroll-metrics.js"
+    },
+    "./framework/widgets/scroll-simulation": {
+      "types": "./dist/framework/widgets/scroll-simulation.d.ts",
+      "default": "./dist/framework/widgets/scroll-simulation.js"
+    },
+    "./framework/widgets/scroll-physics": {
+      "types": "./dist/framework/widgets/scroll-physics.d.ts",
+      "default": "./dist/framework/widgets/scroll-physics.js"
+    },
+    "./ui/math": {
+      "types": "./dist/ui/math.d.ts",
+      "default": "./dist/ui/math.js"
+    },
+    "./framework/animation/curves": {
+      "types": "./dist/framework/animation/curves.d.ts",
+      "default": "./dist/framework/animation/curves.js"
+    },
+    "./framework/rendering/viewport-offset": {
+      "types": "./dist/framework/rendering/viewport-offset.d.ts",
+      "default": "./dist/framework/rendering/viewport-offset.js"
+    },
+    "./framework/rendering/sliver": {
+      "types": "./dist/framework/rendering/sliver.d.ts",
+      "default": "./dist/framework/rendering/sliver.js"
+    },
+    "./framework/rendering/viewport": {
+      "types": "./dist/framework/rendering/viewport.d.ts",
+      "default": "./dist/framework/rendering/viewport.js"
+    },
+    "./framework/widgets/viewport": {
+      "types": "./dist/framework/widgets/viewport.d.ts",
+      "default": "./dist/framework/widgets/viewport.js"
+    },
+    "./framework/widgets/notification-listener": {
+      "types": "./dist/framework/widgets/notification-listener.d.ts",
+      "default": "./dist/framework/widgets/notification-listener.js"
+    },
+    "./framework/widgets/scroll-notification": {
+      "types": "./dist/framework/widgets/scroll-notification.d.ts",
+      "default": "./dist/framework/widgets/scroll-notification.js"
+    },
+    "./framework/widgets/scroll-position": {
+      "types": "./dist/framework/widgets/scroll-position.d.ts",
+      "default": "./dist/framework/widgets/scroll-position.js"
+    },
+    "./framework/rendering/sliver-multi-box-adaptor": {
+      "types": "./dist/framework/rendering/sliver-multi-box-adaptor.d.ts",
+      "default": "./dist/framework/rendering/sliver-multi-box-adaptor.js"
+    },
+    "./framework/widgets/sliver": {
+      "types": "./dist/framework/widgets/sliver.d.ts",
+      "default": "./dist/framework/widgets/sliver.js"
+    },
+    "./framework/widgets/automatic-keep-alive": {
+      "types": "./dist/framework/widgets/automatic-keep-alive.d.ts",
+      "default": "./dist/framework/widgets/automatic-keep-alive.js"
+    },
+    "./framework/rendering/sliver-fixed-extent-list": {
+      "types": "./dist/framework/rendering/sliver-fixed-extent-list.d.ts",
+      "default": "./dist/framework/rendering/sliver-fixed-extent-list.js"
+    },
+    "./framework/rendering/indexed-semantics": {
+      "types": "./dist/framework/rendering/indexed-semantics.d.ts",
+      "default": "./dist/framework/rendering/indexed-semantics.js"
+    },
+    "./framework/rendering/selection": {
+      "types": "./dist/framework/rendering/selection.d.ts",
+      "default": "./dist/framework/rendering/selection.js"
+    },
+    "./framework/widgets/selection-container": {
+      "types": "./dist/framework/widgets/selection-container.d.ts",
+      "default": "./dist/framework/widgets/selection-container.js"
+    },
+    "./framework/widgets/scroll-delegate": {
+      "types": "./dist/framework/widgets/scroll-delegate.d.ts",
+      "default": "./dist/framework/widgets/scroll-delegate.js"
+    },
+    "./framework/rendering/sliver-list": {
+      "types": "./dist/framework/rendering/sliver-list.d.ts",
+      "default": "./dist/framework/rendering/sliver-list.js"
+    },
+    "./framework/rendering/sliver-padding": {
+      "types": "./dist/framework/rendering/sliver-padding.d.ts",
+      "default": "./dist/framework/rendering/sliver-padding.js"
+    },
+    "./framework/rendering/sliver-grid": {
+      "types": "./dist/framework/rendering/sliver-grid.d.ts",
+      "default": "./dist/framework/rendering/sliver-grid.js"
+    },
+    "./framework/widgets/sliver-prototype-extent-list": {
+      "types": "./dist/framework/widgets/sliver-prototype-extent-list.d.ts",
+      "default": "./dist/framework/widgets/sliver-prototype-extent-list.js"
+    },
+    "./framework/animation/animation-controller": {
+      "types": "./dist/framework/animation/animation-controller.d.ts",
+      "default": "./dist/framework/animation/animation-controller.js"
+    },
+    "./framework/widgets/page-storage": {
+      "types": "./dist/framework/widgets/page-storage.d.ts",
+      "default": "./dist/framework/widgets/page-storage.js"
+    },
+    "./framework/widgets/scroll-context": {
+      "types": "./dist/framework/widgets/scroll-context.d.ts",
+      "default": "./dist/framework/widgets/scroll-context.js"
+    },
+    "./framework/widgets/scroll-activity": {
+      "types": "./dist/framework/widgets/scroll-activity.d.ts",
+      "default": "./dist/framework/widgets/scroll-activity.js"
+    },
+    "./framework/widgets/scroll-controller": {
+      "types": "./dist/framework/widgets/scroll-controller.d.ts",
+      "default": "./dist/framework/widgets/scroll-controller.js"
+    },
+    "./framework/widgets/scroll-position-with-single-context": {
+      "types": "./dist/framework/widgets/scroll-position-with-single-context.d.ts",
+      "default": "./dist/framework/widgets/scroll-position-with-single-context.js"
+    },
+    "./framework/widgets/scrollable": {
+      "types": "./dist/framework/widgets/scrollable.d.ts",
+      "default": "./dist/framework/widgets/scrollable.js"
+    },
+    "./framework/widgets/scrollable-helpers": {
+      "types": "./dist/framework/widgets/scrollable-helpers.d.ts",
+      "default": "./dist/framework/widgets/scrollable-helpers.js"
+    },
+    "./framework/widgets/scroll-configuration": {
+      "types": "./dist/framework/widgets/scroll-configuration.d.ts",
+      "default": "./dist/framework/widgets/scroll-configuration.js"
+    },
+    "./framework/widgets/scroll-view": {
+      "types": "./dist/framework/widgets/scroll-view.d.ts",
+      "default": "./dist/framework/widgets/scroll-view.js"
+    },
+    "./framework/widgets/primary-scroll-controller": {
+      "types": "./dist/framework/widgets/primary-scroll-controller.d.ts",
+      "default": "./dist/framework/widgets/primary-scroll-controller.js"
+    },
+    "./framework/painting/matrix-utils": {
+      "types": "./dist/framework/painting/matrix-utils.d.ts",
+      "default": "./dist/framework/painting/matrix-utils.js"
+    },
+    "./framework/widgets/scrollbar": {
+      "types": "./dist/framework/widgets/scrollbar.d.ts",
+      "default": "./dist/framework/widgets/scrollbar.js"
+    },
+    "./framework/widgets/overscroll-indicator": {
+      "types": "./dist/framework/widgets/overscroll-indicator.d.ts",
+      "default": "./dist/framework/widgets/overscroll-indicator.js"
+    },
+    "./framework/widgets/restoration": {
+      "types": "./dist/framework/widgets/restoration.d.ts",
+      "default": "./dist/framework/widgets/restoration.js"
+    },
+    "./services/restoration": {
+      "types": "./dist/services/restoration.d.ts",
+      "default": "./dist/services/restoration.js"
+    },
+    "./framework/animation/animations": {
+      "types": "./dist/framework/animation/animations.d.ts",
+      "default": "./dist/framework/animation/animations.js"
+    },
+    "./framework/animation/listener-helpers": {
+      "types": "./dist/framework/animation/listener-helpers.d.ts",
+      "default": "./dist/framework/animation/listener-helpers.js"
+    },
+    "./framework/animation/tween": {
+      "types": "./dist/framework/animation/tween.d.ts",
+      "default": "./dist/framework/animation/tween.js"
+    },
+    "./framework/animation/tween-sequence": {
+      "types": "./dist/framework/animation/tween-sequence.d.ts",
+      "default": "./dist/framework/animation/tween-sequence.js"
+    },
+    "./framework/animation/tween-sequence-item": {
+      "types": "./dist/framework/animation/tween-sequence-item.d.ts",
+      "default": "./dist/framework/animation/tween-sequence-item.js"
+    },
+    "./framework/animation/animation-style": {
+      "types": "./dist/framework/animation/animation-style.d.ts",
+      "default": "./dist/framework/animation/animation-style.js"
+    },
+    "./ui/color": {
+      "types": "./dist/ui/color.d.ts",
+      "default": "./dist/ui/color.js"
+    },
+    "./framework/widgets/animated-widget": {
+      "types": "./dist/framework/widgets/animated-widget.d.ts",
+      "default": "./dist/framework/widgets/animated-widget.js"
+    },
+    "./framework/widgets/transitions": {
+      "types": "./dist/framework/widgets/transitions.d.ts",
+      "default": "./dist/framework/widgets/transitions.js"
+    },
+    "./framework/rendering/animated-opacity": {
+      "types": "./dist/framework/rendering/animated-opacity.d.ts",
+      "default": "./dist/framework/rendering/animated-opacity.js"
+    },
+    "./framework/rendering/proxy-sliver": {
+      "types": "./dist/framework/rendering/proxy-sliver.d.ts",
+      "default": "./dist/framework/rendering/proxy-sliver.js"
+    },
+    "./framework/rendering/tweens": {
+      "types": "./dist/framework/rendering/tweens.d.ts",
+      "default": "./dist/framework/rendering/tweens.js"
+    },
+    "./framework/widgets/implicit-animations": {
+      "types": "./dist/framework/widgets/implicit-animations.d.ts",
+      "default": "./dist/framework/widgets/implicit-animations.js"
+    },
+    "./framework/widgets/container": {
+      "types": "./dist/framework/widgets/container.d.ts",
+      "default": "./dist/framework/widgets/container.js"
+    },
+    "./framework/widgets/text-selection": {
+      "types": "./dist/framework/widgets/text-selection.d.ts",
+      "default": "./dist/framework/widgets/text-selection.js"
+    },
+    "./framework/widgets/selectable-region": {
+      "types": "./dist/framework/widgets/selectable-region.d.ts",
+      "default": "./dist/framework/widgets/selectable-region.js"
+    },
+    "./framework/widgets/selectable-region-state": {
+      "types": "./dist/framework/widgets/selectable-region-state.d.ts",
+      "default": "./dist/framework/widgets/selectable-region-state.js"
+    },
+    "./framework/widgets/selectable-region-status": {
+      "types": "./dist/framework/widgets/selectable-region-status.d.ts",
+      "default": "./dist/framework/widgets/selectable-region-status.js"
+    },
+    "./framework/widgets/selection-listener": {
+      "types": "./dist/framework/widgets/selection-listener.d.ts",
+      "default": "./dist/framework/widgets/selection-listener.js"
+    },
+    "./framework/widgets/selection-overlay": {
+      "types": "./dist/framework/widgets/selection-overlay.d.ts",
+      "default": "./dist/framework/widgets/selection-overlay.js"
+    },
+    "./framework/widgets/platform-selectable-region-context-menu": {
+      "types": "./dist/framework/widgets/platform-selectable-region-context-menu.d.ts",
+      "default": "./dist/framework/widgets/platform-selectable-region-context-menu.js"
+    },
+    "./framework/widgets/default-selection-style": {
+      "types": "./dist/framework/widgets/default-selection-style.d.ts",
+      "default": "./dist/framework/widgets/default-selection-style.js"
+    },
+    "./framework/widgets/default-text-editing-shortcuts": {
+      "types": "./dist/framework/widgets/default-text-editing-shortcuts.d.ts",
+      "default": "./dist/framework/widgets/default-text-editing-shortcuts.js"
+    },
+    "./framework/widgets/magnifier": {
+      "types": "./dist/framework/widgets/magnifier.d.ts",
+      "default": "./dist/framework/widgets/magnifier.js"
+    },
+    "./framework/widgets/context-menu-controller": {
+      "types": "./dist/framework/widgets/context-menu-controller.d.ts",
+      "default": "./dist/framework/widgets/context-menu-controller.js"
+    },
+    "./framework/widgets/context-menu-button-item": {
+      "types": "./dist/framework/widgets/context-menu-button-item.d.ts",
+      "default": "./dist/framework/widgets/context-menu-button-item.js"
+    },
+    "./framework/widgets/text-selection-toolbar-anchors": {
+      "types": "./dist/framework/widgets/text-selection-toolbar-anchors.d.ts",
+      "default": "./dist/framework/widgets/text-selection-toolbar-anchors.js"
+    },
+    "./framework/painting/word-boundary": {
+      "types": "./dist/framework/painting/word-boundary.d.ts",
+      "default": "./dist/framework/painting/word-boundary.js"
+    },
+    "./framework/widgets/desktop-text-selection-toolbar-layout-delegate": {
+      "types": "./dist/framework/widgets/desktop-text-selection-toolbar-layout-delegate.d.ts",
+      "default": "./dist/framework/widgets/desktop-text-selection-toolbar-layout-delegate.js"
+    },
+    "./ui/text-position": {
+      "types": "./dist/ui/text-position.d.ts",
+      "default": "./dist/ui/text-position.js"
+    },
+    "./ui/text-range": {
+      "types": "./dist/ui/text-range.d.ts",
+      "default": "./dist/ui/text-range.js"
+    },
+    "./ui/text-box": {
+      "types": "./dist/ui/text-box.d.ts",
+      "default": "./dist/ui/text-box.js"
+    },
+    "./ui/locale": {
+      "types": "./dist/ui/locale.d.ts",
+      "default": "./dist/ui/locale.js"
+    },
+    "./ui/string-attribute": {
+      "types": "./dist/ui/string-attribute.d.ts",
+      "default": "./dist/ui/string-attribute.js"
+    },
+    "./framework/semantics/attributed-string": {
+      "types": "./dist/framework/semantics/attributed-string.d.ts",
+      "default": "./dist/framework/semantics/attributed-string.js"
+    },
+    "./ui/paragraph": {
+      "types": "./dist/ui/paragraph.d.ts",
+      "default": "./dist/ui/paragraph.js"
+    },
+    "./ui/paragraph-builder": {
+      "types": "./dist/ui/paragraph-builder.d.ts",
+      "default": "./dist/ui/paragraph-builder.js"
+    },
+    "./ui/paragraph-constraints": {
+      "types": "./dist/ui/paragraph-constraints.d.ts",
+      "default": "./dist/ui/paragraph-constraints.js"
+    },
+    "./ui/line-metrics": {
+      "types": "./dist/ui/line-metrics.d.ts",
+      "default": "./dist/ui/line-metrics.js"
+    },
+    "./ui/glyph-info": {
+      "types": "./dist/ui/glyph-info.d.ts",
+      "default": "./dist/ui/glyph-info.js"
+    },
+    "./framework/painting/placeholder-dimensions": {
+      "types": "./dist/framework/painting/placeholder-dimensions.d.ts",
+      "default": "./dist/framework/painting/placeholder-dimensions.js"
+    },
+    "./ui/semantics": {
+      "types": "./dist/ui/semantics.d.ts",
+      "default": "./dist/ui/semantics.js"
+    },
+    "./framework/semantics/semantics-event": {
+      "types": "./dist/framework/semantics/semantics-event.d.ts",
+      "default": "./dist/framework/semantics/semantics-event.js"
+    },
+    "./framework/semantics/semantics-service": {
+      "types": "./dist/framework/semantics/semantics-service.d.ts",
+      "default": "./dist/framework/semantics/semantics-service.js"
+    },
+    "./framework/rendering/semantics-annotations": {
+      "types": "./dist/framework/rendering/semantics-annotations.d.ts",
+      "default": "./dist/framework/rendering/semantics-annotations.js"
+    },
+    "./framework/painting/rounded-rectangle-border": {
+      "types": "./dist/framework/painting/rounded-rectangle-border.d.ts",
+      "default": "./dist/framework/painting/rounded-rectangle-border.js"
+    },
+    "./ui/color-values": {
+      "types": "./dist/ui/color-values.d.ts",
+      "default": "./dist/ui/color-values.js"
+    },
+    "./framework/widgets/text-selection-toolbar-layout-delegate": {
+      "types": "./dist/framework/widgets/text-selection-toolbar-layout-delegate.d.ts",
+      "default": "./dist/framework/widgets/text-selection-toolbar-layout-delegate.js"
+    },
+    "./framework/widgets/backdrop-filter": {
+      "types": "./dist/framework/widgets/backdrop-filter.d.ts",
+      "default": "./dist/framework/widgets/backdrop-filter.js"
+    },
+    "./framework/painting/rounded-superellipse-border": {
+      "types": "./dist/framework/painting/rounded-superellipse-border.d.ts",
+      "default": "./dist/framework/painting/rounded-superellipse-border.js"
+    },
+    "./framework/widgets/animated-size": {
+      "default": "./dist/framework/widgets/animated-size.js",
+      "types": "./dist/framework/widgets/animated-size.d.ts"
+    },
+    "./framework/rendering/animated-size": {
+      "default": "./dist/framework/rendering/animated-size.js",
+      "types": "./dist/framework/rendering/animated-size.d.ts"
+    },
+    "./framework/rendering/shader-mask": {
+      "types": "./dist/framework/rendering/shader-mask.d.ts",
+      "default": "./dist/framework/rendering/shader-mask.js"
+    },
+    "./framework/widgets/shader-mask": {
+      "types": "./dist/framework/widgets/shader-mask.d.ts",
+      "default": "./dist/framework/widgets/shader-mask.js"
+    },
+    "./framework/widgets/form": {
+      "types": "./dist/framework/widgets/form.d.ts",
+      "default": "./dist/framework/widgets/form.js"
+    },
+    "./framework/widgets/text-form-field": {
+      "types": "./dist/framework/widgets/text-form-field.d.ts",
+      "default": "./dist/framework/widgets/text-form-field.js"
+    },
+    "./services/input-formatters": {
+      "types": "./dist/services/input-formatters.d.ts",
+      "default": "./dist/services/input-formatters.js"
+    },
+    "./framework/widgets/page-view": {
+      "types": "./dist/framework/widgets/page-view.d.ts",
+      "default": "./dist/framework/widgets/page-view.js"
+    },
+    "./framework/rendering/editable": {
+      "types": "./dist/framework/rendering/editable.d.ts",
+      "default": "./dist/framework/rendering/editable.js"
+    },
+    "./framework/widgets/router": {
+      "types": "./dist/framework/widgets/router.d.ts",
+      "default": "./dist/framework/widgets/router.js"
+    },
+    "./framework/widgets/app": {
+      "types": "./dist/framework/widgets/app.d.ts",
+      "default": "./dist/framework/widgets/app.js"
+    },
+    "./framework/widgets/async": {
+      "types": "./dist/framework/widgets/async.d.ts",
+      "default": "./dist/framework/widgets/async.js"
+    },
+    "./framework/widgets/heroes": {
+      "types": "./dist/framework/widgets/heroes.d.ts",
+      "default": "./dist/framework/widgets/heroes.js"
+    },
+    "./framework/widgets/dialog": {
+      "types": "./dist/framework/widgets/dialog.d.ts",
+      "default": "./dist/framework/widgets/dialog.js"
+    },
+    "./services/autofill": {
+      "types": "./dist/services/autofill.d.ts",
+      "default": "./dist/services/autofill.js"
+    },
+    "./framework/widgets/autofill": {
+      "types": "./dist/framework/widgets/autofill.d.ts",
+      "default": "./dist/framework/widgets/autofill.js"
+    },
+    "./framework/rendering/sliver-persistent-header": {
+      "types": "./dist/framework/rendering/sliver-persistent-header.d.ts",
+      "default": "./dist/framework/rendering/sliver-persistent-header.js"
+    },
+    "./framework/widgets/sliver-persistent-header": {
+      "types": "./dist/framework/widgets/sliver-persistent-header.d.ts",
+      "default": "./dist/framework/widgets/sliver-persistent-header.js"
+    },
+    "./framework/rendering/sliver-fill-remaining": {
+      "types": "./dist/framework/rendering/sliver-fill-remaining.d.ts",
+      "default": "./dist/framework/rendering/sliver-fill-remaining.js"
+    },
+    "./framework/rendering/sliver-overlap": {
+      "types": "./dist/framework/rendering/sliver-overlap.d.ts",
+      "default": "./dist/framework/rendering/sliver-overlap.js"
+    },
+    "./framework/widgets/sliver-overlap": {
+      "types": "./dist/framework/widgets/sliver-overlap.d.ts",
+      "default": "./dist/framework/widgets/sliver-overlap.js"
+    },
+    "./framework/widgets/nested-scroll-view": {
+      "types": "./dist/framework/widgets/nested-scroll-view.d.ts",
+      "default": "./dist/framework/widgets/nested-scroll-view.js"
+    },
+    "./framework/widgets/refresh-controller": {
+      "types": "./dist/framework/widgets/refresh-controller.d.ts",
+      "default": "./dist/framework/widgets/refresh-controller.js"
+    },
+    "./framework/widgets/refresh": {
+      "types": "./dist/framework/widgets/refresh.d.ts",
+      "default": "./dist/framework/widgets/refresh.js"
+    },
+    "./framework/widgets/dismissible": {
+      "types": "./dist/framework/widgets/dismissible.d.ts",
+      "default": "./dist/framework/widgets/dismissible.js"
+    },
+    "./framework/widgets/reorderable-list": {
+      "types": "./dist/framework/widgets/reorderable-list.d.ts",
+      "default": "./dist/framework/widgets/reorderable-list.js"
+    },
+    "./framework/widgets/draggable-scrollable-sheet": {
+      "types": "./dist/framework/widgets/draggable-scrollable-sheet.d.ts",
+      "default": "./dist/framework/widgets/draggable-scrollable-sheet.js"
+    },
+    "./framework/widgets/tree-view": {
+      "types": "./dist/framework/widgets/tree-view.d.ts",
+      "default": "./dist/framework/widgets/tree-view.js"
+    },
+    "./framework/widgets/list-wheel-scroll-view": {
+      "types": "./dist/framework/widgets/list-wheel-scroll-view.d.ts",
+      "default": "./dist/framework/widgets/list-wheel-scroll-view.js"
+    },
+    "./framework/widgets/two-dimensional-scroll-view": {
+      "types": "./dist/framework/widgets/two-dimensional-scroll-view.d.ts",
+      "default": "./dist/framework/widgets/two-dimensional-scroll-view.js"
+    },
+    "./framework/widgets/interactive-viewer": {
+      "types": "./dist/framework/widgets/interactive-viewer.d.ts",
+      "default": "./dist/framework/widgets/interactive-viewer.js"
+    },
+    "./framework/rendering/list-wheel-viewport": {
+      "types": "./dist/framework/rendering/list-wheel-viewport.d.ts",
+      "default": "./dist/framework/rendering/list-wheel-viewport.js"
+    },
+    "./framework/widgets/list-wheel-source": {
+      "types": "./dist/framework/widgets/list-wheel-source.d.ts",
+      "default": "./dist/framework/widgets/list-wheel-source.js"
+    },
+    "./internal/foundation/dart-const": {
+      "types": "./dist/foundation/dart-const.d.ts",
+      "default": "./dist/foundation/dart-const.js"
+    },
+    "./internal/foundation/dart-identity": {
+      "types": "./dist/foundation/dart-identity.d.ts",
+      "default": "./dist/foundation/dart-identity.js"
+    },
+    "./internal/foundation/dart-numeric": {
+      "types": "./dist/foundation/dart-numeric.d.ts",
+      "default": "./dist/foundation/dart-numeric.js"
+    },
+    "./internal/foundation/dart-record": {
+      "types": "./dist/foundation/dart-record.d.ts",
+      "default": "./dist/foundation/dart-record.js"
+    },
+    "./internal/foundation/dart-type-witness": {
+      "types": "./dist/foundation/dart-type-witness.d.ts",
+      "default": "./dist/foundation/dart-type-witness.js"
+    },
+    "./internal/foundation/dart-value": {
+      "types": "./dist/foundation/dart-value.d.ts",
+      "default": "./dist/foundation/dart-value.js"
+    },
+    "./internal/framework/painting/color-property.generated": {
+      "types": "./dist/framework/painting/color-property.generated.d.ts",
+      "default": "./dist/framework/painting/color-property.generated.js"
+    },
+    "./internal/framework/widgets/widget-state-diagnostic-source-adapter": {
+      "types": "./dist/framework/widgets/widget-state-diagnostic-source-adapter.d.ts",
+      "default": "./dist/framework/widgets/widget-state-diagnostic-source-adapter.js"
+    },
+    "./internal/ui/color-source-adapter": {
+      "types": "./dist/ui/color-source-adapter.d.ts",
+      "default": "./dist/ui/color-source-adapter.js"
+    },
+    "./internal/ui/value-math": {
+      "types": "./dist/ui/value-math.d.ts",
+      "default": "./dist/ui/value-math.js"
+    },
+    "./internal/foundation/dart-collections": {
+      "types": "./dist/foundation/dart-collections.d.ts",
+      "default": "./dist/foundation/dart-collections.js"
+    },
+    "./internal/foundation/dart-late": {
+      "types": "./dist/foundation/dart-late.d.ts",
+      "default": "./dist/foundation/dart-late.js"
+    },
+    "./internal/framework/widgets/scrollbar-raw-source-adapter": {
+      "types": "./dist/framework/widgets/scrollbar-raw-source-adapter.d.ts",
+      "default": "./dist/framework/widgets/scrollbar-raw-source-adapter.js"
+    },
+    "./internal/framework/widgets/scrollbar-themed-source-adapter": {
+      "types": "./dist/framework/widgets/scrollbar-themed-source-adapter.d.ts",
+      "default": "./dist/framework/widgets/scrollbar-themed-source-adapter.js"
+    },
+    "./internal/framework/widgets/scrollbar.generated": {
+      "types": "./dist/framework/widgets/scrollbar.generated.d.ts",
+      "default": "./dist/framework/widgets/scrollbar.generated.js"
+    },
+    "./internal/framework/widgets/widget-state-full-collections": {
+      "types": "./dist/framework/widgets/widget-state-full-collections.d.ts",
+      "default": "./dist/framework/widgets/widget-state-full-collections.js"
+    },
+    "./internal/framework/widgets/widget-state.generated": {
+      "types": "./dist/framework/widgets/widget-state.generated.d.ts",
+      "default": "./dist/framework/widgets/widget-state.generated.js"
+    },
+    "./internal/ui/radius-source-adapter": {
+      "types": "./dist/ui/radius-source-adapter.d.ts",
+      "default": "./dist/ui/radius-source-adapter.js"
+    },
+    "./internal/foundation/dart-function": {
+      "types": "./dist/foundation/dart-function.d.ts",
+      "default": "./dist/foundation/dart-function.js"
+    },
+    "./internal/framework/widgets/scrollbar-painter-source-adapter": {
+      "types": "./dist/framework/widgets/scrollbar-painter-source-adapter.d.ts",
+      "default": "./dist/framework/widgets/scrollbar-painter-source-adapter.js"
+    },
+    "./internal/ui/lerp-double.generated": {
+      "types": "./dist/ui/lerp-double.generated.d.ts",
+      "default": "./dist/ui/lerp-double.generated.js"
+    },
+    "./internal/framework/painting/color-property-source-adapter": {
+      "types": "./dist/framework/painting/color-property-source-adapter.d.ts",
+      "default": "./dist/framework/painting/color-property-source-adapter.js"
+    },
+    "./framework/painting/color-property": {
+      "types": "./dist/framework/painting/color-property.generated.d.ts",
+      "default": "./dist/framework/painting/color-property.generated.js"
+    },
+    "./framework/widgets/widget-state": {
+      "types": "./dist/framework/widgets/widget-state.d.ts",
+      "default": "./dist/framework/widgets/widget-state.js"
+    },
+    "./foundation/dart-numeric": {
+      "types": "./dist/foundation/dart-numeric.d.ts",
+      "default": "./dist/foundation/dart-numeric.js"
+    },
+    "./foundation/dart-type-witness": {
+      "types": "./dist/foundation/dart-type-witness.d.ts",
+      "default": "./dist/foundation/dart-type-witness.js"
+    },
+    "./ui/color-source": {
+      "types": "./dist/ui/color-source-adapter.d.ts",
+      "default": "./dist/ui/color-source-adapter.js"
+    },
+    "./internal/framework/widgets/scroll-behavior-source-adapter": {
+      "types": "./dist/framework/widgets/scroll-behavior-source-adapter.d.ts",
+      "default": "./dist/framework/widgets/scroll-behavior-source-adapter.js"
+    },
+    "./internal/framework/widgets/stretch-source-adapter": {
+      "types": "./dist/framework/widgets/stretch-source-adapter.d.ts",
+      "default": "./dist/framework/widgets/stretch-source-adapter.js"
+    },
+    "./internal/framework/widgets/stretching-overscroll-indicator.generated": {
+      "types": "./dist/framework/widgets/stretching-overscroll-indicator.generated.d.ts",
+      "default": "./dist/framework/widgets/stretching-overscroll-indicator.generated.js"
+    },
+    "./framework/widgets/stretch-effect": {
+      "types": "./dist/framework/widgets/stretch-effect.d.ts",
+      "default": "./dist/framework/widgets/stretch-effect.js"
+    },
+    "./framework/widgets/stretching-overscroll-indicator": {
+      "types": "./dist/framework/widgets/stretching-overscroll-indicator.d.ts",
+      "default": "./dist/framework/widgets/stretching-overscroll-indicator.js"
+    },
+    "./framework/widgets/sliver-tree": {
+      "types": "./dist/framework/widgets/sliver-tree.d.ts",
+      "default": "./dist/framework/widgets/sliver-tree.js"
+    },
+    "./framework/rendering/sliver-tree": {
+      "types": "./dist/framework/rendering/sliver-tree.d.ts",
+      "default": "./dist/framework/rendering/sliver-tree.js"
+    },
+    "./foundation/dart-mutable-list": {
+      "types": "./dist/foundation/dart-mutable-list.d.ts",
+      "default": "./dist/foundation/dart-mutable-list.js"
+    },
+    "./foundation/dart-named-record": {
+      "types": "./dist/foundation/dart-named-record.d.ts",
+      "default": "./dist/foundation/dart-named-record.js"
+    },
+    "./foundation/dart-collections": {
+      "types": "./dist/foundation/dart-collections.d.ts",
+      "default": "./dist/foundation/dart-collections.js"
+    },
+    "./framework/painting/color-swatch": {
+      "default": "./dist/framework/painting/color-swatch.js",
+      "types": "./dist/framework/painting/color-swatch.d.ts"
+    },
+    "./framework/widgets/app-focus": {
+      "types": "./dist/framework/widgets/app-focus.d.ts",
+      "default": "./dist/framework/widgets/app-focus.js"
+    },
+    "./framework/widgets/control-interaction": {
+      "types": "./dist/framework/widgets/control-interaction.d.ts",
+      "default": "./dist/framework/widgets/control-interaction.js"
+    },
+    "./framework/widgets/toggleable-control": {
+      "types": "./dist/framework/widgets/toggleable-control.d.ts",
+      "default": "./dist/framework/widgets/toggleable-control.js"
+    },
+    "./framework/widgets/control-mark-painter": {
+      "types": "./dist/framework/widgets/control-mark-painter.d.ts",
+      "default": "./dist/framework/widgets/control-mark-painter.js"
+    },
+    "./framework/widgets/radio-group": {
+      "types": "./dist/framework/widgets/radio-group.d.ts",
+      "default": "./dist/framework/widgets/radio-group.js"
+    },
+    "./framework/painting/value-equality": {
+      "types": "./dist/framework/painting/value-equality.d.ts",
+      "default": "./dist/framework/painting/value-equality.js"
+    },
+    "./framework/widgets/slider-control": {
+      "types": "./dist/framework/widgets/slider-control.d.ts",
+      "default": "./dist/framework/widgets/slider-control.js"
+    },
+    "./ui/size-source": {
+      "types": "./dist/ui/size-source.d.ts",
+      "default": "./dist/ui/size-source.js"
+    },
+    "./ui/offset-source": {
+      "types": "./dist/ui/offset-source.d.ts",
+      "default": "./dist/ui/offset-source.js"
+    },
+    "./internal/foundation/dart-static-field": {
+      "default": "./dist/foundation/dart-static-field.js",
+      "types": "./dist/foundation/dart-static-field.d.ts"
+    },
+    "./internal/framework/widgets/ticker-scheduler": {
+      "types": "./dist/framework/widgets/ticker-scheduler.d.ts",
+      "default": "./dist/framework/widgets/ticker-scheduler.js"
+    },
+    "./internal/framework/widgets/scroll-chrome-timers": {
+      "types": "./dist/framework/widgets/scroll-chrome-timers.d.ts",
+      "default": "./dist/framework/widgets/scroll-chrome-timers.js"
+    },
+    "./internal/framework/rendering/semantics-transport": {
+      "types": "./dist/framework/rendering/semantics-transport.d.ts",
+      "default": "./dist/framework/rendering/semantics-transport.js"
+    },
+    "./framework/painting/circle-border": {
+      "types": "./dist/framework/painting/circle-border.d.ts",
+      "default": "./dist/framework/painting/circle-border.js"
+    },
+    "./framework/rendering/shape-border-clipper": {
+      "types": "./dist/framework/rendering/shape-border-clipper.d.ts",
+      "default": "./dist/framework/rendering/shape-border-clipper.js"
+    },
+    "./framework/widgets/lookup-boundary": {
+      "types": "./dist/framework/widgets/lookup-boundary.d.ts",
+      "default": "./dist/framework/widgets/lookup-boundary.js"
+    },
+    "./framework/widgets/icon-theme-data": {
+      "types": "./dist/framework/widgets/icon-theme-data.d.ts",
+      "default": "./dist/framework/widgets/icon-theme-data.js"
+    },
+    "./framework/widgets/icon-theme": {
+      "types": "./dist/framework/widgets/icon-theme.d.ts",
+      "default": "./dist/framework/widgets/icon-theme.js"
+    },
+    "./framework/widgets/icon-data": {
+      "types": "./dist/framework/widgets/icon-data.d.ts",
+      "default": "./dist/framework/widgets/icon-data.js"
+    },
+    "./framework/painting/stadium-border": {
+      "types": "./dist/framework/painting/stadium-border.d.ts",
+      "default": "./dist/framework/painting/stadium-border.js"
+    },
+    "./framework/widgets/widget-state-border-side": {
+      "types": "./dist/framework/widgets/widget-state-border-side.d.ts",
+      "default": "./dist/framework/widgets/widget-state-border-side.js"
+    },
+    "./framework/widgets/icon": {
+      "types": "./dist/framework/widgets/icon.d.ts",
+      "default": "./dist/framework/widgets/icon.js"
+    },
+    "./framework/painting/geometry": {
+      "types": "./dist/framework/painting/geometry.d.ts",
+      "default": "./dist/framework/painting/geometry.js"
+    },
+    "./framework/widgets/raw-tooltip": {
+      "types": "./dist/framework/widgets/raw-tooltip.d.ts",
+      "default": "./dist/framework/widgets/raw-tooltip.js"
+    },
+    "./framework/widgets/animated-switcher": {
+      "types": "./dist/framework/widgets/animated-switcher.d.ts",
+      "default": "./dist/framework/widgets/animated-switcher.js"
+    },
+    "./internal/framework/painting/border-side-source": {
+      "types": "./dist/framework/painting/borders.d.ts",
+      "default": "./dist/framework/painting/borders.js"
+    },
+    "./hosting/runtime-program-cache": {
+      "types": "./dist/hosting/runtime-program-cache.d.ts",
+      "default": "./dist/hosting/runtime-program-cache.js"
+    },
+    "./framework/widgets/widget-state-color": {
+      "types": "./dist/framework/widgets/widget-state-color.d.ts",
+      "default": "./dist/framework/widgets/widget-state-color.js"
+    },
+    "./framework/widgets/widget-state-mouse-cursor": {
+      "types": "./dist/framework/widgets/widget-state-mouse-cursor.d.ts",
+      "default": "./dist/framework/widgets/widget-state-mouse-cursor.js"
+    },
+    "./framework/painting/color-shape-decoration": {
+      "types": "./dist/framework/painting/color-shape-decoration.d.ts",
+      "default": "./dist/framework/painting/color-shape-decoration.js"
+    },
+    "./framework/painting/colors": {
+      "types": "./dist/framework/painting/colors.d.ts",
+      "default": "./dist/framework/painting/colors.js"
+    },
+    "./internal/math/seeded-random": {
+      "types": "./dist/math/seeded-random.d.ts",
+      "default": "./dist/math/seeded-random.js"
+    },
+    "./internal/framework/painting/source-value-types": {
+      "types": "./dist/framework/painting/source-value-types.d.ts",
+      "default": "./dist/framework/painting/source-value-types.js"
+    },
+    "./internal/framework/widgets/switch-painter": {
+      "types": "./dist/framework/widgets/switch-painter.d.ts",
+      "default": "./dist/framework/widgets/switch-painter.js"
+    },
+    "./internal/framework/widgets/source-value-types": {
+      "types": "./dist/framework/widgets/source-value-types.d.ts",
+      "default": "./dist/framework/widgets/source-value-types.js"
+    },
+    "./services/text-capitalization": {
+      "types": "./dist/services/text-capitalization.d.ts",
+      "default": "./dist/services/text-capitalization.js"
+    },
+    "./services/system-ui-overlay-style": {
+      "types": "./dist/services/system-ui-overlay-style.d.ts",
+      "default": "./dist/services/system-ui-overlay-style.js"
+    },
+    "./framework/painting/notched-shapes": {
+      "types": "./dist/framework/painting/notched-shapes.d.ts",
+      "default": "./dist/framework/painting/notched-shapes.js"
+    },
+    "./internal/services/system-ui-overlay-style-source": {
+      "types": "./dist/services/system-ui-overlay-style-source.d.ts",
+      "default": "./dist/services/system-ui-overlay-style-source.js"
+    },
+    "./framework/widgets/dual-transition-builder": {
+      "types": "./dist/framework/widgets/dual-transition-builder.d.ts",
+      "default": "./dist/framework/widgets/dual-transition-builder.js"
+    },
+    "./framework/widgets/page-transitions-builder": {
+      "types": "./dist/framework/widgets/page-transitions-builder.d.ts",
+      "default": "./dist/framework/widgets/page-transitions-builder.js"
+    },
+    "./framework/widgets/pages": {
+      "types": "./dist/framework/widgets/pages.d.ts",
+      "default": "./dist/framework/widgets/pages.js"
+    },
+    "./internal/framework/widgets/page-route-gesture": {
+      "types": "./dist/framework/widgets/page-route-gesture.d.ts",
+      "default": "./dist/framework/widgets/page-route-gesture.js"
+    },
+    "./framework/widgets/snapshot-widget": {
+      "types": "./dist/framework/widgets/snapshot-widget.d.ts",
+      "default": "./dist/framework/widgets/snapshot-widget.js"
+    },
+    "./services/predictive-back-event": {
+      "types": "./dist/services/predictive-back-event.d.ts",
+      "default": "./dist/services/predictive-back-event.js"
+    },
+    "./ui/system-color": {
+      "types": "./dist/ui/system-color.d.ts",
+      "default": "./dist/ui/system-color.js"
+    },
+    "./internal/ui/system-color-binding": {
+      "types": "./dist/ui/system-color-provider.d.ts",
+      "default": "./dist/ui/system-color-provider.js"
+    },
+    "./framework/widgets/safe-area": {
+      "types": "./dist/framework/widgets/safe-area.d.ts",
+      "default": "./dist/framework/widgets/safe-area.js"
+    },
+    "./framework/widgets/overflow-bar": {
+      "types": "./dist/framework/widgets/overflow-bar.d.ts",
+      "default": "./dist/framework/widgets/overflow-bar.js"
+    },
+    "./framework/painting/text-align-vertical": {
+      "types": "./dist/framework/painting/text-align-vertical.d.ts",
+      "default": "./dist/framework/painting/text-align-vertical.js"
+    },
+    "./framework/widgets/widget-state-text-style": {
+      "types": "./dist/framework/widgets/widget-state-text-style.d.ts",
+      "default": "./dist/framework/widgets/widget-state-text-style.js"
+    },
+    "./hosting/editor-style": {
+      "types": "./dist/hosting/editor-style.d.ts",
+      "default": "./dist/hosting/editor-style.js"
+    },
+    "./foundation/grapheme-boundaries": {
+      "types": "./dist/foundation/grapheme-boundaries.d.ts",
+      "default": "./dist/foundation/grapheme-boundaries.js"
+    },
+    "./framework/widgets/text-editing-intents": {
+      "types": "./dist/framework/widgets/text-editing-intents.d.ts",
+      "default": "./dist/framework/widgets/text-editing-intents.js"
+    },
+    "./services/text-input": {
+      "types": "./dist/services/text-input.d.ts",
+      "default": "./dist/services/text-input.js"
+    },
+    "./framework/rendering/section-extent-index": {
+      "types": "./dist/framework/rendering/section-extent-index.d.ts",
+      "default": "./dist/framework/rendering/section-extent-index.js"
+    },
+    "./framework/rendering/sliver-section-list": {
+      "types": "./dist/framework/rendering/sliver-section-list.d.ts",
+      "default": "./dist/framework/rendering/sliver-section-list.js"
+    }
+  },
+  "scripts": {
+    "build": "node eng/build-packages.mjs core",
+    "check": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "license": "BSD-3-Clause"
+}

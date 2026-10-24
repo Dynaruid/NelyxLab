@@ -1,0 +1,132 @@
+{
+  "schema": "nelyx.full-theme-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/theme_data.dart",
+      "sha256": "bc0458fef7d00d32f187bf263e1314018ad06b0ebe39aeb61d607fdc012ff884"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/theme.dart",
+      "sha256": "6f96391531ad175f3b461ab291a430170b6aa57712d9120581b1211d17d2b05a"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/page.dart",
+      "sha256": "85ed1de6f50b7dd49a0fc923d13fbfdc077ea23e7cc734706d3a99d268dd66df"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/progress_indicator_theme.dart",
+      "sha256": "fe25218db56d0632a8333cfea0ef955ef6b6d342c29542aa58e7c36c2b5772b4"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/slider_theme.dart",
+      "sha256": "a3c9e827bd775caa82f321586715116c768292cbe83d740858a832460737b0f2"
+    },
+    {
+      "file": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "sha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/theme_data.cs",
+      "sha256": "fddabfe0d0c13ed505618092684eb4ad59c672f80afe3c5dcd89aa090450a603"
+    },
+    {
+      "file": "packages/Doroti.Material/src/theme.cs",
+      "sha256": "991750eab7cc4775d766836e80106a1910871526e42dd7f6687ea3cc93405d80"
+    },
+    {
+      "file": "packages/Doroti.Material/src/page.cs",
+      "sha256": "ebd602634cfde462fadb0ea10fe8a5df7d16e19e02516ebc1fc3fe02d75d75b2"
+    },
+    {
+      "file": "packages/Doroti.Material/src/app.cs",
+      "sha256": "190abe71dc05775dc0feb3079148b0c77ad08aae739ee4408324bc4964f76dc2"
+    },
+    {
+      "file": "packages/Doroti.Material/src/slider_theme.cs",
+      "sha256": "1ca244e718307f1967b137c76661887a0dfb4c34a9804ab7ee174250179915a4"
+    },
+    {
+      "file": "packages/Doroti.Material/src/progress_indicator_theme.cs",
+      "sha256": "898d9e7922a31742ccbd86495dcdef004c629093e2438685487e03a77e723b45"
+    }
+  ],
+  "resolvedDeclarations": [
+    {
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "symbol": "ThemeData",
+      "sourceSha256": "dada21acdd5cde8e973826b572cf64a3400c20643223bf89f2d71842a23d6ba6",
+      "spanSha256": "50df42e42355739a028842dcf33953abaf2a1016696c30d93793f837ee92d60b"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "symbol": "_IdentityThemeDataCacheKey",
+      "sourceSha256": "dada21acdd5cde8e973826b572cf64a3400c20643223bf89f2d71842a23d6ba6",
+      "spanSha256": "83076561bf45cd5f97cf19f5bfe2ea87a8c7f060c076b33975198d0cb23ef945"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme_data.dart",
+      "symbol": "_FifoCache",
+      "sourceSha256": "dada21acdd5cde8e973826b572cf64a3400c20643223bf89f2d71842a23d6ba6",
+      "spanSha256": "be2c6c2c32c0ffffe8bbaa174a06f7cd075af38b6a9374483fa632b0fd8fe40f"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "ThemeDataTween",
+      "sourceSha256": "39a85674da27a880b74d3d542321e6ae47565dbed1f63dfabfd83590d5553e41",
+      "spanSha256": "0f8c0478d492fcc410e13b572bb56c437740f42e72f5da9ac5ecc0f4d6b20ad6"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "AnimatedTheme",
+      "sourceSha256": "39a85674da27a880b74d3d542321e6ae47565dbed1f63dfabfd83590d5553e41",
+      "spanSha256": "284d7905a4f2dca93796a4a90bc74e3547f36f2e7a46d412978aa541d3d612c8"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "_AnimatedThemeState",
+      "sourceSha256": "39a85674da27a880b74d3d542321e6ae47565dbed1f63dfabfd83590d5553e41",
+      "spanSha256": "76dbddca819fb639bbeb80b69114c1474fd1fbf91f3a162ddac1024b089f86e3"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/page.dart",
+      "symbol": "MaterialPageRoute",
+      "sourceSha256": "a31b4aac2d63e391521397c7a80d55a40bf0150c1124fcf4404aae4c1094812f",
+      "spanSha256": "b6ae0ff84a9dd42f53145e504b2479fa049bcf08542de79f160082eeaa0d7b62"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/page.dart",
+      "symbol": "MaterialRouteTransitionMixin",
+      "sourceSha256": "a31b4aac2d63e391521397c7a80d55a40bf0150c1124fcf4404aae4c1094812f",
+      "spanSha256": "6ba37fc23645e4bb36a35f9ed4d4c411b43d2d1a1b0f4419c96335d39fc16bb3"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/progress_indicator_theme.dart",
+      "symbol": "ProgressIndicatorThemeData",
+      "sourceSha256": "339b55beb9e1f9796304ce194981766baf016a9a0a831fba3d27b18dff7df9db",
+      "spanSha256": "10d0a1e2af0cd9e82afdd1d57e1e0ebf8972d59eab1936d5fed2d1c41678e42f"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/slider_theme.dart",
+      "symbol": "SliderThemeData",
+      "sourceSha256": "bc3715a3ae2c4ba1cc934513d3a55f062261f138c7b3918b94a0d89552375b98",
+      "spanSha256": "3450af2cb1b15cb2b9cfa0ce2d87178be27b8c71b9dce32363e436b62e6e73ac"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "symbol": "SystemColor",
+      "sourceSha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371",
+      "spanSha256": "cd6ef9b732f9f23314c90964c2a0a2700d93497cdc34ac79324f9b579dea18aa"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "symbol": "SystemColorPalette",
+      "sourceSha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371",
+      "spanSha256": "e0f1a5cd366446e8c804a4a09c776e6249ec32547f70dec52ed930b9f277705f"
+    }
+  ],
+  "scope": "M3-only complete77-field ThemeData raw/copy/lerp/value/default integration, AnimatedTheme and MaterialPageRoute selected canonical Core policy, MaterialApp route/animation/Korean defaults and split Slider/Progress value owners. Resolved original source12 declarations is analysis evidence; source VM selected member spans and finite parents, browser service and delivery have separate scopes. Full factory/component/parent simulation/rendering/native/physical equivalence is not claimed."
+}

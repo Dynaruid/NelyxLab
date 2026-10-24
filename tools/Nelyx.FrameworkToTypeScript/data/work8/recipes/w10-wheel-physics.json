@@ -1,0 +1,149 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-wheel-physics",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/list_wheel_scroll_view.dart",
+      "sha256": "6e6a545ed8eb253a4980888bbddd67da3989f9c9c218c70816f8ac28eb42484e",
+      "symbols": [
+        "FixedExtentScrollPhysics",
+        "_getItemFromOffset",
+        "_clipOffsetToScrollableRange"
+      ],
+      "destination": "Nelyx/src/framework/widgets/list-wheel-physics.generated.ts",
+      "classNames": {
+        "FixedExtentScrollPhysics": "SourceFixedExtentScrollPhysics",
+        "_FixedExtentScrollPosition": "WheelPosition"
+      },
+      "imports": {
+        "ScrollPhysics": "./scroll-physics.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "roundInteger": "../../ui/value-math.ts",
+        "SpringSimulation": "../physics/spring-simulation.ts",
+        "FrictionSimulation": "../physics/friction-simulation.ts",
+        "isWheelPosition": "./list-wheel-physics-adapter.ts",
+        "castWheelPosition": "./list-wheel-physics-adapter.ts",
+        "createWheelSpring": "./list-wheel-physics-adapter.ts"
+      },
+      "typeImports": {
+        "ScrollMetrics": "./scroll-metrics.ts",
+        "Simulation": "../physics/simulation.ts",
+        "WheelPosition": "./list-wheel-physics-adapter.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS": "WheelPosition",
+        "package:flutter/src/physics/simulation.dart::Simulation:CLASS": "Simulation",
+        "package:flutter/src/widgets/scroll_metrics.dart::ScrollMetrics:MIXIN": "ScrollMetrics"
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS": {
+          "is": "isWheelPosition",
+          "cast": "castWheelPosition"
+        }
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.ScrollPhysics.new:CONSTRUCTOR": {
+          "target": "ScrollPhysics",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "memberBindings": {
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.spring:GETTER": "spring"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "adapters": {
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.buildParent:METHOD": {
+          "target": "buildParent",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.createBallisticSimulation:METHOD": {
+          "target": "createBallisticSimulation",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.toleranceFor:METHOD": {
+          "target": "toleranceFor",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/physics/simulation.dart::Simulation.x:METHOD": {
+          "target": "x",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::double.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:math::min:FUNCTION": {
+          "target": "Math.min",
+          "kind": "call"
+        },
+        "dart:math::max:FUNCTION": {
+          "target": "Math.max",
+          "kind": "call"
+        },
+        "package:flutter/src/physics/spring_simulation.dart::SpringSimulation.SpringSimulation.new:CONSTRUCTOR": {
+          "target": "createWheelSpring",
+          "kind": "call",
+          "namedArguments": "trailing-options"
+        }
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-physics.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-physics-source.ts",
+  "contract": {
+    "id": "nelyx.generated.w10-wheel-physics/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "SourceFixedExtentScrollPhysics (internal)",
+      "_getItemFromOffset (internal)"
+    ],
+    "requirements": [
+      "Complete pinned five-branch physics and private offset helpers",
+      "Checked host position identity and source rounding",
+      "Source comparison must PASS before promotion"
+    ],
+    "numericPolicy": "Finite safe-number UI indices; double IEEE754; no unrestricted Dart int",
+    "differences": [
+      "Existing ScrollPhysics/Simulation identity; public wheel facade keeps single-owner and disabled-parent policy"
+    ],
+    "performance": "Bounded nine source scenarios and actual Root wheel cohort; native FPS separate"
+  },
+  "requireSourceComparison": true
+}

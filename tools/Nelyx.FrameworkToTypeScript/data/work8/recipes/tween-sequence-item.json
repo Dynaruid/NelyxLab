@@ -1,0 +1,49 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "tween-sequence-item",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/animation/tween_sequence.dart",
+      "sha256": "a3028f8dc8cdef63d17ad1527d8f8db87703ae76de60e204da77ee0699dfa5a3",
+      "symbols": [
+        "TweenSequenceItem"
+      ],
+      "destination": "Nelyx/src/framework/animation/tween-sequence-item.ts",
+      "imports": {
+        "Animatable": "./tween.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "protect": "../../ui/value-math.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/animation/tween.dart::Animatable:CLASS": "Animatable"
+      },
+      "assertion": {
+        "code": "invalid-tween-sequence-weight",
+        "message": "Tween sequence weight must be positive"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/generic-class.ts",
+  "contract": {
+    "id": "nelyx.generated.tween-sequence-item/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "TweenSequenceItem<T>({tween,weight})"
+    ],
+    "requirements": [
+      "positive weight in debug; immutable fields; generic payload identity"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [
+      "no Dart const canonicalization; named parameters use an options object"
+    ],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

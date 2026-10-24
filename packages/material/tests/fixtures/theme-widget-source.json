@@ -1,0 +1,294 @@
+{
+  "schema": "nelyx.theme-widget-source/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "environments": [
+    "native",
+    "web"
+  ],
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "const Duration kThemeAnimationDuration",
+      "offset": 605,
+      "length": 69,
+      "sha256": "fa54a55a29b16a1848b448a75ec19e8ec5361b8aca8d7ad8cd03f11b3e248cad"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class Theme extends",
+      "offset": 2145,
+      "length": 7103,
+      "sha256": "ec7ab4d9fed251b6c4e8bebb281a76c067051e70aae620b71f8fe8ad5dc50197"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class _InheritedTheme extends",
+      "offset": 9252,
+      "length": 364,
+      "sha256": "f7c7848abb8e4a356c1c40c167000d1a676f707dc21f21aa56a4bbcffc836f1d"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class ThemeDataTween extends",
+      "offset": 9859,
+      "length": 397,
+      "sha256": "596da48205cebdeee6b162fc1d412c53870ce4bd4946cab8d77504aaaca712ab"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class AnimatedTheme extends",
+      "offset": 10941,
+      "length": 669,
+      "sha256": "138ed6a898423bfb3135e53db0de4d450fa64be340c2370c266d6141d7122020"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/theme.dart",
+      "symbol": "class _AnimatedThemeState extends",
+      "offset": 11614,
+      "length": 718,
+      "sha256": "76dbddca819fb639bbeb80b69114c1474fd1fbf91f3a162ddac1024b089f86e3"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/theme.dart",
+      "symbol": "class CupertinoTheme extends",
+      "offset": 2132,
+      "length": 3565,
+      "sha256": "a9d51ef773a667650465d7f1f152ce0c8bb655d1724159a02ef49d9b5cc332a6"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/theme.dart",
+      "symbol": "class InheritedCupertinoTheme extends",
+      "offset": 5754,
+      "length": 599,
+      "sha256": "662fa37510cdc4a55d00332d8c93c52814ec34871448373c5840da3e84fb253e"
+    }
+  ],
+  "result": {
+    "rows": [
+      {
+        "kind": "fallback",
+        "category": "englishLike",
+        "id": "fallback",
+        "brightness": "light",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "cupertino",
+        "category": "englishLike",
+        "id": "cup:parent",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "material",
+        "category": "englishLike",
+        "id": "a",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "both",
+        "category": "englishLike",
+        "id": "a",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "fallback",
+        "category": "dense",
+        "id": "fallback",
+        "brightness": "light",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "cupertino",
+        "category": "dense",
+        "id": "cup:parent",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "material",
+        "category": "dense",
+        "id": "a",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "both",
+        "category": "dense",
+        "id": "a",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "fallback",
+        "category": "tall",
+        "id": "fallback",
+        "brightness": "light",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "cupertino",
+        "category": "tall",
+        "id": "cup:parent",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "material",
+        "category": "tall",
+        "id": "a",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      },
+      {
+        "kind": "both",
+        "category": "tall",
+        "id": "a",
+        "brightness": "dark",
+        "reads": [
+          "_InheritedTheme",
+          "MaterialLocalizations",
+          "InheritedCupertinoTheme"
+        ]
+      }
+    ],
+    "materialBuild": {
+      "type": "MaterialScope",
+      "child": {
+        "type": "CupertinoTheme",
+        "data": "material:a",
+        "child": {
+          "type": "IconTheme",
+          "color": 4279312947,
+          "child": {
+            "type": "DefaultSelectionStyle",
+            "cursor": 4279383126,
+            "selection": 1428304708,
+            "child": {
+              "type": "Leaf"
+            }
+          }
+        }
+      }
+    },
+    "cupertinoBuild": {
+      "type": "CupertinoScope",
+      "child": {
+        "type": "IconTheme",
+        "color": 4289449455,
+        "child": {
+          "type": "Leaf"
+        }
+      }
+    },
+    "public": {
+      "key": "public",
+      "childSame": true,
+      "capturedDataSame": true,
+      "capturedChildSame": true,
+      "cupKey": "cup-public",
+      "cupChildSame": true,
+      "cupCapturedDataSame": true,
+      "equalNotify": false,
+      "differentNotify": true,
+      "cupEqualNotify": false
+    },
+    "diagnostics": {
+      "theme": [
+        {
+          "name": "data",
+          "showName": false
+        }
+      ],
+      "cupertino": [
+        "brightness"
+      ],
+      "state": [
+        {
+          "name": "data",
+          "showName": false,
+          "defaultValue": null
+        }
+      ]
+    },
+    "animation": {
+      "duration": 200,
+      "linear": true,
+      "childSame": true,
+      "stateData": "b"
+    },
+    "brightness": [
+      {
+        "material": false,
+        "media": false,
+        "maybe": null,
+        "required": "throws"
+      },
+      {
+        "material": false,
+        "media": true,
+        "maybe": "light",
+        "required": "light"
+      },
+      {
+        "material": true,
+        "media": false,
+        "maybe": "dark",
+        "required": "dark"
+      },
+      {
+        "material": true,
+        "media": true,
+        "maybe": "dark",
+        "required": "dark"
+      }
+    ]
+  },
+  "scope": "Complete unchanged Theme/InheritedTheme/CupertinoTheme/InheritedCupertinoTheme/ThemeDataTween/AnimatedTheme/State declarations and Duration constant on explicit finite context/value/typography/animation/diagnostic/Color parents. Widget tree ownership, public field/key/default/wrap/brightness/dependency policy; full parent runtime/layout/renderer and whole App are separate."
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "bounce",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "sha256": "ddaa3b239073df731807210d6aa1ef583062ce5b2827b1aa87b4de4725b3f8f9",
+      "symbols": [
+        "_bounce"
+      ],
+      "destination": "Nelyx/src/framework/animation/bounce.ts",
+      "renames": {
+        "_bounce": "bounce"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/first-batch.ts",
+  "contract": {
+    "id": "nelyx.generated.bounce/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "bounce(t)"
+    ],
+    "requirements": [
+      "0/1 endpoints, piecewise midpoint, NaN/Infinity propagation"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

@@ -1,0 +1,1098 @@
+{
+  "schema": "nelyx.card-source/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "environments": [
+    "native",
+    "web"
+  ],
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "Card",
+      "offset": 501,
+      "length": 9947,
+      "sha256": "47866e0235dea3d53b6fbae1b8a04b1e433222d6ba0aae9946c1b4cdac815eef"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_CardDefaultsM3",
+      "offset": 11295,
+      "length": 632,
+      "sha256": "0992480cfc1d548645c481d4b6d88efeeca1ad72ef48a7dbc897260f670eb5ac"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_FilledCardDefaultsM3",
+      "offset": 12298,
+      "length": 648,
+      "sha256": "2d43c4bba209a9b1540ae2c4488022deb560a21c24fa1bc99ecaddb4c2a20e9e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_OutlinedCardDefaultsM3",
+      "offset": 13325,
+      "length": 714,
+      "sha256": "21f3bd5fc178dba1954f2bd214a55f3e7d730832e789309a1ef3c7cf2c01ed20"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_CardVariant",
+      "offset": 449,
+      "length": 48,
+      "sha256": "df5ad07cb9f5a9d20c4af0f15889863ac0d6ce38a48e5a97ea55b49c46cbfe13"
+    }
+  ],
+  "result": {
+    "palettes": {
+      "light": [
+        4279312947,
+        4280431428,
+        4281549909,
+        4278190080,
+        4286023833
+      ],
+      "dark": [
+        4283778099,
+        4284896580,
+        4286015061,
+        4278256131,
+        4287142314
+      ]
+    },
+    "rows": [
+      {
+        "brightness": "light",
+        "variant": "elevated",
+        "mode": "default",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279312947,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 1,
+          "margin": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "elevated",
+        "mode": "global",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279242784,
+          "shadowColor": 4280295472,
+          "surfaceTintColor": 4281348160,
+          "elevation": 7,
+          "margin": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "clip": "antiAlias",
+          "borderOnForeground": true,
+          "radius": 20,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "elevated",
+        "mode": "local",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4282404960,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 11,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "elevated",
+        "mode": "widget",
+        "value": {
+          "container": false,
+          "explicitChildNodes": true,
+          "leafSame": true,
+          "color": 4279312896,
+          "shadowColor": 4280431360,
+          "surfaceTintColor": 4281549824,
+          "elevation": 3,
+          "margin": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "clip": "hardEdge",
+          "borderOnForeground": false,
+          "radius": 7,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "elevated",
+        "mode": "mixed",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 0,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "filled",
+        "mode": "default",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4280431428,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "filled",
+        "mode": "global",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279242784,
+          "shadowColor": 4280295472,
+          "surfaceTintColor": 4281348160,
+          "elevation": 7,
+          "margin": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "clip": "antiAlias",
+          "borderOnForeground": true,
+          "radius": 20,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "filled",
+        "mode": "local",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4282404960,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 11,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "filled",
+        "mode": "widget",
+        "value": {
+          "container": false,
+          "explicitChildNodes": true,
+          "leafSame": true,
+          "color": 4279312896,
+          "shadowColor": 4280431360,
+          "surfaceTintColor": 4281549824,
+          "elevation": 3,
+          "margin": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "clip": "hardEdge",
+          "borderOnForeground": false,
+          "radius": 7,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "filled",
+        "mode": "mixed",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 0,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "outlined",
+        "mode": "default",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4281549909,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4286023833,
+            "width": 1,
+            "style": "solid"
+          }
+        },
+        "identity": {
+          "shapeSame": false,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "outlined",
+        "mode": "global",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279242784,
+          "shadowColor": 4280295472,
+          "surfaceTintColor": 4281348160,
+          "elevation": 7,
+          "margin": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "clip": "antiAlias",
+          "borderOnForeground": true,
+          "radius": 20,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "outlined",
+        "mode": "local",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4282404960,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 11,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4286023833,
+            "width": 1,
+            "style": "solid"
+          }
+        },
+        "identity": {
+          "shapeSame": false,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "outlined",
+        "mode": "widget",
+        "value": {
+          "container": false,
+          "explicitChildNodes": true,
+          "leafSame": true,
+          "color": 4279312896,
+          "shadowColor": 4280431360,
+          "surfaceTintColor": 4281549824,
+          "elevation": 3,
+          "margin": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "clip": "hardEdge",
+          "borderOnForeground": false,
+          "radius": 7,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "light",
+        "variant": "outlined",
+        "mode": "mixed",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 0,
+          "shadowColor": 4278190080,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4286023833,
+            "width": 1,
+            "style": "solid"
+          }
+        },
+        "identity": {
+          "shapeSame": false,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "elevated",
+        "mode": "default",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4283778099,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 1,
+          "margin": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "elevated",
+        "mode": "global",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279242784,
+          "shadowColor": 4280295472,
+          "surfaceTintColor": 4281348160,
+          "elevation": 7,
+          "margin": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "clip": "antiAlias",
+          "borderOnForeground": true,
+          "radius": 20,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "elevated",
+        "mode": "local",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4282404960,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 11,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "elevated",
+        "mode": "widget",
+        "value": {
+          "container": false,
+          "explicitChildNodes": true,
+          "leafSame": true,
+          "color": 4279312896,
+          "shadowColor": 4280431360,
+          "surfaceTintColor": 4281549824,
+          "elevation": 3,
+          "margin": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "clip": "hardEdge",
+          "borderOnForeground": false,
+          "radius": 7,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "elevated",
+        "mode": "mixed",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 0,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "filled",
+        "mode": "default",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4284896580,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "filled",
+        "mode": "global",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279242784,
+          "shadowColor": 4280295472,
+          "surfaceTintColor": 4281348160,
+          "elevation": 7,
+          "margin": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "clip": "antiAlias",
+          "borderOnForeground": true,
+          "radius": 20,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "filled",
+        "mode": "local",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4282404960,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 11,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "filled",
+        "mode": "widget",
+        "value": {
+          "container": false,
+          "explicitChildNodes": true,
+          "leafSame": true,
+          "color": 4279312896,
+          "shadowColor": 4280431360,
+          "surfaceTintColor": 4281549824,
+          "elevation": 3,
+          "margin": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "clip": "hardEdge",
+          "borderOnForeground": false,
+          "radius": 7,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "filled",
+        "mode": "mixed",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 0,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "outlined",
+        "mode": "default",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4286015061,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4287142314,
+            "width": 1,
+            "style": "solid"
+          }
+        },
+        "identity": {
+          "shapeSame": false,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "outlined",
+        "mode": "global",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4279242784,
+          "shadowColor": 4280295472,
+          "surfaceTintColor": 4281348160,
+          "elevation": 7,
+          "margin": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "clip": "antiAlias",
+          "borderOnForeground": true,
+          "radius": 20,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "outlined",
+        "mode": "local",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 4282404960,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 11,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4287142314,
+            "width": 1,
+            "style": "solid"
+          }
+        },
+        "identity": {
+          "shapeSame": false,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "outlined",
+        "mode": "widget",
+        "value": {
+          "container": false,
+          "explicitChildNodes": true,
+          "leafSame": true,
+          "color": 4279312896,
+          "shadowColor": 4280431360,
+          "surfaceTintColor": 4281549824,
+          "elevation": 3,
+          "margin": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "clip": "hardEdge",
+          "borderOnForeground": false,
+          "radius": 7,
+          "side": {
+            "color": 4278190080,
+            "width": 0,
+            "style": "none"
+          }
+        },
+        "identity": {
+          "shapeSame": true,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      },
+      {
+        "brightness": "dark",
+        "variant": "outlined",
+        "mode": "mixed",
+        "value": {
+          "container": true,
+          "explicitChildNodes": false,
+          "leafSame": true,
+          "color": 0,
+          "shadowColor": 4278256131,
+          "surfaceTintColor": 0,
+          "elevation": 0,
+          "margin": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "clip": "none",
+          "borderOnForeground": true,
+          "radius": 12,
+          "side": {
+            "color": 4287142314,
+            "width": 1,
+            "style": "solid"
+          }
+        },
+        "identity": {
+          "shapeSame": false,
+          "marginSame": true,
+          "tintSame": true,
+          "colorSame": true
+        }
+      }
+    ],
+    "public": {
+      "key": "card",
+      "color": null,
+      "elevation": null,
+      "shape": null,
+      "margin": null,
+      "clip": null,
+      "child": null,
+      "borderOnForeground": true,
+      "semanticContainer": true
+    }
+  },
+  "identityScope": "Shared selected margin/shape/transparent defaults and explicit caller/theme Color references are compared. Default ColorScheme role reference ABI uses the existing own ARGB adapter and is excluded from source color identity comparison.",
+  "scope": "Complete unchanged Card, three M3 default classes and variant enum execute on finite CardTheme/ThemeData/ColorScheme/Color/shape/insets/Material/semantics/context parents, M3 branch only.30 selected precedence/default/semantics/shape/identity recipes per environment. M2 is explicitly excluded. Full original Material/shape/typography/renderer/engine and native/physical semantics/reader remain separate."
+}

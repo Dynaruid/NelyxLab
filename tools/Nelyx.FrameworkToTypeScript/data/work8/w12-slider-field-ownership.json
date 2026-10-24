@@ -1,0 +1,1271 @@
+{
+  "schema": "nelyx.w11-slider-field-projection/v1",
+  "status": "PASS-scoped",
+  "recordedAt": "2026-10-18T00:18:02.431Z",
+  "inputs": [
+    {
+      "file": ".tmp/work8/w11-slider-dependencies-candidate/result.json",
+      "sha256": "cb3c333b7d51a02b8dd9edfd138092f65b626ccbd53ae7a17a17b2006d1db6ab"
+    },
+    {
+      "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-slider-dependencies-candidate\\ir.json",
+      "sha256": "ddbe36e4cda9d0393810dc05ba937835bf2984a6c0d4513acfe35b659294d982"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/slider_theme.dart",
+      "sha256": "a3c9e827bd775caa82f321586715116c768292cbe83d740858a832460737b0f2"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-slider-theme-fields.mjs",
+      "sha256": "01ed720ba73c99ec11b622aeb3498d61defb3c7779ca051119ebea9b8fd81c7c"
+    }
+  ],
+  "fields": [
+    {
+      "name": "trackHeight",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.trackHeight:FIELD",
+        "name": "trackHeight",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:core::double:CLASS",
+          "name": "double",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": {
+        "type": "double?",
+        "inferred": false,
+        "bounds": [],
+        "resolvedType": {
+          "kind": "interface",
+          "nullable": true,
+          "reference": {
+            "id": "dart:core::double:CLASS",
+            "name": "double",
+            "owner": null,
+            "local": false,
+            "static": false
+          },
+          "arguments": []
+        }
+      },
+      "offset": 15996,
+      "length": 11
+    },
+    {
+      "name": "activeTrackColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.activeTrackColor:FIELD",
+        "name": "activeTrackColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 16139,
+      "length": 16
+    },
+    {
+      "name": "inactiveTrackColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.inactiveTrackColor:FIELD",
+        "name": "inactiveTrackColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 16287,
+      "length": 18
+    },
+    {
+      "name": "secondaryActiveTrackColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.secondaryActiveTrackColor:FIELD",
+        "name": "secondaryActiveTrackColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 16453,
+      "length": 25
+    },
+    {
+      "name": "disabledActiveTrackColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.disabledActiveTrackColor:FIELD",
+        "name": "disabledActiveTrackColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 16640,
+      "length": 24
+    },
+    {
+      "name": "disabledSecondaryActiveTrackColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.disabledSecondaryActiveTrackColor:FIELD",
+        "name": "disabledSecondaryActiveTrackColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 16842,
+      "length": 33
+    },
+    {
+      "name": "disabledInactiveTrackColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.disabledInactiveTrackColor:FIELD",
+        "name": "disabledInactiveTrackColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 17037,
+      "length": 26
+    },
+    {
+      "name": "activeTickMarkColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.activeTickMarkColor:FIELD",
+        "name": "activeTickMarkColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 17214,
+      "length": 19
+    },
+    {
+      "name": "inactiveTickMarkColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.inactiveTickMarkColor:FIELD",
+        "name": "inactiveTickMarkColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 17384,
+      "length": 21
+    },
+    {
+      "name": "disabledActiveTickMarkColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.disabledActiveTickMarkColor:FIELD",
+        "name": "disabledActiveTickMarkColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 17586,
+      "length": 27
+    },
+    {
+      "name": "disabledInactiveTickMarkColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.disabledInactiveTickMarkColor:FIELD",
+        "name": "disabledInactiveTickMarkColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 17801,
+      "length": 29
+    },
+    {
+      "name": "thumbColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.thumbColor:FIELD",
+        "name": "thumbColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 17914,
+      "length": 10
+    },
+    {
+      "name": "overlappingShapeStrokeColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.overlappingShapeStrokeColor:FIELD",
+        "name": "overlappingShapeStrokeColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 18141,
+      "length": 27
+    },
+    {
+      "name": "disabledThumbColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.disabledThumbColor:FIELD",
+        "name": "disabledThumbColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 18289,
+      "length": 18
+    },
+    {
+      "name": "overlayColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.overlayColor:FIELD",
+        "name": "overlayColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 18495,
+      "length": 12
+    },
+    {
+      "name": "valueIndicatorColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.valueIndicatorColor:FIELD",
+        "name": "valueIndicatorColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 18600,
+      "length": 19
+    },
+    {
+      "name": "valueIndicatorStrokeColor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.valueIndicatorStrokeColor:FIELD",
+        "name": "valueIndicatorStrokeColor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:ui::Color:CLASS",
+          "name": "Color",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 18699,
+      "length": 25
+    },
+    {
+      "name": "overlayShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.overlayShape:FIELD",
+        "name": "overlayShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider_value_indicator_shape.dart::SliderComponentShape:CLASS",
+          "name": "SliderComponentShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 19041,
+      "length": 12
+    },
+    {
+      "name": "tickMarkShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.tickMarkShape:FIELD",
+        "name": "tickMarkShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider_parts.dart::SliderTickMarkShape:CLASS",
+          "name": "SliderTickMarkShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 19558,
+      "length": 13
+    },
+    {
+      "name": "thumbShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.thumbShape:FIELD",
+        "name": "thumbShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider_value_indicator_shape.dart::SliderComponentShape:CLASS",
+          "name": "SliderComponentShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 19868,
+      "length": 10
+    },
+    {
+      "name": "trackShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.trackShape:FIELD",
+        "name": "trackShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider_parts.dart::SliderTrackShape:CLASS",
+          "name": "SliderTrackShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 20442,
+      "length": 10
+    },
+    {
+      "name": "valueIndicatorShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.valueIndicatorShape:FIELD",
+        "name": "valueIndicatorShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider_value_indicator_shape.dart::SliderComponentShape:CLASS",
+          "name": "SliderComponentShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 20796,
+      "length": 19
+    },
+    {
+      "name": "rangeTickMarkShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.rangeTickMarkShape:FIELD",
+        "name": "rangeTickMarkShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/range_slider_parts.dart::RangeSliderTickMarkShape:CLASS",
+          "name": "RangeSliderTickMarkShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 21331,
+      "length": 18
+    },
+    {
+      "name": "rangeThumbShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.rangeThumbShape:FIELD",
+        "name": "rangeThumbShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/range_slider_parts.dart::RangeSliderThumbShape:CLASS",
+          "name": "RangeSliderThumbShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 21833,
+      "length": 15
+    },
+    {
+      "name": "rangeTrackShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.rangeTrackShape:FIELD",
+        "name": "rangeTrackShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/range_slider_parts.dart::RangeSliderTrackShape:CLASS",
+          "name": "RangeSliderTrackShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 22421,
+      "length": 15
+    },
+    {
+      "name": "rangeValueIndicatorShape",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.rangeValueIndicatorShape:FIELD",
+        "name": "rangeValueIndicatorShape",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/range_slider_parts.dart::RangeSliderValueIndicatorShape:CLASS",
+          "name": "RangeSliderValueIndicatorShape",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 23058,
+      "length": 24
+    },
+    {
+      "name": "showValueIndicator",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.showValueIndicator:FIELD",
+        "name": "showValueIndicator",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider_theme.dart::ShowValueIndicator:ENUM",
+          "name": "ShowValueIndicator",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 23381,
+      "length": 18
+    },
+    {
+      "name": "valueIndicatorTextStyle",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.valueIndicatorTextStyle:FIELD",
+        "name": "valueIndicatorTextStyle",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/painting/text_style.dart::TextStyle:CLASS",
+          "name": "TextStyle",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 23482,
+      "length": 23
+    },
+    {
+      "name": "minThumbSeparation",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.minThumbSeparation:FIELD",
+        "name": "minThumbSeparation",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:core::double:CLASS",
+          "name": "double",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": {
+        "type": "double?",
+        "inferred": false,
+        "bounds": [],
+        "resolvedType": {
+          "kind": "interface",
+          "nullable": true,
+          "reference": {
+            "id": "dart:core::double:CLASS",
+            "name": "double",
+            "owner": null,
+            "local": false,
+            "static": false
+          },
+          "arguments": []
+        }
+      },
+      "offset": 23914,
+      "length": 18
+    },
+    {
+      "name": "thumbSelector",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.thumbSelector:FIELD",
+        "name": "thumbSelector",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "function",
+        "nullable": true,
+        "returnType": {
+          "kind": "interface",
+          "nullable": true,
+          "reference": {
+            "id": "package:flutter/src/material/slider_theme.dart::Thumb:ENUM",
+            "name": "Thumb",
+            "owner": null,
+            "local": false,
+            "static": false
+          },
+          "arguments": []
+        },
+        "parameters": [
+          {
+            "name": "textDirection",
+            "named": false,
+            "required": true,
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "dart:ui::TextDirection:ENUM",
+                "name": "TextDirection",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          },
+          {
+            "name": "values",
+            "named": false,
+            "required": true,
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "package:flutter/src/material/range_slider_parts.dart::RangeValues:CLASS",
+                "name": "RangeValues",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          },
+          {
+            "name": "tapValue",
+            "named": false,
+            "required": true,
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          },
+          {
+            "name": "thumbSize",
+            "named": false,
+            "required": true,
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "dart:ui::Size:CLASS",
+                "name": "Size",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          },
+          {
+            "name": "trackSize",
+            "named": false,
+            "required": true,
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "dart:ui::Size:CLASS",
+                "name": "Size",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          },
+          {
+            "name": "dx",
+            "named": false,
+            "required": true,
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        ],
+        "alias": {
+          "reference": {
+            "id": "package:flutter/src/material/range_slider_parts.dart::RangeThumbSelector:TYPE_ALIAS",
+            "name": "RangeThumbSelector",
+            "owner": null,
+            "local": false,
+            "static": false
+          },
+          "arguments": []
+        }
+      },
+      "numeric": {
+        "type": "Thumb? Function(TextDirection, RangeValues, double, Size, Size, double)?",
+        "inferred": false,
+        "bounds": [],
+        "resolvedType": {
+          "kind": "function",
+          "nullable": true,
+          "returnType": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/material/slider_theme.dart::Thumb:ENUM",
+              "name": "Thumb",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          },
+          "parameters": [
+            {
+              "name": "textDirection",
+              "named": false,
+              "required": true,
+              "type": {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:ui::TextDirection:ENUM",
+                  "name": "TextDirection",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            },
+            {
+              "name": "values",
+              "named": false,
+              "required": true,
+              "type": {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/material/range_slider_parts.dart::RangeValues:CLASS",
+                  "name": "RangeValues",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            },
+            {
+              "name": "tapValue",
+              "named": false,
+              "required": true,
+              "type": {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::double:CLASS",
+                  "name": "double",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            },
+            {
+              "name": "thumbSize",
+              "named": false,
+              "required": true,
+              "type": {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:ui::Size:CLASS",
+                  "name": "Size",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            },
+            {
+              "name": "trackSize",
+              "named": false,
+              "required": true,
+              "type": {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:ui::Size:CLASS",
+                  "name": "Size",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            },
+            {
+              "name": "dx",
+              "named": false,
+              "required": true,
+              "type": {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::double:CLASS",
+                  "name": "double",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            }
+          ],
+          "alias": {
+            "reference": {
+              "id": "package:flutter/src/material/range_slider_parts.dart::RangeThumbSelector:TYPE_ALIAS",
+              "name": "RangeThumbSelector",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          }
+        }
+      },
+      "offset": 24409,
+      "length": 13
+    },
+    {
+      "name": "mouseCursor",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.mouseCursor:FIELD",
+        "name": "mouseCursor",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+          "name": "WidgetStateProperty",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": [
+          {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "package:flutter/src/services/mouse_cursor.dart::MouseCursor:CLASS",
+              "name": "MouseCursor",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          }
+        ]
+      },
+      "numeric": null,
+      "offset": 24603,
+      "length": 11
+    },
+    {
+      "name": "allowedInteraction",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.allowedInteraction:FIELD",
+        "name": "allowedInteraction",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/material/slider.dart::SliderInteraction:ENUM",
+          "name": "SliderInteraction",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 24797,
+      "length": 18
+    },
+    {
+      "name": "padding",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.padding:FIELD",
+        "name": "padding",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/painting/edge_insets.dart::EdgeInsetsGeometry:CLASS",
+          "name": "EdgeInsetsGeometry",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 25170,
+      "length": 7
+    },
+    {
+      "name": "thumbSize",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.thumbSize:FIELD",
+        "name": "thumbSize",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+          "name": "WidgetStateProperty",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": [
+          {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:ui::Size:CLASS",
+              "name": "Size",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          }
+        ]
+      },
+      "numeric": null,
+      "offset": 25492,
+      "length": 9
+    },
+    {
+      "name": "trackGap",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.trackGap:FIELD",
+        "name": "trackGap",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:core::double:CLASS",
+          "name": "double",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": {
+        "type": "double?",
+        "inferred": false,
+        "bounds": [],
+        "resolvedType": {
+          "kind": "interface",
+          "nullable": true,
+          "reference": {
+            "id": "dart:core::double:CLASS",
+            "name": "double",
+            "owner": null,
+            "local": false,
+            "static": false
+          },
+          "arguments": []
+        }
+      },
+      "offset": 26369,
+      "length": 8
+    },
+    {
+      "name": "year2023",
+      "reference": {
+        "id": "package:flutter/src/material/slider_theme.dart::SliderThemeData.year2023:FIELD",
+        "name": "year2023",
+        "owner": "SliderThemeData",
+        "local": false,
+        "static": false
+      },
+      "type": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:core::bool:CLASS",
+          "name": "bool",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      },
+      "numeric": null,
+      "offset": 27139,
+      "length": 8
+    }
+  ],
+  "output": {
+    "file": "packages/material/src/generated/slider/slider-theme-fields.generated.ts",
+    "sha256": "be95a789924fc9094ab0266554863144d387752f839dda4e1ce6b4dedba44815"
+  },
+  "scope": "All 36 final instance fields/types projected from full pinned resolved SliderThemeData IR. Three nullable double fields and the function-valued numeric signature retain only resolved analyzer metadata. Functional methods and owning widget/shape implementation are separate; whole class/body conversion and promotion are not inferred.",
+  "previousReceipt": {
+    "file": ".tmp/work8/receipt-history/58defb0b863bf9cb38796666b68c7b9990924a44f7213e65d3dd834ae7c8f3c8-w11-slider-field-ownership.json",
+    "sha256": "58defb0b863bf9cb38796666b68c7b9990924a44f7213e65d3dd834ae7c8f3c8"
+  },
+  "w12ModuleRelocation": {
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/.tmp/work8/w11-slider-field-ownership.json",
+      "sha256": "7e4efc765efb16e1e154b8f8b18cea045315cecd14528fd39e1a5dd39bfaa9f3"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  }
+}

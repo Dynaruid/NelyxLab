@@ -1,0 +1,74 @@
+{
+  "schema": "nelyx.migration-packages/v1",
+  "packages": [
+    {
+      "name": "@nelyx/core",
+      "directory": "Nelyx",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    },
+    {
+      "name": "@nelyx/sdk",
+      "directory": "Nelyx/sdk",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    },
+    {
+      "name": "@nelyx/skia-rn",
+      "directory": "Nelyx/skia/packages/rn",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    },
+    {
+      "name": "@nelyx/skia-web",
+      "directory": "Nelyx/skia/packages/web",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    },
+    {
+      "name": "@nelyx/material",
+      "directory": "packages/material",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    },
+    {
+      "name": "@nelyx/cupertino",
+      "directory": "packages/cupertino",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    },
+    {
+      "name": "@nelyx/tooling-contracts",
+      "directory": "Nelyx/sdk/tooling/contracts",
+      "sourceRoot": "src",
+      "config": "tsconfig.build.json"
+    }
+  ],
+  "rules": {
+    "core": [
+      "common-framework",
+      "host-contracts"
+    ],
+    "material": [
+      "core",
+      "cupertino-when-required"
+    ],
+    "cupertino": [
+      "core"
+    ],
+    "localizations": [
+      "core",
+      "design-localization-contracts"
+    ],
+    "host": [
+      "core",
+      "sdk",
+      "skia",
+      "own-os-binding"
+    ],
+    "tool": [
+      "tooling-contracts",
+      "own-build-tool"
+    ]
+  }
+}

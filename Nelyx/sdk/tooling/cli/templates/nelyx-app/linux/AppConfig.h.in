@@ -1,0 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#pragma once
+inline constexpr char NelyxAppName[]="@NELYX_APP_NAME@";
+inline constexpr char NelyxWindowSystem[]="@NELYX_WINDOW_SYSTEM@";

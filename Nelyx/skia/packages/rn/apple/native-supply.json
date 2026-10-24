@@ -1,0 +1,510 @@
+{
+  "schema": "nelyx.apple-skia-supply/v1",
+  "version": "154.1.0",
+  "targets": {
+    "ios": {
+      "package": "react-native-skia-graphite-apple-ios",
+      "version": "154.1.0",
+      "url": "https://registry.npmjs.org/react-native-skia-graphite-apple-ios/-/react-native-skia-graphite-apple-ios-154.1.0.tgz",
+      "integrity": "sha512-tyG1LuojhZyqqMeuD3NKiiWWQu3pE5M523u9reGTRMQ8zhxrEFWZU/HFn0cuZAa6JtvQJQFJ1wQtY4PwR0O52A==",
+      "archiveSha256": "213c9d0ab5d9dbc0e7c27bef3b3b3e5ddc4e8616c64f02e5a9d3e0aecdc47152",
+      "archiveBytes": 72914306,
+      "unpackedBytes": 248706712,
+      "skiaVersion": "m154_8037_58a",
+      "dawnVersion": "dawn-chrome-m154a",
+      "frameworks": {
+        "libskia": "7ef848f02328503b35c3c56464fb5fd9e6b012cb9c8165fe2b2fbf50b5e606e0",
+        "libsvg": "7a78c2862ee6e8ec15b9a4c182e76ca45c69dbc3617ee1a476b11eb7989a84b6",
+        "libskshaper": "2de09fd0397f178362758cd2efee1e6f68759d4a3297161775d108e6b7ae1484",
+        "libskparagraph": "97db59b4d75b4bbff87751238939d53a671de821779f07ab1407ff6c75616bee",
+        "libskunicode_core": "a92ac3ae8f93d7405e55b55b9425f5689bc03a4d5405e4c68384a4e7989762ed",
+        "libskunicode_libgrapheme": "d9fa735d2b92d418d0a3e03abe578ecb059957a9a16d3bc33c9aa91d9c78403a",
+        "libskottie": "0864f0cbe77ac2f413bf2b25492f5d2357aaaf560eb650f831e582900283b1ba",
+        "libsksg": "1e7cacbf3393592c5a3240eeb4c8f9a507b72ccee7145b3e6b4e1332efc47b6c",
+        "libwebgpu_dawn": "206f85d28ec1f86b2f5e508ca9ca1a534ab693544bfcc0d5a987eb2dc1861b13"
+      },
+      "slices": {
+        "libskia": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "6f6126e830a9e4599d42983c63778b27a2b4d4a296fc966909480ddd27e3e62c"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "b0880c3a00f33a718cdbfa20adfb5f505870dba05d899d7cf9453f64574e4713"
+          }
+        ],
+        "libsvg": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "676c45b9a58e9467353375490ebf37137bcc35fc625db607c0b575b669133fae"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "f9dbabd06644eed775a608b265726183cfd1278af6606758d99f9cf2d84140b9"
+          }
+        ],
+        "libskshaper": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "9464bea0773882b97140d9a8570a9f542c2006d4543f1aa4cd894833d2cb7e07"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "54b6899cdfd15207597944d75dea7b05a3ed5a75c44ee53adc57b48cb3e9fb67"
+          }
+        ],
+        "libskparagraph": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "f48f326a582015c12a8709758574d767175b7c6c66bd69c3221a064be886583a"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "cdb169e94ee1167fc6559b488ef2c693150850ead512eeab371b82838eb8088f"
+          }
+        ],
+        "libskunicode_core": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "0663ee85e4390ac057b42fa5443cbc20dbd0f0584b1000ecc694ae658b61cdee"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "ff04a5bb3d85dfc33ec4d8afdaa5271cb5b20ff6496de093b80462742d035f76"
+          }
+        ],
+        "libskunicode_libgrapheme": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "6b46bc043815411ee43fbec9eb0e862a9649ca0171828962643628430bd8deda"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "5750b3b00049c03e99b96d5a710aa0a5f513dadcaad3de516cf2ceb87bf4867e"
+          }
+        ],
+        "libskottie": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "d864aece9386e21b76ce114bf19715301a7e2bf26e664980220cfc101c45f491"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "d8d892615283889b22029b342bbfb581f63b42cc78275ecf87ddd7ac6eebadf2"
+          }
+        ],
+        "libsksg": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "ed408f562d4bf36a4f114b1bb9a50efb8998166601391b32d3dca0afd3317257"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "979be17cbd3cc2ef75c0f2cd89c8c4932bfcd328e5e7e4be2d227e665a874aeb"
+          }
+        ],
+        "libwebgpu_dawn": [
+          {
+            "id": "ios-arm64",
+            "variant": null,
+            "architectures": [
+              "arm64"
+            ],
+            "binarySha256": "c3df52e3e40519fc5d87b1093c78e791250a06e0f36c6b729ace8e99342687a0"
+          },
+          {
+            "id": "ios-arm64_x86_64-simulator",
+            "variant": "simulator",
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "62ee6161dc9938a0241df7aabb437cc5c012b16c271eb1b9e795c46825b46bbc"
+          }
+        ]
+      },
+      "dawnHeaders": {
+        "dawn/native/dawn_native_export.h": "c722ebaa9c0c9fda4d477bb8861cf60fdcbe225aa10ade9c523ee9456c5eb639",
+        "dawn/dawn_proc_table.h": "00e7057898ce2e9f58e7452e3efbef18bd601173ffb9f965b6bbb41f61ac39c1",
+        "dawn/native/DawnNative.h": "4f685839e24c8fd7dec9d31d27bc38ec2d8a6c4d8b25ef3eb311bb773bd2ace1",
+        "dawn/native/NullBackend.h": "c3b1b060edac2d762c8bcd036cd1851e5f2b25d15f95f0062d65007fdfce5b5f",
+        "dawn/native/OpenGLBackend.h": "42d072892366bb967d7b2a35967d52449e84dd838a60d098b95d27a7875bf1ac",
+        "dawn/native/VulkanBackend.h": "0d0999d02c438320580205a5a2cc3e26f744cef867b1a6925f8366248b1bc37b",
+        "webgpu_upstream/webgpu/webgpu_cpp_chained_struct.h": "582e62d371f29391d78a7356c634c6b76e1d58b6257a6f5be51701d15797fce1",
+        "webgpu/webgpu_cpp_chained_struct.h": "7329fc197c9047ce1c08c3294401836f7f7b24bdf07fbaf0a266253ffa1ac3b8",
+        "dawn/webgpu_cpp_print.h": "a764de8b9986a95a1cb0321fa8d6bf7fbfe5cea881a8653524148391704f51b1",
+        "dawn/wire/client/webgpu_cpp_print.h": "895f8b9a4dead2066f3e63d2723d8b8af24c061b36612bb942b17e45f12b5afc",
+        "webgpu_upstream/webgpu/webgpu_cpp_print.h": "1e6596a0a3d148e2bfa3c3deb9425520f783d21a8f4c34dc3ed16abc3d079bc6",
+        "webgpu/webgpu_cpp_print.h": "123e1c0567abe626d2730490e3ea00da9adf207ab4cc005c50a8a6a8bef7bd56",
+        "dawn/webgpu_cpp.h": "2fe894d1cc51f8b15d68929bf2c624dfaf82813f56091fa87b1a6a94149a45dc",
+        "dawn/wire/client/webgpu_cpp.h": "bf3ba6cf1e2fb36ad88cc56d02243a8b3ffbd1a583016743d8cc0f80fe872cc3",
+        "webgpu_upstream/webgpu/webgpu_cpp.h": "44370912b8a7fdf928bb305ad12fe969984ae76c02b1064122a0ac6996e8c439",
+        "webgpu/webgpu_cpp.h": "1166cea03743213cbd0a7fe04b01c8bcae8aa117d1370c124572c65b24f74aac",
+        "webgpu_upstream/webgpu/webgpu_enum_class_bitmasks.h": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+        "webgpu/webgpu_enum_class_bitmasks.h": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+        "dawn/webgpu.h": "f93fc6b4e1a8ef2248bec4463efc488086c149d7cac9a26815ef91ca8056fdbf",
+        "dawn/wire/client/webgpu.h": "6df679a0b078056cc2aee5c1c653de56b3aeae2e817f472a01a64ba94427f987",
+        "webgpu/webgpu.h": "5316d9fd241e604b3260fa8d4398a458a3dc88ee69c540ac959260b444bdfae3",
+        "dawn/webgpu.ixx": "b0ae2130301bf257e210c2ac38cad8937635cd35d0e2eeb9c3fe4543bece224e"
+      },
+      "declarations": {
+        "dawn/native/dawn_native_export.h": {
+          "supplierSha256": "c722ebaa9c0c9fda4d477bb8861cf60fdcbe225aa10ade9c523ee9456c5eb639",
+          "canonicalFile": "dawn/native/dawn_native_export.h",
+          "canonicalSha256": "c722ebaa9c0c9fda4d477bb8861cf60fdcbe225aa10ade9c523ee9456c5eb639",
+          "includeLayoutOnly": false
+        },
+        "dawn/dawn_proc_table.h": {
+          "supplierSha256": "00e7057898ce2e9f58e7452e3efbef18bd601173ffb9f965b6bbb41f61ac39c1",
+          "canonicalFile": "dawn/dawn_proc_table.h",
+          "canonicalSha256": "5ff58f0407aaf9228fd6e21c17dff5c5103b68b68a31c1a7685bd6f9dab17559",
+          "includeLayoutOnly": true
+        },
+        "dawn/native/DawnNative.h": {
+          "supplierSha256": "4f685839e24c8fd7dec9d31d27bc38ec2d8a6c4d8b25ef3eb311bb773bd2ace1",
+          "canonicalFile": "dawn/native/DawnNative.h",
+          "canonicalSha256": "4f685839e24c8fd7dec9d31d27bc38ec2d8a6c4d8b25ef3eb311bb773bd2ace1",
+          "includeLayoutOnly": false
+        },
+        "dawn/native/NullBackend.h": {
+          "supplierSha256": "c3b1b060edac2d762c8bcd036cd1851e5f2b25d15f95f0062d65007fdfce5b5f",
+          "canonicalFile": "dawn/native/NullBackend.h",
+          "canonicalSha256": "c3b1b060edac2d762c8bcd036cd1851e5f2b25d15f95f0062d65007fdfce5b5f",
+          "includeLayoutOnly": false
+        },
+        "dawn/native/OpenGLBackend.h": {
+          "supplierSha256": "42d072892366bb967d7b2a35967d52449e84dd838a60d098b95d27a7875bf1ac",
+          "canonicalFile": "dawn/native/OpenGLBackend.h",
+          "canonicalSha256": "42d072892366bb967d7b2a35967d52449e84dd838a60d098b95d27a7875bf1ac",
+          "includeLayoutOnly": false
+        },
+        "dawn/native/VulkanBackend.h": {
+          "supplierSha256": "0d0999d02c438320580205a5a2cc3e26f744cef867b1a6925f8366248b1bc37b",
+          "canonicalFile": "dawn/native/VulkanBackend.h",
+          "canonicalSha256": "0d0999d02c438320580205a5a2cc3e26f744cef867b1a6925f8366248b1bc37b",
+          "includeLayoutOnly": false
+        },
+        "webgpu/webgpu_cpp_chained_struct.h": {
+          "supplierSha256": "7329fc197c9047ce1c08c3294401836f7f7b24bdf07fbaf0a266253ffa1ac3b8",
+          "canonicalFile": "webgpu/webgpu_cpp_chained_struct.h",
+          "canonicalSha256": "7329fc197c9047ce1c08c3294401836f7f7b24bdf07fbaf0a266253ffa1ac3b8",
+          "includeLayoutOnly": false
+        },
+        "dawn/webgpu_cpp_print.h": {
+          "supplierSha256": "a764de8b9986a95a1cb0321fa8d6bf7fbfe5cea881a8653524148391704f51b1",
+          "canonicalFile": "dawn/webgpu_cpp_print.h",
+          "canonicalSha256": "a764de8b9986a95a1cb0321fa8d6bf7fbfe5cea881a8653524148391704f51b1",
+          "includeLayoutOnly": false
+        },
+        "dawn/webgpu_cpp.h": {
+          "supplierSha256": "2fe894d1cc51f8b15d68929bf2c624dfaf82813f56091fa87b1a6a94149a45dc",
+          "canonicalFile": "webgpu/webgpu_cpp.h",
+          "canonicalSha256": "2fe894d1cc51f8b15d68929bf2c624dfaf82813f56091fa87b1a6a94149a45dc",
+          "includeLayoutOnly": false
+        },
+        "webgpu/webgpu_enum_class_bitmasks.h": {
+          "supplierSha256": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+          "canonicalFile": "webgpu/webgpu_enum_class_bitmasks.h",
+          "canonicalSha256": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+          "includeLayoutOnly": false
+        },
+        "dawn/webgpu.h": {
+          "supplierSha256": "f93fc6b4e1a8ef2248bec4463efc488086c149d7cac9a26815ef91ca8056fdbf",
+          "canonicalFile": "webgpu/webgpu.h",
+          "canonicalSha256": "f93fc6b4e1a8ef2248bec4463efc488086c149d7cac9a26815ef91ca8056fdbf",
+          "includeLayoutOnly": false
+        }
+      },
+      "scope": "verified archive/public declarations/native-object architectures; compiler flags, full source rebuild and native execution notVerified"
+    },
+    "macos": {
+      "package": "react-native-skia-graphite-apple-macos",
+      "version": "154.1.0",
+      "url": "https://registry.npmjs.org/react-native-skia-graphite-apple-macos/-/react-native-skia-graphite-apple-macos-154.1.0.tgz",
+      "integrity": "sha512-pdnOPvSfrmDMXekIS9+LDzNRpCVRtCKpip5t93aWCvBRk3DvDStNJVOcJg9sDi/x/cSdOQce+2BGY5Wymtj8/A==",
+      "archiveSha256": "16ac86dafe290d68d2a4752840aeadd5add8b536c9701282b28464981dfc401f",
+      "archiveBytes": 58400070,
+      "unpackedBytes": 207485487,
+      "skiaVersion": "m154_8037_58a",
+      "dawnVersion": "dawn-chrome-m154a",
+      "frameworks": {
+        "libskia": "506abea3af113137e0aaa6386768ea25abebd2e9ef67001f2d19553509e1a31f",
+        "libsvg": "39dd03d889a22e537d2c7287d666ec339a5db1951daf7fd0e83d409cabd0b4b0",
+        "libskshaper": "a3a0b963a1fa1f76a2e91a97ca67fbdfe29f16abc0640b20d6761b89ec58f01f",
+        "libskparagraph": "138dc4758b3b6818ecf2cbfe93937dec96df8706f65de723c1706f3785c1d184",
+        "libskunicode_core": "831ad89d1f534b7112c66f6da19e08ef7edb08c9b508c0e1d509bc27f6f7759f",
+        "libskunicode_libgrapheme": "b577c5ea9a753d28b0c7041a63edeef1fe3089560381ad470263d5403505a5b0",
+        "libskottie": "a6b8a111852e5ea09dfe399fc562db818bbab5e216ad6c06770e4e15cd1e529a",
+        "libsksg": "dc52c7935b5ea04231dfdcb83cea224caf0f236c7142c472ce01706c207efbd6",
+        "libwebgpu_dawn": "206f85d28ec1f86b2f5e508ca9ca1a534ab693544bfcc0d5a987eb2dc1861b13"
+      },
+      "slices": {
+        "libskia": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "597bd0291853f0e9c616448c946b531cbe7736aca6ecd51142dd996193e8cfd0"
+          }
+        ],
+        "libsvg": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "c48527230c39e6ae1a0edf4e12c9d568499e53808efbf0ee7005362da2f4867b"
+          }
+        ],
+        "libskshaper": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "48904f356f54f5f4605658f19cafe13ebe092c7009d5a15499de4e9f5c4b3312"
+          }
+        ],
+        "libskparagraph": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "7203efdd4a31ba1631dcb3c1d57c20aff522d667172dc30e9f226831ea92fe8d"
+          }
+        ],
+        "libskunicode_core": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "9baa4545d7d93025f88722abe3fcfa8bd8a196e5c6ec1e73ef78094ea1f399d1"
+          }
+        ],
+        "libskunicode_libgrapheme": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "10ccdb1ce9c365fdb0819eda0080decf09f86be4ea7a1411202a09334d9620e6"
+          }
+        ],
+        "libskottie": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "3290eb4f554636ee08ddd134c0a6dbf837ca18931c3abb3b4d0023d30c4f8f5f"
+          }
+        ],
+        "libsksg": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "f6c24b8c700d9c4928784d27a000f5f32626d285939c8a2250cd03734ba929d6"
+          }
+        ],
+        "libwebgpu_dawn": [
+          {
+            "id": "macos-arm64_x86_64",
+            "variant": null,
+            "architectures": [
+              "arm64",
+              "x86_64"
+            ],
+            "binarySha256": "838e315fa20bb88ede8442ae144fba1d4085b8587512466a8fb6ce2efbab7af1"
+          }
+        ]
+      },
+      "dawnHeaders": {
+        "dawn/native/dawn_native_export.h": "c722ebaa9c0c9fda4d477bb8861cf60fdcbe225aa10ade9c523ee9456c5eb639",
+        "dawn/dawn_proc_table.h": "00e7057898ce2e9f58e7452e3efbef18bd601173ffb9f965b6bbb41f61ac39c1",
+        "dawn/native/DawnNative.h": "4f685839e24c8fd7dec9d31d27bc38ec2d8a6c4d8b25ef3eb311bb773bd2ace1",
+        "dawn/native/NullBackend.h": "c3b1b060edac2d762c8bcd036cd1851e5f2b25d15f95f0062d65007fdfce5b5f",
+        "dawn/native/OpenGLBackend.h": "42d072892366bb967d7b2a35967d52449e84dd838a60d098b95d27a7875bf1ac",
+        "dawn/native/VulkanBackend.h": "0d0999d02c438320580205a5a2cc3e26f744cef867b1a6925f8366248b1bc37b",
+        "webgpu_upstream/webgpu/webgpu_cpp_chained_struct.h": "582e62d371f29391d78a7356c634c6b76e1d58b6257a6f5be51701d15797fce1",
+        "webgpu/webgpu_cpp_chained_struct.h": "7329fc197c9047ce1c08c3294401836f7f7b24bdf07fbaf0a266253ffa1ac3b8",
+        "dawn/webgpu_cpp_print.h": "a764de8b9986a95a1cb0321fa8d6bf7fbfe5cea881a8653524148391704f51b1",
+        "dawn/wire/client/webgpu_cpp_print.h": "895f8b9a4dead2066f3e63d2723d8b8af24c061b36612bb942b17e45f12b5afc",
+        "webgpu_upstream/webgpu/webgpu_cpp_print.h": "1e6596a0a3d148e2bfa3c3deb9425520f783d21a8f4c34dc3ed16abc3d079bc6",
+        "webgpu/webgpu_cpp_print.h": "123e1c0567abe626d2730490e3ea00da9adf207ab4cc005c50a8a6a8bef7bd56",
+        "dawn/webgpu_cpp.h": "2fe894d1cc51f8b15d68929bf2c624dfaf82813f56091fa87b1a6a94149a45dc",
+        "dawn/wire/client/webgpu_cpp.h": "bf3ba6cf1e2fb36ad88cc56d02243a8b3ffbd1a583016743d8cc0f80fe872cc3",
+        "webgpu_upstream/webgpu/webgpu_cpp.h": "44370912b8a7fdf928bb305ad12fe969984ae76c02b1064122a0ac6996e8c439",
+        "webgpu/webgpu_cpp.h": "1166cea03743213cbd0a7fe04b01c8bcae8aa117d1370c124572c65b24f74aac",
+        "webgpu_upstream/webgpu/webgpu_enum_class_bitmasks.h": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+        "webgpu/webgpu_enum_class_bitmasks.h": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+        "dawn/webgpu.h": "f93fc6b4e1a8ef2248bec4463efc488086c149d7cac9a26815ef91ca8056fdbf",
+        "dawn/wire/client/webgpu.h": "6df679a0b078056cc2aee5c1c653de56b3aeae2e817f472a01a64ba94427f987",
+        "webgpu/webgpu.h": "5316d9fd241e604b3260fa8d4398a458a3dc88ee69c540ac959260b444bdfae3",
+        "dawn/webgpu.ixx": "b0ae2130301bf257e210c2ac38cad8937635cd35d0e2eeb9c3fe4543bece224e"
+      },
+      "declarations": {
+        "dawn/native/dawn_native_export.h": {
+          "supplierSha256": "c722ebaa9c0c9fda4d477bb8861cf60fdcbe225aa10ade9c523ee9456c5eb639",
+          "canonicalFile": "dawn/native/dawn_native_export.h",
+          "canonicalSha256": "c722ebaa9c0c9fda4d477bb8861cf60fdcbe225aa10ade9c523ee9456c5eb639",
+          "includeLayoutOnly": false
+        },
+        "dawn/dawn_proc_table.h": {
+          "supplierSha256": "00e7057898ce2e9f58e7452e3efbef18bd601173ffb9f965b6bbb41f61ac39c1",
+          "canonicalFile": "dawn/dawn_proc_table.h",
+          "canonicalSha256": "5ff58f0407aaf9228fd6e21c17dff5c5103b68b68a31c1a7685bd6f9dab17559",
+          "includeLayoutOnly": true
+        },
+        "dawn/native/DawnNative.h": {
+          "supplierSha256": "4f685839e24c8fd7dec9d31d27bc38ec2d8a6c4d8b25ef3eb311bb773bd2ace1",
+          "canonicalFile": "dawn/native/DawnNative.h",
+          "canonicalSha256": "4f685839e24c8fd7dec9d31d27bc38ec2d8a6c4d8b25ef3eb311bb773bd2ace1",
+          "includeLayoutOnly": false
+        },
+        "dawn/native/NullBackend.h": {
+          "supplierSha256": "c3b1b060edac2d762c8bcd036cd1851e5f2b25d15f95f0062d65007fdfce5b5f",
+          "canonicalFile": "dawn/native/NullBackend.h",
+          "canonicalSha256": "c3b1b060edac2d762c8bcd036cd1851e5f2b25d15f95f0062d65007fdfce5b5f",
+          "includeLayoutOnly": false
+        },
+        "dawn/native/OpenGLBackend.h": {
+          "supplierSha256": "42d072892366bb967d7b2a35967d52449e84dd838a60d098b95d27a7875bf1ac",
+          "canonicalFile": "dawn/native/OpenGLBackend.h",
+          "canonicalSha256": "42d072892366bb967d7b2a35967d52449e84dd838a60d098b95d27a7875bf1ac",
+          "includeLayoutOnly": false
+        },
+        "dawn/native/VulkanBackend.h": {
+          "supplierSha256": "0d0999d02c438320580205a5a2cc3e26f744cef867b1a6925f8366248b1bc37b",
+          "canonicalFile": "dawn/native/VulkanBackend.h",
+          "canonicalSha256": "0d0999d02c438320580205a5a2cc3e26f744cef867b1a6925f8366248b1bc37b",
+          "includeLayoutOnly": false
+        },
+        "webgpu/webgpu_cpp_chained_struct.h": {
+          "supplierSha256": "7329fc197c9047ce1c08c3294401836f7f7b24bdf07fbaf0a266253ffa1ac3b8",
+          "canonicalFile": "webgpu/webgpu_cpp_chained_struct.h",
+          "canonicalSha256": "7329fc197c9047ce1c08c3294401836f7f7b24bdf07fbaf0a266253ffa1ac3b8",
+          "includeLayoutOnly": false
+        },
+        "dawn/webgpu_cpp_print.h": {
+          "supplierSha256": "a764de8b9986a95a1cb0321fa8d6bf7fbfe5cea881a8653524148391704f51b1",
+          "canonicalFile": "dawn/webgpu_cpp_print.h",
+          "canonicalSha256": "a764de8b9986a95a1cb0321fa8d6bf7fbfe5cea881a8653524148391704f51b1",
+          "includeLayoutOnly": false
+        },
+        "dawn/webgpu_cpp.h": {
+          "supplierSha256": "2fe894d1cc51f8b15d68929bf2c624dfaf82813f56091fa87b1a6a94149a45dc",
+          "canonicalFile": "webgpu/webgpu_cpp.h",
+          "canonicalSha256": "2fe894d1cc51f8b15d68929bf2c624dfaf82813f56091fa87b1a6a94149a45dc",
+          "includeLayoutOnly": false
+        },
+        "webgpu/webgpu_enum_class_bitmasks.h": {
+          "supplierSha256": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+          "canonicalFile": "webgpu/webgpu_enum_class_bitmasks.h",
+          "canonicalSha256": "fd436dc17d050e156ac073b6148d90d388e2585de924ae0274b6aed3067c2a96",
+          "includeLayoutOnly": false
+        },
+        "dawn/webgpu.h": {
+          "supplierSha256": "f93fc6b4e1a8ef2248bec4463efc488086c149d7cac9a26815ef91ca8056fdbf",
+          "canonicalFile": "webgpu/webgpu.h",
+          "canonicalSha256": "f93fc6b4e1a8ef2248bec4463efc488086c149d7cac9a26815ef91ca8056fdbf",
+          "includeLayoutOnly": false
+        }
+      },
+      "scope": "verified archive/public declarations/native-object architectures; compiler flags, full source rebuild and native execution notVerified"
+    }
+  }
+}

@@ -1,0 +1,1569 @@
+{
+  "schema": "nelyx.work12-module-layout-ownership/v1",
+  "recordedAt": "2026-10-18T12:00:20.070Z",
+  "status": "PASS-scoped",
+  "layout": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+    "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+  },
+  "adoptions": [
+    {
+      "batchId": "w10-cupertino-scrollbar",
+      "previous": {
+        "destination": "packages/cupertino/src/dynamic-color.generated.ts",
+        "mode": "generated",
+        "baseHash": "a4917056845d12208a0da7799ec34eeab60b0d867520f8d06137f357d0eb9b34",
+        "productHash": "a4917056845d12208a0da7799ec34eeab60b0d867520f8d06137f357d0eb9b34",
+        "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
+      },
+      "adopted": {
+        "destination": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
+        "mode": "adopted",
+        "baseHash": "a4917056845d12208a0da7799ec34eeab60b0d867520f8d06137f357d0eb9b34",
+        "productHash": "3b538960454d5ae0c033c3f82b6ccb978127a70b718a3efa38d661403adc5dd3",
+        "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w10-cupertino-scrollbar",
+      "previous": {
+        "destination": "packages/cupertino/src/interface-level.generated.ts",
+        "mode": "generated",
+        "baseHash": "13a6d73b7db1410a201a318c779e341be4d06238c9179730896ea096b7d7756e",
+        "productHash": "13a6d73b7db1410a201a318c779e341be4d06238c9179730896ea096b7d7756e",
+        "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
+      },
+      "adopted": {
+        "destination": "packages/cupertino/src/generated/theme/interface-level.generated.ts",
+        "mode": "adopted",
+        "baseHash": "13a6d73b7db1410a201a318c779e341be4d06238c9179730896ea096b7d7756e",
+        "productHash": "89a88548d0d6f73a0bb1baa0c1a07d5a823e63bc601b45180023a28b826d73db",
+        "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w10-cupertino-scrollbar",
+      "previous": {
+        "destination": "packages/cupertino/src/scrollbar.generated.ts",
+        "mode": "generated",
+        "baseHash": "7c1f0daa3c08d94e91a41c2328baa50b8baaa7c5eab0a72e6a9621ecd343896a",
+        "productHash": "7c1f0daa3c08d94e91a41c2328baa50b8baaa7c5eab0a72e6a9621ecd343896a",
+        "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
+      },
+      "adopted": {
+        "destination": "packages/cupertino/src/generated/scrollbar/scrollbar.generated.ts",
+        "mode": "adopted",
+        "baseHash": "7c1f0daa3c08d94e91a41c2328baa50b8baaa7c5eab0a72e6a9621ecd343896a",
+        "productHash": "329158c5e9fc120e28404921b1509573d8d0e631691c394c31ffb85b135c2050",
+        "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w10-material-scrollbar",
+      "previous": {
+        "destination": "packages/material/src/scrollbar.generated.ts",
+        "mode": "adopted",
+        "baseHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
+        "productHash": "dff29e5ce8018c476439fa492fd1791156d4eb1f9ec482b789a102480762fd1e",
+        "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
+      },
+      "adopted": {
+        "destination": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
+        "mode": "adopted",
+        "baseHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
+        "productHash": "603264349fb5b43d9c44baed5ab9eb57f7226b2b156c074e8363d74a512f6589",
+        "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w10-material-scrollbar",
+      "previous": {
+        "destination": "packages/material/src/scrollbar-theme.generated.ts",
+        "mode": "generated",
+        "baseHash": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494",
+        "productHash": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494",
+        "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
+      },
+      "adopted": {
+        "destination": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+        "mode": "adopted",
+        "baseHash": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494",
+        "productHash": "254e56ce8f2b75816ac93f0c7feefeae127205bc43e59a1ec441b1c4692d5bed",
+        "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w10-cupertino-scroll-behavior",
+      "previous": {
+        "destination": "packages/cupertino/src/scroll-behavior.generated.ts",
+        "mode": "generated",
+        "baseHash": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
+        "productHash": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
+        "fingerprint": "d691bd2b7709f6a65146d9dedc6d2ba95c0d196cd901d4c5e9de67c658fb594b",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scroll-behavior.json"
+      },
+      "adopted": {
+        "destination": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
+        "mode": "adopted",
+        "baseHash": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
+        "productHash": "059d5794dfcb7228ccc687f5d9a70d2b9dc9807fceedbbef20e37d0437a82d1f",
+        "fingerprint": "d691bd2b7709f6a65146d9dedc6d2ba95c0d196cd901d4c5e9de67c658fb594b",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scroll-behavior.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w10-material-scroll-behavior",
+      "previous": {
+        "destination": "packages/material/src/scroll-behavior.generated.ts",
+        "mode": "adopted",
+        "baseHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
+        "productHash": "9834e91c9e20e0958f027f027b3850d02a1eb296a4f4a19a9ea7b507e9255510",
+        "fingerprint": "9d7192abeda613add4d5fd7bdd1e6a0819bf9e8373d23b17b046a0381d4c0141",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scroll-behavior.json"
+      },
+      "adopted": {
+        "destination": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
+        "mode": "adopted",
+        "baseHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
+        "productHash": "52cf0b080163ae6a6e9def8581239f1ae44eb95100326ccd299fbad37fe21f7d",
+        "fingerprint": "9d7192abeda613add4d5fd7bdd1e6a0819bf9e8373d23b17b046a0381d4c0141",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scroll-behavior.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    },
+    {
+      "batchId": "w11-cupertino-palette",
+      "previous": {
+        "destination": "packages/cupertino/src/palette.generated.ts",
+        "mode": "generated",
+        "baseHash": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
+        "productHash": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
+        "fingerprint": "e5bf35325e47b3d82db9f39a30e47bc0004880b4451906bbc91664721e755c99",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w11-cupertino-palette.json"
+      },
+      "adopted": {
+        "destination": "packages/cupertino/src/generated/colors/palette.generated.ts",
+        "mode": "adopted",
+        "baseHash": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
+        "productHash": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
+        "fingerprint": "e5bf35325e47b3d82db9f39a30e47bc0004880b4451906bbc91664721e755c99",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w11-cupertino-palette.json"
+      },
+      "reason": "Retain exact generated body and historical base/fingerprint; structural import/destination relocation protected as adopted until current explicit recipe validation is connected."
+    }
+  ],
+  "activeOwnershipRecords": [
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-design-data-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-icon-data-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-checkbox-api-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-checkbox-api-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-list-api-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-list-tile-api-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-toggle-theme-api-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-slider-field-ownership.json"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-cupertino-radio-data-ownership.json",
+      "previous": null,
+      "scope": "New verified radio constants owner; no prior output replaced"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-refresh-localizations-ownership.json",
+      "previous": null,
+      "role": "refresh-localizations",
+      "mode": "generated"
+    }
+  ],
+  "moved": [
+    {
+      "from": "packages/cupertino/src/checkbox-build.ts",
+      "to": "packages/cupertino/src/internal/checkbox/checkbox-build.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "35c5945d83d6f606970b2801deab91d844dea892f683cb50b72dd95ebd323535",
+      "current": {
+        "file": "packages/cupertino/src/internal/checkbox/checkbox-build.ts",
+        "sha256": "38581ed92baac666424d9cac28068e40a9a83161e3a95412ac5781311f7d180a"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/checkbox-painter.ts",
+      "to": "packages/cupertino/src/internal/checkbox/checkbox-painter.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "f41cbc6936123d6b5795a591f768ffb0e4ef8f4356ba350f4cf12709d04b08a6",
+      "current": {
+        "file": "packages/cupertino/src/internal/checkbox/checkbox-painter.ts",
+        "sha256": "a004be1f864be1adef82904eb1fc6711102f37452cea8521b5137c42276f34a8"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/icons.ts",
+      "to": "packages/cupertino/src/generated/icons/icons.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "4bbfba115b0e82dd727bed455baeb5376593044ac8a102f854761ace5c411828",
+      "current": {
+        "file": "packages/cupertino/src/generated/icons/icons.ts",
+        "sha256": "4bbfba115b0e82dd727bed455baeb5376593044ac8a102f854761ace5c411828"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/icon-assets.ts",
+      "to": "packages/cupertino/src/generated/icons/icon-assets.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "5aa53f4361ce6c172310be0c7a42058be43ee498a5a139b0014f00cecebf6bd5",
+      "current": {
+        "file": "packages/cupertino/src/generated/icons/icon-assets.ts",
+        "sha256": "5aa53f4361ce6c172310be0c7a42058be43ee498a5a139b0014f00cecebf6bd5"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/selection-localizations-data.ts",
+      "to": "packages/cupertino/src/generated/localizations/selection-localizations-data.ts",
+      "role": "generated",
+      "family": "localizations",
+      "previousSha256": "cb1965b20a683d5d73a110d397bf8068bf17c6bf527c0cccb3094e5469b855fb",
+      "current": {
+        "file": "packages/cupertino/src/generated/localizations/selection-localizations-data.ts",
+        "sha256": "cb1965b20a683d5d73a110d397bf8068bf17c6bf527c0cccb3094e5469b855fb"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/scrollbar.generated.ts",
+      "to": "packages/cupertino/src/generated/scrollbar/scrollbar.generated.ts",
+      "role": "generated",
+      "family": "scrollbar",
+      "previousSha256": "7c1f0daa3c08d94e91a41c2328baa50b8baaa7c5eab0a72e6a9621ecd343896a",
+      "current": {
+        "file": "packages/cupertino/src/generated/scrollbar/scrollbar.generated.ts",
+        "sha256": "329158c5e9fc120e28404921b1509573d8d0e631691c394c31ffb85b135c2050"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/scroll-behavior.generated.ts",
+      "to": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
+      "role": "generated",
+      "family": "scroll",
+      "previousSha256": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
+      "current": {
+        "file": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
+        "sha256": "059d5794dfcb7228ccc687f5d9a70d2b9dc9807fceedbbef20e37d0437a82d1f"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/checkbox-build.ts",
+      "to": "packages/material/src/internal/checkbox/checkbox-build.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "d48158104ba383e81d3f53f9e0d416afe92c3c512b2f122591c61cd40268eb46",
+      "current": {
+        "file": "packages/material/src/internal/checkbox/checkbox-build.ts",
+        "sha256": "a5ab2c427b65e123aa17837c3e853871cd89f9d16eb2bab2ee2f2dd834c27604"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/checkbox-painter.ts",
+      "to": "packages/material/src/internal/checkbox/checkbox-painter.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "42431b997683ccf1f37bad1cc2b9a70b1a98fab8e8c8ff2beb926844dfec6bda",
+      "current": {
+        "file": "packages/material/src/internal/checkbox/checkbox-painter.ts",
+        "sha256": "d1815e63c14db12a00ed016a9dc56bf32a93894412ae7807feb1e305beac9ed4"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/icons.ts",
+      "to": "packages/material/src/generated/icons/icons.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "e63417c68e2ced847179f466f84d3426927f2a79e932533040bfade35c8ddea9",
+      "current": {
+        "file": "packages/material/src/generated/icons/icons.ts",
+        "sha256": "e63417c68e2ced847179f466f84d3426927f2a79e932533040bfade35c8ddea9"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/icon-assets.ts",
+      "to": "packages/material/src/generated/icons/icon-assets.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "09691863770dff5915e73ca639b2f65afcc9a4da03e3da35b0beea9f6ec35c18",
+      "current": {
+        "file": "packages/material/src/generated/icons/icon-assets.ts",
+        "sha256": "09691863770dff5915e73ca639b2f65afcc9a4da03e3da35b0beea9f6ec35c18"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/selection-localizations-data.ts",
+      "to": "packages/material/src/generated/localizations/selection-localizations-data.ts",
+      "role": "generated",
+      "family": "localizations",
+      "previousSha256": "568b9a12ecfff434ba6120ccf2a1806c1d4828f89ac4b9797a75588a6e6f6be8",
+      "current": {
+        "file": "packages/material/src/generated/localizations/selection-localizations-data.ts",
+        "sha256": "568b9a12ecfff434ba6120ccf2a1806c1d4828f89ac4b9797a75588a6e6f6be8"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/scrollbar.generated.ts",
+      "to": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
+      "role": "generated",
+      "family": "scrollbar",
+      "previousSha256": "dff29e5ce8018c476439fa492fd1791156d4eb1f9ec482b789a102480762fd1e",
+      "current": {
+        "file": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
+        "sha256": "603264349fb5b43d9c44baed5ab9eb57f7226b2b156c074e8363d74a512f6589"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/scroll-behavior.generated.ts",
+      "to": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
+      "role": "generated",
+      "family": "scroll",
+      "previousSha256": "9834e91c9e20e0958f027f027b3850d02a1eb296a4f4a19a9ea7b507e9255510",
+      "current": {
+        "file": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
+        "sha256": "52cf0b080163ae6a6e9def8581239f1ae44eb95100326ccd299fbad37fe21f7d"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/list-build.ts",
+      "to": "packages/cupertino/src/internal/list/list-build.ts",
+      "role": "internal",
+      "family": "list",
+      "previousSha256": "95c708f75e9d5a069887bf819329391b4653a9d2d47417c11b1302c752d77cce",
+      "current": {
+        "file": "packages/cupertino/src/internal/list/list-build.ts",
+        "sha256": "11c8aa2e5bc65bd904594e9d9b3fc57120900b28640ce0c543ad7014f717a0f4"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/scrollbar-style-source-adapter.ts",
+      "to": "packages/cupertino/src/internal/scrollbar/scrollbar-style-source-adapter.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "56136b044ae6c4d822a3db233ba82f3b800eea7d719f01f3017a5177ae59337b",
+      "current": {
+        "file": "packages/cupertino/src/internal/scrollbar/scrollbar-style-source-adapter.ts",
+        "sha256": "19f4c229413880d2c2b4504af3ff4d127081bb952125549c24bf29806c07b103"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/scrollbar-style-level-lookup.ts",
+      "to": "packages/cupertino/src/internal/scrollbar/scrollbar-style-level-lookup.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "999367c6ded37ac285f751337ba37999475501f996a6aa2efd85f6d85a193fa6",
+      "current": {
+        "file": "packages/cupertino/src/internal/scrollbar/scrollbar-style-level-lookup.ts",
+        "sha256": "299185be1301a7efc887d9776ef6a03e2fc5a93f0ac257d88ba894f9e5da10b4"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/color-values.ts",
+      "to": "packages/cupertino/src/internal/colors/color-values.ts",
+      "role": "internal",
+      "family": "colors",
+      "previousSha256": "7d468df46ceb91b6204bef82f8079e1fbd147a2e1100b72f74a01618e50cbc3f",
+      "current": {
+        "file": "packages/cupertino/src/internal/colors/color-values.ts",
+        "sha256": "91a61a2441de3f7dedbe1f23eae5154f1cca6f5f77a8307d79f29c6cb56504a2"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/theme-brightness.ts",
+      "to": "packages/cupertino/src/internal/theme/theme-brightness.ts",
+      "role": "internal",
+      "family": "theme",
+      "previousSha256": "f516c6a2d9fb11de9200ccc5b8ad43238af94846b897a23ddb097a87109589ed",
+      "current": {
+        "file": "packages/cupertino/src/internal/theme/theme-brightness.ts",
+        "sha256": "5023994a6b1a020942f96c1c399971d56e168fa0246d13d9d9e61e22b78caf6b"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/cupertino/src/checkbox-defaults.generated.ts",
+      "to": "packages/cupertino/src/generated/checkbox/checkbox-defaults.generated.ts",
+      "role": "generated",
+      "family": "checkbox",
+      "previousSha256": "f17aba70e4b4c947058c70f23b7c2aa7e8aacce4739c3a0a536cdad4868a5a50",
+      "current": {
+        "file": "packages/cupertino/src/generated/checkbox/checkbox-defaults.generated.ts",
+        "sha256": "21ec2c61955ad1219ac12c70e807934780c37a135a1f4db0c3e93b08d6628a72"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/dynamic-color.generated.ts",
+      "to": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
+      "role": "generated",
+      "family": "colors",
+      "previousSha256": "9cdeeda0bd36a7898d17257fc190fd8869b54b00f29c98a3ed09f93ddd84e994",
+      "current": {
+        "file": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
+        "sha256": "3b538960454d5ae0c033c3f82b6ccb978127a70b718a3efa38d661403adc5dd3"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/palette.generated.ts",
+      "to": "packages/cupertino/src/generated/colors/palette.generated.ts",
+      "role": "generated",
+      "family": "colors",
+      "previousSha256": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
+      "current": {
+        "file": "packages/cupertino/src/generated/colors/palette.generated.ts",
+        "sha256": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/interface-level.generated.ts",
+      "to": "packages/cupertino/src/generated/theme/interface-level.generated.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "13a6d73b7db1410a201a318c779e341be4d06238c9179730896ea096b7d7756e",
+      "current": {
+        "file": "packages/cupertino/src/generated/theme/interface-level.generated.ts",
+        "sha256": "89a88548d0d6f73a0bb1baa0c1a07d5a823e63bc601b45180023a28b826d73db"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/cupertino/src/list-section-types.ts",
+      "to": "packages/cupertino/src/generated/list/list-section-types.ts",
+      "role": "generated",
+      "family": "list",
+      "previousSha256": "47945fe056f3ae99b3ddc6ae58718c6a0c02b9f63983154857e9a1b4db3a3033",
+      "current": {
+        "file": "packages/cupertino/src/generated/list/list-section-types.ts",
+        "sha256": "47945fe056f3ae99b3ddc6ae58718c6a0c02b9f63983154857e9a1b4db3a3033"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/chip-defaults.ts",
+      "to": "packages/material/src/internal/chip/chip-defaults.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "c3b98ad543dcce8f4d0a99e29580585c7ea05af44b2a068a3c22498519bc6b60",
+      "current": {
+        "file": "packages/material/src/internal/chip/chip-defaults.ts",
+        "sha256": "22fa9d378c0c17717b43ed2597e2a03d95f685416dc1a08baea094072263535c"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/chip-render.ts",
+      "to": "packages/material/src/internal/chip/chip-render.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "a6dc40a5eba43edfaf354abbf4524ce28d3191029e169464012c9f6a55b9c993",
+      "current": {
+        "file": "packages/material/src/internal/chip/chip-render.ts",
+        "sha256": "ef84ae189218523a581c1a519b63c8bf06cd681da0ccee9f81067c21999326bd"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/raw-chip-state.ts",
+      "to": "packages/material/src/internal/chip/raw-chip-state.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "d50895ed4664e2b0a8f5a2e86f2bedfe6ed4ae0a1f6c2c2f07e7add2598fb696",
+      "current": {
+        "file": "packages/material/src/internal/chip/raw-chip-state.ts",
+        "sha256": "fbc8e4cea8fc41e294c07cac517b77b354820775acf8af2a1c8954b4cfe97625"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/chip-background.ts",
+      "to": "packages/material/src/internal/chip/chip-background.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "75d2b28cb37023042636ae18238e7d5c17349c7c290639e4677a1e2912683fb1",
+      "current": {
+        "file": "packages/material/src/internal/chip/chip-background.ts",
+        "sha256": "b4b3b9fbfd2acff68cdc89c8c1d803588a35ad45b8e1c2a0fafea1134e342ba1"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/list-tile-build.ts",
+      "to": "packages/material/src/internal/list/list-tile-build.ts",
+      "role": "internal",
+      "family": "list",
+      "previousSha256": "bef3141728954624e532ade0a6f388f1872854b6e1b35fd0ac66664669652237",
+      "current": {
+        "file": "packages/material/src/internal/list/list-tile-build.ts",
+        "sha256": "89dfa05c3db6efb8afe8a52314f42edcb7f9f181c3198b4cf184cf410e0432f3"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Current owned adaptation isolates the raw MediaQuery projection in ListTileSafeArea without changing safeArea/viewPadding/textScale/keyboard values. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/list-tile-render.ts",
+      "to": "packages/material/src/internal/list/list-tile-render.ts",
+      "role": "internal",
+      "family": "list",
+      "previousSha256": "e8fc373913216d77c5bab507facb9c31db187df6e713acee2edfe2e42d025cd6",
+      "current": {
+        "file": "packages/material/src/internal/list/list-tile-render.ts",
+        "sha256": "9b24a9b9de126044b2e5873b321dbae087433ce9cba71312420c4ab674929bab"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/scrollbar-source-adapter.ts",
+      "to": "packages/material/src/internal/scrollbar/scrollbar-source-adapter.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "2694384616b181276deec4780541a56959ae92c977483bdd27cfe58b407f8fc4",
+      "current": {
+        "file": "packages/material/src/internal/scrollbar/scrollbar-source-adapter.ts",
+        "sha256": "2074b85173f817111bceb88c5b6c60b47d0676f81316efca3fe67298110e4ead"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/scrollbar-theme-diagnostic-source-adapter.ts",
+      "to": "packages/material/src/internal/scrollbar/scrollbar-theme-diagnostic-source-adapter.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "abd5b742ff9355c2f8c7beea9129aaf386ea35659b24045d5d381c77aa8304c5",
+      "current": {
+        "file": "packages/material/src/internal/scrollbar/scrollbar-theme-diagnostic-source-adapter.ts",
+        "sha256": "bb5346c0948130ed86123317faee362cbb27e87dd36d78a82ca58dfae29166b4"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/scrollbar-theme-lookup.ts",
+      "to": "packages/material/src/internal/scrollbar/scrollbar-theme-lookup.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "f56f7914ecde4a1716449331cff1b6627057003417d7ac8b15cf6080d71d6024",
+      "current": {
+        "file": "packages/material/src/internal/scrollbar/scrollbar-theme-lookup.ts",
+        "sha256": "bd0c85926e3d339eff53e114c3907f0316ab7179e80cb03dfe594d01f557b90d"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/slider-defaults.ts",
+      "to": "packages/material/src/internal/slider/slider-defaults.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "54b6d4846112de811434e264f6496c1baef1503e033f4e25b681b1d6cd5b7229",
+      "current": {
+        "file": "packages/material/src/internal/slider/slider-defaults.ts",
+        "sha256": "9e7d9d9291c6f126c79c6acc639ad57fba88db3a34c263dd0832c4de7dbeb875"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/slider-shape-defaults.ts",
+      "to": "packages/material/src/internal/slider/slider-shape-defaults.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "56e601f35a666c967757f40d810fdb99043073c9a87f6d53e5587df82f8c7eb1",
+      "current": {
+        "file": "packages/material/src/internal/slider/slider-shape-defaults.ts",
+        "sha256": "566efa011ac9cd769c22a65fc54a8542c4155d98055e7d5abb046d8fe5884cb9"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/slider-shapes-source-adapter.ts",
+      "to": "packages/material/src/internal/slider/slider-shapes-source-adapter.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "9120f85e3e3acffe1b2193075c3f73e828769d025c620bbf66f7144a39ac0f62",
+      "current": {
+        "file": "packages/material/src/internal/slider/slider-shapes-source-adapter.ts",
+        "sha256": "563da3807436f8ec7ad33d220a57f695604f4362f60994cbae272ae770270d38"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/slider-values-source-adapter.ts",
+      "to": "packages/material/src/internal/slider/slider-values-source-adapter.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "ada560bd4c839af5c06b964137b17888908f75bc10eb8e0958b91f583d2f00bc",
+      "current": {
+        "file": "packages/material/src/internal/slider/slider-values-source-adapter.ts",
+        "sha256": "5f916bf76042c061bf2af38e1fccbcb57023fcc4c88fe5146fd50c24e46abc3d"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/range-slider-defaults.ts",
+      "to": "packages/material/src/internal/slider/range-slider-defaults.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "b593eaa6874a33e9e410b2a511a9f9efb9b35cf757964ec83dcdd0366305afa3",
+      "current": {
+        "file": "packages/material/src/internal/slider/range-slider-defaults.ts",
+        "sha256": "2fe11ca6667f5da8bcdae4ecc8c4a415a01a1ad5a73ca30d53f70c1ed4f8ad1e"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/toggle-defaults.ts",
+      "to": "packages/material/src/internal/toggle/toggle-defaults.ts",
+      "role": "internal",
+      "family": "toggle",
+      "previousSha256": "83852f483ee9b7b7771efd5a21564016bb9e567ced91a467c3e39874d73cc279",
+      "current": {
+        "file": "packages/material/src/internal/toggle/toggle-defaults.ts",
+        "sha256": "279812f52a370d2473446f32970428ce1e5d91b613b32a2140b07ef116472aad"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/toggle-theme-values.ts",
+      "to": "packages/material/src/internal/toggle/toggle-theme-values.ts",
+      "role": "internal",
+      "family": "toggle",
+      "previousSha256": "2623fbe1693ec44000d693f25a47c1e86b917471da95e151ce3b80e11bd02b7b",
+      "current": {
+        "file": "packages/material/src/internal/toggle/toggle-theme-values.ts",
+        "sha256": "e0dbcc07e4c875c9e4cc56d357fce9e606627b3af22e5c41c574ad9a0a0cd50d"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/material-ink-owner.ts",
+      "to": "packages/material/src/internal/material/material-ink-owner.ts",
+      "role": "internal",
+      "family": "material",
+      "previousSha256": "26f0a55728b4514e5871da18dd207c50f3c9b3d1662a9d4137c96be046fdcee2",
+      "current": {
+        "file": "packages/material/src/internal/material/material-ink-owner.ts",
+        "sha256": "c10ee69488fe6c38c6102c77a4213ec64c6f8c7cdc163719567683edad131247"
+      },
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+    },
+    {
+      "from": "packages/material/src/chip-wrapper.generated.ts",
+      "to": "packages/material/src/generated/chip/chip-wrapper.generated.ts",
+      "role": "generated",
+      "family": "chip",
+      "previousSha256": "d9d144aa91bd371eb1ef6dbe4c20800617cf7209383325fe0ad4a7f41faa6dbb",
+      "current": {
+        "file": "packages/material/src/generated/chip/chip-wrapper.generated.ts",
+        "sha256": "88e9d171ab87a47f78f9e2c56f55047d77c9a0e8eb41847d8305e6e69a25f449"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/colors.generated.ts",
+      "to": "packages/material/src/generated/colors/colors.generated.ts",
+      "role": "generated",
+      "family": "colors",
+      "previousSha256": "5eccc38ca032dfb8aaee60af7ff3fdcd6b4d94539df78dc2b5bc1eff8286fb4e",
+      "current": {
+        "file": "packages/material/src/generated/colors/colors.generated.ts",
+        "sha256": "9e61aecff2252b005b3bf486740ea831c2dac8b68eeae16032a02b510abebff2"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/typography-data.ts",
+      "to": "packages/material/src/generated/theme/typography-data.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "f02d3f9ba33d5e15774864efc7cfeb23ed583776eaa4d577cd76a0794aadd396",
+      "current": {
+        "file": "packages/material/src/generated/theme/typography-data.ts",
+        "sha256": "f6104799dad786ce32cd2643fb07a3d2460fe93c77167ac8baaaa329f8a79b2b"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/color-scheme-data.ts",
+      "to": "packages/material/src/generated/theme/color-scheme-data.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "c6a43c5d8847aa46da2b83f73357e4851d12987cf72bc7523912396a8bd97c65",
+      "current": {
+        "file": "packages/material/src/generated/theme/color-scheme-data.ts",
+        "sha256": "c6a43c5d8847aa46da2b83f73357e4851d12987cf72bc7523912396a8bd97c65"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/toggle-theme-data.generated.ts",
+      "to": "packages/material/src/generated/theme/toggle-theme-data.generated.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "0d734b97b65b760c9f84948823678f304eaa21d0b3d047cf86dd9b571e06f58e",
+      "current": {
+        "file": "packages/material/src/generated/theme/toggle-theme-data.generated.ts",
+        "sha256": "c8c3081a97475add16695e6df7668b0c8d6d3ca3e12b0c30008ee85e9744130b"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/material-values.generated.ts",
+      "to": "packages/material/src/generated/material/material-values.generated.ts",
+      "role": "generated",
+      "family": "material",
+      "previousSha256": "6f3e64ed07d2e01af8b2bca7620beee13b62bce8e2dd4fb178d2b3b7c0d598ed",
+      "current": {
+        "file": "packages/material/src/generated/material/material-values.generated.ts",
+        "sha256": "6f3e64ed07d2e01af8b2bca7620beee13b62bce8e2dd4fb178d2b3b7c0d598ed"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/list-tile-types.ts",
+      "to": "packages/material/src/generated/list/list-tile-types.ts",
+      "role": "generated",
+      "family": "list",
+      "previousSha256": "3d6af26ab346c78b1441ac016547ab0ef3a163105b68ea92a97351228ae7a27e",
+      "current": {
+        "file": "packages/material/src/generated/list/list-tile-types.ts",
+        "sha256": "3d6af26ab346c78b1441ac016547ab0ef3a163105b68ea92a97351228ae7a27e"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/scrollbar-theme.generated.ts",
+      "to": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+      "role": "generated",
+      "family": "scrollbar",
+      "previousSha256": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494",
+      "current": {
+        "file": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+        "sha256": "254e56ce8f2b75816ac93f0c7feefeae127205bc43e59a1ec441b1c4692d5bed"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/slider-theme-fields.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-theme-fields.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "b711937fcd852d0c178fbf753e8d9c5142666f8904ad12c832b3e87db0d9884d",
+      "current": {
+        "file": "packages/material/src/generated/slider/slider-theme-fields.generated.ts",
+        "sha256": "be95a789924fc9094ab0266554863144d387752f839dda4e1ce6b4dedba44815"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/slider-theme-values.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-theme-values.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "6750f1bcdd871b998d8cd0f7ed8701ded41ea9bc5ad10ec0dd5bccca637d482e",
+      "current": {
+        "file": "packages/material/src/generated/slider/slider-theme-values.generated.ts",
+        "sha256": "6750f1bcdd871b998d8cd0f7ed8701ded41ea9bc5ad10ec0dd5bccca637d482e"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/slider-values.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-values.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "758afec1b84ea68cdac086d26819c0d7f32cde1799cd034d7a6b4c49f8251bd2",
+      "current": {
+        "file": "packages/material/src/generated/slider/slider-values.generated.ts",
+        "sha256": "758afec1b84ea68cdac086d26819c0d7f32cde1799cd034d7a6b4c49f8251bd2"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/slider-parts.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-parts.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "02021c03e097c2efb37ef78cb4ea0cf925cc6115767438b0523f449ad301d743",
+      "current": {
+        "file": "packages/material/src/generated/slider/slider-parts.generated.ts",
+        "sha256": "87a84a6742a33c708d55106f82479a43d7eaf54cc1efc88307c27979b96cb17e"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/slider-value-indicator-shape.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-value-indicator-shape.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "7f89f6ba081c785542477a86612a3f5b6cfbfe17fa0b8507047a1e4dadb77ad1",
+      "current": {
+        "file": "packages/material/src/generated/slider/slider-value-indicator-shape.generated.ts",
+        "sha256": "4d0a8cc7a72df15500752b10cc7ac59e61ead7c04a1e3b7d57a1500050c893ca"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/range-slider-parts.generated.ts",
+      "to": "packages/material/src/generated/slider/range-slider-parts.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "a702a216761c1cfc3423dfbe6c369ae85b4aa3764e6ed491aab87b7dc11449e7",
+      "current": {
+        "file": "packages/material/src/generated/slider/range-slider-parts.generated.ts",
+        "sha256": "cdab9fa164af133d4dee51e5426e5ac233a3f914cc1cbb7fe63b6feac9a87c91"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    },
+    {
+      "from": "packages/material/src/range-slider-parts-values.generated.ts",
+      "to": "packages/material/src/generated/slider/range-slider-parts-values.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "08959dda30d35d838cdabb1b78ed642034f394fcdde2950f23d416a1557ee432",
+      "current": {
+        "file": "packages/material/src/generated/slider/range-slider-parts-values.generated.ts",
+        "sha256": "8046bc1ea465cf10bf0579249893eaa998079822d2bb82590975d56c04cc900d"
+      },
+      "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
+    }
+  ],
+  "sourceNotices": [
+    {
+      "file": "packages/cupertino/licenses/design-foundation-sources.json",
+      "sha256": "f20e5d1e6dda702059c79e144741596340516fb08f393e218301e50d8d7b782f"
+    },
+    {
+      "file": "packages/material/licenses/design-foundation-sources.json",
+      "sha256": "53b5c1290034a2f09bd282500420a15d5502b852bb440d8a5867ff1de5e65856"
+    },
+    {
+      "file": "packages/material/licenses/radio-sources.json",
+      "sha256": "0cab2333da3d54e3bcd3cc47e001ac6a3c965d845ca26a0a3384c7c31386ed75"
+    },
+    {
+      "file": "packages/cupertino/licenses/radio-sources.json",
+      "sha256": "5c48a30cacc67c63a7157913100003a06f65a100ac63cad8bd9f91a8684663ca"
+    },
+    {
+      "file": "Nelyx/licenses/radio-localizations-sources.json",
+      "sha256": "38672551a60ec9d33c88b562a9be63f44b895abd9c9b1cfe9149f75f73e315a6"
+    },
+    {
+      "file": "packages/cupertino/licenses/cupertino-switch-sources.json",
+      "sha256": "27594507743fcd80751865ccd06e62eaad2343de99533729e54f39a909c64799"
+    },
+    {
+      "file": "packages/material/licenses/theme-values-sources.json",
+      "sha256": "ae15f7188821e04cf899c67de5f03153eb34b6e5b73fa01a24f465b5dba2260d"
+    },
+    {
+      "file": "packages/material/licenses/input-theme-sources.json",
+      "sha256": "eaa2b410b3989a40946e29697801ad6f90ae8c9e98217648c138f9ff7c0cf8fe"
+    },
+    {
+      "file": "packages/material/licenses/component-themes-sources.json",
+      "sha256": "5be77a0ea62251833b727e82b38d2d09750dab9c399017617395777de2e3ffd0"
+    },
+    {
+      "file": "Nelyx/licenses/route-primitives-sources.json",
+      "sha256": "ba5ff09966b890d3a4755ca9d70ef0e26a71e881e413473ce257a0f335ddde76"
+    },
+    {
+      "file": "packages/material/licenses/fade-forwards-sources.json",
+      "sha256": "cda5d3a171a741a0ad76d1d81a6c30a3a639d15153fc7bf3283b4835856652fd"
+    },
+    {
+      "file": "packages/cupertino/licenses/route-transitions-sources.json",
+      "sha256": "81ea6b5ba9dd6070b3c1934f0a6536862b3de2c41020bc7749bdfa998f1caefb"
+    },
+    {
+      "file": "packages/cupertino/licenses/cupertino-routes-sources.json",
+      "sha256": "0482512e15010cfab9290da09d23d185aa8c35e3dcbfdd2ad88f434f7d30e4b0"
+    },
+    {
+      "file": "packages/material/licenses/zoom-transitions-sources.json",
+      "sha256": "a6cc54485ad49e20371d5647d5a77e6f265bdef2b60d93f4f34f619bb7312bc0"
+    },
+    {
+      "file": "packages/material/licenses/predictive-back-sources.json",
+      "sha256": "d3a264ec04553c6bbaaa120230422b4f5af40d838ae9f3e54862bbbabedb45c1"
+    },
+    {
+      "file": "packages/material/licenses/full-theme-sources.json",
+      "sha256": "fbde681735928543508864f9f09a443b71abc6e501bf81ae840be9ee02c1e488"
+    },
+    {
+      "file": "Nelyx/sdk/licenses/system-color-sources.json",
+      "sha256": "1e0625f62f6c7576907f1482c68c763f816c4686ec2754e0ce77de2d75d658cd"
+    },
+    {
+      "file": "packages/material/licenses/theme-factory-sources.json",
+      "sha256": "3bd55422bef5f77e9035a00e1d28019aaa7aec36136a6d8a2abd879c80aae698"
+    },
+    {
+      "file": "packages/material/licenses/theme-widget-sources.json",
+      "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+    },
+    {
+      "file": "packages/cupertino/licenses/theme-widget-sources.json",
+      "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+    },
+    {
+      "file": "packages/material/licenses/refresh-indicator-sources.json",
+      "sha256": "0c134530e1db6d8b2e428ba7bbe92444d17bdc752ef09d73104f23fb6aa1b8aa"
+    },
+    {
+      "file": "Nelyx/licenses/safe-area-sources.json",
+      "sha256": "0eee39b307d802e102ad51e8aae81641abd46da46dd30d00951042efbe9688a2"
+    },
+    {
+      "file": "packages/material/licenses/card-sources.json",
+      "sha256": "f2dc94eaed57dc49b02bb854a6782fcdc3d3d90aceb05e0a20dd80d62b586983"
+    },
+    {
+      "file": "packages/material/licenses/badge-avatar-sources.json",
+      "sha256": "e2f11e1ac1e2bd304533dee2586d9ee88a1b7abe4e8e02b86d7df10154c73d02"
+    },
+    {
+      "file": "Nelyx/licenses/overflow-bar-sources.json",
+      "sha256": "b65e86ff7d99124e6e95b44c94b2f1e8f61d1968a961b6e5510fef119fc9ec73"
+    },
+    {
+      "file": "packages/cupertino/licenses/form-widget-sources.json",
+      "sha256": "9cbe51121abbe1d2dd7472d2c12dbab49349b9b3cda7720ddfb6cce48acd5024"
+    },
+    {
+      "file": "packages/cupertino/licenses/text-input-sources.json",
+      "sha256": "fb5e0a21fb3f8500e7729b438734b7832c25164ec66256ccc1039b6715122a83"
+    },
+    {
+      "file": "packages/material/licenses/input-widget-sources.json",
+      "sha256": "23a2731d9a596ff8efd46dc94380b48a51614512c94420f505479d5a0b7586b2"
+    },
+    {
+      "file": "Nelyx/licenses/support-origins.json",
+      "sha256": "d7eff080af55cc7bbf311ffa71572e9abc525dd459471b4682a9ec65e9d3a946"
+    }
+  ],
+  "canonicalFacades": [
+    "packages/material/src/colors.ts",
+    "packages/material/src/icons.ts",
+    "packages/material/src/icon-assets.ts",
+    "packages/cupertino/src/icons.ts",
+    "packages/cupertino/src/icon-assets.ts"
+  ],
+  "retiredPaths": [
+    "packages/cupertino/src/checkbox-build.ts",
+    "packages/cupertino/src/checkbox-painter.ts",
+    "packages/cupertino/src/selection-localizations-data.ts",
+    "packages/cupertino/src/scrollbar.generated.ts",
+    "packages/cupertino/src/scroll-behavior.generated.ts",
+    "packages/material/src/checkbox-build.ts",
+    "packages/material/src/checkbox-painter.ts",
+    "packages/material/src/selection-localizations-data.ts",
+    "packages/material/src/scrollbar.generated.ts",
+    "packages/material/src/scroll-behavior.generated.ts",
+    "packages/cupertino/src/list-build.ts",
+    "packages/cupertino/src/scrollbar-style-source-adapter.ts",
+    "packages/cupertino/src/scrollbar-style-level-lookup.ts",
+    "packages/cupertino/src/color-values.ts",
+    "packages/cupertino/src/theme-brightness.ts",
+    "packages/cupertino/src/checkbox-defaults.generated.ts",
+    "packages/cupertino/src/dynamic-color.generated.ts",
+    "packages/cupertino/src/palette.generated.ts",
+    "packages/cupertino/src/interface-level.generated.ts",
+    "packages/cupertino/src/list-section-types.ts",
+    "packages/material/src/chip-defaults.ts",
+    "packages/material/src/chip-render.ts",
+    "packages/material/src/raw-chip-state.ts",
+    "packages/material/src/chip-background.ts",
+    "packages/material/src/list-tile-build.ts",
+    "packages/material/src/list-tile-render.ts",
+    "packages/material/src/scrollbar-source-adapter.ts",
+    "packages/material/src/scrollbar-theme-diagnostic-source-adapter.ts",
+    "packages/material/src/scrollbar-theme-lookup.ts",
+    "packages/material/src/slider-defaults.ts",
+    "packages/material/src/slider-shape-defaults.ts",
+    "packages/material/src/slider-shapes-source-adapter.ts",
+    "packages/material/src/slider-values-source-adapter.ts",
+    "packages/material/src/range-slider-defaults.ts",
+    "packages/material/src/toggle-defaults.ts",
+    "packages/material/src/toggle-theme-values.ts",
+    "packages/material/src/material-ink-owner.ts",
+    "packages/material/src/chip-wrapper.generated.ts",
+    "packages/material/src/colors.generated.ts",
+    "packages/material/src/typography-data.ts",
+    "packages/material/src/color-scheme-data.ts",
+    "packages/material/src/toggle-theme-data.generated.ts",
+    "packages/material/src/material-values.generated.ts",
+    "packages/material/src/list-tile-types.ts",
+    "packages/material/src/scrollbar-theme.generated.ts",
+    "packages/material/src/slider-theme-fields.generated.ts",
+    "packages/material/src/slider-theme-values.generated.ts",
+    "packages/material/src/slider-values.generated.ts",
+    "packages/material/src/slider-parts.generated.ts",
+    "packages/material/src/slider-value-indicator-shape.generated.ts",
+    "packages/material/src/range-slider-parts.generated.ts",
+    "packages/material/src/range-slider-parts-values.generated.ts"
+  ],
+  "productValidation": "Current two-package build, workspace/sample type checks, Root/RN Babel/import-order/layout tests and independent archives; native and complete source parity not inferred",
+  "nativeOrPhysicalTestsRerun": false,
+  "generatorSources": [
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-checkbox-api.mjs",
+      "sha256": "139eabb8ae7c052c68db8cc8c29f111cc360503388096f3cd5d7578459d42c0e"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-list-api.mjs",
+      "sha256": "5682c2643cdc9f1ff55cd22f71a9bda2385633591647a98e4bad2ab990c9ad78"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-list-tile-api.mjs",
+      "sha256": "f12a10f322edda2fc3357933556b766658dad65a239974ea812f95442a4d1bc0"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-checkbox-api.mjs",
+      "sha256": "3ed5fd2a19d9c7e40381da172931e04d744a689946669662c08185d9f2f3fd0f"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-toggle-theme-api.mjs",
+      "sha256": "222ae822325e31205944dafd93e6f6f9528b9c7a905eb50b1bf32a5ec741e656"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-chip-api.mjs",
+      "sha256": "6fce6198ecefd01ac9c9fab86a1d4efec8a038708ef6914766bba9081abaf50b"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-design-data.mjs",
+      "sha256": "e9b6d9b6259e40eb5805179b60480d30cd58bebfe34a1961d9ef3e22a9e58e2e"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-icon-data.mjs",
+      "sha256": "76af1471b7edfc8147a70c2c82ed851a6cb53c6009190e5989f9a574054e2da1"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-slider-theme-fields.mjs",
+      "sha256": "64bb5f96b34a868d8018d7ee2aeb804c2773009da1bbefa27016d1c807d833b7"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-radio-data.mjs",
+      "sha256": "01a4e596ff2dc262fe234a8e48f76cc01afbd1e54a5f0e039cccba7a9ed7b395"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-refresh-localizations.mjs",
+      "sha256": "083a66b449e69fa3ffc8f9c9e2373f9ad52b6501aad95263d856683d752b72c8"
+    }
+  ],
+  "formattedInternal": [
+    "packages/cupertino/src/internal/checkbox/checkbox-build.ts",
+    "packages/cupertino/src/internal/checkbox/checkbox-painter.ts",
+    "packages/material/src/internal/checkbox/checkbox-build.ts",
+    "packages/material/src/internal/checkbox/checkbox-painter.ts",
+    "packages/cupertino/src/internal/list/list-build.ts",
+    "packages/cupertino/src/internal/scrollbar/scrollbar-style-source-adapter.ts",
+    "packages/cupertino/src/internal/scrollbar/scrollbar-style-level-lookup.ts",
+    "packages/cupertino/src/internal/colors/color-values.ts",
+    "packages/cupertino/src/internal/theme/theme-brightness.ts",
+    "packages/material/src/internal/chip/chip-defaults.ts",
+    "packages/material/src/internal/chip/chip-render.ts",
+    "packages/material/src/internal/chip/raw-chip-state.ts",
+    "packages/material/src/internal/chip/chip-background.ts",
+    "packages/material/src/internal/list/list-tile-build.ts",
+    "packages/material/src/internal/list/list-tile-render.ts",
+    "packages/material/src/internal/scrollbar/scrollbar-source-adapter.ts",
+    "packages/material/src/internal/scrollbar/scrollbar-theme-diagnostic-source-adapter.ts",
+    "packages/material/src/internal/scrollbar/scrollbar-theme-lookup.ts",
+    "packages/material/src/internal/slider/slider-defaults.ts",
+    "packages/material/src/internal/slider/slider-shape-defaults.ts",
+    "packages/material/src/internal/slider/slider-shapes-source-adapter.ts",
+    "packages/material/src/internal/slider/slider-values-source-adapter.ts",
+    "packages/material/src/internal/slider/range-slider-defaults.ts",
+    "packages/material/src/internal/toggle/toggle-defaults.ts",
+    "packages/material/src/internal/toggle/toggle-theme-values.ts",
+    "packages/material/src/internal/material/material-ink-owner.ts"
+  ],
+  "adoptedBridgeCorrections": [
+    {
+      "file": "packages/cupertino/src/generated/theme/interface-level.generated.ts",
+      "sha256": "89a88548d0d6f73a0bb1baa0c1a07d5a823e63bc601b45180023a28b826d73db",
+      "difference": "Pass the same canonical inherited class token into the Core-typed lookup helper, removing the reverse class dependency; actual nearest/update/missing behavior verified on Root"
+    },
+    {
+      "file": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+      "sha256": "dd6d310eb676e328339920eeea342793e4391d6c7561a822c19b7c8f62db4de4",
+      "difference": "Pass the same canonical inherited class token into the Core-typed lookup helper, removing the reverse class dependency; actual nearest/update/missing behavior verified on Root"
+    }
+  ],
+  "formattedHandwritten": {
+    "changed": [
+      "packages/material/src/divider.ts",
+      "packages/material/src/elevation-overlay.ts",
+      "packages/material/src/feedback.ts",
+      "packages/material/src/icon-assets.ts",
+      "packages/material/src/icon-button-theme.ts",
+      "packages/material/src/icons.ts",
+      "packages/material/src/ink-decoration.ts",
+      "packages/material/src/ink-effects.ts",
+      "packages/material/src/ink-feature.ts",
+      "packages/material/src/ink-highlight.ts",
+      "packages/material/src/ink-ripple.ts",
+      "packages/material/src/ink-sparkle.ts",
+      "packages/material/src/ink-splash.ts",
+      "packages/material/src/ink-well.ts",
+      "packages/material/src/list-tile-theme.ts",
+      "packages/material/src/magnifier.ts",
+      "packages/material/src/material-color.ts",
+      "packages/material/src/material-localizations.ts",
+      "packages/material/src/material.ts",
+      "packages/material/src/no-splash.ts",
+      "packages/material/src/progress-indicator-theme.ts",
+      "packages/material/src/progress-indicator.ts",
+      "packages/material/src/range-slider-values.ts",
+      "packages/material/src/range-slider.ts",
+      "packages/material/src/scroll-behavior.ts",
+      "packages/material/src/scrollbar-theme.ts",
+      "packages/material/src/scrollbar.ts",
+      "packages/material/src/selection-area.ts",
+      "packages/material/src/slider-shapes.ts",
+      "packages/material/src/slider-theme.ts",
+      "packages/material/src/slider.ts",
+      "packages/material/src/text-selection-theme.ts",
+      "packages/material/src/text-selection-toolbar-text-button.ts",
+      "packages/material/src/text-selection-toolbar.ts",
+      "packages/material/src/text-selection.ts",
+      "packages/material/src/text-theme.ts",
+      "packages/material/src/tooltip-theme.ts",
+      "packages/material/src/tooltip-visibility.ts",
+      "packages/material/src/tooltip.ts",
+      "packages/cupertino/src/activity-indicator.ts",
+      "packages/cupertino/src/adaptive-text-selection-toolbar.ts",
+      "packages/cupertino/src/app.ts",
+      "packages/cupertino/src/button.ts",
+      "packages/cupertino/src/colors.ts",
+      "packages/cupertino/src/cupertino-localizations.ts",
+      "packages/cupertino/src/desktop-text-selection-toolbar.ts",
+      "packages/cupertino/src/icon-assets.ts",
+      "packages/cupertino/src/icon-theme-data.ts",
+      "packages/cupertino/src/icons.ts",
+      "packages/cupertino/src/interface-level.ts",
+      "packages/cupertino/src/magnifier.ts",
+      "packages/cupertino/src/scroll-behavior.ts",
+      "packages/cupertino/src/scrollbar.ts",
+      "packages/cupertino/src/slider.ts",
+      "packages/cupertino/src/text-selection-toolbar-button.ts",
+      "packages/cupertino/src/text-selection-toolbar.ts",
+      "packages/cupertino/src/text-selection.ts",
+      "packages/cupertino/src/text-theme.ts",
+      "packages/cupertino/src/theme-data.ts",
+      "packages/cupertino/src/theme.ts",
+      "packages/cupertino/src/thumb-painter.ts"
+    ],
+    "whitespaceOnly": [
+      "packages/material/src/divider.ts",
+      "packages/material/src/material.ts"
+    ],
+    "managedOutputsExcluded": 26,
+    "scope": "Two design packages only; generated/managed output bytes excluded; exact numeric annotation multiset retained; whitespace-only fallback where the compiler printer drops inline comments"
+  },
+  "generatorInfrastructure": [
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/product-module-layout.mjs",
+      "sha256": "9289a70c5b0c002ed457021ad4e38f2390f85764e4296e7c6ff725127dd17504"
+    }
+  ],
+  "adoptedSplits": [
+    {
+      "parentBatch": "w10-material-scrollbar",
+      "originalBaseHash": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494",
+      "originalFingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+      "outputs": [
+        {
+          "file": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+          "sha256": "254e56ce8f2b75816ac93f0c7feefeae127205bc43e59a1ec441b1c4692d5bed"
+        },
+        {
+          "file": "packages/material/src/generated/scrollbar/scrollbar-theme-data.generated.ts",
+          "sha256": "f349c32c5fda051be58027040f36019219a6877ebe88315844e8bbab4e4e94d8"
+        }
+      ],
+      "scope": "One original value/ambient source library split into separate adopted owners; value body and all numeric annotations retained"
+    },
+    {
+      "scope": "Source-provenance selected Material factory policy values and wrapper witnesses; existing Core const runtime retained.",
+      "outputs": [
+        {
+          "file": "packages/material/src/internal/theme/factory-defaults.ts",
+          "sha256": "07d6d86b7b9993b855e798570962ea60bcd4b9e75dde5151e3723da333c3d13d"
+        },
+        {
+          "file": "packages/material/src/internal/theme/default-color-schemes.ts",
+          "sha256": "d7cc992bf5663947bc5d544e44c1dbac999b8e122c56f1c8ba1f2df51502c519"
+        },
+        {
+          "file": "packages/material/src/internal/theme/theme-value-wrappers.ts",
+          "sha256": "997df7a4c3ef15181b4ce0af54b268ba5f6646634baeae228de13a39207f0b94"
+        },
+        {
+          "file": "packages/material/src/constants.ts",
+          "sha256": "34fe6943018d8525b3834b011f354bc582282e7d8d086c8a9225d3945fe2021d"
+        }
+      ]
+    }
+  ],
+  "definitionSeparation": {
+    "bodyProof": [
+      {
+        "symbol": "ChipThemeData",
+        "from": "packages/material/src/chip-theme.ts",
+        "to": "packages/material/src/chip-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "ChipThemeDataOptions",
+        "from": "packages/material/src/chip-theme.ts",
+        "to": "packages/material/src/chip-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "DividerThemeData",
+        "from": "packages/material/src/divider-theme.ts",
+        "to": "packages/material/src/divider-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "DividerThemeDataOptions",
+        "from": "packages/material/src/divider-theme.ts",
+        "to": "packages/material/src/divider-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "IconButtonThemeData",
+        "from": "packages/material/src/icon-button-theme.ts",
+        "to": "packages/material/src/icon-button-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "TextSelectionThemeData",
+        "from": "packages/material/src/text-selection-theme.ts",
+        "to": "packages/material/src/text-selection-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "TextSelectionThemeDataOptions",
+        "from": "packages/material/src/text-selection-theme.ts",
+        "to": "packages/material/src/text-selection-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "TooltipThemeData",
+        "from": "packages/material/src/tooltip-theme.ts",
+        "to": "packages/material/src/tooltip-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "TooltipThemeDataOptions",
+        "from": "packages/material/src/tooltip-theme.ts",
+        "to": "packages/material/src/tooltip-theme-data.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "SourceScrollbarThemeData",
+        "from": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+        "to": "packages/material/src/generated/scrollbar/scrollbar-theme-data.generated.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "constScrollbarThemeData",
+        "from": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+        "to": "packages/material/src/generated/scrollbar/scrollbar-theme-data.generated.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "_lerpBool",
+        "from": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+        "to": "packages/material/src/generated/scrollbar/scrollbar-theme-data.generated.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "RawChip",
+        "from": "packages/material/src/chip.ts",
+        "to": "packages/material/src/raw-chip.ts",
+        "exactDeclarationBody": true
+      },
+      {
+        "symbol": "RawChipOptions",
+        "from": "packages/material/src/chip.ts",
+        "to": "packages/material/src/raw-chip.ts",
+        "exactDeclarationBody": true
+      }
+    ],
+    "newScope": {
+      "file": "packages/material/src/internal/theme/theme-scope.ts",
+      "sha256": "a7ecd7de5df5cbf4a750e5e0330df953b73b1e82807d16c2618b1d6465628d02"
+    },
+    "defaultFactory": {
+      "file": "packages/material/src/internal/theme/text-theme-defaults.ts",
+      "sha256": "3a6fa1d98d7434900b75bfbce2f9368ef9dc2d27adc709d17b8145545e12ef91"
+    },
+    "runtimePolicy": "Data owns no ambient Theme value dependency; factory receives canonical TextTheme construction; no realm-global registration or duplicate framework identity"
+  },
+  "radioSupplement": {
+    "newDataOwner": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-cupertino-radio-data-ownership.json",
+      "sha256": "2f13c86e81bcdca7f870e4f48df9256b1f8974c35c55c682304205fa7ca44272"
+    },
+    "scope": "Source constants generation protected; functional Radio widgets/painters separately maintained and tested"
+  },
+  "typographySupplement": {
+    "owner": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w11-design-data-ownership.json",
+      "sha256": "146cdaba7a7f7829169ad094284cac46a1b996ac025c18c59c243b7218d450dc"
+    },
+    "scope": "Extended existing immutable data generator; same canonical Core TextStyle/Colors. Previous generated colors/M3 scheme bytes retained; full platform font/color specifications and source ARB script categories added."
+  },
+  "cupertinoSwitchSupplement": {
+    "status": "PASS-scoped",
+    "sourceOwner": "Nelyx/src/framework/widgets/switch-painter.ts",
+    "noticeChange": "Exactly one new source owner appended; previous notice bytes restored identically by removing it. Generator/output/base/fingerprint records unchanged."
+  },
+  "themeValuesSupplement": {
+    "newSourceEnum": "Nelyx/src/services/text-capitalization.ts",
+    "sourceNotice": {
+      "file": "packages/material/licenses/theme-values-sources.json",
+      "sha256": "ae15f7188821e04cf899c67de5f03153eb34b6e5b73fa01a24f465b5dba2260d"
+    },
+    "generatorSourcesUnchanged": true
+  },
+  "inputThemeSupplement": {
+    "sourceNotice": {
+      "file": "packages/material/licenses/input-theme-sources.json",
+      "sha256": "eaa2b410b3989a40946e29697801ad6f90ae8c9e98217648c138f9ff7c0cf8fe"
+    },
+    "generatorSourcesUnchanged": true,
+    "coreOriginsUnchanged": true
+  },
+  "fullThemeSupplement": {
+    "sourceNotice": {
+      "file": "packages/material/licenses/full-theme-sources.json",
+      "sha256": "fbde681735928543508864f9f09a443b71abc6e501bf81ae840be9ee02c1e488"
+    },
+    "sdkNotice": {
+      "file": "Nelyx/sdk/licenses/system-color-sources.json",
+      "sha256": "1e0625f62f6c7576907f1482c68c763f816c4686ec2754e0ce77de2d75d658cd"
+    },
+    "sourceVm": {
+      "file": "packages/material/tests/fixtures/full-theme-source.json",
+      "sha256": "0ea1a28bedebb3c79263057af8dfa7ec3caee491abb6e13c8e5ed0615b0c12b1"
+    },
+    "generatorSourcesUnchanged": true,
+    "completeSourceFactoryAndPhysicalQualification": false
+  },
+  "themeFactorySupplement": {
+    "sourceNotice": {
+      "file": "packages/material/licenses/theme-factory-sources.json",
+      "sha256": "3bd55422bef5f77e9035a00e1d28019aaa7aec36136a6d8a2abd879c80aae698"
+    },
+    "outputs": [
+      {
+        "file": "packages/material/src/internal/theme/factory-defaults.ts",
+        "sha256": "07d6d86b7b9993b855e798570962ea60bcd4b9e75dde5151e3723da333c3d13d"
+      },
+      {
+        "file": "packages/material/src/internal/theme/default-color-schemes.ts",
+        "sha256": "d7cc992bf5663947bc5d544e44c1dbac999b8e122c56f1c8ba1f2df51502c519"
+      },
+      {
+        "file": "packages/material/src/internal/theme/theme-value-wrappers.ts",
+        "sha256": "997df7a4c3ef15181b4ce0af54b268ba5f6646634baeae228de13a39207f0b94"
+      },
+      {
+        "file": "packages/material/src/constants.ts",
+        "sha256": "34fe6943018d8525b3834b011f354bc582282e7d8d086c8a9225d3945fe2021d"
+      }
+    ],
+    "generatorSourcesUnchanged": true,
+    "coreOriginBytesUnchanged": true
+  },
+  "themeWidgetSupplement": {
+    "sourceNotices": [
+      {
+        "file": "packages/material/licenses/theme-widget-sources.json",
+        "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+      },
+      {
+        "file": "packages/cupertino/licenses/theme-widget-sources.json",
+        "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+      }
+    ],
+    "unchangedSourceVm": {
+      "file": "packages/material/tests/fixtures/theme-widget-source.json",
+      "sha256": "60d2da57e19bc69d3093160dd2775b2408d177d28c49c83d351f061ff8b24e97"
+    },
+    "product": [
+      {
+        "file": "packages/material/src/theme.ts",
+        "sha256": "b71b4bb7a4142fd5ea63eb17623c2c78a570f1720880780184b580ccb61718d6"
+      },
+      {
+        "file": "packages/material/src/internal/theme/theme-scope.ts",
+        "sha256": "580242651eabfdc219ea1816a6ed1d6c3a6fc2773e270e6cf315fd138cf58afd"
+      },
+      {
+        "file": "packages/cupertino/src/theme.ts",
+        "sha256": "b9b5499d834593d7883f0e5ac34fe104d683f6df6fadda8086467aa5227c4cab"
+      },
+      {
+        "file": "packages/cupertino/src/theme-data.ts",
+        "sha256": "03345c4d79e46caf3608f5db93866d30288468a481f49efae11703fc4420b007"
+      },
+      {
+        "file": "packages/cupertino/src/internal/colors/color-values.ts",
+        "sha256": "91a61a2441de3f7dedbe1f23eae5154f1cca6f5f77a8307d79f29c6cb56504a2"
+      },
+      {
+        "file": "packages/material/src/internal/theme/transition-theme-context.ts",
+        "sha256": "2422b8ddb3b0ea3383b745aa8c871550f136e19956026e99c5b56bf2cfab7598"
+      },
+      {
+        "file": "packages/material/src/app.ts",
+        "sha256": "840f884ff7caf113e5814e1cbb734c8b2688cc83e4ee36764d83e9692a90061a"
+      },
+      {
+        "file": "packages/cupertino/src/app.ts",
+        "sha256": "2ce47929bb35380c2bdbaadab876eb3177427853309814fc439c8dd63c033072"
+      }
+    ],
+    "generatorSourcesUnchanged": true,
+    "coreOriginsUnchanged": true,
+    "finalDependencyPolicy": "Both Theme.of and internal localized Theme projections keep the source Cupertino dependency. Brightness projections depend only on the raw Material scope and optional MediaQuery."
+  },
+  "refreshIndicatorSupplement": {
+    "sourceNotice": {
+      "file": "packages/material/licenses/refresh-indicator-sources.json",
+      "sha256": "ad1322caaa0fc1403b74fd578129474124c2b60cae16060a552742b4eb32feab"
+    },
+    "newOwner": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-refresh-localizations-ownership.json",
+      "sha256": "0c7872935b2a0bf062aa601a222037d9bc61ffe9c210cc9a7adec32cdb38d3db"
+    },
+    "sourceVm": {
+      "file": "packages/material/tests/fixtures/refresh-indicator-source.json",
+      "sha256": "32d4e019155cf7b933c49774f4455ca4cf876c30bcc7ab2f172b0bdb1ae3b1ac"
+    },
+    "newNumericClaims": 13,
+    "coreOriginsUnchanged": true,
+    "previousGeneratorsPreserved": true,
+    "factoryOptionsFollowup": {
+      "scope": "Named constructors retain inherited/prototype option getter fields once; other qualified source refresh flow remains unchanged."
+    }
+  },
+  "safeAreaSupplement": {
+    "sourceNotice": {
+      "file": "Nelyx/licenses/safe-area-sources.json",
+      "sha256": "0eee39b307d802e102ad51e8aae81641abd46da46dd30d00951042efbe9688a2"
+    },
+    "sourceVm": {
+      "file": "packages/material/tests/fixtures/safe-area-source.json",
+      "sha256": "ded9779c1a82152614ad20a54c501795af157d5293f1f35e2bc4ff8893ebcb04"
+    },
+    "newCoreOrigins": 2,
+    "updatedCoreOrigins": 1,
+    "managedGeneratorsUnchanged": 11,
+    "noNewNumericClaims": true
+  },
+  "cardSupplement": {
+    "sourceNotice": {
+      "file": "packages/material/licenses/card-sources.json",
+      "sha256": "f79a157b69e4df2696e796479a591a07030412266bd0d66c2875c236c78b8df4"
+    },
+    "sourceVm": {
+      "file": "packages/material/tests/fixtures/card-source.json",
+      "sha256": "e7684838953a8b4882f9b449b5a253f5ce3560db5a8e8f1327eac33241957d9d"
+    },
+    "generatorSourcesUnchanged": true,
+    "coreOriginBytesUnchanged": true,
+    "newNumericClaims": 5
+  },
+  "badgeAvatarSupplement": {
+    "sourceNotice": {
+      "file": "packages/material/licenses/badge-avatar-sources.json",
+      "sha256": "be7d0475dabe697aba1b92cc59b60ac7d52c71edd83cf60fd31b990c65a4794d"
+    },
+    "sourceVm": {
+      "file": "packages/material/tests/fixtures/badge-avatar-source.json",
+      "sha256": "d4144642c0d1524c9336a7982a2e6bf36bb404aa384033da0f04ed8d2d8b19e0"
+    },
+    "generatorSourcesUnchanged": true,
+    "updatedCoreOrigins": 1,
+    "newNumericClaims": 21
+  },
+  "overflowBarSupplement": {
+    "sourceNotice": {
+      "file": "Nelyx/licenses/overflow-bar-sources.json",
+      "sha256": "e0cf6cce6dd16f4a169a83a226fd81f778e15010c16aafc0a206b2bfa885fd36"
+    },
+    "sourceVm": {
+      "file": "packages/material/tests/fixtures/overflow-bar-source.json",
+      "sha256": "dc3ac200389600cd9527ac5baa47e377b4a5246bb2709320281a13314c41da9d"
+    },
+    "generatorSourcesUnchanged": true,
+    "newCoreOrigins": 1,
+    "updatedCoreOrigins": 1,
+    "newNumericClaims": 10
+  }
+}

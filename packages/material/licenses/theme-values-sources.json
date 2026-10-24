@@ -1,0 +1,163 @@
+{
+  "schema": "nelyx.material-theme-values-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/action_icons_theme.dart",
+      "sha256": "10983724be346dc5b975d5500e3b99972ecc0983afc5cf9bdd8dbc76524dd202"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/badge_theme.dart",
+      "sha256": "556caa4b04e7b4e12bee6024ade8ff744c47063cffeaef431b86c29e58c45079"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/card_theme.dart",
+      "sha256": "f7746fff350f7e1d66bf5bc74a34866a939eadf032c9222cfe0bb5128fb027b9"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/carousel_theme.dart",
+      "sha256": "eae314d2fba8c64d9f452febf937f81256df94295beb7ec6649984f781bee614"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/drawer_theme.dart",
+      "sha256": "3a43cf32cab29814fb3aaf776495d8114416a33d69736d0f410a877ad20f8631"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/expansion_tile_theme.dart",
+      "sha256": "93c2527f37e23e9f5ab7b7cdd0e30e2c07ae2fbf63c38f6e91358dc1787dea78"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/navigation_bar_theme.dart",
+      "sha256": "ed0a6d0d4aa1c0f95e46f931f97180945dd6b44df1f06025c57bf9f2eadb9d22"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/navigation_drawer_theme.dart",
+      "sha256": "55d704d7efe4ee545d07dea639aa17840091e83247b72e464bc758ea6b832fff"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/search_bar_theme.dart",
+      "sha256": "f03a9dd0b3a913a6983d04b732fc4ec4434ee66c6dae97ff2a81c8fbd67a8822"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/search_view_theme.dart",
+      "sha256": "8e87b4fbdae1ad6c92ad6284f22ee99fd565fa0acd1f57c7c96bcbb0c7eb4301"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/segmented_button_theme.dart",
+      "sha256": "5575d0bc071ebf7c4c71e96c07b8a92fe0d1ee5f881b289523e1780e877a3924"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/menu_bar_theme.dart",
+      "sha256": "ec92bb78c7a14dfc21e6775d24bb276ff47b8347fc8fe80f826ec2001256e1b0"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/menu_button_theme.dart",
+      "sha256": "b52f73087fc1a68b93569a42b75b19bb2038be6af2a9dfbabb27826c7189e640"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/menu_theme.dart",
+      "sha256": "8d10c8889a1713e280b709c75d6d192f2792bfd75c3872393f40d25494e09a87"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/floating_action_button_theme.dart",
+      "sha256": "abd5938072050812d21e34b49f775f929f4259e80557c538ba6a0d4d4e391a96"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/dialog_theme.dart",
+      "sha256": "64426defdca6737a8d40df5abd50da11cb3a15c1cfcb1efafab921a50122173c"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/menu_style.dart",
+      "sha256": "aead5fd43d0f577dc422d979a5dc688aa5baa5c21eabc45fc646f417c33f5777"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/navigation_bar.dart",
+      "sha256": "dad8565644bb49c211284c48ddf371867fd72390115b92b5715a68cdedd21789"
+    },
+    {
+      "file": "packages/flutter/lib/src/services/text_input.dart",
+      "sha256": "f6e8c25b253fe78697530f04d0ede55971afe2442e63e9a619b3ad22609c1e74"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/action_icons_theme.cs",
+      "sha256": "ab613a17db9c225816920d2cdcea45816524b8122d86747db7e7005fac056c0b"
+    },
+    {
+      "file": "packages/Doroti.Material/src/badge_theme.cs",
+      "sha256": "c5a9c8737a0aeeb52e56705c8eaa3bab6d8c7da4a90516bba557517a083f60a0"
+    },
+    {
+      "file": "packages/Doroti.Material/src/card_theme.cs",
+      "sha256": "4f701002e31dd463689fc70dff565f2202231e76d20a27217bfb4a19fc2ad41f"
+    },
+    {
+      "file": "packages/Doroti.Material/src/carousel_theme.cs",
+      "sha256": "791159ee9ed8f017608363bcc6e02b4ebfbdd07390f70ee55b1ef774f3e55dec"
+    },
+    {
+      "file": "packages/Doroti.Material/src/drawer_theme.cs",
+      "sha256": "217e2dd2405fe1e1a16586474239e3a95f41415c32bbbc5b8f6e858573322068"
+    },
+    {
+      "file": "packages/Doroti.Material/src/expansion_tile_theme.cs",
+      "sha256": "4d211fae494170f1ef17258d4628af7178c5ad76bd57617a5a4cc9cb34a0cc2f"
+    },
+    {
+      "file": "packages/Doroti.Material/src/navigation_bar_theme.cs",
+      "sha256": "95f66f18eacec693d92d98583775e89f82bf64db0be1c2bb656ec1111cf4b9e9"
+    },
+    {
+      "file": "packages/Doroti.Material/src/navigation_drawer_theme.cs",
+      "sha256": "29be00bd92ca7531b5eb29557f0714cd2984c7fa3684f1f07363d44a3fbac74f"
+    },
+    {
+      "file": "packages/Doroti.Material/src/search_bar_theme.cs",
+      "sha256": "4b8b36ae415fbea02a14ae403601bcf07c43a676b5c117fb9e3f5eb1def2274c"
+    },
+    {
+      "file": "packages/Doroti.Material/src/search_view_theme.cs",
+      "sha256": "764aaadd1fb68608aa94d0db5dc4ea1177f62d77fa21c5e5fcf8480a3f30cfc4"
+    },
+    {
+      "file": "packages/Doroti.Material/src/segmented_button_theme.cs",
+      "sha256": "f29134ab99b8db2fcbeceffb9d455d647dbcc91fbe60904f536f8851a9424224"
+    },
+    {
+      "file": "packages/Doroti.Material/src/menu_bar_theme.cs",
+      "sha256": "e453d6f4ea62fafe6880140f2ec310cd226ed815001860e1df051fa256d43ac8"
+    },
+    {
+      "file": "packages/Doroti.Material/src/menu_button_theme.cs",
+      "sha256": "772346805a45a0d8a0e7354c40eadb35956f2e43157c0bcacc95b9b8ec103a92"
+    },
+    {
+      "file": "packages/Doroti.Material/src/menu_theme.cs",
+      "sha256": "dcc52805f4dddc760e1405dfaa60b4e0c8db351fc765680985245b6b05baa0a3"
+    },
+    {
+      "file": "packages/Doroti.Material/src/floating_action_button_theme.cs",
+      "sha256": "562841dd6e6185ebe9048ecd31cf0d90a118e5f3a6a8c2c0beb3cedf1e79af9c"
+    },
+    {
+      "file": "packages/Doroti.Material/src/dialog_theme.cs",
+      "sha256": "a0305cd51ca8010e15ca50948b4364af2fe883cd817390b4f01968431b674a3d"
+    },
+    {
+      "file": "packages/Doroti.Material/src/menu_style.cs",
+      "sha256": "8b10028854504477876f11193b675989967b579ea848c1d0abe4b516b6c383c1"
+    },
+    {
+      "file": "packages/Doroti.Material/src/navigation_bar.cs",
+      "sha256": "4499788eb4bf2c24f7e8908b07ed5ac317b808d5f7999289dec9674e50156a02"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "sourceIr": {
+    "records": 35,
+    "completeRecords": 35
+  },
+  "scope": "17 pure value classes, 16 theme data/inherited lookup families and label/text capitalization enums on canonical Core values. Modern Card/Dialog data mode only; obsolete standalone aliases excluded. ActionIconTheme nullable fallback, SearchBarTheme InheritedWidget, MenuBarThemeData inheritance and source asymmetric field routing are preserved. Remaining ThemeData raw/whole-value/lerp and actual component families/native/physical acceptance remain PARTIAL."
+}

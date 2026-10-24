@@ -1,0 +1,15 @@
+# Framework conversion data
+
+`packages.json` defines canonical workspace package owners. `work8/` retains recipes, manual declarations/host snapshots, generated-output ownership, source mapping and historical promotion state needed to preserve existing generated/adopted product code. Source notices live in `Nelyx/licenses`.
+
+Product builds and runtimes consume tracked TypeScript and do not read this directory. Current work and paused status live in `work12.md`. Development logs, checkpoint/history JSON, receipts and temporary archives were removed during emergency cleanup.
+
+Historical fingerprints and removed validator paths do not qualify current generation or promotion. Before reusing a recipe, connect an explicit current product validator; missing validation fails. Preserve generated/adopted ownership, edit conflicts, numeric annotations and licenses. No recovery or maintenance of the retired checks is required.
+
+W12 module layout is recorded in `work8/w12-product-module-layout.json` and `work8/w12-module-layout-ownership.json`. Current standalone projection generators use `product-module-layout.mjs` to relocate destinations and actual relative module specifiers while retaining data strings and canonical public facades. Eight batch outputs were explicitly adopted with their original base/fingerprint and protected product hashes; old recipe destinations were retired. Recipe reuse still requires a current product validator. The development-only `npm run check:design-ownership` gate checks those boundaries; product build/runtime does not load this data.
+
+The ownership registry also protects adopted definition splits: scrollbar values have a separate generated owner, and RawChip has its own canonical managed API module. Immutable typography output contains TextStyle specifications without a runtime TextTheme import; canonical construction stays in the design package. Generated/adopted base hashes and fingerprints remain; development-only receipt copies were deleted. Current checks validate output paths and declaration owners.
+
+`generate-cupertino-radio-data.mjs` projects all fifteen radio constants from the retained complete controls IR, validates the pinned source and candidate hashes, retains numeric/Color/Size/list identities, and refuses edited managed output. It writes directly to the new canonical `generated/radio` location and has its own W12 ownership record. Functional Radio/default/painter/adaptive code is maintained on the shared Core and qualified separately; the generator does not claim native or full design parity.
+
+That radio owner also protects the Core unselected-hint table and its source notice. Locale keys come from explicit pinned source locale documentation, inherited values follow the source class parents, and Chinese region aliases follow the original dispatch cases. The exact normalized source hash is checked before emission. Every output is validated before any write, so a conflict in the Core table cannot partially overwrite design data. Complete hint-table coverage is separate from the full localization API and actual readers.

@@ -1,0 +1,1137 @@
+{
+  "schema": "nelyx.platform-ownership/v1",
+  "status": "planned-move-W8-09",
+  "files": [
+    {
+      "file": "Nelyx/sdk/native/android/NelyxEditingPackage.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/android/NelyxEnvironmentView.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/android/NelyxKeyboardHost.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/android/NelyxKeyCharacterCombiner.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/android/NelyxKeyQueue.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/android/NelyxObservedKeyboardState.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/android/NelyxPlatformServices.kt",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/native/linux/ApplicationHost.h",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/native/linux/DevelopmentSource.h",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/native/linux/ShutdownSignals.h",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/native/windows/DevelopmentSource.h",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/native/windows/PlatformServices.h",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/native/windows/private-unload/RuntimeUnloadAbi.h",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/native/windows/private-unload/UnloadAction.h",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/native/windows/private-unload/WindowsAppHost.h",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/native/windows/WindowsAppHost.h",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/android/application.ts",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/android/assets.ts",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/android/controls.tsx",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/android/interaction.ts",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/android/surface.tsx",
+      "owner": "platform-runtime",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/ios/application.ts",
+      "owner": "platform-runtime",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/ios/assets.ts",
+      "owner": "platform-runtime",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/ios/controls.tsx",
+      "owner": "platform-runtime",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/ios/interaction.ts",
+      "owner": "platform-runtime",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/ios/surface.tsx",
+      "owner": "platform-runtime",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/application.ts",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/assets.ts",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/controls.tsx",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/interaction.ts",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/native-host.ts",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/native-surface.ts",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/linux/surface.tsx",
+      "owner": "platform-runtime",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/macos/application.ts",
+      "owner": "platform-runtime",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/macos/assets.ts",
+      "owner": "platform-runtime",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/macos/controls.tsx",
+      "owner": "platform-runtime",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/macos/interaction.ts",
+      "owner": "platform-runtime",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/macos/surface.tsx",
+      "owner": "platform-runtime",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/web/application.ts",
+      "owner": "platform-runtime",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/web/surface.tsx",
+      "owner": "platform-runtime",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/application.ts",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/assets.ts",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/controls.tsx",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/interaction.ts",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/native-host.ts",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/native-surface.ts",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/src/platforms/windows/surface.tsx",
+      "owner": "platform-runtime",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/app/src/main/java/com/nelyxtestbed/MainActivity.kt",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/app/src/main/java/com/nelyxtestbed/MainApplication.kt",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/App.tsx",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/babel.config.cjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/build.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/bundle.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/check.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/development-key.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/main.ts",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/metro.config.cjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/notices.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/prepare.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/react-native.config.cjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/android/runner/run.mjs",
+      "owner": "platform-tooling",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/NelyxRuntimeShutdownBridge.h",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/NelyxTestbed/AppDelegate.swift",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/App.tsx",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/babel.config.cjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/bundle.mjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/check.mjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/codegen.mjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/main.ts",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/metro.config.cjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/native.mjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/prepare.mjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/ios/runner/react-native.config.cjs",
+      "owner": "platform-tooling",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/main.cpp",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/App.tsx",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/asset-paths.cjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/babel.config.cjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/build.mjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/bundle.mjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/check.mjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/main.ts",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/metro.config.cjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/prepare.mjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/react-native.config.cjs",
+      "owner": "platform-tooling",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/NelyxRuntimeShutdownBridge.h",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/NelyxTestbed-macOS/AppDelegate.swift",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/App.tsx",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/babel.config.cjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/bundle.mjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/check.mjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/codegen.mjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/main.ts",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/metro.config.cjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/native.mjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/prepare.mjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/react-native.config.cjs",
+      "owner": "platform-tooling",
+      "target": "macos"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/App.tsx",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/build.mjs",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/check.mjs",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/configuration.ts",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/main.ts",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/metro.config.cjs",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/web/runner/prepare.mjs",
+      "owner": "platform-tooling",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/AutolinkedNativeModules.g.cpp",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/AutolinkedNativeModules.g.h",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/NelyxRNHost.cpp",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/NelyxRNHost.h",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/pch.cpp",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/pch.h",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/resource.h",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/NelyxRNHost/targetver.h",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/App.tsx",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/babel.config.cjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/build.mjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/bundle.mjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/check.mjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/main.tsx",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/metro.config.cjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/react-native.config.cjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/sdk/tooling/cli/templates/nelyx-app/windows/runner/run.mjs",
+      "owner": "platform-tooling",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/native/platforms/linux/font_services.cpp",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/native/platforms/windows/font_services.cpp",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/.cxx/RelWithDebInfo/421h6711/arm64-v8a/CMakeFiles/3.22.1-g37088a8-dirty/CompilerIdCXX/CMakeCXXCompilerId.cpp",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/.cxx/RelWithDebInfo/421h6711/x86_64/CMakeFiles/3.22.1-g37088a8-dirty/CompilerIdCXX/CMakeCXXCompilerId.cpp",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/jni/include/JniPlatformContext.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/jni/include/JniSkiaManager.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/jni/include/JniSkiaView.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/jni/JniLoad.cpp",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/jni/JniPlatformContext.cpp",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/jni/JniSkiaManager.cpp",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/rnskia-android/AndroidRuntimeCallbacks.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/cpp/rnskia-android/RNSkAndroidPlatformContext.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/BackingViewKind.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/FrameScheduler.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/NativeMouseEvent.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/NelyxAssetStream.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/PlatformContext.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/RNSkiaModule.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/RNSkiaPackage.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SkiaManager.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SkiaSurfaceView.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SkiaTextureView.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SkiaView.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SkiaViewAPI.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SkiaViewManager.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/SystemMouseCursor.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/main/java/com/reactnative/skia/ViewScreenshotService.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/android/src/test/java/com/reactnative/skia/FrameSchedulerTest.java",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/AHardwareBufferUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/GrAHardwareBufferUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/graphite/SurfaceAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/SkAndroidFrameworkUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/SkAnimatedImage.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/SkCanvasAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/SkImageAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/SkSurfaceAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/vk/AndroidVulkanMemoryAllocator.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/cpp/skia/include/gpu/ganesh/gl/ios/GrGLMakeIOSInterface.h",
+      "owner": "skia",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/AHardwareBufferUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/GrAHardwareBufferUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/graphite/SurfaceAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/SkAndroidFrameworkUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/SkAnimatedImage.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/SkCanvasAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/SkImageAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/SkSurfaceAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/android/vk/AndroidVulkanMemoryAllocator.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/generated/sdk/skia/include/gpu/ganesh/gl/ios/GrGLMakeIOSInterface.h",
+      "owner": "skia",
+      "target": "ios"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/DevelopmentAssets.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/DmaBufTexture.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/MouseCursor.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/RNSkLinuxHost.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/RNSkLinuxWindowSurface.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/RuntimeServices.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/linux/SkiaViewComponent.h",
+      "owner": "skia",
+      "target": "linux"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/CompositionDevice.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/CompositionSession.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/CompositionSurface.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/MouseCursor.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/ObservedKeyboardState.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/RNSkiaModule.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/RNSkWindowsHost.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/RNSkWindowsWindowSurface.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/RuntimeServices.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/SkiaView.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/WindowsKeyboardInput.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/native/windows/WindowsKeyboardState.h",
+      "owner": "skia",
+      "target": "windows"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/global.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/Host.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkCanvas.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkColorFilter.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkFont.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkImage.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkImageFilter.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkMaskFilter.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkMatrix.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkPaint.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkPath.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkPathEffect.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkPicture.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkPictureRecorder.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkPoint.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkRect.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkRRect.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkRSXform.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkShader.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkSurface.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkSVG.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkTextBlob.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkTypeface.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/skia/web/JsiSkVertices.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/rn/src/views/android.ts",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/packages/web/src/library.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/web/src/paint-effects.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/web/src/path.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/packages/web/src/text-style.ts",
+      "owner": "skia",
+      "target": "web"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/AHardwareBufferUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/GrAHardwareBufferUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/graphite/SurfaceAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/SkAndroidFrameworkUtils.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/SkAnimatedImage.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/SkCanvasAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/SkImageAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/SkSurfaceAndroid.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/android/vk/AndroidVulkanMemoryAllocator.h",
+      "owner": "skia",
+      "target": "android"
+    },
+    {
+      "file": "Nelyx/skia/vendor/inputs/windows-x64/headers/include/gpu/ganesh/gl/ios/GrGLMakeIOSInterface.h",
+      "owner": "skia",
+      "target": "ios"
+    }
+  ],
+  "nativeSharedContract": "Skia owns replay/text/GPU/ABI; SDK owns View/editor/input/services. Shared ViewApi/header extraction remains W8-09; no native files moved."
+}

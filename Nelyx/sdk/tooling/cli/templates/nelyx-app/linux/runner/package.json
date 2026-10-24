@@ -1,0 +1,42 @@
+{
+  "name": "nelyx-testbed-linux-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "scripts": {
+    "prepare:native": "node prepare.mjs",
+    "check": "node check.mjs",
+    "bundle": "node bundle.mjs",
+    "build": "node build.mjs",
+    "start": "react-native start --config metro.config.cjs",
+    "run": "nelyx run --app ../.. --target linux",
+    "pack": "nelyx pack --app ../.. --target linux",
+    "doctor": "nelyx doctor --app ../.. --target linux",
+    "dev": "nelyx dev --app ../.. --target linux"
+  },
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/skia-rn": "0.6.0",
+    "react": "19.1.4",
+    "react-native": "0.81.6",
+    "@lucid-softworks/react-native-linux": "0.0.1",
+    "@lucid-softworks/react-native-linux-codegen": "0.0.1",
+    "@lucid-softworks/react-native-linux-cli": "0.0.1",
+    "@nelyx/material": "0.1.0",
+    "@nelyx/cupertino": "0.1.0"
+  },
+  "devDependencies": {
+    "@nelyx/metro": "0.10.0",
+    "@nelyx/cli": "0.10.0",
+    "@babel/core": "7.28.5",
+    "@react-native/babel-preset": "0.81.6",
+    "@react-native/metro-config": "0.81.6",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-types": "20.0.0",
+    "@types/react": "19.2.2",
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}

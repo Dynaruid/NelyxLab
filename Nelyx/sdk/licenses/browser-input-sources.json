@@ -1,0 +1,21 @@
+{
+  "schema": "nelyx.browser-input-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "source": "engine/src/flutter/lib/web_ui/lib/src/engine/text_editing/text_editing.dart",
+  "sha256": "3caef7eafa06db7858dda8e52f29a71bfa5f663c2995cac48d90813c8851bdf9",
+  "sourceByteFormat": "upstream git blob UTF-8 LF",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "symbols": [
+    "_setStaticStyleAttributes",
+    "_styleAutofillElements"
+  ],
+  "destinations": [
+    {
+      "file": "Nelyx/sdk/src/backends/browser/interaction.ts",
+      "sha256": "98af4848070411f845f3c0163baaa8ec18c99ebcb1310a076809cea97c6b0619"
+    }
+  ],
+  "scope": "Selected nonvisual DOM carrier styling reference only. Core gesture/selection keys and observed composition cancellation are owned transport adaptations. DOM layout is never imported as Core geometry. Candidate-window placement, browser matrix, reader and autofill-service qualification remain open. Selection-only active-composition commands preserve the current observed text and composing range using DOM/EC selection operations. A real compositionend may update native composition metadata; this does not create or finish a composition in Core."
+}

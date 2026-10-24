@@ -1,0 +1,61 @@
+{
+  "schema": "nelyx.hermes-supply/v1",
+  "scope": "exact source/compiler/runtime declarations; binary identity is separate from full target qualification",
+  "pins": {
+    "upstream-0.14.1": {
+      "engineVersion": "0.14.1",
+      "engineRevision": "5a1485fd688eafdf40637f4f2f44ec830f099b80",
+      "bytecodeVersion": 96,
+      "source": "https://raw.githubusercontent.com/facebook/hermes/5a1485fd688eafdf40637f4f2f44ec830f099b80/include/hermes/BCGen/HBC/BytecodeVersion.h",
+      "sourceSha256": "57bca47d019a0f7a8f3f6ce194d568abb9fa7ba5042e12d09ec8a95a51186622"
+    },
+    "upstream-0.14.0": {
+      "engineVersion": "0.14.0",
+      "engineRevision": "7ad93ab30325ed437a6eaaf310f7f87e9a3070e7",
+      "bytecodeVersion": 96,
+      "source": "https://raw.githubusercontent.com/facebook/hermes/7ad93ab30325ed437a6eaaf310f7f87e9a3070e7/include/hermes/BCGen/HBC/BytecodeVersion.h",
+      "sourceSha256": "57bca47d019a0f7a8f3f6ce194d568abb9fa7ba5042e12d09ec8a95a51186622"
+    },
+    "linux": {
+      "engineVersion": "0.12.0",
+      "engineRevision": "e0fc67142ec0763c6b6153ca2bf96df815539782",
+      "bytecodeVersion": 96,
+      "source": "https://raw.githubusercontent.com/facebook/hermes/e0fc67142ec0763c6b6153ca2bf96df815539782/include/hermes/BCGen/HBC/BytecodeVersion.h",
+      "sourceSha256": "57bca47d019a0f7a8f3f6ce194d568abb9fa7ba5042e12d09ec8a95a51186622"
+    },
+    "windows": {
+      "engineVersion": "1.0.0",
+      "engineRevision": "94aa5e1d40a4ce99df79d951cbe45310ec40680c",
+      "bytecodeVersion": 99,
+      "source": "https://raw.githubusercontent.com/microsoft/hermes-windows/94aa5e1d40a4ce99df79d951cbe45310ec40680c/include/hermes/BCGen/HBC/BytecodeVersion.h",
+      "sourceSha256": "fbfe74875ec6f01b5cf9221acdad0261e979172121ef5fee3f0816aa9d3686af",
+      "supplier": {
+        "name": "Microsoft.JavaScript.Hermes",
+        "version": "0.0.0-2604.21001-94aa5e1d",
+        "integrity": "sha512-U20qnUOBRLKhO2Lzq2IMMB0yv8sWAkjHSfq0gQTZrnjk2B3wL9i+RmAXKEPUkWYVJeSd2Vj3dxI04VXp/NkERg==",
+        "archiveSha256": "63d96f81b8493f472b3ac4dfa5076b6642415a8440f2a7eb44014e73779affdb",
+        "runtime": {
+          "file": "build/native/win32/x64/hermes.dll",
+          "sha256": "c4a1d80bcecacde0fd64b2c0927138095ed0e98e37334a53f42949b050186d68"
+        },
+        "compiler": {
+          "file": "tools/native/release/x64/hermes.exe",
+          "sha256": "74b975947a885939296540664f1f6c0067d1ff4b409f105377ac256a3d3f33cc"
+        }
+      }
+    }
+  },
+  "targets": {
+    "windows": "windows",
+    "android": "upstream-0.14.1",
+    "ios": "upstream-0.14.1",
+    "macos": "upstream-0.14.1",
+    "linux": "linux"
+  },
+  "legacyAndroid": "upstream-0.14.0",
+  "limits": [
+    "Apple native execution excluded by user; source/compiler inspection only",
+    "Linux GPU execution excluded by user",
+    "Prebuilt supplier metadata and hashes do not prove an independent vendor rebuild"
+  ]
+}

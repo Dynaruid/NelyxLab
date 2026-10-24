@@ -1,0 +1,421 @@
+{
+  "schema": "nelyx.work12-product-module-layout/v1",
+  "recordedAt": "2026-10-18T11:59:05.986Z",
+  "policy": "Canonical public modules and one Core identity; development generators relocate outputs/imports through product-module-layout.mjs; batched generations explicitly adopted until a current product validator is connected.",
+  "moves": [
+    {
+      "from": "packages/cupertino/src/checkbox-build.ts",
+      "to": "packages/cupertino/src/internal/checkbox/checkbox-build.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "35c5945d83d6f606970b2801deab91d844dea892f683cb50b72dd95ebd323535"
+    },
+    {
+      "from": "packages/cupertino/src/checkbox-painter.ts",
+      "to": "packages/cupertino/src/internal/checkbox/checkbox-painter.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "f41cbc6936123d6b5795a591f768ffb0e4ef8f4356ba350f4cf12709d04b08a6"
+    },
+    {
+      "from": "packages/cupertino/src/icons.ts",
+      "to": "packages/cupertino/src/generated/icons/icons.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "4bbfba115b0e82dd727bed455baeb5376593044ac8a102f854761ace5c411828"
+    },
+    {
+      "from": "packages/cupertino/src/icon-assets.ts",
+      "to": "packages/cupertino/src/generated/icons/icon-assets.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "5aa53f4361ce6c172310be0c7a42058be43ee498a5a139b0014f00cecebf6bd5"
+    },
+    {
+      "from": "packages/cupertino/src/selection-localizations-data.ts",
+      "to": "packages/cupertino/src/generated/localizations/selection-localizations-data.ts",
+      "role": "generated",
+      "family": "localizations",
+      "previousSha256": "cb1965b20a683d5d73a110d397bf8068bf17c6bf527c0cccb3094e5469b855fb"
+    },
+    {
+      "from": "packages/cupertino/src/scrollbar.generated.ts",
+      "to": "packages/cupertino/src/generated/scrollbar/scrollbar.generated.ts",
+      "role": "generated",
+      "family": "scrollbar",
+      "previousSha256": "7c1f0daa3c08d94e91a41c2328baa50b8baaa7c5eab0a72e6a9621ecd343896a"
+    },
+    {
+      "from": "packages/cupertino/src/scroll-behavior.generated.ts",
+      "to": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
+      "role": "generated",
+      "family": "scroll",
+      "previousSha256": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220"
+    },
+    {
+      "from": "packages/material/src/checkbox-build.ts",
+      "to": "packages/material/src/internal/checkbox/checkbox-build.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "d48158104ba383e81d3f53f9e0d416afe92c3c512b2f122591c61cd40268eb46"
+    },
+    {
+      "from": "packages/material/src/checkbox-painter.ts",
+      "to": "packages/material/src/internal/checkbox/checkbox-painter.ts",
+      "role": "internal",
+      "family": "checkbox",
+      "previousSha256": "42431b997683ccf1f37bad1cc2b9a70b1a98fab8e8c8ff2beb926844dfec6bda"
+    },
+    {
+      "from": "packages/material/src/icons.ts",
+      "to": "packages/material/src/generated/icons/icons.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "e63417c68e2ced847179f466f84d3426927f2a79e932533040bfade35c8ddea9"
+    },
+    {
+      "from": "packages/material/src/icon-assets.ts",
+      "to": "packages/material/src/generated/icons/icon-assets.ts",
+      "role": "generated",
+      "family": "icons",
+      "previousSha256": "09691863770dff5915e73ca639b2f65afcc9a4da03e3da35b0beea9f6ec35c18"
+    },
+    {
+      "from": "packages/material/src/selection-localizations-data.ts",
+      "to": "packages/material/src/generated/localizations/selection-localizations-data.ts",
+      "role": "generated",
+      "family": "localizations",
+      "previousSha256": "568b9a12ecfff434ba6120ccf2a1806c1d4828f89ac4b9797a75588a6e6f6be8"
+    },
+    {
+      "from": "packages/material/src/scrollbar.generated.ts",
+      "to": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
+      "role": "generated",
+      "family": "scrollbar",
+      "previousSha256": "dff29e5ce8018c476439fa492fd1791156d4eb1f9ec482b789a102480762fd1e"
+    },
+    {
+      "from": "packages/material/src/scroll-behavior.generated.ts",
+      "to": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
+      "role": "generated",
+      "family": "scroll",
+      "previousSha256": "9834e91c9e20e0958f027f027b3850d02a1eb296a4f4a19a9ea7b507e9255510"
+    },
+    {
+      "from": "packages/cupertino/src/list-build.ts",
+      "to": "packages/cupertino/src/internal/list/list-build.ts",
+      "role": "internal",
+      "family": "list",
+      "previousSha256": "95c708f75e9d5a069887bf819329391b4653a9d2d47417c11b1302c752d77cce"
+    },
+    {
+      "from": "packages/cupertino/src/scrollbar-style-source-adapter.ts",
+      "to": "packages/cupertino/src/internal/scrollbar/scrollbar-style-source-adapter.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "56136b044ae6c4d822a3db233ba82f3b800eea7d719f01f3017a5177ae59337b"
+    },
+    {
+      "from": "packages/cupertino/src/scrollbar-style-level-lookup.ts",
+      "to": "packages/cupertino/src/internal/scrollbar/scrollbar-style-level-lookup.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "999367c6ded37ac285f751337ba37999475501f996a6aa2efd85f6d85a193fa6"
+    },
+    {
+      "from": "packages/cupertino/src/color-values.ts",
+      "to": "packages/cupertino/src/internal/colors/color-values.ts",
+      "role": "internal",
+      "family": "colors",
+      "previousSha256": "7d468df46ceb91b6204bef82f8079e1fbd147a2e1100b72f74a01618e50cbc3f"
+    },
+    {
+      "from": "packages/cupertino/src/theme-brightness.ts",
+      "to": "packages/cupertino/src/internal/theme/theme-brightness.ts",
+      "role": "internal",
+      "family": "theme",
+      "previousSha256": "f516c6a2d9fb11de9200ccc5b8ad43238af94846b897a23ddb097a87109589ed"
+    },
+    {
+      "from": "packages/cupertino/src/checkbox-defaults.generated.ts",
+      "to": "packages/cupertino/src/generated/checkbox/checkbox-defaults.generated.ts",
+      "role": "generated",
+      "family": "checkbox",
+      "previousSha256": "f17aba70e4b4c947058c70f23b7c2aa7e8aacce4739c3a0a536cdad4868a5a50"
+    },
+    {
+      "from": "packages/cupertino/src/dynamic-color.generated.ts",
+      "to": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
+      "role": "generated",
+      "family": "colors",
+      "previousSha256": "9cdeeda0bd36a7898d17257fc190fd8869b54b00f29c98a3ed09f93ddd84e994"
+    },
+    {
+      "from": "packages/cupertino/src/palette.generated.ts",
+      "to": "packages/cupertino/src/generated/colors/palette.generated.ts",
+      "role": "generated",
+      "family": "colors",
+      "previousSha256": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f"
+    },
+    {
+      "from": "packages/cupertino/src/interface-level.generated.ts",
+      "to": "packages/cupertino/src/generated/theme/interface-level.generated.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "13a6d73b7db1410a201a318c779e341be4d06238c9179730896ea096b7d7756e"
+    },
+    {
+      "from": "packages/cupertino/src/list-section-types.ts",
+      "to": "packages/cupertino/src/generated/list/list-section-types.ts",
+      "role": "generated",
+      "family": "list",
+      "previousSha256": "47945fe056f3ae99b3ddc6ae58718c6a0c02b9f63983154857e9a1b4db3a3033"
+    },
+    {
+      "from": "packages/material/src/chip-defaults.ts",
+      "to": "packages/material/src/internal/chip/chip-defaults.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "c3b98ad543dcce8f4d0a99e29580585c7ea05af44b2a068a3c22498519bc6b60"
+    },
+    {
+      "from": "packages/material/src/chip-render.ts",
+      "to": "packages/material/src/internal/chip/chip-render.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "a6dc40a5eba43edfaf354abbf4524ce28d3191029e169464012c9f6a55b9c993"
+    },
+    {
+      "from": "packages/material/src/raw-chip-state.ts",
+      "to": "packages/material/src/internal/chip/raw-chip-state.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "d50895ed4664e2b0a8f5a2e86f2bedfe6ed4ae0a1f6c2c2f07e7add2598fb696"
+    },
+    {
+      "from": "packages/material/src/chip-background.ts",
+      "to": "packages/material/src/internal/chip/chip-background.ts",
+      "role": "internal",
+      "family": "chip",
+      "previousSha256": "75d2b28cb37023042636ae18238e7d5c17349c7c290639e4677a1e2912683fb1"
+    },
+    {
+      "from": "packages/material/src/list-tile-build.ts",
+      "to": "packages/material/src/internal/list/list-tile-build.ts",
+      "role": "internal",
+      "family": "list",
+      "previousSha256": "bef3141728954624e532ade0a6f388f1872854b6e1b35fd0ac66664669652237"
+    },
+    {
+      "from": "packages/material/src/list-tile-render.ts",
+      "to": "packages/material/src/internal/list/list-tile-render.ts",
+      "role": "internal",
+      "family": "list",
+      "previousSha256": "e8fc373913216d77c5bab507facb9c31db187df6e713acee2edfe2e42d025cd6"
+    },
+    {
+      "from": "packages/material/src/scrollbar-source-adapter.ts",
+      "to": "packages/material/src/internal/scrollbar/scrollbar-source-adapter.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "2694384616b181276deec4780541a56959ae92c977483bdd27cfe58b407f8fc4"
+    },
+    {
+      "from": "packages/material/src/scrollbar-theme-diagnostic-source-adapter.ts",
+      "to": "packages/material/src/internal/scrollbar/scrollbar-theme-diagnostic-source-adapter.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "abd5b742ff9355c2f8c7beea9129aaf386ea35659b24045d5d381c77aa8304c5"
+    },
+    {
+      "from": "packages/material/src/scrollbar-theme-lookup.ts",
+      "to": "packages/material/src/internal/scrollbar/scrollbar-theme-lookup.ts",
+      "role": "internal",
+      "family": "scrollbar",
+      "previousSha256": "f56f7914ecde4a1716449331cff1b6627057003417d7ac8b15cf6080d71d6024"
+    },
+    {
+      "from": "packages/material/src/slider-defaults.ts",
+      "to": "packages/material/src/internal/slider/slider-defaults.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "54b6d4846112de811434e264f6496c1baef1503e033f4e25b681b1d6cd5b7229"
+    },
+    {
+      "from": "packages/material/src/slider-shape-defaults.ts",
+      "to": "packages/material/src/internal/slider/slider-shape-defaults.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "56e601f35a666c967757f40d810fdb99043073c9a87f6d53e5587df82f8c7eb1"
+    },
+    {
+      "from": "packages/material/src/slider-shapes-source-adapter.ts",
+      "to": "packages/material/src/internal/slider/slider-shapes-source-adapter.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "9120f85e3e3acffe1b2193075c3f73e828769d025c620bbf66f7144a39ac0f62"
+    },
+    {
+      "from": "packages/material/src/slider-values-source-adapter.ts",
+      "to": "packages/material/src/internal/slider/slider-values-source-adapter.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "ada560bd4c839af5c06b964137b17888908f75bc10eb8e0958b91f583d2f00bc"
+    },
+    {
+      "from": "packages/material/src/range-slider-defaults.ts",
+      "to": "packages/material/src/internal/slider/range-slider-defaults.ts",
+      "role": "internal",
+      "family": "slider",
+      "previousSha256": "b593eaa6874a33e9e410b2a511a9f9efb9b35cf757964ec83dcdd0366305afa3"
+    },
+    {
+      "from": "packages/material/src/toggle-defaults.ts",
+      "to": "packages/material/src/internal/toggle/toggle-defaults.ts",
+      "role": "internal",
+      "family": "toggle",
+      "previousSha256": "83852f483ee9b7b7771efd5a21564016bb9e567ced91a467c3e39874d73cc279"
+    },
+    {
+      "from": "packages/material/src/toggle-theme-values.ts",
+      "to": "packages/material/src/internal/toggle/toggle-theme-values.ts",
+      "role": "internal",
+      "family": "toggle",
+      "previousSha256": "2623fbe1693ec44000d693f25a47c1e86b917471da95e151ce3b80e11bd02b7b"
+    },
+    {
+      "from": "packages/material/src/material-ink-owner.ts",
+      "to": "packages/material/src/internal/material/material-ink-owner.ts",
+      "role": "internal",
+      "family": "material",
+      "previousSha256": "26f0a55728b4514e5871da18dd207c50f3c9b3d1662a9d4137c96be046fdcee2"
+    },
+    {
+      "from": "packages/material/src/chip-wrapper.generated.ts",
+      "to": "packages/material/src/generated/chip/chip-wrapper.generated.ts",
+      "role": "generated",
+      "family": "chip",
+      "previousSha256": "d9d144aa91bd371eb1ef6dbe4c20800617cf7209383325fe0ad4a7f41faa6dbb"
+    },
+    {
+      "from": "packages/material/src/colors.generated.ts",
+      "to": "packages/material/src/generated/colors/colors.generated.ts",
+      "role": "generated",
+      "family": "colors",
+      "previousSha256": "5eccc38ca032dfb8aaee60af7ff3fdcd6b4d94539df78dc2b5bc1eff8286fb4e"
+    },
+    {
+      "from": "packages/material/src/typography-data.ts",
+      "to": "packages/material/src/generated/theme/typography-data.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "f02d3f9ba33d5e15774864efc7cfeb23ed583776eaa4d577cd76a0794aadd396"
+    },
+    {
+      "from": "packages/material/src/color-scheme-data.ts",
+      "to": "packages/material/src/generated/theme/color-scheme-data.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "c6a43c5d8847aa46da2b83f73357e4851d12987cf72bc7523912396a8bd97c65"
+    },
+    {
+      "from": "packages/material/src/toggle-theme-data.generated.ts",
+      "to": "packages/material/src/generated/theme/toggle-theme-data.generated.ts",
+      "role": "generated",
+      "family": "theme",
+      "previousSha256": "0d734b97b65b760c9f84948823678f304eaa21d0b3d047cf86dd9b571e06f58e"
+    },
+    {
+      "from": "packages/material/src/material-values.generated.ts",
+      "to": "packages/material/src/generated/material/material-values.generated.ts",
+      "role": "generated",
+      "family": "material",
+      "previousSha256": "6f3e64ed07d2e01af8b2bca7620beee13b62bce8e2dd4fb178d2b3b7c0d598ed"
+    },
+    {
+      "from": "packages/material/src/list-tile-types.ts",
+      "to": "packages/material/src/generated/list/list-tile-types.ts",
+      "role": "generated",
+      "family": "list",
+      "previousSha256": "3d6af26ab346c78b1441ac016547ab0ef3a163105b68ea92a97351228ae7a27e"
+    },
+    {
+      "from": "packages/material/src/scrollbar-theme.generated.ts",
+      "to": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
+      "role": "generated",
+      "family": "scrollbar",
+      "previousSha256": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494"
+    },
+    {
+      "from": "packages/material/src/slider-theme-fields.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-theme-fields.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "b711937fcd852d0c178fbf753e8d9c5142666f8904ad12c832b3e87db0d9884d"
+    },
+    {
+      "from": "packages/material/src/slider-theme-values.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-theme-values.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "6750f1bcdd871b998d8cd0f7ed8701ded41ea9bc5ad10ec0dd5bccca637d482e"
+    },
+    {
+      "from": "packages/material/src/slider-values.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-values.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "758afec1b84ea68cdac086d26819c0d7f32cde1799cd034d7a6b4c49f8251bd2"
+    },
+    {
+      "from": "packages/material/src/slider-parts.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-parts.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "02021c03e097c2efb37ef78cb4ea0cf925cc6115767438b0523f449ad301d743"
+    },
+    {
+      "from": "packages/material/src/slider-value-indicator-shape.generated.ts",
+      "to": "packages/material/src/generated/slider/slider-value-indicator-shape.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "7f89f6ba081c785542477a86612a3f5b6cfbfe17fa0b8507047a1e4dadb77ad1"
+    },
+    {
+      "from": "packages/material/src/range-slider-parts.generated.ts",
+      "to": "packages/material/src/generated/slider/range-slider-parts.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "a702a216761c1cfc3423dfbe6c369ae85b4aa3764e6ed491aab87b7dc11449e7"
+    },
+    {
+      "from": "packages/material/src/range-slider-parts-values.generated.ts",
+      "to": "packages/material/src/generated/slider/range-slider-parts-values.generated.ts",
+      "role": "generated",
+      "family": "slider",
+      "previousSha256": "08959dda30d35d838cdabb1b78ed642034f394fcdde2950f23d416a1557ee432"
+    }
+  ],
+  "facades": [
+    {
+      "source": "packages/material/src/icons.ts",
+      "publicModule": "packages/material/src/icons.ts"
+    },
+    {
+      "source": "packages/material/src/icon-assets.ts",
+      "publicModule": "packages/material/src/icon-assets.ts"
+    },
+    {
+      "source": "packages/cupertino/src/icons.ts",
+      "publicModule": "packages/cupertino/src/icons.ts"
+    },
+    {
+      "source": "packages/cupertino/src/icon-assets.ts",
+      "publicModule": "packages/cupertino/src/icon-assets.ts"
+    },
+    {
+      "source": "packages/material/src/colors.generated.ts",
+      "publicModule": "packages/material/src/colors.ts"
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "name": "@nelyx/testbed-2",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check:web": "npm --prefix web/runner run check",
+    "build:web": "npm --prefix web/runner run build",
+    "dev:web": "npm --prefix web/runner run dev",
+    "check:windows": "npm --prefix windows/runner run check",
+    "bundle:windows": "npm --prefix windows/runner run bundle",
+    "build:windows": "npm --prefix windows/runner run build -- --engine v8",
+    "run:windows": "npm --prefix windows/runner run run",
+    "start:windows:v8": "npm run build:windows && npm run run:windows",
+    "start:windows:hermes": "npm run build:windows:hermes && npm run run:windows",
+    "start:windows:hermes:debug": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile debug && npm run run:windows",
+    "dev:windows": "npm --prefix windows/runner run dev",
+    "check:android": "npm --prefix android/runner run check",
+    "bundle:android": "npm --prefix android/runner run bundle",
+    "build:android": "npm --prefix android/runner run build",
+    "run:android": "npm --prefix android/runner run run",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepare:runner": "node eng/prepare-runner.mjs",
+    "test": "node --test --test-timeout=1200000 tests/gallery.test.mjs",
+    "build:android:emulator": "npm --prefix android/runner run build -- --architecture x86_64",
+    "build:windows:hermes": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
+    "prepare:windows:static-aot": "npm --prefix windows/runner run prepare:native -- --engine hermes --hermes-mode static-aot",
+    "build:windows:static-aot": "npm --prefix windows/runner run build -- --engine hermes --hermes-mode static-aot --hermes-profile optimized",
+    "start:windows:static-aot": "npm run build:windows:static-aot && npm run run:windows",
+    "prepare:windows:jsc": "npm --prefix windows/runner run prepare:native -- --engine jsc",
+    "build:windows:jsc": "npm --prefix windows/runner run build -- --engine jsc --jsc-mode jit",
+    "build:windows:jsc:interpreter": "npm --prefix windows/runner run build -- --engine jsc --jsc-mode interpreter",
+    "start:windows:jsc": "npm run build:windows:jsc && npm run run:windows",
+    "start:windows:jsc:interpreter": "npm run build:windows:jsc:interpreter && npm run run:windows"
+  },
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/material": "0.1.0",
+    "@nelyx/cupertino": "0.1.0"
+  },
+  "devDependencies": {},
+  "type": "module",
+  "nelyx": {
+    "schema": "nelyx.app/v2",
+    "name": "NelyxTestbed2",
+    "appEntry": "./src/index.ts",
+    "assets": [
+      {
+        "id": "sample-font",
+        "kind": "font",
+        "path": "./assets/NotoSansKR.ttf",
+        "fontFamily": "NelyxSample",
+        "notice": {
+          "path": "./assets/NotoSansKR-OFL.txt"
+        }
+      },
+      {
+        "id": "nelyx-material-icons",
+        "kind": "font",
+        "path": "./assets/nelyx/MaterialIcons.otf",
+        "fontFamily": "MaterialIcons",
+        "notice": {
+          "path": "./assets/nelyx/MaterialIcons-LICENSE.txt"
+        },
+        "packageSource": {
+          "package": "@nelyx/material",
+          "path": "./assets/MaterialIcons.otf",
+          "noticePath": "./licenses/MaterialIcons-LICENSE.txt"
+        }
+      },
+      {
+        "id": "nelyx-cupertino-icons",
+        "kind": "font",
+        "path": "./assets/nelyx/CupertinoIcons.ttf",
+        "fontFamily": "packages/cupertino_icons/CupertinoIcons",
+        "notice": {
+          "path": "./assets/nelyx/CupertinoIcons-LICENSE.txt"
+        },
+        "packageSource": {
+          "package": "@nelyx/cupertino",
+          "path": "./assets/CupertinoIcons.ttf",
+          "noticePath": "./licenses/CupertinoIcons-LICENSE.txt"
+        }
+      },
+      {
+        "id": "component-image",
+        "kind": "image",
+        "path": "./assets/component-image.webp"
+      }
+    ],
+    "targets": {
+      "web": {
+        "profile": "ganesh-webgl2",
+        "component": "./web/runner/App.tsx"
+      },
+      "windows": {
+        "profile": "rn-graphite-vulkan",
+        "cohort": "rn-0.83.10",
+        "component": "./windows/runner/App.tsx"
+      },
+      "android": {
+        "profile": "emulator-vulkan",
+        "cohort": "rn-0.83.10",
+        "component": "./android/runner/App.tsx"
+      }
+    },
+    "displayName": "Nelyx Testbed 2"
+  }
+}

@@ -1,0 +1,5327 @@
+{
+  "scope": "Seven complete unchanged pinned declarations executed by Dart VM over finite value/geometry/path/Canvas/BoxBorder-boundary/diagnostic receivers. Paths record source primitive arguments with Float32 native-path admission; this does not qualify full parent path/colour/hash or native Flutter rendering.",
+  "fields": [
+    {
+      "name": "labelStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "floatingLabelStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "helperStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "helperMaxLines",
+      "type": "int",
+      "nullable": true,
+      "numeric": "int?"
+    },
+    {
+      "name": "hintStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "hintFadeDuration",
+      "type": "Duration",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "hintMaxLines",
+      "type": "int",
+      "nullable": true,
+      "numeric": "int?"
+    },
+    {
+      "name": "errorStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "errorMaxLines",
+      "type": "int",
+      "nullable": true,
+      "numeric": "int?"
+    },
+    {
+      "name": "floatingLabelBehavior",
+      "type": "FloatingLabelBehavior",
+      "nullable": false,
+      "numeric": null
+    },
+    {
+      "name": "floatingLabelAlignment",
+      "type": "FloatingLabelAlignment",
+      "nullable": false,
+      "numeric": null
+    },
+    {
+      "name": "isDense",
+      "type": "bool",
+      "nullable": false,
+      "numeric": null
+    },
+    {
+      "name": "contentPadding",
+      "type": "EdgeInsetsGeometry",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "isCollapsed",
+      "type": "bool",
+      "nullable": false,
+      "numeric": null
+    },
+    {
+      "name": "iconColor",
+      "type": "Color",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "prefixStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "prefixIconColor",
+      "type": "Color",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "prefixIconConstraints",
+      "type": "BoxConstraints",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "suffixStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "suffixIconColor",
+      "type": "Color",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "suffixIconConstraints",
+      "type": "BoxConstraints",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "counterStyle",
+      "type": "TextStyle",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "filled",
+      "type": "bool",
+      "nullable": false,
+      "numeric": null
+    },
+    {
+      "name": "fillColor",
+      "type": "Color",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "outlineBorder",
+      "type": "BorderSide",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "activeIndicatorBorder",
+      "type": "BorderSide",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "focusColor",
+      "type": "Color",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "hoverColor",
+      "type": "Color",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "errorBorder",
+      "type": "InputBorder",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "focusedBorder",
+      "type": "InputBorder",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "focusedErrorBorder",
+      "type": "InputBorder",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "disabledBorder",
+      "type": "InputBorder",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "enabledBorder",
+      "type": "InputBorder",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "border",
+      "type": "InputBorder",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "alignLabelWithHint",
+      "type": "bool",
+      "nullable": false,
+      "numeric": null
+    },
+    {
+      "name": "constraints",
+      "type": "BoxConstraints",
+      "nullable": true,
+      "numeric": null
+    },
+    {
+      "name": "visualDensity",
+      "type": "VisualDensity",
+      "nullable": true,
+      "numeric": null
+    }
+  ],
+  "spans": [
+    {
+      "symbol": "InputBorder",
+      "source": "packages/flutter/lib/src/material/input_border.dart",
+      "offset": 389,
+      "length": 3044,
+      "sha256": "b47c49bb34e4f11fdd8fd5712fdf4b97a504e34d4c08f9c3466e7620b7afe18d"
+    },
+    {
+      "symbol": "_NoInputBorder",
+      "source": "packages/flutter/lib/src/material/input_border.dart",
+      "offset": 3488,
+      "length": 1070,
+      "sha256": "88045b433f28cf9c466bc12b3227955aa5e1259f7fe4af5b270e042cf2a40f45"
+    },
+    {
+      "symbol": "UnderlineInputBorder",
+      "source": "packages/flutter/lib/src/material/input_border.dart",
+      "offset": 4562,
+      "length": 5416,
+      "sha256": "e7ba57dc63ecb7e35dbf519a86ae1282f4470911519ee6c408641049b507ff7f"
+    },
+    {
+      "symbol": "OutlineInputBorder",
+      "source": "packages/flutter/lib/src/material/input_border.dart",
+      "offset": 9982,
+      "length": 10943,
+      "sha256": "f97f3db861d4042f2e3a6994893a922b4950ddd706584924de4efb6221b8031a"
+    },
+    {
+      "symbol": "FloatingLabelBehavior",
+      "source": "packages/flutter/lib/src/material/input_decorator.dart",
+      "offset": 15600,
+      "length": 589,
+      "sha256": "08e3652743f0ce84b241e8d786e7896eea252dd68fc8f1d09d38c0a81746f745"
+    },
+    {
+      "symbol": "FloatingLabelAlignment",
+      "source": "packages/flutter/lib/src/material/input_decorator.dart",
+      "offset": 16193,
+      "length": 1644,
+      "sha256": "31f602e514fa866e67eb5e42b0fff500b2d7502f26b876fb5c5937403f94548d"
+    },
+    {
+      "symbol": "InputDecorationThemeData",
+      "source": "packages/flutter/lib/src/material/input_decorator.dart",
+      "offset": 192925,
+      "length": 37194,
+      "sha256": "4eab5b3533b9ddfd6a6738d2236e1215f11ebbb9b04d530be91462057e81ef51"
+    }
+  ],
+  "borders": [
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 0,
+        "direction": "ltr",
+        "percentage": 0,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "rrect",
+          [
+            2,
+            2,
+            118,
+            46,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            4,
+            4,
+            116,
+            44,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 0,
+        "direction": "ltr",
+        "percentage": 0.5,
+        "align": 0,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "moveTo",
+              [
+                0,
+                0
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                19,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                48
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                48
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                0
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            2,
+            2,
+            118,
+            46,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 0,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 90,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                -2,
+                -2,
+                2,
+                2,
+                3.1415927410125732,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                86,
+                -2
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                122,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                122,
+                48
+              ]
+            ],
+            [
+              "addArc",
+              [
+                118,
+                46,
+                122,
+                50,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                50
+              ]
+            ],
+            [
+              "addArc",
+              [
+                -2,
+                46,
+                2,
+                50,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                -2,
+                0
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 0,
+        "direction": "rtl",
+        "percentage": 0,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "rrect",
+          [
+            2,
+            2,
+            118,
+            46,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            4,
+            4,
+            116,
+            44,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 0,
+        "direction": "rtl",
+        "percentage": 0.5,
+        "align": 0,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "moveTo",
+              [
+                0,
+                0
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                19,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                48
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                48
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                0
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            2,
+            2,
+            118,
+            46,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 0,
+        "direction": "rtl",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 90,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                -2,
+                -2,
+                2,
+                2,
+                3.1415927410125732,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                56,
+                -2
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                94,
+                -2
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                -2
+              ]
+            ],
+            [
+              "addArc",
+              [
+                118,
+                -2,
+                122,
+                2,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                122,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                122,
+                48
+              ]
+            ],
+            [
+              "addArc",
+              [
+                118,
+                46,
+                122,
+                50,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                50
+              ]
+            ],
+            [
+              "addArc",
+              [
+                -2,
+                46,
+                2,
+                50,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                -2,
+                0
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 4,
+        "direction": "ltr",
+        "percentage": 0,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "rrect",
+          [
+            2,
+            2,
+            118,
+            46,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            4,
+            4,
+            116,
+            44,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 4,
+        "direction": "ltr",
+        "percentage": 0.5,
+        "align": 0,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                0,
+                0,
+                8,
+                8,
+                3.1415927410125732,
+                0
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                19,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                116,
+                0
+              ]
+            ],
+            [
+              "addArc",
+              [
+                112,
+                0,
+                120,
+                8,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                120,
+                4
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                44
+              ]
+            ],
+            [
+              "addArc",
+              [
+                112,
+                40,
+                120,
+                48,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                4,
+                48
+              ]
+            ],
+            [
+              "addArc",
+              [
+                0,
+                40,
+                8,
+                48,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                4
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            2,
+            2,
+            118,
+            46,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ]
+        ]
+      ],
+      "dimensions": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 4,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 90,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                -2,
+                -2,
+                10,
+                10,
+                3.1415927410125732,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                86,
+                -2
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                122,
+                4
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                122,
+                44
+              ]
+            ],
+            [
+              "addArc",
+              [
+                110,
+                38,
+                122,
+                50,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                4,
+                50
+              ]
+            ],
+            [
+              "addArc",
+              [
+                -2,
+                38,
+                10,
+                50,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                -2,
+                4
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 4,
+        "direction": "rtl",
+        "percentage": 0,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "rrect",
+          [
+            2,
+            2,
+            118,
+            46,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            4,
+            4,
+            116,
+            44,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "dimensions": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 4,
+        "direction": "rtl",
+        "percentage": 0.5,
+        "align": 0,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                0,
+                0,
+                8,
+                8,
+                3.1415927410125732,
+                0
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                19,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                116,
+                0
+              ]
+            ],
+            [
+              "addArc",
+              [
+                112,
+                0,
+                120,
+                8,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                120,
+                4
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                44
+              ]
+            ],
+            [
+              "addArc",
+              [
+                112,
+                40,
+                120,
+                48,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                4,
+                48
+              ]
+            ],
+            [
+              "addArc",
+              [
+                0,
+                40,
+                8,
+                48,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                4
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            2,
+            2,
+            118,
+            46,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ]
+        ]
+      ],
+      "dimensions": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 4,
+        "direction": "rtl",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 90,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                -2,
+                -2,
+                10,
+                10,
+                3.1415927410125732,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                56,
+                -2
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                94,
+                -2
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                116,
+                -2
+              ]
+            ],
+            [
+              "addArc",
+              [
+                110,
+                -2,
+                122,
+                10,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                122,
+                4
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                122,
+                44
+              ]
+            ],
+            [
+              "addArc",
+              [
+                110,
+                38,
+                122,
+                50,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                4,
+                50
+              ]
+            ],
+            [
+              "addArc",
+              [
+                -2,
+                38,
+                10,
+                50,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                -2,
+                4
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 0,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "rrect",
+          [
+            2,
+            2,
+            118,
+            46,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            4,
+            4,
+            116,
+            44,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "dimensions": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 0.5,
+        "align": 0,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                0,
+                0,
+                40,
+                40,
+                3.1415927410125732,
+                0
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                19,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                100,
+                0
+              ]
+            ],
+            [
+              "addArc",
+              [
+                80,
+                0,
+                120,
+                40,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                120,
+                20
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                28
+              ]
+            ],
+            [
+              "addArc",
+              [
+                80,
+                8,
+                120,
+                48,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                20,
+                48
+              ]
+            ],
+            [
+              "addArc",
+              [
+                0,
+                8,
+                40,
+                48,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                20
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            2,
+            2,
+            118,
+            46,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ]
+        ]
+      ],
+      "dimensions": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 90,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                -2,
+                -2,
+                42,
+                42,
+                3.1415927410125732,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                86,
+                -2
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                122,
+                20
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                122,
+                28
+              ]
+            ],
+            [
+              "addArc",
+              [
+                78,
+                6,
+                122,
+                50,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                20,
+                50
+              ]
+            ],
+            [
+              "addArc",
+              [
+                -2,
+                6,
+                42,
+                50,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                -2,
+                20
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 20,
+        "direction": "rtl",
+        "percentage": 0,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "rrect",
+          [
+            2,
+            2,
+            118,
+            46,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            4,
+            4,
+            116,
+            44,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "dimensions": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 20,
+        "direction": "rtl",
+        "percentage": 0.5,
+        "align": 0,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                0,
+                0,
+                40,
+                40,
+                3.1415927410125732,
+                0
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                19,
+                0
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                100,
+                0
+              ]
+            ],
+            [
+              "addArc",
+              [
+                80,
+                0,
+                120,
+                40,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                120,
+                20
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                120,
+                28
+              ]
+            ],
+            [
+              "addArc",
+              [
+                80,
+                8,
+                120,
+                48,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                20,
+                48
+              ]
+            ],
+            [
+              "addArc",
+              [
+                0,
+                8,
+                40,
+                48,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                0,
+                20
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            2,
+            2,
+            118,
+            46,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ]
+        ]
+      ],
+      "dimensions": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "outline",
+        "radius": 20,
+        "direction": "rtl",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 90,
+        "gapExtent": 30,
+        "width": 4
+      },
+      "paint": [
+        [
+          "path",
+          [
+            [
+              "addArc",
+              [
+                -2,
+                -2,
+                42,
+                42,
+                3.1415927410125732,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                56,
+                -2
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                94,
+                -2
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                100,
+                -2
+              ]
+            ],
+            [
+              "addArc",
+              [
+                78,
+                -2,
+                122,
+                42,
+                4.71238899230957,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "moveTo",
+              [
+                122,
+                20
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                122,
+                28
+              ]
+            ],
+            [
+              "addArc",
+              [
+                78,
+                6,
+                122,
+                50,
+                0,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                20,
+                50
+              ]
+            ],
+            [
+              "addArc",
+              [
+                -2,
+                6,
+                42,
+                50,
+                1.5707963705062866,
+                1.5707963705062866
+              ]
+            ],
+            [
+              "lineTo",
+              [
+                -2,
+                20
+              ]
+            ]
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "outline",
+        "width": 2,
+        "gap": 2
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": null,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "solid"
+      },
+      "paint": [
+        [
+          "line",
+          [
+            0,
+            46,
+            120,
+            46
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": null,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "solid"
+      },
+      "paint": [
+        [
+          "line",
+          [
+            0,
+            46,
+            120,
+            46
+          ],
+          4279383126,
+          4
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": null,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "none"
+      },
+      "paint": [],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": null,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "none"
+      },
+      "paint": [],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            4,
+            4,
+            4,
+            4,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "solid"
+      },
+      "paint": [
+        [
+          "nonUniform",
+          [
+            0,
+            0,
+            120,
+            48
+          ],
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            20,
+            20,
+            20,
+            20
+          ],
+          4,
+          -1,
+          4279383126,
+          "ltr"
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "solid"
+      },
+      "paint": [
+        [
+          "nonUniform",
+          [
+            0,
+            0,
+            120,
+            48
+          ],
+          [
+            0,
+            0,
+            120,
+            48,
+            0,
+            0,
+            0,
+            0,
+            20,
+            20,
+            20,
+            20
+          ],
+          4,
+          -1,
+          4279383126,
+          "ltr"
+        ]
+      ],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": -1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "none"
+      },
+      "paint": [],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "underline",
+        "radius": 20,
+        "direction": "ltr",
+        "percentage": 1,
+        "align": 1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 4,
+        "style": "none"
+      },
+      "paint": [],
+      "outer": [
+        [
+          "addRRect",
+          [
+            0,
+            0,
+            120,
+            48,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            44
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        4
+      ],
+      "scaled": {
+        "kind": "underline",
+        "width": 2,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    },
+    {
+      "spec": {
+        "kind": "none",
+        "direction": "ltr",
+        "percentage": 1,
+        "gapStart": 2,
+        "gapExtent": 30,
+        "width": 0,
+        "align": -1
+      },
+      "paint": [],
+      "outer": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            48
+          ]
+        ]
+      ],
+      "inner": [
+        [
+          "addRect",
+          [
+            0,
+            0,
+            120,
+            48
+          ]
+        ]
+      ],
+      "dimensions": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scaled": {
+        "kind": "none",
+        "width": 0,
+        "gap": null
+      },
+      "nullCopyEqual": true
+    }
+  ],
+  "themes": [
+    {
+      "mode": "default",
+      "fields": {
+        "labelStyle": null,
+        "floatingLabelStyle": null,
+        "helperStyle": null,
+        "helperMaxLines": null,
+        "hintStyle": null,
+        "hintFadeDuration": null,
+        "hintMaxLines": null,
+        "errorStyle": null,
+        "errorMaxLines": null,
+        "floatingLabelBehavior": "auto",
+        "floatingLabelAlignment": "FloatingLabelAlignment.start",
+        "isDense": false,
+        "contentPadding": null,
+        "isCollapsed": false,
+        "iconColor": null,
+        "prefixStyle": null,
+        "prefixIconColor": null,
+        "prefixIconConstraints": null,
+        "suffixStyle": null,
+        "suffixIconColor": null,
+        "suffixIconConstraints": null,
+        "counterStyle": null,
+        "filled": false,
+        "fillColor": null,
+        "outlineBorder": null,
+        "activeIndicatorBorder": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "errorBorder": null,
+        "focusedBorder": null,
+        "focusedErrorBorder": null,
+        "disabledBorder": null,
+        "enabledBorder": null,
+        "border": null,
+        "alignLabelWithHint": false,
+        "constraints": null,
+        "visualDensity": null
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "auto",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.start",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": null,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": null,
+          "default": null
+        }
+      ]
+    },
+    {
+      "mode": "a",
+      "fields": {
+        "labelStyle": 12,
+        "floatingLabelStyle": 12,
+        "helperStyle": 12,
+        "helperMaxLines": 2,
+        "hintStyle": 12,
+        "hintFadeDuration": 20,
+        "hintMaxLines": 2,
+        "errorStyle": 12,
+        "errorMaxLines": 2,
+        "floatingLabelBehavior": "auto",
+        "floatingLabelAlignment": "FloatingLabelAlignment.start",
+        "isDense": false,
+        "contentPadding": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "isCollapsed": false,
+        "iconColor": 4279383126,
+        "prefixStyle": 12,
+        "prefixIconColor": 4279383126,
+        "prefixIconConstraints": 10,
+        "suffixStyle": 12,
+        "suffixIconColor": 4279383126,
+        "suffixIconConstraints": 10,
+        "counterStyle": 12,
+        "filled": false,
+        "fillColor": 4279383126,
+        "outlineBorder": 2,
+        "activeIndicatorBorder": 2,
+        "focusColor": 4279383126,
+        "hoverColor": 4279383126,
+        "errorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedErrorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "disabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "enabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "border": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "alignLabelWithHint": false,
+        "constraints": 10,
+        "visualDensity": 0
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "auto",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.start",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": 0,
+          "default": null
+        }
+      ]
+    },
+    {
+      "mode": "copyB",
+      "fields": {
+        "labelStyle": 20,
+        "floatingLabelStyle": 20,
+        "helperStyle": 20,
+        "helperMaxLines": 7,
+        "hintStyle": 20,
+        "hintFadeDuration": 50,
+        "hintMaxLines": 7,
+        "errorStyle": 20,
+        "errorMaxLines": 7,
+        "floatingLabelBehavior": "always",
+        "floatingLabelAlignment": "FloatingLabelAlignment.center",
+        "isDense": true,
+        "contentPadding": [
+          6,
+          6,
+          6,
+          6
+        ],
+        "isCollapsed": true,
+        "iconColor": 4289449455,
+        "prefixStyle": 20,
+        "prefixIconColor": 4289449455,
+        "prefixIconConstraints": 30,
+        "suffixStyle": 20,
+        "suffixIconColor": 4289449455,
+        "suffixIconConstraints": 30,
+        "counterStyle": 20,
+        "filled": true,
+        "fillColor": 4289449455,
+        "outlineBorder": 6,
+        "activeIndicatorBorder": 6,
+        "focusColor": 4289449455,
+        "hoverColor": 4289449455,
+        "errorBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "focusedBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "focusedErrorBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "disabledBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "enabledBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "border": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "alignLabelWithHint": true,
+        "constraints": 30,
+        "visualDensity": 2
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": 7,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": 50,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": 7,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": 7,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "always",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.center",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": true,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": [
+            6,
+            6,
+            6,
+            6
+          ],
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": true,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 30,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 30,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": true,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": 6,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": 6,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": true,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": 30,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": 2,
+          "default": null
+        }
+      ]
+    },
+    {
+      "mode": "copyNull",
+      "fields": {
+        "labelStyle": 12,
+        "floatingLabelStyle": 12,
+        "helperStyle": 12,
+        "helperMaxLines": 2,
+        "hintStyle": 12,
+        "hintFadeDuration": 20,
+        "hintMaxLines": 2,
+        "errorStyle": 12,
+        "errorMaxLines": 2,
+        "floatingLabelBehavior": "auto",
+        "floatingLabelAlignment": "FloatingLabelAlignment.start",
+        "isDense": false,
+        "contentPadding": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "isCollapsed": false,
+        "iconColor": 4279383126,
+        "prefixStyle": 12,
+        "prefixIconColor": 4279383126,
+        "prefixIconConstraints": 10,
+        "suffixStyle": 12,
+        "suffixIconColor": 4279383126,
+        "suffixIconConstraints": 10,
+        "counterStyle": 12,
+        "filled": false,
+        "fillColor": 4279383126,
+        "outlineBorder": 2,
+        "activeIndicatorBorder": 2,
+        "focusColor": 4279383126,
+        "hoverColor": 4279383126,
+        "errorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedErrorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "disabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "enabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "border": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "alignLabelWithHint": false,
+        "constraints": 10,
+        "visualDensity": 0
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "auto",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.start",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": 0,
+          "default": null
+        }
+      ]
+    },
+    {
+      "mode": "mergeB",
+      "fields": {
+        "labelStyle": 12,
+        "floatingLabelStyle": 12,
+        "helperStyle": 12,
+        "helperMaxLines": 2,
+        "hintStyle": 12,
+        "hintFadeDuration": 20,
+        "hintMaxLines": 2,
+        "errorStyle": 12,
+        "errorMaxLines": 2,
+        "floatingLabelBehavior": "auto",
+        "floatingLabelAlignment": "FloatingLabelAlignment.start",
+        "isDense": false,
+        "contentPadding": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "isCollapsed": false,
+        "iconColor": 4279383126,
+        "prefixStyle": 12,
+        "prefixIconColor": 4279383126,
+        "prefixIconConstraints": 10,
+        "suffixStyle": 12,
+        "suffixIconColor": 4279383126,
+        "suffixIconConstraints": 10,
+        "counterStyle": 12,
+        "filled": false,
+        "fillColor": 4279383126,
+        "outlineBorder": 2,
+        "activeIndicatorBorder": 2,
+        "focusColor": 4279383126,
+        "hoverColor": 4279383126,
+        "errorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedErrorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "disabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "enabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "border": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "alignLabelWithHint": false,
+        "constraints": 10,
+        "visualDensity": 0
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "auto",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.start",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": 0,
+          "default": null
+        }
+      ]
+    },
+    {
+      "mode": "mergeNull",
+      "fields": {
+        "labelStyle": 12,
+        "floatingLabelStyle": 12,
+        "helperStyle": 12,
+        "helperMaxLines": 2,
+        "hintStyle": 12,
+        "hintFadeDuration": 20,
+        "hintMaxLines": 2,
+        "errorStyle": 12,
+        "errorMaxLines": 2,
+        "floatingLabelBehavior": "auto",
+        "floatingLabelAlignment": "FloatingLabelAlignment.start",
+        "isDense": false,
+        "contentPadding": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "isCollapsed": false,
+        "iconColor": 4279383126,
+        "prefixStyle": 12,
+        "prefixIconColor": 4279383126,
+        "prefixIconConstraints": 10,
+        "suffixStyle": 12,
+        "suffixIconColor": 4279383126,
+        "suffixIconConstraints": 10,
+        "counterStyle": 12,
+        "filled": false,
+        "fillColor": 4279383126,
+        "outlineBorder": 2,
+        "activeIndicatorBorder": 2,
+        "focusColor": 4279383126,
+        "hoverColor": 4279383126,
+        "errorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "focusedErrorBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "disabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "enabledBorder": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "border": {
+          "kind": "outline",
+          "width": 1,
+          "gap": 2
+        },
+        "alignLabelWithHint": false,
+        "constraints": 10,
+        "visualDensity": 0
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "auto",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.start",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": 12,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": 2,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": 4279383126,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": {
+            "kind": "outline",
+            "width": 1,
+            "gap": 2
+          },
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": 10,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": 0,
+          "default": null
+        }
+      ]
+    },
+    {
+      "mode": "defaultMergeB",
+      "fields": {
+        "labelStyle": 20,
+        "floatingLabelStyle": 20,
+        "helperStyle": 20,
+        "helperMaxLines": 7,
+        "hintStyle": 20,
+        "hintFadeDuration": 50,
+        "hintMaxLines": 7,
+        "errorStyle": 20,
+        "errorMaxLines": 7,
+        "floatingLabelBehavior": "auto",
+        "floatingLabelAlignment": "FloatingLabelAlignment.start",
+        "isDense": false,
+        "contentPadding": [
+          6,
+          6,
+          6,
+          6
+        ],
+        "isCollapsed": false,
+        "iconColor": 4289449455,
+        "prefixStyle": 20,
+        "prefixIconColor": 4289449455,
+        "prefixIconConstraints": 30,
+        "suffixStyle": 20,
+        "suffixIconColor": 4289449455,
+        "suffixIconConstraints": 30,
+        "counterStyle": 20,
+        "filled": false,
+        "fillColor": 4289449455,
+        "outlineBorder": 6,
+        "activeIndicatorBorder": 6,
+        "focusColor": 4289449455,
+        "hoverColor": 4289449455,
+        "errorBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "focusedBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "focusedErrorBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "disabledBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "enabledBorder": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "border": {
+          "kind": "underline",
+          "width": 1,
+          "gap": null
+        },
+        "alignLabelWithHint": false,
+        "constraints": 30,
+        "visualDensity": 2
+      },
+      "diagnostics": [
+        {
+          "name": "labelStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "floatingLabelStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "helperStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "helperMaxLines",
+          "type": "int",
+          "value": 7,
+          "default": null
+        },
+        {
+          "name": "hintStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "hintFadeDuration",
+          "type": "Duration",
+          "value": 50,
+          "default": null
+        },
+        {
+          "name": "hintMaxLines",
+          "type": "int",
+          "value": 7,
+          "default": null
+        },
+        {
+          "name": "errorStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "errorMaxLines",
+          "type": "int",
+          "value": 7,
+          "default": null
+        },
+        {
+          "name": "floatingLabelBehavior",
+          "type": "FloatingLabelBehavior",
+          "value": "auto",
+          "default": "auto"
+        },
+        {
+          "name": "floatingLabelAlignment",
+          "type": "FloatingLabelAlignment",
+          "value": "FloatingLabelAlignment.start",
+          "default": "FloatingLabelAlignment.start"
+        },
+        {
+          "name": "isDense",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "contentPadding",
+          "type": "EdgeInsetsGeometry",
+          "value": [
+            6,
+            6,
+            6,
+            6
+          ],
+          "default": null
+        },
+        {
+          "name": "isCollapsed",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "iconColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "prefixIconColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "prefixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 30,
+          "default": null
+        },
+        {
+          "name": "prefixStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "suffixIconColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "suffixIconConstraints",
+          "type": "BoxConstraints",
+          "value": 30,
+          "default": null
+        },
+        {
+          "name": "suffixStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "counterStyle",
+          "type": "TextStyle",
+          "value": 20,
+          "default": null
+        },
+        {
+          "name": "filled",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "fillColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "activeIndicatorBorder",
+          "type": "BorderSide",
+          "value": 6,
+          "default": null
+        },
+        {
+          "name": "outlineBorder",
+          "type": "BorderSide",
+          "value": 6,
+          "default": null
+        },
+        {
+          "name": "focusColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color",
+          "value": 4289449455,
+          "default": null
+        },
+        {
+          "name": "errorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "focusedBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "focusedErrorBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "disabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "enabledBorder",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "border",
+          "type": "InputBorder",
+          "value": {
+            "kind": "underline",
+            "width": 1,
+            "gap": null
+          },
+          "default": null
+        },
+        {
+          "name": "alignLabelWithHint",
+          "type": "bool",
+          "value": false,
+          "default": false
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints",
+          "value": 30,
+          "default": null
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity",
+          "value": 2,
+          "default": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,832 @@
+{
+  "schema": "nelyx.refresh-indicator-source/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "environments": [
+    "native",
+    "web"
+  ],
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicator",
+      "offset": 2500,
+      "length": 10494,
+      "sha256": "4cdc4c12f29cd0e5b1f335fee9baa4277af7f3e8ac8f8976534a02855aea2494"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorStatus",
+      "offset": 1599,
+      "length": 481,
+      "sha256": "6319eba45c75e3be637c34185f34178eb6bcfbcb485961d1b653d588140e2244"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorTriggerMode",
+      "offset": 2084,
+      "length": 355,
+      "sha256": "7becd8b6e4624bc28ab16b77aa8e1d762ca798f638765259e712a5b7fd5f0f31"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "_IndicatorType",
+      "offset": 2443,
+      "length": 53,
+      "sha256": "3a3d8437f33c873bc0f92d28c6c535eb05bd679db6350e975c2e9207fb9eb33a"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState.initState",
+      "offset": 14069,
+      "length": 467,
+      "sha256": "de85d7e5dcba7260bc72679293c8761423939390eac6df04e3b68c944329aabe"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState.didChangeDependencies",
+      "offset": 14542,
+      "length": 123,
+      "sha256": "6a3a4f11a1cd76771e3c4ea88e275314aff48c409b403c02c2322df6b2871621"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState.didUpdateWidget",
+      "offset": 14671,
+      "length": 209,
+      "sha256": "7b8e2f84b6c082e1693cdb9d8180b349330f907c4a22ac2fc839100ba29f4020"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState.dispose",
+      "offset": 14886,
+      "length": 139,
+      "sha256": "039bfdc7d06991ec0100477222a3016e77da86ca1b32e321f539bb2dcbda4ef9"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._setupColorTween",
+      "offset": 15031,
+      "length": 678,
+      "sha256": "f8f15b049ba7078c32c694ee61edaa40a645146b5433aaee90ea441882d67244"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._shouldStart",
+      "offset": 15715,
+      "length": 932,
+      "sha256": "fcf87757119b50d2076f21f8bcfcbf5e77540ae9932be7b03e67e617803b4653"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._handleScrollNotification",
+      "offset": 16653,
+      "length": 2828,
+      "sha256": "e8ec67438f3e0c077f3578358b1454dd57683be9d5721d7cc7a6435d83c0b7db"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._handleIndicatorNotification",
+      "offset": 19487,
+      "length": 313,
+      "sha256": "d06b6ad6cc5ecd2ca7a479ff60991580619814e0cae660c404c9fac22f75ae42"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._start",
+      "offset": 19806,
+      "length": 570,
+      "sha256": "ce471ab5e209bc3146085bafd10b0f324bcd8bd40c50f66d4086cb497b98ecd0"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._checkDragOffset",
+      "offset": 20382,
+      "length": 683,
+      "sha256": "7b5ba7eb6f2502cff8081398da04012d930a633c72a458f0b11ab97b85349017"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._dismiss",
+      "offset": 21113,
+      "length": 1111,
+      "sha256": "16a228c0d5384528bbe34945f97dcea841518b8bc18817e7ae958d62ad2780e7"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState._show",
+      "offset": 22230,
+      "length": 1024,
+      "sha256": "0b7c04bffc042530a7b34cd37f9a2273d5676a8bcfa70434889139f1d935985d"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState.show",
+      "offset": 23260,
+      "length": 1183,
+      "sha256": "ba38f479645368e062d1121ac9c5fba5784197bf63dca506b83585e97ef489cc"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/refresh_indicator.dart",
+      "symbol": "RefreshIndicatorState.fields",
+      "offset": 13263,
+      "length": 804,
+      "sha256": "86c44b0fce685f756757dccf9620e858aa4cb5d4380e0b5707fbcd9f51e084a8"
+    }
+  ],
+  "result": {
+    "colorCases": [
+      {
+        "alpha": 0,
+        "distance": -20,
+        "state": {
+          "status": "armed",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 0,
+        "distance": 0,
+        "state": {
+          "status": "armed",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 0,
+        "distance": 1,
+        "state": {
+          "status": "armed",
+          "position": 0.01,
+          "value": 0.0075,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 0,
+        "distance": 20,
+        "state": {
+          "status": "armed",
+          "position": 0.2,
+          "value": 0.15000000000000002,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 0,
+        "distance": 67,
+        "state": {
+          "status": "armed",
+          "position": 0.67,
+          "value": 0.5025000000000001,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 0,
+        "distance": 100,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 0,
+        "distance": 200,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": -20,
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": 0,
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": 1,
+        "state": {
+          "status": "drag",
+          "position": 0.01,
+          "value": 0.0075,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": 20,
+        "state": {
+          "status": "drag",
+          "position": 0.2,
+          "value": 0.15000000000000002,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": 67,
+        "state": {
+          "status": "armed",
+          "position": 0.67,
+          "value": 0.5025000000000001,
+          "scale": 0,
+          "alpha": 1,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": 100,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 1,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 1,
+        "distance": 200,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 1,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": -20,
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": 0,
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": 1,
+        "state": {
+          "status": "drag",
+          "position": 0.01,
+          "value": 0.0075,
+          "scale": 0,
+          "alpha": 2,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": 20,
+        "state": {
+          "status": "drag",
+          "position": 0.2,
+          "value": 0.15000000000000002,
+          "scale": 0,
+          "alpha": 38,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": 67,
+        "state": {
+          "status": "armed",
+          "position": 0.67,
+          "value": 0.5025000000000001,
+          "scale": 0,
+          "alpha": 128,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": 100,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 128,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 128,
+        "distance": 200,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 128,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": -20,
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": 0,
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": 1,
+        "state": {
+          "status": "drag",
+          "position": 0.01,
+          "value": 0.0075,
+          "scale": 0,
+          "alpha": 4,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": 20,
+        "state": {
+          "status": "drag",
+          "position": 0.2,
+          "value": 0.15000000000000002,
+          "scale": 0,
+          "alpha": 77,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": 67,
+        "state": {
+          "status": "armed",
+          "position": 0.67,
+          "value": 0.5025000000000001,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": 100,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        }
+      },
+      {
+        "alpha": 255,
+        "distance": 200,
+        "state": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        }
+      }
+    ],
+    "cases": [
+      {
+        "name": "short",
+        "distance": 30,
+        "afterDrag": {
+          "status": "drag",
+          "position": 0.3,
+          "value": 0.22499999999999998,
+          "scale": 0,
+          "alpha": 115,
+          "atTop": true
+        },
+        "afterEnd": {
+          "status": "canceled",
+          "position": 0.3,
+          "value": 0.22499999999999998,
+          "scale": 0,
+          "alpha": 115,
+          "atTop": true
+        },
+        "afterAnimation": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "final": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": [
+          "drag",
+          "canceled"
+        ],
+        "calls": 0,
+        "beforeSnapCalls": 0,
+        "glowConsumed": true,
+        "glowAccepted": false
+      },
+      {
+        "name": "armedCancel",
+        "distance": 70,
+        "afterDrag": {
+          "status": "armed",
+          "position": 0.7,
+          "value": 0.5249999999999999,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "afterEnd": {
+          "status": "canceled",
+          "position": 0.7,
+          "value": 0.5249999999999999,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "afterAnimation": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "final": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": [
+          "drag",
+          "armed",
+          "canceled"
+        ],
+        "calls": 0,
+        "beforeSnapCalls": 0,
+        "glowConsumed": true,
+        "glowAccepted": false
+      },
+      {
+        "name": "commit",
+        "distance": 100,
+        "afterDrag": {
+          "status": "armed",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "afterEnd": {
+          "status": "snap",
+          "position": 1,
+          "value": 0.75,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "afterAnimation": {
+          "status": "refresh",
+          "position": 0.6666666666666666,
+          "value": 0.5,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "final": {
+          "status": null,
+          "position": 0.6666666666666666,
+          "value": 0.5,
+          "scale": 1,
+          "alpha": 255,
+          "atTop": null
+        },
+        "trace": [
+          "drag",
+          "armed",
+          "snap",
+          "done"
+        ],
+        "calls": 1,
+        "beforeSnapCalls": 0,
+        "glowConsumed": true,
+        "glowAccepted": false
+      },
+      {
+        "name": "ballistic",
+        "distance": 70,
+        "afterDrag": {
+          "status": "armed",
+          "position": 0.7,
+          "value": 0.5249999999999999,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "afterEnd": {
+          "status": "snap",
+          "position": 0.7,
+          "value": 0.5249999999999999,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "afterAnimation": {
+          "status": "refresh",
+          "position": 0.6666666666666666,
+          "value": 0.5,
+          "scale": 0,
+          "alpha": 255,
+          "atTop": true
+        },
+        "final": {
+          "status": null,
+          "position": 0.6666666666666666,
+          "value": 0.5,
+          "scale": 1,
+          "alpha": 255,
+          "atTop": null
+        },
+        "trace": [
+          "drag",
+          "armed",
+          "snap",
+          "done"
+        ],
+        "calls": 1,
+        "beforeSnapCalls": 0,
+        "glowConsumed": true,
+        "glowAccepted": false
+      }
+    ],
+    "admission": [
+      {
+        "mode": "anywhere",
+        "kind": "programmatic",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "anywhere",
+        "kind": "depth",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "anywhere",
+        "kind": "horizontal",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "anywhere",
+        "kind": "away",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "anywhere",
+        "kind": "updateAtEdge",
+        "state": {
+          "status": "drag",
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": true
+        },
+        "trace": [
+          "drag"
+        ]
+      },
+      {
+        "mode": "onEdge",
+        "kind": "programmatic",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "onEdge",
+        "kind": "depth",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "onEdge",
+        "kind": "horizontal",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "onEdge",
+        "kind": "away",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      },
+      {
+        "mode": "onEdge",
+        "kind": "updateAtEdge",
+        "state": {
+          "status": null,
+          "position": 0,
+          "value": 0,
+          "scale": 0,
+          "alpha": 0,
+          "atTop": null
+        },
+        "trace": []
+      }
+    ],
+    "show": {
+      "sameFuture": true,
+      "before": {
+        "status": "snap",
+        "position": 0,
+        "value": 0,
+        "scale": 0,
+        "alpha": 0,
+        "atTop": true
+      },
+      "during": {
+        "status": "refresh",
+        "position": 0.6666666666666666,
+        "value": 0.5,
+        "scale": 0,
+        "alpha": 255,
+        "atTop": true
+      },
+      "final": {
+        "status": null,
+        "position": 0.6666666666666666,
+        "value": 0.5,
+        "scale": 1,
+        "alpha": 255,
+        "atTop": null
+      },
+      "calls": 1,
+      "trace": [
+        "snap",
+        "done"
+      ]
+    },
+    "defaults": {
+      "displacement": 40,
+      "edgeOffset": 0,
+      "strokeWidth": 2.5,
+      "elevation": 2
+    }
+  },
+  "scope": "Unchanged public widget/enums plus all13 selected State lifecycle/color/admission/scroll/overscroll/start/threshold/dismiss/show methods and fields on explicit finite animation/context/value/notification parents. Manual controller completion proves callback sequence and state recipes, not full scheduler/layout/painter or renderer/engine. Async dispose/error adaptations are separately tested in actual product."
+}

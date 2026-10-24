@@ -1,0 +1,3143 @@
+{
+  "scope": "Original 17 pure-value lerp methods and one private side helper executed by Dart VM. Finite scalar/enum/function/widget/stateful-double routing and null/identity cases; non-scalar parent lerp receivers accept null only. This is not native Flutter UI or full parent-value parity.",
+  "spans": [
+    {
+      "symbol": "ActionIconThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/action_icons_theme.dart",
+      "offset": 2690,
+      "length": 678,
+      "sha256": "2dfe60f2ff0a00bb182223a8705507b3a08a66a2a081f6e87011d3288e8b51ac"
+    },
+    {
+      "symbol": "BadgeThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/badge_theme.dart",
+      "offset": 2964,
+      "length": 759,
+      "sha256": "21ee3c321374b99ea470bc310b3577e2fc8455b205765ca975bf1419d45f6cbd"
+    },
+    {
+      "symbol": "CardThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/card_theme.dart",
+      "offset": 10429,
+      "length": 719,
+      "sha256": "eb63569760369bfadb1c88df317c8cb00436faa79ce4244191dbe1b9c182910d"
+    },
+    {
+      "symbol": "CarouselViewThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/carousel_theme.dart",
+      "offset": 3461,
+      "length": 812,
+      "sha256": "e9d5c72428b902aa63a91ec7bf3a511fd91b2f81ed3020b5a47ec672eabf40b7"
+    },
+    {
+      "symbol": "DrawerThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/drawer_theme.dart",
+      "offset": 3268,
+      "length": 923,
+      "sha256": "c7f7d8d4c81c4fc6b73adaeb946d57a1d9fdc5d5b87934bc2086ce684a3a6b1e"
+    },
+    {
+      "symbol": "ExpansionTileThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/expansion_tile_theme.dart",
+      "offset": 4974,
+      "length": 1382,
+      "sha256": "d7f60932db1261cd1af0893f910e403239824788549a97e10a7532a5dab7a036"
+    },
+    {
+      "symbol": "NavigationBarThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/navigation_bar_theme.dart",
+      "offset": 4800,
+      "length": 1516,
+      "sha256": "2790e9f5f767091062a1658ffce18f374a0b41e3c74e9b194b7d82a91ea9d0ba"
+    },
+    {
+      "symbol": "NavigationDrawerThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/navigation_drawer_theme.dart",
+      "offset": 4430,
+      "length": 1310,
+      "sha256": "1bab65533da3629f1bcb8113a4499060944801bd4e9d8bab9e2a02ee2b4abb31"
+    },
+    {
+      "symbol": "SearchBarThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/search_bar_theme.dart",
+      "offset": 4570,
+      "length": 1742,
+      "sha256": "d7a6454b0cc2fd1de4b2f0f753eb896df350e5dd70c83a9f7a727d70cd4e1bae"
+    },
+    {
+      "symbol": "SearchViewThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/search_view_theme.dart",
+      "offset": 4513,
+      "length": 1167,
+      "sha256": "1ec8160d6fe9e81f4ab5232d10897cb4351a583d093eff328fa85054acc423ca"
+    },
+    {
+      "symbol": "SearchViewThemeData._lerpSides",
+      "source": "packages/flutter/lib/src/material/search_view_theme.dart",
+      "offset": 8431,
+      "length": 485,
+      "sha256": "e46ca485df8b5c83ef7a6a7b2ebaf64cf2d14773eb4a41ebfdb7d91e3b8f88cc"
+    },
+    {
+      "symbol": "SegmentedButtonThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/segmented_button_theme.dart",
+      "offset": 2546,
+      "length": 430,
+      "sha256": "e42f4fd27ccf424ec5af965949ae288abd77e013a437cd68b4f2ec9a52865c39"
+    },
+    {
+      "symbol": "MenuBarThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/menu_bar_theme.dart",
+      "offset": 1678,
+      "length": 274,
+      "sha256": "b1e8e9dcc1e2cd41493a631dbd9665508d2293e2509ebfb5bb5990441758c01d"
+    },
+    {
+      "symbol": "MenuButtonThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/menu_button_theme.dart",
+      "offset": 2667,
+      "length": 290,
+      "sha256": "79561bc3fb256d7f68d876850b6e182410197c83e77ca68f00bd1fe78104febf"
+    },
+    {
+      "symbol": "MenuThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/menu_theme.dart",
+      "offset": 1885,
+      "length": 342,
+      "sha256": "339172e96ea5d0d730b96717d7f9f39edb712d7a5894554b86d2a9b7e8026286"
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/floating_action_button_theme.dart",
+      "offset": 7476,
+      "length": 2257,
+      "sha256": "55dec92087ae2fe5bdd6044a4bfefd526918e3abaa6cc61a782319902b7b498d"
+    },
+    {
+      "symbol": "DialogThemeData.lerp",
+      "source": "packages/flutter/lib/src/material/dialog_theme.dart",
+      "offset": 17452,
+      "length": 1308,
+      "sha256": "be696f2dfd0c3abb03fbfabcd78aa82a379113f3b1a18b53eddacbc4cb0d2a00"
+    },
+    {
+      "symbol": "MenuStyle.lerp",
+      "source": "packages/flutter/lib/src/material/menu_style.dart",
+      "offset": 10956,
+      "length": 1542,
+      "sha256": "7f64bfdea3429961922675dc134b5c94d7b5e4e4ce05324ec40eb7d41e94546e"
+    }
+  ],
+  "contracts": [
+    {
+      "symbol": "ActionIconThemeData",
+      "fields": [
+        {
+          "name": "backButtonIconBuilder",
+          "type": "function"
+        },
+        {
+          "name": "closeButtonIconBuilder",
+          "type": "function"
+        },
+        {
+          "name": "drawerButtonIconBuilder",
+          "type": "function"
+        },
+        {
+          "name": "endDrawerButtonIconBuilder",
+          "type": "function"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "fields": [
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "textColor",
+          "type": "Color"
+        },
+        {
+          "name": "smallSize",
+          "type": "double"
+        },
+        {
+          "name": "largeSize",
+          "type": "double"
+        },
+        {
+          "name": "textStyle",
+          "type": "TextStyle"
+        },
+        {
+          "name": "padding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "alignment",
+          "type": "AlignmentGeometry"
+        },
+        {
+          "name": "offset",
+          "type": "Offset"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "CardThemeData",
+      "fields": [
+        {
+          "name": "clipBehavior",
+          "type": "Clip"
+        },
+        {
+          "name": "color",
+          "type": "Color"
+        },
+        {
+          "name": "shadowColor",
+          "type": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "margin",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "shape",
+          "type": "ShapeBorder"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "fields": [
+        {
+          "name": "padding",
+          "type": "EdgeInsets"
+        },
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "shape",
+          "type": "OutlinedBorder"
+        },
+        {
+          "name": "itemClipBehavior",
+          "type": "Clip"
+        },
+        {
+          "name": "overlayColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "fields": [
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "scrimColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "shadowColor",
+          "type": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "Color"
+        },
+        {
+          "name": "shape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "endShape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "width",
+          "type": "double"
+        },
+        {
+          "name": "clipBehavior",
+          "type": "Clip"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "fields": [
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "collapsedBackgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "tilePadding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "expandedAlignment",
+          "type": "AlignmentGeometry"
+        },
+        {
+          "name": "childrenPadding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "iconColor",
+          "type": "Color"
+        },
+        {
+          "name": "collapsedIconColor",
+          "type": "Color"
+        },
+        {
+          "name": "textColor",
+          "type": "Color"
+        },
+        {
+          "name": "collapsedTextColor",
+          "type": "Color"
+        },
+        {
+          "name": "shape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "collapsedShape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "clipBehavior",
+          "type": "Clip"
+        },
+        {
+          "name": "expansionAnimationStyle",
+          "type": "AnimationStyle"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "fields": [
+        {
+          "name": "height",
+          "type": "double"
+        },
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "shadowColor",
+          "type": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "Color"
+        },
+        {
+          "name": "indicatorColor",
+          "type": "Color"
+        },
+        {
+          "name": "indicatorShape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "labelTextStyle",
+          "type": "WidgetStateProperty",
+          "inner": "TextStyle"
+        },
+        {
+          "name": "iconTheme",
+          "type": "WidgetStateProperty",
+          "inner": "IconThemeData"
+        },
+        {
+          "name": "labelBehavior",
+          "type": "NavigationDestinationLabelBehavior"
+        },
+        {
+          "name": "overlayColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "labelPadding",
+          "type": "EdgeInsetsGeometry"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "fields": [
+        {
+          "name": "tileHeight",
+          "type": "double"
+        },
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "shadowColor",
+          "type": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "Color"
+        },
+        {
+          "name": "indicatorColor",
+          "type": "Color"
+        },
+        {
+          "name": "indicatorShape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "indicatorSize",
+          "type": "Size"
+        },
+        {
+          "name": "labelTextStyle",
+          "type": "WidgetStateProperty",
+          "inner": "TextStyle"
+        },
+        {
+          "name": "iconTheme",
+          "type": "WidgetStateProperty",
+          "inner": "IconThemeData"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "fields": [
+        {
+          "name": "elevation",
+          "type": "WidgetStateProperty",
+          "inner": "double"
+        },
+        {
+          "name": "backgroundColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "shadowColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "overlayColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "side",
+          "type": "WidgetStateProperty",
+          "inner": "BorderSide"
+        },
+        {
+          "name": "shape",
+          "type": "WidgetStateProperty",
+          "inner": "OutlinedBorder"
+        },
+        {
+          "name": "padding",
+          "type": "WidgetStateProperty",
+          "inner": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "textStyle",
+          "type": "WidgetStateProperty",
+          "inner": "TextStyle"
+        },
+        {
+          "name": "hintStyle",
+          "type": "WidgetStateProperty",
+          "inner": "TextStyle"
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints"
+        },
+        {
+          "name": "textCapitalization",
+          "type": "TextCapitalization"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "fields": [
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "Color"
+        },
+        {
+          "name": "side",
+          "type": "BorderSide"
+        },
+        {
+          "name": "shape",
+          "type": "OutlinedBorder"
+        },
+        {
+          "name": "headerHeight",
+          "type": "double"
+        },
+        {
+          "name": "headerTextStyle",
+          "type": "TextStyle"
+        },
+        {
+          "name": "headerHintStyle",
+          "type": "TextStyle"
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints"
+        },
+        {
+          "name": "padding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "barPadding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "shrinkWrap",
+          "type": "bool"
+        },
+        {
+          "name": "dividerColor",
+          "type": "Color"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "fields": [
+        {
+          "name": "style",
+          "type": "ButtonStyle"
+        },
+        {
+          "name": "selectedIcon",
+          "type": "Widget"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "fields": [
+        {
+          "name": "style",
+          "type": "MenuStyle"
+        }
+      ],
+      "copyWith": false
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "fields": [
+        {
+          "name": "style",
+          "type": "ButtonStyle"
+        }
+      ],
+      "copyWith": false
+    },
+    {
+      "symbol": "MenuThemeData",
+      "fields": [
+        {
+          "name": "style",
+          "type": "MenuStyle"
+        },
+        {
+          "name": "submenuIcon",
+          "type": "WidgetStateProperty",
+          "inner": "Widget"
+        }
+      ],
+      "copyWith": false
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "fields": [
+        {
+          "name": "foregroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "focusColor",
+          "type": "Color"
+        },
+        {
+          "name": "hoverColor",
+          "type": "Color"
+        },
+        {
+          "name": "splashColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "focusElevation",
+          "type": "double"
+        },
+        {
+          "name": "hoverElevation",
+          "type": "double"
+        },
+        {
+          "name": "disabledElevation",
+          "type": "double"
+        },
+        {
+          "name": "highlightElevation",
+          "type": "double"
+        },
+        {
+          "name": "shape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "enableFeedback",
+          "type": "bool"
+        },
+        {
+          "name": "iconSize",
+          "type": "double"
+        },
+        {
+          "name": "sizeConstraints",
+          "type": "BoxConstraints"
+        },
+        {
+          "name": "smallSizeConstraints",
+          "type": "BoxConstraints"
+        },
+        {
+          "name": "largeSizeConstraints",
+          "type": "BoxConstraints"
+        },
+        {
+          "name": "extendedSizeConstraints",
+          "type": "BoxConstraints"
+        },
+        {
+          "name": "extendedIconLabelSpacing",
+          "type": "double"
+        },
+        {
+          "name": "extendedPadding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "extendedTextStyle",
+          "type": "TextStyle"
+        },
+        {
+          "name": "mouseCursor",
+          "type": "WidgetStateProperty",
+          "inner": "MouseCursor"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "DialogThemeData",
+      "fields": [
+        {
+          "name": "backgroundColor",
+          "type": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "double"
+        },
+        {
+          "name": "shadowColor",
+          "type": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "Color"
+        },
+        {
+          "name": "shape",
+          "type": "ShapeBorder"
+        },
+        {
+          "name": "alignment",
+          "type": "AlignmentGeometry"
+        },
+        {
+          "name": "titleTextStyle",
+          "type": "TextStyle"
+        },
+        {
+          "name": "contentTextStyle",
+          "type": "TextStyle"
+        },
+        {
+          "name": "actionsPadding",
+          "type": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "iconColor",
+          "type": "Color"
+        },
+        {
+          "name": "barrierColor",
+          "type": "Color"
+        },
+        {
+          "name": "insetPadding",
+          "type": "EdgeInsets"
+        },
+        {
+          "name": "clipBehavior",
+          "type": "Clip"
+        },
+        {
+          "name": "constraints",
+          "type": "BoxConstraints"
+        }
+      ],
+      "copyWith": true
+    },
+    {
+      "symbol": "MenuStyle",
+      "fields": [
+        {
+          "name": "backgroundColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "shadowColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "surfaceTintColor",
+          "type": "WidgetStateProperty",
+          "inner": "Color"
+        },
+        {
+          "name": "elevation",
+          "type": "WidgetStateProperty",
+          "inner": "double"
+        },
+        {
+          "name": "padding",
+          "type": "WidgetStateProperty",
+          "inner": "EdgeInsetsGeometry"
+        },
+        {
+          "name": "minimumSize",
+          "type": "WidgetStateProperty",
+          "inner": "Size"
+        },
+        {
+          "name": "fixedSize",
+          "type": "WidgetStateProperty",
+          "inner": "Size"
+        },
+        {
+          "name": "maximumSize",
+          "type": "WidgetStateProperty",
+          "inner": "Size"
+        },
+        {
+          "name": "side",
+          "type": "WidgetStateProperty",
+          "inner": "BorderSide"
+        },
+        {
+          "name": "shape",
+          "type": "WidgetStateProperty",
+          "inner": "OutlinedBorder"
+        },
+        {
+          "name": "mouseCursor",
+          "type": "WidgetStateProperty",
+          "inner": "MouseCursor"
+        },
+        {
+          "name": "visualDensity",
+          "type": "VisualDensity"
+        },
+        {
+          "name": "alignment",
+          "type": "AlignmentGeometry"
+        }
+      ],
+      "copyWith": true
+    }
+  ],
+  "results": [
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": "a",
+        "closeButtonIconBuilder": "a",
+        "drawerButtonIconBuilder": "a",
+        "endDrawerButtonIconBuilder": "a"
+      }
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": "a",
+        "closeButtonIconBuilder": "a",
+        "drawerButtonIconBuilder": "a",
+        "endDrawerButtonIconBuilder": "a"
+      }
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": "b",
+        "closeButtonIconBuilder": "b",
+        "drawerButtonIconBuilder": "b",
+        "endDrawerButtonIconBuilder": "b"
+      }
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": "b",
+        "closeButtonIconBuilder": "b",
+        "drawerButtonIconBuilder": "b",
+        "endDrawerButtonIconBuilder": "b"
+      }
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": "b",
+        "closeButtonIconBuilder": "b",
+        "drawerButtonIconBuilder": "b",
+        "endDrawerButtonIconBuilder": "b"
+      }
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": null,
+        "closeButtonIconBuilder": null,
+        "drawerButtonIconBuilder": null,
+        "endDrawerButtonIconBuilder": null
+      }
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "ActionIconThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backButtonIconBuilder": "a",
+        "closeButtonIconBuilder": "a",
+        "drawerButtonIconBuilder": "a",
+        "endDrawerButtonIconBuilder": "a"
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 0,
+        "largeSize": 0,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 4,
+        "largeSize": 4,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 6,
+        "largeSize": 6,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 12,
+        "largeSize": 12,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 5,
+        "largeSize": 5,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 1,
+        "largeSize": 1,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": null,
+        "largeSize": null,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "BadgeThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "backgroundColor": null,
+        "textColor": null,
+        "smallSize": 2,
+        "largeSize": 2,
+        "textStyle": null,
+        "padding": null,
+        "alignment": null,
+        "offset": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": "none",
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 0,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": "none",
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 4,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": "antiAlias",
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 6,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": "antiAlias",
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 12,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": "antiAlias",
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 5,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": null,
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 1,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "clipBehavior": null,
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": null,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CardThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "clipBehavior": "none",
+        "color": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 2,
+        "margin": null,
+        "shape": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 0,
+        "shape": null,
+        "itemClipBehavior": "none",
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 4,
+        "shape": null,
+        "itemClipBehavior": "none",
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 6,
+        "shape": null,
+        "itemClipBehavior": "antiAlias",
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 12,
+        "shape": null,
+        "itemClipBehavior": "antiAlias",
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 5,
+        "shape": null,
+        "itemClipBehavior": "antiAlias",
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 1,
+        "shape": null,
+        "itemClipBehavior": null,
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": null,
+        "shape": null,
+        "itemClipBehavior": null,
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "CarouselViewThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "padding": null,
+        "backgroundColor": null,
+        "elevation": 2,
+        "shape": null,
+        "itemClipBehavior": "none",
+        "overlayColor": null
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 0,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 0,
+        "clipBehavior": "none"
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 4,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 4,
+        "clipBehavior": "none"
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 6,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 6,
+        "clipBehavior": "antiAlias"
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 12,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 12,
+        "clipBehavior": "antiAlias"
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 5,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 5,
+        "clipBehavior": "antiAlias"
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 1,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 1,
+        "clipBehavior": null
+      }
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "DrawerThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "backgroundColor": null,
+        "scrimColor": null,
+        "elevation": 2,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "endShape": null,
+        "width": 2,
+        "clipBehavior": "none"
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": "none",
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": "none",
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": "antiAlias",
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": "antiAlias",
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": "antiAlias",
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": null,
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "ExpansionTileThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "backgroundColor": null,
+        "collapsedBackgroundColor": null,
+        "tilePadding": null,
+        "expandedAlignment": null,
+        "childrenPadding": null,
+        "iconColor": null,
+        "collapsedIconColor": null,
+        "textColor": null,
+        "collapsedTextColor": null,
+        "shape": null,
+        "collapsedShape": null,
+        "clipBehavior": "none",
+        "expansionAnimationStyle": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "height": 0,
+        "backgroundColor": null,
+        "elevation": 0,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": "alwaysHide",
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "height": 4,
+        "backgroundColor": null,
+        "elevation": 4,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": "alwaysHide",
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "height": 6,
+        "backgroundColor": null,
+        "elevation": 6,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": "onlyShowSelected",
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "height": 12,
+        "backgroundColor": null,
+        "elevation": 12,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": "onlyShowSelected",
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "height": 5,
+        "backgroundColor": null,
+        "elevation": 5,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": "onlyShowSelected",
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "height": 1,
+        "backgroundColor": null,
+        "elevation": 1,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": null,
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "NavigationBarThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "height": 2,
+        "backgroundColor": null,
+        "elevation": 2,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "labelTextStyle": null,
+        "iconTheme": null,
+        "labelBehavior": "alwaysHide",
+        "overlayColor": null,
+        "labelPadding": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "tileHeight": 0,
+        "backgroundColor": null,
+        "elevation": 0,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "tileHeight": 4,
+        "backgroundColor": null,
+        "elevation": 4,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "tileHeight": 6,
+        "backgroundColor": null,
+        "elevation": 6,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "tileHeight": 12,
+        "backgroundColor": null,
+        "elevation": 12,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "tileHeight": 5,
+        "backgroundColor": null,
+        "elevation": 5,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "tileHeight": 1,
+        "backgroundColor": null,
+        "elevation": 1,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "NavigationDrawerThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "tileHeight": 2,
+        "backgroundColor": null,
+        "elevation": 2,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "indicatorColor": null,
+        "indicatorShape": null,
+        "indicatorSize": null,
+        "labelTextStyle": null,
+        "iconTheme": null
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "elevation": 0,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": "words"
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "elevation": 4,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": "words"
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "elevation": 6,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": "characters"
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "elevation": 12,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": "characters"
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "elevation": 5,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": "characters"
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "elevation": 1,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": null
+      }
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "SearchBarThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "elevation": 2,
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "overlayColor": null,
+        "side": null,
+        "shape": null,
+        "padding": null,
+        "textStyle": null,
+        "hintStyle": null,
+        "constraints": null,
+        "textCapitalization": "words"
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 0,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 0,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": false,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 4,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 4,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": false,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 6,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 6,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": true,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 12,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 12,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": true,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 5,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 5,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": true,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 1,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 1,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": null,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "SearchViewThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 2,
+        "surfaceTintColor": null,
+        "side": null,
+        "shape": null,
+        "headerHeight": 2,
+        "headerTextStyle": null,
+        "headerHintStyle": null,
+        "constraints": null,
+        "padding": null,
+        "barPadding": null,
+        "shrinkWrap": false,
+        "dividerColor": null
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": "a"
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": "a"
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": "b"
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": "b"
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": "b"
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": null
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "selectedIcon": null
+      }
+    },
+    {
+      "symbol": "SegmentedButtonThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "style": null,
+        "selectedIcon": "a"
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "MenuBarThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "MenuButtonThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "style": null
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "submenuIcon": "a"
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "submenuIcon": "a"
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "submenuIcon": "b"
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "submenuIcon": "b"
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "submenuIcon": "b"
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "style": null,
+        "submenuIcon": null
+      }
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "MenuThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "style": null,
+        "submenuIcon": "a"
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 0,
+        "focusElevation": 0,
+        "hoverElevation": 0,
+        "disabledElevation": 0,
+        "highlightElevation": 0,
+        "shape": null,
+        "enableFeedback": false,
+        "iconSize": 0,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 0,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 4,
+        "focusElevation": 4,
+        "hoverElevation": 4,
+        "disabledElevation": 4,
+        "highlightElevation": 4,
+        "shape": null,
+        "enableFeedback": false,
+        "iconSize": 4,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 4,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 6,
+        "focusElevation": 6,
+        "hoverElevation": 6,
+        "disabledElevation": 6,
+        "highlightElevation": 6,
+        "shape": null,
+        "enableFeedback": true,
+        "iconSize": 6,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 6,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 12,
+        "focusElevation": 12,
+        "hoverElevation": 12,
+        "disabledElevation": 12,
+        "highlightElevation": 12,
+        "shape": null,
+        "enableFeedback": true,
+        "iconSize": 12,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 12,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 5,
+        "focusElevation": 5,
+        "hoverElevation": 5,
+        "disabledElevation": 5,
+        "highlightElevation": 5,
+        "shape": null,
+        "enableFeedback": true,
+        "iconSize": 5,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 5,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 1,
+        "focusElevation": 1,
+        "hoverElevation": 1,
+        "disabledElevation": 1,
+        "highlightElevation": 1,
+        "shape": null,
+        "enableFeedback": null,
+        "iconSize": 1,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 1,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "FloatingActionButtonThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "foregroundColor": null,
+        "backgroundColor": null,
+        "focusColor": null,
+        "hoverColor": null,
+        "splashColor": null,
+        "elevation": 2,
+        "focusElevation": 2,
+        "hoverElevation": 2,
+        "disabledElevation": 2,
+        "highlightElevation": 2,
+        "shape": null,
+        "enableFeedback": false,
+        "iconSize": 2,
+        "sizeConstraints": null,
+        "smallSizeConstraints": null,
+        "largeSizeConstraints": null,
+        "extendedSizeConstraints": null,
+        "extendedIconLabelSpacing": 2,
+        "extendedPadding": null,
+        "extendedTextStyle": null,
+        "mouseCursor": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 0,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": "none",
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 4,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": "none",
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 6,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": "antiAlias",
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 12,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": "antiAlias",
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 5,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": "antiAlias",
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 1,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": null,
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": null,
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "DialogThemeData",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "backgroundColor": null,
+        "elevation": 2,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "shape": null,
+        "alignment": null,
+        "titleTextStyle": null,
+        "contentTextStyle": null,
+        "actionsPadding": null,
+        "iconColor": null,
+        "barrierColor": null,
+        "insetPadding": null,
+        "clipBehavior": "none",
+        "constraints": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "pair",
+      "t": -0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 0,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "pair",
+      "t": 0.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 4,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "pair",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 6,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "pair",
+      "t": 1.25,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 12,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "nullA",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 5,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "nullB",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": false,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 1,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "bothNull",
+      "t": 0.5,
+      "isNull": true,
+      "identicalA": false,
+      "fields": null
+    },
+    {
+      "symbol": "MenuStyle",
+      "mode": "identity",
+      "t": 0.5,
+      "isNull": false,
+      "identicalA": true,
+      "fields": {
+        "backgroundColor": null,
+        "shadowColor": null,
+        "surfaceTintColor": null,
+        "elevation": 2,
+        "padding": null,
+        "minimumSize": null,
+        "fixedSize": null,
+        "maximumSize": null,
+        "side": null,
+        "shape": null,
+        "mouseCursor": null,
+        "visualDensity": null,
+        "alignment": null
+      }
+    }
+  ]
+}

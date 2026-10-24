@@ -1,0 +1,244 @@
+{
+  "schema": "nelyx.w9-selection-api-retirements/v1",
+  "createdAt": "2026-10-15T08:44:07.943770+00:00",
+  "requestedBy": "User follow-up: 레거시는 없에줘",
+  "scope": "W9-01 selection legacy API removal. Source inventory identities/required flags remain immutable; these explicitly retired APIs must not be restored to satisfy missing coverage counts. Other API families remain in scope.",
+  "replacement": "Handle-only TextSelectionControls plus contextMenuBuilder/AdaptiveTextSelectionToolbar options constructors.",
+  "removed": [
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls.buildHandle:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls.buildToolbar:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls.getHandleAnchor:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls.getHandleSize:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls.handleSelectAll:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls.new:CONSTRUCTOR",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::CupertinoDesktopTextSelectionControls:CLASS",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/desktop_text_selection.dart::cupertinoDesktopTextSelectionControls:TOP_LEVEL_VARIABLE",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls.buildHandle:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls.buildToolbar:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls.getHandleAnchor:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls.getHandleSize:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls.new:CONSTRUCTOR",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::CupertinoTextSelectionControls:CLASS",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/cupertino/text_selection.dart::cupertinoTextSelectionControls:TOP_LEVEL_VARIABLE",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.buildHandle:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.buildToolbar:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.canSelectAll:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.getHandleAnchor:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.getHandleSize:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.handleSelectAll:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls.new:CONSTRUCTOR",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::DesktopTextSelectionControls:CLASS",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/desktop_text_selection.dart::desktopTextSelectionControls:TOP_LEVEL_VARIABLE",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls.buildHandle:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls.buildToolbar:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls.getHandleAnchor:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls.getHandleSize:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls.new:CONSTRUCTOR",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::MaterialTextSelectionControls:CLASS",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/material/text_selection.dart::materialTextSelectionControls:TOP_LEVEL_VARIABLE",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::EmptyTextSelectionControls.buildToolbar:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::SelectionOverlay.clipboardStatus:FIELD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::SelectionOverlay.selectionDelegate:FIELD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::SelectionOverlay.toolbarLocation:GETTER",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::SelectionOverlay.toolbarLocation:SETTER",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.buildToolbar:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.canCopy:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.canCut:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.canPaste:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.canSelectAll:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.handleCopy:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.handleCut:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.handlePaste:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionControls.handleSelectAll:METHOD",
+      "previous": "partial",
+      "current": "missing"
+    },
+    {
+      "qualifiedId": "package:flutter/src/widgets/text_selection.dart::TextSelectionHandleControls:MIXIN",
+      "previous": "partial",
+      "current": "missing"
+    }
+  ],
+  "additionalHostApis": [
+    "isTextSelectionHandleControls",
+    "AdaptiveTextSelectionToolbar(items, anchors, options)"
+  ],
+  "acceptance": ".tmp/work8/w9-01-no-legacy-acceptance.json"
+}

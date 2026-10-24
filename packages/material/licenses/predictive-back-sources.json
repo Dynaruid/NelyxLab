@@ -1,0 +1,47 @@
+{
+  "schema": "nelyx.predictive-back-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/predictive_back_page_transitions_builder.dart",
+      "sha256": "207bcac27d1a09206005c4dfcec7a7a2b58555e5bb599fb73dcf6bb855a463f4"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/page_transitions_theme.dart",
+      "sha256": "9961b6d1217390fa956817317e2bb7150a3569be13620242b96318be2ff67592"
+    },
+    {
+      "file": "packages/flutter/lib/src/services/predictive_back_event.dart",
+      "sha256": "be3d50ce8e37ae0631871d48ed73994c85c3deb4468d4435a777219e8f4b6631"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/binding.dart",
+      "sha256": "0a704a4cd7f4706f9422dffa678d53ad3cb536ba7597df734e708a9396b5f7a0"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "5d543f3e093bfcfa5dc889f8f67d87fa7a4e92dee44dc8630cdc613b9cee8183"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/predictive_back_page_transitions_builder.cs",
+      "sha256": "783a52e37585fc058bddf82c19ea4feed7d02ac5bdf92b3939e2668f3461a35b"
+    },
+    {
+      "file": "packages/Doroti.Material/src/page_transitions_theme.cs",
+      "sha256": "feba214ea53e965bfe9f0fce583c928f30fe00952af3a0eab03c15d7cb637038"
+    }
+  ],
+  "owners": [
+    "packages/material/src/predictive-back-page-transitions-builder.ts",
+    "packages/material/src/page-transitions-theme.ts",
+    "packages/material/src/internal/route/page-transition-builders.ts"
+  ],
+  "scope": "Source-backed shared-element/fullscreen predictive builder/State recipes and PageTransitionsTheme default/fallback/value/gesture platform retention. Existing canonical ServicesBinding/Navigator/animation/widget/clip owners supply runtime contacts. Unchanged original VM executes on explicit finite animation/UI/layout/element/implicit-clock/route/binding and fallback-policy receivers. Actual current Core CPU/offline/hardware Web GPU evidence is separately scoped in work12 predictive qualification; full source parent renderer/engine ABI/ThemeData/MaterialPageRoute and native/physical Android transport remain separate."
+}

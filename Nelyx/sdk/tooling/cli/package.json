@@ -1,0 +1,110 @@
+{
+  "name": "@nelyx/cli",
+  "version": "0.10.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "bin": {
+    "nelyx": "src/main.mjs"
+  },
+  "exports": {
+    "./windows-aot-mode": {
+      "types": "./src/windows-aot-mode.d.mts",
+      "default": "./src/windows-aot-mode.mjs"
+    },
+    "./windows-static-aot": {
+      "types": "./src/windows-static-aot.d.mts",
+      "default": "./src/windows-static-aot.mjs"
+    },
+    "./windows-typed-hermes-policy": {
+      "types": "./src/windows-typed-hermes-policy.d.mts",
+      "default": "./src/windows-typed-hermes-policy.mjs"
+    },
+    "./windows-static-hermes": {
+      "types": "./src/windows-static-hermes.d.mts",
+      "default": "./src/windows-static-hermes.mjs"
+    },
+    "./windows-hermes-policy": {
+      "types": "./src/windows-hermes-policy.d.mts",
+      "default": "./src/windows-hermes-policy.mjs"
+    },
+    "./runner-configuration": {
+      "types": "./src/runner-configuration.d.mts",
+      "default": "./src/runner-configuration.mjs"
+    },
+    "./linux-runner": {
+      "types": "./src/linux-runner.d.mts",
+      "default": "./src/linux-runner.mjs"
+    },
+    "./linux-inputs": {
+      "types": "./src/linux-inputs.d.mts",
+      "default": "./src/linux-inputs.mjs"
+    },
+    "./apple-runtime": {
+      "types": "./src/apple-runtime.d.mts",
+      "default": "./src/apple-runtime.mjs"
+    },
+    "./windows-runner": {
+      "types": "./src/windows-runner.d.mts",
+      "default": "./src/windows-runner.mjs"
+    },
+    "./windows-v8": {
+      "types": "./src/windows-v8.d.mts",
+      "default": "./src/windows-v8.mjs"
+    },
+    "./native-inputs": {
+      "types": "./src/native-inputs.d.mts",
+      "default": "./src/native-inputs.mjs"
+    },
+    "./android-runner": {
+      "types": "./src/android-runner.d.mts",
+      "default": "./src/android-runner.mjs"
+    },
+    "./apple-runner": {
+      "types": "./src/apple-runner.d.mts",
+      "default": "./src/apple-runner.mjs"
+    },
+    "./web-runner": {
+      "types": "./src/web-runner.d.mts",
+      "default": "./src/web-runner.mjs"
+    },
+    "./native-development": {
+      "types": "./src/native-development.d.mts",
+      "default": "./src/native-development.mjs"
+    },
+    "./create-app": {
+      "types": "./src/create-app.d.mts",
+      "default": "./src/create-app.mjs"
+    },
+    "./supply-runner": {
+      "types": "./src/supply-runner.d.mts",
+      "default": "./src/supply-runner.mjs"
+    },
+    "./rnl-supply/prepare": "./src/prepare-rnl.mjs",
+    "./rnl-supply/pack": "./src/pack-rnl.mjs",
+    "./android-hermes-policy": {
+      "types": "./src/android-hermes-policy.d.mts",
+      "default": "./src/android-hermes-policy.mjs"
+    },
+    "./windows-jsc": {
+      "types": "./src/windows-jsc.d.mts",
+      "default": "./src/windows-jsc.mjs"
+    }
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE.md",
+    "templates",
+    "upstream"
+  ],
+  "dependencies": {
+    "@nelyx/static-aot": "0.1.0",
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/metro": "0.10.0"
+  },
+  "engines": {
+    "node": ">=24.3.0 <25"
+  }
+}

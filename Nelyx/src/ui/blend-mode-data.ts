@@ -1,0 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Pinned BlendMode order shared without importing the mutable Paint class.
+export const blendModeValues=Object.freeze(['clear','src','dst','srcOver','dstOver','srcIn','dstIn','srcOut','dstOut','srcATop','dstATop','xor','plus','modulate','screen','overlay','darken','lighten','colorDodge','colorBurn','hardLight','softLight','difference','exclusion','multiply','hue','saturation','color','luminosity'] as const);

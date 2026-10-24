@@ -1,0 +1,30 @@
+{
+  "schema": "nelyx.zoom-transitions-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/page_transitions_theme.dart",
+      "sha256": "9961b6d1217390fa956817317e2bb7150a3569be13620242b96318be2ff67592"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "sha256": "bb3f91d10a5db1ba793a37d3fa7662c9f10c7dde74f76b501f1a670cf30feba0"
+    },
+    {
+      "file": "packages/flutter/lib/src/rendering/object.dart",
+      "sha256": "e37141c5e02ee2acb93fde949fb64193d7bdb1cbb4494357eafec1e8f1d717c2"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/page_transitions_theme.cs",
+      "sha256": "feba214ea53e965bfe9f0fce583c928f30fe00952af3a0eab03c15d7cb637038"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/snapshot_widget.cs",
+      "sha256": "f014d68f5cefd53ede720250e66670e877adfe6118018b6d5d475a990a3cf9b8"
+    }
+  ],
+  "scope": "Complete eligible Zoom public builder, private live/snapshot State/painter/delegated and benchmark no-cache recipes on canonical Core SnapshotWidget/layer/image/animation. Own once-before-use host binding represents the source compile-time benchmark bool. Original source VM uses explicit finite animation/UI/affine/layout/layer receivers; actual current Core CPU/offline/GPU evidence is separately recorded in work12 Zoom qualification. Full PageTransitionsTheme/predictive/default ThemeData/render-engine ABI/native/physical behavior remains partial."
+}

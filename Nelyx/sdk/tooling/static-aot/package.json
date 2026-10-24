@@ -1,0 +1,55 @@
+{
+  "name": "@nelyx/static-aot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "license": "BSD-3-Clause",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "exports": {
+    "./type-policy": {
+      "types": "./src/type-policy.d.mts",
+      "default": "./src/type-policy.mjs"
+    },
+    "./runtime-inventory": {
+      "types": "./src/runtime-inventory.d.mts",
+      "default": "./src/runtime-inventory.mjs"
+    },
+    "./source-graph": {
+      "types": "./src/source-graph.d.mts",
+      "default": "./src/source-graph.mjs"
+    },
+    "./numeric-partition": {
+      "types": "./src/numeric-partition.d.mts",
+      "default": "./src/numeric-partition.mjs"
+    },
+    "./partition": {
+      "types": "./src/partition.d.mts",
+      "default": "./src/partition.mjs"
+    },
+    "./product-partition": {
+      "types": "./src/product-partition.d.mts",
+      "default": "./src/product-partition.mjs"
+    },
+    "./execution-plan": {
+      "types": "./src/execution-plan.d.mts",
+      "default": "./src/execution-plan.mjs"
+    }
+  },
+  "dependencies": {
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "@babel/parser": "7.29.9",
+    "hermes-parser": "0.32.0",
+    "@jridgewell/trace-mapping": "0.3.31"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=24.3.0 <25"
+  }
+}

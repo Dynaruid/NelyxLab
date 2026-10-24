@@ -1,0 +1,59 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "gesture-constants",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/gestures/constants.dart",
+      "sha256": "eff7ddcc07d4d416db0382ab341132c8d017ac148135de5bc17421eb9bc18442",
+      "symbols": [
+        "kPressTimeout",
+        "kHoverTapTimeout",
+        "kHoverTapSlop",
+        "kLongPressTimeout",
+        "kDoubleTapTimeout",
+        "kDoubleTapMinTime",
+        "kDoubleTapTouchSlop",
+        "kDoubleTapSlop",
+        "kZoomControlsTimeout",
+        "kTouchSlop",
+        "kPagingTouchSlop",
+        "kPanSlop",
+        "kScaleSlop",
+        "kWindowTouchSlop",
+        "kMinFlingVelocity",
+        "kMaxFlingVelocity",
+        "kJumpTapTimeout",
+        "kPrecisePointerHitSlop",
+        "kPrecisePointerPanSlop",
+        "kPrecisePointerScaleSlop"
+      ],
+      "destination": "Nelyx/src/framework/gestures/constants.ts",
+      "durationUnit": "milliseconds"
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "adoptExisting": {
+    "Nelyx/src/framework/gestures/constants.ts": "19529d164e52a129984a25f808515a09c78ce503b527bbf4b855b196b46499f4"
+  },
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/first-batch.ts",
+  "contract": {
+    "id": "nelyx.generated.gesture-constants/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "20 exported gesture thresholds"
+    ],
+    "requirements": [
+      "explicit millisecond durations and logical-pixel slop/velocity thresholds"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [
+      "Duration is a millisecond number, not a Dart object"
+    ],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

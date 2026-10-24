@@ -1,0 +1,71 @@
+#pragma once
+
+#include <fbjni/fbjni.h>
+#include <jsi/jsi.h>
+
+#include <exception>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <stdexcept>
+#include <string>
+
+#include "RNSkPlatformContext.h"
+
+class SkStreamAsset;
+namespace RNSkia {
+
+namespace jsi = facebook::jsi;
+namespace jni = facebook::jni;
+
+class JniPlatformContext : public jni::HybridClass<JniPlatformContext> {
+public:
+  static auto constexpr kJavaDescriptor =
+      "Lcom/reactnative/skia/PlatformContext;";
+
+  static jni::local_ref<jhybriddata>
+  initHybrid(jni::alias_ref<jhybridobject> jThis, const float);
+
+  static void registerNatives();
+
+  void performStreamOperation(
+      const std::string &sourceUri,
+      const std::function<void(std::unique_ptr<SkStreamAsset>)> &op);
+
+  void raiseError(const std::exception &err);
+
+  void notifyTaskReadyExternal();
+
+  void runTaskOnMainThread(std::function<void()> task);
+
+  void notifyTaskReadyNative();
+
+  float getPixelDensity() { return _pixelDensity; }
+
+  sk_sp<SkImage> takeScreenshotFromViewTag(size_t tag);
+
+  jni::local_ref<JniPlatformContext::javaobject> getJavaPeer() const {
+    auto peer = javaPart_.lockLocal();
+    if (!peer) {
+      throw std::runtime_error("Nelyx Android platform peer has been released");
+    }
+    return peer;
+  }
+
+private:
+  friend HybridBase;
+  // Java owns this hybrid. A strong reference here would retain itself forever.
+  jni::weak_ref<JniPlatformContext::javaobject> javaPart_;
+
+  float _pixelDensity;
+  std::mutex _mainThreadTasksMutex;
+  std::queue<std::function<void()>> _mainThreadTasks;
+  bool _mainThreadDispatchScheduled = false;
+
+  explicit JniPlatformContext(
+      jni::alias_ref<JniPlatformContext::jhybridobject> jThis,
+      const float pixelDensity)
+      : javaPart_(jni::make_weak(jThis)), _pixelDensity(pixelDensity) {}
+};
+} // namespace RNSkia

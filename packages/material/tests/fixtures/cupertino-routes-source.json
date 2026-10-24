@@ -1,0 +1,4418 @@
+{
+  "scope": "Fifteen unchanged complete declarations (six route/gesture policies, six prior Cupertino transition/edge classes, three canonical page/settings/builder declarations) plus original selected modal methods/getters/constants/curve/tweens on finite parent animation/controller/Navigator/Widget/value receivers. Controller action/status/counter and callback normalization, declared route defaults/title/builder/flexible source behavior only. Parent animation simulation, arena, full ModalRoute/Router/generic-runtime/debug RTTI/native/physical behavior are not inferred; actual Core/CPU/GPU checks remain separate.",
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "CupertinoRouteTransitionMixin",
+      "offset": 2662,
+      "length": 7075,
+      "sha256": "432f502db2ff05f6e2946656b12fe80977c25e0e22f420eb6a00ef4e90a5efce"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "CupertinoPageRoute",
+      "offset": 9741,
+      "length": 2223,
+      "sha256": "28ceb268de39cfe0bc55f04d7da8f354ecb533c8c5bf49d0fe5cb66fe8940aec"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoBackGestureDetector",
+      "offset": 23968,
+      "length": 977,
+      "sha256": "80c45393d77d1463ef7686fd237b116981243a91c3973762be7ca5fe4e6de001"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoBackGestureDetectorState",
+      "offset": 24949,
+      "length": 3094,
+      "sha256": "72d91d24b7f0824e2f0d533bc8e215a004e4155bdc23be5e929f166eb7062eb8"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoBackGestureController",
+      "offset": 28047,
+      "length": 3818,
+      "sha256": "fab96b960573f08914cd4b3910e33e6fbbb48b5600a2750f35ab009a686e3177"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "CupertinoPageTransitionsBuilder",
+      "offset": 56893,
+      "length": 1712,
+      "sha256": "bcbaf0ffc0b1a8f51d26b7331fa46c306688a72336be1dfa722d37d8189a5665"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "CupertinoPageTransition",
+      "offset": 14709,
+      "length": 2180,
+      "sha256": "b2436196b6716f7513ee893ac09e15bd882d48c00809b9e046d4877b37105c6a"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoPageTransitionState",
+      "offset": 16893,
+      "length": 3171,
+      "sha256": "96f209c413c28f407b783d8b3bbc683e5d1e5c626b78c903065996a3943f3079"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "CupertinoFullscreenDialogTransition",
+      "offset": 20068,
+      "length": 1300,
+      "sha256": "17528f85fb88f30efd77369f358492c8e0cdf67cbbf41f6bde95347f69f4a615"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoFullscreenDialogTransitionState",
+      "offset": 21372,
+      "length": 2592,
+      "sha256": "dd258599ea182df62e3a134435acb6c1cf27da4168a8ba8df3717485da9357f0"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoEdgeShadowDecoration",
+      "offset": 32101,
+      "length": 4053,
+      "sha256": "03d8ad0cf2af57d080c57f5955c552ddf24ee6dc33cddbf86e3b0f3d097143c1"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_CupertinoEdgeShadowPainter",
+      "offset": 36158,
+      "length": 2806,
+      "sha256": "c5d653e43bc9e9e285e411453db2cc64c5b073c6f78b0f7fba0061db9ec06913"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/page_transitions_builder.dart",
+      "symbol": "PageTransitionsBuilder",
+      "offset": 411,
+      "length": 3567,
+      "sha256": "d1416d373e89b04a2210735b5b078c48a72e3bab2ed6a464f7d14a8e50753cf2"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/pages.dart",
+      "symbol": "PageRoute",
+      "offset": 288,
+      "length": 1880,
+      "sha256": "2d28d676740a15ed13727b957f078c67a69e7b6d795919abdb70b0bb708f102a"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/navigator.dart",
+      "symbol": "RouteSettings",
+      "offset": 27340,
+      "length": 619,
+      "sha256": "153099fea3f95bc7f4079914efda65429e6290ea107b39efa60e91fc489361be"
+    }
+  ],
+  "supportingSourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Cubic",
+      "offset": 15023,
+      "length": 2062,
+      "sha256": "2377fa78bcffa8d5eb2c581cb7c51b9792bd1b7e15f1ca62cc2f1f7f45e06889"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "ThreePointCubic",
+      "offset": 17958,
+      "length": 2709,
+      "sha256": "9c73d7b6fe2f07c67b27c6cbf0c2c9a06f1b8a37ca24a6547a594203dc861488"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.fastEaseInToSlowEaseOut",
+      "offset": 61892,
+      "length": 213,
+      "sha256": "8bea9265967558b5c782b24925f5b578b2873cfa03b49b2aba2e192bb7bfff71"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.linearToEaseOut",
+      "offset": 68090,
+      "length": 67,
+      "sha256": "64ba2805474927a946e126e49207709b60abe4149a2dcb2f20a7ae9ccb6a7cec"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.easeInToLinear",
+      "offset": 62990,
+      "length": 66,
+      "sha256": "fa7d409c4dd6c45d8acb29154a734541b2ee0a2ac2bb06732f60a6588314c032"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kRightMiddleTween",
+      "offset": 2176,
+      "length": 119,
+      "sha256": "7036600e0dffe3ffd93e918d05eb56785ff75b7a384af45e10547a5c8164f79b"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kMiddleLeftTween",
+      "offset": 2361,
+      "length": 125,
+      "sha256": "aac161a21ac9e946b238667f0e83d2393a04a3794c183b85b6a2a0326f351e56"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kBottomUpTween",
+      "offset": 2542,
+      "length": 116,
+      "sha256": "9b1ee7f0c53f1c1806db44350763bead72b022c8e11b60288a5c141b741291f2"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kBackGestureWidth",
+      "offset": 867,
+      "length": 39,
+      "sha256": "46ea50015767d57f58082e96be194aa45b10e2c4a7a348ef7bfb7786e78f96f5"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kMinFlingVelocity",
+      "offset": 908,
+      "length": 38,
+      "sha256": "4378418782bf79f5a89041a53d8252ccd8b60c0b3f47b5a8a9b1c64903b0569a"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kDroppedSwipePageAnimationDuration",
+      "offset": 1055,
+      "length": 81,
+      "sha256": "07e6cddc00687e67896b2a983cdf1234171fdfa652e3c4ba9726c28571672ff2"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/route.dart",
+      "symbol": "_kCupertinoPageTransitionBarrierColor",
+      "offset": 1623,
+      "length": 70,
+      "sha256": "b187a02ab16a2db8434018a3378d83c8d4b2d1740838e9363c66ede4e6eebdfc"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/transitions.dart",
+      "symbol": "DelegatedTransitionBuilder",
+      "offset": 6018,
+      "length": 201,
+      "sha256": "c3a3a92bcfde80700de7e69c1e5c11fdc24dc7b89cd1e30cb4d25a3aa78f9be1"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "ModalRoute.didChangeNext",
+      "offset": 86556,
+      "length": 375,
+      "sha256": "18dd1a2dcd0d13d74ebea7632ba3a39887134cfa69c4b7af7e11007895ed746f"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "ModalRoute.didPopNext",
+      "offset": 86950,
+      "length": 413,
+      "sha256": "aab7c5587f8811e2b0357ccbe4919968817bd87f6e52c637b052a4fd74f0e504"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "ModalRoute._buildFlexibleTransitions",
+      "offset": 64877,
+      "length": 1040,
+      "sha256": "ae56b3650616dae087db72041ae10633815ea2ec8216bfca806ec495b88be277"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "ModalRoute.delegatedTransition",
+      "offset": 62509,
+      "length": 1709,
+      "sha256": "21f670d81472f58eaa98b34c6ca36ed29291506ed84e2e66242abbbc703b7d38"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "TransitionRoute.debugLabel",
+      "offset": 25034,
+      "length": 131,
+      "sha256": "3e03fcaa00be0f6a8efc3aea7b956373fc4a9abf9e7c33a4eee68ff6a07a9c25"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "ModalRoute.buildModalBarrier",
+      "offset": 90407,
+      "length": 1335,
+      "sha256": "3ca08edbe771f5968d59a2d3be9bfea6245292020a5413f07cab2bcb068a6a89"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/routes.dart",
+      "symbol": "ModalRoute.barrierCurve",
+      "offset": 73848,
+      "length": 38,
+      "sha256": "073069d746d63146b0525b7ae41d5387c1efa8ba4caa3c5a211cc943903c2b7c"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.ease",
+      "offset": 62361,
+      "length": 54,
+      "sha256": "a42f846b91b147d860c943b657c5adaabf976dcdf1866965d485da6263b43c53"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/tween.dart",
+      "symbol": "ColorTween",
+      "offset": 15465,
+      "length": 679,
+      "sha256": "91fd8d03db1e7bff7be050b15f192c9f79d751c1d27956b0307de2b4982a9f6d"
+    }
+  ],
+  "barriers": [
+    {
+      "fullscreen": false,
+      "primary": 0,
+      "color": 0
+    },
+    {
+      "fullscreen": false,
+      "primary": 0.25,
+      "color": 167772160
+    },
+    {
+      "fullscreen": false,
+      "primary": 0.5,
+      "color": 318767104
+    },
+    {
+      "fullscreen": false,
+      "primary": 0.75,
+      "color": 385875968
+    },
+    {
+      "fullscreen": false,
+      "primary": 1,
+      "color": 402653184
+    },
+    {
+      "fullscreen": true,
+      "primary": 0,
+      "color": null
+    },
+    {
+      "fullscreen": true,
+      "primary": 0.25,
+      "color": null
+    },
+    {
+      "fullscreen": true,
+      "primary": 0.5,
+      "color": null
+    },
+    {
+      "fullscreen": true,
+      "primary": 0.75,
+      "color": null
+    },
+    {
+      "fullscreen": true,
+      "primary": 1,
+      "color": null
+    }
+  ],
+  "controllers": [
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0,
+      "velocity": -2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 1,
+      "velocity": -2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 1,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": false,
+      "position": 1,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": false,
+      "animating": true,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": false,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": false,
+      "active": true,
+      "animating": true,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": false,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": false,
+      "animating": true,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": false,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0,
+      "velocity": 0,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0,
+      "velocity": 2,
+      "actions": [],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.25,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.25,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.5,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.5,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.75,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 0,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 0.75,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 1,
+      "velocity": -2,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 1,
+      "velocity": 0,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "isAnimating": false,
+        "statusListeners": 0
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 0,
+        "statusListeners": 0
+      }
+    },
+    {
+      "current": true,
+      "active": true,
+      "animating": true,
+      "position": 1,
+      "velocity": 2,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "before": {
+        "starts": 1,
+        "stops": 0,
+        "pops": 1,
+        "isAnimating": true,
+        "statusListeners": 1
+      },
+      "after": {
+        "starts": 1,
+        "stops": 1,
+        "pops": 1,
+        "statusListeners": 0
+      }
+    }
+  ],
+  "defaults": [
+    {
+      "custom": false,
+      "title": null,
+      "maintainState": true,
+      "fullscreenDialog": false,
+      "snapshot": true,
+      "dismissible": false,
+      "requestFocus": null,
+      "duration": 500,
+      "reverseDuration": 500,
+      "barrier": 402653184,
+      "label": null,
+      "opaque": true,
+      "debugLabel": "TransitionRoute(null)",
+      "semantics": {
+        "scopesRoute": true,
+        "explicitChildNodes": true
+      },
+      "childSame": true,
+      "delegatedSame": true
+    },
+    {
+      "custom": true,
+      "title": "compose",
+      "maintainState": false,
+      "fullscreenDialog": true,
+      "snapshot": false,
+      "dismissible": true,
+      "requestFocus": false,
+      "duration": 500,
+      "reverseDuration": 500,
+      "barrier": null,
+      "label": null,
+      "opaque": true,
+      "debugLabel": "TransitionRoute(/compose)",
+      "semantics": {
+        "scopesRoute": true,
+        "explicitChildNodes": true
+      },
+      "childSame": true,
+      "delegatedSame": true
+    }
+  ],
+  "policies": [
+    {
+      "fullscreen": false,
+      "gesture": false,
+      "widget": {
+        "kind": "page",
+        "linear": false,
+        "primarySame": true,
+        "secondarySame": true,
+        "backDetector": true,
+        "childSame": true
+      }
+    },
+    {
+      "fullscreen": false,
+      "gesture": true,
+      "widget": {
+        "kind": "page",
+        "linear": true,
+        "primarySame": true,
+        "secondarySame": true,
+        "backDetector": true,
+        "childSame": true
+      }
+    },
+    {
+      "fullscreen": true,
+      "gesture": false,
+      "widget": {
+        "kind": "fullscreen",
+        "linear": false,
+        "primarySame": true,
+        "secondarySame": true,
+        "backDetector": false,
+        "childSame": true
+      }
+    },
+    {
+      "fullscreen": true,
+      "gesture": true,
+      "widget": {
+        "kind": "fullscreen",
+        "linear": true,
+        "primarySame": true,
+        "secondarySame": true,
+        "backDetector": false,
+        "childSame": true
+      }
+    },
+    {
+      "transitionToCupertinoFullscreen": false,
+      "to": true,
+      "from": true,
+      "fullscreenFrom": true
+    },
+    {
+      "transitionToCupertinoFullscreen": true,
+      "to": false,
+      "from": true,
+      "fullscreenFrom": false
+    },
+    {
+      "toPlain": false,
+      "toDelegated": true,
+      "toRoute": false,
+      "fromPlain": true
+    }
+  ],
+  "title": {
+    "beforeThrows": true,
+    "values": [
+      "A",
+      null,
+      "A2",
+      "A2"
+    ],
+    "changes": 2,
+    "sameNotifier": true,
+    "disposed": true
+  },
+  "detectors": [
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": false,
+      "termination": "cancel",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": false,
+      "termination": "positive",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": false,
+      "termination": "negative",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": false,
+      "termination": "dispose",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": true,
+      "termination": "cancel",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": true,
+      "termination": "positive",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": true,
+      "termination": "negative",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": false,
+      "enabled": true,
+      "termination": "dispose",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0.75,
+      "actions": [],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": false,
+      "termination": "cancel",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": false,
+      "termination": "positive",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": false,
+      "termination": "negative",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": false,
+      "termination": "dispose",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": true,
+      "termination": "cancel",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": true,
+      "termination": "positive",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": true,
+      "termination": "negative",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "ltr",
+      "padding": true,
+      "enabled": true,
+      "termination": "dispose",
+      "width": 44,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0.75,
+      "actions": [],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": false,
+      "termination": "cancel",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": false,
+      "termination": "positive",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": false,
+      "termination": "negative",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": false,
+      "termination": "dispose",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": true,
+      "termination": "cancel",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": true,
+      "termination": "positive",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": true,
+      "termination": "negative",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": false,
+      "enabled": true,
+      "termination": "dispose",
+      "width": 20,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0.75,
+      "actions": [],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": false,
+      "termination": "cancel",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": false,
+      "termination": "positive",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": false,
+      "termination": "negative",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": false,
+      "termination": "dispose",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 0,
+      "position": 1,
+      "actions": [],
+      "starts": 0,
+      "stops": 0
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": true,
+      "termination": "cancel",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": true,
+      "termination": "positive",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0,
+      "actions": [
+        {
+          "kind": "back",
+          "target": 0,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": true,
+      "termination": "negative",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 1,
+      "actions": [
+        {
+          "kind": "to",
+          "target": 1,
+          "duration": 350,
+          "sourceCurve": true
+        }
+      ],
+      "starts": 1,
+      "stops": 1
+    },
+    {
+      "direction": "rtl",
+      "padding": true,
+      "enabled": true,
+      "termination": "dispose",
+      "width": 32,
+      "start": 0,
+      "top": 0,
+      "bottom": 0,
+      "pointers": 1,
+      "position": 0.75,
+      "actions": [],
+      "starts": 1,
+      "stops": 1
+    }
+  ],
+  "flexible": [
+    {
+      "received": "none",
+      "status": "dismissed",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": []
+    },
+    {
+      "received": "none",
+      "status": "forward",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0.5,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": []
+    },
+    {
+      "received": "none",
+      "status": "reverse",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0.5,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": []
+    },
+    {
+      "received": "none",
+      "status": "completed",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 1,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": []
+    },
+    {
+      "received": "null",
+      "status": "dismissed",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": []
+    },
+    {
+      "received": "null",
+      "status": "forward",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": [
+        {
+          "primary": 0.25,
+          "secondary": 0.5,
+          "snapshot": true
+        }
+      ]
+    },
+    {
+      "received": "null",
+      "status": "reverse",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": [
+        {
+          "primary": 0.25,
+          "secondary": 0.5,
+          "snapshot": true
+        }
+      ]
+    },
+    {
+      "received": "null",
+      "status": "completed",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": [
+        {
+          "primary": 0.25,
+          "secondary": 1,
+          "snapshot": true
+        }
+      ]
+    },
+    {
+      "received": "child",
+      "status": "dismissed",
+      "tree": {
+        "kind": "original",
+        "primary": 0.25,
+        "secondary": 0,
+        "child": {
+          "kind": "leaf"
+        }
+      },
+      "calls": []
+    },
+    {
+      "received": "child",
+      "status": "forward",
+      "tree": {
+        "kind": "delegated",
+        "child": {
+          "kind": "original",
+          "primary": 0.25,
+          "secondary": 0,
+          "child": {
+            "kind": "leaf"
+          }
+        }
+      },
+      "calls": [
+        {
+          "primary": 0.25,
+          "secondary": 0.5,
+          "snapshot": true
+        }
+      ]
+    },
+    {
+      "received": "child",
+      "status": "reverse",
+      "tree": {
+        "kind": "delegated",
+        "child": {
+          "kind": "original",
+          "primary": 0.25,
+          "secondary": 0,
+          "child": {
+            "kind": "leaf"
+          }
+        }
+      },
+      "calls": [
+        {
+          "primary": 0.25,
+          "secondary": 0.5,
+          "snapshot": true
+        }
+      ]
+    },
+    {
+      "received": "child",
+      "status": "completed",
+      "tree": {
+        "kind": "delegated",
+        "child": {
+          "kind": "original",
+          "primary": 0.25,
+          "secondary": 0,
+          "child": {
+            "kind": "leaf"
+          }
+        }
+      },
+      "calls": [
+        {
+          "primary": 0.25,
+          "secondary": 1,
+          "snapshot": true
+        }
+      ]
+    }
+  ],
+  "delegateLifecycle": {
+    "changed": true,
+    "popped": true,
+    "cleared": true
+  },
+  "builderDuration": 500
+}

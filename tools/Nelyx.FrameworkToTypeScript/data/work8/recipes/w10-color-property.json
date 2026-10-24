@@ -1,0 +1,365 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-color-property",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/painting/colors.dart",
+      "sha256": "2108e8a3baddd463511e696b712420c08dd53a5510facc3fed44f455abd5a92d",
+      "symbols": [
+        "ColorProperty"
+      ],
+      "destination": "Nelyx/src/framework/painting/color-property.generated.ts",
+      "importEmission": {
+        "policy": "used-identifiers"
+      },
+      "imports": {
+        "applyDartType": "../../foundation/dart-type-witness.ts",
+        "captureDartType": "../../foundation/dart-type-witness.ts",
+        "readDartType": "../../foundation/dart-type-witness.ts",
+        "nullableDartType": "../../foundation/dart-type-witness.ts",
+        "isDartType": "../../foundation/dart-type-witness.ts",
+        "castDartType": "../../foundation/dart-type-witness.ts",
+        "runtimeDartType": "../../foundation/dart-type-witness.ts",
+        "dartObjectType": "../../foundation/dart-type-witness.ts",
+        "describeDartType": "../../foundation/dart-type-witness.ts",
+        "boxSourceDartInt": "../../foundation/dart-numeric.ts",
+        "boxSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "castSourceDartInt": "../../foundation/dart-numeric.ts",
+        "castSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "dartValueEquals": "../../foundation/dart-value.ts",
+        "dartValueHash": "../../foundation/dart-value.ts",
+        "dartValueString": "../../foundation/dart-value.ts",
+        "dartValueIdentical": "../../foundation/dart-identity.ts",
+        "dartRecord": "../../foundation/dart-record.ts",
+        "dartRecordRead": "../../foundation/dart-record.ts",
+        "Color": "../../ui/color.ts",
+        "ColorSpace": "../../ui/color.ts",
+        "Element": "../widgets/framework.ts",
+        "Widget": "../widgets/framework.ts",
+        "InheritedWidget": "../widgets/framework.ts",
+        "DiagnosticsProperty": "../../foundation/diagnostics.ts",
+        "DiagnosticPropertiesBuilder": "../../foundation/diagnostics.ts",
+        "DiagnosticsNode": "../../foundation/diagnostics.ts",
+        "MessageProperty": "../../foundation/diagnostic-properties.ts",
+        "EnumProperty": "../../foundation/diagnostic-properties.ts",
+        "kNoDefaultValue": "../../foundation/diagnostics.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "DiagnosticsSerializationDelegate": "../../foundation/diagnostics-serialization.ts",
+        "SourceColorPropertyBase": "./color-property-source-adapter.ts",
+        "sourceStyleJsonWrite": "./color-property-source-adapter.ts",
+        "sourceStyleJsonMap": "./color-property-source-adapter.ts"
+      },
+      "typeImports": {
+        "DartTypeWitness": "../../foundation/dart-type-witness.ts",
+        "DartInt": "../../foundation/dart-numeric.ts",
+        "DartDouble": "../../foundation/dart-numeric.ts",
+        "DartNumeric": "../../foundation/dart-numeric.ts",
+        "DartRecord": "../../foundation/dart-record.ts",
+        "SourceJsonMap": "./color-property-source-adapter.ts",
+        "BuildContext": "../widgets/framework.ts",
+        "Key": "../../foundation/key.ts",
+        "DiagnosticLevel": "../../foundation/diagnostics.ts",
+        "DiagnosticsTreeStyle": "../../foundation/diagnostics.ts"
+      },
+      "typeBindings": {
+        "dart:ui::Color:CLASS": "Color",
+        "dart:ui::ColorSpace:ENUM": "ColorSpace",
+        "dart:ui::Brightness:ENUM": "SourceBrightness",
+        "dart:core::Object:CLASS": "SourceObject",
+        "dart:core::List:CLASS": "SourceStyleList",
+        "dart:core::Map:CLASS": "SourceJsonMap",
+        "package:flutter/src/widgets/framework.dart::Element:CLASS": "Element",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::InheritedWidget:CLASS": "InheritedWidget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty:CLASS": "DiagnosticsProperty",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder:CLASS": "DiagnosticPropertiesBuilder",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsNode:CLASS": "DiagnosticsNode",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticLevel:ENUM": "DiagnosticLevel",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsTreeStyle:ENUM": "DiagnosticsTreeStyle",
+        "package:flutter/src/foundation/diagnostics.dart::MessageProperty:CLASS": "MessageProperty",
+        "package:flutter/src/foundation/diagnostics.dart::EnumProperty:CLASS": "EnumProperty",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsSerializationDelegate:CLASS": "DiagnosticsSerializationDelegate"
+      },
+      "interfaceBindings": {
+        "dart:ui::Color:CLASS": "Color"
+      },
+      "values": {
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticLevel.info:GETTER": "info",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticLevel.info:FIELD": "info",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsTreeStyle.singleLine:FIELD": "singleLine",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsTreeStyle.singleLine:GETTER": "singleLine"
+      },
+      "adapters": {
+        "dart:core::identical:FUNCTION": {
+          "kind": "call",
+          "target": "dartValueIdentical"
+        },
+        "dart:ui::Color.==:METHOD": {
+          "kind": "call",
+          "target": "dartValueEquals",
+          "receiver": "first"
+        },
+        "dart:core::Type.==:METHOD": {
+          "kind": "identity",
+          "target": "",
+          "receiver": "first"
+        },
+        "dart:core::Object.runtimeType:GETTER": {
+          "kind": "call",
+          "target": "sourceStyleRuntimeType",
+          "receiver": "first"
+        },
+        "dart:core::Object.hash:METHOD": {
+          "kind": "call",
+          "target": "sourceStyleHash"
+        },
+        "package:flutter/src/foundation/object.dart::objectRuntimeType:FUNCTION": {
+          "kind": "call",
+          "target": "sourceStyleObjectRuntimeType"
+        },
+        "dart:core::Iterable.join:METHOD": {
+          "kind": "call",
+          "target": "sourceStyleJoin",
+          "receiver": "first"
+        },
+        "package:flutter/src/cupertino/theme.dart::CupertinoTheme.maybeBrightnessOf:METHOD": {
+          "kind": "call",
+          "target": "sourceStyleBrightness"
+        },
+        "package:flutter/src/widgets/media_query.dart::MediaQuery.maybeHighContrastOf:METHOD": {
+          "kind": "call",
+          "target": "sourceStyleHighContrast"
+        },
+        "dart:core::Object.==:METHOD": {
+          "kind": "identity",
+          "target": "",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::Widget.==:METHOD": {
+          "kind": "identity",
+          "target": "",
+          "receiver": "first"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder.add:METHOD": {
+          "kind": "call",
+          "target": "add",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::Diagnosticable.debugFillProperties:METHOD": {
+          "kind": "call",
+          "target": "debugFillProperties",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Widget.debugFillProperties:METHOD": {
+          "kind": "call",
+          "target": "debugFillProperties",
+          "receiver": "target"
+        },
+        "dart:ui::Color.toARGB32:METHOD": {
+          "kind": "call",
+          "target": "toARGB32",
+          "receiver": "target"
+        },
+        "dart:ui::Color.computeLuminance:METHOD": {
+          "kind": "call",
+          "target": "computeLuminance",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withAlpha:METHOD": {
+          "kind": "call",
+          "target": "withAlpha",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withBlue:METHOD": {
+          "kind": "call",
+          "target": "withBlue",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withGreen:METHOD": {
+          "kind": "call",
+          "target": "withGreen",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withOpacity:METHOD": {
+          "kind": "call",
+          "target": "withOpacity",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withRed:METHOD": {
+          "kind": "call",
+          "target": "withRed",
+          "receiver": "target"
+        },
+        "dart:ui::Color.withValues:METHOD": {
+          "kind": "call",
+          "target": "withValues",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::MessageProperty.MessageProperty.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "MessageProperty"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterError.FlutterError.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "FlutterError"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty.toJsonMap:METHOD": {
+          "kind": "call",
+          "target": "toSourceJsonMap",
+          "receiver": "target"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "kind": "call",
+          "target": "sourceStyleJsonWrite",
+          "receiver": "first"
+        }
+      },
+      "constructorApplications": {},
+      "superConstructors": {
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty.DiagnosticsProperty.new:CONSTRUCTOR": {
+          "target": "SourceColorPropertyBase",
+          "baseType": "DiagnosticsProperty",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/framework.dart::Element:CLASS": {
+          "is": "sourceStyleIsElement",
+          "cast": "sourceStyleCastElement"
+        }
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        }
+      },
+      "numericValues": {
+        "policy": "source-numeric-erasure",
+        "int": "boxSourceDartInt",
+        "double": "boxSourceDartDouble",
+        "castInt": "castSourceDartInt",
+        "castDouble": "castSourceDartDouble",
+        "numType": "DartNumeric",
+        "genericTypes": {
+          "int": "DartInt",
+          "double": "DartDouble"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "implicitTypeParameterBound": "dart-object-nullable",
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "records": {
+        "type": "DartRecord",
+        "create": "dartRecord",
+        "read": "dartRecordRead",
+        "policy": "immutable-positional-record"
+      },
+      "classNames": {
+        "Brightness": "SourceBrightness"
+      },
+      "renames": {
+        "==": "equals",
+        "toJsonMap": "toSourceJsonMap"
+      },
+      "generatedRuntimeTypes": [
+        "package:flutter/src/painting/colors.dart::ColorProperty:CLASS"
+      ],
+      "stringConversions": {
+        "dart:ui::Color:CLASS": "sourceStyleString",
+        "dart:core::Object:CLASS": "sourceStyleString",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "sourceStyleString",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "sourceStyleString"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Map:CLASS",
+              "name": "Map",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::String:CLASS",
+                  "name": "String",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              },
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "dart:core::Object:CLASS",
+                  "name": "Object",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "sourceStyleJsonMap",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "memberBindings": {
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty.value:GETTER": "value"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/color-property-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/color-property-batch-source.ts",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/color-property-core.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/scrollbar-style-oracle.ts"
+  ],
+  "contract": {
+    "id": "nelyx.generated.w10-color-property/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "Complete pinned ColorProperty class and original source Map method"
+    ],
+    "requirements": [
+      "Core package owns its diagnostics and JSON boundary; no design package imports",
+      "Actual effective body against original foundation/UI Colour, Core and source RN Babel",
+      "Preserve numeric carriers, typed delegate values, default equality and safe JSON keys"
+    ],
+    "numericPolicy": "Original Color channels carry analyzer-resolved int provenance; host JSON numbers require explicit DartInt/DartDouble.",
+    "differences": [
+      "Source toJsonMap is named toSourceJsonMap for its Dart Map ABI; Core JSON conversion dispatches through it once",
+      "Framework source dependencies for independent Dart oracle only; no product import of design packages"
+    ],
+    "performance": "No new physical FPS or native delivery claim."
+  }
+}

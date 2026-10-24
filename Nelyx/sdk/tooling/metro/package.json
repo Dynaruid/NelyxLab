@@ -1,0 +1,88 @@
+{
+  "name": "@nelyx/metro",
+  "version": "0.10.0",
+  "private": true,
+  "type": "commonjs",
+  "sideEffects": false,
+  "description": "Nelyx React Native runner presets, verified app assets and Web bundles",
+  "license": "BSD-3-Clause",
+  "files": [
+    "src",
+    "licenses",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "exports": {
+    "./runtime-inventory": {
+      "types": "./src/runtime-inventory.d.mts",
+      "default": "./src/runtime-inventory.mjs"
+    },
+    "./babel-config": "./src/babel-config.cjs",
+    "./native-v8-transformer": "./src/native-v8-transformer.cjs",
+    "./native-typed-transformer": "./src/native-typed-transformer.cjs",
+    "./native-aot-worker": "./src/native-aot-worker.cjs",
+    "./web-development": {
+      "types": "./src/web-development.d.mts",
+      "default": "./src/web-development.mjs"
+    },
+    "./web-refresh": {
+      "types": "./src/web-refresh.d.cts",
+      "default": "./src/web-refresh.cjs"
+    },
+    "./rn-config": {
+      "types": "./src/rn-config.d.cts",
+      "default": "./src/rn-config.cjs"
+    },
+    "./web-config": {
+      "types": "./src/web-config.d.cts",
+      "default": "./src/web-config.cjs"
+    },
+    "./web-build": {
+      "types": "./src/web-build.d.mts",
+      "default": "./src/web-build.mjs"
+    },
+    "./runner-config": {
+      "types": "./src/runner-config.d.cts",
+      "default": "./src/runner-config.cjs"
+    },
+    "./assets": {
+      "types": "./src/assets.d.cts",
+      "default": "./src/assets.cjs"
+    },
+    "./native-jsc-transformer": "./src/native-jsc-transformer.cjs"
+  },
+  "dependencies": {
+    "@nelyx/static-aot": "0.1.0",
+    "@babel/core": "7.29.7",
+    "@babel/plugin-transform-class-static-block": "7.29.7",
+    "@babel/plugin-transform-modules-commonjs": "7.29.7",
+    "@babel/plugin-transform-react-jsx": "7.29.7",
+    "@babel/plugin-transform-typescript": "7.29.9",
+    "@nelyx/core": "0.16.0",
+    "@types/connect": "3.4.38",
+    "metro": "0.83.8",
+    "metro-config": "0.83.8",
+    "metro-runtime": "0.83.8",
+    "metro-transform-worker": "0.83.8",
+    "react-refresh": "0.14.2"
+  },
+  "peerDependencies": {
+    "@nelyx/sdk": "0.20.0",
+    "@react-native/babel-preset": "0.81.6 || 0.83.1 || 0.83.10",
+    "@react-native/metro-config": "0.81.6 || 0.83.1 || 0.83.10"
+  },
+  "peerDependenciesMeta": {
+    "@react-native/babel-preset": {
+      "optional": true
+    },
+    "@nelyx/sdk": {
+      "optional": true
+    },
+    "@react-native/metro-config": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24.3.0 <25"
+  }
+}

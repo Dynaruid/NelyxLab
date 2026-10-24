@@ -1,0 +1,20 @@
+{
+  "schema": "nelyx.browser-system-colors-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "source": "engine/src/flutter/lib/web_ui/lib/src/engine/platform_dispatcher/system_color_palette_detector.dart",
+  "sha256": "744e3c58376431540bf3b9fa818e3ced4072734839d9e2d4f8852a33d0dcdd77",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "destinations": [
+    {
+      "file": "Nelyx/sdk/src/backends/browser/system-colors.ts",
+      "sha256": "3bf5d133f0df6ad9bacf93eaa12c1c908947d8851a3bbdb9e8afce408ae4bce9"
+    },
+    {
+      "file": "Nelyx/sdk/src/backends/browser/platform-messages.ts",
+      "sha256": "80702d793ca9d910fb121bdb96e441154a7010f8a61abc760db7af641adb2e30"
+    }
+  ],
+  "scope": "Pinned browser system color names/support/computed-style/cache and RGB parser contact on the actual View DOM. Provider binding belongs to the existing plugin platform-message service disposal sequence. Physical accessibility/OS forced-color changes and native palettes are separate."
+}

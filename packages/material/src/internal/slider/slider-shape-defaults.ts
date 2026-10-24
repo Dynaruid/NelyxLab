@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2014 The Flutter Authors. All rights reserved.
+import { runtimeDartType, type DartTypeWitness } from '@nelyx/core/foundation/dart-type-witness';
+import { canonicalDartObject } from '@nelyx/core/internal/foundation/dart-const';
+import type { DartConstField } from '@nelyx/core/internal/foundation/dart-const';
+import { RoundSliderOverlayShape, RoundSliderThumbShape, RoundedRectSliderTrackShape, RoundSliderTickMarkShape, RectangularSliderValueIndicatorShape, DropSliderValueIndicatorShape, HandleThumbShape, GappedSliderTrackShape, RoundedRectSliderValueIndicatorShape, PaddleSliderValueIndicatorShape, RoundRangeSliderTickMarkShape, RoundRangeSliderThumbShape, RoundedRectRangeSliderTrackShape, PaddleRangeSliderValueIndicatorShape, RectangularRangeSliderValueIndicatorShape, GappedRangeSliderTrackShape, HandleRangeSliderThumbShape, RoundedRectRangeSliderValueIndicatorShape, DropRangeSliderValueIndicatorShape } from "../../slider-shapes.ts";
+function constant<T extends object>(value: T, fields: readonly DartConstField[] = []): T {
+    return canonicalDartObject(value.constructor, runtimeDartType(value) as DartTypeWitness<T>, fields, () => value, true);
+}
+export const sliderDefaultShapes = Object.freeze({
+    overlay: constant(new RoundSliderOverlayShape(), [['overlayRadius', 'double']]), thumb: constant(new RoundSliderThumbShape(), [['enabledThumbRadius', 'double'], ['disabledThumbRadius', 'double?'], ['elevation', 'double'], ['pressedElevation', 'double']]),
+    track: constant(new RoundedRectSliderTrackShape()), ticks: constant(new RoundSliderTickMarkShape(), [['tickMarkRadius', 'double?']]), modernTicks: constant(new RoundSliderTickMarkShape({ tickMarkRadius: 2 }), [['tickMarkRadius', 'double?']]),
+    rectangle: constant(new RectangularSliderValueIndicatorShape()), drop: constant(new DropSliderValueIndicatorShape()), handle: constant(new HandleThumbShape()), gapped: constant(new GappedSliderTrackShape()), rounded: constant(new RoundedRectSliderValueIndicatorShape()), paddle: constant(new PaddleSliderValueIndicatorShape()), rangeTicks: constant(new RoundRangeSliderTickMarkShape(), [['tickMarkRadius', 'double?']]), rangeThumb: constant(new RoundRangeSliderThumbShape(), [['enabledThumbRadius', 'double'], ['disabledThumbRadius', 'double?'], ['elevation', 'double'], ['pressedElevation', 'double']]), rangeTrack: constant(new RoundedRectRangeSliderTrackShape()), rangePaddle: constant(new PaddleRangeSliderValueIndicatorShape()), rangeRectangle: constant(new RectangularRangeSliderValueIndicatorShape()), rangeGapped: constant(new GappedRangeSliderTrackShape()), rangeHandle: constant(new HandleRangeSliderThumbShape()), rangeRounded: constant(new RoundedRectRangeSliderValueIndicatorShape()), rangeDrop: constant(new DropRangeSliderValueIndicatorShape()), rangeModernTicks: constant(new RoundRangeSliderTickMarkShape({ tickMarkRadius: 2 }), [['tickMarkRadius', 'double?']])
+});

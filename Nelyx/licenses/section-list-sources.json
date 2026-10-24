@@ -1,0 +1,21 @@
+{
+  "schema": "nelyx.section-list-sources/v1",
+  "dorotiRevision": "8f94d23b840cad737bb54f40be2458835da07996",
+  "license": "BSD-3-Clause; Doroti-LICENSE.md",
+  "sources": [
+    {
+      "file": "Doroti/src/Doroti.Framework.Rendering/section_extent_index.cs",
+      "sha256": "da5920f3e07e514e170b4300abea8e0e4b5e6dc3fdc7f39e9bfbfe3628d4b74d"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Rendering/section_list.cs",
+      "sha256": "7e04e69954dabfae647b48a565eba616e32f1ed066c951b261140a80422269df"
+    }
+  ],
+  "products": [
+    "src/framework/rendering/section-extent-index.ts",
+    "src/framework/rendering/sliver-section-list.ts"
+  ],
+  "adaptation": "Handwritten TypeScript adaptation using the canonical Nelyx sliver child manager and delegate keep-alive policy. One mounted owner, two bounded exact metric configurations, destination-only seek and measured anchor correction. No copied private bucket access or retention of every visited section.",
+  "hashNormalization": "UTF-8 source text with LF line endings; verified against the clean pinned Git blobs"
+}

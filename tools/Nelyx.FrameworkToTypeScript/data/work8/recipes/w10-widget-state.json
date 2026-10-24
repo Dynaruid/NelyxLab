@@ -1,0 +1,662 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-widget-state",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/widget_state.dart",
+      "sha256": "5caa69ece300d67a1984df9cb1ea7456fce7b30dc339c0a804540443242e916a",
+      "symbols": [
+        "WidgetStatesConstraint",
+        "_WidgetStateCombo",
+        "_WidgetStateAnd",
+        "_WidgetStateOr",
+        "_WidgetStateNot",
+        "_AnyWidgetStates",
+        "WidgetState",
+        "WidgetStateProperty",
+        "_LerpProperties",
+        "_WidgetStatePropertyWith",
+        "WidgetStateMapper",
+        "WidgetStatePropertyAll",
+        "WidgetStatesController"
+      ],
+      "destination": "Nelyx/src/framework/widgets/widget-state.generated.ts",
+      "classNames": {
+        "WidgetStatesConstraint": "SourceWidgetStatesConstraint",
+        "_WidgetStateCombo": "SourceWidgetStateCombo",
+        "_WidgetStateAnd": "SourceWidgetStateAnd",
+        "_WidgetStateOr": "SourceWidgetStateOr",
+        "_WidgetStateNot": "SourceWidgetStateNot",
+        "_AnyWidgetStates": "SourceAnyWidgetStates",
+        "WidgetState": "SourceWidgetState",
+        "WidgetStateProperty": "SourceWidgetStateProperty",
+        "_LerpProperties": "SourceLerpProperties",
+        "_WidgetStatePropertyWith": "SourceWidgetStatePropertyWith",
+        "WidgetStateMapper": "SourceWidgetStateMapper",
+        "WidgetStatePropertyAll": "SourceWidgetStatePropertyAll",
+        "WidgetStatesController": "SourceWidgetStatesController"
+      },
+      "imports": {
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "DartSet": "../../foundation/dart-collections.ts",
+        "DartMap": "../../foundation/dart-collections.ts",
+        "DartIterable": "../../foundation/dart-collections.ts",
+        "ValueNotifier": "../../foundation/notifier.ts",
+        "widgetStateConstEmpty": "./widget-state-constraint-source-adapter.ts",
+        "registerWidgetStateConstraints": "./widget-state-constraint-source-adapter.ts",
+        "dartStringType": "../../foundation/dart-type-witness.ts",
+        "dartBoolType": "../../foundation/dart-type-witness.ts",
+        "dartObjectType": "../../foundation/dart-type-witness.ts",
+        "dartNullType": "../../foundation/dart-type-witness.ts",
+        "nullableDartType": "../../foundation/dart-type-witness.ts",
+        "applyDartType": "../../foundation/dart-type-witness.ts",
+        "captureDartType": "../../foundation/dart-type-witness.ts",
+        "readDartType": "../../foundation/dart-type-witness.ts",
+        "isDartType": "../../foundation/dart-type-witness.ts",
+        "castDartType": "../../foundation/dart-type-witness.ts",
+        "describeDartType": "../../foundation/dart-type-witness.ts",
+        "dartValueEquals": "../../foundation/dart-value.ts",
+        "dartValueHash": "../../foundation/dart-value.ts",
+        "dartValueHashPair": "../../foundation/dart-value.ts",
+        "runtimeDartType": "../../foundation/dart-type-witness.ts",
+        "registerWidgetStateValueSemantics": "./widget-state-value-source-adapter.ts",
+        "widgetStateConstraintString": "./widget-state-constraint-source-adapter.ts",
+        "WidgetStateDiagnosticableBase": "./widget-state-diagnostic-source-adapter.ts",
+        "widgetStateDiagnosticableType": "./widget-state-diagnostic-source-adapter.ts",
+        "captureDartException": "../../foundation/dart-exceptions.ts",
+        "isWidgetStateTypeError": "./widget-state-diagnostic-source-adapter.ts",
+        "castWidgetStateTypeError": "./widget-state-diagnostic-source-adapter.ts",
+        "WidgetStateArgumentError": "./widget-state-diagnostic-source-adapter.ts",
+        "widgetStateSetString": "./widget-state-map-source-adapter.ts",
+        "createWidgetStateMapHash": "./widget-state-map-source-adapter.ts",
+        "dartMapEquals": "../../foundation/dart-map-equality.ts",
+        "widgetStateMapString": "./widget-state-map-source-adapter.ts",
+        "createWidgetStateMapDiagnostics": "./widget-state-map-source-adapter.ts",
+        "dartValueString": "../../foundation/dart-value.ts",
+        "DartSymbol": "../../foundation/dart-symbol.ts",
+        "dartSymbolString": "../../foundation/dart-symbol.ts",
+        "WidgetStateInvocation": "./widget-state-diagnostic-source-adapter.ts",
+        "widgetStateInvocationMemberName": "./widget-state-diagnostic-source-adapter.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "ErrorSummary": "../../foundation/diagnostics.ts",
+        "ErrorDescription": "../../foundation/diagnostics.ts",
+        "ErrorHint": "../../foundation/diagnostics.ts",
+        "DiagnosticPropertiesBuilder": "../../foundation/diagnostics.ts",
+        "DiagnosticsProperty": "../../foundation/diagnostics.ts",
+        "isSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "castSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "debugFormatDouble": "../../foundation/debug.ts",
+        "emptyWidgetStateSet": "./widget-state-full-collections.ts",
+        "boxSourceDartInt": "../../foundation/dart-numeric.ts",
+        "boxSourceDartDouble": "../../foundation/dart-numeric.ts",
+        "castSourceDartInt": "../../foundation/dart-numeric.ts",
+        "dartIntType": "../../foundation/dart-type-witness.ts",
+        "dartDoubleType": "../../foundation/dart-type-witness.ts",
+        "dartNumType": "../../foundation/dart-type-witness.ts",
+        "canonicalDartObject": "../../foundation/dart-const.ts",
+        "dartValueIdentical": "../../foundation/dart-identity.ts",
+        "bridgeDartFunction": "../../foundation/dart-function.ts",
+        "unwrapSourceDartNum": "../../foundation/dart-numeric.ts",
+        "lerpDouble": "../../ui/lerp-double.generated.ts"
+      },
+      "typeImports": {
+        "DartMapEntry": "../../foundation/dart-collections.ts",
+        "Diagnosticable": "../../foundation/diagnostics.ts",
+        "DartTypeWitness": "../../foundation/dart-type-witness.ts",
+        "WidgetStateTypeError": "./widget-state-diagnostic-source-adapter.ts",
+        "DiagnosticLevel": "../../foundation/diagnostics.ts",
+        "DiagnosticsNode": "../../foundation/diagnostics.ts",
+        "DartNumeric": "../../foundation/dart-numeric.ts",
+        "DartInt": "../../foundation/dart-numeric.ts",
+        "DartDouble": "../../foundation/dart-numeric.ts"
+      },
+      "typeBindings": {
+        "dart:core::Set:CLASS": "DartSet",
+        "dart:core::Map:CLASS": "DartMap",
+        "dart:core::MapEntry:CLASS": "DartMapEntry",
+        "dart:core::Iterable:CLASS": "DartIterable",
+        "package:listen/src/listen.dart::ValueNotifier:CLASS": "ValueNotifier",
+        "package:flutter/src/foundation/diagnostics.dart::Diagnosticable:MIXIN": "Diagnosticable",
+        "dart:core::Object:CLASS": "WidgetStateDiagnosticableBase",
+        "dart:core::TypeError:CLASS": "WidgetStateTypeError",
+        "dart:core::ArgumentError:CLASS": "WidgetStateArgumentError",
+        "dart:core::Symbol:CLASS": "DartSymbol",
+        "dart:core::Invocation:CLASS": "WidgetStateInvocation",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticLevel:ENUM": "DiagnosticLevel",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsNode:CLASS": "DiagnosticsNode",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder:CLASS": "DiagnosticPropertiesBuilder",
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty:CLASS": "DiagnosticsProperty",
+        "package:flutter/src/foundation/assertions.dart::FlutterError:CLASS": "FlutterError",
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary:CLASS": "ErrorSummary",
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription:CLASS": "ErrorDescription",
+        "package:flutter/src/foundation/assertions.dart::ErrorHint:CLASS": "ErrorHint"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "implicitTypeParameterBound": "dart-object-nullable",
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "renames": {
+        "&": "and",
+        "|": "or",
+        "~": "not",
+        "==": "equals"
+      },
+      "adapters": {
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint.&:METHOD": {
+          "kind": "call",
+          "target": "and",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint.|:METHOD": {
+          "kind": "call",
+          "target": "or",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint.~:METHOD": {
+          "kind": "call",
+          "target": "not",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateAnd.==:METHOD": {
+          "kind": "call",
+          "target": "equals",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateOr.==:METHOD": {
+          "kind": "call",
+          "target": "equals",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateNot.==:METHOD": {
+          "kind": "call",
+          "target": "equals",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper.==:METHOD": {
+          "kind": "call",
+          "target": "equals",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatePropertyAll.==:METHOD": {
+          "kind": "call",
+          "target": "equals",
+          "receiver": "target"
+        },
+        "dart:core::Set.contains:METHOD": {
+          "kind": "call",
+          "target": "contains",
+          "receiver": "target"
+        },
+        "dart:core::Set.add:METHOD": {
+          "kind": "call",
+          "target": "add",
+          "receiver": "target"
+        },
+        "dart:core::Set.remove:METHOD": {
+          "kind": "call",
+          "target": "remove",
+          "receiver": "target"
+        },
+        "dart:core::Object.==:METHOD": {
+          "kind": "call",
+          "target": "dartValueEquals",
+          "receiver": "first"
+        },
+        "dart:core::Object.hashCode:GETTER": {
+          "kind": "call",
+          "target": "dartValueHash",
+          "receiver": "first"
+        },
+        "dart:core::Object.hash:METHOD": {
+          "kind": "call",
+          "target": "dartValueHashPair"
+        },
+        "dart:core::Object.runtimeType:GETTER": {
+          "kind": "call",
+          "target": "runtimeDartType",
+          "receiver": "first"
+        },
+        "dart:core::Type.==:METHOD": {
+          "kind": "identity",
+          "target": "",
+          "receiver": "first"
+        },
+        "dart:core::ArgumentError.ArgumentError.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "WidgetStateArgumentError"
+        },
+        "package:flutter/src/foundation/collections.dart::mapEquals:FUNCTION": {
+          "kind": "call",
+          "target": "dartMapEquals"
+        },
+        "package:collection/src/equality.dart::MapEquality.hash:METHOD": {
+          "kind": "call",
+          "target": "hash",
+          "receiver": "target"
+        },
+        "dart:core::Invocation.memberName:GETTER": {
+          "kind": "call",
+          "target": "widgetStateInvocationMemberName",
+          "receiver": "first"
+        },
+        "package:flutter/src/foundation/debug.dart::debugFormatDouble:FUNCTION": {
+          "kind": "call",
+          "target": "debugFormatDouble"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::Diagnosticable.debugFillProperties:METHOD": {
+          "kind": "call",
+          "target": "debugFillProperties",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticPropertiesBuilder.add:METHOD": {
+          "kind": "call",
+          "target": "add",
+          "receiver": "target"
+        },
+        "package:flutter/src/foundation/assertions.dart::FlutterError.FlutterError.fromParts:CONSTRUCTOR": {
+          "kind": "call",
+          "target": "FlutterError.fromParts"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorSummary.ErrorSummary.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "ErrorSummary"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorDescription.ErrorDescription.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "ErrorDescription"
+        },
+        "package:flutter/src/foundation/assertions.dart::ErrorHint.ErrorHint.new:CONSTRUCTOR": {
+          "kind": "new",
+          "target": "ErrorHint"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.notifyListeners:METHOD": {
+          "target": "notifyListeners",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::identical:FUNCTION": {
+          "kind": "call",
+          "target": "dartValueIdentical"
+        },
+        "dart:ui::lerpDouble:FUNCTION": {
+          "kind": "call",
+          "target": "lerpDouble",
+          "numericAbi": "scalar-numeric"
+        }
+      },
+      "generatedRuntimeTypes": [
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint:MIXIN",
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateCombo:CLASS",
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateAnd:CLASS",
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateOr:CLASS",
+        "package:flutter/src/widgets/widget_state.dart::_WidgetStateNot:CLASS",
+        "package:flutter/src/widgets/widget_state.dart::_AnyWidgetStates:CLASS",
+        "package:flutter/src/widgets/widget_state.dart::WidgetState:ENUM",
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatesController:CLASS"
+      ],
+      "constantConstructors": {
+        "package:flutter/src/widgets/widget_state.dart::_AnyWidgetStates._AnyWidgetStates.new:CONSTRUCTOR": {
+          "policy": "canonical-immutable-generated",
+          "factory": "widgetStateConstEmpty"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatePropertyAll.WidgetStatePropertyAll.new:CONSTRUCTOR": {
+          "factory": "canonicalDartObject",
+          "policy": "canonical-immutable-generic-fields",
+          "exportFactory": "sourceConstWidgetStatePropertyAll"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper.WidgetStateMapper.new:CONSTRUCTOR": {
+          "factory": "canonicalDartObject",
+          "policy": "canonical-immutable-generic-fields",
+          "hostBase": {
+            "target": "WidgetStateDiagnosticableBase",
+            "policy": "stateless-const-base"
+          },
+          "exportFactory": "sourceConstWidgetStateMapper"
+        },
+        "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty.WidgetStateProperty.fromMap:CONSTRUCTOR": {
+          "factory": "canonicalDartObject",
+          "policy": "canonical-generated-redirect",
+          "exportFactory": "sourceConstWidgetStatePropertyFromMap"
+        }
+      },
+      "manualDeclarations": [
+        "tools/Nelyx.FrameworkToTypeScript/data/work8/inputs/widget-state-constraint-registration.ts",
+        "tools/Nelyx.FrameworkToTypeScript/data/work8/inputs/widget-state-value-registration.ts"
+      ],
+      "stringConversions": {
+        "dart:core::Type:CLASS": "describeDartType",
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint:MIXIN": "widgetStateConstraintString",
+        "dart:core::Set:CLASS": "widgetStateSetString",
+        "dart:core::Map:CLASS": "widgetStateMapString",
+        "dart:core::Symbol:CLASS": "dartSymbolString",
+        "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper:CLASS": "dartValueString",
+        "package:flutter/src/widgets/widget_state.dart::WidgetStatePropertyAll.T:TYPE_PARAMETER": "dartValueString"
+      },
+      "methodTypeWitnesses": {
+        "policy": "checked-method-type-witness",
+        "methods": [
+          "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty.resolveAs:METHOD",
+          "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty.resolveWith:METHOD",
+          "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty.all:METHOD",
+          "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty.lerp:METHOD"
+        ],
+        "type": "DartTypeWitness",
+        "is": "isDartType",
+        "cast": "castDartType",
+        "nullable": "nullableDartType",
+        "types": {
+          "dart:core::String:CLASS": "dartStringType",
+          "dart:core::bool:CLASS": "dartBoolType",
+          "dart:core::Object:CLASS": "dartObjectType",
+          "dart:core::Null:CLASS": "dartNullType",
+          "package:flutter/src/foundation/diagnostics.dart::Diagnosticable:MIXIN": "widgetStateDiagnosticableType",
+          "dart:core::int:CLASS": "dartIntType",
+          "dart:core::double:CLASS": "dartDoubleType",
+          "dart:core::num:CLASS": "dartNumType"
+        },
+        "applications": {}
+      },
+      "classTypeWitnesses": {
+        "policy": "captured-class-type-witness",
+        "classes": [
+          "package:flutter/src/widgets/widget_state.dart::WidgetStateProperty:CLASS",
+          "package:flutter/src/widgets/widget_state.dart::_LerpProperties:CLASS",
+          "package:flutter/src/widgets/widget_state.dart::_WidgetStatePropertyWith:CLASS",
+          "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper:CLASS",
+          "package:flutter/src/widgets/widget_state.dart::WidgetStatePropertyAll:CLASS"
+        ],
+        "apply": "applyDartType",
+        "capture": "captureDartType",
+        "read": "readDartType"
+      },
+      "superConstructors": {
+        "dart:core::Object.Object.new:CONSTRUCTOR": {
+          "target": "WidgetStateDiagnosticableBase",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/foundation/diagnostics.dart::Diagnosticable:MIXIN"
+          ]
+        },
+        "package:listen/src/listen.dart::ValueNotifier.ValueNotifier.new:CONSTRUCTOR": {
+          "target": "ValueNotifier",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "exceptions": {
+        "policy": "host-exception-stack",
+        "capture": "captureDartException"
+      },
+      "runtimeTypes": {
+        "dart:core::double:CLASS": {
+          "is": "isSourceDartDouble",
+          "cast": "castSourceDartDouble"
+        },
+        "dart:core::TypeError:CLASS": {
+          "is": "isWidgetStateTypeError",
+          "cast": "castWidgetStateTypeError"
+        }
+      },
+      "constructorApplications": {
+        "package:collection/src/equality.dart::MapEquality.MapEquality.new:CONSTRUCTOR": [
+          {
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "package:collection/src/equality.dart::MapEquality:CLASS",
+                "name": "MapEquality",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": [
+                {
+                  "kind": "interface",
+                  "nullable": false,
+                  "reference": {
+                    "id": "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint:MIXIN",
+                    "name": "WidgetStatesConstraint",
+                    "owner": null,
+                    "local": false,
+                    "static": false
+                  },
+                  "arguments": []
+                },
+                {
+                  "kind": "parameter",
+                  "nullable": false,
+                  "reference": {
+                    "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper.T:TYPE_PARAMETER",
+                    "name": "T",
+                    "owner": "WidgetStateMapper",
+                    "local": false,
+                    "static": false
+                  }
+                }
+              ]
+            },
+            "typeParameters": [
+              "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper.T:TYPE_PARAMETER"
+            ],
+            "target": "createWidgetStateMapHash",
+            "kind": "call",
+            "passWitnesses": true,
+            "policy": "checked-generic-constructor-application"
+          }
+        ],
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty.DiagnosticsProperty.new:CONSTRUCTOR": [
+          {
+            "type": {
+              "kind": "interface",
+              "nullable": false,
+              "reference": {
+                "id": "package:flutter/src/foundation/diagnostics.dart::DiagnosticsProperty:CLASS",
+                "name": "DiagnosticsProperty",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": [
+                {
+                  "kind": "interface",
+                  "nullable": false,
+                  "reference": {
+                    "id": "dart:core::Map:CLASS",
+                    "name": "Map",
+                    "owner": null,
+                    "local": false,
+                    "static": false
+                  },
+                  "arguments": [
+                    {
+                      "kind": "interface",
+                      "nullable": false,
+                      "reference": {
+                        "id": "package:flutter/src/widgets/widget_state.dart::WidgetStatesConstraint:MIXIN",
+                        "name": "WidgetStatesConstraint",
+                        "owner": null,
+                        "local": false,
+                        "static": false
+                      },
+                      "arguments": []
+                    },
+                    {
+                      "kind": "parameter",
+                      "nullable": false,
+                      "reference": {
+                        "id": "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper.T:TYPE_PARAMETER",
+                        "name": "T",
+                        "owner": "WidgetStateMapper",
+                        "local": false,
+                        "static": false
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "typeParameters": [
+              "package:flutter/src/widgets/widget_state.dart::WidgetStateMapper.T:TYPE_PARAMETER"
+            ],
+            "typeArgumentPaths": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                1
+              ]
+            ],
+            "target": "createWidgetStateMapDiagnostics",
+            "kind": "call",
+            "passWitnesses": true,
+            "policy": "checked-generic-constructor-application"
+          }
+        ]
+      },
+      "values": {
+        "package:flutter/src/foundation/diagnostics.dart::DiagnosticLevel.info:GETTER": "info"
+      },
+      "memberBindings": {
+        "package:listen/src/listen.dart::ValueNotifier.value:GETTER": "value"
+      },
+      "collectionLiterals": [
+        {
+          "type": {
+            "kind": "interface",
+            "nullable": false,
+            "reference": {
+              "id": "dart:core::Set:CLASS",
+              "name": "Set",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": [
+              {
+                "kind": "interface",
+                "nullable": false,
+                "reference": {
+                  "id": "package:flutter/src/widgets/widget_state.dart::WidgetState:ENUM",
+                  "name": "WidgetState",
+                  "owner": null,
+                  "local": false,
+                  "static": false
+                },
+                "arguments": []
+              }
+            ]
+          },
+          "factory": "emptyWidgetStateSet",
+          "policy": "ordered-dart-collection"
+        }
+      ],
+      "numericValues": {
+        "policy": "source-numeric-erasure",
+        "int": "boxSourceDartInt",
+        "double": "boxSourceDartDouble",
+        "castInt": "castSourceDartInt",
+        "castDouble": "castSourceDartDouble",
+        "numType": "DartNumeric",
+        "genericTypes": {
+          "int": "DartInt",
+          "double": "DartDouble"
+        }
+      },
+      "numericFunctions": {
+        "policy": "source-function-representation",
+        "bridge": "bridgeDartFunction",
+        "identity": "dartValueIdentical",
+        "unwrapNum": "unwrapSourceDartNum"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-batch-source.ts",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-batch-run.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-full-runtime.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-full-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-full-source-main.dart",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-source-foundation.json",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-source-aliases.json",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-constraint-candidate.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-numeric-generics.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-numeric-callers.dart",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-const.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-const-callers.dart",
+    "tools/Nelyx.FrameworkToTypeScript/checks/widget-state-lerp-source.json"
+  ],
+  "contract": {
+    "id": "nelyx.generated.w10-widget-state/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "Whole WidgetState constraint/enum/property/mapper/controller closure: 13 declarations",
+      "Generated required-positional generic const factories for PropertyAll, Mapper and fromMap"
+    ],
+    "requirements": [
+      "Preserve full pinned source bodies, generic runtime witnesses and numeric provenance",
+      "Actual effective output strict declarations, Core and compiled-Core RN Babel behavior",
+      "Mandatory original source and foundation closure comparisons in debug and release",
+      "Const pools, ordered immutable Maps and explicit reviewed type/value boundaries"
+    ],
+    "numericPolicy": "Analyzer-resolved numeric kind; generic/erased values use explicit DartInt/DartDouble carriers, never JS value inference.",
+    "differences": [
+      "Generated internal names and explicit runtime type witness parameters",
+      "Diagnosticable, listen notifier and collection representation use reviewed actual Core boundaries",
+      "Additional host constants, NaN const identity and public facade/RawScrollbar integration remain separate"
+    ],
+    "performance": "No new physical frame-rate claim; preserve current deterministic collection/controller contracts."
+  },
+  "referencePackages": [
+    {
+      "packagePin": {
+        "name": "listen",
+        "version": "1.0.1",
+        "archiveSha256": "47501a08016a43fcad79252439d723f50f14f88fa7bfd8a177e0a417e5c9e1f2"
+      },
+      "library": "package:listen/listen.dart",
+      "librarySha256": "b7750a07b427a52e8c765fc675302fcbcdfe747cf02a870a60fc77f732754164"
+    },
+    {
+      "packagePin": {
+        "name": "meta",
+        "version": "1.19.0",
+        "archiveSha256": "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
+      },
+      "library": "package:meta/meta.dart",
+      "librarySha256": "79968b49fd76625bf420b706d532354e05cedc578ffdded0413c5e7bc0411862"
+    },
+    {
+      "packagePin": {
+        "name": "collection",
+        "version": "1.19.1",
+        "archiveSha256": "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76"
+      },
+      "library": "package:collection/collection.dart",
+      "librarySha256": "c3ff78be4f875a5a4c73bb9725ddc0ada1047b7d236327ce44e3872d5e2c6ac7"
+    }
+  ]
+}

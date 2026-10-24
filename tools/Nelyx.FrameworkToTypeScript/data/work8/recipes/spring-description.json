@@ -1,0 +1,100 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "spring-description",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/physics/spring_simulation.dart",
+      "sha256": "a8e90c8791e2b83aab7356d6af3017e319b7ba5c7a7cd560296edec04c3fa148",
+      "symbols": [
+        "SpringDescription"
+      ],
+      "destination": "Nelyx/src/framework/physics/spring-simulation.ts",
+      "imports": {
+        "Simulation": "./simulation.ts",
+        "nearZero": "./utils.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "objectRuntimeType": "../../foundation/object.ts",
+        "fixed": "../../ui/value-math.ts",
+        "fixedOne": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "roundInteger": "../../ui/value-math.ts"
+      },
+      "typeImports": {
+        "SimulationOptions": "./simulation.ts"
+      },
+      "manualDeclarations": [
+        "tools/Nelyx.FrameworkToTypeScript/data/work8/inputs/spring-simulation.manual.ts"
+      ],
+      "durationUnit": "milliseconds",
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "values": {
+        "dart:math::pi:GETTER": 3.141592653589793,
+        "dart:core::Duration.millisecondsPerSecond:GETTER": 1000
+      },
+      "adapters": {
+        "dart:math::sqrt:FUNCTION": {
+          "target": "Math.sqrt",
+          "kind": "call"
+        },
+        "dart:math::pow:FUNCTION": {
+          "target": "Math.pow",
+          "kind": "call"
+        },
+        "dart:core::double.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.toStringAsFixed:METHOD": {
+          "target": "fixedOne",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/foundation/object.dart::objectRuntimeType:FUNCTION": {
+          "target": "objectRuntimeType",
+          "kind": "call"
+        }
+      },
+      "assertion": {
+        "code": "invalid-spring-duration",
+        "message": "Duration must be positive"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "adoptExisting": {
+    "Nelyx/src/framework/physics/spring-simulation.ts": "495fd5782b7de5e8c5533866864b99cf43b78425dc3dcdf99a0670f497b9b6cf"
+  },
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/spring-description.ts",
+  "contract": {
+    "id": "nelyx.generated.spring-description/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "SpringDescription constructor, factories, duration/bounce",
+      "preserved SpringSimulation/ScrollSpringSimulation"
+    ],
+    "requirements": [
+      "damping ratio and duration conversion; immutable fields; safe-integer overflow/non-finite rejection; ties away from zero; settled spring"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [
+      "Duration is milliseconds; safe JavaScript integers only; manual simulation declarations remain tracked inputs"
+    ],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

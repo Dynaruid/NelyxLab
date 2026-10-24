@@ -1,0 +1,3340 @@
+--- a/cpp/api/JsiGPUTexture.h
++++ b/cpp/api/JsiGPUTexture.h
+@@ -5,7 +5,6 @@
+ 
+ #include <jsi/jsi.h>
+ 
+-#include "webgpu/webgpu_cpp.h"
+ 
+ namespace RNSkia {
+ 
+@@ -14,10 +13,9 @@
+ // Reads a GPUTexture argument: the react-native-webgpu object, whose
+ // nativePointer (a non-spec extension) holds the WGPUTexture handle, or the
+ // handle itself as a BigInt for libraries that export textures without
+-// react-native-webgpu. The returned wgpu::Texture holds a reference of its
+-// own, so the image or surface wrapping it keeps the texture alive while the
+-// caller keeps ownership of the JS object.
+-inline wgpu::Texture gpuTextureFromValue(jsi::Runtime &runtime,
++// react-native-webgpu. Only the selected backend interprets and retains this
++// borrowed pointer; unsupported backends reject it before dereferencing it.
++inline uint64_t gpuTextureFromValue(jsi::Runtime &runtime,
+                                          const jsi::Value &value,
+                                          const char *method) {
+   uint64_t raw = 0;
+@@ -37,12 +35,10 @@
+     throw std::runtime_error(std::string(method) +
+                              " expects a GPUTexture or a WGPUTexture pointer");
+   }
+-  auto texture = reinterpret_cast<WGPUTexture>(raw);
+-  if (texture == nullptr) {
++  if (raw == 0) {
+     throw std::runtime_error(std::string(method) + ": the texture is null");
+   }
+-  wgpuTextureAddRef(texture);
+-  return wgpu::Texture::Acquire(texture);
++  return raw;
+ }
+ 
+ } // namespace RNSkia
+--- a/cpp/api/JsiSkApi.h
++++ b/cpp/api/JsiSkApi.h
+@@ -6,7 +6,7 @@
+ 
+ #include "JsiSkNativeObjects.h"
+ 
+-#include "rnskia/RNDawnContext.h"
++#include "rnskia/RNSkPlatformContext.h"
+ 
+ #include "JsiSkAnimatedImage.h"
+ #include "JsiSkAnimatedImageFactory.h"
+@@ -160,9 +160,7 @@
+     // Raw WGPUDevice pointer of the Graphite device, as a BigInt. Consumed by
+     // react-native-webgpu's importDevice(), which AddRefs it; the pointer
+     // stays owned by DawnContext and is valid for the process lifetime.
+-    auto &dawnContext = DawnContext::getInstance();
+-    return jsi::BigInt::fromUint64(
+-        runtime, reinterpret_cast<uint64_t>(dawnContext.getWGPUDevice().Get()));
++    return jsi::BigInt::fromUint64(runtime, getContext()->getGpuContext().webGpuDevice());
+   }
+ 
+   JSI_HOST_FUNCTION(Recorder) {
+--- a/cpp/api/JsiSkCanvas.h
++++ b/cpp/api/JsiSkCanvas.h
+@@ -1,6 +1,8 @@
+ #pragma once
++#include "nelyx_skia/core.h"
+ 
+ #include <memory>
++#include <stdexcept>
+ #include <string>
+ #include <utility>
+ #include <vector>
+@@ -24,7 +26,7 @@
+ 
+ #include "utils/RNSkTypedArray.h"
+ 
+-#include "rnskia/RNDawnContext.h"
++#include "rnskia/RNSkPlatformContext.h"
+ 
+ #include <jsi/jsi.h>
+ 
+@@ -46,6 +48,19 @@
+ 
+ namespace jsi = facebook::jsi;
+ 
++// Surface canvases are borrowed. Explicit parent disposal invalidates every
++// alias and releases its texture owner without waiting for JavaScript GC.
++class SkCanvasBorrow final {
++public:
++  SkCanvasBorrow& operator=(SkCanvas* value) {canvas=value;return *this;}
++  operator SkCanvas*() const {return get();}
++  SkCanvas* operator->() const {return get();}
++  SkCanvas& operator*() const {return *get();}
++private:
++  SkCanvas* get() const {if(!canvas)throw std::runtime_error("Surface canvas is disposed or unavailable");return canvas;}
++  SkCanvas* canvas=nullptr;
++};
++
+ class JsiSkCanvas : public JsiSkNativeObject<JsiSkCanvas> {
+ public:
+   static constexpr const char *CLASS_NAME = "Canvas";
+@@ -58,7 +73,7 @@
+   }
+ 
+   void drawRect(std::shared_ptr<SkRect> rect, std::shared_ptr<SkPaint> paint) {
+-    _canvas->drawRect(*rect, *paint);
++    nelyx::skia_core::drawRect(*_canvas, *rect, *paint);
+   }
+ 
+   // The drawImage* variants stay raw: they dispatch on exact argument counts
+@@ -81,7 +96,7 @@
+     auto dest = JsiSkRect::fromValue(runtime, arguments[2]);
+     auto paint = JsiSkPaint::fromValue(runtime, arguments[3]);
+     auto fastSample = count >= 5 && arguments[4].getBool();
+-    _canvas->drawImageRect(image, *src, *dest, SkSamplingOptions(), paint.get(),
++    nelyx::skia_core::drawImageRect(*_canvas, image, *src, *dest, SkSamplingOptions(), paint.get(),
+                            fastSample ? SkCanvas::kFast_SrcRectConstraint
+                                       : SkCanvas::kStrict_SrcRectConstraint);
+     return jsi::Value::undefined();
+@@ -185,7 +200,7 @@
+ 
+   void drawRRect(std::shared_ptr<SkRRect> rect,
+                  std::shared_ptr<SkPaint> paint) {
+-    _canvas->drawRRect(*rect, *paint);
++    nelyx::skia_core::drawRRect(*_canvas, *rect, *paint);
+   }
+ 
+   void drawDRRect(std::shared_ptr<SkRRect> outer,
+@@ -519,9 +534,9 @@
+       // same ordering used by JsiSkSurface::makeImageSnapshot and RNSkView).
+       auto snapshot = _surface->makeImageSnapshot();
+       if (auto *recorder = _surface->recorder()) {
+-        DawnContext::getInstance().submitRecording(recorder->snap().get());
+-      }
+-      auto raster = DawnContext::getInstance().MakeRasterImage(snapshot);
++        getContext()->getGpuContext().submitRecording(recorder->snap().get());
++      }
++      auto raster = getContext()->makeRasterImage(snapshot);
+       if (!raster || !raster->readPixels(nullptr, *info, bfrPtr, bytesPerRow,
+                                          srcX, srcY)) {
+         return jsi::Value::null();
+@@ -609,9 +624,10 @@
+   // readPixels fall back to a surface snapshot on Graphite, which has no
+   // synchronous canvas readback.
+   void setSurface(sk_sp<SkSurface> surface) { _surface = std::move(surface); }
++  void invalidateSurface() {_surface.reset();_canvas=nullptr;}
+ 
+ private:
+-  SkCanvas *_canvas;
++  SkCanvasBorrow _canvas;
+   sk_sp<SkSurface> _surface;
+ };
+ } // namespace RNSkia
+--- a/cpp/api/JsiSkData.h
++++ b/cpp/api/JsiSkData.h
+@@ -1,6 +1,11 @@
+ #pragma once
+ 
+ #include <memory>
++#include <cmath>
++#include <cstring>
++#include <algorithm>
++#include <cstdint>
++#include <string>
+ #include <utility>
+ 
+ #include <jsi/jsi.h>
+@@ -19,6 +24,39 @@
+ 
+ namespace jsi = facebook::jsi;
+ 
++// SHA-256 (FIPS 180-4), over immutable SkData storage without a JS byte walk.
++inline std::string nelyxDataSha256(const SkData &data) {
++  constexpr uint32_t constants[64] = {
++    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
++    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
++    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
++    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
++    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
++    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
++    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
++    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
++  };
++  uint32_t state[8] = {0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
++  const auto rotate=[](uint32_t value,unsigned bits){return (value>>bits)|(value<<(32-bits));};
++  const auto bytes=data.bytes();
++  const size_t length=data.size(),blocks=(length+9+63)/64;
++  const uint64_t bitLength=static_cast<uint64_t>(length)*8;
++  for(size_t index=0;index<blocks;index++) {
++    uint8_t block[64]={};uint32_t words[64];const size_t start=index*64;
++    if(start<length)std::memcpy(block,bytes+start,std::min(size_t{64},length-start));
++    if(start<=length && length<start+64)block[length-start]=0x80;
++    if(index==blocks-1)for(unsigned i=0;i<8;i++)block[63-i]=static_cast<uint8_t>(bitLength>>(i*8));
++    for(unsigned i=0;i<16;i++)words[i]=(uint32_t{block[i*4]}<<24)|(uint32_t{block[i*4+1]}<<16)|(uint32_t{block[i*4+2]}<<8)|block[i*4+3];
++    for(unsigned i=16;i<64;i++){const auto x=words[i-15],y=words[i-2];words[i]=words[i-16]+(rotate(x,7)^rotate(x,18)^(x>>3))+words[i-7]+(rotate(y,17)^rotate(y,19)^(y>>10));}
++    uint32_t a=state[0],b=state[1],c=state[2],d=state[3],e=state[4],f=state[5],g=state[6],h=state[7];
++    for(unsigned i=0;i<64;i++) {const auto first=h+(rotate(e,6)^rotate(e,11)^rotate(e,25))+((e&f)^(~e&g))+constants[i]+words[i];const auto second=(rotate(a,2)^rotate(a,13)^rotate(a,22))+((a&b)^(a&c)^(b&c));h=g;g=f;f=e;e=d+first;d=c;c=b;b=a;a=first+second;}
++    state[0]+=a;state[1]+=b;state[2]+=c;state[3]+=d;state[4]+=e;state[5]+=f;state[6]+=g;state[7]+=h;
++  }
++  constexpr char hex[]="0123456789abcdef";std::string result(64,'0');
++  for(unsigned i=0;i<8;i++)for(unsigned j=0;j<8;j++)result[i*8+j]=hex[(state[i]>>(28-j*4))&15];
++  return result;
++}
++
+ class JsiSkData : public JsiSkWrappingSkPtrNativeObject<JsiSkData, SkData> {
+ public:
+   static constexpr const char *CLASS_NAME = "Data";
+@@ -36,8 +74,36 @@
+     return objectFromValue(runtime, obj);
+   }
+ 
++  // A bounded copy for manifest verification; never exposes native storage.
++  JSI_HOST_FUNCTION(nelyxBytes) {
++    const auto limit = count == 1 && arguments[0].isNumber()
++                           ? arguments[0].asNumber() : 0;
++    auto data = getObject();
++    if (!data || !std::isfinite(limit) || limit < 1 ||
++        limit > 16 * 1024 * 1024 || std::floor(limit) != limit ||
++        data->size() > static_cast<size_t>(limit)) {
++      throw jsi::JSError(runtime, "Nelyx asset byte budget exceeded or data disposed");
++    }
++    auto array = runtime.global().getPropertyAsFunction(runtime, "Uint8Array")
++                     .callAsConstructor(runtime, static_cast<double>(data->size()))
++                     .getObject(runtime);
++    auto buffer = array.getPropertyAsObject(runtime, "buffer").getArrayBuffer(runtime);
++    if (data->size()) std::memcpy(buffer.data(runtime), data->bytes(), data->size());
++    return array;
++  }
++
+   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+     installCommon(runtime, prototype);
++    installHostMethod(runtime, prototype, "nelyxBytes", &JsiSkData::nelyxBytes);
++    installHostMethod(runtime, prototype, "nelyxSha256", &JsiSkData::nelyxSha256);
++  }
++
++  JSI_HOST_FUNCTION(nelyxSha256) {
++    const auto limit=count==1 && arguments[0].isNumber()?arguments[0].asNumber():0;
++    auto data=getObject();
++    if(!data || !std::isfinite(limit) || limit<1 || limit>16*1024*1024 || std::floor(limit)!=limit || data->size()>static_cast<size_t>(limit))
++      throw jsi::JSError(runtime,"Nelyx asset hash budget exceeded or data disposed");
++    return jsi::String::createFromAscii(runtime,nelyxDataSha256(*data));
+   }
+ };
+ } // namespace RNSkia
+--- a/cpp/api/JsiSkDataFactory.h
++++ b/cpp/api/JsiSkDataFactory.h
+@@ -7,6 +7,8 @@
+ #include <jsi/jsi.h>
+ 
+ #include "JsiSkData.h"
++#include "nelyx_skia/core.h"
++#include "rnskia/RNSkPlatformContext.h"
+ #include "JsiSkNativeObjects.h"
+ #include "api/third_party/base64.h"
+ #include "jsi/JsiPromises.h"
+@@ -19,33 +21,55 @@
+ public:
+   static constexpr const char *CLASS_NAME = "DataFactory";
+ 
++  std::string nelyxArchitecture() {
++#if defined(__aarch64__) || defined(_M_ARM64)
++    return "arm64";
++#elif defined(__x86_64__) || defined(_M_X64)
++    return "x86_64";
++#else
++    return "unsupported";
++#endif
++  }
++  double nelyxCoreAbi() { return nelyx::skia_core::abiVersion(); }
++
++  JSI_HOST_FUNCTION(nelyxConfigureGpuPolicy) {
++    if (count != 1 || !arguments[0].isBool())
++      throw jsi::JSError(runtime, "Nelyx GPU policy requires one boolean");
++    try {
++      getContext()->configureGpuPolicy(arguments[0].getBool());
++    } catch (const std::exception &error) {
++      throw jsi::JSError(runtime, error.what());
++    }
++    return jsi::Value::undefined();
++  }
++
+   JSI_HOST_FUNCTION(fromURI) {
+     auto jsiLocalUri = arguments[0].asString(runtime);
+     auto localUri = jsiLocalUri.utf8(runtime);
++    const double requested = count > 1 ? arguments[1].asNumber() : 0;
++    if (count > 1 && (!std::isfinite(requested) || requested < 1 ||
++        requested > 16 * 1024 * 1024 || std::floor(requested) != requested))
++      throw jsi::JSError(runtime, "Invalid Nelyx asset stream budget");
++    const size_t maxBytes = static_cast<size_t>(requested);
+     auto context = getContext();
+     return RNJsi::JsiPromises::createPromiseAsJSIValue(
+         runtime,
+-        [context = std::move(context), localUri = std::move(localUri)](
++        [context = std::move(context), localUri = std::move(localUri), maxBytes](
+             jsi::Runtime &runtime,
+             std::shared_ptr<RNJsi::JsiPromises::Promise> promise) -> void {
+-          // Create a stream operation - this will be run in a
+-          // separate thread
+-          context->performStreamOperation(
+-              localUri,
+-              [&runtime, context = std::move(context),
+-               promise = std::move(promise)](
+-                  std::unique_ptr<SkStreamAsset> stream) -> void {
+-                // Schedule drawCallback on the Javascript thread
+-                auto result =
+-                    SkData::MakeFromStream(stream.get(), stream->getLength());
+-                context->runOnJavascriptThread([&runtime,
+-                                                context = std::move(context),
+-                                                promise = std::move(promise),
+-                                                result = std::move(result)]() {
+-                  promise->resolve(makeJsiObject(
+-                      runtime,
+-                      std::make_shared<JsiSkData>(context, std::move(result))));
+-                });
++          auto complete = context->makeAsyncCompletion(
++              [&runtime, context, promise = std::move(promise)](RNSkAsyncResult result) {
++                if (!result.data) {
++                  promise->reject("Nelyx asset stream failed or exceeds byte budget");
++                  return;
++                }
++                promise->resolve(makeJsiObject(runtime,
++                    std::make_shared<JsiSkData>(context, std::move(result.data))));
++              });
++          context->performDataOperation(
++              localUri, maxBytes,
++              [complete = std::move(complete)](sk_sp<SkData> data) {
++                complete(RNSkAsyncResult{std::move(data), nullptr, {}});
+               });
+         });
+   };
+@@ -57,8 +81,13 @@
+             .asObject(runtime)
+             .getArrayBuffer(runtime);
+ 
+-    auto data =
+-        SkData::MakeWithCopy(buffer.data(runtime), buffer.size(runtime));
++    const double offset=array.getProperty(runtime,"byteOffset").asNumber();
++    const double length=array.getProperty(runtime,"byteLength").asNumber();
++    if(!std::isfinite(offset) || !std::isfinite(length) || offset<0 || length<0 ||
++        std::floor(offset)!=offset || std::floor(length)!=length ||
++        offset>static_cast<double>(buffer.size(runtime)) || length>static_cast<double>(buffer.size(runtime))-offset)
++      throw jsi::JSError(runtime,"Invalid native data byte view");
++    auto data = SkData::MakeWithCopy(length?buffer.data(runtime)+static_cast<size_t>(offset):nullptr,static_cast<size_t>(length));
+     return makeJsiObject(
+         runtime, std::make_shared<JsiSkData>(getContext(), std::move(data)));
+   }
+@@ -86,6 +115,9 @@
+   size_t getMemoryPressure() override { return 1024; }
+ 
+   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
++    installMethod(runtime, prototype, "nelyxArchitecture", &JsiSkDataFactory::nelyxArchitecture);
++    installMethod(runtime, prototype, "nelyxCoreAbi", &JsiSkDataFactory::nelyxCoreAbi);
++    installHostMethod(runtime, prototype, "nelyxConfigureGpuPolicy", &JsiSkDataFactory::nelyxConfigureGpuPolicy);
+     installHostMethod(runtime, prototype, "fromURI",
+                       &JsiSkDataFactory::fromURI);
+     installHostMethod(runtime, prototype, "fromBytes",
+--- a/cpp/api/JsiSkGraphiteContext.h
++++ b/cpp/api/JsiSkGraphiteContext.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include "nelyx_skia/core.h"
+ 
+ #include <memory>
+ #include <utility>
+@@ -57,8 +58,32 @@
+     getObject()->submit(recording->getObject());
+   }
+ 
++  double nelyxIdentity(){return getObject()->nelyxIdentity();}
++  void nelyxConfigure(){getObject()->nelyxConfigure();}
++  int nelyxReserve(double identity,double width,double height,double bytes,double density){return getObject()->nelyxReserve(identity,width,height,bytes,density);}
++  void nelyxCancel(){getObject()->nelyxCancel();}
++  void nelyxClose(){getObject()->nelyxClose();}
++  void nelyxReset(){getObject()->nelyxReset();}
++  std::vector<double> nelyxStats(){return getObject()->nelyxStats();}
++  std::vector<double> nelyxNotifications(){return getObject()->nelyxNotifications();}
++  void nelyxSubmit(std::shared_ptr<JsiSkGraphiteRecording> recording,double submission){
++    if(!std::isfinite(submission)||submission<1||submission>4294967295.0||std::floor(submission)!=submission)throw std::runtime_error("Invalid Nelyx native submission ID");
++    getObject()->submit(recording->getObject(),static_cast<uint64_t>(submission));
++  }
++  double nelyxCoreVersion() {return nelyx::skia_core::abiVersion();}
++
+   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
++    installMethod(runtime,prototype,"nelyxIdentity",&JsiSkGraphiteContext::nelyxIdentity);
++    installMethod(runtime,prototype,"nelyxConfigure",&JsiSkGraphiteContext::nelyxConfigure);
++    installMethod(runtime,prototype,"nelyxReserve",&JsiSkGraphiteContext::nelyxReserve);
++    installMethod(runtime,prototype,"nelyxCancel",&JsiSkGraphiteContext::nelyxCancel);
++    installMethod(runtime,prototype,"nelyxClose",&JsiSkGraphiteContext::nelyxClose);
++    installMethod(runtime,prototype,"nelyxReset",&JsiSkGraphiteContext::nelyxReset);
++    installMethod(runtime,prototype,"nelyxStats",&JsiSkGraphiteContext::nelyxStats);
++    installMethod(runtime,prototype,"nelyxNotifications",&JsiSkGraphiteContext::nelyxNotifications);
++    installMethod(runtime,prototype,"nelyxSubmit",&JsiSkGraphiteContext::nelyxSubmit);
+     installCommon(runtime, prototype);
++    installMethod(runtime, prototype, "nelyxCoreVersion", &JsiSkGraphiteContext::nelyxCoreVersion);
+     installGetter(runtime, prototype, "width", &JsiSkGraphiteContext::getWidth);
+     installGetter(runtime, prototype, "height",
+                   &JsiSkGraphiteContext::getHeight);
+--- a/cpp/api/JsiSkImage.h
++++ b/cpp/api/JsiSkImage.h
+@@ -17,12 +17,13 @@
+ #include "utils/RNSkTypedArray.h"
+ 
+ #include "include/gpu/graphite/Context.h"
+-#include "rnskia/RNDawnContext.h"
++#include "rnskia/RNSkPlatformContext.h"
+ 
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wdocumentation"
+ 
+ #include "include/codec/SkEncodedImageFormat.h"
++#include "include/core/SkBitmap.h"
+ #include "include/core/SkImage.h"
+ #include "include/core/SkStream.h"
+ #include "include/encode/SkJpegEncoder.h"
+@@ -182,13 +183,30 @@
+                       ? static_cast<SkEncodedImageFormat>(*formatParam)
+                       : SkEncodedImageFormat::kPNG;
+     auto quality = qualityParam.has_value() ? *qualityParam : 100.0;
+-    auto image = DawnContext::getInstance().MakeRasterImage(getObject());
++    auto image = getContext()->makeRasterImage(getObject());
++    if (!image) {
++      return nullptr;
++    }
++    SkPixmap pixels;
++    SkBitmap decoded;
++    // Deferred encoded images can be CPU-backed without exposing a pixmap.
++    // Keep the decoded storage alive until the synchronous encoder finishes.
++    if (!image->peekPixels(&pixels)) {
++      if (!decoded.tryAllocPixels(image->imageInfo()) ||
++          !image->readPixels(nullptr, decoded.pixmap(), 0, 0)) {
++        return nullptr;
++      }
++      pixels = decoded.pixmap();
++    }
++    SkDynamicMemoryWStream stream;
+     sk_sp<SkData> data;
+ 
+     if (format == SkEncodedImageFormat::kJPEG) {
+       SkJpegEncoder::Options options;
+       options.fQuality = quality;
+-      data = SkJpegEncoder::Encode(nullptr, image.get(), options);
++      if (SkJpegEncoder::Encode(&stream, pixels, options)) {
++        data = stream.detachAsData();
++      }
+ #ifdef __APPLE__
+       // Replace Skia's generated ICC with Apple's canonical Display P3 profile
+       // so apps like Instagram recognise the wide-gamut colour space.
+@@ -205,10 +223,14 @@
+         options.fCompression = SkWebpEncoder::Compression::kLossy;
+         options.fQuality = quality;
+       }
+-      data = SkWebpEncoder::Encode(nullptr, image.get(), options);
++      if (SkWebpEncoder::Encode(&stream, pixels, options)) {
++        data = stream.detachAsData();
++      }
+     } else {
+       SkPngEncoder::Options options;
+-      data = SkPngEncoder::Encode(nullptr, image.get(), options);
++      if (SkPngEncoder::Encode(&stream, pixels, options)) {
++        data = stream.detachAsData();
++      }
+     }
+ 
+     return data;
+@@ -296,7 +318,7 @@
+ 
+     // Graphite offers no synchronous GPU readback, so read from a CPU raster
+     // copy of the image (a no-op when the image is already raster).
+-    auto image = DawnContext::getInstance().MakeRasterImage(getObject());
++    auto image = getContext()->makeRasterImage(getObject());
+     if (!image ||
+         !image->readPixels(nullptr, info, bfrPtr, bytesPerRow, srcX, srcY)) {
+       return jsi::Value::null();
+@@ -306,7 +328,7 @@
+ 
+   std::variant<std::nullptr_t, std::shared_ptr<JsiSkImage>>
+   makeNonTextureImage() {
+-    auto rasterImage = DawnContext::getInstance().MakeRasterImage(getObject());
++    auto rasterImage = getContext()->makeRasterImage(getObject());
+     if (!rasterImage) {
+       return nullptr;
+     }
+--- a/cpp/api/JsiSkImageFactory.h
++++ b/cpp/api/JsiSkImageFactory.h
+@@ -14,7 +14,7 @@
+ #include "JsiSkNativeObjects.h"
+ #include "jsi/JsiPromises.h"
+ 
+-#include "rnskia/RNDawnContext.h"
++#include "rnskia/RNSkPlatformContext.h"
+ 
+ namespace RNSkia {
+ 
+@@ -68,21 +68,19 @@
+         [context = std::move(context), viewTag](
+             jsi::Runtime &runtime,
+             std::shared_ptr<RNJsi::JsiPromises::Promise> promise) -> void {
+-          context->makeViewScreenshot(
+-              viewTag, [&runtime, context = std::move(context),
+-                        promise = std::move(promise)](sk_sp<SkImage> image) {
+-                context->runOnJavascriptThread([&runtime,
+-                                                context = std::move(context),
+-                                                promise = std::move(promise),
+-                                                result = std::move(image)]() {
+-                  if (result == nullptr) {
++          auto complete = context->makeAsyncCompletion(
++              [&runtime, context, promise = std::move(promise)](RNSkAsyncResult result) {
++                  if (!result.image) {
+                     promise->reject("Failed to create image from view tag");
+                     return;
+                   }
+                   promise->resolve(
+                       makeJsiObject(runtime, std::make_shared<JsiSkImage>(
+-                                                 context, std::move(result))));
+-                });
++                                                 context, std::move(result.image))));
++              });
++          context->makeViewScreenshot(
++              viewTag, [complete = std::move(complete)](sk_sp<SkImage> image) {
++                complete(RNSkAsyncResult{nullptr, std::move(image), {}});
+               });
+         });
+   }
+@@ -101,12 +99,8 @@
+     // The wrapped SkImage retains the texture for its lifetime (see
+     // DawnContext::MakeImageFromTexture) and the caller keeps ownership of
+     // the JS GPUTexture.
+-    wgpu::Texture texture =
+-        gpuTextureFromValue(runtime, arguments[0], "MakeImageFromGPUTexture");
+-    auto &dawnContext = DawnContext::getInstance();
+-    auto image = dawnContext.MakeImageFromTexture(
+-        texture, static_cast<int>(texture.GetWidth()),
+-        static_cast<int>(texture.GetHeight()), texture.GetFormat());
++    auto pointer = gpuTextureFromValue(runtime, arguments[0], "MakeImageFromGPUTexture");
++    auto image = getContext()->getGpuContext().importTexture(pointer);
+     if (image == nullptr) {
+       throw std::runtime_error(
+           "MakeImageFromGPUTexture: failed to wrap the texture");
+@@ -124,8 +118,7 @@
+     if (!image) {
+       throw std::runtime_error("Invalid SkImage object");
+     }
+-    auto &dawnContext = DawnContext::getInstance();
+-    wgpu::Texture texture = dawnContext.MakeTextureFromImage(image);
++    auto texture = getContext()->getGpuContext().exportTexture(std::move(image));
+     if (!texture) {
+       throw std::runtime_error(
+           "MakeGPUTextureFromImage: failed to create the texture");
+@@ -135,8 +128,7 @@
+     // releases it when the JS GPUTexture is destroyed. Only react-native-webgpu
+     // can build the typed GPUTexture object, which is why this returns a
+     // pointer while MakeImageFromGPUTexture takes the object.
+-    return jsi::BigInt::fromUint64(
+-        runtime, reinterpret_cast<uint64_t>(texture.MoveToCHandle()));
++    return jsi::BigInt::fromUint64(runtime, texture);
+   }
+ 
+   size_t getMemoryPressure() override { return 1024; }
+--- a/cpp/api/JsiSkParagraph.h
++++ b/cpp/api/JsiSkParagraph.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include "nelyx_skia/core.h"
+ 
+ #include <memory>
+ #include <string>
+@@ -37,10 +38,10 @@
+ public:
+   static constexpr const char *CLASS_NAME = "Paragraph";
+ 
+-  void layout(double width) { getObject()->layout(width); }
++  void layout(double width) { nelyx::skia_core::layoutParagraph(*getObject(), static_cast<float>(width)); }
+ 
+   void paint(std::shared_ptr<JsiSkCanvas> jsiCanvas, double x, double y) {
+-    getObject()->paint(jsiCanvas->getCanvas(), x, y);
++    nelyx::skia_core::paintParagraph(*getObject(), *jsiCanvas->getCanvas(), static_cast<float>(x), static_cast<float>(y));
+   }
+ 
+   double getHeight() { return static_cast<double>(getObject()->getHeight()); }
+@@ -251,7 +252,86 @@
+     return returnValue;
+   }
+ 
++  JSI_HOST_FUNCTION(nelyxGlyphVisit) {
++    auto visitorObject = getArgumentAsFunction(runtime, arguments, count, 0);
++    auto visitor = visitorObject.asFunction(runtime);
++    auto context = getContext();
++    getObject()->visit(
++        [&runtime, &visitor, &context](
++            int lineNumber, const para::Paragraph::VisitorInfo *info) {
++          if (info == nullptr) {
++            // Signals the end of the line
++            visitor.call(runtime, static_cast<double>(lineNumber),
++                         jsi::Value::null());
++            return;
++          }
++          auto value = jsi::Object(runtime);
++
++          value.setProperty(runtime, "font",
++                            makeJsiObject(runtime, std::make_shared<JsiSkFont>(
++                                                       context, info->font)));
++
++          auto origin = jsi::Object(runtime);
++          origin.setProperty(runtime, "x",
++                             static_cast<double>(info->origin.x()));
++          origin.setProperty(runtime, "y",
++                             static_cast<double>(info->origin.y()));
++          value.setProperty(runtime, "origin", origin);
++
++          auto advance = jsi::Object(runtime);
++          advance.setProperty(runtime, "width",
++                              static_cast<double>(info->advanceX));
++          advance.setProperty(runtime, "height",
++                              0.0);
++          value.setProperty(runtime, "advance", advance);
++
++          auto size = info->count;
++          std::vector<SkRect> glyphBounds(size);
++          info->font.getBounds({info->glyphs, static_cast<size_t>(size)},
++                               {glyphBounds.data(), glyphBounds.size()}, nullptr);
++          auto glyphs = jsi::Array(runtime, size);
++          auto positions = jsi::Array(runtime, size);
++          auto bounds = jsi::Array(runtime, size);
++          auto utf8Starts = jsi::Array(runtime, size);
++          for (int i = 0; i < size; ++i) {
++            glyphs.setValueAtIndex(runtime, i,
++                                   static_cast<double>(info->glyphs[i]));
++            auto position = jsi::Object(runtime);
++            position.setProperty(runtime, "x",
++                                 static_cast<double>(info->positions[i].x()));
++            position.setProperty(runtime, "y",
++                                 static_cast<double>(info->positions[i].y()));
++            positions.setValueAtIndex(runtime, i, position);
++            bounds.setValueAtIndex(
++                runtime, i,
++                JsiSkRect::toValue(runtime, context, glyphBounds[i]));
++            utf8Starts.setValueAtIndex(
++                runtime, i, static_cast<double>(info->utf8Starts[i]));
++          }
++          value.setProperty(runtime, "glyphs", glyphs);
++          value.setProperty(runtime, "positions", positions);
++          value.setProperty(runtime, "bounds", bounds);
++          value.setProperty(runtime, "utf8Starts", utf8Starts);
++          value.setProperty(runtime, "flags", static_cast<double>(info->flags));
++
++          visitor.call(runtime, static_cast<double>(lineNumber), value);
++        });
++    return jsi::Value::undefined();
++  }
++
++  std::vector<double> nelyxTextMetrics(){
++    auto paragraph=getObject();return {paragraph->getAlphabeticBaseline(),paragraph->getIdeographicBaseline(),paragraph->getMinIntrinsicWidth(),paragraph->getMaxIntrinsicWidth(),paragraph->getLongestLine(),paragraph->didExceedMaxLines()?1.0:0.0,static_cast<double>(paragraph->unresolvedGlyphs())};
++  }
++  std::vector<double> nelyxTextHit(double x,double y){
++    auto paragraph=getObject();auto position=paragraph->getGlyphPositionAtCoordinate(x,y);para::Paragraph::GlyphInfo glyph;
++    if(!paragraph->getClosestUTF16GlyphInfoAt(x,y,&glyph))return {static_cast<double>(position.position),static_cast<double>(position.affinity),0};
++    return {static_cast<double>(position.position),static_cast<double>(position.affinity),1,static_cast<double>(glyph.fGraphemeClusterTextRange.start),static_cast<double>(glyph.fGraphemeClusterTextRange.end),static_cast<double>(glyph.fDirection),glyph.fGraphemeLayoutBounds.x(),glyph.fGraphemeLayoutBounds.y(),glyph.fGraphemeLayoutBounds.width(),glyph.fGraphemeLayoutBounds.height()};
++  }
++
+   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
++    installHostMethod(runtime,prototype,"nelyxGlyphVisit",&JsiSkParagraph::nelyxGlyphVisit);
++    installMethod(runtime,prototype,"nelyxTextMetrics",&JsiSkParagraph::nelyxTextMetrics);
++    installMethod(runtime,prototype,"nelyxTextHit",&JsiSkParagraph::nelyxTextHit);
+     installCommon(runtime, prototype);
+     installMethod(runtime, prototype, "layout", &JsiSkParagraph::layout);
+     installMethod(runtime, prototype, "paint", &JsiSkParagraph::paint);
+@@ -283,7 +363,7 @@
+   explicit JsiSkParagraph(std::shared_ptr<RNSkPlatformContext> context,
+                           para::ParagraphBuilder *paragraphBuilder)
+       : JsiSkWrappingSharedPtrNativeObject<JsiSkParagraph, para::Paragraph>(
+-            std::move(context), paragraphBuilder->Build()) {}
++            std::move(context), nelyx::skia_core::buildParagraph(*paragraphBuilder)) {}
+ };
+ 
+ } // namespace RNSkia
+--- a/cpp/api/JsiSkParagraphBuilder.h
++++ b/cpp/api/JsiSkParagraphBuilder.h
+@@ -43,12 +43,12 @@
+   static constexpr const char *CLASS_NAME = "ParagraphBuilder";
+ 
+   std::shared_ptr<JsiSkParagraph> build() {
+-    return std::make_shared<JsiSkParagraph>(getContext(), _builder.get());
++    return std::make_shared<JsiSkParagraph>(getContext(), requireBuilder());
+   }
+ 
+-  void reset() { _builder->Reset(); }
++  void reset() { requireBuilder()->Reset(); }
+ 
+-  void addText(std::string text) { _builder->addText(text.c_str()); }
++  void addText(std::string text) { requireBuilder()->addText(text.c_str()); }
+ 
+   void addPlaceholder(JsiOptional<double> width, JsiOptional<double> height,
+                       JsiOptional<double> alignmentParam,
+@@ -63,7 +63,7 @@
+                         : para::TextBaseline::kAlphabetic;
+     para::PlaceholderStyle style(width.value_or(0), height.value_or(0),
+                                  alignment, baseline, offset.value_or(0));
+-    _builder->addPlaceholder(style);
++    requireBuilder()->addPlaceholder(style);
+   }
+ 
+   void pushStyle(para::TextStyle textStyle,
+@@ -75,12 +75,25 @@
+     if (background.has_value()) {
+       textStyle.setBackgroundPaint(**background);
+     }
+-    _builder->pushStyle(textStyle);
++    requireBuilder()->pushStyle(textStyle);
+   }
+ 
+-  void pop() { _builder->pop(); }
++  void pop() { requireBuilder()->pop(); }
++
++  void dispose() {
++    _builder.reset();
++    _fontCollection.reset();
++  }
++
++  para::ParagraphBuilder *requireBuilder() {
++    if (!_builder) {
++      throw std::runtime_error("Nelyx: paragraph builder has been disposed");
++    }
++    return _builder.get();
++  }
+ 
+   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
++    installMethod(runtime, prototype, "dispose", &JsiSkParagraphBuilder::dispose);
+     installMethod(runtime, prototype, "build", &JsiSkParagraphBuilder::build);
+     installMethod(runtime, prototype, "reset", &JsiSkParagraphBuilder::reset);
+     installChainableMethod(runtime, prototype, "addText",
+--- a/cpp/api/JsiSkShaderFactory.h
++++ b/cpp/api/JsiSkShaderFactory.h
+@@ -41,8 +41,8 @@
+     SkPoint pts[] = {p1, p2};
+     auto colors = toColors(jsiColors);
+     auto positions = toPositions(jsiPositions, colors.size());
+-    SkGradient::Colors gradColors(SkSpan(colors), toSpan(positions),
+-                                  toTileMode(tileMode));
++    SkGradient::Colors gradColors{SkSpan(colors), toSpan(positions),
++                                  toTileMode(tileMode)};
+     SkGradient grad(gradColors,
+                     SkGradient::Interpolation::FromFlags(toFlag(flag)));
+     sk_sp<SkShader> gradient =
+@@ -59,8 +59,8 @@
+                      JsiOptional<double> flag) {
+     auto colors = toColors(jsiColors);
+     auto positions = toPositions(jsiPositions, colors.size());
+-    SkGradient::Colors gradColors(SkSpan(colors), toSpan(positions),
+-                                  toTileMode(tileMode));
++    SkGradient::Colors gradColors{SkSpan(colors), toSpan(positions),
++                                  toTileMode(tileMode)};
+     SkGradient grad(gradColors,
+                     SkGradient::Interpolation::FromFlags(toFlag(flag)));
+     sk_sp<SkShader> gradient =
+@@ -81,8 +81,8 @@
+     auto startAngle =
+         start.has_value() ? static_cast<float>(*start) : 0.0f;
+     auto endAngle = end.has_value() ? static_cast<float>(*end) : 360.0f;
+-    SkGradient::Colors gradColors(SkSpan(colors), toSpan(positions),
+-                                  toTileMode(tileMode));
++    SkGradient::Colors gradColors{SkSpan(colors), toSpan(positions),
++                                  toTileMode(tileMode)};
+     SkGradient grad(gradColors,
+                     SkGradient::Interpolation::FromFlags(toFlag(flag)));
+     sk_sp<SkShader> gradient =
+@@ -101,8 +101,8 @@
+                               JsiOptional<double> flag) {
+     auto colors = toColors(jsiColors);
+     auto positions = toPositions(jsiPositions, colors.size());
+-    SkGradient::Colors gradColors(SkSpan(colors), toSpan(positions),
+-                                  toTileMode(tileMode));
++    SkGradient::Colors gradColors{SkSpan(colors), toSpan(positions),
++                                  toTileMode(tileMode)};
+     SkGradient grad(gradColors,
+                     SkGradient::Interpolation::FromFlags(toFlag(flag)));
+     sk_sp<SkShader> gradient = SkShaders::TwoPointConicalGradient(
+--- a/cpp/api/JsiSkSurface.h
++++ b/cpp/api/JsiSkSurface.h
+@@ -4,6 +4,7 @@
+ #include <limits>
+ #include <memory>
+ #include <utility>
++#include <vector>
+ 
+ #include <jsi/jsi.h>
+ 
+@@ -14,7 +15,7 @@
+ #include "JsiSkCanvas.h"
+ #include "JsiSkImage.h"
+ 
+-#include "rnskia/RNDawnContext.h"
++#include "rnskia/RNSkPlatformContext.h"
+ 
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wdocumentation"
+@@ -31,6 +32,7 @@
+     : public JsiSkWrappingSkPtrNativeObject<JsiSkSurface, SkSurface> {
+ private:
+   std::shared_ptr<Dispatcher> _dispatcher;
++  std::vector<std::weak_ptr<JsiSkCanvas>> _canvases;
+ 
+ public:
+   static constexpr const char *CLASS_NAME = "Surface";
+@@ -54,7 +56,8 @@
+       // deletion to run on the Thread this Object was created on.
+       auto surface = getObjectUnchecked();
+       if (surface && _dispatcher) {
+-        _dispatcher->run([surface]() {
++        _dispatcher->run([surface,canvases=std::move(_canvases)]() {
++          for(auto& weak:canvases)if(auto canvas=weak.lock())canvas->invalidateSurface();
+           // Surface will be deleted when this lambda is destroyed, on the
+           // original Thread.
+         });
+@@ -69,11 +72,14 @@
+ 
+   std::shared_ptr<JsiSkCanvas> getCanvas() {
+     auto surface = getObject();
++    _canvases.erase(std::remove_if(_canvases.begin(),_canvases.end(),[](const auto& value){return value.expired();}),_canvases.end());
++    if(_canvases.size()>=64)throw std::runtime_error("Surface live canvas alias budget exceeds64");
+     auto canvas =
+         std::make_shared<JsiSkCanvas>(getContext(), surface->getCanvas());
+     // Keep a reference to the owning surface so the canvas can read pixels back
+     // through a snapshot on Graphite (which lacks synchronous canvas readback).
+     canvas->setSurface(surface);
++    _canvases.push_back(canvas);
+     return canvas;
+   }
+ 
+@@ -88,7 +94,7 @@
+     // only Graphite-backed surfaces need to snap and submit a recording.
+     if (auto *recorder = surface->recorder()) {
+       auto recording = recorder->snap();
+-      DawnContext::getInstance().submitRecording(
++      getContext()->getGpuContext().submitRecording(
+           recording.get(), sync ? skgpu::graphite::SyncToCpu::kYes
+                                 : skgpu::graphite::SyncToCpu::kNo);
+     }
+@@ -108,7 +114,7 @@
+     // snapshot is already a valid CPU image, so skip the recording submit.
+     if (auto *recorder = surface->recorder()) {
+       auto recording = recorder->snap();
+-      DawnContext::getInstance().submitRecording(recording.get());
++      getContext()->getGpuContext().submitRecording(recording.get());
+     }
+     if (count > 1 && arguments[1].isObject()) {
+       auto jsiImage = getJsiObject<JsiSkImage>(runtime, arguments[1]);
+@@ -181,6 +187,11 @@
+                       &JsiSkSurface::makeImageSnapshot);
+     installMethod(runtime, prototype, "flush", &JsiSkSurface::flush);
+   }
++protected:
++  void releaseResources() override {
++    for(auto& weak:_canvases)if(auto canvas=weak.lock())canvas->invalidateSurface();
++    _canvases.clear();setObject(nullptr);
++  }
+ };
+ 
+ } // namespace RNSkia
+--- a/cpp/api/JsiSkSurfaceFactory.h
++++ b/cpp/api/JsiSkSurfaceFactory.h
+@@ -11,7 +11,7 @@
+ 
+ #include "JsiSkSurface.h"
+ 
+-#include "rnskia/RNDawnContext.h"
++#include "rnskia/RNSkPlatformContext.h"
+ 
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wdocumentation"
+@@ -74,9 +74,8 @@
+     // The surface keeps the texture alive for its lifetime, and the JS
+     // GPUTexture keeps its own reference, which the caller may release once
+     // the surface exists.
+-    wgpu::Texture texture =
+-        gpuTextureFromValue(runtime, arguments[0], "MakeFromGPUTexture");
+-    auto surface = DawnContext::getInstance().MakeSurfaceFromTexture(texture);
++    auto pointer = gpuTextureFromValue(runtime, arguments[0], "MakeFromGPUTexture");
++    auto surface = getContext()->getGpuContext().importSurface(pointer);
+     if (surface == nullptr) {
+       throw std::runtime_error(
+           "MakeFromGPUTexture: failed to wrap the texture");
+--- a/cpp/api/JsiSkTypeface.h
++++ b/cpp/api/JsiSkTypeface.h
+@@ -79,7 +79,12 @@
+     return objectFromValue(runtime, obj);
+   }
+ 
++  double nelyxIdentity(){return static_cast<double>(getObject()->uniqueID());}
++  std::string nelyxFamily(){SkString family;getObject()->getFamilyName(&family);return std::string(family.c_str());}
++
+   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
++    installMethod(runtime,prototype,"nelyxIdentity",&JsiSkTypeface::nelyxIdentity);
++    installMethod(runtime,prototype,"nelyxFamily",&JsiSkTypeface::nelyxFamily);
+     installCommon(runtime, prototype);
+     installMethod(runtime, prototype, "getGlyphIDs",
+                   &JsiSkTypeface::getGlyphIDs);
+--- a/cpp/api/recorder/Shaders.h
++++ b/cpp/api/recorder/Shaders.h
+@@ -263,12 +263,12 @@
+     }
+ 
+     auto tileMode = props.mode.value_or(SkTileMode::kClamp);
+-    SkGradient::Colors gradColors(
++    SkGradient::Colors gradColors{
+         SkSpan(colors4f),
+         props.positions ? SkSpan<const float>(props.positions->data(),
+                                               props.positions->size())
+                         : SkSpan<const float>(),
+-        tileMode);
++        tileMode};
+     SkGradient grad(gradColors, SkGradient::Interpolation::FromFlags(
+                                     props.flags.value_or(0)));
+     auto shader = SkShaders::LinearGradient(pts, grad, &m3);
+@@ -319,12 +319,12 @@
+     }
+ 
+     auto tileMode = props.mode.value_or(SkTileMode::kClamp);
+-    SkGradient::Colors gradColors(
++    SkGradient::Colors gradColors{
+         SkSpan(colors4f),
+         props.positions ? SkSpan<const float>(props.positions->data(),
+                                               props.positions->size())
+                         : SkSpan<const float>(),
+-        tileMode);
++        tileMode};
+     SkGradient grad(gradColors, SkGradient::Interpolation::FromFlags(
+                                     props.flags.value_or(0)));
+     auto shader =
+@@ -378,12 +378,12 @@
+     }
+ 
+     auto tileMode = props.mode.value_or(SkTileMode::kClamp);
+-    SkGradient::Colors gradColors(
++    SkGradient::Colors gradColors{
+         SkSpan(colors4f),
+         props.positions ? SkSpan<const float>(props.positions->data(),
+                                               props.positions->size())
+                         : SkSpan<const float>(),
+-        tileMode);
++        tileMode};
+     SkGradient grad(gradColors, SkGradient::Interpolation::FromFlags(
+                                     props.flags.value_or(0)));
+     auto shader =
+@@ -441,12 +441,12 @@
+     }
+ 
+     auto tileMode = props.mode.value_or(SkTileMode::kClamp);
+-    SkGradient::Colors gradColors(
++    SkGradient::Colors gradColors{
+         SkSpan(colors4f),
+         props.positions ? SkSpan<const float>(props.positions->data(),
+                                               props.positions->size())
+                         : SkSpan<const float>(),
+-        tileMode);
++        tileMode};
+     SkGradient grad(gradColors, SkGradient::Interpolation::FromFlags(
+                                     props.flags.value_or(0)));
+     auto shader = SkShaders::TwoPointConicalGradient(
+--- a/cpp/api/third_party/SkottieUtils.h
++++ b/cpp/api/third_party/SkottieUtils.h
+@@ -23,6 +23,9 @@
+ namespace skottie {
+ class MarkerObserver;
+ 
++#ifndef NELYX_SKOTTIE_PROPERTY_IMPLEMENTED
++// Vulkan's matching original Skottie module owns these definitions. Keep the
++// reference supplier's inline definitions only for its existing build path.
+ inline void
+ PropertyObserver::onColorProperty(const char node_name[],
+                                   const LazyHandle<ColorPropertyHandle> &) {}
+@@ -39,6 +42,7 @@
+ inline void PropertyObserver::onLeavingNode(const char node_name[],
+                                             NodeType node_type) {}
+ 
++#endif
+ } // namespace skottie
+ 
+ namespace skresources {
+--- a/cpp/rnskia/RNDawnContext.h
++++ b/cpp/rnskia/RNDawnContext.h
+@@ -2,6 +2,7 @@
+ 
+ #include <memory>
+ #include <mutex>
++#include "nelyx_skia/gpu_context.h"
+ 
+ #include "RNDawnUtils.h"
+ #include "RNImageProvider.h"
+@@ -39,8 +40,31 @@
+   context->fCalled = true;
+ }
+ 
+-class DawnContext {
++class DawnContext final : public nelyx::gpu::Context {
+ public:
++  bool retireWork() override { return nelyxRetireWork(); }
++  SkColorType targetColorType(bool highBitDepth) const override {
++    return highBitDepth ? DawnUtils::HighBitDepthColorType : DawnUtils::PreferedColorType;
++  }
++  skgpu::graphite::TextureInfo textureInfo(SkColorType type) const override {
++    return skgpu::graphite::TextureInfos::MakeDawn(skgpu::graphite::DawnTextureInfo(
++      skgpu::graphite::SampleCount::k1, skgpu::Mipmapped::kNo,
++      DawnUtils::textureFormatForColorType(type), DawnUtils::DefaultTargetUsage,
++      wgpu::TextureAspect::All));
++  }
++  uint64_t webGpuDevice() override { return reinterpret_cast<uint64_t>(getWGPUDevice().Get()); }
++  sk_sp<SkImage> importTexture(uint64_t pointer) override {
++    auto texture = retainTexture(pointer);
++    return MakeImageFromTexture(texture, texture.GetWidth(), texture.GetHeight(), texture.GetFormat());
++  }
++  sk_sp<SkSurface> importSurface(uint64_t pointer) override {
++    return MakeSurfaceFromTexture(retainTexture(pointer));
++  }
++  uint64_t exportTexture(sk_sp<SkImage> image) override {
++    auto texture = MakeTextureFromImage(std::move(image));
++    if (!texture) throw std::runtime_error("Failed to export WebGPU texture");
++    return reinterpret_cast<uint64_t>(texture.MoveToCHandle());
++  }
+   DawnContext(const DawnContext &) = delete;
+   DawnContext &operator=(const DawnContext &) = delete;
+ 
+@@ -49,7 +73,7 @@
+     return instance;
+   }
+ 
+-  sk_sp<SkImage> MakeRasterImage(sk_sp<SkImage> image) {
++  sk_sp<SkImage> MakeRasterImage(sk_sp<SkImage> image) override {
+     if (!image->isTextureBacked()) {
+       return image;
+     }
+@@ -83,10 +107,11 @@
+   // A recorder of its own for a client that records on one thread and replays
+   // on another (SkiaGraphiteView): unlike getRecorder() it is not tied to the
+   // calling thread. Creating a recorder is a Context operation, hence the lock.
+-  std::unique_ptr<skgpu::graphite::Recorder> makeRecorder() {
++  std::unique_ptr<skgpu::graphite::Recorder> makeRecorder() override {
+     std::lock_guard<std::mutex> lock(_mutex);
+     skgpu::graphite::RecorderOptions options;
+     options.fImageProvider = ImageProvider::Make();
++    options.fGpuBudgetInBytes = 32 * (1 << 20);
+     return fGraphiteContext->makeRecorder(options);
+   }
+ 
+@@ -95,7 +120,7 @@
+   // them was rejected; the others are still submitted.
+   bool
+   insertRecordings(const std::vector<skgpu::graphite::Recording *> &recordings,
+-                   SkSurface *targetSurface) {
++                   SkSurface *targetSurface) override {
+     std::lock_guard<std::mutex> lock(_mutex);
+     bool success = true;
+     for (auto *recording : recordings) {
+@@ -119,7 +144,7 @@
+ 
+   void submitRecording(
+       skgpu::graphite::Recording *recording,
+-      skgpu::graphite::SyncToCpu syncToCpu = skgpu::graphite::SyncToCpu::kNo) {
++      skgpu::graphite::SyncToCpu syncToCpu = skgpu::graphite::SyncToCpu::kNo) override {
+     std::lock_guard<std::mutex> lock(_mutex);
+     skgpu::graphite::InsertRecordingInfo info;
+     info.fRecording = recording;
+@@ -127,9 +152,17 @@
+     fGraphiteContext->submit(syncToCpu);
+   }
+ 
++  // Nelyx diagnostic policy: wait on the native render owner, never the JS
++  // producer. A successful submit plus no unfinished work is a GPU fence.
++  bool nelyxRetireWork() {
++    std::lock_guard<std::mutex> lock(_mutex);
++    return fGraphiteContext->submit(skgpu::graphite::SyncToCpu::kYes) &&
++           !fGraphiteContext->hasUnfinishedGpuWork();
++  }
++
+   // Create offscreen surface
+   sk_sp<SkSurface> MakeOffscreen(int width, int height,
+-                                 bool useP3ColorSpace = false) {
++                                 bool useP3ColorSpace = false) override {
+     sk_sp<SkColorSpace> colorSpace =
+         useP3ColorSpace ? SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB,
+                                                 SkNamedGamut::kDisplayP3)
+@@ -326,6 +359,12 @@
+   }
+ 
+ private:
++  static wgpu::Texture retainTexture(uint64_t pointer) {
++    auto texture = reinterpret_cast<WGPUTexture>(pointer);
++    if (!texture) throw std::runtime_error("The WebGPU texture is null");
++    wgpuTextureAddRef(texture);
++    return wgpu::Texture::Acquire(texture);
++  }
+   std::unique_ptr<dawn::native::Instance> instance;
+   std::unique_ptr<skgpu::graphite::Context> fGraphiteContext;
+   skgpu::graphite::DawnBackendContext backendContext;
+--- a/cpp/rnskia/RNDawnUtils.h
++++ b/cpp/rnskia/RNDawnUtils.h
+@@ -1,4 +1,6 @@
+ #pragma once
++
++#include <mutex>
+ 
+ #if defined(__APPLE__)
+ #include <TargetConditionals.h>
+@@ -103,12 +105,38 @@
+   }
+ }
+ 
++// Hardware selection is the normal profile. The SDK may explicitly opt into
++// software adapters before any Dawn selection for its emulator-only profile.
++struct NelyxDawnAdapterPolicy {
++  std::mutex mutex;
++  bool allowSoftware = false;
++  bool selectionStarted = false;
++};
++inline NelyxDawnAdapterPolicy &nelyxDawnAdapterPolicy() {
++  static NelyxDawnAdapterPolicy policy;
++  return policy;
++}
++inline void configureNelyxDawnAdapterPolicy(bool allowSoftware) {
++  auto &policy = nelyxDawnAdapterPolicy();
++  std::lock_guard<std::mutex> lock(policy.mutex);
++  if (policy.selectionStarted && policy.allowSoftware != allowSoftware)
++    throw std::runtime_error("Dawn adapter policy changes require process restart");
++  policy.allowSoftware = allowSoftware;
++}
++
+ // Find the best matching GPU adapter for the current platform.
+ // Sorts by adapter type (DiscreteGPU > IntegratedGPU > CPU) and selects the
+ // first adapter matching the platform backend (Metal on Apple, Vulkan on
+ // Android).
+ inline dawn::native::Adapter
+ getMatchedAdapter(dawn::native::Instance *instance) {
++  auto &policy = nelyxDawnAdapterPolicy();
++  bool allowSoftware;
++  {
++    std::lock_guard<std::mutex> lock(policy.mutex);
++    policy.selectionStarted = true;
++    allowSoftware = policy.allowSoftware;
++  }
+ #ifdef __APPLE__
+   constexpr auto kDefaultBackendType = wgpu::BackendType::Metal;
+ #elif __ANDROID__
+@@ -141,12 +169,18 @@
+     wgpu::Adapter wgpuAdapter = adapter.Get();
+     wgpu::AdapterInfo props;
+     wgpuAdapter.GetInfo(&props);
+-    if (kDefaultBackendType == props.backendType) {
++    const bool hardware = props.adapterType == wgpu::AdapterType::DiscreteGPU ||
++                          props.adapterType == wgpu::AdapterType::IntegratedGPU;
++    if (kDefaultBackendType == props.backendType && (hardware || allowSoftware)) {
++      RNSkia::RNSkLogger::logToConsole(
++          "Nelyx Dawn adapter policy - SoftwareAllowed: %d, AdapterType: %d",
++          allowSoftware ? 1 : 0, static_cast<int>(props.adapterType));
+       return adapter;
+     }
+   }
+ 
+-  throw std::runtime_error("No matching adapter found");
++  throw std::runtime_error(allowSoftware ? "No matching adapter found" :
++      "No hardware Dawn adapter found; software adapters require the explicit emulator profile");
+ }
+ 
+ // Create a Dawn device from the given adapter with the requested features.
+--- a/cpp/rnskia/RNDawnWindowSurface.cpp
++++ b/cpp/rnskia/RNDawnWindowSurface.cpp
+@@ -0,0 +1,267 @@
++#include "RNDawnWindowSurface.h"
++
++#include "RNDawnContext.h"
++#include "RNDawnUtils.h"
++#include "RNMetalLayerColorSpace.h"
++#include "utils/RNSkLog.h"
++
++#ifdef __APPLE__
++#include "dawn/native/MetalBackend.h"
++#endif
++
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wdocumentation"
++
++#include "include/core/SkSurface.h"
++#include "include/gpu/graphite/BackendTexture.h"
++#include "include/gpu/graphite/Surface.h"
++#include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
++#include "include/gpu/graphite/dawn/DawnTypes.h"
++
++#pragma clang diagnostic pop
++
++namespace RNSkia {
++
++RNDawnWindowSurface::~RNDawnWindowSurface() { detach(); }
++
++void RNDawnWindowSurface::attach(void *nativeHandle, int width, int height,
++                               bool highBitDepth, bool useP3ColorSpace,
++                               Releaser releaser) {
++  detach();
++  auto &context = DawnContext::getInstance();
++  _device = context.getWGPUDevice();
++  _recorder = context.getRecorder();
++  _nativeHandle = nativeHandle;
++  _releaser = std::move(releaser);
++  _surface = context.MakeWGPUSurface(nativeHandle);
++  if (!_surface) {
++    RNSkLogger::logToConsole("Could not create a surface over the window");
++    detach();
++    return;
++  }
++  _width = width;
++  _height = height;
++  _useP3ColorSpace = useP3ColorSpace;
++  _format = DawnUtils::PreferredTextureFormat;
++  _colorType = DawnUtils::PreferedColorType;
++  if (highBitDepth) {
++    if (surfaceSupportsFormat(DawnUtils::HighBitDepthTextureFormat)) {
++      _format = DawnUtils::HighBitDepthTextureFormat;
++      _colorType = DawnUtils::HighBitDepthColorType;
++    } else {
++      RNSkLogger::logToConsole(
++          "High bit depth was requested but the surface does not support "
++          "it, falling back to the 8-bit format");
++    }
++  }
++  configureSurface();
++  updateTargetInfo();
++  requestRedraw();
++}
++
++void RNDawnWindowSurface::resize(int width, int height) {
++  if (!_surface) {
++    return;
++  }
++  _width = width;
++  _height = height;
++  configureSurface();
++  updateTargetInfo();
++  requestRedraw();
++}
++
++void RNDawnWindowSurface::detach() {
++  // The surface goes before the window it draws into.
++  _surface = nullptr;
++  _recorder = nullptr;
++  updateTargetInfo();
++  if (_releaser && _nativeHandle != nullptr) {
++    _releaser(_nativeHandle);
++  }
++  _releaser = nullptr;
++  _nativeHandle = nullptr;
++}
++
++void RNDawnWindowSurface::setLayoutSize(int width, int height) {
++  std::lock_guard<std::mutex> lock(_targetInfoMutex);
++  _layoutWidth = width;
++  _layoutHeight = height;
++}
++
++bool RNDawnWindowSurface::getLayoutSize(int *width, int *height) {
++  std::lock_guard<std::mutex> lock(_targetInfoMutex);
++  if (_layoutWidth <= 0 || _layoutHeight <= 0) {
++    return false;
++  }
++  *width = _layoutWidth;
++  *height = _layoutHeight;
++  return true;
++}
++
++int RNDawnWindowSurface::getWidth() {
++  std::lock_guard<std::mutex> lock(_targetInfoMutex);
++  return _hasTargetInfo ? _targetInfo.width : 0;
++}
++
++int RNDawnWindowSurface::getHeight() {
++  std::lock_guard<std::mutex> lock(_targetInfoMutex);
++  return _hasTargetInfo ? _targetInfo.height : 0;
++}
++
++bool RNDawnWindowSurface::getTargetInfo(RNSkGraphiteTargetInfo *info) {
++  std::lock_guard<std::mutex> lock(_targetInfoMutex);
++  if (!_hasTargetInfo) {
++    return false;
++  }
++  *info = _targetInfo;
++  return true;
++}
++
++void RNDawnWindowSurface::updateTargetInfo() {
++  std::lock_guard<std::mutex> lock(_targetInfoMutex);
++  if (!_surface) {
++    _hasTargetInfo = false;
++    return;
++  }
++  _targetInfo.width = _width;
++  _targetInfo.height = _height;
++  _targetInfo.colorType = _colorType;
++  _targetInfo.useP3ColorSpace = _useP3ColorSpace;
++  _targetInfo.textureInfo = getTextureInfo();
++  _hasTargetInfo = true;
++}
++
++skgpu::graphite::TextureInfo RNDawnWindowSurface::getTextureInfo() const {
++  return skgpu::graphite::TextureInfos::MakeDawn(
++      skgpu::graphite::DawnTextureInfo(skgpu::graphite::SampleCount::k1,
++                                       skgpu::Mipmapped::kNo, _format, _usage,
++                                       wgpu::TextureAspect::All));
++}
++
++void RNDawnWindowSurface::configureSurface() {
++  wgpu::SurfaceConfiguration config;
++  config.device = _device;
++  config.format = _format;
++  config.width = _width;
++  config.height = _height;
++  config.presentMode = wgpu::PresentMode::Fifo;
++  _usage = supportedSurfaceUsage();
++  config.usage = _usage;
++#ifdef __APPLE__
++  config.alphaMode = wgpu::CompositeAlphaMode::Premultiplied;
++#endif
++  _surface.Configure(&config);
++#ifdef __APPLE__
++  // The layer is tagged with the gamut the window renders in; float formats
++  // need the (gamma-encoded) extended variant so the values display
++  // identically to the 8-bit path.
++  applyCAMetalLayerColorSpace(_nativeHandle, _format, _useP3ColorSpace);
++#endif
++}
++
++wgpu::TextureUsage RNDawnWindowSurface::supportedSurfaceUsage() {
++  wgpu::TextureUsage usage = wgpu::TextureUsage::RenderAttachment;
++  wgpu::SurfaceCapabilities capabilities;
++  if (_surface.GetCapabilities(_device.GetAdapter(), &capabilities) !=
++      wgpu::Status::Success) {
++    return usage;
++  }
++  for (auto extra :
++       {wgpu::TextureUsage::TextureBinding, wgpu::TextureUsage::CopySrc}) {
++    if ((capabilities.usages & extra) &&
++        (DawnUtils::DefaultTargetUsage & extra)) {
++      usage |= extra;
++    }
++  }
++  return usage;
++}
++
++bool RNDawnWindowSurface::surfaceSupportsFormat(wgpu::TextureFormat format) {
++  wgpu::SurfaceCapabilities capabilities;
++  if (_surface.GetCapabilities(_device.GetAdapter(), &capabilities) !=
++      wgpu::Status::Success) {
++    return false;
++  }
++  for (size_t i = 0; i < capabilities.formatCount; i++) {
++    if (capabilities.formats[i] == format) {
++      return true;
++    }
++  }
++  return false;
++}
++
++bool RNDawnWindowSurface::canPresent() {
++  if (!_surface) {
++    return false;
++  }
++  if (_canPresent && !_canPresent()) {
++    // The frame is kept by the caller: ask for it again once the window can
++    // show it.
++    requestRedraw();
++    return false;
++  }
++  return true;
++}
++
++bool RNDawnWindowSurface::presentRecordings(
++    const std::vector<skgpu::graphite::Recording *> &recordings) {
++  if (!canPresent()) {
++    return false;
++  }
++  wgpu::SurfaceTexture surfaceTexture;
++  _surface.GetCurrentTexture(&surfaceTexture);
++  auto texture = surfaceTexture.texture;
++  if (!texture) {
++    return false;
++  }
++  // The surface only names the replay target; wrapping the swapchain texture
++  // records nothing on the window's recorder.
++  auto backendTex = skgpu::graphite::BackendTextures::MakeDawn(texture.Get());
++  SkSurfaceProps surfaceProps;
++  auto surface = SkSurfaces::WrapBackendTexture(
++      _recorder, backendTex, DawnUtils::viewColorSpace(_useP3ColorSpace),
++      &surfaceProps);
++  if (!surface) {
++    return false;
++  }
++  bool success =
++      DawnContext::getInstance().insertRecordings(recordings, surface.get());
++#ifdef __APPLE__
++  dawn::native::metal::WaitForCommandsToBeScheduled(_device.Get());
++#endif
++  _surface.Present();
++  return success;
++}
++
++bool RNDawnWindowSurface::presentImage(const sk_sp<SkImage> &image) {
++  if (!canPresent()) {
++    return false;
++  }
++  wgpu::SurfaceTexture surfaceTexture;
++  _surface.GetCurrentTexture(&surfaceTexture);
++  auto texture = surfaceTexture.texture;
++  if (!texture) {
++    return false;
++  }
++  auto backendTex = skgpu::graphite::BackendTextures::MakeDawn(texture.Get());
++  SkSurfaceProps surfaceProps;
++  auto surface = SkSurfaces::WrapBackendTexture(
++      _recorder, backendTex, _colorType,
++      DawnUtils::viewColorSpace(_useP3ColorSpace), &surfaceProps);
++  if (!surface) {
++    return false;
++  }
++  surface->getCanvas()->drawImage(image, 0, 0);
++  auto recording = _recorder->snap();
++  if (!recording) {
++    throw std::runtime_error("Failed to create graphite recording");
++  }
++  DawnContext::getInstance().submitRecording(recording.get());
++#ifdef __APPLE__
++  dawn::native::metal::WaitForCommandsToBeScheduled(_device.Get());
++#endif
++  _surface.Present();
++  return true;
++}
++
++} // namespace RNSkia
+--- a/cpp/rnskia/RNDawnWindowSurface.h
++++ b/cpp/rnskia/RNDawnWindowSurface.h
+@@ -0,0 +1,174 @@
++#pragma once
++
++#include <functional>
++#include <mutex>
++#include <utility>
++#include <vector>
++
++#include "RNSkGraphiteTargetInfo.h"
++#include "RNSkWindowSurface.h"
++
++#include "webgpu/webgpu_cpp.h"
++
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wdocumentation"
++
++#include "include/core/SkColorType.h"
++#include "include/core/SkImage.h"
++#include "include/gpu/graphite/Recorder.h"
++#include "include/gpu/graphite/Recording.h"
++
++#pragma clang diagnostic pop
++
++namespace RNSkia {
++
++/**
++ * The window a platform view presents into: a CAMetalLayer on Apple
++ * platforms, an ANativeWindow on Android, configured as a Dawn surface. The
++ * platform view only acquires the native handle and forwards its lifecycle
++ * (attach, resize, detach); everything else lives here.
++ *
++ * Threading: the window is attached, resized, detached and presented on the
++ * main thread. The description of its target texture is kept in a copy of
++ * its own, so that whoever records for the view (the JS thread, a worklet
++ * runtime, the render thread pool) can read it from any thread, also before
++ * the window exists (see getLayoutSize).
++ */
++class RNDawnWindowSurface final : public RNSkWindowSurface {
++public:
++  /**
++   Gives back the native handle attach() was given, once the Dawn surface
++   over it is gone. Called from detach() or the destructor, so on any thread.
++   */
++  using Releaser = std::function<void(void *nativeHandle)>;
++
++  RNDawnWindowSurface() = default;
++
++  ~RNDawnWindowSurface() override;
++
++  RNDawnWindowSurface(const RNDawnWindowSurface &) = delete;
++  RNDawnWindowSurface &operator=(const RNDawnWindowSurface &) = delete;
++
++  /**
++   Configures the native window (a CAMetalLayer or an ANativeWindow) as the
++   Dawn surface of this view, at the given size in pixels. A window already
++   attached is detached first. highBitDepth asks for the 16-bit float (Apple)
++   or 10-bit (Android) format, granted when the surface supports it;
++   useP3ColorSpace renders in Display P3 rather than sRGB. The releaser, if
++   any, gives the handle back when the window is detached. Requests a redraw.
++   */
++  void attach(void *nativeHandle, int width, int height, bool highBitDepth,
++              bool useP3ColorSpace, Releaser releaser) override;
++
++  /** Reconfigures the surface for a new size, in pixels. Requests a redraw. */
++  void resize(int width, int height) override;
++
++  /**
++   Destroys the Dawn surface and gives the native handle back to its
++   releaser. The target description goes away with it; the layout size stays.
++   */
++  void detach() override;
++
++  /** Whether a window is attached. Main thread. */
++  bool isAttached() const override { return _surface != nullptr; }
++
++  /**
++   The pixel size the platform laid the view out with, which the window gets
++   when it appears. Any thread.
++   */
++  void setLayoutSize(int width, int height) override;
++
++  /**
++   The size in pixels the surface will have, known from the platform layout
++   before the surface itself exists (on Android the surface only appears a
++   frame after the view is laid out). Safe to call from any thread; returns
++   false until the view is laid out. A frame recorded against this size is
++   presented as is once the surface appears, where one recorded against a
++   size derived from the layout in points could be off by a pixel and would
++   not cover the surface.
++   */
++  bool getLayoutSize(int *width, int *height) override;
++
++  /**
++   Installed by the view owning the surface: asks it for a frame when the
++   window appears or changes size, and when a present was declined so that
++   it is tried again (the app coming back to the foreground).
++   */
++  void setRequestRedraw(std::function<void()> requestRedraw) override {
++    _requestRedraw = std::move(requestRedraw);
++  }
++
++  /**
++   Installed by the platform view: whether the window can show a frame right
++   now. Presenting is declined while it returns false, and a redraw is
++   requested instead. Without one, an attached window always can.
++   */
++  void setCanPresent(std::function<bool()> canPresent) override {
++    _canPresent = std::move(canPresent);
++  }
++
++  // RNSkSurface -------------------------------------------------------------
++
++  /** Width of the window, in pixels; 0 without a window. Any thread. */
++  int getWidth() override;
++
++  /** Height of the window, in pixels; 0 without a window. Any thread. */
++  int getHeight() override;
++
++  bool getTargetInfo(RNSkGraphiteTargetInfo *info) override;
++
++  bool presentRecordings(
++      const std::vector<skgpu::graphite::Recording *> &recordings) override;
++
++  bool presentImage(const sk_sp<SkImage> &image) override;
++
++private:
++  // Configures the swapchain for the current size, format and usage.
++  void configureSurface();
++  // Copies the window's target description where any thread can read it.
++  void updateTargetInfo();
++  // Graphite needs more than RenderAttachment on the swapchain texture:
++  // TextureBinding so a render pass can reload the existing contents through
++  // LoadOp::ExpandResolveTexture (any backdrop filter or mid-frame readback
++  // splits the pass), and CopySrc for copy tasks. Only request what the
++  // surface reports as supported.
++  wgpu::TextureUsage supportedSurfaceUsage();
++  bool surfaceSupportsFormat(wgpu::TextureFormat format);
++  // The texture description a deferred canvas must be recorded with to be
++  // replayed onto this window.
++  skgpu::graphite::TextureInfo getTextureInfo() const;
++  bool canPresent();
++  void requestRedraw() {
++    if (_requestRedraw) {
++      _requestRedraw();
++    }
++  }
++
++  wgpu::Device _device;
++  wgpu::Surface _surface;
++  // The recorder of the thread the window is attached on (the main thread):
++  // presentImage() draws on it, presentRecordings() only wraps the swapchain
++  // texture for it.
++  skgpu::graphite::Recorder *_recorder = nullptr;
++  void *_nativeHandle = nullptr;
++  Releaser _releaser;
++  int _width = 0;
++  int _height = 0;
++  wgpu::TextureFormat _format = wgpu::TextureFormat::Undefined;
++  wgpu::TextureUsage _usage = wgpu::TextureUsage::RenderAttachment;
++  SkColorType _colorType = kUnknown_SkColorType;
++  bool _useP3ColorSpace = false;
++
++  // A copy of the window's target description, readable from any thread
++  // while the window itself belongs to the main thread.
++  std::mutex _targetInfoMutex;
++  RNSkGraphiteTargetInfo _targetInfo;
++  bool _hasTargetInfo = false;
++  int _layoutWidth = 0;
++  int _layoutHeight = 0;
++
++  std::function<void()> _requestRedraw;
++  std::function<bool()> _canPresent;
++};
++
++} // namespace RNSkia
+--- a/cpp/rnskia/RNSkGraphiteProducer.cpp
++++ b/cpp/rnskia/RNSkGraphiteProducer.cpp
+@@ -4,6 +4,7 @@
+ 
+ #include <memory>
+ #include <utility>
++#include <chrono>
+ 
+ #include "RNSkGraphiteTarget.h"
+ #include "RNSkThreadPool.h"
+@@ -35,10 +36,22 @@
+ 
+ void RNSkGraphiteProducer::setTarget(
+     std::shared_ptr<RNSkGraphiteTarget> target) {
+-  std::lock_guard<std::mutex> lock(_mutex);
+-  _target = std::move(target);
+-  _dirty = true;
+-  kickLocked();
++  std::shared_ptr<Recorder> retiredRecorder;sk_sp<SkPicture> retiredPicture;
++  {
++    std::lock_guard<std::mutex> lock(_mutex);
++    if(_stopped)return;
++    if(_target && _target!=target){retiredRecorder=std::move(_recorder);retiredPicture=std::move(_picture);_presentPending=false;}
++    _target = std::move(target);
++    _dirty = true;
++    kickLocked();
++  }
++}
++void RNSkGraphiteProducer::clearForTarget(const std::shared_ptr<RNSkGraphiteTarget>& target) {
++  std::shared_ptr<Recorder> retiredRecorder;sk_sp<SkPicture> retiredPicture;
++  {
++    std::lock_guard lock(_mutex);if(_target!=target)return;
++    retiredRecorder=std::move(_recorder);retiredPicture=std::move(_picture);_dirty=false;_presentPending=false;
++  }
+ }
+ 
+ void RNSkGraphiteProducer::setRecorder(std::shared_ptr<Recorder> recorder) {
+@@ -65,6 +78,7 @@
+   sk_sp<SkPicture> retiredPicture;
+   {
+     std::lock_guard<std::mutex> lock(_mutex);
++    if(_stopped)return;
+     retiredRecorder = std::exchange(_recorder, std::move(recorder));
+     retiredPicture = std::exchange(_picture, std::move(picture));
+     _dirty = dirty;
+@@ -114,6 +128,7 @@
+ 
+ bool RNSkGraphiteProducer::requestFrame() {
+   std::lock_guard<std::mutex> lock(_mutex);
++  if(_stopped)return false;
+   _dirty = true;
+   kickLocked();
+   return _target != nullptr && (_recorder != nullptr || _picture != nullptr);
+@@ -128,7 +143,7 @@
+ }
+ 
+ void RNSkGraphiteProducer::kickLocked() {
+-  if (_inFlight || _presentPending || _target == nullptr ||
++  if (_stopped || _inFlight || _presentPending || _target == nullptr ||
+       (_recorder == nullptr && _picture == nullptr)) {
+     return;
+   }
+@@ -142,61 +157,40 @@
+ }
+ 
+ void RNSkGraphiteProducer::produce() {
+-  std::shared_ptr<RNSkGraphiteTarget> target;
+-  std::shared_ptr<Recorder> recorder;
+-  sk_sp<SkPicture> picture;
+-  {
+-    std::lock_guard<std::mutex> lock(_mutex);
+-    target = _target;
+-    recorder = _recorder;
+-    picture = _picture;
+-    _dirty = false;
+-  }
+-  std::shared_ptr<RNSkGraphiteRecording> recording;
+-  if (target && (recorder || picture)) {
+-    SkCanvas *canvas = nullptr;
+-    try {
+-      canvas = target->beginRecording();
+-    } catch (const std::exception &) {
+-      // No surface and no layout yet: the view asks for a frame once it
+-      // has a size.
+-    }
+-    if (canvas != nullptr) {
+-      try {
+-        // The deferred canvas already draws in points.
+-        drawContent(canvas, recorder.get(), picture, /* pixelDensity= */ 1.0f);
+-      } catch (const std::exception &e) {
+-        RNSkLogger::logToConsole("Canvas: replaying the scene failed: %s",
+-                                 e.what());
++  bool retry=false,submitted=false;
++  try {
++    std::shared_ptr<RNSkGraphiteTarget> target;
++    std::shared_ptr<Recorder> recorder;
++    sk_sp<SkPicture> picture;
++    {
++      std::lock_guard lock(_mutex);
++      if(!_stopped){target=_target;recorder=_recorder;picture=_picture;_dirty=false;}
++    }
++    std::shared_ptr<RNSkGraphiteRecording> recording;
++    if(target && (recorder || picture)) {
++      SkCanvas* canvas=nullptr;
++      try{canvas=target->beginRecording();}catch(const std::exception&){}
++      if(canvas) {
++        try{drawContent(canvas,recorder.get(),picture,1.0f);}
++        catch(const std::exception& error){RNSkLogger::logToConsole("Canvas: replay failed: %s",error.what());}
++        try{recording=target->finishRecording();}
++        catch(const std::exception& error){RNSkLogger::logToConsole("Canvas: finish failed: %s",error.what());}
+       }
+-      try {
+-        recording = target->finishRecording();
+-      } catch (const std::exception &e) {
+-        RNSkLogger::logToConsole("Canvas: recording the frame failed: %s",
+-                                 e.what());
+-      }
+-    }
+-  }
+-  std::lock_guard<std::mutex> lock(_mutex);
+-  _inFlight = false;
+-  if (recording != nullptr) {
+-    // The next job starts when this frame is on screen. Submitted under the
+-    // lock: a frame presented in between (a redraw replaying the last one)
+-    // would otherwise clear the flag before the recording is even queued.
+-    _presentPending = true;
+-    target->submit(std::move(recording));
+-    return;
+-  }
+-  // Nothing was recorded: keep the content dirty so that the next request
+-  // (a surface, a resize) records it. A request that landed while this job
+-  // ran was only noted as dirty; it starts the next job now.
+-  const bool requested = _dirty;
+-  _dirty = true;
+-  if (requested) {
+-    kickLocked();
+-  }
+-}
+-
++    }
++    {
++      std::lock_guard lock(_mutex);
++      if(!_stopped && _target==target && recording) {_presentPending=true;target->submit(std::move(recording));submitted=true;}
++      else if(!_stopped){retry=_dirty;_dirty=true;}
++    }
++    // Release recorder/recording/picture/target captures before stop observes
++    // completion, including a frame discarded during an in-flight shutdown.
++  } catch(const std::exception& error) {
++    RNSkLogger::logToConsole("Canvas: producer failed: %s",error.what());
++  } catch(...) {RNSkLogger::logToConsole("Canvas: producer failed");}
++  std::lock_guard lock(_mutex);
++  _inFlight=false;_stoppedCondition.notify_all();
++  if(!_stopped && (retry || (submitted && _dirty && !_presentPending)))kickLocked();
++}
+ void RNSkGraphiteProducer::renderInto(SkCanvas *canvas, float pixelDensity) {
+   std::shared_ptr<Recorder> recorder;
+   sk_sp<SkPicture> picture;
+@@ -207,5 +201,13 @@
+   }
+   drawContent(canvas, recorder.get(), picture, pixelDensity);
+ }
++bool RNSkGraphiteProducer::stop() {
++  std::shared_ptr<Recorder> recorder;sk_sp<SkPicture> picture;
++  std::unique_lock lock(_mutex);_stopped=true;_dirty=false;_presentPending=false;
++  recorder=std::move(_recorder);picture=std::move(_picture);
++  lock.unlock();recorder.reset();picture.reset();lock.lock();
++  if(!_stoppedCondition.wait_for(lock,std::chrono::seconds(5),[this]{return !_inFlight;}))return false;
++  _target.reset();return true;
++}
+ 
+ } // namespace RNSkia
+--- a/cpp/rnskia/RNSkGraphiteProducer.h
++++ b/cpp/rnskia/RNSkGraphiteProducer.h
+@@ -2,6 +2,7 @@
+ 
+ #include <memory>
+ #include <mutex>
++#include <condition_variable>
+ 
+ #include <jsi/jsi.h>
+ 
+@@ -44,6 +45,7 @@
+ 
+   /** The target to record into. Main thread. */
+   void setTarget(std::shared_ptr<RNSkGraphiteTarget> target);
++  void clearForTarget(const std::shared_ptr<RNSkGraphiteTarget>& target);
+ 
+   /**
+    Takes ownership of the recorder (or releases it with nullptr). A recording
+@@ -66,6 +68,9 @@
+    down.
+    */
+   void clear();
++  // Close admission and wait for the actual render-pool job to release its
++  // native captures. Timeout leaves the producer/owner retained for retry.
++  bool stop();
+ 
+   /**
+    Reads the shared values on the calling runtime into the recorder and
+@@ -120,12 +125,14 @@
+ 
+   // Content and scheduling state.
+   std::mutex _mutex;
++  std::condition_variable _stoppedCondition;
+   std::shared_ptr<RNSkGraphiteTarget> _target;
+   std::shared_ptr<Recorder> _recorder;
+   sk_sp<SkPicture> _picture;
+   bool _dirty = false;
+   bool _inFlight = false;
+   bool _presentPending = false;
++  bool _stopped = false;
+ };
+ 
+ } // namespace RNSkia
+--- a/cpp/rnskia/RNSkGraphiteTarget.h
++++ b/cpp/rnskia/RNSkGraphiteTarget.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ 
++#include <atomic>
+ #include <cmath>
+ #include <deque>
+ #include <functional>
+@@ -7,11 +8,10 @@
+ #include <mutex>
+ #include <stdexcept>
+ #include <unordered_map>
++#include <unordered_set>
+ #include <utility>
+ #include <vector>
+ 
+-#include "RNDawnContext.h"
+-#include "RNDawnUtils.h"
+ #include "RNSkGraphiteTargetInfo.h"
+ #include "RNSkPlatformContext.h"
+ #include "RNSkWindowSurface.h"
+@@ -25,7 +25,6 @@
+ #include "include/gpu/graphite/Recorder.h"
+ #include "include/gpu/graphite/Recording.h"
+ #include "include/gpu/graphite/TextureInfo.h"
+-#include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
+ 
+ #pragma clang diagnostic pop
+ 
+@@ -36,8 +35,33 @@
+  * recording snapped from it, so that the recorder outlives its recordings
+  * whichever of them is released last.
+  */
++// Admission counts native recording lifetimes, including the frame retained
++// for redraw. Two slots cover reservations, snapped/queued/consuming frames.
++// GPU retirement is synchronous in the Nelyx comparison variant. Cache budgets
++// are separate from this count and are not a total GPU allocation claim.
++struct NelyxGraphiteAdmission {
++  std::mutex mutex;
++  bool enabled=false,closed=false,reserved=false;
++  uint64_t identity=0,recordings=0,queued=0,consuming=0;
++  uint64_t lastSubmission=0;
++  std::unordered_set<uint64_t> pendingSubmissions;
++  std::deque<std::pair<uint64_t,uint32_t>> notifications;
++};
++struct NelyxGraphiteSlot {
++  explicit NelyxGraphiteSlot(std::shared_ptr<NelyxGraphiteAdmission> value):state(std::move(value)) {}
++  ~NelyxGraphiteSlot(){std::lock_guard<std::mutex> lock(state->mutex);--state->recordings;}
++  std::shared_ptr<NelyxGraphiteAdmission> state;
++  std::atomic<bool> submitted{false};
++  std::atomic<bool> retired{false};
++  uint64_t submission=0;
++};
+ struct RNSkGraphiteRecorder {
+-  std::unique_ptr<skgpu::graphite::Recorder> recorder;
++  RNSkGraphiteRecorder()=default;
++  RNSkGraphiteRecorder(const RNSkGraphiteRecorder&)=delete;
++  RNSkGraphiteRecorder& operator=(const RNSkGraphiteRecorder&)=delete;
++  // Recordings may outlive their target/view; keep its native GPU owner alive.
++  std::shared_ptr<RNSkPlatformContext> gpuOwner;
++  std::shared_ptr<skgpu::graphite::Recorder> recorder;
+ };
+ 
+ /**
+@@ -46,14 +70,32 @@
+  * of times, from any thread.
+  */
+ class RNSkGraphiteRecording {
++  struct NativeReplay {
++    // Contains no platform/JS/View callbacks. A native imported frame retains
++    // its Device separately; release the recording before its native recorder.
++    std::shared_ptr<skgpu::graphite::Recorder> recorder;
++    std::unique_ptr<skgpu::graphite::Recording> recording;
++  };
+ public:
+   RNSkGraphiteRecording(std::shared_ptr<RNSkGraphiteRecorder> recorder,
+                         std::unique_ptr<skgpu::graphite::Recording> recording,
+                         const RNSkGraphiteTargetInfo &target)
+-      : _recorder(std::move(recorder)), _recording(std::move(recording)),
++      : _recorder(std::move(recorder)), _native(std::make_shared<NativeReplay>(NativeReplay{_recorder->recorder,std::move(recording)})),
+         _target(target) {}
+-
+-  skgpu::graphite::Recording *get() const { return _recording.get(); }
++  RNSkGraphiteRecording(const RNSkGraphiteRecording&)=delete;
++  RNSkGraphiteRecording& operator=(const RNSkGraphiteRecording&)=delete;
++
++  skgpu::graphite::Recording *get() const { return _native->recording.get(); }
++  std::shared_ptr<skgpu::graphite::Recording> nativeReplay() const {
++    return {_native,_native->recording.get()};
++  }
++  void nelyxHold(std::shared_ptr<NelyxGraphiteSlot> slot){_nelyxSlot=std::move(slot);}
++  bool nelyxManaged() const {return _nelyxSlot!=nullptr;}
++  bool nelyxRetired() const {return _nelyxSlot&&_nelyxSlot->retired.load();}
++  void nelyxMarkRetired(){if(_nelyxSlot)_nelyxSlot->retired.store(true);}
++  bool nelyxClaim(const std::shared_ptr<NelyxGraphiteAdmission>& state,uint64_t submission=0){if(!_nelyxSlot || _nelyxSlot->state!=state || _nelyxSlot->submitted.exchange(true))return false;_nelyxSlot->submission=submission;return true;}
++  uint64_t nelyxSubmission() const {return _nelyxSlot?_nelyxSlot->submission:0;}
++
+ 
+   /**
+    Whether the recording was made for a texture of the given size. A deferred
+@@ -97,9 +139,10 @@
+   }
+ 
+ private:
++  std::shared_ptr<NelyxGraphiteSlot> _nelyxSlot; // Destroyed after the recorder/recording.
+   // Declared before the recording so that the recording is released first.
+   std::shared_ptr<RNSkGraphiteRecorder> _recorder;
+-  std::unique_ptr<skgpu::graphite::Recording> _recording;
++  std::shared_ptr<NativeReplay> _native;
+   RNSkGraphiteTargetInfo _target;
+ };
+ 
+@@ -117,7 +160,48 @@
+ class RNSkGraphiteTarget {
+ public:
+   explicit RNSkGraphiteTarget(std::shared_ptr<RNSkPlatformContext> context)
+-      : _context(std::move(context)) {}
++      : _context(std::move(context)) {
++    static std::atomic<uint64_t> nextIdentity{1};_nelyx->identity=nextIdentity++;
++  }
++  double nelyxIdentity(){return static_cast<double>(_nelyx->identity);}
++  void nelyxConfigure(){std::lock_guard<std::mutex> lock(_nelyx->mutex);if(_nelyx->closed)throw std::runtime_error("Nelyx target closed");_nelyx->enabled=true;}
++  bool nelyxIsClosed(){std::lock_guard<std::mutex> lock(_nelyx->mutex);return _nelyx->closed;}
++  int nelyxReserve(double identity,double width,double height,double bytes,double density){
++    {std::lock_guard<std::mutex> lock(_nelyx->mutex);if(!_nelyx->enabled || _nelyx->closed)return 3;}
++    if(!std::isfinite(identity) || !std::isfinite(width) || !std::isfinite(height) || !std::isfinite(bytes) || !std::isfinite(density) || density<=0 || density>8)return 4;
++    auto target=resolveTargetInfo(static_cast<float>(density));std::lock_guard<std::mutex> lock(_nelyx->mutex);
++    if(!_nelyx->enabled || _nelyx->closed)return 3;
++    if(identity!=_nelyx->identity || width!=target.width || height!=target.height)return 2;
++    if(target.width<=0 || target.height<=0)return 5;
++    if(bytes<0 || bytes>256*1024 || target.width>4096 || target.height>4096)return 4;
++    if(_nelyx->reserved || _nelyx->recordings>=2 || _nelyx->pendingSubmissions.size()>=2){return 1;}
++    _nelyxPixelDensity.store(static_cast<float>(density));_nelyx->reserved=true;return 0;
++  }
++  void nelyxCancel(){std::lock_guard<std::mutex> lock(_nelyx->mutex);_nelyx->reserved=false;}
++  std::vector<double> nelyxStats(){std::lock_guard<std::mutex> lock(_nelyx->mutex);return {static_cast<double>(_nelyx->identity),_nelyx->reserved?1.0:0.0,static_cast<double>(_nelyx->recordings),static_cast<double>(_nelyx->queued),static_cast<double>(_nelyx->consuming)};}
++  std::vector<double> nelyxNotifications(){
++    std::lock_guard<std::mutex> lock(_nelyx->mutex);std::vector<double> values;values.reserve(_nelyx->notifications.size()*3);
++    for(const auto& [submission,result]:_nelyx->notifications){values.push_back(static_cast<double>(_nelyx->identity));values.push_back(static_cast<double>(submission));values.push_back(result);_nelyx->pendingSubmissions.erase(submission);}
++    _nelyx->notifications.clear();return values;
++  }
++  void nelyxConsumed(const std::vector<std::shared_ptr<RNSkGraphiteRecording>>& recordings){
++    uint64_t count=0;for(const auto& recording:recordings)if(recording->nelyxManaged())++count;
++    if(!count)return;
++    if(!_context->getGpuContext().retireWork())throw std::runtime_error("Nelyx GPU retirement fence failed");
++    std::lock_guard<std::mutex> lock(_nelyx->mutex);_nelyx->consuming-=count;
++    for(const auto& recording:recordings){recording->nelyxMarkRetired();if(const auto submission=recording->nelyxSubmission())_nelyx->notifications.emplace_back(submission,0);}
++  }
++  void nelyxClose(){
++    std::function<void()> close;std::deque<std::shared_ptr<RNSkGraphiteRecording>> released;
++    {std::lock_guard<std::mutex> lock(_queueMutex);released.swap(_queue);close=_nelyxCloseCallback;}
++    {std::lock_guard<std::mutex> lock(_nelyx->mutex);_nelyx->closed=true;_nelyx->reserved=false;_nelyx->queued=0;for(const auto& recording:released)if(const auto submission=recording->nelyxSubmission())_nelyx->notifications.emplace_back(submission,1);}
++    if(close)close();
++  }
++  void nelyxSetCloseCallback(std::function<void()> close){std::lock_guard<std::mutex> lock(_queueMutex);_nelyxCloseCallback=std::move(close);}
++  void nelyxReset(){
++    {std::lock_guard<std::mutex> lock(_nelyx->mutex);if(!_nelyx->closed || _nelyx->recordings || _nelyx->consuming || !_nelyx->pendingSubmissions.empty() || !_nelyx->notifications.empty())throw std::runtime_error("Nelyx recorder reset before retirement/notification drain");}
++    std::lock_guard<std::mutex> lock(_stateMutex);if(_recording)throw std::runtime_error("Nelyx recording still open");_recorder.reset();
++  }
+ 
+   // Producer side ------------------------------------------------------------
+ 
+@@ -135,12 +219,16 @@
+ 
+   /** Current width of the target, in points. */
+   float getWidth() {
+-    return resolveTargetInfo().width / _context->getPixelDensity();
++    return layoutPixels().first / pointScale();
+   }
+ 
+   /** Current height of the target, in points. */
+   float getHeight() {
+-    return resolveTargetInfo().height / _context->getPixelDensity();
++    return layoutPixels().second / pointScale();
++  }
++  void setPixelDensity(float density) {
++    if(!std::isfinite(density) || density<=0 || density>8)throw std::runtime_error("Invalid native view pixel density");
++    _nelyxPixelDensity=density;
+   }
+ 
+   /**
+@@ -148,8 +236,10 @@
+    deleted by finishRecording(). Throws while a recording is already open.
+    */
+   SkCanvas *beginRecording() {
++    {std::lock_guard<std::mutex> lock(_nelyx->mutex);if(_nelyx->closed)throw std::runtime_error("Nelyx target closed");}
+     auto target = resolveTargetInfo();
+     std::lock_guard<std::mutex> lock(_stateMutex);
++    {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->closed || (_nelyx->enabled && !_nelyx->reserved))throw std::runtime_error("Nelyx native reservation required before recording or target closed");}
+     if (_recording) {
+       throw std::runtime_error("SkiaGraphiteView: a recording is already open, "
+                                "call finishRecording() first.");
+@@ -159,7 +249,8 @@
+     }
+     if (_recorder == nullptr) {
+       auto recorder = std::make_shared<RNSkGraphiteRecorder>();
+-      recorder->recorder = DawnContext::getInstance().makeRecorder();
++      recorder->gpuOwner = _context;
++      recorder->recorder = _context->getGpuContext().makeRecorder();
+       if (recorder->recorder == nullptr) {
+         throw std::runtime_error(
+             "SkiaGraphiteView: could not create a Graphite recorder.");
+@@ -168,7 +259,7 @@
+     }
+     auto imageInfo = SkImageInfo::Make(
+         target.width, target.height, target.colorType, kPremul_SkAlphaType,
+-        DawnUtils::viewColorSpace(target.useP3ColorSpace));
++        nelyx::gpu::Context::viewColorSpace(target.useP3ColorSpace));
+     auto *canvas =
+         _recorder->recorder->makeDeferredCanvas(imageInfo, target.textureInfo);
+     if (canvas == nullptr) {
+@@ -176,7 +267,7 @@
+           "SkiaGraphiteView: could not create a deferred canvas.");
+     }
+     // The canvas loads whatever the target holds: the producer clears.
+-    auto pd = _context->getPixelDensity();
++    auto pd = pointScale();
+     canvas->scale(pd, pd);
+     _recording = true;
+     _recordingTarget = target;
+@@ -196,18 +287,20 @@
+       throw std::runtime_error(
+           "SkiaGraphiteView: snapping the recording failed.");
+     }
+-    return std::make_shared<RNSkGraphiteRecording>(
+-        _recorder, std::move(recording), _recordingTarget);
++    auto result=std::make_shared<RNSkGraphiteRecording>(_recorder,std::move(recording),_recordingTarget);
++    {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->enabled){if(!_nelyx->reserved)throw std::runtime_error("Nelyx missing recording reservation");_nelyx->reserved=false;++_nelyx->recordings;result->nelyxHold(std::make_shared<NelyxGraphiteSlot>(_nelyx));}}
++    return result;
+   }
+ 
+   /**
+    Queues a recording for the next frame. Recordings are never dropped: a
+    later frame may depend on resources an earlier one uploaded.
+    */
+-  void submit(std::shared_ptr<RNSkGraphiteRecording> recording) {
++  void submit(std::shared_ptr<RNSkGraphiteRecording> recording,uint64_t submission=0) {
+     std::function<void()> requestFrame;
+     {
+       std::lock_guard<std::mutex> lock(_queueMutex);
++      {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->enabled){if(_nelyx->closed || (submission && (submission<=_nelyx->lastSubmission || _nelyx->pendingSubmissions.size()>=2)) || !recording->nelyxClaim(_nelyx,submission))throw std::runtime_error("Nelyx rejected closed/foreign/repeated recording/submission");if(submission){_nelyx->lastSubmission=submission;_nelyx->pendingSubmissions.insert(submission);}++_nelyx->queued;}}
+       _queue.push_back(std::move(recording));
+       requestFrame = _requestFrame;
+     }
+@@ -253,8 +346,9 @@
+   /** Takes every recording submitted since the last call, in order. */
+   std::vector<std::shared_ptr<RNSkGraphiteRecording>> takeQueued() {
+     std::lock_guard<std::mutex> lock(_queueMutex);
+-    std::vector<std::shared_ptr<RNSkGraphiteRecording>> recordings(
+-        _queue.begin(), _queue.end());
++    {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->enabled && _nelyx->closed)return {};}
++    std::vector<std::shared_ptr<RNSkGraphiteRecording>> recordings(_queue.begin(),_queue.end());
++    {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->enabled){_nelyx->consuming+=_nelyx->queued;_nelyx->queued=0;}}
+     _queue.clear();
+     return recordings;
+   }
+@@ -266,6 +360,7 @@
+   void requeue(
+       const std::vector<std::shared_ptr<RNSkGraphiteRecording>> &recordings) {
+     std::lock_guard<std::mutex> lock(_queueMutex);
++    {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->enabled){uint64_t count=0;for(const auto& recording:recordings)if(recording->nelyxManaged())++count;_nelyx->consuming-=count;if(_nelyx->closed){for(const auto& recording:recordings)if(const auto submission=recording->nelyxSubmission())_nelyx->notifications.emplace_back(submission,1);return;}_nelyx->queued+=count;}}
+     _queue.insert(_queue.begin(), recordings.begin(), recordings.end());
+   }
+ 
+@@ -288,7 +383,15 @@
+    the surface will be created with, following the same rules (see
+    RNSkWindowSurface and SkiaView.java).
+    */
+-  RNSkGraphiteTargetInfo resolveTargetInfo() {
++  std::pair<float,float> layoutPixels() {
++    std::shared_ptr<RNSkWindowSurface> surface;float width,height;
++    {std::lock_guard lock(_stateMutex);surface=_surface.lock();width=_layoutWidth;height=_layoutHeight;}
++    RNSkGraphiteTargetInfo info;int w{},h{};
++    if(surface && surface->getTargetInfo(&info))return {float(info.width),float(info.height)};
++    if(surface && surface->getLayoutSize(&w,&h))return {float(w),float(h)};
++    const auto density=pointScale();return {width*density,height*density};
++  }
++  RNSkGraphiteTargetInfo resolveTargetInfo(float requestedDensity=0) {
+     std::shared_ptr<RNSkWindowSurface> surface;
+     float width;
+     float height;
+@@ -319,23 +422,22 @@
+       // Not laid out yet (JS gets its onLayout before the platform lays the
+       // view out): the size JS measured, in points. The layout is on the
+       // pixel grid, so the product is an integer up to rounding errors.
+-      double pd = _context->getPixelDensity();
++      double pd = requestedDensity>0?requestedDensity:pointScale();
+       info.width = static_cast<int>(std::lround(width * pd));
+       info.height = static_cast<int>(std::lround(height * pd));
+     } else {
+     }
+-    info.colorType = highBitDepth ? DawnUtils::HighBitDepthColorType
+-                                  : DawnUtils::PreferedColorType;
++    info.colorType = _context->getGpuContext().targetColorType(highBitDepth);
+     info.useP3ColorSpace = _context->prefersP3ColorSpace();
+-    info.textureInfo = skgpu::graphite::TextureInfos::MakeDawn(
+-        skgpu::graphite::DawnTextureInfo(
+-            skgpu::graphite::SampleCount::k1, skgpu::Mipmapped::kNo,
+-            highBitDepth ? DawnUtils::HighBitDepthTextureFormat
+-                         : DawnUtils::PreferredTextureFormat,
+-            DawnUtils::DefaultTargetUsage, wgpu::TextureAspect::All));
++    info.textureInfo = _context->getGpuContext().textureInfo(info.colorType);
+     return info;
+   }
+ 
++  // Density belongs to this producer/View, not the process-global platform
++  // context created at startup. Each snapped recording keeps its own transform.
++  std::atomic<float> _nelyxPixelDensity{0};
++  float pointScale(){const auto density=_nelyxPixelDensity.load();return density>0?density:_context->getPixelDensity();}
++  std::shared_ptr<NelyxGraphiteAdmission> _nelyx=std::make_shared<NelyxGraphiteAdmission>();
+   std::shared_ptr<RNSkPlatformContext> _context;
+ 
+   // Recorder, open recording and target description.
+@@ -353,6 +455,7 @@
+   std::mutex _queueMutex;
+   std::deque<std::shared_ptr<RNSkGraphiteRecording>> _queue;
+   std::function<void()> _requestFrame;
++  std::function<void()> _nelyxCloseCallback;
+ };
+ 
+ /**
+@@ -374,24 +477,27 @@
+   getOrCreate(size_t nativeId,
+               const std::shared_ptr<RNSkPlatformContext> &context) {
+     std::lock_guard<std::mutex> lock(_mutex);
+-    auto it = _targets.find(nativeId);
++    const Key key{context.get(),nativeId};
++    auto it = _targets.find(key);
+     if (it != _targets.end()) {
+       if (auto target = it->second.lock()) {
+-        return target;
++        if(!target->nelyxIsClosed())return target;
+       }
+     }
+     for (auto entry = _targets.begin(); entry != _targets.end();) {
+       entry = entry->second.expired() ? _targets.erase(entry) : ++entry;
+     }
+     auto target = std::make_shared<RNSkGraphiteTarget>(context);
+-    _targets[nativeId] = target;
++    _targets[key] = target;
+     return target;
+   }
+ 
+ private:
+   RNSkGraphiteTargetRegistry() = default;
+   std::mutex _mutex;
+-  std::unordered_map<size_t, std::weak_ptr<RNSkGraphiteTarget>> _targets;
++  struct Key {const RNSkPlatformContext* owner;size_t id;bool operator==(const Key& other) const{return owner==other.owner && id==other.id;}};
++  struct Hash {size_t operator()(const Key& key) const{return std::hash<const void*>{}(key.owner)^(std::hash<size_t>{}(key.id)<<1);}};
++  std::unordered_map<Key,std::weak_ptr<RNSkGraphiteTarget>,Hash> _targets;
+ };
+ 
+ } // namespace RNSkia
+--- a/cpp/rnskia/RNSkJsiViewApi.h
++++ b/cpp/rnskia/RNSkJsiViewApi.h
+@@ -32,10 +32,7 @@
+ 
+ class ViewRegistry {
+ public:
+-  static ViewRegistry &getInstance() {
+-    static ViewRegistry instance;
+-    return instance;
+-  }
++  ViewRegistry() = default;
+ 
+   ViewRegistry(const ViewRegistry &) = delete;
+   ViewRegistry &operator=(const ViewRegistry &) = delete;
+@@ -102,7 +99,6 @@
+   }
+ 
+ private:
+-  ViewRegistry() = default;
+   mutable std::shared_mutex _mutex;
+   std::unordered_map<size_t, std::shared_ptr<RNSkViewInfo>> _registry;
+   std::unordered_set<size_t> _unregistered;
+@@ -141,7 +137,7 @@
+     auto nativeId = arguments[0].asNumber();
+ 
+     // Safely execute operations while holding the registry lock
+-    ViewRegistry::getInstance().withViewInfo(
++    _registry.withViewInfo(
+         nativeId, [&](std::shared_ptr<RNSkViewInfo> info) {
+           auto name = arguments[1].asString(runtime).utf8(runtime);
+           info->props.insert_or_assign(
+@@ -177,7 +173,7 @@
+ 
+     // find Skia View
+     int nativeId = arguments[0].asNumber();
+-    auto view = ViewRegistry::getInstance().getView(nativeId);
++    auto view = _registry.getView(nativeId);
+     if (view != nullptr) {
+       view->requestRedraw();
+     }
+@@ -206,7 +202,7 @@
+     auto recorderId = arguments[1].asNumber();
+     auto values = arguments[2].asObject(runtime).asArray(runtime);
+     std::shared_ptr<RNSkView> view;
+-    ViewRegistry::getInstance().withExistingViewInfo(
++    _registry.withExistingViewInfo(
+         nativeId, [&](const std::shared_ptr<RNSkViewInfo> &info) {
+           view = info->view;
+           if (view != nullptr) {
+@@ -251,7 +247,7 @@
+     int nativeId = arguments[0].asNumber();
+     sk_sp<SkImage> image;
+     std::shared_ptr<RNSkView> view =
+-        ViewRegistry::getInstance().getView(nativeId);
++        _registry.getView(nativeId);
+     if (view != nullptr) {
+       if (count > 1 && !arguments[1].isUndefined() && !arguments[1].isNull()) {
+         auto rect = JsiSkRect::fromValue(runtime, arguments[1]);
+@@ -288,7 +284,7 @@
+     // find Skia view
+     int nativeId = arguments[0].asNumber();
+     std::shared_ptr<RNSkView> view =
+-        ViewRegistry::getInstance().getView(nativeId);
++        _registry.getView(nativeId);
+     auto context = _platformContext;
+     auto bounds =
+         count > 1 && !arguments[1].isUndefined() && !arguments[1].isNull()
+@@ -298,22 +294,21 @@
+         runtime, [context = std::move(context), view, bounds](
+                      jsi::Runtime &runtime,
+                      std::shared_ptr<RNJsi::JsiPromises::Promise> promise) {
+-          context->runOnMainThread([&runtime, view = std::move(view),
+-                                    promise = std::move(promise),
+-                                    context = std::move(context), bounds]() {
+-            auto image = view->makeImageSnapshot(
+-                bounds == nullptr ? nullptr : bounds.get());
+-            context->runOnJavascriptThread(
+-                [&runtime, context = std::move(context),
+-                 promise = std::move(promise), image = std::move(image)]() {
+-                  if (image == nullptr) {
++          auto complete = context->makeAsyncCompletion(
++                [&runtime, context, promise = std::move(promise)](RNSkAsyncResult result) {
++                  if (!result.image) {
+                     promise->reject("Failed to make snapshot from view.");
+                     return;
+                   }
+                   promise->resolve(makeJsiObject(
+                       runtime, std::make_shared<JsiSkImage>(std::move(context),
+-                                                            std::move(image))));
++                                                            std::move(result.image))));
+                 });
++          context->runOnMainThread([view = std::move(view), bounds,
++                                    complete = std::move(complete)]() {
++            auto image = view ? view->makeImageSnapshot(
++                bounds == nullptr ? nullptr : bounds.get()) : nullptr;
++            complete(RNSkAsyncResult{nullptr, std::move(image), {}});
+           });
+         });
+   }
+@@ -333,7 +328,7 @@
+     // find Skia View
+     int nativeId = arguments[0].asNumber();
+     std::shared_ptr<RNSkView> view =
+-        ViewRegistry::getInstance().getView(nativeId);
++        _registry.getView(nativeId);
+     if (view != nullptr) {
+       auto pixelDensity = _platformContext->getPixelDensity();
+       auto sizeObj = jsi::Object(runtime);
+@@ -363,15 +358,30 @@
+       throw jsi::JSError(runtime, "makeGraphiteContext: expected (nativeId, "
+                                   "width, height, opaque, highBitDepth)");
+     }
+-    auto nativeId = static_cast<size_t>(arguments[0].asNumber());
+-    auto width = static_cast<float>(arguments[1].asNumber());
+-    auto height = static_cast<float>(arguments[2].asNumber());
++    const double id=arguments[0].asNumber(),w=arguments[1].asNumber(),h=arguments[2].asNumber();
++    if(!std::isfinite(id) || id<=0 || id>9007199254740991.0 || std::floor(id)!=id ||
++      !std::isfinite(w) || !std::isfinite(h) || w<0 || h<0 || w>268435455 || h>268435455)
++      throw jsi::JSError(runtime,"makeGraphiteContext: invalid native id or logical layout");
++    float density=0;
++    if(count>5 && !arguments[5].isUndefined()) {
++      if(!arguments[5].isNumber())throw jsi::JSError(runtime,"makeGraphiteContext: invalid view density");
++      const auto value=arguments[5].asNumber();
++      if(!std::isfinite(value) || value<=0 || value>8)throw jsi::JSError(runtime,"makeGraphiteContext: invalid view density");
++      density=static_cast<float>(value);
++    }
++    auto nativeId = static_cast<size_t>(id);
++    auto width = static_cast<float>(w);
++    auto height = static_cast<float>(h);
+     bool opaque = count > 3 && arguments[3].isBool() && arguments[3].getBool();
+     bool highBitDepth =
+         count > 4 && arguments[4].isBool() && arguments[4].getBool();
+     auto target = RNSkGraphiteTargetRegistry::getInstance().getOrCreate(
+         nativeId, _platformContext);
+     target->setLayout(width, height, opaque, highBitDepth);
++    if(density>0)target->setPixelDensity(density);
++    // A mounted view can outlive a closed JS context (reload/effect replay).
++    // Bind its producer/surface to the fresh target before exposing that context.
++    if(auto view=_registry.getView(nativeId))view->setNativeId(nativeId);
+     return makeJsiObject(runtime, std::make_shared<JsiSkGraphiteContext>(
+                                       _platformContext, std::move(target)));
+   }
+@@ -403,7 +413,7 @@
+   /**
+    Call to remove all draw view infos
+    */
+-  void unregisterAll() { ViewRegistry::getInstance().clear(); }
++  void unregisterAll() { _registry.clear(); }
+ 
+   /**
+    * Registers a skia view
+@@ -411,7 +421,7 @@
+    * @param view View to register
+    */
+   void registerSkiaView(size_t nativeId, std::shared_ptr<RNSkView> view) {
+-    ViewRegistry::getInstance().withViewInfo(
++    _registry.withViewInfo(
+         nativeId,
+         [&](std::shared_ptr<RNSkViewInfo> info) {
+           info->view = view;
+@@ -430,7 +440,7 @@
+    * @param nativeId View id
+    */
+   void unregisterSkiaView(size_t nativeId) {
+-    ViewRegistry::getInstance().removeViewInfo(nativeId);
++    _registry.removeViewInfo(nativeId);
+   }
+ 
+   /**
+@@ -440,7 +450,7 @@
+    or a valid view, effectively toggling the view's availability.
+    */
+   void setSkiaView(size_t nativeId, std::shared_ptr<RNSkView> view) {
+-    ViewRegistry::getInstance().withViewInfo(
++    _registry.withViewInfo(
+         nativeId,
+         [&](std::shared_ptr<RNSkViewInfo> info) {
+           if (view != nullptr) {
+@@ -457,6 +467,7 @@
+   }
+ 
+ private:
++  ViewRegistry _registry; // Native ids and pending props belong to this runtime.
+   std::shared_ptr<RNSkPlatformContext> _platformContext;
+ };
+ } // namespace RNSkia
+--- a/cpp/rnskia/RNSkManager.cpp
++++ b/cpp/rnskia/RNSkManager.cpp
+@@ -39,6 +39,7 @@
+ void RNSkManager::unregisterSkiaView(size_t nativeId) {
+   _viewApi->unregisterSkiaView(nativeId);
+ }
++void RNSkManager::unregisterAllSkiaViews() {_viewApi->unregisterAll();}
+ 
+ void RNSkManager::setSkiaView(size_t nativeId, std::shared_ptr<RNSkView> view) {
+   _viewApi->setSkiaView(nativeId, std::move(view));
+--- a/cpp/rnskia/RNSkManager.h
++++ b/cpp/rnskia/RNSkManager.h
+@@ -45,6 +45,7 @@
+    * @param nativeId Native view Id
+    */
+   void unregisterSkiaView(size_t nativeId);
++  void unregisterAllSkiaViews();
+ 
+   /**
+    Sets the view pointed to by nativeId to the provided value.
+--- a/cpp/rnskia/RNSkOffscreenSurface.h
++++ b/cpp/rnskia/RNSkOffscreenSurface.h
+@@ -3,8 +3,6 @@
+ #include <memory>
+ #include <vector>
+ 
+-#include "RNDawnContext.h"
+-#include "RNDawnUtils.h"
+ #include "RNSkPlatformContext.h"
+ #include "RNSkSurface.h"
+ 
+@@ -16,7 +14,6 @@
+ #include "include/core/SkSurface.h"
+ #include "include/gpu/graphite/Recording.h"
+ #include "include/gpu/graphite/TextureInfo.h"
+-#include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
+ 
+ #pragma clang diagnostic pop
+ 
+@@ -32,7 +29,7 @@
+ public:
+   RNSkOffscreenSurface(const std::shared_ptr<RNSkPlatformContext> &context,
+                        int width, int height, bool useP3ColorSpace = false)
+-      : _width(width), _height(height), _pd(context->getPixelDensity()),
++      : _context(context), _width(width), _height(height), _pd(context->getPixelDensity()),
+         _useP3ColorSpace(useP3ColorSpace),
+         _surface(
+             context->makeOffscreenSurface(width, height, useP3ColorSpace)) {}
+@@ -54,7 +51,7 @@
+     // The snapshot is a copy task on the surface's recorder: submitted here,
+     // so that the image is complete for whoever draws it next.
+     if (auto *recorder = _surface->recorder()) {
+-      DawnContext::getInstance().submitRecording(recorder->snap().get());
++      _context->getGpuContext().submitRecording(recorder->snap().get());
+     }
+     return image;
+   }
+@@ -78,9 +75,9 @@
+     // Only Graphite-backed surfaces have a recorder to snap/submit; a raster
+     // surface's snapshot is already a valid CPU image.
+     if (auto *recorder = _surface->recorder()) {
+-      DawnContext::getInstance().submitRecording(recorder->snap().get());
++      _context->getGpuContext().submitRecording(recorder->snap().get());
+     }
+-    return DawnContext::getInstance().MakeRasterImage(image);
++    return _context->makeRasterImage(image);
+   }
+ 
+   int getWidth() override { return _width; }
+@@ -98,11 +95,7 @@
+     info->height = _height;
+     info->colorType = colorType;
+     info->useP3ColorSpace = _useP3ColorSpace;
+-    info->textureInfo = skgpu::graphite::TextureInfos::MakeDawn(
+-        skgpu::graphite::DawnTextureInfo(
+-            skgpu::graphite::SampleCount::k1, skgpu::Mipmapped::kNo,
+-            DawnUtils::textureFormatForColorType(colorType),
+-            DawnUtils::DefaultTargetUsage, wgpu::TextureAspect::All));
++    info->textureInfo = _context->getGpuContext().textureInfo(colorType);
+     return true;
+   }
+ 
+@@ -118,10 +111,10 @@
+     // submit it first (the explicit clear makes sure the pass is emitted).
+     if (!_cleared) {
+       _surface->getCanvas()->clear(SK_ColorTRANSPARENT);
+-      DawnContext::getInstance().submitRecording(recorder->snap().get());
++      _context->getGpuContext().submitRecording(recorder->snap().get());
+       _cleared = true;
+     }
+-    return DawnContext::getInstance().insertRecordings(recordings,
++    return _context->getGpuContext().insertRecordings(recordings,
+                                                        _surface.get());
+   }
+ 
+@@ -134,6 +127,7 @@
+   }
+ 
+ private:
++  std::shared_ptr<RNSkPlatformContext> _context;
+   int _width;
+   int _height;
+   float _pd;
+--- a/cpp/rnskia/RNSkOwnerAsyncQueue.h
++++ b/cpp/rnskia/RNSkOwnerAsyncQueue.h
+@@ -0,0 +1,127 @@
++// SPDX-License-Identifier: BSD-3-Clause
++#pragma once
++
++#include <cstdint>
++#include <functional>
++#include <limits>
++#include <memory>
++#include <mutex>
++#include <optional>
++#include <stdexcept>
++#include <thread>
++#include <unordered_map>
++#include <utility>
++
++namespace RNSkia {
++
++// Only the owner holds callbacks, which may capture JSI values. Producers and
++// scheduler jobs carry weak state and an ID; Result must contain native data.
++template <class Result>
++class RNSkOwnerAsyncQueue final
++    : public std::enable_shared_from_this<RNSkOwnerAsyncQueue<Result>> {
++public:
++  using Callback = std::function<void(Result)>;
++  using Scheduler = std::function<void(std::function<void()>)>;
++
++  explicit RNSkOwnerAsyncQueue(Scheduler scheduler, size_t capacity = 64)
++      : _scheduler(std::move(scheduler)), _capacity(capacity),
++        _owner(std::this_thread::get_id()) {
++    if (!_scheduler || !_capacity)
++      throw std::runtime_error("Async operation scheduler and capacity required");
++  }
++
++  Callback begin(Callback callback) {
++    requireOwner();
++    const auto weak = this->weak_from_this();
++    if (weak.expired() || !callback)
++      throw std::runtime_error("Owned async operation callback required");
++    uint64_t id;
++    {
++      std::lock_guard lock(_mutex);
++      if (_closed || _pending.size() >= _capacity ||
++          _next == std::numeric_limits<uint64_t>::max())
++        throw std::runtime_error("Async operation admission closed or full");
++      id = ++_next;
++      _pending.emplace(id, Entry{std::move(callback), std::nullopt});
++    }
++    return [weak, id](Result result) {
++      if (auto state = weak.lock()) state->complete(id, std::move(result));
++    };
++  }
++
++  // Invoke while the runtime is still alive. Pending callbacks and their JSI
++  // captures are destroyed here, never on a producer or scheduler destructor.
++  void close() {
++    requireOwner();
++    std::unordered_map<uint64_t, Entry> cancelled;
++    {
++      std::lock_guard lock(_mutex);
++      _closed = true;
++      cancelled.swap(_pending);
++    }
++    cancelled.clear();
++  }
++
++  // May be called by a foreign teardown thread before quarantining this queue.
++  // It closes admission/delivery without destroying owner-affine callbacks.
++  void seal() {
++    std::lock_guard lock(_mutex);
++    _closed = true;
++  }
++
++  void requireOwner() const {
++    if (_owner != std::this_thread::get_id())
++      throw std::runtime_error("Async operation requires its JS owner");
++  }
++
++  size_t pending() const {
++    std::lock_guard lock(_mutex);
++    return _pending.size();
++  }
++
++private:
++  struct Entry {
++    Callback callback;
++    std::optional<Result> result;
++  };
++
++  void complete(uint64_t id, Result result) {
++    {
++      std::lock_guard lock(_mutex);
++      auto found = _pending.find(id);
++      if (_closed || found == _pending.end() || found->second.result) return;
++      found->second.result.emplace(std::move(result));
++    }
++    // A scheduler can retire this job after close or even after VM teardown.
++    // Neither the queued job nor a rejected duplicate owns the JS callback.
++    try {
++      _scheduler([weak = this->weak_from_this(), id] {
++        if (auto state = weak.lock()) state->deliver(id);
++      });
++    } catch (...) {
++      // Keep the callback for owner-side close if the scheduler rejects work.
++    }
++  }
++
++  void deliver(uint64_t id) {
++    requireOwner();
++    std::optional<Entry> ready;
++    {
++      std::lock_guard lock(_mutex);
++      auto found = _pending.find(id);
++      if (_closed || found == _pending.end() || !found->second.result) return;
++      ready.emplace(std::move(found->second));
++      _pending.erase(found);
++    }
++    ready->callback(std::move(*ready->result));
++  }
++
++  const Scheduler _scheduler;
++  const size_t _capacity;
++  const std::thread::id _owner;
++  mutable std::mutex _mutex;
++  bool _closed = false;
++  uint64_t _next = 0;
++  std::unordered_map<uint64_t, Entry> _pending;
++};
++} // namespace RNSkia
+--- a/cpp/rnskia/RNSkPlatformContext.h
++++ b/cpp/rnskia/RNSkPlatformContext.h
+@@ -9,6 +9,7 @@
+ #include <unordered_map>
+ #include <utility>
+ #include <vector>
++#include "nelyx_skia/gpu_context.h"
+ 
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wdocumentation"
+@@ -27,6 +28,13 @@
+ 
+ namespace react = facebook::react;
+ 
++struct RNSkAsyncResult {
++  sk_sp<SkData> data;
++  sk_sp<SkImage> image;
++  std::string error;
++};
++using RNSkAsyncCompletion = std::function<void(RNSkAsyncResult)>;
++
+ class RNSkPlatformContext {
+ public:
+   /**
+@@ -38,12 +46,34 @@
+ 
+   virtual ~RNSkPlatformContext() = default;
+ 
++  // Platform adapter selects the backend before any Graphite initialization.
++  virtual nelyx::gpu::Context &getGpuContext() = 0;
++  virtual void configureGpuPolicy(bool allowSoftware) = 0;
++
++  // Explicit raster images need no GPU owner. Texture-backed snapshots still
++  // use the selected backend's checked readback; this is never a display path.
++  sk_sp<SkImage> makeRasterImage(sk_sp<SkImage> image) {
++    if (!image || !image->isTextureBacked()) return image;
++    return getGpuContext().MakeRasterImage(std::move(image));
++  }
++
+   /**
+    * Schedules the function to be run on the javascript thread async
+    * @param func Function to run
+    */
+   void runOnJavascriptThread(std::function<void()> func) {
+     _callInvoker->invokeAsync(std::move(func));
++  }
++
++  // Called on JS during Promise setup. Apple stores this callback on its JS
++  // owner and returns a native-only completion token. Other ports retain their
++  // existing CallInvoker policy until their own runtime owner opts in.
++  virtual RNSkAsyncCompletion makeAsyncCompletion(RNSkAsyncCompletion callback) {
++    return [invoker = _callInvoker, callback = std::move(callback)](RNSkAsyncResult result) {
++      invoker->invokeAsync([callback, result = std::move(result)]() mutable {
++        callback(std::move(result));
++      });
++    };
+   }
+ 
+   /**
+@@ -66,6 +96,18 @@
+   virtual void performStreamOperation(
+       const std::string &sourceUri,
+       const std::function<void(std::unique_ptr<SkStreamAsset>)> &op) = 0;
++
++  // A native data result can carry its storage reservation through Promise
++  // delivery and decoded image lifetime. Apple uses this to avoid an untracked
++  // stream-to-data copy; existing ports keep their stream implementation.
++  virtual void performDataOperation(const std::string &sourceUri, size_t maxBytes,
++                                   std::function<void(sk_sp<SkData>)> op) {
++    performStreamOperation(sourceUri, [maxBytes, op = std::move(op)](std::unique_ptr<SkStreamAsset> stream) {
++      auto data = stream && (!maxBytes || stream->getLength() <= maxBytes)
++          ? SkData::MakeFromStream(stream.get(), stream->getLength()) : nullptr;
++      op(std::move(data));
++    });
++  }
+ 
+   /**
+    * Raises an exception on the platform. This function does not necessarily
+--- a/cpp/rnskia/RNSkSurface.h
++++ b/cpp/rnskia/RNSkSurface.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <vector>
++#include <memory>
+ 
+ #include "RNSkGraphiteTargetInfo.h"
+ 
+@@ -45,6 +46,15 @@
+   virtual bool presentRecordings(
+       const std::vector<skgpu::graphite::Recording *> &recordings) = 0;
+ 
++  // Imported native frames retain recording/recorder payloads on uncertain
++  // completion. Existing synchronous backends keep their raw replay contract.
++  virtual bool presentOwnedRecordings(
++      const std::vector<std::shared_ptr<skgpu::graphite::Recording>>& recordings) {
++    std::vector<skgpu::graphite::Recording*> borrowed;borrowed.reserve(recordings.size());
++    for(const auto& recording:recordings)borrowed.push_back(recording.get());
++    return presentRecordings(borrowed);
++  }
++
+   /**
+    Draws an image at the origin of the target texture and presents it. Same
+    thread and return value as presentRecordings(). Used for a recording whose
+--- a/cpp/rnskia/RNSkView.h
++++ b/cpp/rnskia/RNSkView.h
+@@ -81,14 +81,16 @@
+    presented now.
+    */
+   void setNativeId(size_t nativeId) {
++    if(_closed)return;
+     _nativeId = nativeId;
+     std::shared_ptr<RNSkGraphiteTarget> previous;
+     {
+       std::lock_guard<std::mutex> lock(_mutex);
+-      if (_target && _targetId == nativeId) {
++      if (_target && _targetId == nativeId && !_target->nelyxIsClosed()) {
+         return;
+       }
+       previous = std::move(_target);
++      _lastPresented.reset();
+       _targetId = nativeId;
+       _target = RNSkGraphiteTargetRegistry::getInstance().getOrCreate(
+           nativeId, _platformContext);
+@@ -107,6 +109,11 @@
+     };
+     auto target = getTarget();
+     target->attach(_surface, scheduleOnMainThread);
++    std::weak_ptr<RNSkGraphiteTarget> expected=target;
++    target->nelyxSetCloseCallback([weakThis,expected,context](){context->runOnMainThread([weakThis,expected](){if(auto view=weakThis.lock())if(auto target=expected.lock()){
++      view->_producer->clearForTarget(target);
++      std::lock_guard<std::mutex> lock(view->_mutex);if(view->_target==target)view->_lastPresented.reset();
++    }});});
+     _producer->setTarget(target);
+     if (target->hasQueued()) {
+       scheduleOnMainThread();
+@@ -118,6 +125,7 @@
+   /** Declarative content: the recorder of <Canvas>, or a picture. */
+   void setJsiProperties(
+       std::unordered_map<std::string, RNJsi::ViewProperty> &props) {
++    if(_closed)return;
+     for (auto &prop : props) {
+       if (prop.first == "recorder") {
+         _producer->setRecorder(
+@@ -136,6 +144,7 @@
+    */
+   bool applyUpdates(jsi::Runtime &runtime, double recorderId,
+                     const jsi::Array &values) {
++    if(_closed)return false;
+     return _producer->applyUpdates(runtime, recorderId, values);
+   }
+ 
+@@ -145,10 +154,19 @@
+    until it is finalized, so the resources go away here rather than with the
+    garbage collector.
+    */
+-  void releaseContent() { _producer->clear(); }
++  void releaseContent() {
++    _producer->clear();auto target=getTarget();if(target)target->nelyxClose();
++    std::lock_guard<std::mutex> lock(_mutex);_lastPresented.reset();
++  }
++  void stopContent() {
++    _closed=true;
++    if(!_producer->stop())throw std::runtime_error("Skia producer did not quiesce; native view owner retained");
++    releaseContent();
++  }
+ 
+   /** Schedules redraw() on the main thread, once. */
+   void requestRedraw() {
++    if(_closed)return;
+     if (_redrawRequested.exchange(true)) {
+       return;
+     }
+@@ -156,7 +174,7 @@
+     _platformContext->runOnMainThread([weakThis]() {
+       if (auto view = weakThis.lock()) {
+         if (view->_redrawRequested) {
+-          view->redraw();
++          if(view->_frameScheduler)view->scheduleFrame();else view->redraw();
+         }
+       }
+     });
+@@ -169,11 +187,13 @@
+    presents it when it appears.
+    */
+   void redraw() {
++    if(_closed)return;
+     _redrawRequested = false;
+     RNSkGraphiteTargetInfo targetInfo;
+     if (!_surface->getTargetInfo(&targetInfo)) {
+       return;
+     }
++    retireOldBackingRecording(targetInfo);
+     // Declarative content is recorded again for the surface as it is now.
+     const bool frameComing = _producer->requestFrame();
+     auto target = getTarget();
+@@ -202,6 +222,7 @@
+       return;
+     }
+     if (present(*_surface, targetInfo, recordings, /* remember= */ true)) {
++      if(target)target->nelyxConsumed(recordings);
+       _producer->onFramePresented();
+     } else if (target) {
+       target->requeue(recordings);
+@@ -217,6 +238,7 @@
+    the image is converted.
+    */
+   sk_sp<SkImage> makeImageSnapshot(SkRect *bounds) {
++    if(_closed)throw std::runtime_error("Native Skia view is closed");
+     if (_producer->hasContent()) {
+       RNSkOffscreenSurface surface(_platformContext, getScaledWidth(),
+                                    getScaledHeight());
+@@ -277,6 +299,7 @@
+    it appears.
+    */
+   bool presentFrame() {
++    if(_closed)return false;
+     auto target = getTarget();
+     if (target == nullptr) {
+       return false;
+@@ -285,6 +308,7 @@
+     if (!_surface->getTargetInfo(&targetInfo)) {
+       return false;
+     }
++    retireOldBackingRecording(targetInfo);
+     auto recordings = target->takeQueued();
+     if (recordings.empty()) {
+       return false;
+@@ -293,6 +317,7 @@
+       target->requeue(recordings);
+       return true;
+     }
++    target->nelyxConsumed(recordings);
+     _producer->onFramePresented();
+     return target->hasQueued();
+   }
+@@ -301,12 +326,22 @@
+     auto target = getTarget();
+     return target && target->hasQueued();
+   }
++  bool hasRedrawRequest() const {return _redrawRequested.load();}
+ 
+   std::shared_ptr<RNSkPlatformContext> getPlatformContext() {
+     return _platformContext;
+   }
+ 
+ private:
++  std::atomic<bool> _closed{false};
++  void retireOldBackingRecording(const RNSkGraphiteTargetInfo& targetInfo) {
++    std::lock_guard<std::mutex> lock(_mutex);
++    // The host keeps the completed front buffer during a resize. Core supplies
++    // a new frame for the admitted backing; replaying this completed old frame
++    // through another full-size texture needlessly overlaps its GPU resources.
++    // Queued uploads and recordings without a confirmed GPU fence stay owned.
++    if(_lastPresented&&_lastPresented->nelyxRetired()&&!_lastPresented->hasSizeOf(targetInfo))_lastPresented.reset();
++  }
+   std::shared_ptr<RNSkGraphiteTarget> getTarget() {
+     std::lock_guard<std::mutex> lock(_mutex);
+     return _target;
+@@ -351,12 +386,12 @@
+           bool remember) {
+     // Recordings of the target's size and color space are replayed straight
+     // onto it, as one batch; any other goes through a texture of its own.
+-    std::vector<skgpu::graphite::Recording *> batch;
++    std::vector<std::shared_ptr<skgpu::graphite::Recording>> batch;
+     std::shared_ptr<RNSkGraphiteRecording> last;
+     bool success = true;
+     auto flush = [&]() {
+       if (!batch.empty()) {
+-        success = surface.presentRecordings(batch) && success;
++        success = surface.presentOwnedRecordings(batch) && success;
+         batch.clear();
+       }
+     };
+@@ -371,7 +406,7 @@
+       }
+       if (recording->hasSizeOf(targetInfo) &&
+           recording->hasColorSpaceOf(targetInfo)) {
+-        batch.push_back(recording->get());
++        batch.push_back(recording->nativeReplay());
+         last = recording;
+         continue;
+       }
+--- a/cpp/rnskia/RNSkWindowSurface.cpp
++++ b/cpp/rnskia/RNSkWindowSurface.cpp
+@@ -1,267 +0,0 @@
+-#include "RNSkWindowSurface.h"
+-
+-#include "RNDawnContext.h"
+-#include "RNDawnUtils.h"
+-#include "RNMetalLayerColorSpace.h"
+-#include "utils/RNSkLog.h"
+-
+-#ifdef __APPLE__
+-#include "dawn/native/MetalBackend.h"
+-#endif
+-
+-#pragma clang diagnostic push
+-#pragma clang diagnostic ignored "-Wdocumentation"
+-
+-#include "include/core/SkSurface.h"
+-#include "include/gpu/graphite/BackendTexture.h"
+-#include "include/gpu/graphite/Surface.h"
+-#include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
+-#include "include/gpu/graphite/dawn/DawnTypes.h"
+-
+-#pragma clang diagnostic pop
+-
+-namespace RNSkia {
+-
+-RNSkWindowSurface::~RNSkWindowSurface() { detach(); }
+-
+-void RNSkWindowSurface::attach(void *nativeHandle, int width, int height,
+-                               bool highBitDepth, bool useP3ColorSpace,
+-                               Releaser releaser) {
+-  detach();
+-  auto &context = DawnContext::getInstance();
+-  _device = context.getWGPUDevice();
+-  _recorder = context.getRecorder();
+-  _nativeHandle = nativeHandle;
+-  _releaser = std::move(releaser);
+-  _surface = context.MakeWGPUSurface(nativeHandle);
+-  if (!_surface) {
+-    RNSkLogger::logToConsole("Could not create a surface over the window");
+-    detach();
+-    return;
+-  }
+-  _width = width;
+-  _height = height;
+-  _useP3ColorSpace = useP3ColorSpace;
+-  _format = DawnUtils::PreferredTextureFormat;
+-  _colorType = DawnUtils::PreferedColorType;
+-  if (highBitDepth) {
+-    if (surfaceSupportsFormat(DawnUtils::HighBitDepthTextureFormat)) {
+-      _format = DawnUtils::HighBitDepthTextureFormat;
+-      _colorType = DawnUtils::HighBitDepthColorType;
+-    } else {
+-      RNSkLogger::logToConsole(
+-          "High bit depth was requested but the surface does not support "
+-          "it, falling back to the 8-bit format");
+-    }
+-  }
+-  configureSurface();
+-  updateTargetInfo();
+-  requestRedraw();
+-}
+-
+-void RNSkWindowSurface::resize(int width, int height) {
+-  if (!_surface) {
+-    return;
+-  }
+-  _width = width;
+-  _height = height;
+-  configureSurface();
+-  updateTargetInfo();
+-  requestRedraw();
+-}
+-
+-void RNSkWindowSurface::detach() {
+-  // The surface goes before the window it draws into.
+-  _surface = nullptr;
+-  _recorder = nullptr;
+-  updateTargetInfo();
+-  if (_releaser && _nativeHandle != nullptr) {
+-    _releaser(_nativeHandle);
+-  }
+-  _releaser = nullptr;
+-  _nativeHandle = nullptr;
+-}
+-
+-void RNSkWindowSurface::setLayoutSize(int width, int height) {
+-  std::lock_guard<std::mutex> lock(_targetInfoMutex);
+-  _layoutWidth = width;
+-  _layoutHeight = height;
+-}
+-
+-bool RNSkWindowSurface::getLayoutSize(int *width, int *height) {
+-  std::lock_guard<std::mutex> lock(_targetInfoMutex);
+-  if (_layoutWidth <= 0 || _layoutHeight <= 0) {
+-    return false;
+-  }
+-  *width = _layoutWidth;
+-  *height = _layoutHeight;
+-  return true;
+-}
+-
+-int RNSkWindowSurface::getWidth() {
+-  std::lock_guard<std::mutex> lock(_targetInfoMutex);
+-  return _hasTargetInfo ? _targetInfo.width : 0;
+-}
+-
+-int RNSkWindowSurface::getHeight() {
+-  std::lock_guard<std::mutex> lock(_targetInfoMutex);
+-  return _hasTargetInfo ? _targetInfo.height : 0;
+-}
+-
+-bool RNSkWindowSurface::getTargetInfo(RNSkGraphiteTargetInfo *info) {
+-  std::lock_guard<std::mutex> lock(_targetInfoMutex);
+-  if (!_hasTargetInfo) {
+-    return false;
+-  }
+-  *info = _targetInfo;
+-  return true;
+-}
+-
+-void RNSkWindowSurface::updateTargetInfo() {
+-  std::lock_guard<std::mutex> lock(_targetInfoMutex);
+-  if (!_surface) {
+-    _hasTargetInfo = false;
+-    return;
+-  }
+-  _targetInfo.width = _width;
+-  _targetInfo.height = _height;
+-  _targetInfo.colorType = _colorType;
+-  _targetInfo.useP3ColorSpace = _useP3ColorSpace;
+-  _targetInfo.textureInfo = getTextureInfo();
+-  _hasTargetInfo = true;
+-}
+-
+-skgpu::graphite::TextureInfo RNSkWindowSurface::getTextureInfo() const {
+-  return skgpu::graphite::TextureInfos::MakeDawn(
+-      skgpu::graphite::DawnTextureInfo(skgpu::graphite::SampleCount::k1,
+-                                       skgpu::Mipmapped::kNo, _format, _usage,
+-                                       wgpu::TextureAspect::All));
+-}
+-
+-void RNSkWindowSurface::configureSurface() {
+-  wgpu::SurfaceConfiguration config;
+-  config.device = _device;
+-  config.format = _format;
+-  config.width = _width;
+-  config.height = _height;
+-  config.presentMode = wgpu::PresentMode::Fifo;
+-  _usage = supportedSurfaceUsage();
+-  config.usage = _usage;
+-#ifdef __APPLE__
+-  config.alphaMode = wgpu::CompositeAlphaMode::Premultiplied;
+-#endif
+-  _surface.Configure(&config);
+-#ifdef __APPLE__
+-  // The layer is tagged with the gamut the window renders in; float formats
+-  // need the (gamma-encoded) extended variant so the values display
+-  // identically to the 8-bit path.
+-  applyCAMetalLayerColorSpace(_nativeHandle, _format, _useP3ColorSpace);
+-#endif
+-}
+-
+-wgpu::TextureUsage RNSkWindowSurface::supportedSurfaceUsage() {
+-  wgpu::TextureUsage usage = wgpu::TextureUsage::RenderAttachment;
+-  wgpu::SurfaceCapabilities capabilities;
+-  if (_surface.GetCapabilities(_device.GetAdapter(), &capabilities) !=
+-      wgpu::Status::Success) {
+-    return usage;
+-  }
+-  for (auto extra :
+-       {wgpu::TextureUsage::TextureBinding, wgpu::TextureUsage::CopySrc}) {
+-    if ((capabilities.usages & extra) &&
+-        (DawnUtils::DefaultTargetUsage & extra)) {
+-      usage |= extra;
+-    }
+-  }
+-  return usage;
+-}
+-
+-bool RNSkWindowSurface::surfaceSupportsFormat(wgpu::TextureFormat format) {
+-  wgpu::SurfaceCapabilities capabilities;
+-  if (_surface.GetCapabilities(_device.GetAdapter(), &capabilities) !=
+-      wgpu::Status::Success) {
+-    return false;
+-  }
+-  for (size_t i = 0; i < capabilities.formatCount; i++) {
+-    if (capabilities.formats[i] == format) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-bool RNSkWindowSurface::canPresent() {
+-  if (!_surface) {
+-    return false;
+-  }
+-  if (_canPresent && !_canPresent()) {
+-    // The frame is kept by the caller: ask for it again once the window can
+-    // show it.
+-    requestRedraw();
+-    return false;
+-  }
+-  return true;
+-}
+-
+-bool RNSkWindowSurface::presentRecordings(
+-    const std::vector<skgpu::graphite::Recording *> &recordings) {
+-  if (!canPresent()) {
+-    return false;
+-  }
+-  wgpu::SurfaceTexture surfaceTexture;
+-  _surface.GetCurrentTexture(&surfaceTexture);
+-  auto texture = surfaceTexture.texture;
+-  if (!texture) {
+-    return false;
+-  }
+-  // The surface only names the replay target; wrapping the swapchain texture
+-  // records nothing on the window's recorder.
+-  auto backendTex = skgpu::graphite::BackendTextures::MakeDawn(texture.Get());
+-  SkSurfaceProps surfaceProps;
+-  auto surface = SkSurfaces::WrapBackendTexture(
+-      _recorder, backendTex, DawnUtils::viewColorSpace(_useP3ColorSpace),
+-      &surfaceProps);
+-  if (!surface) {
+-    return false;
+-  }
+-  bool success =
+-      DawnContext::getInstance().insertRecordings(recordings, surface.get());
+-#ifdef __APPLE__
+-  dawn::native::metal::WaitForCommandsToBeScheduled(_device.Get());
+-#endif
+-  _surface.Present();
+-  return success;
+-}
+-
+-bool RNSkWindowSurface::presentImage(const sk_sp<SkImage> &image) {
+-  if (!canPresent()) {
+-    return false;
+-  }
+-  wgpu::SurfaceTexture surfaceTexture;
+-  _surface.GetCurrentTexture(&surfaceTexture);
+-  auto texture = surfaceTexture.texture;
+-  if (!texture) {
+-    return false;
+-  }
+-  auto backendTex = skgpu::graphite::BackendTextures::MakeDawn(texture.Get());
+-  SkSurfaceProps surfaceProps;
+-  auto surface = SkSurfaces::WrapBackendTexture(
+-      _recorder, backendTex, _colorType,
+-      DawnUtils::viewColorSpace(_useP3ColorSpace), &surfaceProps);
+-  if (!surface) {
+-    return false;
+-  }
+-  surface->getCanvas()->drawImage(image, 0, 0);
+-  auto recording = _recorder->snap();
+-  if (!recording) {
+-    throw std::runtime_error("Failed to create graphite recording");
+-  }
+-  DawnContext::getInstance().submitRecording(recording.get());
+-#ifdef __APPLE__
+-  dawn::native::metal::WaitForCommandsToBeScheduled(_device.Get());
+-#endif
+-  _surface.Present();
+-  return true;
+-}
+-
+-} // namespace RNSkia
+--- a/cpp/rnskia/RNSkWindowSurface.h
++++ b/cpp/rnskia/RNSkWindowSurface.h
+@@ -1,174 +1,21 @@
++// SPDX-License-Identifier: BSD-3-Clause
+ #pragma once
+-
+ #include <functional>
+-#include <mutex>
+-#include <utility>
+-#include <vector>
+-
+-#include "RNSkGraphiteTargetInfo.h"
+ #include "RNSkSurface.h"
+ 
+-#include "webgpu/webgpu_cpp.h"
+-
+-#pragma clang diagnostic push
+-#pragma clang diagnostic ignored "-Wdocumentation"
+-
+-#include "include/core/SkColorType.h"
+-#include "include/core/SkImage.h"
+-#include "include/gpu/graphite/Recorder.h"
+-#include "include/gpu/graphite/Recording.h"
+-
+-#pragma clang diagnostic pop
+-
+ namespace RNSkia {
+-
+-/**
+- * The window a platform view presents into: a CAMetalLayer on Apple
+- * platforms, an ANativeWindow on Android, configured as a Dawn surface. The
+- * platform view only acquires the native handle and forwards its lifecycle
+- * (attach, resize, detach); everything else lives here.
+- *
+- * Threading: the window is attached, resized, detached and presented on the
+- * main thread. The description of its target texture is kept in a copy of
+- * its own, so that whoever records for the view (the JS thread, a worklet
+- * runtime, the render thread pool) can read it from any thread, also before
+- * the window exists (see getLayoutSize).
+- */
+-class RNSkWindowSurface final : public RNSkSurface {
++// Native view attachment/layout contract. Implementations own their backend
++// window/import strategy; generic recording and JSI code never sees Dawn.
++class RNSkWindowSurface : public RNSkSurface {
+ public:
+-  /**
+-   Gives back the native handle attach() was given, once the Dawn surface
+-   over it is gone. Called from detach() or the destructor, so on any thread.
+-   */
+-  using Releaser = std::function<void(void *nativeHandle)>;
+-
+-  RNSkWindowSurface() = default;
+-
+-  ~RNSkWindowSurface() override;
+-
+-  RNSkWindowSurface(const RNSkWindowSurface &) = delete;
+-  RNSkWindowSurface &operator=(const RNSkWindowSurface &) = delete;
+-
+-  /**
+-   Configures the native window (a CAMetalLayer or an ANativeWindow) as the
+-   Dawn surface of this view, at the given size in pixels. A window already
+-   attached is detached first. highBitDepth asks for the 16-bit float (Apple)
+-   or 10-bit (Android) format, granted when the surface supports it;
+-   useP3ColorSpace renders in Display P3 rather than sRGB. The releaser, if
+-   any, gives the handle back when the window is detached. Requests a redraw.
+-   */
+-  void attach(void *nativeHandle, int width, int height, bool highBitDepth,
+-              bool useP3ColorSpace, Releaser releaser);
+-
+-  /** Reconfigures the surface for a new size, in pixels. Requests a redraw. */
+-  void resize(int width, int height);
+-
+-  /**
+-   Destroys the Dawn surface and gives the native handle back to its
+-   releaser. The target description goes away with it; the layout size stays.
+-   */
+-  void detach();
+-
+-  /** Whether a window is attached. Main thread. */
+-  bool isAttached() const { return _surface != nullptr; }
+-
+-  /**
+-   The pixel size the platform laid the view out with, which the window gets
+-   when it appears. Any thread.
+-   */
+-  void setLayoutSize(int width, int height);
+-
+-  /**
+-   The size in pixels the surface will have, known from the platform layout
+-   before the surface itself exists (on Android the surface only appears a
+-   frame after the view is laid out). Safe to call from any thread; returns
+-   false until the view is laid out. A frame recorded against this size is
+-   presented as is once the surface appears, where one recorded against a
+-   size derived from the layout in points could be off by a pixel and would
+-   not cover the surface.
+-   */
+-  bool getLayoutSize(int *width, int *height);
+-
+-  /**
+-   Installed by the view owning the surface: asks it for a frame when the
+-   window appears or changes size, and when a present was declined so that
+-   it is tried again (the app coming back to the foreground).
+-   */
+-  void setRequestRedraw(std::function<void()> requestRedraw) {
+-    _requestRedraw = std::move(requestRedraw);
+-  }
+-
+-  /**
+-   Installed by the platform view: whether the window can show a frame right
+-   now. Presenting is declined while it returns false, and a redraw is
+-   requested instead. Without one, an attached window always can.
+-   */
+-  void setCanPresent(std::function<bool()> canPresent) {
+-    _canPresent = std::move(canPresent);
+-  }
+-
+-  // RNSkSurface -------------------------------------------------------------
+-
+-  /** Width of the window, in pixels; 0 without a window. Any thread. */
+-  int getWidth() override;
+-
+-  /** Height of the window, in pixels; 0 without a window. Any thread. */
+-  int getHeight() override;
+-
+-  bool getTargetInfo(RNSkGraphiteTargetInfo *info) override;
+-
+-  bool presentRecordings(
+-      const std::vector<skgpu::graphite::Recording *> &recordings) override;
+-
+-  bool presentImage(const sk_sp<SkImage> &image) override;
+-
+-private:
+-  // Configures the swapchain for the current size, format and usage.
+-  void configureSurface();
+-  // Copies the window's target description where any thread can read it.
+-  void updateTargetInfo();
+-  // Graphite needs more than RenderAttachment on the swapchain texture:
+-  // TextureBinding so a render pass can reload the existing contents through
+-  // LoadOp::ExpandResolveTexture (any backdrop filter or mid-frame readback
+-  // splits the pass), and CopySrc for copy tasks. Only request what the
+-  // surface reports as supported.
+-  wgpu::TextureUsage supportedSurfaceUsage();
+-  bool surfaceSupportsFormat(wgpu::TextureFormat format);
+-  // The texture description a deferred canvas must be recorded with to be
+-  // replayed onto this window.
+-  skgpu::graphite::TextureInfo getTextureInfo() const;
+-  bool canPresent();
+-  void requestRedraw() {
+-    if (_requestRedraw) {
+-      _requestRedraw();
+-    }
+-  }
+-
+-  wgpu::Device _device;
+-  wgpu::Surface _surface;
+-  // The recorder of the thread the window is attached on (the main thread):
+-  // presentImage() draws on it, presentRecordings() only wraps the swapchain
+-  // texture for it.
+-  skgpu::graphite::Recorder *_recorder = nullptr;
+-  void *_nativeHandle = nullptr;
+-  Releaser _releaser;
+-  int _width = 0;
+-  int _height = 0;
+-  wgpu::TextureFormat _format = wgpu::TextureFormat::Undefined;
+-  wgpu::TextureUsage _usage = wgpu::TextureUsage::RenderAttachment;
+-  SkColorType _colorType = kUnknown_SkColorType;
+-  bool _useP3ColorSpace = false;
+-
+-  // A copy of the window's target description, readable from any thread
+-  // while the window itself belongs to the main thread.
+-  std::mutex _targetInfoMutex;
+-  RNSkGraphiteTargetInfo _targetInfo;
+-  bool _hasTargetInfo = false;
+-  int _layoutWidth = 0;
+-  int _layoutHeight = 0;
+-
+-  std::function<void()> _requestRedraw;
+-  std::function<bool()> _canPresent;
++  using Releaser = std::function<void(void*)>;
++  virtual void attach(void*, int, int, bool, bool, Releaser) = 0;
++  virtual void resize(int, int) = 0;
++  virtual void detach() = 0;
++  virtual bool isAttached() const = 0;
++  virtual void setLayoutSize(int, int) = 0;
++  virtual bool getLayoutSize(int*, int*) = 0;
++  virtual void setRequestRedraw(std::function<void()>) = 0;
++  virtual void setCanPresent(std::function<bool()>) = 0;
+ };
+-
+-} // namespace RNSkia
++}

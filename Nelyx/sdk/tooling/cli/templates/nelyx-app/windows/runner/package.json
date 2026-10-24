@@ -1,0 +1,41 @@
+{
+  "name": "nelyx-windows-runner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "scripts": {
+    "build": "nelyx build --app ../.. --target windows",
+    "run": "nelyx run --app ../.. --target windows",
+    "check": "node check.mjs",
+    "bundle": "node bundle.mjs",
+    "start": "react-native start --config metro.config.cjs",
+    "dev": "nelyx dev --app ../.. --target windows",
+    "doctor": "nelyx doctor --app ../.. --target windows",
+    "prepare:native": "nelyx prepare --app ../.. --target windows",
+    "pack": "nelyx pack --app ../.. --target windows"
+  },
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/skia-rn": "0.6.0",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-windows": "0.83.2",
+    "@nelyx/material": "0.1.0",
+    "@nelyx/cupertino": "0.1.0"
+  },
+  "devDependencies": {
+    "@nelyx/metro": "0.10.0",
+    "@babel/core": "7.28.5",
+    "@react-native/babel-preset": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-android": "20.0.0",
+    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@react-native-windows/find-dotnet-tools": "0.0.0",
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3",
+    "@nelyx/cli": "0.10.0"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@nelyx/skia-web",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "license": "BSD-3-Clause AND MIT",
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "canvaskit-wasm": "0.41.0"
+  },
+  "files": [
+    "src",
+    "dist",
+    "native-manifest.json",
+    "generated/runtime",
+    "README.md",
+    "LICENSE.md",
+    "licenses"
+  ],
+  "exports": {
+    "./library": {
+      "types": "./dist/library.d.ts",
+      "default": "./dist/library.js"
+    },
+    "./native-manifest.json": "./native-manifest.json"
+  },
+  "scripts": {
+    "build": "node ../../../eng/build-packages.mjs skia-web",
+    "check": "tsc -p tsconfig.build.json --noEmit"
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "schema": "nelyx.work12-full-theme-inventory/v1",
+  "source": "packages/flutter/lib/src/material/theme_data.dart",
+  "eligibleFields": [
+    "cupertinoOverrideTheme",
+    "extensions",
+    "adaptationMap",
+    "inputDecorationTheme",
+    "materialTapTargetSize",
+    "pageTransitionsTheme",
+    "platform",
+    "scrollbarTheme",
+    "splashFactory",
+    "visualDensity",
+    "canvasColor",
+    "cardColor",
+    "colorScheme",
+    "disabledColor",
+    "dividerColor",
+    "focusColor",
+    "highlightColor",
+    "hintColor",
+    "hoverColor",
+    "primaryColor",
+    "primaryColorDark",
+    "primaryColorLight",
+    "scaffoldBackgroundColor",
+    "secondaryHeaderColor",
+    "shadowColor",
+    "splashColor",
+    "unselectedWidgetColor",
+    "iconTheme",
+    "primaryIconTheme",
+    "primaryTextTheme",
+    "textTheme",
+    "typography",
+    "actionIconTheme",
+    "appBarTheme",
+    "badgeTheme",
+    "bannerTheme",
+    "bottomAppBarTheme",
+    "bottomNavigationBarTheme",
+    "bottomSheetTheme",
+    "cardTheme",
+    "carouselViewTheme",
+    "checkboxTheme",
+    "chipTheme",
+    "dataTableTheme",
+    "datePickerTheme",
+    "dialogTheme",
+    "dividerTheme",
+    "drawerTheme",
+    "dropdownMenuTheme",
+    "elevatedButtonTheme",
+    "expansionTileTheme",
+    "filledButtonTheme",
+    "floatingActionButtonTheme",
+    "iconButtonTheme",
+    "listTileTheme",
+    "menuBarTheme",
+    "menuButtonTheme",
+    "menuTheme",
+    "navigationBarTheme",
+    "navigationDrawerTheme",
+    "navigationRailTheme",
+    "outlinedButtonTheme",
+    "popupMenuTheme",
+    "progressIndicatorTheme",
+    "radioTheme",
+    "searchBarTheme",
+    "searchViewTheme",
+    "segmentedButtonTheme",
+    "sliderTheme",
+    "snackBarTheme",
+    "switchTheme",
+    "tabBarTheme",
+    "textButtonTheme",
+    "textSelectionTheme",
+    "timePickerTheme",
+    "toggleButtonsTheme",
+    "tooltipTheme"
+  ],
+  "excludedM2Deprecated": [
+    "applyElevationOverlayColor",
+    "useMaterial3",
+    "buttonTheme",
+    "buttonBarTheme",
+    "_buttonBarTheme",
+    "dialogBackgroundColor",
+    "indicatorColor"
+  ],
+  "missing": [],
+  "methods": [
+    {
+      "name": "getAdaptation",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "_createAdaptationMap",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "brightness",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "extension",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "buttonBarTheme",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "copyWith",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "localize",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "estimateBrightnessForColor",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "_lerpThemeExtensions",
+      "numeric": null,
+      "parameters": [
+        {
+          "name": "t",
+          "numeric": "double"
+        }
+      ]
+    },
+    {
+      "name": "_themeExtensionIterableToMap",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "_overrideWithSystemColors",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "lerp",
+      "numeric": null,
+      "parameters": [
+        {
+          "name": "t",
+          "numeric": "double"
+        }
+      ]
+    },
+    {
+      "name": "==",
+      "numeric": null,
+      "parameters": []
+    },
+    {
+      "name": "hashCode",
+      "numeric": {
+        "type": "int",
+        "inferred": false,
+        "bounds": [],
+        "resolvedType": {
+          "kind": "interface",
+          "nullable": false,
+          "reference": {
+            "id": "dart:core::int:CLASS",
+            "name": "int",
+            "owner": null,
+            "local": false,
+            "static": false
+          },
+          "arguments": []
+        }
+      },
+      "parameters": []
+    },
+    {
+      "name": "debugFillProperties",
+      "numeric": null,
+      "parameters": []
+    }
+  ]
+}

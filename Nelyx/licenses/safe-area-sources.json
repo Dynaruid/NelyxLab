@@ -1,0 +1,95 @@
+{
+  "schema": "nelyx.safe-area-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "sha256": "7f3dc2c5e4523799c54a2da3536309970feda6984877f3c0402c83fac63bf1c6"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "5d543f3e093bfcfa5dc889f8f67d87fa7a4e92dee44dc8630cdc613b9cee8183"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/scroll_view.dart",
+      "sha256": "40f4ed59241263b1f69f0bee1e9e58746c1467d20381faab7a5850356955c3d5"
+    }
+  ],
+  "references": [
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/safe_area.cs",
+      "sha256": "35df157837f40593fd860403f4f2f014ce9839ebcff3943e2f932ec3f1a59063"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/scroll_view.cs",
+      "sha256": "9999e82cd43cb7904c3819c9adda31b7b16b1e85cff97e1a7a98453ecca524d7"
+    }
+  ],
+  "resolved": [
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "symbol": "SafeArea",
+      "sourceSha256": "b4a6f7d84e91d3896204024f436ad085cb79767fc7e34695b7501a9261ab4b94",
+      "spanSha256": "be671fb8fae1aa8cd3f47ef13a8095a2f71783275e3970125ab0ec5aac5670c9"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "symbol": "SliverSafeArea",
+      "sourceSha256": "b4a6f7d84e91d3896204024f436ad085cb79767fc7e34695b7501a9261ab4b94",
+      "spanSha256": "1c12e0f743eeb2636b3717df4c8ff9581621d8d4e70c03648045ea7b88af708d"
+    }
+  ],
+  "sourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "symbol": "SafeArea",
+      "offset": 1940,
+      "length": 3219,
+      "sha256": "8026f26a6a0489a6de611ee98942892fc02fe2ebb1a621f06cd3c4bd6731d172"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "symbol": "SliverSafeArea",
+      "offset": 6027,
+      "length": 2306,
+      "sha256": "58d0f22b10a56031564a0387cce6ea776d813036d067fa735c0d6a29e7308d25"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQueryData.removePadding",
+      "offset": 45786,
+      "length": 894,
+      "sha256": "89402d78810a72cecff31576ba5dd57519b95e82552d3cfab9c7b536911f7d97"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.removePadding",
+      "offset": 58427,
+      "length": 433,
+      "sha256": "40ca10161d3dd4a3f16b5b73cb29d1cee3a78ee832032432f6637d93362be69b"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/scroll_view.dart",
+      "symbol": "BoxScrollView.buildSlivers",
+      "offset": 38393,
+      "length": 1329,
+      "sha256": "444a1fcea22d19eba0e792807ac6c4af3d5d91bbff0c9ebcb03b3cda4d24b48f"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "Nelyx/src/framework/widgets/safe-area.ts",
+      "sha256": "2120c5a8a7e743a803dda4e7366147674e9f1087940628a52a80efea9fe2a9e4"
+    },
+    {
+      "file": "Nelyx/src/framework/widgets/app-data.ts",
+      "sha256": "12943ae6d0178ca6ed19f692c79567dfee77610ff77f42b88f8018957d6b7121"
+    },
+    {
+      "file": "Nelyx/src/framework/widgets/scroll-view.ts",
+      "sha256": "7ad61bc0b9903625b62db4ac6cb50eea00d81b720911fc818c86900ef21563ac"
+    }
+  ],
+  "scope": "Complete unchanged SafeArea/SliverSafeArea declarations and MediaQueryData.removePadding method/MediaQuery.removePadding constructor on finite Widget/context/EdgeInsets/copy/diagnostic parents.24input rows and48 box/sliver recipes qualify padding/viewPadding/viewInsets/key/child/minimum/diagnostic policy. Full source inherited-model/layout/render/engine/native/physical keyboard/IME scope is separate. Existing MediaData raw safeArea host value and bottom keyboardInset project to source padding/viewPadding/viewInsets, with optional canonical EdgeInsets overrides. Child source removal, scalar private-field inset comparison, and BoxScrollView axis-padding consumption retain existing owners. Physical producers, full MediaQuery/InheritedModel and general parent hierarchy are separate."
+}

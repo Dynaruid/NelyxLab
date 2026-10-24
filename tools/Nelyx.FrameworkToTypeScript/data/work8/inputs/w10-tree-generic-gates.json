@@ -1,0 +1,89 @@
+{
+  "schema": "nelyx.tree-effective-gates/v1",
+  "id": "w10-tree",
+  "sources": [
+    {
+      "source": "packages/flutter/lib/src/widgets/sliver_tree.dart",
+      "sha256": "e375ca7e7bca6a448dd3e88cb1bf07096e8d82ec5a006e03b070fbe7bdcf0cd2",
+      "symbols": [
+        "_kDefaultRowExtent",
+        "TreeSliverNode",
+        "TreeSliverStateMixin",
+        "TreeSliverController",
+        "_kDefaultSemanticIndexCallback",
+        "TreeSliver",
+        "_TreeSliverState",
+        "_TreeNodeParentDataWidget",
+        "_SliverTree",
+        "TreeSliverNodeBuilder",
+        "TreeSliverRowExtentBuilder",
+        "TreeSliverNodeCallback",
+        "_AnimationRecord"
+      ],
+      "destination": "Nelyx/src/framework/widgets/sliver-tree.generated.ts"
+    },
+    {
+      "source": "packages/flutter/lib/src/rendering/sliver_tree.dart",
+      "sha256": "8296931c4f365bf4dee6fb15ddf7d3281beeb604364c2c2b56384323319672f5",
+      "symbols": [
+        "TreeSliverNodeParentData",
+        "TreeSliverIndentationType",
+        "RenderTreeSliver",
+        "TreeSliverNodesAnimation",
+        "_PaintSegment"
+      ],
+      "destination": "Nelyx/src/framework/rendering/sliver-tree.generated.ts"
+    }
+  ],
+  "hosts": [
+    "Nelyx/src/framework/widgets/tree-sliver-source-adapter.ts",
+    "Nelyx/src/framework/widgets/tree-widget-source-types.ts",
+    "Nelyx/src/framework/widgets/tree-generic-witnesses.ts",
+    "Nelyx/src/framework/rendering/tree-sliver-source-adapter.ts",
+    "Nelyx/src/framework/rendering/tree-sliver.ts",
+    "Nelyx/src/framework/widgets/tree-sliver.ts",
+    "Nelyx/src/framework/widgets/tree-view.ts",
+    "Nelyx/src/framework/widgets/scrollbar-raw-source-adapter.ts",
+    "Nelyx/src/framework/widgets/scrollbar-themed-source-adapter.ts",
+    "Nelyx/src/framework/rendering/tree-sliver-source-types.ts",
+    "Nelyx/src/framework/widgets/tree-sliver-facade.ts",
+    "Nelyx/src/framework/widgets/sliver-tree.ts",
+    "Nelyx/src/framework/rendering/sliver-tree.ts"
+  ],
+  "sharedInputs": [
+    "Nelyx/src/foundation/dart-numeric-math.ts",
+    "Nelyx/src/foundation/dart-source-type.ts",
+    "Nelyx/src/framework/widgets/framework-source-types.ts"
+  ],
+  "publicExports": [
+    {
+      "package": "@nelyx/core",
+      "key": "./framework/widgets/sliver-tree",
+      "file": "Nelyx/src/framework/widgets/sliver-tree.ts"
+    },
+    {
+      "package": "@nelyx/core",
+      "key": "./framework/rendering/sliver-tree",
+      "file": "Nelyx/src/framework/rendering/sliver-tree.ts"
+    },
+    {
+      "package": "@nelyx/core",
+      "key": "./foundation/dart-mutable-list",
+      "file": "Nelyx/src/foundation/dart-mutable-list.ts"
+    },
+    {
+      "package": "@nelyx/core",
+      "key": "./foundation/dart-named-record",
+      "file": "Nelyx/src/foundation/dart-named-record.ts"
+    },
+    {
+      "package": "@nelyx/core",
+      "key": "./foundation/dart-collections",
+      "file": "Nelyx/src/foundation/dart-collections.ts"
+    }
+  ],
+  "sourceDeclarations": 12,
+  "publicAliases": 4,
+  "privateAliases": 2,
+  "scope": "Actual effective/product inputs only. Host lists and public mappings are requirements, never archived host overlays. Candidate emission is forbidden inside formal gates."
+}

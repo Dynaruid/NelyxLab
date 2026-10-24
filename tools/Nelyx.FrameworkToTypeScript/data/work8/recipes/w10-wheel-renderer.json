@@ -1,0 +1,522 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-wheel-renderer",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/rendering/list_wheel_viewport.dart",
+      "sha256": "fcf565b043029714852ad1a74c96164432345bce8efa7ef267ab0e796ec43241",
+      "symbols": [
+        "ListWheelChildManager",
+        "ListWheelParentData",
+        "RenderListWheelViewport"
+      ],
+      "destination": "Nelyx/src/framework/rendering/list-wheel-viewport.generated.ts",
+      "classNames": {
+        "ListWheelChildManager": "SourceListWheelChildManager",
+        "ListWheelParentData": "SourceListWheelParentData",
+        "RenderListWheelViewport": "SourceRenderListWheelViewport"
+      },
+      "imports": {
+        "WheelRenderHost": "./list-wheel-renderer-adapter.ts",
+        "WheelContainerParentData": "./list-wheel-renderer-adapter.ts",
+        "createWheelClipHandle": "./list-wheel-renderer-adapter.ts",
+        "createWheelOpacityHandle": "./list-wheel-renderer-adapter.ts",
+        "wheelBoxSize": "./list-wheel-renderer-adapter.ts",
+        "wheelConstraintsBiggest": "./list-wheel-renderer-adapter.ts",
+        "wheelParentData": "./list-wheel-renderer-adapter.ts",
+        "wheelParent": "./list-wheel-renderer-adapter.ts",
+        "wheelPaintBounds": "./list-wheel-renderer-adapter.ts",
+        "wheelParentOffset": "./list-wheel-renderer-adapter.ts",
+        "wheelPushClipRect": "./list-wheel-renderer-adapter.ts",
+        "wheelPushOpacity": "./list-wheel-renderer-adapter.ts",
+        "wheelPushTransform": "./list-wheel-renderer-adapter.ts",
+        "wheelPaintChild": "./list-wheel-renderer-adapter.ts",
+        "wheelGetTransform": "./list-wheel-renderer-adapter.ts",
+        "wheelRemovePerspective": "./list-wheel-renderer-adapter.ts",
+        "wheelBoxHitTest": "./list-wheel-renderer-adapter.ts",
+        "WheelBoxHitTestResult": "./list-wheel-renderer-adapter.ts",
+        "wheelOffsetString": "./list-wheel-renderer-adapter.ts",
+        "isWheelBox": "./list-wheel-renderer-adapter.ts",
+        "castWheelBox": "./list-wheel-renderer-adapter.ts",
+        "isWheelConstraints": "./list-wheel-renderer-adapter.ts",
+        "castWheelConstraints": "./list-wheel-renderer-adapter.ts",
+        "RenderBox": "./object.ts",
+        "RenderObject": "./object.ts",
+        "BoxConstraints": "./constraints.ts",
+        "LayerHandle": "./layer.ts",
+        "Offset": "../../ui/offset.ts",
+        "Size": "../../ui/size.ts",
+        "Rect": "../../ui/rect.ts",
+        "Matrix4": "../../math/matrix4.ts",
+        "MatrixUtils": "../painting/matrix-utils.ts",
+        "Alignment": "../painting/alignment.ts",
+        "Curves": "../animation/curves.ts",
+        "FlutterError": "../../foundation/flutter-error.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "protect": "../../ui/value-math.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "roundInteger": "../../ui/value-math.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "createWheelRevealedOffset": "./list-wheel-renderer-adapter.ts",
+        "isWheelParentData": "./list-wheel-renderer-types.ts",
+        "castWheelParentData": "./list-wheel-renderer-types.ts",
+        "isWheelRenderObject": "./list-wheel-renderer-adapter.ts",
+        "castWheelRenderObject": "./list-wheel-renderer-adapter.ts"
+      },
+      "typeImports": {
+        "PipelineOwner": "./object.ts",
+        "WheelViewportContract": "./list-wheel-renderer-adapter.ts",
+        "RevealedOffset": "./viewport.ts",
+        "ViewportOffset": "./viewport-offset.ts",
+        "ClipRectLayer": "./layer.ts",
+        "OpacityLayer": "./layer.ts",
+        "PaintingContext": "../painting/context.ts",
+        "Clip": "../../ui/clip.ts",
+        "Axis": "../painting/basic-types.ts",
+        "Curve": "../animation/curves.ts",
+        "DartList": "../../foundation/dart-list.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/rendering/object.dart::PipelineOwner:CLASS": "PipelineOwner",
+        "package:flutter/src/rendering/box.dart::ContainerBoxParentData:CLASS": "WheelContainerParentData",
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": "BoxConstraints",
+        "package:flutter/src/rendering/box.dart::BoxHitTestResult:CLASS": "WheelBoxHitTestResult",
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport:CLASS": "WheelViewportContract",
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset:CLASS": "RevealedOffset",
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset:CLASS": "ViewportOffset",
+        "package:flutter/src/rendering/layer.dart::LayerHandle:CLASS": "LayerHandle",
+        "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS": "ClipRectLayer",
+        "package:flutter/src/rendering/layer.dart::OpacityLayer:CLASS": "OpacityLayer",
+        "package:flutter/src/rendering/object.dart::PaintingContext:CLASS": "PaintingContext",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Size:CLASS": "Size",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:ui::Clip:ENUM": "Clip",
+        "package:vector_math/vector_math_64.dart::Matrix4:CLASS": "Matrix4",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "dart:core::List:CLASS": "DartList"
+      },
+      "memberBindings": {
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.firstChild:GETTER": "firstChild",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.lastChild:GETTER": "lastChild",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.childCount:GETTER": "childCount",
+        "package:flutter/src/rendering/object.dart::RenderObject.attached:GETTER": "attached",
+        "package:flutter/src/rendering/object.dart::RenderObject.needsCompositing:GETTER": "needsCompositing",
+        "package:flutter/src/rendering/box.dart::RenderBox.hasSize:GETTER": "hasSize",
+        "package:flutter/src/rendering/box.dart::RenderBox.constraints:GETTER": "constraints",
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": "sourceSize"
+      },
+      "adapters": {
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.addAll:METHOD": {
+          "target": "addAll",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.childAfter:METHOD": {
+          "target": "childAfter",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.attach:METHOD": {
+          "target": "attach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.detach:METHOD": {
+          "target": "detach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.markNeedsLayout:METHOD": {
+          "target": "markNeedsLayout",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.getMinIntrinsicWidth:METHOD": {
+          "target": "getMinIntrinsicWidth",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.getMaxIntrinsicWidth:METHOD": {
+          "target": "getMaxIntrinsicWidth",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsPaint:METHOD": {
+          "target": "markNeedsPaint",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsSemanticsUpdate:METHOD": {
+          "target": "markNeedsSemanticsUpdate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.removeListener:METHOD": {
+          "target": "removeListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.applyViewportDimension:METHOD": {
+          "target": "applyViewportDimension",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.applyContentDimensions:METHOD": {
+          "target": "applyContentDimensions",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.jumpTo:METHOD": {
+          "target": "jumpTo",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.animateTo:METHOD": {
+          "target": "animateTo",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": {
+          "target": "wheelBoxSize",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.biggest:GETTER": {
+          "target": "wheelConstraintsBiggest",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parentData:GETTER": {
+          "target": "wheelParentData",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parent:GETTER": {
+          "target": "wheelParent",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.paintBounds:GETTER": {
+          "target": "wheelPaintBounds",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxParentData.offset:GETTER": {
+          "target": "wheelParentOffset",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushClipRect:METHOD": {
+          "target": "wheelPushClipRect",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushOpacity:METHOD": {
+          "target": "wheelPushOpacity",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushTransform:METHOD": {
+          "target": "wheelPushTransform",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.paintChild:METHOD": {
+          "target": "wheelPaintChild",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.getTransformTo:METHOD": {
+          "target": "wheelGetTransform",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/gestures/events.dart::PointerEvent.removePerspectiveTransform:METHOD": {
+          "target": "wheelRemovePerspective",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.hitTest:METHOD": {
+          "target": "wheelBoxHitTest",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxHitTestResult.addWithPaintTransform:METHOD": {
+          "target": "addWithPaintTransform",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.invokeLayoutCallback:METHOD": {
+          "target": "sourceInvokeLayout",
+          "kind": "call",
+          "receiver": "target",
+          "typeArguments": [
+            "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS"
+          ]
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.showOnScreen:METHOD": {
+          "target": "sourceForwardShowOnScreen",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.layout:METHOD": {
+          "target": "layout",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.copyWith:METHOD": {
+          "target": "copyWith",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "dart:ui::Offset.+:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.&:METHOD": {
+          "target": "and",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Rect.translate:METHOD": {
+          "target": "translate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/painting/alignment.dart::Alignment.alongSize:METHOD": {
+          "target": "alongSize",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.translateByDouble:METHOD": {
+          "target": "translateByDouble",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.scaleByDouble:METHOD": {
+          "target": "scaleByDouble",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.multiply:METHOD": {
+          "target": "multiply",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::Duration.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:math::max:FUNCTION": {
+          "target": "Math.max",
+          "kind": "call"
+        },
+        "dart:math::asin:FUNCTION": {
+          "target": "Math.asin",
+          "kind": "call"
+        },
+        "dart:core::double.floor:METHOD": {
+          "target": "Math.floor",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.createCylindricalProjectionTransform:METHOD": {
+          "target": "MatrixUtils.createCylindricalProjectionTransform",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.transformPoint:METHOD": {
+          "target": "MatrixUtils.transformPoint",
+          "kind": "call"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.transformRect:METHOD": {
+          "target": "MatrixUtils.transformRect",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.tryInvert:METHOD": {
+          "target": "Matrix4.tryInvert",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.Matrix4.identity:CONSTRUCTOR": {
+          "target": "Matrix4.identity",
+          "kind": "call"
+        },
+        "dart:ui::Rect.Rect.fromLTWH:CONSTRUCTOR": {
+          "target": "Rect.fromLTWH",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset.RevealedOffset.new:CONSTRUCTOR": {
+          "target": "createWheelRevealedOffset",
+          "kind": "call",
+          "namedArguments": "options"
+        }
+      },
+      "renames": {
+        "performLayout": "sourcePerformLayout",
+        "paint": "sourcePaint",
+        "hitTestChildren": "sourceHitTestChildren",
+        "showOnScreen": "sourceShowOnScreen"
+      },
+      "superConstructors": {
+        "package:flutter/src/rendering/box.dart::RenderBox.RenderBox.new:CONSTRUCTOR": {
+          "target": "WheelRenderHost",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin:MIXIN<package:flutter/src/rendering/box.dart::RenderBox:CLASS,package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelParentData:CLASS>"
+          ],
+          "baseType": "RenderBox"
+        },
+        "package:flutter/src/rendering/box.dart::ContainerBoxParentData.ContainerBoxParentData.new:CONSTRUCTOR": {
+          "target": "WheelContainerParentData",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "interfaceBindings": {
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport:CLASS": "WheelViewportContract"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "durationUnit": "milliseconds",
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "constructorSpecializations": {
+        "package:flutter/src/rendering/layer.dart::LayerHandle.LayerHandle.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS"
+            ],
+            "target": "createWheelClipHandle",
+            "kind": "call"
+          },
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::OpacityLayer:CLASS"
+            ],
+            "target": "createWheelOpacityHandle",
+            "kind": "call"
+          }
+        ]
+      },
+      "values": {
+        "dart:ui::Clip.none:GETTER": "none",
+        "dart:ui::Clip.hardEdge:GETTER": "hardEdge",
+        "dart:math::pi:GETTER": 3.141592653589793,
+        "dart:core::Duration.zero:GETTER": 0
+      },
+      "runtimeTypes": {
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": {
+          "is": "isWheelBox",
+          "cast": "castWheelBox"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": {
+          "is": "isWheelConstraints",
+          "cast": "castWheelConstraints"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelParentData:CLASS": {
+          "is": "isWheelParentData",
+          "cast": "castWheelParentData"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": {
+          "is": "isWheelRenderObject",
+          "cast": "castWheelRenderObject"
+        }
+      },
+      "stringConversions": {
+        "dart:ui::Offset:CLASS": "wheelOffsetString"
+      },
+      "assertion": {
+        "code": "invalid-source-wheel-renderer",
+        "message": "Pinned wheel renderer invariant"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-renderer-candidate.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-renderer-source.ts",
+  "requireSourceComparison": true,
+  "contract": {
+    "id": "nelyx.generated.w10-wheel-renderer/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "ListWheelChildManager",
+      "ListWheelParentData",
+      "RenderListWheelViewport"
+    ],
+    "requirements": [
+      "Complete unchanged pinned manager/parent-data/renderer bodies",
+      "Source layout, projection, magnifier/opacity, transform hit and reveal",
+      "Actual RenderBox/viewport/child and layer ownership",
+      "Independent Dart full-body comparison and product checks gate promotion"
+    ],
+    "numericPolicy": "Safe-number child indices and double geometry; existing finite host geometry boundaries",
+    "differences": [
+      "Explicit layout/paint/hit calling-convention bridge to the existing Core rendering pipeline",
+      "RenderAbstractViewport has a generic child protocol to retain nominal viewport identity for boxes and slivers",
+      "Both the full source Widget API and finite compatibility facade consume this generated renderer; facade-only policies remain in their wrapper and Element host"
+    ],
+    "performance": "Bounded direct seek/layout and scoped Core/native renderer checks; physical FPS remains separate"
+  }
+}

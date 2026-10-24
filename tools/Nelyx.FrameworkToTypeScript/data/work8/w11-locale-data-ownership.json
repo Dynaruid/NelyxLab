@@ -1,0 +1,39 @@
+{
+  "schema": "nelyx.w11-locale-data-ownership/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "inputs": [
+    {
+      "file": ".tmp/work6/flutter-source/engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "sha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/dart/bin/locale_values.dart",
+      "sha256": "6a0add48d39562134d98b58adcd4034411129ca9db6a979c9bde75596fd2407f"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/dart/bin/design_values.dart",
+      "sha256": "8f1de7eb56654ba0565d7d1e299127975099cc9b593ecd13c5cb240d325f3d16"
+    },
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-locale-data.mjs",
+      "sha256": "fa425cd22c00e8991de5eb59cf6fbce5a80cacce89175ff8e74abd582c896e15"
+    }
+  ],
+  "output": {
+    "file": "Nelyx/src/framework/widgets/locale-data.generated.ts",
+    "sha256": "061775296b529b2c778a40c4b2025be09958ca0cd970b73b2391a1138755057e"
+  },
+  "entries": {
+    "languageAliases": 78,
+    "regionAliases": 6
+  },
+  "ownership": "Finite Dart AST literal maps with edit conflict rejection; product build/runtime has no Dart dependency. Locale tag adapter and resolution operations are explicit TS source.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "ed2691b9a4ea1057566c21a43bbc535c2200fa534ea26fb00cc8913df24ce78a",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-locale-data.mjs"
+    ],
+    "scope": "Output bodies and numeric provenance unchanged. Historical behavior/native qualification is not renewed."
+  }
+}

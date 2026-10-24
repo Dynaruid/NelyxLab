@@ -1,0 +1,60 @@
+{
+  "schema": "nelyx.design-switch-tiles-sources/v1",
+  "scope": "W12 functional Material Switch and CheckboxListTile/RadioListTile/SwitchListTile; full nondeprecated field projection and bounded Core/CPU/independent package checks; complete design/native/physical qualification remains separate",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "flutter": [
+    {
+      "source": "packages/flutter/lib/src/material/switch.dart",
+      "normalizedSha256": "49f3bdbe3e2a805344635cea627819d20cd9900a92da631efef9debcd982bb9b"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/checkbox_list_tile.dart",
+      "normalizedSha256": "51fd0a66168cdd5fe6e7379bfbf4f8369c30c00bfffab73a6f5cc7ed95c69459"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/radio_list_tile.dart",
+      "normalizedSha256": "648a66ed3840dd053f4c583e3b30c9fcbfab20b5db602974ba1312e940a69125"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/switch_list_tile.dart",
+      "normalizedSha256": "b44ebeb60e99a01aac0b626e82c67fa10a9f0b2b885dda878e198fadd066a2ae"
+    }
+  ],
+  "structuralReferences": [
+    {
+      "symbol": "Switch",
+      "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+      "file": "packages/Doroti.Material/src/switch.cs",
+      "sha256": "7e202e2c0bc2d1a851160ce5214d9cea6d8e57d107e4625ff4f76eaccb7b3e03",
+      "notice": "Doroti-LICENSE.md",
+      "noticeSha256": "078b6abd9a0117e7ca3027da0c03f17f0a4d4f9f7ed405f659ced31f53c9a423"
+    },
+    {
+      "symbol": "CheckboxListTile",
+      "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+      "file": "packages/Doroti.Material/src/checkbox_list_tile.cs",
+      "sha256": "28d8ab039241a0143820f88912b19d110db87f77c32d888c81c7d526ea7fd438",
+      "notice": "Doroti-LICENSE.md",
+      "noticeSha256": "078b6abd9a0117e7ca3027da0c03f17f0a4d4f9f7ed405f659ced31f53c9a423"
+    },
+    {
+      "symbol": "RadioListTile",
+      "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+      "file": "packages/Doroti.Material/src/radio_list_tile.cs",
+      "sha256": "41a2d2fb6b72fa0e74a3fdb313f49964baf4d0dd24a6724d36ade83c242bb7b7",
+      "notice": "Doroti-LICENSE.md",
+      "noticeSha256": "078b6abd9a0117e7ca3027da0c03f17f0a4d4f9f7ed405f659ced31f53c9a423"
+    },
+    {
+      "symbol": "SwitchListTile",
+      "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+      "file": "packages/Doroti.Material/src/switch_list_tile.cs",
+      "sha256": "5c6df6a0eb89b0abc86e7549e06f8220859411fdce46766855450986d993231b",
+      "notice": "Doroti-LICENSE.md",
+      "noticeSha256": "078b6abd9a0117e7ca3027da0c03f17f0a4d4f9f7ed405f659ced31f53c9a423"
+    }
+  ]
+}

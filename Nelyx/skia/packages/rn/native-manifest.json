@@ -1,0 +1,67 @@
+{
+  "schema": "nelyx.skia-native/v1",
+  "abi": 1,
+  "wire": 11,
+  "supportedWireVersions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "core": {
+    "CMakeLists.txt": "c01b9e4284bf8ab7d8f021c70fc02fd08b958e12ee89f104012ac53844797fa1",
+    "core.cpp": "04a0745d4b1f45fd068e2c9107d218d34fce16a22c976b73e1044eff19613523",
+    "nelyx_skia/core.h": "1f32193d8b356c91c76d0c668e5293d9ec2838e6e7551e82d13cc06c31c84a13",
+    "nelyx_skia/paragraph_queries.h": "9952ed78ee36f39dab5803ae3112a06138093af6d84d4b6902b58a48aa476dbb",
+    "paint_effects.h": "3283c5b3622816670709612b7f47b51e8fc5047136e14d9a263fa8486fdc930e",
+    "paragraph_queries.cpp": "9bd6715a8c78d86fe0428a2695f5ef7cf242533698eebedaca9e2ad23f9b6204"
+  },
+  "source": "Nelyx/skia/native",
+  "referenceSnapshot": "08231a4ef8323782ab66e53abf5790a44c80a027c795e29a0f3a4ce2df9eeed4",
+  "profile": "android-m154-graphite",
+  "headers": {
+    "package": "react-native-skia",
+    "version": "3.0.8",
+    "archiveSha256": "e1256336f25543b37aec7f1b58acc877d9df9bf02fb2906bbd5000e5234354a4",
+    "treeSha256": "bc0b7ead00910b906df1cd5e96ab20b38bc7e8c0ab89afb6ef9c8b010d4d5e01",
+    "root": "generated/sdk",
+    "artifact": "rn-graphite-154.1-sdk"
+  },
+  "binaries": {
+    "package": "react-native-skia-graphite-android",
+    "version": "154.1.0"
+  },
+  "binarySourceIdentity": "notVerified",
+  "appleSupply": "apple/native-supply.json",
+  "windowsPointer": {
+    "protocol": 1,
+    "component": "native/windows/SkiaView.h",
+    "coordinates": "logical-local",
+    "clock": "SDK monotonic receipt time",
+    "lifetime": "view and surface generation",
+    "qualification": "notVerified"
+  },
+  "nativeVulkan": {
+    "recipe": "native/vulkan/CMakeLists.txt",
+    "platformContext": "native/vulkan/RNSkVulkanPlatformContext.h",
+    "gpuSources": "generated/vulkan",
+    "gpuContract": "generated/gpu/nelyx_skia/gpu_context.h",
+    "profiles": [
+      "windows-x64-graphite-text-probe",
+      "linux-x64-graphite-text-probe"
+    ],
+    "matchingModules": "Full RN API additionally needs the explicit matching SVG/Skottie/SG/resources/JSON/WebP module supplement",
+    "sdkPrepare": "native/vulkan/sdk/eng/prepare-artifacts.py",
+    "sdkLock": "native/vulkan/sdk/vendor/artifacts.lock.json",
+    "linuxSdkLock": "native/vulkan/sdk/vendor/linux-graphite-probe.lock.json",
+    "moduleSourceBuild": "native/vulkan/sdk/eng/source-build/prepare-rn-modules.py",
+    "admission": "Requires an SDK hardware host, exact cohort and owner generation; platform qualification notVerified"
+  }
+}

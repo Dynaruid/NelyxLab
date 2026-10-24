@@ -1,0 +1,38 @@
+{
+  "schema": "nelyx.apple-runtime-source/v1",
+  "license": "MIT; original headers retained",
+  "targets": {
+    "ios": {
+      "package": "react-native",
+      "version": "0.83.10",
+      "files": {
+        "RCTHost.mm": "b50403ebf2cd736866a524c7a62b9166f3b484859eb8065fd639c2eeaa4de9ad",
+        "RCTInstance.h": "5f59d3f55f8bc8ca748407ffcf7ff66b2ffcf7467d41da6df616efef64537118",
+        "RCTInstance.mm": "91219eabc2958c307aea06f6d1f1109160e91528538e14954e7f31e1441af132"
+      },
+      "patchedFiles": {
+        "RCTHost.mm": "54b1c55b032a76ac308e8d4a24580299af0865f4204f274590034fc902e6378e",
+        "RCTInstance.mm": "1e6b140369a4cf13c276ad94250db2353bad4a651d6b1a5d05d0b7894c53d4cc",
+        "RCTInstance.h": "974b7e74fe143ae0e7a141e990a89f51246902063853edb48fe30cc725fe3c50",
+        "NelyxRuntimeTeardown.h": "c4a0a00d854534a18c62c7b74dfbf4b09ea3766353d54d1323f091fe4e8d7730"
+      }
+    },
+    "macos": {
+      "package": "react-native-macos",
+      "version": "0.83.0",
+      "files": {
+        "RCTHost.mm": "bfc271f3a01d009478a9f290a0cf4386a360aa1edcaddc5ffe63f5d95d921126",
+        "RCTInstance.h": "487acbd459b95574f064836b4c7f2a4e205a17150ada143ce8513e20a3916653",
+        "RCTInstance.mm": "712874d3f026ff87c9fae996d46a0b514e3ffdd3de72f67e9b38a309b7721c4f"
+      },
+      "patchedFiles": {
+        "RCTHost.mm": "9ea8bf5ff03e6459434169bc854a4f54b791989bb91e7f31c2525b0c5d5ee9ab",
+        "RCTInstance.mm": "a7106d895a369f516431bf3b44d2a3379f2fbd5d7b5db4545381a5ba53d84926",
+        "RCTInstance.h": "977ce15064e715e10d32aece2482defbd47ae95ec174a37d4fa4adaa246519b4",
+        "NelyxRuntimeTeardown.h": "c4a0a00d854534a18c62c7b74dfbf4b09ea3766353d54d1323f091fe4e8d7730"
+      }
+    }
+  },
+  "shutdownProtocol": 3,
+  "teardownHeaderSha256": "c4a0a00d854534a18c62c7b74dfbf4b09ea3766353d54d1323f091fe4e8d7730"
+}

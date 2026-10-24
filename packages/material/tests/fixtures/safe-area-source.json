@@ -1,0 +1,2261 @@
+{
+  "schema": "nelyx.safe-area-source/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "environments": [
+    "native",
+    "web"
+  ],
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "symbol": "SafeArea",
+      "offset": 1940,
+      "length": 3219,
+      "sha256": "8026f26a6a0489a6de611ee98942892fc02fe2ebb1a621f06cd3c4bd6731d172"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/safe_area.dart",
+      "symbol": "SliverSafeArea",
+      "offset": 6027,
+      "length": 2306,
+      "sha256": "58d0f22b10a56031564a0387cce6ea776d813036d067fa735c0d6a29e7308d25"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQueryData.removePadding",
+      "offset": 45786,
+      "length": 894,
+      "sha256": "89402d78810a72cecff31576ba5dd57519b95e82552d3cfab9c7b536911f7d97"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.removePadding",
+      "offset": 58427,
+      "length": 433,
+      "sha256": "40ca10161d3dd4a3f16b5b73cb29d1cee3a78ee832032432f6637d93362be69b"
+    }
+  ],
+  "result": {
+    "rows": [
+      {
+        "kind": "flags",
+        "mask": 0,
+        "left": false,
+        "top": false,
+        "right": false,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            20,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": true,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            20,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": true,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 1,
+        "left": true,
+        "top": false,
+        "right": false,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            20,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            20,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 2,
+        "left": false,
+        "top": true,
+        "right": false,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            0,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            0,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 3,
+        "left": true,
+        "top": true,
+        "right": false,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            0,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            0,
+            30,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            36,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 4,
+        "left": false,
+        "top": false,
+        "right": true,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            20,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            20,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 5,
+        "left": true,
+        "top": false,
+        "right": true,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            20,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            20,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 6,
+        "left": false,
+        "top": true,
+        "right": true,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            0,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            10,
+            0,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 7,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": false,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            9
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            40
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 8,
+        "left": false,
+        "top": false,
+        "right": false,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            48
+          ],
+          "childPadding": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            40
+          ],
+          "childPadding": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 9,
+        "left": true,
+        "top": false,
+        "right": false,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            20,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            20,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 10,
+        "left": false,
+        "top": true,
+        "right": false,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            48
+          ],
+          "childPadding": [
+            10,
+            0,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            40
+          ],
+          "childPadding": [
+            10,
+            0,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 11,
+        "left": true,
+        "top": true,
+        "right": false,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            0,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            0,
+            30,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            36,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 12,
+        "left": false,
+        "top": false,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            48
+          ],
+          "childPadding": [
+            10,
+            20,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            40
+          ],
+          "childPadding": [
+            10,
+            20,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            24,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 13,
+        "left": true,
+        "top": false,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            5,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            20,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            5,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            20,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            24,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 14,
+        "left": false,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            48
+          ],
+          "childPadding": [
+            10,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            40
+          ],
+          "childPadding": [
+            10,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            12,
+            4,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "flags",
+        "mask": 15,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          15,
+          5,
+          35,
+          9
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          40
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          8
+        ],
+        "box": {
+          "outer": [
+            15,
+            20,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            15,
+            20,
+            35,
+            40
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            8
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 0,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          48
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          0
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 0,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          48
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          0
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            0
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 20,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          28
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          20
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            28
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            28
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 20,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          28
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          20
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            28
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            20
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 48,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          0
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          48
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 48,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          0
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          48
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 300,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": false,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          0
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          300
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            300
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            300
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      },
+      {
+        "kind": "keyboard",
+        "keyboard": 300,
+        "left": true,
+        "top": true,
+        "right": true,
+        "bottom": true,
+        "minimum": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "maintain": true,
+        "inputPadding": [
+          10,
+          20,
+          30,
+          0
+        ],
+        "inputViewPadding": [
+          12,
+          24,
+          36,
+          48
+        ],
+        "inputViewInsets": [
+          2,
+          4,
+          6,
+          300
+        ],
+        "box": {
+          "outer": [
+            10,
+            20,
+            30,
+            48
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            300
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        },
+        "sliver": {
+          "outer": [
+            10,
+            20,
+            30,
+            0
+          ],
+          "childPadding": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "childViewPadding": [
+            2,
+            4,
+            6,
+            48
+          ],
+          "childViewInsets": [
+            2,
+            4,
+            6,
+            300
+          ],
+          "tokenSame": true,
+          "dataSame": false,
+          "leafSame": true
+        }
+      }
+    ],
+    "public": {
+      "key": "safe",
+      "childSame": true,
+      "minimumSame": true,
+      "maintain": false,
+      "sides": [
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "diagnostics": [
+      {
+        "name": "left",
+        "value": true,
+        "ifTrue": "avoid left padding"
+      },
+      {
+        "name": "top",
+        "value": true,
+        "ifTrue": "avoid top padding"
+      },
+      {
+        "name": "right",
+        "value": true,
+        "ifTrue": "avoid right padding"
+      },
+      {
+        "name": "bottom",
+        "value": true,
+        "ifTrue": "avoid bottom padding"
+      }
+    ]
+  },
+  "scope": "Complete unchanged SafeArea/SliverSafeArea declarations and MediaQueryData.removePadding method/MediaQuery.removePadding constructor on finite Widget/context/EdgeInsets/copy/diagnostic parents.24input rows and48 box/sliver recipes qualify padding/viewPadding/viewInsets/key/child/minimum/diagnostic policy. Full source inherited-model/layout/render/engine/native/physical keyboard/IME scope is separate."
+}

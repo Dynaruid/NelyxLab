@@ -1,0 +1,259 @@
+{
+  "scope": "Five unchanged original snapshot declarations and original SnapshotMode enum on finite ChangeNotifier, Widget/render lifecycle, PaintingContext/layer/ui.Image/ui.Size/Canvas receivers. Source cache/notification/fallback/default paint recipes only. Actual canonical Core/CPU image rendering and image/State/arena lifetime are separately verified; no full original renderer/rasterizer/engine/platform-view/native/physical claim.",
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "symbol": "SnapshotController",
+      "offset": 1278,
+      "length": 1238,
+      "sha256": "9d0616544909fe4f173114454ebc6dae882a8cd40a295832e9564f051900d197"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "symbol": "SnapshotWidget",
+      "offset": 2520,
+      "length": 3388,
+      "sha256": "ed24a3681a54ca7e75e81a8df78a181ff22c36dafc98bf109ce3e2a5d2e80e1f"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "symbol": "_RenderSnapshotWidget",
+      "offset": 6034,
+      "length": 5879,
+      "sha256": "fc12ad5df5b2809b143bdbef08e371db0cf0f73544667a27d952995c64b18c09"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "symbol": "SnapshotPainter",
+      "offset": 11917,
+      "length": 5136,
+      "sha256": "550a8f2a9b1a1351bc66b385e217016c477a14f21e9c93554fe02ddb052b6c9d"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "symbol": "_DefaultSnapshotPainter",
+      "offset": 17057,
+      "length": 1102,
+      "sha256": "0999016a576fd30d63f2da7f24b1067ce4e3f48b77366706b943a67137158d30"
+    }
+  ],
+  "supportingSourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/snapshot_widget.dart",
+      "symbol": "SnapshotMode",
+      "offset": 501,
+      "length": 773,
+      "sha256": "a9c034e15b3fa82fc2fdf3b49626bf9fa3acf50cd05df5313289e11832de0f46"
+    }
+  ],
+  "notifications": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "defaults": {
+    "mode": "normal",
+    "autoresize": false,
+    "hasListeners": false
+  },
+  "trace": [
+    {
+      "label": "initial",
+      "snapshot": {
+        "size": [
+          31.25,
+          17.5
+        ],
+        "image": [
+          47,
+          27
+        ],
+        "source": [
+          46.875,
+          26.25
+        ],
+        "pixelRatio": 1.5
+      },
+      "captures": 1,
+      "childPaints": 1
+    },
+    {
+      "label": "resizeKept",
+      "snapshot": {
+        "size": [
+          41.25,
+          17.5
+        ],
+        "image": [
+          47,
+          27
+        ],
+        "source": [
+          46.875,
+          26.25
+        ],
+        "pixelRatio": 1.5
+      },
+      "captures": 1,
+      "childPaints": 1
+    },
+    {
+      "label": "resizeCaptured",
+      "snapshot": {
+        "size": [
+          41.25,
+          17.5
+        ],
+        "image": [
+          62,
+          27
+        ],
+        "source": [
+          61.875,
+          26.25
+        ],
+        "pixelRatio": 1.5
+      },
+      "captures": 2,
+      "childPaints": 2
+    },
+    {
+      "label": "painterKept",
+      "snapshot": {
+        "size": [
+          41.25,
+          17.5
+        ],
+        "image": [
+          62,
+          27
+        ],
+        "source": [
+          61.875,
+          26.25
+        ],
+        "pixelRatio": 1.5
+      },
+      "captures": 2,
+      "childPaints": 2
+    },
+    {
+      "label": "sameControllerKept",
+      "snapshot": {
+        "size": [
+          41.25,
+          17.5
+        ],
+        "image": [
+          62,
+          27
+        ],
+        "source": [
+          61.875,
+          26.25
+        ],
+        "pixelRatio": 1.5
+      },
+      "captures": 2,
+      "childPaints": 2
+    },
+    {
+      "label": "densityCaptured",
+      "snapshot": {
+        "size": [
+          41.25,
+          17.5
+        ],
+        "image": [
+          83,
+          35
+        ],
+        "source": [
+          82.5,
+          35
+        ],
+        "pixelRatio": 2
+      },
+      "captures": 3,
+      "childPaints": 3
+    },
+    {
+      "label": "disabled",
+      "snapshot": {
+        "size": [
+          41.25,
+          17.5
+        ],
+        "image": [
+          83,
+          35
+        ],
+        "source": [
+          82.5,
+          35
+        ],
+        "pixelRatio": 2
+      },
+      "captures": 3,
+      "childPaints": 4
+    }
+  ],
+  "listenersAfterDispose": {
+    "old": false,
+    "next": false,
+    "off": false,
+    "p": false,
+    "p2": false
+  },
+  "fallback": [
+    {
+      "mode": "permissive",
+      "throws": false,
+      "childPaints": 3,
+      "captures": 0,
+      "disabled": true,
+      "snapshots": 0,
+      "live": 2
+    },
+    {
+      "mode": "normal",
+      "throws": true,
+      "childPaints": 1,
+      "captures": 0,
+      "disabled": false,
+      "snapshots": 0,
+      "live": 0
+    },
+    {
+      "mode": "forced",
+      "throws": false,
+      "childPaints": 1,
+      "captures": 1,
+      "disabled": false,
+      "snapshots": 2,
+      "live": 0
+    }
+  ],
+  "defaultPaint": [
+    {
+      "src": [
+        0,
+        0,
+        46.875,
+        26.25
+      ],
+      "dst": [
+        3,
+        4,
+        31.25,
+        17.5
+      ],
+      "quality": "medium",
+      "image": [
+        47,
+        27
+      ]
+    }
+  ]
+}

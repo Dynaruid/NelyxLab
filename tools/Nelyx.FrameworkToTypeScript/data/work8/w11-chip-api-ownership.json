@@ -1,0 +1,299 @@
+{
+  "status": "PASS-scoped",
+  "candidate": {
+    "file": ".tmp/work8/w11-chips-candidate/result.json",
+    "sha256": "47da28b9125ca362479d80412ef565b00c99ccefa8868c86d8129e93a3abf243"
+  },
+  "ir": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-chips-candidate\\ir.json",
+    "sha256": "d5e5739aae1e6763239b8a0215c00484475562e6f37fb6d16203e72cf90abaa6"
+  },
+  "outputs": [
+    {
+      "file": "packages/material/src/raw-chip.ts",
+      "sha256": "465a5a9f44236357fad4de20d251b86654ce6dfaa19c2831a98ebb70ac1deb90",
+      "symbol": "RawChip",
+      "numericFields": [
+        {
+          "name": "pressElevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "elevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "packages/material/src/generated/chip/chip-wrapper.generated.ts",
+      "sha256": "88e9d171ab87a47f78f9e2c56f55047d77c9a0e8eb41847d8305e6e69a25f449",
+      "symbol": "Chip",
+      "numericFields": [
+        {
+          "name": "elevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "packages/material/src/action-chip.ts",
+      "sha256": "b7547a9546d9f31ab0e94dd2f8c2f2c2e9cf268b2bdbef5abdc099c9486c29d0",
+      "symbol": "ActionChip",
+      "numericFields": [
+        {
+          "name": "pressElevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "elevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "packages/material/src/choice-chip.ts",
+      "sha256": "6d6efd1ca789638e32682b0fad56a94d0dd9826f7421e4c91eee714ef2c81941",
+      "symbol": "ChoiceChip",
+      "numericFields": [
+        {
+          "name": "pressElevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "elevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "packages/material/src/filter-chip.ts",
+      "sha256": "06ffb9db4f43816d66d7c2b0e8a83bf09b4c521f926c303cc76ccb91926dcb77",
+      "symbol": "FilterChip",
+      "numericFields": [
+        {
+          "name": "pressElevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "elevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "packages/material/src/input-chip.ts",
+      "sha256": "5849af21d068a154f7ead518e24c2504ac85d50624be460decb6d61b47626f01",
+      "symbol": "InputChip",
+      "numericFields": [
+        {
+          "name": "pressElevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        },
+        {
+          "name": "elevation",
+          "numeric": {
+            "type": "double?",
+            "inferred": false,
+            "bounds": [],
+            "resolvedType": {
+              "kind": "interface",
+              "nullable": true,
+              "reference": {
+                "id": "dart:core::double:CLASS",
+                "name": "double",
+                "owner": null,
+                "local": false,
+                "static": false
+              },
+              "arguments": []
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scope": "Finite exact resolved public field/constructor/default projection and wrapper delegation onto explicit full functional State/render/default owners. Numeric source annotations retained; no arbitrary type fallback, full body emission, source native hierarchy or compiler/batch promotion claim.",
+  "w12ModuleRelocation": {
+    "recordedAt": "2026-10-18T12:00:19.938Z",
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json",
+      "sha256": "788a746d6d1278a713892feaab60b4ee7583e28b6b99a7cbcc0330dcbf874356"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  },
+  "w12DefinitionSeparation": {
+    "previous": {
+      "file": ".tmp/work12/structure3-baseline-1792325834574/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json",
+      "sha256": "531c733595cddc134e2914c91fbb1d4d551f0453187ec95561e6c6fca9405a76"
+    },
+    "generator": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-chip-api.mjs",
+      "sha256": "6fce6198ecefd01ac9c9fab86a1d4efec8a038708ef6914766bba9081abaf50b"
+    },
+    "scope": "RawChip one defining owner and direct generated wrapper dependency; complete API/body projection unchanged"
+  }
+}

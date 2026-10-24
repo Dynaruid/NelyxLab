@@ -1,0 +1,19 @@
+{
+  "schema": "nelyx.metro-notices/v1",
+  "upstreamVersion": "0.83.8",
+  "records": [
+    {
+      "origin": "https://raw.githubusercontent.com/facebook/metro/v0.83.8/LICENSE",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "file": "metro-LICENSE.txt"
+    },
+    {
+      "origin": "https://raw.githubusercontent.com/facebook/metro/v0.83.8/packages/metro-runtime/src/modules/vendor/eventemitter3.js",
+      "sha256": "2cb10d1b19fd9ae6604a5489c7842256bcd1794aa8dea0b15ae89e794cc0e74b",
+      "file": "eventemitter3-source.js"
+    }
+  ],
+  "vendorNotice": "eventemitter3-NOTICE.txt",
+  "vendorNoticeSha256": "4b3b9d80100e3008700392082fac1802f43c07b808701078fa697feb70356095",
+  "note": "Original vendored header restored from pinned Metro source; MIT terms retained separately in metro-MIT.txt. Not a complete transitive license inventory."
+}

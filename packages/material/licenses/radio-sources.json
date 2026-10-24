@@ -1,0 +1,32 @@
+{
+  "schema": "nelyx.design-radio-sources/v2",
+  "scope": "W12 standard/adaptive Material and Cupertino radio functional implementation; native/physical delivery qualified separately",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "flutter": [
+    {
+      "source": "packages/flutter/lib/src/material/radio.dart",
+      "normalizedSha256": "020f9b3a02871483e3ad8c7fa32f9758bf0fa64b40d2bad846b42a969b5dd07c"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/raw_radio.dart",
+      "normalizedSha256": "68d205e4b0ca93318a489a826d8e5a3f64657ac649620a7317c4ac97422208d6"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/toggleable.dart",
+      "normalizedSha256": "a1224e312abac809ceb07870c5f287cf2cfe8f89f30432d101f22852635c0446"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/radio.dart",
+      "normalizedSha256": "c6b645560e8a94248dfcde97cae6b7377b91b957bf8fec92140bd634b0765273"
+    }
+  ],
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "structuralReference": {
+    "revision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+    "file": "packages/Doroti.Material/src/radio.cs",
+    "sha256": "923897f316d7097f4e7f84acde2bef8fa00f821d6b61b349a3e261adb7ee7660",
+    "notice": "Doroti-LICENSE.md"
+  }
+}

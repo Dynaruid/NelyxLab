@@ -1,0 +1,206 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+// SDK output can live outside the app root in this workspace. Metro sees it via
+// watchFolders, but the default Gradle JS source input tree does not. Track the
+// resolved public package so incremental builds cannot retain old SDK bytecode.
+def nelyxProviderPath = ["node", "--print", "require.resolve('@nelyx/sdk/providers/android.json')"].execute(null, new File(rootDir, "runner"))
+def nelyxProviderOutput = nelyxProviderPath.text.trim()
+if (nelyxProviderPath.waitFor() != 0 || !nelyxProviderOutput) { throw new GradleException("Nelyx SDK provider resolution failed") }
+def nelyxPackageDirectory = new File(nelyxProviderOutput).parentFile.parentFile
+android.sourceSets.main.java.srcDir(new File(nelyxPackageDirectory,"native/android"))
+def nelyxSkiaPath = ["node", "--print", "require.resolve('@nelyx/skia-rn/native-manifest.json')"].execute(null, new File(rootDir, "runner"))
+def nelyxSkiaOutput = nelyxSkiaPath.text.trim()
+if (nelyxSkiaPath.waitFor() != 0 || !nelyxSkiaOutput) { throw new GradleException("Nelyx Skia package resolution failed") }
+def nelyxSkiaDirectory = new File(nelyxSkiaOutput).parentFile
+def nelyxCorePath = ["node", "--print", "require.resolve('@nelyx/core/version')"].execute(null, new File(rootDir, "runner"))
+def nelyxCoreOutput = nelyxCorePath.text.trim()
+if (nelyxCorePath.waitFor() != 0 || !nelyxCoreOutput) { throw new GradleException("Nelyx core resolution failed") }
+def nelyxCoreDirectory = new File(nelyxCoreOutput).parentFile.parentFile
+
+def nelyxNotices = tasks.register("copyNelyxAssetNotices", Exec) {
+    workingDir new File(rootDir, "runner")
+    commandLine "node", "notices.mjs"
+    inputs.file(new File(rootDir, "runner/app-config.json"))
+    inputs.file(new File(rootDir, "runner/notices.mjs"))
+    inputs.file(new File(rootDir, "runner/node_modules/@nelyx/metro/src/assets.cjs"))
+    inputs.files(fileTree(rootDir.parentFile) { include "assets/**" })
+    ["@nelyx/core", "@nelyx/sdk", "@nelyx/skia-rn", "react-native"].each { runtimePackage ->
+        inputs.files(fileTree(new File(rootDir, "runner/node_modules/${runtimePackage}")) {
+            include "LICENSE", "LICENSE.md", "THIRD_PARTY_NOTICES.md", "licenses/**"
+        }).withPropertyName("runtimeNotices_" + runtimePackage.replaceAll("[^A-Za-z0-9]", "_"))
+            .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    }
+    outputs.dir(layout.buildDirectory.dir("generated/nelyx-notices"))
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir("generated/nelyx-notices"))
+def nelyxSkiaFonts = tasks.register("copyNelyxSkiaFonts", Exec) {
+    workingDir new File(rootDir, "runner")
+    commandLine "node", "fonts.mjs"
+    inputs.file(new File(rootDir, "runner/app-config.json"))
+    inputs.file(new File(rootDir, "runner/fonts.mjs"))
+    inputs.file(new File(rootDir, "runner/node_modules/@nelyx/metro/src/assets.cjs"))
+    inputs.files(fileTree(rootDir.parentFile) { include "assets/**" })
+    outputs.dir(layout.buildDirectory.dir("generated/nelyx-fonts"))
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir("generated/nelyx-fonts"))
+tasks.named("preBuild").configure { dependsOn(nelyxNotices,nelyxSkiaFonts) }
+tasks.matching { it.name.startsWith("createBundle") && it.name.endsWith("JsAndAssets") }.configureEach {
+    inputs.files(fileTree(nelyxPackageDirectory) { include "dist/**", "providers/android.json", "providers/schema.json", "package.json" })
+        .withPropertyName("nelyxSdkPackage").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.files(fileTree(nelyxSkiaDirectory) { include "dist/**", "native-manifest.json", "package.json" })
+        .withPropertyName("nelyxSkiaPackage").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.files(fileTree(nelyxCoreDirectory) { include "dist/**", "package.json" })
+        .withPropertyName("nelyxCorePackage").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    // React Native's default JS input tree excludes android/**, including our runner.
+    inputs.files(fileTree(new File(rootDir, "runner")) {
+        include "**/*.ts", "**/*.tsx"
+        exclude "node_modules/**", ".bundle/**", ".metro-cache/**", ".nelyx/**", "tsconfig.generated.json"
+    })
+        .withPropertyName("nelyxAndroidRunner").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.files(fileTree(rootDir.parentFile) { include "src/**", "assets/**", "package.json" })
+        .withPropertyName("nelyxSharedApplication").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.files(fileTree(new File(rootDir, "runner")) { include "*.mjs", "*.cjs", "package.json", "package-lock.json" })
+        .withPropertyName("nelyxAndroidTooling").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    root = file("../runner")
+    entryFile = file("../runner/main.ts")
+    bundleConfig = file("../runner/metro.config.cjs")
+    reactNativeDir = file("../runner/node_modules/react-native")
+    codegenDir = file("../runner/node_modules/@react-native/codegen")
+    cliFile = file("../runner/node_modules/react-native/cli.js")
+    /* Folders */
+    //   The root of your project, i.e. where "package.json" lives. Default is '../..'
+    // root = file("../../")
+    //   The folder where the react-native NPM package is. Default is ../../../../node_modules/react-native
+    // reactNativeDir = file("../../../../node_modules/react-native")
+    //   The folder where the react-native Codegen package is. Default is ../../../../node_modules/@react-native/codegen
+    // codegenDir = file("../../../../node_modules/@react-native/codegen")
+    //   The cli.js file which is the React Native CLI entrypoint. Default is ../../../../node_modules/react-native/cli.js
+    // cliFile = file("../../../../node_modules/react-native/cli.js")
+
+    /* Variants */
+    //   The list of variants to that are debuggable. For those we're going to
+    //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
+    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
+    // debuggableVariants = ["liteDebug", "prodDebug"]
+
+    /* Bundling */
+    //   A list containing the node command and its flags. Default is just 'node'.
+    // nodeExecutableAndArgs = ["node"]
+    //
+    //   The command to run when bundling. By default is 'bundle'
+    // bundleCommand = "ram-bundle"
+    //
+    //   The path to the CLI configuration file. Default is empty.
+    // bundleConfig = file(../rn-cli.config.js)
+    //
+    //   The name of the generated asset file containing your JS bundle
+    // bundleAssetName = "MyApplication.android.bundle"
+    //
+    //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
+    // entryFile = file("../js/MyApplication.android.js")
+    //
+    //   A list of extra flags to pass to the 'bundle' commands.
+    //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
+    // extraPackagerArgs = []
+
+    /* Hermes Commands */
+    //   The hermes compiler command to run. By default it is 'hermesc'
+    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+    //
+    //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
+    hermesFlags = ["-Og", "-output-source-map"]
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+/**
+ * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ */
+def enableProguardInReleaseBuilds = false
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ *
+ * For example, to use the international variant, you can use:
+ * `def jscFlavor = io.github.react-native-community:jsc-android-intl:2026004.+`
+ *
+ * The international variant includes ICU i18n library and necessary data
+ * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
+ * give correct results when using with locales other than en-US. Note that
+ * this variant is about 6MiB larger per architecture than default.
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "com.nelyxtestbed"
+    defaultConfig {
+        applicationId "com.nelyxtestbed"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+            signingConfig signingConfigs.debug
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}
+
+// Selected Android Hermes5a1485 producer policy. Actual flags are acknowledged at task execution.
+// The observed Windows-host/x86_64 -O Cubic hang is not a general Hermes/performance result.
+tasks.register("nelyxVerifyHermesPolicy") {
+    doLast {
+        def extension = project.extensions.getByName("react")
+        def selectedFlags = extension.hermesFlags.get()
+        def selectedCommand = extension.hermesCommand.get()
+        def enabled = project.findProperty("hermesEnabled")?.toString()?.toBoolean() ?: false
+        if (!enabled || selectedFlags != ["-Og", "-output-source-map"] || selectedCommand != "") {
+            throw new GradleException("Nelyx Android requires the qualified default Hermes supplier and -Og policy")
+        }
+        def report = new File(project.buildDir, "outputs/nelyx/hermes-policy.json")
+        report.parentFile.mkdirs()
+        report.text = groovy.json.JsonOutput.toJson([schema:"nelyx.android-hermes-policy/v1", hermesEnabled:enabled, flags:selectedFlags, hermesCommand:selectedCommand])
+    }
+}
+tasks.named("preBuild").configure { dependsOn(tasks.named("nelyxVerifyHermesPolicy")) }

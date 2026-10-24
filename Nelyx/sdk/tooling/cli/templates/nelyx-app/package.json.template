@@ -1,0 +1,133 @@
+{
+  "name": "__APP_PACKAGE__",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix android/runner run start",
+    "build:android": "npm --prefix android/runner run build",
+    "run:android": "npm --prefix android/runner run run",
+    "check:android": "npm --prefix android/runner run check",
+    "bundle:android": "npm --prefix android/runner run bundle",
+    "run:windows": "npm --prefix windows/runner run run",
+    "build:windows": "npm --prefix windows/runner run build",
+    "check:windows": "npm --prefix windows/runner run check",
+    "build:android:emulator": "npm --prefix android/runner run build -- --architecture x86_64",
+    "check:web": "npm --prefix web/runner run check",
+    "build:web": "node web/runner/build.mjs",
+    "dev:web": "npm --prefix web/runner run dev",
+    "dev:linux": "npm --prefix linux/runner run dev",
+    "dev:windows": "npm --prefix windows/runner run dev",
+    "build:metro": "npm --prefix windows/runner run bundle",
+    "dev:metro": "npm --prefix windows/runner run start",
+    "run:metro": "npm --prefix windows/runner run run",
+    "check:ios": "npm --prefix ios/runner run check",
+    "bundle:ios": "npm --prefix ios/runner run bundle",
+    "build:ios": "npm --prefix ios/runner run build",
+    "run:ios": "npm --prefix ios/runner run run",
+    "check:macos": "npm --prefix macos/runner run check",
+    "bundle:macos": "npm --prefix macos/runner run bundle",
+    "build:macos": "npm --prefix macos/runner run build",
+    "run:macos": "npm --prefix macos/runner run run",
+    "check:linux": "npm --prefix linux/runner run check",
+    "bundle:linux": "npm --prefix linux/runner run bundle",
+    "build:linux": "npm --prefix linux/runner run build",
+    "run:linux": "npm --prefix linux/runner run run"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "type": "module",
+  "nelyx": {
+    "schema": "nelyx.app/v2",
+    "name": "NelyxTestbed",
+    "appEntry": "./src/index.ts",
+    "assets": [
+      {
+        "id": "sample-font",
+        "kind": "font",
+        "path": "./assets/NotoSansKR.ttf",
+        "notice": {
+          "path": "./assets/NotoSansKR-OFL.txt"
+        },
+        "fontFamily": "NelyxSample"
+      },
+      {
+        "id": "sample-emoji",
+        "kind": "font",
+        "path": "./assets/NotoColorEmoji.ttf",
+        "notice": {
+          "path": "./assets/NotoColorEmoji.ttf.LICENSE.txt"
+        },
+        "fontFamily": "NelyxEmoji"
+      },
+      {
+        "id": "sample-arabic",
+        "kind": "font",
+        "path": "./assets/NotoNaskhArabic-Regular.ttf",
+        "notice": {
+          "path": "./assets/NotoNaskhArabic-Regular.ttf.LICENSE.txt"
+        },
+        "fontFamily": "NelyxArabic"
+      },
+      {
+        "id": "sample-variable",
+        "kind": "font",
+        "path": "./assets/RobotoSlab-VariableFont_wght.ttf",
+        "notice": {
+          "path": "./assets/RobotoSlab-VariableFont_wght.ttf.LICENSE.txt"
+        },
+        "fontFamily": "NelyxSlab"
+      },
+      {
+        "id": "sample-hebrew",
+        "kind": "font",
+        "path": "./assets/NotoSansHebrew.ttf",
+        "notice": {
+          "path": "./assets/NotoSansHebrew-OFL.txt"
+        },
+        "fontFamily": "NelyxHebrew"
+      },
+      {
+        "id": "sample-image",
+        "kind": "image",
+        "path": "./assets/probe.png"
+      },
+      {
+        "id": "sample-animation",
+        "kind": "image",
+        "path": "./assets/pulse.gif"
+      }
+    ],
+    "targets": {
+      "windows": {
+        "profile": "rn-graphite-vulkan",
+        "cohort": "rn-0.83.10",
+        "component": "./windows/runner/App.tsx"
+      },
+      "android": {
+        "profile": "graphite-vulkan",
+        "cohort": "rn-0.83.10",
+        "component": "./android/runner/App.tsx"
+      },
+      "ios": {
+        "profile": "graphite-metal",
+        "cohort": "rn-0.83.10",
+        "component": "./ios/runner/App.tsx"
+      },
+      "macos": {
+        "profile": "rn-graphite-metal",
+        "cohort": "rn-0.83.10",
+        "component": "./macos/runner/App.tsx"
+      },
+      "linux": {
+        "profile": "rn-graphite-vulkan-x11",
+        "cohort": "rn-0.81.6",
+        "component": "./linux/runner/App.tsx"
+      },
+      "web": {
+        "profile": "ganesh-webgl2",
+        "component": "./web/runner/App.tsx"
+      }
+    },
+    "displayName": "Nelyx Testbed"
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-wheel-builder",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/list_wheel_scroll_view.dart",
+      "sha256": "6e6a545ed8eb253a4980888bbddd67da3989f9c9c218c70816f8ac28eb42484e",
+      "symbols": [
+        "ListWheelChildDelegate",
+        "ListWheelChildBuilderDelegate",
+        "ListWheelChildListDelegate",
+        "ListWheelChildLoopingListDelegate"
+      ],
+      "destination": "Nelyx/src/framework/widgets/list-wheel-delegate.generated.ts",
+      "classNames": {
+        "ListWheelChildDelegate": "SourceListWheelChildDelegate",
+        "ListWheelChildBuilderDelegate": "SourceListWheelChildBuilderDelegate",
+        "ListWheelChildListDelegate": "SourceListWheelChildListDelegate",
+        "ListWheelChildLoopingListDelegate": "SourceListWheelChildLoopingListDelegate"
+      },
+      "imports": {
+        "createWheelIndexedSemantics": "./list-wheel-delegate-adapter.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "dartListGet": "../../foundation/dart-list.ts",
+        "dartListIsEmpty": "../../foundation/dart-list.ts",
+        "dartIntegerModulo": "../../foundation/dart-list.ts"
+      },
+      "typeImports": {
+        "Widget": "./framework.ts",
+        "BuildContext": "./framework.ts",
+        "DartList": "../../foundation/dart-list.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "dart:core::List:CLASS": "DartList"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "adapters": {
+        "package:flutter/src/widgets/basic.dart::IndexedSemantics.IndexedSemantics.new:CONSTRUCTOR": {
+          "target": "createWheelIndexedSemantics",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "dart:core::List.[]:METHOD": {
+          "target": "dartListGet",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.isEmpty:GETTER": {
+          "target": "dartListIsEmpty",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::num.%:METHOD": {
+          "target": "dartIntegerModulo",
+          "kind": "call",
+          "receiver": "first"
+        }
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-delegate.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-delegate-source.ts",
+  "requireSourceComparison": true,
+  "contract": {
+    "id": "nelyx.generated.w10-wheel-builder/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "SourceListWheelChildDelegate (internal)",
+      "SourceListWheelChildBuilderDelegate (internal)",
+      "SourceListWheelChildListDelegate (internal)",
+      "SourceListWheelChildLoopingListDelegate (internal)"
+    ],
+    "requirements": [
+      "Complete pinned abstract delegate and builder bodies",
+      "Known and unknown child count, callback identity and semantic index",
+      "Actual wheel consumes generated builder; source comparison gates promotion",
+      "Complete pinned list and looping delegates, list reference equality and Euclidean negative index modulo"
+    ],
+    "numericPolicy": "Safe-number item indices/counts",
+    "differences": [
+      "Public wheel retains finite positive itemCount and non-null itemBuilder",
+      "Source IndexedSemantics uses the existing optional-child host contract",
+      "Dart List maps to a dense readonly TS array reference; arbitrary Dart custom List implementations are outside this binding"
+    ],
+    "performance": "Lazy builder only; actual Root/browser and native supply are separate checks"
+  }
+}

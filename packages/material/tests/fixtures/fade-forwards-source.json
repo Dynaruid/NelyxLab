@@ -1,0 +1,10209 @@
+{
+  "scope": "Five unchanged source declarations (two FadeForwards, three canonical Dual) and six unchanged curve class/field spans on finite animation/widget/route-opacity/theme-surface receivers. Full ModalRoute/native/predictive/default-theme behavior remains separate.",
+  "spans": [
+    {
+      "source": "packages/flutter/lib/src/material/page_transitions_theme.dart",
+      "symbol": "_FadeForwardsPageTransition",
+      "offset": 12045,
+      "length": 2111,
+      "sha256": "a42fdc63965ec2bfcc2c0d286be745c7e6169b74c3ae82ba174b7917c4011bac"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/page_transitions_theme.dart",
+      "symbol": "FadeForwardsPageTransitionsBuilder",
+      "offset": 14160,
+      "length": 5539,
+      "sha256": "6f833a7d068df9047cc97fa185e32c3154c3bb7412991e0ddc0b32e77975ef36"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "symbol": "AnimatedTransitionBuilder",
+      "offset": 219,
+      "length": 753,
+      "sha256": "628c9c7951c1b6a228bea0fec2e9fd05777578064a0cb8a60076bf767c61c06e"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "symbol": "DualTransitionBuilder",
+      "offset": 976,
+      "length": 3199,
+      "sha256": "f846ae0283f77a45faaa16d0a4c07c87d7a9e179bea3de86eaadc3296cc5de1c"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "symbol": "_DualTransitionBuilderState",
+      "offset": 4179,
+      "length": 3215,
+      "sha256": "c3fa7d248bf9db7f9e23538bfe5a976f84cfa75f40cf6a0f0cec16f7d00f2228"
+    }
+  ],
+  "supportingSourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "_Linear",
+      "offset": 4399,
+      "length": 113,
+      "sha256": "84193d3d763f5f449d618df4182c31a83fc0344b808601a9073b0bee08b861d0"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Cubic",
+      "offset": 15023,
+      "length": 2062,
+      "sha256": "2377fa78bcffa8d5eb2c581cb7c51b9792bd1b7e15f1ca62cc2f1f7f45e06889"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "ThreePointCubic",
+      "offset": 17958,
+      "length": 2709,
+      "sha256": "9c73d7b6fe2f07c67b27c6cbf0c2c9a06f1b8a37ca24a6547a594203dc861488"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Interval",
+      "offset": 5777,
+      "length": 1091,
+      "sha256": "d431d66fca75069d7598b2ee4a340bf0c1630573e1846767907336ddd13933c4"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.easeInOutCubicEmphasized",
+      "offset": 75178,
+      "length": 208,
+      "sha256": "4156920d47af90ceeb72dc6204584158b98778c082caa7e4b7183be11486b3d6"
+    },
+    {
+      "source": "packages/flutter/lib/src/animation/curves.dart",
+      "symbol": "Curves.linear",
+      "offset": 60301,
+      "length": 40,
+      "sha256": "43e02199d48c18c38b1798df812db6d837f09d2b965e53922f34021c5595a86f"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/transitions.dart",
+      "symbol": "DelegatedTransitionBuilder",
+      "offset": 6018,
+      "length": 201,
+      "sha256": "c3a3a92bcfde80700de7e69c1e5c11fdc24dc7b89cd1e30cb4d25a3aa78f9be1"
+    }
+  ],
+  "rows": [
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.13333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.22657071147114038,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "forward",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.24970801958988886,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.25,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.5,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 0.75,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 0,
+      "secondaryStatus": "dismissed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "forward",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4279383126
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": false,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 1,
+      "secondaryStatus": "completed",
+      "opaque": true,
+      "background": null,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": false,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "status": "reverse",
+      "primary": 1,
+      "secondary": 0.5,
+      "secondaryStatus": "reverse",
+      "opaque": true,
+      "background": 4284826401,
+      "surface": 4279383126,
+      "tree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "delegated": [
+        {
+          "kind": "colored",
+          "color": 4284826401
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    }
+  ],
+  "gpuRows": [
+    {
+      "phase": "push",
+      "primary": 0,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "push",
+      "primary": 0.25,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "push",
+      "primary": 0.5,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "push",
+      "primary": 0.75,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "push",
+      "primary": 1,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "pop",
+      "primary": 0,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "pop",
+      "primary": 0.25,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.0021386718749999978,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.247861328125,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "pop",
+      "primary": 0.5,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.6666666666666666
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.01229066848754884,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.23770933151245116,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "pop",
+      "primary": 0.75,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 0.3333333333333333
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.05712681859731672,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0.19287318140268328,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    },
+    {
+      "phase": "pop",
+      "primary": 1,
+      "aTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": false
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 4278190335
+        },
+        {
+          "kind": "fade",
+          "opacity": 0
+        },
+        {
+          "kind": "slide",
+          "position": [
+            -0.25,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ],
+      "bTree": [
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "ignore",
+          "ignoring": true
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "colored",
+          "color": 0
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fade",
+          "opacity": 1
+        },
+        {
+          "kind": "slide",
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "leaf"
+        }
+      ]
+    }
+  ],
+  "defaults": {
+    "duration": 450,
+    "reverseDuration": 450,
+    "milliseconds": 450,
+    "background": null
+  }
+}

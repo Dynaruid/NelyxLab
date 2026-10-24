@@ -1,0 +1,195 @@
+{
+  "name": "@nelyx/cupertino",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "license": "BSD-3-Clause",
+  "files": [
+    "src",
+    "dist",
+    "README.md",
+    "LICENSE.md",
+    "licenses",
+    "assets"
+  ],
+  "exports": {
+    "./widgets": {
+      "types": "./dist/widgets.d.ts",
+      "default": "./dist/widgets.js"
+    },
+    "./text-selection": {
+      "types": "./dist/text-selection.d.ts",
+      "default": "./dist/text-selection.js"
+    },
+    "./theme": {
+      "types": "./dist/theme.d.ts",
+      "default": "./dist/theme.js"
+    },
+    "./magnifier": {
+      "types": "./dist/magnifier.d.ts",
+      "default": "./dist/magnifier.js"
+    },
+    "./cupertino-localizations": {
+      "types": "./dist/cupertino-localizations.d.ts",
+      "default": "./dist/cupertino-localizations.js"
+    },
+    "./text-selection-toolbar": {
+      "types": "./dist/text-selection-toolbar.d.ts",
+      "default": "./dist/text-selection-toolbar.js"
+    },
+    "./text-selection-toolbar-button": {
+      "types": "./dist/text-selection-toolbar-button.d.ts",
+      "default": "./dist/text-selection-toolbar-button.js"
+    },
+    "./desktop-text-selection-toolbar": {
+      "types": "./dist/desktop-text-selection-toolbar.d.ts",
+      "default": "./dist/desktop-text-selection-toolbar.js"
+    },
+    "./desktop-text-selection": {
+      "types": "./dist/text-selection.d.ts",
+      "default": "./dist/text-selection.js"
+    },
+    "./desktop-text-selection-toolbar-button": {
+      "types": "./dist/desktop-text-selection-toolbar.d.ts",
+      "default": "./dist/desktop-text-selection-toolbar.js"
+    },
+    "./localizations": {
+      "types": "./dist/cupertino-localizations.d.ts",
+      "default": "./dist/cupertino-localizations.js"
+    },
+    "./adaptive-text-selection-toolbar": {
+      "types": "./dist/adaptive-text-selection-toolbar.d.ts",
+      "default": "./dist/adaptive-text-selection-toolbar.js"
+    },
+    "./internal/scrollbar-style-source-adapter": {
+      "types": "./dist/internal/scrollbar/scrollbar-style-source-adapter.d.ts",
+      "default": "./dist/internal/scrollbar/scrollbar-style-source-adapter.js"
+    },
+    "./internal/scrollbar.generated": {
+      "types": "./dist/generated/scrollbar/scrollbar.generated.d.ts",
+      "default": "./dist/generated/scrollbar/scrollbar.generated.js"
+    },
+    "./scrollbar": {
+      "types": "./dist/scrollbar.d.ts",
+      "default": "./dist/scrollbar.js"
+    },
+    "./colors": {
+      "types": "./dist/colors.d.ts",
+      "default": "./dist/colors.js"
+    },
+    "./interface-level": {
+      "types": "./dist/interface-level.d.ts",
+      "default": "./dist/interface-level.js"
+    },
+    "./scroll-behavior": {
+      "types": "./dist/scroll-behavior.d.ts",
+      "default": "./dist/scroll-behavior.js"
+    },
+    "./text-theme": {
+      "types": "./dist/text-theme.d.ts",
+      "default": "./dist/text-theme.js"
+    },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
+    "./button": {
+      "types": "./dist/button.d.ts",
+      "default": "./dist/button.js"
+    },
+    "./activity-indicator": {
+      "types": "./dist/activity-indicator.d.ts",
+      "default": "./dist/activity-indicator.js"
+    },
+    "./slider": {
+      "types": "./dist/slider.d.ts",
+      "default": "./dist/slider.js"
+    },
+    "./thumb-painter": {
+      "types": "./dist/thumb-painter.d.ts",
+      "default": "./dist/thumb-painter.js"
+    },
+    "./icon-theme-data": {
+      "types": "./dist/icon-theme-data.d.ts",
+      "default": "./dist/icon-theme-data.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "default": "./dist/icons.js"
+    },
+    "./icon-assets": {
+      "types": "./dist/icon-assets.d.ts",
+      "default": "./dist/icon-assets.js"
+    },
+    "./assets/CupertinoIcons.ttf": "./assets/CupertinoIcons.ttf",
+    "./licenses/CupertinoIcons-LICENSE.txt": "./licenses/CupertinoIcons-LICENSE.txt",
+    "./list-tile": {
+      "types": "./dist/list-tile.d.ts",
+      "default": "./dist/list-tile.js"
+    },
+    "./list-section": {
+      "types": "./dist/list-section.d.ts",
+      "default": "./dist/list-section.js"
+    },
+    "./checkbox": {
+      "types": "./dist/checkbox.d.ts",
+      "default": "./dist/checkbox.js"
+    },
+    "./nav-bar": {
+      "types": "./dist/nav-bar.d.ts",
+      "default": "./dist/nav-bar.js"
+    },
+    "./page-scaffold": {
+      "types": "./dist/page-scaffold.d.ts",
+      "default": "./dist/page-scaffold.js"
+    },
+    "./text-field": {
+      "types": "./dist/text-field.d.ts",
+      "default": "./dist/text-field.js"
+    },
+    "./text-form-field-row": {
+      "types": "./dist/text-form-field-row.d.ts",
+      "default": "./dist/text-form-field-row.js"
+    },
+    "./form-row": {
+      "types": "./dist/form-row.d.ts",
+      "default": "./dist/form-row.js"
+    },
+    "./form-section": {
+      "types": "./dist/form-section.d.ts",
+      "default": "./dist/form-section.js"
+    },
+    "./dialog": {
+      "types": "./dist/dialog.d.ts",
+      "default": "./dist/dialog.js"
+    },
+    "./radio": {
+      "types": "./dist/radio.d.ts",
+      "default": "./dist/radio.js"
+    },
+    "./switch": {
+      "types": "./dist/switch.d.ts",
+      "default": "./dist/switch.js"
+    },
+    "./route": {
+      "types": "./dist/route.d.ts",
+      "default": "./dist/route.js"
+    },
+    "./internal/route/edge-shadow": {
+      "types": "./dist/internal/route/edge-shadow.d.ts",
+      "default": "./dist/internal/route/edge-shadow.js"
+    },
+    "./internal/route/back-gesture": {
+      "types": "./dist/internal/route/back-gesture.d.ts",
+      "default": "./dist/internal/route/back-gesture.js"
+    }
+  },
+  "peerDependencies": {
+    "@nelyx/core": "0.16.0"
+  },
+  "scripts": {
+    "build": "node ../../Nelyx/eng/build-packages.mjs cupertino",
+    "check": "tsc -p tsconfig.build.json --noEmit"
+  }
+}

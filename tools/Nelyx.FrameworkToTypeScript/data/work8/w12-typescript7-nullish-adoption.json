@@ -1,0 +1,55 @@
+{
+  "schema": "nelyx.typescript7-nullish-adoption/v1",
+  "recordedAt": "2026-10-18T11:37:50.806Z",
+  "reason": "TypeScript 7.0.2 diagnoses redundant intermediate null fallbacks (TS2871). Preserve evaluation order and the final null; shared emitter now uses the same AST normalization.",
+  "previousStateSha256": "294ab97699f3dc339d9bc1758fa423dd25f60b710900334fcb87d2fd66cb861c",
+  "changes": [
+    {
+      "destination": "Nelyx/src/framework/widgets/list-wheel-physics.generated.ts",
+      "previous": {
+        "destination": "Nelyx/src/framework/widgets/list-wheel-physics.generated.ts",
+        "mode": "generated",
+        "baseHash": "5216eab0f7aa58d8790b88cdd355755b66abd8be2d8ffa8f170ee9ceadcef72b",
+        "productHash": "5216eab0f7aa58d8790b88cdd355755b66abd8be2d8ffa8f170ee9ceadcef72b",
+        "fingerprint": "4200ba4a4753a27498aed1c413205a2e8e8f172fa07be4438cc0804745f13d4b",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-physics.json"
+      },
+      "adopted": {
+        "destination": "Nelyx/src/framework/widgets/list-wheel-physics.generated.ts",
+        "mode": "adopted",
+        "baseHash": "5216eab0f7aa58d8790b88cdd355755b66abd8be2d8ffa8f170ee9ceadcef72b",
+        "productHash": "0042bbc85ccac3aac19bd69ec8180373c79a361233c8e8ca6141ee050876e581",
+        "fingerprint": "4200ba4a4753a27498aed1c413205a2e8e8f172fa07be4438cc0804745f13d4b",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-physics.json"
+      },
+      "normalizedExpressions": 1
+    },
+    {
+      "destination": "packages/material/src/scrollbar.generated.ts",
+      "previous": {
+        "destination": "packages/material/src/scrollbar.generated.ts",
+        "mode": "generated",
+        "baseHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
+        "productHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
+        "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
+      },
+      "adopted": {
+        "destination": "packages/material/src/scrollbar.generated.ts",
+        "mode": "adopted",
+        "baseHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
+        "productHash": "dff29e5ce8018c476439fa492fd1791156d4eb1f9ec482b789a102480762fd1e",
+        "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
+        "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
+      },
+      "normalizedExpressions": 8
+    }
+  ],
+  "sharedEmitter": "tools/Nelyx.FrameworkToTypeScript/src/nullish-coalescing.ts",
+  "ownership": "Explicit generated-to-adopted transition. Historical bases/fingerprints/origins are unchanged; future emission uses the shared normalization and normal merge/edit guards. No retired validator or historical promotion replay.",
+  "validation": {
+    "evaluationVectors": 22,
+    "numericAnnotationsUnchanged": true,
+    "scope": "Nullish evaluation values/order/errors and current compiler compatibility; full widget/native/physical parity is not requalified"
+  }
+}

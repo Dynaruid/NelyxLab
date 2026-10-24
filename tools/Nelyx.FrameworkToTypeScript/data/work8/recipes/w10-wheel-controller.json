@@ -1,0 +1,143 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-wheel-controller",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/list_wheel_scroll_view.dart",
+      "sha256": "6e6a545ed8eb253a4980888bbddd67da3989f9c9c218c70816f8ac28eb42484e",
+      "symbols": [
+        "FixedExtentScrollController"
+      ],
+      "destination": "Nelyx/src/framework/widgets/list-wheel-controller.generated.ts",
+      "classNames": {
+        "FixedExtentScrollController": "SourceFixedExtentScrollController",
+        "_FixedExtentScrollPosition": "WheelPosition"
+      },
+      "durationUnit": "milliseconds",
+      "imports": {
+        "WheelControllerHost": "./list-wheel-controller-adapter.ts",
+        "castWheelPositions": "./list-wheel-controller-adapter.ts",
+        "waitForWheelMotions": "./list-wheel-controller-adapter.ts",
+        "createWheelPosition": "./list-wheel-controller-adapter.ts",
+        "castWheelPosition": "./list-wheel-physics-adapter.ts",
+        "isWheelPosition": "./list-wheel-physics-adapter.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts"
+      },
+      "typeImports": {
+        "HostFuture": "./list-wheel-controller-adapter.ts",
+        "WheelPosition": "./list-wheel-physics-adapter.ts",
+        "ScrollPosition": "./scroll-position.ts",
+        "ScrollPhysics": "./scroll-physics.ts",
+        "ScrollContext": "./scroll-context.ts",
+        "Curve": "../animation/curves.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController:CLASS": "WheelControllerHost",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS": "WheelPosition",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition:CLASS": "ScrollPosition",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "package:flutter/src/widgets/scroll_context.dart::ScrollContext:CLASS": "ScrollContext",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve"
+      },
+      "runtimeTypes": {
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS": {
+          "is": "isWheelPosition",
+          "cast": "castWheelPosition"
+        }
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.ScrollController.new:CONSTRUCTOR": {
+          "target": "WheelControllerHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "memberBindings": {
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.positions:GETTER": "sourcePositions",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.hasClients:GETTER": "hasClients",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.keepScrollOffset:GETTER": "keepScrollOffset",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.debugLabel:GETTER": "debugLabel"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "asyncRuntime": {
+        "policy": "host-promise",
+        "futureType": "HostFuture"
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "adapters": {
+        "dart:async::Future.wait:METHOD": {
+          "target": "waitForWheelMotions",
+          "kind": "call",
+          "typeArguments": [
+            "void"
+          ]
+        },
+        "dart:core::Iterable.cast:METHOD": {
+          "target": "castWheelPositions",
+          "kind": "call",
+          "receiver": "first",
+          "typeArguments": [
+            "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS"
+          ]
+        },
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext.animateTo:METHOD": {
+          "target": "animateTo",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext.jumpTo:METHOD": {
+          "target": "jumpTo",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition._FixedExtentScrollPosition.new:CONSTRUCTOR": {
+          "target": "createWheelPosition",
+          "kind": "call",
+          "receiver": "owner",
+          "namedArguments": "options"
+        }
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-controller.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-controller-source.ts",
+  "requireSourceComparison": true,
+  "contract": {
+    "id": "nelyx.generated.w10-wheel-controller/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "SourceFixedExtentScrollController (internal)",
+      "FixedExtentScrollController (public facade)"
+    ],
+    "requirements": [
+      "Complete pinned controller body including async animateToItem and collection iteration",
+      "Source comparison must pass before promotion",
+      "Actual single-owner wheel and lifecycle API retained"
+    ],
+    "numericPolicy": "Safe-number indices, millisecond durations, host Promise motion operations",
+    "differences": [
+      "Public facade retains required itemExtent, single-owner, bounds/alive checks and existing defaults",
+      "Existing position construction/layout/ownership is bound explicitly; no full renderer or Dart Zone equivalence"
+    ],
+    "performance": "Bounded source comparison and Core Root wheel; native supply and FPS separate"
+  }
+}

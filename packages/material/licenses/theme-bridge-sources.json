@@ -1,0 +1,39 @@
+{
+  "schema": "nelyx.material-theme-bridge-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/theme_data.dart",
+      "sha256": "bc0458fef7d00d32f187bf263e1314018ad06b0ebe39aeb61d607fdc012ff884",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/theme.dart",
+      "sha256": "6f96391531ad175f3b461ab291a430170b6aa57712d9120581b1211d17d2b05a",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "file": "packages/flutter/lib/src/cupertino/theme.dart",
+      "sha256": "1e4e46805fd8923d31af7be8f1137a96b73c7e0d928a53d1b2f0a9fa21a00e72",
+      "license": "BSD-3-Clause"
+    }
+  ],
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/theme_data.cs",
+      "sha256": "fddabfe0d0c13ed505618092684eb4ad59c672f80afe3c5dcd89aa090450a603"
+    },
+    {
+      "file": "packages/Doroti.Material/src/theme.cs",
+      "sha256": "991750eab7cc4775d766836e80106a1910871526e42dd7f6687ea3cc93405d80"
+    },
+    {
+      "file": "packages/Doroti.Cupertino/src/theme.cs",
+      "sha256": "5f68d3c40743362e6aff68f557f5e3596cacec54a20da93d7ff7afb98e260be4"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "ownContacts": "Protected Cupertino raw-specification and default-resolution adapters support the ARGB host ABI without baking derived values into explicit overrides. No new Dart public API or numeric provenance is claimed.",
+  "scope": "M3 common color defaults/from/copy and Material-Cupertino bridge/brightness; full ThemeData family/value/lerp and floating ColorScheme requirements remain PARTIAL."
+}

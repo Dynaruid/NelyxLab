@@ -1,0 +1,315 @@
+{
+  "name": "@nelyx/sdk",
+  "version": "0.20.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "dependencies": {
+    "@nelyx/core": "0.16.0"
+  },
+  "peerDependencies": {
+    "react": "19.1.4 || 19.2.0",
+    "react-native": "0.81.6 || 0.83.1 || 0.83.10",
+    "@nelyx/skia-rn": "0.6.0",
+    "@nelyx/skia-web": "0.6.0",
+    "react-dom": "19.2.0",
+    "react-native-web": "0.21.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "@nelyx/skia-rn": {
+      "optional": true
+    },
+    "@nelyx/skia-web": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "react-native-web": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE.md",
+    "providers",
+    "licenses",
+    "native",
+    "NelyxPlatformServices.podspec"
+  ],
+  "exports": {
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "default": "./dist/version.js"
+    },
+    "./backends/shared-assets": {
+      "types": "./dist/backends/shared-assets.d.ts",
+      "default": "./dist/backends/shared-assets.js"
+    },
+    "./platforms/windows/application": {
+      "types": "./dist/platforms/windows/application.d.ts",
+      "react-native": "./src/platforms/windows/application.ts",
+      "default": "./dist/platforms/windows/application.js"
+    },
+    "./platforms/windows/surface": {
+      "types": "./dist/platforms/windows/surface.d.ts",
+      "react-native": "./src/platforms/windows/surface.tsx",
+      "default": "./dist/platforms/windows/surface.js"
+    },
+    "./platforms/windows/assets": {
+      "types": "./dist/platforms/windows/assets.d.ts",
+      "react-native": "./src/platforms/windows/assets.ts",
+      "default": "./dist/platforms/windows/assets.js"
+    },
+    "./platforms/windows/interaction": {
+      "types": "./dist/platforms/windows/interaction.d.ts",
+      "react-native": "./src/platforms/windows/interaction.ts",
+      "default": "./dist/platforms/windows/interaction.js"
+    },
+    "./platforms/windows/controls": {
+      "types": "./dist/platforms/windows/controls.d.ts",
+      "react-native": "./src/platforms/windows/controls.tsx",
+      "default": "./dist/platforms/windows/controls.js"
+    },
+    "./platforms/windows/native-host": {
+      "types": "./dist/platforms/windows/native-host.d.ts",
+      "react-native": "./src/platforms/windows/native-host.ts",
+      "default": "./dist/platforms/windows/native-host.js"
+    },
+    "./platforms/windows/native-surface": {
+      "types": "./dist/platforms/windows/native-surface.d.ts",
+      "react-native": "./src/platforms/windows/native-surface.ts",
+      "default": "./dist/platforms/windows/native-surface.js"
+    },
+    "./platforms/android/application": {
+      "types": "./dist/platforms/android/application.d.ts",
+      "default": "./dist/platforms/android/application.js"
+    },
+    "./platforms/android/surface": {
+      "types": "./dist/platforms/android/surface.d.ts",
+      "default": "./dist/platforms/android/surface.js"
+    },
+    "./platforms/android/controls": {
+      "types": "./dist/platforms/android/controls.d.ts",
+      "default": "./dist/platforms/android/controls.js"
+    },
+    "./platforms/android/interaction": {
+      "types": "./dist/platforms/android/interaction.d.ts",
+      "default": "./dist/platforms/android/interaction.js"
+    },
+    "./platforms/android/assets": {
+      "types": "./dist/platforms/android/assets.d.ts",
+      "default": "./dist/platforms/android/assets.js"
+    },
+    "./runtime/bootstrap": {
+      "types": "./dist/runtime/bootstrap.d.ts",
+      "default": "./dist/runtime/bootstrap.js"
+    },
+    "./runtime/providers": {
+      "types": "./dist/runtime/providers.d.ts",
+      "default": "./dist/runtime/providers.js"
+    },
+    "./runtime/provider-migration": {
+      "types": "./dist/runtime/provider-migration.d.ts",
+      "default": "./dist/runtime/provider-migration.js"
+    },
+    "./runtime/config": {
+      "types": "./dist/runtime/config.d.ts",
+      "default": "./dist/runtime/config.js"
+    },
+    "./platforms/web/application": {
+      "types": "./dist/platforms/web/application.d.ts",
+      "default": "./dist/platforms/web/application.js"
+    },
+    "./platforms/ios/application": {
+      "types": "./dist/platforms/ios/application.d.ts",
+      "default": "./dist/platforms/ios/application.js"
+    },
+    "./platforms/macos/application": {
+      "types": "./dist/platforms/macos/application.d.ts",
+      "default": "./dist/platforms/macos/application.js"
+    },
+    "./platforms/linux/application": {
+      "types": "./dist/platforms/linux/application.d.ts",
+      "default": "./dist/platforms/linux/application.js"
+    },
+    "./providers/web.json": "./providers/web.json",
+    "./providers/ios.json": "./providers/ios.json",
+    "./providers/android.json": "./providers/android.json",
+    "./providers/windows.json": "./providers/windows.json",
+    "./providers/macos.json": "./providers/macos.json",
+    "./providers/linux.json": "./providers/linux.json",
+    "./providers/schema.json": "./providers/schema.json",
+    "./runtime/assets": {
+      "types": "./dist/runtime/assets.d.ts",
+      "default": "./dist/runtime/assets.js"
+    },
+    "./runtime/artifacts": {
+      "types": "./dist/runtime/artifacts.d.ts",
+      "default": "./dist/runtime/artifacts.js"
+    },
+    "./runtime/reload": {
+      "types": "./dist/runtime/reload.d.ts",
+      "default": "./dist/runtime/reload.js"
+    },
+    "./platforms/web/surface": {
+      "types": "./dist/platforms/web/surface.d.ts",
+      "default": "./dist/platforms/web/surface.js"
+    },
+    "./backends/react-native/assets": {
+      "types": "./dist/backends/react-native/assets.d.ts",
+      "react-native": "./src/backends/react-native/assets.ts",
+      "default": "./dist/backends/react-native/assets.js"
+    },
+    "./backends/react-native/environment": {
+      "types": "./dist/backends/react-native/environment.d.ts",
+      "react-native": "./src/backends/react-native/environment.ts",
+      "default": "./dist/backends/react-native/environment.js"
+    },
+    "./runtime/cohorts": {
+      "types": "./dist/runtime/cohorts.d.ts",
+      "default": "./dist/runtime/cohorts.js"
+    },
+    "./backends/react-native/registration": {
+      "types": "./dist/backends/react-native/registration.d.ts",
+      "react-native": "./src/backends/react-native/registration.ts",
+      "default": "./dist/backends/react-native/registration.js"
+    },
+    "./backends/react-native/lifecycle": {
+      "types": "./dist/backends/react-native/lifecycle.d.ts",
+      "react-native": "./src/backends/react-native/lifecycle.ts",
+      "default": "./dist/backends/react-native/lifecycle.js"
+    },
+    "./backends/react-native/interaction": {
+      "types": "./dist/backends/react-native/interaction.d.ts",
+      "react-native": "./src/backends/react-native/interaction.ts",
+      "default": "./dist/backends/react-native/interaction.js"
+    },
+    "./backends/react-native/surface": {
+      "types": "./dist/backends/react-native/surface.d.ts",
+      "react-native": "./src/backends/react-native/surface.tsx",
+      "default": "./dist/backends/react-native/surface.js"
+    },
+    "./backends/react-native/apple-host": {
+      "types": "./dist/backends/react-native/apple-host.d.ts",
+      "react-native": "./src/backends/react-native/apple-host.ts",
+      "default": "./dist/backends/react-native/apple-host.js"
+    },
+    "./backends/react-native/apple-surface": {
+      "types": "./dist/backends/react-native/apple-surface.d.ts",
+      "react-native": "./src/backends/react-native/apple-surface.ts",
+      "default": "./dist/backends/react-native/apple-surface.js"
+    },
+    "./backends/react-native/controls": {
+      "types": "./dist/backends/react-native/controls.d.ts",
+      "react-native": "./src/backends/react-native/controls.tsx",
+      "default": "./dist/backends/react-native/controls.js"
+    },
+    "./platforms/ios/assets": {
+      "types": "./dist/platforms/ios/assets.d.ts",
+      "default": "./dist/platforms/ios/assets.js"
+    },
+    "./platforms/ios/interaction": {
+      "types": "./dist/platforms/ios/interaction.d.ts",
+      "default": "./dist/platforms/ios/interaction.js"
+    },
+    "./platforms/ios/surface": {
+      "types": "./dist/platforms/ios/surface.d.ts",
+      "default": "./dist/platforms/ios/surface.js"
+    },
+    "./platforms/ios/controls": {
+      "types": "./dist/platforms/ios/controls.d.ts",
+      "default": "./dist/platforms/ios/controls.js"
+    },
+    "./platforms/macos/assets": {
+      "types": "./dist/platforms/macos/assets.d.ts",
+      "default": "./dist/platforms/macos/assets.js"
+    },
+    "./platforms/macos/interaction": {
+      "types": "./dist/platforms/macos/interaction.d.ts",
+      "default": "./dist/platforms/macos/interaction.js"
+    },
+    "./platforms/macos/surface": {
+      "types": "./dist/platforms/macos/surface.d.ts",
+      "default": "./dist/platforms/macos/surface.js"
+    },
+    "./platforms/macos/controls": {
+      "types": "./dist/platforms/macos/controls.d.ts",
+      "default": "./dist/platforms/macos/controls.js"
+    },
+    "./platforms/linux/assets": {
+      "default": "./dist/platforms/linux/assets.js",
+      "types": "./dist/platforms/linux/assets.d.ts"
+    },
+    "./platforms/linux/controls": {
+      "default": "./dist/platforms/linux/controls.js",
+      "types": "./dist/platforms/linux/controls.d.ts"
+    },
+    "./platforms/linux/surface": {
+      "default": "./dist/platforms/linux/surface.js",
+      "types": "./dist/platforms/linux/surface.d.ts"
+    },
+    "./platforms/linux/native-surface": {
+      "types": "./dist/platforms/linux/native-surface.d.ts",
+      "default": "./dist/platforms/linux/native-surface.js"
+    },
+    "./platforms/linux/native-host": {
+      "types": "./dist/platforms/linux/native-host.d.ts",
+      "default": "./dist/platforms/linux/native-host.js"
+    },
+    "./platforms/linux/interaction": {
+      "default": "./dist/platforms/linux/interaction.js",
+      "types": "./dist/platforms/linux/interaction.d.ts"
+    },
+    "./backends/react-native/engine": {
+      "types": "./dist/backends/react-native/engine.d.ts",
+      "default": "./dist/backends/react-native/engine.js"
+    },
+    "./providers/hermes-supply.json": "./providers/hermes-supply.json",
+    "./package.json": "./package.json",
+    "./native/windows/host": "./native/windows/WindowsAppHost.h",
+    "./native/linux/host": "./native/linux/ApplicationHost.h",
+    "./backends/browser/platform": {
+      "types": "./dist/backends/browser/platform.d.ts",
+      "default": "./dist/backends/browser/platform.js"
+    },
+    "./runtime/platform-messages": {
+      "types": "./dist/runtime/platform-messages.d.ts",
+      "default": "./dist/runtime/platform-messages.js"
+    },
+    "./runtime/plugin-port": {
+      "types": "./dist/runtime/plugin-port.d.ts",
+      "default": "./dist/runtime/plugin-port.js"
+    },
+    "./runtime/os-services": {
+      "types": "./dist/runtime/os-services.d.ts",
+      "default": "./dist/runtime/os-services.js"
+    },
+    "./backends/browser/platform-messages": {
+      "types": "./dist/backends/browser/platform-messages.d.ts",
+      "default": "./dist/backends/browser/platform-messages.js"
+    },
+    "./backends/react-native/platform-messages": {
+      "types": "./dist/backends/react-native/platform-messages.d.ts",
+      "react-native": "./src/backends/react-native/platform-messages.ts",
+      "default": "./dist/backends/react-native/platform-messages.js"
+    },
+    "./runtime/worker-messages": {
+      "types": "./dist/runtime/worker-messages.d.ts",
+      "default": "./dist/runtime/worker-messages.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../eng/build-packages.mjs sdk",
+    "check": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "license": "BSD-3-Clause"
+}

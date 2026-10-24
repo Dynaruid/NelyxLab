@@ -1,0 +1,12 @@
+pluginManagement { includeBuild("runner/node_modules/@react-native/gradle-plugin") }
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    def runner = file("runner")
+    ex.autolinkLibrariesFromCommand(
+        ["node", new File(runner, "node_modules/@react-native-community/cli/build/bin.js").absolutePath, "config"],
+        runner,
+        files("runner/package.json", "runner/package-lock.json", "runner/react-native.config.cjs"))
+}
+rootProject.name = 'NelyxTestbed'
+include ':app'
+includeBuild('runner/node_modules/@react-native/gradle-plugin')

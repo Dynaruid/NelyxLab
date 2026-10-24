@@ -1,0 +1,182 @@
+{
+  "schema": "nelyx.design-source-notices/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "additionalNotices": [
+    {
+      "file": "FlutterEngine-LICENSE.md",
+      "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+    },
+    {
+      "file": "Skia-LICENSE.md",
+      "sha256": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd"
+    }
+  ],
+  "skiaPathArcs": {
+    "revision": "3136abef8f582a75e9a2791261be3fe5f2f770d1",
+    "notice": "Skia-LICENSE.md",
+    "sources": [
+      {
+        "name": "SkPathBuilder.cpp",
+        "sha256": "8741c35d9ff036f44a4420b8dd6649bb0623338d7f631f43d4a88d1dfe2579d5"
+      },
+      {
+        "name": "SkGeometry.cpp",
+        "sha256": "1385aead3db61b80a6ed235b9bbeab1460dac38d7f7bacc3a42a1a19a3d62485"
+      },
+      {
+        "name": "SkScalar.h",
+        "sha256": "dd0f81cdf750725537baa134ec2343098f60a9515ad9a4b048f5d3b1c9dc4a18"
+      },
+      {
+        "name": "SkFloatingPoint.h",
+        "sha256": "5ec4fc13cf8a4830392fc33d9e85d642f055a1de4cc30195ca6bd60da8dc9c2f"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "source": "packages/flutter/lib/src/painting/colors.dart",
+      "sha256": "ae5f87a751e69c55da940f36f6c3f47ededa0dc1fab1f1f7162f7508309e2446"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/app.dart",
+      "sha256": "b4b21473f017a853ba008670426d647a0cd649c4af6eb2847be9fddb674644f6"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/navigator.dart",
+      "sha256": "56be8abbfbcb0e18039ab7d73fda7074107a5d322356a5e772d31843d9ae5615"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/localizations.dart",
+      "sha256": "de23771b3176f7d15871032ffdfc85bb8084166a417fe7502c28e342a98eba6f"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/platform_dispatcher.dart",
+      "sha256": "3e97d68e02f7501e55428e898331a9f215592e28b7b5191c68fab63c0b57f371"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/toggleable.dart",
+      "sha256": "3945043e72304250e27b58f9ab4edda5099eaced91254210478ac8dff4b079e9"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/radio_group.dart",
+      "sha256": "f32042a1b552e10713be5fc23a6fe8fd115266981eba5eeeafea65013a9d4a09"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/raw_radio.dart",
+      "sha256": "1950dd8d4cbea5cdfe6b2c0f8aaf99d84263cf89ff6437db25e807980650017a"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/basic.dart",
+      "sha256": "3d19d6e7c09beeb79294ba20f308e70ca490752845904015e1f8ee2749409bc1"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/switch.dart",
+      "sha256": "46010a2a58540e5e8b0a7cc3e1ed3c2601d4770e7674ce98178e70acd9a173a9"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/switch.dart",
+      "sha256": "cf8a8ee418eab659bd635faef74463c9a26256eadd796b026d284f9dc9be3de2"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/painting.dart",
+      "sha256": "de89ce72b6d72c69163b45963d1994b464655d7502c4c573af609587c83ec1eb"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/painting/rrect.cc",
+      "sha256": "723490f80835e05f0cd2b0afada3648a0388bebd62c10c1d099ae95c7f1de25d"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/slider.dart",
+      "sha256": "f400fb5fe32f4104b24c67bf782f37c02317b293dabb3215ebf21367de103811"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/slider.dart",
+      "sha256": "0481b2b0e1a0ab2d32a3256a53367ec8d69a6ade1eb0f4c7a8e4366c5bffd2b1"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/geometry.dart",
+      "sha256": "79f3a31372633f5ecb4110f31ee09f97bd3cf86272e51381d98d779ba58a0048"
+    },
+    {
+      "source": "engine/src/flutter/lib/ui/painting/path.cc",
+      "sha256": "a287606e674847be711d095e12a568abf9231c5b5d85ec2ce11ac78b7e073fe4"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overlay.dart",
+      "sha256": "b5505712609d69d99aa39862b5719f571188293cccd1aee2db507b237d0a16fd"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/lookup_boundary.dart",
+      "sha256": "77a7eaca58262ea1f2ff8791688b07654d7943788219120b6cc08737077dd840"
+    },
+    {
+      "source": "packages/flutter/lib/src/rendering/object.dart",
+      "sha256": "e37141c5e02ee2acb93fde949fb64193d7bdb1cbb4494357eafec1e8f1d717c2"
+    },
+    {
+      "source": "packages/flutter/lib/src/rendering/proxy_box.dart",
+      "sha256": "1e5562aa45f6fa85c5495b798a295ae3f2d48cceb6705e1077613f24e4ceb84d"
+    },
+    {
+      "source": "packages/flutter/lib/src/painting/circle_border.dart",
+      "sha256": "ad27f8fa2bdc42980b1321bfd0e06adcfc18f2e26b74fcda76d33c656b0b166b"
+    },
+    {
+      "source": "packages/flutter/lib/src/painting/stadium_border.dart",
+      "sha256": "62811d5e5b1dab841e53e36ab37c85a9b7198d824e7cdd607343846c88f87405"
+    },
+    {
+      "source": "packages/flutter/lib/src/painting/borders.dart",
+      "sha256": "11d8a55f299395aa56dd8e3d76246d4bd36c85b4fece42d312786c79a98d9b67"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/icon_theme_data.dart",
+      "sha256": "6cea642ff348785cf7de3b77ed78efe23cd2670e81e45818b1d1fcfba9d24fc7"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/icon_theme.dart",
+      "sha256": "b348f556203a80706050a282d7cc645da5b47c54d7ae7dad4f2130909a38cccb"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/icon_data.dart",
+      "sha256": "e6a5c5ece704715e513e79cbd86910f24cbee8e9a52bb25623e2a24d45cb00c2"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/widget_state.dart",
+      "sha256": "cc37563889b0c57a7c8993e9159cb3e7c3020624e5ef864b0ac76614d3813d57"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/icon.dart",
+      "sha256": "df852eb839aa7802f959fe36390a762844317da6140fb998665e750c3f6287fb"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/focus_scope.dart",
+      "sha256": "27bd362aa2db813b397aa0cb73ef05f97a8c63830bd117b8a4f475ad4d52e872"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "5d543f3e093bfcfa5dc889f8f67d87fa7a4e92dee44dc8630cdc613b9cee8183"
+    },
+    {
+      "source": "packages/flutter/lib/src/painting/text_scaler.dart",
+      "sha256": "3331095ad24c8830b7c9e3e5c027f5f450f30172b747fcf4684c1985f6f21706"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/raw_tooltip.dart",
+      "sha256": "4ff6257b2e2fd160420dc4029e04bf93133defb29b85c420d6b16294644932d6"
+    },
+    {
+      "source": "packages/flutter/lib/src/painting/geometry.dart",
+      "sha256": "4ebb15c3d0e28925dcb7cbe2b2633ec5620d5ac12f7d753345c853bd6261a3c2"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/animated_switcher.dart",
+      "sha256": "0de7d843f07c0e014dc5381c30a16f09712fea1d0e586b49c2ad208b23bcd3f9"
+    }
+  ],
+  "ownership": "Core ColorShapeDecoration is the shared finite color/shape-only ShapeDecoration receiver used by Material chip/ListTile and Cupertino section on canonical border/path/canvas/painter owners. Full image/gradient/shadow/decoration APIs are not claimed by that adapter. Core WidgetStateColor and WidgetStateMouseCursor factories use canonical Core Color/cursor plus the generated generic property/mapper owner, source const default-state Set identity/immutability, canonical transparent Color, callback policies and live source maps; ordinary mapper color/cursor fields reject access. The multiple-interface bridge retains generated mapper storage/type witnesses and symmetric generic-map equality. Hash checks admit canonical values at each selected source map lookup, preserving mutation boundaries. Canonical MouseCursor virtual identity/system-value hash semantics are registered for generic source maps. Original factory/policy bodies are independently compared on finite receivers; native cursor channels are not newly qualified. Core AnimatedSwitcher uses current ticker/controller/curves/keyed subtree/fade/Stack owners, retaining multiple outgoing children and source callback layout contracts. Source-only semantics transport ids stay separate from legacy host annotations and do not synthesize enabled flags. Core border-side source Color adapters retain floating Color and reviewed nominal subclass receivers while preserving the ARGB8 paint ABI; exact final-Color capture remains strict. Core CustomPaint captures getter-backed Size width/height explicitly. Complete HSL/HSV and three hue helpers have resolved numeric8 fields, source debug assertions, const/root/value owners and native source comparisons. Explicit typed const Lists reuse the existing SourceList/type/value owner with boxed numeric admission, type-sensitive canonical identity and immutable mutation guards; general compiler const-list emission stays open. Core RawTooltip reuses actual View gesture/focus/ticker/semantics and bounded OverlayEntry owners with live target paint/hit/semantics geometry; exclusive mouse hit testing, timing cancellation and per-View Escape handlers retain source decisions. Source tooltip metadata is carried to SDK DOM aria-description. The complete emitted positionDependentBox body retains resolved numeric provenance and uses finite owning Core imports, including retained min/max carriers. Material Tooltip/theme/visibility use current Core owners and preserve source copy/lerp omissions. Core IconThemeData/IconTheme/IconData, Icon, state BorderSide factories/maps/lerp, StadiumBorder and both private transitions use existing Core value/diagnostic/theme/shape owners. BorderSide retains the owning floating Color between lerp/copy/scale/merge while exposing the existing ARGB8 paint ABI. Full original native data and Stadium/private geometry bodies are compared on explicit finite receivers; Icon composes actual RichText/semantics/direction/variation/foreground and source scaling; complete catalog fields use resolved integer provenance and canonical Core IconData, with original native body/constant comparisons. MediaQuery explicit nonlinear TextScaler notifies by source value equality and actual text uses that scaler. Source Focus/FocusScope build semantics omit debug labels, preserve scope explicit children and the iOS onFocus rule. Both original icon font/notice files are delivered as declared package-source assets through current SDK/Metro/CLI and real browser/Skia providers. JS/font tree shaking and full native/reader/physical supply remain open. Core LookupBoundary preserves actual Element/inherited/state/render visibility, explicit constructor tokens replace erased generic queries. CircleBorder and ShapeBorderClipper use existing ShapeBorder/Path/clip owners. The source paintsChild hook and zero-alpha RenderOpacity visibility qualify actual ink transform paths. Core ColorSwatch is an explicit functional TS port on the existing Color/Map ABI. Live source map, get key adapter, source key witnesses and lerp are preserved. Generic TS erasure needs an explicit type token/witness; host Map keeps JS key/iteration semantics. Stable local primary hash does not expose Dart VM map identity hash. Locale aliases are finite AST data from engine Locale; App locale and initial-route algorithms are functional ports on locale-tag/immutable Route ABI. AppFocus/routing and finite control input/state/position/radio-group compositions reuse Nelyx owners. Standard Material Checkbox supplies all19 constructor fields and M3 theme/state/size/shape/side/error decisions; full original checkbox and radial painter bodies are compared on finite receivers. Core ToggleableControl source motion provides exact selected-null, previous-value, easeIn/easeOut position and100/50ms reaction/focus/hover contracts over current control input/ticker owners. Complete changed Core input/toggle modules execute under RN Babel on canonical framework owners. CupertinoCheckbox supplies all14 nondeprecated fields,12 source defaults,14/44/custom tap sizes, full source gradient/check/dash/focus/press paint and direct value replacement without a position animation. Deprecated unused inactiveColor is removed. Checkbox.adaptive selects Cupertino on iOS/macOS with exact12 forwarded/seven ignored fields while preserving its outer State. Source toggle pointer input preserves existing focus; keyed reparent preserves in-flight motion and held interactions. Full Radio/Switch/list wrappers remain open. Generic RadioGroup uses an explicit type token. Source semantics properties can carry a stable Nelyx transportId; tap events use an explicit per-View messenger. Slider input policies share Core gesture/focus/ticker/state ownership and source bounded/unbounded height rules. Manually assembled source nodes retain explicit numeric ranges through transport without parsing labels. Original slider flags and formatted values survive transport; separate explicit numeric ranges reach browser ARIA without parsing display text. Source Size/Offset generic and const values require exact Core class capture. Retained num operations preserve resolved input carriers and reject raw-number provenance and unsafe integers. Overlay entry dirty/removal rebuilds defer across persistent frame phases and survive route retirement. Mark geometry is an Nelyx functional painter; full original shape/ink/haptic/motion APIs remain open. Canvas.drawArc and Path.addArc/arcTo use rational conics with pinned Skia float conversion/current-contour decisions on the existing path ABI with an explicit operation budget; inverted source RRect bounds normalize at paint capture as the pinned engine does. Full source hierarchy, default page motion, engine VM hashes and native delivery are not inferred."
+}

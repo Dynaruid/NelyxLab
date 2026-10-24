@@ -1,0 +1,62 @@
+{
+  "schema": "nelyx.w11-cupertino-checkbox-api-ownership/v1",
+  "status": "PASS-scoped",
+  "source": {
+    "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/checkbox.dart",
+    "sha256": "8e92e79e1fecb0a0c1e19872540b496b306a0506df939d31d71b887f9a3c966e"
+  },
+  "normalizedSourceSha256": "af191e086c6e2b4e95f72b5784809aad247628d08cace4fbed138fa69936456a",
+  "controls": {
+    "file": ".tmp/work8/w11-controls-candidate/ir.json",
+    "sha256": "30b73238035e5d37f07076d49a97e5b10d16a4df21a4ae4473fdfc7168c9b12d"
+  },
+  "extra": {
+    "file": ".tmp/work8/w11-cupertino-checkbox-candidate/ir.json",
+    "sha256": "c9e62a5c1933c0bcbef319340df0cb670b1ad099d10d0a34c1e1934f53353675"
+  },
+  "generator": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-checkbox-api.mjs",
+    "sha256": "139eabb8ae7c052c68db8cc8c29f111cc360503388096f3cd5d7578459d42c0e"
+  },
+  "outputs": [
+    {
+      "file": "packages/cupertino/src/checkbox.ts",
+      "sha256": "e91a2b0ac41da1c9fa8c04ee8f2aa0c19515e2f6afa56a257c570038394d14b5"
+    },
+    {
+      "file": "packages/cupertino/src/generated/checkbox/checkbox-defaults.generated.ts",
+      "sha256": "21ec2c61955ad1219ac12c70e807934780c37a135a1f4db0c3e93b08d6628a72"
+    }
+  ],
+  "previous": {
+    "file": ".tmp/work8/receipt-history/ebef91a500b16ffccbc6544e3f7ef4f01596276fbf07dcec07bf859375bfb034-w11-cupertino-checkbox-api-w11-cupertino-checkbox-api-ownership.json",
+    "sha256": "ebef91a500b16ffccbc6544e3f7ef4f01596276fbf07dcec07bf859375bfb034"
+  },
+  "fields": 14,
+  "numericFields": 1,
+  "constants": 12,
+  "removed": [
+    "inactiveColor"
+  ],
+  "scope": "All14 nondeprecated CupertinoCheckbox fields/required/default constructor, resolved width double and complete12 selected checkbox/focus/tap defaults via existing canonical Color/dynamic-color factories. Deprecated unused inactiveColor is removed per legacy-removal policy, including JS rejection. Nelyx numeric Color ingress is explicitly normalized to Core Color; functional paint/input and adaptive behavior have separate evidence.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "97d72b31cd9836515afe8df77fc404dd693a0e54621047cf73d3196956467960",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-checkbox-api.mjs"
+    ],
+    "scope": "Canonical relative paths and exact generator storage-path changes only; no behavior/native requalification."
+  },
+  "w12ModuleRelocation": {
+    "recordedAt": "2026-10-18T12:00:19.905Z",
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-checkbox-api-ownership.json",
+      "sha256": "8771683604c06585d402145f9647da73cbb1a293a8ebb541511fac11a7f5d3be"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  }
+}

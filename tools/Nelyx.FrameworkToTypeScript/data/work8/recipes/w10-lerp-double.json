@@ -1,0 +1,65 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-lerp-double",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "modules": [
+    {
+      "source": "engine/src/flutter/lib/ui/lerp.dart",
+      "sha256": "1e6a9e6177c6f2dc770a8725d2f784e6c5af771e9284577d3161b12cba61c626",
+      "symbols": [
+        "lerpDouble"
+      ],
+      "destination": "Nelyx/src/ui/lerp-double.generated.ts",
+      "numericTypes": {
+        "num": {
+          "representation": "double"
+        }
+      },
+      "imports": {
+        "FoundationBuildMode": "../foundation/constants.ts",
+        "invariant": "../foundation/errors.ts",
+        "number": "./value-math.ts"
+      },
+      "adapters": {
+        "dart:core::num.toDouble:METHOD": {
+          "kind": "call",
+          "target": "number",
+          "receiver": "first"
+        }
+      },
+      "assertion": {
+        "code": "invalid-lerp-double",
+        "message": "Pinned lerpDouble assertion failed"
+      }
+    }
+  ],
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/lerp-double.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/lerp-double-source.ts",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/lerp-double-fixture.ts"
+  ],
+  "contract": {
+    "id": "nelyx.generated.w10-lerp-double/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "lerpDouble(num?,num?,double) -> double?"
+    ],
+    "requirements": [
+      "Whole pinned dart:ui function, preserving equal/null/NaN shortcuts and signed zero",
+      "Finite debug assertions and release arithmetic behavior verified against original Dart",
+      "Scalar host ABI with explicit source return kind; numeric generic callers must use reviewed function representation bridges"
+    ],
+    "numericPolicy": "Source num inputs are reviewed scalar binary64 values; source return is always double or null. No numeric kind inference from JS values.",
+    "differences": [
+      "Dart num parameters use scalar number in this dedicated host function; generic/erased callers retain explicit carriers until the reviewed boundary",
+      "Debug assertions use the existing Nelyx invariant error policy, not Dart VM stack text",
+      "NaN arithmetic is supported here; NaN identity/canonical constants remain separately rejected pending bit provenance"
+    ],
+    "performance": "24 edge cases in each build mode. No physical FPS or native delivery acceptance."
+  }
+}

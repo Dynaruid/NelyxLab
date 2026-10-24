@@ -1,0 +1,39 @@
+{
+  "name": "nelyx-testbed-ios-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "scripts": {
+    "prepare:native": "node prepare.mjs",
+    "check": "node check.mjs",
+    "bundle": "node bundle.mjs",
+    "codegen": "node codegen.mjs",
+    "start": "react-native start --config metro.config.cjs",
+    "pods": "node native.mjs pods",
+    "build": "node native.mjs build",
+    "run": "node native.mjs run"
+  },
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/skia-rn": "0.6.0",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-skia-graphite-apple-ios": "154.1.0",
+    "@nelyx/material": "0.1.0",
+    "@nelyx/cupertino": "0.1.0"
+  },
+  "devDependencies": {
+    "@nelyx/metro": "0.10.0",
+    "@nelyx/cli": "0.10.0",
+    "@babel/core": "7.28.5",
+    "@react-native/babel-preset": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@types/react": "19.2.2",
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}

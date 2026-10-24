@@ -1,0 +1,5 @@
+{
+  "hermes": "@NELYX_HERMES_HEAD@",
+  "folly": "0660ead5b610047a279cc291129e98e3f2a1fc37",
+  "fmt": "e69e5f977d458f2650bb346dadf2ad30c5320281"
+}

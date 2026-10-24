@@ -1,0 +1,204 @@
+{
+  "schema": "nelyx.provider/v4",
+  "id": "nelyx.web",
+  "version": "0.20.0",
+  "coreRange": ">=0.16.0 <0.17.0",
+  "protocolVersion": 1,
+  "target": "web",
+  "runtime": "browser",
+  "host": "react-dom",
+  "renderer": "skia-ganesh",
+  "entry": "@nelyx/sdk/platforms/web/application",
+  "defaultProfile": "ganesh-webgl2",
+  "cohorts": [
+    {
+      "id": "web-0.21.3",
+      "react": "19.2.0",
+      "reactNative": null,
+      "nativeReactNative": null,
+      "framework": "react-native-web",
+      "frameworkVersion": "0.21.3",
+      "frameworkRevision": null,
+      "engine": "browser",
+      "engineVersion": null,
+      "engineRevision": null,
+      "bytecodeVersion": null
+    }
+  ],
+  "defaultCohort": "web-0.21.3",
+  "hostOperatingSystems": {
+    "doctor": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "build": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "run": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "dev": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "pack": [
+      "windows",
+      "darwin",
+      "linux"
+    ]
+  },
+  "operations": [
+    "doctor",
+    "build",
+    "run",
+    "dev",
+    "pack"
+  ],
+  "architectures": [
+    "wasm32"
+  ],
+  "tooling": [
+    {
+      "id": "node",
+      "kind": "executable",
+      "versionRange": ">=24.3.0 <25.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "run",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "npm",
+      "kind": "executable",
+      "versionRange": ">=11.0.0 <12.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    }
+  ],
+  "artifactManifest": {
+    "entry": "@nelyx/skia-web/native-manifest.json",
+    "kind": "binary",
+    "required": [
+      "canvaskit.js",
+      "canvaskit.wasm"
+    ]
+  },
+  "nativeAbi": {
+    "host": null,
+    "skia": 1
+  },
+  "wireAbi": 10,
+  "capabilities": {
+    "rendering": {
+      "admission": "bounded",
+      "completion": "gpu-retired",
+      "present": "unobserved",
+      "notifications": "submitted-and-retired",
+      "nativeIdentity": true,
+      "textRanges": true
+    },
+    "editing": {
+      "indexUnit": "utf16",
+      "composing": "observed",
+      "selectionDirection": "observed",
+      "nativeRevision": "observed"
+    },
+    "semantics": "dom"
+  },
+  "qualification": {
+    "status": "notVerified",
+    "scope": "Browser Ganesh/WebGL2 implementation",
+    "architectures": [],
+    "evidence": [],
+    "limitations": [
+      "Browser context loss, physical input/accessibility and complete memory accounting require further qualification"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "ganesh-webgl2",
+      "cohorts": [
+        "web-0.21.3"
+      ],
+      "identity": {
+        "target": "web",
+        "runtime": "browser",
+        "host": "react-dom",
+        "renderer": "skia-ganesh",
+        "gpuBackend": "webgl2",
+        "gpuImplementation": "browser-webgl2",
+        "profile": "ganesh-webgl2"
+      },
+      "status": "implemented",
+      "reason": "Existing implementation retained in its declared cohort; wider qualification pending",
+      "executionOperatingSystems": [
+        "browser"
+      ],
+      "architectures": [
+        "wasm32"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-web/native-manifest.json",
+        "kind": "binary",
+        "required": [
+          "canvaskit.js",
+          "canvaskit.wasm"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "observed",
+          "selectionDirection": "observed",
+          "nativeRevision": "observed"
+        },
+        "semantics": "dom"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Browser Ganesh/WebGL2 implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Browser context loss, physical input/accessibility and complete memory accounting require further qualification"
+        ]
+      }
+    }
+  ]
+}

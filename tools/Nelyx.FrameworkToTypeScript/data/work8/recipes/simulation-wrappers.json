@@ -1,0 +1,150 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "simulation-wrappers",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/physics/gravity_simulation.dart",
+      "sha256": "0b7cdf3cd0ccdfa993fcd5f3662ddbe31a883240458e29a36921b51d530fccb5",
+      "symbols": [
+        "GravitySimulation"
+      ],
+      "destination": "Nelyx/src/framework/physics/gravity-simulation.ts",
+      "imports": {
+        "Simulation": "./simulation.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "objectRuntimeType": "../../foundation/object.ts",
+        "fixedOne": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/physics/simulation.dart::Simulation:CLASS": "Simulation"
+      },
+      "superConstructors": {
+        "package:flutter/src/physics/simulation.dart::Simulation.Simulation.new:CONSTRUCTOR": {
+          "target": "Simulation",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "adapters": {
+        "package:flutter/src/foundation/object.dart::objectRuntimeType:FUNCTION": {
+          "target": "objectRuntimeType",
+          "kind": "call"
+        },
+        "dart:core::num.toStringAsFixed:METHOD": {
+          "target": "fixedOne",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        }
+      },
+      "assertion": {
+        "code": "invalid-gravity-simulation",
+        "message": "Simulation constructor constraints must hold"
+      }
+    },
+    {
+      "source": "packages/flutter/lib/src/physics/clamped_simulation.dart",
+      "sha256": "846903d51bbaa3204f8651b735f0ae03f789eb8b882995009e446ffc7af03804",
+      "symbols": [
+        "ClampedSimulation"
+      ],
+      "destination": "Nelyx/src/framework/physics/clamped-simulation.ts",
+      "imports": {
+        "Simulation": "./simulation.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "objectRuntimeType": "../../foundation/object.ts",
+        "fixedOne": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "clampDouble": "../../ui/math.ts",
+        "diagnosticValueString": "../../foundation/debug.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/physics/simulation.dart::Simulation:CLASS": "Simulation"
+      },
+      "superConstructors": {
+        "package:flutter/src/physics/simulation.dart::Simulation.Simulation.new:CONSTRUCTOR": {
+          "target": "Simulation",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "adapters": {
+        "package:flutter/src/foundation/object.dart::objectRuntimeType:FUNCTION": {
+          "target": "objectRuntimeType",
+          "kind": "call"
+        },
+        "dart:core::num.toStringAsFixed:METHOD": {
+          "target": "fixedOne",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:ui::clampDouble:FUNCTION": {
+          "target": "clampDouble",
+          "kind": "call"
+        },
+        "package:flutter/src/physics/simulation.dart::Simulation.x:METHOD": {
+          "target": "x",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/physics/simulation.dart::Simulation.dx:METHOD": {
+          "target": "dx",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/physics/simulation.dart::Simulation.isDone:METHOD": {
+          "target": "isDone",
+          "kind": "call",
+          "receiver": "target"
+        }
+      },
+      "assertion": {
+        "code": "invalid-clamped-simulation",
+        "message": "Simulation constructor constraints must hold"
+      },
+      "stringConversions": {
+        "package:flutter/src/physics/simulation.dart::Simulation:CLASS": "diagnosticValueString"
+      },
+      "manualDeclarations": [
+        "tools/Nelyx.FrameworkToTypeScript/data/work8/inputs/clamped-simulation.manual.ts"
+      ]
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "adoptExisting": {
+    "Nelyx/src/framework/physics/gravity-simulation.ts": "7e9ea5ed4a155902b37d9882a3297feabad3b5d35f6b03fa15acfa014f6a1a62",
+    "Nelyx/src/framework/physics/clamped-simulation.ts": "aa1df265cdaef73feaa59d9ad5bac945e178fbba7319487badb67a3d7b8f85f9"
+  },
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/simulation-wrappers.ts",
+  "contract": {
+    "id": "nelyx.generated.simulation-wrappers/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "GravitySimulation",
+      "ClampedSimulation"
+    ],
+    "requirements": [
+      "position/velocity/end boundary; clamping; immutable ownership; exact receiver callback order and non-finite policy"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [
+      "Nelyx Simulation base adapter; named bounds use options; JS callbacks and numbers"
+    ],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

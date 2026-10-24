@@ -1,0 +1,120 @@
+{
+  "schema": "nelyx.overflow-bar-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "sha256": "4aaa8f5175a7b02f4055c697c51d244a0a6655fac9fced13ef88d12b9a555e7a"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "5d543f3e093bfcfa5dc889f8f67d87fa7a4e92dee44dc8630cdc613b9cee8183"
+    },
+    {
+      "file": "packages/flutter/lib/src/rendering/box.dart",
+      "sha256": "0540194e530490b29c3349fc27ceeb1c491e36137650d089b7faf6712b8f5cfb"
+    }
+  ],
+  "references": [
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/overflow_bar.cs",
+      "sha256": "b0205f443685d03b2a5857d3f900f3b7b5f34bd82f532b524ed6ff95970cec57"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/media_query.cs",
+      "sha256": "bc23cf4c96bfb76bc12d8f932b3721e7ccfcad430e4dd998d778509bf867cb7a"
+    }
+  ],
+  "resolved": [
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "OverflowBarAlignment",
+      "sourceSha256": "3d463bcfd97172f75c0ec0b0d51d37359634065a7c7c8fb486f179b28096a268",
+      "spanSha256": "cdbbb340c230b11513bcadcd195d1ed2c55f241ed9ea7da985dee4e4a8c63983"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "OverflowBar",
+      "sourceSha256": "3d463bcfd97172f75c0ec0b0d51d37359634065a7c7c8fb486f179b28096a268",
+      "spanSha256": "9662f1936f4b2b6b92ed3c2a5da7425e7825199c4547486613a29ab4f374dd16"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "_OverflowBarParentData",
+      "sourceSha256": "3d463bcfd97172f75c0ec0b0d51d37359634065a7c7c8fb486f179b28096a268",
+      "spanSha256": "1200123845e05817ad756feb3d8bc2cb6acb59ddbadbf4ca379d46b313cafd1b"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "_RenderOverflowBar",
+      "sourceSha256": "3d463bcfd97172f75c0ec0b0d51d37359634065a7c7c8fb486f179b28096a268",
+      "spanSha256": "908a02c23964555ba47b5045614bc21fa88d9ccd0361a1bac2f86736d5b37cda"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.withClampedTextScaling",
+      "sourceSha256": "cdcf065cd6c1cdf745dae19844b805fa6e5ef1d65889b17afbfa1959f5d6da8b",
+      "spanSha256": "3887690ac482e42c576e1394147245c2d598c17f1d20b52b76f6fa59f4a35103"
+    }
+  ],
+  "sourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "OverflowBarAlignment",
+      "offset": 355,
+      "length": 518,
+      "sha256": "cdbbb340c230b11513bcadcd195d1ed2c55f241ed9ea7da985dee4e4a8c63983"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "OverflowBar",
+      "offset": 877,
+      "length": 8733,
+      "sha256": "9662f1936f4b2b6b92ed3c2a5da7425e7825199c4547486613a29ab4f374dd16"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "_OverflowBarParentData",
+      "offset": 9614,
+      "length": 73,
+      "sha256": "1200123845e05817ad756feb3d8bc2cb6acb59ddbadbf4ca379d46b313cafd1b"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/overflow_bar.dart",
+      "symbol": "_RenderOverflowBar",
+      "offset": 9691,
+      "length": 12534,
+      "sha256": "908a02c23964555ba47b5045614bc21fa88d9ccd0361a1bac2f86736d5b37cda"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.withClampedTextScaling",
+      "offset": 66112,
+      "length": 1387,
+      "sha256": "3887690ac482e42c576e1394147245c2d598c17f1d20b52b76f6fa59f4a35103"
+    },
+    {
+      "source": "packages/flutter/lib/src/rendering/box.dart",
+      "symbol": "BaselineOffset",
+      "offset": 37332,
+      "length": 1393,
+      "sha256": "cdb1d51dcebfaec0c6f8719d611f955eded3d1fe91ed2337e249f95aaaf78e9c"
+    }
+  ],
+  "numeric": {
+    "newEmittedClaims": 10,
+    "source": "Analyzer-resolved public OverflowBar spacing/overflowSpacing double fields and constructor parameters, matching Options; MediaQuery clamped scaling min/max double method parameters and matching Options. Private host configuration/render algorithms add no invented source numeric claims."
+  },
+  "outputs": [
+    {
+      "file": "Nelyx/src/framework/widgets/overflow-bar.ts",
+      "sha256": "96200e1089c81f610640bb41349c758d54f91bf99022ff026f8e87fbdc739ea3"
+    },
+    {
+      "file": "Nelyx/src/framework/widgets/app-data.ts",
+      "sha256": "92258cec0407bb9b9ef7d9306669441f5fd11e7d505bccab9b070fc8a476517c"
+    }
+  ],
+  "scope": "Unchanged OverflowBar widget/enum/private render/parent data and MediaQuery.withClampedTextScaling plus original BaselineOffset extension execute on explicit finite Widget/context/diagnostics/constraints/child-intrinsic/container parents. Layout/positions/intrinsics/baselines/default/clamp are source algorithms; full original RenderBox/mixin/text-scaler/parent/renderer/engine/native/physical ABI remain separate. Existing Core Widget/RenderBox/child arrays/parent offsets/paint/hit/semantics/text-scaler owner; no duplicate renderer. Source dry and actual baselines retain their distinct algorithms. Source clamp accepts key but its returned Builder does not apply it; product preserves this behavior. Nonlinear TextScaler.clamp stays canonical."
+}

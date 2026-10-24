@@ -1,0 +1,54 @@
+{
+  "status": "PASS-scoped",
+  "recordedAt": "2026-10-18T04:24:35.702Z",
+  "checkOnly": false,
+  "inputs": [
+    {
+      "file": "tools/Nelyx.FrameworkToTypeScript/generate-tooltip-geometry.mjs",
+      "sha256": "9c7858e869f88a6ac1f2d7fd78eb6696674a91e8eabb2b3897d84b41c23c1d34"
+    },
+    {
+      "file": ".tmp/work8/w11-tooltip-candidate/result.json",
+      "sha256": "8395f66a66297c69ea0097422cc3a9bb5cdb6d4550def5d64b2ac8e02621b6fb"
+    },
+    {
+      "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-tooltip-candidate\\ir.json",
+      "sha256": "590a947798211ea1cbfcead2f389b880603a90b7a1fa45a4eba4f111a54698b8"
+    },
+    {
+      "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-tooltip-candidate\\geometry.dart.ts",
+      "sha256": "646d262bf70d0893d8555191d5a6fce0044de5107fba66cdc0bac699dd2df84f"
+    }
+  ],
+  "output": {
+    "file": "Nelyx/src/framework/painting/geometry.ts",
+    "sha256": "55f72b1d8d78ea06582d2efecce09e8ebe633651ee4d1ccb9ef47748f64083c2"
+  },
+  "bindings": [
+    [
+      "import { Offset } from \"@nelyx/core/ui/offset\";",
+      "import { Offset } from \"../../ui/offset.ts\";"
+    ],
+    [
+      "import { Size } from \"../../../Nelyx/src/ui/size.ts\";",
+      "import type { Size } from \"../../ui/geometry.ts\";"
+    ],
+    [
+      "import { clampDouble } from \"../../../Nelyx/src/ui/math.ts\";",
+      "import { clampDouble } from \"../../ui/math.ts\";"
+    ],
+    [
+      "\"@nelyx/core/internal/foundation/dart-numeric\"",
+      "\"../../foundation/dart-numeric.ts\""
+    ]
+  ],
+  "scope": "Complete positionDependentBox emitted body and analyzer numeric provenance are unchanged. Only finite import bindings adopt actual owning Core Offset/math/Dart numeric helpers and structural Size dimensions; no Size construction/operator/type test is used by this function. No recipe/compiler/native promotion.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "1b6906a59776130c4157c31164df5a9efdbd142eba8ff6bdc6a6b5f5367bb0bb",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-tooltip-geometry.mjs"
+    ],
+    "scope": "Canonical relative paths and exact generator storage-path changes only; no behavior/native requalification."
+  }
+}

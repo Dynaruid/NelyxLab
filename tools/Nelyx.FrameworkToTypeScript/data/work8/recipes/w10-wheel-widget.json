@@ -1,0 +1,1178 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-wheel-widget",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/list_wheel_scroll_view.dart",
+      "sha256": "6e6a545ed8eb253a4980888bbddd67da3989f9c9c218c70816f8ac28eb42484e",
+      "symbols": [
+        "_FixedExtentScrollable",
+        "_FixedExtentScrollableState",
+        "ListWheelScrollView",
+        "_ListWheelScrollViewState",
+        "ListWheelElement",
+        "ListWheelViewport"
+      ],
+      "destination": "Nelyx/src/framework/widgets/list-wheel-widget.generated.ts",
+      "classNames": {
+        "ListWheelChildDelegate": "SourceListWheelChildDelegate",
+        "ListWheelChildBuilderDelegate": "SourceListWheelChildBuilderDelegate",
+        "ListWheelChildListDelegate": "SourceListWheelChildListDelegate",
+        "ListWheelChildLoopingListDelegate": "SourceListWheelChildLoopingListDelegate",
+        "FixedExtentScrollController": "SourceFixedExtentScrollController",
+        "_FixedExtentScrollPosition": "GeneratedFixedExtentScrollPosition",
+        "FixedExtentScrollPhysics": "SourceFixedExtentScrollPhysics",
+        "FixedExtentMetrics": "SourceFixedExtentMetrics",
+        "_FixedExtentScrollableState": "SourceFixedExtentScrollableState",
+        "ListWheelChildManager": "SourceListWheelChildManager",
+        "ListWheelParentData": "SourceListWheelParentData",
+        "RenderListWheelViewport": "SourceRenderListWheelViewport",
+        "_FixedExtentScrollable": "SourceFixedExtentScrollable",
+        "ListWheelScrollView": "SourceListWheelScrollView",
+        "_ListWheelScrollViewState": "SourceListWheelScrollViewState",
+        "ListWheelElement": "SourceListWheelElement",
+        "ListWheelViewport": "SourceListWheelViewport"
+      },
+      "imports": {
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts",
+        "ScrollPhysics": "./scroll-physics.ts",
+        "wheelParentData": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelParent": "../rendering/list-wheel-renderer-adapter.ts",
+        "wheelParentOffset": "../rendering/list-wheel-renderer-adapter.ts",
+        "castWheelBox": "../rendering/list-wheel-renderer-adapter.ts",
+        "RenderBox": "../rendering/object.ts",
+        "RenderObject": "../rendering/object.ts",
+        "castWheelParentData": "../rendering/list-wheel-renderer-types.ts",
+        "isWheelRenderObject": "../rendering/list-wheel-renderer-adapter.ts",
+        "SourceListWheelChildDelegate": "./list-wheel-delegate.generated.ts",
+        "SourceListWheelChildListDelegate": "./list-wheel-delegate.generated.ts",
+        "SourceFixedExtentScrollController": "./list-wheel-controller.generated.ts",
+        "isSourceFixedExtentScrollController": "./list-wheel-widget-adapter.ts",
+        "castSourceFixedExtentScrollController": "./list-wheel-widget-adapter.ts",
+        "SourceFixedExtentMetrics": "./list-wheel-position.generated.ts",
+        "isSourceFixedExtentMetrics": "./list-wheel-widget-adapter.ts",
+        "castSourceFixedExtentMetrics": "./list-wheel-widget-adapter.ts",
+        "SourceListWheelChildManager": "../rendering/list-wheel-viewport.generated.ts",
+        "SourceListWheelParentData": "../rendering/list-wheel-viewport.generated.ts",
+        "SourceRenderListWheelViewport": "../rendering/list-wheel-viewport.generated.ts",
+        "isSourceRenderListWheelViewport": "./list-wheel-widget-adapter.ts",
+        "castSourceRenderListWheelViewport": "./list-wheel-widget-adapter.ts",
+        "Scrollable": "./scrollable.ts",
+        "ScrollableState": "./scrollable.ts",
+        "WheelScrollableStateHost": "./list-wheel-widget-adapter.ts",
+        "StatefulWidget": "./framework.ts",
+        "WheelStatefulHost": "./list-wheel-widget-adapter.ts",
+        "State": "./framework.ts",
+        "RenderObjectElement": "./framework.ts",
+        "WheelElementHost": "./list-wheel-widget-adapter.ts",
+        "RenderObjectWidget": "./framework.ts",
+        "WheelRenderWidgetHost": "./list-wheel-widget-adapter.ts",
+        "HitTestBehavior": "../rendering/pointer-listener.ts",
+        "DragStartBehavior": "../gestures/recognizer.ts",
+        "ChangeReportingBehavior": "./list-wheel-widget-adapter.ts",
+        "ScrollBehavior": "./scroll-configuration.ts",
+        "Key": "../../foundation/key.ts",
+        "castSourceFixedExtentScrollable": "./list-wheel-widget-types.ts",
+        "castSourceListWheelElement": "./list-wheel-widget-types.ts",
+        "castSourceListWheelViewport": "./list-wheel-widget-types.ts",
+        "ScrollNotification": "./scroll-notification.ts",
+        "isScrollEndNotification": "./list-wheel-widget-adapter.ts",
+        "isScrollUpdateNotification": "./list-wheel-widget-adapter.ts",
+        "createWheelNotificationListener": "./list-wheel-widget-adapter.ts",
+        "ScrollConfiguration": "./scroll-configuration.ts",
+        "DartIntMap": "../../foundation/dart-int-map.ts",
+        "createWheelWidgetMap": "./list-wheel-widget-adapter.ts",
+        "createWheelElementMap": "./list-wheel-widget-adapter.ts",
+        "Element": "./framework.ts",
+        "dartIntMapRead": "../../foundation/dart-int-map.ts",
+        "dartIntMapWrite": "../../foundation/dart-int-map.ts",
+        "wheelBuildScope": "./list-wheel-widget-adapter.ts",
+        "wheelElementRenderObject": "./list-wheel-widget-adapter.ts",
+        "isWheelInteger": "./list-wheel-widget-adapter.ts",
+        "castWheelInteger": "./list-wheel-widget-adapter.ts",
+        "wheelRuntimeType": "./list-wheel-widget-adapter.ts",
+        "wheelInsertChild": "./list-wheel-widget-adapter.ts",
+        "wheelDebugValidateChild": "./list-wheel-widget-adapter.ts",
+        "ScrollController": "./scroll-controller.ts",
+        "createSourceWheelController": "./list-wheel-widget-adapter.ts",
+        "wheelElementSlot": "./list-wheel-widget-adapter.ts"
+      },
+      "typeImports": {
+        "Widget": "./framework.ts",
+        "BuildContext": "./framework.ts",
+        "DartList": "../../foundation/dart-list.ts",
+        "ViewportOffset": "../rendering/viewport-offset.ts",
+        "Clip": "../../ui/clip.ts"
+      },
+      "typeBindings": {
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "dart:core::List:CLASS": "DartList",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController:CLASS": "ScrollController",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS": "GeneratedFixedExtentScrollPosition",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition:CLASS": "ScrollPosition",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics:CLASS": "ScrollPhysics",
+        "package:flutter/src/widgets/scroll_context.dart::ScrollContext:CLASS": "ScrollContext",
+        "package:flutter/src/animation/curves.dart::Curve:CLASS": "Curve",
+        "package:flutter/src/physics/simulation.dart::Simulation:CLASS": "Simulation",
+        "package:flutter/src/widgets/scroll_metrics.dart::ScrollMetrics:MIXIN": "ScrollMetrics",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics:CLASS": "FixedScrollMetrics",
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext:CLASS": "WheelPosition",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollableState:CLASS": "ScrollContext",
+        "package:flutter/src/painting/basic_types.dart::AxisDirection:ENUM": "AxisDirection",
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": "RenderObject",
+        "package:flutter/src/rendering/object.dart::PipelineOwner:CLASS": "PipelineOwner",
+        "package:flutter/src/rendering/box.dart::ContainerBoxParentData:CLASS": "WheelContainerParentData",
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": "BoxConstraints",
+        "package:flutter/src/rendering/box.dart::BoxHitTestResult:CLASS": "WheelBoxHitTestResult",
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport:CLASS": "WheelViewportContract",
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset:CLASS": "RevealedOffset",
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset:CLASS": "ViewportOffset",
+        "package:flutter/src/rendering/layer.dart::LayerHandle:CLASS": "LayerHandle",
+        "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS": "ClipRectLayer",
+        "package:flutter/src/rendering/layer.dart::OpacityLayer:CLASS": "OpacityLayer",
+        "package:flutter/src/rendering/object.dart::PaintingContext:CLASS": "PaintingContext",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::Size:CLASS": "Size",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:ui::Clip:ENUM": "Clip",
+        "package:vector_math/vector_math_64.dart::Matrix4:CLASS": "Matrix4",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildDelegate:CLASS": "SourceListWheelChildDelegate",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildBuilderDelegate:CLASS": "SourceListWheelChildBuilderDelegate",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildListDelegate:CLASS": "SourceListWheelChildListDelegate",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildLoopingListDelegate:CLASS": "SourceListWheelChildLoopingListDelegate",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentScrollController:CLASS": "SourceFixedExtentScrollController",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentScrollPhysics:CLASS": "SourceFixedExtentScrollPhysics",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentMetrics:CLASS": "SourceFixedExtentMetrics",
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelChildManager:CLASS": "SourceListWheelChildManager",
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelParentData:CLASS": "SourceListWheelParentData",
+        "package:flutter/src/rendering/list_wheel_viewport.dart::RenderListWheelViewport:CLASS": "SourceRenderListWheelViewport",
+        "package:flutter/src/widgets/scrollable.dart::Scrollable:CLASS": "Scrollable",
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState:CLASS": "ScrollableState",
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement:CLASS": "RenderObjectElement",
+        "package:flutter/src/widgets/framework.dart::RenderObjectWidget:CLASS": "RenderObjectWidget",
+        "package:flutter/src/rendering/proxy_box.dart::HitTestBehavior:ENUM": "HitTestBehavior",
+        "package:flutter/src/gestures/recognizer.dart::DragStartBehavior:ENUM": "DragStartBehavior",
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ChangeReportingBehavior:ENUM": "ChangeReportingBehavior",
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior:CLASS": "ScrollBehavior",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollNotification:CLASS": "ScrollNotification",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollEndNotification:CLASS": "ScrollEndNotification",
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollUpdateNotification:CLASS": "ScrollUpdateNotification",
+        "package:flutter/src/widgets/notification_listener.dart::NotificationListener:CLASS": "NotificationListener",
+        "dart:core::Map:CLASS": "DartIntMap",
+        "dart:collection::HashMap:CLASS": "DartIntMap",
+        "dart:collection::SplayTreeMap:CLASS": "DartIntMap",
+        "package:flutter/src/widgets/framework.dart::Element:CLASS": "Element",
+        "package:flutter/src/widgets/framework.dart::BuildOwner:CLASS": "BuildOwner"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "adapters": {
+        "package:flutter/src/widgets/basic.dart::IndexedSemantics.IndexedSemantics.new:CONSTRUCTOR": {
+          "target": "createWheelIndexedSemantics",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "dart:core::List.[]:METHOD": {
+          "target": "dartListGet",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Iterable.isEmpty:GETTER": {
+          "target": "dartListIsEmpty",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::List.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::num.%:METHOD": {
+          "target": "dartIntegerModulo",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:async::Future.wait:METHOD": {
+          "target": "waitForWheelMotions",
+          "kind": "call",
+          "typeArguments": [
+            "void"
+          ]
+        },
+        "dart:core::Iterable.cast:METHOD": {
+          "target": "castWheelPositions",
+          "kind": "call",
+          "receiver": "first",
+          "typeArguments": [
+            "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS"
+          ]
+        },
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext.animateTo:METHOD": {
+          "target": "animateTo",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext.jumpTo:METHOD": {
+          "target": "jumpTo",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition._FixedExtentScrollPosition.new:CONSTRUCTOR": {
+          "target": "GeneratedFixedExtentScrollPosition",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.buildParent:METHOD": {
+          "target": "buildParent",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.createBallisticSimulation:METHOD": {
+          "target": "createBallisticSimulation",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.toleranceFor:METHOD": {
+          "target": "toleranceFor",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/physics/simulation.dart::Simulation.x:METHOD": {
+          "target": "x",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::double.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:math::min:FUNCTION": {
+          "target": "Math.min",
+          "kind": "call"
+        },
+        "dart:math::max:FUNCTION": {
+          "target": "Math.max",
+          "kind": "call"
+        },
+        "package:flutter/src/physics/spring_simulation.dart::SpringSimulation.SpringSimulation.new:CONSTRUCTOR": {
+          "target": "createWheelSpring",
+          "kind": "call",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollableState.itemExtent:GETTER": {
+          "target": "wheelContextItemExtent",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_getItemFromOffset:FUNCTION": {
+          "target": "_getItemFromOffset",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.addAll:METHOD": {
+          "target": "addAll",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.childAfter:METHOD": {
+          "target": "childAfter",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.attach:METHOD": {
+          "target": "attach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.detach:METHOD": {
+          "target": "detach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.markNeedsLayout:METHOD": {
+          "target": "markNeedsLayout",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.getMinIntrinsicWidth:METHOD": {
+          "target": "getMinIntrinsicWidth",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.getMaxIntrinsicWidth:METHOD": {
+          "target": "getMaxIntrinsicWidth",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsPaint:METHOD": {
+          "target": "markNeedsPaint",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.markNeedsSemanticsUpdate:METHOD": {
+          "target": "markNeedsSemanticsUpdate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.removeListener:METHOD": {
+          "target": "removeListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.applyViewportDimension:METHOD": {
+          "target": "applyViewportDimension",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.applyContentDimensions:METHOD": {
+          "target": "applyContentDimensions",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.jumpTo:METHOD": {
+          "target": "jumpTo",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/viewport_offset.dart::ViewportOffset.animateTo:METHOD": {
+          "target": "animateTo",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": {
+          "target": "wheelBoxSize",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.biggest:GETTER": {
+          "target": "wheelConstraintsBiggest",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parentData:GETTER": {
+          "target": "wheelParentData",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.parent:GETTER": {
+          "target": "wheelParent",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.paintBounds:GETTER": {
+          "target": "wheelPaintBounds",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxParentData.offset:GETTER": {
+          "target": "wheelParentOffset",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushClipRect:METHOD": {
+          "target": "wheelPushClipRect",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushOpacity:METHOD": {
+          "target": "wheelPushOpacity",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.pushTransform:METHOD": {
+          "target": "wheelPushTransform",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::PaintingContext.paintChild:METHOD": {
+          "target": "wheelPaintChild",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.getTransformTo:METHOD": {
+          "target": "wheelGetTransform",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/gestures/events.dart::PointerEvent.removePerspectiveTransform:METHOD": {
+          "target": "wheelRemovePerspective",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.hitTest:METHOD": {
+          "target": "wheelBoxHitTest",
+          "kind": "call",
+          "namedArguments": "trailing-options",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/box.dart::BoxHitTestResult.addWithPaintTransform:METHOD": {
+          "target": "addWithPaintTransform",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.invokeLayoutCallback:METHOD": {
+          "target": "sourceInvokeLayout",
+          "kind": "call",
+          "receiver": "target",
+          "typeArguments": [
+            "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS"
+          ]
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.showOnScreen:METHOD": {
+          "target": "sourceForwardShowOnScreen",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject.layout:METHOD": {
+          "target": "layout",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.copyWith:METHOD": {
+          "target": "copyWith",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "dart:ui::Offset.+:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.&:METHOD": {
+          "target": "and",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Rect.translate:METHOD": {
+          "target": "translate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/painting/alignment.dart::Alignment.alongSize:METHOD": {
+          "target": "alongSize",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.translateByDouble:METHOD": {
+          "target": "translateByDouble",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.scaleByDouble:METHOD": {
+          "target": "scaleByDouble",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.multiply:METHOD": {
+          "target": "multiply",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::Duration.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:math::asin:FUNCTION": {
+          "target": "Math.asin",
+          "kind": "call"
+        },
+        "dart:core::double.floor:METHOD": {
+          "target": "Math.floor",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.createCylindricalProjectionTransform:METHOD": {
+          "target": "MatrixUtils.createCylindricalProjectionTransform",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.transformPoint:METHOD": {
+          "target": "MatrixUtils.transformPoint",
+          "kind": "call"
+        },
+        "package:flutter/src/painting/matrix_utils.dart::MatrixUtils.transformRect:METHOD": {
+          "target": "MatrixUtils.transformRect",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.tryInvert:METHOD": {
+          "target": "Matrix4.tryInvert",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.Matrix4.identity:CONSTRUCTOR": {
+          "target": "Matrix4.identity",
+          "kind": "call"
+        },
+        "dart:ui::Rect.Rect.fromLTWH:CONSTRUCTOR": {
+          "target": "Rect.fromLTWH",
+          "kind": "call"
+        },
+        "package:flutter/src/rendering/viewport.dart::RevealedOffset.RevealedOffset.new:CONSTRUCTOR": {
+          "target": "createWheelRevealedOffset",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildDelegate.ListWheelChildDelegate.new:CONSTRUCTOR": {
+          "target": "SourceListWheelChildDelegate",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildBuilderDelegate.ListWheelChildBuilderDelegate.new:CONSTRUCTOR": {
+          "target": "SourceListWheelChildBuilderDelegate",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildListDelegate.ListWheelChildListDelegate.new:CONSTRUCTOR": {
+          "target": "SourceListWheelChildListDelegate",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildLoopingListDelegate.ListWheelChildLoopingListDelegate.new:CONSTRUCTOR": {
+          "target": "SourceListWheelChildLoopingListDelegate",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentScrollController.FixedExtentScrollController.new:CONSTRUCTOR": {
+          "target": "createSourceWheelController",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentScrollPhysics.FixedExtentScrollPhysics.new:CONSTRUCTOR": {
+          "target": "SourceFixedExtentScrollPhysics",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentMetrics.FixedExtentMetrics.new:CONSTRUCTOR": {
+          "target": "SourceFixedExtentMetrics",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelChildManager.ListWheelChildManager.new:CONSTRUCTOR": {
+          "target": "SourceListWheelChildManager",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelParentData.ListWheelParentData.new:CONSTRUCTOR": {
+          "target": "SourceListWheelParentData",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::RenderListWheelViewport.RenderListWheelViewport.new:CONSTRUCTOR": {
+          "target": "SourceRenderListWheelViewport",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::State.initState:METHOD": {
+          "target": "initState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildDelegate.trueIndexOf:METHOD": {
+          "target": "trueIndexOf",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildDelegate.build:METHOD": {
+          "target": "build",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildDelegate.shouldRebuild:METHOD": {
+          "target": "shouldRebuild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollConfiguration.of:METHOD": {
+          "target": "ScrollConfiguration.of",
+          "kind": "call"
+        },
+        "package:flutter/src/widgets/scroll_configuration.dart::ScrollBehavior.copyWith:METHOD": {
+          "target": "copyWith",
+          "kind": "call",
+          "receiver": "target",
+          "namedArguments": "options"
+        },
+        "dart:core::Map.[]:METHOD": {
+          "target": "dartIntMapRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.[]=:METHOD": {
+          "target": "dartIntMapWrite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Map.clear:METHOD": {
+          "target": "clear",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.putIfAbsent:METHOD": {
+          "target": "putIfAbsent",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.firstKey:METHOD": {
+          "target": "firstKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.lastKey:METHOD": {
+          "target": "lastKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.forEach:METHOD": {
+          "target": "forEach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.containsKey:METHOD": {
+          "target": "containsKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Map.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.[]:METHOD": {
+          "target": "dartIntMapRead",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:collection::SplayTreeMap.[]=:METHOD": {
+          "target": "dartIntMapWrite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:collection::SplayTreeMap.clear:METHOD": {
+          "target": "clear",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.putIfAbsent:METHOD": {
+          "target": "putIfAbsent",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.firstKey:METHOD": {
+          "target": "firstKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.lastKey:METHOD": {
+          "target": "lastKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.forEach:METHOD": {
+          "target": "forEach",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.containsKey:METHOD": {
+          "target": "containsKey",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:collection::SplayTreeMap.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.update:METHOD": {
+          "target": "update",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.performRebuild:METHOD": {
+          "target": "performRebuildBase",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.updateChild:METHOD": {
+          "target": "updateChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.forgetChild:METHOD": {
+          "target": "forgetChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.update:METHOD": {
+          "target": "update",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.performRebuild:METHOD": {
+          "target": "performRebuild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.updateChild:METHOD": {
+          "target": "updateChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.forgetChild:METHOD": {
+          "target": "forgetChild",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildOwner.buildScope:METHOD": {
+          "target": "wheelBuildScope",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.renderObject:GETTER": {
+          "target": "wheelElementRenderObject",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::Type.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "dart:core::Object.runtimeType:GETTER": {
+          "target": "wheelRuntimeType",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::RenderListWheelViewport.indexOf:METHOD": {
+          "target": "indexOf",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.remove:METHOD": {
+          "target": "remove",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.insert:METHOD": {
+          "target": "wheelInsertChild",
+          "kind": "call",
+          "receiver": "first",
+          "namedArguments": "trailing-options"
+        },
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.debugValidateChild:METHOD": {
+          "target": "wheelDebugValidateChild",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::Element.slot:GETTER": {
+          "target": "wheelElementSlot",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelElement.performRebuild:METHOD": {
+          "target": "performRebuild",
+          "kind": "call",
+          "receiver": "target"
+        }
+      },
+      "durationUnit": "milliseconds",
+      "runtimeTypes": {
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollPosition:CLASS": {
+          "is": "isWheelPosition",
+          "cast": "castWheelPosition"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollableState:CLASS": {
+          "is": "isSourceFixedExtentScrollableState",
+          "cast": "castSourceFixedExtentScrollableState"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": {
+          "is": "isWheelBox",
+          "cast": "castWheelBox"
+        },
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": {
+          "is": "isWheelConstraints",
+          "cast": "castWheelConstraints"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelParentData:CLASS": {
+          "is": "isWheelParentData",
+          "cast": "castWheelParentData"
+        },
+        "package:flutter/src/rendering/object.dart::RenderObject:CLASS": {
+          "is": "isWheelRenderObject",
+          "cast": "castWheelRenderObject"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildDelegate:CLASS": {
+          "is": "isSourceListWheelChildDelegate",
+          "cast": "castSourceListWheelChildDelegate"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildBuilderDelegate:CLASS": {
+          "is": "isSourceListWheelChildBuilderDelegate",
+          "cast": "castSourceListWheelChildBuilderDelegate"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildListDelegate:CLASS": {
+          "is": "isSourceListWheelChildListDelegate",
+          "cast": "castSourceListWheelChildListDelegate"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelChildLoopingListDelegate:CLASS": {
+          "is": "isSourceListWheelChildLoopingListDelegate",
+          "cast": "castSourceListWheelChildLoopingListDelegate"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentScrollController:CLASS": {
+          "is": "isSourceFixedExtentScrollController",
+          "cast": "castSourceFixedExtentScrollController"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentScrollPhysics:CLASS": {
+          "is": "isSourceFixedExtentScrollPhysics",
+          "cast": "castSourceFixedExtentScrollPhysics"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentMetrics:CLASS": {
+          "is": "isSourceFixedExtentMetrics",
+          "cast": "castSourceFixedExtentMetrics"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelChildManager:CLASS": {
+          "is": "isSourceListWheelChildManager",
+          "cast": "castSourceListWheelChildManager"
+        },
+        "package:flutter/src/rendering/list_wheel_viewport.dart::RenderListWheelViewport:CLASS": {
+          "is": "isSourceRenderListWheelViewport",
+          "cast": "castSourceRenderListWheelViewport"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_FixedExtentScrollable:CLASS": {
+          "is": "isSourceFixedExtentScrollable",
+          "cast": "castSourceFixedExtentScrollable"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelScrollView:CLASS": {
+          "is": "isSourceListWheelScrollView",
+          "cast": "castSourceListWheelScrollView"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::_ListWheelScrollViewState:CLASS": {
+          "is": "isSourceListWheelScrollViewState",
+          "cast": "castSourceListWheelScrollViewState"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelElement:CLASS": {
+          "is": "isSourceListWheelElement",
+          "cast": "castSourceListWheelElement"
+        },
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::ListWheelViewport:CLASS": {
+          "is": "isSourceListWheelViewport",
+          "cast": "castSourceListWheelViewport"
+        },
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollNotification:CLASS": {
+          "is": "isScrollNotification",
+          "cast": "castScrollNotification"
+        },
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollEndNotification:CLASS": {
+          "is": "isScrollEndNotification",
+          "cast": "castScrollEndNotification"
+        },
+        "package:flutter/src/widgets/scroll_notification.dart::ScrollUpdateNotification:CLASS": {
+          "is": "isScrollUpdateNotification",
+          "cast": "castScrollUpdateNotification"
+        },
+        "dart:core::int:CLASS": {
+          "is": "isWheelInteger",
+          "cast": "castWheelInteger"
+        }
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.ScrollController.new:CONSTRUCTOR": {
+          "target": "WheelControllerHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.ScrollPhysics.new:CONSTRUCTOR": {
+          "target": "ScrollPhysics",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.FixedScrollMetrics.new:CONSTRUCTOR": {
+          "target": "FixedScrollMetrics",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext.ScrollPositionWithSingleContext.new:CONSTRUCTOR": {
+          "target": "WheelPosition",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.RenderBox.new:CONSTRUCTOR": {
+          "target": "WheelRenderHost",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin:MIXIN<package:flutter/src/rendering/box.dart::RenderBox:CLASS,package:flutter/src/rendering/list_wheel_viewport.dart::ListWheelParentData:CLASS>"
+          ],
+          "baseType": "RenderBox"
+        },
+        "package:flutter/src/rendering/box.dart::ContainerBoxParentData.ContainerBoxParentData.new:CONSTRUCTOR": {
+          "target": "WheelContainerParentData",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/scrollable.dart::Scrollable.Scrollable.new:CONSTRUCTOR": {
+          "target": "Scrollable",
+          "baseType": "Scrollable",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/scrollable.dart::ScrollableState.ScrollableState.new:CONSTRUCTOR": {
+          "target": "WheelScrollableStateHost",
+          "baseType": "ScrollableState",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/framework.dart::StatefulWidget.StatefulWidget.new:CONSTRUCTOR": {
+          "target": "WheelStatefulHost",
+          "baseType": "StatefulWidget",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::State.State.new:CONSTRUCTOR": {
+          "target": "State",
+          "baseType": "State",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectElement.RenderObjectElement.new:CONSTRUCTOR": {
+          "target": "WheelElementHost",
+          "baseType": "RenderObjectElement",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/framework.dart::RenderObjectWidget.RenderObjectWidget.new:CONSTRUCTOR": {
+          "target": "WheelRenderWidgetHost",
+          "baseType": "RenderObjectWidget",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options"
+        }
+      },
+      "memberBindings": {
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.positions:GETTER": "sourcePositions",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.hasClients:GETTER": "hasClients",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.keepScrollOffset:GETTER": "keepScrollOffset",
+        "package:flutter/src/widgets/scroll_controller.dart::ScrollController.debugLabel:GETTER": "debugLabel",
+        "package:flutter/src/widgets/scroll_physics.dart::ScrollPhysics.spring:GETTER": "spring",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.hasContentDimensions:GETTER": "hasContentDimensions",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.minScrollExtent:GETTER": "minScrollExtent",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.maxScrollExtent:GETTER": "maxScrollExtent",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.hasPixels:GETTER": "hasPixels",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.pixels:GETTER": "pixels",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.hasViewportDimension:GETTER": "hasViewportDimension",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.viewportDimension:GETTER": "viewportDimension",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.axisDirection:GETTER": "axisDirection",
+        "package:flutter/src/widgets/scroll_metrics.dart::FixedScrollMetrics.devicePixelRatio:GETTER": "devicePixelRatio",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.context:GETTER": "context",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.pixels:GETTER": "pixels",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.minScrollExtent:GETTER": "minScrollExtent",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.maxScrollExtent:GETTER": "maxScrollExtent",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.hasContentDimensions:GETTER": "hasContentDimensions",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.hasPixels:GETTER": "hasPixels",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.hasViewportDimension:GETTER": "hasViewportDimension",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.viewportDimension:GETTER": "viewportDimension",
+        "package:flutter/src/widgets/scroll_position.dart::ScrollPosition.devicePixelRatio:GETTER": "devicePixelRatio",
+        "package:flutter/src/widgets/scroll_position_with_single_context.dart::ScrollPositionWithSingleContext.axisDirection:GETTER": "axisDirection",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.firstChild:GETTER": "firstChild",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.lastChild:GETTER": "lastChild",
+        "package:flutter/src/rendering/object.dart::ContainerRenderObjectMixin.childCount:GETTER": "childCount",
+        "package:flutter/src/rendering/object.dart::RenderObject.attached:GETTER": "attached",
+        "package:flutter/src/rendering/object.dart::RenderObject.needsCompositing:GETTER": "needsCompositing",
+        "package:flutter/src/rendering/box.dart::RenderBox.hasSize:GETTER": "hasSize",
+        "package:flutter/src/rendering/box.dart::RenderBox.constraints:GETTER": "constraints",
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": "sourceSize",
+        "package:flutter/src/widgets/framework.dart::State.widget:GETTER": "widget",
+        "package:flutter/src/widgets/framework.dart::Element.widget:GETTER": "widget",
+        "package:flutter/src/widgets/framework.dart::Element.owner:GETTER": "owner"
+      },
+      "asyncRuntime": {
+        "policy": "host-promise",
+        "futureType": "HostFuture"
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "interfaceBindings": {
+        "package:flutter/src/widgets/list_wheel_scroll_view.dart::FixedExtentMetrics:CLASS": "WheelMetricsData",
+        "package:flutter/src/rendering/viewport.dart::RenderAbstractViewport:CLASS": "WheelViewportContract"
+      },
+      "assertion": {
+        "code": "invalid-source-wheel-renderer",
+        "message": "Pinned wheel renderer invariant"
+      },
+      "renames": {
+        "performLayout": "sourcePerformLayout",
+        "paint": "sourcePaint",
+        "hitTestChildren": "sourceHitTestChildren",
+        "showOnScreen": "sourceShowOnScreen",
+        "_childElements": "sourceElements",
+        "_childWidgets": "sourceWidgets",
+        "insertRenderObjectChild": "sourceInsertRenderObjectChild",
+        "moveRenderObjectChild": "sourceMoveRenderObjectChild",
+        "performRebuild": "sourcePerformRebuild"
+      },
+      "constructorSpecializations": {
+        "package:flutter/src/rendering/layer.dart::LayerHandle.LayerHandle.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::ClipRectLayer:CLASS"
+            ],
+            "target": "createWheelClipHandle",
+            "kind": "call"
+          },
+          {
+            "typeArguments": [
+              "package:flutter/src/rendering/layer.dart::OpacityLayer:CLASS"
+            ],
+            "target": "createWheelOpacityHandle",
+            "kind": "call"
+          }
+        ],
+        "package:flutter/src/widgets/notification_listener.dart::NotificationListener.NotificationListener.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/widgets/scroll_notification.dart::ScrollNotification:CLASS"
+            ],
+            "target": "createWheelNotificationListener",
+            "kind": "call",
+            "namedArguments": "options"
+          }
+        ],
+        "dart:collection::HashMap.HashMap.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "dart:core::int:CLASS",
+              "package:flutter/src/widgets/framework.dart::Widget:CLASS?"
+            ],
+            "target": "createWheelWidgetMap",
+            "kind": "call"
+          }
+        ],
+        "dart:collection::SplayTreeMap.SplayTreeMap.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "dart:core::int:CLASS",
+              "package:flutter/src/widgets/framework.dart::Element:CLASS"
+            ],
+            "target": "createWheelElementMap",
+            "kind": "call"
+          }
+        ]
+      },
+      "values": {
+        "dart:ui::Clip.none:GETTER": "none",
+        "dart:ui::Clip.hardEdge:GETTER": "hardEdge",
+        "dart:math::pi:GETTER": 3.141592653589793,
+        "dart:core::Duration.zero:GETTER": 0
+      },
+      "stringConversions": {
+        "dart:ui::Offset:CLASS": "wheelOffsetString"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-widget-candidate.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/wheel-widget-source.ts",
+  "requireSourceComparison": true,
+  "contract": {
+    "id": "nelyx.generated.w10-wheel-widget/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "ListWheelScrollView",
+      "ListWheelViewport",
+      "ListWheelElement"
+    ],
+    "requirements": [
+      "Complete six pinned Widget, State, Scrollable and Element bodies",
+      "Actual Core Element, BuildScope, Scrollable and renderer ownership",
+      "Independent Dart full-body comparison and actual Root gate promotion"
+    ],
+    "numericPolicy": "Safe integer child slots; source nullable child cache and ordered element map",
+    "differences": [
+      "Core queues component builds; host flushes the owning BuildScope before source renderer geometry and synchronizes delayed render admission",
+      "Finite compatibility facade preserves display-only full-width children, tap/overlay/notification/restoration policy and explicit facade-only key remapping. Remapped off-window children retire before the source contiguous rebuild; source default move assertion remains unchanged.",
+      "Facade cacheExtent remains a validated conservative density admission hint; realized child/cache window is owned by the source renderer."
+    ],
+    "performance": "Bounded direct seek and lifecycle fixtures on actual CPU CanvasKit; browser, native and physical FPS qualification remain separate"
+  }
+}

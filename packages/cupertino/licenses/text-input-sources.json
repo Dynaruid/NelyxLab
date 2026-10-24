@@ -1,0 +1,515 @@
+{
+  "schema": "nelyx.cupertino-text-input-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "clearLabelSources": [
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_af.arb",
+      "sha256": "2f25d835363db09d176e4379461d4c9f9e6a1a9149e91997b90f0368644a9fcc"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_am.arb",
+      "sha256": "4a9380911a2a8e516c8b43f8c813651bf32b36c5296a270901fccb43cb02158f"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ar.arb",
+      "sha256": "b16a20b2ff8cb86e1ed5cadf329ab6ff14e962b3f80ca6d2fdf9476593865048"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_as.arb",
+      "sha256": "4f66a7e033338fb50278b0e6708af740b98bf172132ec7df2b4e00e66f975954"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_az.arb",
+      "sha256": "7582ebf9e9d84b1616e766dfc38e17513ba529cbf2cac9c62bfa9bbb85468e1d"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_be.arb",
+      "sha256": "1354a4dbc1ad5c66957da9e7ac13b40428c38320db32445e0bd5c225eb8a931d"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_bg.arb",
+      "sha256": "ba089abae254c53a5660545895a352f54f5a870df9a97948d85b0ec5d61a6b1f"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_bn.arb",
+      "sha256": "79b48f1485a945f9668cc049379af986fa702a71f6bf7c5791783eae8c98e2e1"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_bo.arb",
+      "sha256": "de002bee771f03d203b06feeacf6428eb59ab2d20eb762055780dc2f157c8dd0"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_bs.arb",
+      "sha256": "dcbe5831e9dc7e8c10485c36a25957b958c1c4e41096adb7cc4fc6a8b605132f"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ca.arb",
+      "sha256": "1d484a79d15b16e84c17fcf436cdd412e4f5fbbdb2bba2aa977998f754589b8f"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_cs.arb",
+      "sha256": "52f960e2f474aa43cad27fa51bcc92e667eba5e883b3ba8dc221a4d84620d127"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_cy.arb",
+      "sha256": "3ac09bcc8e698252fa0358c34d01988022c99add363d773606535ef9efcfafd7"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_da.arb",
+      "sha256": "66c23f54c49495b78887a8f702a21a815a71cc5c2d705915ac1dffb19c7e533c"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_de_CH.arb",
+      "sha256": "4760adc717c5a307d8859123e4293f1c192ba9c476e35ee448278162b8611bf7"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_de.arb",
+      "sha256": "dbcd113b12a3b0f052b144c91c7c5a77df14a8848d29ec23c0a5ad6fe14a99b5"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_el.arb",
+      "sha256": "d3689459b79c77a9793a8472f514fbbdf2f061d4bd10e3c102cfa6215fea8d22"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_AU.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_CA.arb",
+      "sha256": "92c3b126bf18d0e7bc8c0ee1da7bb96d0aa6e76dde16e760700ac7dcf6f2f67a"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_GB.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_IE.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_IN.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_NZ.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_SG.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en_ZA.arb",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_en.arb",
+      "sha256": "baab708eaf9a1182b8719bdfd2bdb123522d9da2127922b7f58c2d77d0272af6"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_419.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_AR.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_BO.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_CL.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_CO.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_CR.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_DO.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_EC.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_GT.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_HN.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_MX.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_NI.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PA.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PE.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PR.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PY.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_SV.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_US.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_UY.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es_VE.arb",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_es.arb",
+      "sha256": "d30fd9d793a99b05ff4448a361687b209e5425feb7cf633bb437a83e51761541"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_et.arb",
+      "sha256": "448c188f9ee75e54ba4c3d7c1e7422cf87071c4b81a86293106afaf7f85e8297"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_eu.arb",
+      "sha256": "5d60226b0d1c36952b4f657eae5587d1b575ec30e47124062de80f20d3e4dcd9"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_fa.arb",
+      "sha256": "a4b333a0d86a2c543fcf3c7c9faddbb26c647793b0efc9d0f9dade00fb4644cd"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_fi.arb",
+      "sha256": "15f778aca4cdd6517b4d77802440f67d9f7be67b58cd7e2b4c0f26df5e208750"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_fil.arb",
+      "sha256": "689ffe6248af1d52e49d640b39cb4f3fa4f0bf3013e7a8e6f297fbf04ffaf772"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_fr_CA.arb",
+      "sha256": "1dfd9410273f3cd09d2e4f247251dc554ad2378c9f1865334f419aaebce78fbe"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_fr.arb",
+      "sha256": "1846021b32390fe170444edf5b62f5913a861d62fb0801192de476c6a98ce404"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ga.arb",
+      "sha256": "e590b66a8e75cb58c12367e07703e84d03ad2c01cdc3e41bd76bcd8ba514bb48"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_gl.arb",
+      "sha256": "9875b9c3c2e0960d8869db934e25235819473ee393d110f27e1cc9d79c9ca066"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_gsw.arb",
+      "sha256": "fdd8b7ab30c7ade19684a13a95e6926968bd1019e599022b4cec04783c10174e"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_gu.arb",
+      "sha256": "0eb2321f6499eec7fd0bef3e507de4bf089ea9a65cbaedd7e4f664920f3c864a"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_he.arb",
+      "sha256": "a3c1a29cfcae482485a53d551bc34882cfcd9967b4b336ed17164d22c336f61a"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_hi.arb",
+      "sha256": "22622fafad6dce82ee8c560ba894146e4dd9ed911978f165efaa09a3d51dc594"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_hr.arb",
+      "sha256": "d3d49aef6839f8e16666d1d9f9edac46c894083b5bd6cc84ff77f27c7d861e4b"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_hu.arb",
+      "sha256": "a755db02481826c38445ee38103cf1b161ead817d575b5d0a8f0b70ee4027cd9"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_hy.arb",
+      "sha256": "9bb30e3c72c0d21506dba5035b4aedda57467e2e363ad645a6c343e4f8cb267c"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_id.arb",
+      "sha256": "ab1abf8a4a785489d8634dca557a37620a50981a539a1ca2bee690deda38b564"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_is.arb",
+      "sha256": "ddb575c84c348d51ed800a812f1bedbe9c460540bf2bb65759eae4e9d1384352"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_it.arb",
+      "sha256": "dc972b3741fc74042a779e5cb05e1dc6bb1d59fc9db9e87b9318dc1825df43ac"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ja.arb",
+      "sha256": "5813938464d9b1f1bc7f2981a00d9ca9d933d3140f84ccf51e2ecb7765b54d1e"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ka.arb",
+      "sha256": "fc539cf1b9c7aaf568caab61e213ada1d909a7ba9e2b7f82bca022065ecb4995"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_kk.arb",
+      "sha256": "87e8a12455e7338ad44be72dd41f094b49a81c30f431565c473a534d4bea8220"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_km.arb",
+      "sha256": "b2307f6a279f5324c4cd68c36fc0504a4247e92430b0f71e887a695bfb9601b3"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_kn.arb",
+      "sha256": "581f53a335aabc119981d7d038450db00b21fb954c2f0886f5742a298892d224"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ko.arb",
+      "sha256": "5e7935f144d73babaee9e4f18ac94d1daa01a12e2071d5b2c1478625967859f5"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ky.arb",
+      "sha256": "46fdf32eb7aa2e6a681abc7904c13524a1f6ce1d3f16a55c522064735100db7e"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_lo.arb",
+      "sha256": "e1c274b6580ba2bbc2abefe9d2d568196d8da2374a7226805660b47d0083da79"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_lt.arb",
+      "sha256": "afd988ef606eae59f03c8a983e56fc5c52c92630642d51be6e4c0c99e2a78e6c"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_lv.arb",
+      "sha256": "c2bef919bcdfb83c1971ac60a09e8456d6f130b382f7d3a2064154dc4d642107"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_mk.arb",
+      "sha256": "835783f7297c22eb0ced820e1781f4a0bd9f3579e05abe47c7bbb82e89314983"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ml.arb",
+      "sha256": "90b2ea903fa5999123ff60b685e38e0206562aa7ed7c1330de51cc7471de30c9"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_mn.arb",
+      "sha256": "517394dfeff9b01eadec3f36ad3e88db73301102dacc47ef9037be5d7a0eb646"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_mr.arb",
+      "sha256": "980506537657d968cf388b307999546a29850bed5c3d1b692e3476e3106a4b0c"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ms.arb",
+      "sha256": "830936bd34cc237aee6d7b705cd06c3512b34a7984bc10daf9176c2dcc054de8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_my.arb",
+      "sha256": "1c7fca22436fb4bb12b8bab62fc73b96f0191a5ecda7f2ef2e581af2ee0e4dfc"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_nb.arb",
+      "sha256": "e6f290b5bb03f3194a4328ce9c643aaf1b2386c93ac43c75dd8b366916895e50"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ne.arb",
+      "sha256": "c5ffd6f288f2d15caa744d643ce8a4c1c8ada595f0a6abf375d1a60cee614187"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_nl.arb",
+      "sha256": "b198ff12801fb0513683564236a6f6e69dbf08269fc78734785dc942b28ff591"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_no.arb",
+      "sha256": "e6f290b5bb03f3194a4328ce9c643aaf1b2386c93ac43c75dd8b366916895e50"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_or.arb",
+      "sha256": "5027819a581fb72d01cef4fe70d27a18d4bd1d943383453c3a712b2cd5e3c6cd"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_pa.arb",
+      "sha256": "499ca4330d14c7fb00742ff82e65ad9b6e96345a9599ba552a3cf7f3ae5dabdd"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_pl.arb",
+      "sha256": "f23c9a86e972ed01ce3fe3993042bec6373d61606d9832894399d8ff5195f215"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_pt_PT.arb",
+      "sha256": "38f064f694e519ab47218a424ae5ada2e362138539c5cd50e035608f8e40cd07"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_pt.arb",
+      "sha256": "95f9f8b41c7c735f7f9bad42258252220e12786579b6cefb11e194cbcd53ee9b"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ro.arb",
+      "sha256": "b8548a2d273d84b4bcbdb3edb38418f4279413032caac3208d8d88a9250508cd"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ru.arb",
+      "sha256": "f6b72b0cd112f06eb3a575b014157f502fac3bfe84c69f6ee4d01ef7cb547142"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_si.arb",
+      "sha256": "58777a46d092180170c2158686f40a466871244a717b02f73d6097f0a2f948e8"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sk.arb",
+      "sha256": "8873fbd7248586981532ebb81c38aac5c69fdfa809aa58797ea739d146e55797"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sl.arb",
+      "sha256": "facf854a9e30f722895eaf8c73c7dc05b1d1c8e9a31fb74035f13ae500973b0a"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sq.arb",
+      "sha256": "1fdc6d9acd1e24bba03bf534557f3708b21edc2369f577c42d95fdf1692b30ba"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sr_Latn.arb",
+      "sha256": "2302a6a87f1c1e39f5e064b7adc5570be79926e4093d2c35ad7fd67943f90eec"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sr.arb",
+      "sha256": "76cd42010aaa392315c430fd822e62b99087b1f104aba2f884964cae6046348c"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sv.arb",
+      "sha256": "b3723e15adba62a01fbee6473617c6773d72f22d26cb71ef4bd0da61f73e0798"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_sw.arb",
+      "sha256": "98bc3180388b51e3d113f71cd92bf942db6ac0adabc958b68d80d47e042fb2d4"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ta.arb",
+      "sha256": "40d3661dd6f44d89eee49da25b15026f0d978c96d10ee57725e0aab8a348df45"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_te.arb",
+      "sha256": "2d7931cc5501c4f3ad4a7dae0469f6f0ed2cd88542c77da737e402b7c5a30057"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_th.arb",
+      "sha256": "1545bdef78e399250c42e7b85ba06f2b85acff0d28b34d69c7815bcc6bad5e30"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_tl.arb",
+      "sha256": "689ffe6248af1d52e49d640b39cb4f3fa4f0bf3013e7a8e6f297fbf04ffaf772"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_tr.arb",
+      "sha256": "9211687a74115893fb1f9a433f19c23fdd78da4593df6b0f1b837c833f8d224e"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ug.arb",
+      "sha256": "50711ac5946be032f14e23fa0f5aa13ee15fb17ea025afb878cf4b1e16729da1"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_uk.arb",
+      "sha256": "5d9633a7ca2327172e83b3700a8b823f3bbb710597b257a5c5effbec2614984d"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_ur.arb",
+      "sha256": "8f9708fca4f5aad1ea820b872759f9d81cbfde468c4355cfe73be3ce27b874da"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_uz.arb",
+      "sha256": "38cb74a4481376d535e66e5fdd3ccd87dc36104592ecb8755cdbc5a615d79208"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_vi.arb",
+      "sha256": "e85a967691d8446531ffe77e236a11c6d7a31000a4c3c874d83555ca20564923"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_zh_HK.arb",
+      "sha256": "8144b3317f61254e5c3e3850298818630bdcd53e0e14ad6fc6f385ec8f13ea91"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_zh_TW.arb",
+      "sha256": "530aaf6661ee9df3add89e40ec50bb0fd63e00e4a5ce8f4eeedfa1c379d25b23"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_zh.arb",
+      "sha256": "61b0abca3b7a474099bcc690f645d4d9c8fb9332fa6ade3042ae203a2f386957"
+    },
+    {
+      "file": "packages/flutter_localizations/lib/src/l10n/cupertino_zu.arb",
+      "sha256": "1497d043d724846725a51a32904dfc7acfe5f424714ee5e2f564f728770a78b2"
+    }
+  ],
+  "license": "packages/cupertino/licenses/Flutter-LICENSE.md",
+  "sourceByteFormat": "upstream git blob UTF-8 LF",
+  "dorotiRevision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/cupertino/text_field.dart",
+      "sha256": "3f44c7ae31857e1f32013d16fd22c094dd8d0dd2a86f997ca62cf03395b38298"
+    },
+    {
+      "file": "packages/flutter/lib/src/cupertino/text_form_field_row.dart",
+      "sha256": "dc03fc458a992a7eccc7a86cdd9786957679b67d4046cacb817c04335ed49476"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Cupertino/src/text_field.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "13bf32f5ddef224b7989c237bd21eaf96083a6bd435dc53eab13a9d2dbc3f206"
+    },
+    {
+      "file": "packages/Doroti.Cupertino/src/text_form_field_row.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "5343d1c73b13ee655477cace1911899245044b380aab24d9821aa5721b2797a8"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/cupertino/src/text-field.ts",
+      "sha256": "dca12ff4e9f4b1b651080dc4fd0a537486250622cac9f60452d2cf8acdc0d5ed"
+    },
+    {
+      "file": "packages/cupertino/src/text-form-field-row.ts",
+      "sha256": "ab4f933c734ea8b5e30b722b65083279a664ffa7d40e9eeb70beaae84f367ef5"
+    },
+    {
+      "file": "packages/cupertino/src/internal/input/baseline-aligned-stack.ts",
+      "sha256": "4a37a96389e6129e2ad8ee785de8e0acfa006d99e6e6f8d7cb500b63fee21e34"
+    },
+    {
+      "file": "packages/cupertino/src/internal/input/clear-localizations.ts",
+      "sha256": "06b7cceb3771f01389a491b2e4cde622027d8015bb0cd96b75382d133c736950"
+    },
+    {
+      "file": "packages/cupertino/src/cupertino-localizations.ts",
+      "sha256": "0ca2e8777baec5eec3fed285fda265702c0cdf96b38e0d4bf5d2a0a174c12b89"
+    }
+  ],
+  "ownership": "Hand-authored product adaptation on the canonical Core editor/Form state; pinned ARB value extraction verified against all existing selection labels. No feature-specific converter was added.",
+  "scope": "Selected Stateful Cupertino field, rounded/default/disabled/borderless decoration, placeholder baseline stack, text-driven prefix/suffix/clear precedence, shared style/lines/input/focus/controller/completion and FormRow validation/save/reset. Core paragraph cursor/strut/scaler, mobile/desktop selection controls, Core adaptive toolbar and mobile magnifier configuration now use the same editor owner. Source readonly-child/ARGB/host adaptations are explicit. Full public editing/caret/strut/cursor/obscuring/selection/toolbar/magnifier/spelling/restoration and native font/IME/physical parity remain PARTIAL. Programmatic composition replacement waits for authoritative OS cancellation when available and otherwise rejects explicitly. Clear keyboard/semantic focus uses the existing Core ControlInteraction; pointer clearing preserves editor focus. Public onTapOutside/onTapUpOutside callbacks and groupId share Core policy. The complete decoration/prefix/suffix/clear region uses the declared group identity; propagating a custom group to the outer design region is an explicit Core adaptation beyond the pinned outer region default. enableInteractiveSelection defaults to !readOnly || !obscureText and is forwarded to the Core editor. Disabled pointer selection preserves the caret while requesting input focus. Public scrollController/scrollPhysics forward to the actual Core Scrollable/ScrollPosition. Borrowed controllers retain caller ownership. Design text/controller restoration remains separate from Core offset restoration."
+}

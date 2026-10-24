@@ -1,0 +1,156 @@
+{
+  "schema": "nelyx.badge-avatar-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/badge.dart",
+      "sha256": "1e8bb5000c62a7072a81d63b258985b3c0bacb89ba261f46e8c0ec9fd6998c17"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/circle_avatar.dart",
+      "sha256": "b2eabc8f6600bfdefdb8e4e624f3e3d3f89f25abd2b36c44d87b3bd7ba4a5ebd"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "5d543f3e093bfcfa5dc889f8f67d87fa7a4e92dee44dc8630cdc613b9cee8183"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/badge.cs",
+      "sha256": "0cd31b76cf884b6905401fffe052e6731694578a2ea7f98f55688a5c4b746ed6"
+    },
+    {
+      "file": "packages/Doroti.Material/src/circle_avatar.cs",
+      "sha256": "d13ec96d05e5e2edbc774cd7c646618004fe7219eb9891c7b0f4e69b81e48d0c"
+    }
+  ],
+  "resolved": [
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "Badge",
+      "sourceSha256": "9364b0fbe95411545614050ea61def3d4ef01a13c2c9b01d6b8a844c8c585032",
+      "spanSha256": "e30f9651ff363e9568c61fe56aaa732e8813204a3d5b98a81092c3e8841ad447"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_Badge",
+      "sourceSha256": "9364b0fbe95411545614050ea61def3d4ef01a13c2c9b01d6b8a844c8c585032",
+      "spanSha256": "8347c7b7b4d1e48ed373b9473683c9ec799948bc9fc26edeb59de9cc44016cac"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_RenderBadge",
+      "sourceSha256": "9364b0fbe95411545614050ea61def3d4ef01a13c2c9b01d6b8a844c8c585032",
+      "spanSha256": "2a949d5e34a3e6bcc52b6d28fded32108b8d60c6237b8bbd198dc0f44aabbdd4"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_IntrinsicHorizontalStadium",
+      "sourceSha256": "9364b0fbe95411545614050ea61def3d4ef01a13c2c9b01d6b8a844c8c585032",
+      "spanSha256": "0aad508ef74afdd72563bf1ab98125ece176ad44869eaf4ad5ea8ab2f27d3751"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_RenderIntrinsicHorizontalStadium",
+      "sourceSha256": "9364b0fbe95411545614050ea61def3d4ef01a13c2c9b01d6b8a844c8c585032",
+      "spanSha256": "3c6899c6da62f4a81dde7d6fcf2579151bb7eebce69e7c7d40361e2b89523310"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_BadgeDefaultsM3",
+      "sourceSha256": "9364b0fbe95411545614050ea61def3d4ef01a13c2c9b01d6b8a844c8c585032",
+      "spanSha256": "5e60dd12edb39ff60b209cddcae6d2bf7606a6552a813f5178a20a43fabf0a67"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/circle_avatar.dart",
+      "symbol": "CircleAvatar",
+      "sourceSha256": "2f973b00616900e50b98fa39035f522b948e715a908632a59bbf7ccc5c8e3f40",
+      "spanSha256": "56f4a5fcc14b87a5ace69e15b29de1bf178b674ec0d3b858ecab0c88cd5e4d09"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.withNoTextScaling",
+      "sourceSha256": "cdcf065cd6c1cdf745dae19844b805fa6e5ef1d65889b17afbfa1959f5d6da8b",
+      "spanSha256": "3457693ebaace2c55b8b0735b1fe73c29d2eafdd2ea562d406573fec25f295f5"
+    }
+  ],
+  "sourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "Badge",
+      "offset": 524,
+      "length": 8441,
+      "sha256": "e30f9651ff363e9568c61fe56aaa732e8813204a3d5b98a81092c3e8841ad447"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_Badge",
+      "offset": 8969,
+      "length": 1279,
+      "sha256": "8347c7b7b4d1e48ed373b9473683c9ec799948bc9fc26edeb59de9cc44016cac"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_RenderBadge",
+      "offset": 10252,
+      "length": 3093,
+      "sha256": "2a949d5e34a3e6bcc52b6d28fded32108b8d60c6237b8bbd198dc0f44aabbdd4"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_IntrinsicHorizontalStadium",
+      "offset": 13349,
+      "length": 596,
+      "sha256": "0aad508ef74afdd72563bf1ab98125ece176ad44869eaf4ad5ea8ab2f27d3751"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_RenderIntrinsicHorizontalStadium",
+      "offset": 13949,
+      "length": 2206,
+      "sha256": "3c6899c6da62f4a81dde7d6fcf2579151bb7eebce69e7c7d40361e2b89523310"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/badge.dart",
+      "symbol": "_BadgeDefaultsM3",
+      "offset": 16458,
+      "length": 593,
+      "sha256": "5e60dd12edb39ff60b209cddcae6d2bf7606a6552a813f5178a20a43fabf0a67"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/circle_avatar.dart",
+      "symbol": "CircleAvatar",
+      "offset": 431,
+      "length": 9853,
+      "sha256": "56f4a5fcc14b87a5ace69e15b29de1bf178b674ec0d3b858ecab0c88cd5e4d09"
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/media_query.dart",
+      "symbol": "MediaQuery.withNoTextScaling",
+      "offset": 65362,
+      "length": 744,
+      "sha256": "3457693ebaace2c55b8b0735b1fe73c29d2eafdd2ea562d406573fec25f295f5"
+    }
+  ],
+  "numeric": {
+    "newEmittedClaims": 21,
+    "source": "Analyzer-resolved Badge nullable small/large double fields and both constructors; count/maxCount int; Avatar radius/min/max nullable double fields and constructor. Options retain matching annotations; private render parameters and host milliseconds have no invented source numeric claims."
+  },
+  "outputs": [
+    {
+      "file": "packages/material/src/badge.ts",
+      "sha256": "c1cc81e822c7a83313b02a78bfdc379740e3b53c1b92a1799623695a6350c3dc"
+    },
+    {
+      "file": "packages/material/src/circle-avatar.ts",
+      "sha256": "30254bb267f103aff3f2fb23713f28564673c7848a59569a94b1b6cb0e0b3d0a"
+    },
+    {
+      "file": "Nelyx/src/framework/widgets/app-data.ts",
+      "sha256": "26db0fc95f342f6e7f130ac02c3d10c84653afef3ea82b6651d80f39f2ea7568"
+    }
+  ],
+  "scope": "Eight unchanged complete Badge/widget/render/default, CircleAvatar and MediaQuery.withNoTextScaling declarations execute on explicit finite parent Widget/context/theme/decoration/text/image/render constraints receivers. M3 branch only; full original text/image pipeline/layout parents/renderer/engine and general const/ARGB role reference ABI are separate. Render positioning/intrinsic/dry baseline algorithms execute unchanged; finite child intrinsic values and explicit palettes are inputs. Public count is an exact nonnegative JS safe-integer adapter; values outside the safe range are rejected rather than rounded. ImageProvider/ErrorListener and AnimatedContainer use existing Core owners. Core MediaData projection preserves typed inherited getters on original receivers and retains host insets/metadata."
+}

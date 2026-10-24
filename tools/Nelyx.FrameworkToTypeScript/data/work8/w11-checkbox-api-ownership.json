@@ -1,0 +1,58 @@
+{
+  "schema": "nelyx.w11-checkbox-api-ownership/v1",
+  "status": "PASS-scoped",
+  "candidate": {
+    "file": ".tmp/work8/w11-controls-candidate/result.json",
+    "sha256": "6a9d65cc1a87acaa2efe7f8bfad448def6d5b589942c1067c66381056f756ac7"
+  },
+  "ir": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-controls-candidate\\ir.json",
+    "sha256": "30b73238035e5d37f07076d49a97e5b10d16a4df21a4ae4473fdfc7168c9b12d"
+  },
+  "source": {
+    "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/checkbox.dart",
+    "sha256": "8cb4a90a7bb92104f3431866d39612747fbd8070b7b11eebf31175f3e5c4ca62"
+  },
+  "resolvedSourceSha256": "80df12fe8d0a22173e72829fc314e2ac5b89c0f6d06dbdd831e1669668079af4",
+  "generator": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-checkbox-api.mjs",
+    "sha256": "3ed5fd2a19d9c7e40381da172931e04d744a689946669662c08185d9f2f3fd0f"
+  },
+  "output": {
+    "file": "packages/material/src/checkbox.ts",
+    "sha256": "54ceca3c01457d131fb5d8af7488e40b37d96e4c4d12adbc3e4e9df58f97e525"
+  },
+  "previous": {
+    "output": {
+      "file": ".tmp/work8/receipt-history/db2bd6add55cdde195a612fb61c09d7eddd8317316e3e373fc97ae80b380fe23-w11-checkbox-api-checkbox.ts",
+      "sha256": "db2bd6add55cdde195a612fb61c09d7eddd8317316e3e373fc97ae80b380fe23"
+    },
+    "ownership": {
+      "file": ".tmp/work8/receipt-history/8bd40c53532e2f428f3a51896cc00af2400305f1c646aa8057810928bf29a329-w11-checkbox-api-w11-checkbox-api-ownership.json",
+      "sha256": "8bd40c53532e2f428f3a51896cc00af2400305f1c646aa8057810928bf29a329"
+    }
+  },
+  "fields": 19,
+  "numericFields": 2,
+  "scope": "Standard/adaptive Material Checkbox19 fields, required/default constructor API and double splashRadius/width provenance. Adaptive factory retains the owning Checkbox State; functional build selects its current platform child. Functional State/motion/theme/paint/input are separate owners.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "ce45ef216765141ec1fd667e91ec24c8900130de254c82c71a06a955e4e37b34",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-checkbox-api.mjs"
+    ],
+    "scope": "Canonical relative paths and exact generator storage-path changes only; no behavior/native requalification."
+  },
+  "w12ModuleRelocation": {
+    "recordedAt": "2026-10-18T12:00:19.908Z",
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-checkbox-api-ownership.json",
+      "sha256": "a8ac963cfeac4d2c2fb942c0b99d03d86c7c115499b9d3faa9261a5d90df6194"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  }
+}

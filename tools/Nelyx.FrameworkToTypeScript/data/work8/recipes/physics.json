@@ -1,0 +1,47 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "physics",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/physics/utils.dart",
+      "sha256": "d29be83f4d6e0969183cbb32634d71034c0538e644d819aaefae7f81f07ec62d",
+      "symbols": [
+        "nearEqual",
+        "nearZero"
+      ],
+      "destination": "Nelyx/src/framework/physics/utils.ts",
+      "imports": {
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "invariant": "../../foundation/errors.ts"
+      },
+      "assertion": {
+        "code": "invalid-physics-epsilon",
+        "message": "Epsilon must be nonnegative"
+      }
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/nelyx-batch.ts",
+  "adoptExisting": {
+    "Nelyx/src/framework/physics/utils.ts": "e6515b506a8f6ec7cebfa6026825152ab11ba1b53f72cafe3c9cfcd7109a9b69"
+  },
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/first-batch.ts",
+  "contract": {
+    "id": "nelyx.generated.physics/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "nearEqual(a,b,epsilon)",
+      "nearZero(a,epsilon)"
+    ],
+    "requirements": [
+      "nullable identity; strict epsilon boundary; NaN and Infinity; debug invalid epsilon rejection"
+    ],
+    "numericPolicy": "IEEE-754 double numbers; int only via explicit safe-integer adapter; Duration milliseconds where mapped. No unrestricted integer, VM ABI, bitwise or BigInt arithmetic acceptance.",
+    "differences": [],
+    "performance": "Bun on the acceptance host; 20 warm-up then 2,000 synchronous kernel operations < 5,000 ms. No cold/native frame-rate claim."
+  }
+}

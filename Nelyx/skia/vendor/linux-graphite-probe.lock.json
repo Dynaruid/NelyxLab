@@ -1,0 +1,267 @@
+{
+  "schema": "nelyx.skia-artifacts/v1",
+  "policy": "Pinned native SDK build inputs; source and runtime qualification are separate. No runtime download or automatic source fallback.",
+  "artifacts": [
+    {
+      "id": "skia-m153-headers",
+      "supplier": "rust-skia/skia@m153-0.101.2",
+      "url": "https://codeload.github.com/rust-skia/skia/tar.gz/61e7ca4e99062cdd0ab69445d5963fb3365778f6",
+      "archiveSha256": "8401d0de878582a03abc1029bb62330aea58cda89904ae6ab187302e6d48ba5d",
+      "maxArchiveBytes": 69918247,
+      "stripPrefix": "skia-61e7ca4e99062cdd0ab69445d5963fb3365778f6",
+      "include": [
+        "include",
+        "modules",
+        "src",
+        "LICENSE"
+      ],
+      "maxExtractedBytes": 734003200,
+      "treeSha256": "4dfbed0f7cc5fb0e6d6758fc566db93e37938abea49eeef937a578a8aefe9fc6",
+      "requiredFiles": {
+        "include/core/SkCanvas.h": "b9e17ed13b37223240d2da2efadf9f64e6c36c847d2b7b2df16798ffdfda796d",
+        "include/gpu/ganesh/vk/GrVkDirectContext.h": "52fa831e221c25059a60a380bad4c4d822d33de9a5fea794c110b136df30a88c",
+        "include/gpu/vk/VulkanBackendContext.h": "4b3fb86e7d64f201af1b11f6298a26605acab7e707e4129c6db968d8690fa5af",
+        "include/gpu/vk/VulkanMemoryAllocator.h": "3a4240695716192325b63e444d06a32d4df6cd3c3b5b9b17c26db722e4e7dd79",
+        "modules/skparagraph/include/Paragraph.h": "a954365e852255849562c7b0771e21fe3c10acd7d228528d5fe3583b233b929b",
+        "LICENSE": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd"
+      },
+      "fileCount": 1770,
+      "sourceRevision": "61e7ca4e99062cdd0ab69445d5963fb3365778f6",
+      "provenanceLimitations": [
+        "Supplier build flags and binary to source correspondence require link/runtime qualification; no vendor rebuild required."
+      ],
+      "suffixes": [
+        ".h",
+        ".inc",
+        ".inl",
+        ".hpp"
+      ],
+      "literalFiles": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "rn-graphite-154.1-sdk",
+      "supplier": "react-native-skia@3.0.8",
+      "url": "https://registry.npmjs.org/react-native-skia/-/react-native-skia-3.0.8.tgz",
+      "archiveSha256": "e1256336f25543b37aec7f1b58acc877d9df9bf02fb2906bbd5000e5234354a4",
+      "maxArchiveBytes": 2068785,
+      "stripPrefix": "package/cpp",
+      "include": [
+        "skia",
+        "dawn"
+      ],
+      "maxExtractedBytes": 734003200,
+      "treeSha256": "bc0b7ead00910b906df1cd5e96ab20b38bc7e8c0ab89afb6ef9c8b010d4d5e01",
+      "requiredFiles": {
+        "skia/include/core/SkCanvas.h": "b9e17ed13b37223240d2da2efadf9f64e6c36c847d2b7b2df16798ffdfda796d",
+        "skia/include/gpu/graphite/Context.h": "cd0902c8318eb999b5aefa8821e8adced8b2ccfabb0aeeef7a8e936b62407b1d",
+        "dawn/include/dawn/dawn_proc.h": "e071805b66e5702e298f6a3589a7fbf7b63805c11d52ada46caea21759acbbf9",
+        "dawn/include/tint/tint.h": "018eddeedf6d175fbe209edbb9472f8b13feb93d2150c5c26d3d982b8bffaefa"
+      },
+      "fileCount": 538,
+      "sourceRevision": null,
+      "provenanceLimitations": [
+        "Supplier build flags and binary to source correspondence require link/runtime qualification; no vendor rebuild required."
+      ]
+    },
+    {
+      "id": "windows-x64-graphite-vulkan-0.153.3",
+      "supplier": "rust-skia/skia-binaries@0.153.3",
+      "url": "https://github.com/rust-skia/skia-binaries/releases/download/0.153.3/skia-binaries-b7f043e0b1e2a850e702-x86_64-pc-windows-msvc-graphite-jpegd-jpege-pdf-vulkan.tar.gz",
+      "archiveSha256": "21a21df4f6553e9b463c281763929f8e60bc4ac770fc1aa6f57cda235a5fc71e",
+      "maxArchiveBytes": 7099091,
+      "stripPrefix": "skia-binaries",
+      "include": [
+        "skia.lib",
+        "key.txt",
+        "tag.txt",
+        "LICENSE_SKIA"
+      ],
+      "maxExtractedBytes": 134217728,
+      "treeSha256": "e583101d006ef8df0296f146810eed6491e5f01fe1ba66e4f3647f096c7e5bda",
+      "requiredFiles": {
+        "skia.lib": "7bda185cc37c19e938a8a69448c9fcc8253447b107e9dfa61d95eb08bcc94344",
+        "key.txt": "58029ad4a62f50c2b13f237d6e33a1789c9967aa6dd575e841aa052950ee92ae",
+        "tag.txt": "aa072c79e6a0331964eb2784ca006813e486108ba21c739125ea5ab39a04cdee",
+        "LICENSE_SKIA": "138ca93b23032de20f9ec3838e3bec7120bbb16a791b2bf02e4ba469e0bab558"
+      },
+      "fileCount": 4,
+      "sourceRevision": null,
+      "provenanceLimitations": [
+        "Graphite/native Vulkan graphics input only; textlayout modules absent and complete SDK/runtime qualification separate."
+      ]
+    },
+    {
+      "id": "linux-x64-graphite-vulkan-0.153.3",
+      "supplier": "rust-skia/skia-binaries@0.153.3",
+      "url": "https://github.com/rust-skia/skia-binaries/releases/download/0.153.3/skia-binaries-b7f043e0b1e2a850e702-x86_64-unknown-linux-gnu-graphite-jpegd-jpege-pdf-vulkan.tar.gz",
+      "archiveSha256": "e2c3021d5d68364bc66f5ef1c181f6c31acf2470f9820a1698445ccf8102c8d4",
+      "maxArchiveBytes": 5775624,
+      "stripPrefix": "skia-binaries",
+      "include": [
+        "libskia.a",
+        "key.txt",
+        "tag.txt",
+        "LICENSE_SKIA"
+      ],
+      "maxExtractedBytes": 134217728,
+      "treeSha256": "4a640d926d7aaa8f72375b0b850eede47088cf1443e19adaf9dfc3cf8526a2e9",
+      "requiredFiles": {
+        "libskia.a": "88f5c063107ff8fdc6e6790d4e2f394d0bdf1df35314172c710d14b7d5add0f2",
+        "key.txt": "d47adfdeecc32e3531521ad4fc7f79c2a09d962ae966bcd8c7554590fdc521b2",
+        "tag.txt": "aa072c79e6a0331964eb2784ca006813e486108ba21c739125ea5ab39a04cdee",
+        "LICENSE_SKIA": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd"
+      },
+      "fileCount": 4,
+      "sourceRevision": null,
+      "provenanceLimitations": [
+        "Graphite/native Vulkan graphics input only; textlayout modules absent and complete SDK/runtime qualification separate."
+      ]
+    },
+    {
+      "id": "windows-x64-text-modules-0.153.3",
+      "supplier": "rust-skia/skia-binaries@0.153.3",
+      "url": "https://github.com/rust-skia/skia-binaries/releases/download/0.153.3/skia-binaries-b7f043e0b1e2a850e702-x86_64-pc-windows-msvc-ganesh-gl-jpegd-jpege-pdf-textlayout.tar.gz",
+      "archiveSha256": "56bc9791500a67a3a6eb0cabe05e8086879ac25d2b2560a583bb79a4302295db",
+      "maxArchiveBytes": 23003648,
+      "stripPrefix": "skia-binaries",
+      "include": [
+        "skparagraph.lib",
+        "skshaper.lib",
+        "skunicode_icu.lib",
+        "skunicode_core.lib",
+        "icudtl.dat",
+        "key.txt",
+        "tag.txt",
+        "LICENSE_SKIA"
+      ],
+      "maxExtractedBytes": 734003200,
+      "treeSha256": "25a4beaa547cda71b81c1287e07f7079c7b9425f8487e95e8ab836d9e88a81cf",
+      "requiredFiles": {
+        "skparagraph.lib": "3e0f6df6b9a730d1691c4aab1212cfd2b6567ed13b82e13956f9c7ffd7acbedd",
+        "skshaper.lib": "c28bbbf47c35ea84b52141ad46df3101865888f4cbb391ce99fddc407fabdc6c",
+        "skunicode_core.lib": "ed3feabc605a444422914e918fc91bdb949a69013d866e787f92d001c0ec1a1e",
+        "skunicode_icu.lib": "7852c58ce42a2e4765a3973649c5febf417f96608ed195139e1c749b1f4cf40d",
+        "icudtl.dat": "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe",
+        "LICENSE_SKIA": "138ca93b23032de20f9ec3838e3bec7120bbb16a791b2bf02e4ba469e0bab558",
+        "key.txt": "f751d6c0150ca062e09a71f34e9f64476118317526baf6aafc62d3fc2ca3dfbb",
+        "tag.txt": "aa072c79e6a0331964eb2784ca006813e486108ba21c739125ea5ab39a04cdee"
+      },
+      "fileCount": 8,
+      "sourceRevision": null,
+      "provenanceLimitations": [
+        "Independent text modules from same rust-skia m153 source/release family. No Ganesh Skia core extracted or linked. Composition is a candidate until ABI/link/text/GPU qualification."
+      ]
+    },
+    {
+      "id": "linux-x64-text-modules-probe-0.153.3",
+      "supplier": "rust-skia/skia-binaries@0.153.3",
+      "url": "https://github.com/rust-skia/skia-binaries/releases/download/0.153.3/skia-binaries-b7f043e0b1e2a850e702-x86_64-unknown-linux-gnu-egl-ganesh-gl-jpegd-jpege-pdf-skottie-svg-textlayout-vulkan-wayland-webpd-webpe-x11.tar.gz",
+      "archiveSha256": "e8ed063ab06081bee9519b5352aa94321ab99a3bad96cd88d109503e9d792628",
+      "maxArchiveBytes": 25230763,
+      "stripPrefix": "skia-binaries",
+      "include": [
+        "libskparagraph.a",
+        "libskshaper.a",
+        "libskunicode_core.a",
+        "libskunicode_icu.a",
+        "LICENSE_SKIA",
+        "key.txt",
+        "tag.txt"
+      ],
+      "maxExtractedBytes": 734003200,
+      "treeSha256": "509b57c82862522af4470ce612b5b006dc996e442a2350be36dde6bf995566fe",
+      "requiredFiles": {
+        "libskparagraph.a": "2028d07d78e73a06f0f8c31902c4a1f0598b838f66e135c8e890aade7c60d4d1",
+        "libskshaper.a": "b746be04d5fd13c4e56447b0b6f278e00698675554096b609d3e41e40df713ee",
+        "libskunicode_core.a": "a71edc09e40b4147e6dae702e33474743b6a10f22e63b3cac8f0141a7380e562",
+        "libskunicode_icu.a": "f460fe84251ad30212b74e5e711124755b299aedc99d45485671af25a0693d84",
+        "LICENSE_SKIA": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd",
+        "key.txt": "7841f6b2868af1c67c07cd25ba2d30581edc1a7e83e68971fe5056a3c34aa914",
+        "tag.txt": "aa072c79e6a0331964eb2784ca006813e486108ba21c739125ea5ab39a04cdee"
+      },
+      "fileCount": 7,
+      "sourceRevision": null,
+      "provenanceLimitations": [
+        "Same pinned source/release family independent paragraph/shaper/unicode/ICU archives only; Ganesh Skia core is not extracted or linked. PIC/ABI/actual execution require qualification."
+      ]
+    }
+  ],
+  "profiles": {
+    "windows-x64-graphite-text-probe": {
+      "target": "windows",
+      "architecture": "x86_64",
+      "renderer": "skia-graphite",
+      "gpuBackend": "vulkan",
+      "gpuImplementation": "native-vulkan",
+      "inputs": {
+        "headers": "skia-m153-headers",
+        "binaries": "windows-x64-graphite-vulkan-0.153.3",
+        "text": "windows-x64-text-modules-0.153.3"
+      },
+      "libraries": {
+        "skparagraph": {
+          "input": "text",
+          "path": "skparagraph.lib"
+        },
+        "skshaper": {
+          "input": "text",
+          "path": "skshaper.lib"
+        },
+        "skunicode_icu": {
+          "input": "text",
+          "path": "skunicode_icu.lib"
+        },
+        "skunicode_core": {
+          "input": "text",
+          "path": "skunicode_core.lib"
+        },
+        "skia": "skia.lib"
+      },
+      "qualification": "explicit candidate text-module probe; not a qualified runtime SDK"
+    },
+    "linux-x64-graphite-text-probe": {
+      "target": "linux",
+      "architecture": "x86_64",
+      "renderer": "skia-graphite",
+      "gpuBackend": "vulkan",
+      "gpuImplementation": "native-vulkan",
+      "inputs": {
+        "headers": "skia-m153-headers",
+        "binaries": "linux-x64-graphite-vulkan-0.153.3",
+        "text": "linux-x64-text-modules-probe-0.153.3"
+      },
+      "libraries": {
+        "skparagraph": {
+          "input": "text",
+          "path": "libskparagraph.a"
+        },
+        "skshaper": {
+          "input": "text",
+          "path": "libskshaper.a"
+        },
+        "skunicode_icu": {
+          "input": "text",
+          "path": "libskunicode_icu.a"
+        },
+        "skunicode_core": {
+          "input": "text",
+          "path": "libskunicode_core.a"
+        },
+        "skia": "libskia.a"
+      },
+      "qualification": "Explicit Linux complete-text candidate only; hardware/raw host/minimum OS notVerified"
+    }
+  },
+  "rnGraphite": {
+    "headersArtifact": "rn-graphite-154.1-sdk",
+    "binaryPackages": {
+      "android": "react-native-skia-graphite-android@154.1.0",
+      "ios": "react-native-skia-graphite-apple-ios@154.1.0",
+      "macos": "react-native-skia-graphite-apple-macos@154.1.0"
+    },
+    "dawn": "bundled 154.1.0; do not pair with 154.2.0 split Dawn",
+    "qualification": "Android baseline only; Apple binary inputs not acquired or qualified by this lock"
+  }
+}

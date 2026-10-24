@@ -1,0 +1,19 @@
+{
+  "schema": "nelyx.w11-sparkle-shader-ownership/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "source": {
+    "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/material/shaders/ink_sparkle.frag",
+    "sha256": "ed126d87b7df031187485bc37345a84aac211ee5efdeeb488ba28f6b0b817592"
+  },
+  "tool": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-ink-sparkle-shader.mjs",
+    "sha256": "c9b9eed1b5265de51b6aa8c2791dea5e186294b8c781b62931c647facbe61ee9"
+  },
+  "output": {
+    "file": "packages/material/assets/shaders/ink_sparkle.sksl",
+    "sha256": "f06d6c9e9e2a6ee1bfe9dd3f7f855ea3cb03c08bcf6383aedcff5f34b19e37f6"
+  },
+  "license": "BSD-3-Clause",
+  "notice": "packages/material/licenses/Flutter-LICENSE.md",
+  "scope": "Finite GLSL spelling/entrypoint and four scalar uniform-alias substitutions; all functions/expressions and 28 scalar uniform ordering retained. Explicit generated owner; refuse edited output. Canonical package SkSL asset embedded by the product build; no runtime converter or scratch dependency."
+}

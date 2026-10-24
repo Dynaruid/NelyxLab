@@ -1,0 +1,1048 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nelyx.dev/schemas/provider-v4.json",
+  "title": "Nelyx SDK provider v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "coreRange",
+    "protocolVersion",
+    "target",
+    "runtime",
+    "host",
+    "renderer",
+    "entry",
+    "defaultProfile",
+    "defaultCohort",
+    "cohorts",
+    "hostOperatingSystems",
+    "operations",
+    "architectures",
+    "tooling",
+    "artifactManifest",
+    "nativeAbi",
+    "wireAbi",
+    "capabilities",
+    "qualification",
+    "profiles"
+  ],
+  "properties": {
+    "schema": {
+      "const": "nelyx.provider/v4"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^nelyx\\.(web|ios|android|windows|macos|linux)$"
+    },
+    "version": {
+      "const": "0.20.0"
+    },
+    "coreRange": {
+      "type": "string",
+      "pattern": "^(?:>=|<=|>|<|=)?(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?: +(?:>=|<=|>|<|=)?(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*))*$"
+    },
+    "protocolVersion": {
+      "const": 1
+    },
+    "target": {
+      "enum": [
+        "web",
+        "ios",
+        "android",
+        "windows",
+        "macos",
+        "linux"
+      ]
+    },
+    "runtime": {
+      "enum": [
+        "browser",
+        "hermes",
+        "v8",
+        "jsc"
+      ]
+    },
+    "host": {
+      "enum": [
+        "react-dom",
+        "fabric"
+      ]
+    },
+    "renderer": {
+      "enum": [
+        "skia-graphite",
+        "skia-ganesh"
+      ]
+    },
+    "entry": {
+      "type": "string",
+      "pattern": "^@nelyx/sdk/platforms/(web|ios|android|windows|macos|linux)/application$"
+    },
+    "defaultProfile": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "defaultCohort": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cohorts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/cohort"
+      }
+    },
+    "hostOperatingSystems": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "doctor": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ]
+          }
+        },
+        "build": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ]
+          }
+        },
+        "run": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ]
+          }
+        },
+        "dev": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ]
+          }
+        },
+        "pack": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ]
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "doctor",
+          "build",
+          "run",
+          "dev",
+          "pack"
+        ]
+      }
+    },
+    "architectures": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "x86_64",
+          "arm64",
+          "wasm32"
+        ]
+      }
+    },
+    "tooling": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/tooling"
+      }
+    },
+    "artifactManifest": {
+      "$ref": "#/$defs/artifact"
+    },
+    "nativeAbi": {
+      "$ref": "#/$defs/abi"
+    },
+    "wireAbi": {
+      "const": 10
+    },
+    "capabilities": {
+      "$ref": "#/$defs/capabilities"
+    },
+    "qualification": {
+      "$ref": "#/$defs/qualification"
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "identity",
+          "status",
+          "reason",
+          "cohorts",
+          "executionOperatingSystems",
+          "architectures",
+          "artifactManifest",
+          "nativeAbi",
+          "wireAbi",
+          "capabilities",
+          "qualification"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "identity": {
+            "$ref": "#/$defs/identity"
+          },
+          "status": {
+            "enum": [
+              "implemented",
+              "unsupported"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cohorts": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "executionOperatingSystems": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "windows",
+                "darwin",
+                "linux",
+                "android",
+                "ios",
+                "browser"
+              ]
+            }
+          },
+          "architectures": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "x86_64",
+                "arm64",
+                "wasm32"
+              ]
+            }
+          },
+          "artifactManifest": {
+            "$ref": "#/$defs/artifact"
+          },
+          "nativeAbi": {
+            "$ref": "#/$defs/abi"
+          },
+          "wireAbi": {
+            "const": 10
+          },
+          "capabilities": {
+            "$ref": "#/$defs/capabilities"
+          },
+          "qualification": {
+            "$ref": "#/$defs/qualification"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "unsupported"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "qualification": {
+                  "properties": {
+                    "status": {
+                      "const": "notVerified"
+                    },
+                    "architectures": {
+                      "maxItems": 0
+                    },
+                    "evidence": {
+                      "maxItems": 0
+                    }
+                  }
+                },
+                "capabilities": {
+                  "properties": {
+                    "rendering": {
+                      "properties": {
+                        "admission": {
+                          "const": "unavailable"
+                        },
+                        "completion": {
+                          "const": "unavailable"
+                        },
+                        "present": {
+                          "const": "unobserved"
+                        },
+                        "notifications": {
+                          "const": "unavailable"
+                        },
+                        "nativeIdentity": {
+                          "const": false
+                        },
+                        "textRanges": {
+                          "const": false
+                        }
+                      }
+                    },
+                    "editing": {
+                      "properties": {
+                        "composing": {
+                          "const": "unavailable"
+                        },
+                        "selectionDirection": {
+                          "const": "unavailable"
+                        },
+                        "nativeRevision": {
+                          "const": "unavailable"
+                        }
+                      }
+                    },
+                    "semantics": {
+                      "const": "unavailable"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "implemented"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "artifactManifest": {
+                  "properties": {
+                    "entry": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "cohort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "react",
+        "reactNative",
+        "nativeReactNative",
+        "framework",
+        "frameworkVersion",
+        "frameworkRevision",
+        "engine",
+        "engineVersion",
+        "engineRevision",
+        "bytecodeVersion"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]*$"
+        },
+        "react": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
+        },
+        "reactNative": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nativeReactNative": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "framework": {
+          "enum": [
+            "react-native",
+            "react-native-windows",
+            "react-native-macos",
+            "react-native-linux",
+            "react-native-web"
+          ]
+        },
+        "frameworkVersion": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
+        },
+        "frameworkRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "engine": {
+          "enum": [
+            "hermes",
+            "v8",
+            "jsc",
+            "browser"
+          ]
+        },
+        "engineVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "engineRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bytecodeVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "runtime",
+        "host",
+        "renderer",
+        "gpuBackend",
+        "gpuImplementation",
+        "profile"
+      ],
+      "properties": {
+        "target": {
+          "enum": [
+            "web",
+            "ios",
+            "android",
+            "windows",
+            "macos",
+            "linux"
+          ]
+        },
+        "runtime": {
+          "enum": [
+            "browser",
+            "hermes",
+            "v8",
+            "jsc"
+          ]
+        },
+        "host": {
+          "enum": [
+            "react-dom",
+            "fabric"
+          ]
+        },
+        "renderer": {
+          "enum": [
+            "skia-graphite",
+            "skia-ganesh"
+          ]
+        },
+        "gpuBackend": {
+          "enum": [
+            "webgl2",
+            "vulkan",
+            "metal"
+          ]
+        },
+        "gpuImplementation": {
+          "enum": [
+            "dawn",
+            "browser-webgl2",
+            "native-vulkan"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        }
+      }
+    },
+    "abi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "skia"
+      ],
+      "properties": {
+        "host": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "skia": {
+          "const": 1
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry",
+        "kind",
+        "required"
+      ],
+      "properties": {
+        "entry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^@nelyx/(sdk|skia-rn|skia-web)/[A-Za-z0-9_./-]+\\.json$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "binary",
+            "recipe"
+          ]
+        },
+        "required": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rendering",
+        "editing",
+        "semantics"
+      ],
+      "properties": {
+        "rendering": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "admission",
+            "completion",
+            "present",
+            "notifications",
+            "nativeIdentity",
+            "textRanges"
+          ],
+          "properties": {
+            "admission": {
+              "enum": [
+                "bounded",
+                "rate-limited-only",
+                "unavailable"
+              ]
+            },
+            "completion": {
+              "enum": [
+                "gpu-retired",
+                "native-retained",
+                "unobserved",
+                "unavailable"
+              ]
+            },
+            "present": {
+              "enum": [
+                "native-observed",
+                "unobserved"
+              ]
+            },
+            "notifications": {
+              "enum": [
+                "submitted-and-retired",
+                "submitted-only",
+                "unavailable"
+              ]
+            },
+            "nativeIdentity": {
+              "type": "boolean"
+            },
+            "textRanges": {
+              "type": "boolean"
+            }
+          }
+        },
+        "editing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "indexUnit",
+            "composing",
+            "selectionDirection",
+            "nativeRevision"
+          ],
+          "properties": {
+            "indexUnit": {
+              "const": "utf16"
+            },
+            "composing": {
+              "enum": [
+                "observed",
+                "unavailable"
+              ]
+            },
+            "selectionDirection": {
+              "enum": [
+                "observed",
+                "unavailable"
+              ]
+            },
+            "nativeRevision": {
+              "enum": [
+                "observed",
+                "event-count",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "semantics": {
+          "enum": [
+            "native-controls",
+            "dom",
+            "unavailable"
+          ]
+        }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "scope",
+        "architectures",
+        "evidence",
+        "limitations"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "scoped",
+            "notVerified"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "architectures": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "x86_64",
+              "arm64",
+              "wasm32"
+            ]
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "tooling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "versionRange",
+        "operations",
+        "hostOperatingSystems"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]*$"
+        },
+        "kind": {
+          "enum": [
+            "executable",
+            "package",
+            "sdk",
+            "component"
+          ]
+        },
+        "versionRange": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:>=|<=|>|<|=)?(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:\\.(?:0|[1-9][0-9]*))?(?: +(?:>=|<=|>|<|=)?(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:\\.(?:0|[1-9][0-9]*))?)*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "doctor",
+              "build",
+              "run",
+              "dev",
+              "pack"
+            ]
+          }
+        },
+        "hostOperatingSystems": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "web"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "const": "nelyx.web"
+          },
+          "entry": {
+            "const": "@nelyx/sdk/platforms/web/application"
+          },
+          "profiles": {
+            "items": {
+              "properties": {
+                "identity": {
+                  "properties": {
+                    "target": {
+                      "const": "web"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "ios"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "const": "nelyx.ios"
+          },
+          "entry": {
+            "const": "@nelyx/sdk/platforms/ios/application"
+          },
+          "profiles": {
+            "items": {
+              "properties": {
+                "identity": {
+                  "properties": {
+                    "target": {
+                      "const": "ios"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "android"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "const": "nelyx.android"
+          },
+          "entry": {
+            "const": "@nelyx/sdk/platforms/android/application"
+          },
+          "profiles": {
+            "items": {
+              "properties": {
+                "identity": {
+                  "properties": {
+                    "target": {
+                      "const": "android"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "windows"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "const": "nelyx.windows"
+          },
+          "entry": {
+            "const": "@nelyx/sdk/platforms/windows/application"
+          },
+          "profiles": {
+            "items": {
+              "properties": {
+                "identity": {
+                  "properties": {
+                    "target": {
+                      "const": "windows"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "macos"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "const": "nelyx.macos"
+          },
+          "entry": {
+            "const": "@nelyx/sdk/platforms/macos/application"
+          },
+          "profiles": {
+            "items": {
+              "properties": {
+                "identity": {
+                  "properties": {
+                    "target": {
+                      "const": "macos"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "const": "linux"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "const": "nelyx.linux"
+          },
+          "entry": {
+            "const": "@nelyx/sdk/platforms/linux/application"
+          },
+          "profiles": {
+            "items": {
+              "properties": {
+                "identity": {
+                  "properties": {
+                    "target": {
+                      "const": "linux"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "The SDK validator additionally checks range compatibility, runtime/host/GPU combinations, duplicate profiles/tools, declared host operations, default profile mirroring, native ABI/manifest identities and qualification consistency. CLI host planning and target execution validation are distinct. Binary bytes remain subject to the target artifact loader."
+}

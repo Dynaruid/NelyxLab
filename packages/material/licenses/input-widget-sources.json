@@ -1,0 +1,62 @@
+{
+  "schema": "nelyx.material-input-widget-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/input_decorator.dart",
+      "sha256": "345b85180466c88f7db850dd3eab6ede8755314e30cb4254eba9c431b694a20c"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/text_field.dart",
+      "sha256": "deb5b0516be2a431bdeab415f4c0414ba878fce634c62b34ff19b071246763c4"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/text_form_field.dart",
+      "sha256": "af1262dd3dafcb6265337167f1cf755e7dc720bb8a1a098999812f335f69240f"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/input_decorator.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "f38cfc21b2c17dca50047420fc98e19c5e11fdaba818a7dac20aa889cd841429"
+    },
+    {
+      "file": "packages/Doroti.Material/src/text_field.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "72c1f836f5991be5ec3dbf3c02fedc1bbc8a693d4a7fcedff449357ddbb3f382"
+    },
+    {
+      "file": "packages/Doroti.Material/src/text_form_field.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "5a4c6b4896ec2e0e3752dbbc99c52e8255c0cfb89b058a8f230efa888fdcf9d9"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/material/src/input-decoration.ts",
+      "sha256": "66e5b6915362b495e5b05ddf18ce0a7c54317be4229a56b156460b8c570ffd14"
+    },
+    {
+      "file": "packages/material/src/input-decorator.ts",
+      "sha256": "813ebdf68692568e729c79235984dd8a53ac7fe3b66499651bb7717ddc73d0f6"
+    },
+    {
+      "file": "packages/material/src/internal/input/input-decorator-layout.ts",
+      "sha256": "af757f960bb180aa68d2586daed04cf316b9b287d926dad5599af1c73d830421"
+    },
+    {
+      "file": "packages/material/src/text-field.ts",
+      "sha256": "03b082f97e5c23f18862adde37e2cf4904d602fd381e2167a8a5df66b39fdb2a"
+    },
+    {
+      "file": "packages/material/src/text-form-field.ts",
+      "sha256": "8355f5cf974bc750447523bfc6814f4f395d57b601013bf82246e3d37c56b787"
+    }
+  ],
+  "ownership": "Hand-authored Nelyx product adaptation; not generated or unchanged original algorithm bodies.",
+  "license": "packages/material/licenses/Flutter-LICENSE.md",
+  "scope": "Selected M3 immutable decoration, state/theme slots, bounded layout/paint/baselines, fixed/ranged/expanded TextField and Core Form composition. Completion callbacks share Core focus and error ownership. Core paragraph caret/strut/scaler options, platform selection controls, adaptive Core toolbar and magnifier configuration are connected to the same editor owner. Full geometry/motion/strut/caret parity, complete public editing APIs, localized counters, Cupertino input/Form and actual native/font/physical qualification remain PARTIAL. Hand-authored numbers do not claim analyzer provenance. Public onTapOutside/onTapUpOutside callbacks and groupId share Core policy. The complete decoration/prefix/suffix/clear region uses the declared group identity; propagating a custom group to the outer design region is an explicit Core adaptation beyond the pinned outer region default. enableInteractiveSelection defaults to !readOnly || !obscureText and is forwarded to the Core editor. Disabled pointer selection preserves the caret while requesting input focus. Public scrollController/scrollPhysics forward to the actual Core Scrollable/ScrollPosition. Borrowed controllers retain caller ownership. Design text/controller restoration remains separate from Core offset restoration.",
+  "sourceByteFormat": "upstream git blob UTF-8 LF; older checkout notices can hash CRLF bytes"
+}

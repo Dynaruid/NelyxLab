@@ -1,0 +1,76 @@
+{
+  "schema": "nelyx.design-source-notices/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "noticeSha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+  "scope": "Selected W11 palette data, functional theme/text-role/application and selected button/check/radio/switch/activity/progress/Cupertino and Material sliders, slider theme/value compositions and generated original shape bodies; no whole design library/native/font/asset qualification.",
+  "sources": [
+    {
+      "source": "packages/flutter/lib/src/cupertino/colors.dart",
+      "sha256": "33284f9bd3dc23068904c52d92fb4919eea6d8b5b632e27c058969a5d5000d21"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/text_theme.dart",
+      "sha256": "c83474289a49343821f9ec2c2a3f5821f76a5f59375fb7a6263b1e1d702d0b72"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/theme.dart",
+      "sha256": "1e4e46805fd8923d31af7be8f1137a96b73c7e0d928a53d1b2f0a9fa21a00e72"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/app.dart",
+      "sha256": "216e23503073efd1e3dd88e91fc38d131600fb8c229aa992011fd0c400c62352"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/button.dart",
+      "sha256": "1cd4fd19b78fd489323e58ffdd9f465aebcdbe3a1e4695a6ded25c625dbe4f2d"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/constants.dart",
+      "sha256": "84d388f84f76a87b85e8a81d4a2e5d80345eba6c95aef0d20a6d403e3c47d03c"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/checkbox.dart",
+      "sha256": "8e92e79e1fecb0a0c1e19872540b496b306a0506df939d31d71b887f9a3c966e"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/radio.dart",
+      "sha256": "b7bbcd98fddeb6cba638d8a8bac8f4ce6fe531f5fb7b23b8ea667b4fb2de2397"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/switch.dart",
+      "sha256": "46010a2a58540e5e8b0a7cc3e1ed3c2601d4770e7674ce98178e70acd9a173a9"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/activity_indicator.dart",
+      "sha256": "a8e5cbab72a295f03832a0f27d649bddf1af08bdf7cfc2c5384784122bdec7c6"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/slider.dart",
+      "sha256": "f400fb5fe32f4104b24c67bf782f37c02317b293dabb3215ebf21367de103811"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/thumb_painter.dart",
+      "sha256": "cd1b9b76e4677bfe23ab01c10d3015ff5a09b6b0eecb61ffdd5b72a1c4264fd3"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/icon_theme_data.dart",
+      "sha256": "39bc766d9809a6794bb292293274b8d9e04bde7dfa66be4397aea2dd9db57f99"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/icons.dart",
+      "sha256": "b2dac9815fab468d797a7105d4928936a248b273cdf147466dceb1cda1f346e0"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/list_tile.dart",
+      "sha256": "fc15478a54f055f1e596de85a400d6b649771ebee3858e20b8debd0b80033334"
+    },
+    {
+      "source": "packages/flutter/lib/src/cupertino/list_section.dart",
+      "sha256": "d988e455cddb116fd9246d030e21a64913cc03f8c811236a05e3dd436dc99e1a"
+    }
+  ],
+  "numericPolicy": "Generated and finite field-projection Dart annotations retain resolved analyzer provenance. Handwritten TypeScript uses the existing Core ARGB/TextStyle ABI and adds no fictitious Dart annotations. Core IconData.codePoint and its constructor parameter annotations are checked against their exact analyzer-resolved int field/parameter records; generated catalog literal arguments preserve those resolved records.",
+  "ownership": "Palette: managed Dart batch/3-way merge. CupertinoCheckbox has14 nondeprecated resolved fields,12 managed source constants, full finite source gradient/check/dash/press/focus comparisons and actual Root/adaptive/Babel/public checks. It uses shared source input/motion policies with direct value paint; inactiveColor is intentionally removed. Theme/text-theme, selected App/button/radio/switch/activity compositions: explicit functional TypeScript source using shared Core interaction/state owners. Cupertino slider/thumb paint and callback bodies are compared independently. The complete1322 Cupertino icon constants are resolved-IR data on Core IconData with the unchanged font and MIT notice. CupertinoIconThemeData preserves the repeated Diagnosticable mixin order, subtype-copy and ambient dynamic color resolution; the original diagnostic body supplies only its color property. CupertinoListTile/base/notched/chevron and ListSection/base/insetGrouped supply resolved public fields/defaults and five numeric field annotations, canonical section enum, actual State/async tap latch including failure and mounted guards, typography/slot/padding/dynamic colors/separator/header/footer/shape/clip compositions. Full unchanged original libraries execute on finite native receivers; actual Root paragraphs/glyphs/pointer/clip hit and lifetime have separate proof. Source ClipRSuperellipse is represented privately by Core ClipPath and RoundedSuperellipseBorder geometry; full public RSuperellipse API/native hierarchy is not claimed. Async callback rejection is reported to the owning host error channel while preserving the source latch; this does not claim the original Zone implementation."
+}

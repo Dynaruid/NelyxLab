@@ -1,0 +1,112 @@
+{
+  "schema": "nelyx.work12-css-system-color-source/v1",
+  "source": "engine/src/flutter/lib/web_ui/lib/src/engine/platform_dispatcher/system_color_palette_detector.dart",
+  "sourceSha256": "744e3c58376431540bf3b9fa818e3ced4072734839d9e2d4f8852a33d0dcdd77",
+  "support": {
+    "offset": 2516,
+    "length": 2087,
+    "sha256": "5a01cd1a0a42e7f056614d7f752f4c045f1b0d4e7427c6a5b38f488a136e643b"
+  },
+  "scope": "Unchanged complete original web parseCssRgb function on an explicit finite dart:ui Color.fromRGBO receiver. Actual DOM CSS support/computed style/provider ownership are checked separately.",
+  "cases": [
+    {
+      "input": "rgb(1, 2, 3)",
+      "rgba": [
+        1,
+        2,
+        3,
+        1
+      ]
+    },
+    {
+      "input": " rgba(12, 34, 56, 0.25) ",
+      "rgba": [
+        12,
+        34,
+        56,
+        0.25
+      ]
+    },
+    {
+      "input": "rgb(0,255,127)",
+      "rgba": [
+        0,
+        255,
+        127,
+        1
+      ]
+    },
+    {
+      "input": "rgba(255,0,255,1)",
+      "rgba": [
+        255,
+        0,
+        255,
+        1
+      ]
+    },
+    {
+      "input": "rgba(1,2,3,0)",
+      "rgba": [
+        1,
+        2,
+        3,
+        0
+      ]
+    },
+    {
+      "input": "rgb(-1,0,0)",
+      "rgba": null
+    },
+    {
+      "input": "rgb(256,0,0)",
+      "rgba": null
+    },
+    {
+      "input": "rgb(1,2)",
+      "rgba": null
+    },
+    {
+      "input": "rgba(1,2,3,1.1)",
+      "rgba": null
+    },
+    {
+      "input": "rgba(1,2,3,-0.1)",
+      "rgba": null
+    },
+    {
+      "input": "rgba(1,2,3,abc)",
+      "rgba": null
+    },
+    {
+      "input": "RGBA(1,2,3,1)",
+      "rgba": null
+    },
+    {
+      "input": "color(srgb 1 0 0)",
+      "rgba": null
+    },
+    {
+      "input": "rgb(0x01, 2, 3)",
+      "rgba": [
+        1,
+        2,
+        3,
+        1
+      ]
+    },
+    {
+      "input": "rgba(1,2,3,0x1)",
+      "rgba": null
+    },
+    {
+      "input": "rgba(1,2,3,1e-1)",
+      "rgba": [
+        1,
+        2,
+        3,
+        0.1
+      ]
+    }
+  ]
+}

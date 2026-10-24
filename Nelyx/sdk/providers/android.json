@@ -1,0 +1,353 @@
+{
+  "schema": "nelyx.provider/v4",
+  "id": "nelyx.android",
+  "version": "0.20.0",
+  "coreRange": ">=0.16.0 <0.17.0",
+  "protocolVersion": 1,
+  "target": "android",
+  "runtime": "hermes",
+  "host": "fabric",
+  "renderer": "skia-graphite",
+  "entry": "@nelyx/sdk/platforms/android/application",
+  "defaultProfile": "graphite-vulkan",
+  "cohorts": [
+    {
+      "id": "rn-0.83.10",
+      "react": "19.2.0",
+      "reactNative": "0.83.10",
+      "nativeReactNative": "0.83.10",
+      "framework": "react-native",
+      "frameworkVersion": "0.83.10",
+      "frameworkRevision": null,
+      "engine": "hermes",
+      "engineVersion": "0.14.1",
+      "engineRevision": "5a1485fd688eafdf40637f4f2f44ec830f099b80",
+      "bytecodeVersion": 96
+    },
+    {
+      "id": "rn-0.83.1",
+      "react": "19.2.0",
+      "reactNative": "0.83.1",
+      "nativeReactNative": "0.83.1",
+      "framework": "react-native",
+      "frameworkVersion": "0.83.1",
+      "frameworkRevision": null,
+      "engine": "hermes",
+      "engineVersion": "0.14.0",
+      "engineRevision": "7ad93ab30325ed437a6eaaf310f7f87e9a3070e7",
+      "bytecodeVersion": 96
+    }
+  ],
+  "defaultCohort": "rn-0.83.10",
+  "hostOperatingSystems": {
+    "doctor": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "build": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "run": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "dev": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "pack": [
+      "windows",
+      "darwin",
+      "linux"
+    ]
+  },
+  "operations": [
+    "doctor",
+    "build",
+    "run",
+    "dev",
+    "pack"
+  ],
+  "architectures": [
+    "x86_64",
+    "arm64"
+  ],
+  "tooling": [
+    {
+      "id": "node",
+      "kind": "executable",
+      "versionRange": ">=24.3.0 <25.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "run",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "npm",
+      "kind": "executable",
+      "versionRange": ">=11.0.0 <12.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "react-native",
+      "kind": "package",
+      "versionRange": "0.83.10",
+      "operations": [
+        "build",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "jdk",
+      "kind": "executable",
+      "versionRange": ">=21.0.0 <22.0.0",
+      "operations": [
+        "build",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "android-ndk",
+      "kind": "sdk",
+      "versionRange": "27.1.12297006",
+      "operations": [
+        "build"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "android-build-tools",
+      "kind": "sdk",
+      "versionRange": "36.0.0",
+      "operations": [
+        "build"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "adb",
+      "kind": "executable",
+      "versionRange": ">=1.0.41 <2.0.0",
+      "operations": [
+        "run",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    }
+  ],
+  "artifactManifest": {
+    "entry": "@nelyx/skia-rn/native-manifest.json",
+    "kind": "recipe",
+    "required": [
+      "skia-android-x86_64",
+      "skia-android-arm64"
+    ]
+  },
+  "nativeAbi": {
+    "host": null,
+    "skia": 1
+  },
+  "wireAbi": 10,
+  "capabilities": {
+    "rendering": {
+      "admission": "bounded",
+      "completion": "gpu-retired",
+      "present": "unobserved",
+      "notifications": "submitted-and-retired",
+      "nativeIdentity": true,
+      "textRanges": true
+    },
+    "editing": {
+      "indexUnit": "utf16",
+      "composing": "unavailable",
+      "selectionDirection": "unavailable",
+      "nativeRevision": "event-count"
+    },
+    "semantics": "native-controls"
+  },
+  "qualification": {
+    "status": "notVerified",
+    "scope": "Android Hermes/Graphite implementation",
+    "architectures": [],
+    "evidence": [],
+    "limitations": [
+      "Hardware and ARM64/Release qualification remain incomplete",
+      "Korean composing, accessibility, native loss recovery and scanout remain unverified"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "graphite-vulkan",
+      "cohorts": [
+        "rn-0.83.10",
+        "rn-0.83.1"
+      ],
+      "identity": {
+        "target": "android",
+        "runtime": "hermes",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "dawn",
+        "profile": "graphite-vulkan"
+      },
+      "status": "implemented",
+      "reason": "Existing implementation retained in its declared cohort; wider qualification pending",
+      "executionOperatingSystems": [
+        "android"
+      ],
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-android-x86_64",
+          "skia-android-arm64"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Android Hermes/Graphite implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Hardware and ARM64/Release qualification remain incomplete",
+          "Korean composing, accessibility, native loss recovery and scanout remain unverified"
+        ]
+      }
+    },
+    {
+      "id": "emulator-vulkan",
+      "cohorts": [
+        "rn-0.83.10",
+        "rn-0.83.1"
+      ],
+      "identity": {
+        "target": "android",
+        "runtime": "hermes",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "dawn",
+        "profile": "emulator-vulkan"
+      },
+      "status": "implemented",
+      "reason": "Existing implementation retained in its declared cohort; wider qualification pending",
+      "executionOperatingSystems": [
+        "android"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-android-x86_64"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Android Hermes/Graphite implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Hardware and ARM64/Release qualification remain incomplete",
+          "Korean composing, accessibility, native loss recovery and scanout remain unverified"
+        ]
+      }
+    }
+  ]
+}

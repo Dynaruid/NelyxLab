@@ -1,0 +1,96 @@
+{
+  "schema": "nelyx.material-button-family-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/button_style.dart",
+      "sha256": "fa3b473dbb43a28efac12c0bc19c783a2351360025c157dc024e1fde272ecd3e"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/button_style_button.dart",
+      "sha256": "1ae2205b2c0011d8b482a767a71a962faddda1b781134442beceb6ac1e0ceb8a"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/icon_button.dart",
+      "sha256": "4af0de64e90fda46e22da0c62d9167357614737d27a6e1acd8d855c170e5d5aa"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/filled_button.dart",
+      "sha256": "d46bbbeb86a8959a8468f1116382ba4492125fc1dc5ad512b3e550b2b871303e"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/text_button.dart",
+      "sha256": "20264916adf96b721cbedf3965b8fa115d31f2b1ffec5ea1cd7f546d6236aa7c"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/outlined_button.dart",
+      "sha256": "35666976086be5d5b0f6f730741504eec35567366983bb552803322da9a41694"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/elevated_button.dart",
+      "sha256": "c6c7ec070ae18845ae4ae1e7f39eec433b6c611a028ee4bc65a7c951e734e5d1"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/button_style.cs",
+      "sha256": "27c3994a247ea7eccda3855f94f30d69622691bc88bad207b3ba60e01f12c91c"
+    },
+    {
+      "file": "packages/Doroti.Material/src/button_style_button.cs",
+      "sha256": "0c607865c2465001b48b2131c5cd9ca626da5fe4eec6c527d0f93cc023284562"
+    },
+    {
+      "file": "packages/Doroti.Material/src/icon_button.cs",
+      "sha256": "540f089d0ceccf925e295902c9013484244dfaaa874b4e5670539bf61d9d4fc9"
+    },
+    {
+      "file": "packages/Doroti.Material/src/filled_button.cs",
+      "sha256": "29aab9cb0d62ddfa3927dbcd28c4496cdef25769507ee72fcfe378ec212d8639"
+    },
+    {
+      "file": "packages/Doroti.Material/src/text_button.cs",
+      "sha256": "ce4bb774b2b2df08c1ec0cceba819a4d4107a0eee2766837268c43e58e0d224a"
+    },
+    {
+      "file": "packages/Doroti.Material/src/outlined_button.cs",
+      "sha256": "55a469a138ce7a3f3c5f6a427eafdd9373e7aef4b581c82e678d8b0218c637f3"
+    },
+    {
+      "file": "packages/Doroti.Material/src/elevated_button.cs",
+      "sha256": "4e886f227c2535508d5db01739132ed182d78b9c11827c3637c83e6a25173962"
+    }
+  ],
+  "coreValueTypes": [
+    {
+      "file": "packages/flutter/lib/src/painting/text_style.dart",
+      "sha256": "a3d55b855029ed82b63c34f7e520e0804a06b146368a59ade8fff254d0c8dafc"
+    },
+    {
+      "file": "packages/flutter/lib/src/painting/edge_insets.dart",
+      "sha256": "bb68f0dcd05f71f70c62416baffc01dc4da1de88c63d3a80113bef827d5233cb"
+    },
+    {
+      "file": "packages/flutter/lib/src/painting/borders.dart",
+      "sha256": "11d8a55f299395aa56dd8e3d76246d4bd36c85b4fece42d312786c79a98d9b67"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/widget_state.dart",
+      "sha256": "cc37563889b0c57a7c8993e9159cb3e7c3020624e5ef864b0ac76614d3813d57"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "sourceIr": {
+    "requests": 19,
+    "completeRecords": 18,
+    "unsupported": [
+      {
+        "symbol": "_ButtonStyleState",
+        "reason": "FunctionDeclarationStatementImpl@14811:299 T? effectiveValue<T>(T? Function(ButtonStyle? style) getProperty) {final T? widgetValue = getProperty(widgetStyle); final T? themeValue = getProperty(themeStyle",
+        "handling": "Pinned raw source reviewed and functionally ported to typed TS with actual Core Root/input/Material/Ink/fence tests; no successful body IR or compiler promotion claimed."
+      }
+    ]
+  },
+  "scope": "Complete 25-field ButtonStyle value contract and IconAlignment; M3 IconButton constructors/styleFrom/four policies and actual shared button material/ink/layout/input/lifetime. Source Duration represented in host milliseconds, erased double properties use retained DartDouble. Deprecated ButtonStyleButton constructor iconAlignment and old finite radius are removed. Icon/theme animation and remaining other button-family APIs/default/whole package/native/physical qualification stay PARTIAL."
+}

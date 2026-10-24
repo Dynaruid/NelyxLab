@@ -1,0 +1,189 @@
+{
+  "schema": "nelyx.card-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/card.dart",
+      "sha256": "781a234da5f916f0fc23eb6541d516ef4e8a741519376ec3ba683c37f85ae5e6"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/card_theme.dart",
+      "sha256": "f7746fff350f7e1d66bf5bc74a34866a939eadf032c9222cfe0bb5128fb027b9"
+    },
+    {
+      "file": "packages/flutter/lib/src/material/material.dart",
+      "sha256": "33d00dd364afaafc8bc1da0a51de6142a42c3f51cfc6262aa54071988c3b4888"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/card.cs",
+      "sha256": "c8ec44decd8eb31bec576a2daacdc0b3f741a4c4d97298970408998c3dd93b5f"
+    },
+    {
+      "file": "packages/Doroti.Material/src/card_theme.cs",
+      "sha256": "4f701002e31dd463689fc70dff565f2202231e76d20a27217bfb4a19fc2ad41f"
+    },
+    {
+      "file": "packages/Doroti.Material/src/material.cs",
+      "sha256": "e733e5ba9ea6ec9d53d03528e00657e680c85a9ae09baca75bb051d1b40497ab"
+    }
+  ],
+  "resolved": [
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "Card",
+      "sourceSha256": "4077357a0c129a2d468244313f7bcec63e7b2b16d62508c8e287fe461ab9630e",
+      "spanSha256": "47866e0235dea3d53b6fbae1b8a04b1e433222d6ba0aae9946c1b4cdac815eef"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_CardDefaultsM3",
+      "sourceSha256": "4077357a0c129a2d468244313f7bcec63e7b2b16d62508c8e287fe461ab9630e",
+      "spanSha256": "0992480cfc1d548645c481d4b6d88efeeca1ad72ef48a7dbc897260f670eb5ac"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_FilledCardDefaultsM3",
+      "sourceSha256": "4077357a0c129a2d468244313f7bcec63e7b2b16d62508c8e287fe461ab9630e",
+      "spanSha256": "2d43c4bba209a9b1540ae2c4488022deb560a21c24fa1bc99ecaddb4c2a20e9e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_OutlinedCardDefaultsM3",
+      "sourceSha256": "4077357a0c129a2d468244313f7bcec63e7b2b16d62508c8e287fe461ab9630e",
+      "spanSha256": "21f3bd5fc178dba1954f2bd214a55f3e7d730832e789309a1ef3c7cf2c01ed20"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_CardVariant",
+      "sourceSha256": "4077357a0c129a2d468244313f7bcec63e7b2b16d62508c8e287fe461ab9630e",
+      "spanSha256": "df5ad07cb9f5a9d20c4af0f15889863ac0d6ce38a48e5a97ea55b49c46cbfe13"
+    }
+  ],
+  "sourceSpans": [
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "Card",
+      "offset": 501,
+      "length": 9947,
+      "sha256": "47866e0235dea3d53b6fbae1b8a04b1e433222d6ba0aae9946c1b4cdac815eef"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_CardDefaultsM3",
+      "offset": 11295,
+      "length": 632,
+      "sha256": "0992480cfc1d548645c481d4b6d88efeeca1ad72ef48a7dbc897260f670eb5ac"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_FilledCardDefaultsM3",
+      "offset": 12298,
+      "length": 648,
+      "sha256": "2d43c4bba209a9b1540ae2c4488022deb560a21c24fa1bc99ecaddb4c2a20e9e"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_OutlinedCardDefaultsM3",
+      "offset": 13325,
+      "length": 714,
+      "sha256": "21f3bd5fc178dba1954f2bd214a55f3e7d730832e789309a1ef3c7cf2c01ed20"
+    },
+    {
+      "source": "packages/flutter/lib/src/material/card.dart",
+      "symbol": "_CardVariant",
+      "offset": 449,
+      "length": 48,
+      "sha256": "df5ad07cb9f5a9d20c4af0f15889863ac0d6ce38a48e5a97ea55b49c46cbfe13"
+    }
+  ],
+  "numeric": {
+    "field": {
+      "type": "double?",
+      "inferred": false,
+      "bounds": [],
+      "resolvedType": {
+        "kind": "interface",
+        "nullable": true,
+        "reference": {
+          "id": "dart:core::double:CLASS",
+          "name": "double",
+          "owner": null,
+          "local": false,
+          "static": false
+        },
+        "arguments": []
+      }
+    },
+    "constructorAndNamedParameters": [
+      {
+        "name": "unnamed",
+        "numeric": {
+          "type": "double?",
+          "inferred": true,
+          "bounds": [],
+          "resolvedType": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::double:CLASS",
+              "name": "double",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          }
+        }
+      },
+      {
+        "name": "filled",
+        "numeric": {
+          "type": "double?",
+          "inferred": true,
+          "bounds": [],
+          "resolvedType": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::double:CLASS",
+              "name": "double",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          }
+        }
+      },
+      {
+        "name": "outlined",
+        "numeric": {
+          "type": "double?",
+          "inferred": true,
+          "bounds": [],
+          "resolvedType": {
+            "kind": "interface",
+            "nullable": true,
+            "reference": {
+              "id": "dart:core::double:CLASS",
+              "name": "double",
+              "owner": null,
+              "local": false,
+              "static": false
+            },
+            "arguments": []
+          }
+        }
+      }
+    ],
+    "emittedClaims": 5
+  },
+  "output": {
+    "file": "packages/material/src/card.ts",
+    "sha256": "2bf2bb029a3879e6189dba5e4f4f6159f85c5f6d11ec08fb5faa0e8503f6b331"
+  },
+  "scope": "Complete unchanged Card, three M3 default classes and variant enum execute on finite CardTheme/ThemeData/ColorScheme/Color/shape/insets/Material/semantics/context parents, M3 branch only.30 selected precedence/default/semantics/shape/identity recipes per environment. M2 is explicitly excluded. Full original Material/shape/typography/renderer/engine and native/physical semantics/reader remain separate. Shared selected margin/shape/transparent defaults and explicit caller/theme Color references are compared. Default ColorScheme role reference ABI uses the existing own ARGB adapter and is excluded from source color identity comparison. Product is M3 only; source useMaterial3/M2 branch is excluded. Existing CardTheme/Material/shape/ink/semantics owners remain; no duplicate renderer or compatibility aliases. Typed TS named-factory options keep inherited/prototype getters and original receivers, read each field once and retain source defaults/explicit zero/false/null policy. This adapter adds no numeric claims."
+}

@@ -1,0 +1,71 @@
+{
+  "schema": "nelyx.assets/v1",
+  "font": {
+    "file": "NotoSansKR.ttf",
+    "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+    "source": "https://raw.githubusercontent.com/google/fonts/5e8a3ba899557829a76cfdac30fa512bda91d7ca/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+    "revision": "5e8a3ba899557829a76cfdac30fa512bda91d7ca",
+    "license": "SIL-OFL-1.1",
+    "family": "Nelyx Korean"
+  },
+  "image": {
+    "file": "probe.png",
+    "sha256": "ca0d2448f36a831bf79530d52d505e180278e97cbf3df2c165890857ec1c444d",
+    "source": "deterministic fixture in fetch-probe-assets.py",
+    "license": "repository-owned"
+  },
+  "animation": {
+    "file": "pulse.gif",
+    "sha256": "e3c805d5414e3f7cc003ee00d3651b7d78a5f45e6f8372a8235b582250b1e5c5",
+    "source": "deterministic fixture in generate-pulse.py",
+    "license": "repository-owned",
+    "frames": 3
+  },
+  "typographyFonts": [
+    {
+      "file": "NotoColorEmoji.ttf",
+      "sha256": "50cd34f78ec3553aaf20c6db140f880d54cc84f06e1377767961743d496a56da",
+      "bytes": 4742308,
+      "source": "https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/engine/src/flutter/txt/third_party/fonts/NotoColorEmoji.ttf",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "license": "OFL-1.1",
+      "licenseFile": "NotoColorEmoji.ttf.LICENSE.txt",
+      "licenseSha256": "699d7f15bb49cf3b38bea4226dfedef21b96a9876aa7425877ddbd07dde6b9d9",
+      "family": "Noto Color Emoji"
+    },
+    {
+      "file": "NotoNaskhArabic-Regular.ttf",
+      "sha256": "6b999662f669b2c9b00c10ce4a110b6f5179c20f3f77e5ccb897e3ab965cf9f5",
+      "bytes": 255280,
+      "source": "https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/engine/src/flutter/txt/third_party/fonts/NotoNaskhArabic-Regular.ttf",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "license": "OFL-1.1",
+      "licenseFile": "NotoNaskhArabic-Regular.ttf.LICENSE.txt",
+      "licenseSha256": "dfa1c7d62da559bec35609925baa2d5393a9d36ae500f2edb2f9787176f859a7",
+      "family": "Noto Naskh Arabic"
+    },
+    {
+      "file": "RobotoSlab-VariableFont_wght.ttf",
+      "sha256": "181c83564e9cd1e0426a573dedf3ed6d9191c710c268aeb458e18ec5ad1031fd",
+      "bytes": 247036,
+      "source": "https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/engine/src/flutter/txt/third_party/fonts/RobotoSlab-VariableFont_wght.ttf",
+      "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+      "license": "Apache-2.0",
+      "licenseFile": "RobotoSlab-VariableFont_wght.ttf.LICENSE.txt",
+      "licenseSha256": "a5668962b82cff9f2861b86fe1a12adb761fc1ff071007310f6cd0cd38febeb3",
+      "family": "Roboto Slab"
+    },
+    {
+      "file": "NotoSansHebrew.ttf",
+      "sha256": "7ef36a2c3593758cdb622e1bdef4f84523e92fbc3ccc667438dd80ff54c2de88",
+      "bytes": 112640,
+      "source": "https://raw.githubusercontent.com/google/fonts/bd8f81ddb5c74d5c8897b36ad88b440266245103/ofl/notosanshebrew/NotoSansHebrew%5Bwdth%2Cwght%5D.ttf",
+      "revision": "bd8f81ddb5c74d5c8897b36ad88b440266245103",
+      "license": "OFL-1.1",
+      "licenseFile": "NotoSansHebrew-OFL.txt",
+      "licenseSha256": "9b9fe028b5ba74d231659a1bbaf0ed09b11e759d1ca6a070999e16d151616b47",
+      "licenseSource": "https://raw.githubusercontent.com/google/fonts/bd8f81ddb5c74d5c8897b36ad88b440266245103/ofl/notosanshebrew/OFL.txt",
+      "family": "Noto Sans Hebrew Thin"
+    }
+  ]
+}

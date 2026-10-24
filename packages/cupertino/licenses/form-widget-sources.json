@@ -1,0 +1,41 @@
+{
+  "schema": "nelyx.cupertino-form-widget-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/cupertino/form_row.dart",
+      "sha256": "15282e6a291792cf4154ec2ec45a0932ce0099f27fe6e8aae215a2e91802c87e"
+    },
+    {
+      "file": "packages/flutter/lib/src/cupertino/form_section.dart",
+      "sha256": "d41764e61e47093f5a7acd2b7da79970f6a216eae509071ea8466b6e8ac3314e"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Cupertino/src/form_row.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "6894896eafed5a598d0fe72a23b6dc75e775579bd6c24f149336b2648545dd95"
+    },
+    {
+      "file": "packages/Doroti.Cupertino/src/form_section.cs",
+      "revision": "eac115aa7f015fd9d0bd98d47811b007d18e0a86",
+      "sha256": "dd52a54406320bedf309539a121613a1cb9a56d5853c8dce187adebb352e2883"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/cupertino/src/form-row.ts",
+      "sha256": "7b8382f60b3171e3664d1726d95a7e9473acd2735bcbb197e940c6afd8fcb1ee"
+    },
+    {
+      "file": "packages/cupertino/src/form-section.ts",
+      "sha256": "5926ad6f675623d9f8c756d269e5e2e2546d228418fe47c0bf65d4c62a7e8bc4"
+    }
+  ],
+  "license": "packages/cupertino/licenses/Flutter-LICENSE.md",
+  "ownership": "Hand-authored source compositions on canonical Core owners. No feature converter or generated-body adoption.",
+  "sourceByteFormat": "upstream git blob UTF-8 LF; reference checkout bytes hashed separately",
+  "scope": "FormRow/Section constructor defaults and source layout/style/delegation. Explicit ARGB style projection and readonly children snapshot. Inset grouping follows the pinned Flutter named constructor rather than the current Doroti base-constructor branch. CPU geometry/style/state/paint and public testbed consumption are scoped evidence; full Cupertino input/Form, underlying ListSection/native/font/physical parity remain PARTIAL."
+}

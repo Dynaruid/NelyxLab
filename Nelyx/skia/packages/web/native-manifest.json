@@ -1,0 +1,15 @@
+{
+  "schema": "nelyx.canvaskit/v1",
+  "adapterAbi": 1,
+  "version": "m153-nelyx-paragraph.1",
+  "paragraphApiVersion": 1,
+  "status": "requires-build",
+  "source": {
+    "revision": "61e7ca4e99062cdd0ab69445d5963fb3365778f6",
+    "lockSha256": "3e13a119383e5886e39eb8bd78b8617b0515b5665abc3bf8aea4cf6bd85761c9",
+    "patchSha256": "2285b23bb7f5ceed11f4a8f9c8b53ca6a3555f7bca0fc8785a0c2bdb87b98526"
+  },
+  "files": [],
+  "packageRuntime": "generated/runtime",
+  "noticeQualification": "PARTIAL"
+}

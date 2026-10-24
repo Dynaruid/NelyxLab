@@ -1,0 +1,33 @@
+{
+  "schema": "nelyx.feature-contract/v1",
+  "id": "nelyx.w9-03.common-runtime/v1",
+  "stage": "W9-03",
+  "classification": "nelyx-replacement",
+  "scope": "Common service/frame admission, image/asset recovery, shader-mask composition and input shutdown. This contract is a functional bundle within the remaining W9-03 priority scope.",
+  "ownership": "manual",
+  "requirements": [
+    {"id":"frame-admission","api":["FrameScheduler","Ticker"],"required":"A failed host request leaves no inaccessible callback or active ticker. endOfFrame and ticker start can retry. Cancellation, next-frame scheduling, hidden/resume and View isolation remain observable.","check":"tools/Nelyx.FrameworkToTypeScript/checks/common-runtime.mjs"},
+    {"id":"service-lifetime","api":["ServicesBinding","PlatformDispatcher"],"required":"Removed observers and closed owners receive no later notification. A reentrant newer environment suppresses stale delivery. Cleanup attempts all owned releases. Async keyboard initialization preserves user callbacks and unsubscribes before transport retirement.","checks":["tools/Nelyx.FrameworkToTypeScript/checks/common-runtime.mjs","tools/Nelyx.FrameworkToTypeScript/checks/common-sdk.mjs"]},
+    {"id":"asset-recovery","api":["CachingAssetBundle","PaintingBinding.registerImageService"],"required":"Failed string reads can retry; concurrent reads deduplicate; eviction cannot be undone by late parse completion. SDK bootstrap connects OS memory pressure to only this app's image/asset caches while live image handles survive.","checks":["tools/Nelyx.FrameworkToTypeScript/checks/common-runtime.mjs","tools/Nelyx.FrameworkToTypeScript/checks/common-sdk.mjs"]},
+    {"id":"image-lifetime","api":["ImageService","NetworkImage","ResizeImage"],"required":"Headers are immutable cache inputs; fit resizing never creates a zero-pixel dimension; cancellation suppresses later progress; synchronous host frame callbacks release the returned lease.","check":"tools/Nelyx.FrameworkToTypeScript/checks/common-runtime.mjs"},
+    {"id":"local-file-image","api":["FileImage","Image.file","ImageService.loadFileRequest","DataFactory.nelyxFromFile"],"required":"An explicit percent-encoded file:/// URI uses separate native IO without relaxing asset confinement. Enforce regular-file/nonempty/16 MiB limits, surface IO errors, cancel publication, and drain native completion before destroying the image backend. Older native suppliers fail explicitly. Web has no native file capability.","checks":["tools/Nelyx.FrameworkToTypeScript/checks/common-runtime.mjs","tools/Nelyx.FrameworkToTypeScript/checks/common-sdk.mjs","tools/Nelyx.FrameworkToTypeScript/checks/local-image-file.py","tools/Nelyx.FrameworkToTypeScript/checks/common-native-run.py"]},
+    {"id":"shader-mask","api":["ShaderMask","RenderShaderMask"],"required":"Mask after child paint in child-local coordinates using existing saveLayer/drawRect commands; preserve layout/hit testing and retained child composition. Borrow the callback's Shader; recorded frames retain independent image holds. Callback/paint failure rolls back and permits subsequent frames.","checks":["tools/Nelyx.FrameworkToTypeScript/checks/common-rendering.mjs","tools/Nelyx.FrameworkToTypeScript/checks/common-web.mjs","tools/Nelyx.FrameworkToTypeScript/checks/common-native-run.py"]},
+    {"id":"input-and-animation","api":["MouseTracker","FrameworkRoot","AnimationController"],"required":"Mouse enter callbacks may hide/close their View without later enter callbacks. Root hide/metrics change cancels pointer contacts. Controller hidden/resume, completion and disposal preserve ticker lifetime. Existing keyboard/selection and font-change flows remain valid.","checks":["tools/Nelyx.FrameworkToTypeScript/checks/common-runtime.mjs","tools/Nelyx.FrameworkToTypeScript/checks/common-rendering.mjs","tools/Nelyx.FrameworkToTypeScript/checks/default-text-editing-shortcuts-root.mjs","tools/Nelyx.FrameworkToTypeScript/checks/system-fonts-source.mjs"]}
+  ],
+  "differences": [
+    "Nelyx observers use live membership and latest-snapshot checks rather than reproducing every Flutter singleton/reentrant callback detail.",
+    "FileImage accepts an encoded local file URI instead of a Dart File object. File mutations require explicit eviction. Remote file authorities/content-provider URIs are outside this API.",
+    "Native file cancellation suppresses results; an already admitted bounded filesystem read may finish before drain. It does not claim interruptible OS file IO.",
+    "ShaderMask uses the existing retained canvas scope; a separate Flutter engine ShaderMaskLayer hierarchy is not required for this implementation. Shader objects remain caller-owned."
+  ],
+  "numericPolicy": "Finite milliseconds for scheduling; safe integer identities and lengths; positive bounded image dimensions, at least one pixel after fit rounding; existing wire/ARGB/sRGB rules. No Dart-generated declarations or new numeric lowering in this bundle.",
+  "evidencePolicy": "Controlled host/codec checks, real CPU pixels, browser WebGL/fixture ingress, native C++ IO, native JSI application frame admission and copied-artifact exit are distinct scopes. No physical IME/reader/FPS or full recovery acceptance follows from these checks.",
+  "deferredByUser": ["Accessibility implementation and dedicated acceptance", "Embedded native/HTML views and dedicated acceptance"],
+  "remainingPriorityAudit": [
+    "Full common platform/service/worker owner closure beyond the named contracts",
+    "Remaining paint/layer/filter/image formats and restoration fidelity, including rawUnmodified, wide-gamut and raster-cache scope decisions",
+    "Complete typography/font and pointer/gesture/focus/key/animation API contract audit beyond the linked integration regressions",
+    "Remaining real backend recovery and affected product-flow acceptance; W9-09 physical evidence remains separate"
+  ],
+  "wholeStageComplete": false
+}

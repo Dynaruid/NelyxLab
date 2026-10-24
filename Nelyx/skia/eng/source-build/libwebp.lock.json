@@ -1,0 +1,10 @@
+{
+  "schema": "nelyx.rn-m153-libwebp/v1",
+  "revision": "845d5476a866141ba35ac133f856fa62f0b7445f",
+  "skiaDeps": "https://chromium.googlesource.com/webm/libwebp.git@845d5476a866141ba35ac133f856fa62f0b7445f",
+  "url": "https://codeload.github.com/webmproject/libwebp/tar.gz/845d5476a866141ba35ac133f856fa62f0b7445f",
+  "stripPrefix": "libwebp-845d5476a866141ba35ac133f856fa62f0b7445f",
+  "archiveSha256": "746aa87589ca248d7dd9755fd3aad5368a8e26531e5e85636da8399f13885e7a",
+  "archiveBytes": 3801285,
+  "licenseFiles": ["COPYING", "PATENTS", "AUTHORS"]
+}

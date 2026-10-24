@@ -1,0 +1,86 @@
+{
+  "schema": "nelyx.work12-icon-default-identity-source/v1",
+  "source": "packages/flutter/lib/src/material/icon_button.dart",
+  "sourceSha256": "5ef9d1abe87429931b9eeb533db8823b4bc02cb3c28f616b5dfc9d15a80267f8",
+  "span": {
+    "offset": 39028,
+    "length": 687,
+    "sha256": "92a2cbfc4e7ae3b9a2203a6fc4298db3e99638128a48f4e064b1f7b670243acb"
+  },
+  "defaultGetterSpan": {
+    "offset": 40584,
+    "length": 373,
+    "sha256": "4a1a5d779cf872073b9619e7ed085314a0a20cdb00dfd5d0b0b083b877cbf938"
+  },
+  "paletteFixture": {
+    "file": "packages/material/tests/fixtures/theme-factory-source.json",
+    "sha256": "0ccb44c17d6f193dd3e3d866b871928e74ecf9cec1c258d00b7bf8956ab6a383"
+  },
+  "scope": "Unchanged original _IconButtonM3.themeStyleOf and standard default foreground getter on explicit finite IconTheme/Theme/ButtonStyle/styleFrom/WidgetStateProperty/ColorScheme receivers; real Dart identical distinguishes source final default colors from const/equal new colors. Actual canonical Core context policy is compared separately.",
+  "cases": [
+    {
+      "brightness": "light",
+      "kind": "default",
+      "color": 3707764736,
+      "foregroundColor": null,
+      "defaultForegroundColor": 4282991951,
+      "iconSize": null
+    },
+    {
+      "brightness": "light",
+      "kind": "constEqual",
+      "color": 3707764736,
+      "foregroundColor": 3707764736,
+      "defaultForegroundColor": 4282991951,
+      "iconSize": null
+    },
+    {
+      "brightness": "light",
+      "kind": "newEqual",
+      "color": 3707764736,
+      "foregroundColor": 3707764736,
+      "defaultForegroundColor": 4282991951,
+      "iconSize": null
+    },
+    {
+      "brightness": "light",
+      "kind": "different",
+      "color": 4279383126,
+      "foregroundColor": 4279383126,
+      "defaultForegroundColor": 4282991951,
+      "iconSize": null
+    },
+    {
+      "brightness": "dark",
+      "kind": "default",
+      "color": 4294967295,
+      "foregroundColor": null,
+      "defaultForegroundColor": 4291478736,
+      "iconSize": null
+    },
+    {
+      "brightness": "dark",
+      "kind": "constEqual",
+      "color": 4294967295,
+      "foregroundColor": 4294967295,
+      "defaultForegroundColor": 4291478736,
+      "iconSize": null
+    },
+    {
+      "brightness": "dark",
+      "kind": "newEqual",
+      "color": 4294967295,
+      "foregroundColor": 4294967295,
+      "defaultForegroundColor": 4291478736,
+      "iconSize": null
+    },
+    {
+      "brightness": "dark",
+      "kind": "different",
+      "color": 4279383126,
+      "foregroundColor": 4279383126,
+      "defaultForegroundColor": 4291478736,
+      "iconSize": null
+    }
+  ]
+}

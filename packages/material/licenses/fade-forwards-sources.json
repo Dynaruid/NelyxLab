@@ -1,0 +1,39 @@
+{
+  "schema": "nelyx.fade-forwards-sources/v1",
+  "flutterRevision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "dorotiRevision": "6778077f9f71ffd0d31652a51efca0163dcc348f",
+  "sources": [
+    {
+      "file": "packages/flutter/lib/src/material/page_transitions_theme.dart",
+      "sha256": "9961b6d1217390fa956817317e2bb7150a3569be13620242b96318be2ff67592"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/dual_transition_builder.dart",
+      "sha256": "1f59ade612bd272a8f9b97bdea7b739dc2ac1736970f825c00ee7e094e8c22ca"
+    },
+    {
+      "file": "packages/flutter/lib/src/animation/curves.dart",
+      "sha256": "662c3ef5fc48fe8e2a5f8480c6fe0c3334b52633258836d4176aa542e45419d1"
+    },
+    {
+      "file": "packages/flutter/lib/src/widgets/routes.dart",
+      "sha256": "652bdf692ee05cbe42dcf821c0a53c7b4683ca1fed36961698b421ff47c14214"
+    }
+  ],
+  "references": [
+    {
+      "file": "packages/Doroti.Material/src/page_transitions_theme.cs",
+      "sha256": "feba214ea53e965bfe9f0fce583c928f30fe00952af3a0eab03c15d7cb637038"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/dual_transition_builder.cs",
+      "sha256": "572269e98081a8a4f47e6bbe56a2c419db5951e04c304c99ad88ffe5fc6bd943"
+    },
+    {
+      "file": "Doroti/src/Doroti.Framework.Widgets/routes.cs",
+      "sha256": "005238183ff82974b06c6c550434ed57756a4ec5174d36c2554f2ee4827c34a3"
+    }
+  ],
+  "notice": "Flutter-LICENSE.md",
+  "scope": "Complete FadeForwards and delegated source recipes on canonical Core Dual/Animation/Slide/Fade with selected own mounted route-opacity contact. Full PageTransitionsTheme/default platform selection, Zoom/snapshot/Cupertino/predictive and source ModalRoute/native/physical qualification remain separate."
+}

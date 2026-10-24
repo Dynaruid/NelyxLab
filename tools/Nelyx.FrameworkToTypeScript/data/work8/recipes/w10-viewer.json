@@ -1,0 +1,922 @@
+{
+  "schema": "nelyx.batch/v1",
+  "id": "w10-viewer",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "sourceRoot": ".tmp/work6/flutter-source",
+  "dartSdk": ".tmp/work6/dart-dev/dart-sdk",
+  "package": "@nelyx/core",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/widgets/interactive_viewer.dart",
+      "sha256": "c25d99ee34d7eaf0d9f0cbd6579ff6130ce5c7062b701462db93b4c455eaaa08",
+      "symbols": [
+        "InteractiveViewer",
+        "_InteractiveViewerState",
+        "_InteractiveViewerBuilt",
+        "TransformationController",
+        "_GestureType",
+        "_getFinalTime",
+        "_getMatrixTranslation",
+        "_transformViewport",
+        "_getAxisAlignedBoundingBoxWithRotation",
+        "_exceedsBy",
+        "_round",
+        "_alignAxis",
+        "_getPanAxis",
+        "PanAxis"
+      ],
+      "destination": "Nelyx/src/framework/widgets/interactive-viewer.generated.ts",
+      "classNames": {
+        "InteractiveViewer": "SourceInteractiveViewer",
+        "_InteractiveViewerState": "SourceInteractiveViewerState",
+        "_InteractiveViewerBuilt": "SourceInteractiveViewerBuilt",
+        "TransformationController": "SourceTransformationController",
+        "_GestureType": "SourceGestureType",
+        "PanAxis": "SourcePanAxis",
+        "Quad": "SourceQuad",
+        "Triangle": "SourceTriangle"
+      },
+      "imports": {
+        "checkedInteger": "../../ui/value-math.ts",
+        "protect": "../../ui/value-math.ts",
+        "Widget": "./framework.ts",
+        "StatefulWidget": "./framework.ts",
+        "StatelessWidget": "./framework.ts",
+        "State": "./framework.ts",
+        "Key": "../../foundation/key.ts",
+        "GlobalKey": "./global-key.ts",
+        "PointerDeviceKind": "../../ui/pointer.ts",
+        "Offset": "../../ui/offset.ts",
+        "Rect": "../../ui/rect.ts",
+        "Size": "../../ui/size.ts",
+        "Matrix4": "../../math/matrix4.ts",
+        "Vector3": "../../math/vector3.ts",
+        "SourceQuad": "../../math/quad.generated.ts",
+        "SourceTriangle": "../../math/triangle.generated.ts",
+        "Animation": "../animation/animation.ts",
+        "AnimationController": "../animation/animation-controller.ts",
+        "Animatable": "../animation/tween.ts",
+        "Tween": "../animation/tween.ts",
+        "CurveTween": "../animation/tween.ts",
+        "Curves": "../animation/curves.ts",
+        "Axis": "../painting/basic-types.ts",
+        "Alignment": "../painting/alignment.ts",
+        "EdgeInsets": "../painting/edge-insets.ts",
+        "BoxConstraints": "../rendering/constraints.ts",
+        "RenderBox": "../rendering/object.ts",
+        "HitTestBehavior": "../rendering/pointer-listener.ts",
+        "PointerEvent": "../gestures/events.ts",
+        "PointerSignalEvent": "../gestures/events.ts",
+        "PointerScaleEvent": "../gestures/events.ts",
+        "PointerScrollEvent": "../gestures/events.ts",
+        "ScaleStartDetails": "../gestures/scale.ts",
+        "ScaleUpdateDetails": "../gestures/scale.ts",
+        "ScaleEndDetails": "../gestures/scale.ts",
+        "FrictionSimulation": "../physics/friction-simulation.ts",
+        "ValueNotifier": "../../foundation/notifier.ts",
+        "ViewerStatefulHost": "./viewer-widget-source-adapter.ts",
+        "ViewerStateHost": "./viewer-widget-source-adapter.ts",
+        "ViewerValueNotifierHost": "./viewer-widget-source-adapter.ts",
+        "dartLateRead": "../../foundation/dart-late.ts",
+        "dartLateWrite": "../../foundation/dart-late.ts",
+        "dartLateInitialize": "../../foundation/dart-late.ts",
+        "dartLateLocal": "../../foundation/dart-late.ts",
+        "dartMethodTearOff": "../../foundation/dart-method-tear-off.ts",
+        "dartStaticRead": "../../foundation/dart-static-field.ts",
+        "dartStaticWrite": "../../foundation/dart-static-field.ts",
+        "dartStaticSeal": "../../foundation/dart-static-field.ts",
+        "invariant": "../../foundation/errors.ts",
+        "FoundationBuildMode": "../../foundation/constants.ts",
+        "kMinFlingVelocity": "../gestures/constants.ts",
+        "kDefaultMouseScrollToScaleFactor": "../gestures/scale.ts",
+        "roundInteger": "../../ui/value-math.ts",
+        "clamp": "../../ui/value-math.ts",
+        "KeyedSubtree": "./basic.ts",
+        "viewerGlobalKey": "./viewer-widget-source-adapter.ts",
+        "viewerNumberTween": "./viewer-widget-source-adapter.ts",
+        "viewerOffsetTween": "./viewer-widget-source-adapter.ts",
+        "viewerLayoutBuilder": "./viewer-widget-source-adapter.ts",
+        "viewerListener": "./viewer-widget-source-adapter.ts",
+        "viewerGestureDetector": "./viewer-widget-source-adapter.ts",
+        "viewerTransform": "./viewer-widget-source-adapter.ts",
+        "viewerOverflowBox": "./viewer-widget-source-adapter.ts",
+        "viewerClipRect": "./viewer-widget-source-adapter.ts",
+        "viewerOffsetRect": "./viewer-widget-source-adapter.ts",
+        "viewerIsInfinite": "./viewer-widget-source-adapter.ts",
+        "viewerFixed": "./viewer-widget-source-adapter.ts",
+        "viewerParseDouble": "./viewer-widget-source-adapter.ts",
+        "viewerKeyContext": "./viewer-widget-source-adapter.ts",
+        "viewerEventTransform": "./viewer-widget-source-adapter.ts",
+        "viewerIsRenderBox": "./viewer-widget-source-adapter.ts",
+        "viewerCastRenderBox": "./viewer-widget-source-adapter.ts",
+        "viewerIsScrollEvent": "./viewer-widget-source-adapter.ts",
+        "viewerCastScrollEvent": "./viewer-widget-source-adapter.ts",
+        "viewerIsScaleEvent": "./viewer-widget-source-adapter.ts",
+        "viewerCastScaleEvent": "./viewer-widget-source-adapter.ts",
+        "viewerDouble": "./viewer-widget-source-adapter.ts",
+        "viewerTransformDelta": "./viewer-widget-source-adapter.ts",
+        "viewerRenderSize": "./viewer-widget-source-adapter.ts"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        },
+        "num": {
+          "representation": "double"
+        }
+      },
+      "durationUnit": "milliseconds",
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "typeImports": {
+        "ViewerSourceList": "./viewer-widget-source-adapter.ts",
+        "Clip": "../../ui/clip.ts",
+        "BuildContext": "./framework.ts"
+      },
+      "typeBindings": {
+        "dart:core::List:CLASS": "ViewerSourceList",
+        "package:vector_math/vector_math_64.dart::Quad:CLASS": "SourceQuad",
+        "dart:ui::Clip:ENUM": "Clip",
+        "dart:ui::Offset:CLASS": "Offset",
+        "dart:ui::PointerDeviceKind:ENUM": "PointerDeviceKind",
+        "dart:ui::Rect:CLASS": "Rect",
+        "dart:ui::Size:CLASS": "Size",
+        "package:flutter/src/animation/animation.dart::Animation:CLASS": "Animation",
+        "package:flutter/src/animation/animation_controller.dart::AnimationController:CLASS": "AnimationController",
+        "package:flutter/src/animation/curves.dart::Curves:CLASS": "Curves",
+        "package:flutter/src/animation/tween.dart::Animatable:CLASS": "Animatable",
+        "package:flutter/src/animation/tween.dart::CurveTween:CLASS": "CurveTween",
+        "package:flutter/src/animation/tween.dart::Tween:CLASS": "Tween",
+        "package:flutter/src/foundation/key.dart::Key:CLASS": "Key",
+        "package:flutter/src/gestures/events.dart::PointerEvent:CLASS": "PointerEvent",
+        "package:flutter/src/gestures/events.dart::PointerScaleEvent:CLASS": "PointerScaleEvent",
+        "package:flutter/src/gestures/events.dart::PointerScrollEvent:CLASS": "PointerScrollEvent",
+        "package:flutter/src/gestures/events.dart::PointerSignalEvent:CLASS": "PointerSignalEvent",
+        "package:flutter/src/gestures/scale.dart::ScaleEndDetails:CLASS": "ScaleEndDetails",
+        "package:flutter/src/gestures/scale.dart::ScaleStartDetails:CLASS": "ScaleStartDetails",
+        "package:flutter/src/gestures/scale.dart::ScaleUpdateDetails:CLASS": "ScaleUpdateDetails",
+        "package:flutter/src/painting/alignment.dart::Alignment:CLASS": "Alignment",
+        "package:flutter/src/painting/basic_types.dart::Axis:ENUM": "Axis",
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsets:CLASS": "EdgeInsets",
+        "package:flutter/src/physics/friction_simulation.dart::FrictionSimulation:CLASS": "FrictionSimulation",
+        "package:flutter/src/rendering/box.dart::BoxConstraints:CLASS": "BoxConstraints",
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": "RenderBox",
+        "package:flutter/src/rendering/proxy_box.dart::HitTestBehavior:ENUM": "HitTestBehavior",
+        "package:flutter/src/widgets/framework.dart::BuildContext:CLASS": "BuildContext",
+        "package:flutter/src/widgets/framework.dart::GlobalKey:CLASS": "GlobalKey",
+        "package:flutter/src/widgets/framework.dart::State:CLASS": "State",
+        "package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS": "StatefulWidget",
+        "package:flutter/src/widgets/framework.dart::StatelessWidget:CLASS": "StatelessWidget",
+        "package:flutter/src/widgets/framework.dart::Widget:CLASS": "Widget",
+        "package:listen/src/listen.dart::ValueNotifier:CLASS": "ValueNotifier",
+        "package:vector_math/vector_math_64.dart::Matrix4:CLASS": "Matrix4",
+        "package:vector_math/vector_math_64.dart::Vector3:CLASS": "Vector3"
+      },
+      "superConstructors": {
+        "package:flutter/src/widgets/framework.dart::StatefulWidget.StatefulWidget.new:CONSTRUCTOR": {
+          "target": "ViewerStatefulHost",
+          "policy": "no-derived-state-observation",
+          "namedArguments": "options",
+          "baseType": "StatefulWidget"
+        },
+        "package:flutter/src/widgets/framework.dart::StatelessWidget.StatelessWidget.new:CONSTRUCTOR": {
+          "target": "StatelessWidget",
+          "policy": "no-derived-state-observation"
+        },
+        "package:flutter/src/widgets/framework.dart::State.State.new:CONSTRUCTOR": {
+          "target": "ViewerStateHost",
+          "baseType": "State",
+          "policy": "no-derived-state-observation",
+          "mixins": [
+            "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin:MIXIN<package:flutter/src/widgets/interactive_viewer.dart::InteractiveViewer:CLASS>"
+          ]
+        },
+        "package:listen/src/listen.dart::ValueNotifier.ValueNotifier.new:CONSTRUCTOR": {
+          "target": "ViewerValueNotifierHost",
+          "baseType": "ValueNotifier",
+          "policy": "no-derived-state-observation"
+        }
+      },
+      "memberBindings": {
+        "package:flutter/src/widgets/framework.dart::State.widget:GETTER": "widget",
+        "package:listen/src/listen.dart::ValueNotifier.value:GETTER": "value",
+        "package:listen/src/listen.dart::ValueNotifier.value:SETTER": "value"
+      },
+      "lateFields": {
+        "read": "dartLateRead",
+        "write": "dartLateWrite",
+        "initialize": "dartLateInitialize",
+        "policy": "checked-late-instance"
+      },
+      "lateLocals": {
+        "create": "dartLateLocal",
+        "policy": "checked-late-local"
+      },
+      "staticFields": {
+        "read": "dartStaticRead",
+        "write": "dartStaticWrite",
+        "seal": "dartStaticSeal",
+        "policy": "lazy-class-fields"
+      },
+      "methodTearOff": {
+        "bind": "dartMethodTearOff",
+        "policy": "receiver-method-identity"
+      },
+      "adapters": {
+        "package:vector_math/vector_math_64.dart::Vector3.dot:METHOD": {
+          "target": "dot",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.clone:METHOD": {
+          "target": "clone",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.getMaxScaleOnAxis:METHOD": {
+          "target": "getMaxScaleOnAxis",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.getTranslation:METHOD": {
+          "target": "getTranslation",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.invert:METHOD": {
+          "target": "invert",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.rotateZ:METHOD": {
+          "target": "rotateZ",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.scaleByDouble:METHOD": {
+          "target": "scaleByDouble",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.setTranslation:METHOD": {
+          "target": "setTranslation",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.transform3:METHOD": {
+          "target": "transform3",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.translateByDouble:METHOD": {
+          "target": "translateByDouble",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.+:METHOD": {
+          "target": "plus",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.-:METHOD": {
+          "target": "minus",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.*:METHOD": {
+          "target": "scaled",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.Matrix4.identity:CONSTRUCTOR": {
+          "target": "Matrix4.identity",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.Matrix4.inverted:CONSTRUCTOR": {
+          "target": "Matrix4.inverted",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.Vector3.new:CONSTRUCTOR": {
+          "target": "Vector3",
+          "kind": "new"
+        },
+        "package:vector_math/vector_math_64.dart::Quad.Quad.points:CONSTRUCTOR": {
+          "target": "SourceQuad.points",
+          "kind": "call"
+        },
+        "dart:ui::Offset.Offset.new:CONSTRUCTOR": {
+          "target": "Offset",
+          "kind": "new"
+        },
+        "dart:ui::Offset.+:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.-:METHOD": {
+          "target": "subtract",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:ui::Offset.&:METHOD": {
+          "target": "viewerOffsetRect",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:math::exp:FUNCTION": {
+          "target": "Math.exp",
+          "kind": "call"
+        },
+        "dart:math::log:FUNCTION": {
+          "target": "Math.log",
+          "kind": "call"
+        },
+        "dart:math::max:FUNCTION": {
+          "target": "Math.max",
+          "kind": "call"
+        },
+        "dart:math::min:FUNCTION": {
+          "target": "Math.min",
+          "kind": "call"
+        },
+        "dart:math::pow:FUNCTION": {
+          "target": "Math.pow",
+          "kind": "call"
+        },
+        "dart:math::sqrt:FUNCTION": {
+          "target": "Math.sqrt",
+          "kind": "call"
+        },
+        "dart:ui::clampDouble:FUNCTION": {
+          "target": "clamp",
+          "kind": "call"
+        },
+        "dart:core::num.isInfinite:GETTER": {
+          "target": "viewerIsInfinite",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.round:METHOD": {
+          "target": "roundInteger",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.toStringAsFixed:METHOD": {
+          "target": "viewerFixed",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.parse:METHOD": {
+          "target": "viewerParseDouble",
+          "kind": "call"
+        },
+        "dart:core::Object.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/widgets/framework.dart::Widget.==:METHOD": {
+          "target": "identity",
+          "kind": "identity",
+          "receiver": "first"
+        },
+        "package:flutter/src/animation/animation.dart::Animation.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation.dart::Animation.removeListener:METHOD": {
+          "target": "removeListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.forward:METHOD": {
+          "target": "forward",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.reset:METHOD": {
+          "target": "reset",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.stop:METHOD": {
+          "target": "stop",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/tween.dart::Animatable.animate:METHOD": {
+          "target": "animate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/animation/tween.dart::Animatable.chain:METHOD": {
+          "target": "chain",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/painting/edge_insets.dart::EdgeInsets.inflateRect:METHOD": {
+          "target": "inflateRect",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/physics/friction_simulation.dart::FrictionSimulation.x:METHOD": {
+          "target": "x",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::BuildContext.findRenderObject:METHOD": {
+          "target": "findRenderObject",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.didUpdateWidget:METHOD": {
+          "target": "didUpdateWidget",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.initState:METHOD": {
+          "target": "initState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/framework.dart::State.setState:METHOD": {
+          "target": "setState",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/widgets/ticker_provider.dart::TickerProviderStateMixin.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.addListener:METHOD": {
+          "target": "addListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.removeListener:METHOD": {
+          "target": "removeListener",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:listen/src/listen.dart::ChangeNotifier.dispose:METHOD": {
+          "target": "dispose",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/physics/friction_simulation.dart::FrictionSimulation.FrictionSimulation.new:CONSTRUCTOR": {
+          "target": "FrictionSimulation",
+          "kind": "new"
+        },
+        "package:flutter/src/animation/animation_controller.dart::AnimationController.AnimationController.new:CONSTRUCTOR": {
+          "target": "AnimationController",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/animation/tween.dart::CurveTween.CurveTween.new:CONSTRUCTOR": {
+          "target": "CurveTween",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/scale.dart::ScaleStartDetails.ScaleStartDetails.new:CONSTRUCTOR": {
+          "target": "ScaleStartDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/scale.dart::ScaleUpdateDetails.ScaleUpdateDetails.new:CONSTRUCTOR": {
+          "target": "ScaleUpdateDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/gestures/scale.dart::ScaleEndDetails.ScaleEndDetails.new:CONSTRUCTOR": {
+          "target": "ScaleEndDetails",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::KeyedSubtree.KeyedSubtree.new:CONSTRUCTOR": {
+          "target": "KeyedSubtree",
+          "kind": "new",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/layout_builder.dart::LayoutBuilder.LayoutBuilder.new:CONSTRUCTOR": {
+          "target": "viewerLayoutBuilder",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::Listener.Listener.new:CONSTRUCTOR": {
+          "target": "viewerListener",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/gesture_detector.dart::GestureDetector.GestureDetector.new:CONSTRUCTOR": {
+          "target": "viewerGestureDetector",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::Transform.Transform.new:CONSTRUCTOR": {
+          "target": "viewerTransform",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::OverflowBox.OverflowBox.new:CONSTRUCTOR": {
+          "target": "viewerOverflowBox",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/basic.dart::ClipRect.ClipRect.new:CONSTRUCTOR": {
+          "target": "viewerClipRect",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "package:flutter/src/widgets/framework.dart::GlobalKey.currentContext:GETTER": {
+          "target": "viewerKeyContext",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/gestures/events.dart::PointerEvent.transform:GETTER": {
+          "target": "viewerEventTransform",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::num.toDouble:METHOD": {
+          "target": "viewerDouble",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "dart:core::double.abs:METHOD": {
+          "target": "Math.abs",
+          "kind": "call",
+          "receiver": "first"
+        },
+        "package:flutter/src/gestures/events.dart::PointerEvent.transformDeltaViaPositions:METHOD": {
+          "target": "viewerTransformDelta",
+          "kind": "call",
+          "namedArguments": "options"
+        },
+        "dart:ui::Offset.unary-:METHOD": {
+          "target": "negate",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:flutter/src/rendering/box.dart::RenderBox.size:GETTER": {
+          "target": "viewerRenderSize",
+          "kind": "call",
+          "receiver": "first"
+        }
+      },
+      "runtimeTypes": {
+        "package:flutter/src/rendering/box.dart::RenderBox:CLASS": {
+          "is": "viewerIsRenderBox",
+          "cast": "viewerCastRenderBox"
+        },
+        "package:flutter/src/gestures/events.dart::PointerScrollEvent:CLASS": {
+          "is": "viewerIsScrollEvent",
+          "cast": "viewerCastScrollEvent"
+        },
+        "package:flutter/src/gestures/events.dart::PointerScaleEvent:CLASS": {
+          "is": "viewerIsScaleEvent",
+          "cast": "viewerCastScaleEvent"
+        }
+      },
+      "constructorSpecializations": {
+        "package:flutter/src/widgets/framework.dart::GlobalKey.GlobalKey.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "package:flutter/src/widgets/framework.dart::State:CLASS<package:flutter/src/widgets/framework.dart::StatefulWidget:CLASS>"
+            ],
+            "target": "viewerGlobalKey",
+            "kind": "call"
+          }
+        ],
+        "package:flutter/src/animation/tween.dart::Tween.Tween.new:CONSTRUCTOR": [
+          {
+            "typeArguments": [
+              "dart:core::double:CLASS"
+            ],
+            "target": "viewerNumberTween",
+            "kind": "call",
+            "namedArguments": "options"
+          },
+          {
+            "typeArguments": [
+              "dart:ui::Offset:CLASS"
+            ],
+            "target": "viewerOffsetTween",
+            "kind": "call",
+            "namedArguments": "options"
+          }
+        ]
+      },
+      "iteration": {
+        "policy": "host-iterable"
+      },
+      "values": {
+        "dart:ui::Clip.hardEdge:GETTER": "hardEdge"
+      }
+    },
+    {
+      "source": "package:vector_math/src/vector_math_64/quad.dart",
+      "packagePin": {
+        "name": "vector_math",
+        "version": "2.4.3",
+        "archiveSha256": "92b9910f66ed1057fd4da7b040ae7c74cafacf885bdc81be496928d5049b032d"
+      },
+      "library": "package:vector_math/vector_math_64.dart",
+      "librarySha256": "dc1c74957c30cf38f3308a2608fdc711192b1f83db404e77d674cff84725f089",
+      "sha256": "337773aac5a3acbd45557aaa4313c7317b451dcd2b18e04b426a116233c31296",
+      "symbols": [
+        "Quad"
+      ],
+      "destination": "Nelyx/src/math/quad.generated.ts",
+      "classNames": {
+        "Quad": "SourceQuad",
+        "Triangle": "SourceTriangle"
+      },
+      "renames": {
+        "==": "equals"
+      },
+      "imports": {
+        "Vector3": "./vector3.ts",
+        "Matrix4": "./matrix4.ts",
+        "SourceTriangle": "./triangle.generated.ts",
+        "isSourceQuad": "./viewer-geometry-source-adapter.ts",
+        "castSourceQuad": "./viewer-geometry-source-adapter.ts",
+        "vectorSourceString": "./viewer-geometry-source-adapter.ts",
+        "quadPointHash": "./viewer-geometry-source-adapter.ts",
+        "checkedInteger": "../ui/value-math.ts",
+        "protect": "../ui/value-math.ts"
+      },
+      "typeBindings": {
+        "package:vector_math/vector_math_64.dart::Vector3:CLASS": "Vector3",
+        "package:vector_math/vector_math_64.dart::Matrix4:CLASS": "Matrix4",
+        "package:vector_math/vector_math_64.dart::Triangle:CLASS": "SourceTriangle"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "runtimeTypes": {
+        "package:vector_math/vector_math_64.dart::Quad:CLASS": {
+          "is": "isSourceQuad",
+          "cast": "castSourceQuad"
+        }
+      },
+      "stringConversions": {
+        "package:vector_math/vector_math_64.dart::Vector3:CLASS": "vectorSourceString"
+      },
+      "adapters": {
+        "package:vector_math/vector_math_64.dart::Vector3.setFrom:METHOD": {
+          "target": "setFrom",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.sub:METHOD": {
+          "target": "sub",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.crossInto:METHOD": {
+          "target": "crossInto",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.normalize:METHOD": {
+          "target": "normalize",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.clone:METHOD": {
+          "target": "clone",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.add:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.transform3:METHOD": {
+          "target": "transform3",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.Vector3.zero:CONSTRUCTOR": {
+          "target": "Vector3.zero",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.Vector3.copy:CONSTRUCTOR": {
+          "target": "Vector3.copy",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Quad.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.hash:METHOD": {
+          "target": "quadPointHash",
+          "kind": "call"
+        }
+      }
+    },
+    {
+      "source": "package:vector_math/src/vector_math_64/triangle.dart",
+      "packagePin": {
+        "name": "vector_math",
+        "version": "2.4.3",
+        "archiveSha256": "92b9910f66ed1057fd4da7b040ae7c74cafacf885bdc81be496928d5049b032d"
+      },
+      "library": "package:vector_math/vector_math_64.dart",
+      "librarySha256": "dc1c74957c30cf38f3308a2608fdc711192b1f83db404e77d674cff84725f089",
+      "sha256": "dea04250d5b181b840118c94e97793c5a2201b608517b66110e65bb0f9dee36e",
+      "symbols": [
+        "Triangle"
+      ],
+      "destination": "Nelyx/src/math/triangle.generated.ts",
+      "classNames": {
+        "Quad": "SourceQuad",
+        "Triangle": "SourceTriangle"
+      },
+      "renames": {
+        "==": "equals"
+      },
+      "imports": {
+        "Vector3": "./vector3.ts",
+        "Matrix4": "./matrix4.ts",
+        "checkedInteger": "../ui/value-math.ts",
+        "protect": "../ui/value-math.ts"
+      },
+      "typeBindings": {
+        "package:vector_math/vector_math_64.dart::Vector3:CLASS": "Vector3",
+        "package:vector_math/vector_math_64.dart::Matrix4:CLASS": "Matrix4",
+        "package:vector_math/vector_math_64.dart::Triangle:CLASS": "SourceTriangle"
+      },
+      "numericTypes": {
+        "int": {
+          "representation": "safe-number",
+          "check": "checkedInteger"
+        }
+      },
+      "sourceFlow": {
+        "policy": "resolved-source-flow"
+      },
+      "runtimeTypes": {
+        "package:vector_math/vector_math_64.dart::Quad:CLASS": {
+          "is": "isSourceQuad",
+          "cast": "castSourceQuad"
+        }
+      },
+      "stringConversions": {
+        "package:vector_math/vector_math_64.dart::Vector3:CLASS": "vectorSourceString"
+      },
+      "adapters": {
+        "package:vector_math/vector_math_64.dart::Vector3.setFrom:METHOD": {
+          "target": "setFrom",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.sub:METHOD": {
+          "target": "sub",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.crossInto:METHOD": {
+          "target": "crossInto",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.normalize:METHOD": {
+          "target": "normalize",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.clone:METHOD": {
+          "target": "clone",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.add:METHOD": {
+          "target": "add",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Matrix4.transform3:METHOD": {
+          "target": "transform3",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.Vector3.zero:CONSTRUCTOR": {
+          "target": "Vector3.zero",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.Vector3.copy:CONSTRUCTOR": {
+          "target": "Vector3.copy",
+          "kind": "call"
+        },
+        "package:vector_math/vector_math_64.dart::Vector3.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "package:vector_math/vector_math_64.dart::Quad.==:METHOD": {
+          "target": "equals",
+          "kind": "call",
+          "receiver": "target"
+        },
+        "dart:core::Object.hash:METHOD": {
+          "target": "quadPointHash",
+          "kind": "call"
+        }
+      }
+    }
+  ],
+  "referencePackages": [
+    {
+      "packagePin": {
+        "name": "listen",
+        "version": "1.0.1",
+        "archiveSha256": "47501a08016a43fcad79252439d723f50f14f88fa7bfd8a177e0a417e5c9e1f2"
+      },
+      "library": "package:listen/listen.dart",
+      "librarySha256": "b7750a07b427a52e8c765fc675302fcbcdfe747cf02a870a60fc77f732754164"
+    },
+    {
+      "packagePin": {
+        "name": "meta",
+        "version": "1.19.0",
+        "archiveSha256": "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
+      },
+      "library": "package:meta/meta.dart",
+      "librarySha256": "79968b49fd76625bf420b706d532354e05cedc578ffdded0413c5e7bc0411862"
+    }
+  ],
+  "validation": "tools/Nelyx.FrameworkToTypeScript/checks/viewer-batch.ts",
+  "sourceComparison": "tools/Nelyx.FrameworkToTypeScript/checks/viewer-batch-source.ts",
+  "requireSourceComparison": true,
+  "validationInputs": [
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-batch-run.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-candidate.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-widget-root.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-geometry.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-source.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-source-host.dart",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-source-main.dart",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-source-scenarios.json",
+    "tools/Nelyx.FrameworkToTypeScript/checks/tree-test-candidate.ts",
+    "tools/Nelyx.FrameworkToTypeScript/checks/selection-overlay-root.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/canvaskit-runtime.mjs",
+    "tools/Nelyx.FrameworkToTypeScript/checks/viewer-finite.ts"
+  ],
+  "contract": {
+    "id": "nelyx.generated.w10-viewer-source/v1",
+    "classification": "compatible",
+    "ownership": "generated",
+    "api": [
+      "SourceInteractiveViewer",
+      "SourceTransformationController",
+      "SourceQuad",
+      "SourceTriangle"
+    ],
+    "requirements": [
+      "Complete pinned Viewer14 plus builder callback and external Quad/Triangle2 source bodies retain their resolved identities",
+      "Actual effective Core and RN Babel Root recognizer/wheel/pan/pinch/inertia/lifetime gates consume retained edits",
+      "Independent original Dart comparison is mandatory for the entire source16 closure in both assertion modes",
+      "Public default facade Core/Babel gates consume effective public sources and generated State with preserved finite lifecycle contracts"
+    ],
+    "numericPolicy": "Analyzer-resolved int safe-number and double/num provenance; exact nested type/function/unary bindings; finite geometry admission remains a public facade boundary",
+    "differences": [
+      "Raw source controller retains live Matrix4 and synchronous value notifications. Public default finite facade consumes generated State with copied XY matrices/coalesced notifications, transactional finite bounds and resize/restoration, owned animateTo, cancellation and signal ownership. Source inertia replaces the former handwritten fling.",
+      "Core Widget/State/ticker/geometry/gesture identities are bound through explicit options, Size and pointer-transform adapters.",
+      "Object.hash uses stable local equal-value hashing; Dart VM seeded integers are not an ABI.",
+      "Dart comparison uses controlled UI/widget/animation receivers and original physics with real locked vector_math/listen. Actual Core Root and source Babel are separate runtime evidence."
+    ],
+    "performance": "Scoped actual Root source input and ticker behavior; no physical FPS, whole native/platform or current supply acceptance."
+  },
+  "validationSources": [
+    "Nelyx/src/framework/widgets/interactive-viewer.ts",
+    "Nelyx/src/framework/widgets/viewer-finite-source.ts"
+  ]
+}

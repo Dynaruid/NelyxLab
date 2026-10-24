@@ -1,0 +1,62 @@
+{
+  "schema": "nelyx.w11-cupertino-list-api-ownership/v1",
+  "status": "PASS-scoped",
+  "candidate": {
+    "file": ".tmp/work8/w11-list-family-candidate/result.json",
+    "sha256": "e4705da3d44d0fe4d42f95d81ebf175e2d56f3bfc800076080965b4bb7b76076"
+  },
+  "ir": {
+    "file": "C:\\Users\\parti\\Labo\\NelyxLab\\.tmp\\work8\\w11-list-family-candidate\\ir.json",
+    "sha256": "dcb0e608420af85e77a2d5342171a5cea148cbdd8399b81855f1ff485c1383b6"
+  },
+  "generator": {
+    "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-list-api.mjs",
+    "sha256": "5682c2643cdc9f1ff55cd22f71a9bda2385633591647a98e4bad2ab990c9ad78"
+  },
+  "sourceInputs": [
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/list_tile.dart",
+      "sha256": "fc15478a54f055f1e596de85a400d6b649771ebee3858e20b8debd0b80033334"
+    },
+    {
+      "file": ".tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/list_section.dart",
+      "sha256": "d988e455cddb116fd9246d030e21a64913cc03f8c811236a05e3dd436dc99e1a"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "packages/cupertino/src/generated/list/list-section-types.ts",
+      "sha256": "47945fe056f3ae99b3ddc6ae58718c6a0c02b9f63983154857e9a1b4db3a3033"
+    },
+    {
+      "file": "packages/cupertino/src/list-tile.ts",
+      "sha256": "8e7c48288463ae722fac7a061675572c01fc16421d887246255dde9919350663"
+    },
+    {
+      "file": "packages/cupertino/src/list-section.ts",
+      "sha256": "d27e011d476f0d18a32ca49ac9ebccff86e3568cd40d93f75cb18e601b71d433"
+    }
+  ],
+  "numericFields": 5,
+  "scope": "Resolved full public Tile/Section field/constructor types and numeric provenance, exact enum catalog; source-shaped defaults/factories are functional ports and independently compared. Existing positional id/string/onPressed ingress normalizes to source Widget/onTap. Async rejection is reported to the owning host error channel with the source tapped latch preserved; original Zone/runtime hierarchy is not claimed.",
+  "storageRelocation": {
+    "kind": "path-only-generator-reference-update",
+    "previousRecordSha256": "9acb02505b8531006170cd48fad2ed7cbdd14737771848d778ff77877807de6e",
+    "changedGenerators": [
+      "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-list-api.mjs"
+    ],
+    "scope": "Canonical relative paths and exact generator storage-path changes only; no behavior/native requalification."
+  },
+  "w12ModuleRelocation": {
+    "recordedAt": "2026-10-18T12:00:19.918Z",
+    "previous": {
+      "file": ".tmp/work12/structure2-baseline-1792324818694/tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-list-api-ownership.json",
+      "sha256": "142b535fced0f2cc41e2165d6dd01f50a1f4c38becb632bcb669ddb8274c3102"
+    },
+    "layout": {
+      "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
+      "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    },
+    "validation": "Current generator --check PASS-scoped; exact projection/output scope only"
+  }
+}

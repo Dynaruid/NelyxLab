@@ -1,0 +1,387 @@
+{
+  "schema": "nelyx.provider/v4",
+  "id": "nelyx.windows",
+  "version": "0.20.0",
+  "coreRange": ">=0.16.0 <0.17.0",
+  "protocolVersion": 1,
+  "target": "windows",
+  "runtime": "hermes",
+  "host": "fabric",
+  "renderer": "skia-graphite",
+  "entry": "@nelyx/sdk/platforms/windows/application",
+  "defaultProfile": "rn-graphite-vulkan",
+  "cohorts": [
+    {
+      "id": "rn-0.83.10",
+      "react": "19.2.0",
+      "reactNative": "0.83.10",
+      "nativeReactNative": "0.83.4",
+      "framework": "react-native-windows",
+      "frameworkVersion": "0.83.2",
+      "frameworkRevision": null,
+      "engine": "hermes",
+      "engineVersion": "1.0.0",
+      "engineRevision": "94aa5e1d40a4ce99df79d951cbe45310ec40680c",
+      "bytecodeVersion": 99
+    },
+    {
+      "id": "rn-0.83.10-v8",
+      "react": "19.2.0",
+      "reactNative": "0.83.10",
+      "nativeReactNative": "0.83.4",
+      "framework": "react-native-windows",
+      "frameworkVersion": "0.83.2",
+      "frameworkRevision": null,
+      "engine": "v8",
+      "engineVersion": "24.1.10",
+      "engineRevision": "c1877966a8285b7cbacbdd03e26ca003496436bc",
+      "bytecodeVersion": null
+    },
+    {
+      "id": "rn-0.83.10-jsc",
+      "react": "19.2.0",
+      "reactNative": "0.83.10",
+      "nativeReactNative": "0.83.4",
+      "framework": "react-native-windows",
+      "frameworkVersion": "0.83.2",
+      "frameworkRevision": null,
+      "engine": "jsc",
+      "engineVersion": "26.4.0",
+      "engineRevision": "482d54b279fd6147a45aaa122242f2ac315f46df",
+      "bytecodeVersion": null
+    }
+  ],
+  "defaultCohort": "rn-0.83.10",
+  "hostOperatingSystems": {
+    "doctor": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "build": [
+      "windows"
+    ],
+    "run": [
+      "windows"
+    ],
+    "dev": [
+      "windows"
+    ],
+    "pack": [
+      "windows",
+      "darwin",
+      "linux"
+    ]
+  },
+  "operations": [
+    "doctor",
+    "build",
+    "run",
+    "dev",
+    "pack"
+  ],
+  "architectures": [
+    "x86_64"
+  ],
+  "tooling": [
+    {
+      "id": "node",
+      "kind": "executable",
+      "versionRange": ">=24.3.0 <25.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "run",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "npm",
+      "kind": "executable",
+      "versionRange": ">=11.0.0 <12.0.0",
+      "operations": [
+        "doctor",
+        "build",
+        "dev",
+        "pack"
+      ],
+      "hostOperatingSystems": [
+        "windows",
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "react-native",
+      "kind": "package",
+      "versionRange": "0.83.10",
+      "operations": [
+        "build",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "windows"
+      ]
+    },
+    {
+      "id": "react-native-windows",
+      "kind": "package",
+      "versionRange": "0.83.2",
+      "operations": [
+        "build",
+        "dev"
+      ],
+      "hostOperatingSystems": [
+        "windows"
+      ]
+    },
+    {
+      "id": "windows-sdk",
+      "kind": "sdk",
+      "versionRange": "10.0.26100.0",
+      "operations": [
+        "build"
+      ],
+      "hostOperatingSystems": [
+        "windows"
+      ]
+    }
+  ],
+  "artifactManifest": {
+    "entry": "@nelyx/skia-rn/native-manifest.json",
+    "kind": "recipe",
+    "required": [
+      "skia-windows-rn"
+    ]
+  },
+  "nativeAbi": {
+    "host": null,
+    "skia": 1
+  },
+  "wireAbi": 10,
+  "capabilities": {
+    "rendering": {
+      "admission": "bounded",
+      "completion": "gpu-retired",
+      "present": "unobserved",
+      "notifications": "submitted-and-retired",
+      "nativeIdentity": true,
+      "textRanges": true
+    },
+    "editing": {
+      "indexUnit": "utf16",
+      "composing": "unavailable",
+      "selectionDirection": "unavailable",
+      "nativeRevision": "event-count"
+    },
+    "semantics": "native-controls"
+  },
+  "qualification": {
+    "status": "notVerified",
+    "scope": "Windows RNW/Vulkan implementation",
+    "architectures": [],
+    "evidence": [],
+    "limitations": [
+      "Only the pinned x86_64 RNW recipe is admitted",
+      "Stock Core full reload and native loss recovery remain incomplete",
+      "Physical input, accessibility, scanout, signing and clean-machine acceptance are not verified"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "rn-graphite-vulkan",
+      "cohorts": [
+        "rn-0.83.10"
+      ],
+      "identity": {
+        "target": "windows",
+        "runtime": "hermes",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "native-vulkan",
+        "profile": "rn-graphite-vulkan"
+      },
+      "status": "implemented",
+      "reason": "Owned RNW module/session, per-view backing and SDK owner drain required; runtime/display qualification remains separate",
+      "executionOperatingSystems": [
+        "windows"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-windows-rn"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Windows RNW/Vulkan implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Only the pinned x86_64 RNW recipe is admitted",
+          "Stock Core full reload and native loss recovery remain incomplete",
+          "Physical input, accessibility, scanout, signing and clean-machine acceptance are not verified"
+        ]
+      }
+    },
+    {
+      "id": "rn-v8-graphite-vulkan",
+      "cohorts": [
+        "rn-0.83.10-v8"
+      ],
+      "identity": {
+        "target": "windows",
+        "runtime": "v8",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "native-vulkan",
+        "profile": "rn-v8-graphite-vulkan"
+      },
+      "status": "implemented",
+      "reason": "Owned RNW module/session, per-view backing and SDK owner drain required; runtime/display qualification remains separate",
+      "executionOperatingSystems": [
+        "windows"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-windows-rn"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Windows RNW/Vulkan implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Only the pinned x86_64 RNW recipe is admitted",
+          "Stock Core full reload and native loss recovery remain incomplete",
+          "Physical input, accessibility, scanout, signing and clean-machine acceptance are not verified"
+        ]
+      }
+    },
+    {
+      "id": "rn-jsc-graphite-vulkan",
+      "cohorts": [
+        "rn-0.83.10-jsc"
+      ],
+      "identity": {
+        "target": "windows",
+        "runtime": "jsc",
+        "host": "fabric",
+        "renderer": "skia-graphite",
+        "gpuBackend": "vulkan",
+        "gpuImplementation": "native-vulkan",
+        "profile": "rn-jsc-graphite-vulkan"
+      },
+      "status": "implemented",
+      "reason": "Owned RNW module/session, per-view backing and SDK owner drain required; runtime/display qualification remains separate",
+      "executionOperatingSystems": [
+        "windows"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "artifactManifest": {
+        "entry": "@nelyx/skia-rn/native-manifest.json",
+        "kind": "recipe",
+        "required": [
+          "skia-windows-rn"
+        ]
+      },
+      "nativeAbi": {
+        "host": null,
+        "skia": 1
+      },
+      "wireAbi": 10,
+      "capabilities": {
+        "rendering": {
+          "admission": "bounded",
+          "completion": "gpu-retired",
+          "present": "unobserved",
+          "notifications": "submitted-and-retired",
+          "nativeIdentity": true,
+          "textRanges": true
+        },
+        "editing": {
+          "indexUnit": "utf16",
+          "composing": "unavailable",
+          "selectionDirection": "unavailable",
+          "nativeRevision": "event-count"
+        },
+        "semantics": "native-controls"
+      },
+      "qualification": {
+        "status": "notVerified",
+        "scope": "Windows RNW/Vulkan implementation",
+        "architectures": [],
+        "evidence": [],
+        "limitations": [
+          "Only the pinned x86_64 RNW recipe is admitted",
+          "Stock Core full reload and native loss recovery remain incomplete",
+          "Physical input, accessibility, scanout, signing and clean-machine acceptance are not verified"
+        ]
+      }
+    }
+  ]
+}

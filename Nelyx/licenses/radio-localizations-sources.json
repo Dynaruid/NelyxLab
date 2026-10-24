@@ -1,0 +1,10 @@
+{
+  "schema": "nelyx.radio-localization-sources/v1",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "source": "packages/flutter_localizations/lib/src/l10n/generated_widgets_localizations.dart",
+  "sha256": "49e8a8ec88c570433921efa49d2f953c0b0ecf5222ccaa26f55af33bb7dd2dc9",
+  "normalizedSha256": "6adaf35bba31656f4f5f5405d9076b8a8e4f6898699c573bd36c14a2ceb9bae4",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "scope": "Complete radioButtonUnselectedLabel locale/class inheritance and Chinese regional source routing only; other WidgetsLocalizations members and native readers qualify separately"
+}
