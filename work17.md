@@ -2,7 +2,9 @@
 
 작성일: **2026-10-25 KST** · 우선 구현 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / Nelyx Core·Skia·SDK** · 기본 엔진 정책: **iOS 지원까지 고려한 Hermes 중심의 native 플랫폼 공통 방향**
 
-> **구현 PAUSED · 전체 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified.** 2026-10-25 17:10 KST 사용자 중간 마무리 요청으로 구현과 추가 native 측정을 멈췄다. 시작 HEAD ee82b364efbb48e7821f006f2e1ed3750f4b3f95와 원래 수락 범위를 유지하며, 재개 위치·현재 증거·잔여 작업은 §8에 정리했다.
+> **CLOSED / SUPERSEDED BY [W18](work18.md) · 기존 구현 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-25 사용자 요청으로 W17의 실행 계획을 종료하고 Nelyx 기반 개편을 W18로 이관했다. W17은 17:10 KST 중간 마무리 당시의 구현·증거·실패를 §8에 보존한다. 이하의 단계 순서·기준선 수정 지시·마지막 재개 지시는 현재 실행 지시가 아니다. 이번 종료는 버벅임·메모리 증가·미해결 RNW 실패의 해결이나 성능 수락을 뜻하지 않는다.
+
+**후속 작업의 유일한 활성 계획은 [work18.md](work18.md)다.** 직접 Hermes host·입력/TSF/UIA·display-list·공급 구현을 재사용하며, 남은 기능·안정성·메모리·성능·물리 수락은 W18 §0·§6으로 승계한다. W18은 Core의 내부 데이터·갱신·text/scene/resource 소유권까지 개편한다. W17의 마지막 메모리 진단부터 반복 재개하지 않으며, 이번 계획 교체는 문서 작업만 수행했다.
 
 **선택한 방향은 RN의 콘텐츠 레이아웃에 의존하지 않는 Hermes 직접 host다.** Nelyx의 Widget → Element → RenderObject/Sliver → paint 구조를 유지하고, React/Fabric/Yoga를 거치던 Windows surface·입력·semantics 연결을 SDK의 native 서비스로 옮긴다. 먼저 같은 Hermes에서 최소 host의 실제 차이를 확인하고, native 그리기 명령 일괄 처리와 접근성 전달 개선을 결합한다. RNW 최소 포크는 원인 분리 또는 이전 단계의 대안이며, 필요하면 Hermes VM까지 수정한다.
 
@@ -230,7 +232,11 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 
 모드별 `hostIndependenceAccepted / engineAccepted / performanceAccepted / physicalInputAccepted`를 별도로 기록한다. rendering-only PASS·AOT coverage PASS·CPU PASS·사람의 표시 PASS를 구분한다. 미관측 항목은 `notVerified`, 기능 또는 성능 실패가 남으면 전체 문제는 `PARTIAL`이다. native 포크/host 구현이 끝나도 실제 버벅임 수락이 미달이면 해결 완료로 표시하지 않는다.
 
-## 8. 현재 상태와 다음 시작점
+<a id="8-현재-상태와-다음-시작점"></a>
+
+## 8. 종료 시점의 상태·증거와 W18 승계
+
+**아래는 W17 중간 마무리 시점의 역사적 상태다. W17 재개 지시로 사용하지 않으며, 현재 계획·진행 상태·다음 시작점은 [W18](work18.md#8-현재-상태와-다음-시작점)에서 관리한다.**
 
 > **전체 PARTIAL / goal PAUSED · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-25 **17:10 KST**, 사용자 중간 마무리 요청으로 구현·추가 측정을 정지했다. Core **fcce0e24…c2c7**·SDK **e09e0698…5757**·CLI **3400a611…1688**, 동일 앱의 두 모드에 해당하는 정식 native 제품의 byte identity는 유지한다. native suite36/36·C++ host1/1과 앞선 정식 UIA/OS pointer4실행은 통과했지만 최신 private commit의 마지막3회 순증가도 고정 한계를 넘었다. H2/H3/H4는 미수락이며 H5는 아래 단일 앱의 공급·회귀 증거 범위로 판단한다. 기본값은 Hermes/optimized·RNW다.
 
