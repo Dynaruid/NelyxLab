@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {fileTree,sha256,verifyInventory} from '../../sdk/tooling/cli/src/files.mjs';
-import {assertWindowsPackageReplaceable,publishWindowsPackage,pruneWindowsPackages} from '../../sdk/tooling/cli/src/windows-package-lifecycle.mjs';
+import {assertWindowsPackageReplaceable,publishWindowsPackage,pruneWindowsPackages,resetWindowsBuildAssets} from '../../sdk/tooling/cli/src/windows-package-lifecycle.mjs';
 
 const timeout=1_200_000,appName='LifecycleTest',manifestName='nelyx-package.json';
 function fixture(run){
@@ -28,6 +28,36 @@ function fixture(run){
     fs.rmSync(temporary,{recursive:true,force:true});
   }
 }
+
+test('a new Windows build removes stale app assets and retired hosts while preserving current native output',{timeout},()=>fixture(f=>{
+  const output=path.join(f.app,'windows/x64/Release'),assets=path.join(output,'Assets');
+  for(const name of ['Assets/assets/ozeli/font.ttf','Assets/licenses/assets/ozeli/font.txt','Assets/old-image.png','OzeliRNHost.exe','OzeliRNHost.pdb','OzeliRNHost.pri','NelyxRNHost.exe','hermes.dll','Bundle/index.windows.bundle','helper.exe','unrelated.txt']){
+    const file=path.join(output,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,name);
+  }
+  const source=path.join(f.app,'assets/ozeli/font.ttf');fs.mkdirSync(path.dirname(source),{recursive:true});fs.writeFileSync(source,'declared source');
+  assert.equal(resetWindowsBuildAssets({app:f.app,configuration:'Release'}),assets);
+  assert.deepEqual(fs.readdirSync(assets),[]);
+  assert.deepEqual(fs.readdirSync(output).sort(),['Assets','Bundle','NelyxRNHost.exe','helper.exe','hermes.dll','unrelated.txt']);
+  assert.equal(fs.readFileSync(source,'utf8'),'declared source');
+  // Repeated builds also work when Assets has no prior files.
+  resetWindowsBuildAssets({app:f.app,configuration:'Release'});
+}));
+
+test('Windows asset cleanup rejects escaped configurations and linked output before removing files',{timeout},()=>fixture(f=>{
+  const output=path.join(f.app,'windows/x64/Release'),assets=path.join(output,'Assets'),external=path.join(f.temporary,'external');
+  fs.mkdirSync(assets,{recursive:true});fs.mkdirSync(external);fs.writeFileSync(path.join(external,'keep'),'external');
+  const retired=path.join(output,'OzeliRNHost.exe');fs.writeFileSync(retired,'keep until validated');
+  for(const configuration of ['../Release','Release/other','Release-1',''])assert.throws(()=>resetWindowsBuildAssets({app:f.app,configuration}),/path rejected/);
+  const link=path.join(assets,'linked');fs.symlinkSync(external,link,process.platform==='win32'?'junction':'dir');
+  assert.throws(()=>resetWindowsBuildAssets({app:f.app,configuration:'Release'}),/symlink/);
+  assert.equal(fs.readFileSync(retired,'utf8'),'keep until validated');assert.equal(fs.readFileSync(path.join(external,'keep'),'utf8'),'external');
+  fs.unlinkSync(link);fs.rmdirSync(assets);fs.symlinkSync(external,assets,process.platform==='win32'?'junction':'dir');
+  assert.throws(()=>resetWindowsBuildAssets({app:f.app,configuration:'Release'}),/symlink/);
+  assert(fs.existsSync(retired));assert(fs.existsSync(path.join(external,'keep')));
+  fs.unlinkSync(assets);fs.symlinkSync(path.join(f.temporary,'missing'),assets,process.platform==='win32'?'junction':'dir');
+  assert.throws(()=>resetWindowsBuildAssets({app:f.app,configuration:'Release'}),/symlink/);
+  assert(fs.existsSync(retired));
+}));
 
 test('JSC packages can replace the fixed slot when switching modes and engines',{timeout},()=>fixture(f=>{
   const current=f.make('Release'),file=path.join(current,manifestName),manifest=JSON.parse(fs.readFileSync(file,'utf8'));

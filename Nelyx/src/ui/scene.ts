@@ -30,16 +30,16 @@ class LayerRecording {
     for(const command of canvas.commands){if(command.op==='save'||command.op==='saveLayer'||command.op==='saveBackdropFilter')depth++;else if(command.op==='restore')depth--;else if(depth===0&&(command.op==='transform'||command.op==='clip'||command.op==='clipRect'||command.op==='clipRRect'||command.op==='clipPath'))changesState=true;}
     this.needsScope=changesState;
   }
-  retain():LayerRecording{invariant(this.references>0,'disposed-engine-recording','Engine recording has retired');this.references++;return this;}
+  retain():LayerRecording{if(!(this.references>0))invariant(false,'disposed-engine-recording','Engine recording has retired');this.references++;return this;}
   draw(canvas:Canvas,scoped=true):void{
-    invariant(this.references>0,'disposed-engine-recording','Engine recording has retired');const mark=canvas.commands.length;
+    if(!(this.references>0))invariant(false,'disposed-engine-recording','Engine recording has retired');const mark=canvas.commands.length;
     const stack=[{recording:this as LayerRecording,start:0,next:0,scoped:scoped&&this.needsScope,entered:false}];
     // These restores close our own saves. Replay them directly so a recorder
     // does not rescan its entire growing command list at every nested pop.
-    try{while(stack.length){const frame=stack[stack.length-1]!,record=frame.recording;if(!frame.entered){if(frame.scoped)canvas.save();frame.entered=true;}const entry=record.insertions[frame.next++];if(entry){if(frame.start<entry.mark)canvas._addCommandRange(record.canvas.commands,frame.start,entry.mark);frame.start=entry.mark;stack.push({recording:entry.recording,start:0,next:0,scoped:entry.recording.needsScope,entered:false});}else{if(frame.start<record.canvas.commands.length)canvas._addCommandRange(record.canvas.commands,frame.start,record.canvas.commands.length);if(frame.scoped)canvas.addCommands(restoreCommands);stack.pop();}invariant(canvas.commands.length-mark<=paintFrameLimits.commands,'oversize','Scene command budget exceeded');}}
+    try{while(stack.length){const frame=stack[stack.length-1]!,record=frame.recording;if(!frame.entered){if(frame.scoped)canvas.save();frame.entered=true;}const entry=record.insertions[frame.next++];if(entry){if(frame.start<entry.mark)canvas._addCommandRange(record.canvas.commands,frame.start,entry.mark);frame.start=entry.mark;stack.push({recording:entry.recording,start:0,next:0,scoped:entry.recording.needsScope,entered:false});}else{if(frame.start<record.canvas.commands.length)canvas._addCommandRange(record.canvas.commands,frame.start,record.canvas.commands.length);if(frame.scoped)canvas.addCommands(restoreCommands);stack.pop();}if(!(canvas.commands.length-mark<=paintFrameLimits.commands))invariant(false,'oversize','Scene command budget exceeded');}}
     catch(error){try{canvas.rollback(mark);}catch(cleanup){throw new AggregateError([error,cleanup],'Engine recording replay and rollback failed');}throw error;}
   }
-  dispose():void{const pending:LayerRecording[]=[this],errors:unknown[]=[];while(pending.length){const record=pending.pop()!;if(--record.references>0)continue;try{invariant(record.references===0,'disposed-engine-recording','Engine recording retired twice');record.canvas.dispose();}catch(error){errors.push(error);}for(const entry of record.insertions)pending.push(entry.recording);}if(errors.length)throw new AggregateError(errors,'Engine recording retirement failed');}
+  dispose():void{const pending:LayerRecording[]=[this],errors:unknown[]=[];while(pending.length){const record=pending.pop()!;if(--record.references>0)continue;try{if(!(record.references===0))invariant(false,'disposed-engine-recording','Engine recording retired twice');record.canvas.dispose();}catch(error){errors.push(error);}for(const entry of record.insertions)pending.push(entry.recording);}if(errors.length)throw new AggregateError(errors,'Engine recording retirement failed');}
 }
 /** CPU composition snapshot; native Picture leaves remain affine to its explicit app owner. */
 export abstract class EngineLayer {
@@ -48,10 +48,10 @@ export abstract class EngineLayer {
   private children:readonly EngineLayer[]=[];
   private dead=false;
   get debugDisposed():boolean{return this.dead;}
-  _complete(recording:LayerRecording,children:readonly EngineLayer[],owner:PictureResourceProvider|null=null):void{invariant(!this.dead&&this.recording===null,'invalid-engine-layer','EngineLayer already completed or disposed');this.recording=recording;this.pictureOwner=owner;this.children=Object.freeze([...children]);}
+  _complete(recording:LayerRecording,children:readonly EngineLayer[],owner:PictureResourceProvider|null=null):void{if(!(!this.dead&&this.recording===null))invariant(false,'invalid-engine-layer','EngineLayer already completed or disposed');this.recording=recording;this.pictureOwner=owner;this.children=Object.freeze([...children]);}
   _compatible(owner:PictureResourceProvider|null):boolean{return this.pictureOwner===owner;}
   _subtree():readonly EngineLayer[]{const result:EngineLayer[]=[],pending:EngineLayer[]=[this];while(pending.length){const layer=pending.pop()!;result.push(layer);for(let index=layer.children.length-1;index>=0;index--)pending.push(layer.children[index]!);}return result;}
-  _capture():LayerRecording{invariant(!this.dead&&this.recording!==null,'invalid-engine-layer','EngineLayer is disposed or still being built');return this.recording.retain();}
+  _capture():LayerRecording{if(!(!this.dead&&this.recording!==null))invariant(false,'invalid-engine-layer','EngineLayer is disposed or still being built');return this.recording.retain();}
   _draw(canvas:Canvas):void{const recording=this._capture();try{recording.draw(canvas);}finally{recording.dispose();}}
   dispose():void{if(this.dead)return;this.dead=true;const recording=this.recording;this.recording=null;this.children=[];recording?.dispose();}
 }
@@ -72,9 +72,9 @@ export class Scene {
   static _fromPicture(picture:Picture):Scene{return new Scene(picture);}
   get debugDisposed():boolean{return this.dead;}
   /** The consuming PaintingContext takes independent command/resource holds. */
-  _draw(canvas:Canvas):void{invariant(!this.dead,'disposed-scene','Scene has been disposed');this.picture._draw(canvas);}
-  toImage(width:number,height:number,rasterizer:PictureRasterizer):Promise<Image>{invariant(!this.dead,'disposed-scene','Scene has been disposed');return this.picture.toImage(width,height,rasterizer);}
-  toImageSync(width:number,height:number,rasterizer:PictureRasterizer):Image{invariant(!this.dead,'disposed-scene','Scene has been disposed');return this.picture.toImageSync(width,height,rasterizer);}
+  _draw(canvas:Canvas):void{if(!(!this.dead))invariant(false,'disposed-scene','Scene has been disposed');this.picture._draw(canvas);}
+  toImage(width:number,height:number,rasterizer:PictureRasterizer):Promise<Image>{if(!(!this.dead))invariant(false,'disposed-scene','Scene has been disposed');return this.picture.toImage(width,height,rasterizer);}
+  toImageSync(width:number,height:number,rasterizer:PictureRasterizer):Image{if(!(!this.dead))invariant(false,'disposed-scene','Scene has been disposed');return this.picture.toImageSync(width,height,rasterizer);}
   dispose():void{if(this.dead)return;this.dead=true;this.picture.dispose();}
 }
 interface Recording {readonly canvas:Canvas;readonly layer:EngineLayer|null;readonly children:EngineLayer[];readonly insertions:LayerInsertion[]}
@@ -87,10 +87,10 @@ export class SceneBuilder {
   private readonly created:EngineLayer[]=[];
   private readonly used=new Set<EngineLayer>();
   private dead=false;
-  private current():Recording{invariant(!this.dead,'closed-scene-builder','SceneBuilder has already ended');return this.stack[this.stack.length-1]!;}
+  private current():Recording{if(!(!this.dead))invariant(false,'closed-scene-builder','SceneBuilder has already ended');return this.stack[this.stack.length-1]!;}
   private push<T extends EngineLayer>(layer:T,begin:(canvas:Canvas)=>void,oldLayer:EngineLayer|null):T{
-    this.current();if(oldLayer){invariant(oldLayer.constructor===layer.constructor&&!oldLayer.debugDisposed&&!this.used.has(oldLayer),'invalid-old-layer','Old layer has the wrong type, is disposed or already used in this scene');}
-    invariant(this.created.length<paintFrameLimits.commands,'oversize','Scene layer budget exceeded');
+    this.current();if(oldLayer){if(!(oldLayer.constructor===layer.constructor&&!oldLayer.debugDisposed&&!this.used.has(oldLayer)))invariant(false,'invalid-old-layer','Old layer has the wrong type, is disposed or already used in this scene');}
+    if(!(this.created.length<paintFrameLimits.commands))invariant(false,'oversize','Scene layer budget exceeded');
     const next=recording(layer,this.pictures);try{begin(next.canvas);}catch(error){next.canvas.dispose();layer.dispose();throw error;}
     if(oldLayer)this.used.add(oldLayer);this.created.push(layer);this.stack.push(next);return layer;
   }
@@ -99,18 +99,18 @@ export class SceneBuilder {
   /** Internal canvas scope, used when a recorded save/clip/effect surrounds real child layers. */
   _pushCommands(commands:readonly PaintCommand[],oldLayer:EngineLayer|null):EngineLayer{return this.push(new CanvasStateEngineLayer(),canvas=>canvas.addCommands(commands.filter(command=>command.op!=='transform'||!isIdentity(command.matrix))),oldLayer);}
   pushOpacity(alpha:number,options:{readonly offset?:Offset;readonly oldLayer?:OpacityEngineLayer|null}={}):OpacityEngineLayer{
-    invariant(Number.isInteger(alpha)&&alpha>=0&&alpha<=255,'invalid-opacity','Layer alpha must be uint8');
+    if(!(Number.isInteger(alpha)&&alpha>=0&&alpha<=255))invariant(false,'invalid-opacity','Layer alpha must be uint8');
     return this.push(new OpacityEngineLayer(),canvas=>{const offset=options.offset??{x:0,y:0};canvas.translate(offset.x,offset.y);canvas.saveLayer(null,new Paint({color:(alpha*0x1000000)>>>0}));},options.oldLayer??null);
   }
   private clip<T extends EngineLayer>(layer:T,bounds:Rect|null,behavior:Clip,apply:(canvas:Canvas,antiAlias:boolean)=>void,oldLayer:EngineLayer|null):T{
-    invariant(['hardEdge','antiAlias','antiAliasWithSaveLayer'].includes(behavior),'invalid-layer-clip','A clip layer requires an active clip behavior');
+    if(!(['hardEdge','antiAlias','antiAliasWithSaveLayer'].includes(behavior)))invariant(false,'invalid-layer-clip','A clip layer requires an active clip behavior');
     return this.push(layer,canvas=>{apply(canvas,behavior!=='hardEdge');if(behavior==='antiAliasWithSaveLayer')canvas.saveLayer(bounds,new Paint());},oldLayer);
   }
   pushClipRect(rect:Rect,options:{readonly clipBehavior?:Clip;readonly oldLayer?:ClipRectEngineLayer|null}={}):ClipRectEngineLayer{return this.clip(new ClipRectEngineLayer(),rect,options.clipBehavior??'antiAlias', (canvas,antiAlias)=>canvas.clipRect(rect,{doAntiAlias:antiAlias}),options.oldLayer??null);}
   pushClipRRect(rrect:RRect,options:{readonly clipBehavior?:Clip;readonly oldLayer?:ClipRRectEngineLayer|null}={}):ClipRRectEngineLayer{return this.clip(new ClipRRectEngineLayer(),rrect.outerRect,options.clipBehavior??'antiAlias',(canvas,antiAlias)=>canvas.clipRRect(rrect,{doAntiAlias:antiAlias}),options.oldLayer??null);}
   pushClipPath(path:Path,options:{readonly clipBehavior?:Clip;readonly oldLayer?:ClipPathEngineLayer|null}={}):ClipPathEngineLayer{return this.clip(new ClipPathEngineLayer(),null,options.clipBehavior??'antiAlias',(canvas,antiAlias)=>canvas.clipPath(path,{doAntiAlias:antiAlias}),options.oldLayer??null);}
   pushBackdropFilter(filter:ImageFilter|null,options:{readonly blendMode?:BlendMode;readonly oldLayer?:BackdropFilterEngineLayer|null;readonly opacity?:number}={}):BackdropFilterEngineLayer{
-    const alpha=options.opacity??1;invariant(Number.isFinite(alpha)&&alpha>=0&&alpha<=1,'invalid-opacity','Backdrop opacity must be between zero and one');
+    const alpha=options.opacity??1;if(!(Number.isFinite(alpha)&&alpha>=0&&alpha<=1))invariant(false,'invalid-opacity','Backdrop opacity must be between zero and one');
     return this.push(new BackdropFilterEngineLayer(),canvas=>canvas.saveBackdropFilter(new Paint({imageFilter:filter,blendMode:options.blendMode??'srcOver',color:(Math.round(alpha*255)*0x1000000)>>>0})),options.oldLayer??null);
   }
   pushColorFilter(filter:ColorFilter,options:{readonly oldLayer?:ColorFilterEngineLayer|null}={}):ColorFilterEngineLayer{return this.push(new ColorFilterEngineLayer(),canvas=>canvas.saveLayer(null,new Paint({colorFilter:filter})),options.oldLayer??null);}
@@ -119,7 +119,7 @@ export class SceneBuilder {
     const canvas=this.current().canvas,mark=canvas.commands.length;
     try{if(offset.x===0&&offset.y===0)canvas.drawPicture(picture);else{canvas.save();canvas.translate(offset.x,offset.y);canvas.drawPicture(picture);canvas.restore();}}catch(error){try{canvas.rollback(mark);}catch(cleanup){throw new AggregateError([error,cleanup],'Scene picture insertion and rollback failed');}throw error;}
   }
-  addRetained(layer:EngineLayer):void{const current=this.current(),subtree=layer._subtree();invariant(this._canRetain(layer),'foreign-engine-layer','Retained layer belongs to a different Picture owner');invariant(subtree.every(entry=>!this.used.has(entry)),'duplicate-retained-layer','A retained layer and its descendants can only be used once in a scene');current.insertions.push({mark:current.canvas.commands.length,recording:layer._capture()});for(const entry of subtree)this.used.add(entry);current.children.push(layer);}
+  addRetained(layer:EngineLayer):void{const current=this.current(),subtree=layer._subtree();if(!(this._canRetain(layer)))invariant(false,'foreign-engine-layer','Retained layer belongs to a different Picture owner');if(!(subtree.every(entry=>!this.used.has(entry))))invariant(false,'duplicate-retained-layer','A retained layer and its descendants can only be used once in a scene');current.insertions.push({mark:current.canvas.commands.length,recording:layer._capture()});for(const entry of subtree)this.used.add(entry);current.children.push(layer);}
   pop():void{
     this.current();if(this.stack.length===1)return;const next=this.stack.pop()!;let snapshot:LayerRecording|undefined,adopted=false;
     try{snapshot=new LayerRecording(next.canvas,next.insertions);next.layer!._complete(snapshot,next.children,this.pictures);snapshot=undefined;adopted=true;const parent=this.current();parent.insertions.push({mark:parent.canvas.commands.length,recording:next.layer!._capture()});parent.children.push(next.layer!);this.used.add(next.layer!);}catch(error){if(snapshot)snapshot.dispose();else if(!adopted)retireRecording(next);throw error;}

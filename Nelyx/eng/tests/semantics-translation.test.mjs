@@ -4,6 +4,7 @@ import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
 import {SizedBox,Transform,Row} from '@nelyx/core/framework/widgets/basic';
 import {ClipRect} from '@nelyx/core/framework/widgets/clip';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
+import {SliderControl} from '@nelyx/core/framework/widgets/slider-control';
 import {RenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
 import {RenderProxyBox,RenderTransform,RenderDecoratedBox} from '@nelyx/core/framework/rendering/boxes';
 import {RenderFractionalTranslation} from '@nelyx/core/framework/rendering/fractional-translation';
@@ -32,7 +33,35 @@ import {Listener} from '@nelyx/core/framework/widgets/listener';
 import {HitTestBehavior} from '@nelyx/core/framework/rendering/pointer-listener';
 import {AttributedString} from '@nelyx/core/framework/semantics/attributed-string';
 import {SemanticsFlags,CheckedState,Tristate} from '@nelyx/core/ui/semantics';
+import {Ticker} from '@nelyx/core/framework/animation/ticker';
+import {Color} from '@nelyx/core/ui/color';
+import {InkHighlight} from '@nelyx/material/ink-highlight';
+import {MaterialInkRender,InkFeature} from '../../../packages/material/dist/internal/material/material-ink-owner.js';
 const timeout=1_200_000;
+
+test('Material and Cupertino sliders apply absolute values through their real discrete change policy',{timeout},()=>{
+  FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
+  for(const policy of ['material','cupertino'])for(const divisions of [null,4]){
+    const f=fixture(),calls=[],starts=[],ends=[];
+    const tree=(onChanged=value=>calls.push(value))=>new Directionality('ltr',new SliderControl({id:'slider',policy,min:-100,max:100,value:0,divisions,adjustmentUnit:.05,geometry:{width:100,height:40,trackInset:10,thumbHitRadius:12,minDragExtent:1,expand:false},onChanged,onChangeStart:value=>starts.push(value),onChangeEnd:value=>ends.push(value),builder:()=>new SizedBox(100,40)}));
+    try{
+      f.set(tree());const node=f.root.nodes.find(node=>node.id==='slider');assert(node.rangeActions);assert.equal(node.numericRange.smallChange,divisions===null?10:50);node.rangeActions.setValue(37.5);assert.deepEqual(calls,[divisions===null?37.5:50]);assert.deepEqual(starts,policy==='material'?[0]:[]);assert.deepEqual(ends,policy==='material'?[divisions===null?37.5:50]:[]);
+      f.set(tree(null));assert.equal(f.root.nodes.find(node=>node.id==='slider').rangeActions,undefined);node.rangeActions.setValue(-50);assert.equal(calls.length,1);
+    }finally{f.close();}
+  }
+});
+
+test('absolute range transport rejects old, blocked, invisible and invalid requests',{timeout},()=>{
+  const f=fixture(),calls=[],child=new SizedBox(80,60),range={min:-100,max:100,value:25,smallChange:5},actions={setValue:value=>calls.push(value)};
+  const properties=new SemanticsProperties({slider:true,enabled:true,textDirection:'ltr',value:'25%',onIncrease(){},onDecrease(){}});
+  const tree=(extra={})=>Semantics.fromProperties({properties,transportId:'range',transportRange:range,transportRangeActions:actions,container:true,child,...extra});
+  try{
+    f.set(tree());const first=f.root.nodes.find(node=>node.id==='range');assert(first.rangeActions);first.rangeActions.setValue(37.5);for(const value of [NaN,Infinity,-101,101])first.rangeActions.setValue(value);assert.deepEqual(calls,[37.5]);
+    range.value=50;f.set(tree());first.rangeActions.setValue(40);assert.deepEqual(calls,[37.5]);const current=f.root.nodes.find(node=>node.id==='range');current.rangeActions.setValue(-75);assert.deepEqual(calls,[37.5,-75]);
+    f.set(tree({blockUserActions:true}));assert.equal(f.root.nodes.find(node=>node.id==='range').rangeActions,undefined);current.rangeActions.setValue(20);assert.deepEqual(calls,[37.5,-75]);
+    f.set(tree());const visible=f.root.nodes.find(node=>node.id==='range');f.set(new Offstage(tree(),{offstage:true}));visible.rangeActions.setValue(20);assert.deepEqual(calls,[37.5,-75]);
+  }finally{f.close();}
+});
 
 test('empty semantics defaults stay immutable and independent from later annotations',{timeout},()=>{
   const a=new SemanticsConfiguration(),b=new SemanticsConfiguration(),snapshot=b.copy();
@@ -149,6 +178,66 @@ test('decoration pixel changes reuse the published semantic snapshot',{timeout},
     const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
     render.decoration=new BoxDecoration({color:0xffffffff});render.position='foreground';f.frame();
     assert.equal(existingSemanticsFor(render).configProvider.original,config);assert.equal(captures,0);assert.equal(f.root.nodes.find(node=>node.id==='decorated'),node);
+  }finally{f.close();}
+});
+
+test('Material ink animates, changes color and retires without recapturing unchanged semantics',{timeout},()=>{
+  const f=fixture(),calls=[];let render;
+  class Carrier extends RenderObjectWidget{
+    get childWidgets(){return [new Semantics({textDirection:'ltr',transportId:'ink-child',label:'Ink child',container:true,onTap:()=>calls.push('tap'),child:new SizedBox(80,60)})];}
+    createRenderObject(){return render=new MaterialInkRender({createTicker:callback=>new Ticker(f.root.scheduler,callback)},null,false);}
+  }
+  try{
+    f.set(new Carrier());const config=existingSemanticsFor(render).configProvider.original,node=f.root.nodes.find(node=>node.id==='ink-child');let captures=0;
+    const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+    const highlight=new InkHighlight({controller:render,referenceBox:render,color:new Color(0xff123456),textDirection:'ltr'}),initial=f.frame();
+    const animated=f.advance(50);assert.notDeepEqual(animated,initial);highlight.color=new Color(0xffabcdef);assert.notDeepEqual(f.frame(),animated);
+    render.didChangeLayout();f.frame();node.actions.activate();assert.deepEqual(calls,['tap']);highlight.deactivate();f.frame();f.advance(200);
+    assert.equal(highlight.debugDisposed,true);assert.equal(render.debugInkFeatures.length,0);assert.equal(f.root.scheduler.transientCallbackCount,0);
+    assert.equal(existingSemanticsFor(render).configProvider.original,config);assert.equal(captures,0);assert.equal(f.root.nodes.find(node=>node.id==='ink-child'),node);
+    render.markNeedsSemanticsUpdate();f.frame();assert(captures>0,'Explicit semantic invalidation still publishes');
+    const afterExplicit=captures;render.markNeedsLayout();f.frame();assert(captures>afterExplicit,'Completed layout retains its semantic invalidation');
+  }finally{f.close();}
+});
+
+test('Material ink keeps subclass and mutable instance semantic hooks current',{timeout},()=>{
+  class Feature extends InkFeature{paintFeature(){}}
+  for(const instance of [false,true]){
+    const f=fixture();let render;
+    class Custom extends MaterialInkRender{
+      describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.label='Ink count '+this.features.length;config.textDirection='ltr';}
+    }
+    class Carrier extends RenderObjectWidget{
+      get childWidgets(){return [new SizedBox(80,60)];}
+      createRenderObject(){
+        render=new (instance?MaterialInkRender:Custom)({createTicker(){throw new Error('No ticker expected');}},null,false);
+        if(instance)Object.defineProperty(render,'semanticsTransport',{get:()=>render.features.length?{id:'custom-ink',role:'button',name:'Ink count '+render.features.length,actions:{activate(){}}}:null});
+        return render;
+      }
+    }
+    try{
+      f.set(new Carrier());assert.equal(f.root.nodes.some(node=>node.name==='Ink count 0'),!instance);
+      const feature=new Feature({controller:render,referenceBox:render});render.addInkFeature(feature);f.frame();assert(f.root.nodes.some(node=>node.name==='Ink count 1'));
+      feature.dispose();f.frame();assert(!f.root.nodes.some(node=>node.name==='Ink count 1'));assert.equal(f.root.nodes.some(node=>node.name==='Ink count 0'),!instance);
+    }finally{f.close();}
+  }
+});
+
+test('a root ink clip hook refreshes child visibility and revokes the hidden action',{timeout},()=>{
+  const f=fixture(),calls=[];let render;
+  class Feature extends InkFeature{paintFeature(){}}
+  class Carrier extends RenderObjectWidget{
+    get childWidgets(){return [new Semantics({textDirection:'ltr',transportId:'ink-clipped',label:'Clipped ink',container:true,onTap:()=>calls.push('tap'),child:new SizedBox(80,60)})];}
+    createRenderObject(){
+      render=new MaterialInkRender({createTicker(){throw new Error('No ticker expected');}},null,false);
+      render.describeSemanticsClip=()=>render.features.length?{x:0,y:0,width:0,height:0}:null;
+      return render;
+    }
+  }
+  try{
+    f.set(new Carrier());const original=f.root.nodes.find(node=>node.id==='ink-clipped');original.actions.activate();const feature=new Feature({controller:render,referenceBox:render});
+    render.addInkFeature(feature);f.frame();assert(!f.root.nodes.some(node=>node.id==='ink-clipped'));original.actions.activate();assert.deepEqual(calls,['tap']);
+    feature.dispose();f.frame();f.root.nodes.find(node=>node.id==='ink-clipped').actions.activate();assert.deepEqual(calls,['tap','tap']);
   }finally{f.close();}
 });
 
@@ -270,6 +359,18 @@ test('an action from the deferred snapshot requests fresh geometry and runs once
     const moved=f.root.nodes.find(node=>node.id==='action-0');scroll.jumpTo(40);f.advance(10);moved.actions.activate();scroll.jumpTo(160);f.frame();assert.deepEqual(calls,[0,0],'A source clipped before the requested publication cannot receive the old action');
     const visible=f.root.nodes.find(node=>node.id==='action-2');scroll.jumpTo(180);f.advance(10);visible.actions.activate();f.set(new SizedBox());assert.deepEqual(calls,[0,0],'Removing the source retires its queued request');
     f.set(tree());const closing=f.root.nodes.find(node=>node.id.startsWith('action-'));scroll.jumpTo(scroll.offset+10);f.advance(10);closing.actions.activate();f.root.setVisible(false);f.root.setVisible(true);f.frame();assert.deepEqual(calls,[0,0],'Hiding cancels the pending request');
+  }finally{f.close();scroll.dispose();}
+});
+
+test('deferred absolute values request fresh geometry and retain their original range and live source',{timeout},()=>{
+  FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
+  const f=fixture({semanticsUpdateInterval:50}),scroll=new ScrollController(),calls=[],range={min:0,max:100,value:25};
+  const tree=()=>new Directionality('ltr',ListView.builder({controller:scroll,primary:false,padding:EdgeInsets.zero,cacheExtent:500,itemCount:5,itemBuilder:(_context,index)=>new Semantics({textDirection:'ltr',transportId:'range-'+index,label:'Range '+index,slider:true,enabled:true,container:true,onIncrease(){},onDecrease(){},transportRange:range,transportRangeActions:{setValue:value=>calls.push([index,value])},child:new SizedBox(100,80)})}));
+  try{
+    f.set(tree());const first=f.root.nodes.find(node=>node.id==='range-0');scroll.jumpTo(20);f.advance(10);first.rangeActions.setValue(37.5);assert.deepEqual(calls,[]);f.frame();assert.deepEqual(calls,[[0,37.5]],'An accepted absolute value must wake the deferred publication');f.frame();first.rangeActions.setValue(40);assert.deepEqual(calls,[[0,37.5]],'A superseded generation cannot queue another value');
+    const moved=f.root.nodes.find(node=>node.id==='range-0');scroll.jumpTo(40);f.advance(10);moved.rangeActions.setValue(45);scroll.jumpTo(160);f.frame();assert.deepEqual(calls,[[0,37.5]],'Clipping the source cancels its queued value');
+    const visible=f.root.nodes.find(node=>node.id==='range-2');scroll.jumpTo(180);f.advance(10);visible.rangeActions.setValue(55);range.value=50;f.set(tree());assert.deepEqual(calls,[[0,37.5]],'A newer accepted numeric value revokes the old request');
+    const current=f.root.nodes.find(node=>node.id==='range-2');scroll.jumpTo(200);f.advance(10);current.rangeActions.setValue(65);f.root.setVisible(false);f.root.setVisible(true);f.frame();assert.deepEqual(calls,[[0,37.5]],'Hiding the owning View cancels deferred absolute values');
   }finally{f.close();scroll.dispose();}
 });
 

@@ -22,8 +22,13 @@ def sha(file):
     return hashlib.file_digest(file.open('rb'), 'sha256').hexdigest()
 
 lock = json.loads((SKIA / 'vendor/windows-rn-supplier.lock.json').read_text())
+def supplier_file(name):
+    file = supplier / name
+    if not file.exists() and 'nelyx_rn_module' in name:
+        file = supplier / name.replace('nelyx_rn_module', 'ozeli_rn_module')
+    return file
 for record in lock['files']:
-    file = supplier / record['file']
+    file = supplier_file(record['file'])
     if file.stat().st_size != record['bytes'] or sha(file) != record['sha256']:
         raise RuntimeError('Pinned supplier changed: ' + record['file'])
 
@@ -31,6 +36,7 @@ rn = SKIA / 'packages/rn'
 # The package mirrors are the actual CMake inputs. A successful compilation of
 # stale generated sources must never qualify the current native implementation.
 for source, generated in [('native/core', 'generated/core'),
+                          ('native/host', 'generated/host'),
                           ('native/rendering/nelyx_skia', 'generated/gpu/nelyx_skia'),
                           ('native/platforms/vulkan', 'generated/vulkan')]:
     source_root, generated_root = SKIA / source, rn / generated
@@ -58,7 +64,7 @@ prepared = json.loads(subprocess.check_output(['python', str(SKIA / 'eng/prepare
 output.mkdir(parents=True, exist_ok=args.resume)
 modules = output / 'modules.cmake'
 modules.write_text('set(NELYX_SKIA_RN_MODULE_LIBRARIES\n' + ''.join(
-    '  "' + (supplier / file).as_posix() + '"\n' for file in lock['libraries'][:11]) + ')\n'
+    '  "' + supplier_file(file).as_posix() + '"\n' for file in lock['libraries'][:11]) + ')\n'
     'target_compile_definitions(nelyx_skia_rn_vulkan PUBLIC SK_SHAPER_PRIMITIVE_AVAILABLE '
     'SK_SHAPER_HARFBUZZ_AVAILABLE SK_SHAPER_UNICODE_AVAILABLE SK_UNICODE_ICU_IMPLEMENTATION)\n')
 build = output / 'build'
@@ -75,7 +81,7 @@ for record in lock['files']:
     file = package / record['file']
     file.parent.mkdir(parents=True, exist_ok=True)
     if not file.exists() or file.stat().st_size != record['bytes'] or sha(file) != record['sha256']:
-        shutil.copyfile(supplier / record['file'], file)
+        shutil.copyfile(supplier_file(record['file']), file)
 libraries = ['libraries/00-nelyx_skia_rn_vulkan.lib', 'libraries/01-nelyx_skia_core.lib', *lock['libraries']]
 shutil.copyfile(build / 'nelyx_skia_rn_vulkan.lib', package / libraries[0])
 shutil.copyfile(build / 'nelyx-core/nelyx_skia_core.lib', package / libraries[1])
@@ -83,7 +89,7 @@ shutil.copytree(SKIA / 'licenses', package / 'licenses', dirs_exist_ok=args.resu
 shutil.copyfile(SKIA / 'THIRD_PARTY_NOTICES.md', package / 'licenses/THIRD_PARTY_NOTICES.md')
 sources = {}
 for directory in ['cpp/api', 'cpp/jsi', 'cpp/rnskia', 'cpp/utils',
-                  'generated/core', 'generated/gpu', 'generated/vulkan', 'native/vulkan']:
+                  'generated/core', 'generated/gpu', 'generated/vulkan', 'generated/host', 'native/vulkan']:
     for file in sorted((rn / directory).rglob('*')):
         if file.is_symlink():
             raise RuntimeError('Native source symlink rejected')

@@ -25,6 +25,15 @@ test('composition callback snapshots survive listener mutation and track late re
     const late=child.addCompositionCallback(()=>{});assert(other.subtreeHasCompositionCallbacks);other.removeAllChildren();assert.equal(other.subtreeHasCompositionCallbacks,false);handle.dispose();late();removeA();assert.equal(other.subtreeHasCompositionCallbacks,false);
   }finally{removeA();removeB();removeC();root.dispose();other.dispose();handle.dispose();forbidden.dispose();}
 });
+test('retained layer reparenting preserves descendant depths across equal, deeper and shallower parents',{timeout},()=>{
+  const root=new ContainerLayer(),other=new ContainerLayer(),parent=new ContainerLayer(),branch=new ContainerLayer(),child=new ContainerLayer(),leaf=new ContainerLayer(),handle=new LayerHandle(branch);
+  try{
+    root.append(parent);parent.append(branch);branch.append(child);child.append(leaf);assert.deepEqual([branch.depth,child.depth,leaf.depth],[2,3,4]);
+    branch.remove();parent.append(branch);assert.deepEqual([branch.depth,child.depth,leaf.depth],[2,3,4]);
+    branch.remove();other.append(branch);assert.deepEqual([branch.depth,child.depth,leaf.depth],[1,2,3]);
+    const deep=new ContainerLayer();parent.append(deep);branch.remove();deep.append(branch);assert.deepEqual([branch.depth,child.depth,leaf.depth],[3,4,5]);
+  }finally{root.dispose();other.dispose();handle.dispose();}
+});
 
 test('streaming a retained scene takes independent holds without allocating a transient Picture',{timeout},()=>{
   const resources=new ResourceRegistry(),image={id:'stream-image',generation:1,kind:'image'};let retired=0,created=0;resources.register(image,()=>retired++);resources.bindResource(image);

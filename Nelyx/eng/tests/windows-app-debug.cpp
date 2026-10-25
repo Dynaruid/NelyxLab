@@ -16,7 +16,7 @@ int wmain(int argc,wchar_t** argv){
   if(!CreateProcessW(argv[1],command.data(),nullptr,nullptr,FALSE,DEBUG_ONLY_THIS_PROCESS,nullptr,nullptr,&startup,&process))return 5;
   bool initial=true,exited=false,ready=false,fault=false;DWORD result=6;
   const auto deadline=GetTickCount64()+60000;auto closeAt=deadline;
-  const auto trapRva=argc==3?wcstoull(argv[2],nullptr,0):0;DWORD64 trap=0;BYTE previous=0;DWORD stepping=0;
+  const auto trapRva=argc==3?wcstoull(argv[2],nullptr,0):0;DWORD64 trap=0,aotBase=0;BYTE previous=0;DWORD stepping=0;
   std::cout<<"APP_DEBUG_PID "<<process.dwProcessId<<std::endl;
   while(!exited){
     if(ready&&GetTickCount64()>closeAt){
@@ -36,7 +36,10 @@ int wmain(int argc,wchar_t** argv){
       }
       const bool trapped=trap&&reinterpret_cast<DWORD64>(error.ExceptionRecord.ExceptionAddress)==trap&&code==EXCEPTION_BREAKPOINT;
       if(trapped)std::cout<<"APP_DEBUG_TRAP_HIT"<<std::endl;
-      if(code==0xe06d7363||code==0xc0000409||!error.dwFirstChance||trapped){
+      // Expected WinUI C++ exceptions can be numerous. Symbol loading pauses
+      // the entire debuggee and can consume its startup deadline. Their only
+      // first-chance output is an AOT PC, so walk them only with that image live.
+      if(code==0xe06d7363&&aotBase||code==0xc0000409||!error.dwFirstChance||trapped){
         SymInitialize(process.hProcess,nullptr,TRUE);SymRefreshModuleList(process.hProcess);
         const auto thread=OpenThread(THREAD_GET_CONTEXT|THREAD_SET_CONTEXT|THREAD_QUERY_INFORMATION,FALSE,event.dwThreadId);
         CONTEXT context{};context.ContextFlags=CONTEXT_FULL;
@@ -72,6 +75,7 @@ int wmain(int argc,wchar_t** argv){
     else if(event.dwDebugEventCode==LOAD_DLL_DEBUG_EVENT){
       char name[MAX_PATH]{};
       if(event.u.LoadDll.hFile)GetFinalPathNameByHandleA(event.u.LoadDll.hFile,name,MAX_PATH,FILE_NAME_NORMALIZED);
+      if(std::string(name).ends_with("\\NelyxApp.aot.dll"))aotBase=reinterpret_cast<DWORD64>(event.u.LoadDll.lpBaseOfDll);
       if(trapRva&&std::string(name).ends_with("\\hermes.dll")){
         trap=reinterpret_cast<DWORD64>(event.u.LoadDll.lpBaseOfDll)+trapRva;const BYTE breakpoint=0xcc;
         if(!ReadProcessMemory(process.hProcess,reinterpret_cast<void*>(trap),&previous,1,nullptr)||!WriteProcessMemory(process.hProcess,reinterpret_cast<void*>(trap),&breakpoint,1,nullptr))return 7;
@@ -80,6 +84,7 @@ int wmain(int argc,wchar_t** argv){
       }
       if(event.u.LoadDll.hFile)CloseHandle(event.u.LoadDll.hFile);
     }
+    else if(event.dwDebugEventCode==UNLOAD_DLL_DEBUG_EVENT){if(reinterpret_cast<DWORD64>(event.u.UnloadDll.lpBaseOfDll)==aotBase)aotBase=0;}
     else if(event.dwDebugEventCode==CREATE_THREAD_DEBUG_EVENT)CloseHandle(event.u.CreateThread.hThread);
     else if(event.dwDebugEventCode==EXIT_PROCESS_DEBUG_EVENT){result=event.u.ExitProcess.dwExitCode;exited=true;}
     ContinueDebugEvent(event.dwProcessId,event.dwThreadId,disposition);

@@ -46,7 +46,7 @@ struct TextChanges {bool text=false,selection=false,enabled=false,readOnly=false
  * peer must use ProviderOptions_UseComThreading without an agile marshaler. */
 class TextDocument final {
 public:
-  static constexpr size_t maximumTextUnits=4096,maximumRanges=4096;
+  static constexpr size_t maximumTextUnits=65536,maximumRanges=4096;
   TextDocument():thread_(std::this_thread::get_id()){}
   std::shared_ptr<TextSnapshot const> read(bool text=true)const{
     checkThread();require(!retired_&&current_,UIA_E_ELEMENTNOTAVAILABLE);
@@ -58,8 +58,7 @@ public:
     checkThread();require(!retired_,UIA_E_ELEMENTNOTAVAILABLE);validate(value);
     const auto previous=current_;if(previous){
       if(value.generation!=previous->generation){retire();throw TextError{static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE)};}
-      require(value.revision>=previous->revision&&value.textRevision>=previous->textRevision);
-      require(value.revision!=previous->revision||(value.text==previous->text&&value.anchor==previous->anchor&&value.focus==previous->focus&&value.obscured==previous->obscured&&value.textRevision==previous->textRevision));
+      validateTransition(*previous,value);
     }
     auto next=std::make_shared<TextSnapshot const>(std::move(value));
     if(previous){
@@ -108,16 +107,10 @@ public:
     const auto index=std::clamp(base+static_cast<int64_t>(count),int64_t{0},static_cast<int64_t>(boundaries.size()-1));
     return {boundaries[static_cast<size_t>(index)],static_cast<int>(index-base)};
   }
-private:
-  static bool high(wchar_t unit){return unit>=0xd800&&unit<=0xdbff;}
-  static bool low(wchar_t unit){return unit>=0xdc00&&unit<=0xdfff;}
-  void checkThread()const{require(thread_==std::this_thread::get_id(),RPC_E_WRONG_THREAD);}
   static void validate(TextSnapshot const& value){
     require(value.revision<=9007199254740991ULL&&value.textRevision<=9007199254740991ULL&&value.generation>0&&value.generation<=9007199254740991ULL&&value.text.size()<=maximumTextUnits);
     validateText(value.text);
     validateSpan(value,std::min(value.anchor,value.focus),std::max(value.anchor,value.focus));
-    // Password text must be redacted before it reaches this peer, even though
-    // its independent TSF input session still owns the real native shadow.
     require(!value.obscured||(value.text.empty()&&value.characters.empty()&&value.words.empty()&&value.lines.empty()&&value.anchor==0&&value.focus==0));
     for(auto const* values:{&value.characters,&value.words,&value.lines}){
       if(values->empty())continue;require(values->size()<=maximumTextUnits+1&&values->front()==0&&values->back()==static_cast<int>(value.text.size()));
@@ -125,6 +118,15 @@ private:
     }
     require(value.obscured||!value.characters.empty());
   }
+  static void validateTransition(TextSnapshot const& previous,TextSnapshot const& value){
+    require(value.generation==previous.generation);
+    require(value.revision>=previous.revision&&value.textRevision>=previous.textRevision);
+    require(value.revision!=previous.revision||(value.text==previous.text&&value.anchor==previous.anchor&&value.focus==previous.focus&&value.obscured==previous.obscured&&value.textRevision==previous.textRevision));
+  }
+private:
+  static bool high(wchar_t unit){return unit>=0xd800&&unit<=0xdbff;}
+  static bool low(wchar_t unit){return unit>=0xdc00&&unit<=0xdfff;}
+  void checkThread()const{require(thread_==std::this_thread::get_id(),RPC_E_WRONG_THREAD);}
   void updateRanges(std::wstring const& oldText,std::wstring const& newText){
     size_t prefix=0;while(prefix<oldText.size()&&prefix<newText.size()&&oldText[prefix]==newText[prefix])++prefix;
     while(prefix&&!scalarBoundary(oldText,static_cast<int>(prefix)))--prefix;

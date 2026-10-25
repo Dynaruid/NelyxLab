@@ -46,6 +46,9 @@ export function continuousScrollResult(output,{engine,hermesMode,diagnostic,nati
    assert.equal(delivery.lastNativeSequence-delivery.firstNativeSequence+1,phase.received,'An emitted native packet is missing');
   }
   assert.equal(sends[i].count,requested);assert.equal(sends[i].requestedMs,phase.requestedIntervalMs);assert.equal(sends[i].mode,input==='queued'?'queued':full?'os-stream':retained?'os-sweep':'os');
+  assert.equal(sends[i].policy,'high-resolution-relative-start-completion-v1','Old or unknown wheel pacing cannot qualify');
+  assert(['p50Ms','p95Ms','maxMs'].every(key=>Number.isFinite(sends[i][key])&&sends[i][key]>0),'Missing actual wheel completion intervals');
+  assert(sends[i].p50Ms<=sends[i].p95Ms&&sends[i].p95Ms<=sends[i].maxMs,'Wheel interval quantiles are inconsistent');
   if(nativeInstrumented&&input==='os'){
    const stages=native.find(value=>value.phase===phase.name)?.stages;assert(stages,'Missing native ingress counters');
    assert.equal(stages['Input.wheelCallback']?.n,phase.received);
@@ -86,5 +89,5 @@ export function continuousScrollResult(output,{engine,hermesMode,diagnostic,nati
   assert(bindings.length>0&&bindings.some(({globalName})=>calls[globalName]>0),'No selected product body executed');
  }
  const [memory]=records('ANIMATION_MEMORY ');assert(memory&&['workingSetBytes','peakWorkingSetBytes','privateBytes'].every(key=>Number.isSafeInteger(memory[key])&&memory[key]>0),'Missing native process memory');
- return {phases,metrics:samples,memory};
+ return {phases,metrics:samples,pacing:sends,memory};
 }

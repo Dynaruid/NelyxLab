@@ -83,9 +83,25 @@ Android CLI 패키지에는 `--configuration Release`가 필요하며 `--archite
 
 실행 전에 입력과 의존성을 준비합니다. SDK import가 다운로드, vendor 소스 빌드나 개발 서버를 시작하지 않습니다.
 
-Windows의 `prepare`와 `build`는 `--engine hermes|v8`을 받습니다(기본 Hermes). `prepare --engine v8`는 고정 Microsoft V8 24.1.10과 RNW 0.83.2/native RN 0.83.4의 소스 공급본을 만들고, `--engine-inputs <supplier 폴더>`는 검증된 기존 공급본을 연결합니다. `build --engine v8`는 별도 profile/cohort·실제 VM 식별·JS 소스 번들·portable map·DLL/notice 검사를 사용합니다. `run`/`pack`은 선택한 패키지의 엔진을 검증하며 같은 구성의 고정 출력/locator 규칙을 유지합니다. `build --engine hermes`로 돌아갈 수 있습니다. V8의 Hermes inspector와 개발 갱신은 지원하지 않으며 native/성능 검증 범위는 앱의 작업 문서를 따릅니다.
+Windows의 `prepare`와 `build`는 `--engine hermes|v8|jsc`를 받습니다(기본 Hermes). `prepare --engine v8`는 고정 Microsoft V8 24.1.10과 RNW 0.83.2/native RN 0.83.4의 소스 공급본을 만들고, `--engine-inputs <supplier 폴더>`는 검증된 기존 공급본을 연결합니다. `build --engine v8`는 별도 profile/cohort·실제 VM 식별·JS 소스 번들·portable map·DLL/notice 검사를 사용합니다. `run`/`pack`은 선택한 패키지의 엔진을 검증하며 같은 구성의 고정 출력/locator 규칙을 유지합니다. `build --engine hermes`로 돌아갈 수 있습니다. V8의 Hermes inspector와 개발 갱신은 지원하지 않으며 native/성능 검증 범위는 앱의 작업 문서를 따릅니다.
 
 Windows x64 Release의 실험 경로는 `--engine hermes --hermes-mode static-aot`입니다. prepare는 고정 `94aa5e1d` compiler/runtime을 만들거나 `--engine-inputs`의 검증된 입력을 재사용합니다. 자동 정책은 검증된 scalar body의 인수를 검사해 특화하고, field·getter·callback·class·collection은 같은 native image의 일반 JS 표현으로 유지합니다. 전체 source/body/native 대응이나 타입 정책 근거가 누락되면 패키지를 거절합니다. AOT root는 앞선 source·bytecode 실행을 거절하고 native 시작 후 fallback도 금지합니다. VM의 eval/JIT는 꺼져 있습니다. `mapStaticAotPc` API는 DLL hash와 PE/PDB identity가 연결된 RVA를 원본 함수 후보로 대응하며 정밀도는 함수 범위입니다. 중간 C/PDB와 staging은 실행 종료 시 삭제합니다. runner는 배포물 밖의 `.nelyx/windows/static-aot-cache` 한 곳에 현재 object·함수 대응을 교체하며, 입력·도구·옵션 및 DLL hash가 같은 빌드는 native 컴파일을 생략합니다. 부분 변경은 해당 unit만 재컴파일하며 Metro는 코드와 frontend 검증 근거를 함께 재사용합니다. 캐시 삭제 시 재생성하고 과거 출력은 누적하지 않습니다. 준비에는 여유20GiB·VS C++·LLVM clang/clang-cl·CMake·Ninja가 필요합니다. 프로세스당 앱 로드1회이며 Debug·개발 갱신은 범위 밖입니다. 실제 기능·수명·성능 수락은 별도 gate입니다.
+
+## Windows 직접 Hermes host
+
+Windows Release의 기본 엔진은 **Hermes**, 기본 compiler profile은 `optimized`입니다. 기본 host는 RNW를 유지합니다. iOS까지 이어지는 공통 native runtime 방향은 Hermes로 두고 V8/JSC는 명시적으로 선택합니다.
+
+실험적 직접 host는 `doctor|prepare|build|run|pack`의 `--host native-hermes`로 선택합니다. HWND·전용 직접 Hermes JSI thread·Skia Vulkan/DirectComposition·TSF editor·가상 UIA 트리를 SDK가 소유하며 기존 `main().definition`과 선언 자산을 사용합니다. Windows x64 Release, VS C++ 도구, LLVM, CMake/Ninja와 고정 Skia 공급본이 필요합니다. 설치된 Windows runner에서 실행합니다.
+
+```powershell
+npx --no-install nelyx prepare --app ../.. --target windows --host native-hermes --native-inputs <Skia-supplier-inputs.json>
+npx --no-install nelyx build --app ../.. --target windows --host native-hermes --hermes-mode bytecode
+npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode bytecode
+npx --no-install nelyx build --app ../.. --target windows --host native-hermes --hermes-mode static-aot
+npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode static-aot
+```
+
+공급본이나 toolchain을 변경하면 build 전에 prepare를 다시 실행해 현재 입력을 검증하고 locator를 갱신합니다. prepare는 검증한 native 입력과 별도 direct-Hermes toolchain을 기록합니다. 같은 검증된 공급본은 `--engine-inputs <directory>`로 재사용합니다. 현재 두 패키지는 `.nelyx/native-windows/current-bytecode`, `current-static-aot`에서 교체하며 재빌드 전 해당 창을 닫습니다. Static 빌드는 자동 타입 정책·전체 native coverage를 요구하고 source/bytecode fallback을 거절합니다. `pack --host native-hermes --hermes-mode <mode> --output <new.zip>`으로 내보냅니다. 성능·물리 IME/입력·실제 표시·전체 기능 수락은 [W17](../../../../work17.md)에 열려 있습니다. Debug·Metro 갱신·다른 플랫폼의 직접 host는 미구현입니다.
 
 ## Linux 공급
 

@@ -2,21 +2,38 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {freezePaintCommand,freezeFrame,disposeFrame} from '@nelyx/core/ui/frame';
 import {Canvas} from '@nelyx/core/ui/canvas';
+import {PaintingContext} from '@nelyx/core/framework/painting/context';
 import {Paint,freezePaint} from '@nelyx/core/ui/paint';
 import {ImageShader} from '@nelyx/core/ui/shader';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
 import {bindResourceRetainer,releaseCommandResources,ownFrameResources,releaseFrameResources} from '../../dist/ui/resource-retention.js';
 const timeout=1_200_000;
 
-test('Canvas transform snapshots caller storage before custom recording hooks and validates native scalar limits',{timeout},()=>{
-  const matrix=[1,0,0,1,5,8],canvas=new Canvas(),observed=[];
-  class Custom extends Canvas{record(command){observed.push(command.matrix);if(command.op==='transform')command.matrix[4]=17;super.record(command);}}
+test('Canvas and PaintingContext snapshot transforms before custom recording hooks and validate native scalar limits',{timeout},()=>{
+  for(const Base of [Canvas,PaintingContext]){
+  const matrix=[1,0,0,1,5,8],canvas=new Base(),observed=[];
+  class Custom extends Base{record(command){observed.push(command.matrix);if(command.op==='transform')command.matrix[4]=17;super.record(command);}}
   const custom=new Custom();try{
     canvas.transform(matrix);matrix[4]=9;assert.equal(canvas.commands[0].matrix[4],5);
     custom.transform(matrix);assert.notEqual(observed[0],matrix);assert.equal(matrix[4],9);assert.equal(custom.commands[0].matrix[4],17);
     const typed=new Float64Array([1,0,0,1,12,13]);canvas.transform(typed);typed[4]=100;assert.equal(canvas.commands[1].matrix[4],12);
+    custom.transform(typed);assert.notEqual(observed[1],typed);assert.equal(typed[4],100);assert.equal(custom.commands[1].matrix[4],17);
+    observed[1][4]=200;assert.equal(custom.commands[1].matrix[4],17);
     assert.throws(()=>canvas.transform([1,0,0,1,1e100,0]),/SkScalar/);assert.equal(canvas.commands.length,2);
   }finally{canvas.dispose();custom.dispose();}
+  }
+});
+
+test('transform validation captures an external iterator once and validates the recorded length and values',{timeout},()=>{
+  for(const Base of [Canvas,PaintingContext]){
+    const canvas=new Base(),values=[1,0,0,1,5,8];let reads=0;
+    const matrix=Array(6).fill(0);matrix[Symbol.iterator]=function*(){reads++;for(let index=0;index<6;index++)yield reads===1?values[index]:NaN;};
+    try{
+      canvas.transform(matrix);assert.equal(reads,1);assert.deepEqual(canvas.commands[0].matrix,values);
+      for(const length of [5,7]){const input=Array(6).fill(0);input[Symbol.iterator]=function*(){for(let index=0;index<length;index++)yield 0;};assert.throws(()=>canvas.transform(input),/six affine or sixteen/);}
+      const invalid=Array(6).fill(0);invalid[Symbol.iterator]=function*(){yield* [1,0,0,1,NaN,0];};assert.throws(()=>canvas.transform(invalid),/finite/);assert.equal(canvas.commands.length,1);
+    }finally{canvas.dispose();}
+  }
 });
 
 test('command retirement detaches duplicate holds before reentrant and failing callbacks',{timeout},()=>{

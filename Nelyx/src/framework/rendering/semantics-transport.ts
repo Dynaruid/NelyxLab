@@ -17,10 +17,13 @@ export type SemanticsTransportProperties=Omit<HostNode,'bounds'|'children'|'edit
 type Mutable<Value>={-readonly [Key in keyof Value]:Value[Key]};
 const nodeProperties=new WeakMap<SemanticsNode,SemanticsTransportProperties>();
 const renderRanges=new WeakMap<RenderObject,NonNullable<HostNode['numericRange']>>();
-export function setSemanticsTransportRange(render:RenderObject,value:HostNode['numericRange']|null):boolean{
-  if(value==null)return renderRanges.delete(render);
+const renderRangeActions=new WeakMap<RenderObject,NonNullable<HostNode['rangeActions']>>();
+export function setSemanticsTransportRange(render:RenderObject,value:HostNode['numericRange']|null,actions:HostNode['rangeActions']|null=null):boolean{
+  const previousActions=renderRangeActions.get(render),changedActions=previousActions?.setValue!==actions?.setValue;
+  if(actions&&value)renderRangeActions.set(render,Object.freeze({...actions}));else renderRangeActions.delete(render);
+  if(value==null)return renderRanges.delete(render)||changedActions;
   const next=Object.freeze({...value}),previous=renderRanges.get(render),keys=Object.keys(next) as (keyof typeof next)[];
-  if(previous&&keys.length===Object.keys(previous).length&&keys.every(key=>Object.hasOwn(previous,key)&&Object.is(previous[key],next[key])))return false;
+  if(previous&&keys.length===Object.keys(previous).length&&keys.every(key=>Object.hasOwn(previous,key)&&Object.is(previous[key],next[key])))return changedActions;
   renderRanges.set(render,next);return true;
 }
 /** Stable identities for manually assembled nodes (paragraph spans and painters). */
@@ -57,15 +60,15 @@ const actionTypes:readonly [HostAction,SemanticsAction][]=[['activate',Semantics
 export class SemanticsTransportSnapshot {
   private generation:object|null=null;private nextId=0;private readonly ids=new WeakMap<SemanticsNode,string>();
   private deferredGeneration:object|null=null;
-  constructor(private readonly pipeline:PipelineOwner,private readonly isLive:()=>boolean,private readonly deferAction?:(source:SemanticsNode,action:HostAction)=>void){}
+  constructor(private readonly pipeline:PipelineOwner,private readonly isLive:()=>boolean,private readonly deferAction?:(source:SemanticsNode,action:HostAction)=>void,private readonly deferRangeAction?:(source:SemanticsNode,value:number,range:NonNullable<HostNode['numericRange']>)=>void){}
   invalidate():void{this.generation=null;this.deferredGeneration=null;}
   /** Only the last published generation may request a fresh action after motion. */
   defer():void{if(this.generation!==null){this.deferredGeneration=this.generation;this.generation=null;}}
   capture(root:RenderObject,transform:TransformMatrix=identity,frame?:{readonly owner:ViewOwner;readonly metrics:ViewMetrics;readonly inputGeometryToken?:object}):{nodes:HostNode[];commit:()=>void} {
     const owner=this.pipeline.semanticsOwner;invariant(owner!==null,'missing-semantics-owner','A transport snapshot requires a source owner');const rootNode=owner.rootSemanticsNode;if(rootNode===null)return {nodes:[],commit:()=>{this.generation=null;this.deferredGeneration=null;}};
-    const generation={},ranges=new Map<SemanticsNode,NonNullable<HostNode['numericRange']>>(),properties=new Map<SemanticsNode,SemanticsTransportProperties>(),editors=new Map<SemanticsNode,NonNullable<HostNode['editorGeometry']>>();
+    const generation={},ranges=new Map<SemanticsNode,NonNullable<HostNode['numericRange']>>(),rangeActions=new Map<SemanticsNode,NonNullable<HostNode['rangeActions']>>(),properties=new Map<SemanticsNode,SemanticsTransportProperties>(),editors=new Map<SemanticsNode,NonNullable<HostNode['editorGeometry']>>();
     const inputGeometry=new Map<SemanticsNode,TextInputGeometry>(),textNavigation=new Map<SemanticsNode,SemanticsTextNavigation>(),textParagraphs=new Map<SemanticsNode,SemanticsTextParagraph>();
-    const identify=(render:RenderObject)=>{const state=existingSemanticsFor(render),value=render.semanticsTransport;const range=renderRanges.get(render);if(range&&state?.cachedSemanticsNode?.owner===owner)ranges.set(state.cachedSemanticsNode,range);if(state?.cachedSemanticsNode?.owner===owner&&!state.parentDataDirty&&state.shouldFormSemanticsNode&&value!==null){properties.set(state.cachedSemanticsNode,value);
+    const identify=(render:RenderObject)=>{const state=existingSemanticsFor(render),value=render.semanticsTransport;const range=renderRanges.get(render);if(range&&state?.cachedSemanticsNode?.owner===owner){ranges.set(state.cachedSemanticsNode,range);const action=renderRangeActions.get(render);if(action)rangeActions.set(state.cachedSemanticsNode,action);}if(state?.cachedSemanticsNode?.owner===owner&&!state.parentDataDirty&&state.shouldFormSemanticsNode&&value!==null){properties.set(state.cachedSemanticsNode,value);
       if(value.role==='text-field'){
         const matrix=fullTransform(multiply(transform,render.getTransformTo(root))),scaleX=matrix[0],scaleY=matrix[5],local=render.semanticBounds;
         const geometry=frame?render.readTextInputGeometry(frame.owner,frame.metrics,frame.inputGeometryToken):null;
@@ -113,6 +116,13 @@ export class SemanticsTransportSnapshot {
       }
       if(geometry)result.textInputGeometry=geometry;if(flags.isSlider)result.isSlider=true;
       if(data.textDirection)result.textDirection=data.textDirection;if(numericRange)result.numericRange=numericRange;
+      const rangeAction=rangeActions.get(node)??metadata?.rangeActions;
+      if(numericRange&&rangeAction&&(data.hasAction(SemanticsAction.increase)||data.hasAction(SemanticsAction.decrease)))result.rangeActions={setValue:value=>{
+        if(!Number.isFinite(value)||value<numericRange.min||value>numericRange.max||metadata?.enabled===false||!this.isLive()||this.pipeline.semanticsOwner!==owner||owner.getSemanticsNode(node.id)!==node||node.isInvisible)return;
+        if(this.deferredGeneration===generation){this.deferRangeAction?.(node,value,numericRange);return;}if(this.generation!==generation)return;
+        const current=node.getSemanticsData();if(current.flagsCollection.isHidden||current.flagsCollection.isEnabled===Tristate.isFalse||!current.hasAction(SemanticsAction.increase)&&!current.hasAction(SemanticsAction.decrease))return;
+        rangeAction.setValue(value);
+      }};
       if(data.role!==SemanticsRole.none)result.sourceRole=data.role;if(data.minValue)result.minValue=data.minValue;if(data.maxValue)result.maxValue=data.maxValue;
       if(data.tooltip)result.tooltip=data.tooltip;if(data.identifier)result.semanticsIdentifier=data.identifier;if(flags.isLink)result.isLink=true;
       if(data.value||metadata?.value!==undefined)result.value=data.value;

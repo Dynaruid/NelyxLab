@@ -27,3 +27,28 @@ test('continuous entry and reversal preserve active links, actual visible rows a
  finally{f.close();scroll.dispose();}
  assert.equal(live.size,0);assert.equal(mounted,disposed);
 });
+
+test('legacy fixed-extent far seeks build only destination cache rows and retire the source owners',{timeout:1_200_000},()=>{
+ const f=fixture(),scroll=new ScrollController(),built=[],live=new Set();let mounted=0,disposed=0;
+ class Row extends StatefulWidget{constructor(index){super(new ValueKey(index));this.index=index;}createState(){return new RowState();}}
+ class RowState extends State{
+  initState(){super.initState();assert(!live.has(this.widget.index));live.add(this.widget.index);mounted++;}
+  build(){return new Semantics({container:true,transportId:'seek-row-'+this.widget.index,label:'Row',textDirection:'ltr',child:new SizedBox(240,80)});}
+  dispose(){assert(live.delete(this.widget.index));disposed++;super.dispose();}
+ }
+ const tree=new Directionality('ltr',ListView.builder({itemCount:1000,itemExtent:80,padding:EdgeInsets.zero,primary:false,controller:scroll,itemBuilder:(_context,index)=>{built.push(index);return new Row(index);}}));
+ const indices=(first,last)=>Array.from({length:last-first+1},(_,i)=>first+i);
+ const check=expected=>{
+  assert.deepEqual([...live].sort((a,b)=>a-b),expected);
+  assert.deepEqual(f.root.nodes.filter(node=>node.id?.startsWith('seek-row-')).map(node=>Number(node.id.slice('seek-row-'.length))),expected.filter(index=>index*80<scroll.offset+160&&(index+1)*80>scroll.offset));
+  assert.equal(f.root.buildOwner.maybeViewWorkBudget,undefined,'The default legacy cache must remain in use');
+ };
+ try{
+  f.set(tree);const initial=indices(0,5);assert.deepEqual(built,initial);check(initial);
+  for(const [offset,expected]of [[40000,indices(496,505)],[scroll.position.maxScrollExtent,indices(994,999)],[0,initial]]){
+   built.length=0;scroll.jumpTo(offset);f.frame();assert.deepEqual(built,expected,'A far seek must not build skipped intermediate rows');check(expected);
+  }
+  assert.equal(mounted,28);assert.equal(mounted-disposed,6);
+ }finally{f.close();scroll.dispose();}
+ assert.equal(live.size,0);assert.equal(mounted,disposed);
+});

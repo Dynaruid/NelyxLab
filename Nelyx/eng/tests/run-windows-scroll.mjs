@@ -8,8 +8,10 @@ import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {continuousScrollResult} from './windows-scroll-results.mjs';
 import {symbolizeWindowsFault} from './windows-fault-results.mjs';
+import {verifyWindowsHermes} from '../../sdk/tooling/cli/src/windows-process.mjs';
 
 const root=path.resolve(import.meta.dirname,'../../..'),runner=path.join(root,'sample/nelyx-testbed-app-2/windows/runner');
+const staticLocator=path.join(root,'sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json');
 const choice=process.argv[2]??'matrix',runs=Number(process.argv[3]??3);
 const diagnostic=process.env.NELYX_SCROLL_DIAGNOSTIC==='1';
 const afterDiagnostic=process.env.NELYX_SCROLL_AFTER_DIAGNOSTIC==='1';
@@ -75,7 +77,9 @@ async function prepare(variant,reuse){
  }
  // Both Hermes modes use the same qualified VM/GC supplier. Lowering and
  // compiler flags are recorded separately; a shared VM is not a shared IR.
- if(variant!=='v8')env.NELYX_STATIC_HERMES_INPUTS=JSON.parse(fs.readFileSync(path.join(root,'sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json'))).directory;
+ delete env.NELYX_STATIC_HERMES_INPUTS;
+ if(variant!=='v8'&&fs.existsSync(staticLocator))env.NELYX_STATIC_HERMES_INPUTS=JSON.parse(fs.readFileSync(staticLocator)).directory;
+ if(variant==='static-aot')assert(env.NELYX_STATIC_HERMES_INPUTS,'Prepare the RNW Static Hermes supplier before its comparison; the direct-host VM cannot substitute for it');
  let prepared,parseFailure,tail=[];
  child=spawn(process.execPath,['--test','--test-reporter=spec','--test-timeout=1200000',path.join(import.meta.dirname,'windows-animation.test.mjs')],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']});
  const timer=setTimeout(kill,1_200_000);
@@ -88,7 +92,8 @@ async function prepare(variant,reuse){
  const artifact=path.join(prepared.bundle,'input-surface.bundle'),vm=path.join(directory,'out/hermes.dll');
  const identity={engine:prepared.engine,mode:prepared.hermesMode,profile:variant==='v8'?'source-js':'optimized',configuration:'Release',entrySha256:sha(artifact),hostSha256:sha(path.join(directory,'out/InputSurface.exe'))};
  if(variant!=='v8'){
-  identity.vmSha256=sha(vm);assert.equal(identity.vmSha256,sha(path.join(env.NELYX_STATIC_HERMES_INPUTS,'build/API/hermes_shared/hermes.dll')));
+  identity.vmSha256=sha(vm);identity.vmSupplier=env.NELYX_STATIC_HERMES_INPUTS?'rnw-static-hermes':'rnw-cohort-hermes';
+  if(env.NELYX_STATIC_HERMES_INPUTS)assert.equal(identity.vmSha256,sha(path.join(env.NELYX_STATIC_HERMES_INPUTS,'build/API/hermes_shared/hermes.dll')));else verifyWindowsHermes(path.join(directory,'out'));
   if(variant==='hermes'){assert.equal(fs.readFileSync(artifact).readUInt32LE(8),99);identity.compilerSha256=sha(path.join(process.env.USERPROFILE,'.nuget/packages/microsoft.javascript.hermes/0.0.0-2604.21001-94aa5e1d/tools/native/release/x64/hermes.exe'));}
   else identity.aotSha256=sha(path.join(directory,'out/NelyxApp.aot.dll'));
  }
@@ -112,7 +117,7 @@ async function execute(candidate,viewport,run,runtimeDiagnostic=diagnostic,runti
  const runCatalog=candidate.env.NELYX_CONTINUOUS_CATALOG;
  const samples=output.split('\n').filter(line=>line.startsWith('ANIMATION_JS {"phase"')).flatMap((line,index)=>{try{return [JSON.parse(line.slice('ANIMATION_JS '.length))];}catch(error){parseErrors.push({prefix:'phase',index,error:String(error).slice(0,200)});return [];}});
  const display=records('ANIMATION_DISPLAY ')[0],viewMetrics=records('ANIMATION_JS view-metrics ')[0];
- await report('SCROLL_RUN',{variant:candidate.variant,run,viewport,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,input,catalog:runCatalog,identity:candidate.identity,sourceSha256:candidate.sourceSha256,display,viewMetrics,status:result.status,phases,resources:samples.map(({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget})=>({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget}))});
+ await report('SCROLL_RUN',{variant:candidate.variant,run,viewport,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,input,catalog:runCatalog,identity:candidate.identity,sourceSha256:candidate.sourceSha256,display,viewMetrics,status:result.status,phases,pacing:records('ANIMATION_WHEEL_SEND '),resources:samples.map(({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget})=>({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget}))});
  if(runtimeDiagnostic){
   const retainedSpans=new Set(['Sliver.createChild','Sliver.removeChild','Sliver.didStartLayout','Pipeline.flushLayout','Pipeline.flushSemantics','Widgets.flushBuild','Widgets.finalizeTree','Item.createBuildFirstLayout','TextCache.key','TextCache.reuse','TextCache.remember','NativeText.layout','Text.layout','Text.paragraphLayout','Text.buildParagraph','Style.snapshotRun']);
   const top=values=>{const entries=Object.entries(values??{}).sort((a,b)=>(b[1]?.sum??0)-(a[1]?.sum??0)),keep=new Set(entries.slice(0,24).map(([key])=>key));return Object.fromEntries(entries.filter(([key])=>keep.has(key)||retainedSpans.has(key)));};
@@ -126,13 +131,15 @@ async function execute(candidate,viewport,run,runtimeDiagnostic=diagnostic,runti
  assert.equal(parseErrors.length,0,'Corrupted diagnostic records cannot qualify');
  let qualified;try{qualified=continuousScrollResult(output,{...candidate,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,input,catalog:runCatalog,catalogs});}
  catch(error){await report('SCROLL_FAILURE',{variant:candidate.variant,viewport,run,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,stage:'qualification',error:String(error)});throw error;}
- await report('SCROLL_QUALIFIED',{variant:candidate.variant,run,viewport,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,memory:qualified.memory,displayed:'unobserved',physicalInputAccepted:'notVerified'});
+ await report('SCROLL_QUALIFIED',{variant:candidate.variant,run,viewport,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,pacingPolicy:qualified.pacing[0].policy,memory:qualified.memory,displayed:'unobserved',physicalInputAccepted:'notVerified'});
 }
 let primary;
 try{
- const inputs=['work16.md','research.md','Nelyx/dist/framework/widgets/sliver.js','sample/nelyx-testbed-app-2/windows/runner/node_modules/@nelyx/core/dist/framework/widgets/sliver.js','sample/nelyx-testbed-app-2/.nelyx/windows/native-inputs.json',...(variants.some(value=>value!=='v8')?['sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json']:[]),...(variants.includes('v8')?['sample/nelyx-testbed-app-2/.nelyx/windows/v8-inputs.json']:[])];
+ assert(!variants.includes('static-aot')||fs.existsSync(staticLocator),'Prepare the RNW Static Hermes supplier before its comparison; the direct-host VM cannot substitute for it');
+ const inputs=['work17.md','research.md','Nelyx/dist/framework/widgets/sliver.js','sample/nelyx-testbed-app-2/windows/runner/node_modules/@nelyx/core/dist/framework/widgets/sliver.js','sample/nelyx-testbed-app-2/.nelyx/windows/native-inputs.json',...(variants.some(value=>value!=='v8')&&fs.existsSync(staticLocator)?['sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json']:[]),...(variants.includes('v8')?['sample/nelyx-testbed-app-2/.nelyx/windows/v8-inputs.json']:[])];
  for(const file of ['framework/widgets/framework.js','framework/widgets/scroll-delegate.js','framework/rendering/sliver-multi-box-adaptor.js','framework/rendering/sliver-section-list.js','hosting/text-layout-cache.js','ui/text.js','framework/widgets/focus.js','framework/widgets/focus-scope.js','framework/semantics/semantics.js','framework/rendering/semantics-pipeline.js'])inputs.push('Nelyx/dist/'+file,'sample/nelyx-testbed-app-2/windows/runner/node_modules/@nelyx/core/dist/'+file);
  for(const file of ['gallery.ts','cupertino-gallery.ts','gallery-section.ts','catalog.ts','cupertino-catalog.ts','list-view.ts'])inputs.push('sample/nelyx-testbed-app-2/src/'+file);
+ inputs.push(...['run-windows-scroll.mjs','windows-animation.test.mjs','windows-animation.tsx','windows-animation.cpp','windows-wheel-pacer.h','windows-scroll-results.mjs'].map(name=>'Nelyx/eng/tests/'+name));
  console.log('SCROLL_INPUTS '+JSON.stringify(Object.fromEntries(inputs.map(file=>[file,sha(path.join(root,file))]))));
  const reference=process.env.NELYX_SCROLL_REFERENCE_CORE_SHA256??sha(path.join(root,inputs[2]));assert(/^[a-f0-9]{64}$/.test(reference));
  assert.equal(reference,sha(path.join(root,inputs[3])),'Supply current Core or name the exact pre-change installed Core hash for a baseline');

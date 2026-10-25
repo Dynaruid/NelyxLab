@@ -154,7 +154,13 @@ export class SemanticsFlags {
     this.isLink=options.isLink===undefined?false:options.isLink;
     this.isSlider=options.isSlider===undefined?false:options.isSlider;
     this.isKeyboardKey=options.isKeyboardKey===undefined?false:options.isKeyboardKey;
-    for(const name of flagFields){const value=this[name];invariant(name==='isChecked'?value instanceof CheckedState:['isSelected','isEnabled','isToggled','isExpanded','isRequired','isFocused'].includes(name)?value instanceof Tristate:typeof value==='boolean','invalid-semantics-flag','Semantics flags require typed state values');}
+    for(const name of flagFields){
+      const value=this[name];
+      const valid=name==='isChecked'?value instanceof CheckedState
+        :name==='isSelected'||name==='isEnabled'||name==='isToggled'||name==='isExpanded'||name==='isRequired'||name==='isFocused'?value instanceof Tristate
+        :typeof value==='boolean';
+      if(!valid)invariant(false,'invalid-semantics-flag','Semantics flags require typed state values');
+    }
     if(new.target===SemanticsFlags)Object.freeze(this);else protect(this,flagFields);
   }
   static none=new SemanticsFlags();
@@ -321,18 +327,18 @@ export class SemanticsUpdate {
   static _fromPayload(payload:SemanticsUpdatePayload):SemanticsUpdate{return new SemanticsUpdate(payload);}
   dispose():void{semanticsUpdates.delete(this);}
   /** @internal The host applies this immutable update before retiring it. */
-  _read():SemanticsUpdatePayload{const payload=semanticsUpdates.get(this);invariant(payload!==undefined,'disposed-semantics-update','Semantics update has been disposed');return payload;}
+  _read():SemanticsUpdatePayload{const payload=semanticsUpdates.get(this);if(!(payload!==undefined))invariant(false,'disposed-semantics-update','Semantics update has been disposed');return payload;}
 }
 /** Source-shaped builder with owned immutable payloads at the engine boundary. */
 export class SemanticsUpdateBuilder {
   private readonly nodes=new Map<number,SemanticsNodeUpdate>();
   private readonly customActions=new Map<number,CustomSemanticsActionUpdate>();
   private built=false;
-  private ensureOpen():void{invariant(!this.built,'used-semantics-builder','SemanticsUpdateBuilder cannot be used after build');}
+  private ensureOpen():void{if(!(!this.built))invariant(false,'used-semantics-builder','SemanticsUpdateBuilder cannot be used after build');}
   updateNode(options:SemanticsNodeUpdateOptions):void{
     this.ensureOpen();
     const {headingLevel=0,linkUrl='',role=SemanticsRole.none,validationResult=SemanticsValidationResult.none,hitTestBehavior=SemanticsHitTestBehavior.defer}=options;
-    if(FoundationBuildMode.debug){invariant(options.transform.length===16&&options.transform.every(Number.isFinite),'invalid-semantics-transform','Semantics transform must be a finite matrix4');invariant(headingLevel>=0&&headingLevel<=6,'invalid-semantics-heading','Heading level must be between 0 and 6');}
+    if(FoundationBuildMode.debug){if(!(options.transform.length===16&&options.transform.every(Number.isFinite)))invariant(false,'invalid-semantics-transform','Semantics transform must be a finite matrix4');if(!(headingLevel>=0&&headingLevel<=6))invariant(false,'invalid-semantics-heading','Heading level must be between 0 and 6');}
     const list=<T>(values:Iterable<T>):readonly T[]=>Object.freeze(Array.from(values));
     this.nodes.set(options.id,Object.freeze({...options,headingLevel,linkUrl,role,validationResult,hitTestBehavior,transform:list(options.transform),hitTestTransform:list(options.hitTestTransform),childrenInTraversalOrder:list(options.childrenInTraversalOrder),childrenInHitTestOrder:list(options.childrenInHitTestOrder),additionalActions:list(options.additionalActions),labelAttributes:list(options.labelAttributes),valueAttributes:list(options.valueAttributes),increasedValueAttributes:list(options.increasedValueAttributes),decreasedValueAttributes:list(options.decreasedValueAttributes),hintAttributes:list(options.hintAttributes),controlsNodes:options.controlsNodes===null?null:list(options.controlsNodes)}));
   }

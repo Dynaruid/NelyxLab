@@ -2,9 +2,9 @@
 import fs from 'node:fs';import path from 'node:path';
 import {createRequire} from 'node:module';
 import {automaticPartition} from './type-policy.mjs';
-export function productPartition({runner,entry,runtimeFiles}){
+export function productPartition({runner,entry,runtimeFiles,applicationRoot,packageRoots}){
   runner=fs.realpathSync(runner);
-  const roots=['core','sdk','skia-rn','material','cupertino'].map(name=>path.join(runner,'node_modules/@nelyx',name)).filter(file=>fs.existsSync(path.join(file,'package.json')));
+  const roots=packageRoots??['core','sdk','skia-rn','material','cupertino'].map(name=>path.join(runner,'node_modules/@nelyx',name)).filter(file=>fs.existsSync(path.join(file,'package.json')));
   const owners=new Map(roots.map(root=>[JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).name,fs.realpathSync(root)]));
   for(const root of roots){
     const manifest=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')),load=createRequire(path.join(root,'package.json'));
@@ -16,7 +16,7 @@ export function productPartition({runner,entry,runtimeFiles}){
       if(relative.startsWith('..')||path.isAbsolute(relative)||relative.split(path.sep).includes('node_modules'))throw Error('Installed package resolves a duplicate module owner: '+name);
     }
   }
-  const partition=automaticPartition({entry:fs.realpathSync(entry),applicationRoot:path.resolve(runner,'../..'),packageRoots:roots,runtimeFiles});
+  const partition=automaticPartition({entry:fs.realpathSync(entry),applicationRoot:applicationRoot??path.resolve(runner,'../..'),packageRoots:roots,runtimeFiles});
   if(partition.graph.boundaries.some(item=>item.kind==='multiple-evaluation-routes'))throw Error('Product graph has multiple source/emitted module identities');
   const byModule=new Map();
   for(const binding of partition.bindings){

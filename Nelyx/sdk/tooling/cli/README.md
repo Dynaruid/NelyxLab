@@ -77,6 +77,21 @@ Options vary by target; the parser in [`src/main.mjs`](src/main.mjs) defines acc
 
 ## Native prerequisites
 
+Windows Release uses **Hermes with the optimized compiler policy** by default. The default host remains RNW. Hermes is the common native-platform direction, including future iOS hosts; V8 and JSC remain explicit choices.
+
+The experimental direct host uses `--host native-hermes` for `doctor`, `prepare`, `build`, `run` and `pack`. It owns an HWND, a dedicated direct Hermes JSI thread, Skia Vulkan/DirectComposition, TSF editors and a virtual UIA tree. The normal application `main().definition` and declared assets are reused. It requires Windows x64 Release, VS C++ tools, LLVM, CMake/Ninja and the pinned Skia supplier. From the installed Windows runner:
+
+```powershell
+npx --no-install nelyx prepare --app ../.. --target windows --host native-hermes --native-inputs <Skia-supplier-inputs.json>
+npx --no-install nelyx build --app ../.. --target windows --host native-hermes --hermes-mode bytecode
+npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode bytecode
+# Build and run the separate native SHUnit mode
+npx --no-install nelyx build --app ../.. --target windows --host native-hermes --hermes-mode static-aot
+npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode static-aot
+```
+
+After changing a supplier or its toolchain, run prepare again before building; preparation verifies the current inputs and refreshes the locator. Prepare records verified native inputs and a separate direct-Hermes toolchain; `--engine-inputs <directory>` can reuse that verified toolchain. The two current packages live in `.nelyx/native-windows/current-bytecode` and `current-static-aot`. Close the selected package before rebuilding. Static builds require automatic type-policy and complete native coverage and reject source/bytecode fallback. `pack --host native-hermes --hermes-mode <mode> --output <new.zip>` exports the selected package. These packages remain experimental: performance, physical IME/input, actual display and full platform qualification are open in [W17](../../../../work17.md). Debug, Metro refresh and the native host on other platforms are not yet implemented.
+
 Windows preparation/build accepts `--native-inputs <inputs.json>` and validates hashes, source inventory, and ABI. Linux preparation requires the manifest; builds also require pinned RNL/Hermes native sources. See the [Skia supply guide](../../../skia/README.md).
 
 Windows `prepare` and `build` also accept `--engine hermes|v8|jsc` (default Hermes). V8 preparation builds the pinned Microsoft V8 24.1.10/RNW 0.83.2/native RN 0.83.4 supplier; `--engine-inputs <supplier-directory>` connects an existing verified supplier. V8 uses a distinct profile/cohort, owning-VM identity, source JS bundle, portable map and DLL/notice checks. Run/pack follow the package's engine and the existing fixed configuration slot/locator policy. Rebuild with `--engine hermes` to return to HBC. The Hermes inspector and development refresh are not supported for V8/JSC; qualification remains scoped to actual application validation.
@@ -110,7 +125,7 @@ licenses and upstream source locations travel with the package. References:
 
 Windows x64 Release supports experimental Static Hermes AOT with `--engine hermes --hermes-mode static-aot`. Prepare builds the pinned `94aa5e1d` compiler/runtime or reuses verified `--engine-inputs`. Build requires the `optimized` profile. The entire Metro root compiles to native code; selected bodies use type specialization, and other bodies retain dynamic JavaScript operations in the same RNW/Skia Node-API VM. Preparation requires 20 GiB free, VS C++ tools, LLVM clang/clang-cl, CMake and Ninja. One app load per process is supported; Debug and refresh are outside this experiment. Compilation does not establish whole-app coverage, automatic type-policy acceptance or FPS improvement.
 
-Windows bytecode bundles default to Hermes `-Og` with the pinned `94aa5e1d` compiler. Its unrestricted `-O` bytecode incorrectly updates loop-carried bisection bounds and can hang `Cubic` animations after scrolling. The native application still uses the requested Debug/Release configuration. Build acknowledgements and packages record `hermesCompilerFlags`; older packages must be rebuilt, and older runners must take the current `windows/runner/build.mjs` template. The historical compiler regression compared actual product code and x86/x64 bytecode with pinned Dart; its intermediate-tool harness was retired on 2026-10-18. Changing the compiler or optimization policy requires an equivalent product comparison and native app validation.
+Windows Release bytecode bundles default to the pinned `94aa5e1d` optimized policy: `-O`, inlining disabled and the qualified pass list excluding the faulty SimplifyCFG pass. Debug uses `-Og`; Release can explicitly select `--hermes-profile debug` for comparison. Unrestricted `-O` incorrectly updates loop-carried bisection bounds and can hang `Cubic` animations after scrolling. Build acknowledgements and packages record `hermesCompilerFlags`; resupply older runners and rebuild their native app. Changing compiler or optimization policy requires product regression and native validation.
 
 Frame wire 6 effects and existing rounded/Path/matrix/paint/layer records require matching core/SDK/renderer archives and rebuilt native suppliers; native ABI remains 1. After replacing local archives, update the runner installation and compare installed source hashes. See the Windows runner guide for compiled-source supplier rebuilding.
 

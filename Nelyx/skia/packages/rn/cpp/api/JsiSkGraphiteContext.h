@@ -7,6 +7,7 @@
 #include <jsi/jsi.h>
 
 #include "JsiSkCanvas.h"
+#include "JsiDisplayList.h"
 #include "JsiSkGraphiteRecording.h"
 #include "JsiSkNativeObjects.h"
 #include "rnskia/RNSkGraphiteTarget.h"
@@ -44,12 +45,11 @@ public:
   }
 
   std::shared_ptr<JsiSkGraphiteRecording> finishRecording() {
-    auto recording = getObject()->finishRecording();
-    // The deferred canvas is deleted by the snap.
-    if (auto canvas = _canvas.lock()) {
-      canvas->setCanvas(nullptr);
-    }
+    // The snap deletes the borrowed canvas, including a failed snap. Keep
+    // the wrapper alive through packet encoding/GC, then invalidate aliases.
+    if (_canvas) _canvas->setCanvas(nullptr);
     _canvas.reset();
+    auto recording = getObject()->finishRecording();
     return std::make_shared<JsiSkGraphiteRecording>(getContext(),
                                                     std::move(recording));
   }
@@ -79,8 +79,13 @@ public:
   }
   double nelyxCoreVersion() {return nelyx::skia_core::abiVersion();}
   double nelyxWireVersion() {return nelyx::skia_core::frameWireVersion();}
+  JSI_HOST_FUNCTION(nelyxReplayDisplayList) {
+    auto canvas=_canvas;if(count!=2||!canvas)throw jsi::JSError(runtime,"Native display-list requires an open recording");
+    replayDisplayList(runtime,canvas->getCanvas(),arguments[0],arguments[1]);return jsi::Value::undefined();
+  }
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+    installHostMethod(runtime,prototype,"nelyxReplayDisplayList",&JsiSkGraphiteContext::nelyxReplayDisplayList);
     installMethod(runtime,prototype,"nelyxIdentity",&JsiSkGraphiteContext::nelyxIdentity);
     installMethod(runtime,prototype,"nelyxConfigure",&JsiSkGraphiteContext::nelyxConfigure);
     installMethod(runtime,prototype,"nelyxReserve",&JsiSkGraphiteContext::nelyxReserve);
@@ -108,7 +113,7 @@ public:
   size_t getMemoryPressure() override { return 1024; }
 
 private:
-  std::weak_ptr<JsiSkCanvas> _canvas;
+  std::shared_ptr<JsiSkCanvas> _canvas;
 };
 
 } // namespace RNSkia

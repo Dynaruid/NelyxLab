@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 우선 구현 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / Nelyx Core·Skia·SDK** · 기본 엔진 정책: **iOS 지원까지 고려한 Hermes 중심의 native 플랫폼 공통 방향**
 
-> **계획 READY · 구현 NOT_STARTED · performanceAccepted=false · physicalInputAccepted=notVerified.** 이번 변경은 조사와 계획 작성이다. 새 host·RNW 포크·native 빌드·성능 검증을 실행한 것으로 해석하지 않는다. 사용자가 현재도 느끼는 버벅임은 미해결이다.
+> **구현 PAUSED · 전체 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified.** 2026-10-25 17:10 KST 사용자 중간 마무리 요청으로 구현과 추가 native 측정을 멈췄다. 시작 HEAD ee82b364efbb48e7821f006f2e1ed3750f4b3f95와 원래 수락 범위를 유지하며, 재개 위치·현재 증거·잔여 작업은 §8에 정리했다.
 
 **선택한 방향은 RN의 콘텐츠 레이아웃에 의존하지 않는 Hermes 직접 host다.** Nelyx의 Widget → Element → RenderObject/Sliver → paint 구조를 유지하고, React/Fabric/Yoga를 거치던 Windows surface·입력·semantics 연결을 SDK의 native 서비스로 옮긴다. 먼저 같은 Hermes에서 최소 host의 실제 차이를 확인하고, native 그리기 명령 일괄 처리와 접근성 전달 개선을 결합한다. RNW 최소 포크는 원인 분리 또는 이전 단계의 대안이며, 필요하면 Hermes VM까지 수정한다.
 
@@ -36,9 +36,9 @@
 
 이미 compositor clock, native GPU worker, 최대 2개 in-flight 제출, frame/resource generation, picture 보존과 retirement가 있다. 이들을 “새로 비동기화”하는 계획을 반복하지 않는다. 반면 [`renderer.ts`](Nelyx/skia/packages/rn/src/renderer.ts)의 `GraphiteRenderer.submit → replayFrame`은 recording 생성 중 많은 개별 Skia 호출·임시 wrapper를 사용한다. GPU 제출이 비동기라는 사실이 JS recording 비용까지 없애지는 않는다.
 
-### 1.3 이번 조사 시점의 identity
+### 1.3 계획 작성 시점의 identity
 
-- 저장소 HEAD: `9323ceee79dadb4d07b2946fa9de3292fc69f525`. 시작 상태는 tracked 변경 없음, 빈 `work17.md`만 untracked였다. W16의 옛 HEAD를 이 저장소에서 checkout 가능한 기준선으로 가정하지 않는다.
+- 계획 작성 때의 HEAD는 `9323ceee79dadb4d07b2946fa9de3292fc69f525`였고 빈 `work17.md`만 untracked였다. **구현 실행 시작 HEAD는 `ee82b364efbb48e7821f006f2e1ed3750f4b3f95`이며 시작 dirty 없음**이다. W16의 옛 HEAD를 이 저장소에서 checkout 가능한 기준선으로 가정하지 않는다.
 - 개정 전 W16 SHA-256: `58c70dc05d3f1c86a0c2c01d7220290d187f5dc9225f3113314ce399188ca187`.
 - 현재 코드의 Windows cohort는 RN JS **0.83.10**, native RN **0.83.4**, RNW **0.83.2**, Hermes 선언 버전 **1.0.0**, pin **`94aa5e1d40a4ce99df79d951cbe45310ec40680c`**, HBC **99**, RNW 입력 계약 **JSI21 / x64 Release / MD**다. 선언과 실제 loaded image의 일치는 W17-00에서 다시 확인한다.
 - 설치된 RNW `Shared/HermesRuntimeHolder.cpp`에서 `jsr_runtime_get_node_api_env → makeNodeApiJsiRuntime`를 확인했다. 파일 SHA-256은 `129a80ecce6f8c2175329399a1a55cca4a604f2c2dbf358ef331fd3123f7ef67`다. 이는 **Node.js 프로세스로 실행한다는 뜻이 아니라 JSI 구현이 Node-API를 거친다는 뜻**이다.
@@ -60,7 +60,7 @@
 ### 1.5 기본 엔진과 플랫폼 확장 정책
 
 - **기본 JavaScript 엔진은 Hermes다.** 이는 사용자의 iOS 포함 플랫폼 지원 방향을 반영한 제품 결정이다. Windows에서 V8/JSC가 빠른 구간이 있어도 해당 엔진으로 기본값을 바꾸는 것을 W17의 해결책으로 삼지 않는다.
-- **엔진 기본값과 host 기본값을 분리한다.** Hermes 기본 엔진 계약은 W17-08에서 SDK/CLI·템플릿·일반 launcher·사용법에 반영한다. RNW host를 직접 host로 기본 전환하는 시점은 H0~H5 수락에 따른다. 이번 문서 개정은 실행 기본값을 변경한 구현이 아니다.
+- **엔진 기본값과 host 기본값을 분리한다.** Hermes 기본 엔진 계약은 W17-08에서 SDK/CLI·템플릿·일반 launcher·사용법에 반영한다. RNW host를 직접 host로 기본 전환하는 시점은 H0~H5 수락에 따른다. 현재 Windows Release 기본 엔진/profile은 Hermes/optimized이며 기본 host는 RNW다.
 - **공통 runtime과 플랫폼 adapter를 나눈다.** Nelyx build/layout·자원 수명·frame/input/semantics 계약은 iOS에서도 구현할 수 있는 형태로 정의한다. HWND·Windows dispatcher·TSF/UIA·Composition 타입을 공통 계약에 노출하지 않는다. iOS의 UIKit·Metal·입력/접근성 연결은 해당 플랫폼 adapter의 책임이다.
 - **Hermes bytecode와 Static Hermes의 플랫폼 수락은 별도다.** Windows의 Static Hermes loader·SHUnit·성능 성공을 iOS 지원 완료로 간주하지 않는다. iOS의 실제 VM/compiler 공급·아키텍처·링크·패키징·기기 실행은 별도 검증 대상이다.
 - W17의 구현·정규 성능 matrix는 Windows 우선 범위를 유지한다. iOS에 필요한 공통 경계를 이번 구조에 반영하고, iOS 직접 host 전체 구현과 native 실행 수락은 후속 작업으로 남긴다.
@@ -106,7 +106,7 @@ Dedicated Hermes runtime thread (VM 1개, 소유 thread 1개)
 - native host가 root의 logical/physical size·DPI·환경 revision만 제공하고 콘텐츠 크기·배치는 Nelyx가 계산한다. Core tree를 React/Fabric tree로 복제하지 않는다. UIA는 **이미 계산된 semantics geometry**를 소비한다.
 - HWND·Composition·입력 서비스는 UI thread, Hermes와 모든 JSI handle은 runtime thread, GPU worker는 native recording/fence만 소유한다. 동일 runtime을 여러 thread에서 동시에 호출하거나 JSI value를 worker에 넘기지 않는다.
 - 기존 Windows/Skia 코드의 RN-neutral 부분을 추출하고 RNW adapter와 직접 host adapter를 나눈다. `ReactContext`·RN dispatcher·Composition context에 묶인 코드는 그대로 재사용 가능하다고 가정하지 않는다. 특히 `WindowsAppHost`, `RuntimeServices`, `SkiaView`, input island, semantics provider의 결합을 먼저 분류한다.
-- 새 native host의 경로 예시는 `Nelyx/sdk/native/windows-hermes/`, SDK adapter 예시는 `Nelyx/sdk/src/backends/native-hermes/`다. **제안 경로이며 아직 생성하지 않았다.** 공통 Skia 코드가 계속 `rn` 패키지의 내부 런타임에 의존하면 명시적인 공통 native 계층으로 추출한다.
+- 새 native host는 `Nelyx/sdk/native/windows-hermes/`, SDK adapter는 `Nelyx/sdk/src/backends/native-hermes/`에 구현했다. 공통 native scheduler·입력 batch는 `Nelyx/skia/native/host/`에 두며 기존 Skia native 소스를 RN/직접 host 양쪽에서 컴파일한다. RN renderer/runtime import는 직접 host graph에서 거절한다.
 - 공통 Hermes runtime·서비스 계약과 Windows host 구현을 구분한다. 이후 iOS host가 같은 Core·SDK 계약을 구현할 수 있도록 Windows 전용 native handle·dispatcher·표시 API를 adapter 내부에 둔다.
 
 ### 3.2 runtime·번들·플랫폼 서비스
@@ -202,8 +202,9 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 ### 6.2 실행 수·기존 검사·정리
 
 - 후보 선별은 작은 fixture의 단회 진단부터 진행한다. 기본 native 성능 실행 예산은 **정규 전후 비교 24회 + 필요한 후보/원인 진단 최대 6회 = 30회 이내**다. 정규 단위는 각 측 **2모드 × 2창 × 3회 = 12회**다. 실패 원인이나 새 변경이 없으면 반복하지 않는다. 단회 결과로 p99/개선율을 수락하지 않는다.
-- 모든 검사는 저장소 지침대로 **20분 timeout**을 둔다. 기존 `npm.cmd run test:scroll-engine`과 변경에 해당하는 paint replay·frame clock/backpressure·layout/편집·Windows input/semantics·loader/supply 검사를 선택한다. 문서만 바꾼 이번 작업에는 이 검사들을 실행하지 않는다.
-- 기존 `node Nelyx/eng/tests/run-windows-scroll.mjs matrix 3`는 **현재 RNW 경로**다. 직접 host의 옵션·launcher는 아직 없다. W17에서 host 선택과 실제 viewport/input 검증을 확장한 뒤 같은 workload로 비교한다. 존재하지 않는 신규 실행 명령을 사용법으로 제시하지 않는다.
+- 모든 검사는 저장소 지침대로 **20분 timeout**을 둔다. 기존 `npm.cmd run test:scroll-engine`과 변경에 해당하는 paint replay·frame clock/backpressure·layout/편집·Windows input/semantics·loader/supply 검사를 선택한다. 현재 실행한 검사의 범위는 §8에 기록한다.
+- 기존 `node Nelyx/eng/tests/run-windows-scroll.mjs matrix 3`는 **현재 RNW 경로**다. 직접 host는 CLI의 `--host native-hermes` 또는 `node Nelyx/eng/run-native-hermes.mjs --hermes-mode bytecode|static-aot`로 실행한다. `node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --scope diagnostic --catalog`는 실제 Testbed의 **프로그램 스크롤 진단**이다. `--viewport default|maximized`, `--scope cpu|gc|diagnostic`을 선택하며 임시 entry·패키지는 종료 시 정리한다. bytecode의 별도 `--scope sampling`은 1,000Hz Hermes PC 관측을 정확한 bundle source map에 연결한다. 관측 횟수를 시간 비율로 사용하지 않으며, 기본 상위8개 함수 대신 전체 mapped stack은 `--details`로 출력한다. 아직 matched OS 입력 성능 matrix가 아니며 기능 smoke·프로그램 진단을 정규 성능 matrix에 포함하지 않는다.
+- 직접 host의 `--input os --scope cpu --viewport both`는 별도 native thread의 실제 wheel ListView 진단이다. 같은 bundle을 한 번 빌드해 기본/최대화 새 process에 사용한다. `--catalog --scope cpu`는 실제 Material29개·Cupertino20개 전체를 OS wheel로 이동하고, cold/revisit의 각 section을 Core build sequence와 정확히 같은 native surface content frame에 연결한다. fast의 건너뛴 section은 보고하며 built-only/discarded frame은 노출로 세지 않는다. bytecode의 별도 ListView `--scope sampling`도 지원하며 OS catalog sampling·GC·inclusive diagnostic 조합은 거부한다. input dispatch와 callback/checkpoint를 별도 보고하고, 동일 pacing·전체 CPU 계측의 RNW baseline과 물리 표시 수락을 대체하지 않는다.
 - OS 입력 측정은 준비 완료 후 데스크톱 입력을 함께 조작하지 않는 구간을 확보하고 실행한다. 측정 중 다른 build/test·대량 trace 출력을 실행하지 않는다. 물리 조작이 필요한 검증은 자동화 결과와 별도다.
 - V8/JSC와 Android RN/Hermes는 공통 변경의 기능·수명 smoke 대상이다. Web은 새 이름의 runtime source build/공급이 필요한 현재 선행조건을 먼저 해결해야 한다. Windows 직접 host의 성공을 다른 플랫폼이나 Web 수락으로 확대하지 않는다.
 - 현재 dist와 사용 중 공급만 유지한다. 실험 process/temp/entry/staging은 성공·실패·중단 모두 `finally`에서 정리한다. 기존 외부/사용자 산출물은 건드리지 않는다. 전체 SDK/cache를 매번 복제하거나 log·receipt·checkpoint/history JSON·옛 archive를 누적하지 않는다. 지속 기록은 이 문서의 짧은 현재 상태와 필요한 source/공급 manifest, 제품 안내는 기존 README에 둔다. `Nelyx/docs/plans/`·`Nelyx/docs/migrations/`는 만들지 않는다.
@@ -229,15 +230,68 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 
 ## 8. 현재 상태와 다음 시작점
 
-| 항목 | 2026-10-25 상태 |
-|---|---|
-| 이번 조사·후보 검토·계획 작성 | COMPLETE / 문서 범위 |
-| 현재 활성 실행 계획 | **W17 READY** / W16 CLOSED / SUPERSEDED |
-| 기준선 불일치 처리 | **§5.1을 모든 단계의 필수 작업·완료 조건으로 적용** / 실제 점검·수정 결과는 구현 중 갱신 |
-| 기본 엔진 결정 | **Hermes** / iOS 포함 플랫폼 지원을 고려한 제품 방향. 실제 기본값 적용은 W17-08에서 구현 |
-| W17-00~09 구현 | **NOT_STARTED** / 조건부 W17-07은 아직 판단 전 |
-| RN 없는 직접 host·RNW/VM 신규 포크 | 미구현 |
-| 신규 baseline·성능·실제 display·물리 입력 | 미실행 / `performanceAccepted=false`, 나머지 `notVerified` |
-| 사용자 버벅임 문제 | **미해결 / PARTIAL** |
+> **전체 PARTIAL / goal PAUSED · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-25 **17:10 KST**, 사용자 중간 마무리 요청으로 구현·추가 측정을 정지했다. Core **fcce0e24…c2c7**·SDK **e09e0698…5757**·CLI **3400a611…1688**, 두 정식 native 제품의 byte identity는 유지한다. native suite36/36·C++ host1/1과 앞선 정식 UIA/OS pointer4실행은 통과했지만 최신 private commit의 마지막3회 순증가도 고정 한계를 넘었다. H2/H3/H4/H5는 미수락이며 기본값은 Hermes/optimized·RNW다.
 
-**다음 시작점:** W17-00에서 이름 변경 후 공급과 unresolved AV/입력 상태, §5.1의 기준선 불일치와 수정 단계/owner를 확인하고 기준선 실행을 막는 문제부터 고친다. 이어 W17-01의 **같은 Nelyx ListView를 실행하는 RN 없는 Hermes host**를 만들며 관련 불일치를 함께 수정한다. 그 결과로 host/어댑터 비용과 Core 비용을 구분한 뒤 같은 점검·수정 원칙으로 W17-02~06을 이어간다. 기존 W16 matrix 반복이나 Yoga만 생략하는 수정부터 재개하지 않는다.
+| 단계 | 구현·검증 범위와 남은 조건 |
+|---|---|
+| W17-00 | 시작 HEAD `ee82b364efbb48e7821f006f2e1ed3750f4b3f95`·시작 dirty 없음. Core/SDK/Skia 공급과 RNW binding18개 library를 재컴파일했다. Windows165Hz/DPI192·기본974×929/최대화2560×1459 physical px를 확인했다. 정규 matched baseline/matrix0회. |
+| W17-01/02 | HWND/UI owner·전용 Hermes/JSI owner·Vulkan/DirectComposition·RN-neutral scheduler·timer/microtask/Promise rejection·환경·assets/font/image·clipboard/messenger 구현. 두 모드의 시작/scroll/편집/resize/close를 확인했다. admission 중단→입력/서비스 종료→GPU drain→JS handle/VM 정리를 유지한다. |
+| W17-03/04 | bounded display-list1의23 opcode·paragraph/sampling/clip/picture/backdrop·오류 시 mutation 전 거부·강제 Hermes GC 뒤 replay/snap/drain을 실제 raster/Vulkan로 검증했다. 64개 초과 입력 tail이 key/frame/close를 추월하던 경합을 고쳐 실제201 samples·microtask·종료 순서를 확인했다. OS wheel의 cookie/거리/방향/원래 timestamp와 matching surface 검증도 구현했다. |
+| W17-05 | TSF·UIA fragment/Text/Text2/Value/RangeValue/Invoke/Toggle·stable ID/peer retirement·viewport/owner/revision·최근16 actionable snapshots를 연결했다. 제거·교체·종료 provider의 Windows 해제 통보와 WM_DESTROY map 정리를 추가했다. UI owner의 posted turn에서만 해제하고, 그 호출 동안 runtime/host/root 식별만 허용한다. stale action/data/bounds는 계속 거부하며 closed root 재게시를 차단한다. 물리 한글 IME·reader·전체 action/state 수락은 잔여다. |
+| W17-06 | transform/detach cycle·layer depth/callback·중복 frame 예약·Paint/resource batch·Matrix4 접근·semantics geometry를 보완했다. 성공 경로의 errors/closure·layout 방문 Set·BuildOwner 중복 membership·action 없는 Map·상수 invariant 호출을 줄였고, 스타일의 빈 spread25곳과 SemanticsFlags 필드 분류 배열 생성도 제거했다. virtual getter/iterator·State/Key·rollback·falsey 오류/순서·frozen/Proxy 계약을 유지한다. 전체 속도/할당 개선은 미수락이다. |
+| W17-07 | **prototype cache 포크 SKIPPED / 미채택.** 작은 fixture 개선이 실제 앱의 일관된 개선으로 확인되지 않아 원래 source/compiler/runtime으로 복귀하고 패치 파일·추가 cache ABI를 제거했다. 별도 RNW B/C 포크도 채택하지 않았다. H2 실패를 SKIPPED로 닫은 것은 아니다. |
+| W17-08 | explicit native-hermes doctor/prepare/build/run/pack·실제 zip 왕복/변조 거부·공유 host/AOT cache·일반 앱 API/자산 소비를 구현했다. 새 공급인데 옛 locator hash가 prepare를 막던 오류를 red→green 회귀와 실제 설치 CLI로 수정했다. prepare는 현재 공급을 검증한 뒤 hash를 갱신하고 build/doctor는 stale 입력을 계속 거부한다. 양 언어 README도 갱신했다. |
+| W17-09 | 아래 현재 제품/기능 검증과 새 임시 owner 정리를 마쳤다. 고정 한계를 사용하는 실제 process/Vulkan 메모리 관측과 실패 판정을 추가했지만 private plateau는 실패다. frame/표시·물리 입력·미해결 RNW 실패·두 번째 실제 앱도 남아 전체 PARTIAL이다. |
+
+| 현재 공급 | workspace와 Windows/Web/Android 세 설치의 동일 파일 목록·내용 |
+|---|---|
+| Core | src/dist/package **3,121 files**, **fcce0e24287d817b97002fded1696a8d1e18c0358be3a021a7d10eeee7bec2c7** |
+| SDK | native/README/라이선스를 포함한 실제 package **633 files**, **e09e06981c9dadc579e44b642907a31812fd95319072f6d2d8e492b3cebd5757** |
+| Material | assets/라이선스를 포함한 실제 package **1,324 files**, **9009e35222c19975915f6a7cec12df3dd3375d81b9c302e8df76ffd30bf6b80e** |
+| CLI | 실제 package **270 files**, **3400a6114265a515726c3111fe3c8cd36d2b3064f61d23a496bb8c56f0531688** |
+
+모두 정렬한 경로에 SHA256(path+NUL+fileSHA256+LF)를 적용했다. Core는 명시한 code 범위이며 SDK/Material/CLI는 실제 설치 package 전체의 source 대응 범위다. 마지막 SDK633 변경은 native/windows-hermes에 한정한다. 이번 외부 주소 공간 관측은 Nelyx/eng만 바꿔 Core/SDK·정식 HBC/AOT 제품의 동일 identity를 유지한다. 아래 RNW/Web/Android 실행은 SDK632의 앞선 검증 범위다.
+
+| 현재 제품·검사 | 결과와 증거 범위 |
+|---|---|
+| Core 회귀 | 현재 fcce에서 Core build·scroll159/159·접근성80/80·paint/Scene/Matrix4/semantics/resource96/96·text/paragraph38/38·9 workspace 타입 통과. 앞선2ac의 상수 code/message invariant527곳/21 modules·TypeChecker binding543개 점검과 실제 ListView 논리 호출110,203/6,493/116,809/98,921→17,816/130/17,257/13,436(초기/settled/목적지/복귀, predicate 실패0·동일 트리/configuration 수)는 이전 변경의 근거이며 native 개선율이 아니다. |
+| Core 할당 진단 | 실제 ListView Node/CanvasKit의 목적지 프레임에서 빈 스타일 객체4,980개(run capture2,235+style adapter2,745)와 flag 분류 배열6,141개(267 constructors×23), 합계11,121개 생성을 제거한 별도 논리 계수를 확인했다. getter/Proxy·nested snapshot·borrowed Paint/custom scaler·오류 순서는 기존38개 text/paragraph 회귀에서 유지됐다. instrument 없는 단회 V8 sampling(512-byte interval)은2ac21,609,184→fcce21,086,584bytes였지만 표본 추정치이며 Hermes 할당·native timing·전체 개선율로 수락하지 않는다. |
+| 직접 host identity | host source **cdba6b89c7fcce315ff3e0e6c0908ba0eceb2ce0e90d42b4d3ac2c19fa618804**·현재 EXE **ca31355a0d3a736fac07f16319829046f9bb64cb703ebd75742e12dc636ae498**·stock VM **de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696**·v3 toolchain **a0d7d3c2a023a3610e0c12e4182fd6ab604cf9e3ca1a89a8533dd43a964e71ff**. supplier source tree86a15cef…8fd3도 원래 pin/patch와 대조했다. |
+| 정식 두 제품 | HBC153 files/app.hbc8,209,919bytes **c68678eae8d16f2cd31cc9c3a47d32b2629a2cbd413b95dcf009ffa4bf357fe3**. AOT156 files/DLL46,101,504bytes **18d043844d0cfb5716555838d758a2ecb4d605bf268a35fa167a8394777f7809**. SDK633의 native host 수정 뒤 두 제품을 갱신했다. 최종 AOT frontend45.65초·nelyx_typed/nelyx_app object cache hit·image 재링크이며 full-gallery native 함수 재컴파일은 하지 않았다. |
+| 정식 UIA·OS pointer | 현재 각 모드에서 range6 requests(absolute/discrete/thumb/invalid/disabled/readOnly)와 OS category-text→field-filled click·CUIAutomation8 GetFocusedElement/HasKeyboardFocus·동일 owner/ID·최대화를 통과했다. range surface49/61·입력12/14, pointer surface18/15·입력10/10, reject0. 네 실행 모두 memory observer off·exit0/forced=false. loaded79/80 modules·RN/Node-API 없음·현재 source848/owner11·EXE/VM/bundle hashes를 대조했다. generated3개/asset 내용은 code-only source 검사에서 제외하며 전체 package inventory는 별도 검증한다. |
+| AOT coverage | initializer851/851, original callable36,298 native(typed21)+34 proven-dead, emitted40,543 native. wholeAppNativeAot/typePolicyAccepted=true·unresolved/unclassified/dynamic-code0. execution 파일 SHA **ec87ef0d1fab7805f3aa0d75d079fad0905e3d054006d4b6c52407131b51543a**·내부 identity19549b76…ef5a, policy SHA **fd7e96f379d4e3c8902d8b1a37f481dfbcea80986c1fb992b0bfe25c6d37051d**·내부 identitya3e1fb81…d9a0. compiler map36,892(app36826/typed66)·두 SHUnit 확인. type policy callables31,007/specialize21/dynamic30,986은 original callable 수와 별도다. |
+| native 회귀 | 현재 제품의 실제 zip/변조 거부·graph/loaded/source drift·receipt/report·prepare 갱신·자원/메모리 증거 검증과 두 모드 실제 VM getter/receiver/Proxy/HostObject/falsey 예외/weak root/getter 중 GC/young GC까지 **36/36·skip0**. 새 주소 공간 관측의 PID/순서/누락/범위·commit 증감 보존·비원자적 증거 범위 검사2개를 추가했다. 실제 두 제품의 memory observer on/trace off 창 생성 전 거부도 포함한다. C++ loop/23 opcode/Vulkan 강제 GC/queue/close·UIA retirement/실제 UiaDisconnectProvider/다른 UI apartment 거부·idempotent close와 실제 VirtualAlloc reserve/commit/expand/decommit/release **1/1**. [Windows 해제 계약](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcoreapi/nf-uiautomationcoreapi-uiadisconnectprovider)·[runtime identity 예제](https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/UIAutomationCleanShutdown/cpp/UiaCleanShutdownControl/UiaCleanShutdownControl.cpp)에 따른 해제용 식별 조회만 일시 허용한다. 일반 회귀는 correctness-only다. |
+| 정식 제품 메모리 관측 | opt-in PSAPI [PrivateUsage](https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters_ex)·실제 Device Vulkan 할당/import·강제 GC 없는 VM 계수를 읽는다. 고정 상한 private1GiB/Vulkan512MiB·마지막3회 span8MiB/1MiB·순증가1MiB/64KiB·allocation count 순증가0을 유지한다. 동일 cdba HBC 최대화2560×1459/DPI192의 새6회 원인 진단은 OS wheel192개/native190개 coalescing·raw 절대23040/net0·JS 절대9216 보존, focus/viewport 고정·거부0·surface331·exit0/forced=false였다. 마지막3회 private453,603,328→454,356,992→455,950,336bytes, 순증가2,347,008bytes로 **FAIL**(probe exit1). Vulkan20개/149,702,720bytes·VM capacity62,914,560bytes는 일정하고 private peak455,962,624bytes는 상한 안이다. driver residency·수정 후 AOT/기본 창 plateau는 notVerified, H4 전체는 미수락이다. |
+| 외부 주소 공간 원인 관측 | 새 native-memory-regions.h와 실제 UIA 클라이언트의 read-only VirtualQueryEx, scalar 검증을 연결했다. 앱/SDK·JS entry·AOT image를 바꾸거나 heap/registry를 조작하지 않는다. scan7개·0..16ms·1,331..1,415 queries, 원시 주소/로그 파일 없음. cycle2의 새 private base77,594,624bytes는 protection0x404였고, tail4→6의 MEM_PRIVATE commit+2,338,816bytes는 새 base1,052,672+동일 base 증가1,286,144였다. PSAPI tail+2,347,008과8,192bytes 차이다. [VirtualQueryEx는 image/mapped의 copy-on-write 전환을 MEM_PRIVATE로 바꾸어 분류하지 않으므로](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualqueryex) PSAPI를 대체하지 않는다. scan은 비원자적이고 주소 재사용도 가능해 allocation stack/실제 owner·수명은 unproven이다. |
+| RNW Hermes | Core fcce0e24·SDK632·optimized/HBC99,1,764 files/313,731,950bytes. EXE **9cfa72e544e227b0d057fce467c1cd4c261f8260b67f0d55336f23e8a6edeb94**, HBC **15111b2a8c5a21f8c68e6c91ea6d11477785026dbe45020da4679c78c7a5e1fb**. 실제 first-content·Responding/유효 HWND·패키지 DLL paths/hashes·owner/GPU/input drain·exit0/forced=false1/1. 현재 output/배포본 모두 옛 AOT map과 옛 host/assets 없음. |
+| RNW focus·한국어 TSF | 이전 native commit을 latest React handler가 버리던 경합을 재현해 수정했다. 실제 layout-effect commit16개와 현재 Core callback을 조회하되 unmount/source/owner/surface/viewport·편집 generation/privacy/capability·revision/range를 fencing한다. Windows semantics12/12는 SDK4114a418의 앞선 회귀다. 현재 Core fcce에서 실제 commit22를 보류하고23을 게시해 old strict 거부/new receiver 수락·Core/TSF/UIA focus/GPU caret를 대조했다. 한국어 HKL0412 TSF 조합/확정/편집/privacy/OS키/resize/8회 blur-focus·geometry publications max3·정상 drain/exit0 통합1/1. 과거 단회 focus 실패와 동일 원인인지는 미확정이다. |
+| Web | Core fcce·SDK632 application.js **92c466188775855cd805b4f1d47a1ddc46cb0bff98210b58c55c511864c7a627**. 실제 Chrome/SwiftShader WebGL2 시작·EditContext 한글A 입력/selection/focus·투명 DOM carrier1/1, CanvasKit gallery24 PASS/1 profiling SKIP. CanvasKit JS cc0c8868…e665/WASM2b9fe2ff…5f1c는 앞서 C++ source·patch5개·dependency pin/origin/dirty14개·recipe b8c1eabd…f5fbd를 대조하고 WSL1,854단계/440.13초에 sourceRebuild=PASS-build한 공급과 동일 byte다. 출력→공급→설치→Web 출력 hash 일치를 유지하며 이번 Core-only 변경에서 C++는 반복 빌드하지 않았다. notice=PARTIAL·물리 입력/표시 notVerified. |
+| Android | Core fcce·SDK632 x86_64 Release/emulator-vulkan APK **d89555b06c45e9e8b46824d2f51727903eccea3cbf1546f94fd5986fe43a2b61**. Temurin21.0.11로 빌드(1분46초/119 tasks), read-only/no-snapshot Pixel_5/API33 실제 시작/activity6frames/Back 복귀/scoped app PID 오류0, smoke1/1. emulator는 종료 대기 뒤 소유 tree 강제 정리(forced=true,exit0)했으며 native drain·물리 입력/표시는 notVerified. Android Hermes0.14.1/HBC96/-Og는 Windows1.0.0/HBC99와 별도다. 일반 OpenJDK21 사용법을 README에 반영했다. |
+| 기타 범위 | boundary944 files/507 facades/7,735 runtime edges·cycles0, ownership56 moved/8 adopted/11 managed와 출처 metadata12개의 registry 참조16개는 앞선 통과 범위다. JSC26.4 JIT/interpreter·V8 24.1.10 실제 앱/loaded/drain 검증은 이전 Core379150f8의 별도 범위이며 현재 Core 결과로 합치지 않는다. RNW Static Hermes supplier/locator는 없어 notVerified다. |
+
+GC 단회 비교는 **5f6a618d→2ac2c8df**, `turns / wall p95 ms / allocated MB(10^6)`다. 최대화2560×1459·DPI192·165Hz·programmatic·GC enabled·spans off, 같은1,000행/80px·부하·트리·semantics 주기를 대조했다. callback과 이어지는 checkpoint wall이며 heap delta는 trace 분석 bookkeeping도 포함한다.
+
+| phase | HBC 5f → 2ac | Static Hermes 5f → 2ac |
+|---|---|---|
+| retained | 136 / 9.60 / 126.30 → 137 / 10.57 / 126.14 | 132 / 10.56 / 120.19 → 132 / 9.52 / 120.19 |
+| cold | 59 / 39.21 / 151.03 → 57 / 32.50 / 151.17 | 73 / 29.02 / 173.89 → 77 / 31.60 / 177.15 |
+| revisit | 64 / 29.80 / 147.21 → 66 / 27.64 / 153.24 | 79 / 22.69 / 171.63 → 80 / 24.41 / 173.34 |
+| fast | 11 / 193.92 / 164.71 → 12 / 176.76 / 170.94 | 12 / 196.29 / 181.71 → 12 / 195.55 / 174.24 |
+
+두 새 실행 모두 phase 입력0·foreground/focus/keyboard/UIA/lastInputTick 고정·cursorParked=true·정상 exit0·강제 종료 없음(surface387/407, 시작 pointer2개씩은 phase 밖)이다. 진단 bundle은 HBC4421225d…3809/AOT5a889acd…1c20이며 host/VM identity와 package153/156 files를 대조했다. phase 순서의 collection은 HBC33/40/39/43→33/40/41/44, AOT32/47/45/47→32/47/46/46, young GC ms는 HBC50/107/95/130→52/99/103/128, AOT48/108/105/133→49/102/107/122이다. 보고된 full GC time delta는0ms이며 full collection 수는 HBC0/1/1/1·AOT0/2/1/1로 전후 동일하다. full GC가 발생하지 않았다는 뜻은 아니다. frame 수가 달라지는 phase의 총량을 개선율로 쓰지 않는다. AOT retained는 같은132turns/약120.19MB로 거의 같고 fast도 단회 wall196.29→195.55ms이므로 전체 할당·속도 개선을 수락하지 않는다. fast는 두 모드 모두50ms를 크게 초과한다. 정규 OS 입력/표시 matrix 표본이 아니며 performanceAccepted=false·physicalInputAccepted=notVerified·displayed=unobserved를 유지한다.
+
+이 GC 비교는 이전 Core2ac와 stock host/VM을 사용한 재링크 전 진단(EXE4cb19cfc…f311)이며 최신 Core fcce의 성능 결과가 아니다. 현재 정식 EXEca31355a…e498·AOT18d04384…7809는 별도 기능/loaded 검증 대상이며 진단 bundle과 정식 제품의 hash를 합치지 않는다.
+
+| 원인 검토·잔여 수락 | 현재 판단 |
+|---|---|
+| 행 생성 원가 | 앞선 inclusive 진단의 최악 fast frame1,110 elements mount/1,036 unmount·행당74 elements·Sliver.createChild115.98ms/trailingBuildLayout150.00ms·Layout p95168.62ms가 생성/배치 비용을 가리켰다. 고정80px/1,000행 far-seek는 목적지 cache496..505/994..999/0..5만 생성하고 중간 행을 만들지 않았다(28 mount/28 dispose·max10 live). 캐시/샘플 정책 변경은 해법으로 채택하지 않는다. |
+| 2ac source 진단 | Core2ac HBC PC sampling fast750 observations에서 self GC69/invalidatePaint22/layoutMutationAllowed14/SemanticsConfiguration 초기화12/copyDataProperties11을 관측했다. CPU ms/비율이 아니다. Node 실제 ListView 목적지에서 paint589회/부모27,660방문·layout permission3,225회/부모19,661방문·inherited Map165 copies/2,850 entries였다. configuration 생성1,176개=provider-original1,130+copy46이므로 대량 copy 폭증 가설은 제외했다. 트리와 오류0을 확인한 계수 진단이며 native timing이 아니다. attach의 eager configuration 읽기는 [pinned Flutter](https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/packages/flutter/lib/src/rendering/object.dart#L2384)와 같아 생략하지 않았다. pinned HiddenClass dictionary threshold64와 기본 ProxyBox31/Stack37 필드 수만으로 추가 분할을 정당화하지 않는다. |
+| VM 시제품 미채택 | descriptor 위치만 검증하는 cache의 작은400,000 reads fixture는 getter HBC18.83→13.21ms/AOT16.78→11.01ms였고 동작/GC 검사도 통과했다. 그러나 동일 Core/HBC 진단 bundle4421225d…3809의 앱 GC는 retained/cold/revisit/fast10.68/33.34/24.48/183.14ms(n132/66/70/11)로 기존 stock10.57/32.50/27.64/176.76ms(n137/57/66/12)와 혼재했다. phase 입력0/같은 부하·트리·경계/정상 exit0이나 개선을 수락하지 않았다. AOT 앱 시제품은 추가 빌드하지 않았다. source/ABI/patch 파일을 제거하고 v3 toolchain a0d7d3c2·VM de314029의 정확한 identity와 현재 두 제품을 복구했다. |
+| H2/H3 | 정규 matched matrix0회. 앞선 OS49 catalog의 CPU max118.21ms/oldest input→surface max205.28ms, Static OS list fast64.16/120.17ms와 RNW166.58/445.82ms 실패도 유지한다. 공급/창/부하/계측이 다른 수치를 합치지 않는다. 실제 content-to-display·precision contact/관성/재접촉/반전·물리 wheel·reader·물리 한글 IME는 notVerified/unobserved다. |
+| H4 | recording wrapper GC 만료·fatal/submission drain·보고8KB 절단·Static helper 선언·wheel UI join timeout·UIA provider 해제 누락은 수정했다. 과거 RNW0xC0000005 AV·단회 focus·빌드 npx0xC0000409 원인은 미확정이다. 앞선 두 모드6회 논리 자원 반복의 gallery tree1726/852/45·producer78/units653/bytes124104, tail resident131/units1033/bytes205266·picture14/14/195656bytes·native[1,0,1,0,0]는 이전 범위다. UIA 수정까지의 메모리 관측30회는 종료했고 이번에는 새 주소 공간 분류를 추가한1process×6회 원인 진단만 실행했다. private 증가가 다시 실패했으며, tail의 신규 base와 기존 base commit 증가를 분리할 근거를 얻었다. 특정 cache/COM/driver의 leak이나 UIA 누락이 모든 증가의 원인이라는 입증은 아니다. |
+| H5·정리 제한 | tracked 실제 앱은 Testbed2 하나다. 두 번째 앱 경로는 사용자에게 요청했으며 ignored 옛 Ozeli 앱을 새 소비자 증거로 세지 않는다. 옛44 stage·렌더링 시제품bytecode/static-aot·중복 root .nelyx/windows-native-host·옛 RNW입력425dae08…·sample Windows project의 옛 OzeliRNHost 중간 metadata 삭제는 자동 승인 검토가 blocked by policy로 거절했다. 구체 사유 미제공, 우회하지 않는다. |
+| 최신 종료 점검 | 2026-10-25 **17:10 KST**, HEAD ee82b364…3f95·git status 기본163 entries/전개181 files·diff --check exit0. 현재 package·제품 identity는 위 값과 같다. 소유 native app/emulator/compiler process0·ADB device0, 새 native build/pack/scroll/UIA/source-check/supply/input/browser/property/prepare 임시 owner0·Chrome profile/process0·Core build temp0·새 stage0. VM patch marker/file0, RNW 옛 AOT map0, 금지된 docs/plans·docs/migrations 없음, 기존 animation fixture2개 보존. 거절된 옛 정리 대상은 남아 있으며 새 로그·checkpoint/archive는 만들지 않았다. |
+
+**현재 진행점 — PAUSED:** 사용자 중간 마무리 요청으로 구현과 추가 측정을 멈췄다. 외부 주소 공간의 신규·동일 base commit 증감 관측과 실제 VirtualAlloc/집계 보존 회귀를 추가해 C++1/1·native36/36을 확인했다. 정식 제품 bytes는 그대로이며 새6회 HBC 원인 진단도 private 순증가 한계 실패다. OS/JS 입력량과 normal close/loaded identity는 유효했다. 마지막2ac stock source의 fast wall p95 HBC176.76/AOT195.55ms는 H2 실패이며 최신 matched matrix는0회다. 전체 작업 완료나 기본 host 전환으로 표시하지 않는다.
+
+**재개 시작점:** 먼저 현재 hashes·dirty state와 실행 process0을 대조한다. native-memory-regions.h/외부 클라이언트·검증기를 읽고, tail에서 늘어난 기존 PAGE_READWRITE base와 신규 약1MiB base를 실제 heap/retained owner·allocation stack에 대응시키는 read-only 근거부터 찾는다. protection0x404의 큰 새 base도 owner가 확인되기 전에는 driver leak으로 단정하지 않는다. 새 원인 없이 같은 진단을 반복하거나 한계·횟수를 늘려 통과시키지 않는다. W17-06 목적지 행 constructor/build/adopt/layout·render sync·paragraph configuration 할당 감소, H2/H3·RNW AV/과거 focus·process/driver plateau(H4)·두 번째 실제 앱 경로(H5)·물리 입력/reader 수락이 남아 있다. 재개 요청 전에는 구현·native 측정을 다시 시작하지 않는다.

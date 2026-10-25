@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include "SemanticsTextGeometry.h"
+#include "SemanticsState.h"
 #include "TextInputProtocol.h"
 
 namespace Nelyx::WindowsSemantics {
 namespace RN=winrt::Microsoft::ReactNative;
-struct CoreSemanticsSnapshot {
-  uint64_t commit=0,source=0,surface=0;std::string id,role;
-  Nelyx::WindowsInput::Owner owner;Nelyx::WindowsInput::CoreGeometry frame;
-  LogicalBox bounds;bool enabled=false,focusable=false,focused=false,canActivate=false,hasGeometry=false;
-  std::optional<TextSnapshot> text;std::optional<CoreParagraphFrame> paragraph;
-};
 /** Only copied Core data enters a peer. Password bodies, unit tables and native
  * paragraph references must already be absent at this boundary. */
 inline CoreSemanticsSnapshot readCoreSemanticsSnapshot(RN::JSValue const& value){
@@ -30,7 +24,7 @@ inline CoreSemanticsSnapshot readCoreSemanticsSnapshot(RN::JSValue const& value)
   const auto& navigation=field(input,"navigation");const auto& paragraph=field(input,"paragraph");const auto& coordinates=field(input,"geometry");
   if(textValue.obscured)require(textValue.text.empty()&&textValue.anchor==0&&textValue.focus==0&&navigation.IsNull()&&paragraph.IsNull());
   else if(!navigation.IsNull()){
-    const auto readStops=[&](char const* name){const auto& array=field(navigation,name);require(array.TryGetArray()&&array.AsArray().size()<=4097);std::vector<int> stops;for(const auto& item:array.AsArray())stops.push_back(offset(item));return stops;};
+    const auto readStops=[&](char const* name){const auto& array=field(navigation,name);require(array.TryGetArray()&&array.AsArray().size()<=TextDocument::maximumTextUnits+1);std::vector<int> stops;for(const auto& item:array.AsArray())stops.push_back(offset(item));return stops;};
     textValue.characters=readStops("characters");textValue.words=readStops("words");textValue.lines=readStops("lines");
   }
   // An unrecorded/dirty paragraph can keep a text document. Navigation must
@@ -45,14 +39,8 @@ inline CoreSemanticsSnapshot readCoreSemanticsSnapshot(RN::JSValue const& value)
   }
   // Reuse the provider's complete UTF-16/selection/navigation/privacy validator
   // before the caller changes any live peer state.
-  if(textValue.obscured||!textValue.characters.empty()){auto validation=std::make_shared<TextDocument>();validation->publish(textValue);validation->retire();}
+  if(textValue.obscured||!textValue.characters.empty())TextDocument::validate(textValue);
   else{TextDocument::validateText(textValue.text);TextDocument::validateSpan(textValue,std::min(textValue.anchor,textValue.focus),std::max(textValue.anchor,textValue.focus));}
   result.text=std::move(textValue);return result;
-}
-inline void attachParagraphQueries(CoreSemanticsSnapshot& snapshot,ParagraphScreenMapping mapping){
-  if(!snapshot.paragraph||!snapshot.text)return;
-  auto source=std::make_shared<TextParagraphGeometry>(*snapshot.paragraph,std::move(mapping),*snapshot.text);
-  snapshot.text->rectangles=[source](int start,int end){return source->rectangles(start,end);};
-  snapshot.text->visibleRanges=[source]{return source->visibleRanges();};snapshot.text->hit=[source](double x,double y){return source->hit(x,y);};
 }
 }

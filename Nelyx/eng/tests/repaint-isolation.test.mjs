@@ -11,6 +11,7 @@ import {Navigator,NavigatorController,Route} from '@nelyx/core/framework/widgets
 import {PageRouteBuilder} from '@nelyx/core/framework/widgets/pages';
 import {Offstage} from '@nelyx/core/framework/widgets/offstage';
 import {ChangeNotifier} from '@nelyx/core/foundation/notifier';
+import {FramePictureService} from '@nelyx/core/hosting/pictures';
 const timeout=1_200_000;
 class Painter extends CustomPainter {
   count=0;color=0xff123456;
@@ -60,6 +61,16 @@ test('A nested animated boundary updates visible pixels without repainting its s
     changes.notifyListeners();f.frame();assert.equal(outer.count,2);assert.equal(inner.count,3,'The reparented retained child must remain independently dirty');
     f.set(new SizedBox(30,30));assert(synchronizations>0,'Widget replacement must still synchronize the render tree');
   }finally{f.close();changes.dispose();outerChanges.dispose();}
+});
+
+test('a dirty repaint boundary reuses identical native picture content and recompiles changed pixels',{timeout},()=>{
+  const f=fixture(),changes=new ChangeNotifier(),painter=new Painter(changes);let compiled=0,retired=0;
+  const pictures=new FramePictureService(f.root.context.resources,{compile(){compiled++;return {bytes:0,retire(){retired++;}};}},f.root.context.owner);f.root.context.pictures=pictures;
+  try{
+    f.set(new RepaintBoundary(new CustomPaint(new SizedBox(20,20),{painter})));const initial=compiled;assert(initial>0);assert.equal(painter.count,1);
+    changes.notifyListeners();f.frame();assert.equal(painter.count,2,'The painter still executes when its owner is dirty');assert.equal(compiled,initial,'Identical immutable output must keep the same native recording');
+    painter.color=0xffabcdef;changes.notifyListeners();f.frame();assert.equal(compiled,initial+1);assert.equal(painter.count,3);f.set(new SizedBox(20,20));assert.equal(retired,compiled);
+  }finally{f.close();pictures.dispose();changes.dispose();assert.equal(retired,compiled);}
 });
 test('Hidden nested boundaries defer painting and show their latest content after layout changes',{timeout},()=>{
   const f=fixture(),changes=new ChangeNotifier(),outer=new Painter(),inner=new Painter(changes),child=new RepaintBoundary(new CustomPaint(new SizedBox(20,20),{painter:inner}));

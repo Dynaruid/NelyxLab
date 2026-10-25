@@ -139,6 +139,7 @@ export interface WindowsPointerEvent {
 export interface WindowsKeyboardFocusEvent {readonly protocol:1;readonly sequence:number;readonly focused:boolean;readonly viewGeneration:number}
 export interface WindowsTextEvent {readonly protocol:1;readonly sequence:number;readonly viewGeneration:number;readonly characterCodePoint:number;readonly repeatCount:number;readonly focusEpoch:number}
 export interface WindowsKeyEvent {
+  readonly timestamp?:number;
   readonly protocol:1;readonly sequence:number;readonly viewGeneration:number;
   readonly kind:'down'|'up';readonly keyCode:number;readonly scanCode:number;readonly characterCodePoint:number;readonly modifiers:number;
   readonly repeat:boolean;readonly repeatCount:number;readonly dead:boolean;

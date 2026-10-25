@@ -8,6 +8,11 @@
     "nelyx": "src/main.mjs"
   },
   "exports": {
+    "./windows-package-lifecycle": "./src/windows-package-lifecycle.mjs",
+    "./windows-native-runner": {
+      "types": "./src/windows-native-runner.d.mts",
+      "default": "./src/windows-native-runner.mjs"
+    },
     "./windows-aot-mode": {
       "types": "./src/windows-aot-mode.d.mts",
       "default": "./src/windows-aot-mode.mjs"

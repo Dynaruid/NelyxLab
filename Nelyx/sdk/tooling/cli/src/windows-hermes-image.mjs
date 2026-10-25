@@ -19,7 +19,7 @@ export function mapTypedDiagnostics(output,source,map){
   return positions;
 }
 /** Shared native image owner for typed and untyped units of one verified VM. */
-export async function compileHermesImage({checked,env,units,output,descriptor,signal,cacheDirectory}){
+export async function compileHermesImage({checked,env,units,output,descriptor,signal,cacheDirectory,runtimeLibrary=path.join(checked.directory,'build/API/hermes_shared/hermes.lib'),descriptorExport='nelyx_sh_plan_v5'}){
   output=path.resolve(output);const parent=fs.realpathSync(path.dirname(output));
   if(parent!==path.dirname(output)||fs.existsSync(output)&&fs.lstatSync(output).isSymbolicLink())throw Error('Native image output must have a plain owned parent');
   signal?.throwIfAborted();
@@ -31,7 +31,7 @@ export async function compileHermesImage({checked,env,units,output,descriptor,si
     const link=(env.PATH??env.Path??'').split(path.delimiter).map(dir=>path.join(dir,'link.exe')).find(file=>fs.existsSync(file));if(!link)throw Error('MSVC linker unavailable');
     const cFlags=['-O3',...(debug?['-gcodeview','-gline-tables-only']:[]),'-ffp-contract=off','-DNDEBUG','-DSTATIC_HERMES','-fno-strict-aliasing','-fno-strict-overflow','-fms-runtime-lib=dll','-I'+path.join(checked.directory,'source/include'),'-I'+path.join(checked.directory,'build/lib/config')];
     const producer=nativeBuildHash([import.meta.filename,path.join(import.meta.dirname,'native-build-cache.mjs'),path.join(import.meta.dirname,'native-function-map.mjs'),path.join(import.meta.dirname,'native-pc-map.mjs'),path.join(import.meta.dirname,'commands.mjs')].map(file=>sha256(file)));
-    const nativeInputs={producer,toolchain:checked.sha256,clang:sha256(clang),link:sha256(link),cFlags,environment:[env.INCLUDE,env.LIB,env.PATH??env.Path]};
+    const nativeInputs={producer,toolchain:checked.sha256,runtimeLibrary:sha256(runtimeLibrary),descriptorExport,clang:sha256(clang),link:sha256(link),cFlags,environment:[env.INCLUDE,env.LIB,env.PATH??env.Path]};
     const planned=units.map(unit=>{
       if(!/^nelyx_[a-z_]+$/.test(unit.name))throw Error('Invalid owned SHUnit name');
       const sourceSha256=sha256(unit.source),key=nativeBuildHash({nativeInputs,name:unit.name,source:fs.realpathSync(unit.source),sourceSha256,flags:unit.flags,typed:!!unit.typed,requireNumeric:unit.requireNumeric!==false,evidence:!!unit.evidence});
@@ -91,7 +91,8 @@ export async function compileHermesImage({checked,env,units,output,descriptor,si
       await execute(clang,['-c',source,'-o',object,'-O2','-fms-runtime-lib=dll'],{env,signal,timeout});objects.push(object);
     }
     const image=path.join(folder,'image.dll');
-    await execute(link,['/DLL','/NOLOGO','/MACHINE:X64','/OPT:REF','/OPT:ICF',...(debug?['/DEBUG:FULL','/INCREMENTAL:NO','/PDB:'+pdb]:[]),'/DYNAMICBASE','/NXCOMPAT','/OUT:'+image,'/IMPLIB:'+path.join(folder,'image.lib'),...units.map(unit=>'/EXPORT:sh_export_'+unit.name),...(descriptor?['/EXPORT:nelyx_sh_plan_v5']:[]),...objects,path.join(checked.directory,'build/API/hermes_shared/hermes.lib')],{env,signal,timeout});
+    if(!/^[a-z_0-9]+$/.test(descriptorExport))throw Error('Invalid native descriptor export');
+    await execute(link,['/DLL','/NOLOGO','/MACHINE:X64','/OPT:REF','/OPT:ICF',...(debug?['/DEBUG:FULL','/INCREMENTAL:NO','/PDB:'+pdb]:[]),'/DYNAMICBASE','/NXCOMPAT','/OUT:'+image,'/IMPLIB:'+path.join(folder,'image.lib'),...units.map(unit=>'/EXPORT:sh_export_'+unit.name),...(descriptor?['/EXPORT:'+descriptorExport]:[]),...objects,runtimeLibrary],{env,signal,timeout});
     const nativePcMap=debug?await readNativePcMap(image,pdb,measurements,{env,signal}):null;
     fs.renameSync(image,output);
     cache?.write({units:compiledUnits.map(({object,...value})=>value),image:{key:imageKey,sha256:sha256(output),nativePcMap}},folder);

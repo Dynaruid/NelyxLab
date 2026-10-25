@@ -1,10 +1,10 @@
 {
   "schema": "nelyx.work12-module-layout-ownership/v1",
-  "recordedAt": "2026-10-18T12:00:20.070Z",
+  "recordedAt": "2026-10-24T22:17:59.036Z",
   "status": "PASS-scoped",
   "layout": {
     "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
-    "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
+    "sha256": "845d3e73bf050a83219d4cf8ce609a573be6740b0580bcad8b00c7f28ad536d2"
   },
   "adoptions": [
     {
@@ -697,9 +697,9 @@
       "previousSha256": "26f0a55728b4514e5871da18dd207c50f3c9b3d1662a9d4137c96be046fdcee2",
       "current": {
         "file": "packages/material/src/internal/material/material-ink-owner.ts",
-        "sha256": "c10ee69488fe6c38c6102c77a4213ec64c6f8c7cdc163719567683edad131247"
+        "sha256": "3ac2d17029442961c5d21fa553f91acaea851549de195fa044f5de2c3563b336"
       },
-      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
+      "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. W17: canonical ink paint invalidation retains unchanged semantics, with conservative custom-hook fallback. Runtime/AST checks are separate."
     },
     {
       "from": "packages/material/src/chip-wrapper.generated.ts",
@@ -949,23 +949,23 @@
     },
     {
       "file": "Nelyx/sdk/licenses/system-color-sources.json",
-      "sha256": "1e0625f62f6c7576907f1482c68c763f816c4686ec2754e0ce77de2d75d658cd"
+      "sha256": "4ce229296365a1ae465271024cf610486d7e65a0c2e6f6291517173c51223242"
     },
     {
       "file": "packages/material/licenses/theme-factory-sources.json",
-      "sha256": "3bd55422bef5f77e9035a00e1d28019aaa7aec36136a6d8a2abd879c80aae698"
+      "sha256": "b97589d629720598662a3b70ce1cba69a694ed366e28cf1267ff3dd01b5cd331"
     },
     {
       "file": "packages/material/licenses/theme-widget-sources.json",
-      "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+      "sha256": "b2f8ded630effbca87a591c492119463645ef015db8150415d18bd2c9fbc6d60"
     },
     {
       "file": "packages/cupertino/licenses/theme-widget-sources.json",
-      "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+      "sha256": "b2f8ded630effbca87a591c492119463645ef015db8150415d18bd2c9fbc6d60"
     },
     {
       "file": "packages/material/licenses/refresh-indicator-sources.json",
-      "sha256": "0c134530e1db6d8b2e428ba7bbe92444d17bdc752ef09d73104f23fb6aa1b8aa"
+      "sha256": "69c7e82185a6775c3a8ba54872c166a42ba13e20d5180ae00e4dffd5efcadefa"
     },
     {
       "file": "Nelyx/licenses/safe-area-sources.json",
@@ -973,11 +973,11 @@
     },
     {
       "file": "packages/material/licenses/card-sources.json",
-      "sha256": "f2dc94eaed57dc49b02bb854a6782fcdc3d3d90aceb05e0a20dd80d62b586983"
+      "sha256": "99633023364345bb0ce3739847be8c05ce89721c4fd2b76bb90eb615c3e90915"
     },
     {
       "file": "packages/material/licenses/badge-avatar-sources.json",
-      "sha256": "e2f11e1ac1e2bd304533dee2586d9ee88a1b7abe4e8e02b86d7df10154c73d02"
+      "sha256": "17110761049d9492912e0d573d0189ed777bb533b43f83e50e4cca33c1ab25e7"
     },
     {
       "file": "Nelyx/licenses/overflow-bar-sources.json",
@@ -985,19 +985,19 @@
     },
     {
       "file": "packages/cupertino/licenses/form-widget-sources.json",
-      "sha256": "9cbe51121abbe1d2dd7472d2c12dbab49349b9b3cda7720ddfb6cce48acd5024"
+      "sha256": "e09d732fa79f9b3c3d03def3e5025a572504f75a45ddf7e3cb564b145c0e4526"
     },
     {
       "file": "packages/cupertino/licenses/text-input-sources.json",
-      "sha256": "fb5e0a21fb3f8500e7729b438734b7832c25164ec66256ccc1039b6715122a83"
+      "sha256": "35aec574e5f97e7ef8f41e169aab78668c4466514a8d9b46f386c0cd66880272"
     },
     {
       "file": "packages/material/licenses/input-widget-sources.json",
-      "sha256": "23a2731d9a596ff8efd46dc94380b48a51614512c94420f505479d5a0b7586b2"
+      "sha256": "c2b0d31d2553a9e471c12f0c30544ae5ea2a5ce050ad917a028130106ea88f01"
     },
     {
       "file": "Nelyx/licenses/support-origins.json",
-      "sha256": "d7eff080af55cc7bbf311ffa71572e9abc525dd459471b4682a9ec65e9d3a946"
+      "sha256": "b02ce20ef573a4dd3de983f3e20f7315fc70d0ad72db63e242a5eb1a8961fe40"
     }
   ],
   "canonicalFacades": [
@@ -1404,7 +1404,7 @@
     },
     "sdkNotice": {
       "file": "Nelyx/sdk/licenses/system-color-sources.json",
-      "sha256": "1e0625f62f6c7576907f1482c68c763f816c4686ec2754e0ce77de2d75d658cd"
+      "sha256": "4ce229296365a1ae465271024cf610486d7e65a0c2e6f6291517173c51223242"
     },
     "sourceVm": {
       "file": "packages/material/tests/fixtures/full-theme-source.json",
@@ -1416,7 +1416,7 @@
   "themeFactorySupplement": {
     "sourceNotice": {
       "file": "packages/material/licenses/theme-factory-sources.json",
-      "sha256": "3bd55422bef5f77e9035a00e1d28019aaa7aec36136a6d8a2abd879c80aae698"
+      "sha256": "b97589d629720598662a3b70ce1cba69a694ed366e28cf1267ff3dd01b5cd331"
     },
     "outputs": [
       {
@@ -1443,11 +1443,11 @@
     "sourceNotices": [
       {
         "file": "packages/material/licenses/theme-widget-sources.json",
-        "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+        "sha256": "b2f8ded630effbca87a591c492119463645ef015db8150415d18bd2c9fbc6d60"
       },
       {
         "file": "packages/cupertino/licenses/theme-widget-sources.json",
-        "sha256": "56ae865e64c9eb212dd0e859472b5b1a7b20b2587f54ecede20da45363207c85"
+        "sha256": "b2f8ded630effbca87a591c492119463645ef015db8150415d18bd2c9fbc6d60"
       }
     ],
     "unchangedSourceVm": {
@@ -1565,5 +1565,6 @@
     "newCoreOrigins": 1,
     "updatedCoreOrigins": 1,
     "newNumericClaims": 10
-  }
+  },
+  "inputScope": "Current repository layout and notice bytes, reviewed against the imported HEAD. Historical destination snapshots and generator base/fingerprint records remain separate; no native or physical requalification."
 }

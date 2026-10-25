@@ -4,13 +4,15 @@
 
 이 앱은 TypeScript 상태와 그리기 명령을 `src/`에서 공유하고 독립적인 플랫폼 runner를 사용합니다. `src/index.ts`가 공통 진입점 `main()`을 제공하며, 루트 `package.json` → `nelyx`에서 앱 정보, 자산, profile과 런타임 cohort를 선언합니다. 각 `<target>/runner/main.ts(x)`가 component를 import하고 `registerApplication`을 직접 호출합니다.
 
-Nelyx는 Flutter의 위젯·렌더링 구조를 참고해 TypeScript UI를 구성합니다. 이 템플릿은 공통 Widget·Element·RenderObject로 counter·editor·drawing/text/traversal lab·navigation을 연결합니다. Keyboard lab → Actions and focus에서 상위 override·priority action·동적 shortcut 등록·focus/hover 표시를 확인합니다. 전체 Flutter API와 플랫폼 수락은 미완료입니다. Core0.16.0·SDK0.20.0·Skia0.6.0·Metro/CLI0.10.0을 함께 사용하며 native ABI1/frame wire9/text-style1/boundary2/paragraph API2와 Android keyboard2/semantics1이 필요합니다. RN binding과 공통 native core를 함께 재빌드하세요. 소유 Web runtime은 별도 version의 paragraph API1을 사용합니다.
+Nelyx는 Flutter의 위젯·렌더링 구조를 참고해 TypeScript UI를 구성합니다. 이 템플릿은 공통 Widget·Element·RenderObject로 counter·editor·drawing/text/traversal lab·navigation을 연결합니다. Keyboard lab → Actions and focus에서 상위 override·priority action·동적 shortcut 등록·focus/hover 표시를 확인합니다. 전체 Flutter API와 플랫폼 수락은 미완료입니다. Core0.16.0·SDK0.20.0·Skia0.6.0·Metro/CLI0.10.0을 함께 사용하며 native ABI1/frame wire11/text-style1/boundary2/paragraph API2와 Android keyboard3/semantics2이 필요합니다. RN binding과 공통 native core를 함께 재빌드하세요. 소유 Web runtime은 별도 version의 paragraph API1을 사용합니다.
 
 루트 `package.json`이 앱 구성의 기준입니다. `app.json`, `application.json`, `nelyx.config.ts`와 루트 bootstrap 파일은 필요하지 않습니다. npm 패키지 `name`과 네이티브 앱 등록 이름인 `nelyx.name`은 구분하며, 표시 이름은 `nelyx.displayName`에 둡니다. 번들 이미지(Apple/Linux에서는 폰트도)를 추가할 때 runner main의 자산 map에 정적인 `require` 항목을 추가해 Metro에 포함합니다. Windows는 선언된 자산 전체를 host URI로, Android는 폰트를 hash 기반 네이티브 자산 URI로 연결합니다. CLI prepare는 네이티브 빌드 도구용 `runner/app-config.json`을 계속 생성합니다. 이 파일 대신 루트 패키지 구성을 수정하고 prepare로 갱신하세요.
 
 에셋과 notice의 `sha256`은 생략할 수 있으며 기본 앱 구성에는 넣지 않습니다. runner 준비·타입 검사·Metro 시작 시 현재 파일에서 자동 계산해 생성되는 `runner/app-config.json`에만 저장하고 루트 패키지는 수정하지 않습니다. 각 runner main은 이 내부 자산 메타데이터를 확인한 뒤 등록합니다. 패키지 자산은 설치된 원본과 비교해 복사하며 수정된 기존 대상 파일은 보존하고 오류로 보고합니다. 명시한 해시가 있다면 일치 여부도 확인합니다.
 
 ## 시작하기
+
+Windows Release는 RNW host의 Hermes `optimized`를 기본으로 사용합니다. V8/JSC는 명시적으로 선택합니다. 설치된 CLI의 실험적 `--host native-hermes`는 Windows x64 Release에서 bytecode·Static Hermes를 지원하며 같은 `src/index.ts`와 Core layout을 사용합니다. 준비 명령은 CLI 패키지 README를 따르세요. 성능·물리 입력/표시 수락과 향후 iOS 직접 host 구현은 별도입니다.
 
 Node.js **>=24.3.0 <25**와 npm을 사용합니다. 앱 생성 시 선택한 대상의 가이드를 따르세요.
 

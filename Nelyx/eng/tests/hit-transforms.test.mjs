@@ -3,10 +3,31 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {HitTestResult,HitTestEntry} from '@nelyx/core/framework/gestures/hit-test';
 import {captureTransform,multiply,fullTransform,translate,identity,inverse,inversePaintTransform} from '@nelyx/core/ui/geometry';
 import {RenderBox,BoxParentData} from '@nelyx/core/framework/rendering/object';
-import {matrix4Identity,captureMatrix4,multiplyMatrix4} from '@nelyx/core/ui/matrix4';
+import {matrix4Identity,captureMatrix4,multiplyMatrix4,inverseMatrix4} from '@nelyx/core/ui/matrix4';
 import {Offset} from '@nelyx/core/ui/offset';
 const timeout=1_200_000,target={handleEvent(){}};
 class Builder extends HitTestResult{push(matrix){this.pushTransform(matrix);}offset(value){this.pushOffset(value);}pop(){this.popTransform();}}
+
+test('relative render transforms stop at the common ancestor and preserve live offsets, perspective and reparented depth gaps',{timeout},()=>{
+  class Box extends RenderBox{current=identity;reads=0;get localTransform(){this.reads++;return this.current;}setupParentData(child){child.parentData??=new BoxParentData();}}
+  const root=new Box(),branch=new Box(),left=new Box(),right=new Box(),child=new Box(),deep=new Box(),nodes=[root,branch,left,right,child,deep];
+  try{
+    root.insert(branch);branch.setChildren([left,right]);left.insert(child);child.insert(deep);
+    branch.current=[0,0,0,0,0,0];left.parentData.offset={x:11,y:13};right.parentData.offset={x:-7,y:5};child.parentData.offset={x:2,y:3};child.current=[1,0,0,.002,0,1,0,0,0,0,1,0,0,0,0,1];
+    const local=fullTransform(multiply(translate(2,3),child.current)),toBranch=fullTransform(multiply(translate(11,13),local));
+    for(const node of nodes)node.reads=0;
+    assert.deepEqual(child.getTransformTo(left),local);assert.equal(branch.reads,0);assert.equal(root.reads,0);
+    const expected=multiplyMatrix4(inverseMatrix4(fullTransform(translate(-7,5))),toBranch);
+    assert.deepEqual(child.getTransformTo(right),expected);assert.equal(branch.reads,0,'A singular shared ancestor does not invalidate sibling coordinates');assert.equal(root.reads,0);
+    right.current=[0,0,0,0,0,0];assert.deepEqual(child.getTransformTo(right),Array(16).fill(0));right.current=identity;
+    child.current[12]=29;assert.equal(child.getTransformTo(left)[12],31);
+    const previousDepth=deep.depth;child.remove(deep);root.insert(deep);deep.parentData.offset={x:17,y:-19};assert.equal(deep.depth,previousDepth);assert.deepEqual(deep.getTransformTo(root),fullTransform(translate(17,-19)));
+    root.current=[2,0,0,3,4,5];assert.deepEqual(deep.getTransformTo(),fullTransform(multiply(root.current,translate(17,-19))));assert.equal(deep.getTransformTo(deep),matrix4Identity);
+    class OpaqueDepth extends Box{get depth(){throw Error('A relative transform must not need the diagnostic depth getter');}}
+    const opaque=new OpaqueDepth();nodes.push(opaque);root.insert(opaque);opaque.parentData.offset={x:23,y:29};assert.deepEqual(opaque.getTransformTo(root),fullTransform(translate(23,29)));
+    const other=new Box();try{assert.throws(()=>deep.getTransformTo(other),/share a render tree/);}finally{other.dispose();}
+  }finally{for(const node of nodes)node.setChildren([]);for(const node of nodes.reverse())node.dispose();}
+});
 
 test('owned box translations reuse paint inverses and reread offsets and virtual mutable transforms',{timeout},()=>{
   class Box extends RenderBox{get childMatrix(){return this.current??identity;}get localTransform(){return this.childMatrix;}matrix(child){return this.childTransform(child);}}
@@ -15,6 +36,10 @@ test('owned box translations reuse paint inverses and reread offsets and virtual
   const first=parent.matrix(child),firstInverse=inversePaintTransform(first);assert(Object.isFrozen(first));assert.equal(parent.matrix(child),first);assert.equal(inversePaintTransform(first),firstInverse);assert.deepEqual(firstInverse,inverse(first));
   child.parentData.offset={x:13,y:-17};const moved=parent.matrix(child);assert.notEqual(moved,first);assert.deepEqual(moved,multiply(translate(13,-17),identity));assert.equal(parent.matrix(child),moved);
   child.parentData.offset.x=29;assert.equal(parent.matrix(child)[4],29);assert.equal(moved[4],13);
+  for(const [x,y]of [[-0,-0],[Number.MIN_VALUE,-Number.MIN_VALUE],[Number.MAX_VALUE,-Number.MAX_VALUE],[0,17],[-19,0]]){
+    child.parentData.offset={x,y};const value=parent.matrix(child);assert.deepEqual(value,multiply(translate(x,y),identity));assert.equal(captureTransform(value),value);assert.equal(parent.matrix(child),value);
+  }
+  child.parentData.offset={x:29,y:-17};
   child.current=[1,0,0,1,3,4];assert.equal(parent.matrix(child)[4],32);child.current[4]=8;assert.equal(parent.matrix(child)[4],37);
   for(const matrix of [[1,-0,0,1,-0,0],[0,0,0,0,0,0],[1e-309,0,0,1,0,0]]){const owned=captureTransform(matrix);assert.deepEqual(inversePaintTransform(owned),inverse(matrix));}
   const external=[1,0,0,1,5,6];assert.equal(inversePaintTransform(external)[4],-5);external[4]=18;assert.equal(inversePaintTransform(external)[4],-18);

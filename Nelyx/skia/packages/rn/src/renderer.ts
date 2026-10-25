@@ -1,4 +1,6 @@
 import {createEnginePath} from './path.ts';
+import {createDisplayListCanvas} from './display-list.ts';
+import type {DisplayListTarget,DisplayListCanvas} from './display-list.ts';
 import type {PathSnapshot,PathQueryService} from '@nelyx/core/ui/path';
 import type {Offset} from '@nelyx/core/ui/geometry';
 import type {SkCanvas} from "./skia/types/Drawing.ts";
@@ -33,7 +35,7 @@ export interface NelyxGraphiteContext extends SkGraphiteContext {
   nelyxSubmitFrame?(recording:ReturnType<SkGraphiteContext['finishRecording']>,submission:number,owner:number,viewport:number,frame:number,input:number,inputTimestamp:number,tick:number,uncertainty:number):void;
   nelyxNotifications():number[];
 }
-export interface GraphiteResources { image(id: string): SkImage; paragraph(id: string): ParagraphPaint;picture?(id:string):SkPicture;readonly runtimePrograms?:ReturnType<typeof createRuntimeShaderCache> }
+export interface GraphiteResources { image(id: string): SkImage; paragraph(id: string): ParagraphPaint;picture?(id:string):SkPicture;readonly runtimePrograms?:ReturnType<typeof createRuntimeShaderCache>;readonly nativeDisplayLists?:boolean }
 export function configurePaint(api:SkiaAPI,paint:SkPaint,value:PaintSnapshot):void{paint.setColor(api.Color(value.color));paint.setAntiAlias(value.isAntiAlias);paint.setStyle((value.style==='stroke'?1:0) as PaintStyle);paint.setStrokeWidth(value.strokeWidth);paint.setStrokeMiter(value.strokeMiterLimit);paint.setStrokeCap(['butt','round','square'].indexOf(value.strokeCap) as StrokeCap);paint.setStrokeJoin(['miter','round','bevel'].indexOf(value.strokeJoin) as StrokeJoin);paint.setBlendMode(blendModes.indexOf(value.blendMode) as BlendMode);}
 export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, resources: GraphiteResources,programs:GraphiteResources['runtimePrograms']=resources.runtimePrograms): void {
   const temporary:unknown[]=[],errors:unknown[]=[],own=<T>(value:T):T=>{temporary.push(value);return value;};
@@ -41,6 +43,7 @@ export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, r
   // ordinary fills within this replay, then retire each wrapper exactly once.
   // Effects and backdrop paint mutations keep independent temporary owners.
   const fills=new Map<number,SkPaint>();
+  const batch=canvas as Partial<DisplayListCanvas>,nativeFills=new Set<PaintFrame['commands'][number]>();
   const isPlainFill=(value:PaintSnapshot):boolean=>value.blendMode==='srcOver'&&value.style==='fill'&&value.isAntiAlias&&value.strokeWidth===0&&value.strokeCap==='butt'&&value.strokeJoin==='miter'&&value.strokeMiterLimit===4&&!value.shader&&!value.colorFilter&&!value.imageFilter&&!value.maskFilter&&(value.filterQuality??'none')==='none'&&!value.invertColors&&!value.dither;
   const rounded=(v:readonly number[])=>{const rect=own(api.XYWHRect(0,0,0,0));rect.setLTRB(v[0]!,v[1]!,v[2]!,v[3]!);return {rect,topLeft:{x:v[4]!,y:v[5]!},topRight:{x:v[6]!,y:v[7]!},bottomRight:{x:v[8]!,y:v[9]!},bottomLeft:{x:v[10]!,y:v[11]!}};};
   const styledPaint=(paint:SkPaint,value:PaintSnapshot)=>{configurePaint(api,paint,value);return applyPaintEffects(api,paint,value,own,key=>resources.image(key),programs);};
@@ -55,7 +58,9 @@ export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, r
       // image draws and effects retain their normal replay and failure paths.
       const paintValue=command.paint,primitive=command.op==='drawRect'||command.op==='drawOval'||command.op==='drawRRect'||command.op==='drawLine'||command.op==='drawPath'||command.op==='drawPaint';
       if(primitive&&paintValue.color>>>24===0&&paintValue.blendMode==='srcOver'&&!paintValue.shader&&!paintValue.colorFilter&&!paintValue.imageFilter&&!paintValue.maskFilter&&!paintValue.invertColors){styles.set(command,null);continue;}
-      const shared=command.op!=='saveBackdropFilter'&&isPlainFill(command.paint);let value=shared?fills.get(command.paint.color):undefined;
+      const shared=command.op!=='saveBackdropFilter'&&isPlainFill(command.paint);
+      if(shared&&batch.nelyxFillRect&&(command.op==='drawRect'||command.op==='drawOval')){nativeFills.add(command);continue;}
+      let value=shared?fills.get(command.paint.color):undefined;
       if(!value){value=own(api.Paint());
         // JsiSkPaint::createCtor owns a fresh default SkPaint with anti-alias
         // enabled. Plain fills already match every scalar/effect default;
@@ -78,13 +83,14 @@ export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, r
         // The pinned Skia ClipOp enum is Difference=0, Intersect=1.
         case "clip": canvas.clipRect(own(api.XYWHRect(command.rect.x,command.rect.y,command.rect.width,command.rect.height)), 1, true); break;
         case "rect": case "rrect": {
+          if(batch.nelyxFillRect){batch.nelyxFillRect(command.rect,command.color,command.op==='rect'?0:2,command.op==='rect'?0:command.radius);break;}
           paint.setColor(api.Color(command.color)); const r = own(api.XYWHRect(command.rect.x,command.rect.y,command.rect.width,command.rect.height));
           if(command.op === "rect") canvas.drawRect(r, paint); else canvas.drawRRect(own(api.RRectXY(r,command.radius,command.radius)),paint); break;
         }
         case "image": {const image = imageRefs.get(command)!;paint.setColor(api.Color(0xff000000));canvas.drawImageRect(image,own(api.XYWHRect(0,0,image.width(),image.height())),own(api.XYWHRect(command.rect.x,command.rect.y,command.rect.width,command.rect.height)),paint);break;}
         case 'drawImageRect':case 'drawImageNine':{const image=imageRefs.get(command)!,src=command.op==='drawImageRect'?command.src:command.center,source=own(api.XYWHRect(src.x,src.y,src.width,src.height)),dst=own(api.XYWHRect(command.dst.x,command.dst.y,command.dst.width,command.dst.height)),quality=command.paint.filterQuality??'none';if(command.op==='drawImageNine')canvas.drawImageNine(image,source,dst,quality==='none'?0:1,styled);else if(quality==='high')canvas.drawImageRectCubic(image,source,dst,1/3,1/3,styled);else canvas.drawImageRectOptions(image,source,dst,quality==='none'?0:1,quality==='medium'?2:0,styled);break;}
-        case "paragraph": paragraphRefs.get(command)!.paint(canvas,command.x,command.y); break;
-        case 'drawRect':case 'drawOval':{const r=own(api.XYWHRect(command.rect.x,command.rect.y,command.rect.width,command.rect.height));if(command.op==='drawRect')canvas.drawRect(r,styled);else canvas.drawOval(r,styled);break;}
+        case "paragraph": {const paragraph=paragraphRefs.get(command)!;const batch=canvas as Partial<DisplayListCanvas>;if(batch.nelyxParagraph){if(!paragraph.nativeParagraph)throw new Error('Native display-list paragraph handle unavailable');batch.nelyxParagraph(paragraph.nativeParagraph,command.x,command.y);}else paragraph.paint(canvas,command.x,command.y);break;}
+        case 'drawRect':case 'drawOval':{if(nativeFills.has(command)){batch.nelyxFillRect!(command.rect,command.paint.color,command.op==='drawRect'?0:1);break;}const r=own(api.XYWHRect(command.rect.x,command.rect.y,command.rect.width,command.rect.height));if(command.op==='drawRect')canvas.drawRect(r,styled);else canvas.drawOval(r,styled);break;}
         case 'drawRRect':{if('rrect'in command)canvas.drawRRect(rounded(command.rrect.values),styled);else{const r=own(api.XYWHRect(command.rect.x,command.rect.y,command.rect.width,command.rect.height));canvas.drawRRect(own(api.RRectXY(r,command.radius,command.radius)),styled);}break;}
         case 'drawLine':canvas.drawLine(command.from.x,command.from.y,command.to.x,command.to.y,styled);break;
         case 'saveBackdropFilter':canvas.saveLayer(styled,null,backdrops.get(command)??null);break;
@@ -99,6 +105,7 @@ export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, r
         default:throw new Error('Unsupported native paint command: '+String((command as {op:string}).op));
       }
     }
+    (canvas as Partial<DisplayListCanvas>).nelyxFlush?.();
   }catch(error){errors.push(error);}finally{for(const value of temporary.reverse())try{const disposable=value as {dispose?:()=>void};if(typeof disposable?.dispose==='function')disposable.dispose();}catch(error){errors.push(error);}}
   if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Native paint replay/temporary disposal failed');
 }
@@ -175,7 +182,9 @@ export class GraphiteRenderer implements Renderer {
     }
     try {
       const canvas = context.beginRecording(); open = true;
-      replayFrame(this.api,canvas,frame,this.resources,this.runtimePrograms);
+      const target=context as SkGraphiteContext&Partial<DisplayListTarget>;
+      if(this.resources.nativeDisplayLists&&typeof target.nelyxReplayDisplayList!=='function')throw new Error('Native display-list1 binding required; rebuild the native supplier');
+      replayFrame(this.api,this.resources.nativeDisplayLists?createDisplayListCanvas(target as DisplayListTarget):canvas,frame,this.resources,this.runtimePrograms);
       const recording = context.finishRecording(); open = false;
       const submission=this.sequence+1;
       try {

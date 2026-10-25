@@ -130,6 +130,8 @@ export type TextInputHitTest=TextInputGeometryStamp&{readonly coordinates:'view-
 export type SemanticsAction='activate'|'focus'|'scroll-forward'|'scroll-backward'|'increase'|'decrease'|'long-press'|'scroll-left'|'scroll-right'|'scroll-up'|'scroll-down';
 export interface SemanticsTextRange {readonly start:number;readonly end:number;readonly alignToTop:boolean}
 export type SemanticsTextAction={readonly kind:'set-text';readonly text:string}|{readonly kind:'set-selection';readonly anchor:number;readonly focus:number}|({readonly kind:'scroll-range'}&SemanticsTextRange);
+/** An absolute value request, separate from source increase/decrease steps. */
+export interface SemanticsRangeAction {readonly kind:'set-range-value';readonly value:number}
 export interface SemanticsTextActions {
   readonly setText?:((text:string)=>void);
   readonly setSelection?:((selection:TextSelection)=>void);
@@ -170,7 +172,8 @@ export interface SemanticsNode {
   /** Source roles/ranges survive the embedding's coarser legacy role vocabulary. */
   readonly sourceRole?:SemanticsRole;readonly minValue?:string;readonly maxValue?:string;
   /** Original slider flag and explicit embedding range, independent of formatted source value text. */
-  readonly textDirection?:'ltr'|'rtl';readonly isSlider?:boolean;readonly numericRange?:{readonly min:number;readonly max:number;readonly value:number};
+  readonly textDirection?:'ltr'|'rtl';readonly isSlider?:boolean;readonly numericRange?:{readonly min:number;readonly max:number;readonly value:number;readonly smallChange?:number;readonly largeChange?:number};
+  readonly rangeActions?:{readonly setValue:(value:number)=>void};
   /** Framework-owned opaque tags; native bridges do not serialize them. */
   readonly tags?:readonly object[];
   readonly nameAttributes?:readonly StringAttribute[];readonly semanticsIdentifier?:string;readonly isLink?:boolean;

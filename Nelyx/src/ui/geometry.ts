@@ -17,8 +17,8 @@ const affineProducts=new WeakMap<object,{right:Matrix2D;value:Matrix2D}>();
 export function captureTransform(matrix:readonly number[]|Float64Array):TransformMatrix{
   if(capturedAffines.has(matrix))return matrix as Matrix2D;
   if(matrix.length===16)return captureMatrix4(matrix);
-  invariant(matrix.length===6,'invalid-transform','Transform requires six affine or sixteen column-major values');const values=Array.from(matrix);
-  invariant(values.length===6,'invalid-transform','Transform requires six affine values');invariant(values.every(Number.isFinite),'invalid-transform','Transform values must be finite');
+  if(!(matrix.length===6))invariant(false,'invalid-transform','Transform requires six affine or sixteen column-major values');const values=Array.from(matrix);
+  if(!(values.length===6))invariant(false,'invalid-transform','Transform requires six affine values');if(!(values.every(Number.isFinite)))invariant(false,'invalid-transform','Transform values must be finite');
   const result=Object.freeze(values) as Matrix2D;capturedAffines.add(result);return result;
 }
 export function fullTransform(matrix:TransformMatrix):Matrix4Storage{
@@ -76,4 +76,4 @@ export function bounds(matrix:TransformMatrix,size:Size):Rect {
   const x=Math.min(x0,x1,x2,x3),y=Math.min(y0,y1,y2,y3);return {x,y,width:Math.max(x0,x1,x2,x3)-x,height:Math.max(y0,y1,y2,y3)-y};
 }
 export function intersect(a:Rect,b:Rect):Rect {const x=Math.max(a.x,b.x),y=Math.max(a.y,b.y);return {x,y,width:Math.max(0,Math.min(a.x+a.width,b.x+b.width)-x),height:Math.max(0,Math.min(a.y+a.height,b.y+b.height)-y)};}
-export function validSize(size:Size):Size {const {width,height}=size;invariant(Number.isFinite(width)&&Number.isFinite(height)&&width>=0&&height>=0,'invalid-layout','Layout size must be finite and nonnegative');return Object.freeze({width,height});}
+export function validSize(size:Size):Size {const {width,height}=size;if(!(Number.isFinite(width)&&Number.isFinite(height)&&width>=0&&height>=0))invariant(false,'invalid-layout','Layout size must be finite and nonnegative');return Object.freeze({width,height});}

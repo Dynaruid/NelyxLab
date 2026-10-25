@@ -25,7 +25,7 @@ struct VulkanPlatformServices {
 };
 class RNSkVulkanPlatformContext final : public RNSkPlatformContext {
 public:
-  RNSkVulkanPlatformContext(std::shared_ptr<facebook::react::CallInvoker>,
+  RNSkVulkanPlatformContext(std::shared_ptr<nelyx::host::RuntimeScheduler>,
     float pixelDensity, VulkanPlatformServices);
   ~RNSkVulkanPlatformContext() override;
   nelyx::gpu::Context& getGpuContext() override;

@@ -19,11 +19,12 @@ export function verifyWindowsRuntime(directory){
   }else if(manifest.cohort?.engine==='v8')verifyWindowsV8(directory,{embedded:true});else verifyWindowsHermes(directory);
 }
 /** Visible owned RNW app; cooperative window close precedes a bounded forced tree stop. */
-export function startWindowsProcess(executable,args,{cwd,env}={}){
+export function startWindowsProcess(executable,args,{cwd,env,verify=verifyWindowsRuntime,onOutput}={}){
   if(process.platform!=='win32')throw Error('Windows application process requires Windows');
-  verifyWindowsRuntime(cwd);
+  verify(cwd);
   const child=spawn(executable,args,{cwd,env,stdio:['ignore','pipe','pipe'],windowsHide:false});
-  child.stdout.pipe(process.stderr,{end:false});child.stderr.pipe(process.stderr,{end:false});
+  if(onOutput){child.stdout.setEncoding('utf8');child.stderr.setEncoding('utf8');child.stdout.on('data',chunk=>onOutput(chunk,'stdout'));child.stderr.on('data',chunk=>onOutput(chunk,'stderr'));}
+  else{child.stdout.pipe(process.stderr,{end:false});child.stderr.pipe(process.stderr,{end:false});}
   let ended=false,stopping,spawnError,forced=false;
   const completed=new Promise(resolve=>{child.once('error',error=>{spawnError=error;});child.once('close',(exitCode,signal)=>{ended=true;resolve({exitCode,signal,error:spawnError?String(spawnError):null,forced});});});
   function request(){

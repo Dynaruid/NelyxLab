@@ -2,7 +2,25 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {captureMatrix4,multiplyMatrix4,matrix4FromAffine,transformMatrix4Point} from '@nelyx/core/ui/matrix4';
 import {bounds,transform} from '@nelyx/core/ui/geometry';
+import {Matrix4} from '@nelyx/core/math/matrix4';
 const timeout=1_200_000;
+
+test('source Matrix4 products preserve IEEE lanes, self aliasing and private borrowed storage',{timeout},()=>{
+  class PrivateMatrix extends Matrix4{get storage(){throw Error('Public storage is not the private numeric receiver');}}
+  const values=[matrix4FromAffine([1,0,0,1,11,-13]),[-0,0,1,0,0,-0,0,1,1,0,-0,0,0,1,0,-0],[1e150,1e-150,0,.002,-3,4,0,.003,0,0,1,0,-20,10,0,1],Array.from({length:16},(_,i)=>i===0?Infinity:i===5?NaN:i-8)];
+  for(const input of values){
+    const borrowed=Float64Array.from(input),actual=new PrivateMatrix(borrowed),expected=Matrix4.fromList(input);expected.leftMultiply(Matrix4.fromList(input));actual.multiply(actual);assert.deepEqual([...borrowed],[...expected.storage]);
+    borrowed.set(input);const right=Matrix4.fromList([1,0,0,0,0,1,0,0,0,0,1,0,.25,-.5,2,1]);right.leftMultiply(Matrix4.fromList(input));actual.translateByDouble(.25,-.5,2,1);assert.deepEqual([...borrowed.slice(0,12)],input.slice(0,12));assert.deepEqual([...borrowed.slice(12)],[...right.storage.slice(12)]);
+  }
+});
+
+test('source Matrix4 inversion preserves singular overrides and ordered partial writes to short views',{timeout},()=>{
+  const borrowed=new Float64Array(16);class PrivateMatrix extends Matrix4{copies=0;get storage(){throw Error('Private inverse used public storage');}setFrom(other){this.copies++;super.setFrom(other);}}
+  const inverse=new PrivateMatrix(borrowed),matrix=Matrix4.translationValues(10,-20,30);matrix.scaleByDouble(2,4,5,1);assert.equal(inverse.copyInverse(matrix),40);matrix.multiply(inverse);assert.deepEqual([...matrix.storage],[...Matrix4.identity().storage]);
+  assert.equal(inverse.copyInverse(Matrix4.zero()),0);assert.equal(inverse.copies,1);assert.deepEqual([...borrowed],Array(16).fill(0));
+  const shortValues=new Float64Array([7,9]),short=Matrix4.fromFloat64List(shortValues);assert.throws(()=>short.translateByDouble(1,2,3,1),error=>error.code==='numeric-index-range');assert.deepEqual([...shortValues],[7,9]);assert.throws(()=>short.copyInverse(Matrix4.identity()),error=>error.code==='numeric-index-range');assert.deepEqual([...shortValues],[1,0]);
+  const zero=Matrix4.zero;try{shortValues.set([7,9]);Matrix4.zero=()=>short;assert.throws(()=>Matrix4.identity(),error=>error.code==='numeric-index-range');assert.deepEqual([...shortValues],[1,9]);}finally{Matrix4.zero=zero;}
+});
 
 test('owned canonical affine products match dense IEEE arithmetic through chained transforms and mutable external values',{timeout},()=>{
   const affine=[[1,0,0,1,0,0],[-0,-0,-0,-0,-0,0],[0,-1,1,0,11,-13],[1e150,1e-150,-1e150,1e-150,-1e150,1e150],[1e-300,-1e-300,-0,0,-0,-1e-300]];

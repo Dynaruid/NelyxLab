@@ -456,6 +456,14 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
         const values = this.semanticValues;
         this.emit(thumb === Thumb.start ? new RangeValues(increase ? values.increasedStart : values.decreasedStart, this.values.end) : new RangeValues(this.values.start, increase ? values.increasedEnd : values.decreasedEnd));
     }
+    setSemanticValue(thumb: Thumb, value: number): void {
+        const {min,max}=this.widget;
+        if (!this.live || !this.enabled || !Number.isFinite(value) || value<min || value>max)
+            return;
+        const span=max-min, fraction=Number.isFinite(span)?(value-min)/span:(value/2-min/2)/(max/2-min/2);
+        const next=this.quantized(thumb===Thumb.start?new RangeValues(fraction,this.values.end):new RangeValues(this.values.start,fraction));
+        this.emit(thumb===Thumb.start?new RangeValues(clampDouble(next.start,0,Math.max(0,this.values.end-this.separation)),this.values.end):new RangeValues(this.values.start,clampDouble(next.end,Math.min(1,this.values.start+this.separation),1)));
+    }
     private key(thumb: Thumb, event: KeyEvent): 'handled' | 'ignored' {
         if (!this.live || !this.enabled || !(event instanceof KeyDownEvent || event instanceof KeyRepeatEvent))
             return 'ignored';
@@ -773,7 +781,7 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
             setSemanticsTransportProperties(child, {
                 id: id === undefined ? 'range-thumb-' + child.id : id + '-' + suffix, role: 'group', name: '', enabled: o.enabled, numericRange: {
                     min: o.widget.min, max: o.widget.max, value: o.widget.min * (1 - value) + o.widget.max * value
-                }
+                }, ...(o.enabled ? {rangeActions:{setValue:(value:number)=>o.setSemanticValue(thumb,value)}} : {})
             });
         }
         node.updateWith({ config, childrenInInversePaintOrder: [this.startNode, this.endNode] });

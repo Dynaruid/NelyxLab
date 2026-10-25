@@ -118,7 +118,7 @@ export async function buildWindows({app,nativeInputs,output,configuration='Relea
   if(jscMode!==undefined)windowsJscMode(jscMode,engine);
   if(engine==='jsc'&&hermesProfile!==undefined)throw Error('--hermes-profile requires --engine hermes');
   signal?.throwIfAborted();if(!['Debug','Release'].includes(configuration))throw Error('Choose Debug or Release');
-  isStaticHermes(hermesMode,engine??'hermes',configuration);hermesProfile??=hermesMode!=='bytecode'?'optimized':'debug';
+  isStaticHermes(hermesMode,engine??'hermes',configuration);hermesProfile??=configuration==='Release'?'optimized':'debug';
   if(!['debug','optimized'].includes(hermesProfile))throw Error('Choose Windows --hermes-profile debug or optimized');
   host();const value=selectEngine(await application(app),engine),native=verifyWindowsInputs({runner:value.runner,input:inputFor(value.app,nativeInputs)}),v8=value.cohort.engine==='v8'?v8For(value.app,engineInputs):undefined;
   if(jscMode!==undefined)windowsJscMode(jscMode,value.cohort.engine);
@@ -135,7 +135,7 @@ export async function buildWindows({app,nativeInputs,output,configuration='Relea
   const contains=(parent,child)=>{const rest=path.relative(parent,child);return !rest.startsWith('..')&&!path.isAbsolute(rest);};
   if(contains(directory,source)||contains(source,directory))throw new Error('Package output must be separate from native build output');
   fs.mkdirSync(path.dirname(directory),{recursive:true});if(fs.realpathSync(path.dirname(directory))!==path.dirname(directory))throw new Error('Package output parent symlink rejected');
-  configureWindowsApplication(value);await execute(process.execPath,[localFile(value.runner,'build.mjs'),'--native-inputs',native.input,'--configuration',configuration,'--engine',value.cohort.engine,...(jsc?['--engine-inputs',jsc.directory,'--jsc-mode',jscExecutionMode]:v8?['--engine-inputs',v8.directory]:hermes.profile==='optimized'?['--hermes-profile',hermes.profile]:[]),...(aot?['--hermes-mode',hermesMode,'--engine-inputs',aot.directory]:[])],{cwd:value.runner,signal});signal?.throwIfAborted();
+  configureWindowsApplication(value);await execute(process.execPath,[localFile(value.runner,'build.mjs'),'--native-inputs',native.input,'--configuration',configuration,'--engine',value.cohort.engine,...(jsc?['--engine-inputs',jsc.directory,'--jsc-mode',jscExecutionMode]:v8?['--engine-inputs',v8.directory]:['--hermes-profile',hermes.profile]),...(aot?['--hermes-mode',hermesMode,'--engine-inputs',aot.directory]:[])],{cwd:value.runner,signal});signal?.throwIfAborted();
   const built=JSON.parse(fs.readFileSync(state(value.app,'last-build.json'),'utf8'));
   if(built.schema!=='nelyx.rnw-build/v1'||built.configuration!==configuration||built.output!==source||built.executable!==path.join(source,'NelyxRNHost.exe')||built.nativeInputsSha256!==native.sha256||sha256(built.executable)!==built.exeSha256)throw new Error('RNW build acknowledgement mismatch');
   const legacyCompiler=built.hermesCompilerProfile===undefined&&built.hermesCompilerPolicy===undefined&&(v8||hermes?.profile==='debug');

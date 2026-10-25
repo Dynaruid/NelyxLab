@@ -77,7 +77,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
   get parent():_RenderObjectSemantics|null{return this.renderObject.parent?semanticsFor(this.renderObject.parent):null;}
   get parentDataDirty():boolean{return !this.isRoot&&this.parentData===null;}
   get geometryDirty():boolean{return !this.isRoot&&this.geometry===null;}
-  get isRoot():boolean{return this.parent===null;}
+  get isRoot():boolean{return this.renderObject.parent===undefined;}
   get configToMergeUp():SemanticsConfiguration|null{return this.shouldFormSemanticsNode?null:this.configProvider.effective;}
   get contributesToSemanticsTree():boolean{return this.configProvider.effective.hasBeenAnnotated||this.containsIncompleteFragment||this.configProvider.effective.isSemanticBoundary||this.isRoot;}
   private get needsMergingSiblingNodesIntoSelf():boolean{return this.configProvider.effective.isMergingSemanticsOfDescendants&&this.producedSiblingNodesAndOwners.size>0;}
@@ -146,7 +146,26 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
   }
   private updateNodeGeometry():void{const node=this.cachedSemanticsNode!,geometry=this.geometry!;node.rect=geometry.rect;node.transform=geometry.transform;node.parentSemanticsClipRect=geometry.semanticsClipRect;node.parentPaintClipRect=geometry.paintClipRect;}
   private updateSiblingGeometries():void{const main=this.geometry!;for(const[node,group]of this.producedSiblingNodesAndOwners){let rect:Rect|null=null,semanticClip:Rect|null=null,paintClip:Rect|null=null;for(const fragment of group){if(fragment.owner.shouldFormSemanticsNode)continue;const geometry=_SemanticsGeometry.computeChildGeometry(main.transform,main.paintClipRect,main.semanticsClipRect,this,fragment.owner),local=geometry.semanticsClipRect?.intersect(rectValue(fragment.owner.renderObject.semanticBounds))??rectValue(fragment.owner.renderObject.semanticBounds),transformed=MatrixUtils.transformRect(geometry.transform,local);rect=unionRects(rect,transformed);if(geometry.semanticsClipRect!==null){const clip=MatrixUtils.transformRect(geometry.transform,geometry.semanticsClipRect);semanticClip=intersectRects(semanticClip,clip);}if(geometry.paintClipRect!==null){const clip=MatrixUtils.transformRect(geometry.transform,geometry.paintClipRect);paintClip=intersectRects(paintClip,clip);}}invariant(rect!==null,'missing-sibling-semantics-rect','Sibling nodes require fragment geometry');node.rect=rect;node.transform=null;node.parentSemanticsClipRect=semanticClip;node.parentPaintClipRect=paintClip;}}
-  markNeedsUpdate():void{const pipeline=pipelineSemantics(this.renderObject.owner!);pipeline.geometryDirty.add(this.renderObject);const produced=this.cachedSemanticsNode,wasBoundary=produced!==null&&this.configProvider.wasSemanticsBoundary;this.configProvider.clear();this.containsIncompleteFragment=false;let sibling=this.configProvider.effective.childConfigurationsDelegate!==null,boundary=this.configProvider.effective.isSemanticBoundary&&wasBoundary,node=this.renderObject;while(node.parent&&(sibling||!boundary)){const semantics=semanticsFor(node);if(node!==this.renderObject&&semantics.parentDataDirty&&!sibling)break;semantics.parentData=null;semantics.blocksPreviousSibling=null;if(boundary)sibling=false;const hasDelegate=semantics.configProvider.effective.childConfigurationsDelegate!==null;sibling=sibling||hasDelegate;node=node.parent;boundary=semanticsFor(node).configProvider.effective.isSemanticBoundary&&semanticsFor(node).built;}if(node!==this.renderObject&&produced!==null&&semanticsFor(node).parentDataDirty)pipeline.dirty.delete(this.renderObject);if(!semanticsFor(node).parentDataDirty||semanticsFor(node).isRoot){check(semanticsFor(node).configProvider.effective.isSemanticBoundary||!node.parent,'Semantics update target must be a boundary or root');if(!pipeline.dirty.has(node)){pipeline.dirty.add(node);this.renderObject.owner!.invalidate();}}}
+  markNeedsUpdate():void{
+    const pipeline=pipelineSemantics(this.renderObject.owner!);pipeline.geometryDirty.add(this.renderObject);
+    const produced=this.cachedSemanticsNode,wasBoundary=produced!==null&&this.configProvider.wasSemanticsBoundary;
+    this.configProvider.clear();this.containsIncompleteFragment=false;
+    let sibling=this.configProvider.effective.childConfigurationsDelegate!==null,boundary=this.configProvider.effective.isSemanticBoundary&&wasBoundary,node=this.renderObject;
+    // A fragment stays on its render owner's canonical table. Carry it while
+    // walking the live parent links instead of looking it up for every test.
+    let semantics:_RenderObjectSemantics=this;
+    while(node.parent&&(sibling||!boundary)){
+      if(node!==this.renderObject&&semantics.parentDataDirty&&!sibling)break;
+      semantics.parentData=null;semantics.blocksPreviousSibling=null;if(boundary)sibling=false;
+      const hasDelegate=semantics.configProvider.effective.childConfigurationsDelegate!==null;sibling=sibling||hasDelegate;
+      node=node.parent;semantics=semanticsFor(node);boundary=semantics.configProvider.effective.isSemanticBoundary&&semantics.built;
+    }
+    if(node!==this.renderObject&&produced!==null&&semantics.parentDataDirty)pipeline.dirty.delete(this.renderObject);
+    if(!semantics.parentDataDirty||semantics.isRoot){
+      check(semantics.configProvider.effective.isSemanticBoundary||!node.parent,'Semantics update target must be a boundary or root');
+      if(!pipeline.dirty.has(node)){pipeline.dirty.add(node);this.renderObject.owner!.invalidate();}
+    }
+  }
   private markConflicts(group:_SemanticsFragment[],mergeUp=false):void{const previous=new Set<_RenderObjectSemantics>(),conflicts=new Set<_SemanticsFragment>();for(let i=0;i<group.length;i++){const fragment=group[i]!;if(fragment instanceof _RenderObjectSemantics&&fragment.hasSiblingConflict)previous.add(fragment);fragment.markSiblingConfigurationConflict(false);const config=fragment.configToMergeUp;if(config===null)continue;if(mergeUp&&!this.configProvider.original.isCompatibleWith(config))conflicts.add(fragment);for(let j=0;j<i;j++){const sibling=group[j]!;if(!config.isCompatibleWith(sibling.configToMergeUp)){conflicts.add(fragment);conflicts.add(sibling);}}}for(const fragment of conflicts){fragment.markSiblingConfigurationConflict(true);if(fragment instanceof _RenderObjectSemantics&&!previous.delete(fragment))fragment.markNeedsBuild();}for(const fragment of previous)fragment.markNeedsBuild();}
   clear():void{const pipeline=this.renderObject.owner;if(pipeline)existingPipelineSemantics(pipeline)?.transportSources.delete(this.renderObject);this.built=false;this.cachedSemanticsNode=null;this.parentData=null;this.geometry=null;this.blocksPreviousSibling=null;this.containsIncompleteFragment=false;this.mergeUp.length=0;this.siblingMergeGroups.length=0;this.childrenInSemanticsTree.length=0;this.semanticsNodes.length=0;this.configProvider.clear();}
   override debugDescribeChildren():readonly DiagnosticsNode[]{return this.childrenInSemanticsTree.map(child=>child.toDiagnosticsNode());}
@@ -223,7 +242,12 @@ export class RenderSemanticsPipeline {
       if(FoundationBuildMode.debug){check(nodes.length===0||root!==undefined,'Semantic updates need a render root');if(root)_RenderObjectSemantics.debugCheckForParentData(root);}
       for(const node of this.deferredGeometry)this.geometryDirty.add(node);this.deferredGeometry.clear();const geometry:RenderObject[]=[];
       for(const node of this.geometryDirty){if(node.needsLayout||node.owner!==this.pipeline)continue;if(semanticsFor(node).parentDataDirty){this.deferredGeometry.add(node);continue;}geometry.push(node);}this.geometryDirty.clear();
-      for(const node of geometry){const semantics=semanticsFor(node);if(semantics.shouldFormSemanticsNode&&semantics.geometryDirty)continue;if(semantics.shouldFormSemanticsNode&&node.isRelayoutBoundary){semantics.geometry=null;continue;}semantics.clearImmediateChildrenGeometry();}
+      for(const node of geometry){const semantics=semanticsFor(node);if(semantics.shouldFormSemanticsNode&&semantics.geometryDirty)continue;if(semantics.shouldFormSemanticsNode&&node.isRelayoutBoundary){semantics.geometry=null;
+        // A root rebuilds its own rect directly in ensureGeometry, without
+        // updateGeometry's descendant refresh. Its clip/transform may still
+        // change, so its immediate semantic children must also become dirty.
+        if(!semantics.isRoot)continue;
+      }semantics.clearImmediateChildrenGeometry();}
       const token={},ensure=new Set<_RenderObjectSemantics>(),moved=new Set<_RenderObjectSemantics>();for(const node of geometry){const semantics=semanticsFor(node);semantics.computeAncestorInfo(token);if(semantics.firstAncestorNodeWithCleanGeometry){ensure.add(semantics.firstAncestorNodeWithCleanGeometry);if(this.offsetDirty.delete(node))moved.add(semantics.firstAncestorNodeWithCleanGeometry);}}for(const node of [...ensure].sort((a,b)=>a.renderObject.depth-b.renderObject.depth))node.ensureGeometry();
       const assembled=new Set<_RenderObjectSemantics>();
       const assemble=(target:_RenderObjectSemantics)=>{if(!target.parentDataDirty&&!assembled.has(target)){target.ensureSemanticsNode();assembled.add(target);}};

@@ -44,7 +44,7 @@ export abstract class Widget extends DiagnosticableTree {
 export interface WidgetOptions {readonly key?:Key|null}
 export class IndexedSlot<T extends Element|undefined=Element|undefined> {
   readonly typeToken:object|symbol;
-  constructor(readonly index:number,readonly value:T,options:{readonly typeToken?:object|symbol}={}){invariant(Number.isSafeInteger(index)&&index>=0,'invalid-slot-index','Slot index must be a nonnegative integer');this.typeToken=options.typeToken??IndexedSlot;}
+  constructor(readonly index:number,readonly value:T,options:{readonly typeToken?:object|symbol}={}){if(!(Number.isSafeInteger(index)&&index>=0))invariant(false,'invalid-slot-index','Slot index must be a nonnegative integer');this.typeToken=options.typeToken??IndexedSlot;}
   equals(other:unknown):boolean{return other instanceof IndexedSlot&&other.constructor===this.constructor&&other.typeToken===this.typeToken&&other.index===this.index&&other.value===this.value;}
   get hashCode():number{let identity=0;if(this.value){identity=slotIdentities.get(this.value)??++nextSlotIdentity;slotIdentities.set(this.value,identity);}return (this.index*31)^identity;}
 }
@@ -90,11 +90,11 @@ export class BuildScope {
   private push(entry:DirtyBuildEntry):void{let index=this.heap.length;this.heap.push(entry);while(index){const parent=(index-1)>>1;if(!this.before(entry,this.heap[parent]!))break;this.heap[index]=this.heap[parent]!;index=parent;}this.heap[index]=entry;}
   private pop():DirtyBuildEntry|undefined{const first=this.heap[0],last=this.heap.pop();if(this.heap.length&&last){let index=0;while(index*2+1<this.heap.length){let child=index*2+1;if(child+1<this.heap.length&&this.before(this.heap[child+1]!,this.heap[child]!))child++;if(!this.before(this.heap[child]!,last))break;this.heap[index]=this.heap[child]!;index=child;}this.heap[index]=last;}return first;}
   /** @internal BuildOwner uses the source scope scheduling protocol. */
-  _scheduleBuildFor(element:Element):void{invariant(element.buildScope===this,'wrong-build-scope','Dirty element belongs to another build scope');const old=this.entries.get(element);if(!old||old.depth!==element.depth){const entry={element,depth:element.depth,order:++this.order};this.entries.set(element,entry);this.push(entry);}if(!this._buildScheduled&&!this._building){this._buildScheduled=true;this.scheduleRebuild?.();}}
+  _scheduleBuildFor(element:Element):void{if(!(element.buildScope===this))invariant(false,'wrong-build-scope','Dirty element belongs to another build scope');const old=this.entries.get(element);if(!old||old.depth!==element.depth){const entry={element,depth:element.depth,order:++this.order};this.entries.set(element,entry);this.push(entry);}if(!this._buildScheduled&&!this._building){this._buildScheduled=true;this.scheduleRebuild?.();}}
   /** @internal */
   _forget(element:Element):void{this.entries.delete(element);if(!this.entries.size)this.heap.length=0;}
   /** @internal Rebuild only this scope, including newly dirtied shallow ancestors. */
-  _flushDirtyElements(rebuild:(element:Element)=>void,callback?:()=>void,reportError:(details:FlutterErrorDetails)=>void=details=>FlutterError.reportError(details)):void{invariant(!this._building,'reentrant-build-scope','BuildScope cannot recursively flush itself');this._building=true;try{callback?.();while(this.heap.length){const entry=this.pop()!;if(this.entries.get(entry.element)!==entry)continue;if(entry.depth!==entry.element.depth){this.entries.delete(entry.element);this._scheduleBuildFor(entry.element);continue;}this.entries.delete(entry.element);try{rebuild(entry.element);}catch(exception){reportError(new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'widgets library',context:new ErrorDescription('while rebuilding dirty elements'),informationCollector:()=>[new DiagnosticsProperty('The element being rebuilt at the time was',entry.element.widget.constructor.name)]}));}}}finally{this._building=false;this._buildScheduled=false;if(!this.entries.size)this.heap.length=0;}}
+  _flushDirtyElements(rebuild:(element:Element)=>void,callback?:()=>void,reportError:(details:FlutterErrorDetails)=>void=details=>FlutterError.reportError(details)):void{if(!(!this._building))invariant(false,'reentrant-build-scope','BuildScope cannot recursively flush itself');this._building=true;try{callback?.();while(this.heap.length){const entry=this.pop()!;if(this.entries.get(entry.element)!==entry)continue;if(entry.depth!==entry.element.depth){this.entries.delete(entry.element);this._scheduleBuildFor(entry.element);continue;}this.entries.delete(entry.element);try{rebuild(entry.element);}catch(exception){reportError(new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'widgets library',context:new ErrorDescription('while rebuilding dirty elements'),informationCollector:()=>[new DiagnosticsProperty('The element being rebuilt at the time was',entry.element.widget.constructor.name)]}));}}}finally{this._building=false;this._buildScheduled=false;if(!this.entries.size)this.heap.length=0;}}
   /** @internal */
   _clear():void{this.entries.clear();this.heap.length=0;this._buildScheduled=false;}
 }
@@ -112,14 +112,14 @@ export class BuildOwner {
   private pointerBinding:GestureBinding|undefined;
   private semanticsBindingValue:SemanticsBinding|undefined;
   get maybeSemanticsBinding():SemanticsBinding|undefined{return this.semanticsBindingValue;}
-  get semanticsBinding():SemanticsBinding{invariant(this.semanticsBindingValue,'missing-view-semantics-binding','Semantics services require this BuildOwner\'s actual Root binding');return this.semanticsBindingValue;}
-  bindSemanticsBinding(binding:SemanticsBinding):Disposable{invariant(!this.disposed&&!this.semanticsBindingValue,'invalid-view-semantics-binding','BuildOwner already has a semantics binding or is closed');this.semanticsBindingValue=binding;return {dispose:()=>{if(this.semanticsBindingValue===binding)this.semanticsBindingValue=undefined;}};}
-  get gestureBinding():GestureBinding{invariant(this.pointerBinding&&!this.pointerBinding.isClosed,'missing-view-gesture-binding','Pointer services require this BuildOwner\'s live Root binding');return this.pointerBinding;}
+  get semanticsBinding():SemanticsBinding{if(!(this.semanticsBindingValue))invariant(false,'missing-view-semantics-binding','Semantics services require this BuildOwner\'s actual Root binding');return this.semanticsBindingValue;}
+  bindSemanticsBinding(binding:SemanticsBinding):Disposable{if(!(!this.disposed&&!this.semanticsBindingValue))invariant(false,'invalid-view-semantics-binding','BuildOwner already has a semantics binding or is closed');this.semanticsBindingValue=binding;return {dispose:()=>{if(this.semanticsBindingValue===binding)this.semanticsBindingValue=undefined;}};}
+  get gestureBinding():GestureBinding{if(!(this.pointerBinding&&!this.pointerBinding.isClosed))invariant(false,'missing-view-gesture-binding','Pointer services require this BuildOwner\'s live Root binding');return this.pointerBinding;}
   /** The Root owns disposal; standalone BuildOwners do not invent a View provider. */
-  bindGestureBinding(binding:GestureBinding):Disposable{invariant(!this.disposed&&!this.pointerBinding&&!binding.isClosed,'invalid-view-gesture-binding','BuildOwner already has a binding or is closed');this.pointerBinding=binding;return {dispose:()=>{if(this.pointerBinding===binding)this.pointerBinding=undefined;}};}
+  bindGestureBinding(binding:GestureBinding):Disposable{if(!(!this.disposed&&!this.pointerBinding&&!binding.isClosed))invariant(false,'invalid-view-gesture-binding','BuildOwner already has a binding or is closed');this.pointerBinding=binding;return {dispose:()=>{if(this.pointerBinding===binding)this.pointerBinding=undefined;}};}
   readonly focus:FocusScope;
   readonly keyHandlers=new Set<(event:KeyEvent)=>boolean>();
-  private dirty=new Set<Element>();
+  // The scope index already owns exactly the queued Element membership.
   private readonly dirtyScopes=new Map<Element,BuildScope>();
   readonly defaultBuildScope=new BuildScope({scheduleRebuild:()=>{if(!this.building)this.invalidate();}});
   private readonly globals=new KeyMap<Element>();
@@ -132,7 +132,7 @@ export class BuildOwner {
   private buildRevisionValue=0;
   /** Completed rebuilds across the default and layout-owned isolated scopes. */
   get buildRevision():number{return this.buildRevisionValue;}
-  get hasDirty():boolean{return this.dirty.size>0;}
+  get hasDirty():boolean{return this.dirtyScopes.size>0;}
   get globalKeyCount():number{return this.globals.size;}
   constructor(services:ViewControllerContext,readonly invalidate:()=>void,readonly postFrame:(callback:()=>void)=>void=callback=>callback(),focusOptions:FocusManagerOptions={}) {
     // Keep one live service facade per owner. A separate extensible target also
@@ -153,12 +153,12 @@ export class BuildOwner {
   reportError(details:FlutterErrorDetails):void{FlutterError.reportError(details);this.services.reportError?.(details);}
   schedule(element:Element):void {
     assertOutsideRenderPaint();
-    invariant(!this.disposed,'closed-build-owner','Build after View close');
-    if(!element.active)return;const scope=element.buildScope,previous=this.dirtyScopes.get(element);if(previous&&previous!==scope)previous._forget(element);this.dirty.add(element);this.dirtyScopes.set(element,scope);scope._scheduleBuildFor(element);
+    if(!(!this.disposed))invariant(false,'closed-build-owner','Build after View close');
+    if(!element.active)return;const scope=element.buildScope,previous=this.dirtyScopes.get(element);if(previous&&previous!==scope)previous._forget(element);this.dirtyScopes.set(element,scope);scope._scheduleBuildFor(element);
   }
-  forget(element:Element):void {this.dirty.delete(element);this.dirtyScopes.get(element)?._forget(element);this.dirtyScopes.delete(element);}
+  forget(element:Element):void {this.dirtyScopes.get(element)?._forget(element);this.dirtyScopes.delete(element);}
   register(element:Element):void {
-    const key=element.widget.key;if(key instanceof GlobalKey){invariant(!this.globals.has(key)&&(!key.currentElement||key.currentElement===element),'duplicate-global-key','GlobalKey is already mounted in this or another View');key.bind(element);this.globals.set(key,element);}
+    const key=element.widget.key;if(key instanceof GlobalKey){if(!(!this.globals.has(key)&&(!key.currentElement||key.currentElement===element)))invariant(false,'duplicate-global-key','GlobalKey is already mounted in this or another View');key.bind(element);this.globals.set(key,element);}
     this.viewWorkBudgetValue?.register(element);
   }
   unregister(element:Element):void {
@@ -190,16 +190,16 @@ export class BuildOwner {
   /** @internal Finite streaming layout can retire a detached local subtree
    * before frame end. GlobalKey descendants keep their source retake window. */
   _retireInactiveSubtreeWithoutGlobalKeys(child:Element):boolean{
-    invariant(!this.building&&child.owner===this&&!child.active&&!child.parent&&this.inactive.has(child),'invalid-inactive-retirement','Early retirement requires an owned detached inactive root outside build');
+    if(!(!this.building&&child.owner===this&&!child.active&&!child.parent&&this.inactive.has(child)))invariant(false,'invalid-inactive-retirement','Early retirement requires an owned detached inactive root outside build');
     const pending=[child];while(pending.length){const current=pending.pop()!;if(current.widget.key instanceof GlobalKey)return false;pending.push(...current.children);}
     this.inactive.delete(child);child.unmount();return true;
   }
   retake(widget:Widget,parent:Element,slot?:unknown):Element|undefined {
     const key=widget.key;if(!(key instanceof GlobalKey))return undefined;
     const child=this.globals.get(key);if(!child)return undefined;
-    invariant(child!==parent&&!parent.hasAncestor(child),'global-key-cycle','GlobalKey would move an ancestor below its descendant');
+    if(!(child!==parent&&!parent.hasAncestor(child)))invariant(false,'global-key-cycle','GlobalKey would move an ancestor below its descendant');
     if(child.active||child.parent){
-      const previous=child.parent;invariant(previous,'global-key-root-move','A mounted root cannot be reparented');
+      const previous=child.parent;if(!(previous))invariant(false,'global-key-root-move','A mounted root cannot be reparented');
       previous.forgetChild(child);
       if(previous!==parent&&previous.active)this.retakenParents.add(previous);
       this.deactivateChild(child);
@@ -214,10 +214,10 @@ export class BuildOwner {
     this.flushScope(this.defaultBuildScope);
   }
   /** Rebuild the context's isolated scope during an authorized layout callback. */
-  buildScope(context:Element,callback?:()=>void):void{invariant(context.active&&context.owner===this,'invalid-build-scope-root','Build scope requires an active context in this owner');this.flushScope(context.buildScope,context,callback);}
-  private flushScope(scope:BuildScope,context?:Element,callback?:()=>void):void{assertOutsideRenderPaint();invariant(!this.building&&!this.disposed,'reentrant-build','BuildOwner is already building or closed');this.building=true;this.currentElement=context;try{scope._flushDirtyElements(element=>{this.dirty.delete(element);this.dirtyScopes.delete(element);if(!element.active)return;if(element.buildScope!==scope){if(element.dirty)this.schedule(element);return;}invariant(!context||element===context||element.hasAncestor(context),'wrong-build-scope-root','Dirty element is outside the requested subtree');if(element.dirty){this.currentElement=element;element.rebuild();}},callback,details=>this.reportError(details));}finally{this.currentElement=undefined;this.building=false;}}
+  buildScope(context:Element,callback?:()=>void):void{if(!(context.active&&context.owner===this))invariant(false,'invalid-build-scope-root','Build scope requires an active context in this owner');this.flushScope(context.buildScope,context,callback);}
+  private flushScope(scope:BuildScope,context?:Element,callback?:()=>void):void{assertOutsideRenderPaint();if(!(!this.building&&!this.disposed))invariant(false,'reentrant-build','BuildOwner is already building or closed');this.building=true;this.currentElement=context;try{scope._flushDirtyElements(element=>{this.dirtyScopes.delete(element);if(!element.active)return;if(element.buildScope!==scope){if(element.dirty)this.schedule(element);return;}if(!(!context||element===context||element._hasBuildScopeAncestor(context)))invariant(false,'wrong-build-scope-root','Dirty element is outside the requested subtree');if(element.dirty){this.currentElement=element;element.rebuild();}},callback,details=>this.reportError(details));}finally{this.currentElement=undefined;this.building=false;}}
   finalizeTree():void {
-    invariant(!this.building,'finalize-during-build','Cannot finalize during build');const errors:unknown[]=[];
+    if(!(!this.building))invariant(false,'finalize-during-build','Cannot finalize during build');const errors:unknown[]=[];
     for(const root of [...this.inactive]){this.inactive.delete(root);if(!root.active)try{root.unmount();}catch(error){errors.push(error);}}
     // Reparenting can reserve a key under successive live parents in one frame.
     // Verify completed ownership, as source does, after all parents rebuild.
@@ -232,7 +232,7 @@ export class BuildOwner {
       for(const dispose of [()=>this.finalizeTree(),()=>this.gestures.dispose(),()=>this.focus.dispose(),()=>{if(!this.services.platformServices)this.keyboard.dispose();}])try{dispose();}catch(error){errors.push(error);}
     for(const element of [...this.globals.values()])try{element.unmount();}catch(error){errors.push(error);}
     if(!this.services.platformServices)try{this.rawKeyboard.dispose();}catch(error){errors.push(error);}
-    this.globals.clear();for(const scope of new Set(this.dirtyScopes.values()))scope._clear();this.defaultBuildScope._clear();this.dirtyScopes.clear();this.dirty.clear();this.keyHandlers.clear();this.viewMetricsReaders.clear();
+    this.globals.clear();for(const scope of new Set(this.dirtyScopes.values()))scope._clear();this.defaultBuildScope._clear();this.dirtyScopes.clear();this.keyHandlers.clear();this.viewMetricsReaders.clear();
     try{this.viewWorkBudgetValue?.assertDrained();}catch(error){errors.push(error);}
     if(errors.length)throw new AggregateError(errors,'BuildOwner teardown failed');
   }
@@ -261,7 +261,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   }
   protected attachNotificationTree():void{this._notificationTree=this.parent?._notificationTree??null;}
   protected attachNotificationTarget(target:NotifiableElementTarget):void{this._notificationTree=new _NotificationNode(this.parent?._notificationTree??null,target);}
-  dispatchNotification(notification:Notification):void{invariant(this.mounted,'unmounted-notification-context','Cannot dispatch a notification from a closed Element');this._notificationTree?.dispatchNotification(notification);}
+  dispatchNotification(notification:Notification):void{if(!(this.mounted))invariant(false,'unmounted-notification-context','Cannot dispatch a notification from a closed Element');this._notificationTree?.dispatchNotification(notification);}
   parent:Element|undefined;
   owner!:BuildOwner;
   depth=0;
@@ -275,6 +275,16 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   // Source Element._parentBuildScope: scope ancestry changes at mount/retake,
   // not for every scheduling/check operation in a deep lazy child subtree.
   private parentBuildScope:BuildScope|undefined;
+  private parentScopeAncestor:Element|undefined;
+  private inheritBuildScope(parent:Element|undefined,owner:BuildOwner):void{
+    const scope=parent?.buildScope??owner.defaultBuildScope;this.parentBuildScope=scope;
+    // Cache an actual ancestor reached through parent links, not an assumed
+    // owner for a scope. Distinct roots can legitimately share a BuildScope.
+    this.parentScopeAncestor=parent&&scope!==parent.parentBuildScope?parent:parent?.parentScopeAncestor;
+  }
+  /** @internal Lazy build admission otherwise walks the same ancestor chain
+   * for every new descendant. Mount/GlobalKey activation refresh this cache. */
+  _hasBuildScopeAncestor(context:Element):boolean{const hasAncestor=this.hasAncestor;return hasAncestor===Element.prototype.hasAncestor&&this.parentScopeAncestor===context||hasAncestor.call(this,context);}
   protected currentSlot:unknown;
   get slot():unknown{return this.currentSlot;}
   children:Element[]=[];
@@ -293,7 +303,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   }
   visitChildren(visitor:(child:Element)=>void):void{for(const child of this.children)visitor(child);}
   /** Source hook lets lazy parents retire their slot map during GlobalKey moves. */
-  forgetChild(child:Element):void{invariant(child.parent===this,'invalid-forgotten-child','Only this Element child can be forgotten');this.children=this.children.filter(value=>value!==child);this.markRenderTreeSyncDirty();}
+  forgetChild(child:Element):void{if(!(child.parent===this))invariant(false,'invalid-forgotten-child','Only this Element child can be forgotten');this.children=this.children.filter(value=>value!==child);this.markRenderTreeSyncDirty();}
   override debugDescribeChildren():readonly DiagnosticsNode[]{const children:DiagnosticsNode[]=[];this.visitChildren(child=>children.push(child.toDiagnosticsNode()));return children;}
   get active():boolean{return this.lifecycle==='active';}
   get mounted():boolean{return this.lifecycle==='active'||this.lifecycle==='inactive';}
@@ -303,15 +313,15 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   get renderObjects():readonly RenderObject[] {return childRenderObjects(this.children);}
   hasAncestor(element:Element):boolean {let parent=this.parent;while(parent){if(parent===element)return true;parent=parent.parent;}return false;}
   mount(parent:Element|undefined,owner:BuildOwner,slot?:unknown):void {
-    invariant(this.lifecycle==='initial','double-mount','Element can only be mounted once');
-    this.parent=parent;this.parentBuildScope=parent?.buildScope??owner.defaultBuildScope;this.markRenderTreeSyncDirty();this.currentSlot=slot;this.depth=(parent?.depth??-1)+1;this.owner=owner;this.lifecycle='active';this.updateInheritedTypes();owner.register(this);this.attachNotificationTree();owner.schedule(this);
+    if(!(this.lifecycle==='initial'))invariant(false,'double-mount','Element can only be mounted once');
+    this.parent=parent;this.inheritBuildScope(parent,owner);this.markRenderTreeSyncDirty();this.currentSlot=slot;this.depth=(parent?.depth??-1)+1;this.owner=owner;this.lifecycle='active';this.updateInheritedTypes();owner.register(this);this.attachNotificationTree();owner.schedule(this);
   }
   update(widget:Widget):void {
     assertOutsideRenderPaint();
-    invariant(this.active&&Widget.canUpdate(this.widget,widget),'invalid-widget-update','Widget type/key changed or Element is inactive');
+    if(!(this.active&&Widget.canUpdate(this.widget,widget)))invariant(false,'invalid-widget-update','Widget type/key changed or Element is inactive');
     this.widget=widget;if(this instanceof InheritedElement&&indexedInheritedType(widget)!==this.indexedType)this.refreshInheritedTypes();this.markNeedsBuild();
   }
-  markNeedsBuild():void {assertOutsideRenderPaint();invariant(this.mounted,'unmounted-element','Rebuild after unmount');this.dirty=true;if(this.active)this.owner.schedule(this);}
+  markNeedsBuild():void {assertOutsideRenderPaint();if(!(this.mounted))invariant(false,'unmounted-element','Rebuild after unmount');this.dirty=true;if(this.active)this.owner.schedule(this);}
   dependOn<T extends InheritedWidget>(type:InheritedType<T>,aspect?:unknown):T {
     const inherited=this.maybeDependOn(type,aspect);if(inherited)return inherited;
     throw new Error(`Missing inherited data above ${this.widget.constructor.name}`);
@@ -321,16 +331,16 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     return ancestor?this.dependOnInheritedElement<T>(ancestor,aspect):undefined;
   }
   dependOnInheritedElement<T extends InheritedWidget>(ancestor:InheritedElement,aspect?:unknown):T {
-    invariant(this.active&&ancestor.active&&ancestor.owner===this.owner&&(this.parent?.inheritedIndex?.get(ancestor.widget.typeToken)===ancestor||this.hasAncestor(ancestor)),'invalid-inherited-element','Dependency must refer to an active ancestor in this View');
+    if(!(this.active&&ancestor.active&&ancestor.owner===this.owner&&(this.parent?.inheritedIndex?.get(ancestor.widget.typeToken)===ancestor||this.hasAncestor(ancestor))))invariant(false,'invalid-inherited-element','Dependency must refer to an active ancestor in this View');
     ancestor.addDependent(this,aspect);(this.dependencies??=new Set()).add(ancestor);return ancestor.widget as T;
   }
   getElementForInheritedWidgetOfExactType<T extends InheritedWidget>(type:InheritedType<T>):InheritedElement|undefined {
-    invariant(this.active,'inactive-context','Ancestor lookup requires an active Element');
+    if(!(this.active))invariant(false,'inactive-context','Ancestor lookup requires an active Element');
     const parent=this.parent;if(!parent?.dynamicInheritedTypes)return parent?.inheritedIndex?.get(type);
     let ancestor:Element|undefined=parent;while(ancestor){if(ancestor instanceof InheritedElement&&ancestor.widget.typeToken===type)return ancestor;ancestor=ancestor.parent;}return undefined;
   }
   visitAncestorElements(visitor:(element:Element)=>boolean):void {
-    invariant(this.active,'inactive-context','Ancestor lookup requires an active Element');let ancestor=this.parent;while(ancestor){if(!visitor(ancestor))break;ancestor=ancestor.parent;}
+    if(!(this.active))invariant(false,'inactive-context','Ancestor lookup requires an active Element');let ancestor=this.parent;while(ancestor){if(!visitor(ancestor))break;ancestor=ancestor.parent;}
   }
   findAncestorWidgetOfExactType<T extends Widget>(type:abstract new (...args:never[])=>T):T|undefined {
     let result:T|undefined;this.visitAncestorElements(element=>{if(element.widget.typeToken!==type)return true;result=element.widget as T;return false;});return result;
@@ -338,13 +348,13 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   findAncestorStateOfType<T extends State>(type:abstract new (...args:never[])=>T):T|undefined {
     let result:T|undefined;this.visitAncestorElements(element=>{if(!(element.stateObject instanceof type))return true;result=element.stateObject;return false;});return result;
   }
-  findRenderObject():RenderObject|undefined {invariant(this.active,'inactive-context','Render lookup requires an active Element');return this.renderObjects[0];}
-  updateSlot(slot:unknown):void {invariant(this.active,'inactive-element','Slot update requires an active Element');this.currentSlot=slot;this.markRenderTreeSyncDirty();}
+  findRenderObject():RenderObject|undefined {if(!(this.active))invariant(false,'inactive-context','Render lookup requires an active Element');return this.renderObjects[0];}
+  updateSlot(slot:unknown):void {if(!(this.active))invariant(false,'inactive-element','Slot update requires an active Element');this.currentSlot=slot;this.markRenderTreeSyncDirty();}
   updateSlotForChild(child:Element,slot:unknown):void {
-    invariant(this.active&&child.parent===this,'invalid-slot-child','Slot update requires a child of this Element');
+    if(!(this.active&&child.parent===this))invariant(false,'invalid-slot-child','Slot update requires a child of this Element');
     const visit=(element:Element)=>{element.updateSlot(slot);if(!(element instanceof RenderObjectElement))for(const descendant of element.children)visit(descendant);};visit(child);
   }
-  attachRenderObject(slot:unknown):void {invariant(this.active,'inactive-element','Render attachment requires an active Element');this.currentSlot=slot;for(const child of this.children)child.attachRenderObject(slot);}
+  attachRenderObject(slot:unknown):void {if(!(this.active))invariant(false,'inactive-element','Render attachment requires an active Element');this.currentSlot=slot;for(const child of this.children)child.attachRenderObject(slot);}
   detachRenderObject():void {const errors:unknown[]=[];for(const child of this.children)try{child.detachRenderObject();}catch(error){errors.push(error);}this.currentSlot=undefined;if(errors.length)throw new AggregateError(errors,'Detaching component render children failed');}
   protected slotForChild(_index:number,_previous:Element|undefined):unknown{return this.slot;}
   dependenciesChanged():void {this.markNeedsBuild();}
@@ -355,7 +365,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     finally {this.owner.currentElement=previous;this.rebuilding=false;}
   }
   protected performRebuild():void{this.dirty=false;this.children=this.reconcile(this.children,this.build());}
-  protected buildErrorWidget(exception:unknown):Widget{const details=new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'widgets library',context:new ErrorDescription('building '+this.widget.constructor.name),informationCollector:()=>[new DiagnosticsProperty('Widget',this.widget.constructor.name)]});this.owner.reportError(details);const widget=ErrorWidget.builder(details);invariant(widget instanceof Widget,'invalid-error-widget','ErrorWidget.builder must return a Widget');return widget;}
+  protected buildErrorWidget(exception:unknown):Widget{const details=new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'widgets library',context:new ErrorDescription('building '+this.widget.constructor.name),informationCollector:()=>[new DiagnosticsProperty('Widget',this.widget.constructor.name)]});this.owner.reportError(details);const widget=ErrorWidget.builder(details);if(!(widget instanceof Widget))invariant(false,'invalid-error-widget','ErrorWidget.builder must return a Widget');return widget;}
   protected abstract build():readonly Widget[];
   protected reconcile(previous:readonly Element[],widgets:readonly Widget[]):Element[] {
     const next:Element[]=[];
@@ -401,23 +411,23 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   syncRenderTree():void {if(!this.renderTreeSyncDirty)return;for(const child of this.children)if(child.active)child.syncRenderTree();this.renderTreeSyncDirty=false;}
   private clearDependencies():void {this.owner._forgetViewMetricsReader(this);const dependencies=this.dependencies;if(!dependencies)return;this.hadDependencies||=dependencies.size>0;for(const dependency of dependencies)dependency.removeDependent(this);dependencies.clear();}
   deactivate():void {
-    if(!this.active)return;this.lifecycle='inactive';this.owner.forget(this);this.clearDependencies();this.inheritedIndex=undefined;this.indexedType=undefined;this.dynamicInheritedTypes=false;
-    const errors:unknown[]=[];for(const child of this.children)try{child.deactivate();}catch(error){errors.push(error);}
-    if(errors.length)throw new AggregateError(errors,'Subtree deactivation failed');
+    if(!this.active)return;this.lifecycle='inactive';this.parentScopeAncestor=undefined;this.owner.forget(this);this.clearDependencies();this.inheritedIndex=undefined;this.indexedType=undefined;this.dynamicInheritedTypes=false;
+    let errors:unknown[]|undefined;for(const child of this.children)try{child.deactivate();}catch(error){(errors??=[]).push(error);}
+    if(errors)throw new AggregateError(errors,'Subtree deactivation failed');
   }
   activate(parent:Element):void {
-    invariant(this.lifecycle==='inactive'&&parent.owner===this.owner,'invalid-activation','Only an inactive subtree in the same View can be activated');
-    this.parent=parent;this.parentBuildScope=parent.buildScope;this.markRenderTreeSyncDirty();this.depth=parent.depth+1;this.lifecycle='active';this.owner.maybeViewWorkBudget?.activate(this);this.updateInheritedTypes();this.attachNotificationTree();
+    if(!(this.lifecycle==='inactive'&&parent.owner===this.owner))invariant(false,'invalid-activation','Only an inactive subtree in the same View can be activated');
+    this.parent=parent;this.inheritBuildScope(parent,this.owner);this.markRenderTreeSyncDirty();this.depth=parent.depth+1;this.lifecycle='active';this.owner.maybeViewWorkBudget?.activate(this);this.updateInheritedTypes();this.attachNotificationTree();
     if(this.hadDependencies){this.hadDependencies=false;this.dependenciesChanged();}else this.markNeedsBuild();
     for(const child of this.children)child.activate(this);
   }
   unmount():void {
-    if(this.lifecycle==='defunct'||this.lifecycle==='initial')return;const errors:unknown[]=[];
-    try{if(this.active)this.deactivate();}catch(error){errors.push(error);}
+    if(this.lifecycle==='defunct'||this.lifecycle==='initial')return;let errors:unknown[]|undefined;
+    try{if(this.active)this.deactivate();}catch(error){(errors??=[]).push(error);}
     this.lifecycle='defunct';this.owner.forget(this);
-    for(const child of this.children)try{child.unmount();}catch(error){errors.push(error);}this.children=[];
-    this.clearDependencies();this.owner.unregister(this);this.parent=undefined;this.parentBuildScope=undefined;this.currentSlot=undefined;this._notificationTree=null;
-    if(errors.length)throw new AggregateError(errors,'Element child teardown failed');
+    for(const child of this.children)try{child.unmount();}catch(error){(errors??=[]).push(error);}this.children=[];
+    this.clearDependencies();this.owner.unregister(this);this.parent=undefined;this.parentBuildScope=undefined;this.parentScopeAncestor=undefined;this.currentSlot=undefined;this._notificationTree=null;
+    if(errors)throw new AggregateError(errors,'Element child teardown failed');
   }
 }
 export type ElementConstructor=abstract new (...args:any[])=>Element;
@@ -441,7 +451,7 @@ export abstract class StatelessWidget extends Widget {
   createElement():Element {return new StatelessElement(this);}
 }
 export abstract class ComponentElement extends Element {
-  protected override performRebuild():void{let widgets:readonly Widget[];try{widgets=this.build();invariant(widgets.length===1&&widgets[0] instanceof Widget,'invalid-widget-builder-result','A component must synchronously build one Widget');}catch(exception){widgets=[this.buildErrorWidget(exception)];}finally{this.dirty=false;}try{this.children=this.reconcile(this.children,widgets);}catch(exception){const replacement=this.buildErrorWidget(exception);try{this.owner.deactivateChildren(this.children);}catch{/* Source attempts to retire the broken old subtree before inserting the replacement. */}this.children=[];this.children=this.reconcile([],[replacement]);}}
+  protected override performRebuild():void{let widgets:readonly Widget[];try{widgets=this.build();if(!(widgets.length===1&&widgets[0] instanceof Widget))invariant(false,'invalid-widget-builder-result','A component must synchronously build one Widget');}catch(exception){widgets=[this.buildErrorWidget(exception)];}finally{this.dirty=false;}try{this.children=this.reconcile(this.children,widgets);}catch(exception){const replacement=this.buildErrorWidget(exception);try{this.owner.deactivateChildren(this.children);}catch{/* Source attempts to retire the broken old subtree before inserting the replacement. */}this.children=[];this.children=this.reconcile([],[replacement]);}}
 }
 class StatelessElement extends ComponentElement {protected build():readonly Widget[]{return [(this.widget as StatelessWidget).build(this)];}}
 export abstract class StatefulWidget extends Widget {
@@ -456,9 +466,9 @@ export abstract class State<W extends StatefulWidget=StatefulWidget> extends Dia
   private element:StatefulElement|undefined;
   private configuration:W|undefined;
   get mounted():boolean{return this.element!==undefined;}
-  get widget():W {invariant(this.configuration,'unmounted-state','Widget after State disposal');return this.configuration;}
-  get context():BuildContext {invariant(this.element,'unmounted-state','Context after State disposal');return this.element;}
-  attach(element:StatefulElement,widget:W):void {invariant(!this.element,'state-reused','State instance cannot belong to two Elements');this.element=element;this.configuration=widget;}
+  get widget():W {if(!(this.configuration))invariant(false,'unmounted-state','Widget after State disposal');return this.configuration;}
+  get context():BuildContext {if(!(this.element))invariant(false,'unmounted-state','Context after State disposal');return this.element;}
+  attach(element:StatefulElement,widget:W):void {if(!(!this.element))invariant(false,'state-reused','State instance cannot belong to two Elements');this.element=element;this.configuration=widget;}
   update(widget:W):void {const old=this.widget;this.configuration=widget;this.didUpdateWidget(old);}
   detach():void {this.diagnosticLifecycle='defunct';this.element=undefined;this.configuration=undefined;}
   initState():void {}
@@ -469,9 +479,9 @@ export abstract class State<W extends StatefulWidget=StatefulWidget> extends Dia
   dispose():void {}
   setState(change:()=>void):void {
     assertOutsideRenderPaint();
-    const element=this.element;invariant(element?.mounted,'disposed-state','setState after dispose');const current=element.owner.currentElement;
-    invariant(!element.owner.building||current===element||!!current&&element.hasAncestor(current),'set-state-during-build','setState during an unrelated build');
-    const result:unknown=change();invariant(!result||typeof (result as {then?:unknown}).then!=='function','async-set-state','setState callback must be synchronous');element.markNeedsBuild();
+    const element=this.element;if(!(element?.mounted))invariant(false,'disposed-state','setState after dispose');const current=element.owner.currentElement;
+    if(!(!element.owner.building||current===element||!!current&&element.hasAncestor(current)))invariant(false,'set-state-during-build','setState during an unrelated build');
+    const result:unknown=change();if(!(!result||typeof (result as {then?:unknown}).then!=='function'))invariant(false,'async-set-state','setState callback must be synchronous');element.markNeedsBuild();
   }
   abstract build(context:BuildContext):Widget;
 }
@@ -521,8 +531,8 @@ export class ParentDataElement<T extends ParentData=ParentData> extends ProxyEle
   }
   protected notifyClients(_old:ProxyWidget):void{this.visitRenderChildren(child=>child.applyParentDataFromAncestors());}
   applyWidgetOutOfTurn(widget:ParentDataWidget<T>):void {
-    invariant(this.active&&widget.debugCanApplyOutOfTurn(),'invalid-parent-data-update','Out-of-turn parent data must be explicitly allowed on an active Element');
-    invariant(widget.child===(this.widget as ParentDataWidget<T>).child&&widget.parentDataType===this.debugParentDataType,'invalid-parent-data-update','Out-of-turn data requires the same child and parent data type');
+    if(!(this.active&&widget.debugCanApplyOutOfTurn()))invariant(false,'invalid-parent-data-update','Out-of-turn parent data must be explicitly allowed on an active Element');
+    if(!(widget.child===(this.widget as ParentDataWidget<T>).child&&widget.parentDataType===this.debugParentDataType))invariant(false,'invalid-parent-data-update','Out-of-turn data requires the same child and parent data type');
     this.visitRenderChildren(child=>child.applyParentDataWidget(widget));
   }
 }
@@ -560,7 +570,7 @@ export class RenderObjectElement extends Element {
   private appliedData:ParentData|undefined;
   private appliedWidgets:readonly ParentDataWidget<ParentData>[]|undefined;
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('renderObject',this.render??null,{defaultValue:null}));}
-  get renderObject():RenderObject{invariant(this.render,'unmounted-render-element','RenderObjectElement has no live render object');return this.render;}
+  get renderObject():RenderObject{if(!(this.render))invariant(false,'unmounted-render-element','RenderObjectElement has no live render object');return this.render;}
   override get renderObjects():readonly RenderObject[] {return this.renderProjection;}
   protected override slotForChild(index:number,previous:Element|undefined):unknown{return new IndexedSlot(index,previous);}
   override mount(parent:Element|undefined,owner:BuildOwner,slot?:unknown):void {super.mount(parent,owner,slot);this.render=(this.widget as RenderObjectWidget).createRenderObject(this);this.renderProjection=Object.freeze([this.render]);this.attachRenderObject(slot);}
@@ -574,19 +584,19 @@ export class RenderObjectElement extends Element {
   removeRenderObjectChild(child:RenderObject,_slot:unknown):void{this.renderObject.remove(child);}
   override updateSlot(slot:unknown):void{const old=this.slot;super.updateSlot(slot);if(!sameSlot(old,slot))this.ancestor?.moveRenderObjectChild(this.renderObject,old,slot);}
   override attachRenderObject(slot:unknown):void {
-    invariant(!this.ancestor,'double-render-attachment','Render object already has an ancestor attachment');this.currentSlot=slot;
+    if(!(!this.ancestor))invariant(false,'double-render-attachment','Render object already has an ancestor attachment');this.currentSlot=slot;
     let ancestor=this.parent;while(ancestor&&!(ancestor instanceof RenderObjectElement))ancestor=ancestor.parent;
     this.ancestor=ancestor as RenderObjectElement|undefined;
     try{this.ancestor?.insertRenderObjectChild(this.renderObject,slot);this.applyParentDataFromAncestors();}
     catch(error){const errors=[error];try{this.detachRenderObject();}catch(failure){errors.push(failure);}if(errors.length>1)throw new AggregateError(errors,'Render attachment and rollback failed');throw error;}
   }
   override detachRenderObject():void {
-    const errors:unknown[]=[];
-    try{if(this.render){try{if(this.ancestor)this.ancestor.removeRenderObjectChild(this.render,this.slot);else if(this.render.attached)this.render.detach();}catch(error){errors.push(error);}
-        if(this.render.parent)try{RenderObject.prototype.remove.call(this.render.parent,this.render);}catch(error){errors.push(error);}
-        if(this.render.attached)try{RenderObject.prototype.detach.call(this.render);}catch(error){errors.push(error);}}}
+    let errors:unknown[]|undefined;
+    try{if(this.render){try{if(this.ancestor)this.ancestor.removeRenderObjectChild(this.render,this.slot);else if(this.render.attached)this.render.detach();}catch(error){(errors??=[]).push(error);}
+        if(this.render.parent)try{RenderObject.prototype.remove.call(this.render.parent,this.render);}catch(error){(errors??=[]).push(error);}
+        if(this.render.attached)try{RenderObject.prototype.detach.call(this.render);}catch(error){(errors??=[]).push(error);}}}
     finally{this.ancestor=undefined;this.currentSlot=undefined;this.appliedData=undefined;this.appliedWidgets=undefined;}
-    if(errors.length)throw new AggregateError(errors,'Detaching render element failed');
+    if(errors)throw new AggregateError(errors,'Detaching render element failed');
   }
   applyParentDataWidget(widget:ParentDataWidget<ParentData>):void {
     if(!widget.debugIsValidRenderObject(this.renderObject))invariant(false,'invalid-parent-data',`${widget.constructor.name} requires ${widget.parentDataType.name} from ${widget.debugTypicalAncestorWidgetDescription}; nearest render widget is ${this.ancestor?.widget.constructor.name??'the root'} and data is ${this.renderObject.parentData?.constructor.name??'absent'}`);
@@ -609,9 +619,15 @@ export class RenderObjectElement extends Element {
   protected synchronizeRenderObjectChildren():void{this.renderObject.setChildren(childRenderObjects(this.children));}
   override syncRenderTree():void {if(!this.renderTreeSyncDirty)return;try{super.syncRenderTree();this.synchronizeRenderObjectChildren();}catch(error){this.renderTreeSyncDirty=true;throw error;}}
   override unmount():void {
-    if(!this.mounted)return;const errors:unknown[]=[];
-    for(const dispose of [()=>this.detachRenderObject(),()=>super.unmount(),()=>this.render&&(this.widget as RenderObjectWidget).didUnmountRenderObject(this.render),()=>this.render?.setChildren([]),()=>this.render?.dispose()])try{dispose();}catch(error){errors.push(error);}
-    this.render=undefined;this.renderProjection=emptyRenderObjects;if(errors.length)throw new AggregateError(errors,'RenderObjectElement teardown failed');
+    if(!this.mounted)return;let errors:unknown[]|undefined;
+    // Keep every retirement stage and its live receiver even after a failure,
+    // without allocating five callbacks and empty error arrays for each leaf.
+    try{this.detachRenderObject();}catch(error){(errors??=[]).push(error);}
+    try{super.unmount();}catch(error){(errors??=[]).push(error);}
+    try{if(this.render)(this.widget as RenderObjectWidget).didUnmountRenderObject(this.render);}catch(error){(errors??=[]).push(error);}
+    try{this.render?.setChildren([]);}catch(error){(errors??=[]).push(error);}
+    try{this.render?.dispose();}catch(error){(errors??=[]).push(error);}
+    this.render=undefined;this.renderProjection=emptyRenderObjects;if(errors)throw new AggregateError(errors,'RenderObjectElement teardown failed');
   }
 }
 export abstract class LeafRenderObjectWidget extends RenderObjectWidget {
@@ -633,7 +649,7 @@ export class LeafRenderObjectElement extends RenderObjectElement {
   override insertRenderObjectChild(_child:RenderObject,_slot:unknown):void{throw new Error('LeafRenderObjectElement cannot have render children');}
   override moveRenderObjectChild(_child:RenderObject,_oldSlot:unknown,_newSlot:unknown):void{throw new Error('LeafRenderObjectElement cannot move render children');}
   override removeRenderObjectChild(_child:RenderObject,_slot:unknown):void{throw new Error('LeafRenderObjectElement cannot remove render children');}
-  protected override synchronizeRenderObjectChildren():void{invariant(this.children.length===0,'invalid-render-child','LeafRenderObjectElement cannot have widget children');super.synchronizeRenderObjectChildren();}
+  protected override synchronizeRenderObjectChildren():void{if(!(this.children.length===0))invariant(false,'invalid-render-child','LeafRenderObjectElement cannot have widget children');super.synchronizeRenderObjectChildren();}
 }
 export type ErrorWidgetBuilder=(details:FlutterErrorDetails)=>Widget;
 /** Emergency replacement lives with the framework base classes, avoiding an ESM initialization cycle. */
@@ -649,12 +665,12 @@ export class ErrorWidget extends LeafRenderObjectWidget {
 }
 export class SingleChildRenderObjectElement extends RenderObjectElement {
   protected override slotForChild():unknown{return undefined;}
-  override insertRenderObjectChild(child:RenderObject,slot:unknown):void{invariant(slot===undefined&&this.renderObject.children.length===0,'invalid-render-slot','Single-child element requires an empty child and no slot');super.insertRenderObjectChild(child,slot);}
+  override insertRenderObjectChild(child:RenderObject,slot:unknown):void{if(!(slot===undefined&&this.renderObject.children.length===0))invariant(false,'invalid-render-slot','Single-child element requires an empty child and no slot');super.insertRenderObjectChild(child,slot);}
   override moveRenderObjectChild(_child:RenderObject,_oldSlot:unknown,_newSlot:unknown):void{throw new Error('SingleChildRenderObjectElement cannot move render children');}
-  override removeRenderObjectChild(child:RenderObject,slot:unknown):void{invariant(slot===undefined,'invalid-render-slot','Single-child element requires no removal slot');super.removeRenderObjectChild(child,slot);}
-  protected override synchronizeRenderObjectChildren():void{invariant(this.children.length<=1,'invalid-render-child','SingleChildRenderObjectElement requires at most one widget child');super.synchronizeRenderObjectChildren();}
+  override removeRenderObjectChild(child:RenderObject,slot:unknown):void{if(!(slot===undefined))invariant(false,'invalid-render-slot','Single-child element requires no removal slot');super.removeRenderObjectChild(child,slot);}
+  protected override synchronizeRenderObjectChildren():void{if(!(this.children.length<=1))invariant(false,'invalid-render-child','SingleChildRenderObjectElement requires at most one widget child');super.synchronizeRenderObjectChildren();}
 }
 export class MultiChildRenderObjectElement extends RenderObjectElement {
-  override insertRenderObjectChild(child:RenderObject,slot:unknown):void{invariant(slot instanceof IndexedSlot,'invalid-render-slot','Multi-child element requires an IndexedSlot');super.insertRenderObjectChild(child,slot);}
-  override moveRenderObjectChild(child:RenderObject,oldSlot:unknown,newSlot:unknown):void{invariant(oldSlot instanceof IndexedSlot&&newSlot instanceof IndexedSlot,'invalid-render-slot','Multi-child element requires IndexedSlot moves');super.moveRenderObjectChild(child,oldSlot,newSlot);}
+  override insertRenderObjectChild(child:RenderObject,slot:unknown):void{if(!(slot instanceof IndexedSlot))invariant(false,'invalid-render-slot','Multi-child element requires an IndexedSlot');super.insertRenderObjectChild(child,slot);}
+  override moveRenderObjectChild(child:RenderObject,oldSlot:unknown,newSlot:unknown):void{if(!(oldSlot instanceof IndexedSlot&&newSlot instanceof IndexedSlot))invariant(false,'invalid-render-slot','Multi-child element requires IndexedSlot moves');super.moveRenderObjectChild(child,oldSlot,newSlot);}
 }

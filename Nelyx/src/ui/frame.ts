@@ -11,21 +11,21 @@ export function sameOwner(a: ViewOwner, b: ViewOwner): boolean { return a.id ===
 export function sameResource(a: ResourceId, b: ResourceId): boolean { return a.id === b.id && a.generation === b.generation; }
 export function resourceKey(resource: ResourceId): string { return JSON.stringify([resource.id, resource.generation]); }
 export function freezeEnvironment(environment:ViewEnvironment):ViewEnvironment {
-  for(const key of ['top','right','bottom','left'] as const)invariant(finite(environment.safeArea[key],'safe area')>=0,'invalid-metrics','Negative safe area');
-  invariant(finite(environment.keyboardInset,'keyboard inset')>=0&&finite(environment.textScale,'text scale')>0,'invalid-metrics','Invalid environment geometry/scale');
-  invariant(['native','css','application'].includes(environment.safeAreaSource)&&['native-ime','visual-viewport-occlusion','unavailable'].includes(environment.keyboardSource),'invalid-metrics','Unknown environment source');
-  invariant(environment.keyboardSource!=='unavailable'||environment.keyboardInset===0,'invalid-metrics','Unobserved keyboard inset must be zero');
-  invariant(environment.textScaleSource===undefined||['native','application'].includes(environment.textScaleSource),'invalid-metrics','Unknown text scale source');
+  for(const key of ['top','right','bottom','left'] as const){if(!(finite(environment.safeArea[key],'safe area')>=0))invariant(false,'invalid-metrics','Negative safe area');}
+  if(!(finite(environment.keyboardInset,'keyboard inset')>=0&&finite(environment.textScale,'text scale')>0))invariant(false,'invalid-metrics','Invalid environment geometry/scale');
+  if(!(['native','css','application'].includes(environment.safeAreaSource)&&['native-ime','visual-viewport-occlusion','unavailable'].includes(environment.keyboardSource)))invariant(false,'invalid-metrics','Unknown environment source');
+  if(!(environment.keyboardSource!=='unavailable'||environment.keyboardInset===0))invariant(false,'invalid-metrics','Unobserved keyboard inset must be zero');
+  if(!(environment.textScaleSource===undefined||['native','application'].includes(environment.textScaleSource)))invariant(false,'invalid-metrics','Unknown text scale source');
   const settings=new GestureSettings(environment.gestureSettings),source=environment.gestureSettingsSource??(environment.gestureSettings?'application':'unavailable');
-  for(const value of [settings.physicalTouchSlop,settings.physicalDoubleTapSlop])invariant(value===null||finite(value,'physical gesture slop')>=0,'invalid-metrics','Invalid physical gesture slop');
-  invariant(['native','application','unavailable'].includes(source),'invalid-metrics','Unknown gesture settings source');
-  invariant(source!=='unavailable'||settings.physicalTouchSlop===null&&settings.physicalDoubleTapSlop===null,'invalid-metrics','Unavailable gesture settings cannot carry observed values');
+  for(const value of [settings.physicalTouchSlop,settings.physicalDoubleTapSlop]){if(!(value===null||finite(value,'physical gesture slop')>=0))invariant(false,'invalid-metrics','Invalid physical gesture slop');}
+  if(!(['native','application','unavailable'].includes(source)))invariant(false,'invalid-metrics','Unknown gesture settings source');
+  if(!(source!=='unavailable'||settings.physicalTouchSlop===null&&settings.physicalDoubleTapSlop===null))invariant(false,'invalid-metrics','Unavailable gesture settings cannot carry observed values');
   return Object.freeze({...environment,textScaleSource:environment.textScaleSource??'application',safeArea:Object.freeze({...environment.safeArea}),gestureSettings:settings,gestureSettingsSource:source});
 }
 export function captureMetrics(metrics: ViewMetrics): ViewMetrics {
   for (const key of ["logicalWidth", "logicalHeight", "physicalWidth", "physicalHeight", "scale"] as const) finite(metrics[key], key);
-  invariant(metrics.logicalWidth >= 0 && metrics.logicalHeight >= 0 && metrics.physicalWidth >= 0 && metrics.physicalHeight >= 0 && metrics.scale > 0, "invalid-metrics", "size must be nonnegative and scale positive");
-  invariant(Number.isInteger(metrics.physicalWidth) && Number.isInteger(metrics.physicalHeight), "invalid-metrics", "physical size must be integral");
+  if(!(metrics.logicalWidth >= 0 && metrics.logicalHeight >= 0 && metrics.physicalWidth >= 0 && metrics.physicalHeight >= 0 && metrics.scale > 0))invariant(false,"invalid-metrics","size must be nonnegative and scale positive");
+  if(!(Number.isInteger(metrics.physicalWidth) && Number.isInteger(metrics.physicalHeight)))invariant(false,"invalid-metrics","physical size must be integral");
   generation(metrics.viewportGeneration); generation(metrics.rendererGeneration);
   if (metrics.nativeContextGeneration !== null) generation(metrics.nativeContextGeneration);
   if (metrics.nativeSurfaceGeneration !== null) generation(metrics.nativeSurfaceGeneration);
@@ -34,9 +34,9 @@ export function captureMetrics(metrics: ViewMetrics): ViewMetrics {
 function rect(value: Rect): Rect {
   const {x,y,width,height}=value;
   finite(x,'x');finite(y,'y');finite(width,'width');finite(height,'height');
-  invariant(width >= 0 && height >= 0, "invalid-rect", "negative size"); return Object.freeze({x,y,width,height});
+  if(!(width >= 0 && height >= 0))invariant(false,"invalid-rect","negative size"); return Object.freeze({x,y,width,height});
 }
-function resource(value: ResourceId): ResourceId { generation(value.generation); invariant(value.id.length > 0, "invalid-resource", "empty resource id"); return copyResourceId(value); }
+function resource(value: ResourceId): ResourceId { generation(value.generation); if(!(value.id.length > 0))invariant(false,"invalid-resource","empty resource id"); return copyResourceId(value); }
 export const paintFrameLimits=Object.freeze({commands:4096,bytes:512*1024,layers:32});
 /** Expanded wire records, shared by picture batching and final frame admission. */
 export function paintCommandRecordCount(command:PaintCommand):number {
@@ -46,33 +46,40 @@ export function paintCommandRecordCount(command:PaintCommand):number {
 /** Capture value arguments at recording time; frame admission revalidates untrusted commands. */
 function freezePaintCommandValue(command:PaintCommand):PaintCommand {
   const point=(value:{readonly x:number;readonly y:number})=>Object.freeze({x:finite(value.x,'x'),y:finite(value.y,'y')});
-  const clip=(value:{readonly clipOp:string;readonly doAntiAlias:boolean})=>{invariant(['intersect','difference'].includes(value.clipOp)&&typeof value.doAntiAlias==='boolean','invalid-clip','Unknown clip operation or anti-alias value');};
+  const clip=(value:{readonly clipOp:string;readonly doAntiAlias:boolean})=>{if(!(['intersect','difference'].includes(value.clipOp)&&typeof value.doAntiAlias==='boolean'))invariant(false,'invalid-clip','Unknown clip operation or anti-alias value');};
   switch(command.op){
-    case 'clear':invariant(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff,'invalid-color','ARGB must be uint32');return Object.freeze({...command});
+    case 'clear':if(!(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff))invariant(false,'invalid-color','ARGB must be uint32');return Object.freeze({...command});
     case 'save':case 'restore':return Object.freeze({...command});
     case 'drawPicture':return Object.freeze({...command,resource:resource(command.resource)});
-    case 'transform':invariant(command.matrix.length===6||command.matrix.length===16,'invalid-transform','Transform needs six affine or sixteen column-major values');for(const value of command.matrix){finite(value,'matrix');invariant(Number.isFinite(Math.fround(value)),'invalid-transform','Matrix values must fit finite SkScalar');}return Object.freeze({...command,matrix:Object.freeze([...command.matrix])});
+    case 'transform':{
+      // A stateful caller iterator must not supply different values after validation.
+      const matrix=Array.from(command.matrix);if(!(matrix.length===6||matrix.length===16))invariant(false,'invalid-transform','Transform needs six affine or sixteen column-major values');
+      for(let index=0;index<matrix.length;index++){const value=matrix[index]!;finite(value,'matrix');if(!(Number.isFinite(Math.fround(value))))invariant(false,'invalid-transform','Matrix values must fit finite SkScalar');}
+      return Object.freeze({...command,matrix:Object.freeze(matrix)});
+    }
     case 'clip':return Object.freeze({...command,rect:rect(command.rect)});
-    case 'rect':case 'rrect':invariant(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff,'invalid-color','ARGB must be uint32');if(command.op==='rrect')invariant(finite(command.radius,'radius')>=0,'invalid-radius','negative radius');return Object.freeze({...command,rect:rect(command.rect)});
+    case 'rect':case 'rrect':if(!(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff))invariant(false,'invalid-color','ARGB must be uint32');if(command.op==='rrect'){if(!(finite(command.radius,'radius')>=0))invariant(false,'invalid-radius','negative radius');}return Object.freeze({...command,rect:rect(command.rect)});
     case 'image':return Object.freeze({...command,resource:resource(command.resource),rect:rect(command.rect)});
     case 'drawImageRect':return Object.freeze({...command,resource:resource(command.resource),src:rect(command.src),dst:rect(command.dst),paint:freezePaint(command.paint)});
-    case 'drawImageNine':{const center=rect(command.center);invariant(Object.values(center).every(x=>Number.isSafeInteger(x)&&Math.abs(x)<=16777216),'invalid-image-center','Nine-patch center must fit integer SkScalar coordinates');return Object.freeze({...command,resource:resource(command.resource),center,dst:rect(command.dst),paint:freezePaint(command.paint)});}
+    case 'drawImageNine':{const center=rect(command.center);if(!(Object.values(center).every(x=>Number.isSafeInteger(x)&&Math.abs(x)<=16777216)))invariant(false,'invalid-image-center','Nine-patch center must fit integer SkScalar coordinates');return Object.freeze({...command,resource:resource(command.resource),center,dst:rect(command.dst),paint:freezePaint(command.paint)});}
     case 'paragraph':finite(command.x,'x');finite(command.y,'y');return Object.freeze({...command,resource:resource(command.resource)});
     case 'drawRect':case 'drawOval':return Object.freeze({...command,rect:rect(command.rect),paint:freezePaint(command.paint)});
-    case 'drawRRect':if('rrect'in command){invariant(!('rect'in command)&&!('radius'in command),'invalid-rrect','Ambiguous rounded geometry');return Object.freeze({...command,rrect:freezeRRect(command.rrect),paint:freezePaint(command.paint)});}invariant(finite(command.radius,'radius')>=0,'invalid-radius','negative radius');return Object.freeze({...command,rect:rect(command.rect),paint:freezePaint(command.paint)});
+    case 'drawRRect':if('rrect'in command){if(!(!('rect'in command)&&!('radius'in command)))invariant(false,'invalid-rrect','Ambiguous rounded geometry');return Object.freeze({...command,rrect:freezeRRect(command.rrect),paint:freezePaint(command.paint)});}if(!(finite(command.radius,'radius')>=0))invariant(false,'invalid-radius','negative radius');return Object.freeze({...command,rect:rect(command.rect),paint:freezePaint(command.paint)});
     case 'drawLine':return Object.freeze({...command,from:point(command.from),to:point(command.to),paint:freezePaint(command.paint)});
     case 'saveLayer':return Object.freeze({...command,bounds:command.bounds===null?null:rect(command.bounds),paint:freezePaint(command.paint)});
     case 'saveBackdropFilter':return Object.freeze({...command,paint:freezePaint(command.paint)});
     case 'clipRect':clip(command);return Object.freeze({...command,rect:rect(command.rect)});
-    case 'clipRRect':clip(command);if('rrect'in command){invariant(!('rect'in command)&&!('radius'in command),'invalid-rrect','Ambiguous rounded geometry');return Object.freeze({...command,rrect:freezeRRect(command.rrect)});}invariant(finite(command.radius,'radius')>=0,'invalid-radius','negative radius');return Object.freeze({...command,rect:rect(command.rect)});
+    case 'clipRRect':clip(command);if('rrect'in command){if(!(!('rect'in command)&&!('radius'in command)))invariant(false,'invalid-rrect','Ambiguous rounded geometry');return Object.freeze({...command,rrect:freezeRRect(command.rrect)});}if(!(finite(command.radius,'radius')>=0))invariant(false,'invalid-radius','negative radius');return Object.freeze({...command,rect:rect(command.rect)});
     case 'drawPath':return Object.freeze({...command,path:freezePath(command.path),paint:freezePaint(command.paint)});
     case 'drawPaint':return Object.freeze({...command,paint:freezePaint(command.paint)});
-    case 'drawShadow':invariant(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff,'invalid-color','ARGB must be uint32');invariant(finite(command.elevation,'elevation')>=0&&Number.isFinite(Math.fround(command.elevation))&&finite(command.devicePixelRatio,'devicePixelRatio')>0&&Math.fround(command.devicePixelRatio)>0&&Number.isFinite(Math.fround(command.devicePixelRatio))&&Number.isFinite(Math.fround(Math.fround(command.devicePixelRatio)*Math.fround(command.elevation)))&&typeof command.transparentOccluder==='boolean','invalid-shadow','Shadow elevation/DPR must fit SkScalar and the occluder flag must be boolean');return Object.freeze({...command,path:freezePath(command.path)});
+    case 'drawShadow':if(!(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff))invariant(false,'invalid-color','ARGB must be uint32');if(!(finite(command.elevation,'elevation')>=0&&Number.isFinite(Math.fround(command.elevation))&&finite(command.devicePixelRatio,'devicePixelRatio')>0&&Math.fround(command.devicePixelRatio)>0&&Number.isFinite(Math.fround(command.devicePixelRatio))&&Number.isFinite(Math.fround(Math.fround(command.devicePixelRatio)*Math.fround(command.elevation)))&&typeof command.transparentOccluder==='boolean'))invariant(false,'invalid-shadow','Shadow elevation/DPR must fit SkScalar and the occluder flag must be boolean');return Object.freeze({...command,path:freezePath(command.path)});
     case 'clipPath':clip(command);return Object.freeze({...command,path:freezePath(command.path)});
     default:throw new Error(`unsupported paint command: ${String((command as {op:string}).op)}`);
   }
 }
 const capturedCommands=new WeakSet<PaintCommand>();
+/** Internal identity check; freezing an external object alone does not validate its fields. */
+export function isCapturedPaintCommand(command:PaintCommand):boolean{return capturedCommands.has(command);}
 export function freezePaintCommand(command:PaintCommand):PaintCommand{
   // Only snapshots created here have deeply validated, immutable value fields.
   // Resource-bearing commands still need independent bindings/holds. Pure
@@ -96,26 +103,26 @@ class PaintFrameAdmission {
   private layers=0;
   private records=0;
   estimatedBytes=96;
-  constructor(length:number){invariant(length<=paintFrameLimits.commands,'oversize','Paint command budget exceeded');}
+  constructor(length:number){if(!(length<=paintFrameLimits.commands))invariant(false,'oversize','Paint command budget exceeded');}
   private addResource(value:ResourceId):void{
     const key=resourceKey(value),previous=this.resources.get(key),owner=resourceOwner(value),oldOwner=previous?resourceOwner(previous):null;
-    invariant(oldOwner===null||owner===null||owner===oldOwner,'mixed-resource-owners','A frame cannot mix registries for the same resource ID');
+    if(!(oldOwner===null||owner===null||owner===oldOwner))invariant(false,'mixed-resource-owners','A frame cannot mix registries for the same resource ID');
     if(!previous||oldOwner===null)this.resources.set(key,value);
   }
   add(command:PaintCommand):void{
     if(command.op==='save'||command.op==='saveLayer'||command.op==='saveBackdropFilter'){
-      const layer=command.op!=='save';this.stack.push(layer);if(layer)invariant(++this.layers<=paintFrameLimits.layers,'oversize','Layer nesting budget exceeded');
+      const layer=command.op!=='save';this.stack.push(layer);if(layer){if(!(++this.layers<=paintFrameLimits.layers))invariant(false,'oversize','Layer nesting budget exceeded');}
     }else if(command.op==='restore'){
-      invariant(this.stack.length>0,'unbalanced-save','restore without save');if(this.stack.pop())this.layers--;
+      if(!(this.stack.length>0))invariant(false,'unbalanced-save','restore without save');if(this.stack.pop())this.layers--;
     }
     if('resource'in command)this.addResource(command.resource);
     if('paint'in command&&command.paint.shader?.kind==='image')this.addResource(command.paint.shader.image);
     const expanded=paintCommandRecordCount(command);this.records+=expanded;this.estimatedBytes+=expanded*64;
-    invariant(this.records<=paintFrameLimits.commands&&this.estimatedBytes+this.resources.size*32<=paintFrameLimits.bytes,'oversize','Serialized paint frame budget exceeded');
+    if(!(this.records<=paintFrameLimits.commands&&this.estimatedBytes+this.resources.size*32<=paintFrameLimits.bytes))invariant(false,'oversize','Serialized paint frame budget exceeded');
   }
   finish():void{
-    invariant(this.stack.length===0,'unbalanced-save','unclosed save');this.estimatedBytes+=this.resources.size*32;
-    invariant(this.records<=paintFrameLimits.commands&&this.estimatedBytes<=paintFrameLimits.bytes,'oversize','Serialized paint frame budget exceeded');
+    if(!(this.stack.length===0))invariant(false,'unbalanced-save','unclosed save');this.estimatedBytes+=this.resources.size*32;
+    if(!(this.records<=paintFrameLimits.commands&&this.estimatedBytes<=paintFrameLimits.bytes))invariant(false,'oversize','Serialized paint frame budget exceeded');
   }
 }
 /** Internal scene replay has already captured immutable command values through Canvas. */
@@ -124,10 +131,10 @@ export function validateCapturedPaintCommands(source:readonly PaintCommand[],sta
 }
 export function freezeFrame(token: FrameBuildToken, source: readonly PaintCommand[]): PaintFrame {
  const captured:PaintCommand[]=[],errors:unknown[]=[];let result:PaintFrame|undefined;try{
-  generation(token.owner.generation); generation(token.sequence); invariant(token.owner.id.length > 0, "invalid-owner", "empty owner");
-  if(token.inputSequence!==undefined)invariant(Number.isSafeInteger(token.inputSequence)&&token.inputSequence>=0,'invalid-input-sequence','Frame input sequence must be a nonnegative safe integer');
+  generation(token.owner.generation); generation(token.sequence); if(!(token.owner.id.length > 0))invariant(false,"invalid-owner","empty owner");
+  if(token.inputSequence!==undefined){if(!(Number.isSafeInteger(token.inputSequence)&&token.inputSequence>=0))invariant(false,'invalid-input-sequence','Frame input sequence must be a nonnegative safe integer');}
   if(token.inputTimestamp!==undefined)finite(token.inputTimestamp,'input timestamp');
-  if(token.timing)invariant(Object.values(token.timing).every(Number.isFinite)&&token.timing.queueDelay>=0&&token.timing.clockUncertainty>=0,'invalid-frame-timing','Frame timing must retain finite observed clock values');
+  if(token.timing){if(!(Object.values(token.timing).every(Number.isFinite)&&token.timing.queueDelay>=0&&token.timing.clockUncertainty>=0))invariant(false,'invalid-frame-timing','Frame timing must retain finite observed clock values');}
    const length=source.length,admission=new PaintFrameAdmission(length);captured.length=length;
    // The rollback list is also the final command list. Reserve it once rather
    // than growing a second list alongside Array.map's equally large output.

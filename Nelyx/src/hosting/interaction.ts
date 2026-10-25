@@ -1,7 +1,7 @@
 import type { Disposable } from '../foundation/disposable.ts';
 import type { SemanticsNode, TextEditingValue, ViewOwner,EditingGeometry,TextInputGeometry,TextInputCharacterBounds,TextInputGeometryStamp,TextInputRangeBounds,TextInputHitOptions,TextInputHitTest } from '../ui/types.ts';
 import type {Offset} from '../ui/geometry.ts';
-import type {SemanticsAction,SemanticsTextAction} from '../ui/types.ts';
+import type {SemanticsAction,SemanticsTextAction,SemanticsRangeAction} from '../ui/types.ts';
 import type {PointerEvent,InputFocusRequest} from '../ui/input.ts';
 
 export interface EditingCapabilities {
@@ -53,6 +53,7 @@ export interface SemanticsBinding extends Disposable {update?(nodes:readonly Sem
 export interface SemanticsInputObserver {
   dispatchAction(id:string,action:SemanticsAction,perform:()=>void):void;
   dispatchTextAction?(id:string,action:SemanticsTextAction,perform:()=>void):void;
+  dispatchRangeAction?(id:string,action:SemanticsRangeAction,perform:()=>void):void;
   observePointer?(event:Omit<PointerEvent,'viewportGeneration'>):void;
 }
 export interface SemanticsHost extends Disposable {

@@ -41,7 +41,6 @@ import type {Disposable} from '../../foundation/disposable.ts';
 // Ordinary boxes retain their translation while scrolling moves an ancestor.
 // Keep one owned snapshot per child; offsets and virtual localTransform getters
 // are still read on every query, including in-place parent-data mutations.
-const boxTranslations=new WeakMap<RenderObject,{x:number;y:number;matrix:TransformMatrix}>();
 interface InputGeometryScope {readonly token:object;committed:boolean;aborted:boolean}
 interface CommittedInputGeometry {readonly scope:InputGeometryScope;readonly root:RenderObject;readonly paintVersion:number;readonly key:string;readonly value:TextInputGeometry}
 const committedInputGeometries=new WeakMap<RenderObject,CommittedInputGeometry>();
@@ -82,16 +81,16 @@ export function ContainerParentDataMixin<Base extends ParentDataConstructor>(Bas
     previousSibling:RenderObject|null=null;
     nextSibling:RenderObject|null=null;
     constructor(...args:any[]){super(...args);containerParentData.add(this);}
-    override detach():void{if(FoundationBuildMode.debug)invariant(this.previousSibling===null&&this.nextSibling===null,'linked-parent-data-detach','Pointers to siblings must be nulled before detaching ParentData.');super.detach();}
+    override detach():void{if(FoundationBuildMode.debug){if(!(this.previousSibling===null&&this.nextSibling===null))invariant(false,'linked-parent-data-detach','Pointers to siblings must be nulled before detaching ParentData.');}super.detach();}
   }
   return LinkedParentData as unknown as ContainerParentDataConstructor<Base>;
 }
 /** @internal Shared phase guard for spatial parent-data implementations. */
-export function assertParentDataOffsetMutation():void{assertOutsideRenderPaint();invariant(!layoutQueries.length,'render-mutation-during-measurement','Measurement cannot change child offsets');}
+export function assertParentDataOffsetMutation():void{assertOutsideRenderPaint();if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurement cannot change child offsets');}
 export class BoxParentData extends ParentData {
   private position:Offset=Object.freeze({x:0,y:0});
   get offset():Offset{return this.position;}
-  set offset(value:Offset){assertParentDataOffsetMutation();const {x,y}=value;invariant(Number.isFinite(x)&&Number.isFinite(y),'invalid-render-offset','Child offsets must be finite');this.position=Object.freeze({x,y});}
+  set offset(value:Offset){assertParentDataOffsetMutation();const {x,y}=value;if(!(Number.isFinite(x)&&Number.isFinite(y)))invariant(false,'invalid-render-offset','Child offsets must be finite');this.position=Object.freeze({x,y});}
 }
 export class ContainerBoxParentData<T extends RenderObject=RenderObject> extends BoxParentData {
   previousSibling:T|undefined;
@@ -116,7 +115,7 @@ function detachRenderTree(node:RenderObject,errors:unknown[]):void{
 }
 function attachRenderTree(node:RenderObject,owner:PipelineOwner):void{
   const revision=detachRevisions.get(node)??0;
-  try{node.attach(owner);invariant(node.owner===owner,'invalid-render-owner','attach must call super.attach and retain the requested pipeline');}
+  try{node.attach(owner);if(!(node.owner===owner))invariant(false,'invalid-render-owner','attach must call super.attach and retain the requested pipeline');}
   catch(error){const errors=[error];if((detachRevisions.get(node)??0)===revision)detachRenderTree(node,errors);throwFailures(errors,'Attaching render subtree failed');}
 }
 /** Explicit replacement for the source process-wide painting/scheduler pair. */
@@ -130,8 +129,8 @@ export interface PipelineOwnerOptions {
   readonly systemFonts?:SystemFontsRelayoutContext|null;readonly messenger?:SemanticsOwnerOptions['messenger'];readonly createSemanticsUpdateBuilder?:SemanticsOwnerOptions['createSemanticsUpdateBuilder'];
 }
 class _LocalSemanticsHandle extends SemanticsHandle {
-  constructor(private readonly owner:PipelineOwner,readonly listener:(()=>void)|null,private readonly release:()=>void){super(()=>{},false);if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchCreated?.('_LocalSemanticsHandle',this);if(listener!==null){invariant(owner.semanticsOwner!==null,'missing-semantics-owner','A handle requires a semantics owner');owner.semanticsOwner.addListener(listener);}}
-  override dispose():void{if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchDisposed?.(this);if(this.listener!==null&&!this.owner.debugDisposed){invariant(this.owner.semanticsOwner!==null,'missing-semantics-owner','A handle listener requires its semantics owner');this.owner.semanticsOwner.removeListener(this.listener);}this.release();}
+  constructor(private readonly owner:PipelineOwner,readonly listener:(()=>void)|null,private readonly release:()=>void){super(()=>{},false);if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchCreated?.('_LocalSemanticsHandle',this);if(listener!==null){if(!(owner.semanticsOwner!==null))invariant(false,'missing-semantics-owner','A handle requires a semantics owner');owner.semanticsOwner.addListener(listener);}}
+  override dispose():void{if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchDisposed?.(this);if(this.listener!==null&&!this.owner.debugDisposed){if(!(this.owner.semanticsOwner!==null))invariant(false,'missing-semantics-owner','A handle listener requires its semantics owner');this.owner.semanticsOwner.removeListener(this.listener);}this.release();}
 }
 export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   private currentRoot:RenderObject|undefined;
@@ -157,23 +156,23 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   requestVisualUpdate():void{if(this.onNeedVisualUpdate!==null)this.onNeedVisualUpdate();else this.manifold?.requestVisualUpdate();}
   get semanticsOwner():SemanticsOwner|null{return existingPipelineSemantics(this)?.owner??null;}
   get debugOutstandingSemanticsHandles():number{return this.outstandingSemanticsHandles;}
-  ensureSemantics({listener=null}:{readonly listener?:(()=>void)|null}={}):SemanticsHandle{invariant(!this.dead,'closed-render-pipeline','Cannot acquire semantics on a closed pipeline');if(!this.accessibilityEnabled)return SemanticsHandle._create(()=>{});this.outstandingSemanticsHandles++;this.updateSemanticsOwner();return new _LocalSemanticsHandle(this,listener,()=>{if(this.dead){if(FoundationBuildMode.debug)invariant(this.outstandingSemanticsHandles>0,'invalid-semantics-handle-count','No semantics handle remains');this.outstandingSemanticsHandles--;return;}if(FoundationBuildMode.debug)invariant(this.semanticsOwner!==null,'missing-semantics-owner','Disposing a handle requires a semantics owner');this.outstandingSemanticsHandles--;this.updateSemanticsOwner();});}
-  private readonly updateSemanticsOwner=():void=>{if(!this.accessibilityEnabled)return;if(this.explicitSemantics!==null||(this.manifold?.semanticsEnabled??false)||this.outstandingSemanticsHandles>0){if(this.semanticsOwner===null){const options=this.explicitSemantics??{...this.semanticsFactory,onSemanticsUpdate:this.onSemanticsUpdate!};invariant(options.onSemanticsUpdate!==null&&options.onSemanticsUpdate!==undefined,'missing-semantics-update','Enabling semantics requires an onSemanticsUpdate callback');const state=pipelineSemantics(this);state.enable(options,false);const created=state.owner;this.onSemanticsOwnerCreated?.();if(this.explicitSemantics!==null&&state.owner===created&&this.root)this.root.scheduleInitialSemantics();}}else if(this.semanticsOwner!==null){existingPipelineSemantics(this)!.disable();this.onSemanticsOwnerDisposed?.();}};
+  ensureSemantics({listener=null}:{readonly listener?:(()=>void)|null}={}):SemanticsHandle{if(!(!this.dead))invariant(false,'closed-render-pipeline','Cannot acquire semantics on a closed pipeline');if(!this.accessibilityEnabled)return SemanticsHandle._create(()=>{});this.outstandingSemanticsHandles++;this.updateSemanticsOwner();return new _LocalSemanticsHandle(this,listener,()=>{if(this.dead){if(FoundationBuildMode.debug){if(!(this.outstandingSemanticsHandles>0))invariant(false,'invalid-semantics-handle-count','No semantics handle remains');}this.outstandingSemanticsHandles--;return;}if(FoundationBuildMode.debug){if(!(this.semanticsOwner!==null))invariant(false,'missing-semantics-owner','Disposing a handle requires a semantics owner');}this.outstandingSemanticsHandles--;this.updateSemanticsOwner();});}
+  private readonly updateSemanticsOwner=():void=>{if(!this.accessibilityEnabled)return;if(this.explicitSemantics!==null||(this.manifold?.semanticsEnabled??false)||this.outstandingSemanticsHandles>0){if(this.semanticsOwner===null){const options=this.explicitSemantics??{...this.semanticsFactory,onSemanticsUpdate:this.onSemanticsUpdate!};if(!(options.onSemanticsUpdate!==null&&options.onSemanticsUpdate!==undefined))invariant(false,'missing-semantics-update','Enabling semantics requires an onSemanticsUpdate callback');const state=pipelineSemantics(this);state.enable(options,false);const created=state.owner;this.onSemanticsOwnerCreated?.();if(this.explicitSemantics!==null&&state.owner===created&&this.root)this.root.scheduleInitialSemantics();}}else if(this.semanticsOwner!==null){existingPipelineSemantics(this)!.disable();this.onSemanticsOwnerDisposed?.();}};
   /** App/View ownership supplies the update sink and optional application messenger. */
-  enableSemantics(options:SemanticsOwnerOptions):void{if(!this.accessibilityEnabled)return;invariant(!this.dead&&this.explicitSemantics===null&&this.semanticsOwner===null,'closed-render-pipeline','Cannot duplicate or enable semantics on a closed pipeline');this.explicitSemantics=options;this.updateSemanticsOwner();}
+  enableSemantics(options:SemanticsOwnerOptions):void{if(!this.accessibilityEnabled)return;if(!(!this.dead&&this.explicitSemantics===null&&this.semanticsOwner===null))invariant(false,'closed-render-pipeline','Cannot duplicate or enable semantics on a closed pipeline');this.explicitSemantics=options;this.updateSemanticsOwner();}
   disableSemantics():void{this.explicitSemantics=null;this.updateSemanticsOwner();}
-  flushSemantics():void{invariant(!this.dead&&!this.flushingLayout&&!this.flushingSemantics&&!this.changingRoot&&!treeTransitions.has(this)&&!layoutQueries.length,'invalid-semantics-flush','Semantics flush requires an idle live pipeline');if(this.semanticsOwner===null)return;this.flushingSemantics=true;try{existingPipelineSemantics(this)!.flush();}finally{this.flushingSemantics=false;}}
-  attach(manifold:PipelineManifold):void{invariant(!this.dead&&this.manifold===null,'attached-render-pipeline','Pipeline must be live and detached');this.manifold=manifold;manifold.addListener(this.updateSemanticsOwner);this.updateSemanticsOwner();this.visitChildren(child=>child.attach(manifold));}
-  detach():void{invariant(this.manifold!==null,'detached-render-pipeline','Pipeline has no manifold');this.manifold.removeListener(this.updateSemanticsOwner);this.manifold=null;this.visitChildren(child=>child.detach());}
-  adoptChild(child:PipelineOwner):void{assertOutsideRenderPaint();invariant(!this.dead&&!child.dead&&child.parentOwner===null&&!this.childOwners.has(child),'invalid-child-pipeline','A live child pipeline must be unparented');if(FoundationBuildMode.debug)invariant(!this.flushingChildLayout&&!this.flushingSemantics,'pipeline-child-mutation','Cannot modify the child pipeline list while flushing children');for(let parent:PipelineOwner|null=this;parent;parent=parent.parentOwner)invariant(parent!==child,'cyclic-pipeline-tree','A pipeline cannot adopt its ancestor');this.childOwners.add(child);this.childRevision++;child.parentOwner=this;if(this.manifold!==null)child.attach(this.manifold);}
-  dropChild(child:PipelineOwner):void{assertOutsideRenderPaint();invariant(child.parentOwner===this&&this.childOwners.has(child),'invalid-child-pipeline','The pipeline does not own this child');if(FoundationBuildMode.debug)invariant(!this.flushingChildLayout&&!this.flushingSemantics,'pipeline-child-mutation','Cannot modify the child pipeline list while flushing children');this.childOwners.delete(child);this.childRevision++;child.parentOwner=null;if(this.manifold!==null)child.detach();}
+  flushSemantics():void{if(!(!this.dead&&!this.flushingLayout&&!this.flushingSemantics&&!this.changingRoot&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'invalid-semantics-flush','Semantics flush requires an idle live pipeline');if(this.semanticsOwner===null)return;this.flushingSemantics=true;try{existingPipelineSemantics(this)!.flush();}finally{this.flushingSemantics=false;}}
+  attach(manifold:PipelineManifold):void{if(!(!this.dead&&this.manifold===null))invariant(false,'attached-render-pipeline','Pipeline must be live and detached');this.manifold=manifold;manifold.addListener(this.updateSemanticsOwner);this.updateSemanticsOwner();this.visitChildren(child=>child.attach(manifold));}
+  detach():void{if(!(this.manifold!==null))invariant(false,'detached-render-pipeline','Pipeline has no manifold');this.manifold.removeListener(this.updateSemanticsOwner);this.manifold=null;this.visitChildren(child=>child.detach());}
+  adoptChild(child:PipelineOwner):void{assertOutsideRenderPaint();if(!(!this.dead&&!child.dead&&child.parentOwner===null&&!this.childOwners.has(child)))invariant(false,'invalid-child-pipeline','A live child pipeline must be unparented');if(FoundationBuildMode.debug){if(!(!this.flushingChildLayout&&!this.flushingSemantics))invariant(false,'pipeline-child-mutation','Cannot modify the child pipeline list while flushing children');}for(let parent:PipelineOwner|null=this;parent;parent=parent.parentOwner){if(!(parent!==child))invariant(false,'cyclic-pipeline-tree','A pipeline cannot adopt its ancestor');}this.childOwners.add(child);this.childRevision++;child.parentOwner=this;if(this.manifold!==null)child.attach(this.manifold);}
+  dropChild(child:PipelineOwner):void{assertOutsideRenderPaint();if(!(child.parentOwner===this&&this.childOwners.has(child)))invariant(false,'invalid-child-pipeline','The pipeline does not own this child');if(FoundationBuildMode.debug){if(!(!this.flushingChildLayout&&!this.flushingSemantics))invariant(false,'pipeline-child-mutation','Cannot modify the child pipeline list while flushing children');}this.childOwners.delete(child);this.childRevision++;child.parentOwner=null;if(this.manifold!==null)child.detach();}
   visitChildren(visitor:PipelineOwnerVisitor):void{const revision=this.childRevision;for(const child of this.childOwners){visitor(child);if(revision!==this.childRevision){const error=new Error('Pipeline children changed during iteration');error.name='ConcurrentModificationError';throw error;}}}
   override debugDescribeChildren():readonly DiagnosticsNode[]{return [...this.childOwners].map(child=>child.toDiagnosticsNode());}
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('rootNode',this.rootNode??null,{defaultValue:null}));}
   setRoot(root:RenderObject|undefined):void {
     assertOutsideRenderPaint();
-    invariant(!this.dead&&!this.changingRoot&&!this.flushingLayout&&!treeTransitions.has(this)&&!layoutQueries.length,'invalid-pipeline-mutation','Pipeline is closed, active or being measured');
-    invariant(!root?.parent&&!root?.debugDisposed&&(!root?.owner||root.owner===this),'invalid-render-root','Root must be a live unparented render object in this pipeline');
+    if(!(!this.dead&&!this.changingRoot&&!this.flushingLayout&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'invalid-pipeline-mutation','Pipeline is closed, active or being measured');
+    if(!(!root?.parent&&!root?.debugDisposed&&(!root?.owner||root.owner===this)))invariant(false,'invalid-render-root','Root must be a live unparented render object in this pipeline');
     if(this.currentRoot===root&&(!root||root.owner===this))return;
     this.changingRoot=true;
     try{
@@ -184,13 +183,13 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
       attempt(errors,this.invalidate);throwFailures(errors,'Replacing pipeline root failed');
     }finally{this.changingRoot=false;}
   }
-  requestLayout(node:RenderObject):void{assertOutsideRenderPaint();invariant(!this.dead&&node.owner===this,'invalid-render-owner','Layout request requires this live pipeline');if(!this.dirtyLayout.has(node)){this.dirtyLayout.add(node);this.invalidate();}}
+  requestLayout(node:RenderObject):void{assertOutsideRenderPaint();if(!(!this.dead&&node.owner===this))invariant(false,'invalid-render-owner','Layout request requires this live pipeline');if(!this.dirtyLayout.has(node)){this.dirtyLayout.add(node);this.invalidate();}}
   /** @internal Callback nodes must update even when an ancestor skips their layout. */
-  requestLayoutCallback(node:RenderObject):void{assertOutsideRenderPaint();invariant(!this.dead&&node.owner===this,'invalid-render-owner','Layout callback requires this live pipeline');this.layoutCallbacks.add(node);}
+  requestLayoutCallback(node:RenderObject):void{assertOutsideRenderPaint();if(!(!this.dead&&node.owner===this))invariant(false,'invalid-render-owner','Layout callback requires this live pipeline');this.layoutCallbacks.add(node);}
   flushLayout(size?:Size):void {
     assertOutsideRenderPaint();
-    invariant(!this.dead&&!this.flushingLayout&&!this.changingRoot&&!treeTransitions.has(this)&&!layoutQueries.length,'reentrant-layout-flush','Pipeline is closed or layout/root mutation/measurement is active');this.flushingLayout=true;
-    try{if(this.root){if(size){invariant(this.root instanceof RenderBox,'invalid-render-root','View layout requires a RenderBox root');this.root.layout(BoxConstraints.tight(size));}else if(this.root.needsLayout)this.root.layoutWithoutResize();}
+    if(!(!this.dead&&!this.flushingLayout&&!this.changingRoot&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'reentrant-layout-flush','Pipeline is closed or layout/root mutation/measurement is active');this.flushingLayout=true;
+    try{if(this.root){if(size){if(!(this.root instanceof RenderBox))invariant(false,'invalid-render-root','View layout requires a RenderBox root');this.root.layout(BoxConstraints.tight(size));}else if(this.root.needsLayout)this.root.layoutWithoutResize();}
       let passes=0;
       while(this.dirtyLayout.size||this.layoutCallbacks.size){
         // Covered theaters keep attached LayoutBuilders and their isolated
@@ -200,7 +199,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
           .filter(node=>node.owner!==this||!node.needsLayout||!node.layoutSuppressedByAncestor)
           .sort((a,b)=>a.depth-b.depth);
         if(!nodes.length)break;
-        invariant(++passes<=30,'layout-did-not-converge','Layout remained dirty after 30 passes');
+        if(!(++passes<=30))invariant(false,'layout-did-not-converge','Layout remained dirty after 30 passes');
         const callbacks=new Set(nodes.filter(node=>this.layoutCallbacks.has(node)));
         for(const node of nodes){this.dirtyLayout.delete(node);this.layoutCallbacks.delete(node);}
         for(let index=0;index<nodes.length;index++){
@@ -212,10 +211,10 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
       }
       const deferred=FoundationBuildMode.debug?new Set(this.dirtyLayout):null;
       this.flushingChildLayout=true;this.visitChildren(child=>child.flushLayout());
-      if(deferred)invariant([...this.dirtyLayout].every(node=>deferred.has(node)),'child-dirtied-parent-layout','Child PipelineOwners must not dirty nodes in their parent');
+      if(deferred){if(!([...this.dirtyLayout].every(node=>deferred.has(node))))invariant(false,'child-dirtied-parent-layout','Child PipelineOwners must not dirty nodes in their parent');}
     }finally{this.flushingLayout=false;this.flushingChildLayout=false;}
   }
-  dispose():void {assertOutsideRenderPaint();if(this.dead)return;invariant(!this.changingRoot&&!this.flushingLayout&&!this.flushingSemantics&&!treeTransitions.has(this)&&!layoutQueries.length,'invalid-pipeline-mutation','Cannot dispose an active pipeline');invariant(this.childOwners.size===0&&this.manifold===null&&this.parentOwner===null,'attached-render-pipeline','Drop child pipelines and detach the manifold before disposing');if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchDisposed?.(this);const errors:unknown[]=[];this.explicitSemantics=null;attempt(errors,()=>existingPipelineSemantics(this)?.disable());this.dead=true;const root=this.currentRoot;this.currentRoot=undefined;this.dirtyLayout.clear();this.layoutCallbacks.clear();if(root)detachRenderTree(root,errors);throwFailures(errors,'Pipeline teardown failed');}
+  dispose():void {assertOutsideRenderPaint();if(this.dead)return;if(!(!this.changingRoot&&!this.flushingLayout&&!this.flushingSemantics&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'invalid-pipeline-mutation','Cannot dispose an active pipeline');if(!(this.childOwners.size===0&&this.manifold===null&&this.parentOwner===null))invariant(false,'attached-render-pipeline','Drop child pipelines and detach the manifold before disposing');if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchDisposed?.(this);const errors:unknown[]=[];this.explicitSemantics=null;attempt(errors,()=>existingPipelineSemantics(this)?.disable());this.dead=true;const root=this.currentRoot;this.currentRoot=undefined;this.dirtyLayout.clear();this.layoutCallbacks.clear();if(root)detachRenderTree(root,errors);throwFailures(errors,'Pipeline teardown failed');}
 }
 interface ChildEntry {previous:RenderObject|undefined;next:RenderObject|undefined}
 const emptyRenderChildren:readonly RenderObject[]=Object.freeze([]);
@@ -268,6 +267,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** Source render targets override this; the Root bridges onPointer separately. */
   handleEvent(_event:SourcePointerEvent,_entry:SourceHitTestEntry):void{}
   paintVersion=0;
+  /** The edge cache has exactly the same lifetime as its render child. */
+  private boxTranslation:{x:number;y:number;matrix:TransformMatrix}|undefined;
   /** Local recording changes stop at the nearest boundary; paintVersion still
    * tracks the entire subtree for geometry and raster snapshot validity. */
   paintContentsVersion=0;
@@ -304,7 +305,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   get needsLayout():boolean{return this.layoutDirty;}
   get debugDisposed():boolean{return this.dead;}
   get depth():number{return this.renderDepth;}
-  get constraints():Constraints{invariant(this.lastConstraints,'missing-constraints','Render object has not received constraints');return this.lastConstraints;}
+  get constraints():Constraints{if(!(this.lastConstraints))invariant(false,'missing-constraints','Render object has not received constraints');return this.lastConstraints;}
   get debugNeedsLayout():boolean{return this.needsLayout;}
   get debugDoingThisLayout():boolean{return this.doingLayout;}
   protected get hasLayoutConstraints():boolean{return this.lastConstraints!==undefined;}
@@ -322,15 +323,15 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   protected invalidateLayoutMeasurements():void{this.assertCanMutateLayoutProperty();const visited=new Set<RenderObject>(),errors:unknown[]=[],pending:RenderObject[]=[this];while(pending.length){const node=pending.pop()!;if(visited.has(node)||node.dead)continue;visited.add(node);attempt(errors,()=>node.clearCachedLayoutData());if(node.layoutDependents)for(const dependent of node.layoutDependents)pending.push(dependent);}throwFailures(errors,'Measurement cache invalidation failed');}
   /** Layout properties must reject changes before mutating state during measurement or a tree transition. */
   private layoutMutationAllowed():boolean{if(!activeLayout||!this.owner&&!this.parent?.owner)return true;const scope=activeLayoutCallbacks.at(-1);if(!scope||this.owner!==scope.owner)return false;let node:RenderObject|undefined=this;while(node){if(node===scope.root)return true;node=node.parent;}return this.needsLayout&&!this.doingLayout;}
-  protected assertCanMutateLayoutProperty():void{assertOutsideRenderPaint();invariant(!this.dead&&(!this.doingLayout||this.doingLayoutCallback)&&this.layoutMutationAllowed()&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&!layoutQueries.length,'invalid-layout-property-update','Cannot update layout properties on a disposed, active or measured render object');}
+  protected assertCanMutateLayoutProperty():void{assertOutsideRenderPaint();if(!(!this.dead&&(!this.doingLayout||this.doingLayoutCallback)&&this.layoutMutationAllowed()&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&!layoutQueries.length))invariant(false,'invalid-layout-property-update','Cannot update layout properties on a disposed, active or measured render object');}
   /** Rebuild a dirty subtree only inside this live object's active layout. */
-  protected invokeLayoutCallback<T extends Constraints>(callback:(constraints:T)=>void):void{assertOutsideRenderPaint();const owner=this.owner;invariant(!this.dead&&this.doingLayout&&!this.doingLayoutCallback&&!layoutQueries.length&&owner&&!owner.debugDisposed,'invalid-layout-callback','Layout callback requires a live attached object performing layout');this.doingLayoutCallback=true;activeLayoutCallbacks.push({root:this,owner});try{callback(this.constraints as T);}finally{activeLayoutCallbacks.pop();this.doingLayoutCallback=false;}}
+  protected invokeLayoutCallback<T extends Constraints>(callback:(constraints:T)=>void):void{assertOutsideRenderPaint();const owner=this.owner;if(!(!this.dead&&this.doingLayout&&!this.doingLayoutCallback&&!layoutQueries.length&&owner&&!owner.debugDisposed))invariant(false,'invalid-layout-callback','Layout callback requires a live attached object performing layout');this.doingLayoutCallback=true;activeLayoutCallbacks.push({root:this,owner});try{callback(this.constraints as T);}finally{activeLayoutCallbacks.pop();this.doingLayoutCallback=false;}}
   protected dependOnLayoutOf(source:RenderObject):void{if(source!==this){(this.layoutDependencies??=new Set()).add(source);(source.layoutDependents??=new Set()).add(this);}}
   protected registerLayoutQuery():void{const caller=layoutQueries.at(-1)?.render??activeLayout;caller?.dependOnLayoutOf(this);}
   private clearLayoutDependencies():void{const dependencies=this.layoutDependencies;if(!dependencies)return;for(const source of dependencies)source.layoutDependents?.delete(this);dependencies.clear();}
   protected runLayout(constraints:Constraints,options:LayoutOptions,perform?:()=>void):void{
     assertOutsideRenderPaint();
-    invariant(!this.dead&&!this.doingLayout&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition,'reentrant-layout','Layout on disposed, active or transitioning render object');invariant(!layoutQueries.length,'wet-layout-during-measurement','Dry/intrinsic measurement cannot invoke wet layout');constraints.debugAssertIsValid({isAppliedConstraint:true});
+    if(!(!this.dead&&!this.doingLayout&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition))invariant(false,'reentrant-layout','Layout on disposed, active or transitioning render object');if(!(!layoutQueries.length))invariant(false,'wet-layout-during-measurement','Dry/intrinsic measurement cannot invoke wet layout');constraints.debugAssertIsValid({isAppliedConstraint:true});
     this.parentUsesSize=options.parentUsesSize??false;this.boundary=!this.parentUsesSize||this.sizedByParent||constraints.isTight||!this.parent;
     const same=this.lastConstraints!==undefined&&constraints.equals(this.lastConstraints);
     if(!this.needsLayout&&same)return;this.clearCachedLayoutData();this.clearLayoutDependencies();this.lastConstraints=constraints;
@@ -340,19 +341,23 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   /** Pipeline-only re-layout preserves the parent's size dependency. */
   layoutWithoutResize():void{if(this.lastConstraints)this.layout(this.lastConstraints,{parentUsesSize:this.parentUsesSize});}
-  markParentNeedsLayout():void{invariant(this.parent,'missing-render-parent','Parent layout requires a parent');this.markNeedsLayout();if(this.boundary===true)this.parent.markNeedsLayout();}
+  markParentNeedsLayout():void{if(!(this.parent))invariant(false,'missing-render-parent','Parent layout requires a parent');this.markNeedsLayout();if(this.boundary===true)this.parent.markNeedsLayout();}
   markNeedsLayoutForSizedByParentChange():void{if(this.parent)this.markParentNeedsLayout();else this.markNeedsLayout();}
   protected get childCountLimit():number{return Infinity;}
   setupParentData(child:RenderObject):void{if(!(child.parentData instanceof ParentData))child.parentData=new ParentData();}
   private validateChild(child:RenderObject):void{
-    invariant(!this.dead&&!child.dead&&!child.treeTransition,'disposed-render-object','Render child is disposed or changing parents');
-    invariant(child!==this&&!this.hasAncestor(child),'render-cycle','Render child would create a cycle');
-    invariant(!child.parent||child.parent===this,'render-parent','Render child already has a parent');
-    invariant(child.parent===this?child.owner===this.owner:!child.owner,'render-owner','An attached root cannot be adopted; retained children must share their parent pipeline');
+    if(!(!this.dead&&!child.dead&&!child.treeTransition))invariant(false,'disposed-render-object','Render child is disposed or changing parents');
+    // Actual render ancestors share their pipeline, including undefined while
+    // detached. A detach hook can observe an ancestor whose owner is already
+    // cleared, so that transition still needs the complete cycle check.
+    const distinctOwners=this.pipelineOwner!==child.pipelineOwner&&!child.changingAttachment;
+    if(!(child!==this&&(distinctOwners||!this.hasAncestor(child))))invariant(false,'render-cycle','Render child would create a cycle');
+    if(!(!child.parent||child.parent===this))invariant(false,'render-parent','Render child already has a parent');
+    if(!(child.parent===this?child.owner===this.owner:!child.owner))invariant(false,'render-owner','An attached root cannot be adopted; retained children must share their parent pipeline');
   }
-  protected adoptChild(child:RenderObject):void{invariant(!child.parent,'render-parent','Adopt requires an unparented child');this.setupParentData(child);child.renderParent=this;this.changeInputGeometryWork(child.inputGeometrySubtreeWork);child.layoutDirty=true;child.boundary=undefined;if(this.owner)attachRenderTree(child,this.owner);this.redepthChild(child);}
-  protected dropChild(child:RenderObject):void{invariant(child.parent===this,'render-parent','Drop requires a child of this render object');const errors:unknown[]=[];this.releaseChild(child,errors);throwFailures(errors,'Dropping render child failed');}
-  protected redepthChild(child:RenderObject):void{invariant(child.parent===this&&child.owner===this.owner,'render-parent','Redepth requires this parent and pipeline');if(child.renderDepth<=this.renderDepth){child.renderDepth=this.renderDepth+1;child.redepthChildren();}}
+  protected adoptChild(child:RenderObject):void{if(!(!child.parent))invariant(false,'render-parent','Adopt requires an unparented child');this.setupParentData(child);child.renderParent=this;this.changeInputGeometryWork(child.inputGeometrySubtreeWork);child.layoutDirty=true;child.boundary=undefined;if(this.owner)attachRenderTree(child,this.owner);this.redepthChild(child);}
+  protected dropChild(child:RenderObject):void{if(!(child.parent===this))invariant(false,'render-parent','Drop requires a child of this render object');const errors:unknown[]=[];this.releaseChild(child,errors);throwFailures(errors,'Dropping render child failed');}
+  protected redepthChild(child:RenderObject):void{if(!(child.parent===this&&child.owner===this.owner))invariant(false,'render-parent','Redepth requires this parent and pipeline');if(child.renderDepth<=this.renderDepth){child.renderDepth=this.renderDepth+1;child.redepthChildren();}}
   redepthChildren():void{for(const child of this.children)this.redepthChild(child);}
   private releaseChild(child:RenderObject,errors:unknown[],alreadyDetached=false):void{
     attempt(errors,()=>child.parentData?.detach());child.parentData=undefined;if(child.parent===this)this.changeInputGeometryWork(-child.inputGeometrySubtreeWork);child.renderParent=undefined;
@@ -364,7 +369,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   private adoptForMutation(child:RenderObject):void{
     const previous=child.parentData,revision=detachRevisions.get(child)??0;child.treeTransition=true;
-    try{this.adoptChild(child);invariant(child.parent===this&&child.owner===this.owner&&child.parentData,'invalid-render-adoption','adoptChild must establish parent data, parent and pipeline');}
+    try{this.adoptChild(child);if(!(child.parent===this&&child.owner===this.owner&&child.parentData))invariant(false,'invalid-render-adoption','adoptChild must establish parent data, parent and pipeline');}
     catch(error){const errors=[error];this.releaseChild(child,errors,!child.attached&&(detachRevisions.get(child)??0)!==revision);child.parentData=previous;throwFailures(errors,'Render child adoption failed');}
     finally{child.treeTransition=false;}
   }
@@ -375,7 +380,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   private mutateChildren(callback:(errors:unknown[])=>void):void{
     assertOutsideRenderPaint();
-    invariant(!this.dead&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&(!this.doingLayout||this.doingLayoutCallback)&&this.layoutMutationAllowed()&&!layoutQueries.length,'invalid-render-mutation','Render tree mutation requires an idle object or its authorized layout callback');
+    if(!(!this.dead&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&(!this.doingLayout||this.doingLayoutCallback)&&this.layoutMutationAllowed()&&!layoutQueries.length))invariant(false,'invalid-render-mutation','Render tree mutation requires an idle object or its authorized layout callback');
     this.changingChildren=true;const errors:unknown[]=[],leave=enterTreeTransition(this.owner);
     try{callback(errors);}catch(error){errors.push(error);}finally{this.changingChildren=false;leave();}
     throwFailures(errors,'Render child mutation failed');
@@ -401,26 +406,26 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   insert(child:RenderObject,after?:RenderObject):void{
     this.mutateChildren(errors=>{
-    this.validateChild(child);invariant(!child.parent&&!this.entries.has(child),'duplicate-render-child','Insert requires an unparented child');
-    invariant(this.entries.size<this.childCountLimit,'invalid-render-child','Render object child capacity exceeded');
-    invariant(!after||this.entries.has(after),'invalid-render-slot','Previous sibling is not a child');this.adoptForMutation(child);this.linkChild(child,after);attempt(errors,()=>this.markNeedsLayout());});
+    this.validateChild(child);if(!(!child.parent&&!this.entries.has(child)))invariant(false,'duplicate-render-child','Insert requires an unparented child');
+    if(!(this.entries.size<this.childCountLimit))invariant(false,'invalid-render-child','Render object child capacity exceeded');
+    if(!(!after||this.entries.has(after)))invariant(false,'invalid-render-slot','Previous sibling is not a child');this.adoptForMutation(child);this.linkChild(child,after);attempt(errors,()=>this.markNeedsLayout());});
   }
   move(child:RenderObject,after?:RenderObject):void{
     this.mutateChildren(errors=>{
-    invariant(!this.dead&&this.entries.has(child)&&child.parent===this,'invalid-render-child','Move requires an attached child');
-    invariant(child!==after&&(!after||this.entries.has(after)),'invalid-render-slot','Move requires a distinct previous sibling in this parent');
+    if(!(!this.dead&&this.entries.has(child)&&child.parent===this))invariant(false,'invalid-render-child','Move requires an attached child');
+    if(!(child!==after&&(!after||this.entries.has(after))))invariant(false,'invalid-render-slot','Move requires a distinct previous sibling in this parent');
     if(this.entries.get(child)!.previous===after)return;this.unlink(child);this.linkChild(child,after);attempt(errors,()=>this.markNeedsLayout());});
   }
   remove(child:RenderObject):void{
     this.mutateChildren(errors=>{
-    invariant(!this.dead&&this.entries.has(child)&&child.parent===this,'invalid-render-child','Remove requires a child of this parent');
+    if(!(!this.dead&&this.entries.has(child)&&child.parent===this))invariant(false,'invalid-render-child','Remove requires a child of this parent');
     this.unlink(child);this.entries.delete(child);this.entries.snapshot=undefined;this.dropForMutation(child,errors);attempt(errors,()=>this.markNeedsLayout());});
   }
   setChildren(values:readonly RenderObject[]):void {
     this.mutateChildren(errors=>{const children=[...values];
-    invariant(!this.dead,'disposed-render-object','Mutating a disposed render object');
-    invariant(children.length<=this.childCountLimit,'invalid-render-child','Render object child capacity exceeded');
-    const childSet=children.length>1?new Set(children):undefined;invariant(childSet===undefined||childSet.size===children.length,'duplicate-render-child','Render child attached twice');
+    if(!(!this.dead))invariant(false,'disposed-render-object','Mutating a disposed render object');
+    if(!(children.length<=this.childCountLimit))invariant(false,'invalid-render-child','Render object child capacity exceeded');
+    const childSet=children.length>1?new Set(children):undefined;if(!(childSet===undefined||childSet.size===children.length))invariant(false,'duplicate-render-child','Render child attached twice');
     for(const child of children)this.validateChild(child);
     const previous=this.children;if(children.length===previous.length&&children.every((child,index)=>child===previous[index]))return;
     let added:RenderObject[]|undefined,data:Map<RenderObject,ParentData|undefined>|undefined;
@@ -433,7 +438,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   visitChildren(visitor:(child:RenderObject)=>void):void{const children=this.children;for(let i=0;i<children.length;i++)visitor(children[i]!);}
   /** Source paint-visibility hook, specialized by Offstage, opacity and slivers. */
-  paintsChild(child:RenderObject):boolean{invariant(child.parent===this,'invalid-paints-child','Paint visibility requires a direct child');return true;}
+  paintsChild(child:RenderObject):boolean{if(!(child.parent===this))invariant(false,'invalid-paints-child','Paint visibility requires a direct child');return true;}
   /** Overlay theaters retain covered subtrees without scheduling their layout.
    * Ordinary Offstage still lays out its child for explicit measurement. */
   laysOutChild(_child:RenderObject):boolean{return true;}
@@ -441,7 +446,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private hasAncestor(candidate:RenderObject):boolean {let ancestor=this.parent;while(ancestor){if(ancestor===candidate)return true;ancestor=ancestor.parent;}return false;}
   attach(owner:PipelineOwner):void {
     assertOutsideRenderPaint();
-    invariant(!this.dead&&!owner.debugDisposed&&!this.changingAttachment&&!layoutQueries.length&&(!this.owner||this.owner===owner)&&(!this.parent||this.parent.owner===owner),'invalid-render-owner','Render object or pipeline is disposed, active or has incompatible ownership');if(this.owner===owner)return;
+    if(!(!this.dead&&!owner.debugDisposed&&!this.changingAttachment&&!layoutQueries.length&&(!this.owner||this.owner===owner)&&(!this.parent||this.parent.owner===owner)))invariant(false,'invalid-render-owner','Render object or pipeline is disposed, active or has incompatible ownership');if(this.owner===owner)return;
     this.changingAttachment=true;const leave=enterTreeTransition(owner);this.pipelineOwner=owner;this.layoutDirty=true;this.boundary=undefined;committedInputGeometries.delete(this);
     try{this.refreshInputGeometryWork();this.clearCachedLayoutData();for(const child of this.children)attachRenderTree(child,owner);if(owner.semanticsOwner){
       // Source attach schedules dirty semantic boundaries. Ordinary newly
@@ -453,25 +458,33 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   detach():void {
     assertOutsideRenderPaint();
-    invariant(!this.changingAttachment&&!layoutQueries.length&&(!this.parent?.owner||recoveringDetach.has(this)),'invalid-render-owner','Detach the parent before its child; attachment and measurement must be idle');
+    if(!(!this.changingAttachment&&!layoutQueries.length&&(!this.parent?.owner||recoveringDetach.has(this))))invariant(false,'invalid-render-owner','Detach the parent before its child; attachment and measurement must be idle');
     this.changingAttachment=true;detachRevisions.set(this,(detachRevisions.get(this)??0)+1);const owner=this.owner,errors:unknown[]=[],leave=enterTreeTransition(owner);this.pipelineOwner=undefined;this.boundary=undefined;this.layoutDirty=true;committedInputGeometries.delete(this);layoutQueues.get(owner!)?.delete(this);layoutCallbackQueues.get(owner!)?.delete(this);
     if(owner)existingPipelineSemantics(owner)?.detached(this);
     try{attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();for(const child of this.children)detachRenderTree(child,errors);}
     finally{this.changingAttachment=false;leave();}throwFailures(errors,'Detaching render tree failed');
   }
-  private invalidateLayout(visited:Set<RenderObject>,errors:unknown[]):void{
-    if(visited.has(this))return;visited.add(this);if(this.dead){errors.push(new Error('Layout dependency refers to a disposed render object'));return;}if(this.doingLayoutCallback){attempt(errors,()=>this.clearCachedLayoutData());return;}const wasDirty=this.layoutDirty;this.layoutDirty=true;this.layoutRevision++;this.paintVersion++;attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();
-    if(this.layoutDependents)for(const dependent of [...this.layoutDependents])dependent.invalidateLayout(visited,errors);
+  private invalidateLayout(visited:Set<RenderObject>|undefined,errors:unknown[]|undefined):unknown[]|undefined{
+    if(visited?.has(this))return errors;visited?.add(this);if(this.dead){(errors??=[]).push(new Error('Layout dependency refers to a disposed render object'));return errors;}
+    if(this.doingLayoutCallback){try{this.clearCachedLayoutData();}catch(error){(errors??=[]).push(error);}return errors;}
+    const wasDirty=this.layoutDirty;this.layoutDirty=true;this.layoutRevision++;this.paintVersion++;
+    try{this.clearCachedLayoutData();}catch(error){(errors??=[]).push(error);}this.clearLayoutDependencies();
+    if(this.layoutDependents)for(const dependent of [...this.layoutDependents]){
+      // A lone dirty leaf (or an active layout callback) needs no visit table.
+      // The first traversed edge must include this root before any backedge.
+      if(!visited){visited=new Set();visited.add(this);}errors=dependent.invalidateLayout(visited,errors);
+    }
     if(this.parent&&this.boundary!==true){
       // The first invalidation already scheduled the size-dependent ancestor
       // chain. Wheel bursts and multi-property Widget updates can invalidate a
       // child repeatedly before layout; do not walk that chain for every input.
       // Query dependents above are still refreshed even while dirty. Active
       // layout and a clean parent must also observe a subsequent invalidation.
-      if(!wasDirty||this.doingLayout||!this.parent.needsLayout)this.parent.invalidateLayout(visited,errors);
-    }else if(this.owner&&!this.owner.debugDisposed)attempt(errors,()=>this.owner!.requestLayout(this));
+      if(!wasDirty||this.doingLayout||!this.parent.needsLayout){if(!visited){visited=new Set();visited.add(this);}errors=this.parent.invalidateLayout(visited,errors);}
+    }else if(this.owner&&!this.owner.debugDisposed){try{this.owner!.requestLayout(this);}catch(error){(errors??=[]).push(error);}}
+    return errors;
   }
-  markNeedsLayout():void {assertOutsideRenderPaint();invariant(!this.dead&&!layoutQueries.length,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate layout');const errors:unknown[]=[];this.invalidateLayout(new Set(),errors);throwFailures(errors,'Layout invalidation failed');}
+  markNeedsLayout():void {assertOutsideRenderPaint();if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate layout');const errors=this.invalidateLayout(undefined,undefined);if(errors)throwFailures(errors,'Layout invalidation failed');}
   markNeedsPaint():void {this.invalidatePaint(true);}
   /** A delegate repaint signal changes pixels; its semantic contract is separate. */
   protected markNeedsPaintOnly():void {this.invalidatePaint(false);}
@@ -491,7 +504,17 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     if(owner?.semanticsOwner&&state&&!state.parentDataDirty){state.geometry=null;pipelineSemantics(owner).offsetChanged(this);this.markNeedsPaintOnly();}
     else this.markNeedsPaint();
   }
-  private invalidatePaint(updateSemantics:boolean):void {invariant(!this.dead&&!layoutQueries.length,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate paint');let owner:PipelineOwner|undefined,contents=true;for(let node:RenderObject|undefined=this;node;node=node.parent){node.paintVersion++;if(contents)node.paintContentsVersion++;if(node.isRepaintBoundary)contents=false;if(!owner&&node.owner&&!node.owner.debugDisposed)owner=node.owner;}const errors:unknown[]=[];if(updateSemantics&&this.owner?.semanticsOwner)attempt(errors,()=>RenderObject.prototype.markNeedsSemanticsUpdate.call(this));if(owner)attempt(errors,owner.invalidate);throwFailures(errors,'Paint invalidation failed');}
+  private invalidatePaint(updateSemantics:boolean):void {
+    if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate paint');let owner:PipelineOwner|undefined,contents=true;
+    for(let node:RenderObject|undefined=this;node;node=node.parent){node.paintVersion++;if(contents)node.paintContentsVersion++;if(node.isRepaintBoundary)contents=false;if(!owner&&node.owner&&!node.owner.debugDisposed)owner=node.owner;}
+    // Successful invalidations need no error array or per-node closures. Keep
+    // collecting failures only when a hook actually throws, without skipping
+    // the host wakeup or changing its bare callback receiver/getter ordering.
+    let errors:unknown[]|undefined;
+    if(updateSemantics&&this.owner?.semanticsOwner)try{RenderObject.prototype.markNeedsSemanticsUpdate.call(this);}catch(error){errors=[error];}
+    if(owner){const callback=owner.invalidate;try{callback();}catch(error){(errors??=[]).push(error);}}
+    if(errors)throwFailures(errors,'Paint invalidation failed');
+  }
   private invalidationOwner():PipelineOwner|undefined{
     // Adoption/attachment require one PipelineOwner throughout a render parent
     // chain. Child pipeline roots are separate render trees. During attachment
@@ -500,7 +523,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     return undefined;
   }
   /** The host collects semantics on the next frame, independently of paint caches. */
-  markNeedsSemanticsUpdate():void{if(this.owner?.accessibilityEnabled===false)return;invariant(!this.dead&&!layoutQueries.length,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug)invariant(!this.owner?.debugDoingSemantics,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');if(this.owner?.semanticsOwner)semanticsFor(this).markNeedsUpdate();else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner(),errors:unknown[]=[];if(owner)attempt(errors,owner.invalidate);throwFailures(errors,'Semantics invalidation failed');}
+  markNeedsSemanticsUpdate():void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)semanticsFor(this).markNeedsUpdate();else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
   get localTransform():TransformMatrix {return identity;}
   get isDisplayed():boolean{return this.parent?.isDisplayed??true;}
   get clips():boolean {return false;}
@@ -508,15 +531,28 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     const offset=child.parentData instanceof BoxParentData?child.parentData.offset:{x:0,y:0},local=child.localTransform;
     if(local!==identity)return multiply(translate(offset.x,offset.y),local);
     const x=offset.x,y=offset.y;if(!Number.isFinite(x)||!Number.isFinite(y))return multiply(translate(x,y),local);
-    const cached=boxTranslations.get(child);
+    const cached=child.boxTranslation;
     if(cached&&Object.is(cached.x,x)&&Object.is(cached.y,y))return cached.matrix;
-    const matrix=captureTransform(multiply(translate(x,y),local));boxTranslations.set(child,{x,y,matrix});return matrix;
+    // The identity product only normalizes signed zero in the offsets. Avoid
+    // two temporary affine arrays while retaining that exact IEEE result.
+    const matrix=captureTransform([1,0,0,1,0+x,0+y]);child.boxTranslation={x,y,matrix};return matrix;
   }
   /** Compose complete paint transforms, including sibling coordinate conversion within one tree. */
   getTransformTo(target:RenderObject|null=null):Matrix4Storage {
     if(target===this)return matrix4Identity;
-    const toRoot=(source:RenderObject)=>{let node=source,matrix:TransformMatrix=identity;while(node.parent){matrix=multiply(node.parent.childTransform(node),matrix);node=node.parent;}return {root:node,matrix:fullTransform(multiply(node.localTransform,matrix))};};
-    const source=toRoot(this);if(!target)return source.matrix;const destination=toRoot(target);invariant(source.root===destination.root,'unrelated-render-transform','Render transform targets must share a render tree');const inverse=inverseMatrix4(destination.matrix);return inverse?multiplyMatrix4(inverse,source.matrix):captureMatrix4(Array(16).fill(0));
+    let from:RenderObject=this,fromMatrix:TransformMatrix=identity;
+    if(!target){while(from.parent){fromMatrix=multiply(from.parent.childTransform(from),fromMatrix);from=from.parent;}return fullTransform(multiply(from.localTransform,fromMatrix));}
+    // Stop at the common ancestor. Transforms above it cancel and must not
+    // make a local conversion singular, nor be recomputed for every child.
+    // Render depths increase along each branch; reparenting may leave gaps.
+    let to=target,toMatrix:TransformMatrix=identity;
+    while(from!==to){
+      const fromDepth=from.renderDepth,toDepth=to.renderDepth;
+      if(fromDepth>=toDepth){const parent=from.parent;if(!(parent))invariant(false,'unrelated-render-transform','Render transform targets must share a render tree');fromMatrix=multiply(parent.childTransform(from),fromMatrix);from=parent;}
+      if(fromDepth<=toDepth){const parent=to.parent;if(!(parent))invariant(false,'unrelated-render-transform','Render transform targets must share a render tree');toMatrix=multiply(parent.childTransform(to),toMatrix);to=parent;}
+    }
+    if(to===target)return fullTransform(fromMatrix);
+    const inverse=inverseMatrix4(fullTransform(toMatrix));return inverse?multiplyMatrix4(inverse,fullTransform(fromMatrix)):captureMatrix4(Array(16).fill(0));
   }
   /** Ask scroll ancestors to reveal measured local geometry. */
   showOnScreen(rect:Rect=this.paintBounds,options:ShowOnScreenOptions={}):void {if(this.parent)this.parent.showOnScreen(bounds(multiply(this.parent.childTransform(this),translate(rect.x,rect.y)),{width:rect.width,height:rect.height}),{...options,descendant:options.descendant??this,targetRect:options.targetRect??rect});}
@@ -524,8 +560,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   protected paintChild(context:PaintingContext,child:RenderObject):void {context.paintChild(child,this.childTransform(child));}
   abstract collectSemantics(output:SemanticsNode[],matrix?:TransformMatrix,clip?:Rect):void;
   /** Source annotation hook. The existing transport collector remains an adapter. */
-  scheduleInitialSemantics():void{if(this.owner?.accessibilityEnabled===false)return;const owner=this.owner;invariant(owner!==undefined,'detached-initial-semantics','Initial semantics requires an attached render object');const state=semanticsFor(this);if(FoundationBuildMode.debug)invariant(!this.dead&&!this.parent&&!owner.debugDoingSemantics&&(state.parentDataDirty||!state.built)&&owner.semanticsOwner!==null,'invalid-initial-semantics','Initial semantics requires an unbuilt root and enabled owner');const pipeline=pipelineSemantics(owner);pipeline.dirty.add(this);pipeline.geometryDirty.add(this);owner.requestVisualUpdate();}
-  sendSemanticsEvent(event:SemanticsEvent):void{invariant(this.owner!==undefined,'detached-semantics-event','Semantics events require an attached render object');if(this.owner.semanticsOwner===null)return;const node=existingSemanticsFor(this)?.cachedSemanticsNode;if(node!==null&&node!==undefined&&!node.isMergedIntoParent)node.sendEvent(event);else this.parent?.sendSemanticsEvent(event);}
+  scheduleInitialSemantics():void{if(this.owner?.accessibilityEnabled===false)return;const owner=this.owner;if(!(owner!==undefined))invariant(false,'detached-initial-semantics','Initial semantics requires an attached render object');const state=semanticsFor(this);if(FoundationBuildMode.debug){if(!(!this.dead&&!this.parent&&!owner.debugDoingSemantics&&(state.parentDataDirty||!state.built)&&owner.semanticsOwner!==null))invariant(false,'invalid-initial-semantics','Initial semantics requires an unbuilt root and enabled owner');}const pipeline=pipelineSemantics(owner);pipeline.dirty.add(this);pipeline.geometryDirty.add(this);owner.requestVisualUpdate();}
+  sendSemanticsEvent(event:SemanticsEvent):void{if(!(this.owner!==undefined))invariant(false,'detached-semantics-event','Semantics events require an attached render object');if(this.owner.semanticsOwner===null)return;const node=existingSemanticsFor(this)?.cachedSemanticsNode;if(node!==null&&node!==undefined&&!node.isMergedIntoParent)node.sendEvent(event);else this.parent?.sendSemanticsEvent(event);}
   get debugNeedsSemanticsUpdate():boolean{return this.owner?.accessibilityEnabled!==false&&!FoundationBuildMode.release&&semanticsFor(this).parentDataDirty;}
   get debugSemantics():SourceSemanticsNode|null{const state=existingSemanticsFor(this);return !FoundationBuildMode.release&&state?.built?state.cachedSemanticsNode:null;}
   describeSemanticsConfiguration(_config:SemanticsConfiguration):void{}
@@ -577,7 +613,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   describeApproximatePaintClip(_child:RenderObject):Rect|null{return this.clips?this.semanticBounds:null;}
   describeSemanticsClip(_child:RenderObject|null):Rect|null{return null;}
   applyPaintTransform(child:RenderObject,matrix:SourceMatrix4):void{
-    invariant(child.parent===this,'invalid-paint-transform-child','Paint transform requires a direct child');const transform=this.childTransform(child);
+    if(!(child.parent===this))invariant(false,'invalid-paint-transform-child','Paint transform requires a direct child');const transform=this.childTransform(child);
     // Ordinary box edges only translate. Use the source translation operation
     // directly instead of allocating, validating and multiplying a second 4x4.
     if(transform.length===6&&transform[0]===1&&transform[1]===0&&transform[2]===0&&transform[3]===1)matrix.translateByDouble(transform[4],transform[5],0,1);
@@ -586,7 +622,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   assembleSemanticsNode(node:SourceSemanticsNode,config:SemanticsConfiguration,children:SourceSemanticsNode[]):void{node.updateWith({config,childrenInInversePaintOrder:children});}
   /** Source child walk; View-owned semantic attachment is cleared by its pipeline. */
   clearSemantics():void{existingSemanticsFor(this)?.clear();for(const child of this.children)child.clearSemantics();}
-  dispose():void {assertOutsideRenderPaint();if(this.dead)return;invariant(!this.parent&&!this.owner&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&!layoutQueries.length,'attached-render-dispose','Dispose requires an idle detached render object');const errors:unknown[]=[];attempt(errors,()=>this.clearSemantics());attempt(errors,()=>RenderObject.prototype.setChildren.call(this,[]));attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();this.dead=true;this.onPointer=undefined;this.geometryLayoutChildren=undefined;throwFailures(errors,'Render object teardown failed');}
+  dispose():void {assertOutsideRenderPaint();if(this.dead)return;if(!(!this.parent&&!this.owner&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&!layoutQueries.length))invariant(false,'attached-render-dispose','Dispose requires an idle detached render object');const errors:unknown[]=[];attempt(errors,()=>this.clearSemantics());attempt(errors,()=>RenderObject.prototype.setChildren.call(this,[]));attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();this.dead=true;this.onPointer=undefined;this.geometryLayoutChildren=undefined;throwFailures(errors,'Render object teardown failed');}
 }
 export type RenderObjectConstructor=abstract new (...args:any[])=>RenderObject;
 export type SystemFontsRelayoutConstructor<Base extends RenderObjectConstructor>=abstract new (...args:ConstructorParameters<Base>)=>InstanceType<Base>&{systemFontsDidChange():void};
@@ -603,7 +639,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
       const pending={scope} as {scope:SystemFontsRelayoutContext;id?:number};this.pendingFonts=pending;
       try{pending.id=scope.scheduler.scheduleFrameCallback(()=>{
         if(this.pendingFonts!==pending)return;this.pendingFonts=null;
-        if(FoundationBuildMode.debug)invariant(this.attached||this.debugDisposed,'detached-font-update','System font callback requires an attached or disposed render object');
+        if(FoundationBuildMode.debug){if(!(this.attached||this.debugDisposed))invariant(false,'detached-font-update','System font callback requires an attached or disposed render object');}
         if(this.attached&&this.fontScope===scope)this.systemFontsDidChange();
       });}catch(error){if(this.pendingFonts===pending)this.pendingFonts=null;throw error;}
     };
@@ -614,13 +650,13 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
       // Source has one scheduler. A transfer between explicit View owners must
       // not keep a callback owned by the previous (possibly stopped) View.
       if(this.pendingFonts&&this.pendingFonts.scope!==owner.systemFonts)this.cancelFontsUpdate();
-      if(FoundationBuildMode.debug)invariant(this.pendingFonts===null,'pending-font-attach','Attach must not have a pending system font callback');
+      if(FoundationBuildMode.debug){if(!(this.pendingFonts===null))invariant(false,'pending-font-attach','Attach must not have a pending system font callback');}
       if(this.fontScope===owner.systemFonts)return;this.removeFontsListener();const scope=owner.systemFonts;
       if(scope){this.fontScope=scope;scope.systemFonts.addListener(this.scheduleSystemFontsUpdate);this.fontClosing=scope.scheduler.observeDispose(()=>{this.cancelFontsUpdate();this.removeFontsListener();});}
     }
     override detach():void{
       if(this.fontScope?.scheduler.disposed||this.owner?.debugDisposed)this.cancelFontsUpdate();
-      if(FoundationBuildMode.debug)invariant(this.pendingFonts===null,'pending-font-detach','Detach must not have a pending system font callback');
+      if(FoundationBuildMode.debug){if(!(this.pendingFonts===null))invariant(false,'pending-font-detach','Detach must not have a pending system font callback');}
       this.removeFontsListener();super.detach();
     }
     protected override clearCachedLayoutData():void{
@@ -706,7 +742,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     override describeSemanticsConfiguration(config:SemanticsConfiguration):void{
       if(this.attributedProperties!==this._properties){this.updateAttributedFields(this._properties);this.attributedProperties=this._properties;}
       super.describeSemanticsConfiguration(config);config.isSemanticBoundary=this.container||this._properties.identifier!==null;config.explicitChildNodes=this.explicitChildNodes;config.isBlockingUserActions=this.blockUserActions;if(this.localeForSubtree!==null)config.localeForSubtree=this.localeForSubtree;
-      if(FoundationBuildMode.debug){invariant(!(this._properties.scopesRoute??false)||this.explicitChildNodes,'route-requires-explicit-semantics','explicitChildNodes must be set to true if scopes route is true');invariant(!((this._properties.toggled??false)&&(this._properties.checked??false)),'conflicting-toggle-check','A semantics node cannot be toggled and checked at the same time');}
+      if(FoundationBuildMode.debug){if(!(!(this._properties.scopesRoute??false)||this.explicitChildNodes))invariant(false,'route-requires-explicit-semantics','explicitChildNodes must be set to true if scopes route is true');if(!(!((this._properties.toggled??false)&&(this._properties.checked??false))))invariant(false,'conflicting-toggle-check','A semantics node cannot be toggled and checked at the same time');}
     if (this._properties.enabled != null) {
       config.isEnabled = this._properties.enabled;
     }
@@ -972,7 +1008,7 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   override setChildren(children:readonly RenderObject[]):void{if(!children.every(child=>child instanceof this.childType))invariant(false,'invalid-render-child',`RenderBox requires ${this.childType.name} children`);super.setChildren(children);}
   get layoutOffset():Offset{return this.parentData instanceof BoxParentData?this.parentData.offset:{x:0,y:0};}
   set layoutOffset(value:Offset){
-    assertOutsideRenderPaint();invariant(!layoutQueries.length,'render-mutation-during-measurement','Measurement cannot change child offsets');
+    assertOutsideRenderPaint();if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurement cannot change child offsets');
     const data=this.parentData instanceof BoxParentData?this.parentData:new BoxParentData();this.parentData=data;
     const previous=data.offset;if(previous.x===value.x&&previous.y===value.y)return;data.offset=value;
     if(this.owner?.semanticsOwner){const state=existingSemanticsFor(this);if(state){
@@ -987,8 +1023,8 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   set offset(value:any){this.layoutOffset=value;}
   private measuredSize:Size|undefined;
   get hasSize():boolean{return this.measuredSize!==undefined;}
-  get size():Size{invariant(!layoutQueries.length||layoutQueries.at(-1)!.key.startsWith('baseline:'),'wet-size-during-measurement','Dry/intrinsic measurement cannot read wet size');invariant(activeLayout!==this.parent||!activeLayout||this.debugCanParentUseSize,'undeclared-size-dependency','A parent reading child size must pass parentUsesSize true');if(!this.measuredSize)invariant(false,'missing-render-size',`${this.constructor.name} has not been laid out`);return this.measuredSize;}
-  protected set size(value:Size){assertOutsideRenderPaint();invariant(!layoutQueries.length,'render-mutation-during-measurement','Measurement cannot change wet size');this.measuredSize=validSize(value);}
+  get size():Size{if(!(!layoutQueries.length||layoutQueries.at(-1)!.key.startsWith('baseline:')))invariant(false,'wet-size-during-measurement','Dry/intrinsic measurement cannot read wet size');if(!(activeLayout!==this.parent||!activeLayout||this.debugCanParentUseSize))invariant(false,'undeclared-size-dependency','A parent reading child size must pass parentUsesSize true');if(!this.measuredSize)invariant(false,'missing-render-size',`${this.constructor.name} has not been laid out`);return this.measuredSize;}
+  protected set size(value:Size){assertOutsideRenderPaint();if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurement cannot change wet size');this.measuredSize=validSize(value);}
   override get paintBounds():Rect{return {x:0,y:0,...this.size};}
   override get constraints():BoxConstraints{return super.constraints as BoxConstraints;}
   private layoutCache:Map<string,Size|number|null>|undefined;
@@ -996,17 +1032,17 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   private nextConstraintKey=0;
   private semanticProperties:Omit<SemanticsNode,'bounds'>|undefined;
   get semantics():Omit<SemanticsNode,'bounds'>|undefined{return this.semanticProperties;}
-  set semantics(value:Omit<SemanticsNode,'bounds'>|undefined){if(this.semanticProperties===value)return;invariant(!layoutQueries.length,'render-mutation-during-measurement','Measurements cannot change semantics');this.semanticProperties=value;if(!this.debugDisposed)this.markNeedsSemanticsUpdate();}
+  set semantics(value:Omit<SemanticsNode,'bounds'>|undefined){if(this.semanticProperties===value)return;if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurements cannot change semantics');this.semanticProperties=value;if(!this.debugDisposed)this.markNeedsSemanticsUpdate();}
   override get semanticsTransport():SemanticsTransportProperties|null{return this.semantics??null;}
   override describeSemanticsConfiguration(config:SemanticsConfiguration):void{super.describeSemanticsConfiguration(config);const value=this.semanticsTransport;if(value!==null&&!this.hasSourceSemanticsConfiguration)describeTransportSemantics(config,value,()=>this.showOnScreen());}
   /** Specialize only the unchanged built-in renderer. Subclass or instance
    * semantics and paint hooks retain conservative configuration invalidation. */
-  protected hasDefaultPaintSemantics(prototype:object):boolean{
-    return Object.getPrototypeOf(this)===prototype&&this.markNeedsPaint===RenderObject.prototype.markNeedsPaint&&this.describeSemanticsConfiguration===RenderBox.prototype.describeSemanticsConfiguration&&this.semanticsTransport===null&&!Object.hasOwn(this,'semantics')&&!Object.hasOwn(this,'semanticsTransport')&&!Object.hasOwn(this,'hasSourceSemanticsConfiguration')&&!Object.hasOwn(this,'semanticBounds')&&!Object.hasOwn(this,'paintBounds')&&!Object.hasOwn(this,'visitChildrenForSemantics')&&!Object.hasOwn(this,'paint');
+  protected hasDefaultPaintSemantics(prototype:object,paintInvalidator:RenderObject['markNeedsPaint']=RenderObject.prototype.markNeedsPaint):boolean{
+    return Object.getPrototypeOf(this)===prototype&&this.markNeedsPaint===paintInvalidator&&this.describeSemanticsConfiguration===RenderBox.prototype.describeSemanticsConfiguration&&this.semanticsTransport===null&&!Object.hasOwn(this,'semantics')&&!Object.hasOwn(this,'semanticsTransport')&&!Object.hasOwn(this,'hasSourceSemanticsConfiguration')&&!Object.hasOwn(this,'semanticBounds')&&!Object.hasOwn(this,'paintBounds')&&!Object.hasOwn(this,'visitChildrenForSemantics')&&!Object.hasOwn(this,'visitChildren')&&!Object.hasOwn(this,'paint')&&!Object.hasOwn(this,'localTransform')&&!Object.hasOwn(this,'childTransform')&&!Object.hasOwn(this,'applyPaintTransform')&&!Object.hasOwn(this,'describeApproximatePaintClip')&&!Object.hasOwn(this,'describeSemanticsClip')&&!Object.hasOwn(this,'paintsChild')&&!Object.hasOwn(this,'clips');
   }
   override visitChildrenForSemantics(visitor:(child:RenderObject)=>void):void{const role=this.semanticsTransport?.role;if(!this.hasSourceSemanticsConfiguration&&(role==='button'||role==='text-field'))return;super.visitChildrenForSemantics(visitor);}
   override layout(constraints:BoxConstraints,options:LayoutOptions={}):void {
-    invariant(constraints instanceof BoxConstraints,'invalid-box-constraints','RenderBox requires BoxConstraints');
+    if(!(constraints instanceof BoxConstraints))invariant(false,'invalid-box-constraints','RenderBox requires BoxConstraints');
     this.runLayout(constraints,options);
   }
   protected override performLayoutInScope(constraints:BoxConstraints):void{if(this.sizedByParent)this.performResize();this.size=this.performLayout(constraints);if(!constraints.isSatisfiedBy(this.size))invariant(false,'constraint-violation',`${this.constructor.name} returned size outside constraints`);}
@@ -1014,12 +1050,12 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   protected override performResize():void{this.size=this.getDryLayout(this.constraints);}
   protected override clearCachedLayoutData():void{this.layoutCache?.clear();this.cachedConstraints.length=0;this.nextConstraintKey=0;}
   private query<T extends Size|number|null>(key:string,compute:()=>T):T{
-    invariant(!this.dead,'disposed-render-object','Measurement after dispose');this.registerLayoutQuery();
+    if(!(!this.dead))invariant(false,'disposed-render-object','Measurement after dispose');this.registerLayoutQuery();
     const kind=key.split(':',1)[0];if(layoutQueries.some(query=>query.render===this&&query.key.split(':',1)[0]===kind))invariant(false,'cyclic-layout-measurement',`${this.constructor.name} recursively requested ${key}`);
     const shouldCache=!FoundationBuildMode.debug||!RenderObject.debugCheckingIntrinsics;if(shouldCache&&this.layoutCache?.has(key))return this.layoutCache.get(key) as T;layoutQueries.push({render:this,key});
     try{const result=compute();if(shouldCache){const cache=this.layoutCache??=new Map();if(cache.size>=64)cache.delete(cache.keys().next().value!);cache.set(key,result);}return result;}finally{layoutQueries.pop();}
   }
-  private intrinsic(kind:string,input:number,compute:(value:number)=>number):number{invariant(input>=0&&!Number.isNaN(input),'invalid-intrinsic-input','Intrinsic dimension must be nonnegative');return this.query(`${kind}:${input}`,()=>{const value=compute(input);invariant(value>=0&&!Number.isNaN(value),'invalid-intrinsic-result','Intrinsic size must be nonnegative');return value;});}
+  private intrinsic(kind:string,input:number,compute:(value:number)=>number):number{if(!(input>=0&&!Number.isNaN(input)))invariant(false,'invalid-intrinsic-input','Intrinsic dimension must be nonnegative');return this.query(`${kind}:${input}`,()=>{const value=compute(input);if(!(value>=0&&!Number.isNaN(value)))invariant(false,'invalid-intrinsic-result','Intrinsic size must be nonnegative');return value;});}
   getMinIntrinsicWidth(height:number):number{return this.intrinsic('minWidth',height,value=>this.computeMinIntrinsicWidth(value));}
   getMaxIntrinsicWidth(height:number):number{return this.intrinsic('maxWidth',height,value=>this.computeMaxIntrinsicWidth(value));}
   getMinIntrinsicHeight(width:number):number{return this.intrinsic('minHeight',width,value=>this.computeMinIntrinsicHeight(value));}
@@ -1033,20 +1069,20 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
     if(this.cachedConstraints.length>=64){const removed=this.cachedConstraints.shift()!;if(this.layoutCache)for(const key of this.layoutCache.keys())if(key.endsWith(':'+removed.key))this.layoutCache.delete(key);}
     const key='c'+ ++this.nextConstraintKey;this.cachedConstraints.push({constraints,key});return key;
   }
-  getDryLayout(constraints:BoxConstraints):Size{constraints.debugAssertIsValid({isAppliedConstraint:true});return this.query('dry:'+this.constraintKey(constraints),()=>{const size=validSize(this.computeDryLayout(constraints));invariant(constraints.isSatisfiedBy(size),'constraint-violation','Dry layout returned a size outside constraints');return size;});}
+  getDryLayout(constraints:BoxConstraints):Size{constraints.debugAssertIsValid({isAppliedConstraint:true});return this.query('dry:'+this.constraintKey(constraints),()=>{const size=validSize(this.computeDryLayout(constraints));if(!(constraints.isSatisfiedBy(size)))invariant(false,'constraint-violation','Dry layout returned a size outside constraints');return size;});}
   protected computeDryLayout(_constraints:BoxConstraints):Size{throw new Error(`${this.constructor.name} does not support dry layout`);}
-  private validateBaseline(value:number|null):number|null{invariant(value===null||Number.isFinite(value),'invalid-baseline','Baseline must be finite or null');return value;}
-  getDryBaseline(constraints:BoxConstraints,baseline:TextBaseline):number|null{constraints.debugAssertIsValid({isAppliedConstraint:true});invariant(baseline==='alphabetic'||baseline==='ideographic','invalid-baseline','Unknown baseline');return this.query(`dryBaseline:${baseline}:${this.constraintKey(constraints)}`,()=>this.validateBaseline(this.computeDryBaseline(constraints,baseline)));}
+  private validateBaseline(value:number|null):number|null{if(!(value===null||Number.isFinite(value)))invariant(false,'invalid-baseline','Baseline must be finite or null');return value;}
+  getDryBaseline(constraints:BoxConstraints,baseline:TextBaseline):number|null{constraints.debugAssertIsValid({isAppliedConstraint:true});if(!(baseline==='alphabetic'||baseline==='ideographic'))invariant(false,'invalid-baseline','Unknown baseline');return this.query(`dryBaseline:${baseline}:${this.constraintKey(constraints)}`,()=>this.validateBaseline(this.computeDryBaseline(constraints,baseline)));}
   protected computeDryBaseline(_constraints:BoxConstraints,_baseline:TextBaseline):number|null{return null;}
-  getDistanceToBaseline(baseline:TextBaseline,options:{readonly onlyReal?:boolean}={}):number|null{invariant(this.hasSize&&!this.needsLayout,'stale-baseline','Actual baseline requires a current layout');const result=this.getDistanceToActualBaseline(baseline);return result===null&&!options.onlyReal?this.size.height:result;}
-  getDistanceToActualBaseline(baseline:TextBaseline):number|null{invariant(this.hasSize&&!this.needsLayout,'stale-baseline','Actual baseline requires a current layout');invariant(baseline==='alphabetic'||baseline==='ideographic','invalid-baseline','Unknown baseline');return this.query('baseline:'+baseline,()=>this.validateBaseline(this.computeDistanceToActualBaseline(baseline)));}
+  getDistanceToBaseline(baseline:TextBaseline,options:{readonly onlyReal?:boolean}={}):number|null{if(!(this.hasSize&&!this.needsLayout))invariant(false,'stale-baseline','Actual baseline requires a current layout');const result=this.getDistanceToActualBaseline(baseline);return result===null&&!options.onlyReal?this.size.height:result;}
+  getDistanceToActualBaseline(baseline:TextBaseline):number|null{if(!(this.hasSize&&!this.needsLayout))invariant(false,'stale-baseline','Actual baseline requires a current layout');if(!(baseline==='alphabetic'||baseline==='ideographic'))invariant(false,'invalid-baseline','Unknown baseline');return this.query('baseline:'+baseline,()=>this.validateBaseline(this.computeDistanceToActualBaseline(baseline)));}
   protected computeDistanceToActualBaseline(_baseline:TextBaseline):number|null{return null;}
   localToGlobal(point:Offset,options:{readonly ancestor?:RenderObject}={}):Offset{return transform(this.getTransformTo(options.ancestor??null),point);}
   globalToLocal(point:Offset,options:{readonly ancestor?:RenderObject}={}):Offset{return unprojectMatrix4Point(this.getTransformTo(options.ancestor??null),point);}
   /** Legacy callback/semantics hosts remain self-hit targets; subclasses may specialize the source hook. */
   protected hitTestSelf(_position:Offset):boolean{return !!(this.onPointer||this.semantics);}
   hitTest(position:Offset,result:HitTestEntry[],toLocal:TransformMatrix=identity):boolean {
-    invariant(this.hasSize,'missing-hit-test-size','Hit testing requires a laid-out size');if(!contains({x:0,y:0,...this.size},position))return false;
+    if(!(this.hasSize))invariant(false,'missing-hit-test-size','Hit testing requires a laid-out size');if(!contains({x:0,y:0,...this.size},position))return false;
     let hit=false;
     for(const child of [...this.children].reverse()){
       const matrix=inversePaintTransform(this.childTransform(child));

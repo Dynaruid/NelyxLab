@@ -7,7 +7,7 @@
 
 namespace RNSkia {
 RNSkVulkanPlatformContext::RNSkVulkanPlatformContext(
-    std::shared_ptr<facebook::react::CallInvoker> invoker, float density, VulkanPlatformServices ports)
+    std::shared_ptr<nelyx::host::RuntimeScheduler> invoker, float density, VulkanPlatformServices ports)
     : RNSkPlatformContext(invoker,density),services(std::move(ports)) {
   if(!invoker || !std::isfinite(density) || density<=0 || density>8 || !services.dispatchToMain
     || !services.stream || !services.fontManager || !services.screenshot || !services.reportError || !services.createDevice)

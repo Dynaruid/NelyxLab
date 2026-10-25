@@ -5,7 +5,8 @@ import type {SemanticsNode,SemanticsAction} from '@nelyx/core/ui/types';
 import type {ReactNativeBackend} from './registration.ts';
 import type {ReactNativeInteraction} from './interaction.ts';
 import type {ReactNativeSemanticsControlsProps} from './surface.tsx';
-import {windowsSemanticsPacket,performWindowsSemanticsAction} from './windows-semantics-packet.ts';
+import {windowsSemanticsPacket} from './windows-semantics-packet.ts';
+import {WindowsSemanticsActions} from './windows-semantics-actions.ts';
 import type {WindowsSemanticsSurface,WindowsSemanticsAction,WindowsSemanticsPacket} from './windows-semantics-packet.ts';
 // RNW's app-owned Fabric builder has no reflection/codegen view manager.
 // @ts-ignore RN supplies Flow implementations without TypeScript declarations.
@@ -36,7 +37,11 @@ function createWindowsSemanticsRenderer(getBackend:()=>Pick<ReactNativeBackend,'
     const ref=react.useRef<ComponentRef<HostComponent<NativeProps>>>(null),token=react.useRef({});
     react.useLayoutEffect(()=>interaction.attachSemanticsNode(node.id,token.current,()=>native.findNodeHandle(ref.current)),[interaction,node.id,native]);
     const packet=windowsSemanticsPacket(node,interaction.owner,surface,interaction.snapshot());
-    return react.createElement(component,{ref,style,pointerEvents:'none',collapsable:false,focusable:node.enabled&&packet.focusable,enableFocusRing:false,accessible:node.role==='text-field'||node.role==='button'||!node.children?.length,accessibilityLabel:node.name,accessibilityRole:node.isLink?'link':node.role==='button'?'button':node.role==='image'?'image':node.role==='text'?'text':undefined,testID:node.semanticsIdentifier??node.id,accessibilityState:{disabled:!node.enabled,...(node.selected!==undefined?{selected:node.selected}:{}),...(node.checked!==undefined?{checked:node.checked}:{})},...(node.role!=='text-field'&&node.value?{accessibilityValue:{text:node.value}}:{}),accessibilityActions:Object.keys(node.actions??{}).map(name=>({name})),onAccessibilityAction:event=>{if(interaction.isLiveNodeSnapshot(node))interaction.performAction(node.id,event.nativeEvent.actionName as SemanticsAction);},coreSnapshot:packet,onCoreSemanticsAction:event=>{performWindowsSemanticsAction(interaction,node,packet,event.nativeEvent);},onCoreSemanticsError:event=>onError(new Error(event.nativeEvent.message))},children);
+    const actions=react.useRef<WindowsSemanticsActions|null>(null);if(actions.current===null)actions.current=new WindowsSemanticsActions();
+    const receiver=actions.current;
+    react.useLayoutEffect(()=>{receiver.publish(interaction,node,packet);});
+    react.useLayoutEffect(()=>()=>receiver.clear(),[receiver]);
+    return react.createElement(component,{ref,style,pointerEvents:'none',collapsable:false,focusable:node.enabled&&packet.focusable,enableFocusRing:false,accessible:node.role==='text-field'||node.role==='button'||!node.children?.length,accessibilityLabel:node.name,accessibilityRole:node.isLink?'link':node.role==='button'?'button':node.role==='image'?'image':node.role==='text'?'text':undefined,testID:node.semanticsIdentifier??node.id,accessibilityState:{disabled:!node.enabled,...(node.selected!==undefined?{selected:node.selected}:{}),...(node.checked!==undefined?{checked:node.checked}:{})},...(node.role!=='text-field'&&node.value?{accessibilityValue:{text:node.value}}:{}),accessibilityActions:Object.keys(node.actions??{}).map(name=>({name})),onAccessibilityAction:event=>{if(interaction.isLiveNodeSnapshot(node))interaction.performAction(node.id,event.nativeEvent.actionName as SemanticsAction);},coreSnapshot:packet,onCoreSemanticsAction:event=>{receiver.perform(event.nativeEvent);},onCoreSemanticsError:event=>onError(new Error(event.nativeEvent.message))},children);
   };
 }
 

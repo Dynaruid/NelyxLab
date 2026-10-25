@@ -16,31 +16,31 @@ export const staticAotBootstrap='/*nelyx:static-hermes-aot:94aa5e1d:v5*/\n';
 const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const partitionPlanSha256=value=>createHash('sha256').update(value).digest('hex');
 const bridgeHeader=path.join(path.dirname(createRequire(import.meta.url).resolve('@nelyx/sdk/package.json')),'native/windows/StaticHermes.h');
-export async function buildStaticAotMetroBundle({runner,entry,source,map,config,signal}){
+export async function buildStaticAotMetroBundle({runner,entry,source,map,config,signal,nativeHost=false,applicationRoot=path.resolve(runner,'../..'),packageRoots}){
   signal?.throwIfAborted();
   const started=performance.now();
   const {productPartition,typedBootstrapPrefix}=await import('@nelyx/static-aot/product-partition');
   const load=createRequire(path.join(runner,'package.json'));
   const {inspectRuntimeInventory}=await import('@nelyx/metro/runtime-inventory');let before;
-  await inspectRuntimeInventory({runner,appRoot:path.resolve(runner,'../..'),entry,signal,onCapture(value){before=value;}});
+  await inspectRuntimeInventory({runner,appRoot:applicationRoot,entry,nativeHost,...(nativeHost?{config}:{}),signal,onCapture(value){before=value;}});
   const inspected=performance.now();
-  const partition=productPartition({runner,entry,runtimeFiles:before.records.map(record=>path.resolve(runner,'../..',record.sourceFile))});
+  const partition=productPartition({runner,entry,applicationRoot,packageRoots,runtimeFiles:before.records.map(record=>path.resolve(applicationRoot,record.sourceFile))});
   const partitioned=performance.now();
-  const upstream=load.resolve('@react-native/metro-babel-transformer'),transformer=load.resolve('@nelyx/metro/native-typed-transformer');
+  const upstream=load.resolve(nativeHost?'@nelyx/metro/native-hermes-transformer':'@react-native/metro-babel-transformer'),transformer=load.resolve('@nelyx/metro/native-typed-transformer');
   if(config.transformer.babelTransformerPath!==upstream)throw Error('Static Hermes AOT owns the RN Babel transformer; configure Babel plugins in babel.config.cjs');
   {
     const planned=partition.metroPlan,plan=JSON.stringify(planned);
     let captured;fs.mkdirSync(path.dirname(source),{recursive:true});fs.mkdirSync(path.dirname(map),{recursive:true});
-    await inspectRuntimeInventory({runner,appRoot:path.resolve(runner,'../..'),entry,config:{...config,transformerPath:load.resolve('@nelyx/metro/native-aot-worker'),transformer:{...config.transformer,babelTransformerPath:transformer}},signal,sourceMapUrl:path.relative(path.dirname(source),map).replaceAll('\\','/'),customTransformOptions:{nelyxTypedPlan:plan,nelyxTypedPlanSha256:partitionPlanSha256(plan)},onCapture(value){captured=value;}});
+    await inspectRuntimeInventory({runner,appRoot:applicationRoot,entry,nativeHost,config:{...config,transformerPath:load.resolve('@nelyx/metro/native-aot-worker'),transformer:{...config.transformer,babelTransformerPath:transformer}},signal,sourceMapUrl:path.relative(path.dirname(source),map).replaceAll('\\','/'),customTransformOptions:{nelyxTypedPlan:plan,nelyxTypedPlanSha256:partitionPlanSha256(plan)},onCapture(value){captured=value;}});
     const transformed=performance.now();
     if(!captured)throw Error('Native runtime input graph was not captured');fs.writeFileSync(source,captured.code);fs.writeFileSync(map,captured.map);
     for(const record of captured.records){if(record.role==='append'||record.sourceKind==='json'||record.id==='generated/prelude')continue;const value=record.nativeEvidence;if(value?.schema!=='nelyx.metro-native-evidence/v1'||value.elimination?.sourceSha256!==record.transformSourceSha256)throw Error('Metro frontend provenance absent or stale: '+record.id);record.frontendElimination=value.elimination;}
-    const records=new Map(captured.records.map(record=>[path.resolve(runner,'../..',record.id).toLowerCase(),record]));
+    const records=new Map(captured.records.map(record=>[path.resolve(applicationRoot,record.id).toLowerCase(),record]));
     for(const file of planned.files){const value=records.get(path.resolve(file.file).toLowerCase())?.nativeEvidence?.consumed;if(!value||value.sha256!==file.sha256||JSON.stringify(value.bindings)!==JSON.stringify(file.bindings.map(binding=>binding.id)))throw Error('Metro typed body consumption differs: '+file.file);}
     const prefix=typedBootstrapPrefix(partition);fs.writeFileSync(source,prefix+fs.readFileSync(source,'utf8'));
     const sourceMap=JSON.parse(fs.readFileSync(map,'utf8'));if(sourceMap.version!==3||typeof sourceMap.mappings!=='string')throw Error('Typed Metro requires a flat v3 input map');sourceMap.mappings=';'.repeat(prefix.split('\n').length-1)+sourceMap.mappings;fs.writeFileSync(map,JSON.stringify(sourceMap));
-    fs.writeFileSync(path.join(path.dirname(source),'index.windows.typed.ts'),partition.source);const pal=inspectRnwJsiPal(runner);fs.writeFileSync(path.join(path.dirname(source),'index.windows.rnw-pal.js'),pal.source);signal?.throwIfAborted();
-    const executionPlan=createExecutionPlan(captured,partition,prefix,[pal]);
+    fs.writeFileSync(path.join(path.dirname(source),'index.windows.typed.ts'),partition.source);const pal=nativeHost?undefined:inspectRnwJsiPal(runner);if(pal)fs.writeFileSync(path.join(path.dirname(source),'index.windows.rnw-pal.js'),pal.source);signal?.throwIfAborted();
+    const executionPlan=createExecutionPlan(captured,partition,prefix,pal?[pal]:[]);
     console.log('STATIC_AOT_FRONTEND '+JSON.stringify({inventoryMs:inspected-started,partitionMs:partitioned-inspected,metroMs:transformed-partitioned,executionMs:performance.now()-transformed,totalMs:performance.now()-started}));
     return {...partition,executionPlan};
   }

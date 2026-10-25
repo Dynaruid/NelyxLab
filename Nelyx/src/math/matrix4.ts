@@ -15,11 +15,13 @@ export class Matrix4 {
     constructor(v0: number, v1: number, v2: number, v3: number, v4: number, v5: number, v6: number, v7: number, v8: number, v9: number, v10: number, v11: number, v12: number, v13: number, v14: number, v15: number);
     constructor(storage: Float64Array);
     constructor(...components: unknown[]) { this.#values = components.length === 1 ? numericView(components[0] as Float64Array, 16) : numericValues(components as number[], 16); registerNumericObject(this, this.#values, 'Matrix4'); }
-    static zero(): Matrix4 { return new Matrix4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
+    // The typed array already supplies sixteen positive zeros. Admit that
+    // owned view instead of building and validating a component argument list.
+    static zero(): Matrix4 { return new Matrix4(new Float64Array(16)); }
     static fromFloat64List(storage: Float64Array): Matrix4 { return new Matrix4(storage); }
     static fromBuffer(buffer: ArrayBufferLike, offset: number): Matrix4 { return Matrix4.fromFloat64List(new Float64Array(buffer, offset, 16)); }
     static fromList(values: readonly number[] | Float64Array): Matrix4 { values = numericArrayRange(values, 0, 16); return (() => { const cascade0 = Matrix4.zero(); cascade0.setValues(values[0]!, values[1]!, values[2]!, values[3]!, values[4]!, values[5]!, values[6]!, values[7]!, values[8]!, values[9]!, values[10]!, values[11]!, values[12]!, values[13]!, values[14]!, values[15]!); return cascade0; })(); }
-    static identity(): Matrix4 { return (() => { const cascade1 = Matrix4.zero(); numericObjectStorage(cascade1, "Matrix4")[0]! = 1.0; numericObjectStorage(cascade1, "Matrix4")[5]! = 1.0; numericObjectStorage(cascade1, "Matrix4")[10]! = 1.0; numericObjectStorage(cascade1, "Matrix4")[15]! = 1.0; return cascade1; })(); }
+    static identity(): Matrix4 { const result = Matrix4.zero(), storage = numericObjectStorage(result, "Matrix4"); storage[0]! = 1.0; storage[5]! = 1.0; storage[10]! = 1.0; storage[15]! = 1.0; return result; }
     static copy(other: Matrix4): Matrix4 { return (() => { const cascade2 = Matrix4.zero(); cascade2.setFrom(other); return cascade2; })(); }
     static inverted(other: Matrix4): Matrix4 {
         const r = Matrix4.zero();
@@ -432,14 +434,15 @@ export class Matrix4 {
         }
     }
     translateByDouble(tx: number, ty: number, tz: number, tw: number): void {
-        const t1: number = this.#values[0]! * tx + this.#values[4]! * ty + this.#values[8]! * tz + this.#values[12]! * tw;
-        this.#values[12]! = t1;
-        const t2: number = this.#values[1]! * tx + this.#values[5]! * ty + this.#values[9]! * tz + this.#values[13]! * tw;
-        this.#values[13]! = t2;
-        const t3: number = this.#values[2]! * tx + this.#values[6]! * ty + this.#values[10]! * tz + this.#values[14]! * tw;
-        this.#values[14]! = t3;
-        const t4: number = this.#values[3]! * tx + this.#values[7]! * ty + this.#values[11]! * tz + this.#values[15]! * tw;
-        this.#values[15]! = t4;
+        const storage = this.#values;
+        const t1: number = storage[0]! * tx + storage[4]! * ty + storage[8]! * tz + storage[12]! * tw;
+        storage[12]! = t1;
+        const t2: number = storage[1]! * tx + storage[5]! * ty + storage[9]! * tz + storage[13]! * tw;
+        storage[13]! = t2;
+        const t3: number = storage[2]! * tx + storage[6]! * ty + storage[10]! * tz + storage[14]! * tw;
+        storage[14]! = t3;
+        const t4: number = storage[3]! * tx + storage[7]! * ty + storage[11]! * tz + storage[15]! * tw;
+        storage[15]! = t4;
     }
     translateByVector2(v2: Vector2): void { this.translateByDouble(v2.x, v2.y, 0.0, 1.0); }
     translateByVector3(v3: Vector3): void { this.translateByDouble(v3.x, v3.y, v3.z, 1.0); }
@@ -896,22 +899,23 @@ export class Matrix4 {
             return 0.0;
         }
         const invDet: number = 1.0 / det;
-        this.#values[0]! = (a11 * b11 - a12 * b10 + a13 * b09) * invDet;
-        this.#values[1]! = (-a01 * b11 + a02 * b10 - a03 * b09) * invDet;
-        this.#values[2]! = (a31 * b05 - a32 * b04 + a33 * b03) * invDet;
-        this.#values[3]! = (-a21 * b05 + a22 * b04 - a23 * b03) * invDet;
-        this.#values[4]! = (-a10 * b11 + a12 * b08 - a13 * b07) * invDet;
-        this.#values[5]! = (a00 * b11 - a02 * b08 + a03 * b07) * invDet;
-        this.#values[6]! = (-a30 * b05 + a32 * b02 - a33 * b01) * invDet;
-        this.#values[7]! = (a20 * b05 - a22 * b02 + a23 * b01) * invDet;
-        this.#values[8]! = (a10 * b10 - a11 * b08 + a13 * b06) * invDet;
-        this.#values[9]! = (-a00 * b10 + a01 * b08 - a03 * b06) * invDet;
-        this.#values[10]! = (a30 * b04 - a31 * b02 + a33 * b00) * invDet;
-        this.#values[11]! = (-a20 * b04 + a21 * b02 - a23 * b00) * invDet;
-        this.#values[12]! = (-a10 * b09 + a11 * b07 - a12 * b06) * invDet;
-        this.#values[13]! = (a00 * b09 - a01 * b07 + a02 * b06) * invDet;
-        this.#values[14]! = (-a30 * b03 + a31 * b01 - a32 * b00) * invDet;
-        this.#values[15]! = (a20 * b03 - a21 * b01 + a22 * b00) * invDet;
+        const storage = this.#values;
+        storage[0]! = (a11 * b11 - a12 * b10 + a13 * b09) * invDet;
+        storage[1]! = (-a01 * b11 + a02 * b10 - a03 * b09) * invDet;
+        storage[2]! = (a31 * b05 - a32 * b04 + a33 * b03) * invDet;
+        storage[3]! = (-a21 * b05 + a22 * b04 - a23 * b03) * invDet;
+        storage[4]! = (-a10 * b11 + a12 * b08 - a13 * b07) * invDet;
+        storage[5]! = (a00 * b11 - a02 * b08 + a03 * b07) * invDet;
+        storage[6]! = (-a30 * b05 + a32 * b02 - a33 * b01) * invDet;
+        storage[7]! = (a20 * b05 - a22 * b02 + a23 * b01) * invDet;
+        storage[8]! = (a10 * b10 - a11 * b08 + a13 * b06) * invDet;
+        storage[9]! = (-a00 * b10 + a01 * b08 - a03 * b06) * invDet;
+        storage[10]! = (a30 * b04 - a31 * b02 + a33 * b00) * invDet;
+        storage[11]! = (-a20 * b04 + a21 * b02 - a23 * b00) * invDet;
+        storage[12]! = (-a10 * b09 + a11 * b07 - a12 * b06) * invDet;
+        storage[13]! = (a00 * b09 - a01 * b07 + a02 * b06) * invDet;
+        storage[14]! = (-a30 * b03 + a31 * b01 - a32 * b00) * invDet;
+        storage[15]! = (a20 * b03 - a21 * b01 + a22 * b00) * invDet;
         return det;
     }
     invertRotation(): number {
@@ -1107,22 +1111,23 @@ export class Matrix4 {
         this.#values[15]! = -this.#values[15]!;
     }
     multiply(arg: Matrix4): void {
-        const m00: number = this.#values[0]!;
-        const m01: number = this.#values[4]!;
-        const m02: number = this.#values[8]!;
-        const m03: number = this.#values[12]!;
-        const m10: number = this.#values[1]!;
-        const m11: number = this.#values[5]!;
-        const m12: number = this.#values[9]!;
-        const m13: number = this.#values[13]!;
-        const m20: number = this.#values[2]!;
-        const m21: number = this.#values[6]!;
-        const m22: number = this.#values[10]!;
-        const m23: number = this.#values[14]!;
-        const m30: number = this.#values[3]!;
-        const m31: number = this.#values[7]!;
-        const m32: number = this.#values[11]!;
-        const m33: number = this.#values[15]!;
+        const storage = this.#values;
+        const m00: number = storage[0]!;
+        const m01: number = storage[4]!;
+        const m02: number = storage[8]!;
+        const m03: number = storage[12]!;
+        const m10: number = storage[1]!;
+        const m11: number = storage[5]!;
+        const m12: number = storage[9]!;
+        const m13: number = storage[13]!;
+        const m20: number = storage[2]!;
+        const m21: number = storage[6]!;
+        const m22: number = storage[10]!;
+        const m23: number = storage[14]!;
+        const m30: number = storage[3]!;
+        const m31: number = storage[7]!;
+        const m32: number = storage[11]!;
+        const m33: number = storage[15]!;
         const argStorage: Float64Array = numericObjectStorage(arg, "Matrix4");
         const n00: number = argStorage[0]!;
         const n01: number = argStorage[4]!;
@@ -1140,22 +1145,22 @@ export class Matrix4 {
         const n31: number = argStorage[7]!;
         const n32: number = argStorage[11]!;
         const n33: number = argStorage[15]!;
-        this.#values[0]! = (m00 * n00) + (m01 * n10) + (m02 * n20) + (m03 * n30);
-        this.#values[4]! = (m00 * n01) + (m01 * n11) + (m02 * n21) + (m03 * n31);
-        this.#values[8]! = (m00 * n02) + (m01 * n12) + (m02 * n22) + (m03 * n32);
-        this.#values[12]! = (m00 * n03) + (m01 * n13) + (m02 * n23) + (m03 * n33);
-        this.#values[1]! = (m10 * n00) + (m11 * n10) + (m12 * n20) + (m13 * n30);
-        this.#values[5]! = (m10 * n01) + (m11 * n11) + (m12 * n21) + (m13 * n31);
-        this.#values[9]! = (m10 * n02) + (m11 * n12) + (m12 * n22) + (m13 * n32);
-        this.#values[13]! = (m10 * n03) + (m11 * n13) + (m12 * n23) + (m13 * n33);
-        this.#values[2]! = (m20 * n00) + (m21 * n10) + (m22 * n20) + (m23 * n30);
-        this.#values[6]! = (m20 * n01) + (m21 * n11) + (m22 * n21) + (m23 * n31);
-        this.#values[10]! = (m20 * n02) + (m21 * n12) + (m22 * n22) + (m23 * n32);
-        this.#values[14]! = (m20 * n03) + (m21 * n13) + (m22 * n23) + (m23 * n33);
-        this.#values[3]! = (m30 * n00) + (m31 * n10) + (m32 * n20) + (m33 * n30);
-        this.#values[7]! = (m30 * n01) + (m31 * n11) + (m32 * n21) + (m33 * n31);
-        this.#values[11]! = (m30 * n02) + (m31 * n12) + (m32 * n22) + (m33 * n32);
-        this.#values[15]! = (m30 * n03) + (m31 * n13) + (m32 * n23) + (m33 * n33);
+        storage[0]! = (m00 * n00) + (m01 * n10) + (m02 * n20) + (m03 * n30);
+        storage[4]! = (m00 * n01) + (m01 * n11) + (m02 * n21) + (m03 * n31);
+        storage[8]! = (m00 * n02) + (m01 * n12) + (m02 * n22) + (m03 * n32);
+        storage[12]! = (m00 * n03) + (m01 * n13) + (m02 * n23) + (m03 * n33);
+        storage[1]! = (m10 * n00) + (m11 * n10) + (m12 * n20) + (m13 * n30);
+        storage[5]! = (m10 * n01) + (m11 * n11) + (m12 * n21) + (m13 * n31);
+        storage[9]! = (m10 * n02) + (m11 * n12) + (m12 * n22) + (m13 * n32);
+        storage[13]! = (m10 * n03) + (m11 * n13) + (m12 * n23) + (m13 * n33);
+        storage[2]! = (m20 * n00) + (m21 * n10) + (m22 * n20) + (m23 * n30);
+        storage[6]! = (m20 * n01) + (m21 * n11) + (m22 * n21) + (m23 * n31);
+        storage[10]! = (m20 * n02) + (m21 * n12) + (m22 * n22) + (m23 * n32);
+        storage[14]! = (m20 * n03) + (m21 * n13) + (m22 * n23) + (m23 * n33);
+        storage[3]! = (m30 * n00) + (m31 * n10) + (m32 * n20) + (m33 * n30);
+        storage[7]! = (m30 * n01) + (m31 * n11) + (m32 * n21) + (m33 * n31);
+        storage[11]! = (m30 * n02) + (m31 * n12) + (m32 * n22) + (m33 * n32);
+        storage[15]! = (m30 * n03) + (m31 * n13) + (m32 * n23) + (m33 * n33);
     }
     leftMultiply(arg: Matrix4): void {
         const argStorage: Float64Array = numericObjectStorage(arg, "Matrix4");

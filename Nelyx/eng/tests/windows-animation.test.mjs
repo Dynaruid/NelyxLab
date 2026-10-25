@@ -16,7 +16,7 @@ function run(file,args,options={}){const {nativeDiagnostics=false,expectedStatus
 test('Windows sample actions preserve native completion or the expected first failure; ablations are diagnostic only'+(process.env.NELYX_ANIMATION_PREFLIGHT_ONLY==='1'?' [source preflight only]':process.env.NELYX_ANIMATION_BUILD_ONLY==='1'?' [build only]':''),{timeout,skip:process.platform!=='win32'},async(t)=>{
   const runner=fs.realpathSync(process.env.NELYX_WINDOWS_TEST_RUNNER??path.join(root,'sample/nelyx-testbed-app-2/windows/runner')),rnw=path.join(runner,'node_modules/react-native-windows');
   assert(fs.statfsSync(root).bavail*fs.statfsSync(root).bsize>=20*1024**3,'Need 20 GiB for native build');
-  const app=path.resolve(runner,'../..'),engine=process.env.NELYX_ANIMATION_ENGINE??'v8';assert(['hermes','v8'].includes(engine));
+  const app=path.resolve(runner,'../..'),engine=process.env.NELYX_ANIMATION_ENGINE??'hermes';assert(['hermes','v8'].includes(engine));
   const hermesMode=process.env.NELYX_ANIMATION_HERMES_MODE??'bytecode';assert(['bytecode','static-aot'].includes(hermesMode));
   const aot=hermesMode!=='bytecode',typed=hermesMode==='static-aot';if(aot)assert.equal(engine,'hermes');
   const staticToolchain=engine==='hermes'&&process.env.NELYX_STATIC_HERMES_INPUTS?verifyWindowsStaticHermes(process.env.NELYX_STATIC_HERMES_INPUTS):undefined;

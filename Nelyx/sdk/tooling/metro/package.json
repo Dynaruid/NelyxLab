@@ -19,6 +19,7 @@
     },
     "./babel-config": "./src/babel-config.cjs",
     "./native-v8-transformer": "./src/native-v8-transformer.cjs",
+    "./native-hermes-transformer": "./src/native-hermes-transformer.cjs",
     "./native-typed-transformer": "./src/native-typed-transformer.cjs",
     "./native-aot-worker": "./src/native-aot-worker.cjs",
     "./web-development": {

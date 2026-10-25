@@ -2,7 +2,7 @@
 import {RenderSemanticsAnnotations} from '@nelyx/core/framework/rendering/semantics-annotations';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SemanticsConfiguration,SemanticsProperties} from '@nelyx/core/framework/semantics/semantics';
+import {CustomSemanticsAction,SemanticsConfiguration,SemanticsProperties} from '@nelyx/core/framework/semantics/semantics';
 import {SemanticsAction} from '@nelyx/core/ui/semantics-action';
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 const timeout=1_200_000;
@@ -73,6 +73,31 @@ test('JavaScript callback values and frozen-configuration failures retain their 
   const empty=Object.freeze(new SemanticsConfiguration());assert.equal(empty.onLongPress,null);
   assert.throws(()=>{empty.onLongPress=undefined;},TypeError);
   assert.equal(empty.onLongPress,null);assert.throws(()=>empty.getActionHandler(SemanticsAction.longPress)(null),TypeError);
+});
+
+test('custom action maps retain live getter identity, supplied aliases and independent copied entries',{timeout},()=>{
+  const config=new SemanticsConfiguration(),other=new SemanticsConfiguration(),action=new CustomSemanticsAction({label:'Custom map'}),calls=[];
+  const first=()=>calls.push('first'),second=()=>calls.push('second'),view=config.customSemanticsActions;
+  assert.equal(config.customSemanticsActions,view);assert.notEqual(other.customSemanticsActions,view);
+  view.set(action,first);assert.equal(config.hasBeenAnnotated,false);assert.equal(config.getActionHandler(SemanticsAction.customAction),null,'Reading or mutating the map alone does not register a handler');
+  const copied=config.copy();assert.notEqual(copied.customSemanticsActions,view);assert.equal(copied.customSemanticsActions.get(action),first);
+  view.set(action,second);assert.equal(copied.customSemanticsActions.get(action),first);
+  const supplied=new Map([[action,first]]);config.customSemanticsActions=supplied;assert.equal(config.customSemanticsActions,supplied);
+  const registeredCopy=config.copy(),id=CustomSemanticsAction.getIdentifier(action);supplied.set(action,second);
+  config.getActionHandler(SemanticsAction.customAction)(id);registeredCopy.getActionHandler(SemanticsAction.customAction)(id);
+  assert.deepEqual(calls,['second','second'],'Copied dispatch keeps the existing source handler receiver');assert.equal(registeredCopy.customSemanticsActions.get(action),first);
+  const frozen=Object.freeze(new SemanticsConfiguration()),frozenView=frozen.customSemanticsActions;
+  assert.equal(frozen.customSemanticsActions,frozenView);frozenView.set(action,first);assert.equal(frozen.copy().customSemanticsActions.get(action),first);
+  assert.throws(()=>{frozen.onLongPress=first;},TypeError);frozen.getActionHandler(SemanticsAction.longPress)(null);assert.deepEqual(calls,['second','second','first']);
+});
+
+test('absorbing custom actions preserves destination map identity and equal action keys while filtering blocked handlers',{timeout},()=>{
+  const parent=new SemanticsConfiguration(),child=new SemanticsConfiguration(),first=new CustomSemanticsAction({label:'Equal custom'}),equal=new CustomSemanticsAction({label:'Equal custom'}),calls=[];
+  const retained=parent.customSemanticsActions;retained.set(first,()=>calls.push('parent'));
+  child.customSemanticsActions=new Map([[equal,()=>calls.push('child')]]);child.onTap=()=>calls.push('tap');child.onDidGainAccessibilityFocus=()=>calls.push('accessibility');child.isBlockingUserActions=true;
+  parent.absorb(child);assert.equal(parent.customSemanticsActions,retained);assert.deepEqual([...retained.keys()],[first]);retained.get(first)();
+  assert.equal(parent.getActionHandler(SemanticsAction.tap),null);assert.equal(parent.getActionHandler(SemanticsAction.customAction),null);
+  parent.getActionHandler(SemanticsAction.didGainAccessibilityFocus)(null);assert.deepEqual(calls,['child','accessibility']);
 });
 
 test('annotation handlers stay stable and read current properties with their original receiver and arguments',{timeout},()=>{

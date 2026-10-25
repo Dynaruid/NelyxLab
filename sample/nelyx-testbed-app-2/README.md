@@ -60,22 +60,68 @@ The original Flutter BSD notice is retained in [LICENSE.flutter](LICENSE.flutter
 
 Run all commands below from **PowerShell at the repository root**. On first use, or after SDK/native source changes, follow [Prepare Windows](#prepare-windows) first. Close the existing Testbed window before rebuilding the same output.
 
+### Experimental direct Hermes host
+
+After building and supplying the current SDK/Windows runner packages, run either mode from the repository root:
+
+```powershell
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode bytecode
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot
+```
+
+These commands prepare the pinned direct Hermes supplier and build the same application entry with the HWND/Skia/TSF/UIA host. They require Windows x64, the current pinned Skia inputs, VS C++ tools, LLVM and CMake/Ninja. Close the window before rebuilding its current package. The outputs are `.nelyx/native-windows/current-bytecode` and `current-static-aot` inside this app. For external apps, use the installed CLI's [`--host native-hermes` commands](../../Nelyx/sdk/tooling/cli/README.md#native-prerequisites).
+
+RNW remains the default host and Hermes remains the default engine. Direct-host performance, physical Korean IME/trackpad input and matching display acceptance remain open in [W17](../../work17.md).
+
+This Testbed also has a developer probe for programmatic ListView/catalog scrolling:
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --scope diagnostic --catalog
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scope gc --catalog
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --input os --scope cpu --viewport both --catalog
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --scope cpu --viewport maximized --resource-cycles 6
+```
+
+`--resource-cycles 3..30` repeats the real app's ListView cold/revisit scrolls, first/last rows and return to the gallery after the programmatic diagnostic. It requires baseline Core producers, tree and native frame owners, equal residency in the last three cycles, and the existing 64-entry/32MiB picture cache bounds. Private process memory, GPU memory, physical input, display and full H4 acceptance remain separate.
+
+A separate memory probe exercises the current delivered packages through UIA and guarded OS wheel input, without another JS entry or AOT image:
+
+```powershell
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode bytecode --build-only
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot --build-only
+node Nelyx/eng/run-native-memory.mjs --hermes-mode both --viewport both --cycles 6
+```
+
+This attempts 24 route cycles across four fresh processes and stops at the first rejected observation. `--cycles` is bounded to 3..30 per process and at most 30 across one invocation. Each process reports private commit and actual Vulkan allocation/import ownership after returning to the gallery. Caps are 1GiB private commit and 512MiB Vulkan allocations; the last three points must stay within 8MiB/1MiB bands with at most 1MiB/64KiB net growth and no net allocation-count growth. Signed/absolute native wheel volume, process identity, viewport and focus must remain valid. Input frame trace is enabled for memory observations; CPU performance qualification is separate. Vulkan allocator bytes do not establish GPU driver residency, physical input, display or full H4 acceptance. A rejected observation exits with code 1 after stopping its owned application. The probe stops its owned applications on success, failure or interruption and retains no log or temporary package.
+
+The external client also reports bounded, read-only address-space scans and changes at new or previously observed allocation bases. These non-atomic scans do not identify allocation stacks or prove object lifetimes. MEM_PRIVATE region totals do not replace PSAPI private commit; raw addresses and process-memory dumps are not emitted.
+
+Keep desktop input idle while its window is measuring. The probe rejects foreground/input intrusion and incomplete receipts, prints bounded CPU/checkpoint/heap/surface summaries, and removes its temporary entry and package on exit. Programmatic runs park the cursor on the owned title bar; keyboard messages, UIA actions, focus changes or unexpected desktop input invalidate a phase. `cpu`, `gc` and inclusive `diagnostic` spans are separate scopes; the latter distinguishes `Paint.record` from `Paint.compose`. Bytecode also supports `--scope sampling`: a separate 1,000 Hz Hermes PC profile mapped through its exact bundle source map. Its counts are observations, not milliseconds; `--details` prints all mapped stacks instead of the top eight functions. These programmatic diagnostics remain `diagnostic-only`: matching OS-input comparisons and physical display acceptance are still required.
+
+`--input os` sends guarded Windows wheel input from a separate native thread and verifies its cookie, quantity, direction and Core-to-surface correspondence. It supports ListView and the complete Material/Cupertino catalog with `--scope cpu`. Catalog cold/revisit coverage joins each Core-visible section to the exact native surface content frame; fast runs report skipped sections. A separate bytecode `--scope sampling` diagnosis supports ListView. OS catalog sampling, GC and inclusive diagnostic combinations are rejected. Use `static-aot` for the other engine mode. `--viewport both` builds one diagnostic bundle, then measures fresh default and maximized processes in sequence. Frame callback/checkpoint and input-dispatch costs are reported separately. These runs remain diagnostic evidence; matching baseline, physical input and display acceptance are still required.
+
+After building the current package, `node Nelyx/eng/run-native-uia-focus.mjs static-aot --product` tests its actual category button and editor with an external UIA client, verifies focus and closes the app. Use `bytecode` for the HBC package. This checks automated UIA behavior; physical Korean IME and screen-reader acceptance remain separate.
+
+Add `--range` to `--product` to verify absolute UIA RangeValue requests on the actual Material/Cupertino sliders and both range-slider thumbs, including discrete values, thumb ordering, invalid values and disabled controls. [RangeValue setters may round to the control's supported values](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nf-uiautomationcore-irangevalueprovider-setvalue); the probe waits for the value published by Core.
+
+Add `--pointer` to use OS mouse clicks for category navigation and editor focus, followed by the external UIA focus checks. `--product` also checks the recorded original code sources and owner package manifests against the current app and installed dependencies; rebuild the package when these inputs change.
+
 ### Choose an execution mode
 
 | Purpose | Engine and execution | Configuration | Command |
 |---|---|---|---|
-| Normal use | V8 · source JS bundle | Release | `start:windows:v8` |
+| Normal use | Hermes · HBC99, optimized policy | Release | `start:windows:hermes` |
+| V8 comparison | V8 · source JS bundle | Release | `start:windows:v8` |
 | JavaScriptCore | JSC · source JS, JIT enabled | Release | `start:windows:jsc` |
 | JavaScriptCore interpreter | JSC · source JS, code generation disabled | Release | `start:windows:jsc:interpreter` |
-| Hermes comparison | Hermes · bytecode(HBC99), `optimized` | Release | `start:windows:hermes` |
 | Static Hermes AOT experiment | Hermes · native Metro root + selected type specialization | Release only | `start-windows-static-aot.ps1` below |
 | Original Hermes compiler comparison | Hermes · bytecode, `debug`(`-Og`) | Release | `start:windows:hermes:debug` |
 | Development session | Hermes · Metro | Debug | `dev` command below |
 | Reopen the last build | Engine and mode recorded in the last package | Last build configuration | `run:windows` |
 
-Normal builds of this app select V8. The Static Hermes AOT mode is `static-aot`, with build tooling `@nelyx/static-aot`. Previous mode/package/script names have been removed without compatibility aliases; use current supplied packages and rebuild the native app.
+Normal builds select Hermes with the qualified `optimized` compiler policy. RNW remains the default host; V8/JSC are explicit choices. The Static Hermes AOT mode is `static-aot`, with build tooling `@nelyx/static-aot`. Use current supplied packages and rebuild after SDK/native changes.
 
-**V8 (default engine)**
+**V8 (explicit comparison)**
 
 ```powershell
 npm.cmd run start:windows:v8 --workspace "@nelyx/testbed-2"
@@ -110,8 +156,8 @@ The first preparation downloads pinned Playwright WebKit build 2272 / WebKit
 20 GiB free space. Only the current reusable supplier is kept; download and
 compiler trees are removed after preparation. JSC is Windows-only in this SDK;
 the Hermes debugger/Metro development command remains a separate path. Engine
-licenses and source links accompany the package. V8 remains this app's normal
-build default.
+licenses and source links accompany the package. Hermes remains the app's
+normal build default.
 
 **Hermes bytecode (optimized profile)**
 
@@ -155,7 +201,7 @@ npm.cmd run run:windows --workspace "@nelyx/testbed-2"
 
 ### Build and run options
 
-Use the Windows runner's `build` command directly when changing options. The app's `build:windows` script explicitly selects V8; use the Hermes scripts above or an explicit runner command to choose Hermes. In PowerShell, use `npm.cmd` and `--` to pass options.
+Use the Windows runner's `build` command directly when changing options. The app's `build:windows` script selects Hermes `optimized`; use an engine-specific script or explicit runner options for V8/JSC and compiler comparisons. In PowerShell, use `npm.cmd` and `--` to pass options.
 
 | Option | Commands | Values and purpose |
 |---|---|---|
@@ -205,13 +251,13 @@ Replace the path with the current native supplier's actual `inputs.json`. Omit `
 npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run prepare:native -- --engine v8
 ```
 
-**This Testbed uses V8 for Windows Release builds.** The normal `build:windows` command selects the pinned V8 supplier and a JavaScript source bundle; `run:windows` executes the last built package. Other apps and the CLI keep Hermes as their default engine. Reuse a prepared V8 supplier with prepare’s `--engine-inputs <supplier-directory>`.
+**This Testbed uses Hermes for Windows Release builds.** The normal `build:windows` command selects the qualified optimized HBC99 policy; `run:windows` executes the last built package. V8 remains available through its explicit script. Reuse a prepared V8 supplier with prepare’s `--engine-inputs <supplier-directory>`.
 
-For Hermes comparisons, run `npm.cmd run build:windows:hermes --workspace @nelyx/testbed-2`. Its `optimized` HBC99 policy omits the reproduced loop/CFG failure pass and disables inlining. Packages record its exact flags and policy ID and reject a different VM supplier. Other apps and the CLI retain the `debug` (`-Og`) compiler default. For `-Og`, run `npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-profile debug` from the root.
+The default `optimized` HBC99 policy omits the reproduced loop/CFG failure pass and disables inlining. Packages record its exact flags and policy ID and reject a different VM supplier. Current Windows Release templates and CLI use that policy. For `-Og` comparison, run `npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-profile debug` from the root.
 
 From the Windows runner, connect a native supplier with `npx --no-install nelyx prepare --app ../.. --target windows --native-inputs <inputs.json>` when required.
 
-To prepare/build V8 directly, run `npx --no-install nelyx prepare --app ../.. --target windows --engine v8` from `windows/runner`, then run `npm.cmd run build:windows --workspace @nelyx/testbed-2` and the usual run command from the repository root. Preparation builds RNW 0.83.2 with its native RN 0.83.4 sources and pinned Microsoft V8 24.1.10; `--engine-inputs <supplier-directory>` reuses a prepared supplier. The `rn-v8-graphite-vulkan` profile uses the `rn-0.83.10-v8` cohort and a source JS bundle, with owning-VM and package checks. Core/Skia, input and accessibility retain the same paths. Use `build:windows:hermes` above for a Hermes optimized/HBC99 comparison. Close the current Release app before replacing it. V8's Hermes inspector and development refresh are not supported. Current measurements and qualification limits are in [W14 §7](../../work14.md#7-현재-상태와-다음-재개).
+To prepare/build V8 directly, run `npx --no-install nelyx prepare --app ../.. --target windows --engine v8` from `windows/runner`, then run `npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine v8` and the usual run command from the repository root. Preparation builds RNW 0.83.2 with native RN 0.83.4 and pinned Microsoft V8 24.1.10; `--engine-inputs <supplier-directory>` reuses a verified supplier. Its `rn-v8-graphite-vulkan` profile and `rn-0.83.10-v8` cohort use a source bundle. Close the current Release app before replacing it. V8's Hermes inspector and development refresh remain unsupported.
 
 V8 preparation requires MSVC v145 and Windows SDK 10.0.26100.0. Use `npm.cmd` in PowerShell to preserve the option separator. The pinned C ABI microtask completion bit is adapted to RN JSI semantics; startup checks a real Promise chain, a host microtask and an empty queue. This adaptation is bounded to the [pinned upstream source](https://github.com/microsoft/v8-jsi/blob/c1877966a8285b7cbacbdd03e26ca003496436bc/src/jsi_abi/jsi_abi_v8.cpp#L1481).
 
@@ -230,7 +276,7 @@ From the repository root, `npm run test:windows-animation` builds a temporary Re
 
 Set `NELYX_ANIMATION_RESIZE=1` for border dragging, 19 size changes across the gallery and native failure/close regression checks. This mode moves the pointer and requires the fixture window to acquire foreground activation with the physical mouse button released. Resize runs are functional checks, not fixed-size performance comparisons. UI task failures preserve their original message/HRESULT in the error and `NelyxWindowsHost.getStatus().uiFailure`. After a native failure, an explicit close exits with code 2 while retaining uncertain resources until process exit; normal close still requires confirmed GPU/input drain.
 
-From the repository root, `node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-surface.test.mjs` builds a separate GPU fixture using the current runner packages and native supplier. The default is the public V8/unminified-source path; `NELYX_WINDOWS_INPUT_ENGINE=hermes` selects minified optimized/HBC99. It requires foreground ownership and checks Core/TSF documents, OS scan codes, standalone WM_CHAR/Unicode VK_PACKET, caret screen bounds and GPU/input retirement, then removes its temporary project.
+From the repository root, `node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-surface.test.mjs` builds a separate GPU fixture using the current runner packages and native supplier. The default is the public Hermes optimized/HBC99 path; `NELYX_WINDOWS_INPUT_ENGINE=v8` selects the explicit V8/source comparison. It requires foreground ownership and checks Core/TSF documents, OS scan codes, standalone WM_CHAR/Unicode VK_PACKET, caret screen bounds and GPU/input retirement, then removes its temporary project.
 
 With a Korean keyboard layout already active, set `NELYX_WINDOWS_INPUT_IME=1` to include actual TSF composition/commit, active clear/Undo/Redo/reset, focus and resize. The fixture preserves the layout and restores its thread's original IME modes before closing. Default testbed provider/nonvisual UIA migration and physical IME/reader qualification remain W14 work.
 
@@ -238,12 +284,17 @@ With a Korean keyboard layout already active, set `NELYX_WINDOWS_INPUT_IME=1` to
 
 Use JDK 21, Android SDK/build tools 36, NDK `27.1.12297006`, an x86_64 Vulkan emulator and the matching Skia Android 154.1.0 supply.
 
+The current Windows setup builds with Temurin 21.0.11; its default GraalVM 21 fails the Android JDK image `jlink` step. Adjust the JDK path below to your installed standard OpenJDK 21.
+
 ```powershell
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
 npm run prepare:runner --workspace @nelyx/testbed-2 -- android
-npm --prefix sample/nelyx-testbed-app-2/android/runner install --ignore-scripts
+npm --prefix sample/nelyx-testbed-app-2/android/runner install --workspaces=false --ignore-scripts
 npm run build:android:emulator --workspace @nelyx/testbed-2
 npm run run:android --workspace @nelyx/testbed-2
 ```
+
+For temporary emulator checks, `-read-only -no-snapshot` keeps the session disposable; [Android documents that read-only guest disk changes are discarded on exit](https://developer.android.com/studio/releases/emulator). Activity startup/back checks remain separate from native drain, physical input and display timing acceptance.
 
 Android uses a nonvisual View/BaseInputConnection protocol4 for OS input, including explicit withdrawal of unavailable Core geometry. Core/Skia paints the text, selection, composing underline and caret; Core also supplies the IME caret baseline and lazy UTF-16 character bounds. Gradle copies declared, hash-verified font bytes for the Skia loader; native editor font registration is no longer required. Font changes still require resupply, installation and an APK rebuild. Use a standard OpenJDK 21 distribution.
 
@@ -296,6 +347,8 @@ From the repository root, `npm run test:scroll-engine` checks the common engine 
 A ListView with fixed `itemExtent` or an `extentIndex` can opt into `childPolicy: {mode: 'bounded', preparation: 'disabled'}`. The default `legacy` policy retains existing behavior. Optional retention shares budgets of 8 children per sliver and 16 children / 2,048 Elements per View, extending the same item State lifetime without pausing listeners or tickers. Explicit keep-alive requests remain separate. Explicit `cacheExtent`/`scrollCacheExtent`, shrink wrapping, general/varied/prototype lists and nested bounded owners are unsupported. Fixed and indexed section slivers accept the same `childPolicy`. Requesting `preparation: 'observed-budget'` leaves automatic preparation disabled on current hosts because they provide no observed deadline. Native acceptance for this opt-in path is tracked in [W16](../../work16.md).
 
 The default OS workload covers both complete gallery catalogs, including planned sections. Each column receives uninterrupted wheel input to its edge and a reverse revisit; every section must enter the viewport during cold and revisit phases. Fast traversal checks delivery and the edge, reporting skipped sections separately. The fixed ListView workload also measures each inserted item's creation through first layout. `$env:NELYX_SCROLL_CATALOG='bounded'` selects the former bounded-distance diagnostic workload, excluded from full-catalog acceptance. Supply validation checks all Core source/dist/package files. Only when deliberately retaining the pre-change installed baseline, set `NELYX_SCROLL_REFERENCE_CORE_DIGEST` to its exact reported installed digest.
+
+Wheel pacing uses a high-resolution timer for every interval, charging guard and send work to the interval before waiting. Reports include the `high-resolution-relative-start-completion-v1` policy and actual send-completion interval p50/p95/max. Qualification rejects older pacing policies and missing or invalid actual intervals; a requested interval alone does not establish matching input conditions.
 
 While using the desktop, add `$env:NELYX_SCROLL_INPUT='queued'` to the diagnostic settings to observe SDK queue delivery. All instrumented diagnostics use the bounded workload and are excluded from OS wheel performance. `$env:NELYX_SCROLL_AFTER_DIAGNOSTIC='1'` verifies hashes of the same HBC/AOT compiler output, prepares separate native diagnostic hosts, then runs native/JS/Core attribution once per mode in fresh processes after timing. An external helper observes sync JSI thread PCs and uses exact image hashes with PDB/native maps to report VM functions, AOT function ranges and source candidates. These observations include waits and thread suspension overhead; PC frequencies are not CPU-time shares or performance acceptance. Diagnostics are also attempted after a timing failure while retaining the first failure. Do not combine this setting with `NELYX_SCROLL_DIAGNOSTIC`. Injected calls and received events are reported separately; absolute/signed distance, native sequence continuity and dispatch correspondence must agree. Latency for combined native events starts at the received event timestamp. Clear used `NELYX_SCROLL_*` environment variables after qualification.
 

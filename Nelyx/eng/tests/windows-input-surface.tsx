@@ -20,7 +20,7 @@ import {registerApplication} from '@nelyx/sdk/platforms/windows/application';
 import {NativeLayer} from '@nelyx/sdk/platforms/windows/controls';
 import {ApplicationSurface as Surface} from '@nelyx/sdk/platforms/windows/surface';
 import {WindowsInteraction} from '@nelyx/sdk/platforms/windows/interaction';
-import {windowsSemanticsPacket} from './node_modules/@nelyx/sdk/src/backends/react-native/windows-semantics-packet';
+import {windowsSemanticsPacket,performWindowsSemanticsAction as strictSemanticsAction} from './node_modules/@nelyx/sdk/src/backends/react-native/windows-semantics-packet';
 import type {NativeEditingSnapshot} from './node_modules/@nelyx/sdk/dist/backends/react-native/interaction.js';
 import type {WindowsInputModule} from './node_modules/@nelyx/sdk/dist/backends/react-native/windows-input-service.js';
 import type {ReactNativeApplication} from './node_modules/@nelyx/sdk/dist/backends/react-native/surface.js';
@@ -37,6 +37,7 @@ let nativeEditing:NativeEditingSnapshot|undefined;
 let lastInsert:Parameters<WindowsInputModule['insertText']>|undefined,standaloneInsertions=0,insertions=0;
 const imeProbe=Boolean(Number('__IME_PROBE__'));let observedComposition=false,releasedBarrier=0,releasedRight=0;
 const keyTrace:unknown[]=[];function trace(value:unknown){if(keyTrace.length===64)keyTrace.shift();keyTrace.push(value);}
+const performAction=interaction.performAction.bind(interaction);interaction.performAction=(id,action)=>{const accepted=performAction(id,action);trace({semanticsAction:{id,action,accepted,coreFocused:focus.hasFocus,nativeFocused:nativeEditing?.focused,commit:interaction.snapshot()}});return accepted;};
 let commandSequence=0,maxFramePublications=0;const nativePending=new Map<number,{client:number;name:string}>(),geometryByFrame=new Map<string,number>();
 // Observe the real module without replacing its TSF implementation. The public
 // ApplicationSurface still creates, owns and retires the input service itself.
@@ -46,6 +47,31 @@ const observed:WindowsInputModule={getInputProtocol:()=>native.getInputProtocol(
 // RNW exposes immutable HostObject methods. Instrument the JS registry getter,
 // forwarding every native operation to the original module unchanged.
 declare const require:(name:string)=>typeof RN;
+const packetExports=require('./node_modules/@nelyx/sdk/dist/backends/react-native/windows-semantics-packet.js') as unknown as typeof import('./node_modules/@nelyx/sdk/dist/backends/react-native/windows-semantics-packet.js');
+const semanticsAction=packetExports.performWindowsSemanticsAction;
+const tracedSemanticsAction:typeof semanticsAction=(current,node,packet,event)=>{const accepted=semanticsAction(current,node,packet,event);trace({nativeSemanticsAction:{id:event.id,kind:event.kind,commit:event.commit,expected:packet.commit,current:current.snapshot(),live:current.isLiveNodeSnapshot(node),accepted}});return accepted;};
+Object.defineProperty(packetExports,'performWindowsSemanticsAction',{configurable:true,value:tracedSemanticsAction});
+// Hold one actual UIA receipt until React commits a newer packet. Observe both
+// package entry forms without adding a test hook to the product renderer.
+const actionSource=require('./node_modules/@nelyx/sdk/src/backends/react-native/windows-semantics-actions') as unknown as typeof import('./node_modules/@nelyx/sdk/src/backends/react-native/windows-semantics-actions');
+const actionBuilt=require('./node_modules/@nelyx/sdk/dist/backends/react-native/windows-semantics-actions.js') as unknown as typeof actionSource;
+type FocusReceiver=InstanceType<typeof actionSource.WindowsSemanticsActions>;
+type FocusPublication=Parameters<FocusReceiver['publish']>;
+type FocusReceipt=Parameters<FocusReceiver['perform']>[0];
+const focusPublications=new WeakMap<FocusReceiver,FocusPublication>(),restoreFocusReceivers:Array<()=>void>=[];
+let holdNativeFocus=false,deferredFocus:{event:FocusReceipt;latest:()=>FocusPublication|undefined;perform:()=>boolean}|undefined;
+let queuedFocusEvidence:{capturedCommit:number;publishedCommit:number;strictRejected:boolean;accepted:boolean}|undefined;
+for(const Receiver of new Set([actionSource.WindowsSemanticsActions,actionBuilt.WindowsSemanticsActions])){
+ const publish=Receiver.prototype.publish,perform=Receiver.prototype.perform;
+ Receiver.prototype.publish=function(...args){publish.apply(this,args);focusPublications.set(this,args);};
+ Receiver.prototype.perform=function(event){
+  if(holdNativeFocus&&event.kind==='focus'&&event.id==='field'){
+   holdNativeFocus=false;const captured={...event};deferredFocus={event:captured,latest:()=>focusPublications.get(this),perform:()=>perform.call(this,captured)};trace({heldNativeFocus:captured});return false;
+  }
+  return perform.call(this,event);
+ };
+ restoreFocusReceivers.push(()=>{Receiver.prototype.publish=publish;Receiver.prototype.perform=perform;});
+}
 const nativeExports=require('react-native'),registry=nativeExports.NativeModules;
 Object.defineProperty(nativeExports,'NativeModules',{configurable:true,get:()=>new Proxy(registry,{get(target,name){return name==='NelyxWindowsInput'?observed:Reflect.get(target,name);}})});
 traceSubscription=RN.DeviceEventEmitter.addListener('nelyxWindowsInput',event=>{if(event.type==='editing'){nativeEditing=event.value as NativeEditingSnapshot;if(nativeEditing.source==='native'&&nativeEditing.composingStart>=0)observedComposition=true;trace({editing:event});}});
@@ -59,8 +85,8 @@ async function finish(ok:boolean,message:string){if(finished)return;
   const calls:Record<string,number>={};for(const name of Object.getOwnPropertyNames(globalThis))if(/^__nelyxTyped_[a-f0-9]{16}_calls$/.test(name))calls[name.slice(0,-6)]=(globalThis as unknown as Record<string,()=>number>)[name]!();
   check(Object.values(calls).some(count=>count>0),'The input flow did not call a real typed Core body');const audit=(globalThis as any).__nelyxStaticHermesAudit?.();check(audit?.rnwPalNative&&audit.internalJavaScriptNative&&audit.nativeStarted&&!audit.sourcePreparations&&!audit.sourceExecutions&&!audit.bytecodeExecutions&&!audit.blockedFallbacks&&!audit.jitEnabled&&!audit.evalEnabled,'Input flow used a non-native execution path');message+='\nINPUT_AOT_AUDIT '+JSON.stringify(audit);message+='\nINPUT_TYPED_EXECUTION '+JSON.stringify({mode:state.mode,unitsInitialized:state.unitsInitialized,calls});
  }
- finished=true;fixture.complete(ok,message);}
-function fail(error:unknown){void finish(false,stage+': '+(error instanceof Error?error.stack??error.message:typeof error==='object'?JSON.stringify(error):String(error))+(stage.startsWith('rapid')?'\n'+keyTrace.map(value=>JSON.stringify(value)).join('\n')+'\nnativePending='+JSON.stringify([...nativePending]):''));}
+ finished=true;holdNativeFocus=false;deferredFocus=undefined;for(const restore of restoreFocusReceivers.splice(0))restore();fixture.complete(ok,message);}
+function fail(error:unknown){void finish(false,stage+': '+(error instanceof Error?error.stack??error.message:typeof error==='object'?JSON.stringify(error):String(error))+(stage.startsWith('rapid')||stage==='actual Fabric UIA'||stage==='actual queued UIA focus'?'\n'+keyTrace.map(value=>JSON.stringify(value)).join('\n')+'\nnativePending='+JSON.stringify([...nativePending]):''));}
 (globalThis as unknown as {ErrorUtils:{setGlobalHandler(handler:(error:Error)=>void):void}}).ErrorUtils.setGlobalHandler(fail);
 async function pixels(message:string){let last:unknown;const end=Date.now()+8000;do{const value=await fixture.probe(tag,readSelection().focus);last=value;if(value.mapping&&value.layout&&value.green){const r=value.rect,p=value.green;check(value.bound,'TSF layout without bound Skia backing');
  // Core commits geometry before asynchronous GPU/DWM presentation. An old
@@ -101,8 +127,24 @@ async function run(application:ReactNativeApplication){
  for(const invalid of [{...corePacket,text:{...corePacket.text!,textRevision:-1}},{...corePacket,text:{...corePacket.text!,obscured:true,value:'secret',navigation:null,paragraph:null,anchor:0,focus:0}},{...dirty,text:{...dirty.text,value:'A😀',anchor:0,focus:0,navigation:{characters:[0,2,3],words:[],lines:[]}}}])check(!(await fixture.validateSemantics(invalid)).accepted,'Native parser accepted invalid revision/password plaintext/split-scalar Core units');
  const automation=async(mode:string)=>{let reply:{observed:boolean;text?:string;reason?:string;caretActive?:boolean;visible?:number;textEvents?:number}|undefined;for(let attempt=0;attempt<25;attempt++){const source=(mode==='invoke'?interaction.node('invoke','button'):interaction.node('field','text-field'))?.sourceNodeId,proxy=source===undefined?null:interaction.nativeSemanticsTag(source);if(proxy)reply=await fixture.semantics(proxy,mode);if(reply?.observed)return reply;await delay(100);}throw new Error('Actual Fabric UIA '+mode+' failed: '+JSON.stringify(reply));};
  await automation('invoke');const invoked=Date.now()+5000;while(activations!==1){check(Date.now()<invoked&&activations<=1,'Actual UIA Invoke must dispatch exactly one Core action: '+activations);await delay(20);}
- focus.unfocus();const blurred=Date.now()+5000;while(nativeEditing?.focused!==false){check(Date.now()<blurred,'Core blur did not retire native text focus');await delay(20);}
- const focusReply=await automation('focus') as {focusMatches?:boolean;fieldHasFocus?:boolean;focusEvents?:number;focusedId?:string};check(focusReply.focusMatches&&focusReply.fieldHasFocus&&(focusReply.focusEvents??0)>0,'Actual UIA root focus must resolve the Core field: '+JSON.stringify(focusReply));const focused=Date.now()+5000;while(!focus.hasFocus||!nativeEditing?.focused){check(Date.now()<focused,'Actual UIA SetFocus did not restore Core/TSF/canvas focus');await delay(20);}
+ for(let cycle=0;cycle<8;cycle++){
+  trace({focusCycle:cycle});focus.unfocus();const blurred=Date.now()+5000;while(nativeEditing?.focused!==false){check(Date.now()<blurred,'Core blur did not retire native text focus');await delay(20);}
+  const focusReply=await automation('focus') as {focusMatches?:boolean;fieldHasFocus?:boolean;focusEvents?:number;focusedId?:string};check(focusReply.focusMatches&&focusReply.fieldHasFocus&&(focusReply.focusEvents??0)>0,'Actual UIA root focus must resolve the Core field: '+JSON.stringify(focusReply));const focused=Date.now()+5000;while(!focus.hasFocus||!nativeEditing?.focused){check(Date.now()<focused,'Actual UIA SetFocus did not restore Core/TSF/canvas focus: '+JSON.stringify({cycle,coreFocused:focus.hasFocus,nativeFocused:nativeEditing?.focused,focusReply,commit:interaction.snapshot()}));await delay(20);}
+ }
+ stage='actual queued UIA focus';focus.unfocus();
+ const blurDeadline=Date.now()+5000;while(nativeEditing?.focused!==false){check(Date.now()<blurDeadline,'Queued-focus fixture did not blur its real TSF editor');await delay(20);}await delay(100);
+ holdNativeFocus=true;const queuedRequest=automation('focus').then(value=>({value,error:undefined}),error=>({value:undefined,error}));
+ const captureDeadline=Date.now()+2000;while(!deferredFocus){check(Date.now()<captureDeadline,'Actual UIA focus did not reach its JS receiver');await delay(10);}
+ const pendingFocus=deferredFocus;controller.selection={anchor:2,focus:2};
+ const publicationDeadline=Date.now()+2000;let published=pendingFocus.latest();
+ while(!published||published[2].commit<=pendingFocus.event.commit){check(Date.now()<publicationDeadline,'React did not commit a newer real field packet while the UIA request waited');await delay(10);published=pendingFocus.latest();}
+ check(!focus.hasFocus,'The held native action focused Core before it was released');
+ const strictRejected=!strictSemanticsAction(published[0],published[1],published[2],pendingFocus.event);check(strictRejected,'The old latest-packet matcher did not reproduce the queued native stamp rejection');
+ const accepted=pendingFocus.perform();check(accepted,'Published native focus was lost after the newer React commit');queuedFocusEvidence={capturedCommit:pendingFocus.event.commit,publishedCommit:published[2].commit,strictRejected,accepted};trace({queuedFocusEvidence});deferredFocus=undefined;
+ const queuedReply=await queuedRequest;check(!queuedReply.error,'Queued actual UIA focus failed: '+String(queuedReply.error));
+ const focusDeadline=Date.now()+5000;while(!focus.hasFocus||!nativeEditing?.focused){check(Date.now()<focusDeadline,'Queued actual UIA focus did not restore Core and TSF');await delay(20);}
+ const queuedState=queuedReply.value as {focusMatches?:boolean;fieldHasFocus?:boolean};check(queuedState.focusMatches&&queuedState.fieldHasFocus,'Queued focus did not reach the real UIA field: '+JSON.stringify(queuedState));
+ controller.selection={anchor:4,focus:4};await pixels('Core caret restored after queued actual UIA focus');stage='actual Fabric UIA';
  const accessible=await automation('query');check(accessible.text===controller.text&&accessible.caretActive&&accessible.visible!>0,'Actual UIA Text/Text2 did not expose current Core text/caret/visible geometry');
  await automation('select');const selected=Date.now()+5000;while(readSelection().anchor!==1||readSelection().focus!==4){check(Date.now()<selected,'Actual UIA selection did not reach the same Core delegate');await delay(20);}
  const replaced=await automation('replace');check(replaced.text==='Core UIA 😀'&&replaced.textEvents!>0,'Actual UIA replacement did not raise Core publication events');await document('Core UIA 😀',false);await resetDocument();await pixels('Core pixels after actual Fabric UIA edits');
@@ -144,7 +186,7 @@ async function run(application:ReactNativeApplication){
  for(const target of [.9,1]){const completed=opacityCompletions,deadline=Date.now()+5000;opacity.value=target;while(opacityCompletions===completed){check(Date.now()<deadline,'Actual Core opacity animation did not complete');await delay(20);}}
  check(controller.text===beforeAnimation&&JSON.stringify(controller.selection)===selectionBeforeAnimation,'The real animated editor replaced its document or selection');await pixels('Actual Core/Skia caret after opacity animation');
  await fixture.beginCloseProducerProbe();controller.text+=' close';application.view.requestFrame();
- await finish(true,'actual GPU-bound Core paragraph/caret pixels inside TSF screen bounds and original native paragraph ticket/range/hit with actual context/resource rejection and Core-to-screen range/visible/hit/reentrant mapping fences, actual registered nonvisual Fabric UIA Text/Text2/Value reads, Core selection and replacement, TextChanged and live range update, actual UIA range top/bottom alignment without editing or focus changes, readonly/password/pattern metadata notifications and permanently retired privacy ranges, rapid OS-injected Ctrl+A/a/b/Backspace/c, public controller text/selection setters, queued WM_CHAR/Unicode VK_PACKET and stale-focus rejection observed through Core and TSF, '+(imeProbe?'configured Korean TSF composition/commit, Shift/consumed-key release in native/modern/raw state, active clear/Undo/Redo/reset, focus and composing backing resize, ':'')+'same-frame geometry publications max='+maxFramePublications+', Fabric tag, native static envelopes, backing-resize NOLAYOUT fence and live document preservation; normal close must drain both GPU and input. Public default surface/provider with one typed Core Invoke and UIA focus exercised; physical hardware/IME and reader remain notVerified.');
+ await finish(true,'actual GPU-bound Core paragraph/caret pixels inside TSF screen bounds and original native paragraph ticket/range/hit with actual context/resource rejection and Core-to-screen range/visible/hit/reentrant mapping fences, actual registered nonvisual Fabric UIA Text/Text2/Value reads, Core selection and replacement, TextChanged and live range update, actual UIA range top/bottom alignment without editing or focus changes, readonly/password/pattern metadata notifications and permanently retired privacy ranges, rapid OS-injected Ctrl+A/a/b/Backspace/c, public controller text/selection setters, queued WM_CHAR/Unicode VK_PACKET and stale-focus rejection observed through Core and TSF, '+(imeProbe?'configured Korean TSF composition/commit, Shift/consumed-key release in native/modern/raw state, active clear/Undo/Redo/reset, focus and composing backing resize, ':'')+'same-frame geometry publications max='+maxFramePublications+', Fabric tag, native static envelopes, backing-resize NOLAYOUT fence and live document preservation; normal close must drain both GPU and input. Public default surface/provider with one typed Core Invoke, eight UIA blur/focus cycles and a held native receipt across a newer React commit exercised; physical hardware/IME and reader remain notVerified.\nINPUT_QUEUED_FOCUS '+JSON.stringify(queuedFocusEvidence));
 }
 let firstContentReady=false;
 function App(){return React.createElement(NativeLayer,{style:{flex:1,padding:17,backgroundColor:'#101827'}},React.createElement(Surface,{definition,generation:owner.generation,viewId:owner.id,interaction,initializePlatformServices:false,onFirstContentReady:()=>{firstContentReady=true;},onReady:application=>{void run(application).catch(fail);},onError:fail,onClose:()=>{traceSubscription?.remove();controller.dispose();focus.dispose();configuration.dispose();opacity.dispose();interaction.dispose();}}));}

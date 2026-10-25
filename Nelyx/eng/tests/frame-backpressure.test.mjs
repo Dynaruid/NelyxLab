@@ -6,17 +6,22 @@ import {GraphiteRenderer} from '@nelyx/skia-rn/renderer';
 const timeout=1_200_000;
 const metrics={logicalWidth:100,logicalHeight:100,physicalWidth:100,physicalHeight:100,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:1,nativeSurfaceGeneration:1};
 function fixture({scene}={}){
-  const callbacks=new Map(),notifications=[],submissions=[],errors=[];let next=0,builds=0,value=0,drawn,deny=false,nativeRecordings=0,releaseAfterHint=false;
+  const callbacks=new Map(),notifications=[],submissions=[],errors=[];let next=0,builds=0,value=0,drawn,deny=false,nativeRecordings=0,releaseAfterHint=false,failSubmission=false;
   const clock={request(callback){const id=++next;callbacks.set(id,callback);return {dispose(){callbacks.delete(id);}};}};
   const tick=timing=>{const batch=[...callbacks.values()];callbacks.clear();batch.forEach(callback=>callback(timing));};
   const context={nelyxCoreVersion:()=>1,nelyxWireVersion:()=>11,nelyxConfigure(){},nelyxIdentity:()=>7,nelyxNotifications:()=>notifications.splice(0),nelyxReserve:()=>deny||nativeRecordings>=2?1:0,
-    beginRecording:()=>({clear(color){drawn=color;}}),finishRecording:()=>({dispose(){}}),nelyxSubmit(_recording,id){submissions.push({id,color:drawn});},nelyxCancel(){},
+    beginRecording:()=>({clear(color){drawn=color;}}),finishRecording:()=>({dispose(){}}),nelyxSubmit(_recording,id){if(failSubmission)throw Error('native-recording-failure');submissions.push({id,color:drawn});},nelyxCancel(){},
     nelyxClose(){nativeRecordings=0;for(const id of renderer.leases.keys())notifications.push(7,id,0);},nelyxStats:()=>{const value=[7,0,nativeRecordings,0,0];if(releaseAfterHint){releaseAfterHint=false;nativeRecordings=1;}return value;},nelyxReset(){},dispose(){}};
   const renderer=new GraphiteRenderer({Color:value=>value,Paint:()=>({setAntiAlias(){},dispose(){}})},()=>context,{id:'pressure',generation:1},{image(){throw Error('Unexpected image');},paragraph(){throw Error('Unexpected paragraph');}});
   const session=new AppSession({id:'pressure',createScene:()=>context=>{builds++;return scene?scene(context,value):[{op:'clear',color:value}];}},clock);
   const view=session.attach({id:'pressure',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error)});
-  return {view,renderer,session,callbacks,notifications,submissions,errors,tick,get builds(){return builds;},set value(next){value=next;},set deny(next){deny=next;},set nativeRecordings(next){nativeRecordings=next;},set releaseAfterHint(next){releaseAfterHint=next;}};
+  return {view,renderer,session,callbacks,notifications,submissions,errors,tick,get builds(){return builds;},set value(next){value=next;},set deny(next){deny=next;},set nativeRecordings(next){nativeRecordings=next;},set releaseAfterHint(next){releaseAfterHint=next;},set failSubmission(next){failSubmission=next;}};
 }
+
+test('an unknown scheduled submission reports its native failure and retains uncertain resources until drain',{timeout},async()=>{
+  const f=fixture();try{f.failSubmission=true;f.view.requestFrame();f.tick();assert.equal(f.view.status,'failed');assert.equal(f.errors.length,1);assert.match(String(f.errors[0]),/Renderer submission failed:.*native-recording-failure/);f.view.requestFrame();f.tick();assert.equal(f.errors.length,1);assert.equal(f.submissions.length,0);}
+  finally{await f.session.dispose();assert.equal(f.view.status,'closed');assert.equal(f.callbacks.size,0);}
+});
 
 test('input mailbox drains updates in order before the same tick builds and treats contact, key and viewport changes as boundaries',{timeout},async()=>{
   const f=fixture(),events=[];

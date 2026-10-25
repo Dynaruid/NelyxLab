@@ -13,7 +13,7 @@ export interface ReactNativeAssetConfiguration {
   readonly sources: Readonly<Record<string, number | {readonly uri: string}>>;
 }
 export interface ReactNativeAssetBackend {
-  readonly native: Pick<typeof import('react-native'), 'Image'>;
+  readonly native: {readonly Image:{resolveAssetSource(source:ImageSourcePropType):{readonly uri?:string}|null}};
   readonly skia: Pick<ReturnType<typeof import('@nelyx/skia-rn/runtime/native-bootstrap').initializeNativeSkia>, 'Skia'>;
 }
 export interface LoadedReactNativeAssets {

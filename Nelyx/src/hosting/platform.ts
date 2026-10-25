@@ -7,7 +7,7 @@ import type { ResourceRegistry } from './resources.ts';
 
 export type PlatformId = 'web' | 'ios' | 'android' | 'windows' | 'macos' | 'linux';
 export type RuntimeId = 'browser' | 'hermes' | 'v8' | 'jsc';
-export type HostKind = 'react-dom' | 'fabric';
+export type HostKind = 'react-dom' | 'fabric' | 'native-hermes';
 export type ReactNativePlatform = Exclude<PlatformId, 'web'>;
 export type RendererKind = 'skia-graphite' | 'skia-ganesh';
 export type GpuBackend = 'webgl2' | 'vulkan' | 'metal' | 'd3d12' | 'opengl';

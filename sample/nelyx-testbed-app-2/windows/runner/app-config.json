@@ -51,6 +51,6 @@
       "sha256": "2e6e6e3af6ba6c1d3d9daeb40f3bc6aabddba739f4a9beca4fe4daab4c67a78f"
     }
   ],
-  "cohort": "rn-0.83.10-jsc",
-  "profile": "rn-jsc-graphite-vulkan"
+  "cohort": "rn-0.83.10",
+  "profile": "rn-graphite-vulkan"
 }

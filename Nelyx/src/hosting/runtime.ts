@@ -242,7 +242,7 @@ export class ViewRuntime implements Disposable {
       this.frameTiming=timing;
       if(this.state!=='open'||!this.visible&&!this.forcedFrame){this.task=undefined;return;}
       const forced=this.forcedFrame;this.forcedFrame=false;
-      try{this.flushPointerInput();this.task=undefined;if(this.buildPending(forced)!==false)this.pump();}
+      try{this.flushPointerInput();this.task=undefined;if(this.buildPending(forced)!==false){const result=this.pump();if(result?.status==='unknown')throw new Error('Renderer submission failed: '+result.reason);}}
       catch(error){this.task=undefined;if(this.state==='open')this.state='failed';if(this.options.onError)this.options.onError(error);else throw error;}
     });
   }

@@ -24,6 +24,15 @@ export class MaterialInkRender extends RenderProxyBox implements MaterialInkCont
     constructor(readonly vsync: TickerProvider, public color: Color | null, public absorbHitTest: boolean) {
         super();
     }
+    override markNeedsPaint(): void {
+        // Ink changes pixels inside the same clip. Layout and explicit semantic
+        // changes invalidate their own geometry/configuration; custom renderers
+        // and instance hooks keep the conservative paint/semantics contract.
+        if (!this.debugDoingThisLayout && this.hasDefaultPaintSemantics(MaterialInkRender.prototype, MaterialInkRender.prototype.markNeedsPaint))
+            this.markNeedsPaintOnly();
+        else
+            super.markNeedsPaint();
+    }
     assertMutable(): void {
         invariant(!this.retired && !this.debugDisposed && !this.painting, 'inactive-material-ink', 'Material ink controller is retired or painting');
     }

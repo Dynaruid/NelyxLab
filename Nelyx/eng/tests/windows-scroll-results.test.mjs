@@ -9,7 +9,7 @@ function fixture(){
  const phases=names.map(name=>{const count=name==='list-retained'?48:240;return {name,requestedCount:count,requestedDelta:-10,received:count,appliedInputs:count,unchangedInputs:0,absoluteDistance:count*4,netDistance:name==='list-retained'?0:count*4,delivery:{queueCalls:count,queueHighWater:10,firstNativeSequence:1,lastNativeSequence:count,nativeSequenceRegressions:0},requestedIntervalMs:name.endsWith('-fast')?4:16,cpu:{...distribution},entryCpu:{...distribution},retainedCpu:{...distribution},oldestInputToSurface:{...distribution},latestInputToSurface:{...distribution},viewport:160,elapsedMs:1000,mounts:name==='list-retained'?0:20,unmounts:name==='list-retained'?0:20,minimum:0,maximum:880,displayed:'unobserved',physicalTrackpad:'notVerified'};});
  for(const phase of phases)Object.assign(phase,{catalogScope:'bounded',injection:'fixed',maximumInjected:phase.requestedCount,itemCreateBuildFirstLayout:phase.name==='list-retained'?{n:0,sum:0}:{...distribution},createdRows:phase.name==='list-retained'?0:1,createdElements:phase.mounts});
  const metrics=names.map(phase=>({phase,engine:'hermes',mode:'research-engine',trace:false,diagnostic:false,semanticsUpdateInterval:50}));
- const extra=[...phases.map(phase=>'ANIMATION_WHEEL_SEND '+JSON.stringify({mode:phase.name==='list-retained'?'os-sweep':'os',count:phase.requestedCount,requestedMs:phase.requestedIntervalMs})),'ANIMATION_JS continuous-scroll PASS','NELYX_WINDOWS_HOST closed views=0 consumers=0 gpuDrained=1 inputRetired=1','ANIMATION_MEMORY {"workingSetBytes":100,"peakWorkingSetBytes":120,"privateBytes":80}'];
+ const extra=[...phases.map(phase=>'ANIMATION_WHEEL_SEND '+JSON.stringify({mode:phase.name==='list-retained'?'os-sweep':'os',policy:'high-resolution-relative-start-completion-v1',count:phase.requestedCount,requestedMs:phase.requestedIntervalMs,p50Ms:phase.requestedIntervalMs,p95Ms:phase.requestedIntervalMs+.1,maxMs:phase.requestedIntervalMs+.2})),'ANIMATION_JS continuous-scroll PASS','NELYX_WINDOWS_HOST closed views=0 consumers=0 gpuDrained=1 inputRetired=1','ANIMATION_MEMORY {"workingSetBytes":100,"peakWorkingSetBytes":120,"privateBytes":80}'];
  return {phases,metrics,extra,output(){return [...phases.map(value=>'ANIMATION_JS CONTINUOUS '+JSON.stringify(value)),...metrics.map(value=>'ANIMATION_JS '+JSON.stringify(value)),...extra].join('\n');}};
 }
 test('continuous qualification distinguishes delivered surface work from display evidence',{timeout},()=>{
@@ -20,6 +20,13 @@ test('continuous qualification distinguishes delivered surface work from display
  f.phases[4].unchangedInputs=20;f.phases[4].appliedInputs=220;assert.doesNotThrow(()=>continuousScrollResult(f.output(),options));
 });
 
+test('wheel qualification requires the current pacing policy and observed completion intervals',{timeout},()=>{
+ for(const change of [send=>delete send.policy,send=>send.policy='ordinary-sleep',send=>delete send.p50Ms,send=>send.p95Ms=NaN,send=>send.p50Ms=0,send=>send.p95Ms=1,send=>send.maxMs=1]){
+  const f=fixture(),prefix='ANIMATION_WHEEL_SEND ',send=JSON.parse(f.extra[0].slice(prefix.length));change(send);f.extra[0]=prefix+JSON.stringify(send);assert.throws(()=>continuousScrollResult(f.output(),options));
+ }
+ const valid=continuousScrollResult(fixture().output(),options);assert.equal(valid.pacing.length,13);assert.equal(valid.pacing[0].policy,'high-resolution-relative-start-completion-v1');
+});
+
 test('full catalog qualification requires every product section on cold and revisit, including planned',{timeout},()=>{
  const catalogs={material:['ready','planned','editor'],cupertino:['ready','planned']},fullOptions={...options,catalog:'full',catalogs};
  function fullFixture(){const f=fixture();for(const [i,p]of f.phases.entries()){
@@ -27,7 +34,7 @@ test('full catalog qualification requires every product section on cold and revi
   Object.assign(p,{injection:'until-edge',maximumInjected:8192,requestedCount:300,received:300,appliedInputs:300,absoluteDistance:1200,netDistance:1200,delivery:{...p.delivery,queueCalls:300,lastNativeSequence:300}});
   const ids=p.name.startsWith('cupertino')?catalogs.cupertino:p.name.startsWith('material-0')?catalogs.material.slice(0,2):catalogs.material.slice(2);
   p.coverage={expectedIds:[...ids],seenIds:[...ids],reachedEdge:true,direction:p.name.endsWith('-revisit')?'reverse':'forward'};
-  f.extra[i]='ANIMATION_WHEEL_SEND '+JSON.stringify({mode:'os-stream',count:300,requestedMs:p.requestedIntervalMs});
+  f.extra[i]='ANIMATION_WHEEL_SEND '+JSON.stringify({...JSON.parse(f.extra[i].slice('ANIMATION_WHEEL_SEND '.length)),mode:'os-stream',count:300,requestedMs:p.requestedIntervalMs});
  }return f;}
  const f=fullFixture();assert.doesNotThrow(()=>continuousScrollResult(f.output(),fullOptions));
  for(const change of [f=>f.phases[4].coverage.seenIds.pop(),f=>f.phases[5].coverage.seenIds.pop(),f=>f.phases[4].coverage.reachedEdge=false,f=>f.phases[4].requestedCount=8193,f=>f.phases[1].createdElements--,f=>f.phases[1].itemCreateBuildFirstLayout.n=0,f=>{for(const p of f.phases.filter(p=>p.name.startsWith('material-0')))p.coverage.expectedIds.pop(),p.coverage.seenIds.pop();}]){

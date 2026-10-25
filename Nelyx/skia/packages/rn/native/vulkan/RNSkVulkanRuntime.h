@@ -9,14 +9,14 @@
 namespace RNSkia {
 // The host's scheduler owns execution. Queued scheduler lambdas carry only
 // weak native state + an ID, so cancelled JSI captures retire on their owner.
-class VulkanRuntimeInvoker final : public facebook::react::CallInvoker,
+class VulkanRuntimeInvoker final : public nelyx::host::RuntimeScheduler,
     public std::enable_shared_from_this<VulkanRuntimeInvoker> {
 public:
-  explicit VulkanRuntimeInvoker(std::shared_ptr<facebook::react::CallInvoker> scheduler)
+  explicit VulkanRuntimeInvoker(std::shared_ptr<nelyx::host::RuntimeScheduler> scheduler)
       : scheduler(std::move(scheduler)), owner(std::this_thread::get_id()) {
     if(!this->scheduler)throw std::runtime_error("Actual host CallInvoker required");
   }
-  void invokeAsync(facebook::react::CallFunc&& task) noexcept override {
+  void invokeAsync(nelyx::host::RuntimeTask&& task) override {
     uint64_t id;
     {
       std::lock_guard lock(mutex);
@@ -25,7 +25,7 @@ public:
     }
     scheduler->invokeAsync([weak=weak_from_this(),id](facebook::jsi::Runtime& rt) {
       auto self=weak.lock();if(!self)return;
-      facebook::react::CallFunc task;
+      nelyx::host::RuntimeTask task;
       {
         std::lock_guard lock(self->mutex);
         auto found=self->pending.find(id);if(found==self->pending.end())return;
@@ -34,14 +34,14 @@ public:
       task(rt);
     });
   }
-  void invokeSync(facebook::react::CallFunc&& task) override {
+  void invokeSync(nelyx::host::RuntimeTask&& task) override {
     requireOwner();
     {std::lock_guard lock(mutex);if(closed)throw std::runtime_error("Native runtime is closed");}
     scheduler->invokeSync(std::move(task));
   }
   void close() {
     requireOwner();
-    std::unordered_map<uint64_t,facebook::react::CallFunc> cancelled;
+    std::unordered_map<uint64_t,nelyx::host::RuntimeTask> cancelled;
     {std::lock_guard lock(mutex);closed=true;cancelled.swap(pending);cancelledTotal+=cancelled.size();}
     // All JSI values captured by pending work die on their live runtime owner.
     cancelled.clear();
@@ -51,19 +51,19 @@ public:
   }
   size_t cancelledCallbacks() {requireOwner();std::lock_guard lock(mutex);return cancelledTotal;}
 private:
-  std::shared_ptr<facebook::react::CallInvoker> scheduler;
+  std::shared_ptr<nelyx::host::RuntimeScheduler> scheduler;
   const std::thread::id owner;
   std::mutex mutex;
   bool closed=false;
   uint64_t next=0;
   size_t cancelledTotal=0;
-  std::unordered_map<uint64_t,facebook::react::CallFunc> pending;
+  std::unordered_map<uint64_t,nelyx::host::RuntimeTask> pending;
 };
 
 class RNSkVulkanRuntime final {
 public:
   RNSkVulkanRuntime(facebook::jsi::Runtime& runtime,
-      std::shared_ptr<facebook::react::CallInvoker> scheduler, float density,
+      std::shared_ptr<nelyx::host::RuntimeScheduler> scheduler, float density,
       VulkanPlatformServices services, std::function<void()> stopServices)
       : runtime(&runtime), invoker(std::make_shared<VulkanRuntimeInvoker>(std::move(scheduler))),
         stopServices(std::move(stopServices)) {
@@ -74,6 +74,8 @@ public:
     context=std::make_shared<RNSkVulkanPlatformContext>(invoker,density,std::move(services));
     manager=std::make_unique<RNSkManager>(&runtime,invoker,context);
   }
+  template<class T> RNSkVulkanRuntime(facebook::jsi::Runtime& runtime,std::shared_ptr<T> scheduler,float density,VulkanPlatformServices services,std::function<void()> stop)
+    :RNSkVulkanRuntime(runtime,nelyx::host::RuntimeScheduler::adapt(std::move(scheduler)),density,std::move(services),std::move(stop)){}
   RNSkManager& getManager() {invoker->requireOwner();if(!manager)throw std::runtime_error("Native runtime is closed");return *manager;}
   std::shared_ptr<RNSkVulkanPlatformContext> getPlatformContext() {return context;}
   size_t cancelledCallbacks() {return invoker->cancelledCallbacks();}

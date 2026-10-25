@@ -69,22 +69,68 @@ npm run dev:web --workspace @nelyx/testbed-2
 
 아래 명령은 모두 **저장소 루트의 PowerShell**에서 실행합니다. 처음 사용하거나 SDK/native 소스를 변경했다면 아래 [Windows 준비](#windows-준비)를 먼저 진행하세요. 같은 출력의 기존 Testbed 창은 빌드 전에 닫습니다.
 
+### 실험적 직접 Hermes host
+
+현재 SDK와 Windows runner 패키지를 빌드·공급·설치한 뒤 저장소 루트에서 두 모드를 각각 실행합니다.
+
+```powershell
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode bytecode
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot
+```
+
+같은 앱 entry를 HWND·Skia·TSF·UIA host로 실행하며 고정 direct Hermes 공급본도 준비합니다. Windows x64, 현재 고정 Skia 입력, VS C++ 도구·LLVM·CMake/Ninja가 필요합니다. 해당 창을 닫은 뒤 같은 모드를 다시 빌드하세요. 앱 안의 `.nelyx/native-windows/current-bytecode`, `current-static-aot`를 현재 출력으로 사용합니다. 외부 앱은 설치된 CLI의 [`--host native-hermes` 명령](../../Nelyx/sdk/tooling/cli/README.ko.md#windows-직접-hermes-host)을 사용합니다.
+
+기본 host는 RNW, 기본 엔진은 Hermes입니다. 직접 host의 성능·물리 한글 IME/트랙패드·matching display 수락은 [W17](../../work17.md)에 열려 있습니다.
+
+이 Testbed의 프로그램 ListView/catalog 스크롤을 진단하는 개발용 명령도 제공합니다.
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --scope diagnostic --catalog
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scope gc --catalog
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --input os --scope cpu --viewport both --catalog
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --scope cpu --viewport maximized --resource-cycles 6
+```
+
+`--resource-cycles 3..30`은 프로그램 ListView 진단 뒤 실제 앱의 cold/revisit·처음/마지막 행·갤러리 복귀를 반복합니다. Core producer·트리·native frame owner가 기준 상태로 돌아오고 마지막 3회 residency가 같은지 검사하며 기존 picture cache 64개/32MiB 상한을 유지합니다. process private memory·GPU memory·물리 입력·표시 수락과 H4 전체 판정은 별도입니다.
+
+정식 제품의 private commit과 실제 Vulkan 할당·import 소유량은 별도 명령으로 관측합니다.
+
+```powershell
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode bytecode --build-only
+node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot --build-only
+node Nelyx/eng/run-native-memory.mjs --hermes-mode both --viewport both --cycles 6
+```
+
+위 명령은 네 새 process에서 총 24회 갤러리→ListView cold/revisit·처음/마지막→갤러리를 시도하며 첫 거부에서 종료합니다. `--cycles`는 process당 3..30회이고 한 명령의 합계는 30회 이하여야 합니다. 상한은 private commit 1GiB·Vulkan 512MiB이며 마지막 3회 span 8MiB/1MiB·순증가 1MiB/64KiB·할당 개수 순증가 0을 검사합니다. 실제 wheel 방향·절대량, process identity, viewport와 focus도 대조합니다. 입력 보존 확인용 frame trace가 켜진 메모리 관측이며 CPU 성능 수락은 별도입니다. 거부된 관측은 소유 앱을 닫은 뒤 exit1을 반환합니다. 관측 종료·실패·중단에서 소유 앱을 닫으며 로그·임시 패키지를 남기지 않습니다. Vulkan 할당량은 driver residency·물리 입력·표시나 H4 전체 수락을 증명하지 않습니다.
+
+외부 클라이언트는 read-only 주소 공간 scan으로 새 base와 앞서 관측한 base의 commit 증감도 보고합니다. 비원자적 관측이며 allocation stack·객체 수명을 증명하지 않습니다. MEM_PRIVATE 영역 합계는 PSAPI private commit을 대체하지 않으며 원시 주소·process memory dump는 출력하지 않습니다.
+
+측정 창이 실행되는 동안 데스크톱 입력을 함께 조작하지 마세요. foreground/입력 간섭·불완전한 receipt를 거부하고 CPU·checkpoint·heap·surface 요약을 출력하며 종료 시 임시 entry와 패키지를 정리합니다. 프로그램 진단은 소유 창의 제목 표시줄에 커서를 두고, phase 안의 keyboard 메시지·UIA action·focus 변경·예상하지 않은 데스크톱 입력을 거부합니다. `cpu`, `gc`, inclusive span을 켜는 `diagnostic`은 별도 범위이며 후자는 `Paint.record`와 `Paint.compose`를 구분합니다. bytecode의 `--scope sampling`은 별도 1,000Hz Hermes PC 진단이며 해당 bundle의 source map으로 함수 위치를 연결합니다. 관측 횟수를 밀리초로 해석하지 않으며, `--details`를 추가하면 상위 8개 함수 요약 대신 전체 mapped stack을 출력합니다. 프로그램 진단은 `diagnostic-only`이며 같은 조건의 OS 입력 비교와 물리 표시 수락이 필요합니다.
+
+`--input os`는 별도 native thread에서 Windows wheel을 보내고 cookie·수량·방향과 Core→surface 대응을 확인합니다. `--scope cpu`에서 ListView와 Material/Cupertino 전체 catalog를 지원합니다. catalog의 cold/revisit은 Core에서 보인 각 section을 정확히 같은 native surface content frame에 연결하며 fast에서 건너뛴 section은 따로 보고합니다. 별도 bytecode `--scope sampling`은 ListView를 지원하고 OS catalog sampling·GC·inclusive diagnostic 조합은 거부합니다. 다른 엔진 모드는 `static-aot`로 선택합니다. `--viewport both`는 같은 진단 bundle을 한 번 빌드한 뒤 기본·최대화 창을 새 process로 순서대로 측정합니다. frame callback/checkpoint와 입력 dispatch 비용은 별도 보고합니다. 정규 baseline 비교·물리 입력·표시 수락은 여전히 필요합니다.
+
+현재 패키지를 빌드한 뒤 `node Nelyx/eng/run-native-uia-focus.mjs static-aot --product`를 실행하면 실제 카테고리 버튼·편집기를 외부 UIA client로 조작하고 focus 일치와 정상 종료를 검사합니다. HBC 패키지는 `bytecode`를 지정하세요. 자동 UIA 동작 검사이며 물리 한글 IME·reader 수락은 별도입니다.
+
+`--product --range`는 실제 Material/Cupertino slider와 range slider 양 thumb의 UIA RangeValue 절대 값 요청·이산 값·thumb 순서·범위 밖 값/비활성 거부를 확인합니다. [RangeValue setter는 control의 지원 값으로 반올림할 수 있으므로](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nf-uiautomationcore-irangevalueprovider-setvalue) Core가 실제로 게시한 값을 기다립니다.
+
+`--pointer`를 추가하면 OS mouse click으로 카테고리와 편집기를 선택한 뒤 외부 UIA focus를 검사합니다. `--product`는 기록된 원본 코드 source와 package manifest를 현재 앱·설치 의존성과도 대조하므로 해당 입력이 바뀌면 제품 패키지를 다시 빌드하세요.
+
 ### 실행 모드 선택
 
 | 목적 | 엔진·실행 방식 | 구성 | 실행 방법 |
 |---|---|---|---|
-| 일반 실행 | V8 · JS 소스 번들 | Release | `start:windows:v8` |
+| 일반 실행 | Hermes · HBC99, optimized 정책 | Release | `start:windows:hermes` |
+| V8 비교 | V8 · JS 소스 번들 | Release | `start:windows:v8` |
 | JavaScriptCore JIT | JSC · JS 소스 번들, JIT 사용 | Release | `start:windows:jsc` |
 | JavaScriptCore 인터프리터 | JSC · JS 소스 번들, 코드 생성 비활성화 | Release | `start:windows:jsc:interpreter` |
-| Hermes 비교 | Hermes · bytecode(HBC99), `optimized` | Release | `start:windows:hermes` |
 | Static Hermes AOT 실험 | Hermes · 전체 native Metro root + 선정 타입 최적화 | Release 전용 | 아래 `start-windows-static-aot.ps1` |
 | 기존 Hermes compiler 비교 | Hermes · bytecode, `debug`(`-Og`) | Release | `start:windows:hermes:debug` |
 | 개발 세션 | Hermes · Metro | Debug | 아래 `dev` 명령 |
 | 마지막 빌드 다시 실행 | 마지막 패키지의 엔진·모드 | 마지막 빌드 구성 | `run:windows` |
 
-이 앱의 일반 빌드는 V8을 선택합니다. Static Hermes AOT 모드는 `static-aot`, 도구 패키지는 `@nelyx/static-aot`입니다. 구 모드·패키지·스크립트명은 호환 별칭 없이 제거했으므로 현재 패키지를 공급하고 native 앱을 다시 빌드해야 합니다.
+이 앱의 일반 Windows Release 빌드는 Hermes와 검증된 `optimized` compiler 정책을 선택합니다. 기본 host는 RNW이며 V8/JSC는 명시적으로 선택합니다. Static Hermes AOT 모드는 `static-aot`, 도구 패키지는 `@nelyx/static-aot`입니다. SDK/native 변경 뒤 현재 패키지를 공급하고 앱을 다시 빌드하세요.
 
-**V8 (기본 엔진)**
+**V8 (명시적 비교 엔진)**
 
 ```powershell
 npm.cmd run start:windows:v8 --workspace "@nelyx/testbed-2"
@@ -156,11 +202,11 @@ npm.cmd run run:windows --workspace "@nelyx/testbed-2"
 
 ### 빌드·실행 옵션
 
-옵션을 바꿀 때는 아래처럼 Windows runner의 `build`를 직접 사용합니다. 앱의 `build:windows`는 V8을 지정하므로 JSC·Hermes를 선택할 때는 위 엔진별 스크립트나 아래 명시적 명령을 사용하세요. PowerShell에서는 `npm.cmd`와 `--`로 옵션을 전달합니다.
+옵션을 바꿀 때는 아래처럼 Windows runner의 `build`를 직접 사용합니다. 앱의 `build:windows`는 Hermes `optimized`를 지정합니다. V8/JSC 선택과 compiler 비교에는 위 엔진별 스크립트나 아래 명시적 명령을 사용하세요. PowerShell에서는 `npm.cmd`와 `--`로 옵션을 전달합니다.
 
 | 옵션 | 적용 명령 | 값·용도 |
 |---|---|---|
-| `--engine` | `prepare:native`, `build` | `v8`, `hermes`, `jsc`. runner CLI 기본값은 Hermes이며 앱의 일반 빌드 스크립트는 V8을 지정합니다. |
+| `--engine` | `prepare:native`, `build` | `v8`, `hermes`, `jsc`. runner CLI와 앱의 일반 빌드 기본값은 Hermes입니다. |
 | `--jsc-mode` | `prepare:native`, `build` | `jit`(기본) 또는 `interpreter`. `--engine jsc`와 함께 지정합니다. |
 | `--hermes-mode` | `prepare:native`, `build` | `bytecode`(기본) 또는 `static-aot`. Static AOT는 Hermes·Release 전용입니다. |
 | `--hermes-profile` | `build` | `debug`(`-Og`) 또는 `optimized`. bytecode CLI 기본은 `debug`, Static Hermes AOT는 `optimized`가 필요합니다. |
@@ -215,13 +261,13 @@ JSC를 npm 명령으로 처음 실행할 때는 아래 준비를 한 번 진행�
 npm.cmd run prepare:windows:jsc --workspace "@nelyx/testbed-2"
 ```
 
-이 Testbed의 Windows Release 기본 엔진은 **V8**입니다. 일반 `build:windows`는 고정 V8 공급본과 JS 소스 번들을 사용합니다. `run:windows`는 마지막으로 빌드한 패키지를 실행합니다. 다른 앱/CLI의 기본 엔진은 Hermes이며 변경하지 않습니다. 기존 V8 공급본은 prepare의 `--engine-inputs <supplier 폴더>`로 재사용합니다.
+이 Testbed의 Windows Release 기본 엔진은 **Hermes**입니다. 일반 `build:windows`는 고정 Hermes와 검증된 최적화 HBC99를 사용합니다. `run:windows`는 마지막으로 빌드한 패키지를 실행합니다. V8은 명시적 스크립트로 선택하며 기존 공급본은 prepare의 `--engine-inputs <supplier 폴더>`로 재사용합니다.
 
-Hermes 비교는 `npm.cmd run build:windows:hermes --workspace @nelyx/testbed-2`로 빌드합니다. 이 명령은 확인된 loop/CFG 오류 pass를 제외하고 inlining을 끈 `optimized` HBC99를 사용합니다. compiler flags와 정책 ID를 패키지에 기록하며 정확한 RNW/Hermes 공급본만 허용합니다. 다른 앱/CLI의 Hermes compiler 기본은 `debug`(`-Og`)입니다. `-Og` 비교는 루트의 `npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-profile debug`를 사용합니다.
+기본 `optimized` HBC99는 확인된 loop/CFG 오류 pass를 제외하고 inlining을 끕니다. compiler flags와 정책 ID를 패키지에 기록하며 정확한 RNW/Hermes 공급본만 허용합니다. 현재 Windows Release 템플릿과 CLI도 같은 정책을 사용합니다. `-Og` 비교는 루트의 `npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-profile debug`를 사용합니다.
 
 갤러리는 인접 섹션을 기본 250 logical pixel cache 안에 유지합니다. 테마는 색/밝기가 바뀔 때 갱신하며, 컨트롤 값과 하단 상태 문구는 해당 부분만 다시 만듭니다. Windows의 Core frame/retirement 예약은 native compositor clock을 사용합니다(해당 API가 없는 Windows 10은 관측한 DWM refresh deadline 사용). 숨김·취소·종료는 해당 owner의 예약을 철회합니다. GPU 작업 cache도 실제 픽셀 크기에 맞춰 조정하며 별도의 256MiB allocator 한도는 유지합니다.
 
-실제 Windows 휠 경로의 회귀는 아래처럼 실행합니다. `default`는 기본 창, `maximized`는 최대화 창, `fixed`는 800×600 logical 화면이며 `both`는 기본·최대화를 차례로 확인합니다. `both`에 `NELYX_ANIMATION_RESIZE=1`도 지정하면 두 고정 화면 측정 후 별도 리사이즈·실패 회귀를 실행합니다. 자동 OS 입력 480회의 총 이동량·방향 전환과 native 완료/정상 종료를 검사하며, Windows가 합친 이벤트는 이동량으로 확인합니다. 입력 묶음 사이에 고정 대기를 넣지 않고 연속 입력 후 실제 Core/renderer 작업과 native UI queue가 끝날 때까지 기다립니다(`continuous-render-drain`). 물리 트랙패드/표시 FPS와는 구분합니다. 현재 결과와 남은 범위는 [work14.md](../../work14.md#8-research-엔진-개편)를 따릅니다.
+실제 Windows 휠 경로의 회귀는 아래처럼 실행합니다. `default`는 기본 창, `maximized`는 최대화 창, `fixed`는 800×600 logical 화면이며 `both`는 기본·최대화를 차례로 확인합니다. `both`에 `NELYX_ANIMATION_RESIZE=1`도 지정하면 두 고정 화면 측정 후 별도 리사이즈·실패 회귀를 실행합니다. 자동 OS 입력 480회의 총 이동량·방향 전환과 native 완료/정상 종료를 검사하며, Windows가 합친 이벤트는 이동량으로 확인합니다. 입력 묶음 사이에 고정 대기를 넣지 않고 연속 입력 후 실제 Core/renderer 작업과 native UI queue가 끝날 때까지 기다립니다(`continuous-render-drain`). 물리 트랙패드/표시 FPS와는 구분합니다. 현재 결과와 남은 범위는 [work17.md](../../work17.md#8-현재-상태와-다음-시작점)를 따릅니다.
 
 ```powershell
 $env:NELYX_ANIMATION_MODE='cpu-timing'
@@ -233,7 +279,7 @@ Remove-Item Env:NELYX_ANIMATION_MODE, Env:NELYX_ANIMATION_WHEEL_INPUT, Env:NELYX
 
 `NELYX_ANIMATION_WHEEL_INPUT=queued`는 OS 마우스를 주입하지 않고 native queue → 실제 SDK wheel adapter → Core로 같은 작은 delta를 전달하는 비교용 부하입니다. 이 결과는 OS/트랙패드 입력 자격이나 `WHEEL_INPUT=1`의 성능 수치로 대체하지 않습니다.
 
-`npm run test:windows-input-surface`의 기본 VM/번들은 공개 앱과 같은 V8/비압축 JS입니다. 이 시험은 OS 키보드·TSF/UIA·caret·선택·정상 종료를 검사하므로 실행 창의 전경 포커스가 필요합니다. `NELYX_WINDOWS_INPUT_ENGINE=hermes`는 별도로 minified optimized/HBC99를 검사하며 `NELYX_WINDOWS_INPUT_HERMES_OPT=raw-js`는 원본 JS 진단입니다.
+`npm run test:windows-input-surface`의 기본 VM/번들은 공개 앱과 같은 Hermes optimized/HBC99입니다. 이 시험은 OS 키보드·TSF/UIA·caret·선택·정상 종료를 검사하므로 실행 창의 전경 포커스가 필요합니다. `NELYX_WINDOWS_INPUT_ENGINE=v8`은 명시적으로 V8/JS 소스 비교를 선택하며 `NELYX_WINDOWS_INPUT_HERMES_OPT=raw-js`는 원본 JS 진단입니다.
 
 필요한 native supplier는 runner에서 `npx --no-install nelyx prepare --app ../.. --target windows --native-inputs <inputs.json>`으로 연결합니다.
 
@@ -247,12 +293,12 @@ npm.cmd run build:windows --workspace @nelyx/testbed-2
 npm run run:windows --workspace @nelyx/testbed-2
 ```
 
-V8은 `rn-v8-graphite-vulkan` profile·`rn-0.83.10-v8` cohort와 JS 소스 번들을 사용합니다. 실제 VM 버전/revision과 DLL·소스 맵을 검사하며 Core/Skia·입력·접근성은 같은 경로를 사용합니다. 위의 `build:windows:hermes` 명령으로 Hermes optimized/HBC99와 비교합니다. 같은 Release 출력의 실행 중인 앱은 먼저 닫습니다. V8의 Hermes inspector 연결과 개발 갱신은 아직 지원하지 않습니다. 측정 결과와 한계는 [W14 §8](../../work14.md#8-research-엔진-개편)을 따릅니다.
+V8은 `rn-v8-graphite-vulkan` profile·`rn-0.83.10-v8` cohort와 JS 소스 번들을 사용합니다. 실제 VM 버전/revision과 DLL·소스 맵을 검사하며 Core/Skia·입력·접근성은 같은 경로를 사용합니다. 위의 `build:windows:hermes` 명령으로 Hermes optimized/HBC99와 비교합니다. 같은 Release 출력의 실행 중인 앱은 먼저 닫습니다. V8의 Hermes inspector 연결과 개발 갱신은 아직 지원하지 않습니다. 측정 결과와 한계는 [W17 §8](../../work17.md#8-현재-상태와-다음-시작점)을 따릅니다.
 
 V8 준비에는 MSVC v145와 Windows SDK 10.0.26100.0이 필요합니다. PowerShell에서는 옵션 구분자가 전달되도록 위 `npm.cmd` 명령을 사용합니다. 고정 V8 C ABI의 microtask 완료값을 RN JSI 의미로 보정하고, 시작 시 실제 Promise 체인·host microtask·빈 queue를 확인합니다. 현재 구현은 [고정 upstream 소스](https://github.com/microsoft/v8-jsi/blob/c1877966a8285b7cbacbdd03e26ca003496436bc/src/jsi_abi/jsi_abi_v8.cpp#L1481)에 한정합니다.
 
 
-접근성 트리는 유지합니다. 위치만 바뀌면 기존 접근성 구성을 재사용하면서 clip·bounds·가시성을 갱신하고, 호스트 트리 경로에서는 사용하지 않는 엔진 패킷 생성을 건너뜁니다. 검증된 immutable snapshot의 중복 복사와 동일한 정보의 React 알림도 줄였습니다. 액션은 최신 Core callback을 사용하며 좌표·focus·편집 revision·native surface 변경은 계속 발행합니다. 제품 변경 뒤에는 `npm run build:core`와 `npm run build --workspace @nelyx/sdk`를 실행한 다음 위 공급·설치·Release 빌드를 진행합니다. `npm run test:semantics-updates`로 갱신·실패 재시도·owner 해제를 검사합니다. 현재 결과와 잔여 제한은 [W14 §8](../../work14.md#8-research-엔진-개편)에 기록합니다.
+접근성 트리는 유지합니다. 위치만 바뀌면 기존 접근성 구성을 재사용하면서 clip·bounds·가시성을 갱신하고, 호스트 트리 경로에서는 사용하지 않는 엔진 패킷 생성을 건너뜁니다. 검증된 immutable snapshot의 중복 복사와 동일한 정보의 React 알림도 줄였습니다. 액션은 최신 Core callback을 사용하며 좌표·focus·편집 revision·native surface 변경은 계속 발행합니다. 제품 변경 뒤에는 `npm run build:core`와 `npm run build --workspace @nelyx/sdk`를 실행한 다음 위 공급·설치·Release 빌드를 진행합니다. `npm run test:semantics-updates`로 갱신·실패 재시도·owner 해제를 검사합니다. 현재 결과와 잔여 제한은 [W17 §8](../../work17.md#8-현재-상태와-다음-시작점)에 기록합니다.
 
 이 앱은 `widgetApplication({semanticsUpdateInterval: 50, ...})`으로 이동 중 접근성 갱신을 직전 발행 후 50ms까지 합치고, 그 뒤 가능한 첫 host frame에서 최신 상태를 발행합니다. 위치만 바꾸는 AnimatedBuilder 재빌드에도 적용하며, 접근성 내용을 무효화하는 재빌드·focus·입력 geometry·View/metrics 변경은 간격을 건너뜁니다. IME/caret/selection 좌표는 기존 frame 계약을 유지합니다. 대기 중 현재 발행본의 action 요청은 다음 frame을 앞당기고, 새 snapshot에서도 같은 source가 활성·노출 상태일 때 한 번 실행합니다. 교체된 발행본의 action은 철회하며 대기 작업은 View 숨김/종료 때 해제합니다. Core 기본값은 즉시 발행하는 `0`입니다. Native fixture는 같은 설치 코드에서 `NELYX_ANIMATION_SEMANTICS_INTERVAL=0`과 `50`을 비교하고 각 단계에 실제 적용 간격을 출력합니다.
 
@@ -262,7 +308,7 @@ V8 준비에는 MSVC v145와 Windows SDK 10.0.26100.0이 필요합니다. PowerS
 node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-surface.test.mjs
 ```
 
-이미 한국어 keyboard layout이 활성화된 환경에서 `NELYX_WINDOWS_INPUT_IME=1`을 설정하면 실제 TSF 조합·확정·조합 중 clear/Undo/Redo/reset·focus·resize도 검사합니다. layout은 바꾸지 않으며 검증 thread의 기존 IME 모드 값은 창 종료 전에 복원합니다. 기본 테스트베드 provider는 비시각적 입력과 Core semantics를 사용합니다. 선정 TSF/UIA 통합과 물리 IME/reader 검증을 구분하며 현재 결과는 [W14 §8](../../work14.md#8-research-엔진-개편)을 따릅니다.
+이미 한국어 keyboard layout이 활성화된 환경에서 `NELYX_WINDOWS_INPUT_IME=1`을 설정하면 실제 TSF 조합·확정·조합 중 clear/Undo/Redo/reset·focus·resize도 검사합니다. layout은 바꾸지 않으며 검증 thread의 기존 IME 모드 값은 창 종료 전에 복원합니다. 기본 테스트베드 provider는 비시각적 입력과 Core semantics를 사용합니다. 선정 TSF/UIA 통합과 물리 IME/reader 검증을 구분하며 현재 결과는 [W17 §8](../../work17.md#8-현재-상태와-다음-시작점)을 따릅니다.
 
 저장소 루트의 `npm run test:windows-animation`은 현재 설치본·고정 V8 공급본·비압축 JS·실제 DPI에 맞춘 800×600 logical viewport에서 progress/scroll/activity/route를 검사하고 임시 project를 정리합니다. `NELYX_ANIMATION_MODE=cpu-timing`은 세부 method wrapper 없이 frame 전체 CPU만 측정합니다. `NELYX_ANIMATION_TRACE=1`의 `Frame.cpu`는 Core frame을 생성하는 RAF callback 전체를 측정하며 idle poll은 따로 집계합니다. `NELYX_ANIMATION_DIAGNOSTIC=1`은 command 수와 Hermes 할당/GC 진단을 추가하며 그 계측 비용도 포함합니다. `NELYX_ANIMATION_NATIVE_TRACE=1`은 native 단계를, `NELYX_ANIMATION_NATIVE_CORE_TRACE=1`을 함께 쓰면 정확한 설치 Vulkan 소스의 격리된 timing overlay도 측정합니다. 전체 렌더링·접근성은 유지하며 완료 간격을 물리 scanout FPS로 판정하지 않습니다.
 
@@ -295,11 +341,14 @@ Windows V8 공개 빌드와 native fixture는 공통 `@nelyx/metro/native-v8-tra
 일반 OpenJDK 21(현재 검증: Temurin 21.0.11), Android SDK/build tools 36, NDK `27.1.12297006`, Vulkan을 지원하는 x86_64 에뮬레이터와 일치하는 Skia Android 154.1.0 공급이 필요합니다. 이 장비의 GraalVM 21 기본 `JAVA_HOME`에서는 Android JDK image의 jlink 변환이 실패했으므로, 빌드 process의 `JAVA_HOME`을 설치된 일반 OpenJDK 21 경로로 지정합니다.
 
 ```powershell
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
 npm run prepare:runner --workspace @nelyx/testbed-2 -- android
-npm --prefix sample/nelyx-testbed-app-2/android/runner install --ignore-scripts
+npm --prefix sample/nelyx-testbed-app-2/android/runner install --workspaces=false --ignore-scripts
 npm run build:android:emulator --workspace @nelyx/testbed-2
 npm run run:android --workspace @nelyx/testbed-2
 ```
+
+임시 에뮬레이터 검사는 `-read-only -no-snapshot`을 사용합니다. [Android 문서는 read-only guest disk 변경을 종료 시 폐기한다고 설명합니다](https://developer.android.com/studio/releases/emulator). Activity 시작·뒤로 복귀 검사는 native drain·물리 입력·표시 timing 수락과 구분합니다.
 
 각 target의 기존 SDK/native toolchain과 공급 입력이 필요합니다. Android 설정은 x86_64 emulator Vulkan 프로필입니다. [SDK 설정 안내](../../Nelyx/sdk/README.ko.md)와 [CLI 실행 안내](../../Nelyx/sdk/tooling/cli/README.ko.md)를 참고하세요. 소스·Web 검증과 실제 EXE/APK·물리 입력 검증은 별개입니다.
 
@@ -354,6 +403,8 @@ Group은 메타데이터입니다. 하나의 owner가 필요한 Form·editor·Wr
 저장소 루트의 `npm run test:scroll-engine`은 공통 엔진을, 패키지 갱신 후 `node Nelyx/eng/tests/check-scroll-supply.mjs`는 Windows 설치 Core의 공개 소비를 검사합니다. Native 연속 부하는 `node Nelyx/eng/tests/run-windows-scroll.mjs hermes 1`로 실행합니다. `hermes`는 bytecode/optimized Release, `static-aot`는 Static Hermes/optimized Release이며 `matrix 3`은 두 모드×기본/최대화×3회의 기준선 또는 후보 12회입니다. 전후 비교에는 각 공급에서 별도로 실행합니다. `v8`은 호환성 검사로 남습니다. 두 Hermes 모드는 같은 qualified VM/GC supplier를 사용하며 HBC/compiler·AOT·VM·host hash를 출력합니다. `$env:NELYX_SCROLL_DIAGNOSTIC='1'`을 설정하면 `hermes 1` 또는 `static-aot 1`의 기본 창에서 별도 계측하며 성능 수락에는 포함하지 않습니다. 진단 뒤에는 `Remove-Item Env:NELYX_SCROLL_DIAGNOSTIC`으로 설정을 해제합니다. 검사 중 접근성을 켜고 semantics 간격을 50ms로 고정하며 이전 runner 설정을 복원합니다. OS wheel 주입 동안 해당 창의 foreground 소유가 필요하고 phase 경계에서만 활성화합니다. Native surface 완료는 실제 trackpad·표시 timing 수락과 다릅니다. 현재 결과와 남은 gate는 [W16](../../work16.md)에 기록합니다.
 
 기본 OS 부하는 planned를 포함한 두 gallery의 전체 catalog를 대상으로 합니다. 각 열에서 연속 wheel로 끝까지 이동하고 역방향 재방문하며, cold/revisit의 모든 section이 viewport에 들어왔는지 확인합니다. fast는 끝 경계·입력 전달을 검사하고 지나친 section을 별도 보고합니다. 일반 ListView의 고정 부하와 항목 생성부터 첫 layout까지의 시간도 함께 측정합니다. `$env:NELYX_SCROLL_CATALOG='bounded'`는 이전 고정 이동 범위의 진단용이며 전체 catalog 수락에는 사용하지 않습니다. 공급 검사는 Core 전체 source/dist/package identity를 확인합니다. 수정 전 설치본을 의도적으로 기준선으로 유지할 때만 출력된 정확한 설치 digest를 `NELYX_SCROLL_REFERENCE_CORE_DIGEST`로 지정합니다.
+
+wheel 전송은 모든 간격에 high-resolution timer를 사용하며 guard·전송 작업 시간만큼 대기를 줄입니다. 보고서에는 `high-resolution-relative-start-completion-v1` 정책과 실제 전송 완료 간격 p50/p95/max가 포함됩니다. 이전 pacing 정책이나 누락·잘못된 실제 간격은 수락 검사에서 거부하며, 요청한 간격만으로 입력 조건이 같다고 판단하지 않습니다.
 
 desktop을 사용하는 동안에는 진단 설정과 함께 `$env:NELYX_SCROLL_INPUT='queued'`로 SDK queue 경로를 관찰할 수 있습니다. 모든 계측 진단은 bounded 범위이며 OS wheel 성능 표본에는 포함하지 않습니다. `$env:NELYX_SCROLL_AFTER_DIAGNOSTIC='1'`은 정규 실행 뒤 같은 HBC/AOT compiler output의 hash를 확인해 별도 native 진단 host를 준비하고 모드마다 새 process에서 native/JS/Core 계측을 1회 수행합니다. 외부 helper가 sync JSI thread의 PC를 관찰하고 정확한 image hash와 PDB/native map으로 VM 함수·AOT 함수 범위 및 source 후보를 연결합니다. 이 관찰에는 wait와 thread 정지 비용이 포함되므로 PC 빈도를 CPU 시간 비율이나 성능 수락값으로 해석하지 않습니다. 정규 실행이 실패해도 첫 실패를 유지하며 진단을 시도합니다. 별도 `NELYX_SCROLL_DIAGNOSTIC`과는 함께 사용하지 않습니다. 주입 호출 수와 실제 수신 이벤트 수는 따로 보고하며 절대/부호 이동량·native sequence·dispatch 대응을 검사합니다. 합쳐진 native 이벤트의 latency는 수신 이벤트 timestamp 기준입니다. 사용한 `NELYX_SCROLL_*` 환경 변수는 검사 뒤 해제합니다.
 

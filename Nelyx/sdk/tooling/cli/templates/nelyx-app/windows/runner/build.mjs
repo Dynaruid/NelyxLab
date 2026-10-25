@@ -6,6 +6,7 @@ import {windowsHermesPolicy} from '@nelyx/cli/windows-hermes-policy';
 import {verifyWindowsStaticHermes} from '@nelyx/cli/windows-static-hermes';
 import {buildStaticAotMetroBundle,writeStaticAotApplication} from '@nelyx/cli/windows-static-aot';
 import {windowsHermesExecutionMode} from '@nelyx/cli/windows-aot-mode';
+import {resetWindowsBuildAssets} from '@nelyx/cli/windows-package-lifecycle';
 import {createProviderRegistry} from '@nelyx/sdk/runtime/providers';
 const runner=import.meta.dirname,app=path.resolve(runner,'../..'),load=createRequire(import.meta.url);
 load('@nelyx/metro/runner-config').inspectRunnerCohort({target:'windows',runnerRoot:runner});
@@ -15,12 +16,13 @@ const engine=options['--engine']??'hermes';if(!['hermes','v8','jsc'].includes(en
 if(options['--jsc-mode']!==undefined)windowsJscMode(options['--jsc-mode'],engine);
 if(engine==='jsc'&&options['--hermes-profile']!==undefined)throw Error('--hermes-profile requires Hermes');
 const hermesMode=windowsHermesExecutionMode(options['--hermes-mode']);
+if(engine==='hermes')options['--hermes-profile']??=configuration==='Release'?'optimized':'debug';
 if(hermesMode!=='bytecode'&&(engine!=='hermes'||configuration!=='Release'||options['--hermes-profile']!=='optimized'))throw Error('Static Hermes requires Hermes Release and the optimized compiler profile');
 const aot=hermesMode!=='bytecode'?verifyWindowsStaticHermes(path.resolve(options['--engine-inputs']??'')):undefined;
 let typedPartition;
 const v8=engine==='v8'?verifyWindowsV8(path.resolve(options['--engine-inputs']??'')):undefined;
 const jsc=engine==='jsc'?verifyWindowsJsc(path.resolve(options['--engine-inputs']??'')):undefined,jscExecutionMode=jsc?windowsJscMode(options['--jsc-mode']):null;
-const hermes=v8||jsc?null:windowsHermesPolicy(options['--hermes-profile']??'debug',createProviderRegistry().cohort('windows'));
+const hermes=v8||jsc?null:windowsHermesPolicy(options['--hermes-profile'],createProviderRegistry().cohort('windows'));
 const hermesCompilerFlags=hermes?.flags.join(' ')??null;
 const v8CompilerPolicy=v8?load('@nelyx/metro/native-v8-transformer').compilerPolicy:null;
 const jscCompilerPolicy=jsc?load('@nelyx/metro/native-jsc-transformer').compilerPolicy:null;
@@ -34,7 +36,7 @@ const files=new Map();for(const entry of manifest.files){const file=checked(supp
 const binding=path.join(runner,'node_modules/@nelyx/skia-rn');
 for(const [relative,digest]of Object.entries(manifest.sources)){if(sha(checked(binding,relative))!==digest)throw new Error('Native compiled source changed; rebuild binding: '+relative);}
 function list(directory,relative=''){return fs.readdirSync(directory,{withFileTypes:true}).flatMap(entry=>{if(entry.isSymbolicLink())throw new Error('Source symlink');const name=path.posix.join(relative,entry.name);return entry.isDirectory()?list(path.join(directory,entry.name),name):[name];});}
-const required=['cpp','generated/core','generated/gpu','generated/vulkan','native/vulkan'].flatMap(folder=>list(path.join(binding,folder),folder));
+const required=['cpp','generated/core','generated/gpu','generated/vulkan','generated/host','native/vulkan'].flatMap(folder=>list(path.join(binding,folder),folder));
 if(required.length!==Object.keys(manifest.sources).length||required.some(name=>!Object.hasOwn(manifest.sources,name)))throw new Error('Native compiled source inventory incomplete');
 const libraries=manifest.libraries.map(name=>{if(!files.has(name))throw new Error('Unlisted native library');return files.get(name);});
 if(!files.has(manifest.icu))throw new Error('Pinned ICU input absent');
@@ -60,7 +62,7 @@ const vs=spawnSync(vswhere,['-latest','-products','*','-requires','Microsoft.Vis
 const cli=load.resolve('@react-native-community/cli/build/bin.js');run(process.execPath,[cli,'autolink-windows','--no-telemetry']);run(process.execPath,[cli,'codegen-windows','--no-telemetry']);
 const windows=path.join(app,'windows'),rnw=path.join(runner,'node_modules/react-native-windows');
 run(path.join(vs.stdout.trim(),'MSBuild/Current/Bin/MSBuild.exe'),[path.join(windows,'NelyxRNHost.sln'),'/target:NelyxRNHost','/restore','/m:2','/nodeReuse:false','/verbosity:minimal',`/p:Configuration=${configuration}`,'/p:Platform=x64','/p:UseDebugLibraries=false','/p:WindowsTargetPlatformVersion=10.0.26100.0','/p:WindowsAppSDKSelfContained=true',`/p:UseBundle=${v8||jsc||aot?'false':'true'}`,'/p:UseDevBundle=false','/p:BundleEntryFile=main.tsx',`/p:BundleCommandWorkingDir=${runner}`,`/p:AutolinkCommandWorkingDir=${runner}`,`/p:CodegenCommandWorkingDir=${runner}`,`/p:ReactNativeWindowsDir=${rnw}\\`,`/p:SolutionDir=${windows}\\`,'/p:BundlerExtraArgs=--max-workers=2']);
-const output=path.join(windows,'x64',configuration),assetRoot=path.join(output,'Assets');fs.mkdirSync(assetRoot,{recursive:true});
+const output=path.join(windows,'x64',configuration),assetRoot=resetWindowsBuildAssets({app,configuration});
 if(v8||jsc||aot){
   const {runBuild,loadConfig}=load('metro'),bundle=path.join(output,aot?'Bundle/index.windows.aot.js':'Bundle/index.windows.bundle'),map=path.join(output,'sourcemaps/react/index.windows.bundle.map');fs.mkdirSync(path.dirname(bundle),{recursive:true});fs.mkdirSync(path.dirname(map),{recursive:true});
   const metroConfig=await loadConfig({cwd:runner,config:path.join(runner,'metro.config.cjs')}),nativeV8Transformer=load.resolve(jsc?'@nelyx/metro/native-jsc-transformer':'@nelyx/metro/native-v8-transformer');
@@ -91,7 +93,7 @@ if(!aot)fs.copyFileSync(path.join(hermesDirectory,'build/native/win32/x64/hermes
 if(aot){
   const compilation={toolchain:aot.directory,source:path.join(output,'Bundle/index.windows.aot.js'),directory:output,bundle:path.join(output,'Bundle/index.windows.bundle'),hermesDirectory,cohort:createProviderRegistry().cohort('windows')};
   await writeStaticAotApplication({...compilation,typedSource:path.join(output,'Bundle/index.windows.typed.ts'),partition:typedPartition,cacheDirectory:path.join(state,'static-aot-cache')});
-}else for(const name of ['static-aot-app.json','static-aot-execution.json','static-aot-type-policy.json','static-aot-native-pc.json','NelyxApp.aot.dll','Bundle/index.windows.aot.js','Bundle/index.windows.typed.ts','Bundle/index.windows.typed.map.json','Bundle/index.windows.rnw-pal.js'])fs.rmSync(path.join(output,name),{force:true});
+}else for(const name of ['static-aot-app.json','static-aot-execution.json','static-aot-type-policy.json','static-aot-native-pc.json','NelyxApp.aot.dll','Bundle/index.windows.aot.js','Bundle/index.windows.aot.map','Bundle/index.windows.typed.ts','Bundle/index.windows.typed.map.json','Bundle/index.windows.rnw-pal.js'])fs.rmSync(path.join(output,name),{force:true});
 for(const [name,file]of assets){const destination=path.join(assetRoot,name);fs.mkdirSync(path.dirname(destination),{recursive:true});fs.copyFileSync(file,destination);}
 for(const entry of verifiedAssets){const destination=path.join(assetRoot,entry.path.slice(2));if(fs.statSync(destination).size!==entry.bytes||sha(destination)!==entry.sha256)throw new Error('Copied app asset changed during build: '+entry.id);}
 load('@nelyx/metro/assets').copyAppNotices(app,config.assets,path.join(assetRoot,'licenses'));

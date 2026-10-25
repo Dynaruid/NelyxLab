@@ -2,6 +2,7 @@
 #include "windows-animation-diagnostics.h"
 #include "windows-animation-fault.h"
 #include "windows-animation-profile.h"
+#include "windows-wheel-pacer.h"
 #include <RNSkiaModule.h>
 #include <SkiaView.h>
 #include <WindowsAppHost.h>
@@ -33,17 +34,7 @@ struct ErrorReporter:winrt::implements<ErrorReporter,RN::IRedBoxHandler>{
  void DismissRedBox()noexcept{}
 };
 using Clock=std::chrono::steady_clock;
-// Keep the historical 8ms workload unchanged. Shorter stress intervals need
-// a process-owned high-resolution wait; ordinary Windows sleep can round 4ms
-// to roughly 15.6ms and silently turn a trackpad-rate test into a 64Hz test.
-struct WheelPacer {
- int interval;HANDLE timer=nullptr;Clock::time_point last{};std::vector<double> samples;unsigned count=0;
- explicit WheelPacer(int ms):interval(ms){if(ms<8){timer=CreateWaitableTimerExW(nullptr,nullptr,CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,TIMER_ALL_ACCESS);if(!timer)throw std::runtime_error("High-resolution wheel fixture timer unavailable");}}
- ~WheelPacer(){if(timer)CloseHandle(timer);}
- void sample(){const auto now=Clock::now();if(count++)samples.push_back(std::chrono::duration<double,std::milli>(now-last).count());last=now;}
- void wait(){if(!timer){std::this_thread::sleep_until(Clock::now()+std::chrono::milliseconds(interval));return;}LARGE_INTEGER due{};due.QuadPart=-10000LL*interval;if(!SetWaitableTimerEx(timer,&due,0,nullptr,nullptr,nullptr,0)||WaitForSingleObject(timer,5000)!=WAIT_OBJECT_0)throw std::runtime_error("High-resolution wheel fixture wait failed");}
- void report(const char* mode){if(samples.empty())return;std::sort(samples.begin(),samples.end());std::cout<<"ANIMATION_WHEEL_SEND {\"mode\":\""<<mode<<"\",\"count\":"<<count<<",\"requestedMs\":"<<interval<<",\"p50Ms\":"<<samples[samples.size()/2]<<",\"p95Ms\":"<<samples[samples.size()*95/100]<<",\"maxMs\":"<<samples.back()<<"}"<<std::endl;}
-};
+using WheelPacer=Nelyx::Fixture::WheelPacer;
 std::string phase;Clock::time_point began{},last{};std::vector<double> intervals;unsigned frames=0;bool finished=false,closed=false;
 std::mutex bootStageMutex;std::string lastBootStage;uint64_t bootStageChanges=0;
 bool recordBootStage(std::string const& message){if(!message.starts_with("BOOT "))return false;std::lock_guard lock(bootStageMutex);lastBootStage=message.substr(5);++bootStageChanges;return true;}
@@ -178,7 +169,7 @@ struct NelyxAnimation {
   if(!ClientToScreen(window,&point)||GetAncestor(WindowFromPoint(point),GA_ROOTOWNER)!=GetAncestor(window,GA_ROOTOWNER)){RECT bounds{};GetWindowRect(window,&bounds);DWORD process=0;GetWindowThreadProcessId(WindowFromPoint(point),&process);promise.Reject(("Wheel target is outside the owned window point="+std::to_string(point.x)+","+std::to_string(point.y)+" window="+std::to_string(bounds.left)+","+std::to_string(bounds.top)+","+std::to_string(bounds.right)+","+std::to_string(bounds.bottom)+" targetProcess="+std::to_string(process)+" own="+std::to_string(GetCurrentProcessId())).c_str());return;}
   if(wheelWorker.joinable())wheelWorker.join();wheelStreamToken.store(token);wheelStreamStop.store(0);wheelWorker=std::jthread([window,point,delta,count,intervalMs,sweep,promise,token]{POINT saved{};const bool restore=GetCursorPos(&saved);std::string failure;unsigned sent=0;
    if(!SetCursorPos(point.x,point.y))failure="Wheel pointer positioning failed";
-   try{std::this_thread::sleep_for(std::chrono::milliseconds(150));WheelPacer pacer(intervalMs);for(int i=0;i<count&&failure.empty()&&(!token||wheelStreamStop.load()!=token);i++){if(GetForegroundWindow()!=window){failure="Wheel window lost foreground";break;}POINT current{};if(!GetCursorPos(&current)||current.x!=point.x||current.y!=point.y){failure="Owned wheel pointer moved during injection";break;}INPUT input{};input.type=INPUT_MOUSE;input.mi.dwFlags=MOUSEEVENTF_WHEEL;input.mi.mouseData=DWORD(sweep&&(i/24)%2?-delta:delta);pacer.sample();if(SendInput(1,&input,sizeof(input))!=1){failure="OS wheel injection failed";break;}++sent;pacer.wait();}pacer.report(token?"os-stream":sweep?"os-sweep":"os");}catch(std::exception const& error){failure=error.what();}
+   try{std::this_thread::sleep_for(std::chrono::milliseconds(150));WheelPacer pacer(intervalMs);for(int i=0;i<count&&failure.empty()&&(!token||wheelStreamStop.load()!=token);i++){const auto iterationBegin=Clock::now();if(GetForegroundWindow()!=window){failure="Wheel window lost foreground";break;}POINT current{};if(!GetCursorPos(&current)||current.x!=point.x||current.y!=point.y){failure="Owned wheel pointer moved during injection";break;}INPUT input{};input.type=INPUT_MOUSE;input.mi.dwFlags=MOUSEEVENTF_WHEEL;input.mi.mouseData=DWORD(sweep&&(i/24)%2?-delta:delta);if(SendInput(1,&input,sizeof(input))!=1){failure="OS wheel injection failed";break;}pacer.sample();++sent;pacer.wait(iterationBegin);}pacer.report(token?"os-stream":sweep?"os-sweep":"os");}catch(std::exception const& error){failure=error.what();}
    // SendInput completion does not acknowledge delivery to Core. Keep the
    // sweep's pointer owned until JS confirms every event and drains its frame.
    if(restore&&(sweep||std::getenv("NELYX_CONTINUOUS_SCROLL"))&&failure.empty()){heldWheelOriginal=saved;heldWheelTarget=point;heldWheelCursor.store(true);}else if(restore)SetCursorPos(saved.x,saved.y);
@@ -197,10 +188,10 @@ struct NelyxAnimation {
   if(!std::isfinite(x)||!std::isfinite(y)||count<1||count>240||delta<-120||delta>120||intervalMs<1||intervalMs>16){promise.Reject("Invalid queued wheel workload");return;}
   if(wheelWorker.joinable())wheelWorker.join();const auto current=context;wheelWorker=std::jthread([current,x,y,delta,count,generation,intervalMs,sweep,promise]{
    try{WheelPacer pacer(intervalMs);for(int i=0;i<count;i++){
-    pacer.sample();
+    const auto iterationBegin=Clock::now();
     const auto step=sweep&&(i/24)%2?-delta:delta;
     current.EmitJSEvent(L"RCTDeviceEventEmitter",L"nelyxFixtureWheel",RN::JSValueObject{{"x",x},{"y",y},{"deltaX",0.0},{"deltaY",-step*48.0/120.0},{"surfaceGeneration",generation}});
-    pacer.wait();
+    pacer.sample();pacer.wait(iterationBegin);
    }pacer.report("queued");promise.Resolve();}catch(std::exception const& error){promise.Reject(error.what());}
   });
  }

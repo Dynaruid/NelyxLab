@@ -11,7 +11,8 @@ const inside = (root, file) => {const relative = path.relative(root, file); retu
 
 /** Observe the installed runner's actual Release serializer, including loader,
  * pre-main/polyfills and generated run statements. No bundle is published. */
-export async function inspectRuntimeInventory({runner, appRoot, signal, entry = 'main.tsx', config: suppliedConfig, customTransformOptions, sourceMapUrl = 'index.windows.bundle.map', onCapture}) {
+export async function inspectRuntimeInventory({runner, appRoot, signal, entry = 'main.tsx', config: suppliedConfig, customTransformOptions, sourceMapUrl = 'index.windows.bundle.map', onCapture, nativeHost=false}) {
+  if(process.execArgv.some(arg=>['-e','--eval','-p','--print'].includes(arg)||arg.startsWith('--input-type')))throw Error('Run Metro inventory from a script file; Node eval arguments would be inherited by its workers');
   signal?.throwIfAborted();
   runner = fs.realpathSync(runner); appRoot = fs.realpathSync(appRoot);
   if (!inside(appRoot, runner)) throw Error('Runtime runner must belong to the application');
@@ -27,7 +28,7 @@ export async function inspectRuntimeInventory({runner, appRoot, signal, entry = 
   const configFile = path.join(runner, 'metro.config.cjs');
   const config = suppliedConfig ?? await loadConfig({cwd: runner, config: configFile});
   if (config.serializer.customSerializer) throw Error('Runtime inventory cannot replace a custom serializer');
-  if (![load.resolve('@react-native/metro-babel-transformer'), ...(suppliedConfig ? [load.resolve('@nelyx/metro/native-typed-transformer')] : [])].includes(config.transformer.babelTransformerPath)) throw Error('Pre-partition inventory requires the owning RN Babel transformer');
+  if (![load.resolve('@react-native/metro-babel-transformer'), ...(suppliedConfig ? [load.resolve('@nelyx/metro/native-hermes-transformer'),load.resolve('@nelyx/metro/native-typed-transformer')] : [])].includes(config.transformer.babelTransformerPath)) throw Error('Runtime inventory requires the owning qualified Babel transformer');
   const id = file => {
     if (!inside(appRoot, file)) throw Error('Runtime module escaped installed application: ' + file);
     return slash(path.relative(appRoot, file));
@@ -108,7 +109,7 @@ export async function inspectRuntimeInventory({runner, appRoot, signal, entry = 
       for (const record of records.filter(record => record.role === 'append')) addSpan(record);
       captured.spans = spans;
       return code;
-    }}}, {entry: path.isAbsolute(entry) ? path.relative(runner, entry) : entry, ...(customTransformOptions ? {customTransformOptions} : {}), platform: 'windows', dev: false, minify: false, sourceMap: true, sourceMapUrl});
+    }}}, {entry: path.relative(config.projectRoot,path.isAbsolute(entry)?entry:path.resolve(runner,entry)), ...(customTransformOptions ? {customTransformOptions} : {}), platform: 'windows', dev: false, minify: false, sourceMap: true, sourceMapUrl});
   signal?.throwIfAborted();
   if (!captured) throw Error('Metro runtime serializer was not observed');
   const map = JSON.parse(bundle.map);
@@ -130,9 +131,11 @@ export async function inspectRuntimeInventory({runner, appRoot, signal, entry = 
     if (hash(fs.readFileSync(input)) !== locator.sha256) throw Error('Prepared inventory input manifest changed: ' + filename);
     return {locatorSha256: hash(bytes), inputSha256: locator.sha256};
   };
+  let lockFile=path.join(runner,'package-lock.json');if(nativeHost)for(let folder=runner;!fs.existsSync(lockFile)&&folder!==appRoot;){folder=path.dirname(folder);lockFile=path.join(folder,'package-lock.json');}
   const identity = {stage: suppliedConfig ? 'native-input-release' : 'pre-partition-release', platform: 'windows', configuration: 'Release', engine: 'hermes', dev: false, minify: false, metro: '0.83.8',
-    runnerManifestSha256: hash(fs.readFileSync(path.join(runner, 'package.json'))), lockSha256: hash(fs.readFileSync(path.join(runner, 'package-lock.json'))),
-    configSha256: hash(fs.readFileSync(configFile)), babelConfigSha256: hash(fs.readFileSync(path.join(runner, 'babel.config.cjs'))),
+    ...(nativeHost?{host:'native-hermes',inventoryProducerSha256:hash(fs.readFileSync(import.meta.filename))}:{}),
+    runnerManifestSha256: hash(fs.readFileSync(path.join(runner, 'package.json'))), lockSha256: hash(fs.readFileSync(lockFile)),
+    configSha256: nativeHost?hash(JSON.stringify({projectRoot:config.projectRoot,transformer:config.transformer.babelTransformerPath,conditions:config.resolver.unstable_conditionNames,polyfills:config.serializer.getPolyfills()})):hash(fs.readFileSync(configFile)), babelConfigSha256: nativeHost?hash(fs.readFileSync(config.transformer.babelTransformerPath)):hash(fs.readFileSync(path.join(runner, 'babel.config.cjs'))),
     bundleSha256: hash(bundle.code), sourceMapSha256: hash(bundle.map), roots: captured.roots, moduleOrder: captured.moduleOrder, directives: captured.directives,
     nativeInputs: suppliedIdentity('native-inputs.json', 'nelyx.rnw-prepared/v1', 'input'),
     compilerRuntimeInputs: suppliedIdentity('static-hermes-inputs.json', 'nelyx.windows-static-hermes-locator/v1', 'directory', 'static-hermes.json')};

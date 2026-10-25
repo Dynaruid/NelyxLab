@@ -22,11 +22,12 @@
 
 #pragma clang diagnostic pop
 
+#include "../../generated/host/RuntimeScheduler.h"
+#ifndef NELYX_NATIVE_HOST
 #include <ReactCommon/CallInvoker.h>
+#endif
 
 namespace RNSkia {
-
-namespace react = facebook::react;
 
 struct RNSkAsyncResult {
   sk_sp<SkData> data;
@@ -40,9 +41,9 @@ public:
   /**
    * Constructor
    */
-  RNSkPlatformContext(std::shared_ptr<react::CallInvoker> callInvoker,
+  template<class T> RNSkPlatformContext(std::shared_ptr<T> callInvoker,
                       float pixelDensity)
-      : _pixelDensity(pixelDensity), _callInvoker(callInvoker) {}
+      : _pixelDensity(pixelDensity), _callInvoker(nelyx::host::RuntimeScheduler::adapt(std::move(callInvoker))) {}
 
   virtual ~RNSkPlatformContext() = default;
 
@@ -187,6 +188,6 @@ public:
 
 private:
   float _pixelDensity;
-  std::shared_ptr<react::CallInvoker> _callInvoker;
+  std::shared_ptr<nelyx::host::RuntimeScheduler> _callInvoker;
 };
 } // namespace RNSkia

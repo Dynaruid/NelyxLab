@@ -483,7 +483,8 @@ export function freezeSemantics(nodes:readonly TransportSemanticsNode[]):readonl
     invariant((node.minValue===undefined||typeof node.minValue==='string')&&(node.maxValue===undefined||typeof node.maxValue==='string'),'invalid-semantics-range','Semantics ranges must retain source strings');
     invariant(node.textDirection===undefined||node.textDirection==='ltr'||node.textDirection==='rtl','invalid-semantics-direction','Semantics direction must be ltr or rtl');
     invariant(node.isSlider===undefined||typeof node.isSlider==='boolean','invalid-semantics-slider','Slider flag must be boolean');
-    if(node.numericRange){const {min,max,value}=node.numericRange;invariant([min,max,value].every(Number.isFinite)&&min<=max&&value>=min&&value<=max,'invalid-semantics-numeric-range','Embedding numeric range must be finite and ordered');}
+    if(node.numericRange){const {min,max,value,smallChange,largeChange}=node.numericRange;invariant([min,max,value].every(Number.isFinite)&&min<=max&&value>=min&&value<=max&&[smallChange,largeChange].every(step=>step===undefined||Number.isFinite(step)&&step>=0),'invalid-semantics-numeric-range','Embedding numeric range and optional changes must be finite and ordered');}
+    if(node.rangeActions)invariant(!!node.numericRange&&typeof node.rangeActions.setValue==='function'&&Object.keys(node.rangeActions).length===1,'invalid-semantics-range-action','Absolute range actions require a numeric range');
     if(node.sourceNodeId!==undefined){invariant(Number.isSafeInteger(node.sourceNodeId)&&node.sourceNodeId>=0&&!sourceIds.has(node.sourceNodeId),'invalid-semantics-source-id','Source node ids must be unique nonnegative safe integers');sourceIds.add(node.sourceNodeId);}
     invariant(node.isLink===undefined||typeof node.isLink==='boolean','invalid-semantics-link','Semantics link state must be boolean');
     invariant(node.semanticsIdentifier===undefined||typeof node.semanticsIdentifier==='string','invalid-semantics-identifier','Semantics identifier must be a string');
@@ -509,7 +510,7 @@ export function freezeSemantics(nodes:readonly TransportSemanticsNode[]):readonl
     if(node.textSelection)invariant(node.role==='text-field'&&[node.textSelection.anchor,node.textSelection.focus].every(offset=>Number.isSafeInteger(offset)&&offset>=0&&offset<=(node.value?.length??0)),'invalid-text-selection','Text field semantics selection must index its Core value');
     for(const flag of [node.readOnly,node.obscured,node.multiline])invariant(flag===undefined||node.role==='text-field'&&typeof flag==='boolean','invalid-text-field-semantics','Editing semantics flags belong to text fields');
     ancestors.add(node);const children=node.children?.map(child=>visit(child,depth+1));ancestors.delete(node);
-    return Object.freeze({...node,bounds,...(textNavigation?{textNavigation}:{}),...(textParagraph?{textParagraph}:{}),...(node.textActions?{textActions:Object.freeze({...node.textActions})}:{}),...(node.textSelection?{textSelection:Object.freeze({...node.textSelection})}:{}),...(textInputGeometry?{textInputGeometry}:{}),...(node.numericRange?{numericRange:Object.freeze({...node.numericRange})}:{}),...(editorGeometry?{editorGeometry}:{}),...(editorStyle?{editorStyle}:{}),...(node.tags?{tags:Object.freeze([...node.tags])}:{}),...(node.nameAttributes?{nameAttributes:Object.freeze([...node.nameAttributes])}:{}),...(node.actions?{actions:Object.freeze({...node.actions})}:{}),...(children?{children:Object.freeze(children)}:{})});
+    return Object.freeze({...node,bounds,...(textNavigation?{textNavigation}:{}),...(textParagraph?{textParagraph}:{}),...(node.textActions?{textActions:Object.freeze({...node.textActions})}:{}),...(node.rangeActions?{rangeActions:Object.freeze({...node.rangeActions})}:{}),...(node.textSelection?{textSelection:Object.freeze({...node.textSelection})}:{}),...(textInputGeometry?{textInputGeometry}:{}),...(node.numericRange?{numericRange:Object.freeze({...node.numericRange})}:{}),...(editorGeometry?{editorGeometry}:{}),...(editorStyle?{editorStyle}:{}),...(node.tags?{tags:Object.freeze([...node.tags])}:{}),...(node.nameAttributes?{nameAttributes:Object.freeze([...node.nameAttributes])}:{}),...(node.actions?{actions:Object.freeze({...node.actions})}:{}),...(children?{children:Object.freeze(children)}:{})});
   };
   const snapshot=Object.freeze(nodes.map(node=>visit(node,0)));frozenSemanticsTrees.add(snapshot);return snapshot;
 }
@@ -564,6 +565,13 @@ class SemanticsConfigurationCallbacks {
 // These five private defaults are immutable values, including their empty
 // attribute array. Copy/merge replaces a field instead of mutating the value.
 const emptyConfigurationText=new AttributedString('');
+// Most render fragments carry no actions. Keep one small owned table so an
+// empty configuration does not eagerly allocate two Maps. Its mutable slots
+// also retain Map mutation semantics after the configuration itself is frozen.
+class SemanticsConfigurationActionTables {
+  actions:Map<SemanticsAction,SemanticsActionHandler>|undefined;
+  custom:Map<CustomSemanticsAction,()=>void>|undefined;
+}
 /** Source annotations and merge rules. linkUrl uses the existing host URI string representation. */
 export class SemanticsConfiguration {
   private _callbacks:SemanticsConfigurationCallbacks|null=null;
@@ -571,14 +579,16 @@ export class SemanticsConfiguration {
   isBlockingUserActions=false;
   explicitChildNodes=false;
   isBlockingSemanticsOfPreviouslyPaintedNodes=false;
-  private readonly _actions=new Map<SemanticsAction,SemanticsActionHandler>();
-  private _customSemanticsActions=new Map<CustomSemanticsAction,()=>void>();
+  private readonly _actionTables=new SemanticsConfigurationActionTables();
+  private get _actions():Map<SemanticsAction,SemanticsActionHandler>{return this._actionTables.actions??=new Map();}
+  private get _customSemanticsActions():Map<CustomSemanticsAction,()=>void>{return this._actionTables.custom??=new Map();}
+  private set _customSemanticsActions(value:Map<CustomSemanticsAction,()=>void>){this._actionTables.custom=value;}
   private _tagsForChildren:SemanticsTag[]|null=null;
   private _actionsAsBits=0;
   private get _effectiveActionsAsBits():number{return this.isBlockingUserActions?this._actionsAsBits&unblockedActions:this._actionsAsBits;}
   private _addAction(action:SemanticsAction,handler:SemanticsActionHandler):void{this._actions.set(action,handler);this._actionsAsBits|=action.index;this._hasBeenAnnotated=true;}
   private _addArgumentlessAction(action:SemanticsAction,handler:(()=>void)|null):void{invariant(handler!==null,'null-semantics-handler','Semantics action handler cannot be null');this._addAction(action,args=>{if(FoundationBuildMode.debug)invariant(args==null,'unexpected-semantics-arguments','This action takes no arguments');handler();});}
-  getActionHandler(action:SemanticsAction):SemanticsActionHandler|null{return this._actions.get(action)??null;}
+  getActionHandler(action:SemanticsAction):SemanticsActionHandler|null{return this._actionTables.actions?.get(action)??null;}
   private _isSemanticBoundary:boolean=false;
   private _localeForSubtree:Locale|null=null;
   private _hasBeenAnnotated:boolean=false;
@@ -978,9 +988,9 @@ export class SemanticsConfiguration {
   absorb(child:SemanticsConfiguration):void{
     if(FoundationBuildMode.debug)invariant(!this.explicitChildNodes,'explicit-semantics-children','Explicit child nodes cannot be absorbed');
     if(!child.hasBeenAnnotated)return;
-    for(const [action,handler]of child._actions)if(!child.isBlockingUserActions||(action.index&unblockedActions)>0)this._actions.set(action,handler);
+    if(child._actionTables.actions)for(const [action,handler]of child._actionTables.actions)if(!child.isBlockingUserActions||(action.index&unblockedActions)>0)this._actions.set(action,handler);
     this._actionsAsBits|=child._effectiveActionsAsBits;
-    for(const [action,handler]of child._customSemanticsActions){const existing=[...this._customSemanticsActions.keys()].find(key=>key.equals(action));this._customSemanticsActions.set(existing??action,handler);}
+    if(child._actionTables.custom)for(const [action,handler]of child._actionTables.custom){const existing=[...this._customSemanticsActions.keys()].find(key=>key.equals(action));this._customSemanticsActions.set(existing??action,handler);}
     this._flags=this._flags.merge(child._flags);
     this._linkUrl??=child._linkUrl;
     this._textSelection??=child._textSelection;
@@ -1060,8 +1070,8 @@ export class SemanticsConfiguration {
     result._traversalParentIdentifier=this._traversalParentIdentifier;
     result._minValue=this._minValue;
     result._maxValue=this._maxValue;
-    for(const [action,handler]of this._actions)result._actions.set(action,handler);
-    for(const [action,handler]of this._customSemanticsActions)result._customSemanticsActions.set(action,handler);
+    if(this._actionTables.actions)for(const [action,handler]of this._actionTables.actions)result._actions.set(action,handler);
+    if(this._actionTables.custom)for(const [action,handler]of this._actionTables.custom)result._customSemanticsActions.set(action,handler);
     return result;
   }
 }

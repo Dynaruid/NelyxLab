@@ -5,19 +5,11 @@
 
 #include "RNSkPlatformContext.h"
 
-namespace facebook {
-namespace react {
-class CallInvoker;
-}
-} // namespace facebook
-
 namespace RNSkia {
 class RNSkView;
 class RNSkJsiViewApi;
 
 namespace jsi = facebook::jsi;
-namespace react = facebook::react;
-
 class RNSkManager {
 public:
   /**
@@ -28,8 +20,10 @@ public:
     functionality
   */
   RNSkManager(jsi::Runtime *jsRuntime,
-              std::shared_ptr<facebook::react::CallInvoker> jsCallInvoker,
+              std::shared_ptr<nelyx::host::RuntimeScheduler> jsCallInvoker,
               std::shared_ptr<RNSkPlatformContext> platformContext);
+  template<class T> RNSkManager(jsi::Runtime* runtime,std::shared_ptr<T> scheduler,std::shared_ptr<RNSkPlatformContext> context)
+    :RNSkManager(runtime,nelyx::host::RuntimeScheduler::adapt(std::move(scheduler)),std::move(context)){}
 
   ~RNSkManager();
 
@@ -71,7 +65,7 @@ private:
 
   jsi::Runtime *_jsRuntime;
   std::shared_ptr<RNSkPlatformContext> _platformContext;
-  std::shared_ptr<facebook::react::CallInvoker> _jsCallInvoker;
+  std::shared_ptr<nelyx::host::RuntimeScheduler> _jsCallInvoker;
   std::shared_ptr<RNSkJsiViewApi> _viewApi;
 };
 

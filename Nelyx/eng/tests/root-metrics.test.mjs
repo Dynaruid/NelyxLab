@@ -15,6 +15,38 @@ class Probe extends StatelessWidget{constructor(builder){super();this.builder=bu
 const named=(id,name)=>new Semantics(new SizedBox(10,10),{id,role:'text',name});
 function resize(f,values){const metrics=f.root.context.readMetrics();Object.assign(metrics,values,{viewportGeneration:metrics.viewportGeneration+1});f.frame();}
 
+test('layout paint and semantics invalidations finish in the current frame without a redundant host request',{timeout},()=>{
+ const f=fixture();let layouts=0;
+ try{f.set(new LayoutBuilder(()=>{layouts++;return named('layout-frame','Current');}));
+  assert.equal(layouts,1);assert.equal(f.root.nodes.find(node=>node.id==='layout-frame').name,'Current');
+  assert.equal(f.root.scheduler.hasScheduledFrame,false,'Layout and semantics were already consumed by this frame');
+  resize(f,{logicalWidth:320,physicalWidth:320});assert.equal(layouts,2);assert.equal(f.root.scheduler.hasScheduledFrame,false);
+  f.root.pipeline.root.markNeedsLayout();assert.equal(f.root.scheduler.hasScheduledFrame,true,'Idle invalidations still request a host frame');
+  f.frame();assert.equal(f.root.scheduler.hasScheduledFrame,false);
+ }finally{f.close();}
+});
+
+test('transient continuation and post-frame layout changes still schedule their next frame',{timeout},()=>{
+ const f=fixture();let ticks=0,post=0;
+ try{f.set(named('frame-continuation','Current'));
+  f.root.scheduler.scheduleFrameCallback(()=>{ticks++;f.root.scheduler.scheduleFrameCallback(()=>ticks++);});f.frame();
+  assert.equal(ticks,1);assert.equal(f.root.scheduler.hasScheduledFrame,true);f.frame();assert.equal(ticks,2);assert.equal(f.root.scheduler.hasScheduledFrame,false);
+  f.root.scheduler.addPostFrameCallback(()=>{post++;f.root.pipeline.root.markNeedsLayout();});f.frame();
+  assert.equal(post,1);assert.equal(f.root.scheduler.hasScheduledFrame,true);f.frame();assert.equal(f.root.scheduler.hasScheduledFrame,false);
+ }finally{f.close();}
+});
+
+test('an isolated layout build keeps a later default-scope rebuild scheduled',{timeout},()=>{
+ const f=fixture();let context,value='Before',change=false,layoutContext;
+ const reader=new Probe(current=>{context=current;return named('late-layout-build',value);});
+ const layout=new LayoutBuilder(current=>{layoutContext=current;if(change){change=false;value='After';context.markNeedsBuild();}return new SizedBox(10,10);});
+ try{f.set(new Row([reader,new SizedBox(20,20,layout)]));assert.equal(f.root.nodes.find(node=>node.id==='late-layout-build').name,'Before');
+  change=true;layoutContext.markNeedsBuild();f.frame();assert.equal(f.root.nodes.find(node=>node.id==='late-layout-build').name,'Before');
+  assert.equal(f.root.scheduler.hasScheduledFrame,true,'A Widget dirtied after the default build stage needs the next frame');
+  f.frame();assert.equal(f.root.nodes.find(node=>node.id==='late-layout-build').name,'After');assert.equal(f.root.scheduler.hasScheduledFrame,false);
+ }finally{f.close();}
+});
+
 test('MediaQuery property readers rebuild only for their observed values while full and unknown-aspect readers remain conservative',{timeout},()=>{
  const f=fixture(),counts={},values={};let data={width:240,height:160,scale:1,textScale:1,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0};
  const readers={full:c=>MediaQuery.of(c).width,text:c=>MediaQuery.textScalerOf(c).scale(10),brightness:MediaQuery.maybePlatformBrightnessOf.bind(MediaQuery),contrast:MediaQuery.maybeHighContrastOf.bind(MediaQuery),padding:c=>MediaQuery.paddingOf(c).bottom,viewPadding:c=>MediaQuery.viewPaddingOf(c).bottom,insets:c=>MediaQuery.viewInsetsOf(c).bottom,gesture:c=>MediaQuery.gestureSettingsOf(c).touchSlop,navigation:MediaQuery.navigationModeOf.bind(MediaQuery),radii:MediaQuery.displayCornerRadiiOf.bind(MediaQuery),multi:c=>[MediaQuery.textScalerOf(c),MediaQuery.maybeHighContrastOf(c)],allThenText:c=>[MediaQuery.of(c),MediaQuery.textScalerOf(c)],textThenAll:c=>[MediaQuery.textScalerOf(c),MediaQuery.of(c)],unknown:c=>c.dependOn(MediaQuery,'consumer-aspect').data.width};

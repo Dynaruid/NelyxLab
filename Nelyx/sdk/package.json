@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "dependencies": {
+    "abort-controller": "3.0.0",
     "@nelyx/core": "0.16.0"
   },
   "peerDependencies": {
@@ -305,6 +306,16 @@
     "./runtime/worker-messages": {
       "types": "./dist/runtime/worker-messages.d.ts",
       "default": "./dist/runtime/worker-messages.js"
+    },
+    "./backends/native-hermes/application": {
+      "default": "./dist/backends/native-hermes/application.js",
+      "types": "./dist/backends/native-hermes/application.d.ts",
+      "react-native": "./src/backends/native-hermes/application.ts"
+    },
+    "./backends/native-hermes/globals": {
+      "default": "./dist/backends/native-hermes/globals.js",
+      "types": "./dist/backends/native-hermes/globals.d.ts",
+      "react-native": "./src/backends/native-hermes/globals.ts"
     }
   },
   "scripts": {

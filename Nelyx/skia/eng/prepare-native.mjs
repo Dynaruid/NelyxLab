@@ -43,10 +43,11 @@ function mirror(source,target,owner) {
 }
 mirror(externalSdk,path.join(rn,'generated/sdk'),rn);
 mirror(path.join(skia,'native/core'),path.join(rn,'generated/core'),rn);
+mirror(path.join(skia,'native/host'),path.join(rn,'generated/host'),rn);
 mirror(path.join(skia,'native/rendering/nelyx_skia'),path.join(rn,'generated/gpu/nelyx_skia'),rn);
 mirror(path.join(skia,'native/platforms/vulkan'),path.join(rn,'generated/vulkan'),rn);
 const vulkanSdk=path.join(rn,'native/vulkan/sdk');
-for(const relative of ['vendor/artifacts.lock.json','vendor/linux-graphite-probe.lock.json','eng/prepare-artifacts.py',
+for(const relative of ['vendor/artifacts.lock.json','vendor/windows-rn-supplier.lock.json','vendor/linux-graphite-probe.lock.json','eng/prepare-artifacts.py',
   'eng/source-build/prepare-rn-modules.py','eng/source-build/rn-modules.cmake','eng/source-build/libwebp.lock.json']) {
  const destination=path.join(vulkanSdk,relative);fs.mkdirSync(path.dirname(destination),{recursive:true});
  fs.copyFileSync(path.join(skia,relative),destination);

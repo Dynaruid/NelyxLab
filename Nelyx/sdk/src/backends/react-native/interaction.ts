@@ -8,7 +8,7 @@ import type {EditingBinding,EditingHost,SemanticsHost,EditingOptions,TextInputAc
 import type {SemanticsInputObserver} from '@nelyx/core/hosting/interaction';
 import type {PointerEvent,InputFocusRequest} from '@nelyx/core/ui/input';
 import type {SemanticsNode,TextEditingValue,ViewOwner,EditingGeometry,Rect,TextInputGeometry,TextInputCharacterBounds,TextInputGeometryStamp,TextInputRangeBounds,TextInputHitOptions,TextInputHitTest} from '@nelyx/core/ui/types';
-import type {SemanticsAction,SemanticsTextAction} from '@nelyx/core/ui/types';
+import type {SemanticsAction,SemanticsTextAction,SemanticsRangeAction} from '@nelyx/core/ui/types';
 import {freezeSemantics,flattenSemantics} from '@nelyx/core/framework/semantics/semantics';
 
 /** Native props depend on action availability, not the identity of a freshly
@@ -300,6 +300,16 @@ export class ReactNativeInteraction {
       else if(current.textActions?.scrollRange){performed=true;current.textActions.scrollRange(captured.start,captured.end,captured.alignToTop);}
     };
     try{if(this.inputObserver){if(!this.inputObserver.dispatchTextAction)return false;this.inputObserver.dispatchTextAction(id,captured,perform);}else perform();return performed;}finally{dispatching=false;}
+  }
+  performRangeAction(id:string,action:SemanticsRangeAction,snapshot?:SemanticsNode):boolean{
+    const node=this.nodes.get(id),value=action.value,range=node?.numericRange;
+    if(action.kind!=='set-range-value'||this.closed||!node?.enabled||!range||!node.rangeActions?.setValue||!Number.isFinite(value)||value<range.min||value>range.max)return false;
+    // Paint-only Core snapshots refresh callbacks without another native delta.
+    // A queued request may keep that control's lifetime, but never an old range.
+    if(snapshot&&(!this.isLiveNodeSnapshot(snapshot)||snapshot.sourceNodeId!==node.sourceNodeId||snapshot.role!==node.role||!sameSemantics(snapshot.numericRange,range)))return false;
+    const captured=Object.freeze({kind:'set-range-value' as const,value}),lifetime=this.nodeLifetimes.get(id);let performed=false,dispatching=true;
+    const perform=()=>{if(!dispatching||performed||this.closed||this.nodes.get(id)!==node||!node.enabled||this.nodeLifetimes.get(id)!==lifetime)return;performed=true;node.rangeActions!.setValue(value);};
+    try{if(this.inputObserver){if(!this.inputObserver.dispatchRangeAction)return false;this.inputObserver.dispatchRangeAction(id,captured,perform);}else perform();return performed;}finally{dispatching=false;}
   }
   activate(id:string):boolean{return this.performAction(id,'activate');}
   /** The mounted native control owns its tag; source IDs never stand in for RN tags. */

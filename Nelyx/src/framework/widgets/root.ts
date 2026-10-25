@@ -115,11 +115,15 @@ export class FrameworkRoot implements ViewController {
     this.semanticsActionBinding=new SemanticsActionBinding({accessibilityEnabled:options.accessibilityEnabled!==false,...(dispatcher?{dispatcher}:{}),scheduler:this.scheduler,viewId:context.platformView?.viewId??context.owner.id,performSemanticsAction:event=>{if(this.closed||!this.visible||typeof event.nodeId!=='number')return;const owner=this.pipeline.semanticsOwner,source=owner?.getSemanticsNode(event.nodeId);if(this.semanticsDeferred){if(source)this.queueSemanticsAction(source,()=>owner!.performAction(source.id,event.type,event.arguments));}else owner?.performAction(event.nodeId,event.type,event.arguments);}});
     if(options.accessibilityEnabled!==false)this.semanticsActionBinding.addAccessibilityFeaturesChangedListener(()=>{if(this.closed)return;const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};if(this.root)visit(this.root);this.scheduler.requestFrame();});
     const invalidate=()=>{if(!this.closed&&!this.revealingViewportFocus&&this.scheduler.phase!=='build'&&this.scheduler.phase!=='transient')this.scheduler.requestFrame();};
+    // Layout invalidates paint and semantics that this frame has yet to visit.
+    // Widget rebuilds use invalidate directly: their earlier stage may need a
+    // new frame even when render work is already covered by the current one.
+    const invalidatePipeline=()=>{if(this.scheduler.phase!=='layout')invalidate();};
     // The snapshot transport below consumes the live semantics tree. It does
     // not submit engine packets, so do not build a second copy to dispose it.
-    this.buildOwner=new BuildOwner(context,invalidate,callback=>{if(!this.closed)this.scheduler.addPostFrame(callback);},{mouseIsConnected:()=>this.mouseTracker.mouseIsConnected});this.pipeline=new PipelineOwner({accessibilityEnabled:options.accessibilityEnabled!==false,onNeedVisualUpdate:invalidate,onSemanticsUpdate:update=>update.dispose(),onSemanticsOwnerCreated:()=>this.pipeline.rootNode?.scheduleInitialSemantics(),createSemanticsUpdateBuilder:()=>null,systemFonts:context.platformServices instanceof PaintingBinding?{systemFonts:context.platformServices.systemFonts,scheduler:this.scheduler}:null,...(context.binaryMessenger?{messenger:context.binaryMessenger}:{})});this.layerRoot.layer!.attach(this.pipeline);this.mouseTracker=new MouseTracker(position=>this.pointerHitTest(position),context.owner.id,context.platformServices?.channels.mouseCursor??(context.binaryMessenger?new SystemChannelSet(context.binaryMessenger).mouseCursor:null));
-    this.sourceSemanticsSnapshot=options.accessibilityEnabled===false?undefined:new SemanticsTransportSnapshot(this.pipeline,()=>!this.closed&&this.visible,(source,action)=>this.queueSemanticsAction(source,node=>node.actions?.[action]?.()));
-    this.pipeline.attach(new ViewPipelineManifold(this.semanticsActionBinding,invalidate));
+    this.buildOwner=new BuildOwner(context,invalidate,callback=>{if(!this.closed)this.scheduler.addPostFrame(callback);},{mouseIsConnected:()=>this.mouseTracker.mouseIsConnected});this.pipeline=new PipelineOwner({accessibilityEnabled:options.accessibilityEnabled!==false,onNeedVisualUpdate:invalidatePipeline,onSemanticsUpdate:update=>update.dispose(),onSemanticsOwnerCreated:()=>this.pipeline.rootNode?.scheduleInitialSemantics(),createSemanticsUpdateBuilder:()=>null,systemFonts:context.platformServices instanceof PaintingBinding?{systemFonts:context.platformServices.systemFonts,scheduler:this.scheduler}:null,...(context.binaryMessenger?{messenger:context.binaryMessenger}:{})});this.layerRoot.layer!.attach(this.pipeline);this.mouseTracker=new MouseTracker(position=>this.pointerHitTest(position),context.owner.id,context.platformServices?.channels.mouseCursor??(context.binaryMessenger?new SystemChannelSet(context.binaryMessenger).mouseCursor:null));
+    this.sourceSemanticsSnapshot=options.accessibilityEnabled===false?undefined:new SemanticsTransportSnapshot(this.pipeline,()=>!this.closed&&this.visible,(source,action)=>this.queueSemanticsAction(source,node=>node.actions?.[action]?.()),(source,value,range)=>this.queueSemanticsAction(source,node=>{const current=node.numericRange;if(current&&current.min===range.min&&current.max===range.max&&current.value===range.value&&current.smallChange===range.smallChange&&current.largeChange===range.largeChange)node.rangeActions?.setValue(value);}));
+    this.pipeline.attach(new ViewPipelineManifold(this.semanticsActionBinding,invalidatePipeline));
     this.viewSemanticsHandle=options.accessibilityEnabled===false?undefined:this.semanticsActionBinding.ensureSemantics();
     this.gestureBinding=new GestureBinding({implicitViewId:context.owner.id,pointerRouter:this.pointerRouter,gestureArena:this.buildOwner.gestures,scheduler:this.scheduler,clock:new SamplingClock(()=>context.clock.now(),()=>context.clock.now()),devicePixelRatioForView:viewId=>!this.closed&&viewId===context.owner.id?context.readMetrics().scale:null,
       invokeCallback:(timestamp,callback)=>this.buildOwner.focus.runWithFocusRequest({inputTimestamp:timestamp},callback),
@@ -172,7 +176,7 @@ export class FrameworkRoot implements ViewController {
       workBudget?.runOptional(scene.token.timing,()=>this.context.clock.now(),()=>!this.closed&&this.visible&&!this.buildOwner.hasDirty&&scene.canRunOptionalWork?.()===true,()=>{if(!this.closed&&!this.pipeline.debugDisposed)this.pipeline.flushLayout();},()=>this.scheduler.requestFrame());
       if(this.closed||this.scheduler.disposed)return [];
       this.scheduler.phase='paint';painting=new PaintingContext(null,null,true);
-      painting.save();painting.transform(render.localTransform);withRenderPaint(()=>render.paint(painting!));painting.restore();
+      this.recordPaint(render,painting);
       withRenderPaint(()=>painting!.compose(this.layerRoot.layer!,{x:0,y:0,width:scene.token.metrics.logicalWidth,height:scene.token.metrics.logicalHeight},this.context.pictures??null));
       painting.commands.unshift({op:'clear',color:this.options.background??0xff101827});
       geometryCommit=render.commitTextInputGeometries({owner:scene.token.owner,metrics:scene.token.metrics});
@@ -202,6 +206,9 @@ export class FrameworkRoot implements ViewController {
             else {this.semantics?.dispose();this.semantics=undefined;if(snapshot.length)this.semantics=this.context.semantics.bind(snapshot,{
               dispatchAction:(id,action,perform)=>{if(this.closed||!this.visible)return;const node=this.nodes.find(value=>value.id===id);if(!node?.enabled)return;const type={activate:SemanticsAction.tap,focus:SemanticsAction.focus,'scroll-forward':SemanticsAction.scrollDown,'scroll-backward':SemanticsAction.scrollUp,increase:SemanticsAction.increase,decrease:SemanticsAction.decrease,'long-press':SemanticsAction.longPress,'scroll-left':SemanticsAction.scrollLeft,'scroll-right':SemanticsAction.scrollRight,'scroll-up':SemanticsAction.scrollUp,'scroll-down':SemanticsAction.scrollDown}[action];this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type,viewId:this.context.owner.id,nodeId:id}),()=>{if(!this.closed&&this.visible)perform();});},
               dispatchTextAction:(id,action,perform)=>{if(this.closed||!this.visible)return;const node=this.nodes.find(value=>value.id===id);if(!node?.enabled)return;const type=action.kind==='set-text'?SemanticsAction.setText:action.kind==='set-selection'?SemanticsAction.setSelection:SemanticsAction.showOnScreen,args=action.kind==='set-text'?action.text:action.kind==='set-selection'?new Map([['base',action.anchor],['extent',action.focus]]):Object.freeze({start:action.start,end:action.end,alignToTop:action.alignToTop});this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type,arguments:args,viewId:this.context.owner.id,nodeId:id}),()=>{if(!this.closed&&this.visible)perform();});},
+              // Absolute numeric values are a Nelyx transport extension. Keep
+              // their typed arguments rather than reporting a relative step.
+              dispatchRangeAction:(id,action,perform)=>{if(this.closed||!this.visible||!this.nodes.find(value=>value.id===id)?.enabled)return;this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type:SemanticsAction.customAction,arguments:action,viewId:this.context.owner.id,nodeId:id}),()=>{if(!this.closed&&this.visible)perform();});},
               observePointer:event=>{if(!this.closed)this.pointerRouter.route(pointerEventFromTransport({...event,pointer:0,viewportGeneration:this.context.readMetrics().viewportGeneration},{viewId:this.context.owner.id}));}
             });}
           }
@@ -209,6 +216,10 @@ export class FrameworkRoot implements ViewController {
           if(this.pendingSemanticsActions.length)this.scheduler.addPostFrameCallback(()=>this.performPendingSemanticsAction());
         }
       }
+      // An isolated layout builder can dirty the already-flushed default Widget
+      // scope while BuildOwner is inside that isolated build. Its normal wakeup
+      // is suppressed then, but the pending Widget must run on the next frame.
+      if(this.buildOwner.defaultBuildScope.hasDirty)this.scheduler.requestFrame();
       this.scheduler.addPostFrameCallback(()=>{if(!this.closed)this.mouseTracker.updateAllDevices();});return painting.commands;
     }catch(error){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsCache=undefined;this.semanticsDeferred=false;this.sourceSemanticsSnapshot?.invalidate();this.needsRenderTreeSync=true;failed=true;buildError=error;throw error;}
     finally{
@@ -219,6 +230,10 @@ export class FrameworkRoot implements ViewController {
       finally{if(!this.scheduler.disposed)this.scheduler.phase=phase;}
       if(failed||errors.length)try{painting?.dispose();}catch(error){errors.push(error);}if(errors.length){if(failed)errors.unshift(buildError);throw new AggregateError(errors,'Frame build/finalization failed');}
     }
+  }
+  /** One recording boundary, separate from retained layer composition. */
+  private recordPaint(render:RenderObject,painting:PaintingContext):void {
+    painting.save();painting.transform(render.localTransform);withRenderPaint(()=>render.paint(painting));painting.restore();
   }
   pointer(event:PointerEvent):void {
     if(this.closed||!this.visible)return;

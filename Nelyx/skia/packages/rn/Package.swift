@@ -84,6 +84,7 @@ let package = Package(
         // Replaces the podspec's recursive cpp/** glob, which expands to 90.
         .headerSearchPath("cpp"), // "api/…", "jsi/…", "utils/…"
         .headerSearchPath("generated/core"),
+        .headerSearchPath("generated/host"),
         .headerSearchPath("generated/sdk/skia"), // "include/core/…", "modules/…", "src/…"
         .headerSearchPath("generated/sdk/dawn/include"), // "webgpu/…", "dawn/…"
         .headerSearchPath("cpp/rnskia"), // apple/ uses bare "RNSkView.h"

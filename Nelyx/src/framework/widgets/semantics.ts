@@ -21,7 +21,7 @@ export interface SemanticsAnnotationOptions {readonly tagForChildren?:SemanticsT
 /** Existing host-id adapter. Source-shaped widgets use SemanticsWidgetOptions. */
 export interface SemanticsOptions extends Omit<SemanticsNode,'bounds'|'children'>,SemanticsAnnotationOptions {readonly excludeChildren?:boolean;readonly merge?:boolean}
 export interface SemanticsTagOptions extends SemanticsAnnotationOptions {readonly tagForChildren:SemanticsTag}
-export interface SemanticsStructureOptions {readonly child?:Widget|null;readonly key?:Key|null;readonly container?:boolean;readonly explicitChildNodes?:boolean;readonly excludeSemantics?:boolean;readonly blockUserActions?:boolean;readonly localeForSubtree?:Locale|null;/** Stable Nelyx host id without replacing source properties/actions. */readonly transportId?:string|null;/** Explicit embedding range; does not alter source formatted value or role. */readonly transportRange?:SemanticsNode['numericRange']|null}
+export interface SemanticsStructureOptions {readonly child?:Widget|null;readonly key?:Key|null;readonly container?:boolean;readonly explicitChildNodes?:boolean;readonly excludeSemantics?:boolean;readonly blockUserActions?:boolean;readonly localeForSubtree?:Locale|null;/** Stable Nelyx host id without replacing source properties/actions. */readonly transportId?:string|null;/** Explicit embedding range; does not alter source formatted value or role. */readonly transportRange?:SemanticsNode['numericRange']|null;readonly transportRangeActions?:SemanticsNode['rangeActions']|null}
 export interface SemanticsWidgetOptions extends SemanticsStructureOptions,Omit<SemanticsPropertiesOptions,'hintOverrides'|'onMoveCursorForwardByWord'|'onMoveCursorBackwardByWord'> {readonly onTapHint?:string|null;readonly onLongPressHint?:string|null}
 export interface SemanticsFromPropertiesOptions extends SemanticsStructureOptions {readonly properties:SemanticsProperties}
 abstract class _SemanticsBase extends RenderObjectWidget {
@@ -49,9 +49,10 @@ export class Semantics extends _SemanticsBase {
   }
   static fromProperties(options:SemanticsFromPropertiesOptions):Semantics{return new Semantics(options);}
   createRenderObject(context?:BuildContext):RenderSemanticsAnnotations{return new RenderSemantics(this,this.getTextDirection(context));}
-  updateRenderObject(context:BuildContext,object:RenderBox):void{const render=object as RenderSemantics;render.container=this.container;render.explicitChildNodes=this.explicitChildNodes;render.excludeSemantics=this.excludeSemantics;render.blockUserActions=this.blockUserActions;render.properties=this.properties;render.textDirection=this.getTextDirection(context);render.localeForSubtree=this.localeForSubtree;render.setHostOptions(this.hostOptions,'transportId' in this.options&&this.options.transportId!=null);render.setRange(this.transportRange);}
+  updateRenderObject(context:BuildContext,object:RenderBox):void{const render=object as RenderSemantics;render.container=this.container;render.explicitChildNodes=this.explicitChildNodes;render.excludeSemantics=this.excludeSemantics;render.blockUserActions=this.blockUserActions;render.properties=this.properties;render.textDirection=this.getTextDirection(context);render.localeForSubtree=this.localeForSubtree;render.setHostOptions(this.hostOptions,'transportId' in this.options&&this.options.transportId!=null);render.setRange(this.transportRange,this.transportRangeActions);}
   /** @internal The host-id compatibility path shares the source renderer. */
   get transportRange():SemanticsNode['numericRange']|null{return 'transportRange' in this.options?this.options.transportRange??null:null;}
+  get transportRangeActions():SemanticsNode['rangeActions']|null{return !this.blockUserActions&&'transportRangeActions' in this.options?this.options.transportRangeActions??null:null;}
   get transportOptions():SemanticsOptions|null{return this.hostOptions;}
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('container',this.container));properties.add(new DiagnosticsProperty('properties',this.properties));this.properties.debugFillProperties(properties);}
 }
@@ -64,9 +65,9 @@ export class SliverSemantics extends _SemanticsBase {
 }
 class RenderSemantics extends RenderSemanticsAnnotations {
   private hostOptions:SemanticsOptions|null=null;private transportIdOnly=false;
-  constructor(widget:Semantics,textDirection:'ltr'|'rtl'|null){super({container:widget.container,explicitChildNodes:widget.explicitChildNodes,excludeSemantics:widget.excludeSemantics,blockUserActions:widget.blockUserActions,properties:widget.properties,localeForSubtree:widget.localeForSubtree,textDirection});this.setHostOptions(widget.transportOptions,'transportId' in widget.options&&widget.options.transportId!=null);this.setRange(widget.transportRange);}
+  constructor(widget:Semantics,textDirection:'ltr'|'rtl'|null){super({container:widget.container,explicitChildNodes:widget.explicitChildNodes,excludeSemantics:widget.excludeSemantics,blockUserActions:widget.blockUserActions,properties:widget.properties,localeForSubtree:widget.localeForSubtree,textDirection});this.setHostOptions(widget.transportOptions,'transportId' in widget.options&&widget.options.transportId!=null);this.setRange(widget.transportRange,widget.transportRangeActions);}
   protected override get hasSourceSemanticsConfiguration():boolean{return this.hostOptions===null||this.transportIdOnly;}
-  setRange(value:SemanticsNode['numericRange']|null):void{if(setSemanticsTransportRange(this,value))this.markNeedsSemanticsUpdate();}
+  setRange(value:SemanticsNode['numericRange']|null,actions:SemanticsNode['rangeActions']|null):void{if(setSemanticsTransportRange(this,value,actions))this.markNeedsSemanticsUpdate();}
   setHostOptions(value:SemanticsOptions|null,transportIdOnly:boolean):void{
     const previous=this.hostOptions;if(value===previous&&transportIdOnly===this.transportIdOnly)return;
     // Source widgets recreate this id-only envelope. Source properties/actions

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
 import {ContainerLayer,AnnotatedRegionLayer,AnnotationType,LayerHandle,LayerLink,LeaderLayer,FollowerLayer} from '@nelyx/core/framework/rendering/layer';
 import {Paint} from '@nelyx/core/ui/paint';
+import {Gradient,ImageShader} from '@nelyx/core/ui/shader';
 import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
 const timeout=1_200_000,bounds={x:0,y:0,width:800,height:600};
@@ -52,8 +53,8 @@ test('stationary retained composition preserves layer attachment, callbacks and 
     const first=paint(10),compiled=f.compiled.length;held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();
     region.attachedCount=region.detachedCount=0;calls.length=0;const second=paint(10);
     assert.equal(region.attachedCount,0);assert.equal(region.detachedCount,0);assert.deepEqual(calls,[true]);assert.equal(f.compiled.length,compiled);assert.deepEqual(second.commands,first.commands);assert.equal(f.root.find(type,{x:15,y:15}),value);
-    first.dispose();second.dispose();paint(40);assert.equal(f.root.find(type,{x:45,y:15}),value);assert.equal(f.root.find(type,{x:15,y:15}),null);assert.equal(f.retired.length,0,'The earlier admitted frame still owns its picture');
-    held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,1);
+    first.dispose();second.dispose();paint(40).dispose();assert.equal(f.root.find(type,{x:45,y:15}),value);assert.equal(f.root.find(type,{x:15,y:15}),null);assert.equal(f.retired.length,0,'The earlier admitted frame still owns its picture');
+    held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,0,'Moving the canvas scope still uses the same primitive picture');f.root.removeAllChildren();assert.equal(f.retired.length,1);
   }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();handle.dispose();}
 });
 
@@ -76,4 +77,74 @@ test('external changes to a cached body invalidate its assembly while old child 
   const f=fixture(),contexts=[];const paint=()=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.rect({x:0,y:0,width:10,height:10},0xff123456);c.compose(f.root,bounds,f.pictures);};
   try{paint();const body=f.root.firstChild,children=body.children;body.removeAllChildren();assert(Object.isFrozen(children));assert.equal(children.length,1);assert.equal(body.children.length,0);paint();assert.equal(f.compiled.length,2);assert.equal(f.compiled.at(-1)[0].color,0xff123456);}
   finally{for(const c of contexts)c.dispose();f.close();}
+});
+
+test('unchanged painted and resource commands reuse an assembly while old frames retain independent pictures',{timeout},()=>{
+  const f=fixture(),contexts=[],image={id:'retained-paint-image',generation:1,kind:'image'},paragraph={id:'retained-paint-text',generation:1,kind:'paragraph'};let released=0,held;
+  for(const resource of [image,paragraph]){f.resources.register(resource,()=>released++);f.resources.bindResource(resource);}
+  const paint=(color=0xff123456)=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.drawRect({x:0,y:0,width:20,height:20},new Paint({color}));c.image(image,{x:1,y:2,width:4,height:5});c.paragraph(paragraph,7,8);c.compose(f.root,bounds,f.pictures);return c;};
+  try{
+    const first=paint(),body=f.root.firstChild;held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();
+    const second=paint();assert.equal(f.root.firstChild,body);assert.equal(f.compiled.length,1);assert.equal(f.compiled[0].filter(command=>'resource'in command).length,2);
+    second.dispose();paint(0xffabcdef).dispose();assert.notEqual(f.root.firstChild,body);assert.equal(f.compiled.length,2);assert.equal(f.compiled[0].find(command=>command.op==='drawRect').paint.color,0xff123456);assert.equal(f.retired.length,0,'The previous submitted frame still owns its original native picture');
+    for(const resource of [image,paragraph])f.resources.releaseProducer(resource);assert.equal(released,0);f.root.removeAllChildren();assert.equal(f.retired.length,1);assert.equal(released,0);held.returnBy('renderer');held=undefined;assert.equal(released,2);
+  }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();}
+});
+
+test('equal resource names from different registries and unbound names cannot reuse a composition',{timeout},()=>{
+  const registries=[new ResourceRegistry(),new ResourceRegistry()],resources=registries.map(()=>({id:'same-paragraph-name',generation:1,kind:'paragraph'})),root=new ContainerLayer(),contexts=[];let released=0,registered=2;
+  registries.forEach((registry,index)=>{registry.register(resources[index],()=>released++);registry.bindResource(resources[index]);});
+  const paint=resource=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.paragraph(resource,1,2);c.compose(root,bounds);c.dispose();return root.firstChild;};
+  try{
+    const original=paint(resources[0]);assert.equal(paint(resources[0]),original);const replacement=paint(resources[1]);assert.notEqual(replacement,original);assert.equal(paint(resources[1]),replacement);
+    const unbound={id:'unbound-paragraph',generation:1};assert.notEqual(paint(unbound),paint(unbound));
+    const firstGeneration={id:'same-paragraph-name',generation:2,kind:'paragraph'};registries[1].register(firstGeneration,()=>released++);registered++;registries[1].bindResource(firstGeneration);const next=paint(firstGeneration);assert.notEqual(next,replacement);assert.equal(paint(firstGeneration),next);
+  }finally{for(const c of contexts)c.dispose();root.dispose();for(const registry of registries)registry.dispose();assert.equal(released,registered);}
+});
+
+test('paint effects, signed zero and externally inserted commands invalidate retained assembly',{timeout},()=>{
+  const root=new ContainerLayer(),contexts=[];
+  const paint=(invertColors,x=0,external=false)=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);if(external)c.commands.push(Object.freeze({op:'rect',rect:Object.freeze({x:0,y:0,width:1,height:1}),color:0xff123456}));else c.drawRect({x,y:0,width:5,height:5},new Paint({invertColors}));c.compose(root,bounds);c.dispose();return root.firstChild;};
+  try{const original=paint(false);assert.equal(paint(false),original);const changed=paint(true);assert.notEqual(changed,original);assert.equal(paint(true),changed);const signed=paint(true,-0);assert.notEqual(signed,changed);assert.equal(paint(true,-0),signed);assert.notEqual(paint(false,0,true),paint(false,0,true));}
+  finally{for(const c of contexts)c.dispose();root.dispose();}
+});
+
+test('image shader ownership and nested gradient values participate in composition identity',{timeout},()=>{
+  const root=new ContainerLayer(),contexts=[],shaders=[],registries=[new ResourceRegistry(),new ResourceRegistry()],images=registries.map(()=>({id:'same-shader-image',generation:1,kind:'image'}));let released=0;
+  registries.forEach((registry,index)=>{registry.register(images[index],()=>released++);registry.bindResource(images[index]);});
+  const paint=shader=>{shaders.push(shader);const c=new PaintingContext(null,bounds,true);contexts.push(c);c.drawRect({x:0,y:0,width:20,height:20},new Paint({shader}));c.compose(root,bounds);c.dispose();shader.dispose();return root.firstChild;};
+  const image=index=>new ImageShader(images[index],'clamp','clamp',[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+  const gradient=end=>Gradient.linear({x:0,y:0},{x:end,y:10},[0xff123456,0xffabcdef]);
+  try{const original=paint(image(0));assert.equal(paint(image(0)),original);const replacement=paint(image(1));assert.notEqual(replacement,original);assert.equal(paint(image(1)),replacement);const values=paint(gradient(10));assert.equal(paint(gradient(10)),values);assert.notEqual(paint(gradient(11)),values);}
+  finally{for(const c of contexts)c.dispose();root.dispose();for(const shader of shaders)if(!shader.debugDisposed)shader.dispose();for(const registry of registries)registry.dispose();assert.equal(released,2);}
+});
+
+test('captured extension metadata stays outside composition reuse and is never traversed',{timeout},()=>{
+  const root=new ContainerLayer(),contexts=[];
+  const paint=()=>{const metadata={};metadata.self=metadata;Object.defineProperty(metadata,'value',{enumerable:true,get(){throw Error('Extension metadata must not be inspected');}});Object.freeze(metadata);const c=new PaintingContext(null,bounds,true);contexts.push(c);c.addCommands([{op:'rect',rect:{x:0,y:0,width:2,height:2},color:0xff123456,metadata}]);c.compose(root,bounds);c.dispose();return root.firstChild;};
+  try{assert.notEqual(paint(),paint());}
+  finally{for(const c of contexts)c.dispose();root.dispose();}
+});
+
+test('moving a retained insertion preserves unchanged primitive batches and the earlier admitted frame',{timeout},()=>{
+  const f=fixture(),contexts=[],type=new AnnotationType('moving-compose-batches'),value={},region=new AnnotatedRegionLayer(value,{annotationType:type,size:{width:10,height:10}}),handle=new LayerHandle(region),callbacks=[];let held;
+  region.addCompositionCallback(layer=>callbacks.push(layer.attached));f.root.attach({});
+  const paint=(x,color=0xff123456)=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.drawRect({x:0,y:0,width:5,height:5},new Paint({color}));c.save();c.translate(x,20);c.addLayer(region);c.restore();c.drawRect({x:10,y:0,width:5,height:5},new Paint());c.compose(f.root,bounds,f.pictures);return c;};
+  try{
+    const first=paint(10),body=f.root.firstChild;assert.equal(f.compiled.length,2);held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();callbacks.length=0;
+    paint(40).dispose();assert.notEqual(f.root.firstChild,body);assert.equal(f.compiled.length,2,'Transform changes around an insertion must not recompile either static picture');assert.deepEqual([...callbacks],[false,true]);assert.equal(f.root.find(type,{x:45,y:25}),value);assert.equal(f.root.find(type,{x:15,y:25}),null);
+    paint(60,0xffabcdef).dispose();assert.equal(f.compiled.length,3,'Only the changed primitive batch needs a new picture');assert.equal(f.compiled[0].find(command=>command.op==='drawRect').paint.color,0xff123456);assert.equal(f.retired.length,0);
+    f.root.removeAllChildren();assert.equal(f.retired.length,1);held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,3);
+  }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();handle.dispose();}
+});
+
+test('a recording failure after batch reuse retires partial frame holds and retries without a cached partial assembly',{timeout},()=>{
+  let fail=false;const f=fixture({beforeCompile(){if(fail)throw Error('partial batch recording failed');}}),contexts=[],region=new AnnotatedRegionLayer({},{annotationType:new AnnotationType('failed-reuse'),size:{width:5,height:5}}),handle=new LayerHandle(region);let held;
+  const paint=(x,color)=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.rect({x:0,y:0,width:5,height:5},0xff123456);c.save();c.translate(x,10);c.addLayer(region);c.restore();c.rect({x:10,y:0,width:5,height:5},color);c.compose(f.root,bounds,f.pictures);return c;};
+  try{
+    const first=paint(10,0xffabcdef);held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();
+    fail=true;assert.throws(()=>paint(40,0xff654321),/partial batch recording failed/);assert.equal(contexts.at(-1).commands.length,0,'Failed scene streaming must roll back independent destination holds');assert.equal(f.retired.length,0,'The earlier submitted frame must survive the failed replacement');
+    fail=false;paint(40,0xff654321).dispose();assert.equal(f.compiled.length,4,'A failed composition must not reuse its partially assembled cache');assert.equal(f.compiled[1].find(command=>command.op==='rect').color,0xffabcdef);assert.equal(f.compiled.at(-1).find(command=>command.op==='rect').color,0xff654321);
+    held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,2);
+  }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();handle.dispose();}
 });

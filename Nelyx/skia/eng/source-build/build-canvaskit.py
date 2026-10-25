@@ -57,7 +57,7 @@ def fetch(root, entry):
     print(json.dumps({'dependency': entry['path'], 'revision': entry['revision']}), flush=True)
 
 
-def prepare(root, archive):
+def prepare(root, archive, dependency_inputs=None):
     if sha(archive) != LOCK['skia']['archiveSha256']:
         raise ValueError('Skia source archive hash mismatch')
     marker = root / 'nelyx-source.json'
@@ -105,8 +105,33 @@ def prepare(root, archive):
         run(['patch', '-p1', '--batch', '--forward', '-i', str(patch_file)], root)
     if any(sha(root / item['path']) != item['after'] for item in LOCK['patch']['files']):
         raise ValueError('Unexpected binding source contents; no source was reset')
+    pending = []
+    for entry in LOCK['dependencies']:
+        shared = (dependency_inputs / entry['path']).resolve() if dependency_inputs else None
+        if shared and (shared / '.git').exists():
+            # Read-only reuse of the exact Git inputs, never an old build/cache
+            # copy. Each dependency still proves its remote, revision and dirt.
+            if (Path(run(['git', 'rev-parse', '--show-toplevel'], shared, True)).resolve() != shared
+                    or run(['git', 'remote', 'get-url', 'origin'], shared, True) != entry['repository']
+                    or run(['git', 'rev-parse', 'HEAD'], shared, True) != entry['revision']
+                    or run(['git', 'status', '--porcelain', '--untracked-files=no'], shared, True)):
+                raise ValueError('Reusable dependency identity differs: ' + str(shared))
+            target = root / entry['path']
+            if target.is_symlink():
+                if target.resolve() != shared:
+                    raise ValueError('Reusable dependency link differs')
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists():
+                    if any(target.iterdir()):
+                        raise ValueError('Nonempty dependency destination retained')
+                    target.rmdir()
+                target.symlink_to(shared, target_is_directory=True)
+            print(json.dumps({'dependency': entry['path'], 'revision': entry['revision'], 'reused': True}), flush=True)
+        else:
+            pending.append(entry)
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        futures = [pool.submit(fetch, root, entry) for entry in LOCK['dependencies']]
+        futures = [pool.submit(fetch, root, entry) for entry in pending]
         for future in futures:
             future.result()
     emsdk = root / 'third_party/externals/emsdk'
@@ -154,6 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--archive', type=Path)
     parser.add_argument('--jobs', type=int, default=4)
+    parser.add_argument('--dependency-inputs', type=Path)
     arguments = parser.parse_args()
     if sys.platform != 'linux' or not 1 <= arguments.jobs <= 16:
         parser.error('Use Linux/WSL with 1..16 build jobs')
@@ -163,6 +189,6 @@ if __name__ == '__main__':
     if arguments.phase == 'prepare':
         if not arguments.archive:
             parser.error('prepare requires --archive')
-        prepare(build_root, arguments.archive.resolve())
+        prepare(build_root, arguments.archive.resolve(), arguments.dependency_inputs.resolve() if arguments.dependency_inputs else None)
     else:
         build(build_root, arguments.jobs)

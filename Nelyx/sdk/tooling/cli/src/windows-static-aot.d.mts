@@ -29,4 +29,4 @@ export declare function compileWindowsStaticAot(options:CompileOptions):Promise<
 export declare function writeStaticAotApplication(options:Omit<CompileOptions,'output'|'partitionSha256'>&{readonly directory:string;readonly bundle:string;readonly partition:NativeExecutionPartition}):Promise<StaticAotApplication>;
 export declare function verifyStaticAotApplication(directory:string):StaticAotApplication;
 export declare function mapStaticAotPc(directory:string,rva:number):readonly Readonly<Record<string,unknown>>[];
-export declare function buildStaticAotMetroBundle(options:{readonly runner:string;readonly entry:string;readonly source:string;readonly map:string;readonly config:import('metro-config').ConfigT;readonly signal?:AbortSignal}):Promise<NativeExecutionPartition>;
+export declare function buildStaticAotMetroBundle(options:{readonly runner:string;readonly entry:string;readonly source:string;readonly map:string;readonly config:import('metro-config').ConfigT;readonly signal?:AbortSignal;readonly nativeHost?:boolean;readonly applicationRoot?:string;readonly packageRoots?:readonly string[]}):Promise<NativeExecutionPartition>;

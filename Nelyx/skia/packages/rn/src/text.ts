@@ -25,9 +25,9 @@ import {buildStyledText} from '@nelyx/core/ui/text-builder';
 import {nativeTextStyle,nativeParagraphStyle} from './text-style.ts';
 export interface NelyxTypeface extends SkTypeface {nelyxIdentity():number;nelyxFamily():string}
 interface NativeParagraph extends SkParagraph {nelyxBindCoreQuery(owner:string,ownerGeneration:number,resource:string,resourceGeneration:number,text:string,units:number):number;nelyxTextMetrics():number[];nelyxTextHit(x:number,y:number):number[];nelyxTextGlyphAt(offset:number):number[];nelyxTextWordBoundary(offset:number):number[];nelyxTextLineNumberAt(offset:number):number;nelyxTextBoxes(start:number,end:number,heightStyle:number,widthStyle:number):number[];nelyxGlyphVisit:SkParagraph['extendedVisit']}
-export interface ParagraphPaint {paint(canvas:SkCanvas,x:number,y:number):void}
+export interface ParagraphPaint {readonly nativeParagraph?:SkParagraph;paint(canvas:SkCanvas,x:number,y:number):void}
 export interface ReactNativeFont {readonly resource:ResourceId;readonly provider:SkTypefaceFontProvider;readonly family:string;readonly bundledTypefaceId:number;readonly typeface?:NelyxTypeface}
-interface Entry {nativeQueryReference?:TextLayoutQueryReference;readonly layout:TextLayout;readonly paragraph:NativeParagraph;readonly bundledTypefaceIds:ReadonlySet<number>;readonly fonts:FontProviderLease<ReactNativeFont,SkTypefaceFontProvider>;readonly paintResources:TextPaintResources}
+interface Entry {paintFacade?:ParagraphPaint;nativeQueryReference?:TextLayoutQueryReference;readonly layout:TextLayout;readonly paragraph:NativeParagraph;readonly bundledTypefaceIds:ReadonlySet<number>;readonly fonts:FontProviderLease<ReactNativeFont,SkTypefaceFontProvider>;readonly paintResources:TextPaintResources}
 /** Paragraphs are private: callers receive frozen IDs/geometry and a paint-only facade. */
 export class ReactNativeTextLayoutService implements TextLayoutService {
   private readonly layoutCache:TextLayoutCache;private readonly textBudget:TextLayoutBudget;
@@ -91,7 +91,7 @@ export class ReactNativeTextLayoutService implements TextLayoutService {
   closestGlyph(layout:TextLayout,x:number,y:number){const hit=this.hit(layout,x,y);if(hit.start===undefined||hit.end===undefined||hit.direction===undefined||hit.bounds===undefined)return null;textRange(layout,hit.start,hit.end);return Object.freeze({start:hit.start,end:hit.end,direction:hit.direction,bounds:hit.bounds});}
   paintResource(key:string):ParagraphPaint {
     const entry=this.entries.get(key);invariant(entry,'stale-resource','paragraph paint resource was retired');
-    return Object.freeze({paint:(canvas:SkCanvas,x:number,y:number)=>{invariant(this.entries.get(key)===entry,'stale-resource','paragraph paint resource was retired');entry.paragraph.paint(canvas,x,y);}});
+    return entry.paintFacade??=Object.freeze({nativeParagraph:entry.paragraph,paint:(canvas:SkCanvas,x:number,y:number)=>{invariant(this.entries.get(key)===entry,'stale-resource','paragraph paint resource was retired');entry.paragraph.paint(canvas,x,y);}});
   }
   glyphAt(layout:TextLayout,offset:number):TextGlyphInfo|null {
     const paragraph=this.current(layout).paragraph;invariant(Number.isInteger(offset)&&offset>=0&&offset<=layout.input.text.length,'invalid-text-offset','Glyph offset outside UTF16 body');invariant(typeof paragraph.nelyxTextGlyphAt==='function','native-text-boundary-cohort','Matching native paragraph glyph boundary binding required');const values=paragraph.nelyxTextGlyphAt(offset);if(!values.length)return null;invariant(values.length===8,'invalid-native-text','Invalid glyph boundary packet');textRange(layout,values[0]!,values[1]!);invariant(values[2]===0||values[2]===1,'invalid-native-text','Invalid glyph direction');invariant(values[7]===0||values[7]===1,'invalid-native-text','Invalid ellipsis flag');return Object.freeze({start:values[0]!,end:values[1]!,direction:values[2]===1?'ltr':'rtl',bounds:freezeTextRect({x:values[3]!,y:values[4]!,width:values[5]!,height:values[6]!}),isEllipsis:values[7]===1});

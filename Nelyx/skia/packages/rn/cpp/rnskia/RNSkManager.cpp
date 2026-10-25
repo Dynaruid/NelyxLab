@@ -14,7 +14,7 @@ namespace jsi = facebook::jsi;
 
 RNSkManager::RNSkManager(
     jsi::Runtime *jsRuntime,
-    std::shared_ptr<facebook::react::CallInvoker> jsCallInvoker,
+    std::shared_ptr<nelyx::host::RuntimeScheduler> jsCallInvoker,
     std::shared_ptr<RNSkPlatformContext> platformContext)
     : _jsRuntime(jsRuntime), _platformContext(platformContext),
       _jsCallInvoker(jsCallInvoker),

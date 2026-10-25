@@ -3,11 +3,30 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {localFile,sha256,verifyInventory} from './files.mjs';
+import {fileTree,localFile,sha256,verifyInventory} from './files.mjs';
 
 const manifestName='nelyx-package.json';
 function directDirectory(parent,directory){
   if(path.dirname(directory)!==parent||fs.realpathSync(parent)!==parent||fs.lstatSync(directory).isSymbolicLink()||fs.realpathSync(directory)!==directory)throw Error('Windows package cleanup path rejected');
+}
+
+/** Assets is the runner-owned output tree, rebuilt from verified app inputs. */
+export function resetWindowsBuildAssets({app,configuration}){
+  if(!['Debug','Release'].includes(configuration)||!path.isAbsolute(app)||fs.realpathSync(app)!==app)throw Error('Windows asset cleanup path rejected');
+  const output=localFile(app,'windows/x64/'+configuration),assets=path.join(output,'Assets');
+  if(!fs.statSync(output).isDirectory())throw Error('Windows asset output must be a directory');
+  const retired=['OzeliRNHost.exe','OzeliRNHost.pdb','OzeliRNHost.pri'].map(name=>path.join(output,name)).filter(file=>fs.lstatSync(file,{throwIfNoEntry:false}));
+  const assetStat=fs.lstatSync(assets,{throwIfNoEntry:false});
+  // Validate every deletion target before changing any output. Native project
+  // sources, the current host, runtime DLLs and the bundle are outside this set.
+  for(const file of retired)if(fs.lstatSync(file).isSymbolicLink()||!fs.statSync(file).isFile()||fs.realpathSync(file)!==file)throw Error('Retired Windows host output rejected');
+  if(assetStat){
+    if(assetStat.isSymbolicLink()||!assetStat.isDirectory()||fs.realpathSync(assets)!==assets)throw Error('Windows asset cleanup symlink rejected');
+    fileTree(assets);
+  }
+  for(const file of retired)fs.unlinkSync(file);
+  if(assetStat)fs.rmSync(assets,{recursive:true});
+  fs.mkdirSync(assets);return assets;
 }
 
 /** Publish only a fully verified package; failures preserve the previous locator. */
