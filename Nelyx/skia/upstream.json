@@ -13,49 +13,56 @@
       "group": "0001",
       "baseSha256": "cfed6dab87954c989779fb4e6e126a2466ccdd979006799cf2d3a400e89d6570",
       "patchedSha256": "5d86c719e28bb8ee4fb667fa2eb3c2ddca7b7052e58c00805ae93aaa2c553458",
-      "forkSha256": "5d86c719e28bb8ee4fb667fa2eb3c2ddca7b7052e58c00805ae93aaa2c553458"
+      "forkSha256": "5d86c719e28bb8ee4fb667fa2eb3c2ddca7b7052e58c00805ae93aaa2c553458",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkParagraphBuilder.h"
     },
     {
       "file": "cpp/rnskia/RNDawnContext.h",
       "group": "0002",
       "baseSha256": "733373c284ecfb0c0f4181e8063fa2c91019ffaf1c33779e4af1bc0bf048e3ea",
       "patchedSha256": "007a954909ea6fb2e5d663049ca28a28195fad26a29a0984862714d9146ef52c",
-      "forkSha256": "007a954909ea6fb2e5d663049ca28a28195fad26a29a0984862714d9146ef52c"
+      "forkSha256": "007a954909ea6fb2e5d663049ca28a28195fad26a29a0984862714d9146ef52c",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNDawnContext.h"
     },
     {
       "file": "cpp/rnskia/RNSkGraphiteTarget.h",
       "group": "0002",
       "baseSha256": "97669edcbf369c72bbd1642c82f7319ff40657c0bc4f8f225bbd7e711af09b73",
       "patchedSha256": "63c314f98ec05159d73725fe752eb72e4c1f42734de082484863f59b3adefa2e",
-      "forkSha256": "63c314f98ec05159d73725fe752eb72e4c1f42734de082484863f59b3adefa2e"
+      "forkSha256": "63c314f98ec05159d73725fe752eb72e4c1f42734de082484863f59b3adefa2e",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkGraphiteTarget.h"
     },
     {
       "file": "cpp/rnskia/RNSkView.h",
       "group": "0002",
       "baseSha256": "df46aec9a8d9bd27b2f23bcccae0767961d4faf6999a03a242d11c6b65c7db32",
       "patchedSha256": "a33dd22733aae6b80605dfa4985be035e20534f745d96dd9667ebd7209a032ac",
-      "forkSha256": "a33dd22733aae6b80605dfa4985be035e20534f745d96dd9667ebd7209a032ac"
+      "forkSha256": "a33dd22733aae6b80605dfa4985be035e20534f745d96dd9667ebd7209a032ac",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkView.h"
     },
     {
       "file": "cpp/api/JsiSkGraphiteContext.h",
       "group": "0002",
       "baseSha256": "85c6ef5c3ec74d42263ffbc1ed499190dea1bac604ce883f8dc2c845fe97fee2",
       "patchedSha256": "4cf242ba0eee36fbfed2d56643b3b0135fcf6de466d81806ede5c17c95263f0f",
-      "forkSha256": "4cf242ba0eee36fbfed2d56643b3b0135fcf6de466d81806ede5c17c95263f0f"
+      "forkSha256": "4cf242ba0eee36fbfed2d56643b3b0135fcf6de466d81806ede5c17c95263f0f",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkGraphiteContext.h"
     },
     {
       "file": "cpp/api/JsiSkParagraph.h",
       "group": "0003",
       "baseSha256": "6edf33ee4ae322320dbff3f9b607e53cbf57be4949f00143315c3c7a2da80c5d",
       "patchedSha256": "1b55f4c1217120c07b55f0b2f2189205c11544fbbb78c049b6713388f75ceb35",
-      "forkSha256": "1b55f4c1217120c07b55f0b2f2189205c11544fbbb78c049b6713388f75ceb35"
+      "forkSha256": "1b55f4c1217120c07b55f0b2f2189205c11544fbbb78c049b6713388f75ceb35",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkParagraph.h"
     },
     {
       "file": "cpp/api/JsiSkTypeface.h",
       "group": "0003",
       "baseSha256": "202135893abdd1ea55ea379fe9e1a336b06efc746dcad0116730fe08ad12b2c4",
       "patchedSha256": "d7a760cf5aeb5cd4457c44ae98dd2c210e02f4958ef11ba5c71d900de03dcb10",
-      "forkSha256": "d7a760cf5aeb5cd4457c44ae98dd2c210e02f4958ef11ba5c71d900de03dcb10"
+      "forkSha256": "d7a760cf5aeb5cd4457c44ae98dd2c210e02f4958ef11ba5c71d900de03dcb10",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkTypeface.h"
     }
   ],
   "vendorProfiles": {
@@ -77,205 +84,246 @@
       "file": "cpp/api/JsiGPUTexture.h",
       "change": "modified",
       "baseSha256": "fee5976fb8d4766b1cd6d71e5bd237c11a46046a763cc0a8f7591150ca348c8d",
-      "forkSha256": "0d1a608b60800eefba376d37deb3e8db946943cb6f3a88a0abac7aaec1b1033e"
+      "forkSha256": "0d1a608b60800eefba376d37deb3e8db946943cb6f3a88a0abac7aaec1b1033e",
+      "productFile": "native/adapters/jsi/cpp/api/JsiGPUTexture.h"
     },
     {
       "file": "cpp/api/JsiSkApi.h",
       "change": "modified",
       "baseSha256": "67cb4f045263f10ec53876d1ce1df980e2477d8ebf8f49eec030b06f6ed6d121",
-      "forkSha256": "1ad1a413259b9d00ee577cce371a688b5dc2fa53acef109f07cc1c13335faef6"
+      "forkSha256": "1ad1a413259b9d00ee577cce371a688b5dc2fa53acef109f07cc1c13335faef6",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkApi.h"
     },
     {
       "file": "cpp/api/JsiSkCanvas.h",
       "change": "modified",
       "baseSha256": "a9b8d2552df8ba3c073c32d8e811945986ef8342fdcbfea168249cf0234e2dd1",
-      "forkSha256": "7700b0cb52185944e6c9d81573c1795c89d559ca57a3173fdaabe2220e0de5ec"
+      "forkSha256": "7700b0cb52185944e6c9d81573c1795c89d559ca57a3173fdaabe2220e0de5ec",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkCanvas.h"
     },
     {
       "file": "cpp/api/JsiSkData.h",
       "change": "modified",
       "baseSha256": "a4770032d65bf2ac984544dc94a89ac77a2bcfd16ec3534328b28a4c1f53cfa2",
-      "forkSha256": "1f5f77b73c693067eff2eff0103e9dd00f2cfb90de6f413cb223481d9d3727d1"
+      "forkSha256": "1f5f77b73c693067eff2eff0103e9dd00f2cfb90de6f413cb223481d9d3727d1",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkData.h"
     },
     {
       "file": "cpp/api/JsiSkDataFactory.h",
       "change": "modified",
       "baseSha256": "6a41cf0e8ae0d594e413d8adb964267df6db4a01a0dd3c0b9452455add3a2c28",
-      "forkSha256": "841c12bb3a2bf0d27fcc769bf84367cdd14def3ba52cb41497c466542f80a07e"
+      "forkSha256": "841c12bb3a2bf0d27fcc769bf84367cdd14def3ba52cb41497c466542f80a07e",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkDataFactory.h"
     },
     {
       "file": "cpp/api/JsiSkGraphiteContext.h",
       "change": "modified",
       "baseSha256": "85c6ef5c3ec74d42263ffbc1ed499190dea1bac604ce883f8dc2c845fe97fee2",
-      "forkSha256": "4cf242ba0eee36fbfed2d56643b3b0135fcf6de466d81806ede5c17c95263f0f"
+      "forkSha256": "4cf242ba0eee36fbfed2d56643b3b0135fcf6de466d81806ede5c17c95263f0f",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkGraphiteContext.h"
     },
     {
       "file": "cpp/api/JsiSkImage.h",
       "change": "modified",
       "baseSha256": "953d07b698b422c5a30bfdd0fa5cefcc2a1df856bb0885e2aa71989d19e853f1",
-      "forkSha256": "c9ae1396795ff18caed20e71eab37ebd643202ba472eaf0011592ab5da6192d4"
+      "forkSha256": "c9ae1396795ff18caed20e71eab37ebd643202ba472eaf0011592ab5da6192d4",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkImage.h"
     },
     {
       "file": "cpp/api/JsiSkImageFactory.h",
       "change": "modified",
       "baseSha256": "039aca9a96d75ff4ec1b2bcfeccfe29335d93d7ba7acac61dec959fbd355e65b",
-      "forkSha256": "ad200eecfef1ef97bc9813321e119fc0af56d7560e07bb0b3cdf756cf0129290"
+      "forkSha256": "ad200eecfef1ef97bc9813321e119fc0af56d7560e07bb0b3cdf756cf0129290",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkImageFactory.h"
     },
     {
       "file": "cpp/api/JsiSkParagraph.h",
       "change": "modified",
       "baseSha256": "6edf33ee4ae322320dbff3f9b607e53cbf57be4949f00143315c3c7a2da80c5d",
-      "forkSha256": "1b55f4c1217120c07b55f0b2f2189205c11544fbbb78c049b6713388f75ceb35"
+      "forkSha256": "1b55f4c1217120c07b55f0b2f2189205c11544fbbb78c049b6713388f75ceb35",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkParagraph.h"
     },
     {
       "file": "cpp/api/JsiSkParagraphBuilder.h",
       "change": "modified",
       "baseSha256": "cfed6dab87954c989779fb4e6e126a2466ccdd979006799cf2d3a400e89d6570",
-      "forkSha256": "5d86c719e28bb8ee4fb667fa2eb3c2ddca7b7052e58c00805ae93aaa2c553458"
+      "forkSha256": "5d86c719e28bb8ee4fb667fa2eb3c2ddca7b7052e58c00805ae93aaa2c553458",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkParagraphBuilder.h"
     },
     {
       "file": "cpp/api/JsiSkShaderFactory.h",
       "change": "modified",
       "baseSha256": "adae80339a7ba539496cd3a0c0ad933af02c9cc9d534ef5e98706e658b0e0d15",
-      "forkSha256": "ce938b5b009063dabbabae7e43ef921a51fdd150992f4bd5efb715e4bda354be"
+      "forkSha256": "ce938b5b009063dabbabae7e43ef921a51fdd150992f4bd5efb715e4bda354be",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkShaderFactory.h"
     },
     {
       "file": "cpp/api/JsiSkSurface.h",
       "change": "modified",
       "baseSha256": "35d21a97e8ad91761da1553613ce9d52e153c4bede935dab2dfba4bcbbb425d1",
-      "forkSha256": "c8096e19efec82b74db54d4920c750422d0fab9e7edf1f33ca40bcf77a53df06"
+      "forkSha256": "c8096e19efec82b74db54d4920c750422d0fab9e7edf1f33ca40bcf77a53df06",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkSurface.h"
     },
     {
       "file": "cpp/api/JsiSkSurfaceFactory.h",
       "change": "modified",
       "baseSha256": "eb485f92ece943accd5960d9d33f1b979f4109db8b57cd3515360c49e08c72aa",
-      "forkSha256": "34a5bec54a0ea216c8231a8318bbf0a2d5942f18e3e88b2962e9de9ef22bd52c"
+      "forkSha256": "34a5bec54a0ea216c8231a8318bbf0a2d5942f18e3e88b2962e9de9ef22bd52c",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkSurfaceFactory.h"
     },
     {
       "file": "cpp/api/JsiSkTypeface.h",
       "change": "modified",
       "baseSha256": "202135893abdd1ea55ea379fe9e1a336b06efc746dcad0116730fe08ad12b2c4",
-      "forkSha256": "d7a760cf5aeb5cd4457c44ae98dd2c210e02f4958ef11ba5c71d900de03dcb10"
+      "forkSha256": "d7a760cf5aeb5cd4457c44ae98dd2c210e02f4958ef11ba5c71d900de03dcb10",
+      "productFile": "native/adapters/jsi/cpp/api/JsiSkTypeface.h"
     },
     {
       "file": "cpp/api/recorder/Shaders.h",
       "change": "modified",
       "baseSha256": "8df22adbf555445a2efb009e1c3b37b00447d3e06d484d24b25271fe905f6f76",
-      "forkSha256": "5663248e6f6a831e924ff36b8fcf3ada421d3e11dd925a465c328ab40a727d6d"
+      "forkSha256": "5663248e6f6a831e924ff36b8fcf3ada421d3e11dd925a465c328ab40a727d6d",
+      "productFile": "native/adapters/jsi/cpp/api/recorder/Shaders.h"
     },
     {
       "file": "cpp/api/third_party/SkottieUtils.h",
       "change": "modified",
       "baseSha256": "fd691351558d81ea9c88d6f12ec8f0be96bdfd44c6cf99e7c2bf296d06193e23",
-      "forkSha256": "edb38331c6a7d4c46e932ef90702c97e3c331e05ca857bf7d8205cf17a2163a3"
+      "forkSha256": "edb38331c6a7d4c46e932ef90702c97e3c331e05ca857bf7d8205cf17a2163a3",
+      "productFile": "native/adapters/jsi/cpp/api/third_party/SkottieUtils.h"
     },
     {
       "file": "cpp/rnskia/RNDawnContext.h",
       "change": "modified",
       "baseSha256": "733373c284ecfb0c0f4181e8063fa2c91019ffaf1c33779e4af1bc0bf048e3ea",
-      "forkSha256": "007a954909ea6fb2e5d663049ca28a28195fad26a29a0984862714d9146ef52c"
+      "forkSha256": "007a954909ea6fb2e5d663049ca28a28195fad26a29a0984862714d9146ef52c",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNDawnContext.h"
     },
     {
       "file": "cpp/rnskia/RNDawnUtils.h",
       "change": "modified",
       "baseSha256": "8341ea2844112fbd5012ba440a6a73d1e95fe0f912fe9715e445cd386f27eb77",
-      "forkSha256": "ac8bccefaa33c8fb4b7113cb66e995c1d1413eacdf0807505acb9f4de85f3854"
+      "forkSha256": "ac8bccefaa33c8fb4b7113cb66e995c1d1413eacdf0807505acb9f4de85f3854",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNDawnUtils.h"
     },
     {
       "file": "cpp/rnskia/RNDawnWindowSurface.cpp",
       "change": "added",
       "baseSha256": null,
       "forkSha256": "ae8acb3f06d83cb2a43c6158ae9bb994454ecf0e43334f99f168fd8c295acee2",
-      "derivedFrom": "cpp/rnskia/RNSkWindowSurface.cpp"
+      "derivedFrom": "cpp/rnskia/RNSkWindowSurface.cpp",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNDawnWindowSurface.cpp"
     },
     {
       "file": "cpp/rnskia/RNDawnWindowSurface.h",
       "change": "added",
       "baseSha256": null,
       "forkSha256": "e5088270fb6bb3d4e200d1880c781dc784d2c0a70579567c0024bfb3a8dc51fc",
-      "derivedFrom": "cpp/rnskia/RNSkWindowSurface.h"
+      "derivedFrom": "cpp/rnskia/RNSkWindowSurface.h",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNDawnWindowSurface.h"
     },
     {
       "file": "cpp/rnskia/RNSkGraphiteProducer.cpp",
       "change": "modified",
       "baseSha256": "3afc4fdc4e9c126963d7a31a1b5a3212fe90c0ec39a3268884bc1f4f358a23f3",
-      "forkSha256": "b7ff4e64cc6c221d8f5580d673bd1dafa77ea79d5f2ac902192b17f99f857cf8"
+      "forkSha256": "b7ff4e64cc6c221d8f5580d673bd1dafa77ea79d5f2ac902192b17f99f857cf8",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkGraphiteProducer.cpp"
     },
     {
       "file": "cpp/rnskia/RNSkGraphiteProducer.h",
       "change": "modified",
       "baseSha256": "604a20f6fe58f589938d86ad299995f62a8f1c3a99dced22cf91301097b55c54",
-      "forkSha256": "1a59969e204e777cc368a8a84f9c5ad826e2bfcc5b8777057c79b43563e8b679"
+      "forkSha256": "1a59969e204e777cc368a8a84f9c5ad826e2bfcc5b8777057c79b43563e8b679",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkGraphiteProducer.h"
     },
     {
       "file": "cpp/rnskia/RNSkGraphiteTarget.h",
       "change": "modified",
       "baseSha256": "97669edcbf369c72bbd1642c82f7319ff40657c0bc4f8f225bbd7e711af09b73",
-      "forkSha256": "63c314f98ec05159d73725fe752eb72e4c1f42734de082484863f59b3adefa2e"
+      "forkSha256": "63c314f98ec05159d73725fe752eb72e4c1f42734de082484863f59b3adefa2e",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkGraphiteTarget.h"
     },
     {
       "file": "cpp/rnskia/RNSkJsiViewApi.h",
       "change": "modified",
       "baseSha256": "60da833e954e1637180a74d40232ade8e2bbd5df18f861bc6019b3057bcdd5d3",
-      "forkSha256": "5a70c36e0aee8bbf80e6774a92d9c7775faa7e4042052468f8c87019c28477b5"
+      "forkSha256": "5a70c36e0aee8bbf80e6774a92d9c7775faa7e4042052468f8c87019c28477b5",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkJsiViewApi.h"
     },
     {
       "file": "cpp/rnskia/RNSkManager.cpp",
       "change": "modified",
       "baseSha256": "a6b839dbbe766055df8ad89cfb9a960552272a12420f4e91ace8097092510013",
-      "forkSha256": "a0b757e05efc8d77172baaddfd93d062c66908242f7ca48b2eef30fcfb0eb32c"
+      "forkSha256": "a0b757e05efc8d77172baaddfd93d062c66908242f7ca48b2eef30fcfb0eb32c",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkManager.cpp"
     },
     {
       "file": "cpp/rnskia/RNSkManager.h",
       "change": "modified",
       "baseSha256": "a26408f75d52cb3258cb3c593dcf1219d85766a92cdae909a2aa8cbcbea77684",
-      "forkSha256": "15c56d34d3df9dfb1371f9879e57f34842bbb94fcb491d1d63e49fb1f4772484"
+      "forkSha256": "15c56d34d3df9dfb1371f9879e57f34842bbb94fcb491d1d63e49fb1f4772484",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkManager.h"
     },
     {
       "file": "cpp/rnskia/RNSkOffscreenSurface.h",
       "change": "modified",
       "baseSha256": "3cf915fcdb2172ad00b0104355b237e2fc0b9fc788250fb1d5edb4a06980749f",
-      "forkSha256": "0c186f7daf041797b97ad4d6d37a353e6bd2b2f37fadb87b4ca485951cf1c6e0"
+      "forkSha256": "0c186f7daf041797b97ad4d6d37a353e6bd2b2f37fadb87b4ca485951cf1c6e0",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkOffscreenSurface.h"
     },
     {
       "file": "cpp/rnskia/RNSkOwnerAsyncQueue.h",
       "change": "added",
       "baseSha256": null,
-      "forkSha256": "9a66c4c5872eb6393ac41a9724b6b05dc5bfd20725ed34654bbf018404efdc1f"
+      "forkSha256": "9a66c4c5872eb6393ac41a9724b6b05dc5bfd20725ed34654bbf018404efdc1f",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkOwnerAsyncQueue.h"
     },
     {
       "file": "cpp/rnskia/RNSkPlatformContext.h",
       "change": "modified",
       "baseSha256": "30fa2877c7f819ee6e7ad2680c71972215ce1702b5e009577add0e2888defb62",
-      "forkSha256": "6d4ccb2867b25be50acb53fa5383d04369a4a8f5e6a57c973fe099e6cd67a7ec"
+      "forkSha256": "6d4ccb2867b25be50acb53fa5383d04369a4a8f5e6a57c973fe099e6cd67a7ec",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkPlatformContext.h"
     },
     {
       "file": "cpp/rnskia/RNSkSurface.h",
       "change": "modified",
       "baseSha256": "e62f8eb9fa4598154f64d90b93e6999b5a19df6c533de19cb6c72dd97e11ee8a",
-      "forkSha256": "b8fd7e271c76072643273f964201c486fbd1d6df053d161e1626eb2acad30367"
+      "forkSha256": "b8fd7e271c76072643273f964201c486fbd1d6df053d161e1626eb2acad30367",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkSurface.h"
     },
     {
       "file": "cpp/rnskia/RNSkView.h",
       "change": "modified",
       "baseSha256": "df46aec9a8d9bd27b2f23bcccae0767961d4faf6999a03a242d11c6b65c7db32",
-      "forkSha256": "a33dd22733aae6b80605dfa4985be035e20534f745d96dd9667ebd7209a032ac"
+      "forkSha256": "a33dd22733aae6b80605dfa4985be035e20534f745d96dd9667ebd7209a032ac",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkView.h"
     },
     {
       "file": "cpp/rnskia/RNSkWindowSurface.cpp",
       "change": "deleted",
       "baseSha256": "741ff71c34269edec8a05b20fe24c8142b673fead8d61c5d9a01d73fdc2fbea5",
-      "forkSha256": null
+      "forkSha256": null,
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkWindowSurface.cpp"
     },
     {
       "file": "cpp/rnskia/RNSkWindowSurface.h",
       "change": "modified",
       "baseSha256": "2e574cf90b97992e150b0ec974639ebe25b826778973c9ddae8bccb08f1dc012",
-      "forkSha256": "f2edc4e5097d1503c63a0db8448415f8d42bdcdf9e9c4cb57580da8399e9f74b"
+      "forkSha256": "f2edc4e5097d1503c63a0db8448415f8d42bdcdf9e9c4cb57580da8399e9f74b",
+      "productFile": "native/adapters/jsi/cpp/rnskia/RNSkWindowSurface.h"
     }
   ],
   "nativeSourcePatch": {
     "file": "upstream/nelyx-native.patch",
     "sha256": "6be926ab056d87974b275fc8240a2788c0a35cff97f77fcfa2f9215b06894a5b"
+  },
+  "productOwners": {
+    "binding": "native/adapters/jsi",
+    "host": "native/host",
+    "nativePackage": "packages/native",
+    "rnAdapter": "packages/rn",
+    "derivedRnBinding": "packages/rn/generated/jsi",
+    "derivedRnVulkan": "packages/rn/generated/native-vulkan"
   }
 }

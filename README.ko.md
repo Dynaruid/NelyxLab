@@ -6,7 +6,7 @@
 
 이전 바이너리와의 호환은 제공하지 않습니다. Web 샘플을 prepare·빌드하기 전에 [Nelyx CanvasKit 런타임을 새로 빌드해 공급](Nelyx/skia/eng/source-build/README.md#vendor-build-recipes)해야 합니다. 새 바이너리를 공급하기 전까지 런타임 manifest는 `requires-build` 상태입니다.
 
-기반 개편의 현재 계획은 [work18.md](work18.md)이며 계획은 ACTIVE / READY, 구현은 NOT_STARTED, 제품은 PARTIAL입니다. [W17](work17.md)은 CLOSED / SUPERSEDED BY W18로 종료했고, 기존 구현과 미해결 수락 결과는 과거 근거로 보존합니다. Material/Cupertino는 `@nelyx/material/widgets`·`@nelyx/cupertino/widgets`에서 직접 소비합니다. [Core 패키지 import 안내](Nelyx/README.ko.md#디자인-패키지-import)를 참고하세요. 현재 상태는 루트 작업 문서에만 짧게 관리하며 삭제한 실행 기록을 재개 조건으로 요구하지 않습니다.
+기반 개편의 현재 계획은 [work18.md](work18.md)이며 실행은 ACTIVE / IN_PROGRESS, Runtime 시제품은 검증 중, 제품은 PARTIAL입니다. [W17](work17.md)은 CLOSED / SUPERSEDED BY W18로 종료했고, 기존 구현과 미해결 수락 결과는 과거 근거로 보존합니다. Material/Cupertino는 `@nelyx/material/widgets`·`@nelyx/cupertino/widgets`에서 직접 소비합니다. [Core 패키지 import 안내](Nelyx/README.ko.md#디자인-패키지-import)를 참고하세요. 현재 상태는 루트 작업 문서에만 짧게 관리하며 삭제한 실행 기록을 재개 조건으로 요구하지 않습니다.
 
 현재 배치에는 `SpringDescription` 전체 클래스와 추적된 수동 simulation 선언의 합성이 포함됩니다. `PhysicalShape`는 실제 경로 clip과 그림자를 사용합니다. TextStyle의 Paint·baseline·패키지 글꼴 이름은 paragraph 경로에 연결됩니다. 공급한 archive는 빌드 전에 설치해야 하며, runner 검사는 같은 버전의 이전 로컬 archive가 남아 있어도 거절합니다. 현재 원본·패키지·플랫폼 증거는 work8에서 구분해 기록합니다.
 

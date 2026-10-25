@@ -47,7 +47,7 @@ export function freshPackageDirectory(app,target,output){
 export function copyRunnerNotices(application,directory){
   const destination=path.join(directory,'licenses');fs.mkdirSync(destination,{recursive:true});
   application.load('@nelyx/metro/assets').copyAppNotices(application.app,application.config.assets,path.join(destination,'app-assets'));
-  for(const [name,packageName]of [['core','@nelyx/core'],['sdk','@nelyx/sdk'],['skia-rn','@nelyx/skia-rn'],['react-native','react-native'],...(application.cohort.framework==='react-native-macos'?[['react-native-macos','react-native-macos']]:[])]){
+  for(const [name,packageName]of [['core','@nelyx/core'],['sdk','@nelyx/sdk'],['skia-native','@nelyx/skia-native'],['skia-rn','@nelyx/skia-rn'],['react-native','react-native'],...(application.cohort.framework==='react-native-macos'?[['react-native-macos','react-native-macos']]:[])]){
     const source=path.join(application.runner,'node_modules',packageName);let found=false;
     for(const file of ['LICENSE.md','LICENSE','THIRD_PARTY_NOTICES.md'])if(fs.existsSync(path.join(source,file))){fs.copyFileSync(localFile(source,file),path.join(destination,name+'-'+file));if(file.startsWith('LICENSE'))found=true;}
     if(!found)throw new Error('Installed runtime license absent: '+packageName);

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import assert from 'node:assert/strict';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {TextEditingController,EditableText} from '@nelyx/core/framework/widgets/editable-text';
 import {SizedBox,Column,Transform} from '@nelyx/core/framework/widgets/basic';
 import {RenderTransform} from '@nelyx/core/framework/rendering/boxes';
@@ -14,7 +14,7 @@ const timeout=1_200_000;
 FoundationPlatform.configure({kind:'native',operatingSystem:'android'});
 
 test('native carrier reattachment preserves the focus origin and marks replay as restoration',{timeout},()=>{
-  const owner={id:'focus-order',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),requests=[];
+  const owner={id:'focus-order',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),requests=[];
   const binding=interaction.editing.bind(owner,{session:owner,text:'value',selection:{anchor:5,focus:5},composing:{status:'none'},revision:0,source:'programmatic'},()=>{},{id:'field'});
   const port={replace(){},focus(request){requests.push(request);},blur(){}},token={};let detach;
   try{
@@ -26,14 +26,14 @@ test('native carrier reattachment preserves the focus origin and marks replay as
 });
 
 test('a programmatic focus requested before carrier attachment is delivered once as explicit intent',{timeout},()=>{
-  const owner={id:'first-focus',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),requests=[];
+  const owner={id:'first-focus',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),requests=[];
   const binding=interaction.editing.bind(owner,{session:owner,text:'',selection:{anchor:0,focus:0},composing:{status:'none'},revision:0,source:'programmatic'},()=>{},{id:'field'}),port={replace(){},focus(request){requests.push(request);},blur(){}};let detach;
   try{binding.focus();detach=interaction.attachEditor('field',{},port);assert.equal(requests.length,1);assert.equal(requests[0],undefined,'An unseen explicit request must be admitted on the first native carrier');detach();detach=interaction.attachEditor('field',{},port);assert.deepEqual(requests.at(-1),{restore:true},'A later carrier replays the same admitted intent');}
   finally{binding.dispose();detach?.();interaction.dispose();}
 });
 
 test('an observed native selection replacement preserves composition and retries only unchanged metadata races',{timeout},()=>{
-  const owner={id:'active-selection',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],changes=[],token={};
+  const owner={id:'active-selection',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],changes=[],token={};
   const binding=interaction.editing.bind(owner,{session:owner,text:'한A',selection:{anchor:1,focus:1},composing:{status:'unavailable'},revision:0,source:'programmatic'},value=>changes.push(value),{id:'field'}),detach=interaction.attachEditor('field',token,{replace(...args){commands.push(args);},focus(){},blur(){}});
   const snapshot=(revision,anchor,focus,extra={})=>interaction.observeSnapshot(token,{revision,text:'한A',anchor,focus,composingStart:0,composingEnd:1,source:'native',...extra});
   try{
@@ -44,7 +44,7 @@ test('an observed native selection replacement preserves composition and retries
 });
 
 test('native metadata is not another edit; negative acknowledgements retain request identity and bounded retries',{timeout},async()=>{
-  const owner={id:'synchronization',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),changed=[],rejected=[],commands=[],token={};
+  const owner={id:'synchronization',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),changed=[],rejected=[],commands=[],token={};
   const initial={session:owner,text:'word',selection:{anchor:4,focus:4},composing:{status:'none'},revision:0,source:'programmatic'};
   const binding=interaction.editing.bind(owner,initial,value=>changed.push(value),{id:'field',synchronizationRejected:(...args)=>rejected.push(args)}),detach=interaction.attachEditor('field',token,{replace(...args){commands.push(args);},replaceComposing(...args){commands.push(args);},focus(){},blur(){}});
   const observe=(revision,text='word',extra={})=>interaction.observeSnapshot(token,{revision,text,anchor:text.length,focus:text.length,composingStart:-1,composingEnd:-1,source:'native',...extra});
@@ -59,7 +59,7 @@ test('native metadata is not another edit; negative acknowledgements retain requ
 });
 
 test('Core synchronization survives native input races and reports failed cancellation without completing it',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],token={},reports=[];
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],token={},reports=[];
   const previousReport=f.root.context.reportError,previousFlutterError=FlutterError.onError;let detach;
   const observe=(revision,text,extra={})=>interaction.observeSnapshot(token,{revision,text,anchor:text.length,focus:text.length,composingStart:-1,composingEnd:-1,source:'native',...extra});
   try{
@@ -75,7 +75,7 @@ test('Core synchronization survives native input races and reports failed cancel
 });
 
 test('an observed host without cancellation preserves active composition and applies ordinary clear after commit',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,compositionReplacement:false,geometry:'unavailable'}),token={},commands=[];
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,compositionReplacement:false,geometry:'unavailable'}),token={},commands=[];
   let detach,completed=0;
   try{
     f.root.context.editing=interaction.editing;f.set(new EditableText('field',controller,'Name'));
@@ -92,7 +92,7 @@ test('an observed host without cancellation preserves active composition and app
 });
 
 test('Core completion can unmount and dispose its editor before OS synchronization without notifying a retired controller',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
   f.root.context.editing=interaction.editing;const token={};let detach,notifications=0;
   try {
     f.set(new EditableText('field',controller,'Name'));detach=interaction.attachEditor('field',token,{replace(){},replaceComposing(){},focus(){},blur(){}});controller.addListener(()=>notifications++);
@@ -103,7 +103,7 @@ test('Core completion can unmount and dispose its editor before OS synchronizati
 });
 
 test('a replacement native port restores its live editor focus intent and retires old tokens',{timeout},async()=>{
-  const owner={id:'focus-port',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
+  const owner={id:'focus-port',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
   const binding=interaction.editing.bind(owner,{session:owner,text:'',selection:{anchor:0,focus:0},composing:{status:'none'},source:'programmatic',revision:0},()=>{},{id:'field'}),calls=[];
   const port=id=>({replace(){},replaceComposing(){},focus(){calls.push('focus '+id);},blur(){calls.push('blur '+id);}}),first={},second={},third={};
   let detach=interaction.attachEditor('field',first,port('first'));
@@ -116,7 +116,7 @@ test('a replacement native port restores its live editor focus intent and retire
 });
 
 test('Core Undo/Redo/reset apply synchronously and actual native selection changes preserve current Core history',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController(),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[];
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController(),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[];
   f.root.context.editing=interaction.editing;const token={};let detach;
   const observe=(revision,text,anchor,focus,source='native')=>interaction.observeSnapshot(token,{revision,text,anchor,focus,source,composingStart:-1,composingEnd:-1});
   try {
@@ -132,7 +132,7 @@ test('Core Undo/Redo/reset apply synchronously and actual native selection chang
 
 test('actual Core Next/Done ignores late unfocused geometry and follows native focus transitions',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),name=new TextEditingController(),email=new TextEditingController(),commands=[];
-  const interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
+  const interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
   f.root.context.editing=interaction.editing;const nameToken={},emailToken={};let detachName,detachEmail;
   const observe=(token,revision,focused,action)=>interaction.observeSnapshot(token,{revision,text:'',anchor:0,focus:0,composingStart:-1,composingEnd:-1,source:'native',focused,...(action?{action}:{})});
   try {
@@ -151,7 +151,7 @@ test('actual Core Next/Done ignores late unfocused geometry and follows native f
 
 test('Core composition replacement requires a capable host and waits for its authoritative acknowledgement',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),commands=[];
-  const interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
+  const interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
   f.root.context.editing=interaction.editing;let detach;
   const token={},observe=(revision,text,composingStart=-1,rejection)=>interaction.observeSnapshot(token,{revision,text,anchor:text.length,focus:text.length,composingStart,composingEnd:composingStart<0?-1:text.length,source:revision===3?'programmatic':'native',...(rejection?{rejection}:{})});
   try {
@@ -167,7 +167,7 @@ test('Core composition replacement requires a capable host and waits for its aut
 });
 
 test('observed replacement retries are bounded and never overwrite intervening native text or selection',{timeout},async()=>{
-  const owner={id:'retry',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],changed=[];
+  const owner={id:'retry',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],changed=[];
   const initial={text:'word',selection:{anchor:4,focus:4},composing:{status:'none'},revision:0,source:'programmatic',session:owner};
   const binding=interaction.editing.bind(owner,initial,value=>changed.push(value),{id:'field'}),token={};
   const detach=interaction.attachEditor('field',token,{replace(...args){commands.push(args);},replaceComposing(...args){commands.push(args);},focus(){},blur(){}});
@@ -186,7 +186,7 @@ test('observed replacement retries are bounded and never overwrite intervening n
 
 test('unavailable cancellation and stale/retired native commands cannot replace active composition',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),controller=new TextEditingController('word');
-  const interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
+  const interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
   f.root.context.editing=interaction.editing;let detach;
   const token={};
   try {
@@ -199,7 +199,7 @@ test('unavailable cancellation and stale/retired native commands cannot replace 
 });
 
 test('native IME bounds use the current Core document, geometry epochs and native revision; retired ports cannot query glyphs',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('first\nsecond 😀'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),token={},packets=[],writes=[];
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('first\nsecond 😀'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),token={},packets=[],writes=[];
   let detach,nativeRevision=0;
   const observe=(text=controller.text,selection=controller.selection,extra={})=>interaction.observeSnapshot(token,{revision:++nativeRevision,text,anchor:selection.anchor,focus:selection.focus,composingStart:-1,composingEnd:-1,source:'native',...extra});
   try{
@@ -229,7 +229,7 @@ test('native IME bounds use the current Core document, geometry epochs and nativ
 });
 
 test('native caret and hit queries retain Core paragraph stamps, same-frame retries and current port ownership',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('ABe\u0301👩‍🚀'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),token={},packets=[],carets=[],hits=[],events=[];
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('ABe\u0301👩‍🚀'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),token={},packets=[],carets=[],hits=[],events=[];
   let detach,revision=0;const observe=()=>interaction.observeSnapshot(token,{revision:++revision,text:controller.text,anchor:controller.selection.anchor,focus:controller.selection.focus,composingStart:-1,composingEnd:-1,source:'native'});
   const port={replace(){},focus(){},blur(){},updateGeometry(...args){packets.push(args);events.push('geometry');},updateCaretBounds(...args){carets.push(args);events.push('caret');},updateTextPosition(...args){hits.push(args);events.push('hit');}};
   try{
@@ -255,7 +255,7 @@ test('native caret and hit queries retain Core paragraph stamps, same-frame retr
 });
 
 test('native query replies cannot escape a reentrant Core change or a malformed UTF-16 hit',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('A😀B'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),token={},packets=[],hits=[];let mode='normal',detach;
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('A😀B'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),token={},packets=[],hits=[];let mode='normal',detach;
   f.root.context.editing={...interaction.editing,bind(owner,initial,changed,options){return interaction.editing.bind(owner,initial,changed,{...options,readTextPosition(...args){const value=options.readTextPosition(...args);if(!value)return null;if(mode==='surrogate')return {...value,status:'hit',position:2,affinity:'downstream'};if(mode==='coordinates')return {...value,coordinates:'control-local'};if(mode==='mutate'){mode='normal';controller.text='new Core';}return value;}});}};
   try{
     f.set(new EditableText('field',controller,'Guarded query'));detach=interaction.attachEditor('field',token,{replace(){},focus(){},blur(){},updateGeometry(...args){packets.push(args);},updateTextPosition(...args){hits.push(args);}});f.frame();const geometry=packets.at(-1)[0],query=request=>interaction.requestTextPosition(token,{request,point:{x:0,y:0},options:{nearest:true},layoutEpoch:geometry.layoutEpoch,nativeRevision:0});
@@ -266,7 +266,7 @@ test('native query replies cannot escape a reentrant Core change or a malformed 
 });
 
 test('Core commands survive an absent native port while composition cancellation still waits for an actual observation',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('initial'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[];
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('initial'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[];
   let detach,completed=0;
   const port={replace(...args){commands.push({cancel:false,args});},replaceComposing(...args){commands.push({cancel:true,args});},focus(){},blur(){}};
   const ack=(token,revision,text,extra={})=>interaction.observeSnapshot(token,{text,revision,anchor:text.length,focus:text.length,composingStart:-1,composingEnd:-1,source:'programmatic',...extra});
@@ -286,7 +286,7 @@ test('Core commands survive an absent native port while composition cancellation
 
 
 test('the first noncomposing native observation cannot overwrite Core edits made before native initialization',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],token={};let detach;
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('word'),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),commands=[],token={};let detach;
   const observe=(revision,extra={})=>interaction.observeSnapshot(token,{revision,text:'word',anchor:4,focus:4,composingStart:-1,composingEnd:-1,source:'native',...extra});
   try{
     f.root.context.editing=interaction.editing;f.set(new EditableText('field',controller,'Name'));
@@ -303,7 +303,7 @@ test('the first noncomposing native observation cannot overwrite Core edits made
 
 
 test('retiring a focused Core editing binding blurs its live port before unmount without blurring a newer owner',{timeout},()=>{
-  const owner={id:'retire-focus',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,nativeSnapshots:true,semantics:'native-controls'}),events=[];
+  const owner={id:'retire-focus',generation:1},interaction=new NativeInteraction(owner,{commands:true,nativeSnapshots:true,semantics:'native-controls'}),events=[];
   const initial={text:'word',selection:{anchor:4,focus:4},composing:{status:'none'},revision:0,session:owner,source:'programmatic'};
   const services=interaction.acquireServices();let a,b,detachA,detachB;
   const bind=id=>services.editing.bind(owner,initial,()=>events.push('changed-'+id),{id});

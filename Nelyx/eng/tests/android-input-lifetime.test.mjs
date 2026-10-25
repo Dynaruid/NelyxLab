@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {createReactNativeInteractionControls} from '../../sdk/dist/backends/react-native/interaction-controls.js';
 import {EditableText,TextEditingController} from '@nelyx/core/framework/widgets/editable-text';
 import {SizedBox,Transform} from '@nelyx/core/framework/widgets/basic';
@@ -33,7 +33,7 @@ test('Android input keeps its native identity and composition across Core semant
     const native={Platform:{OS:'android'},UIManager:{getViewManagerConfig:name=>({Constants:name==='NelyxInputConnection'?{inputConnectionProtocol:4}:{semanticsProtocol:2}}),dispatchViewManagerCommand:(...args)=>commands.push(args)},requireNativeComponent:name=>name,findNodeHandle:ref=>ref?.tag??null,View:'View',Text:'Text',Pressable:'Pressable'};
     const Controls=createReactNativeInteractionControls(()=>({react,native}));
     f=await engineFixture({fonts:true});controller=new TextEditingController();
-    interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'});
+    interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'});
     f.root.context.editing=interaction.editing;f.root.context.semantics=interaction.semantics;
     const key=new GlobalKey('retained Core editor');
     const scene=(parent,enabled=true,dx=0)=>new Semantics(new Transform(new EditableText('field',controller,'Name',undefined,48,key,{enabled}),[1,0,0,1,dx,0]),{id:parent,role:'group',name:'',enabled:true,container:true},new ValueKey(parent));

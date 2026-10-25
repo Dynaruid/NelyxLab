@@ -128,7 +128,7 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
     finally{this._currentlyUpdatingChildIndex=null;this.renderObject.debugChildIntegrityEnabled=true;this.syncElementChildren();}
   }
   private finishQueuedChildren():void{
-    this.syncElementChildren();for(const child of this.children)child.syncRenderTree();
+    this.syncElementChildren();this.owner.flushRenderTree();
     if(this.pendingOffsets!==null){for(const [index,child]of this._childElements){const data=this.renderBox(child)?.parentData;if(data instanceof SliverMultiBoxAdaptorParentData){if(index===0)data.layoutOffset=0;else if(this.pendingOffsets.has(index))data.layoutOffset=this.pendingOffsets.get(index)!;}}this.pendingOffsets=null;}
   }
   createChild(index:number,{after}:{readonly after:RenderBox|null}):void{

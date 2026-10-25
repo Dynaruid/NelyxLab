@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include "ObservedKeyboardState.h"
+#include "windows/ObservedKeyboardState.h"
 #include <NativeModules.h>
 #include <ReactPropertyBag.h>
 #include <memory>

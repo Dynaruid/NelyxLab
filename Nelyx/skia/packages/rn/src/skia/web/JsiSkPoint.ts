@@ -1,7 +1,7 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type { CanvasKit, Point } from "canvaskit-wasm";
 
-import type {SkPoint} from '../types/Point.ts';
+import type {SkPoint} from "@nelyx/skia-native/skia/types/Point";
 
 import {BaseHostObject} from './Host.ts';
 

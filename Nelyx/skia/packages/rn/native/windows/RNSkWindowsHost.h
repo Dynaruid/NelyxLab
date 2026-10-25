@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "RuntimeServices.h"
-#include "../vulkan/RNSkVulkanRuntime.h"
+#include "RNSkVulkanRuntime.h"
 #include "CompositionSession.h"
-#include "CompositorFrameClock.h"
-#include "WindowsMonotonic.h"
+#include "windows/CompositorFrameClock.h"
+#include "windows/WindowsMonotonic.h"
 #include <map>
 
 namespace RNSkia {

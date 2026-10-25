@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {ViewRuntime} from '@nelyx/core/hosting/runtime';
-import type {ReactNativeInteraction} from '../../backends/react-native/interaction.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 import type {ReactNativeSurfaceInputLease,ReactNativeViewMetrics} from '../../backends/react-native/surface.tsx';
-import {WindowsInputView} from '../../backends/react-native/windows-input-view.ts';
-import type {WindowsInputModule,WindowsInputEvents} from '../../backends/react-native/windows-input-service.ts';
+import {WindowsInputView} from './input-view.ts';
+import type {WindowsInputModule,WindowsInputEvents} from './input-service.ts';
 
 export function requireWindowsInputModule(value:unknown):WindowsInputModule{
   if(!value||typeof value!=='object')throw new Error('Windows nonvisual input module is required');
@@ -12,7 +12,7 @@ export function requireWindowsInputModule(value:unknown):WindowsInputModule{
   return candidate as WindowsInputModule;
 }
 /** One input lease uses the actual Fabric tag, never Skia's content id. */
-export function openWindowsInput(interaction:ReactNativeInteraction,view:ViewRuntime,metrics:ReactNativeViewMetrics,module:unknown,events:WindowsInputEvents,onError:(error:unknown)=>void):ReactNativeSurfaceInputLease{
+export function openWindowsInput(interaction:NativeInteraction,view:ViewRuntime,metrics:ReactNativeViewMetrics,module:unknown,events:WindowsInputEvents,onError:(error:unknown)=>void):ReactNativeSurfaceInputLease{
   const tag=metrics.nativeReactTag,generation=metrics.nativeViewGeneration;
   if(typeof tag!=='number'||!Number.isSafeInteger(tag)||tag<=0||typeof generation!=='number'||!Number.isSafeInteger(generation)||generation<=0)throw new Error('Windows input requires its admitted native tag and generation');
   if(interaction.owner.id!==view.owner.id||interaction.owner.generation!==view.owner.generation)throw new Error('Windows input requires the exact Core View owner');

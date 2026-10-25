@@ -32,6 +32,9 @@ import type {KeyEvent} from '../../ui/input.ts';
 import {HardwareKeyboard} from '../../services/hardware-keyboard.ts';
 import {RawKeyboard} from '../../services/raw-keyboard.ts';
 import type {Notification} from './notification-listener.ts';
+import {OwnerTransaction} from '../../runtime/owner-transaction.ts';
+import {DependencyScope} from '../../runtime/dependency-scope.ts';
+import {DepthQueue} from '../../runtime/depth-queue.ts';
 
 export abstract class Widget extends DiagnosticableTree {
   constructor(readonly key:Key|null=null) {super();}
@@ -78,27 +81,43 @@ class _NotificationNode {
   constructor(public parent:_NotificationNode|null,public current:NotifiableElementTarget|null){}
   dispatchNotification(notification:Notification):void{if(this.current?.onNotification(notification)??true)return;this.parent?.dispatchNotification(notification);}
 }
-interface DirtyBuildEntry {readonly element:Element;readonly depth:number;readonly order:number}
 /** Isolated dirty queue; layout-time builders own a scope for their descendants. */
 export class BuildScope {
   readonly scheduleRebuild:(()=>void)|undefined;
-  private _buildScheduled=false;private _building=false;private order=0;
-  private readonly entries=new Map<Element,DirtyBuildEntry>();private readonly heap:DirtyBuildEntry[]=[];
+  /** @internal Intrusive list of this View's nonempty build scopes. */
+  _queuedOwner:BuildOwner|undefined;_previousDirtyScope:BuildScope|undefined;_nextDirtyScope:BuildScope|undefined;
+  private _buildScheduled=false;private _building=false;
+  private readonly queue=new DepthQueue<Element>();
   constructor({scheduleRebuild}:{readonly scheduleRebuild?:()=>void}={}){this.scheduleRebuild=scheduleRebuild;}
-  get hasDirty():boolean{return this.entries.size>0;}
-  private before(a:DirtyBuildEntry,b:DirtyBuildEntry):boolean{return a.depth<b.depth||a.depth===b.depth&&a.order<b.order;}
-  private push(entry:DirtyBuildEntry):void{let index=this.heap.length;this.heap.push(entry);while(index){const parent=(index-1)>>1;if(!this.before(entry,this.heap[parent]!))break;this.heap[index]=this.heap[parent]!;index=parent;}this.heap[index]=entry;}
-  private pop():DirtyBuildEntry|undefined{const first=this.heap[0],last=this.heap.pop();if(this.heap.length&&last){let index=0;while(index*2+1<this.heap.length){let child=index*2+1;if(child+1<this.heap.length&&this.before(this.heap[child+1]!,this.heap[child]!))child++;if(!this.before(this.heap[child]!,last))break;this.heap[index]=this.heap[child]!;index=child;}this.heap[index]=last;}return first;}
+  get hasDirty():boolean{return this.queue.size>0;}
   /** @internal BuildOwner uses the source scope scheduling protocol. */
-  _scheduleBuildFor(element:Element):void{if(!(element.buildScope===this))invariant(false,'wrong-build-scope','Dirty element belongs to another build scope');const old=this.entries.get(element);if(!old||old.depth!==element.depth){const entry={element,depth:element.depth,order:++this.order};this.entries.set(element,entry);this.push(entry);}if(!this._buildScheduled&&!this._building){this._buildScheduled=true;this.scheduleRebuild?.();}}
+  _scheduleBuildFor(element:Element):void{
+    if(!(element.buildScope===this))invariant(false,'wrong-build-scope','Dirty element belongs to another build scope');
+    if(this._queuedOwner&&this._queuedOwner!==element.owner)invariant(false,'foreign-build-scope','A pending build scope cannot mix View owners');
+    if(element._queuedBuildScope!==this){element._queuedBuildScope?._forget(element);this.queue.schedule(element);element._queuedBuildScope=this;element.owner._didQueueBuild(this);}
+    else this.queue.schedule(element);
+    if(!this._buildScheduled&&!this._building){this._buildScheduled=true;this.scheduleRebuild?.();}
+  }
   /** @internal */
-  _forget(element:Element):void{this.entries.delete(element);if(!this.entries.size)this.heap.length=0;}
+  _forget(element:Element):void{if(element._queuedBuildScope!==this)return;this.queue.remove(element);element._queuedBuildScope=undefined;element.owner._didUnqueueBuild(this);}
   /** @internal Rebuild only this scope, including newly dirtied shallow ancestors. */
-  _flushDirtyElements(rebuild:(element:Element)=>void,callback?:()=>void,reportError:(details:FlutterErrorDetails)=>void=details=>FlutterError.reportError(details)):void{if(!(!this._building))invariant(false,'reentrant-build-scope','BuildScope cannot recursively flush itself');this._building=true;try{callback?.();while(this.heap.length){const entry=this.pop()!;if(this.entries.get(entry.element)!==entry)continue;if(entry.depth!==entry.element.depth){this.entries.delete(entry.element);this._scheduleBuildFor(entry.element);continue;}this.entries.delete(entry.element);try{rebuild(entry.element);}catch(exception){reportError(new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'widgets library',context:new ErrorDescription('while rebuilding dirty elements'),informationCollector:()=>[new DiagnosticsProperty('The element being rebuilt at the time was',entry.element.widget.constructor.name)]}));}}}finally{this._building=false;this._buildScheduled=false;if(!this.entries.size)this.heap.length=0;}}
+  _flushDirtyElements(rebuild:(element:Element)=>void,callback?:()=>void,reportError:(details:FlutterErrorDetails)=>void=details=>FlutterError.reportError(details)):void{
+    if(!(!this._building))invariant(false,'reentrant-build-scope','BuildScope cannot recursively flush itself');this._building=true;
+    try{callback?.();let element:Element|undefined;while((element=this.queue.pop())){
+      element._queuedBuildScope=undefined;element.owner._didUnqueueBuild(this);
+      if(element._buildQueueDepth!==element.depth){this._scheduleBuildFor(element);continue;}
+      const current=element;try{rebuild(current);}catch(exception){reportError(new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'widgets library',context:new ErrorDescription('while rebuilding dirty elements'),informationCollector:()=>[new DiagnosticsProperty('The element being rebuilt at the time was',current.widget.constructor.name)]}));}
+    }}finally{this._building=false;this._buildScheduled=false;}
+  }
   /** @internal */
-  _clear():void{this.entries.clear();this.heap.length=0;this._buildScheduled=false;}
+  _clear():void{let element:Element|undefined;while((element=this.queue.pop())){element._queuedBuildScope=undefined;element.owner._didUnqueueBuild(this);}this._buildScheduled=false;}
 }
 export class BuildOwner {
+  private readonly renderChildren=new OwnerTransaction<RenderObjectElement>(element=>{if(element.active)element._commitRenderChildren();});
+  /** @internal One admission per actual render owner, including isolated builds. */
+  _scheduleRenderChildren(element:RenderObjectElement):void{this.renderChildren.schedule(element);}
+  /** Commit queued structural work before layout; no root projection traversal. */
+  flushRenderTree():void{assertOutsideRenderPaint();this.renderChildren.commit();}
   private viewWorkBudgetValue:ViewWorkBudget|undefined;
   /** @internal Created only by an explicitly bounded sliver in this View. */
   get viewWorkBudget():ViewWorkBudget{return this.viewWorkBudgetValue??=new ViewWorkBudget(this.services.resources);}
@@ -119,8 +138,16 @@ export class BuildOwner {
   bindGestureBinding(binding:GestureBinding):Disposable{if(!(!this.disposed&&!this.pointerBinding&&!binding.isClosed))invariant(false,'invalid-view-gesture-binding','BuildOwner already has a binding or is closed');this.pointerBinding=binding;return {dispose:()=>{if(this.pointerBinding===binding)this.pointerBinding=undefined;}};}
   readonly focus:FocusScope;
   readonly keyHandlers=new Set<(event:KeyEvent)=>boolean>();
-  // The scope index already owns exactly the queued Element membership.
-  private readonly dirtyScopes=new Map<Element,BuildScope>();
+  // Element records own membership; nonempty scopes form one intrusive list.
+  private dirtyScopes:BuildScope|undefined;
+  private queuedBuilds=0;
+  /** @internal BuildScope changes both summaries with its actual queue. */
+  _didQueueBuild(scope:BuildScope):void{if(!scope._queuedOwner){scope._queuedOwner=this;scope._nextDirtyScope=this.dirtyScopes;if(this.dirtyScopes)this.dirtyScopes._previousDirtyScope=scope;this.dirtyScopes=scope;}this.queuedBuilds++;}
+  /** @internal */
+  _didUnqueueBuild(scope:BuildScope):void{
+    if(!(scope._queuedOwner===this&&this.queuedBuilds>0))invariant(false,'invalid-dirty-owner','Dirty scope ownership is inconsistent');
+    this.queuedBuilds--;if(!scope.hasDirty){const previous=scope._previousDirtyScope,next=scope._nextDirtyScope;if(previous)previous._nextDirtyScope=next;else this.dirtyScopes=next;if(next)next._previousDirtyScope=previous;scope._queuedOwner=undefined;scope._previousDirtyScope=undefined;scope._nextDirtyScope=undefined;}
+  }
   readonly defaultBuildScope=new BuildScope({scheduleRebuild:()=>{if(!this.building)this.invalidate();}});
   private readonly globals=new KeyMap<Element>();
   private readonly reservations=new KeyMap<{key:GlobalKey;parents:Set<Element>}>();
@@ -132,7 +159,7 @@ export class BuildOwner {
   private buildRevisionValue=0;
   /** Completed rebuilds across the default and layout-owned isolated scopes. */
   get buildRevision():number{return this.buildRevisionValue;}
-  get hasDirty():boolean{return this.dirtyScopes.size>0;}
+  get hasDirty():boolean{return this.queuedBuilds>0;}
   get globalKeyCount():number{return this.globals.size;}
   constructor(services:ViewControllerContext,readonly invalidate:()=>void,readonly postFrame:(callback:()=>void)=>void=callback=>callback(),focusOptions:FocusManagerOptions={}) {
     // Keep one live service facade per owner. A separate extensible target also
@@ -154,14 +181,15 @@ export class BuildOwner {
   schedule(element:Element):void {
     assertOutsideRenderPaint();
     if(!(!this.disposed))invariant(false,'closed-build-owner','Build after View close');
-    if(!element.active)return;const scope=element.buildScope,previous=this.dirtyScopes.get(element);if(previous&&previous!==scope)previous._forget(element);this.dirtyScopes.set(element,scope);scope._scheduleBuildFor(element);
+    if(!element.active)return;element.buildScope._scheduleBuildFor(element);
   }
-  forget(element:Element):void {this.dirtyScopes.get(element)?._forget(element);this.dirtyScopes.delete(element);}
+  forget(element:Element):void {element._queuedBuildScope?._forget(element);}
   register(element:Element):void {
     const key=element.widget.key;if(key instanceof GlobalKey){if(!(!this.globals.has(key)&&(!key.currentElement||key.currentElement===element)))invariant(false,'duplicate-global-key','GlobalKey is already mounted in this or another View');key.bind(element);this.globals.set(key,element);}
     this.viewWorkBudgetValue?.register(element);
   }
   unregister(element:Element):void {
+    if(element instanceof RenderObjectElement)this.renderChildren.forget(element);
     this.viewWorkBudgetValue?.unregister(element);
     this.viewMetricsReaders.delete(element);
     const key=element.widget.key;if(!(key instanceof GlobalKey)||this.globals.get(key)!==element)return;
@@ -177,13 +205,11 @@ export class BuildOwner {
   }
   deactivateChildren(children:readonly Element[]):void {
     if(children.length===0)return;
-    const parents=new Map<RenderObject,Set<RenderObject>>(),roots=new Set<RenderObject>(),errors:unknown[]=[];
-    for(const child of children)for(const render of child.renderObjects){
-      if(render.parent){const removed=parents.get(render.parent)??new Set<RenderObject>();removed.add(render);parents.set(render.parent,removed);}else roots.add(render);
-    }
+    const renders=childRenderObjects(children),errors:unknown[]=[];
     for(const child of children)try{child.detachRenderObject();}catch(error){errors.push(error);}
-    for(const [parent,removed]of parents)try{parent.setChildren(parent.children.filter(value=>!removed.has(value)));}catch(error){errors.push(error);}
-    for(const render of roots)if(render.attached)try{RenderObject.prototype.detach.call(render);}catch(error){errors.push(error);}
+    // Normal detachment already removes the exact owned child. Only a custom
+    // hook/failure needs recovery; do not snapshot and reset every survivor.
+    for(const render of renders){if(render.parent)try{RenderObject.prototype.remove.call(render.parent,render);}catch(error){errors.push(error);}if(render.attached)try{RenderObject.prototype.detach.call(render);}catch(error){errors.push(error);}}
     for(const child of children){child.parent=undefined;this.inactive.add(child);try{child.deactivate();}catch(error){errors.push(error);}}
     if(errors.length)throw new AggregateError(errors,'Child deactivation failed');
   }
@@ -215,7 +241,20 @@ export class BuildOwner {
   }
   /** Rebuild the context's isolated scope during an authorized layout callback. */
   buildScope(context:Element,callback?:()=>void):void{if(!(context.active&&context.owner===this))invariant(false,'invalid-build-scope-root','Build scope requires an active context in this owner');this.flushScope(context.buildScope,context,callback);}
-  private flushScope(scope:BuildScope,context?:Element,callback?:()=>void):void{assertOutsideRenderPaint();if(!(!this.building&&!this.disposed))invariant(false,'reentrant-build','BuildOwner is already building or closed');this.building=true;this.currentElement=context;try{scope._flushDirtyElements(element=>{this.dirtyScopes.delete(element);if(!element.active)return;if(element.buildScope!==scope){if(element.dirty)this.schedule(element);return;}if(!(!context||element===context||element._hasBuildScopeAncestor(context)))invariant(false,'wrong-build-scope-root','Dirty element is outside the requested subtree');if(element.dirty){this.currentElement=element;element.rebuild();}},callback,details=>this.reportError(details));}finally{this.currentElement=undefined;this.building=false;}}
+  private flushScope(scope:BuildScope,context?:Element,callback?:()=>void):void{
+    assertOutsideRenderPaint();if(!(!this.building&&!this.disposed))invariant(false,'reentrant-build','BuildOwner is already building or closed');
+    this.building=true;this.currentElement=context;let failed=false,failure:unknown;
+    try{scope._flushDirtyElements(element=>{
+      if(!element.active)return;
+      if(element.buildScope!==scope){if(element.dirty)this.schedule(element);return;}
+      if(!(!context||element===context||element._hasBuildScopeAncestor(context)))invariant(false,'wrong-build-scope-root','Dirty element is outside the requested subtree');
+      if(element.dirty){this.currentElement=element;element.rebuild();}
+    },callback,details=>this.reportError(details));}
+    catch(error){failed=true;failure=error;}
+    finally{this.currentElement=undefined;this.building=false;}
+    try{this.flushRenderTree();}catch(error){if(failed)throw new AggregateError([failure,error],'Build and render owner commit failed');throw error;}
+    if(failed)throw failure;
+  }
   finalizeTree():void {
     if(!(!this.building))invariant(false,'finalize-during-build','Cannot finalize during build');const errors:unknown[]=[];
     for(const root of [...this.inactive]){this.inactive.delete(root);if(!root.active)try{root.unmount();}catch(error){errors.push(error);}}
@@ -232,7 +271,7 @@ export class BuildOwner {
       for(const dispose of [()=>this.finalizeTree(),()=>this.gestures.dispose(),()=>this.focus.dispose(),()=>{if(!this.services.platformServices)this.keyboard.dispose();}])try{dispose();}catch(error){errors.push(error);}
     for(const element of [...this.globals.values()])try{element.unmount();}catch(error){errors.push(error);}
     if(!this.services.platformServices)try{this.rawKeyboard.dispose();}catch(error){errors.push(error);}
-    this.globals.clear();for(const scope of new Set(this.dirtyScopes.values()))scope._clear();this.defaultBuildScope._clear();this.dirtyScopes.clear();this.keyHandlers.clear();this.viewMetricsReaders.clear();
+    this.globals.clear();while(this.dirtyScopes)this.dirtyScopes._clear();this.defaultBuildScope._clear();this.renderChildren.dispose();this.keyHandlers.clear();this.viewMetricsReaders.clear();
     try{this.viewWorkBudgetValue?.assertDrained();}catch(error){errors.push(error);}
     if(errors.length)throw new AggregateError(errors,'BuildOwner teardown failed');
   }
@@ -247,14 +286,14 @@ function childRenderObjects(children:readonly Element[]):readonly RenderObject[]
 }
 export abstract class Element extends DiagnosticableTree implements BuildContext {
   private _notificationTree:_NotificationNode|null=null;
-  private inheritedIndex:ReadonlyMap<object,InheritedElement>|undefined;
+  private inheritedIndex:DependencyScope<InheritedElement>|undefined;
   private indexedType:object|undefined;
   private dynamicInheritedTypes=false;
   private updateInheritedTypes():void {
     const incoming=this.parent?.inheritedIndex;
     this.indexedType=this instanceof InheritedElement?indexedInheritedType(this.widget):undefined;
     this.dynamicInheritedTypes=(this.parent?.dynamicInheritedTypes??false)||(this instanceof InheritedElement&&this.indexedType===undefined);
-    this.inheritedIndex=this.dynamicInheritedTypes?undefined:this instanceof InheritedElement?new Map(incoming).set(this.indexedType!,this):incoming;
+    this.inheritedIndex=this.dynamicInheritedTypes?undefined:this instanceof InheritedElement?new DependencyScope(incoming,this.indexedType!,this):incoming;
   }
   private refreshInheritedTypes():void {
     this.updateInheritedTypes();for(const child of this.children)if(child.active)child.refreshInheritedTypes();
@@ -267,8 +306,13 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   depth=0;
   private lifecycle:'initial'|'active'|'inactive'|'defunct'='initial';
   dirty=true;
-  protected renderTreeSyncDirty=true;
-  private markRenderTreeSyncDirty():void{this.renderTreeSyncDirty=true;for(let ancestor=this.parent;ancestor;ancestor=ancestor.parent){if(ancestor.renderTreeSyncDirty)break;ancestor.renderTreeSyncDirty=true;}}
+  /** @internal Intrusive dirty record, never reused for another Element. */
+  _buildQueueIndex=-1;_buildQueueDepth=0;_buildQueueOrder=0;_queuedBuildScope:BuildScope|undefined;
+  /** The nearest render owner is refreshed only at mount/GlobalKey activation. */
+  protected parentRenderOwner:RenderObjectElement|undefined;
+  /** @internal Shared ParentData link; widget getters are read at application. */
+  _parentDataScope:ParentDataElement|null=null;
+  private markRenderTreeSyncDirty():void{const render=this instanceof RenderObjectElement?this:this.parentRenderOwner;if(render)this.owner._scheduleRenderChildren(render);}
   private rebuilding=false;
   private dependencies:Set<InheritedElement>|undefined;
   private hadDependencies=false;
@@ -314,7 +358,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   hasAncestor(element:Element):boolean {let parent=this.parent;while(parent){if(parent===element)return true;parent=parent.parent;}return false;}
   mount(parent:Element|undefined,owner:BuildOwner,slot?:unknown):void {
     if(!(this.lifecycle==='initial'))invariant(false,'double-mount','Element can only be mounted once');
-    this.parent=parent;this.inheritBuildScope(parent,owner);this.markRenderTreeSyncDirty();this.currentSlot=slot;this.depth=(parent?.depth??-1)+1;this.owner=owner;this.lifecycle='active';this.updateInheritedTypes();owner.register(this);this.attachNotificationTree();owner.schedule(this);
+    this.parent=parent;this.inheritBuildScope(parent,owner);this.parentRenderOwner=parent instanceof RenderObjectElement?parent:parent?.parentRenderOwner;this._parentDataScope=parent instanceof RenderObjectElement?null:parent instanceof ParentDataElement?parent:parent?._parentDataScope??null;this.currentSlot=slot;this.depth=(parent?.depth??-1)+1;this.owner=owner;this.lifecycle='active';this.markRenderTreeSyncDirty();this.updateInheritedTypes();owner.register(this);this.attachNotificationTree();owner.schedule(this);
   }
   update(widget:Widget):void {
     assertOutsideRenderPaint();
@@ -408,7 +452,8 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
       if(errors.length>1)throw new AggregateError(errors,'Reconciliation and new child cleanup failed');throw error;
     }
   }
-  syncRenderTree():void {if(!this.renderTreeSyncDirty)return;for(const child of this.children)if(child.active)child.syncRenderTree();this.renderTreeSyncDirty=false;}
+  /** Explicit boundary for custom callers; built-in build scopes commit once. */
+  syncRenderTree():void {this.owner.flushRenderTree();}
   private clearDependencies():void {this.owner._forgetViewMetricsReader(this);const dependencies=this.dependencies;if(!dependencies)return;this.hadDependencies||=dependencies.size>0;for(const dependency of dependencies)dependency.removeDependent(this);dependencies.clear();}
   deactivate():void {
     if(!this.active)return;this.lifecycle='inactive';this.parentScopeAncestor=undefined;this.owner.forget(this);this.clearDependencies();this.inheritedIndex=undefined;this.indexedType=undefined;this.dynamicInheritedTypes=false;
@@ -417,7 +462,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   }
   activate(parent:Element):void {
     if(!(this.lifecycle==='inactive'&&parent.owner===this.owner))invariant(false,'invalid-activation','Only an inactive subtree in the same View can be activated');
-    this.parent=parent;this.inheritBuildScope(parent,this.owner);this.markRenderTreeSyncDirty();this.depth=parent.depth+1;this.lifecycle='active';this.owner.maybeViewWorkBudget?.activate(this);this.updateInheritedTypes();this.attachNotificationTree();
+    this.parent=parent;this.inheritBuildScope(parent,this.owner);this.parentRenderOwner=parent instanceof RenderObjectElement?parent:parent.parentRenderOwner;this._parentDataScope=parent instanceof RenderObjectElement?null:parent instanceof ParentDataElement?parent:parent?._parentDataScope??null;this.markRenderTreeSyncDirty();this.depth=parent.depth+1;this.lifecycle='active';this.owner.maybeViewWorkBudget?.activate(this);this.updateInheritedTypes();this.attachNotificationTree();
     if(this.hadDependencies){this.hadDependencies=false;this.dependenciesChanged();}else this.markNeedsBuild();
     for(const child of this.children)child.activate(this);
   }
@@ -426,7 +471,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     try{if(this.active)this.deactivate();}catch(error){(errors??=[]).push(error);}
     this.lifecycle='defunct';this.owner.forget(this);
     for(const child of this.children)try{child.unmount();}catch(error){(errors??=[]).push(error);}this.children=[];
-    this.clearDependencies();this.owner.unregister(this);this.parent=undefined;this.parentBuildScope=undefined;this.parentScopeAncestor=undefined;this.currentSlot=undefined;this._notificationTree=null;
+    this.clearDependencies();this.owner.unregister(this);this.parent=undefined;this.parentRenderOwner=undefined;this._parentDataScope=null;this.parentBuildScope=undefined;this.parentScopeAncestor=undefined;this.currentSlot=undefined;this._notificationTree=null;
     if(errors)throw new AggregateError(errors,'Element child teardown failed');
   }
 }
@@ -585,9 +630,8 @@ export class RenderObjectElement extends Element {
   override updateSlot(slot:unknown):void{const old=this.slot;super.updateSlot(slot);if(!sameSlot(old,slot))this.ancestor?.moveRenderObjectChild(this.renderObject,old,slot);}
   override attachRenderObject(slot:unknown):void {
     if(!(!this.ancestor))invariant(false,'double-render-attachment','Render object already has an ancestor attachment');this.currentSlot=slot;
-    let ancestor=this.parent;while(ancestor&&!(ancestor instanceof RenderObjectElement))ancestor=ancestor.parent;
-    this.ancestor=ancestor as RenderObjectElement|undefined;
-    try{this.ancestor?.insertRenderObjectChild(this.renderObject,slot);this.applyParentDataFromAncestors();}
+    this.ancestor=this.parentRenderOwner;
+    try{this.ancestor?.insertRenderObjectChild(this.renderObject,slot);if(this.ancestor)this.owner._scheduleRenderChildren(this.ancestor);this.applyParentDataFromAncestors();}
     catch(error){const errors=[error];try{this.detachRenderObject();}catch(failure){errors.push(failure);}if(errors.length>1)throw new AggregateError(errors,'Render attachment and rollback failed');throw error;}
   }
   override detachRenderObject():void {
@@ -603,12 +647,11 @@ export class RenderObjectElement extends Element {
     widget.applyParentData(this.renderObject);
   }
   applyParentDataFromAncestors():void {
-    let widgets:ParentDataWidget<ParentData>[]|undefined,types:Set<Function>|undefined,classes:Set<Function>|undefined;let parent=this.parent;
-    while(parent&&!(parent instanceof RenderObjectElement)){
-      if(parent instanceof ParentDataElement){widgets??=[];types??=new Set<Function>();classes??=new Set<Function>();const widget=parent.widget as ParentDataWidget<ParentData>;
+    let widgets:ParentDataWidget<ParentData>[]|undefined,types:Set<Function>|undefined,classes:Set<Function>|undefined;
+    for(let parent=this._parentDataScope;parent;parent=parent._parentDataScope){
+      widgets??=[];types??=new Set<Function>();classes??=new Set<Function>();const widget=parent.widget as ParentDataWidget<ParentData>;
         if(types.has(widget.parentDataType)||classes.has(widget.constructor))invariant(false,'conflicting-parent-data',`Competing ${widget.constructor.name} widgets provide the same parent data`);
-        types.add(widget.parentDataType);classes.add(widget.constructor);widgets.push(widget);}
-      parent=parent.parent;
+        types.add(widget.parentDataType);classes.add(widget.constructor);widgets.push(widget);
     }
     const captured=widgets??emptyParentDataWidgets;
     if(this.appliedData===this.renderObject.parentData&&captured.length===this.appliedWidgets?.length&&captured.every((widget,index)=>widget===this.appliedWidgets![index]))return;
@@ -616,8 +659,9 @@ export class RenderObjectElement extends Element {
     for(const widget of captured)this.applyParentDataWidget(widget);this.appliedData=this.renderObject.parentData;this.appliedWidgets=captured;
   }
   /** Normalize after queued component builds, which can create a previous sibling later. */
-  protected synchronizeRenderObjectChildren():void{this.renderObject.setChildren(childRenderObjects(this.children));}
-  override syncRenderTree():void {if(!this.renderTreeSyncDirty)return;try{super.syncRenderTree();this.synchronizeRenderObjectChildren();}catch(error){this.renderTreeSyncDirty=true;throw error;}}
+  protected synchronizeRenderObjectChildren():void{const expected=childRenderObjects(this.children),actual=this.renderObject.children;if(expected.length===actual.length&&expected.every((child,index)=>child===actual[index]))return;this.renderObject.setChildren(expected);}
+  /** @internal Invoked once per dirty owner, after queued sibling builds. */
+  _commitRenderChildren():void{this.synchronizeRenderObjectChildren();}
   override unmount():void {
     if(!this.mounted)return;let errors:unknown[]|undefined;
     // Keep every retirement stage and its live receiver even after a failure,

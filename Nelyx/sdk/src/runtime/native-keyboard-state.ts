@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type {ReactNativePlatform} from '@nelyx/core/hosting/platform';
+import type {PlatformId} from '@nelyx/core/hosting/platform';
 import {LogicalKeyboardKey} from '@nelyx/core/services/keyboard-key';
 import {scanCodeToPhysical,keyCodeToLogical} from '@nelyx/core/services/android-key-map';
 import {windowsPhysicalKeyId,windowsLogicalKeyId} from '@nelyx/core/services/windows-engine-key-map';
 import {StandardMethodCodec} from '@nelyx/core/services/message-codecs';
 import {MissingPluginException,PlatformException} from '@nelyx/core/services/message-codec';
-import type {PluginPlatformMessagePort} from '../../runtime/plugin-port.ts';
+import type {PluginPlatformMessagePort} from './plugin-port.ts';
 
 function invalid(message:string):never{throw new PlatformException({code:'native-keyboard-state',message});}
 /** Native producer observations use actual VK/keyCode and scan fields. This
@@ -30,9 +30,8 @@ export function decodeNativeKeyboardState(value:unknown,target:'windows'|'androi
 }
 
 /** Register the actual optional Flutter method before ServicesBinding.ready. */
-export function installNativeKeyboardState(port:PluginPlatformMessagePort,modules:Readonly<Record<string,unknown>>,target:ReactNativePlatform):void{
-  const candidate=target==='windows'?modules.RNSkiaModule:target==='android'?modules.NelyxPlatformServices:undefined;
-  const module=candidate&&typeof candidate==='object'?candidate as {getKeyboardState?:()=>PromiseLike<unknown>}:undefined;
+export function installNativeKeyboardState(port:PluginPlatformMessagePort,source:unknown,target:Exclude<PlatformId,'web'>):void{
+  const module=source&&typeof source==='object'?source as {getKeyboardState?:()=>PromiseLike<unknown>}:undefined;
   port.registerMethod('flutter/keyboard',new StandardMethodCodec(),async(call,{signal})=>{
     if(call.method!=='getKeyboardState'||signal.aborted||typeof module?.getKeyboardState!=='function'||target!=='windows'&&target!=='android')throw new MissingPluginException();
     let snapshot:unknown;

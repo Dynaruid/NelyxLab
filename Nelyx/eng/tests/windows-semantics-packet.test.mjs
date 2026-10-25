@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {windowsSemanticsPacket,performWindowsSemanticsAction} from '../../sdk/dist/backends/react-native/windows-semantics-packet.js';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {windowsSemanticsPacket,performWindowsSemanticsAction} from '../../sdk/dist/platforms/windows/semantics-packet.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {WindowsSemanticsActions} from '../../sdk/dist/backends/react-native/windows-semantics-actions.js';
-const timeout=1_200_000,owner={id:'Core View',generation:1},surface={nativeReactTag:42,nativeSurfaceGeneration:3,viewportGeneration:2};
+const timeout=1_200_000,owner={id:'Core View',generation:1},surface={surfaceId:42,nativeSurfaceGeneration:3,viewportGeneration:2};
 const field=()=>({id:'field',sourceNodeId:7,role:'text-field',name:'Core',bounds:{x:1,y:2,width:100,height:30},enabled:true,focusable:true,focused:false,textInputRevision:11,textRevision:4,textInputGeneration:5,value:'A😀B',textSelection:{anchor:1,focus:3},textNavigation:{characters:[0,1,3,4]},actions:{focus(){}},textActions:{setText(){},setSelection(){}}});
 const geometry={coordinates:'view-logical',owner,viewportGeneration:2,nativeSurfaceGeneration:3,layoutEpoch:8,scale:1,transform:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],bounds:{x:1,y:2,width:100,height:30},clip:{x:1,y:2,width:100,height:30},caret:{x:5,y:2,width:1,height:20},caretBaseline:{x:5,y:18},selectionRects:[]};
 const paragraph={resource:{id:'paragraph',generation:1},reference:{protocol:'native-paragraph-v1',token:9},paintOffset:{x:-10,y:0}};
 
 test('Windows absolute range values stay typed and use only the current enabled Core control',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
   const slider=(value=25)=>({id:'slider',sourceNodeId:9,role:'group',name:'Level',bounds:{x:0,y:0,width:100,height:30},enabled:true,isSlider:true,value:value+'%',numericRange:{min:-100,max:100,value,smallChange:5},rangeActions:{setValue:value=>calls.push(value)}}),binding=interaction.semantics.bind([slider()]);
   try{
     const node=interaction.node('slider','group'),packet=windowsSemanticsPacket(node,owner,surface,interaction.snapshot()),event={protocol:1,id:'slider',source:9,commit:packet.commit,kind:'set-range-value',value:37.5};
@@ -25,7 +25,7 @@ test('Windows absolute range values stay typed and use only the current enabled 
 
 test('range dispatch is synchronous, single use and revoked by observer reentrancy',{timeout},()=>{
   for(const mode of ['once','replace','defer']){
-    const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];let saved,binding;
+    const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];let saved,binding;
     const node=()=>({id:'range',role:'group',name:'Range',bounds:{x:0,y:0,width:30,height:20},enabled:true,numericRange:{min:0,max:10,value:2},rangeActions:{setValue:value=>calls.push(value)}});
     binding=interaction.semantics.bind([node()],{dispatchAction(){},dispatchRangeAction(_id,action,perform){assert(Object.isFrozen(action));saved=perform;if(mode==='replace')binding.update([node()]);if(mode!=='defer'){perform();perform();}}});
     try{assert.equal(interaction.performRangeAction('range',{kind:'set-range-value',value:7}),mode==='once');saved();assert.deepEqual(calls,mode==='once'?[7]:[]);}
@@ -34,7 +34,7 @@ test('range dispatch is synchronous, single use and revoked by observer reentran
 });
 
 test('Windows range reveal is typed, readonly-safe and fenced by the current Core snapshot',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
   const source={...field(),readOnly:true,textActions:{scrollRange:(start,end,top)=>calls.push([start,end,top])}},binding=interaction.semantics.bind([source]);
   try{
     const node=interaction.node('field','text-field'),packet=windowsSemanticsPacket(node,owner,surface,interaction.snapshot()),event={protocol:1,id:'field',source:7,commit:packet.commit,kind:'scroll-range',revision:11,generation:5,start:1,end:3,alignToTop:false};
@@ -45,7 +45,7 @@ test('Windows range reveal is typed, readonly-safe and fenced by the current Cor
 });
 
 test('Windows Invoke dispatches one stamped Core action and rejects replaced or disabled sources',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
   const button=(enabled=true)=>({id:'button',sourceNodeId:8,role:'button',name:'Action',bounds:{x:0,y:0,width:30,height:20},enabled,actions:{activate:()=>calls.push('activated')}});
   const binding=interaction.semantics.bind([button()]);
   try{
@@ -66,7 +66,7 @@ test('Windows semantics copies Core identities/revisions, withdraws mismatched f
   const label=windowsSemanticsPacket({...field(),role:'text',textRevision:undefined,textInputRevision:undefined,textInputGeneration:undefined},owner,surface,0);assert.equal(label.text,null);
 });
 test('Windows native action stamps cannot acquire a newer snapshot, editing owner or listener',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];let binding;
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];let binding;
   const publish=(generation=5)=>({...field(),textInputGeneration:generation,actions:{focus:()=>calls.push('focus')},textActions:{setText:text=>calls.push(text),setSelection:value=>calls.push(value)}});
   try{
     binding=interaction.semantics.bind([publish()]);const node=interaction.node('field','text-field'),packet=windowsSemanticsPacket(node,owner,surface,interaction.snapshot()),event={protocol:1,id:'field',source:7,commit:packet.commit,kind:'set-text',revision:11,generation:5,text:'Core'};
@@ -80,7 +80,7 @@ test('Windows native action stamps cannot acquire a newer snapshot, editing owne
 });
 
 test('committed Windows action history preserves typed text/range checks across queued geometry updates',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),queue=new WindowsSemanticsActions(),calls=[];
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),queue=new WindowsSemanticsActions(),calls=[];
   const publishField=(y,changes={})=>({...field(),bounds:{x:1,y,width:100,height:30},textActions:{setText:text=>calls.push(text)},...changes});
   const binding=interaction.semantics.bind([publishField(0)]),publish=()=>{const node=interaction.semanticNodes[0],packet=windowsSemanticsPacket(node,owner,surface,interaction.snapshot());queue.publish(interaction,node,packet);return packet;};
   try{
@@ -96,7 +96,7 @@ test('committed Windows action history preserves typed text/range checks across 
 
 test('Windows action history retires privacy/capability transitions, replaced sources and backing generations',{timeout},()=>{
   for(const change of [{enabled:false},{focusable:false},{readOnly:true},{obscured:true,textNavigation:undefined},{sourceNodeId:8},{textInputGeneration:6}]){
-    const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),queue=new WindowsSemanticsActions(),calls=[];
+    const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),queue=new WindowsSemanticsActions(),calls=[];
     const node=extra=>({...field(),actions:{focus:()=>calls.push('focus')},...extra}),binding=interaction.semantics.bind([node()]);
     const publish=(where=surface)=>{const current=interaction.semanticNodes[0],packet=windowsSemanticsPacket(current,owner,where,interaction.snapshot());queue.publish(interaction,current,packet);return packet;};
     try{
@@ -111,7 +111,7 @@ test('Windows action history retires privacy/capability transitions, replaced so
 });
 
 test('Windows focus history has a finite published-commit window and rejects unknown or forged receipts',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),queue=new WindowsSemanticsActions(),calls=[];
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),queue=new WindowsSemanticsActions(),calls=[];
   const node=y=>({...field(),bounds:{...field().bounds,y},actions:{focus:()=>calls.push(y)}}),binding=interaction.semantics.bind([node(0)]);
   const publish=()=>{const current=interaction.semanticNodes[0],packet=windowsSemanticsPacket(current,owner,surface,interaction.snapshot());queue.publish(interaction,current,packet);return packet;};
   try{

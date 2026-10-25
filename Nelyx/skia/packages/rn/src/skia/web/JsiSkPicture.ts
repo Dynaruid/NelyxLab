@@ -1,11 +1,11 @@
 // TODO: suggest to rename SkPicture to Picture for consistency
 import type { CanvasKit, SkPicture as Picture } from "canvaskit-wasm";
 
-import type {FilterMode} from "../types/Drawing.ts";
-import type {SkRect} from '../types/Rect.ts';
-import type {TileMode} from '../types/ImageFilter/ImageFilter.ts';
-import type {SkPicture} from "../types/Drawing.ts";
-import type {SkMatrix} from "../types/Drawing.ts";
+import type {FilterMode} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {TileMode} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkMatrix} from "@nelyx/skia-native/skia/types/Drawing";
 
 import {HostObject, getEnum} from './Host.ts';
 import {JsiSkShader} from './JsiSkShader.ts';

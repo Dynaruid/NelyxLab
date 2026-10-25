@@ -33,10 +33,16 @@ test('re-supply retains one candidate, replaces equal-version installed bytes an
     fs.mkdirSync(packages, {recursive: true});
     json(path.join(app, 'package.json'), {private: true});
     json(path.join(runner, 'package.json'), {name: 'isolated-runner', version: '0.1.0', private: true});
-    for (const name of ['core', 'sdk', 'skia-rn', 'skia-web', 'metro', 'cli']) pack(name, 1);
+    for (const name of ['core', 'sdk', 'skia-native', 'skia-rn', 'skia-web', 'metro', 'cli']) pack(name, 1);
     assert.throws(()=>supplyRunner({app,target:'web',packages}),/one nelyx-static-aot-/,'A local CLI supply must include its typed tooling dependency');
     pack('static-aot',1);
     supplyRunner({app, target: 'web', packages}); install();
+    assert.equal(JSON.parse(fs.readFileSync(path.join(runner,'package.json'))).dependencies['@nelyx/skia-native'],undefined,'A shared pack directory must not add the native Engine to Web');
+    supplyRunner({app,target:'web',packages,extra:{'@nelyx/skia-native':'file:'+path.join(packages,'nelyx-skia-native-0.1.0.tgz')}});install();
+    assert(fs.existsSync(path.join(runner,'node_modules/@nelyx/skia-native')));
+    supplyRunner({app,target:'web',packages});install();
+    assert.equal(JSON.parse(fs.readFileSync(path.join(runner,'package.json'))).dependencies['@nelyx/skia-native'],undefined);
+    assert(!fs.readdirSync(path.join(app,'.nelyx/supply/web')).some(file=>file.startsWith('nelyx-skia-native-')));
     const installedCore = path.join(runner, 'node_modules/@nelyx/core/value.js');
     assert.equal(fs.readFileSync(installedCore, 'utf8'), 'export const revision = 1;\n');
     const supply = path.join(app, '.nelyx/supply/web');

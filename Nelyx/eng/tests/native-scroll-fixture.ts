@@ -10,8 +10,8 @@ import {SliverMultiBoxAdaptorElement} from '@nelyx/core/framework/widgets/sliver
 import {RenderSliverMultiBoxAdaptor} from '@nelyx/core/framework/rendering/sliver-multi-box-adaptor';
 import {PipelineOwner} from '@nelyx/core/framework/rendering/object';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
-import {GraphiteRenderer} from '@nelyx/skia-rn/renderer';
-import {ReactNativeTextLayoutService} from '@nelyx/skia-rn/text';
+import {GraphiteRenderer} from '@nelyx/skia-native/renderer';
+import {NativeTextLayoutService} from '@nelyx/skia-native/text';
 import {Curves} from '@nelyx/core/framework/animation/curves';
 import {transform} from '@nelyx/core/ui/geometry';
 import {FlutterError} from '@nelyx/core/foundation/flutter-error';
@@ -48,7 +48,7 @@ export function installNativeScrollProbe(sample:any,configuration:{scope:'cpu'|'
   if(options.scope==='diagnostic'){
     // These spans are inclusive. They are never added together or mixed into a
     // minimal CPU qualification; native recording lies inside Renderer.submit.
-    for(const [type,name,label]of [[FrameworkRoot,'build','Root.build'],[FrameworkRoot,'recordPaint','Paint.record'],[ViewRuntime,'buildPending','Runtime.buildPending'],[BuildOwner,'flushBuild','Widgets.build'],[BuildOwner,'buildScope','Widgets.scope'],[BuildOwner,'finalizeTree','Widgets.retire'],[SliverMultiBoxAdaptorElement,'createChild','Sliver.createChild'],[SliverMultiBoxAdaptorElement,'finishQueuedChildren','Sliver.finishQueued'],[RenderSliverMultiBoxAdaptor,'insertAndLayoutChild','Item.trailingBuildLayout'],[RenderSliverMultiBoxAdaptor,'insertAndLayoutLeadingChild','Item.leadingBuildLayout'],[PipelineOwner,'flushLayout','Layout'],[PipelineOwner,'flushSemantics','Semantics'],[PaintingContext,'compose','Paint.compose'],[GraphiteRenderer,'submit','Renderer.submit'],[ReactNativeTextLayoutService,'layout','Text.layout']] as const){
+    for(const [type,name,label]of [[FrameworkRoot,'build','Root.build'],[FrameworkRoot,'recordPaint','Paint.record'],[ViewRuntime,'buildPending','Runtime.buildPending'],[BuildOwner,'flushBuild','Widgets.build'],[BuildOwner,'buildScope','Widgets.scope'],[BuildOwner,'finalizeTree','Widgets.retire'],[SliverMultiBoxAdaptorElement,'createChild','Sliver.createChild'],[SliverMultiBoxAdaptorElement,'finishQueuedChildren','Sliver.finishQueued'],[RenderSliverMultiBoxAdaptor,'insertAndLayoutChild','Item.trailingBuildLayout'],[RenderSliverMultiBoxAdaptor,'insertAndLayoutLeadingChild','Item.leadingBuildLayout'],[PipelineOwner,'flushLayout','Layout'],[PipelineOwner,'flushSemantics','Semantics'],[PaintingContext,'compose','Paint.compose'],[GraphiteRenderer,'submit','Renderer.submit'],[NativeTextLayoutService,'layout','Text.layout']] as const){
       const prototype=type.prototype as any,original=prototype[name];check(typeof original==='function','Missing diagnostic span '+label);
       prototype[name]=function(...args:any[]){if(!active)return original.apply(this,args);const began=now();try{return original.apply(this,args);}finally{sampleTime(label,now()-began);}};
       restoreSpans.push(()=>{prototype[name]=original;});
@@ -72,7 +72,7 @@ export function installNativeScrollProbe(sample:any,configuration:{scope:'cpu'|'
     // owned window to be activated before measurement; no input is injected
     // and the existing per-phase foreground/visibility guards stay required.
     api.log('NELYX_NATIVE_PROBE_FOREGROUND_WAIT');
-    for(let attempt=0;attempt<20;attempt++){await delay(500);if(api.diagnosticState().foreground){await ready();return;}}
+    for(let attempt=0;attempt<60;attempt++){await delay(500);if(api.diagnosticState().foreground){await ready();return;}}
     throw Error('Owned native window could not acquire foreground');
   }
   function tap(id:string){const node=view.controller.nodes.find((node:any)=>node.id===id);check(node&&node.enabled!==false&&(node.actions?.activate||node.activate),'Missing action '+id);if(node.actions?.activate)node.actions.activate();else node.activate();}

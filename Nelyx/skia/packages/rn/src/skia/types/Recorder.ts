@@ -7,7 +7,7 @@ import type {NodeType} from '../../dom/types/NodeType.ts';
 import type {ParagraphProps} from '../../dom/types/Paragraph.ts';
 import type {AnimatedProps} from '../../renderer/processors/Animations/Animations.ts';
 
-import type {SkPicture} from "./Drawing.ts";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
 
 export interface BaseRecorder {
   saveGroup(props?: AnimatedProps<Pick<DrawingNodeProps, "zIndex">>): void;

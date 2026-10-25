@@ -16,7 +16,7 @@ export function verifyWindowsInputs({runner,input}){
   }
   for(const name of [...manifest.libraries,manifest.icu])if(!names.has(relativeFile(name).toLowerCase()))throw new Error('Unlisted native library/ICU input');
   const headers=localFile(root,manifest.headers);if(!fs.statSync(headers).isDirectory()||fileTree(headers).some(name=>!names.has((manifest.headers+'/'+name).toLowerCase())))throw new Error('Unlisted native header');
-  const binding=path.join(runner,'node_modules/@nelyx/skia-rn'),required=['cpp','generated/core','generated/gpu','generated/vulkan','generated/host','native/vulkan'].flatMap(folder=>fileTree(localFile(binding,folder)).map(name=>folder+'/'+name));
+  const binding=path.join(runner,'node_modules/@nelyx/skia-rn'),required=['generated/jsi','generated/native-vulkan','generated/core','generated/gpu','generated/vulkan','generated/host','native/vulkan'].flatMap(folder=>fileTree(localFile(binding,folder)).map(name=>folder+'/'+name));
   if(required.length!==Object.keys(manifest.sources).length||required.some(name=>!Object.hasOwn(manifest.sources,name)))throw new Error('Compiled native source inventory incomplete');
   for(const [name,digest]of Object.entries(manifest.sources))if(!/^[a-f0-9]{64}$/.test(digest)||sha256(localFile(binding,name))!==digest)throw new Error('Compiled native source mismatch: '+name);
   return {input,root,manifest,sha256:sha256(input),files:manifest.files.length,bytes};

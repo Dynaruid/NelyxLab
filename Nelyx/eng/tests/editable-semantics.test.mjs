@@ -17,7 +17,7 @@ import {TextStyle} from '@nelyx/core/framework/painting/text-style';
 import {ScrollController} from '@nelyx/core/framework/widgets/scroll-controller';
 import {graphemeBoundaries} from '@nelyx/core/foundation/grapheme-boundaries';
 import {freezeSemantics} from '@nelyx/core/framework/semantics/semantics';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
 
 const timeout=1_200_000;
@@ -33,7 +33,7 @@ function input(f){
   return records;
 }
 async function setup(){
-  const f=await engineFixture({fonts:true}),interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls'});
+  const f=await engineFixture({fonts:true}),interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls'});
   f.root.context.semantics=interaction.semantics;const records=input(f);
   return {f,interaction,records,async close(){await f.close();interaction.dispose();}};
 }
@@ -136,7 +136,7 @@ test('global accessibility observers cannot apply an old edit over a reentrant c
 });
 
 test('native typed-action dispatch freezes payloads, executes once, and fences source lifetime, revision and late callbacks',{timeout},()=>{
-  const interaction=new ReactNativeInteraction({id:'typed-action-port',generation:1},{commands:true,semantics:'native-controls'}),calls=[];
+  const interaction=new NativeInteraction({id:'typed-action-port',generation:1},{commands:true,semantics:'native-controls'}),calls=[];
   const node=(sourceNodeId=1,textInputRevision=1,value='A😀B',textInputGeneration=1)=>({id:'field',sourceNodeId,textInputRevision,textInputGeneration,value,role:'text-field',name:'Field',enabled:true,bounds:{x:0,y:0,width:100,height:50},textActions:{setText:text=>calls.push(text),setSelection:selection=>calls.push(selection)}});
   let perform,mode='twice',payload,original;
   const binding=interaction.semantics.bind([node()],{dispatchAction(){},dispatchTextAction(_id,action,callback){payload=action;perform=callback;if(mode==='twice'){original.text='mutated';callback();callback();}else if(mode==='source'){binding.update([node(2)]);callback();}else if(mode==='revision'){binding.update([node(1,2)]);callback();}else if(mode==='value'){binding.update([node(1,1,'other')]);callback();}else if(mode==='generation'){binding.update([node(1,1,'A😀B',2)]);callback();}}});

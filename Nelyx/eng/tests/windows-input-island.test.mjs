@@ -7,7 +7,7 @@ test('Windows ContentIsland pre-translation uses the actual input HWND and prese
   const runner=fs.realpathSync(process.env.NELYX_WINDOWS_TEST_RUNNER??path.join(root,'sample/nelyx-testbed-app-2/windows/runner')),rnw=path.join(runner,'node_modules/react-native-windows');
   assert.equal(JSON.parse(fs.readFileSync(path.join(rnw,'package.json'))).version,'0.83.2');assert(fs.statfsSync(root).bavail*fs.statfsSync(root).bsize>=20*1024**3,'Need 20 GiB for native build');
   const vs=run(path.join(process.env['ProgramFiles(x86)'],'Microsoft Visual Studio/Installer/vswhere.exe'),['-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath']).trim();assert(vs);
-  const binding=path.join(runner,'node_modules/@nelyx/skia-rn'),include=[binding,...['native/windows','generated/core','generated/gpu','generated/vulkan','cpp','cpp/rnskia','cpp/api','cpp/jsi','cpp/utils','generated/sdk/skia'].map(name=>path.join(binding,name))];
+  const binding=path.join(runner,'node_modules/@nelyx/skia-rn'),include=[binding,...['native/windows','generated/core','generated/gpu','generated/vulkan','generated/host','generated/jsi','generated/native-vulkan','generated/jsi/rnskia','generated/jsi/api','generated/jsi/jsi','generated/jsi/utils','generated/sdk/skia'].map(name=>path.join(binding,name))];
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-windows-input-island-')),entry=path.join(runner,'nelyx-input-bridge-'+process.pid+'.tsx');let entryOwned=false;
   try{
     fs.writeFileSync(path.join(directory,'pch.h'),'#pragma once\n#include <windows.h>\n#undef GetCurrentTime\n#include <CppWinRTIncludes.h>\n#include <NativeModules.h>\n');

@@ -1,4 +1,4 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type {
   Canvas,
   CanvasKit,
@@ -6,24 +6,24 @@ import type {
   FilterOptions as CKFilterOptions,
 } from "canvaskit-wasm";
 
-import {type BlendMode} from '../types/Paint/BlendMode.ts';
-import {type ClipOp, type SaveLayerFlag, type SkCanvas} from "../types/Drawing.ts";
-import {type FilterMode, type MipmapMode, type SkImage, type CubicResampler, type FilterOptions, isCubicSampling} from "../types/Drawing.ts";
-import {type PointMode, type SkPoint} from '../types/Point.ts';
-import {type ImageInfo} from "../types/Drawing.ts";
-import {type SkColor} from '../types/Color.ts';
-import {type SkFont} from "../types/Drawing.ts";
-import {type SkImageFilter} from '../types/ImageFilter/ImageFilter.ts';
-import {type SkMatrix} from "../types/Drawing.ts";
-import {type SkPaint} from "../types/Drawing.ts";
-import {type SkPath} from "../types/Drawing.ts";
-import {type SkPicture} from "../types/Drawing.ts";
-import {type SkRect} from '../types/Rect.ts';
-import {type InputRRect} from '../types/RRect.ts';
-import {type SkSVG} from '../types/SVG/SVG.ts';
-import {type SkTextBlob} from "../types/Drawing.ts";
-import {type SkVertices} from '../types/Vertices/Vertices.tsx';
-import {type SkRSXform} from '../types/RSXform.ts';
+import {type BlendMode} from "@nelyx/skia-native/skia/types/Paint/BlendMode";
+import {type ClipOp, type SaveLayerFlag, type SkCanvas} from "@nelyx/skia-native/skia/types/Drawing";
+import {type FilterMode, type MipmapMode, type SkImage, type CubicResampler, type FilterOptions, isCubicSampling} from "@nelyx/skia-native/skia/types/Drawing";
+import {type PointMode, type SkPoint} from "@nelyx/skia-native/skia/types/Point";
+import {type ImageInfo} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkColor} from "@nelyx/skia-native/skia/types/Color";
+import {type SkFont} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkImageFilter} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
+import {type SkMatrix} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkPaint} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkPath} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import {type InputRRect} from "@nelyx/skia-native/skia/types/RRect";
+import {type SkSVG} from "@nelyx/skia-native/skia/types/SVG/SVG";
+import {type SkTextBlob} from "@nelyx/skia-native/skia/types/Drawing";
+import {type SkVertices} from "@nelyx/skia-native/skia/types/Vertices/Vertices";
+import {type SkRSXform} from "@nelyx/skia-native/skia/types/RSXform";
 
 import {getEnum, HostObject} from './Host.ts';
 import {JsiSkPaint} from './JsiSkPaint.ts';

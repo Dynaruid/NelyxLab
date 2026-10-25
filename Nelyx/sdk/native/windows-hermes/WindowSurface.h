@@ -11,7 +11,7 @@
 #include "rnskia/RNSkWindowSurface.h"
 #include "rnskia/RNSkGraphiteTarget.h"
 #include "device.h"
-#include "WindowsFrameWorker.h"
+#include "windows/WindowsFrameWorker.h"
 
 namespace Nelyx::NativeHermes {
 using Microsoft::WRL::ComPtr;

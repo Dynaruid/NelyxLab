@@ -6,7 +6,7 @@ import {windowsSurfaceEnvelope} from './windows-surface-envelope.ts';
 import type {ReactNode,Ref} from 'react';
 import type {TextInput} from 'react-native';
 import type {ReactNativeBackend} from './registration.ts';
-import type {ReactNativeInteraction} from './interaction.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 import {createAndroidEditor} from './android-editor.tsx';
 import {editorColor} from '../editor-style.ts';
 export interface NativeStyle { readonly [property: string]: string | number | boolean | undefined }
@@ -17,9 +17,9 @@ export interface NativeTextFieldProps {
   readonly onText: (text: string, revision: number) => void;
   readonly onSelection: (start: number, end: number) => void;
   readonly onFocus: () => void; readonly onBlur: () => void;
-  readonly interaction?: ReactNativeInteraction; readonly controlId?: string;
+  readonly interaction?: NativeInteraction; readonly controlId?: string;
 }
-export interface NativeButtonProps extends NativeLayerProps {readonly label:string;readonly onActivate:()=>void;readonly interaction?:ReactNativeInteraction;readonly controlId?:string;}
+export interface NativeButtonProps extends NativeLayerProps {readonly label:string;readonly onActivate:()=>void;readonly interaction?:NativeInteraction;readonly controlId?:string;}
 /** Components are created once per platform composition and resolve initialized modules when rendered. */
 export function createReactNativeControls(getBackend:()=>Pick<ReactNativeBackend,'react'|'native'>) {
 const AndroidEditor=createAndroidEditor(getBackend);

@@ -4,7 +4,7 @@ import type {ViewRuntime} from '@nelyx/core/hosting/runtime';
 import type {PointerEvent} from '@nelyx/core/ui/input';
 import type {WindowsWheelEvent,WindowsPointerEvent} from '@nelyx/skia-rn/views/types';
 interface NativeMouseEvent {readonly protocol:1;readonly nativeId:number;readonly kind:'hover'|'leave';readonly device:'mouse'|'pen';readonly pointer:number;readonly buttons:number;readonly x:number;readonly y:number;readonly timestamp:number}
-import {WindowsKeyConnection,windowsKeyConnection,windowsKeyboardRoute} from './windows-keyboard-input.ts';
+import {WindowsKeyConnection,windowsKeyConnection,windowsKeyboardRoute} from '../../platforms/windows/keyboard-input.ts';
 import {androidPointerInput} from './android-pointer-input.ts';
 import {windowsMonotonicTimestamp} from '../../platforms/windows/frame-clock.ts';
 /** Fabric publishes logical local coordinates. Platform event availability is qualified separately. */

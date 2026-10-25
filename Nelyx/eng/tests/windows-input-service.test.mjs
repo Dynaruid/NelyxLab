@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {WindowsInputService} from '../../sdk/dist/backends/react-native/windows-input-service.js';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {WindowsInputService} from '../../sdk/dist/platforms/windows/input-service.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {PendingDisposalError} from '@nelyx/core/foundation/disposable';
 const timeout=1_200_000;
 const defer=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(){
- const owner={id:'windows-service-sdk',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),changed=[],reports=[],commands=[],closes=[],listeners=new Set();let identity=10,opening,disconnecting;
+ const owner={id:'windows-service-sdk',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),changed=[],reports=[],commands=[],closes=[],listeners=new Set();let identity=10,opening,disconnecting;
  const events={addListener(name,callback){assert.equal(name,'nelyxWindowsInput');listeners.add(callback);return {remove(){listeners.delete(callback);}};}};
  const module={getInputProtocol:()=>3,insertText:async()=>({status:"unavailable",revision:0}),connect:async()=>++identity,openClient:async(...args)=>{commands.push(['open',...args]);return opening?await opening.promise:true;},configureClient:async(...args)=>{commands.push(['configure',...args]);return true;},command:async(...args)=>{commands.push(['command',...args]);return true;},closeClient:async(...args)=>{closes.push(args);return true;},disconnect:async(...args)=>{commands.push(['disconnect',...args]);return disconnecting?await disconnecting.promise:true;}};
  const initial={session:owner,text:'seed',selection:{anchor:4,focus:0},revision:0,source:'programmatic',composing:{status:'none'}};let binding=interaction.editing.bind(owner,initial,value=>changed.push(value),{id:'field'});

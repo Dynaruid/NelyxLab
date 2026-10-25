@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {WindowsKeyQueue} from '../../sdk/dist/backends/react-native/windows-key-queue.js';
+import {WindowsKeyQueue} from '../../sdk/dist/platforms/windows/key-queue.js';
 import {nativeInputProps} from '../../sdk/dist/backends/react-native/input.js';
 const timeout=1_200_000,turn=()=>new Promise(resolve=>setImmediate(resolve));
 const defer=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};

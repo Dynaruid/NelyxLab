@@ -1,11 +1,12 @@
+import type {NativeKeyObservation,NativeKeyboardFocusObservation,NativeTextObservation} from '@nelyx/core/ui/input';
 import type { ViewProps,NativeSyntheticEvent } from "react-native";
 import type { SharedValue } from '../runtime/shared-value.ts';
 
-import type {SkGraphiteContext} from '../skia/types/Graphite.ts';
-import type {SkImage} from "../skia/types/Drawing.ts";
-import type {SkPicture} from "../skia/types/Drawing.ts";
-import type {SkRect} from '../skia/types/Rect.ts';
-import type {SkSize} from '../skia/types/Size.ts';
+import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
+import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {SkSize} from "@nelyx/skia-native/skia/types/Size";
 
 export type AndroidSurfaceType = "SurfaceView" | "TextureView";
 
@@ -68,9 +69,9 @@ export interface SkiaBaseViewProps extends ViewProps {
   onWindowsWheel?:(event:NativeSyntheticEvent<WindowsWheelEvent>)=>void;
   /** Owned Windows pointer port; full native source and view lifetime are required. */
   onWindowsPointer?:(event:NativeSyntheticEvent<WindowsPointerEvent>)=>void;
-  onWindowsKey?:(event:NativeSyntheticEvent<WindowsKeyEvent>)=>void;
-  onWindowsKeyboardFocus?:(event:NativeSyntheticEvent<WindowsKeyboardFocusEvent>)=>void;
-  onWindowsText?:(event:NativeSyntheticEvent<WindowsTextEvent>)=>void;
+  onWindowsKey?:(event:NativeSyntheticEvent<NativeKeyObservation>)=>void;
+  onWindowsKeyboardFocus?:(event:NativeSyntheticEvent<NativeKeyboardFocusObservation>)=>void;
+  onWindowsText?:(event:NativeSyntheticEvent<NativeTextObservation>)=>void;
   /** Windows per-view binding/backing status; visible scanout is a separate check. */
   onWindowsSurfaceStatus?: (event:NativeSyntheticEvent<WindowsSurfaceStatus>)=>void;
   /** Apple per-view backing/lifetime metadata; native qualification is separate. */
@@ -136,17 +137,6 @@ export interface WindowsPointerEvent {
   readonly timestamp?:number;readonly sequence?:number;
   readonly panX?:number;readonly panY?:number;readonly deltaX?:number;readonly deltaY?:number;readonly scale?:number;readonly rotation?:number;
 }
-export interface WindowsKeyboardFocusEvent {readonly protocol:1;readonly sequence:number;readonly focused:boolean;readonly viewGeneration:number}
-export interface WindowsTextEvent {readonly protocol:1;readonly sequence:number;readonly viewGeneration:number;readonly characterCodePoint:number;readonly repeatCount:number;readonly focusEpoch:number}
-export interface WindowsKeyEvent {
-  readonly timestamp?:number;
-  readonly protocol:1;readonly sequence:number;readonly viewGeneration:number;
-  readonly kind:'down'|'up';readonly keyCode:number;readonly scanCode:number;readonly characterCodePoint:number;readonly modifiers:number;
-  readonly repeat:boolean;readonly repeatCount:number;readonly dead:boolean;
-  readonly focusEpoch:number;
-  readonly capsLock:boolean;readonly numLock:boolean;readonly scrollLock:boolean;
-}
-
 export interface SkiaPictureViewNativeProps extends SkiaBaseViewProps {
   picture?: SkPicture;
 }

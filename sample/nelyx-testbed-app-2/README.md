@@ -71,7 +71,7 @@ node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot
 
 These commands prepare the pinned direct Hermes supplier and build the same application entry with the HWND/Skia/TSF/UIA host. They require Windows x64, the current pinned Skia inputs, VS C++ tools, LLVM and CMake/Ninja. Close the window before rebuilding its current package. The outputs are `.nelyx/native-windows/current-bytecode` and `current-static-aot` inside this app. For external apps, use the installed CLI's [`--host native-hermes` commands](../../Nelyx/sdk/tooling/cli/README.md#native-prerequisites).
 
-RNW remains the default host and Hermes remains the default engine. Direct-host performance, physical Korean IME/trackpad input and matching display acceptance remain open in [W17](../../work17.md).
+RNW remains the default host and Hermes remains the default engine. The common native package owns rendering, text and JSI bindings; the direct host does not resolve the RN adapter. Direct-host performance, physical Korean IME/trackpad input and matching display acceptance remain open in the active [W18](../../work18.md).
 
 This Testbed also has a developer probe for programmatic ListView/catalog scrolling:
 
@@ -82,7 +82,7 @@ node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --input os --scope c
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --scope cpu --viewport maximized --resource-cycles 6
 ```
 
-`--resource-cycles 3..30` repeats the real app's ListView cold/revisit scrolls, first/last rows and return to the gallery after the programmatic diagnostic. It requires baseline Core producers, tree and native frame owners, equal residency in the last three cycles, and the existing 64-entry/32MiB picture cache bounds. Private process memory, GPU memory, physical input, display and full H4 acceptance remain separate.
+`--resource-cycles 3..30` repeats the real app's ListView cold/revisit scrolls, first/last rows and return to the gallery after the programmatic diagnostic. It requires baseline Core producers, tree and drained native frame owners, and reports cache residency for every cycle. It does not impose a fixed cache size or identical tail residency; the chosen cache owner supplies its retention/release policy. Private process memory, GPU memory, physical input, display and full H4 acceptance remain separate.
 
 A separate memory probe exercises the current delivered packages through UIA and guarded OS wheel input, without another JS entry or AOT image:
 
@@ -92,7 +92,7 @@ node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot --build-only
 node Nelyx/eng/run-native-memory.mjs --hermes-mode both --viewport both --cycles 6
 ```
 
-This attempts 24 route cycles across four fresh processes and stops at the first rejected observation. `--cycles` is bounded to 3..30 per process and at most 30 across one invocation. Each process reports private commit and actual Vulkan allocation/import ownership after returning to the gallery. Caps are 1GiB private commit and 512MiB Vulkan allocations; the last three points must stay within 8MiB/1MiB bands with at most 1MiB/64KiB net growth and no net allocation-count growth. Signed/absolute native wheel volume, process identity, viewport and focus must remain valid. Input frame trace is enabled for memory observations; CPU performance qualification is separate. Vulkan allocator bytes do not establish GPU driver residency, physical input, display or full H4 acceptance. A rejected observation exits with code 1 after stopping its owned application. The probe stops its owned applications on success, failure or interruption and retains no log or temporary package.
+This attempts 24 route cycles across four fresh processes and stops at the first invalid observation. `--cycles` is bounded to 3..30 per process and at most 30 across one invocation. Each process reports private commit, working set, peak private commit and Vulkan allocation/import counters after returning to the gallery, including all samples and the final three-point changes. These measurements have no fixed global byte caps, plateau band or zero-growth requirement. W18 permits memory needed by the selected architecture; purpose, retention/release policy, actual performance and owner retirement are evaluated separately. Successful observation reports `assessment: observation-only` and `memoryAccepted: false`; it does not prove a leak or its absence. Signed/absolute native wheel volume, process identity, viewport and focus must remain valid. Input frame trace is enabled for memory observations; CPU performance qualification is separate. Vulkan allocator bytes do not establish GPU driver residency, physical input, display or full H4 acceptance. An invalid observation exits with code 1 after stopping its owned application. The probe stops its owned applications on success, failure or interruption and retains no log or temporary package.
 
 The external client also reports bounded, read-only address-space scans and changes at new or previously observed allocation bases. These non-atomic scans do not identify allocation stacks or prove object lifetimes. MEM_PRIVATE region totals do not replace PSAPI private commit; raw addresses and process-memory dumps are not emitted.
 

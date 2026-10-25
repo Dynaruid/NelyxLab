@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {WindowsInputView} from '../../sdk/dist/backends/react-native/windows-input-view.js';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {WindowsInputView} from '../../sdk/dist/platforms/windows/input-view.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {windowsSurfaceEnvelope,windowsInputSurfaceId} from '../../sdk/dist/backends/react-native/windows-surface-envelope.js';
 const timeout=1_200_000;
 test('Windows input admits only the static SDK native envelope and preserves its exact Core owner identity',{timeout},()=>{
@@ -14,7 +14,7 @@ test('Windows input admits only the static SDK native envelope and preserves its
 function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
 async function until(predicate){for(let attempt=0;attempt<12&&!predicate();attempt++)await new Promise(resolve=>setImmediate(resolve));assert(predicate(),'Expected native lifecycle operation');}
 function fixture(){
-  const owner={id:'windows-view',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),calls=[],reports=[],events=new Set(),bindings=new Map();let next=0,connectWait,openWait,configureWait,closeWait,disconnectWait;
+  const owner={id:'windows-view',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),calls=[],reports=[],events=new Set(),bindings=new Map();let next=0,connectWait,openWait,configureWait,closeWait,disconnectWait;
   const module={getInputProtocol:()=>3,insertText:async()=>({status:"unavailable",revision:0}),async connect(surface,value){assert.equal(surface,97);assert.deepEqual(value,owner);calls.push(['connect']);return connectWait?await connectWait.promise:++next;},async openClient(...args){calls.push(['open',...args]);return openWait?await openWait.promise:true;},async configureClient(...args){calls.push(['configure',...args]);return configureWait?await configureWait.promise:true;},async command(...args){calls.push(['command',...args]);return true;},async closeClient(...args){calls.push(['close',...args]);return closeWait?await closeWait.promise:true;},async disconnect(...args){calls.push(['disconnect',...args]);return disconnectWait?await disconnectWait.promise:true;}};
   function bind(id,{text=id,readOnly=false,obscureText=false,keyboardType='text',multiline=false}={}){
     const state={enabled:true,focusable:true},changes=[],binding=interaction.editing.bind(owner,{session:owner,text,selection:{anchor:text.length,focus:0},revision:0,source:'programmatic',composing:{status:'none'}},value=>changes.push(value),{id,configuration:{readOnly,obscureText,keyboardType,multiline},readInputState:()=>({...state,label:id})});

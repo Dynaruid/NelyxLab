@@ -1,13 +1,78 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BuildOwner,BuildScope,Element,Widget,LeafRenderObjectElement,LeafRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
+import {BuildOwner,BuildScope,Element,Widget,StatelessWidget,ParentDataWidget,LeafRenderObjectElement,LeafRenderObjectWidget,MultiChildRenderObjectElement,MultiChildRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
 import {Key,ValueKey} from '@nelyx/core/foundation/key';
 import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';
 import {SizedBox} from '@nelyx/core/framework/widgets/basic';
-import {RenderStack} from '@nelyx/core/framework/rendering/boxes';
+import {RenderStack,StackParentData} from '@nelyx/core/framework/rendering/boxes';
 
 const timeout=1_200_000;
+
+class CommitElement extends MultiChildRenderObjectElement{
+  commits=0;failCommit=false;
+  synchronizeRenderObjectChildren(){this.commits++;super.synchronizeRenderObjectChildren();if(this.failCommit)throw Error('commit probe');}
+}
+class CommitWidget extends MultiChildRenderObjectWidget{
+  createElement(){return new CommitElement(this);}
+  createRenderObject(){return new RenderStack();}
+}
+class ForwardWidget extends StatelessWidget{
+  constructor(child,key=null){super(key);this.child=child;}
+  build(){return this.child;}
+}
+
+test('shared ParentData links read the current widget and refresh across keyed render parents',{timeout},()=>{
+  let reads=0;
+  class DataWidget extends ParentDataWidget{
+    constructor(child,value){super(child);this.value=value;}
+    get parentDataType(){reads++;return StackParentData;}
+    get debugTypicalAncestorWidgetClass(){return CommitWidget;}
+    applyParentData(render){render.parentData.marker=this.value;}
+  }
+  const key=new GlobalKey('parent-data-scope'),left=new ValueKey('left-data'),right=new ValueKey('right-data');
+  const widget=(move,value)=>new CommitWidget([false,true].map((side,index)=>new CommitWidget(side===move?[new ForwardWidget(new DataWidget(new ForwardWidget(new SizedBox(1,2,undefined,key)),value))]:[],{key:index?right:left})));
+  const f=tree(widget(false,1));let retained;
+  try{
+    f.flush();retained=key.currentElement;const render=retained.renderObject;assert.equal(render.parentData.marker,1);const before=reads;
+    f.update(widget(false,2));assert.equal(key.currentElement,retained);assert.equal(render.parentData.marker,2);assert(reads>before,'Custom type getters remain live');
+    f.update(widget(true,3));assert.equal(key.currentElement,retained);assert.equal(render.parent,f.root.children[1].renderObject);assert.equal(render.parentData.marker,3);assert.deepEqual(f.errors,[]);
+  }finally{f.close();}
+  assert.equal(retained._parentDataScope,null);
+});
+
+test('build boundaries commit the affected render owner once after queued sibling creation and reordering',{timeout},()=>{
+  const a=new ValueKey('a'),b=new ValueKey('b'),nested=new ValueKey('nested');
+  const wrap=(child,key)=>new ForwardWidget(new ForwardWidget(child),key);
+  const widgets=reversed=>new CommitWidget([
+    ...(reversed?[b,a]:[a,b]).map(key=>wrap(new SizedBox(10,20,undefined,key),key)),
+    new CommitWidget([new SizedBox()],{key:nested}),
+  ]);
+  const f=tree(widgets(false));
+  try{
+    f.owner.flushBuild();const nestedElement=f.root.children[2],oldNested=nestedElement.renderObject,original=f.root.children[0];
+    assert.equal(f.root.commits,1);assert.equal(nestedElement.commits,1);
+    assert.deepEqual(f.root.renderObject.children,f.root.children.flatMap(child=>child.renderObjects));
+    const before=nestedElement.commits;f.root.children[0].update(wrap(new SizedBox(30,40,undefined,a),a));f.owner.flushBuild();
+    assert.equal(f.root.commits,2);assert.equal(nestedElement.commits,before,'A separate retained render owner is not revisited');
+    f.root.update(widgets(true));f.owner.flushBuild();f.owner.finalizeTree();
+    assert.equal(f.root.children[1],original,'Reordering preserves the keyed public Element');
+    assert.deepEqual(f.root.renderObject.children,f.root.children.flatMap(child=>child.renderObjects));
+    assert.equal(f.root.children[2].renderObject,oldNested);assert.deepEqual(f.errors,[]);
+  }finally{f.close();}
+});
+
+test('a failed owner commit is retryable without replaying successful siblings and retirement removes pending owners',{timeout},()=>{
+  const f=tree(new CommitWidget([new CommitWidget([new SizedBox()]),new CommitWidget([new SizedBox()])]));
+  try{
+    f.owner.flushBuild();const [left,right]=f.root.children;left.failCommit=true;
+    left.markNeedsBuild();right.markNeedsBuild();assert.throws(()=>f.owner.flushBuild(),/commit probe/);
+    const completed=right.commits;left.failCommit=false;f.owner.flushRenderTree();assert.equal(right.commits,completed);
+    assert.deepEqual(left.renderObject.children,left.children.flatMap(child=>child.renderObjects));
+    left.markNeedsBuild();left.rebuild();f.root.forgetChild(left);f.owner.deactivateChild(left);f.owner.finalizeTree();
+    assert(left.debugIsDefunct);assert.doesNotThrow(()=>f.owner.flushRenderTree());assert.equal(right.commits,completed);
+  }finally{f.close();}
+});
 
 test('render teardown retires every owner and preserves ordered hook failures including falsey values',{timeout},()=>{
   for(const failure of [new Error('hook'),undefined,null,0]){
@@ -164,4 +229,34 @@ test('GlobalKey retake migrates descendant dirty work across isolated scopes and
     assert.equal(f.owner.hasDirty,true,'Another scope cannot hide pending work in the moved subtree');
     f.owner.buildScope(right);assert.equal(ordinary.dirty,false);assert.equal(left.scope.hasDirty,false);assert.equal(right.scope.hasDirty,false);assert.equal(f.owner.hasDirty,false);assert.deepEqual(f.errors,[]);
   }finally{f.close();}
+});
+
+test('dirty admission deduplicates, repairs depth changes and removes detached work without stale heap entries',{timeout},()=>{
+  const trace=[];
+  class TrackedElement extends BranchElement{rebuild(){trace.push(this);super.rebuild();}}
+  const tracked=children=>{const widget=new Branch(children);widget.createElement=()=>new TrackedElement(widget);return widget;};
+  const f=tree(tracked([tracked([tracked([])]),tracked([]),tracked([tracked([])])]));
+  try{
+    f.flush();trace.length=0;const [left,middle,right]=f.root.children,deep=left.children[0],other=right.children[0];
+    deep.markNeedsBuild();other.markNeedsBuild();right.markNeedsBuild();middle.markNeedsBuild();left.markNeedsBuild();deep.markNeedsBuild();
+    // A GlobalKey activation normally refreshes depth and readmits the same
+    // record. Exercise both priority directions without a second heap entry.
+    deep.depth=1;deep.markNeedsBuild();deep.depth=3;deep.markNeedsBuild();
+    f.root.forgetChild(middle);f.owner.deactivateChild(middle);f.owner.flushBuild();f.owner.finalizeTree();
+    assert.deepEqual(trace,[right,left,other,deep]);assert.equal(new Set(trace).size,trace.length);
+    assert(middle.debugIsDefunct);assert.equal(f.owner.hasDirty,false);
+  }finally{f.close();}
+});
+
+test('one pending build scope rejects another View before queue mutation and can be reused after draining',{timeout},()=>{
+  const scope=new BuildScope(),a=new BuildOwner({},()=>{}),b=new BuildOwner({},()=>{});
+  class ScopedElement extends BranchElement{get buildScope(){return scope;}}
+  const widget=new Branch(),left=new ScopedElement(widget),right=new ScopedElement(widget);let replacement;
+  try{
+    left.mount(undefined,a);assert.throws(()=>right.mount(undefined,b),{code:'foreign-build-scope'});
+    assert.equal(a.hasDirty,true);assert.equal(b.hasDirty,false);assert.equal(scope.hasDirty,true);
+    right.unmount();a.buildScope(left);assert.equal(a.hasDirty,false);assert.equal(scope.hasDirty,false);
+    replacement=new ScopedElement(new Branch());replacement.mount(undefined,b);b.buildScope(replacement);
+    assert.equal(b.hasDirty,false);assert.equal(scope.hasDirty,false);
+  }finally{replacement?.unmount();right.unmount();left.unmount();a.dispose();b.dispose();}
 });

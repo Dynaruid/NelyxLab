@@ -5,7 +5,7 @@ import {createReactNativeRegistration} from '../../backends/react-native/registr
 import type {ReactNativeRegistrationOptions} from '../../backends/react-native/registration.ts';
 import {createReactNativeEnvironment,useReactNativeViewport} from '../../backends/react-native/environment.ts';
 import type {ReactNativeApplication} from '../../backends/react-native/surface.tsx';
-import type {ReactNativeAssetConfiguration} from '../../backends/react-native/assets.ts';
+import type {NativeAssetConfiguration} from '../../runtime/native-assets.ts';
 import {bindAppleNativeHost,readAppleRuntimeHostHook} from '../../backends/react-native/apple-host.ts';
 
 let nativeAdmission:ReturnType<typeof bindAppleNativeHost>|undefined;
@@ -23,7 +23,7 @@ const registration=createReactNativeRegistration('ios',{
   },
 });
 export interface IOSRegistrationOptions extends ReactNativeRegistrationOptions {}
-export interface IOSAssets extends ReactNativeAssetConfiguration {}
+export interface IOSAssets extends NativeAssetConfiguration {}
 export interface IOSApplication extends ReactNativeApplication {}
 export function iosBackend(){return registration.backend();}
 export function verifyIOSNativeHost(){if(!nativeAdmission)throw new Error('Apple native host not admitted');return nativeAdmission.verify();}

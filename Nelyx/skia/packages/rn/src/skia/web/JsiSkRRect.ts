@@ -1,8 +1,8 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type { CanvasKit, RRect } from "canvaskit-wasm";
 
-import type {InputRRect, SkRRect} from '../types/RRect.ts';
-import type {SkRect} from '../types/Rect.ts';
+import type {InputRRect, SkRRect} from "@nelyx/skia-native/skia/types/RRect";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
 
 import {BaseHostObject} from './Host.ts';
 import {JsiSkRect} from './JsiSkRect.ts';

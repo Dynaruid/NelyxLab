@@ -1,4 +1,4 @@
-import type {SkParagraph} from '../../skia/types/Paragraph/Paragraph.ts';
+import type {SkParagraph} from "@nelyx/skia-native/skia/types/Paragraph/Paragraph";
 
 import type {GroupProps} from './Common.ts';
 

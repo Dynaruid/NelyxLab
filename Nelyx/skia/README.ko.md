@@ -9,6 +9,7 @@ Nelyx 렌더러 구현과 버전이 고정된 네이티브 공급 구성입니�
 | 경로 | 용도 |
 | --- | --- |
 | [`native/`](native/) | 공통 렌더러·GPU·텍스트 구현 |
+| [`packages/native/`](packages/native/README.md) | 공통 native renderer·text·resource·JSI binding |
 | [`packages/rn/`](packages/rn/README.md) | React Native JSI·component·surface와 Graphite 어댑터 |
 | [`packages/web/`](packages/web/README.md) | CanvasKit/Ganesh WebGL2 렌더러와 텍스트 |
 | [`vendor/`](vendor/) | 정확한 네이티브 입력 lock과 명시적으로 공급한 binary |

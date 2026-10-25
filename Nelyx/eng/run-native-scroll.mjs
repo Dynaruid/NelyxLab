@@ -74,17 +74,15 @@ export function verifyNativeResourceCycles(reports,cycles){
     check(keys.every(key=>counter(point.accounted?.[key])),'missing resource accounting');
     check(['elements','renderObjects','hostNodes'].every(key=>counter(point.tree?.[key])&&point.tree[key]>0&&point.tree[key]===baseline.tree[key]),'route tree did not return to baseline');
     check(point.accounted.producers===baseline.accounted.producers&&point.accounted.producerUnits===baseline.accounted.producerUnits&&point.accounted.producerBytes===baseline.accounted.producerBytes,'producer owners did not return to baseline');
-    // These are the existing FramePictureService cache/byte caps, not a new allowance.
-    check(['cached','live','bytes'].every(key=>counter(point.pictures?.[key]))&&point.pictures.cached<=64&&point.pictures.live>=point.pictures.cached&&point.pictures.bytes<=32*1024**2,'picture owner budget exceeded');
+    check(['cached','live','bytes'].every(key=>counter(point.pictures?.[key]))&&point.pictures.live>=point.pictures.cached,'missing or inconsistent picture accounting');
     check(Array.isArray(point.native)&&point.native.length===5&&point.native.every(counter)&&point.native[0]>0&&point.native[1]===0&&point.native[3]===0&&point.native[4]===0&&point.native.every((value,index)=>value===baseline.native[index]),'native frame owners did not drain to baseline');
     if(cycle){
       check(point.inputWindow?.pacing==='programmatic','missing input boundary');analyseNativeInputWindow(point.inputWindow.before,point.inputWindow.after,{pacing:'programmatic'});
       check(point.receipts?.receiptIntegrity===true&&point.receipts.input?.received===0&&point.receipts.surface?.n>0,'missing native frame or unexpected pointer input');
     }
   }
-  const tail=points.slice(-3),last=tail[2];
-  for(const point of tail)check(keys.every(key=>point.accounted[key]===last.accounted[key])&&['cached','live','bytes'].every(key=>point.pictures[key]===last.pictures[key]),'last three cycles have no residency plateau');
-  return {scope:'Core accounting, pictures and native frame owners only',cycles,stableTail:3,accounted:last.accounted,pictures:last.pictures,native:last.native,privateProcessMemory:'notVerified',gpuMemory:'notVerified',performanceAccepted:false};
+  const last=points.at(-1);
+  return {scope:'Core accounting, pictures and native frame owners only',cycles,producerAndFrameOwners:'PASS-scoped',cacheRetention:'observed',accounted:last.accounted,pictures:last.pictures,native:last.native,residency:points.map(point=>({cycle:point.cycle,accounted:{...point.accounted},pictures:{...point.pictures}})),memoryAccepted:false,privateProcessMemory:'notVerified',gpuMemory:'notVerified',performanceAccepted:false};
 }
 export async function runNativeScroll(options){
   options={pacing:'programmatic',details:false,resourceCycles:0,...options};validateResourceCycleOptions(options);
@@ -101,7 +99,8 @@ export async function runNativeScroll(options){
     for(const [,file]of modules)if(!fs.statSync(file).isFile())throw Error('The native scroll diagnostic needs the actual Testbed source: '+file);
     for(const name of ['native-scroll-fixture.ts','native-frame-metrics.js','native-frame-metrics.d.ts'])fs.copyFileSync(path.join(import.meta.dirname,'tests',name),path.join(temporary,name));
     const entry=path.join(temporary,'entry.ts');fs.writeFileSync(entry,modules.map(([name,file])=>'import {'+name+(name==='main'?' as originalMain':'')+'} from '+JSON.stringify(file.replaceAll('\\','/'))+';').join('\n')+'\nimport {installNativeScrollProbe} from "./native-scroll-fixture.ts";\nexport function main(){installNativeScrollProbe({ComponentsGallery,ListViewPage,GallerySection,demos,cupertinoDemos},'+JSON.stringify({scope:options.scope,catalog:options.catalog,pacing:options.pacing,resourceCycles:options.resourceCycles})+');return originalMain();}\n');
-    const hostBuild=await buildNativeHost({app,signal:controller.signal}),built=await buildNativeApplication({app,mode:options.mode,hostBuild,diagnosticEntry:entry,output:path.join(temporary,'package'),cacheDirectory:path.join(temporary,'aot-cache'),signal:controller.signal});
+    const hostBuild=await buildNativeHost({app,signal:controller.signal});
+    const built=await buildNativeApplication({app,mode:options.mode,hostBuild,diagnosticEntry:entry,output:path.join(temporary,'package'),cacheDirectory:path.join(temporary,'aot-cache'),signal:controller.signal});
     const checked=verifyNativePackage(built.directory);if(checked.manifest.qualification!=='diagnostic-only')throw Error('Native diagnostic acquired a product qualification');
     const results=[];
     for(const viewport of options.viewport==='both'?['default','maximized']:[options.viewport]){

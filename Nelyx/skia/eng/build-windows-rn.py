@@ -88,7 +88,7 @@ shutil.copyfile(build / 'nelyx-core/nelyx_skia_core.lib', package / libraries[1]
 shutil.copytree(SKIA / 'licenses', package / 'licenses', dirs_exist_ok=args.resume)
 shutil.copyfile(SKIA / 'THIRD_PARTY_NOTICES.md', package / 'licenses/THIRD_PARTY_NOTICES.md')
 sources = {}
-for directory in ['cpp/api', 'cpp/jsi', 'cpp/rnskia', 'cpp/utils',
+for directory in ['generated/jsi', 'generated/native-vulkan',
                   'generated/core', 'generated/gpu', 'generated/vulkan', 'generated/host', 'native/vulkan']:
     for file in sorted((rn / directory).rglob('*')):
         if file.is_symlink():

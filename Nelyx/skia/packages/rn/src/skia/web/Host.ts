@@ -1,6 +1,6 @@
 import type { CanvasKit, EmbindEnumEntity } from "canvaskit-wasm";
 
-import type {SkJSIInstance} from '../types/JsiInstance.ts';
+import type {SkJSIInstance} from "@nelyx/skia-native/skia/types/JsiInstance";
 
 export const throwNotImplementedOnRNWeb = <T>(): T => {
   throw new Error("Not implemented on React Native Web");

@@ -26,14 +26,14 @@ This document covers the explicitly retained notices. The full notice
 inventory for prebuilt Skia/Dawn binaries remains a separate qualification;
 retained common notices are in `Nelyx/licenses/` in the repository.
 
-The Windows keyboard pairing kernel in `native/windows/WindowsKeyboardInput.h`
+The Windows keyboard pairing kernel in `generated/host/windows/WindowsKeyboardInput.h`
 adapts the Flutter engine Windows KeyboardManager session at Flutter revision
 `71e4717a61786faab4c7aa39825989305ed29e8a`. Its original 2013 Flutter Authors
 BSD-3-Clause notice is retained in `licenses/FlutterEngine-LICENSE.md`.
 The RNW event, focus and lifetime integration is an Nelyx adaptation; this
 retained notice does not qualify the full native dependency notice inventory.
 
-The contact/inertia protocol in `native/windows/WindowsPrecisionTrackpad.h`
+The contact/inertia protocol in `generated/host/windows/WindowsPrecisionTrackpad.h`
 adapts Flutter engine `shell/platform/windows/direct_manipulation.cc`, reviewed
 source SHA-256 `fa9ce84227c9096bc9a214569854d3ff49822e85d885e1dacb76d514341b955b`.
 Its 2013 Flutter Authors BSD-3-Clause notice is retained in the same license.

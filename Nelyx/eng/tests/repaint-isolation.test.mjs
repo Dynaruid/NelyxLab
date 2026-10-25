@@ -6,7 +6,7 @@ import {CustomPainter,CustomPainterSemantics} from '@nelyx/core/framework/render
 import {SemanticsNode} from '@nelyx/core/framework/semantics/semantics';
 import {RepaintBoundary} from '@nelyx/core/framework/widgets/repaint-boundary';
 import {SizedBox,Transform,Row} from '@nelyx/core/framework/widgets/basic';
-import {State,StatefulWidget} from '@nelyx/core/framework/widgets/framework';
+import {State,StatefulWidget,RenderObjectElement} from '@nelyx/core/framework/widgets/framework';
 import {Navigator,NavigatorController,Route} from '@nelyx/core/framework/widgets/navigation';
 import {PageRouteBuilder} from '@nelyx/core/framework/widgets/pages';
 import {Offstage} from '@nelyx/core/framework/widgets/offstage';
@@ -53,14 +53,15 @@ test('Navigator moves retained page content without repainting it and still repa
 });
 test('A nested animated boundary updates visible pixels without repainting its static parent',{timeout},()=>{
   const f=fixture(),changes=new ChangeNotifier(),outerChanges=new ChangeNotifier(),outer=new Painter(outerChanges),inner=new Painter(changes);
+  const commit=RenderObjectElement.prototype._commitRenderChildren;let synchronizations=0;
   try{f.set(new RepaintBoundary(new CustomPaint(new RepaintBoundary(new CustomPaint(new SizedBox(20,20),{painter:inner})),{painter:outer})));
-    let synchronizations=0;const sync=f.root.root.syncRenderTree.bind(f.root.root);f.root.root.syncRenderTree=()=>{synchronizations++;sync();};
+    RenderObjectElement.prototype._commitRenderChildren=function(){if(this.owner===f.root.buildOwner)synchronizations++;return commit.call(this);};
     assert.equal(outer.count,1);assert.equal(inner.count,1);inner.color=0xffabcdef;changes.notifyListeners();const commands=f.frame();assert.equal(outer.count,1);assert.equal(inner.count,2);assert(commands.some(command=>command.op==='rect'&&command.color===0xffabcdef));assert.equal(synchronizations,0,'Paint-only frames must not renormalize the unchanged Element tree');
     f.frame();assert.equal(outer.count,1);assert.equal(inner.count,2);
     outerChanges.notifyListeners();f.frame();assert.equal(outer.count,2);assert.equal(inner.count,2,'Parent replacement must retain the clean child layer');
     changes.notifyListeners();f.frame();assert.equal(outer.count,2);assert.equal(inner.count,3,'The reparented retained child must remain independently dirty');
     f.set(new SizedBox(30,30));assert(synchronizations>0,'Widget replacement must still synchronize the render tree');
-  }finally{f.close();changes.dispose();outerChanges.dispose();}
+  }finally{RenderObjectElement.prototype._commitRenderChildren=commit;f.close();changes.dispose();outerChanges.dispose();}
 });
 
 test('a dirty repaint boundary reuses identical native picture content and recompiles changed pixels',{timeout},()=>{
@@ -78,10 +79,11 @@ test('Hidden nested boundaries defer painting and show their latest content afte
   try{f.set(tree(false));f.set(tree(true));const count=inner.count;inner.color=0xffabcdef;changes.notifyListeners();f.frame();assert.equal(inner.count,count);const commands=f.set(tree(false));assert(inner.count>count);assert(commands.some(command=>command.op==='rect'&&command.color===0xffabcdef));}
   finally{f.close();changes.dispose();}
 });
-test('A failed render-tree synchronization is retried after its widget build has already drained',{timeout},()=>{
-  const f=fixture();try{f.set(new SizedBox(10,10));const element=f.root.root,sync=element.syncRenderTree.bind(element);let calls=0;element.syncRenderTree=()=>{if(++calls===1)throw Error('synchronization interrupted');sync();};assert.throws(()=>f.set(new SizedBox(20,20)),/synchronization interrupted/);f.frame();assert.equal(calls,2);f.frame();assert.equal(calls,2);}finally{f.close();}
+test('A failed render owner commit is retried after its widget build has already drained',{timeout},()=>{
+  const f=fixture();try{f.set(new SizedBox(10,10));const element=f.root.root.children[0],commit=element._commitRenderChildren.bind(element);let calls=0;element._commitRenderChildren=()=>{if(++calls===1)throw Error('synchronization interrupted');commit();};assert.throws(()=>f.set(new SizedBox(20,20)),/synchronization interrupted/);assert.equal(f.root.buildOwner.hasDirty,false);f.frame();assert.equal(calls,2);f.frame();assert.equal(calls,2);}finally{f.close();}
 });
 
 test('A render child normalization failure retains the dirty branch until its retry succeeds',{timeout},()=>{
-  const f=fixture();try{f.set(new SizedBox(10,10));const render=f.root.root.children[0].renderObject,original=render.setChildren.bind(render);let calls=0;render.setChildren=children=>{if(++calls===1)throw Error('child normalization interrupted');original(children);};assert.throws(()=>f.set(new SizedBox(20,20)),/child normalization interrupted/);f.frame();assert.equal(calls,2);assert.equal(render.needsLayout,false);f.frame();assert.equal(calls,2);}finally{f.close();}
+  const f=fixture(),widgets=[new SizedBox(10,10),new SizedBox(20,20)];let render,original;
+  try{f.set(new Row(widgets));render=f.root.root.children[0].renderObject;original=render.setChildren.bind(render);const expected=[...render.children];render.move(expected[1]);let calls=0;render.setChildren=children=>{if(++calls===1)throw Error('child normalization interrupted');original(children);};assert.throws(()=>f.set(new Row(widgets)),/child normalization interrupted/);f.frame();assert.equal(calls,2);assert.deepEqual(render.children,expected);assert.equal(render.needsLayout,false);f.frame();assert.equal(calls,2);}finally{if(original)render.setChildren=original;f.close();}
 });

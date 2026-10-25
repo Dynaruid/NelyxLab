@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include "../vulkan/RNSkVulkanRuntime.h"
+#include "RNSkVulkanRuntime.h"
 #include "rnskia/RNSkView.h"
-#include "WindowsFrameWorker.h"
+#include "windows/WindowsFrameWorker.h"
 #include "WindowsFrameTrace.h"
 #include <ReactPropertyBag.h>
 #include <algorithm>

@@ -1,10 +1,10 @@
 # Nelyx Skia for React Native
 
-`@nelyx/skia-rn` provides JSI bindings, Graphite recording, native components/surfaces, and text services. It is derived from React Native Skia with Nelyx renderer adapters.
+`@nelyx/skia-rn` provides the RN bootstrap, components/surfaces and declarative recorder. Shared Graphite rendering, paragraphs, resources and neutral types are owned by [`@nelyx/skia-native`](../native/README.md), which this adapter consumes directly. The bindings derive from React Native Skia.
 
 ## Modules and ownership
 
-Import explicit subpaths such as `@nelyx/skia-rn/renderer`, `@nelyx/skia-rn/text`, or `@nelyx/skia-rn/runtime/native-bootstrap`; see [package exports](package.json).
+Use `@nelyx/skia-rn/runtime/native-bootstrap` for RN integration. Renderer/text and neutral type imports moved to `@nelyx/skia-native/renderer`, `@nelyx/skia-native/text` and its explicit `skia/types/*` subpaths. The old renderer/text/type export facades were removed; see [package exports](package.json).
 
 Skia owns device/session/renderer and native surface lifetimes. Application bootstrap, development bundle selection, and window/shutdown policy belong to the [SDK native host](../../../sdk/README.md#ownership-and-lifecycle). Skia does not import the SDK.
 
@@ -17,7 +17,7 @@ Skia owns device/session/renderer and native surface lifetimes. Application boot
 | Windows | m153 native Graphite/Vulkan | [Windows binding](native/windows/README.md) |
 | Linux | m153 native Graphite/Vulkan | [Linux binding](native/linux/README.md) |
 
-The package includes native headers and CMake recipes under `native/vulkan/`, `native/windows/`, and `native/linux/`. Generated SDK/core/GPU source is prepared from common product source. Ownership state exposed by `nelyxStats` participates in shutdown drain.
+The package includes platform adapters and CMake recipes under `native/vulkan/`, `native/windows/`, and `native/linux/`. Shared JSI/Vulkan sources are derived into `generated/jsi` and `generated/native-vulkan` from `skia/native/adapters/jsi`; shared Windows headers are in `generated/host/windows`. The Vulkan target consumes the common `engine.cmake` recipe with the RN cohort's headers. Edit canonical sources, then prepare the current generated inputs. Ownership state exposed by `nelyxStats` participates in shutdown drain.
 
 On resize, an Nelyx recording for the previous backing is released after its GPU completion is confirmed. The host retains the displayed front buffer until a frame for the new backing arrives. Queued uploads and recordings without confirmed completion remain owned.
 

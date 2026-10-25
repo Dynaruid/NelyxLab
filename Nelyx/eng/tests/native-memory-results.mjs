@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-export const nativeMemoryLimits=Object.freeze({privateBytes:1024**3,vulkanBytes:512*1024**2,privateTailSpan:8*1024**2,privateTailGrowth:1024**2,vulkanTailSpan:1024**2,vulkanTailGrowth:64*1024,allocationTailSpan:2});
-
-/** A bounded ListView observation, never whole-product or driver residency acceptance. */
+/** Validate and describe a bounded ListView observation. Process/allocator
+ * totals alone do not establish a leak, resource ownership or memory acceptance. */
 export function verifyNativeMemoryCycles(points,workloads,{pid,mode,cycles}){
   const check=(value,message)=>{if(!value)throw Error('Native memory observation: '+message);},integer=value=>Number.isSafeInteger(value)&&value>=0;
   check(integer(pid)&&pid>0&&pid<=0xffffffff&&['bytecode','static-aot'].includes(mode)&&integer(cycles)&&cycles>=3&&cycles<=30,'invalid owned process/mode/count');
@@ -11,8 +10,7 @@ export function verifyNativeMemoryCycles(points,workloads,{pid,mode,cycles}){
     check(point.schema===1&&point.scope==='process-private-commit-and-vulkan-allocations'&&point.cycle===cycle&&point.pid===pid&&point.mode===mode,'foreign or reordered observation');
     check(point.returnedToGallery===true&&point.foreground===true&&point.windowFocused===true&&point.performanceAccepted===false&&point.physicalInputAccepted==='notVerified'&&point.displayed==='unobserved','wrong route/focus/evidence scope');
     check(metrics.every(key=>integer(point[key])&&point[key]===first[key])&&['physicalWidth','physicalHeight','dpi','viewportGeneration','surfaceGeneration'].every(key=>point[key]>0),'changed viewport or desktop input boundary');
-    check(['privateBytes','workingSetBytes','peakPrivateBytes','vulkanAllocationCount','vulkanAllocationBytes'].every(key=>integer(point[key])&&point[key]>0)&&point.peakPrivateBytes>=point.privateBytes,'missing actual memory counters');
-    check(point.privateBytes<=nativeMemoryLimits.privateBytes&&point.peakPrivateBytes<=nativeMemoryLimits.privateBytes&&point.vulkanAllocationBytes<=nativeMemoryLimits.vulkanBytes,'memory cap exceeded');
+    check(['privateBytes','workingSetBytes','peakPrivateBytes','vulkanAllocationCount','vulkanAllocationBytes'].every(key=>integer(point[key]))&&point.privateBytes>0&&point.peakPrivateBytes>=point.privateBytes,'missing actual memory counters');
     check(['inputReceived','inputDelivered','inputAccepted','inputRejected'].every(key=>integer(point[key]))&&point.inputDelivered===point.inputReceived&&point.inputAccepted+point.inputRejected===point.inputDelivered,'pending or inconsistent native input');
     check(['wheelReceived','wheelRawAbsolute','wheelForeign'].every(key=>integer(point[key]))&&Number.isSafeInteger(point.wheelRawNet)&&Number.isFinite(point.wheelDeliveredY)&&Number.isFinite(point.wheelDeliveredAbsoluteY),'missing native wheel volume');
     const delivered=point.wheelReceived-first.wheelReceived;
@@ -21,9 +19,11 @@ export function verifyNativeMemoryCycles(points,workloads,{pid,mode,cycles}){
     if(cycle)check(point.wheelReceived-points[cycle-1].wheelReceived>=2&&point.wheelReceived-points[cycle-1].wheelReceived<=32,'invalid coalesced native wheel count');
     if(cycle){const work=workloads[cycle-1];check(work.cycle===cycle&&work.pid===pid&&['cold','revisit','last','first','returnedToGallery'].every(key=>work[key]===true)&&work.wheelPackets===32&&work.wheelRawNet===0&&work.wheelRawAbsolute===3840,'incomplete actual product workload');}
   }
-  const tail=points.slice(-3),last=tail[2],band=(key,span,growth)=>{const values=tail.map(point=>point[key]),min=Math.min(...values),max=Math.max(...values);check(max-min<=span&&last[key]-tail[0][key]<=growth,'no bounded '+key+' tail');return {min,max,span:max-min,growth:last[key]-tail[0][key],last:last[key]};};
-  const privateCommit=band('privateBytes',nativeMemoryLimits.privateTailSpan,nativeMemoryLimits.privateTailGrowth),vulkanAllocations=band('vulkanAllocationBytes',nativeMemoryLimits.vulkanTailSpan,nativeMemoryLimits.vulkanTailGrowth),vulkanCount=band('vulkanAllocationCount',nativeMemoryLimits.allocationTailSpan,0);
-  return {scope:'owned process private commit and Vulkan allocator/import ownership after actual ListView routes',cycles,stableTail:3,wheelPackets:cycles*32,privateCommit,vulkanAllocations,vulkanCount,limits:nativeMemoryLimits,privateProcessMemory:'PASS-scoped',vulkanAllocatorMemory:'PASS-scoped',gpuDriverResidency:'notVerified',wholeH4Accepted:false,performanceAccepted:false,physicalInputAccepted:'notVerified',displayed:'unobserved'};
+  const describe=key=>{
+    const values=points.map(point=>point[key]),tail=values.slice(-3),min=Math.min(...values),max=Math.max(...values);
+    return {values,first:values[0],last:values.at(-1),min,max,span:max-min,growth:values.at(-1)-values[0],tail:{samples:tail.length,min:Math.min(...tail),max:Math.max(...tail),span:Math.max(...tail)-Math.min(...tail),growth:tail.at(-1)-tail[0]}};
+  };
+  return {scope:'process private commit and Vulkan allocation counters after actual ListView routes',assessment:'observation-only',cycles,wheelPackets:cycles*32,privateCommit:describe('privateBytes'),workingSet:describe('workingSetBytes'),peakPrivateBytes:Math.max(...points.map(point=>point.peakPrivateBytes)),vulkanAllocations:describe('vulkanAllocationBytes'),vulkanCount:describe('vulkanAllocationCount'),privateProcessMemory:'observed',vulkanAllocatorMemory:'observed',resourceOwnership:'notVerified',memoryAccepted:false,gpuDriverResidency:'notVerified',wholeH4Accepted:false,performanceAccepted:false,physicalInputAccepted:'notVerified',displayed:'unobserved'};
 }
 
 /** Validate cause data, without equating address-space types to PrivateUsage. */

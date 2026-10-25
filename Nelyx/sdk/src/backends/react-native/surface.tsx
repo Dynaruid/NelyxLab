@@ -1,11 +1,7 @@
-import {OwnedDisposal,finishOwnedDisposal} from '../../runtime/owned-disposal.ts';
-import {FramePictureService} from '@nelyx/core/hosting/pictures';
-import {createFramePictureBackend} from '@nelyx/skia-rn/pictures';
-import {RasterizationService} from '@nelyx/core/hosting/rasterization';
-import {createRasterizationBackend} from '@nelyx/skia-rn/rasterization';
-import {NativeImageMemory} from './image-memory.ts';
-import {createPathQueries,createRuntimeShaderCache} from '@nelyx/skia-rn/renderer';
 // SPDX-License-Identifier: BSD-3-Clause
+import {OwnedDisposal,finishOwnedDisposal} from '../../runtime/owned-disposal.ts';
+import {createNativeEngineServices} from '../../runtime/native-engine.ts';
+import type {NativeEngineServices} from '../../runtime/native-engine.ts';
 import type { LayoutChangeEvent } from 'react-native';
 
 import type {SkiaGraphiteViewRef} from '@nelyx/skia-rn/views/graphite-types';
@@ -16,10 +12,8 @@ import type {SurfaceEvent} from '@nelyx/core/hosting/services';
 import type {PlatformMessagePort} from '@nelyx/core/hosting/platform-messages';
 import {createReactNativePlatformMessages} from './platform-messages.ts';
 import {PlatformException} from '@nelyx/core/services/message-codec';
-import {createReactNativeImageBackend} from './images.ts';
-import {ImageService} from '@nelyx/core/hosting/images';
 import type {ReactNativePlatform} from '@nelyx/core/hosting/platform';
-import {ReactNativeInteraction} from './interaction.ts';
+import {NativeInteraction} from '../../runtime/native-interaction.ts';
 import {createReactNativeInteractionControls} from './interaction-controls.tsx';
 import {nativeInputProps,nativeKeyboardProps} from './input.ts';
 import {createWindowsKeyboardHost} from './windows-keyboard.tsx';
@@ -27,16 +21,17 @@ import {windowsSurfaceEnvelope,windowsInputSurfaceId} from './windows-surface-en
 import {createAndroidEnvironment} from './android-environment.tsx';
 import {createAndroidKeyboardHost} from './android-keyboard.tsx';
 import {freezeEnvironment} from '@nelyx/core/ui/frame';
-import {bindReactNativeVisibility,createReactNativeFrameClock} from './lifecycle.ts';
-import type {ReactNativeAppStatePort,ReactNativeFrameScheduler} from './lifecycle.ts';
+import {bindReactNativeVisibility} from './lifecycle.ts';
+import type {ReactNativeAppStatePort} from './lifecycle.ts';
+import {createSurfaceFrameClock} from '../../runtime/frame-clock.ts';
+import type {SurfaceFrameScheduler} from '../../runtime/frame-clock.ts';
 import type {ReactNativeBackend} from './registration.ts';
-import type {ReactNativeAssetConfiguration,createReactNativeAssetServices} from './assets.ts';
+import type {NativeAssetConfiguration,createNativeAssetServices} from '../../runtime/native-assets.ts';
 import type {createReactNativeEnvironment} from './environment.ts';
 import type {ComposedApplication} from '../../runtime/bootstrap.ts';
 import type {TextLayoutService,TextLayout,TextGlyphRun,ViewOwner} from '@nelyx/core/ui/types';
 import type { ViewMetrics,ViewEnvironment } from '@nelyx/core/ui/types';
-import type { ReactNativeTextLayoutService } from '@nelyx/skia-rn/text';
-import type { NelyxGraphiteContext } from '@nelyx/skia-rn/renderer';
+import type { NelyxGraphiteContext } from '@nelyx/skia-native/renderer';
 
 export interface ReactNativeSurfaceProps {
   readonly initializePlatformServices?:boolean;
@@ -44,9 +39,9 @@ export interface ReactNativeSurfaceProps {
   readonly platformMessages?:PlatformMessagePort;
   readonly useDefaultBinaryMessenger?:boolean;
   readonly definition: ApplicationDefinition;
-  readonly assets?: ReactNativeAssetConfiguration;
+  readonly assets?: NativeAssetConfiguration;
   /** Caller-owned controller; the surface owns only its application service lease. */
-  readonly interaction?: ReactNativeInteraction;
+  readonly interaction?: NativeInteraction;
   readonly generation: number;
   readonly viewId?: string;
   readonly initialize?: (context: PlatformContext<ReactNativeTextService>, metrics: ViewMetrics) => void;
@@ -77,18 +72,18 @@ export interface ReactNativeSurfaceBinding {
   firstContentReady?():void;
   failed(error:unknown):void;
 }
-type ReactNativeAssetLease=ReturnType<ReturnType<typeof createReactNativeAssetServices>['acquire']>;
+type NativeAssetLease=ReturnType<ReturnType<typeof createNativeAssetServices>['acquire']>;
 interface ReactNativeSurfaceOwner {
-  runtimePrograms?:ReturnType<typeof createRuntimeShaderCache>;
-  readonly epoch:number;readonly interaction:ReactNativeInteraction;
+  engine?:NativeEngineServices;
+  readonly epoch:number;readonly interaction:NativeInteraction;
   alive:boolean;closed:boolean;active:boolean;nativeReady:boolean;nativeVisible:boolean;preparing?:boolean;firstContent?:boolean;firstContentNotified?:boolean;
-  assets?:Awaited<ReactNativeAssetLease['ready']>;lease?:ReactNativeAssetLease;
+  assets?:Awaited<NativeAssetLease['ready']>;lease?:NativeAssetLease;
   metrics?:ViewMetrics;layout?:{width:number;height:number};nativeMetrics?:ReactNativeViewMetrics;
   environment?:ViewEnvironment;environmentRevision?:number;
   notify?:(event:SurfaceEvent)=>void;application?:ReactNativeApplication;opening?:Promise<ReactNativeApplication>;
   setVisible?:(visible:boolean)=>void;
   stopFrames?:()=>void;stopVisibility?:()=>void;close?:()=>Promise<void>;closing?:Promise<void>;
-  interactionServices?:ReturnType<ReactNativeInteraction['acquireServices']>;
+  interactionServices?:ReturnType<NativeInteraction['acquireServices']>;
   input?:ReactNativeSurfaceInputLease;
 }
 
@@ -100,12 +95,12 @@ export interface ReactNativeSurfaceInputLease {readonly ready:Promise<void>;disp
 export interface ReactNativeSurfaceAdapter<Props extends ReactNativeSurfaceProps> {
   readonly target:string;
   backend():ReactNativeBackend;
-  assets():ReactNativeAssetConfiguration;
-  readonly assetServices:Pick<ReturnType<typeof createReactNativeAssetServices>,'acquire'|'service'>;
+  assets():NativeAssetConfiguration;
+  readonly assetServices:Pick<ReturnType<typeof createNativeAssetServices>,'acquire'|'service'>;
   readonly environment:ReturnType<typeof createReactNativeEnvironment>;
   visibility():ReactNativeAppStatePort;
-  frameScheduler?():ReactNativeFrameScheduler;
-  interaction(owner:ViewOwner):ReactNativeInteraction;
+  frameScheduler?():SurfaceFrameScheduler;
+  interaction(owner:ViewOwner):NativeInteraction;
   readonly interactionControls?:import('react').ComponentType<ReactNativeSemanticsControlsProps>;
   readonly requiresNativeBinding?:boolean;
   /** A host can close before React runs this surface's initial effect. */
@@ -113,11 +108,11 @@ export interface ReactNativeSurfaceAdapter<Props extends ReactNativeSurfaceProps
   /** Native host shutdown must await this same effect owner's complete drain. */
   retainOwner?(close:()=>Promise<void>):{release():void};
   nativeViewProps(props:Props,binding:ReactNativeSurfaceBinding):Record<string,unknown>;
-  openInput?(interaction:ReactNativeInteraction,view:import('@nelyx/core/hosting/runtime').ViewRuntime,metrics:ReactNativeViewMetrics,onError:(error:unknown)=>void):ReactNativeSurfaceInputLease;
+  openInput?(interaction:NativeInteraction,view:import('@nelyx/core/hosting/runtime').ViewRuntime,metrics:ReactNativeViewMetrics,onError:(error:unknown)=>void):ReactNativeSurfaceInputLease;
 }
 export interface ReactNativeSemanticsControlsProps {
   readonly accessibilityEnabled?:boolean;
-  readonly interaction:ReactNativeInteraction;
+  readonly interaction:NativeInteraction;
   readonly readView:()=>import('@nelyx/core/hosting/runtime').ViewRuntime|undefined;
   readonly readNativeMetrics:()=>ReactNativeViewMetrics|undefined;
   readonly onError:(error:unknown)=>void;
@@ -129,7 +124,7 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
  const AndroidKeyboardHost=createAndroidKeyboardHost(adapter.backend);
  const WindowsKeyboardHost=createWindowsKeyboardHost(adapter.backend);
  return function ApplicationSurface(props:Props) {
-  const {react:{createElement,useEffect,useRef,useState},native:{PixelRatio,View},skia:{Skia,SkiaGraphiteView,createRenderer,createTextService}}=adapter.backend();
+  const {react:{createElement,useEffect,useRef,useState},native:{PixelRatio,View},skia:{Skia,SkiaGraphiteView}}=adapter.backend();
   const latest = useRef(props); latest.current = props;
   const ref = useRef<SkiaGraphiteViewRef>(null);
   const keyboardHost=useRef<import('react-native').View>(null);
@@ -168,7 +163,7 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
         {name:'opening',run:async()=>{application=owner.application??await owner.opening;}},
         {name:'native-input',run:()=>owner.input?.dispose()},
         {name:'application',run:()=>application?.dispose()},
-        {name:'runtime-programs',run:()=>owner.runtimePrograms?.dispose()},
+        {name:'native-engine',run:()=>owner.engine?.dispose()},
         {name:'close-observer',run:()=>{if(application)latest.current.onClose?.(application);}},
         {name:'interaction-services',run:()=>owner.interactionServices?.release()},
         {name:'interaction',run:()=>{if(!initial.interaction)interaction.dispose();}},
@@ -242,15 +237,9 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
     }
     const context = native.getContext() as NelyxGraphiteContext;
     owner.metrics={...metrics,nativeContextGeneration:context.nelyxIdentity()};
-    let text: ReactNativeTextLayoutService;
-    const images=new Map(assets.images),imageMemory=new NativeImageMemory(),runtimePrograms=owner.runtimePrograms=createRuntimeShaderCache(Skia);
-    const framePictures=createFramePictureBackend(Skia,{runtimePrograms,image:key=>{const image=images.get(key);if(!image)throw new Error('Stale native picture source');return image;},paragraph:key=>text.paintResource(key),picture:key=>framePictures.picture(key)},()=>context.nelyxIdentity());
-    const makeRenderer = () => createRenderer(Skia, () => context, viewOwner, {runtimePrograms,
-      paragraph: key => text.paintResource(key),picture:key=>framePictures.picture(key),
-      image: key => { const image=images.get(key);if (!image) throw new Error('Stale image'); return image; },
-    });
-    let renderer: ReturnType<typeof makeRenderer>;
-    const frameClock=createReactNativeFrameClock({pending:()=>!!renderer?.hasPendingSubmissions,poll:()=>renderer.pollNotifications(),onError:error=>fail(owner,error)},adapter.frameScheduler?.());
+    const assetImage=adapter.backend().native.Image;
+    const engine=owner.engine=createNativeEngineServices({api:Skia,context,owner:viewOwner,assets,configuration,resolveSource:source=>assetImage.resolveAssetSource(source),assertOpen(){if(owner.closed)throw new Error('Native surface owner closed');}});
+    const frameClock=createSurfaceFrameClock({pending:()=>engine.hasPendingSubmissions,poll:()=>engine.pollNotifications(),onError:error=>fail(owner,error)},adapter.frameScheduler?.()??{request:callback=>requestAnimationFrame(()=>callback()),cancel:id=>cancelAnimationFrame(id)});
     owner.stopFrames=()=>frameClock.dispose();
     const stopNotifications=owner.stopFrames;
     const profile = adapter.backend().profile;
@@ -263,13 +252,9 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
       reportError:error=>fail(owner,error),
       identity:profile.identity,
       surface:{owner:viewOwner,readMetrics:()=>owner.metrics!,attach(_view,notify){owner.notify=notify;notify({kind:'visibility',visible:visible(owner)});return {dispose(){owner.closed=true;stopNotifications();delete owner.notify;}};},dispose:()=>{owner.closed=true;stopNotifications();return owner.lease!.release();}},
-      renderer:{create:()=>renderer=makeRenderer()},assets:adapter.assetServices.service(configuration),
-      pictures:{create:resources=>new FramePictureService(resources,framePictures,viewOwner)},
-      rasterization:{create:resources=>new RasterizationService(resources,createRasterizationBackend(Skia,images,{runtimePrograms,image:key=>{const image=images.get(key);if(!image)throw new Error('Stale raster image input');return image;},paragraph:key=>text.paintResource(key),picture:key=>framePictures.picture(key)},viewOwner,imageMemory,()=>{if(owner.closed)throw new Error('Native raster owner closed');},resource=>resources.isRetained(resource),()=>resources.allocateId(`${viewOwner.id}:${viewOwner.generation}:raster`)))},
-      images:{create:(resources,clock,time)=>new ImageService(resources,createReactNativeImageBackend(Skia,adapter.backend().native,images,configuration,viewOwner,imageMemory,()=>resources.allocateId(`${viewOwner.id}:${viewOwner.generation}:image`)),clock,time)},
+      ...engine.services,assets:adapter.assetServices.service(configuration),
       clock:frameClock,
-      paths:createPathQueries(Skia,()=>{if(owner.closed)throw new Error('Native path queries owner closed');}),
-      text:{create:registry=>text=createTextService(Skia,registry,viewOwner,assets.fonts,key=>{const image=images.get(key);if(!image)throw new Error('Stale paragraph shader image');return image;},runtimePrograms)},editing:interaction.editing,semantics:interaction.semantics,
+      editing:interaction.editing,semantics:interaction.semantics,
     }, latest.current.initialize?services => latest.current.initialize?.(services, owner.metrics!):undefined);
     owner.opening.then(async application => {
       owner.application = application;
@@ -282,8 +267,8 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
       if(application.view.currentMetrics!==owner.metrics && application.view.currentMetrics.viewportGeneration<owner.metrics!.viewportGeneration) {
         owner.notify?.({kind:'metrics',metrics:owner.metrics!});latest.current.onMetrics?.(application,owner.metrics!);
       }
-      owner.setVisible=value=>renderer.setVisible(value);
-      renderer.setVisible(visible(owner)); application.view.requestFrame();
+      owner.setVisible=value=>engine.setVisible(value);
+      engine.setVisible(visible(owner)); application.view.requestFrame();
       latest.current.onStatus?.(true); latest.current.onReady(application);
       if(owner.firstContent&&!owner.firstContentNotified){owner.firstContentNotified=true;latest.current.onFirstContentReady?.(application);}
     }).catch(error => fail(owner,error));

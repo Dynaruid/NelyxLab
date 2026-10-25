@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createDisplayListCanvas} from '../../skia/packages/rn/src/display-list.ts';
-import {replayFrame} from '@nelyx/skia-rn/renderer';
+import {createDisplayListCanvas} from "../../skia/packages/native/src/display-list.ts";
+import {replayFrame} from '@nelyx/skia-native/renderer';
 import {Paint} from '@nelyx/core/ui/paint';
 const timeout=1_200_000;
 test('a native batch carries exact ordering, duplicate handles and original primitive colours',{timeout},()=>{

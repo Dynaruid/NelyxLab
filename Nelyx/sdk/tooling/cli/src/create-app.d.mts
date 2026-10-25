@@ -1,6 +1,6 @@
 import type {PlatformId} from '@nelyx/core/hosting/platform';
 export interface AppPackageReferences {
-  readonly rn?:string;readonly web?:string;readonly metro?:string;readonly cli?:string;
+  readonly native?:string;readonly rn?:string;readonly web?:string;readonly metro?:string;readonly cli?:string;
   readonly 'static-aot'?:string;
   readonly android?:string;readonly ios?:string;readonly macos?:string;
   readonly targets?:readonly PlatformId[];

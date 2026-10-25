@@ -1,6 +1,6 @@
 import type { CanvasKit, Shader } from "canvaskit-wasm";
 
-import type {SkShader} from "../types/Drawing.ts";
+import type {SkShader} from "@nelyx/skia-native/skia/types/Drawing";
 
 import {HostObject} from './Host.ts';
 

@@ -4,13 +4,13 @@ import type {ReactNode,ComponentRef} from 'react';
 import type {SemanticsNode,SemanticsAction} from '@nelyx/core/ui/types';
 import {LocaleStringAttribute,SpellOutStringAttribute} from '@nelyx/core/ui/string-attribute';
 import type {ReactNativeBackend} from './registration.ts';
-import type {ReactNativeInteraction} from './interaction.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 interface NativeAttribute {readonly kind:'locale'|'spellOut';readonly start:number;readonly end:number;readonly locale?:string}
 interface NativeProps extends ViewProps {readonly semanticsProtocol:2;readonly textInput:{readonly value:string;readonly anchor:number;readonly focus:number;readonly readOnly:boolean;readonly obscured:boolean;readonly multiline:boolean;readonly focused:boolean;readonly focusable:boolean;readonly enabled:boolean;readonly target:number|null}|null;readonly labelAttributes:readonly NativeAttribute[]}
 /** Keep Java UTF16 span offsets and the framework's logical child order. */
 export function createAndroidSemantics(getBackend:()=>Pick<ReactNativeBackend,'react'|'native'>){
   let component:HostComponent<NativeProps>|undefined;
-  return function AndroidSemantics({node,interaction,style,children}:{readonly node:SemanticsNode;readonly interaction:ReactNativeInteraction;readonly style:ViewProps['style'];readonly children?:ReactNode}){
+  return function AndroidSemantics({node,interaction,style,children}:{readonly node:SemanticsNode;readonly interaction:NativeInteraction;readonly style:ViewProps['style'];readonly children?:ReactNode}){
     const {react,native}=getBackend();
     if(!component){const config=native.UIManager.getViewManagerConfig('NelyxSemantics'),constants=config&&'Constants'in config?config.Constants:undefined;if(!constants||typeof constants!=='object'||!('semanticsProtocol'in constants)||constants.semanticsProtocol!==2)throw new Error('Android semantics protocol2 requires the current SDK native sources');component=native.requireNativeComponent<NativeProps>('NelyxSemantics');}
     react.useSyncExternalStore(interaction.subscribe,interaction.snapshot);

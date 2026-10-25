@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {SemanticsNode} from '@nelyx/core/ui/types';
-import type {ReactNativeInteraction} from './interaction.ts';
-import {performWindowsSemanticsAction} from './windows-semantics-packet.ts';
-import type {WindowsSemanticsAction,WindowsSemanticsPacket} from './windows-semantics-packet.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
+import {performWindowsSemanticsAction} from '../../platforms/windows/semantics-packet.ts';
+import type {WindowsSemanticsAction,WindowsSemanticsPacket} from '../../platforms/windows/semantics-packet.ts';
 
 interface Snapshot {readonly node:SemanticsNode;readonly packet:WindowsSemanticsPacket}
 function sameEndpoint(a:WindowsSemanticsPacket,b:WindowsSemanticsPacket):boolean{
@@ -17,9 +17,9 @@ function sameEndpoint(a:WindowsSemanticsPacket,b:WindowsSemanticsPacket):boolean
  * packets are kept, with the same 16-commit bound as the direct native host. */
 export class WindowsSemanticsActions {
   private readonly snapshots=new Map<number,Snapshot>();
-  private interaction:ReactNativeInteraction|undefined;
+  private interaction:NativeInteraction|undefined;
   private latest:Snapshot|undefined;
-  publish(interaction:ReactNativeInteraction,node:SemanticsNode,packet:WindowsSemanticsPacket):void{
+  publish(interaction:NativeInteraction,node:SemanticsNode,packet:WindowsSemanticsPacket):void{
     if(!interaction.isLiveNodeSnapshot(node)){this.clear();return;}
     if(this.interaction!==interaction||this.latest&&!sameEndpoint(this.latest.packet,packet))this.clear();
     this.interaction=interaction;const snapshot={node,packet};this.latest=snapshot;this.snapshots.set(packet.commit,snapshot);

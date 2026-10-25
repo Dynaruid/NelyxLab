@@ -90,6 +90,21 @@ test('an empty merge reuses its source configuration and a later child merge sta
   }finally{f.close();}
 });
 
+test('delegated semantic groups recover after a failed collection without stale labels or nodes',{timeout},()=>{
+  const f=fixture(),failure=new Error('semantic delegate failed');let render,mode='merge';
+  class Boundary extends RenderProxyBox{describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.label='Owner';config.textDirection='ltr';config.childConfigurationsDelegate=configs=>{if(mode==='fail')throw failure;return mode==='group'?{mergeUp:[],siblingMergeGroups:[configs]}:{mergeUp:configs,siblingMergeGroups:[]};};}}
+  class Target extends RenderObjectWidget{constructor(child){super();this.child=child;}get childWidgets(){return [this.child];}createRenderObject(){return render=new Boundary();}}
+  const snapshot=()=>{const nodes=[],visit=node=>{nodes.push({id:node.id,label:node.label});node.visitChildren(child=>{visit(child);return true;});};visit(f.root.pipeline.semanticsOwner.rootSemanticsNode);return nodes;};
+  try{
+    f.set(new SizedBox(120,80,new Target(new Row(['A','B'].map(label=>new Semantics({label,textDirection:'ltr',child:new SizedBox(40,40)}))))));
+    const initial=snapshot();assert(initial.some(node=>node.label.includes('A')&&node.label.includes('B')));
+    mode='group';render.markNeedsSemanticsUpdate();f.frame();const grouped=snapshot();assert(grouped.length>initial.length);assert(grouped.some(node=>node.label.includes('A')&&node.label.includes('B')));
+    mode='fail';assert.throws(()=>existingSemanticsFor(render).updateChildren(),error=>error===failure);
+    mode='merge';render.markNeedsSemanticsUpdate();f.frame();assert.deepEqual(snapshot(),initial,'Recovery must retire the former sibling group and retain the boundary identity');
+    f.frame();assert.deepEqual(snapshot(),initial,'A clean turn must not republish a partially collected group');
+  }finally{f.close();}
+});
+
 test('render-owned semantics follow GlobalKey reparenting and leave no detached transport source',{timeout},()=>{
  const f=fixture(),key=new GlobalKey(),branch=new Semantics({key,container:true,transportId:'moving-owner',label:'moving',textDirection:'ltr',child:new SizedBox(20,20)});let render;
  try{

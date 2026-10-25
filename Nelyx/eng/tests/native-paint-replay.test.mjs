@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {replayFrame,configurePaint} from '@nelyx/skia-rn/renderer';
+import {replayFrame} from '@nelyx/skia-native/renderer';
+import {configurePaint} from '@nelyx/skia-native/paint';
 import {Paint} from '@nelyx/core/ui/paint';
 import {Gradient} from '@nelyx/core/ui/shader';
 import {ColorFilter} from '@nelyx/core/ui/color-filter';

@@ -25,3 +25,17 @@ export interface KeyEvent {
   readonly windows?:Readonly<{keyCode:number;scanCode:number;characterCodePoint:number;modifiers:number}>;
   readonly locks?:Readonly<{capsLock:boolean;numLock:boolean;scrollLock:boolean}>;
 }
+
+/** Copied native keyboard observations. The selected host adapter interprets
+ * key/scan/modifier codes; Core owns no OS or RN event object. Sequence, native
+ * timestamp, focus epoch and repeat quantity survive transport unchanged. */
+export interface NativeKeyboardFocusObservation {readonly protocol:1;readonly sequence:number;readonly focused:boolean;readonly viewGeneration:number}
+export interface NativeTextObservation {readonly protocol:1;readonly sequence:number;readonly viewGeneration:number;readonly characterCodePoint:number;readonly repeatCount:number;readonly focusEpoch:number}
+export interface NativeKeyObservation {
+  readonly timestamp?:number;
+  readonly protocol:1;readonly sequence:number;readonly viewGeneration:number;
+  readonly kind:'down'|'up';readonly keyCode:number;readonly scanCode:number;readonly characterCodePoint:number;readonly modifiers:number;
+  readonly repeat:boolean;readonly repeatCount:number;readonly dead:boolean;
+  readonly focusEpoch:number;
+  readonly capsLock:boolean;readonly numLock:boolean;readonly scrollLock:boolean;
+}

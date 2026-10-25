@@ -102,7 +102,8 @@ const layoutCallbackQueues=new WeakMap<PipelineOwner,Set<RenderObject>>();
 const detachRevisions=new WeakMap<RenderObject,number>();
 const recoveringDetach=new WeakSet<RenderObject>();
 const treeTransitions=new WeakMap<PipelineOwner,number>();
-function enterTreeTransition(owner:PipelineOwner|undefined):()=>void{if(!owner)return ()=>{};treeTransitions.set(owner,(treeTransitions.get(owner)??0)+1);return ()=>{const count=treeTransitions.get(owner)!-1;if(count)treeTransitions.set(owner,count);else treeTransitions.delete(owner);};}
+function enterTreeTransition(owner:PipelineOwner|undefined):PipelineOwner|undefined{if(owner)treeTransitions.set(owner,(treeTransitions.get(owner)??0)+1);return owner;}
+function leaveTreeTransition(owner:PipelineOwner|undefined):void{if(!owner)return;const count=treeTransitions.get(owner)!-1;if(count)treeTransitions.set(owner,count);else treeTransitions.delete(owner);}
 function attempt(errors:unknown[],callback:()=>void):void{try{callback();}catch(error){errors.push(error);}}
 function throwFailures(errors:unknown[],message:string):void{if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,message);}
 /** A failing subclass hook must not leave the base ownership state attached. */
@@ -381,8 +382,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private mutateChildren(callback:(errors:unknown[])=>void):void{
     assertOutsideRenderPaint();
     if(!(!this.dead&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&(!this.doingLayout||this.doingLayoutCallback)&&this.layoutMutationAllowed()&&!layoutQueries.length))invariant(false,'invalid-render-mutation','Render tree mutation requires an idle object or its authorized layout callback');
-    this.changingChildren=true;const errors:unknown[]=[],leave=enterTreeTransition(this.owner);
-    try{callback(errors);}catch(error){errors.push(error);}finally{this.changingChildren=false;leave();}
+    this.changingChildren=true;const errors:unknown[]=[],transition=enterTreeTransition(this.owner);
+    try{callback(errors);}catch(error){errors.push(error);}finally{this.changingChildren=false;leaveTreeTransition(transition);}
     throwFailures(errors,'Render child mutation failed');
   }
   private updateSiblings(child:RenderObject|undefined):void{
@@ -447,22 +448,22 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   attach(owner:PipelineOwner):void {
     assertOutsideRenderPaint();
     if(!(!this.dead&&!owner.debugDisposed&&!this.changingAttachment&&!layoutQueries.length&&(!this.owner||this.owner===owner)&&(!this.parent||this.parent.owner===owner)))invariant(false,'invalid-render-owner','Render object or pipeline is disposed, active or has incompatible ownership');if(this.owner===owner)return;
-    this.changingAttachment=true;const leave=enterTreeTransition(owner);this.pipelineOwner=owner;this.layoutDirty=true;this.boundary=undefined;committedInputGeometries.delete(this);
+    this.changingAttachment=true;const transition=enterTreeTransition(owner);this.pipelineOwner=owner;this.layoutDirty=true;this.boundary=undefined;committedInputGeometries.delete(this);
     try{this.refreshInputGeometryWork();this.clearCachedLayoutData();for(const child of this.children)attachRenderTree(child,owner);if(owner.semanticsOwner){
       // Source attach schedules dirty semantic boundaries. Ordinary newly
       // adopted children are reached through their parent's structural update.
       const semantics=semanticsFor(this);if(semantics.configProvider.effective.isSemanticBoundary&&(semantics.parentDataDirty||!semantics.built))this.markNeedsSemanticsUpdate();
     }}
     catch(error){const errors=[error];this.changingAttachment=false;detachRenderTree(this,errors);throwFailures(errors,'Attaching render tree failed');}
-    finally{this.changingAttachment=false;leave();}
+    finally{this.changingAttachment=false;leaveTreeTransition(transition);}
   }
   detach():void {
     assertOutsideRenderPaint();
     if(!(!this.changingAttachment&&!layoutQueries.length&&(!this.parent?.owner||recoveringDetach.has(this))))invariant(false,'invalid-render-owner','Detach the parent before its child; attachment and measurement must be idle');
-    this.changingAttachment=true;detachRevisions.set(this,(detachRevisions.get(this)??0)+1);const owner=this.owner,errors:unknown[]=[],leave=enterTreeTransition(owner);this.pipelineOwner=undefined;this.boundary=undefined;this.layoutDirty=true;committedInputGeometries.delete(this);layoutQueues.get(owner!)?.delete(this);layoutCallbackQueues.get(owner!)?.delete(this);
+    this.changingAttachment=true;detachRevisions.set(this,(detachRevisions.get(this)??0)+1);const owner=this.owner,errors:unknown[]=[],transition=enterTreeTransition(owner);this.pipelineOwner=undefined;this.boundary=undefined;this.layoutDirty=true;committedInputGeometries.delete(this);layoutQueues.get(owner!)?.delete(this);layoutCallbackQueues.get(owner!)?.delete(this);
     if(owner)existingPipelineSemantics(owner)?.detached(this);
     try{attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();for(const child of this.children)detachRenderTree(child,errors);}
-    finally{this.changingAttachment=false;leave();}throwFailures(errors,'Detaching render tree failed');
+    finally{this.changingAttachment=false;leaveTreeTransition(transition);}throwFailures(errors,'Detaching render tree failed');
   }
   private invalidateLayout(visited:Set<RenderObject>|undefined,errors:unknown[]|undefined):unknown[]|undefined{
     if(visited?.has(this))return errors;visited?.add(this);if(this.dead){(errors??=[]).push(new Error('Layout dependency refers to a disposed render object'));return errors;}

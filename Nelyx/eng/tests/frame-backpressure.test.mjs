@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AppSession} from '@nelyx/core/hosting/runtime';
-import {GraphiteRenderer} from '@nelyx/skia-rn/renderer';
+import {GraphiteRenderer} from '@nelyx/skia-native/renderer';
 const timeout=1_200_000;
 const metrics={logicalWidth:100,logicalHeight:100,physicalWidth:100,physicalHeight:100,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:1,nativeSurfaceGeneration:1};
 function fixture({scene}={}){

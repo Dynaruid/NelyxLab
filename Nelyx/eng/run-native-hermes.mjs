@@ -6,7 +6,10 @@ const args=process.argv.slice(2),option=(name,fallback)=>{const at=args.indexOf(
 try{
   const app=path.resolve(option('--app',path.join(root,'sample/nelyx-testbed-app-2'))),mode=option('--hermes-mode','bytecode');
   for(const name of args.filter(value=>value.startsWith('--')))if(!['--app','--hermes-mode','--duration-ms','--build-only','--output'].includes(name))throw Error('Unknown native host option: '+name);
-  const hostBuild=await buildNativeHost({app}),built=await buildNativeApplication({app,mode,hostBuild,...(args.includes('--output')?{output:path.resolve(option('--output'))}:{})});
+  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(Error('Native product build exceeded 20 minutes')),1_200_000);
+  const interrupt=()=>controller.abort(Error('Native product build interrupted'));process.on('SIGINT',interrupt);process.on('SIGTERM',interrupt);let built;
+  try{const hostBuild=await buildNativeHost({app,signal:controller.signal});built=await buildNativeApplication({app,mode,hostBuild,signal:controller.signal,...(args.includes('--output')?{output:path.resolve(option('--output'))}:{})});}
+  finally{clearTimeout(deadline);process.off('SIGINT',interrupt);process.off('SIGTERM',interrupt);}
   console.log('NELYX_NATIVE_PACKAGE '+JSON.stringify(built));
   if(!args.includes('--build-only')){const result=await runNativeApplication({app,directory:built.directory,arguments:[option('--duration-ms','0')]});console.log(JSON.stringify(result));process.exitCode=result.exitCode;}
 }catch(error){console.error(error.stack??error);process.exitCode=1;}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include "../../skia/packages/rn/native/windows/WindowsPrecisionTrackpad.h"
+#include "../../skia/native/host/windows/WindowsPrecisionTrackpad.h"
 #include <iostream>
 int main(){
   HWND window=nullptr;

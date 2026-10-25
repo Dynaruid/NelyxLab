@@ -1,13 +1,13 @@
-import {arrayItem} from '../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 /* global HTMLCanvasElement, ResizeObserver, MediaQueryList */
 import type { RefObject } from "react";
 import { useLayoutEffect, useRef } from "react";
 import type { LayoutChangeEvent } from "react-native";
 import type { GrDirectContext, WebGLContextHandle } from "canvaskit-wasm";
 
-import type {SkRect} from '../skia/types/Rect.ts';
-import type {SkPicture} from "../skia/types/Drawing.ts";
-import type {SkImage} from "../skia/types/Drawing.ts";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
 import {JsiSkSurface} from '../skia/web/JsiSkSurface.ts';
 
 // The WebGL renderers behind the web view (SkiaView.web):

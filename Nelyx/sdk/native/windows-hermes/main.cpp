@@ -28,9 +28,9 @@
 #include "rnskia/RNSkView.h"
 #include "rnskia/RNSkOwnerAsyncQueue.h"
 #include "include/ports/SkTypeface_win.h"
-#include "CompositorFrameClock.h"
-#include "WindowsMonotonic.h"
-#include "WindowsPrecisionTrackpad.h"
+#include "windows/CompositorFrameClock.h"
+#include "windows/WindowsMonotonic.h"
+#include "windows/WindowsPrecisionTrackpad.h"
 #include "InputBatch.h"
 
 extern "C" void C_SetICU(const void*);

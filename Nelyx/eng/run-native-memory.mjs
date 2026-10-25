@@ -46,8 +46,8 @@ export async function runNativeMemory(options){
           for(const point of points)console.log('NELYX_NATIVE_MEMORY_POINT '+JSON.stringify({mode,viewport,...point}));
           if(overflow||closed.exitCode!==0||closed.forced||closed.error||exits.length!==1||exits[0].exitCode!==0||/NELYX_NATIVE_\w*ERROR/.test(output+errors))throw Error('Native memory product did not close normally');
           const loadedIdentity=verifyNativeLoadedIdentity(output,checked.manifest);
-          // Preserve the verified product identity even when a fixed memory
-          // limit rejects the observation. No durable receipt is written.
+          // Preserve the verified product identity even when observation or
+          // workload validation fails. Memory totals are measurements, not caps.
           console.log('NELYX_NATIVE_MEMORY_IDENTITY '+JSON.stringify({mode,viewport,sourceSha256:host.manifest.sourceSha256,source,loadedIdentity,exit:exits[0],closed}));
           const regionRecords=records(client,'NELYX_NATIVE_MEMORY_REGIONS '),addressSpace=verifyNativeMemoryRegions(regionRecords,{pid:running.pid,cycles:options.cycles});
           for(const row of regionRecords)console.log('NELYX_NATIVE_MEMORY_REGIONS '+JSON.stringify({mode,viewport,...row}));

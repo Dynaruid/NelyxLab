@@ -1,6 +1,6 @@
 import type { CanvasKit, ImageFilter } from "canvaskit-wasm";
 
-import type {SkImageFilter} from '../types/ImageFilter/ImageFilter.ts';
+import type {SkImageFilter} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
 
 import {HostObject} from './Host.ts';
 

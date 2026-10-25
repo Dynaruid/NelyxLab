@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {SemanticsNode} from '@nelyx/core/ui/types';
-import type {ReactNativeInteraction} from './interaction.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 interface ControlPointer {pointerId?:number;pointerType?:string;buttons?:number;offsetX?:number;offsetY?:number;locationX?:number;locationY?:number;timestamp?:number}
 interface ControlTouch {identifier?:number;locationX?:number;locationY?:number;timestamp?:number}
 /** Observe actual native control input without forwarding it into canvas hit
  * testing. Missing native fields remain unobserved, rather than inferred. */
-export function nativeControlInputProps(target:string,interaction:ReactNativeInteraction|undefined,node:SemanticsNode|undefined):Record<string,unknown>{
+export function nativeControlInputProps(target:string,interaction:NativeInteraction|undefined,node:SemanticsNode|undefined):Record<string,unknown>{
   if(!interaction||!node)return {};
   const pointer=(kind:'down'|'move'|'up'|'cancel'|'leave')=>(event:{nativeEvent:ControlPointer})=>{
     const e=event.nativeEvent,x=e.offsetX??e.locationX,y=e.offsetY??e.locationY;

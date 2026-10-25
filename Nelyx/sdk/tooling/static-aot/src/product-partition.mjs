@@ -4,7 +4,7 @@ import {createRequire} from 'node:module';
 import {automaticPartition} from './type-policy.mjs';
 export function productPartition({runner,entry,runtimeFiles,applicationRoot,packageRoots}){
   runner=fs.realpathSync(runner);
-  const roots=packageRoots??['core','sdk','skia-rn','material','cupertino'].map(name=>path.join(runner,'node_modules/@nelyx',name)).filter(file=>fs.existsSync(path.join(file,'package.json')));
+  const roots=packageRoots??['core','sdk','skia-native','skia-rn','material','cupertino'].map(name=>path.join(runner,'node_modules/@nelyx',name)).filter(file=>fs.existsSync(path.join(file,'package.json')));
   const owners=new Map(roots.map(root=>[JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).name,fs.realpathSync(root)]));
   for(const root of roots){
     const manifest=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')),load=createRequire(path.join(root,'package.json'));

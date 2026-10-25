@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "RNSkWindowsWindowSurface.h"
-#include "WindowsKeyboardInput.h"
+#include "windows/WindowsKeyboardInput.h"
 #include "WindowsKeyboardState.h"
 #include "MouseCursor.h"
-#include "WindowsPrecisionTrackpad.h"
+#include "windows/WindowsPrecisionTrackpad.h"
 #include <NativeModules.h>
 #include <JSValueComposition.h>
 #include <winrt/Microsoft.ReactNative.Composition.Experimental.h>

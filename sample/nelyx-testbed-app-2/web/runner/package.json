@@ -11,8 +11,8 @@
     "dev": "nelyx dev --app ../.. --target web"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-b27c33cdac41a2744b08228484df1df2399e72b7d3536b21794e07033c5ee64d.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-06ddc2889ac20c37cd660282ab6a9cc082eb1c7de784d4505f8c3472dd5e1df7.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-028da3c093f08850794519e8014edc4e9db0e6e99978a62991add43d89b72c0d.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-ba3c46547753493b389ad61cfcb06c0ef26f14ffdf63e986f3cfb75eaac2aa16.tgz",
     "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-0baedb19bdec86b85f889fe54ea584ddb0659eb1d74679f5babd256efa2f3ab2.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-f613e5db43d417587c2b85e237cda39e75d71cac55c28629e68724cefb45c9db.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-1546c9471ddae70394801eab1b1f405ef03a5363a91b06f49ea4fd4625296bca.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-55f54b6ceec7fd7d192abd00f38fd1284aa866fd5795afdca7c3df9e3878de99.tgz",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@types/node": "24.10.1",

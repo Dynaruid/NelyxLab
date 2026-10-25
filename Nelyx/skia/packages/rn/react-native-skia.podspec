@@ -32,7 +32,7 @@ Pod::Spec.new do |s|
     'GCC_PREPROCESSOR_DEFINITIONS' => preprocessor_defs,
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20',
     'DEFINES_MODULE' => 'YES',
-    "HEADER_SEARCH_PATHS" => '"$(PODS_TARGET_SRCROOT)/generated/gpu" "$(PODS_TARGET_SRCROOT)/generated/core" "$(PODS_TARGET_SRCROOT)/generated/host" "$(PODS_TARGET_SRCROOT)/cpp"/** "$(PODS_TARGET_SRCROOT)/cpp" "$(PODS_TARGET_SRCROOT)/generated/sdk/skia" "$(PODS_TARGET_SRCROOT)/generated/sdk/dawn/include"'
+    "HEADER_SEARCH_PATHS" => '"$(PODS_TARGET_SRCROOT)/generated/gpu" "$(PODS_TARGET_SRCROOT)/generated/core" "$(PODS_TARGET_SRCROOT)/generated/host" "$(PODS_TARGET_SRCROOT)/generated/jsi"/** "$(PODS_TARGET_SRCROOT)/generated/jsi" "$(PODS_TARGET_SRCROOT)/generated/sdk/skia" "$(PODS_TARGET_SRCROOT)/generated/sdk/dawn/include"'
   }
 
   s.frameworks = ['MetalKit', 'AVFoundation', 'AVKit', 'CoreMedia', 'ImageIO']
@@ -47,7 +47,7 @@ Pod::Spec.new do |s|
   # All iOS cpp/h files
   s.source_files = [
     "apple/**/*.{h,c,cc,cpp,m,mm,swift}",
-    "cpp/**/*.{h,cpp}",
+    "generated/jsi/**/*.{h,cpp}",
     "generated/core/**/*.{h,cpp}",
     "generated/host/**/*.h",
     "generated/gpu/**/*.h",

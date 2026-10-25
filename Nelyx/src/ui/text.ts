@@ -3,7 +3,8 @@ import { invariant } from '../foundation/errors.ts';
 import type {Rect,ResourceId,TextLayout,TextLayoutGeometry,TextLayoutInput,TextLayoutRequest} from './types.ts';
 import {freezeRunStyle,freezeStrutStyle} from './text-style-validation.ts';
 import {copyResourceId} from './resource-retention.ts';
-import {isCacheableTextInput,textInputSerializationIsPlain} from './text-input-data.ts';
+import {isCacheableTextInput,textInputSerializationIsPlain,markCapturedTextRecord,isCapturedTextRecord,isCapturedTextArray} from './text-input-data.ts';
+import type {TextRun,TextPlaceholder} from './text-styles.ts';
 // Keep current UI producers bounded separately from immutable recorded scenes
 // and the two admitted renderer frames. Retained resources retire by their real
 // leases, including while the next layout is replacing the current paragraphs.
@@ -69,6 +70,14 @@ function validText(text:string):void {
     else {if(!(code<0xdc00 || code>0xdfff))invariant(false,'invalid-text','unpaired low surrogate');}
   }
 }
+function checkedOwnedRuns(input:TextLayoutInput,runs:readonly TextRun[]):readonly TextRun[]{
+  for(let index=0;index<runs.length;index++){const run=runs[index]!;textOffset(input.text,run.start);textOffset(input.text,run.end);if(!(run.end>run.start&&(index===0||run.start>=runs[index-1]!.end)))invariant(false,'invalid-text','Text runs must be nonempty, ordered and disjoint');}
+  return runs;
+}
+function checkedOwnedPlaceholders(input:TextLayoutInput,items:readonly TextPlaceholder[]):readonly TextPlaceholder[]{
+  for(let index=0;index<items.length;index++){const item=items[index]!;textOffset(input.text,item.offset);if(!(input.text[item.offset]==='\ufffc'&&(index===0||item.offset>items[index-1]!.offset)))invariant(false,'invalid-text','Placeholder offsets must be ordered object replacement characters');if(!(Number.isFinite(item.width)&&item.width>=0&&item.width<=textLimits.width&&Number.isFinite(item.height)&&item.height>=0&&item.height<=textLimits.width&&Number.isFinite(item.baselineOffset)))invariant(false,'invalid-text','Invalid placeholder geometry');if(!(['baseline','aboveBaseline','belowBaseline','top','bottom','middle'].includes(item.alignment)&&['alphabetic','ideographic'].includes(item.baseline)))invariant(false,'invalid-text','Invalid placeholder alignment/baseline');}
+  return items;
+}
 export function freezeTextInput(input:TextLayoutInput):TextLayoutInput {
   if(ownedInputs.has(input))return input;
   if(!(input.text.length<=textLimits.units))invariant(false,'oversize','paragraph text budget exceeded');validText(input.text);
@@ -85,12 +94,12 @@ export function freezeTextInput(input:TextLayoutInput):TextLayoutInput {
   if(!(ellipsis.length<=32))invariant(false,'invalid-text','ellipsis budget exceeded');validText(ellipsis);
   if(!(input.hyphens===undefined||input.hyphens==='manual'||input.hyphens==='hidden'))invariant(false,'invalid-text','Invalid hyphen policy');
   if(!(input.textAlign===undefined||['left','right','center','justify','start','end'].includes(input.textAlign)))invariant(false,'invalid-text','Invalid paragraph alignment');
-  const runs=input.runs?.map((run,index)=>{textOffset(input.text,run.start);textOffset(input.text,run.end);if(!(run.end>run.start&&(index===0||run.start>=input.runs![index-1]!.end)))invariant(false,'invalid-text','Text runs must be nonempty, ordered and disjoint');return Object.freeze({...run,style:freezeRunStyle(run.style)});});if(!(!runs||runs.length<=textLimits.runs))invariant(false,'oversize','Text run budget');
-  const placeholders=input.placeholders?.map((item,index)=>{textOffset(input.text,item.offset);if(!(input.text[item.offset]==='\ufffc'&&(index===0||item.offset>input.placeholders![index-1]!.offset)))invariant(false,'invalid-text','Placeholder offsets must be ordered object replacement characters');if(!(Number.isFinite(item.width)&&item.width>=0&&item.width<=textLimits.width&&Number.isFinite(item.height)&&item.height>=0&&item.height<=textLimits.width&&Number.isFinite(item.baselineOffset)))invariant(false,'invalid-text','Invalid placeholder geometry');if(!(['baseline','aboveBaseline','belowBaseline','top','bottom','middle'].includes(item.alignment)&&['alphabetic','ideographic'].includes(item.baseline)))invariant(false,'invalid-text','Invalid placeholder alignment/baseline');return Object.freeze({...item});});if(!(!placeholders||placeholders.length<=textLimits.placeholders))invariant(false,'oversize','Placeholder budget');
+  const runSource=input.runs,runs=isCapturedTextRecord(input)&&runSource&&isCapturedTextArray(runSource)?checkedOwnedRuns(input,runSource):runSource?.map((run,index)=>{textOffset(input.text,run.start);textOffset(input.text,run.end);if(!(run.end>run.start&&(index===0||run.start>=input.runs![index-1]!.end)))invariant(false,'invalid-text','Text runs must be nonempty, ordered and disjoint');return Object.freeze({...run,style:freezeRunStyle(run.style)});});if(!(!runs||runs.length<=textLimits.runs))invariant(false,'oversize','Text run budget');
+  const placeholderSource=input.placeholders,placeholders=isCapturedTextRecord(input)&&placeholderSource&&isCapturedTextArray(placeholderSource)?checkedOwnedPlaceholders(input,placeholderSource):placeholderSource?.map((item,index)=>{textOffset(input.text,item.offset);if(!(input.text[item.offset]==='\ufffc'&&(index===0||item.offset>input.placeholders![index-1]!.offset)))invariant(false,'invalid-text','Placeholder offsets must be ordered object replacement characters');if(!(Number.isFinite(item.width)&&item.width>=0&&item.width<=textLimits.width&&Number.isFinite(item.height)&&item.height>=0&&item.height<=textLimits.width&&Number.isFinite(item.baselineOffset)))invariant(false,'invalid-text','Invalid placeholder geometry');if(!(['baseline','aboveBaseline','belowBaseline','top','bottom','middle'].includes(item.alignment)&&['alphabetic','ideographic'].includes(item.baseline)))invariant(false,'invalid-text','Invalid placeholder alignment/baseline');return Object.freeze({...item});});if(!(!placeholders||placeholders.length<=textLimits.placeholders))invariant(false,'oversize','Placeholder budget');
   const behavior=input.textHeightBehavior;if(behavior){if(!(typeof behavior.applyHeightToFirstAscent==='boolean'&&typeof behavior.applyHeightToLastDescent==='boolean'&&['proportional','even'].includes(behavior.leadingDistribution)))invariant(false,'invalid-text','Invalid text height behavior');}
   for(const style of [input.style,...(runs?.map(run=>run.style)??[])])if(style?.fontSize!==undefined){if(!(style.fontSize>=0&&style.fontSize*textScale<=512))invariant(false,'invalid-text','Effective span font size outside budget');}
   const snapshot=Object.freeze({text:input.text,width:input.width,font:copyResourceId(input.font),fontSize:input.fontSize,locale:input.locale,direction:input.direction,scale:input.scale,textScale,color,maxLines,ellipsis,...(input.unlimitedLines?{unlimitedLines:true}:{}),...(input.hyphens?{hyphens:input.hyphens}:{}),...(input.textAlign!==undefined?{textAlign:input.textAlign}:{}),...(input.style?{style:freezeRunStyle(input.style)}:{}),...(runs?{runs:Object.freeze(runs)}:{}),...(placeholders?{placeholders:Object.freeze(placeholders)}:{}),...(input.strutStyle?{strutStyle:freezeStrutStyle(input.strutStyle)}:{}),...(behavior?{textHeightBehavior:Object.freeze({...behavior})}:{})});
-  capturedInputs.add(snapshot);return snapshot;
+  capturedInputs.add(snapshot);markCapturedTextRecord(snapshot);return snapshot;
 }
 export function freezeTextRect(rect:Rect):Rect {
   const {x,y,width,height}=rect;finite(x,'text x');finite(y,'text y');if(!(finite(width,'text rect width')>=0 && finite(height,'text rect height')>=0))invariant(false,'invalid-text','negative text rect');

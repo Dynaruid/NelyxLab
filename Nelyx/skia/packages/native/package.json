@@ -1,0 +1,331 @@
+{
+  "name": "@nelyx/skia-native",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "RN-independent Nelyx Skia renderer, paragraph and resource bindings",
+  "license": "BSD-3-Clause AND MIT",
+  "dependencies": {
+    "@nelyx/core": "0.16.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses",
+    "README.md",
+    "cpp",
+    "generated/core",
+    "generated/gpu",
+    "generated/vulkan",
+    "generated/host",
+    "native/jsi",
+    "native/vulkan",
+    "native-manifest.json"
+  ],
+  "exports": {
+    "./renderer": {
+      "types": "./dist/renderer.d.ts",
+      "react-native": "./src/renderer.ts",
+      "default": "./dist/renderer.js"
+    },
+    "./display-list": {
+      "types": "./dist/display-list.d.ts",
+      "react-native": "./src/display-list.ts",
+      "default": "./dist/display-list.js"
+    },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "react-native": "./src/text.ts",
+      "default": "./dist/text.js"
+    },
+    "./text-style": {
+      "types": "./dist/text-style.d.ts",
+      "react-native": "./src/text-style.ts",
+      "default": "./dist/text-style.js"
+    },
+    "./paint-effects": {
+      "types": "./dist/paint-effects.d.ts",
+      "react-native": "./src/paint-effects.ts",
+      "default": "./dist/paint-effects.js"
+    },
+    "./path": {
+      "types": "./dist/path.d.ts",
+      "react-native": "./src/path.ts",
+      "default": "./dist/path.js"
+    },
+    "./pictures": {
+      "types": "./dist/pictures.d.ts",
+      "react-native": "./src/pictures.ts",
+      "default": "./dist/pictures.js"
+    },
+    "./rasterization": {
+      "types": "./dist/rasterization.d.ts",
+      "react-native": "./src/rasterization.ts",
+      "default": "./dist/rasterization.js"
+    },
+    "./image-bytes": {
+      "types": "./dist/image-bytes.d.ts",
+      "react-native": "./src/image-bytes.ts",
+      "default": "./dist/image-bytes.js"
+    },
+    "./runtime/arrays": {
+      "types": "./dist/runtime/arrays.d.ts",
+      "react-native": "./src/runtime/arrays.ts",
+      "default": "./dist/runtime/arrays.js"
+    },
+    "./skia/types/AnimatedImage/AnimatedImage": {
+      "types": "./dist/skia/types/AnimatedImage/AnimatedImage.d.ts",
+      "react-native": "./src/skia/types/AnimatedImage/AnimatedImage.ts",
+      "default": "./dist/skia/types/AnimatedImage/AnimatedImage.js"
+    },
+    "./skia/types/AnimatedImage/AnimatedImageFactory": {
+      "types": "./dist/skia/types/AnimatedImage/AnimatedImageFactory.d.ts",
+      "react-native": "./src/skia/types/AnimatedImage/AnimatedImageFactory.ts",
+      "default": "./dist/skia/types/AnimatedImage/AnimatedImageFactory.js"
+    },
+    "./skia/types/Color": {
+      "types": "./dist/skia/types/Color.d.ts",
+      "react-native": "./src/skia/types/Color.ts",
+      "default": "./dist/skia/types/Color.js"
+    },
+    "./skia/types/ColorFilter/ColorFilter": {
+      "types": "./dist/skia/types/ColorFilter/ColorFilter.d.ts",
+      "react-native": "./src/skia/types/ColorFilter/ColorFilter.ts",
+      "default": "./dist/skia/types/ColorFilter/ColorFilter.js"
+    },
+    "./skia/types/ColorFilter/ColorFilterFactory": {
+      "types": "./dist/skia/types/ColorFilter/ColorFilterFactory.d.ts",
+      "react-native": "./src/skia/types/ColorFilter/ColorFilterFactory.ts",
+      "default": "./dist/skia/types/ColorFilter/ColorFilterFactory.js"
+    },
+    "./skia/types/Data/Data": {
+      "types": "./dist/skia/types/Data/Data.d.ts",
+      "react-native": "./src/skia/types/Data/Data.ts",
+      "default": "./dist/skia/types/Data/Data.js"
+    },
+    "./skia/types/Data/DataFactory": {
+      "types": "./dist/skia/types/Data/DataFactory.d.ts",
+      "react-native": "./src/skia/types/Data/DataFactory.ts",
+      "default": "./dist/skia/types/Data/DataFactory.js"
+    },
+    "./skia/types/Font/FontMgr": {
+      "types": "./dist/skia/types/Font/FontMgr.d.ts",
+      "react-native": "./src/skia/types/Font/FontMgr.ts",
+      "default": "./dist/skia/types/Font/FontMgr.js"
+    },
+    "./skia/types/Font/FontMgrFactory": {
+      "types": "./dist/skia/types/Font/FontMgrFactory.d.ts",
+      "react-native": "./src/skia/types/Font/FontMgrFactory.ts",
+      "default": "./dist/skia/types/Font/FontMgrFactory.js"
+    },
+    "./skia/types/GPUTexture": {
+      "types": "./dist/skia/types/GPUTexture.d.ts",
+      "react-native": "./src/skia/types/GPUTexture.ts",
+      "default": "./dist/skia/types/GPUTexture.js"
+    },
+    "./skia/types/Graphite": {
+      "types": "./dist/skia/types/Graphite.d.ts",
+      "react-native": "./src/skia/types/Graphite.ts",
+      "default": "./dist/skia/types/Graphite.js"
+    },
+    "./skia/types/Image/ColorType": {
+      "types": "./dist/skia/types/Image/ColorType.d.ts",
+      "react-native": "./src/skia/types/Image/ColorType.ts",
+      "default": "./dist/skia/types/Image/ColorType.js"
+    },
+    "./skia/types/ImageFilter/ImageFilter": {
+      "types": "./dist/skia/types/ImageFilter/ImageFilter.d.ts",
+      "react-native": "./src/skia/types/ImageFilter/ImageFilter.ts",
+      "default": "./dist/skia/types/ImageFilter/ImageFilter.js"
+    },
+    "./skia/types/ImageFilter/ImageFilterFactory": {
+      "types": "./dist/skia/types/ImageFilter/ImageFilterFactory.d.ts",
+      "react-native": "./src/skia/types/ImageFilter/ImageFilterFactory.ts",
+      "default": "./dist/skia/types/ImageFilter/ImageFilterFactory.js"
+    },
+    "./skia/types/JsiInstance": {
+      "types": "./dist/skia/types/JsiInstance.d.ts",
+      "react-native": "./src/skia/types/JsiInstance.ts",
+      "default": "./dist/skia/types/JsiInstance.js"
+    },
+    "./skia/types/MaskFilter": {
+      "types": "./dist/skia/types/MaskFilter.d.ts",
+      "react-native": "./src/skia/types/MaskFilter.ts",
+      "default": "./dist/skia/types/MaskFilter.js"
+    },
+    "./skia/types/Matrix4": {
+      "types": "./dist/skia/types/Matrix4.d.ts",
+      "react-native": "./src/skia/types/Matrix4.ts",
+      "default": "./dist/skia/types/Matrix4.js"
+    },
+    "./skia/types/Paint/BlendMode": {
+      "types": "./dist/skia/types/Paint/BlendMode.d.ts",
+      "react-native": "./src/skia/types/Paint/BlendMode.ts",
+      "default": "./dist/skia/types/Paint/BlendMode.js"
+    },
+    "./skia/types/Paragraph/Paragraph": {
+      "types": "./dist/skia/types/Paragraph/Paragraph.d.ts",
+      "react-native": "./src/skia/types/Paragraph/Paragraph.ts",
+      "default": "./dist/skia/types/Paragraph/Paragraph.js"
+    },
+    "./skia/types/Paragraph/ParagraphBuilder": {
+      "types": "./dist/skia/types/Paragraph/ParagraphBuilder.d.ts",
+      "react-native": "./src/skia/types/Paragraph/ParagraphBuilder.ts",
+      "default": "./dist/skia/types/Paragraph/ParagraphBuilder.js"
+    },
+    "./skia/types/Paragraph/ParagraphStyle": {
+      "types": "./dist/skia/types/Paragraph/ParagraphStyle.d.ts",
+      "react-native": "./src/skia/types/Paragraph/ParagraphStyle.ts",
+      "default": "./dist/skia/types/Paragraph/ParagraphStyle.js"
+    },
+    "./skia/types/Paragraph/TextStyle": {
+      "types": "./dist/skia/types/Paragraph/TextStyle.d.ts",
+      "react-native": "./src/skia/types/Paragraph/TextStyle.ts",
+      "default": "./dist/skia/types/Paragraph/TextStyle.js"
+    },
+    "./skia/types/Paragraph/TypefaceFontProvider": {
+      "types": "./dist/skia/types/Paragraph/TypefaceFontProvider.d.ts",
+      "react-native": "./src/skia/types/Paragraph/TypefaceFontProvider.ts",
+      "default": "./dist/skia/types/Paragraph/TypefaceFontProvider.js"
+    },
+    "./skia/types/Paragraph/TypefaceFontProviderFactory": {
+      "types": "./dist/skia/types/Paragraph/TypefaceFontProviderFactory.d.ts",
+      "react-native": "./src/skia/types/Paragraph/TypefaceFontProviderFactory.ts",
+      "default": "./dist/skia/types/Paragraph/TypefaceFontProviderFactory.js"
+    },
+    "./skia/types/Path/PathBuilder": {
+      "types": "./dist/skia/types/Path/PathBuilder.d.ts",
+      "react-native": "./src/skia/types/Path/PathBuilder.ts",
+      "default": "./dist/skia/types/Path/PathBuilder.js"
+    },
+    "./skia/types/Path/PathBuilderFactory": {
+      "types": "./dist/skia/types/Path/PathBuilderFactory.d.ts",
+      "react-native": "./src/skia/types/Path/PathBuilderFactory.ts",
+      "default": "./dist/skia/types/Path/PathBuilderFactory.js"
+    },
+    "./skia/types/Path/PathFactory": {
+      "types": "./dist/skia/types/Path/PathFactory.d.ts",
+      "react-native": "./src/skia/types/Path/PathFactory.ts",
+      "default": "./dist/skia/types/Path/PathFactory.js"
+    },
+    "./skia/types/Picture/PictureFactory": {
+      "types": "./dist/skia/types/Picture/PictureFactory.d.ts",
+      "react-native": "./src/skia/types/Picture/PictureFactory.ts",
+      "default": "./dist/skia/types/Picture/PictureFactory.js"
+    },
+    "./skia/types/Picture/PictureRecorder": {
+      "types": "./dist/skia/types/Picture/PictureRecorder.d.ts",
+      "react-native": "./src/skia/types/Picture/PictureRecorder.ts",
+      "default": "./dist/skia/types/Picture/PictureRecorder.js"
+    },
+    "./skia/types/Point": {
+      "types": "./dist/skia/types/Point.d.ts",
+      "react-native": "./src/skia/types/Point.ts",
+      "default": "./dist/skia/types/Point.js"
+    },
+    "./skia/types/Rect": {
+      "types": "./dist/skia/types/Rect.d.ts",
+      "react-native": "./src/skia/types/Rect.ts",
+      "default": "./dist/skia/types/Rect.js"
+    },
+    "./skia/types/RRect": {
+      "types": "./dist/skia/types/RRect.d.ts",
+      "react-native": "./src/skia/types/RRect.ts",
+      "default": "./dist/skia/types/RRect.js"
+    },
+    "./skia/types/RSXform": {
+      "types": "./dist/skia/types/RSXform.d.ts",
+      "react-native": "./src/skia/types/RSXform.ts",
+      "default": "./dist/skia/types/RSXform.js"
+    },
+    "./skia/types/RuntimeEffect/RuntimeEffectFactory": {
+      "types": "./dist/skia/types/RuntimeEffect/RuntimeEffectFactory.d.ts",
+      "react-native": "./src/skia/types/RuntimeEffect/RuntimeEffectFactory.ts",
+      "default": "./dist/skia/types/RuntimeEffect/RuntimeEffectFactory.js"
+    },
+    "./skia/types/Shader/ShaderFactory": {
+      "types": "./dist/skia/types/Shader/ShaderFactory.d.ts",
+      "react-native": "./src/skia/types/Shader/ShaderFactory.ts",
+      "default": "./dist/skia/types/Shader/ShaderFactory.js"
+    },
+    "./skia/types/Size": {
+      "types": "./dist/skia/types/Size.d.ts",
+      "react-native": "./src/skia/types/Size.ts",
+      "default": "./dist/skia/types/Size.js"
+    },
+    "./skia/types/Skia": {
+      "types": "./dist/skia/types/Skia.d.ts",
+      "react-native": "./src/skia/types/Skia.ts",
+      "default": "./dist/skia/types/Skia.js"
+    },
+    "./skia/types/Skottie": {
+      "types": "./dist/skia/types/Skottie.d.ts",
+      "react-native": "./src/skia/types/Skottie.ts",
+      "default": "./dist/skia/types/Skottie.js"
+    },
+    "./skia/types/Surface/Surface": {
+      "types": "./dist/skia/types/Surface/Surface.d.ts",
+      "react-native": "./src/skia/types/Surface/Surface.ts",
+      "default": "./dist/skia/types/Surface/Surface.js"
+    },
+    "./skia/types/Surface/SurfaceFactory": {
+      "types": "./dist/skia/types/Surface/SurfaceFactory.d.ts",
+      "react-native": "./src/skia/types/Surface/SurfaceFactory.ts",
+      "default": "./dist/skia/types/Surface/SurfaceFactory.js"
+    },
+    "./skia/types/SVG/SVG": {
+      "types": "./dist/skia/types/SVG/SVG.d.ts",
+      "react-native": "./src/skia/types/SVG/SVG.ts",
+      "default": "./dist/skia/types/SVG/SVG.js"
+    },
+    "./skia/types/SVG/SVGFactory": {
+      "types": "./dist/skia/types/SVG/SVGFactory.d.ts",
+      "react-native": "./src/skia/types/SVG/SVGFactory.ts",
+      "default": "./dist/skia/types/SVG/SVGFactory.js"
+    },
+    "./skia/types/Typeface/Typeface": {
+      "types": "./dist/skia/types/Typeface/Typeface.d.ts",
+      "react-native": "./src/skia/types/Typeface/Typeface.ts",
+      "default": "./dist/skia/types/Typeface/Typeface.js"
+    },
+    "./skia/types/Typeface/TypefaceFactory": {
+      "types": "./dist/skia/types/Typeface/TypefaceFactory.d.ts",
+      "react-native": "./src/skia/types/Typeface/TypefaceFactory.ts",
+      "default": "./dist/skia/types/Typeface/TypefaceFactory.js"
+    },
+    "./skia/types/Drawing": {
+      "types": "./dist/skia/types/Drawing.d.ts",
+      "react-native": "./src/skia/types/Drawing.ts",
+      "default": "./dist/skia/types/Drawing.js"
+    },
+    "./package.json": "./package.json",
+    "./skia/types/Vertices/Vertices": {
+      "types": "./dist/skia/types/Vertices/Vertices.d.ts",
+      "react-native": "./src/skia/types/Vertices/Vertices.ts",
+      "default": "./dist/skia/types/Vertices/Vertices.js"
+    },
+    "./skia/types/ContourMeasure": {
+      "types": "./dist/skia/types/ContourMeasure.d.ts",
+      "react-native": "./src/skia/types/ContourMeasure.ts",
+      "default": "./dist/skia/types/ContourMeasure.js"
+    },
+    "./native-manifest.json": "./native-manifest.json",
+    "./paint": {
+      "types": "./dist/paint.d.ts",
+      "react-native": "./src/paint.ts",
+      "default": "./dist/paint.js"
+    },
+    "./scene": {
+      "types": "./dist/scene.d.ts",
+      "react-native": "./src/scene.ts",
+      "default": "./dist/scene.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../../eng/build-packages.mjs skia-native",
+    "check": "tsc -p tsconfig.build.json --noEmit"
+  }
+}

@@ -41,7 +41,8 @@ async function run(mode,product,pointer,range){
     const timed=new Promise(resolve=>{readyTimer=setTimeout(()=>resolve(null),30000);});
     const value=await Promise.race([ready,timed,running.completed.then(()=>null)]);clearTimeout(readyTimer);
     if(!value||typeof value.automationId!=='string'||!value.automationId.length||value.automationId.length>1024||overflow||controller.signal.aborted)throw Error('Native UIA provider was not ready: '+JSON.stringify({aborted:controller.signal.aborted,overflow,tail:output.slice(-5000),errors:errors.slice(-2000)}));
-    let client,clientError;try{client=capture(path.join(hostBuild.directory,'NelyxNativeHostTests.exe'),['--uia-focus',String(running.pid),value.automationId,...(product?['--text-category']:[]),...(pointer?['--pointer']:[]),...(range?['--range']:[])],{cwd:hostBuild.directory,env,timeout:30000});}catch(error){clientError=String(error);}
+    console.log('NELYX_NATIVE_UIA_WINDOW '+JSON.stringify({pid:running.pid,mode,product,automationId:value.automationId}));
+    let client,clientError;try{client=capture(path.join(hostBuild.directory,'NelyxNativeHostTests.exe'),['--uia-focus',String(running.pid),value.automationId,...(product?['--text-category']:[]),...(pointer?['--pointer']:[]),...(range?['--range']:[])],{cwd:hostBuild.directory,env,timeout:60000});}catch(error){clientError=String(error);}
     const closed=await running.stop();
     const loadedIdentity=verifyNativeLoadedIdentity(output,checked.manifest);
     console.log('NELYX_NATIVE_UIA_RESULT '+JSON.stringify({mode,sourceSha256:hostBuild.manifest.sourceSha256,loadedIdentity,productSources:productSources??null,provider:value,client:client??null,clientError:clientError??null,closed,native:output.split(/\r?\n/).filter(line=>/^NELYX_NATIVE_(?:UIA_STATE|EXIT|IDENTITY|VIEW|SEMANTICS_ACTION) /.test(line)),qualification:product?'experimental':'diagnostic-only',physicalIme:'notVerified',screenReader:'notVerified'}));

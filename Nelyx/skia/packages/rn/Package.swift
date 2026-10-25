@@ -71,24 +71,26 @@ let package = Package(
       // cannot build for arm64.
       sources: [
         "apple",
-        "cpp/api",
-        "cpp/jsi",
-        "cpp/rnskia",
-        "cpp/utils",
+        "generated/jsi/api",
+        "generated/jsi/jsi",
+        "generated/jsi/rnskia",
+        "generated/jsi/utils",
         "generated/core/core.cpp",
+        "generated/core/paragraph_queries.cpp",
         // libskottie.a needs skjson and Apple builds no libskjson archive.
         // CocoaPods compiles this via its cpp/**/*.cpp glob.
         "generated/sdk/skia/modules/jsonreader/SkJSONReader.cpp",
       ],
       cxxSettings: [
         // Replaces the podspec's recursive cpp/** glob, which expands to 90.
-        .headerSearchPath("cpp"), // "api/…", "jsi/…", "utils/…"
+        .headerSearchPath("generated/jsi"), // "api/…", "jsi/…", "utils/…"
         .headerSearchPath("generated/core"),
+        .headerSearchPath("generated/gpu"),
         .headerSearchPath("generated/host"),
         .headerSearchPath("generated/sdk/skia"), // "include/core/…", "modules/…", "src/…"
         .headerSearchPath("generated/sdk/dawn/include"), // "webgpu/…", "dawn/…"
-        .headerSearchPath("cpp/rnskia"), // apple/ uses bare "RNSkView.h"
-        .headerSearchPath("cpp/utils"), // apple/ uses bare "RNSkLog.h"
+        .headerSearchPath("generated/jsi/rnskia"), // apple/ uses bare "RNSkView.h"
+        .headerSearchPath("generated/jsi/utils"), // apple/ uses bare "RNSkLog.h"
 
         // CocoaPods defines both project-wide for a New Architecture app; the
         // SwiftPM path defines neither. Skia's own sources no longer gate on

@@ -33,10 +33,11 @@ test('Windows sample actions preserve native completion or the expected first fa
   const v8=engine==='v8'?verifyWindowsV8(process.env.NELYX_ANIMATION_V8_INPUTS??JSON.parse(fs.readFileSync(path.join(app,'.nelyx/windows/v8-inputs.json'),'utf8')).directory):undefined;
   const vs=run(path.join(process.env['ProgramFiles(x86)'],'Microsoft Visual Studio/Installer/vswhere.exe'),['-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath']).trim();assert(vs);
   const binding=process.env.NELYX_ANIMATION_SOURCE==='1'?path.join(root,'Nelyx/skia/packages/rn'):path.join(runner,'node_modules/@nelyx/skia-rn'),sdk=process.env.NELYX_ANIMATION_SOURCE==='1'?path.join(root,'Nelyx/sdk/native/windows'):path.join(runner,'node_modules/@nelyx/sdk/native/windows');
-  const include=[binding,path.join(inputs.root,inputs.manifest.headers),...['native/windows','generated/core','generated/gpu','generated/vulkan','cpp','cpp/rnskia','cpp/api','cpp/jsi','cpp/utils','generated/sdk/skia'].map(name=>path.join(binding,name))];
+  const include=[binding,path.join(inputs.root,inputs.manifest.headers),...['native/windows','generated/core','generated/gpu','generated/vulkan','generated/host','generated/jsi','generated/native-vulkan','generated/jsi/rnskia','generated/jsi/api','generated/jsi/jsi','generated/jsi/utils','generated/sdk/skia'].map(name=>path.join(binding,name))];
   for(const name of fs.readdirSync(path.join(root,'Nelyx/sdk/native/windows')).filter(name=>name.endsWith('.h')))assert.deepEqual(fs.readFileSync(path.join(sdk,name)),fs.readFileSync(path.join(root,'Nelyx/sdk/native/windows',name)),name);
-  for(const name of ['RNSkWindowsHost.h','CompositorFrameClock.h','SkiaView.h','RuntimeServices.h','WindowsKeyboardInput.h','ObservedKeyboardState.h','WindowsKeyboardState.h','WindowsCharacterObservation.h'])assert.deepEqual(fs.readFileSync(path.join(binding,'native/windows',name)),fs.readFileSync(path.join(root,'Nelyx/skia/packages/rn/native/windows',name)),name);
-  for(const name of ['JsiSkParagraphBuilder.h','JsiSkParagraphBuilderFactory.h','JsiSkTypefaceFontProvider.h'])assert.deepEqual(fs.readFileSync(path.join(binding,'cpp/api',name)),fs.readFileSync(path.join(root,'Nelyx/skia/packages/rn/cpp/api',name)),name);
+  for(const name of ['RNSkWindowsHost.h','SkiaView.h','RuntimeServices.h','WindowsKeyboardState.h'])assert.deepEqual(fs.readFileSync(path.join(binding,'native/windows',name)),fs.readFileSync(path.join(root,'Nelyx/skia/packages/rn/native/windows',name)),name);
+  for(const name of ['CompositorFrameClock.h','WindowsKeyboardInput.h','ObservedKeyboardState.h','WindowsCharacterObservation.h'])assert.deepEqual(fs.readFileSync(path.join(binding,'generated/host/windows',name)),fs.readFileSync(path.join(root,'Nelyx/skia/native/host/windows',name)),name);
+  for(const name of ['JsiSkParagraphBuilder.h','JsiSkParagraphBuilderFactory.h','JsiSkTypefaceFontProvider.h'])assert.deepEqual(fs.readFileSync(path.join(binding,'generated/jsi/api',name)),fs.readFileSync(path.join(root,'Nelyx/skia/packages/rn/generated/jsi/api',name)),name);
     const libraries=inputs.manifest.libraries.map(name=>path.join(inputs.root,name));libraries.push('uiautomationcore.lib','comctl32.lib');
   const directory=process.env.NELYX_WINDOWS_ANIMATION_DIRECTORY?fs.realpathSync(process.env.NELYX_WINDOWS_ANIMATION_DIRECTORY):fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-windows-animation-')),tag=process.env.NELYX_WINDOWS_ANIMATION_TAG??String(process.pid);
   assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert(path.basename(directory).startsWith('nelyx-windows-animation-'));assert.equal(fs.readdirSync(directory).length,0);assert(/^\d+$/.test(tag));
@@ -69,8 +70,8 @@ test('Windows sample actions preserve native completion or the expected first fa
       nativeCoreSource=path.join(directory,'allocation-device.cpp');fs.writeFileSync(nativeCoreSource,'#include <cstdio>\n'+source);
       // Observe the exact supplied replay path without modifying the package.
       // Only size mismatches are logged, so normal per-frame pacing is intact.
-      const viewFile=path.join(binding,'cpp/rnskia/RNSkView.h');
-      assert.deepEqual(fs.readFileSync(viewFile),fs.readFileSync(path.join(root,'Nelyx/skia/packages/rn/cpp/rnskia/RNSkView.h')));
+      const viewFile=path.join(binding,'generated/jsi/rnskia/RNSkView.h');
+      assert.deepEqual(fs.readFileSync(viewFile),fs.readFileSync(path.join(root,'Nelyx/skia/packages/rn/generated/jsi/rnskia/RNSkView.h')));
       let viewSource=fs.readFileSync(viewFile,'utf8');
       const retirement='if(_lastPresented&&_lastPresented->nelyxRetired()&&!_lastPresented->hasSizeOf(targetInfo))_lastPresented.reset();';
       assert.equal(viewSource.split(retirement).length,2);
@@ -103,7 +104,7 @@ test('Windows sample actions preserve native completion or the expected first fa
     }
     // Optional, isolated timing overlay. The installed native supplier remains untouched.
     if(process.env.NELYX_ANIMATION_NATIVE_TRACE==='1'){
-      for(const name of ['RNSkWindowsHost.h','CompositorFrameClock.h','SkiaView.h','RNSkWindowsWindowSurface.h'])fs.copyFileSync(path.join(binding,'native/windows',name),path.join(directory,name));
+      for(const name of ['RNSkWindowsHost.h','SkiaView.h','RNSkWindowsWindowSurface.h'])fs.copyFileSync(path.join(binding,'native/windows',name),path.join(directory,name));
       let source=fs.readFileSync(path.join(binding,'native/windows/CompositionSurface.h'),'utf8');
       const replace=(before,after)=>{assert.equal(source.split(before).length,2,'Native diagnostic anchor changed: '+before);source=source.replace(before,after);};
       replace('void render(){','void render(){NelyxAnimationDiagnostics::Scope render{"Native.workerRender"};');

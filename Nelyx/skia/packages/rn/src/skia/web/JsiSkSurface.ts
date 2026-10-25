@@ -1,9 +1,9 @@
 import type { CanvasKit, Surface } from "canvaskit-wasm";
 
-import type {SkCanvas} from "../types/Drawing.ts";
-import type {SkImage} from "../types/Drawing.ts";
-import type {SkRect} from '../types/Rect.ts';
-import type {SkSurface} from '../types/Surface/Surface.ts';
+import type {SkCanvas} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {SkSurface} from "@nelyx/skia-native/skia/types/Surface/Surface";
 
 import {HostObject} from './Host.ts';
 import {JsiSkCanvas} from './JsiSkCanvas.ts';

@@ -22,7 +22,8 @@
     "react-native": "0.83.10",
     "react-native-skia-graphite-apple-ios": "154.1.0",
     "@nelyx/material": "0.1.0",
-    "@nelyx/cupertino": "0.1.0"
+    "@nelyx/cupertino": "0.1.0",
+    "@nelyx/skia-native": "0.1.0"
   },
   "devDependencies": {
     "@nelyx/metro": "0.10.0",

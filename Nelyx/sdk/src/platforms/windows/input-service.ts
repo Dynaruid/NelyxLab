@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {ViewOwner} from '@nelyx/core/ui/types';
 import {PendingDisposalError} from '@nelyx/core/foundation/disposable';
-import type {ReactNativeInteraction,ReactNativeEditorPort,NativeEditingSnapshot,NativeTextPositionRequest} from './interaction.ts';
+import type {NativeInteraction,NativeEditorPort,NativeEditingSnapshot,NativeTextPositionRequest} from '../../runtime/native-interaction.ts';
 export interface WindowsInputModule {
   getInputProtocol():number;
   connect(surface:number,owner:ViewOwner):Promise<number>;
@@ -16,14 +16,14 @@ export interface WindowsInputEvents {addListener(name:string,listener:(event:unk
 export interface WindowsInputClient {readonly client:number;dispose():Promise<void>}
 export interface WindowsInputConfiguration {readonly enabled:boolean;readonly readOnly:boolean;readonly multiline:boolean;readonly scope:number}
 interface Client {readonly id:string;readonly client:number;readonly generation:number;readonly token:object;active:boolean;opened:boolean;focused:boolean;revision:number;sequence:number;receipts:Map<number,number|undefined>;opening?:Promise<void>;closing?:Promise<void>;detach?:()=>void}
-const owners=new WeakMap<ReactNativeInteraction,object>();
+const owners=new WeakMap<NativeInteraction,object>();
 function positive(value:number):boolean{return Number.isSafeInteger(value)&&value>0;}
 function record(value:unknown):Record<string,unknown>{if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid Windows input event');return value as Record<string,unknown>;}
 /** A View service owns native endpoints independently of semantics proxy Views.
  * Disposal fences JS ingress synchronously and awaits actual native retirement. */
 export class WindowsInputService {
-  static async connect(interaction:ReactNativeInteraction,module:WindowsInputModule,events:WindowsInputEvents,surface:number,onError:(error:unknown)=>void):Promise<WindowsInputService>{
-    if(module.getInputProtocol()!==3||typeof module.insertText!=='function')throw new Error('Rebuild Windows nonvisual input protocol 3 bindings');if(!positive(surface))throw new Error('Actual Windows surface React tag required');if(owners.has(interaction))throw new Error('Windows input interaction already connected');
+  static async connect(interaction:NativeInteraction,module:WindowsInputModule,events:WindowsInputEvents,surface:number,onError:(error:unknown)=>void):Promise<WindowsInputService>{
+    if(module.getInputProtocol()!==3||typeof module.insertText!=='function')throw new Error('Rebuild Windows nonvisual input protocol 3 bindings');if(!positive(surface))throw new Error('Actual Windows surface identity required');if(owners.has(interaction))throw new Error('Windows input interaction already connected');
     const token={};owners.set(interaction,token);let native:number|undefined;
     try{native=await module.connect(surface,interaction.owner);if(!positive(native))throw new Error('Invalid Windows input service identity');return new WindowsInputService(interaction,module,events,native,token,onError);}
     catch(error){
@@ -37,7 +37,7 @@ export class WindowsInputService {
   private readonly subscription:{remove():void};
   private readonly pending=new Set<Promise<void>>();private readonly waiters=new Set<()=>void>();
   private next=0;private stopped=false;private closing:Promise<void>|undefined;private failed=false;
-  private constructor(private readonly interaction:ReactNativeInteraction,private readonly module:WindowsInputModule,events:WindowsInputEvents,readonly identity:number,private readonly token:object,private readonly onError:(error:unknown)=>void){this.subscription=events.addListener('nelyxWindowsInput',event=>{try{this.event(event);}catch(error){this.fail(error);}});}
+  private constructor(private readonly interaction:NativeInteraction,private readonly module:WindowsInputModule,events:WindowsInputEvents,readonly identity:number,private readonly token:object,private readonly onError:(error:unknown)=>void){this.subscription=events.addListener('nelyxWindowsInput',event=>{try{this.event(event);}catch(error){this.fail(error);}});}
   async attach(id:string,options:{readonly maximum:number;readonly scope:number;readonly configuration?:Omit<WindowsInputConfiguration,'scope'>}):Promise<WindowsInputClient>{
     if(this.stopped)throw new Error('Windows input service retired');if(this.fields.has(id))throw new Error('Windows input field already attached');if(!Number.isSafeInteger(options.maximum)||options.maximum<=0||options.maximum>65536||!Number.isSafeInteger(options.scope)||options.scope<0)throw new Error('Invalid Windows input budget/scope');
     const initial=this.interaction.editorCoreValue(id)??this.interaction.editorValue(id),generation=this.interaction.editorGeneration(id);if(!initial||!generation)throw new Error('Core editing client required');if(!positive(++this.next))throw new Error('Windows input client identity exhausted');
@@ -49,7 +49,7 @@ export class WindowsInputService {
       if(!this.live(client))return;if(this.interaction.editorGeneration(id)!==generation){client.active=false;await this.module.closeClient(this.identity,client.client);client.opened=false;this.clients.delete(client.client);this.fields.delete(id);return;}
       const send=(name:string,args:readonly unknown[])=>{if(!this.live(client))throw new Error('Windows input client retired');this.send(client,name,args);};
       const replace=(name:string,text:string,selection:{start:number;end:number},revision=client.revision,request?:number)=>{if(!positive(++client.sequence))throw new Error('Windows input request identity exhausted');const native=client.sequence;client.receipts.set(native,request);try{send(name,[text,selection.start,selection.end,revision,native]);}catch(error){client.receipts.delete(native);throw error;}};
-      const port:ReactNativeEditorPort={replace:(...args)=>replace('replace',...args),replaceComposing:(...args)=>replace('replaceComposing',...args),focus:()=>send('focus',[]),blur:()=>send('blur',[]),updateGeometry:(geometry,text,characters,nativeRevision,selection)=>send('geometry',[{geometry,text,characters,nativeRevision,selection}]),updateCaretBounds:(bounds,nativeRevision)=>send('caretBounds',[{bounds,nativeRevision}]),updateTextPosition:(request,position,nativeRevision)=>send('textPosition',[{request,position,nativeRevision}])};
+      const port:NativeEditorPort={replace:(...args)=>replace('replace',...args),replaceComposing:(...args)=>replace('replaceComposing',...args),focus:()=>send('focus',[]),blur:()=>send('blur',[]),updateGeometry:(geometry,text,characters,nativeRevision,selection)=>send('geometry',[{geometry,text,characters,nativeRevision,selection}]),updateCaretBounds:(bounds,nativeRevision)=>send('caretBounds',[{bounds,nativeRevision}]),updateTextPosition:(request,position,nativeRevision)=>send('textPosition',[{request,position,nativeRevision}])};
       const detach=this.interaction.attachEditor(id,client.token,port);if(this.live(client))client.detach=detach;else detach();
     })();
     try{await client.opening;}catch(error){if(!this.stopped)this.fail(error);throw error;}

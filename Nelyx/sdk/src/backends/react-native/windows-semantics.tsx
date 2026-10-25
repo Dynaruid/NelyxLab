@@ -3,11 +3,11 @@ import type {HostComponent,ViewProps,NativeSyntheticEvent} from 'react-native';
 import type {ReactNode,ComponentRef} from 'react';
 import type {SemanticsNode,SemanticsAction} from '@nelyx/core/ui/types';
 import type {ReactNativeBackend} from './registration.ts';
-import type {ReactNativeInteraction} from './interaction.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 import type {ReactNativeSemanticsControlsProps} from './surface.tsx';
-import {windowsSemanticsPacket} from './windows-semantics-packet.ts';
+import {windowsSemanticsPacket} from '../../platforms/windows/semantics-packet.ts';
 import {WindowsSemanticsActions} from './windows-semantics-actions.ts';
-import type {WindowsSemanticsSurface,WindowsSemanticsAction,WindowsSemanticsPacket} from './windows-semantics-packet.ts';
+import type {WindowsSemanticsSurface,WindowsSemanticsAction,WindowsSemanticsPacket} from '../../platforms/windows/semantics-packet.ts';
 // RNW's app-owned Fabric builder has no reflection/codegen view manager.
 // @ts-ignore RN supplies Flow implementations without TypeScript declarations.
 import {register} from 'react-native/Libraries/Renderer/shims/ReactNativeViewConfigRegistry';
@@ -23,7 +23,7 @@ export function createWindowsSemantics(getBackend:()=>Pick<ReactNativeBackend,'r
 }
 function createWindowsSemanticsRenderer(getBackend:()=>Pick<ReactNativeBackend,'react'|'native'>,subscribe:boolean){
   let component:HostComponent<NativeProps>|undefined;
-  return function WindowsSemantics({node,interaction,surface,style,children,onError}:{readonly node:SemanticsNode;readonly interaction:ReactNativeInteraction;readonly surface:WindowsSemanticsSurface;readonly style:ViewProps['style'];readonly children?:ReactNode;readonly onError:(error:unknown)=>void}){
+  return function WindowsSemantics({node,interaction,surface,style,children,onError}:{readonly node:SemanticsNode;readonly interaction:NativeInteraction;readonly surface:WindowsSemanticsSurface;readonly style:ViewProps['style'];readonly children?:ReactNode;readonly onError:(error:unknown)=>void}){
     const {react,native}=getBackend();
     // A whole tree has one store subscription. Subscribing each descendant as
     // well schedules a separate synchronous React update for every native node
@@ -50,7 +50,7 @@ export function createWindowsSemanticsTree(getBackend:()=>Pick<ReactNativeBacken
   return function WindowsSemanticsTree({interaction,readView,readNativeMetrics,onError}:ReactNativeSemanticsControlsProps){
     const {react}=getBackend();react.useSyncExternalStore(interaction.subscribe,interaction.snapshot);const metrics=readView()?.currentMetrics,native=readNativeMetrics();
     if(!metrics||!native||metrics.nativeSurfaceGeneration==null||native.nativeReactTag===undefined)return null;
-    const surface={nativeReactTag:native.nativeReactTag,nativeSurfaceGeneration:metrics.nativeSurfaceGeneration,viewportGeneration:metrics.viewportGeneration};
+    const surface={surfaceId:native.nativeReactTag,nativeSurfaceGeneration:metrics.nativeSurfaceGeneration,viewportGeneration:metrics.viewportGeneration};
     const render=(node:SemanticsNode,x=0,y=0):ReactNode=>react.createElement(Node,{key:node.id+':'+node.sourceNodeId+':'+(node.textInputGeneration??0),node,interaction,surface,onError,style:{position:'absolute',left:node.bounds.x-x,top:node.bounds.y-y,width:node.bounds.width,height:node.bounds.height}},node.children?.map(child=>render(child,node.bounds.x,node.bounds.y)));
     return react.createElement(react.Fragment,null,...interaction.semanticNodes.map(node=>render(node)));
   };

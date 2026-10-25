@@ -1,7 +1,7 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type { CanvasKit } from "canvaskit-wasm";
 
-import type {SkRSXform} from '../types/RSXform.ts';
+import type {SkRSXform} from "@nelyx/skia-native/skia/types/RSXform";
 
 import {BaseHostObject} from './Host.ts';
 

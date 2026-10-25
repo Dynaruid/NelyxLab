@@ -1,33 +1,47 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Shared data schema; validation alone does not establish engine ownership.
 type DataCheck=(value:unknown)=>boolean;
-interface DataSchema {readonly fields:ReadonlySet<string>;readonly children:Readonly<Record<string,DataCheck>>|undefined}
+interface DataSchema {readonly fields:ReadonlySet<string>;readonly children:Readonly<Record<string,DataCheck>>|undefined;readonly invalid:object}
 // JSON omits callbacks, symbols and hidden class state. They must not acquire
 // an idle cache owner whose byte charge only measures the serialized data.
-const dataChecks=new WeakMap<object,{readonly tag:object;readonly valid:boolean}>();
-function schema(fields:string,children?:Readonly<Record<string,DataCheck>>):DataSchema{return {fields:new Set(fields.split(' ')),children};}
+// Cache the static schema token itself. Each new immutable descriptor need not
+// allocate another {tag,valid} object merely to remember this check's result.
+const dataChecks=new WeakMap<object,object>();
+const invalidArrayChecks=new WeakMap<DataCheck,object>();
+const capturedRecords=new WeakSet<object>();
+const capturedArrays=new WeakSet<readonly unknown[]>();
+/** @internal Only object literals just constructed by the text capture owners.
+ * Never register caller objects, frozen proxies or records with accessors. */
+export function markCapturedTextRecord(value:object):void{capturedRecords.add(value);}
+export function isCapturedTextRecord(value:object):boolean{return capturedRecords.has(value);}
+/** @internal Only array literals constructed by text capture owners. */
+export function captureTextArray<T>(value:readonly T[]):readonly T[]{Object.freeze(value);capturedArrays.add(value);return value;}
+export function isCapturedTextArray(value:readonly unknown[]):boolean{return capturedArrays.has(value);}
+function schema(fields:string,children?:Readonly<Record<string,DataCheck>>):DataSchema{return {fields:new Set(fields.split(' ')),children,invalid:{}};}
 function recordData(value:unknown,shape:DataSchema):boolean{
   if(value===undefined)return true;
   if(value===null||typeof value!=='object'||!Object.isFrozen(value)||Object.getPrototypeOf(value)!==Object.prototype)return false;
-  const known=dataChecks.get(value);if(known?.tag===shape)return known.valid;
+  const known=dataChecks.get(value);if(known===shape)return true;if(known===shape.invalid)return false;
+  const captured=capturedRecords.has(value);
   let valid=true;
   for(const key of Reflect.ownKeys(value)){
     if(typeof key!=='string'||!shape.fields.has(key)){valid=false;break;}
-    const descriptor=Object.getOwnPropertyDescriptor(value,key);
-    if(!descriptor||!('value'in descriptor)){valid=false;break;}
-    const child=shape.children?.[key],item=descriptor.value;
+    let item:unknown;
+    if(captured)item=(value as Record<string,unknown>)[key];
+    else{const descriptor=Object.getOwnPropertyDescriptor(value,key);if(!descriptor||!('value'in descriptor)){valid=false;break;}item=descriptor.value;}
+    const child=shape.children?.[key];
     if(child){if(!child(item)){valid=false;break;}}
     else if(item!==null&&typeof item==='object'||typeof item==='function'||typeof item==='symbol'){valid=false;break;}
   }
-  dataChecks.set(value,{tag:shape,valid});return valid;
+  dataChecks.set(value,valid?shape:shape.invalid);return valid;
 }
 function arrayData(value:unknown,check:DataCheck):boolean{
   if(value===undefined)return true;
   if(!Array.isArray(value)||!Object.isFrozen(value)||Object.getPrototypeOf(value)!==Array.prototype)return false;
-  const known=dataChecks.get(value);if(known?.tag===check)return known.valid;
-  let valid=Reflect.ownKeys(value).length===value.length+1;
-  for(let i=0;valid&&i<value.length;i++){const descriptor=Object.getOwnPropertyDescriptor(value,String(i));valid=!!descriptor&&'value'in descriptor&&check(descriptor.value);}
-  dataChecks.set(value,{tag:check,valid});return valid;
+  const known=dataChecks.get(value);if(known===check)return true;if(known!==undefined&&known===invalidArrayChecks.get(check))return false;
+  const captured=capturedArrays.has(value);let valid=captured||Reflect.ownKeys(value).length===value.length+1;
+  for(let i=0;valid&&i<value.length;i++){if(captured)valid=check(value[i]);else{const descriptor=Object.getOwnPropertyDescriptor(value,String(i));valid=!!descriptor&&'value'in descriptor&&check(descriptor.value);}}
+  if(valid)dataChecks.set(value,check);else{let invalid=invalidArrayChecks.get(check);if(invalid===undefined){invalid={};invalidArrayChecks.set(check,invalid);}dataChecks.set(value,invalid);}return valid;
 }
 const stringData:DataCheck=value=>typeof value==='string',noPaintData:DataCheck=value=>value===undefined;
 const stringsData:DataCheck=value=>arrayData(value,stringData);

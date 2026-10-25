@@ -1,8 +1,8 @@
 import type { CanvasKit, Matrix3x3 } from "canvaskit-wasm";
 
-import {toMatrix3} from '../types/Matrix4.ts';
-import type {SkMatrix, InputMatrix} from "../types/Drawing.ts";
-import type {Matrix4} from '../types/Matrix4.ts';
+import {toMatrix3} from "@nelyx/skia-native/skia/types/Matrix4";
+import type {SkMatrix, InputMatrix} from "@nelyx/skia-native/skia/types/Drawing";
+import type {Matrix4} from "@nelyx/skia-native/skia/types/Matrix4";
 
 import {HostObject} from './Host.ts';
 

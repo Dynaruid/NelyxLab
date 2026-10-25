@@ -4,11 +4,11 @@ import type {
   Image,
 } from "canvaskit-wasm";
 
-import type {FilterMode, MipmapMode, SkImage, ImageFormat} from "../types/Drawing.ts";
-import type {SkMatrix} from "../types/Drawing.ts";
-import type {SkShader} from "../types/Drawing.ts";
-import type {TileMode} from '../types/ImageFilter/ImageFilter.ts';
-import type {ImageInfo} from "../types/Drawing.ts";
+import type {FilterMode, MipmapMode, SkImage, ImageFormat} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkMatrix} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkShader} from "@nelyx/skia-native/skia/types/Drawing";
+import type {TileMode} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
+import type {ImageInfo} from "@nelyx/skia-native/skia/types/Drawing";
 
 import {getEnum, HostObject} from './Host.ts';
 import {JsiSkMatrix} from './JsiSkMatrix.ts';

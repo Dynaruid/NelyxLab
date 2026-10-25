@@ -15,21 +15,16 @@ endforeach()
 set(HERMES_SOURCE "${NELYX_HERMES_ROOT}/source")
 set(HERMES_BUILD "${NELYX_HERMES_ROOT}/build")
 set(SKIA "${NELYX_SKIA_PACKAGE}")
-add_library(nelyx_host_skia STATIC
-  "${SKIA}/native/vulkan/RNSkVulkanPlatformContext.cpp"
-  "${SKIA}/generated/core/core.cpp" "${SKIA}/generated/core/paragraph_queries.cpp"
-  "${SKIA}/generated/vulkan/device.cpp" "${SKIA}/generated/vulkan/gpu_context.cpp"
-  "${SKIA}/cpp/rnskia/RNSkManager.cpp" "${SKIA}/cpp/rnskia/RNSkGraphiteProducer.cpp"
-  "${SKIA}/cpp/jsi/JSICache.cpp" "${SKIA}/cpp/jsi/JsiPromises.cpp"
-  "${SKIA}/cpp/jsi/Promise.cpp" "${SKIA}/cpp/jsi/ViewProperty.cpp"
-  "${SKIA}/cpp/api/JsiSkDispatcher.cpp" "${SKIA}/cpp/api/third_party/CSSColorParser.cpp"
-  "${SKIA}/cpp/api/third_party/base64.cpp" "${SKIA}/cpp/api/third_party/SkottieUtils.cpp")
-target_include_directories(nelyx_host_skia PUBLIC
-  "${HERMES_SOURCE}/API" "${HERMES_SOURCE}/API/jsi" "${HERMES_SOURCE}/public"
-  "${SKIA}/cpp" "${SKIA}/cpp/api" "${SKIA}/cpp/jsi" "${SKIA}/cpp/rnskia" "${SKIA}/cpp/utils"
-  "${SKIA}/generated/core" "${SKIA}/generated/gpu" "${SKIA}/generated/vulkan"
-  "${SKIA}/generated/host" "${SKIA}/native/windows"
-  "${SKIA}/native/vulkan" "${NELYX_SKIA_SUPPLIER}/headers")
+set(NELYX_BINDING_CPP "${SKIA}/cpp")
+set(NELYX_BINDING_PLATFORM "${SKIA}/native/vulkan")
+set(NELYX_BINDING_CORE "${SKIA}/generated/core")
+set(NELYX_BINDING_GPU "${SKIA}/generated/gpu")
+set(NELYX_BINDING_VULKAN "${SKIA}/generated/vulkan")
+set(NELYX_BINDING_HOST "${SKIA}/generated/host")
+set(NELYX_BINDING_EXTERNAL_INCLUDES "${HERMES_SOURCE}/API" "${HERMES_SOURCE}/API/jsi" "${HERMES_SOURCE}/public" "${NELYX_SKIA_SUPPLIER}/headers")
+set(NELYX_BINDING_EMBED_CORE ON)
+include("${SKIA}/native/jsi/engine.cmake")
+nelyx_add_vulkan_jsi_engine(nelyx_host_skia)
 target_compile_definitions(nelyx_host_skia PUBLIC NELYX_NATIVE_HOST=1 JSI_VERSION=21
   NELYX_SKOTTIE_PROPERTY_IMPLEMENTED=1 SK_GRAPHITE SK_VULKAN SK_USE_INTERNAL_VULKAN_HEADERS
   VK_NO_PROTOTYPES VK_USE_PLATFORM_WIN32_KHR NOMINMAX WIN32_LEAN_AND_MEAN

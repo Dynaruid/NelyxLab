@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "RNSkVulkanRuntime.h"
+#include <ReactCommon/CallInvoker.h>
 #include "DevelopmentAssets.h"
 #include "fabric/LinuxComponentViewRegistry.h"
 #include "include/ports/SkFontMgr_empty.h"

@@ -5,7 +5,7 @@ import {createReactNativeRegistration} from '../../backends/react-native/registr
 import type {ReactNativeRegistrationOptions} from '../../backends/react-native/registration.ts';
 import {createReactNativeEnvironment,useReactNativeViewport} from '../../backends/react-native/environment.ts';
 import type {ReactNativeApplication} from '../../backends/react-native/surface.tsx';
-import type {ReactNativeAssetConfiguration} from '../../backends/react-native/assets.ts';
+import type {NativeAssetConfiguration} from '../../runtime/native-assets.ts';
 import {bindWindowsNativeHost,resolveWindowsAssetSources,verifyWindowsFrameworkVersion} from './native-host.ts';
 
 let nativeAdmission:ReturnType<typeof bindWindowsNativeHost>|undefined;
@@ -24,7 +24,7 @@ const registration=createReactNativeRegistration('windows',{
 });
 export interface WindowsRegistrationOptions extends ReactNativeRegistrationOptions {}
 export interface RegistrationOptions extends WindowsRegistrationOptions {}
-export interface WindowsAssets extends ReactNativeAssetConfiguration {}
+export interface WindowsAssets extends NativeAssetConfiguration {}
 export interface WindowsApplication extends ReactNativeApplication {}
 export function windowsBackend(){return registration.backend();}
 export function verifyWindowsNativeHost(){if(!nativeAdmission)throw new Error('Windows native host has not been admitted');return nativeAdmission.verify();}

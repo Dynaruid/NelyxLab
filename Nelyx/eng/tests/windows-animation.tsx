@@ -19,7 +19,7 @@ import {ListView} from '@nelyx/core/framework/widgets/scroll-view';
 import {RenderSliverMultiBoxAdaptor} from '@nelyx/core/framework/rendering/sliver-multi-box-adaptor';
 import {TextLayoutCache} from '@nelyx/core/hosting/text-layout-cache';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
-import {ReactNativeTextLayoutService} from '@nelyx/skia-rn/text';
+import {NativeTextLayoutService} from '@nelyx/skia-native/text';
 import {Canvas} from '@nelyx/core/ui/canvas';
 import {PictureRecorder} from '@nelyx/core/ui/picture-recorder';
 import {TextPainter} from '@nelyx/core/framework/painting/text-painter';
@@ -28,13 +28,13 @@ import {ParagraphBuilder} from '@nelyx/core/ui/paragraph-builder';
 import {FrameScheduler} from '@nelyx/core/framework/scheduler/scheduler';
 import {FramePictureService} from '@nelyx/core/hosting/pictures';
 // This fixture is copied beside main.tsx in the runner; probe that installed SDK instance.
-import {ReactNativeInteraction} from './node_modules/@nelyx/sdk/src/backends/react-native/interaction';
+import {NativeInteraction} from './node_modules/@nelyx/sdk/src/runtime/native-interaction';
 import {windowsMonotonicTimestamp} from './node_modules/@nelyx/sdk/src/platforms/windows/frame-clock';
 import {nativeInputProps} from './node_modules/@nelyx/sdk/src/backends/react-native/input';
 import {existingPipelineSemantics} from './node_modules/@nelyx/core/dist/framework/rendering/semantics-pipeline';
 import {SemanticsBinding} from '@nelyx/core/framework/semantics/binding';
 import {SemanticsNode,SemanticsOwner} from '@nelyx/core/framework/semantics/semantics';
-import {GraphiteRenderer} from '@nelyx/skia-rn/renderer';
+import {GraphiteRenderer} from '@nelyx/skia-native/renderer';
 import {ComponentsGallery} from '../../src/gallery';
 import {ListViewPage} from '../../src/list-view';
 import {Theme} from '@nelyx/material/theme';
@@ -86,7 +86,7 @@ const wheelWarmup:boolean=/*__WHEEL_WARMUP__*/false;
 const wheelHover:boolean=__WHEEL_HOVER__;
 const viewport:string=__VIEWPORT__;
 let galleryInteraction:any;
-const interactionPrototype=ReactNativeInteraction.prototype as any,originalGalleryPublish=(mode==='gallery-regression'||mode==='full-runtime-regression')?interactionPrototype.publish:undefined;
+const interactionPrototype=NativeInteraction.prototype as any,originalGalleryPublish=(mode==='gallery-regression'||mode==='full-runtime-regression')?interactionPrototype.publish:undefined;
 if(originalGalleryPublish)interactionPrototype.publish=function(...args:any[]){galleryInteraction=this;return originalGalleryPublish.apply(this,args);};
 let view:any,phase='',stats:Record<string,number[]>={},exclusive:Record<string,number[]>={},counts:Record<string,number>={},gcBefore:Record<string,unknown>={},lastBuild=0,tree:Record<string,number>={};
 let classOwners:Record<string,{n:number;selfMs:number;maxSelfMs:number}>={};
@@ -143,7 +143,7 @@ if(diagnostic){
  for(const [type,names,label]of [[Element,['mount','reconcile'],'Element'],[BuildOwner,['register','unregister','deactivateChildren','_retireInactiveSubtreeWithoutGlobalKeys'],'BuildOwner'],[RenderObject,['attach','detach','insert','remove','validateChild','mutateChildren','refreshInputGeometryWork','clearLayoutDependencies','invalidateLayout','adoptForMutation','dropForMutation'],'Render']] as const)for(const name of names)wrap(type,name,label+'.'+name);
  for(const name of ['hasAncestor','getElementForInheritedWidgetOfExactType','dependOnInheritedElement','findAncestorWidgetOfExactType','findAncestorStateOfType'] as const)wrap(Element,name,'Ancestor.'+name);
  for(const name of ['createChild','removeChild','didStartLayout','syncElementChildren','finishQueuedChildren','precedingBox'] as const)wrap(SliverMultiBoxAdaptorElement,name,'Sliver.'+name);
- for(const [type,names,label]of [[RenderObjectElement,['mount','attachRenderObject','detachRenderObject','applyParentDataFromAncestors','synchronizeRenderObjectChildren'],'RenderElement'],[ReactNativeTextLayoutService,['layout'],'NativeText'],[TextLayoutCache,['key','remember'],'TextCache']] as const)for(const name of names)wrap(type,name,label+'.'+name);
+ for(const [type,names,label]of [[RenderObjectElement,['mount','attachRenderObject','detachRenderObject','applyParentDataFromAncestors','synchronizeRenderObjectChildren'],'RenderElement'],[NativeTextLayoutService,['layout'],'NativeText'],[TextLayoutCache,['key','remember'],'TextCache']] as const)for(const name of names)wrap(type,name,label+'.'+name);
  const reuseText=TextLayoutCache.prototype.reuse;TextLayoutCache.prototype.reuse=function(...args:Parameters<typeof reuseText>){return measured('TextCache.reuse',()=>{const result=reuseText.apply(this,args);count(result?'TextCache.hit':'TextCache.miss');return result;});};
  wrap(FrameworkRoot,'pointerHitTest','Input.hitTest');wrap(GestureBinding,'dispatchEvent','Input.dispatch');wrap(ScrollPositionWithSingleContext,'pointerScroll','Input.scroll');
  wrap(RenderBoxes.RenderDecoratedBox,'paint','Decoration.paint');
@@ -155,7 +155,7 @@ if(diagnostic){
  const runLayout=(RenderObject.prototype as any).runLayout;(RenderObject.prototype as any).runLayout=function(constraints:any,options:any,perform:()=>void){return runLayout.call(this,constraints,options,()=>{const name='Layout.'+className(this);bootMark(name+' enter');try{return measuredClass(name,perform);}finally{bootMark(name+' exit');}});};
  const rebuild=Element.prototype.rebuild;Element.prototype.rebuild=function(...args:Parameters<typeof rebuild>){return measuredClass('Widget.'+className(this.widget),()=>rebuild.apply(this,args));};
  for(const [type,name,label]of [[TextPainter,'layout','Text.layout'],[Paragraph,'layoutWithReplacement','Text.paragraphLayout'],[ParagraphBuilder,'build','Text.buildParagraph']] as const){const original=(type.prototype as any)[name];(type.prototype as any)[name]=function(...args:any[]){count(label);return measured(label,()=>original.apply(this,args));};}
- for(const [type,name,label]of [[PictureRecorder,'endRecording','Picture.endRecording'],[FrameScheduler,'beginFrame','Scheduler.beginFrame'],[FrameScheduler,'endFrame','Scheduler.endFrame'],[FramePictureService,'resource','Picture.resource'],[ReactNativeInteraction,'publish','Host.publish']] as const)wrap(type,name,label);
+ for(const [type,name,label]of [[PictureRecorder,'endRecording','Picture.endRecording'],[FrameScheduler,'beginFrame','Scheduler.beginFrame'],[FrameScheduler,'endFrame','Scheduler.endFrame'],[FramePictureService,'resource','Picture.resource'],[NativeInteraction,'publish','Host.publish']] as const)wrap(type,name,label);
  const pictureBackends=new WeakSet<object>(),pictureResource=FramePictureService.prototype.resource;FramePictureService.prototype.resource=function(...args:Parameters<typeof pictureResource>){const backend=(this as any).backend;if(!pictureBackends.has(backend)){pictureBackends.add(backend);const compile=backend.compile;backend.compile=(...values:any[])=>measured('Picture.nativeCompile',()=>{const commands=values[0].frame.commands;sample('Picture.compiledCommands',commands.length);if(commands.every((command:any)=>['save','restore','transform','clip','clipRect','clipRRect','clipPath'].includes(command.op))){count('Picture.stateOnly');count('Picture.stateOnlyCommands',commands.length);}return compile.apply(backend,values);});}return pictureResource.apply(this,args);};
  // Counts only: a timer around every command would dominate the path being investigated.
  // Read the protected method through its checked subclass contract; retain
@@ -250,7 +250,7 @@ function probeNativeTextReuseBudget(){
  // This synchronous probe borrows the live app typeface. Its own providers,
  // paragraphs and recording leases retire before returning to the app.
  registry.register({...font.resource,kind:'font'},()=>{});
- const text=new ReactNativeTextLayoutService(api,registry,{id:'native-cache-budget',generation:1},font),input={text:'A'.repeat(4096),width:Infinity,font:font.resource,fontSize:16,locale:'en',direction:'ltr' as const,scale:1};
+ const text=new NativeTextLayoutService(api,registry,{id:'native-cache-budget',generation:1},font),input={text:'A'.repeat(4096),width:Infinity,font:font.resource,fontSize:16,locale:'en',direction:'ltr' as const,scale:1};
  const rejectNew=()=>{let rejected=false;try{const unexpected=text.layout({...input,text:'A'});registry.releaseProducer(unexpected.resource);}catch(error){if(!String(error).includes('Retained paragraph content budget exhausted'))throw error;rejected=true;}if(!rejected)throw Error('New native paragraph bypassed the full retained budget');};
  try{
   const idleInput={...input,text:'Idle native 한글 😀'},idle=text.layout(idleInput);registry.releaseProducer(idle.resource);

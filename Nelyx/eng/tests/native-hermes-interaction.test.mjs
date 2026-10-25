@@ -2,7 +2,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {connectNativeEditing} from '../../sdk/dist/backends/native-hermes/editing.js';
 import {connectNativeInteraction} from '../../sdk/dist/backends/native-hermes/interaction.js';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {EditableText,TextEditingController} from '@nelyx/core/framework/widgets/editable-text';
 import {FocusNode} from '@nelyx/core/framework/widgets/focus';
 import {Directionality} from '@nelyx/core/framework/widgets/app-data';
@@ -13,7 +13,7 @@ import {StandardMethodCodec,StandardMessageCodec,JSONMethodCodec} from '@nelyx/c
 import {MethodCall} from '@nelyx/core/services/message-codec';
 const timeout=1_200_000,turn=()=>new Promise(resolve=>setImmediate(resolve));
 async function until(predicate){for(let i=0;i<24&&!predicate();i++)await turn();assert(predicate(),'Native/Core acknowledgement did not settle');}
-const interactionFor=owner=>new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'});
+const interactionFor=owner=>new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'});
 
 test('direct-host copied packets serialize real Core shortcuts, native Unicode receipts and retirement',{timeout},async()=>{
   FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});

@@ -1,14 +1,14 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type { Blender, CanvasKit, Paint } from "canvaskit-wasm";
 
-import type {StrokeJoin, SkPaint, StrokeCap, PaintStyle} from "../types/Drawing.ts";
-import type {BlendMode} from '../types/Paint/BlendMode.ts';
-import type {SkColor} from '../types/Color.ts';
-import type {SkColorFilter} from '../types/ColorFilter/ColorFilter.ts';
-import type {SkImageFilter} from '../types/ImageFilter/ImageFilter.ts';
-import type {SkShader} from "../types/Drawing.ts";
-import type {SkMaskFilter} from '../types/MaskFilter.ts';
-import type {SkPathEffect} from "../types/Drawing.ts";
+import type {StrokeJoin, SkPaint, StrokeCap, PaintStyle} from "@nelyx/skia-native/skia/types/Drawing";
+import type {BlendMode} from "@nelyx/skia-native/skia/types/Paint/BlendMode";
+import type {SkColor} from "@nelyx/skia-native/skia/types/Color";
+import type {SkColorFilter} from "@nelyx/skia-native/skia/types/ColorFilter/ColorFilter";
+import type {SkImageFilter} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
+import type {SkShader} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkMaskFilter} from "@nelyx/skia-native/skia/types/MaskFilter";
+import type {SkPathEffect} from "@nelyx/skia-native/skia/types/Drawing";
 
 import {HostObject, getEnum} from './Host.ts';
 import {JsiSkColorFilter} from './JsiSkColorFilter.ts';

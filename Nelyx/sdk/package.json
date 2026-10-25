@@ -14,7 +14,8 @@
     "@nelyx/skia-rn": "0.6.0",
     "@nelyx/skia-web": "0.6.0",
     "react-dom": "19.2.0",
-    "react-native-web": "0.21.3"
+    "react-native-web": "0.21.3",
+    "@nelyx/skia-native": "0.1.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -33,6 +34,9 @@
       "optional": true
     },
     "react-native-web": {
+      "optional": true
+    },
+    "@nelyx/skia-native": {
       "optional": true
     }
   },
@@ -189,10 +193,10 @@
       "react-native": "./src/backends/react-native/lifecycle.ts",
       "default": "./dist/backends/react-native/lifecycle.js"
     },
-    "./backends/react-native/interaction": {
-      "types": "./dist/backends/react-native/interaction.d.ts",
-      "react-native": "./src/backends/react-native/interaction.ts",
-      "default": "./dist/backends/react-native/interaction.js"
+    "./runtime/native-interaction": {
+      "types": "./dist/runtime/native-interaction.d.ts",
+      "react-native": "./src/runtime/native-interaction.ts",
+      "default": "./dist/runtime/native-interaction.js"
     },
     "./backends/react-native/surface": {
       "types": "./dist/backends/react-native/surface.d.ts",
@@ -316,6 +320,31 @@
       "default": "./dist/backends/native-hermes/globals.js",
       "types": "./dist/backends/native-hermes/globals.d.ts",
       "react-native": "./src/backends/native-hermes/globals.ts"
+    },
+    "./runtime/frame-clock": {
+      "types": "./dist/runtime/frame-clock.d.ts",
+      "react-native": "./src/runtime/frame-clock.ts",
+      "default": "./dist/runtime/frame-clock.js"
+    },
+    "./runtime/native-engine": {
+      "types": "./dist/runtime/native-engine.d.ts",
+      "react-native": "./src/runtime/native-engine.ts",
+      "default": "./dist/runtime/native-engine.js"
+    },
+    "./runtime/native-assets": {
+      "types": "./dist/runtime/native-assets.d.ts",
+      "react-native": "./src/runtime/native-assets.ts",
+      "default": "./dist/runtime/native-assets.js"
+    },
+    "./runtime/native-images": {
+      "types": "./dist/runtime/native-images.d.ts",
+      "react-native": "./src/runtime/native-images.ts",
+      "default": "./dist/runtime/native-images.js"
+    },
+    "./runtime/image-memory": {
+      "types": "./dist/runtime/image-memory.d.ts",
+      "react-native": "./src/runtime/image-memory.ts",
+      "default": "./dist/runtime/image-memory.js"
     }
   },
   "scripts": {

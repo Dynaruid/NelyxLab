@@ -1,6 +1,6 @@
 import type { CanvasKit, TextBlob } from "canvaskit-wasm";
 
-import type {SkTextBlob} from "../types/Drawing.ts";
+import type {SkTextBlob} from "@nelyx/skia-native/skia/types/Drawing";
 
 import {HostObject} from './Host.ts';
 

@@ -1,6 +1,6 @@
 import React, { useImperativeHandle, useMemo, useRef } from "react";
 
-import type {SkGraphiteContext} from '../skia/types/Graphite.ts';
+import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
 import {Platform} from '../Platform/Platform.ts';
 // Explicit source extensions select an exact Metro file. Choose desktop
 // Fabric metadata lazily so the common codegen spec is not evaluated.

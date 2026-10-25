@@ -36,7 +36,7 @@ const files=new Map();for(const entry of manifest.files){const file=checked(supp
 const binding=path.join(runner,'node_modules/@nelyx/skia-rn');
 for(const [relative,digest]of Object.entries(manifest.sources)){if(sha(checked(binding,relative))!==digest)throw new Error('Native compiled source changed; rebuild binding: '+relative);}
 function list(directory,relative=''){return fs.readdirSync(directory,{withFileTypes:true}).flatMap(entry=>{if(entry.isSymbolicLink())throw new Error('Source symlink');const name=path.posix.join(relative,entry.name);return entry.isDirectory()?list(path.join(directory,entry.name),name):[name];});}
-const required=['cpp','generated/core','generated/gpu','generated/vulkan','generated/host','native/vulkan'].flatMap(folder=>list(path.join(binding,folder),folder));
+const required=['generated/jsi','generated/native-vulkan','generated/core','generated/gpu','generated/vulkan','generated/host','native/vulkan'].flatMap(folder=>list(path.join(binding,folder),folder));
 if(required.length!==Object.keys(manifest.sources).length||required.some(name=>!Object.hasOwn(manifest.sources,name)))throw new Error('Native compiled source inventory incomplete');
 const libraries=manifest.libraries.map(name=>{if(!files.has(name))throw new Error('Unlisted native library');return files.get(name);});
 if(!files.has(manifest.icu))throw new Error('Pinned ICU input absent');
@@ -49,7 +49,7 @@ const state=path.join(app,'.nelyx/windows');fs.mkdirSync(state,{recursive:true})
 function writeChanged(file,value){if(!fs.existsSync(file)||fs.readFileSync(file,'utf8')!==value)fs.writeFileSync(file,value);}
 writeChanged(path.join(state,'NelyxAppConfig.h'),'// Generated from app-config.json\n#define NELYX_APP_NAME L"'+config.name+'"\n#define NELYX_WINDOWS_DEVELOPMENT '+(configuration==='Debug'?1:0)+'\n#define NELYX_WINDOWS_V8 '+(v8?1:0)+'\n');
 const sdk=path.dirname(load.resolve('@nelyx/sdk/package.json'));
-const include=[state,path.join(sdk,'native/windows'),path.join(binding,'native/windows'),binding,...['generated/core','generated/gpu','generated/vulkan','cpp','cpp/rnskia','cpp/api','cpp/jsi','cpp/utils'].map(name=>path.join(binding,name)),headerRoot];
+const include=[state,path.join(sdk,'native/windows'),path.join(binding,'native/windows'),binding,...['generated/core','generated/gpu','generated/vulkan','generated/host','generated/jsi','generated/native-vulkan','generated/jsi/rnskia','generated/jsi/api','generated/jsi/jsi','generated/jsi/utils'].map(name=>path.join(binding,name)),headerRoot];
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
 const definitions='SK_GRAPHITE;SK_VULKAN;SK_USE_INTERNAL_VULKAN_HEADERS;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;NOMINMAX;WIN32_LEAN_AND_MEAN;SK_SHAPER_PRIMITIVE_AVAILABLE;SK_SHAPER_HARFBUZZ_AVAILABLE;SK_SHAPER_UNICODE_AVAILABLE;SK_UNICODE_ICU_IMPLEMENTATION;NELYX_SKOTTIE_PROPERTY_IMPLEMENTED=1';
 // The prebuilt Skia/JSI closure is Release/MD. Debug optimizes the app host off,

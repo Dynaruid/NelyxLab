@@ -22,10 +22,7 @@
 
 #pragma clang diagnostic pop
 
-#include "../../generated/host/RuntimeScheduler.h"
-#ifndef NELYX_NATIVE_HOST
-#include <ReactCommon/CallInvoker.h>
-#endif
+#include "RuntimeScheduler.h"
 
 namespace RNSkia {
 

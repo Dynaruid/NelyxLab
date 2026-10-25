@@ -1,19 +1,19 @@
-import type {FillType, StrokeOpts} from "../../skia/types/Drawing.ts";
-import type {SkImage, SamplingOptions} from "../../skia/types/Drawing.ts";
-import type {Vector, SkPoint, PointMode} from '../../skia/types/Point.ts';
-import type {Color, SkColor} from '../../skia/types/Color.ts';
-import type {BlendMode} from '../../skia/types/Paint/BlendMode.ts';
-import type {VertexMode} from '../../skia/types/Vertices/Vertices.tsx';
-import type {SkFont} from "../../skia/types/Drawing.ts";
-import type {SkRRect} from '../../skia/types/RRect.ts';
-import type {SkTextBlob} from "../../skia/types/Drawing.ts";
-import type {SkPicture} from "../../skia/types/Drawing.ts";
-import type {SkSVG} from '../../skia/types/SVG/SVG.ts';
-import type {SkPaint} from "../../skia/types/Drawing.ts";
-import type {SkRect} from '../../skia/types/Rect.ts';
-import type {SkRSXform} from '../../skia/types/RSXform.ts';
-import type {SkSkottieAnimation} from '../../skia/types/Skottie.ts';
-import type {SkImageFilter} from '../../skia/types/ImageFilter/ImageFilter.ts';
+import type {FillType, StrokeOpts} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkImage, SamplingOptions} from "@nelyx/skia-native/skia/types/Drawing";
+import type {Vector, SkPoint, PointMode} from "@nelyx/skia-native/skia/types/Point";
+import type {Color, SkColor} from "@nelyx/skia-native/skia/types/Color";
+import type {BlendMode} from "@nelyx/skia-native/skia/types/Paint/BlendMode";
+import type {VertexMode} from "@nelyx/skia-native/skia/types/Vertices/Vertices";
+import type {SkFont} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRRect} from "@nelyx/skia-native/skia/types/RRect";
+import type {SkTextBlob} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkSVG} from "@nelyx/skia-native/skia/types/SVG/SVG";
+import type {SkPaint} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {SkRSXform} from "@nelyx/skia-native/skia/types/RSXform";
+import type {SkSkottieAnimation} from "@nelyx/skia-native/skia/types/Skottie";
+import type {SkImageFilter} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
 
 import type {CircleDef, Fit, GroupProps, PathDef, RectDef, RRectDef, SkEnum} from './Common.ts';
 

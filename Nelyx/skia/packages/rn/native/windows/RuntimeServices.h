@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include "../vulkan/RNSkVulkanPlatformContext.h"
+#include "RNSkVulkanPlatformContext.h"
+#include <ReactCommon/CallInvoker.h>
 #include "rnskia/RNSkOwnerAsyncQueue.h"
 #include "include/ports/SkTypeface_win.h"
 #include <ReactContext.h>

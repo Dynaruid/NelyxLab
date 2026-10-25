@@ -24,7 +24,7 @@ test('prepare refreshes recorded supplier hashes while build and doctor reject t
 });
 test('direct-host graph admission rejects RN families, unresolved edges and code-generation candidates',{timeout},()=>{
   const graph={modules:[{owner:{name:'@nelyx/core'}}],summary:{unresolvedDependencies:0},unresolved:[],evaluationConflicts:[],dynamicCodeCandidates:[]};assert.doesNotThrow(()=>assertNativeRuntimeGraph(graph));
-  for(const name of ['react','react-dom','react-reconciler','react-native','react-native-windows','react-native-web','@react-native/assets-registry','@react-native-windows/codegen','yoga','yoga-layout','@microsoft/node-api-jsi'])assert.throws(()=>assertNativeRuntimeGraph({...graph,modules:[{owner:{name}}]}),/Direct host/);
+  for(const name of ['react','react-dom','react-reconciler','react-native','react-native-windows','react-native-web','@react-native/assets-registry','@react-native-windows/codegen','@nelyx/skia-rn','yoga','yoga-layout','@microsoft/node-api-jsi'])assert.throws(()=>assertNativeRuntimeGraph({...graph,modules:[{owner:{name}}]}),/Direct host/);
   for(const change of [{modules:[]},{modules:[{}]},{summary:{unresolvedDependencies:1}},{unresolved:['missing']},{evaluationConflicts:['duplicate']},{dynamicCodeCandidates:['eval']}])assert.throws(()=>assertNativeRuntimeGraph({...graph,...change}),/Direct host/);
 });
 test('native CLI mode and host admission fail before starting a build or accepting another engine',{timeout},async()=>{
@@ -32,7 +32,7 @@ test('native CLI mode and host admission fail before starting a build or accepti
   await assert.rejects(buildNativeApplication({app:'missing',diagnosticEntry:'fixture.ts'}),/explicit temporary output/);
   for(const options of [{hermesMode:'legacy'},{engine:'v8'},{engine:'jsc'},{configuration:'Debug'},{hermesProfile:'debug'}])await assert.rejects(nativeWindowsOperation('build',{app:'missing',...options}),/Choose|requires/);
   const root=path.resolve(import.meta.dirname,'../../..'),cli=path.join(root,'Nelyx/sdk/tooling/cli/src/main.mjs');
-  const result=spawnSync(process.execPath,[cli,'doctor','--app',path.join(root,'sample/nelyx-testbed-app-2'),'--target','windows','--host','native-hermes'],{cwd:root,encoding:'utf8',windowsHide:true,timeout});assert.ifError(result.error);assert.equal(result.status,0,result.stdout+result.stderr);const doctor=JSON.parse(result.stdout);assert.equal(doctor.host,'native-hermes');assert.equal(doctor.engine,'hermes');assert.equal(doctor.qualification,'experimental');
+  const result=spawnSync(process.execPath,[cli,'doctor','--app',path.join(root,'sample/nelyx-testbed-app-2'),'--target','windows','--host','native-hermes'],{cwd:root,encoding:'utf8',windowsHide:true,timeout});assert.ifError(result.error);assert.equal(result.status,0,result.stdout+result.stderr);const doctor=JSON.parse(result.stdout);assert.equal(doctor.host,'native-hermes');assert.equal(doctor.engine,'hermes');assert.equal(doctor.qualification,'experimental');assert.equal(doctor.nativeInputs,'prepared',doctor.reason);
 });
 test('both delivered native packages round-trip without supplier locators and reject changed images',{timeout,skip:process.platform!=='win32'||process.env.NELYX_NATIVE_PACKAGES!=='1'},async()=>{
   const app=path.resolve(import.meta.dirname,'../../../sample/nelyx-testbed-app-2'),temporary=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-native-package-'));

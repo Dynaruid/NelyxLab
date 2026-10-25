@@ -33,24 +33,20 @@ endif()
 if(NOT TARGET nelyx_skia_core)
   add_subdirectory("${NELYX_RN_PACKAGE}/generated/core" "${CMAKE_CURRENT_BINARY_DIR}/nelyx-core")
 endif()
-add_library(nelyx_skia_rn_vulkan STATIC
-  RNSkVulkanPlatformContext.cpp
-  "${NELYX_RN_PACKAGE}/generated/vulkan/device.cpp"
-  "${NELYX_RN_PACKAGE}/generated/vulkan/gpu_context.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/rnskia/RNSkManager.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/rnskia/RNSkGraphiteProducer.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/jsi/JSICache.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/jsi/JsiPromises.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/jsi/Promise.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/jsi/ViewProperty.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/api/JsiSkDispatcher.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/api/third_party/CSSColorParser.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/api/third_party/base64.cpp"
-  "${NELYX_RN_PACKAGE}/cpp/api/third_party/SkottieUtils.cpp")
+set(NELYX_BINDING_CPP "${NELYX_RN_PACKAGE}/generated/jsi")
+set(NELYX_BINDING_PLATFORM "${NELYX_RN_PACKAGE}/generated/native-vulkan")
+set(NELYX_BINDING_CORE "${NELYX_RN_PACKAGE}/generated/core")
+set(NELYX_BINDING_GPU "${NELYX_RN_PACKAGE}/generated/gpu")
+set(NELYX_BINDING_VULKAN "${NELYX_RN_PACKAGE}/generated/vulkan")
+set(NELYX_BINDING_HOST "${NELYX_RN_PACKAGE}/generated/host")
+set(NELYX_BINDING_EXTERNAL_INCLUDES "")
+set(NELYX_BINDING_EMBED_CORE OFF)
+include("${NELYX_RN_PACKAGE}/generated/jsi/engine.cmake")
+nelyx_add_vulkan_jsi_engine(nelyx_skia_rn_vulkan)
 target_include_directories(nelyx_skia_rn_vulkan PUBLIC
   "${CMAKE_CURRENT_LIST_DIR}" "${NELYX_RN_PACKAGE}/generated/gpu" "${NELYX_RN_PACKAGE}/generated/vulkan"
-  "${NELYX_RN_PACKAGE}/cpp" "${NELYX_RN_PACKAGE}/cpp/api" "${NELYX_RN_PACKAGE}/cpp/jsi"
-  "${NELYX_RN_PACKAGE}/cpp/rnskia" "${NELYX_RN_PACKAGE}/cpp/utils"
+  "${NELYX_RN_PACKAGE}/generated/jsi" "${NELYX_RN_PACKAGE}/generated/jsi/api" "${NELYX_RN_PACKAGE}/generated/jsi/jsi"
+  "${NELYX_RN_PACKAGE}/generated/jsi/rnskia" "${NELYX_RN_PACKAGE}/generated/jsi/utils"
   "${NELYX_REACT_NATIVE_ROOT}/ReactCommon/jsi" "${NELYX_REACT_NATIVE_ROOT}/ReactCommon/callinvoker"
   "${NELYX_REACT_NATIVE_ROOT}/ReactCommon")
 if(NELYX_REACT_NATIVE_WINDOWS_ROOT)
@@ -77,7 +73,7 @@ if(DEFINED NELYX_SKIA_RN_MODULES_CMAKE)
   if(NOT MSVC)
     # This helper derives from the original no-RTTI Skottie observer. Its
     # implementation uses no dynamic_cast/typeid; preserve the base's policy.
-    set_source_files_properties("${NELYX_RN_PACKAGE}/cpp/api/third_party/SkottieUtils.cpp"
+    set_source_files_properties("${NELYX_RN_PACKAGE}/generated/jsi/api/third_party/SkottieUtils.cpp"
       PROPERTIES COMPILE_OPTIONS "-fno-rtti")
   endif()
   target_link_libraries(nelyx_skia_rn_vulkan PUBLIC ${NELYX_SKIA_RN_MODULE_LIBRARIES})

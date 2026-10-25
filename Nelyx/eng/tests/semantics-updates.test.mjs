@@ -6,7 +6,7 @@ import {SemanticsAction} from '@nelyx/core/ui/semantics-action';
 import {Rect} from '@nelyx/core/ui/rect';
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 const timeout=1_200_000,owner={id:'semantics-updates',generation:1};
 const button=(extra={})=>({id:'button',sourceNodeId:1,role:'button',name:'Run',enabled:true,bounds:{x:0,y:0,width:80,height:32},actions:{activate(){}},...extra});
 
@@ -21,7 +21,7 @@ test('validated immutable trees cross host boundaries without another copy; publ
 });
 
 test('paint-only recaptures do not notify React, and mounted actions use the latest Core callback',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
   let notifications=0;const stop=interaction.subscribe(()=>notifications++),binding=interaction.semantics.bind([button({actions:{activate:()=>calls.push('old')}})]);
   try{
     const mounted=interaction.semanticNodes[0],version=interaction.snapshot();
@@ -37,7 +37,7 @@ test('paint-only recaptures do not notify React, and mounted actions use the lat
 });
 
 test('bounds, child order, state, source identity and text revisions still reach native consumers',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'});
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'});
   let notifications=0;const stop=interaction.subscribe(()=>notifications++),binding=interaction.semantics.bind([button()]);
   try{
     const changes=[{bounds:{x:1,y:2,width:80,height:32}},{name:'New label'},{enabled:false},{focused:true},{checked:true},{sourceNodeId:2},{children:[button({id:'child',sourceNodeId:3})]}];
@@ -52,7 +52,7 @@ test('bounds, child order, state, source identity and text revisions still reach
 });
 
 test('a failed notification retries unchanged metadata without losing a reentrant update',{timeout},()=>{
-  const interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),binding=interaction.semantics.bind([button()]);
+  const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),binding=interaction.semantics.bind([button()]);
   let fail=true,delivered=0;
   const stopFailure=interaction.subscribe(()=>{if(fail)throw new Error('native listener failed');}),stopDelivery=interaction.subscribe(()=>delivered++);
   try{

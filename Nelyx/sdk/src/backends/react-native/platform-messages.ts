@@ -10,11 +10,11 @@ import {PluginPlatformMessagePort} from '../../runtime/plugin-port.ts';
 import {installOsServices} from '../../runtime/os-services.ts';
 import type {ReactNativeAppStatePort} from './lifecycle.ts';
 import {nativeLocaleModule,readNativeLocales} from './locales.ts';
-import {installNativeKeyboardState} from './keyboard-state.ts';
+import {installNativeKeyboardState} from '../../runtime/native-keyboard-state.ts';
 import {installNativeMouseCursor} from './mouse-cursor.ts';
 import type {NativeMouseCursorPort} from './mouse-cursor.ts';
-import {installNativeAccessibility} from './accessibility.ts';
-import type {NativeAccessibilityView} from './accessibility.ts';
+import {installNativeAccessibility} from '../../runtime/native-accessibility.ts';
+import type {NativeAccessibilityView} from '../../runtime/native-accessibility.ts';
 import {installNativeRestoration} from './restoration.ts';
 import {readNativeAccessibilityFeatures} from './accessibility-features.ts';
 
@@ -53,9 +53,10 @@ export function createReactNativePlatformMessages(native:NativeServices,target:R
     const operation=module.dispatchPlatformFeedback(rootTag,kind,type);if(!operation||typeof operation.then!=='function')throw new TypeError('Native feedback requires an acknowledgement');
     if(typeof await operation!=='boolean')throw new TypeError('Invalid native feedback acknowledgement');
   };
-  installNativeKeyboardState(port,native.NativeModules,target);
+  const keyboardModules=native.NativeModules;
+  installNativeKeyboardState(port,target==='windows'?keyboardModules.RNSkiaModule:target==='android'?keyboardModules.NelyxPlatformServices:undefined,target);
   if(cursor)installNativeMouseCursor(port,cursor);
-  if(accessibilityEnabled&&accessibility)installNativeAccessibility(port,native.NativeModules,target,accessibility);
+  if(accessibilityEnabled&&accessibility){const modules=native.NativeModules;installNativeAccessibility(port,()=>modules.NelyxPlatformServices,target,accessibility);}
   let clipboard:NativeServices['Clipboard']|undefined;if(target!=='windows')try{clipboard=native.Clipboard;}catch{/* Missing native clipboard is an unavailable capability. */}
   const windows=native.NativeModules.NelyxPlatformServices as {getClipboardText?:()=>PromiseLike<string>;setClipboardText?:(text:string)=>PromiseLike<void>}|undefined;
   if(target==='windows'&&(typeof windows?.getClipboardText!=='function'||typeof windows.setClipboardText!=='function'))throw new PlatformException({code:'native-clipboard-cohort',message:'Windows requires the SDK acknowledged clipboard native port; rebuild the host with matching SDK sources'});

@@ -3,7 +3,7 @@ import {readHermesRuntimeIdentity} from '../../backends/react-native/engine.ts';
 import {createReactNativeEnvironment,useReactNativeViewport} from '../../backends/react-native/environment.ts';
 import {createReactNativeRegistration} from '../../backends/react-native/registration.ts';
 import type {ReactNativeRegistrationOptions} from '../../backends/react-native/registration.ts';
-import type {ReactNativeAssetConfiguration} from '../../backends/react-native/assets.ts';
+import type {NativeAssetConfiguration} from '../../runtime/native-assets.ts';
 import type {ComponentType} from 'react';
 import type {ReactNativeTextService,ReactNativeApplication} from '../../backends/react-native/surface.tsx';
 
@@ -28,6 +28,6 @@ export function registerApplication(name:string,application:ComponentType,option
   registration.register(name,application,options);
 }
 export type AndroidSurfaceKind = 'texture' | 'surface';
-export interface AndroidAssets extends ReactNativeAssetConfiguration {}
+export interface AndroidAssets extends NativeAssetConfiguration {}
 export interface AndroidTextService extends ReactNativeTextService {}
 export interface AndroidApplication extends ReactNativeApplication {}

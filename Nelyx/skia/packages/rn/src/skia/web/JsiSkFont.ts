@@ -1,11 +1,11 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type { CanvasKit, Font, Paint } from "canvaskit-wasm";
 
-import type {FontEdging, FontHinting, SkFont} from "../types/Drawing.ts";
-import type {SkPaint} from "../types/Drawing.ts";
-import type {SkPoint} from '../types/Point.ts';
-import type {SkRect} from '../types/Rect.ts';
-import type {SkTypeface} from '../types/Typeface/Typeface.ts';
+import type {FontEdging, FontHinting, SkFont} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPaint} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPoint} from "@nelyx/skia-native/skia/types/Point";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {SkTypeface} from "@nelyx/skia-native/skia/types/Typeface/Typeface";
 
 import {HostObject, getEnum} from './Host.ts';
 import {JsiSkPaint} from './JsiSkPaint.ts';

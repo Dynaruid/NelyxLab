@@ -4,7 +4,7 @@ import type {ReactNativePlatform} from '@nelyx/core/hosting/platform';
 import {createProviderRegistry} from '../../runtime/providers.ts';
 import type {ProviderProfile,ProviderRegistry} from '../../runtime/providers.ts';
 import type {ProviderCohort} from '../../runtime/cohorts.ts';
-import type {ReactNativeAssetConfiguration} from './assets.ts';
+import type {NativeAssetConfiguration} from '../../runtime/native-assets.ts';
 import {validateNativeRuntimeIdentity} from './engine.ts';
 import type {HermesRuntimeIdentity,V8RuntimeIdentity,JscRuntimeIdentity} from './engine.ts';
 
@@ -18,7 +18,7 @@ export interface ReactNativeBackend {
 export interface ReactNativeRegistrationOptions {
   readonly profile?:string;
   readonly cohort?:string;
-  readonly assets:ReactNativeAssetConfiguration;
+  readonly assets:NativeAssetConfiguration;
 }
 export interface ReactNativeRegistrationPorts {
   loadReact():ReactNativeBackend['react'];
@@ -28,10 +28,10 @@ export interface ReactNativeRegistrationPorts {
   runtimeIdentity():HermesRuntimeIdentity|V8RuntimeIdentity|JscRuntimeIdentity|undefined;
   preflight?(cohort:ProviderCohort):void;
   configure(backend:ReactNativeBackend):void;
-  resolveAssets?(configuration:ReactNativeAssetConfiguration,backend:ReactNativeBackend):ReactNativeAssetConfiguration;
+  resolveAssets?(configuration:NativeAssetConfiguration,backend:ReactNativeBackend):NativeAssetConfiguration;
 }
 const failedInstallations=new Set<unknown>();
-function snapshotAssets(value:ReactNativeAssetConfiguration):ReactNativeAssetConfiguration {
+function snapshotAssets(value:NativeAssetConfiguration):NativeAssetConfiguration {
   const ids=new Set<string>();
   if(!value||!Array.isArray(value.manifest)||!value.sources||value.manifest.length>64)throw new Error('Invalid React Native manifest/source budget');
   const manifest=value.manifest.map(asset=>{
@@ -47,13 +47,13 @@ function snapshotAssets(value:ReactNativeAssetConfiguration):ReactNativeAssetCon
 /** One platform composition per JS runtime. Native installation is never rolled back by dropping JS references. */
 export function createReactNativeRegistration(target:ReactNativePlatform,ports:ReactNativeRegistrationPorts,registry:ProviderRegistry=createProviderRegistry()) {
   let initialized:ReactNativeBackend|undefined;
-  let registration:{name:string;assets:ReactNativeAssetConfiguration}|undefined;
+  let registration:{name:string;assets:NativeAssetConfiguration}|undefined;
   let poisoned=false;
   function backend():ReactNativeBackend {
     if(!registration||!initialized)throw new Error(`Call ${target} registerApplication before using host components`);
     return initialized;
   }
-  function assets():ReactNativeAssetConfiguration {
+  function assets():NativeAssetConfiguration {
     if(!registration)throw new Error(`${target} bootstrap must register a manifest and Metro asset sources`);
     return registration.assets;
   }

@@ -86,7 +86,6 @@ export class FrameworkRoot implements ViewController {
   private readonly rawKeyboard:RawKeyboard;private readonly keyEventManager:KeyEventManager;
   private readonly layerRoot=new LayerHandle(new OffsetLayer());
   private root:Element|undefined;
-  private needsRenderTreeSync=true;
   private closed=false;
   private visible=true;
   private revealingViewportFocus=false;
@@ -161,14 +160,13 @@ export class FrameworkRoot implements ViewController {
       const metricsChanged=this.metrics?.viewportGeneration!==scene.token.metrics.viewportGeneration || this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration;
       if(metricsChanged){this.cancelPointers();if(this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration){const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};visit(this.root);}else this.buildOwner._viewMetricsChanged();}
       this.metrics=scene.token.metrics;
-      this.needsRenderTreeSync ||= this.buildOwner.hasDirty;
-      this.buildOwner.flushBuild();if(this.needsRenderTreeSync){this.root.syncRenderTree();this.needsRenderTreeSync=false;}
+      this.buildOwner.flushBuild();
       let render=this.renderRoot();this.pipeline.setRoot(render);
       this.buildOwner.maybeViewWorkBudget?.enforcePressure();
       this.scheduler.phase='layout';this.pipeline.flushLayout({width:scene.token.metrics.logicalWidth,height:scene.token.metrics.logicalHeight});
       if(metricsChanged&&this.buildOwner.focus.primaryFocus){
         this.revealingViewportFocus=true;
-        try{this.buildOwner.focus.primaryFocus.showOnScreen();if(this.buildOwner.hasDirty){this.scheduler.phase='build';this.buildOwner.flushBuild();this.root.syncRenderTree();render=this.renderRoot();this.pipeline.setRoot(render);}this.scheduler.phase='layout';this.pipeline.flushLayout({width:scene.token.metrics.logicalWidth,height:scene.token.metrics.logicalHeight});}
+        try{this.buildOwner.focus.primaryFocus.showOnScreen();if(this.buildOwner.hasDirty){this.scheduler.phase='build';this.buildOwner.flushBuild();render=this.renderRoot();this.pipeline.setRoot(render);}this.scheduler.phase='layout';this.pipeline.flushLayout({width:scene.token.metrics.logicalWidth,height:scene.token.metrics.logicalHeight});}
         finally{this.revealingViewportFocus=false;}
         if(this.buildOwner.hasDirty)this.scheduler.requestFrame();
       }
@@ -221,7 +219,7 @@ export class FrameworkRoot implements ViewController {
       // is suppressed then, but the pending Widget must run on the next frame.
       if(this.buildOwner.defaultBuildScope.hasDirty)this.scheduler.requestFrame();
       this.scheduler.addPostFrameCallback(()=>{if(!this.closed)this.mouseTracker.updateAllDevices();});return painting.commands;
-    }catch(error){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsCache=undefined;this.semanticsDeferred=false;this.sourceSemanticsSnapshot?.invalidate();this.needsRenderTreeSync=true;failed=true;buildError=error;throw error;}
+    }catch(error){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsCache=undefined;this.semanticsDeferred=false;this.sourceSemanticsSnapshot?.invalidate();failed=true;buildError=error;throw error;}
     finally{
       const errors:unknown[]=[];for(const finish of [()=>this.buildOwner.finalizeTree(),()=>this.scheduler.endFrame()])try{finish();}catch(error){this.pendingSemanticsActions=[];errors.push(error);}
       const phase=this.scheduler.phase;if(!this.scheduler.disposed)this.scheduler.phase='post-frame';

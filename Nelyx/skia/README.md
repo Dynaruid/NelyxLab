@@ -9,6 +9,7 @@ Nelyx's renderer implementation and pinned native supply. The [SDK](../sdk/READM
 | Path | Purpose |
 | --- | --- |
 | [`native/`](native/) | Common renderer, GPU, and text implementation |
+| [`packages/native/`](packages/native/README.md) | Shared native renderer, text, resources and JSI binding |
 | [`packages/rn/`](packages/rn/README.md) | React Native JSI, components, surfaces, and Graphite adapters |
 | [`packages/web/`](packages/web/README.md) | CanvasKit/Ganesh WebGL2 renderer and text |
 | [`vendor/`](vendor/) | Exact native input locks and explicitly supplied binaries |
@@ -24,7 +25,7 @@ From the repository root after `npm ci`:
 npm run build:skia
 ```
 
-This prepares generated native source and builds the RN/Web TypeScript packages. It does not build every target's native binaries. Use `npm run build:sdk` for the complete SDK package set.
+This prepares generated native source and builds the native/RN/Web TypeScript packages. It does not build every target's native binaries. Use `npm run build:sdk` for the complete SDK package set.
 
 Source preparation requires Python 3 and may download pinned SDK headers on the first run.
 

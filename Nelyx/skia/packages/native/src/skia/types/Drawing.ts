@@ -5,7 +5,7 @@ import type {InputRRect} from './RRect.ts';
 import type {BlendMode} from './Paint/BlendMode.ts';
 import type {SkPoint, PointMode, Vector} from './Point.ts';
 import type {SkImageFilter, TileMode} from './ImageFilter/ImageFilter.ts';
-import type {SkVertices} from './Vertices/Vertices.tsx';
+import type {SkVertices} from './Vertices/Vertices.ts';
 import type {SkRSXform} from './RSXform.ts';
 import type {SkJSIInstance} from './JsiInstance.ts';
 import type {SkTypeface} from './Typeface/Typeface.ts';

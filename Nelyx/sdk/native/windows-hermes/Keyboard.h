@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "Editors.h"
-#include "WindowsKeyboardInput.h"
-#include "ObservedKeyboardState.h"
-#include "WindowsMonotonic.h"
+#include "windows/WindowsKeyboardInput.h"
+#include "windows/ObservedKeyboardState.h"
+#include "windows/WindowsMonotonic.h"
 namespace Nelyx::NativeHermes {
 class Keyboard final {
 public:

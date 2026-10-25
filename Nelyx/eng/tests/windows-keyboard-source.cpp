@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include "../../skia/packages/rn/native/windows/ObservedKeyboardState.h"
-#include "../../skia/packages/rn/native/windows/WindowsKeyboardInput.h"
+#include "../../skia/native/host/windows/ObservedKeyboardState.h"
+#include "../../skia/native/host/windows/WindowsKeyboardInput.h"
 #include <iostream>
 #include <tuple>
 void check(bool,char const*);

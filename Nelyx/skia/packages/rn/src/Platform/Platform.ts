@@ -7,8 +7,8 @@ import {
   View,
 } from "react-native";
 
-import type {DataModule} from '../skia/types/Data/Data.ts';
-import {isRNModule, unwrapModule} from '../skia/types/Data/Data.ts';
+import type {DataModule} from "@nelyx/skia-native/skia/types/Data/Data";
+import {isRNModule, unwrapModule} from "@nelyx/skia-native/skia/types/Data/Data";
 
 import type {IPlatform} from './IPlatform.ts';
 function PlatformView(props: React.ComponentPropsWithRef<typeof View>) {

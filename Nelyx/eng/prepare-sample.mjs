@@ -10,7 +10,7 @@ if(new Set(targets).size!==targets.length||targets.some(target=>!['android','ios
 if(targets.includes('web'))checkWebRuntime();
 const app=path.resolve(process.argv[3]??path.join(root,'sample/nelyx-testbed-app-2'));
 const cache=path.join(root,'Nelyx/.cache/packages');fs.mkdirSync(cache,{recursive:true});
-const allPackages=['core','sdk','skia-rn','skia-web','metro','cli','static-aot','material','cupertino'],selected=process.env.NELYX_PREPARE_PACKAGES?.split(',');
+const allPackages=['core','sdk','skia-native','skia-rn','skia-web','metro','cli','static-aot','material','cupertino'],selected=process.env.NELYX_PREPARE_PACKAGES?.split(',');
 if(selected&&(!selected.length||new Set(selected).size!==selected.length||selected.some(name=>!allPackages.includes(name))))throw Error('NELYX_PREPARE_PACKAGES must name distinct owned packages');
 const packages=fs.mkdtempSync(path.join(cache,'supply-'));
 try {

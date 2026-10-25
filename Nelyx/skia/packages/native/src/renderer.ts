@@ -1,5 +1,5 @@
 import {createEnginePath} from './path.ts';
-import {createDisplayListCanvas} from './display-list.ts';
+import {submitNativeScene} from './scene.ts';
 import type {DisplayListTarget,DisplayListCanvas} from './display-list.ts';
 import type {PathSnapshot,PathQueryService} from '@nelyx/core/ui/path';
 import type {Offset} from '@nelyx/core/ui/geometry';
@@ -14,10 +14,8 @@ import type { Renderer } from '@nelyx/core/hosting/runtime';
 import {RendererEvents} from '@nelyx/core/hosting/renderer-events';
 import type { ResourceLease } from '@nelyx/core/hosting/resources';
 import type {ParagraphPaint} from './text.ts';
-import {blendModes} from '@nelyx/core/ui/paint';
 import type {PaintSnapshot} from '@nelyx/core/ui/paint';
-import type {SkPaint,PaintStyle,StrokeCap,StrokeJoin} from './skia/types/Drawing.ts';
-import type {BlendMode} from './skia/types/Paint/BlendMode.ts';
+import type {SkPaint} from './skia/types/Drawing.ts';
 import {applyPaintEffects} from './paint-effects.ts';
 import {createRuntimeShaderCache} from './paint-effects.ts';
 import type {Disposable} from '@nelyx/core/foundation/disposable';
@@ -36,7 +34,7 @@ export interface NelyxGraphiteContext extends SkGraphiteContext {
   nelyxNotifications():number[];
 }
 export interface GraphiteResources { image(id: string): SkImage; paragraph(id: string): ParagraphPaint;picture?(id:string):SkPicture;readonly runtimePrograms?:ReturnType<typeof createRuntimeShaderCache>;readonly nativeDisplayLists?:boolean }
-export function configurePaint(api:SkiaAPI,paint:SkPaint,value:PaintSnapshot):void{paint.setColor(api.Color(value.color));paint.setAntiAlias(value.isAntiAlias);paint.setStyle((value.style==='stroke'?1:0) as PaintStyle);paint.setStrokeWidth(value.strokeWidth);paint.setStrokeMiter(value.strokeMiterLimit);paint.setStrokeCap(['butt','round','square'].indexOf(value.strokeCap) as StrokeCap);paint.setStrokeJoin(['miter','round','bevel'].indexOf(value.strokeJoin) as StrokeJoin);paint.setBlendMode(blendModes.indexOf(value.blendMode) as BlendMode);}
+import {configurePaint} from './paint.ts';
 export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, resources: GraphiteResources,programs:GraphiteResources['runtimePrograms']=resources.runtimePrograms): void {
   const temporary:unknown[]=[],errors:unknown[]=[],own=<T>(value:T):T=>{temporary.push(value);return value;};
   // Native canvas calls copy their const SkPaint. Reuse a small palette of
@@ -128,7 +126,7 @@ export class GraphiteRenderer implements Renderer {
   constructor(private readonly api: SkiaAPI, private readonly context: () => SkGraphiteContext, private readonly owner: ViewOwner, private readonly resources: GraphiteResources) {
     this.ownsRuntimePrograms=!resources.runtimePrograms;this.runtimePrograms=resources.runtimePrograms??createRuntimeShaderCache(api);
     this.events=new RendererEvents(owner);
-    {const native=context() as NelyxGraphiteContext;if(typeof native.nelyxReserve!=='function'||typeof native.nelyxSubmit!=='function'||typeof native.nelyxNotifications!=='function')throw new Error('Nelyx native admission and retirement notification patch is required');if(native.nelyxCoreVersion()!==1)throw new Error("Native Skia core ABI mismatch");if(typeof native.nelyxWireVersion!=='function'||native.nelyxWireVersion()!==11)throw new Error('Native Skia frame wire 11 is required; rebuild the matching native supplier');native.nelyxConfigure();this.nativeIdentity=native.nelyxIdentity();}
+    {const native=context() as NelyxGraphiteContext&Partial<DisplayListTarget>;if(this.resources.nativeDisplayLists&&typeof native.nelyxReplayDisplayList!=='function')throw new Error('Native display-list1 binding required; rebuild the native supplier');if(typeof native.nelyxReserve!=='function'||typeof native.nelyxSubmit!=='function'||typeof native.nelyxNotifications!=='function')throw new Error('Nelyx native admission and retirement notification patch is required');if(native.nelyxCoreVersion()!==1)throw new Error("Native Skia core ABI mismatch");if(typeof native.nelyxWireVersion!=='function'||native.nelyxWireVersion()!==11)throw new Error('Native Skia frame wire 11 is required; rebuild the matching native supplier');native.nelyxConfigure();this.nativeIdentity=native.nelyxIdentity();}
     this.capabilities=Object.freeze({admission:'bounded',completion:'gpu-retired',present:'unobserved',textRanges:true,nativeIdentity:true,notifications:'submitted-and-retired'});
   }
   observe(listener:(event:RendererNotification)=>void):Disposable{return this.events.subscribe(listener);}
@@ -184,7 +182,8 @@ export class GraphiteRenderer implements Renderer {
       const canvas = context.beginRecording(); open = true;
       const target=context as SkGraphiteContext&Partial<DisplayListTarget>;
       if(this.resources.nativeDisplayLists&&typeof target.nelyxReplayDisplayList!=='function')throw new Error('Native display-list1 binding required; rebuild the native supplier');
-      replayFrame(this.api,this.resources.nativeDisplayLists?createDisplayListCanvas(target as DisplayListTarget):canvas,frame,this.resources,this.runtimePrograms);
+      if(this.resources.nativeDisplayLists)submitNativeScene(this.api,target as DisplayListTarget,frame,this.resources,this.runtimePrograms);
+      else replayFrame(this.api,canvas,frame,this.resources,this.runtimePrograms);
       const recording = context.finishRecording(); open = false;
       const submission=this.sequence+1;
       try {

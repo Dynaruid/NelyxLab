@@ -81,7 +81,7 @@ export async function buildNativeApplication({app,mode,hermesMode,signal,engineI
     return {directory,mode,bundle:path.join(directory,bundle),executable:path.join(directory,'NelyxHermesHost.exe'),assetRoot:path.join(directory,'Assets')};
   }finally{try{if(stage&&fs.existsSync(stage)){if(path.dirname(stage)!==parent||path.basename(stage)!=='.build-'+mode||fs.lstatSync(stage).isSymbolicLink())throw Error('Unexpected native build stage');fs.rmSync(stage,{recursive:true,force:true});}}finally{packageOwner.close();}}
 }
-export function assertNativeRuntimeGraph(graph){if(!graph||!Array.isArray(graph.modules)||!graph.modules.length||graph.modules.some(module=>!module?.owner?.name||/^(?:react(?:$|-)|@react-native(?:-windows)?\/|yoga(?:-layout)?$|@microsoft\/node-api-jsi$)/.test(module.owner.name))||graph.evaluationConflicts?.length||graph.summary?.unresolvedDependencies||graph.unresolved?.length||graph.dynamicCodeCandidates?.length)throw Error('Direct host runtime graph contains an RN owner, unresolved edge or dynamic-code fallback');}
+export function assertNativeRuntimeGraph(graph){if(!graph||!Array.isArray(graph.modules)||!graph.modules.length||graph.modules.some(module=>!module?.owner?.name||/^(?:react(?:$|-)|@react-native(?:-windows)?\/|@nelyx\/skia-rn$|yoga(?:-layout)?$|@microsoft\/node-api-jsi$)/.test(module.owner.name))||graph.evaluationConflicts?.length||graph.summary?.unresolvedDependencies||graph.unresolved?.length||graph.dynamicCodeCandidates?.length)throw Error('Direct host runtime graph contains an RN owner, unresolved edge or dynamic-code fallback');}
 function copyRuntimeLicenses(modules,root,stage,roots){const owners=new Map(modules.map(module=>[module.owner.name,module.owner]));for(const [name,owner]of owners){if(Object.hasOwn(roots,name))continue;const folder=path.resolve(root,owner.root);if(folder!==root&&!inside(root,folder)||hash(path.join(folder,'package.json'))!==owner.manifestSha256)throw Error('Runtime license owner changed');for(const file of fs.readdirSync(folder).filter(name=>/^(?:licen[cs]e|notice)(?:[.-]|$)/i.test(name))){const source=path.join(folder,file);if(!fs.statSync(source).isFile()||fs.lstatSync(source).isSymbolicLink())throw Error('Runtime license is not a regular file');const target=path.join(stage,'licenses/runtime',name.replaceAll('/','_'),file);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(source,target);}}}
 function assertReplaceable(directory){verifyNativePackage(directory);for(const name of ['NelyxHermesHost.exe','hermesvm.dll']){let handle;try{handle=fs.openSync(path.join(directory,name),'r+');}catch{throw Error('Close the running native Hermes package before replacing it: '+directory);}finally{if(handle!==undefined)fs.closeSync(handle);}}}
 export function verifyNativePackage(directory){
@@ -114,7 +114,7 @@ export async function runNativeApplication({app,directory,hermesMode='bytecode',
   const stop=()=>{void child.stop();};process.on('SIGINT',stop);process.on('SIGTERM',stop);try{return {schema:'nelyx.run/v2',target:'windows',host:'native-hermes',...await child.completed};}finally{process.off('SIGINT',stop);process.off('SIGTERM',stop);}
 }
 export async function prepareNativeApplication({app,engineInputs,nativeInputs}={}){
-  const parent=path.join(app,'.nelyx/native-windows');fs.mkdirSync(parent,{recursive:true});const roots=nativePackageRoots(app),inputs=verifyNativeSkiaInputs(nativeInputs,roots['@nelyx/skia-rn']);const toolchain=await prepareNativeHermes({directory:engineInputs??path.join(parent,'toolchain')});
+  const parent=path.join(app,'.nelyx/native-windows');fs.mkdirSync(parent,{recursive:true});const roots=nativePackageRoots(app),inputs=verifyNativeSkiaInputs(nativeInputs,roots['@nelyx/skia-native']);const toolchain=await prepareNativeHermes({directory:engineInputs??path.join(parent,'toolchain')});
   const locator={schema:'nelyx.native-hermes-inputs/v1',nativeInputs:inputs.input,nativeInputsSha256:inputs.sha256,engineInputs:toolchain.directory,engineInputsSha256:toolchain.sha256};fs.writeFileSync(path.join(parent,'inputs.json'),JSON.stringify(locator,null,2)+'\n');return locator;
 }
 export async function nativeWindowsOperation(operation,options){
@@ -128,7 +128,7 @@ export async function nativeWindowsOperation(operation,options){
     // Their previous paths remain useful after a source/toolchain update.
     if(refresh)return {nativeInputs:value.nativeInputs,engineInputs:value.engineInputs};
     if(hash(value.nativeInputs)!==value.nativeInputsSha256||verifyNativeHermes(value.engineInputs).sha256!==value.engineInputsSha256)throw Error('Native host prepared inputs changed');
-    verifyNativeSkiaInputs(value.nativeInputs,nativePackageRoots(app)['@nelyx/skia-rn']);return value;
+    verifyNativeSkiaInputs(value.nativeInputs,nativePackageRoots(app)['@nelyx/skia-native']);return value;
   };
   if(operation==='doctor'){let reason;try{inputs=readInputs();}catch(error){reason=error.message;}return {schema:'nelyx.doctor/v2',target:'windows',host:'native-hermes',engine:'hermes',qualification:'experimental',nativeInputs:inputs.schema?'prepared':'notVerified',...(reason?{reason}:{})};}
   if(operation==='prepare')inputs=readInputs(true);else if(operation==='build')inputs=readInputs();

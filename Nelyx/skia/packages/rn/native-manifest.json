@@ -50,7 +50,8 @@
   },
   "nativeVulkan": {
     "recipe": "native/vulkan/CMakeLists.txt",
-    "platformContext": "native/vulkan/RNSkVulkanPlatformContext.h",
+    "platformContext": "generated/native-vulkan/RNSkVulkanPlatformContext.h",
+    "bindingSources": "generated/jsi",
     "gpuSources": "generated/vulkan",
     "gpuContract": "generated/gpu/nelyx_skia/gpu_context.h",
     "profiles": [

@@ -1,6 +1,6 @@
 import type { CanvasKit, Vertices } from "canvaskit-wasm";
 
-import type {SkVertices} from '../types/Vertices/Vertices.tsx';
+import type {SkVertices} from "@nelyx/skia-native/skia/types/Vertices/Vertices";
 
 import {HostObject} from './Host.ts';
 import {JsiSkRect} from './JsiSkRect.ts';

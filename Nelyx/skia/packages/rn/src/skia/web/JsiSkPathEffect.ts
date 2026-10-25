@@ -1,6 +1,6 @@
 import type { CanvasKit, PathEffect } from "canvaskit-wasm";
 
-import type {SkPathEffect} from "../types/Drawing.ts";
+import type {SkPathEffect} from "@nelyx/skia-native/skia/types/Drawing";
 
 import {HostObject} from './Host.ts';
 

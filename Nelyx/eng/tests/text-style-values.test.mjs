@@ -6,10 +6,16 @@ import {FontWeight,FontFeature,FontVariation,TextDecoration} from '@nelyx/core/u
 import {Paint} from '@nelyx/core/ui/paint';
 import {Shadow} from '@nelyx/core/ui/shadow';
 import {TextScaler} from '@nelyx/core/framework/painting/text-scaler';
-import {freezeRunStyle} from '../../dist/ui/text-style-validation.js';
+import {freezeRunStyle,inheritTextRunStyle,freezeStrutStyle} from '../../dist/ui/text-style-validation.js';
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 
 const timeout=1_200_000;
+test('builder style inheritance shares captured nested values and preserves paint precedence',{timeout},()=>{
+  const base=freezeRunStyle({fontFamilies:['UI'],fontFeatures:[{name:'tnum',value:1}],color:0xff112233}),run=freezeRunStyle({fontSize:17,foreground:new Paint({color:0xffabcdef}).snapshot()}),merged=inheritTextRunStyle(base,run);
+  assert.equal(merged.fontFamilies,base.fontFamilies);assert.equal(merged.fontFeatures,base.fontFeatures);assert.equal(merged.foreground,run.foreground);assert.equal(merged.color,undefined);assert.equal(merged.fontSize,17);assert(Object.isFrozen(merged));
+  let reads=0;const external={get fontSize(){reads++;return 19;}};assert.equal(inheritTextRunStyle(base,external).fontSize,19);assert.equal(reads,1,'External styles cross a normal spread/capture boundary');
+  const strut=freezeStrutStyle({fontFamilies:['UI'],fontSize:14,forceStrutHeight:true});assert.equal(freezeStrutStyle(strut),strut);assert(Object.isFrozen(strut.fontFamilies));
+});
 test('owned TextStyle copies preserve generic getter order, inherited values, Proxy traps and thrown errors',{timeout},()=>{
   class BorrowedStyle extends TextStyle{}
   const saved=FoundationBuildMode.mode,base={color:0xff123456,fontFamily:'UI',fontSize:17,fontWeight:FontWeight.w500,debugLabel:'source'};

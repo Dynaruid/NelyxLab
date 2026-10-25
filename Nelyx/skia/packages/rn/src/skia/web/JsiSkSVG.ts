@@ -1,6 +1,6 @@
 import type { CanvasKit } from "canvaskit-wasm";
 
-import type {SkSVG} from '../types/SVG/SVG.ts';
+import type {SkSVG} from "@nelyx/skia-native/skia/types/SVG/SVG";
 
 import {HostObject} from './Host.ts';
 

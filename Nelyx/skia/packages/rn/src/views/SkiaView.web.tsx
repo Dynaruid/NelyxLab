@@ -8,11 +8,11 @@ import React, {
 } from "react";
 import type { ViewProps } from "react-native";
 
-import type {SkCanvas} from "../skia/types/Drawing.ts";
-import type {SkGraphiteContext, SkGraphiteRecording} from '../skia/types/Graphite.ts';
-import type {SkImage} from "../skia/types/Drawing.ts";
-import type {SkPicture} from "../skia/types/Drawing.ts";
-import type {SkRect} from '../skia/types/Rect.ts';
+import type {SkCanvas} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkGraphiteContext, SkGraphiteRecording} from "@nelyx/skia-native/skia/types/Graphite";
+import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
 import {JsiSkPictureRecorder} from '../skia/web/JsiSkPictureRecorder.ts';
 import {Platform} from '../Platform/Platform.ts';
 import type {ISkiaViewApiWeb, SkiaWebViewHandle} from '../specs/NativeSkiaModule.web.ts';

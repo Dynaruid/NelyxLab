@@ -25,7 +25,8 @@
     "@lucid-softworks/react-native-linux-codegen": "0.0.1",
     "@lucid-softworks/react-native-linux-cli": "0.0.1",
     "@nelyx/material": "0.1.0",
-    "@nelyx/cupertino": "0.1.0"
+    "@nelyx/cupertino": "0.1.0",
+    "@nelyx/skia-native": "0.1.0"
   },
   "devDependencies": {
     "@nelyx/metro": "0.10.0",

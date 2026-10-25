@@ -1,5 +1,5 @@
 import type React from 'react';
-import type {SkGraphiteContext} from '../skia/types/Graphite.ts';
+import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
 import type {SkiaGraphiteViewNativeProps} from './types.ts';
 export interface SkiaGraphiteViewRef {
   /**

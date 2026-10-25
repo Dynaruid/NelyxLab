@@ -5,7 +5,7 @@ import {createReactNativeRegistration} from '../../backends/react-native/registr
 import type {ReactNativeRegistrationOptions} from '../../backends/react-native/registration.ts';
 import {createReactNativeEnvironment,useReactNativeViewport} from '../../backends/react-native/environment.ts';
 import type {ReactNativeApplication} from '../../backends/react-native/surface.tsx';
-import type {ReactNativeAssetConfiguration} from '../../backends/react-native/assets.ts';
+import type {NativeAssetConfiguration} from '../../runtime/native-assets.ts';
 import {bindLinuxNativeHost} from './native-host.ts';
 import type {LinuxNativeHostAdmission} from './native-host.ts';
 
@@ -24,7 +24,7 @@ const registration=createReactNativeRegistration('linux',{
   },
 });
 export interface LinuxRegistrationOptions extends ReactNativeRegistrationOptions {}
-export interface LinuxAssets extends ReactNativeAssetConfiguration {}
+export interface LinuxAssets extends NativeAssetConfiguration {}
 export interface LinuxApplication extends ReactNativeApplication {}
 export function linuxBackend(){return registration.backend();}
 export function verifyLinuxNativeHost(){if(!nativeAdmission)throw new Error('Linux native host has not been admitted');return nativeAdmission.verify();}

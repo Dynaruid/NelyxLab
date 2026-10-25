@@ -1,6 +1,6 @@
 import type { CanvasKit, ColorFilter } from "canvaskit-wasm";
 
-import type {SkColorFilter} from '../types/ColorFilter/ColorFilter.ts';
+import type {SkColorFilter} from "@nelyx/skia-native/skia/types/ColorFilter/ColorFilter";
 
 import {HostObject} from './Host.ts';
 

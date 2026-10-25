@@ -1,4 +1,4 @@
-import type {BlurStyle} from '../../skia/types/MaskFilter.ts';
+import type {BlurStyle} from "@nelyx/skia-native/skia/types/MaskFilter";
 
 import type {SkEnum} from './Common.ts';
 

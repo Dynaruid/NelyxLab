@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {ViewRuntime} from '@nelyx/core/hosting/runtime';
-import type {WindowsKeyEvent,WindowsKeyboardFocusEvent,WindowsTextEvent} from '@nelyx/skia-rn/views/types';
-import {bindWindowsKeyboardRoute,windowsKeyConnection} from './windows-keyboard-input.ts';
-import type {WindowsKeyboardPacket} from './windows-keyboard-input.ts';
-type Packet={kind:'key';data:WindowsKeyEvent}|{kind:'focus';data:WindowsKeyboardFocusEvent}|{kind:'text';data:WindowsTextEvent};
+import type {NativeKeyObservation,NativeKeyboardFocusObservation,NativeTextObservation} from '@nelyx/core/ui/input';
+import {bindWindowsKeyboardRoute,windowsKeyConnection} from './keyboard-input.ts';
+import type {WindowsKeyboardPacket} from './keyboard-input.ts';
+type Packet={kind:'key';data:NativeKeyObservation}|{kind:'focus';data:NativeKeyboardFocusObservation}|{kind:'text';data:NativeTextObservation};
 /** Serialize actual native key/focus packets around observed editing receipts.
  * Core shortcuts run before printable text; the next key sees that real text.
  * This does not manufacture characters or replay TSF-consumed key messages. */
@@ -13,9 +13,9 @@ export class WindowsKeyQueue {
   constructor(view:ViewRuntime,private readonly readGeneration:()=>number|undefined,private readonly before:()=>Promise<void>,private readonly after:(handled:boolean,text:string|null,focusEpoch?:number)=>Promise<void>,private readonly onError:(error:unknown)=>void){
     this.connection=windowsKeyConnection(view,readGeneration);this.detach=bindWindowsKeyboardRoute(view,this);
   }
-  key(event:WindowsKeyboardPacket<WindowsKeyEvent>):void{this.enqueue({kind:'key',data:Object.freeze({...event.nativeEvent})});}
-  focus(event:WindowsKeyboardPacket<WindowsKeyboardFocusEvent>):void{this.enqueue({kind:'focus',data:Object.freeze({...event.nativeEvent})});}
-  text(event:WindowsKeyboardPacket<WindowsTextEvent>):void{this.enqueue({kind:'text',data:Object.freeze({...event.nativeEvent})});}
+  key(event:WindowsKeyboardPacket<NativeKeyObservation>):void{this.enqueue({kind:'key',data:Object.freeze({...event.nativeEvent})});}
+  focus(event:WindowsKeyboardPacket<NativeKeyboardFocusObservation>):void{this.enqueue({kind:'focus',data:Object.freeze({...event.nativeEvent})});}
+  text(event:WindowsKeyboardPacket<NativeTextObservation>):void{this.enqueue({kind:'text',data:Object.freeze({...event.nativeEvent})});}
   private enqueue(packet:Packet):void{
     if(this.stopped||packet.data.viewGeneration!==this.readGeneration())return;
     if(this.packets.length>=256){this.fail(new Error('Windows key queue capacity exceeded'));return;}

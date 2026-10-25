@@ -13,6 +13,7 @@ import {TextBox} from './text-box.ts';import type {BoxHeightStyle,BoxWidthStyle}
 import {TextPosition,TextAffinity} from './text-position.ts';import {TextRange} from './text-range.ts';
 import {Rect} from './rect.ts';import type {Offset} from './offset.ts';import {GlyphInfo} from './glyph-info.ts';
 import {LineMetrics} from './line-metrics.ts';import {checkedInteger} from './value-math.ts';
+import {markCapturedTextRecord} from './text-input-data.ts';
 
 /** Explicit per-application engine ownership replaces a process-global native dart:ui factory. */
 export interface ParagraphContext {readonly text:TextLayoutService;readonly resources:ResourceRegistry;readonly font:ResourceId;readonly scale:number;readonly locale?:Locale|string;readonly color?:number;/** @internal Synchronous measurement admission; the caller retires it before returning. */readonly transient?:boolean}
@@ -45,7 +46,7 @@ export class Paragraph {
   private layoutWithReplacement(constraints:ParagraphConstraints,replacing:TextLayout|undefined):void{
     this.live();const context=this.context;invariant(context,'unbound-paragraph','Supply a ParagraphContext to ParagraphBuilder before laying out an engine paragraph');
     const style=this.style,locale=style.locale??context.locale??'und';
-    const input:TextLayoutInput={...this.contents,font:context.font,width:constraints.width,fontSize:style.fontSize??14,scale:context.scale,locale:typeof locale==='string'?locale:locale.toString(),direction:style.textDirection??'ltr',textAlign:style.textAlign??'start',color:context.color??0xff000000,maxLines:style.maxLines??128,...(style.maxLines===null?{unlimitedLines:true}:{}),ellipsis:style.ellipsis??'',...(style.strutStyle?{strutStyle:style.strutStyle}:{}),...(style.textHeightBehavior?{textHeightBehavior:style.textHeightBehavior}:{}),...(style.hyphens?{hyphens:style.hyphens}:{})};
+    const input:TextLayoutInput=Object.freeze({...this.contents,font:context.font,width:constraints.width,fontSize:style.fontSize??14,scale:context.scale,locale:typeof locale==='string'?locale:locale.toString(),direction:style.textDirection??'ltr',textAlign:style.textAlign??'start',color:context.color??0xff000000,maxLines:style.maxLines??128,...(style.maxLines===null?{unlimitedLines:true}:{}),ellipsis:style.ellipsis??'',...(style.strutStyle?{strutStyle:style.strutStyle}:{}),...(style.textHeightBehavior?{textHeightBehavior:style.textHeightBehavior}:{}),...(style.hyphens?{hyphens:style.hyphens}:{})});markCapturedTextRecord(input);
     const previous=this.current,next=context.text.layout(input,{...(replacing?{replacing}:{}),...(context.transient?{transient:true}:{})});
     // Preserve native unlimited-line semantics (notably ellipsis). Host geometry
     // admission still rejects results over 128 lines; never silently clip them.

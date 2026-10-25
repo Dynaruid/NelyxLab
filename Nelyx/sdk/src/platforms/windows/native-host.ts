@@ -1,6 +1,6 @@
 import {finishOwnedDisposal} from '../../runtime/owned-disposal.ts';
 // SPDX-License-Identifier: BSD-3-Clause
-import type {ReactNativeAssetConfiguration} from '../../backends/react-native/assets.ts';
+import type {NativeAssetConfiguration} from '../../runtime/native-assets.ts';
 export interface WindowsNativeHostStatus {
   readonly abi:1;readonly platform:'windows';readonly runtimeGeneration:number;
   readonly phase:'active'|'closed'|'failed';readonly compositionPhase:'bound'|'active'|'closing'|'closed'|'failed';
@@ -77,7 +77,7 @@ export function windowsAssetUri(uri:string,root:string):string {
   const normalized=root.replaceAll('\\','/');
   return 'file:///'+normalized.slice(0,2)+'/'+normalized.slice(2).split('/').filter(Boolean).map(encodeURIComponent).join('/')+'/'+parts.map(encodeURIComponent).join('/');
 }
-export function resolveWindowsAssetSources(configuration:ReactNativeAssetConfiguration,root:string):ReactNativeAssetConfiguration {
+export function resolveWindowsAssetSources(configuration:NativeAssetConfiguration,root:string):NativeAssetConfiguration {
   const sources=Object.freeze(Object.fromEntries(Object.entries(configuration.sources).map(([id,source])=>[id,typeof source==='number'?source:Object.freeze({uri:windowsAssetUri(source.uri,root)})])));
   return Object.freeze({manifest:configuration.manifest,sources});
 }

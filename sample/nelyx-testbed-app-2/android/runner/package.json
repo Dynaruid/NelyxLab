@@ -13,18 +13,19 @@
     "run": "node run.mjs"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.16.0-b27c33cdac41a2744b08228484df1df2399e72b7d3536b21794e07033c5ee64d.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.20.0-06ddc2889ac20c37cd660282ab6a9cc082eb1c7de784d4505f8c3472dd5e1df7.tgz",
-    "@nelyx/skia-rn": "file:../../.nelyx/supply/android/nelyx-skia-rn-0.6.0-4e0ed658bf1c21d3a2bafb1e649e14d99b953f60da5e6eefdbce15092c5a8c5c.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.16.0-028da3c093f08850794519e8014edc4e9db0e6e99978a62991add43d89b72c0d.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.20.0-ba3c46547753493b389ad61cfcb06c0ef26f14ffdf63e986f3cfb75eaac2aa16.tgz",
+    "@nelyx/skia-rn": "file:../../.nelyx/supply/android/nelyx-skia-rn-0.6.0-29190ddc390d10b2264cc88df6c0cd6b786b6b251ae2b83180dfac2358c7eb5f.tgz",
     "react-native-skia-graphite-android": "154.1.0",
     "react": "19.2.0",
     "react-native": "0.83.10",
     "@nelyx/material": "file:../../.nelyx/supply/android/nelyx-material-0.1.0-50caf9a198abec04516c8a098d7b65aea25ab84c259f5b898ae48165333027cf.tgz",
-    "@nelyx/cupertino": "file:../../.nelyx/supply/android/nelyx-cupertino-0.1.0-d3596e2b15bde1cf769092ee55edad32b80206d5face702bc36090249e5c873f.tgz"
+    "@nelyx/cupertino": "file:../../.nelyx/supply/android/nelyx-cupertino-0.1.0-d3596e2b15bde1cf769092ee55edad32b80206d5face702bc36090249e5c873f.tgz",
+    "@nelyx/skia-native": "file:../../.nelyx/supply/android/nelyx-skia-native-0.1.0-c31c6b150b12f54e490f05e8ed68da3040295f4d05295c59dcc7e08d145ff854.tgz"
   },
   "devDependencies": {
     "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-f613e5db43d417587c2b85e237cda39e75d71cac55c28629e68724cefb45c9db.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-1546c9471ddae70394801eab1b1f405ef03a5363a91b06f49ea4fd4625296bca.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-55f54b6ceec7fd7d192abd00f38fd1284aa866fd5795afdca7c3df9e3878de99.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",

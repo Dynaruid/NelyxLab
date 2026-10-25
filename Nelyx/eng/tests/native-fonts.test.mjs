@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {createHash} from 'node:crypto';import {createRequire} from 'node:module';
-import {createReactNativeAssetServices} from '../../sdk/dist/backends/react-native/assets.js';
+import {createNativeAssetServices} from '../../sdk/dist/runtime/native-assets.js';
+import {reactNativeAssetBackend} from '../../sdk/dist/backends/react-native/assets.js';
 const {copyAndroidFontAssets}=createRequire(import.meta.url)('../../sdk/tooling/metro/src/assets.cjs');
 const timeout=1_200_000,hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+test('the RN URI adapter captures the selected module once and preserves its resolver receiver',{timeout},()=>{
+  const trace=[];class ImageModule{#prefix='asset:';resolveAssetSource(source){return {uri:this.#prefix+source};}}
+  const image=new ImageModule(),Skia={},backend={get native(){trace.push('native');return {get Image(){trace.push('Image');return image;}};},get skia(){trace.push('skia');return {get Skia(){trace.push('Skia');return Skia;}};}};
+  const port=reactNativeAssetBackend(()=>{trace.push('backend');return backend;})();assert.deepEqual(trace,['backend','native','Image','skia','Skia']);assert.equal(port.api,Skia);assert.deepEqual(port.resolveSource(7),{uri:'asset:7'});assert.deepEqual(port.resolveSource(8),{uri:'asset:8'});assert.equal(trace.length,5);
+});
 function withDirectory(run){const directory=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-editor-fonts-'));try{return run(directory);}finally{assert.equal(path.dirname(directory),path.resolve(os.tmpdir()));assert(path.basename(directory).startsWith('nelyx-editor-fonts-'));fs.rmSync(directory,{recursive:true,force:true,maxRetries:3,retryDelay:100});}}
 
 test('Android Skia font packaging shares hash-named bytes, prunes only previous fonts and preserves a valid artifact on input failure',{timeout},()=>withDirectory(directory=>{
@@ -24,7 +30,7 @@ test('Android Skia font packaging rejects unsafe output ancestry and malformed f
 test('Skia font loading uses app bytes without a native editor registry and rejects hash drift',{timeout},async()=>{
   const bytes=new Uint8Array([1,2,3]),asset={id:'body',kind:'font',path:'./font.ttf',fontFamily:'Body',sha256:hash(bytes)},disposed=[];
   const face={nelyxIdentity:()=>7,dispose(){disposed.push('face');}},provider={registerFont(actual,family){assert.equal(actual,face);assert.equal(family,'Body');},dispose(){disposed.push('provider');}};
-  const services=createReactNativeAssetServices(()=>({native:{Image:{resolveAssetSource(source){return source;}}},skia:{Skia:{Data:{async fromURI(uri){assert.equal(uri,'asset:/font.ttf');return {nelyxBytes:()=>bytes,nelyxSha256:()=>hash(bytes),dispose(){disposed.push('data');}};}},Typeface:{MakeFreeTypeFaceFromData:()=>face},TypefaceFontProvider:{Make:()=>provider}}}}));
+  const services=createNativeAssetServices(()=>({resolveSource(source){return source;},api:{Data:{async fromURI(uri){assert.equal(uri,'asset:/font.ttf');return {nelyxBytes:()=>bytes,nelyxSha256:()=>hash(bytes),dispose(){disposed.push('data');}};}},Typeface:{MakeFreeTypeFaceFromData:()=>face},TypefaceFontProvider:{Make:()=>provider}}}));
   const lease=services.acquire({manifest:[asset],sources:{body:{uri:'asset:/font.ttf'}}});
   try{const value=await lease.ready;assert.equal([...value.fonts.values()][0].family,'Body');}finally{await lease.release();}
   assert.deepEqual(disposed,['data','provider','face']);disposed.length=0;

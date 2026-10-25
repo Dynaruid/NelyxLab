@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <ReactCommon/CallInvoker.h>
 #include <string>
 
 #include "RNSkPlatformContext.h"

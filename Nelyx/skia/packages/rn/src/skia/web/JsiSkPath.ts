@@ -1,11 +1,11 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 import type { CanvasKit, PathBuilder as CKPathBuilder } from "canvaskit-wasm";
 
-import {PathVerb} from "../types/Drawing.ts";
-import type {FillType, PathCommand, SkPath} from "../types/Drawing.ts";
-import type {SkMatrix, InputMatrix} from "../types/Drawing.ts";
-import type {SkPoint} from '../types/Point.ts';
-import type {SkRect} from '../types/Rect.ts';
+import {PathVerb} from "@nelyx/skia-native/skia/types/Drawing";
+import type {FillType, PathCommand, SkPath} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkMatrix, InputMatrix} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPoint} from "@nelyx/skia-native/skia/types/Point";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
 
 import {HostObject} from './Host.ts';
 import {JsiSkPoint} from './JsiSkPoint.ts';

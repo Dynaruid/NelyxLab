@@ -4,15 +4,24 @@
 #include <chrono>
 #include <thread>
 void require(bool,char const*);
+static HWND ownedNativeWindow(DWORD process){
+  struct Target{DWORD process;HWND window=nullptr;int matches=0;}target{process};
+  EnumWindows([](HWND window,LPARAM context)->BOOL{auto& target=*reinterpret_cast<Target*>(context);DWORD process=0;GetWindowThreadProcessId(window,&process);if(process!=target.process)return TRUE;wchar_t name[64]{};GetClassNameW(window,name,64);if(std::wstring(name)==L"NelyxHermesHost"&&IsWindowVisible(window)){target.window=window;++target.matches;}return TRUE;},reinterpret_cast<LPARAM>(&target));
+  require(target.matches==1,"Diagnostic requires exactly one owned native window");return target.window;
+}
 // An external UIA client, bounded to the HWND of a process this test launched.
 // This distinguishes provider failures from an automation client's focus view.
 int nativeUiaFocusClient(char const* pidValue,char const* idValue,bool productNavigation,bool pointerInput,bool rangeInput)try{
   std::string pidText(pidValue),id(idValue);require(!pidText.empty()&&std::all_of(pidText.begin(),pidText.end(),[](char c){return c>='0'&&c<='9';}),"UIA probe requires its owned process ID");
   const auto parsed=std::stoull(pidText);require(parsed>0&&parsed<=MAXDWORD,"UIA process ID outside DWORD");require(!id.empty()&&id.size()<=1024&&std::all_of(id.begin(),id.end(),[](char c){return c>='a'&&c<='z'||c>='A'&&c<='Z'||c>='0'&&c<='9'||c=='-'||c=='_';}),"UIA probe requires an explicit ASCII automation ID");
-  struct Target{DWORD process;HWND window=nullptr;int matches=0;}target{DWORD(parsed)};
-  EnumWindows([](HWND window,LPARAM context)->BOOL{auto& target=*reinterpret_cast<Target*>(context);DWORD process=0;GetWindowThreadProcessId(window,&process);if(process!=target.process)return TRUE;wchar_t name[64]{};GetClassNameW(window,name,64);if(std::wstring(name)==L"NelyxHermesHost"&&IsWindowVisible(window)){target.window=window;++target.matches;}return TRUE;},reinterpret_cast<LPARAM>(&target));
-  require(target.matches==1&&GetForegroundWindow()==target.window,"UIA probe requires one owned foreground native window");
-  if(productNavigation)ShowWindow(target.window,SW_MAXIMIZE);
+  struct Target{DWORD process;HWND window;}target{DWORD(parsed),ownedNativeWindow(DWORD(parsed))};
+  // Acquire the owned window at the scenario boundary, as the scroll probe
+  // does. Merely seeing FIRST_FRAME does not grant foreground ownership.
+  ShowWindow(target.window,productNavigation?SW_MAXIMIZE:SW_RESTORE);
+  SetForegroundWindow(target.window);
+  const auto activationDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);
+  while(GetForegroundWindow()!=target.window&&std::chrono::steady_clock::now()<activationDeadline)std::this_thread::sleep_for(std::chrono::milliseconds(16));
+  require(GetForegroundWindow()==target.window,"UIA probe could not acquire its owned foreground native window");
   Nelyx::WindowsSemantics::checked(CoInitializeEx(nullptr,COINIT_MULTITHREADED));struct Apartment{~Apartment(){CoUninitialize();}}apartment;
   Microsoft::WRL::ComPtr<IUIAutomation> automation;Nelyx::WindowsSemantics::checked(CoCreateInstance(__uuidof(CUIAutomation8),nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&automation)));
   Microsoft::WRL::ComPtr<IUIAutomation2> bounded;Nelyx::WindowsSemantics::checked(automation.As(&bounded));Nelyx::WindowsSemantics::checked(bounded->put_ConnectionTimeout(3000));Nelyx::WindowsSemantics::checked(bounded->put_TransactionTimeout(3000));

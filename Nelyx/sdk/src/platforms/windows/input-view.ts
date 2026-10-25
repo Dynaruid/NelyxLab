@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {EditingConfiguration} from '@nelyx/core/hosting/interaction';
 import {PendingDisposalError} from '@nelyx/core/foundation/disposable';
-import type {ReactNativeInteraction} from './interaction.ts';
-import {WindowsInputService} from './windows-input-service.ts';
-import {WindowsKeyQueue} from './windows-key-queue.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
+import {WindowsInputService} from './input-service.ts';
+import {WindowsKeyQueue} from './key-queue.ts';
 import type {ViewRuntime} from '@nelyx/core/hosting/runtime';
-import type {WindowsInputClient,WindowsInputConfiguration,WindowsInputEvents,WindowsInputModule} from './windows-input-service.ts';
+import type {WindowsInputClient,WindowsInputConfiguration,WindowsInputEvents,WindowsInputModule} from './input-service.ts';
 
 // InputScope values from the Windows SDK inputscope.h. These describe the OS
 // input scope, not a native text control or an alternative editor configuration.
@@ -26,7 +26,7 @@ export class WindowsInputView {
   private running:Promise<void>|undefined;
   private closing:Promise<void>|undefined;
   private dirty=false;private queued=false;private stopped=false;private failed=false;
-  constructor(private readonly interaction:ReactNativeInteraction,module:WindowsInputModule,events:WindowsInputEvents,surface:number,private readonly onError:(error:unknown)=>void){
+  constructor(private readonly interaction:NativeInteraction,module:WindowsInputModule,events:WindowsInputEvents,surface:number,private readonly onError:(error:unknown)=>void){
     this.unsubscribe=interaction.subscribe(this.schedule);
     this.connecting=WindowsInputService.connect(interaction,module,events,surface,error=>this.fail(error));
     this.ready=this.connecting.then(async service=>{this.service=service;if(this.stopped){await service.dispose();return;}await this.reconcile();});

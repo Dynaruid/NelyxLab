@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';
-import {verifyNativeMemoryCycles,verifyNativeMemoryRegions,nativeMemoryLimits} from './native-memory-results.mjs';
+import {verifyNativeMemoryCycles,verifyNativeMemoryRegions} from './native-memory-results.mjs';
 import {nativeMemoryOptions} from '../run-native-memory.mjs';
 const timeout=1_200_000,options={pid:19,mode:'bytecode',cycles:6},MiB=1024**2;
 function fixture(){
   const points=Array.from({length:7},(_,cycle)=>({schema:1,scope:'process-private-commit-and-vulkan-allocations',cycle,pid:19,mode:'bytecode',returnedToGallery:true,foreground:true,windowFocused:true,performanceAccepted:false,physicalInputAccepted:'notVerified',displayed:'unobserved',physicalWidth:974,physicalHeight:929,dpi:192,viewportGeneration:1,surfaceGeneration:2,focusChanges:2,keyboardMessages:0,privateBytes:(cycle?140:100)*MiB,workingSetBytes:160*MiB,peakPrivateBytes:180*MiB,vulkanAllocationCount:cycle?32:20,vulkanAllocationBytes:(cycle?64:32)*MiB,inputReceived:2+cycle*32,inputDelivered:2+cycle*32,inputAccepted:2+cycle*32,inputRejected:0,wheelReceived:cycle*32,wheelRawNet:0,wheelRawAbsolute:cycle*3840,wheelForeign:0,wheelDeliveredY:0,wheelDeliveredAbsoluteY:cycle*1536}));
   const workloads=Array.from({length:6},(_,index)=>({cycle:index+1,pid:19,cold:true,revisit:true,last:true,first:true,returnedToGallery:true,wheelPackets:32,wheelRawNet:0,wheelRawAbsolute:3840}));return {points,workloads};
 }
-test('native memory acceptance binds actual route/input receipts and keeps driver residency outside allocator evidence',{timeout},()=>{
-  const {points,workloads}=fixture(),result=verifyNativeMemoryCycles(points,workloads,options);assert.equal(result.privateProcessMemory,'PASS-scoped');assert.equal(result.vulkanAllocations.span,0);assert.equal(result.gpuDriverResidency,'notVerified');assert.equal(result.wholeH4Accepted,false);assert.equal(result.performanceAccepted,false);
+test('native memory observation binds actual route/input receipts without claiming memory or driver acceptance',{timeout},()=>{
+  const {points,workloads}=fixture(),result=verifyNativeMemoryCycles(points,workloads,options);assert.equal(result.assessment,'observation-only');assert.equal(result.privateProcessMemory,'observed');assert.equal(result.vulkanAllocations.tail.span,0);assert.equal(result.resourceOwnership,'notVerified');assert.equal(result.gpuDriverResidency,'notVerified');assert.equal(result.memoryAccepted,false);assert.equal(result.wholeH4Accepted,false);assert.equal(result.performanceAccepted,false);
+  assert.deepEqual(result.privateCommit.values,points.map(point=>point.privateBytes));assert.equal(result.peakPrivateBytes,180*MiB);assert.equal(result.privateCommit.growth,40*MiB);assert.equal(result.privateCommit.tail.growth,0);assert(!('stableTail'in result));assert(!('limits'in result));
   points[4].privateBytes+=MiB;points[6].privateBytes+=MiB/2;assert.doesNotThrow(()=>verifyNativeMemoryCycles(points,workloads,options));
   for(const point of points){point.wheelReceived=point.cycle*16;point.inputReceived=point.inputDelivered=point.inputAccepted=2+point.cycle*16;}assert.doesNotThrow(()=>verifyNativeMemoryCycles(points,workloads,options),'Coalesced packets retain the complete signed/absolute native amount');
 });
@@ -17,8 +18,14 @@ test('native memory rejects missing owners, incomplete workload, desktop intrusi
   const mutations=[(p,w)=>p.pop(),(p,w)=>w.pop(),p=>p[2].cycle=1,p=>p[2].pid=20,p=>p[2].mode='static-aot',p=>p[2].scope='counter-estimate',p=>p[2].returnedToGallery=false,p=>p[2].windowFocused=false,p=>p[2].physicalWidth++,p=>p[2].viewportGeneration++,p=>p[2].keyboardMessages++,p=>p[2].focusChanges++,p=>p[2].privateBytes=NaN,p=>p[2].vulkanAllocationBytes=-1,p=>p[2].inputDelivered--,p=>p[2].inputReceived++,p=>{p[2].inputAccepted--;p[2].inputRejected++;},(p,w)=>w[2].cold=false,(p,w)=>w[2].revisit=false,(p,w)=>w[2].last=false,(p,w)=>w[2].wheelRawNet=120,(p,w)=>w[2].wheelRawAbsolute=0,p=>p[2].performanceAccepted=true,p=>p[2].displayed='accepted',p=>p[2].wheelRawNet=120,p=>p[2].wheelRawAbsolute--,p=>p[2].wheelForeign++,p=>p[2].wheelDeliveredY=48,p=>p[2].wheelDeliveredAbsoluteY--,p=>p[2].wheelReceived--];
   for(const mutate of mutations){const {points,workloads}=fixture();mutate(points,workloads);assert.throws(()=>verifyNativeMemoryCycles(points,workloads,options));}
 });
-test('native memory caps and tail growth reject allocator drift even when logical route owners are unchanged',{timeout},()=>{
-  for(const mutate of [p=>p[2].privateBytes=nativeMemoryLimits.privateBytes+1,p=>p[2].vulkanAllocationBytes=nativeMemoryLimits.vulkanBytes+1,p=>{p[4].privateBytes+=9*MiB;},p=>{p[6].privateBytes+=2*MiB;},p=>{p[6].vulkanAllocationBytes+=2*MiB;},p=>{p[6].vulkanAllocationCount++;}]){const {points,workloads}=fixture();mutate(points);points.forEach(point=>point.peakPrivateBytes=Math.max(point.peakPrivateBytes,point.privateBytes));assert.throws(()=>verifyNativeMemoryCycles(points,workloads,options));}
+test('native memory totals and continued growth remain visible without arbitrary caps or a false plateau verdict',{timeout},()=>{
+  const {points,workloads}=fixture();
+  for(const point of points){point.privateBytes=2*1024*MiB+point.cycle*16*MiB;point.peakPrivateBytes=point.privateBytes+MiB;point.vulkanAllocationBytes=768*MiB+point.cycle*2*MiB;point.vulkanAllocationCount=100+point.cycle*3;}
+  const result=verifyNativeMemoryCycles(points,workloads,options);
+  assert.equal(result.privateCommit.last,2144*MiB);assert.equal(result.privateCommit.growth,96*MiB);assert.equal(result.privateCommit.tail.growth,32*MiB);assert.equal(result.privateCommit.tail.span,32*MiB);assert.equal(result.peakPrivateBytes,2145*MiB);
+  assert.equal(result.vulkanAllocations.last,780*MiB);assert.equal(result.vulkanAllocations.tail.growth,4*MiB);assert.equal(result.vulkanCount.tail.growth,6);assert.equal(result.memoryAccepted,false);assert.equal(result.resourceOwnership,'notVerified');
+  for(const point of points){point.vulkanAllocationBytes=0;point.vulkanAllocationCount=0;}
+  assert.equal(verifyNativeMemoryCycles(points,workloads,options).vulkanCount.last,0,'A released allocator can legitimately report zero');
 });
 test('native memory commands bound all modes/windows before opening a product',{timeout},()=>{
   assert.deepEqual(nativeMemoryOptions(['--hermes-mode','both','--viewport','both','--cycles','6']),{mode:'both',viewport:'both',cycles:6});

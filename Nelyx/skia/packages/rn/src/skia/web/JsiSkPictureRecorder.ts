@@ -1,7 +1,7 @@
 import type { CanvasKit, PictureRecorder } from "canvaskit-wasm";
 
-import type {SkRect} from '../types/Rect.ts';
-import type {SkPictureRecorder} from '../types/Picture/PictureRecorder.ts';
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {SkPictureRecorder} from "@nelyx/skia-native/skia/types/Picture/PictureRecorder";
 
 import {HostObject} from './Host.ts';
 import {JsiSkCanvas} from './JsiSkCanvas.ts';

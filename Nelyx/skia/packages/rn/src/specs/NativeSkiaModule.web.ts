@@ -1,9 +1,9 @@
-import {arrayItem} from '../runtime/arrays.ts';
+import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
 /* eslint-disable import/no-anonymous-default-export */
-import type {SkGraphiteContext} from '../skia/types/Graphite.ts';
-import type {SkImage} from "../skia/types/Drawing.ts";
-import type {SkPicture} from "../skia/types/Drawing.ts";
-import type {SkRect} from '../skia/types/Rect.ts';
+import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
+import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
 import type {ISkiaViewApi} from '../views/types.ts';
 
 /** What the web view registers under its native id. */

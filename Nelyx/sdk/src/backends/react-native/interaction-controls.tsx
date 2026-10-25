@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {SemanticsNode,SemanticsAction} from '@nelyx/core/ui/types';
 import type {ReactNativeBackend} from './registration.ts';
-import type {ReactNativeInteraction} from './interaction.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 import {nativeEditorStyle} from '../editor-style.ts';
 import {createReactNativeControls} from './controls.tsx';
 import {createAndroidSemantics} from './android-semantics.tsx';
@@ -9,7 +9,7 @@ import {createAndroidSemantics} from './android-semantics.tsx';
 /** Input endpoints have Core binding lifetimes; accessibility proxies have semantics lifetimes. */
 export function createReactNativeInteractionControls(getBackend:()=>ReactNativeBackend) {
  const controls=createReactNativeControls(getBackend),AndroidSemantics=createAndroidSemantics(getBackend);
- return function InteractionControls({interaction,accessibilityEnabled=true}:{interaction:ReactNativeInteraction;accessibilityEnabled?:boolean}){
+ return function InteractionControls({interaction,accessibilityEnabled=true}:{interaction:NativeInteraction;accessibilityEnabled?:boolean}){
    const {react,native}=getBackend();react.useSyncExternalStore(interaction.subscribe,interaction.snapshot);
    const render=(node:SemanticsNode,parentX=0,parentY=0):import('react').ReactNode=>{
      const style={position:'absolute' as const,left:node.bounds.x-parentX,top:node.bounds.y-parentY,width:node.bounds.width,height:node.bounds.height};

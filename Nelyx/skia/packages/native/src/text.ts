@@ -18,7 +18,7 @@ import {TextLayoutBudget} from '@nelyx/core/hosting/text-layout-budget';
 import {TextPaintResources} from '@nelyx/core/hosting/text-paints';
 import type {PaintSnapshot} from '@nelyx/core/ui/paint';
 import type {TextRunStyle} from '@nelyx/core/ui/text-styles';
-import {configurePaint} from './renderer.ts';
+import {configurePaint} from './paint.ts';
 import {applyPaintEffects,createRuntimeShaderCache} from './paint-effects.ts';
 import type {FontProviderLease} from '@nelyx/core/hosting/text-fonts';
 import {buildStyledText} from '@nelyx/core/ui/text-builder';
@@ -26,17 +26,17 @@ import {nativeTextStyle,nativeParagraphStyle} from './text-style.ts';
 export interface NelyxTypeface extends SkTypeface {nelyxIdentity():number;nelyxFamily():string}
 interface NativeParagraph extends SkParagraph {nelyxBindCoreQuery(owner:string,ownerGeneration:number,resource:string,resourceGeneration:number,text:string,units:number):number;nelyxTextMetrics():number[];nelyxTextHit(x:number,y:number):number[];nelyxTextGlyphAt(offset:number):number[];nelyxTextWordBoundary(offset:number):number[];nelyxTextLineNumberAt(offset:number):number;nelyxTextBoxes(start:number,end:number,heightStyle:number,widthStyle:number):number[];nelyxGlyphVisit:SkParagraph['extendedVisit']}
 export interface ParagraphPaint {readonly nativeParagraph?:SkParagraph;paint(canvas:SkCanvas,x:number,y:number):void}
-export interface ReactNativeFont {readonly resource:ResourceId;readonly provider:SkTypefaceFontProvider;readonly family:string;readonly bundledTypefaceId:number;readonly typeface?:NelyxTypeface}
-interface Entry {paintFacade?:ParagraphPaint;nativeQueryReference?:TextLayoutQueryReference;readonly layout:TextLayout;readonly paragraph:NativeParagraph;readonly bundledTypefaceIds:ReadonlySet<number>;readonly fonts:FontProviderLease<ReactNativeFont,SkTypefaceFontProvider>;readonly paintResources:TextPaintResources}
+export interface NativeFont {readonly resource:ResourceId;readonly provider:SkTypefaceFontProvider;readonly family:string;readonly bundledTypefaceId:number;readonly typeface?:NelyxTypeface}
+interface Entry {paintFacade?:ParagraphPaint;nativeQueryReference?:TextLayoutQueryReference;readonly layout:TextLayout;readonly paragraph:NativeParagraph;readonly bundledTypefaceIds:ReadonlySet<number>;readonly fonts:FontProviderLease<NativeFont,SkTypefaceFontProvider>;readonly paintResources:TextPaintResources}
 /** Paragraphs are private: callers receive frozen IDs/geometry and a paint-only facade. */
-export class ReactNativeTextLayoutService implements TextLayoutService {
+export class NativeTextLayoutService implements TextLayoutService {
   private readonly layoutCache:TextLayoutCache;private readonly textBudget:TextLayoutBudget;
   private entries=new Map<string,Entry>();
   private sequence=0;
-  private fonts:ReadonlyMap<string,ReactNativeFont>;
-  private readonly providers:ParagraphFontProviders<ReactNativeFont,SkTypefaceFontProvider>;private failed=false;private readonly uncertain:unknown[]=[];
+  private fonts:ReadonlyMap<string,NativeFont>;
+  private readonly providers:ParagraphFontProviders<NativeFont,SkTypefaceFontProvider>;private failed=false;private readonly uncertain:unknown[]=[];
   get debugStats(){const entries=[...this.entries.values()],producers=entries.reduce((sum,entry)=>sum+this.registry.initialProducerCount(entry.layout.resource),0);return Object.freeze({cache:this.layoutCache.debugStats,paragraphs:this.entries.size,producers,retainedOnly:entries.filter(entry=>!this.registry.hasInitialProducer(entry.layout.resource)).length,fontProviders:this.providers.debugProviderCount,fontProviderSourceBytes:this.providers.debugSourceBytes,failed:this.failed});}
-  constructor(private api:Skia,private registry:ResourceRegistry,private owner:ViewOwner,font:ReactNativeFont|ReadonlyMap<string,ReactNativeFont>,private readonly image:(key:string)=>SkImage=()=>{throw new Error('Native paragraph image resolver is unavailable');},private readonly runtimePrograms?:ReturnType<typeof createRuntimeShaderCache>){this.layoutCache=new TextLayoutCache(registry);this.textBudget=new TextLayoutBudget(registry);this.fonts='resource' in font?new Map([[resourceKey(font.resource),font]]):font;this.providers=new ParagraphFontProviders(registry,()=>this.fonts.values(),fonts=>{if(fonts.length===1&&!fonts[0]!.typeface)return {provider:fonts[0]!.provider,retire(){}};const provider=this.api.TypefaceFontProvider.Make();try{for(const font of fonts){invariant(font.typeface,'missing-native-typeface','Multifont layout requires retained app typefaces');provider.registerFont(font.typeface,font.family);}return {provider,retire:()=>provider.dispose()};}catch(error){provider.dispose();throw error;}});}
+  constructor(private api:Skia,private registry:ResourceRegistry,private owner:ViewOwner,font:NativeFont|ReadonlyMap<string,NativeFont>,private readonly image:(key:string)=>SkImage=()=>{throw new Error('Native paragraph image resolver is unavailable');},private readonly runtimePrograms?:ReturnType<typeof createRuntimeShaderCache>){this.layoutCache=new TextLayoutCache(registry);this.textBudget=new TextLayoutBudget(registry);this.fonts='resource' in font?new Map([[resourceKey(font.resource),font]]):font;this.providers=new ParagraphFontProviders(registry,()=>this.fonts.values(),fonts=>{if(fonts.length===1&&!fonts[0]!.typeface)return {provider:fonts[0]!.provider,retire(){}};const provider=this.api.TypefaceFontProvider.Make();try{for(const font of fonts){invariant(font.typeface,'missing-native-typeface','Multifont layout requires retained app typefaces');provider.registerFont(font.typeface,font.family);}return {provider,retire:()=>provider.dispose()};}catch(error){provider.dispose();throw error;}});}
   fontFamily(resource:ResourceId):string{invariant(!this.failed,'text-retirement-failed','Paragraph native retirement failed');const font=this.fonts.get(resourceKey(resource));invariant(font&&this.registry.has(resource),'stale-resource','Unknown font');return font.family;}
   layout(input:TextLayoutInput,request?:TextLayoutRequest):TextLayout {
     invariant(!this.failed,'text-retirement-failed','Paragraph native retirement failed');const snapshot=freezeTextInput(input),font=this.fonts.get(resourceKey(snapshot.font));invariant(font && this.registry.has(snapshot.font),'stale-resource','unknown font');

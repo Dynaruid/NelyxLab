@@ -167,9 +167,40 @@ The sample's [`package.json`](../../sample/nelyx-testbed-app-2/package.json) dec
 
 [`providers/`](providers/) contains generated target manifests and their schema. Profiles describe implementation and capabilities separately from qualification, which remains `notVerified`. Keep renderer inputs, React Native/Hermes versions, ABI, and provider cohort aligned.
 
-Frame wire ABI is now 3; native ABI stays 1, with native wire 1 and 2 packet replay retained. Install matching core/SDK/renderer archives and rebuild native suppliers after C++ source changes. Provider manifests require wire 3. Native editor overlays still need group opacity/clip/transform integration; canvas Opacity does not establish that visual behavior.
+Frame wire ABI is 11 and native Core ABI is 1. Native surfaces use numeric scene packet 1; runtime admission requires the matching current binding. Older wire replay remains available to explicit tooling consumers. Install matching Core/SDK/renderer archives and rebuild native suppliers after C++ source changes. Native editor overlays still need group opacity/clip/transform integration; canvas Opacity does not establish that visual behavior.
 
 ## Ownership and lifecycle
+
+The common native owners are `runtime/native-assets`, `runtime/native-images`,
+`runtime/image-memory`, `runtime/native-interaction`, `runtime/native-engine`
+and `runtime/frame-clock`. Use `NativeAssetConfiguration`
+and `createNativeAssetServices` with `{api, resolveSource}`. The resolver is the
+host URI port; direct Hermes provides it directly, while the RN adapter captures
+its actual Image module. The former RN-named asset services/types moved to these
+direct subpaths; image decoding and budgets have one implementation. Native
+surfaces consume the common numeric scene path; missing bindings fail explicitly.
+Paragraph backends receive an immutable input descriptor; custom services must
+keep their mutable working state separately. Owned run/placeholder arrays remain
+immutable through layout, query and paint.
+
+`NativeInteraction`, `NativeEditorPort` and `NativeInteractionPolicy` moved from
+the former RN interaction subpath to `runtime/native-interaction`; the former
+RN-named class and type aliases are removed. Windows semantics packets belong to
+the Windows adapter, and RN keeps its view/control integration. `createNativeEngineServices`
+assembles the shared native text, scene, picture, raster and image ports for one
+AppSession. Bootstrap owns the services it creates; close the application before
+disposing this engine owner. It drains the same renderer, returns an unused
+startup context, then retires shared shader programs. RN bootstrap now returns
+only its API/view binding; use the common engine owner instead of its former
+renderer/text factory wrappers.
+
+Copied key/focus/text observations now share the data-only Core `ui/input`
+types. Windows input service/view/key queues belong to `platforms/windows`;
+their shared implementation imports neither RN events nor RN Skia types. The
+host supplies native keyboard-state and accessibility endpoints directly, while
+the RN adapter resolves its actual modules. A semantics packet uses `surfaceId`;
+the RN adapter maps its Fabric tag into this field.
+
 
 | Layer | Responsibility |
 | --- | --- |
@@ -187,7 +218,7 @@ Windows first-load WM_CLOSE is queued until RNW reports bundle loading. Repeated
 
 The runtime checks cohort/ABI, asset hashes and byte limits, owner generations, GPU retirement, and shutdown drain. A failed drain preserves dependent resources. Complete startup/fatal/forced-teardown and graphics loss/recovery qualification remains open; see [project status](../../README.md#project-status).
 
-Editing bindings and custom ReactNativeEditorPort/NativeTextFieldHandle implementations must provide `blur()` as well as `focus()`. Focus exclusion calls the concrete DOM blur, React Native TextInput.blur or the existing Android editor blur command. Semantics `focusable:false` blocks focus and traversal without disabling the editor or changing its text, selection or label. Enabling it again does not automatically refocus. The portable tests and actual browser DOM checks do not qualify native IME, physical keyboard or screen-reader behavior.
+Editing bindings and custom NativeEditorPort/NativeTextFieldHandle implementations must provide `blur()` as well as `focus()`. Focus exclusion calls the concrete DOM blur, React Native TextInput.blur or the existing Android editor blur command. Semantics `focusable:false` blocks focus and traversal without disabling the editor or changing its text, selection or label. Enabling it again does not automatically refocus. The portable tests and actual browser DOM checks do not qualify native IME, physical keyboard or screen-reader behavior.
 
 ## Build and check
 

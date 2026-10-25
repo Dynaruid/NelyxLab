@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 주 수락 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / 실제 Testbed 앱**
 
-> **계획 ACTIVE / READY · 구현 NOT_STARTED · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 이번 요청은 소스·이전 결과를 검토하고 새 계획을 작성하는 문서 작업이다. 구현·패키지 교체·native 측정은 시작하지 않았다. Nelyx 기반 개편의 유일한 활성 계획은 이 문서이며, [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
+> **실행 PAUSED · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 사용자의 “중간 마무리해줘” 요청으로 구현과 추가 native 검증을 중지했다. 현재 변경·검사 실패·공급 차이·재개 지점은 §8.4에 기록한다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며, [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
 
 **W18은 기존 구조의 작은 최적화를 이어 붙이는 작업이 아니라, Nelyx가 상태·트리·레이아웃·텍스트·scene·자원을 보유하고 갱신하는 기반을 다시 만드는 작업이다.** TypeScript로 앱과 Widget·State를 작성하는 제품 방향, Nelyx 자체 콘텐츠 레이아웃, Hermes 기본 엔진 방향은 유지한다. 내부 클래스 구조·저장 방식·모듈·native ABI·공급 방식은 교체할 수 있다. 기존 소스와 API를 모두 그대로 보존하는 것을 개편의 전제로 삼지 않는다.
 
@@ -16,8 +16,8 @@ W17 종료는 host 구현의 중간 결과를 보존하면서 실행 계획을 �
 |---|---|
 | 직접 Hermes host, 전용 runtime thread, HWND/Composition, 입력·TSF/UIA, CLI 공급 | 재사용할 제품 기반. 다시 시제품 host를 만드는 단계로 되돌아가지 않고 공통 Engine/Host 경계를 정리한다. |
 | display-list1의 23 opcode, bounded input, generation·GPU drain | 이미 있는 기능이다. 새 비용·수명 구조에 통합하며 출력·오류·retirement 계약을 보존한다. |
-| cold/revisit/fast의 긴 프레임, 행 생성·layout·할당 비용 | W18의 주 개편 대상. 캐시 확대·샘플 축소·AOT coverage만으로 해결 처리하지 않는다. |
-| process private commit plateau 실패, driver residency 미확인 | 원인과 owner가 미확정인 독립 필수 항목으로 승계한다. 공통 자원 개편과 함께 조사하고 고정 수락 한계는 유지한다. |
+| cold/revisit/fast의 긴 프레임, 행 생성·layout·할당 비용 | W18의 주 개편 대상. cache/pool/retained 구조의 메모리 사용도 허용하고 실제 cold/revisit·입력/표시 효과를 검증한다. 샘플 축소·AOT coverage만으로 해결 처리하지 않는다. |
+| process private commit 증가, driver residency 미확인 | 과거 수치·실패 기록은 보존하고 목적·owner·회수/재사용 정책을 조사한다. W17의 고정 상한·마지막 3회 plateau는 W18 구조 선택·수락의 필수 기준으로 승계하지 않는다. |
 | RNW bytecode AV·과거 focus/종료 실패 | RNW 경로를 지원하는 동안 미해결 목록·회귀 대상으로 유지한다. 최종 지원 경로에서 명시적으로 퇴역하면 `RETIRED WITH PATH`로 구분하며 `FIXED`로 바꾸지 않는다. |
 | H0~H5 및 물리 한글 IME·reader·content-to-display 미수락 | §6의 새 수락 기준으로 전량 대응한다. rendering-only·정적 검사·AOT coverage PASS를 제품 수락으로 승격하지 않는다. |
 | prototype cache VM 포크 미채택 | 원복된 상태를 기준으로 시작한다. 새 근거 없이 같은 포크·비교 matrix를 반복하지 않는다. |
@@ -34,8 +34,8 @@ W17 종료는 host 구현의 중간 결과를 보존하면서 실행 계획을 �
 |---|---|---|
 | [`framework.ts`](Nelyx/src/framework/widgets/framework.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts) | Element가 상태·의존성·수명을, RenderObject가 layout을 맡는다. render child의 insert/move/remove와 queued build 뒤 projection/sync 경로가 함께 있다. inherited index는 일부 지점에서 Map을 복사한다. | 역할 분리 자체는 유효하다. 중복된 자료·정규화 작업의 필요성을 재검토하고 변경을 owner별로 한 번 반영하는 구조로 바꾼다. 현재 모든 sync가 불필요하다고 단정하지 않는다. |
 | [`sliver.ts`](Nelyx/src/framework/widgets/sliver.ts), [`object.ts`](Nelyx/src/framework/rendering/object.ts) | lazy child의 builder·mount·하위 build가 layout callback 안에서 동기 실행된다. 기존 child store·dirty queue·0/1/N 최적화도 이미 있다. | 새 행의 원가를 줄여야 한다. scheduler나 GPU 비동기화만으로 동기 builder 실행 중간을 분할할 수 없다. |
-| [`text-painter.ts`](Nelyx/src/framework/painting/text-painter.ts), [`text-layout-cache.ts`](Nelyx/src/hosting/text-layout-cache.ts) | 문단·측정·query 수명과 cache가 이미 있으며 스타일·입력·출력 snapshot이 여러 계층을 지난다. | 캐시를 새로 추가하는 대신 canonical text/style 입력과 문단 owner를 통합한다. 실제 shaping 비용과 JS 준비 비용을 분리한다. |
-| [`renderer.ts`](Nelyx/skia/packages/rn/src/renderer.ts), [`display-list.ts`](Nelyx/skia/packages/rn/src/display-list.ts) | native display-list 경로에서도 Core PaintFrame을 `replayFrame`이 방문하고 batch canvas가 native packet을 만든다. renderer는 최대 2개 in-flight lease를 관리한다. | JS 명령 객체→snapshot→renderer 방문→packet의 중간 표현을 줄인다. 이미 비동기인 GPU 제출을 다시 비동기화하는 계획은 반복하지 않는다. |
+| [`text-painter.ts`](Nelyx/src/framework/painting/text-painter.ts), [`text-layout-cache.ts`](Nelyx/src/hosting/text-layout-cache.ts) | 문단·측정·query 수명과 cache가 이미 있으며 스타일·입력·출력 snapshot이 여러 계층을 지난다. | canonical text/style 입력과 문단 owner를 통합하고, 필요한 cache·사전 준비도 비용/효과에 따라 선택한다. 실제 shaping 비용과 JS 준비 비용을 분리한다. |
+| [`renderer.ts`](Nelyx/skia/packages/native/src/renderer.ts), [`display-list.ts`](Nelyx/skia/packages/native/src/display-list.ts) | native display-list 경로에서도 Core PaintFrame을 `replayFrame`이 방문하고 batch canvas가 native packet을 만든다. renderer는 최대 2개 in-flight lease를 관리한다. W18 착수 후 중립 TS 구현을 RN package에서 현재 링크로 이전했다. | JS 명령 객체→snapshot→renderer 방문→packet의 중간 표현을 줄인다. 이미 비동기인 GPU 제출을 다시 비동기화하는 계획은 반복하지 않는다. |
 | [`native-hermes/application.ts`](Nelyx/sdk/src/backends/native-hermes/application.ts), [`CMakeLists.txt`](Nelyx/sdk/native/windows-hermes/CMakeLists.txt) | 직접 host가 RN 이름의 asset·interaction·frame-clock helper와 `@nelyx/skia-rn`의 renderer/JSI 구현을 재사용한다. CMake도 RN 패키지 안의 소스를 컴파일한다. | 이름만으로 RN runtime 의존성을 판정하지 않는다. 실제 중립 구현을 공통 owner로 추출하고 RN adapter가 이를 소비하게 의존 방향을 바꾼다. |
 | [`globals.ts`](Nelyx/sdk/src/backends/native-hermes/globals.ts), [`bridge.ts`](Nelyx/sdk/src/backends/native-hermes/bridge.ts) | timer·frame·Promise rejection·console을 설치하며 global host ABI 1을 사용한다. 다양한 서비스 packet과 callback을 하나의 bridge가 연결한다. | 앱별 runtime 설치·오류·종료 계약, 기능별 ABI·capability를 명시한다. global shim을 늘리는 방식에서 명시적 runtime 조립으로 전환한다. |
 | W17 §8의 행 생성 진단 | 한 행 74 Elements, 최악 fast frame 1,110 mount/1,036 unmount 및 긴 layout 구간이 기록돼 있다. 별도 GC 진단의 fast도 두 모드 모두 50ms를 크게 넘었다. | 단일 getter·closure 개선보다 생성되는 내부 구조와 갱신 경로를 우선 바꿀 이유다. 과거 inclusive span·PC 횟수를 현재 self CPU 시간으로 해석하지 않는다. |
@@ -99,7 +99,7 @@ native Engine은 새 UI tree의 두 번째 owner가 아니다. **Element 상태�
 - constraints·parent dependency·dirty boundary·geometry revision을 기준으로 증분 layout을 재구성한다. paint-only·transform-only·scroll-only 갱신이 실제로 필요한 branch만 거치게 한다. text·semantics·hit test가 같은 geometry commit을 참조하게 한다.
 - lazy child 생성·퇴장·extent 보정·anchor·keep-alive를 한 owner 경계에서 관리한다. 고정 extent far-seek는 목적지 범위만, 가변 extent는 측정 결과와 anchor를 반영한다. 현재의 bounded 범위·상태 유지 의미를 보존한다.
 - 사용자 builder·lifecycle·custom layout 한 번의 실행은 동기적이다. frame budget을 이유로 중간에 preempt하거나 다른 thread/VM에서 실행하지 않는다. 미리 준비할 수 있는 순수 자료·자원과 사용자 callback 실행을 구분한다.
-- **기본 수락은 cache/prefetch/keep-alive 예산을 늘리지 않은 cold·revisit에서 한다.** 모든 행을 보존하거나 gallery를 작은 데모로 바꿔 통과시키지 않는다. 필요 없는 내부 할당·전체 탐색·중복 layout을 먼저 제거한다.
+- **cache/prefetch/keep-alive 예산은 Nelyx의 구조와 부하에 맞춰 변경할 수 있다.** 각 정책의 목적·보유 bytes/count·수명과 실제 cold/revisit·fast/far 비용을 함께 비교한다. 아직 생성하지 않은 목적지와 기존 데이터를 재사용하는 이동을 구분하며, 모든 행 보존을 포함한 전략도 실제 메모리·시작 비용과 규모별 동작을 평가한다. gallery 축소·cold를 warm으로 바꾸는 표본 대체는 허용하지 않는다.
 - native kernel 후보는 대량 숫자 geometry·extent 탐색·순수 layout 계산처럼 입출력 경계가 닫힌 연산이다. JS→native 준비·copy·검증·결과 소비를 포함해 비교한다. custom callback마다 재진입하거나 노드마다 HostObject를 만드는 후보는 채택하지 않는다.
 - kernel을 채택하면 native와 Web의 의미를 함께 제공한다. WASM을 쓰는 경우 memory/view 수명·성장·호출 비용을 검증하고 CanvasKit과 별개 모듈의 pointer를 공유하지 않는다. JS fallback을 쓰면 명시적 capability와 동등한 동작을 제공한다. 이득이 없으면 kernel 분기만 제외하고 TS Runtime 개편은 계속한다.
 - `LayoutBuilder`·custom RenderObject·CustomPainter·ParentData·intrinsic/baseline·transform/hit test의 현재 지원 계약을 이전한다. 현재 미지원인 기능을 이번 작업으로 모두 새로 구현한다는 뜻은 아니다. 기존 지원을 숨은 fallback이나 기능 축소로 대체하지 않는다.
@@ -110,7 +110,7 @@ native Engine은 새 UI tree의 두 번째 owner가 아니다. **Element 상태�
 - native paragraph는 한 resource owner가 layout·paint·query lease를 관리한다. caret/selection/range geometry를 같은 문단 revision에서 얻는다. 이전 문단을 교체할 때 제출된 frame·UIA read가 끝나기 전 해제하지 않는다.
 - text 측정의 동기 의존은 숨기지 않는다. 순서를 바꾸지 않는 독립 request만 batch할 수 있으며, 부모 constraints에 의존하는 layout을 무조건 비동기로 바꾸지 않는다.
 - metric-only·paint-only 변경, 폰트/폭/theme/DPI/locale 변경의 무효화를 분리한다. 한국어·RTL·혼합 run·emoji·fallback font·가변 scaler·mutable Paint와 사용자 getter를 포함한다.
-- cache는 기존 bounded 정책을 기준으로 resident bytes·entry·live lease를 함께 제한한다. shaping의 실제 CPU, JS 입력 준비, hit 후 재사용 비용을 따로 본다. cache hit만으로 subtree 생성 비용이 해결됐다고 보고하지 않는다.
+- cache의 resident bytes·entry·live lease와 축소/폐기 정책을 owner가 관리한다. 기존 cache 예산을 동결하지 않으며 필요한 문단·style 자료의 추가 보유를 허용한다. shaping의 실제 CPU, JS 입력 준비, hit 후 재사용 비용을 따로 본다. cache hit만으로 subtree 생성 비용이 해결됐다고 보고하지 않는다.
 
 ### 3.6 scene·geometry·입력·semantics commit
 
@@ -133,13 +133,14 @@ native Engine은 새 UI tree의 두 번째 owner가 아니다. **Element 상태�
 ### 3.8 자원·메모리
 
 - font/image/paragraph/path/picture/frame buffer/GPU surface/UIA peer/JS callback의 생성·보유·반환 owner를 구현과 연결한다. RAII/explicit dispose·lease·fence retirement를 정확성 근거로 사용하고 JS GC/finalizer는 보조 수단으로 한정한다.
-- 기존 최대 2개 in-flight, bounded CPU 준비·recording·texture 정책을 기본으로 승계한다. 새 queue·pool·arena·retained scene도 bytes/count 한계를 가진다. full buffer·native wrapper·rooted callback을 전역 cache에 계속 남기지 않는다.
-- W17의 private commit 증가를 address region→실제 allocation/retained owner로 좁힌다. VM live/capacity·native allocator·Skia·UIA/COM·Vulkan·process private를 따로 관찰한다. owner가 확인되기 전 GC 옵션·driver leak으로 결론내리지 않는다.
-- W17의 **private 1GiB / Vulkan 512MiB**, 마지막 3회 span **8MiB / 1MiB**, 순증가 **1MiB / 64KiB**, Vulkan allocation count 순증가 **0**을 유지한다. 강제 GC·반복 수 확대·허용치 완화로 plateau를 통과시키지 않는다. 이 bounded 관측의 PASS도 전체 driver residency 수락과 같지 않다.
+- **Nelyx의 구조·성능·기능에 필요한 메모리 사용을 허용한다.** cache·pool·arena·retained scene·사전 계산·native 자료 보유를 기존 메모리 수치 때문에 배제하지 않는다. 추가 메모리의 목적·owner·실제 이득·보유 수명·축소/폐기 방법을 구현과 연결한다. 기존 최대 2개 in-flight는 현재 제출/지연 계약이며, 이를 바꾸려면 별도로 입력 지연·backpressure·retirement를 검증한다.
+- memory 사용량과 할당량은 설계 판단에 필요한 측정값이다. VM live/capacity·native allocator·Skia·UIA/COM·Vulkan·process private와 cache/pool 보유를 구분한다. 입력 규모·테마·DPI·화면별 필요량과 같은 완료 작업량의 frame/GC 지연을 함께 보고하며 사용량 증가만으로 실패하지 않는다.
+- W17의 **private 1GiB / Vulkan 512MiB**, 마지막 3회 span **8MiB / 1MiB**, 순증가 **1MiB / 64KiB**, allocation count 순증가 **0**은 **W18의 필수 수락 기준에서 퇴역**한다. 별도의 4MiB 대체 한계도 두지 않는다. 마지막 3회 증감은 원시 관측으로 남기며 plateau·누수 없음·driver residency의 자동 PASS를 만들지 않는다. 과거 실패를 수정 완료로 바꾸지 않는다.
+- 자원 보유에는 설명 가능한 수명과 회수 정책이 있어야 한다. 종료된 owner의 lease/handle/callback 미반환, stale 접근, 목적·보유 정책으로 설명되지 않는 반복 누적, OOM/메모리 압박으로 인한 기능·응답·종료 실패를 검증한다. 의도한 cache/pool 보유와 미회수를 구분하고 필요 시 압박 대응·축소·allocation 실패 처리도 확인한다. 근거 있는 target별 제품 예산은 이후 실제 기기/부하에 맞춰 정할 수 있으며 임의의 전역 MB 상한을 설계의 선행조건으로 두지 않는다.
 
 ## 4. 소스·패키지·공급 이전
 
-아래 새 경로·패키지는 **설계상 목적지이며 아직 생성하지 않았다.** W18-01에서 실제 import graph와 최소 export를 확인한다. 폴더 이름만 바꾸고 동일 adapter chain을 남기는 작업으로 완료 처리하지 않는다.
+아래 경로·패키지는 목표 owner다. `src/runtime`의 첫 owner transaction·dependency scope를 구현 중이며 나머지 이전 상태는 §8에서 구분한다. W18-01에서 실제 import graph와 최소 export를 확인한다. 폴더 이름만 바꾸고 동일 adapter chain을 남기는 작업으로 완료 처리하지 않는다.
 
 | 현재 owner | 목표 owner / 이전 조건 |
 |---|---|
@@ -162,7 +163,7 @@ Hermes pin 업그레이드는 구조 변경과 분리한다. W17의 Windows sour
 
 ## 5. 실행 단계와 의존 순서
 
-작업 단위는 파일 수가 아니라 **한 owner/계약의 구현→실제 소비→옛 경로 제거**다. 각 단계의 최소 기능 회귀와 필요한 공급 확인을 끝낸 뒤 진행하며, 매 단계 전체 SDK·전체 native matrix를 반복하지 않는다. 현재 아래 구현 단계는 모두 **NOT_STARTED**다.
+작업 단위는 파일 수가 아니라 **한 owner/계약의 구현→실제 소비→옛 경로 제거**다. 각 단계의 최소 기능 회귀와 필요한 공급 확인을 끝낸 뒤 진행하며, 매 단계 전체 SDK·전체 native matrix를 반복하지 않는다. 단계별 실제 상태는 §8에서 관리한다.
 
 | ID | 작업과 주요 산출물 | 단계 완료 조건 |
 |---|---|---|
@@ -170,14 +171,14 @@ Hermes pin 업그레이드는 구조 변경과 분리한다. W17의 Windows sour
 | **W18-01 Runtime/Engine 계약·이전 설계** | §3·4의 소유권·record·dependency·frame/text/resource ABI·thread/close 상태·API 변경표 확정. source import graph와 RN-neutral 추출 대상, 최종 지원/퇴역 후보 경로 확인. | 중복 mutable 기준·순환 의존·OS 타입 누출 없음. 기존 소비자마다 이전 단계가 있고 unsupported 기능·퇴역 영향이 명시됨. |
 | **W18-02 최소 구조 시제품·선택** | 실제 ListTile/ListView·텍스트·semantics의 한 경로에 새 record/transaction·증분 갱신을 적용. 현재 직접 host에서 두 Hermes 모드 비교. 필요한 순수 native kernel만 작은 대조로 검토. | builder/State/Key·출력·입력 의미를 보존한 실제 경로. §5.1의 구조·비용 목표로 자료구조를 선택하고 미채택 후보는 제거. |
 | **W18-03 Element·dependency·수명 교체** | 새 child/dependency/dirty 소유권과 transaction 구현. reconciliation·Inherited·GlobalKey·ParentData·detach/rollback을 이전. | 상태·callback 순서·오류 후 tree/registry 일관성 회귀 통과. 해당 소비자의 중복 projection/sync와 이전 record owner 제거. |
-| **W18-04 RenderObject·layout·Sliver 교체** | 새 dirty boundary·geometry commit·extent/anchor·lazy child 생성/퇴장. custom layout/paint 확장점 연결. | fixed/variable extent·far-seek·역방향·resize/RTL·keep-alive·hit test/scroll 의미 보존. 기존 예산에서 cold/revisit 비용 대응. |
+| **W18-04 RenderObject·layout·Sliver 교체** | 새 dirty boundary·geometry commit·extent/anchor·lazy child 생성/퇴장. custom layout/paint 확장점 연결. | fixed/variable extent·far-seek·역방향·resize/RTL·keep-alive·hit test/scroll 의미 보존. 선택한 보유 정책의 메모리와 cold/revisit 비용을 함께 평가. |
 | **W18-05 text/style·paragraph owner 통합** | canonical descriptor·폰트 revision·paragraph/query/paint lease·bounded cache. metric/paint-only 변경과 편집 geometry 연결. | 한국어/RTL/run/fallback/scaler·caret/selection·교체/retirement 동등. 반복 snapshot과 중복 key 변환 제거, 잔여 shaping 비용 구분. |
 | **W18-06 공통 native Engine·scene 경로 교체** | 공통 `skia-native`·canonical native target 추출. Core recording→native/Web adapter의 직접 소비와 retained chunk·packet ABI 구현. | 현재 paint/clip/effect/paragraph/picture 출력·오류·lease 동등. default 경로의 이중 replay/encode 제거, 제한·generation·GPU drain 유지. |
 | **W18-07 입력·편집·semantics commit 통합** | 같은 geometry commit의 input/hit/UIA/IME 연결, focus/selection/action·snapshot retirement. | 입력량·순서·capture/cancel·physics·텍스트 상태 보존. stale owner/revision 거부, 접근성 on의 자동 기능 회귀. 물리 수락은 별도 유지. |
 | **W18-08 SDK Runtime·host 조립 개편** | 공통 bootstrap/close·서비스 port·globals/capability·VM owner와 Windows embedder 분리. RN/Web adapter 연결. | RN runtime 없이 직접 host 시작·재개·실패·정상 close. timer/microtask/오류 경계·loaded identity·OS 자원 소유 확인. |
 | **W18-09 실제 디자인 패키지·앱/API 이전** | Material/Cupertino의 현재 전체 catalog, sample·template·custom API 소비를 새 기반으로 이전. 필요한 API/import 변경과 문서 반영. | 작은 fixture 외에 실제 Testbed 전체 동작. 테마·navigation/dialog/overlay·focus·편집·State 보존. 마지막 소비자의 호환 wrapper 제거. |
 | **W18-10 현재 제품 공급·플랫폼 회귀** | 새 package closure·source→dist→설치→bundle/HBC/AOT/EXE/DLL 일치. 실제 앱의 두 Hermes 모드, 영향받은 Web/Android 검증. | 이전 ABI/locator/변조 공급 거부. 현재 설치본의 실행·응답·종료 확인. 플랫폼별 확인/미확인 경계를 README에 반영. |
-| **W18-11 최종 성능·메모리·물리 수락** | §6의 동일 부하 비교, W17 private 증가 원인·수정/회수 확인, 실제 표시·precision/IME/reader 검증. | 각 모드·창·화면·phase별 판정. 미관측/실패를 유지하며 필수 미달 시 전체 PARTIAL. |
+| **W18-11 최종 성능·메모리·물리 수락** | §6의 동일 부하 비교, 메모리 목적·보유 정책·owner 회수/압박 대응 확인, 실제 표시·precision/IME/reader 검증. | 각 모드·창·화면·phase별 판정. 미관측/실패를 유지하며 필수 미달 시 전체 PARTIAL. |
 | **W18-12 기본 전환·퇴역·정리** | 수락된 경로를 CLI/template/launcher 기본값으로 전환. 앞서 정한 지원/퇴역 결정을 실제 소비자 이전·공급 결과와 대조하고 미사용 분기·wrapper·출력 정리. | 지원하는 경로의 필수 실패 0, 사용법과 실제 기본값 일치. 퇴역/미채택과 해결을 구분하고 활성 구현 owner가 하나임. |
 
 주 의존 순서는 **00 → 01 → 02 → 03 → 04/05 → 06 → 07/08 → 09 → 10 → 11 → 12**다. text·Engine의 경계 추출, 메모리 owner 조사 등 독립 작업은 관련 계약 확정 후 진행할 수 있다. W17 메모리 plateau나 최종 physical gate를 모든 구조 개편의 선행조건으로 삼지 않는다.
@@ -186,9 +187,9 @@ Hermes pin 업그레이드는 구조 변경과 분리한다. W17의 Windows sour
 
 W18-02는 완전한 새 engine을 만든 뒤 평가하는 단계가 아니다. 실제 앱의 대표 행/목적지 생성 경로와 동일한 의미를 사용하는 작은 구현에서 **생성·구조 변경·style/text 준비·layout·paint 준비**의 원가를 함께 확인한다. 단순 도형·scalar benchmark만으로 채택하지 않는다.
 
-설계 검증 목표는 동일 조건의 cold/revisit에서 **frame CPU wall p95 25% 이상 감소와 동일 완료 작업량당 VM 할당 30% 이상 감소**, retained p95의 **10% 초과 악화 없음**, 자원 한계·출력·입력 의미 보존이다. 이는 **아직 측정하지 않은 목표**이며 최종 §6 수락을 대체하지 않는다. frame 수가 다른 phase의 총 할당량을 그대로 개선율로 쓰지 않는다.
+설계 검증 목표는 동일 부하의 cold/revisit에서 **frame CPU wall p95 25% 이상 감소**, retained p95의 **10% 초과 악화 없음**과 출력·입력·자원 수명 보존이다. **동일 완료 작업량당 VM 할당 30% 감소는 참고 목표로 전환하며 채택의 필수 조건으로 두지 않는다.** 할당·resident 메모리가 증가하더라도 필요한 구조와 실제 frame/GC·입력 지연의 이득, 보유·회수 정책이 검증되면 채택할 수 있다. frame 수가 다른 phase의 총 할당량을 그대로 개선율로 쓰지 않으며 최종 §6 수락은 별도다.
 
-기능을 보존해도 비용 목표에 못 미치면 원인을 분해해 record 배치·갱신 경계·native kernel 중 필요한 선택을 바꾼다. 같은 후보에 GC/heap·cache·샘플 조건만 바꿔 성공시킬 수 없다. 근거 없는 후보를 제거하고 설계를 고친 뒤 다음 단계로 진행한다. 시제품 목표를 이유로 수백 회 비교하거나 이미 알려진 W17 문제만 반복 조사하지 않는다.
+기능을 보존해도 비용 목표에 못 미치면 원인을 분해해 record 배치·갱신 경계·cache/pool·native kernel 중 필요한 선택을 바꾼다. 메모리 보유 정책을 바꾼 후보는 실제 구현 변경으로 구분하고 변경 전후 부하·resident 비용·회수 정책을 명시한다. 측정 조건 변경·강제 GC·샘플 축소로 개선을 꾸미지 않는다. 근거 없는 후보를 제거하고 설계를 고친 뒤 다음 단계로 진행한다. 시제품 목표를 이유로 수백 회 비교하거나 이미 알려진 W17 문제만 반복 조사하지 않는다.
 
 ## 6. 검증과 최종 수락
 
@@ -215,7 +216,7 @@ W18-02는 완전한 새 engine을 만든 뒤 평가하는 단계가 아니다. �
 | **R2 render·자원 계약** | paint/effect/text 출력과 generation·frame admission·lease·GPU retirement 동등. malformed/stale/oversize packet은 mutation/publish 전에 거부. 숨은 legacy renderer·AOT/bytecode fallback으로 수락하지 않음. | H0/H4 |
 | **R3 frame·입력 지연** | **각 Hermes 모드·창·화면·phase별** CPU wall p95≤0.75B, p99≤B, max<50ms. oldest input→matching surface p95≤2B, max<50ms. 같은 부하 baseline 대비 변화와 표본 수를 함께 보고. | H2 |
 | **R4 실제 표시·물리 입력** | matching content 표시 간격 p95≤1.25B, p99≤2B, 50ms 이상 새 화면 정지 0회, 1.5B 초과 간격 연속 3회 0회. oldest input→display p95≤3B/max<100ms. precision contact/관성/재접촉/반전·wheel 및 실제 한글 IME/reader 확인. | H3 및 H1 물리 범위 |
-| **R5 메모리·안정성·종료** | §3.8의 고정 한계·bounded plateau와 owner 회수 확인. 지원 대상의 원인 미확정 AV·종료 실패 없음. close/drain·late callback·UIA peer·VM 파괴 경계 통과, 정상 exit0/강제 종료 없음. driver residency는 관측 범위 별도 표기. | H4 |
+| **R5 메모리·안정성·종료** | §3.8의 메모리 목적·보유/축소 정책·owner 회수 확인. 의도한 보유와 미회수/지속 누적을 구분하고 OOM/압박 대응을 검증. 지원 대상의 원인 미확정 AV·종료 실패 없음. close/drain·late callback·UIA peer·VM 파괴 경계 통과, 정상 exit0/강제 종료 없음. 전역 bytes/짧은 plateau 수치로 자동 판정하지 않으며 driver residency는 관측 범위 별도 표기. | H4 |
 | **R6 공급·회귀** | source→dist→package→설치→bundle/HBC/AOT→EXE/DLL loaded identity 일치. 실제 앱 두 모드의 정상 시작·응답·종료, CLI doctor/prepare/build/run/pack과 template·README의 계약 일치. | H5 |
 | **R7 플랫폼·퇴역** | 공통 변경을 소비하는 현재 Web/Android 경로에서 기능·공급 회귀 확인. iOS/macOS/Linux는 source/contract와 실제 native 수락을 분리. 이전 경로의 마지막 소비자 이전 및 지원/퇴역 범위 명시. | H5 및 W18 구조 범위 |
 
@@ -238,7 +239,7 @@ Windows가 1차 제품 수락 범위다. Web·Android의 현재 기능을 새 Co
 | wrapper 축소가 context·getter·Inherited·semantics 의미를 바꿈 | 관찰 경계가 증명된 내부 순수 조합만 축소. 임의 사용자 객체와 custom 확장에는 일반 경로 보존. |
 | transaction이 rollback 가능한 범위를 과장 | tree/registry/lease 불변식과 사용자 callback 부작용을 분리. 오류 중 추가 오류도 owner를 잃지 않게 처리. |
 | direct host가 RN 코드를 이름만 바꿔 계속 내장 | import/link/loaded/call path와 실제 공통 owner로 확인. 정식 Engine의 dependency closure에 RN 초기화가 필요하면 미완료. |
-| retained chunk·paragraph·UIA snapshot이 메모리를 보유 | bytes/count·read/frame lease·retirement와 close를 함께 제한. W17 private 실패는 새 구조에도 독립 재검증. |
+| retained chunk·paragraph·UIA snapshot이 메모리를 보유 | bytes/count·read/frame lease·retirement와 close를 관찰하고 보유/축소 정책과 연결. W17의 증가 관측은 owner 근거로 조사하며 옛 수치 한계를 새 구조에 강제하지 않음. |
 | Web/WASM가 별도 engine 또는 copy-heavy 경로가 됨 | 공통 TS UI 의미와 Engine port 유지. WASM 채택 시 해당 build/메모리/브리지 비용까지 평가. 채택 안 한 kernel에 Web 바이너리를 추가하지 않음. |
 | 지원 플랫폼/기능을 줄여 성능만 수락 | 실제 catalog·접근성 on·동일 부하, 플랫폼별 기능·회귀와 표시 수락을 분리. 퇴역 경로는 이유/소비자/대체를 명시. |
 
@@ -247,13 +248,87 @@ Windows가 1차 제품 수락 범위다. Web·Android의 현재 기능을 새 Co
 | 항목 | 현재 상태 |
 |---|---|
 | W17 실행 계획 | **CLOSED / SUPERSEDED BY W18**. 종료 시 구현·제품 결과는 PARTIAL이며 실패·미확인 범위 유지. |
-| W18 계획 | **ACTIVE / READY**. 현재 소스·W17/research·공식 원본을 검토한 새 실행 기준. |
-| W18 구현 / 공급·native 검증 | **NOT_STARTED / 미실시**. 새 Runtime·Engine 패키지·ABI·kernel은 아직 구현하지 않음. |
-| 기존 실행 기본값 | W17 문서의 마지막 상태는 Hermes/optimized·RNW. 이번 문서 작성으로 실행 기본값을 바꾸지 않음. 실제 시작 시 확인. |
-| 이번 확인 범위 | 문서 변경·참조 경로·상태/단계 정합성·`git diff --check`. 제품 동작·성능·물리 수락의 새 증거 없음. |
-| 다음 단계 | 구현 요청을 받으면 **W18-00 → W18-01 → W18-02**부터 시작. W17의 마지막 private-memory 진단 명령을 그대로 반복하지 않음. |
+| W18 계획 | **PAUSED**. 2026-10-26 사용자 중간 마무리 요청. 완료·수락으로 판정하지 않음. |
+| W18-00 | **PARTIAL**. 착수 HEAD `db27ecedd2c38e38c16753fa827c9b0cab77c911`, dirty 없음. 현재 공급·실행 기준선 확인 중. |
+| W18-01 | **PARTIAL**. 아래 첫 owner/소비자 계약 확정. 공통 native 패키지·scene/text ABI 이전 설계는 계속 필요. |
+| W18-02 | **PAUSED / PARTIAL**. render owner commit·공유 dependency·intrusive dirty queue·text/semantics 준비와 Icon render primitive 시제품. 비용 목표·공급·회귀 잔여는 §8.4. 두 모드 정규 비교 전 채택/완료로 판정하지 않음. |
+| W18-06/08의 독립 경계 추출 | **PARTIAL**. 공통 Skia TS package·canonical C++ binding/target·공통 frame clock과 직접 scene 인코더 구현. retained scene·text ABI·전체 SDK composition 이전은 미완료. |
+| W18-03/04/05/07/09~12 | **NOT_STARTED**. 시제품의 dirty queue·text capture 변경은 아직 비용 수락 전이다. 각 단계의 전체 이전·최종 수락으로 승격하지 않음. |
+| 기존 실행 기본값 | Hermes/optimized·RNW 유지. 직접 host 제품 기본 전환은 R0~R7 수락 뒤 진행. |
+| architecture / engine / performance / memory | **notAccepted / notAccepted / false / notAccepted**. 기존 private 증가·RNW AV/종료 실패 유지. |
+| physical / display / platform | **notVerified / unobserved / notAccepted**. 자동화·소스 확인과 물리 수락 구분. |
 
-착수 시 현재 HEAD·dirty·변경 소스와 dist/설치/locator/loaded identity를 다시 확인한다. 사용자 변경을 보존하고 실제 필요한 현재 입력을 재사용한다. 먼저 owner·API·지원 동작 inventory를 이 문서에 짧게 정리한 뒤 최소 새 Runtime 경로를 구현한다. 문서 작성 완료를 기반 개편 완료나 구현 재개로 표시하지 않는다.
+### 8.1 착수 inventory와 첫 구현 계약
+
+- Node `24.15.0`, npm `11.17.0`. Hermes pin `94aa5e1d40a4ce99df79d951cbe45310ec40680c`, HBC99·JSI21·MD, 현재 toolchain manifest SHA-256 `a0d7d3c2a023a3610e0c12e4182fd6ab604cf9e3ca1a89a8533dd43a964e71ff`. Skia x64 Release/MD·JSI21 supplier manifest `d7af5017143c3044aad7277a0924672b4605b5b8b184f2849026c36a09d68289`. 기존 locator는 이 현재 공급을 참조한다.
+- 착수 Core `framework.ts` SHA-256 `906d029e875ca1e207621f1a612ec98fb9473c2a396dbfc3c70070229a9b2978`; dist/Windows 설치 `framework.js`는 둘 다 `9b43b7fe8e796c1fc5068ef23a2733a03358cc041f24008375fc8456da387149`. 현재 두 제품 패키지는 `verifyNativePackage` 통과, native source identity `cdba6b89c7fcce315ff3e0e6c0908ba0eceb2ce0e90d42b4d3ac2c19fa618804`. 수정 후보와 비교용 설치본의 identity를 구분한다.
+- 실제 catalog는 Material 36·Cupertino 20개 선언을 유지한다. Widget/State/GlobalKey·Inherited·ParentData·custom RenderObject/paint·Sliver/layout callback·navigation/overlay·편집/semantics는 기존 회귀와 Testbed의 소비 대상이다. 미구현 catalog 항목을 새 지원으로 표시하지 않는다.
+- 첫 Runtime 계약: Element/State identity와 RenderObject geometry는 기존 객체가 단독 소유한다. `runtime/owner-transaction.ts`는 변경된 실제 render owner만 admission하고 build scope 끝에서 child-first로 한 번 commit한다. 실패 owner는 재시도 가능하게 남기고 성공 sibling은 재실행하지 않으며, unmount/close는 pending 참조를 제거한다. root/sliver/wheel/2D viewport가 같은 경계를 소비한다. numeric arena·사용자 객체 pooling·native layout kernel은 아직 채택하지 않았다.
+- canonical inherited type만 `runtime/dependency-scope.ts`의 공유 scope 링크를 사용한다. provider마다 전체 Map을 복사하지 않는다. scope별 query memo는 누락 type까지 최대 4개이며 deactivate/GlobalKey 이동 때 index를 폐기/재연결한다. 동적 getter·instance token은 기존 ancestor 조회를 사용한다. mutable Widget/구독 owner는 `InheritedElement` 하나다.
+- 지원 경로는 당분간 Windows direct bytecode/Static Hermes, RNW Hermes/V8/JSC, 현재 Web/Android를 유지한다. 퇴역한 경로는 없다. RNW AV·focus/종료, 메모리 보유/회수 근거, driver residency, 물리 IME/reader/display는 독립 잔여다.
+
+### 8.2 현재 검증
+
+착수 bytecode의 실제 ListView CPU 진단 1회는 정상 exit0·loaded host/VM/bundle identity·RN/Node-API JSI 미로딩을 확인했다. viewport 487×464.5 logical / scale 2, 접근성 on, 기존 cache 예산이다. retained 153 frames p95 7.499ms, cold 141 frames p95 18.720ms, fast 14 frames max 136.383ms. cold 할당 152,298,312 bytes, fast 132,839,360 bytes는 **phase 총량**으로, frame 수가 다른 후보의 개선율로 바로 쓰지 않는다. 시제품 착수 진단이며 3회 정규 비교·성능 수락을 대신하지 않는다. Static Hermes 기준선은 아래와 같으며 후보 비교는 진행 중이다. 임시 진단 package는 실행 finally에서 삭제한다.
+
+Static Hermes 착수 CPU 진단 1회도 loaded identity·정상 exit0을 확인했다. 같은 logical viewport에서 retained 154 frames p95 6.650ms, cold 151 frames p95 17.409ms, revisit 164 frames p95 16.812ms, fast 15 frames max 134.946ms다. cold 할당 총량 156,788,632 bytes / fast 142,186,328 bytes. 물리/표시 수락으로 사용하지 않는다.
+
+첫 sparse-owner/dependency 후보의 bytecode 1회는 retained 152 frames p95 7.017ms, cold 148 frames p95 17.877ms, revisit 156 frames p95 17.637ms, fast 15 frames max 139.097ms였다. cold의 built-frame당 할당은 약 1,080,130→1,044,537 bytes(약 3.3% 감소)이며 phase 총량 비교는 하지 않는다. **당시 25% CPU / 30% 할당 목표에 미달**하여 W18-02 완료·성능 채택으로 판정하지 않았다. 현재 할당 목표의 지위는 §5.1/8.5를 따른다. 이 첫 후보에는 아래 intrusive dirty queue와 text capture 변경이 아직 포함되지 않았다. 불충분한 후보를 수십 회 반복하는 대신 다음 원가를 개편한다.
+
+### 8.3 현재 구현·공급 이전
+
+- **Core owner**: `runtime/owner-transaction`의 child-first render commit, immutable dependency scope와 bounded 4-query memo, Element identity에 붙인 intrusive dirty queue와 nonempty scope list를 사용한다. root 전체 render sync와 ancestor dirty 전파를 제거했다. GlobalKey 재활성화 때 render/ParentData scope를 갱신한다. public custom sync/type getter·현재 ParentData widget·오류 의미를 유지하며 실패한 owner는 다음 boundary에서 재시도한다. 전체 W18-03 채택은 비용 수락 전이다.
+- **text 입력**: ParagraphBuilder가 소유한 frozen record와 literal run/placeholder/font-family 배열은 다시 descriptor 객체를 만들지 않고 검증·공유한다. schema 결과는 정적 token을 저장하며 별도 `{tag,valid}` 할당을 제거했다. captured style 상속은 nested immutable 목록을 재캡처하지 않는다. 외부 frozen/Proxy/getter/iterator와 mutable Paint·image binding은 일반 경로다. backend 입력은 immutable descriptor이며 custom TextLayoutService의 mutable 작업 상태는 별도로 소유해야 한다. paragraph/query/paint ABI와 metric/paint revision 통합은 미완료다.
+- **semantics 준비**: render owner의 fragment 배열을 재사용하고 delegate가 없으면 config Map을 만들지 않는다. conflict Set은 실제 충돌 때만 생성한다. delegate 실패 후 그룹·label·node ID가 정상 복구되는 실제 render tree 회귀를 추가했다. action table 지연 생성 후보는 frozen configuration의 기존 getter/등록 의미를 깨뜨려 제거했다. 접근성 on을 유지한다.
+- **공통 Engine**: `@nelyx/skia-native`가 renderer·text·paint/path/image/picture/raster와 중립 타입을 소유한다. canonical C++/Vulkan binding은 `skia/native/adapters/jsi`, 공유 Windows header는 `native/host/windows`다. 직접 Hermes와 RNW는 같은 `engine.cmake`를 각각의 pinned VM/JSI cohort로 컴파일한다. 직접 host는 RN package를 resolve/compile하지 않는다. RN·Android·Apple 소비자는 같은 원본의 현재 generated 입력을 사용한다. 옛 renderer/text/type reexport facade는 제거했다.
+- **scene**: 기본 native 경로는 Core 명령을 bounded numeric packet v1으로 직접 제출한다. Canvas facade·rest 배열·JS words 목록·per-command style/resource Map을 거치지 않는다. affine도 기존 inline column-major opcode로 인코딩하며 Matrix HostObject를 만들지 않는다. 원래 23 opcode의 generic 의미와 직접 경로의 동등성·float32 변환·preflight/native/disposal 실패·한도·동기 root 회수 검사가 통과했다. generic Canvas replay는 picture/raster와 명시적 비-capability adapter에 남는다. retained chunk와 Core recording 전체 이전은 미완료다.
+- **SDK 공통 조립**: `runtime/native-assets`, `native-images`, `image-memory`, `native-interaction`, `native-engine`, `frame-clock`을 직접/RN이 공유한다. `createNativeEngineServices`가 같은 text/renderer/picture/raster/image 자원을 조립하고 application drain 뒤 renderer·미사용 startup context·shader를 반환한다. 직접 host도 `OwnedDisposal`의 명시적 phase/복구 순서를 사용한다. callbacks를 fence한 뒤 모든 frame 취소를 시도하며 falsey 오류를 보존한다. VM bootstrap/globals·전체 host main 분리와 시작/종료 상태 통합은 계속 미완료다.
+- **입력 port**: `NativeInteraction/NativeEditorPort/NativeInteractionPolicy`로 소비자를 이전하고 RN-named export를 제거했다. Windows input service/view/key queue/keyboard route와 semantics packet은 `platforms/windows` 소유다. key/focus/text의 복사 자료는 Core `ui/input`에 한 번 정의하며 RN event/Skia 타입을 공유 port로 가져오지 않는다. semantics의 `surfaceId`에 RN adapter가 실제 Fabric tag를 매핑한다. keyboard/accessibility endpoint는 공통 runtime port이며 직접 host의 가짜 RN module 객체를 제거했다. 실제 OS packet/ack·UIA/IME 독립 수명은 유지한다.
+- **Icon 시제품 이전 소프트웨어 확인**: Core scroll/layout/paint/editable/semantics·native scene/display-list/replay **45개 파일**, SDK engine/입력/수명/semantics/clock/font **15개 파일**이 통과했다. 공유 engine의 정상 close·startup 실패·미사용 context 회수·실패 drain 보유·명시적 복구를 포함한다. workspace 10개 type check, CLI declaration check와 native/application/supply 도구 검사도 해당 변경 단계에서 통과했다. 아래 공급·Web/Android·직접 host 결과에는 이후 Icon 시제품이 포함되지 않는다. 이 결과는 실제 제품·물리 수락을 대신하지 않는다.
+- **공급**: Windows·Web·Android의 현재 Core/SDK/Skia native/RN/CLI archive와 설치본을 갱신했다. 공통 input·Engine·CLI의 source/설치 hash가 세 target에서 일치한다. 공유 pack directory의 native archive가 Web에 잘못 들어가는 분기를 수정했고 기존 owned Web native reference/archive·설치 package도 제거했다. runner supply 회귀와 CLI declaration 검사가 통과했다. RNW supplier는 `bd5059de779253ac69b61548d43ea3c07d94a987146536034287f944703380c8`이며 C++ compilation/link와 실제 ContentIsland 입력 bridge의 앞선 scoped 검증이 있다. RNW 앱의 AV·종료 실패 해결은 아니다.
+- **최신 Web**: check와 실제 CanvasKit/WebGL2 static build가 통과했다. `application.js` SHA-256은 `4b5eda81950ce52cc0b2b49bdc658d65abe406349371011fdff4b35e1f81a2ef`다. Chrome에서 실제 ListView의 마지막/처음 이동·항목1000 선택 유지, Material Text inputs의 `한글😀 W18` 편집 값, Cupertino 전환·Favorite callback을 확인했고 관찰된 console error/warn은 없었다. 모든 catalog와 물리 IME 수락은 아니다. 검증용 탭과 HTTP server는 정리했다.
+- **최신 Android**: 현재 `emulator-vulkan` profile의 x86_64 Release native/Java/Kotlin·Hermes bundle·APK build가 통과했다. arm64 기본값은 profile guard가 거부하며 이를 완화하지 않았다. 처음 GraalVM JDK 21의 `jlink` 변환에서 실패했고, 해당 subprocess의 `JAVA_HOME/PATH`만 설치된 Temurin 21.0.11로 지정해 같은 build를 완료했다. 시스템 Java 설정은 바꾸지 않았다. 공급된 Android Hermes 정책은 `android-5a1485-Og`이며 compiler SHA-256 `5cba24822d7cb50a7eafb85fe718d99490d2c582207c96c378cc5c7750a0010e`다. 연결 기기가 없어 runtime·물리 입력·qualification은 `notVerified`다.
+
+**2026-10-26 현재 직접 host 공급**: 최신 text/semantics/SDK/affine 변경으로 bytecode와 Static Hermes 제품 build가 모두 통과했다. 두 package의 검증·현재 runtime source inventory 855 modules/11 owners가 일치한다. native source `31b6cdc9f3e1bfd547d25f9498d73201b412ef0c39db2c50ae6b535e01b250ec`, EXE `227eb499df9161d2827f8dea68b585ca5bef843e0982eb22d74c69952ffb5b6e`, HBC `283a3aea82f4244f9355aa08326ea3fd89c5979273b93092286ed7dace297075`, Static unit `9d420a0de8a95b223153db232dfb6208af662f09478f09dd1724eeba3cd5baf5`다. 최신 bytecode 실행의 loaded EXE/VM/bundle identity가 일치하고 RN/Node-API JSI는 미로딩이며 정상 close exit0·forced=false였다. 외부 UIA client는 foreground 획득에 실패하여 **최신 UIA 동작 미수락**이다. Esc로 컴퓨터 제어가 중단돼 추가 UI 조작은 멈췄다. Static의 최신 runtime/UIA 검증은 남아 있다. 앞선 공급의 두 모드 category/editor focus 결과를 새 공급으로 승격하지 않는다.
+
+직접 scene/ParentData 이전 두 번째 후보의 bytecode 진단은 retained 151 frames p95 7.600ms, cold 150 frames p95 17.967ms·built-frame당 1,034,095 bytes, revisit 157 frames p95 17.515ms, fast 14 frames max 172.162ms였다. cold의 약 4.3%는 **built-frame당** 할당 비교일 뿐, 같은 완료 작업량의 할당 감소를 입증하지 않는다.
+
+세 번째 후보(text capture·공통 asset/clock 포함, 위 semantics 배열/공통 Engine 조립/affine 이전)의 bytecode 1회는 foreground 검사와 4 phase를 마치고 정상 exit0이었다. retained 130 frames p95 9.244ms, cold 112 frames p95 20.945ms·phase 할당 128,727,448 bytes, revisit 124 frames p95 19.007ms·131,181,176 bytes, fast 14 frames max 159.040ms였다. 창 487×464.5 logical / scale2, 실제 list viewport314.5, 접근성 on이다. 시작 activation·화면 관찰이 포함된 진단이며 정규 동일 조건 비교가 아니다. 앞선 foreground 미소유와 뒤의 sampling 중 desktop pointer 이동 표본은 폐기했다. 검사 삭제·조건 완화 없이 desktop idle 때 재측정한다.
+
+원인 분석용 [`profile-list-creation.mjs`](Nelyx/eng/profile-list-creation.mjs)는 실제 ListViewPage·앱 폰트·접근성 on·목적지10064 한 프레임의 V8 allocation sampling이다. semantics 임시 자료와 text 준비 비용을 확인했으며 이를 Hermes 시간/할당 수락으로 해석하지 않는다. profile/로그 파일을 남기지 않는다. **CPU 비용·메모리 보유/회수·RNW 안정성·물리 IME/reader/display는 여전히 미수락**이며 기본 host 전환과 전체 완료를 진행하지 않는다. VM 할당 감소율과 옛 plateau 한계의 필수 수락 지위는 §8.5에서 변경했다.
+
+현재 검증 자식 process·임시 native probe·Web 탭/server는 종료했다. 다음 구현은 W18-02의 실제 행 생성/구조·style/text/layout 원가를 더 줄이는 후보에서 이어간다. 최신 두 Hermes 모드의 동일 조건 비용 비교, Static runtime/UIA와 bytecode UIA 재확인, VM bootstrap/globals·retained scene·paragraph/geometry commit 이전, RNW AV/종료와 R0~R7은 남아 있다. 컴퓨터 제어 중단을 성능·제품 수락이나 전체 작업 완료로 해석하지 않는다.
+
+### 8.4 PAUSED — 2026-10-26 중간 마무리와 재개 지점
+
+사용자 요청 직후 구현·추가 native 검증을 중지했다. HEAD는 `db27ecedd2c38e38c16753fa827c9b0cab77c911`이며 변경은 미커밋 작업 트리에 보존했다. 작업 소유 build/profile/test/native probe process가 남지 않았고 `git -c core.safecrlf=false diff --check`는 통과했다. 이전 archive·로그·독립 설치본을 추가 보관하지 않았다. 중단 당시 기본 host/engine과 미수락 상태를 유지했으며 이후 메모리 정책만 §8.5의 사용자 요청으로 변경했다.
+
+- **마지막 구현**: [`icon.ts`](Nelyx/src/framework/widgets/icon.ts), 신규 [`icon-glyph.ts`](Nelyx/src/framework/rendering/icon-glyph.ts)는 non-null Icon 내부의 semantics/exclusion·고정 크기·정렬·RTL glyph paint를 한 render owner로 묶는다. glyph는 기존 RenderParagraph가 소유하며 private leaf Element의 sync는 이 직접 소유 child를 유지한다. 바깥 Icon/GlobalKey·IconTheme/Directionality 의존·paragraph/font attach/detach와 반환을 유지한다. null Icon은 기존 경로다. Core dist build가 통과했다.
+- **통과한 해당 회귀**: 신규 [`icon-glyph.test.mjs`](Nelyx/eng/tests/icon-glyph.test.mjs)의 3 tests. 기존 public primitive 조합과 12개 조건의 실제 CanvasKit pixels·intrinsic/dry size·baseline·hit·semantics가 같고, 갱신 중 Key/render/semantics ID 유지, GlobalKey 재부착과 private paragraph의 최종 dispose를 확인했다. 각 테스트는 20분 timeout이다.
+- **해결하지 않은 검사 실패**: `framework-reconciliation`, `semantics-translation`, Material `button-family`, `concrete-buttons` 4개 파일 재검사에서 **67 tests 중 65 PASS / 2 FAIL**. 실패는 `button-family.test.mjs`의 “actual IconButton glyph…”에서 `library.paragraphs.size` **3 !== 0**, `concrete-buttons.test.mjs`의 “all concrete icon/text variants…”에서 **14 !== 0**이다. 둘 다 child 제거 직후 zero paragraph 검사이며 fixture의 최종 close는 정상 수행됐다. 현재 bounded paragraph cache의 idle resident와 실제 producer/lease를 구분해 원인을 먼저 확인해야 한다. 신규 회귀의 `assertParagraphOwnership`은 통과했지만 이 사실만으로 두 실패를 해결 처리하지 않는다. 테스트 수정·기준 완화·추가 기능 구현은 중지 요청 뒤 수행하지 않았다.
+- **비용 진단 한계**: 실제 ListView 목적지10064 한 프레임의 Node/V8 sampled allocation은 Icon 전 **13,523,536** → 후 **12,631,952 bytes**였다. 약 6.6%의 진단 차이이며 sampling 오차·V8/CanvasKit 범위다. Hermes cold/revisit CPU 개선이나 같은 완료 작업량의 할당 감소를 입증하지 않는다. 추가 정규 비교는 실행하지 않았다.
+- **공급 차이**: repo Core dist만 Icon 시제품으로 갱신했다. Windows/Web/Android runner의 archive·설치 Core와 현재 두 Hermes package·Web bundle·Android APK는 **Icon 이전 공급**이다. 세 설치본에 `rendering/icon-glyph.ts`는 없다. 이 설치본들을 최신 repo Core로 qualification하지 않는다. native source/ABI는 Icon 시제품으로 변경하지 않았다. VM bootstrap/globals 개편은 검토만 했으며 추가 구현과 ABI 변경은 없다.
+
+재개 확인용 SHA-256:
+
+| 파일/범위 | SHA-256 |
+|---|---|
+| Core `src/framework/widgets/icon.ts` | `3d3ed56e8a0babed058a3cfd3230d28f106732ad41d5c91ccbdd4d9644e462a6` |
+| Core `src/framework/rendering/icon-glyph.ts` | `0241dfe003cff08fd8c124b9409c2cec5d9e241224a970cfaf1943950dc31b8e` |
+| `eng/tests/icon-glyph.test.mjs` | `4b7c6460742ef7345483db992093c6fe5735799650dc9e7bb9938eab363a4546` |
+| repo Core `dist/framework/widgets/icon.js` | `01a35a3d5618b93ca01f14257299d561b4d60f38775748da47fc082b3033bc10` |
+| 세 runner 설치 Core `src/framework/widgets/icon.ts` | `8fae308f0867c18c4a8f463326eab43d4b52885dc333460350fe17eabc631449` |
+| 세 runner 설치 Core `dist/framework/widgets/icon.js` | `30eebdfd55727650319d6d16d736052dfbce3d777c8b5977841703f74127f125` |
+
+**다음 시작점**: 현재 diff·위 hash·소유 process를 다시 확인하고 두 Material paragraph-count 실패의 실제 resource/cache owner를 판별한다. 해당 회귀를 해결한 뒤 W18-02의 남은 구조·style/text/layout 원가를 개편하고, 선택된 후보를 현재 공급·두 Hermes 실제 경로에 반영한다. 이후 W18-03~12의 전체 이전·retained scene/text/geometry·SDK VM/host 조립·RNW 안정성·R0~R7을 계속한다. 정규 비용·메모리 보유/회수·UIA/물리 IME/reader/display 수락 전 전체 완료나 기본 host 전환을 하지 않는다.
+
+### 8.5 메모리 정책 변경 — 2026-10-26, 실행 PAUSED 유지
+
+사용자가 “Nelyx만의 구조를 위해 필요하다면 메모리를 사용해도 된다”고 명시했다. 이 지시는 옛 고정 메모리 한계 유지와 cache 예산 동결보다 우선한다. §3.4/3.5/3.8·시제품 기준·R5를 함께 변경했다. 임의의 process/GPU 상한·3회 plateau·allocation count 증가0을 제거하고 cache/prefetch/pool/retained 자료 보유를 설계 선택으로 허용한다. VM 할당 30% 감소는 참고 지표다. 필요한 메모리의 목적과 이득, owner·회수/축소·압박/실패 대응을 검증한다.
+
+`native-memory-results`는 bytes/count·전체/마지막3회 증감을 관측만 하며 큰 수치나 증가만으로 실패하지 않는다. `native-scroll`의 resource 반복 검사도 cache resident의 동일 tail/64-entry·32MiB를 강제하지 않고 모든 회차의 resident를 보고한다. 입력/부하/identity 검증과 논리 producer 복귀·native frame drain은 유지한다. 관측 완료를 메모리 수락으로 승격하지 않으며 `memoryAccepted=false`를 명시한다. W17 실패 기록·원시 수치와 §8.4의 두 미해결 테스트는 보존한다. 현재 제품의 cache 크기·native ABI·공급본은 바꾸지 않고 메모리 정책·관측 도구/회귀·사용법만 변경했다. 새 native 측정이나 중단한 구현 재개는 하지 않는다.
+
+이 변경의 확인은 `native-memory-results.test.mjs`와 `native-scroll-report.test.mjs`의 20분 timeout 단위 검사 **11 PASS / native 실행 1 SKIP**다. 기존 상한을 넘는 수치·연속 증가·GPU allocation0을 정확히 보고하고 메모리 수락으로 오인하지 않는지, 잘못된 계수·입력/부하/identity·producer 복귀·frame drain 실패는 계속 거부하는지 확인했다. 제품의 메모리·성능을 새로 측정한 결과가 아니다.
 
 ## 9. 공식 원본과 적용 범위
 

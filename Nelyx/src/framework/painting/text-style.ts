@@ -102,7 +102,7 @@ export class TextStyle extends Diagnosticable(class {}) {
   copyWith(o:TextStyleOptions={}):TextStyle {
     if(FoundationBuildMode.debug)assertPaintColors(o.color??null,o.foreground??null,o.backgroundColor??null,o.background??null);
     const original=this.options(),result={...original};
-    for(const key of Object.keys(original) as (keyof TextStyleOptions)[])if(o[key]!=null)Object.assign(result,{[key]:o[key]});
+    for(const key of Object.keys(original) as (keyof TextStyleOptions)[])if(o[key]!=null)(result as Record<string,unknown>)[key]=o[key];
     result.color=this.foreground===null&&o.foreground==null?o.color??this.color:null;
     result.backgroundColor=this.background===null&&o.background==null?o.backgroundColor??this.backgroundColor:null;
     result.debugLabel=FoundationBuildMode.debug?o.debugLabel??(this.debugLabel===null?null:`(${this.debugLabel}).copyWith`):null;

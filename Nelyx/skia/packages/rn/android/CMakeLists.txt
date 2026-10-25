@@ -66,21 +66,21 @@ add_library(
 
         "${PROJECT_SOURCE_DIR}/cpp/jni/JniPlatformContext.cpp"
 
-        "${PROJECT_SOURCE_DIR}/../cpp/jsi/JSICache.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/jsi/JsiPromises.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/jsi/Promise.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/jsi/ViewProperty.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/jsi/JSICache.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/jsi/JsiPromises.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/jsi/Promise.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/jsi/ViewProperty.cpp"
 
-        "${PROJECT_SOURCE_DIR}/../cpp/rnskia/RNSkManager.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/rnskia/RNSkGraphiteProducer.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/rnskia/RNDawnWindowSurface.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/rnskia/RNDawnInterop.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/rnskia/RNSkManager.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/rnskia/RNSkGraphiteProducer.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/rnskia/RNDawnWindowSurface.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/rnskia/RNDawnInterop.cpp"
 
-        "${PROJECT_SOURCE_DIR}/../cpp/api/third_party/CSSColorParser.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/api/third_party/base64.cpp"
-        "${PROJECT_SOURCE_DIR}/../cpp/api/third_party/SkottieUtils.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/api/third_party/CSSColorParser.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/api/third_party/base64.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/api/third_party/SkottieUtils.cpp"
 
-        "${PROJECT_SOURCE_DIR}/../cpp/api/JsiSkDispatcher.cpp"
+        "${PROJECT_SOURCE_DIR}/../generated/jsi/api/JsiSkDispatcher.cpp"
 )
 
 
@@ -107,14 +107,15 @@ target_include_directories(
         "${NELYX_DAWN_HEADERS}"
 
         ../generated/gpu
-        ../cpp/api
-        ../cpp/jsi
-        ../cpp/rnskia
-        ../cpp/rnskia/values
-        ../cpp/utils
+        ../generated/host
+        ../generated/jsi/api
+        ../generated/jsi/jsi
+        ../generated/jsi/rnskia
+        ../generated/jsi/rnskia/values
+        ../generated/jsi/utils
 
-        # Shared JSI infrastructure (cpp/jsi) via prefix-qualified includes
-        ../cpp
+        # Shared JSI infrastructure via prefix-qualified includes
+        ../generated/jsi
 )
 
 add_library(svg STATIC IMPORTED)

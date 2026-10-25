@@ -20,9 +20,9 @@ import {registerApplication} from '@nelyx/sdk/platforms/windows/application';
 import {NativeLayer} from '@nelyx/sdk/platforms/windows/controls';
 import {ApplicationSurface as Surface} from '@nelyx/sdk/platforms/windows/surface';
 import {WindowsInteraction} from '@nelyx/sdk/platforms/windows/interaction';
-import {windowsSemanticsPacket,performWindowsSemanticsAction as strictSemanticsAction} from './node_modules/@nelyx/sdk/src/backends/react-native/windows-semantics-packet';
-import type {NativeEditingSnapshot} from './node_modules/@nelyx/sdk/dist/backends/react-native/interaction.js';
-import type {WindowsInputModule} from './node_modules/@nelyx/sdk/dist/backends/react-native/windows-input-service.js';
+import {windowsSemanticsPacket,performWindowsSemanticsAction as strictSemanticsAction} from './node_modules/@nelyx/sdk/src/platforms/windows/semantics-packet';
+import type {NativeEditingSnapshot} from './node_modules/@nelyx/sdk/dist/runtime/native-interaction.js';
+import type {WindowsInputModule} from './node_modules/@nelyx/sdk/dist/platforms/windows/input-service.js';
 import type {ReactNativeApplication} from './node_modules/@nelyx/sdk/dist/backends/react-native/surface.js';
 import type {TextInputGeometry} from '@nelyx/core/ui/types';
 FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
@@ -47,7 +47,7 @@ const observed:WindowsInputModule={getInputProtocol:()=>native.getInputProtocol(
 // RNW exposes immutable HostObject methods. Instrument the JS registry getter,
 // forwarding every native operation to the original module unchanged.
 declare const require:(name:string)=>typeof RN;
-const packetExports=require('./node_modules/@nelyx/sdk/dist/backends/react-native/windows-semantics-packet.js') as unknown as typeof import('./node_modules/@nelyx/sdk/dist/backends/react-native/windows-semantics-packet.js');
+const packetExports=require('./node_modules/@nelyx/sdk/dist/platforms/windows/semantics-packet.js') as unknown as typeof import('./node_modules/@nelyx/sdk/dist/platforms/windows/semantics-packet.js');
 const semanticsAction=packetExports.performWindowsSemanticsAction;
 const tracedSemanticsAction:typeof semanticsAction=(current,node,packet,event)=>{const accepted=semanticsAction(current,node,packet,event);trace({nativeSemanticsAction:{id:event.id,kind:event.kind,commit:event.commit,expected:packet.commit,current:current.snapshot(),live:current.isLiveNodeSnapshot(node),accepted}});return accepted;};
 Object.defineProperty(packetExports,'performWindowsSemanticsAction',{configurable:true,value:tracedSemanticsAction});
@@ -122,7 +122,7 @@ async function run(application:ReactNativeApplication){
  for(let i=0;i<nativeParagraph.screen.length;i++)for(const key of ['x','y','width','height'] as const)check(Math.abs(nativeParagraph.screen[i]![key]-nativeParagraph.expectedScreen[i]![key])<=1,'Original paragraph screen fragments differ from Core projected boxes');
  const hitLocal=tryUnprojectMatrix4Point(fullTransform(captureTransform(node.textInputGeometry!.transform)),{x:nativeParagraph.hitViewX,y:nativeParagraph.hitViewY});check(hitLocal&&nativeParagraph.hitPosition===render.getPositionForOffset(hitLocal).offset,'Native UIA geometry does not preserve the Core screen hit policy');
  stage='actual Fabric UIA';
- const corePacket=windowsSemanticsPacket(node,owner,{nativeReactTag:tag,nativeSurfaceGeneration:application.view.currentMetrics.nativeSurfaceGeneration!,viewportGeneration:application.view.currentMetrics.viewportGeneration},interaction.snapshot()),parsed=await fixture.validateSemantics(corePacket);check(parsed.accepted&&parsed.textRevision===controller.textRevision,'Native snapshot parser did not retain Core content revision');
+ const corePacket=windowsSemanticsPacket(node,owner,{surfaceId:tag,nativeSurfaceGeneration:application.view.currentMetrics.nativeSurfaceGeneration!,viewportGeneration:application.view.currentMetrics.viewportGeneration},interaction.snapshot()),parsed=await fixture.validateSemantics(corePacket);check(parsed.accepted&&parsed.textRevision===controller.textRevision,'Native snapshot parser did not retain Core content revision');
  const dirty={...corePacket,text:{...corePacket.text!,geometry:null,paragraph:null,navigation:null}};check((await fixture.validateSemantics(dirty)).accepted,'A temporarily unavailable Core paragraph must not be replaced with native segmentation or fail the component');
  for(const invalid of [{...corePacket,text:{...corePacket.text!,textRevision:-1}},{...corePacket,text:{...corePacket.text!,obscured:true,value:'secret',navigation:null,paragraph:null,anchor:0,focus:0}},{...dirty,text:{...dirty.text,value:'A😀',anchor:0,focus:0,navigation:{characters:[0,2,3],words:[],lines:[]}}}])check(!(await fixture.validateSemantics(invalid)).accepted,'Native parser accepted invalid revision/password plaintext/split-scalar Core units');
  const automation=async(mode:string)=>{let reply:{observed:boolean;text?:string;reason?:string;caretActive?:boolean;visible?:number;textEvents?:number}|undefined;for(let attempt=0;attempt<25;attempt++){const source=(mode==='invoke'?interaction.node('invoke','button'):interaction.node('field','text-field'))?.sourceNodeId,proxy=source===undefined?null:interaction.nativeSemanticsTag(source);if(proxy)reply=await fixture.semantics(proxy,mode);if(reply?.observed)return reply;await delay(100);}throw new Error('Actual Fabric UIA '+mode+' failed: '+JSON.stringify(reply));};

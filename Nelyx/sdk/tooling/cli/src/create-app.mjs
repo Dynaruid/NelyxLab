@@ -13,7 +13,7 @@ export async function createApp(destination, sdkReference=sdkVersion, name='Nely
   const selectedDesigns=skiaReferences.designs??['material','cupertino'];
   if(!Array.isArray(selectedDesigns)||new Set(selectedDesigns).size!==selectedDesigns.length||selectedDesigns.some(name=>!['material','cupertino'].includes(name)))throw new Error('Designs must select material, cupertino, both, or none');
   const androidTemplate=JSON.parse(fs.readFileSync(path.join(template,'android/runner/package.json'),'utf8')),webTemplate=JSON.parse(fs.readFileSync(path.join(template,'web/runner/package.json'),'utf8'));
-  skiaReferences={...skiaReferences,rn:skiaReferences.rn??androidTemplate.dependencies['@nelyx/skia-rn'],web:skiaReferences.web??webTemplate.dependencies['@nelyx/skia-web'],metro:skiaReferences.metro??androidTemplate.devDependencies['@nelyx/metro'],cli:skiaReferences.cli??androidTemplate.devDependencies['@nelyx/cli']};
+  skiaReferences={...skiaReferences,native:skiaReferences.native??androidTemplate.dependencies['@nelyx/skia-native'],rn:skiaReferences.rn??androidTemplate.dependencies['@nelyx/skia-rn'],web:skiaReferences.web??webTemplate.dependencies['@nelyx/skia-web'],metro:skiaReferences.metro??androidTemplate.devDependencies['@nelyx/metro'],cli:skiaReferences.cli??androidTemplate.devDependencies['@nelyx/cli']};
   const staticAotReference=skiaReferences['static-aot']??JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname,'../package.json'),'utf8')).dependencies['@nelyx/static-aot'];
   const registry=createProviderRegistry();
   for(const id of skiaReferences.targets??['android','web']) {const profile=registry.profile(id,skiaReferences.profiles?.[id]);if(profile.status!=='implemented'&&!['ios','macos'].includes(id))throw new Error(`Template target ${id} requires an implemented RN provider; Deno/raw templates were retired`);}
@@ -70,6 +70,8 @@ export async function createApp(destination, sdkReference=sdkVersion, name='Nely
   for(const [name,value]of Object.entries(designs))if(!value)throw new Error('Template design reference missing: '+name);
   for(const id of ['android','web','windows','ios','macos','linux']){
     const file=path.join(target,id,'runner/package.json'),runner=JSON.parse(fs.readFileSync(file,'utf8'));
+    if(id==='web')delete runner.dependencies['@nelyx/skia-native'];
+    else{const value=skiaReferences.native;if(!value)throw new Error('Template native Engine reference missing');runner.dependencies['@nelyx/skia-native']=value.startsWith('file:')&&path.isAbsolute(value.slice(5))?'file:'+path.relative(path.dirname(file),value.slice(5)).replaceAll('\\','/'):value;}
     runner.devDependencies['@nelyx/static-aot']=staticAotReference.startsWith('file:')&&path.isAbsolute(staticAotReference.slice(5))?'file:'+path.relative(path.dirname(file),staticAotReference.slice(5)).replaceAll('\\','/'):staticAotReference;
     for(const name of ['material','cupertino'])delete runner.dependencies['@nelyx/'+name];
     for(const [name,value]of Object.entries(designs))runner.dependencies[name]=value.startsWith('file:')&&path.isAbsolute(value.slice(5))?'file:'+path.relative(path.dirname(file),value.slice(5)).replaceAll('\\','/'):value;

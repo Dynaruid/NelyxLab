@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 
 const timeout=1_200_000;
 test('one Windows semantics tree subscribes once, refreshes every packet and preserves standalone node updates',{timeout},async()=>{
@@ -12,7 +12,7 @@ test('one Windows semantics tree subscribes once, refreshes every packet and pre
     ['react-native/Libraries/NativeComponent/BaseViewConfig',"export default {bubblingEventTypes:{},directEventTypes:{},validAttributes:{}};"],
   ]);
   const hook=registerHooks({resolve(name,context,next){return mocks.has(name)?{url:'data:text/javascript,'+encodeURIComponent(mocks.get(name)),shortCircuit:true}:next(name,context);}});
-  const interaction=new ReactNativeInteraction({id:'tree',generation:1},{commands:true,selectionEvents:true,semantics:'native-controls'});
+  const interaction=new NativeInteraction({id:'tree',generation:1},{commands:true,selectionEvents:true,semantics:'native-controls'});
   const subscriptions=[],packets=[];let notifications=0;
   const backend={react:{
     Fragment:Symbol('Fragment'),
@@ -32,7 +32,7 @@ test('one Windows semantics tree subscribes once, refreshes every packet and pre
     unmount();packets.length=0;mount({type:Tree,props});assert.equal(subscriptions.length,1);assert.equal(packets.length,24);
     for(let i=0;i<24;i++){assert.equal(packets[i].bounds.y,10+i*30);assert.equal(packets[i].commit,interaction.snapshot());}
     unmount();notifications=0;binding.update(nodes(20));assert.equal(notifications,0);
-    const Node=createWindowsSemantics(()=>backend);mount({type:Node,props:{interaction,node:interaction.semanticNodes[0],surface:{nativeReactTag:42,nativeSurfaceGeneration:3,viewportGeneration:2},onError:props.onError}});
+    const Node=createWindowsSemantics(()=>backend);mount({type:Node,props:{interaction,node:interaction.semanticNodes[0],surface:{surfaceId:42,nativeSurfaceGeneration:3,viewportGeneration:2},onError:props.onError}});
     assert.equal(subscriptions.length,1);binding.update(nodes(30));assert.equal(notifications,1,'A standalone node retains its own update subscription');
   }finally{unmount();binding.dispose();interaction.dispose();hook.deregister();}
 });
@@ -44,7 +44,7 @@ test('a queued native focus reaches the live field after a newer React commit, w
     ['react-native/Libraries/NativeComponent/BaseViewConfig',"export default {bubblingEventTypes:{},directEventTypes:{},validAttributes:{}};"],
   ]);
   const hook=registerHooks({resolve(name,context,next){return mocks.has(name)?{url:'data:text/javascript,'+encodeURIComponent(mocks.get(name)),shortCircuit:true}:next(name,context);}});
-  const interaction=new ReactNativeInteraction({id:'focus-race',generation:1},{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
+  const interaction=new NativeInteraction({id:'focus-race',generation:1},{commands:true,selectionEvents:true,semantics:'native-controls'}),calls=[];
   const refs=[],effects=[];let cursor=0,pending=[];
   const backend={react:{
     useSyncExternalStore(_subscribe,read){cursor++;return read();},
@@ -53,7 +53,7 @@ test('a queued native focus reaches the live field after a newer React commit, w
     createElement(type,props,...children){return {type,props:{...props,children}};},
   },native:{NativeModules:{NelyxWindowsSemantics:{getSemanticsProtocol:()=>4}},findNodeHandle:()=>42}};
   const field=(y,label)=>({id:'field',sourceNodeId:7,role:'text-field',name:'Core',bounds:{x:1,y,width:100,height:30},enabled:true,focusable:true,focused:false,textInputRevision:11,textRevision:4,textInputGeneration:5,value:'Core',actions:{focus:()=>calls.push(label)}});
-  const binding=interaction.semantics.bind([field(0,'first')]),surface={nativeReactTag:42,nativeSurfaceGeneration:3,viewportGeneration:2};
+  const binding=interaction.semantics.bind([field(0,'first')]),surface={surfaceId:42,nativeSurfaceGeneration:3,viewportGeneration:2};
   const unmount=()=>{for(const effect of effects.splice(0))effect?.cleanup?.();};
   try{
     const {createWindowsSemantics}=await import('../../sdk/dist/backends/react-native/windows-semantics.js'),Node=createWindowsSemantics(()=>backend);

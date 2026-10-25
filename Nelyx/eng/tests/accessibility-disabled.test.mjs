@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
 import {EditableText,TextEditingController} from '@nelyx/core/framework/widgets/editable-text';
-import {ReactNativeInteraction} from '../../sdk/dist/backends/react-native/interaction.js';
+import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {widgetApplication} from '@nelyx/core/framework/widgets/root';
 import {SizedBox,Align} from '@nelyx/core/framework/widgets/basic';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
@@ -107,7 +107,7 @@ test('pointer activation and keyboard focus actions still work with accessibilit
 
 test('Core editing, composing snapshots and IME geometry remain live without a semantics tree',{timeout},async()=>{
   const f=await engineFixture({fonts:true,accessibilityEnabled:false}),controller=new TextEditingController('A');
-  const interaction=new ReactNativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),token={},commands=[];
+  const interaction=new NativeInteraction(f.root.context.owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),token={},commands=[];
   let detach;
   const observe=(revision,text,extra={})=>interaction.observeSnapshot(token,{revision,text,anchor:text.length,focus:text.length,composingStart:-1,composingEnd:-1,source:'native',...extra});
   try{

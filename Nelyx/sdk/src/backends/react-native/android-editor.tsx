@@ -3,7 +3,7 @@ import type {HostComponent,ViewProps,NativeSyntheticEvent} from 'react-native';
 import type {Ref,ComponentRef} from 'react';
 import type {ReactNativeBackend} from './registration.ts';
 import type {NativeTextFieldProps,NativeTextFieldHandle} from './controls.tsx';
-import type {NativeEditingSnapshot,ReactNativeEditorPort} from './interaction.ts';
+import type {NativeEditingSnapshot,NativeEditorPort} from '../../runtime/native-interaction.ts';
 import type {EditingConfiguration,TextInputAction} from '@nelyx/core/hosting/interaction';
 import type {ViewOwner} from '@nelyx/core/ui/types';
 interface NativeInputProps extends ViewProps {
@@ -23,7 +23,7 @@ export function createAndroidEditor(getBackend:()=>Pick<ReactNativeBackend,'reac
     if(!constants||typeof constants!=='object'||!('inputConnectionProtocol'in constants)||constants.inputConnectionProtocol!==4)throw new Error('Rebuild Android nonvisual InputConnection protocol 4 bindings');
     NativeInput??=native.requireNativeComponent<NativeInputProps>('NelyxInputConnection');
     const ref=react.useRef<ComponentRef<HostComponent<NativeInputProps>>>(null),token=react.useRef({}),revision=react.useRef(0),sequence=react.useRef(0);
-    const commands=react.useMemo<ReactNativeEditorPort>(()=>{
+    const commands=react.useMemo<NativeEditorPort>(()=>{
       const dispatch=(name:string,args:unknown[])=>{const tag=native.findNodeHandle(ref.current);if(tag===null)throw new Error('Android input connection detached');native.UIManager.dispatchViewManagerCommand(tag,name,args);};
       const replace=(name:string,text:string,selection:{start:number;end:number},expected=revision.current,request?:number)=>{const next=request??++sequence.current;sequence.current=Math.max(sequence.current,next);dispatch(name,[text,selection.start,selection.end,expected,next]);};
       return {readNativeTag:()=>native.findNodeHandle(ref.current),replace:(...args)=>replace('replace',...args),replaceComposing:(...args)=>replace('replaceComposing',...args),updateGeometry:(geometry,text,characters,nativeRevision)=>dispatch('geometry',[{geometry,text,characters,nativeRevision}]),focus:request=>dispatch('focus',[request??null]),blur:()=>{if(ref.current)dispatch('blur',[]);}};

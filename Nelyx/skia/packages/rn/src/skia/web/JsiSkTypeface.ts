@@ -1,6 +1,6 @@
 import type { CanvasKit, Typeface } from "canvaskit-wasm";
 
-import type {SkTypeface} from '../types/Typeface/Typeface.ts';
+import type {SkTypeface} from "@nelyx/skia-native/skia/types/Typeface/Typeface";
 
 import {HostObject} from './Host.ts';
 

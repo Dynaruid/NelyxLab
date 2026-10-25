@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {capture} from './commands.mjs';
 import {localFile,sha256} from './files.mjs';
 
-const names={core:'nelyx-core-',sdk:'nelyx-sdk-',rn:'nelyx-skia-rn-',web:'nelyx-skia-web-',metro:'nelyx-metro-',cli:'nelyx-cli-','static-aot':'nelyx-static-aot-'};
+const names={core:'nelyx-core-',sdk:'nelyx-sdk-',native:'nelyx-skia-native-',rn:'nelyx-skia-rn-',web:'nelyx-skia-web-',metro:'nelyx-metro-',cli:'nelyx-cli-','static-aot':'nelyx-static-aot-'};
 function installationLock(runner){
   const modules=path.join(runner,'node_modules'),file=path.join(modules,'.package-lock.json');
   const optionalStat=file=>{try{return fs.lstatSync(file);}catch(error){if(error?.code==='ENOENT')return null;throw error;}};
@@ -66,16 +66,17 @@ export function supplyRunner({app,target,packages,extra={},reuseCurrent=false}){
   if(reuseCurrent){
     const supply=path.join(app,'.nelyx/supply',target);
     for(const name of [...Object.keys(names),'material','cupertino','localizations']){
-      const packageName='@nelyx/'+({rn:'skia-rn',web:'skia-web'}[name]??name),reference=manifest.dependencies?.[packageName]??manifest.devDependencies?.[packageName];
+      const packageName='@nelyx/'+({native:'skia-native',rn:'skia-rn',web:'skia-web'}[name]??name),reference=manifest.dependencies?.[packageName]??manifest.devDependencies?.[packageName];
       if(!reference?.startsWith('file:'))continue;
       const archive=path.resolve(runner,reference.slice(5));
       if(path.dirname(archive)!==supply||fs.realpathSync(archive)!==archive||fs.lstatSync(archive).isSymbolicLink()||!path.basename(archive).endsWith('-'+sha256(archive)+'.tgz'))throw Error('Only the current owned supply archive may be reused: '+packageName);
       fallback[name]='file:'+archive;
     }
   }
-  const refs=references(packages,['core','sdk',target==='web'?'web':'rn','metro','cli','static-aot'],fallback);
+  const refs=references(packages,['core','sdk',...(target==='web'?['web']:['native','rn']),'metro','cli','static-aot'],fallback);
   const lockFile=path.join(runner,'package-lock.json'),originalLock=fs.existsSync(lockFile)?fs.readFileSync(lockFile):null;
   const inputs={'@nelyx/core':refs.core,'@nelyx/sdk':refs.sdk,[target==='web'?'@nelyx/skia-web':'@nelyx/skia-rn']:target==='web'?refs.web:refs.rn,'@nelyx/metro':refs.metro,'@nelyx/cli':refs.cli,...extra};
+  if(target!=='web'&&refs.native)inputs['@nelyx/skia-native']=refs.native;
   if(refs['static-aot'])inputs['@nelyx/static-aot']=refs['static-aot'];
   // Optional design packages are supplied only when this app declares them.
   const appManifest=JSON.parse(fs.readFileSync(path.join(app,'package.json'),'utf8'));
@@ -85,6 +86,14 @@ export function supplyRunner({app,target,packages,extra={},reuseCurrent=false}){
   }
   const supply=path.join(app,'.nelyx/supply',target);fs.mkdirSync(supply,{recursive:true});
   if(fs.realpathSync(supply)!==supply)throw new Error('Supply symlink rejected');
+  const retired=[];
+  if(target==='web'&&!Object.hasOwn(extra,'@nelyx/skia-native'))for(const section of ['dependencies','devDependencies','optionalDependencies']){
+    const reference=manifest[section]?.['@nelyx/skia-native'];
+    if(typeof reference==='string'&&reference.startsWith('file:')){
+      const archive=path.resolve(runner,reference.slice(5));
+      if(path.dirname(archive)===supply&&/^nelyx-skia-native-.*-[a-f0-9]{64}\.tgz$/.test(path.basename(archive))){delete manifest[section]['@nelyx/skia-native'];retired.push('@nelyx/skia-native');}
+    }
+  }
   let committed=false;
   try {
     for(const [name,reference]of Object.entries(inputs)){
@@ -104,7 +113,7 @@ export function supplyRunner({app,target,packages,extra={},reuseCurrent=false}){
     fs.writeFileSync(file,JSON.stringify(manifest,null,2)+'\n');
     if(fs.existsSync(lockFile)){
       const lock=JSON.parse(fs.readFileSync(lockFile,'utf8'));
-      for(const name of Object.keys(inputs))delete lock.packages['node_modules/'+name];
+      for(const name of [...Object.keys(inputs),...retired])delete lock.packages['node_modules/'+name];
       fs.writeFileSync(lockFile,JSON.stringify(lock,null,2)+'\n');
     }
     const args=['install','--package-lock-only','--workspaces=false','--ignore-scripts','--no-audit','--no-fund'];

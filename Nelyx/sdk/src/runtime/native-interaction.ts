@@ -23,10 +23,10 @@ function sameSemantics(a:unknown,b:unknown):boolean {
   return keys.length===Object.keys(right).length&&keys.every(key=>Object.hasOwn(right,key)&&sameSemantics(left[key],right[key]));
 }
 export interface NativeTextPositionRequest {readonly request:number;readonly point:{readonly x:number;readonly y:number};readonly options:TextInputHitOptions;readonly layoutEpoch:number;readonly nativeRevision:number}
-export interface ReactNativeEditorPort {readNativeTag?():number|null;replace(text:string,selection:{start:number;end:number},revision?:number,request?:number):void;replaceComposing?(text:string,selection:{start:number;end:number},revision:number,request?:number):void;updateGeometry?(geometry:TextInputGeometry|null,text:string,characters:TextInputCharacterBounds|null,nativeRevision:number,selection:Readonly<{anchor:number;focus:number}>):void;updateCaretBounds?(bounds:TextInputRangeBounds,nativeRevision:number):void;updateTextPosition?(request:number,position:TextInputHitTest,nativeRevision:number):void;focus(request?:InputFocusRequest):void;blur():void;revealCaret?():void}
-export interface ReactNativeInteractionPolicy {readonly commands:boolean;readonly selectionEvents:boolean;readonly semantics:'native-controls'|'unavailable';readonly nativeSnapshots?:boolean;readonly compositionReplacement?:boolean;readonly geometry?:'observed'|'unavailable'}
+export interface NativeEditorPort {readNativeTag?():number|null;replace(text:string,selection:{start:number;end:number},revision?:number,request?:number):void;replaceComposing?(text:string,selection:{start:number;end:number},revision:number,request?:number):void;updateGeometry?(geometry:TextInputGeometry|null,text:string,characters:TextInputCharacterBounds|null,nativeRevision:number,selection:Readonly<{anchor:number;focus:number}>):void;updateCaretBounds?(bounds:TextInputRangeBounds,nativeRevision:number):void;updateTextPosition?(request:number,position:TextInputHitTest,nativeRevision:number):void;focus(request?:InputFocusRequest):void;blur():void;revealCaret?():void}
+export interface NativeInteractionPolicy {readonly commands:boolean;readonly selectionEvents:boolean;readonly semantics:'native-controls'|'unavailable';readonly nativeSnapshots?:boolean;readonly compositionReplacement?:boolean;readonly geometry?:'observed'|'unavailable'}
 interface PendingReplacement {readonly value:TextEditingValue;readonly base:TextEditingValue;readonly request:number|undefined;readonly cancelComposition:boolean;readonly selectionOnly?:boolean;retries:number}
-function sendReplacement(port:ReactNativeEditorPort,request:PendingReplacement,revision:number):void{
+function sendReplacement(port:NativeEditorPort,request:PendingReplacement,revision:number):void{
   const send=request.cancelComposition?port.replaceComposing:port.replace;if(!send)throw new Error('Native composition replacement unavailable');
   const selection={start:request.value.selection.anchor,end:request.value.selection.focus};
   if(request.request===undefined)send.call(port,request.value.text,selection,revision);else send.call(port,request.value.text,selection,revision,request.request);
@@ -34,12 +34,12 @@ function sendReplacement(port:ReactNativeEditorPort,request:PendingReplacement,r
 type Editor=({kind:'public';session:PublicNativeEditingSession}|{kind:'observed';session:EditingSession})&{changed:(value:TextEditingValue)=>void;nativeRevision:number;nativeFocused?:boolean;options:EditingOptions|undefined;configuration:EditingConfiguration;geometry:EditingGeometry;generation:number;inputStateKey?:string;inputBounds?:Rect;pendingReplacement?:PendingReplacement;inputGeometry?:TextInputGeometry;inputGeometrySource?:TextInputGeometry;geometryPublication?:{readonly token:object;readonly epoch:number|null;readonly revision:number};inputGeometryValue?:Pick<TextEditingValue,'text'|'selection'>;characterRequest?:{readonly start:number;readonly end:number;readonly nativeRevision:number;readonly layoutEpoch?:number};hitRequest?:NativeTextPositionRequest;hitRequestSequence?:number};
 export interface NativeEditingSnapshot {readonly text:string;readonly anchor:number;readonly focus:number;readonly revision:number;readonly request?:number;readonly source:'native'|'programmatic';readonly composingStart:number;readonly composingEnd:number;readonly focused?:boolean;readonly rejection?:'stale'|'composing';readonly action?:TextInputAction;readonly geometry?:{readonly width:number;readonly height:number;readonly caret:Rect;readonly selectionRects:readonly Rect[]}}
 /** Each control owns a session and counter; providers declare observed native capabilities. */
-export class ReactNativeInteraction {
+export class NativeInteraction {
   private closed=false;
   private lifetime:object|undefined;
   private releaseLifetime:(()=>void)|undefined;
   private editors=new Map<string,Editor>();
-  private ports=new Map<string,{token:object;commands:ReactNativeEditorPort;generation:number}>();
+  private ports=new Map<string,{token:object;commands:NativeEditorPort;generation:number}>();
   private nodes=new Map<string,SemanticsNode>();
   private nodeLifetimes=new Map<string,object>();
   private readonly semanticsPorts=new Map<string,{token:object;readTag:()=>number|null}>();
@@ -54,8 +54,8 @@ export class ReactNativeInteraction {
   private editorSequence=0;
   readonly editing:EditingHost;
   readonly semantics:SemanticsHost;
-  readonly policy:ReactNativeInteractionPolicy;
-  constructor(readonly owner:ViewOwner,policy:ReactNativeInteractionPolicy){
+  readonly policy:NativeInteractionPolicy;
+  constructor(readonly owner:ViewOwner,policy:NativeInteractionPolicy){
     this.owner=Object.freeze({...owner});this.policy=Object.freeze({...policy});
     this.editing={capabilities:{indexUnit:'utf16',composing:policy.nativeSnapshots?'observed':'unavailable',selectionDirection:policy.nativeSnapshots?'observed':'unavailable',geometry:policy.geometry??(policy.nativeSnapshots?'observed':'unavailable')},bind:(owner,initial,changed,options)=>this.bindEditing(owner,initial,changed,options?.id??'editor',options),dispose:()=>this.dispose()};
     this.semantics={capability:policy.semantics,bind:(nodes,observer)=>this.bindSemantics(nodes,observer),dispose:()=>this.dispose()};
@@ -202,7 +202,7 @@ export class ReactNativeInteraction {
     };
     try{this.publish();}catch(error){this.editors.delete(id);editor.session.dispose();throw error;}return binding;
   }
-  attachEditor(id:string,token:object,commands:ReactNativeEditorPort):()=>void{
+  attachEditor(id:string,token:object,commands:NativeEditorPort):()=>void{
     if(this.closed||this.ports.has(id))throw new Error('Native editor already attached');const editor=this.editors.get(id),attached={token,commands,generation:editor?.generation??0};this.ports.set(id,attached);
     try{if(editor){editor.geometry=Object.freeze({status:'unavailable'});delete editor.nativeFocused;delete editor.characterRequest;delete editor.hitRequest;delete editor.hitRequestSequence;delete editor.geometryPublication;if(editor.kind==='observed')editor.nativeRevision=0;else editor.session.beginNativeEpoch();}const value=this.editorValue(id);if(value&&this.policy.commands&&!this.policy.nativeSnapshots)commands.replace(value.text,{start:Math.min(value.selection.anchor,value.selection.focus),end:Math.max(value.selection.anchor,value.selection.focus)});
     if(editor?.kind==='observed'&&editor.pendingReplacement)sendReplacement(commands,editor.pendingReplacement,editor.nativeRevision);if(editor)this.publishInputGeometry(id,editor);

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {WindowsInputView} from '../react-native/windows-input-view.ts';
-import {windowsKeyboardRoute} from '../react-native/windows-keyboard-input.ts';
-import type {WindowsInputModule,WindowsInputEvents} from '../react-native/windows-input-service.ts';
-import type {ReactNativeInteraction} from '../react-native/interaction.ts';
+import {WindowsInputView} from '../../platforms/windows/input-view.ts';
+import {windowsKeyboardRoute} from '../../platforms/windows/keyboard-input.ts';
+import type {WindowsInputModule,WindowsInputEvents} from '../../platforms/windows/input-service.ts';
+import type {NativeInteraction} from '../../runtime/native-interaction.ts';
 import type {ViewRuntime} from '@nelyx/core/hosting/runtime';
 import type {NativeHermesBridge} from './bridge.ts';
 
 /** Adapts the existing RN-neutral nonvisual editor and acknowledged key queue.
  * Only copied packets cross the native boundary; no React/native module owner. */
-export function connectNativeEditing(interaction:ReactNativeInteraction,bridge:NativeHermesBridge,onError:(error:unknown)=>void){
+export function connectNativeEditing(interaction:NativeInteraction,bridge:NativeHermesBridge,onError:(error:unknown)=>void){
   type Reply={operation:number;error:string;status:string;revision:number};
   const pending=new Map<number,{resolve(value:Reply):void;reject(error:Error):void}>(),clients=new Set<number>();let next=0,diagnostics=0,connected=false,listener:((event:unknown)=>void)|undefined,view:ViewRuntime|undefined;
   const diagnose=(kind:string,value:unknown)=>{if(bridge.diagnostics&&diagnostics++<64)bridge.log('NELYX_NATIVE_EDITING '+JSON.stringify({kind,value}));};

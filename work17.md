@@ -36,7 +36,7 @@
 | viewport/DPI가 달라진 후보 비교, 입력 거리 불일치, bytecode `0xC0000005` | 비교 무효와 미해결 안정성을 승계한다. 추가 성공 실행으로 실패 이력을 지우지 않는다. |
 | W16 §8.6 이름 변경 후 native 재컴파일·실행 미실시, Web runtime `requires-build` | 새 공급으로 baseline을 재확립한다. 과거 EXE/DLL/WASM의 명칭만 바꿔 신규 검증으로 사용하지 않는다. |
 
-이미 compositor clock, native GPU worker, 최대 2개 in-flight 제출, frame/resource generation, picture 보존과 retirement가 있다. 이들을 “새로 비동기화”하는 계획을 반복하지 않는다. 반면 [`renderer.ts`](Nelyx/skia/packages/rn/src/renderer.ts)의 `GraphiteRenderer.submit → replayFrame`은 recording 생성 중 많은 개별 Skia 호출·임시 wrapper를 사용한다. GPU 제출이 비동기라는 사실이 JS recording 비용까지 없애지는 않는다.
+이미 compositor clock, native GPU worker, 최대 2개 in-flight 제출, frame/resource generation, picture 보존과 retirement가 있다. 이들을 “새로 비동기화”하는 계획을 반복하지 않는다. 반면 [`renderer.ts`](Nelyx/skia/packages/native/src/renderer.ts)의 `GraphiteRenderer.submit → replayFrame`은 recording 생성 중 많은 개별 Skia 호출·임시 wrapper를 사용한다. GPU 제출이 비동기라는 사실이 JS recording 비용까지 없애지는 않는다. 링크는 W18의 공통 owner 이전 위치이며 이 W17 결과를 새로 수락한 것은 아니다.
 
 ### 1.3 계획 작성 시점의 identity
 

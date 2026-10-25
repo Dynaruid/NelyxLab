@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type {ReactNativeFrameScheduler} from '../../backends/react-native/lifecycle.ts';
+import type {SurfaceFrameScheduler} from '../../runtime/frame-clock.ts';
 interface WindowsFrameApi {
   readonly frameClockVersion:1;
   requestFrame(callback:(failure?:string,timing?:{nativeTick:number;nativeDispatch:number})=>void):number;
@@ -21,7 +21,7 @@ export function windowsMonotonicTimestamp(value:number,readApi:()=>unknown=curre
   return value+domain(readApi() as WindowsFrameApi).offset;
 }
 /** RNW's UI-post RAF is unpaced. Each surface uses the owned compositor clock. */
-export function createWindowsFrameScheduler(readApi:()=>unknown=currentApi):ReactNativeFrameScheduler {
+export function createWindowsFrameScheduler(readApi:()=>unknown=currentApi):SurfaceFrameScheduler {
   const api=readApi() as WindowsFrameApi;
   if(!api||api.frameClockVersion!==1||typeof api.requestFrame!=='function'||typeof api.cancelFrame!=='function')throw new Error('Windows compositor frame clock1 requires matching rebuilt native inputs');
   const request=api.requestFrame,cancel=api.cancelFrame;

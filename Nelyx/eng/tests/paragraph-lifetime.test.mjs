@@ -8,13 +8,30 @@ import {StrutStyle} from '@nelyx/core/framework/painting/strut-style';
 import {TextPosition} from '@nelyx/core/ui/text-position';
 import {Canvas} from '@nelyx/core/ui/canvas';
 import {Offset} from '@nelyx/core/ui/offset';
-import {textLimits,admitTextLayoutResources} from '@nelyx/core/ui/text';
+import {textLimits,admitTextLayoutResources,freezeTextInput} from '@nelyx/core/ui/text';
+import {ParagraphBuilder} from '@nelyx/core/ui/paragraph-builder';
+import {ParagraphStyle} from '@nelyx/core/ui/paragraph-style';
+import {ParagraphConstraints} from '@nelyx/core/ui/paragraph-constraints';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
 
 const timeout = 1_200_000;
 const span = color => new TextSpan({text: '한글 A😀 label', style: new TextStyle({fontSize: 16, color})});
 function context(f) {return {text: f.library, resources: f.root.context.resources, font: f.root.context.defaultFont, scale: 1};}
 function painter(owner, options = {}) {return new TextPainter({text: span(0xff000000), textDirection: 'ltr', ...options}, owner);}
+
+test('a paragraph carries owned immutable runs to layout while external getters keep their capture boundary',{timeout},async()=>{
+  const f=await engineFixture({fonts:true});let paragraph,input;
+  try{
+    const ctx={...context(f),text:{layout(value,request){input=value;return f.library.layout(value,request);}}};
+    const builder=new ParagraphBuilder(new ParagraphStyle({fontSize:16,locale:'ko',textDirection:'ltr'}),ctx);
+    try{builder.pushStyle({fontFamilies:['UI'],color:0xff123456,fontFeatures:[{name:'tnum',value:1}]});builder.addText('한글 😀');builder.addPlaceholder(4,5,'middle');paragraph=builder.build();}finally{builder.dispose();}
+    const snapshot=paragraph._textSnapshot();paragraph.layout(new ParagraphConstraints({width:220}));const layout=paragraph._layoutSnapshot();
+    assert(Object.isFrozen(input));assert.equal(layout.input.runs,snapshot.runs);assert.equal(layout.input.placeholders,snapshot.placeholders);assert(Object.isFrozen(layout.input.runs[0].style.fontFeatures));
+    let reads=0;const external={...input};Object.defineProperty(external,'runs',{enumerable:true,get(){reads++;return snapshot.runs;}});Object.freeze(external);
+    const captured=freezeTextInput(external);assert.equal(reads,2,'External getters are still read at the original validation points');assert.notEqual(captured.runs,snapshot.runs);assert.deepEqual(captured.runs,snapshot.runs);
+    assert.throws(()=>freezeTextInput({...input,text:'X'}),/offset outside|surrogate|replacement/);
+  }finally{paragraph?.dispose();await f.close();}
+});
 
 test('resident count admission permits exact owned reuse and rejects foreign layouts or new allocations', {timeout}, () => {
   const input={text:'',width:220,font:{id:'font',generation:1},fontSize:16,locale:'en',direction:'ltr',scale:1};

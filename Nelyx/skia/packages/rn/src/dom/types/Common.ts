@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 
-import type {BlendMode} from '../../skia/types/Paint/BlendMode.ts';
-import type {Color} from '../../skia/types/Color.ts';
-import type {InputMatrix} from "../../skia/types/Drawing.ts";
-import type {InputRRect, SkRRect} from '../../skia/types/RRect.ts';
-import type {PaintStyle, SkPaint, StrokeCap, StrokeJoin} from "../../skia/types/Drawing.ts";
-import type {SkPath} from "../../skia/types/Drawing.ts";
-import type {SkRect} from '../../skia/types/Rect.ts';
-import type {Transforms3d} from '../../skia/types/Matrix4.ts';
-import type {Vector} from '../../skia/types/Point.ts';
+import type {BlendMode} from "@nelyx/skia-native/skia/types/Paint/BlendMode";
+import type {Color} from "@nelyx/skia-native/skia/types/Color";
+import type {InputMatrix} from "@nelyx/skia-native/skia/types/Drawing";
+import type {InputRRect, SkRRect} from "@nelyx/skia-native/skia/types/RRect";
+import type {PaintStyle, SkPaint, StrokeCap, StrokeJoin} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkPath} from "@nelyx/skia-native/skia/types/Drawing";
+import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type {Transforms3d} from "@nelyx/skia-native/skia/types/Matrix4";
+import type {Vector} from "@nelyx/skia-native/skia/types/Point";
 
 export type SkEnum<T> = Uncapitalize<keyof T extends string ? keyof T : never>;
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import * as React from 'react';import * as RN from 'react-native';
-import {WindowsInputService} from './node_modules/@nelyx/sdk/dist/backends/react-native/windows-input-service.js';
-import {WindowsInputView} from './node_modules/@nelyx/sdk/dist/backends/react-native/windows-input-view.js';
-import {ReactNativeInteraction} from './node_modules/@nelyx/sdk/dist/backends/react-native/interaction.js';
-const owner={id:'module-input',generation:1},interaction=new ReactNativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),native=RN.NativeModules.NelyxWindowsInput;
+import {WindowsInputService} from './node_modules/@nelyx/sdk/dist/platforms/windows/input-service.js';
+import {WindowsInputView} from './node_modules/@nelyx/sdk/dist/platforms/windows/input-view.js';
+import {NativeInteraction} from './node_modules/@nelyx/sdk/dist/runtime/native-interaction.js';
+const owner={id:'module-input',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),native=RN.NativeModules.NelyxWindowsInput;
 let finished=false,service:WindowsInputService|undefined,inputView:WindowsInputView|undefined,binding:ReturnType<typeof interaction.editing.bind>|undefined;const values:string[]=[],focus:boolean[]=[];
 function require(condition:unknown,message:string):asserts condition{if(!condition)throw new Error(message);}
 async function waitFor(test:()=>boolean,message:string){const end=Date.now()+5000;while(!test()){if(Date.now()>end)throw new Error(message);await new Promise<void>(resolve=>setTimeout(resolve,10));}}
