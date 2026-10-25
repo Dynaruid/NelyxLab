@@ -4,7 +4,7 @@
 
 양쪽 Text inputs의 메시지 옆 Disable selection / Enable selection으로 선택 기능을 전환합니다. 같은 controller·문서·선택은 유지합니다. 비활성화해도 탭 focus는 가능하며 Ctrl+A·clipboard shortcut은 값을 바꾸지 않습니다. 다시 활성화하면 Core handle·toolbar·shortcut을 사용합니다. cut은 즉시 반영하고 paste는 clipboard 응답 시점의 현재 선택에 삽입합니다. 실제 조합 중 같은 문서의 선택 변경은 OS composing range를 유지합니다. 고급 텍스트 서비스·새 active-composition value·전체 복원 API는 W14 잔여입니다.
 
-DorotiTestbedApp의 Components 페이지를 레퍼런스로 시작한 두 번째 Nelyx 샘플입니다. Core·Material·Cupertino 공개 제품 패키지를 사용하며, [W14 작업계획](../../work14.md)의 기능 구현·통합 검증을 같은 앱에서 진행합니다. 첫 화면의 **Cupertino**, Cupertino 페이지의 **Material 3** 버튼으로 이동합니다. 두 페이지의 선택값·입력 내용·테마는 디자인 페이지를 오가도 유지됩니다.
+DorotiTestbedApp의 Components 페이지를 레퍼런스로 만든 Nelyx Testbed 앱입니다. Core·Material·Cupertino 공개 제품 패키지를 사용하며, [W14 작업계획](../../work14.md)의 기능 구현·통합 검증을 같은 앱에서 진행합니다. 첫 화면의 **Cupertino**, Cupertino 페이지의 **Material 3** 버튼으로 이동합니다. 두 페이지의 선택값·입력 내용·테마는 디자인 페이지를 오가도 유지됩니다.
 
 Cupertino → Navigation → Open named route에서 카운터를 바꾼 뒤 Return result 또는 Back으로 돌아옵니다. 갤러리 값은 유지하고 다시 열면 route 카운터는 새로 시작합니다. 기본 Cupertino route 전환과 키보드 focus는 제품 구현을 사용합니다.
 

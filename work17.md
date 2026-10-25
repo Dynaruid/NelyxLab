@@ -166,7 +166,7 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 여기서 **W17 기준선은 목표 구조·제품 계약**이고, W17-00의 **성능 비교 baseline은 현재 실행의 측정 기준**이다. 불일치를 수정해도 수정 전 비교 조건·실패 사실을 새 결과로 덮어쓰지 않는다.
 
 - **점검 기준:** Hermes 기본 엔진과 bytecode·Static Hermes의 독립 수락, Nelyx 자체 build/layout·hit test·scroll physics, 목표 D의 RN/Fabric/Yoga·Node-API JSI 비의존 경로, iOS에서도 구현 가능한 공통 계약과 Windows adapter 분리, 입력·IME·UIA·자원/종료 계약, source→공급→실제 실행의 일치를 기준으로 삼는다. 세부 계약은 §1.5·§3·§7을 적용한다.
-- **점검 범위:** 작업 대상과 연결된 Core·Skia·SDK/native host·공급 manifest·build/CLI·템플릿/launcher·두 Testbed·검증 도구·README를 함께 확인한다. 이전 기본값·RN 전제·중복 경로·누락 서비스·잘못된 공급/실행 옵션 등 기준선에 맞지 않는 부분은 실제 호출·의존 경로를 확인하고 해당 단계에서 함께 수정한다. 구조·정확성·공급 계약 위반의 수정은 성능 병목 입증을 선행조건으로 삼지 않는다.
+- **점검 범위:** 작업 대상과 연결된 Core·Skia·SDK/native host·공급 manifest·build/CLI·템플릿/launcher·실제 Testbed 앱(`sample/nelyx-testbed-app-2`)·검증 도구·README를 함께 확인한다. 이전 기본값·RN 전제·중복 경로·누락 서비스·잘못된 공급/실행 옵션 등 기준선에 맞지 않는 부분은 실제 호출·의존 경로를 확인하고 해당 단계에서 함께 수정한다. 구조·정확성·공급 계약 위반의 수정은 성능 병목 입증을 선행조건으로 삼지 않는다.
 - **단계별 처리:** W17-00에서 현재 불일치와 수정할 단계/owner를 정하고, W17-01~08에서도 단계 시작과 완료 전에 다시 확인한다. 새로 발견한 불일치도 현재 단계 또는 의존하는 후속 단계의 필수 작업으로 편입한다. 해당 단계의 완료 조건을 깨는 불일치는 수정·관련 회귀 확인 전까지 그 단계를 완료 처리하지 않는다.
 - **진행과 기록:** 독립 작업은 계속 진행하되 해결하지 못한 항목은 이 문서의 짧은 현재 상태에 `불일치 / 영향 경로 / 수정 단계·owner / 상태·검증 결과`로 남긴다. 이전부터 있었다는 이유만으로 제외하거나, 문구·상태값만 바꿔 일치한 것으로 처리하지 않는다. 최종 수락에 필요한 미해결 항목이 있으면 전체는 `PARTIAL`이다.
 - **전환 순서와 범위:** 기존 RNW 비교 경로와 명시적 V8/JSC 선택은 유지하고 목표 D에 W17 계약을 적용한다. Hermes 기본 엔진 반영은 W17-08, 직접 host 기본 전환은 H0~H5 수락 후라는 순서를 지킨다. 관련 없는 전면 재작성이나 iOS host 전체 구현으로 범위를 넓히지 않으며, 새 경로의 성공으로 기존 경로의 실패를 해결 처리하지 않는다.
@@ -183,7 +183,7 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 | **W17-05 TSF/IME·UIA 정식 경로** | RN proxy 없이 native editor endpoint·Core semantics delta·UIA virtual tree·native action·좌표 변환 | 한글 조합/selection/caret·Tab/focus·screen reader·text/action 기능 유지. accessibility on에서 정상 동작 |
 | **W17-06 남은 공통 Core 비용 축소** | owner별 증분 sync·생성/할당·text/semantics·paint snapshot을 한 변경씩 개선 | 기존 State/Key/layout/편집/자원 회귀 통과. Hermes 각 모드에서 해당 비용과 전체 frame 효과를 대응 |
 | **W17-07 조건부 RNW/VM 개선** | §4 B/C 비교, 필요한 RNW/Node-API/VM patch 또는 관련 upstream fix | 개선 근거·유지 비용·ABI·rollback 명시. 불필요하면 `SKIPPED / 근거`로 닫음. 필수 기능/성능 실패를 SKIPPED로 덮지 않음 |
-| **W17-08 제품 공급·실제 Testbed 전환** | SDK/CLI·템플릿·일반 launcher의 Hermes 기본 엔진 계약, 명시적 host 선택과 새 entry, 전체 gallery 소비, 두 Release 앱·설치/실행·기존 host 회귀. 제품 진입점·공급·검증 도구·README의 잔여 기준선 불일치 수정 | 사용자는 기존 Nelyx 앱 API로 실행 가능. 실제 기본값·옵션·공급·사용법이 W17 계약과 일치. 엔진/host 옵션과 iOS 포함 선택 근거 문서화. 직접 host 기본 전환은 최종 수락 후 |
+| **W17-08 제품 공급·실제 Testbed 전환** | SDK/CLI·템플릿·일반 launcher의 Hermes 기본 엔진 계약, 명시적 host 선택과 새 entry, 전체 gallery 소비, 동일 Testbed 앱의 Hermes bytecode·Static Hermes Release 공급·설치/실행·기존 host 회귀. 제품 진입점·공급·검증 도구·README의 잔여 기준선 불일치 수정 | 사용자는 기존 Nelyx 앱 API로 실행 가능. 실제 기본값·옵션·공급·사용법이 W17 계약과 일치. 엔진/host 옵션과 iOS 포함 선택 근거 문서화. 직접 host 기본 전환은 최종 수락 후 |
 | **W17-09 최종 성능·물리 수락과 정리** | §6 부하·§7 gate, §5.1 기준선 불일치 최종 점검과 필요한 수정·재검증, 최신 결과·잔여 작업·사용법 갱신 | 두 모드의 결과와 실제 표시·입력·안정성·자원 수락. 필수 기준선 불일치 미해결 0. 실패·미해결 시 PARTIAL과 다음 수정 단계/owner 기록 |
 
 **의존 순서:** 00 → 01 → 02 → 03/04 → 05/06 → 08 → 09. 07은 관찰된 병목에 따라 삽입한다. **모든 단계는 §5.1의 불일치 점검·수정·관련 검증을 포함한다.** 먼저 layout 엔진을 다시 쓰거나 full-gallery AOT를 매번 재컴파일하지 않는다. 시제품 비교에서 효과가 작아도 측정된 Core/recording 병목으로 이어가며, RN 제거만으로 버벅임이 없어졌다고 결론내리지 않는다.
@@ -191,6 +191,8 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 ## 6. 제한된 검증과 측정
 
 ### 6.1 같은 부하와 증거 범위
+
+검증 대상은 **`sample/nelyx-testbed-app-2` 단일 실제 앱**이다. Hermes bytecode와 Static Hermes는 이 앱의 두 실행 모드이며, 별도 앱의 추가나 경로 제공을 완료 조건으로 요구하지 않는다.
 
 - 기본 고정 행 **80px/1,000행 ListView**, 현재 Material **29개**·Cupertino **20개** 전체 catalog를 유지한다. 수량은 현재 소스에서 다시 확인한다. 두 열·forward/reverse·cold entry·retained·보존 범위 밖 revisit·fast·끝 경계를 포함한다. 첫 화면에 이미 생성된 항목과 새 노출 항목을 구분한다.
 - layout 분리 비교에서는 sample tree·row 구성·font/text scale·cache 상한·보존/자동 준비 off를 고정한다. host API adapter만 바꾸고 같은 Core와 gallery를 사용한다. host 효과와 이후 Core/paint/semantics 변경 효과를 나누어 보고한다.
@@ -220,7 +222,7 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 | **H2 frame·입력 지연** | 각 모드·각 창·각 화면의 cold/revisit/retained/fast에서 CPU p95≤0.75B, p99≤B, max<50ms. oldest input→matching surface p95≤2B, max<50ms. baseline 대비 개선율과 표본 수도 보고 |
 | **H3 실제 표시** | 지속 이동 중 matching content 표시 간격 p95≤1.25B, p99≤2B, **50ms 이상 새 화면 정지 0회**, 1.5B 초과 간격 연속 3회 0회. oldest input→display p95≤3B/max<100ms. precision contact/관성/재접촉·반전·wheel fallback 실제 확인 |
 | **H4 안정성·자원·종료** | 대상 경로의 알려진 AV·입력/종료 실패 해결. 원인 미확정 실패가 남으면 미수락이며 대체 host의 성공으로 기존 RNW 실패를 해결 처리하지 않음. 반복 cold/revisit 자원은 정한 상한 내 plateau. close는 admission 중단→작업/GPU drain→JS handle/VM 파괴→창/서비스 해제의 실제 의존 순서 보장, stale callback/미반환 owner 0, 정상 exit 0 |
-| **H5 공급·회귀** | source→dist→설치→bundle/HBC/AOT→EXE/DLL loaded identity 일치. 두 실제 Testbed 앱 정상 실행·응답·종료. 공통 코드 변경의 기존 host/플랫폼 회귀와 사용법 갱신 |
+| **H5 공급·회귀** | source→dist→설치→bundle/HBC/AOT→EXE/DLL loaded identity 일치. 실제 Testbed 앱(`sample/nelyx-testbed-app-2`) 하나에서 Hermes bytecode·Static Hermes 두 모드의 정상 실행·응답·종료. 공통 코드 변경의 기존 host/플랫폼 회귀와 사용법 갱신 |
 
 60Hz H2는 CPU p95≤12.5ms/p99≤16.67ms다. 120Hz는 p95≤6.25ms/p99≤8.33ms를 별도 충족해야 한다. 적은 표본의 p99는 max에 가까울 수 있으므로 frame 수·분포·최악 사례를 함께 쓴다. 상대 20%/50% 개선이나 한 모드의 평균값으로 절대 frame/표시 실패를 상쇄하지 않는다.
 
@@ -230,7 +232,7 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 
 ## 8. 현재 상태와 다음 시작점
 
-> **전체 PARTIAL / goal PAUSED · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-25 **17:10 KST**, 사용자 중간 마무리 요청으로 구현·추가 측정을 정지했다. Core **fcce0e24…c2c7**·SDK **e09e0698…5757**·CLI **3400a611…1688**, 두 정식 native 제품의 byte identity는 유지한다. native suite36/36·C++ host1/1과 앞선 정식 UIA/OS pointer4실행은 통과했지만 최신 private commit의 마지막3회 순증가도 고정 한계를 넘었다. H2/H3/H4/H5는 미수락이며 기본값은 Hermes/optimized·RNW다.
+> **전체 PARTIAL / goal PAUSED · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-25 **17:10 KST**, 사용자 중간 마무리 요청으로 구현·추가 측정을 정지했다. Core **fcce0e24…c2c7**·SDK **e09e0698…5757**·CLI **3400a611…1688**, 동일 앱의 두 모드에 해당하는 정식 native 제품의 byte identity는 유지한다. native suite36/36·C++ host1/1과 앞선 정식 UIA/OS pointer4실행은 통과했지만 최신 private commit의 마지막3회 순증가도 고정 한계를 넘었다. H2/H3/H4는 미수락이며 H5는 아래 단일 앱의 공급·회귀 증거 범위로 판단한다. 기본값은 Hermes/optimized·RNW다.
 
 | 단계 | 구현·검증 범위와 남은 조건 |
 |---|---|
@@ -241,7 +243,7 @@ A와 D의 차이는 여러 구조 변경의 합이다. 이 비교만으로 Yoga 
 | W17-06 | transform/detach cycle·layer depth/callback·중복 frame 예약·Paint/resource batch·Matrix4 접근·semantics geometry를 보완했다. 성공 경로의 errors/closure·layout 방문 Set·BuildOwner 중복 membership·action 없는 Map·상수 invariant 호출을 줄였고, 스타일의 빈 spread25곳과 SemanticsFlags 필드 분류 배열 생성도 제거했다. virtual getter/iterator·State/Key·rollback·falsey 오류/순서·frozen/Proxy 계약을 유지한다. 전체 속도/할당 개선은 미수락이다. |
 | W17-07 | **prototype cache 포크 SKIPPED / 미채택.** 작은 fixture 개선이 실제 앱의 일관된 개선으로 확인되지 않아 원래 source/compiler/runtime으로 복귀하고 패치 파일·추가 cache ABI를 제거했다. 별도 RNW B/C 포크도 채택하지 않았다. H2 실패를 SKIPPED로 닫은 것은 아니다. |
 | W17-08 | explicit native-hermes doctor/prepare/build/run/pack·실제 zip 왕복/변조 거부·공유 host/AOT cache·일반 앱 API/자산 소비를 구현했다. 새 공급인데 옛 locator hash가 prepare를 막던 오류를 red→green 회귀와 실제 설치 CLI로 수정했다. prepare는 현재 공급을 검증한 뒤 hash를 갱신하고 build/doctor는 stale 입력을 계속 거부한다. 양 언어 README도 갱신했다. |
-| W17-09 | 아래 현재 제품/기능 검증과 새 임시 owner 정리를 마쳤다. 고정 한계를 사용하는 실제 process/Vulkan 메모리 관측과 실패 판정을 추가했지만 private plateau는 실패다. frame/표시·물리 입력·미해결 RNW 실패·두 번째 실제 앱도 남아 전체 PARTIAL이다. |
+| W17-09 | 아래 단일 앱 두 모드의 제품/기능 검증과 새 임시 owner 정리를 마쳤다. 고정 한계를 사용하는 실제 process/Vulkan 메모리 관측과 실패 판정을 추가했지만 private plateau는 실패다. frame/표시·물리 입력·미해결 RNW 실패가 남아 전체 PARTIAL이다. 공급·회귀는 추가 수정의 실제 영향 범위에 맞춰 확인한다. |
 
 | 현재 공급 | workspace와 Windows/Web/Android 세 설치의 동일 파일 목록·내용 |
 |---|---|
@@ -289,9 +291,9 @@ GC 단회 비교는 **5f6a618d→2ac2c8df**, `turns / wall p95 ms / allocated MB
 | VM 시제품 미채택 | descriptor 위치만 검증하는 cache의 작은400,000 reads fixture는 getter HBC18.83→13.21ms/AOT16.78→11.01ms였고 동작/GC 검사도 통과했다. 그러나 동일 Core/HBC 진단 bundle4421225d…3809의 앱 GC는 retained/cold/revisit/fast10.68/33.34/24.48/183.14ms(n132/66/70/11)로 기존 stock10.57/32.50/27.64/176.76ms(n137/57/66/12)와 혼재했다. phase 입력0/같은 부하·트리·경계/정상 exit0이나 개선을 수락하지 않았다. AOT 앱 시제품은 추가 빌드하지 않았다. source/ABI/patch 파일을 제거하고 v3 toolchain a0d7d3c2·VM de314029의 정확한 identity와 현재 두 제품을 복구했다. |
 | H2/H3 | 정규 matched matrix0회. 앞선 OS49 catalog의 CPU max118.21ms/oldest input→surface max205.28ms, Static OS list fast64.16/120.17ms와 RNW166.58/445.82ms 실패도 유지한다. 공급/창/부하/계측이 다른 수치를 합치지 않는다. 실제 content-to-display·precision contact/관성/재접촉/반전·물리 wheel·reader·물리 한글 IME는 notVerified/unobserved다. |
 | H4 | recording wrapper GC 만료·fatal/submission drain·보고8KB 절단·Static helper 선언·wheel UI join timeout·UIA provider 해제 누락은 수정했다. 과거 RNW0xC0000005 AV·단회 focus·빌드 npx0xC0000409 원인은 미확정이다. 앞선 두 모드6회 논리 자원 반복의 gallery tree1726/852/45·producer78/units653/bytes124104, tail resident131/units1033/bytes205266·picture14/14/195656bytes·native[1,0,1,0,0]는 이전 범위다. UIA 수정까지의 메모리 관측30회는 종료했고 이번에는 새 주소 공간 분류를 추가한1process×6회 원인 진단만 실행했다. private 증가가 다시 실패했으며, tail의 신규 base와 기존 base commit 증가를 분리할 근거를 얻었다. 특정 cache/COM/driver의 leak이나 UIA 누락이 모든 증가의 원인이라는 입증은 아니다. |
-| H5·정리 제한 | tracked 실제 앱은 Testbed2 하나다. 두 번째 앱 경로는 사용자에게 요청했으며 ignored 옛 Ozeli 앱을 새 소비자 증거로 세지 않는다. 옛44 stage·렌더링 시제품bytecode/static-aot·중복 root .nelyx/windows-native-host·옛 RNW입력425dae08…·sample Windows project의 옛 OzeliRNHost 중간 metadata 삭제는 자동 승인 검토가 blocked by policy로 거절했다. 구체 사유 미제공, 우회하지 않는다. 사용자 직접 실행용 [cleanup-w17-old-artifacts.ps1](cleanup-w17-old-artifacts.ps1)을 추가했다(고정67개 대상/약1.66GiB, 2026-10-25 17:36 KST -WhatIf 검증 통과). 현재 제품·선택된 입력·tracked 파일·링크·목록 확인 뒤 수정된 대상은 보호하며 실제 삭제는 아직 실행하지 않았다. native 구현 goal은 PAUSED를 유지한다. |
-| 최신 종료 점검 | 2026-10-25 **17:10 KST**, HEAD ee82b364…3f95·git status 기본163 entries/전개181 files·diff --check exit0. 현재 package·제품 identity는 위 값과 같다. 소유 native app/emulator/compiler process0·ADB device0, 새 native build/pack/scroll/UIA/source-check/supply/input/browser/property/prepare 임시 owner0·Chrome profile/process0·Core build temp0·새 stage0. VM patch marker/file0, RNW 옛 AOT map0, 금지된 docs/plans·docs/migrations 없음, 기존 animation fixture2개 보존. 거절된 옛 정리 대상은 남아 있으며 새 로그·checkpoint/archive는 만들지 않았다. |
+| H5·공급/정리 | 검증 대상은 Testbed2 단일 앱이며 현재 HBC/AOT 공급·loaded identity·실행/응답/정상 종료 증거는 위 제품·UIA 행에 기록했다. 별도 앱 경로는 잔여 조건에서 제외한다. 추가 Core/SDK 변경 뒤에는 해당 앱 두 모드와 영향받는 기존 host/플랫폼의 공급·회귀를 다시 확인한다. 사용자 수동 정리 후 옛44 stage·rendering-only 시제품2개·중복 root host·옛 RNW입력425dae08…·Ozeli 중간 metadata가 모두 없는 것을 확인했다. 일회성 정리 스크립트도 제거된 상태이며 native 구현 goal은 PAUSED를 유지한다. |
+| 중간 마무리 당시 종료 점검 | 2026-10-25 **17:10 KST**, 당시 HEAD ee82b364…3f95·git status 기본163 entries/전개181 files·diff --check exit0. package·제품 identity는 위 값과 같다. 소유 native app/emulator/compiler process0·ADB device0, 새 native build/pack/scroll/UIA/source-check/supply/input/browser/property/prepare 임시 owner0·Chrome profile/process0·Core build temp0·새 stage0. VM patch marker/file0, RNW 옛 AOT map0, 금지된 docs/plans·docs/migrations 없음, 기존 animation fixture2개 보존. 당시 남아 있던 옛 정리 대상은 이후 수동 정리로 제거됐으며 새 로그·checkpoint/archive는 만들지 않았다. |
 
 **현재 진행점 — PAUSED:** 사용자 중간 마무리 요청으로 구현과 추가 측정을 멈췄다. 외부 주소 공간의 신규·동일 base commit 증감 관측과 실제 VirtualAlloc/집계 보존 회귀를 추가해 C++1/1·native36/36을 확인했다. 정식 제품 bytes는 그대로이며 새6회 HBC 원인 진단도 private 순증가 한계 실패다. OS/JS 입력량과 normal close/loaded identity는 유효했다. 마지막2ac stock source의 fast wall p95 HBC176.76/AOT195.55ms는 H2 실패이며 최신 matched matrix는0회다. 전체 작업 완료나 기본 host 전환으로 표시하지 않는다.
 
-**재개 시작점:** 먼저 현재 hashes·dirty state와 실행 process0을 대조한다. native-memory-regions.h/외부 클라이언트·검증기를 읽고, tail에서 늘어난 기존 PAGE_READWRITE base와 신규 약1MiB base를 실제 heap/retained owner·allocation stack에 대응시키는 read-only 근거부터 찾는다. protection0x404의 큰 새 base도 owner가 확인되기 전에는 driver leak으로 단정하지 않는다. 새 원인 없이 같은 진단을 반복하거나 한계·횟수를 늘려 통과시키지 않는다. W17-06 목적지 행 constructor/build/adopt/layout·render sync·paragraph configuration 할당 감소, H2/H3·RNW AV/과거 focus·process/driver plateau(H4)·두 번째 실제 앱 경로(H5)·물리 입력/reader 수락이 남아 있다. 재개 요청 전에는 구현·native 측정을 다시 시작하지 않는다.
+**재개 시작점:** 먼저 현재 hashes·dirty state와 실행 process0을 대조한다. native-memory-regions.h/외부 클라이언트·검증기를 읽고, tail에서 늘어난 기존 PAGE_READWRITE base와 신규 약1MiB base를 실제 heap/retained owner·allocation stack에 대응시키는 read-only 근거부터 찾는다. protection0x404의 큰 새 base도 owner가 확인되기 전에는 driver leak으로 단정하지 않는다. 새 원인 없이 같은 진단을 반복하거나 한계·횟수를 늘려 통과시키지 않는다. W17-06 목적지 행 constructor/build/adopt/layout·render sync·paragraph configuration 할당 감소, H2/H3·RNW AV/과거 focus·process/driver plateau(H4)·물리 입력/reader 수락이 남아 있다. 추가 수정 뒤 단일 앱 두 모드의 공급과 기존 host 회귀(H5)를 확인한다. 재개 요청 전에는 구현·native 측정을 다시 시작하지 않는다.
