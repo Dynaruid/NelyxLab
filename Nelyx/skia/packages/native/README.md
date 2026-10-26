@@ -34,7 +34,7 @@ resource retirement callbacks run. Reentrant close callers share that Promise;
 they cannot reset the context or clear retirement identities a second time.
 A failed drain retains the rejected Promise and unconfirmed dependencies.
 
-This extraction is part of [W18](../../../../work18.md). Retained scene chunks,
+This extraction is part of [W18](../../../../history/26/10/25/work18-summary.md). Retained scene chunks,
 text ABI consolidation and product performance, memory, display and physical
 input acceptance remain in progress. The package does not establish those gates.
 

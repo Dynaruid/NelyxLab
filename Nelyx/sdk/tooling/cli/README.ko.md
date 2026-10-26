@@ -101,7 +101,7 @@ npx --no-install nelyx build --app ../.. --target windows --host native-hermes -
 npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode static-aot
 ```
 
-공급본이나 toolchain을 변경하면 build 전에 prepare를 다시 실행해 현재 입력을 검증하고 locator를 갱신합니다. prepare는 검증한 native 입력과 별도 direct-Hermes toolchain을 기록합니다. 같은 검증된 공급본은 `--engine-inputs <directory>`로 재사용합니다. 현재 두 패키지는 `.nelyx/native-windows/current-bytecode`, `current-static-aot`에서 교체하며 재빌드 전 해당 창을 닫습니다. Static 빌드는 자동 타입 정책·전체 native coverage를 요구하고 source/bytecode fallback을 거절합니다. `pack --host native-hermes --hermes-mode <mode> --output <new.zip>`으로 내보냅니다. 성능·물리 IME/입력·실제 표시·전체 기능 수락은 [W17](../../../../work17.md)에 열려 있습니다. Debug·Metro 갱신·다른 플랫폼의 직접 host는 미구현입니다.
+공급본이나 toolchain을 변경하면 build 전에 prepare를 다시 실행해 현재 입력을 검증하고 locator를 갱신합니다. prepare는 검증한 native 입력과 별도 direct-Hermes toolchain을 기록합니다. 같은 검증된 공급본은 `--engine-inputs <directory>`로 재사용합니다. 현재 두 패키지는 `.nelyx/native-windows/current-bytecode`, `current-static-aot`에서 교체하며 재빌드 전 해당 창을 닫습니다. Static 빌드는 자동 타입 정책·전체 native coverage를 요구하고 source/bytecode fallback을 거절합니다. `pack --host native-hermes --hermes-mode <mode> --output <new.zip>`으로 내보냅니다. 성능·물리 IME/입력·실제 표시·전체 기능 수락은 [W17](../../../../history/26/10/25/work17-summary.md)에 열려 있습니다. Debug·Metro 갱신·다른 플랫폼의 직접 host는 미구현입니다.
 
 ## Linux 공급
 

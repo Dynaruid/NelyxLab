@@ -10,7 +10,7 @@ EditableTextState.requestKeyboard()는 이미 주 focus인 필드의 기존 입�
 
 Core 편집 키는 기존 플랫폼 shortcut map으로 Unicode 단어 이동/삭제·줄/문서 경계·방향 Shift 선택과 Mac Option/Command 정책을 처리합니다. 단어 경계는 실제로 그린 SkParagraph를 사용하며, keyboard 삭제는 UTF-16 선택이 grapheme 중간에 걸려도 원래 grapheme 전체로 확장합니다. read-only·obscure 정책도 Core가 처리합니다. 실제 Focus 문맥에서 지원 편집 Actions를 재정의하고 callingAction으로 기본 동작에 위임하며 가까운 custom shortcut을 먼저 처리합니다. 공통 AppFocus는 앱 탐색 shortcut 안쪽에 편집 shortcut을 설치해 방향키가 editor focus를 유지합니다. grapheme transpose·page/document scroll은 선택과 명시적 scroll을 paint·blink 뒤에도 유지합니다. Core outside-tap 그룹·콜백과 재정의 가능한 Actions는 실제 pointer hit를 사용하며 native 모바일 touch는 focus를 유지하고 데스크톱/브라우저 outside down은 해제합니다. 디자인 장식과 외부 control은 groupId를 공유할 수 있습니다. 상위 선택 edge 스크롤·나머지 공개 편집 API와 물리 keyboard/IME 검증은 잔여입니다. 첫 native 조합 capability의 `unavailable`→`none` 관측은 새 Core 값을 덮지 않고 transport 상태만 갱신합니다. 실제 조합 시작/종료·범위 변경은 native 편집으로 유지합니다.
 
-편집 glyph·선택 영역·조합 표시·caret geometry는 Core TextPainter/SkParagraph가 소유합니다. 일반 Web EditContext와 Android 비시각적 View/BaseInputConnection, Windows 기본 surface의 비시각적 TSF 입력은 같은 Core 문서와 geometry를 사용합니다. Web secure/autofill·미지원 브라우저 입력은 Core 선택 키와 실제 compositionend 교체를 사용하는 비시각적 DOM carrier로 전환했습니다. 후보창 좌표·접근성/입력 수명 분리·실제 autofill service와 물리 검증 잔여는 [W14](../../work14.md)를 따릅니다. 선정 provider 구현을 제품 전체나 물리 IME 완료로 올리지 않습니다.
+편집 glyph·선택 영역·조합 표시·caret geometry는 Core TextPainter/SkParagraph가 소유합니다. 일반 Web EditContext와 Android 비시각적 View/BaseInputConnection, Windows 기본 surface의 비시각적 TSF 입력은 같은 Core 문서와 geometry를 사용합니다. Web secure/autofill·미지원 브라우저 입력은 Core 선택 키와 실제 compositionend 교체를 사용하는 비시각적 DOM carrier로 전환했습니다. 후보창 좌표·접근성/입력 수명 분리·실제 autofill service와 물리 검증 잔여는 [W14](../../history/26/10/22/work14-summary.md)를 따릅니다. 선정 provider 구현을 제품 전체나 물리 IME 완료로 올리지 않습니다.
 
 Core 입력 좌표는 정상 프레임 경계 뒤에 발행합니다. `updateGeometry(null)`은 불가용 geometry를 철회하며 adapter는 dirty 또는 다른 문서/epoch의 caret·문자 bounds를 전달하지 않습니다. 일반 EditContext는 철회한 bounds를 [표준의 초기 빈 bounds](https://www.w3.org/TR/edit-context/#concept-editcontext-controlbounds)로 되돌립니다. Android input protocol4는 캐시 좌표를 비우고 마지막 epoch를 유지해 이전 packet의 복원을 거부합니다.
 
@@ -125,7 +125,7 @@ Windows workspace도 대응 Skia view의 native keyboardVersion1을 요구합니
 
 이전 public listener/owner 및 native observed-state 단계는 실제 Core 위젯의 Listener raw/modern 표시를 함께 검증했습니다. native method `getKeyboardState`는 protocol1의 실제 keyCode/scanCode 기록을 반환하고 SDK가 `flutter/keyboard` StandardMethodCodec으로 연결합니다. 기록은 React 컨텍스트별 focused canvas에 한정하며 handoff·repeat/layout·한도·retire를 처리합니다. OS 전체 held-state/전체 critical-key 알고리즘이나 다수 SDK bootstrap의 공용 RN 컨텍스트 격리는 수락하지 않았습니다. C++7/Kotlin7 및 실제 plugin/Core9 제어 검사, Windows11·Android9·Web10 개발 흐름이 PASS입니다. Windows EXE5fc2e65a/HBC99/812sources는 JS15·header5, Android APK33d27383/HBC96/813sources는 JS15·Kotlin7의 현재 bytes와 연결됩니다. native UI는 0개 조회, nonempty 기록은 제어 검사 범위입니다. native overlay는 정확히 복원했고 Web 선택적 조회는 unavailable입니다. portable map guard의 workspace 경로 거부를 보존했으며 새 공급 cohort는 아직 없습니다.
 
-과거 W8 cohort는 core0.16.0 / SDK0.20.0, coreRange `>=0.16.0 <0.17.0`, Skia0.6.0·Metro/CLI0.10.0을 사용했습니다. 선정 디자인은 독립 패키지로 이동했으며 [Core import 안내](../README.ko.md#디자인-패키지-import)를 따릅니다. 현재 상태는 [work14.md](../../work14.md)에서 관리하며 아래 과거 버전 이력과 구별합니다.
+과거 W8 cohort는 core0.16.0 / SDK0.20.0, coreRange `>=0.16.0 <0.17.0`, Skia0.6.0·Metro/CLI0.10.0을 사용했습니다. 선정 디자인은 독립 패키지로 이동했으며 [Core import 안내](../README.ko.md#디자인-패키지-import)를 따릅니다. W14 당시 상태는 [W14 요약](../../history/26/10/22/work14-summary.md)에 보존했으며 아래 과거 버전 이력과 구별합니다.
 
 SDK0.19는 Skia0.5의 Windows native pointer port1을 요구하므로 대응 view source로 Windows host를 다시 빌드해야 합니다. press/move/release/exit와 wheel은 native callback의 논리 좌표·surface 세대 검사를 거쳐 전달하며 SDK의 monotonic 수신 clock을 사용합니다. 기존 RNW pointer callback을 동시에 받지 않습니다. native producer에서 내부 좌표의 mouse-release leave와 실제 이동/이탈을 구분하고 pointerVersion1 없는 이전 view는 거부합니다. 전체 event hierarchy·cursor·물리 device와 native editor/semantic overlay 입력 수락은 partial이며 현재 native 실행 증거와 구별합니다.
 
@@ -144,7 +144,7 @@ core0.11.0 / SDK0.13.0의 coreRange는 `>=0.11.0 <0.12.0`이며 Skia-RN/Web·Met
 
 `@nelyx/sdk`는 [core 계약](../README.ko.md)을 플랫폼 앱, 입력 서비스, 자산, Skia 렌더러와 네이티브 호스트 수명에 연결합니다. 전체 앱 구성은 [샘플 가이드](../../sample/nelyx-testbed-app-2/README.ko.md)를 참고하세요.
 
-SDK는 core Widget 앱에 View별 text·assets·clock·editing·semantics 서비스를 제공합니다. native/DOM 편집·접근성 컨트롤을 framework layout에 연결하고 Widget·Element·RenderBox 상태는 core가 소유합니다. [Widget API](../README.md#widget-applications)와 [현재 수락 범위](../../work5.md)를 참고하세요.
+SDK는 core Widget 앱에 View별 text·assets·clock·editing·semantics 서비스를 제공합니다. native/DOM 편집·접근성 컨트롤을 framework layout에 연결하고 Widget·Element·RenderBox 상태는 core가 소유합니다. [Widget API](../README.md#widget-applications)와 [W5 당시 수락 범위](../../history/26/10/10/work5-summary.md)를 참고하세요.
 
 에셋과 notice의 `sha256`은 생략할 수 있으며 기본 앱 구성에는 넣지 않습니다. runner 준비·타입 검사·Metro 시작 시 현재 파일에서 자동 계산해 생성되는 `runner/app-config.json`에만 저장하고 루트 패키지는 수정하지 않습니다. 각 runner main은 이 내부 자산 메타데이터를 확인한 뒤 등록합니다. 패키지 자산은 설치된 원본과 비교해 복사하며 수정된 기존 대상 파일은 보존하고 오류로 보고합니다. 명시한 해시가 있다면 일치 여부도 확인합니다.
 

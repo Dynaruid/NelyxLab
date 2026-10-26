@@ -2,7 +2,7 @@
 
 `packages.json` defines canonical workspace package owners. `work8/` retains recipes, manual declarations/host snapshots, generated-output ownership, source mapping and historical promotion state needed to preserve existing generated/adopted product code. Source notices live in `Nelyx/licenses`.
 
-Product builds and runtimes consume tracked TypeScript and do not read this directory. Current work and paused status live in `work12.md`. Development logs, checkpoint/history JSON, receipts and temporary archives were removed during emergency cleanup.
+Product builds and runtimes consume tracked TypeScript and do not read this directory. The [W12 summary](../../../history/26/10/18/work12-summary.md) preserves that stage's state; later work is indexed in the [development history](../../../history/README.md). Development logs, checkpoint/history JSON, receipts and temporary archives were removed during emergency cleanup.
 
 Historical fingerprints and removed validator paths do not qualify current generation or promotion. Before reusing a recipe, connect an explicit current product validator; missing validation fails. Preserve generated/adopted ownership, edit conflicts, numeric annotations and licenses. No recovery or maintenance of the retired checks is required.
 

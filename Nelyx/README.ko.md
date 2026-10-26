@@ -74,7 +74,7 @@ EditableTextState는 TextSelectionDelegate를 구현합니다. userUpdateTextEdi
 
 EditableTextState.requestKeyboard()는 이미 주 focus인 필드의 기존 입력 연결을 표시하거나 Core focus를 요청합니다. gesture focus는 실제 View 입력 시각을 지연 focus와 carrier 재연결까지 보존합니다. Android input protocol4는 native Back key의 숨김 시각보다 오래된 요청의 IME 재표시를 억제하며 자동 복원은 이전 의도를 유지합니다. 키보드가 숨겨져도 Core 논리 focus는 유지하고 이후 새 tap이나 명시적 requestKeyboard로 다시 표시합니다. predictive Back gesture와 물리 기기 검증은 별도입니다. 지연 autofocus는 원래 논리 편집기의 수명을 확인하고 FocusScope를 사용해 그 사이의 명시적 focus 결정을 존중합니다. 새로운 keyboard/focus 요청은 대기 중 입력 복원이 이전 의도로 되돌리지 못하도록 취소합니다.
 
-`EditableText`는 소유 View의 Core TextPainter/SkParagraph로 문자·선택 영역·조합 밑줄·caret를 그립니다. 같은 paragraph로 pointer hit·caret 좌표·가로/세로 caret reveal을 계산합니다. caret 점멸은 View가 숨겨지면 멈추고 unmount 때 해제됩니다. `strutStyle`·`textScaler`·`cursorWidth`·`cursorHeight`로 Core 경로를 설정합니다. 기존 visible native/DOM 편집기와 OS 입력 provider 전환은 [W14](../work14.md)에서 진행 중이며, Core offscreen 결과만으로 native IME나 전체 편집 완료를 판정하지 않습니다.
+`EditableText`는 소유 View의 Core TextPainter/SkParagraph로 문자·선택 영역·조합 밑줄·caret를 그립니다. 같은 paragraph로 pointer hit·caret 좌표·가로/세로 caret reveal을 계산합니다. caret 점멸은 View가 숨겨지면 멈추고 unmount 때 해제됩니다. `strutStyle`·`textScaler`·`cursorWidth`·`cursorHeight`로 Core 경로를 설정합니다. OS 입력 provider 전환과 당시 검증 범위는 [W14 요약](../history/26/10/22/work14-summary.md)에 기록했으며, Core offscreen 결과만으로 native IME나 전체 편집 완료를 판정하지 않습니다.
 
 mouse 선택은 두 축 drag를 지원하며 touch는 가로 drag·long-press handle을 사용해 세로 페이지 스크롤을 유지합니다. 선택 drag와 그려진 handle을 가장자리에 유지하면 Core paragraph와 실제 상위 ScrollPosition이 축·역방향·사용자 scroll physics·editor 범위를 따라 연속 스크롤되고 cancel·View 숨김·문서 교체·해제 때 ticker를 종료합니다. collapsed handle은 caret만 이동합니다. 수식 키 없는 문자 화살표는 상속 문단 방향과 shaped grapheme의 시각적 경계를 사용하며 선택 offset은 논리 UTF-16을 유지합니다. 기존 플랫폼 shortcut map과 실제 paragraph로 Unicode 단어 이동/삭제·줄/문서 경계·방향 선택을 처리합니다. 시작 handle은 움직이는 anchor를 표시해 고정된 반대 끝으로 되돌아가지 않습니다. 전체 편집/복원 API는 W14 잔여입니다.
 
@@ -96,7 +96,7 @@ OS 입력 어댑터는 `EditingOptions`로 확정된 UTF-16 문자/범위 bounds
 
 [English](README.md) | **한국어**
 
-Core의 공통 theme adapter는 `AppTheme/AppThemeData`이며 선정 Material/Cupertino 구현은 독립 패키지로 이동했습니다. 생성 입력·소유권은 `tools/Nelyx.FrameworkToTypeScript/data/`, 출처는 소유 패키지의 `licenses/`에서 관리하고 일반 빌드는 추적된 TypeScript만 소비합니다. 현재 계획과 실행 상태는 [work14.md](../work14.md)를 따릅니다.
+Core의 공통 theme adapter는 `AppTheme/AppThemeData`이며 선정 Material/Cupertino 구현은 독립 패키지로 이동했습니다. 생성 입력·소유권은 `tools/Nelyx.FrameworkToTypeScript/data/`, 출처는 소유 패키지의 `licenses/`에서 관리하고 일반 빌드는 추적된 TypeScript만 소비합니다. W14의 구현과 남은 범위는 [W14 요약](../history/26/10/22/work14-summary.md)에 보존했습니다.
 
 `@nelyx/core`는 Nelyx 앱, SDK 어댑터와 렌더러가 공유하는 플랫폼 독립 계약을 정의합니다. 앱 실행은 [프로젝트 소개](../README.ko.md)나 [샘플 가이드](../sample/nelyx-testbed-app-2/README.ko.md)에서 시작하세요.
 
@@ -115,7 +115,7 @@ Core는 플랫폼 공통 위젯·렌더링과 `AppTheme/AppThemeData` adapter를
 
 루트 `build:sdk`는 workspace 패키지를 빌드하고 provider/CLI 입력을 준비합니다. 소스 import는 `.ts`, 출력 JavaScript·선언은 `.js`를 사용하며 패키지 간에는 공개 subpath로 접근합니다. 생성·채택 소유권 metadata와 라이선스는 소스로 유지하며 제품 빌드는 삭제한 실행 기록을 요구하지 않습니다.
 
-W8에서 재사용 가능한 animation listener mixin, parent/compound animation, Tween·Sequence·Curve2D·AnimationStyle·Color direct module, explicit transition과 AnimatedPhysicalModel을 포함한 13개 implicit animation 위젯을 추가했습니다. Container·텍스트/inline 제약·retained opacity/filter·physical clip/shadow를 실제 render 경로에 연결했습니다. Wire 9는 shadow와 full-clip paint를 공통 native core로 전달하고 wire 1~8 수신을 유지합니다. 원본 Dart·Root·CanvasKit 픽셀·wide/phone Chrome·저장소 밖 packed 소비·Windows offscreen Graphite 검증의 증거는 각각 구분합니다. 전체 TextStyle/selection/정수 계약, resize frame 연속성과 최종 native/display 수락은 [work8](../work8.md)에 남아 있습니다.
+W8에서 재사용 가능한 animation listener mixin, parent/compound animation, Tween·Sequence·Curve2D·AnimationStyle·Color direct module, explicit transition과 AnimatedPhysicalModel을 포함한 13개 implicit animation 위젯을 추가했습니다. Container·텍스트/inline 제약·retained opacity/filter·physical clip/shadow를 실제 render 경로에 연결했습니다. Wire 9는 shadow와 full-clip paint를 공통 native core로 전달하고 wire 1~8 수신을 유지합니다. 원본 Dart·Root·CanvasKit 픽셀·wide/phone Chrome·저장소 밖 packed 소비·Windows offscreen Graphite 검증의 증거는 각각 구분합니다. 전체 TextStyle/selection/정수 계약, resize frame 연속성과 최종 native/display 수락은 [W8 요약](../history/26/10/13/work8-summary.md)에 남아 있습니다.
 
 최신 scroll motion 묶음은 scalar simulation·spring 해·painting 방향·scroll metrics/policy와 `ui/math` direct module을 추가합니다. 실제 finite vertical ScrollPosition의 drag/ballistic은 이 정책과 View별 viewport/DPR, `isScrollingNotifier`, 합쳐진 dimensions 보정과 owned ticker 해제를 사용합니다. 실제 layout에서 VerticalDrag recognizer를 구성하고 짧거나 비활성인 content에서는 제거합니다. 기존 `physics/spring`과 clamped programmatic jump는 호환 adapter로 유지합니다. Deprecated 전역 tolerance getter는 실제 global View가 필요하므로 현재는 `toleranceFor(actualMetrics)`를 사용합니다.
 
@@ -213,7 +213,7 @@ Core0.14는 `framework/widgets/focus-traversal-policy`·`focus-traversal-group`�
 
 앱에 선언한 font asset으로 paragraph provider와 fallback family 순서를 구성합니다. live paragraph가 provider를 공유하며 마지막 paragraph/frame 참조 뒤 provider와 font lease를 해제하고 idle producer는 남기지 않습니다. 기존 asset budget과 별도로 provider backing-source128MiB 상한을 적용하며 전체 native font/atlas 메모리 측정값은 아닙니다. sample에는 pin bytes/license를 보존한 한국어·히브리어·아랍어·emoji·variable font를 선언했고 선정 Web 본문의 missing glyph는0입니다. 임의 script·system fallback·전체 rich selection/접근성·설치형 native typography 수락은 남습니다. FontWeight는 암묵적인 wght 좌표를 제공하고 명시적인 FontVariation.weight가 우선합니다. RN text에는 native ParagraphBuilder.nelyxTextStyleVersion()1·nelyxTextBoundaryVersion()1과 맞는 새 supplier가 필요하며 이전 binding은 provider 입장 전에 거부합니다. clone Typeface의 원래 출처를 입증할 수 없으면 fontSource는 `unknown`으로 보고합니다.
 
-Core는 Widget·Element·RenderBox, host scheduler, layout·text·gesture·animation, 고정 extent lazy list, 여러 editor, navigation과 선정 Material/Cupertino 조합을 제공합니다. GlobalKey의 같은 View/프레임 내 State·render 이동과 inherited notifier/model/theme를 추가했으며 sample의 두 번째 editor를 부모 간 이동할 수 있습니다. [Widget API 예제와 제약](README.md#widget-applications), [W5 실행 범위](../work5.md), [진행 중인 W6](../work6.md)를 참고하세요. 전체 Flutter 위젯 호환성과 플랫폼 qualification을 뜻하지 않습니다.
+Core는 Widget·Element·RenderBox, host scheduler, layout·text·gesture·animation, 고정 extent lazy list, 여러 editor, navigation과 선정 Material/Cupertino 조합을 제공합니다. GlobalKey의 같은 View/프레임 내 State·render 이동과 inherited notifier/model/theme를 추가했으며 sample의 두 번째 editor를 부모 간 이동할 수 있습니다. [Widget API 예제와 제약](README.md#widget-applications), [W5 실행 범위](../history/26/10/10/work5-summary.md), [W6 구현 이력](../history/26/10/11/work6-summary.md)를 참고하세요. 전체 Flutter 위젯 호환성과 플랫폼 qualification을 뜻하지 않습니다.
 
 ParentDataWidget은 component·inherited 조상을 거쳐 실제 render parent의 data를 갱신합니다. Flexible/Expanded·Positioned/PositionedDirectional, Builder와 leaf/single/multi-child Element·IndexedSlot을 연결했습니다. 일반 RenderObject와 특수한 non-box child를 받는 RenderBox의 경계를 제공합니다. 직접 child 변경은 immutable `children` 대신 insert/move/remove/setChildren을 사용하고 dispose 전에 parent/pipeline에서 분리합니다. 자세한 생성자·generic token·이식 차이는 위 영어 API 가이드를 참고하세요.
 
@@ -416,6 +416,6 @@ ApplicationStartupContext/ComposedApplication의 messenger를 사용합니다. �
 
 broadcast stream은 비동기 listener·개별 pause/resume·cancel·error/done·asFuture·async iteration을 제공합니다. 첫/마지막 listener가 활성화/취소를 전송하며 cancel은 native 취소 응답을 기다리지 않습니다. paused listener는 resume/cancel까지 end acknowledgement를 지연합니다. SDK close는 native gate 전에 동기 종료 알림으로 cancel을 수락하고 subscription을 취소하며 closing 중 handler 해제는 허용합니다. port retirement까지 native byte 소유권을 유지합니다. 확인된 retirement는 profiling proxy 참조를 해제합니다. 정리 observer 오류가 있어도 native retirement가 확인되면 나머지 앱 자원을 해제한 뒤 보고하며, native drain 실패는 자원을 보존합니다. built-in native/DOM plugin bridge는 남아 있어 실제 PlatformMessagePort 주입이 필요합니다.
 
-PlatformChannelProfiling.debugProfile은 release 외 mode의 live flag를 제어합니다. profiler는 1초 byte/count window·method suffix·wrapper identity cache·bounded host timeline 기록과 선택적 sink를 제공합니다. generic Basic label 기본은 dynamic이며 ChannelProfileNames로 타입 label을 지정합니다. 이 기록·portable Hermes 실행은 native timeline이나 플랫폼 수락 증거가 아닙니다. source/receiver·package 증거 경계는 work6.md를 따릅니다.
+PlatformChannelProfiling.debugProfile은 release 외 mode의 live flag를 제어합니다. profiler는 1초 byte/count window·method suffix·wrapper identity cache·bounded host timeline 기록과 선택적 sink를 제공합니다. generic Basic label 기본은 dynamic이며 ChannelProfileNames로 타입 label을 지정합니다. 이 기록·portable Hermes 실행은 native timeline이나 플랫폼 수락 증거가 아닙니다. source/receiver·package 증거 경계는 [W6 요약](../history/26/10/11/work6-summary.md)에 보존했습니다.
 
-Android는 비시각적 View/BaseInputConnection으로 OS 입력을 연결하고 Core caret/baseline·문자 bounds를 IME에 전달합니다. 입력 거절은 요청 id로 연결하며 stale 재시도 상한과 취소 실패를 Core owner에 보고합니다. Native editor font registry 없이 검증된 앱 font bytes를 Skia에서 사용합니다. 현재 기기/앱 검증 잔여는 [W14](../work14.md)를 따릅니다. 이전 선정 결과는 W13 §7.13의 이력으로 남아 있습니다.
+Android는 비시각적 View/BaseInputConnection으로 OS 입력을 연결하고 Core caret/baseline·문자 bounds를 IME에 전달합니다. 입력 거절은 요청 id로 연결하며 stale 재시도 상한과 취소 실패를 Core owner에 보고합니다. Native editor font registry 없이 검증된 앱 font bytes를 Skia에서 사용합니다. 당시 기기/앱 검증 범위는 [W14 요약](../history/26/10/22/work14-summary.md), 이전 선정 결과는 [W13 요약](../history/26/10/19/work13-summary.md)에 보존했습니다.

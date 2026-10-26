@@ -27,8 +27,8 @@ startup statements in memory. `npm run test:static-aot-runtime` checks this tool
 Set `NELYX_STATIC_AOT_INVENTORY=1` to include the installed runner integration
 and `NELYX_STATIC_HERMES_INPUTS` to include the same-VM native representation
 probe. The latter measures only checked dynamic single-operation helpers;
-it does not convert product classes or establish whole-app support. The active
-implementation state and remaining gates are in [work15a.md](../../../../work15a.md).
+it does not convert product classes or establish whole-app support. The historical
+implementation results and qualification limits are in [W15A summary](../../../../history/26/10/23/work15a-summary.md).
 
 The Windows CLI consumes this tooling only for explicit experimental
 `--engine hermes --hermes-mode static-aot` builds. Importing it never downloads

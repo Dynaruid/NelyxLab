@@ -1,17 +1,17 @@
 # Nelyx.FrameworkToTypeScript
 
-초기 개발 과정의 프레임워크 → TypeScript 중간 변환 도구입니다. 제품 build/runtime과 일반 소비자는 이 도구를 요구하지 않습니다. **2026-10-19부터 개발의 기준은 제품 소스이며, 이 도구의 수정은 필요한 공통 부분으로 제한합니다.** 기능별 구현·보완은 `Nelyx/src`·디자인 패키지·해당 SDK/플랫폼 제품 owner에서 직접 진행합니다. 현재 작업 기준은 [W13 §0.2](../../work13.md#02-제품-소스-개발과-변환-도구의-공통-수정)를 따릅니다.
+초기 개발 과정의 프레임워크 → TypeScript 중간 변환 도구입니다. 제품 build/runtime과 일반 소비자는 이 도구를 요구하지 않습니다. **2026-10-19부터 개발의 기준은 제품 소스이며, 이 도구의 수정은 필요한 공통 부분으로 제한합니다.** 기능별 구현·보완은 `Nelyx/src`·디자인 패키지·해당 SDK/플랫폼 제품 owner에서 직접 진행합니다. 당시 개발 방향은 [W13 요약](../../history/26/10/19/work13-summary.md)에 보존했습니다.
 
 허용하는 도구 수정은 여러 기능에 공통 적용되는 타입/숫자 출처·IR/emitter·출력/import·소유권/merge/edit guard·도구 호환성의 필요한 수정입니다. 기존 source path/출처/ownership 데이터는 변경 범위의 정합성에 필요한 만큼 갱신합니다. 개별 Widget/family의 누락을 위해 lowering·본문 추출/의존 closure·전용 generator/adapter/recipe·검증 기반을 계속 확장하지 않습니다. 기존 생성 소스를 직접 개발할 때는 명시적으로 adopt해 소유권·숫자 주석·license를 보존하며, 기능 수정마다 변환기 개선이나 재생성을 요구하지 않습니다.
 
-개발 타입검사는 정식 TypeScript **7.0.2** native CLI를 사용합니다. `bun install --frozen-lockfile` 후 `bun run check:types`로 실행합니다. AST 생성/분석의 `typescript` import는 공식 `@typescript/typescript6@6.0.2` 호환 alias이며, lock에 기록된 실제 Compiler API는 **6.0.3**입니다. native CLI와 API를 분리해 유지하고 compiler identity에는 wrapper와 실제 구현 bytes를 모두 포함합니다. Bun 타입은 **1.4.3**입니다. 도입 이력은 [W12 §6.6](../../work12.md#66-typescript-7-실제-도입--2026-10-18-kst), 현재 유지 기준은 [W13 §6.4](../../work13.md#64-기존-typescript-7-도입-유지)를 따릅니다.
+개발 타입검사는 정식 TypeScript **7.0.2** native CLI를 사용합니다. `bun install --frozen-lockfile` 후 `bun run check:types`로 실행합니다. AST 생성/분석의 `typescript` import는 공식 `@typescript/typescript6@6.0.2` 호환 alias이며, lock에 기록된 실제 Compiler API는 **6.0.3**입니다. native CLI와 API를 분리해 유지하고 compiler identity에는 wrapper와 실제 구현 bytes를 모두 포함합니다. Bun 타입은 **1.4.3**입니다. 도입 이력은 [W12 요약](../../history/26/10/18/work12-summary.md), 유지 방침의 이력은 [W13 요약](../../history/26/10/19/work13-summary.md)에 있습니다.
 
-2026-10-18 사용자 요청으로 `checks` 전체·fixture 및 `dart/bin/extract_platform_fixture.dart`를 삭제했습니다. 변환기 fixture/checks의 유지·복구·전체 회귀는 W13 완료 조건이 아닙니다. 현재 정책과 제품 검증 기준은 [work13.md](../../work13.md#01-삭제한-검증-도구와-기록)을 따릅니다.
+2026-10-18 사용자 요청으로 `checks` 전체·fixture 및 `dart/bin/extract_platform_fixture.dart`를 삭제했습니다. 변환기 fixture/checks의 유지·복구·전체 회귀는 W13 완료 조건이 아닙니다. 도구 정리와 제품 검증 방침의 이력은 [W13 요약](../../history/26/10/19/work13-summary.md)에 보존했습니다.
 
 기존 migration recipe가 삭제된 validator/source-comparison을 가리킬 수 있으므로 과거 `batch resume all`·validate/promote 명령을 그대로 실행하지 않습니다. 필요한 recipe를 다시 사용할 때에는 현재 제품 기준의 명시적 검증 경로부터 연결해야 합니다. 검증 누락은 실패로 유지하며 타입·숫자 출처·소유권·license 요구를 보존합니다.
 
 
-현재 패키지 등록·recipe/수정 입력·생성 소유권은 `data/packages.json`과 `data/work8/`에 있습니다. 제품 build/runtime은 이 데이터도 요구하지 않습니다. W12는 종료됐으며 W13 실행은 일시 중지됐고 현재 상태는 [work13.md](../../work13.md)를 따릅니다. 누적 실행 보고서·checkpoint·로컬 복구 archive는 긴급 정리로 삭제했습니다. 저장 위치 변경으로 과거 compiler/fixture hash를 재검증된 값으로 바꾸지 않습니다.
+현재 패키지 등록·recipe/수정 입력·생성 소유권은 `data/packages.json`과 `data/work8/`에 있습니다. 제품 build/runtime은 이 데이터도 요구하지 않습니다. W12/W13의 종료와 이관 이력은 [W13 요약](../../history/26/10/19/work13-summary.md)에 보존했습니다. 누적 실행 보고서·checkpoint·로컬 복구 archive는 긴급 정리로 삭제했습니다. 저장 위치 변경으로 과거 compiler/fixture hash를 재검증된 값으로 바꾸지 않습니다.
 
 ## 삭제 이전의 도구 설명과 검증 이력
 
