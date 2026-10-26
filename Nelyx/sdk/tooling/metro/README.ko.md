@@ -2,34 +2,56 @@
 
 [English](README.md) | **한국어**
 
-`@nelyx/metro`는 독립 플랫폼 runner용 Metro 설정, 자산 확인, Web bundle과 개발 서버를 제공합니다. Node.js **>=24.3.0 <25**를 사용합니다. 명시적인 빌드·개발 명령의 수명은 [CLI](../cli/README.ko.md)가 관리합니다.
+`@nelyx/metro`는 Nelyx의 독립 플랫폼 runner를 위한 Metro 설정, 자산 준비, Web 번들과 개발 서버를 제공합니다. Node.js **>=24.3.0 <25**를 사용합니다. 명시적인 빌드·개발 작업은 [CLI](../cli/README.ko.md)가 담당합니다.
 
 ## 모듈
 
-| import | 용도 |
+| Import | 용도 |
 | --- | --- |
-| `@nelyx/metro/runner-config` | RN runner cohort 확인과 Metro/TypeScript 설정 생성 |
-| `@nelyx/metro/rn-config` | 네이티브 Metro 해석·변환 설정 |
-| `@nelyx/metro/babel-config` | 제품 ES2022 static block을 RN class 변환 전에 처리 |
-| `@nelyx/metro/assets` | 앱 자산 검증 |
-| `@nelyx/metro/web-config` | Web Metro 해석 설정 |
-| `@nelyx/metro/web-build` | Web 출력·자산·런타임 파일 빌드 |
-| `@nelyx/metro/web-development` | Web 개발 출력 서비스 |
+| `@nelyx/metro/runner-config` | 네이티브 runner 설정과 의존성 cohort 검사 |
+| `@nelyx/metro/rn-config` | 네이티브 Metro 해석·변환 |
+| `@nelyx/metro/babel-config` | 공통 네이티브 Babel 설정 |
+| `@nelyx/metro/assets` | 자산 복사·검증 |
+| `@nelyx/metro/web-config` | Web runner 설정 |
+| `@nelyx/metro/web-build` | Web 출력, 자산과 런타임 파일 |
+| `@nelyx/metro/web-development` | Web 개발 서버 |
 | `@nelyx/metro/web-refresh` | Web refresh 연결 |
+| `@nelyx/metro/runtime-inventory` | 설치된 Windows Metro 소스 그래프 조사 |
 
-모듈을 직접 import합니다. RN preset에는 대상 runner 루트와 정확한 의존성 cohort를 전달합니다. 공통 앱 코드는 `src/`에, 플랫폼 등록 코드는 각 runner의 `main.ts`에 둡니다.
-
-Windows/macOS의 실행 전 `InitializeCore`는 선택한 RNW/RN-macOS façade의 경로를 사용합니다. Metro는 이 절대 경로를 resolver alias 없이 graph와 직접 비교합니다. runner는 façade를 먼저 초기화하고 기본 RN initializer의 중복을 제거하며 사용자 추가 hook을 유지해 AppRegistry 실행 전에 플랫폼 performance/timer 설정을 갖춥니다.
+하위 경로에서 직접 import합니다. 전체 export는 [package.json](package.json)에 있습니다.
 
 ## Runner 설정
 
-네이티브 runner는 `@nelyx/metro/runner-config`의 `createRunnerConfig({target, runnerRoot, appRoot})`를 사용합니다. 전체 예시는 샘플의 [Windows 설정](../../../../sample/nelyx-testbed-app-2/windows/runner/metro.config.cjs)과 [Web 설정](../../../../sample/nelyx-testbed-app-2/web/runner/metro.config.cjs)에 있습니다.
+Windows의 `metro.config.cjs` 예입니다.
 
-Runner가 Metro/Babel 설정과 의존성을 관리합니다. 일반 빌드에서 공급 ABI, 자산 hash, source map과 모듈 경계를 확인합니다. SDK 런타임 import는 Metro나 빌드를 시작하지 않으며 CLI의 명시적 `dev`·`build`가 도구 수명을 관리합니다.
+```js
+const path = require('node:path');
+const {createRunnerConfig} = require('@nelyx/metro/runner-config');
 
-native `babel.config.cjs`는 `module.exports=require('@nelyx/metro/babel-config')`를 사용합니다. 공통 설정은 runner가 선택한 `@react-native/babel-preset`을 설정 루트에 둡니다. 로컬 archive 변경 후에는 재공급·설치하고 Metro를 다시 시작합니다.
+module.exports = createRunnerConfig({
+  target: 'windows',
+  runnerRoot: __dirname,
+  appRoot: path.resolve(__dirname, '../..'),
+});
+```
 
-Windows V8 공개 빌드는 `@nelyx/metro/native-v8-transformer`를 사용합니다. 별도 Metro 개발/도구 실행에서는 `createRunnerConfig({target:'windows', runnerRoot, appRoot, javaScriptEngine:'v8'})`로 선택합니다. 고정 RN0.83.10 preset의 Flow/JSX/modules·소비자 Babel 설정·개발 refresh는 유지하고, 표준 class/field/private·lexical scope·구조 분해·async/generator는 V8에서 실행합니다. build ACK와 현재 Windows package manifest에 `v8CompilerPolicy=nelyx.v8-native-es2022-rn0.83.10/v2`을 기록하며, CLI는 이전 builder의 ACK를 packaging 전에 거부합니다. 기본/Hermes runner는 기존 RN 변환을 유지합니다. 사용자 Babel plugin은 `babel.config.cjs`에 두며 별도 Babel transformer는 명시적 합성이 필요합니다.
+네이티브 `babel.config.cjs`는 `module.exports = require('@nelyx/metro/babel-config')`를 사용합니다. Web에서는 `@nelyx/metro/web-config`의 `createWebRunnerConfig({runnerRoot, appRoot})`를 사용합니다.
+
+전체 설정은 샘플의 [Windows](../../../../sample/nelyx-testbed-app-2/windows/runner/metro.config.cjs)·[Web](../../../../sample/nelyx-testbed-app-2/web/runner/metro.config.cjs)에 있습니다. 각 runner는 의존성과 등록 코드를 소유하며 공통 UI는 앱의 `src/`에 둡니다.
+
+엔진별 변환은 runner·CLI 설정으로 선택합니다. 사용자 Babel plugin은 runner의 `babel.config.cjs`에 두고, transformer를 조합할 때 선택된 엔진 정책을 유지하세요.
+
+## 자산과 로컬 패키지
+
+루트 `package.json`의 `nelyx.assets`에 자산을 선언합니다. 생략한 자산·고지 해시는 생성되는 `runner/app-config.json`에 계산하고, 명시한 해시는 일치를 확인합니다.
+
+`materializeAppAssets(appRoot, assets, resolveModule)`은 `packageSource`로 선언한 누락 자산을 설치된 패키지에서 복사합니다. Export된 자산·고지 bytes를 확인하며 수정된 대상 파일은 충돌로 보고합니다. Runner의 모듈 resolver를 전달하세요.
+
+새 로컬 archive를 공급하면 runner에서 `npm ci --workspaces=false`로 설치하고 Metro를 다시 시작합니다. 같은 패키지 버전이라도 내용이 다를 수 있으므로 runner가 설치된 archive의 식별도 확인합니다.
+
+## 런타임 목록
+
+`inspectRuntimeInventory({runner, appRoot, signal})`은 설치된 Windows Release serializer, 모듈 그래프, 시작 호출과 source map을 조사합니다. Static AOT 도구용 구문 목록을 메모리로 반환하며 앱을 컴파일·발행하지는 않습니다. 사용자 serializer와 호환되지 않는 Metro 버전은 거절합니다.
 
 ## 선언 확인
 
@@ -39,10 +61,8 @@ Windows V8 공개 빌드는 `@nelyx/metro/native-v8-transformer`를 사용합니
 npm run check:metro-types
 ```
 
-Compiler로 도구 선언을 확인하는 명령입니다. 실제 runner 빌드·서비스는 [샘플 가이드](../../../../sample/nelyx-testbed-app-2/README.ko.md)를 참고하세요. 선언 확인만으로 런타임 동작이 입증되지는 않습니다.
-
-Windows host는 검증한 asset bytes를 기존 `Assets/` 경로로 복사하고 Skia loader가 hash를 확인합니다. 별도 native editor font header/registry는 사용하지 않습니다.
+Runner 빌드·실행은 [Testbed 가이드](../../../../sample/nelyx-testbed-app-2/README.ko.md)를 참고하세요.
 
 ## 라이선스
 
-Nelyx 작성 코드는 [BSD-3-Clause](LICENSE.md)를 따릅니다. 수입 코드 고지는 [`licenses/`](licenses/)에 유지합니다.
+Nelyx 작성 코드는 [BSD-3-Clause](LICENSE.md)를 따릅니다. 가져온 코드의 고지는 [licenses/](licenses/)에 유지합니다.

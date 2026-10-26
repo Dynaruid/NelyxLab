@@ -21,9 +21,9 @@ From this runner directory, for the sample's `emulator-vulkan` profile:
 ```powershell
 npm run check
 npx --no-install nelyx build --app ../.. --target android --architecture x86_64 --configuration Release
-npx --no-install nelyx run --app ../.. --target android --device <adb-serial>
+npx --no-install nelyx run --app ../.. --target android --device emulator-5554
 ```
 
-A physical ARM64 application needs a matching profile and architecture. The low-level `npm run build -- --architecture x86_64 --configuration Release` produces an APK; CLI `build` additionally packages and registers it for CLI `run`/`pack`.
+Replace `emulator-5554` with the serial from `adb devices -l`. A physical ARM64 application needs a matching profile and architecture. The low-level `npm run build -- --architecture x86_64 --configuration Release` produces an APK; CLI `build` additionally packages and registers it for CLI `run`/`pack`.
 
 The runner also supplies `bundle`, `start`, and `prepare:native`. Its `run` script delegates to React Native's launcher, whose flags differ from the Nelyx CLI. Builds use a local development key; physical input, Korean IME, accessibility, and production signing remain unverified.

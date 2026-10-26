@@ -18,5 +18,5 @@ same recipe with its separately verified RN/JSI cohort. These are distinct
 adapters; their runtimes and handles cannot be mixed. Other platform recipes
 retain their existing integration and require their own qualification.
 
-The binding keeps React Native Skia's MIT notices. This source extraction does
-not establish new scene ABI, performance, memory or physical-input acceptance.
+The binding retains React Native Skia's MIT notices. See the
+[Skia guide](../../../README.md) for source preparation and native supply.

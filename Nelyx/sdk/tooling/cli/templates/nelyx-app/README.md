@@ -2,43 +2,54 @@
 
 **English** | [한국어](README.ko.md)
 
-This application shares TypeScript state and drawing commands in `src/`, with independent platform runners. `src/index.ts` exports the shared `main()` entrypoint; root `package.json` → `nelyx` declares application metadata, assets, profiles, and runtime cohorts. Each `<target>/runner/main.ts(x)` imports its component and calls `registerApplication` directly.
+A Nelyx starter application with shared TypeScript UI, state, editors, drawing/text/keyboard examples, and navigation. Edit `src/index.ts` and the other modules in `src/` to build the shared interface.
 
-Nelyx brings Flutter-inspired widgets and rendering to TypeScript. This template uses the shared Widget/Element/RenderObject framework for the counter, editors, drawing/text/traversal labs and navigation. Open Keyboard lab → Actions and focus for inherited overrides, prioritized actions, live shortcut registration and focus/hover highlights. Full Flutter APIs and platform acceptance remain incomplete. Use Core0.16.0, SDK0.20.0, Skia0.6.0 and Metro/CLI0.10.0 together; native ABI1/frame wire11/text-style1/boundary2/paragraph API2 and Android keyboard3/semantics2 are required. Rebuild the RN binding and shared native core together. The owned Web runtime uses its separately versioned paragraph API1.
-
-The root `package.json` is the application configuration source; `app.json`, `application.json`, `nelyx.config.ts` and root bootstrap files are unnecessary. Keep the npm package `name` separate from `nelyx.name`, which must match the native application registration name. `nelyx.displayName` retains the human-readable label. When adding bundled images (or fonts on Apple/Linux), add literal `require` entries to the runner main asset map so Metro includes their bytes. Windows maps all declared assets to host URIs; Android maps declared fonts to hash-qualified native asset URIs. CLI preparation still writes build-owned `runner/app-config.json` for native build tools; edit the root package configuration and rerun prepare to refresh it.
-
-Asset and notice `sha256` fields are optional and are omitted from the starter configuration. Runner preparation, type checking and Metro startup calculate them from the current files and write portable runtime metadata to generated `runner/app-config.json`; they never add hashes to the root package. Each runner main validates that generated asset metadata before registration. Package assets are compared with their installed source bytes before copying, and existing edited destinations are preserved and rejected. Explicit hash pins, when supplied, are still checked.
+Each platform has an independent runner for dependencies, registration, and native or browser build configuration.
 
 ## Get started
 
-Windows Release defaults to Hermes `optimized` on the RNW host. V8/JSC can be selected explicitly. The installed CLI also offers experimental `--host native-hermes` for Windows x64 Release with bytecode or Static Hermes; follow the CLI package's native prerequisites. It uses `src/index.ts` and the same Core layout. Native host performance and physical input/display qualification remain open; future iOS direct-host work is separate.
-
-Use Node.js **>=24.3.0 <25** and npm. Follow the guide for the target selected during app creation:
-
-| Target | Runner guide |
-| --- | --- |
-| Web | [Browser development and static builds](web/runner/README.md) |
-| Windows | [Native inputs, build, and execution](windows/runner/README.md) |
-| Android | [SDK/NDK, architectures, and APK packaging](android/runner/README.md) |
-| iOS | [Xcode, Pods, and simulator build](ios/runner/README.md) |
-| macOS | [Xcode, Pods, and native build](macos/runner/README.md) |
-| Linux | [RNL supply, native inputs, and GTK host](linux/runner/README.md) |
-
-Supply package archives and generate the runner lockfile before installing with `npm ci --workspaces=false`. Install dependencies inside the selected runner. Additional targets require entries in root `package.json` → `nelyx` and matching package/native inputs.
-
-For Web, after supplying the selected runner, run from the application root:
+Use Node.js **>=24.3.0 <25** and npm. For a newly created Web app, run from the application root:
 
 ```powershell
-npm --prefix web/runner ci --workspaces=false
+npm --prefix web/runner install --workspaces=false
 npm --prefix web/runner run check
 npm --prefix web/runner run dev
 ```
 
-Open `http://127.0.0.1:8081/`; Ctrl+C stops the server. See the runner guide for native targets or CLI-managed packages.
+Open `http://127.0.0.1:8081/`; Ctrl+C stops the server. Use `npm --prefix web/runner run build` for static output.
 
-## Application ownership
+For an application whose runner already has a supplied lockfile, use `npm ci --workspaces=false` inside that runner. Supply compatible package archives and native inputs before building a native target.
 
-Keep common application logic in `src/` and platform registration/build configuration in `<target>/runner/`. Import explicit modules such as `@nelyx/core/ui/types` and `@nelyx/sdk/platforms/web/application`. The SDK connects application and host lifetimes; Skia owns renderer/GPU resources. Generated package supply and output live in `.nelyx/`.
+## Platform guides
 
-Nelyx is experimental. Provider qualification remains `notVerified`; builds and sample execution do not establish physical input, IME, accessibility, GPU presentation, or production signing acceptance. Retain imported font, runtime, and renderer licenses when distributing the application.
+Follow the guide for the target selected during app creation:
+
+| Target | Runner guide |
+| --- | --- |
+| Web | [Development and static builds](web/runner/README.md) |
+| Windows | [Native inputs, builds, and execution](windows/runner/README.md) |
+| Android | [SDK/NDK and APK builds](android/runner/README.md) |
+| iOS | [Xcode, Pods, and simulator builds](ios/runner/README.md) |
+| macOS | [Xcode, Pods, and native builds](macos/runner/README.md) |
+| Linux | [RNL supply and the GTK host](linux/runner/README.md) |
+
+Windows uses Hermes bytecode on RNW by default. Alternate engines and the experimental direct Hermes host require explicit CLI options and matching suppliers.
+
+## Application configuration
+
+Root `package.json` → `nelyx` declares the app entrypoint, native registration name, display name, assets, and target profiles. Each `<target>/runner/main.ts(x)` registers its platform component.
+
+Edit that root configuration and rerun preparation to refresh generated `runner/app-config.json`. Declare fonts/images with their notices; tooling calculates omitted hashes and validates explicit ones. Add literal asset `require` entries where the runner's Metro map requires them.
+
+## Project structure
+
+| Path | Purpose |
+| --- | --- |
+| `src/` | Shared UI and application logic |
+| `assets/` | Application assets and notices |
+| `<target>/runner/` | Target dependencies, registration, and tooling |
+| `.nelyx/` | Generated supply and build output |
+
+Import explicit package subpaths such as `@nelyx/core/framework/widgets/basic` and `@nelyx/sdk/platforms/web/surface`. Dispose application-owned controllers and resources when their owner finishes.
+
+Nelyx is experimental, with incomplete framework and platform coverage. Retain imported font, runtime, and renderer licenses when distributing the application.

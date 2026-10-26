@@ -1,328 +1,78 @@
 # Nelyx Core
 
-`RichParagraphConfiguration`은 이제 `span`·`style`·`scaler`·`painterOptions`·`paragraphOptions`와 함께 `font`·`scale`·`placeholderCount`를 가집니다. raw `input`·flattened `placeholders` record와 render paragraph의 `input` setter는 제거됐습니다. 설정 entry에서 사용하는 필드를 한 번 읽어 소유한 frozen record와 option record로 캡처하므로, caller의 options를 수정해도 렌더러 설정은 바뀌지 않습니다. source 객체의 identity와 receiver는 유지합니다. 논리 본문은 `plainText`로 읽고, 새 source configuration을 대입하거나 실제 RenderParagraph 속성으로 변경합니다. 사용자 `Text.make()` 구현은 source RenderParagraph를 반환하거나 자체 설정 계약에 맞게 `Text.configure()`도 override해야 합니다. Engine backend는 실제 문단 layout에서 계속 캡처한 `TextLayoutInput`을 받습니다.
-
-Rich renderer 설정은 사용하지 않는 transport run·strut descriptor를 직렬화하지 않습니다. source 문단 준비에서 실제 사용하는 builder·shaping callback을 실행하며, 제거된 descriptor만을 위한 callback은 실행하지 않습니다. 필요한 앱 준비는 widget 생성이나 `InlineSpan.build`로 옮기고 실제 준비/layout 경계에서 실패를 처리합니다. 편집기는 OS에 게시할 실제 editor style을 계속 캡처합니다. strut 변경은 편집 binding을 유지하면서 Core line policy와 이 editor style을 함께 갱신합니다.
-
-`widgets/text-input`의 저수준 helper는 이제 `resolveTextConfiguration(context, options, flags?)`이며 source font/style/scaler와 painter 정책을 반환합니다. 옛 `resolveTextInput(context, text, options, flags?)` 호출은 본문 인수를 제거하고 새 이름으로 이전합니다. 렌더러의 InlineSpan은 별도로 전달합니다.
-
-`FrameworkRoot`는 BuildOwner와 PipelineOwner를 같은 앱 소유 `PaintingBinding.systemFonts` notifier에 연결합니다. `fontsChange` 시스템 메시지는 입력 binding을 유지하면서 해당 View의 다음 frame에서 편집 metric과 문단 shaping을 함께 갱신합니다. View별 scheduler·font registry는 독립적이며, View를 닫으면 공유 앱 binding을 유지한 채 그 View의 listener와 대기 중인 font callback을 제거합니다. standalone BuildOwner에는 선택적인 다섯 번째 생성자 인수로 같은 notifier를 전달할 수 있고, standalone TextPainter 소비자는 글꼴 변경 뒤 `markNeedsLayout()`으로 painter를 갱신합니다.
-
-저수준 문단 렌더러는 source `TextPainter`를 직접 소유합니다. `RenderRichParagraph(configuration, paragraphContext)`로 생성하며 옛 `(painter, configuration)` 생성자는 제거됐습니다. `rendering/boxes`의 `RenderParagraph`는 같은 nominal identity를 유지하는 추상 selection base입니다. 실제 텍스트 layout에는 `rendering/paragraph`의 `RenderParagraph`를 생성합니다. TextPainter는 `(options, paragraphContext)`와 `layout({minWidth, maxWidth})`를 받으며 service/registry 생성자와 raw `TextLayoutInput` layout/measurement overload는 제거됐습니다. backend 구현은 계속 Engine의 `TextLayoutService`를 직접 사용합니다.
-
-`RenderEditable.textLayout`은 이제 `{options, context, minLines, maxLines, expands}`를 받습니다. `options.text`에 본문의 `InlineSpan`, `context`에 앱의 `ParagraphContext`를 전달합니다. painter가 source 설정을 소유하며 한 줄 편집은 줄바꿈 없이, 여러 줄은 사용 가능한 폭으로 layout합니다. geometry 측정의 native producer는 동기적으로 회수하고, 그린 문단과 frame lease의 수명은 독립적으로 유지합니다. `Text`·`RichText`·`WidgetSpan`·`SelectableText`·`EditableText` 위젯 생성자 API는 유지됩니다.
-
-`FrameworkRoot.build(scene)`은 이제 배열 대신 `FrameRecording`을 반환합니다.
-View는 완성된 immutable command buffer와 기존 resource hold를 한 번 넘겨받으며
-resource 명령을 다시 capture하지 않습니다. 직접 CPU에서 소비하려면 `ui/frame`의
-`captureSceneFrame(scene.token, source)`를 사용하고, `finally`에서
-`releaseSceneFrameSource(source)`, 소비 종료 시 `disposeFrame(frame)`을 호출합니다.
-recording은 생성할 때 받은 정확한 build token으로만 소비할 수 있으며 취소·stale
-metrics·제출 억제·close에서는 미소비 recording을 반환합니다.
-`FrameRecording.capture(token, canvas)`는 살아 있는 Canvas의 기록을 끝내고 닫습니다.
-Root는 post-frame callback과 recording sealing이 끝난 뒤 text-input geometry를
-commit합니다. recording 거부 시 pending geometry를 버리고, geometry 알림 실패나
-owner close에서는 이미 sealing한 recording의 hold도 반환합니다.
-`RenderObject.didCommitTextInputGeometry` 시점의 painting Canvas는 이미 닫혀 있습니다.
-이 알림에서 그리던 코드는 `paint`로 옮기고 다음 frame은 `markNeedsPaint`로 요청합니다.
-host semantics는 같은 recording과 geometry commit이 성공한 뒤 게시합니다.
-recording 거부 시 마지막 immutable host snapshot을 유지하고 실패한 후보의 action은
-거부합니다. 보류한 action은 성공한 snapshot을 게시한 뒤 실행합니다.
-이 경계는 논리 CPU commit입니다. GPU admission이 busy이거나 surface 크기가 0이어도
-강제 frame의 최신 입력 geometry는 제공하며, 실제 표시 완료를 뜻하지 않습니다.
-View 종료는 진행 중인 동기 renderer 제출 결과를 확인한 뒤 drain합니다.
-수락한 frame의 lease는 renderer가 유지하며, close 중 busy 응답의 caller lease는
-반환합니다. 폐기한 controller에는 뒤늦은 제출 callback을 호출하지 않습니다.
-사용자 `createScene`/controller는 기존 command 배열을 계속 반환할 수 있으며,
-이 배열은 기존 입력 capture와 독립 resource hold 경계를 유지합니다.
-
-캡처한 ResourceId는 값 필드와 retainer binding 모두 immutable입니다. 기록 전에
-원래 입력을 `ResourceRegistry.bindResource` 또는 `bindResourceRetainer`로 bind합니다.
-캡처한 command/frame ID를 rebind하면 오류가 나며, owner를 바꾸려면 원래 입력을
-bind하고 새 recording을 capture합니다.
-내부 borrowed Picture capture는 이 sealed ID·style snapshot을 공유하면서 별도
-command hold를 획득합니다. public Canvas/명령 복사는 독립 ID capture를 유지합니다.
-registry binding은 캡처한 identity를 보유하므로 원래 ID를 나중에 바꿔도 기존
-recording이 다른 자원을 붙잡지 않습니다.
-`registry.captureResource(input)`은 registry binding을 초기화한 immutable ID를
-한 번에 반환합니다. asset·image handle을 게시할 때 사용하며, 입력 owner와 살아
-있는 자원을 검증하고 이미 캡처한 ID를 다시 bind하지 않습니다.
-
-`RichText`와 inline `WidgetSpan` 구현은 `framework/widgets/rich-text` 선언 owner를 공유합니다. `framework/widgets/widget-span`은 같은 WidgetSpan 클래스의 public named reexport로 유지됩니다. 기존 import·child State·ParentData/ancestor 진단·배율·자원 수명 계약을 유지하며, WidgetSpan만 import해도 실제 RichText ancestor 클래스가 초기화됩니다.
-
-TreeSliver의 value/type capture·행 identity·animation map·ParentData helper는 canonical 선언 owner인 `framework/widgets/sliver-tree.generated`로 옮겼습니다. 내부 `treeNodeType`·`treeWidgetType` 소비자는 이 owner에서 import하며, `tree-generic-witnesses`에는 추상 interface token과 공통 framework witness가 남습니다. 기존 `tree-widget-source-types` 모듈은 제거했습니다. 공개 `TreeSliver`·`TreeSliverNode`·`TreeSliverController`·`TreeView` import는 유지됩니다.
-
-`AppSession.dispose()`와 `ViewRuntime.dispose()`는 정리 callback을 호출하기 전에 owner Promise 하나를 게시합니다. controller·clock·observer·renderer 정리 중 재진입해도 같은 Promise를 반환하고 retirement를 반복하지 않습니다. 입력·예약은 즉시 닫고, 소유 renderer의 drain이 끝난 뒤 service를 반환합니다. View drain 실패는 의존 service와 거부된 종료 Promise를 유지합니다. callback·resource·drain이 함께 실패하면 `undefined`·`null`·`0`을 던진 경우까지 AggregateError에 보존합니다.
-
-`ViewControllerContext.readStatus()`는 소유 View의 `open`·`failed`·`closing`·`closed` 상태를 읽습니다. 직접 만든 standalone context도 수명 reader를 제공해야 합니다. Root action·annotation query·편집 geometry는 controller 폐기 전부터 이 owner를 확인하며, 이전 semantics도 실패·`beginClose()` 뒤 새 작업을 실행할 수 없습니다. 편집 host는 새 입력과 glyph 질의 전에 살아 있는 `EditingOptions.readInputState()`를 다시 확인합니다. 이미 보낸 동기화와 조합 취소의 programmatic 완료 응답은 계속 처리하지만, 완료 후 focus 복원이나 새 사용자 action을 실행하지 않습니다.
-
-`emptyWidgetStateSet`은 `framework/widgets/widget-state`에서 import합니다. 구현은 canonical WidgetState enum과 같은 모듈로 옮겼으며, 기존 `internal/framework/widgets/widget-state-full-collections`의 이 함수 export를 대체합니다. 나머지 const/map factory는 기존 모듈과 identity를 유지합니다.
-
-저수준 text backend는 `hosting/text-fonts`의 `ParagraphFontCatalog` 하나를 공유합니다. 앱 registry로 만들고 `new TextLayoutCache(registry, catalog)`와 `new ParagraphFontProviders(registry, catalog, create)`에 전달한 뒤, layout 경계마다 `catalog.capture(fonts)`를 한 번 호출합니다. 같은 snapshot을 `cache.key(input, snapshot)`과 `providers.acquire(primary, snapshot)`에 전달합니다. 이는 기존 `cache.key`의 iterable 인수, provider 생성자의 font-source callback, snapshot 없는 provider acquire를 대체합니다. provider 생성 callback은 `{source, resource, family, sourceBytes}` 캡처를 받으며 backend handle은 `source`, 폰트 metadata는 캡처 필드에서 읽습니다. `NativeFont`에는 이제 `sourceBytes`가 필수이며 provider residency에 보유한 원본 폰트 바이트 수를 전달합니다. getter·iterator는 capture 중 실행하고 해당 layout의 metadata는 고정됩니다. 새 capture 뒤에는 serialization·자원 압박 중 재진입을 포함해 이전 cache/provider admission을 거부합니다. 기존 문단과 제출한 frame의 font lease는 실제 retirement까지 유지하고, native retirement 실패는 residency를 보유하면서 provider 입장을 닫습니다. Widget·TextPainter·Paragraph API는 유지됩니다.
-
-semantics 변경 요청은 View pipeline이 모읍니다. `describeSemanticsConfiguration`은 layout 뒤 semantics commit에서 최신 상태를 평가하며, 새 render object의 attach와 반복 `markNeedsSemanticsUpdate()`가 동기 평가하지 않습니다. 이전에는 트리 변경 중 이 작업들이 descriptor를 여러 번 호출할 수 있었습니다. descriptor에서 앱 부작용을 실행하지 말고 attach 작업은 `attach`/`detach` 또는 State lifecycle로 옮깁니다. descriptor가 던지면 이전에 게시한 annotation을 유지하고 다음 semantics flush에서 재시도하며, 일부만 쓴 configuration은 재사용하지 않습니다. 명시적 설정 변경은 계속 motion-only 접근성 throttling을 우회합니다.
-
-고정 또는 indexed extent 목록은 `childPolicy: {mode: 'dormant', capacity: 32}`로 분리한 행의 재사용을 선택할 수 있습니다. 기본값은 `legacy`입니다. dormant 행은 `deactivate`를 실행하고 paint/hit/semantics·inherited 구독에서 빠지며 framework ticker를 조용히 합니다. 재진입하면 item builder를 다시 호출하고 새 Widget을 적용해 호환 State를 activate하며, ticker의 경과 시간은 계속 흐릅니다. 퇴출·delegate 교체·압박·View 종료는 보유 State를 dispose합니다. 사용자 timer는 State lifecycle에서 관리합니다. 앱이 제공한 GlobalKey를 포함한 행은 기존 퇴장 경로를 사용합니다. 사적인 framework geometry/semantics anchor는 등록을 유지하며 GlobalKey retake로 추출하면 dormant 나머지를 반환합니다. sliver당 capacity는 1~32이며 View 전체에서 dormant root32개·Element4096개를 공유합니다. 기존 cacheExtent와 명시적 keep-alive 동작은 유지됩니다. 문단 입장 전에 dormant 보유를 회수할 수 있지만 제출한 frame의 독립 lease는 계속 자원 비용에 포함됩니다.
-
-`SemanticsConfiguration`은 annotation 상태를 직접 소유합니다. 공개 setter와 action callback으로 설정하며, canonical 플래그 갱신·호환 검사·병합은 `SemanticsFlags.prototype.copyWith`·`merge`·`hasConflictingFlags`로 다시 위임하지 않습니다. 예를 들어 `SemanticsFlags.prototype.merge` 교체는 값 객체의 직접 호출에는 적용되지만 configuration의 absorb를 바꾸지는 않습니다. 이런 사용자 정의는 configuration subclass 또는 render object의 `describeSemanticsConfiguration`으로 이전합니다. 공개 immutable `SemanticsFlags` 필드·직접 값 메서드·enum 상태·게시한 node snapshot의 계약은 유지합니다.
-
-가변 높이 카탈로그에는 호출자가 소유한 `SectionExtentIndex(count)`(`framework/rendering/section-extent-index`)를 `ListView.builder({extentIndex, itemCount: count, ...})`에 전달하거나 `SliverSectionList`를 사용한다. `extentIndex.requestItem(index, {offset})`는 중간 섹션을 생성하지 않고 목적지로 이동한다. 표시 geometry는 항상 실제 child layout으로 결정하며 추정 offset은 방문·측정하면서 보정한다. 최대 4,096개 섹션·두 폭/metric 설정을 보관하고 하나의 mounted sliver만 인덱스를 소유한다. 폭·locale·방향·상속 text scale은 자동 감지한다. typography/content 변경에는 `metricRevision`을 교체하거나 해당 섹션의 `extentIndex.invalidate(index)`를 호출한다. keyed State/keep-alive는 기존 delegate 정책을 따르며 방문한 모든 child를 보관하지 않는다. builder는 인덱스의 모든 항목을 제공해야 한다. 일반 ListView의 기존 dead-reckoning 경로도 유지한다.
-
-EditableText는 scrollController·scrollPhysics·scrollBehavior·restorationId를 제공합니다. 실제 Scrollable/ScrollPosition 하나가 paragraph paint·hit 좌표·caret/선택 스크롤·wheel/touch·애니메이션을 구동합니다. 양쪽 디자인 TextField는 scrollController/scrollPhysics를 전달하며 차용 controller는 caller가 소유합니다. 기본 축은 한 줄에서 가로, 여러 줄에서 세로입니다. iOS 한 줄 필드는 사용자 스크롤만 막고 명시적/implicit 이동은 유지합니다. Core restorationId는 스크롤 위치를 저장하고 text 복원은 controller owner가 맡습니다. 디자인의 text/controller 복원은 잔여입니다. native/public formatter 오류는 원자적으로 보고하고 원래의 미포맷 입력을 유지합니다. native 선택/range-only 관측은 formatter를 다시 실행하지 않습니다. 비시각적 adapter는 실제 OS 조합을 수정하지 않고 확정 때 보존한 조합 전 문서를 기준으로 검증합니다.
-
-EditableTextState는 TextSelectionDelegate를 구현합니다. userUpdateTextEditingValue(value, cause)는 사용자 formatter를 적용하고 onSelectionChanged에 선택 원인을 전달하며 native 선택 변경은 keyboard로 알립니다. copySelection/cutSelection은 동기 명령이며 pasteText는 clipboard 응답 뒤 같은 편집기의 현재 문서·선택을 사용합니다. 같은 text의 선택 변경은 OS bridge의 실제 observed composing range를 유지하고 active range 없는 교체는 실제 조합 취소를 기다립니다. 새 active composing value 생성/변경·lookup/search/share/live-text 서비스·전체 복원 API는 잔여입니다. enableInteractiveSelection은 Core에서 true, 양쪽 디자인 TextField에서 !readOnly || !obscureText가 기본값입니다. 비활성화하면 탭 focus는 유지하고 선택·clipboard shortcut을 막습니다.
-
-EditableTextState.requestKeyboard()는 이미 주 focus인 필드의 기존 입력 연결을 표시하거나 Core focus를 요청합니다. gesture focus는 실제 View 입력 시각을 지연 focus와 carrier 재연결까지 보존합니다. Android input protocol4는 native Back key의 숨김 시각보다 오래된 요청의 IME 재표시를 억제하며 자동 복원은 이전 의도를 유지합니다. 키보드가 숨겨져도 Core 논리 focus는 유지하고 이후 새 tap이나 명시적 requestKeyboard로 다시 표시합니다. predictive Back gesture와 물리 기기 검증은 별도입니다. 지연 autofocus는 원래 논리 편집기의 수명을 확인하고 FocusScope를 사용해 그 사이의 명시적 focus 결정을 존중합니다. 새로운 keyboard/focus 요청은 대기 중 입력 복원이 이전 의도로 되돌리지 못하도록 취소합니다.
-
-`EditableText`는 소유 View의 Core TextPainter/SkParagraph로 문자·선택 영역·조합 밑줄·caret를 그립니다. 같은 paragraph로 pointer hit·caret 좌표·가로/세로 caret reveal을 계산합니다. caret 점멸은 View가 숨겨지면 멈추고 unmount 때 해제됩니다. `strutStyle`·`textScaler`·`cursorWidth`·`cursorHeight`로 Core 경로를 설정합니다. OS 입력 provider 전환과 당시 검증 범위는 [W14 요약](../history/26/10/22/work14-summary.md)에 기록했으며, Core offscreen 결과만으로 native IME나 전체 편집 완료를 판정하지 않습니다.
-
-mouse 선택은 두 축 drag를 지원하며 touch는 가로 drag·long-press handle을 사용해 세로 페이지 스크롤을 유지합니다. 선택 drag와 그려진 handle을 가장자리에 유지하면 Core paragraph와 실제 상위 ScrollPosition이 축·역방향·사용자 scroll physics·editor 범위를 따라 연속 스크롤되고 cancel·View 숨김·문서 교체·해제 때 ticker를 종료합니다. collapsed handle은 caret만 이동합니다. 수식 키 없는 문자 화살표는 상속 문단 방향과 shaped grapheme의 시각적 경계를 사용하며 선택 offset은 논리 UTF-16을 유지합니다. 기존 플랫폼 shortcut map과 실제 paragraph로 Unicode 단어 이동/삭제·줄/문서 경계·방향 선택을 처리합니다. 시작 handle은 움직이는 anchor를 표시해 고정된 반대 끝으로 되돌아가지 않습니다. 전체 편집/복원 API는 W14 잔여입니다.
-
-실제 editor Focus의 하위 문맥에서 기본 Actions를 조회합니다. 공통 AppFocus는 앱 shortcut 안쪽에 DefaultTextEditingShortcuts를 설치해 편집 방향키를 방향 focus 탐색보다 먼저 처리하며 Tab과 가까운 custom shortcut은 유지합니다. 필드를 `Actions`로 감싸 지원하는 편집 intent를 재정의하고 `callingAction`으로 기본 동작에 위임할 수 있습니다. 가까운 custom shortcut과 caller 소유 key handler를 먼저 처리합니다. Intent는 `@nelyx/core/framework/widgets/text-editing-intents`, 원본 값 타입은 `@nelyx/core/services/text-input`에서 가져옵니다. `EditableTextState.textEditingValue`는 `ReplaceTextIntent`·`UpdateSelectionIntent`의 값을 제공합니다. grapheme transpose와 page/document scroll은 선택을 유지하며 paint·blink가 명시적 스크롤을 되돌리지 않습니다. EditableText와 양쪽 디자인 TextField는 실제 TextFieldTapRegion의 groupId·onTapOutside·onTapUpOutside를 제공합니다. 같은 그룹의 외부 control은 focus를 유지합니다. 콜백은 기본 Actions를 재정의하며 데스크톱/브라우저 pointer down은 focus를 해제하고 native 모바일 touch는 유지합니다. outside up은 focus가 있던 outside down에 이어서만 알리고 논리 편집기 교체·disabled·해제는 대기 알림을 취소합니다. DirectionalFocusIntent는 기존 text-field 탐색 정책을 사용합니다. EditableTextState.bringIntoView는 현재 Core caret과 상위 viewport로 텍스트 위치를 드러냅니다. 사용자 편집은 레이아웃 뒤, 키 선택은 OS ack 전에 표시하며 늦은 transport ack는 수동 scroll을 되돌리지 않습니다. 논리 편집기 교체나 observer의 새 편집은 대기 중 선택 명령과 drag hit를 종료합니다. 나머지 공개 편집 API는 잔여입니다.
-
-Core는 semantics 표시 여부와 별도로 입력 가능 상태를 제공합니다. Android 입력 binding은 clip된 필드의 접근성 proxy가 없는 동안에도 수명을 유지할 수 있습니다.
-
-입력 geometry는 부모 transform과 paint clip을 포함한 Core 프레임에서 확정합니다. IME와 semantics는 같은 `layoutEpoch`를 사용하며 paint-only 이동도 paragraph 교체 없이 새 epoch를 받습니다. dirty/불가용 좌표는 철회하고 실패한 프레임의 발행을 취소하며 다음 정상 프레임에서 복원합니다. soft-wrap End/Home과 pointer hit는 UTF-16 선택 offset이 같아도 caret affinity를 보존합니다. 같은 frame에 native surface backing 세대가 있으면 함께 캡처합니다. backing 교체는 재paint 전부터 이전 조회 좌표를 철회하고 새 확정 epoch를 요구하며 살아 있는 OS 문서는 교체하지 않습니다.
-
-OS 입력 어댑터는 `EditingOptions`로 확정된 UTF-16 문자/범위 bounds·임의 paragraph caret·View 좌표의 문자 위치를 조회합니다. 선택적인 owner/viewport/layout stamp로 이전 요청을 거부합니다. hit 조회는 현재 miss와 불가용 좌표를 구분하고 nearest/edge rounding은 비밀번호 원문 grapheme 경계를 포함한 같은 paragraph를 사용합니다. singular/nonfinite 투영·dirty 프레임·disabled/종료 client·미동기화 OS 문서는 응답을 보류합니다. 이 Core 조회가 Windows provider나 물리 후보창 좌표 검증을 뜻하지는 않습니다.
-
-`selectionControls`·`contextMenuBuilder`·`magnifierConfiguration`은 같은 Core selection overlay에 연결됩니다. 공개 `EditableTextState`는 Core 좌표의 menu anchors/actions와 clipboard 명령을 제공합니다. Material/Cupertino TextField는 각 디자인의 기본 controls/toolbar/magnifier를 공급하며 readOnly·obscure·formatter와 늦은 clipboard 응답/종료를 같은 controller 수명에서 처리합니다.
-
-일반 controller 명령과 확정된 formatter 결과는 Core에 즉시 반영됩니다. OS 동기화 쓰기는 직렬화하고 아직 보내지 않은 값은 최신 값으로 합치며, 늦은 acknowledgement가 새 Core 내용을 덮어쓰지 않습니다. 조합 중 교체는 실제 OS 완료를 기다립니다. 현재 Web 일반 입력은 Core caret/문자 bounds를 전달하는 EditContext를 사용합니다. secure text·autofill·미지원 브라우저와 Windows provider는 전환 중입니다.
-
-`maxLines` 기본은 1, `minLines`는 null입니다. maxLines=null이면 내용에 따라 늘어나고 유한 maxLines에 minLines를 생략하면 해당 행 수를 예약합니다. height/minHeight는 최소 높이이며 expands는 minLines/maxLines=null과 유한 높이를 요구합니다. intrinsic 측정의 임시 문단은 해제하고 실제 그리는 문단은 유지합니다. 다중 행 정책 변경은 조합 확정 뒤 현재 입력 host를 재설정합니다.
-
-`onEditingComplete`는 기본 focus 처리를 대체하고 onSubmitted보다 먼저 실행합니다. 기본 Next/Previous는 focus를 이동하고 완료 action은 해제하며 다중 행 Enter는 유지합니다. callback 오류는 소유 BuildOwner에 보고합니다. `hosting/editor-style`은 전환 중인 이전 provider용 metadata이며 native font/style 투영은 Core paint/hit 좌표를 결정하지 않습니다. TextAlignVertical·WidgetStateTextStyle은 Core 단일 owner이고 TextFormField의 fieldBuilder는 같은 Form/controller 수명을 공유합니다.
-
 [English](README.md) | **한국어**
 
-Core의 공통 theme adapter는 `AppTheme/AppThemeData`이며 선정 Material/Cupertino 구현은 독립 패키지로 이동했습니다. 생성 입력·소유권은 `tools/Nelyx.FrameworkToTypeScript/data/`, 출처는 소유 패키지의 `licenses/`에서 관리하고 일반 빌드는 추적된 TypeScript만 소비합니다. W14의 구현과 남은 범위는 [W14 요약](../history/26/10/22/work14-summary.md)에 보존했습니다.
+`@nelyx/core`는 Nelyx의 플랫폼 독립 TypeScript UI 프레임워크입니다. Widget·Element·RenderObject 트리, 상태, 레이아웃, 페인트, 제스처와 앱 계약을 관리합니다. [SDK](sdk/README.ko.md)가 플랫폼을 연결하고 [Skia](skia/README.ko.md)가 렌더링을 제공합니다.
 
-`@nelyx/core`는 Nelyx 앱, SDK 어댑터와 렌더러가 공유하는 플랫폼 독립 계약을 정의합니다. 앱 실행은 [프로젝트 소개](../README.ko.md)나 [샘플 가이드](../sample/nelyx-testbed-app-2/README.ko.md)에서 시작하세요.
-
-`services/input-formatters`의 `LengthLimitingTextInputFormatter(maxLength)`는 고정 characters 엔진으로 확장 grapheme을 셉니다. 결합 문자·emoji sequence·국기·한글 자모를 나누지 않으며 조합 중에는 원본을 보존하고 확정 시 자릅니다. 방향 있는 selection은 UTF-16 범위로 보정하며 0은 확정 입력을 비웁니다. Flutter MaxLengthEnforcement와 플랫폼별 기본값은 아직 제공하지 않는 Nelyx 정책입니다. 명시적인 controller 변경과 delta·undo/redo는 TextEditingController가 소유합니다.
-
-`TextEditingController.replace`·`clear`·`reset`은 선택적 onApplied callback을 받습니다. 일반 명령은 Core 값/history를 즉시 갱신하고 callback을 실행하며 OS 동기화는 별도로 진행합니다. 조합 중 교체는 replaceComposing과 실제 OS 완료 뒤에 controller와 callback을 반영합니다. 미지원 취소는 명시적으로 거부하고 편집기 해제 시 대기 callback도 종료합니다. Form reset과 Cupertino clear는 같은 controller 계약을 사용합니다.
-
-## 디자인 패키지 import
-
-| 이전 import | 현재 import |
-| --- | --- |
-| `@nelyx/core/framework/material/widgets` | `@nelyx/material/widgets` |
-| `@nelyx/core/framework/cupertino/widgets` | `@nelyx/cupertino/widgets` |
-
-Core는 플랫폼 공통 위젯·렌더링과 `AppTheme/AppThemeData` adapter를 소유합니다. 기존 공통 `Theme/ThemeData/darkTheme/lightTheme` 이름은 `AppTheme/AppThemeData/darkAppTheme/lightAppTheme`으로 바뀌었으며 각 디자인 패키지가 고유 theme 구현을 소유합니다. Core는 디자인 구현을 재노출하지 않습니다. 두 디자인 패키지는 peer dependency를 통해 하나의 Core 인스턴스를 공유합니다. 현재 API는 [Material](../packages/material/README.md)·[Cupertino](../packages/cupertino/README.md) 안내를 따릅니다.
-
-루트 `build:sdk`는 workspace 패키지를 빌드하고 provider/CLI 입력을 준비합니다. 소스 import는 `.ts`, 출력 JavaScript·선언은 `.js`를 사용하며 패키지 간에는 공개 subpath로 접근합니다. 생성·채택 소유권 metadata와 라이선스는 소스로 유지하며 제품 빌드는 삭제한 실행 기록을 요구하지 않습니다.
-
-W8에서 재사용 가능한 animation listener mixin, parent/compound animation, Tween·Sequence·Curve2D·AnimationStyle·Color direct module, explicit transition과 AnimatedPhysicalModel을 포함한 13개 implicit animation 위젯을 추가했습니다. Container·텍스트/inline 제약·retained opacity/filter·physical clip/shadow를 실제 render 경로에 연결했습니다. Wire 9는 shadow와 full-clip paint를 공통 native core로 전달하고 wire 1~8 수신을 유지합니다. 원본 Dart·Root·CanvasKit 픽셀·wide/phone Chrome·저장소 밖 packed 소비·Windows offscreen Graphite 검증의 증거는 각각 구분합니다. 전체 TextStyle/selection/정수 계약, resize frame 연속성과 최종 native/display 수락은 [W8 요약](../history/26/10/13/work8-summary.md)에 남아 있습니다.
-
-최신 scroll motion 묶음은 scalar simulation·spring 해·painting 방향·scroll metrics/policy와 `ui/math` direct module을 추가합니다. 실제 finite vertical ScrollPosition의 drag/ballistic은 이 정책과 View별 viewport/DPR, `isScrollingNotifier`, 합쳐진 dimensions 보정과 owned ticker 해제를 사용합니다. 실제 layout에서 VerticalDrag recognizer를 구성하고 짧거나 비활성인 content에서는 제거합니다. 기존 `physics/spring`과 clamped programmatic jump는 호환 adapter로 유지합니다. Deprecated 전역 tolerance getter는 실제 global View가 필요하므로 현재는 `toleranceFor(actualMetrics)`를 사용합니다.
-
-Scroll motion 예제는 제한된 cache의10,000고정 행, 원본 clamp/bounce/fast 정책, content 축소, 정책/controller 변경, 화면 종료와 phone 재진입을 소비합니다. 교체된 retained 자식에도 유효한 geometry를 주고 실제 scrolling 상태와 행 생성 수를 관찰합니다. 일반 가변/mixed/grid sliver와 전체 ScrollController/Activity/notification 계약은 남아 있습니다.
-
-변경하지 않은 원본13개 Dart library body가 debug/release 각각49개 사례에서 일치했습니다. 실제 controller/ticker/scheduler/notifier 수명20groups와 Chromium/CanvasKit16flows/25exact runtime inputs, Core/SDK build·공통 types·strict direct declarations가 통과했습니다. 독립 source 감사는280spans·19refreshed anchors·77envelopes·1,066selections를 확인하며 전체 class 계약은 partial입니다. 이전 native/archive 증거는 당시 bytes를 유지합니다. related/I2 현재 native 공급, 물리/IME/reader/performance와 전체 W7-01..14는 계속 진행합니다.
-
-이전 cursor/settings 묶음은 Web `basic`·unknown·`disappearing`의 고정 원본 fallback에 맞춰 inline cursor style을 제거하고 `none`은 숨김으로 처리합니다. 앱별 owner가 canvas와 실제 published DOM control/editor를 관리하며 재연결 전에 이전 editor를 해제하고 아직 소유한 style만 복원합니다. TapRegion은 custom `equals`·안정적인 `hashCode` group key를 받아 서로 다른 동등 객체의 callback을 묶습니다. 새 direct `ui/gesture-settings`는 physical 값·null을 유지하는 `copyWith`·값 동등성·local hash를 제공합니다. Android는 `ViewConfiguration.scaledTouchSlop`을 실제 DPR로 변환해 MediaQuery에 전달하며 관측하지 않은 값은 null입니다. 예제는 작은 화면의 스크롤과 실제 enter/hover/exit counter를 제공합니다.
-
-Native cursor protocol1은 실제 View prop·JSI와 Windows/Android/AppKit/UIKit/GTK handler를 native View identity·owner 수명에 연결합니다. JSI version 조회는 필수 ViewApi receiver를 유지합니다. Windows26 IDC·Android33 최종 PointerIcon·macOS21 NSCursor 및 transparent none·Linux35 GTK 원본 mapping을 사용합니다. UIKit은 지원되는 beam/precise/hidden API와 나머지 desktop kind의 OS default를 사용합니다. MethodChannel 성공은 React prop staging이며 native 적용 완료와 정확한 pointer-icon 상태 확인은 별도입니다. Apple/Linux 전용 native build/run/harness는 SKIPPED, provider는 notVerified입니다.
-
-문단 admission은 View마다 정상 producer 256개·동기 교체/probe reserve 1개·resident layout 1,024개와 별도로 전체 텍스트 65,536/262,144 UTF-16 units·직렬화한 UTF-16 입력 데이터 4/16 MiB를 제한합니다. Web/native 모두 shaping 전에 검사합니다. 정확한 기존 producer의 교체는 새 문단 허용까지 이전 문단을 보존하며, 이전 recording/GPU holder는 lease 반환까지 resident 예산을 사용합니다. 줄 높이·caret template는 metrics만 보존하고 동기 측정 문단을 즉시 해제합니다. 이 값은 부하 제한이며 native heap 사용량이나 FPS 측정이 아닙니다.
-
-`framework/widgets/dialog`의 `createDialogRoute`는 공통 modal 표시 정책을, `showDialog`는 context 기반 진입을 제공합니다. 기본은 root Navigator이며 `useRootNavigator: false`로 가까운 Navigator를 선택하고 호출 위치의 inherited theme를 보존합니다. 바깥 barrier 취소와 Back은 독립적이며 Back을 막을 때는 `PopScope`를 사용합니다. pop 후 reverse가 끝날 때까지 뒤 UI pointer·semantics·focus·반복 Back을 차단하고 해제 뒤 focus를 복귀합니다. `framework/widgets/overlay`가 유일한 Overlay/OverlayEntry owner입니다. 테스트베드의 두 기본 dialog는 이 정책을 사용하며 content/actions 전체 API는 여전히 basic입니다.
-
-검증은 기록된 단계의 surface34+owner19groups, 원본 scalar debug/release 각각6cases, hover note 이전 browser75flows/81inputs와 현재 sample의 focused9flows를 보존합니다. 현재 API33/x86_64 Android APK는 touch·실제 OS mouse hover·group·drop·재진입·keyboard16flows와 process log 무오류, native touch slop8을 확인했습니다. Windows는 현재 native supplier·HBC99/source cohort 빌드를 확인했으며 Computer Use native pipe 연결 불가로 현재 UI는 notVerified입니다. 전체 W7·binary PointerData/semantics·물리/IME/reader/performance 수락과 related/I2 최종 공급은 남아 있습니다. 아래 이전 기록의 byte 범위는 유지합니다.
-
-이전 Gesture surfaces 수락 기록은 direct `framework/gestures/drag`, `eager`, `multidrag`, `framework/widgets/tap-region`, `overlay`, `drag-target`, `framework/rendering/meta-data`, `services/mouse-cursor`를 추가합니다. Multi-drag/eager는 실제 View binding을 사용합니다. Draggable/LongPressDraggable feedback은 bounded Overlay에 표시되고 DragTarget은 실제 metadata hit path를 소비합니다. TypeScript에서 지워지는 데이터 타입에는 필수 `isDataType` guard를 지정합니다. TapRegion은 그룹별 inside/outside down/up과 외부 탭 소비를 지원합니다. Surface는 의도한 탭 영역을 감싸야 하며 내부 제어 버튼도 소비에 참여합니다. 같은 View의 retained semantics rect는 tap/long-press region에 알리고 선정 Navigator route visibility는 숨은 route의 알림을 억제합니다. Dart custom-equality group key·전체 ModalRoute/semantics ABI·content sizing/Portal overlay는 남아 있습니다.
-
-MouseRegion·RenderMouseRegion·FocusableActionDetector는 실제 View service의 cursor session과 stationary 갱신을 소비합니다. Browser port는 해당 앱 canvas의 style만 바꾸고 종료 시 소유한 style을 복원합니다. Native cursor handler와 DOM control 범위는 남아 있습니다. 현재 `basic`/`disappearing` CSS 처리는 고정 engine과 차이가 있어 수정 대상으로 기록했습니다. MediaQuery의 inherited gesture settings가 실제 recognizer factory와 draggable에 전달되며 명시적 settings/null이 우선합니다. ScrollConfiguration과 native 관측 settings는 남아 있습니다. Callback에서 tree를 dispose하거나 예외가 나도 client·route·timer·avatar·overlay entry의 소유권을 정리합니다.
-
-현재 surface20+owner/provider15+영향 회귀83 groups, Core/SDK build·공통/direct declarations가 PASS입니다. 원본 oracle은 변경하지 않은 library body14개를 보존하고 실제13개를 로드합니다(이번 entry에서 tap.dart는 사용하지 않음). assertions/debug-release 각각18개 시나리오가 일치합니다. Chromium147/CanvasKit63flows/75exact runtime inputs에는 새 surface14개 흐름이 포함되며 screenshot에서 제어 버튼 사용성을 검토했습니다. source/controlled/browser 범위의 증거입니다. 전체 W7·native/물리/reader/performance 수락·최종 공급은 남아 있으며 아래 이전 family/native/archive receipt의 byte 범위는 유지합니다.
-
-전체 gesture family 흐름은 direct `framework/gestures/force-press`, `long-press`, `multitap`, `scale`을 추가합니다. 실제 View binding을 넣어 `new DoubleTapGestureRecognizer({binding: owner.gestureBinding})`, LongPressGestureRecognizer·MultiTapGestureRecognizer·SerialTapGestureRecognizer·ScaleGestureRecognizer·ForcePressGestureRecognizer를 생성합니다. GestureDetector는 tap/double/long/axis/pan/scale/force callback을 구성하며 RawGestureDetector factory에서 독립 multi/serial tap도 사용할 수 있습니다. Long press는 primary/secondary/tertiary 전체 callback, 기본500ms deadline과 선택적 duration을 지원합니다. Scale은 focal/span/rotation·접촉 구성 변경·trackpad panzoom/scroll factor를 처리합니다. retained long-press semantics는 down/start/press/end/up을 호출합니다. 실제 View settings는 명시적으로 주입하며 implicit MediaQuery/ScrollConfiguration과 전체 Source semantics ABI는 partial입니다.
-
-native/browser logical device ID는 반복되므로 Root가 접촉마다 양수 Source pointer ID를 배정하고 legacy DTO/mouse callback에는 native ID를 유지합니다. Source hover/signal/orphan과 native control 관측은 pointer0을 사용합니다. Callback 안에서 dispose해도 진행 중인 tap tracker·보류 arena·route·timer를 동기 정리하며 실패 경로에서도 독립 정리를 시도합니다. Force는 실제 raw pressure range가 필요합니다. 현재 browser/RN logical producer는 그 범위를 공급하지 않으며 force 증거는 controlled Source event에 한정됩니다.
-
-Gesture families 샘플은 double tap·long press/취소·두 손가락 확대·독립 multi tap·serial tap·화면 재진입을 소비합니다. import/export만 변경한 원본 Dart14개 library body와 명시적 harness fixture의 debug/release 각각24개 state 시나리오가 일치합니다. 현재 family35+ownership10+영향 회귀83 groups, Core/SDK build·공통/strict direct declarations와 Chromium147/CanvasKit49flows/59exact runtime inputs가 PASS입니다. source/controlled/browser 증거이며 native·물리·reader·performance·전체 W7은 남아 있습니다. 아래 이전 recognizer/arena/native/archive receipt는 당시 범위를 유지합니다.
-
-이전 base recognizer 단계은 direct `framework/gestures/recognizer`, `tap`, `monodrag`, `drag-details`, `velocity-tracker`, `lsq-solver`, `gesture-details`에서 제공합니다. `new TapGestureRecognizer({binding: owner.gestureBinding})`처럼 실제 View binding을 주입합니다. Tap은 primary/secondary/tertiary callback과 global slop/deadline을 처리합니다. axis/pan은 투영된 details, start/down origin, fling, panzoom, latest/sum/average-boundary 다중 pointer 전략을 처리하며 평균 계산은 실제 View frame epoch를 사용합니다. VelocityTracker는 실제 sampling clock을 주입할 수 있습니다. GestureDebug callback trace도 invokeCallback에서 소비합니다. dispose는 callback/reporting 오류 뒤에도 실제 route·arena entry·deadline timer를 정리합니다.
-
-`framework/widgets/gesture-detector`는 실제 tap/axis/pan recognizer를 구성합니다. options에 `onTapDown/Up/Move/Cancel`, secondary/tertiary tap, `onHorizontalDrag*`, `onVerticalDrag*`, `onPan*` callback을 받으며 기존 `onDrag(dx,dy)`/`onDragEnd(vx,vy)`는 pan details adapter입니다. 기본 `deferToChild`는 원본과 같으므로 자체 hit가 없는 빈 child에는 `behavior: HitTestBehavior.opaque`를 지정합니다. `framework/widgets/raw-gesture-detector`는 RawGestureDetector, 실제 constructor-token factory, SemanticsGestureDelegate를 제공합니다. Dart factory의 `constructor()`는 TS에서 `createRecognizer()`이며 같은 실제 View에 속한 정확한 선언 type을 반환해야 합니다. `framework/rendering/semantics-gesture-handler`는 retained semantics의 tap·방향 scroll action을 처리합니다. Source SemanticsConfiguration과 default long-press family는 남아 있습니다. Root는 생략된 logical movement delta만 같은 epoch의 실제 접촉 위치 차이로 계산하고 producer가 준 delta를 유지합니다.
-
-Gesture recognizers 샘플에서 tap details·secondary/tertiary·취소·axis/pan·비활성화·재진입을 소비합니다. 현재 recognizer25·retirement/frame8·logical ingress4·영향 pointer46 groups, 변경하지 않은 원본 numeric body의 debug/release 각각29 cases가 PASS입니다. Core/SDK build·공통/direct declarations와 Chromium147/CanvasKit40 flows/54 exact runtime inputs도 PASS입니다. PositionedGestureDetails는 structural declaration contract로 runtime bundle과 별도 검사합니다. source/controlled/browser 범위이며 모든 class와 전체 W7은 partial입니다. 그 단계에는 double/long/scale/force가 없었으며 현재 family 증거는 위에 있습니다. implicit MediaQuery/ScrollConfiguration·allocation tracing·native producer/cohort·물리/reader 수락은 남아 있습니다. 아래 이전 arena/native/archive receipt는 당시 범위를 유지합니다.
-
-`framework/gestures/arena`는 고정 Flutter의 실제 GestureDisposition·GestureArenaEntry·GestureArenaManager를 제공합니다. `entry.resolve(GestureDisposition.accepted/rejected)`를 사용합니다. 기존 bool 인수는 deprecated compatibility overload입니다. close의 단일 후보 승리는 microtask에서 일어나고, hold는 sweep만 지연합니다. sweep은 첫 후보를 먼저 accept한 뒤 나머지를 reject하며 explicit/eager 승리는 loser를 먼저 reject합니다. entry/default callback은 실제 arena identity를 capture하여 재사용된 pointer ID의 새 경쟁을 건드리지 않습니다. View cancel/dispose는 소유권을 먼저 제거하고 오류가 있어도 남은 rejection을 진행합니다.
-
-`framework/gestures/team`의 `new GestureArenaTeam(owner.gestureBinding.gestureArena)`은 같은 실제 manager에서 경쟁합니다. `team.add(pointer, member)`와 nullable `team.captain`을 사용하며 captain은 직접 등록된 member가 아니어도 됩니다. process singleton을 만들지 않고 실제 owner arena를 명시적으로 주입합니다. ESM의 debug flag는 direct `framework/gestures/debug`의 `GestureDebug` 정적 field로 설정하며 Binding의 hit/hover/sampling margin과 arena 진단이 실제로 소비합니다. `debugAssertAllGesturesVarsUnset(reason)`은 원본처럼 hover flag를 검사에서 제외합니다. 이전 arena 단계에는 recognizer callback trace 소비가 없었으며 현재 위의 source 흐름에서 연결했습니다. 나머지 gesture 시스템과 전체 runtime 수락은 남아 있습니다.
-
-이전 arena 단계의 legacy TapDragRecognizer/GestureDetector 소비 경로는 arena acceptance와 drag recognition을 분리하여 기본 승리 뒤 작은 이동을 tap으로 유지합니다. 전체 Flutter recognizer API 이식으로 주장하지 않습니다. 샘플 Gesture arena에서 실제 tap/drag slop, team의 first/explicit/captain/outside 선택과 재진입을 확인할 수 있습니다. 원본의 변경하지 않은 arena/team/debug body를 별도 Dart library로 실행한 assertions on/off 각각14 항목이 현재 TS debug/release와 일치합니다. 이 standalone 알고리즘 oracle의 foundation 출력/오류·binding context는 명시적 fixture이며 전체 Flutter/native 수락이 아닙니다. 추가 owner/실제 소비 계약12와 이전 pointer46, strict declarations/common types가 PASS이고 현재 Chromium/CanvasKit32 flows/45 exact inputs가 PASS입니다. 모든 class와 전체 W7은 partial이며 native/cohort·물리 timing/reader 수락은 별도입니다.
-
-실제 pointer event는 `framework/gestures/events`, `PointerDeviceKind`는 `ui/pointer`에서 직접 import합니다. `kind`는 device enum이며 `position`은 전역 좌표, `localPosition`·`localDelta`는 event transform을 적용한 좌표입니다. PointerRouter와 MouseRegion callback은 실제 enter/exit/hover class를 받습니다. Root는 `framework/gestures/pointer-event-adapter`로 기존 logical transport를 변환합니다. `ui/input` PointerEvent는 hit target용 전역 좌표/local transform metadata를 가진 embedding DTO로 유지합니다. 새 cohort 공급 시 수동 router의 DTO x/y 소비를 source position/localPosition으로 이행해야 합니다.
-
-`ui/pointer`의 PointerData/PointerDataPacket과 `framework/gestures/converter`는 공급받은 physical data를 View별 DPR로 lazy 변환합니다. `pointer-signal-resolver`는 같은 canonical signal의 첫 등록을 고르고, `gesture-settings`·`constants`는 logical slop 설정과20 constants를 제공합니다. Duration은 milliseconds입니다. 원본 copy/factory의 field 생략을 유지하며 정확한 공개 instance는 freeze하고 subclass의 추가 field는 허용합니다. transformed wrapper는 concrete type/canonical original을 유지합니다. button mask는 명시적인53-bit safe-integer adaptation이며 packet은 caller batch를 snapshot합니다.
-
-`framework/gestures/binding`의 GestureBinding이 실제 View의 큐·입력 잠금·보관된 hit 경로·취소·pointer route·arena 연결·signal 선택을 소유합니다. Root의 render target을 먼저 호출하고 마지막 Binding target에서 전역 route를 실행합니다. `framework/gestures/hit-test`는 실제 HitTestEntry/Result와 변환 스택, `resampler`는 단일 스트림 보간을 제공합니다. `framework/widgets/listener`의 `new Listener(child, {behavior: HitTestBehavior.opaque, onPointerDown, onPointerSignal})`을 사용하며 HitTestBehavior와 RenderPointerListener·callback 타입은 `framework/rendering/pointer-listener`에서 직접 import합니다. 기존 `gesture-detector` Listener는 deprecated logical DTO 어댑터로 남습니다.
-
-mounted Element의 `owner.gestureBinding.pointerSignalResolver.register(event, callback)`으로 첫 signal 소비자를 등록합니다. 선택된 callback이 `event.respond({allowPlatformDefault: false})`를 소유합니다. SingleChildScrollView/LazyList는 실제 이동 가능성을 먼저 검사하고 선택된 뒤에만 스크롤하므로 더 가까운 Listener가 우선할 수 있습니다. 기존 사용자 onPointer Boolean wheel callback은 동기 compatibility 경로이며 source signal arbitration과 동일한 API가 아닙니다.
-
-resampling은 기본 off, samplingOffset은 -38 milliseconds입니다. Root는 실제 입력/frame clock과 scheduler를 사용하며 logical touch stream에는 내부 opaque 키를 사용합니다. 관찰하지 않은 physical device 번호를 만들어내지 않고 공개 device 기본값0을 유지합니다. cancelPointer의 front/microtask 취소도 같은 logical sampler를 사용하며 마지막 contact 취소·hide·dispose 뒤 timer/예약 frame의 재시작을 차단합니다. hit path·transform은 down부터 유지하고 retired render target과 hidden View 입력은 거부합니다.
-
-앱 ServicesBinding은 실제 PlatformDispatcher의 typed onPointerDataPacket/onHitTest를 연결하고 공개 callback 교체를 보존합니다. supplied physical packet은 현재 DPR와 View delegate를 admission 때 capture하여 A→B→A 순서를 유지하며, 중간에 같은 View ID를 재등록해도 옛 packet을 전달하지 않습니다. HitTestRequest의 view는 실제 ID를 제공하는 최소 port이며 전체 FlutterView 이식이 아닙니다. native binary PointerData codec/생산자는 아직 연결되지 않았고 native-control의 별도 관찰 경로는 전역 route만 소비합니다.
-
-Pointer dispatch 단계의 gesture/Root/app/cancel 계약34·global13과 이전 영향 회귀91, Core/SDK build·공통 types·직접 declaration 소비가 PASS입니다. 실제 Chromium147/CanvasKit24 흐름/40 source inputs에서 영역 밖 release·두 touch의 resampling/release·첫 signal 소비/부모 scroll·재진입을 확인했습니다. 전체 Source GestureBinding singleton/BindingBase·전체 recognizers/GestureDetector·native device/pressure/panzoom/settings·물리 timing/reader·새 archive/cohort는 미완료입니다. 이전 Windows5fc2e65a/Android33d27383 native 영수증은 현재 source 수락이 아닙니다. 전체 W7은 ACTIVE/PARTIAL입니다.
-
-FrameworkRoot는 실제 keyboard·global pointer·semantics action handler를 함께 등록합니다. embedding은 View 소유 port를 명시해 `FocusManager.registerGlobalHandlers({pointerRouter, semantics, registerKeyMessageHandler})`를 호출할 수 있으며 실패 시 rollback, 종료 시 세 port 해제를 수행합니다. `framework/gestures/pointer-router`는 embedding PointerEvent의 pointer별/global snapshot·변환을 처리하며 현재 concrete event 계층은 위 안내를 따르며 전체 gesture binding/native 수락은 남아 있습니다. `ui/semantics-action`은 원본26개 SemanticsAction ID와 SemanticsActionEvent를 제공합니다. 기존6개 UI transport action 문자열은 ui/types에 유지합니다. `framework/semantics/binding`은 실제 action listener와 ByteData 해독을 current-node action보다 먼저 수행하며 enablement handle·accessibility features·전체 binding은 partial입니다.
-
-native control의 실제 pointer/touch 관찰은 canvas hit-test를 다시 수행하지 않고 소유 router로 전달하며 노출된 accessibility focus action은 같은 semantics dispatcher로 전달합니다. Web nonediting semantics control은 실제 DOM focus 후에도 공통 입력 영역과 구체적인 element 소유권으로 키를 받습니다. 다른 소유자의 control과 native text 편집 기본 동작은 기존 경로를 유지합니다. 제어13 cases·Core91 회귀·실제 Web14 흐름/23현재 source inputs가 PASS입니다. 이전 Windows5fc2e65a/Android33d27383 native UI 영수증은 이번 global 변경 전 소스 범위이며 현재 native control·물리/reader와 archive/cohort 수락은 남아 있습니다.
-
-현재 workspace의 `framework/widgets/focus`에는 `FocusManager.addEarlyKeyEventHandler` / `removeEarlyKeyEventHandler`와 late 등록·해제, `OnKeyEventCallback`·`combineKeyEventResults`가 추가됐습니다. 각 단계에서 counted handler 집합을 복사해 고유 callback을 모두 호출한 뒤 결과를 합칩니다. 고정 Flutter 원본의 실제 코드는 early `skipRemainingHandlers` 뒤에도 focus tree를 방문하고, node skip은 ancestor만 중단하며 late handler가 처리할 수 있습니다. Nelyx는 기존 semantic fallback/native 기본 동작을 구분하는 세 가지 결과를 유지합니다.
-
-FrameworkRoot는 한 native message의 모든 정규화 event로 keyboard state를 갱신한 뒤 focus batch를 전달합니다. HardwareKeyboard observer는 단계별 pressed state를, focus handler는 완성된 상태를 봅니다. `handleTransportMessage`·`dispatchKeyEvents`는 embedding adapter입니다. workspace sample의 Keyboard lab → Keyboard dispatch에서 Ctrl+E 전역 capture·Ctrl+K focused 처리·Ctrl+L fallback과 종료/재진입을 확인합니다. 현재 source/type/Web 개발 증거와 이전 Core0.15 설치 native/archive 후보를 구별하며 다음 keyboard 통합에서 함께 공급합니다.
-
-현재 workspace는 `services/raw-key-event`·`raw-keyboard`·`key-message`·`key-event-manager`와 `ui/key-data`를 직접 module로 제공합니다. 플랫폼별 data는 `services/raw-keyboard-android`·`windows`·`web`·`macos`·`ios`·`linux`·`fuchsia` 이름으로 import하며 공통 modifier 타입은 `raw-keyboard-data`, Linux toolkit helper는 `raw-keyboard-linux-key-helper`에 있습니다. 앱 ServicesBinding은 RawKeyboard와 KeyEventManager를 소유하고 실제 `flutter/keyevent` JSON 채널을 처리합니다. Focus/FocusNode의 deprecated `onKey`는 실제 KeyMessage의 raw event를 받습니다. Raw pressed/modifier 동기화·repeat/layout 기록·IME paired skip·KeyData/raw 전환을 구현했습니다. Duration은 monotonic milliseconds, Dart 값 동등성은 `equals`, 앱 소유권은 명시적 lifetime으로 대응합니다. 원본 iOS의 UTF-16 packed key ID를 유지하며 legacy label 투영이 key-up을 막지 않게 했습니다.
-
-Web SDK는 DOM의 실제 key/code/location/modifier/keyCode를 같은 raw processor의 동기 entry로 전달합니다. FrameworkRoot는 앱의 활성 View로 KeyMessage를 전달하며 사용자 handler 교체를 보존하고, focus loss의 raw/modern 정리는 메시지가 끝난 뒤 실행합니다. sample의 Raw down callbacks 표시로 deprecated callback도 확인합니다. ServicesBinding은 optional `flutter/keyboard`의 `getKeyboardState` 뒤 raw 채널과 `PlatformDispatcher.onKeyData`를 등록합니다. 후자는 실제 `flutter/keydata` binary packet을 해독하고 한 byte handled 응답을 반환합니다. 미지원 startup plugin의 null 결과는 상태를 바꾸지 않습니다.
-
-Android workspace의 keyboard host protocol3은 실제 raw codePoint/plainCodePoint·device/scan/source/flags와 별도 raw/modern 문자 조합을 전달합니다. 원본 raw의 scanCode0 physical ID 충돌은 유지하고 modern 경로는 keyCode 기반 opaque ID로 구분합니다. 한 message에서 실제 RawKeyEvent와 정규화 events를 함께 전달하며 Raw 공개 데이터를 바꾸지 않습니다. 현재 개발 APK의 virtual 입력에서 deprecated callback·Ctrl 조합·capture/focus/fallback·Actions를 확인했습니다. 정식 archive 공급 수락과 물리 키보드/dead-key/IME/reader 수락은 별도입니다.
-
-Windows workspace는 실제 RNW key/character 이벤트를 raw·modern dispatch에 함께 전달합니다. 직접 module `services/windows-engine-key-map`은 고정 엔진의296 entries lookup을 제공합니다. scanCode0 host event의 공개 raw ID는 유지하며 modern 경로만 Windows-plane+실제 keyCode의 opaque ID로 구분해 가상 modifier/문자 tap sequence 충돌을 막습니다. 이는 고정 Windows native의 no-scan fallback과 다른 host adaptation이며 USB 위치를 추정하지 않습니다. Windows raw 단계 개발 EXE에서 자동 q/ShiftQ·Ctrl capture/focus/fallback과 기존 editor/Actions/pointer/Tab 흐름을 확인했습니다. native handled/redispatch 정책·cohort 통합·전체 pointer/semantics bindings는 미완료입니다. Apple/Linux data 코드의 공통 Core 실행은 해당 플랫폼 전용 native harness/build/run 수락을 뜻하지 않으며 provider는 notVerified입니다. 새 공개 class와 전체 키보드 이식은 partial입니다.
-
-`KeyboardListener`는 `framework/widgets/keyboard-listener`에서 직접 import하고 `new KeyboardListener(child, {focusNode, onKeyEvent})`로 생성합니다. modern focus 경로의 event를 관찰하며 항상 ignored를 반환합니다. deprecated `RawKeyboardListener`는 `framework/widgets/raw-keyboard-listener`의 `{focusNode, onKey}`를 사용하고 node가 focus를 가진 동안 앱의 raw keyboard를 구독합니다. raw callback은 modern focus 처리 전 실행되므로 early/focused handler가 메시지를 소비해도 호출됩니다. 둘 다 autofocus/includeSemantics와 focusNode 진단 속성을 지원합니다. BuildOwner는 ServicesBinding.rawKeyboard를 빌리거나 standalone instance 하나를 소유해 FrameworkRoot와 공유하며 View 종료가 앱 소유 raw state를 닫지 않습니다. listener/startup 단계의 shared owner/listener 경로는 Core6/72와 Windows11·Android9·Web10 개발 흐름으로 확인했습니다. archive/cohort 공급은 남아 있습니다.
-
-SDK는 Windows·Android에서 ServicesBinding 시작 전에 optional `flutter/keyboard` StandardMethodCodec provider를 등록합니다. 해당 React 컨텍스트의 focused canvas에서 관찰한 실제 key/scan 기록을 반환하며 focus 이관 때 이전 canvas를 비우고 종료 뒤 늦은 결과를 거부합니다. 직접 module `services/android-key-map`·`services/windows-engine-key-map`으로 ID를 변환합니다. 이는 관찰 기록 provider이며 OS 전체의 눌린 키나 엔진의 전체 critical-key 알고리즘을 구현한 것은 아닙니다. 현재 native UI는 빈 조회와 키 해제 뒤 조회를 확인했고 nonempty 기록·owner 이관·한도·늦은 종료는 C++/Kotlin/SDK 제어 검사로 확인했습니다. Web의 선택적 조회는 unavailable입니다. 물리 입력과 전체 플랫폼 키보드 수락은 남아 있습니다.
-
-Core0.15의 `framework/widgets/actions`는 `Action.overridable({defaultAction, context})`와 protected `callingAction`을 제공합니다. 상위 override가 기본 동작을 호출하며 ContextAction의 invocation context도 유지합니다. `PrioritizedIntents({orderedIntents})`·`PrioritizedAction`은 소유 앱의 현재 focus에서 첫 enabled candidate를 고르고 명시적인 focus supplier도 받습니다. 오류 뒤 caller 상태를 복원하고 재귀 override는 모든 mode에서 거부합니다.
-
-`framework/widgets/shortcuts`의 `ShortcutRegistrar(child)`가 registry와 ShortcutManager를 소유합니다. 하위에서 `ShortcutRegistry.of(context).addAll(map)`을 호출하고 반환 entry로 `replaceAll(map)`·`dispose()`합니다. standalone registry에는 `{postFrame: callback => ownerPostFrame(callback)}`을 전달합니다. 통지는 frame 뒤 한 번으로 합치고 map은 복사하며, 중복 등록/교체는 기존 binding을 보존해 거부합니다.
-
-FocusHighlightMode/Strategy는 `framework/widgets/focus`, NavigationMode/MediaQuery는 `framework/widgets/app-data`, FocusableActionDetector는 `framework/widgets/focusable-action-detector`에서 직접 import합니다. 앱별 FocusManager가 표시 listener·highlightStrategy를 소유합니다. detector는 focus/actions/shortcuts를 조합하고 focus/hover 표시를 알리며 directional navigation에서는 disabled focus를 허용합니다. `framework/widgets/mouse-region`·`framework/rendering/mouse-region`·`framework/rendering/mouse-tracker`·`services/mouse-tracking`은 local transform의 enter/exit/hover·정지 포인터 layout 갱신·View 수명을 처리합니다. cursor service/속성·원본 전체 pointer event class·native 물리 device identity는 미완료입니다. Android virtual/soft keyboard는 traditional 표시로 전환하지 않습니다. 선정 API의 원본 이식은 partial이며 개발 Web/계약 확인과 최종 Windows·Android·Web 설치 수락을 구별합니다.
-
-`services/keyboard-key`는 physical/logical key와 값 기반 key 집합을 제공합니다. `services/hardware-keyboard`의 pressed/lock state는 앱 ServicesBinding이 소유하며 Focus callback은 KeyDownEvent/KeyRepeatEvent/KeyUpEvent를 받습니다. focus 경로의 타입 Intent/Action 매핑에는 `framework/widgets/actions`와 `framework/widgets/shortcuts`를 사용합니다. TypeScript에서는 `new CallbackAction(IncrementIntent, intent => increment())`처럼 Intent 생성자 token을 명시합니다. 가까운 Actions가 비활성화되어 있으면 바깥 매핑이 대신 실행되지 않으며 modal Shortcuts는 framework 전파를 중단하면서 native 기본 동작을 유지합니다. `widgets/focus`의 문자열 클래스와 ShortcutsScope는 기존 adapter입니다. 샘플 Keyboard lab에서 중첩 Ctrl+K와 활성화·순회를 확인할 수 있습니다. geometry/order/group 정책, action override, registrar/detector와 전체 플랫폼 키보드 수락은 미완료입니다.
-
-Core0.14는 `framework/widgets/focus-traversal-policy`·`focus-traversal-group`·`focus-traversal-order`를 제공합니다. MaterialApp이 reading-order group과 방향키 순회를 연결합니다. `FocusTraversalGroup(child, {policy: new OrderedTraversalPolicy()})` 안에서 `FocusTraversalOrder(new NumericFocusOrder(value), child)` 또는 LexicalFocusOrder를 사용합니다. 중첩 그룹은 독립적으로 정렬하고 같은 명시 순서는 secondary 정책의 순서를 유지합니다. 방향 이동은 실제 geometry와 역방향 이력을 사용합니다. FocusScopeNode의 Tab·방향 edge 설정을 구분하며 FocusScope에도 edge 옵션을 전달할 수 있습니다. FocusNode의 공개 순회는 살아 있는 Focus widget/group을 요구하고 무그룹 FocusManager.next는 기존 widget-order adapter를 유지합니다.
-
-기본 순회 callback은 현재 RenderObject를 최소한 노출합니다. 원본 Scrollable의 전체 alignment·duration·Curve·중첩 viewport animation은 partial이며 사용자 callback에는 typed 옵션을 전달합니다. direction/edge는 불변 typed string이고 Dart directional mixin은 TypeScript class factory로 대응합니다. 샘플 Traversal lab에서 숫자/문자 그룹·방향키·RTL·순서 변경·비활성화/순회 제외·scope edge를 확인합니다. 전체 keyboard/highlight/actions·native reader·물리 입력 수락은 미완료입니다.
-
-`framework/widgets/selectable-text`의 `SelectableText(text, options)`로 읽기 전용 본문을 선택합니다. 명시적인 선택·본문 교체·복사에는 `framework/painting/text-selection-controller`의 앱 소유 controller를 전달하고, 한 controller는 하나의 mounted 본문에만 연결하며 unmount 뒤 dispose합니다. 생략하면 widget이 controller를 소유합니다. mouse/pen·가로 touch drag는 scroll gesture arena에 참여하고 세로 touch 이동은 scroll에 양보합니다. 본문 focus 뒤 Ctrl/Meta+A/C는 앱별 binary messenger를 사용하며 clipboard 오류는 onCopyError로 받습니다. long-press handle/toolbar·여러 위젯 SelectionArea·WidgetSpan 선택·완전한 caret 이동·전체 native 접근성은 미완료입니다.
-
-`SelectableText.rich(TextSpan(...), options)`는 스타일 run을 유지하며 원래 논리 본문을 선택·복사합니다. 하위 span은 TextSpan이어야 하며 WidgetSpan 선택은 selection region의 역할입니다. Shift는 선택을 확장하고 Ctrl+좌우는 엔진 word 경계, Home/End는 현재 줄, Ctrl+Home/End는 문서, 위아래는 수평 위치를 유지해 이동합니다. 좌우 문자 이동은 문단의 논리 방향을 따르며 혼합 bidi의 완전한 시각적 caret 이동은 남습니다. 사용자 text backend의 glyph/word query는 선택적이며 미지원 키 동작은 명시적으로 거절합니다. TextPainter의 getOffsetAfter/getOffsetBefore는 pin의 UTF-16 scalar 동작을 유지하고 엔진 grapheme 이동과 구분합니다. FontWeight는 타입 값이며 TextStyle이 그 값을 snapshot합니다.
-
-`framework/painting/text-scaler`는 linear/사용자 정의 font-size별 scale과 source clamp 합성을 제공합니다. Text·SelectableText에는 textScale 대신 textScaler를 전달할 수 있고 명시적인 scaler가 inherited 배율보다 우선합니다. 유효 font-size1..512 budget은 유지합니다. TextPainter의 현재 metrics·shaped hit·선택 boxes를 제공하며 측정 probe는 그리는 paragraph를 교체하지 않고 GPU frame lease는 painter dispose 뒤까지 자원을 유지합니다.
-
-`framework/painting/text-span`·`text-style`과 `framework/widgets/rich-text`로 하나의 styled paragraph를 구성합니다. `framework/widgets/widget-span`은 실제 widget의 baseline/top/bottom/middle 배치, 확대된 paint/hit/semantics 좌표와 ellipsis로 가려진 자식의 제외를 연결합니다. `Text.rich(span, options)`는 DefaultTextStyle·앱 배율을 상속하는 Widget을 반환하며, 직접 RichText는 명시한 span/options·기본 font-size14·배율1을 사용합니다. `framework/widgets/default-text-style`·`framework/painting/strut-style`은 inherited style·strut/height를 제공합니다. TextStyle은 색/배경·family·weight/slant·spacing·decoration·shadow·locale·feature/variation을 전달합니다. TextSpan semanticsLabel은 semantics/plain text에 반영하고 layout offset은 원래 UTF-16 본문과 object replacement character를 사용합니다.
-
-앱에 선언한 font asset으로 paragraph provider와 fallback family 순서를 구성합니다. live paragraph가 provider를 공유하며 마지막 paragraph/frame 참조 뒤 provider와 font lease를 해제하고 idle producer는 남기지 않습니다. 기존 asset budget과 별도로 provider backing-source128MiB 상한을 적용하며 전체 native font/atlas 메모리 측정값은 아닙니다. sample에는 pin bytes/license를 보존한 한국어·히브리어·아랍어·emoji·variable font를 선언했고 선정 Web 본문의 missing glyph는0입니다. 임의 script·system fallback·전체 rich selection/접근성·설치형 native typography 수락은 남습니다. FontWeight는 암묵적인 wght 좌표를 제공하고 명시적인 FontVariation.weight가 우선합니다. RN text에는 native ParagraphBuilder.nelyxTextStyleVersion()1·nelyxTextBoundaryVersion()1과 맞는 새 supplier가 필요하며 이전 binding은 provider 입장 전에 거부합니다. clone Typeface의 원래 출처를 입증할 수 없으면 fontSource는 `unknown`으로 보고합니다.
-
-Core는 Widget·Element·RenderBox, host scheduler, layout·text·gesture·animation, 고정 extent lazy list, 여러 editor, navigation과 선정 Material/Cupertino 조합을 제공합니다. GlobalKey의 같은 View/프레임 내 State·render 이동과 inherited notifier/model/theme를 추가했으며 sample의 두 번째 editor를 부모 간 이동할 수 있습니다. [Widget API 예제와 제약](README.md#widget-applications), [W5 실행 범위](../history/26/10/10/work5-summary.md), [W6 구현 이력](../history/26/10/11/work6-summary.md)를 참고하세요. 전체 Flutter 위젯 호환성과 플랫폼 qualification을 뜻하지 않습니다.
-
-ParentDataWidget은 component·inherited 조상을 거쳐 실제 render parent의 data를 갱신합니다. Flexible/Expanded·Positioned/PositionedDirectional, Builder와 leaf/single/multi-child Element·IndexedSlot을 연결했습니다. 일반 RenderObject와 특수한 non-box child를 받는 RenderBox의 경계를 제공합니다. 직접 child 변경은 immutable `children` 대신 insert/move/remove/setChildren을 사용하고 dispose 전에 parent/pipeline에서 분리합니다. 자세한 생성자·generic token·이식 차이는 위 영어 API 가이드를 참고하세요.
-
-parent·owner·needsLayout·PipelineOwner.root는 읽기 전용입니다. rootNode setter/setRoot와 markNeedsLayout을 사용합니다. 더 깊은 부모로 이동하면 descendant depth를 올리고 얕은 이동에서 낮추지 않습니다. 자식 변경의 재진입·측정·active layout을 진단하며, 새 자식 연결 실패는 이전 목록/소유권을 보존합니다. 제거 실패는 요청 목록을 반영한 뒤 모든 정리를 계속하며 원인을 함께 보고합니다. subclass adopt/drop/attach/detach hook은 super를 호출하고 외부 side effect를 직접 관리합니다. pipeline dispose는 terminal/idempotent이며 Element가 소유한 자식 자체를 dispose하지 않습니다.
-
-BoxConstraints의 normalize/expand·수치 연산과 RenderBox dry/intrinsic/baseline·relayout boundary, Flex RTL/main/cross/baseline·unbounded loose flex, 공통 intrinsic/aspect/baseline 배치 위젯을 추가했습니다. Flex 기본값은 W5의 min/start에서 max/center로 바뀌며 기존 mainSize/crossAlign 옵션도 유지합니다. parent가 child.size를 읽으면 layout에 parentUsesSize:true를 전달하고, 최초 layout 전에는 hasSize를 검사합니다. Text는 intrinsic 폭을 사용해 일반 Row의 unflexed child로 배치할 수 있고 dry 측정은 그리는 paragraph를 교체하지 않습니다. 전체 Sliver·compositing·rich text·나머지 layout family는 진행 중입니다.
-
-논리 content 폭과 backend paragraph layout 폭을 구분합니다. 소수 intrinsic 경계에서는 새 paragraph의 layout 폭을 다음 정수 단위로 올려 의도하지 않은 줄바꿈을 막고, box에는 부모 제약을 적용합니다. start alignment와 RTL paint offset으로 논리 content에 맞춰 그립니다. 현재 한국어/영문 font 사례의 확인이며 전체 typography 수락은 남아 있습니다.
-
-Wrap/ListBody는 각각 framework/widgets와 framework/rendering 아래의 wrap·list-body 직접 module로 제공합니다. Wrap은 horizontal/vertical run·별도 child/run spacing·6가지 분배·RTL/up·intrinsic·actual/dry baseline을 지원합니다. ListBody는 finite cross axis로 stretch하며 main axis에는 unbounded 제약이 필요합니다. sample/template의 action button은 좁은 폭에서 다음 run으로 이동하고 group/title은 ListBody로 배치합니다. 실행한 pinned Dart fixture에서 확인한 dry baseline/줄 경계·누락 spacing·ListBody intrinsic 축 불일치를 보정했습니다. Wrap clip은 실제 기존 backend의 none/antiAlias만 제공하며 hardEdge·antiAliasWithSaveLayer·retained layer·전체 diagnostics는 W6 paint/layer 작업으로 남아 있습니다.
-
-framework/rendering/custom-layout·framework/widgets/custom-layout에 SingleChildLayoutDelegate·MultiChildLayoutDelegate와 해당 render box·CustomSingleChildLayout·CustomMultiChildLayout·LayoutId를 제공합니다. getSize는 dry/intrinsic에서도 호출되므로 constraints와 delegate 설정만으로 결정하고 wet child geometry를 읽으면 안 됩니다. 기본 constraints.biggest를 쓸 때는 bounded 제약이 필요하며 직접 finite size를 반환해도 됩니다. intrinsic의 무한 dimension은 원본처럼 0이 됩니다. single은 child constraints·position과 dry baseline을 제공하고 multi의 child baseline은 원본처럼 null입니다.
-
-MultiChildLayoutDelegate.performLayout은 각 고유 LayoutId에 layoutChild를 정확히 한 번 호출하고 positionChild로 위치를 지정합니다. helper는 활성 layout 밖이나 getSize에서 사용할 수 없고 같은 delegate를 중첩 사용해도 성공/실패 후 바깥 scope를 복원합니다. ID는 null/undefined/NaN을 허용하지 않으며 primitive는 ===, 일반 object는 reference identity, Nelyx Key는 명시 equal/hash 정책을 사용합니다. LayoutId 기본 widget key도 같은 정책입니다. delegate 교체는 typeToken(기본 constructor)을 비교하고 같은 token이면 shouldRelayout을 호출합니다.
-
-relayout Listenable은 widget rebuild 없이 layout을 갱신하며 sample/template progress bar가 이를 사용합니다. 두 editor slot은 LayoutId로 배치합니다. 각 attached render object/View가 별도 구독을 소유해 한 View를 닫아도 다른 View 구독은 유지됩니다. listener 등록 실패는 이전 delegate를 유지하고 이전 listener 제거 실패는 새 binding을 commit하면서 오래된 callback을 비활성화합니다. 원래 cleanup 오류는 보고하며 외부 Listenable의 임의 side effect를 되돌리지는 못합니다. 전체 diagnostics·paint/compositing·invokeLayoutCallback·나머지 layout family는 W6 작업으로 남아 있습니다.
-
-`mediaFromView`와 `safeArea`는 관측 출처가 있는 inset·text scale을 연결합니다. Android는 실제 조합 상태·native revision을 전달하고 Core의 확정 paragraph/caret/selection 좌표를 OS에 공급하며, WindowInsets는 API 30 이상에서 관측합니다. Web visual viewport 값은 IME 여부를 단정하지 않는 occlusion입니다. 미관측 capability는 `unavailable`을 유지합니다. 긴 목록은 LazyList, 유한한 page 내용은 bounded SingleChildScrollView로 구성합니다.
-
-framework/rendering/table·framework/widgets/table에 실제 Table layout을 제공하며 core 직접 subpath는 94개입니다. Fixed/Fraction/Flex/Intrinsic/Min/MaxColumnWidth가 intrinsic·flex 확장·최소값을 지키는 축소를 수행합니다. row는 top/middle/bottom/baseline/fill/intrinsicHeight·RTL·raw null hole·dry geometry·getRowBox를 지원합니다. 최소 column 폭은 constrained table 밖으로 overflow할 수 있고 fill-only row의 content 높이는 0입니다. parent 최소 높이가 row를 자동 stretch하지 않으며 intrinsic 측정은 비용이 클 수 있습니다.
-
-Table은 TableRow 배열과 options를 받고 명시 textDirection 또는 ambient Directionality가 필요합니다. row LocalKey와 unkeyed row 순서를 기준으로 cell State를 보존하며 cell key는 표 전체에서 고유해야 합니다. TableCell은 실제 ParentData를 적용합니다. raw RenderTable은 setFlatChildren/setChild/addRow/setCellRows로 갱신합니다. setCellRows는 Dart setChildren(rows)의 대응이며 기존 base setChildren은 flat render tree 수명 계약을 유지합니다. base 제거는 빈 slot을 보존하고 실제 grid 갱신으로 삽입/재배치를 확정합니다. adoption 실패는 이전 grid를 유지하고 outgoing cleanup 실패는 새 grid를 commit하며 원래 오류를 보고합니다. 제거된 box의 최종 dispose는 외부 소유자 책임입니다.
-
-실행한 pin에서 baseline 없는 cell이 문서와 달리 아래로 이동하고 dry baseline이 wet과 다른 baseline 종류를 사용하는 문제를 확인해 top 정렬·configured textBaseline 일치로 보정했습니다. child dry metric이 있으면 baseline dry geometry도 제공합니다. TableBorder·row Decoration/ImageConfiguration·표/행/cell 전용 semantics·전체 diagnostics는 미완료입니다. TableCell은 현재 ParentData를 제공하며 미구현 semantics role을 완료로 주장하지 않습니다. sample/template detail 화면은 실제 2열 Table을 사용합니다.
-
-
-ui/paint·ui/canvas·ui/frame-wire는 mutable scalar Paint, 기록 즉시 불변 값 복사, rect/oval/line·개별 타원 corner RRect와 clip, 실제 saveLayer group alpha를 제공합니다. stroke width/cap/join/miter·anti-alias·29 blend mode를 Web/JSI/공유 native core로 재생합니다. 색은 현재 sRGB ARGB8 정수이며 미지원 shader/filter 필드는 거부합니다. 전체 Color/wide gamut·전체 Path queries·PictureRecorder·retained compositing은 미완료입니다. miter limit은 pin Dart getter의 raw encoded 값 대신 engine이 사용하는 유효값(기본 4)을 제공합니다.
-
-framework/widgets/opacity·framework/rendering/opacity의 중간 opacity는 saveLayer로 그룹 합성합니다. alpha 0은 paint와 semantics를 생략하고 alwaysIncludeSemantics로 semantics를 유지할 수 있으며 hit test는 유지합니다. PaintingContext는 child paint 실패에도 scope를 복구합니다. native editor overlay의 중간 group alpha/clip/transform 연동은 아직 미완료입니다.
-
-frame은 확장 wire record 4096개·추정 value bytes 512 KiB·중첩 layer 32개를 제한합니다. wire 7은 gradient stop·matrix·재귀 filter의 effect block과 crop 이미지·nine-patch 연산을 포함합니다. native decoder가 effect 구조·수치·native 생성을 화면 변경 전에 확인하며 ABI 1과 wire 1~6 입력을 유지합니다. provider wire ABI 7에는 현재 package와 재빌드한 native supplier를 맞춰야 합니다. 이 제한과 scoped pixel 검증은 전체 Canvas/compositing·플랫폼 수락을 의미하지 않습니다.
-
-image provider에는 built-in SDK backend가 공급하는 앱별 ImageService가 필요합니다. 각 owner의 ImageCache는 pending/live/LRU를 관리하며 기본 1000개 / 100 MiB입니다. cache eviction과 listener dispose가 Image handle을 해제합니다. codec에는 encoded16 MiB·한 변8192·16M pixels·동시/pending decoder32개·read8개·codec/frame 추정256 MiB 제한이 있습니다. 이 추정에는 이전 eager startup asset pool이 포함되지 않으며 실제 native 메모리 측정값이 아닙니다. PNG·RGBA·Float32 readback을 제공하고 rawUnmodified·wide gamut은 남아 있습니다. retained compositing과 설치된 RN 수락은 미완료입니다.
-
-`ui/shader`의 Gradient/ImageShader, `ui/color-filter`의 ColorFilter, `ui/image-filter`의 ImageFilter, `ui/mask-filter`의 MaskFilter를 직접 import합니다. Paint는 gradient·local matrix·image tile/sampling·color matrix/gamma/saturation·blur/morphology/matrix/compose·invertColors/dither를 frame 값으로 캡처합니다. ColorFilter.matrix는 원본처럼 입력 list를 유지하고 기록 시 독립된 snapshot을 만듭니다. image shader의 ResourceId는 frame lease에 포함돼 제출 후 producer 해제에도 GPU retirement까지 유지합니다. ui.Image와 ImageShader는 독립 handle을 소유합니다. clone·shader·기록·재사용 repaint cache·제출 frame·진행 중 readback이 참조를 보존하며 마지막 GPU lease가 끝나야 native image가 해제됩니다. 서로 다른 앱 registry의 같은 resource ID는 혼용할 수 없습니다.
-
-`DecoratedBox(child, {decoration, position})`에는 `framework/painting/box-decoration`의 BoxDecoration을 전달합니다. color 또는 `framework/painting/gradient`의 LinearGradient/RadialGradient/SweepGradient, `box-border`의 Border/BorderDirectional, `borders`의 BorderSide, `box-shadow`의 BoxShadow와 BorderRadiusGeometry를 조합할 수 있습니다. gradient와 방향성 테두리·반경은 상위 Directionality를 해석합니다. painter는 그림자·배경·테두리 순서로 그리고 foreground 배치도 지원하며 교체·detach 때 캐시한 shader를 해제합니다. 기존 숫자 color/radius 생성자도 유지합니다. 예제 카드에서 LTR/RTL을 전환할 수 있습니다. `framework/painting/decoration-image`의 DecorationImage에 `image-provider`의 AssetImage·MemoryImage·NetworkImage·ResizeImage를 전달할 수 있습니다. fit·alignment·repeat·좌우 반전·centerSlice nine-patch·placeholder·이미지 간 혼합을 지원하며, 앱의 ImageService가 ImageConfiguration에 연결됩니다. 일반 ShapeBorder hit test에는 Path.contains 구현이 더 필요합니다. 여러 색 또는 비균일 hairline 테두리는 사각형·반경0·안쪽 stroke 정렬을 요구합니다.
-
-일반 blur는 지원하며 normalized bounded blur는 화면 변경 전 미지원 오류로 거절합니다. null blur tile mode는 Paint에서 Decal, compose 자식에서 Clamp로 원본 engine의 동적 선택을 따릅니다. ImageFilter.shader는 pin의 Impeller 요구에 따라 Skia에서 미지원입니다. source shader dispose 뒤 새 기록을 거절하며 JSI shader 유효성/cubic image-filter binding은 native supplier 재빌드가 필요합니다. W7의 Web/native C ABI 픽셀 확인과 실제 RN host·물리 화면 수락은 구분합니다. 선정한 low-filter crop 경계는 현재 CanvasKit과 native build에서 일치하며, 다양한 필터·crop 경계와 원본 raster 전체 동등성은 미검증입니다.
-
-`framework/widgets/image`의 Image를 사용합니다: `Image.asset('photo', {width: 96, height: 96, fit: 'cover', semanticLabel: 'Photo'})`. Image.network·Image.memory는 frame/loading/error builder·cache 크기·gapless 교체를 지원합니다. network 진행률을 loadingBuilder에 전달하고 캐시 키에 헤더 내용을 포함합니다. HTTP 오류 타입은 `framework/painting/network-image-load-exception`의 NetworkImageLoadException입니다. `widgets/raw-image`의 RawImage는 입력 Image를 빌리고 `rendering/image`의 RenderImage에 소유된 clone을 넘깁니다. opacity는 attach 중에만 구독하며 TickerMode·disableAnimations·View visibility가 첫 프레임 이후 애니메이션을 일시정지합니다. precacheImage와 교체된 ImageInfo는 post-frame 또는 owner 종료에서 정리합니다. FileImage/Image.file에는 별도의 native file IO port가 필요하며, HTML/platform-view 이미지·전체 binding observer/reassemble·native accessibility 전파는 미완료입니다. widgets/basic의 숫자 resource Image는 기존 API로 유지합니다.
-
-`ui/picture-recorder`의 PictureRecorder와 `new Canvas(recorder)`로 그린 뒤 `recorder.endRecording()`으로 재사용할 Picture를 만듭니다. 기록 종료는 Canvas를 닫습니다. Canvas.drawPicture는 명령과 이미지 참조를 독립적으로 캡처하므로 원본 Picture는 필요가 끝나면 dispose합니다. `framework/rendering/layer`는 LayerHandle·ContainerLayer·PictureLayer와 offset/transform/clip/opacity/filter layer를 제공합니다. 마지막 LayerHandle을 해제하면 layer의 Picture와 자식 참조를 정리합니다. ContainerLayer.buildScene()이 반환한 Scene과 SceneBuilder가 반환한 engine layer handle도 사용 후 dispose합니다. PaintingContext.addLayer는 현재 transform·clip 범위에서 이 CPU Scene을 실제 frame 명령으로 소비합니다.
-
-`framework/widgets/color-filtered`의 `ColorFiltered(child, {colorFilter})`와 `framework/widgets/image-filtered`의 `ImageFiltered(child, {imageFilter, enabled})`는 자식 전체에 효과를 적용합니다. RepaintBoundary는 부모의 opacity·배치가 바뀌어도 기록된 자식을 재사용하며 sample의 Flow가 자식에 이 boundary를 적용합니다. FrameworkRoot는 repaint boundary 안의 자식 layer도 유지한 공유 layer 트리를 합성합니다. SDK의 앱별 Picture owner가 immutable Picture 잎을 native frame 자원으로 재사용하고, 부모 transform·clip·follower는 실제 layer 트리에서 계산합니다. 전체 native layer tree·raster cache는 미완료입니다.
-
-`framework/rendering/layer`의 LayerLink 하나를 `framework/widgets/composited-transform`의 `CompositedTransformTarget(child, {link})`와 `CompositedTransformFollower(child, {link, targetAnchor, followerAnchor, offset, showWhenUnlinked})`에 전달합니다. target은 같은 layer 트리에서 follower보다 먼저 그려야 합니다. anchor는 물리 Alignment 값이고 offset은 target 좌표계의 논리 좌표입니다. 이동한 영역의 hit test를 위해 follower 부모가 해당 영역을 포함해야 하므로 전체 화면 overlay나 Positioned.fill을 사용할 수 있습니다. showWhenUnlinked:false는 paint·hit test·semantics를 함께 숨깁니다. RenderFollowerLayer.offset은 target 기준 변위이며 부모 layout은 RenderBox.layoutOffset을 사용합니다. 다른 RenderBox.offset은 기존 layout alias를 유지합니다.
-
-`framework/widgets/annotated-region`의 `AnnotatedRegion(child, {value, annotationType, sized})`는 합성 layer 트리에 값을 넣습니다. `framework/rendering/layer`의 `AnnotationType<T>` 하나를 만들어 같은 타입의 삽입·검색에 재사용합니다. TypeScript 구조가 같아도 서로 다른 token은 다른 annotation 타입입니다. `FrameworkRoot.findAnnotation(type, 논리좌표)`는 가장 앞의 값을, findAllAnnotations는 지역 좌표를 포함한 결과를 반환합니다. sized는 자신의 annotation 범위만 제한하며 자식 검색·paint는 계속합니다. `sized: false`는 이 제한을 없앱니다. ClipPath 검색은 앱의 Skia path 서비스를 사용하며 `Path.contains(position, context.paths)`에도 전달할 수 있습니다. 사용자 host는 이 서비스를 명시적으로 공급합니다. Follower annotation은 pin 원본의 inverse XY·linkedOffset 차감을 유지하므로 nonzero linked offset에서는 render hit-test 좌표와 다릅니다. SystemChrome overlay 적용은 아직 미완료입니다.
-
-Picture와 Scene은 SDK startup/View context의 앱별 rasterizer로 `toImage(width, height, context.rasterizer)`·`toImageSync(width, height, context.rasterizer)`를 제공합니다. GPU backend가 실제 SkPicture를 기록·재사용하고, RawImage·drawImage·shader·byte readback에서 사용할 수 있는 CPU 복구 가능한 sRGB RGBA8 Image를 반환합니다. 반환한 Image마다 dispose하세요. 비동기 캡처는 원본 Picture/Scene을 먼저 dispose해도 대기 중 기록과 입력 리소스를 유지합니다. 현재 sync adapter는 GPU readback까지 기다립니다. Flutter의 deferred sync image·TargetPixelFormat은 아직 남습니다. 이 rasterization cache는 아래의 native frame Picture cache와 별개이며 raster cache는 미완료입니다.
-SDK startup/View context의 `pictures`는 앱별 `hosting/pictures` FramePictureService입니다. FrameworkRoot가 자동 사용하며, 직접 기록할 때는 `new Canvas(null, null, context.pictures)` 또는 `new SceneBuilder(context.pictures)`를 사용합니다. backend는 실제 native SkPicture를 기록하고 매 frame의 잎 명령 복사 대신 자원 참조를 재생합니다. cache64개, native Picture와 CPU 복구 기록 합계32MiB, 기록 중인 bounded frame1개·admitted frame2개·LRU를 위한 live12,352개로 제한합니다. Picture API dispose나 퇴출은 producer만 놓으며 GPU frame lease가 Picture와 입력 image/font를 계속 유지합니다. 앱 종료는 새 기록을 막고 cache producer를 놓은 뒤 renderer를 drain하여 원본 자원을 종료합니다. context 복원은 CPU 기록에서 재컴파일하고 다른 앱으로 옮긴 layer는 해당 owner의 snapshot으로 다시 만듭니다. 기본 Canvas/SceneBuilder는 CPU 명령 캡처를 유지합니다. 전체 native layer tree와 raster cache는 남습니다.
-
-frame/provider wire8은 generation을 검증하는 Picture opcode35를 추가합니다. native ABI1과 이전 wire1..7 replay를 유지합니다. RN renderer는 실제 native wire version을 확인하므로 native supplier를 재빌드하고 core/SDK/renderer archives를 함께 설치해야 합니다. 현재 Windows source-built supplier와 workspace Web/Windows C ABI 검증은 설치형 RN host·Android 실행·driver-loss 복구·물리 scanout 수락이 아닙니다.
-
-
-`OffsetLayer.toImage(bounds, {pixelRatio, rasterizer})`는 논리 bounds를 crop하고 자신의 offset을 상쇄하며 출력 크기를 올림합니다. `framework/rendering/repaint-boundary`의 RenderRepaintBoundary는 현재 내용의 paint 완료 후 `toImage({pixelRatio, rasterizer})`를 제공합니다. dirty boundary는 다시 paint한 뒤 캡처해야 합니다. 캡처에도 image dimension/pixel budget이 적용됩니다. 현재 Web/native engine의 fractional nearest sampling은 픽셀 경계에서 차이가 있어 전체 raster parity는 검증 완료가 아닙니다.
-
-framework/widgets/custom-paint는 framework/rendering/custom-paint의 CustomPainter를 실제 배경→child→전경 Canvas 그리기에 연결합니다. repaint로 build/layout 없이 animation repaint를 요청하며 delegate 교체 시 type identity·shouldRepaint·shouldRebuildSemantics를 구분합니다. painter의 save/restore 불균형이나 실패는 해당 새 명령 범위를 되돌립니다. 동기 paint callback의 build/layout/tree 변경과 setState는 사용자 상태 callback 실행 전에 차단합니다.
-
-CustomPainterSemantics는 현재 지원 semantics 속성·full matrix projected rect·group boundary·keyed node id를 연결합니다. layout/명시 semantics invalidate는 description을 재생성하고 pure repaint 통지는 semantics cache를 유지합니다. 전체 SemanticsProperties/tags·projective clip/shape/reader fidelity·native reader 수락은 미완료입니다. isComplex/willChange raster cache hint는 아직 구현하지 않았으며 전달한 미지원 옵션은 거부합니다. sample/template 표식은 실제 animation 구독 CustomPainter를 사용합니다.
-
-Canvas.transform은 16개 column-major 값/Float64Array를 받아 z 이동·perspective까지 full 4×4 합성을 유지하며 기존 6개 affine 입력도 지원합니다. translate/scale/rotate/skew·getTransform/getSaveCount/restoreToCount는 실제 bounded 명령 stream을 사용합니다. transform snapshot은 backend float32 합성을 반영하며 작은 산술 반올림 차이가 있을 수 있고 query는 명령을 순회합니다. ui/matrix4는 불변 storage/capture/affine 변환/합성 helper이며 mutable vector_math API는 아래의 별도 math 모듈에서 제공합니다.
-
-native JSI는 전용 nelyxConcat44/SkM44 binding을 사용하고 이전 binding은 matrix를 축소하지 않고 오류를 냅니다. Web은 column-major 값을 CanvasKit row-major M44 입력으로 변환합니다. matrix record를 budget에 포함하며 잘못된 sequence는 native paint 전에 거부합니다. framework paint·hit 좌표·render 좌표 변환·semantics bounds는 full matrix를 지원합니다. Transform은 layout 크기를 유지하며 origin·full AlignmentGeometry·transformHitTests·입력 복사를 지원합니다. directional transform은 inherited/explicit textDirection을 해석하고 원본의 origin/alignment 합성 순서를 유지합니다. RenderObject.getTransformTo와 RenderBox.localToGlobal/globalToLocal은 full 합성·screen-ray unprojection을 사용합니다. hit test는 Flutter처럼 각 render child의 paint-plane inversion을 사용하며 일반 3D ray hit test와 별도입니다. projective horizon은 axis-aligned semantics에서 생략합니다. Transform filterQuality·Flow retained layer는 미완료입니다.
-
-Transform factory는 `Transform.rotate(child, angle, options)`·`Transform.translate(child, offset, options)`·`Transform.scale(child, {scale, ...options})`·`Transform.flip(child, {flipX, flipY, ...options})`를 사용하며 child를 undefined로 둘 수 있습니다. rotate는 원본의 exact-angle 보정을 유지합니다. rotate/scale의 기본 alignment와 flip의 고정 alignment는 Alignment.center이고 translate에는 origin/alignment가 없습니다. scale은 uniform scale 또는 한쪽/양쪽 axis scale을 요구하며 생략한 축은 1입니다. 원본 debug 인자 제약은 all-build 적용하고 nonfinite translation/scale은 finite matrix 캡처 시 거부합니다. 기존 paint·pointer·semantics 경로를 공유하며 layout 크기를 바꾸지 않습니다. bitmap filterQuality는 거부하므로 constructor coverage는 partial을 유지합니다.
-
-`framework/painting/alignment`은 immutable AlignmentGeometry·Alignment·AlignmentDirectional을 제공합니다. 물리/논리/혼합 산술·named operator/factory·보간·Offset/Rect query·LTR/RTL resolve를 포함하며 Mixed 값은 module private입니다. equality는 물리/논리/혼합 종류를 넘어 성분을 비교하고 NaN 자기 비교는 false입니다. typed lerp는 ui.lerpDouble의 equal/both-NaN 단축 처리를, geometry null endpoint는 직접 scaling을 유지합니다. 서로 다른 nonfinite 보간에는 원본 debug 계약을 all-build 적용합니다. local hash는 equal/hash·signed zero를 지키며 Dart VM hash 정수를 재현하지 않습니다. Align·Stack은 전체 geometry와 기존 numeric/structural 입력을 받고 Directionality 부재 시 기존 ltr fallback을 유지합니다. Transform의 directional geometry에는 방향이 필요합니다. inherited 변경은 같은 자식을 유지하며 Transform은 child layout을 요청하지 않고 paint/hit/semantics를 갱신합니다. 플랫폼 입력/reader 수락은 별도입니다.
-
-Alignment·Radius·Rect·RRect·physical/directional BorderRadius 값은 private slot 기반 readonly getter로 파생 getter dispatch를 보존합니다. own static constant getter는 RN Babel의 loose field 변환 뒤에도 identity를 유지하며 BorderRadius.zero·BorderRadiusDirectional.zero에도 적용합니다. geometry equality는 원본 identity/type 정책과 성분 순서의 조기 종료를 유지합니다. RRect 보간은 원본 concrete receiver debug assertion을 all-build 적용하며 concrete left receiver의 derived right endpoint는 허용합니다. 이 선정 API 밖의 기존 geometry partial 제한은 유지합니다.
-
-`framework/rendering/shifted-box`는 abstract RenderShiftedBox·RenderAligningShiftedBox를 제공합니다. single-child 소유권·offset paint/hit·intrinsic/baseline 전달·protected resolvedAlignment/alignChild·지연 방향 cache를 포함합니다. RenderPositionedBox는 기존 numeric 생성자와 geometry/direction/child/factor options를 받고 RenderStack은 geometry/direction/children options를 받습니다. 직접 RenderStack의 기본 AlignmentDirectional.topStart는 empty stack을 포함해 layout 시 textDirection이 필요합니다. x/y·alignmentX/alignmentY setter는 명시적 physical alignment로 바꾸며 getter의 ltr fallback은 유지합니다. Align·Stack widget은 render 객체에 전체 geometry와 inherited 방향을 보존하고 기존 ltr fallback을 유지합니다. 방향/alignment 변경은 layout·측정 cache를 무효화하며 자식 constraint가 같으면 자식 layout을 재사용합니다. RenderStack은 검증한 backing field를 직접 초기화해 field 초기화 중 override setter/layout hook을 호출하지 않습니다. 전체 render diagnostics·overflow family·플랫폼 수락은 계속 남습니다.
-
-`framework/painting/edge-insets`는 readonly getter 기반 EdgeInsetsGeometry·EdgeInsets·EdgeInsetsDirectional을 제공합니다. 물리/방향/혼합 산술·clamp·보간·Size/Rect/RRect 연산·개별 corner 축 조정·LTR/RTL resolve·named factory/operator를 포함하며 MixedEdgeInsets는 module private입니다. only factory field는 nonnullable이고 copyWith의 null은 기존 값을 보존합니다. typed lerp의 equal/both-NaN shortcut과 all-build finite debug 계약, null endpoint의 직접 scaling을 유지합니다. CPU nonfinite/signed-zero와 equality를 지키는 local hash를 사용합니다. ViewPadding은 readonly 구조 값으로 받고 fromWindowPadding은 deprecated alias입니다. RenderPadding은 RenderShiftedBox를 상속하고 geometry/direction 해석 cache·intrinsic/dry/wet/baseline 동작을 유지합니다. Padding은 geometry 또는 캡처한 physical DTO를 받고 inherited 방향을 사용하며 directional padding에는 Directionality가 필요합니다. nonnegative 검사는 child adoption 전에 수행하고 resolved padding은 추가로 finite여야 합니다. native system inset·reader/input/IME와 broader render 수락은 별도입니다.
-
-`framework/rendering/overflow-box`는 RenderConstrainedOverflowBox·RenderSizedOverflowBox·RenderFractionallySizedOverflowBox·RenderConstraintsTransformBox를 제공합니다. direct `framework/widgets/overflow-box`는 OverflowBox·SizedOverflowBox·FractionallySizedBox·ConstraintsTransformBox·UnconstrainedBox를 제공합니다. OverflowBoxFit은 `'max' | 'deferToChild'`이며 max는 parent 크기를 사용합니다. deferToChild는 dry에서 incoming constraint, wet에서 override한 child constraint를 쓰는 원본의 차이를 유지합니다. SizedOverflowBox는 requested Size를 보존하고 child에 incoming constraint를 전달하며 physical alignment여도 inherited Directionality가 필요합니다. fractional factor는 child 축을 tight하게 만들며 absent child·zero factor·invalid/nonfinite constraint는 검토한 원본 산술과 host admission 검사를 따릅니다.
-
-ConstraintsTransformBox는 7개 static constraint transform과 실제 BoxConstraints를 반환하는 callback을 제공합니다. callback 교체 후 현재 변환 constraint가 같으면 wet layout을 생략하되 dry/intrinsic cache와 측정 의존 객체는 갱신합니다. UnconstrainedBox는 유지할 축에 따라 이를 조합합니다. Clip 4종은 실제 immediate clip/saveLayer command를 기록하며 hit는 parent 경계로 제한하고 host semantics에 clip을 적용합니다. 원본 yellow/black debug overflow 표시·진단 label·retained ClipRectLayer 및 lifecycle은 미완료이며 nonempty debugTransformType은 거부합니다. CPU/frame-command 검증과 native rendering·물리 입력·IME·reader·배포 수락은 별도입니다.
-
-기존 boxes/basic의 LimitedBox·AspectRatio·IntrinsicWidth/Height·Baseline·IgnoreBaseline과 legacy 생성자를 유지합니다. render 생성자는 options도 받고 widget AspectRatio·Baseline은 기존 numeric 호출과 options를 함께 지원합니다. LimitedBox는 unbounded 축만 제한하고 dry baseline에는 incoming constraint를 전달합니다. AspectRatio는 childless여도 자신의 크기를 계산하며 원본 constraint 적용 순서를 따릅니다. render intrinsic getter는 nullable로 보정했고 undefined 입력은 null로 받습니다. widget의 zero/-zero step은 null로 바꾸며 positive Infinity step은 원본 산술과 기존 host finite/applied-constraint 검사를 따릅니다. widget readonly field는 options를 한 번 캡처하고 기존 options holder는 frozen snapshot으로 보존합니다. Baseline은 RenderShiftedBox를 상속해 음수 child offset·bottom layout fallback·서로 다른 baseline 산술을 유지합니다. sizing update는 무조건 relayout하지 않습니다. render diagnostics는 미완료입니다. 원본 dry baseline이 infinite minimum constraint/Infinity 결과를 받는 경우와 기존 host의 거부 규칙 차이는 exact 비교와 별도로 기록합니다.
-
-intrinsic step 반올림은 모든 host에서 pin한 Dart VM의 signed 64-bit ceil 포화 후 double 변환을 사용합니다. JavaScript Math.ceil의 negative zero 대신 integer zero를 유지하며 nonfinite quotient는 거부합니다. Dart의 JavaScript 변환 결과에 따른 별도 integer 동작은 numeric 정책으로 약속하지 않습니다.
-
-`framework/painting/box-fit`는 BoxFit 7종 string literal·applyBoxFit·immutable getter FittedSizes를 제공합니다. 실제 Size는 identity와 virtual getter 읽기 순서를 보존하고 structural DTO는 한 번 캡처합니다. CPU fitting은 원본 NaN/Infinity/negative/signed-zero geometry를 허용하며 render admission에서 finite를 검사합니다. Dart enum 생성자/values/index/name·const canonicalization은 이 host 표현에 포함하지 않습니다.
-
-direct `framework/rendering/fitted-box`와 `framework/widgets/fitted-box`는 RenderFittedBox·FittedBox를 제공합니다. child는 unconstrained layout하고 scaleDown만 layout 크기에 영향을 줍니다. 다른 fit/alignment/direction 변경은 layout 요청 없이 paint data를 갱신합니다. intrinsic·baseline은 원본의 unscaled child 동작을 유지합니다. 방향 해석은 지연하고 inherited 방향에 새 ltr fallback을 넣지 않습니다. 같은 matrix/crop 계산을 paint·hit·좌표·semantics에 사용하며 empty child는 zero paint transform과 paint/hit/descendant semantics 생략을 적용합니다. clip 4종은 saveLayer를 포함한 균형 잡힌 immediate command를 기록합니다.
-
-direct `framework/rendering/rotated-box`와 `framework/widgets/rotated-box`는 odd quarter-turn에서 layout 축·intrinsic 축을 뒤집고 원본 vector_math rotation/translation 순서를 사용합니다. quarterTurns는 safe integer이며 Euclidean modulo·integer zero를 적용하고 quarter-angle 소수 값을 snapping하지 않습니다. actual real baseline은 null이고 unsupported dry-baseline debug 계약은 모든 host build에서 거부합니다. private radians constant는 export 없이 compiler identity로 추적합니다. 두 render family의 진단·ClipRectLayer/TransformLayer 재사용·resource lifecycle은 미완료이며 immediate command는 retained native layer나 물리 플랫폼 수락을 증명하지 않습니다.
-
-semantics bounds·scroll reveal·text geometry는 getter 좌표를 명시적으로 캡처한 뒤 같은 값으로 검증·저장합니다. 실제 Rect instance를 CustomPainterSemantics·caret/selection snapshot·ancestor scroll 전달에 사용할 수 있습니다. 이 host 검증은 데이터 캡처와 framework 동작에 한정하며 native reader/input/IME 수락은 별도입니다. MixedBorderRadius는 module private이며 public BorderRadiusGeometry anchor 아래 실제 compiler local identity로 추적합니다.
-
-`math/vector`·`math/vector2`·`math/vector3`·`math/vector4`·`math/matrix2`·`math/matrix3`·`math/matrix4`·`math/quaternion`은 vector_math 2.4.3의 선정 CPU API를 제공합니다. swizzle·정규화·역행렬·분해·회전·이름 붙인 산술을 포함하며 Vector2/3/4는 abstract Vector를 상속합니다. matrix는 mutable column-major Float64Array를 사용하고 `matrix.storage`를 Canvas.transform/framework Transform에 전달하면 독립 snapshot을 캡처합니다. `times`는 scalar/matrix/vector별 반환형을 제공합니다. borrowed view factory는 storage identity와 short view 오류·순서대로 진행된 부분 쓰기를 유지합니다. CPU의 NaN/Infinity 허용과 raster의 finite float32 검사는 별개입니다.
-
-numeric hashCode는 equality에 쓰는 성분과 signed-zero normalization을 사용합니다. 원본의 long-view equal/hash 불일치를 의도적으로 수정하며 Dart VM hash 정수와 일치하지 않습니다. random factory는 nextDouble 공급자를 받고 기본 Math.random은 Dart seed sequence를 약속하지 않습니다. private base storage와 subclass 자체 field는 독립이며 원본의 명시적 public storage 읽기는 override를 유지합니다. 실제 원본 Dart fixture를 독립 설치 Node ESM과 Windows Hermes의 Metro source/optimized bytecode에서 확인했습니다. 이 CPU 증거는 native rendering·input/IME·reader·성능·배포 수락이 아닙니다.
+설치와 샘플 실행은 [프로젝트 가이드](../README.ko.md)에서 시작하세요.
 
 ## 모듈
 
-| 소스 | 책임 | import 예시 |
+API는 명시적인 하위 경로에서 import합니다. Core는 패키지 루트의 통합 API를 제공하지 않습니다.
+
+| 영역 | 책임 | Import 예 |
 | --- | --- | --- |
-| [`src/foundation/`](src/foundation/) | 해제, 시계, 자산, 오류와 숫자 유틸리티 | `@nelyx/core/foundation/disposable` |
-| [`src/ui/`](src/ui/) | 그리기 명령, 프레임, 편집과 텍스트 계약 | `@nelyx/core/ui/types` |
-| [`src/hosting/`](src/hosting/) | 앱, 플랫폼, 자원, 서비스와 상호작용 수명 | `@nelyx/core/hosting/runtime` |
+| [Foundation](src/foundation/) | 알림, 자원 해제, 시계, 오류와 공통 도구 | `@nelyx/core/foundation/notifier` |
+| [UI](src/ui/) | Canvas, 좌표, 텍스트, 이미지와 프레임 계약 | `@nelyx/core/ui/canvas` |
+| [Hosting](src/hosting/) | 앱, View, 자원과 서비스 수명 | `@nelyx/core/hosting/runtime` |
+| [Framework](src/framework/) | 위젯, 렌더링, 스케줄링, 제스처, 애니메이션과 내비게이션 | `@nelyx/core/framework/widgets/basic` |
+| [Services](src/services/) | 편집, 플랫폼 채널, 키보드와 OS 서비스 계약 | `@nelyx/core/services/text-editing` |
 
-필요한 모듈을 직접 import하며 패키지 루트에 API를 모아 재수출하지 않습니다. Core는 SDK, React Native나 OS API를 import하지 않습니다. 플랫폼 구성은 [SDK](sdk/README.ko.md)가 담당합니다.
+공개 하위 경로는 [package.json](package.json)에 있습니다. Core는 React Native나 OS API에 의존하지 않습니다.
 
-framework/rendering/flow는 FlowDelegate·FlowPaintingContext interface·FlowParentData·RenderFlow, framework/widgets/flow는 Flow·Flow.unwrapped를 제공합니다. container와 child layout은 독립적이며 delegate repaint는 relayout 없이 paint transform을 갱신합니다. full matrix 복사·자식별 group opacity·paint 역순 hit를 지원합니다. opacity0도 hit하며 그리지 않은 자식은 Flutter의 identity semantics transform fallback을 유지합니다. clip none이어도 Flow box의 hit bounds는 유지합니다. 네 clip 정책은 실제 clip/saveLayer 명령을 기록합니다.
+## Widget 앱
 
-기본 Flow는 자식 key 또는 index로 RepaintBoundary.wrapAll을 적용합니다. 현재 boundary는 OffsetLayer/PictureLayer snapshot을 소유하고 SDK FrameworkRoot가 native Picture 잎을 재사용합니다. 전체 native layer tree·GPU raster cache·projective editor/reader fidelity는 미완료입니다. delegate 구독 교체/실패를 처리하고 paint 실패는 새 command/transform 상태를 rollback합니다. 중복 paint·잘못된 index/options·범위 밖 opacity를 all-build 거부합니다. BoxParentData.offset은 finite 좌표를 복사하고 paint/measurement 중 직접 쓰기도 거부합니다.
+```ts
+import {widgetApplication} from '@nelyx/core/framework/widgets/root';
+import {Column, Padding, Text} from '@nelyx/core/framework/widgets/basic';
+import {allInsets} from '@nelyx/core/ui/geometry';
+
+export function main() {
+  return {
+    definition: widgetApplication({
+      id: 'hello',
+      createRoot: () => new Padding(
+        allInsets(24),
+        new Column([
+          new Text('Hello Nelyx', {fontId: 'app-font', fontSize: 24}),
+        ]),
+      ),
+    }),
+  };
+}
+```
+
+앱의 `package.json` → `nelyx.assets`에 `app-font`를 선언하고 `main().definition`을 플랫폼의 `ApplicationSurface`에 전달합니다. 전체 연결 예는 [Web runner](../sample/nelyx-testbed-app-2/web/runner/App.tsx)에 있습니다.
+
+각 View는 BuildOwner, PipelineOwner, scheduler, focus와 마운트된 State를 소유합니다. 지역 상태에는 `framework/widgets/framework`의 `StatefulWidget`·`State.setState`를, 자식 이동 중 식별 유지에는 key를 사용합니다. `createRoot(context, scheduler)`는 View 서비스와 호스트 프레임 스케줄러를 받습니다.
+
+## 디자인 패키지 import
+
+| UI 계층 | Import |
+| --- | --- |
+| 공통 위젯 | `@nelyx/core/framework/widgets/basic` |
+| Material 3 | `@nelyx/material/widgets` |
+| Cupertino | `@nelyx/cupertino/widgets` |
+
+[Material](../packages/material/README.md)·[Cupertino](../packages/cupertino/README.md)가 각 컴포넌트와 정식 테마를 소유합니다. Core의 `framework/widgets/app-data`에 있는 `AppTheme`·`AppThemeData`는 공통 Nelyx 테마 어댑터입니다. 세 패키지는 하나의 Core 인스턴스를 공유합니다.
+
+## 프레임워크 사용
+
+| 작업 | 모듈 |
+| --- | --- |
+| 레이아웃과 제약 | `framework/widgets/basic`, `framework/rendering/constraints` |
+| 텍스트 편집 | `framework/widgets/editable-text` |
+| 목록과 스크롤 | `framework/widgets/scroll`, `framework/widgets/scroll-view` |
+| 화면 전환과 내비게이션 | `framework/widgets/navigation` |
+| Focus와 키보드 action | `framework/widgets/focus-scope`, `framework/widgets/shortcuts` |
+| 그리기 | `ui/canvas`, `ui/paint`, `framework/widgets/custom-paint` |
+| 이미지와 장식 | `framework/widgets/image`, `framework/painting/box-decoration` |
+
+앱에서 전달한 controller, FocusNode, 이미지 등의 자원은 각 소유자의 수명을 따릅니다. 소유자가 끝날 때 해제하세요. TextEditingController는 하나의 마운트된 EditableText에 연결하며, OS 조합 입력과 선택 영역은 SDK 편집 서비스를 통해 조율합니다.
+
+사용자 정의 render object는 [framework/rendering/](src/framework/rendering/)의 layout·paint·hit test·무효화 계약을 사용합니다. 그리기는 `paint`에서 수행하고, render object를 통해 layout이나 paint를 무효화하며, 해제 시 소유 자원을 정리합니다.
+
+낮은 수준의 scene 소비자가 사용하는 `FrameworkRoot.build(scene)`은 `FrameRecording`을 반환합니다. 캡처·해제 계약은 [ui/frame.ts](src/ui/frame.ts)에 있으며, recording과 제출된 GPU 작업의 자원 수명은 별도로 관리합니다.
 
 ## 빌드와 확인
 
@@ -333,89 +83,10 @@ npm run build:core
 npm run check --workspace @nelyx/core
 ```
 
-패키지 builder는 `dist/`에 ESM, 선언 파일과 source map을 생성합니다. 소스 import의 명시적인 `.ts` 확장자는 유지하고, 출력 JavaScript와 선언 파일은 `.js` 경로를 사용합니다. 출력은 임시 경로에서 준비한 뒤 승격합니다. `check`는 compiler typecheck입니다.
+전체 패키지 빌드는 `npm run build:sdk`를 사용합니다. 로컬 archive로 소비할 때는 변경 후 runner에 다시 공급하고 설치하세요. [CLI 가이드](sdk/tooling/cli/README.ko.md#공급과-설치)에 절차가 있습니다.
 
-전체 SDK·렌더러 패키지는 `npm run build:sdk`로 빌드합니다. 저장소 전체 compiler 명령은 [SDK 가이드](sdk/README.ko.md#빌드와-확인)에 있습니다.
-
-## 디렉터리 구성
-
-| 경로 | 내용 |
-| --- | --- |
-| [`src/`](src/) | Core 구현 |
-| [`sdk/`](sdk/) | SDK, 플랫폼 호스트와 앱 도구 |
-| [`skia/`](skia/) | 렌더러 구현과 네이티브 공급 |
-| [`eng/`](eng/) | 패키지 빌드와 생성 도구 |
-| [`upstream/`](upstream/) | 버전 고정 소스 정보, patch와 overlay |
-| [`licenses/`](licenses/) | 공통 서드파티 라이선스 목록 |
+Nelyx는 Flutter API의 일부를 구현합니다. 사용할 수 있는 기능은 모듈 선언과 [Testbed](../sample/nelyx-testbed-app-2/README.ko.md)를, 플랫폼 준비 수준은 [프로젝트 가이드](../README.ko.md#프로젝트-상태)를 참고하세요.
 
 ## 라이선스
 
-Nelyx 작성 코드는 [BSD-3-Clause](LICENSE.md)를 따릅니다. 수입 코드의 고지는 [`licenses/`](licenses/)에 유지합니다.
-
-`framework/widgets/visibility`는 Visibility(child, options)·Visibility.maintain·의존 조회 Visibility.of를 제공합니다. maintainAnimation은 state, size는 animation, semantics/interactivity는 size, focusability는 state 유지가 필요하며 모든 build에서 제약을 확인합니다. 기본 숨김은 child를 replacement로 바꾸고 해제합니다. maintainState는 Offstage를 사용하며 maintainAnimation=false이면 실제 provider ticker를 mute합니다. maintainSize는 layout을 유지하고 paint를 생략하며 semantics·pointer·focus 정책을 별도로 적용합니다. maintain flag 변경은 subtree와 State를 교체할 수 있습니다.
-
-`framework/widgets/indexed-stack`은 모든 child를 계속 layout하고 State·active ticker를 유지하며 선택 index만 paint/hit/semantics에 노출합니다. null이면 아무 child도 노출하지 않습니다. 숨긴 child는 focus에서 제외되고 공통 Visibility.of scope에서 false를 반환합니다. render wrapper를 끼우지 않아 Positioned의 StackParentData를 보존합니다. 방향별 alignment에는 Directionality 또는 explicit textDirection이 필요합니다. direct `framework/rendering/indexed-stack`은 선택 child의 actual/dry baseline을 제공합니다. Stack/IndexedStack의 네 Clip 정책은 균형 잡힌 immediate frame 명령으로 실행하며 retained engine layer는 미완료입니다. GlobalKey 예약은 frame 종료의 실제 소유 관계로 검증해 정상 이동을 허용하고 실제 중복은 거부합니다. native editor overlay의 시각적 숨김/clip과 native input/reader 수락은 미완료입니다.
-
-`framework/widgets/layout-builder`의 LayoutBuilder(builder, options)·AbstractLayoutBuilder·ConstrainedLayoutBuilder는 실제 parent constraints로 layout 중 child를 구성합니다. 같은 constraints는 builder를 재호출하지 않고 config·inherited dependency 변경은 반영합니다. 하위 State는 격리 BuildScope에서만 재빌드합니다. idle/post-frame 변경은 다음 transient 단계까지 layout 무효화를 미루며 ancestor가 layout을 생략해도 마지막 constraints로 callback을 실행합니다. intrinsic/dry 조회는 speculative build를 거부합니다. builder 오류는 이제 FlutterErrorDetails를 보고한 뒤 ErrorWidget으로 대체합니다. debug intrinsic 검사 모드·전체 diagnostics는 미완료입니다.
-
-core 0.3.0 / SDK 0.5.0에 오류 처리·명시적 기본 font 이행을 반영했습니다. direct `foundation/assertions`·`foundation/diagnostics`·`foundation/stack-frame`에 오류 정보·진단 속성·source stack filter를 구현했습니다. component build/child 생성과 LayoutBuilder 오류는 먼저 보고한 뒤 framework 모듈의 ErrorWidget.builder로 대체합니다. render update 오류는 BuildScope가 보고하고 다른 dirty Element를 계속 처리합니다. FlutterError.onError를 먼저 호출하고 해당 View의 optional reportError에도 전달합니다. 명시적으로 예외를 던지는 reporter는 frame을 중단할 수 있습니다. direct `framework/rendering/error-box`는 TextPainter 없이 emergency 배경·low-level paragraph를 기록하며 2차 text/paint 오류를 억제합니다. 전체 tree style·inspector serialization은 PARTIAL입니다. 원본 Dart 312개 stack/오류/emergency-box 그룹을 좁은 receiver로 대조했고 fresh installed core0.3.0/SDK0.5.0과 actual Windows Hermes source/optimized HBC99에서도 동일312 groups·FrameworkRoot21 tests/138 expectations·binding10 expectations PASS입니다. native UI/GPU 수락은 아닙니다.
-
-앱은 `widgetApplication({defaultFont:'자기-font-asset', ...})` 또는 View services의 defaultFont ResourceId를 지정합니다. Text는 font/fontId로 이를 덮어쓸 수 있습니다. core의 암묵적인 sample-font 조회는 제거했고 sample/template은 자기 bundled asset을 명시했습니다. ErrorWidget도 해당 font를 쓰며 font/text 서비스가 없으면 배경을 그릴 수 있습니다. FlutterError.debugMode는 bundler/platform 모드를 추측하지 않는 명시적 설정으로 기본 false이며 default 오류 메시지 노출과 일부 assertion 진단을 제어합니다. provider descriptor·schema·CLI 기본값·6개 template을 core 0.3.0 / SDK 0.5.0으로 맞췄고 wire ABI는 5입니다. foundation/binding의 initializeFoundationBindings는 FrameworkRoot 생성 시 한 번 실행합니다. 초기화 전 standalone listen 기본 hook은 원본 오류를 재던집니다. framework bridge는 listener 오류를 FlutterErrorDetails로 보고하고 assertion 오류는 FlutterError로 던지며, 이후 설정한 custom hook을 유지합니다.
-
-`framework/rendering/layout-callback`의 RenderObjectWithLayoutCallbackMixin(Base)와 layout-builder의 RenderAbstractLayoutBuilderMixin<Info, Child>()(Base)는 실제 class factory이며 base 생성자 tuple·box/non-box child protocol을 보존합니다. layout callback 동안 자기 하위 트리 또는 같은 PipelineOwner의 다른 dirty 하위 트리만 임시로 변경할 수 있습니다. 다른 View 변경은 거부합니다. `framework/widgets/orientation-builder`는 parent maxWidth/maxHeight 비율을 사용하며 정사각형·양축 무한 constraints는 portrait입니다. DeviceOrientationBuilder·전체 sliver layout은 미완료입니다.
-
-계층 node·attachment는 `framework/widgets/focus`, Focus/FocusScope/ExcludeFocus/ExcludeFocusTraversal 위젯은 `framework/widgets/focus-scope`에서 직접 import합니다. 기존 focus 모듈의 FocusScope는 View manager 호환 API입니다. 실제 inherited ancestor로 재부모화하며 scope history·autofocus는 microtask에서 적용합니다. 소유 트리 build 중 즉시 focus 적용은 거부합니다. 제외 위젯은 State·layout을 보존하고 traversal 제외는 명시적 focus 요청을 허용합니다. key event는 focus ancestor를 따라 전파합니다. reading/ordered/directional traversal·highlight·RawKeyEvent·전체 diagnostics는 미완료입니다.
-
-사용자 EditingHost binding은 이제 `focus()`와 함께 `blur()`를 구현해야 합니다. EditableText는 제외·분리 때 실제 blur를 호출합니다. semantics `focusable:false`는 enabled·text·selection을 보존하며 native focus·탐색을 막습니다. 재활성화 후에는 새 focus 요청이 필요합니다. 빌린 FocusNode는 호출자가 소유합니다. custom host를 갱신해야 하며 최종 version/migration 검증은 W6에 남습니다.
-
-ui/path는 bounded mutable CPU Path recorder입니다. 절대/상대 move·line·quadratic/cubic/conic curve, close, rect/oval/polygon/full RRect, nonZero/evenOdd fill, copy/reset과 Canvas.drawPath/clipPath를 제공합니다. 기록 즉시 float32 snapshot을 복사하며 native SkPathBuilder·RN/JSI·CanvasKit로 재생합니다. Path queries/arcs/metrics/boolean operations/general transform과 전체 ClipPath widget은 미완료입니다. CPU ClipPathLayer는 framework/rendering/layer에서 제공합니다. 확장 record는 admission 예산 초과 즉시 거부합니다. Graphite와 Web/CPU의 경계 rasterization은 non-AA 요청에서도 차이가 있으며 내부 픽셀 표본 검증을 전체 이미지 일치로 판정하지 않습니다.
-
-ui/clip·framework/rendering/clip·framework/widgets/clip은 네 Clip 정책·CustomClipper·ClipRect/ClipOval·개별 타원 corner ClipRRect를 제공합니다. reclip은 복사한 geometry cache를 갱신하고 child layout/widget build 없이 paint·근사 semantics를 갱신하며 rect/oval 위젯 해제는 delegate를 비웁니다. custom clipper가 있을 때만 rounded corner hit를 제한하고 Clip.none에서도 oval hit를 제한하는 pin 소스 동작을 유지합니다. ClipPath/RSuperellipse·retained engine layer는 미완료입니다. 이 API는 widgets/clip 직접 subpath를 사용하며 widgets/basic에는 W5 ClipRect shortcut을 유지합니다. native editor overlay clip·플랫폼 수락은 미완료입니다.
-
-ui/radius·ui/rect·ui/rrect·framework/painting/border-radius는 불변 CPU 값입니다. 정확한 LTRB Rect·개별 타원 corner RRect·공통 radius 축소/contains·물리/방향별/혼합 border 값과 이름 붙인 연산/보간을 제공합니다. Rect의 x/y/width/height는 기존 paint DTO 계약도 만족하며 plain XYWH 입력도 받습니다. Rect/RRect는 ui/offset·ui/size의 전체 불변 Offset/Size 값을 반환합니다. ui/offset-base가 부분 순서 비교를 제공하며 이름 붙인 Size.subtract(Size)는 Offset을, Size.subtract(Offset)는 Size를 반환합니다. Offset x/y getter와 기존 layout 계약의 plain DTO 입력을 유지합니다. Offset/Size equality는 subclass를 허용하며 NaN 자기 비교는 false입니다. 음수 border 식은 RRect 변환 때 clamp하며 방향별/혼합 resolve에는 ltr/rtl이 필요합니다. hashCode는 안정적인 로컬 hash이며 truncateDivide는 pin Dart VM int64→double 포화를 명시적으로 따릅니다. 개별 corner Canvas/Path/ClipRRect는 full snapshot·inherited Directionality로 연결합니다. RSuperellipse·플랫폼 수락은 미완료입니다.
-
-이전 core 0.4.0 / SDK 0.6.0은 direct foundation/diagnostics·diagnostics-text·diagnostics-serialization·diagnostic-properties에 tree renderer·serialization delegate·property family를 제공합니다. foundation/diagnosticable의 실제 Diagnosticable/Tree/TreeMixin runtime을 Widget·Element·State·RenderObject가 상속하며 소유 child·수명 정보와 연결합니다. 앱 생성 전에 foundation/constants의 FoundationBuildMode.mode를 debug/profile/release로 지정하며 기본 release이고 FlutterError.debugMode와 공유합니다. debug property 수집은 원본 assertion gate를 따릅니다. DoubleProperty.lazyNumber는 typed numeric lazy factory입니다. generic diagnostic label은 typeName/elementType/valueType으로 명시하고 identity hash는 host 정책을 따릅니다.
-
-이행: FlutterError·ErrorToConsoleDumper·debugPrintStack·stack-filter policy class는 foundation/flutter-error, ErrorSummary/Description/Hint/Spacer는 foundation/diagnostics에서 직접 import합니다. FlutterErrorDetails·DiagnosticsStackTrace는 foundation/assertions에 남습니다. 이전 경로의 compatibility re-export는 없습니다. 위 core0.3.0/SDK0.5.0 receipt는 과거 증거입니다.
-
-선정 diagnostics 묶음은 원본3 modes525 comparison groups·actual FrameworkRoot126 expectations·fresh installed ESM/declarations·Metro/Windows Hermes source/optimized HBC99 PASS입니다. Render paint/compositing/layer/semantics diagnostics·inspector transport·나머지 W6 API/물리 플랫폼 수락은 PARTIAL입니다. 공통 render container는 child 번호를 사용하고 State dispose는 기존 host configuration clearing 정책을 유지합니다. 공통 runtime 검증을 native UI/GPU·입력/IME/reader·scanout·복구·제품 배포 수락으로 확장하지 않습니다.
-
-core 0.5.0 / SDK 0.7.0은 남은 pinned diagnostics source 항목을 대응하고 kNoDefaultValue를 unique Symbol에서 불변 singleton object로 이행합니다. foundation/diagnostics에서 이 marker와 ComputePropertyValueCallback<T>를 직접 import하며 marker는 identity로 비교합니다. callback 결과는 T 또는 null입니다. lazy property는 callback을 유지하고 기본 marker의 isInteresting은 callback을 실행하지 않습니다. numeric lazy는 자기 base 초기화 경로로 options/unit을 보존하며 iterative JSON은 FIFO를 비우고 처리한 callback 참조를 해제합니다.
-
-core 0.6.0 / SDK 0.8.0은 `foundation/basic-types`와 `foundation/print`를 직접 제공합니다. ValueChanged/Setter/Getter·IterableFilter·async callback 타입·CachingIterable·Factory·lerpDuration은 basic-types에서 import합니다. IterableFilter는 assertions에서 이동했고 이전 경로에 compatibility re-export는 없습니다. CachingIterable은 하나의 Iterator와 lazy cache를 여러 reader·파생 view가 공유하며 current/moveNext와 JS iteration을 지원합니다. loop를 일찍 끝내도 source를 닫지 않습니다. `toList({growable:false})`는 길이를 바꿀 수 없고 요소는 대입할 수 있는 복사본입니다. Array/Set과 safe integer count는 Dart collection/VM 표현의 host 대응입니다.
-
-`new Factory(create, 'YourType')`는 지워지는 T 대신 명시적 문자열 또는 name이 있는 type token을 받으며, 실제 readonly constructor callback을 미리 실행하지 않습니다. `lerpDuration(aMilliseconds,bMilliseconds,t)`는 host milliseconds·microsecond 반올림 endpoint·음수 포함 half-away-from-zero 결과를 finite safe-microsecond 범위에서 제공합니다. Dart Duration/int64 ABI를 제공하지 않습니다.
-
-print module은 debugPrint·동기/제한 출력·debugWordWrap·DebugPrint·DebugPrintController를 제공합니다. `DebugPrint.callback`에 대입하면 export된 debugPrint binding이 갱신되고 이미 저장한 callback은 이전 대상을 유지합니다. `DebugPrint.done`은 buffered 출력 완료 Promise입니다. 기본 owner는 12 Ki UTF16-character budget·긴 line 전체 출력·FIFO·1초 pause와 pending Promise identity를 보존합니다. idle getter는 Hermes에서도 매번 별도 resolved Promise를 만듭니다. controller에 clock/timer/output 서비스를 지정할 수 있습니다. wrapping은 오류 메시지용 원본 ASCII 규칙입니다.
-
-ErrorToConsoleDumper는 IO에서 현재 debugPrint, Web에서 console.error와 listener를 사용합니다. SDK bootstrap은 asset 초기화 전에 provider identity로 branch를 선택하고 custom dump hook을 유지합니다. standalone core는 useWebConsole을 직접 설정하며 한 JS realm이 이 값을 공유합니다. 원본 IO/Web·3 modes1,602 groups, diagnostics567 groups, FrameworkRoot126 expectations, SDK bootstrap16 expectations와 fresh ESM/types·Metro·실제 Windows Hermes source/optimized HBC99가 portable 범위에서 PASS입니다. 실제 wall-clock 처리량·native UI/GPU·물리 입력/IME/reader·scanout·복구·배포 수락은 별도 미완료이며 Apple/Linux native 검증은 사용자 지정 SKIPPED입니다.
-
-core 0.7.0 / SDK 0.9.0의 `foundation/platform`은 TargetPlatform string union(android/fuchsia/iOS/linux/macOS/windows)과 FoundationPlatform을 제공합니다. Fuchsia 값은 일곱 번째 native target 지원을 뜻하지 않습니다. defaultTargetPlatform getter는 SDK bootstrap이 asset 초기화 전에 provider identity/host 정보로 구성합니다. standalone core host는 `FoundationPlatform.configure({kind:'native',operatingSystem:'windows'})` 또는 WebPlatformEnvironment를 지정합니다. native unknown OS는 원본 FlutterError를 던지고 Web unknown은 원본처럼 android로 대응합니다. custom Web BackendServices는 foundationPlatform을 공급할 수 있으며 생략한 metadata는 unknown OS의 명시된 Web 대응을 따릅니다.
-
-debugDefaultTargetPlatformOverride는 debug에서만 대입할 수 있고 다른 mode에서는 FlutterError를 던집니다. native의 isTest는 원본 FLUTTER_TEST key 존재를 명시적으로 대응합니다. Web은 override/test/browser 우선순위와 test의 browser OS override를 보존합니다. 브라우저 결과는 lazy/cache이며 같은 환경의 재구성은 cache를 유지하고 명시적 host 교체는 초기화합니다. 한 JS realm에서 설정을 공유합니다.
-
-SDK direct `backends/browser/platform`의 BrowserPlatformEnvironment는 주입한 navigator를 사용합니다. built-in Web은 getBrowserPlatformEnvironment의 realm cache를 공유합니다. Mac touch-count>2인 desktop-site iPad, iPhone/iPad/iPod 이름, Android UA 우선순위, Linux/Windows 판별을 원본대로 보존합니다. OS/UA는 lazy cache이고 debugOperatingSystemOverride/debugUserAgentOverride 및 명시적 detector 입력을 제공합니다. core는 DOM/Node/React Native platform API를 읽지 않습니다. 전체 ui_web engine과 Material/Cupertino의 플랫폼 styling은 미완료입니다.
-
-원본3 modes291 groups·기존 basic/print1,602+diagnostics567 groups·FrameworkRoot126 expectations·SDK bootstrap/cache30 expectations가 fresh ESM/types·Metro·실제 Windows Hermes source/optimized HBC99에서 PASS입니다. 도구는 참조된 conditional import 대체 구현을 dependency로 추적하며154개 구현 의존성을 추가했습니다. 공개 선언47,282개와 이전 pinned source hash는 그대로이며 cached regeneration도 import metadata/dependency를 보존합니다. 물리 플랫폼 수락과 전체 W6 완료 증거는 아닙니다.
-
-원본3 modes567 comparison groups는 sentinel·lazy 호출 순서/보존·numeric-base options·3000-deep tree·3301-node 순서와 queue drain을 포함합니다. analyzer enum constructor3개는 pinned Dart compiler가 호출을 모두 거부한 근거로 non-callable 분류합니다. public enum 값의 string-union adaptation은 유지합니다. CPU diagnostics source의 missing/partial은0이며 inspector transport·RenderObject layer/compositing/semantics diagnostics와 나머지 W6 API/플랫폼 수락은 남습니다. 실제 설치/engine 수락은 source coverage와 별도 기록합니다.
-
-core 0.8.0 / SDK 0.10.0은 세 direct module을 추가합니다. `foundation/serialization`에서 WriteBuffer/ReadBuffer를, `services/message-codec`에서 MethodCall/PlatformException/MissingPluginException과 추상 MessageCodec/MethodCodec 계약을, `services/message-codecs`에서 Binary/String/JSON/Standard message·method codec을 직접 import합니다. 모듈 간 barrel이나 Dart typed_data 재수출은 없고 UTF8/JSON helper는 내부 구현입니다.
-
-buffer는 DataView와 Uint8Array·Int32Array·BigInt64Array·Float32Array·Float64Array를 사용합니다. scalar endian 기본값은 hostEndian이며 고정 wire에서는 `{endian:'little'}` 또는 `{endian:'big'}`를 지정합니다. int64 읽기는 bigint를 반환하고 정수 쓰기는 bigint 또는 정확한 safe-integer number를 받습니다. Float64/typed-list 정렬과 byteOffset을 보존합니다. typed 읽기는 실제 underlying buffer를 공유하고 logical DataView의 길이로 복사·축소하지 않습니다. done()은 작성한 prefix view를 넘기고 writer 참조를 비우며 두 번째 호출을 거부합니다. 완료 후 쓰기는 debug assertion을 따릅니다. putFloat32/getFloat32는 실제 frame encoder를 위한 4-byte host 확장입니다.
-
-Standard codec에서 JS number는 Dart double, bigint는 signed Dart int64입니다. 정수 tag3/4에는 `1n`, double tag6에는 `1`을 사용합니다. typed-list는 native array type과 decode storage 공유를 유지합니다. decoded Map은 정수/double key 동등성, 첫 key의 타입과 -0, 별도 NaN key, iterator 구조변경 검사를 보존합니다. 이는 codec의 선정 동작이며 Dart collection ABI 전체 이식은 아닙니다. JSON decode는 Map을 반환하며 signed-int64 정수 token은 bigint, 소수·지수 token은 number입니다. JSON encode는 string-key Map·array·typed list·일반 record·custom toJson을 받고 cycle/미지원 값을 거부합니다. 일반 record는 명시적 host 확장입니다. StringCodec은 UTF8을 검증하고 encode 시 잘못된 UTF16 surrogate를 치환하며 BinaryCodec은 DataView identity를 유지합니다.
-
-PlatformException과 MissingPluginException의 message는 null을 유지합니다. JS Error 상속 대신 `foundation/errors`의 Exception symbol protocol을 구현합니다. JS stack 캡처와 native error envelope의 PlatformException.stacktrace는 별도입니다. FrameworkRoot·BuildScope·scheduler·focus·notifier가 이 protocol을 인식합니다. MethodCall의 method/arguments는 readonly이며 error/success envelope 검증과 StandardMessageCodec custom dispatch를 제공합니다. decode 형식 오류는 FormatException입니다. 직렬화 수락은 BinaryMessenger·native plugin·channel routing·transport 수명 수락을 뜻하지 않습니다.
-
-원본 3 modes1,116 groups와 오류 진단21 groups, 실제 오류 연결144 expectations, 이전 frame encoder 대비61 cases/510 expectations/222,848 bytes 대조가 PASS입니다. frame의 exact-size buffer 소유권과 ABI1/wire5를 유지합니다. 기존 platform291/basic-print1,602/diagnostics567 groups·FrameworkRoot126·SDK bootstrap/cache30 expectations도 emitted direct imports·fresh external ESM/types·Metro·Windows Hermes source/optimized HBC99에서 PASS입니다. native UI/GPU·물리 입력/IME/reader·성능·복구·배포와 W6 전체 수락은 남아 있으며 Apple/Linux native 검증은 사용자 지정 SKIPPED입니다.
-
-core 0.9.0 / SDK 0.11.0의 서비스 채널은 direct `services/platform-channel`·`services/channel-binding`·`services/event-stream`에 구현했습니다. Basic/Method/Optional/Event 채널이 실제 소유된 messenger를 사용합니다. typed invoke에는 입력을 검증하고 그대로 반환하는 ChannelCast를 지정하며 변환은 거부합니다. list/map helper는 lazy live native view입니다. Dart generic·collection/Zone ABI·Future microtick 전파 전체를 이 TypeScript 계약으로 주장하지 않습니다.
-
-ApplicationStartupContext/ComposedApplication의 messenger를 사용합니다. 한 realm의 단일 default 앱은 SDK useDefaultBinaryMessenger를 선택할 수 있고 서로 다른 동시 owner는 명시적 messenger를 사용합니다. EventChannel은 원본처럼 주입 messenger로 events를 받고 default messenger로 listen/cancel을 보냅니다. per-app stream에는 세 번째 data messenger와 함께 네 번째 인수 `{controlBinaryMessenger: messenger}`를 지정합니다. 이 host 확장으로 global owner를 교체하지 않고 두 경로를 같은 앱에 연결합니다.
-
-broadcast stream은 비동기 listener·개별 pause/resume·cancel·error/done·asFuture·async iteration을 제공합니다. 첫/마지막 listener가 활성화/취소를 전송하며 cancel은 native 취소 응답을 기다리지 않습니다. paused listener는 resume/cancel까지 end acknowledgement를 지연합니다. SDK close는 native gate 전에 동기 종료 알림으로 cancel을 수락하고 subscription을 취소하며 closing 중 handler 해제는 허용합니다. port retirement까지 native byte 소유권을 유지합니다. 확인된 retirement는 profiling proxy 참조를 해제합니다. 정리 observer 오류가 있어도 native retirement가 확인되면 나머지 앱 자원을 해제한 뒤 보고하며, native drain 실패는 자원을 보존합니다. built-in native/DOM plugin bridge는 남아 있어 실제 PlatformMessagePort 주입이 필요합니다.
-
-PlatformChannelProfiling.debugProfile은 release 외 mode의 live flag를 제어합니다. profiler는 1초 byte/count window·method suffix·wrapper identity cache·bounded host timeline 기록과 선택적 sink를 제공합니다. generic Basic label 기본은 dynamic이며 ChannelProfileNames로 타입 label을 지정합니다. 이 기록·portable Hermes 실행은 native timeline이나 플랫폼 수락 증거가 아닙니다. source/receiver·package 증거 경계는 [W6 요약](../history/26/10/11/work6-summary.md)에 보존했습니다.
-
-Android는 비시각적 View/BaseInputConnection으로 OS 입력을 연결하고 Core caret/baseline·문자 bounds를 IME에 전달합니다. 입력 거절은 요청 id로 연결하며 stale 재시도 상한과 취소 실패를 Core owner에 보고합니다. Native editor font registry 없이 검증된 앱 font bytes를 Skia에서 사용합니다. 당시 기기/앱 검증 범위는 [W14 요약](../history/26/10/22/work14-summary.md), 이전 선정 결과는 [W13 요약](../history/26/10/19/work13-summary.md)에 보존했습니다.
+Nelyx 작성 코드는 [BSD-3-Clause](LICENSE.md)를 따릅니다. 가져온 코드와 자산의 고지는 [licenses/](licenses/)에, 소스 pin과 소유권 메타데이터는 [upstream/](upstream/)에 유지합니다.

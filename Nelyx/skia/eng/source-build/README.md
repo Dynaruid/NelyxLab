@@ -16,9 +16,8 @@ Use the target's m153 native SDK lock from `Nelyx/skia/vendor/`. `rn-modules.cma
 
 ## Vendor build recipes
 
-Build the Nelyx paragraph binding in a new source/build directory. Its exported
-symbols, manifest identity, build markers and job setting use the Nelyx name;
-previous binaries and preparation markers are not accepted.
+Build the Nelyx paragraph binding with inputs matching the current source lock
+and patch. Keep a single owned source/build directory for the selected runtime.
 
 `build-canvaskit.py` prepares and builds the owned Web paragraph binding from
 [`canvaskit.lock.json`](canvaskit.lock.json). It verifies the m153 source archive,
@@ -29,13 +28,12 @@ switch. It also restores the supplier's omitted CanvasKit build target and uses
 Skia's bundled raw-pointer fallback because this standalone DEPS has no
 partition_alloc input. Rendering, font and codec features stay enabled.
 
-Use a persistent Linux/WSL directory; `/tmp` can disappear when WSL stops. Run
-each phase with the repository's 20-minute limit (and a Linux process-group
-timeout when invoking through WSL):
+Use a persistent Linux/WSL directory; `/tmp` can disappear when WSL stops. From
+the repository root in Linux/WSL, run each phase with the 20-minute limit:
 
 ```text
-timeout --kill-after=10s 1190s python3 build-canvaskit.py prepare --root <owned-persistent-directory> --archive <locked-m153-source-archive>
-timeout --kill-after=10s 1190s python3 build-canvaskit.py build --root <same-directory> --jobs 4
+timeout --kill-after=10s 1190s python3 Nelyx/skia/eng/source-build/build-canvaskit.py prepare --root <owned-persistent-directory> --archive <locked-m153-source-archive>
+timeout --kill-after=10s 1190s python3 Nelyx/skia/eng/source-build/build-canvaskit.py build --root <same-directory> --jobs 4
 ```
 
 The result is `out/nelyx-canvaskit`. Its manifest uses the owned
@@ -47,8 +45,8 @@ with `node Nelyx/skia/eng/prepare-web-runtime.mjs <owned-runtime-directory>` fro
 the repository root. `--adopt` explicitly updates the tracked manifest when
 selecting a new built candidate. `--check` verifies an already prepared package.
 After adoption, the package carries the new bytes under `generated/runtime`.
-Until that build is supplied, its manifest reports `requires-build`; previous
-runtime hashes are not attributed to the new source. The npm dependency supplies
+If a source update marks the manifest `requires-build`, build and adopt the
+matching runtime before preparing a Web application. The npm dependency supplies
 public type declarations. Full dependency notice qualification remains PARTIAL.
 
 | File | Purpose |

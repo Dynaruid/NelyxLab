@@ -4,9 +4,11 @@
 
 ## Modules and ownership
 
-Use `@nelyx/skia-rn/runtime/native-bootstrap` for RN integration. Renderer/text and neutral type imports moved to `@nelyx/skia-native/renderer`, `@nelyx/skia-native/text` and its explicit `skia/types/*` subpaths. The old renderer/text/type export facades were removed; see [package exports](package.json).
+Use `@nelyx/skia-rn/runtime/native-bootstrap` for RN integration. Import shared rendering, text and neutral types from `@nelyx/skia-native/renderer`, `@nelyx/skia-native/text` and its explicit `skia/types/*` subpaths. See [package exports](package.json).
 
 Skia owns device/session/renderer and native surface lifetimes. Application bootstrap, development bundle selection, and window/shutdown policy belong to the [SDK native host](../../../sdk/README.md#ownership-and-lifecycle). Skia does not import the SDK.
+
+The text service requires native paragraph API2, including positive-infinite layout widths, full line metrics, UTF-16 line lookup and soft-hyphen policy. Rebuild the RN binding and shared native core together when those inputs change. The Web runtime has its own versioned paragraph API.
 
 ## Native targets
 
@@ -35,6 +37,3 @@ The package build emits ESM, declarations, and source maps. Native binary builds
 ## License
 
 Nelyx contributions use [BSD-3-Clause](LICENSE.md). Imported RN Skia code retains MIT licensing and attribution in [third-party notices](THIRD_PARTY_NOTICES.md) and [licenses](licenses/).
-
-
-The text service requires native paragraph API2. It preserves positive-infinite layout widths, complete line metrics, UTF16 line lookup and soft-hyphen policy. Both the RN binding and shared native core must be rebuilt together; an API1 runner is rejected before layout. `unlimitedLines` omits SkParagraph's `maxLines` option while the host still enforces its result/geometry budget. This preserves the engine's distinct unlimited-line ellipsis behavior. The owned Web runtime remains paragraph API1 because it already supports positive-infinite widths.

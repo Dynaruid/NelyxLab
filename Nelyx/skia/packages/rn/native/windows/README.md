@@ -28,8 +28,6 @@ and the RNSkiaModule `getKeyboardState` method. The method posts to the UI dispa
 and returns protocol1 actual key/scan observations; it does not poll globally held
 OS keys. Owner transfer, bounded snapshots and module retirement are explicit.
 The SDK maps records and exposes the optional StandardMethodCodec startup method.
-Current development native UI queries an empty state; nonempty records have
-controlled native-kernel/SDK evidence.
 
 ## Frame execution and timing
 

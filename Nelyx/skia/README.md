@@ -2,68 +2,80 @@
 
 **English** | [한국어](README.ko.md)
 
-Nelyx's renderer implementation and pinned native supply. The [SDK](../sdk/README.md) owns application hosts; Skia owns GPU devices, recording, text, and renderer surfaces.
+Nelyx's rendering layer: shared native graphics and text, React Native surface adapters, and CanvasKit rendering for the browser. The [SDK](../sdk/README.md) connects renderers to application hosts and input.
 
 ## Renderer layout
 
 | Path | Purpose |
 | --- | --- |
-| [`native/`](native/) | Common renderer, GPU, and text implementation |
-| [`packages/native/`](packages/native/README.md) | Shared native renderer, text, resources and JSI binding |
-| [`packages/rn/`](packages/rn/README.md) | React Native JSI, components, surfaces, and Graphite adapters |
-| [`packages/web/`](packages/web/README.md) | CanvasKit/Ganesh WebGL2 renderer and text |
-| [`vendor/`](vendor/) | Exact native input locks and explicitly supplied binaries |
-| [`eng/source-build/`](eng/source-build/README.md) | Pinned source preparation and build recipes |
+| [native/](native/) | Common renderer, GPU, and text implementation |
+| [packages/native/](packages/native/README.md) | Shared native renderer, resources, paragraphs, and JSI bindings |
+| [packages/rn/](packages/rn/README.md) | React Native components, surfaces, and adapters |
+| [packages/web/](packages/web/README.md) | CanvasKit/Ganesh WebGL2 renderer and text |
+| [vendor/](vendor/) | Pinned native input locks and supplier configuration |
+| [eng/source-build/](eng/source-build/README.md) | Vendor source preparation and build recipes |
 
-Android/Apple use the pinned m154/154.1.0 supply. Windows/Linux use the matching m153 native Vulkan SDK and module supplement. These are target-specific inputs; do not substitute another version or reuse binaries with a different ABI/source inventory.
+Android/Apple use the pinned m154/154.1.0 supply. Windows/Linux use the matching m153 Vulkan SDK and module sources. Each target requires compatible ABI, source inventory, and runtime inputs.
 
 ## Package build
 
-From the repository root after `npm ci`:
+From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:skia
 ```
 
-This prepares generated native source and builds the native/RN/Web TypeScript packages. It does not build every target's native binaries. Use `npm run build:sdk` for the complete SDK package set.
+This prepares generated native sources and builds the native/RN/Web TypeScript packages. Native binaries require a separate target build. Use `npm run build:sdk` for the full SDK package set.
 
-Source preparation requires Python 3 and may download pinned SDK headers on the first run.
+Preparation requires Python 3 and may download pinned SDK headers on first use.
+
+## Web runtime
+
+Web uses the source-built Nelyx CanvasKit runtime. Follow the [vendor build recipe](eng/source-build/README.md#vendor-build-recipes), supply its output, and verify it before preparing a Web application:
+
+```powershell
+node Nelyx/skia/eng/prepare-web-runtime.mjs --check
+```
+
+The package manifest identifies the required files; missing or mismatched runtime bytes must be prepared explicitly.
 
 ## Windows native inputs
 
-Prepare Python, the Windows C++ toolchain, and inputs matching [`windows-rn-supplier.lock.json`](vendor/windows-rn-supplier.lock.json). The binding requires RNW 0.83.2 / JSI21, x64 Release, and the MD runtime. Required reusable binaries are supplied under `vendor/inputs/windows-x64/`.
+Use Python, the Windows C++ toolchain, and the inputs in [windows-rn-supplier.lock.json](vendor/windows-rn-supplier.lock.json). The binding requires RNW 0.83.2 / JSI21, x64 Release, and the MD runtime. Reusable binaries are supplied under `vendor/inputs/windows-x64/`.
 
-From the repository root:
+Install the Windows runner as described in the [sample guide](../../sample/nelyx-testbed-app-2/README.md#prepare-windows), then run from the repository root:
 
 ```powershell
 node Nelyx/skia/eng/prepare-native.mjs
 python Nelyx/skia/eng/build-windows-rn.py --runner sample/nelyx-testbed-app-2/windows/runner --supplier Nelyx/skia/vendor/inputs/windows-x64 --output .nelyx/windows-rnw-native
 ```
 
-Install the Windows runner first as described in the [sample guide](../../sample/nelyx-testbed-app-2/README.md#windows). Keep one current owned output; append `--resume` when updating that existing build. Supply and native build reject canonical C++/JSI/recipe changes until `prepare-native` refreshes the package derivation. The native build creates `<output>/supplier/inputs.json`; pass it to the runner's installed CLI:
+Keep one current owned output; append `--resume` when updating that build. The result includes `<output>/supplier/inputs.json`. Pass it to the installed runner CLI:
 
 ```text
 nelyx prepare --app <app> --target windows --native-inputs <inputs.json>
 ```
 
-The stock RNW Core is the default. Preserved private unload patches are not automatically adopted; see [project status](../../README.md#project-status).
+After canonical C++/JSI sources change, rerun source preparation, rebuild the supplier, and prepare the app with its new manifest. The default uses stock RNW Core.
 
 ## Linux native inputs
 
-Use the exact x86_64 SDK in [`linux-graphite-probe.lock.json`](vendor/linux-graphite-probe.lock.json), plus matching installed RNL/RN 0.81.6 sources. Prepare the module inputs with [`prepare-rn-modules.py`](eng/source-build/prepare-rn-modules.py), then create a relocatable supplier:
+Use the SDK in [linux-graphite-probe.lock.json](vendor/linux-graphite-probe.lock.json) and matching RNL/RN 0.81.6 sources. Prepare modules with [prepare-rn-modules.py](eng/source-build/prepare-rn-modules.py), then create a relocatable supplier:
 
 ```text
 python Nelyx/skia/eng/prepare-linux-inputs.py --cache <SDK-cache> --modules <prepared-modules> --output <new-supplier>
 ```
 
-Compile recipes live in [`native/vulkan/CMakeLists.txt`](packages/rn/native/vulkan/CMakeLists.txt) and [`native/linux/CMakeLists.txt`](packages/rn/native/linux/CMakeLists.txt). RNL archive preparation is covered by the [CLI guide](../sdk/tooling/cli/README.md#linux-supply).
+Recipes live in [native/vulkan/CMakeLists.txt](packages/rn/native/vulkan/CMakeLists.txt) and [native/linux/CMakeLists.txt](packages/rn/native/linux/CMakeLists.txt). See [Linux CLI supply](../sdk/tooling/cli/README.md#linux-supply) for RNL archives. Names containing `probe` identify pinned input profiles.
 
-Existing `*-probe` names identify pinned SDK profiles; there is no separate probe target. Linux GPU execution remains unverified.
+## Compatibility and resources
 
-## Validation and provenance
+Install matching Core, SDK, and renderer packages together. Native source changes require rebuilt suppliers; runtime handshakes reject incompatible bindings.
 
-Source builds, binary/source correspondence, and platform qualification are separate checks. Apple native build/runtime/Metal/signing and full platform qualification remain unverified.
+Runtime shaders use captured SkSL and per-frame uniform values. Compiled programs belong to the renderer's cache owner and retire through its shutdown/context lifecycle. Frames, recordings, and GPU submissions retain their own resource leases.
 
-Upstream provenance is recorded in [`upstream.json`](upstream.json), [`upstream/`](upstream/), and [`vendor/`](vendor/). Nelyx-authored code uses [BSD-3-Clause](LICENSE.md); imported code retains [its notices](THIRD_PARTY_NOTICES.md) and [licenses](licenses/), including the RN Skia MIT license.
+Platform readiness and graphics-recovery limits are described in the [project guide](../../README.md#project-status).
 
-Runtime shaders use frame wire 11. Core captures bounded SkSL and float uniform values; the common native decoder checks counts, ASCII packing, shader compilation, float-only uniforms and unsupported child effects before any canvas mutation. Web and RN paint adapters compile the same SkSL and retire temporary effects/shaders through their existing owners. Matching native suppliers must be rebuilt; old binaries are rejected by the RN wire handshake. The source manifest derives its wire version from matching Core/native definitions. Compiled programs are cached per owner with a 16-program and 128 KiB ASCII-source budget. Uniform values stay per frame. Web context loss clears the cache; the RN SDK shares it across renderer/text/picture/rasterization paths and retires it after application drain. Native C ABI renderers own an equivalent cache. Existing native shaders and pictures retain independent program references through eviction. Unconfirmed wrapper deletion is retained and never retried. These bounds do not measure driver allocations or display FPS.
+## License and provenance
+
+Source pins and notices are recorded in [upstream.json](upstream.json), [upstream/](upstream/), and [vendor/](vendor/). Nelyx-authored code uses [BSD-3-Clause](LICENSE.md); imported code retains [third-party notices](THIRD_PARTY_NOTICES.md) and [licenses](licenses/), including React Native Skia's MIT license.

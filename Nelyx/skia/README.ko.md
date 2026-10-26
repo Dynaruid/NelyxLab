@@ -2,20 +2,20 @@
 
 [English](README.md) | **한국어**
 
-Nelyx 렌더러 구현과 버전이 고정된 네이티브 공급 구성입니다. [SDK](../sdk/README.ko.md)가 앱 호스트를, Skia가 GPU device, recording, 텍스트와 렌더링 표면을 관리합니다.
+Nelyx의 렌더링 계층입니다. 공통 네이티브 그래픽·텍스트, React Native surface 어댑터와 브라우저 CanvasKit 렌더링을 제공합니다. [SDK](../sdk/README.ko.md)가 렌더러를 앱 호스트·입력에 연결합니다.
 
 ## 렌더러 구성
 
 | 경로 | 용도 |
 | --- | --- |
-| [`native/`](native/) | 공통 렌더러·GPU·텍스트 구현 |
-| [`packages/native/`](packages/native/README.md) | 공통 native renderer·text·resource·JSI binding |
-| [`packages/rn/`](packages/rn/README.md) | React Native JSI·component·surface와 Graphite 어댑터 |
-| [`packages/web/`](packages/web/README.md) | CanvasKit/Ganesh WebGL2 렌더러와 텍스트 |
-| [`vendor/`](vendor/) | 정확한 네이티브 입력 lock과 명시적으로 공급한 binary |
-| [`eng/source-build/`](eng/source-build/README.md) | 버전 고정 소스 준비와 빌드 recipe |
+| [native/](native/) | 공통 렌더러·GPU·텍스트 구현 |
+| [packages/native/](packages/native/README.md) | 공통 네이티브 렌더러, 자원, 문단과 JSI binding |
+| [packages/rn/](packages/rn/README.md) | React Native 컴포넌트, surface와 어댑터 |
+| [packages/web/](packages/web/README.md) | CanvasKit/Ganesh WebGL2 렌더러와 텍스트 |
+| [vendor/](vendor/) | 고정된 네이티브 입력 lock과 공급 설정 |
+| [eng/source-build/](eng/source-build/README.md) | Vendor 소스 준비와 빌드 recipe |
 
-Android/Apple은 고정된 m154/154.1.0 공급을, Windows/Linux는 일치하는 m153 네이티브 Vulkan SDK와 module 보충 소스를 사용합니다. 대상별 입력이므로 다른 버전으로 대체하거나 ABI·소스 목록이 다른 binary를 재사용하지 않습니다.
+Android·Apple은 고정된 m154/154.1.0 공급을, Windows·Linux는 대응하는 m153 Vulkan SDK와 모듈 소스를 사용합니다. 각 대상의 ABI, 소스 목록과 런타임 입력이 호환되어야 합니다.
 
 ## 패키지 빌드
 
@@ -25,43 +25,57 @@ Android/Apple은 고정된 m154/154.1.0 공급을, Windows/Linux는 일치하는
 npm run build:skia
 ```
 
-이 명령은 생성 네이티브 소스를 준비하고 RN/Web TypeScript 패키지를 빌드합니다. 모든 대상의 네이티브 binary를 빌드하지는 않습니다. 전체 SDK 패키지 구성은 `npm run build:sdk`를 사용합니다.
+생성 네이티브 소스를 준비하고 native·RN·Web TypeScript 패키지를 빌드합니다. 네이티브 바이너리는 대상별로 별도 빌드합니다. 전체 SDK 패키지는 `npm run build:sdk`를 사용합니다.
 
-소스 준비에는 Python 3가 필요하며 최초 실행에서 버전이 고정된 SDK header를 다운로드할 수 있습니다.
+준비에는 Python 3가 필요하며 최초 실행에서 고정된 SDK header를 다운로드할 수 있습니다.
+
+## Web 런타임
+
+Web은 소스로 빌드한 Nelyx CanvasKit 런타임을 사용합니다. [Vendor 빌드 recipe](eng/source-build/README.md#vendor-build-recipes)에 따라 출력을 공급하고 Web 앱 준비 전에 검사합니다.
+
+```powershell
+node Nelyx/skia/eng/prepare-web-runtime.mjs --check
+```
+
+패키지 manifest가 필요한 파일을 식별합니다. 런타임 bytes가 없거나 일치하지 않으면 명시적인 준비 작업이 필요합니다.
 
 ## Windows 네이티브 입력
 
-Python, Windows C++ toolchain과 [`windows-rn-supplier.lock.json`](vendor/windows-rn-supplier.lock.json)에 일치하는 입력을 준비합니다. Binding에는 RNW 0.83.2 / JSI21, x64 Release와 MD runtime이 필요합니다. 필수 재사용 binary 공급 위치는 `vendor/inputs/windows-x64/`입니다.
+Python, Windows C++ toolchain과 [windows-rn-supplier.lock.json](vendor/windows-rn-supplier.lock.json)의 입력을 사용합니다. Binding에는 RNW 0.83.2 / JSI21, x64 Release와 MD runtime이 필요합니다. 재사용할 바이너리 공급 위치는 `vendor/inputs/windows-x64/`입니다.
 
-저장소 루트에서 실행합니다.
+[샘플 가이드](../../sample/nelyx-testbed-app-2/README.ko.md#windows-준비)에 따라 Windows runner를 설치한 뒤 저장소 루트에서 실행합니다.
 
 ```powershell
-python Nelyx/skia/eng/prepare-artifacts.py --profile windows-x64-graphite-text-probe
-python Nelyx/skia/eng/build-windows-rn.py --runner sample/nelyx-testbed-app-2/windows/runner --supplier Nelyx/skia/vendor/inputs/windows-x64 --output Nelyx/.cache/native/windows/new-build
+node Nelyx/skia/eng/prepare-native.mjs
+python Nelyx/skia/eng/build-windows-rn.py --runner sample/nelyx-testbed-app-2/windows/runner --supplier Nelyx/skia/vendor/inputs/windows-x64 --output .nelyx/windows-rnw-native
 ```
 
-먼저 [샘플 가이드](../../sample/nelyx-testbed-app-2/README.ko.md#windows)에 따라 Windows runner를 설치합니다. 새 출력 디렉터리를 사용합니다. 네이티브 빌드가 생성한 `<output>/supplier/inputs.json`을 runner에 설치된 CLI에 전달합니다.
+현재 출력 하나를 유지하고 같은 빌드를 갱신할 때는 `--resume`을 추가합니다. 출력의 `<output>/supplier/inputs.json`을 설치된 runner CLI에 전달합니다.
 
 ```text
 nelyx prepare --app <app> --target windows --native-inputs <inputs.json>
 ```
 
-기본 구성은 stock RNW Core입니다. 보존한 private unload patch는 자동 채택하지 않습니다. [프로젝트 상태](../../README.ko.md#프로젝트-상태)를 참고하세요.
+기준 C++·JSI 소스가 바뀌면 소스 준비·공급 파일 빌드를 반복하고 새 manifest로 앱을 준비하세요. 기본값은 stock RNW Core입니다.
 
 ## Linux 네이티브 입력
 
-[`linux-graphite-probe.lock.json`](vendor/linux-graphite-probe.lock.json)의 정확한 x86_64 SDK와 설치된 RNL/RN 0.81.6의 일치하는 소스를 사용합니다. [`prepare-rn-modules.py`](eng/source-build/prepare-rn-modules.py)로 module 입력을 준비한 뒤 재배치 가능한 공급물을 생성합니다.
+[linux-graphite-probe.lock.json](vendor/linux-graphite-probe.lock.json)의 SDK와 대응하는 RNL/RN 0.81.6 소스를 사용합니다. [prepare-rn-modules.py](eng/source-build/prepare-rn-modules.py)로 모듈을 준비한 뒤 재배치 가능한 공급 파일을 만듭니다.
 
 ```text
 python Nelyx/skia/eng/prepare-linux-inputs.py --cache <SDK-cache> --modules <prepared-modules> --output <new-supplier>
 ```
 
-Compile recipe는 [`native/vulkan/CMakeLists.txt`](packages/rn/native/vulkan/CMakeLists.txt)와 [`native/linux/CMakeLists.txt`](packages/rn/native/linux/CMakeLists.txt)에 있습니다. RNL archive 준비는 [CLI 가이드](../sdk/tooling/cli/README.ko.md#linux-공급)에 있습니다.
+Recipe는 [native/vulkan/CMakeLists.txt](packages/rn/native/vulkan/CMakeLists.txt)·[native/linux/CMakeLists.txt](packages/rn/native/linux/CMakeLists.txt)에 있습니다. RNL archive는 [Linux CLI 공급](../sdk/tooling/cli/README.ko.md#linux-공급)을 참고하세요. 이름의 `probe`는 고정된 입력 profile 식별자입니다.
 
-기존 `*-probe` 이름은 고정된 SDK profile 식별자이며 별도 probe target은 없습니다. Linux GPU 실행은 미검증입니다.
+## 호환성과 자원
 
-## 검증과 출처
+대응하는 Core·SDK·렌더러 패키지를 함께 설치합니다. 네이티브 소스를 바꾸면 공급 파일도 재빌드해야 하며, 런타임 연결 시 호환되지 않는 binding을 거절합니다.
 
-소스 빌드, binary·소스 대응과 플랫폼 qualification은 각각 구분합니다. Apple 네이티브 빌드·실행·Metal·서명과 전체 플랫폼 qualification은 미검증입니다.
+Runtime shader는 캡처된 SkSL과 프레임별 uniform 값을 사용합니다. 컴파일된 프로그램은 렌더러의 cache owner가 소유하고 종료·context 수명에 따라 해제합니다. 프레임, recording과 GPU 제출은 각각의 자원 lease를 유지합니다.
 
-출처는 [`upstream.json`](upstream.json), [`upstream/`](upstream/)과 [`vendor/`](vendor/)에 기록합니다. Nelyx 작성 코드는 [BSD-3-Clause](LICENSE.md)를 따릅니다. 수입 코드의 [고지](THIRD_PARTY_NOTICES.md)와 [라이선스](licenses/)에는 RN Skia의 MIT 라이선스도 유지합니다.
+플랫폼 준비 수준과 그래픽 복구 제약은 [프로젝트 가이드](../../README.ko.md#프로젝트-상태)에 있습니다.
+
+## 라이선스와 출처
+
+소스 pin과 고지는 [upstream.json](upstream.json), [upstream/](upstream/)과 [vendor/](vendor/)에 기록합니다. Nelyx 작성 코드는 [BSD-3-Clause](LICENSE.md)를 따릅니다. 가져온 코드의 [서드파티 고지](THIRD_PARTY_NOTICES.md)·[라이선스](licenses/)에는 React Native Skia의 MIT 라이선스도 유지합니다.
