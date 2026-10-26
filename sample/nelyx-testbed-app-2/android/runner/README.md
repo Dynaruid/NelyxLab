@@ -12,6 +12,8 @@ npm --prefix android/runner ci --workspaces=false
 
 In NelyxLab, use `npm run build:sdk` and `npm run prepare:sample -- android` from the repository root first. Prepare JDK 21, Android SDK/build tools 36, NDK 27.1.12297006, and an emulator or device visible to `adb devices -l`.
 
+Select a standard OpenJDK 21 before building. On the current Windows setup, GraalVM 21 fails the Android JDK image `jlink` transform; Temurin 21.0.11 succeeds. Set the session's `JAVA_HOME` and `Path` as shown in the [application's Android guide](../../README.md#android).
+
 The sample's local Android supplier archive referenced by `package.json` must also exist before installation. Android `prepare:sample` refreshes the Nelyx archives only; keep the native supplier pinned to 154.1.0.
 
 ## Build and run

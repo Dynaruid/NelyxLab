@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 주 수락 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / 실제 Testbed 앱**
 
-> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.62(이전 두 열 검증 §8.60), 웹 viewport 수정은 §8.61, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
+> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.62(이전 두 열 검증 §8.60), 웹 viewport 수정은 §8.61, Android 빌드·에뮬레이터 실행은 §8.63, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
 
 **W18은 기존 구조의 작은 최적화를 이어 붙이는 작업이 아니라, Nelyx가 상태·트리·레이아웃·텍스트·scene·자원을 보유하고 갱신하는 기반을 다시 만드는 작업이다.** TypeScript로 앱과 Widget·State를 작성하는 제품 방향, Nelyx 자체 콘텐츠 레이아웃, Hermes 기본 엔진 방향은 유지한다. 내부 클래스 구조·저장 방식·모듈·native ABI·공급 방식은 교체할 수 있다. 기존 소스와 API를 모두 그대로 보존하는 것을 개편의 전제로 삼지 않는다.
 
@@ -1077,6 +1077,12 @@ Windows native/RN archive를 `ab6568d2c8dd5db59594b5957f5c7adcda819fe338e16670b1
 bytecode29,023ms/153files/HBC `7b67da5e49733fa22440cecc7ee33d91721afeae6283c0a27fdb7fbd090f6087`, Static65,338ms/156files/DLL `605be444fe0920d199ea728f7c3bf2ab7be6ed7e6a4abd17050eef0f7fe328a9`로 현재 제품을 교체했다. Static은 두 native C unit을 재사용하고 image를 재링크했으며 nativeFunctions37,186·app.hbc 없음이다. 두 실제 제품의 FIRST_FRAME·창 title/Responding=true·loaded79/80·noRN/noNodeAPIJSI·exit0/forced=false/error=null/stderr 없음과 package/loaded image 일치를 확인했다. 기존 두 `run -- --host native-hermes --hermes-mode bytecode|static-aot` 명령으로 새 제품이 실행된다.
 
 진단 entry/package는 실행별 finally에서 정리했고 루트 일회성 helper도 삭제했다. 이번 실행은 프로그램에 의한 스크롤/GPU readback과 두 제품 시작/종료 범위다. 물리 입력/scanout·성능/메모리 수락·다른 플랫폼의 새 native 변경 실행·새 외부 UIA/ZIP은 추가 수락하지 않는다. 전체 W18과 다음 구현 경계는 계속 **IN_PROGRESS / PARTIAL**이다.
+
+### 8.63 PASS-scoped — Android 빌드 JDK 선택·연결 에뮬레이터 실행
+
+2026-10-26 Android 첫 빌드 명령의 실패 보고를 HEAD `f492cd1`의 clean tree에서 재현했다. 기본 `JAVA_HOME`의 GraalVM21.0.11이 `:nelyx_skia-rn:compileReleaseJavaWithJavac`의 Android JDK image `jlink` 단계에서 실패했다. 기존 작업 기록/앱 README에 기록된 Temurin21 지정을 앞선 실행 안내에서 누락한 문제다. 설치된 Temurin21.0.11+10의 `JAVA_HOME/Path`를 해당 빌드 자식 프로세스에만 적용하자 같은 CLI x86_64/Release 빌드가 통과했다(Gradle18s). 시스템 Java 설정과 제품 코드는 변경하지 않았다. 양 언어 앱 README의 저장소 루트 명령에 JDK/Path·CLI build/run을 반영하고 runner README에 JDK 안내 링크를 추가했다.
+
+기존 §8.59 Android 공급을 유지했다. APK66,041,676bytes / SHA-256 `79ce6349c49654dc88ef1856e3824932b35518cabf62ec56c66db979c911ff45`, Hermes HBC96·`android-5a1485-Og`이며 새 CLI 패키지1467files/101,681,391bytes를 등록했다. 같은 안내의 CLI run으로 연결된 `emulator-5554`(API33/x86_64)에 설치·activity 시작이 성공했다. PID5908의 RESUMED·foreground, 실제 screencap의 Components 갤러리·카드·한국어·아이콘, 해당 process의 AndroidRuntime/ReactNativeJS/libc fatal 오류 없음을 확인했다. 시작 frame 관측은 성능 수락이 아니다. 앱은 사용자 확인을 위해 실행 상태로 두었고 임시 screencap 디렉터리는 finally에서 정리했다. 실패 빌드의 빈 package 디렉터리2개(`1793025287296-e21cd08e-38d5-45ea-98e7-1fc672dd53b0`, `1793025417327-78542e3e-62ea-4c90-9a79-75e1de8bb52d`)를 소유 경계·plain directory·비어 있음 확인 후 비재귀 삭제하려던 명령은 자동 승인 검토가 **blocked by policy**로 거부했다. 명령 전체가 실행되지 않았고 상세 거부 사유는 제공되지 않았다. 두 빈 폴더는 그대로 두며 다른 도구로 재삭제하지 않는다. 최신 Windows 전용 native 공급·물리 입력/IME/display·전체 W18 수락을 이 Android 시작 확인으로 확장하지 않으며 전체 **IN_PROGRESS / PARTIAL**을 유지한다.
 
 ## 9. 공식 원본과 적용 범위
 

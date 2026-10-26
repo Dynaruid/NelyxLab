@@ -290,11 +290,14 @@ The current Windows setup builds with Temurin 21.0.11; its default GraalVM 21 fa
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
-npm run prepare:runner --workspace @nelyx/testbed-2 -- android
-npm --prefix sample/nelyx-testbed-app-2/android/runner install --workspaces=false --ignore-scripts
-npm run build:android:emulator --workspace @nelyx/testbed-2
-npm run run:android --workspace @nelyx/testbed-2
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm.cmd run prepare:runner --workspace @nelyx/testbed-2 -- android
+npm.cmd --prefix sample/nelyx-testbed-app-2/android/runner install --workspaces=false --ignore-scripts
+npm.cmd --prefix sample/nelyx-testbed-app-2/android/runner exec --no -- nelyx build --app sample/nelyx-testbed-app-2 --target android --architecture x86_64 --configuration Release
+npm.cmd --prefix sample/nelyx-testbed-app-2/android/runner exec --no -- nelyx run --app sample/nelyx-testbed-app-2 --target android --device emulator-5554
 ```
+
+Run these commands from the repository root. Replace `emulator-5554` with the serial shown by `adb devices -l`; CLI `run` installs and launches the registered Release APK. The JDK selection applies to the current PowerShell session and its child processes.
 
 For temporary emulator checks, `-read-only -no-snapshot` keeps the session disposable; [Android documents that read-only guest disk changes are discarded on exit](https://developer.android.com/studio/releases/emulator). Activity startup/back checks remain separate from native drain, physical input and display timing acceptance.
 

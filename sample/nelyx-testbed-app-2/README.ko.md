@@ -344,11 +344,14 @@ Windows V8 공개 빌드와 native fixture는 공통 `@nelyx/metro/native-v8-tra
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
-npm run prepare:runner --workspace @nelyx/testbed-2 -- android
-npm --prefix sample/nelyx-testbed-app-2/android/runner install --workspaces=false --ignore-scripts
-npm run build:android:emulator --workspace @nelyx/testbed-2
-npm run run:android --workspace @nelyx/testbed-2
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+npm.cmd run prepare:runner --workspace @nelyx/testbed-2 -- android
+npm.cmd --prefix sample/nelyx-testbed-app-2/android/runner install --workspaces=false --ignore-scripts
+npm.cmd --prefix sample/nelyx-testbed-app-2/android/runner exec --no -- nelyx build --app sample/nelyx-testbed-app-2 --target android --architecture x86_64 --configuration Release
+npm.cmd --prefix sample/nelyx-testbed-app-2/android/runner exec --no -- nelyx run --app sample/nelyx-testbed-app-2 --target android --device emulator-5554
 ```
+
+저장소 루트에서 실행합니다. `emulator-5554`는 `adb devices -l`에 표시된 serial로 바꾸며, CLI `run`이 등록된 Release APK를 설치하고 실행합니다. JDK 지정은 현재 PowerShell 세션과 그 자식 프로세스에 적용됩니다.
 
 임시 에뮬레이터 검사는 `-read-only -no-snapshot`을 사용합니다. [Android 문서는 read-only guest disk 변경을 종료 시 폐기한다고 설명합니다](https://developer.android.com/studio/releases/emulator). Activity 시작·뒤로 복귀 검사는 native drain·물리 입력·표시 timing 수락과 구분합니다.
 
