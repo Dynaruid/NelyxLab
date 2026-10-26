@@ -21,8 +21,8 @@
     "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.1.0-adcfe40b8b79cb3ec12bb6aaf9c4ca462c450ca377940289d8cc1cce170843bf.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-458af09be30d1b263f3e83e7a81ea7f4b81dbffdfe06e81d1d70770fe0aab1b1.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-fd0200317d7c06c2b274ecd09b2f70550dbdea830f74e87cc3792a9e8848d1c6.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-1751fe701042ff4bd296e2e21bef351ba1938dd11cddbe292105d9047d2ede54.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-b0995e9ebc3eed268a4fdda5a050817f2cc3302e64933a5545f41d374598c5b4.tgz",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@types/node": "24.10.1",

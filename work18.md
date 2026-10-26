@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 주 수락 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / 실제 Testbed 앱**
 
-> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.60, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
+> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.60, 웹 viewport 수정은 §8.61, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
 
 **W18은 기존 구조의 작은 최적화를 이어 붙이는 작업이 아니라, Nelyx가 상태·트리·레이아웃·텍스트·scene·자원을 보유하고 갱신하는 기반을 다시 만드는 작업이다.** TypeScript로 앱과 Widget·State를 작성하는 제품 방향, Nelyx 자체 콘텐츠 레이아웃, Hermes 기본 엔진 방향은 유지한다. 내부 클래스 구조·저장 방식·모듈·native ABI·공급 방식은 교체할 수 있다. 기존 소스와 API를 모두 그대로 보존하는 것을 개편의 전제로 삼지 않는다.
 
@@ -1048,6 +1048,12 @@ Windows runner의 Skia native/RN archive를 각각 `138cd8e8851afa34eed66c7584d4
 bytecode30,050ms/153files/HBC `7b67da5e49733fa22440cecc7ee33d91721afeae6283c0a27fdb7fbd090f6087`, Static62,314ms/156files/DLL `0c97a0b4f3ed6ba8687bab4655f5cc653153bc729b4f4309c18e06fece96d8ca`를 빌드했다. Static은 두 C unit을 재사용하고 image를 재링크했으며 nativeFunctions37,186·app.hbc 없음이다. 두 실제 제품 모두 FIRST_FRAME·창 title·Responding=true·surface5·exit0/forced=false/error=null/stderr 없음, loaded79/80·noRN/noNodeAPIJSI를 확인했다. 기존 두 `run -- --host native-hermes --hermes-mode bytecode|static-aot` 명령으로 갱신된 제품을 실행할 수 있다.
 
 진단 전용 entry/package는 실행별 finally에서 정리했고 루트 임시 helper 두 개도 삭제했다. 검증·공급 갱신은 Windows 직접 host 두 모드 범위다. 외부 입력 UIA·ZIP과 다른 플랫폼의 새 native 변경 실행은 이번에 추가 검증하지 않았다. W18의 다음 구현 경계와 전체 **IN_PROGRESS / PARTIAL**, `performanceAccepted=false`·물리 입력/display 미수락은 유지한다.
+
+### 8.61 PASS-scoped — Web 전체 화면 높이·HTML 바깥 스크롤 방지
+
+2026-10-26 기본 배율에서 HTML 스크롤바가 생긴다는 사용자 보고에 따라 HEAD `82bd578`의 clean tree에서 웹 러너만 수정했다. 기존 Chrome 기본 화면과 개발 모드 크기 변경에서는 원래 넘침을 재현하지 못했으므로 정확한 발생 조건을 확정하지 않는다. 기존 HTML은 `#app`의 최소 높이만 지정하고 앱 표면은 독립적인 `100vh` 높이를 사용했다. 개발 서버·정적 빌드 모두 `html/body/#app` 높이를 부모 기준 100%로 정하고 바깥 overflow를 숨겼다. `#app`을 세로 flex root로, Testbed·생성 템플릿의 표면을 `flex:1`·부모 높이 100%로 바꿨다. 포함형 SDK surface의 기본 크기나 canvas 내부 layout/scroll은 변경하지 않았다.
+
+Metro·CLI만 새 archive로 Web에 공급·실제 설치했고 두 Metro 구현과 CLI 템플릿의 원본/설치 bytes 일치를 확인했다. Web check·현재 정적 build가 통과했다. 실제 Chrome의 개발/정적 두 모드 × DPR1/1.25 × 1200×900·390×740·1199×673의12조건에서 canvas·document client/scroll 크기가 viewport와 같고 페이지 scrollX/Y가0임을 확인했다. 네 모드/DPR 조합에서 실제 canvas pointer 선택·wheel40 입력으로 ListView 행이 이동하고 선택이 유지됐다. 개발 서버의 기존 favicon404는 별도로 구분했으며 다른 console error와 page error는 없었다. 임시 browser/profile·설치 디렉터리와 검증 서버는 finally에서 정리했다. 현재 개발 서버를 재시작한 뒤 페이지를 새로고침하면 적용된다. 사용자 환경의 원래 증상 재확인·물리 입력/display·전체 W18 수락은 별도이며 전체 **IN_PROGRESS / PARTIAL**을 유지한다.
 
 ## 9. 공식 원본과 적용 범위
 

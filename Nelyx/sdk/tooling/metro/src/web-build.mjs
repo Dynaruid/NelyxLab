@@ -29,7 +29,7 @@ export async function buildWeb({config,entry,outputDirectory,assetsDirectory,pro
     const root=path.resolve(path.dirname(require.resolve(specifier)),'..');fs.copyFileSync(path.join(root,'LICENSE.md'),path.join(output,'licenses',file));
     if(fs.existsSync(path.join(root,'licenses')))fs.cpSync(path.join(root,'licenses'),path.join(output,'licenses',folder),{recursive:true,dereference:false});
   }
-  fs.writeFileSync(path.join(output,'index.html'),'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nelyx Web</title><style>html,body{margin:0;background:#101827}#app{min-height:100vh}</style><div id="app"></div><script src="application.js"></script></html>\n');
+  fs.writeFileSync(path.join(output,'index.html'),'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nelyx Web</title><style>html,body{height:100%;margin:0;overflow:hidden;background:#101827}#app{display:flex;flex-direction:column;height:100%;overflow:hidden}</style><div id="app"></div><script src="application.js"></script></html>\n');
   const files=['application.js','application.js.map','index.html','runtime/canvaskit.js','runtime/canvaskit.wasm','runtime/native-manifest.json'].map(file=>({path:file,sha256:digest(fs.readFileSync(path.join(output,file)))}));
   const build={schema:'nelyx.web-build/v1',profile,renderer:'skia-ganesh',gpuBackend:'webgl2',gpuImplementation:'browser-webgl2',development,files,sourceRebuild:'notVerified',noticeQualification:'PARTIAL'};
   fs.writeFileSync(path.join(output,'build.json'),JSON.stringify(build,null,2)+'\n');return {outputDirectory:output,...build};
