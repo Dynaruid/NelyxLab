@@ -15,14 +15,21 @@ import {MediaQuery} from './app-data.ts';
 abstract class WidgetTickerProviderState<W extends StatefulWidget> extends State<W> implements TickerProvider {
   private notifier:ValueListenable<TickerModeData>|undefined;
   private closed=false;
-  private readonly changed=()=>this.updateTickers();
+  private readonly changed=()=>{if(this.notifier)this.updateTickers();};
   protected readonly tickers=new Set<Ticker>();
   get disableAnimations():boolean{invariant(!this.closed,'disposed-ticker-provider','Accessibility policy requires a live ticker owner');return this.context.maybeDependOn(MediaQuery)?.data.disableAnimations??false;}
   protected mode():TickerModeData{invariant(!this.closed,'disposed-ticker-provider','Ticker provider State has been disposed');const next=TickerMode.getValuesNotifier(this.context);if(next!==this.notifier){this.notifier?.removeListener(this.changed);this.notifier=next;next.addListener(this.changed);}return next.value;}
   private updateTickers():void{const values=this.notifier!.value;for(const ticker of this.tickers){ticker.muted=!values.enabled;ticker.forceFrames=values.forceFrames;}}
   protected configure(ticker:Ticker,values:TickerModeData):Ticker{ticker.muted=!values.enabled;ticker.forceFrames=values.forceFrames;this.tickers.add(ticker);return ticker;}
   protected removeTicker(ticker:Ticker):void{this.tickers.delete(ticker);}
-  override activate():void{super.activate();this.mode();this.updateTickers();}
+  override deactivate():void{
+    const notifier=this.notifier;this.notifier=undefined;let errors:unknown[]|undefined;
+    try{notifier?.removeListener(this.changed);}catch(error){(errors??=[]).push(error);}
+    for(const ticker of this.tickers)try{ticker.setMuted(this,true);}catch(error){(errors??=[]).push(error);}
+    try{super.deactivate();}catch(error){(errors??=[]).push(error);}
+    if(errors?.length===1)throw errors[0];if(errors)throw new AggregateError(errors,'Ticker provider deactivation failed');
+  }
+  override activate():void{super.activate();this.mode();this.updateTickers();for(const ticker of this.tickers)ticker.setMuted(this,false);}
   override dispose():void{if(this.closed)return;this.closed=true;const active=[...this.tickers].some(ticker=>ticker.isActive);this.notifier?.removeListener(this.changed);this.notifier=undefined;const errors:unknown[]=[];for(const ticker of [...this.tickers])try{ticker.dispose();}catch(error){errors.push(error);}if(active)errors.unshift(new Error('TickerProvider State disposed with an active Ticker; dispose controllers before super.dispose()'));try{super.dispose();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Ticker provider teardown failed');}
   abstract createTicker(onTick:(elapsedMilliseconds:number)=>void):Ticker;
 }

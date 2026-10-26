@@ -1,8 +1,7 @@
 import { generation } from '../foundation/numbers.ts';
 import { invariant } from '../foundation/errors.ts';
-import { resourceKey } from '../ui/frame.ts';
 import type { ResourceDescriptor, ResourceId } from '../ui/types.ts';
-import {releaseFrameResources,resourceOwner,bindResourceRetainer} from '../ui/resource-retention.ts';
+import {resourceKey,releaseFrameResources,resourceOwner,bindResourceRetainer,copyResourceId} from '../ui/resource-retention.ts';
 export interface ResourceCost {readonly units:number;readonly bytes:number}
 export interface ResourceAccountingTotals {readonly resident:number;readonly producers:number;readonly residentUnits:number;readonly producerUnits:number;readonly residentBytes:number;readonly producerBytes:number}
 export interface ResourceAccountingRegistration {readonly owner:ResourceAccounting;readonly identity:object;readonly cost:ResourceCost}
@@ -36,6 +35,24 @@ export class ResourceRegistry {
   private entries = new Map<string, Entry>();
   private closed = false;
   private allocationSequence=0;
+  private optionalReclaimers:Set<()=>void>|undefined;
+  private reclaimingOptional=false;
+  /** @internal Optional UI/cache owners can release their own logical leases
+   * before admission. In-flight frames remain independently charged. */
+  addOptionalResourceReclaimer(reclaim:()=>void):{dispose():void}{
+    invariant(!this.closed&&typeof reclaim==='function','invalid-resource-reclaimer','Optional resource reclamation needs a live registry and callback');
+    const entry=()=>reclaim();(this.optionalReclaimers??=new Set()).add(entry);let live=true;
+    return {dispose:()=>{if(!live)return;live=false;this.optionalReclaimers?.delete(entry);}};
+  }
+  /** @internal Bounded by registered owners; a reentrant admission does not
+   * recursively restart the same reclamation transaction. */
+  reclaimOptionalResources():boolean{
+    if(this.closed||this.reclaimingOptional||!this.optionalReclaimers?.size)return false;
+    this.reclaimingOptional=true;const errors:unknown[]=[],batch=[...this.optionalReclaimers];
+    try{for(const reclaim of batch)if(this.optionalReclaimers.has(reclaim))try{reclaim();}catch(error){errors.push(error);}}
+    finally{this.reclaimingOptional=false;}
+    if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Optional resource reclamation failed');return true;
+  }
   /** Aggregate only registered cost sidecars, across services sharing this registry.
    * Residency includes owners/in-flight frames after the final producer leaves. */
   get accountedTotals():ResourceAccountingTotals{return {...registryAccounting(this)};}
@@ -61,7 +78,9 @@ export class ResourceRegistry {
   retainInitialProducer(resource:ResourceId):void{const entry=this.entries.get(resourceKey(resource)),owner=resourceOwner(resource);invariant(!this.closed&&(owner===null||owner===this)&&entry&&entry.references>0,'stale-resource','Cannot reuse a retired or foreign producer');entry.references++;entry.producer++;changeProducerAccounting(entry,1);}
   /** An admitted frame can outlive every UI producer without becoming stale. */
   isRetained(resource:ResourceId):boolean{const owner=resourceOwner(resource);return !this.closed&&(owner===null||owner===this)&&this.entries.has(resourceKey(resource));}
-  bindResource(resource:ResourceId):void{invariant(this.has(resource),'stale-resource','Cannot bind a foreign or released resource');bindResourceRetainer(resource,()=>this.retainProducer(resource),this);}
+  /** Capture the immutable identity and this registry's stable binding together. */
+  captureResource(resource:ResourceId):ResourceId{const identifier=copyResourceId(resource,()=>this.retainProducer(identifier),this),owner=resourceOwner(resource);invariant((owner===null||owner===this)&&this.has(identifier),'stale-resource','Cannot bind a foreign or released resource');return identifier;}
+  bindResource(resource:ResourceId):void{const identifier=this.captureResource(resource);bindResourceRetainer(resource,()=>this.retainProducer(identifier),this);}
   retainProducer(resource:ResourceId):{dispose():void}{const entry=this.entries.get(resourceKey(resource)),owner=resourceOwner(resource);invariant(!this.closed&&(owner===null||owner===this)&&entry&&entry.references>0,'stale-resource','Cannot retain a foreign or retired resource');entry.references++;entry.owners++;let released=false;return {dispose:()=>{if(released)return;released=true;if(this.closed)return;entry.owners--;this.release(entry);}};}
   releaseProducer(resource: ResourceId): void {
     const entry=this.entries.get(resourceKey(resource));
@@ -86,5 +105,5 @@ export class ResourceRegistry {
     const errors: unknown[] = []; for(const entry of entries) {try {this.release(entry);} catch(error) {errors.push(error);}}
     if(errors.length) throw new AggregateError(errors, "resource retirement failed");
   }
-  dispose(): void { if (this.closed) return; this.closed = true; const producers:Entry[]=[];for(const entry of this.entries.values()){const count=entry.producer+entry.owners;changeProducerAccounting(entry,-entry.producer);entry.producer=0;entry.owners=0;for(let i=0;i<count;i++)producers.push(entry);}this.releaseAll(producers); }
+  dispose(): void { if (this.closed) return; this.closed = true;this.optionalReclaimers?.clear(); const producers:Entry[]=[];for(const entry of this.entries.values()){const count=entry.producer+entry.owners;changeProducerAccounting(entry,-entry.producer);entry.producer=0;entry.owners=0;for(let i=0;i<count;i++)producers.push(entry);}this.releaseAll(producers); }
 }

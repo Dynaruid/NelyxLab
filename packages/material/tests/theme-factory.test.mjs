@@ -9,7 +9,7 @@ import {CupertinoThemeData,NoDefaultCupertinoThemeData} from '@nelyx/cupertino/t
 import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';
 import {Color} from '@nelyx/core/ui/color';import {TextStyle} from '@nelyx/core/framework/painting/text-style';
 import {dartObjectType} from '@nelyx/core/foundation/dart-type-witness';import {FoundationPlatform} from '@nelyx/core/foundation/platform';
-import {Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {emptyWidgetStateSet} from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {fixture} from './root-fixture.mjs';
 const timeout=1200000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/theme-factory-source.json',import.meta.url))),icons=JSON.parse(fs.readFileSync(new URL('./fixtures/theme-factory-icon-source.json',import.meta.url)));
 const configure=environment=>FoundationPlatform.configure({kind:environment==='web'?'web':'native',operatingSystem:'windows'});

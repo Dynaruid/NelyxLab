@@ -8,6 +8,31 @@ import {admitTextLayoutResources} from '@nelyx/core/ui/text';
 const timeout=1_200_000;
 const input=(text='label')=>({text,width:220,font:{id:'font',generation:1},fontSize:16,locale:'en',direction:'ltr',scale:1});
 const empty={resident:0,producers:0,residentUnits:0,producerUnits:0,residentBytes:0,producerBytes:0};
+
+test('optional pressure releases logical producers before admission without repeating input serialization or draining a frame',{timeout},()=>{
+ const registry=new ResourceRegistry(),budget=new TextLayoutBudget(registry),layout={resource:{id:'optional',generation:1},input:input('x'.repeat(4096))};let retired=0,calls=0,reclaims=0,frame,lease;
+ try{
+  budget.admit(layout.input);registry.register({...layout.resource,kind:'paragraph'},()=>retired++,budget.registration(layout));for(let i=1;i<16;i++)registry.retainInitialProducer(layout.resource);frame=registry.acquire([layout.resource]);
+  lease=registry.addOptionalResourceReclaimer(()=>{reclaims++;assert.equal(registry.reclaimOptionalResources(),false,'Reclamation cannot recursively enter itself');while(registry.initialProducerCount(layout.resource))registry.releaseProducer(layout.resource);});
+  const candidate={...input('new'),toJSON(){calls++;return input('new');}};budget.admit(candidate);assert.equal(calls,1);assert.equal(reclaims,1);assert.equal(registry.initialProducerCount(layout.resource),0);assert.equal(registry.retainedReferenceCount(layout.resource),1);assert.equal(registry.accountedTotals.residentUnits,4096);assert.equal(retired,0);
+  frame.returnBy('caller');frame=undefined;assert.equal(retired,1);assert.deepEqual(registry.accountedTotals,empty);
+ }finally{lease?.dispose();frame?.returnBy('caller');registry.dispose();}
+});
+
+test('unsuccessful or failed reclaimers preserve hard admission limits and later owners still retire',{timeout},()=>{
+ const registry=new ResourceRegistry(),budget=new TextLayoutBudget(registry),layout={resource:{id:'unreclaimed',generation:1},input:input('x'.repeat(4096))};let called=0,late=0;
+ budget.admit(layout.input);registry.register({...layout.resource,kind:'paragraph'},()=>{},budget.registration(layout));for(let i=1;i<16;i++)registry.retainInitialProducer(layout.resource);
+ const first=registry.addOptionalResourceReclaimer(()=>called++);
+ try{assert.throws(()=>budget.admit(input('more')),/Live paragraph content budget exhausted/);assert.equal(called,1);first.dispose();
+  const failure={},bad=registry.addOptionalResourceReclaimer(()=>{throw failure;}),good=registry.addOptionalResourceReclaimer(()=>late++);
+  try{assert.throws(()=>budget.admit(input('more')),error=>error===failure);assert.equal(late,1);assert.equal(registry.initialProducerCount(layout.resource),16);}finally{bad.dispose();good.dispose();}
+ }finally{first.dispose();registry.dispose();}assert.equal(registry.reclaimOptionalResources(),false);
+});
+
+test('reclaimer registrations have independent lifetimes even when they share a callback',{timeout},()=>{
+ const registry=new ResourceRegistry();let calls=0;const reclaim=()=>calls++,a=registry.addOptionalResourceReclaimer(reclaim),b=registry.addOptionalResourceReclaimer(reclaim);
+ try{registry.reclaimOptionalResources();assert.equal(calls,2);a.dispose();registry.reclaimOptionalResources();assert.equal(calls,3);a.dispose();b.dispose();assert.equal(registry.reclaimOptionalResources(),false);}finally{a.dispose();b.dispose();registry.dispose();}
+});
 test('resource costs follow shared producers, independent owners, frame leases and closing',{timeout},()=>{
  const registry=new ResourceRegistry(),accounting=new ResourceAccounting(registry),resource={id:'paragraph',generation:1},identity={},cost={units:7,bytes:80};let retired=0;
  registry.register({...resource,kind:'paragraph'},()=>retired++,{owner:accounting,identity,cost});cost.units=99;

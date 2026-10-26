@@ -13,7 +13,7 @@ export class TextLayoutBudget {
   private readonly accounting:ResourceAccounting;
   private readonly identities=new WeakMap<TextLayout,object>();
   private readonly admittedCosts=new WeakMap<TextLayoutInput,TextInputCost>();
-  constructor(registry:ResourceRegistry){this.accounting=new ResourceAccounting(registry);}
+  constructor(private readonly registry:ResourceRegistry){this.accounting=new ResourceAccounting(registry);}
   registration(layout:TextLayout,admitted:TextLayoutInput=layout.input):ResourceAccountingRegistration{
     const identity=this.identities.get(layout)??{},cost=this.admittedCosts.get(admitted);
     invariant(cost,'unadmitted-text-layout','Paragraph registration requires its admitted input');
@@ -35,6 +35,16 @@ export class TextLayoutBudget {
       let state=this.snapshot(request,retained);const added=state.reusing?0:1;
       if(cache&&(state.resident+added>textLimits.retainedResources||state.residentUnits+candidate.units*added>textLimits.retainedUnits||state.residentBytes+candidate.bytes*added>textLimits.retainedInputBytes)){
         cache.trimIdle(retained);state=this.snapshot(request,retained);
+      }
+      const replacement=state.replacement;
+      // Optional retention may be shortened even for a transient measurement.
+      // All original admission checks still run on fresh, actually retired
+      // counts; no cached Element or in-flight lease receives a discount.
+      if(state.producers-(replacement?1:0)>=textLimits.resources||state.producerUnits-(replacement?.units??0)+candidate.units>textLimits.producerUnits||state.producerBytes-(replacement?.bytes??0)+candidate.bytes>textLimits.producerInputBytes||state.resident+(state.reusing?0:1)>textLimits.retainedResources||state.residentUnits+(state.reusing?0:candidate.units)>textLimits.retainedUnits||state.residentBytes+(state.reusing?0:candidate.bytes)>textLimits.retainedInputBytes){
+        if(this.registry.reclaimOptionalResources()){
+          state=this.snapshot(request,retained);
+          if(cache&&(state.resident+(state.reusing?0:1)>textLimits.retainedResources||state.residentUnits+(state.reusing?0:candidate.units)>textLimits.retainedUnits||state.residentBytes+(state.reusing?0:candidate.bytes)>textLimits.retainedInputBytes)){cache.trimIdle(retained);state=this.snapshot(request,retained);}
+        }
       }
       return state;
     },input,request,retained);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BuildOwner,BuildScope,Element,Widget,StatelessWidget,ParentDataWidget,LeafRenderObjectElement,LeafRenderObjectWidget,MultiChildRenderObjectElement,MultiChildRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
+import {BuildOwner,BuildScope,Element,Widget,State,StatefulWidget,StatelessWidget,ParentDataWidget,LeafRenderObjectElement,LeafRenderObjectWidget,MultiChildRenderObjectElement,MultiChildRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
 import {Key,ValueKey} from '@nelyx/core/foundation/key';
 import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';
 import {SizedBox} from '@nelyx/core/framework/widgets/basic';
@@ -21,6 +21,43 @@ class ForwardWidget extends StatelessWidget{
   constructor(child,key=null){super(key);this.child=child;}
   build(){return this.child;}
 }
+
+class StandardChildren extends MultiChildRenderObjectWidget{
+  createRenderObject(){return new RenderStack();}
+}
+class TaggedLeaf extends LeafRenderObjectWidget{
+  constructor(tag,key=null){super(key);this.tag=tag;}
+  createRenderObject(){const render=new RenderStack();render.tag=this.tag;return render;}
+  updateRenderObject(_context,render){render.tag=this.tag;}
+}
+
+test('canonical render owners commit delayed siblings, keyed moves and removals through component chains',{timeout},()=>{
+  const a=new GlobalKey('delta-a'),b=new GlobalKey('delta-b'),c=new GlobalKey('delta-c'),d=new GlobalKey('delta-d');
+  const wrap=(tag,key,depth)=>{let widget=new TaggedLeaf(tag,key);for(let i=0;i<depth;i++)widget=new ForwardWidget(widget);return widget;};
+  const f=tree(new StandardChildren([wrap('a',a,4),wrap('b',b,1),wrap('c',c,2)]));let oldA,oldB,oldC,oldD;
+  try{
+    f.flush();oldA=a.currentElement.renderObject;oldB=b.currentElement.renderObject;oldC=c.currentElement.renderObject;
+    assert.deepEqual(f.root.renderObject.children,[oldA,oldB,oldC]);
+    f.update(new StandardChildren([wrap('b2',b,2),wrap('a2',a,5),wrap('d',d,1)]));oldD=d.currentElement.renderObject;
+    assert.equal(a.currentElement.renderObject,oldA);assert.equal(b.currentElement.renderObject,oldB);
+    assert.deepEqual(f.root.renderObject.children,[oldB,oldA,oldD]);assert.deepEqual(f.root.renderObject.children.map(child=>child.tag),['b2','a2','d']);
+    assert.equal(c.currentElement,undefined);assert.equal(oldC.debugDisposed,true);
+    f.update(new StandardChildren([]));assert.deepEqual(f.root.renderObject.children,[]);
+    assert([oldA,oldB,oldD].every(render=>render.debugDisposed));assert([a,b,c,d].every(key=>key.currentElement===undefined));assert.deepEqual(f.errors,[]);
+  }finally{f.close();}
+});
+
+test('a custom virtual projection still synchronizes a canonical owner on updates without render attachment hooks',{timeout},()=>{
+  let reads=0;const first=new RenderStack(),second=new RenderStack();
+  class VirtualWidget extends Widget{constructor(render){super();this.render=render;}createElement(){return new VirtualElement(this);}}
+  class VirtualElement extends Element{get renderObjects(){reads++;return this.widget.render?[this.widget.render]:[];}build(){return [];}}
+  const f=tree(new StandardChildren([new VirtualWidget(first)]));
+  try{
+    f.flush();assert.deepEqual(f.root.renderObject.children,[first]);const before=reads;
+    f.update(new StandardChildren([new VirtualWidget(second)]));assert(reads>before);assert.deepEqual(f.root.renderObject.children,[second]);assert.equal(first.parent,undefined);
+    f.root.children[0].update(new VirtualWidget(null));f.owner.flushBuild();f.owner.finalizeTree();assert.deepEqual(f.root.renderObject.children,[]);assert.equal(second.parent,undefined);assert.deepEqual(f.errors,[]);
+  }finally{f.close();first.dispose();second.dispose();}
+});
 
 test('shared ParentData links read the current widget and refresh across keyed render parents',{timeout},()=>{
   let reads=0;
@@ -208,6 +245,63 @@ test('a failed singleton mount cleans its GlobalKey before a later rebuild',{tim
     f.flush();assert.equal(f.errors.length,1);assert.match(String(f.errors[0]),/child mount failed/);assert.equal(failed.mounted,false);assert.equal(failed.unmounts,1);assert.equal(key.currentElement,undefined);assert.equal(f.owner.globalKeyCount,0);
     f.update(new Branch([new Branch([],{key})]));assert(key.currentElement?.active);assert.equal(f.owner.globalKeyCount,1);assert.equal(f.errors.length,1);
   }finally{f.close();}
+});
+
+test('failed GlobalKey activation and State update retire the moved subtree in single and multiple child transactions',{timeout},()=>{
+  for(const multiple of [false,true])for(const phase of ['activate','update'])for(const failure of [undefined,null,0]){
+    let fail=false,disposed=0;
+    class MovingWidget extends StatefulWidget{createState(){return new MovingState();}}
+    class MovingState extends State{
+      activate(){if(fail&&phase==='activate')throw failure;}
+      didUpdateWidget(){if(fail&&phase==='update')throw failure;}
+      build(){return new TaggedLeaf('moving');}
+      dispose(){disposed++;}
+    }
+    const key=new GlobalKey('failed-move'),left=new ValueKey('left'),right=new ValueKey('right'),neighbor=new Branch([],{key:new ValueKey('neighbor')});
+    const widget=moved=>new Branch([new Branch(moved?[]:[new MovingWidget(key)],{key:left}),new Branch(moved?(multiple?[neighbor,new MovingWidget(key),new Branch()]:[new MovingWidget(key)]):(multiple?[neighbor,new Branch()]:[]),{key:right})]);
+    const f=tree(widget(false));
+    try{
+      f.flush();const old=key.currentElement,state=key.currentState;assert(old&&state?.mounted);
+      fail=true;f.update(widget(true));assert.equal(f.errors.length,1);assert.equal(f.errors[0],failure);
+      assert.equal(key.currentElement===undefined,true,'A failed move must not leave an active registered child absent from its parent children');assert.equal(f.owner.globalKeyCount,0);assert.equal(old.mounted,false);assert.equal(state.mounted,false);assert.equal(disposed,1);
+      fail=false;f.update(widget(true));assert(key.currentElement?.active);assert.notEqual(key.currentElement,old);assert.equal(f.owner.globalKeyCount,1);assert.equal(f.errors.length,1);
+    }finally{f.close();}
+  }
+});
+
+test('failed GlobalKey render attachment remains in the retirement owner until finalization',{timeout},()=>{
+  for(const multiple of [false,true])for(const failure of [undefined,null,0]){
+    let fail=false;
+    class MovingWidget extends Branch{createElement(){return new MovingElement(this);}}
+    class MovingElement extends BranchElement{attachRenderObject(slot){super.attachRenderObject(slot);if(fail)throw failure;}}
+    const key=new GlobalKey('failed-attach'),left=new ValueKey('left'),right=new ValueKey('right'),neighbor=new Branch([],{key:new ValueKey('neighbor')});
+    const widget=moved=>new Branch([new Branch(moved?[]:[new MovingWidget([new TaggedLeaf('moving')],{key})],{key:left}),new Branch(moved?(multiple?[neighbor,new MovingWidget([],{key}),new Branch()]:[new MovingWidget([],{key})]):(multiple?[neighbor,new Branch()]:[]),{key:right})]);
+    const f=tree(widget(false));
+    try{
+      f.flush();const old=key.currentElement;assert(old);
+      fail=true;f.update(widget(true));assert.equal(f.errors.length,1);assert.equal(f.errors[0],failure);assert.equal(key.currentElement===undefined,true);assert.equal(f.owner.globalKeyCount,0);assert.equal(old.mounted,false);assert.equal(old.unmounts,1);
+      fail=false;f.update(widget(true));assert(key.currentElement?.active);assert.notEqual(key.currentElement,old);assert.equal(f.errors.length,1);
+    }finally{f.close();}
+  }
+});
+
+test('a throwing render projection cannot strand a failed State activation outside retirement',{timeout},()=>{
+  for(const failure of [undefined,null,0]){
+    let fail=false,disposed=0,reads=0;const cleanup=new Error('projection during move cleanup');
+    class MovingWidget extends StatefulWidget{createState(){return new MovingState();}}
+    class MovingState extends State{
+      activate(){if(!fail)return;Object.defineProperty(this.context,'renderObjects',{get(){reads++;throw cleanup;}});throw failure;}
+      build(){return new TaggedLeaf('moving');}
+      dispose(){disposed++;}
+    }
+    const key=new GlobalKey('failed-projection'),left=new ValueKey('left'),right=new ValueKey('right'),widget=moved=>new Branch([new Branch(moved?[]:[new MovingWidget(key)],{key:left}),new Branch(moved?[new MovingWidget(key)]:[],{key:right})]),f=tree(widget(false));
+    try{
+      f.flush();const state=key.currentState;fail=true;f.update(widget(true));
+      assert.equal(f.errors.length,1);assert(f.errors[0] instanceof AggregateError);assert.equal(f.errors[0].errors[0],failure);
+      const collect=error=>error instanceof AggregateError?error.errors.flatMap(collect):[error];assert.deepEqual(collect(f.errors[0]),[failure,cleanup]);assert.equal(reads,1);
+      assert.equal(key.currentElement===undefined,true,'Projection failure must still retire the moved State');assert.equal(state.mounted,false);assert.equal(disposed,1);assert.equal(f.owner.globalKeyCount,0);
+    }finally{f.close();}
+  }
 });
 
 test('GlobalKey retake migrates descendant dirty work across isolated scopes and preserves a nested scope',{timeout},()=>{

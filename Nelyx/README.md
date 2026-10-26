@@ -1,5 +1,49 @@
 # Nelyx Core
 
+`FrameworkRoot.build(scene)` now returns a `FrameRecording` instead of an array.
+The View takes its completed immutable command buffer and existing resource
+holds once, without recapturing resource commands. A direct CPU consumer calls
+`captureSceneFrame(scene.token, source)` from `ui/frame`, releases the source in
+`finally` with `releaseSceneFrameSource(source)`, and calls `disposeFrame(frame)`
+when finished. A recording requires its exact original build token; cancellation,
+stale metrics, suppressed submission and close dispose an unconsumed recording.
+`FrameRecording.capture(token, canvas)` finishes and closes a live Canvas.
+Root finishes post-frame callbacks and seals this recording before committing
+text-input geometry. Rejected recordings discard pending geometry; failed
+geometry notifications or owner close return any sealed recording's holds.
+`RenderObject.didCommitTextInputGeometry` observes an already closed painting
+Canvas. Move drawing into `paint` and use `markNeedsPaint` for a later frame.
+Custom `createScene`/controller implementations may still return command arrays,
+which retain ordinary input capture and independent resource holds.
+
+Captured ResourceIds now have immutable retainer bindings as well as immutable
+value fields. Bind the original input with `ResourceRegistry.bindResource` or
+`bindResourceRetainer` before recording. Rebinding a captured command/frame ID
+throws; bind an original input and capture a new recording to change its owner.
+Internal borrowed Picture captures share these sealed IDs and style snapshots
+while acquiring their own command holds. Public Canvas/command copies still
+capture independent IDs. Registry bindings retain a captured identity, so later
+mutation of the original ID does not retarget existing recordings.
+`registry.captureResource(input)` returns an immutable ID with that registry's
+binding initialized in one step. Use it when publishing asset or image handles;
+it validates the input owner and live resource without rebinding captured IDs.
+
+`RichText` and the inline `WidgetSpan` implementation share the `framework/widgets/rich-text` declaring owner. `framework/widgets/widget-span` remains a named public reexport of that same WidgetSpan class. Existing imports, child State, ParentData/ancestor diagnostics, scaling and resource ownership keep their contracts; importing WidgetSpan alone also initializes its actual RichText ancestor class.
+
+TreeSliver's value/type capture, row identity, animation map and ParentData helpers now live with their canonical declarations in `framework/widgets/sliver-tree.generated`. Internal consumers of `treeNodeType` and `treeWidgetType` import that owner; `tree-generic-witnesses` retains the abstract interface token and shared framework witnesses. The former `tree-widget-source-types` module has been removed. Public `TreeSliver`, `TreeSliverNode`, `TreeSliverController` and `TreeView` imports remain unchanged.
+
+`AppSession.dispose()` and `ViewRuntime.dispose()` publish one owner Promise before invoking cleanup callbacks. Reentrant calls from controller, clock, observer or renderer cleanup return that same Promise and never repeat retirement. Input and scheduling close immediately. Services wait for owned renderer drain; a failed View drain retains dependent services and the rejected close Promise. Concurrent callback, resource and drain failures remain in the resulting AggregateError, including thrown `undefined`, `null` and `0`.
+
+Import `emptyWidgetStateSet` from `framework/widgets/widget-state`; its implementation now lives with the canonical WidgetState enum. The former `internal/framework/widgets/widget-state-full-collections` export of that function has moved. The remaining const/map factories keep their existing module and identities.
+
+Low-level text backends now share one `ParagraphFontCatalog` from `hosting/text-fonts`. Construct it with the app registry, pass it to `new TextLayoutCache(registry, catalog)` and `new ParagraphFontProviders(registry, catalog, create)`, and call `catalog.capture(fonts)` once at each layout boundary. Pass that same snapshot to `cache.key(input, snapshot)` and `providers.acquire(primary, snapshot)`. These replace the iterable argument to `cache.key`, the font-source callback in the provider constructor and provider acquisition without a snapshot. Provider creation receives captured `{source, resource, family, sourceBytes}` entries; use `source` for backend handles and the captured fields for font metadata. `NativeFont` now requires `sourceBytes`; report the retained input font byte count so provider residency includes its backing source. Getters and iterators execute during capture, and the captured metadata remains fixed for that layout. A newer capture invalidates old cache/provider admission, including reentry during input serialization or resource pressure. Existing paragraphs and submitted frames keep their own font leases until retirement; failed native retirement keeps residency and closes provider admission. Widget, TextPainter and Paragraph APIs are unchanged.
+
+Semantic invalidation is collected by the View's pipeline. `describeSemanticsConfiguration` now evaluates the latest state during semantic commit, after layout; attaching a new render object and repeated `markNeedsSemanticsUpdate()` calls do not synchronously evaluate it. Previously those operations could call the descriptor repeatedly while the tree was changing. Keep descriptors free of application side effects and move attachment work to `attach`/`detach` or State lifecycle callbacks. A throwing descriptor fails that commit, retains the previous published annotation and is retried by the next semantics flush; a partially written configuration is never reused. Explicit configuration updates still bypass motion-only accessibility throttling.
+
+For fixed or indexed-extent lists, `childPolicy: {mode: 'dormant', capacity: 32}` opts into reusing detached rows. The default remains `legacy`. A dormant row runs `deactivate`, leaves paint/hit/semantics and inherited subscriptions, and silences framework tickers. Reentry calls the item builder again, applies its new Widget and reactivates compatible State; ticker elapsed time continues. Eviction, delegate replacement, pressure and View close dispose retained State. Handle user timers in your State lifecycle. Rows containing an application GlobalKey keep ordinary retirement. Private framework geometry/semantics anchors remain registered; extracting one through GlobalKey retake retires the dormant remainder. Capacity is 1–32 per sliver, shared across a View with at most 32 dormant roots and 4096 Elements. Existing cacheExtent and explicit keep-alive behavior remain applicable; dormant storage can be reclaimed before paragraph admission while submitted frames retain their own leases.
+
+`SemanticsConfiguration` owns its annotation state. Configure it through its public setters and action callbacks; canonical flag updates, compatibility checks and absorption no longer dispatch through `SemanticsFlags.prototype.copyWith`, `merge` or `hasConflictingFlags`. For example, replacing `SemanticsFlags.prototype.merge` still changes direct calls on a flags value, but does not customize configuration absorption. Move such customization to a configuration subclass or the render object's `describeSemanticsConfiguration`. Public immutable `SemanticsFlags` fields, direct value methods, enum states and published node snapshots retain their contracts.
+
 For accessibility/rendering cost comparisons, set `accessibilityEnabled: false` in `widgetApplication({...})`. The default is `true`. This startup policy applies to every View created by that application; restart the app after changing it. A disabled View creates no semantics owner or transport snapshot and skips semantics traversal, geometry, serialization, host publication, actions and accessibility-only frame invalidation. Explicit `ensureSemantics()` handles cannot enable it. SDK-created platform ports also skip OS accessibility preference queries/observers and announcement handlers; Windows accessibility proxy components are not mounted. Layout, painting, pointer/keyboard focus, text editing and IME geometry retain their normal paths. Semantics widget declarations remain in the widget tree; annotation strings are prepared lazily only when a semantics configuration is requested.
 
 ```ts

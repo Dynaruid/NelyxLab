@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
 import {SourceMap} from 'node:module';
-import {nativeProbeReports,nativeScrollOptions,symbolicateNativeProfile,verifyNativeCatalogReports,verifyNativeResourceCycles} from '../run-native-scroll.mjs';
+import {nativeProbeReports,nativeScrollOptions,nativeScrollRuns,symbolicateNativeProfile,verifyNativeCatalogReports,verifyNativeResourceCycles} from '../run-native-scroll.mjs';
 const timeout=1_200_000;
+
+test('CPU trial batches cover each viewport once per fresh-process trial and reject mixed repetition scopes',{timeout},()=>{
+  const options=nativeScrollOptions(['--repeat','3','--viewport','both']),runs=nativeScrollRuns(options);
+  assert.deepEqual(runs,[{trial:1,viewport:'default'},{trial:1,viewport:'maximized'},{trial:2,viewport:'default'},{trial:2,viewport:'maximized'},{trial:3,viewport:'default'},{trial:3,viewport:'maximized'}]);
+  assert.deepEqual(nativeScrollRuns(nativeScrollOptions([])),[{trial:1,viewport:'default'}]);
+  assert.equal(nativeScrollRuns(nativeScrollOptions(['--repeat','3','--input','os','--catalog'])).length,3);
+  for(const args of [['--repeat','0'],['--repeat','4'],['--repeat','1.5'],['--repeat','NaN'],['--repeat','2','--scope','sampling'],['--repeat','2','--scope','gc'],['--repeat','2','--resource-cycles','3']])assert.throws(()=>nativeScrollOptions(args),/Repeat/);
+});
 test('full OS catalog qualification rejects missing delivery, unseen sections and a false surface join',{timeout},()=>{
   const fixture=viewport=>{const columns=viewport==='maximized'?{'material-0':['a'],'material-1':['b'],'cupertino-0':['c']}:{'material-0':['a','b'],'cupertino-0':['c']};return ['list-retained','list-cold','list-revisit','list-fast',...Object.keys(columns).flatMap(name=>['cold','revisit','fast'].map(suffix=>name+'-'+suffix))].map(name=>{const column=Object.keys(columns).find(column=>name.startsWith(column)),expectedIds=columns[column];return {type:'phase',name,pacing:'os',scope:'cpu',inputWindow:{pacing:'os',before:{foreground:true,focusChanges:1,keyboardMessages:0,semanticsActions:0,lastInputTick:5,cursorParked:false},after:{foreground:true,focusChanges:1,keyboardMessages:0,semanticsActions:0,lastInputTick:6,cursorParked:false}},spans:'disabled',buildMode:'release',qualification:'diagnostic-only',performanceAccepted:false,frameTurns:{builtTurns:2},receipts:{receiptIntegrity:true,displayed:'unobserved',input:{received:2,accepted:2,rejected:0,receivedWheelY:2.4,receivedAbsoluteWheelY:2.4},surface:{n:2},inputToSurface:{eligible:2,mapped:2,pending:0}},workload:{count:2,maximumInjected:8192,injection:column?'until-edge':'fixed',sender:{done:true,emitted:2,received:2,error:'',foreign:0,sentRaw:-6,receivedRaw:-6,sentAbsoluteRaw:6,receivedAbsoluteRaw:6,expectedCookie:123,observedCookie:123,pacingPolicy:'high-resolution-relative-start-completion-v1',sendP50:16,sendP95:17,sendMax:18},...(column?{coverage:{scope:'Core-visible sections joined to matching surface-copy content frames; display unobserved',expectedIds,builtSeenIds:expectedIds,seenIds:expectedIds,skippedIds:[],builtFrames:2,matchingFrames:2,direction:name.endsWith('-revisit')?'reverse':'forward',reachedEdge:true,stopped:true}}:{})}};});};
   for(const viewport of ['default','maximized'])assert.equal(verifyNativeCatalogReports(fixture(viewport),{viewport,material:['a','b'],cupertino:['c']}).columns,viewport==='default'?2:3);

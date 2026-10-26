@@ -3,11 +3,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {FocusManager,FocusNode,FocusScopeNode} from '@nelyx/core/framework/widgets/focus';
 import {Focus} from '@nelyx/core/framework/widgets/focus-scope';
-import {SizedBox} from '@nelyx/core/framework/widgets/basic';
+import {SizedBox,Builder} from '@nelyx/core/framework/widgets/basic';
+import {Element} from '@nelyx/core/framework/widgets/framework';
 import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 const timeout=1_200_000;
 FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});
+
+test('focus attachment preserves live nominal checks, Proxy contexts and falsey failures',{timeout},async()=>{
+  const f=fixture(),node=new FocusNode(),blocked=new FocusNode(),events=[],original=Object.getOwnPropertyDescriptor(Element,Symbol.hasInstance),ordinary=Function.prototype[Symbol.hasInstance];let context,attachment,armed=false,failure;
+  try{
+    f.set(new Builder(value=>{context=value;return new SizedBox(40,40);}));
+    Object.defineProperty(Element,Symbol.hasInstance,{configurable:true,value:function(value){assert.equal(this,Element);events.push('instanceof');if(armed)throw failure;return ordinary.call(this,value);}});
+    const proxy=new Proxy(context,{getPrototypeOf(target){events.push('prototype');return Reflect.getPrototypeOf(target);},get(target,key,receiver){if(key==='active')events.push('active');return Reflect.get(target,key,receiver);}});
+    attachment=node.attach(proxy);assert.deepEqual(events,['prototype','instanceof','prototype','active']);assert.equal(node.context,proxy);
+    attachment.reparent();node.requestFocus();await Promise.resolve();f.frame();assert.equal(node.hasPrimaryFocus,true);
+    for(failure of [undefined,null,0]){events.length=0;armed=true;let caught=false;try{blocked.attach(proxy);}catch(error){caught=true;assert.equal(error,failure);}assert(caught);assert.deepEqual(events,['prototype','instanceof']);assert.equal(blocked.context,null);}
+    armed=false;let activeReads=0;assert.throws(()=>blocked.attach({get active(){activeReads++;return true;},owner:context.owner}),/live Element/);assert.equal(activeReads,0,'A structural lookalike cannot acquire the Element owner');
+  }finally{armed=false;if(original)Object.defineProperty(Element,Symbol.hasInstance,original);else delete Element[Symbol.hasInstance];attachment?.detach();f.close();node.dispose();blocked.dispose();}
+});
 
 test('attaching an unfocused lazy child leaves existing ancestor focus notifications clean',{timeout},async()=>{
   const manager=new FocusManager(),first=new FocusNode(),next=new FocusNode();let changed=0;

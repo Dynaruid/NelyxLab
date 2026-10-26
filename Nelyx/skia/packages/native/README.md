@@ -20,9 +20,19 @@ The native scene consumes Core commands directly into a bounded numeric packet.
 Affine transforms use the existing inline column-major matrix opcode, with no
 per-transform Matrix wrapper. Packet version and native float32 meaning remain
 unchanged.
-Picture/raster captures and adapters without that capability use Canvas replay.
+Retained Picture compilation, context restoration and `Picture.toImage` use the
+same encoder through the recording owner's `nelyxReplayDisplayList` binding.
+The complete packet and handles are validated before changing the open picture;
+finished or disposed recorders reject further packets. Native Engine services
+require this binding and fail on an older supplier. Adapters that explicitly
+disable native display lists retain Canvas replay.
 Packet handles and temporary native wrappers retire after the synchronous call;
 recordings and resource leases remain owned through GPU retirement.
+
+`GraphiteRenderer.dispose()` publishes one close Promise before native drain or
+resource retirement callbacks run. Reentrant close callers share that Promise;
+they cannot reset the context or clear retirement identities a second time.
+A failed drain retains the rejected Promise and unconfirmed dependencies.
 
 This extraction is part of [W18](../../../../work18.md). Retained scene chunks,
 text ABI consolidation and product performance, memory, display and physical

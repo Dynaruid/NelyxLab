@@ -12,12 +12,39 @@ import {textLimits,admitTextLayoutResources,freezeTextInput} from '@nelyx/core/u
 import {ParagraphBuilder} from '@nelyx/core/ui/paragraph-builder';
 import {ParagraphStyle} from '@nelyx/core/ui/paragraph-style';
 import {ParagraphConstraints} from '@nelyx/core/ui/paragraph-constraints';
+import {RenderParagraph} from '@nelyx/core/framework/rendering/paragraph';
+import {TextScaler} from '@nelyx/core/framework/painting/text-scaler';
+import {Paint} from '@nelyx/core/ui/paint';
+import {Locale} from '@nelyx/core/ui/locale';
+import {TextHeightBehavior} from '@nelyx/core/ui/typography';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
 
 const timeout = 1_200_000;
 const span = color => new TextSpan({text: '한글 A😀 label', style: new TextStyle({fontSize: 16, color})});
 function context(f) {return {text: f.library, resources: f.root.context.resources, font: f.root.context.defaultFont, scale: 1};}
 function painter(owner, options = {}) {return new TextPainter({text: span(0xff000000), textDirection: 'ltr', ...options}, owner);}
+
+test('captured paragraph creation preserves ordinary source, scaler, Paint, font, locale, strut and serialization callbacks',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),events=[];
+  class Source extends TextSpan{toPlainText(options){events.push('plain');return super.toPlainText(options);}}
+  class Scaler extends TextScaler{scale(size){events.push('scale:'+size);return size;}get textScaleFactor(){events.push('factor');return 1;}}
+  class SourceLocale extends Locale{toString(){events.push('locale');return super.toString();}}
+  class SourceStrut extends StrutStyle{toStyle(scaler){events.push('strut');return super.toStyle(scaler);}}
+  class SourceHeight extends TextHeightBehavior{toJSON(){events.push('height JSON');return {applyHeightToFirstAscent:this.applyHeightToFirstAscent,applyHeightToLastDescent:this.applyHeightToLastDescent,leadingDistribution:this.leadingDistribution};}}
+  const original=context(f).font,font=new Proxy(original,{get(target,key,receiver){events.push('font:'+String(key));return Reflect.get(target,key,receiver);}});
+  try{
+    for(const kind of ['source','scaler','paint','font','locale','strut','height']){
+      const style=new TextStyle({fontSize:16,...(kind==='paint'?{foreground:new Paint({color:0xff123456})}:{color:0xff123456})}),source=kind==='source'?new Source({text:'A😀',style}):new TextSpan({text:'A😀',style}),scaler=kind==='scaler'?new Scaler():TextScaler.noScaling,ctx={...context(f),font:kind==='font'?font:original};
+      const config={span:source,style,scaler,placeholders:[],input:{text:'A😀',font:ctx.font,fontSize:16,scale:1,locale:'en',direction:'ltr',color:0xff123456,style:style.toRunStyle(scaler)},painterOptions:{textDirection:'ltr',textScaler:scaler},paragraphOptions:{overflow:'clip',softWrap:true}};
+      if(kind==='locale')config.painterOptions.locale=new SourceLocale('en');
+      if(kind==='strut')config.painterOptions.strutStyle=new SourceStrut({fontSize:16});
+      if(kind==='height')config.input.textHeightBehavior=config.painterOptions.textHeightBehavior=new SourceHeight();
+      const options={...config.painterOptions,textDirection:'ltr',baseStyle:style,textScaler:scaler,...config.paragraphOptions,devicePixelRatio:1};
+      events.length=0;const expected=new RenderParagraph(source,options,ctx);expected.config=config;const reference=[...events];expected.dispose();
+      events.length=0;const actual=RenderParagraph._fromConfiguration(config,ctx);assert.deepEqual(events,reference,kind);assert.equal(actual.config,config);actual.dispose();
+    }
+  }finally{await f.close();}
+});
 
 test('a paragraph carries owned immutable runs to layout while external getters keep their capture boundary',{timeout},async()=>{
   const f=await engineFixture({fonts:true});let paragraph,input;

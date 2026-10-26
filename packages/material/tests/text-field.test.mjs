@@ -21,7 +21,7 @@ import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data'
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import {EditingSession} from '@nelyx/core/ui/editing';
 import {Offset} from '@nelyx/core/ui/offset';
-import {engineFixture} from './engine-fixture.mjs';
+import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
 const timeout=1_200_000;
 FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});
 function wrap(child,{scale=1,direction='ltr'}={}){return new MediaQuery({width:240,height:160,scale:1,textScale:scale,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},new Directionality(direction,new Theme(new ThemeData({platform:'windows',visualDensity:VisualDensity.standard}),new Center(new SizedBox(220,undefined,child)))));}
@@ -62,7 +62,7 @@ test('theme, scale, direction and style updates preserve the composing editor an
     assert.equal(find(f.root.root,EditableText).stateObject,editor);assert.equal(bindings.length,1);assert.equal(bindings[0].disposed,false);assert.equal(controller.text,'한');assert(controller.isComposing);assert.deepEqual(controller.selection,{anchor:1,focus:1});assert.equal(node(f).editorStyle.fontSize,30);assert.equal(node(f).editorStyle.textDirection,'rtl');assert(focus.hasFocus);
     bindings[0].native('한글');f.frame();assert.equal(controller.text,'한글');assert.equal(controller.isComposing,false);
     f.set(wrap(field(16,null)));assert.equal(find(f.root.root,EditableText).stateObject,editor,'Removing decoration must preserve the editor');
-    f.advance(168);assert.equal(f.library.paragraphs.size,1,'Core retains its painted paragraph and retires transient measurement producers');
+    f.advance(168);assert.equal(f.library.debugTextStats.producers,1,'Core retains one painted producer; transient measurements retire theirs');assertParagraphOwnership(f,1);
   }finally{await f.close();controller.dispose();focus.dispose();}
 });
 

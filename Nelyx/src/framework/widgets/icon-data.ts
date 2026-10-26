@@ -3,11 +3,14 @@
 import {applyDartType,captureDartType} from '../../foundation/dart-type-witness.ts';import {canonicalDartObject} from '../../foundation/dart-const.ts';import {registerDartValueSemantics} from '../../foundation/dart-value.ts';
 import {DiagnosticsProperty} from '../../foundation/diagnostics.ts';import type {DiagnosticsPropertyOptions} from '../../foundation/diagnostics.ts';import {DiagnosticsSerializationDelegate} from '../../foundation/diagnostics-serialization.ts';import type {JsonDiagnosticsNode} from '../../foundation/diagnostics-serialization.ts';import {listEquals,hashValues} from '../painting/value-equality.ts';import {invariant} from '../../foundation/errors.ts';
 export interface IconDataOptions {readonly fontFamily?:string|null;readonly fontPackage?:string|null;readonly matchTextDirection?:boolean;readonly fontFamilyFallback?:readonly string[]|null;}
+const ownedIconData=new WeakSet<IconData>();
+/** @internal Proxies and caller-owned fallback lists need fresh capture. */
+export function isCapturedIconData(value:IconData):boolean{return ownedIconData.has(value);}
 export class IconData {
   /** @dartType int */
   readonly codePoint:number;readonly fontFamily:string|null;readonly fontPackage:string|null;readonly matchTextDirection:boolean;readonly fontFamilyFallback:readonly string[]|null;
   /** @dartParam codePoint int */
-  constructor(codePoint:number,{fontFamily=null,fontPackage=null,matchTextDirection=false,fontFamilyFallback=null}:IconDataOptions={}){invariant(new.target===IconData,'final-icon-data','Source IconData is final');invariant(Number.isSafeInteger(codePoint),'invalid-icon-codepoint','Icon codePoint must be an exact integer');this.codePoint=codePoint;this.fontFamily=fontFamily;this.fontPackage=fontPackage;this.matchTextDirection=matchTextDirection;this.fontFamilyFallback=fontFamilyFallback;captureDartType(this,sourceIconDataType);Object.freeze(this);}
+  constructor(codePoint:number,{fontFamily=null,fontPackage=null,matchTextDirection=false,fontFamilyFallback=null}:IconDataOptions={}){invariant(new.target===IconData,'final-icon-data','Source IconData is final');invariant(Number.isSafeInteger(codePoint),'invalid-icon-codepoint','Icon codePoint must be an exact integer');this.codePoint=codePoint;this.fontFamily=fontFamily;this.fontPackage=fontPackage;this.matchTextDirection=matchTextDirection;this.fontFamilyFallback=fontFamilyFallback;captureDartType(this,sourceIconDataType);Object.freeze(this);ownedIconData.add(this);}
   equals(other:unknown):boolean{return other instanceof IconData&&other.constructor===this.constructor&&other.codePoint===this.codePoint&&other.fontFamily===this.fontFamily&&other.fontPackage===this.fontPackage&&other.matchTextDirection===this.matchTextDirection&&listEquals(other.fontFamilyFallback,this.fontFamilyFallback);}
   get hashCode():number{return hashValues(this.codePoint,this.fontFamily,this.fontPackage,this.matchTextDirection,hashValues(...this.fontFamilyFallback??[]));}
   toString():string{return 'IconData(U+'+this.codePoint.toString(16).toUpperCase().padStart(5,'0')+')';}

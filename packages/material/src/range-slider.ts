@@ -24,7 +24,7 @@ import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
 import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
 import { WidgetState, WidgetStatePropertyAll } from '@nelyx/core/framework/widgets/widget-state';
 import type { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
 import { CompositedTransformTarget, CompositedTransformFollower } from '@nelyx/core/framework/widgets/composited-transform';
 import { LayerLink } from '@nelyx/core/framework/rendering/layer';

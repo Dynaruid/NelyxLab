@@ -6,6 +6,11 @@ import {createNativeEngineServices} from '../../sdk/dist/runtime/native-engine.j
 import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 import {finishOwnedDisposal} from '../../sdk/dist/runtime/owned-disposal.js';
 import {PendingDisposalError} from '@nelyx/core/foundation/disposable';
+import {ResourceRegistry} from '@nelyx/core/hosting/resources';
+import {Picture} from '@nelyx/core/ui/picture';
+import {Canvas} from '@nelyx/core/ui/canvas';
+import {FrameRecording,disposeFrame} from '@nelyx/core/ui/frame';
+import {resourceOwner} from '@nelyx/core/ui/resource-retention';
 
 const timeout=1_200_000,owner={id:'common-native-engine',generation:1};
 const metrics={logicalWidth:100,logicalHeight:80,physicalWidth:100,physicalHeight:80,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:7,nativeSurfaceGeneration:1};
@@ -15,13 +20,20 @@ function fixture(){
     nelyxReplayDisplayList(buffer){const words=new Float64Array(buffer);assert.equal(words[0],0x4e4c444c);assert.equal(words[1],1);events.push('scene');},
     beginRecording:()=>({}),finishRecording:()=>({dispose(){events.push('recording');}}),nelyxSubmit(_recording,id){notifications.push(7,id,0);},nelyxCancel(){},
     nelyxClose(){events.push('close');},nelyxReset(){events.push('reset');},dispose(){events.push('context');}};
-  const engine=createNativeEngineServices({api:{Color:value=>value},context,owner,assets:{images:new Map(),fonts:new Map(),sourceBytes:0},configuration:{manifest:[],sources:{}},resolveSource(){throw Error('Unexpected source resolution');},assertOpen(){}});
+  const api={Color:value=>value},engine=createNativeEngineServices({api,context,owner,assets:{images:new Map(),fonts:new Map(),sourceBytes:0},configuration:{manifest:[],sources:{}},resolveSource(){throw Error('Unexpected source resolution');},assertOpen(){}});
   const clock={request(callback){const id=++next;callbacks.set(id,callback);return {dispose(){callbacks.delete(id);}};}};
   const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'});
   const services={...engine.services,identity:{target:'windows',runtime:'hermes',host:'native-hermes',renderer:'skia-graphite',gpuBackend:'vulkan',gpuImplementation:'native-vulkan',profile:'native-hermes-graphite-vulkan'},clock,
     assets:{async resolve(){return [];},dispose(){events.push('assets');}},surface:{owner,readMetrics:()=>metrics,attach(){return {dispose(){events.push('binding');}};},dispose(){events.push('surface');}},editing:interaction.editing,semantics:interaction.semantics};
-  return {engine,services,events,context,callbacks,tick(){const pending=[...callbacks.values()];callbacks.clear();for(const callback of pending)callback();}};
+  return {api,engine,services,events,context,callbacks,tick(){const pending=[...callbacks.values()];callbacks.clear();for(const callback of pending)callback();}};
 }
+
+test('actual native Engine picture ports require the shared packet, reuse its producer and wait for the admitted lease',{timeout},async()=>{
+  const f=fixture(),registry=new ResourceRegistry(),pictures=f.engine.services.pictures.create(registry),picture=Picture._fromRecording([{op:'rect',rect:{x:0,y:0,width:4,height:5},color:0xff123456}]);let compiled=0,retired=0,lease;
+  f.api.XYWHRect=()=>({setLTRB(){},dispose(){}});f.api.PictureRecorder=()=>({beginRecording:()=>new Proxy({},{get(){throw Error('Engine picture port entered Canvas replay');}}),nelyxReplayDisplayList(buffer){const words=new Float64Array(buffer);assert.equal(words[0],0x4e4c444c);assert.equal(words[2],1);assert.equal(words[4],22);compiled++;},finishRecordingAsPicture:()=>({approximateBytesUsed:()=>128,dispose(){retired++;}}),dispose(){}});
+  try{const resource=pictures.resource(picture);assert.equal(pictures.resource(picture),resource);assert.equal(compiled,1);lease=registry.acquire([resource]);picture.dispose();assert.equal(retired,0);pictures.dispose();assert.equal(retired,0);lease.returnBy('caller');assert.equal(retired,1);}
+  finally{if(!picture.debugDisposed)picture.dispose();if(lease&&!lease.released)lease.returnBy('caller');pictures.dispose();registry.dispose();await f.engine.dispose();}
+});
 
 test('shared engine ports submit through the common scene and retire the application context once',{timeout},async()=>{
   const f=fixture();let app;
@@ -33,6 +45,19 @@ test('shared engine ports submit through the common scene and retire the applica
     assert.equal(f.events.filter(value=>value==='close').length,1);assert.equal(f.events.filter(value=>value==='reset').length,1);assert.equal(f.events.filter(value=>value==='context').length,1);assert.equal(f.callbacks.size,0);
     assert.throws(()=>f.engine.services.text.create(app.session.resources),/closed/);assert.throws(()=>f.engine.services.paths.contains(null,{x:0,y:0}),/closed/);
   }finally{await app?.dispose();await f.engine.dispose();}
+});
+
+test('bootstrap publishes sealed asset bindings that survive descriptor mutation until the final frame lease',{timeout},async()=>{
+  const f=fixture(),sha256='a'.repeat(64),descriptor={id:'boot-image',generation:1,kind:'image',asset:{sha256}};let retired=0,app,frame,lease;
+  f.services.assets.resolve=async()=>[{descriptor,retire(){retired++;}}];
+  try{
+    app=await bootstrapApplication({id:'asset-engine',assets:[{id:'boot-image',kind:'image',sha256}],createScene:()=>()=>[]},f.services);
+    const resource=app.assets.get('boot-image');assert(Object.isFrozen(resource));assert.equal(resourceOwner(resource),app.session.resources);
+    descriptor.id='mutated-source';descriptor.generation=2;
+    const canvas=new Canvas(),token={owner,sequence:1,metrics};canvas.image(resource,{x:0,y:0,width:1,height:1});frame=FrameRecording.capture(token,canvas).take(token);
+    app.session.resources.releaseProducer(resource);assert.equal(retired,0);lease=app.session.resources.acquire(frame.resources);disposeFrame(frame);frame=undefined;assert.equal(retired,0);
+    lease.returnBy('caller');assert.equal(retired,1);await app.dispose();assert.equal(retired,1);
+  }finally{if(frame)disposeFrame(frame);if(lease&&!lease.released)lease.returnBy('caller');await app?.dispose();await f.engine.dispose();}
 });
 
 test('startup failure and unused-context retirement share the same engine owner',{timeout},async()=>{

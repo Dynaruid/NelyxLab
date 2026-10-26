@@ -9,5 +9,5 @@ test('direct Hermes native packets preserve pixels, reject atomically and retire
   const host=await buildNativeHost(),env=windowsCompilerEnvironment();
   await execute('cmake',['-S',path.join(host.roots['@nelyx/sdk'],'native/windows-hermes'),'-B',host.directory,'-DNELYX_HOST_TEST_SOURCE='+path.join(import.meta.dirname,'native-hermes-host.cpp')],{env,timeout});
   await execute('cmake',['--build',host.directory,'--target','NelyxNativeHostTests','--parallel','2'],{env,timeout});
-  await execute(path.join(host.directory,'NelyxNativeHostTests.exe'),[host.inputs.icu],{cwd:host.directory,env,timeout});
+  await execute(path.join(host.directory,'NelyxNativeHostTests.exe'),[host.inputs.icu,path.join(host.roots['@nelyx/sdk'],'dist/runtime/vm-environment.js')],{cwd:host.directory,env,timeout});
 });

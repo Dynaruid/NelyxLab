@@ -22,7 +22,7 @@ import {MouseRegion} from './mouse-region.ts';
 import type {MouseCursor} from '../../services/mouse-cursor.ts';
 import {invariant} from '../../foundation/errors.ts';
 import {TapSemanticEvent} from '../semantics/semantics-event.ts';
-import {GlobalKey} from './global-key.ts';
+import {createFrameworkAnchorKey} from './global-key.ts';
 
 export interface ControlVisualState {
   readonly states:DartSet<WidgetState>;readonly focusNode:FocusNode;
@@ -56,7 +56,7 @@ class ControlAction<T extends Intent> extends CallbackAction<T> {
 }
 export class ControlInteractionState extends TickerProviderStateMixin<ControlInteraction> {
   private internalNode:FocusNode|undefined;private controller!:WidgetStatesController;private ownsController=false;
-  private readonly semanticsKey=new GlobalKey('Control semantics');
+  private readonly semanticsKey=createFrameworkAnchorKey('Control semantics');
   private motion!:AnimationController;private held=false;private focusHighlight=false;private hoverHighlight=false;private retiring=false;private suspended=false;private hovering=false;
   private readonly controlChanged=()=>{if(this.live)this.setState(()=>{});};
   private readonly activateAction=new ControlAction(ActivateIntent,this);private readonly buttonAction=new ControlAction(ButtonActivateIntent,this);

@@ -12,7 +12,7 @@ import type { SliderVisualState, SliderTrackGeometry } from '@nelyx/core/framewo
 import type { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { WidgetState, WidgetStateProperty, WidgetStatePropertyAll } from '@nelyx/core/framework/widgets/widget-state';
 import type { WidgetStatesController } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
 import { CompositedTransformTarget, CompositedTransformFollower } from '@nelyx/core/framework/widgets/composited-transform';
 import { LayerLink } from '@nelyx/core/framework/rendering/layer';

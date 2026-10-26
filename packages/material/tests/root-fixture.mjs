@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {FrameworkRoot} from '@nelyx/core/framework/widgets/root';
 import {SizedBox, Builder} from '@nelyx/core/framework/widgets/basic';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
-import {freezeFrame, disposeFrame, captureMetrics} from '@nelyx/core/ui/frame';
+import {captureSceneFrame, disposeFrame, captureMetrics} from '@nelyx/core/ui/frame';
 
 /** Real Core build/layout/paint/hit/semantics/input tree; primitive-only, no raster backend. */
 export function fixture({paths,binaryMessenger,platformServices,semanticsUpdateInterval,accessibilityEnabled} = {}) {
@@ -19,7 +19,7 @@ export function fixture({paths,binaryMessenger,platformServices,semanticsUpdateI
   const root = new FrameworkRoot(context, {semanticsUpdateInterval,accessibilityEnabled,createRoot: () => new Builder(() => child)});
   const assertNoErrors = () => assert.equal(errors.length, 0, errors.map(error => String(error.exception ?? error)).join('\n'));
   // This CPU consumer retains the latest recording through replay, then releases it.
-  const frame = ({timing,canRunOptionalWork} = {}) => {if (lastFrame) disposeFrame(lastFrame); const token = {owner, metrics: captureMetrics(metrics), sequence: ++sequence,...(timing?{timing}:{})}; lastFrame = freezeFrame(token, root.build({token, resources,...(canRunOptionalWork?{canRunOptionalWork}:{})})); assertNoErrors(); return lastFrame.commands;};
+  const frame = ({timing,canRunOptionalWork} = {}) => {if (lastFrame) disposeFrame(lastFrame); const token = {owner, metrics: captureMetrics(metrics), sequence: ++sequence,...(timing?{timing}:{})}; lastFrame = captureSceneFrame(token, root.build({token, resources,...(canRunOptionalWork?{canRunOptionalWork}:{})})); assertNoErrors(); return lastFrame.commands;};
   const set = value => {child = value; root.root?.markNeedsBuild(); return frame();};
   const pointer = (kind, x, y) => root.pointer({kind, x, y, pointer: 1, device: 'mouse', buttons: kind === 'up' ? 0 : 1, timestamp: now, viewportGeneration: 1});
   return {root, frame, set, elapse: ms => {now += ms;}, advance: ms => {now += ms; return frame();},

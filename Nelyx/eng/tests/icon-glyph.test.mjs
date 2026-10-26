@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {engineFixture,assertParagraphOwnership} from '../../../packages/material/tests/engine-fixture.mjs';
 import {Icon} from '@nelyx/core/framework/widgets/icon';
+import {IconData} from '@nelyx/core/framework/widgets/icon-data';
 import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';
 import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';
 import {Directionality,MediaQuery} from '@nelyx/core/framework/widgets/app-data';
@@ -21,6 +22,57 @@ import {Shadow} from '@nelyx/core/ui/shadow';
 import {Icons} from '@nelyx/material/icons';
 
 const timeout=1_200_000;
+
+test('repeated glyph builds read the live colour and keep earlier style values immutable',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),key=new GlobalKey();let value=0xff123456,calls=0;
+  class LiveColor extends Color {toARGB32(){calls++;return value;}}
+  const color=new LiveColor(0xff123456);
+  try{
+    let previous;
+    for(const next of [0xff123456,0xff123456,0xffabcdef,0xffabcdef]){
+      value=next;const before=calls;f.set(wrap(new Icon(Icons.check,{key,size:24,color})));
+      assert.equal(calls-before,1);const style=renderFor(f,key).children[0].config.style;assert.equal(style.color,next);
+      if(previous)assert.equal(previous.color,0xff123456);else previous=style;
+    }
+    f.set(new SizedBox(1,1));assertParagraphOwnership(f);
+  }finally{await f.close();}
+});
+
+test('repeated glyph definitions keep all four live font axes, size and old snapshots independent',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),key=new GlobalKey();let first;
+  try{
+    for(const options of [{},{weight:700},{weight:700},{fill:1,grade:42,opticalSize:64},{size:22}]){
+      f.set(wrap(new Icon(Icons.check,{key,size:24,...options})));
+      const style=renderFor(f,key).children[0].config.style,axes=Object.fromEntries(style.fontVariations.map(axis=>[axis.axis,axis.value]));
+      assert.deepEqual(axes,{FILL:options.fill??0,wght:options.weight??400,GRAD:options.grade??0,opsz:options.opticalSize??48});assert.equal(style.fontSize,options.size??24);
+      first??=style;assert.deepEqual(Object.fromEntries(first.fontVariations.map(axis=>[axis.axis,axis.value])),{FILL:0,wght:400,GRAD:0,opsz:48});
+    }
+    f.set(new SizedBox(1,1));assertParagraphOwnership(f);
+  }finally{await f.close();}
+});
+
+test('borrowed fallback lists stay fresh and IconData proxies keep source member order',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),key=new GlobalKey(),fallback=['Fallback A'];
+  const data=new IconData(Icons.check.codePoint,{fontFamily:Icons.check.fontFamily,fontFamilyFallback:fallback}),reads=[],members=new Set(['fontFamily','fontPackage','fontFamilyFallback','codePoint','matchTextDirection']);
+  let proxy;proxy=new Proxy(Icons.check,{get(target,name,receiver){if(members.has(name)){reads.push(name);assert.equal(receiver,proxy);}return Reflect.get(target,name,receiver);}});
+  try{
+    f.set(wrap(new Icon(data,{key,size:24})));const first=renderFor(f,key).children[0].config.style;
+    fallback[0]='Fallback B';f.set(wrap(new Icon(data,{key,size:24})));assert.deepEqual(first.fontFamilyFallback,['Fallback A']);assert.deepEqual(renderFor(f,key).children[0].config.style.fontFamilyFallback,['Fallback B']);
+    let expected;
+    for(const Type of [ComposedIcon,Icon,Icon]){reads.length=0;f.set(wrap(new Type(proxy,{size:24})));if(!expected)expected=[...reads];else assert.deepEqual(reads,expected);}
+    f.set(new SizedBox(1,1));assertParagraphOwnership(f);
+  }finally{await f.close();}
+});
+
+test('a constructor getter installed after glyph reuse still executes on every later build',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),key=new GlobalKey(),saved=Object.getOwnPropertyDescriptor(TextStyle.prototype,'fontFamilyFallback');let reads=0;
+  const set=()=>f.set(wrap(new Icon(Icons.check,{key,size:24})));
+  try{
+    set();set();
+    Object.defineProperty(TextStyle.prototype,'fontFamilyFallback',{...saved,get(){if(this.fontFamily===Icons.check.fontFamily)reads++;return Reflect.apply(saved.get,this,[]);}});
+    set();assert(reads>0);const first=reads;set();assert(reads>first);
+  }finally{Object.defineProperty(TextStyle.prototype,'fontFamilyFallback',saved);f.set(new SizedBox(1,1));assertParagraphOwnership(f);await f.close();}
+});
 // Independent former composition: compare observable geometry, glyph pixels
 // and semantics against the existing public render primitives, not node count.
 class ComposedIcon extends Icon {

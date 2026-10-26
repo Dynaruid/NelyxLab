@@ -24,7 +24,7 @@ import { SourceWidgetStateProperty } from "@nelyx/core/internal/framework/widget
 import { Directionality } from "@nelyx/core/framework/widgets/app-data";
 import { defaultScrollNotificationPredicate } from "@nelyx/core/framework/widgets/scroll-notification";
 import { scrollbarMediaPadding } from "@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter";
-import { emptyWidgetStateSet } from "@nelyx/core/internal/framework/widgets/widget-state-full-collections";
+import { emptyWidgetStateSet } from "@nelyx/core/framework/widgets/widget-state";
 import { applyDartType } from "@nelyx/core/internal/foundation/dart-type-witness";
 import { captureDartType } from "@nelyx/core/internal/foundation/dart-type-witness";
 import { scrollbarRawObjectEquals } from "@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter";

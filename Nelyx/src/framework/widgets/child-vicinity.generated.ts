@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/two_dimensional_viewport.dart; SHA256 a3bca9a23d5367265ebb00bf6618ac912a74c4b008568ba0d0da1364a66cf69e
+// Adopted product owner: nominal checks use the classes declared here.
 import { checkedInteger } from "../../ui/value-math.ts";
 import { protect } from "../../ui/value-math.ts";
 import { invariant } from "../../foundation/errors.ts";
 import { FoundationBuildMode } from "../../foundation/constants.ts";
 import { hashValues } from "../painting/value-equality.ts";
-import { isChildVicinity } from "./child-vicinity-adapter.ts";
-import { castChildVicinity } from "./child-vicinity-adapter.ts";
 import { constantChildVicinity } from "./child-vicinity-constant.ts";
-import { integerString } from "./child-vicinity-adapter.ts";
-import type { DartComparable } from "./child-vicinity-adapter.ts";
 export class ChildVicinity implements DartComparable<ChildVicinity> {
     /**
      * @dartType int
@@ -78,3 +75,8 @@ export class ChildVicinity implements DartComparable<ChildVicinity> {
     }
 }
 protect(ChildVicinity, ["invalid"]);
+
+export interface DartComparable<T>{compareTo(other:T):number;}
+export function integerString(value:number):string{return String(checkedInteger(value));}
+export function isChildVicinity(value:unknown):value is ChildVicinity{return value instanceof ChildVicinity;}
+export function castChildVicinity(value:unknown):ChildVicinity{if(!isChildVicinity(value))throw new TypeError('Expected ChildVicinity');return value;}

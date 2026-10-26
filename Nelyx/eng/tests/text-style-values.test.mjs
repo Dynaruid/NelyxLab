@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TextStyle} from '@nelyx/core/framework/painting/text-style';
+import {TextStyle,copyCapturedTextStyle} from '@nelyx/core/framework/painting/text-style';
 import {FontWeight,FontFeature,FontVariation,TextDecoration} from '@nelyx/core/ui/typography';
 import {Paint} from '@nelyx/core/ui/paint';
 import {Shadow} from '@nelyx/core/ui/shadow';
@@ -10,6 +10,18 @@ import {freezeRunStyle,inheritTextRunStyle,freezeStrutStyle} from '../../dist/ui
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 
 const timeout=1_200_000;
+
+test('internal text overrides reuse immutable values while custom copy receivers and mutable paint remain observable',{timeout},()=>{
+  const base=new TextStyle({fontSize:16,color:0xff000000}),options={color:0xff123456,fontSize:18,locale:'ko'};
+  const first=copyCapturedTextStyle(base,base.copyWith,options),second=copyCapturedTextStyle(base,base.copyWith,{...options});
+  assert.equal(first,second);assert(first.equals(base.copyWith(options)));assert(Object.isFrozen(first));assert.equal(base.fontSize,16);
+  const changed=copyCapturedTextStyle(base,base.copyWith,{...options,color:0xff654321});assert.equal(changed.color,0xff654321);assert.notEqual(changed,first);assert.equal(first.color,0xff123456);
+  const events=[];class Custom extends TextStyle{#calls=0;copyWith(value){events.push({receiver:this,call:++this.#calls,keys:Object.keys(value)});return super.copyWith(value);}}
+  const custom=new Custom();for(let i=0;i<2;i++)copyCapturedTextStyle(custom,custom.copyWith,{color:1});assert.equal(events.length,2);assert(events.every(event=>event.receiver===custom));assert.deepEqual(events[1].keys,['color']);
+  const paint=new Paint({color:0xff112233}),borrowed=new TextStyle({foreground:paint});
+  const a=copyCapturedTextStyle(borrowed,borrowed.copyWith,{fontSize:18});paint.color=0xffabcdef;const b=copyCapturedTextStyle(borrowed,borrowed.copyWith,{fontSize:18});
+  assert.notEqual(a,b);assert.equal(b.toRunStyle().foreground.color,0xffabcdef);
+});
 test('builder style inheritance shares captured nested values and preserves paint precedence',{timeout},()=>{
   const base=freezeRunStyle({fontFamilies:['UI'],fontFeatures:[{name:'tnum',value:1}],color:0xff112233}),run=freezeRunStyle({fontSize:17,foreground:new Paint({color:0xffabcdef}).snapshot()}),merged=inheritTextRunStyle(base,run);
   assert.equal(merged.fontFamilies,base.fontFamilies);assert.equal(merged.fontFeatures,base.fontFeatures);assert.equal(merged.foreground,run.foreground);assert.equal(merged.color,undefined);assert.equal(merged.fontSize,17);assert(Object.isFrozen(merged));
@@ -117,6 +129,20 @@ test('repeated exact-style merges retain live Paint and typography references an
   const next=base.merge(other).toRunStyle();assert.equal(first.foreground.color,0xff123456);assert.equal(next.foreground.color,0xffabcdef);assert.equal(next.fontFeatures[0].value,0);assert.equal(next.fontSize,18);
   class DerivedStyle extends TextStyle {size=20;copyWith(options){return super.copyWith({...options,fontSize:this.size});}}
   const derived=new DerivedStyle();assert.equal(derived.merge(other).fontSize,20);derived.size=24;assert.equal(derived.merge(other).fontSize,24);
+});
+
+test('merge reuse cannot suppress Proxy reads, mutable typography capture or replaced copy accessors',{timeout},()=>{
+  const base=new TextStyle({fontSize:18}),other=new TextStyle({color:0xff123456}),reads=[];
+  const proxy=new Proxy(other,{get(target,key,receiver){reads.push(key);return Reflect.get(target,key,receiver);}});
+  const first=base.merge(proxy);const expected=[...reads];reads.length=0;const second=base.merge(proxy);
+  assert.deepEqual(reads,expected);assert(reads.includes('color'));assert.notEqual(first,second);
+  let captures=0;const feature={feature:'tnum',get value(){captures++;return 1;}},borrowed=new TextStyle({fontFeatures:[feature]});
+  base.merge(borrowed);captures=0;base.merge(borrowed);assert(captures>0,'Each mutable typography merge crosses its run validation boundary');
+  base.merge(other);const descriptor=Object.getOwnPropertyDescriptor(TextStyle.prototype,'copyWith');let copies=0;
+  try{
+    Object.defineProperty(TextStyle.prototype,'copyWith',{configurable:true,get(){copies++;return descriptor.value;}});
+    assert.equal(base.merge(other).color,other.color);assert.equal(base.merge(other).color,other.color);assert.equal(copies,2);
+  }finally{Object.defineProperty(TextStyle.prototype,'copyWith',descriptor);}
 });
 
 test('style merge diagnostics follow the current build mode',{timeout},()=>{

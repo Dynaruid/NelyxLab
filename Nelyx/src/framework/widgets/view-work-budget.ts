@@ -5,10 +5,14 @@ import {textLimits} from '../../ui/text.ts';
 import type {Element} from './framework.ts';
 import type {FrameTiming} from '../../foundation/clock.ts';
 
-/** Opt-in State lifetime extension. No automatic State pause is implied. */
-export type SliverChildPolicy='legacy'|{readonly mode:'bounded';readonly preparation?:'disabled'|'observed-budget'};
+/** Opt-in State retention. Dormant rows deactivate; user timers remain the
+ * State's responsibility and framework tickers resume with elapsed wall time. */
+export type SliverChildPolicy='legacy'|{readonly mode:'bounded';readonly preparation?:'disabled'|'observed-budget'}|{readonly mode:'dormant';readonly capacity:number};
 export function normalizeSliverChildPolicy(value:SliverChildPolicy|undefined):SliverChildPolicy{
  if(value===undefined||value==='legacy')return 'legacy';
+ if(value!==null&&typeof value==='object'&&value.mode==='dormant'){
+  invariant(Number.isSafeInteger(value.capacity)&&value.capacity>0&&value.capacity<=32,'invalid-dormant-capacity','Dormant capacity must be in 1..32');return Object.freeze({mode:'dormant',capacity:value.capacity});
+ }
  invariant(value!==null&&typeof value==='object'&&value.mode==='bounded'&&(value.preparation===undefined||value.preparation==='disabled'||value.preparation==='observed-budget'),'invalid-sliver-child-policy','Choose legacy or bounded with disabled/observed-budget preparation');
  return Object.freeze({mode:'bounded',preparation:value.preparation??'disabled'});
 }

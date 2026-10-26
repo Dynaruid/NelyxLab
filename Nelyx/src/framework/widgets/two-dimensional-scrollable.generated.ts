@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/scrollable.dart; SHA256 b8f9773bed19bb9d83fae2e253e173dcf1297a14832989cdb01c840dc572e377
+// Adopted product owner: nominal checks use the classes declared here.
 import { StatefulWidget } from "./framework.ts";
 import { State } from "./framework.ts";
 import { InheritedWidget } from "./framework.ts";
@@ -54,11 +55,6 @@ import { sourceCurrentScrollable } from "./two-dimensional-scrollable-adapter.ts
 import { sourceCurrentGestureDetector } from "./two-dimensional-scrollable-adapter.ts";
 import { replaceSourceGestureRecognizers } from "./two-dimensional-scrollable-adapter.ts";
 import { sourceObjectString } from "./two-dimensional-scrollable-adapter.ts";
-import { dependOnSourceTwoAxis } from "./two-dimensional-scrollable-types.ts";
-import { isSourceVerticalOuterDimension } from "./two-dimensional-scrollable-types.ts";
-import { castSourceVerticalOuterDimension } from "./two-dimensional-scrollable-types.ts";
-import { isSourceHorizontalInnerDimension } from "./two-dimensional-scrollable-types.ts";
-import { castSourceHorizontalInnerDimension } from "./two-dimensional-scrollable-types.ts";
 import { twoAxisSourcePosition } from "./two-dimensional-scrollable-adapter.ts";
 import { twoAxisEnsureVisible } from "./two-dimensional-scrollable-adapter.ts";
 import type { Widget } from "./framework.ts";
@@ -713,3 +709,9 @@ export class SourceHorizontalInnerDimensionState extends TwoAxisScrollableStateH
         return this.sourceConfiguration.buildOverscrollIndicator(context, child, details);
     }
 }
+
+export function isSourceVerticalOuterDimension(value:unknown):value is SourceVerticalOuterDimension{return value instanceof SourceVerticalOuterDimension;}
+export function castSourceVerticalOuterDimension(value:unknown):SourceVerticalOuterDimension{if(!isSourceVerticalOuterDimension(value))throw new TypeError('Expected vertical outer Scrollable');return value;}
+export function isSourceHorizontalInnerDimension(value:unknown):value is SourceHorizontalInnerDimension{return value instanceof SourceHorizontalInnerDimension;}
+export function castSourceHorizontalInnerDimension(value:unknown):SourceHorizontalInnerDimension{if(!isSourceHorizontalInnerDimension(value))throw new TypeError('Expected horizontal inner Scrollable');return value;}
+export function dependOnSourceTwoAxis(context:BuildContext):SourceTwoDimensionalScrollableScope|null{return context.maybeDependOn(SourceTwoDimensionalScrollableScope)??null;}

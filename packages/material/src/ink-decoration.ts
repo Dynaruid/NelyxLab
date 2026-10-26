@@ -3,7 +3,7 @@
 // Pinned ink_decoration.dart on the existing image, decoration and Material ink owners.
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
-import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
+import { createFrameworkAnchorKey } from '@nelyx/core/framework/widgets/global-key';
 import { Padding, Builder, SizedBox, ConstrainedBox } from '@nelyx/core/framework/widgets/basic';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { RenderBox } from '@nelyx/core/framework/rendering/object';
@@ -33,6 +33,7 @@ import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnos
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Material, InkFeature } from './material.ts';
 import type { InkFeatureOptions } from './material.ts';
+import { emptyInkDecoration } from './internal/material/empty-ink-decoration.ts';
 export interface InkOptions extends WidgetOptions {
     readonly child?: Widget | null;
     readonly padding?: EdgeInsetsGeometry | null;
@@ -86,7 +87,7 @@ export class Ink extends StatefulWidget {
     }
 }
 class InkState extends State<Ink> {
-    private readonly boxKey = new GlobalKey();
+    private readonly boxKey = createFrameworkAnchorKey();
     private ink: InkDecoration | null = null;
     private readonly removed = () => {
         this.ink = null;
@@ -136,12 +137,15 @@ export interface InkDecorationOptions extends InkFeatureOptions {
     readonly isVisible?: boolean;
 }
 export class InkDecoration extends InkFeature {
+    private readonly canonicalDecoration: boolean;
+    private emptyPaint = false;
     private painter: BoxPainter | null = null;
     private currentDecoration: Decoration | null = null;
     private visible = true;
     private currentConfiguration: ImageConfiguration;
     constructor({ decoration, configuration, isVisible = true, ...options }: InkDecorationOptions) {
         super(options);
+        this.canonicalDecoration = new.target === InkDecoration;
         this.currentConfiguration = configuration;
         this.decoration = decoration;
         this.isVisible = isVisible;
@@ -155,14 +159,20 @@ export class InkDecoration extends InkFeature {
     }
     set decoration(value: Decoration | null) {
         this.assertLive();
-        if (valueEquals(value, this.currentDecoration))
+        if (valueEquals(value, this.currentDecoration)) {
+            // Keep the original value/painter equality contract, including a
+            // caller's equal decoration. Only our still-owned default can cull.
+            this.emptyPaint = this.canonicalDecoration && value === emptyInkDecoration && this.currentDecoration === emptyInkDecoration;
             return;
+        }
+        this.emptyPaint = false;
         this.currentDecoration = value;
         this.painter?.dispose();
         this.painter = value?.createBoxPainter(() => {
             if (!this.debugDisposed)
                 this.controller.markNeedsPaint();
         }) ?? null;
+        this.emptyPaint = this.canonicalDecoration && value === emptyInkDecoration;
         this.controller.markNeedsPaint();
     }
     get isVisible(): boolean {
@@ -184,6 +194,11 @@ export class InkDecoration extends InkFeature {
             return;
         this.currentConfiguration = value;
         this.controller.markNeedsPaint();
+    }
+    override paintOnMaterial(canvas: Canvas): void {
+        if (this.emptyPaint)
+            return;
+        super.paintOnMaterial(canvas);
     }
     protected paintFeature(canvas: Canvas, transform: Matrix4): void {
         if (this.painter === null || !this.visible)

@@ -8,10 +8,11 @@ import type {RawKeyMessage} from '../services/raw-key-event.ts';
 import type { EditingHost, SemanticsHost,NativeSelectionContextMenuHost } from './interaction.ts';
 import type {BinaryMessenger} from '../services/binary-messenger.ts';
 import type {ServicesBinding} from '../services/binding.ts';
-import { captureMetrics, freezeFrame, isCurrent } from '../ui/frame.ts';
-import {releaseCommandResources,releaseFrameResources} from '../ui/resource-retention.ts';
+import { captureMetrics, captureSceneFrame, releaseSceneFrameSource, isCurrent } from '../ui/frame.ts';
+import type {SceneFrameSource} from '../ui/frame.ts';
+import {releaseFrameResources} from '../ui/resource-retention.ts';
 import type {ImageService} from './images.ts';
-import type { FrameBuildToken, PaintCommand, PaintFrame, RendererCapabilities, RendererNotification, SubmitResult, ViewMetrics, ViewOwner } from '../ui/types.ts';
+import type { FrameBuildToken, PaintFrame, RendererCapabilities, RendererNotification, SubmitResult, ViewMetrics, ViewOwner } from '../ui/types.ts';
 import { ResourceRegistry } from "./resources.ts";
 import type { ResourceLease } from "./resources.ts";
 export interface Renderer extends Disposable {
@@ -48,7 +49,7 @@ export interface ApplicationDefinition {
   readonly accessibilityEnabled?: boolean;
   readonly assets?: readonly AssetRef[];
   startup?(context: ApplicationStartupContext): void | Disposable | Promise<void | Disposable>;
-  createScene?(): (context: SceneContext) => readonly PaintCommand[];
+  createScene?(): (context: SceneContext) => SceneFrameSource;
   /** One controller per View; no Element/State is shared through AppSession. */
   createView?(context: ViewControllerContext): ViewController;
 }
@@ -77,7 +78,7 @@ export interface ViewControllerContext extends ViewServices {
   readonly reportError?:(error:unknown)=>void;
 }
 export interface ViewController {
-  build(context: SceneContext): readonly PaintCommand[];
+  build(context: SceneContext): SceneFrameSource;
   setVisible?(visible: boolean): void;
   shouldSubmitFrame?():boolean;
   frameSubmitted?(token:FrameBuildToken):void;
@@ -109,7 +110,7 @@ export class ViewRuntime implements Disposable {
   private uncertain: ResourceLease[] = [];
   private rendererBinding:Disposable|undefined;
   private observedSubmissions=new Map<number,FrameBuildToken>();
-  readonly scene: (context: SceneContext) => readonly PaintCommand[];
+  readonly scene: (context: SceneContext) => SceneFrameSource;
   constructor(private readonly session: AppSession, private readonly options: ViewOptions) {
     this.owner = Object.freeze({id: options.id, generation: generation(options.generation)});
     this.metrics = captureMetrics(options.metrics);
@@ -215,9 +216,9 @@ export class ViewRuntime implements Disposable {
     if(this.state!=='open'||this.metrics!==token.metrics)return;
     if(empty){this.clearPending();return;}
     if(this.controller?.shouldSubmitFrame?.()===false){this.clearPending();return;}
-    const frame = freezeFrame(token,commands);
+    const frame = captureSceneFrame(token,commands);
     let lease:ResourceLease;try{lease=this.session.resources.acquire(frame.resources);}finally{releaseFrameResources(frame.resources);}try{this.clearPending();}catch(error){lease.returnBy('caller');throw error;}this.pending = {frame, lease};
-    }finally{releaseCommandResources(commands);}
+    }finally{releaseSceneFrameSource(commands);}
   }
   pump(): SubmitResult | undefined {
     if (this.state !== "open" || !this.pending) return;
@@ -251,6 +252,9 @@ export class ViewRuntime implements Disposable {
   beginClose():void{if(this.state==='closing'||this.state==='closed')return;this.state='closing';this.pointerMailbox.length=0;const task=this.task;this.task=undefined;task?.dispose();}
   dispose(): Promise<void> {
     if (this.closePromise) return this.closePromise;
+    // Publish the owner transaction before any user/native cleanup can reenter.
+    let resolve!:()=>void,reject!:(error:unknown)=>void;
+    const closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});this.closePromise=closing;
     this.state = "closing"; const errors: unknown[] = []; const task = this.task; this.task = undefined;
     this.pointerMailbox.length=0;
 
@@ -258,7 +262,9 @@ export class ViewRuntime implements Disposable {
     try {this.controller?.dispose();} catch(error) {errors.push(error);}
     try {this.rendererBinding?.dispose();this.rendererBinding=undefined;}catch(error){errors.push(error);}
     try {this.clearPending();} catch(error) {errors.push(error);}
-    this.closePromise = this.finishClose().then(() => {if(errors.length) throw new AggregateError(errors, "view scheduling/lease cleanup failed");}); return this.closePromise;
+    void this.finishClose().then(() => {if(errors.length) throw new AggregateError(errors, "view scheduling/lease cleanup failed");},error=>{
+      if(errors.length)throw new AggregateError([...errors,error],"view cleanup and renderer drain failed");throw error;
+    }).then(resolve,reject);return closing;
   }
   private async finishClose(): Promise<void> {
     if (this.options.ownership === "owned") await this.options.renderer.dispose();
@@ -284,19 +290,19 @@ export class AppSession implements Disposable {
   beginClose():void{if(this.state==='closed')return;this.state='closing';const errors:unknown[]=[];for(const view of this.views)try{view.beginClose();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'view scheduling stop failed');}
   dispose(): Promise<void> {
     if (this.closePromise) return this.closePromise;
-    this.state = "closing"; this.closePromise = this.finishClose(); return this.closePromise;
+    let resolve!:()=>void,reject!:(error:unknown)=>void;
+    const closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});this.closePromise=closing;
+    this.state = "closing";void this.finishClose().then(resolve,reject);return closing;
   }
   private async finishClose(): Promise<void> {
     const closing = [...this.views].map((view) => view.dispose());
-    let resourceError: unknown;
-    try {this.resources.dispose();} catch(error) {resourceError = error;}
+    const errors:unknown[]=[];
+    try {this.resources.dispose();} catch(error) {errors.push(error);}
     const results = await Promise.allSettled(closing);
     const failed = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
-    if(failed.length) throw new AggregateError(failed.map((result) => result.reason), "view shutdown failed; services retained");
-    const serviceErrors: unknown[] = [];
-    for (const service of this.services) if (service.ownership === "owned") {try {await service.value.dispose();} catch(error) {serviceErrors.push(error);}}
+    if(failed.length) throw new AggregateError([...errors,...failed.map((result) => result.reason)], "view shutdown failed; services retained");
+    for (const service of this.services) if (service.ownership === "owned") {try {await service.value.dispose();} catch(error) {errors.push(error);}}
     this.state = "closed";
-    if(resourceError) serviceErrors.push(resourceError);
-    if(serviceErrors.length) throw new AggregateError(serviceErrors, "app resource/service shutdown failed");
+    if(errors.length) throw new AggregateError(errors, "app resource/service shutdown failed");
   }
 }

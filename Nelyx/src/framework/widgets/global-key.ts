@@ -26,6 +26,11 @@ export class GlobalKey<S extends State=State> extends Key {
   toString():string{return `[${this.constructor.name}#${this.diagnosticId}${this.debugLabel?` ${this.debugLabel}`:''}]`;}
 }
 export class LabeledGlobalKey<S extends State=State> extends GlobalKey<S> {}
+const frameworkAnchors=new WeakSet<GlobalKey>();
+/** @internal Framework-owned geometry/semantics anchors, never app State keys. */
+export function createFrameworkAnchorKey(debugLabel?:string):GlobalKey{const key=new GlobalKey(debugLabel);frameworkAnchors.add(key);return key;}
+/** @internal Only keys created by the framework anchor factory qualify. */
+export function isFrameworkAnchorKey(key:GlobalKey):boolean{return frameworkAnchors.has(key);}
 export type ObjectIdentity=object|string|number|boolean|symbol|bigint;
 type Bindings=Map<object,Map<object|undefined,Element>>;
 const objects=new WeakMap<object,Bindings>(),primitives=new Map<unknown,Bindings>(),negativeZero=Symbol('negative zero identity');

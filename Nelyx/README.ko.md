@@ -1,5 +1,49 @@
 # Nelyx Core
 
+`FrameworkRoot.build(scene)`은 이제 배열 대신 `FrameRecording`을 반환합니다.
+View는 완성된 immutable command buffer와 기존 resource hold를 한 번 넘겨받으며
+resource 명령을 다시 capture하지 않습니다. 직접 CPU에서 소비하려면 `ui/frame`의
+`captureSceneFrame(scene.token, source)`를 사용하고, `finally`에서
+`releaseSceneFrameSource(source)`, 소비 종료 시 `disposeFrame(frame)`을 호출합니다.
+recording은 생성할 때 받은 정확한 build token으로만 소비할 수 있으며 취소·stale
+metrics·제출 억제·close에서는 미소비 recording을 반환합니다.
+`FrameRecording.capture(token, canvas)`는 살아 있는 Canvas의 기록을 끝내고 닫습니다.
+Root는 post-frame callback과 recording sealing이 끝난 뒤 text-input geometry를
+commit합니다. recording 거부 시 pending geometry를 버리고, geometry 알림 실패나
+owner close에서는 이미 sealing한 recording의 hold도 반환합니다.
+`RenderObject.didCommitTextInputGeometry` 시점의 painting Canvas는 이미 닫혀 있습니다.
+이 알림에서 그리던 코드는 `paint`로 옮기고 다음 frame은 `markNeedsPaint`로 요청합니다.
+사용자 `createScene`/controller는 기존 command 배열을 계속 반환할 수 있으며,
+이 배열은 기존 입력 capture와 독립 resource hold 경계를 유지합니다.
+
+캡처한 ResourceId는 값 필드와 retainer binding 모두 immutable입니다. 기록 전에
+원래 입력을 `ResourceRegistry.bindResource` 또는 `bindResourceRetainer`로 bind합니다.
+캡처한 command/frame ID를 rebind하면 오류가 나며, owner를 바꾸려면 원래 입력을
+bind하고 새 recording을 capture합니다.
+내부 borrowed Picture capture는 이 sealed ID·style snapshot을 공유하면서 별도
+command hold를 획득합니다. public Canvas/명령 복사는 독립 ID capture를 유지합니다.
+registry binding은 캡처한 identity를 보유하므로 원래 ID를 나중에 바꿔도 기존
+recording이 다른 자원을 붙잡지 않습니다.
+`registry.captureResource(input)`은 registry binding을 초기화한 immutable ID를
+한 번에 반환합니다. asset·image handle을 게시할 때 사용하며, 입력 owner와 살아
+있는 자원을 검증하고 이미 캡처한 ID를 다시 bind하지 않습니다.
+
+`RichText`와 inline `WidgetSpan` 구현은 `framework/widgets/rich-text` 선언 owner를 공유합니다. `framework/widgets/widget-span`은 같은 WidgetSpan 클래스의 public named reexport로 유지됩니다. 기존 import·child State·ParentData/ancestor 진단·배율·자원 수명 계약을 유지하며, WidgetSpan만 import해도 실제 RichText ancestor 클래스가 초기화됩니다.
+
+TreeSliver의 value/type capture·행 identity·animation map·ParentData helper는 canonical 선언 owner인 `framework/widgets/sliver-tree.generated`로 옮겼습니다. 내부 `treeNodeType`·`treeWidgetType` 소비자는 이 owner에서 import하며, `tree-generic-witnesses`에는 추상 interface token과 공통 framework witness가 남습니다. 기존 `tree-widget-source-types` 모듈은 제거했습니다. 공개 `TreeSliver`·`TreeSliverNode`·`TreeSliverController`·`TreeView` import는 유지됩니다.
+
+`AppSession.dispose()`와 `ViewRuntime.dispose()`는 정리 callback을 호출하기 전에 owner Promise 하나를 게시합니다. controller·clock·observer·renderer 정리 중 재진입해도 같은 Promise를 반환하고 retirement를 반복하지 않습니다. 입력·예약은 즉시 닫고, 소유 renderer의 drain이 끝난 뒤 service를 반환합니다. View drain 실패는 의존 service와 거부된 종료 Promise를 유지합니다. callback·resource·drain이 함께 실패하면 `undefined`·`null`·`0`을 던진 경우까지 AggregateError에 보존합니다.
+
+`emptyWidgetStateSet`은 `framework/widgets/widget-state`에서 import합니다. 구현은 canonical WidgetState enum과 같은 모듈로 옮겼으며, 기존 `internal/framework/widgets/widget-state-full-collections`의 이 함수 export를 대체합니다. 나머지 const/map factory는 기존 모듈과 identity를 유지합니다.
+
+저수준 text backend는 `hosting/text-fonts`의 `ParagraphFontCatalog` 하나를 공유합니다. 앱 registry로 만들고 `new TextLayoutCache(registry, catalog)`와 `new ParagraphFontProviders(registry, catalog, create)`에 전달한 뒤, layout 경계마다 `catalog.capture(fonts)`를 한 번 호출합니다. 같은 snapshot을 `cache.key(input, snapshot)`과 `providers.acquire(primary, snapshot)`에 전달합니다. 이는 기존 `cache.key`의 iterable 인수, provider 생성자의 font-source callback, snapshot 없는 provider acquire를 대체합니다. provider 생성 callback은 `{source, resource, family, sourceBytes}` 캡처를 받으며 backend handle은 `source`, 폰트 metadata는 캡처 필드에서 읽습니다. `NativeFont`에는 이제 `sourceBytes`가 필수이며 provider residency에 보유한 원본 폰트 바이트 수를 전달합니다. getter·iterator는 capture 중 실행하고 해당 layout의 metadata는 고정됩니다. 새 capture 뒤에는 serialization·자원 압박 중 재진입을 포함해 이전 cache/provider admission을 거부합니다. 기존 문단과 제출한 frame의 font lease는 실제 retirement까지 유지하고, native retirement 실패는 residency를 보유하면서 provider 입장을 닫습니다. Widget·TextPainter·Paragraph API는 유지됩니다.
+
+semantics 변경 요청은 View pipeline이 모읍니다. `describeSemanticsConfiguration`은 layout 뒤 semantics commit에서 최신 상태를 평가하며, 새 render object의 attach와 반복 `markNeedsSemanticsUpdate()`가 동기 평가하지 않습니다. 이전에는 트리 변경 중 이 작업들이 descriptor를 여러 번 호출할 수 있었습니다. descriptor에서 앱 부작용을 실행하지 말고 attach 작업은 `attach`/`detach` 또는 State lifecycle로 옮깁니다. descriptor가 던지면 이전에 게시한 annotation을 유지하고 다음 semantics flush에서 재시도하며, 일부만 쓴 configuration은 재사용하지 않습니다. 명시적 설정 변경은 계속 motion-only 접근성 throttling을 우회합니다.
+
+고정 또는 indexed extent 목록은 `childPolicy: {mode: 'dormant', capacity: 32}`로 분리한 행의 재사용을 선택할 수 있습니다. 기본값은 `legacy`입니다. dormant 행은 `deactivate`를 실행하고 paint/hit/semantics·inherited 구독에서 빠지며 framework ticker를 조용히 합니다. 재진입하면 item builder를 다시 호출하고 새 Widget을 적용해 호환 State를 activate하며, ticker의 경과 시간은 계속 흐릅니다. 퇴출·delegate 교체·압박·View 종료는 보유 State를 dispose합니다. 사용자 timer는 State lifecycle에서 관리합니다. 앱이 제공한 GlobalKey를 포함한 행은 기존 퇴장 경로를 사용합니다. 사적인 framework geometry/semantics anchor는 등록을 유지하며 GlobalKey retake로 추출하면 dormant 나머지를 반환합니다. sliver당 capacity는 1~32이며 View 전체에서 dormant root32개·Element4096개를 공유합니다. 기존 cacheExtent와 명시적 keep-alive 동작은 유지됩니다. 문단 입장 전에 dormant 보유를 회수할 수 있지만 제출한 frame의 독립 lease는 계속 자원 비용에 포함됩니다.
+
+`SemanticsConfiguration`은 annotation 상태를 직접 소유합니다. 공개 setter와 action callback으로 설정하며, canonical 플래그 갱신·호환 검사·병합은 `SemanticsFlags.prototype.copyWith`·`merge`·`hasConflictingFlags`로 다시 위임하지 않습니다. 예를 들어 `SemanticsFlags.prototype.merge` 교체는 값 객체의 직접 호출에는 적용되지만 configuration의 absorb를 바꾸지는 않습니다. 이런 사용자 정의는 configuration subclass 또는 render object의 `describeSemanticsConfiguration`으로 이전합니다. 공개 immutable `SemanticsFlags` 필드·직접 값 메서드·enum 상태·게시한 node snapshot의 계약은 유지합니다.
+
 가변 높이 카탈로그에는 호출자가 소유한 `SectionExtentIndex(count)`(`framework/rendering/section-extent-index`)를 `ListView.builder({extentIndex, itemCount: count, ...})`에 전달하거나 `SliverSectionList`를 사용한다. `extentIndex.requestItem(index, {offset})`는 중간 섹션을 생성하지 않고 목적지로 이동한다. 표시 geometry는 항상 실제 child layout으로 결정하며 추정 offset은 방문·측정하면서 보정한다. 최대 4,096개 섹션·두 폭/metric 설정을 보관하고 하나의 mounted sliver만 인덱스를 소유한다. 폭·locale·방향·상속 text scale은 자동 감지한다. typography/content 변경에는 `metricRevision`을 교체하거나 해당 섹션의 `extentIndex.invalidate(index)`를 호출한다. keyed State/keep-alive는 기존 delegate 정책을 따르며 방문한 모든 child를 보관하지 않는다. builder는 인덱스의 모든 항목을 제공해야 한다. 일반 ListView의 기존 dead-reckoning 경로도 유지한다.
 
 EditableText는 scrollController·scrollPhysics·scrollBehavior·restorationId를 제공합니다. 실제 Scrollable/ScrollPosition 하나가 paragraph paint·hit 좌표·caret/선택 스크롤·wheel/touch·애니메이션을 구동합니다. 양쪽 디자인 TextField는 scrollController/scrollPhysics를 전달하며 차용 controller는 caller가 소유합니다. 기본 축은 한 줄에서 가로, 여러 줄에서 세로입니다. iOS 한 줄 필드는 사용자 스크롤만 막고 명시적/implicit 이동은 유지합니다. Core restorationId는 스크롤 위치를 저장하고 text 복원은 controller owner가 맡습니다. 디자인의 text/controller 복원은 잔여입니다. native/public formatter 오류는 원자적으로 보고하고 원래의 미포맷 입력을 유지합니다. native 선택/range-only 관측은 formatter를 다시 실행하지 않습니다. 비시각적 adapter는 실제 OS 조합을 수정하지 않고 확정 때 보존한 조합 전 문서를 기준으로 검증합니다.

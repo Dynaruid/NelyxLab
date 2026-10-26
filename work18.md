@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 주 수락 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / 실제 Testbed 앱**
 
-> **실행 PAUSED · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 사용자의 “중간 마무리해줘” 요청으로 구현과 추가 native 검증을 중지했다. 현재 변경·검사 실패·공급 차이·재개 지점은 §8.4에 기록한다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며, [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
+> **실행 PAUSED · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 사용자의 중간 마무리 요청으로 구현·추가 native 검증을 중지했다. 현재 공급은 §8.46, 마지막 외부 UIA/RNW 진단 공급은 §8.45, 중단 현황·정리 스크립트·재개점은 §8.47을 따른다. 명시적인 재개 요청 전에는 구현·native 검증을 다시 시작하지 않는다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며, [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
 
 **W18은 기존 구조의 작은 최적화를 이어 붙이는 작업이 아니라, Nelyx가 상태·트리·레이아웃·텍스트·scene·자원을 보유하고 갱신하는 기반을 다시 만드는 작업이다.** TypeScript로 앱과 Widget·State를 작성하는 제품 방향, Nelyx 자체 콘텐츠 레이아웃, Hermes 기본 엔진 방향은 유지한다. 내부 클래스 구조·저장 방식·모듈·native ABI·공급 방식은 교체할 수 있다. 기존 소스와 API를 모두 그대로 보존하는 것을 개편의 전제로 삼지 않는다.
 
@@ -248,12 +248,18 @@ Windows가 1차 제품 수락 범위다. Web·Android의 현재 기능을 새 Co
 | 항목 | 현재 상태 |
 |---|---|
 | W17 실행 계획 | **CLOSED / SUPERSEDED BY W18**. 종료 시 구현·제품 결과는 PARTIAL이며 실패·미확인 범위 유지. |
-| W18 계획 | **PAUSED**. 2026-10-26 사용자 중간 마무리 요청. 완료·수락으로 판정하지 않음. |
-| W18-00 | **PARTIAL**. 착수 HEAD `db27ecedd2c38e38c16753fa827c9b0cab77c911`, dirty 없음. 현재 공급·실행 기준선 확인 중. |
+| W18 계획 | **PAUSED / PARTIAL**. 2026-10-26 중간 마무리 요청으로 실행 중지. 현재 공급·미수락 범위는 보존하며 재개점은 §8.47이다. |
+| W18-00 | **COMPLETE — inventory/비교 기반 범위**. 착수·현재 HEAD/diff, toolchain/locator·직접 host의 source/dist/설치/loaded identity와 기존 실패를 기록했다. §8.10의 비교 기준선과 §8.43의 실행 가능한 직접 host 공급을 확보했다. §8.36/8.43 RNW 관측·제한된 실행과 과거 AV/최종 제품·성능·물리 수락은 별도다. |
 | W18-01 | **PARTIAL**. 아래 첫 owner/소비자 계약 확정. 공통 native 패키지·scene/text ABI 이전 설계는 계속 필요. |
-| W18-02 | **PAUSED / PARTIAL**. render owner commit·공유 dependency·intrusive dirty queue·text/semantics 준비와 Icon render primitive 시제품. 비용 목표·공급·회귀 잔여는 §8.4. 두 모드 정규 비교 전 채택/완료로 판정하지 않음. |
-| W18-06/08의 독립 경계 추출 | **PARTIAL**. 공통 Skia TS package·canonical C++ binding/target·공통 frame clock과 직접 scene 인코더 구현. retained scene·text ABI·전체 SDK composition 이전은 미완료. |
-| W18-03/04/05/07/09~12 | **NOT_STARTED**. 시제품의 dirty queue·text capture 변경은 아직 비용 수락 전이다. 각 단계의 전체 이전·최종 수락으로 승격하지 않음. |
+| W18-02 | **SELECTED / PASS-scoped**. §8.20/8.21 aggregate의 두 모드 cold/revisit 각 paired trial25%·retained guard, 관련 기능/수명 회귀·현재 제품 공급·scoped resource-cycle3회 통과. 이전 미달/미채택 후보 기록은 보존한다. 이는 대표 경로의 시제품 선택 완료이며 fast·전체 R0~R7/제품 수락이 아니다. |
+| W18-06/08의 독립 경계 추출 | **PARTIAL**. 공통 Skia TS/C++·frame clock·직접 scene 인코더, VM 환경 owner·host ABI2와 callback owner를 구현했다. §8.42의 frame/Picture/toImage 단일 packet과 §8.44의 Core FrameRecording·sealed resource binding·SDK asset capture를 실제 소비자가 사용한다. 현재 두 제품과 native 계약은 §8.45이며 전체 retained scene·text/geometry ABI·SDK composition 이전은 미완료다. |
+| W18-03 | **PAUSED / PARTIAL**. §8.22 Element/focus SCC 분리, §8.27 실패한 GlobalKey 재배치 복구, §8.29/8.37/8.40의 nominal class/factory·tree/inline-text owner 이전을 구현·검증했다. 전체 단계와 최종 성능/물리 수락은 구분한다. |
+| W18-04 | **PAUSED / PARTIAL**. §8.23 layout admission/body 실패 뒤 canonical owner 복구와 detached batch 거부를 구현·검증했다. 전체 geometry/Sliver 이전은 남아 있다. |
+| W18-05 | **PAUSED / PARTIAL**. §8.24 native/Web 문단 cache/provider의 captured font catalog/revision, §8.40 RichText·WidgetSpan의 단일 선언 owner와 실제 nonlinear geometry/State/retirement·현재 공급을 확인했다. 전체 text/style·query/paint·편집의 최종 수락은 남아 있다. |
+| W18-09 실제 앱/API 이전 | **PAUSED / PARTIAL**. nominal factory/tree의 실제 소비자 이전과 README 반영, §8.33 Web catalog 전체 선언/대표 callback·route·상태, §8.41 두 native 모드의 편집기 focus/Material·Cupertino range action을 확인했다. 전체 native catalog/확장점·입력/접근성 수락은 별도다. |
+| W18-10 공급의 독립 검증 | **PAUSED / PARTIAL**. §8.45의 두 Hermes·외부 UIA/현재 RNW queued/no-PC 진단과 CLI doctor/pack을 확인했다. 새 geometry fence 공급은 §8.46에서 source/dist/설치·bytecode 실행·Chrome 입력/catalog·Android/RNW build와 Static 실행/pack까지 확인했다. 과거 AV·VM PC symbol·전체 단계의 최종 수락은 남는다. |
+| W18-07 입력·semantics commit | **PAUSED / PARTIAL**. §8.34 native action 단일 전달·node lifetime·endpoint retirement와 §8.45 두 모드의 외부 UIA focus/range·입력 보존·정상 종료를 확인했다. §8.46의 최종 capture와 geometry publication 오류 경계를 구현·검증했으며, 전체 geometry/semantics commit·물리 IME/reader 수락은 별도다. |
+| W18-11/12 | **NOT_STARTED**. 선택한 시제품 변경을 각 단계의 전체 이전·최종 수락으로 승격하지 않음. |
 | 기존 실행 기본값 | Hermes/optimized·RNW 유지. 직접 host 제품 기본 전환은 R0~R7 수락 뒤 진행. |
 | architecture / engine / performance / memory | **notAccepted / notAccepted / false / notAccepted**. 기존 private 증가·RNW AV/종료 실패 유지. |
 | physical / display / platform | **notVerified / unobserved / notAccepted**. 자동화·소스 확인과 물리 수락 구분. |
@@ -262,7 +268,7 @@ Windows가 1차 제품 수락 범위다. Web·Android의 현재 기능을 새 Co
 
 - Node `24.15.0`, npm `11.17.0`. Hermes pin `94aa5e1d40a4ce99df79d951cbe45310ec40680c`, HBC99·JSI21·MD, 현재 toolchain manifest SHA-256 `a0d7d3c2a023a3610e0c12e4182fd6ab604cf9e3ca1a89a8533dd43a964e71ff`. Skia x64 Release/MD·JSI21 supplier manifest `d7af5017143c3044aad7277a0924672b4605b5b8b184f2849026c36a09d68289`. 기존 locator는 이 현재 공급을 참조한다.
 - 착수 Core `framework.ts` SHA-256 `906d029e875ca1e207621f1a612ec98fb9473c2a396dbfc3c70070229a9b2978`; dist/Windows 설치 `framework.js`는 둘 다 `9b43b7fe8e796c1fc5068ef23a2733a03358cc041f24008375fc8456da387149`. 현재 두 제품 패키지는 `verifyNativePackage` 통과, native source identity `cdba6b89c7fcce315ff3e0e6c0908ba0eceb2ce0e90d42b4d3ac2c19fa618804`. 수정 후보와 비교용 설치본의 identity를 구분한다.
-- 실제 catalog는 Material 36·Cupertino 20개 선언을 유지한다. Widget/State/GlobalKey·Inherited·ParentData·custom RenderObject/paint·Sliver/layout callback·navigation/overlay·편집/semantics는 기존 회귀와 Testbed의 소비 대상이다. 미구현 catalog 항목을 새 지원으로 표시하지 않는다.
+- 실제 catalog는 Material **29**·Cupertino **20**개 demo 선언을 유지한다. 최초 Material36 집계에는 category7개가 섞였으며 §8.6에서 HEAD/현재 source와 실제 순회로 정정했다. 목록을 삭제·축소한 것이 아니다. Widget/State/GlobalKey·Inherited·ParentData·custom RenderObject/paint·Sliver/layout callback·navigation/overlay·편집/semantics는 기존 회귀와 Testbed의 소비 대상이다. 미구현 catalog 항목을 새 지원으로 표시하지 않는다.
 - 첫 Runtime 계약: Element/State identity와 RenderObject geometry는 기존 객체가 단독 소유한다. `runtime/owner-transaction.ts`는 변경된 실제 render owner만 admission하고 build scope 끝에서 child-first로 한 번 commit한다. 실패 owner는 재시도 가능하게 남기고 성공 sibling은 재실행하지 않으며, unmount/close는 pending 참조를 제거한다. root/sliver/wheel/2D viewport가 같은 경계를 소비한다. numeric arena·사용자 객체 pooling·native layout kernel은 아직 채택하지 않았다.
 - canonical inherited type만 `runtime/dependency-scope.ts`의 공유 scope 링크를 사용한다. provider마다 전체 Map을 복사하지 않는다. scope별 query memo는 누락 type까지 최대 4개이며 deactivate/GlobalKey 이동 때 index를 폐기/재연결한다. 동적 getter·instance token은 기존 ancestor 조회를 사용한다. mutable Widget/구독 owner는 `InheritedElement` 하나다.
 - 지원 경로는 당분간 Windows direct bytecode/Static Hermes, RNW Hermes/V8/JSC, 현재 Web/Android를 유지한다. 퇴역한 경로는 없다. RNW AV·focus/종료, 메모리 보유/회수 근거, driver residency, 물리 IME/reader/display는 독립 잔여다.
@@ -329,6 +335,593 @@ Static Hermes 착수 CPU 진단 1회도 loaded identity·정상 exit0을 확인�
 `native-memory-results`는 bytes/count·전체/마지막3회 증감을 관측만 하며 큰 수치나 증가만으로 실패하지 않는다. `native-scroll`의 resource 반복 검사도 cache resident의 동일 tail/64-entry·32MiB를 강제하지 않고 모든 회차의 resident를 보고한다. 입력/부하/identity 검증과 논리 producer 복귀·native frame drain은 유지한다. 관측 완료를 메모리 수락으로 승격하지 않으며 `memoryAccepted=false`를 명시한다. W17 실패 기록·원시 수치와 §8.4의 두 미해결 테스트는 보존한다. 현재 제품의 cache 크기·native ABI·공급본은 바꾸지 않고 메모리 정책·관측 도구/회귀·사용법만 변경했다. 새 native 측정이나 중단한 구현 재개는 하지 않는다.
 
 이 변경의 확인은 `native-memory-results.test.mjs`와 `native-scroll-report.test.mjs`의 20분 timeout 단위 검사 **11 PASS / native 실행 1 SKIP**다. 기존 상한을 넘는 수치·연속 증가·GPU allocation0을 정확히 보고하고 메모리 수락으로 오인하지 않는지, 잘못된 계수·입력/부하/identity·producer 복귀·frame drain 실패는 계속 거부하는지 확인했다. 제품의 메모리·성능을 새로 측정한 결과가 아니다.
+
+### 8.6 IN_PROGRESS — 2026-10-26 전체 작업 재개
+
+재개 HEAD `f59c049a28862d35348ddff417d7405894aa1f66`, 시작 dirty 없음. §8.4의 Icon 소스·회귀·Core dist 네 hash가 일치했다. 이전 제품 package·세 runner 설치본은 Icon 이전 공급이었다. 해당 차이와 과거 진단을 새 공급 수락으로 승격하지 않는다.
+
+- **기존 실패 수리**: Material 두 문단-count 실패를 재현했다. producer/frame 반환 뒤 남은 문단이 cache resident와 정확히 같은지, 실패 owner가 없는지 확인하는 기존 `assertParagraphOwnership`으로 이전했다. 최종 registry/library close의 문단·폰트 0 검사는 유지한다. 편집·디자인 회귀에서도 같은 잘못된 resident=count 검사가 발견됐으며 변경 전 RenderParagraph로 재실행해 기존 실패임을 확인했다.
+- **발견한 실제 자원 문제**: 완료한 Zoom transition의 모든 SnapshotController가 false이고 Image producer가 0인데도 덮인 페이지의 무효한 repaint/EngineLayer 기록이 이미지를 보유했다. dirty retained owner만 admission하고 성공한 frame 뒤 숨은 무효 기록·ancestor scene cache를 반환한다. 깨끗한 숨은 기록과 State, 안정된 OffsetLayer 링크는 보존한다. 제출 frame의 독립 lease가 마지막까지 이미지를 보유하는 회귀와 기존 Navigator Zoom 회귀가 통과했다. 해당 scene/paint 회귀 98개가 통과했다.
+- **문단 초기화**: 소유한 불변 span/style/scaler/resource ID와 locally captured painter options만 이미 해석한 configuration으로 직접 초기화한다. 중복 configuration 작성·초기 update의 JSON 비교를 줄인다. custom span/scaler·Paint·Locale/StrutStyle/TextHeightBehavior·외부 resource/getter·serialization hook은 일반 경로를 유지한다. 실제 자산의 ID capture는 SDK bootstrap에서 한 번 수행한다. custom 준비/serialization callback 회귀가 통과했다.
+- **반복 style 준비**: 소유한 불변 TextStyle에만 base당 최근 color/fontSize/locale 조합 하나를 약하게 보유한다. ListTile 기본 role/slot과 Text의 locale/size 해석이 이를 소비한다. 기존 merge cache도 정확한 captured style·원래 copyWith/options descriptor로 제한했다. Proxy·custom receiver·copyWith/options getter·mutable typography/Paint는 일반 경로를 유지하며 getter 순서 회귀를 포함해 통과했다.
+- **layout 무효화**: 동기 layout transaction에서 이미 덮인 순수 ancestor prefix의 paint 무효화를 공유한다. custom boundary/retirement/parent/owner hook 앞에서 일반 순회를 재개한다. 중간 paint·편집 geometry 관찰·실패 때 batch를 닫으며 detach 때 ancestor 참조를 지운다. 반복 geometry 변경의 마지막 출력, layout 도중 중간 repaint, custom getter/hook 호출 순서 회귀가 통과했다.
+- **Divider 구조**: finite square Divider/VerticalDivider는 한 layout owner와 실제 canonical decoration painter를 사용한다. theme/Directionality/locale 조회와 public State/Key 경계를 보존한다. rounded/nonfinite 입력은 원래 Core 구성이다. 기존 독립 구성과 **32개 axis/direction/dimension/radius 조건**에서 실제 CanvasKit 전 픽셀·wet/dry/intrinsic/baseline/hit 결과를 대조했고 keyed theme/direction 갱신·private child 반환까지 통과했다.
+- **미채택 후보 제거**: built-in AnimatedDefaultTextStyle의 선형 초기 controller/ticker/curve 지연 생성은 실제 Core recording의 retarget·TickerMode·곡선 교체·onEnd·State/반환 회귀3개를 통과했지만 두 모드 진단에서 일관된 이득을 보이지 않았다. bytecode cold/revisit p95 **15.956/16.431ms**, Static **14.427/13.808ms**였고 현재 Divider 후보의 각 **17.019/14.992**, **13.734/12.234ms**와 비교해 목표를 입증하지 못했다. 해당 구현·추가 API·전용 검사는 제거하고 원래 animation owner로 복귀했다. 이 미채택 시점의 Node sampled allocation 10,843,928 bytes도 현재 제품·Hermes 수락 근거로 사용하지 않는다.
+- **VM/Host 조립**: 공통 `runtime/vm-environment`가 VM당 설치·단일 app claim·timer/frame/microtask/rejection·console·close를 소유한다. app callback과 GPU drain timer의 admission을 분리했다. 직접 host ABI **2**와 vm/services/editing/semantics capability **1**을 요구하며 이전 ABI·누락 port를 bootstrap 전에 거부한다. C++ `VmCallbacks`로 runtime-thread callback storage와 timer/frame checkpoint를 main에서 추출했다. 닫힌 app의 새 timer는 pinned Hermes의 Promise tracker가 원래 오류를 대체하지 않도록 inert handle만 반환한다. 실제 Hermes C++ harness에서 microtask 오류·닫힌 VM의 handled rejection·late callback fence·독립 GPU drain timer·callback thread와 frame cancel/reentry를 확인했다.
+- **시작 실패와 공급**: SDK source와 emitted map의 마지막 수정 불일치를 실제 inventory가 거부했다. SDK 재빌드 뒤 원본·dist·map·세 설치본의 동일 hash와 map sourcesContent를 확인했다. 생성 entry는 VM 환경 반환 뒤에도 공통 오류 formatter를 통해 host에 실패를 보고한다. 실제 pinned Hermes에서 `throw undefined`와 hostile Error.stack 두 시작 실패가 **exit1 / forced=false / native error 없음**으로 통과했다. Core/Material/SDK/Skia native/CLI의 현재 공급은 세 runner에 반영했다. 현재 두 제품은 각각 **858 modules / 11 owners / generated 제외3**, package153/156 files, 실제 창 `Responding=True`·정상 exit0·forced=false·stderr 없음·RN/Node-API JSI 미로딩을 확인했다. Static의 compiled nativeFunctions는 **37,084**이며 전 body의 실행을 뜻하지 않는다. host source `fe4a092da4a8a283c697acb222ca6a3d0b9d40446a1189a59279e45092596f71`; compiler/Skia cohort는 §8.1과 같다.
+- **공급 사전 검사**: `prepare-sample`은 workspace manifest의 실제 package 경로에서 원본·emitted map 입력을 검사한 뒤 패킹한다. 오래된 dist·누락 map·owner 밖 source·사라진 dist를 runner 변경 전에 거부한다. source-only MJS package는 emit을 요구하지 않는다. 새 거부/복구 검사3개와 기존 동일 버전 재공급/rollback 검사까지 **4 PASS**, 현재 **10 packages / emitted modules1177 PASS-scoped**다. JS compiler 재현성·native/runtime 수락의 대체 검사가 아니다.
+- **Web/Android 범위**: Divider/layout batch의 Web check/build와 실제 Chrome의 EditContext·moveBefore fallback·nonvisual DOM 입력 **3 PASS**다. ListView 선택/휠/far 이동/resize, Material/Cupertino 조합·양방향 caret·undo·form·dialog·theme 중 State/편집 보존을 검증했다. Web application SHA-256 `2c56409344f4572b9cbc6662a39f7e496f23c1752fea6ac4118bc8a7e09b59ed`, map `52ca7ac90a3c82ce8afd65fed320a018e036a1bf1a68e77fccc4ef8bad267789`. 같은 공통 Core/Material의 Android x86_64 Release emulator-vulkan 빌드 PASS, APK `2838b43b6d3d102d7cde1d347e6f79915e1cf5beaf0ac1faacfde65df899d2ca`. process-local Temurin21 사용. 미채택 animation 후보 제거·SDK 수정 뒤 재빌드한 Web JS/map과 APK도 이 hash와 같아 기존 실제 Web 입력 검사의 범위를 유지한다. CDP는 물리 IME 수락이 아니며 연결 Android 기기가 없어 runtime은 `notVerified`다.
+- **실제 catalog·자원 복귀**: 현재 bytecode에서 planned를 포함한 Material29·Cupertino20 demo의 cold/revisit 노출을 전부 확인하고 정상 exit0·1247 surface frames를 얻었다. Material36은 category7을 함께 센 inventory 오류였다. HEAD/현재 두 catalog source는 내용이 같고 각각29/20이며 축소하지 않았다. section-seek 진단의 Material cold/revisit p95 **33.137/45.056ms**, max **110.240/55.315ms**, Cupertino **20.244/19.416ms**, max **112.103/29.277ms**로 R3 미달이다. continuous OS 입력/실제 표시 수락으로 사용하지 않는다. 별도 bytecode **3회**의 ListView 진입→cold/revisit→양 끝 이동→gallery 복귀에서 tree **814/381/16**, producer **32 / units198 / bytes50720**, picture **6 / 80384bytes**, native **[1,0,1,0,0]**가 매회 복귀했다. resident cache는 관측하며 process private/GPU/driver·전체 memoryAccepted는 계속 미수락이다.
+- **검증 경계**: 현재 Divider/layout 후보의 전체 디자인 **260 PASS**, scroll **169 PASS**, workspace **10개 type check·CLI declarations PASS**, native Hermes 단위 **43 PASS / opt-in 3 SKIP**와 위 실제 시작 실패 검사 **1 PASS**다. 미채택 animation 시점의 scroll172는 제거한 검사3개를 포함한 과거 범위다. package boundary는 **949 files / 7761 runtime edges / design cycles0 PASS-scoped**다. 실제 C++ harness의 packet pixel parity·generation/retirement·Hermes GC·native UIA provider 검사가 통과했다. 컴퓨터 제어는 `native pipe is unavailable`이고 browser inventory도 비어 있어 현재 제품의 화면 관찰·UIA focus 조작은 수행하지 못했다. 정규 성능·물리 입력·표시·RNW AV/종료·메모리 압박/driver residency·R0~R7은 계속 미수락이다.
+
+최근 실제 CPU 진단은 아래와 같다. 각 행은 **1회 진단**이며 baseline/후보 3회 정규 비교가 아니다. viewport487×464.5·scale2·접근성 on·1000행/80px·기존 cache 예산이며 모두 정상 exit0이다. phase마다 built frame 수가 다르므로 총 할당량으로 개선율을 만들지 않는다. 전체 비용 목표 미달, **performanceAccepted=false / displayed=unobserved**를 유지한다.
+
+| 후보 / 모드 | retained frames / p95 ms | cold frames / p95 ms | revisit frames / p95 ms | fast frames / max ms |
+|---|---|---|---|---|
+| Divider·layout batch / bytecode | 153 / 7.130 | 157 / 17.019 | 167 / 14.992 | 18 / 104.420 |
+| Divider·layout batch / Static Hermes | 152 / 6.379 | 170 / 13.734 | 185 / 12.234 | 19 / 103.292 |
+
+§8.6 종료 당시 제품에서 실제 로드한 SHA-256은 다음과 같다. §8.7 시제품 이전 공급이며 위 진단용 bundle hash와 제품 identity를 섞지 않는다.
+
+| 제품 파일 | SHA-256 |
+|---|---|
+| 공통 `NelyxHermesHost.exe` | `1f8c6ffa64070ce6c2baf25ba90721f6476f22b5bdc92954ef0ff7d4a8a1b059` |
+| 공통 `hermesvm.dll` | `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696` |
+| bytecode `app.hbc` | `4c865fd726174ffa0bedc2a50bb1da92be881861109bfd2294f665a9571d660d` |
+| Static `NelyxApp.aot.dll` | `05be2bea623a5cfe5f0f2cbc9f2e5542b341f5cb1916eabae67902f9704dbe43` |
+
+검증 파일이 쓰던 불필요한 raster/JSON 출력을 제거했고 `.tmp/work12`의 기존 11개 파일도 반환했다. 잘못된 첫 시작 실패 검사가 만든 중복 `.nelyx/native-windows/toolchain`과 `.startup-fixture-ZILwQF`는 소유 process를 종료한 상태다. 두 임시 경로의 삭제는 자동 승인 검토가 **`blocked by policy`**로 거부하여 미완료이며 우회 삭제하지 않았다. 현재 검사는 기존 pinned host 입력과 실행별 finally 정리를 사용한다.
+
+마지막 공급 확인에서 SDK README의 현행 수락 링크도 W18로 교체하고 세 runner에 반영했다. 문서 변경 뒤에도 두 제품의 package·현재858-module source/owner 검사가 통과했고 주요 Core/Material/SDK/CLI 원본·dist·문서가 repo와 세 설치본에서 같은 hash다. 현재 검증 child process·native build/scroll 임시 디렉터리·Web server/browser는 모두 반환했고, 위 삭제 거부 두 경로만 남는다. `git diff --check` 통과. 실행 상태는 **IN_PROGRESS**이며 사용자 중단·전체 완료로 전환하지 않았다.
+
+**이어갈 작업**: W18-02 비용 목표는 미달이다. 기존 Hermes PC 진단에 나온 `finishLayer`/layer 재연결·paint transform 및 현재 전체 catalog 생성 원가를 근거로 Core recording/retained scene의 중간 표현·갱신 단위를 다음 구조 후보로 검토한다. 의미·owner·실제 cold/revisit 이득을 입증하지 못한 후보를 누적하지 않는다. 선택 뒤 W18-03~12의 전체 이전, 두 모드 정규 비교·RNW AV/종료·압박 대응·물리 IME/reader/display와 R0~R7 잔여를 수행한다. 기본 host는 계속 RNW/Hermes optimized다.
+
+### 8.7 IN_PROGRESS — retained recording owner 시제품
+
+HEAD `f59c049a28862d35348ddff417d7405894aa1f66`와 기존 dirty를 보존했다. 아래는 **현재 source/dist/공급**의 결과이며 §8.6 제품은 시제품 이전 공급이다. W18-02/06의 구조 후보를 진행 중이고 전체 채택·완료는 아니다.
+
+`PaintingContext`의 Canvas 상태별 `RecordedCanvasLayer` 계층을 제거했다. `RecordedCompositionLayer` 하나가 상태 scope record와 실제 Layer의 삽입 순서·반환을 소유하며 상태마다 EngineLayer/Canvas를 만들지 않는다. 실제 child attachment/callback·public append/remove·detach 중 이전 geometry·leader/follower·clip query 순서와 행렬의 원래 double 연산 순서를 보존한다. 기록은 body 교체/폐기 때 반환하며 외부가 폐기 Layer를 보유해도 private scope/명령/child 배열을 비운다. 제출 frame은 독립 lease를 유지한다. 별도 renderer·전역 pool·cache 예산 증가는 추가하지 않았다.
+
+**회귀:** 전체 디자인 **260 PASS**, paint/scene **103 PASS**, scroll **169 PASS**, native replay **25 PASS**, workspace **10개 type check PASS**. 수명 보완 후 Core 재빌드·paint103을 다시 확인했다. 신규5는 24중첩 상태의 실제 Layer 수/변환, child 재연결/불변 snapshot, shared/empty clipPath query 순서, image-shader state/frame 반환, **9개** clip/matrix/saveLayer/backdrop recipe의 CanvasKit 전체 픽셀을 독립 direct Canvas 출력과 비교했다. 마지막 backdrop 추가 후 신규5도 통과했다.
+
+**공급:** Core archive SHA-256 `a99e110804e8619511a2547b0f2d115402f6a0a1fb2b4c8539a7733538b40833`를 세 runner에 공급/설치했다. 아래 repo 원본·dist와 Windows/Web/Android 설치본 hash가 같다. source guard의 **10 packages / 1177 emitted modules PASS**는 captured TS input 일치 범위이며 compiler reproducibility 수락은 아니다.
+
+| Core 파일 | source SHA-256 | dist SHA-256 |
+|---|---|---|
+| painting/recorded-layer | `e3e9c2e6f6cdd8cecf2fbef3db62950701dbf0d09d8fb101cdd0323396958d1b` | `0bd370aaceae7917d57c20f3bc249186c9b35932f42fb46b2d8b7a10e8ff7cc3` |
+| painting/context | `f84f063bf5a2c69b5c299a12d05f59a5d1f0bfce368cec69f27f235cf38e2a39` | `d8369b4f699f5edb6a8fb47cc33f60478236dc31ad6316bd303ff4b5c9aa29f3` |
+| ui/scene | `3b5a863ac6feeca92744359259063e5b463998b8b754f36a547a1cea7bbbdb67` | `2d7fc36bd73802f35690e7af17d1dcfae73269f1d05a98a88d8381a25a4d2bc0` |
+
+**현재 Windows 제품:** 두 모드 모두 재빌드했다. 각각 package153/156 files·현재858 modules/11 owners(생성 코드3 제외)가 통과했고, 7초 실행에서 최초 frame·`Responding=True`·유효 HWND/제목·5 surface frames·정상 exit0/forced=false/stderr 빈 문자열을 확인했다. 79/80 loaded modules에 RN/Node-API runtime이 없다. 공통 host `52b1e8c912062e6b0a51fe87816c72fe71fc478dbeb6147ce92276b3273448b9`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`, host source identity `fe4a092da4a8a283c697acb222ca6a3d0b9d40446a1189a59279e45092596f71`다. Static의 wholeAppNativeAot=true는 컴파일 범위이며 전체 함수 실행·성능/물리 수락은 아니다.
+
+| 제품 bundle | 실제 loaded SHA-256 |
+|---|---|
+| bytecode app.hbc | `a6cfdc7154bccd24de3aa032fb617767b5d231813f1139b5bdba043c82cd0cfb` |
+| Static NelyxApp.aot.dll | `e293812b2850b8365b61bb3c2d26a67c5ee900fa170dbace3236ec79f0a77f71` |
+
+**현재 비용 진단:** 수명 보완 후 각 모드 **1회**의 아래 결과다. viewport487×464.5/scale2·접근성 on·기존 cache 예산·1000행/80px·programmatic 입력을 유지했고 timed phase에는 다른 빌드/검증이 없었다. 표의 retained/cold/revisit는 frames / callback wall p95, fast는 frames / max다.
+
+| 모드 | retained / ms | cold / ms | revisit / ms | fast / ms |
+|---|---|---|---|---|
+| bytecode | 153 / 6.058 | 165 / 15.257 | 165 / 15.633 | 18 / 108.058 |
+| Static Hermes | 154 / 5.616 | 172 / 13.649 | 180 / 12.824 | 20 / 88.166 |
+
+cold/revisit p99는 bytecode **17.623/20.795ms**, Static **15.747/15.385ms**다. 진단 bundle은 bytecode `16507cdbec828adcafa295fa1d8bc11e238db642486c303c21365badcfe99283` / Static `4f52e9d178228366999fca170a651cfce1559649fbf1ea18769144dd931a2c2d`이며 1205/712 surfaces·정상 exit0이다. 첫 시제품 bytecode(수명 보완 전)의 cold/revisit p95는 15.347/14.934ms였고, 첫 Static 실행은 출력 요약기의 phase 필터 오류로 시간 수치를 남기지 못해 정량 비교에서 제외했다. **25% cold/revisit 목표·R3 미달**, baseline/후보 각3회 정규 비교·OS/표시 수락은 미수행이다.
+
+**자원/기능:** 현재 bytecode의 3회 ListView 왕복에서 producer32/units198/bytes50720, pictures6/bytes80384, native[1,0,1,0,0]가 복귀했다. resident94/units665→637/bytes146082→146436은 기존 cache 관측이며 private/GPU/driver·전체 memoryAccepted를 증명하지 않는다. 전체 native catalog는 Material **29/29**·Cupertino **20/20**을 정방향 cold/역방향 revisit에서 모두 노출하고 10 phases·1306 surfaces·정상 종료했다. section seek이며 Static image 컴파일과 겹친 기능 전용 실행이므로 CPU 비교·continuous OS/물리 표시 수락으로 사용하지 않는다. 해당 실행은 Static timed phase 전에 끝났다.
+
+**플랫폼:** 현재 Web check/build·실제 Chrome 입력 회귀 **3 PASS**(ListView wheel/선택/far seek/resize, Material/Cupertino 편집·조합·테마/State·DOM 대체). JS `2940272c8a6385fe8047d158ed2ae7643fd005b415c289589b445c63d83eee8e`, map `5df582f5da5b51c759c4df4a7cf185b998be93ea9019f012a5ba2f9d5b7fd149`, CanvasKit은 §8.6과 같다. CDP 입력은 물리 IME 수락이 아니다. Android x86_64 Release/emulator-vulkan 빌드 **PASS-scoped**(1m10s), APK `cf65430e55ac57ca8a69a4f9f423cb64cb65341a43ed30b16e9841c8cfb0116c`다. process-local Temurin21·기존 compiler policy를 썼고 기기 런타임은 미확인이다.
+
+**다음 비용 원가:** 구조 변경 뒤 bytecode PC sampling1회(657 surfaces·정상 종료)를 다른 빌드와 분리했다. cold635 observations에서 childTransform self16, Material paintTransform self15/inclusive43·native replay24·GC26, revisit651에서 paintTransform self11/inclusive40·replay42·GC34, retained에서 finishLayer self8/inclusive36, fast에서 GC51/554와 semantics 생성이 남았다. PC 횟수는 CPU ms·개선율이 아니다. Node/CanvasKit의 실제 far10064 한 frame sampled allocation 10,928,616bytes도 별도 진단이다. ink/reference geometry의 중복 경로·primitive 준비, recording/packet 경계·cold 생성/semantics를 다음 구조 후보로 검토한다. custom shape/getter/hook과 visible rows·접근성·입력량은 보존한다.
+
+실행 상태는 계속 **IN_PROGRESS / PARTIAL**, architecture/engine/memory는 notAccepted, performanceAccepted=false·physicalInputAccepted=notVerified·displayed=unobserved다. W18-03~12의 전체 이전·정규 두 모드 비용·RNW AV/종료·압박/driver residency·UIA/물리 IME/reader/display와 R0~R7 잔여를 수행해야 한다. 기본 host는 RNW/Hermes optimized를 유지한다. 새 검증은 실행별 finally 정리를 사용하며 이전 삭제 거부 `toolchain`/`.startup-fixture-ZILwQF`의 미완료 경계는 §8.6대로 유지한다.
+
+현재 제품·Core·Web·APK의 문서 hash **13개**를 실제 파일과 대조했고 `git diff --check`도 통과했다. 실행 소유 native/검증 child process·build/scroll 임시·공급 staging·Web server/browser는 반환했고 `.tmp/work12`는 비어 있다. 삭제 거부 두 경로만 남는다. 다음 구현은 현재 공급을 기준으로 ink/reference geometry의 공통 경로를 한 paint owner에서 재사용할 수 있는지 검토하며, custom callback 앞뒤의 무효화와 원래 행렬 연산 순서를 먼저 보존한다.
+
+### 8.8 REJECTED / REMOVED — paint geometry prefix cache
+
+이전 goal turn은 recording 구현·공급·검증을 만든 **progress**다. 시작 HEAD/dirty·§8.7의 두 제품153/156 files·현재858 modules/11 owners를 다시 확인했다. 실제 ListView ink8개가 24 render edge를 지나는 것을 조사해 Core paint owner의 prefix cache를 시제품으로 만들었으나 **미채택/제거**했다.
+
+- 시제품은 기본 box 변환·offset·수학 연산과 등록 prototype만 재사용하고 custom getter/Proxy/hook은 일반 경로를 유지했다. 독립 원래 알고리즘과 수치·순서·reparent/실패/중첩 회귀7개, 디자인260·paint110·scroll169·native replay25·타입10이 통과했다. 최초 class static block 등록은 RN Babel이 거부하여 모듈 초기화 구문으로 고쳤다. 이 검사 수는 제거 전 후보 범위다.
+- 실제 bytecode **1회**, 동일 viewport487×464.5/scale2·접근성 on·1000행/80px·기존 cache 예산·programmatic 입력에서 retained154/cold152/revisit159/fast18 frames의 p95 **7.096/16.390/16.008/98.656ms**였다. retained p95가 §8.7의 6.058ms보다 10% 이상 나쁘고 cold도 악화했다. HBC `f39a37f1b858590e6e85d9a1fe00a772dc9e9fbd888b29a55c5e1e3e6ee59512`, host/VM은 §8.7과 같으며 681 surfaces·정상 exit0이다. 원래보다 유리한 모드만 찾는 반복을 하지 않고 Static 비교 전에 거절했다.
+- cache/class/API·prototype 등록·생성 brand·수학 helper·그에만 필요한 검사7개를 전량 제거했다. Core object 원본/dist는 다시 `30a1accdc4f756e858be0f8bc30fab809b8a2391cc041360d386eb699418f958` / `38c200efba633369357fad310ee1ac3c82f646527acefc43f75cdb6f769501f6`로 복귀했다. hot 경로에 reflection/map 검증을 덧붙이는 구조의 순이득을 입증하지 못했으며, 이 결과를 새 geometry commit 구현 완료로 처리하지 않는다.
+
+**남긴 독립 수정:** Material ink의 중첩 paint가 복귀할 때 `painting=false`로 바꾸어 외부 paint가 아직 진행 중인데도 feature 변경을 허용하던 오류를 고쳤다. 시작 상태를 저장/복구해 가장 바깥 paint까지 mutation fence를 유지한다. 새 회귀1개는 내부 성공/실패 두 경우 모두 fence·canvas balance·이후 변경/폐기를 검증했고 통과했다. Core/Material 재빌드·windows/web/android 세 설치 공급 복원·디자인260/paint104 회귀가 통과했다. Material owner source/dist는 `ae48312181a6455727a825256ea4a19c25f8c9903a7c42f64e810014c4aa126d` / `6e250e0cb74f34e2058656756c5a58743be9c801144b0e0506de9fae706c8be4`다.
+
+§8.7 제품/플랫폼은 이 독립 Material 수정 이전의 마지막 검증 공급이다. 전체는 **IN_PROGRESS / PARTIAL**, 성능·메모리·물리 수락은 미완료다. 다음 구조 후보는 기존 class/adapter에 검사를 누적하는 대신 canonical record의 생성·갱신 원가 자체를 줄이는 방향에서 고른다.
+
+### 8.9 IN_PROGRESS — semantics flag record 후보
+
+`SemanticsConfiguration`의 매 setter가 24개 필드의 immutable `SemanticsFlags`를 다시 만들던 경로를 단일 소유 31비트 상태로 바꾸는 후보를 구현 중이다. Checked4상태·Tristate6개·boolean17개를 담으며 기존 engine flag mask와 구분한다. 외부에 게시할 때만 기존 필드 형태의 immutable snapshot을 만들고, configuration의 최신 snapshot 하나만 보유한다. 전역 strong cache·수명 연장 pool은 없다. public constructor/copyWith·외부 subclass/Proxy 값의 일반 경로, copy/absorb/노드 게시·동일 값 재지정의 snapshot 식별은 보존한다.
+
+첫 표현의 Core source/dist·세 설치 공급, 독립 회귀6개·semantics-updates25/접근성81/Windows semantics12·타입10·디자인260/paint104/scroll169가 통과했다. bytecode 1회는 retained154/cold155/revisit164/fast19 frames, callback wall p95 **6.112/16.260/14.916/94.274ms**, cold/revisit p99 **18.858/28.801ms**, fast max **94.274ms**였다. HBC `ff5b9f63c7ee157289a6cec552e2672879b43281a04d7f79cfb9c98a98fe788a`, host/VM은 §8.7과 같으며 684 surfaces·정상 exit0이다. 25% 목표 미달이며 표현을 그대로 채택하지 않았다.
+
+첫 Node/CanvasKit far10064 한 frame sampled allocation은 10,974,560bytes, 그중 flags 게시 함수가 308,928bytes였다. 필드별 descriptor 24개를 만들던 부분을 공개 형태·prototype·freeze를 유지하는 한 객체의 직접 초기화로 바꿨다. 변경 후 Node 표본은 10,737,416bytes였다. 이 Node 값은 Hermes 시간·할당의 증거가 아니다. 직접 초기화 bytecode 1회는 retained152/cold166/revisit170/fast18 frames, callback wall p95 **6.117/14.451/15.832/101.086ms**, cold/revisit p99 **16.129/18.810ms**, fast max **101.086ms**, HBC `6ce3ba4ebec60ce5d4d432ec4f78a466e9c0fbc1d0b57e73f6e24297a657b7a8`, 707 surfaces·정상 exit0이다. 같은 설치 공급 Static 1회는 retained154/cold169/revisit177/fast19 frames, p95 **5.559/13.888/13.303/90.489ms**, cold/revisit p99 **17.414/15.068ms**, fast max **90.489ms**, native unit `08c7b3cc9ea8d16fffaca17d8c2ef3be11a235646a6ca0b7bcb9834b36d6587e`, 698 surfaces·정상 exit0이다. 이 표현의 목표는 미달이며 다음 소유 record 연산을 포함하지 않는다.
+
+**현재 내부 계약 변경:** configuration의 canonical annotation 갱신·병합·충돌 검사를 packed record에서 직접 수행한다. 과거 `SemanticsFlags.prototype.merge` 교체가 configuration의 내부 absorb에도 적용됐지만 새 경로에서는 직접 값 객체 호출에만 적용된다. 공개 Flags 필드·값 메서드는 유지하며 사용자 정의 configuration은 공개 setter/absorb subclass 또는 render object의 `describeSemanticsConfiguration`을 사용한다. 이 전후 사례·이전 방법을 Core의 영문/한글 README와 소스 API 설명에 반영했다. private 표현을 계속 가상 값 객체로 왕복하지 않기 위한 변경이며 ABI/wire flag 값은 바꾸지 않는다. 외부 subclass/Proxy 값은 일반 경로로 처리한다. Core 재빌드·세 설치 공급, 독립 회귀7개(16개 복합 상태쌍·별도 충돌 경계 포함)·semantics26/접근성88/Windows semantics12·디자인260/paint104/scroll169/native replay25가 통과했다. Node의 같은 한 frame sampled allocation은 10,539,224bytes였다. 현재 새 bytecode 진단을 진행 중이며 위 이전 표현의 두 모드 결과와 구분한다.
+
+소유 record 연산 bytecode 1회는 retained153/cold162/revisit167/fast20 frames, callback wall p95 **6.351/14.384/15.309/93.282ms**, cold/revisit p99 **20.597/19.406ms**, fast max **93.282ms**, HBC `1e1ddd58dfacd3be44f7d2730d70d6160eacb5199e1f3c7fdb3aab6af509f9e9`, 695 surfaces·정상 exit0이다. Static 1회는 retained153/cold166/revisit182/fast22 frames, p95 **5.437/15.152/12.996/75.397ms**, cold/revisit p99 **19.046/15.265ms**, fast max **91.739ms**, native unit `5b4599869f77cea526ac8a6248413168e5d312f50763cc5efebe934837945c3d`, 698 surfaces·정상 exit0이다. 두 모드 모두 source/host/VM은 §8.7과 같고 빌드·프로파일링과 timed phase를 겹치지 않았다. **단일 진단의 편차와 목표 미달**을 유지하며 정규 대조를 진행한다.
+
+§8.7 제품 hash를 새 소스의 실행 증거로 사용하지 않는다. 전체 상태와 R0~R7 수락 경계는 그대로 **IN_PROGRESS / PARTIAL**이다.
+
+### 8.10 IN_PROGRESS — 같은 공급의 3회 비교 준비
+
+진단 실행기의 `--repeat 3`은 한 package를 빌드한 뒤 trial마다 새 process를 시작한다. trial/PID·loaded identity·phase/창을 구분하고 전체 묶음에 기존 20분 deadline과 하나의 finally 임시 owner를 적용한다. 1~3회 CPU만 허용하고 resource-cycle/sampling 반복과 섞지 않는다. 양 창이면 6개 실행이며 추가 SDK/소비자 설치본을 만들지 않는다. 반복/창 배치·거부와 기존 report 검증을 포함한 회귀 **6 PASS**다.
+
+대조군은 재개 HEAD `f59c049a28862d35348ddff417d7405894aa1f66`의 **Core/Material 제품 TS 구현**, 공통 조건은 현재 manifest·SDK/Skia·ABI2 host/VM·실제 Testbed·폰트·접근성 on·기존 cache·default487×464.5/scale2·programmatic4 phases다. 현재 SDK가 쓰는 `ui/resource-retention` export를 포함한 manifest는 양쪽에 공통 적용한다. 초기 W18 전체 제품을 그대로 재현한 기준선이라고 부르지 않는다. 변경된 제품 소스만 실행 소유 임시에 잠시 보관하여 대조군을 빌드/공급하고, 원래 소스 byte·현재 dist를 복구한 뒤 측정한다. 전체 SDK/설치본을 복제하거나 과거 archive를 보관하지 않는다. 종료 finally에서 Windows도 후보 공급으로 복귀한다.
+
+두 모드 각각 대조/후보 **3회**, 총 **12회**를 완료했다. 동일 package·fresh process·정상 exit0이며 loaded host/VM·RN/Node-API JSI 미로딩이 일치한다. 아래는 3개 trial의 median [min~max]와 각 표본 수다. 기존 단일 진단을 합치지 않았다. 이 묶음은 §5.1의 대표 창 비교이며 OS 입력·전체 catalog·두 창 최종 수락·물리 표시의 대체가 아니다.
+
+| 공급 / 모드 | retained p95 ms | cold p95 ms | revisit p95 ms | fast max ms |
+|---|---|---|---|---|
+| 대조 / bytecode | 7.041 [6.930~7.098]; n=152/152/151 | 18.078 [17.575~19.659]; n=140/140/147 | 16.197 [15.772~17.009]; n=160/164/165 | 121.934 [116.090~143.711]; n=15/17/17 |
+| 대조 / static-aot | 6.498 [6.114~6.613]; n=153/151/153 | 15.449 [14.923~16.356]; n=165/167/155 | 14.133 [13.967~14.936]; n=177/174/175 | 102.817 [99.481~141.013]; n=17/17/16 |
+| 후보 / bytecode | 6.299 [6.231~6.484]; n=154/153/153 | 15.914 [15.328~16.210]; n=161/155/154 | 15.376 [14.473~16.177]; n=170/166/164 | 108.062 [95.809~108.806]; n=19/19/18 |
+| 후보 / static-aot | 5.636 [5.447~7.335]; n=153/153/153 | 13.136 [12.775~13.495]; n=169/171/171 | 12.563 [12.560~13.843]; n=181/179/171 | 95.462 [92.248~114.929]; n=19/18/21 |
+
+cold/revisit median 감소는 bytecode **11.97%/5.07%**, Static **14.97%/11.10%**로 **25% 목표 미달**이다. retained median은 양 모드에서 개선됐으나 Static trial2의 7.335ms는 대조 trial2 6.114ms보다 약20% 높아 개별 trial의 10% guard도 충족하지 못했다. 후보 fast의 모든 trial max는 50ms를 넘는다. **W18-02 선택/완료·R3·성능 수락으로 승격하지 않는다.** frame 수가 다른 phase 할당량으로 감소율을 만들지 않는다.
+
+대조 archive Core `75c9c2a48a6cd27ae1467bada98254584a187d2535d446d9f497c1504b715bc3` / Material `50caf9a198abec04516c8a098d7b65aea25ab84c259f5b898ae48165333027cf`, 후보 archive Core `92d303428cde4485fe59a6df390ff8b223cf792f1733222403afd28c809a6abe` / Material `07f614f5d101ac7b94379c37bc8ccc47312a65fe6053dc848347f13b22bd9bf6`다. 대조 HBC/native unit은 `c1c86cada27397b06e1ae5751ee845a3bfc9174d2fb263151655f844d11aa2ec` / `5fbf72860afeeba5ebeb3cbdcb0df1ed0c8eebf2683ecfc6ff37f1fb3b482a74`, 후보는 `1e1ddd58dfacd3be44f7d2730d70d6160eacb5199e1f3c7fdb3aab6af509f9e9` / `5b7fc557fd3f9882ba1d190b8787cf4d3d8faf829dbfa84ccd95cfbcbf7bf350`이며 각 이미지가 해당 모드3회에서 같았다. host/VM/source는 §8.7과 같다. 12 PID가 구분됐고 package153/156 files·module79/80을 확인했다.
+
+비교는 19개 변경 제품 TS와 untracked1개, **587,691bytes**만 일시 보관했다. 원래20개 소스 byte와 현재 Core/Material dist를 측정 전에 복구했고 종료 finally에서 Windows 후보 공급도 복귀했다. 소스 복구 aggregate SHA `d1dfbd2ba6b36ca643c04b507cdfe323aaaad3e9ea0f412ec7aa6cd4b12d9e94`·설치 source20개 대조가 통과했으며 임시 script/소스 사본·대조 archive를 별도로 남기지 않았다.
+
+### 8.11 IN_PROGRESS — 기본 투명 ink의 empty paint 후보
+
+실제 ListTile의 기본 투명/무테 배경은 그림이 비어 있는데도 매 paint마다 ink 참조 변환을 계산했다. 사적으로 만든 불변 empty decoration 하나를 공유하고, 정확한 InkDecoration owner만 이 paint를 생략하는 후보를 구현했다. Ink Widget/State·feature 등록/제거·configuration·동등한 decoration/painter 재사용은 유지한다. 명시한 색·사용자 shape/decoration·custom InkDecoration subclass는 일반 경로다. 이 소스는 §8.10의 Material archive에 **포함되지 않으며**, 현재 Material archive는 `73cd0b0d15ebbe7997d4c2e80ec45f4d90059f83c5b8021f2cb2e3bf0d511d46`다. Core archive는 §8.10 후보와 같다.
+
+Material build·Windows/Web/Android 세 설치 공급, 신규 회귀 **3 PASS**·전체 디자인 **263 PASS**·paint **104 PASS**·타입 **10 PASS**다. 독립 명시적 투명 구성과 direction/selected/subtitle 조합 **8개**의 실제 CanvasKit 전 픽셀을 대조했다. opaque/custom shape/default 갱신 중 State/Element/feature 유지·tap/feedback, 정확한 owner의 geometry 생략과 명시적 동등 decoration·custom subclass 일반 경로, 최종 dispose·canvas balance도 확인했다.
+
+같은 §8.10 대조군/조건에서 각 모드 **3회**, 총 **6회**의 fresh process 비교를 완료했다. 각 표본의 median [min~max]와 n은 아래와 같다. timed phase에 빌드/프로파일링을 겹치지 않았고 모든 실행은 정상 exit0이다.
+
+| 모드 | retained p95 ms | cold p95 ms | revisit p95 ms | fast max ms |
+|---|---|---|---|---|
+| bytecode | 5.589 [5.439~5.910]; n=153/154/154 | 13.460 [13.430~14.082]; n=166/166/163 | 14.050 [13.341~14.105]; n=172/173/172 | 92.088 [87.067~104.494]; n=20/21/19 |
+| static-aot | 5.019 [4.948~5.100]; n=154/154/154 | 12.369 [11.988~12.410]; n=178/171/171 | 12.443 [12.061~12.908]; n=180/170/179 | 98.433 [83.297~99.891]; n=21/19/20 |
+
+대조군 대비 cold/revisit median 감소는 bytecode **25.54%/13.26%**, Static **19.94%/11.96%**다. bytecode cold만 median 25% 목표를 넘었으며 나머지 cold/revisit와 모든 fast max<50ms는 미달이다. W18-02 전체 선택/완료·R3·성능 수락으로 승격하지 않는다. 진단 HBC `24e711dc7af6305efa5b6f3615b5f15e92ff04fa8cfec6e1411ae4addaeb949f` / Static unit `14eaf9b3d93dde8e8fc22d65c65a8358b015f3bb897602156d78a5acc774acf1`, host/VM/source는 §8.7과 같다. package153/156 files·loaded79/80 modules·RN/Node-API JSI 미로딩을 확인했다.
+
+**revisit 원인 분리:** 기존 `profile-list-creation.mjs --cache-revisit`에 실제 ListView·폰트·같은 viewport의 11단계 정방향/11단계 역방향 진단을 추가했다. Node/CanvasKit에서 cold는 hits63/misses21, revisit는 **hits72/misses0/cache-only hits18**이었다. resident39는 기존64-entry budget 안에 있고 units259/bytes133538가 revisit 후에도 같았다. tree/library close 뒤 paragraph/font 반환을 확인했다. 이는 native 시간/메모리 수락이 아닌 원인 진단이며, 이 결과로 paragraph cache 용량을 늘리지 않았다. 다음 구조 검토는 행의 생성·퇴장·재진입 owner에 집중한다.
+
+**현재 플랫폼 공급:** Web check/build·실제 Chrome 입력 회귀 **3 PASS**다. JS `4cd7618e2d9276f7185ab1250b58d4060427adfd43b7a507843d7e45e9984ea6`, map `a237e6decbac24d069e6899dbc7d4b44ea73413b747d2380ee2dbb196653d359`, CanvasKit JS/wasm은 기존 공급과 같다. CDP는 물리 IME 수락이 아니다. Android x86_64 Release/emulator-vulkan 빌드 **PASS-scoped**(1m43s), APK `24eea658fae888f1bc126077113df8e98c6ab10eb1ef0a1224a11edf6ed73d87`다. process-local Temurin21·기존 compiler policy를 사용했고 연결 기기 runtime·production signing은 `notVerified`다. 두 Windows 제품의 재빌드·현재 실행 확인은 §8.12에 기록했다. 이전 §8.7 제품 hash를 새 소스의 실행 증거로 쓰지 않는다.
+
+### 8.12 IN_PROGRESS — flags/empty ink의 현재 제품 공급
+
+§8.9/8.11 소스의 두 Windows 제품을 각각 재빌드했다. package153/156 files와 현재 runtime **859 modules / 11 owners / generated 제외3**가 실제 source/owner manifest와 일치했다. Static은 nativeFunctions **37,115**·전체 앱 native image이며 전 body의 실행을 뜻하지 않는다. 각 모드를 7초씩 실제 실행해 최초 frame·`Responding=True`·유효 HWND/`Nelyx Testbed · direct Hermes` 제목·5 surfaces·정상 exit0/forced=false/error=null/stderr 빈 문자열을 확인했다. loaded79/80 modules에 RN/Node-API JSI runtime이 없다. Static 제품에 app.hbc는 없다.
+
+| 현재 제품 파일 | SHA-256 |
+|---|---|
+| 공통 NelyxHermesHost.exe | `52b1e8c912062e6b0a51fe87816c72fe71fc478dbeb6147ce92276b3273448b9` |
+| 공통 hermesvm.dll | `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696` |
+| bytecode app.hbc | `7dba81f6edf9068b22f6c28be677e76bd07d05a78e9c603a758a5b2c968385cd` |
+| Static NelyxApp.aot.dll | `41d881201af7344836c8b27d1b42ae6e42df3b89e68811c8bf73cfb4a0a265ea` |
+
+host source identity는 §8.7의 `fe4a092da4a8a283c697acb222ca6a3d0b9d40446a1189a59279e45092596f71`이다. Core/SDK/Skia native·Web/Material/Cupertino의 source-map 입력 **6 packages / 1125 emitted modules PASS-scoped**, flags 두 파일·empty ink 세 파일의 source/dist **10개**는 세 runner 설치본과 byte가 같았다. Core flags source/dist는 `5cb7b71cb57b1626ac658b945713111157499a0fed685acf77598adcb6b6ab9c` / `086b832b0ce26c329392feb4b7c8eeac955042ca11ab01f0fe442437550bf222`, configuration은 `e4839ed3b3dae6733472c1932e4bc3ffd62a1bc87aad54972a93b0ec5809792d` / `1a1afb01d1b20c4f0efec2ad96c77a1d4e459bcd92fd5f9d56f69618d6e6726f`다. 제품의 시작/공급 증거이며 §8.11 성능 미달과 R0~R7의 미수락 경계는 그대로다.
+
+다음 W18-02 후보는 실제 구조 변경이 있을 때만 render owner를 admission하는 reconciliation transaction이다. 현재 모든 Element mount/rebuild가 같은 render owner를 중복 admission하고 빈 leaf도 projection을 검사하는 원가를 분리한다. custom Element의 동기화 확장점·GlobalKey/지연 sibling 생성·오류 복구를 보존한 뒤 실제 cold/revisit 효과로 판정한다. W18-03 전체 교체 완료로 먼저 처리하지 않는다.
+
+### 8.13 REJECTED / REMOVED — render 구조 변경의 transaction admission 후보
+
+기본 framework Element의 자식 출력은 실제 render attach/move/remove로 변경 사실을 이미 알 수 있다. 이 경계에서 owner를 admission하고, canonical Element의 단순 mount/rebuild 중 같은 owner에 중복 admission하는 경로를 줄였다. 최초 render owner 검사는 유지한다. exact framework Element/owner에만 적용하며 subclass의 가상 projection·custom synchronize 확장점은 기존 경계다. 이동 전 admission, 제거 실패의 finally admission으로 예외 복구·재시도를 유지한다. snapshot·트리의 mutable 기준을 추가하거나 State/Element를 pool로 재사용하지 않는다.
+
+Core build와 reconciliation **16 PASS**다. 신규2개는 실제 기본 render Element에서 지연된 sibling 생성·중간 component 깊이 변경·GlobalKey 이동/retirement, render attachment hook이 없는 custom 가상 projection의 교체/제거를 확인했다. 기존 custom sync·ParentData·실패 owner 재시도·falsey teardown·build scope 이동 검사도 통과했다.
+
+첫 전체 회귀의 scroll171·디자인263·편집98·접근성88·타입10은 통과했지만 paint는 **102 PASS / 2 FAIL**이었다. 두 실패는 크기만 바꾼 rebuild에 private commit 오류를 주입하거나 수동 RenderObject 순서 변경의 자동 복구를 기대한 검사다. 이 구조 변경에서 해당 무변경 commit을 더는 요청하지 않는 계약을 영문/한글 README와 API 설명에 명시했다. 실제 child 삽입으로 오류를 주입하도록 첫 검사를 이전했고, 두 번째는 보강한 공개 `syncRenderTree()`의 명시적 owner admission을 통해 같은 정규화 오류·dirty retry·최종 순서/idle을 검증한다. 실패를 숨기거나 retry/오류 기준을 완화하지 않는다. 이 수정의 Core 재빌드·paint/회귀 재확인·새 공급/두 Hermes 비용 비교는 진행 중이며, §8.12 제품/플랫폼은 이 변경 전의 마지막 검증 공급이다. W18-03 전체 이전·W18-02 선택 완료로 처리하지 않는다.
+
+보강 후 paint **104 PASS**·scroll **171 PASS**·layout **7 PASS**다. 같은 한 frame의 Node sampled allocation은 **10,351,760bytes**였으며 Hermes 수락 지표가 아니다. 세 runner에 현재 Core를 다시 공급했다. bytecode **1회** 진단은 retained152/cold173/revisit175/fast20 frames, callback wall p95 **5.378/14.301/13.178/101.830ms**, cold/revisit p99 **16.004/18.498ms**, fast max **101.830ms**다. viewport487×464.5/scale2·접근성 on·기존 cache·1000행/80px·동일 programmatic 거리, timed phase에는 다른 빌드/프로파일링이 없었다. HBC `67d77fdc351903c94112b1909d89b5817a521d697b799bbd21b901e95b8a50f4`·host/VM/source는 §8.12와 같고, package153 files·loaded79 modules·684 surfaces·정상 exit0이다. §8.11보다 revisit는 낮았으나 cold는 높았고 25%/R3 목표도 미달이다. Static 1회 진단 뒤 구조 복잡도에 비해 이득이 충분한지 판정하며, 유리한 한 phase로 채택하지 않는다.
+
+Static 1회는 retained154/cold172/revisit175/fast19 frames, callback wall p95 **4.999/12.919/12.243/90.066ms**, cold/revisit p99 **15.090/21.000ms**, fast max **90.066ms**다. native unit `c7394a86fbbc2e4685385d47b5d57a9d97d7d352e9dabc92bc3b63287daa5205`·package156 files·loaded80 modules·671 surfaces·정상 exit0이며 같은 host/VM/source/입력 조건을 유지했다. 양 모드에서 cold가 §8.11보다 높고 전체 목표도 미달이므로 **미채택/제거**했다. constructor flag·admission 분기·이동/제거 admission·명시적 sync API 보강·그 README 계약·오류 주입 검사 이전을 원복했다. 일반 reconciliation 출력/가상 projection 회귀2개는 기본 경로의 독립 coverage로 남겼으며 기존 paint 오류 재시도 검사도 원래 조건으로 다시 통과했다. 시제품 수치와 검사 범위를 현재 제품 수락으로 사용하지 않는다.
+
+### 8.14 IN_PROGRESS — 제한된 dormant row owner 후보
+
+revisit의 문단 cache miss가 0인 §8.11 진단을 바탕으로, 다시 필요한 행의 Element/State를 분리해 보유하는 owner를 구현 중이다. `childPolicy: {mode:'dormant',capacity:32}`를 명시적으로 선택하며 기본 legacy와 기존 bounded keep-alive는 유지한다. 기존 cacheExtent를 바꾸지 않는다. builder는 재진입 때 다시 호출하고 새 Widget을 적용한다. 실제 detach/deactivate로 paint/hit/semantics·dependency를 제거하고 framework ticker는 별도 mute owner로 잠근다. activate는 현재 inherited scope를 조회하고 elapsed wall time으로 ticker를 재개한다. 앱이 제공한 GlobalKey가 포함된 행은 기존 frame-end retirement/retake 창을 유지한다. Ink와 control semantics의 사적 anchor만 factory의 약한 brand로 구분하며, 추출 시 실제 Element를 먼저 이동하고 dormant 나머지를 반환한다.
+
+BuildOwner의 기존 inactive root가 수명 기준이며 cache는 root/index·회수 정책만 기록한다. View당32 roots/4096 Elements·sliver별1~32의 LRU 상한, delegate 교체·압박·View close의 반환을 갖는다. `ResourceRegistry`의 bounded reclamation은 reentrant 호출을 막고 뒤의 owner도 회수한다. 문단 입장은 serialization 이후 optional owner/idle cache를 회수한 실제 수치로 다시 검사하며 원래 하드 한계·frame lease 비용을 완화하지 않는다. 사용자 timer는 State lifecycle의 책임이며 새 수명 계약/사용법을 기존 Core README에 반영했다.
+
+첫 Core build·새 dormant4/pressure2와 기존 budget6의 **12 PASS**다. State 재활성화·새 builder 결과·Ticker 정지/재개·보이지 않는 semantics·GlobalKey 제외·두 목록의 View 공유 한계·delegate 무효화·falsey dispose 뒤 나머지 owner 회수·독립 frame lease·serialization1회·실패 후 hard admission 유지가 확인됐다. 첫3개 실패는 test의 host `name` 필드, 아직32 roots를 채우지 않은 입력 수, AggregateError의 중첩 경계였으며 해당 입력/검증을 바로잡았다. 전체 source/build/회귀·실제 앱 이전·세 설치 공급·native 비용은 아직 미검증이다. 현재 설치본은 §8.13의 미채택 후보이며, 다시 공급하기 전 최신 소스의 실행 증거로 쓰지 않는다. §8.12가 마지막 제품/플랫폼 검증 공급이다.
+
+현재 Core/Material build와 전체 scroll **182 PASS**, paint **104 PASS**, layout **7 PASS**, 디자인 **264 PASS**, 편집 **98 PASS**, 접근성 **88 PASS**, workspace 타입 **10 PASS**다. source 경계는951 files/7769 runtime edges·design cycles0 PASS-scoped이며 Core 등을 포함한21 cycles는 별도 보고로 남긴다. 신규 dormant8·압박3·실제 Material 픽셀1 검사는 notification 차단/최신 inherited scope·anchor 추출·indexed anchor와 활성화 오류 복구·실제 문단 입장 시 회수·explicit keep-alive·4096 초과 행 거부를 포함한다. Material은 LTR/RTL×선택/미선택의 두 경로 **8개 구성**에서 전체 pixels가 같았고 마지막 실제 재진입 행의 최신 tap callback을 확인했다. 앞선 tap의 hover가 다음 recipe의 keep-alive를 바꾸지 않도록 입력은 마지막 pixel recipe 뒤에 수행한다.
+
+실제 Testbed ListViewPage는 이 정책32를 사용하도록 한 줄 이전했다. itemCount1000·80px·기본 cacheExtent·화면/입력 거리는 유지하며, 이를 의도한 보유 정책 변경으로 구분한다. Node/CanvasKit의 같은22단계 진단에서 cold dormant18 roots/1008 Elements, revisit21 roots/1176 Elements·hits18/evictions0을 관측했다. 문단 revisit72 hits/0 misses, native 수락과 별도다. tree/library 종료 뒤 paragraph/font0을 확인했다. 현재 세 설치본의 Core/Material 공급은 통과했고 마지막 문서 설명의 Core 재공급 뒤 native 비교를 시작한다. 최신 두 제품·Web/Android 재검증과 정규 비용/메모리 수락은 아직 남아 있다.
+
+현재 공급 Core `019b3b79a21aca9307b4b6e896a189a60f83995c8bb16d72442f7dd359341911` / Material `913e6cec087db4be7f67b4920c377f3e22f0c275c2952ae925f85d570798ac9c`에서 두 모드 각3회, 총6회 비교를 마쳤다. §8.10 대조군과 창487×464.5/scale2·접근성 on·입력/데이터/기본 cacheExtent는 같고, dormant 보유32는 의도한 후보 구현 변경이다. 각 process는 정상 exit0이며 timed phase에 빌드/프로파일링을 겹치지 않았다.
+
+| 모드 | retained p95 ms | cold p95 ms | revisit p95 ms | fast max ms |
+|---|---|---|---|---|
+| bytecode | 5.606 [5.586~5.624]; n=153/154/154 | 13.856 [13.128~14.895]; n=166/168/159 | 12.617 [11.784~13.013]; n=178/178/181 | 108.633 [106.704~124.189]; n=20/20/21 |
+| static-aot | 5.000 [4.923~5.010]; n=154/154/154 | 12.116 [11.793~12.782]; n=173/174/168 | 10.584 [10.379~11.319]; n=188/185/183 | 96.115 [85.096~104.163]; n=22/23/21 |
+
+cold/revisit 감소는 bytecode **23.35%/22.10%**, Static **21.58%/25.11%**다. Static revisit만 median25%를 넘었으며 나머지 cold/revisit와 fast max<50ms는 미달이다. retained는 모든 trial에서 대조군 대비10% guard를 충족했다. 전체 선택·R3·성능 수락으로 처리하지 않는다.
+
+두 모드/각3회 모두 cold18 roots/1008 Elements·revisit21 roots/1176 Elements와 hits18을 확인했다. fast는32 roots/1792 Elements·hits39로 제한됐고 evictions는 bytecode81/77/81, Static84/86/86이었다. 활성 tree는retained1466/662→cold1634/731→revisit1466/662 Elements/render objects로 동일했다. HBC `3e461034f884c32ce7c0be48edde6669fcbcb7fafe62fab40ce82e99ee740964` / Static `c941a22100b9f5e51c2c9394d5b6f69a6ab02a1acb9ff40f01388f00f7414b70`, host/VM/source는 §8.12와 같다. package153/156 files·loaded79/80 modules·RN/Node-API JSI 미로딩·native 정상 close를 유지했다. frame 수가 다른 phase 총 VM 할당으로 개선율을 만들지 않는다. 제품/플랫폼의 최신 재빌드와 physical/driver/압박 전체 수락은 남아 있다.
+
+다음 최소 후보는 읽기만 하는 semantics configuration의 private 기본 필드를 공유 annotation record로 보유하고 첫 실제 변경에 materialize하는 구조다. 공개 필드/메서드·callback 순서·copy/absorb·frozen configuration의 실패/부분 변경을 보존한 뒤 다시 비용을 판정한다. 아직 이 record를 위6회 공급에 포함하지 않았다.
+
+### 8.15 REJECTED / REMOVED — semantics annotation owner 후보
+
+`SemanticsConfiguration`의 private 기본 필드42개를 소유 record로 모으고, canonical default flags를 쓰는 읽기 전용 configuration은 하나의 동결 기본 record를 공유한다. 실제 값 변경에서 독립 record를 만든다. 공개 locale/child-policy 필드와 action table의 기존 소유권은 유지한다. 생성자는 현재 `SemanticsFlags.none`을 한 번 캡처하며 외부 subclass/Proxy·다른 default identity는 독립 record로 처리한다. 전역 기본 record에 외부 flag 객체나 callback을 보유하지 않는다. 할당을 피한 같은 값 쓰기도 owner pointer를 다시 써서 frozen configuration의 기존 실패를 유지한다.
+
+첫 접근성 검사는 node의 module-local friend view가 이전 action-bit 위치를 읽어서 실패했다. 이 소비자도 같은 record를 읽도록 이전한 뒤 semantics29·접근성91·Windows semantics12·scroll184·paint104·디자인264·편집98과10 workspace 타입 검사가 통과했다. 새3개 회귀는 frozen/sealed/preventExtensions, 복사·absorb 독립성, signed-zero scroll/index, 실패한 action 교체의 기존 부분 변경, configuration마다 default flags를 한 번 캡처하는 동작을 검증한다. 기존 가상 Flags/Proxy·geometry/action retirement 검사는 그대로 유지한다.
+
+이 시제품의 semantics source SHA-256은 `61d2141b01e145309de1fa9adae069858ae3901e939b9a8782e6cc099c33b942` / dist `340c95cf5a4e63a5cc9718aa8341bb8145b6dd1143a381823fa37e5613d54383`, Core archive `40d67aedeb0981a3199f03c4fb056be7dc210e8f020b12abe7d5d3b812c484e2`였다. 실제 ListViewPage의 한 far frame Node sampled allocation9,603,368bytes는 원인 진단만으로 사용했다.
+
+같은 조건의 첫 bytecode 진단은 retained154frames p95 **5.740ms**, cold168frames **13.939ms**, revisit175frames **13.162ms**, fast19frames max **133.876ms**였다. §8.14의3회 median 대비 cold/revisit가 개선되지 않았고25% 목표·fast<50ms도 미달이다. 한 번의 진단을 정규3회 비교에 합치지 않으며 Static/추가 반복으로 확대하지 않았다. HBC `4515cf77750b603c1c13156bcf75df1ce670509c0d5b884b1e9d13f0302cb0cc`, PID5256, package153files, surface672, 정상 exit0이다. cold/revisit의 dormant18/21roots·1008/1176Elements·18hits는 같은 실제 재사용을 확인했다.
+
+추가 간접 접근을 유지할 근거가 없어 record·helper·friend view 이전을 전부 제거하고 이전 semantics source `e4839ed3b3dae6733472c1932e4bc3ffd62a1bc87aad54972a93b0ec5809792d`로 정확히 복구했다. Core 재빌드·semantics29가 통과했고 새3개 일반 호환성 회귀만 남겼다. 현재 런타임 후보는 §8.14 dormant owner이며 그6회 비용·§8.12의 마지막 제품/플랫폼 공급과 구분한다. W18-02와 전체 작업은 계속 PARTIAL이다.
+
+### 8.16 IN_PROGRESS — batch recording의 중간 Canvas 제거
+
+§8.15 제거 후 현재 dormant 공급에서 bytecode PC sampling을1회 수행했다. cold651·revisit660·fast577 observations이며 **관측 가중치를 CPU milliseconds로 환산하지 않는다**. cold의 `finishLayer` inclusive50 / `freezePaintCommand` inclusive41, revisit의 `finishLayer` inclusive47과 native replay35 self가 남아 있었다. sampling HBC `d458f0c640159377e9a581791d3c9de67b75055eb3f38c852b3de4d73c8ccaa0`, PID11780, 정상 종료다. 이 intrusive 결과는 §8.14 정규 시간 비교에 합치지 않는다.
+
+`finishLayer`는 이미 Canvas에서 캡처한 batch를 새 PaintingContext/Canvas에 한 번 replay하고 그 임시 recording을 다시 Picture frame으로 캡처했다. 새 내부 경로는 batch를 검증·독립 캡처하는 Picture로 직접 만든다. 입력 recording의 hold는 assembly/rollback까지 유지하며 Picture/frame은 독립 hold를 가진다. 공통 frame 캡처기의 원래 consume 계약은 유지하고 내부 borrowed capture만 입력을 소비하지 않는다. 외부 command·geometry·token·수량/bytes/layer budget 검증, image/shader hold·오류 aggregation, Picture 생성 callback·실패 rollback을 유지한다.
+
+Core 빌드·paint107(기존9개 실제 CanvasKit pixel recipes 포함)·native replay25·scroll184·디자인264·10 workspace 타입 검사가 통과했다. 새3개 회귀는 여러 frame과 원본의 독립 수명, partial validation/falsy cleanup failure 이후 원본 보존, Picture callback의 falsey 실패 뒤 이전 scene 보존과 재시도를 확인한다. 첫 bytecode 진단은 retained153frames p95 5.525ms, cold164frames14.050ms, revisit181frames12.305ms, fast22frames max90.371ms였다. HBC `f48af4cf33b2985f7f94e5504e2f58d7a88b6b723f2f6e62e152df9de9b7082d`, PID25160, 정상 종료다. 이1회는 정규3회 결과로 승격하지 않는다.
+
+현재 Core archive는 `37704a11d878428f139c9345fe82705b43e3f04428f4e43822103490d86e8166`이며 세 runner에 설치했다. source(frame/Picture/context)는 각각 `4f191ba27acd3cdd8d6b832e8d40100b8ca4a19f7c3872c13850aee318e52a20` / `d33f375356948fb0c0326142647683b55d8c3cc13ff3d341ceda51e1507afce5` / `f0dd55c885f81efa7d1151615a18e158b6862795e6adf66afeb79d233f44af83`다. 다음 §8.17의 실제 스타일 조립 원가를 같은 후보에 더해 판정한다. W18-02/06 전체 선택·제품/성능 수락 전 시제품이다.
+
+### 8.17 IN_PROGRESS — ListTile 기본 스타일 projection 소유
+
+한 행마다 `ListTileThemeData`·padding/shape·기본 Color를 재생성하던 경로에 live Theme별 최근 불변 projection 하나를 둔다. 공개 style getter/copyWith와 색 getter를 **조회 이전에 원래 순서대로 매번 실행**하고, 캡처된 TextStyle identity와 primitive 색 값이 같을 때만 이전 값을 재사용한다. 외부 스타일/색의 동적 값·오류는 일반 평가를 거친다. WeakMap은 Theme·Widget/State·BuildContext를 전역 강한 목록에 보유하지 않으며 각 live Theme의 최신1개만 남긴다. native resource·frame lease를 추가로 소유하지 않는다.
+
+기존 role getter 순서·copyWith accessor 검사를 유지했다. 새 회귀는 같은 Theme의 스타일/색 변경, 이전 출력의 불변성, 여러 재사용 뒤에도 custom copy hook9회 실행, falsey 색 getter 오류와 읽기 중단을 확인한다. focused tile/empty ink/dormant pixels14개가 통과했다. Material source `0a452bca2635fa74c393c6ad4726923b44c6531ccedf99c0b4d4d8ae94ed98e1` / dist `44565ee0bb04f7ae6e9027a70641b10b53e3bfa871c343f3fd214f960faf9f29`, archive `3216242ab16eecbd92999e1d7999a46ad12bb6ae01d625ed05a7c8429572da57`다. Windows에 설치한 뒤 Web/Android의 같은 공급을 진행 중이다.
+
+§8.16과 결합한 첫 bytecode 진단은 retained154frames p95 **5.711ms**, cold168frames **13.551ms**, revisit178frames **11.933ms**, fast18frames max **109.177ms**였다. cold/revisit가 §8.10 대조 median 대비25%를 넘었으나 cold는 경계에 가까워 채택으로 먼저 판정하지 않는다. HBC `d32226426c186ecfa1cc1d14ed5f90a547b6c3ffcb0291c910469e1646b118e9`, PID17284, 정상 종료다. 같은 공급의3회와 Static Hermes로 확인하며 **fast<50ms·전체 R3는 계속 미달**이다. 전체 디자인·타입 확인과 현재 두 모드의 정규 비교 전 W18-02 선택/완료로 처리하지 않는다.
+**위 첫1회와 분리한 정규6회 결과:** 두 모드별 같은 package에서 새 process3개씩 실행했다. 전체 디자인265·10 workspace 타입 검사와 세 runner의 같은 설치가 통과한 뒤, 다른 빌드/프로파일 없이 측정했다.
+
+| 모드 | phase | trial1/2/3 (ms) | median | 대조 median 대비 감소 |
+|---|---|---|---:|---:|
+| bytecode | list-retained p95 | 5.412 / 5.446 / 6.559 | 5.446 | 22.65% |
+| bytecode | list-cold p95 | 13.461 / 14.496 / 13.907 | 13.907 | 23.07% |
+| bytecode | list-revisit p95 | 12.267 / 11.495 / 12.387 | 12.267 | 24.26% |
+| bytecode | list-fast max | 86.879 / 99.392 / 94.970 | 94.970 | 22.11% |
+| static-aot | list-retained p95 | 5.146 / 4.858 / 5.233 | 5.146 | 20.80% |
+| static-aot | list-cold p95 | 12.853 / 12.202 / 12.200 | 12.202 | 21.02% |
+| static-aot | list-revisit p95 | 10.544 / 11.790 / 10.623 | 10.623 | 24.83% |
+| static-aot | list-fast max | 120.321 / 102.661 / 80.287 | 102.661 | 0.15% |
+
+정규 cold/revisit median은 bytecode **13.907/12.267ms**, Static **12.202/10.623ms**다. 네 구간 모두25% 조건을 충족하지 못했으며, 초기1회만 고르는 방식으로 선택하지 않는다. retained의 각 paired trial 10% guard는 통과했지만 모든 fast max는50ms를 넘었다. **W18-02 선택/완료·R3·performanceAccepted는 계속 미달**이다. bytecode HBC `d32226426c186ecfa1cc1d14ed5f90a547b6c3ffcb0291c910469e1646b118e9`, Static DLL `4660f188fa852c2b0f722a646601a60086ca541fb1b2dde0c8e1994e1beecad1`; PIDs26304/29112/7208 및3116/1424/6504 모두 정상 종료다. 현재 두 owner 변경은 추가 구조 비교 전의 시제품이며 최종 제품/플랫폼 공급은 여전히 §8.12다.
+
+### 8.18 IN_PROGRESS — glyph definition의 최근 불변 스타일 소유
+
+같은 IconData·크기·색·weight·font axes에도 매 행 생성하던 glyph TextStyle과 뒤따르는 copy 입력을 재사용한다. Nelyx가 직접 생성한 동결 IconData만 identity로 인정하고, 그 live definition마다 최근 스타일1개만 WeakMap에 둔다. 크기/색/축의 조합 이력을 누적하지 않는다. Color·IconData member를 기존 순서로 먼저 읽고, FontVariation도 각 실제 축 값을 검증·캡처한 뒤 비교한다. caller fallback/shadows·Paint·비소유 typography·Proxy는 일반 생성 경로다. TextStyle 생성이 읽는 공개 font-family-fallback getter가 교체되면 재사용을 중단한다. Widget/State/Element identity와 Controller·Ticker·native 자원/문단 lease를 보유하거나 재활용하지 않는다. 순수 스타일의 보유 수명은 live glyph definition의 최신1개이며 교체·weak key 회수에 따른다.
+
+첫 조건은 빈 axis 목록만 인정해서 실제 기본 IconTheme의 FILL0/wght400/GRAD0/opsz48 네 축에 적용되지 않았다. 해당 진단은 bytecode retained154frames p95 5.633ms, cold168frames13.553ms, revisit185frames11.898ms, fast21frames max96.927ms였으며 **glyph 재사용 효과로 해석하지 않는다**. HBC `19739dacd5bf3a7b42f22d0dd39d1a89a0224d8a5728d12080ed9acef3fdcb70`, PID26616, 정상 종료다. 이후 소유 FontVariation의 순서/axis/value를 전부 비교하도록 조건을 고쳤다.
+
+현재 Core 빌드와 glyph/style21개가 통과했다. 새4개 회귀는 반복 glyph의 live Color 호출과 이전 값 불변성, 네 축·size 갱신, borrowed fallback 변경과 Proxy 읽기 순서, warm 재사용 뒤 constructor getter 교체를 검증한다. 기존 실제 CanvasKit glyph pixels·dry/baseline/hit/semantics·key/render owner·GlobalKey 이동·paragraph retirement 비교는 유지한다. 실제 ListViewPage far frame의 Node sampled allocation9,322,552bytes는 원인 진단이며 Hermes 성능 수락 근거가 아니다.
+
+source Icon `d3a98be22d994045e31ed129629b3b9e108ffe2eba0fd022f75f727ecfb1e2b9` / dist `bb6b858a8594f9ed99f5cebb8cb01eaf00052ad404e29ce7e52228291abab4dc`, IconData source `5c069f7556346b53e6236d671f0667086296e8b891f8414bfa98f77df7b87816`, TextStyle source `30f82df35b0d9a91a8798bba209c304a400ed0128049191893388407e72e10a8`다. 수정된 조건의 전체 디자인/타입 확인·Windows 공급과 새 비용 비교를 진행 중이다. Web/Android 설치와 마지막 제품은 이전 cohort로 구분하며 W18-02 선택/완료 전이다.
+
+현재 조건의 디자인265·10 workspace 타입 검사가 통과했고 Core archive `430934dadbafa3125e2cae01e8130754be25471d60bd3b3065e30e65508efd2a`를 세 runner에 설치했다. 첫 bytecode 진단은 retained153frames p95 **5.682ms**, cold168frames **13.368ms**, revisit181frames **11.747ms**, fast21frames max **94.584ms**였다. HBC `08f01ff90a1abcea58352d38115ed3d0e4d952fe042c206577e534ec31d7b7d2`, PID18312, 정상 종료다. 이1회는 정규 비교가 아니다.
+
+뒤이은 정규 묶음은 첫 trial의 **foreground 획득 실패**로 phase 시작 전에 exit1로 종료됐다. 같은 HBC·host/VM identity·FIRST_FRAME·surface5까지 확인했으나 유효 phase/완료 run은0개다. 결과를 시간 비교에 포함하지 않고 Static 후속 실행도 하지 않았다. 실행별 임시 fixture는 finally에서 정리됐다. foreground 조건을 다시 확보한 뒤 정규 비교를 이어가며, 현재 제품/플랫폼의 마지막 수락 범위는 여전히 §8.12다.
+
+
+**Foreground 재시도 후 정규6회:** bytecode/Static 각각 같은 공급의 새 process3개로 완료했다. 첫 foreground 실패 실행은 제외했다. 다른 빌드·프로파일을 병행하지 않았다.
+
+| 모드 | phase | trial1/2/3 (ms) | median | 대조 median 대비 감소 |
+|---|---|---|---:|---:|
+| bytecode | list-retained p95 | 5.601 / 5.796 / 5.779 | 5.779 | 17.93% |
+| bytecode | list-cold p95 | 13.933 / 15.092 / 12.701 | 13.933 | 22.92% |
+| bytecode | list-revisit p95 | 12.210 / 12.478 / 11.725 | 12.210 | 24.61% |
+| bytecode | list-fast max | 94.650 / 105.460 / 101.901 | 101.901 | 16.43% |
+| static-aot | list-retained p95 | 4.963 / 4.917 / 4.998 | 4.963 | 23.62% |
+| static-aot | list-cold p95 | 12.323 / 11.575 / 11.979 | 11.979 | 22.46% |
+| static-aot | list-revisit p95 | 10.780 / 10.816 / 10.590 | 10.780 | 23.72% |
+| static-aot | list-fast max | 82.762 / 88.455 / 88.073 | 88.073 | 14.34% |
+
+네 cold/revisit median은 모두25% 최소 조건에 미달했다. retained 각 paired trial10% guard는 통과했고 모든 fast max는50ms를 넘었다. **W18-02 선택/완료·R3·performanceAccepted=false 상태를 유지한다.** HBC `08f01ff90a1abcea58352d38115ed3d0e4d952fe042c206577e534ec31d7b7d2`, Static DLL `4122756757e505faeb8987e6e716c56b8119449e9c3f0096a7ef2351d35f6f9a`; bytecode PIDs19064/5948/21340 및 Static PIDs30564/3632/7620는 모두 정상 exit0다. host/VM은 §8.12와 같고 RN runtime·Node-API JSI가 없다. 현재 세 runner의 Core/Material 공급은 같지만 이 diagnostic image를 실제 제품 빌드·Web/Android runtime 수락으로 해석하지 않는다.
+
+### 8.19 IN_PROGRESS — owner가 모으는 semantics configuration commit
+
+반복 paint/속성 변경마다 configuration 생성·사용자 descriptor 평가·조상 탐색을 즉시 반복하던 경로를 View pipeline의 pending configuration 집합으로 옮겼다. 기존 fragment의 입력은 요청 때 무효화하되 실제 재평가와 dirty boundary 결정은 layout 뒤 semantics flush에서 수행한다. 새 render child는 부모의 구조 갱신에서 처음 방문할 때 fragment를 만들며, 제외된 private/hidden 자식을 attach만으로 materialize하지 않는다. pending은 같은 render당1개이며 detach·root 교체·owner disable에서 회수한다. Widget/State·builder/lifecycle·layout/hit/편집의 소유권은 변경하지 않는다.
+
+**명시적인 callback 계약 변경:** 이전에는 attach/반복 mark 중 `describeSemanticsConfiguration`과 transport getter가 동기 호출될 수 있었지만 이제 commit에서 최종 상태를 평가한다. descriptor의 앱 부작용을 attach/detach/State lifecycle로 옮기는 안내를 Core 영문/한국어 README에 함께 적었다. 기존 callback-getter 실패 검증도 이 의도된 시점 변경에 맞춰, host callback 오류 뒤에도 queued descriptor가 commit에서 실패하고 재시도되는지 확인하도록 이전했다. ancestor의 일반 getter를 소유한 값으로 간주하거나 장애를 숨기는 빠른 경로는 추가하지 않았다.
+
+descriptor는 성공 후에만 새 configuration을 게시하여 falsey 오류 뒤 부분 설정을 재사용하지 않는다. 실패한 pending/dirty 대상은 다음 flush에 남긴다. commit 중 재진입 무효화는 Release에서도 거부한다. 실제 설정 변경이 motion-only snapshot 간격을 우회하도록 root의 판단도 pending configuration과 연결했다. 마지막 semantic node만 퇴장한 경우 detached 집합을 비우고 빈 update/observer 알림을 한 번 게시하도록 기존 owner retirement 결함도 수정했다.
+
+Core 빌드, 접근성95·scroll187·paint110·editable98·Windows semantics12·전체 디자인265·10 workspace 타입 검사가 통과했다. 새 실제 pipeline 회귀는 attach 지연·반복 변경의 최종 값·이전 게시 값 유지·falsey descriptor 실패 후 자동 재시도·제외된 자식의 materialization/reveal/retirement를 확인한다. 마지막 node만 제거하는 일반 packet/host-tree 두 경로도 검증했다. 실제 ListViewPage far frame의 Node sampled allocation8,830,472bytes는 진단이며 Hermes frame 개선율을 대신하지 않는다. 세 runner 공급과 실제 두 Hermes 비용은 진행 중이며 이 후보를 선택/완료로 처리하지 않는다.
+
+현재 Core archive `122941b0154caa3206414c136ba480d34502a3287ca71ddd4019f0007d6c74d3`를 세 runner에 같은 내용으로 설치했다. 첫 bytecode 진단1회는 retained154frames p95 **5.550ms**, cold165frames **13.892ms**, revisit181frames **12.523ms**, fast23frames max **89.206ms**다. HBC `50ef71eb05745fdb604989d56e458e0658918068d58c49a372e99b03f663b80e`, PID2636, loaded host/VM은 §8.12와 같고 정상 exit0다. 이1회로25% 최소 조건이나 추가 이득을 입증하지 못했으므로 정규 비교/Static 반복을 먼저 확대하지 않는다. 현재 소스의 샘플 진단으로 병목을 다시 좁히며, callback phase 변경을 포함한 이 owner 후보는 계속 시제품이다.
+
+소스 SHA-256: RenderObject `81b61a105289595d014a86f99b056f3f9a12c78b6d514a6982804d70a5a98ced`, semantics pipeline `e107e42d32beb258c17e2bf14e5187a9239c51329e196f67738e70a4fc1e85b7`, semantics owner `0769d29713d7041c2e70fdc6bdb667682eb481e97b433261fd8b94e47ead194d`, root `08fadac3fdc74e24e6a68a37ee6c3cf708f65f04870f71f713ea5910e72934f3`다. 마지막 실제 제품·플랫폼 실행 수락은 §8.12이며 현재 source/dist/설치를 그 이전 bundle/APK의 새 수락으로 승격하지 않는다.
+
+### 8.20 IN_PROGRESS — replacement recording의 depth 조립 원가
+
+§8.19 현재 소스의 bytecode PC 진단1회는 cold646관측에서 `Layer.redepthChild` self10/inclusive11, `finishLayer` self8/inclusive43을 보였다. revisit662관측은 `finishLayer` inclusive38, fast557관측은 young GC58관측이었다. 이는 PC 관측 수이며 CPU ms나 별도 성능 수락이 아니다. sampling HBC `02a1a545392204eead21dafe1b179b90410ee70adf84b93f2597a2b8acc9c1c6`, PID25288, 정상 exit0다.
+
+새 recording body를 depth0에서 조립하면 기존 깊은 retained child를0기반으로 낮춘 뒤 최종 parent에 append할 때 다시 전체 하위 depth를 올렸다. 새 body의 사적인 `_depth`를 이전 body의 값으로 시작하여 이 임시 왕복을 없앴다. 최종 destination이 달라지면 기존 append/redepth 검증이 계속 보정한다. root compose와 child-layer repaint 양쪽에 적용했고, 추가 cache/lease/Layer owner는 없다. [Flutter depth 문서](https://api.flutter.dev/flutter/rendering/Layer/depth.html)는 부모 아래로 depth가 증가하는 순서를 요구하지만, 이번 변경에서는 기존 Nelyx의 정확한 최종 depth 값과 일반 Layer API도 보존했다.
+
+Core 빌드·paint111·native replay/backpressure/scene와 실제 overlay anchor28개가 통과했다. 새 검증은8단계 깊이에서 root/child 두 종류의 recording을 교체하고 retained descendants의 depth가 같고 임시 subtree rewrite가0회인지, 현재 색·annotation 좌표·owner가 유지되는지 확인한다. 기존 equal/deeper/shallower reparent·follower transform·9종 실제 CanvasKit pixel 비교는 그대로 통과했다. source `Nelyx/src/framework/painting/context.ts` SHA-256 `f04998e8efb73d6b3550c4ed5c7ddb62f5ef6c5f3ee324854e4aef327a387e2c`다. 현재 Core의 세 runner 공급 및 bytecode3회 확인 뒤 Static 비교 여부를 결정한다. W18-02·R3는 여전히 선택/완료 전이다.
+
+
+**현재 공급과 bytecode 정규3회:** Core archive `96b78c538810d47a039f305dc52c23c57efb33280c280d668d6097a2fb60d730`는 Windows/Web/Android 설치가 같다. 다른 빌드/프로파일 없이 같은 package에서 새 process3개를 측정했다.
+
+| phase | trial1/2/3 (ms) | median | §8.10 대조 median 대비 감소 |
+|---|---|---:|---:|
+| list-retained p95 | 5.640 / 5.773 / 6.018 | 5.773 | 18.01% |
+| list-cold p95 | 12.289 / 13.013 / 13.039 | 13.013 | 28.01% |
+| list-revisit p95 | 11.806 / 11.025 / 11.617 | 11.617 | 28.28% |
+| list-fast max | 88.306 / 90.113 / 105.745 | 90.113 | 26.10% |
+
+bytecode cold/revisit는 median뿐 아니라 각 paired trial의25% 조건도 모두 통과했고 retained의 각10% guard도 통과했다. fast max는 모두50ms를 넘었다. HBC `9dff708b4314ecec9e8bb2f91ee7fa9bf81a092a28c5b570d584e4a1230595a8`, PIDs3456/18320/19064 모두 정상 exit0다. **Static Hermes 정규3회는 동일 소스로 진행 중이며 W18-02 전체 선택/완료와 R3 수락 전이다.** 현재 제품 빌드·플랫폼 실행 수락은 여전히 §8.12이며 새 source/dist/설치·CPU diagnostic을 제품·물리 수락으로 바꾸지 않는다.
+
+
+**동일 소스 Static Hermes 정규3회 완료:**
+
+| phase | trial1/2/3 (ms) | median | §8.10 대조 median 대비 감소 |
+|---|---|---:|---:|
+| list-retained p95 | 4.860 / 4.804 / 4.959 | 4.860 | 25.21% |
+| list-cold p95 | 11.030 / 11.433 / 11.405 | 11.405 | 26.18% |
+| list-revisit p95 | 10.193 / 10.218 / 10.301 | 10.218 | 27.70% |
+| list-fast max | 84.928 / 76.625 / 87.776 | 84.928 | 17.40% |
+
+Static cold/revisit도 각 paired trial의25% 조건과 retained10% guard를 전부 통과했다. DLL `759f470e0329f5b3cbf6d625dba54a7ddb72bca7d179ba87b7711198e3411a80`, PIDs10408/26212/19232 모두 loaded identity 일치·정상 exit0다. **두 모드의 대표 창/실제 ListView 시제품 최소 CPU 기준을 충족한 cohort다.** 할당30% 참고 목표·전체 catalog·R0~R7·최종 performanceAccepted를 이 결과로 완료하지 않는다. fast max는 Static76.625~87.776ms / bytecode88.306~105.745ms로 계속 미달한다. 현재 aggregate 선택의 제품 공급·메모리/압박·API 이전을 확인한 뒤 W18-03 이후의 전체 이전을 진행한다.
+
+### 8.21 IN_PROGRESS — 선택 후보의 현재 제품·플랫폼 재공급
+
+§8.20의 Core/Material 설치를 바꾸지 않고 diagnostic entry를 뺀 실제 제품을 다시 빌드한다. 이 절 이전 cohort의 bundle/APK로 새 소스를 수락하지 않는다.
+
+- **Windows bytecode 제품:** package153files와 현재 runtime source860개/owner11개/generated3개 제외를 대조했다. HBC `39249f26302a9cbc4b77b4a1e11fd034ecba4bd71a79975c9ce3683928f293b3`; loaded host `52b1e8c912062e6b0a51fe87816c72fe71fc478dbeb6147ce92276b3273448b9` / VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`, RN runtime/Node-API JSI 없음. diagnostic/trace/profile 환경 변수를 제거한 PID5364에서 FIRST_FRAME·실제 HWND/title·Responding=true·surface5를 확인했고7초 뒤 exit0/forced=false/error=null/stderr 없음으로 종료했다. qualification은 experimental이고 전체 performance/physical 수락은 아니다.
+- **Web 현재 공급:** runner check·Metro build와 실제 Chrome EditContext/CDP 입력3개가 통과했다. JS `ed37646655ecf54afad7d1f75c9052e6b105f9c08e9aad7cfae8972fb90d606b`, map `af411bbf3e93f17973a0063523c67525c02608979fa02b8b7b41a2bc6179fd2f`; CanvasKit JS `cc0c886876c07cd0a50c11b3adff344b7e069d1743ba47c2ce70b7861ee9e665`, WASM `2b9fe2ffe434b201055d122beff62f0e37865f72a86256053a0a4009c85c5f1c`다. browser/server/profile/temp install은 해당 검증의 finally에서 정리됐다. 물리 IME나 전체 native catalog 검증을 뜻하지 않는다.
+- **Android 현재 공급:** runner check와 x86_64/Release/emulator-vulkan 빌드 통과, APK66,013,584bytes / SHA-256 `08c8d2cdbf58c37abf52f4077fe17b241747f0d25b6e919404b71744a4f35b59`다. 설치된 Temurin21을 자식 process 환경에만 적용했다. 현재 adb 연결 기기0개여서 device runtime·production signing은 notVerified다. 기존 Gradle deprecation/SDK XML 버전 경고는 남아 있으나 빌드는 성공했다.
+
+Static Hermes 실제 제품은 같은 소스로 빌드 중이다. 추가 focused 회귀2개는 debug/Release의 semantics commit 재진입 거부와 실제 FrameworkRoot의 falsey descriptor 실패→이전 snapshot 유지→다음 frame 복구/옛 action 폐기를 각각 통과했다. §8.19의 전체95개 결과와 이 추가2개를 구분한다. 현재 후보의 native resource-cycle/압박·R0~R7·RNW 안정성·전체 이전은 계속 남아 있고 기본 host는 전환하지 않는다.
+
+
+**Static 제품도 현재 공급으로 완료:** package156files, 현재 runtime source860/owner11/generated3개 제외가 일치한다. DLL `1b04ad944ec093bb9a1cbda413f31b9cd012c0a57cb817483aad4055abbc16b1`, native functions37,162(compile 분류이며 실행 coverage가 아님), HBC 없음. host/VM은 위 bytecode와 같고 loaded modules80, RN runtime/Node-API JSI 없음이다. diagnostic 환경 변수를 제거한 PID5864의 FIRST_FRAME·실제 HWND/title·Responding=true·surface6를 확인하고7초 뒤 exit0/forced=false/error=null/stderr 없음으로 종료했다. 두 모드의 실제 제품 source→dist→설치→bundle/native image→loaded 확인은 이제 이 절의 cohort이며 §8.12를 현재 결과로 재사용하지 않는다. Core/Material/SDK/공통 Skia의 현재 source-input 검사와 전체 git diff --check도 통과했다. native resource-cycle은 bytecode3회부터 확인 중이다.
+
+
+**두 모드 resource-cycle3회도 PASS-scoped:** gallery 기준→ListView 진입/scroll→gallery 복귀를 각3회 완료했다. bytecode PID10008 / HBC `f35c2d8494d92730cd9be24a708822bcf863012e6e429a24bfed30443c3c7167`, Static PID21772 / DLL `808d70cfedc8c383dc2388f7da89d7b59496b3cbb3d1d2ded3d31b3230e86556`, 모두 같은 host/VM loaded identity·정상 exit0다. 각 복귀의 producer32 / producer units198 / producer bytes50,720, picture cached/live6/6·80,384bytes와 native counters `[1,0,1,0,0]`이 기준으로 돌아왔다. 마지막 resident94 / units637 / bytes146,436는 cache 보유로 관측했으며 process private/GPU/driver 전체 메모리 수락을 뜻하지 않는다. 이 절은 고정 설치된 Core archive96b78c…/Material321624… cohort의 결과이며, 다음 절의 workspace 변경과 구분한다.
+
+§5.1의 두 모드·대표 창 최소 CPU/retained guard, 관련 builder/State/Key·출력/입력/수명 회귀, dormant 소유/회수 정책과 scoped3회 결과를 근거로 **W18-02의 이 aggregate를 선택한다.** 모든 개별 최적화의 독립 효과를 주장하지 않는다. W18-02의 시제품 선택 완료와 R0~R7/전체 제품 완료는 별개이며 fast·physical·전체 메모리는 계속 미달/미확인이다.
+
+### 8.22 IN_PROGRESS — W18-03 Element·focus의 nominal 의존 방향
+
+선택 cohort 뒤 workspace에서 `framework → focus → traversal policy → focus/framework`의 runtime SCC를 분리한다. 두 canonical 클래스의 nominal 판정만 좁은 내부 type-witness 모듈로 전달하며 생성자·Element/FocusNode identity·State/lifecycle·public import를 교체하지 않는다. binding은 declaring module마다 한 번 설정하는2개 클래스 참조이며 live tree/자원/owner registry가 아니다. `instanceof` 자체는 호출 때 수행해 public Symbol.hasInstance·receiver·Proxy prototype trap·falsey 오류를 보존한다. Element마다 필드/등록 작업을 추가하지 않는다.
+
+Core build와 focus/control/경계9개가 통과했다. 실제 FocusNode attachment 회귀는 Proxy context의 읽기 순서, live hasInstance와 원래 receiver, undefined/null/0 오류 뒤 미부착 상태, 구조가 같은 가짜 context 거부를 확인한다. source graph 회귀는 세 owner가 runtime SCC로 다시 들어가지 않도록 검사한다. 전체 접근성/scroll/편집/디자인/타입·현재 graph를 확인 중이다. **현재 workspace/dist는 이 절의 다음 소스이며 runner 설치/native 제품/Web/APK의 마지막 검증은 §8.21 cohort다.** 새 공급·native 반복을 먼저 수락하지 않는다.
+
+
+§8.22 후속 source 검증은 접근성98·scroll190·editable98·전체 디자인266·10 workspace 타입 검사가 통과했다. 현재 source graph952files/7,773runtime edges, 위반0, runtime SCC21→20이며 디자인 SCC0이다. 두 fresh ESM 순서(focus→framework→policy, policy→focus→framework)에서 legacy FocusManager 소유/요청/해제도 통과했다. 전체 R0의 다른20개 SCC를 해결했다고 처리하지 않는다. BuildOwner의 render transaction이 child-first로 dirty owner만 commit하고, 공통 RenderObjectElement는 실제 순서가 다를 때만 setChildren하며, Sliver/wheel/2D adapter는 자기 canonical slot map의 직접 갱신을 유지하는 소비 경로를 대조했다. LayoutBuilder의 공개 sync hook은 owner queue commit으로 연결되며 이전 root projection pass가 아니다.
+
+소스 SHA-256: framework `3d7db7de950b354f967255577cd5e1588b728d805443a67ca7db14d2fbc90973`, focus `56fff5571843e78bbfffda4608ec8ccd2004856100f267bb71451053fb45d093`, traversal policy `bafbd608930944395b9576b2b898b323894b9e1858c67beb679803f69c938d54`, class identity `3e500369e85299514fd8feacd8e8fcafc67fd6c1133a05d6e08e328087a0452f`다. 이 source 변경의 새 native/플랫폼 공급은 Stage10 통합 시 다시 확인한다.
+
+### 8.23 IN_PROGRESS — W18-04 layout admission 실패의 owner 복구
+
+dirty batch를 먼저 큐에서 뺀 뒤 `isRelayoutBoundary` 같은 virtual getter가 던지면 현재/이후 형제 작업이 사라지는 결함을 재현했다. 이전 소스는 다음 flush에도 성공 layout 횟수 `[1,1]`에 머물렀고 기대 `[2,2]`를 충족하지 못했다. layout 본문 실패 뒤 recovery가 공개 owner getter를 다시 읽어 첫 falsey 오류를 다른 오류로 바꿀 수도 있었다.
+
+node의 admission 검사와 실제 layout을 같은 실패 경계에 두고, recovery는 rendering library의 canonical private owner/dirty 상태로 남은 batch를 재입장시킨다. 성공 경로에 새 queue/record/배열을 추가하지 않는다. 이미 detach된 node는 재입장시키지 않으며 public getter를 cleanup 중 다시 실행하지 않는다. Root/형제 layout 순서·일반 getter의 정상 실행 순서와 기존 queue 한계는 유지한다.
+
+Core build와 debug/Release × admission/layout 실패 × undefined/null/0의12개 경우가 통과했다. layout callback이 queued child를 detach한 뒤 실패하는 추가6개 경우도, 원래 오류 유지·독성 owner getter 미실행·detached child 미재입장·남은 branch 재시도를 확인했다. 전체 layout constraints7·scroll191·paint113개와 추가 focused1개(6가지 detach 조건)를 구분한다. 현재 RenderObject source SHA-256 `9a9b97f8a089fd0e6f150d9bdbc9fe4c42b9c15de56387db37e3eacf773a487c`다. 아직 이 단계의 전체 geometry/Sliver 이전이나 새 제품 성능·R0~R7을 완료하지 않았다. 설치/native/Web/APK의 마지막 qualified cohort는 계속 §8.21이다.
+
+### 8.24 IN_PROGRESS — W18-05 문단의 단일 font catalog owner
+
+문단 cache와 font provider가 독립적으로 font iterable을 방문하고 metadata·JSON key를 만들던 경로를 `hosting/text-fonts`의 `ParagraphFontCatalog`로 통합했다. 한 layout 경계에서 잡은 immutable metadata/revision을 cache와 실제 native/Web provider가 함께 소비한다. cache는 catalog JSON을 키마다 다시 만들지 않으며 provider가 두 번째 font-source callback을 실행하지 않는다. 새로운 capture가 일어나면 이전 키는 cache.key를 다시 호출하지 않아도 admission에서 거부한다. catalog 자체는 metadata만 소유하며 native 자원은 기존 문단/provider/frame lease가 보유한다.
+
+getter/iterator의 새 실행 경계와 저수준 API 변경을 Core README 영문/한글에 반영하고 native/Web의 마지막 소비자를 함께 이전했다. font metadata는 capture 때 읽고 provider는 captured family/resource와 source의 native handle을 사용한다. 미완료 capture는 이전 revision을 바꾸지 않으며 foreign/Proxy receipt는 필드를 읽지 않고 거부한다. provider 생성 중 재진입/반환값 getter 오류는 미게시 provider를 원래 receiver로 retire하고 lease를 반환한다. retirement 중 재대여는 거부하고, retirement 미확인은 native residency를 보유한 실패 상태로 남긴다.
+
+Core·skia-native·skia-web build, owner/cache/budget25개, scroll199개, text/style·editing-layout·native-font25개, editable98개와10 workspace 타입 검사가 통과했다. 그 뒤 추가한 native adapter 회귀를 포함한 font owner8개도 통과했다. adapter 회귀는 실제 TS NativeTextLayoutService에 controlled native port를 주어 layout마다 source1회 방문·cache hit·fallback family·old frame/provider retirement를 확인하며 C++ 실행 증거는 아니다. 실제 Skia 문단·fallback 변경·한국어/RTL·paint/query 수명은 scroll에 포함한 기존 paragraph 회귀 범위다. 새 workspace/dist와 마지막 qualified 설치/native/Web/APK §8.21 cohort는 계속 구분하며, 이 변경의 새 비용·플랫폼 공급은 아직 수락하지 않았다.
+
+입력 경계도 대조했다. SDK View는 frame build 실패 뒤 failed로 전환하고 pointer/key admission을 거부한다. 이 근거 없이 FrameworkRoot의 hit 경로에 별도 snapshot/입력 차단 상태를 추가하지 않았다. 전체 W18-04/05/07 완료나 R0~R7 수락을 뜻하지 않는다.
+
+공급 점검에서 NativeAssetServices가 전체 asset 바이트만 반환하고 각 NativeFont의 sourceBytes를 누락해 provider 회계가0으로 관측되던 결함도 확인했다. native font descriptor가 공통 ParagraphFont 계약을 확장하고 sourceBytes를 필수로 선언하도록 이전했으며, loader는 검증한 font input의 실제 bytes.length를 전달한다. Native asset 회귀에서 per-font와 전체 source byte를 함께 확인한다. 이는 backing-source 비용이며 실제 native allocator/GPU heap 측정으로 바꾸지 않는다. Core README에 이 API 변경도 반영했다.
+
+### 8.25 IN_PROGRESS — 자원 identity와 frame/paint 의존 분리
+
+ResourceRegistry가 단순 ID 문자열을 만들기 위해 frame→paint→shader→Image→ResourceRegistry 경로를 가져오던 결합을 제거했다. ID의 기존 JSON encoding을 `ui/resource-retention`의 단일 구현으로 옮기고 `ui/frame.resourceKey`는 같은 함수 참조를 export한다. Image의 registry 의존은 실제 사용대로 type-only로 고쳤고 자체 ID 문자열 조립도 같은 구현을 사용한다. ColorFilter와 effect wire의 BlendMode 목록은 Paint class 대신 기존 immutable `blend-mode-data`에서 직접 참조한다. public 값·문자열 형식·사용자 getter/JSON 호출 본문·retainer/lease는 유지한다.
+
+Core build, paint113·native replay25·owner/경계11개가 통과했다. source graph는952files/7,774runtime edges·위반0·디자인 SCC0이며 runtime SCC20→19다. ResourceRegistry/frame/paint/Image/shader와 앞서 분리한 Element/focus가 SCC로 돌아오지 않도록 경계 회귀를 확장했다. 전체 나머지19개 SCC의 필요성/이전 검토를 완료했다고 처리하지 않는다.
+
+§8.24 catalog의 변경 없는 capture는 기존 metadata 배열·entry를 재사용하도록 정리했다. source metadata 검증은 계속 매 capture에서 실행하고 source의 새 ResourceId capture 경계도 유지한다. 이후 owner/cache/경계20개가 통과했다. 이는 할당 경로 정리와 소스 검증이며 새 native p95 개선율은 아직 측정하지 않았다. §8.22~8.25를 함께 공급하는 다음 qualification 전까지 마지막 제품 수락 범위는 §8.21이다.
+
+### 8.26 IN_PROGRESS — font catalog·layout·모듈 경계의 현재 제품 공급
+
+§8.22~8.25를 묶어 Windows/Web/Android에 공급했다. 공통 Core archive `2193a24929b7eb638d80108ef691f19143d9afa1602e4b3e4d04c714e90cc584`, SDK `c2276b3f03a711c5208501eaa3e96ac1fa1cb6676acb33919d17cba1a47c35df`, native Skia `58275748c4fb5953663591f480f8e8faceb1ca1e30cb65b136e20803f1638227`, Web Skia `22c5f618343f59ef8b60bee6745bc2d237502a107fcdb60a43c312e4f0c57483`이다. Material3216242…/Cupertino 공급은 이전과 같다. workspace와 실제 별도 설치본의 전체 src/dist tree hash를 대조하고 source-map input guard를 통과했다. Core630modules·SDK112·native Skia59·Web Skia6이며 설치본은 workspace symlink가 아니다.
+
+Core src/dist tree SHA-256은 `f8409242d8792ab16b910d36386ca95dccaad3a432343c0afaaf65126f3646ff`/`f18e6390873d93beb997d07c00c7a015ad57b0f6345f04170cf5819162b52de5`, SDK는 `94caba6cc3151d5cb7de486bd9d7e49ab4288adee20ede267a0934302915d7b8`/`14fbddc36182e52d8e2962fbfb2790a52f2826f813def102d4b3f2cb1e765250`이다. 이는 아래 공급 당시 identity이며 뒤의 §8.27 workspace와 혼동하지 않는다.
+
+- **Windows bytecode 실제 제품:** diagnostic entry를 제거한 실제 Testbed를 새로 빌드했다. PID7628이 FIRST_FRAME, 실제 HWND/title, Responding=true,7초 뒤 exit0·forced=false·error=null·stderr 없음으로 종료했다. HBC `3ec3c847e9a8a3628f16efd0f81c196e58210372d9bfc2abc7fe91e8e15fb33f`, host EXE `00eeb894f0839e2f5982b6bd66c3357c0533f5ad2be8338c98dd525bb183842b`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`. source861modules/11owners/generated3제외, loaded79modules·RN runtime/Node-API JSI 없음, surface5다. native host source identity `fe4a092da4a8a283c697acb222ca6a3d0b9d40446a1189a59279e45092596f71`는 유지된다.
+- **Static Hermes 실제 제품:** 같은 고정 설치본에서 컴파일한 DLL `d95a38d15e434da6df029a520b7fa78f17faa2598479461fdbae4477c22e722b`로 PID24580의 FIRST_FRAME·실제 HWND/title·Responding=true·7초 뒤 exit0/forced=false/error=null/stderr 없음이 통과했다. source861modules/11owners/generated3제외, loaded80modules·RN runtime/Node-API JSI 없음, surface5다. host/VM은 위 bytecode와 같다. app.hbc 없이37,176nativeFunctions의 image를 실행했으며 이 수는 compile 분류로서 실행 coverage가 아니다. 아래 §8.27 workspace 수정은 이 별도 설치본의 source/emit/native compile 입력을 바꾸지 않았다.
+- **Web:** 현재 runner check/build와 실제 Chrome EditContext/CDP3개가 통과했다. JS `4f13e48310f77e6dc1bb6280d7d51af7fcfc5c8d6493ce26eac6874da3d33807`, map `0d0014543004122abb3de39c8ac45f9a228d31cb0c482cc13604958158d4292a`. CanvasKit JS `cc0c886876c07cd0a50c11b3adff344b7e069d1743ba47c2ce70b7861ee9e665`/WASM `2b9fe2ffe434b201055d122beff62f0e37865f72a86256053a0a4009c85c5f1c`는 동일하다. 테스트의 임시 browser/server/profile은 finally 정리되며 물리 IME 증거는 아니다.
+- **Android:** 현재 runner check와 x86_64/Release/emulator-vulkan APK 빌드가 통과했다. APK66,018,832bytes, SHA-256 `85ac8dcc76f624629faaf19f344c74c6015aa1ca394fde68c3704fa2e32da4e0`. Java21은 child env에만 적용했다. 기존 Gradle/SDK XML 경고를 유지하며 실제 Android 실행·production signing은 notVerified다.
+
+소스 SHA-256은 catalog `343f87ceb10423e46fa10f56cab059ab682978c2de967234675667ac83b38e95`, cache `1e1569cbac54aff435a8da81c8eb21114306cbaff3436205d5a5de3c5a5f51fb`, native text `c3096b9fd85d56ade4327ac905663a49a952326dfc97be079372c459ddd3d3ce`, Web library `59dc25a466f07d30921b99adba8746a796835bb70378069afa7a3529187aa337`, native assets `33a7d40f2a3d201c22d9b805618eb2770a61b0becbdd9451c750eefdceb0a118`다. 새 native 성능/전체 메모리/물리 수락을 이전 §8.20의25% 결과에서 자동 승계하지 않는다.
+
+### 8.27 IN_PROGRESS — 실패한 GlobalKey 재배치의 retirement 복구
+
+실제 State.activate/didUpdateWidget과 render attachment가 실패할 때 새 부모의 children에 없는 자식이 active인 채 GlobalKey registry에 남는 결함을 재현했다. 기존 소스는 두 focused 회귀에서 key.currentElement가 없어야 하는 조건에 실패했다. activation/attachment 실패는 기존 retirement owner의 inactive root로 되돌리고, retake가 반환한 자식은 update/slot callback 전에 local transaction의 cleanup 대상으로 기록한다. 성공 경로의 lifecycle 순서·새 record/queue·상태 pooling은 추가하지 않는다.
+
+single/multiple child 경로 × State activate/update × undefined/null/0의12개와 render attachment의6개 조건이 통과했다. 실패 뒤 registry 해제·Element/State dispose1회·다음 정상 rebuild에서 새 State 생성과 key 재등록을 확인했다. 후속 scroll202·접근성98·전체 디자인266·편집98과10 workspace 타입 검사가 통과했다.
+
+정리 중 render projection getter까지 실패하는 추가3가지 falsey 원본 오류에서도 동일한 orphan을 재현했다. deactivateChildren의 projection capture를 오류 수집 경계 안에 두고 이후 detach/deactivate/inactive admission을 계속 수행하도록 보완했다. 기존 성공 경로의 projection 읽기 횟수는 그대로이며 추가 성공-path 배열을 만들지 않는다. 원래 callback 오류와 cleanup 오류는 순서대로 AggregateError에 남는다. 이 후속 소스로 전체 framework reconciliation19개가 통과했으며 이전202개 묶음과 구분한다. 이 절은 §8.26의 고정 설치본 뒤 workspace/dist에서 구현했으며 새 공급/성능 수락으로 취급하지 않는다.
+
+### 8.28 DIAGNOSTIC — 새 공급의 한 번의 bytecode PC sampling
+
+§8.26의 별도 고정 설치본(Core2193…/SDKc227…)에서 sampling1회를 실행했다. PID12304가 정상 exit0/normalClose=true로 종료했고 loaded host/VM은 §8.26과 같으며 HBC `95cb02466492b6b697430e64effcc615a8344d23229ca078208a1492085083b1`다. 실행 소유 임시 fixture/profile/package는 finally 정리했다. programmatic 입력이며 물리/표시 수락은 아니다.
+
+관측은 cold630·revisit651·fast548개이며 GC Young Gen은 각각27/32/46관측이다. cold/revisit의 finishLayer·freezePaintCommand와 native replay/recording, fast의 Set delete·JSON·ancestor 방문 등으로 분산됐다. 관측 횟수는 CPU milliseconds가 아니며 inclusive count를 self 시간으로 바꾸지 않는다. 계측에 영향을 받는 wall 결과를 §8.20의 정규 비교에 합치거나 새 p95 개선율로 쓰지 않았다. 현재 공개 recording/resource 계약에서 필요한 독립 hold와 값 캡처를 조사했으나 이 진단만으로 새 frame API/자원 수명 변경을 채택하지 않았다.
+
+### 8.29 IN_PROGRESS — nominal class와 enum factory의 단일 선언 owner
+
+source class를 다시 import하던7개 nominal helper 모듈을 선언 owner로 합쳤다. wheel renderer/widget, render tree parent data, ScrollableDetails, 2D scrollable/viewport, ChildVicinity의 실제 guard/cast/정수 문자열 body와 class identity를 유지하고 모든 제품 소비자를 이전한 뒤 옛7개 파일을 제거했다. generated/adopted 파일의 Dart 출처·pin·numeric annotation은 유지하고 product owner 주석을 반영했다. 역사적 converter recipe를 실행 입력으로 되살리지 않는다.
+
+2D delegate의 nominal guard4개도 선언 owner로 옮겼으며 독립적인 Selectable/Widget factory는 기존 adapter가 소유한다. WidgetState가 full collections 모듈을 다시 import하던 empty set factory를 enum 선언 owner로 옮기고 기존 public widget-state subpath에서 export했다. Core·Material·Cupertino23개 소비자를 이전하고 내부 full-collections의 옛 empty export를 제거했다. const/map factory와 기존 domain identity는 그 모듈에 그대로 둔다. 바뀐 import 안내는 Core README 영문/한글에 반영했다.
+
+Core·Cupertino·Material build와 fresh import/경계4개가 통과했다. 두 fresh ESM 순서에서8개 owner family의 실제 class prototype·Proxy prototype trap·거부 판정, live Symbol.hasInstance/receiver/falsey 오류, 2D scope token, public/generated empty set 함수 identity와 canonical enum 원소를 확인했다. 현재 graph945files/7,737runtime edges·위반0·디자인 SCC0, runtime SCC19→10이며 해당 owner들이 SCC로 돌아오지 않도록 회귀를 확장했다. 후속 scroll204·접근성98·전체 디자인266·편집98과10 workspace 타입 검사도 통과했다. 첫 디자인 회귀에서 발견한 테스트 import11곳을 함께 이전했으며 이전 실패를 기능 통과로 계산하지 않는다. Core623·Material257·Cupertino63modules의 현재 source-map input guard와 diff check가 통과했다. §8.27/8.29의 새 source/dist는 마지막 qualified native/Web/APK §8.26 공급과 계속 구분하며 같은 새 공급으로 통합 검증한다.
+
+### 8.30 IN_PROGRESS — GlobalKey·nominal owner 변경의 현재 공급 통합
+
+§8.27/8.29의 Core·Material·Cupertino를 함께 다시 pack/install했다. 현재 archive SHA-256은 Core `6b5b0fb3346ee01d67726fcfc9cbe7e94c6d562d0ade94eb6ecd2c0a52b8e625`, Material `f9adda18494831d3c26478e2329a7789b96799f71a098424e1ee67aca3f6f268`, Cupertino `adcfe40b8b79cb3ec12bb6aaf9c4ca462c450ca377940289d8cc1cce170843bf`다. SDK `c2276b3f03a711c5208501eaa3e96ac1fa1cb6676acb33919d17cba1a47c35df`·Skia-native `58275748c4fb5953663591f480f8e8faceb1ca1e30cb65b136e20803f1638227`·Skia-Web `22c5f618343f59ef8b60bee6745bc2d237502a107fcdb60a43c312e4f0c57483`는 §8.26 공급을 유지한다.
+
+Windows/Web/Android의 독립 설치본을 현재 workspace 전체 src/dist와 대조하고 source-map input guard를 확인했다. symlink 없이 모든 대상에서 일치한다. Core623modules src `bfd0b76991e30875f041eb9108a1f3a4e45d1730acd80eabd7425e6b644f82be` / dist `cde3f6551c160b70170b415a0aff22a4f75e4d98ba692d8cc2885be8da9ced58`, Material257modules src `85d355225609f91549a095071c78f5cdab58199d58f69cc65738d6eb1bfd0d69` / dist `b871e5dc0fbe91a7ee58153711f5a17ea22bd17c44276f45744556f8ba20b3a2`, Cupertino63modules src `7428b167dca49dc5e36ed73ac8b00a96b7aa06a4dde021cd17c0356399940555` / dist `4049e132e0f6d0d52329b1b5fdc1338e6075896a3c33f44426b4fc8e8f068f3c`다. SDK112/native59/Web6의 전체 src/dist도 §8.26과 일치한다.
+
+계측용 진입점을 제거한 실제 bytecode 제품을 새로 build/run했다. PID4080, HBC `71183ed2d5bddd6fdf587ca463de69c9b3adfeed2e1ca3ba054b12a4d0d8486e`, FIRST_FRAME·실제 HWND/title·Responding=true, surface6·exit0·forced=false·error=null·stderr 빈 값이다. source861modules/11owners/generated3excluded가 이 설치본과 일치하고 loaded79modules에 RN runtime/Node-API JSI가 없다. host EXE `00eeb894f0839e2f5982b6bd66c3357c0533f5ad2be8338c98dd525bb183842b`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`다. 같은 설치본으로 Static build454,363ms·실제 run도 통과했다. PID25892, DLL `11ee0db523fcce3f8e83b9dbe28775062d14283adfd9b3b2d5c3bf446ef52f16`, nativeFunctions37,177·app.hbc 없음, loaded80modules·같은 host/VM·noRN/noNodeAPIJSI다. FIRST_FRAME·실제 HWND/title·Responding=true, surface5·exit0·forced=false·error=null·stderr 빈 값이다. 후속 §8.31 source/dist는 이 설치본과 구분한다.
+
+Web runner check/build와 실제 Chrome EditContext/CDP 입력3개가 통과했다. application.js `951c0ed920fc6f2fe6605ee5b4fed476e4220a1a2c74f4d6486c33a7432b5bc6` / map `46256fcf5d93b915bb149b9f0ce576559382d2ad438319c3398f035e5d9c66f7`; CanvasKit JS/wasm은 §8.26과 일치한다. Android runner check와 Release/x86_64/emulator-vulkan build도 통과했다. APK66,019,072bytes `f514a08bf4e50329b29c4363237e94edcf7379ed346a03248304d2bfc8236838`; Java21은 child 환경에만 설정했다. 기존 Gradle deprecated/SDK XML 경고는 남고 Android runtime·production signing은 notVerified다.
+
+이 시작/공급 검사는 현재 cohort의 정규 성능 비교·물리 입력·실제 표시·전체 메모리 수락을 대신하지 않는다. §8.20의 선택 성능과 §8.21의 자원 회수 결과는 각 당시 공급의 증거로 유지한다. runtime graph는 현재10SCC/디자인0/위반0이며 전체 R0~R7·기본 host 전환은 계속 PARTIAL이다.
+
+### 8.31 IN_PROGRESS — W18-08 종료 transaction의 재진입·실패 보존
+
+실제 AppSession/View API의 종료 callback 재진입을 대조했다. 옛 구현은 서로 다른 종료 Promise를 만들고 renderer를2회 dispose했다. View와 AppSession이 사용자·clock·observer·renderer callback보다 먼저 단일 Promise를 게시하도록 바꿨다. admission 차단과 기존 동기 정리 순서는 유지하며 실패한 종료를 재실행하지 않는다. callback 정리와 renderer drain이 함께 실패하면 양쪽 오류를, registry retirement와 View drain이 함께 실패하면 양쪽 오류를 보존하고 의존 service는 반환하지 않는다. falsey throw도 수집한다.
+
+공통 native renderer에서도 GPU lease의 반환 callback이 close에 재진입하면 옛 구현이 event identity를 먼저 지워 `unknown/duplicate retirement`로 실패하는 것을 재현했다. GraphiteRenderer는 drain 전에 같은 종료 Promise를 게시한다. Web renderer는 picture 정리 전 admission을 닫고 같은 Promise를 게시한다. 옛 Web dispose의 동기 정리 오류와 이후의 성공 Promise를 함께 제거하고, 실패한 Promise·미확정 context 의존을 유지한다. 별도 drain 재시도나 resource callback 재실행을 추가하지 않는다. Core 영문/한글 및 native/Web 기존 README에 계약을 반영했다.
+
+Core·Skia-native·Skia-Web build가 통과했다. task/controller/observer/renderer의 실제 close 재진입, falsey callback/drain·registry 복합 실패, 보류 drain의 service 보유, Web admission·context 보유7개와 실제 native lease 반환 재진입1개가 통과했다. 새 API 회귀의 각 문제는 옛 구현에서 실패를 먼저 확인했다. 후속 scroll212·native replay33·전체 디자인266·10 workspace 타입 검사도 통과했다. 공급 전 source SHA-256은 Core runtime `e637da14c7d1705ba0c31249536a0de357a5b0b3b5cf10e5bd2ff2077e9dd619`, native renderer `ed4017b8344a9347fc7a7e97047e48f88a6f234662f64782ffd1b92e7ce0b684`, Web library `8d7dd3c400d9acf6b677187464237da3b5448fe63c5f50078cc84faab4d02182`다. §8.30의 실제 제품과 별도로 새 공급을 확인하며 W18-08 전체 조립·R5 최종 수락은 PARTIAL이다.
+
+### 8.32 IN_PROGRESS — 종료 수정의 현재 제품 공급·실행
+
+Core/archive `2be99a21848f48105e275d22edba45c70a4b3d1919dcfa6d256e09722eb2baf6`, Skia-native `3ff485a50d58458d60562d4a9c746997fd2fd819bb0e996917c3fb415bd74ce8`, Skia-Web `fdc9161c5cd51b4a886bfc94bfe241559ece0e161582fe1d50e46c398d29dd49`로 세 target을 공급했다. SDK/Material/Cupertino/RN은 §8.30 archive를 유지한다. 전체 workspace src/dist와 Windows/Web/Android 설치본의 독립 대조·source-map guard가 다시 통과했다. Core623modules src `4c276ff69831b4c20555f49eb87e842ef8c3f93fcdc7a6e840a65d698ded2a56` / dist `bfe32d649a2f6dd9e1ec2552050b314226ed9a88d6aa8785b589481269d72706`; native59 src `4c9612da3767b9e7dd91862b3fdb031460e641c12a8cc2cc2e3245bde9db582f` / dist `4a1e75a12f6e483323a26084a26548f5d5579c5d9f867480dde5c74d5d08c468`; Web6 src `fe3889eac8d416182928467a5e7c728b0e5e7fb2deb67e1ecc7d2e0e8b4bed26` / dist `f9b71ebf682cda0ca6a280ce3de9b2ab7512dcb083d9981586557789d8632374`다. 나머지 대조 owner는 §8.30과 일치한다.
+
+actual product bytecode build94,376ms, PID7364/HBC `3e2ee59488261e376708a1eef467cb1a9ebc4ab784c55a166f648d4fdeff56a1`; Static build447,139ms, PID7224/DLL `d8874468a68f1e17bad23e0c2e6bf2a3448ec1aa480d792657211a534c53f466`·nativeFunctions37,181·app.hbc 없음이다. 각각 FIRST_FRAME·실제 HWND/title·Responding=true, surface6·exit0·forced=false·error=null·stderr 빈 값이 확인됐다. 두 제품의 source861modules/11owners/generated3excluded는 현재 설치본과 일치하며 loaded79/80modules에 RN runtime/Node-API JSI가 없다. 이번 native 재컴파일 EXE `efa8b631c16d3182fa2b1249c717a9cf9edf036d4ce8217e92d51bb4bee4789e`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`, host source identity `fe4a092da4a8a283c697acb222ca6a3d0b9d40446a1189a59279e45092596f71`다. 현재 HEAD는 `f59c049a28862d35348ddff417d7405894aa1f66`이며 dirty 구현을 별도로 유지한다.
+
+Web runner check/build·Chrome 입력3개가 통과했다. application.js `dd7feb361d93dbcff679805b792813e23686ff7a1dc5b0c4e25a5dfc0d58d0dc` / map `f809bae18fc7f78326fcdbd66427ff765bcf6ab656f01bfb45f085b9266e05eb`; CanvasKit runtime은 §8.26과 일치한다. Android check·Release/x86_64/emulator-vulkan build75,529ms도 통과했다. APK66,019,708bytes `8dc337334e63ceaabf34d71ccf701975623dd100df3a89b225963eae6787e33e`다. Java21은 child 환경으로 한정하며 기존 Gradle/SDK XML 경고·Android runtime/production signing notVerified를 유지한다. 공통 Engine 조립5개도 정상·시작 실패·실패 drain 보유·명시적 복구를 다시 확인했다. 정규 CPU/메모리·OS 물리 입력/reader/표시 수락을 새 결과로 승격하지 않는다.
+
+### 8.33 PASS-scoped — W18-09 실제 Web catalog 소비
+
+`npm run test:web-catalog`는 현재 공급의 실제 Testbed를 Chrome에서 열고 원본 catalog AST로 얻은 Material29·Cupertino20개 선언을13개 category 경로에서 탐색한다. 인접 static text가 group/list에 합쳐지는 실제 semantics 계약과 tooltip의 aria-description, IconButton의 aria-selected를 소비한다. 일부 제목이 개별 text 노드가 아니었던 초기 검사 오류를 selector 단계에서 바로잡았으며 제품 의미를 바꾸지 않았다. Material14·Cupertino10개의 ready/basic 선언과 나머지 planned placeholder를 구분한다. 모두 semantics tree에서 관측됐으며 실제 wheel은 Material containment1/navigation2/selection2회, 나머지 category는0회였다.
+
+실제 canvas pointer로 Elevated·Favorite·Add message·Cupertino Favorite·목록 Notifications callback, named route 결과 반환과 디자인 교체 뒤 Material Favorite 선택을 확인했다. pageerror/console error0, 전체 실행10,984ms로 통과했다. 임시 Playwright 설치/profile·browser/context·HTTP server는 finally 정리했고 잔여 catalog 임시 디렉터리0을 확인했다. 기존 영문/한글 sample README에 실행법과 범위를 반영했다. 이는 모든 control 동작·native catalog·물리 IME/reader·픽셀 출력/표시 시간을 수락하는 검사가 아니다.
+
+### 8.34 IN_PROGRESS — W18-07/08 native endpoint retirement·action 요청 owner
+
+acquired lifetime을 가진 NativeInteraction의 observer가 dispose 중0을 던지면 영구 closed 상태로 전환하지 못하고 새 편집기 등록을 다시 허용하는 것을 재현했다. service lifetime의 실제 retirement와 publication을 분리했다. 영구 dispose는 먼저 입장을 닫고 편집기·port·semantics·focus 의존을 반환한 뒤 한 번 게시하며, 구독 오류 뒤에도 나머지 등록 observer를 통지하고 모든 구독을 비운다. acquired lifetime의 별도 빈 갱신과 영구 종료의 중복 publication을 없앴다. 일반 service lease 반환은 다음 lifetime과 새 editor generation을 계속 허용한다. ordinary state publication의 기존 오류/retry 의미를 바꾸지 않는다.
+
+동일 native action 요청의 deferred perform을2회 전달하면 실제 activate도2회 실행되던 경로를 재현했다. 첫 전달을 validation/사용자 callback보다 먼저 소비한다. 원래 node lifetime이 살아 있는 동안 지연 전달은 최신 callback을 찾으며, 중복·재진입·falsey callback 오류 뒤 재호출과 첫 disabled delivery 뒤 재활성화로 요청을 다시 실행하지 않는다. 교체·폐기된 node도 계속 거부한다. 일반 action의 지연 가능성을 text/range action의 동기 경계로 축소하지 않았다.
+
+새 lifetime/action5개는 옛 구현의 실패를 먼저 확인하고 통과했다. 영구 종료의 acquired/direct 경로·undefined/null/0·모든 observer의 오류 순서, lease 반환 뒤 재사용·generation·늦은 구독/편집기 거부를 포함한다. 기존 편집/native Engine/직접 interaction/semantics/Android lifetime45개와 Windows 입력 service/view·native semantics tree·editable semantics37개, SDK build/check도 통과했다. NativeInteraction source SHA-256 `a032c03fd76fd766112e3cf101fb57b1cb075c2d9a8c746655c38ac9abc4d3ad`; 기존 SDK 영문/한글 README와 test:native-editing에 계약·회귀를 연결했다. 이 SDK source/dist는 마지막 qualified 제품 §8.32와 구분하며 새 SDK만 세 target에 재공급하고 확인한다. 전체 geometry·SDK composition·R1/R5 최종 수락은 PARTIAL이다.
+
+### 8.35 PASS-scoped — native endpoint 수정의 현재 제품 공급
+
+SDK archive `fcea39b4eae484920b879a3fe9c3c3a6bbda9a9e8308bc23d835abac1c4117e3`를 Windows/Web/Android에 독립 설치했다. Core/Material/Cupertino/Skia-native/Web은 §8.32와 같다. 전체 src/dist·source-map input guard가 일치하며 SDK112modules의 src `8787d5d57f49de0cd978257913171409021ae9dc2eb85f7247dd2f6059839ad7` / dist `c3a7e64ae722d74c6e8cdf24e663e01f93e3ff9059992045ebca9a4041435a85`다.
+
+계측 진입점 없는 실제 bytecode build53,544ms/PID856/HBC `1ffe195093405e18b7e5e8f58a67f8cbc770449d7ee700566199528d24db337e`, Static build473,220ms/PID27704/DLL `d6b27e6a383889f214fe52c58f6d166fd1f21347c34074860e68c5a6db0528b7`를 확인했다. 두 모드 FIRST_FRAME·실제 HWND/title·Responding=true, 각각 surface6/5, exit0·forced=false·error=null·stderr 빈 값이다. 현재 source861modules/11owners/generated3excluded가 설치본과 일치하고 loaded79/80modules에 RN runtime/Node-API JSI가 없다. Static nativeFunctions37,185는 compile 분류이며 app.hbc는 없다. 공통 host EXE `6dee2263ecbf89737b3a5247c2dae69470af49bf9b6bd8e42addb34c3a43b810`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`, host source identity는 §8.32와 같다. qualification은 계속 experimental이다.
+
+Web runner check/build가 통과했고 JS/map/CanvasKit JS·wasm이 §8.32/8.33의 검증 바이트와 전부 같아 Chrome 입력3개·catalog 결과를 그 동일 산출물의 증거로 유지했다. Android check·Release/x86_64/emulator-vulkan build63,118ms, APK66,020,592bytes `4332c2d1b394372b440d7dc7906bbde0ef044a431e88708fb01325525aadfec6`도 통과했다. 기존 Gradle/SDK XML 경고와 device runtime·production signing notVerified를 유지한다. 정규 성능·전체 메모리·물리 입력/표시 수락을 새로 얻은 결과는 아니다.
+
+### 8.36 IN_PROGRESS — RNW 현재 시작 실패와 원본 위치 진단
+
+현재 RNW supplier `bd5059de779253ac69b61548d43ea3c07d94a987146536034287f944703380c8` 검증과 workspace/설치 Core 전체3,116files aggregate `fb8851aa7621dcd9d6d77728cd93015c0c3781e2b571f28d6e6be3603933ec99` 대조가 통과했다. Hermes optimized/Release의 단일 queued/bounded 진단은243,422ms 뒤 Core 첫 build의 `TypeError: undefined is not a function`으로 실패했다. HBC `9e2b0090a2c571eaffb7fc392b9944d0314c9d2915a07302a282ba89506c7679`, host `09aea376f603ef6f00764ac9caa9a318eefe8343ae47a85cf26185cc4503bc22`, RNW VM `c4a1d80bcecacde0fd64b2c0927138095ed0e98e37334a53f42949b050186d68`다. surface/phase0·profile exit8이며 native fault PC는 없었다. 과거 AV를 해결했다고 처리하지 않는다.
+
+기존 실행 소유 임시 출력의 diagnostic Metro map으로 Core failure stack을 원본 위치에 연결하고 종료 전에만 출력하도록 진단을 보강했다. 정규 timing에는 map 생성을 추가하지 않는다. source-mapped 단일 진단190,796ms에서도 같은 오류가 나왔고 fixture `windows-animation.tsx:155`의 layout 계측 wrapper→126행의 누락 callback 호출로 정확히 연결됐다. Core의 선택적인 perform 인자를 진단이 필수라고 가정한 baseline 관측 코드 결함이다.
+
+기본 body가 생략되면 같은 render owner의 performLayoutInScope를 실행하고 명시적인 callback은 그대로 호출하도록 fixture를 이전했다. 실제 fixture hook을 Core RenderBox에 연결한 검사는 옛 코드에서 실패한 뒤 debug/Release×undefined/null/0 오류, clean fast return·명시적 body·실패 후 retry를 통과했다. 실제 map/one-based stack column·잘못된/다른 bundle frame 배제·실패 보존을 포함한 PC/scroll/diagnostic12개가 통과했다.
+
+수정 fixture의 단일 진단211,695ms는 초기 build를 지나 ListView/Material/Cupertino의 bounded10phases를 실행했으나 `Observed VM PCs have no resolved symbols`로 profiler exit8이었다. source `2275bf08169f3b30e5877c0ca0a7880ad94807b280cdfc53dd2b9d09dbf2d107`, HBC `c332fd88aa8002b52573ade8191841cf08b9d1353f0c580049bd3a47aa9b302c`, host `5e57e8862802f4d97bd511611814682db87a78468dcde5b8bdfea2e668cd37ee`, VM은 위 stock 공급과 같다. native fatal/JS 오류는 없었지만 전체 진단 PASS는 아니다. stock NuGet에 해당 PDB가 없어 PC attribution을 수락하지 못했으며 symbol 기준은 유지한다. 별도 진단에서만 `NELYX_SCROLL_NATIVE_PC=0`으로 외부 PC 수집을 명시적으로 끌 수 있게 하고 출력의 nativePc/완료·정상 close marker를 분리했다. 두 언어 sample README에 계약을 반영했으며 현재 이 별도 범위를 실행 중이다. 제품 Core/SDK 공급을 바꾸거나 OS 입력·정규 성능·과거 AV 해결로 계산하지 않는다.
+
+**별도 no-PC 진단 PASS-scoped:** 205,077ms, 위와 같은 source와 현재 Core/SDK 설치본으로 RNW optimized/Release queued/bounded10phases를 완료했다. HBC `9774f021f95c67f1e6ee2fb1f11c94f97f5c5a09a8878f690fc894e70ae9a068`, host `9c22d41c6174518064cbd0d9463cddc9022a553ee04a19af01bfe52fd159977a`, 같은 stock VM, viewport487×464.5/scale2다. nativePc=false, scrollCompleted=true, normalClose=true, exit0·fault/JS 오류 없음·입력48+9×240개 전달 보존을 확인했다. 실제 views0/consumers0/GPU drain/input retirement marker가 일치했다. 정상 종료 시 private96,518,144bytes는 한 번의 관측이며 전체 메모리 수락이 아니다. 과거 RNW AV·모든 catalog/OS 입력/성능과 VM PC attribution은 미해결/미수락으로 유지한다. 실행 소유 임시 host/entry/config·runner 설정은 finally에서 정리·복원했다. §8.37의 후속 Core source/dist와 구분한다.
+
+### 8.37 IN_PROGRESS — tree widget의 선언 owner·실제 State 경계
+
+TreeSliver의 value/type capture·animation map·행 identity·ParentData·extent helper를 실제 클래스 선언 owner로 합쳤다. 옛 tree-widget-source-types 한 파일을 제거하고 treeNodeType/treeWidgetType의 내부 소비자2곳을 선언 owner로 이전했다. tree-generic-witnesses는 독립 abstract-interface token과 공통 framework witness만 보유한다. 기존 helper body·등록 정책·class/row identity·원본 provenance/numeric annotation을 유지하며 새 node field·owner registry·호환 wrapper를 추가하지 않았다. 공개 TreeSliver/TreeView import는 유지하고 저수준 내부 import 변경은 Core 두 언어 README에 반영했다.
+
+Core build와5개 module의 fresh ESM 양방향 초기화·Dart witness/type 거부·동일 content의 독립 node identity·source value 정책, 실제 TreeView의 확장/접기·형제 reorder·사용자 State와 RTL dependency 유지·stale row toggle·reveal·최종 retirement가 통과했다. 첫 primitive fixture의 누락 platform 설정은 테스트에서 수정했으며 제품 소스 의미를 바꾸지 않았다. 전체 scroll216개·10 workspace 타입 검사와 graph944files/7,717edges·위반0·디자인 SCC0이 통과했다. runtime SCC10→9이며 tree owner/abstract witness가 cycle로 재진입하지 않도록 경계 회귀를 확장했다. 현재 Core622modules를 새로 공급 중이며 마지막 qualified 제품은 §8.35/8.36 cohort다. 전체 W18-03/09·R0/R1 최종 수락으로 승격하지 않는다.
+
+### 8.38 PASS-scoped — tree owner 변경의 공급·실제 제품
+
+Core archive `3a60d16f9d98a2c6925068c2ef359aef11b236ceb97538f6e36f3c0efac83af2`를 세 target에 공급했다. Core622modules src `4e5626ad2389ac96999e40d6046803e92e124ed63a11f6cd1979a6926bc8bbee` / dist2,488files `4fc6fcbde4489ff780013414f10e769287e9f8206ba8044dbb3ad94696124aec`가 모든 독립 설치본·source-map input guard와 일치한다. SDK/Material/Cupertino/Skia-native/Web/RN은 §8.35 archive와 같다. 이 tree 확장 경로는 현재 Testbed native의502개 Core runtime module에는 포함되지 않는다. 전체 Core의 공급·source 회귀와 실제 앱이 실행하는 closure의 증거를 구분한다.
+
+bytecode build40,411ms/PID16860, HBC/host/VM은 §8.35와 같은 바이트다. Static build66,527ms/PID3068, DLL `a93855d795b077f08465b5ee76ec0a98ecb0d434d172df9f97f868d2a9e1a3e7`, nativeFunctions37,185·app.hbc 없음이다. 둘 다 실제 HWND/title·Responding=true·FIRST_FRAME·surface5·exit0·forced=false·error=null·stderr 빈 값, 현재 source861modules/11owners/generated3excluded와 loaded79/80modules/noRN/noNodeAPIJSI를 확인했다. Web check/build의 JS/map/CanvasKit와 Android check·Release/x86_64 build61,808ms의 APK66,020,592bytes는 §8.35와 동일해 같은 산출물의 기존 Web 입력/catalog 증거를 유지한다. Android device runtime/signing·정규 CPU/전체 메모리·물리 표시 수락은 별도다.
+
+### 8.39 PASS-scoped — 현재 두 Hermes 제품의 외부 native UIA
+
+사용자가 즉시 입력 독점 가능하다고 응답한 뒤 2026-10-26 12:25~12:27 KST에 현재 실제 제품으로 bytecode/Static의 focus와 range를 각각 한 번 실행했다. 테스트 도구는 현재 소스로 별도 build한 EXE `ae37a954d2e2410ef71afb9518d8bb5080f72a75e39209c7b8ee60eb5e6d18a2`다. UIA 편집기 focus PID9732/14792에서 같은 owner·같은 control ID·hasKeyboardFocus·실제 category navigation이 모두 true였다. 이전 foreground 실패를 새 결과로 덮지 않으며 현재 공급에서 성공한 범위로 구분한다.
+
+Range PID7280/11684는 실제 selection category에서 Material absolute/discrete·양 thumb ordering·invalid value 거부·disabled/read-only와 Cupertino slider를 각각6 requests로 통과했다. 현재 commit을 지정한 native semantics action이 수락됐으며, bytecode 입력12/12/12·wheel Y720/720, Static14/14/14·wheel Y864/864로 수신/전달/수락과 이동량이 보존됐다. 네 실행의 actual source/loaded identity는 §8.38과 일치하고 각각 surface16/15/53/59·exit0·forced=false·error=null·clientError=null이었다. 자동 생성한 모든 창은 닫혔고 사용자에게 입력 재개 가능함을 알렸다. 이 결과는 자동 UIA 기능·정상 종료의 증거이며 물리 한글 IME·실제 reader·precision trackpad·content-to-display 성능 수락은 계속 notVerified/unobserved다.
+
+### 8.40 PASS-scoped — RichText·inline WidgetSpan의 단일 선언 owner·현재 공급
+
+RichText와 WidgetSpan/ParentData/배율 renderer의4개 클래스를 같은 선언 owner로 묶었다. public widget-span은 같은 WidgetSpan을 named reexport하며 RichText는 더 이상 이 public facade를 역으로 import하지 않는다. WidgetSpan 단독 import에서도 실제 RichText ancestor 클래스를 즉시 반환한다. 추가 constructor registry·미초기화 witness·per-node field·호환 class wrapper를 만들지 않았으며 원본 클래스/method body는 정규화한 HEAD 본문과 정확히 일치한다. public import/생성자·State·진단·배율·자원 계약을 Core 두 언어 README에 반영했다.
+
+독립 두 import 순서의 실제 class identity/ancestor·미마운트 child 추출과 실제 CanvasKit RichText의 inline child State 유지·RTL·비선형 scaler의2→1.5 geometry·문단/child retirement가 통과했다. source graph944files/7,714edges·위반0·디자인 SCC0이며 runtime SCC9→8이다. 두 파일의 cycle 재발도 경계 회귀가 거부한다. 전체 scroll218개, 실제 icon/RichText consumer7개와10 workspace 타입 검사도 통과했다. RichText source `a8b7c7587e08dce3d658cf33a17c42f0e700fbc115608b371ba7146c23cfa770`; 이동한 class body는 기존 HEAD와 정확히 일치한다.
+
+현재 Core archive `cadc9adeefa865caab052b541c87ed8ecee4b2f5100c02b2da33190de795be24`,622modules src `cc0bc65aec252432c32af4b51847defaa7f83412171c7ce6dd50da75953d649c` / dist2,488files `b8fdc03f1998af7d546c70610df0b772cb2078c7493d02576c61998f054a8ac6`다. Windows/Web/Android의 독립 설치본 전체 src/dist·source-map input guard가 일치하며 다른 package archive는 §8.38과 같다. bytecode build276,607ms/PID26044/HBC `4dee03abeff3e2c884a7bc5edb4a152f13b4915aa225da3f639f1b572bb25fb2`, Static build441,138ms/PID12064/DLL `4b8934e0e1d1fdc4a7ca025d0c0657132b63c16181f5d016d6e3f92a2b2e8478`을 확인했다. 두 실제 제품의 FIRST_FRAME·HWND/title·Responding=true·surface5·exit0/forced=false/error=null/stderr 없음, source860modules/11owners/generated3excluded·loaded79/80modules/noRN/noNodeAPIJSI가 일치한다. host/VM은 §8.38과 같고 Static은 nativeFunctions37,181·app.hbc 없음이다. bytecode의 긴 build도 정상 종료까지 기다렸으며 CLI 성공을 강제 종료로 만들지 않았다.
+
+바뀐 Web JS `a1cfe4665cf07fcfd28f5da026b4344d5b50177db103df458850db74a159aa1a` / map `f3a33d5fc136fb061163fcb2ab540b959647566ae59d9b65a2921d205c6f3b4e`로 check/build와 Chrome 입력3개81,549ms·실제 catalog1개11,191ms를 다시 통과했다. CanvasKit은 §8.38과 같다. Android check·Release/x86_64 build106,547ms, APK66,019,548bytes `9db5b1e4243c5c40cd448a878d7121a37d222a392f1f1440f7987863493938e0`도 통과했다. Java21 child 환경·기존 경고·device runtime/production signing notVerified를 유지한다.
+
+현재 SDK/VM·준비한 native test binary·제품 ICU hash를 대조한 뒤 실제 native 계약10groups도2,855ms/exit0/stderr 없음으로 통과했다. 실제 Hermes의 installed VM environment·microtask/late callback/rejection/drain, VM thread/cancel/reentry,64개 초과 pointer와 key/frame/close 순서, native 입력/trace 한계,23opcode의 raster 픽셀·잘못된 packet의 atomic rejection·save balance, 실제 Vulkan recording의 forced GC/snap/drain과 UIA snapshot/revision/retirement를 포함한다. OS 입력을 주입하지 않은 C++ 계약 검증이며 앱 전체 표시·GPU/process/driver 메모리·성능 수락이 아니다.
+
+현재 소스/공급은 이 절이며 이 공급의 외부 UIA 검증은 §8.41이다. 다음은 남은8개 runtime SCC와 stage별 scene/text/geometry·SDK composition의 실제 owner/소비자 이전을 대조하고 R0~R7을 닫는 작업이다. 새 출력/회귀를 이전 성능·물리 수락으로 승격하지 않으며 기본 RNW/Hermes optimized를 유지한다.
+
+### 8.41 PASS-scoped — 최신 RichText 공급의 외부 native UIA
+
+사용자의 새 즉시 입력 독점 가능 응답을 받은 뒤 2026-10-26 13:03~13:05 KST에 §8.40의 실제 bytecode/Static 제품으로 focus·range를 각각 한 번, 총4회/72,174ms 실행했다. 현재 source860modules/11owners와 실제 loaded79/80modules/noRN/noNodeAPIJSI가 일치했다. host/VM·bytecode HBC·Static DLL은 §8.40과 같은 바이트다. 두 focus 실행은 sameOwner/sameId/hasKeyboardFocus/productNavigation=true였다. 두 range 실행은 Material absolute/discrete·thumb ordering·invalid value 거부·disabled/read-only와 Cupertino slider의6 requests를 통과했다. bytecode 입력12/12/12·wheelY720/720, Static14/14/14·wheelY864/864로 보존됐고, 네 실행 모두 exit0/forced=false/error=null/clientError=null이었다. surface는 focus14/15·range51/66이다. 모든 창은 정상 종료했고 사용자에게 입력 재개 가능함을 알렸다. 물리 한글 IME·실제 reader·precision trackpad·표시 성능은 계속 notVerified/unobserved이며 추가 OS 입력은 실행하지 않는다.
+
+### 8.42 IN_PROGRESS — native Picture·raster recording의 단일 packet 경계
+
+frame은 직접 packet을 사용하지만 retained Picture compile/context restoration과 Picture.toImage는 다시 명령별 Canvas replay로 들어가는 실제 경로를 확인했다. 두 compile 경계를 기존 scene encoder/display-list1로 통합하고 공통 NativeEngine이 같은 nativeDisplayLists capability와 resource lookup을 세 소비자에 공급하도록 바꿨다. canonical JsiSkPictureRecorder에 open-recording packet binding을 추가했다. 기존23opcode·wire11·GPU admission/lease/cache budget은 바꾸지 않는다. CanvasKit recorder는 이 native capability를 제공하지 않으며, native Engine은 오래된 supplier를 조용히 fallback하지 않고 거부한다. 해당 계약은 native package README에 반영했다.
+
+기존 구현에서 새3개 회귀가 Canvas replay/잘못된 fallback으로 실패하는 것을 먼저 확인했다. 변경 후 picture compile·generation restoration·toImage 출력/별도 cache owner, 실제 Engine의 producer 재사용/마지막 admitted lease retirement를 통과했다. native replay36·Engine6·runner supply6 및10 workspace 타입 검사도 통과했다. 공급 전에 TS뿐 아니라 canonical C++/recipe/공급 script의 파생본을 검사하도록 prepare-sample과 RNW native builder를 보완했다. native/RN의 실제 파생본과 Windows/Android 설치본 각각161files 대조, 오래된 binding·제거/누락된 compiled input 거부2개를 통과했다. Core capture/전체 retained scene·text ABI·최종 성능/물리 수락은 계속 PARTIAL이다.
+
+C++ 검증 바이너리 `beb011d281756317f9ff1f3c8f074e2b23e2fc5149503051592ed6afa4ad43a8`로 실제 native 계약10groups/2,786ms/exit0/stderr 없음을 확인했다.23opcode를 기존 명령별 PictureRecorder와 새 packet PictureRecorder에 같은 입력으로 넣어 픽셀이 전부 일치했고, malformed packet의 부분 mutation·기록 전/finish/dispose 후 입장을 거부했다. 첫 직접 raster 대 Picture 비교의 saveLayer/중첩 Picture 가장자리 차이는 기존 PictureRecorder에서도 나타났으며, 기존 기록 방식과의 비교를 유지해 구분했다. 기존 직접 raster packet 픽셀 비교·Hermes VM/입력·Vulkan forced-GC recording/drain·UIA 계약도 그대로 통과했다.
+
+새 RNW supplier build56,725ms와 설치 CLI prepare16,260ms가 통과했다. input SHA-256 `1d0dcbc1ba296e975c885bdc697b6e6c8580be3ba81e67d37a54e379af98e40f`,1,795files/226,067,991bytes다. 자동 승인 검토가 교체 전 `sample/nelyx-testbed-app-2/.nelyx/windows-native/bd5059de779253ac69b61548d43ea3c07d94a987146536034287f944703380c8` 삭제를 **blocked by policy**로 거부해 해당 폴더는 유지한다. §8.6의 두 cleanup 거부 경로도 재시도하지 않는다. 현재 제품 실행/Static 빌드·RNW 진단은 진행 중이다.
+
+### 8.43 PASS-scoped — 단일 native recording 경계의 현재 제품 공급
+
+현재 archive는 Core §8.40 그대로, SDK `d4b2b859fbc06208071f59b27565c6caeabe9554019c7a2671bbf28e87d060d8`, Skia-native `be110344001c0ccdc021d407bf4f1111b2d52eee5b8ec030ebb746a8c1e396d3`, RN `78570d05d9638934f89c1688500640746dee27638a4a917361a5fe84cde892bc`다. Windows/Web/Android의 전체 독립 src/dist·source-map input guard가 일치한다. SDK112src `39c13973058257ec6ab082c8f8ea6bca0b5eb6f24342f1b4d58749438de0c8e8` /448dist `3e6124578d9fbeb26c5042cb7fc4457b629ee4ebbcacf889a747af11069eef0b`, native59src `ee79fb2f8d4bb67fe34eeda24e9d7b1cae9781994e5bf05b7fd7d49f1305bfc3` /236dist `d4f0668b8d380ec8db271957a8582b486a548fc84b633b293ffe8c61123f3caa`다. 그 외 owner는 §8.40과 같다. canonical/파생/설치 PictureRecorder header SHA-256 `1285a6e005c3df50fb0bd5a8e6d7c9ea9c50fa8a2ea31fdc1493b6e99d5c9c7e`가 일치한다.
+
+bytecode build53,374ms/PID22364/HBC `638c51c41f3a6700e338124c02eb00733a5296f5ab45acb90969b49827bc0c25`, Static build494,801ms/PID9968/DLL `c7b3058ddfdb2a5060661e9c43d2bcfb38bba84ca990295c37cbc2aa166ad90e`를 확인했다. 두 실제 제품의 FIRST_FRAME·HWND/title·Responding=true·surface6·exit0/forced=false/error=null/stderr 없음, source860modules/11owners/generated3excluded·loaded79/80modules/noRN/noNodeAPIJSI가 일치한다. 공통 host EXE `179275b234c34be47380ac320d2c72f4510d261f16beb7128d6cefbad6524ef4`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`, host source `2af214c55d3e4483a153a5819cac45ed77f71ddbb3f734b44e24f293bd97ee09`다. Static nativeFunctions37,180은 compile 분류이며 app.hbc는 없다. 설치 CLI doctor와 두 모드 pack/ZIP의 전체 file·size·hash·manifest 대조가 통과했다. 임시 ZIP 두 개는 finally 정리했다. template/asset/package·boundary·native source guard11개도 통과했고 runtime graph는944files/7,714edges/8SCC/design0/errors0이다.
+
+Web check/build의 JS/map/CanvasKit은 §8.40과 같은 바이트로 그 산출물의 Chrome 입력3개·catalog 증거를 유지한다. Android check·Release/x86_64/emulator-vulkan native 재컴파일218,841ms, APK66,036,280bytes `8800eedc700950e6ece592f0fc86f718e0e68f24e1f9ab10f9e47f0ed4e9d7cf`가 통과했다. Java21 child 환경·기존 Gradle/SDK XML 경고·기기 runtime/production signing notVerified는 유지한다.
+
+§8.42의 새 RNW supplier에서 Hermes optimized/Release queued/bounded/no-PC 단일 진단233,205ms도 통과했다. source `c73e82dc48fac32fb881fd2c7398b41447e2be2d99f1e8f47defceca83d904fa`, HBC `1a2cd645ecd4eb992d6142a496a7de0cc198889b6d951910420a43a4cd56644d`, host `af0779403713cb31e3134de095af0225c3f0c06405a5f34a7fd3ccbd147edc8b`, stock VM은 §8.36과 같다.10phases/입력48+9×240개 전달·처리·이동량과 scrollCompleted/normalClose/exit0, JS/native 오류 없음을 확인했다. Static 빌드와 겹쳐 실행한 기능/종료 진단이며 정규 timing·VM PC symbol·과거 AV 해결의 증거가 아니다. 실행 소유 fixture/host/config는 finally 정리됐다. 마지막 외부 UIA는 §8.41 공급이며, 새 제품 전체 성능·메모리·물리 표시 수락으로 승격하지 않는다. 다음은 Core recording에서 frame으로 이미 보유한 command/resource lease를 다시 capture하는 경계다.
+
+### 8.44 PASS-scoped — Core recording buffer·resource binding의 단일 소유 경계
+
+FrameworkRoot는 완성된 buffer·기존 command/resource hold를 가진 FrameRecording을 반환하고 View는 같은 build token으로 한 번 소비한다. 최종 frame에서 resource 명령/ID/hold를 다시 capture하지 않는다. 내부 borrowed Picture는 sealed ID/style 값을 공유하며 별도 command hold를 가진다. public createScene/controller 배열과 public Canvas/명령 복사는 기존 capture/독립 ID·hold 경계를 유지한다. Root 직접 소비 API는 captureSceneFrame/releaseSceneFrameSource로 이전했으며 Core 영문/한글 README와 실제 CPU 소비자2곳을 갱신했다. 단일 image의 기존 Canvas→frame은 retainer2회, 소유 recording 전달은1회라는 bounded 관측을 확인했다. 이는 CPU/전체 할당량·메모리 수락이 아니다.
+
+캡처한 ResourceId는 binding도 immutable로 고정한다. Image는 rebind 대신 처음부터 검증된 registry owner로 한 번 capture하고, registry의 retainer도 원래 mutable 입력 대신 캡처한 identity를 사용한다. 원래 입력의 후속 변경으로 과거 recording이 다른 ID를 붙잡는 경로와 Image indexing 오류 뒤 hold 미반환을 검증했다. 새 sealing 때문에 처음 디자인 회귀에서 Image 생성이 실패한 경로는 Image owner를 같은 단계에서 이전해 해결했다. 마지막 부분 변경 전 scroll230·paint113·디자인266·native replay36이 통과했다. 그 뒤 post-frame close에서 getter를 읽고 geometry를 commit하던 경계와 sparse command list의 frame 유출을 실패하는 회귀로 재현했다. 종료 후에는 소스만 반환하고 geometry를 discard하며, sparse/잘못된 command count는 frame 생성 전에 거부한다. 최종 Root·recording26개와10 workspace 타입·diff/graph 검사가 통과했고 graph는944files/7,715edges/8SCC/design0/errors0이다. 정상 post-frame 변경·취소/stale/제출 억제/close·중복 소비·별도 image/shader lease·원래 입력 getter1회·foreign owner·0/undefined retirement·borrow rollback을 포함한다.
+
+마지막 guard 변경 뒤 전체 scroll231개도 통과했다. 첫 새 Core 공급의 bytecode/Android build는 통과했지만 실제 Chrome3개가 공통 bootstrap의 copy-then-bind asset 경로에서 실패했다. 이 경로를 registry.captureResource의 identity·binding 단일 캡처로 옮기고 Image도 같은 owner를 사용한다. 실제 bootstrap의 원본 descriptor 변경·sealed owner·마지막 frame lease retirement 회귀를 실패→수정 통과로 확인했다. 관련 paint/recording/runtime/Engine39개와10 workspace 타입 검사가 통과했다. Core/SDK를 세 target에 다시 공급 중이며 §8.43은 직전 qualified 제품이다. 새 실제 두 Hermes·Web/Android 검증과 이후 RNW 기능/입력 확인은 구분한다. 전체 retained scene/text/geometry·성능/메모리/물리 수락은 계속 PARTIAL이다.
+
+### 8.45 PASS-scoped — 소유 recording·asset capture의 제품 공급·외부 UIA
+
+현재 Core archive `38a5f01c2cbeb48f39d0f9594eeb23b7d522d8cf02b51d2cbacfac052e39450b`, SDK `e1ee9ce414feccc4190977135dbd63d1edf538b3683278a2d890aa86dc52fa28`다. Core622src `f642edadf559190348d83e67ec1fec885a7f9208ff3473df6147a4c5983afd6a` /2,488dist `eb9b6ac33e4d67d488033d90c54840c6d1ea2e5850597fd178578f49527eda5a`, SDK112src `42caa0c9c5a919cbbf188d972ff8f881a732e129962c558e9e07aab2c09474fb` /448dist `b243497508c5f4ab03d32c37fa4bdb6d7801a28eb1ae49215901112a5f6b2e8e`다. Windows/Web/Android의 전체 독립 src/dist·source-map input guard가 일치하며 다른 archive/native source는 §8.43과 같다. HEAD는 `f59c049a28862d35348ddff417d7405894aa1f66`를 유지한다.
+
+bytecode build58,120ms/PID10776/HBC `62bfd58cd7aa5bb8530f8dd4949b9ec932246072a1aa97dc936d97c2bf7713ad`, Static build470,764ms/PID20692/DLL `31d3e960d1bd00e9aefcdf91eeba5f647289d05e418d9458c20fba444cc94e87`를 확인했다. 두 실제 제품의 FIRST_FRAME·HWND/title·Responding=true·surface6/5·exit0/forced=false/error=null/stderr 없음, source860modules/11owners/generated3excluded·loaded79/80modules/noRN/noNodeAPIJSI가 일치한다. host EXE `4ec146cce1a107e9a41ae773e277110c10f9bb7de2952ae249969e8417e77870`, VM/native source는 §8.43과 같다. Static은 nativeFunctions37,192·app.hbc 없음이다. 설치 CLI native/RNW doctor와 두 모드 pack의 전체153/156files+manifest ZIP 크기/해시 대조가 통과했고 임시 ZIP은 finally 정리했다. RNW Hermes optimized/Release build192,704ms·EXE `df2d9425cadcb844b3dc7f426d7c4a8dd747d9da31733123522af0c08f6ed8b5`도 통과했다. 현재 RNW native input은 §8.42의1d0d…40f이며 추가 runtime 진단은 준비 중이다.
+
+현재 SDK header로 native 검증 바이너리 `2bfd8413103b265e7036ecce38c87979d8bde4a54b76c60a86458677708a5d37`를 준비하고 native 계약10groups/2,908ms/exit0/stderr 없음을 확인했다. 실제 Hermes VM environment·callback·입력/trace,23opcode의 frame/PictureRecorder 픽셀과 atomic rejection, Vulkan forced-GC recording/drain·UIA snapshot/revision/retirement를 포함한다. OS 입력을 주입한 검사가 아니며 process/GPU driver·물리 표시·성능 수락은 별도다. graph944files/7,715edges/8SCC/design0/errors0·diff 검사도 통과했다.
+
+Web check/build의 새 JS `1ba1c130bf1be2821996f6c287f2ce16f27b25bd65429d6a4e4be0b078b4d24d` /map `13457fbe278629f8dcd7f40ecc7ce8e2731c1f91e5c3ffcaf46415a903d281e8`에서 실제 Chrome 편집3개81,240ms·catalog1개10,901ms가 통과했다. CanvasKit은 §8.40과 같다. Android check·Release/x86_64/emulator-vulkan build69,741ms, APK66,039,796bytes `3245c7c0c429b333b5a1782085eed0cd433fe7928bac5b8de6667ebfa9ddbb6d`도 통과했다. adb 연결 기기는 없으며 기기 runtime/production signing은 notVerified다. 기존 Gradle/SDK XML 경고를 유지한다.
+
+RNW queued/bounded/no-PC 진단은 빌드 뒤 WAIT_FOR_INPUT에서 대기했고 사용자의 새 3분 입력 독점 응답 후 실행했다. source `476ef174c1a12c19f0a3f01454d713008ccac967bc3984fa4230ec7b323a2e1d`, HBC `e5023938d5628d469e5b6eab620e70dbb1c4c2a9b21f83c1c0c0d0e6eee1247d`, 진단 host `7b24b9453585269fb6cb50ec65e0bf4c7f4f6a4b0d085602e623db18961a63e7`다. stock VM은 §8.43과 같다.10phases/입력48+9×240의 전달·처리·이동량, scrollCompleted/normalClose/exit0·JS/native 오류 없음을 확인했다. 전체821,198ms에는 빌드와 사용자 대기가 포함되며 정규 성능이나 과거 AV/VM PC symbol 해결의 증거가 아니다. queued 진단도 foreground하므로 두 README에 대기 gate를 반영했고 전체20분 안에서 cleanup 시간을 확보했다. 실행 소유 임시 폴더·fixture·config는 정상 finally 정리됐다.
+
+같은 입력 독점 시간인2026-10-26 14:32~14:35 KST에 위 두 실제 native 제품의 외부 UIA focus/range4회72,188ms도 통과했다. focus는 두 모드 모두 sameOwner/sameId/hasKeyboardFocus/productNavigation=true, range는6 requests의 Material 절대/이산 값·thumb 순서·잘못된 값 거부·disabled/read-only·Cupertino를 확인했다. bytecode12/12/12·wheelY720/720, Static14/14/14·864/864로 입력량을 보존했다. surface는 focus13/15·range55/60이며 네 실행 모두 exit0/forced=false/error=null/clientError=null이다. source860/11owners와 loaded79/80/noRN/noNodeAPIJSI도 일치한다. 모든 창이 닫힌 뒤 사용자에게 입력 재개를 알렸으며 추가 입력 독점은 종료했다. 전체 R0~R7·정규 성능/메모리·물리 IME/reader/precision/display 수락은 계속 PARTIAL이며 기본 RNW/Hermes optimized를 유지한다.
+
+### 8.46 PASS-scoped — 최종 recording 거부 앞뒤 geometry publication 경계
+
+post-frame의 unbalanced 명령이나0을 던지는 getter로 최종 recording이 거부돼도 geometry는 먼저 commit되는 경계를 실제 CPU Root에서 재현했다. Root는 post-frame callback을 마친 뒤 소유 recording을 먼저 sealing하고 성공했을 때 geometry를 commit하도록 바꿨다. 실패 시 pending geometry를 discard하며, geometry 알림의 실패/owner close·Canvas close 중 Root retirement에서는 이미 sealing한 frame의 hold도 반환한다. Canvas close를 두 번 호출하지 않으며 캡처 실패의 원래 falsey 오류와 추가 retirement 오류를 보존한다. 별도 frame wrapper/새 mutable owner를 추가하지 않았다. Core 두 README에 geometry 알림 시점의 Canvas close와 paint/markNeedsPaint 이전 방법을 명시했다.
+
+원래 구현에서 새2개 회귀가 먼저 실패했다. 실행 검사 대기 중에는 기본 transpile이 기존 dist와 정확히 일치함을 대조한 뒤 수정안만 메모리에서 검증했고, 입력 검사 종료 후 실제 소스에 적용했다. 실제 Core build·Root16개·scroll231·paint113·디자인266·native replay36·편집98·semantics12·10 workspace 타입·diff/graph 검사가 통과했다. notify 중 throw0/Root close·원본 getter·captured image hold·Canvas close 중 Root retirement/close1회·stale/suppressed/취소 계약을 포함한다. graph는944files/7,715edges/8SCC/design0/errors0이다. 새 Core의 세 target 공급과 아래 제품 검증을 확인했으며 마지막 외부 UIA/RNW 실행 진단은 §8.45 cohort다. 이 변경은 CPU capture 거부와 geometry notification 경계를 닫았으며 View admission/surface 연계·semantics 전체 publish transaction·text/retained scene·SDK composition은 계속 미완료다.
+
+새 Core archive `8f68a0d22e395be023d8f982593d227a2ce731bd61ea06ca513a59c2a2fe50b3`,622src `d11fb15e1725e60fe4db17cffc6cd0fdb8e903240a4ddee292d6197b4dd461e5` /2,488dist `ddb2c1789fbca10d3b86683b69e368baba27ff8e8ab3331fa501deb359421426`를 세 target의 독립 전체 source/dist·source-map input guard와 대조했다. 다른 archive는 §8.45와 같다. bytecode build48,467ms/PID19392/HBC `7ece95f1e8f60b2ed87b89b8ab219ea35e9168a580c33255391f8b8c1bb7375d`, 실제 FIRST_FRAME·HWND/title·Responding=true·surface5·exit0/forced=false/error=null/stderr 없음·source860/11owners·loaded79/noRN/noNodeAPIJSI를 확인했다. host/VM/native source는 §8.45와 같다. 설치 CLI bytecode pack의153files+manifest ZIP 크기/해시와 finally 정리가 통과했다. Static의 현재 제품 검증은 아래와 같다.
+
+새 Web JS `619b992c07ad9868323a92f2776f568806c422b01bc318881b7f7bb101084292` /map `d12a4e307599570a9a6e18fd46e8c48c13345fd20a2382c857c4e12d0a42658a`에서 check/build와 실제 Chrome 편집3개85,740ms·catalog1개11,493ms를 통과했다. CanvasKit은 §8.40과 같다. Android check·Release/x86_64/emulator-vulkan build77,067ms, APK66,041,112bytes `a584cf03d8ae90f583b37471e26ac0e1ee3bf5562678588796a2af14bcc57ece`도 통과했다. Android 기기 실행/production signing은 계속 notVerified다. RNW 현재 제품 build117,865ms와 §8.45와 같은 host EXE/native input을 확인했으며 새 Core의 RNW 실행/외부 UIA는 아직 수행하지 않았다.
+
+Static build456,663ms/PID23632/DLL `4baa9fb5ee779718dfa66f9a28562c834b569f1cd50f559991b199d37426778b`도 통과했다. 실제 FIRST_FRAME·HWND/title·Responding=true·surface5·exit0/forced=false/error=null/stderr 없음, source860/11owners/generated3excluded·loaded80/noRN/noNodeAPIJSI를 확인했다. host/VM/native source는 bytecode와 같다. nativeFunctions37,191은 compile 분류이며 app.hbc는 없다. 설치 CLI Static pack의156files+manifest ZIP 전체 크기/해시 대조와 finally 정리도 통과했다. 두 새 제품의 추가 OS 입력/UIA 검사는 수행하지 않았으며 마지막 외부 UIA/RNW 실행 진단은 §8.45 공급이다.
+
+다음 geometry 통합은 ViewRuntime.buildPending/pump/clearPending의 lease·교체 경계와 기존 controller.frameSubmitted를 대조한다. **forced frame은 GPU busy/zero-size에서도 동기 입력 질의에 최신 geometry를 제공하는 기존 계약**이므로 전체 geometry를 무조건 GPU 제출 뒤로 미루지 않는다. 논리 layout/query revision과 실제 frame/surface 연계를 구분하면서 RenderObject owner를 공유해야 한다. SemanticsTransportSnapshot·NativeInteraction의 snapshot/query lease·취소/교체 수명과 retained scene/text·SDK composition을 함께 이어간다. 이전 공급의 UIA·진단·시제품 성능은 새 공급으로 승격하지 않으며 전체 수락·기본 전환은 진행하지 않는다.
+
+디자인 검사 명령을 한 번 잘못 지정한 뒤 실제 test:design-structure로 수정해 통과했다. 자동 승인 검토가 그때 생성한 `C:\Users\parti\AppData\Local\npm-cache\_logs\2026-10-26T05_41_03_082Z-debug-0.log` 삭제를 **blocked by policy**로 거부했다. 해당 삭제는 재시도하지 않았다. 최종 읽기 전용 존재 확인에서는 이 npm 로그는 없었고 §8.6/8.42의 기존 세 cleanup 거부 경로는 남아 있었다. 기존 세 경로의 삭제도 재시도하지 않는다.
+
+### 8.47 PAUSED — 중간 마무리·일회성 검증 산출물 정리
+
+2026-10-26 사용자의 중간 마무리 요청으로 전체 작업 목표를 **PAUSED**로 전환했다. 구현·추가 native/UI/성능 검증은 중지했으며 작업 소유 build/test/app process가 없음을 확인했다. HEAD `f59c049a28862d35348ddff417d7405894aa1f66`와 미커밋 구현을 보존했다. 현재 Core/SDK 공급·두 Hermes 시작/응답/정상 종료·pack·Web/Android/RNW build 결과는 §8.46, 마지막 외부 UIA/RNW 실행 진단은 §8.45다. 제품 PARTIAL·performanceAccepted=false·physicalInputAccepted=notVerified·displayed=unobserved와 RNW/Hermes optimized 기본값을 유지한다. 명시적 재개 요청 전에는 구현/native 검증을 재개하지 않는다.
+
+[cleanup-w18-verification-once.ps1](cleanup-w18-verification-once.ps1)을 만들었다. 기본 모드는 목록만 출력한다. 삭제 대상은 직접 조사한 미사용 nested toolchain·이전 RNW supplier cache·남은 startup fixture, native 검증 EXE/객체 파일, 빈 build/work12 폴더와 사용자가 추가로 승인한 기존 runner fixture2개다. 추적 파일 예외는 `nelyx-animation-32204.tsx`와 `nelyx-animation-main-32204.tsx`의 정확한 두 경로·현재 내용 hash로만 한정한다. 변경되거나 현재 코드에서 참조하면 거부하며 그 외 추적 소스는 보호한다. 현재 제품/설치본/source/dist·공급 archive·현재 locator가 참조하는 pinned 입력은 삭제하지 않는다. 외부 경로·junction/reparse point·실행 중인 build/app/test도 거부한다.
+
+저장소 루트 PowerShell에서 다음 순서로 실행한다.
+
+```powershell
+.\cleanup-w18-verification-once.ps1           # 목록 미리보기
+.\cleanup-w18-verification-once.ps1 -Execute  # 실제 삭제
+```
+
+`-Execute -WhatIf`도 지원한다. 재생성 가능한 native host build/AOT object cache까지 비우려면 `-IncludeBuildCaches`를 추가한다. 이 옵션도 current-bytecode/current-static-aot 제품과 실제 pinned compiler/native 입력은 보존하지만 다음 build/UIA/native 계약 검사에서 host/test/object cache를 재생성해야 한다. 삭제는 사용자가 실행하며 자동 삭제·자기 삭제·새 로그/receipt/archive 생성은 하지 않는다.
+
+PowerShell parser, Windows PowerShell5.1의 기본 대상+fixture2개와 PowerShell7의 추가 build cache `-Execute -WhatIf`가 통과했다. 실제 삭제는 실행하지 않았다. 읽기 전용 안전 검사6개(상위 경로 탈출·checkout root·미승인 추적 파일·현재 RNW supplier·수정된 승인 fixture·junction ancestor)도 통과했다. 이전 자동 승인 검토가 거부한 세 cache/fixture 경로는 이 수동 스크립트의 명시된 대상이며, 이번에는 실제 삭제를 재시도하지 않았다. npm 전역 cache/log는 대상에서 제외한다.
+
+**재개점**: HEAD/diff·현재 source/dist/설치/locator를 §8.46과 대조한다. 정리 스크립트를 실행했다면 삭제한 native 검증 바이너리/선택 build cache부터 필요한 범위에서 재생성하고 과거 바이너리 hash를 현재 파일로 가정하지 않는다. 다음 구현은 ViewRuntime.buildPending/pump/clearPending·controller.frameSubmitted, RenderObject geometry owner와 SemanticsTransportSnapshot/NativeInteraction snapshot/query lease의 논리 revision·frame/surface 연계를 대조하는 작업이다. GPU busy/zero-size의 forced input geometry 계약을 보존한다. retained scene/text·SDK composition·전체 catalog/확장점·RNW AV/VM PC·R0~R7 및 최종 성능/메모리/물리 검증은 계속 남아 있다. 새 Core의 UIA/RNW 기능 검증은 §8.45의 이전 공급 결과로 대신하지 않는다.
 
 ## 9. 공식 원본과 적용 범위
 

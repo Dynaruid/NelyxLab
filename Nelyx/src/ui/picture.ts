@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Adapted from dart:ui Picture at the pinned Flutter revision. CPU display-list ownership.
 import {invariant} from '../foundation/errors.ts';
-import {freezeFrame,disposeFrame} from './frame.ts';
+import {freezeFrame,captureBorrowedFrame,disposeFrame} from './frame.ts';
 import type {PaintCommand,PaintFrame,FrameBuildToken,ResourceId} from './types.ts';
 import type {Canvas} from './canvas.ts';
 import type {Image} from './image.ts';
@@ -21,6 +21,8 @@ export class Picture {
   private constructor(private readonly recording:PaintFrame){}
   /** Internal ownership transfer: validates the list and consumes its recording holds. */
   static _fromRecording(commands:readonly PaintCommand[]):Picture{return new Picture(freezeFrame(recordingToken,commands));}
+  /** @internal The batch owner remains live through assembly/rollback. */
+  static _fromBorrowedRecording(commands:readonly PaintCommand[]):Picture{return new Picture(captureBorrowedFrame(recordingToken,commands));}
   get debugDisposed():boolean{return this.dead;}
   get approximateBytesUsed():number{this.assertOpen();return this.recording.estimatedBytes;}
   private assertOpen():void{invariant(!this.dead,'disposed-picture','Picture has been disposed');}

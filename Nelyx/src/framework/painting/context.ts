@@ -5,7 +5,7 @@ import type {RenderObject} from '../rendering/object.ts';
 import type {Offset} from '../../ui/geometry.ts';
 import type {Rect,PaintCommand} from '../../ui/types.ts';
 import {PictureRecorder} from '../../ui/picture-recorder.ts';
-import type {Picture} from '../../ui/picture.ts';
+import {Picture} from '../../ui/picture.ts';
 import type {PictureResourceProvider} from '../../ui/picture.ts';
 import {SceneBuilder} from '../../ui/scene.ts';
 import type {Scene} from '../../ui/scene.ts';
@@ -13,7 +13,7 @@ import {Layer,LayerHandle,ContainerLayer,PictureLayer,OpacityLayer,TransformLaye
 import {Matrix4} from '../../math/matrix4.ts';
 import {Rect as SourceRect} from '../../ui/rect.ts';
 import {MatrixUtils} from './matrix-utils.ts';
-import {RecordedCanvasLayer} from './recorded-layer.ts';
+import {RecordedCompositionLayer} from './recorded-layer.ts';
 import {invariant} from '../../foundation/errors.ts';
 import {paintCommandRecordCount,paintFrameLimits,isCapturedPaintCommand} from '../../ui/frame.ts';
 import {resourceOwner} from '../../ui/resource-retention.ts';
@@ -103,10 +103,16 @@ export class PaintingContext extends Canvas {
   }
   override dispose():void{const errors:unknown[]=[];try{super.dispose();}catch(error){errors.push(error);}const entries=this.entries.splice(0);for(const entry of entries)try{entry.handle.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'PaintingContext retirement failed');}
   /** Assemble state scopes and interleaved retained children without flattening those children. */
-  private finishLayer(bounds:Rect,reusablePictures?:readonly CompositionPicture[]):ContainerLayer{
+  private finishLayer(bounds:Rect,reusablePictures?:readonly CompositionPicture[],previousDepth=0):ContainerLayer{
     if(!(this.recordsLayers&&!this.assembled&&!this.debugDisposed))invariant(false,'closed-layer-recording','Layer recording has ended');this.assembled=true;
     if(!(this.commands.length<=paintFrameLimits.commands&&this.entries.length<=paintFrameLimits.commands))invariant(false,'oversize','Layer recording budget exceeded');
-    const root=new ContainerLayer(),stack:ContainerLayer[]=[];let current=root,pending:PaintCommand[]=[];const at=new Map<number,Layer[]>();
+    const root=new RecordedCompositionLayer();
+    // A replacement is assembled for the previous body's destination. Starting
+    // at zero would lower every retained subtree, then raise it again when the
+    // body is appended. Keep the previous internal depth; ordinary append still
+    // corrects it if the destination changed, including custom parent depths.
+    root._depth=previousDepth;
+    let pending:PaintCommand[]=[];const at=new Map<number,Layer[]>();
     for(const entry of this.entries){const values=at.get(entry.mark)??[];values.push(entry.handle.layer!);at.set(entry.mark,values);}
     let pendingRecords=0,pictureIndex=0;
     const flush=()=>{
@@ -116,11 +122,11 @@ export class PaintingContext extends Canvas {
       // between two layers; earlier Scene/GPU captures keep independent holds.
       if(previous?.commands&&!previous.layer.debugDisposed&&previous.layer.parent===previous.parent&&previous.layer.picture===previous.picture&&!previous.picture.debugDisposed&&!previous.layer.isComplexHint&&!previous.layer.willChangeHint&&sameBounds(previous.layer.canvasBounds,bounds)&&previous.commands.length===commands.length&&previous.commands.every((command,index)=>sameCompositionCommand(command,commands[index]!))){
         const handle=new LayerHandle(previous.layer),errors:unknown[]=[];
-        try{previous.layer.remove();current.append(previous.layer);this.pictureBatches.push({...previous,parent:current});}catch(error){errors.push(error);}
+        try{previous.layer.remove();root.appendRecordedChild(previous.layer);this.pictureBatches.push({...previous,parent:root});}catch(error){errors.push(error);}
         try{handle.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Retained picture transfer failed');return;
       }
-      const snapshots=reusablePictures?captureCompositionCommands(commands):null,picture=PaintingContext._recordPicture(context=>context.addCommands(commands),bounds),child=new PictureLayer(bounds);child.picture=picture;
-      try{current.append(child);}catch(error){child.dispose();throw error;}if(reusablePictures)this.pictureBatches.push({layer:child,picture,parent:current,commands:snapshots});
+      const snapshots=reusablePictures?captureCompositionCommands(commands):null,picture=PaintingContext._recordBatch(commands,bounds),child=new PictureLayer(bounds);child.picture=picture;
+      try{root.appendRecordedChild(child);}catch(error){child.dispose();throw error;}if(reusablePictures)this.pictureBatches.push({layer:child,picture,parent:root,commands:snapshots});
     };
     try{
       // A canvas scope only needs scene layers when a retained child is inserted
@@ -137,21 +143,18 @@ export class PaintingContext extends Canvas {
       }
       if(!(scopes.length===0))invariant(false,'unbalanced-save','unclosed save');
       for(let index=0;index<=this.commands.length;index++){
-        const layers=at.get(index);if(layers){flush();for(const layer of layers){layer.remove();if(layer.attached)layer.detach();current.append(layer);}}
+        const layers=at.get(index);if(layers){flush();for(const layer of layers){layer.remove();if(layer.attached)layer.detach();root.appendRecordedChild(layer);}}
         if(index===this.commands.length)break;const command=this.commands[index]!;
         const batch=batches.get(index);if(batch){if(batch.effects>0){if(pendingRecords+batch.records>paintFrameLimits.commands)flush();for(let item=index;item<=batch.end;item++)pending.push(this.commands[item]!);pendingRecords+=batch.records;}index=batch.end;continue;}
-        if(command.op==='save'){flush();stack.push(current);}
-        else if((command.op==='saveLayer'||command.op==='saveBackdropFilter')){flush();const child=new RecordedCanvasLayer(command);current.append(child);stack.push(current);current=child;}
-        else if(command.op==='restore'){flush();if(!(stack.length>0))invariant(false,'unbalanced-save','restore without save');current=stack.pop()!;}
-        else if(['transform','clip','clipRect','clipRRect','clipPath'].includes(command.op)){flush();if(current instanceof RecordedCanvasLayer&&!current.hasChildren&&!stack.includes(current))current.appendState(command);else{const child=new RecordedCanvasLayer(command);current.append(child);current=child;}}
+        if(['save','saveLayer','saveBackdropFilter','restore','transform','clip','clipRect','clipRRect','clipPath'].includes(command.op)){flush();root.appendState(command);}
         else {if(pendingRecords+costs[index]!>paintFrameLimits.commands)flush();pending.push(command);pendingRecords+=costs[index]!;}
       }
-      flush();if(!(stack.length===0))invariant(false,'unbalanced-save','unclosed save');return root;
+      flush();root.seal();return root;
     }catch(error){try{root.dispose();}catch(cleanup){throw new AggregateError([error,cleanup],'Layer assembly and rollback failed');}throw error;}
   }
   _recordChildLayer(painter:(context:PaintingContext)=>void,bounds:Rect={x:0,y:0,width:0,height:0},previous:ContainerLayer|null=null):ContainerLayer{
     const context=new PaintingContext(null,bounds,true),errors:unknown[]=[];let layer:ContainerLayer|undefined;
-    try{painter(context);layer=context.finishLayer(bounds,previous?recordedLayerPictures.get(previous)??[]:[]);}catch(error){errors.push(error);}try{context.dispose();}catch(error){errors.push(error);}
+    try{painter(context);layer=context.finishLayer(bounds,previous?recordedLayerPictures.get(previous)??[]:[],previous?._depth??0);}catch(error){errors.push(error);}try{context.dispose();}catch(error){errors.push(error);}
     if(errors.length){try{layer?.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];throw new AggregateError(errors,'Child layer painting and rollback failed');}recordedLayerPictures.set(layer!,context.pictureBatches);return layer!;
   }
   /** Build one shared root scene, then transfer independent frame command holds to this context. */
@@ -159,7 +162,7 @@ export class PaintingContext extends Canvas {
     if(!(this.recordsLayers&&!this.assembled&&!this.debugDisposed))invariant(false,'closed-layer-recording','Layer recording has ended');
     const cached=retainedCompositions.get(root),reuse=cached&&cached.commands!==null&&!cached.body.debugDisposed&&root.firstChild===cached.body&&root.lastChild===cached.body&&sameBounds(cached.bounds,bounds)&&cached.commands.length===this.commands.length&&cached.commands.every((command,index)=>sameCompositionCommand(command,this.commands[index]!))&&cached.entries.length===this.entries.length&&cached.entries.every((entry,index)=>entry.mark===this.entries[index]!.mark&&entry.layer===this.entries[index]!.handle.layer&&entry.parent===entry.layer.parent)&&cached.structure.every(entry=>!entry.layer.debugDisposed&&entry.parent===entry.layer.parent&&(entry.children===null||entry.layer instanceof ContainerLayer&&entry.children===entry.layer.children)&&(entry.picture===null||entry.layer instanceof PictureLayer&&entry.picture===entry.layer.picture&&!entry.picture.debugDisposed));
     retainedCompositions.delete(root);
-    const commands=reuse?null:[...this.commands],body=reuse?cached.body:this.finishLayer(bounds,cached?.pictures??[]),errors:unknown[]=[];let appended=!!reuse,next:RetainedComposition|null=null;
+    const commands=reuse?null:[...this.commands],body=reuse?cached.body:this.finishLayer(bounds,cached?.pictures??[],cached?.body._depth??0),errors:unknown[]=[];let appended=!!reuse,next:RetainedComposition|null=null;
     if(reuse)this.assembled=true;
     // The attached body owns its pictures/children before input holds retire.
     // Stream retained recordings directly into the destination frame; it takes
@@ -168,6 +171,14 @@ export class PaintingContext extends Canvas {
     if(!appended)try{body.dispose();}catch(error){errors.push(error);}
     if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Root composition and retirement failed');
     if(next)retainedCompositions.set(root,next);
+  }
+  /** A batch already has Canvas values. Capture it directly instead of replaying
+   * into another Canvas and capturing that temporary recording a second time. */
+  private static _recordBatch(commands:readonly PaintCommand[],bounds:Rect):Picture{
+    invariant([bounds.x,bounds.y,bounds.width,bounds.height].every(Number.isFinite)&&bounds.width>=0&&bounds.height>=0,'invalid-cull-rect','Cull bounds must be finite with nonnegative dimensions');
+    const picture=Picture._fromBorrowedRecording(commands);
+    try{Picture.onCreate?.(picture);return picture;}
+    catch(error){try{picture.dispose();}catch(cleanup){throw new AggregateError([error,cleanup],'Picture creation callback and retirement failed');}throw error;}
   }
   static _recordPicture(painter:(context:PaintingContext)=>void,bounds:Rect|null=null):Picture{
     const recorder=new PictureRecorder(),context=new PaintingContext(recorder,bounds);let picture:Picture|undefined;const errors:unknown[]=[];

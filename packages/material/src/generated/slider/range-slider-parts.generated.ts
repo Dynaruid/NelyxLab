@@ -17,7 +17,7 @@ import { scrollbarValueEquals } from "@nelyx/core/internal/framework/widgets/scr
 import { RenderBox } from "@nelyx/core/framework/rendering/object";
 import { castSourceDartDouble } from "@nelyx/core/foundation/dart-numeric";
 import { scrollbarLocalToGlobal } from "@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter";
-import { emptyWidgetStateSet } from "@nelyx/core/internal/framework/widgets/widget-state-full-collections";
+import { emptyWidgetStateSet } from "@nelyx/core/framework/widgets/widget-state";
 import { applyDartType } from "@nelyx/core/internal/foundation/dart-type-witness";
 import { captureDartType } from "@nelyx/core/internal/foundation/dart-type-witness";
 import { constSourceRadiusCircular } from "@nelyx/core/internal/ui/radius-source-adapter";

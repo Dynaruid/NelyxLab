@@ -4,7 +4,7 @@ import { Color } from '@nelyx/core/ui/color';
 import { captureSourceColor } from '@nelyx/core/ui/color-source';
 import { WidgetState, WidgetStateColor } from '@nelyx/core/framework/widgets/widget-state';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';

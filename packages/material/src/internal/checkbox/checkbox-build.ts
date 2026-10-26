@@ -6,7 +6,7 @@ import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framewo
 import { ToggleableControl } from '@nelyx/core/framework/widgets/toggleable-control';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { WidgetState } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { WidgetStateBorderSide } from '@nelyx/core/framework/widgets/widget-state-border-side';
 import { WidgetStateMouseCursor } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';

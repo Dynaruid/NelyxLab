@@ -1,3 +1,4 @@
+import {assertParagraphOwnership} from './engine-fixture.mjs';
 // SPDX-License-Identifier: BSD-3-Clause
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -16,7 +17,7 @@ import { Icon } from '@nelyx/core/framework/widgets/icon';
 import { Icons } from '@nelyx/material/icons';
 import { Color } from '@nelyx/core/ui/color';
 import { WidgetState, WidgetStateProperty, WidgetStatesController } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import { nullableDartType, dartDoubleType } from '@nelyx/core/foundation/dart-type-witness';
 import { sourceColorType } from '@nelyx/core/ui/color-source';
 import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
@@ -145,7 +146,6 @@ test('actual CanvasKit image decode and thumb glyph paint retain and retire the 
     const snapshot = raster.makeImageSnapshot();
     try {
       const bytes = snapshot.readPixels(0, 0, {width: 240, height: 160, colorType: ck.ColorType.RGBA_8888, alphaType: ck.AlphaType.Unpremul, colorSpace: ck.ColorSpace.SRGB}); assert(bytes);
-      fs.mkdirSync('.tmp/work12', {recursive: true}); fs.writeFileSync('.tmp/work12/switch-cpu-' + name + '.png', snapshot.encodeToBytes());
       return (x, y) => {const i = (y * 240 + x) * 4; return ((bytes[i + 3] << 24) | (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2]) >>> 0;};
     } finally {snapshot.delete();}
   };
@@ -161,7 +161,7 @@ test('actual CanvasKit image decode and thumb glyph paint retain and retire the 
     assert(ink > 5, 'Actual antialiased MaterialIcons check glyph is rasterized inside the white thumb');
     f.set(wrap(new Switch({value: true, onChanged() {}, activeThumbImage: new MemoryImage(new Uint8Array([1, 2, 3])), onActiveThumbImageError: error => errorEvents.push(error)})));
     await flush(); await new Promise(setImmediate); assert(invalidDecodes > 0); assert.equal(errorEvents.length, invalidDecodes, 'Each real failed decode reports its error once');
-    f.set(new SizedBox(1, 1)); await images.dispose(); assert.equal(library.images.size, 0, 'Decoded images retire'); assert.equal(library.paragraphs.size, 0, 'Thumb paragraphs retire');
+    f.set(new SizedBox(1, 1)); await images.dispose(); assert.equal(library.images.size, 0, 'Decoded images retire'); assertParagraphOwnership({library});
     const reported = errorEvents.length; await flush(); assert.equal(errorEvents.length, reported, 'Retired painters do not receive late errors');
     assert.equal(f.root.scheduler.transientCallbackCount, 0);
   } finally {raster.delete(); await images.dispose(); f.close(); await library.dispose(); assert.equal(library.fonts.size, 0);}

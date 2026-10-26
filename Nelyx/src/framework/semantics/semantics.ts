@@ -14,8 +14,8 @@ import {Diagnosticable,DiagnosticableTree,DiagnosticableTreeMixin} from '../../f
 import {StringProperty,DiagnosticsProperty,DiagnosticableNode,ErrorDescription} from '../../foundation/diagnostics.ts';
 import type {DiagnosticPropertiesBuilder,DiagnosticsPropertyOptions,DiagnosticsStringOptions,DiagnosticsOptions,DiagnosticsNode} from '../../foundation/diagnostics.ts';
 import {DoubleProperty,IntProperty,EnumProperty,IterableProperty,MessageProperty,FlagProperty} from '../../foundation/diagnostic-properties.ts';
-import {SemanticsFlag,SemanticsFlags,CheckedState,Tristate,SemanticsRole,SemanticsInputType,SemanticsValidationResult,SemanticsHitTestBehavior,SemanticsUpdateBuilder} from '../../ui/semantics.ts';
-import type {SemanticsUpdate} from '../../ui/semantics.ts';
+import {SemanticsFlag,SemanticsFlags,CheckedState,Tristate,SemanticsRole,SemanticsInputType,SemanticsValidationResult,SemanticsHitTestBehavior,SemanticsUpdateBuilder,semanticsFlagWord,updateSemanticsFlagWord,mergeSemanticsFlagWords,semanticsFlagWordsConflict,readSemanticsFlagWord,semanticsFlagsFromWord} from '../../ui/semantics.ts';
+import type {SemanticsUpdate,SemanticsFlagWord,SemanticsFlagName,SemanticsFlagsOptions,SemanticsFlagsCopyOptions} from '../../ui/semantics.ts';
 import {hashValues,valueEquals,listEquals} from '../painting/value-equality.ts';
 import {Rect as RectValue} from '../../ui/rect.ts';
 import {Matrix4} from '../../math/matrix4.ts';
@@ -572,7 +572,10 @@ class SemanticsConfigurationActionTables {
   actions:Map<SemanticsAction,SemanticsActionHandler>|undefined;
   custom:Map<CustomSemanticsAction,()=>void>|undefined;
 }
-/** Source annotations and merge rules. linkUrl uses the existing host URI string representation. */
+/** Source annotations and merge rules. linkUrl uses the existing host URI string representation.
+ * This owner captures canonical flags as state, not as virtual value-object
+ * operations. Extend configuration setters/callbacks rather than patching
+ * SemanticsFlags.prototype to intercept this owner's internal updates. */
 export class SemanticsConfiguration {
   private _callbacks:SemanticsConfigurationCallbacks|null=null;
   locale:Locale|null=null;
@@ -626,7 +629,23 @@ export class SemanticsConfiguration {
   private _inputType:SemanticsInputType=SemanticsInputType.none;
   private _maxValue:string|null=null;
   private _minValue:string|null=null;
-  private _flags:SemanticsFlags=SemanticsFlags.none;
+  private _flagsSnapshot:SemanticsFlags|null=SemanticsFlags.none;
+  private _flagsWord:SemanticsFlagWord|null=semanticsFlagWord(this._flagsSnapshot!);
+  private get _flags():SemanticsFlags{return this._flagsWord===null?this._flagsSnapshot!:(this._flagsSnapshot??=semanticsFlagsFromWord(this._flagsWord));}
+  private set _flags(value:SemanticsFlags){this._flagsSnapshot=value;this._flagsWord=semanticsFlagWord(value);}
+  private _flagValue<Key extends SemanticsFlagName>(name:Key):Required<SemanticsFlagsOptions>[Key]{return this._flagsWord===null?this._flagsSnapshot![name]:readSemanticsFlagWord(this._flagsWord,name);}
+  private _setFlag(name:SemanticsFlagName,value:unknown):void{
+    const word=this._flagsWord===null?null:updateSemanticsFlagWord(this._flagsWord,name,value);
+    if(word!==null){this._flagsWord=word;this._flagsSnapshot=null;return;}
+    this._flags=this._flags.copyWith({[name]:value} as SemanticsFlagsCopyOptions);
+  }
+  private _mergeFlags(other:SemanticsConfiguration):void{
+    if(this._flagsWord!==null&&other._flagsWord!==null){this._flagsWord=mergeSemanticsFlagWords(this._flagsWord,other._flagsWord);this._flagsSnapshot=null;}
+    else this._flags=this._flags.merge(other._flags);
+  }
+  private _hasConflictingFlags(other:SemanticsConfiguration):boolean{
+    return this._flagsWord!==null&&other._flagsWord!==null?semanticsFlagWordsConflict(this._flagsWord,other._flagsWord):this._flags.hasConflictingFlags(other._flags);
+  }
   get isSemanticBoundary():boolean{return this._isSemanticBoundary;}
   get localeForSubtree():Locale|null{return this._localeForSubtree;}
   get hasBeenAnnotated():boolean{return this._hasBeenAnnotated;}
@@ -655,35 +674,35 @@ export class SemanticsConfiguration {
   get attributedHint():AttributedString{return this._attributedHint;}
   get tooltip():string{return this._tooltip;}
   get hintOverrides():SemanticsHintOverrides|null{return this._hintOverrides;}
-  get scopesRoute():boolean{return this._flags.scopesRoute;}
-  get namesRoute():boolean{return this._flags.namesRoute;}
-  get isImage():boolean{return this._flags.isImage;}
-  get liveRegion():boolean{return this._flags.isLiveRegion;}
+  get scopesRoute():boolean{return this._flagValue("scopesRoute");}
+  get namesRoute():boolean{return this._flagValue("namesRoute");}
+  get isImage():boolean{return this._flagValue("isImage");}
+  get liveRegion():boolean{return this._flagValue("isLiveRegion");}
   get textDirection():'ltr'|'rtl'|null{return this._textDirection;}
-  get isSelected():boolean{return this._flags.isSelected == Tristate.isTrue;}
-  get isExpanded():boolean|null{return this._flags.isExpanded.toBoolOrNull();}
-  get isEnabled():boolean|null{return this._flags.isEnabled.toBoolOrNull();}
-  get isChecked():boolean|null{return this._flags.isChecked == CheckedState.none ? null : this._flags.isChecked == CheckedState.isTrue;}
-  get isCheckStateMixed():boolean|null{return this._flags.isChecked == CheckedState.none ? null : this._flags.isChecked == CheckedState.mixed;}
-  get isToggled():boolean|null{return this._flags.isToggled.toBoolOrNull();}
-  get isInMutuallyExclusiveGroup():boolean{return this._flags.isInMutuallyExclusiveGroup;}
-  get isFocusable():boolean{return this._flags.isFocused != Tristate.none;}
-  get isFocused():boolean|null{return this._flags.isFocused.toBoolOrNull();}
+  get isSelected():boolean{return this._flagValue("isSelected") == Tristate.isTrue;}
+  get isExpanded():boolean|null{return this._flagValue("isExpanded").toBoolOrNull();}
+  get isEnabled():boolean|null{return this._flagValue("isEnabled").toBoolOrNull();}
+  get isChecked():boolean|null{return this._flagValue("isChecked") == CheckedState.none ? null : this._flagValue("isChecked") == CheckedState.isTrue;}
+  get isCheckStateMixed():boolean|null{return this._flagValue("isChecked") == CheckedState.none ? null : this._flagValue("isChecked") == CheckedState.mixed;}
+  get isToggled():boolean|null{return this._flagValue("isToggled").toBoolOrNull();}
+  get isInMutuallyExclusiveGroup():boolean{return this._flagValue("isInMutuallyExclusiveGroup");}
+  get isFocusable():boolean{return this._flagValue("isFocused") != Tristate.none;}
+  get isFocused():boolean|null{return this._flagValue("isFocused").toBoolOrNull();}
   get accessibilityFocusBlockType():AccessibilityFocusBlockType{return this._accessibilityFocusBlockType;}
-  get isButton():boolean{return this._flags.isButton;}
-  get isLink():boolean{return this._flags.isLink;}
+  get isButton():boolean{return this._flagValue("isButton");}
+  get isLink():boolean{return this._flagValue("isLink");}
   get linkUrl():string|null{return this._linkUrl;}
-  get isHeader():boolean{return this._flags.isHeader;}
+  get isHeader():boolean{return this._flagValue("isHeader");}
   get headingLevel():number{return this._headingLevel;}
-  get isSlider():boolean{return this._flags.isSlider;}
-  get isKeyboardKey():boolean{return this._flags.isKeyboardKey;}
-  get isHidden():boolean{return this._flags.isHidden;}
-  get isTextField():boolean{return this._flags.isTextField;}
-  get isReadOnly():boolean{return this._flags.isReadOnly;}
-  get isObscured():boolean{return this._flags.isObscured;}
-  get isMultiline():boolean{return this._flags.isMultiline;}
-  get isRequired():boolean|null{return this._flags.isRequired.toBoolOrNull();}
-  get hasImplicitScrolling():boolean{return this._flags.hasImplicitScrolling;}
+  get isSlider():boolean{return this._flagValue("isSlider");}
+  get isKeyboardKey():boolean{return this._flagValue("isKeyboardKey");}
+  get isHidden():boolean{return this._flagValue("isHidden");}
+  get isTextField():boolean{return this._flagValue("isTextField");}
+  get isReadOnly():boolean{return this._flagValue("isReadOnly");}
+  get isObscured():boolean{return this._flagValue("isObscured");}
+  get isMultiline():boolean{return this._flagValue("isMultiline");}
+  get isRequired():boolean|null{return this._flagValue("isRequired").toBoolOrNull();}
+  get hasImplicitScrolling():boolean{return this._flagValue("hasImplicitScrolling");}
   get textSelection():TextSelection|null{return this._textSelection;}
   get scrollPosition():number|null{return this._scrollPosition;}
   get scrollExtentMax():number|null{return this._scrollExtentMax;}
@@ -775,62 +794,60 @@ export class SemanticsConfiguration {
     }
     this._hintOverrides = value;
     this._hasBeenAnnotated = true;}
-  set scopesRoute(value:boolean){this._flags = this._flags.copyWith({scopesRoute: value});
+  set scopesRoute(value:boolean){this._setFlag("scopesRoute",value);
     this._hasBeenAnnotated = true;}
-  set namesRoute(value:boolean){this._flags = this._flags.copyWith({namesRoute: value});
+  set namesRoute(value:boolean){this._setFlag("namesRoute",value);
     this._hasBeenAnnotated = true;}
-  set isImage(value:boolean){this._flags = this._flags.copyWith({isImage: value});
+  set isImage(value:boolean){this._setFlag("isImage",value);
     this._hasBeenAnnotated = true;}
-  set liveRegion(value:boolean){this._flags = this._flags.copyWith({isLiveRegion: value});
+  set liveRegion(value:boolean){this._setFlag("isLiveRegion",value);
     this._hasBeenAnnotated = true;}
   set textDirection(textDirection:'ltr'|'rtl'|null){this._textDirection = textDirection;
     this._hasBeenAnnotated = true;}
-  set isSelected(value:boolean){this._flags = this._flags.copyWith({isSelected: tristate(value)});
+  set isSelected(value:boolean){this._setFlag("isSelected",tristate(value));
     this._hasBeenAnnotated = true;}
-  set isExpanded(value:boolean|null){this._flags = this._flags.copyWith({isExpanded: tristate(value)});
+  set isExpanded(value:boolean|null){this._setFlag("isExpanded",tristate(value));
     this._hasBeenAnnotated = true;}
-  set isEnabled(value:boolean|null){this._flags = this._flags.copyWith({isEnabled: tristate(value)});
+  set isEnabled(value:boolean|null){this._setFlag("isEnabled",tristate(value));
     this._hasBeenAnnotated = true;}
   set isChecked(value:boolean|null){if (value !== null) {
-      this._flags = this._flags.copyWith({isChecked: value ? CheckedState.isTrue : CheckedState.isFalse});
+      this._setFlag("isChecked",value ? CheckedState.isTrue : CheckedState.isFalse);
     }
     this._hasBeenAnnotated = true;}
   set isCheckStateMixed(value:boolean|null){if (value ?? false) {
-      this._flags = this._flags.copyWith({isChecked: CheckedState.mixed});
+      this._setFlag("isChecked",CheckedState.mixed);
     }
     this._hasBeenAnnotated = true;}
-  set isToggled(value:boolean|null){this._flags = this._flags.copyWith({isToggled: tristate(value)});
+  set isToggled(value:boolean|null){this._setFlag("isToggled",tristate(value));
     this._hasBeenAnnotated = true;}
-  set isInMutuallyExclusiveGroup(value:boolean){this._flags = this._flags.copyWith({isInMutuallyExclusiveGroup: value});
+  set isInMutuallyExclusiveGroup(value:boolean){this._setFlag("isInMutuallyExclusiveGroup",value);
     this._hasBeenAnnotated = true;}
   set isFocusable(value:boolean){if (!value) {
-      this._flags = this._flags.copyWith({isFocused: Tristate.none});
+      this._setFlag("isFocused",Tristate.none);
     } else {
-      if (this._flags.isFocused == Tristate.none) {
-        this._flags = this._flags.copyWith({isFocused: Tristate.isFalse});
+      if (this._flagValue("isFocused") == Tristate.none) {
+        this._setFlag("isFocused",Tristate.isFalse);
       }
     }
     this._hasBeenAnnotated = true;}
-  set isFocused(value:boolean|null){this._flags = this._flags.copyWith({isFocused: tristate(value)});
+  set isFocused(value:boolean|null){this._setFlag("isFocused",tristate(value));
     this._hasBeenAnnotated = true;}
   set accessibilityFocusBlockType(value:AccessibilityFocusBlockType){if (this._accessibilityFocusBlockType == value) {
       return;
     }
     this._accessibilityFocusBlockType = value;
-    this._flags = this._flags.copyWith({
-      isAccessibilityFocusBlocked: value != AccessibilityFocusBlockType.none,
-    });
+    this._setFlag("isAccessibilityFocusBlocked",value != AccessibilityFocusBlockType.none);
     this._hasBeenAnnotated = true;}
-  set isButton(value:boolean){this._flags = this._flags.copyWith({isButton: value});
+  set isButton(value:boolean){this._setFlag("isButton",value);
     this._hasBeenAnnotated = true;}
-  set isLink(value:boolean){this._flags = this._flags.copyWith({isLink: value});
+  set isLink(value:boolean){this._setFlag("isLink",value);
     this._hasBeenAnnotated = true;}
   set linkUrl(value:string|null){if (valueEquals(value,this._linkUrl)) {
       return;
     }
     this._linkUrl = value;
     this._hasBeenAnnotated = true;}
-  set isHeader(value:boolean){this._flags = this._flags.copyWith({isHeader: value});
+  set isHeader(value:boolean){this._setFlag("isHeader",value);
     this._hasBeenAnnotated = true;}
   set headingLevel(value:number){if(FoundationBuildMode.debug)invariant(value >= 0 && value <= 6,'invalid-semantics-configuration','Invalid this.headingLevel');
     if (valueEquals(value,this.headingLevel)) {
@@ -838,23 +855,23 @@ export class SemanticsConfiguration {
     }
     this._headingLevel = value;
     this._hasBeenAnnotated = true;}
-  set isSlider(value:boolean){this._flags = this._flags.copyWith({isSlider: value});
+  set isSlider(value:boolean){this._setFlag("isSlider",value);
     this._hasBeenAnnotated = true;}
-  set isKeyboardKey(value:boolean){this._flags = this._flags.copyWith({isKeyboardKey: value});
+  set isKeyboardKey(value:boolean){this._setFlag("isKeyboardKey",value);
     this._hasBeenAnnotated = true;}
-  set isHidden(value:boolean){this._flags = this._flags.copyWith({isHidden: value});
+  set isHidden(value:boolean){this._setFlag("isHidden",value);
     this._hasBeenAnnotated = true;}
-  set isTextField(value:boolean){this._flags = this._flags.copyWith({isTextField: value});
+  set isTextField(value:boolean){this._setFlag("isTextField",value);
     this._hasBeenAnnotated = true;}
-  set isReadOnly(value:boolean){this._flags = this._flags.copyWith({isReadOnly: value});
+  set isReadOnly(value:boolean){this._setFlag("isReadOnly",value);
     this._hasBeenAnnotated = true;}
-  set isObscured(value:boolean){this._flags = this._flags.copyWith({isObscured: value});
+  set isObscured(value:boolean){this._setFlag("isObscured",value);
     this._hasBeenAnnotated = true;}
-  set isMultiline(value:boolean){this._flags = this._flags.copyWith({isMultiline: value});
+  set isMultiline(value:boolean){this._setFlag("isMultiline",value);
     this._hasBeenAnnotated = true;}
-  set isRequired(value:boolean|null){this._flags = this._flags.copyWith({isRequired: tristate(value)});
+  set isRequired(value:boolean|null){this._setFlag("isRequired",tristate(value));
     this._hasBeenAnnotated = true;}
-  set hasImplicitScrolling(value:boolean){this._flags = this._flags.copyWith({hasImplicitScrolling: value});
+  set hasImplicitScrolling(value:boolean){this._setFlag("hasImplicitScrolling",value);
     this._hasBeenAnnotated = true;}
   set textSelection(value:TextSelection|null){if(FoundationBuildMode.debug)invariant(value !== null,'invalid-semantics-configuration','Invalid this.textSelection');
     this._textSelection = value;
@@ -972,12 +989,12 @@ export class SemanticsConfiguration {
   get tagsForChildren():Iterable<SemanticsTag>|null{return this._tagsForChildren;}
   tagsChildrenWith(tag:SemanticsTag):boolean{return this._tagsForChildren?.some(value=>valueEquals(value,tag))??false;}
   addTagForChildren(tag:SemanticsTag):void{this._tagsForChildren??=[];if(!this.tagsChildrenWith(tag))this._tagsForChildren.push(tag);}
-  private get _hasExplicitRole():boolean{return this._role!==SemanticsRole.none||this._flags.isTextField||this._flags.isHeader&&FoundationPlatform.hostEnvironment.kind==='web'||this._flags.isSlider||this._flags.isLink||this._flags.scopesRoute||this._flags.isImage||this._flags.isKeyboardKey;}
+  private get _hasExplicitRole():boolean{return this._role!==SemanticsRole.none||this._flagValue("isTextField")||this._flagValue("isHeader")&&FoundationPlatform.hostEnvironment.kind==='web'||this._flagValue("isSlider")||this._flagValue("isLink")||this._flagValue("scopesRoute")||this._flagValue("isImage")||this._flagValue("isKeyboardKey");}
   isCompatibleWith(other:SemanticsConfiguration|null):boolean{
     if(other===null||!other.hasBeenAnnotated)return true;
     if(!valueEquals(this._traversalChildIdentifier,other._traversalChildIdentifier))return false;
     if(!this.hasBeenAnnotated)return true;
-    if((this._actionsAsBits&other._actionsAsBits)!==0||this._flags.hasConflictingFlags(other._flags))return false;
+    if((this._actionsAsBits&other._actionsAsBits)!==0||this._hasConflictingFlags(other))return false;
     if(this._platformViewId!==null&&other._platformViewId!==null||this._maxValueLength!==null&&other._maxValueLength!==null||this._currentValueLength!==null&&other._currentValueLength!==null)return false;
     if(this._attributedValue.string!==''&&other._attributedValue.string!=='')return false;
     if(!valueEquals(this._localeForSubtree,other._localeForSubtree)||this._hasExplicitRole&&other._hasExplicitRole)return false;
@@ -991,7 +1008,7 @@ export class SemanticsConfiguration {
     if(child._actionTables.actions)for(const [action,handler]of child._actionTables.actions)if(!child.isBlockingUserActions||(action.index&unblockedActions)>0)this._actions.set(action,handler);
     this._actionsAsBits|=child._effectiveActionsAsBits;
     if(child._actionTables.custom)for(const [action,handler]of child._actionTables.custom){const existing=[...this._customSemanticsActions.keys()].find(key=>key.equals(action));this._customSemanticsActions.set(existing??action,handler);}
-    this._flags=this._flags.merge(child._flags);
+    this._mergeFlags(child);
     this._linkUrl??=child._linkUrl;
     this._textSelection??=child._textSelection;
     this._scrollPosition??=child._scrollPosition;
@@ -1700,8 +1717,8 @@ export class SemanticsOwner extends ChangeNotifier {
   override dispose():void{this._dirtyNodes.clear();this._nodes.clear();this._detachedNodes.clear();this._traversalChildNodes.clear();this._traversalParentNodes.clear();super.dispose();}
   sendSemanticsUpdate():void{
     if(FoundationBuildMode.debug){const invisible:SemanticsNode[]=[];const find=(node:SemanticsNode):boolean=>{if(node.rect.isEmpty)invisible.push(node);else if(!node.mergeAllDescendantsIntoThisNode)node.visitChildren(find);return true;};const root=this.rootSemanticsNode;if(root){if(root.childrenCount>0&&root.rect.isEmpty)invisible.push(root);else if(!root.mergeAllDescendantsIntoThisNode)root.visitChildren(find);}invariant(invisible.length===0,'invisible-semantics-nodes','Invisible SemanticsNodes should not be added to the tree');}
-    if(this._dirtyNodes.size===0)return;const custom=new Set<number>(),visited:SemanticsNode[]=[];
-    while(this._dirtyNodes.size){const local=[...this._dirtyNodes].filter(node=>!this._detachedNodes.has(node));this._dirtyNodes.clear();this._detachedNodes.clear();local.sort((a,b)=>a.depth-b.depth);visited.push(...local);for(const node of local){const state=nodeState(node);if(FoundationBuildMode.debug){invariant(state._dirty,'clean-semantics-update','Dirty set contains a clean node');invariant(node.parent===null||!node.parent.isPartOfNodeMerging||node.isMergedIntoParent,'invalid-semantics-merge','Merge descendant has inconsistent flags');}if(node.isPartOfNodeMerging){if(FoundationBuildMode.debug)invariant(node.mergeAllDescendantsIntoThisNode||node.parent!==null,'orphaned-semantics-merge','Merged node requires a parent');if(node.parent?.isPartOfNodeMerging){nodeState(node.parent)._markDirty();state._dirty=false;}}
+    if(this._dirtyNodes.size===0&&this._detachedNodes.size===0)return;const custom=new Set<number>(),visited:SemanticsNode[]=[];
+    while(this._dirtyNodes.size||this._detachedNodes.size){const local=[...this._dirtyNodes].filter(node=>!this._detachedNodes.has(node));this._dirtyNodes.clear();this._detachedNodes.clear();local.sort((a,b)=>a.depth-b.depth);visited.push(...local);for(const node of local){const state=nodeState(node);if(FoundationBuildMode.debug){invariant(state._dirty,'clean-semantics-update','Dirty set contains a clean node');invariant(node.parent===null||!node.parent.isPartOfNodeMerging||node.isMergedIntoParent,'invalid-semantics-merge','Merge descendant has inconsistent flags');}if(node.isPartOfNodeMerging){if(FoundationBuildMode.debug)invariant(node.mergeAllDescendantsIntoThisNode||node.parent!==null,'orphaned-semantics-merge','Merged node requires a parent');if(node.parent?.isPartOfNodeMerging){nodeState(node.parent)._markDirty();state._dirty=false;}}
         for(const [key,old]of this._traversalParentNodes)if(old===node)this._traversalParentNodes.delete(key);for(const [key,children]of this._traversalChildNodes){children.delete(node);if(children.size===0)this._traversalChildNodes.delete(key);}
         if(node.traversalParentIdentifier!==null){if(FoundationBuildMode.debug)invariant(!this._traversalParentNodes.has(node.traversalParentIdentifier)||this._traversalParentNodes.get(node.traversalParentIdentifier)===node,'duplicate-semantics-traversal-parent','Traversal parent identifiers must be unique');this._traversalParentNodes.set(node.traversalParentIdentifier,node);}else if(node.traversalChildIdentifier!==null){const children=this._traversalChildNodes.get(node.traversalChildIdentifier)??new Set();children.add(node);this._traversalChildNodes.set(node.traversalChildIdentifier,children);}
         if(FoundationPlatform.hostEnvironment.kind!=='web'&&node.traversalChildIdentifier!==null){const parent=this._traversalParentNodes.get(node.traversalChildIdentifier);if(parent&&!visited.includes(parent))nodeState(parent)._markDirty();}

@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import {nativePcReport,nativePcSources} from './windows-pc-results.mjs';
-import {compactWindowsSymbols} from './windows-fault-results.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {nativePcReport,nativePcSources} from './windows-pc-results.mjs';
+import {compactWindowsSymbols,symbolizeWindowsJavaScript} from './windows-fault-results.mjs';
 const timeout=1_200_000;
+test('Core failure symbols use the owned Metro map and one-based stack columns without replacing failures',{timeout},()=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-js-fault-')),file=path.join(directory,'input-surface.js.map'),root=path.resolve(import.meta.dirname,'../../..');
+ try{
+  const generated=path.join(directory,'input-surface.js'),output='ANIMATION_JS CORE_FAILURE '+JSON.stringify({causes:[{path:'build.errors[0]',message:'TypeError: undefined is not a function',stack:`TypeError\n    at first (${generated}:1:1)\n    at run (${generated}:2:3)\n    at alien (${path.join(directory,'other.js')}:2:3)\n    at foreign (${path.join(directory,'foreign','input-surface.js')}:2:3)\n    at invalid (${generated}:0:1)`}]});
+  assert.deepEqual(symbolizeWindowsJavaScript(output,directory,root),[],'An uninstrumented build has no invented source correspondence');
+  fs.writeFileSync(file,JSON.stringify({version:3,sources:['source.ts'],sourcesContent:['const a = 1;\nfunction run() {}'],names:['run'],mappings:'AAAA;EACIA'}));
+  const symbols=symbolizeWindowsJavaScript(output,directory,root);assert.equal(symbols.length,1);assert.equal(symbols[0].message,'TypeError: undefined is not a function');assert.equal(symbols[0].path,'build.errors[0]');
+  assert.deepEqual(symbols[0].frames,[{generated:{line:1,column:1},source:'source.ts',line:1,column:0,name:null},{generated:{line:2,column:3},source:'source.ts',line:2,column:4,name:'run'}]);
+  assert.throws(()=>symbolizeWindowsJavaScript('ANIMATION_JS CORE_FAILURE broken',directory,root),'Malformed diagnostics stay visible to the caller');
+ }finally{if(fs.existsSync(file))fs.unlinkSync(file);assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert(path.basename(directory).startsWith('nelyx-js-fault-'));fs.rmdirSync(directory);}
+});
+
 test('PC symbol summaries retain image-relative addresses and source lines without repeating full paths and signatures',{timeout},()=>{
  const result=compactWindowsSymbols([{module:'hermes.dll',output:JSON.stringify([{Address:'0x101',Symbol:[{FunctionName:'HadesGC::visit<List<Slot>>(Runtime &)',FileName:'C:\\sdk\\source\\lib\\VM\\GC.cpp',Line:7,Column:2}]}])}]);
  assert.equal(result[0].entries[0].rva,257);assert.equal(result[0].entries[0].symbols[0].function,'HadesGC::visit<...>(Runtime &)');assert.equal(result[0].entries[0].symbols[0].file,'lib/VM/GC.cpp');assert.match(result[0].entries[0].symbols[0].signatureSha256,/^[a-f0-9]{64}$/);assert(compactWindowsSymbols([{module:'bad',output:'invalid'}])[0].error);

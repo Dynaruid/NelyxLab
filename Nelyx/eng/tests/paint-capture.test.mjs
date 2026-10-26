@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {freezePaintCommand,freezeFrame,disposeFrame} from '@nelyx/core/ui/frame';
+import {freezePaintCommand,freezeFrame,captureBorrowedFrame,disposeFrame} from '@nelyx/core/ui/frame';
 import {Canvas} from '@nelyx/core/ui/canvas';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
 import {Paint,freezePaint} from '@nelyx/core/ui/paint';
@@ -8,6 +8,31 @@ import {ImageShader} from '@nelyx/core/ui/shader';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
 import {bindResourceRetainer,releaseCommandResources,ownFrameResources,releaseFrameResources} from '../../dist/ui/resource-retention.js';
 const timeout=1_200_000;
+
+test('borrowed recording capture keeps its source and multiple admitted frames independently live',{timeout},()=>{
+  const registry=new ResourceRegistry(),image={id:'borrowed-image',generation:1,kind:'image'},canvas=new Canvas();let retired=0,first,second;
+  const token={owner:{id:'borrowed-frame',generation:1},sequence:1,metrics:{logicalWidth:1,logicalHeight:1,physicalWidth:1,physicalHeight:1,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:null,nativeSurfaceGeneration:null}};
+  try{
+    registry.register(image,()=>retired++);registry.bindResource(image);canvas.image(image,{x:0,y:0,width:1,height:1});registry.releaseProducer(image);
+    first=captureBorrowedFrame(token,canvas.commands);
+    assert.notEqual(first.commands[0],canvas.commands[0]);assert.equal(first.commands[0].resource,canvas.commands[0].resource);assert(Object.isFrozen(first.commands[0].resource));
+    assert.throws(()=>captureBorrowedFrame(token,[...canvas.commands,{op:'restore'}]),/restore without save/);
+    disposeFrame(first);first=undefined;assert.equal(retired,0,'The failed capture and first frame cannot consume the source');
+    first=captureBorrowedFrame(token,canvas.commands);second=captureBorrowedFrame({...token,sequence:2},canvas.commands);
+    canvas.dispose();assert.equal(retired,0);disposeFrame(first);first=undefined;assert.equal(retired,0);
+    disposeFrame(second);second=undefined;assert.equal(retired,1);
+  }finally{if(first)disposeFrame(first);if(second)disposeFrame(second);canvas.dispose();registry.dispose();}
+});
+
+test('borrowed frame validation rolls back new holds after a falsey cleanup failure without retiring the source',{timeout},()=>{
+  const resource={id:'borrowed-failure',generation:1},token={owner:{id:'borrowed-frame',generation:1},sequence:1,metrics:{logicalWidth:1,logicalHeight:1,physicalWidth:1,physicalHeight:1,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:null,nativeSurfaceGeneration:null}};
+  let disposed=0;
+  bindResourceRetainer(resource,()=>({dispose(){disposed++;throw null;}}));
+  const command=freezePaintCommand({op:'paragraph',resource,x:0,y:0});
+  assert.throws(()=>captureBorrowedFrame(token,[command,{op:'restore'}]),error=>error instanceof AggregateError&&/restore without save/.test(error.errors[0].message)&&error.errors[1]===null);
+  assert.equal(disposed,1);assert.throws(()=>releaseCommandResources([command]),error=>error===null);assert.equal(disposed,2);
+  releaseCommandResources([command]);assert.equal(disposed,2);
+});
 
 test('Canvas and PaintingContext snapshot transforms before custom recording hooks and validate native scalar limits',{timeout},()=>{
   for(const Base of [Canvas,PaintingContext]){

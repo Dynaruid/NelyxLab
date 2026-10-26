@@ -15,7 +15,7 @@ import {AnimatedSwitcher} from '@nelyx/core/framework/widgets/animated-switcher'
 import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';
 import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';
 import {WidgetState,WidgetStateColor,WidgetStateBorderSide,WidgetStateTextStyle} from '@nelyx/core/framework/widgets/widget-state';
-import {emptyWidgetStateSet} from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import type {DartSet} from '@nelyx/core/foundation/dart-collections';
 import {ValueKey} from '@nelyx/core/foundation/key';
 import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';

@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AppSession} from '@nelyx/core/hosting/runtime';
 import {GraphiteRenderer} from '@nelyx/skia-native/renderer';
+import {ResourceLease} from '@nelyx/core/hosting/resources';
+import {freezeFrame} from '@nelyx/core/ui/frame';
 const timeout=1_200_000;
 const metrics={logicalWidth:100,logicalHeight:100,physicalWidth:100,physicalHeight:100,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:1,nativeSurfaceGeneration:1};
 function fixture({scene}={}){
@@ -17,6 +19,16 @@ function fixture({scene}={}){
   const view=session.attach({id:'pressure',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error)});
   return {view,renderer,session,callbacks,notifications,submissions,errors,tick,get builds(){return builds;},set value(next){value=next;},set deny(next){deny=next;},set nativeRecordings(next){nativeRecordings=next;},set releaseAfterHint(next){releaseAfterHint=next;},set failSubmission(next){failSubmission=next;}};
 }
+
+test('native retirement reentry observes the same renderer close before GPU leases and event identities retire',{timeout},async()=>{
+ const f=fixture();let reentered,retired=0;
+ try{
+  const lease=new ResourceLease([],()=>{retired++;reentered=f.renderer.dispose();void reentered.catch(()=>{});});
+  const frame=freezeFrame(f.view.capture(),[{op:'clear',color:0}]);assert.equal(f.renderer.submit(frame,lease).status,'accepted');
+  const closing=f.renderer.dispose();await closing;assert.equal(reentered,closing);await reentered;
+  assert.equal(retired,1);assert.equal(lease.released,true);assert.equal(f.renderer.hasPendingSubmissions,false);
+ }finally{await f.session.dispose();}
+});
 
 test('an unknown scheduled submission reports its native failure and retains uncertain resources until drain',{timeout},async()=>{
   const f=fixture();try{f.failSubmission=true;f.view.requestFrame();f.tick();assert.equal(f.view.status,'failed');assert.equal(f.errors.length,1);assert.match(String(f.errors[0]),/Renderer submission failed:.*native-recording-failure/);f.view.requestFrame();f.tick();assert.equal(f.errors.length,1);assert.equal(f.submissions.length,0);}

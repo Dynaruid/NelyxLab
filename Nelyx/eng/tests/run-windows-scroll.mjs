@@ -7,13 +7,14 @@ import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {continuousScrollResult} from './windows-scroll-results.mjs';
-import {symbolizeWindowsFault} from './windows-fault-results.mjs';
+import {symbolizeWindowsFault,symbolizeWindowsJavaScript} from './windows-fault-results.mjs';
 import {verifyWindowsHermes} from '../../sdk/tooling/cli/src/windows-process.mjs';
 
 const root=path.resolve(import.meta.dirname,'../../..'),runner=path.join(root,'sample/nelyx-testbed-app-2/windows/runner');
 const staticLocator=path.join(root,'sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json');
 const choice=process.argv[2]??'matrix',runs=Number(process.argv[3]??3);
 const diagnostic=process.env.NELYX_SCROLL_DIAGNOSTIC==='1';
+const nativePc=process.env.NELYX_SCROLL_NATIVE_PC??'1';assert(['0','1'].includes(nativePc));assert(nativePc!=='0'||diagnostic,'PC opt-out is an explicit diagnostic scope only');
 const afterDiagnostic=process.env.NELYX_SCROLL_AFTER_DIAGNOSTIC==='1';
 const afterPolicy=process.env.NELYX_SCROLL_AFTER_POLICY==='1',childPolicy=process.env.NELYX_SCROLL_CHILD_POLICY??'legacy';
 assert(['legacy','bounded','observed-budget'].includes(childPolicy));assert(!afterPolicy||afterDiagnostic,'Policy follow-up reuses the separate diagnostic hosts');
@@ -41,17 +42,19 @@ let suppliedConfig;
 let child,interrupted=false,inputWaitRejected;
 function kill(){if(child?.pid)spawnSync('taskkill.exe',['/pid',String(child.pid),'/t','/f'],{windowsHide:true,timeout:10000,stdio:'ignore'});}
 const stop=()=>{interrupted=true;inputWaitRejected?.(Error('Qualification interrupted'));kill();};process.on('SIGINT',stop);process.on('SIGTERM',stop);
+// Leave time for owned hosts, fixtures and configuration to retire before the
+// caller's 20-minute deadline, including a wait for desktop availability.
+const deadline=setTimeout(stop,1_180_000);
 async function awaitInputReady(){
  if(!waitForInput)return;
- assert.equal(input,'os','Desktop readiness is only needed for OS wheel input');
- const file=path.join(owners[0].directory,'os-input.ready');assert(!fs.existsSync(file));
+ const file=path.join(owners[0].directory,input==='os'?'os-input.ready':'queued-input.ready');assert(!fs.existsSync(file));
  await new Promise((resolve,reject)=>{
   const ready=()=>{if(!fs.existsSync(file))return;cleanup();resolve();},failed=error=>{cleanup();reject(error);};
   const watcher=fs.watch(path.dirname(file),(_event,name)=>{if(String(name)===path.basename(file))ready();});
   const timer=setTimeout(()=>failed(Error('Input readiness timed out')),1_200_000);
   const cleanup=()=>{clearTimeout(timer);watcher.close();inputWaitRejected=undefined;};
   watcher.once('error',failed);inputWaitRejected=failed;
-  void report('SCROLL_INPUT_READY',{file,message:'Builds complete. Stop mouse/trackpad use, then create this temporary file to start OS wheel injection.'}).catch(failed);ready();
+  void report('SCROLL_INPUT_READY',{file,message:input==='os'?'Builds complete. Stop mouse/trackpad use, then create this temporary file to start OS wheel injection.':'Builds complete. The queued diagnostic will foreground its window. Create this temporary file when the desktop is available.'}).catch(failed);ready();
  });
  assert(!interrupted,'Qualification interrupted');
 }
@@ -67,7 +70,7 @@ async function prepare(variant,reuse){
  for(const name of ['REUSE_AOT_INPUT','REUSE_CURRENT_INPUT','STARTUP_BASELINE','INLINE_REQUIRES','SAME_FRONTEND','EXPECT_ALLOCATION_FAILURE'])delete env['NELYX_ANIMATION_'+name];
  for(const name of ['ITERATE','TRACE','DIAGNOSTIC','NATIVE_TRACE','NATIVE_CORE_TRACE','ALLOCATIONS','V8_PROFILE','SOURCE','SOURCE_COMPILER','PREFLIGHT_ONLY','FRONTEND_ONLY'])env['NELYX_ANIMATION_'+name]='0';
  const nativeInstrumented=diagnostic||!!reuse;
- env.NELYX_ANIMATION_NATIVE_PC=nativeInstrumented?'1':'0';
+ env.NELYX_ANIMATION_NATIVE_PC=nativeInstrumented&&nativePc==='1'?'1':'0';
  if(nativeInstrumented)env.NELYX_CONTINUOUS_CATALOG='bounded';
  if(nativeInstrumented)for(const name of ['TRACE','DIAGNOSTIC','NATIVE_TRACE','NATIVE_CORE_TRACE'])env['NELYX_ANIMATION_'+name]='1';
  if(reuse){
@@ -117,7 +120,7 @@ async function execute(candidate,viewport,run,runtimeDiagnostic=diagnostic,runti
  const runCatalog=candidate.env.NELYX_CONTINUOUS_CATALOG;
  const samples=output.split('\n').filter(line=>line.startsWith('ANIMATION_JS {"phase"')).flatMap((line,index)=>{try{return [JSON.parse(line.slice('ANIMATION_JS '.length))];}catch(error){parseErrors.push({prefix:'phase',index,error:String(error).slice(0,200)});return [];}});
  const display=records('ANIMATION_DISPLAY ')[0],viewMetrics=records('ANIMATION_JS view-metrics ')[0];
- await report('SCROLL_RUN',{variant:candidate.variant,run,viewport,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,input,catalog:runCatalog,identity:candidate.identity,sourceSha256:candidate.sourceSha256,display,viewMetrics,status:result.status,phases,pacing:records('ANIMATION_WHEEL_SEND '),resources:samples.map(({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget})=>({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget}))});
+ await report('SCROLL_RUN',{variant:candidate.variant,run,viewport,diagnostic:runtimeDiagnostic,nativePc:!!candidate.pcProfiler,lifecycle:{scrollCompleted:output.includes('continuous-scroll PASS'),normalClose:output.includes('closed views=0 consumers=0 gpuDrained=1 inputRetired=1')},childPolicy:runtimePolicy,input,catalog:runCatalog,identity:candidate.identity,sourceSha256:candidate.sourceSha256,display,viewMetrics,status:result.status,phases,pacing:records('ANIMATION_WHEEL_SEND '),resources:samples.map(({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget})=>({phase,hermesDelta,hermesMemoryBefore,hermesMemoryAfter,textCache,childBudget}))});
  if(runtimeDiagnostic){
   const retainedSpans=new Set(['Sliver.createChild','Sliver.removeChild','Sliver.didStartLayout','Pipeline.flushLayout','Pipeline.flushSemantics','Widgets.flushBuild','Widgets.finalizeTree','Item.createBuildFirstLayout','TextCache.key','TextCache.reuse','TextCache.remember','NativeText.layout','Text.layout','Text.paragraphLayout','Text.buildParagraph','Style.snapshotRun']);
   const top=values=>{const entries=Object.entries(values??{}).sort((a,b)=>(b[1]?.sum??0)-(a[1]?.sum??0)),keep=new Set(entries.slice(0,24).map(([key])=>key));return Object.fromEntries(entries.filter(([key])=>keep.has(key)||retainedSpans.has(key)));};
@@ -125,8 +128,9 @@ async function execute(candidate,viewport,run,runtimeDiagnostic=diagnostic,runti
   await report('SCROLL_ATTRIBUTION',{variant:candidate.variant,childPolicy:runtimePolicy,scope:'instrumented; excluded from timing acceptance; inclusive spans overlap',nativeInstrumented:candidate.nativeInstrumented,js,native:records('ANIMATION_STAGES '),parseErrors});
  }
  if(result.status!==0||!output.includes('continuous-scroll PASS')||/ANIMATION_JS ERROR|ANIMATION_REACT_ERROR|watchdog/.test(output)||!output.includes('closed views=0 consumers=0 gpuDrained=1 inputRetired=1')){
-  const faultPcs=records('ANIMATION_FAULT_PC ');let symbols,symbolError;try{symbols=symbolizeWindowsFault(faultPcs,path.join(candidate.directory,'out'));}catch(error){symbolError=String(error);}
-  await report('SCROLL_FAILURE',{variant:candidate.variant,viewport,fatal:records('ANIMATION_FATAL '),faultPcs,symbols,symbolError,causes:output.split('\n').filter(line=>line.includes('CORE_FAILURE ')).slice(0,3).map(line=>line.slice(0,16000)),errors:output.split('\n').filter(line=>/ERROR|watchdog|close-failed|failure|LAST_BOOT|FATAL/.test(line)).slice(-10).map(line=>line.slice(0,1500)),tail:output.split('\n').slice(-5).map(line=>line.slice(0,500)),parseErrors});throw Error('Continuous native qualification failed; see SCROLL_FAILURE');
+  const faultPcs=records('ANIMATION_FAULT_PC ');let symbols,symbolError,javaScriptSymbols,javaScriptSymbolError;try{symbols=symbolizeWindowsFault(faultPcs,path.join(candidate.directory,'out'));}catch(error){symbolError=String(error);}
+  try{javaScriptSymbols=symbolizeWindowsJavaScript(output,candidate.bundle,runner);}catch(error){javaScriptSymbolError=String(error);}
+  await report('SCROLL_FAILURE',{variant:candidate.variant,viewport,fatal:records('ANIMATION_FATAL '),faultPcs,symbols,symbolError,javaScriptSymbols,javaScriptSymbolError,causes:output.split('\n').filter(line=>line.includes('CORE_FAILURE ')).slice(0,3).map(line=>line.slice(0,16000)),errors:output.split('\n').filter(line=>/ERROR|watchdog|close-failed|failure|LAST_BOOT|FATAL/.test(line)).slice(-10).map(line=>line.slice(0,1500)),tail:output.split('\n').slice(-5).map(line=>line.slice(0,500)),parseErrors});throw Error('Continuous native qualification failed; see SCROLL_FAILURE');
  }
  assert.equal(parseErrors.length,0,'Corrupted diagnostic records cannot qualify');
  let qualified;try{qualified=continuousScrollResult(output,{...candidate,diagnostic:runtimeDiagnostic,childPolicy:runtimePolicy,input,catalog:runCatalog,catalogs});}
@@ -163,6 +167,7 @@ try{
  }
  if(timingFailure)throw timingFailure;
 }catch(error){primary=error;process.exitCode=1;await report('SCROLL_ABORT',{error:String(error)});}finally{
+ clearTimeout(deadline);
  process.off('SIGINT',stop);process.off('SIGTERM',stop);
  const errors=[];
  try{if(child){kill();if(child.exitCode===null&&child.signalCode===null)await new Promise(resolve=>child.once('close',resolve));}}catch(error){errors.push(error);}

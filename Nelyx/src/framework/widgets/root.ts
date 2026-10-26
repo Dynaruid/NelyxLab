@@ -3,7 +3,7 @@ import {invariant} from '../../foundation/errors.ts';
 import {initializeFoundationBindings} from '../../foundation/binding.ts';
 import type {SemanticsBinding} from '../../hosting/interaction.ts';
 import type {ApplicationDefinition,ViewController,ViewControllerContext,SceneContext} from '../../hosting/runtime.ts';
-import type {PaintCommand,SemanticsNode,ViewMetrics,FrameBuildToken,ResourceId} from '../../ui/types.ts';
+import type {SemanticsNode,ViewMetrics,FrameBuildToken,ResourceId} from '../../ui/types.ts';
 import type {PointerEvent,KeyEvent} from '../../ui/input.ts';
 import {transform,inversePaintTransform,captureTransform} from '../../ui/geometry.ts';
 import {BuildOwner} from './framework.ts';
@@ -17,6 +17,8 @@ import {AnnotationType} from '../rendering/layer.ts';
 import type {AnnotationResult} from '../rendering/layer.ts';
 import type {Offset} from '../../ui/geometry.ts';
 import {PaintingContext} from '../painting/context.ts';
+import {FrameRecording} from '../../ui/frame.ts';
+import type {SceneFrameSource} from '../../ui/frame.ts';
 import {PaintingBinding} from '../painting/binding.ts';
 import {withRenderPaint,assertOutsideRenderPaint} from '../rendering/phase.ts';
 import {FrameScheduler} from '../scheduler/scheduler.ts';
@@ -148,9 +150,9 @@ export class FrameworkRoot implements ViewController {
     }});
     registerTickerScheduler(this.buildOwner,this.scheduler);
   }
-  build(scene:SceneContext):readonly PaintCommand[] {
+  build(scene:SceneContext):SceneFrameSource {
     invariant(!this.closed,'closed-framework-root','Frame after root disposal');this.scheduler.beginFrame(scene.token.timing?.tick);
-    let failed=false,buildError:unknown,painting:PaintingContext|undefined,geometryCommit:ReturnType<RenderObject['commitTextInputGeometries']>|undefined;
+    let failed=false,buildError:unknown,painting:PaintingContext|undefined,recording:FrameRecording|undefined,geometryCommit:ReturnType<RenderObject['commitTextInputGeometries']>|undefined;
     try {
       if(this.closed||this.scheduler.disposed)return [];
       this.scheduler.runPersistentFrameCallbacks();if(this.closed||this.scheduler.disposed)return [];
@@ -185,7 +187,7 @@ export class FrameworkRoot implements ViewController {
         const sameScope=!!cached&&cached.render===render&&cached.owner===this.pipeline.semanticsOwner&&cached.viewOwner.id===scene.token.owner.id&&cached.viewOwner.generation===scene.token.owner.generation&&(Object.keys(metrics) as (keyof ViewMetrics)[]).every(key=>cached.metrics[key]===metrics[key])&&cached.transform.length===currentTransform.length&&currentTransform.every((value,index)=>Object.is(value,cached.transform[index]));
         let reuse=sameScope&&!this.semanticsDeferred&&this.pendingSemanticsActions.length===0&&!geometryCommit.hasInputGeometry&&!semanticsPipeline?.hasPendingChanges;
         const now=this.scheduler.currentSystemFrameTimeStamp,elapsed=this.semanticsPublishedAt===undefined?Infinity:now-this.semanticsPublishedAt;
-        const defer=!reuse&&sameScope&&(!rebuilt||semanticsPipeline?.dirty.size===0)&&!geometryCommit.hasInputGeometry&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates&&elapsed>=0&&elapsed<(this.options.semanticsUpdateInterval??0);
+        const defer=!reuse&&sameScope&&(!rebuilt||!semanticsPipeline?.hasConfigurationChanges)&&!geometryCommit.hasInputGeometry&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates&&elapsed>=0&&elapsed<(this.options.semanticsUpdateInterval??0);
         if(defer){
           // Keep dirty work queued; actions request an earlier fresh snapshot.
           // A one-shot host frame also delivers the trailing update after motion stops.
@@ -218,16 +220,25 @@ export class FrameworkRoot implements ViewController {
       // scope while BuildOwner is inside that isolated build. Its normal wakeup
       // is suppressed then, but the pending Widget must run on the next frame.
       if(this.buildOwner.defaultBuildScope.hasDirty)this.scheduler.requestFrame();
-      this.scheduler.addPostFrameCallback(()=>{if(!this.closed)this.mouseTracker.updateAllDevices();});return painting.commands;
+      this.pipeline._flushPaintRetirements();
+      this.scheduler.addPostFrameCallback(()=>{if(!this.closed)this.mouseTracker.updateAllDevices();});
     }catch(error){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsCache=undefined;this.semanticsDeferred=false;this.sourceSemanticsSnapshot?.invalidate();failed=true;buildError=error;throw error;}
     finally{
       const errors:unknown[]=[];for(const finish of [()=>this.buildOwner.finalizeTree(),()=>this.scheduler.endFrame()])try{finish();}catch(error){this.pendingSemanticsActions=[];errors.push(error);}
+      // Seal the completed CPU buffer before publishing its input coordinates.
+      // Capture owns Canvas close on success and failure.
+      let captureAttempted=false,captureFailed=false,captureError:unknown;
+      if(!failed&&!errors.length&&!this.closed&&!this.scheduler.disposed&&painting){captureAttempted=true;try{recording=FrameRecording.capture(scene.token,painting);}catch(error){captureFailed=true;captureError=error;}}
       const phase=this.scheduler.phase;if(!this.scheduler.disposed)this.scheduler.phase='post-frame';
-      try{if(failed||errors.length)geometryCommit?.discard();else geometryCommit?.commit();}
+      try{if(failed||captureFailed||errors.length||this.closed||this.scheduler.disposed)geometryCommit?.discard();else geometryCommit?.commit();}
       catch(error){errors.push(error);try{geometryCommit?.discard();}catch(cleanup){errors.push(cleanup);}}
       finally{if(!this.scheduler.disposed)this.scheduler.phase=phase;}
-      if(failed||errors.length)try{painting?.dispose();}catch(error){errors.push(error);}if(errors.length){if(failed)errors.unshift(buildError);throw new AggregateError(errors,'Frame build/finalization failed');}
+      // A failed notification cannot strand an already sealed frame's leases.
+      if(failed||captureFailed||errors.length||this.closed||this.scheduler.disposed)try{if(recording)recording.dispose();else if(!captureAttempted)painting?.dispose();}catch(error){errors.push(error);}
+      if(errors.length){if(captureFailed)errors.unshift(captureError);if(failed)errors.unshift(buildError);throw new AggregateError(errors,'Frame build/finalization failed');}
+      if(captureFailed)throw captureError;
     }
+    return this.closed||this.scheduler.disposed?[]:recording??[];
   }
   /** One recording boundary, separate from retained layer composition. */
   private recordPaint(render:RenderObject,painting:PaintingContext):void {

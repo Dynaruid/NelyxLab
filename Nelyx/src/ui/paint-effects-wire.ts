@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Wire 6 value records. Counts include every gradient stop and matrix row.
 import type {PaintSnapshot} from './paint.ts';
-import {blendModes} from './paint.ts';
+import {blendModeValues as blendModes} from './blend-mode-data.ts';
 import {tileModes,filterQualities,blurStyles} from './paint-effects-data.ts';
 import type {ShaderSnapshot,ColorFilterSnapshot,ImageFilterSnapshot} from './paint-effects-data.ts';
 import type {ResourceId} from './types.ts';

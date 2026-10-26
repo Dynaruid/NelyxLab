@@ -11,18 +11,18 @@
     "dev": "nelyx dev --app ../.. --target web"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-028da3c093f08850794519e8014edc4e9db0e6e99978a62991add43d89b72c0d.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-ba3c46547753493b389ad61cfcb06c0ef26f14ffdf63e986f3cfb75eaac2aa16.tgz",
-    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-0baedb19bdec86b85f889fe54ea584ddb0659eb1d74679f5babd256efa2f3ab2.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-8f68a0d22e395be023d8f982593d227a2ce731bd61ea06ca513a59c2a2fe50b3.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-e1ee9ce414feccc4190977135dbd63d1edf538b3683278a2d890aa86dc52fa28.tgz",
+    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-fdc9161c5cd51b4a886bfc94bfe241559ece0e161582fe1d50e46c398d29dd49.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native-web": "0.21.3",
-    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.1.0-50caf9a198abec04516c8a098d7b65aea25ab84c259f5b898ae48165333027cf.tgz",
-    "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.1.0-d3596e2b15bde1cf769092ee55edad32b80206d5face702bc36090249e5c873f.tgz"
+    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.1.0-f9adda18494831d3c26478e2329a7789b96799f71a098424e1ee67aca3f6f268.tgz",
+    "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.1.0-adcfe40b8b79cb3ec12bb6aaf9c4ca462c450ca377940289d8cc1cce170843bf.tgz"
   },
   "devDependencies": {
     "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-f613e5db43d417587c2b85e237cda39e75d71cac55c28629e68724cefb45c9db.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-55f54b6ceec7fd7d192abd00f38fd1284aa866fd5795afdca7c3df9e3878de99.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-be4f5de2ba9c962fcdff3f7f64b61cef6472d866103fe9d84f425146d5816dea.tgz",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@types/node": "24.10.1",

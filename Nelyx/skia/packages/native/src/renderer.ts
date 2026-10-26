@@ -34,6 +34,9 @@ export interface NelyxGraphiteContext extends SkGraphiteContext {
   nelyxNotifications():number[];
 }
 export interface GraphiteResources { image(id: string): SkImage; paragraph(id: string): ParagraphPaint;picture?(id:string):SkPicture;readonly runtimePrograms?:ReturnType<typeof createRuntimeShaderCache>;readonly nativeDisplayLists?:boolean }
+/** Drain polling is host work, separate from an application's retired timers. */
+export interface GraphiteRetirementClock {now():number;delay(milliseconds:number):Promise<void>;}
+const retirementClock:GraphiteRetirementClock={now:()=>performance.now(),delay:milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds))};
 import {configurePaint} from './paint.ts';
 export function replayFrame(api: SkiaAPI, canvas: SkCanvas, frame: PaintFrame, resources: GraphiteResources,programs:GraphiteResources['runtimePrograms']=resources.runtimePrograms): void {
   const temporary:unknown[]=[],errors:unknown[]=[],own=<T>(value:T):T=>{temporary.push(value);return value;};
@@ -123,7 +126,7 @@ export class GraphiteRenderer implements Renderer {
   private readonly runtimePrograms:ReturnType<typeof createRuntimeShaderCache>;
   private readonly ownsRuntimePrograms:boolean;
   get debugRuntimePrograms(){return this.runtimePrograms.debugStats;}
-  constructor(private readonly api: SkiaAPI, private readonly context: () => SkGraphiteContext, private readonly owner: ViewOwner, private readonly resources: GraphiteResources) {
+  constructor(private readonly api: SkiaAPI, private readonly context: () => SkGraphiteContext, private readonly owner: ViewOwner, private readonly resources: GraphiteResources,private readonly retirement:GraphiteRetirementClock=retirementClock) {
     this.ownsRuntimePrograms=!resources.runtimePrograms;this.runtimePrograms=resources.runtimePrograms??createRuntimeShaderCache(api);
     this.events=new RendererEvents(owner);
     {const native=context() as NelyxGraphiteContext&Partial<DisplayListTarget>;if(this.resources.nativeDisplayLists&&typeof native.nelyxReplayDisplayList!=='function')throw new Error('Native display-list1 binding required; rebuild the native supplier');if(typeof native.nelyxReserve!=='function'||typeof native.nelyxSubmit!=='function'||typeof native.nelyxNotifications!=='function')throw new Error('Nelyx native admission and retirement notification patch is required');if(native.nelyxCoreVersion()!==1)throw new Error("Native Skia core ABI mismatch");if(typeof native.nelyxWireVersion!=='function'||native.nelyxWireVersion()!==11)throw new Error('Native Skia frame wire 11 is required; rebuild the matching native supplier');native.nelyxConfigure();this.nativeIdentity=native.nelyxIdentity();}
@@ -202,19 +205,24 @@ export class GraphiteRenderer implements Renderer {
     }
   }
   dispose(): Promise<void> {
-    if(this.closePromise) return this.closePromise; this.closed = true;this.events.stop();
-    this.closePromise = (async()=>{
+    if(this.closePromise) return this.closePromise;
+    // Returning a GPU lease can invoke resource retirement callbacks. They
+    // must join this drain before it touches native context/event ownership.
+    let resolve!:()=>void,reject!:(error:unknown)=>void;
+    const closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});this.closePromise=closing;
+    this.closed = true;this.events.stop();
+    void (async()=>{
       {
         (this.context() as NelyxGraphiteContext).nelyxClose();
-        const deadline=Date.now()+5000;
-        for(;;){this.readNotifications();const values=(this.context() as NelyxGraphiteContext).nelyxStats(),stats={recordings:values[2],reserved:values[1],consuming:values[4],queued:values[3]};if(stats.recordings===0 && stats.reserved===0 && stats.consuming===0 && stats.queued===0)break;if(Date.now()>deadline)throw new Error('Native close did not retire owned recordings');await new Promise<void>(resolve=>setTimeout(resolve,16));}
+        const deadline=this.retirement.now()+5000;
+        for(;;){this.readNotifications();const values=(this.context() as NelyxGraphiteContext).nelyxStats(),stats={recordings:values[2],reserved:values[1],consuming:values[4],queued:values[3]};if(stats.recordings===0 && stats.reserved===0 && stats.consuming===0 && stats.queued===0)break;if(this.retirement.now()>deadline)throw new Error('Native close did not retire owned recordings');await this.retirement.delay(16);}
         if(this.leases.size)throw new Error('Native drain missed accepted submission retirements');
         if(this.ownsRuntimePrograms)this.runtimePrograms.dispose();
         const context=this.context() as NelyxGraphiteContext;context.nelyxReset();context.dispose();
       }
       for(const lease of this.unknown)if(!lease.released)lease.returnBy('caller');this.unknown=[];
       this.events.drain();
-    })();
-    return this.closePromise;
+    })().then(resolve,reject);
+    return closing;
   }
 }

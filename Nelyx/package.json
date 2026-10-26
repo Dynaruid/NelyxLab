@@ -66,6 +66,10 @@
       "types": "./dist/ui/frame.d.ts",
       "default": "./dist/ui/frame.js"
     },
+    "./ui/resource-retention": {
+      "types": "./dist/ui/resource-retention.d.ts",
+      "default": "./dist/ui/resource-retention.js"
+    },
     "./ui/editing": {
       "types": "./dist/ui/editing.d.ts",
       "default": "./dist/ui/editing.js"

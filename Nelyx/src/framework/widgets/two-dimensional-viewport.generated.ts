@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/two_dimensional_viewport.dart; SHA256 a3bca9a23d5367265ebb00bf6618ac912a74c4b008568ba0d0da1364a66cf69e
+// Adopted product owner: nominal checks use the classes declared here.
+import {ScrollPosition} from './scroll-position.ts';
 import { createWheelClipHandle } from "../rendering/list-wheel-renderer-adapter.ts";
 import { wheelBoxSize } from "../rendering/list-wheel-renderer-adapter.ts";
 import { wheelConstraintsBiggest } from "../rendering/list-wheel-renderer-adapter.ts";
@@ -31,15 +33,15 @@ import { protect } from "../../ui/value-math.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { createWheelRevealedOffset } from "../rendering/list-wheel-renderer-adapter.ts";
-import { isChildVicinity } from "./child-vicinity-adapter.ts";
-import { castChildVicinity } from "./child-vicinity-adapter.ts";
-import { integerString } from "./child-vicinity-adapter.ts";
+import { isChildVicinity } from "./child-vicinity.generated.ts";
+import { castChildVicinity } from "./child-vicinity.generated.ts";
+import { integerString } from "./child-vicinity.generated.ts";
 import { ErrorDescription } from "../../foundation/diagnostics.ts";
 import { ChildVicinity } from "./child-vicinity.generated.ts";
 import { DartMap } from "../../foundation/dart-collections.ts";
 import { dartMapRead } from "../../foundation/dart-collections.ts";
 import { dartMapWrite } from "../../foundation/dart-collections.ts";
-import { isTwoDimensionalChildDelegate } from "./two-dimensional-delegate-adapter.ts";
+import { isTwoDimensionalChildDelegate } from "./two-dimensional-delegate.generated.ts";
 import { Element } from "./framework.ts";
 import { RenderObjectElement } from "./framework.ts";
 import { RenderObjectWidget } from "./framework.ts";
@@ -67,11 +69,6 @@ import { twoDimensionalNumberCompare } from "./two-dimensional-viewport-adapter.
 import { twoDimensionalObjectString } from "./two-dimensional-viewport-adapter.ts";
 import { twoDimensionalBuildScope } from "./two-dimensional-viewport-adapter.ts";
 import { twoDimensionalElementSlot } from "./two-dimensional-viewport-adapter.ts";
-import { castSourceTwoDimensionalViewport } from "./two-dimensional-viewport-types.ts";
-import { castSourceRenderTwoDimensionalViewport } from "./two-dimensional-viewport-types.ts";
-import { isSourceTwoDimensionalViewportParentData } from "./two-dimensional-viewport-types.ts";
-import { castSourceTwoDimensionalViewportParentData } from "./two-dimensional-viewport-types.ts";
-import { castScrollPosition } from "./two-dimensional-viewport-types.ts";
 import { ErrorSummary } from "../../foundation/diagnostics.ts";
 import { ErrorHint } from "../../foundation/diagnostics.ts";
 import { DiagnosticsNode } from "../../foundation/diagnostics.ts";
@@ -1745,3 +1742,12 @@ export abstract class SourceTwoDimensionalChildManager {
     abstract _dart_d3f54e1615a1e8f2_reuseChild(vicinity: ChildVicinity): void;
     abstract _dart_d3f54e1615a1e8f2_endLayout(): void;
 }
+
+export function isSourceTwoDimensionalViewport(v:unknown):v is SourceTwoDimensionalViewport{return v instanceof SourceTwoDimensionalViewport;}
+export function castSourceTwoDimensionalViewport(v:unknown):SourceTwoDimensionalViewport{if(!isSourceTwoDimensionalViewport(v))throw new TypeError('Expected TwoDimensionalViewport');return v;}
+export function isSourceRenderTwoDimensionalViewport(v:unknown):v is SourceRenderTwoDimensionalViewport{return v instanceof SourceRenderTwoDimensionalViewport;}
+export function castSourceRenderTwoDimensionalViewport(v:unknown):SourceRenderTwoDimensionalViewport{if(!isSourceRenderTwoDimensionalViewport(v))throw new TypeError('Expected RenderTwoDimensionalViewport');return v;}
+export function isSourceTwoDimensionalViewportParentData(v:unknown):v is SourceTwoDimensionalViewportParentData{return v instanceof SourceTwoDimensionalViewportParentData;}
+export function castSourceTwoDimensionalViewportParentData(v:unknown):SourceTwoDimensionalViewportParentData{if(!isSourceTwoDimensionalViewportParentData(v))throw new TypeError('Expected TwoDimensionalViewportParentData');return v;}
+export function isScrollPosition(v:unknown):v is ScrollPosition{return v instanceof ScrollPosition;}
+export function castScrollPosition(v:unknown):ScrollPosition{if(!isScrollPosition(v))throw new TypeError('Expected ScrollPosition');return v;}

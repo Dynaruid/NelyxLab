@@ -13,7 +13,7 @@ import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import {EditingSession} from '@nelyx/core/ui/editing';
 import {FocusNode} from '@nelyx/core/framework/widgets/focus';
 import {FlutterError} from '@nelyx/core/foundation/flutter-error';
-import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
+import {engineFixture,assertParagraphOwnership} from '../../../packages/material/tests/engine-fixture.mjs';
 const timeout=1_200_000;
 FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});
 const style=new TextStyle({fontSize:16,height:1.5,color:0xff000000});
@@ -35,7 +35,7 @@ test('actual editor grows and clamps measured hard lines, retains binding throug
     controller.text='A';f.frame();assert.equal(render(f).size.height,48);
     set({minLines:2,maxLines:null},1.5);assert.equal(render(f).size.height,72);assert.equal(bindings.length,1);
     const box=render(f),constraints=new BoxConstraints(200,200,0,160);assert.deepEqual(box.getDryLayout(constraints),box.size);assert.equal(box.getDryBaseline(constraints,'alphabetic'),box.getDistanceToActualBaseline('alphabetic'));
-    f.set(new SizedBox());assert(bindings.every(binding=>binding.closed));assert.equal(f.library.paragraphs.size,0);
+    f.set(new SizedBox());assert(bindings.every(binding=>binding.closed));assertParagraphOwnership(f);
   }finally{await f.close();controller.dispose();}
 });
 
@@ -65,7 +65,7 @@ test('expanded editors fill bounded space; intrinsic heights count source hard s
   try{
     f.set(media(new SizedBox(200,120,editor(controller,{minLines:null,maxLines:null,expands:true}))));const box=render(f);assert.equal(box.size.height,120);assert.equal(box.getMaxIntrinsicHeight(Infinity),24);
     controller.text='A\r\nB\u0085C\u000bD\u000cE\u2028F\u2029G';f.frame();assert.equal(box.getMaxIntrinsicHeight(Infinity),168);
-    assert.equal(f.library.paragraphs.size,1,'Only the painted Core paragraph remains; intrinsic probes retire their producers');
+    assert.equal(f.library.debugTextStats.producers,1,'Only the painted Core paragraph keeps a producer; intrinsic probes retire theirs');assertParagraphOwnership(f,1);
   }finally{await f.close();controller.dispose();}
 });
 

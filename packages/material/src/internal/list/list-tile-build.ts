@@ -13,12 +13,14 @@ import { Color } from '@nelyx/core/ui/color';
 import { Border } from '@nelyx/core/framework/painting/box-border';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
+import type { ShapeBorder } from '@nelyx/core/framework/painting/borders';
 import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
 import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import {copyCapturedTextStyle,isCapturedTextStyle} from '@nelyx/core/framework/painting/text-style';
 import { WidgetState, WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
 import { WidgetStateColor } from '@nelyx/core/framework/widgets/widget-state-color';
 import { WidgetStateMouseCursor } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
 import { sourceColorType } from '@nelyx/core/ui/color-source';
 import { nullableDartType, isDartType, captureDartInterface } from '@nelyx/core/foundation/dart-type-witness';
@@ -37,14 +39,30 @@ import { InkWell } from "../../ink-well.ts";
 import { Ink } from "../../ink-decoration.ts";
 import { Material } from "../../material.ts";
 import { ChipBackgroundDecoration as ColorShapeDecoration } from "../chip/chip-background.ts";
+import { emptyInkDecoration } from '../material/empty-ink-decoration.ts';
 import { IconButtonTheme, IconButtonThemeData } from "../../icon-button-theme.ts";
 import { ButtonStyle } from "../../button-style.ts";
 import { Divider } from "../../divider.ts";
+function defaultTileTextStyle(base:TextStyle,colors:Readonly<{onSurface:number;onSurfaceVariant:number}>,role:'onSurface'|'onSurfaceVariant'):TextStyle{
+    const copy=base.copyWith;return copyCapturedTextStyle(base,copy,{color:colors[role]});
+}
+interface TileDefaultsProjection {readonly title:TextStyle;readonly subtitle:TextStyle;readonly leading:TextStyle;readonly primary:number;readonly icon:number;readonly value:ListTileThemeData}
+// One immutable projection per live Theme. Resolve external members before
+// lookup, so style getters/overrides and live colour sources keep their order.
+const tileDefaults=new WeakMap<object,TileDefaultsProjection>();
 export function listTileDefaults(context: BuildContext, style: ListTileStyle): ListTileThemeData {
     const theme = Theme.of(context), text = theme.textTheme, colors = theme.colorScheme;
-    return new ListTileThemeData({
-        contentPadding: EdgeInsetsDirectional.only({ start: 16, end: 24 }), minLeadingWidth: 24, minVerticalPadding: 8, shape: new RoundedRectangleBorder(), tileColor: new Color(0), titleTextStyle: text.bodyLarge!.copyWith({ color: colors.onSurface }), subtitleTextStyle: text.bodyMedium!.copyWith({ color: colors.onSurfaceVariant }), leadingAndTrailingTextStyle: text.labelSmall!.copyWith({ color: colors.onSurfaceVariant }), selectedColor: new Color(colors.primary), iconColor: new Color(colors.onSurfaceVariant)
+    const title=defaultTileTextStyle(text.bodyLarge!,colors,'onSurface'),subtitle=defaultTileTextStyle(text.bodyMedium!,colors,'onSurfaceVariant'),leading=defaultTileTextStyle(text.labelSmall!,colors,'onSurfaceVariant'),primary=colors.primary,previous=tileDefaults.get(theme);
+    // Construct/validate the selected colour before reading the icon colour,
+    // matching the original object initializer even for a live source getter.
+    const selectedColor=previous&&Object.is(previous.primary,primary)?previous.value.selectedColor!:new Color(primary),icon=colors.onSurfaceVariant;
+    const iconColor=previous&&Object.is(previous.icon,icon)?previous.value.iconColor!:new Color(icon);
+    if(previous&&previous.title===title&&previous.subtitle===subtitle&&previous.leading===leading&&previous.value.selectedColor===selectedColor&&previous.value.iconColor===iconColor)return previous.value;
+    const value=new ListTileThemeData({
+        contentPadding: EdgeInsetsDirectional.only({ start: 16, end: 24 }), minLeadingWidth: 24, minVerticalPadding: 8, shape: new RoundedRectangleBorder(), tileColor: new Color(0), titleTextStyle:title, subtitleTextStyle:subtitle, leadingAndTrailingTextStyle:leading, selectedColor, iconColor
     });
+    if(typeof primary==='number'&&typeof icon==='number'&&isCapturedTextStyle(title)&&isCapturedTextStyle(subtitle)&&isCapturedTextStyle(leading))tileDefaults.set(theme,{title,subtitle,leading,primary,icon,value});
+    return value;
 }
 export function resolveListTileColor(explicit: Color | null, selected: Color | null, enabled: Color | null, disabled: Color | null, states: DartSet<WidgetState>): Color | null {
     if (explicit instanceof WidgetStateColor)
@@ -78,6 +96,9 @@ function checkVisibleBackground(context: BuildContext): void {
         return true;
     });
 }
+function listTileInkDecoration(shape:ShapeBorder|null,background:Color,defaultBackground:Color):ColorShapeDecoration {
+    return shape===null&&background===defaultBackground?emptyInkDecoration:new ColorShapeDecoration(shape??new Border(),background);
+}
 export function buildListTile(tile: ListTile, context: BuildContext): Widget {
     Material.of(context);
     const theme = Theme.of(context), local = ListTileTheme.of(context), global = theme.listTileTheme, style = tile.style ?? local.style ?? global.style ?? ListTileStyle.list, defaults = listTileDefaults(context, style), background = tile.tileColor ?? local.tileColor ?? global.tileColor ?? defaults.tileColor!, selectedBackground = tile.selectedTileColor ?? local.selectedTileColor ?? global.selectedTileColor ?? defaults.tileColor!;
@@ -94,17 +115,17 @@ export function buildListTile(tile: ListTile, context: BuildContext): Widget {
         captureDartInterface(iconButtonColor, sourceColorType);
     const buttonStyle = (parentButtonTheme.style ?? new ButtonStyle()).copyWith({ foregroundColor: WidgetStateProperty.all(nullableDartType(sourceColorType), iconButtonColor) }), animated = (child: Widget, textStyle: TextStyle): Widget => new AnimatedDefaultTextStyle({
         style: textStyle, duration: 200, child
-    }), leadingStyle = tile.leadingAndTrailingTextStyle ?? local.leadingAndTrailingTextStyle ?? defaults.leadingAndTrailingTextStyle!, titleStyle = (tile.titleTextStyle ?? local.titleTextStyle ?? defaults.titleTextStyle!).copyWith({ color: effectiveTextColor?.toARGB32() ?? null, fontSize: dense ? 13 : null }), subtitleStyle = tile.subtitle === null ? null : (tile.subtitleTextStyle ?? local.subtitleTextStyle ?? defaults.subtitleTextStyle!).copyWith({ color: effectiveTextColor?.toARGB32() ?? null, fontSize: dense ? 12 : null }), direction = Directionality.of(context), contentPadding = (tile.contentPadding ?? local.contentPadding ?? defaults.contentPadding!).resolve(direction);
+    }), leadingStyle = tile.leadingAndTrailingTextStyle ?? local.leadingAndTrailingTextStyle ?? defaults.leadingAndTrailingTextStyle!, titleBase = tile.titleTextStyle ?? local.titleTextStyle ?? defaults.titleTextStyle!, titleStyle = copyCapturedTextStyle(titleBase,titleBase.copyWith,{ color: effectiveTextColor?.toARGB32() ?? null, fontSize: dense ? 13 : null }), subtitleBase = tile.subtitle === null ? null : tile.subtitleTextStyle ?? local.subtitleTextStyle ?? defaults.subtitleTextStyle!, subtitleStyle = subtitleBase === null ? null : copyCapturedTextStyle(subtitleBase,subtitleBase.copyWith,{ color: effectiveTextColor?.toARGB32() ?? null, fontSize: dense ? 12 : null }), direction = Directionality.of(context), contentPadding = (tile.contentPadding ?? local.contentPadding ?? defaults.contentPadding!).resolve(direction);
     const mouseStates = emptyWidgetStateSet();
     if (!tile.enabled || tile.onTap === null && tile.onLongPress === null)
         mouseStates.add(WidgetState.disabled);
     const cursor = (tile.mouseCursor instanceof WidgetStateMouseCursor ? tile.mouseCursor.resolve(mouseStates) : tile.mouseCursor) ?? local.mouseCursor?.resolve(mouseStates) ?? WidgetStateMouseCursor.clickable.resolve(mouseStates), alignment = tile.titleAlignment ?? local.titleAlignment ?? ListTileTitleAlignment.threeLine, shape = tile.shape ?? local.shape;
     const body = new ListTileRenderWidget({
-        leading: tile.leading === null ? null : animated(tile.leading, leadingStyle.copyWith({ color: effectiveTextColor?.toARGB32() ?? null })), title: animated(tile.title ?? new SizedBox(), titleStyle), subtitle: tile.subtitle === null ? null : animated(tile.subtitle, subtitleStyle!), trailing: tile.trailing === null ? null : animated(tile.trailing, leadingStyle.copyWith({ color: effectiveTextColor?.toARGB32() ?? null })), isDense: dense, visualDensity: tile.visualDensity ?? local.visualDensity ?? theme.visualDensity, isThreeLine: tile.isThreeLine ?? local.isThreeLine ?? global.isThreeLine ?? false, textDirection: direction, titleBaselineType: titleStyle.textBaseline ?? defaults.titleTextStyle!.textBaseline!, subtitleBaselineType: subtitleStyle?.textBaseline ?? defaults.subtitleTextStyle!.textBaseline!, horizontalTitleGap: tile.horizontalTitleGap ?? local.horizontalTitleGap ?? 16, minVerticalPadding: tile.minVerticalPadding ?? local.minVerticalPadding ?? defaults.minVerticalPadding!, minLeadingWidth: tile.minLeadingWidth ?? local.minLeadingWidth ?? defaults.minLeadingWidth!, minTileHeight: tile.minTileHeight ?? local.minTileHeight, titleAlignment: alignment
+        leading: tile.leading === null ? null : animated(tile.leading, copyCapturedTextStyle(leadingStyle,leadingStyle.copyWith,{ color: effectiveTextColor?.toARGB32() ?? null })), title: animated(tile.title ?? new SizedBox(), titleStyle), subtitle: tile.subtitle === null ? null : animated(tile.subtitle, subtitleStyle!), trailing: tile.trailing === null ? null : animated(tile.trailing, copyCapturedTextStyle(leadingStyle,leadingStyle.copyWith,{ color: effectiveTextColor?.toARGB32() ?? null })), isDense: dense, visualDensity: tile.visualDensity ?? local.visualDensity ?? theme.visualDensity, isThreeLine: tile.isThreeLine ?? local.isThreeLine ?? global.isThreeLine ?? false, textDirection: direction, titleBaselineType: titleStyle.textBaseline ?? defaults.titleTextStyle!.textBaseline!, subtitleBaselineType: subtitleStyle?.textBaseline ?? defaults.subtitleTextStyle!.textBaseline!, horizontalTitleGap: tile.horizontalTitleGap ?? local.horizontalTitleGap ?? 16, minVerticalPadding: tile.minVerticalPadding ?? local.minVerticalPadding ?? defaults.minVerticalPadding!, minLeadingWidth: tile.minLeadingWidth ?? local.minLeadingWidth ?? defaults.minLeadingWidth!, minTileHeight: tile.minTileHeight ?? local.minTileHeight, titleAlignment: alignment
     });
     return new InkWell({
         customBorder: shape, onTap: tile.enabled ? tile.onTap : null, onLongPress: tile.enabled ? tile.onLongPress : null, onFocusChange: tile.onFocusChange, mouseCursor: cursor, canRequestFocus: tile.enabled, focusNode: tile.focusNode, focusColor: tile.focusColor, hoverColor: tile.hoverColor, splashColor: tile.splashColor, autofocus: tile.autofocus, enableFeedback: tile.enableFeedback ?? local.enableFeedback ?? true, statesController: tile.statesController, ...(tile.id === undefined ? {} : { id: tile.id }), child: new Semantics({
-            button: tile.internalAddSemanticForOnTap && (tile.onTap !== null || tile.onLongPress !== null), selected: tile.selected, enabled: tile.enabled, child: new Ink({ decoration: new ColorShapeDecoration(shape ?? new Border(), tile.selected ? selectedBackground : background), child: new ListTileSafeArea(contentPadding, new IconTheme(new IconThemeData({ color: effectiveIconColor }), new IconButtonTheme(new IconButtonThemeData({ style: buttonStyle }), body))) })
+            button: tile.internalAddSemanticForOnTap && (tile.onTap !== null || tile.onLongPress !== null), selected: tile.selected, enabled: tile.enabled, child: new Ink({ decoration: listTileInkDecoration(shape, tile.selected ? selectedBackground : background, defaults.tileColor!), child: new ListTileSafeArea(contentPadding, new IconTheme(new IconThemeData({ color: effectiveIconColor }), new IconButtonTheme(new IconButtonThemeData({ style: buttonStyle }), body))) })
         })
     });
 }

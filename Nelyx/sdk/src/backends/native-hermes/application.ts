@@ -17,10 +17,20 @@ import {nativeHermesBridge} from './bridge.ts';
 import {connectNativeInteraction} from './interaction.ts';
 import {createNativeServices} from './services.ts';
 import {connectNativeEditing} from './editing.ts';
+import {nativeHermesEnvironment} from './globals.ts';
 
 /** RN-independent SDK composition. Core owns the same Widget/Element/layout
  * tree; the native host publishes already measured root metrics only. */
 export async function startNativeHermesApplication(definition:ApplicationDefinition,configuration:NativeAssetConfiguration){
+  nativeHermesEnvironment.claimApplication();
+  try{return await composeNativeHermesApplication(definition,configuration);}catch(error){
+    // Failures before the composition owner/listener exists still retire the
+    // VM globals. A failed established drain retains its runtime dependencies.
+    if(nativeHermesEnvironment.state==='open')try{nativeHermesEnvironment.beginClose();nativeHermesEnvironment.dispose();}catch(cleanup){throw new AggregateError([error,cleanup],'Native VM bootstrap retirement failed');}
+    throw error;
+  }
+}
+async function composeNativeHermesApplication(definition:ApplicationDefinition,configuration:NativeAssetConfiguration){
   const bridge=nativeHermesBridge(),native=globalThis as unknown as {SkiaApi:Skia;SkiaViewApi:{makeGraphiteContext(id:number,width:number,height:number,opaque:boolean,highBitDepth:boolean,scale:number):NelyxGraphiteContext}};
   configuration={...configuration,sources:Object.fromEntries(Object.entries(configuration.sources).map(([id,source])=>{
     if(typeof source==='number'||!source.uri.startsWith('nelyx-asset:/'))return [id,source];
@@ -38,7 +48,7 @@ export async function startNativeHermesApplication(definition:ApplicationDefinit
   let nativeInteraction:ReturnType<typeof connectNativeInteraction>|undefined,clock:ReturnType<typeof createSurfaceFrameClock>|undefined;
   let interaction:NativeInteraction|undefined;
   let ready!:()=>void;const startupFinished=new Promise<void>(resolve=>{ready=resolve;});
-  const fail=(error:unknown)=>bridge.fail(error instanceof Error?error.stack??error.message:String(error));
+  const fail=(error:unknown)=>nativeHermesEnvironment.reportError(error);
   let closing:Promise<void>|undefined,inputDiagnostics=0;
   const shutdown=new OwnedDisposal([
     {name:'startup',run:()=>startupFinished},
@@ -54,9 +64,10 @@ export async function startNativeHermesApplication(definition:ApplicationDefinit
     {name:'platform',run:()=>platform?.port.dispose()},
     {name:'interaction',run:()=>interaction?.dispose()},
     {name:'assets',run:()=>assetLease?.release()},
+    {name:'vm-environment',run:()=>nativeHermesEnvironment.dispose()},
     {name:'completion',run:()=>bridge.completeShutdown()},
   ]);
-  const close=()=>{closed=true;return closing??=finishOwnedDisposal(()=>shutdown.dispose());};
+  const close=()=>{if(!closed){closed=true;try{nativeHermesEnvironment.beginClose();}catch{/* The VM owner preserves this error for its final retirement step. */}}return closing??=finishOwnedDisposal(()=>shutdown.dispose());};
   try{
   assetLease=assetServices.acquire(configuration);platform=createNativeServices(bridge);
   bridge.listen((kind,value)=>{
@@ -76,12 +87,12 @@ export async function startNativeHermesApplication(definition:ApplicationDefinit
   if(closed){ready();await close();return;}
   context=native.SkiaViewApi.makeGraphiteContext(1,metrics.logicalWidth,metrics.logicalHeight,true,false,metrics.scale);
   metrics={...metrics,nativeContextGeneration:context.nelyxIdentity()};
-  const activeEngine=engine=createNativeEngineServices({api,context,owner,assets:loaded,configuration,resolveSource:source=>assetBackend.resolveSource(source),assertOpen(){if(closed)throw new Error('Native application owner closed');}});
+  const activeEngine=engine=createNativeEngineServices({api,context,owner,assets:loaded,configuration,retirement:nativeHermesEnvironment.retirement,resolveSource:source=>assetBackend.resolveSource(source),assertOpen(){if(closed)throw new Error('Native application owner closed');}});
   const activeInteraction=interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'});
   nativeInteraction=connectNativeInteraction(activeInteraction,bridge,()=>metrics);
   nativeEditing=connectNativeEditing(activeInteraction,bridge,fail);await nativeEditing.ready;
   if(closed){ready();await close();return;}
-  const scheduler={request(callback:(timing?:import('@nelyx/core/foundation/clock').FrameTiming)=>void){return bridge.requestFrame((tick,dispatch)=>callback({tick,dispatch,queueDelay:dispatch-tick,clockUncertainty:0}));},cancel:(id:number)=>bridge.cancelFrame(id)};
+  const scheduler={request(callback:(timing?:import('@nelyx/core/foundation/clock').FrameTiming)=>void){return bridge.requestFrame((tick,dispatch)=>{try{callback({tick,dispatch,queueDelay:dispatch-tick,clockUncertainty:0});}catch(error){fail(error);}});},cancel:(id:number)=>bridge.cancelFrame(id)};
   clock=createSurfaceFrameClock({pending:()=>activeEngine.hasPendingSubmissions,poll:()=>activeEngine.pollNotifications(),onError:fail},scheduler);
   const supplied=definition.assets?definition:{...definition,assets:configuration.manifest.map(({id,kind,sha256})=>({id,kind,sha256}))};
   const started=app=await bootstrapApplication(supplied,{

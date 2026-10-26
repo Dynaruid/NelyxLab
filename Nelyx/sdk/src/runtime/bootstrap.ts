@@ -111,8 +111,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
     for (const asset of resolved) {
       if (assets.has(asset.descriptor.id)) throw new Error(`Duplicate asset: ${asset.descriptor.id}`);
       session.resources.register(asset.descriptor, () => asset.retire()); registered.add(asset);
-      const resource=Object.freeze({id:asset.descriptor.id,generation:asset.descriptor.generation});
-      session.resources.bindResource(resource);
+      const resource=session.resources.captureResource(asset.descriptor);
       assets.set(asset.descriptor.id,resource);
     }
     for (const declared of definition.assets ?? []) {

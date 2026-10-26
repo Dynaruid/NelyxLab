@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "JsiSkCanvas.h"
+#include "JsiDisplayList.h"
 #include "JsiSkConverters.h"
 #include "JsiSkNativeObjects.h"
 #include "JsiSkPicture.h"
@@ -56,8 +57,16 @@ public:
     return std::make_shared<JsiSkPicture>(getContext(), std::move(picture));
   }
 
+  JSI_HOST_FUNCTION(nelyxReplayDisplayList) {
+    if(count!=2)throw jsi::JSError(runtime,"Native picture display-list requires a packet and handle table");
+    auto recorder=getObject();auto* canvas=recorder->getRecordingCanvas();
+    if(!canvas)throw jsi::JSError(runtime,"Native picture display-list requires an open recording");
+    replayDisplayList(runtime,canvas,arguments[0],arguments[1]);return jsi::Value::undefined();
+  }
+
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
     installCommon(runtime, prototype);
+    installHostMethod(runtime,prototype,"nelyxReplayDisplayList",&JsiSkPictureRecorder::nelyxReplayDisplayList);
     installMethod(runtime, prototype, "beginRecording",
                   &JsiSkPictureRecorder::beginRecording);
     installMethod(runtime, prototype, "finishRecordingAsPicture",

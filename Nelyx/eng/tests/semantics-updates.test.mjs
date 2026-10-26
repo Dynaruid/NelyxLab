@@ -10,6 +10,19 @@ import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
 const timeout=1_200_000,owner={id:'semantics-updates',generation:1};
 const button=(extra={})=>({id:'button',sourceNodeId:1,role:'button',name:'Run',enabled:true,bounds:{x:0,y:0,width:80,height:32},actions:{activate(){}},...extra});
 
+test('retiring the last semantic node publishes one empty update and releases detached work',{timeout},()=>{
+  FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
+  for(const hostTree of [false,true]){
+    const packets=[],owner=new SemanticsOwner({onSemanticsUpdate(update){packets.push(update._read().nodes.length);update.dispose();},...(hostTree?{createSemanticsUpdateBuilder:()=>null}:{})}),root=SemanticsNode.root({owner}),config=new SemanticsConfiguration();let notifications=0;
+    owner.addListener(()=>notifications++);
+    try{
+      root.rect=Rect.fromLTWH(0,0,40,30);root.updateWith({config});owner.sendSemanticsUpdate();assert.equal(notifications,1);
+      root.detach();assert.equal(owner.hasPendingUpdates,true);owner.sendSemanticsUpdate();assert.equal(notifications,2);assert.equal(owner.hasPendingUpdates,false);assert.equal(owner.rootSemanticsNode,null);assert.deepEqual(packets,hostTree?[]:[1,0]);
+      owner.sendSemanticsUpdate();assert.equal(notifications,2);
+    }finally{if(root.attached)root.detach();owner.dispose();}
+  }
+});
+
 test('validated immutable trees cross host boundaries without another copy; public frozen input is still validated',{timeout},()=>{
   const input=[button()],snapshot=freezeSemantics(input);
   assert.notEqual(snapshot,input);assert.equal(freezeSemantics(snapshot),snapshot);

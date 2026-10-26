@@ -7,7 +7,7 @@ import { Color } from '@nelyx/core/ui/color';
 import { sourceColorType, captureSourceColor, assertSourceColorInterface } from '@nelyx/core/ui/color-source';
 import { WidgetState, WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
 import { nullableDartType } from '@nelyx/core/foundation/dart-type-witness';
 import { WidgetStateMouseCursor, sourceMouseCursorType } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';

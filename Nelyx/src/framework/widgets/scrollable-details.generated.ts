@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/scrollable_helpers.dart; SHA256 1739ef2234d5f613ca1aa52ff6016fdce8fd9afe0ae31aba2f1ed2d698df614b
+// Adopted product owner: nominal checks use the classes declared here.
 import { AxisDirection } from "../painting/basic-types.ts";
 import { protect } from "../../ui/value-math.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
@@ -8,8 +9,6 @@ import { hashValues } from "../painting/value-equality.ts";
 import { describeIdentity } from "../../foundation/diagnostics-identity.ts";
 import { detailsObjectString } from "./scrollable-details-adapter.ts";
 import { detailsRuntimeType } from "./scrollable-details-adapter.ts";
-import { isSourceScrollableDetails } from "./scrollable-details-types.ts";
-import { castSourceScrollableDetails } from "./scrollable-details-types.ts";
 import { detailsStringConcat } from "./scrollable-details-adapter.ts";
 import type { Clip } from "../../ui/clip.ts";
 import type { ScrollController } from "./scroll-controller.ts";
@@ -151,3 +150,6 @@ function _dartTemporary2({ reverse = false, controller = null, physics = null, d
     protect(_dartTemporary3, ["direction", "controller", "physics", "decorationClipBehavior"]);
     return _dartTemporary3 as SourceScrollableDetails;
 }
+
+export function isSourceScrollableDetails(value:unknown):value is SourceScrollableDetails{return value instanceof SourceScrollableDetails;}
+export function castSourceScrollableDetails(value:unknown):SourceScrollableDetails{if(!isSourceScrollableDetails(value))throw new TypeError('Expected ScrollableDetails');return value;}

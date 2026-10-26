@@ -48,8 +48,8 @@ export function verifyNativeCatalogReports(reports,{viewport,material,cupertino}
   return {scope:'complete OS catalog with matching surface coverage; diagnostic only',material:material.length,cupertino:cupertino.length,columns:columns.length};
 }
 export function nativeScrollOptions(args){
-  const result={app:path.join(root,'sample/nelyx-testbed-app-2'),mode:'bytecode',viewport:'default',scope:'cpu',pacing:'programmatic',catalog:false,details:false,resourceCycles:0};
-  const names=new Map([['--app','app'],['--hermes-mode','mode'],['--viewport','viewport'],['--scope','scope'],['--input','pacing'],['--resource-cycles','resourceCycles']]);
+  const result={app:path.join(root,'sample/nelyx-testbed-app-2'),mode:'bytecode',viewport:'default',scope:'cpu',pacing:'programmatic',catalog:false,details:false,resourceCycles:0,repeat:1};
+  const names=new Map([['--app','app'],['--hermes-mode','mode'],['--viewport','viewport'],['--scope','scope'],['--input','pacing'],['--resource-cycles','resourceCycles'],['--repeat','repeat']]);
   for(let index=0;index<args.length;index++){
     const name=args[index];if(name==='--catalog'){result.catalog=true;continue;}if(name==='--details'){result.details=true;continue;}
     const key=names.get(name);if(!key||!args[index+1]||args[index+1].startsWith('--'))throw Error('Unknown or incomplete native scroll option: '+name);
@@ -57,8 +57,14 @@ export function nativeScrollOptions(args){
   }
   if(!['bytecode','static-aot'].includes(result.mode)||!['default','maximized','both'].includes(result.viewport)||!['cpu','gc','diagnostic','sampling'].includes(result.scope)||result.scope==='sampling'&&result.mode!=='bytecode')throw Error('Choose a native Hermes mode, default|maximized|both viewport and cpu|gc|diagnostic|sampling scope (sampling requires bytecode)');
   if(!['programmatic','os'].includes(result.pacing)||result.pacing==='os'&&(!['cpu','sampling'].includes(result.scope)||result.catalog&&result.scope!=='cpu'))throw Error('OS wheel supports cpu scope (including the catalog) or separate bytecode ListView sampling');
-  result.resourceCycles=Number(result.resourceCycles);validateResourceCycleOptions(result);
+  result.resourceCycles=Number(result.resourceCycles);validateResourceCycleOptions(result);result.repeat=Number(result.repeat);nativeScrollRuns(result);
   result.app=path.resolve(result.app);return result;
+}
+/** Each trial starts a fresh process from the same package. The one 20-minute
+ * deadline and one finally-owned build directory cover the complete batch. */
+export function nativeScrollRuns({viewport,repeat=1,scope,resourceCycles=0}){
+  if(!['default','maximized','both'].includes(viewport)||!Number.isSafeInteger(repeat)||repeat<1||repeat>3||repeat>1&&(scope!=='cpu'||resourceCycles!==0))throw Error('Repeat requires 1..3 trials; multiple trials require cpu scope without resource cycles');
+  const runs=[];for(let trial=1;trial<=repeat;trial++)for(const view of viewport==='both'?['default','maximized']:[viewport])runs.push({trial,viewport:view});return runs;
 }
 function validateResourceCycleOptions(options){
   if(!Number.isSafeInteger(options.resourceCycles)||options.resourceCycles!==0&&(options.resourceCycles<3||options.resourceCycles>30||options.scope!=='cpu'||options.pacing!=='programmatic'||options.catalog))throw Error('Resource cycles require 3..30 cpu/programmatic ListView repetitions');
@@ -85,7 +91,7 @@ export function verifyNativeResourceCycles(reports,cycles){
   return {scope:'Core accounting, pictures and native frame owners only',cycles,producerAndFrameOwners:'PASS-scoped',cacheRetention:'observed',accounted:last.accounted,pictures:last.pictures,native:last.native,residency:points.map(point=>({cycle:point.cycle,accounted:{...point.accounted},pictures:{...point.pictures}})),memoryAccepted:false,privateProcessMemory:'notVerified',gpuMemory:'notVerified',performanceAccepted:false};
 }
 export async function runNativeScroll(options){
-  options={pacing:'programmatic',details:false,resourceCycles:0,...options};validateResourceCycleOptions(options);
+  options={pacing:'programmatic',details:false,resourceCycles:0,repeat:1,...options};validateResourceCycleOptions(options);const runs=nativeScrollRuns(options);
   const app=fs.realpathSync(options.app),parent=path.join(app,'.nelyx/native-windows');fs.mkdirSync(parent,{recursive:true});
   if(fs.realpathSync(parent)!==parent)throw Error('Native diagnostic parent must be a real directory');
   const temporary=fs.mkdtempSync(path.join(parent,'.scroll-fixture-')),controller=new AbortController(),deadline=setTimeout(()=>controller.abort(Error('Native scroll diagnostic exceeded 20 minutes')),timeout);
@@ -103,9 +109,9 @@ export async function runNativeScroll(options){
     const built=await buildNativeApplication({app,mode:options.mode,hostBuild,diagnosticEntry:entry,output:path.join(temporary,'package'),cacheDirectory:path.join(temporary,'aot-cache'),signal:controller.signal});
     const checked=verifyNativePackage(built.directory);if(checked.manifest.qualification!=='diagnostic-only')throw Error('Native diagnostic acquired a product qualification');
     const results=[];
-    for(const viewport of options.viewport==='both'?['default','maximized']:[options.viewport]){
+    for(const {trial,viewport}of runs){
     let output='',errors='',overflow=false,foregroundCarry='';
-    console.log('NELYX_NATIVE_PROBE_READY '+JSON.stringify({mode:options.mode,viewport,scope:options.scope,catalog:options.catalog,input:options.pacing,sourceSha256:hostBuild.manifest.sourceSha256,bundleSha256:checked.manifest.files.find(file=>file.path===checked.manifest.bundle)?.sha256,qualification:'diagnostic-only',desktopInput:'must remain idle'}));
+    console.log('NELYX_NATIVE_PROBE_READY '+JSON.stringify({trial,mode:options.mode,viewport,scope:options.scope,catalog:options.catalog,input:options.pacing,sourceSha256:hostBuild.manifest.sourceSha256,bundleSha256:checked.manifest.files.find(file=>file.path===checked.manifest.bundle)?.sha256,qualification:'diagnostic-only',desktopInput:'must remain idle'}));
     const env={...process.env,NELYX_NATIVE_FRAME_TRACE:'1',NELYX_NATIVE_GC_STATS:options.scope==='gc'?'1':'0',NELYX_NATIVE_CPU_PROFILE:options.scope==='sampling'?'1':'0',NELYX_NATIVE_PROBE_VIEWPORT:viewport};
     delete env.NELYX_NATIVE_DIAGNOSTICS;
     running=startWindowsProcess(built.executable,[built.bundle,built.assetRoot,options.mode,String(180000),String(1000),String(1000)],{cwd:built.directory,env,verify:verifyNativePackage,onOutput(chunk,channel){if(output.length+errors.length+chunk.length>4*1024*1024){overflow=true;return;}if(channel==='stdout'){output+=chunk;foregroundCarry+=chunk;let end;while((end=foregroundCarry.indexOf('\n'))>=0){const line=foregroundCarry.slice(0,end).replace(/\r$/,'');foregroundCarry=foregroundCarry.slice(end+1);if(line==='NELYX_NATIVE_PROBE_FOREGROUND_WAIT')console.log(line);}}else errors+=chunk;}});
@@ -115,7 +121,7 @@ export async function runNativeScroll(options){
     const reports=nativeProbeReports(output);
     if(options.scope==='sampling'){const map=new SourceMap(JSON.parse(fs.readFileSync(path.join(built.directory,'app.js.map'),'utf8')));for(const report of reports)if(report.profile)report.profile=symbolicateNativeProfile(report.profile,map);}
     const exits=output.split(/\r?\n/).filter(line=>line.startsWith('NELYX_NATIVE_EXIT ')).map(line=>JSON.parse(line.slice('NELYX_NATIVE_EXIT '.length)));
-    for(const report of reports)console.log('NELYX_NATIVE_PROBE '+JSON.stringify(printableReport(report,options.details)));
+    for(const report of reports)console.log('NELYX_NATIVE_PROBE '+JSON.stringify({...printableReport(report,options.details),trial,viewportName:viewport}));
     if(controller.signal.aborted)throw controller.signal.reason;
     if(overflow||result.exitCode!==0||result.error||result.forced||exits.length!==1||exits[0].exitCode!==0||!reports.some(report=>report.type==='complete')||/NELYX_NATIVE_(?:ERROR|MESSAGE_ERROR|JS_ERROR)/.test(output+errors))throw Error('Native scroll diagnostic failed: '+JSON.stringify({result,overflow,exits,tail:output.slice(-9000),errors:errors.slice(-3000)}));
     const expectedPhases=options.catalog?(viewport==='maximized'?13:10):4;
@@ -123,7 +129,7 @@ export async function runNativeScroll(options){
     const loadedIdentity=verifyNativeLoadedIdentity(output,checked.manifest);
     const coverage=catalogs?verifyNativeCatalogReports(reports,{viewport,...catalogs}):null;
     const resourceStability=options.resourceCycles?verifyNativeResourceCycles(reports,options.resourceCycles):null;
-    const summary={schema:1,options:{...options,viewport},qualification:'diagnostic-only',sourceSha256:hostBuild.manifest.sourceSha256,loadedIdentity,packageFiles:checked.files,exit:exits[0],normalClose:true,phases:reports.filter(report=>report.type==='phase').length,...(coverage?{catalog:coverage}:{}),...(resourceStability?{resourceStability}:{}),performanceAccepted:false,physicalInputAccepted:'notVerified',displayed:'unobserved'};
+    const summary={schema:1,trial,processId:running.pid,options:{...options,viewport},qualification:'diagnostic-only',sourceSha256:hostBuild.manifest.sourceSha256,loadedIdentity,packageFiles:checked.files,exit:exits[0],normalClose:true,phases:reports.filter(report=>report.type==='phase').length,...(coverage?{catalog:coverage}:{}),...(resourceStability?{resourceStability}:{}),performanceAccepted:false,physicalInputAccepted:'notVerified',displayed:'unobserved'};
     console.log('NELYX_NATIVE_PROBE_RESULT '+JSON.stringify(summary));results.push(summary);
     }
     return results.length===1?results[0]:results;

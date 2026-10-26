@@ -11,14 +11,17 @@ import {RenderParagraph as TransportParagraph} from './boxes.ts';
 import {TextPainter} from '../painting/text-painter.ts';import type {TextPainterOptions,TextOverflow,TextWidthBasis} from '../painting/text-painter.ts';import type {InlineSpan} from '../painting/inline-span.ts';import type {InlinePlaceholder} from '../painting/inline-layout.ts';import {PlaceholderDimensions} from '../painting/placeholder-dimensions.ts';import {Size as SizeValue} from '../../ui/size.ts';import {compileInlineSpan,collectInlinePlaceholders} from '../painting/inline-layout.ts';import {TextStyle} from '../painting/text-style.ts';import {TextScaler} from '../painting/text-scaler.ts';
 import type {ParagraphContext} from '../../ui/paragraph.ts';import {Locale} from '../../ui/locale.ts';import type {StrutStyle} from '../painting/strut-style.ts';import type {TextAlign,TextHeightBehavior,Hyphens} from '../../ui/typography.ts';import type {SelectionRegistrar} from './selection.ts';import {Offset as OffsetValue} from '../../ui/offset.ts';import type {TextBox,BoxHeightStyle,BoxWidthStyle} from '../../ui/text-box.ts';import {valueEquals} from '../painting/value-equality.ts';
 import {FoundationBuildMode} from '../../foundation/constants.ts';
-import {copyResourceId} from '../../ui/resource-retention.ts';
+import {copyResourceId,isCapturedResourceId} from '../../ui/resource-retention.ts';
+import {textInputSerializationIsPlain,isCapturedTextRecord} from '../../ui/text-input-data.ts';
 import {Gradient} from '../../ui/shader.ts';import type {Shader} from '../../ui/shader.ts';
 import {FoundationPlatform} from '../../foundation/platform.ts';
 import type {PaintingContext} from '../painting/context.ts';import type {TextLayoutInput,TextLayout,TextLayoutGeometry,SemanticsNode,Rect} from '../../ui/types.ts';
 import {paragraphLayoutWidth,paragraphContentWidth,paragraphHasOverflow,paintParagraphOverflow} from './paragraph-overflow.ts';
 import type {ParagraphLayoutOptions} from './paragraph-overflow.ts';
 import {RenderComparison} from '../painting/basic-types.ts';
-import {TextSpan} from '../painting/text-span.ts';
+import {TextSpan,isCapturedTextSpan} from '../painting/text-span.ts';
+import {isCapturedTextStyle} from '../painting/text-style.ts';
+import {isCapturedTextScaler} from '../painting/text-scaler.ts';
 import {combineSemanticsInfo} from '../painting/inline-span.ts';
 import type {InlineSpanSemanticsInformation} from '../painting/inline-span.ts';
 import {TextSelection} from '../../services/text-editing.ts';
@@ -265,9 +268,17 @@ function sourceConfiguration(span:InlineSpan,o:RenderParagraphOptions,context:Pa
 /** Source RenderParagraph API with explicit application text-engine ownership. */
 export class RenderParagraph extends RelayoutWhenSystemFontsChangeMixin(RenderRichParagraph) {
   private pixelRatio:number;
-  constructor(text:InlineSpan,options:RenderParagraphOptions,context:ParagraphContext){const config=sourceConfiguration(text,options,context);super(new TextPainter({},context),config);this.pixelRatio=options.devicePixelRatio??1;if(options.children)this.setChildren(options.children);this.registrar=options.registrar??null;this.selectionColor=options.selectionColor??null;this.semantics={id:this.semanticsId,role:'group',name:text.toPlainText().replaceAll('\ufffc',' '),enabled:true};}
+  constructor(text:InlineSpan,options:RenderParagraphOptions,context:ParagraphContext,/** @internal */ captured?:RichParagraphConfiguration){const config=captured??sourceConfiguration(text,options,context);super(new TextPainter({},context),config);this.pixelRatio=options.devicePixelRatio??1;if(options.children)this.setChildren(options.children);this.registrar=options.registrar??null;this.selectionColor=options.selectionColor??null;this.semantics={id:this.semanticsId,role:'group',name:text.toPlainText().replaceAll('\ufffc',' '),enabled:true};}
   /** @internal Preserve the host's captured font and ambient style resolution. */
-  static _fromConfiguration(config:RichParagraphConfiguration,context:ParagraphContext):RenderParagraph{const render=new RenderParagraph(config.span,{...config.painterOptions,textDirection:config.painterOptions?.textDirection??config.input.direction,baseStyle:config.style,textScaler:config.scaler,...config.paragraphOptions,devicePixelRatio:config.input.scale},context);render.config=config;return render;}
+  static _fromConfiguration(config:RichParagraphConfiguration,context:ParagraphContext):RenderParagraph{
+    // Text/RichText/Icon already resolved these inputs. Do not manufacture a
+    // second configuration and run update comparisons before the first layout.
+    // Custom source trees, scalers and mutable Paint retain their original
+    // preparation/callback sequence through the ordinary constructor + update.
+    const captured=isCapturedTextSpan(config.span)&&isCapturedTextStyle(config.style)&&isCapturedTextScaler(config.scaler)&&isCapturedResourceId(config.input.font)&&isCapturedResourceId(context.font)&&textInputSerializationIsPlain()&&(config.painterOptions===undefined||isCapturedTextRecord(config.painterOptions))&&(context.locale===undefined||typeof context.locale==='string');
+    const render=new RenderParagraph(config.span,{...config.painterOptions,textDirection:config.painterOptions?.textDirection??config.input.direction,baseStyle:config.style,textScaler:config.scaler,...config.paragraphOptions,devicePixelRatio:config.input.scale},context,captured?config:undefined);
+    if(!captured)render.config=config;return render;
+  }
   private sourceOptions():RenderParagraphOptions{const p=this.selectionPainter;return {baseStyle:this.config.style,textAlign:p.textAlign,textDirection:p.textDirection!,textScaler:p.textScaler,maxLines:p.maxLines,locale:p.locale,strutStyle:p.strutStyle,textWidthBasis:p.textWidthBasis,textHeightBehavior:p.textHeightBehavior,hyphens:p.hyphens,softWrap:this.softWrap,overflow:this.overflow,devicePixelRatio:this.pixelRatio};}
   private change(options:Partial<RenderParagraphOptions>,damage:'paint'|'layout'='layout',clearOverflow=false):void{this.setSourceConfiguration(sourceConfiguration(this.text,{...this.sourceOptions(),...options},this.selectionPainter._paragraphContext),damage,clearOverflow);}
   get text():InlineSpan{return this.config.span;}set text(value:InlineSpan){if(this.text.compareTo(value)===RenderComparison.identical)return;this.config=sourceConfiguration(value,this.sourceOptions(),this.selectionPainter._paragraphContext);}

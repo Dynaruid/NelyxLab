@@ -64,6 +64,7 @@ export class MaterialInkRender extends RenderProxyBox implements MaterialInkCont
         if (this.features.length) {
             const canvas = context.canvas;
             canvas.save();
+            const previousPainting = this.painting;
             this.painting = true;
             try {
                 canvas.clipRect({
@@ -73,7 +74,7 @@ export class MaterialInkRender extends RenderProxyBox implements MaterialInkCont
                     feature.paintOnMaterial(canvas);
             }
             finally {
-                this.painting = false;
+                this.painting = previousPainting;
                 canvas.restore();
             }
         }

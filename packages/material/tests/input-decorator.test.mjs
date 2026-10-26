@@ -26,11 +26,11 @@ import {ValueKey} from '@nelyx/core/foundation/key';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
 import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
-import {emptyWidgetStateSet} from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {DartMap} from '@nelyx/core/foundation/dart-collections';
 import {widgetStateConstraintKeyPolicy} from '../../../Nelyx/dist/framework/widgets/widget-state-constraint-source-adapter.js';
 import {fixture} from './root-fixture.mjs';
-import {engineFixture} from './engine-fixture.mjs';
+import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
 
 const timeout=1_200_000;
 FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});
@@ -116,6 +116,6 @@ test('actual owned paragraphs and outline gap paint reach the production CPU ras
     f.set(make(null));f.advance(180);let commands=f.frame();assert(commands.some(command=>command.op==='drawPath'));assert(commands.some(command=>command.op==='paragraph'));
     f.library.replay(surface.getCanvas(),{commands});surface.flush();const snapshot=surface.makeImageSnapshot();try{const pixels=snapshot.readPixels(0,0,{width:240,height:160,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB});assert(pixels.some((value,index)=>index%4!==3&&value>200));}finally{snapshot.delete();}
     f.set(make('Required'));f.advance(200);commands=f.frame();assert(f.root.nodes.some(node=>node.name.includes('Required')||node.tooltip?.includes('Required')));f.library.replay(surface.getCanvas(),{commands});surface.flush();
-    f.set(new SizedBox());f.advance(200);assert.equal(f.root.scheduler.transientCallbackCount,0);assert.equal(f.library.paragraphs.size,0);
+    f.set(new SizedBox());f.advance(200);assert.equal(f.root.scheduler.transientCallbackCount,0);assertParagraphOwnership(f);
   }finally{surface.delete();await f.close();}
 });

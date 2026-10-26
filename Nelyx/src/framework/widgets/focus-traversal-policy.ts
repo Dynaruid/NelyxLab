@@ -7,8 +7,8 @@ import {DiagnosticsProperty,StringProperty,DiagnosticPropertiesBuilder} from '..
 import {DoubleProperty} from '../../foundation/diagnostic-properties.ts';
 import {Rect} from '../../ui/rect.ts';
 import {protect} from '../../ui/value-math.ts';
-import {FocusScopeNode} from './focus.ts';
-import type {FocusNode} from './focus.ts';
+import type {FocusNode,FocusScopeNode} from './focus.ts';
+import {isFocusScopeNode} from './widget-class-identity.ts';
 import {traversalGroupNode,traversalGroupData,focusOrderFor,traversalDirections,traversalScrollable} from './focus-traversal-context.ts';
 
 export const TraversalDirection=Object.freeze({up:'up',right:'right',down:'down',left:'left'} as const);
@@ -23,7 +23,7 @@ function scopeOf(node:FocusNode):FocusScopeNode{const scope=node.nearestScope;in
 function compareNumber(a:number,b:number):number{if(a<b)return -1;if(a>b)return 1;if(a===b)return Object.is(a,-0)?Object.is(b,-0)?0:-1:Object.is(b,-0)?1:0;return Number.isNaN(a)?Number.isNaN(b)?0:1:-1;}
 /** Resolve current Element order, including delayed Stateful builds/keyed moves. */
 function widgetOrder(values:Iterable<FocusNode>):FocusNode[]{return [...values].map((node,index)=>{const path:number[]=[];let context=node.context as {parent?:unknown;children?:readonly unknown[]}|null;if(!context)return {node,index,path:null};while(context.parent){const parent=context.parent as {parent?:unknown;children?:readonly unknown[]};path.unshift(parent.children?.indexOf(context)??0);context=parent;}return {node,index,path};}).sort((a,b)=>{if(a.path===null||b.path===null)return a.path===b.path?a.index-b.index:a.path===null?1:-1;for(let i=0;i<Math.min(a.path.length,b.path.length);i++){const difference=a.path[i]!-b.path[i]!;if(difference)return difference;}return a.path.length-b.path.length||a.index-b.index;}).map(value=>value.node);}
-function descendantsWithoutScopes(node:FocusNode):FocusNode[]{const result:FocusNode[]=[];for(const child of widgetOrder(node.children)){result.push(child);if(!(child instanceof FocusScopeNode))result.push(...descendantsWithoutScopes(child));}return result;}
+function descendantsWithoutScopes(node:FocusNode):FocusNode[]{const result:FocusNode[]=[];for(const child of widgetOrder(node.children)){result.push(child);if(!(isFocusScopeNode(child)))result.push(...descendantsWithoutScopes(child));}return result;}
 interface GroupInfo {policy:FocusTraversalPolicy;members:FocusNode[]}
 function sortAllDescendants(scope:FocusScopeNode,current:FocusNode):FocusNode[]{
   const rootGroup=traversalGroupNode(scope),fallback=rootGroup?traversalGroupData(rootGroup)!.policy:defaultPolicy,groups=new Map<FocusNode|null,GroupInfo>();
@@ -39,7 +39,7 @@ function sortAllDescendants(scope:FocusScopeNode,current:FocusNode):FocusNode[]{
 }
 function requestTab(policy:FocusTraversalPolicy,node:FocusNode,forward:boolean,visited=new Set<FocusNode>()):boolean{
   invariant(!visited.has(node),'focus-traversal-cycle','Scope history cannot form a traversal cycle');visited.add(node);
-  if(node instanceof FocusScopeNode){const child=node.focusedChild;if(child?.canRequestFocus&&child.enclosingScope===node)return requestTab(policy,child,forward,visited);const children=sortAllDescendants(node,node);if(children.length){requestTab(policy,forward?children[0]!:children.at(-1)!,forward,visited);return true;}}
+  if(isFocusScopeNode(node)){const child=node.focusedChild;if(child?.canRequestFocus&&child.enclosingScope===node)return requestTab(policy,child,forward,visited);const children=sortAllDescendants(node,node);if(children.length){requestTab(policy,forward?children[0]!:children.at(-1)!,forward,visited);return true;}}
   const before=node.hasPrimaryFocus;policy.requestFocusCallback(node,{alignmentPolicy:forward?'keepVisibleAtEnd':'keepVisibleAtStart'});return !before;
 }
 export abstract class FocusTraversalPolicy extends Diagnosticable(class {}) {
@@ -117,7 +117,7 @@ function alignment(direction:TraversalDirection):'keepVisibleAtStart'|'keepVisib
 function assertDirection(direction:TraversalDirection):void{invariant(Object.values(TraversalDirection).includes(direction),'invalid-traversal-direction','Unknown traversal direction');}
 function requestDirection(policy:FocusTraversalPolicy,current:FocusNode,node:FocusNode,direction:TraversalDirection,group:FocusNode|null,visited=new Set<FocusNode>()):boolean{
   invariant(!visited.has(node),'focus-traversal-cycle','Scope history cannot form a traversal cycle');visited.add(node);
-  if(node instanceof FocusScopeNode){if(node.focusedChild)return requestDirection(policy,current,node.focusedChild,direction,group,visited);const first=policy.findFirstFocusInDirection(node,direction)??current;const record=group?traversalGroupData(group):undefined;if(record)record.lastRequestedFocus=first;policy.requestFocusCallback(first,{alignmentPolicy:alignment(direction)});return true;}
+  if(isFocusScopeNode(node)){if(node.focusedChild)return requestDirection(policy,current,node.focusedChild,direction,group,visited);const first=policy.findFirstFocusInDirection(node,direction)??current;const record=group?traversalGroupData(group):undefined;if(record)record.lastRequestedFocus=first;policy.requestFocusCallback(first,{alignmentPolicy:alignment(direction)});return true;}
   const before=node.hasPrimaryFocus,record=group?traversalGroupData(group):undefined;if(record)record.lastRequestedFocus=node;policy.requestFocusCallback(node,{alignmentPolicy:alignment(direction)});return !before;
 }
 function nextInDirection(focused:FocusNode,descendants:Iterable<FocusNode>,direction:TraversalDirection,forward=true):FocusNode|null{
@@ -158,7 +158,7 @@ export function DirectionalFocusTraversalPolicyMixin<TBase extends PolicyConstru
         const last=history.at(-1)!;
         if(!last.node.parent){this.invalidateScopeData(scope);}
         else if(vertical(history[0]!.direction)!==vertical(direction)){this.invalidateScopeData(scope);}
-        else {const previous=history.pop()!.node;let primary:FocusNode=focused;while(primary instanceof FocusScopeNode&&primary.focusedChild)primary=primary.focusedChild;if(traversalScrollable(previous.context)!==traversalScrollable(primary.context)){this.invalidateScopeData(scope);}else {requestDirection(this,current,previous,direction,group);return true;}}
+        else {const previous=history.pop()!.node;let primary:FocusNode=focused;while(isFocusScopeNode(primary)&&primary.focusedChild)primary=primary.focusedChild;if(traversalScrollable(previous.context)!==traversalScrollable(primary.context)){this.invalidateScopeData(scope);}else {requestDirection(this,current,previous,direction,group);return true;}}
       }
       if(scopes.get(scope)?.length===0)this.invalidateScopeData(scope);
       const found=nextInDirection(focused,scope.traversalDescendants,direction);

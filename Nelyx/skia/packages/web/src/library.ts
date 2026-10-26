@@ -24,7 +24,7 @@ import {imageLimits} from '@nelyx/core/hosting/images';
 import {NativePictureCache,NativeRetirementError} from '@nelyx/core/hosting/rasterization';
 import type {PictureCapture} from '@nelyx/core/ui/picture';
 import type {FramePictureBackend} from '@nelyx/core/hosting/pictures';
-import {ParagraphFontProviders} from '@nelyx/core/hosting/text-fonts';
+import {ParagraphFontCatalog,ParagraphFontProviders} from '@nelyx/core/hosting/text-fonts';
 import {TextLayoutCache} from '@nelyx/core/hosting/text-layout-cache';
 import {TextLayoutBudget} from '@nelyx/core/hosting/text-layout-budget';
 import {TextPaintResources} from '@nelyx/core/hosting/text-paints';
@@ -44,7 +44,8 @@ export class WebSkiaLibrary implements Renderer,TextLayoutService,PathQueryServi
   private pending=new Map<number,Pending>();private events:RendererEvents;
   private metrics:ViewMetrics|undefined;private context:GrDirectContext|undefined;private surface:Surface|undefined;private handle:WebGLContextHandle|undefined;private gl:WebGL2RenderingContext|undefined;
   private registry:ResourceRegistry|undefined;private sequence=0;private closed=false;private lost=false;private visible=true;private timer:ReturnType<typeof setTimeout>|undefined;
-  private layoutCache:TextLayoutCache|undefined;private textBudget:TextLayoutBudget|undefined;
+  private closePromise:Promise<void>|undefined;
+  private layoutCache:TextLayoutCache<Font>|undefined;private textBudget:TextLayoutBudget|undefined;private fontCatalog:ParagraphFontCatalog<Font>|undefined;
   private failed=false;
   private providers:ParagraphFontProviders<Font,TypefaceFontProvider>|undefined;private textFailed=false;private readonly uncertainText:unknown[]=[];
   private dynamicImageBytes=0;private codecBytes=0;
@@ -61,7 +62,7 @@ export class WebSkiaLibrary implements Renderer,TextLayoutService,PathQueryServi
   private retireFrameNative():void{const errors:unknown[]=[];for(const entry of this.framePictures.values())try{this.retireFrameEntry(entry);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Web native frame pictures retirement failed');}
   constructor(private ck:CanvasKit,private canvas:HTMLCanvasElement,private owner:ViewOwner){this.events=new RendererEvents(owner);this.runtimePrograms=createRuntimeShaderCache(ck);}
   contains(path:PathSnapshot,point:Offset):boolean{this.ensureOpen();if(!Number.isFinite(point.x)||!Number.isFinite(point.y))throw new Error('Path query point must be finite');const native=createEnginePath(this.ck,path),errors:unknown[]=[];let value=false;try{value=native.contains(point.x,point.y);}catch(error){errors.push(error);}finally{try{native.delete();}catch(error){errors.push(error);}}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Web path query/retirement failed');return value;}
-  bind(registry:ResourceRegistry){if(this.registry)throw new Error('Web Skia registry already bound');this.registry=registry;this.textBudget=new TextLayoutBudget(registry);this.providers=new ParagraphFontProviders(registry,()=>this.fonts.values(),fonts=>{if(fonts.length===1)return {provider:fonts[0]!.provider,retire(){}};const provider=this.ck.TypefaceFontProvider.Make();try{for(const font of fonts)provider.registerFont(font.bytes,font.family);return {provider,retire:()=>provider.delete()};}catch(error){provider.delete();throw error;}});}
+  bind(registry:ResourceRegistry){if(this.registry)throw new Error('Web Skia registry already bound');this.registry=registry;this.fontCatalog=new ParagraphFontCatalog(registry);this.textBudget=new TextLayoutBudget(registry);this.providers=new ParagraphFontProviders(registry,this.fontCatalog,fonts=>{if(fonts.length===1)return {provider:fonts[0]!.source.provider,retire(){}};const provider=this.ck.TypefaceFontProvider.Make();try{for(const font of fonts)provider.registerFont(font.source.bytes,font.family);return {provider,retire:()=>provider.delete()};}catch(error){provider.delete();throw error;}});}
   observe(listener:(event:RendererNotification)=>void):Disposable{return this.events.subscribe(listener);}
   // Frame bounds are advisory. Compute actual draw bounds so scaling the initial
   // FLT_MAX cull rect cannot overflow and discard a multi-run paragraph at DPR > 1.
@@ -98,16 +99,17 @@ export class WebSkiaLibrary implements Renderer,TextLayoutService,PathQueryServi
   layout(input:TextLayoutInput,request?:TextLayoutRequest):TextLayout {
     this.ensureOpen();if(this.textFailed)throw Error('Web paragraph native retirement failed');const snapshot=freezeTextInput(input),font=this.fonts.get(resourceKey(snapshot.font)),registry=this.registry;
     if(!font||!registry?.has(snapshot.font))throw new Error('Stale font resource');
-    const cache=this.layoutCache??=new TextLayoutCache(registry),cacheKey=cache.key(snapshot,this.fonts.values()),cached=cache.reuse(cacheKey,retained=>this.textBudget!.admit(snapshot,request,retained,cache));if(cached)return cached;
-    const fonts=this.providers!.acquire(snapshot.font);let paragraph:Paragraph|undefined,admitted=false,paintResources:TextPaintResources|undefined;
+    const catalog=this.fontCatalog!.capture(this.fonts.values()),cache=this.layoutCache??=new TextLayoutCache(registry,this.fontCatalog!),cacheKey=cache.key(snapshot,catalog),cached=cache.reuse(cacheKey,retained=>this.textBudget!.admit(snapshot,request,retained,cache));if(cached)return cached;
+    const primaryFamily=catalog.fonts.find(value=>value.source===font)?.family;if(primaryFamily===undefined)throw new Error('Primary paragraph font is not in the captured catalog');
+    const fonts=this.providers!.acquire(snapshot.font,catalog);let paragraph:Paragraph|undefined,admitted=false,paintResources:TextPaintResources|undefined;
     const temporary:{delete():void}[]=[],uncertainTemporary:{delete():void}[]=[];
     const own=<T extends {delete():void}>(value:T):T=>{temporary.push(value);return value;};
     const releaseTemporary=()=>{const errors:unknown[]=[];for(const value of temporary.splice(0).reverse())try{value.delete();}catch(error){uncertainTemporary.push(value);errors.push(error);}if(errors.length)throw new AggregateError(errors,'Web text paint wrapper retirement failed');};
     let builder:ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']>|undefined;
     try{
       paintResources=new TextPaintResources(registry,snapshot);
-      builder=this.ck.ParagraphBuilder.MakeFromFontProvider(webParagraphStyle(this.ck,snapshot,font.family,fonts.families),fonts.provider);
-      const push=(style:TextRunStyle)=>{const native=webTextStyle(this.ck,snapshot,style,font.family,fonts.families);if(!style.foreground&&!style.background){builder!.pushStyle(native);return;}const foreground=own(new this.ck.Paint()),background=own(new this.ck.Paint());this.configurePaint(foreground,style.foreground??new UiPaint({color:style.color??snapshot.color??0xffeef5ff}).snapshot(),own);this.configurePaint(background,style.background??new UiPaint({color:style.backgroundColor??0}).snapshot(),own);builder!.pushPaintStyle(native,foreground,background);};
+      builder=this.ck.ParagraphBuilder.MakeFromFontProvider(webParagraphStyle(this.ck,snapshot,primaryFamily,fonts.families),fonts.provider);
+      const push=(style:TextRunStyle)=>{const native=webTextStyle(this.ck,snapshot,style,primaryFamily,fonts.families);if(!style.foreground&&!style.background){builder!.pushStyle(native);return;}const foreground=own(new this.ck.Paint()),background=own(new this.ck.Paint());this.configurePaint(foreground,style.foreground??new UiPaint({color:style.color??snapshot.color??0xffeef5ff}).snapshot(),own);this.configurePaint(background,style.background??new UiPaint({color:style.backgroundColor??0}).snapshot(),own);builder!.pushPaintStyle(native,foreground,background);};
       buildStyledText(snapshot,{push,pop:()=>builder!.pop(),addText:text=>builder!.addText(text),addPlaceholder:p=>builder!.addPlaceholder(p.width,p.height,this.ck.PlaceholderAlignment[p.alignment[0]!.toUpperCase()+p.alignment.slice(1) as 'Baseline'|'AboveBaseline'|'BelowBaseline'|'Top'|'Bottom'|'Middle'],p.baseline==='ideographic'?this.ck.TextBaseline.Ideographic:this.ck.TextBaseline.Alphabetic,p.baselineOffset)});
       paragraph=builder.build();builder.delete();builder=undefined;releaseTemporary();paragraph.layout(snapshot.width);
       const resource=this.allocateResource('paragraph');
@@ -205,5 +207,16 @@ export class WebSkiaLibrary implements Renderer,TextLayoutService,PathQueryServi
   private dropSurface(){if(this.surface){this.surface.delete();this.surface=undefined;}}
   private dropContext(abandon=false){this.dropSurface();if(this.context){if(abandon)this.context.releaseResourcesAndAbandonContext();this.context.delete();this.context=undefined;}if(this.handle!==undefined){this.ck.deleteContext(this.handle);this.handle=undefined;}}
   private ensureOpen(){if(this.runtimePrograms.retirementError)throw this.runtimePrograms.retirementError;if(this.unconfirmedPicture)throw this.unconfirmedPicture;if(this.closed)throw new Error('Web Skia library closed');}
-  dispose():Promise<void>{if(this.runtimePrograms.retirementError)return Promise.reject(this.runtimePrograms.retirementError);if(this.unconfirmedPicture)return Promise.reject(this.unconfirmedPicture);if(this.closed)return Promise.resolve();this.retirePictures();this.closed=true;this.events.stop();this.clearTimer();if(!this.lost)this.gl?.finish();this.releasePending('drained');this.retireFrameNative();this.runtimePrograms.dispose();this.dropContext(this.lost);if(this.gl&&!this.gl.isContextLost())this.gl.getExtension('WEBGL_lose_context')?.loseContext();this.gl=undefined;this.events.drain();return Promise.resolve();}
+  dispose():Promise<void>{
+    if(this.closePromise)return this.closePromise;
+    let resolve!:()=>void,reject!:(error:unknown)=>void;
+    const closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});this.closePromise=closing;this.closed=true;
+    try{
+      this.events.stop();this.clearTimer();
+      if(this.runtimePrograms.retirementError)throw this.runtimePrograms.retirementError;if(this.unconfirmedPicture)throw this.unconfirmedPicture;
+      this.retirePictures();if(!this.lost)this.gl?.finish();this.releasePending('drained');this.retireFrameNative();this.runtimePrograms.dispose();this.dropContext(this.lost);
+      if(this.gl&&!this.gl.isContextLost())this.gl.getExtension('WEBGL_lose_context')?.loseContext();this.gl=undefined;this.events.drain();resolve();
+    }catch(error){reject(error);}
+    return closing;
+  }
 }

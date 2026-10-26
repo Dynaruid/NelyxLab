@@ -206,7 +206,7 @@ EndGlobal
         console.log('ANIMATION_PREPARED '+JSON.stringify({directory,bundle,engine,hermesMode,preflight:true,modules:checked.graph.modules.length,sourceSha256:checked.sourceSha256,bindings:checked.bindings.map(({id,globalName})=>({id,globalName}))}));completed++;break;
       }
       if(typed)partition=await buildStaticAotMetroBundle({runner,entry,source:path.join(bundle,'input-surface.js'),map:path.join(bundle,'input-surface.js.map'),config,signal:t.signal});
-      else await runBuild(config,{entry:path.basename(entry),platform:'windows',dev:false,minify:!v8&&!staticToolchain,maxWorkers:2,out:path.join(bundle,'input-surface.js'),sourceMap:v8Profile,...(v8Profile?{sourceMapOut:path.join(bundle,'input-surface.js.map'),sourceMapUrl:'input-surface.js.map'}:{})});
+      else {const sourceMap=v8Profile||diagnostic;await runBuild(config,{entry:path.basename(entry),platform:'windows',dev:false,minify:!v8&&!staticToolchain,maxWorkers:2,out:path.join(bundle,'input-surface.js'),sourceMap,...(sourceMap?{sourceMapOut:path.join(bundle,'input-surface.js.map'),sourceMapUrl:'input-surface.js.map'}:{})});}
       if(process.env.NELYX_ANIMATION_FRONTEND_ONLY==='1'){
         assert(typed,'Frontend evidence preflight requires Static Hermes');const sources=nativePcSources(partition);
         console.log('ANIMATION_FRONTEND_PREFLIGHT '+JSON.stringify({typed:sources.typed.length,sourceOwners:sources.owners.length,compilerInvoked:false}));completed++;break;

@@ -19,7 +19,7 @@ import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { DefaultSelectionStyle } from '@nelyx/core/framework/widgets/default-selection-style';
 import { SizedBox } from '@nelyx/core/framework/widgets/basic';
 import { WidgetState, WidgetStatesController, WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { MouseCursor, SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
 import { Color } from '@nelyx/core/ui/color';
 import { Offset } from '@nelyx/core/ui/offset';

@@ -2,6 +2,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import path from 'node:path';import fs from 'node:fs';import os from 'node:os';
 import {assertNativeRuntimeGraph,buildNativeApplication,nativeWindowsOperation,packNativeApplication,verifyNativePackage} from '../../sdk/tooling/cli/src/windows-native-runner.mjs';
 import {execute} from '../../sdk/tooling/cli/src/commands.mjs';
+import {startWindowsProcess} from '../../sdk/tooling/cli/src/windows-process.mjs';
+import {buildNativeHost} from '../build-native-hermes.mjs';
 const timeout=1_200_000;
 
 test('prepare refreshes recorded supplier hashes while build and doctor reject the stale locator',{timeout},async()=>{
@@ -44,4 +46,35 @@ test('both delivered native packages round-trip without supplier locators and re
       fs.appendFileSync(path.join(unpacked,after.manifest.bundle),'changed');assert.throws(()=>verifyNativePackage(unpacked));fs.rmSync(unpacked,{recursive:true,force:true});fs.unlinkSync(output);
     }
   }finally{assert.equal(path.dirname(temporary),fs.realpathSync(os.tmpdir()));assert(!fs.lstatSync(temporary).isSymbolicLink());fs.rmSync(temporary,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
+});
+
+test('native bootstrap preserves falsey and hostile error exits after retiring the real VM',{timeout,skip:process.platform!=='win32'||process.env.NELYX_NATIVE_STARTUP!=='1'},async t=>{
+  const app=fs.realpathSync(path.resolve(import.meta.dirname,'../../../sample/nelyx-testbed-app-2'));
+  const parent=path.join(app,'.nelyx/native-windows'),temporary=fs.mkdtempSync(path.join(parent,'.startup-fixture-'));
+  const controller=new AbortController(),abort=()=>controller.abort(t.signal.reason);
+  t.signal.addEventListener('abort',abort,{once:true});let running;
+  try{
+    // The assets getter is reached after the listener, renderer and platform
+    // owners exist. Its falsey rejection must survive their asynchronous close.
+    const entry=path.join(temporary,'entry.ts');
+    const hostBuild=await buildNativeHost({app,signal:controller.signal});
+    for(const [source,message]of [['throw undefined;','undefined'],['const error=new Error("original");Object.defineProperty(error,"stack",{get(){throw 0;}});throw error;','<unprintable>']]){
+    fs.writeFileSync(entry,'export function main(){return {definition:{get assets(){'+source+'}}};}\n');
+    const built=await buildNativeApplication({app,mode:'bytecode',hostBuild,diagnosticEntry:entry,output:path.join(temporary,'package'),signal:controller.signal});
+    let output='',errors='';
+    running=startWindowsProcess(built.executable,[built.bundle,built.assetRoot,'bytecode','15000'],{cwd:built.directory,verify:verifyNativePackage,onOutput(chunk,channel){if(channel==='stdout')output+=chunk;else errors+=chunk;}});
+    const stop=()=>{void running.stop();};controller.signal.addEventListener('abort',stop,{once:true});
+    try{
+      if(controller.signal.aborted)stop();const result=await running.completed;
+      assert.equal(result.forced,false,JSON.stringify(result));assert.equal(result.error,null);
+      assert.equal(result.exitCode,1,output+errors);
+      assert(errors.split(/\r?\n/).includes('NELYX_NATIVE_JS_ERROR '+message),errors);
+      assert.doesNotMatch(output+errors,/TypeError|NELYX_NATIVE_ERROR|failed to complete its owned shutdown/);
+    }finally{controller.signal.removeEventListener('abort',stop);}
+    }
+  }finally{
+    controller.abort();t.signal.removeEventListener('abort',abort);if(running)await running.stop();
+    assert.equal(path.dirname(fs.realpathSync(temporary)),parent);assert(path.basename(temporary).startsWith('.startup-fixture-'));assert(!fs.lstatSync(temporary).isSymbolicLink());
+    fs.rmSync(temporary,{recursive:true,force:true,maxRetries:5,retryDelay:100});
+  }
 });

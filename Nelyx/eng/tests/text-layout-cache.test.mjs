@@ -2,6 +2,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
 import {TextLayoutCache,textLayoutCacheLimits as limits} from '../../dist/hosting/text-layout-cache.js';
+import {ParagraphFontCatalog} from '@nelyx/core/hosting/text-fonts';
 import {TextLayoutBudget} from '@nelyx/core/hosting/text-layout-budget';
 import {textLimits,freezeTextInput,textInputCost,serializeTextInput} from '@nelyx/core/ui/text';
 const timeout=1_200_000;
@@ -10,8 +11,8 @@ test('only engine-captured canonical input shares one serialization across key, 
  const expected=stringify([snapshot,[[f.font.id,f.font.generation,'Fixture',0]]]);let serializations=0;
  try{
   JSON.stringify=function(value,...args){if(value===snapshot)serializations++;return stringify.call(this,value,...args);};
-  assert.equal(f.cache.key(snapshot,f.fonts),'1:'+expected);const cost=textInputCost(snapshot);
-  assert.equal(cost.bytes,serializeTextInput(snapshot).length*2);assert.equal(f.cache.key(snapshot,f.fonts),'1:'+expected);
+  assert.equal(f.cache.key(snapshot,f.catalog.capture(f.fonts)),'1:'+expected);const cost=textInputCost(snapshot);
+  assert.equal(cost.bytes,serializeTextInput(snapshot).length*2);assert.equal(f.cache.key(snapshot,f.catalog.capture(f.fonts)),'1:'+expected);
   assert.equal(freezeTextInput(snapshot),snapshot);assert.equal(serializations,1);
   assert.notEqual(textInputCost(snapshot),cost,'Public cost records remain independent values');
  }finally{JSON.stringify=stringify;f.registry.dispose();}
@@ -21,32 +22,32 @@ test('public frozen proxies and captured extension hooks keep observable seriali
  const f=fixture();let reads=0,hooks=0;
  try{
   const external=new Proxy(f.input(),{get(target,key,receiver){if(key==='text')reads++;return Reflect.get(target,key,receiver);}});
-  f.cache.key(external,f.fonts);f.cache.key(external,f.fonts);assert(reads>=2);const before=reads;freezeTextInput(external);freezeTextInput(external);assert(reads>before);
+  f.cache.key(external,f.catalog.capture(f.fonts));f.cache.key(external,f.catalog.capture(f.fonts));assert(reads>=2);const before=reads;freezeTextInput(external);freezeTextInput(external);assert(reads>before);
   const custom=freezeTextInput(f.input('hook',{style:Object.freeze({fontSize:17,toJSON(){hooks++;return {fontSize:17};}})}));
-  const first=f.cache.key(custom,f.fonts),second=f.cache.key(custom,f.fonts);assert.notEqual(first,second);assert.equal(hooks,2);
+  const first=f.cache.key(custom,f.catalog.capture(f.fonts)),second=f.cache.key(custom,f.catalog.capture(f.fonts));assert.notEqual(first,second);assert.equal(hooks,2);
   textInputCost(custom);serializeTextInput(custom);assert.equal(hooks,4);assert.notEqual(freezeTextInput(custom),custom);
  }finally{f.registry.dispose();}
 });
 test('inherited serialization hooks invalidate certified text data without suppressing hook calls',{timeout},()=>{
  const f=fixture(),snapshot=freezeTextInput(f.input());let calls=0;
  try{
-  f.cache.key(snapshot,f.fonts);
+  f.cache.key(snapshot,f.catalog.capture(f.fonts));
   Object.defineProperty(Object.prototype,'toJSON',{configurable:true,value:function(){calls++;return this;}});
-  assert.notEqual(f.cache.key(snapshot,f.fonts),f.cache.key(snapshot,f.fonts));const before=calls;
+  assert.notEqual(f.cache.key(snapshot,f.catalog.capture(f.fonts)),f.cache.key(snapshot,f.catalog.capture(f.fonts)));const before=calls;
   textInputCost(snapshot);serializeTextInput(snapshot);assert(calls>before);
  }finally{delete Object.prototype.toJSON;f.registry.dispose();}
 });
 function fixture(){
- const registry=new ResourceRegistry(),cache=new TextLayoutCache(registry),budget=new TextLayoutBudget(registry),retired=[];
+ const registry=new ResourceRegistry(),catalog=new ParagraphFontCatalog(registry),cache=new TextLayoutCache(registry,catalog),budget=new TextLayoutBudget(registry),retired=[];
  const font=Object.freeze({id:'font',generation:1});registry.register({...font,kind:'font'},()=>{});const fonts=[{resource:font,family:'Fixture'}];
  const input=(text='A',extra={})=>Object.freeze({text,width:220,font,fontSize:16,locale:'en',direction:'ltr',scale:1,...extra});
  function make(value=input(),{keep=true,retire}={}){
-  const key=cache.key(value,fonts);budget.admit(value,{},undefined,cache);
+  const key=cache.key(value,catalog.capture(fonts));budget.admit(value,{},undefined,cache);
   const layout=Object.freeze({resource:registry.allocateId('paragraph'),input:value}),registration=budget.registration(layout,value);
   registry.register({...layout.resource,kind:'paragraph'},()=>{retired.push(layout);retire?.();cache.forget(key,layout);},registration);
   cache.remember(key,layout,registration.cost,keep);return {layout,key,registration};
  }
- return {registry,cache,budget,retired,font,fonts,input,make};
+ return {registry,catalog,cache,budget,retired,font,fonts,input,make};
 }
 
 test('cache residency is independent of logical producers and remains bounded by real frame drain',{timeout},()=>{
@@ -102,11 +103,11 @@ test('font catalog A to B to A releases idle owners and fences a reentrant old k
  try{
   const {layout,key}=f.make();f.registry.releaseProducer(layout.resource);
   const second={resource:{id:'font-b',generation:1},family:'Second'};f.registry.register({...second.resource,kind:'font'},()=>{});
-  f.fonts.push(second);const b=f.cache.key(layout.input,f.fonts);assert(!f.registry.isRetained(layout.resource));
-  assert.throws(()=>f.cache.reuse(key,()=>{}),/catalog changed/);f.fonts.pop();const a=f.cache.key(layout.input,f.fonts);assert.notEqual(a,key);assert.notEqual(a,b);
+  f.fonts.push(second);const b=f.cache.key(layout.input,f.catalog.capture(f.fonts));assert(!f.registry.isRetained(layout.resource));
+  assert.throws(()=>f.cache.reuse(key,()=>{}),/catalog changed/);f.fonts.pop();const a=f.cache.key(layout.input,f.catalog.capture(f.fonts));assert.notEqual(a,key);assert.notEqual(a,b);
   const current=f.make().layout;f.registry.releaseProducer(current.resource);
-  const currentKey=f.cache.key(current.input,f.fonts);
-  assert.throws(()=>f.cache.reuse(currentKey,()=>{f.fonts.push(second);f.cache.key(current.input,f.fonts);}),/catalog changed during admission/);
+  const currentKey=f.cache.key(current.input,f.catalog.capture(f.fonts));
+  assert.throws(()=>f.cache.reuse(currentKey,()=>{f.fonts.push(second);f.cache.key(current.input,f.catalog.capture(f.fonts));}),/catalog changed during admission/);
   assert.equal(f.registry.initialProducerCount(current.resource),0);
  }finally{f.registry.dispose();}
 });
@@ -134,6 +135,6 @@ test('uncertain cache retirement remains charged and prevents later cache borrow
   const {layout,registration}=f.make(f.input('failure'),{retire(){throw Error('native retirement probe');}});f.registry.releaseProducer(layout.resource);
   assert.throws(()=>f.cache.trimIdle(),/native retirement probe/);assert.equal(f.cache.debugStats.failed,true);
   assert.equal(registration.owner.totals.resident,1,'Only an acknowledged native retirement removes the charge');
-  assert.throws(()=>f.cache.key(f.input('later'),f.fonts),/cache retirement failed/);
+  assert.throws(()=>f.cache.key(f.input('later'),f.catalog.capture(f.fonts)),/cache retirement failed/);
  }finally{f.registry.dispose();}
 });

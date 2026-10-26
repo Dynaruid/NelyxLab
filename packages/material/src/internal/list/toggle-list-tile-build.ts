@@ -8,7 +8,7 @@ import {Transform} from '@nelyx/core/framework/widgets/basic';
 import {Color} from '@nelyx/core/ui/color';
 import type {FocusNode} from '@nelyx/core/framework/widgets/focus';
 import {WidgetState} from '@nelyx/core/framework/widgets/widget-state';
-import {emptyWidgetStateSet} from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {ListTile, ListTileControlAffinity} from '../../list-tile.ts';
 import type {ListTileOptions} from '../../list-tile.ts';
 import {ListTileTheme} from '../../list-tile-theme.ts';

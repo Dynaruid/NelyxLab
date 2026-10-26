@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/rendering/sliver_tree.dart; SHA256 8296931c4f365bf4dee6fb15ddf7d3281beeb604364c2c2b56384323319672f5
+// Adopted product owner: nominal checks use the classes declared here.
 import { UniqueKey } from "../../foundation/key.ts";
 import { RenderObject } from "../rendering/object.ts";
 import { RenderBox } from "../rendering/object.ts";
@@ -34,8 +35,6 @@ import { dartMapRead } from "../../foundation/dart-collections.ts";
 import { dartMapWrite } from "../../foundation/dart-collections.ts";
 import { wheelPaintChild } from "./list-wheel-renderer-adapter.ts";
 import { AxisDirection } from "../painting/basic-types.ts";
-import { isTreeParentData } from "./tree-sliver-source-types.ts";
-import { castTreeParentData } from "./tree-sliver-source-types.ts";
 import { isWheelBox } from "./list-wheel-renderer-adapter.ts";
 import { isWheelRenderObject } from "./list-wheel-renderer-adapter.ts";
 import { treePushClipRect } from "./tree-sliver-source-adapter.ts";
@@ -748,3 +747,9 @@ export type _PaintSegment = DartNamedRecord<[
      */
     readonly "trailingIndex": DartInt;
 }>;
+
+export function isTreeParentData(value:unknown):value is SourceTreeSliverNodeParentData{return value instanceof SourceTreeSliverNodeParentData;}
+export function castTreeParentData(value:unknown):SourceTreeSliverNodeParentData{
+  if(!isTreeParentData(value))throw new TypeError('Expected actual source tree parent data');
+  return value;
+}

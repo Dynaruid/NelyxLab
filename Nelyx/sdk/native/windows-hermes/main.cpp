@@ -21,6 +21,7 @@
 #include "Services.h"
 #include "LoadedIdentity.h"
 #include "RuntimeLoop.h"
+#include "VmCallbacks.h"
 #include "FrameTrace.h"
 #include "NativeWheelDriver.h"
 #include "MemoryProbe.h"
@@ -49,7 +50,6 @@ static std::wstring utf16(std::string_view value){if(value.empty())return {};aut
 
 class NativeHost final {
   static constexpr UINT uiMessage=WM_APP+77,doneMessage=WM_APP+78,wheelGuardMessage=WM_APP+79;
-  struct Timer{double deadline,period;jsi::Function callback;};
   struct Metrics{int width,height,dpi;uint64_t viewport,surface;};
   struct Pointer{std::string kind,device="mouse";double x=0,y=0,dx=0,dy=0,stamp=0,panX=0,panY=0,scale=1;uint32_t pointer=1,buttons=0;uint64_t epoch=0,sequence=0,batch=0;};
 public:
@@ -179,7 +179,7 @@ private:
   }
   void emitKeyboard(jsi::Runtime& rt,NH::Keyboard::Event const& e){jsi::Object value(rt);value.setProperty(rt,"protocol",1);value.setProperty(rt,"sequence",double(e.sequence));value.setProperty(rt,"viewGeneration",1);value.setProperty(rt,"timestamp",e.timestamp);if(e.kind=="native-keyboard-focus")value.setProperty(rt,"focused",e.focused);else{auto const& k=e.key;value.setProperty(rt,"kind",k.up?"up":"down");value.setProperty(rt,"keyCode",double(k.keyCode));value.setProperty(rt,"scanCode",double(k.scanCode));value.setProperty(rt,"characterCodePoint",double(k.characterCodePoint));value.setProperty(rt,"modifiers",double(k.modifiers));value.setProperty(rt,"repeatCount",double(k.repeatCount));value.setProperty(rt,"focusEpoch",double(k.focusEpoch));value.setProperty(rt,"repeat",k.repeat);value.setProperty(rt,"dead",k.dead);value.setProperty(rt,"capsLock",k.capsLock);value.setProperty(rt,"numLock",k.numLock);value.setProperty(rt,"scrollLock",k.scrollLock);}emit(rt,e.kind.c_str(),std::move(value));}
   void install(jsi::Runtime& rt){
-    jsi::Object api(rt);api.setProperty(rt,"abi",1);api.setProperty(rt,"mode",jsi::String::createFromUtf8(rt,mode));api.setProperty(rt,"assetRoot",jsi::String::createFromUtf8(rt,utf8(assetRoot.wstring())));api.setProperty(rt,"diagnostics",GetEnvironmentVariableW(L"NELYX_NATIVE_DIAGNOSTICS",nullptr,0)>0);
+    jsi::Object api(rt);api.setProperty(rt,"abi",2);jsi::Object capabilities(rt);for(auto name:{"vm","services","editing","semantics"})capabilities.setProperty(rt,name,1);api.setProperty(rt,"capabilities",std::move(capabilities));api.setProperty(rt,"mode",jsi::String::createFromUtf8(rt,mode));api.setProperty(rt,"assetRoot",jsi::String::createFromUtf8(rt,utf8(assetRoot.wstring())));api.setProperty(rt,"diagnostics",GetEnvironmentVariableW(L"NELYX_NATIVE_DIAGNOSTICS",nullptr,0)>0);
     auto method=[&](const char* name,size_t arity,jsi::HostFunctionType call){api.setProperty(rt,name,jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,name),arity,std::move(call)));};
     method("now",0,[](auto&,auto const&,auto*,size_t){return jsi::Value(now());});
     method("metrics",0,[this](auto& rt,auto const&,auto*,size_t){return metrics(rt);});
@@ -223,11 +223,8 @@ private:
     method("pressedKeys",0,[this](auto& rt,auto const&,auto*,size_t){auto keys=onUi([this]{return keyboard->snapshot();});jsi::Array result(rt,keys.size());for(size_t i=0;i<keys.size();++i){jsi::Object key(rt);key.setProperty(rt,"keyCode",double(keys[i].keyCode));key.setProperty(rt,"scanCode",double(keys[i].scanCode));result.setValueAtIndex(rt,i,std::move(key));}return result;});
     method("editor",2,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=2)throw jsi::JSError(rt,"Native editor command required");auto command=NH::readEditorCommand(args[0].getString(rt).utf8(rt),NH::Packet(rt,jsi::Value(rt,args[1])));postUi([this,command=std::move(command)]()mutable{auto operation=command.operation;std::string error,status="ok";uint64_t revision=0;try{if(command.kind=="keyboardText"){auto result=editors->keyboardText(command,keyboard->epoch());status=result.first;revision=result.second;}else editors->execute(std::move(command));}catch(std::exception const& failure){error=failure.what();}loop->invokeAsync([this,operation,error=std::move(error),status=std::move(status),revision](auto& rt){jsi::Object reply(rt);reply.setProperty(rt,"operation",double(operation));reply.setProperty(rt,"error",jsi::String::createFromUtf8(rt,error));reply.setProperty(rt,"status",jsi::String::createFromUtf8(rt,status));reply.setProperty(rt,"revision",double(revision));emit(rt,"editor-ack",std::move(reply));});});return jsi::Value::undefined();});
     method("log",1,[](auto& rt,auto const&,auto* args,size_t count){if(count!=1||!args[0].isString())throw jsi::JSError(rt,"Native log requires text");std::cout<<args[0].getString(rt).utf8(rt).substr(0,8192)<<std::endl;return jsi::Value::undefined();});
-    method("setTimer",3,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=3||timers.size()>=4096||!args[1].isNumber()||!args[2].isBool())throw jsi::JSError(rt,"Native timer admission failed");double delay=args[1].getNumber();if(!std::isfinite(delay)||delay<0||delay>2147483647)throw jsi::JSError(rt,"Invalid native timer delay");auto id=++nextTimer;timers.emplace(id,Timer{now()+delay,args[2].getBool()?std::max(1.,delay):0,args[0].getObject(rt).getFunction(rt)});return jsi::Value(double(id));});
-    method("clearTimer",1,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=1||!args[0].isNumber())throw jsi::JSError(rt,"Invalid timer ID");timers.erase(uint64_t(args[0].getNumber()));return jsi::Value::undefined();});
-    method("requestFrame",1,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=1||frames.size()>=4096)throw jsi::JSError(rt,"Native frame admission failed");auto id=++nextFrame;frames.emplace(id,args[0].getObject(rt).getFunction(rt));if(!frameArmed){frameArmed=true;clock->request();}return jsi::Value(double(id));});
-    method("cancelFrame",1,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=1||!args[0].isNumber())throw jsi::JSError(rt,"Invalid frame ID");frames.erase(uint64_t(args[0].getNumber()));return jsi::Value::undefined();});
-    method("completeShutdown",0,[this](auto&,auto const&,auto*,size_t){finished=true;return jsi::Value::undefined();});
+    callbacks->install(api);
+    method("completeShutdown",0,[this](auto&,auto const&,auto*,size_t){if(!callbacks->empty())throw std::runtime_error("Native VM shutdown still owns callbacks");finished=true;return jsi::Value::undefined();});
     method("fail",1,[this](auto& rt,auto const&,auto* args,size_t count){std::cerr<<"NELYX_NATIVE_JS_ERROR "<<(count?args[0].toString(rt).utf8(rt):"unknown")<<std::endl;exitCode=1;if(!failureDeadline)failureDeadline=now()+15000;if(events)postUi([this]{requestClose();});else finished=true;return jsi::Value::undefined();});
     rt.global().setProperty(rt,"NelyxNativeHost",std::move(api));
   }
@@ -242,7 +239,7 @@ private:
     std::shared_ptr<RNSkia::RNSkVulkanPlatformContext> context;
     std::string icu;
     try{
-      runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withEnableEval(false).withEnableSampleProfiling(sampleProfiling).withGCConfig(::hermes::vm::GCConfig::Builder().withShouldRecordStats(gcStats).build()).build());loop->bind(*runtime);
+      runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withEnableEval(false).withEnableSampleProfiling(sampleProfiling).withGCConfig(::hermes::vm::GCConfig::Builder().withShouldRecordStats(gcStats).build()).build());loop->bind(*runtime);callbacks=std::make_unique<NH::VmCallbacks>(*runtime,now,[this]{clock->request();});
       async=std::make_shared<RNSkia::RNSkOwnerAsyncQueue<RNSkia::RNSkAsyncResult>>([scheduler=loop](auto task){scheduler->invokeAsync(std::move(task));});
       icu=readBytes(assetRoot/L"icudtl.dat");C_SetICU(icu.data());
       RNSkia::VulkanPlatformServices services;
@@ -258,7 +255,7 @@ private:
       context=scope->getPlatformContext();nativeContext=context;context->configureGpuPolicy(false);context->getGpuContext();if(!context->canImportWin32Texture())throw std::runtime_error("Native GPU lacks Win32 texture import");
       onUi([this,context]{surface->configure(context->getGpuContext().textureInfo(kBGRA_8888_SkColorType),[context](auto target,auto const& recordings){return context->renderWin32Frame(target,{},recordings);});view=std::make_shared<RNSkia::RNSkView>(context,surface);surface->setCanPresent([this]{return !IsIconic(window);});});
       scope->getManager().registerSkiaView(1,view);
-      clock=std::make_unique<RNSkia::CompositorFrameClock>([this](std::string failure){const auto tick=now();postUi([this,tick,failure=std::move(failure)]{if(!started||closeRequested)return;loop->invokeAsync([this,tick,failure](auto& rt){frameArmed=false;if(!failure.empty())throw jsi::JSError(rt,failure);const auto dispatch=trace?now():0.;auto callbacks=std::move(frames);frames.clear();for(auto& [id,callback]:callbacks)callback.call(rt,tick,now());if(trace){const auto end=now();rt.drainMicrotasks();trace->turn({++frameTurn,viewport.load(),inputAccepted,tick,dispatch,end,now(),callbacks.size()});}});});});
+      clock=std::make_unique<RNSkia::CompositorFrameClock>([this](std::string failure){const auto tick=now();postUi([this,tick,failure=std::move(failure)]{if(!started||closeRequested)return;loop->invokeAsync([this,tick,failure](auto& rt){if(!failure.empty())throw jsi::JSError(rt,failure);const auto dispatch=trace?now():0.;const auto dispatched=callbacks->dispatchFrames(tick);if(trace){const auto end=now();rt.drainMicrotasks();trace->turn({++frameTurn,viewport.load(),inputAccepted,tick,dispatch,end,now(),dispatched});}});});});
       install(*runtime);started=true;
       const auto parent=bundle.parent_path();auto json=runtime->global().getPropertyAsObject(*runtime,"JSON");auto parse=json.getPropertyAsFunction(*runtime,"parse");auto stringify=json.getPropertyAsFunction(*runtime,"stringify");
       auto package=parse.call(*runtime,jsi::String::createFromUtf8(*runtime,readBytes(parent/L"native-package.json"))).getObject(*runtime);
@@ -277,22 +274,19 @@ private:
       }else throw std::runtime_error("Choose bytecode or static-aot");
       std::cout<<"NELYX_NATIVE_IDENTITY {\"hostSha256\":\""<<expected.at("NelyxHermesHost.exe")<<"\",\"vmSha256\":\""<<expected.at("hermesvm.dll")<<"\",\"bundleSha256\":\""<<expected.at(utf8(bundle.filename().wstring()))<<"\",\"modules\":"<<NH::assertIndependentModules()<<",\"nodeApiJsi\":false,\"rnRuntime\":false}"<<std::endl;
       runtime->drainMicrotasks();
-      while(!finished){std::optional<double> deadline=failureDeadline;for(auto const& [id,timer]:timers)if(!deadline||timer.deadline<*deadline)deadline=timer.deadline;loop->step(deadline);if(failureDeadline&&now()>=*failureDeadline&&!finished)throw std::runtime_error("Native application failed to complete its owned shutdown");
-        const auto tick=now();std::vector<uint64_t> due;for(auto const& [id,timer]:timers)if(timer.deadline<=tick)due.push_back(id);
-        for(auto id:due){auto found=timers.find(id);if(found==timers.end())continue;auto callback=found->second.callback.getFunction(*runtime);if(found->second.period)found->second.deadline=tick+found->second.period;else timers.erase(found);callback.call(*runtime);runtime->drainMicrotasks();}
-      }
+      while(!finished){loop->step(callbacks->deadline(failureDeadline));if(failureDeadline&&now()>=*failureDeadline&&!finished)throw std::runtime_error("Native application failed to complete its owned shutdown");callbacks->runDueTimers();}
     }catch(std::exception const& error){std::cerr<<"NELYX_NATIVE_ERROR "<<error.what()<<std::endl;exitCode=1;}catch(...){std::cerr<<"NELYX_NATIVE_ERROR unknown native failure"<<std::endl;exitCode=1;}
     started=false;closeRequested=true;input.seal();
     try{
       if(samplingActive){jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI())->disableSamplingProfiler();samplingActive=false;}
-      if(clock)clock->stop();clock.reset();frames.clear();timers.clear();events.reset();
+      if(clock)clock->stop();clock.reset();if(callbacks)callbacks->close();events.reset();
       onUi([this]{finishNativeWheel();restoreDiagnosticCursor();if(precision)precision->cancel();editors->close();semantics->close();if(view)view->stopContent();});
       const auto deadline=std::chrono::steady_clock::now()+10s;
       for(;;){if(onUi([this]{return surface->idle();}))break;if(std::chrono::steady_clock::now()>=deadline)throw std::runtime_error("Native GPU drain timed out");std::this_thread::sleep_for(1ms);}
       if(scope)scope->getManager().unregisterAllSkiaViews();
       onUi([this]{view.reset();surface->detach();});
       if(scope)scope->close(*runtime);if(async)async->close();loop->close();
-      scope.reset();context.reset();async.reset();runtime.reset();
+      scope.reset();context.reset();async.reset();runtime.reset();callbacks.reset();
       if(unit){FreeLibrary(unit);unit=nullptr;}
     }catch(std::exception const& error){
       std::cerr<<"NELYX_NATIVE_DRAIN_ERROR "<<error.what()<<std::endl;
@@ -311,8 +305,8 @@ private:
   std::unique_ptr<RNSkia::CompositorFrameClock> clock;std::mutex uiMutex;std::deque<std::function<void()>> uiTasks;
   std::unique_ptr<NH::Keyboard> keyboard;std::shared_ptr<NH::SemanticsTree> semantics;std::shared_ptr<NH::Editors> editors;std::weak_ptr<void> nativeContext;uint32_t mouseHeld=0;POINT lastMouse{};bool trackingMouse=false;std::map<uint32_t,Pointer> contacts;
   std::shared_ptr<RNSkia::WindowsPrecisionTrackpad> precision;nelyx::host::InputBatch<Pointer> input;
-  std::map<uint64_t,Timer> timers;std::map<uint64_t,jsi::Function> frames;std::optional<jsi::Function> events;uint64_t nextTimer=0,nextFrame=0,inputSequence=0,inputBatch=0,runtimeInputBatch=0,inputDelivered=0,inputAccepted=0,inputRejected=0,focusChanges=0;double wheelReceivedY=0,wheelDeliveredY=0;
-  std::atomic<int> physicalWidth{0},physicalHeight{0},dpi{96},exitCode{0};std::atomic<uint64_t> viewport{0},surfaceEpoch{0};std::atomic<bool> started{false},closeRequested{false};bool finished=false,frameArmed=false,closing=false;std::optional<double> failureDeadline;
+  std::unique_ptr<NH::VmCallbacks> callbacks;std::optional<jsi::Function> events;uint64_t inputSequence=0,inputBatch=0,runtimeInputBatch=0,inputDelivered=0,inputAccepted=0,inputRejected=0,focusChanges=0;double wheelReceivedY=0,wheelDeliveredY=0;
+  std::atomic<int> physicalWidth{0},physicalHeight{0},dpi{96},exitCode{0};std::atomic<uint64_t> viewport{0},surfaceEpoch{0};std::atomic<bool> started{false},closeRequested{false};bool finished=false,closing=false;std::optional<double> failureDeadline;
 };
 int wmain(int count,wchar_t** args){
   try{if(count<4||count>7)throw std::runtime_error("Usage: NelyxHermesHost bundle asset-root bytecode|static-aot [duration-ms] [width] [height]");auto mode=utf8(args[3]);if(mode!="bytecode"&&mode!="static-aot")throw std::runtime_error("Choose bytecode or static-aot");auto number=[&](int index,int fallback,int minimum,int maximum){if(count<=index)return fallback;std::wstring value(args[index]);if(value.empty()||!std::all_of(value.begin(),value.end(),[](wchar_t digit){return digit>=L'0'&&digit<=L'9';}))throw std::runtime_error("Invalid native host numeric argument");const auto result=std::stoull(value);if(result<uint64_t(minimum)||result>uint64_t(maximum))throw std::runtime_error("Native host numeric argument outside its bounds");return int(result);};NativeHost host;return host.run(args[1],args[2],mode,number(4,0,0,INT_MAX),number(5,1000,64,4096),number(6,1000,64,4096));}

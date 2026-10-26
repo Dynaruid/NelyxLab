@@ -8,6 +8,8 @@ Import the renderer from `@nelyx/skia-web/library`; the package has no aggregate
 
 Assets are checked against source hashes and byte budgets. Submission leases are returned after actual WebGL fence retirement or an owned close drain. The renderer manages visibility, context loss, error propagation, and shutdown resources. Complete graphics recovery and physical/accessibility/memory qualification remain open.
 
+`WebSkiaLibrary.dispose()` closes admission before resource callbacks and returns the same Promise to every caller, including reentrant calls. Retirement errors reject that Promise; subsequent calls preserve the failure and unconfirmed dependencies instead of reporting successful completion. Cleanup runs synchronously until that Promise settles.
+
 The package targets `m153-nelyx-paragraph.1`, built from locked Skia source with
 the Nelyx paragraph binding. The source build supplies full native line-metric fields, UTF16
 line lookup and soft-hyphen visibility. The engine currently reports the same

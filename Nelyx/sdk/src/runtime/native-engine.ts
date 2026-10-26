@@ -5,7 +5,7 @@ import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {RasterizationService} from '@nelyx/core/hosting/rasterization';
 import {ImageService} from '@nelyx/core/hosting/images';
 import {GraphiteRenderer,createPathQueries,createRuntimeShaderCache} from '@nelyx/skia-native/renderer';
-import type {NelyxGraphiteContext} from '@nelyx/skia-native/renderer';
+import type {NelyxGraphiteContext,GraphiteRetirementClock,GraphiteResources} from '@nelyx/skia-native/renderer';
 import {NativeTextLayoutService} from '@nelyx/skia-native/text';
 import {createFramePictureBackend} from '@nelyx/skia-native/pictures';
 import {createRasterizationBackend} from '@nelyx/skia-native/rasterization';
@@ -21,6 +21,7 @@ export interface NativeEngineOptions {
   /** Ownership transfers here; the renderer retires this same context. */
   readonly context:NelyxGraphiteContext;
   readonly owner:ViewOwner;
+  readonly retirement?:GraphiteRetirementClock;
   readonly assets:LoadedNativeAssets;
   readonly configuration:NativeAssetConfiguration;
   resolveSource:NativeAssetBackend['resolveSource'];
@@ -39,10 +40,10 @@ export function createNativeEngineServices(options:NativeEngineOptions){
   const ensure=()=>{if(closed)throw new Error('Native engine owner closed');options.assertOpen();};
   const image=(key:string)=>{const value=images.get(key);if(!value)throw new Error('Stale native engine image');return value;};
   const paragraph=(key:string)=>{if(!text)throw new Error('Native paragraph owner is not initialized');return text.paintResource(key);};
-  const pictures=createFramePictureBackend(api,{runtimePrograms:programs,image,paragraph,picture:key=>pictures.picture(key)},()=>context.nelyxIdentity());
-  const resources={nativeDisplayLists:true,runtimePrograms:programs,image,paragraph,picture:(key:string)=>pictures.picture(key)};
+  const resources:GraphiteResources={nativeDisplayLists:true,runtimePrograms:programs,image,paragraph,picture:key=>pictures.picture(key)};
+  const pictures=createFramePictureBackend(api,resources,()=>context.nelyxIdentity());
   const services:NativeEnginePorts={
-    renderer:{create(){ensure();if(renderer)throw new Error('Native renderer already has an owner');return renderer=new GraphiteRenderer(api,()=>context,owner,resources);}},
+    renderer:{create(){ensure();if(renderer)throw new Error('Native renderer already has an owner');return renderer=new GraphiteRenderer(api,()=>context,owner,resources,options.retirement);}},
     text:{create(registry){ensure();if(text)throw new Error('Native text service already has an owner');return text=new NativeTextLayoutService(api,registry,owner,assets.fonts,image,programs);}},
     paths:createPathQueries(api,ensure),
     pictures:{create(registry){ensure();return new FramePictureService(registry,pictures,owner);}},

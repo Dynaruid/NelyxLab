@@ -11,7 +11,7 @@ import { Align, SizedBox, Builder, Row } from '@nelyx/core/framework/widgets/bas
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
 import { Color } from '@nelyx/core/ui/color';
 import { WidgetState, WidgetStateProperty, WidgetStatesController } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import { sourceColorType } from '@nelyx/core/ui/color-source';
 import { nullableDartType, dartDoubleType } from '@nelyx/core/foundation/dart-type-witness';
 import { DartDouble } from '@nelyx/core/foundation/dart-numeric';

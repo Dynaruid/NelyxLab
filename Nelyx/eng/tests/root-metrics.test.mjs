@@ -9,11 +9,52 @@ import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
 import {FrameworkRoot} from '@nelyx/core/framework/widgets/root';
 import {DeviceGestureSettings} from '@nelyx/core/framework/gestures/gesture-settings';
 import {BorderRadius} from '@nelyx/core/framework/painting/border-radius';
-import {captureMetrics,freezeFrame,disposeFrame} from '@nelyx/core/ui/frame';
+import {captureMetrics,captureSceneFrame,releaseSceneFrameSource,disposeFrame} from '@nelyx/core/ui/frame';
 const timeout=1_200_000;
 class Probe extends StatelessWidget{constructor(builder){super();this.builder=builder;}build(context){return this.builder(context);}}
 const named=(id,name)=>new Semantics(new SizedBox(10,10),{id,role:'text',name});
 function resize(f,values){const metrics=f.root.context.readMetrics();Object.assign(metrics,values,{viewportGeneration:metrics.viewportGeneration+1});f.frame();}
+
+test('Root finishes post-frame command changes before ownership capture and stops capture after a post-frame close',{timeout},()=>{
+ for(const close of [false,true]){
+  const f=fixture(),paint=f.root.recordPaint,geometry=[];let painting,reads=0,source,frame;
+  f.root.recordPaint=function(render,context){painting=context;const capture=render.commitTextInputGeometries;render.commitTextInputGeometries=function(...args){const actual=capture.apply(this,args);return {token:actual.token,hasInputGeometry:actual.hasInputGeometry,commit(){geometry.push('commit');actual.commit();},discard(){geometry.push('discard');actual.discard();}};};return paint.call(this,render,context);};
+  f.root.scheduler.addPostFrameCallback(()=>{painting.commands.push({op:'rect',rect:{x:0,y:0,width:1,height:1},get color(){reads++;if(close)throw 0;return 0xff123456;}});if(close)f.root.dispose();});
+  try{const token={owner:f.root.context.owner,sequence:1,metrics:captureMetrics(f.root.context.readMetrics())};source=f.root.build({token,resources:f.root.context.resources});assert(painting.debugDisposed);if(close){assert.deepEqual(source,[]);assert.equal(reads,0);assert.deepEqual(geometry,['discard']);}else{frame=captureSceneFrame(token,source);assert.equal(frame.commands.at(-1).color,0xff123456);assert(reads>0);assert.deepEqual(geometry,['commit']);}}
+  finally{if(frame)disposeFrame(frame);if(source)releaseSceneFrameSource(source);f.close();}
+ }
+});
+
+test('Root discards geometry when post-frame recording capture rejects the final command buffer',{timeout},()=>{
+ for(const invalid of ['save','getter']){
+  const f=fixture(),paint=f.root.recordPaint,geometry=[];let painting,source;
+  f.root.recordPaint=function(render,context){painting=context;const capture=render.commitTextInputGeometries;render.commitTextInputGeometries=function(...args){const actual=capture.apply(this,args);return {token:actual.token,hasInputGeometry:actual.hasInputGeometry,commit(){geometry.push('commit');actual.commit();},discard(){geometry.push('discard');actual.discard();}};};return paint.call(this,render,context);};
+  f.root.scheduler.addPostFrameCallback(()=>painting.commands.push(invalid==='save'?{op:'save'}:{op:'rect',rect:{x:0,y:0,width:1,height:1},get color(){throw 0;}}));
+  try{const token={owner:f.root.context.owner,sequence:1,metrics:captureMetrics(f.root.context.readMetrics())};assert.throws(()=>{source=f.root.build({token,resources:f.root.context.resources});},invalid==='save'?error=>error.code==='unbalanced-save':error=>error===0);assert(painting.debugDisposed);assert.deepEqual(geometry,['discard']);}
+  finally{if(source)releaseSceneFrameSource(source);f.close();}
+ }
+});
+
+test('Root retires its sealed recording if geometry publication throws or closes the owner',{timeout},()=>{
+ for(const action of ['throw','close']){
+  const f=fixture(),registry=f.root.context.resources,image={id:'geometry-publication-'+action,generation:1,kind:'image'},paint=f.root.recordPaint,geometry=[];let painting,source,retired=0,referencesAtCommit;
+  registry.register(image,()=>retired++);registry.bindResource(image);
+  f.root.recordPaint=function(render,context){painting=context;const capture=render.commitTextInputGeometries;render.commitTextInputGeometries=function(...args){const actual=capture.apply(this,args);return {token:actual.token,hasInputGeometry:actual.hasInputGeometry,commit(){referencesAtCommit=registry.retainedReferenceCount(image);geometry.push('commit');actual.commit();if(action==='throw')throw 0;f.root.dispose();},discard(){geometry.push('discard');actual.discard();}};};return paint.call(this,render,context);};
+  f.root.scheduler.addPostFrameCallback(()=>painting.commands.push({op:'image',resource:image,rect:{x:0,y:0,width:1,height:1}}));
+  try{const token={owner:f.root.context.owner,sequence:1,metrics:captureMetrics(f.root.context.readMetrics())};const build=()=>{source=f.root.build({token,resources:registry});};if(action==='throw')assert.throws(build,error=>error instanceof AggregateError&&error.errors.length===1&&error.errors[0]===0);else{build();assert.deepEqual(source,[]);}
+    assert.equal(referencesAtCommit,2,'The final recording owns its resource before geometry notifications');assert(painting.debugDisposed);assert.deepEqual(geometry,action==='throw'?['commit','discard']:['commit']);assert.equal(registry.retainedReferenceCount(image),1);registry.releaseProducer(image);assert.equal(retired,1);
+  }finally{if(source)releaseSceneFrameSource(source);f.close();}
+ }
+});
+
+test('a Canvas close that retires Root cancels the sealed frame before geometry publication without closing Canvas twice',{timeout},()=>{
+ const f=fixture(),registry=f.root.context.resources,image={id:'capture-close-owner',generation:1,kind:'image'},paint=f.root.recordPaint,geometry=[];let painting,source,retired=0,closes=0;
+ registry.register(image,()=>retired++);registry.bindResource(image);
+ f.root.recordPaint=function(render,context){painting=context;const dispose=context.dispose,capture=render.commitTextInputGeometries;context.dispose=function(){closes++;dispose.call(this);f.root.dispose();};render.commitTextInputGeometries=function(...args){const actual=capture.apply(this,args);return {token:actual.token,hasInputGeometry:actual.hasInputGeometry,commit(){geometry.push('commit');actual.commit();},discard(){geometry.push('discard');actual.discard();}};};return paint.call(this,render,context);};
+ f.root.scheduler.addPostFrameCallback(()=>painting.commands.push({op:'image',resource:image,rect:{x:0,y:0,width:1,height:1}}));
+ try{const token={owner:f.root.context.owner,sequence:1,metrics:captureMetrics(f.root.context.readMetrics())};source=f.root.build({token,resources:registry});assert.deepEqual(source,[]);assert(painting.debugDisposed);assert.equal(closes,1);assert.deepEqual(geometry,['discard']);assert.equal(registry.retainedReferenceCount(image),1);registry.releaseProducer(image);assert.equal(retired,1);}
+ finally{if(source)releaseSceneFrameSource(source);f.close();}
+});
 
 test('layout paint and semantics invalidations finish in the current frame without a redundant host request',{timeout},()=>{
  const f=fixture();let layouts=0;
@@ -82,7 +123,7 @@ test('animation callbacks use the calibrated host tick despite late JS dispatch 
  const f=fixture(),seen=[];let frame;
  try{f.elapse(100);f.root.scheduler.scheduleFrameCallback(timestamp=>seen.push(timestamp));
   const token={owner:f.root.context.owner,metrics:captureMetrics(f.root.context.readMetrics()),sequence:1,timing:{tick:10,dispatch:100,queueDelay:90,clockUncertainty:.01}};
-  frame=freezeFrame(token,f.root.build({token,resources:f.root.context.resources}));assert.deepEqual(seen,[10]);
+  frame=captureSceneFrame(token,f.root.build({token,resources:f.root.context.resources}));assert.deepEqual(seen,[10]);
   f.root.scheduler.scheduleFrameCallback(timestamp=>seen.push(timestamp));f.frame();assert.deepEqual(seen,[10,100]);
  }finally{if(frame)disposeFrame(frame);f.close();}
 });
@@ -123,6 +164,6 @@ test('service forwarding preserves frozen hosts, prototype accessors, private re
 test('a createRoot closure captures tracked services and still refreshes after viewport changes',{timeout},()=>{
  const f=fixture();let root,frame,reads=0;const metrics=f.root.context.readMetrics(),context=f.root.context;
  try{root=new FrameworkRoot(context,{id:'captured-root',createRoot:services=>new Builder(()=>{reads++;return named('captured',String(services.readMetrics().logicalWidth));})});
-  const build=sequence=>{if(frame)disposeFrame(frame);const token={owner:context.owner,sequence,metrics:captureMetrics(metrics)};frame=freezeFrame(token,root.build({token,resources:context.resources}));};build(1);assert.equal(reads,1);Object.assign(metrics,{logicalWidth:360,physicalWidth:360,viewportGeneration:metrics.viewportGeneration+1});build(2);assert.equal(reads,2);assert.equal(root.nodes.find(n=>n.id==='captured').name,'360');
+  const build=sequence=>{if(frame)disposeFrame(frame);const token={owner:context.owner,sequence,metrics:captureMetrics(metrics)};frame=captureSceneFrame(token,root.build({token,resources:context.resources}));};build(1);assert.equal(reads,1);Object.assign(metrics,{logicalWidth:360,physicalWidth:360,viewportGeneration:metrics.viewportGeneration+1});build(2);assert.equal(reads,2);assert.equal(root.nodes.find(n=>n.id==='captured').name,'360');
  }finally{if(frame)disposeFrame(frame);root?.dispose();f.close();}
 });

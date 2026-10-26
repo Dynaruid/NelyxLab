@@ -5,6 +5,8 @@ import {createHash} from 'node:crypto';
 import {capture} from '../sdk/tooling/cli/src/commands.mjs';
 import {supplyRunner,readRnlSupply} from '../sdk/tooling/cli/src/supply-runner.mjs';
 import {checkWebRuntime} from '../skia/eng/prepare-web-runtime.mjs';
+import {verifyPackageSourceInputs} from './package-source-inputs.mjs';
+import {verifyNativeSourceInputs} from '../skia/eng/native-source-inputs.mjs';
 const root=path.resolve(import.meta.dirname,'../..'),targets=(process.argv[2]??'web').split(',');
 if(new Set(targets).size!==targets.length||targets.some(target=>!['android','ios','windows','macos','linux','web'].includes(target)))throw new Error('Choose one target or comma-separated distinct targets');
 if(targets.includes('web'))checkWebRuntime();
@@ -12,6 +14,13 @@ const app=path.resolve(process.argv[3]??path.join(root,'sample/nelyx-testbed-app
 const cache=path.join(root,'Nelyx/.cache/packages');fs.mkdirSync(cache,{recursive:true});
 const allPackages=['core','sdk','skia-native','skia-rn','skia-web','metro','cli','static-aot','material','cupertino'],selected=process.env.NELYX_PREPARE_PACKAGES?.split(',');
 if(selected&&(!selected.length||new Set(selected).size!==selected.length||selected.some(name=>!allPackages.includes(name))))throw Error('NELYX_PREPARE_PACKAGES must name distinct owned packages');
+// npm pack deliberately skips build scripts. Verify its TS inputs before any
+// archive/runner mutation, rather than discovering stale emit at native build.
+const workspace=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+const packageDirectories=new Map(workspace.workspaces.map(directory=>{
+  const folder=path.resolve(root,directory),manifest=JSON.parse(fs.readFileSync(path.join(folder,'package.json'),'utf8'));return [manifest.name,folder];
+}));
+for(const name of selected??allPackages){const directory=packageDirectories.get('@nelyx/'+name);if(!directory)throw Error('Workspace package absent: '+name);verifyPackageSourceInputs(directory);verifyNativeSourceInputs(directory);}
 const packages=fs.mkdtempSync(path.join(cache,'supply-'));
 try {
 for(const name of selected??allPackages){

@@ -79,6 +79,26 @@ test('Hidden nested boundaries defer painting and show their latest content afte
   try{f.set(tree(false));f.set(tree(true));const count=inner.count;inner.color=0xffabcdef;changes.notifyListeners();f.frame();assert.equal(inner.count,count);const commands=f.set(tree(false));assert(inner.count>count);assert(commands.some(command=>command.op==='rect'&&command.color===0xffabcdef));}
   finally{f.close();changes.dispose();}
 });
+
+test('dirty hidden recordings return obsolete image owners while an admitted frame keeps its own lease',{timeout},()=>{
+  const f=fixture(),changes=new ChangeNotifier(),image={id:'hidden-snapshot',generation:1,kind:'image'},registry=f.root.context.resources;let retired=0,lease;
+  registry.register(image,()=>retired++);registry.bindResource(image);
+  class ImagePainter extends CustomPainter{
+    include=true;count=0;
+    constructor(){super({repaint:changes});}
+    paint(canvas){this.count++;if(this.include)canvas.image(image,{x:0,y:0,width:10,height:10});}
+    shouldRepaint(){return false;}
+  }
+  const painter=new ImagePainter(),child=new RepaintBoundary(new CustomPaint(new SizedBox(20,20),{painter})),tree=hidden=>new Offstage(child,{offstage:hidden});
+  try{
+    f.set(tree(false));lease=registry.acquire([image]);registry.releaseProducer(image);
+    f.set(tree(true));assert.equal(retired,0,'A clean hidden recording remains reusable');const count=painter.count;
+    painter.include=false;changes.notifyListeners();f.frame();assert.equal(painter.count,count,'Hidden content is not painted to release its cache');
+    assert.equal(registry.retainedReferenceCount(image),1,'Only the admitted frame may still retain the obsolete image');
+    assert.equal(retired,0);lease.returnBy('caller');lease=undefined;assert.equal(retired,1);
+    const commands=f.set(tree(false));assert.equal(painter.count,count+1);assert(!commands.some(command=>command.op==='image'));
+  }finally{lease?.returnBy('caller');f.close();changes.dispose();}
+});
 test('A failed render owner commit is retried after its widget build has already drained',{timeout},()=>{
   const f=fixture();try{f.set(new SizedBox(10,10));const element=f.root.root.children[0],commit=element._commitRenderChildren.bind(element);let calls=0;element._commitRenderChildren=()=>{if(++calls===1)throw Error('synchronization interrupted');commit();};assert.throws(()=>f.set(new SizedBox(20,20)),/synchronization interrupted/);assert.equal(f.root.buildOwner.hasDirty,false);f.frame();assert.equal(calls,2);f.frame();assert.equal(calls,2);}finally{f.close();}
 });

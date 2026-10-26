@@ -4,7 +4,7 @@ import { StatelessWidget, Widget } from '@nelyx/core/framework/widgets/framework
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { Row, Flexible } from '@nelyx/core/framework/widgets/basic';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { IconAlignment } from '../../icon-alignment.ts';
 import type { ButtonStyle } from '../../button-style.ts';
 export class ButtonIconLabel extends StatelessWidget {

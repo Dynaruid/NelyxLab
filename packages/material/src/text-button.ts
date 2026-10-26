@@ -22,7 +22,7 @@ import { TextButtonTheme } from './text-button-theme.ts';
 import { ButtonIconLabel } from './internal/button/icon-label.ts';
 import { concreteStyleFrom } from './internal/button/concrete-style-from.ts';
 import { insetsAll } from './internal/button/style-properties.ts';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 export interface TextButtonOptions extends Omit<MaterialButtonOptions, 'onPressed' | 'selected'> {
     readonly onPressed: (() => void) | null;
 }

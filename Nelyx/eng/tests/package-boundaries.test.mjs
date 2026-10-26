@@ -6,6 +6,13 @@ import path from 'node:path';
 import test from 'node:test';
 import {auditPackageBoundaries} from '../package-boundaries.mjs';
 
+test('Element/focus and resource/frame owners have no runtime import cycle', {timeout: 1_200_000}, () => {
+  const result=auditPackageBoundaries(path.resolve(import.meta.dirname,'../../..'));
+  assert.deepEqual(result.errors,[]);
+  const owners=new Set(['Nelyx/src/framework/widgets/framework.ts','Nelyx/src/framework/widgets/focus.ts','Nelyx/src/framework/widgets/focus-traversal-policy.ts','Nelyx/src/framework/widgets/tree-generic-witnesses.ts','Nelyx/src/framework/widgets/rich-text.ts','Nelyx/src/framework/widgets/widget-span.ts',...['hosting/resources','ui/frame','ui/image','ui/shader','ui/color-filter','ui/paint-effects-wire','ui/paint'].map(file=>'Nelyx/src/'+file+'.ts'),...['rendering/list-wheel-viewport','rendering/sliver-tree','widgets/list-wheel-widget','widgets/sliver-tree','widgets/scrollable-details','widgets/two-dimensional-scrollable','widgets/two-dimensional-viewport','widgets/two-dimensional-delegate','widgets/child-vicinity','widgets/widget-state'].map(file=>'Nelyx/src/framework/'+file+'.generated.ts')]);
+  assert.deepEqual(result.dependencyGraph.cycles.filter(component=>component.some(file=>owners.has(file))),[]);
+});
+
 test('boundary audit accepts declared facades and rejects escaped, reverse and aggregate imports', {timeout: 1_200_000}, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-boundaries-'));
   const write = (file, text) => {fs.mkdirSync(path.dirname(path.join(root, file)), {recursive: true}); fs.writeFileSync(path.join(root, file), text);};

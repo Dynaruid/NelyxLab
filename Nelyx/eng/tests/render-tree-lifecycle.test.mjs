@@ -3,11 +3,96 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PipelineOwner,RenderBox} from '@nelyx/core/framework/rendering/object';
 import {RenderStack,RenderProxyBox} from '@nelyx/core/framework/rendering/boxes';
+import {RenderRepaintBoundary} from '@nelyx/core/framework/rendering/repaint-boundary';
+import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
+import {PaintingContext} from '@nelyx/core/framework/painting/context';
+import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 const timeout=1_200_000;
+
+test('layout admission and layout failures keep the original error and every pending sibling for retry',{timeout},()=>{
+  const saved=FoundationBuildMode.mode;
+  try{for(const mode of ['debug','release'])for(const phase of ['admission','layout'])for(const failure of [undefined,null,0]){
+    FoundationBuildMode.mode=mode;let armed=false,poison=false,layouts=[0,0],rootLayouts=0;
+    class Leaf extends RenderBox{
+      constructor(index){super();this.index=index;}
+      get owner(){if(this.index===0&&poison)throw Error('owner getter after failure');return super.owner;}
+      get isRelayoutBoundary(){if(this.index===0&&armed&&phase==='admission'){poison=true;throw failure;}return super.isRelayoutBoundary;}
+      performLayout(constraints){if(this.index===0&&armed&&phase==='layout'){poison=true;throw failure;}layouts[this.index]++;return constraints.constrain({width:10,height:10});}
+    }
+    class Parent extends RenderBox{
+      performLayout(constraints){rootLayouts++;for(const child of this.children)child.layout(BoxConstraints.tightFor(10,10));return constraints.constrain({width:40,height:30});}
+    }
+    const owner=new PipelineOwner(),root=new Parent(),first=new Leaf(0),second=new Leaf(1);root.setChildren([first,second]);
+    try{
+      owner.setRoot(root);owner.flushLayout({width:40,height:30});assert.deepEqual(layouts,[1,1]);first.markNeedsLayout();second.markNeedsLayout();assert.equal(root.needsLayout,false);armed=true;
+      let caught=false;try{owner.flushLayout();}catch(error){caught=true;assert.equal(error,failure,'Recovery must retain a falsey original failure without calling a poisoned owner getter');}assert(caught);
+      armed=false;poison=false;owner.flushLayout();assert.deepEqual(layouts,[2,2]);assert.equal(rootLayouts,1);assert.equal(first.needsLayout,false);assert.equal(second.needsLayout,false);
+    }finally{armed=false;poison=false;owner.dispose();root.setChildren([]);root.dispose();first.dispose();second.dispose();}
+  }}finally{FoundationBuildMode.mode=saved;}
+});
+test('failed layout callbacks do not read or readmit a child detached from the pipeline',{timeout},()=>{
+  const saved=FoundationBuildMode.mode;
+  try{for(const mode of ['debug','release'])for(const failure of [undefined,null,0]){
+    FoundationBuildMode.mode=mode;let armed=false,poison=false,branchLayouts=0,leafLayouts=0,rootLayouts=0;
+    class Leaf extends RenderBox{
+      get owner(){if(poison)throw Error('detached owner getter');return super.owner;}
+      performLayout(constraints){leafLayouts++;return constraints.constrain({width:10,height:10});}
+    }
+    class Branch extends RenderBox{
+      performLayout(constraints){if(armed)this.invokeLayoutCallback(()=>{this.remove(leaf);poison=true;throw failure;});branchLayouts++;for(const child of this.children)child.layout(BoxConstraints.tightFor(10,10));return constraints.constrain({width:20,height:20});}
+    }
+    class Parent extends RenderBox{
+      performLayout(constraints){rootLayouts++;for(const child of this.children)child.layout(BoxConstraints.tightFor(20,20));return constraints.constrain({width:40,height:30});}
+    }
+    const owner=new PipelineOwner(),root=new Parent(),branch=new Branch(),leaf=new Leaf();branch.setChildren([leaf]);root.setChildren([branch]);
+    try{
+      owner.setRoot(root);owner.flushLayout({width:40,height:30});branch.markNeedsLayout();leaf.markNeedsLayout();armed=true;
+      let caught=false;try{owner.flushLayout();}catch(error){caught=true;assert.equal(error,failure);}assert(caught);assert.equal(leaf.parent,undefined);
+      armed=false;assert.doesNotThrow(()=>owner.flushLayout());assert.deepEqual([rootLayouts,branchLayouts,leafLayouts],[1,2,1]);poison=false;assert.equal(leaf.attached,false);assert.equal(branch.needsLayout,false);
+    }finally{armed=false;poison=false;owner.dispose();root.setChildren([]);root.dispose();branch.dispose();leaf.dispose();}
+  }}finally{FoundationBuildMode.mode=saved;}
+});
+
 class ObservedBox extends RenderStack {
   detaches=0;
   detach(){this.detaches++;super.detach();}
 }
+
+test('layout paint transactions preserve the newest cached pixels across repeated changes and intermediate paint',{timeout},()=>{
+  class Leaf extends RenderBox{
+    color=0xff123456;
+    change(color){this.color=color;this.markNeedsPaint();}
+    performLayout(c){return c.smallest;}
+    paint(canvas){canvas.rect({x:0,y:0,width:8,height:8},this.color);}
+  }
+  class Driver extends RenderProxyBox{run;performLayout(c){const size=super.performLayout(c);this.run?.();return size;}}
+  const leaf=new Leaf(),driver=new Driver(leaf),root=new RenderRepaintBoundary(new BoxConstraints(),driver),owner=new PipelineOwner();
+  const painted=()=>{const canvas=new PaintingContext();try{root.paint(canvas);return canvas.commands.filter(command=>command.op==='rect').map(command=>command.color);}finally{canvas.dispose();}};
+  try{
+    owner.setRoot(root);owner.flushLayout({width:40,height:30});assert.deepEqual(painted(),[leaf.color]);
+    driver.run=()=>{leaf.change(0xff112233);leaf.change(0xff445566);};driver.markNeedsLayout();owner.flushLayout();assert.deepEqual(painted(),[0xff445566]);
+    driver.run=()=>{leaf.change(0xff778899);assert.deepEqual(painted(),[0xff778899]);leaf.change(0xffaabbcc);assert.deepEqual(painted(),[0xffaabbcc]);};
+    driver.markNeedsLayout();owner.flushLayout();assert.deepEqual(painted(),[0xffaabbcc]);
+    leaf.change(0xffddeeff);assert.deepEqual(painted(),[0xffddeeff]);
+  }finally{driver.run=undefined;owner.dispose();root.dispose();}
+});
+
+test('layout paint coalescing preserves every custom ancestor boundary getter and retirement hook',{timeout},()=>{
+  const calls=[];
+  class Leaf extends RenderBox{performLayout(c){return c.smallest;}}
+  class Custom extends RenderProxyBox{
+    constructor(name,child){super(child);this.name=name;}
+    get isRepaintBoundary(){calls.push(this.name+' boundary');return true;}
+    retainedPaintInvalidated(){calls.push(this.name+' retirement');}
+  }
+  class Driver extends RenderProxyBox{run;performLayout(c){const size=super.performLayout(c);this.run?.();return size;}}
+  const leaf=new Leaf(),low=new Custom('low',leaf),high=new Custom('high',low),root=new Driver(high),owner=new PipelineOwner();
+  try{
+    owner.setRoot(root);owner.flushLayout({width:40,height:30});
+    root.run=()=>{for(let i=0;i<2;i++){calls.length=0;leaf.markNeedsPaint();assert.deepEqual(calls,['low boundary','low retirement','high boundary']);}};
+    root.markNeedsLayout();owner.flushLayout();
+  }finally{root.run=undefined;owner.dispose();root.dispose();}
+});
 
 test('retained children preserve cycle checks through reorder, removal and reparent',{timeout},()=>{
   const root=new ObservedBox(),branch=new ObservedBox(),leaf=new ObservedBox(),sibling=new ObservedBox();
@@ -110,14 +195,17 @@ test('paint finishes invalidation and preserves ordered semantic and host failur
   }finally{armed=false;handle?.dispose();owner.dispose();root.dispose();}
 });
 
-test('paint retains callback getter failure precedence after a semantic hook fails',{timeout},()=>{
+test('paint queues semantic hooks until commit and retains callback getter failures before retry',{timeout},()=>{
   const semanticFailure=new Error('semantic getter'),lookupFailure=new Error('owner getter'),calls=[];let armed=false;
   const owner=new PipelineOwner({onSemanticsUpdate(){}}),root=new RenderProxyBox();let handle,original;
   Object.defineProperty(root,'semanticsTransport',{get(){if(armed){calls.push('semantic');throw semanticFailure;}return null;}});
   try{
     owner.setRoot(root);owner.flushLayout({width:40,height:30});handle=owner.ensureSemantics();owner.flushSemantics();original=Object.getOwnPropertyDescriptor(owner,'invalidate');
     Object.defineProperty(owner,'invalidate',{configurable:true,get(){calls.push('owner');throw lookupFailure;}});armed=true;
-    assert.throws(()=>root.markNeedsPaint(),error=>error===lookupFailure);assert.deepEqual(calls,['semantic','owner']);
+    assert.throws(()=>root.markNeedsPaint(),error=>error===lookupFailure);assert.deepEqual(calls,['owner','owner']);
+    Object.defineProperty(owner,'invalidate',original);calls.length=0;
+    assert.throws(()=>owner.flushSemantics(),error=>error===semanticFailure);assert.deepEqual(calls,['semantic']);
+    armed=false;assert.doesNotThrow(()=>owner.flushSemantics());
   }finally{armed=false;if(original)Object.defineProperty(owner,'invalidate',original);handle?.dispose();owner.dispose();root.dispose();}
 });
 

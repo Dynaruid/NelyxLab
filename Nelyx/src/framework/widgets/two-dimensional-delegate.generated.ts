@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Adopted product owner: nominal checks use the classes declared here.
 // Generated from packages/flutter/lib/src/widgets/scroll_delegate.dart; SHA256 e9cec65374b38d38a3ef8cce7410076f26b5a942145b2742506499ae81834383
 import { checkedInteger } from "../../ui/value-math.ts";
 import { protect } from "../../ui/value-math.ts";
@@ -27,12 +28,8 @@ import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { captureDartException } from "../../foundation/dart-exceptions.ts";
 import { createSelectableMap } from "./two-dimensional-delegate-adapter.ts";
 import { createSelectableSet } from "./two-dimensional-delegate-adapter.ts";
-import { isChildVicinity } from "./child-vicinity-adapter.ts";
-import { castChildVicinity } from "./child-vicinity-adapter.ts";
-import { isTwoDimensionalChildDelegate } from "./two-dimensional-delegate-adapter.ts";
-import { castTwoDimensionalChildDelegate } from "./two-dimensional-delegate-adapter.ts";
-import { isTwoDimensionalChildListDelegate } from "./two-dimensional-delegate-adapter.ts";
-import { castTwoDimensionalChildListDelegate } from "./two-dimensional-delegate-adapter.ts";
+import { isChildVicinity } from "./child-vicinity.generated.ts";
+import { castChildVicinity } from "./child-vicinity.generated.ts";
 import { createTwoDimensionalRepaintBoundary } from "./two-dimensional-delegate-adapter.ts";
 import { TwoDimensionalSelectionHost } from "./two-dimensional-selection-host.ts";
 import { selectionParentFor } from "./two-dimensional-selection-host.ts";
@@ -461,3 +458,8 @@ export function _createErrorWidget(exception: {}, stackTrace: HostStackTrace): W
     FlutterError.reportError(details);
     return ErrorWidget.builder(details);
 }
+
+export function isTwoDimensionalChildDelegate(value:unknown):value is SourceTwoDimensionalChildDelegate{return value instanceof SourceTwoDimensionalChildDelegate;}
+export function castTwoDimensionalChildDelegate(value:unknown):SourceTwoDimensionalChildDelegate{if(!isTwoDimensionalChildDelegate(value))throw new TypeError('Expected TwoDimensionalChildDelegate');return value;}
+export function isTwoDimensionalChildListDelegate(value:unknown):value is SourceTwoDimensionalChildListDelegate{return value instanceof SourceTwoDimensionalChildListDelegate;}
+export function castTwoDimensionalChildListDelegate(value:unknown):SourceTwoDimensionalChildListDelegate{if(!isTwoDimensionalChildListDelegate(value))throw new TypeError('Expected TwoDimensionalChildListDelegate');return value;}

@@ -1,38 +1,37 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type {TextLayout,TextLayoutInput,ResourceId} from '../ui/types.ts';
+import type {TextLayout,TextLayoutInput} from '../ui/types.ts';
 import type {ResourceRegistry,ResourceCost} from './resources.ts';
 import {invariant} from '../foundation/errors.ts';
 import {isCacheableTextInput} from '../ui/text-input-data.ts';
 import {ownedTextInputSerialization} from '../ui/text.ts';
+import type {ParagraphFont,ParagraphFontSnapshot} from './text-fonts.ts';
+import {ParagraphFontCatalog} from './text-fonts.ts';
 
 export const textLayoutCacheLimits=Object.freeze({indexed:128,resident:64,units:65536,bytes:1048576});
-type FontKey=readonly [string,number,string,number];
 interface CachedLayout {readonly layout:TextLayout;readonly units:number;readonly bytes:number;readonly lease:{dispose():void}}
 /** Per service, with a separate bounded owner lease for plain immutable text.
  * Logical producers and recorded frames retain their independent lifetimes.
  * Registry close releases every cache owner, including while frames drain. */
-export class TextLayoutCache {
+export class TextLayoutCache<T extends ParagraphFont=ParagraphFont> {
   private readonly layouts=new Map<string,TextLayout>();
   private readonly cached=new Map<string,CachedLayout>();
-  private units=0;private bytes=0;private catalog:readonly FontKey[]|undefined;private revision=0;private failed=false;
+  private units=0;private bytes=0;private revision=0;private failed=false;
   private hits=0;private misses=0;private cacheOnlyHits=0;private uncachedSequence=0;
-  constructor(private readonly registry:ResourceRegistry){}
+  constructor(private readonly registry:ResourceRegistry,private readonly catalog:ParagraphFontCatalog<T>){catalog.checkRegistry(registry);}
   get debugStats(){return Object.freeze({indexed:this.layouts.size,resident:this.cached.size,units:this.units,bytes:this.bytes,hits:this.hits,misses:this.misses,cacheOnlyHits:this.cacheOnlyHits,failed:this.failed});}
-  key(input:TextLayoutInput,fonts:Iterable<{readonly resource:ResourceId;readonly family:string;readonly sourceBytes?:number}>):string{
+  key(input:TextLayoutInput,fonts:ParagraphFontSnapshot<T>):string{
     invariant(!this.failed,'text-cache-failed','Paragraph cache retirement failed');
-    const catalog:FontKey[]=[...fonts].filter(font=>this.registry.has(font.resource)).map(font=>[font.resource.id,font.resource.generation,font.family,font.sourceBytes??0]);
-    let changed=this.catalog===undefined||this.catalog.length!==catalog.length;
-    for(let i=0;!changed&&i<catalog.length;i++){const a=catalog[i]!,b=this.catalog![i]!;changed=a[0]!==b[0]||a[1]!==b[1]||a[2]!==b[2]||a[3]!==b[3];}
-    let revision=this.revision;
-    if(changed){invariant(this.revision<Number.MAX_SAFE_INTEGER,'text-cache-revision-exhausted','Paragraph font catalog revision exhausted');this.catalog=catalog;revision=++this.revision;this.clear();}
+    this.catalog.assertCurrent(fonts);const revision=fonts.revision;
+    if(this.revision!==revision){this.revision=revision;this.clear();this.catalog.assertCurrent(fonts);}
     // Caller extensions and serialization hooks remain observable by JSON, but
     // do not enter either the live index or the separately owned idle cache.
     let prefix=`${revision}:`;
     const serialized=ownedTextInputSerialization(input);
     if(serialized===undefined&&!isCacheableTextInput(input)){invariant(this.uncachedSequence<Number.MAX_SAFE_INTEGER,'text-cache-key-exhausted','Uncached paragraph key sequence exhausted');prefix+=`~${++this.uncachedSequence}:`;}
-    return prefix+(serialized===undefined?JSON.stringify([input,catalog]):'['+serialized+','+JSON.stringify(catalog)+']');
+    const key=prefix+(serialized===undefined?JSON.stringify([input,this.catalog.keyValues(fonts)]):'['+serialized+','+this.catalog.serialization(fonts)+']');
+    this.catalog.assertCurrent(fonts);return key;
   }
-  private current(key:string):boolean{return key.startsWith(`${this.revision}:`);}
+  private current(key:string):boolean{const revision=this.revision;return key.startsWith(`${revision}:`)&&this.catalog.captureRevision===revision;}
   /** Admission, including pressure eviction, completes before a producer borrow. */
   reuse(key:string,admit:(retained:TextLayout|undefined)=>void):TextLayout|undefined{
     invariant(!this.failed,'text-cache-failed','Paragraph cache retirement failed');

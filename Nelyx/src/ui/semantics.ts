@@ -104,6 +104,25 @@ export interface SemanticsFlagsOptions {
 }
 export type SemanticsFlagsCopyOptions={readonly [Key in keyof SemanticsFlagsOptions]?:SemanticsFlagsOptions[Key]|null};
 const flagFields=["isChecked","isSelected","isEnabled","isToggled","isExpanded","isRequired","isFocused","isAccessibilityFocusBlocked","isButton","isTextField","isInMutuallyExclusiveGroup","isHeader","isObscured","scopesRoute","namesRoute","isHidden","isImage","isLiveRegion","hasImplicitScrolling","isMultiline","isReadOnly","isLink","isSlider","isKeyboardKey"] as const;
+export type SemanticsFlagName=typeof flagFields[number];
+/** @internal A configuration owns one validated 31-bit state, separate from
+ * the legacy engine flag mask. Public SemanticsFlags keep their field shape. */
+export type SemanticsFlagWord=number&{readonly __semanticsFlagWord:unique symbol};
+interface FlagPacking {readonly shift:number;readonly mask:number;readonly states:readonly (CheckedState|Tristate)[]|null}
+const ownedFlagWords=new WeakMap<SemanticsFlags,SemanticsFlagWord>();
+const flagPacking=Object.create(null) as Record<SemanticsFlagName,FlagPacking>;
+let flagShift=0;
+for(let index=0;index<flagFields.length;index++){
+  const width=index<7?2:1;flagPacking[flagFields[index]!]=Object.freeze({shift:flagShift,mask:(2**width-1)<<flagShift,states:index===0?CheckedState.values:index<7?Tristate.values:null});flagShift+=width;
+}
+Object.freeze(flagPacking);
+function flagScalar(packing:FlagPacking,value:unknown):number|null{
+  if(packing.states===null)return typeof value==='boolean'?Number(value):null;
+  for(let index=0;index<packing.states.length;index++)if(value===packing.states[index])return index;return null;
+}
+function captureFlagWord(value:SemanticsFlags):SemanticsFlagWord|null{
+  let word=0;for(const name of flagFields){const packing=flagPacking[name],scalar=flagScalar(packing,value[name]);if(scalar===null)return null;word|=scalar<<packing.shift;}return word as SemanticsFlagWord;
+}
 export class SemanticsFlags {
   readonly isChecked:CheckedState;
   readonly isSelected:Tristate;
@@ -161,7 +180,7 @@ export class SemanticsFlags {
         :typeof value==='boolean';
       if(!valid)invariant(false,'invalid-semantics-flag','Semantics flags require typed state values');
     }
-    if(new.target===SemanticsFlags)Object.freeze(this);else protect(this,flagFields);
+    if(new.target===SemanticsFlags){Object.freeze(this);const word=captureFlagWord(this);if(word!==null)ownedFlagWords.set(this,word);}else protect(this,flagFields);
   }
   static none=new SemanticsFlags();
   merge(other:SemanticsFlags):SemanticsFlags{return new SemanticsFlags({
@@ -302,6 +321,66 @@ export class SemanticsFlags {
         (this.isKeyboardKey && other.isKeyboardKey) ||
         (this.isAccessibilityFocusBlocked != other.isAccessibilityFocusBlocked);}
 }
+/** @internal Foreign/subclass/Proxy flags retain their ordinary virtual path. */
+export function semanticsFlagWord(value:SemanticsFlags):SemanticsFlagWord|null{return ownedFlagWords.get(value)??null;}
+/** @internal Configuration setters update their own record. Nullish and
+ * unusual values retain the public copyWith validation/retention path. */
+export function updateSemanticsFlagWord(word:SemanticsFlagWord,name:SemanticsFlagName,value:unknown):SemanticsFlagWord|null{
+  if(!Number.isInteger(word)||word<0||word>0x7fffffff)return null;
+  const packing=flagPacking[name];if(!packing)return null;const scalar=flagScalar(packing,value);return scalar===null?null:((word&~packing.mask)|(scalar<<packing.shift)) as SemanticsFlagWord;
+}
+/** @internal Closed operations over admitted state; no public value objects
+ * or virtual methods are needed between annotation and node publication. */
+export function mergeSemanticsFlagWords(left:SemanticsFlagWord,right:SemanticsFlagWord):SemanticsFlagWord{
+  let word=(left|right)&0x7fffc000;
+  const checkedLeft=left&3,checkedRight=right&3;
+  word|=checkedLeft===3||checkedRight===3?3:checkedLeft===1||checkedRight===1?1:checkedLeft|checkedRight;
+  for(let shift=2;shift<=12;shift+=2){const a=(left>>>shift)&3,b=(right>>>shift)&3;word|=(a===1||b===1?1:a|b)<<shift;}
+  return word as SemanticsFlagWord;
+}
+export function semanticsFlagWordsConflict(left:SemanticsFlagWord,right:SemanticsFlagWord):boolean{
+  if((left&right&0x7fff8000)!==0||((left^right)&0x4000)!==0)return true;
+  for(let shift=0;shift<=12;shift+=2)if(((left>>>shift)&3)!==0&&((right>>>shift)&3)!==0)return true;
+  return false;
+}
+export function readSemanticsFlagWord<Key extends SemanticsFlagName>(word:SemanticsFlagWord,name:Key):Required<SemanticsFlagsOptions>[Key]{
+  const packing=flagPacking[name];if(!packing)invariant(false,'invalid-semantics-flag-word','Unknown semantics flag');const scalar=(word&packing.mask)>>>packing.shift;
+  const value=packing.states===null?scalar!==0:packing.states[scalar];if(value===undefined)invariant(false,'invalid-semantics-flag-word','Invalid packed semantics state');return value as Required<SemanticsFlagsOptions>[Key];
+}
+/** @internal Trusted state publishes the same immutable, enumerable value
+ * fields as the public constructor, without replaying external admission. */
+export function semanticsFlagsFromWord(word:SemanticsFlagWord):SemanticsFlags{
+  if(!Number.isInteger(word)||word<0||word>0x7fffffff)invariant(false,'invalid-semantics-flag-word','Semantics flag word must fit 31 bits');
+  // A prototype literal initializes one ordinary object directly; per-field
+  // descriptor objects would cost more than the immutable values they replace.
+  const value=Object.freeze({__proto__:SemanticsFlags.prototype,
+    isChecked:readSemanticsFlagWord(word,'isChecked'),
+    isSelected:readSemanticsFlagWord(word,'isSelected'),
+    isEnabled:readSemanticsFlagWord(word,'isEnabled'),
+    isToggled:readSemanticsFlagWord(word,'isToggled'),
+    isExpanded:readSemanticsFlagWord(word,'isExpanded'),
+    isRequired:readSemanticsFlagWord(word,'isRequired'),
+    isFocused:readSemanticsFlagWord(word,'isFocused'),
+    isAccessibilityFocusBlocked:readSemanticsFlagWord(word,'isAccessibilityFocusBlocked'),
+    isButton:readSemanticsFlagWord(word,'isButton'),
+    isTextField:readSemanticsFlagWord(word,'isTextField'),
+    isInMutuallyExclusiveGroup:readSemanticsFlagWord(word,'isInMutuallyExclusiveGroup'),
+    isHeader:readSemanticsFlagWord(word,'isHeader'),
+    isObscured:readSemanticsFlagWord(word,'isObscured'),
+    scopesRoute:readSemanticsFlagWord(word,'scopesRoute'),
+    namesRoute:readSemanticsFlagWord(word,'namesRoute'),
+    isHidden:readSemanticsFlagWord(word,'isHidden'),
+    isImage:readSemanticsFlagWord(word,'isImage'),
+    isLiveRegion:readSemanticsFlagWord(word,'isLiveRegion'),
+    hasImplicitScrolling:readSemanticsFlagWord(word,'hasImplicitScrolling'),
+    isMultiline:readSemanticsFlagWord(word,'isMultiline'),
+    isReadOnly:readSemanticsFlagWord(word,'isReadOnly'),
+    isLink:readSemanticsFlagWord(word,'isLink'),
+    isSlider:readSemanticsFlagWord(word,'isSlider'),
+    isKeyboardKey:readSemanticsFlagWord(word,'isKeyboardKey'),
+  }) as unknown as SemanticsFlags;ownedFlagWords.set(value,word);return value;
+}
+
 export interface SemanticsNodeUpdateOptions {
   readonly id:number;readonly flags:SemanticsFlags;readonly actions:number;
   readonly maxValueLength:number;readonly currentValueLength:number;readonly textSelectionBase:number;readonly textSelectionExtent:number;readonly platformViewId:number;

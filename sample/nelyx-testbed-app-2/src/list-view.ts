@@ -56,7 +56,7 @@ class ListViewPageState extends State<ListViewPage> {
       // Its moving ink also owns a recording, so the title/buttons stay retained.
       new Expanded(new RepaintBoundary(new Material({color: new Color(colors.surface), clipBehavior: 'hardEdge', child: ListView.builder({
         controller: this.scroll, primary: false, padding: EdgeInsets.all(0),
-        itemCount, itemExtent: 80,
+        itemCount, itemExtent: 80, childPolicy: {mode: 'dormant', capacity: 32},
         itemBuilder: (_context, index) => new Column([
           new Expanded(new ListTile({
             id: 'list-view-item-' + index,

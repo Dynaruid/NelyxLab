@@ -5,20 +5,24 @@
 #include "RNSkVulkanRuntime.h"
 #include "JsiDisplayList.h"
 #include "JsiSkGraphiteContext.h"
+#include "JsiSkPictureRecorder.h"
 #include <jsi/instrumentation.h>
 #include "InputBatch.h"
 #include "RuntimeLoop.h"
+#include "VmCallbacks.h"
 #include "FrameTrace.h"
 #include "NativeWheelDriver.h"
 #include "MemoryProbe.h"
 #include "native-memory-regions.h"
 #include "include/core/SkSurface.h"
 #include "include/core/SkPictureRecorder.h"
+#include "include/utils/SkNWayCanvas.h"
 #include "include/effects/SkImageFilters.h"
 #include "include/ports/SkTypeface_win.h"
 #include "modules/skparagraph/include/FontCollection.h"
 #include "modules/skunicode/include/SkUnicode_icu.h"
 #include <fstream>
+#include <iterator>
 #include <future>
 #include <iostream>
 #include <thread>
@@ -29,6 +33,60 @@ int nativeUiaFocusClient(char const*,char const*,bool,bool,bool);
 int nativeUiaResourceClient(char const*,char const*,char const*);
 extern "C" void C_SetICU(const void*);
 static jsi::Value packet(jsi::Runtime&,std::vector<double> const&);
+static void vmEnvironmentChecks(char const* file){
+  std::ifstream input(file,std::ios::binary);require(bool(input),"Installed VM environment module missing");std::string source{std::istreambuf_iterator<char>(input),{}};
+  require(!source.empty()&&source.size()<1024*1024,"VM environment module exceeds its test input bound");
+  for(auto at=source.find("\nexport ");at!=std::string::npos;at=source.find("\nexport ",at))source.erase(at+1,7);
+  auto runtime=facebook::hermes::makeHermesRuntime(hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).build());auto& rt=*runtime;double tick=0;
+  Nelyx::NativeHermes::VmCallbacks callbacks(rt,[&]{return tick;},[]{});jsi::Object api(rt);callbacks.install(api);
+  api.setProperty(rt,"now",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"now"),0,[&](auto&,auto const&,auto*,size_t){return jsi::Value(tick);}));
+  rt.global().setProperty(rt,"vmEnvironmentFixture",std::move(api));rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::move(source)),"installed-vm-environment.js");
+  auto script=[&](std::string source){return rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::move(source)),"vm-environment-lifetime.js");};
+  script(R"JS(var envFailures=[],lateCallbacks=0,nativeVm=vmEnvironmentFixture;
+    var env=installVmEnvironment(globalThis,{
+      now:nativeVm.now,setTimer:nativeVm.setTimer,clearTimer:nativeVm.clearTimer,
+      requestFrame:nativeVm.requestFrame,cancelFrame:nativeVm.cancelFrame,queueMicrotask:nativeVm.queueMicrotask,
+      trackRejections:function(report){HermesInternal.enablePromiseRejectionTracker({allRejections:true,onUnhandled:function(id,error){report(error);},onHandled:function(){}});},
+      fail:function(message){envFailures.push(message);},log:function(){}
+    },{AbortController:function(){},AbortSignal:function(){}});
+    env.claimApplication();Promise.reject('handled before close').catch(function(){});
+    setInterval(function(){lateCallbacks++;},1);requestAnimationFrame(function(){lateCallbacks++;});
+    queueMicrotask(function(){throw 0;});queueMicrotask(function(){lateCallbacks++;});
+  )JS");rt.drainMicrotasks();
+  require(script("env.state==='closing'&&envFailures.length===1&&envFailures[0]==='0'&&lateCallbacks===0").getBool(),"Actual Hermes callback failure did not fence app work");
+  require(callbacks.empty(),"Actual Hermes close retained app or rejection-tracker callbacks");
+  require(script("Promise.reject(0).catch(function(){});setTimeout(function(){lateCallbacks++;},0)<0").getBool(),"Handled shutdown rejection was replaced by timer admission failure");rt.drainMicrotasks();
+  script("var drainComplete=false;env.retirement.delay(16).then(function(){drainComplete=true;});");tick=16;callbacks.runDueTimers();
+  require(script("drainComplete").getBool(),"Actual Hermes retirement timer could not settle after the app fence");
+  script("env.dispose();Promise.reject(false).catch(function(){});");rt.drainMicrotasks();
+  require(script("env.state==='closed'&&lateCallbacks===0&&envFailures.length===1").getBool()&&callbacks.empty(),"Actual Hermes VM disposal lost a callback or the original error");callbacks.close();
+  std::cout<<"PASS installed VM environment on actual Hermes: fatal microtask, late callback fence, handled close rejection and independent drain\n";
+}
+static void vmCallbackChecks(jsi::Runtime& rt){
+  double tick=0;int arms=0;Nelyx::NativeHermes::VmCallbacks callbacks(rt,[&]{return tick;},[&]{++arms;});
+  jsi::Object api(rt);callbacks.install(api);rt.global().setProperty(rt,"vmCallbackFixture",std::move(api));
+  auto script=[&](std::string source){return rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::move(source)),"vm-callback-lifetime.js");};
+  script(R"JS(var vmEvents=[];var v=vmCallbackFixture;
+    v.setTimer(()=>{vmEvents.push('timer');v.queueMicrotask(()=>vmEvents.push('microtask'));v.clearTimer(laterTimer);},0,false);
+    var laterTimer=v.setTimer(()=>vmEvents.push('cancelled timer'),0,false);
+    var interval=v.setTimer(()=>vmEvents.push('interval'),2,true);
+    v.requestFrame(()=>{vmEvents.push('frame');v.cancelFrame(laterFrame);v.requestFrame(()=>vmEvents.push('next frame'));});
+    var laterFrame=v.requestFrame(()=>vmEvents.push('cancelled frame'));
+    for(var bad of [-1,.5,Infinity,NaN,9007199254740992]){var rejected=false;try{v.clearTimer(bad);}catch(e){rejected=true;}if(!rejected)throw Error('Invalid callback ID accepted');}
+    for(var bad of [null,3,'source']){var rejected=false;try{v.queueMicrotask(bad);}catch(e){rejected=true;}if(!rejected)throw Error('Invalid microtask accepted');}
+  )JS");
+  require(callbacks.deadline()==0&&arms==1,"VM callback admission/wakeup changed");callbacks.runDueTimers();
+  require(script("JSON.stringify(vmEvents)").getString(rt).utf8(rt)=="[\"timer\",\"microtask\"]","Timer cancellation or per-timer microtask checkpoint changed");
+  tick=2;callbacks.runDueTimers();require(callbacks.deadline()==4,"Repeating timer did not rearm from its dispatch tick");
+  require(callbacks.dispatchFrames(3)==1&&arms==2,"Frame cancellation/reentrant next-tick admission changed");
+  require(callbacks.dispatchFrames(4)==1,"A reentrant frame was not retained for the next tick");
+  require(script("JSON.stringify(vmEvents)").getString(rt).utf8(rt)=="[\"timer\",\"microtask\",\"interval\",\"frame\",\"next frame\"]","Native callback order differs");
+  bool foreign=false;std::thread thread([&]{try{callbacks.deadline();}catch(std::runtime_error const&){foreign=true;}});thread.join();require(foreign,"VM callback handles admitted a foreign thread");
+  callbacks.close();require(callbacks.empty(),"VM close retained timer/frame handles");
+  require(script("var rejected=false;try{v.setTimer(()=>{},0,false);}catch(e){rejected=true;}rejected").getBool(),"A retired callback owner admitted new work");
+  script("v=undefined;vmCallbackFixture=undefined;vmEvents=undefined;");
+  std::cout<<"PASS actual Hermes VM callback order, microtask checkpoints, cancellation, reentry, owner thread and close\n";
+}
 static void memoryRegionChecks(){
   namespace NM=Nelyx::NativeMemory;SYSTEM_INFO system{};GetSystemInfo(&system);const auto page=system.dwPageSize,reserve=system.dwAllocationGranularity*2;
   struct Pages{void* value;~Pages(){if(value)VirtualFree(value,0,MEM_RELEASE);}}pages{VirtualAlloc(nullptr,reserve,MEM_RESERVE,PAGE_READWRITE)};require(pages.value!=nullptr,"Address-space fixture reserve failed");const auto base=reinterpret_cast<uintptr_t>(pages.value);
@@ -76,7 +134,8 @@ static void runtimeInputOrder(jsi::Runtime& rt){
   std::cout<<"PASS actual Hermes loop preserves over-64 pointer batches, key/frame/close order and microtask checkpoints in both tail-wakeup interleavings\n";
 }
 static void displayListParity(jsi::Runtime& rt,std::shared_ptr<RNSkia::RNSkPlatformContext> context){
-  const auto info=SkImageInfo::MakeN32Premul(128,128);auto actual=SkSurfaces::Raster(info),expected=SkSurfaces::Raster(info);require(actual&&expected,"Parity raster surfaces missing");auto canvas=expected->getCanvas();
+  const auto info=SkImageInfo::MakeN32Premul(128,128);auto actual=SkSurfaces::Raster(info),expected=SkSurfaces::Raster(info);require(actual&&expected,"Parity raster surfaces missing");
+  SkPictureRecorder legacyRecorder;auto legacyCanvas=legacyRecorder.beginRecording(128,128);SkNWayCanvas legacy(128,128);legacy.addCanvas(expected->getCanvas());legacy.addCanvas(legacyCanvas);auto canvas=&legacy;
   jsi::Array handles(rt,16);size_t next=0;auto add=[&](jsi::Value value){const auto id=next++;handles.setValueAtIndex(rt,id,std::move(value));return double(id);};
   const auto white=add(RNSkia::JsiSkColor::toValue(rt,SK_ColorWHITE));SkPaint red;red.setColor(SK_ColorRED);red.setAntiAlias(true);SkPaint blue=red;blue.setColor(SK_ColorBLUE);blue.setStyle(SkPaint::kStroke_Style);blue.setStrokeWidth(2);SkPaint layer;layer.setAlphaf(.5f);
   const auto fill=add(RNSkia::makeJsiObject(rt,std::make_shared<RNSkia::JsiSkPaint>(context,red))),stroke=add(RNSkia::makeJsiObject(rt,std::make_shared<RNSkia::JsiSkPaint>(context,blue))),alpha=add(RNSkia::makeJsiObject(rt,std::make_shared<RNSkia::JsiSkPaint>(context,layer)));
@@ -85,14 +144,26 @@ static void displayListParity(jsi::Runtime& rt,std::shared_ptr<RNSkia::RNSkPlatf
   auto imageSurface=SkSurfaces::Raster(SkImageInfo::MakeN32Premul(8,8));imageSurface->getCanvas()->clear(SK_ColorGREEN);imageSurface->getCanvas()->drawRect(SkRect::MakeXYWH(0,0,4,4),red);auto image=imageSurface->makeImageSnapshot();const auto imageId=add(RNSkia::makeJsiObject(rt,std::make_shared<RNSkia::JsiSkImage>(context,image))),sourceId=add(RNSkia::JsiSkRect::toValue(rt,context,SkRect::MakeWH(8,8))),destinationId=add(RNSkia::JsiSkRect::toValue(rt,context,SkRect::MakeXYWH(78,44,36,28))),centerId=add(RNSkia::JsiSkRect::toValue(rt,context,SkRect::MakeXYWH(1,1,6,6)));
   SkPictureRecorder recorder;recorder.beginRecording(128,128)->drawOval(SkRect::MakeXYWH(80,80,20,20),red);auto picture=recorder.finishRecordingAsPicture();const auto pictureId=add(RNSkia::makeJsiObject(rt,std::make_shared<RNSkia::JsiSkPicture>(context,picture)));
   auto fonts=sk_make_sp<skia::textlayout::FontCollection>();fonts->setDefaultFontManager(SkFontMgr_New_DirectWrite());skia::textlayout::ParagraphStyle paragraphStyle;skia::textlayout::TextStyle textStyle;textStyle.setFontSize(14);textStyle.setColor(SK_ColorBLACK);textStyle.setFontFamilies({SkString("Segoe UI")});paragraphStyle.setTextStyle(textStyle);auto builder=skia::textlayout::ParagraphBuilder::make(paragraphStyle,fonts,SkUnicodes::ICU::Make());require(bool(builder),"Parity paragraph builder missing");builder->addText("Native paragraph");auto paragraph=std::make_shared<RNSkia::JsiSkParagraph>(context,builder.get());paragraph->layout(120);const auto paragraphId=add(RNSkia::makeJsiObject(rt,paragraph));auto blur=SkImageFilters::Blur(2,2,nullptr);const auto blurId=add(RNSkia::makeJsiObject(rt,std::make_shared<RNSkia::JsiSkImageFilter>(context,blur)));
-  auto compare=[&](std::vector<double> const& words){jsi::Value table(rt,handles);RNSkia::replayDisplayList(rt,actual->getCanvas(),packet(rt,words),table);SkPixmap a,b;require(actual->peekPixels(&a)&&expected->peekPixels(&b),"Parity pixels missing");for(int y=0;y<128;++y)for(int x=0;x<128;++x)require(a.getColor(x,y)==b.getColor(x,y),"Native batch pixels differ from the existing SkCanvas path");require(actual->getCanvas()->getSaveCount()==1,"Native batch leaked a save/layer");};
+  auto compare=[&](std::vector<double> const& words){
+    jsi::Value table(rt,handles);RNSkia::replayDisplayList(rt,actual->getCanvas(),packet(rt,words),table);
+    auto recorder=std::make_shared<RNSkia::JsiSkPictureRecorder>(context);auto object=RNSkia::makeJsiObject(rt,recorder).getObject(rt);auto replay=object.getPropertyAsFunction(rt,"nelyxReplayDisplayList");
+    bool rejected=false;try{replay.callWithThis(rt,object,packet(rt,words),table);}catch(std::exception const&){rejected=true;}require(rejected,"Picture packet admitted outside a recording");
+    auto alias=recorder->beginRecording(std::make_shared<SkRect>(SkRect::MakeWH(128,128)));replay.callWithThis(rt,object,packet(rt,words),table);
+    auto invalid=packet(rt,{0x4e4c444c,1,2,16,22,9,0,0,0,128,128,0,0,0xff0000ff,1,99,0});rejected=false;try{replay.callWithThis(rt,object,invalid,table);}catch(std::exception const&){rejected=true;}require(rejected,"Malformed picture packet bypassed complete validation");
+    auto picture=recorder->finishRecordingAsPicture();auto restored=SkSurfaces::Raster(info),oldPictureSurface=SkSurfaces::Raster(info);require(restored&&oldPictureSurface,"Picture parity surface missing");restored->getCanvas()->drawPicture(picture->getObject());
+    legacy.removeCanvas(legacyCanvas);auto oldPicture=legacyRecorder.finishRecordingAsPicture();oldPictureSurface->getCanvas()->drawPicture(oldPicture);legacyCanvas=legacyRecorder.beginRecording(128,128);legacy.addCanvas(legacyCanvas);
+    rejected=false;try{alias->getCanvas();}catch(std::exception const&){rejected=true;}require(rejected,"Picture finish left a live borrowed canvas");
+    rejected=false;try{replay.callWithThis(rt,object,packet(rt,words),table);}catch(std::exception const&){rejected=true;}require(rejected,"Picture packet admitted after finish");object.getPropertyAsFunction(rt,"dispose").callWithThis(rt,object);
+    rejected=false;try{replay.callWithThis(rt,object,packet(rt,words),table);}catch(std::exception const&){rejected=true;}require(rejected,"Picture packet admitted after disposal");
+    SkPixmap a,b,c,d;require(actual->peekPixels(&a)&&expected->peekPixels(&b)&&restored->peekPixels(&c)&&oldPictureSurface->peekPixels(&d),"Parity pixels missing");for(int y=0;y<128;++y)for(int x=0;x<128;++x){require(a.getColor(x,y)==b.getColor(x,y),"Native batch pixels differ from the existing SkCanvas path");if(c.getColor(x,y)!=d.getColor(x,y))throw std::runtime_error("Picture packet pixel mismatch at "+std::to_string(x)+","+std::to_string(y)+" expected="+std::to_string(d.getColor(x,y))+" actual="+std::to_string(c.getColor(x,y))+" commands="+std::to_string(int(words[2]))+" words="+std::to_string(words.size()));}require(actual->getCanvas()->getSaveCount()==1,"Native batch leaked a save/layer");
+  };
   auto words=std::vector<double>{0x4e4c444c,1,0,16};auto emit=[&](int op,std::initializer_list<double> values){++words[2];words.push_back(op);words.push_back(double(values.size()));words.insert(words.end(),values);};
   emit(2,{white});canvas->clear(SK_ColorWHITE);emit(0,{});canvas->save();emit(12,{matrixId});canvas->concat(matrix);emit(13,{1,0,0,0,0,1,0,0,0,0,1,0,2,1,0,1});nelyx::skia_core::concatMatrix4(*canvas,{1,0,0,0,0,1,0,0,0,0,1,0,2,1,0,1});emit(8,{clipId,1,1});canvas->clipRect(clip,SkClipOp::kIntersect,true);emit(4,{rectId,fill});canvas->drawRect(rect,red);emit(5,{rectId,stroke});canvas->drawOval(rect,blue);emit(6,{roundedId,fill});canvas->drawRRect(rounded,red);emit(7,{4,34,114,34,stroke});canvas->drawLine(4,34,114,34,blue);emit(10,{pathId,fill});canvas->drawPath(path,red);emit(1,{});canvas->restore();compare(words);
   const auto src=SkRect::MakeWH(8,8),dst=SkRect::MakeXYWH(78,44,36,28);for(int op:{14,15,16,17}){words={0x4e4c444c,1,0,16};emit(2,{white});canvas->clear(SK_ColorWHITE);if(op==14){emit(op,{imageId,sourceId,destinationId,-1});canvas->drawImageRect(image,src,dst,SkSamplingOptions(),nullptr,SkCanvas::kStrict_SrcRectConstraint);}else if(op==15){emit(op,{imageId,sourceId,destinationId,1,0,-1});canvas->drawImageRect(image,src,dst,SkSamplingOptions(SkFilterMode::kLinear),nullptr,SkCanvas::kStrict_SrcRectConstraint);}else if(op==16){emit(op,{imageId,sourceId,destinationId,1./3,1./3,-1});canvas->drawImageRect(image,src,dst,SkSamplingOptions(SkCubicResampler{1.f/3,1.f/3}),nullptr,SkCanvas::kStrict_SrcRectConstraint);}else{emit(op,{imageId,centerId,destinationId,1,-1});canvas->drawImageNine(image.get(),SkIRect::MakeXYWH(1,1,6,6),dst,SkFilterMode::kLinear,nullptr);}compare(words);}
   words={0x4e4c444c,1,0,16};emit(2,{white});canvas->clear(SK_ColorWHITE);emit(0,{});canvas->save();emit(9,{roundedId,1,1});canvas->clipRRect(rounded,SkClipOp::kIntersect,true);emit(3,{fill});canvas->drawPaint(red);emit(1,{});canvas->restore();emit(0,{});canvas->save();emit(11,{pathId,1,1});canvas->clipPath(path,SkClipOp::kIntersect,true);emit(3,{stroke});canvas->drawPaint(blue);emit(1,{});canvas->restore();emit(20,{alpha,-1,-1});canvas->saveLayer(nullptr,&layer);emit(18,{pictureId});canvas->drawPicture(picture);emit(1,{});canvas->restore();compare(words);
   words={0x4e4c444c,1,0,16};emit(2,{white});canvas->clear(SK_ColorWHITE);emit(21,{pathId,0x6600ff00,4,0,2});nelyx::skia_core::drawShadow(*canvas,path,0x6600ff00,4,false,2);emit(22,{2,88,6,20,24,4,4,0xff330066,1});SkPaint purple;purple.setAntiAlias(true);purple.setColor(0xff330066);canvas->drawRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(88,6,20,24),4,4),purple);compare(words);
   words={0x4e4c444c,1,0,16};emit(2,{white});canvas->clear(SK_ColorWHITE);emit(4,{rectId,fill});canvas->drawRect(rect,red);emit(20,{alpha,clipId,blurId});canvas->saveLayer(SkCanvas::SaveLayerRec(&clip,&layer,blur.get(),0));emit(19,{paragraphId,4,88});nelyx::skia_core::paintParagraph(*paragraph->getObject(),*canvas,4,88);emit(1,{});canvas->restore();compare(words);
-  std::cout<<"PASS all 23 native batch opcodes match legacy pixels, including paragraph text and backdrop-filter layers\n";
+  std::cout<<"PASS all 23 frame and PictureRecorder batch opcodes match legacy pixels, including paragraph/backdrop; malformed picture packets are atomic and finish/disposal invalidate admission\n";
 }
 class Scheduler final:public nelyx::host::RuntimeScheduler{public:jsi::Runtime* runtime=nullptr;void invokeSync(nelyx::host::RuntimeTask&& task)override{task(*runtime);}void invokeAsync(nelyx::host::RuntimeTask&&)override{throw std::runtime_error("Unexpected asynchronous test work");}};
 static jsi::Value packet(jsi::Runtime& rt,std::vector<double> const& words){auto object=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(words.size()*8)).getObject(rt);auto buffer=object.getArrayBuffer(rt);memcpy(buffer.data(rt),words.data(),words.size()*8);return jsi::Value(std::move(object));}
@@ -114,10 +185,10 @@ int main(int count,char** args){try{
   memoryRegionChecks();
   frameTraceChecks();
   wheelDriverChecks();
-  require(count==2,"Pinned ICU input path missing");std::ifstream icuFile(args[1],std::ios::binary|std::ios::ate);require(bool(icuFile),"Pinned ICU input missing");const auto icuSize=icuFile.tellg();require(icuSize>0&&icuSize<64*1024*1024,"ICU input size outside its budget");std::vector<char> icu(size_t(icuSize),0);icuFile.seekg(0);require(bool(icuFile.read(icu.data(),icuSize)),"Pinned ICU read failed");C_SetICU(icu.data());
+  require(count==3,"Pinned ICU and installed VM environment input paths missing");std::ifstream icuFile(args[1],std::ios::binary|std::ios::ate);require(bool(icuFile),"Pinned ICU input missing");const auto icuSize=icuFile.tellg();require(icuSize>0&&icuSize<64*1024*1024,"ICU input size outside its budget");std::vector<char> icu(size_t(icuSize),0);icuFile.seekg(0);require(bool(icuFile.read(icu.data(),icuSize)),"Pinned ICU read failed");C_SetICU(icu.data());vmEnvironmentChecks(args[2]);
   nelyx::host::InputBatch<int,4> input;require(input.push(1)&&!input.push(2),"One input wakeup required");require(input.take(1)==std::vector<int>{1}&&input.finish(),"Partial drain must rearm");std::thread producer([&]{input.push(3);input.push(4);input.push(5);});producer.join();bool saturated=false;try{input.push(6);}catch(...){saturated=true;}require(saturated&&input.take()==std::vector<int>({2,3,4,5})&&!input.finish(),"Samples lost, reordered or unbounded");require(input.push(7),"An idle mailbox must wake again");input.seal();bool sealed=false;try{input.push(8);}catch(...){sealed=true;}require(sealed&&input.take()==std::vector<int>{7}&&!input.finish(),"Close must drain admitted samples without admitting more");
   nelyx::host::InputBatch<std::pair<int,int>> bounded;bounded.push({0,1});bounded.push({0,2});bounded.push({1,3});const auto same=[](auto const& a,auto const& b){return a.first==b.first;};auto first=bounded.takeBatch(same);require(first.size()==2&&first[0].second==1&&first[1].second==2&&bounded.finish(),"A key/viewport boundary was crossed by a pointer wakeup");require(bounded.takeBatch(same).front().second==3&&!bounded.finish(),"A later input group bypassed its native control barrier");
-  CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);auto runtime=facebook::hermes::makeHermesRuntime(hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).build());runtimeInputOrder(*runtime);auto scheduler=std::make_shared<Scheduler>();scheduler->runtime=runtime.get();RNSkia::VulkanPlatformServices services;services.fontManager=[](){return SkFontMgr_New_DirectWrite();};services.dispatchToMain=[](auto task){task();};services.reportError=[](auto const& error){throw std::runtime_error(error.what());};services.stream=[](auto const&,auto const&){throw std::runtime_error("Unexpected stream in paint validation");};services.screenshot=[](size_t){return sk_sp<SkImage>{};};services.createDevice=[]()->std::shared_ptr<nelyx::vulkan::Device>{throw std::runtime_error("Native packet validation must not allocate a GPU device");};
+  CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);auto runtime=facebook::hermes::makeHermesRuntime(hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).build());runtimeInputOrder(*runtime);vmCallbackChecks(*runtime);auto scheduler=std::make_shared<Scheduler>();scheduler->runtime=runtime.get();RNSkia::VulkanPlatformServices services;services.fontManager=[](){return SkFontMgr_New_DirectWrite();};services.dispatchToMain=[](auto task){task();};services.reportError=[](auto const& error){throw std::runtime_error(error.what());};services.stream=[](auto const&,auto const&){throw std::runtime_error("Unexpected stream in paint validation");};services.screenshot=[](size_t){return sk_sp<SkImage>{};};services.createDevice=[]()->std::shared_ptr<nelyx::vulkan::Device>{throw std::runtime_error("Native packet validation must not allocate a GPU device");};
   auto scope=std::make_unique<RNSkia::RNSkVulkanRuntime>(*runtime,scheduler,1,std::move(services),[]{});
   {
     auto surface=SkSurfaces::Raster(SkImageInfo::MakeN32Premul(32,32));require(bool(surface),"Raster test surface missing");auto canvas=surface->getCanvas();canvas->clear(SK_ColorWHITE);auto rt=runtime.get();jsi::Value handles(jsi::Array(*rt,0));

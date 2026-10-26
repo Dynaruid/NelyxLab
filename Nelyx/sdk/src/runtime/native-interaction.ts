@@ -3,6 +3,7 @@ import {PublicNativeEditingSession,EditingSession,freezeEditing,freezeEditingGeo
 import {freezeEditingConfiguration} from '@nelyx/core/hosting/interaction';
 import type {EditingConfiguration,EditingInputState} from '@nelyx/core/hosting/interaction';
 const defaultConfiguration=freezeEditingConfiguration();
+function throwRetirementFailures(errors:readonly unknown[]):void{if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Native interaction retirement failed');}
 import {sameOwner} from '@nelyx/core/ui/frame';
 import type {EditingBinding,EditingHost,SemanticsHost,EditingOptions,TextInputAction} from '@nelyx/core/hosting/interaction';
 import type {SemanticsInputObserver} from '@nelyx/core/hosting/interaction';
@@ -37,7 +38,7 @@ export interface NativeEditingSnapshot {readonly text:string;readonly anchor:num
 export class NativeInteraction {
   private closed=false;
   private lifetime:object|undefined;
-  private releaseLifetime:(()=>void)|undefined;
+  private releaseLifetime:((errors:unknown[])=>boolean)|undefined;
   private editors=new Map<string,Editor>();
   private ports=new Map<string,{token:object;commands:NativeEditorPort;generation:number}>();
   private nodes=new Map<string,SemanticsNode>();
@@ -60,7 +61,7 @@ export class NativeInteraction {
     this.editing={capabilities:{indexUnit:'utf16',composing:policy.nativeSnapshots?'observed':'unavailable',selectionDirection:policy.nativeSnapshots?'observed':'unavailable',geometry:policy.geometry??(policy.nativeSnapshots?'observed':'unavailable')},bind:(owner,initial,changed,options)=>this.bindEditing(owner,initial,changed,options?.id??'editor',options),dispose:()=>this.dispose()};
     this.semantics={capability:policy.semantics,bind:(nodes,observer)=>this.bindSemantics(nodes,observer),dispose:()=>this.dispose()};
   }
-  readonly subscribe=(listener:()=>void)=>{this.listeners.add(listener);return ()=>{this.listeners.delete(listener);};};
+  readonly subscribe=(listener:()=>void)=>{if(this.closed)throw new Error('Native interaction is closed');this.listeners.add(listener);return ()=>{this.listeners.delete(listener);};};
   readonly snapshot=()=>this.version;
   /** Native backing/viewport stamps can change while every control stays put. */
   surfaceChanged():void{if(!this.closed)this.publish();}
@@ -71,6 +72,10 @@ export class NativeInteraction {
     // indefinitely and prevent pointer input and native close from draining.
     for(const listener of [...this.listeners])if(this.listeners.has(listener))listener();
   }
+  /** Retirement is one publication after all endpoint maps have been cleared.
+   * A failing observer cannot leave a later native endpoint on the old owner. */
+  private publishRetirement(errors:unknown[]):void{this.version++;for(const listener of [...this.listeners])if(this.listeners.has(listener))try{listener();}catch(error){errors.push(error);}}
+  private retireEditors(errors:unknown[]):void{for(const editor of this.editors.values())try{editor.session.dispose();}catch(error){errors.push(error);}this.editors.clear();}
   get semanticNodes():readonly SemanticsNode[]{return this.roots;}
   /** Native input endpoints follow Core bindings, even when clipping removes their semantics nodes. */
   get editorClients():readonly {readonly id:string;readonly generation:number}[]{return [...this.editors].map(([id,editor])=>({id,generation:editor.generation}));}
@@ -164,8 +169,12 @@ export class NativeInteraction {
     if(this.closed||this.lifetime||this.editors.size||this.semanticsToken)throw new Error('Native interaction services already owned');
     const token={};this.lifetime=token;let live=true;
     const current=()=>{if(!live||this.closed||this.lifetime!==token)throw new Error('Native interaction service lifetime closed');};
-    const release=()=>{if(!live)return;live=false;if(this.lifetime!==token)return;this.lifetime=undefined;this.releaseLifetime=undefined;{this.desiredFocus=undefined;this.desiredFocusRequest=undefined;}for(const editor of this.editors.values())editor.session.dispose();this.editors.clear();this.nodes.clear();this.nodeLifetimes.clear();this.roots=[];this.semanticsToken=undefined;this.inputObserver=undefined;this.publish();};
-    this.releaseLifetime=release;
+    const retire=(errors:unknown[]):boolean=>{
+      if(!live)return false;live=false;if(this.lifetime!==token)return false;this.lifetime=undefined;this.releaseLifetime=undefined;
+      this.desiredFocus=undefined;this.desiredFocusRequest=undefined;this.retireEditors(errors);this.nodes.clear();this.nodeLifetimes.clear();this.roots=[];this.semanticsToken=undefined;this.inputObserver=undefined;this.semanticsNeedsPublish=false;return true;
+    };
+    const release=()=>{const errors:unknown[]=[];if(retire(errors))this.publishRetirement(errors);throwRetirementFailures(errors);};
+    this.releaseLifetime=retire;
     return {release,editing:{capabilities:this.editing.capabilities,bind:(owner,initial,changed,options)=>{current();return this.bindEditing(owner,initial,changed,options?.id??'editor',options);},dispose:release},semantics:{capability:this.semantics.capability,bind:(nodes,observer)=>{current();return this.bindSemantics(nodes,observer);},dispose:release}};
   }
   private bindEditing(owner:ViewOwner,initial:TextEditingValue,changed:(value:TextEditingValue)=>void,id:string,options?:EditingOptions):EditingBinding {
@@ -287,7 +296,9 @@ export class NativeInteraction {
     this.roots=roots;this.replaceNodes(next);if(changed)this.publishSemantics();
   }
   observeControlPointer(snapshot:SemanticsNode,event:Omit<PointerEvent,'viewportGeneration'>):void {if(!this.isLiveNodeSnapshot(snapshot))return;const node=this.nodes.get(snapshot.id);if(!node?.enabled)return;this.inputObserver?.observePointer?.({...event,x:node.bounds.x+event.x,y:node.bounds.y+event.y});}
-  performAction(id:string,action:SemanticsAction):boolean{const node=this.nodes.get(id);if(this.closed||!node?.enabled)return false;if(!(node.actions?.[action]??(action==='activate'?node.activate:undefined)))return false;const lifetime=this.nodeLifetimes.get(id);let performed=false;const perform=()=>{const current=this.nodes.get(id);if(this.closed||!current?.enabled||this.nodeLifetimes.get(id)!==lifetime)return;const callback=current.actions?.[action]??(action==='activate'?current.activate:undefined);if(callback){performed=true;callback();}};if(this.inputObserver)this.inputObserver.dispatchAction(id,action,perform);else perform();return performed;}
+  /** One request may wait for a fresh snapshot, but its delivery is consumed
+   * before user code or validation can reenter. Invalid deliveries stay retired. */
+  performAction(id:string,action:SemanticsAction):boolean{const node=this.nodes.get(id);if(this.closed||!node?.enabled)return false;if(!(node.actions?.[action]??(action==='activate'?node.activate:undefined)))return false;const lifetime=this.nodeLifetimes.get(id);let performed=false,delivered=false;const perform=()=>{if(delivered)return;delivered=true;const current=this.nodes.get(id);if(this.closed||!current?.enabled||this.nodeLifetimes.get(id)!==lifetime)return;const callback=current.actions?.[action]??(action==='activate'?current.activate:undefined);if(callback){performed=true;callback();}};if(this.inputObserver)this.inputObserver.dispatchAction(id,action,perform);else perform();return performed;}
   performTextAction(id:string,action:SemanticsTextAction,revision?:number,generation?:number):boolean{
     const node=this.nodes.get(id);if(this.closed||!node?.enabled||node.role!=='text-field'||revision!==undefined&&node.textInputRevision!==revision||generation!==undefined&&node.textInputGeneration!==generation)return false;
     if(action.kind==='set-text'){if(typeof action.text!=='string'||node.readOnly||!node.textActions?.setText)return false;try{validateEditingContent({text:action.text,selection:{anchor:action.text.length,focus:action.text.length},composing:{status:'none'}});}catch{return false;}}
@@ -315,5 +326,9 @@ export class NativeInteraction {
   /** The mounted native control owns its tag; source IDs never stand in for RN tags. */
   attachSemanticsNode(id:string,token:object,readTag:()=>number|null):()=>void{if(this.closed||this.semanticsPorts.has(id))throw new Error('Native semantics control is closed or already attached');this.semanticsPorts.set(id,{token,readTag});return ()=>{if(this.semanticsPorts.get(id)?.token===token)this.semanticsPorts.delete(id);};}
   nativeSemanticsTag(sourceNodeId:number):number|null{if(this.closed||!this.semanticsToken)return null;const node=[...this.nodes.values()].find(node=>node.sourceNodeId===sourceNodeId);if(!node)return null;const tag=this.semanticsPorts.get(node.id)?.readTag();return tag!==undefined&&tag!==null&&Number.isSafeInteger(tag)&&tag>0?tag:null;}
-  dispose():void{if(this.closed)return;this.releaseLifetime?.();this.inputObserver=undefined;this.closed=true;for(const editor of this.editors.values())editor.session.dispose();this.editors.clear();this.ports.clear();this.semanticsPorts.clear();this.nodes.clear();this.nodeLifetimes.clear();this.roots=[];this.publish();this.listeners.clear();}
+  dispose():void{
+    if(this.closed)return;this.closed=true;const errors:unknown[]=[];this.releaseLifetime?.(errors);
+    this.inputObserver=undefined;this.desiredFocus=undefined;this.desiredFocusRequest=undefined;this.retireEditors(errors);this.ports.clear();this.semanticsPorts.clear();this.nodes.clear();this.nodeLifetimes.clear();this.roots=[];this.semanticsToken=undefined;this.semanticsNeedsPublish=false;
+    try{this.publishRetirement(errors);}finally{this.listeners.clear();}throwRetirementFailures(errors);
+  }
 }

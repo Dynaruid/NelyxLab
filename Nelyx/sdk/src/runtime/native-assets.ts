@@ -63,7 +63,7 @@ export function createNativeAssetServices(getBackend: () => NativeAssetBackend) 
             const face = Skia.Typeface.MakeFreeTypeFaceFromData(data) as NelyxTypeface | null;
             if (!face) throw new Error(`Native font decode failed: ${asset.id}`);
             const provider = Skia.TypefaceFontProvider.Make();
-            try { provider.registerFont(face,asset.fontFamily); fonts.set(key,{resource,provider,family:asset.fontFamily,bundledTypefaceId:face.nelyxIdentity(),typeface:face}); }
+            try { provider.registerFont(face,asset.fontFamily); fonts.set(key,{resource,provider,family:asset.fontFamily,sourceBytes:bytes.length,bundledTypefaceId:face.nelyxIdentity(),typeface:face}); }
             catch (error) { try{provider.dispose();}finally{face.dispose();}throw error; }
           }
         } finally { data.dispose(); }

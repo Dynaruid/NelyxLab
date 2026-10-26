@@ -75,6 +75,14 @@ export abstract class Layer {
   get debugSubtreeNeedsAddToScene():boolean{return this.dirty;}
   get alwaysNeedsAddToScene():boolean{return false;}
   get engineLayer():EngineLayer|null{return this.retained;}
+  /** @internal After a successful frame, a hidden owner can drop obsolete
+   * immutable scene snapshots as well as its Picture children. Ancestor scene
+   * caches retain those same snapshots independently of the mutable tree. */
+  _discardRetainedScene():void{
+    const errors:unknown[]=[];
+    for(let layer:Layer|null=this;layer;layer=layer.parent){layer.assertMutable();layer.dirty=true;attempt(errors,()=>{layer!.engineLayer=null;});}
+    failures(errors,'Retained scene cache retirement failed');
+  }
   protected set engineLayer(value:EngineLayer|null){this.assertMutable();if(value===this.retained)return;const old=this.retained;this.retained=value;this.parent?.markNeedsAddToScene();old?.dispose();}
   protected assertMutable():void{if(!(!this.dead))invariant(false,'disposed-layer','Layer has been disposed');if(!(compositionLock===0))invariant(false,'locked-layer','Layers cannot be mutated by composition callbacks');}
   _retain():void{this.assertMutable();this.references++;}

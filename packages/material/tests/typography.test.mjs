@@ -1,3 +1,4 @@
+import {assertParagraphOwnership} from './engine-fixture.mjs';
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import crypto from 'node:crypto';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';
 import {Typography,ScriptCategory} from '@nelyx/material/typography';import {ScriptCategory as CanonicalCategory} from '@nelyx/material/script-category';
@@ -87,6 +88,6 @@ test('MaterialApp locale changes use actual owned paragraphs, platform fonts and
  class TextProbe extends StatefulWidget{createState(){return new(class extends State{initState(){states.push(this);}build(context){const data=Theme.of(context);seen.push(data);return new Align(new Text('Typography',{style:data.textTheme.bodyMedium}));}dispose(){disposed.push(this);super.dispose();}})();}}
  const child=new TextProbe();
  try{for(const [locale,baseline]of[['en','alphabetic'],['ko','ideographic'],['ar','alphabetic'],['en','alphabetic']]){const commands=f.set(new MaterialApp({locale,supportedLocales:['en','ko','ar'],theme,home:child}));assert.equal(seen.at(-1).textTheme.bodyMedium.textBaseline,baseline);assert.equal(seen.at(-1).textTheme.bodyMedium.fontFamily,'RobotoSlab');library.replay(surface.getCanvas(),{commands});surface.flush();assert(library.paragraphs.size>0);assert.equal([...library.paragraphs.values()].some(e=>e.layout.unresolvedGlyphs>0),false);assert(surface.getCanvas().readPixels(0,0,{width:240,height:160,colorType:ck.ColorType.RGBA_8888,alphaType:ck.AlphaType.Unpremul,colorSpace:ck.ColorSpace.SRGB}).some(v=>v!==0));}
-  assert.equal(states.length,1);assert.equal(disposed.length,0);f.set(new SizedBox(1,1));assert.equal(disposed.length,1);assert.equal(library.paragraphs.size,0);assert.equal(f.root.scheduler.transientCallbackCount,0);
+  assert.equal(states.length,1);assert.equal(disposed.length,0);f.set(new SizedBox(1,1));assert.equal(disposed.length,1);assertParagraphOwnership({library});assert.equal(f.root.scheduler.transientCallbackCount,0);
  }finally{surface.delete();f.close();await library.dispose();assert.equal(library.fonts.size,0);}
 });

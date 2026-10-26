@@ -36,8 +36,8 @@ class ScenePacket {
   clear():void{this.handles.length=0;this.ids.clear();this.data=new Float64Array(0);}
 }
 function plainFill(value:PaintSnapshot):boolean{return value.blendMode==='srcOver'&&value.style==='fill'&&value.isAntiAlias&&value.strokeWidth===0&&value.strokeCap==='butt'&&value.strokeJoin==='miter'&&value.strokeMiterLimit===4&&!value.shader&&!value.colorFilter&&!value.imageFilter&&!value.maskFilter&&(value.filterQuality??'none')==='none'&&!value.invertColors&&!value.dither;}
-/** Consume the Core scene directly. Generic Canvas replay remains the adapter
- * for picture/raster captures and hosts that explicitly lack this capability. */
+/** Consume Core frame, retained picture and raster recordings directly. Generic
+ * Canvas replay is reserved for hosts that explicitly lack this capability. */
 export function submitNativeScene(api:Skia,target:DisplayListTarget,frame:PaintFrame,resources:GraphiteResources,programs=resources.runtimePrograms):void{
   const packet=new ScenePacket(frame.commands.length),temporary:unknown[]=[],errors:unknown[]=[];
   const own=<T>(value:T):T=>{temporary.push(value);return value;},rect=(value:{x:number;y:number;width:number;height:number})=>own(api.XYWHRect(value.x,value.y,value.width,value.height));

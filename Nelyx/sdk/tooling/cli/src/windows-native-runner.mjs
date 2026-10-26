@@ -48,7 +48,7 @@ export async function buildNativeApplication({app,mode,hermesMode,signal,engineI
     const assetConfiguration={manifest:assets,sources:Object.fromEntries(assets.map(asset=>[asset.id,{uri:'nelyx-asset:/'+asset.path.slice(2)}]))};
     const entry=path.join(stage,'entry.ts'),source=path.join(stage,'app.js');
     const globals='@nelyx/sdk/backends/native-hermes/globals',start='@nelyx/sdk/backends/native-hermes/application',main=path.resolve(diagnostic??path.join(app,config.appEntry)).replaceAll('\\','/');
-    fs.writeFileSync(entry,`declare const NelyxNativeHost:{fail(message:string):void};\nimport ${JSON.stringify(globals)};\nimport {startNativeHermesApplication} from ${JSON.stringify(start)};\nimport {main} from ${JSON.stringify(main)};\nstartNativeHermesApplication(main().definition,${JSON.stringify(assetConfiguration)}).catch(error=>NelyxNativeHost.fail(error.stack||String(error)));\n`);
+    fs.writeFileSync(entry,`import {failNativeHermesStartup} from ${JSON.stringify(globals)};\nimport {startNativeHermesApplication} from ${JSON.stringify(start)};\nimport {main} from ${JSON.stringify(main)};\nstartNativeHermesApplication(main().definition,${JSON.stringify(assetConfiguration)}).catch(failNativeHermesStartup);\n`);
     const packageRoots=roots;
     const metro=mergeConfig(await getDefaultConfig(root),{
       projectRoot:root,watchFolders:[root],maxWorkers:2,

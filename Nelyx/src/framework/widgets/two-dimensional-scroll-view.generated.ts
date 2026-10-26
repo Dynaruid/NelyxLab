@@ -54,11 +54,11 @@ import { sourceCurrentScrollable } from "./two-dimensional-scrollable-adapter.ts
 import { sourceCurrentGestureDetector } from "./two-dimensional-scrollable-adapter.ts";
 import { replaceSourceGestureRecognizers } from "./two-dimensional-scrollable-adapter.ts";
 import { sourceObjectString } from "./two-dimensional-scrollable-adapter.ts";
-import { dependOnSourceTwoAxis } from "./two-dimensional-scrollable-types.ts";
-import { isSourceVerticalOuterDimension } from "./two-dimensional-scrollable-types.ts";
-import { castSourceVerticalOuterDimension } from "./two-dimensional-scrollable-types.ts";
-import { isSourceHorizontalInnerDimension } from "./two-dimensional-scrollable-types.ts";
-import { castSourceHorizontalInnerDimension } from "./two-dimensional-scrollable-types.ts";
+import { dependOnSourceTwoAxis } from "./two-dimensional-scrollable.generated.ts";
+import { isSourceVerticalOuterDimension } from "./two-dimensional-scrollable.generated.ts";
+import { castSourceVerticalOuterDimension } from "./two-dimensional-scrollable.generated.ts";
+import { isSourceHorizontalInnerDimension } from "./two-dimensional-scrollable.generated.ts";
+import { castSourceHorizontalInnerDimension } from "./two-dimensional-scrollable.generated.ts";
 import { StatelessWidget } from "./framework.ts";
 import { TwoAxisStatelessHost } from "./two-dimensional-scroll-view-adapter.ts";
 import { createTwoAxisUpdateListener } from "./two-dimensional-scroll-view-adapter.ts";

@@ -32,7 +32,7 @@ test('Skia font loading uses app bytes without a native editor registry and reje
   const face={nelyxIdentity:()=>7,dispose(){disposed.push('face');}},provider={registerFont(actual,family){assert.equal(actual,face);assert.equal(family,'Body');},dispose(){disposed.push('provider');}};
   const services=createNativeAssetServices(()=>({resolveSource(source){return source;},api:{Data:{async fromURI(uri){assert.equal(uri,'asset:/font.ttf');return {nelyxBytes:()=>bytes,nelyxSha256:()=>hash(bytes),dispose(){disposed.push('data');}};}},Typeface:{MakeFreeTypeFaceFromData:()=>face},TypefaceFontProvider:{Make:()=>provider}}}));
   const lease=services.acquire({manifest:[asset],sources:{body:{uri:'asset:/font.ttf'}}});
-  try{const value=await lease.ready;assert.equal([...value.fonts.values()][0].family,'Body');}finally{await lease.release();}
+  try{const value=await lease.ready,font=[...value.fonts.values()][0];assert.equal(font.family,'Body');assert.equal(font.sourceBytes,bytes.length);assert.equal(value.sourceBytes,bytes.length);}finally{await lease.release();}
   assert.deepEqual(disposed,['data','provider','face']);disposed.length=0;
   const stale=services.acquire({manifest:[{...asset,sha256:'0'.repeat(64)}],sources:{body:{uri:'asset:/font.ttf'}}});
   try{await assert.rejects(stale.ready,/Asset content hash mismatch/);}finally{await stale.release();}

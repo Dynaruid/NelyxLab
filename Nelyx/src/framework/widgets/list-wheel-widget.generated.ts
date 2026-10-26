@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/list_wheel_scroll_view.dart; SHA256 6e6a545ed8eb253a4980888bbddd67da3989f9c9c218c70816f8ac28eb42484e
+// Adopted product owner: nominal checks use the classes declared here.
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
 import { protect } from "../../ui/value-math.ts";
@@ -13,7 +14,7 @@ import { wheelParentOffset } from "../rendering/list-wheel-renderer-adapter.ts";
 import { castWheelBox } from "../rendering/list-wheel-renderer-adapter.ts";
 import { RenderBox } from "../rendering/object.ts";
 import { RenderObject } from "../rendering/object.ts";
-import { castWheelParentData } from "../rendering/list-wheel-renderer-types.ts";
+import { castWheelParentData } from "../rendering/list-wheel-viewport.generated.ts";
 import { isWheelRenderObject } from "../rendering/list-wheel-renderer-adapter.ts";
 import { SourceListWheelChildDelegate } from "./list-wheel-delegate.generated.ts";
 import { SourceListWheelChildListDelegate } from "./list-wheel-delegate.generated.ts";
@@ -43,9 +44,6 @@ import { DragStartBehavior } from "../gestures/recognizer.ts";
 import { ChangeReportingBehavior } from "./list-wheel-widget-adapter.ts";
 import { ScrollBehavior } from "./scroll-configuration.ts";
 import { Key } from "../../foundation/key.ts";
-import { castSourceFixedExtentScrollable } from "./list-wheel-widget-types.ts";
-import { castSourceListWheelElement } from "./list-wheel-widget-types.ts";
-import { castSourceListWheelViewport } from "./list-wheel-widget-types.ts";
 import { ScrollNotification } from "./scroll-notification.ts";
 import { isScrollEndNotification } from "./list-wheel-widget-adapter.ts";
 import { isScrollUpdateNotification } from "./list-wheel-widget-adapter.ts";
@@ -1023,3 +1021,7 @@ export class SourceListWheelViewport extends WheelRenderWidgetHost {
         })();
     }
 }
+
+export function castSourceFixedExtentScrollable(value:unknown):SourceFixedExtentScrollable{invariant(value instanceof SourceFixedExtentScrollable,'invalid-wheel-scrollable','Expected source wheel Scrollable');return value;}
+export function castSourceListWheelElement(value:unknown):SourceListWheelElement{invariant(value instanceof SourceListWheelElement,'invalid-wheel-element','Expected source wheel Element');return value;}
+export function castSourceListWheelViewport(value:unknown):SourceListWheelViewport{invariant(value instanceof SourceListWheelViewport,'invalid-wheel-widget','Expected source wheel Viewport');return value;}

@@ -139,6 +139,19 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   private changingRoot=false;
   private readonly dirtyLayout=new Set<RenderObject>();
   private readonly layoutCallbacks=new Set<RenderObject>();
+  private readonly paintRetirements=new Set<RenderObject>();
+  /** @internal One synchronous layout transaction, never a frame/geometry lease. */
+  _paintInvalidationBatch:object|null=null;
+  _finishPaintInvalidationBatch():void{this._paintInvalidationBatch=null;}
+  /** @internal Dirty retained owners only; no walk over the complete tree. */
+  _schedulePaintRetirement(node:RenderObject):void{this.paintRetirements.add(node);}
+  _forgetPaintRetirement(node:RenderObject):void{this.paintRetirements.delete(node);}
+  _flushPaintRetirements():void{
+    if(!this.paintRetirements.size)return;
+    const pending=[...this.paintRetirements];let errors:unknown[]|undefined;
+    for(const node of pending){if(!this.paintRetirements.delete(node)||node.owner!==this)continue;try{node._retireHiddenPaint();}catch(error){this.paintRetirements.add(node);(errors??=[]).push(error);}}
+    if(errors)throwFailures(errors,'Hidden paint retirement failed');
+  }
   private flushingLayout=false;
   private flushingChildLayout=false;private flushingSemantics=false;
   private readonly childOwners=new Set<PipelineOwner>();private childRevision=0;private parentOwner:PipelineOwner|null=null;private manifold:PipelineManifold|null=null;
@@ -189,7 +202,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   requestLayoutCallback(node:RenderObject):void{assertOutsideRenderPaint();if(!(!this.dead&&node.owner===this))invariant(false,'invalid-render-owner','Layout callback requires this live pipeline');this.layoutCallbacks.add(node);}
   flushLayout(size?:Size):void {
     assertOutsideRenderPaint();
-    if(!(!this.dead&&!this.flushingLayout&&!this.changingRoot&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'reentrant-layout-flush','Pipeline is closed or layout/root mutation/measurement is active');this.flushingLayout=true;
+    if(!(!this.dead&&!this.flushingLayout&&!this.changingRoot&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'reentrant-layout-flush','Pipeline is closed or layout/root mutation/measurement is active');this.flushingLayout=true;this._paintInvalidationBatch={};
     try{if(this.root){if(size){if(!(this.root instanceof RenderBox))invariant(false,'invalid-render-root','View layout requires a RenderBox root');this.root.layout(BoxConstraints.tight(size));}else if(this.root.needsLayout)this.root.layoutWithoutResize();}
       let passes=0;
       while(this.dirtyLayout.size||this.layoutCallbacks.size){
@@ -203,19 +216,30 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         if(!(++passes<=30))invariant(false,'layout-did-not-converge','Layout remained dirty after 30 passes');
         const callbacks=new Set(nodes.filter(node=>this.layoutCallbacks.has(node)));
         for(const node of nodes){this.dirtyLayout.delete(node);this.layoutCallbacks.delete(node);}
-        for(let index=0;index<nodes.length;index++){
+        for(let index=0;index<nodes.length;index++)try{
           const node=nodes[index]!;
           if(node.owner===this&&node.needsLayout&&node.layoutSuppressedByAncestor){this.dirtyLayout.add(node);if(callbacks.has(node))this.layoutCallbacks.add(node);continue;}
-          if(node.owner===this&&node.needsLayout&&(node.isRelayoutBoundary||callbacks.has(node)))try{node.layoutWithoutResize();}
-          catch(error){for(const pending of nodes.slice(index))if(pending.owner===this&&pending.needsLayout){this.dirtyLayout.add(pending);if(callbacks.has(pending))this.layoutCallbacks.add(pending);}throw error;}
+          if(node.owner===this&&node.needsLayout&&(node.isRelayoutBoundary||callbacks.has(node)))node.layoutWithoutResize();
+        }catch(error){
+          this.restoreLayoutBatch(nodes,index,callbacks);throw error;
         }
       }
       const deferred=FoundationBuildMode.debug?new Set(this.dirtyLayout):null;
       this.flushingChildLayout=true;this.visitChildren(child=>child.flushLayout());
       if(deferred){if(!([...this.dirtyLayout].every(node=>deferred.has(node))))invariant(false,'child-dirtied-parent-layout','Child PipelineOwners must not dirty nodes in their parent');}
-    }finally{this.flushingLayout=false;this.flushingChildLayout=false;}
+    }finally{this._paintInvalidationBatch=null;this.flushingLayout=false;this.flushingChildLayout=false;}
   }
-  dispose():void {assertOutsideRenderPaint();if(this.dead)return;if(!(!this.changingRoot&&!this.flushingLayout&&!this.flushingSemantics&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'invalid-pipeline-mutation','Cannot dispose an active pipeline');if(!(this.childOwners.size===0&&this.manifold===null&&this.parentOwner===null))invariant(false,'attached-render-pipeline','Drop child pipelines and detach the manifold before disposing');if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchDisposed?.(this);const errors:unknown[]=[];this.explicitSemantics=null;attempt(errors,()=>existingPipelineSemantics(this)?.disable());this.dead=true;const root=this.currentRoot;this.currentRoot=undefined;this.dirtyLayout.clear();this.layoutCallbacks.clear();if(root)detachRenderTree(root,errors);throwFailures(errors,'Pipeline teardown failed');}
+  private restoreLayoutBatch(nodes:readonly RenderObject[],start:number,callbacks:ReadonlySet<RenderObject>):void{
+    for(let index=start;index<nodes.length;index++){
+      const node=nodes[index]!;
+      // Rendering-library friend access to the canonical owner/dirty state.
+      // A virtual admission/layout hook can throw and poison its public owner
+      // getter. Recovery must neither mask that error nor lose later siblings.
+      const state=node as unknown as {readonly pipelineOwner:PipelineOwner|undefined;readonly layoutDirty:boolean};
+      if(state.pipelineOwner===this&&state.layoutDirty){this.dirtyLayout.add(node);if(callbacks.has(node))this.layoutCallbacks.add(node);}
+    }
+  }
+  dispose():void {assertOutsideRenderPaint();if(this.dead)return;if(!(!this.changingRoot&&!this.flushingLayout&&!this.flushingSemantics&&!treeTransitions.has(this)&&!layoutQueries.length))invariant(false,'invalid-pipeline-mutation','Cannot dispose an active pipeline');if(!(this.childOwners.size===0&&this.manifold===null&&this.parentOwner===null))invariant(false,'attached-render-pipeline','Drop child pipelines and detach the manifold before disposing');if(FoundationBuildMode.debug&&Listenable.debugInstrumentationEnabled)Listenable.debugMaybeDispatchDisposed?.(this);const errors:unknown[]=[];this.explicitSemantics=null;attempt(errors,()=>existingPipelineSemantics(this)?.disable());this.dead=true;const root=this.currentRoot;this.currentRoot=undefined;this.dirtyLayout.clear();this.layoutCallbacks.clear();this.paintRetirements.clear();if(root)detachRenderTree(root,errors);throwFailures(errors,'Pipeline teardown failed');}
 }
 interface ChildEntry {previous:RenderObject|undefined;next:RenderObject|undefined}
 const emptyRenderChildren:readonly RenderObject[]=Object.freeze([]);
@@ -247,6 +271,14 @@ const activeLayoutCallbacks:{root:RenderObject;owner:PipelineOwner}[]=[];
 const layoutQueries:{readonly render:RenderBox<RenderObject>;readonly key:string}[]=[];
 /** Shared render ownership/tree contract. Geometry belongs to RenderBox or a specialized renderer. */
 export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
+  private static readonly paintBoundaryOwners=new Map<Function,{hook:Function;boundary:boolean}>([[Object.getOwnPropertyDescriptor(RenderObject.prototype,'isRepaintBoundary')!.get!,{hook:RenderObject.prototype.retainedPaintInvalidated,boundary:false}]]);
+  private static readonly paintOwnerGetter=Object.getOwnPropertyDescriptor(RenderObject.prototype,'owner')!.get;
+  private static readonly paintParentGetter=Object.getOwnPropertyDescriptor(RenderObject.prototype,'parent')!.get;
+  /** @internal Only constant framework boundary getters and retirement hooks. */
+  static _registerPaintInvalidationBoundary(prototype:object):void{
+    const getter=Object.getOwnPropertyDescriptor(prototype,'isRepaintBoundary')!.get!,hook=Object.getOwnPropertyDescriptor(prototype,'retainedPaintInvalidated')!.value;
+    RenderObject.paintBoundaryOwners.set(getter,{hook,boundary:true});
+  }
   private static readonly emptyInputGeometryCommit=RenderObject.prototype.didCommitTextInputGeometry;
   private static readonly emptyInputGeometryGetter=Object.getOwnPropertyDescriptor(RenderObject.prototype,'coreEditingGeometry')!.get;
   /** Actual Source diagnostic mode; it must not populate normal measurement caches. */
@@ -273,7 +305,16 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** Local recording changes stop at the nearest boundary; paintVersion still
    * tracks the entire subtree for geometry and raster snapshot validity. */
   paintContentsVersion=0;
+  private paintCoalesces=false;
+  private paintInvalidationBarrier:RenderObject|undefined;
+  private paintInvalidationBoundary:RenderObject|undefined;
+  private paintBatch:object|null=null;private paintContentsBatch:object|null=null;
+  /** End coalescing before any cache or geometry observer can consume revisions. */
+  _finishPaintInvalidationBatch():void{this.pipelineOwner?._finishPaintInvalidationBatch();}
   get isRepaintBoundary():boolean{return false;}
+  /** @internal Retained subclasses alone admit their invalid cache owner. */
+  protected retainedPaintInvalidated():void{}
+  _retireHiddenPaint():void{}
   protected dead=false;
   private lastConstraints:Constraints|undefined;
   private parentUsesSize=false;
@@ -285,8 +326,12 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private inputGeometrySubtreeWork=0;
   private changeInputGeometryWork(delta:number):void{if(delta)for(let node:RenderObject|undefined=this;node;node=node.parent)node.inputGeometrySubtreeWork+=delta;}
   private refreshInputGeometryWork():void{
-    let prototype:object|null=this,geometry:PropertyDescriptor|undefined;
-    while(prototype&&!geometry){geometry=Object.getOwnPropertyDescriptor(prototype,'coreEditingGeometry');prototype=Object.getPrototypeOf(prototype);}
+    let prototype:object|null=this,geometry:PropertyDescriptor|undefined,boundary:PropertyDescriptor|undefined,retirement:PropertyDescriptor|undefined,owner:PropertyDescriptor|undefined,parent:PropertyDescriptor|undefined;
+    while(prototype&&(!geometry||!boundary||!retirement||!owner||!parent)){geometry??=Object.getOwnPropertyDescriptor(prototype,'coreEditingGeometry');boundary??=Object.getOwnPropertyDescriptor(prototype,'isRepaintBoundary');retirement??=Object.getOwnPropertyDescriptor(prototype,'retainedPaintInvalidated');owner??=Object.getOwnPropertyDescriptor(prototype,'owner');parent??=Object.getOwnPropertyDescriptor(prototype,'parent');prototype=Object.getPrototypeOf(prototype);}
+    const known=boundary?.get&&RenderObject.paintBoundaryOwners.get(boundary.get);
+    this.paintCoalesces=!!known&&known.hook===retirement?.value&&owner?.get===RenderObject.paintOwnerGetter&&parent?.get===RenderObject.paintParentGetter;
+    this.paintInvalidationBarrier=this.paintCoalesces?this.renderParent?.paintInvalidationBarrier:this;
+    this.paintInvalidationBoundary=this.paintCoalesces?(known!.boundary?this:this.renderParent?.paintInvalidationBoundary):undefined;
     // A virtual visitor can filter/reorder/retry children. Keep that branch in
     // the walk even when it has no editor, preserving its callback protocol.
     const work=geometry?.get!==RenderObject.emptyInputGeometryGetter||this.didCommitTextInputGeometry!==RenderObject.emptyInputGeometryCommit||this.visitChildren!==RenderObject.prototype.visitChildren?1:0;
@@ -450,9 +495,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     if(!(!this.dead&&!owner.debugDisposed&&!this.changingAttachment&&!layoutQueries.length&&(!this.owner||this.owner===owner)&&(!this.parent||this.parent.owner===owner)))invariant(false,'invalid-render-owner','Render object or pipeline is disposed, active or has incompatible ownership');if(this.owner===owner)return;
     this.changingAttachment=true;const transition=enterTreeTransition(owner);this.pipelineOwner=owner;this.layoutDirty=true;this.boundary=undefined;committedInputGeometries.delete(this);
     try{this.refreshInputGeometryWork();this.clearCachedLayoutData();for(const child of this.children)attachRenderTree(child,owner);if(owner.semanticsOwner){
-      // Source attach schedules dirty semantic boundaries. Ordinary newly
-      // adopted children are reached through their parent's structural update.
-      const semantics=semanticsFor(this);if(semantics.configProvider.effective.isSemanticBoundary&&(semantics.parentDataDirty||!semantics.built))this.markNeedsSemanticsUpdate();
+      // New fragments follow the parent's structural commit. Reattached
+      // fragments join that same commit without evaluating user annotations
+      // while the render tree is still being attached.
+      if(existingSemanticsFor(this))this.markNeedsSemanticsUpdate();
     }}
     catch(error){const errors=[error];this.changingAttachment=false;detachRenderTree(this,errors);throwFailures(errors,'Attaching render tree failed');}
     finally{this.changingAttachment=false;leaveTreeTransition(transition);}
@@ -460,7 +506,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   detach():void {
     assertOutsideRenderPaint();
     if(!(!this.changingAttachment&&!layoutQueries.length&&(!this.parent?.owner||recoveringDetach.has(this))))invariant(false,'invalid-render-owner','Detach the parent before its child; attachment and measurement must be idle');
-    this.changingAttachment=true;detachRevisions.set(this,(detachRevisions.get(this)??0)+1);const owner=this.owner,errors:unknown[]=[],transition=enterTreeTransition(owner);this.pipelineOwner=undefined;this.boundary=undefined;this.layoutDirty=true;committedInputGeometries.delete(this);layoutQueues.get(owner!)?.delete(this);layoutCallbackQueues.get(owner!)?.delete(this);
+    this.changingAttachment=true;detachRevisions.set(this,(detachRevisions.get(this)??0)+1);const owner=this.owner,errors:unknown[]=[],transition=enterTreeTransition(owner);this.pipelineOwner=undefined;this.paintCoalesces=false;this.paintInvalidationBarrier=this.paintInvalidationBoundary=undefined;this.paintBatch=this.paintContentsBatch=null;this.boundary=undefined;this.layoutDirty=true;committedInputGeometries.delete(this);layoutQueues.get(owner!)?.delete(this);layoutCallbackQueues.get(owner!)?.delete(this);
     if(owner)existingPipelineSemantics(owner)?.detached(this);
     try{attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();for(const child of this.children)detachRenderTree(child,errors);}
     finally{this.changingAttachment=false;leaveTreeTransition(transition);}throwFailures(errors,'Detaching render tree failed');
@@ -507,7 +553,24 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   private invalidatePaint(updateSemantics:boolean):void {
     if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate paint');let owner:PipelineOwner|undefined,contents=true;
-    for(let node:RenderObject|undefined=this;node;node=node.parent){node.paintVersion++;if(contents)node.paintContentsVersion++;if(node.isRepaintBoundary)contents=false;if(!owner&&node.owner&&!node.owner.debugDisposed)owner=node.owner;}
+    let batch=this.paintCoalesces?this.pipelineOwner?._paintInvalidationBatch:null;
+    if(batch)owner=this.pipelineOwner;
+    try{for(let node:RenderObject|undefined=this;node;){
+      if(batch&&node.paintCoalesces){
+        if(node.paintBatch===batch&&(!contents||node.paintContentsBatch===batch)){
+          // This pure prefix already reached its boundary in this transaction.
+          // Resume at the first custom ancestor so virtual getters/hooks still
+          // run in their original order, including repeated invalidations.
+          if(contents&&node.paintInvalidationBoundary)contents=false;
+          node=node.paintInvalidationBarrier;batch=null;continue;
+        }
+        if(node.paintBatch!==batch)node.paintVersion++;
+        if(contents&&node.paintContentsBatch!==batch){node.paintContentsVersion++;if(node.paintInvalidationBoundary===node)node.retainedPaintInvalidated();node.paintContentsBatch=batch;}
+        node.paintBatch=batch;if(node.paintInvalidationBoundary===node)contents=false;node=node.renderParent;
+      }else{
+        batch=null;node.paintVersion++;if(contents)node.paintContentsVersion++;if(node.isRepaintBoundary){if(contents)node.retainedPaintInvalidated();contents=false;}if(!owner&&node.owner&&!node.owner.debugDisposed)owner=node.owner;node=node.parent;
+      }
+    }}catch(error){this.pipelineOwner?._finishPaintInvalidationBatch();throw error;}
     // Successful invalidations need no error array or per-node closures. Keep
     // collecting failures only when a hook actually throws, without skipping
     // the host wakeup or changing its bare callback receiver/getter ordering.
@@ -524,7 +587,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     return undefined;
   }
   /** The host collects semantics on the next frame, independently of paint caches. */
-  markNeedsSemanticsUpdate():void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)semanticsFor(this).markNeedsUpdate();else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
+  markNeedsSemanticsUpdate():void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)pipelineSemantics(this.owner).requestUpdate(this);else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
   get localTransform():TransformMatrix {return identity;}
   get isDisplayed():boolean{return this.parent?.isDisplayed??true;}
   get clips():boolean {return false;}
@@ -573,6 +636,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   get coreTextParagraph():SemanticsTextParagraph|null{return null;}
   /** Record OS input coordinates once after the complete Core render tree paints. */
   commitTextInputGeometries(frame:{readonly owner:ViewOwner;readonly metrics:ViewMetrics}):{readonly token:object;readonly hasInputGeometry:boolean;commit():void;discard():void} {
+    this._finishPaintInvalidationBatch();
     const root=this,paintVersion=this.paintVersion,scope:InputGeometryScope={token:{},committed:false,aborted:false},notifications:RenderObject[]=[];let hasInputGeometry=false,parentDisplayed=true;
     // Keep provider-only locals out of the per-node recursive activation.
     const updateGeometry=(render:RenderObject,core:CoreEditingGeometry|null,previous:CommittedInputGeometry|undefined):void=>{

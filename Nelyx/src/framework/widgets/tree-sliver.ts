@@ -9,7 +9,7 @@ import {readDartType,castDartType} from '../../foundation/dart-type-witness.ts';
 import type {DartTypeWitness} from '../../foundation/dart-type-witness.ts';
 import {boxSourceDartInt} from '../../foundation/dart-numeric.ts';
 import {createDartList} from '../../foundation/dart-mutable-list.ts';
-import {treeNodeType,treeWidgetType} from './tree-generic-witnesses.ts';
+import {treeNodeType,treeWidgetType} from './sliver-tree.generated.ts';
 const mutations:{readonly mounted:boolean}[]=[];
 class ClosedTreeMutation{constructor(readonly owner:object){}}
 export class TreeSliver<T extends {}|null> extends SourceTreeSliver<T>{

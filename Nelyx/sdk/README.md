@@ -142,7 +142,7 @@ An app asset can declare `notice: {path: './assets/font-OFL.txt'}`. Runner prepa
 
 `@nelyx/sdk` connects the [core contracts](../README.md) to platform applications, input services, assets, Skia renderers, and native host lifetimes. See the [sample guide](../../sample/nelyx-testbed-app-2/README.md) for a complete application.
 
-The SDK connects core Widget applications to per-view text/assets/clock/editing/semantics ports. Native/DOM editing and accessibility controls follow framework layout; the core owns Widget/Element/RenderBox state. See the [Widget API](../README.md#widget-applications) and [current acceptance](../../work5.md). Android runners register the SDK-owned editing/environment package and compile the installed SDK native source directory; the CLI template includes this registration. The environment observer belongs to one surface and releases its layout/insets listeners on detach. Native editor controls remount on binding generation changes and reject prior-token events.
+The SDK connects core Widget applications to per-view text/assets/clock/editing/semantics ports. Native/DOM editing and accessibility controls follow framework layout; the core owns Widget/Element/RenderBox state. See the [Widget API](../README.md#widget-applications) and [current acceptance](../../work18.md). Android runners register the SDK-owned editing/environment package and compile the installed SDK native source directory; the CLI template includes this registration. The environment observer belongs to one surface and releases its layout/insets listeners on detach. Native editor controls remount on binding generation changes and reject prior-token events.
 
 ## Application APIs
 
@@ -170,6 +170,38 @@ The sample's [`package.json`](../../sample/nelyx-testbed-app-2/package.json) dec
 Frame wire ABI is 11 and native Core ABI is 1. Native surfaces use numeric scene packet 1; runtime admission requires the matching current binding. Older wire replay remains available to explicit tooling consumers. Install matching Core/SDK/renderer archives and rebuild native suppliers after C++ source changes. Native editor overlays still need group opacity/clip/transform integration; canvas Opacity does not establish that visual behavior.
 
 ## Ownership and lifecycle
+
+`NativeInteraction` retires a service lifetime by clearing its editors and
+semantics, then notifying every still-registered observer. It reports observer
+failures after notification, preserving falsey throws. Permanent disposal fences
+new bindings and subscriptions before cleanup and publishes one retirement
+notification; an acquired lifetime previously also published an empty update.
+Returning a service lease permits a fresh lifetime with new editor generations.
+Deferred general semantics actions still resolve the current callback of their
+original node lifetime, but their first delivery consumes the request before
+validation or user code. Duplicate/reentrant delivery, disabled or replaced
+nodes and callback failure cannot replay that request.
+
+The direct Hermes embedder now requires host ABI **2**, with `vm`, `services`,
+`editing` and `semantics` capability version **1**. Supply matching SDK sources,
+bundle and rebuilt host together; the older ABI fails before global installation.
+`runtime/vm-environment` owns the environment once per VM and admits one app.
+Timers, animation callbacks and microtasks stop at close, including late queued
+callbacks. Callback exceptions and unhandled Promise rejections enter the same
+error/close path. Console formatting accepts cyclic objects and BigInt and
+contains failures in user serialization/getters.
+After the close fence, a new timeout/interval returns an inert negative handle
+and retains no callback. This also lets Hermes' Promise rejection tracker settle
+handled shutdown failures without replacing the original error. New app frame
+and microtask requests are rejected; admitted late callbacks are fenced.
+
+Native GPU retirement uses its own monotonic clock/timer port after app callback
+admission closes. Close the application and engine before disposing the VM
+environment; pending retirement work and cancellation failures prevent successful
+VM disposal. The Windows `VmCallbacks` owner holds every native timer/frame JSI
+handle on the runtime thread, performs task/per-timer microtask checkpoints, and
+returns those handles before VM destruction. These contracts have scoped tests;
+complete fatal/graphics-loss and physical input/display acceptance remain open.
 
 The common native owners are `runtime/native-assets`, `runtime/native-images`,
 `runtime/image-memory`, `runtime/native-interaction`, `runtime/native-engine`

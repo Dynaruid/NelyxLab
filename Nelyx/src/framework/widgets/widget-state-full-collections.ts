@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // The enum is read only when a source constructor runs, after registration.
 import {SourceWidgetState,SourceWidgetStatesConstraint,SourceAnyWidgetStates,SourceWidgetStateProperty} from './widget-state.generated.ts';
-import {widgetStateSet,widgetStateConstraintKeyPolicy} from './widget-state-constraint-source-adapter.ts';
+import {widgetStateConstraintKeyPolicy} from './widget-state-constraint-source-adapter.ts';
 import {DartMap,type DartSet,type DartKeyPolicy} from '../../foundation/dart-collections.ts';
 import {DartDouble} from '../../foundation/dart-numeric.ts';
 import {applyDartType,captureDartType,dartDoubleType,nullableDartType,type DartTypeWitness} from '../../foundation/dart-type-witness.ts';
 import {canonicalDartMap,canonicalDartSet,dartConstMapKeyPolicy,registerDartConstSingletons} from '../../foundation/dart-const.ts';
-export function emptyWidgetStateSet():DartSet<SourceWidgetState>{return widgetStateSet(SourceWidgetState);}
 export function emptyDoubleWidgetStateMap():DartMap<SourceWidgetStatesConstraint,DartDouble>{return new DartMap(widgetStateConstraintKeyPolicy(SourceWidgetStatesConstraint),DartDouble.is);}
 export function emptyNullableDoubleWidgetStateMap():DartMap<SourceWidgetStatesConstraint,DartDouble|null>{return new DartMap(widgetStateConstraintKeyPolicy(SourceWidgetStatesConstraint),(value):value is DartDouble|null=>value===null||DartDouble.is(value));}
 export function widgetStateDoubleFromMap(map:DartMap<SourceWidgetStatesConstraint,DartDouble>):SourceWidgetStateProperty<DartDouble>{return SourceWidgetStateProperty.fromMap(dartDoubleType,map);}

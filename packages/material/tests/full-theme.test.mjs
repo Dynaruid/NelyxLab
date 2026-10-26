@@ -11,7 +11,7 @@ import {ProgressIndicatorThemeData} from '@nelyx/material/progress-indicator-the
 import {ThemeExtension} from '@nelyx/material/theme-extension';import {InputDecorationThemeData} from '@nelyx/material/input-decoration-theme-data';
 import {Color} from '@nelyx/core/ui/color';import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import {SystemColor} from '@nelyx/core/ui/system-color';import {bindSystemColorProvider} from '@nelyx/core/internal/ui/system-color-binding';
-import {WidgetState} from '@nelyx/core/framework/widgets/widget-state';import {emptyWidgetStateSet} from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {WidgetState} from '@nelyx/core/framework/widgets/widget-state';import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {TextTheme} from '@nelyx/material/text-theme';import {TextStyle} from '@nelyx/core/framework/painting/text-style';
 import {PageRouteBuilder,RouteSettings} from '@nelyx/core/framework/widgets/pages';import {PageTransitionsBuilder} from '@nelyx/core/framework/widgets/page-transitions-builder';
 import {Navigator,NavigatorController} from '@nelyx/core/framework/widgets/navigation';

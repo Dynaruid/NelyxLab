@@ -51,6 +51,8 @@ Chrome의 일반 메시지 필드는 Core/Skia가 문자·선택·조합 밑줄�
 
 현재 Web runner를 build한 뒤 저장소 루트의 `npm run test:web-input`으로 installed Chrome의 실제 CDP 입력/조합 이벤트와 Core 문자 bounds 응답, 테마/폭 변경·Next/제출/reset·조합 중 clear/Undo를 확인합니다. 상태 보존 DOM 이동이 없는 fallback도 검사합니다. Playwright 1.64.0 offline cache가 필요하며 임시 설치·profile·서버는 finally에서 정리합니다. 물리 OS 키보드/IME 검증과는 별개입니다.
 
+`npm run test:web-catalog`는 현재 Testbed의 Material29·Cupertino20개 선언과 placeholder를 실제 브라우저 semantics tree에서 탐색합니다. 버튼·목록 callback, Favorite 선택, 메시지 수, named route의 반환과 디자인 교체 뒤 상태를 확인합니다. 준비 중 항목은 계속 placeholder이며 전체 control 동작·native 실행·표시 시간의 수락을 뜻하지 않습니다. 임시 Playwright 설치·브라우저·서버는 finally에서 정리합니다.
+
 저장소 루트에서 실행합니다. 앱 시작 시 SDK를 내려받거나 빌드하지 않습니다.
 
 ```powershell
@@ -80,7 +82,7 @@ node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot
 
 같은 앱 entry를 HWND·Skia·TSF·UIA host로 실행하며 고정 direct Hermes 공급본도 준비합니다. Windows x64, 현재 고정 Skia 입력, VS C++ 도구·LLVM·CMake/Ninja가 필요합니다. 해당 창을 닫은 뒤 같은 모드를 다시 빌드하세요. 앱 안의 `.nelyx/native-windows/current-bytecode`, `current-static-aot`를 현재 출력으로 사용합니다. 외부 앱은 설치된 CLI의 [`--host native-hermes` 명령](../../Nelyx/sdk/tooling/cli/README.ko.md#windows-직접-hermes-host)을 사용합니다.
 
-기본 host는 RNW, 기본 엔진은 Hermes입니다. 직접 host의 성능·물리 한글 IME/트랙패드·matching display 수락은 [W17](../../work17.md)에 열려 있습니다.
+기본 host는 RNW, 기본 엔진은 Hermes입니다. 공통 native 패키지가 rendering·text·JSI binding을 소유하며 직접 host는 RN adapter를 resolve하지 않습니다. 직접 host의 성능·물리 한글 IME/트랙패드·matching display 수락은 현행 [W18](../../work18.md)에 열려 있습니다.
 
 이 Testbed의 프로그램 ListView/catalog 스크롤을 진단하는 개발용 명령도 제공합니다.
 
@@ -400,7 +402,7 @@ Group은 메타데이터입니다. 하나의 owner가 필요한 Form·editor·Wr
 
 고정 `itemExtent` 또는 `extentIndex`를 사용하는 ListView는 `childPolicy: {mode: 'bounded', preparation: 'disabled'}`로 선택 보존을 켤 수 있습니다. 기본값 `legacy`는 기존 동작을 유지합니다. 선택 보존은 sliver당 8개, View 전체 16개·2,048 Element 예산을 공유하며 같은 항목의 State 수명을 연장합니다. listener/ticker를 자동 정지하지 않으며 explicit keep-alive와 별도로 처리합니다. 명시적 `cacheExtent`/`scrollCacheExtent`, shrink-wrap·일반/varied/prototype list 및 nested bounded 조합은 지원하지 않습니다. 대응 fixed/section sliver도 `childPolicy`를 받습니다. `preparation: 'observed-budget'` 요청은 현재 host에 관측 deadline이 없어 자동 준비를 비활성화합니다. 이 opt-in 경로의 실제 native 수락 상태는 [W16](../../work16.md)에 기록합니다.
 
-저장소 루트의 `npm run test:scroll-engine`은 공통 엔진을, 패키지 갱신 후 `node Nelyx/eng/tests/check-scroll-supply.mjs`는 Windows 설치 Core의 공개 소비를 검사합니다. Native 연속 부하는 `node Nelyx/eng/tests/run-windows-scroll.mjs hermes 1`로 실행합니다. `hermes`는 bytecode/optimized Release, `static-aot`는 Static Hermes/optimized Release이며 `matrix 3`은 두 모드×기본/최대화×3회의 기준선 또는 후보 12회입니다. 전후 비교에는 각 공급에서 별도로 실행합니다. `v8`은 호환성 검사로 남습니다. 두 Hermes 모드는 같은 qualified VM/GC supplier를 사용하며 HBC/compiler·AOT·VM·host hash를 출력합니다. `$env:NELYX_SCROLL_DIAGNOSTIC='1'`을 설정하면 `hermes 1` 또는 `static-aot 1`의 기본 창에서 별도 계측하며 성능 수락에는 포함하지 않습니다. 진단 뒤에는 `Remove-Item Env:NELYX_SCROLL_DIAGNOSTIC`으로 설정을 해제합니다. 검사 중 접근성을 켜고 semantics 간격을 50ms로 고정하며 이전 runner 설정을 복원합니다. OS wheel 주입 동안 해당 창의 foreground 소유가 필요하고 phase 경계에서만 활성화합니다. Native surface 완료는 실제 trackpad·표시 timing 수락과 다릅니다. 현재 결과와 남은 gate는 [W16](../../work16.md)에 기록합니다.
+저장소 루트의 `npm run test:scroll-engine`은 공통 엔진을, 패키지 갱신 후 `node Nelyx/eng/tests/check-scroll-supply.mjs`는 Windows 설치 Core의 공개 소비를 검사합니다. Native 연속 부하는 `node Nelyx/eng/tests/run-windows-scroll.mjs hermes 1`로 실행합니다. `hermes`는 bytecode/optimized Release, `static-aot`는 Static Hermes/optimized Release이며 `matrix 3`은 두 모드×기본/최대화×3회의 기준선 또는 후보 12회입니다. 전후 비교에는 각 공급에서 별도로 실행합니다. `v8`은 호환성 검사로 남습니다. 두 Hermes 모드는 같은 qualified VM/GC supplier를 사용하며 HBC/compiler·AOT·VM·host hash를 출력합니다. `$env:NELYX_SCROLL_DIAGNOSTIC='1'`을 설정하면 `hermes 1` 또는 `static-aot 1`의 기본 창에서 별도 계측하며 성능 수락에는 포함하지 않습니다. 진단 뒤에는 `Remove-Item Env:NELYX_SCROLL_DIAGNOSTIC`으로 설정을 해제합니다. 검사 중 접근성을 켜고 semantics 간격을 50ms로 고정하며 이전 runner 설정을 복원합니다. OS wheel 주입 동안 해당 창의 foreground 소유가 필요하고 phase 경계에서만 활성화합니다. Native surface 완료는 실제 trackpad·표시 timing 수락과 다릅니다. 현재 결과와 남은 gate는 현행 [W18](../../work18.md)에 기록합니다.
 
 기본 OS 부하는 planned를 포함한 두 gallery의 전체 catalog를 대상으로 합니다. 각 열에서 연속 wheel로 끝까지 이동하고 역방향 재방문하며, cold/revisit의 모든 section이 viewport에 들어왔는지 확인합니다. fast는 끝 경계·입력 전달을 검사하고 지나친 section을 별도 보고합니다. 일반 ListView의 고정 부하와 항목 생성부터 첫 layout까지의 시간도 함께 측정합니다. `$env:NELYX_SCROLL_CATALOG='bounded'`는 이전 고정 이동 범위의 진단용이며 전체 catalog 수락에는 사용하지 않습니다. 공급 검사는 Core 전체 source/dist/package identity를 확인합니다. 수정 전 설치본을 의도적으로 기준선으로 유지할 때만 출력된 정확한 설치 digest를 `NELYX_SCROLL_REFERENCE_CORE_DIGEST`로 지정합니다.
 
@@ -408,6 +410,8 @@ wheel 전송은 모든 간격에 high-resolution timer를 사용하며 guard·�
 
 desktop을 사용하는 동안에는 진단 설정과 함께 `$env:NELYX_SCROLL_INPUT='queued'`로 SDK queue 경로를 관찰할 수 있습니다. 모든 계측 진단은 bounded 범위이며 OS wheel 성능 표본에는 포함하지 않습니다. `$env:NELYX_SCROLL_AFTER_DIAGNOSTIC='1'`은 정규 실행 뒤 같은 HBC/AOT compiler output의 hash를 확인해 별도 native 진단 host를 준비하고 모드마다 새 process에서 native/JS/Core 계측을 1회 수행합니다. 외부 helper가 sync JSI thread의 PC를 관찰하고 정확한 image hash와 PDB/native map으로 VM 함수·AOT 함수 범위 및 source 후보를 연결합니다. 이 관찰에는 wait와 thread 정지 비용이 포함되므로 PC 빈도를 CPU 시간 비율이나 성능 수락값으로 해석하지 않습니다. 정규 실행이 실패해도 첫 실패를 유지하며 진단을 시도합니다. 별도 `NELYX_SCROLL_DIAGNOSTIC`과는 함께 사용하지 않습니다. 주입 호출 수와 실제 수신 이벤트 수는 따로 보고하며 절대/부호 이동량·native sequence·dispatch 대응을 검사합니다. 합쳐진 native 이벤트의 latency는 수신 이벤트 timestamp 기준입니다. 사용한 `NELYX_SCROLL_*` 환경 변수는 검사 뒤 해제합니다.
 
+진단 Hermes bytecode build는 실행 소유 Metro map도 생성합니다. Core build 실패가 보고되면 `SCROLL_FAILURE.javaScriptSymbols`가 정리 전에 stack을 원본 module·위치에 연결합니다. symbol 누락·읽기 실패는 원래 실패에 추가되며, 정규 timing build에는 이 진단 map을 생성하지 않습니다. native PC 진단은 실제 VM의 resolved symbol을 요구합니다. 외부 PC 수집을 뺀 별도의 JS/native-stage 진단은 `NELYX_SCROLL_DIAGNOSTIC='1'`과 함께 `$env:NELYX_SCROLL_NATIVE_PC='0'`을 명시하고 종료 뒤 해제합니다. 이 범위는 `nativePc:false`를 보고하며 VM PC attribution을 수락하지 않습니다. `SCROLL_RUN.lifecycle`은 후속 진단 처리가 실패해도 관측한 완료·정상 close marker를 보존합니다.
+
 `NELYX_SCROLL_AFTER_DIAGNOSTIC='1'`에 `NELYX_SCROLL_AFTER_POLICY='1'`을 추가하면 같은 compiler output으로 두 모드의 최대화 정책 진단도 수행합니다. fixture가 지원되는 ListView에만 bounded/observed-budget을 선택하고 실제 보존 hit·View 합계·정상 해제를 검사합니다. 현재 Windows에서는 관측 deadline이 없어 준비 pass가 0이어야 합니다. 독립 정책 실험은 `NELYX_SCROLL_CHILD_POLICY='bounded'` 또는 `'observed-budget'`으로 선택하며 G6 legacy 결과와 구분합니다.
 
-`$env:NELYX_SCROLL_WAIT_FOR_INPUT='1'`은 빌드를 완료한 뒤 `SCROLL_INPUT_READY`에서 대기합니다. 마우스·트랙패드 조작을 멈춘 다음 출력된 `file` 경로에 `New-Item -ItemType File -Path '<경로>'`로 임시 신호 파일을 만들면 OS 입력이 시작됩니다. 신호와 후보는 종료·실패·중단 시 함께 삭제됩니다. 사용 뒤 환경 변수를 해제합니다.
+`$env:NELYX_SCROLL_WAIT_FOR_INPUT='1'`은 OS 입력과 queued 진단 모두 빌드를 완료한 뒤 `SCROLL_INPUT_READY`에서 대기합니다. queued 진단도 창을 전면으로 가져옵니다. desktop을 사용할 수 있을 때 마우스·트랙패드 조작을 멈추고 출력된 `file` 경로에 `New-Item -ItemType File -Path '<경로>'`로 임시 신호 파일을 만들면 실행을 시작합니다. 대기를 포함한 전체 실행은 정리 시간을 확보한 20분 deadline을 따릅니다. 신호와 후보는 종료·실패·중단 시 함께 삭제됩니다. 사용 뒤 환경 변수를 해제합니다.

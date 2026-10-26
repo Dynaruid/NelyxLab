@@ -17,6 +17,7 @@ import {FoundationBuildMode} from '../../foundation/constants.ts';
 import type {Key} from '../../foundation/key.ts';
 import type {ViewControllerContext} from '../../hosting/runtime.ts';
 import {ViewWorkBudget} from './view-work-budget.ts';
+import {DormantChildCache} from './dormant-child-cache.ts';
 import {RenderObject} from '../rendering/object.ts';
 import {RenderErrorBox} from '../rendering/error-box.ts';
 import {assertOutsideRenderPaint} from '../rendering/phase.ts';
@@ -26,6 +27,7 @@ import type {GestureBinding} from '../gestures/binding.ts';
 import type {SemanticsBinding} from '../semantics/binding.ts';
 import type {Disposable} from '../../foundation/disposable.ts';
 import {FocusScope} from './focus.ts';
+import {initializeElementType} from './widget-class-identity.ts';
 import type {FocusManagerOptions} from './focus.ts';
 import {GlobalKey} from './global-key.ts';
 import type {KeyEvent} from '../../ui/input.ts';
@@ -123,6 +125,18 @@ export class BuildOwner {
   get viewWorkBudget():ViewWorkBudget{return this.viewWorkBudgetValue??=new ViewWorkBudget(this.services.resources);}
   /** @internal Legacy trees incur no tracking tables or subtree scans. */
   get maybeViewWorkBudget():ViewWorkBudget|undefined{return this.viewWorkBudgetValue;}
+  private dormantChildrenValue:DormantChildCache|undefined;
+  /** @internal Explicit dormant policy; ordinary trees allocate no cache. */
+  get dormantChildren():DormantChildCache{return this.dormantChildrenValue??=new DormantChildCache({resources:this.services.resources,canRetain:root=>this.isInactiveRoot(root),retire:root=>this.retireDormantRoot(root),activate:(root,parent,slot)=>this.activateDormantRoot(root,parent,slot)});}
+  /** @internal */
+  get maybeDormantChildren():DormantChildCache|undefined{return this.dormantChildrenValue;}
+  private isInactiveRoot(root:Element):boolean{return !this.disposed&&root.owner===this&&!root.active&&root.mounted&&!root.parent&&this.inactive.has(root);}
+  private retireDormantRoot(root:Element):void{invariant(root.owner===this&&!root.active&&!root.parent&&this.inactive.has(root),'invalid-dormant-retirement','Dormant retirement requires an owned inactive root');this.inactive.delete(root);root.unmount();}
+  private activateDormantRoot(root:Element,parent:Element,slot:unknown):void{
+    invariant(this.isInactiveRoot(root)&&parent.active&&parent.owner===this,'invalid-dormant-activation','Dormant activation requires the original View and an active parent');this.inactive.delete(root);
+    try{root.activate(parent);root.attachRenderObject(slot);}
+    catch(error){const errors=[error];if(root.active||root.parent)try{this.deactivateChild(root);}catch(failure){errors.push(failure);}this.inactive.delete(root);try{root.unmount();}catch(failure){errors.push(failure);}if(errors.length>1)throw new AggregateError(errors,'Dormant activation and cleanup failed');throw error;}
+  }
   readonly services:ViewControllerContext;
   private readonly viewMetricsReaders=new Set<Element>();
   readonly keyboard:HardwareKeyboard;
@@ -205,11 +219,12 @@ export class BuildOwner {
   }
   deactivateChildren(children:readonly Element[]):void {
     if(children.length===0)return;
-    const renders=childRenderObjects(children),errors:unknown[]=[];
+    const errors:unknown[]=[];let renders:readonly RenderObject[]|undefined;
+    try{renders=childRenderObjects(children);}catch(error){errors.push(error);}
     for(const child of children)try{child.detachRenderObject();}catch(error){errors.push(error);}
     // Normal detachment already removes the exact owned child. Only a custom
     // hook/failure needs recovery; do not snapshot and reset every survivor.
-    for(const render of renders){if(render.parent)try{RenderObject.prototype.remove.call(render.parent,render);}catch(error){errors.push(error);}if(render.attached)try{RenderObject.prototype.detach.call(render);}catch(error){errors.push(error);}}
+    if(renders)for(const render of renders){if(render.parent)try{RenderObject.prototype.remove.call(render.parent,render);}catch(error){errors.push(error);}if(render.attached)try{RenderObject.prototype.detach.call(render);}catch(error){errors.push(error);}}
     for(const child of children){child.parent=undefined;this.inactive.add(child);try{child.deactivate();}catch(error){errors.push(error);}}
     if(errors.length)throw new AggregateError(errors,'Child deactivation failed');
   }
@@ -224,15 +239,23 @@ export class BuildOwner {
     const key=widget.key;if(!(key instanceof GlobalKey))return undefined;
     const child=this.globals.get(key);if(!child)return undefined;
     if(!(child!==parent&&!parent.hasAncestor(child)))invariant(false,'global-key-cycle','GlobalKey would move an ancestor below its descendant');
-    if(child.active||child.parent){
-      const previous=child.parent;if(!(previous))invariant(false,'global-key-root-move','A mounted root cannot be reparented');
-      previous.forgetChild(child);
-      if(previous!==parent&&previous.active)this.retakenParents.add(previous);
-      this.deactivateChild(child);
-    }
+    const dormantRoot=this.dormantChildrenValue?.retainedRoot(child);
+    try{if(child.active||child.parent){
+        const previous=child.parent;if(!(previous))invariant(false,'global-key-root-move','A mounted root cannot be reparented');
+        previous.forgetChild(child);
+        if(previous!==parent&&previous.active)this.retakenParents.add(previous);
+        this.deactivateChild(child);
+      }}catch(error){if(dormantRoot)try{this.dormantChildrenValue!.releaseRetaken(dormantRoot,child);}catch(cleanup){throw new AggregateError([error,cleanup],'GlobalKey extraction and dormant retirement failed');}throw error;}
+    if(dormantRoot)this.dormantChildrenValue!.releaseRetaken(dormantRoot,child);
     this.inactive.delete(child);
-    if(!Widget.canUpdate(child.widget,widget)){child.unmount();return undefined;}
-    child.activate(parent);child.attachRenderObject(slot);return child;
+    try{
+      if(!Widget.canUpdate(child.widget,widget)){child.unmount();return undefined;}
+      child.activate(parent);child.attachRenderObject(slot);return child;
+    }catch(error){
+      // A user activation/attachment callback can fail after the old parent
+      // released the subtree. Keep it in the canonical retirement owner.
+      try{if(child.mounted)this.deactivateChild(child);}catch(cleanup){throw new AggregateError([error,cleanup],'GlobalKey activation and deactivation failed');}throw error;
+    }
   }
   parentRebuilt(parent:Element):void {this.buildRevisionValue++;this.retakenParents.delete(parent);}
   flushBuild():void {
@@ -257,7 +280,7 @@ export class BuildOwner {
   }
   finalizeTree():void {
     if(!(!this.building))invariant(false,'finalize-during-build','Cannot finalize during build');const errors:unknown[]=[];
-    for(const root of [...this.inactive]){this.inactive.delete(root);if(!root.active)try{root.unmount();}catch(error){errors.push(error);}}
+    for(const root of [...this.inactive]){if(this.dormantChildrenValue?.has(root))continue;this.inactive.delete(root);if(!root.active)try{root.unmount();}catch(error){errors.push(error);}}
     // Reparenting can reserve a key under successive live parents in one frame.
     // Verify completed ownership, as source does, after all parents rebuild.
     for(const {key,parents}of this.reservations.values())if([...parents].filter(parent=>parent.active&&parent.children.some(child=>child.parent===parent&&sameKey(child.widget.key,key))).length>1)errors.push(new Error('Multiple active parents retained the same GlobalKey'));
@@ -268,7 +291,7 @@ export class BuildOwner {
   dispose():void {
     assertOutsideRenderPaint();
     if(this.disposed)return;this.disposed=true;this.pointerBinding=undefined;const errors:unknown[]=[];
-      for(const dispose of [()=>this.finalizeTree(),()=>this.gestures.dispose(),()=>this.focus.dispose(),()=>{if(!this.services.platformServices)this.keyboard.dispose();}])try{dispose();}catch(error){errors.push(error);}
+      for(const dispose of [()=>this.dormantChildrenValue?.dispose(),()=>this.finalizeTree(),()=>this.gestures.dispose(),()=>this.focus.dispose(),()=>{if(!this.services.platformServices)this.keyboard.dispose();}])try{dispose();}catch(error){errors.push(error);}
     for(const element of [...this.globals.values()])try{element.unmount();}catch(error){errors.push(error);}
     if(!this.services.platformServices)try{this.rawKeyboard.dispose();}catch(error){errors.push(error);}
     this.globals.clear();while(this.dirtyScopes)this.dirtyScopes._clear();this.defaultBuildScope._clear();this.renderChildren.dispose();this.keyHandlers.clear();this.viewMetricsReaders.clear();
@@ -424,7 +447,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
         const slot=this.slotForChild(0,undefined);
         let child=old&&Widget.canUpdate(old.widget,widget)?old:undefined;
         if(!child){if(old?.parent===this)this.owner.deactivateChild(old);child=this.owner.retake(widget,this,slot);}
-        if(child){if(!sameSlot(child.slot,slot))this.updateSlotForChild(child,slot);if(child.widget!==widget)child.update(widget);next.push(child);}
+        if(child){next.push(child);if(!sameSlot(child.slot,slot))this.updateSlotForChild(child,slot);if(child.widget!==widget)child.update(widget);}
         else{child=widget.createElement();next.push(child);child.mount(this,this.owner,slot);}
         return next;
       }
@@ -441,7 +464,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
           if(widgets.length===1){for(const old of remaining)if(old.parent===this)this.owner.deactivateChild(old);remaining.clear();}
           child=this.owner.retake(widget,this,slot);
         }
-        if(child){if(!sameSlot(child.slot,slot))this.updateSlotForChild(child,slot);if(child.widget!==widget)child.update(widget);next.push(child);}
+        if(child){next.push(child);if(!sameSlot(child.slot,slot))this.updateSlotForChild(child,slot);if(child.widget!==widget)child.update(widget);}
         else {child=widget.createElement();next.push(child);child.mount(this,this.owner,slot);}
       }
       this.owner.deactivateChildren([...remaining].filter(child=>child.parent===this));
@@ -456,7 +479,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   syncRenderTree():void {this.owner.flushRenderTree();}
   private clearDependencies():void {this.owner._forgetViewMetricsReader(this);const dependencies=this.dependencies;if(!dependencies)return;this.hadDependencies||=dependencies.size>0;for(const dependency of dependencies)dependency.removeDependent(this);dependencies.clear();}
   deactivate():void {
-    if(!this.active)return;this.lifecycle='inactive';this.parentScopeAncestor=undefined;this.owner.forget(this);this.clearDependencies();this.inheritedIndex=undefined;this.indexedType=undefined;this.dynamicInheritedTypes=false;
+    if(!this.active)return;this.lifecycle='inactive';this.parentScopeAncestor=undefined;this.owner.forget(this);this.clearDependencies();this.inheritedIndex=undefined;this.indexedType=undefined;this.dynamicInheritedTypes=false;this._notificationTree=null;
     let errors:unknown[]|undefined;for(const child of this.children)try{child.deactivate();}catch(error){(errors??=[]).push(error);}
     if(errors)throw new AggregateError(errors,'Subtree deactivation failed');
   }
@@ -475,6 +498,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     if(errors)throw new AggregateError(errors,'Element child teardown failed');
   }
 }
+initializeElementType(Element);
 export type ElementConstructor=abstract new (...args:any[])=>Element;
 type NotifiableElementConstructor<Base extends ElementConstructor>=abstract new (...args:ConstructorParameters<Base>)=>InstanceType<Base>&NotifiableElementTarget;
 /** Source notification nodes attach at mount/activation and share the current

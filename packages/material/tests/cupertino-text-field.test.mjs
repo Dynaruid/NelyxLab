@@ -18,7 +18,7 @@ import {AppFocus} from '@nelyx/core/framework/widgets/app-focus';
 import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';
 import {EditingSession} from '@nelyx/core/ui/editing';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
-import {engineFixture} from './engine-fixture.mjs';
+import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
 const timeout=1_200_000;
 FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});
 const wrap=(child,{scale=1,direction='ltr',brightness='light',height}={})=>new MediaQuery({width:240,height:160,scale:1,textScale:scale,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},new Directionality(direction,new CupertinoTheme({data:new CupertinoThemeData({brightness}),child:new AppFocus(new Center(new SizedBox(220,height,child)))})));
@@ -82,7 +82,7 @@ test('placeholder baseline alignment, visibility, styling, multiline/expanded si
     f.set(wrap(field({minLines:2,maxLines:4})));controller.text='A\nB\nC';f.frame();const line=node(f).editorStyle.lineHeight;assert.equal(node(f).bounds.height,line*3);
     f.set(wrap(field({maxLines:null,expands:true}),{height:140}));assert.equal(node(f).bounds.height,126);assert.equal(editor(f).stateObject,state);
     f.set(wrap(field({enabled:false}),{brightness:'dark'}));f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();const image=surface.makeImageSnapshot();try{const bounds=node(f).bounds,rgba=Array.from(image.readPixels(Math.floor(bounds.x+2),Math.floor(bounds.y+2),{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));assert.deepEqual(rgba,[5,5,5,255]);}finally{image.delete();}
-    f.set(new SizedBox());assert.equal(f.library.paragraphs.size,0);assert.equal(f.root.scheduler.transientCallbackCount,0);
+    f.set(new SizedBox());assertParagraphOwnership(f);assert.equal(f.root.scheduler.transientCallbackCount,0);
   }finally{surface.delete();await f.close();controller.dispose();}
 });
 

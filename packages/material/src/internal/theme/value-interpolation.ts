@@ -14,7 +14,7 @@ import { ShapeBorder, OutlinedBorder, BorderSide } from '@nelyx/core/framework/p
 import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { sourceIconThemeDataType, captureSourceIconThemeData } from '@nelyx/core/internal/framework/widgets/source-value-types';
 import { sourceTextStyleType, sourceEdgeInsetsGeometryType, sourceOutlinedBorderType, captureSourceTextStyle, captureSourceEdgeInsetsGeometry, captureSourceOutlinedBorder } from '@nelyx/core/internal/framework/painting/source-value-types';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import type { SystemUiOverlayStyle } from '@nelyx/core/services/system-ui-overlay-style';
 type Property<T extends {}> = WidgetStateProperty<T | null> | null;
 export function lerpColorProperty(a: Property<Color>, b: Property<Color>, t: number): Property<Color> {

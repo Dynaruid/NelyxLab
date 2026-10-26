@@ -6,7 +6,7 @@ import {TickerProviderStateMixin} from './ticker-provider.ts';
 import {AnimationController} from '../animation/animation-controller.ts';import {Curves} from '../animation/curves.ts';
 import type {Curve} from '../animation/curves.ts';
 import {ControlInteraction} from './control-interaction.ts';import type {ControlVisualState,ControlInteractionOptions} from './control-interaction.ts';
-import {CurvedAnimation} from '../animation/animations.ts';import {AnimationStatus} from '../animation/animation.ts';import {Offset} from '../../ui/offset.ts';import {emptyWidgetStateSet} from './widget-state-full-collections.ts';import {WidgetState} from './widget-state.ts';
+import {CurvedAnimation} from '../animation/animations.ts';import {AnimationStatus} from '../animation/animation.ts';import {Offset} from '../../ui/offset.ts';import {emptyWidgetStateSet} from './widget-state.ts';import {WidgetState} from './widget-state.ts';
 import {Directionality} from './app-data.ts';import {invariant} from '../../foundation/errors.ts';
 export function nextToggleValue(value:boolean|null,tristate:boolean):boolean|null{return value===false?true:value===true?tristate?null:false:false;}
 /** Exact pinned Cupertino drag hysteresis; value may change externally during the gesture. */

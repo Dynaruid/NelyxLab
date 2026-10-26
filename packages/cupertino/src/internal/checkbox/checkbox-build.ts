@@ -7,7 +7,7 @@ import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import { WidgetStateBorderSide } from '@nelyx/core/framework/widgets/widget-state-border-side';
 import { WidgetStateMouseCursor } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
 import { Color } from '@nelyx/core/ui/color';
 import { Size } from '@nelyx/core/ui/size';

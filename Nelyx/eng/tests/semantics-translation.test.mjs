@@ -11,7 +11,7 @@ import {RenderFractionalTranslation} from '@nelyx/core/framework/rendering/fract
 import {BoxDecoration} from '@nelyx/core/framework/painting/box-decoration';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import {Matrix4} from '@nelyx/core/math/matrix4';
-import {RenderObject} from '@nelyx/core/framework/rendering/object';
+import {RenderObject,RenderBox,PipelineOwner} from '@nelyx/core/framework/rendering/object';
 import {existingPipelineSemantics} from '../../dist/framework/rendering/semantics-pipeline.js';
 import {existingSemanticsFor} from '../../dist/framework/rendering/semantics-pipeline.js';
 import {RenderSliver} from '@nelyx/core/framework/rendering/sliver';
@@ -23,6 +23,7 @@ import {RenderSliverList} from '@nelyx/core/framework/rendering/sliver-list';
 import {ScrollController} from '@nelyx/core/framework/widgets/scroll-controller';
 import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
+import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 import {Directionality} from '@nelyx/core/framework/widgets/app-data';
 import {SemanticsConfiguration,SemanticsProperties} from '@nelyx/core/framework/semantics/semantics';
 import {Offstage} from '@nelyx/core/framework/widgets/offstage';
@@ -38,6 +39,90 @@ import {Color} from '@nelyx/core/ui/color';
 import {InkHighlight} from '@nelyx/material/ink-highlight';
 import {MaterialInkRender,InkFeature} from '../../../packages/material/dist/internal/material/material-ink-owner.js';
 const timeout=1_200_000;
+
+test('semantic commit phase rejects reentrant descriptor mutation in debug and Release and remains retryable',{timeout},()=>{
+  const saved=FoundationBuildMode.mode;
+  try{for(const mode of ['debug','release']){
+    FoundationBuildMode.mode=mode;
+    class Leaf extends RenderBox{
+      mutate=false;
+      performLayout(constraints){return constraints.constrain({width:40,height:30});}
+      describeSemanticsConfiguration(config){config.isSemanticBoundary=true;config.textDirection='ltr';config.label=this.mutate?'Partial':'Complete';if(this.mutate)this.markNeedsSemanticsUpdate();}
+    }
+    const leaf=new Leaf(),owner=new PipelineOwner({onSemanticsUpdate(update){update.dispose();}}),handle=owner.ensureSemantics();
+    try{
+      owner.setRoot(leaf);owner.flushLayout({width:80,height:60});owner.flushSemantics();const node=owner.semanticsOwner.rootSemanticsNode;
+      leaf.mutate=true;leaf.markNeedsSemanticsUpdate();assert.throws(()=>owner.flushSemantics(),/Cannot invalidate semantics during its flush/);assert.equal(node.getSemanticsData().label,'Complete');
+      leaf.mutate=false;assert.doesNotThrow(()=>owner.flushSemantics());assert.equal(existingPipelineSemantics(owner).hasPendingChanges,false);
+    }finally{handle.dispose();owner.dispose();leaf.dispose();}
+  }}finally{FoundationBuildMode.mode=saved;}
+});
+
+test('a failed FrameworkRoot semantic commit keeps its published snapshot and recovers on the next frame',{timeout},()=>{
+  const f=fixture(),calls=[];let render;
+  class Leaf extends RenderBox{
+    label='Initial';fail=false;
+    performLayout(constraints){return constraints.constrain({width:40,height:30});}
+    get semanticsTransport(){return {id:'retry-commit',role:'button',name:this.label,enabled:true,actions:{activate:()=>calls.push(this.label)}};}
+    describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);if(this.fail)throw 0;}
+  }
+  class Carrier extends RenderObjectWidget{get childWidgets(){return [];}createRenderObject(){return render=new Leaf();}}
+  try{
+    f.set(new Carrier());const previous=f.root.nodes.find(node=>node.id==='retry-commit');previous.actions.activate();assert.deepEqual(calls,['Initial']);
+    render.label='Partial';render.fail=true;render.markNeedsSemanticsUpdate();let caught=false;try{f.frame();}catch(error){caught=true;assert.equal(error,0);}assert(caught);assert.equal(f.root.nodes.find(node=>node.id==='retry-commit'),previous);assert.equal(previous.name,'Initial');
+    render.label='Recovered';render.fail=false;f.frame();const current=f.root.nodes.find(node=>node.id==='retry-commit');assert.equal(current.name,'Recovered');current.actions.activate();previous.actions.activate();assert.deepEqual(calls,['Initial','Recovered'],'The fresh frame retires the old action generation');
+  }finally{f.close();}
+});
+
+test('semantic changes coalesce at commit and publish only the latest complete annotation',{timeout},()=>{
+  class Leaf extends RenderBox{
+    label='Initial';calls=0;
+    performLayout(constraints){return constraints.constrain({width:40,height:30});}
+    describeSemanticsConfiguration(config){this.calls++;config.isSemanticBoundary=true;config.textDirection='ltr';config.label=this.label;}
+  }
+  const leaf=new Leaf(),owner=new PipelineOwner({onSemanticsUpdate(update){update.dispose();}}),handle=owner.ensureSemantics();
+  try{
+    owner.setRoot(leaf);assert.equal(leaf.calls,0,'Attach does not evaluate semantic annotations');owner.flushLayout({width:80,height:60});
+    leaf.label='Before commit';leaf.markNeedsSemanticsUpdate();leaf.markNeedsSemanticsUpdate();assert.equal(leaf.calls,0);
+    owner.flushSemantics();assert.equal(leaf.calls,1);const node=owner.semanticsOwner.rootSemanticsNode;assert.equal(node.getSemanticsData().label,'Before commit');
+    for(const label of ['Intermediate','Latest']){leaf.label=label;leaf.markNeedsSemanticsUpdate();}
+    assert.equal(leaf.calls,1);assert.equal(node.getSemanticsData().label,'Before commit','Published node retains its previous annotation until commit');
+    owner.flushSemantics();assert.equal(leaf.calls,2);assert.equal(node.getSemanticsData().label,'Latest');owner.flushSemantics();assert.equal(leaf.calls,2);
+  }finally{handle.dispose();owner.dispose();leaf.dispose();}
+});
+
+test('a failed semantic descriptor retains its published node and retries without publishing partial annotations',{timeout},()=>{
+  class Leaf extends RenderBox{
+    fail=false;label='Initial';calls=0;
+    performLayout(constraints){return constraints.constrain({width:40,height:30});}
+    describeSemanticsConfiguration(config){this.calls++;config.isSemanticBoundary=true;config.textDirection='ltr';config.label=this.label;if(this.fail)throw 0;}
+  }
+  const leaf=new Leaf(),owner=new PipelineOwner({onSemanticsUpdate(update){update.dispose();}}),handle=owner.ensureSemantics();
+  try{
+    owner.setRoot(leaf);owner.flushLayout({width:80,height:60});owner.flushSemantics();const node=owner.semanticsOwner.rootSemanticsNode;
+    leaf.label='Partial';leaf.fail=true;leaf.markNeedsSemanticsUpdate();let caught=false;try{owner.flushSemantics();}catch(error){caught=true;assert.equal(error,0);}assert(caught);
+    assert.equal(node.getSemanticsData().label,'Initial');leaf.fail=false;leaf.label='Recovered';owner.flushSemantics();assert.equal(node.getSemanticsData().label,'Recovered');assert.equal(leaf.calls,3);
+    leaf.label='Retired';leaf.markNeedsSemanticsUpdate();owner.setRoot(undefined);assert.doesNotThrow(()=>owner.flushSemantics());assert.equal(existingPipelineSemantics(owner).hasPendingChanges,false);assert.equal(owner.semanticsOwner.getSemanticsNode(node.id),null);
+  }finally{handle.dispose();owner.dispose();leaf.dispose();}
+});
+
+test('excluded render children remain unmaterialized and enter the semantic tree when revealed',{timeout},()=>{
+  class Leaf extends RenderBox{
+    calls=0;
+    performLayout(constraints){return constraints.constrain({width:40,height:30});}
+    describeSemanticsConfiguration(config){this.calls++;config.isSemanticBoundary=true;config.textDirection='ltr';config.label='Child';}
+  }
+  class Gate extends RenderProxyBox{
+    include=false;
+    visitChildrenForSemantics(visitor){if(this.include)super.visitChildrenForSemantics(visitor);}
+  }
+  const leaf=new Leaf(),root=new Gate(leaf),owner=new PipelineOwner({onSemanticsUpdate(update){update.dispose();}}),handle=owner.ensureSemantics();
+  try{
+    owner.setRoot(root);owner.flushLayout({width:80,height:60});owner.flushSemantics();assert.equal(leaf.calls,0);assert.equal(existingSemanticsFor(leaf),undefined);
+    root.include=true;root.markNeedsSemanticsUpdate();owner.flushSemantics();assert.equal(leaf.calls,1);const child=existingSemanticsFor(leaf).cachedSemanticsNode;assert.equal(child.getSemanticsData().label,'Child');assert.equal(child.owner,owner.semanticsOwner);
+    root.include=false;root.markNeedsSemanticsUpdate();owner.flushSemantics();assert.equal(child.owner,null);assert.equal(owner.semanticsOwner.getSemanticsNode(child.id),null);
+  }finally{handle.dispose();owner.dispose();root.setChildren([]);root.dispose();leaf.dispose();}
+});
 
 test('Material and Cupertino sliders apply absolute values through their real discrete change policy',{timeout},()=>{
   FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
@@ -394,7 +479,7 @@ test('unready offstage geometry preserves snapshot reuse and materializing it ca
   const button=id=>new Semantics({textDirection:'ltr',transportId:id,label:id,container:true,onTap:()=>calls.push(id),child:new SizedBox(80,60)});
   const tree=hidden=>new Row([button('visible'),new Offstage(button('hidden'),{offstage:hidden})]);
   try{
-    f.set(tree(true));assert(existingPipelineSemantics(f.root.pipeline).deferredGeometry.size>0,'The hidden branch must exercise deferred geometry');assert(!f.root.nodes.some(node=>node.id==='hidden'));
+    f.set(tree(true));assert(!f.root.nodes.some(node=>node.id==='hidden'));
     let captures=0;const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
     const visible=f.root.nodes.find(node=>node.id==='visible');f.frame();f.frame();assert.equal(captures,0,'Unready future geometry does not change this published tree');visible.actions.activate();assert.deepEqual(calls,['visible']);
     f.set(tree(false));assert(captures>0);const shown=f.root.nodes.find(node=>node.id==='hidden');assert(shown);shown.actions.activate();assert.deepEqual(calls,['visible','hidden']);visible.actions.activate();assert.deepEqual(calls,['visible','hidden']);

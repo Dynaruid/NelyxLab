@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
-import path from 'node:path';
 import { createRequire } from 'node:module';
 import { Radio } from '@nelyx/material/radio';
 import { Theme } from '@nelyx/material/theme';
@@ -13,7 +12,7 @@ import { RadioGroup, RadioGroupRegistry } from '@nelyx/core/framework/widgets/ra
 import { Align, SizedBox, Builder, Row } from '@nelyx/core/framework/widgets/basic';
 import { Directionality, Localizations } from '@nelyx/core/framework/widgets/app-data';
 import { WidgetState } from '@nelyx/core/framework/widgets/widget-state';
-import { emptyWidgetStateSet } from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { Color } from '@nelyx/core/ui/color';
@@ -160,7 +159,7 @@ test('actual Root commands replay through production Web Skia paint/path/shader 
   // No host is bound and bind/submit are never called. This tests the actual replay method on CPU,
   // separately from WebGL admission/retirement and platform/physical qualification.
   const library = new WebSkiaLibrary(ck, null, f.root.context.owner), surface = ck.MakeSurface(240, 160);
-  assert(surface); const canvas = surface.getCanvas(), artifacts = [];
+  assert(surface); const canvas = surface.getCanvas();
   const render = (name, checkmarkStyle, disabled, dark) => {
     const commands = f.set(new CupertinoTheme(new CupertinoThemeData({brightness: dark ? 'dark' : 'light'}), new Directionality('ltr', new Align(new CupertinoRadio({id: 'pixel', value: 1, groupRegistry: registry, useCheckmarkStyle: checkmarkStyle, enabled: !disabled})))));
     canvas.clear(ck.Color(0, 0, 0, 1)); library.replay(canvas, {commands}); surface.flush();
@@ -168,7 +167,6 @@ test('actual Root commands replay through production Web Skia paint/path/shader 
     try {
       const pixels = image.readPixels(0, 0, {width: 240, height: 160, colorType: ck.ColorType.RGBA_8888, alphaType: ck.AlphaType.Unpremul, colorSpace: ck.ColorSpace.SRGB}); assert(pixels);
       const sample = (x, y) => {const i = (y * 240 + x) * 4; return ((pixels[i + 3] << 24) | (pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]) >>> 0;};
-      const file = '.tmp/work12/radio-cpu-' + name + '.png'; fs.mkdirSync(path.dirname(file), {recursive: true}); fs.writeFileSync(file, image.encodeToBytes()); artifacts.push(file);
       return sample;
     } finally {image.delete();}
   };
@@ -186,7 +184,6 @@ test('actual Root commands replay through production Web Skia paint/path/shader 
     // Allow one channel unit for Skia's premultiplied interpolation quantization.
     [center >>> 16 & 255, center >>> 8 & 255, center & 255].forEach((value, i) => assert(Math.abs(value - expected[i]) <= 1));
     assert((sample(124, 83) & 255) > (sample(124, 76) & 255), 'Real linear gradient brightens toward the bottom');
-    fs.writeFileSync('.tmp/work12/radio-cpu-raster.json', JSON.stringify({status: 'PASS-scoped',backend: 'actual CanvasKit CPU surface and production WebSkiaLibrary.replay',artifacts,scope: 'Actual Root commands/paint/path/gradient pixels; no GPU/WebGL bind/submit, native/physical/provider qualification'}, null, 2) + '\n');
   } finally {surface.delete(); f.close(); await library.dispose();}
 });
 

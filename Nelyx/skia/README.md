@@ -36,11 +36,11 @@ Prepare Python, the Windows C++ toolchain, and inputs matching [`windows-rn-supp
 From the repository root:
 
 ```powershell
-python Nelyx/skia/eng/prepare-artifacts.py --profile windows-x64-graphite-text-probe
-python Nelyx/skia/eng/build-windows-rn.py --runner sample/nelyx-testbed-app-2/windows/runner --supplier Nelyx/skia/vendor/inputs/windows-x64 --output Nelyx/.cache/native/windows/new-build
+node Nelyx/skia/eng/prepare-native.mjs
+python Nelyx/skia/eng/build-windows-rn.py --runner sample/nelyx-testbed-app-2/windows/runner --supplier Nelyx/skia/vendor/inputs/windows-x64 --output .nelyx/windows-rnw-native
 ```
 
-Install the Windows runner first as described in the [sample guide](../../sample/nelyx-testbed-app-2/README.md#windows). Use a fresh output directory. The native build creates `<output>/supplier/inputs.json`; pass it to the runner's installed CLI:
+Install the Windows runner first as described in the [sample guide](../../sample/nelyx-testbed-app-2/README.md#windows). Keep one current owned output; append `--resume` when updating that existing build. Supply and native build reject canonical C++/JSI/recipe changes until `prepare-native` refreshes the package derivation. The native build creates `<output>/supplier/inputs.json`; pass it to the runner's installed CLI:
 
 ```text
 nelyx prepare --app <app> --target windows --native-inputs <inputs.json>

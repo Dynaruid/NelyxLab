@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Adopted product owner: enum-dependent set creation lives with its enum.
 // Generated from packages/flutter/lib/src/widgets/widget_state.dart; SHA256 5caa69ece300d67a1984df9cb1ea7456fce7b30dc339c0a804540443242e916a
 import { protect } from "../../ui/value-math.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
@@ -53,7 +54,7 @@ import { DiagnosticsProperty } from "../../foundation/diagnostics.ts";
 import { isSourceDartDouble } from "../../foundation/dart-numeric.ts";
 import { castSourceDartDouble } from "../../foundation/dart-numeric.ts";
 import { debugFormatDouble } from "../../foundation/debug.ts";
-import { emptyWidgetStateSet } from "./widget-state-full-collections.ts";
+import { widgetStateSet } from "./widget-state-constraint-source-adapter.ts";
 import { boxSourceDartInt } from "../../foundation/dart-numeric.ts";
 import { boxSourceDartDouble } from "../../foundation/dart-numeric.ts";
 import { castSourceDartInt } from "../../foundation/dart-numeric.ts";
@@ -446,3 +447,5 @@ const _widgetStateValueRegistration = registerWidgetStateValueSemantics(
     [SourceWidgetState, SourceWidgetStateAnd, SourceWidgetStateOr, SourceWidgetStateNot, SourceAnyWidgetStates],
     [SourceWidgetStateMapper, SourceWidgetStatePropertyAll],
 );
+
+export function emptyWidgetStateSet():DartSet<SourceWidgetState>{return widgetStateSet(SourceWidgetState);}

@@ -7,6 +7,30 @@ import {SemanticsAction} from '@nelyx/core/ui/semantics-action';
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 const timeout=1_200_000;
 
+test('configuration defaults, sealed owners and copied annotations remain independent',{timeout},()=>{
+  const first=new SemanticsConfiguration(),untouched=new SemanticsConfiguration();
+  Object.seal(first);first.label='First';first.textDirection='ltr';first.scrollPosition=-0;first.indexInParent=-0;
+  const copy=first.copy();first.label='Changed';first.scrollPosition=9;
+  assert.equal(copy.label,'First');assert(Object.is(copy.scrollPosition,-0));assert(Object.is(copy.indexInParent,-0));
+  assert.equal(untouched.label,'');assert.equal(untouched.hasBeenAnnotated,false);assert.equal(untouched.scrollPosition,null);
+  const destination=new SemanticsConfiguration();Object.preventExtensions(destination);destination.absorb(copy);
+  assert.equal(destination.label,'First');copy.label='Other';assert.equal(destination.label,'First');
+  const frozen=Object.freeze(new SemanticsConfiguration());
+  assert.throws(()=>{frozen.isSemanticBoundary=false;},TypeError);
+  assert.throws(()=>{frozen.label='Blocked';},TypeError);
+  assert.equal(frozen.label,'');assert.equal(frozen.hasBeenAnnotated,false);
+});
+
+test('frozen annotation owners reject late changes without altering copies or action snapshots',{timeout},()=>{
+  const config=new SemanticsConfiguration(),calls=[];config.label='Original';config.onTap=()=>calls.push('original');
+  const copied=config.copy();Object.freeze(config);
+  assert.throws(()=>{config.label='Blocked';},TypeError);assert.equal(config.label,'Original');
+  assert.throws(()=>{config.onTap=()=>calls.push('replacement');},TypeError);
+  config.onTap();config.getActionHandler(SemanticsAction.tap)(null);copied.getActionHandler(SemanticsAction.tap)(null);
+  assert.deepEqual(calls,['original','replacement','original']);assert.equal(copied.label,'Original');
+  const empty=new SemanticsConfiguration();empty.label='Fresh';assert.equal(empty.label,'Fresh');
+});
+
 test('semantics callbacks preserve identity, replacement, failed assignment and handler snapshots',{timeout},()=>{
   const config=new SemanticsConfiguration(),calls=[],original=()=>calls.push('original'),replacement=()=>calls.push('replacement');
   assert.equal(config.onTap,null);assert.equal(config.hasBeenAnnotated,false);

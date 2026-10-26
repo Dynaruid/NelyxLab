@@ -3,6 +3,8 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {submitNativeScene} from '@nelyx/skia-native/scene';
 import {replayFrame,GraphiteRenderer} from '@nelyx/skia-native/renderer';
 import {createDisplayListCanvas} from '@nelyx/skia-native/display-list';
+import {createFramePictureBackend} from '@nelyx/skia-native/pictures';
+import {createRasterizationBackend} from '@nelyx/skia-native/rasterization';
 import {Paint} from '@nelyx/core/ui/paint';
 import {ImageFilter} from '@nelyx/core/ui/image-filter';
 const timeout=1_200_000;
@@ -46,4 +48,33 @@ test('growing packets preserve values, refuse excess commands and drop synchrono
   const f=fixture(),command={op:'rect',rect,color:0xff334455};submitNativeScene(f.api,f.target,{commands:Array(300).fill(command)},f.resources);assert.equal(f.packets[0].length,300);assert(f.packets[0].every(x=>x.op===22&&x.values[7]===command.color));
   const g=fixture();assert.throws(()=>submitNativeScene(g.api,g.target,{commands:Array(65537).fill({op:'save'})},g.resources),/budget|exceeds/);assert.equal(g.mutations,0);
   let roots;submitNativeScene(f.api,{nelyxReplayDisplayList(_buffer,handles){roots=handles;assert.equal(handles.length,1);}},{commands:[{op:'drawPicture',resource}]},f.resources);assert.equal(roots.length,0);
+});
+
+function pictureFixture({binding=true}={}){
+  const f=fixture(),recorders=[],pictures=[];
+  f.api.PictureRecorder=()=>{
+    const recorder={retired:0,finished:0,beginRecording(){return new Proxy({},{get(){throw Error('Picture compilation entered per-command Canvas replay');}});},finishRecordingAsPicture(){this.finished++;const picture={retired:0,approximateBytesUsed:()=>128,dispose(){this.retired++;}};pictures.push(picture);return picture;},dispose(){this.retired++;}};
+    if(binding)recorder.nelyxReplayDisplayList=(...args)=>f.target.nelyxReplayDisplayList(...args);
+    recorders.push(recorder);return recorder;
+  };
+  return {...f,recorders,pictures,resources:{...f.resources,nativeDisplayLists:true},verifyPictures(){for(const value of recorders)assert.equal(value.retired,1);for(const value of pictures)assert.equal(value.retired,1);f.verifyRetired();}};
+}
+test('retained native pictures compile and restore through the same atomic scene packet without Canvas replay',{timeout},()=>{
+  const f=pictureFixture(),commands=[{op:'rect',rect,color:0xff123456},{op:'save'},{op:'transform',matrix:[1,0,0,1,5,6]},{op:'paragraph',resource,x:2,y:3},{op:'restore'}];let generation=1;
+  const backend=createFramePictureBackend(f.api,f.resources,()=>generation),descriptor={id:'retained-scene',generation:1,kind:'picture'},native=backend.compile({frame:{commands}},descriptor);
+  const first=backend.picture(JSON.stringify([descriptor.id,descriptor.generation]));assert.equal(f.packets.length,1);assert.deepEqual(f.opcodes,[22,0,13,19,1]);generation++;
+  assert.notEqual(backend.picture(JSON.stringify([descriptor.id,descriptor.generation])),first);assert.equal(first.retired,1);assert.deepEqual(f.packets[0],f.packets[1]);native.retire();native.retire();f.verifyPictures();
+});
+test('a required native picture packet binding cannot silently enter the legacy Canvas path',{timeout},()=>{
+  const f=pictureFixture({binding:false}),backend=createFramePictureBackend(f.api,f.resources,()=>1);
+  assert.throws(()=>backend.compile({frame:{commands:[{op:'rect',rect,color:0xff123456}]}},{id:'missing-binding',generation:1,kind:'picture'}),error=>error instanceof AggregateError&&error.errors.some(value=>/picture display-list1 binding required/.test(value.message)));
+  assert.equal(f.packets.length,0);assert.equal(f.recorders[0].finished,0);f.verifyPictures();
+});
+test('Picture.toImage native compilation uses the shared packet and retains independent output and cache owners',{timeout},()=>{
+  const f=pictureFixture(),images=new Map(),owner={id:'raster-scene',generation:1},commands=[{op:'rect',rect,color:0xff123456}],capture={frame:{commands},onRetire:()=>()=>{}};let reserved=0,surfaceRetired=0,textureRetired=0,outputRetired=0;
+  const output={dispose(){outputRetired++;}},texture={makeNonTextureImage:()=>output,dispose(){textureRetired++;}};
+  f.api.Surface={MakeOffscreen:()=>({getCanvas:()=>({clear(){},drawPicture(picture){assert.equal(picture,f.pictures[0]);}}),flush(){},makeImageSnapshot:()=>texture,dispose(){surfaceRetired++;}})};
+  const backend=createRasterizationBackend(f.api,images,f.resources,owner,{reserve(bytes){reserved+=bytes;return ()=>{reserved-=bytes;};}},()=>{});
+  const image=backend.rasterize(capture,2,3);assert.deepEqual(f.opcodes,[22]);assert.equal(f.packets.length,1);assert.equal(images.size,1);assert.equal(reserved,24);assert.equal(surfaceRetired,1);assert.equal(textureRetired,1);assert.equal(outputRetired,0);
+  backend.dispose();assert.equal(outputRetired,0);image.retire();assert.equal(images.size,0);assert.equal(reserved,0);assert.equal(outputRetired,1);f.verifyPictures();
 });

@@ -79,9 +79,9 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
   override get buildScope():BuildScope{return this._buildScope;}
   override get renderObject():RenderSliverMultiBoxAdaptor{return super.renderObject as RenderSliverMultiBoxAdaptor;}
   private get adaptorWidget():SliverMultiBoxAdaptorWidget{return this.widget as SliverMultiBoxAdaptorWidget;}
-  get boundedChildren():boolean{return this.adaptorWidget.childPolicy!=='legacy';}
+  get boundedChildren():boolean{const policy=this.adaptorWidget.childPolicy;return policy!=='legacy'&&policy.mode==='bounded';}
   get preparationIndex():number|null{return this.preparationTarget;}
-  private get preparationEnabled():boolean{const policy=this.adaptorWidget.childPolicy;return policy!=='legacy'&&policy.preparation==='observed-budget';}
+  private get preparationEnabled():boolean{const policy=this.adaptorWidget.childPolicy;return policy!=='legacy'&&policy.mode==='bounded'&&policy.preparation==='observed-budget';}
   private readonly requestBudgetLayout=()=>{if(this.active)this.renderObject.markNeedsLayout();};
   private childElement(child:RenderBox):Element{const element=this._childElements.get(this.renderObject.indexOf(child));invariant(element,'missing-sliver-child-element','Retained render child needs its actual Element slot');return element;}
   retainChild(child:RenderBox):boolean{if(!this.boundedChildren)return false;const element=this.childElement(child),budget=this.owner.viewWorkBudget;budget.withChild(this,element,this.requestBudgetLayout,()=>{});return budget.retain(element);}
@@ -91,6 +91,7 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
   override markNeedsBuild():void{this._rebuildChildren=true;super.markNeedsBuild();}
   override update(widget:Widget):void{
     invariant(widget instanceof SliverMultiBoxAdaptorWidget,'invalid-sliver-widget','Sliver Element requires a SliverMultiBoxAdaptorWidget');const old=this.adaptorWidget,already=this._rebuildChildren;super.update(widget);
+    const policy=widget.childPolicy;this.owner.maybeDormantChildren?.trimOwner(this,widget.delegate===old.delegate&&policy!=='legacy'&&policy.mode==='dormant'?policy.capacity:0);
     if(widget!==old){this.creationCost=undefined;this.owner.maybeViewWorkBudget?.cancelOwner(this);}
     this._rebuildChildren=already||widget.delegate!==old.delegate&&(widget.delegate.constructor!==old.delegate.constructor||widget.delegate.shouldRebuild(old.delegate));
   }
@@ -106,7 +107,11 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
   private renderBox(child:Element|undefined):RenderBox|null{if(!child)return null;const renders=child.renderObjects;invariant(renders.length<=1,'multiple-sliver-render-children','Each lazy child must emit a single box subtree');return renders[0] instanceof RenderBox?renders[0]:null;}
   private updateChildAt(index:number,child:Element|undefined,widget:Widget|null):Element|undefined{
     this._currentlyUpdatingChildIndex=index;
-    try{const reconcile=()=>this.reconcile(child?[child]:[],widget?[widget]:[])[0],bounded=this.boundedChildren,next=bounded?this.owner.viewWorkBudget.withChild(this,child,this.requestBudgetLayout,reconcile):reconcile();if(bounded&&next&&next!==child){this.newChildBuilt=true;if(index===this.preparationTarget)this.owner.viewWorkBudget.didPrepare(next);}return next;}finally{this._currentlyUpdatingChildIndex=null;}
+    try{
+      const cache=this.owner.maybeDormantChildren;
+      if(!child&&cache){const cached=cache.peek(this,index);if(cached){if(widget&&Widget.canUpdate(cached.widget,widget))child=cache.take(this,index,this,index);else cache.evictAt(this,index);}}
+      const reconcile=()=>this.reconcile(child?[child]:[],widget?[widget]:[])[0],bounded=this.boundedChildren,next=bounded?this.owner.viewWorkBudget.withChild(this,child,this.requestBudgetLayout,reconcile):reconcile();if(bounded&&next&&next!==child){this.newChildBuilt=true;if(index===this.preparationTarget)this.owner.viewWorkBudget.didPrepare(next);}return next;
+    }finally{this._currentlyUpdatingChildIndex=null;}
   }
   protected override performRebuild():void{
     this.dirty=false;this.adaptorWidget.updateRenderObject(this,this.renderObject);if(!this._rebuildChildren)return;this._rebuildChildren=false;
@@ -146,6 +151,9 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
     // Pure retirement has no queued render admissions. Syncing every surviving
     // subtree for each removed row makes a backward seek needlessly quadratic.
     if(needsSync||this.pendingOffsets!==null)this.finishQueuedChildren();
+    const policy=this.adaptorWidget.childPolicy;
+    if(policy!=='legacy'&&policy.mode==='dormant'&&this.owner.dormantChildren.retain(this,index,retired,policy.capacity))return;
+    if(!this.mounted||!retired.mounted)return;
     if(this.renderObject._retireInactiveChildrenDuringLayout)this.owner._retireInactiveSubtreeWithoutGlobalKeys(retired);
   }
   override forgetChild(child:Element):void{for(const [index,value]of this._childElements)if(value===child){this._childElements.delete(index);break;}this.owner.maybeViewWorkBudget?.forget(child);super.forgetChild(child);}
@@ -186,7 +194,12 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
     return trailingScrollOffset+(trailingScrollOffset-leadingScrollOffset)/(lastIndex-firstIndex+1)*(childCount-lastIndex-1);
   }
   override visitChildren(visitor:(child:Element)=>void):void{for(const [,child]of this._childElements.orderedEntries())if(child.parent===this)visitor(child);}
-  override unmount():void{if(!this.mounted)return;this.ready=false;this.owner.maybeViewWorkBudget?.cancelOwner(this);try{super.unmount();}finally{this._buildScope._clear();this._childElements.clear();this.pendingOffsets=null;}}
+  override unmount():void{
+    if(!this.mounted)return;this.ready=false;this.owner.maybeViewWorkBudget?.cancelOwner(this);const errors:unknown[]=[];
+    try{this.owner.maybeDormantChildren?.trimOwner(this);}catch(error){errors.push(error);}
+    try{super.unmount();}catch(error){errors.push(error);}finally{this._buildScope._clear();this._childElements.clear();this.pendingOffsets=null;}
+    if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Sliver and dormant children teardown failed');
+  }
 }
 export class SliverFixedExtentList extends SliverMultiBoxAdaptorWidget {
   readonly itemExtent:number;

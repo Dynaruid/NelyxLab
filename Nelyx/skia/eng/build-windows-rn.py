@@ -33,20 +33,9 @@ for record in lock['files']:
         raise RuntimeError('Pinned supplier changed: ' + record['file'])
 
 rn = SKIA / 'packages/rn'
-# The package mirrors are the actual CMake inputs. A successful compilation of
-# stale generated sources must never qualify the current native implementation.
-for source, generated in [('native/core', 'generated/core'),
-                          ('native/host', 'generated/host'),
-                          ('native/rendering/nelyx_skia', 'generated/gpu/nelyx_skia'),
-                          ('native/platforms/vulkan', 'generated/vulkan')]:
-    source_root, generated_root = SKIA / source, rn / generated
-    source_files = {file.relative_to(source_root).as_posix(): sha(file)
-                    for file in source_root.rglob('*') if file.is_file()}
-    generated_files = {file.relative_to(generated_root).as_posix(): sha(file)
-                       for file in generated_root.rglob('*') if file.is_file()}
-    if not source_files or source_files != generated_files:
-        raise RuntimeError('Stale native package mirror: ' + generated +
-                           '; run Nelyx/skia/eng/prepare-native.mjs before building')
+# Use the same complete source admission as package supply, including JSI and
+# binding recipes. Compiling an older mirror cannot qualify current sources.
+subprocess.run(['node', str(SKIA / 'eng/native-source-inputs.mjs'), str(rn)], check=True)
 vswhere = Path(os.environ['ProgramFiles(x86)']) / 'Microsoft Visual Studio/Installer/vswhere.exe'
 vs = subprocess.check_output([str(vswhere), '-latest', '-products', '*', '-requires',
     'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'], text=True).strip()

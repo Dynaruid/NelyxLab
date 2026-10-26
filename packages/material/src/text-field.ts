@@ -28,7 +28,7 @@ import {LengthLimitingTextInputFormatter} from '@nelyx/core/services/input-forma
 import type {TextInputFormatter} from '@nelyx/core/services/input-formatters';
 import {graphemeBoundaries} from '@nelyx/core/foundation/grapheme-boundaries';
 import {WidgetState,WidgetStateTextStyle} from '@nelyx/core/framework/widgets/widget-state';
-import {emptyWidgetStateSet} from '@nelyx/core/internal/framework/widgets/widget-state-full-collections';
+import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {Color} from '@nelyx/core/ui/color';
 import {invariant} from '@nelyx/core/foundation/errors';
 import {DiagnosticPropertiesBuilder,DiagnosticsProperty} from '@nelyx/core/foundation/diagnostics';

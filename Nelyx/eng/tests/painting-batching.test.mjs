@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
 import {ContainerLayer,AnnotatedRegionLayer,AnnotationType,LayerHandle,LayerLink,LeaderLayer,FollowerLayer} from '@nelyx/core/framework/rendering/layer';
 import {Paint} from '@nelyx/core/ui/paint';
+import {Picture} from '@nelyx/core/ui/picture';
 import {Gradient,ImageShader} from '@nelyx/core/ui/shader';
 import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
@@ -14,6 +15,42 @@ function fixture({beforeCompile}={}){
   return {root,context,compiled,retired,pictures,resources,close(){context.dispose();root.dispose();pictures.dispose();resources.dispose();assert.equal(retired.length,compiled.length);}};
 }
 function siblings(context,count=20){const paint=new Paint();for(let i=0;i<count;i++){context.save();context.translate(i*3,0);context.clipRect({x:0,y:0,width:30,height:30});context.drawRect({x:0,y:0,width:10,height:10},paint);context.restore();}}
+
+test('replacement recording bodies keep retained descendant depths and annotation geometry',{timeout},()=>{
+  for(const childLayer of [false,true]){
+    const f=fixture(),contexts=[],type=new AnnotationType('replacement-depth'),value={};let target=f.root;
+    for(let n=0;n<8;n++){const next=new ContainerLayer();target.append(next);target=next;}
+    let redepths=0;
+    class ObservedBranch extends ContainerLayer{redepthChild(child){redepths++;super.redepthChild(child);}}
+    const branch=new ObservedBranch(),nested=new ObservedBranch(),region=new AnnotatedRegionLayer(value,{annotationType:type,size:{width:5,height:5}}),handles=[new LayerHandle(branch)],destination=new ContainerLayer();
+    branch.append(nested);nested.append(region);f.root.attach({});if(childLayer)target.append(destination);
+    const paint=color=>{
+      const c=new PaintingContext(null,bounds,true);contexts.push(c);
+      const record=context=>{context.rect({x:0,y:0,width:10,height:10},color);context.translate(20,30);context.addLayer(branch);};
+      if(childLayer)c.pushLayer(destination,record);else record(c);
+      c.compose(target,bounds,f.pictures);return c;
+    };
+    try{
+      paint(0xff123456).dispose();const before=[branch.depth,nested.depth,region.depth];redepths=0;
+      paint(0xff654321).dispose();assert.deepEqual([branch.depth,nested.depth,region.depth],before);assert.equal(redepths,0,'An unchanged destination needs no transient subtree depth rewrite');
+      assert.equal(f.root.find(type,{x:21,y:31}),value);assert.equal(f.root.find(type,{x:1,y:1}),null);assert.equal(branch.owner,f.root.owner);assert.equal(f.compiled.at(-1).find(command=>command.op==='rect').color,0xff654321);
+    }finally{for(const c of contexts)c.dispose();f.close();for(const h of handles)h.dispose();if(!destination.debugDisposed)destination.dispose();}
+  }
+});
+
+test('direct batch capture preserves create callbacks, their falsey failures and the previous valid scene',{timeout},()=>{
+  const f=fixture(),contexts=[],savedCreate=Picture.onCreate,savedDispose=Picture.onDispose,created=[],disposed=[];
+  const paint=color=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.rect({x:0,y:0,width:5,height:5},color);c.compose(f.root,bounds,f.pictures);return c;};
+  try{
+    Picture.onCreate=picture=>created.push(picture);Picture.onDispose=picture=>disposed.push(picture);
+    paint(0xff123456).dispose();const previous=f.root.firstChild;assert.equal(created.length,1);
+    Picture.onCreate=picture=>{created.push(picture);assert.equal(picture.debugDisposed,false);throw null;};
+    assert.throws(()=>paint(0xff654321),error=>error===null);assert.equal(f.root.firstChild,previous);
+    assert.equal(f.compiled.length,1);assert.equal(created.length,2);assert.equal(disposed.includes(created[1]),true);
+    Picture.onCreate=picture=>created.push(picture);paint(0xff654321).dispose();
+    assert.equal(created.length,3);assert.equal(f.compiled.length,2);assert.equal(f.compiled.at(-1).find(command=>command.op==='rect').color,0xff654321);
+  }finally{Picture.onCreate=savedCreate;Picture.onDispose=savedDispose;for(const c of contexts)c.dispose();f.close();}
+});
 test('empty canvas state scopes avoid native pictures while retained annotation geometry remains active',{timeout},()=>{
   const f=fixture(),type=new AnnotationType('empty-state-region'),value={};try{
     const c=f.context;c.save();c.translate(300,0);c.clipRect({x:0,y:0,width:10,height:10});c.restore();

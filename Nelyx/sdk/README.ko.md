@@ -171,6 +171,8 @@ SDK는 core Widget 앱에 View별 text·assets·clock·editing·semantics 서비
 
 ## 책임과 수명
 
+`NativeInteraction`의 service lifetime 반환은 편집기·semantics를 비운 뒤 아직 등록된 모든 observer에 통지합니다. observer 오류는 falsey throw까지 보존해 통지 뒤 보고합니다. 영구 dispose는 먼저 새 binding·구독을 닫고 정리한 뒤 retirement를 한 번 게시합니다. 이전에는 acquired lifetime의 빈 갱신도 별도로 게시할 수 있었습니다. service lease 반환은 새로운 편집기 generation을 가진 다음 lifetime을 허용합니다. 지연된 일반 semantics action은 원래 node lifetime의 현재 callback을 찾되 첫 전달 전에 요청을 소비합니다. 중복·재진입 전달, disabled·교체된 node와 callback 오류로 같은 요청을 다시 실행하지 않습니다.
+
 | 계층 | 책임 |
 | --- | --- |
 | 공통 앱 | 상태, 장면 구성과 앱 정의 |

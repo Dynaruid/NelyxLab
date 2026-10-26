@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Source composition using current Core Container/border/layout owners; ARGB paint ABI.
+// Source defaults and generic composition; finite square lines use one owner.
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { SizedBox, Center } from '@nelyx/core/framework/widgets/basic';
@@ -14,6 +14,7 @@ import { Color } from '@nelyx/core/ui/color';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Theme } from './theme.ts';
 import { DividerTheme, DividerThemeData } from './divider-theme.ts';
+import {DividerRenderWidget} from './internal/divider/divider-render.ts';
 
 interface DividerLineOptions extends WidgetOptions {
 
@@ -121,9 +122,11 @@ export class Divider extends StatelessWidget {
             indent = this.indent ?? theme.indent ?? fallback.indent!, endIndent = this.endIndent ?? theme.endIndent ?? fallback.endIndent!;
 
 
+        const margin=EdgeInsetsDirectional.only({start:indent,end:endIndent}),radius=this.radius ?? theme.radius ?? fallback.radius,decoration=new BoxDecoration({borderRadius:radius,border:new Border({bottom:Divider.createBorderSide(context,{color:this.color,width:thickness})})});
+        if(radius===null&&[height,thickness,indent,endIndent].every(Number.isFinite))return new DividerRenderWidget({vertical:false,extent:height,thickness,margin,decoration});
         return new SizedBox(undefined, height, new Center(new Container({
-height: thickness, margin: EdgeInsetsDirectional.only({ start: indent, end: endIndent }),
-            decoration: new BoxDecoration({ borderRadius: this.radius ?? theme.radius ?? fallback.radius, border: new Border({ bottom: Divider.createBorderSide(context, { color: this.color, width: thickness }) }) })
+height: thickness, margin,
+            decoration
 })));
 
 
@@ -175,9 +178,11 @@ export class VerticalDivider extends StatelessWidget {
             indent = this.indent ?? theme.indent ?? fallback.indent!, endIndent = this.endIndent ?? theme.endIndent ?? fallback.endIndent!;
 
 
+        const margin=EdgeInsetsDirectional.only({top:indent,bottom:endIndent}),radius=this.radius ?? theme.radius ?? fallback.radius,decoration=new BoxDecoration({borderRadius:radius,border:new Border({left:Divider.createBorderSide(context,{color:this.color,width:thickness})})});
+        if(radius===null&&[width,thickness,indent,endIndent].every(Number.isFinite))return new DividerRenderWidget({vertical:true,extent:width,thickness,margin,decoration});
         return new SizedBox(width, undefined, new Center(new Container({
-width: thickness, margin: EdgeInsetsDirectional.only({ top: indent, bottom: endIndent }),
-            decoration: new BoxDecoration({ borderRadius: this.radius ?? theme.radius ?? fallback.radius, border: new Border({ left: Divider.createBorderSide(context, { color: this.color, width: thickness }) }) })
+width: thickness, margin,
+            decoration
 })));
 
 

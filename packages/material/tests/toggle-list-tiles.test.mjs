@@ -1,3 +1,4 @@
+import {assertParagraphOwnership} from './engine-fixture.mjs';
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
 import {CheckboxListTile} from '../dist/checkbox-list-tile.js';
@@ -34,6 +35,26 @@ test('tile defaults preserve role getter order and a replaced copyWith accessor'
   for(let i=0;i<2;i++){trace.length=0;listTileDefaults(null,0);assert.deepEqual(trace,['bodyLarge','surface','bodyMedium','variant','labelSmall','variant','primary','variant']);}
   assert.equal(reads,6);
  }finally{Object.defineProperty(TextStyle.prototype,'copyWith',descriptor);Theme.of=original;}
+});
+test('stable tile themes refresh live values and continue calling style hooks after repeated projections',{timeout},()=>{
+ const saved=Theme.of,descriptor=Object.getOwnPropertyDescriptor(TextStyle.prototype,'copyWith'),trace=[],values={surface:0xff123456,variant:0xffabcdef,primary:0xff112233};
+ const styles={bodyLarge:new TextStyle({fontSize:18}),bodyMedium:new TextStyle({fontSize:14}),labelSmall:new TextStyle({fontSize:12})},text={};let fail=false,calls=0;
+ for(const name of Object.keys(styles))Object.defineProperty(text,name,{get(){trace.push(name);return styles[name];}});
+ const colors={get onSurface(){trace.push('surface');return values.surface;},get onSurfaceVariant(){trace.push('variant');return values.variant;},get primary(){trace.push('primary');if(fail)throw null;return values.primary;}};
+ const theme={textTheme:text,colorScheme:colors};Theme.of=()=>theme;
+ const order=['bodyLarge','surface','bodyMedium','variant','labelSmall','variant','primary','variant'];
+ try{
+  let first;
+  for(let i=0;i<2;i++){trace.length=0;const value=listTileDefaults(null,0);first??=value;assert.deepEqual(trace,order);assert.equal(value.titleTextStyle.fontSize,18);assert.equal(value.selectedColor.toARGB32(),values.primary);}
+  values.primary=0xff445566;values.variant=0xff778899;styles.bodyLarge=new TextStyle({fontSize:22});
+  const changed=listTileDefaults(null,0);assert.equal(changed.titleTextStyle.fontSize,22);assert.equal(changed.selectedColor.toARGB32(),values.primary);assert.equal(changed.iconColor.toARGB32(),values.variant);
+  assert.equal(first.titleTextStyle.fontSize,18);assert.equal(first.selectedColor.toARGB32(),0xff112233);assert.equal(first.iconColor.toARGB32(),0xffabcdef);
+  const custom=new TextStyle({fontSize:31});
+  Object.defineProperty(TextStyle.prototype,'copyWith',{configurable:true,get(){trace.push('copy-get');return function(){calls++;assert(Object.values(styles).includes(this));return custom;};}});
+  for(let i=0;i<3;i++){trace.length=0;const value=listTileDefaults(null,0);assert.equal(value.titleTextStyle,custom);assert.equal(trace.filter(value=>value==='copy-get').length,3);}
+  assert.equal(calls,9);fail=true;trace.length=0;
+  assert.throws(()=>listTileDefaults(null,0),error=>error===null);assert.equal(trace.at(-1),'primary');
+ }finally{Object.defineProperty(TextStyle.prototype,'copyWith',descriptor);Theme.of=saved;}
 });
 function elements(f, test){const result=[],walk=e=>{if(test(e))result.push(e);e.visitChildren(walk);};walk(f.root.root);return result;}
 const one=(f,type)=>elements(f,e=>e.widget instanceof type)[0].widget;
@@ -135,6 +156,6 @@ test('actual paragraph baselines, two/three-line density, RTL slots and nested t
   let nested=0,toggled=0;f.set(wrap(new CheckboxListTile({value:false,onChanged(){toggled++;},title:new GestureDetector(new Text('Nested action'),{onTap(){nested++;}}),id:'nested-tile'})));
   tapRender(render().title);assert.equal(nested,1);assert.equal(toggled,0,'The inner recognizer wins the pointer arena once');
   const action=f.root.nodes.find(n=>n.activate&&n.checked!==undefined).activate;action();assert.equal(toggled,1,'Merged semantic action uses the label control');
-  f.set(new SizedBox(1,1));assert.equal(library.paragraphs.size,0);assert.equal(f.root.scheduler.transientCallbackCount,0);
+  f.set(new SizedBox(1,1));assertParagraphOwnership({library});assert.equal(f.root.scheduler.transientCallbackCount,0);
  }finally{surface.delete();f.close();await library.dispose();assert.equal(library.fonts.size,0);}
 });

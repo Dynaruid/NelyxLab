@@ -12,6 +12,9 @@ export interface SkPictureRecorder extends SkJSIInstance<"PictureRecorder"> {
    */
   beginRecording(bounds?: SkRect): SkCanvas;
 
+  /** Native recording capability; CanvasKit adapters omit it. Required by native Engine services. */
+  nelyxReplayDisplayList?(packet: ArrayBuffer, handles: readonly unknown[]): void;
+
   /**
    * Returns the captured draw commands as a picture and invalidates the canvas returned earlier.
    */

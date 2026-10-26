@@ -169,7 +169,7 @@ import { scrollbarIsPointerScroll } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarCastPointerScroll } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarIsInertiaCancel } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarGestureMap } from "./scrollbar-raw-source-adapter.ts";
-import { emptyWidgetStateSet } from "./widget-state-full-collections.ts";
+import { emptyWidgetStateSet } from "./widget-state.ts";
 import { captureDartException } from "../../foundation/dart-exceptions.ts";
 import { applyDartType } from "../../foundation/dart-type-witness.ts";
 import { captureDartType } from "../../foundation/dart-type-witness.ts";

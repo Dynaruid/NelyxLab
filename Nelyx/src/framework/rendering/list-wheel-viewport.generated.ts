@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/rendering/list_wheel_viewport.dart; SHA256 fcf565b043029714852ad1a74c96164432345bce8efa7ef267ab0e796ec43241
+// Adopted product owner: nominal checks use the classes declared here.
 import { WheelRenderHost } from "./list-wheel-renderer-adapter.ts";
 import { WheelContainerParentData } from "./list-wheel-renderer-adapter.ts";
 import { createWheelClipHandle } from "./list-wheel-renderer-adapter.ts";
@@ -43,8 +44,6 @@ import { checkedInteger } from "../../ui/value-math.ts";
 import { roundInteger } from "../../ui/value-math.ts";
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { createWheelRevealedOffset } from "./list-wheel-renderer-adapter.ts";
-import { isWheelParentData } from "./list-wheel-renderer-types.ts";
-import { castWheelParentData } from "./list-wheel-renderer-types.ts";
 import { isWheelRenderObject } from "./list-wheel-renderer-adapter.ts";
 import { castWheelRenderObject } from "./list-wheel-renderer-adapter.ts";
 import type { PipelineOwner } from "./object.ts";
@@ -1188,3 +1187,6 @@ export class SourceRenderListWheelViewport extends WheelRenderHost implements Wh
     }
 }
 protect(SourceRenderListWheelViewport, ["defaultDiameterRatio", "defaultPerspective", "diameterRatioZeroMessage", "perspectiveTooHighMessage", "clipBehaviorAndRenderChildrenOutsideViewportConflict"]);
+
+export function isWheelParentData(value:unknown):value is SourceListWheelParentData{return value instanceof SourceListWheelParentData;}
+export function castWheelParentData(value:unknown):SourceListWheelParentData{invariant(isWheelParentData(value),'invalid-wheel-parent-data','Expected actual source wheel parent data');return value;}

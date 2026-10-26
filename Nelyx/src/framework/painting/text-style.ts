@@ -51,9 +51,13 @@ const layoutFields=['inherit','fontFamily','fontSize','fontStyle','letterSpacing
 const paintFields=['color','backgroundColor','decorationColor','decorationStyle','decorationThickness'] as const;
 const paintIdentities=new WeakMap<Paint,number>();let nextPaintIdentity=0;
 const unscaledRuns=new WeakMap<TextStyle,TextRunStyle>();
+/** @internal Exact immutable, paint-free values with an already captured run.
+ * A Proxy, subclass or borrowed mutable Paint never acquires this identity. */
+export function isCapturedTextStyle(value:TextStyle):boolean{return unscaledRuns.has(value);}
 // One recent result per live base value; pairs of long-lived theme styles do
 // not grow a cross-product cache, and retired base values keep no cache owner.
 const mergedStyles=new WeakMap<TextStyle,{other:TextStyle;debug:boolean;style:TextStyle}>();
+const copiedStyles=new WeakMap<TextStyle,{color:number|null;fontSize:number|null;locale:string|null;debug:boolean;style:TextStyle}>();
 function paintIdentity(paint:Paint|null):number|null{if(paint===null)return null;let id=paintIdentities.get(paint);if(id===undefined){id=++nextPaintIdentity;paintIdentities.set(paint,id);}return id;}
 function listEquals<T>(a:readonly T[]|null,b:readonly T[]|null,equal:(left:T,right:T)=>boolean):boolean{return a===b||a!==null&&b!==null&&a.length===b.length&&a.every((value,index)=>equal(value,b[index]!));}
 /** ARGB numbers and immutable list snapshots are Nelyx's value adapters; Paint keeps source identity. */
@@ -125,7 +129,10 @@ export class TextStyle extends Diagnosticable(class {}) {
   }
   merge(other:TextStyle|null|undefined):TextStyle {
     if(!other)return this;if(!other.inherit)return other;
-    const shared=this.constructor===TextStyle&&other.constructor===TextStyle;
+    // A Proxy can report TextStyle as its constructor and still observe every
+    // field read. Only values captured by this constructor may share a merge;
+    // replaced prototype methods/accessors retain their ordinary call order.
+    const shared=isCapturedTextStyle(this)&&isCapturedTextStyle(other)&&Object.getOwnPropertyDescriptor(TextStyle.prototype,'copyWith')?.value===ordinaryCopyWith&&Object.getOwnPropertyDescriptor(TextStyle.prototype,'options')?.value===ordinaryStyleOptions;
     const previous=shared?mergedStyles.get(this):undefined;if(previous?.other===other&&previous.debug===FoundationBuildMode.debug)return previous.style;
     const {inherit:_inherit,...options}=other.options();
     options.debugLabel=FoundationBuildMode.debug&&(this.debugLabel!==null||other.debugLabel!==null)?`(${this.debugLabel??'unknown'}).merge(${other.debugLabel??'unknown'})`:null;
@@ -200,4 +207,20 @@ export function lerpFontVariations(a:readonly FontVariation[]|null,b:readonly Fo
     for(let i=index;i<a.length;i++){left.set(a[i]!.axis,a[i]!);axes.add(a[i]!.axis);}for(let i=index;i<b.length;i++){right.set(b[i]!.axis,b[i]!);axes.add(b[i]!.axis);}
     for(const axis of axes){const value=FontVariation.lerp(left.get(axis)??null,right.get(axis)??null,t);if(value!==null)result.push(value);}
   }return result;
+}
+
+const ordinaryCopyWith=TextStyle.prototype.copyWith;
+const ordinaryStyleOptions=Object.getOwnPropertyDescriptor(TextStyle.prototype,'options')!.value;
+const ordinaryFamilyFallback=Object.getOwnPropertyDescriptor(TextStyle.prototype,'fontFamilyFallback')!.get;
+/** @internal Construction reads this public getter. Keep external hooks live. */
+export function textStyleConstructionIsPlain():boolean{return Object.getOwnPropertyDescriptor(TextStyle.prototype,'fontFamilyFallback')?.get===ordinaryFamilyFallback;}
+/** @internal Nelyx-created literal color/fontSize/locale overrides only. One
+ * recent immutable value per live base; no cross-product or global palette.
+ * Callers evaluate the copyWith member before the options, preserving public
+ * getter order. Custom receivers/methods and Paint take the ordinary call. */
+export function copyCapturedTextStyle(base:TextStyle,copy:TextStyle['copyWith'],options:Pick<TextStyleOptions,'color'|'fontSize'|'locale'>):TextStyle{
+  if(!isCapturedTextStyle(base)||copy!==ordinaryCopyWith)return Reflect.apply(copy,base,[options]);
+  const color=options.color??null,fontSize=options.fontSize??null,locale=options.locale??null,debug=FoundationBuildMode.debug,previous=copiedStyles.get(base);
+  if(previous&&previous.color===color&&previous.fontSize===fontSize&&previous.locale===locale&&previous.debug===debug)return previous.style;
+  const style=Reflect.apply(copy,base,[options]) as TextStyle;copiedStyles.set(base,{color,fontSize,locale,debug,style});return style;
 }

@@ -5,7 +5,7 @@ import {ImageFilter} from './image-filter.ts';
 import type {BlendMode} from './paint.ts';
 import {freezeColorFilter,effectColor} from './paint-effects-data.ts';
 import type {ColorFilterSnapshot} from './paint-effects-data.ts';
-import {blendModes} from './paint.ts';
+import {blendModeValues as blendModes} from './blend-mode-data.ts';
 import {invariant} from '../foundation/errors.ts';
 import {hashDoubles} from './value-math.ts';
 export class ColorFilter extends ImageFilter {

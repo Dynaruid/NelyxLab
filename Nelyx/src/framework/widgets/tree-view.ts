@@ -12,7 +12,7 @@ import {SourceTreeSliverNode,SourceTreeSliverController} from './sliver-tree.gen
 import {TreeSliver} from './tree-sliver.ts';
 import {dartStringType} from '../../foundation/dart-type-witness.ts';
 import {createDartList} from '../../foundation/dart-mutable-list.ts';
-import {treeNodeType} from './tree-generic-witnesses.ts';
+import {treeNodeType} from './sliver-tree.generated.ts';
 import {SourceTreeSliverIndentationType} from '../rendering/sliver-tree.generated.ts';
 import {AnimationStyle} from '../animation/animation-style.ts';
 import {setTreeIdExpansion,treeIdIndex,reconcileTreeIds,treeFixedRowExtent} from './tree-sliver-facade.ts';

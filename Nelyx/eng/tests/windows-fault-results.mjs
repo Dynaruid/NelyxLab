@@ -1,5 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';import {createHash} from 'node:crypto';
+import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';import {createHash} from 'node:crypto';import {createRequire} from 'node:module';
+
+/** Map only this execution's reported Core build failures. This supplements
+ * the original failure and never turns a failed process into a qualification. */
+export function symbolizeWindowsJavaScript(output,bundle,runner){
+ const file=path.join(bundle,'input-surface.js.map');if(!fs.existsSync(file))return [];
+ const {TraceMap,originalPositionFor}=createRequire(path.join(runner,'package.json'))('@jridgewell/trace-mapping'),map=new TraceMap(JSON.parse(fs.readFileSync(file,'utf8'))),result=[],canonical=value=>process.platform==='win32'?path.resolve(value).toLowerCase():path.resolve(value),owned=canonical(path.join(bundle,'input-surface.js'));
+ for(const line of output.split('\n').filter(value=>value.startsWith('ANIMATION_JS CORE_FAILURE ')).slice(0,3)){
+  const failure=JSON.parse(line.slice('ANIMATION_JS CORE_FAILURE '.length));
+  for(const cause of (failure.causes??[]).slice(0,4)){
+   const frames=[];for(const stackLine of String(cause.stack??'').split('\n').slice(0,25)){
+    const position=stackLine.match(/(?:^|[\\/])input-surface\.js:(\d+):(\d+)\)?\s*$/);if(!position)continue;
+    const filename=stackLine.slice(stackLine.lastIndexOf('(')+1,position.index+1)+'input-surface.js';if(canonical(filename)!==owned)continue;
+    const line=Number(position[1]),column=Number(position[2]);if(!Number.isSafeInteger(line)||line<1||!Number.isSafeInteger(column)||column<1)continue;
+    frames.push({generated:{line,column},...originalPositionFor(map,{line,column:column-1})});
+   }
+   result.push({path:cause.path,message:cause.message,frames});
+  }
+ }
+ return result;
+}
 
 export function compactWindowsSymbols(records){
  return records.map(record=>{

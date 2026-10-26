@@ -98,6 +98,8 @@ export class SceneBuilder {
   pushTransform(matrix:readonly number[]|Float64Array,options:{readonly oldLayer?:TransformEngineLayer|null}={}):TransformEngineLayer{return this.push(new TransformEngineLayer(),canvas=>{if(!isIdentity(matrix))canvas.transform(matrix);},options.oldLayer??null);}
   /** Internal canvas scope, used when a recorded save/clip/effect surrounds real child layers. */
   _pushCommands(commands:readonly PaintCommand[],oldLayer:EngineLayer|null):EngineLayer{return this.push(new CanvasStateEngineLayer(),canvas=>canvas.addCommands(commands.filter(command=>command.op!=='transform'||!isIdentity(command.matrix))),oldLayer);}
+  /** A recording interleaves captured state with real retained children. */
+  _appendCanvasCommands(commands:readonly PaintCommand[]):void{this.current().canvas.addCommands(commands);}
   pushOpacity(alpha:number,options:{readonly offset?:Offset;readonly oldLayer?:OpacityEngineLayer|null}={}):OpacityEngineLayer{
     if(!(Number.isInteger(alpha)&&alpha>=0&&alpha<=255))invariant(false,'invalid-opacity','Layer alpha must be uint8');
     return this.push(new OpacityEngineLayer(),canvas=>{const offset=options.offset??{x:0,y:0};canvas.translate(offset.x,offset.y);canvas.saveLayer(null,new Paint({color:(alpha*0x1000000)>>>0}));},options.oldLayer??null);

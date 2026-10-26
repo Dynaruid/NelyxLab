@@ -37,7 +37,7 @@ class _SemanticsConfigurationProvider {
   constructor(private readonly renderObject:RenderObject){}
   get wasSemanticsBoundary():boolean{return this.originalConfiguration?.isSemanticBoundary??false;}
   get effective():SemanticsConfiguration{return this.effectiveConfiguration??this.original;}
-  get original():SemanticsConfiguration{if(this.originalConfiguration===null){this.effectiveConfiguration=this.originalConfiguration=new SemanticsConfiguration();this.renderObject.describeSemanticsConfiguration(this.originalConfiguration);check(!this.originalConfiguration.explicitChildNodes||this.originalConfiguration.childConfigurationsDelegate===null,'Explicit semantic children cannot have a child configuration delegate');}return this.originalConfiguration;}
+  get original():SemanticsConfiguration{if(this.originalConfiguration===null){const configuration=new SemanticsConfiguration();this.renderObject.describeSemanticsConfiguration(configuration);check(!configuration.explicitChildNodes||configuration.childConfigurationsDelegate===null,'Explicit semantic children cannot have a child configuration delegate');this.effectiveConfiguration=this.originalConfiguration=configuration;}return this.originalConfiguration;}
   private writableConfig():SemanticsConfiguration{if(!this.writable){this.effectiveConfiguration=this.original.copy();this.writable=true;}return this.effectiveConfiguration!;}
   updateConfig(callback:(config:SemanticsConfiguration)=>void):void{callback(this.writableConfig());}
   absorbAll(configs:Iterable<SemanticsConfiguration>):void{for(const child of configs)this.writableConfig().absorb(child);}
@@ -66,7 +66,7 @@ export function semanticsFor(render:RenderObject):_RenderObjectSemantics{const s
 export function existingSemanticsFor(render:RenderObject):_RenderObjectSemantics|undefined{const value=(render as unknown as SemanticsRender).childStore?.[fragmentSlot];return value?.renderObject===render?value:undefined;}
 
 export class _RenderObjectSemantics extends _SemanticsFragment {
-  private hasSiblingConflict=false;private blocksPreviousSibling:boolean|null=null;private containsIncompleteFragment=false;
+  private hasSiblingConflict=false;private blocksPreviousSibling:boolean|null=null;private containsIncompleteFragment=false;private pendingWasBoundary:boolean|undefined;
   built=false;cachedSemanticsNode:SemanticsNode|null=null;
   readonly semanticsNodes:SemanticsNode[]=[];readonly mergeUp:_SemanticsFragment[]=[];readonly childrenInSemanticsTree:_RenderObjectSemantics[]=[];readonly siblingMergeGroups:_SemanticsFragment[][]=[];
   private readonly producedSiblingNodesAndOwners=new Map<SemanticsNode,_SemanticsFragment[]>();
@@ -149,10 +149,13 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
   }
   private updateNodeGeometry():void{const node=this.cachedSemanticsNode!,geometry=this.geometry!;node.rect=geometry.rect;node.transform=geometry.transform;node.parentSemanticsClipRect=geometry.semanticsClipRect;node.parentPaintClipRect=geometry.paintClipRect;}
   private updateSiblingGeometries():void{const main=this.geometry!;for(const[node,group]of this.producedSiblingNodesAndOwners){let rect:Rect|null=null,semanticClip:Rect|null=null,paintClip:Rect|null=null;for(const fragment of group){if(fragment.owner.shouldFormSemanticsNode)continue;const geometry=_SemanticsGeometry.computeChildGeometry(main.transform,main.paintClipRect,main.semanticsClipRect,this,fragment.owner),local=geometry.semanticsClipRect?.intersect(rectValue(fragment.owner.renderObject.semanticBounds))??rectValue(fragment.owner.renderObject.semanticBounds),transformed=MatrixUtils.transformRect(geometry.transform,local);rect=unionRects(rect,transformed);if(geometry.semanticsClipRect!==null){const clip=MatrixUtils.transformRect(geometry.transform,geometry.semanticsClipRect);semanticClip=intersectRects(semanticClip,clip);}if(geometry.paintClipRect!==null){const clip=MatrixUtils.transformRect(geometry.transform,geometry.paintClipRect);paintClip=intersectRects(paintClip,clip);}}invariant(rect!==null,'missing-sibling-semantics-rect','Sibling nodes require fragment geometry');node.rect=rect;node.transform=null;node.parentSemanticsClipRect=semanticClip;node.parentPaintClipRect=paintClip;}}
-  markNeedsUpdate():void{
-    const pipeline=pipelineSemantics(this.renderObject.owner!);pipeline.geometryDirty.add(this.renderObject);
-    const produced=this.cachedSemanticsNode,wasBoundary=produced!==null&&this.configProvider.wasSemanticsBoundary;
+  invalidateConfiguration():void{
+    this.pendingWasBoundary??=this.cachedSemanticsNode!==null&&this.configProvider.wasSemanticsBoundary;
     this.configProvider.clear();this.containsIncompleteFragment=false;
+  }
+  applyPendingUpdate():void{
+    const pipeline=pipelineSemantics(this.renderObject.owner!);pipeline.geometryDirty.add(this.renderObject);
+    const produced=this.cachedSemanticsNode,wasBoundary=this.pendingWasBoundary??false;
     let sibling=this.configProvider.effective.childConfigurationsDelegate!==null,boundary=this.configProvider.effective.isSemanticBoundary&&wasBoundary,node=this.renderObject;
     // A fragment stays on its render owner's canonical table. Carry it while
     // walking the live parent links instead of looking it up for every test.
@@ -166,11 +169,12 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     if(node!==this.renderObject&&produced!==null&&semantics.parentDataDirty)pipeline.dirty.delete(this.renderObject);
     if(!semantics.parentDataDirty||semantics.isRoot){
       check(semantics.configProvider.effective.isSemanticBoundary||!node.parent,'Semantics update target must be a boundary or root');
-      if(!pipeline.dirty.has(node)){pipeline.dirty.add(node);this.renderObject.owner!.invalidate();}
+      pipeline.dirty.add(node);
     }
+    this.pendingWasBoundary=undefined;
   }
   private markConflicts(group:_SemanticsFragment[],mergeUp=false):void{let previous:Set<_RenderObjectSemantics>|undefined,conflicts:Set<_SemanticsFragment>|undefined;for(let i=0;i<group.length;i++){const fragment=group[i]!;if(fragment instanceof _RenderObjectSemantics&&fragment.hasSiblingConflict)(previous??=new Set()).add(fragment);fragment.markSiblingConfigurationConflict(false);const config=fragment.configToMergeUp;if(config===null)continue;if(mergeUp&&!this.configProvider.original.isCompatibleWith(config))(conflicts??=new Set()).add(fragment);for(let j=0;j<i;j++){const sibling=group[j]!;if(!config.isCompatibleWith(sibling.configToMergeUp)){(conflicts??=new Set()).add(fragment);conflicts.add(sibling);}}}if(conflicts)for(const fragment of conflicts){fragment.markSiblingConfigurationConflict(true);if(fragment instanceof _RenderObjectSemantics&&!previous?.delete(fragment))fragment.markNeedsBuild();}if(previous)for(const fragment of previous)fragment.markNeedsBuild();}
-  clear():void{const pipeline=this.renderObject.owner;if(pipeline)existingPipelineSemantics(pipeline)?.transportSources.delete(this.renderObject);this.built=false;this.cachedSemanticsNode=null;this.parentData=null;this.geometry=null;this.blocksPreviousSibling=null;this.containsIncompleteFragment=false;this.mergeUp.length=0;this.siblingMergeGroups.length=0;this.childrenInSemanticsTree.length=0;this.semanticsNodes.length=0;this.configProvider.clear();}
+  clear():void{const pipeline=this.renderObject.owner;if(pipeline)existingPipelineSemantics(pipeline)?.transportSources.delete(this.renderObject);this.built=false;this.cachedSemanticsNode=null;this.parentData=null;this.geometry=null;this.blocksPreviousSibling=null;this.containsIncompleteFragment=false;this.pendingWasBoundary=undefined;this.mergeUp.length=0;this.siblingMergeGroups.length=0;this.childrenInSemanticsTree.length=0;this.semanticsNodes.length=0;this.configProvider.clear();}
   override debugDescribeChildren():readonly DiagnosticsNode[]{return this.childrenInSemanticsTree.map(child=>child.toDiagnosticsNode());}
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new StringProperty('owner',describeIdentity(this.renderObject)));properties.add(new FlagProperty('noParentData',this.parentDataDirty,{ifTrue:'NO PARENT DATA'}));properties.add(new FlagProperty('geometry',this.geometryDirty,{ifTrue:'NO GEOMETRY'}));properties.add(new FlagProperty('semanticsBlock',this.configProvider.effective.isBlockingSemanticsOfPreviouslyPaintedNodes,{ifTrue:'BLOCK PREVIOUS'}));if(!this.parentDataDirty&&this.contributesToSemanticsTree)properties.add(new StringProperty('formedSemanticsNode',this.built?'formed '+(this.cachedSemanticsNode?.id??'null'):this.shouldFormSemanticsNode?'needs build':'no semantics node',{quoted:false}));properties.add(new FlagProperty('isSemanticBoundary',this.configProvider.effective.isSemanticBoundary,{ifTrue:'semantic boundary'}));properties.add(new FlagProperty('blocksSemantics',this.isBlockingPreviousSibling,{ifTrue:'BLOCKS SEMANTICS'}));if(this.contributesToSemanticsTree&&this.siblingMergeGroups.length)properties.add(new StringProperty('Sibling group',String(this.siblingMergeGroups),{quoted:false}));}
 }
@@ -221,12 +225,13 @@ export function existingPipelineSemantics(owner:PipelineOwner):RenderSemanticsPi
 export class RenderSemanticsPipeline {
   /** Render fragments with a produced node; detached trees never stay in the transport index. */
   readonly transportSources=new Set<RenderObject>();
-  owner:SemanticsOwner|null=null;readonly dirty=new Set<RenderObject>();readonly geometryDirty=new Set<RenderObject>();private readonly deferredGeometry=new Set<RenderObject>();private readonly offsetDirty=new Set<RenderObject>();private flushing=false;
+  owner:SemanticsOwner|null=null;readonly dirty=new Set<RenderObject>();readonly geometryDirty=new Set<RenderObject>();private readonly pendingConfigurations=new Set<RenderObject>();private readonly deferredGeometry=new Set<RenderObject>();private readonly offsetDirty=new Set<RenderObject>();private flushing=false;
   constructor(private readonly pipeline:PipelineOwner){}
+  get hasConfigurationChanges():boolean{return this.pendingConfigurations.size>0||this.dirty.size>0;}
   /** @internal Read before flushing; transport metadata may change even when
    * its source annotation has the same serialized values. */
   get hasPendingChanges():boolean{
-    if(this.dirty.size>0||this.geometryDirty.size>0||this.owner?.hasPendingUpdates===true)return true;
+    if(this.pendingConfigurations.size>0||this.dirty.size>0||this.geometryDirty.size>0||this.owner?.hasPendingUpdates===true)return true;
     // Deferred fragments outside the current semantic tree cannot affect its
     // transport snapshot until they are ready. Keep them for the normal flush;
     // offsetDirty is provenance for that geometry work, not another work queue.
@@ -234,14 +239,29 @@ export class RenderSemanticsPipeline {
     return false;
   }
   enable(options:SemanticsOwnerOptions,scheduleRoot=true):void{invariant(this.owner===null,'duplicate-semantics-owner','Semantics owner is already enabled');this.owner=new SemanticsOwner(options);const root=this.pipeline.rootNode;if(root&&scheduleRoot){root.clearSemantics();root.scheduleInitialSemantics();}}
-  disable():void{const owner=this.owner;if(owner===null)return;this.owner=null;const errors:unknown[]=[];for(const run of [()=>owner.rootSemanticsNode?.detach(),()=>this.pipeline.rootNode?.clearSemantics(),()=>owner.dispose()])try{run();}catch(error){errors.push(error);}this.transportSources.clear();this.dirty.clear();this.geometryDirty.clear();this.deferredGeometry.clear();this.offsetDirty.clear();if(errors.length)throw new AggregateError(errors,'Semantics owner retirement failed');}
-  rootChanged(previous:RenderObject|undefined,current:RenderObject|undefined):void{if(this.owner===null)return;this.transportSources.clear();if(previous){this.owner.rootSemanticsNode?.detach();previous.clearSemantics();}if(current){current.clearSemantics();this.dirty.add(current);this.geometryDirty.add(current);}}
-  detached(render:RenderObject):void{this.transportSources.delete(render);this.dirty.delete(render);this.geometryDirty.delete(render);this.deferredGeometry.delete(render);this.offsetDirty.delete(render);}
+  disable():void{const owner=this.owner;if(owner===null)return;this.owner=null;const errors:unknown[]=[];for(const run of [()=>owner.rootSemanticsNode?.detach(),()=>this.pipeline.rootNode?.clearSemantics(),()=>owner.dispose()])try{run();}catch(error){errors.push(error);}this.transportSources.clear();this.pendingConfigurations.clear();this.dirty.clear();this.geometryDirty.clear();this.deferredGeometry.clear();this.offsetDirty.clear();if(errors.length)throw new AggregateError(errors,'Semantics owner retirement failed');}
+  rootChanged(previous:RenderObject|undefined,current:RenderObject|undefined):void{if(this.owner===null)return;this.transportSources.clear();this.pendingConfigurations.clear();if(previous){this.owner.rootSemanticsNode?.detach();previous.clearSemantics();}if(current){current.clearSemantics();this.dirty.add(current);this.geometryDirty.add(current);}}
+  detached(render:RenderObject):void{this.transportSources.delete(render);this.pendingConfigurations.delete(render);this.dirty.delete(render);this.geometryDirty.delete(render);this.deferredGeometry.delete(render);this.offsetDirty.delete(render);}
+  requestUpdate(render:RenderObject):void{
+    invariant(!this.flushing,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');
+    const state=existingSemanticsFor(render);state?.invalidateConfiguration();this.pendingConfigurations.add(render);
+    // A caller may enable semantics after attaching the root. Its first
+    // invalidation still has to admit that unvisited tree's initial commit.
+    if(!state){const root=this.pipeline.rootNode;if(root&&!existingSemanticsFor(root)){this.dirty.add(root);this.geometryDirty.add(root);}}
+  }
   offsetChanged(render:RenderObject):void{this.geometryDirty.add(render);this.offsetDirty.add(render);}
   flush():void{
     const owner=this.owner;if(owner===null)return;invariant(!this.flushing,'reentrant-semantics-flush','Cannot flush semantics recursively');this.flushing=true;geometryPaths.set(this.pipeline,new Map());
+    let nodes:RenderObject[]=[];
     try{
-      const nodes=[...this.dirty].filter(node=>!node.needsLayout&&node.owner===this.pipeline).sort((a,b)=>a.depth-b.depth);this.dirty.clear();const root=this.pipeline.rootNode;for(const node of nodes){const semantics=semanticsFor(node);if(!semantics.parentDataDirty)semantics.updateChildren();}
+      for(const render of this.pendingConfigurations){
+        if(render.owner!==this.pipeline){this.pendingConfigurations.delete(render);continue;}
+        if(render.needsLayout)continue;
+        // Unvisited new fragments are collected by their parent's structural
+        // update. Hidden/private render children need no fragment at all.
+        existingSemanticsFor(render)?.applyPendingUpdate();this.pendingConfigurations.delete(render);
+      }
+      nodes=[...this.dirty].filter(node=>!node.needsLayout&&node.owner===this.pipeline).sort((a,b)=>a.depth-b.depth);this.dirty.clear();const root=this.pipeline.rootNode;for(const node of nodes){const semantics=semanticsFor(node);if(!semantics.parentDataDirty)semantics.updateChildren();}
       if(FoundationBuildMode.debug){check(nodes.length===0||root!==undefined,'Semantic updates need a render root');if(root)_RenderObjectSemantics.debugCheckForParentData(root);}
       for(const node of this.deferredGeometry)this.geometryDirty.add(node);this.deferredGeometry.clear();const geometry:RenderObject[]=[];
       for(const node of this.geometryDirty){if(node.needsLayout||node.owner!==this.pipeline)continue;if(semanticsFor(node).parentDataDirty){this.deferredGeometry.add(node);continue;}geometry.push(node);}this.geometryDirty.clear();
@@ -260,6 +280,7 @@ export class RenderSemanticsPipeline {
       // when there were no configuration updates in this flush.
       for(const target of moved)assemble(target);
       if(FoundationBuildMode.debug&&root)_RenderObjectSemantics.debugCheckForBuilds(semanticsFor(root));owner.sendSemanticsUpdate();this.pipeline.visitChildren(child=>child.flushSemantics());check(this.dirty.size===0,'Child PipelineOwners must not dirty nodes in their parent');check(this.geometryDirty.size===0,'Child PipelineOwners must not dirty geometry in their parent');
-    }finally{geometryPaths.delete(this.pipeline);this.flushing=false;}
+    }catch(error){for(const node of nodes)if(node.owner===this.pipeline)this.dirty.add(node);throw error;}
+    finally{geometryPaths.delete(this.pipeline);this.flushing=false;}
   }
 }
