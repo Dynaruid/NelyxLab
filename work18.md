@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 주 수락 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / 실제 Testbed 앱**
 
-> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 제품 공급·정상 시작/종료는 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
+> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.60, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
 
 **W18은 기존 구조의 작은 최적화를 이어 붙이는 작업이 아니라, Nelyx가 상태·트리·레이아웃·텍스트·scene·자원을 보유하고 갱신하는 기반을 다시 만드는 작업이다.** TypeScript로 앱과 Widget·State를 작성하는 제품 방향, Nelyx 자체 콘텐츠 레이아웃, Hermes 기본 엔진 방향은 유지한다. 내부 클래스 구조·저장 방식·모듈·native ABI·공급 방식은 교체할 수 있다. 기존 소스와 API를 모두 그대로 보존하는 것을 개편의 전제로 삼지 않는다.
 
@@ -1034,6 +1034,20 @@ Web check/build JS `4d55cb4989eb1e4e302c1314d9cf9e23faa86a284c0bc25fbabb11583712
 설치 CLI native/RNW doctor2개도 통과했으며 RNW 입력은 `1d0dcbc1ba296e975c885bdc697b6e6c8580be3ba81e67d37a54e379af98e40f`/1795files다. 이 공급에서 추가 desktop 입력을 주입하지 않았고 최신 외부 focus/range UIA는 §8.57의4회로 유지한다. 새 ZIP round-trip은 §8.57 실행 거부 뒤 재시도하지 않아 notVerified이며 이전 검증 EXE/obj 삭제 거부도 그대로다.
 
 **다음 구현 경계:** FrameworkRoot.frameSubmitted()가 아직 scheduler의 first-frame marker만 갱신하는 경로와 ViewRuntime의 실제 accepted token을 대조해 text/layout/query의 논리 geometry·frame/surface 연관을 명시한다. GPU busy/zero-size에서 강제 논리 geometry를 허용하는 기존 계약은 보존한다. retained scene·남은7 runtime SCC·공통 SDK async startup/close·전체 catalog/확장점·RNW AV/VM PC·R0~R7 성능/메모리/물리 수락은 남는다. 기본 RNW/Hermes optimized와 전체 **IN_PROGRESS / PARTIAL**을 유지한다.
+
+### 8.60 PASS-scoped — All components elevated 카드의 native 그림자 깜빡임
+
+2026-10-26 별도 버그 수정 요청으로 HEAD `f21660d`의 clean tree에서 시작했다. All components의445.5×119·radius12·elevation1 카드가 DPR2에서 이동할 때 Skia spot shadow가 특정 소수점 좌표에서 누락됐다. 실제 Vulkan 검사의 정수 좌표 shadow contribution100,516이 y423.69에서5,828, y394.497에서6,343으로 줄었으며, 직접 그리기와 RTree Picture 재사용 모두 같은 회귀를 보였다. Core의 카드 geometry·elevation·그림자 명령은 유지됐다. cache 비활성화·occluder flag 변경은 해결하지 못했고 채택하지 않았다.
+
+공통 [`drawShadow`](Nelyx/skia/native/core/core.cpp)의 Graphite 경로에 `GetLocalBounds`로 계산한 임시 layer를 두어 그림자를 가까운 device origin에서 그린다. 불변 identity color filter 하나를 CPU 객체로 공유해 색을 유지하면서 SkPicture 최적화가 이 layer를 제거하지 못하게 했다. elevation·DPR·색·transparentOccluder 계약과 canvas save/restore를 보존한다. 추가 layer는 해당 Graphite recorder/recording의 자원이며 기존 GPU retirement로 회수한다. 이 추가 작업의 성능·메모리 증감은 이번에 측정하지 않았다.
+
+[`native-hermes-host.cpp`](Nelyx/eng/tests/native-hermes-host.cpp)에 DPR1/2×직접/RTree×6좌표의24개 실제 GPU 회귀를 남겼다. fill-only 픽셀을 빼고 같은 카드의 정수 위치를 기준으로 dropout·overshoot를 검사한다. 수정 전8조건 실패를 확인했고, 새 공급의 전체 native VM·23opcode 픽셀/원자 거부·GPU drain·UIA 계약 검사와 함께 통과했다(빌드 포함69,521ms). 관련 packet/replay/native source 공급 회귀22개도 통과했다. 실제 All components 앱의 별도24좌표 readback은 수정 전 외곽 RGB contribution 최소16,197에서 수정 후279,394~308,814(정수 기준279,394)로 유지됐다. 이 readback은 물리 scanout이나 프레임 성능 수락이 아니다.
+
+Windows runner의 Skia native/RN archive를 각각 `138cd8e8851afa34eed66c7584d4ed24b9a6ddc68f979956b2dc7d8c439d90cf` / `c08840d53c8fa79ec4df0223e9f0a9b8a2b2026e6dd9bd567cec052b47544c5d`로 공급·실제 설치했다. 원본·두 생성물·두 실제 설치의 `core.cpp` SHA-256은 모두 `fa4549b373245edfaad55b373fafda027f8c914080b250f7ca373b21c1999d73`다. 현재 두 제품의 native source digest는 `3005ceabc1bca7c301089dc5e1433f3b1b81679709c12e30833cf1a0179b2ac9`, host EXE는 `6e435b7ccac4ce981bc276eb481fc7dffe9c5f21da85781d701d044f33ec3403`이다. pinned VM/Skia 입력과 Core/SDK/Material 소스는 이전 공급을 유지한다.
+
+bytecode30,050ms/153files/HBC `7b67da5e49733fa22440cecc7ee33d91721afeae6283c0a27fdb7fbd090f6087`, Static62,314ms/156files/DLL `0c97a0b4f3ed6ba8687bab4655f5cc653153bc729b4f4309c18e06fece96d8ca`를 빌드했다. Static은 두 C unit을 재사용하고 image를 재링크했으며 nativeFunctions37,186·app.hbc 없음이다. 두 실제 제품 모두 FIRST_FRAME·창 title·Responding=true·surface5·exit0/forced=false/error=null/stderr 없음, loaded79/80·noRN/noNodeAPIJSI를 확인했다. 기존 두 `run -- --host native-hermes --hermes-mode bytecode|static-aot` 명령으로 갱신된 제품을 실행할 수 있다.
+
+진단 전용 entry/package는 실행별 finally에서 정리했고 루트 임시 helper 두 개도 삭제했다. 검증·공급 갱신은 Windows 직접 host 두 모드 범위다. 외부 입력 UIA·ZIP과 다른 플랫폼의 새 native 변경 실행은 이번에 추가 검증하지 않았다. W18의 다음 구현 경계와 전체 **IN_PROGRESS / PARTIAL**, `performanceAccepted=false`·물리 입력/display 미수락은 유지한다.
 
 ## 9. 공식 원본과 적용 범위
 

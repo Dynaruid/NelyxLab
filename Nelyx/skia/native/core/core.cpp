@@ -6,6 +6,7 @@
 #include <vector>
 #include "include/core/SkMatrix.h"
 #include "include/core/SkM44.h"
+#include "include/core/SkColorFilter.h"
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPoint3.h"
 #include "include/utils/SkShadowUtils.h"
@@ -38,6 +39,22 @@ void drawShadow(SkCanvas& canvas,const SkPath& path,SkColor color,float elevatio
   const auto alpha=SkColorGetA(color);SkColor ambient,spot;
   SkShadowUtils::ComputeTonalColors(SkColorSetA(color,0.039f*alpha),SkColorSetA(color,0.25f*alpha),&ambient,&spot);
   uint32_t flags=SkShadowFlags::kDirectionalLight_ShadowFlag;if(transparentOccluder)flags|=SkShadowFlags::kTransparentOccluder_ShadowFlag;
+  SkAutoCanvasRestore restore(&canvas,false);
+#if defined(SK_GRAPHITE)
+  // The pinned Graphite shadow tessellation drops the spot component at some
+  // fractional device translations (e.g. a 445.5x119 card at DPR2, y423.69).
+  // A bounded layer keeps tessellation near the shadow's own device origin.
+  // Its identity filter preserves colours and prevents SkPicture optimization
+  // from removing the layer when this call is recorded for later replay.
+  if(alpha&&elevation>0){
+    SkRect bounds;
+    if(SkShadowUtils::GetLocalBounds(canvas.getTotalMatrix(),path,SkPoint3::Make(0,0,dpr*elevation),SkPoint3::Make(0,-1,1),800.0f/600.0f,flags,&bounds)&&bounds.isFinite()){
+      static const auto identity=[](){const float matrix[]{1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0};return SkColorFilters::Matrix(matrix);}();
+      if(!identity)throw std::runtime_error("shadow layer identity filter unavailable");
+      SkPaint layer;layer.setColorFilter(identity);canvas.saveLayer(&bounds,&layer);
+    }
+  }
+#endif
   SkShadowUtils::DrawShadow(&canvas,path,SkPoint3::Make(0,0,dpr*elevation),SkPoint3::Make(0,-1,1),800.0f/600.0f,ambient,spot,flags);
 }
 void drawImage(SkCanvas& canvas,const sk_sp<SkImage>& image,const SkRect& destination) {if(!image)throw std::runtime_error("missing image");canvas.drawImageRect(image,destination,SkSamplingOptions(SkFilterMode::kLinear));}

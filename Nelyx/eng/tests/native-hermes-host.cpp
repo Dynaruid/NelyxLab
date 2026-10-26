@@ -167,6 +167,60 @@ static void displayListParity(jsi::Runtime& rt,std::shared_ptr<RNSkia::RNSkPlatf
 }
 class Scheduler final:public nelyx::host::RuntimeScheduler{public:jsi::Runtime* runtime=nullptr;void invokeSync(nelyx::host::RuntimeTask&& task)override{task(*runtime);}void invokeAsync(nelyx::host::RuntimeTask&&)override{throw std::runtime_error("Unexpected asynchronous test work");}};
 static jsi::Value packet(jsi::Runtime& rt,std::vector<double> const& words){auto object=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(words.size()*8)).getObject(rt);auto buffer=object.getArrayBuffer(rt);memcpy(buffer.data(rt),words.data(),words.size()*8);return jsi::Value(std::move(object));}
+static void scrollingShadowChecks(std::shared_ptr<RNSkia::RNSkPlatformContext> context){
+  const auto rounded=SkRRect::MakeRectXY(SkRect::MakeXYWH(0,0,445.5f,119),12,12);
+  SkPathBuilder builder;builder.addRRect(rounded);const auto path=builder.detach();
+  SkPaint fill;fill.setAntiAlias(true);fill.setColor(0xffeeeeee);
+  auto deferred=context->getGpuContext().makeRecorder();
+  bool shadowsPresent=true;
+  // Actual All components card geometry. At DPR2 the pinned Skia shadow lost
+  // over 90% of its pixels at these fractional scroll positions. The reference
+  // permits normal pixel-phase coverage changes while detecting dropout and
+  // overshoot. Subtracting the fill-only render excludes edge antialiasing.
+  for(float dpr:{1.f,2.f})for(bool retained:{false,true}){
+    unsigned reference=0;
+    for(float y:{321.f,423.69f,394.497f,345.842f,320.25f,511.269f}){
+      std::vector<SkColor> baseline(2048*1440);unsigned mass=0;
+      for(bool shadow:{false,true}){
+        // A fresh surface avoids reading a previous snapshot after external
+        // deferred replay; its own initialization must precede that replay.
+        auto surface=context->makeOffscreenSurface(2048,1440);require(bool(surface),"Shadow GPU surface missing");
+        const auto paint=[&](SkCanvas* canvas){if(shadow)nelyx::skia_core::drawShadow(*canvas,path,SK_ColorBLACK,1,false,dpr);canvas->drawRRect(rounded,fill);};
+        auto canvas=deferred->makeDeferredCanvas(surface->imageInfo(),context->getGpuContext().textureInfo(surface->imageInfo().colorType()));
+        require(canvas,"Deferred shadow canvas missing");canvas->clear(SK_ColorWHITE);canvas->save();canvas->scale(dpr,dpr);canvas->translate(268,y);
+        if(retained){
+          auto recorder=std::make_shared<RNSkia::JsiSkPictureRecorder>(context);
+          auto recordingCanvas=recorder->beginRecording(std::make_shared<SkRect>(SkRect::MakeLTRB(SK_ScalarMin,SK_ScalarMin,SK_ScalarMax,SK_ScalarMax)))->getCanvas();
+          paint(recordingCanvas);
+          // Keep this above SkPicture's small-picture inline threshold so the
+          // actual RTree replay and picture optimizations are exercised.
+          for(int i=0;i<64;++i)recordingCanvas->drawRect(SkRect::MakeXYWH(4000+i*4,4000,1,1),fill);
+          canvas->drawPicture(recorder->finishRecordingAsPicture()->getObject());
+        }else paint(canvas);
+        canvas->restore();auto frame=deferred->snap(),initial=surface->recorder()->snap();
+        if(initial)context->getGpuContext().submitRecording(initial.get());
+        require(frame&&context->getGpuContext().insertRecordings({frame.get()},surface.get()),"Deferred shadow recording rejected");
+        auto image=surface->makeImageSnapshot();auto recording=surface->recorder()->snap();
+        if(recording)context->getGpuContext().submitRecording(recording.get());
+        auto raster=context->getGpuContext().MakeRasterImage(image);SkPixmap pixels;
+        require(raster&&raster->peekPixels(&pixels),"Shadow GPU readback missing");
+        require(pixels.getColor(int(288*dpr),int((y+30)*dpr))==0xffeeeeee,"Deferred card fill did not reach the readback surface");
+        for(int row=0;row<1440;++row)for(int x=0;x<2048;++x){
+          const auto index=row*2048+x;const auto color=pixels.getColor(x,row);
+          if(!shadow)baseline[index]=color;
+          else if(SkColorGetR(baseline[index])>SkColorGetR(color))mass+=SkColorGetR(baseline[index])-SkColorGetR(color);
+        }
+      }
+      if(y==321)reference=mass;
+      const bool stable=reference>0&&mass*2>=reference&&mass*2<=reference*3;
+      if(!stable)std::cerr<<"Unstable shadow dpr="<<dpr<<" retained="<<retained<<" y="<<y<<" mass="<<mass<<" reference="<<reference<<'\n';
+      shadowsPresent=shadowsPresent&&stable;
+    }
+  }
+  deferred.reset();require(context->getGpuContext().retireWork(),"Shadow GPU work did not drain");
+  require(shadowsPresent,"Scrolling card shadow disappeared from the actual Vulkan surface");
+  std::cout<<"PASS 24 actual Vulkan card shadow positions, DPR1/2 and retained RTree pictures preserve fractional scrolling without shadow dropout; GPU work drains\n";
+}
 static void recordingLifetime(jsi::Runtime& rt,std::shared_ptr<Scheduler> scheduler){
   RNSkia::VulkanPlatformServices services;services.fontManager=[](){return SkFontMgr_New_DirectWrite();};services.dispatchToMain=[](auto task){task();};services.reportError=[](auto const& error){throw std::runtime_error(error.what());};services.stream=[](auto const&,auto const&){throw std::runtime_error("Unexpected recording fixture stream");};services.screenshot=[](size_t){return sk_sp<SkImage>{};};services.createDevice=[](){return std::make_shared<nelyx::vulkan::Device>();};
   auto scope=std::make_unique<RNSkia::RNSkVulkanRuntime>(rt,scheduler,1,std::move(services),[]{});
@@ -175,7 +229,7 @@ static void recordingLifetime(jsi::Runtime& rt,std::shared_ptr<Scheduler> schedu
   auto wrapper=std::make_shared<RNSkia::JsiSkGraphiteContext>(scope->getPlatformContext(),target);auto canvas=wrapper->beginRecording();std::weak_ptr<RNSkia::JsiSkCanvas> borrowed=canvas;canvas.reset();rt.instrumentation().collectGarbage("native-display-list-lifetime");
   require(!borrowed.expired(),"An open native recording lost its canvas to JS liveness/GC");
   jsi::Value args[]{packet(rt,{0x4e4c444c,1,1,0,22,9,0,0,0,32,32,0,0,0xff123456,1}),jsi::Value(jsi::Array(rt,0))};wrapper->nelyxReplayDisplayList(rt,jsi::Value::undefined(),args,2);
-  auto recording=wrapper->finishRecording();require(borrowed.expired(),"Snapped canvas wrapper was retained after its native recording");recording.reset();wrapper->nelyxClose();wrapper->nelyxReset();wrapper.reset();target.reset();scope->close(rt);scope.reset();
+  auto recording=wrapper->finishRecording();require(borrowed.expired(),"Snapped canvas wrapper was retained after its native recording");recording.reset();wrapper->nelyxClose();wrapper->nelyxReset();wrapper.reset();target.reset();scrollingShadowChecks(scope->getPlatformContext());scope->close(rt);scope.reset();
   std::cout<<"PASS actual Vulkan recording keeps its canvas through forced Hermes GC and releases it at snap/drain\n";
 }
 int main(int count,char** args){try{
