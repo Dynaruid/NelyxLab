@@ -10,10 +10,69 @@
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPoint3.h"
 #include "include/utils/SkShadowUtils.h"
+#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+#include "include/core/SkVertices.h"
+#include "include/utils/SkPaintFilterCanvas.h"
+#include "src/core/SkCanvasPriv.h"
+#include "src/core/SkColorFilterPriv.h"
+#include "src/core/SkDevice.h"
+#include "src/core/SkDrawShadowInfo.h"
+#include "src/utils/SkShadowTessellator.h"
+#endif
 #include "paint_effects.h"
 #include <unordered_map>
 
 namespace nelyx::skia_core {
+#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+namespace {
+bool drawStableShadow(SkCanvas& canvas,const SkPath& path,const SkDrawShadowRec& rec) {
+  if(!canvas.recorder())return false;
+  auto* device=SkCanvasPriv::TopDevice(&canvas);const auto matrix=device->localToDevice();
+  if(matrix.hasPerspective()||!(rec.fFlags&SkShadowFlags::kDirectionalLight_ShadowFlag)||
+     rec.fZPlaneParams.fX!=0||rec.fZPlaneParams.fY!=0||!rec.fZPlaneParams.isFinite()||
+     !rec.fLightPos.isFinite()||!std::isfinite(rec.fLightRadius)||
+     ((rec.fFlags&SkShadowFlags::kConcaveBlurOnly_ShadowFlag)&&!path.isConvex()))return false;
+  // The pinned Skia directional spot tessellator includes the device translation
+  // in its polygon/umbra calculations. Fractional scrolling changes the mesh
+  // (or makes it fail) even inside a layer, particularly for wide cards. Light
+  // direction and a flat Z plane are translation invariant: tessellate without
+  // translation, then place the mesh with that exact, unsnapped translation.
+  auto neutral=matrix;neutral.setTranslateX(0);neutral.setTranslateY(0);
+  sk_sp<SkVertices> spot;
+  if(SkColorGetA(rec.fSpotColor)){
+    spot=SkShadowTessellator::MakeSpot(path,neutral,rec.fZPlaneParams,rec.fLightPos,rec.fLightRadius,
+      (rec.fFlags&SkShadowFlags::kTransparentOccluder_ShadowFlag)!=0,true);
+    if(!spot)return false;
+  }
+  // Skia already generates the ambient mesh without translation.
+  SkShadowUtils::DrawShadow(&canvas,path,rec.fZPlaneParams,rec.fLightPos,rec.fLightRadius,
+    rec.fAmbientColor,SK_ColorTRANSPARENT,rec.fFlags);
+  if(spot){
+    SkAutoCanvasRestore restore(&canvas,true);
+    const auto placement=device->deviceToGlobal()*SkM44::Translate(matrix.getTranslateX(),matrix.getTranslateY());
+    canvas.setMatrix(placement);
+    SkPaint paint;paint.setColorFilter(SkColorFilters::Blend(rec.fSpotColor,SkBlendMode::kModulate)->makeComposed(SkColorFilterPriv::MakeGaussian()));
+    canvas.drawVertices(spot,SkBlendMode::kDst,paint);
+  }
+  return true;
+}
+// Keep shadows as native shadow commands in retained pictures. Resolve their
+// mesh at replay, when the complete parent transform and clip are available.
+class ShadowReplayCanvas final:public SkPaintFilterCanvas {
+  SkCanvas& target;
+public:
+  explicit ShadowReplayCanvas(SkCanvas& canvas):SkPaintFilterCanvas(&canvas),target(canvas){}
+protected:
+  bool onFilter(SkPaint&)const override{return true;}
+  void onDrawPicture(const SkPicture* picture,const SkMatrix* matrix,const SkPaint* paint)override{
+    SkCanvas::onDrawPicture(picture,matrix,paint);
+  }
+  void onDrawShadowRec(const SkPath& path,const SkDrawShadowRec& rec)override{
+    if(!drawStableShadow(target,path,rec))SkNWayCanvas::onDrawShadowRec(path,rec);
+  }
+};
+}
+#endif
 uint32_t abiVersion() noexcept { return 1; }
 uint32_t frameWireVersion() noexcept { return 11; }
 sk_sp<SkRuntimeEffect> RuntimeProgramCache::get(const std::string& source) {
@@ -39,23 +98,19 @@ void drawShadow(SkCanvas& canvas,const SkPath& path,SkColor color,float elevatio
   const auto alpha=SkColorGetA(color);SkColor ambient,spot;
   SkShadowUtils::ComputeTonalColors(SkColorSetA(color,0.039f*alpha),SkColorSetA(color,0.25f*alpha),&ambient,&spot);
   uint32_t flags=SkShadowFlags::kDirectionalLight_ShadowFlag;if(transparentOccluder)flags|=SkShadowFlags::kTransparentOccluder_ShadowFlag;
-  SkAutoCanvasRestore restore(&canvas,false);
-#if defined(SK_GRAPHITE)
-  // The pinned Graphite shadow tessellation drops the spot component at some
-  // fractional device translations (e.g. a 445.5x119 card at DPR2, y423.69).
-  // A bounded layer keeps tessellation near the shadow's own device origin.
-  // Its identity filter preserves colours and prevents SkPicture optimization
-  // from removing the layer when this call is recorded for later replay.
-  if(alpha&&elevation>0){
-    SkRect bounds;
-    if(SkShadowUtils::GetLocalBounds(canvas.getTotalMatrix(),path,SkPoint3::Make(0,0,dpr*elevation),SkPoint3::Make(0,-1,1),800.0f/600.0f,flags,&bounds)&&bounds.isFinite()){
-      static const auto identity=[](){const float matrix[]{1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0};return SkColorFilters::Matrix(matrix);}();
-      if(!identity)throw std::runtime_error("shadow layer identity filter unavailable");
-      SkPaint layer;layer.setColorFilter(identity);canvas.saveLayer(&bounds,&layer);
-    }
+  const auto height=SkPoint3::Make(0,0,dpr*elevation),light=SkPoint3::Make(0,-1,1);
+#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+  if(alpha&&elevation>0&&drawStableShadow(canvas,path,{height,light,800.0f/600.0f,ambient,spot,flags}))return;
+#endif
+  SkShadowUtils::DrawShadow(&canvas,path,height,light,800.0f/600.0f,ambient,spot,flags);
+}
+void drawPicture(SkCanvas& canvas,const sk_sp<SkPicture>& picture) {
+#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+  if(canvas.recorder()){
+    SkAutoCanvasRestore restore(&canvas,true);ShadowReplayCanvas replay(canvas);replay.drawPicture(picture);return;
   }
 #endif
-  SkShadowUtils::DrawShadow(&canvas,path,SkPoint3::Make(0,0,dpr*elevation),SkPoint3::Make(0,-1,1),800.0f/600.0f,ambient,spot,flags);
+  canvas.drawPicture(picture);
 }
 void drawImage(SkCanvas& canvas,const sk_sp<SkImage>& image,const SkRect& destination) {if(!image)throw std::runtime_error("missing image");canvas.drawImageRect(image,destination,SkSamplingOptions(SkFilterMode::kLinear));}
 void drawImageRect(SkCanvas& canvas,const sk_sp<SkImage>& image,const SkRect& source,const SkRect& destination,const SkSamplingOptions& sampling,const SkPaint* paint,SkCanvas::SrcRectConstraint constraint) {if(!image)throw std::runtime_error("missing image");canvas.drawImageRect(image,source,destination,sampling,paint,constraint);}
@@ -115,7 +170,7 @@ void replayFrame(SkCanvas& canvas,const uint8_t* bytes,size_t length,FrameResour
   canvas.restoreToCount(1);canvas.save();canvas.scale(scale,scale);SkPaint legacy,paint;legacy.setAntiAlias(true);paint.setAntiAlias(true);
   try {for(uint32_t i=0;i<count;++i){const auto command=bytes+64+static_cast<size_t>(i)*48;const auto op=u32(command),flags=u32(command+32);legacy.setColor(u32(command+4));
     switch(op){
-      case 35:canvas.drawPicture(pictures.at(i));break;
+      case 35:drawPicture(canvas,pictures.at(i));break;
       case 1:canvas.clear(u32(command+4));break;
       case 2:canvas.save();break;
       case 3:canvas.restore();break;

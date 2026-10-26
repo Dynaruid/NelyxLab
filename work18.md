@@ -2,7 +2,7 @@
 
 작성일: **2026-10-25 KST** · 주 수락 대상: **Windows x64 Release / Hermes bytecode·Static Hermes / 실제 Testbed 앱**
 
-> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.60, 웹 viewport 수정은 §8.61, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
+> **실행 IN_PROGRESS · 구현 PARTIAL · 제품 PARTIAL · performanceAccepted=false · physicalInputAccepted=notVerified · displayed=unobserved.** 2026-10-26 전체 작업 요청으로 재개했다. 현재 Windows native 제품·카드 그림자 수정은 §8.62(이전 두 열 검증 §8.60), 웹 viewport 수정은 §8.61, Core/SDK·영향 플랫폼 공급은 §8.59, 마지막 외부 입력 UIA는 §8.57이다. 새 Core source §8.58의882개 회귀와 §8.59 제품/플랫폼 검증이 통과했으며 새 공급의 외부 입력 UIA는 미검증이다. 새 공급의 ZIP round-trip과 전체 제품 수락은 아직 완료되지 않았다. View 제출/close·문단 nominal 경계에 이어 §8.54의 같은 View 입력/query admission과 실제 SDK 종료 소비를 구현·검증했으며, 다음 구현 경계와 미수락 범위는 §8.58/8.59를 따른다. 시작 HEAD `76ca0f145b7a1ea7c22b265fcbec4a70ff446368`와 clean baseline을 확인했고 이전 일회성 정리 스크립트는 디스크에 없다. Nelyx 기반 개편의 유일한 현행 계획은 이 문서이며 [W17](work17.md)은 **CLOSED / SUPERSEDED BY W18**이다.
 
 **W18은 기존 구조의 작은 최적화를 이어 붙이는 작업이 아니라, Nelyx가 상태·트리·레이아웃·텍스트·scene·자원을 보유하고 갱신하는 기반을 다시 만드는 작업이다.** TypeScript로 앱과 Widget·State를 작성하는 제품 방향, Nelyx 자체 콘텐츠 레이아웃, Hermes 기본 엔진 방향은 유지한다. 내부 클래스 구조·저장 방식·모듈·native ABI·공급 방식은 교체할 수 있다. 기존 소스와 API를 모두 그대로 보존하는 것을 개편의 전제로 삼지 않는다.
 
@@ -1035,9 +1035,9 @@ Web check/build JS `4d55cb4989eb1e4e302c1314d9cf9e23faa86a284c0bc25fbabb11583712
 
 **다음 구현 경계:** FrameworkRoot.frameSubmitted()가 아직 scheduler의 first-frame marker만 갱신하는 경로와 ViewRuntime의 실제 accepted token을 대조해 text/layout/query의 논리 geometry·frame/surface 연관을 명시한다. GPU busy/zero-size에서 강제 논리 geometry를 허용하는 기존 계약은 보존한다. retained scene·남은7 runtime SCC·공통 SDK async startup/close·전체 catalog/확장점·RNW AV/VM PC·R0~R7 성능/메모리/물리 수락은 남는다. 기본 RNW/Hermes optimized와 전체 **IN_PROGRESS / PARTIAL**을 유지한다.
 
-### 8.60 PASS-scoped — All components elevated 카드의 native 그림자 깜빡임
+### 8.60 PASS-scoped — All components 두 열 elevated 카드의 native 그림자 깜빡임
 
-2026-10-26 별도 버그 수정 요청으로 HEAD `f21660d`의 clean tree에서 시작했다. All components의445.5×119·radius12·elevation1 카드가 DPR2에서 이동할 때 Skia spot shadow가 특정 소수점 좌표에서 누락됐다. 실제 Vulkan 검사의 정수 좌표 shadow contribution100,516이 y423.69에서5,828, y394.497에서6,343으로 줄었으며, 직접 그리기와 RTree Picture 재사용 모두 같은 회귀를 보였다. Core의 카드 geometry·elevation·그림자 명령은 유지됐다. cache 비활성화·occluder flag 변경은 해결하지 못했고 채택하지 않았다.
+2026-10-26 별도 버그 수정 요청으로 HEAD `f21660d`의 clean tree에서 시작했다. All components의445.5×119·radius12·elevation1 카드가 DPR2에서 이동할 때 Skia spot shadow가 특정 소수점 좌표에서 누락됐다. 실제 Vulkan 검사의 정수 좌표 shadow contribution100,516이 y423.69에서5,828, y394.497에서6,343으로 줄었으며, 직접 그리기와 RTree Picture 재사용 모두 같은 회귀를 보였다. Core의 카드 geometry·elevation·그림자 명령은 유지됐다. cache 비활성화·occluder flag 변경은 해결하지 못했고 채택하지 않았다. 이 절의 앱 검증은 두 열 배치 범위이며, 이후 보고된 한 열의 잔여 깜빡임과 대체 수정은 §8.62를 따른다.
 
 공통 [`drawShadow`](Nelyx/skia/native/core/core.cpp)의 Graphite 경로에 `GetLocalBounds`로 계산한 임시 layer를 두어 그림자를 가까운 device origin에서 그린다. 불변 identity color filter 하나를 CPU 객체로 공유해 색을 유지하면서 SkPicture 최적화가 이 layer를 제거하지 못하게 했다. elevation·DPR·색·transparentOccluder 계약과 canvas save/restore를 보존한다. 추가 layer는 해당 Graphite recorder/recording의 자원이며 기존 GPU retirement로 회수한다. 이 추가 작업의 성능·메모리 증감은 이번에 측정하지 않았다.
 
@@ -1054,6 +1054,29 @@ bytecode30,050ms/153files/HBC `7b67da5e49733fa22440cecc7ee33d91721afeae6283c0a27
 2026-10-26 기본 배율에서 HTML 스크롤바가 생긴다는 사용자 보고에 따라 HEAD `82bd578`의 clean tree에서 웹 러너만 수정했다. 기존 Chrome 기본 화면과 개발 모드 크기 변경에서는 원래 넘침을 재현하지 못했으므로 정확한 발생 조건을 확정하지 않는다. 기존 HTML은 `#app`의 최소 높이만 지정하고 앱 표면은 독립적인 `100vh` 높이를 사용했다. 개발 서버·정적 빌드 모두 `html/body/#app` 높이를 부모 기준 100%로 정하고 바깥 overflow를 숨겼다. `#app`을 세로 flex root로, Testbed·생성 템플릿의 표면을 `flex:1`·부모 높이 100%로 바꿨다. 포함형 SDK surface의 기본 크기나 canvas 내부 layout/scroll은 변경하지 않았다.
 
 Metro·CLI만 새 archive로 Web에 공급·실제 설치했고 두 Metro 구현과 CLI 템플릿의 원본/설치 bytes 일치를 확인했다. Web check·현재 정적 build가 통과했다. 실제 Chrome의 개발/정적 두 모드 × DPR1/1.25 × 1200×900·390×740·1199×673의12조건에서 canvas·document client/scroll 크기가 viewport와 같고 페이지 scrollX/Y가0임을 확인했다. 네 모드/DPR 조합에서 실제 canvas pointer 선택·wheel40 입력으로 ListView 행이 이동하고 선택이 유지됐다. 개발 서버의 기존 favicon404는 별도로 구분했으며 다른 console error와 page error는 없었다. 임시 browser/profile·설치 디렉터리와 검증 서버는 finally에서 정리했다. 현재 개발 서버를 재시작한 뒤 페이지를 새로고침하면 적용된다. 사용자 환경의 원래 증상 재확인·물리 입력/display·전체 W18 수락은 별도이며 전체 **IN_PROGRESS / PARTIAL**을 유지한다.
+
+### 8.62 PASS-scoped — 한 열에서도 방향성 그림자 메시를 스크롤 이동과 분리
+
+2026-10-26 창 폭을 줄인 한 열에서 그림자가 계속 깜빡인다는 후속 보고로 HEAD `85766cb`의 clean tree에서 시작했다. §8.61 웹 변경을 보존했다. 카드 폭을691px로 바꾸자 §8.60 layer 수정이 적용된 실제 Vulkan에서도 기준 기여150,820이 y423.69에서8,283, y394.497에서9,042로 줄고 y511.269에서는264,372로 늘었다. layer 내부 device 이동이32/32.38처럼 작아도 같은 path의 spot 메시가39/43 vertices 또는 생성 실패로 달라졌다. layer 경계 clip을 추가하는 방법도 실패해 채택하지 않았다. 고정 [Skia 방향성 spot 생성](https://github.com/google/skia/blob/61e7ca4e99062cdd0ab69445d5963fb3365778f6/src/utils/SkShadowUtils.cpp#L137-L147)이 이동까지 포함한 CTM을 tessellator에 넘기는 경로를 확인했다.
+
+공통 native shadow가 Graphite의 평평한 Z·방향성·affine 조건에서 device CTM의 이동을 제외하고 spot 메시를 만든 뒤, 원래의 소수점 이동과 device-to-global 변환으로 배치하도록 바꿨다. ambient·tonal 색·DPR/elevation·transparentOccluder는 기존 Skia 계산을 사용한다. perspective·지원하지 않는 조건과 메시 생성 실패는 Skia 경로로 돌려보낸다. §8.60의 임시 layer·identity filter는 제거했다. Picture에는 native shadow 명령을 유지하고, 공통 drawPicture의 proxy가 중첩 Picture를 실제 부모 matrix/clip에서 재생하며 같은 shadow 경로로 보낸다. JSI 단일/배치·frame wire·Graphite picture producer를 이 helper로 연결했다. 추가 mesh는 해당 draw/Graphite recording 수명으로 회수하고 proxy는 호출 안에서 종료한다. 전역 geometry cache나 추가 크기 제한을 두지 않았으며 ABI/wire·TS와 vendor pin은 바꾸지 않았다. proxy의 CPU 비용과 layer 제거 효과는 성능 측정으로 수락하지 않는다.
+
+실제 native 회귀를 두 열445.5px·한 열691px의28조건으로 확장했다. DPR2의6좌표×직접/중첩 RTree를 두 폭에서 검사하고, DPR1은 두 폭×직접/중첩에 회전·비균등 scale·별도 device-origin layer·색/transparent occluder를 적용했다. 부모 save/matrix/clip 보존·fill-only 차감 그림자 유지·GPU drain과 전체 native VM/23opcode/원자 거부/수명/UIA 계약 검사가 통과했다(최종27,529ms, 앞선 제품 native 재빌드 포함 실행71,343ms). 관련 display-list/replay/source 공급14개720ms도 통과했다.
+
+실제 All components의 bytecode 진단 앱을 새 프로세스로 실행해 아래30개 소수점 스크롤 위치에서 frame 외곽 RGB 기여를 확인했다. 한 열에서 높아지는 메뉴 영역을 반영해 카드를 viewport 안에 두었으며, 헤더에 가린 영역을 그림자 픽셀로 세지 않았다. 같은 위치의 직접 shadow 기준과 실제 retained frame의 기여 차이는 최대3.8%, 단일 channel 차이는 최대7이었다. 아래 범위는 픽셀 위상 변화가 포함된 관측이며 보편적인 성능/품질 제한이 아니다.
+
+| 배치·카드 폭 | 좌표 수 | 외곽 RGB 기여 최소~최대 |
+|---|---:|---:|
+| 두 열445.5px | 8 | 276,860~297,000 |
+| 한 열991px·열 전환 경계 부근 | 6 | 598,481~642,706 |
+| 한 열691px | 8 | 421,604~452,584 |
+| 한 열415px·compact | 8 | 258,866~277,309 |
+
+Windows native/RN archive를 `ab6568d2c8dd5db59594b5957f5c7adcda819fe338e16670b1de0e05091b888c` / `8bb56e23d571934624dc2ba0e8ff1da6d24516b446495c189f64c2587ee3b8cf`로 공급·실제 설치했다. 원본·두 생성물·두 설치의 core.cpp는 모두 `2030e047ed48c6394048088e167185c1c8f6c4d3ae93707c284848d44b6b72ad`이며 네 generated/installed native-source guard가 각각161개 파일을 확인했다. 두 제품의 native source digest는 `ced0c7bab1c2fbacb11091c88074a43422007b69c8fa3e8d66950083bc14d531`, host EXE는 `7dce42a6a6a74f7887f4244cd8759e0506e4e615996ce8267cd0a63799b438e7`이다. pinned VM·Skia/toolchain은 §8.60과 같다.
+
+bytecode29,023ms/153files/HBC `7b67da5e49733fa22440cecc7ee33d91721afeae6283c0a27fdb7fbd090f6087`, Static65,338ms/156files/DLL `605be444fe0920d199ea728f7c3bf2ab7be6ed7e6a4abd17050eef0f7fe328a9`로 현재 제품을 교체했다. Static은 두 native C unit을 재사용하고 image를 재링크했으며 nativeFunctions37,186·app.hbc 없음이다. 두 실제 제품의 FIRST_FRAME·창 title/Responding=true·loaded79/80·noRN/noNodeAPIJSI·exit0/forced=false/error=null/stderr 없음과 package/loaded image 일치를 확인했다. 기존 두 `run -- --host native-hermes --hermes-mode bytecode|static-aot` 명령으로 새 제품이 실행된다.
+
+진단 entry/package는 실행별 finally에서 정리했고 루트 일회성 helper도 삭제했다. 이번 실행은 프로그램에 의한 스크롤/GPU readback과 두 제품 시작/종료 범위다. 물리 입력/scanout·성능/메모리 수락·다른 플랫폼의 새 native 변경 실행·새 외부 UIA/ZIP은 추가 수락하지 않는다. 전체 W18과 다음 구현 경계는 계속 **IN_PROGRESS / PARTIAL**이다.
 
 ## 9. 공식 원본과 적용 범위
 

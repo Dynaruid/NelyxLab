@@ -14,6 +14,7 @@
 
 #include "include/core/SkCanvas.h"
 #include "include/core/SkPicture.h"
+#include "nelyx_skia/core.h"
 
 namespace RNSkia {
 
@@ -29,7 +30,7 @@ void RNSkGraphiteProducer::drawContent(SkCanvas *canvas, Recorder *recorder,
     DrawingCtx ctx(canvas);
     recorder->play(&ctx);
   } else if (picture != nullptr) {
-    canvas->drawPicture(picture);
+    nelyx::skia_core::drawPicture(*canvas,picture);
   }
   canvas->restore();
 }

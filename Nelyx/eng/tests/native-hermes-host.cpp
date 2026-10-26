@@ -168,26 +168,32 @@ static void displayListParity(jsi::Runtime& rt,std::shared_ptr<RNSkia::RNSkPlatf
 class Scheduler final:public nelyx::host::RuntimeScheduler{public:jsi::Runtime* runtime=nullptr;void invokeSync(nelyx::host::RuntimeTask&& task)override{task(*runtime);}void invokeAsync(nelyx::host::RuntimeTask&&)override{throw std::runtime_error("Unexpected asynchronous test work");}};
 static jsi::Value packet(jsi::Runtime& rt,std::vector<double> const& words){auto object=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(words.size()*8)).getObject(rt);auto buffer=object.getArrayBuffer(rt);memcpy(buffer.data(rt),words.data(),words.size()*8);return jsi::Value(std::move(object));}
 static void scrollingShadowChecks(std::shared_ptr<RNSkia::RNSkPlatformContext> context){
-  const auto rounded=SkRRect::MakeRectXY(SkRect::MakeXYWH(0,0,445.5f,119),12,12);
-  SkPathBuilder builder;builder.addRRect(rounded);const auto path=builder.detach();
   SkPaint fill;fill.setAntiAlias(true);fill.setColor(0xffeeeeee);
   auto deferred=context->getGpuContext().makeRecorder();
   bool shadowsPresent=true;
-  // Actual All components card geometry. At DPR2 the pinned Skia shadow lost
+  // Actual two-column and single-column All components card geometry. At DPR2
+  // the pinned Skia directional spot tessellator lost
   // over 90% of its pixels at these fractional scroll positions. The reference
   // permits normal pixel-phase coverage changes while detecting dropout and
   // overshoot. Subtracting the fill-only render excludes edge antialiasing.
-  for(float dpr:{1.f,2.f})for(bool retained:{false,true}){
+  for(float width:{445.5f,691.f})for(float dpr:{1.f,2.f})for(bool retained:{false,true}){
+    const auto rounded=SkRRect::MakeRectXY(SkRect::MakeXYWH(0,0,width,119),12,12);
+    SkPathBuilder builder;builder.addRRect(rounded);const auto path=builder.detach();
     unsigned reference=0;
     for(float y:{321.f,423.69f,394.497f,345.842f,320.25f,511.269f}){
+      if(dpr==1&&y!=321)continue;
       std::vector<SkColor> baseline(2048*1440);unsigned mass=0;
       for(bool shadow:{false,true}){
         // A fresh surface avoids reading a previous snapshot after external
         // deferred replay; its own initialization must precede that replay.
         auto surface=context->makeOffscreenSurface(2048,1440);require(bool(surface),"Shadow GPU surface missing");
-        const auto paint=[&](SkCanvas* canvas){if(shadow)nelyx::skia_core::drawShadow(*canvas,path,SK_ColorBLACK,1,false,dpr);canvas->drawRRect(rounded,fill);};
+        const auto paint=[&](SkCanvas* canvas){if(shadow)nelyx::skia_core::drawShadow(*canvas,path,dpr==1?0x80004080:SK_ColorBLACK,1,dpr==1,dpr);canvas->drawRRect(rounded,fill);};
         auto canvas=deferred->makeDeferredCanvas(surface->imageInfo(),context->getGpuContext().textureInfo(surface->imageInfo().colorType()));
         require(canvas,"Deferred shadow canvas missing");canvas->clear(SK_ColorWHITE);canvas->save();canvas->scale(dpr,dpr);canvas->translate(268,y);
+        // Also exercise colour/transparent occlusion, a transformed parent and
+        // a layer with a different device origin. DPR2 keeps the reported card.
+        if(dpr==1){canvas->rotate(4);canvas->scale(.9f,1.1f);auto bounds=path.getBounds().makeOutset(16,16);canvas->clipRect(bounds);canvas->saveLayer(&bounds,nullptr);}
+        const auto saveCount=canvas->getSaveCount();const auto matrix=canvas->getTotalMatrix();const auto clip=canvas->getDeviceClipBounds();
         if(retained){
           auto recorder=std::make_shared<RNSkia::JsiSkPictureRecorder>(context);
           auto recordingCanvas=recorder->beginRecording(std::make_shared<SkRect>(SkRect::MakeLTRB(SK_ScalarMin,SK_ScalarMin,SK_ScalarMax,SK_ScalarMax)))->getCanvas();
@@ -195,9 +201,12 @@ static void scrollingShadowChecks(std::shared_ptr<RNSkia::RNSkPlatformContext> c
           // Keep this above SkPicture's small-picture inline threshold so the
           // actual RTree replay and picture optimizations are exercised.
           for(int i=0;i<64;++i)recordingCanvas->drawRect(SkRect::MakeXYWH(4000+i*4,4000,1,1),fill);
-          canvas->drawPicture(recorder->finishRecordingAsPicture()->getObject());
+          auto nested=std::make_shared<RNSkia::JsiSkPictureRecorder>(context);
+          nelyx::skia_core::drawPicture(*nested->beginRecording(std::make_shared<SkRect>(SkRect::MakeLTRB(SK_ScalarMin,SK_ScalarMin,SK_ScalarMax,SK_ScalarMax)))->getCanvas(),recorder->finishRecordingAsPicture()->getObject());
+          nelyx::skia_core::drawPicture(*canvas,nested->finishRecordingAsPicture()->getObject());
         }else paint(canvas);
-        canvas->restore();auto frame=deferred->snap(),initial=surface->recorder()->snap();
+        require(canvas->getSaveCount()==saveCount&&canvas->getTotalMatrix()==matrix&&canvas->getDeviceClipBounds()==clip,"Shadow/picture changed parent canvas state");
+        canvas->restoreToCount(1);auto frame=deferred->snap(),initial=surface->recorder()->snap();
         if(initial)context->getGpuContext().submitRecording(initial.get());
         require(frame&&context->getGpuContext().insertRecordings({frame.get()},surface.get()),"Deferred shadow recording rejected");
         auto image=surface->makeImageSnapshot();auto recording=surface->recorder()->snap();
@@ -213,13 +222,13 @@ static void scrollingShadowChecks(std::shared_ptr<RNSkia::RNSkPlatformContext> c
       }
       if(y==321)reference=mass;
       const bool stable=reference>0&&mass*2>=reference&&mass*2<=reference*3;
-      if(!stable)std::cerr<<"Unstable shadow dpr="<<dpr<<" retained="<<retained<<" y="<<y<<" mass="<<mass<<" reference="<<reference<<'\n';
+      if(!stable)std::cerr<<"Unstable shadow width="<<width<<" dpr="<<dpr<<" retained="<<retained<<" y="<<y<<" mass="<<mass<<" reference="<<reference<<'\n';
       shadowsPresent=shadowsPresent&&stable;
     }
   }
   deferred.reset();require(context->getGpuContext().retireWork(),"Shadow GPU work did not drain");
   require(shadowsPresent,"Scrolling card shadow disappeared from the actual Vulkan surface");
-  std::cout<<"PASS 24 actual Vulkan card shadow positions, DPR1/2 and retained RTree pictures preserve fractional scrolling without shadow dropout; GPU work drains\n";
+  std::cout<<"PASS 28 actual Vulkan card shadow positions at two/single-column widths, DPR1/2 and nested RTree pictures; affine/layer/colour/transparent shadows preserve canvas state and GPU work drains\n";
 }
 static void recordingLifetime(jsi::Runtime& rt,std::shared_ptr<Scheduler> scheduler){
   RNSkia::VulkanPlatformServices services;services.fontManager=[](){return SkFontMgr_New_DirectWrite();};services.dispatchToMain=[](auto task){task();};services.reportError=[](auto const& error){throw std::runtime_error(error.what());};services.stream=[](auto const&,auto const&){throw std::runtime_error("Unexpected recording fixture stream");};services.screenshot=[](size_t){return sk_sp<SkImage>{};};services.createDevice=[](){return std::make_shared<nelyx::vulkan::Device>();};

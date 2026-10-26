@@ -462,7 +462,7 @@ public:
     return jsi::Value::undefined();
   }
 
-  void drawPicture(sk_sp<SkPicture> picture) { _canvas->drawPicture(picture); }
+  void drawPicture(sk_sp<SkPicture> picture) { nelyx::skia_core::drawPicture(*_canvas,picture); }
 
   JSI_HOST_FUNCTION(drawAtlas) {
     auto atlas = JsiSkImage::fromValue(runtime, arguments[0]);
