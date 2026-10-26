@@ -15,6 +15,48 @@ class Probe extends StatelessWidget{constructor(builder){super();this.builder=bu
 const named=(id,name)=>new Semantics(new SizedBox(10,10),{id,role:'text',name});
 function resize(f,values){const metrics=f.root.context.readMetrics();Object.assign(metrics,values,{viewportGeneration:metrics.viewportGeneration+1});f.frame();}
 
+test('a rejected recording or geometry notification never publishes its candidate semantics',{timeout},()=>{
+ for(const failure of ['save','getter','close','geometry-throw','geometry-close']){
+  const f=fixture(),published=[],paint=f.root.recordPaint;let painting,source,retirements=0;
+  const publish=nodes=>published.push(nodes);
+  f.root.context.semantics={capability:'native-controls',bind(nodes){publish(nodes);return {update:publish,dispose(){retirements++;}};}};
+  try{
+   f.set(named('atomic-semantics','Before'));const previous=f.root.nodes;assert.equal(published.length,1);
+   f.root.recordPaint=function(render,context){painting=context;if(failure.startsWith('geometry-')){const capture=render.commitTextInputGeometries;render.commitTextInputGeometries=function(...args){const actual=capture.apply(this,args);return {...actual,commit(){actual.commit();if(failure==='geometry-throw')throw 0;f.root.dispose();}};};}return paint.call(this,render,context);};
+   f.root.scheduler.addPostFrameCallback(()=>{if(failure==='save')painting.commands.push({op:'save'});if(failure==='getter')painting.commands.push({op:'clear',get color(){throw 0;}});if(failure==='close')f.root.dispose();});
+   const change=()=>f.set(named('atomic-semantics','After'));
+   if(failure==='save')assert.throws(change,error=>error.code==='unbalanced-save');
+   else if(failure==='getter')assert.throws(change,error=>error===0);
+   else if(failure==='geometry-throw')assert.throws(change,error=>error instanceof AggregateError&&error.errors[0]===0);
+   else change();
+   assert.equal(published.length,1,failure+' must leave the last published immutable host snapshot intact');
+   if(!failure.endsWith('close'))assert.equal(f.root.nodes,previous,'Root exposes only its successful semantics commit');
+  }finally{if(source)releaseSceneFrameSource(source);f.close();}
+  assert.equal(retirements,1,'The one successful host binding retires once');
+ }
+});
+
+test('a semantics host that closes Root while binding cannot strand its newly returned binding',{timeout},()=>{
+ const f=fixture();let bindings=0,retirements=0;
+ f.root.context.semantics={capability:'native-controls',bind(){bindings++;f.root.dispose();return {dispose(){retirements++;}};}};
+ try{f.set(named('bind-close','Close'));assert.equal(bindings,1);assert.equal(retirements,1,'A binding returned after its owner closed must retire immediately');}
+ finally{f.close();}
+ assert.equal(retirements,1);
+});
+
+test('post-frame metric replacement and a visibility change during geometry commit cancel candidate semantics',{timeout},()=>{
+ for(const change of ['metrics','geometry-metrics','visibility']){
+  const f=fixture(),published=[],paint=f.root.recordPaint;
+  f.root.context.semantics={capability:'native-controls',bind(nodes){published.push(nodes);return {update(nodes){published.push(nodes);},dispose(){}};}};
+  try{
+   f.set(named('publication-scope','Before'));const previous=f.root.nodes;
+   if(change==='metrics')f.root.scheduler.addPostFrameCallback(()=>f.root.context.readMetrics().viewportGeneration++);
+   else f.root.recordPaint=function(render,context){const capture=render.commitTextInputGeometries;render.commitTextInputGeometries=function(...args){const actual=capture.apply(this,args);return {...actual,commit(){actual.commit();if(change==='geometry-metrics')f.root.context.readMetrics().viewportGeneration++;else f.root.setVisible(false);}};};return paint.call(this,render,context);};
+   f.set(named('publication-scope','After'));assert.equal(published.length,1,'A candidate from an invalidated scope cannot reach the host');assert.equal(f.root.nodes,previous);
+  }finally{f.close();}
+ }
+});
+
 test('Root finishes post-frame command changes before ownership capture and stops capture after a post-frame close',{timeout},()=>{
  for(const close of [false,true]){
   const f=fixture(),paint=f.root.recordPaint,geometry=[];let painting,reads=0,source,frame;

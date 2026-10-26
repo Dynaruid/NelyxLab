@@ -8,20 +8,17 @@ import {FlutterError} from '../../foundation/flutter-error.ts';
 import {DiagnosticsProperty,ErrorSummary,ErrorDescription,ErrorHint} from '../../foundation/diagnostics.ts';import type {DiagnosticPropertiesBuilder,DiagnosticsNode} from '../../foundation/diagnostics.ts';
 import {EnumProperty,FlagProperty,IntProperty,DoubleProperty} from '../../foundation/diagnostic-properties.ts';
 import {RenderParagraph as TransportParagraph} from './boxes.ts';
-import {TextPainter} from '../painting/text-painter.ts';import type {TextPainterOptions,TextOverflow,TextWidthBasis} from '../painting/text-painter.ts';import type {InlineSpan} from '../painting/inline-span.ts';import type {InlinePlaceholder} from '../painting/inline-layout.ts';import {PlaceholderDimensions} from '../painting/placeholder-dimensions.ts';import {Size as SizeValue} from '../../ui/size.ts';import {compileInlineSpan,collectInlinePlaceholders} from '../painting/inline-layout.ts';import {TextStyle} from '../painting/text-style.ts';import {TextScaler} from '../painting/text-scaler.ts';
-import type {ParagraphContext} from '../../ui/paragraph.ts';import {Locale} from '../../ui/locale.ts';import type {StrutStyle} from '../painting/strut-style.ts';import type {TextAlign,TextHeightBehavior,Hyphens} from '../../ui/typography.ts';import type {SelectionRegistrar} from './selection.ts';import {Offset as OffsetValue} from '../../ui/offset.ts';import type {TextBox,BoxHeightStyle,BoxWidthStyle} from '../../ui/text-box.ts';import {valueEquals} from '../painting/value-equality.ts';
+import {TextPainter} from '../painting/text-painter.ts';import type {TextPainterOptions,TextOverflow,TextWidthBasis} from '../painting/text-painter.ts';import type {InlineSpan} from '../painting/inline-span.ts';import {PlaceholderDimensions} from '../painting/placeholder-dimensions.ts';import {Size as SizeValue} from '../../ui/size.ts';import {collectInlinePlaceholders} from '../painting/inline-layout.ts';import {textLimits} from '../../ui/text.ts';import {TextStyle} from '../painting/text-style.ts';import {TextScaler} from '../painting/text-scaler.ts';
+import type {ParagraphContext} from '../../ui/paragraph.ts';import type {Locale} from '../../ui/locale.ts';import type {StrutStyle} from '../painting/strut-style.ts';import type {TextAlign,TextHeightBehavior,Hyphens} from '../../ui/typography.ts';import type {SelectionRegistrar} from './selection.ts';import {Offset as OffsetValue} from '../../ui/offset.ts';import type {TextBox,BoxHeightStyle,BoxWidthStyle} from '../../ui/text-box.ts';import {valueEquals} from '../painting/value-equality.ts';
 import {FoundationBuildMode} from '../../foundation/constants.ts';
-import {copyResourceId,isCapturedResourceId} from '../../ui/resource-retention.ts';
-import {textInputSerializationIsPlain,isCapturedTextRecord} from '../../ui/text-input-data.ts';
+import {copyResourceId} from '../../ui/resource-retention.ts';
 import {Gradient} from '../../ui/shader.ts';import type {Shader} from '../../ui/shader.ts';
 import {FoundationPlatform} from '../../foundation/platform.ts';
-import type {PaintingContext} from '../painting/context.ts';import type {TextLayoutInput,TextLayout,TextLayoutGeometry,SemanticsNode,Rect} from '../../ui/types.ts';
-import {paragraphLayoutWidth,paragraphContentWidth,paragraphHasOverflow,paintParagraphOverflow} from './paragraph-overflow.ts';
+import type {PaintingContext} from '../painting/context.ts';import type {ResourceId,TextLayout,TextLayoutGeometry,SemanticsNode,Rect} from '../../ui/types.ts';
+import {paragraphHasOverflow,paintParagraphOverflow} from './paragraph-overflow.ts';
 import type {ParagraphLayoutOptions} from './paragraph-overflow.ts';
 import {RenderComparison} from '../painting/basic-types.ts';
-import {TextSpan,isCapturedTextSpan} from '../painting/text-span.ts';
-import {isCapturedTextStyle} from '../painting/text-style.ts';
-import {isCapturedTextScaler} from '../painting/text-scaler.ts';
+import {TextSpan} from '../painting/text-span.ts';
 import {combineSemanticsInfo} from '../painting/inline-span.ts';
 import type {InlineSpanSemanticsInformation} from '../painting/inline-span.ts';
 import {TextSelection} from '../../services/text-editing.ts';
@@ -41,7 +38,7 @@ import {UniqueKey} from '../../foundation/key.ts';
 import type {Key} from '../../foundation/key.ts';
 import {hashValues} from '../painting/value-equality.ts';
 import {protect,checkedInteger} from '../../ui/value-math.ts';
-import type {Size,Offset,TransformMatrix} from '../../ui/geometry.ts';import {multiply,translate,identity,contains,inversePaintTransform,transform,bounds,intersect,captureTransform} from '../../ui/geometry.ts';import {textLimits} from '../../ui/text.ts';import {invariant} from '../../foundation/errors.ts';
+import type {Size,Offset,TransformMatrix} from '../../ui/geometry.ts';import {multiply,translate,identity,contains,inversePaintTransform,transform,bounds,intersect,captureTransform} from '../../ui/geometry.ts';import {invariant} from '../../foundation/errors.ts';
 export class PlaceholderSpanIndexSemanticsTag extends SemanticsTag {
   constructor(readonly index:number){super(`PlaceholderSpanIndexSemanticsTag(${checkedInteger(index)})`);protect(this,['index']);}
   equals(other:unknown):boolean{return other instanceof PlaceholderSpanIndexSemanticsTag&&other.index===this.index;}
@@ -51,11 +48,10 @@ export class TextParentData extends ContainerParentDataMixin(ParentData) {
   private _offset:OffsetValue|null=null;
   get offset():OffsetValue|null{return this._offset;}
   span:PlaceholderSpan|null=null;
-  /** @internal Transport renderer adaptation; canonical inline scaling belongs to the child wrapper. */scale=1;
   /** @internal Visibility is determined only by source nullable placement. */get visible():boolean{return this._offset!==null;}
   /** @internal Only the inline container positions its children. */
   _setOffset(value:Offset|null):void{assertParentDataOffsetMutation();if(value!==null)invariant(Number.isFinite(value.x)&&Number.isFinite(value.y),'invalid-render-offset','Child offsets must be finite');this._offset=value===null?null:new OffsetValue(value.x,value.y);}
-  override detach():void{this.span=null;this._offset=null;this.scale=1;super.detach();}
+  override detach():void{this.span=null;this._offset=null;super.detach();}
   override toString():string{return `widget: ${this.span}, ${this.offset===null?'not laid out':`offset: ${this.offset}`}`;}
 }
 export interface InlineChildrenContainerDefaults {
@@ -84,12 +80,22 @@ export function RenderInlineChildrenContainerDefaults<Base extends abstract new 
   }
   return InlineChildrenRender as unknown as InlineChildrenConstructor<Base>;
 }
-export interface RichParagraphConfiguration {readonly span:InlineSpan;readonly style:TextStyle;readonly scaler:TextScaler;readonly placeholders:readonly InlinePlaceholder[];readonly input:Omit<TextLayoutInput,'width'>;readonly paragraphOptions?:ParagraphLayoutOptions;readonly painterOptions?:TextPainterOptions}
+export interface RichParagraphConfiguration {readonly span:InlineSpan;readonly style:TextStyle;readonly scaler:TextScaler;readonly placeholderCount:number;readonly font:ResourceId;readonly scale:number;readonly paragraphOptions?:ParagraphLayoutOptions;readonly painterOptions?:TextPainterOptions}
+const ownedConfigurations=new WeakSet<RichParagraphConfiguration>();
+/** @internal Capture consumed source fields once without enumerating borrowed metadata. */
+export function captureRichParagraphConfiguration(value:RichParagraphConfiguration):RichParagraphConfiguration{
+  if(ownedConfigurations.has(value))return value;
+  const {span,style,scaler,placeholderCount,font,scale,paragraphOptions,painterOptions}=value;
+  invariant(Number.isSafeInteger(placeholderCount)&&placeholderCount>=0&&placeholderCount<=textLimits.placeholders,'invalid-inline-child-count','Inline placeholder count exceeds the paragraph budget');
+  const options:TextPainterOptions|undefined=painterOptions===undefined?undefined:Object.freeze({textAlign:painterOptions.textAlign??'start',textDirection:painterOptions.textDirection??'ltr',maxLines:painterOptions.maxLines??null,ellipsis:painterOptions.ellipsis??null,locale:painterOptions.locale??null,strutStyle:painterOptions.strutStyle??null,textWidthBasis:painterOptions.textWidthBasis??'parent',textHeightBehavior:painterOptions.textHeightBehavior??null,hyphens:painterOptions.hyphens??'manual'});
+  const paragraph=paragraphOptions===undefined?undefined:Object.freeze({softWrap:paragraphOptions.softWrap??true,overflow:paragraphOptions.overflow??'clip',textWidthBasis:paragraphOptions.textWidthBasis??options?.textWidthBasis??'parent'});
+  const captured=Object.freeze({span,style,scaler,placeholderCount,font:copyResourceId(font),scale,...paragraph===undefined?{}:{paragraphOptions:paragraph},...options===undefined?{}:{painterOptions:options}});ownedConfigurations.add(captured);return captured;
+}
 /** One engine paragraph with inline RenderBox children and scaled shared geometry. */
 export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(TransportParagraph) {
   protected override get childCountLimit():number{return Infinity;}
   private configuration:RichParagraphConfiguration;
-  private paintDirty=false;private paintWidth:number|null=null;private paintDimensions:readonly PlaceholderDimensions[]=[];
+  private paintWidth:number|null=null;private paintDimensions:readonly PlaceholderDimensions[]=[];
   private intrinsicPainter:TextPainter|undefined;private canonicalTextSize:Size|undefined;private canonicalFade:Shader|undefined;
   private sourceSemanticsInfo:readonly InlineSpanSemanticsInformation[]|null=null;
   private cachedCombinedSemanticsInfo:readonly InlineSpanSemanticsInformation[]|null=null;
@@ -100,31 +106,27 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   private readonly spanNodeConfigurations=new WeakMap<SourceSemanticsNode,SemanticsConfiguration>();
   private readonly hostSpanIds=new WeakMap<SourceSemanticsNode,number>();
   private nextHostSpanId=0;
-  constructor(painter:TextPainter,configuration:RichParagraphConfiguration){super(painter,configuration.input,configuration.paragraphOptions??{});this.configuration=configuration;if(painter._usesInlineSpan)this.configurePainter(painter);}
+  constructor(configuration:RichParagraphConfiguration,context:ParagraphContext){configuration=captureRichParagraphConfiguration(configuration);const painter=new TextPainter({},context);super(painter);painter.validateResources({font:configuration.font});this.configuration=configuration;this.configurePainter(painter);}
   get config():RichParagraphConfiguration{return this.configuration;}
   set config(value:RichParagraphConfiguration){
-    this.assertCanMutateLayoutProperty();this.painter.validateResources(value.input);const old=this.configuration,span=old.span.compareTo(value.span),style=old.style.compareTo(value.style),damage=span.index>style.index?span:style;
-    const {color:oldColor,style:oldRun,...oldInput}=old.input,{color:newColor,style:newRun,...newInput}=value.input;
-    const runChanged=JSON.stringify(oldRun)!==JSON.stringify(newRun),runFollowsStyle=JSON.stringify(oldRun)===JSON.stringify(old.style.toRunStyle(old.scaler))&&JSON.stringify(newRun)===JSON.stringify(value.style.toRunStyle(value.scaler));
-    const layout=damage===RenderComparison.layout||!old.scaler.equals(value.scaler)||JSON.stringify(oldInput)!==JSON.stringify(newInput)||runChanged&&!runFollowsStyle||JSON.stringify(old.paragraphOptions)!==JSON.stringify(value.paragraphOptions);
-    const paint=damage===RenderComparison.paint||oldColor!==newColor||runChanged;
-    this.configuration=value;if(old.span!==value.span){this.cachedCombinedSemanticsInfo=null;if(damage!==RenderComparison.metadata)this.cachedAttributedLabels=null;}if(this.painter._usesInlineSpan)this.configurePainter(this.painter);
+    this.assertCanMutateLayoutProperty();value=captureRichParagraphConfiguration(value);this.painter.validateResources({font:value.font});const old=this.configuration,span=old.span.compareTo(value.span),style=old.style.compareTo(value.style),damage=span.index>style.index?span:style;
+    this.configuration=value;if(old.span!==value.span){this.cachedCombinedSemanticsInfo=null;if(damage!==RenderComparison.metadata)this.cachedAttributedLabels=null;}this.configurePainter(this.painter);
+    const layout=damage===RenderComparison.layout||this.painter._needsLayout||old.paragraphOptions?.softWrap!==value.paragraphOptions?.softWrap||old.paragraphOptions?.overflow!==value.paragraphOptions?.overflow,paint=damage===RenderComparison.paint;
     // compareTo describes layout/paint damage and deliberately omits locale,
     // labels and hover callbacks. Keep the incoming metadata in the live owner.
     if(!layout&&!paint&&damage===RenderComparison.identical){if(old.span!==value.span)this.markNeedsSemanticsUpdate();return;}
-    if(layout){if(damage===RenderComparison.layout)this.clearOverflowShader();this.markNeedsLayout();if(damage===RenderComparison.layout||old.input.text!==value.input.text)this.replaceSelectionFragments();}
-    else {this.paintDirty||=paint;if(paint)this.markNeedsPaint();this.markNeedsSemanticsUpdate();}
+    if(layout){if(damage===RenderComparison.layout)this.clearOverflowShader();this.markNeedsLayout();if(damage===RenderComparison.layout)this.replaceSelectionFragments();}
+    else {if(paint)this.markNeedsPaint();this.markNeedsSemanticsUpdate();}
   }
-  override get input():Omit<TextLayoutInput,'width'>{return this.configuration.input;}
-  override set input(value:Omit<TextLayoutInput,'width'>){this.config={...this.configuration,input:value};}
+  override get plainText():string{return this.painter.plainText;}
   override get paragraphOptions():ParagraphLayoutOptions{return this.configuration.paragraphOptions??{};}
   override set paragraphOptions(value:ParagraphLayoutOptions){this.config={...this.configuration,paragraphOptions:value};}
   private configurePainter(painter:TextPainter,measurement=false):void{
-    const c=this.configuration,o=c.painterOptions??{};painter._updateContext({...painter._paragraphContext,font:c.input.font,scale:c.input.scale,transient:measurement});
-    painter.text=new TextSpan({style:c.style.merge(c.span.style),children:[c.span]});painter.textAlign=o.textAlign??c.input.textAlign??'start';painter.textDirection=o.textDirection??c.input.direction;painter.textScaler=c.scaler;painter.maxLines=o.maxLines===undefined?c.input.maxLines??null:o.maxLines;painter.ellipsis=o.ellipsis===undefined?(c.input.ellipsis||null):o.ellipsis;painter.locale=o.locale===undefined?new Locale(c.input.locale):o.locale;painter.strutStyle=o.strutStyle??null;painter.textWidthBasis=c.paragraphOptions?.textWidthBasis??o.textWidthBasis??'parent';painter.textHeightBehavior=o.textHeightBehavior??null;painter.hyphens=o.hyphens??c.input.hyphens??'manual';
+    const c=this.configuration,o=c.painterOptions??{};painter._updateContext({...painter._paragraphContext,font:c.font,scale:c.scale,transient:measurement});
+    painter.text=new TextSpan({style:c.style.merge(c.span.style),children:[c.span]});painter.textAlign=o.textAlign??'start';painter.textDirection=o.textDirection??'ltr';painter.textScaler=c.scaler;painter.maxLines=o.maxLines??null;painter.ellipsis=o.ellipsis??null;painter.locale=o.locale??null;painter.strutStyle=o.strutStyle??null;painter.textWidthBasis=c.paragraphOptions?.textWidthBasis??o.textWidthBasis??'parent';painter.textHeightBehavior=o.textHeightBehavior??null;painter.hyphens=o.hyphens??'manual';
   }
-  protected setSourceConfiguration(value:RichParagraphConfiguration,damage:'paint'|'layout',clearOverflow=false):void{this.assertCanMutateLayoutProperty();this.painter.validateResources(value.input);this.configuration=value;this.configurePainter(this.painter);if(clearOverflow)this.clearOverflowShader();if(damage==='layout')this.markNeedsLayout();else{this.paintDirty=true;this.markNeedsPaint();}}
-  protected ensureTextLayout():void{if(this.painter._usesInlineSpan){if(FoundationBuildMode.debug)invariant(!this.debugNeedsLayout,'paragraph-needs-layout','RenderParagraph queries require current layout');if(this.paintWidth!==null)this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);}}
+  protected setSourceConfiguration(value:RichParagraphConfiguration,damage:'paint'|'layout',clearOverflow=false):void{this.assertCanMutateLayoutProperty();this.painter.validateResources({font:value.font});this.configuration=value;this.configurePainter(this.painter);if(clearOverflow)this.clearOverflowShader();if(damage==='layout')this.markNeedsLayout();else this.markNeedsPaint();}
+  protected ensureTextLayout():void{if(FoundationBuildMode.debug)invariant(!this.debugNeedsLayout,'paragraph-needs-layout','RenderParagraph queries require current layout');if(this.paintWidth!==null)this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);}
   protected get hasOverflowShader():boolean{return this.canonicalFade!==undefined;}
   protected clearOverflowShader():void{const previous=this.canonicalFade;this.canonicalFade=undefined;previous?.dispose();}
   private updateCanonicalOverflow(size:Size):void{
@@ -145,30 +147,22 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
     finally{painter.markNeedsLayout();} // RenderBox caches query values; engine probes keep one transient producer at most.
   }
   private layoutCanonical(constraints:BoxConstraints,dimensions:readonly PlaceholderDimensions[]):TextLayout{this.painter.setPlaceholderDimensions(dimensions);this.painter.layout({minWidth:constraints.minWidth,maxWidth:this.adjustedWidth(constraints.maxWidth)});this.canonicalTextSize=this.painter.size;this.paintOffsetX=this.painter._paintOffset;return this.painter._layoutSnapshot();}
-  private scale(index:number):number{if((this.children[index]!.parentData as TextParentData).span!==null)return 1;const size=this.configuration.placeholders[index]!.style.fontSize??14;return size===0?0:this.configuration.scaler.scale(size)/size;}
-  private dimensions(width:number,dry:boolean,intrinsic:'min'|'max'|null=null):readonly PlaceholderDimensions[]{invariant(this.children.length===this.configuration.placeholders.length,'inline-child-count','RichText child count differs from WidgetSpans');if(this.painter._usesInlineSpan)return this.layoutInlineChildren(width,intrinsic!==null?(child=>({width:intrinsic==='min'?child.getMinIntrinsicWidth(Infinity):child.getMaxIntrinsicWidth(Infinity),height:0})):dry?ChildLayoutHelper.dryLayoutChild:ChildLayoutHelper.layoutChild,dry||intrinsic!==null?ChildLayoutHelper.getDryBaseline:ChildLayoutHelper.getBaseline);return this.children.map((child,index)=>{const scale=this.scale(index),span=this.configuration.placeholders[index]!.span;invariant(Number.isFinite(scale)&&scale>0,'invalid-inline-scale','Inline widget scale must be positive');const constraints=new BoxConstraints(0,width/scale,0,Infinity),size=intrinsic!==null?{width:intrinsic==='min'?child.getMinIntrinsicWidth(Infinity):child.getMaxIntrinsicWidth(Infinity),height:0}:dry?child.getDryLayout(constraints):(child.layout(constraints,{parentUsesSize:true}),child.size),baseline=span.alignment==='baseline'?(dry?child.getDryBaseline(constraints,span.baseline!):child.getDistanceToBaseline(span.baseline!)):0;return new PlaceholderDimensions({size:new SizeValue(size.width*scale,size.height*scale),alignment:span.alignment,baseline:span.baseline,baselineOffset:span.alignment==='baseline'?(baseline??size.height)*scale:null});});}
-  private createTextInput(width:number,dimensions:readonly PlaceholderDimensions[]):TextLayoutInput{const c=this.configuration,inline=compileInlineSpan(c.span,c.style,c.scaler,dimensions);return {...c.input,...inline,width};}
-  private inlineIntrinsicGeometry(minimum=false):TextLayoutGeometry{if(this.painter._usesInlineSpan)return this.canonicalProbe(new BoxConstraints(),minimum?'min':'max');const dimensions=this.dimensions(Infinity,true,minimum?'min':'max');return this.painter.measure(this.createTextInput(textLimits.width,dimensions));}
-  private layoutWidth(constraints:BoxConstraints):number{if(constraints.hasBoundedWidth)return paragraphLayoutWidth(constraints.maxWidth,this.configuration.paragraphOptions??{});const intrinsic=this.inlineIntrinsicGeometry().maxIntrinsicWidth;invariant(intrinsic<=textLimits.width,'oversize','Paragraph intrinsic width exceeds its layout budget');return paragraphLayoutWidth(Math.max(constraints.minWidth,Math.ceil(intrinsic)),this.configuration.paragraphOptions??{});}
-  private geometry(constraints:BoxConstraints,dry:boolean):TextLayout|TextLayoutGeometry{if(this.painter._usesInlineSpan){if(dry)return this.canonicalProbe(constraints);const dimensions=this.dimensions(constraints.maxWidth,false),layout=this.layoutCanonical(constraints,dimensions);this.paintWidth=constraints.maxWidth;this.paintDimensions=dimensions;this.paintDirty=false;return layout;}const width=this.layoutWidth(constraints),dimensions=this.dimensions(constraints.maxWidth,dry),input=this.createTextInput(width,dimensions);if(dry)return this.painter.measure(input);const layout=this.painter.layout(input);this.paintWidth=width;this.paintDimensions=dimensions;this.paintDirty=false;return layout;}
+  private dimensions(width:number,dry:boolean,intrinsic:'min'|'max'|null=null):readonly PlaceholderDimensions[]{invariant(this.children.length===this.configuration.placeholderCount,'inline-child-count','RichText child count differs from WidgetSpans');return this.layoutInlineChildren(width,intrinsic!==null?(child=>({width:intrinsic==='min'?child.getMinIntrinsicWidth(Infinity):child.getMaxIntrinsicWidth(Infinity),height:0})):dry?ChildLayoutHelper.dryLayoutChild:ChildLayoutHelper.layoutChild,dry||intrinsic!==null?ChildLayoutHelper.getDryBaseline:ChildLayoutHelper.getBaseline);}
+  private inlineIntrinsicGeometry(minimum=false):TextLayoutGeometry{return this.canonicalProbe(new BoxConstraints(),minimum?'min':'max');}
+  private geometry(constraints:BoxConstraints,dry:boolean):TextLayout|TextLayoutGeometry{if(dry)return this.canonicalProbe(constraints);const dimensions=this.dimensions(constraints.maxWidth,false),layout=this.layoutCanonical(constraints,dimensions);this.paintWidth=constraints.maxWidth;this.paintDimensions=dimensions;return layout;}
   protected override computeMinIntrinsicWidth(_height:number):number{return this.inlineIntrinsicGeometry(true).minIntrinsicWidth;}
   protected override computeMaxIntrinsicWidth(_height:number):number{return this.inlineIntrinsicGeometry().maxIntrinsicWidth;}
-  protected override computeMinIntrinsicHeight(width:number):number{return this.geometry(BoxConstraints.tightFor(this.painter._usesInlineSpan||Number.isFinite(width)?width:undefined),true).height;}
+  protected override computeMinIntrinsicHeight(width:number):number{return this.geometry(BoxConstraints.tightFor(width),true).height;}
   protected override computeMaxIntrinsicHeight(width:number):number{return this.computeMinIntrinsicHeight(width);}
-  protected override computeDryLayout(constraints:BoxConstraints):Size{const p=this.geometry(constraints,true);return constraints.constrain({width:this.painter._usesInlineSpan?p.width:paragraphContentWidth(p,this.configuration.paragraphOptions??{}),height:p.height});}
-  protected override computeDryBaseline(constraints:BoxConstraints,baseline:TextBaseline):number{return this.geometry(constraints,true)[this.painter._usesInlineSpan||baseline==='alphabetic'?'alphabeticBaseline':'ideographicBaseline'];}
-  protected override computeDistanceToActualBaseline(baseline:TextBaseline):number|null{if(this.painter._usesInlineSpan&&this.paragraph)this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);return this.paragraph?.[this.painter._usesInlineSpan||baseline==='alphabetic'?'alphabeticBaseline':'ideographicBaseline']??null;}
-  protected override performLayout(constraints:BoxConstraints):Size{
-    this.invalidateSelectionLayout();
-    if(this.painter._usesInlineSpan){this.paragraph=this.geometry(constraints,false) as TextLayout;this.positionInlineChildren(this.painter.inlinePlaceholderBoxes??[]);for(const child of this.children)(child.parentData as TextParentData).scale=1;const size=constraints.constrain(this.painter.size);this.updateCanonicalOverflow(size);return size;}
-    const p=this.paragraph=this.geometry(constraints,false) as TextLayout,size=constraints.constrain({width:paragraphContentWidth(p,this.configuration.paragraphOptions??{}),height:p.height}),align=this.configuration.input.textAlign??'start',rtl=this.configuration.input.direction==='rtl',fraction=align==='center'?.5:align==='right'||align==='start'&&rtl||align==='end'&&!rtl||align==='justify'&&rtl?1:0;this.paintOffsetX=(size.width-p.width)*fraction;this.painter.setPaintGeometry(size.width,this.paintOffsetX);
-    const boxes=p.placeholderBoxes??[];for(let index=0;index<this.children.length;index++){const child=this.children[index]!,data=child.parentData as TextParentData,box=boxes[index];data.scale=this.scale(index);data._setOffset(box?{x:box.x+this.paintOffsetX,y:box.y}:null);}return size;
-  }
-  protected override childTransform(child:RenderObject):TransformMatrix{if(this.painter._usesInlineSpan){const matrix=Matrix4.identity();this.defaultApplyPaintTransform(child as RenderBox,matrix);return multiply(captureTransform(matrix.storage),child.localTransform);}const data=child.parentData as TextParentData,offset=data.offset;return offset!==null?multiply(multiply(translate(offset.x,offset.y),[data.scale,0,0,data.scale,0,0]),child.localTransform):[0,0,0,0,0,0];}
+  protected override computeDryLayout(constraints:BoxConstraints):Size{const p=this.geometry(constraints,true);return constraints.constrain({width:p.width,height:p.height});}
+  protected override computeDryBaseline(constraints:BoxConstraints,_baseline:TextBaseline):number{return this.geometry(constraints,true).alphabeticBaseline;}
+  protected override computeDistanceToActualBaseline(_baseline:TextBaseline):number|null{if(this.paragraph)this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);return this.paragraph?.alphabeticBaseline??null;}
+  protected override performLayout(constraints:BoxConstraints):Size{this.invalidateSelectionLayout();this.paragraph=this.geometry(constraints,false) as TextLayout;this.positionInlineChildren(this.painter.inlinePlaceholderBoxes??[]);const size=constraints.constrain(this.painter.size);this.updateCanonicalOverflow(size);return size;}
+  protected override childTransform(child:RenderObject):TransformMatrix{const matrix=Matrix4.identity();this.defaultApplyPaintTransform(child as RenderBox,matrix);return multiply(captureTransform(matrix.storage),child.localTransform);}
   override get hasVisualOverflow():boolean{return paragraphHasOverflow(this.paragraph,this.size,this.canonicalTextSize?.width);}
   override get clips():boolean{return this.hasVisualOverflow&&this.configuration.paragraphOptions?.overflow!=='visible';}
   override paint(context:PaintingContext,offset:Offset=OffsetValue.zero):void{if(offset.x===0&&offset.y===0){this.paintLocal(context);return;}context.save();try{context.translate(offset.x,offset.y);this.paintLocal(context);}finally{context.restore();}}
-  protected paintLocal(context:PaintingContext):void{if(!this.paragraph)return;if(this.painter._usesInlineSpan){this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);this.paintDirty=false;}else if(this.paintDirty){invariant(this.paintWidth!==null,'missing-inline-paint-layout','Paint refresh requires a previous layout');this.paragraph=this.painter.layout(this.createTextInput(this.paintWidth,this.paintDimensions));this.painter.setPaintGeometry(this.size.width,this.paintOffsetX);this.paintDirty=false;}this.paintSelections(context);paintParagraphOverflow(context,this.paragraph,this.size,this.configuration.paragraphOptions??{},this.configuration.input,this.painter,()=>{if(this.painter._usesInlineSpan){this.painter.paint(context.canvas,OffsetValue.zero);this.paragraph=this.painter._layoutSnapshot();}else context.paragraph(this.paragraph!.resource,this.paintOffsetX);if(this.painter._usesInlineSpan)this.paintInlineChildren(context,OffsetValue.zero);else for(const child of this.children)if((child.parentData as TextParentData).visible)context.paintChild(child,this.childTransform(child));},this.canonicalTextSize?.width,this.canonicalFade);this.paintSelectionHandles(context);}
+  protected paintLocal(context:PaintingContext):void{if(!this.paragraph)return;this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);this.paintSelections(context);paintParagraphOverflow(context,this.paragraph,this.size,this.configuration.paragraphOptions??{},()=>{this.painter.paint(context.canvas,OffsetValue.zero);this.paragraph=this.painter._layoutSnapshot();this.paintInlineChildren(context,OffsetValue.zero);},this.canonicalTextSize?.width,this.canonicalFade);this.paintSelectionHandles(context);}
   override detach():void{const errors:unknown[]=[];try{super.detach();}catch(error){errors.push(error);}if(!this.attached){try{this.intrinsicPainter?._releaseLayoutResources();}catch(error){errors.push(error);}try{this.clearOverflowShader();}catch(error){errors.push(error);}}if(errors.length)throw new AggregateError(errors,'Rich paragraph detach failed');}
   override dispose():void{const errors:unknown[]=[];try{super.dispose();}catch(error){errors.push(error);}if(this.debugDisposed){const painter=this.intrinsicPainter,shader=this.canonicalFade;this.intrinsicPainter=undefined;this.canonicalFade=undefined;try{painter?.dispose();}catch(error){errors.push(error);}try{shader?.dispose();}catch(error){errors.push(error);}}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Rich paragraph retirement failed');}
   protected override hitTestSelf():boolean{return true;}
@@ -177,7 +171,7 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   }
   hitTestChildren(position:Offset,result:HitTestEntry[],toLocal:TransformMatrix=identity):boolean{
     const glyph=this.paragraph?this.painter.getClosestGlyphForOffset(position):null,span=glyph!==null&&contains(glyph.graphemeClusterLayoutBounds,position)?this.configuration.span.getSpanForPosition(new TextPosition({offset:glyph.graphemeClusterCodeUnitRange.start})):null;
-    if(span!==null&&'handleEvent' in span&&typeof span.handleEvent==='function'){result.push({target:span as InlineSpan&HitTestTarget,transform:toLocal});return true;}if(this.painter._usesInlineSpan)return this.hitTestInlineChildren(result,position,toLocal);for(const child of [...this.children].reverse()){if(!(child.parentData as TextParentData).visible)continue;const inverse=inversePaintTransform(this.childTransform(child));if(inverse&&child.hitTest(transform(inverse,position),result,multiply(inverse,toLocal)))return true;}return false;
+    if(span!==null&&'handleEvent' in span&&typeof span.handleEvent==='function'){result.push({target:span as InlineSpan&HitTestTarget,transform:toLocal});return true;}return this.hitTestInlineChildren(result,position,toLocal);
   }
   protected override get hasSourceSemanticsConfiguration():boolean{return true;}
   override describeSemanticsConfiguration(config:SemanticsConfiguration):void{
@@ -261,23 +255,18 @@ export interface RenderParagraphOptions extends Omit<TextPainterOptions,'text'|'
 function sourceConfiguration(span:InlineSpan,o:RenderParagraphOptions,context:ParagraphContext):RichParagraphConfiguration{
   if(FoundationBuildMode.debug){invariant(span.debugAssertIsValid(),'invalid-inline-span','RenderParagraph text must be valid');invariant(o.maxLines==null||o.maxLines>0,'invalid-max-lines','maxLines must be positive');}
   if(FoundationBuildMode.debug)invariant(o.textScaler===undefined||(o.textScaleFactor??1)===1,'conflicting-text-scale','Use textScaler instead of textScaleFactor');
-  const style=o.baseStyle??new TextStyle(),scaler=o.textScaler??TextScaler.linear(o.textScaleFactor??1),overflow=o.overflow??'clip',locale=o.locale??null,localeText=locale?.toString()??(context.locale?.toString()??'und'),strut=o.strutStyle?.toStyle(scaler),maxLines=o.maxLines??null;
+  const style=o.baseStyle??new TextStyle(),scaler=o.textScaler??TextScaler.linear(o.textScaleFactor??1),overflow=o.overflow??'clip',locale=o.locale??null,maxLines=o.maxLines??null;
   const painterOptions:TextPainterOptions={...o,textScaler:scaler,textScaleFactor:1,locale,maxLines,ellipsis:overflow==='ellipsis'?'\u2026':null};
-  return {span,style,scaler,placeholders:collectInlinePlaceholders(span,style),painterOptions,paragraphOptions:{softWrap:o.softWrap??true,overflow,textWidthBasis:o.textWidthBasis??'parent'},input:{text:span.toPlainText({includeSemanticsLabels:false}),font:copyResourceId(context.font),fontSize:scaler.scale(style.fontSize??14),scale:context.scale,locale:localeText,direction:o.textDirection,color:style.color??context.color??0xff000000,maxLines:maxLines??textLimits.lines,ellipsis:painterOptions.ellipsis??'',textAlign:o.textAlign??'start',hyphens:o.hyphens??'manual',style:style.toRunStyle(scaler),...(strut?{strutStyle:strut}:{}),...(o.textHeightBehavior?{textHeightBehavior:o.textHeightBehavior}:{})}};
+  return {span,style,scaler,placeholderCount:collectInlinePlaceholders(span,style).length,font:copyResourceId(context.font),scale:context.scale,painterOptions,paragraphOptions:{softWrap:o.softWrap??true,overflow,textWidthBasis:o.textWidthBasis??'parent'}};
 }
 /** Source RenderParagraph API with explicit application text-engine ownership. */
 export class RenderParagraph extends RelayoutWhenSystemFontsChangeMixin(RenderRichParagraph) {
   private pixelRatio:number;
-  constructor(text:InlineSpan,options:RenderParagraphOptions,context:ParagraphContext,/** @internal */ captured?:RichParagraphConfiguration){const config=captured??sourceConfiguration(text,options,context);super(new TextPainter({},context),config);this.pixelRatio=options.devicePixelRatio??1;if(options.children)this.setChildren(options.children);this.registrar=options.registrar??null;this.selectionColor=options.selectionColor??null;this.semantics={id:this.semanticsId,role:'group',name:text.toPlainText().replaceAll('\ufffc',' '),enabled:true};}
+  constructor(text:InlineSpan,options:RenderParagraphOptions,context:ParagraphContext,/** @internal */ captured?:RichParagraphConfiguration){const config=captured??sourceConfiguration(text,options,context);super(config,context);this.pixelRatio=options.devicePixelRatio??1;if(options.children)this.setChildren(options.children);this.registrar=options.registrar??null;this.selectionColor=options.selectionColor??null;this.semantics={id:this.semanticsId,role:'group',name:text.toPlainText().replaceAll('\ufffc',' '),enabled:true};}
   /** @internal Preserve the host's captured font and ambient style resolution. */
   static _fromConfiguration(config:RichParagraphConfiguration,context:ParagraphContext):RenderParagraph{
-    // Text/RichText/Icon already resolved these inputs. Do not manufacture a
-    // second configuration and run update comparisons before the first layout.
-    // Custom source trees, scalers and mutable Paint retain their original
-    // preparation/callback sequence through the ordinary constructor + update.
-    const captured=isCapturedTextSpan(config.span)&&isCapturedTextStyle(config.style)&&isCapturedTextScaler(config.scaler)&&isCapturedResourceId(config.input.font)&&isCapturedResourceId(context.font)&&textInputSerializationIsPlain()&&(config.painterOptions===undefined||isCapturedTextRecord(config.painterOptions))&&(context.locale===undefined||typeof context.locale==='string');
-    const render=new RenderParagraph(config.span,{...config.painterOptions,textDirection:config.painterOptions?.textDirection??config.input.direction,baseStyle:config.style,textScaler:config.scaler,...config.paragraphOptions,devicePixelRatio:config.input.scale},context,captured?config:undefined);
-    if(!captured)render.config=config;return render;
+    config=captureRichParagraphConfiguration(config);
+    return new RenderParagraph(config.span,{...config.painterOptions,textDirection:config.painterOptions?.textDirection??'ltr',baseStyle:config.style,textScaler:config.scaler,...config.paragraphOptions,devicePixelRatio:config.scale},context,config);
   }
   private sourceOptions():RenderParagraphOptions{const p=this.selectionPainter;return {baseStyle:this.config.style,textAlign:p.textAlign,textDirection:p.textDirection!,textScaler:p.textScaler,maxLines:p.maxLines,locale:p.locale,strutStyle:p.strutStyle,textWidthBasis:p.textWidthBasis,textHeightBehavior:p.textHeightBehavior,hyphens:p.hyphens,softWrap:this.softWrap,overflow:this.overflow,devicePixelRatio:this.pixelRatio};}
   private change(options:Partial<RenderParagraphOptions>,damage:'paint'|'layout'='layout',clearOverflow=false):void{this.setSourceConfiguration(sourceConfiguration(this.text,{...this.sourceOptions(),...options},this.selectionPainter._paragraphContext),damage,clearOverflow);}

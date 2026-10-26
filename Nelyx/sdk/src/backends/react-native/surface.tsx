@@ -81,6 +81,7 @@ interface ReactNativeSurfaceOwner {
   metrics?:ViewMetrics;layout?:{width:number;height:number};nativeMetrics?:ReactNativeViewMetrics;
   environment?:ViewEnvironment;environmentRevision?:number;
   notify?:(event:SurfaceEvent)=>void;application?:ReactNativeApplication;opening?:Promise<ReactNativeApplication>;
+  view?:import('@nelyx/core/hosting/runtime').ViewRuntime;
   setVisible?:(visible:boolean)=>void;
   stopFrames?:()=>void;stopVisibility?:()=>void;close?:()=>Promise<void>;closing?:Promise<void>;
   interactionServices?:ReturnType<NativeInteraction['acquireServices']>;
@@ -173,7 +174,7 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
       ],promise=>{owner.closing=promise;});
       const closing=disposal.dispose(); // Publish before stop callbacks can reenter.
       owner.alive=false;owner.closed=true;
-      for(const stop of [()=>owner.stopVisibility?.(),()=>owner.stopFrames?.(),()=>{void owner.input?.dispose().catch(()=>{});}])try{stop();}catch(error){stopErrors.push(error);}
+      for(const stop of [()=>owner.view?.beginClose(),()=>owner.stopVisibility?.(),()=>owner.stopFrames?.(),()=>{void owner.input?.dispose().catch(()=>{});}])try{stop();}catch(error){stopErrors.push(error);}
       return closing;
     };
     const closeOwner=()=>finishOwnedDisposal(()=>owner.close!());
@@ -251,7 +252,7 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
       ...(props.useDefaultBinaryMessenger?{useDefaultBinaryMessenger:true}:{}),
       reportError:error=>fail(owner,error),
       identity:profile.identity,
-      surface:{owner:viewOwner,readMetrics:()=>owner.metrics!,attach(_view,notify){owner.notify=notify;notify({kind:'visibility',visible:visible(owner)});return {dispose(){owner.closed=true;stopNotifications();delete owner.notify;}};},dispose:()=>{owner.closed=true;stopNotifications();return owner.lease!.release();}},
+      surface:{owner:viewOwner,readMetrics:()=>owner.metrics!,attach(view,notify){owner.view=view;owner.notify=notify;if(!current(owner))view.beginClose();notify({kind:'visibility',visible:visible(owner)});return {dispose(){owner.closed=true;stopNotifications();delete owner.notify;delete owner.view;}};},dispose:()=>{owner.closed=true;stopNotifications();return owner.lease!.release();}},
       ...engine.services,assets:adapter.assetServices.service(configuration),
       clock:frameClock,
       editing:interaction.editing,semantics:interaction.semantics,

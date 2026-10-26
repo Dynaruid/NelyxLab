@@ -8,18 +8,19 @@ import type {Disposable} from '../../foundation/disposable.ts';
 import {getEditableButtonItems,ClipboardStatus} from './text-selection.ts';
 import type {TextSelectionControls} from './text-selection.ts';
 import {ChangeNotifier} from '../../foundation/notifier.ts';
+import type {Listenable} from '../../foundation/notifier.ts';
 import {FoundationPlatform} from '../../foundation/platform.ts';
 import {invariant,exceptionStack} from '../../foundation/errors.ts';
 import {FlutterErrorDetails} from '../../foundation/assertions.ts';
 import {ErrorDescription} from '../../foundation/diagnostics.ts';
-import type {TextEditingValue,TextSelection,Composition,EditingGeometry,TextLayoutInput,TextInputGeometry,TextInputCharacterBounds,TextInputGeometryStamp,TextInputRangeBounds,TextInputHitOptions,TextInputHitTest,SemanticsTextActions} from '../../ui/types.ts';
+import type {TextEditingValue,TextSelection,Composition,EditingGeometry,TextLayoutGeometry,TextInputGeometry,TextInputCharacterBounds,TextInputGeometryStamp,TextInputRangeBounds,TextInputHitOptions,TextInputHitTest,SemanticsTextActions} from '../../ui/types.ts';
 import {validateEditingContent,freezeEditingGeometry} from '../../ui/editing.ts';
 import {freezeEditingConfiguration,editingConfigurationKey} from '../../hosting/editing-configuration.ts';
 import type {EditingConfiguration,EditingConfigurationOptions} from '../../hosting/editing-configuration.ts';
 import type {EditingBinding,TextInputAction,EditingSynchronizationRejection} from '../../hosting/interaction.ts';
 import type {Key} from '../../foundation/key.ts';
 import {StatefulWidget,State,Element,RenderObjectWidget} from './framework.ts';
-import type {Widget,BuildContext} from './framework.ts';
+import type {Widget,BuildContext,BuildOwner} from './framework.ts';
 import {RenderBox} from '../rendering/object.ts';
 import {Scrollable} from './scrollable.ts';
 import type {ScrollableState} from './scrollable.ts';
@@ -53,7 +54,7 @@ import {TextPainter} from '../painting/text-painter.ts';
 import {TextSpan} from '../painting/text-span.ts';
 import type {TextStyle} from '../painting/text-style.ts';
 import type {TextAlign} from '../../ui/typography.ts';
-import {resolveTextInput} from './text-input.ts';
+import {resolveTextConfiguration} from './text-input.ts';
 import {DefaultSelectionStyle} from './default-selection-style.ts';
 import {freezeEditorStyle} from '../../hosting/editor-style.ts';
 import type {EditorStyle} from '../../hosting/editor-style.ts';
@@ -217,7 +218,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private readonly scrollableKey=new GlobalKey<ScrollableState>('EditableText scrollable');
   private layoutViewportGeneration=-1;
   private currentInputGeometry():TextInputGeometry|null{
-    if(!this.mounted||!(this.context instanceof Element)||!this.context.active||this.context.dirty)return null;
+    if(!this.mounted||!(this.context instanceof Element)||!this.context.active||this.context.dirty||this.context.services.readStatus()!=='open')return null;
     const render=this.editableRender(),metrics=this.context.services.readMetrics();
     if(!render?.attached||!render.hasSize||render.needsLayout||!render.isDisplayed||metrics.viewportGeneration!==this.layoutViewportGeneration)return null;
     const expected=this.boundConfiguration.obscureText?'•'.repeat(this.widget.controller.text.length):this.widget.controller.text;if(render.plainText!==expected)return null;
@@ -258,7 +259,32 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.binding.updateGeometry(this.currentInputGeometry());
   };
 
-  private lineMetrics:{readonly key:string;readonly text:BuildContext['services']['text'];readonly baselines:EditorBaselines}|undefined;
+  private metricPainter:TextPainter|undefined;
+  private lineMetrics:{readonly geometry:TextLayoutGeometry;readonly baselines:EditorBaselines}|undefined;
+  private fontMetricsDirty=false;
+  private fontSubscription:{readonly fonts:Listenable;readonly owner:BuildOwner;readonly notify:()=>void;installing:boolean;retired:boolean}|undefined;
+  private removeSystemFonts():void{
+    const subscription=this.fontSubscription;this.fontSubscription=undefined;
+    if(!subscription)return;subscription.retired=true;
+    if(!subscription.installing)subscription.fonts.removeListener(subscription.notify);
+  }
+  private updateSystemFonts():void{
+    const owner=this.context instanceof Element&&this.context.active?this.context.owner:null,fonts=owner?.systemFonts??null;
+    if(!this.fontSubscription&&!fonts)return;
+    if(this.fontSubscription?.owner===owner&&this.fontSubscription.fonts===fonts)return;
+    this.fontMetricsDirty=true;this.removeSystemFonts();
+    if(!owner||!fonts||!this.mounted||!(this.context instanceof Element)||!this.context.active||this.context.owner!==owner||owner.services.readStatus()!=='open')return;
+    const subscription={fonts,owner,installing:true,retired:false,notify:()=>{
+      if(!this.mounted||!(this.context instanceof Element)||!this.context.active||this.context.owner!==owner||owner.services.readStatus()!=='open'||this.fontSubscription!==subscription)return;
+      // Retirement happens in build, outside the notifier's listener traversal.
+      this.fontMetricsDirty=true;this.setState(()=>{});
+    }};
+    this.fontSubscription=subscription;
+    try{fonts.addListener(subscription.notify);}
+    catch(error){if(this.fontSubscription===subscription)this.fontSubscription=undefined;subscription.retired=true;try{fonts.removeListener(subscription.notify);}catch(cleanup){throw new AggregateError([error,cleanup],'Editor font subscription and cleanup failed');}throw error;}
+    finally{subscription.installing=false;}
+    if(subscription.retired||this.fontSubscription!==subscription)fonts.removeListener(subscription.notify);
+  }
   private autofocusHandled=false;
   private binding:EditingBinding|undefined;
   private boundConfiguration:EditingConfiguration=freezeEditingConfiguration();
@@ -289,6 +315,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   private synchronizationRejected(request:number,reason:EditingSynchronizationRejection):void{
     const flight=this.synchronizationInFlight;if(!flight||flight.request!==request)return;this.synchronizationInFlight=undefined;
+    if(this.context.services.readStatus()!=='open'){this.pendingSynchronization=undefined;this.cancellationPending=false;this.widget.controller._rejectPendingReplacement();return;}
     if((reason==='stale'||reason==='composing'&&!this.cancellationPending)&&flight.retries<3){
       this.pendingSynchronization??={...(this.cancellationPending?flight.value:this.widget.controller.value),...(flight.selectionOnly?{selectionOnly:true}:{composing:{status:'none'} as const}),retries:flight.retries+1};this.queueSynchronization();return;
     }
@@ -300,7 +327,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     void Promise.resolve().then(()=>{if(connection!==this.connection)return;this.synchronizationQueued=false;if(this.mounted)this.editingCallback('synchronizing Core input',()=>this.flushSynchronization());});
   }
   private flushSynchronization():void{
-    if(this.synchronizationInFlight||!this.pendingSynchronization)return;
+    if(this.synchronizationInFlight||!this.pendingSynchronization||this.context.services.readStatus()!=='open')return;
     const binding=this.binding;invariant(binding,'editor-binding-closed','Editor binding unavailable');
     const current=binding.read(),composing=binding.isComposing??current.composing.status==='active';let value=this.pendingSynchronization;if(composing&&!this.cancellationPending&&!value.selectionOnly)return;
     this.pendingSynchronization=undefined;if(value.selectionOnly){if(value.text!==current.text)return;value={...value,composing:current.composing};}
@@ -317,10 +344,10 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private stopBlink():void{this.blink?.dispose();this.blink=undefined;}
   private syncBlink(reset=true):void{
     this.stopBlink();if(reset)this.cursorVisible=true;
-    if(!this.mounted||!(this.context instanceof Element)||!this.context.active||!this.focus?.hasPrimaryFocus||this.widget.inputOptions?.enabled===false||this.widget.controller.isComposing||this.widget.controller.selection.anchor!==this.widget.controller.selection.focus||maybeTickerScheduler(this.context)?.visible===false)return;
+    if(!this.isCurrentEditingOwner(this.editingIdentity)||!this.focus?.hasPrimaryFocus||this.widget.controller.isComposing||this.widget.controller.selection.anchor!==this.widget.controller.selection.focus||maybeTickerScheduler(this.context)?.visible===false)return;
     const host=globalThis as unknown as {setTimeout?:(callback:()=>void,delay:number)=>unknown;clearTimeout?:(handle:unknown)=>void};
     invariant(host.setTimeout&&host.clearTimeout,'missing-cursor-timer','EditableText needs host one-shot timers');
-    let active=true;const connection=this.connection,handle=host.setTimeout(()=>{if(!active||connection!==this.connection)return;active=false;this.blink=undefined;if(this.mounted&&this.context instanceof Element&&this.context.active){this.setState(()=>{this.cursorVisible=!this.cursorVisible;});this.syncBlink(false);}},500);
+    let active=true;const connection=this.connection,handle=host.setTimeout(()=>{if(!active||connection!==this.connection)return;active=false;this.blink=undefined;if(this.isCurrentEditingOwner(this.editingIdentity)){this.setState(()=>{this.cursorVisible=!this.cursorVisible;});this.syncBlink(false);}},500);
     this.blink={dispose(){if(active){active=false;host.clearTimeout!(handle);}}};
   }
   private dragAnchor:number|undefined;private selectionAffinity:'upstream'|'downstream'='downstream';private selectionDirectional=false;
@@ -513,7 +540,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private releaseKey:(()=>void)|undefined;private preferredX:number|undefined;
   private actions:ReadonlyMap<IntentType,ActionHandle>|undefined;
   private editingIdentity=newEditingIdentity();private hadFocusOnTapDown=false;
-  private isCurrentEditingOwner(owner:object):boolean{return owner===this.editingIdentity&&this.mounted&&this.context instanceof Element&&this.context.active&&this.widget.inputOptions?.enabled!==false;}
+  private isCurrentEditingOwner(owner:object):boolean{return owner===this.editingIdentity&&this.mounted&&this.context instanceof Element&&this.context.active&&this.context.services.readStatus()==='open'&&this.widget.inputOptions?.enabled!==false;}
   private onTapOutside(event:PointerDownEvent,owner:object):void{
     if(!this.isCurrentEditingOwner(owner)||!this.focus?.hasFocus)return;this.hadFocusOnTapDown=true;
     const callback=this.widget.inputOptions?.onTapOutside;
@@ -705,7 +732,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private editableRender():RenderEditable|undefined{const render=this.renderKey.currentContext?.findRenderObject();return render instanceof RenderEditable?render:undefined;}
   /** Pinned EditableTextState API; host ordering metadata is an Nelyx extension. */
   requestKeyboard():void{
-    if(!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
+    if(!(this.context instanceof Element)||!this.isCurrentEditingOwner(this.editingIdentity))return;
     if(this.focus?.hasPrimaryFocus)this.showKeyboard(this.context.owner.focus.currentFocusRequest);
     else this.focus?.requestFocus();
   }
@@ -737,6 +764,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   private readonly invalidated=()=>{
     if(!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
+    if(this.context.services.readStatus()!=='open'){this.stopBlink();this.stopSelectionDrag();return;}
     if(this.selectionDrag){if(this.cancellationPending||this.widget.controller.isComposing&&this.selectionDrag.kind!=='pointer'||this.selectionDrag.text!==this.widget.controller.text||this.widget.inputOptions?.enabled===false||this.selectionDrag.focused&&!this.focus?.hasPrimaryFocus)this.stopSelectionDrag();else if(this.focus?.hasPrimaryFocus){this.selectionDrag.focused=true;this.updateSelectionScroll();}}
     this.syncBlink();this.selectionOverlay?.markNeedsBuild();this.queueSelectionOverlay();
     if(this.context.owner.building)this.context.owner.postFrame(()=>{if(this.mounted)this.setState(()=>{});});
@@ -763,6 +791,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   /** Reveals a Core text position through the actual ancestor viewports. */
   bringIntoView(position:TextPosition):void{
+    if(!this.isCurrentEditingOwner(this.editingIdentity))return;
     invariant(position instanceof TextPosition&&position.offset>=0&&position.offset<=this.widget.controller.text.length,'invalid-text-offset','Reveal position is outside the Core document');
     const render=this.editableRender(),text=this.boundConfiguration.obscureText?'•'.repeat(this.widget.controller.text.length):this.widget.controller.text;if(!render?.hasSize||render.needsLayout||render.plainText!==text){this.scheduleCaretReveal(position,false);return;}this.revealPosition(position);
   }
@@ -781,6 +810,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     const {services}=this.context,controller=this.widget.controller;
     this.autofillGroup=AutofillGroup.maybeOf(this.context);this.boundConfiguration=this.desiredConfiguration();this.boundLinePolicy=editableLinePolicy(this.widget.inputOptions);this.boundAction=this.widget.inputOptions?.action??(this.boundConfiguration.multiline?'enter':'done');this.pendingConfiguration=false;
     this.attachedController=controller;const connection=++this.connection;
+    // One readonly view per connection. Availability is read from its actual
+    // owners, without allocating another state snapshot for each IME query.
+    const state=this,inputState={get enabled(){return connection===state.connection&&state.isCurrentEditingOwner(state.editingIdentity);},get focusable(){return state.focus?.canRequestFocus??state.widget.focusNode?.canRequestFocus??true;},get label(){return state.widget.label;}};
     try{
     this.clipboardStatus=ClipboardStatus.unknown;
     if(this.autofillGroup&&this.boundConfiguration.autofillHints&&!this.boundConfiguration.readOnly)this.autofillClient=this.autofillGroup.registerClient(this.widget.id,this.boundConfiguration.autofillHints);
@@ -798,6 +830,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         const pending=this.pendingSynchronization;
         if(pending){if(pending.text!==value.text||pending.selection.anchor!==value.selection.anchor||pending.selection.focus!==value.selection.focus)return;this.pendingSynchronization=undefined;}
       }
+      // Receipts retire an admitted synchronization after View admission stops;
+      // they cannot turn into another user edit or focus/action callback.
+      if(!current()&&!acknowledged)return;
       const compositionBase=this.compositionBase;if(composing)this.compositionBase??=controller.value;else this.compositionBase=undefined;
       if(!composing&&!this.boundConfiguration.readOnly&&userEdit&&this.binding&&(previous!==value.text||compositionBase!==undefined)){
         const formatted=this.formatUserValue(compositionBase??controller.value,value,current);if(!formatted)return;
@@ -818,7 +853,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         if(controller.revision===revision&&this.isCurrentEditingOwner(identity)&&previous!==controller.text)this.editingCallback('calling onChanged',()=>this.widget.inputOptions?.onChanged?.(controller.text));
       }
       if(acknowledged)this.publishInputGeometry();
-    },{id:this.widget.id,readInputState:()=>({enabled:connection===this.connection&&this.mounted&&this.context instanceof Element&&this.context.active&&this.widget.inputOptions?.enabled!==false,focusable:this.focus?.canRequestFocus??this.widget.focusNode?.canRequestFocus??true,label:this.widget.label}),readValue:()=>controller.value,synchronizationRejected:(request,reason)=>{if(connection===this.connection)this.synchronizationRejected(request,reason);},readCharacterBounds:(start,end,expected)=>connection===this.connection?this.readCharacterBounds(start,end,expected):null,readRangeBounds:(start,end,expected)=>connection===this.connection?this.readRangeBounds(start,end,expected):null,readTextPosition:(point,options,expected)=>connection===this.connection?this.readTextPosition(point,options,expected):null,configuration:this.boundConfiguration,onUndo:()=>connection===this.connection&&!this.boundConfiguration.readOnly&&controller.undo(),onRedo:()=>connection===this.connection&&!this.boundConfiguration.readOnly&&controller.redo(),action:this.boundAction,onAction:()=>{if(connection===this.connection)this.submit();},focusChanged:focused=>{if(connection===this.connection&&this.focus&&this.context instanceof Element){if(focused){if(this.context.owner.focus.focus(this.focus))this.reveal();}else this.context.owner.focus.blur(this.focus);}}});
+    },{id:this.widget.id,readInputState:()=>inputState,readValue:()=>controller.value,synchronizationRejected:(request,reason)=>{if(connection===this.connection)this.synchronizationRejected(request,reason);},readCharacterBounds:(start,end,expected)=>connection===this.connection?this.readCharacterBounds(start,end,expected):null,readRangeBounds:(start,end,expected)=>connection===this.connection?this.readRangeBounds(start,end,expected):null,readTextPosition:(point,options,expected)=>connection===this.connection?this.readTextPosition(point,options,expected):null,configuration:this.boundConfiguration,onUndo:()=>connection===this.connection&&this.isCurrentEditingOwner(this.editingIdentity)&&!this.boundConfiguration.readOnly&&controller.undo(),onRedo:()=>connection===this.connection&&this.isCurrentEditingOwner(this.editingIdentity)&&!this.boundConfiguration.readOnly&&controller.redo(),action:this.boundAction,onAction:()=>{if(connection===this.connection&&this.isCurrentEditingOwner(this.editingIdentity))this.submit();},focusChanged:focused=>{if(connection===this.connection&&this.focus&&this.context instanceof Element){if(focused){if(this.isCurrentEditingOwner(this.editingIdentity)&&this.context.owner.focus.focus(this.focus))this.reveal();}else this.context.owner.focus.blur(this.focus);}}});
     this.checkFormatterSupport();this.focus=this.widget.focusNode??new FocusNode();this.ownFocus=!this.widget.focusNode;
     const manager=this.context.owner.focus;manager.addLateKeyEventHandler(this.defaultEditingKey);this.releaseKey=()=>manager.removeLateKeyEventHandler(this.defaultEditingKey);
     controller.addListener(this.invalidated);this.focus.addListener(this.invalidated);
@@ -826,9 +861,14 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     }catch(error){try{this.disconnect();}catch(cleanup){throw new AggregateError([error,cleanup],'Editor connection and cleanup failed');}throw error;}
   }
   private disconnect():void{this.focusRestorationToken={};this.keyboardRequest=undefined;this.stopSelectionDrag();this.selectionOverlay?.dispose();this.selectionOverlay=undefined;this.overlayRequested=false;this.toolbarRequested=false;this.overlayScheduled=false;this.handleAnchor=undefined;this.restoreToolbarAfterDrag=false;this.releaseKey?.();this.releaseKey=undefined;this.stopBlink();this.blinkVisibility?.dispose();this.blinkVisibility=undefined;this.connection++;this.pendingConfiguration=false;this.reconfigurationQueued=false;const controller=this.attachedController,focus=this.focus,release=this.releaseController,binding=this.binding,owned=this.ownFocus,autofillClient=this.autofillClient;this.autofillClient=undefined;this.autofillGroup=null;this.attachedController=undefined;this.releaseController=undefined;this.focus=undefined;this.binding=undefined;this.compositionBase=undefined;this.pendingSynchronization=undefined;this.synchronizationInFlight=undefined;this.synchronizationQueued=false;this.cancellationPending=false;const errors:unknown[]=[];for(const cleanup of [()=>controller?.removeListener(this.invalidated),()=>focus?.removeListener(this.invalidated),()=>release?.(),()=>{if(owned)focus?.dispose();},()=>binding?.dispose(),()=>autofillClient?.dispose()])try{cleanup();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Editor cleanup failed');}
-  override didChangeDependencies():void{super.didChangeDependencies();this.selectionOverlay?.dispose();this.selectionOverlay=undefined;this.queueSelectionOverlay();Focus.maybeOf(this.context,{scopeOk:true});const next=this.desiredConfiguration(),changed=this.autofillGroup!==AutofillGroup.maybeOf(this.context)||editingConfigurationKey(this.boundConfiguration)!==editingConfigurationKey(next);if(changed){if(this.binding?.isComposing||this.widget.controller.isComposing)this.pendingConfiguration=true;else this.reconnect();}}
-  override deactivate():void{this.focusRestorationToken={};this.cancelCaretReveal();this.hadFocusOnTapDown=false;this.stopSelectionDrag();this.hideToolbar();this.stopBlink();this.dragAnchor=undefined;super.deactivate();}
-  override activate():void{super.activate();this.syncBlink();if(this.pendingConfiguration&&!this.binding?.isComposing)this.queueReconfiguration();}
+  override didChangeDependencies():void{super.didChangeDependencies();this.updateSystemFonts();this.selectionOverlay?.dispose();this.selectionOverlay=undefined;this.queueSelectionOverlay();Focus.maybeOf(this.context,{scopeOk:true});const next=this.desiredConfiguration(),changed=this.autofillGroup!==AutofillGroup.maybeOf(this.context)||editingConfigurationKey(this.boundConfiguration)!==editingConfigurationKey(next);if(changed){if(this.binding?.isComposing||this.widget.controller.isComposing)this.pendingConfiguration=true;else this.reconnect();}}
+  override deactivate():void{
+    this.fontMetricsDirty=true;
+    try{this.focusRestorationToken={};this.cancelCaretReveal();this.hadFocusOnTapDown=false;this.stopSelectionDrag();this.hideToolbar();this.stopBlink();this.dragAnchor=undefined;super.deactivate();}
+    catch(error){try{this.removeSystemFonts();}catch(cleanup){throw new AggregateError([error,cleanup],'Editor deactivation and font cleanup failed');}throw error;}
+    this.removeSystemFonts();
+  }
+  override activate():void{super.activate();this.updateSystemFonts();this.syncBlink();if(this.pendingConfiguration&&!this.binding?.isComposing)this.queueReconfiguration();}
   private reconnect(restoreFocus=true):void{
     const priorFocus=this.focus,focused=restoreFocus&&priorFocus?.hasFocus,request:InputFocusRequest={...this.keyboardRequest,restore:true};this.disconnect();this.connect();if(!focused||!(this.context instanceof Element))return;
     const token={},identity=this.editingIdentity,connection=this.connection,focus=this.focus,binding=this.binding,manager=this.context.owner.focus,generation=manager.focusRequestGeneration;this.focusRestorationToken=token;
@@ -840,9 +880,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     });
   }
   private queueReconfiguration():void{
-    if(this.reconfigurationQueued||!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
+    if(this.reconfigurationQueued||!this.mounted||!(this.context instanceof Element)||!this.context.active||this.context.services.readStatus()!=='open')return;
     this.reconfigurationQueued=true;const connection=this.connection;
-    this.context.owner.postFrame(()=>{if(connection!==this.connection)return;this.reconfigurationQueued=false;if(!this.mounted||!(this.context instanceof Element)||!this.context.active||!this.pendingConfiguration||this.binding?.isComposing||this.widget.controller.isComposing)return;this.reconnect();this.setState(()=>{});});
+    this.context.owner.postFrame(()=>{if(connection!==this.connection)return;this.reconfigurationQueued=false;if(!this.mounted||!(this.context instanceof Element)||!this.context.active||this.context.services.readStatus()!=='open'||!this.pendingConfiguration||this.binding?.isComposing||this.widget.controller.isComposing)return;this.reconnect();this.setState(()=>{});});
   }
   override didUpdateWidget(old:EditableText):void{
     if(!this.selectionEnabled){this.stopSelectionDrag();this.hideToolbar();}
@@ -852,24 +892,28 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if(!this.binding||identityChanged||settingsChanged){if(this.binding&&!identityChanged&&(this.binding.isComposing||this.widget.controller.isComposing))this.pendingConfiguration=true;else{this.reconnect(old.focusNode===this.widget.focusNode);return;}}else this.pendingConfiguration=false;
     try{this.checkFormatterSupport();}catch(error){try{this.disconnect();}catch(cleanup){throw new AggregateError([error,cleanup],'Unsupported formatter cleanup failed');}throw error;}
   }
-  override dispose():void{this.cancelCaretReveal();this.editingIdentity={generation:0};this.hadFocusOnTapDown=false;try{this.disconnect();}finally{this.lineMetrics=undefined;this.startHandleVisible.dispose();this.endHandleVisible.dispose();}}
-  private resolveStyle(text:string):{style:EditorStyle;baselines:EditorBaselines;input:Omit<TextLayoutInput,'width'>}|undefined {
+  override dispose():void{
+    const painter=this.metricPainter;this.metricPainter=undefined;this.lineMetrics=undefined;const errors:unknown[]=[],release=(dispose:()=>void)=>{try{dispose();}catch(error){errors.push(error);}};
+    release(()=>this.removeSystemFonts());release(()=>this.cancelCaretReveal());this.editingIdentity={generation:0};this.hadFocusOnTapDown=false;release(()=>this.disconnect());release(()=>painter?.dispose());release(()=>this.startHandleVisible.dispose());release(()=>this.endHandleVisible.dispose());
+    if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Editable state retirement failed');
+  }
+  private resolveStyle(text:string):{style:EditorStyle;baselines:EditorBaselines;layout:Pick<EditableTextLayout,'options'|'context'>}|undefined {
+    if(this.fontMetricsDirty){this.fontMetricsDirty=false;this.lineMetrics=undefined;this.metricPainter?.markNeedsLayout();}
     const options=this.widget.inputOptions;
-    const resolved=resolveTextInput(this.context,text,{...(options?.textStyle?{style:options.textStyle}:{}),...(options?.textAlign?{textAlign:options.textAlign}:{}),...(options?.textDirection?{direction:options.textDirection}:{}),...(options?.strutStyle?{strutStyle:options.strutStyle}:{}),...(options?.textScaler?{textScaler:options.textScaler}:{})}),{input,style,scaler,painterOptions}=resolved,run=style.toRunStyle(scaler),services=this.context.services;
-    const {color:_color,backgroundColor:_backgroundColor,...metricStyle}=run,key=JSON.stringify({font:input.font,scale:input.scale,direction:input.direction,metricStyle});
-    if(this.lineMetrics?.key!==key||this.lineMetrics.text!==services.text){
-      const painter=new TextPainter({...painterOptions,text:new TextSpan({text:' ',style})},{text:services.text,resources:services.resources,font:input.font,scale:input.scale,transient:true});
-      try{painter.layout();this.lineMetrics={key,text:services.text,baselines:Object.freeze({lineHeight:painter.height,alphabetic:painter.computeDistanceToActualBaseline('alphabetic'),ideographic:painter.computeDistanceToActualBaseline('ideographic')})};}finally{painter.dispose();}
-    }
-    const family=services.text.fontFamily?.(input.font),families=[...new Set([...(run.fontFamilies??[]),...(family?[family]:[])])],selection=DefaultSelectionStyle.of(this.context),baselines=this.lineMetrics.baselines;
-    return {style:freezeEditorStyle({fontFamilies:families,fontSize:input.fontSize,fontWeight:run.fontWeight??400,fontStyle:run.fontStyle??'normal',lineHeight:baselines.lineHeight,letterSpacing:run.letterSpacing??0,wordSpacing:run.wordSpacing??0,color:run.color??input.color??0xff000000,backgroundColor:run.backgroundColor??0,cursorColor:options?.cursorColor??selection.cursorColor??run.color??input.color??0xff000000,selectionColor:options?.selectionColor??selection.selectionColor??DefaultSelectionStyle.defaultColor,textAlign:input.textAlign??'start',textDirection:input.direction}),baselines,input};
+    const resolved=resolveTextConfiguration(this.context,{...(options?.textStyle?{style:options.textStyle}:{}),...(options?.textAlign?{textAlign:options.textAlign}:{}),...(options?.textDirection?{direction:options.textDirection}:{}),...(options?.strutStyle?{strutStyle:options.strutStyle}:{}),...(options?.textScaler?{textScaler:options.textScaler}:{})}),{font,scale,style,scaler,painterOptions}=resolved,run=style.toRunStyle(scaler),services=this.context.services;
+    const context={text:services.text,resources:services.resources,font,scale,transient:true};
+    if(this.metricPainter&&(this.metricPainter._paragraphContext.text!==services.text||this.metricPainter._paragraphContext.resources!==services.resources)){const old=this.metricPainter;this.metricPainter=undefined;this.lineMetrics=undefined;old.dispose();}
+    const painter=this.metricPainter??=new TextPainter({},context);painter._updateContext(context);painter.text=new TextSpan({text:' ',style});painter.textAlign='left';painter.textDirection=painterOptions.textDirection??null;painter.textScaler=scaler;painter.maxLines=1;painter.ellipsis=null;painter.locale=painterOptions.locale??null;painter.strutStyle=painterOptions.strutStyle??null;painter.textWidthBasis='parent';painter.textHeightBehavior=painterOptions.textHeightBehavior??null;painter.hyphens=painterOptions.hyphens??'manual';
+    const geometry=painter._measure(Infinity);if(this.lineMetrics?.geometry!==geometry)this.lineMetrics={geometry,baselines:Object.freeze({lineHeight:geometry.height,alphabetic:geometry.alphabeticBaseline,ideographic:geometry.ideographicBaseline})};
+    const family=services.text.fontFamily?.(font),families=[...new Set([...(run.fontFamilies??[]),...(family?[family]:[])])],selection=DefaultSelectionStyle.of(this.context),baselines=this.lineMetrics.baselines;
+    return {style:freezeEditorStyle({fontFamilies:families,fontSize:run.fontSize??scaler.scale(style.fontSize??18),fontWeight:run.fontWeight??400,fontStyle:run.fontStyle??'normal',lineHeight:baselines.lineHeight,letterSpacing:run.letterSpacing??0,wordSpacing:run.wordSpacing??0,color:run.color??style.color??0xff000000,backgroundColor:run.backgroundColor??0,cursorColor:options?.cursorColor??selection.cursorColor??run.color??style.color??0xff000000,selectionColor:options?.selectionColor??selection.selectionColor??DefaultSelectionStyle.defaultColor,textAlign:painterOptions.textAlign??'start',textDirection:(painterOptions.textDirection??'ltr')}),baselines,layout:{options:{...painterOptions,text:new TextSpan({text,style})},context:{text:services.text,resources:services.resources,font,scale}}};
   }
   build():Widget{
     this.layoutViewportGeneration=this.context.services.readMetrics().viewportGeneration;this.queueSelectionOverlay();const options=this.widget.inputOptions,minHeight=options?.minHeight??48;
     invariant(Number.isFinite(this.widget.height)&&this.widget.height>=0&&Number.isFinite(minHeight)&&minHeight>=0,'invalid-editor-height','EditableText heights must be finite and nonnegative');
     const text=this.boundConfiguration.obscureText?'•'.repeat(this.widget.controller.text.length):this.widget.controller.text,scale=this.context.maybeDependOn(MediaQuery)?.data.textScale??this.context.services.readMetrics().environment?.textScale??1,resolved=this.resolveStyle(text),height=Math.max(this.widget.height,minHeight*scale,resolved?.style.lineHeight??0),enabled=options?.enabled!==false;
     const desiredPolicy=editableLinePolicy(options),policy=this.pendingConfiguration&&this.boundConfiguration.multiline!==(desiredPolicy.maxLines!==1)?this.boundLinePolicy:desiredPolicy;
-    const layout:EditableTextLayout|undefined=resolved?{...policy,input:resolved.input,text:this.context.services.text,resources:this.context.services.resources}:undefined;
+    const layout:EditableTextLayout|undefined=resolved?{...policy,...resolved.layout}:undefined;
     if(!this.autofocusHandled&&options?.autofocus&&enabled&&this.context instanceof Element){this.autofocusHandled=true;const identity=this.editingIdentity;this.context.owner.postFrame(()=>{if(this.isCurrentEditingOwner(identity)&&this.focus?.attached)this.focus.enclosingScope?.autofocus(this.focus);});}
     const currentSelection=this.widget.controller.selection,handleDrag=this.selectionDrag?.kind==='start-handle'||this.selectionDrag?.kind==='end-handle',apple=handleDrag&&(FoundationPlatform.defaultTargetPlatform==='iOS'||FoundationPlatform.defaultTargetPlatform==='macOS'),activeEdge=!apple&&this.selectionDrag?.kind==='start-handle'?Math.min(currentSelection.anchor,currentSelection.focus):!apple&&this.selectionDrag?.kind==='end-handle'?Math.max(currentSelection.anchor,currentSelection.focus):undefined;
     const focused=enabled&&(this.focus?.hasPrimaryFocus??false),selection=DefaultSelectionStyle.of(this.context),paint:EditablePaintValue={selection:currentSelection,...(activeEdge!==undefined?{activeSelectionEdge:new TextPosition({offset:activeEdge,affinity:this.selectionAffinity})}:{}),composing:this.widget.controller.composing,affinity:this.selectionAffinity,focused,cursorVisible:this.cursorVisible,cursorColor:options?.cursorColor??selection.cursorColor??resolved?.style.color??0xff000000,selectionColor:options?.selectionColor??selection.selectionColor??DefaultSelectionStyle.defaultColor,...(options?.cursorWidth!==undefined?{cursorWidth:options.cursorWidth}:{}),...(options?.cursorHeight!==undefined?{cursorHeight:options.cursorHeight}:{}),obscureText:this.boundConfiguration.obscureText,graphemeOffsets:graphemeBoundaries(this.widget.controller.text)};

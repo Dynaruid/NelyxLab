@@ -26,6 +26,7 @@ function sameSemantics(a:unknown,b:unknown):boolean {
 export interface NativeTextPositionRequest {readonly request:number;readonly point:{readonly x:number;readonly y:number};readonly options:TextInputHitOptions;readonly layoutEpoch:number;readonly nativeRevision:number}
 export interface NativeEditorPort {readNativeTag?():number|null;replace(text:string,selection:{start:number;end:number},revision?:number,request?:number):void;replaceComposing?(text:string,selection:{start:number;end:number},revision:number,request?:number):void;updateGeometry?(geometry:TextInputGeometry|null,text:string,characters:TextInputCharacterBounds|null,nativeRevision:number,selection:Readonly<{anchor:number;focus:number}>):void;updateCaretBounds?(bounds:TextInputRangeBounds,nativeRevision:number):void;updateTextPosition?(request:number,position:TextInputHitTest,nativeRevision:number):void;focus(request?:InputFocusRequest):void;blur():void;revealCaret?():void}
 export interface NativeInteractionPolicy {readonly commands:boolean;readonly selectionEvents:boolean;readonly semantics:'native-controls'|'unavailable';readonly nativeSnapshots?:boolean;readonly compositionReplacement?:boolean;readonly geometry?:'observed'|'unavailable'}
+interface AttachedEditor {token:object;commands:NativeEditorPort;generation:number}
 interface PendingReplacement {readonly value:TextEditingValue;readonly base:TextEditingValue;readonly request:number|undefined;readonly cancelComposition:boolean;readonly selectionOnly?:boolean;retries:number}
 function sendReplacement(port:NativeEditorPort,request:PendingReplacement,revision:number):void{
   const send=request.cancelComposition?port.replaceComposing:port.replace;if(!send)throw new Error('Native composition replacement unavailable');
@@ -40,7 +41,7 @@ export class NativeInteraction {
   private lifetime:object|undefined;
   private releaseLifetime:((errors:unknown[])=>boolean)|undefined;
   private editors=new Map<string,Editor>();
-  private ports=new Map<string,{token:object;commands:NativeEditorPort;generation:number}>();
+  private ports=new Map<string,AttachedEditor>();
   private nodes=new Map<string,SemanticsNode>();
   private nodeLifetimes=new Map<string,object>();
   private readonly semanticsPorts=new Map<string,{token:object;readTag:()=>number|null}>();
@@ -93,6 +94,11 @@ export class NativeInteraction {
   }
   editorValue(id:string):TextEditingValue|undefined{return this.editors.get(id)?.session.value;}
   editorCoreValue(id:string):ReturnType<NonNullable<EditingOptions['readValue']>>|undefined{return this.editors.get(id)?.options?.readValue?.();}
+  private canAdmitEditorInput(id:string,editor:Editor,port?:AttachedEditor):boolean{
+    if(this.closed||this.editors.get(id)!==editor||port&&this.ports.get(id)!==port)return false;
+    const enabled=editor.options?.readInputState?.().enabled!==false;
+    return enabled&&!this.closed&&this.editors.get(id)===editor&&(!port||this.ports.get(id)===port);
+  }
   private publishInputGeometry(id:string,editor:Editor):void{
     const attached=this.currentPort(id),port=attached?.commands;if(!attached||!port?.updateGeometry)return;
     const revision=editor.nativeRevision,basicLive=()=>!this.closed&&this.editors.get(id)===editor&&this.currentPort(id)===attached&&editor.nativeRevision===revision;
@@ -104,8 +110,8 @@ export class NativeInteraction {
     const withdraw=()=>{if(basicLive()&&!isPublished(null))sendGeometry(null,editor.session.value.text,null,editor.session.value.selection);};
     const geometry=editor.inputGeometry,core=editor.options?.readValue?.(),snapshot=editor.inputGeometryValue;
     if(!basicLive())return;
-    if(!geometry||!core||!snapshot||core.text!==editor.session.value.text||core.selection.anchor!==editor.session.value.selection.anchor||core.selection.focus!==editor.session.value.selection.focus||snapshot.text!==core.text||snapshot.selection.anchor!==core.selection.anchor||snapshot.selection.focus!==core.selection.focus){withdraw();return;}
-    const live=()=>{if(!basicLive()||editor.inputGeometry!==geometry)return false;const now=editor.options?.readValue?.();return basicLive()&&now?.text===core.text&&now.selection.anchor===core.selection.anchor&&now.selection.focus===core.selection.focus;};
+    if(!this.canAdmitEditorInput(id,editor,attached)||!geometry||!core||!snapshot||core.text!==editor.session.value.text||core.selection.anchor!==editor.session.value.selection.anchor||core.selection.focus!==editor.session.value.selection.focus||snapshot.text!==core.text||snapshot.selection.anchor!==core.selection.anchor||snapshot.selection.focus!==core.selection.focus){withdraw();return;}
+    const live=()=>{if(!basicLive()||editor.inputGeometry!==geometry||!this.canAdmitEditorInput(id,editor,attached))return false;const now=editor.options?.readValue?.();return basicLive()&&this.canAdmitEditorInput(id,editor,attached)&&now?.text===core.text&&now.selection.anchor===core.selection.anchor&&now.selection.focus===core.selection.focus;};
     const defer=()=>{if(editor.inputGeometry===geometry)withdraw();};
     const matches=(value:(TextInputGeometryStamp&{readonly coordinates?:string})|null|undefined)=>!!value&&value.coordinates==='view-logical'&&sameOwner(value.owner,this.owner)&&value.layoutEpoch===geometry.layoutEpoch&&value.viewportGeneration===geometry.viewportGeneration;
     const current=editor.options?.readCharacterBounds?.(0,0,geometry);if(!live()){defer();return;}if(!matches(current)){withdraw();return;}
@@ -142,7 +148,7 @@ export class NativeInteraction {
   }
   private inputRequestTarget(token:object,nativeRevision:number,layoutEpoch?:number){
     const entry=[...this.ports].find(([,port])=>port.token===token),editor=entry?this.editors.get(entry[0]):undefined;
-    if(this.closed||!entry||!editor||entry[1].generation!==editor.generation||nativeRevision!==editor.nativeRevision)return;
+    if(this.closed||!entry||!editor||entry[1].generation!==editor.generation||nativeRevision!==editor.nativeRevision||!this.canAdmitEditorInput(entry[0],editor)||this.ports.get(entry[0])!==entry[1]||nativeRevision!==editor.nativeRevision)return;
     if(layoutEpoch!==undefined){if(!Number.isSafeInteger(layoutEpoch)||layoutEpoch<=0)throw new Error('Invalid native input geometry epoch');if(editor.inputGeometry?.layoutEpoch!==layoutEpoch)return;}
     return {id:entry[0],editor,port:entry[1].commands};
   }
@@ -221,6 +227,7 @@ export class NativeInteraction {
   }
   observe(token:object,event:{kind:'text';text:string;eventCount:number}|{kind:'selection';start:number;end:number}|{kind:'focus'|'blur'|'submit'}):boolean{
     if(this.closed)return false;const entry=[...this.ports].find(([,port])=>port.token===token);if(!entry)return false;const editor=this.editors.get(entry[0]);if(!editor||editor.kind!=='public'||entry[1].generation!==editor.generation)return false;
+    if(event.kind!=='blur'&&!this.canAdmitEditorInput(entry[0],editor,entry[1])||this.closed||this.editors.get(entry[0])!==editor||this.ports.get(entry[0])!==entry[1])return false;
     if(event.kind==='selection'&&!this.policy.selectionEvents||event.kind==='text'&&editor.configuration.readOnly)return false;
     const accepted=event.kind==='text'?editor.session.nativeText(event.text,event.eventCount):event.kind==='selection'?editor.session.nativeSelection(event.start,event.end):true;
     if(accepted&&(event.kind==='text'||event.kind==='selection'))editor.changed(editor.session.value);if(accepted&&(event.kind==='focus'||event.kind==='blur')){if(event.kind==='focus'){if(this.desiredFocus!==entry[0])this.desiredFocusRequest=undefined;this.desiredFocus=entry[0];}else if(this.desiredFocus===entry[0]){this.desiredFocus=undefined;this.desiredFocusRequest=undefined;}editor.options?.focusChanged?.(event.kind==='focus');}if(accepted&&event.kind==='submit')editor.options?.onAction?.(editor.session.value);return accepted;
@@ -228,6 +235,12 @@ export class NativeInteraction {
   observeSnapshot(token:object,snapshot:NativeEditingSnapshot):boolean{
     if(this.closed)return false;const entry=[...this.ports].find(([,port])=>port.token===token),editor=entry?this.editors.get(entry[0]):undefined;
     if(!editor||editor.kind!=='observed'||entry![1].generation!==editor.generation||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<editor.nativeRevision)return false;
+    const admitted=this.canAdmitEditorInput(entry![0],editor,entry![1]);
+    if(this.closed||this.editors.get(entry![0])!==editor||this.ports.get(entry![0])!==entry![1])return false;
+    const pending=editor.pendingReplacement,request=pending&&(snapshot.request===undefined||snapshot.request===pending.request)?pending:undefined;
+    // A retired/disabled input owner may finish its admitted command, including
+    // a negative receipt carrying native state. It cannot admit another edit.
+    if(!admitted&&!(request&&(snapshot.source==='programmatic'||snapshot.rejection!==undefined)))return false;
     if(snapshot.geometry&&this.policy.geometry==='unavailable')throw new Error('Native editing geometry is unavailable in this host');
     if(snapshot.request!==undefined&&(!Number.isSafeInteger(snapshot.request)||snapshot.request<=0))throw new Error('Invalid native synchronization request');
     if(snapshot.rejection!==undefined&&snapshot.rejection!=='stale'&&snapshot.rejection!=='composing')throw new Error('Invalid native synchronization rejection');
@@ -235,7 +248,7 @@ export class NativeInteraction {
     const value=freezeEditing({text:snapshot.text,selection:{anchor:snapshot.anchor,focus:snapshot.focus},revision:editor.session.value.revision+1,session:this.owner,source:snapshot.source,composing:snapshot.composingStart<0?{status:'none'}:{status:'active',start:snapshot.composingStart,end:snapshot.composingEnd}});
     const geometry=freezeEditingGeometry(snapshot.geometry?{...snapshot.geometry,status:'observed',coordinates:'control-local',nativeRevision:snapshot.revision}:{status:'unavailable'});
     if(snapshot.action!==undefined&&snapshot.action!==this.editorAction(entry![0]))throw new Error('Unexpected native input action');
-    const previous=editor.session.value,pending=editor.pendingReplacement,request=pending&&(snapshot.request===undefined||snapshot.request===pending.request)?pending:undefined;
+    const previous=editor.session.value;
     const documentChanged=value.text!==previous.text||value.selection.anchor!==previous.selection.anchor||value.selection.focus!==previous.selection.focus,compositionChanged=JSON.stringify(value.composing)!==JSON.stringify(previous.composing);
     const contentChanged=documentChanged||compositionChanged;
     // The first OS observation resolves an unavailable composition capability
@@ -244,7 +257,7 @@ export class NativeInteraction {
     const nativeInputChanged=documentChanged||compositionChanged&&(previous.composing.status==='active'||value.composing.status==='active');
     if(request&&snapshot.source==='programmatic'&&snapshot.rejection===undefined&&(value.text!==request.value.text||value.selection.anchor!==request.value.selection.anchor||value.selection.focus!==request.value.selection.focus))throw new Error('Native synchronization acknowledgement differs from the requested value');
     const unchanged=!!request&&value.text===request.base.text&&value.selection.anchor===request.base.selection.anchor&&value.selection.focus===request.base.selection.focus;
-    const retry=!!request&&snapshot.rejection==='stale'&&unchanged&&request.retries<3&&(request.cancelComposition||request.selectionOnly&&JSON.stringify(value.composing)===JSON.stringify(request.base.composing)||value.composing.status==='none');
+    const retry=admitted&&!!request&&snapshot.rejection==='stale'&&unchanged&&request.retries<3&&(request.cancelComposition||request.selectionOnly&&JSON.stringify(value.composing)===JSON.stringify(request.base.composing)||value.composing.status==='none');
     if(snapshot.revision===editor.nativeRevision){
       // A TSF rejection is a receipt, not another document edit. It can carry
       // the revision that the focused endpoint has already reported.
@@ -256,15 +269,15 @@ export class NativeInteraction {
     }
     if(request&&!retry&&(snapshot.rejection!==undefined||snapshot.source==='programmatic'))delete editor.pendingReplacement;
     editor.nativeRevision=snapshot.revision;if(editor.configuration.readOnly&&snapshot.source==='native'&&snapshot.text!==editor.session.value.text)return false;const accepted=editor.session.update(value);if(accepted){editor.geometry=geometry;
-      if(nativeInputChanged&&snapshot.source==='native'||snapshot.source==='programmatic'&&snapshot.rejection===undefined&&(snapshot.request===undefined||request!==undefined))editor.changed(editor.session.value);
+      if(nativeInputChanged&&snapshot.source==='native'&&this.canAdmitEditorInput(entry![0],editor,entry![1])||snapshot.source==='programmatic'&&snapshot.rejection===undefined&&(snapshot.request===undefined||request!==undefined))editor.changed(editor.session.value);
       // Initial/unmodified false geometry is not a rejection of an in-flight
       // focus request. Only actual native focus transitions change Core focus.
-      if(snapshot.focused!==undefined){const previous=editor.nativeFocused;editor.nativeFocused=snapshot.focused;if(previous!==snapshot.focused&&(previous!==undefined||snapshot.focused)){if(snapshot.focused){if(this.desiredFocus!==entry![0])this.desiredFocusRequest=undefined;this.desiredFocus=entry![0];}else if(this.desiredFocus===entry![0]){this.desiredFocus=undefined;this.desiredFocusRequest=undefined;}editor.options?.focusChanged?.(snapshot.focused);}}
-      if(snapshot.action!==undefined&&value.composing.status!=='active')editor.options?.onAction?.(value);}
+      if(this.editors.get(entry![0])===editor&&this.ports.get(entry![0])===entry![1]&&snapshot.focused!==undefined&&(!snapshot.focused||this.canAdmitEditorInput(entry![0],editor,entry![1]))){const previous=editor.nativeFocused;editor.nativeFocused=snapshot.focused;if(previous!==snapshot.focused&&(previous!==undefined||snapshot.focused)){if(snapshot.focused){if(this.desiredFocus!==entry![0])this.desiredFocusRequest=undefined;this.desiredFocus=entry![0];}else if(this.desiredFocus===entry![0]){this.desiredFocus=undefined;this.desiredFocusRequest=undefined;}editor.options?.focusChanged?.(snapshot.focused);}}
+      if(snapshot.action!==undefined&&value.composing.status!=='active'&&this.canAdmitEditorInput(entry![0],editor,entry![1]))editor.options?.onAction?.(value);}
     // Geometry/focus also advances Android's snapshot revision. Retry only an
     // unchanged editing value; intervening text/selection always wins. A retry
     // remains a command, never an optimistic controller acknowledgement.
-    if(retry&&accepted&&this.editors.get(entry![0])===editor&&editor.pendingReplacement===request){
+    if(retry&&accepted&&this.canAdmitEditorInput(entry![0],editor,entry![1])&&editor.pendingReplacement===request){
       const port=this.currentPort(entry![0]);request!.retries++;if(port)sendReplacement(port.commands,request!,editor.nativeRevision);
     }
     else if(accepted&&request?.request!==undefined&&snapshot.rejection!==undefined&&this.editors.get(entry![0])===editor)editor.options?.synchronizationRejected?.(request.request,snapshot.rejection==='stale'&&unchanged&&request.retries>=3?'retry-limit':snapshot.rejection);

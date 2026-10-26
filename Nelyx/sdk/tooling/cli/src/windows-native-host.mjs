@@ -5,11 +5,13 @@ import {sha256,fileTree} from './files.mjs';
 import {windowsCompilerEnvironment} from './windows-static-hermes.mjs';
 import {prepareNativeHermes} from './windows-native-hermes-toolchain.mjs';
 import {openNativeBuildCache} from './native-build-cache.mjs';
+import {assertInstalledSupply} from '@nelyx/metro/installed-supply';
 const timeout=1_200_000,load=createRequire(import.meta.url);
 function sourceDigest(sdk,skia){const sources=[];for(const [owner,base,folders]of [['sdk',sdk,['native/windows-hermes','native/windows']],['skia',skia,['cpp','generated/core','generated/gpu','generated/vulkan','generated/host','native/jsi','native/vulkan']]])for(const folder of folders)for(const relative of fileTree(path.join(base,folder)))sources.push({path:owner+'/'+folder+'/'+relative,sha256:sha256(path.join(base,folder,relative))});return createHash('sha256').update(JSON.stringify(sources)).digest('hex');}
 export function nativePackageEnvironment(app){
   let consumer,runner;for(const candidate of [path.join(app,'windows/runner'),app]){if(!fs.existsSync(path.join(candidate,'package.json')))continue;try{const value=createRequire(path.join(candidate,'package.json'));value.resolve('@nelyx/sdk/version');value.resolve('@nelyx/skia-native/renderer');consumer=value;runner=candidate;break;}catch{}}
   if(!consumer)throw Error('Install the SDK and Skia native dependencies in the application or Windows runner');
+  assertInstalledSupply(runner);
   const roots={};
   for(const [name,entry]of Object.entries({core:'version',sdk:'version','skia-native':'renderer',material:'icon-assets',cupertino:'icon-assets'})){
     try{let folder=path.dirname(consumer.resolve('@nelyx/'+name+'/'+entry));for(;;){const file=path.join(folder,'package.json');if(fs.existsSync(file)&&JSON.parse(fs.readFileSync(file,'utf8')).name==='@nelyx/'+name){roots['@nelyx/'+name]=fs.realpathSync(folder);break;}const parent=path.dirname(folder);if(parent===folder)throw Error('Missing package owner');folder=parent;}}

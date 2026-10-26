@@ -37,7 +37,7 @@ export class RenderIconGlyph extends RenderProxyBox {
     const old=this.configuration;
     if(value.size!==old.size){const additional=BoxConstraints.tightFor(value.size,value.size);additional.debugAssertIsValid();this.additional=additional;this.markNeedsLayout();}
     this.paragraph.config=value.paragraph;
-    this.paragraph.devicePixelRatio=value.paragraph.input.scale;
+    this.paragraph.devicePixelRatio=value.paragraph.scale;
     if(value.mirror!==old.mirror)this.markNeedsPaint();
     if(value.label!==old.label||value.labelDirection!==old.labelDirection)this.markNeedsSemanticsUpdate();
     this.configuration=value;

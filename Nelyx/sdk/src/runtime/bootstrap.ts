@@ -143,6 +143,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       else if (event.kind === 'close' || event.kind === 'context-lost') {
         closeRequested = true;
         if (application) void application.dispose().catch(() => {}); // dispose retains a rejected promise and its native owners.
+        else attached.beginClose();
       }
     });
     application = new ComposedApplication(session, view, text, renderer, services, assets, () => { alive = false; }, binding, startup || undefined,messages,osServices,imageOwner,rasterOwner,pictureOwner,platformViewRegistration);

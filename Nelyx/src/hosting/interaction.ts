@@ -17,6 +17,7 @@ export interface EditingInputState {readonly enabled:boolean;readonly focusable:
 export type {EditingConfiguration,EditingConfigurationOptions,EditingKeyboardType,EditingCapitalization} from './editing-configuration.ts';
 export {freezeEditingConfiguration,editingConfigurationKey} from './editing-configuration.ts';
 export interface EditingOptions {
+  /** Live Core availability; hosts must recheck before input/query admission. */
   readonly readInputState?:()=>EditingInputState;
   /** The owning Core document; this is distinct from the OS input buffer. */
   readonly readValue?:()=>Pick<TextEditingValue,'text'|'selection'|'composing'>;

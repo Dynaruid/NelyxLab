@@ -6,13 +6,13 @@ import {ResourceRegistry} from '@nelyx/core/hosting/resources';
 import {captureSceneFrame, disposeFrame, captureMetrics} from '@nelyx/core/ui/frame';
 
 /** Real Core build/layout/paint/hit/semantics/input tree; primitive-only, no raster backend. */
-export function fixture({paths,binaryMessenger,platformServices,semanticsUpdateInterval,accessibilityEnabled} = {}) {
+export function fixture({paths,binaryMessenger,platformServices,semanticsUpdateInterval,accessibilityEnabled,viewId='w12-structure-root'} = {}) {
   let now = 0, sequence = 0, child = new SizedBox(1, 1), lastFrame = null;
-  const owner = {id: 'w12-structure-root', generation: 1};
+  const owner = {id:viewId,generation:1};
   const metrics = {logicalWidth: 240, logicalHeight: 160, physicalWidth: 240, physicalHeight: 160, scale: 1, viewportGeneration: 1, rendererGeneration: 1, nativeContextGeneration: null, nativeSurfaceGeneration: null};
   const resources = new ResourceRegistry();
   const errors = [];
-  const context = {owner, resources, assets: new Map(), clock: {now: () => now}, requestFrame() {}, readMetrics: () => metrics,
+  const context = {owner, resources, assets: new Map(), clock: {now: () => now}, requestFrame() {}, readMetrics: () => metrics, readStatus:()=> 'open',
     reportError: error => errors.push(error), ...(binaryMessenger ? {binaryMessenger} : {}), ...(platformServices ? {platformServices} : {}),
     text: {createParagraph() {throw new Error('This primitive Root regression must not require a text backend');}},
     editing: {capability: 'unavailable'}, semantics: {capability: 'unavailable'}, ...(paths ? {paths} : {})};

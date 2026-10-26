@@ -13,6 +13,10 @@
     "LICENSE.md"
   ],
   "exports": {
+    "./installed-supply": {
+      "types": "./src/installed-supply.d.cts",
+      "default": "./src/installed-supply.cjs"
+    },
     "./runtime-inventory": {
       "types": "./src/runtime-inventory.d.mts",
       "default": "./src/runtime-inventory.mjs"

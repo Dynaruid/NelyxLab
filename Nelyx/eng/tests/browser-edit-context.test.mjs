@@ -32,6 +32,26 @@ function controlledBrowser(){
   return {window,get context(){return context;},rect:(...args)=>new ClientRect(...args),restore(){for(const key of keys){const descriptor=saved.get(key);if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}};
 }
 
+test('EditContext fences new input and glyph requests after View admission stops, while an admitted cancellation completes',{timeout},async()=>{
+ for(const status of ['failed','closing']){
+  const f=await engineFixture({fonts:true}),browser=controlledBrowser(),controller=new TextEditingController('before');let port,queries=0,state='open';
+  f.root.context.readStatus=()=>state;
+  f.root.context.editing={capabilities:{indexUnit:'utf16',composing:'observed',selectionDirection:'observed'},bind(owner,initial,changed,options){const query=options.readCharacterBounds;port=createBrowserEditContext({owner,initial,changed,options:{...options,readCharacterBounds(...args){queries++;return query(...args);}},viewport:()=>({bounds:browser.rect(0,0,240,160),width:240,height:160,generation:1}),moving:()=>false});return port.binding;}};
+  try{
+   f.set(new EditableText('field',controller,'View lifetime'));const native=browser.context;
+   state=status;native.text='late';native.selectionStart=4;native.selectionEnd=4;native.dispatchEvent(new Event('textupdate'));assert.equal(controller.text,'before');assert.equal(port.binding.read().text,'before','Rejected OS input cannot enter the transport document');
+   const before=queries,request=new Event('characterboundsupdate');Object.defineProperties(request,{rangeStart:{value:0},rangeEnd:{value:1}});native.dispatchEvent(request);assert.equal(queries,before,'An inactive View cannot start a glyph query');assert.equal(native.control.width,0);
+  }finally{await f.close();controller.dispose();browser.restore();}
+ }
+ const f=await engineFixture({fonts:true}),browser=controlledBrowser(),controller=new TextEditingController('before');let port,state='open';
+ f.root.context.readStatus=()=>state;f.root.context.editing={capabilities:{indexUnit:'utf16',composing:'observed',selectionDirection:'observed'},bind(owner,initial,changed,options){port=createBrowserEditContext({owner,initial,changed,options,viewport:()=>({bounds:browser.rect(0,0,240,160),width:240,height:160,generation:1}),moving:()=>false});return port.binding;}};
+ try{
+  f.set(new EditableText('field',controller,'Cancellation receipt'));const native=browser.context;port.binding.focus();native.text='한';native.selectionStart=1;native.selectionEnd=1;native.dispatchEvent(new Event('compositionstart'));
+  controller.replace('Core',{anchor:4,focus:4});assert.equal(controller.text,'한');assert.equal(controller.isComposing,true);state='closing';
+  native.dispatchEvent(new Event('compositionend'));await Promise.resolve();assert.equal(native.text,'Core');assert.equal(controller.text,'Core');assert.equal(controller.isComposing,false);assert.equal(document.activeElement,null,'Completion cannot restore input focus after View admission stopped');
+ }finally{await f.close();controller.dispose();browser.restore();}
+});
+
 test('the controlled EditContext port withdraws stale Core coordinates and wakes after a paint-only frame',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),browser=controlledBrowser(),controller=new TextEditingController('engine');let port;
   const viewport=()=>({bounds:browser.rect(10,20,240,160),width:240,height:160,generation:1});

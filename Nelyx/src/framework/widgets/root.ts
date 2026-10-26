@@ -90,14 +90,16 @@ export class FrameworkRoot implements ViewController {
   private root:Element|undefined;
   private closed=false;
   private visible=true;
+  private isViewOpen():boolean{return !this.closed&&this.context.readStatus()==='open';}
+  private isInputLive():boolean{return this.visible&&this.isViewOpen();}
   private revealingViewportFocus=false;
   private metrics:ViewMetrics|undefined;
   private semantics:SemanticsBinding|undefined;
   private nodes:readonly SemanticsNode[]=[];
   private focused:string|undefined;
   /** Query the most recently composed shared layer tree in logical view coordinates. */
-  findAnnotation<T extends {}>(type:AnnotationType<T>,position:Offset):T|null{invariant(!this.closed,'closed-framework-root','Annotation query after root disposal');return this.layerRoot.layer!.find(type,position,this.context.paths?{paths:this.context.paths}:{});}
-  findAllAnnotations<T extends {}>(type:AnnotationType<T>,position:Offset):AnnotationResult<T>{invariant(!this.closed,'closed-framework-root','Annotation query after root disposal');return this.layerRoot.layer!.findAllAnnotations(type,position,this.context.paths?{paths:this.context.paths}:{});}
+  findAnnotation<T extends {}>(type:AnnotationType<T>,position:Offset):T|null{invariant(this.isViewOpen(),'closed-framework-root','Annotation query after View admission stopped');return this.layerRoot.layer!.find(type,position,this.context.paths?{paths:this.context.paths}:{});}
+  findAllAnnotations<T extends {}>(type:AnnotationType<T>,position:Offset):AnnotationResult<T>{invariant(this.isViewOpen(),'closed-framework-root','Annotation query after View admission stopped');return this.layerRoot.layer!.findAllAnnotations(type,position,this.context.paths?{paths:this.context.paths}:{});}
   /** Developer diagnostics use the actual tree; no secondary inspector or global hook. */
   describeTree():string {
     const lines:string[]=[];const visit=(element:Element)=>{const render=element.renderObjects[0];lines.push(`${'  '.repeat(element.depth)}${element.widget.constructor.name}${element.widget.key?' [key]':''}${element.dirty?' dirty':''}${render instanceof RenderBox&&!render.hasSize?' unlaid':render?` ${render.paintBounds.width}x${render.paintBounds.height}`:''}`);for(const child of element.children)visit(child);};
@@ -113,7 +115,7 @@ export class FrameworkRoot implements ViewController {
     initializeFoundationBindings();
     this.scheduler=new FrameScheduler(context.clock,context.requestFrame,{...(context.reportError?{reportError:context.reportError}:{}),...(context.requestForcedFrame?{requestForcedFrame:context.requestForcedFrame}:{})});
     const dispatcher=context.binaryMessenger?PlatformDispatcher.maybeForMessenger(context.binaryMessenger):undefined;
-    this.semanticsActionBinding=new SemanticsActionBinding({accessibilityEnabled:options.accessibilityEnabled!==false,...(dispatcher?{dispatcher}:{}),scheduler:this.scheduler,viewId:context.platformView?.viewId??context.owner.id,performSemanticsAction:event=>{if(this.closed||!this.visible||typeof event.nodeId!=='number')return;const owner=this.pipeline.semanticsOwner,source=owner?.getSemanticsNode(event.nodeId);if(this.semanticsDeferred){if(source)this.queueSemanticsAction(source,()=>owner!.performAction(source.id,event.type,event.arguments));}else owner?.performAction(event.nodeId,event.type,event.arguments);}});
+    this.semanticsActionBinding=new SemanticsActionBinding({accessibilityEnabled:options.accessibilityEnabled!==false,...(dispatcher?{dispatcher}:{}),scheduler:this.scheduler,viewId:context.platformView?.viewId??context.owner.id,performSemanticsAction:event=>{if(!this.isInputLive()||typeof event.nodeId!=='number')return;const owner=this.pipeline.semanticsOwner,source=owner?.getSemanticsNode(event.nodeId);if(this.semanticsDeferred){if(source)this.queueSemanticsAction(source,()=>owner!.performAction(source.id,event.type,event.arguments));}else owner?.performAction(event.nodeId,event.type,event.arguments);}});
     if(options.accessibilityEnabled!==false)this.semanticsActionBinding.addAccessibilityFeaturesChangedListener(()=>{if(this.closed)return;const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};if(this.root)visit(this.root);this.scheduler.requestFrame();});
     const invalidate=()=>{if(!this.closed&&!this.revealingViewportFocus&&this.scheduler.phase!=='build'&&this.scheduler.phase!=='transient')this.scheduler.requestFrame();};
     // Layout invalidates paint and semantics that this frame has yet to visit.
@@ -122,15 +124,16 @@ export class FrameworkRoot implements ViewController {
     const invalidatePipeline=()=>{if(this.scheduler.phase!=='layout')invalidate();};
     // The snapshot transport below consumes the live semantics tree. It does
     // not submit engine packets, so do not build a second copy to dispose it.
-    this.buildOwner=new BuildOwner(context,invalidate,callback=>{if(!this.closed)this.scheduler.addPostFrame(callback);},{mouseIsConnected:()=>this.mouseTracker.mouseIsConnected});this.pipeline=new PipelineOwner({accessibilityEnabled:options.accessibilityEnabled!==false,onNeedVisualUpdate:invalidatePipeline,onSemanticsUpdate:update=>update.dispose(),onSemanticsOwnerCreated:()=>this.pipeline.rootNode?.scheduleInitialSemantics(),createSemanticsUpdateBuilder:()=>null,systemFonts:context.platformServices instanceof PaintingBinding?{systemFonts:context.platformServices.systemFonts,scheduler:this.scheduler}:null,...(context.binaryMessenger?{messenger:context.binaryMessenger}:{})});this.layerRoot.layer!.attach(this.pipeline);this.mouseTracker=new MouseTracker(position=>this.pointerHitTest(position),context.owner.id,context.platformServices?.channels.mouseCursor??(context.binaryMessenger?new SystemChannelSet(context.binaryMessenger).mouseCursor:null));
-    this.sourceSemanticsSnapshot=options.accessibilityEnabled===false?undefined:new SemanticsTransportSnapshot(this.pipeline,()=>!this.closed&&this.visible,(source,action)=>this.queueSemanticsAction(source,node=>node.actions?.[action]?.()),(source,value,range)=>this.queueSemanticsAction(source,node=>{const current=node.numericRange;if(current&&current.min===range.min&&current.max===range.max&&current.value===range.value&&current.smallChange===range.smallChange&&current.largeChange===range.largeChange)node.rangeActions?.setValue(value);}));
+    const systemFonts=context.platformServices instanceof PaintingBinding?context.platformServices.systemFonts:null;
+    this.buildOwner=new BuildOwner(context,invalidate,callback=>{if(!this.closed)this.scheduler.addPostFrame(callback);},{mouseIsConnected:()=>this.mouseTracker.mouseIsConnected},systemFonts);this.pipeline=new PipelineOwner({accessibilityEnabled:options.accessibilityEnabled!==false,onNeedVisualUpdate:invalidatePipeline,onSemanticsUpdate:update=>update.dispose(),onSemanticsOwnerCreated:()=>this.pipeline.rootNode?.scheduleInitialSemantics(),createSemanticsUpdateBuilder:()=>null,systemFonts:systemFonts?{systemFonts,scheduler:this.scheduler}:null,...(context.binaryMessenger?{messenger:context.binaryMessenger}:{})});this.layerRoot.layer!.attach(this.pipeline);this.mouseTracker=new MouseTracker(position=>this.pointerHitTest(position),context.owner.id,context.platformServices?.channels.mouseCursor??(context.binaryMessenger?new SystemChannelSet(context.binaryMessenger).mouseCursor:null));
+    this.sourceSemanticsSnapshot=options.accessibilityEnabled===false?undefined:new SemanticsTransportSnapshot(this.pipeline,()=>this.isInputLive(),(source,action)=>this.queueSemanticsAction(source,node=>node.actions?.[action]?.()),(source,value,range)=>this.queueSemanticsAction(source,node=>{const current=node.numericRange;if(current&&current.min===range.min&&current.max===range.max&&current.value===range.value&&current.smallChange===range.smallChange&&current.largeChange===range.largeChange)node.rangeActions?.setValue(value);}));
     this.pipeline.attach(new ViewPipelineManifold(this.semanticsActionBinding,invalidatePipeline));
     this.viewSemanticsHandle=options.accessibilityEnabled===false?undefined:this.semanticsActionBinding.ensureSemantics();
     this.gestureBinding=new GestureBinding({implicitViewId:context.owner.id,pointerRouter:this.pointerRouter,gestureArena:this.buildOwner.gestures,scheduler:this.scheduler,clock:new SamplingClock(()=>context.clock.now(),()=>context.clock.now()),devicePixelRatioForView:viewId=>!this.closed&&viewId===context.owner.id?context.readMetrics().scale:null,
       invokeCallback:(timestamp,callback)=>this.buildOwner.focus.runWithFocusRequest({inputTimestamp:timestamp},callback),
       streamKey:event=>this.transportKeys.get(event.original??event)??event.device,
       allowIndependentHitTest:event=>this.transportKeys.has(event.original??event)&&(event instanceof PointerHoverEvent||event instanceof PointerSignalEvent),
-      beforeDispatch:event=>{if(this.closed||!this.visible||event.viewId!==context.owner.id)return false;if(event instanceof PointerDownEvent&&!this.claimKeyboard())return false;const canonical=event.original??event,key=this.transportKeys.get(canonical)??this.sourceTransportStreams.get(event.pointer);if(key){this.transportKeys.set(canonical,key);if(event instanceof PointerCancelEvent||event instanceof PointerUpEvent||event instanceof PointerPanZoomEndEvent)this.retireLogicalStream(key);}return true;},
+      beforeDispatch:event=>{if(!this.isInputLive()||event.viewId!==context.owner.id)return false;if(event instanceof PointerDownEvent&&!this.claimKeyboard())return false;const canonical=event.original??event,key=this.transportKeys.get(canonical)??this.sourceTransportStreams.get(event.pointer);if(key){this.transportKeys.set(canonical,key);if(event instanceof PointerCancelEvent||event instanceof PointerUpEvent||event instanceof PointerPanZoomEndEvent)this.retireLogicalStream(key);}return true;},
       hitTestInView:(result,position,viewId)=>{if(viewId!==context.owner.id)return;const builder=new RenderHitTestBuilder(result);for(const entry of this.pointerHitTest(position))builder.addRenderEntry(entry);},
       beforeHitTestDispatch:(event,result)=>{if(this.closed||event instanceof PointerSignalEvent)return;const transport=this.legacyPointerEvent(event);if(transport)this.mouseTracker.updateWithEvent(transport,result?result.path.map(entry=>({target:entry.target,transform:entry.transform!})):undefined);},
       shouldDispatchToTarget:(_event,entry)=>!(entry.target instanceof RenderObject)||entry.target.owner===this.pipeline&&(entry.target.handleEvent!==RenderObject.prototype.handleEvent||entry.target.onPointer!==undefined),
@@ -139,11 +142,11 @@ export class FrameworkRoot implements ViewController {
     });
     this.pointerBindingLease=this.buildOwner.bindGestureBinding(this.gestureBinding);
     this.semanticsBindingLease=this.buildOwner.bindSemanticsBinding(this.semanticsActionBinding);
-    this.pointerViewLease=context.platformServices?.registerPointerView(context.owner.id,{isLive:()=>!this.closed&&this.visible,devicePixelRatio:()=>context.readMetrics().scale,handlePointerEvent:event=>this.gestureBinding.enqueuePointerEvent(event),hitTest:position=>new HitTestResponse({hasPlatformView:this.gestureBinding.hasPlatformViewAt(position,context.owner.id)})});
+    this.pointerViewLease=context.platformServices?.registerPointerView(context.owner.id,{isLive:()=>this.isInputLive(),devicePixelRatio:()=>context.readMetrics().scale,handlePointerEvent:event=>this.gestureBinding.enqueuePointerEvent(event),hitTest:position=>new HitTestResponse({hasPlatformView:this.gestureBinding.hasPlatformViewAt(position,context.owner.id)})});
     this.rawKeyboard=this.buildOwner.rawKeyboard;
     this.keyEventManager=context.platformServices?.keyEventManager??new KeyEventManager(this.buildOwner.keyboard,this.rawKeyboard,{timeStamp:()=>context.clock.now(),prepareMessage:()=>this.prepareKeyMessage()});
     this.buildOwner.focus.registerGlobalHandlers({pointerRouter:this.pointerRouter,semantics:this.semanticsActionBinding,registerKeyMessageHandler:handler=>{
-      const delegate={prepareKeyMessage:()=>this.prepareKeyMessage(),handleKeyMessage:(message:KeyMessage)=>keyboardOwners.get(this.buildOwner.keyboard)===this?this.routeRawKeyMessage(message,handler):false,keyboardFocusLost:()=>this.keyboardFocusLost()};
+      const delegate={prepareKeyMessage:()=>this.prepareKeyMessage(),handleKeyMessage:(message:KeyMessage)=>this.isInputLive()&&keyboardOwners.get(this.buildOwner.keyboard)===this?this.routeRawKeyMessage(message,handler):false,keyboardFocusLost:()=>this.keyboardFocusLost()};
       if(context.platformServices)return context.platformServices.registerKeyboardView(this,delegate);
       const previous=this.keyEventManager.keyMessageHandler;this.keyEventManager.keyMessageHandler=delegate.handleKeyMessage;
       return {dispose:()=>{if(this.keyEventManager.keyMessageHandler===delegate.handleKeyMessage)this.keyEventManager.keyMessageHandler=previous;}};
@@ -151,11 +154,11 @@ export class FrameworkRoot implements ViewController {
     registerTickerScheduler(this.buildOwner,this.scheduler);
   }
   build(scene:SceneContext):SceneFrameSource {
-    invariant(!this.closed,'closed-framework-root','Frame after root disposal');this.scheduler.beginFrame(scene.token.timing?.tick);
-    let failed=false,buildError:unknown,painting:PaintingContext|undefined,recording:FrameRecording|undefined,geometryCommit:ReturnType<RenderObject['commitTextInputGeometries']>|undefined;
+    invariant(!this.closed,'closed-framework-root','Frame after root disposal');if(!this.isViewOpen())return [];this.scheduler.beginFrame(scene.token.timing?.tick);
+    let failed=false,buildError:unknown,painting:PaintingContext|undefined,recording:FrameRecording|undefined,geometryCommit:ReturnType<RenderObject['commitTextInputGeometries']>|undefined,publishSemantics:(()=>void)|undefined;
     try {
-      if(this.closed||this.scheduler.disposed)return [];
-      this.scheduler.runPersistentFrameCallbacks();if(this.closed||this.scheduler.disposed)return [];
+      if(!this.isViewOpen()||this.scheduler.disposed)return [];
+      this.scheduler.runPersistentFrameCallbacks();if(!this.isViewOpen()||this.scheduler.disposed)return [];
       this.scheduler.phase='build';
       const buildRevision=this.buildOwner.buildRevision;
       if(!this.root){const root=this.options.createRoot(this.buildOwner.services,this.scheduler).createElement();this.root=root;root.mount(undefined,this.buildOwner);}
@@ -173,8 +176,8 @@ export class FrameworkRoot implements ViewController {
         if(this.buildOwner.hasDirty)this.scheduler.requestFrame();
       }
       const workBudget=this.buildOwner.maybeViewWorkBudget;workBudget?.enforcePressure();if(workBudget?.scheduleEvictions())this.pipeline.flushLayout();
-      workBudget?.runOptional(scene.token.timing,()=>this.context.clock.now(),()=>!this.closed&&this.visible&&!this.buildOwner.hasDirty&&scene.canRunOptionalWork?.()===true,()=>{if(!this.closed&&!this.pipeline.debugDisposed)this.pipeline.flushLayout();},()=>this.scheduler.requestFrame());
-      if(this.closed||this.scheduler.disposed)return [];
+      workBudget?.runOptional(scene.token.timing,()=>this.context.clock.now(),()=>this.isInputLive()&&!this.buildOwner.hasDirty&&scene.canRunOptionalWork?.()===true,()=>{if(!this.closed&&!this.pipeline.debugDisposed)this.pipeline.flushLayout();},()=>this.scheduler.requestFrame());
+      if(!this.isViewOpen()||this.scheduler.disposed)return [];
       this.scheduler.phase='paint';painting=new PaintingContext(null,null,true);
       this.recordPaint(render,painting);
       withRenderPaint(()=>painting!.compose(this.layerRoot.layer!,{x:0,y:0,width:scene.token.metrics.logicalWidth,height:scene.token.metrics.logicalHeight},this.context.pictures??null));
@@ -197,23 +200,33 @@ export class FrameworkRoot implements ViewController {
           this.cancelSemanticsWake();this.semanticsDeferred=false;
           if(!reuse)this.sourceSemanticsSnapshot.invalidate();this.pipeline.flushSemantics();
           if(reuse&&semanticsPipeline?.hasPendingChanges){reuse=false;this.sourceSemanticsSnapshot.invalidate();}
-          let snapshot:readonly SemanticsNode[];
-          if(reuse){snapshot=cached!.snapshot;this.nodes=cached!.nodes;}
-          else{const candidate=this.sourceSemanticsSnapshot.capture(render,render.localTransform,{owner:scene.token.owner,metrics,inputGeometryToken:geometryCommit.token});snapshot=freezeSemantics(candidate.nodes);candidate.commit();this.nodes=flattenSemantics(snapshot);this.semanticsPublishedAt=now;this.semanticsFocus=this.buildOwner.focus.primaryFocus;this.semanticsCache=!geometryCommit.hasInputGeometry&&!this.nodes.some(node=>node.role==='text-field')?{render,owner:this.pipeline.semanticsOwner,viewOwner:{...scene.token.owner},metrics:{...metrics},transform:captureTransform(render.localTransform),snapshot,nodes:this.nodes}:undefined;}
+          let snapshot:readonly SemanticsNode[],nodes:readonly SemanticsNode[],candidate:ReturnType<SemanticsTransportSnapshot['capture']>|undefined;
+          if(reuse){snapshot=cached!.snapshot;nodes=cached!.nodes;}
+          else{candidate=this.sourceSemanticsSnapshot.capture(render,render.localTransform,{owner:scene.token.owner,metrics,inputGeometryToken:geometryCommit.token});snapshot=freezeSemantics(candidate.nodes);nodes=flattenSemantics(snapshot);}
+          const nextCache=reuse?cached:!geometryCommit.hasInputGeometry&&!nodes.some(node=>node.role==='text-field')?{render,owner:this.pipeline.semanticsOwner,viewOwner:{...scene.token.owner},metrics:{...metrics},transform:captureTransform(render.localTransform),snapshot,nodes}:undefined,focus=this.buildOwner.focus.primaryFocus;
+          // Preparing a snapshot cannot publish an unsealed or rejected frame.
+          // Input coordinates and host semantics share this CPU commit; GPU
+          // admission remains independent for forced synchronous input queries.
+          publishSemantics=()=>{
+          if(candidate?!candidate.commit():this.semanticsCache!==cached)return;
+          this.nodes=nodes;if(!reuse){this.semanticsPublishedAt=now;this.semanticsFocus=focus;this.semanticsCache=nextCache;}
           this.semanticsActionBinding.updateViewSemantics(this.context.platformView?.viewId??this.context.owner.id,snapshot,this.context.owner.id);
+          if(!this.isViewOpen()||this.scheduler.disposed)return;
           if(this.context.semantics.capability!=='unavailable'){
             if(this.semantics?.update)this.semantics.update(snapshot);
-            else {this.semantics?.dispose();this.semantics=undefined;if(snapshot.length)this.semantics=this.context.semantics.bind(snapshot,{
-              dispatchAction:(id,action,perform)=>{if(this.closed||!this.visible)return;const node=this.nodes.find(value=>value.id===id);if(!node?.enabled)return;const type={activate:SemanticsAction.tap,focus:SemanticsAction.focus,'scroll-forward':SemanticsAction.scrollDown,'scroll-backward':SemanticsAction.scrollUp,increase:SemanticsAction.increase,decrease:SemanticsAction.decrease,'long-press':SemanticsAction.longPress,'scroll-left':SemanticsAction.scrollLeft,'scroll-right':SemanticsAction.scrollRight,'scroll-up':SemanticsAction.scrollUp,'scroll-down':SemanticsAction.scrollDown}[action];this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type,viewId:this.context.owner.id,nodeId:id}),()=>{if(!this.closed&&this.visible)perform();});},
-              dispatchTextAction:(id,action,perform)=>{if(this.closed||!this.visible)return;const node=this.nodes.find(value=>value.id===id);if(!node?.enabled)return;const type=action.kind==='set-text'?SemanticsAction.setText:action.kind==='set-selection'?SemanticsAction.setSelection:SemanticsAction.showOnScreen,args=action.kind==='set-text'?action.text:action.kind==='set-selection'?new Map([['base',action.anchor],['extent',action.focus]]):Object.freeze({start:action.start,end:action.end,alignToTop:action.alignToTop});this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type,arguments:args,viewId:this.context.owner.id,nodeId:id}),()=>{if(!this.closed&&this.visible)perform();});},
+            else {const previous=this.semantics;this.semantics=undefined;previous?.dispose();if(!this.isViewOpen()||this.scheduler.disposed)return;if(snapshot.length){const binding=this.context.semantics.bind(snapshot,{
+              dispatchAction:(id,action,perform)=>{if(!this.isInputLive())return;const node=this.nodes.find(value=>value.id===id);if(!node?.enabled)return;const type={activate:SemanticsAction.tap,focus:SemanticsAction.focus,'scroll-forward':SemanticsAction.scrollDown,'scroll-backward':SemanticsAction.scrollUp,increase:SemanticsAction.increase,decrease:SemanticsAction.decrease,'long-press':SemanticsAction.longPress,'scroll-left':SemanticsAction.scrollLeft,'scroll-right':SemanticsAction.scrollRight,'scroll-up':SemanticsAction.scrollUp,'scroll-down':SemanticsAction.scrollDown}[action];this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type,viewId:this.context.owner.id,nodeId:id}),()=>{if(this.isInputLive())perform();});},
+              dispatchTextAction:(id,action,perform)=>{if(!this.isInputLive())return;const node=this.nodes.find(value=>value.id===id);if(!node?.enabled)return;const type=action.kind==='set-text'?SemanticsAction.setText:action.kind==='set-selection'?SemanticsAction.setSelection:SemanticsAction.showOnScreen,args=action.kind==='set-text'?action.text:action.kind==='set-selection'?new Map([['base',action.anchor],['extent',action.focus]]):Object.freeze({start:action.start,end:action.end,alignToTop:action.alignToTop});this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type,arguments:args,viewId:this.context.owner.id,nodeId:id}),()=>{if(this.isInputLive())perform();});},
               // Absolute numeric values are a Nelyx transport extension. Keep
               // their typed arguments rather than reporting a relative step.
-              dispatchRangeAction:(id,action,perform)=>{if(this.closed||!this.visible||!this.nodes.find(value=>value.id===id)?.enabled)return;this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type:SemanticsAction.customAction,arguments:action,viewId:this.context.owner.id,nodeId:id}),()=>{if(!this.closed&&this.visible)perform();});},
-              observePointer:event=>{if(!this.closed)this.pointerRouter.route(pointerEventFromTransport({...event,pointer:0,viewportGeneration:this.context.readMetrics().viewportGeneration},{viewId:this.context.owner.id}));}
-            });}
+              dispatchRangeAction:(id,action,perform)=>{if(!this.isInputLive()||!this.nodes.find(value=>value.id===id)?.enabled)return;this.semanticsActionBinding.handleSemanticsActionEvent(new SemanticsActionEvent({type:SemanticsAction.customAction,arguments:action,viewId:this.context.owner.id,nodeId:id}),()=>{if(this.isInputLive())perform();});},
+              observePointer:event=>{if(this.isInputLive())this.pointerRouter.route(pointerEventFromTransport({...event,pointer:0,viewportGeneration:this.context.readMetrics().viewportGeneration},{viewId:this.context.owner.id}));}
+            });if(!this.isViewOpen()||this.scheduler.disposed)binding.dispose();else this.semantics=binding;}}
           }
+          if(!this.isViewOpen()||this.scheduler.disposed)return;
           if(!this.nodes.some(node=>node.id===this.focused))this.focused=undefined;
-          if(this.pendingSemanticsActions.length)this.scheduler.addPostFrameCallback(()=>this.performPendingSemanticsAction());
+          if(this.pendingSemanticsActions.length)this.performPendingSemanticsAction();
+          };
         }
       }
       // An isolated layout builder can dirty the already-flushed default Widget
@@ -228,24 +241,31 @@ export class FrameworkRoot implements ViewController {
       // Seal the completed CPU buffer before publishing its input coordinates.
       // Capture owns Canvas close on success and failure.
       let captureAttempted=false,captureFailed=false,captureError:unknown;
-      if(!failed&&!errors.length&&!this.closed&&!this.scheduler.disposed&&painting){captureAttempted=true;try{recording=FrameRecording.capture(scene.token,painting);}catch(error){captureFailed=true;captureError=error;}}
+      if(!failed&&!errors.length&&this.isViewOpen()&&!this.scheduler.disposed&&painting){captureAttempted=true;try{recording=FrameRecording.capture(scene.token,painting);}catch(error){captureFailed=true;captureError=error;}}
+      let semanticsFailed=false,semanticsError:unknown,currentScope=false;
       const phase=this.scheduler.phase;if(!this.scheduler.disposed)this.scheduler.phase='post-frame';
-      try{if(failed||captureFailed||errors.length||this.closed||this.scheduler.disposed)geometryCommit?.discard();else geometryCommit?.commit();}
-      catch(error){errors.push(error);try{geometryCommit?.discard();}catch(cleanup){errors.push(cleanup);}}
+      try{
+        try{if(!failed&&!captureFailed&&!errors.length&&this.isViewOpen()&&!this.scheduler.disposed)currentScope=this.isCurrentFrame(scene.token);if(!currentScope)geometryCommit?.discard();else geometryCommit?.commit();}
+        catch(error){errors.push(error);try{geometryCommit?.discard();}catch(cleanup){errors.push(cleanup);}}
+        if(!failed&&!captureFailed&&!errors.length&&this.isViewOpen()&&!this.scheduler.disposed&&currentScope)try{currentScope=this.isCurrentFrame(scene.token);if(currentScope)publishSemantics?.();else geometryCommit?.discard();}catch(error){semanticsFailed=true;semanticsError=error;try{geometryCommit?.discard();}catch(cleanup){errors.push(cleanup);}}
+      }
       finally{if(!this.scheduler.disposed)this.scheduler.phase=phase;}
+      if(failed||captureFailed||semanticsFailed||errors.length||!this.isViewOpen()||this.scheduler.disposed||!currentScope){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsCache=undefined;this.semanticsDeferred=false;this.sourceSemanticsSnapshot?.invalidate();}
       // A failed notification cannot strand an already sealed frame's leases.
-      if(failed||captureFailed||errors.length||this.closed||this.scheduler.disposed)try{if(recording)recording.dispose();else if(!captureAttempted)painting?.dispose();}catch(error){errors.push(error);}
-      if(errors.length){if(captureFailed)errors.unshift(captureError);if(failed)errors.unshift(buildError);throw new AggregateError(errors,'Frame build/finalization failed');}
+      if(failed||captureFailed||semanticsFailed||errors.length||!this.isViewOpen()||this.scheduler.disposed)try{if(recording)recording.dispose();else if(!captureAttempted)painting?.dispose();}catch(error){errors.push(error);}
+      if(errors.length){if(semanticsFailed)errors.unshift(semanticsError);if(captureFailed)errors.unshift(captureError);if(failed)errors.unshift(buildError);throw new AggregateError(errors,'Frame build/finalization failed');}
+      if(semanticsFailed)throw semanticsError;
       if(captureFailed)throw captureError;
     }
-    return this.closed||this.scheduler.disposed?[]:recording??[];
+    return !this.isViewOpen()||this.scheduler.disposed?[]:recording??[];
   }
+  private isCurrentFrame(token:FrameBuildToken):boolean{const current=this.context.readMetrics(),built=token.metrics;return this.isViewOpen()&&current.viewportGeneration===built.viewportGeneration&&current.rendererGeneration===built.rendererGeneration&&current.nativeContextGeneration===built.nativeContextGeneration&&current.nativeSurfaceGeneration===built.nativeSurfaceGeneration;}
   /** One recording boundary, separate from retained layer composition. */
   private recordPaint(render:RenderObject,painting:PaintingContext):void {
     painting.save();painting.transform(render.localTransform);withRenderPaint(()=>render.paint(painting));painting.restore();
   }
   pointer(event:PointerEvent):void {
-    if(this.closed||!this.visible)return;
+    if(!this.isInputLive())return;
     invariant(Number.isSafeInteger(event.pointer),'invalid-logical-pointer','Logical pointer identity must be a safe integer');
     let key=this.transportStreams.get(event.pointer);
     if(event.kind==='down'||event.kind==='panZoomStart'){invariant(!key,'duplicate-logical-pointer','A logical device pointer already has an active contact');const pointer=event.pointer>this.lastLogicalPointer?event.pointer:this.lastLogicalPointer+1;invariant(Number.isSafeInteger(pointer),'logical-pointer-space-exhausted','No safe contact identifier remains');this.lastLogicalPointer=pointer;key={nativePointer:event.pointer,sourcePointer:pointer};this.transportStreams.set(event.pointer,key);this.sourceTransportStreams.set(pointer,key);}
@@ -265,7 +285,7 @@ export class FrameworkRoot implements ViewController {
   private retireLogicalStream(key:LogicalPointerStream):void{if(this.sourceTransportStreams.get(key.sourcePointer)===key)this.sourceTransportStreams.delete(key.sourcePointer);if(this.transportStreams.get(key.nativePointer)===key){this.transportStreams.delete(key.nativePointer);this.transportPositions.delete(key.nativePointer);}}
   private pointerHitTest(position:Offset):readonly HitTestEntry[]{const root=this.pipeline.root,path:HitTestEntry[]=[];if(root instanceof RenderBox){const matrix=inversePaintTransform(root.localTransform);if(matrix)root.hitTest(transform(matrix,position),path,matrix);}return path;}
   key(event:KeyEvent):boolean {
-    if(this.closed)return false;
+    if(!this.isInputLive())return false;
     const keyboard=this.buildOwner.keyboard;
     invariant(!keyboardDispatches.has(keyboard)&&!keyboard.isDispatching,'reentrant-key-dispatch','Nested view keyboard dispatch is not supported');
     keyboardDispatches.add(keyboard);
@@ -273,19 +293,19 @@ export class FrameworkRoot implements ViewController {
     // Native bridges can deliver several keys in one JS turn. Complete the
     // previous event's requested focus before routing the next transport.
     if(!this.claimKeyboard())return false;
-    return this.buildOwner.focus.handleTransportKeyEvent(event,()=>keyboard.handleTransportMessage(event,events=>keyboardOwners.get(keyboard)===this?this.routeKeyMessage(events):false));
+    return this.buildOwner.focus.handleTransportKeyEvent(event,()=>keyboard.handleTransportMessage(event,events=>this.isInputLive()&&keyboardOwners.get(keyboard)===this?this.routeKeyMessage(events):false));
     }finally{keyboardDispatches.delete(keyboard);}
   }
-  private prepareKeyMessage():void{if(!this.closed)this.buildOwner.focus.applyFocusChangesIfNeeded();}
+  private prepareKeyMessage():void{if(this.isInputLive())this.buildOwner.focus.applyFocusChangesIfNeeded();}
   private claimKeyboard():boolean{
     const keyboard=this.buildOwner.keyboard;invariant(!keyboard.isDispatching,'reentrant-key-dispatch','Cannot transfer view keyboard ownership during dispatch');
-    this.prepareKeyMessage();if(this.closed)return false;
-    const previous=keyboardOwners.get(keyboard);if(previous&&previous!==this)previous.keyboardFocusLost();if(this.closed)return false;
-    this.context.platformServices?.activateKeyboardView(this);keyboardOwners.set(keyboard,this);return true;
+    this.prepareKeyMessage();if(!this.isInputLive())return false;
+    const previous=keyboardOwners.get(keyboard);if(previous&&previous!==this)previous.keyboardFocusLost();if(!this.isInputLive())return false;
+    this.context.platformServices?.activateKeyboardView(this);if(!this.isInputLive())return false;keyboardOwners.set(keyboard,this);return true;
   }
-  keyboardFocusGained():void{if(this.closed)return;invariant(!keyboardDispatches.has(this.buildOwner.keyboard),'reentrant-key-dispatch','Nested view keyboard dispatch is not supported');this.claimKeyboard();}
+  keyboardFocusGained():void{if(!this.isInputLive())return;invariant(!keyboardDispatches.has(this.buildOwner.keyboard),'reentrant-key-dispatch','Nested view keyboard dispatch is not supported');this.claimKeyboard();}
   rawKey(message:RawKeyMessage,transport?:KeyEvent):boolean{
-    if(this.closed)return false;const keyboard=this.buildOwner.keyboard;
+    if(!this.isInputLive())return false;const keyboard=this.buildOwner.keyboard;
     invariant(!keyboardDispatches.has(keyboard)&&!keyboard.isDispatching,'reentrant-key-dispatch','Nested view keyboard dispatch is not supported');keyboardDispatches.add(keyboard);
     try{if(!this.claimKeyboard())return false;return this.keyEventManager.handleRawKeyMessageSync(message,transport).get('handled')===true;}finally{keyboardDispatches.delete(keyboard);}
   }
@@ -299,8 +319,8 @@ export class FrameworkRoot implements ViewController {
     let handled=false;for(const event of message.events){if(this.closed)break;handled=this.routeLegacyKey(event)||handled;}return handled;
   }
   private routeLegacyKey(event:KeyEvent):boolean {
-    if(event.kind!=='down')return false;
-    for(const handler of [...this.buildOwner.keyHandlers].reverse())if(handler(event))return true;
+    if(event.kind!=='down'||!this.isInputLive())return false;
+    for(const handler of [...this.buildOwner.keyHandlers].reverse()){if(!this.isInputLive())return false;if(handler(event))return true;}
     if(!this.sourceSemanticsSnapshot)return false;
     const enabled=this.nodes.filter(node=>node.enabled&&node.focusable!==false&&(node.activate||node.actions));
     if(event.key==='Tab'&&enabled.length){const index=enabled.findIndex(node=>node.id===this.focused),next=enabled[(index+(event.shift?-1:1)+enabled.length)%enabled.length]!;this.focused=next.id;if(next.actions?.focus)next.actions.focus();else if(next.role==='text-field')next.activate?.();return true;}
@@ -312,9 +332,9 @@ export class FrameworkRoot implements ViewController {
   private cancelPointers():void {
     this.transportPositions.clear();try{this.gestureBinding.cancelActivePointers();}finally{this.transportStreams.clear();this.sourceTransportStreams.clear();}
   }
-  private queueSemanticsAction(source:SourceSemanticsNode,perform:(node:SemanticsNode)=>void):void{invariant(this.pendingSemanticsActions.length<128,'semantics-action-budget','Pending accessibility actions exceed the View budget');this.pendingSemanticsActions.push({source,perform});this.semanticsPublishedAt=undefined;this.scheduler.requestFrame();}
+  private queueSemanticsAction(source:SourceSemanticsNode,perform:(node:SemanticsNode)=>void):void{if(!this.isInputLive())return;invariant(this.pendingSemanticsActions.length<128,'semantics-action-budget','Pending accessibility actions exceed the View budget');this.pendingSemanticsActions.push({source,perform});this.semanticsPublishedAt=undefined;this.scheduler.requestFrame();}
   private performPendingSemanticsAction():void{
-    while(!this.closed&&this.visible&&this.pendingSemanticsActions.length){
+    while(this.isInputLive()&&this.pendingSemanticsActions.length){
       const action=this.pendingSemanticsActions.shift()!,owner=this.pipeline.semanticsOwner;
       if(action.source.owner!==owner||owner?.getSemanticsNode(action.source.id)!==action.source)continue;
       const node=this.nodes.find(node=>node.sourceNodeId===action.source.id);if(!node?.enabled)continue;

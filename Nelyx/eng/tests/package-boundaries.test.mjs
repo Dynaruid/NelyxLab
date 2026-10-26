@@ -13,6 +13,12 @@ test('Element/focus and resource/frame owners have no runtime import cycle', {ti
   assert.deepEqual(result.dependencyGraph.cycles.filter(component=>component.some(file=>owners.has(file))),[]);
 });
 
+test('paragraph layout and selectable fragments have no runtime import cycle', {timeout: 1_200_000}, () => {
+  const result=auditPackageBoundaries(path.resolve(import.meta.dirname,'../../..'));
+  const owners=new Set(['Nelyx/src/framework/rendering/boxes.ts','Nelyx/src/framework/rendering/paragraph-fragment.ts']);
+  assert.deepEqual(result.dependencyGraph.cycles.filter(component=>component.some(file=>owners.has(file))),[]);
+});
+
 test('boundary audit accepts declared facades and rejects escaped, reverse and aggregate imports', {timeout: 1_200_000}, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-boundaries-'));
   const write = (file, text) => {fs.mkdirSync(path.dirname(path.join(root, file)), {recursive: true}); fs.writeFileSync(path.join(root, file), text);};

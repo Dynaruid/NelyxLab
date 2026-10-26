@@ -12,7 +12,8 @@ import {textLimits,admitTextLayoutResources,freezeTextInput} from '@nelyx/core/u
 import {ParagraphBuilder} from '@nelyx/core/ui/paragraph-builder';
 import {ParagraphStyle} from '@nelyx/core/ui/paragraph-style';
 import {ParagraphConstraints} from '@nelyx/core/ui/paragraph-constraints';
-import {RenderParagraph} from '@nelyx/core/framework/rendering/paragraph';
+import {RenderParagraph,RenderRichParagraph} from '@nelyx/core/framework/rendering/paragraph';
+import {PipelineOwner} from '@nelyx/core/framework/rendering/object';
 import {TextScaler} from '@nelyx/core/framework/painting/text-scaler';
 import {Paint} from '@nelyx/core/ui/paint';
 import {Locale} from '@nelyx/core/ui/locale';
@@ -23,6 +24,77 @@ const timeout = 1_200_000;
 const span = color => new TextSpan({text: '한글 A😀 label', style: new TextStyle({fontSize: 16, color})});
 function context(f) {return {text: f.library, resources: f.root.context.resources, font: f.root.context.defaultFont, scale: 1};}
 function painter(owner, options = {}) {return new TextPainter({text: span(0xff000000), textDirection: 'ltr', ...options}, owner);}
+
+test('a direct rich renderer owns its source painter and retires the laid-out paragraph through the shared registry',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),ctx=context(f),source=new RenderParagraph(span(0xff123456),{textDirection:'rtl'},ctx),pipeline=new PipelineOwner();let direct;
+ try{
+  direct=new RenderRichParagraph(source.config,ctx);pipeline.setRoot(direct);pipeline.flushLayout({width:180,height:80});
+  assert.equal(direct.paragraph.input.text,'한글 A😀 label');assert.equal(direct.textDirection,'rtl');assert(direct.paragraph.height>0);const position=direct.getPositionForOffset({x:40,y:8});assert(position.offset>=0&&position.offset<=direct.paragraph.input.text.length);
+  const resource=direct.paragraph.resource;assert(ctx.resources.hasInitialProducer(resource));pipeline.setRoot(undefined);assert.equal(direct.paragraph,undefined);assert.equal(ctx.resources.hasInitialProducer(resource),false,'Detach releases the renderer producer while the cache owns its separate lease');
+ }finally{pipeline.setRoot(undefined);direct?.dispose();pipeline.dispose();source.dispose();await f.close();}
+});
+
+test('source renderer configuration defers unused run and strut serialization until paragraph preparation',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),events=[],pipeline=new PipelineOwner();let render;
+ class Style extends TextStyle {toRunStyle(...args){events.push('run');return super.toRunStyle(...args);}}
+ class Strut extends StrutStyle {toStyle(...args){events.push('strut');return super.toStyle(...args);}}
+ try{
+  const style=new Style({fontSize:16,color:0xff123456}),strutStyle=new Strut({fontSize:20,height:1,forceStrutHeight:true});render=new RenderParagraph(new TextSpan({text:'source 한글'}),{textDirection:'rtl',baseStyle:style,strutStyle},context(f));assert.deepEqual(events,[]);assert.equal('input' in render.config,false);
+  pipeline.setRoot(render);pipeline.flushLayout({width:180,height:80});assert(events.includes('strut'));assert.equal(render.paragraph.input.text,'source 한글');assert.equal(render.paragraph.input.direction,'rtl');assert.equal(render.selectionPainter.preferredLineHeight,20);
+ }finally{pipeline.setRoot(undefined);render?.dispose();pipeline.dispose();await f.close();}
+});
+
+test('rich source configuration captures borrowed fields once and cannot change through a caller-owned options record',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),ctx=context(f),source=new RenderParagraph(span(0xff123456),{textDirection:'ltr'},ctx),reads=[],optionReads=[],options={textDirection:'ltr',textAlign:'start'};let render,align='start';
+ const borrowedOptions=new Proxy(options,{get(target,key,receiver){optionReads.push(key);return Reflect.get(target,key,receiver);}}),value={...source.config,painterOptions:borrowedOptions,placeholderCount:0};delete value.placeholders;
+ Object.defineProperty(value,'opaque',{enumerable:true,get(){throw Error('Unconsumed metadata must not be read');}});const external=new Proxy(value,{get(target,key,receiver){reads.push(key);return Reflect.get(target,key,receiver);}});
+ Object.defineProperty(options,'textAlign',{get(){assert.equal(this,borrowedOptions);return align;},set(value){align=value;}});Object.defineProperty(value,'scale',{get(){assert.equal(this,external);return 1;}});
+ try{
+  render=new RenderRichParagraph(external,ctx);assert.notEqual(render.config,external);assert(Object.isFrozen(render.config));assert(Object.isFrozen(render.config.painterOptions));assert.equal('placeholders' in render.config,false);assert.equal(render.config.placeholderCount,0);assert.equal(new Set(reads).size,reads.length);assert.equal(new Set(optionReads).size,optionReads.length);
+  options.textDirection='rtl';options.textAlign='end';assert.equal(render.textDirection,'ltr');assert.equal(render.config.painterOptions.textAlign,'start');render.config={...render.config,painterOptions:borrowedOptions};assert.equal(render.textDirection,'rtl');
+  const before=render.config;for(const failure of [0,null,undefined]){const next={...before};Object.defineProperty(next,'font',{get(){throw failure;}});assert.throws(()=>{render.config=next;},error=>error===failure);assert.equal(render.config,before);}assert.equal(f.library.debugTextStats.producers,0);
+ }finally{render?.dispose();source.dispose();await f.close();}
+});
+
+test('source measurements reuse one captured span before painting and keep geometry independent of native producer retirement',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),owner=context(f);let builds=0,p;
+ class Source extends TextSpan {build(...args){builds++;return super.build(...args);}}
+ try{
+  p=painter(owner,{text:new Source({text:'한글 العربية label label label',style:new TextStyle({fontSize:16})})});
+  const narrow=p._measure(70),wide=p._measure(200);assert(narrow.height>wide.height);assert.equal(p._measure(70),narrow);assert(Object.isFrozen(narrow.lines[0].bounds));assert.equal(builds,1);assert.equal(f.library.debugTextStats.producers,0);
+  p.layout({minWidth:70,maxWidth:70});assert.equal(builds,1,'The painted owner consumes the same prepared source paragraph');assert.equal(p.height,narrow.height);const resource=p._layoutSnapshot().resource;
+  p._measure(100);assert.equal(builds,1);assert(owner.resources.hasInitialProducer(resource));assert.equal(f.library.debugTextStats.producers,1);
+  p._releaseLayoutResources();assert.equal(f.library.debugTextStats.producers,0);assert(narrow.lines.every(line=>Number.isFinite(line.baseline)&&line.bounds.height>0));
+  p._measure(70);assert.equal(builds,2);p.dispose();p=undefined;assert.equal(f.library.debugTextStats.producers,0);
+ }finally{p?.dispose();await f.close();}
+});
+
+test('source geometry failures preserve falsey backend and retirement errors while retiring the transient producer',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),owner=context(f),release=owner.resources.releaseProducer;let p;
+ try{
+  p=painter({...owner,text:{layout(input,request){const layout=f.library.layout(input,request);return new Proxy(layout,{get(target,key,receiver){if(key==='height')throw undefined;return Reflect.get(target,key,receiver);}});}}});
+  owner.resources.releaseProducer=function(resource){release.call(this,resource);throw null;};
+  assert.throws(()=>p._measure(120),error=>error instanceof AggregateError&&error.errors.length===2&&error.errors[0]===undefined&&error.errors[1]===null);assert.equal(f.library.debugTextStats.producers,0);
+ }finally{owner.resources.releaseProducer=release;p?.dispose();await f.close();}
+});
+
+test('reentrant source retirement cannot publish a prepared paragraph or revive a completed native layout',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),owner=context(f);let p,armed=true;
+ class Source extends TextSpan {build(...args){const result=super.build(...args);if(armed){armed=false;const current=p;p=undefined;current.dispose();}return result;}}
+ try{
+  p=painter(owner,{text:new Source({text:'close during source capture',style:new TextStyle({fontSize:16})})});assert.throws(()=>p._measure(140),/disposed|changed|retired/);p=undefined;assert.equal(f.library.debugTextStats.producers,0);
+  let close=true;p=painter({...owner,text:{layout(input,request){const result=f.library.layout(input,request);if(close){close=false;const current=p;p=undefined;current.dispose();}return result;}}});assert.throws(()=>p.layout({maxWidth:140}),/disposed|changed|retired/);p=undefined;assert.equal(f.library.debugTextStats.producers,0);
+ }finally{p?.dispose();await f.close();}
+});
+
+test('a reentrant source layout keeps the newer paragraph and a closing paint capture retires its candidate',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),owner=context(f);let p,again=true,armed=false;const canvas=new Canvas();
+ class Source extends TextSpan {build(...args){const result=super.build(...args);if(armed){armed=false;const current=p;p=undefined;current.dispose();}return result;}}
+ try{
+  p=painter({...owner,text:{layout(input,request){if(again){again=false;p.layout({minWidth:75,maxWidth:75});}return f.library.layout(input,request);}}});assert.throws(()=>p.layout({minWidth:150,maxWidth:150}),/changed/);assert.equal(p.width,75);assert.equal(f.library.debugTextStats.producers,1);p.dispose();p=undefined;
+  p=painter(owner,{text:new Source({text:'paint replacement',style:new TextStyle({fontSize:16,color:0xff123456})})});p.layout({maxWidth:180});p.text=new Source({text:'paint replacement',style:new TextStyle({fontSize:16,color:0xff654321})});armed=true;assert.throws(()=>p.paint(canvas,Offset.zero),/disposed|changed|retired/);assert.equal(f.library.debugTextStats.producers,0);
+ }finally{p?.dispose();canvas.dispose();await f.close();}
+});
 
 test('captured paragraph creation preserves ordinary source, scaler, Paint, font, locale, strut and serialization callbacks',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),events=[];
@@ -35,13 +107,13 @@ test('captured paragraph creation preserves ordinary source, scaler, Paint, font
   try{
     for(const kind of ['source','scaler','paint','font','locale','strut','height']){
       const style=new TextStyle({fontSize:16,...(kind==='paint'?{foreground:new Paint({color:0xff123456})}:{color:0xff123456})}),source=kind==='source'?new Source({text:'A😀',style}):new TextSpan({text:'A😀',style}),scaler=kind==='scaler'?new Scaler():TextScaler.noScaling,ctx={...context(f),font:kind==='font'?font:original};
-      const config={span:source,style,scaler,placeholders:[],input:{text:'A😀',font:ctx.font,fontSize:16,scale:1,locale:'en',direction:'ltr',color:0xff123456,style:style.toRunStyle(scaler)},painterOptions:{textDirection:'ltr',textScaler:scaler},paragraphOptions:{overflow:'clip',softWrap:true}};
+      const config={span:source,style,scaler,placeholderCount:0,font:ctx.font,scale:1,painterOptions:{textDirection:'ltr',textScaler:scaler},paragraphOptions:{overflow:'clip',softWrap:true}};
       if(kind==='locale')config.painterOptions.locale=new SourceLocale('en');
       if(kind==='strut')config.painterOptions.strutStyle=new SourceStrut({fontSize:16});
-      if(kind==='height')config.input.textHeightBehavior=config.painterOptions.textHeightBehavior=new SourceHeight();
+      if(kind==='height')config.painterOptions.textHeightBehavior=new SourceHeight();
       const options={...config.painterOptions,textDirection:'ltr',baseStyle:style,textScaler:scaler,...config.paragraphOptions,devicePixelRatio:1};
-      events.length=0;const expected=new RenderParagraph(source,options,ctx);expected.config=config;const reference=[...events];expected.dispose();
-      events.length=0;const actual=RenderParagraph._fromConfiguration(config,ctx);assert.deepEqual(events,reference,kind);assert.equal(actual.config,config);actual.dispose();
+      events.length=0;const expected=new RenderParagraph(source,options,ctx);const reference=[...events];expected.dispose();
+      events.length=0;const actual=RenderParagraph._fromConfiguration(config,ctx);assert.deepEqual(events,reference,kind);assert(Object.isFrozen(actual.config));assert.equal(actual.config.span,config.span);assert.equal(actual.config.style,config.style);actual.dispose();
     }
   }finally{await f.close();}
 });

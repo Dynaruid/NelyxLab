@@ -11,6 +11,8 @@ import {Picture} from '@nelyx/core/ui/picture';
 import {Canvas} from '@nelyx/core/ui/canvas';
 import {FrameRecording,disposeFrame} from '@nelyx/core/ui/frame';
 import {resourceOwner} from '@nelyx/core/ui/resource-retention';
+import {createReactNativeSurface} from '../../sdk/dist/backends/react-native/surface.js';
+import {PluginPlatformMessagePort} from '../../sdk/dist/runtime/plugin-port.js';
 
 const timeout=1_200_000,owner={id:'common-native-engine',generation:1};
 const metrics={logicalWidth:100,logicalHeight:80,physicalWidth:100,physicalHeight:80,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:7,nativeSurfaceGeneration:1};
@@ -45,6 +47,34 @@ test('shared engine ports submit through the common scene and retire the applica
     assert.equal(f.events.filter(value=>value==='close').length,1);assert.equal(f.events.filter(value=>value==='reset').length,1);assert.equal(f.events.filter(value=>value==='context').length,1);assert.equal(f.callbacks.size,0);
     assert.throws(()=>f.engine.services.text.create(app.session.resources),/closed/);assert.throws(()=>f.engine.services.paths.contains(null,{x:0,y:0}),/closed/);
   }finally{await app?.dispose();await f.engine.dispose();}
+});
+
+test('a surface close during bootstrap attachment fences its View before the application facade exists',{timeout},async()=>{
+ const f=fixture();let app,observed,retired=0;
+ f.services.surface.attach=(view,notify)=>{notify({kind:'close'});observed=view.status;return {dispose(){retired++;}};};
+ try{app=await bootstrapApplication({id:'attach-close',createScene:()=>()=>[]},f.services);assert.equal(observed,'closing');assert.equal(app.view.status,'closed');assert.equal(retired,1);assert.equal(f.callbacks.size,0);}
+ finally{await app?.dispose();await f.engine.dispose();}
+});
+
+test('RN surface close fences the attached View while its native input still owns an asynchronous drain',{timeout},async()=>{
+ const hooks=[],effects=[],frames=new Map(),errors=[],events=[];let hook=0,nativeProps,hostClose,releaseInput,ready,rejectReady,app;
+ const inputDrain=new Promise(resolve=>{releaseInput=resolve;}),opened=new Promise((resolve,reject)=>{ready=resolve;rejectReady=reject;});
+ const context={nelyxCoreVersion:()=>1,nelyxWireVersion:()=>11,nelyxIdentity:()=>7,nelyxConfigure(){},nelyxReserve:()=>0,nelyxNotifications:()=>[],nelyxStats:()=>[7,0,0,0,0],nelyxReplayDisplayList(){},nelyxSubmit(){},nelyxCancel(){},nelyxClose(){events.push('close');},nelyxReset(){events.push('reset');},dispose(){events.push('context');}};
+ const react={useRef(initial){const at=hook++;return hooks[at]??=( {current:initial} );},useState(initial){const at=hook++;if(!(at in hooks))hooks[at]=initial;return [hooks[at],value=>{hooks[at]=typeof value==='function'?value(hooks[at]):value;}];},useEffect(run){const at=hook++;if(!(at in hooks)){hooks[at]=true;effects.push(run);}},createElement(type,props,...children){if(type==='Skia'){nativeProps=props;props.ref.current={getContext:()=>context};}return {type,props,children};}};
+ const backend={react,native:{View:'View',PixelRatio:{get:()=>1},Dimensions:{get:()=>({fontScale:1}),addEventListener:()=>({remove(){}})},Image:{resolveAssetSource:()=>null}},skia:{Skia:{Color:value=>value},SkiaGraphiteView:'Skia'},profile:{identity:{target:'windows',runtime:'hermes',host:'react-native',renderer:'skia-graphite',gpuBackend:'vulkan',gpuImplementation:'native-vulkan',profile:'controlled-rnw'}}};
+ const configuration={manifest:[],sources:{}},adapter={target:'windows',backend:()=>backend,assets:()=>configuration,environment:{},visibility:()=>({isAvailable:true,currentState:'active',addEventListener:()=>({remove(){}})}),
+  assetServices:{acquire(){let released=false;return {ready:Promise.resolve({images:new Map(),fonts:new Map(),sourceBytes:0}),release(){if(!released){released=true;events.push('assets');}}};},service:()=>({resolve:async()=>[],dispose(){}})},
+  interaction:view=>new NativeInteraction(view,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),interactionControls:()=>null,
+  retainOwner(close){hostClose=close;return {release(){events.push('host');}};},nativeViewProps(_props,binding){return {binding};},
+  frameScheduler(){let sequence=0;return {request(callback){frames.set(++sequence,callback);return sequence;},cancel(id){frames.delete(id);}};},openInput(){return {ready:Promise.resolve(),dispose:()=>inputDrain};}};
+ const Surface=createReactNativeSurface(adapter),props={definition:{id:'rn-close',accessibilityEnabled:false,createView:()=>({build:()=>[],dispose(){events.push('controller');}})},generation:1,initializePlatformServices:false,platformMessages:new PluginPlatformMessagePort(),onReady(value){app=value;ready();},onError(error){errors.push(error);rejectReady(error);}};
+ let cleanup,closing;
+ try{
+  Surface(props);cleanup=effects[0]();await new Promise(resolve=>setImmediate(resolve));hook=0;Surface(props);assert(nativeProps);
+  nativeProps.binding.ready({logicalWidth:100,logicalHeight:80,physicalWidth:100,physicalHeight:80,scale:1,nativeSurfaceGeneration:1});nativeProps.onLayout({nativeEvent:{layout:{width:100,height:80}}});await opened;
+  assert.equal(app.view.status,'open');assert(frames.size);closing=hostClose();assert.equal(app.view.status,'closing');assert.equal(frames.size,0);assert(!events.includes('controller'),'Native input still owns its drain');
+  releaseInput();await closing;assert.equal(app.view.status,'closed');assert.deepEqual(events,['controller','close','reset','context','assets','host']);assert.deepEqual(errors,[]);
+ }finally{releaseInput();cleanup?.();if(hostClose)await hostClose();}
 });
 
 test('bootstrap publishes sealed asset bindings that survive descriptor mutation until the final frame lease',{timeout},async()=>{

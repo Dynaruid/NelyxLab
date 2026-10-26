@@ -49,8 +49,9 @@ async function composeNativeHermesApplication(definition:ApplicationDefinition,c
   let interaction:NativeInteraction|undefined;
   let ready!:()=>void;const startupFinished=new Promise<void>(resolve=>{ready=resolve;});
   const fail=(error:unknown)=>nativeHermesEnvironment.reportError(error);
-  let closing:Promise<void>|undefined,inputDiagnostics=0;
+  let closing:Promise<void>|undefined,inputDiagnostics=0;const stopErrors:unknown[]=[];
   const shutdown=new OwnedDisposal([
+    {name:'view-admission',run:()=>{if(stopErrors.length)throw new AggregateError(stopErrors,'Native View admission stop failed; owner retained');}},
     {name:'startup',run:()=>startupFinished},
     {name:'diagnostics',run:()=>{if(bridge.diagnostics)bridge.log('NELYX_NATIVE_VIEW '+JSON.stringify({status:view?.status,metrics:view?.currentMetrics,native:context?.nelyxStats()}));}},
     {name:'frame-clock',run:()=>clock?.dispose()},
@@ -67,7 +68,14 @@ async function composeNativeHermesApplication(definition:ApplicationDefinition,c
     {name:'vm-environment',run:()=>nativeHermesEnvironment.dispose()},
     {name:'completion',run:()=>bridge.completeShutdown()},
   ]);
-  const close=()=>{if(!closed){closed=true;try{nativeHermesEnvironment.beginClose();}catch{/* The VM owner preserves this error for its final retirement step. */}}return closing??=finishOwnedDisposal(()=>shutdown.dispose());};
+  const close=()=>{
+    if(closing)return closing;
+    // Publish before clock cancellation can synchronously reenter native Close.
+    let resolve!:()=>void,reject!:(error:unknown)=>void;closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});closed=true;
+    try{view?.beginClose();}catch(error){stopErrors.push(error);}
+    try{nativeHermesEnvironment.beginClose();}catch{/* The VM owner preserves this error for its final retirement step. */}
+    void finishOwnedDisposal(()=>shutdown.dispose()).then(resolve,reject);return closing;
+  };
   try{
   assetLease=assetServices.acquire(configuration);platform=createNativeServices(bridge);
   bridge.listen((kind,value)=>{
@@ -99,7 +107,7 @@ async function composeNativeHermesApplication(definition:ApplicationDefinition,c
     identity:{target:'windows',runtime:'hermes',host:'native-hermes',renderer:'skia-graphite',gpuBackend:'vulkan',gpuImplementation:'native-vulkan',profile:'native-hermes-graphite-vulkan'},
     reportError:fail,clock,
     platformMessages:platform.port,useDefaultBinaryMessenger:true,initializePlatformServices:true,
-    surface:{owner,readMetrics:()=>metrics,attach(attached,changed){view=attached;notify=changed;nativeEditing!.bind(attached);return {dispose(){notify=undefined;view=undefined;}};},dispose(){}},
+    surface:{owner,readMetrics:()=>metrics,attach(attached,changed){view=attached;notify=changed;if(closed)attached.beginClose();else nativeEditing!.bind(attached);return {dispose(){notify=undefined;view=undefined;}};},dispose(){}},
     assets:assetServices.service(configuration),
     ...activeEngine.services,
     editing:activeInteraction.editing,semantics:activeInteraction.semantics,

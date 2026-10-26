@@ -3,6 +3,17 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 const timeout=1_200_000;
 
+test('paragraph fragments and both paragraph APIs initialize in either fresh import order',{timeout},()=>{
+ for(const first of ['paragraph-fragment','boxes']){
+  const script=`import assert from 'node:assert/strict';
+   await import('./Nelyx/dist/framework/rendering/${first}.js');
+   const owner=await import('./Nelyx/dist/framework/rendering/boxes.js'),api=await import('./Nelyx/dist/framework/rendering/paragraph.js'),fragment=await import('./Nelyx/dist/framework/rendering/paragraph-fragment.js');
+   assert(api.RenderParagraph.prototype instanceof owner.RenderParagraph);assert.equal(typeof fragment.SelectableParagraphFragment,'function');
+   console.log('PASS-scoped: canonical paragraph owners initialized');`;
+  const result=spawnSync(process.execPath,['--input-type=module','-e',script],{cwd:fileURLToPath(new URL('../../../',import.meta.url)),encoding:'utf8',timeout,windowsHide:true,maxBuffer:1024*1024});assert.ifError(result.error);assert.equal(result.status,0,result.stdout+result.stderr);assert.match(result.stdout,/PASS-scoped/);
+ }
+});
+
 test('WidgetSpan-only imports expose the actual RichText ancestor before any separate RichText import',{timeout},()=>{
  const began=Date.now();for(const first of ['widget-span','rich-text']){
   const script=`import assert from 'node:assert/strict';

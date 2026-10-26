@@ -40,6 +40,19 @@ import {InkHighlight} from '@nelyx/material/ink-highlight';
 import {MaterialInkRender,InkFeature} from '../../../packages/material/dist/internal/material/material-ink-owner.js';
 const timeout=1_200_000;
 
+test('a replaced, consumed or invalidated transport candidate cannot revive its old action generation',{timeout},()=>{
+ const f=fixture();let calls=0;
+ try{
+  f.set(new Semantics({transportId:'candidate-action',container:true,label:'Action',onTap:()=>calls++,child:new SizedBox(20,20)}));
+  const transport=f.root.sourceSemanticsSnapshot,render=f.root.pipeline.root;
+  const first=transport.capture(render,render.localTransform),second=transport.capture(render,render.localTransform);
+  second.commit();first.commit();first.nodes.find(node=>node.id==='candidate-action').actions.activate();assert.equal(calls,0,'Replaced candidates stay inactive');
+  second.nodes.find(node=>node.id==='candidate-action').actions.activate();assert.equal(calls,1);
+  transport.invalidate();second.commit();second.nodes.find(node=>node.id==='candidate-action').actions.activate();assert.equal(calls,1,'A consumed candidate cannot undo invalidation');
+  const canceled=transport.capture(render,render.localTransform);transport.invalidate();canceled.commit();canceled.nodes.find(node=>node.id==='candidate-action').actions.activate();assert.equal(calls,1,'Invalidation cancels a still-pending candidate');
+ }finally{f.close();}
+});
+
 test('semantic commit phase rejects reentrant descriptor mutation in debug and Release and remains retryable',{timeout},()=>{
   const saved=FoundationBuildMode.mode;
   try{for(const mode of ['debug','release']){

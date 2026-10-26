@@ -4,7 +4,7 @@ import {invariant} from '../foundation/errors.ts';
 import {FoundationBuildMode} from '../foundation/constants.ts';
 import type {ResourceRegistry} from '../hosting/resources.ts';
 import type {ResourceHold} from './resource-retention.ts';
-import type {ResourceId,TextLayout,TextLayoutInput,TextLayoutService,TextClusterInfo} from './types.ts';
+import type {ResourceId,TextLayout,TextLayoutGeometry,TextLayoutInput,TextLayoutService,TextClusterInfo} from './types.ts';
 import type {TextRun,TextRunStyle,TextPlaceholder} from './text-styles.ts';
 import type {Locale} from './locale.ts';
 import type {ParagraphStyle} from './paragraph-style.ts';
@@ -20,7 +20,7 @@ export interface ParagraphContext {readonly text:TextLayoutService;readonly reso
 /** @internal CPU text assembled by ParagraphBuilder before engine layout. */
 export interface ParagraphTextSnapshot {readonly text:string;readonly style:TextRunStyle;readonly runs:readonly TextRun[];readonly placeholders:readonly TextPlaceholder[]}
 export class Paragraph {
-  private dead=false;private debugNeedsLayout=true;private current:TextLayout|undefined;
+  private dead=false;private debugNeedsLayout=true;private current:TextLayout|undefined;private layoutAttempt=0;
   private constructor(private readonly style:ParagraphStyle,private readonly contents:ParagraphTextSnapshot,private readonly context:ParagraphContext|null,private readonly holds:ResourceHold[]){}
   /** @internal Ownership is transferred once from the builder. */
   static _fromBuilder(style:ParagraphStyle,contents:ParagraphTextSnapshot,context:ParagraphContext|null,holds:ResourceHold[]):Paragraph{return new Paragraph(style,contents,context,holds);}
@@ -43,15 +43,34 @@ export class Paragraph {
     invariant(this.current===undefined&&this.context?.resources===previous.context?.resources&&this.context?.text===previous.context?.text,'foreign-paragraph-replacement','Paragraph replacement requires a fresh paragraph and the same resource/text owner');
     this.layoutWithReplacement(constraints,replacing);
   }
-  private layoutWithReplacement(constraints:ParagraphConstraints,replacing:TextLayout|undefined):void{
+  private layoutInput(constraints:ParagraphConstraints):TextLayoutInput{
     this.live();const context=this.context;invariant(context,'unbound-paragraph','Supply a ParagraphContext to ParagraphBuilder before laying out an engine paragraph');
     const style=this.style,locale=style.locale??context.locale??'und';
     const input:TextLayoutInput=Object.freeze({...this.contents,font:context.font,width:constraints.width,fontSize:style.fontSize??14,scale:context.scale,locale:typeof locale==='string'?locale:locale.toString(),direction:style.textDirection??'ltr',textAlign:style.textAlign??'start',color:context.color??0xff000000,maxLines:style.maxLines??128,...(style.maxLines===null?{unlimitedLines:true}:{}),ellipsis:style.ellipsis??'',...(style.strutStyle?{strutStyle:style.strutStyle}:{}),...(style.textHeightBehavior?{textHeightBehavior:style.textHeightBehavior}:{}),...(style.hyphens?{hyphens:style.hyphens}:{})});markCapturedTextRecord(input);
+    return input;
+  }
+  /** @internal A synchronous geometry probe never replaces or retains the painted producer. */
+  _measure(constraints:ParagraphConstraints):TextLayoutGeometry{
+    const input=this.layoutInput(constraints),context=this.context!,layout=context.text.layout(input,{transient:true});let result:TextLayoutGeometry|undefined,failed=false,failure:unknown;
+    try{
+      this.live();
+      invariant(this.style.maxLines!==null||!!this.style.ellipsis||!layout.overflow,'paragraph-line-budget','Unbounded Paragraph exceeds the host line budget');
+      const {resource:_resource,input:_input,indexUnit:_indexUnit,...geometry}=layout;
+      result=Object.freeze({...geometry,lines:Object.freeze(geometry.lines.map(line=>Object.freeze({...line,bounds:Object.freeze({...line.bounds})})))});
+    }catch(error){failed=true;failure=error;}
+    try{if(context.resources.hasInitialProducer(layout.resource))context.resources.releaseProducer(layout.resource);}catch(error){if(failed)throw new AggregateError([failure,error],'Paragraph measurement and retirement failed');throw error;}
+    if(failed)throw failure;return result!;
+  }
+  private layoutWithReplacement(constraints:ParagraphConstraints,replacing:TextLayout|undefined):void{
+    this.live();invariant(this.layoutAttempt<Number.MAX_SAFE_INTEGER,'paragraph-layout-exhausted','Paragraph layout attempts exhausted');const attempt=++this.layoutAttempt;
+    const input=this.layoutInput(constraints),context=this.context!,style=this.style;
+    invariant(!this.dead&&attempt===this.layoutAttempt,'paragraph-owner-changed','Paragraph owner changed during input capture');
     const previous=this.current,next=context.text.layout(input,{...(replacing?{replacing}:{}),...(context.transient?{transient:true}:{})});
     // Preserve native unlimited-line semantics (notably ellipsis). Host geometry
     // admission still rejects results over 128 lines; never silently clip them.
     // Reject an oversized result while retaining the previous completed layout.
-    if(style.maxLines===null&&!style.ellipsis&&next.overflow){context.resources.releaseProducer(next.resource);invariant(false,'paragraph-line-budget','Unbounded Paragraph exceeds the host line budget');}
+    try{invariant(!this.dead&&attempt===this.layoutAttempt,'paragraph-owner-changed','Paragraph owner changed during layout');invariant(style.maxLines!==null||!!style.ellipsis||!next.overflow,'paragraph-line-budget','Unbounded Paragraph exceeds the host line budget');}
+    catch(error){try{if(context.resources.hasInitialProducer(next.resource))context.resources.releaseProducer(next.resource);}catch(cleanup){throw new AggregateError([error,cleanup],'Rejected paragraph layout retirement failed');}throw error;}
     this.current=next;if(FoundationBuildMode.debug)this.debugNeedsLayout=false;
     if(previous&&context.resources.hasInitialProducer(previous.resource))context.resources.releaseProducer(previous.resource);
   }

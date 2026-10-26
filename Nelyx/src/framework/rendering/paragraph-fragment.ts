@@ -19,7 +19,7 @@ import type {TextBoundary} from '../../services/text-boundary.ts';
 import {Matrix4} from '../../math/matrix4.ts';
 import {MatrixUtils} from '../painting/matrix-utils.ts';
 import type {PaintingContext} from '../painting/context.ts';
-import {RenderParagraph} from './boxes.ts';
+import type {RenderParagraph} from './boxes.ts';
 import type {RenderObject} from './object.ts';
 import {LeaderLayer} from './layer.ts';
 import type {LayerLink} from './layer.ts';
@@ -45,7 +45,8 @@ export class SelectableParagraphFragment extends Diagnosticable(SelectionHandler
   private geometry:SelectionGeometry;
   private readonly notifier=new ChangeNotifier();
   private cachedBoxes:readonly Rect[]|null=null;private cachedRect:Rect|null=null;
-  constructor({paragraph,fullText,range}:{readonly paragraph:RenderParagraph;readonly fullText:string;readonly range:TextRange}){super();debugAssert(range.isValid&&!range.isCollapsed&&range.isNormalized);this.paragraph=paragraph;this.fullText=fullText;this.range=range;this.geometry=this.getGeometry();}
+  private readonly paragraphType:typeof RenderParagraph;
+  constructor({paragraph,paragraphType,fullText,range}:{readonly paragraph:RenderParagraph;readonly paragraphType:typeof RenderParagraph;readonly fullText:string;readonly range:TextRange}){super();debugAssert(range.isValid&&!range.isCollapsed&&range.isNormalized);this.paragraph=paragraph;this.paragraphType=paragraphType;this.fullText=fullText;this.range=range;this.geometry=this.getGeometry();}
   override addListener(listener:()=>void):void{this.notifier.addListener(listener);}
   override removeListener(listener:()=>void):void{this.notifier.removeListener(listener);}
   override get value():SelectionGeometry{return this.geometry;}
@@ -117,9 +118,9 @@ export class SelectableParagraphFragment extends Diagnosticable(SelectionHandler
   private paragraphBoundaryAt(position:TextPosition,text:string):BoundaryRecord{const boundary=new ParagraphBoundary(text),start=boundary.getLeadingTextBoundaryAt(position.offset===text.length||position.affinity===TextAffinity.upstream?position.offset-1:position.offset)??0,end=boundary.getTrailingTextBoundaryAt(position.offset)??text.length;debugAssert(start<=end);return this.adjustBoundary(new TextRange({start,end}),position);}
   private clampedParagraphBoundaryAt(position:TextPosition):BoundaryRecord{const boundary=new ParagraphBoundary(this.fullText),start=Math.max(this.range.start,Math.min(this.range.end,boundary.getLeadingTextBoundaryAt(position.offset===this.fullText.length||position.affinity===TextAffinity.upstream?position.offset-1:position.offset)??0)),end=Math.max(this.range.start,Math.min(this.range.end,boundary.getTrailingTextBoundaryAt(position.offset)??this.fullText.length));debugAssert(start<=end);return this.adjustBoundary(new TextRange({start,end}),position);}
   private positionInParagraph(target:RenderParagraph):TextPosition{return target.getPositionForOffset(MatrixUtils.transformPoint(Matrix4.fromList(this.paragraph.getTransformTo(target)),boxRect(this.paragraph).centerLeft));}
-  private isPlaceholder():boolean{for(let current=this.paragraph.parent;current!==undefined;current=current.parent)if(current instanceof RenderParagraph)return true;return false;}
-  private originParagraph():RenderParagraph{debugAssert(this.containsOriginTextBoundary);let origin:RenderParagraph|null=null;for(let current=this.paragraph.parent;current!==undefined;current=current.parent)if(current instanceof RenderParagraph&&current.selectionFragments!==null){if(current.selectionFragments.some(fragment=>fragment.containsOriginTextBoundary))origin=current;else return origin??this.paragraph;}return origin??this.paragraph;}
-  private paragraphContaining(global:Offset):{readonly paragraph:RenderParagraph;readonly localPosition:Offset}|null{for(let current:RenderObject|undefined=this.paragraph;current!==undefined;current=current.parent)if(current instanceof RenderParagraph){const localPosition=MatrixUtils.transformPoint(inverseTransform(current),global);if(boxRect(current).contains(localPosition))return {paragraph:current,localPosition};}return null;}
+  private isPlaceholder():boolean{for(let current=this.paragraph.parent;current!==undefined;current=current.parent)if(current instanceof this.paragraphType)return true;return false;}
+  private originParagraph():RenderParagraph{debugAssert(this.containsOriginTextBoundary);let origin:RenderParagraph|null=null;for(let current=this.paragraph.parent;current!==undefined;current=current.parent)if(current instanceof this.paragraphType&&current.selectionFragments!==null){if(current.selectionFragments.some(fragment=>fragment.containsOriginTextBoundary))origin=current;else return origin??this.paragraph;}return origin??this.paragraph;}
+  private paragraphContaining(global:Offset):{readonly paragraph:RenderParagraph;readonly localPosition:Offset}|null{for(let current:RenderObject|undefined=this.paragraph;current!==undefined;current=current.parent)if(current instanceof this.paragraphType){const localPosition=MatrixUtils.transformPoint(inverseTransform(current),global);if(boxRect(current).contains(localPosition))return {paragraph:current,localPosition};}return null;}
 
   private originResult(boundary:BoundaryRecord,origin:BoundaryRecord,forward:boolean,isEnd:boolean):SelectionResult|null{
     if(forward!==isEnd){if(boundary.boundaryStart.offset>=origin.boundaryStart.offset)return SelectionResult.end;if(boundary.boundaryStart.offset<origin.boundaryStart.offset)return SelectionResult.previous;}
@@ -157,7 +158,7 @@ export class SelectableParagraphFragment extends Diagnosticable(SelectionHandler
       if(originParagraph===this.paragraph)return this.updateMultiEdge(getBoundary,contains,position,oldStart,oldEnd,isEnd);
       const local=MatrixUtils.transformPoint(inverseTransform(originParagraph),global),originPosition=originParagraph.getPositionForOffset(local),placeholderPosition=this.positionInParagraph(originParagraph),placeholderRange=new TextRange({start:placeholderPosition.offset,end:placeholderPosition.offset+1});
       if(boxRect(originParagraph).contains(local)){
-        const text=originParagraph.input.text,boundary=getBoundary(originPosition,text),origin=getBoundary(this.positionInParagraph(originParagraph),text),pivot=isEnd?(forward?origin.boundaryStart.offset:origin.boundaryEnd.offset):(forward?origin.boundaryEnd.offset:origin.boundaryStart.offset),swap=!forward!==(isEnd?originPosition.offset<pivot:originPosition.offset>pivot),target=originPosition.offset<pivot?boundary.boundaryStart:originPosition.offset>pivot?boundary.boundaryEnd:current;
+        const text=originParagraph.plainText,boundary=getBoundary(originPosition,text),origin=getBoundary(this.positionInParagraph(originParagraph),text),pivot=isEnd?(forward?origin.boundaryStart.offset:origin.boundaryEnd.offset):(forward?origin.boundaryEnd.offset:origin.boundaryStart.offset),swap=!forward!==(isEnd?originPosition.offset<pivot:originPosition.offset>pivot),target=originPosition.offset<pivot?boundary.boundaryStart:originPosition.offset>pivot?boundary.boundaryEnd:current;
         if(swap)this.setPosition(current,!isEnd);this.setPosition(this.clamp(target),isEnd);const outside=this.outsideMultiBoundary(boundary,placeholderRange);if(outside!==null)return outside;
         // Both pinned placeholder methods test the end boundary for a forward selection.
         return this.originResult(boundary,origin,this.end!.offset>=this.start!.offset,true);
@@ -169,7 +170,7 @@ export class SelectableParagraphFragment extends Diagnosticable(SelectionHandler
     }else{
       if(contains)return this.updateMultiEdge(getBoundary,contains,position,oldStart,oldEnd,isEnd);
       const opposite=isEnd?oldStart:oldEnd;if(opposite!==null){
-        const details=this.paragraphContaining(global);if(details===null)return null;const target=details.paragraph,targetPosition=target.getPositionForOffset(details.localPosition),text=target.input.text;if(target.getWordBoundary(targetPosition).textInside(text)==='\ufffc')return null;
+        const details=this.paragraphContaining(global);if(details===null)return null;const target=details.paragraph,targetPosition=target.getPositionForOffset(details.localPosition),text=target.plainText;if(target.getWordBoundary(targetPosition).textInside(text)==='\ufffc')return null;
         const backward=this.backwardSelection(oldStart,oldEnd,isEnd),boundary=getBoundary(targetPosition,text),placeholderPosition=this.positionInParagraph(target),placeholderRange=new TextRange({start:placeholderPosition.offset,end:placeholderPosition.offset+1}),outside=this.outsideMultiBoundary(boundary,placeholderRange);
         if(outside!==null){this.setPosition(pos(outside===SelectionResult.previous?this.range.start:this.range.end),isEnd);return outside;}
         if(backward===isEnd){this.setPosition(pos(this.range.start),isEnd);return boundary.boundaryStart.offset>=placeholderRange.start?SelectionResult.end:SelectionResult.previous;}

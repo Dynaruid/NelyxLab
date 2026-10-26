@@ -60,13 +60,16 @@ const actionTypes:readonly [HostAction,SemanticsAction][]=[['activate',Semantics
 export class SemanticsTransportSnapshot {
   private generation:object|null=null;private nextId=0;private readonly ids=new WeakMap<SemanticsNode,string>();
   private deferredGeneration:object|null=null;
+  private pendingGeneration:object|null=null;
   constructor(private readonly pipeline:PipelineOwner,private readonly isLive:()=>boolean,private readonly deferAction?:(source:SemanticsNode,action:HostAction)=>void,private readonly deferRangeAction?:(source:SemanticsNode,value:number,range:NonNullable<HostNode['numericRange']>)=>void){}
-  invalidate():void{this.generation=null;this.deferredGeneration=null;}
+  invalidate():void{this.generation=null;this.deferredGeneration=null;this.pendingGeneration=null;}
   /** Only the last published generation may request a fresh action after motion. */
-  defer():void{if(this.generation!==null){this.deferredGeneration=this.generation;this.generation=null;}}
-  capture(root:RenderObject,transform:TransformMatrix=identity,frame?:{readonly owner:ViewOwner;readonly metrics:ViewMetrics;readonly inputGeometryToken?:object}):{nodes:HostNode[];commit:()=>void} {
-    const owner=this.pipeline.semanticsOwner;invariant(owner!==null,'missing-semantics-owner','A transport snapshot requires a source owner');const rootNode=owner.rootSemanticsNode;if(rootNode===null)return {nodes:[],commit:()=>{this.generation=null;this.deferredGeneration=null;}};
-    const generation={},ranges=new Map<SemanticsNode,NonNullable<HostNode['numericRange']>>(),rangeActions=new Map<SemanticsNode,NonNullable<HostNode['rangeActions']>>(),properties=new Map<SemanticsNode,SemanticsTransportProperties>(),editors=new Map<SemanticsNode,NonNullable<HostNode['editorGeometry']>>();
+  defer():void{this.pendingGeneration=null;if(this.generation!==null){this.deferredGeneration=this.generation;this.generation=null;}}
+  capture(root:RenderObject,transform:TransformMatrix=identity,frame?:{readonly owner:ViewOwner;readonly metrics:ViewMetrics;readonly inputGeometryToken?:object}):{nodes:HostNode[];commit:()=>boolean} {
+    const owner=this.pipeline.semanticsOwner;invariant(owner!==null,'missing-semantics-owner','A transport snapshot requires a source owner');const rootNode=owner.rootSemanticsNode,generation={};this.pendingGeneration=generation;
+    const commit=()=>{if(this.pendingGeneration!==generation)return false;this.pendingGeneration=null;if(!this.isLive()||this.pipeline.semanticsOwner!==owner||owner.rootSemanticsNode!==rootNode)return false;this.generation=rootNode===null?null:generation;this.deferredGeneration=null;return true;};
+    if(rootNode===null)return {nodes:[],commit};
+    const ranges=new Map<SemanticsNode,NonNullable<HostNode['numericRange']>>(),rangeActions=new Map<SemanticsNode,NonNullable<HostNode['rangeActions']>>(),properties=new Map<SemanticsNode,SemanticsTransportProperties>(),editors=new Map<SemanticsNode,NonNullable<HostNode['editorGeometry']>>();
     const inputGeometry=new Map<SemanticsNode,TextInputGeometry>(),textNavigation=new Map<SemanticsNode,SemanticsTextNavigation>(),textParagraphs=new Map<SemanticsNode,SemanticsTextParagraph>();
     const identify=(render:RenderObject)=>{const state=existingSemanticsFor(render),value=render.semanticsTransport;const range=renderRanges.get(render);if(range&&state?.cachedSemanticsNode?.owner===owner){ranges.set(state.cachedSemanticsNode,range);const action=renderRangeActions.get(render);if(action)rangeActions.set(state.cachedSemanticsNode,action);}if(state?.cachedSemanticsNode?.owner===owner&&!state.parentDataDirty&&state.shouldFormSemanticsNode&&value!==null){properties.set(state.cachedSemanticsNode,value);
       if(value.role==='text-field'){
@@ -134,6 +137,6 @@ export class SemanticsTransportSnapshot {
       if(actions.activate)result.activate=actions.activate;if(hasActions)result.actions=actions;if(children.length)result.children=children;
       return [result];
     };
-    const nodes=visit(rootNode,transform,rootClip,0);return {nodes,commit:()=>{if(this.pipeline.semanticsOwner===owner){this.generation=generation;this.deferredGeneration=null;}}};
+    const nodes=visit(rootNode,transform,rootClip,0);return {nodes,commit};
   }
 }

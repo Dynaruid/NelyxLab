@@ -4,17 +4,19 @@
 import {Offset} from '../../ui/offset.ts';
 import {protect} from '../../ui/value-math.ts';
 import {hashValues} from '../painting/value-equality.ts';
-import {RenderBox} from './object.ts';
+import {RenderBox,RelayoutWhenSystemFontsChangeMixin} from './object.ts';
 import type {PipelineOwner} from './object.ts';
 import {ViewportOffset} from './viewport-offset.ts';
 import {BoxConstraints} from './constraints.ts';
 import {invariant} from '../../foundation/errors.ts';
 import type {Size,Offset as Point} from '../../ui/geometry.ts';
 import type {TextBaseline} from './object.ts';
-import type {TextLayoutInput,TextLayoutGeometry,TextLayoutService,TextInputHitOptions} from '../../ui/types.ts';
-import type {ResourceRegistry} from '../../hosting/resources.ts';
+import type {TextLayoutGeometry,TextInputHitOptions} from '../../ui/types.ts';
+import type {ParagraphContext} from '../../ui/paragraph.ts';
+import type {TextPainterOptions} from '../painting/text-painter.ts';
+import {TextScaler} from '../painting/text-scaler.ts';
 import {TextPainter} from '../painting/text-painter.ts';
-import {freezeTextInput,textLimits} from '../../ui/text.ts';
+import {textLimits} from '../../ui/text.ts';
 import type {PaintingContext} from '../painting/context.ts';
 import type {TextSelection,Composition,TextLayout} from '../../ui/types.ts';
 import {TextSelection as Selection} from '../../services/text-editing.ts';
@@ -27,9 +29,9 @@ import {textOffset} from '../../ui/text.ts';
 import {LayerHandle,LayerLink,LeaderLayer} from './layer.ts';
 
 export interface EditableLinePolicy {readonly minLines:number|null;readonly maxLines:number|null;readonly expands:boolean}
-/** Resolved Core text input, owned by the same View as the painted paragraph. */
+/** Source configuration; the editable's painter owns the captured paragraph. */
 export interface EditableTextLayout extends EditableLinePolicy {
-  readonly input:Omit<TextLayoutInput,'width'>;readonly text:TextLayoutService;readonly resources:ResourceRegistry;
+  readonly options:TextPainterOptions;readonly context:ParagraphContext;
 }
 export interface EditablePaintValue {
   readonly selection:TextSelection;readonly composing:Composition;readonly focused:boolean;
@@ -56,10 +58,10 @@ export function validateEditableLinePolicy(policy:EditableLinePolicy):void {
 function hardLineBreaks(text:string):number{let count=0;for(let index=0;index<text.length;index++){const unit=text.charCodeAt(index);if(unit===10||unit===0x85||unit===11||unit===12||unit===0x2028||unit===0x2029)count++;}return count;}
 /** Core owns shaping, glyph/selection/composing/caret paint, hit testing and scroll.
  * An OS input connection may consume this geometry; it never supplies it. */
-export class RenderEditable extends RenderBox {
+export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(RenderBox as abstract new()=>RenderBox) {
   private preferredHeight:number;
   private baselines:(Readonly<Record<TextBaseline,number>>&{readonly lineHeight:number})|null=null;
-  private layoutValue:EditableTextLayout|null=null;private layoutKey='';private measurements:TextPainter|undefined;
+  private layoutValue:EditableLinePolicy|null=null;private measurements:TextPainter|undefined;
   private paragraph:TextLayout|undefined;private epoch=0;private paintX=0;private caretRevealPending=true;
   private readonly fixedOffset=ViewportOffset.zero();private viewportOffset:ViewportOffset=this.fixedOffset;private observingOffset=false;
   get offset():ViewportOffset{return this.viewportOffset;}
@@ -78,7 +80,7 @@ export class RenderEditable extends RenderBox {
   set selectionLinks(value:EditableSelectionLinks|undefined){if(this.links===value)return;this.links=value;this.markNeedsPaint();}
   get textPainter():TextPainter|undefined{return this.measurements;}
   get scrollOffset():Point{return Object.freeze({x:this.scrollX,y:this.scrollY});}
-  get textDirection():'ltr'|'rtl'{invariant(this.layoutValue,'stale-editable-layout','Paragraph direction requires resolved Core text layout');return this.layoutValue.input.direction;}
+  get textDirection():'ltr'|'rtl'{invariant(this.layoutValue,'stale-editable-layout','Paragraph direction requires resolved Core text layout');return this.measurements!.textDirection!;}
   get isMultiline():boolean{invariant(this.layoutValue,'stale-editable-layout','Scroll direction requires resolved Core text layout');return this.layoutValue.maxLines!==1;}
   get maxScrollExtent():number{this.requireParagraph();return this.isMultiline?Math.max(0,this.paragraph!.height-this.size.height):Math.max(0,this.paragraph!.maxIntrinsicWidth+(this.visual.cursorWidth??1)-this.size.width);}
   /** Selection scrolling uses the painted paragraph's extent, never OS metrics. */
@@ -96,25 +98,29 @@ export class RenderEditable extends RenderBox {
     this.visual=Object.freeze({...value,selection:Object.freeze({...value.selection}),composing:Object.freeze({...value.composing}),...(value.graphemeOffsets?{graphemeOffsets:Object.freeze([...value.graphemeOffsets])}:{})});this.markNeedsPaint();
   }
   constructor(height=48){super();this.checkHeight(height);this.preferredHeight=height;}
+  override systemFontsDidChange():void{
+    super.systemFontsDidChange();
+    if(this.debugDisposed||!this.attached)return;
+    this.paragraph=undefined;this.visualNavigation=undefined;this.textNavigationCache=undefined;this.caretRevealPending=true;this.epoch++;
+    this.measurements?.markNeedsLayout();
+  }
   override get clips():boolean{return true;}
   protected override get childCountLimit():number{return 0;}
   private checkHeight(value:number):void{invariant(Number.isFinite(value)&&value>=0,'invalid-editor-height','EditableText height must be finite and nonnegative');}
   get height():number{return this.preferredHeight;}
   set height(value:number){this.checkHeight(value);if(value===this.preferredHeight)return;this.preferredHeight=value;this.markNeedsLayout();}
   set textLayout(value:EditableTextLayout|null){
-    if(value===null){if(this.layoutValue===null)return;this.measurements?.dispose();this.measurements=undefined;this.paragraph=undefined;this.layoutValue=null;this.layoutKey='';this.visualNavigation=undefined;this.markNeedsLayout();return;}
-    validateEditableLinePolicy(value);const {width:_width,...input}=freezeTextInput({...value.input,width:0}),key=JSON.stringify({input,minLines:value.minLines,maxLines:value.maxLines,expands:value.expands});
-    if(key===this.layoutKey&&this.layoutValue?.text===value.text&&this.layoutValue.resources===value.resources)return;
-    if(this.layoutValue?.text!==value.text||this.layoutValue?.resources!==value.resources){this.measurements?.dispose();this.measurements=new TextPainter(value.text,value.resources);this.paragraph=undefined;}
-    this.layoutValue=Object.freeze({...value,input});this.layoutKey=key;this.caretRevealPending=true;this.markNeedsLayout();
+    if(value===null){if(this.layoutValue===null)return;this.measurements?.dispose();this.measurements=undefined;this.paragraph=undefined;this.layoutValue=null;this.visualNavigation=undefined;this.markNeedsLayout();return;}
+    validateEditableLinePolicy(value);const context=value.context,o=value.options,previous=this.layoutValue;
+    if(!this.measurements||this.measurements._paragraphContext.text!==context.text||this.measurements._paragraphContext.resources!==context.resources){this.measurements?.dispose();this.measurements=new TextPainter({},context);this.paragraph=undefined;}
+    const painter=this.measurements;painter._updateContext(context);painter.text=o.text??null;painter.textAlign=o.textAlign??'start';painter.textDirection=o.textDirection??null;painter.textScaler=o.textScaler??TextScaler.linear(o.textScaleFactor??1);painter.maxLines=value.maxLines===1?1:null;painter.ellipsis=null;painter.locale=o.locale??null;painter.strutStyle=o.strutStyle??null;painter.textWidthBasis='parent';painter.textHeightBehavior=o.textHeightBehavior??null;painter.hyphens=o.hyphens??'manual';
+    const changed=!previous||previous.minLines!==value.minLines||previous.maxLines!==value.maxLines||previous.expands!==value.expands;
+    this.layoutValue=Object.freeze({minLines:value.minLines,maxLines:value.maxLines,expands:value.expands});
+    if(changed||painter._needsLayout){this.caretRevealPending=true;this.markNeedsLayout();}else this.markNeedsPaint();
   }
-  private layoutInput(width:number):TextLayoutInput{const value=this.layoutValue!;return {...value.input,width:value.maxLines===1?textLimits.width:Math.min(width,textLimits.width),maxLines:value.maxLines===1?1:textLimits.lines,unlimitedLines:value.maxLines!==1,ellipsis:''};}
   private ensureParagraph(width:number):void{
     if(!this.layoutValue||!this.measurements)return;
-    const old=this.paragraph;this.paragraph=this.measurements.layout(this.layoutInput(width));
-    const input=this.layoutValue.input,align=input.textAlign??'start',rtl=input.direction==='rtl',fraction=align==='center'?.5:align==='right'||(align==='start'||align==='justify')&&rtl||align==='end'&&!rtl?1:0;
-    const contentWidth=this.layoutValue.maxLines===1?Math.max(width,this.paragraph.maxIntrinsicWidth):width;
-    this.paintX=fraction*(contentWidth-this.paragraph.width);this.measurements.setPaintGeometry(contentWidth,this.paintX);
+    const old=this.paragraph;this.measurements.layout({minWidth:width,maxWidth:this.layoutValue.maxLines===1?Infinity:width});this.paragraph=this.measurements._layoutSnapshot();this.paintX=this.measurements._paintOffset;
     if(old!==this.paragraph){this.visualNavigation=undefined;this.epoch++;}
   }
   private get top():number{return this.layoutValue?.maxLines===1?Math.max(0,(this.size.height-(this.paragraph?.height??0))/2):0;}
@@ -126,7 +132,7 @@ export class RenderEditable extends RenderBox {
   }
   getBoxesForSelection(selection:Selection):readonly Rect[]{return Object.freeze(this.requireParagraph().getBoxesForSelection(selection).map(box=>this.localRect(box.toRect())));}
   getPositionForOffset(point:Point):TextPosition{
-    const painter=this.requireParagraph(),position=painter.getGraphemePositionForOffset({x:point.x+this.scrollX,y:point.y-this.top+this.scrollY}),text=this.layoutValue!.input.text,boundaries=this.visual.graphemeOffsets??graphemeBoundaries(text);
+    const painter=this.requireParagraph(),position=painter.getGraphemePositionForOffset({x:point.x+this.scrollX,y:point.y-this.top+this.scrollY}),text=this.plainText,boundaries=this.visual.graphemeOffsets??graphemeBoundaries(text);
     if(boundaries.includes(position.offset))return position;
     const before=[...boundaries].reverse().find(at=>at<position.offset)??0,after=boundaries.find(at=>at>position.offset)??text.length;
     return new TextPosition({offset:position.offset-before<after-position.offset?before:after,affinity:position.affinity});
@@ -156,15 +162,15 @@ export class RenderEditable extends RenderBox {
     if(this.textNavigationCache?.paragraph===paragraph)return this.textNavigationCache.value;
     const text=this.plainText,characters=Object.freeze([...graphemeBoundaries(text)]),lineStops=new Set([0,text.length]),wordStops=new Set([0,text.length]);
     for(const line of paragraph.lines){textOffset(text,line.start);lineStops.add(line.start);}
-    if(this.layoutValue.text.wordBoundary)for(let at=0;at<text.length;){
+    if(painter.hasWordBoundarySupport)for(let at=0;at<text.length;){
       const range=painter.getWordBoundary(new TextPosition({offset:at}));textOffset(text,range.start);textOffset(text,range.end);
       invariant(range.start<=at&&range.end>at,'invalid-word-boundary','Core word navigation must advance within its painted paragraph');wordStops.add(range.start);wordStops.add(range.end);at=range.end;
     }
-    const value=Object.freeze({characters,lines:Object.freeze([...lineStops].sort((a,b)=>a-b)),...(this.layoutValue.text.wordBoundary?{words:Object.freeze([...wordStops].sort((a,b)=>a-b))}:{})});
+    const value=Object.freeze({characters,lines:Object.freeze([...lineStops].sort((a,b)=>a-b)),...(painter.hasWordBoundarySupport?{words:Object.freeze([...wordStops].sort((a,b)=>a-b))}:{})});
     this.textNavigationCache={paragraph,value};return value;
   }
   getLineBoundary(position:TextPosition){return this.requireParagraph().getLineBoundary(position);}
-  get plainText():string{return this.layoutValue?.input.text??'';}
+  get plainText():string{return this.measurements?.plainText??'';}
   private visualNavigation:{readonly paragraph:TextLayout;readonly width:number;readonly paintX:number;readonly graphemes:string;readonly boundaries:readonly number[];readonly lines:Map<number,readonly VisualGraphemeEdge[]>}|undefined;
   /** The engine has already resolved bidi. Walk its painted grapheme edges in
    * screen order while keeping selections in logical UTF-16 coordinates. */
@@ -210,7 +216,7 @@ export class RenderEditable extends RenderBox {
   }
   /** Lazy UTF-16 character bounds for an OS IME request, never a separate layout. */
   getCharacterBounds(start:number,end:number):readonly Rect[]{
-    const painter=this.requireParagraph(),text=this.layoutValue!.input.text;
+    const painter=this.requireParagraph(),text=this.plainText;
     invariant(Number.isSafeInteger(start)&&Number.isSafeInteger(end)&&start>=0&&end>=start&&end<=text.length,'invalid-text-range','Character bounds require an in-body UTF-16 range');
     const rects:Rect[]=[];
     for(let index=start;index<end;index++){
@@ -222,7 +228,7 @@ export class RenderEditable extends RenderBox {
   }
   getEndpointsForSelection(selection:Selection):readonly TextSelectionPoint[]{
     const painter=this.requireParagraph();
-    if(selection.isCollapsed){const caret=this.getLocalRectForCaret(selection.extent);return [new TextSelectionPoint(caret.bottomLeft,this.layoutValue!.input.direction)];}
+    if(selection.isCollapsed){const caret=this.getLocalRectForCaret(selection.extent);return [new TextSelectionPoint(caret.bottomLeft,this.textDirection)];}
     const boxes=painter.getBoxesForSelection(selection),first=boxes[0],last=boxes.at(-1);if(!first||!last)return [];
     const start=this.localRect(first.toRect()),end=this.localRect(last.toRect());
     return [new TextSelectionPoint(new Offset(first.direction==='ltr'?start.left:start.right,start.bottom),first.direction),new TextSelectionPoint(new Offset(last.direction==='ltr'?end.right:end.left,end.bottom),last.direction)];
@@ -273,7 +279,7 @@ export class RenderEditable extends RenderBox {
     try{
       context.clip({x:0,y:0,...this.size});
       if(this.visual.focused&&!this.visual.obscureText&&selection.anchor!==selection.focus)for(const box of this.getBoxesForSelection(new Selection({baseOffset:selection.anchor,extentOffset:selection.focus})))context.drawRect(box,new Paint({color:this.visual.selectionColor}));
-      context.paragraph(this.paragraph!.resource,this.paintX-this.scrollX,this.top-this.scrollY);
+      const previous=this.paragraph;this.measurements!.paint(context.canvas,new Offset(-this.scrollX,this.top-this.scrollY));this.paragraph=this.measurements!._layoutSnapshot();if(previous!==this.paragraph){this.visualNavigation=undefined;this.epoch++;}
       const composing=this.visual.composing;
       if(!this.visual.obscureText&&composing.status==='active')for(const box of this.getBoxesForSelection(new Selection({baseOffset:composing.start,extentOffset:composing.end})))context.drawRect(Rect.fromLTWH(box.left,box.bottom-1,box.width,1),new Paint({color:this.visual.cursorColor,isAntiAlias:false}));
       if(this.visual.focused&&this.visual.cursorVisible&&selection.anchor===selection.focus)context.drawRect(this.getLocalRectForCaret(new TextPosition({offset:selection.focus,affinity:this.visual.affinity??'downstream'})),new Paint({color:this.visual.cursorColor,isAntiAlias:false}));
@@ -282,13 +288,13 @@ export class RenderEditable extends RenderBox {
   }
   private geometry(width:number):TextLayoutGeometry|null {
     const value=this.layoutValue;if(!value)return null;
-    return this.measurements!.measure(this.layoutInput(width));
+    return this.measurements!._measure(value.maxLines===1?Infinity:width);
   }
   private preferredTextHeight(width:number):number {
     const policy=this.layoutValue;if(!policy)return this.height;
     const lineHeight=this.baselines?.lineHeight??this.height,min=policy.minLines??policy.maxLines,minHeight=lineHeight*(min??0);
     let preferred:number;
-    if(policy.maxLines===null){preferred=width===Infinity?lineHeight*(1+hardLineBreaks(policy.input.text)):this.geometry(width)!.height;preferred=Math.max(minHeight,preferred);}
+    if(policy.maxLines===null){preferred=width===Infinity?lineHeight*(1+hardLineBreaks(this.plainText)):this.geometry(width)!.height;preferred=Math.max(minHeight,preferred);}
     else if(policy.maxLines===1)preferred=this.geometry(width)!.height;
     else if(min===policy.maxLines)preferred=minHeight;
     else preferred=Math.max(minHeight,Math.min(lineHeight*policy.maxLines,this.geometry(width)!.height));

@@ -70,11 +70,14 @@ export interface ViewServices {
   /** App-selected font resource; consumers do not depend on a sample asset name. */
   readonly defaultFont?:import('../ui/types.ts').ResourceId;
 }
+export type ViewRuntimeStatus='open'|'closing'|'closed'|'failed';
 export interface ViewControllerContext extends ViewServices {
   readonly owner: ViewOwner; readonly resources: ResourceRegistry;
   readonly requestFrame: () => void;
   readonly requestForcedFrame?:()=>void;
   readonly readMetrics: () => ViewMetrics;
+  /** The View owner is authoritative before controller/service retirement. */
+  readonly readStatus:()=>ViewRuntimeStatus;
   readonly reportError?:(error:unknown)=>void;
 }
 export interface ViewController {
@@ -94,8 +97,10 @@ export class ViewRuntime implements Disposable {
   readonly owner: ViewOwner;
   private metrics: ViewMetrics;
   private pending: {frame: PaintFrame; lease: ResourceLease} | undefined;
+  private submitting:{frame:PaintFrame;lease:ResourceLease}|undefined;
+  private submissionFinished:(()=>void)|undefined;
   private task: Disposable | undefined;
-  private state: "open" | "closing" | "closed" | "failed" = "open";
+  private state:ViewRuntimeStatus="open";
   private sequence = 0;
   private inputSequence=0;
   private inputTimestamp:number|undefined;
@@ -117,7 +122,7 @@ export class ViewRuntime implements Disposable {
     try {
     if (session.definition.createView) {
       invariant(options.services,'missing-view-services','Widget applications require per-view services');
-      this.controller = session.definition.createView({...options.services,owner:this.owner,resources:session.resources,requestFrame:()=>this.requestFrame(),requestForcedFrame:()=>this.requestForcedFrame(),readMetrics:()=>this.metrics,...(options.onError?{reportError:options.onError}:{})});
+      this.controller = session.definition.createView({...options.services,owner:this.owner,resources:session.resources,requestFrame:()=>this.requestFrame(),requestForcedFrame:()=>this.requestForcedFrame(),readMetrics:()=>this.metrics,readStatus:()=>this.state,...(options.onError?{reportError:options.onError}:{})});
       this.scene = context => this.controller!.build(context);
     } else {
       invariant(session.definition.createScene,'missing-scene','Application requires createScene or createView');
@@ -136,7 +141,7 @@ export class ViewRuntime implements Disposable {
     }
   }
   get currentMetrics(): ViewMetrics { return this.metrics; }
-  get status(): string { return this.state; }
+  get status():ViewRuntimeStatus { return this.state; }
   /** Windows ingress batches updates until the next owned tick. Never sum
    * wheel deltas across unknown hit targets or retain more than 256 packets. */
   queuePointer(event:PointerEvent):void{
@@ -164,7 +169,8 @@ export class ViewRuntime implements Disposable {
   private rendererEvent(event:RendererNotification):void {
     if(this.state!=='open' || event.token.owner.id!==this.owner.id || event.token.owner.generation!==this.owner.generation){return;}
     if(event.kind==='submitted') {
-      if(!Number.isSafeInteger(event.submission)||event.submission<1||this.observedSubmissions.has(event.submission) || !this.pending || !this.sameToken(event.token,this.pending.frame.token)){return;}
+      const item=this.submitting??this.pending;
+      if(!Number.isSafeInteger(event.submission)||event.submission<1||this.observedSubmissions.has(event.submission) || !item || !this.sameToken(event.token,item.frame.token)){return;}
       if(this.options.renderer.capabilities.notifications==='submitted-and-retired')this.observedSubmissions.set(event.submission,event.token);
     } else {
       const accepted=this.observedSubmissions.get(event.submission);
@@ -216,27 +222,42 @@ export class ViewRuntime implements Disposable {
     if(this.state!=='open'||this.metrics!==token.metrics)return;
     if(empty){this.clearPending();return;}
     if(this.controller?.shouldSubmitFrame?.()===false){this.clearPending();return;}
+    if(this.state!=='open'||this.metrics!==token.metrics)return;
     const frame = captureSceneFrame(token,commands);
-    let lease:ResourceLease;try{lease=this.session.resources.acquire(frame.resources);}finally{releaseFrameResources(frame.resources);}try{this.clearPending();}catch(error){lease.returnBy('caller');throw error;}this.pending = {frame, lease};
+    let lease:ResourceLease|undefined,failed=false,failure:unknown,cleanupErrors:unknown[]|undefined;try{
+      // Capture/getters and retirement of the old caller lease may close the
+      // View or replace its metrics. Never attach a lease after that close.
+      if(this.state!=='open'||this.metrics!==token.metrics)return;
+      lease=this.session.resources.acquire(frame.resources);this.clearPending();
+      if(this.state!=='open'||this.metrics!==token.metrics)return;
+      this.pending={frame,lease};lease=undefined;
+    }catch(error){failed=true;failure=error;}finally{
+      try{releaseFrameResources(frame.resources);}catch(error){(cleanupErrors??=[]).push(error);}
+      try{lease?.returnBy('caller');}catch(error){(cleanupErrors??=[]).push(error);}
+      if(cleanupErrors){if(failed)cleanupErrors.unshift(failure);if(cleanupErrors.length===1)throw cleanupErrors[0];throw new AggregateError(cleanupErrors,'Frame replacement and retirement failed');}
+      if(failed)throw failure;
+    }
     }finally{releaseSceneFrameSource(commands);}
   }
   pump(): SubmitResult | undefined {
-    if (this.state !== "open" || !this.pending) return;
-    if(this.controller?.shouldSubmitFrame?.()===false){this.clearPending();return;}
-    const item = this.pending;
-    if (!isCurrent(item.frame, this.owner, this.metrics) || item.frame.resources.some((r) => !this.session.resources.isRetained(r))) {this.clearPending(); return {status: "rejected", reason: "stale"};}
-    if (this.metrics.physicalWidth === 0 || this.metrics.physicalHeight === 0) {this.clearPending(); return {status: "rejected", reason: "zero-size"};}
-    let result: SubmitResult;
+    if (this.state !== "open" || !this.pending||this.submitting) return;
+    const item=this.pending;this.pending=undefined;this.submitting=item;let caller=true,failed=false,failure:unknown;
+    try{
+    if(this.controller?.shouldSubmitFrame?.()===false||this.state!=='open')return;
+    if (!isCurrent(item.frame, this.owner, this.metrics) || item.frame.resources.some((r) => !this.session.resources.isRetained(r))) return {status: "rejected", reason: "stale"};
+    if (this.metrics.physicalWidth === 0 || this.metrics.physicalHeight === 0) return {status: "rejected", reason: "zero-size"};
+    let result: SubmitResult;caller=false;
     try {result = this.options.renderer.submit(item.frame, item.lease);} catch (error) {
       // An exception cannot prove whether native accepted. Preserve references until owned renderer drain.
-      this.uncertain.push(item.lease); this.pending = undefined; this.state = "failed";  throw error;
+      this.uncertain.push(item.lease);if(this.state==='open')this.state='failed';throw error;
     }
-    if (result.status === "accepted") {this.pending = undefined;this.controller?.frameSubmitted?.(item.frame.token);}
-    else if (result.status === "unknown") {this.uncertain.push(item.lease); this.pending = undefined; this.state = "failed";}
-    else if (result.reason === "busy") this.schedulePump();
-    else this.clearPending();
+    if (result.status === "accepted") {if(this.state==='open')this.controller?.frameSubmitted?.(item.frame.token);}
+    else if (result.status === "unknown") {this.uncertain.push(item.lease);if(this.state==='open')this.state='failed';}
+    else{caller=true;if(result.reason==='busy'&&this.state==='open'&&!this.pending){this.pending=item;caller=false;this.schedulePump();}}
 
     return result;
+    }catch(error){failed=true;failure=error;throw error;}
+    finally{try{if(caller)item.lease.returnBy('caller');}catch(error){if(failed)throw new AggregateError([failure,error],'Frame admission and retirement failed');throw error;}finally{this.submitting=undefined;const finished=this.submissionFinished;this.submissionFinished=undefined;finished?.();}}
   }
   private schedulePump(): void {
     if(!this.task && (this.visible||this.forcedFrame) && (this.dirty || this.pending || this.pointerMailbox.length))this.task=this.session.clock.request(timing=>{
@@ -267,6 +288,9 @@ export class ViewRuntime implements Disposable {
     }).then(resolve,reject);return closing;
   }
   private async finishClose(): Promise<void> {
+    // Only a reentrant close allocates this wait. Normal submissions retain
+    // their synchronous lease transfer and need no per-frame Promise.
+    if(this.submitting)await new Promise<void>(resolve=>{this.submissionFinished=resolve;});
     if (this.options.ownership === "owned") await this.options.renderer.dispose();
     invariant(this.uncertain.length === 0 || this.options.ownership === "owned", "unknown-borrowed-submission", "borrowed renderer must resolve uncertain leases before detach");
     // Renderer drain resolves transferred leases; unresolved caller leases were never transferred.

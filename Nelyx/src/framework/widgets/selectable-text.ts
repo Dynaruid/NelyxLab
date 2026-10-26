@@ -16,7 +16,7 @@ import {textLimits} from '../../ui/text.ts';
 import {Clipboard,ClipboardData} from '../../services/clipboard.ts';
 import {invariant} from '../../foundation/errors.ts';
 import {Element} from './framework.ts';
-import {resolveTextInput} from './text-input.ts';
+import {resolveTextConfiguration} from './text-input.ts';
 import {TextSpan} from '../painting/text-span.ts';
 export interface SelectableTextOptions extends TextOptions {readonly controller?:TextSelectionController;readonly focusNode?:FocusNode;readonly selectionColor?:number;readonly onSelectionChanged?:(selection:TextSelection)=>void;readonly onCopyError?:(error:unknown)=>void}
 /** Read-only text with shaped range highlights; advanced selection menus remain separate. */
@@ -48,7 +48,7 @@ class SelectableParagraphWidget extends RenderObjectWidget {
   override get typeToken():object{return this.controller;}
   override createElement():LeafRenderObjectElement{return new LeafRenderObjectElement(this);}
   get childWidgets():readonly Widget[]{return [];}
-  private configuration(context:BuildContext):RichParagraphConfiguration{const resolved=resolveTextInput(context,this.controller.text,this.options),span=this.span??new TextSpan({text:this.controller.text});invariant(span.toPlainText({includeSemanticsLabels:false})===this.controller.text,'selection-text-mismatch','Rich span text must match its controller');return {span,style:resolved.style,scaler:resolved.scaler,placeholders:[],input:resolved.input,paragraphOptions:resolved.paragraphOptions,painterOptions:resolved.painterOptions};}
-  createRenderObject(context:BuildContext):RenderBox{invariant(context instanceof Element,'invalid-context','SelectableText needs Element context');const config=this.configuration(context);return new RenderSelectableParagraph(config,{text:context.services.text,resources:context.services.resources,font:config.input.font,scale:config.input.scale},this.controller,context.owner.gestures);}
-  updateRenderObject(context:BuildContext,object:RenderBox):void{const render=object as RenderSelectableParagraph;render.config=this.configuration(context);render.devicePixelRatio=render.config.input.scale;render.selectionColor=this.options.selectionColor??0x667aaaff;render.requestFocus=this.focus;render.semantics={id:render.semanticsId,role:'text',name:this.controller.text,enabled:true,focusable:true,activate:this.focus,actions:{focus:this.focus}};render.markNeedsPaint();}
+  private configuration(context:BuildContext):RichParagraphConfiguration{const resolved=resolveTextConfiguration(context,this.options),span=this.span??new TextSpan({text:this.controller.text});invariant(span.toPlainText({includeSemanticsLabels:false})===this.controller.text,'selection-text-mismatch','Rich span text must match its controller');return {span,style:resolved.style,scaler:resolved.scaler,placeholderCount:0,font:resolved.font,scale:resolved.scale,paragraphOptions:resolved.paragraphOptions,painterOptions:resolved.painterOptions};}
+  createRenderObject(context:BuildContext):RenderBox{invariant(context instanceof Element,'invalid-context','SelectableText needs Element context');const config=this.configuration(context);return new RenderSelectableParagraph(config,{text:context.services.text,resources:context.services.resources,font:config.font,scale:config.scale},this.controller,context.owner.gestures);}
+  updateRenderObject(context:BuildContext,object:RenderBox):void{const render=object as RenderSelectableParagraph;render.config=this.configuration(context);render.devicePixelRatio=render.config.scale;render.selectionColor=this.options.selectionColor??0x667aaaff;render.requestFocus=this.focus;render.semantics={id:render.semanticsId,role:'text',name:this.controller.text,enabled:true,focusable:true,activate:this.focus,actions:{focus:this.focus}};render.markNeedsPaint();}
 }

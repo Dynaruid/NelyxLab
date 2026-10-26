@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
 import {EditableText,TextEditingController} from '@nelyx/core/framework/widgets/editable-text';
 import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
 import {TextStyle} from '@nelyx/core/framework/painting/text-style';
+import {TextScaler} from '@nelyx/core/framework/painting/text-scaler';
+import {StrutStyle} from '@nelyx/core/framework/painting/strut-style';
+import {PaintingBinding} from '@nelyx/core/framework/painting/binding';
+import {BinaryMessenger} from '@nelyx/core/services/binary-messenger';
+import {JSONMethodCodec} from '@nelyx/core/services/message-codecs';
 import {TextPainter} from '@nelyx/core/framework/painting/text-painter';
 import {TextSpan} from '@nelyx/core/framework/painting/text-span';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
@@ -22,6 +29,66 @@ function media(child,scale=1){return new MediaQuery({width:240,height:160,scale:
 function editing(f){const bindings=[];f.root.context.editing={capabilities:{indexUnit:'utf16',composing:'observed',selectionDirection:'observed'},bind(owner,initial,changed,options){const session=new EditingSession(owner,initial);let closed=false;const replace=value=>{assert(session.update({...value,revision:session.value.revision+1}));changed(session.value);};const host={options,get closed(){return closed;},native(text,composing={status:'none'}){replace({...session.value,text,selection:{anchor:text.length,focus:text.length},composing,source:'native'});}};bindings.push(host);return {get isComposing(){return session.value.composing.status==='active';},read:()=>session.value,replace,focus(){options.focusChanged?.(true);},blur(){options.focusChanged?.(false);},dispose(){assert(!closed);closed=true;session.dispose();}};}};return bindings;}
 const editor=(controller,lines={maxLines:null},extra={})=>new EditableText('editor',controller,'Message',undefined,0,null,{textStyle:style,minHeight:0,...lines,...extra});
 const render=f=>find(f.root.root,e=>e.widget instanceof EditableText).renderObjects[0];
+async function fontApplication(){
+ const codec=new JSONMethodCodec(),handlers=new Map(),environment=new Map([['revision',1],['locales',['en']],['localeSource','runtime'],['brightness','light'],['lifecycle','resumed'],['textScale',1],['capabilities',new Map([['clipboardRead','unavailable'],['clipboardWrite','unavailable'],['navigation','unavailable']])]]);
+ class Messenger extends BinaryMessenger {send(channel){return Promise.resolve(channel==='nelyx/environment'?codec.encodeSuccessEnvelope(environment):null);}setMessageHandler(channel,handler){if(handler)handlers.set(channel,handler);else handlers.delete(channel);}async handlePlatformMessage(channel,data,reply){reply?.(await handlers.get(channel)?.(data)??null);}}
+ const messenger=new Messenger(),binding=new PaintingBinding(messenger);await binding.ready;return {messenger,binding,handlers};
+}
+function registerLateFont(f){
+ const bytes=fs.readFileSync(new URL('../../../sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf',import.meta.url)),font=f.library.decode({id:'w18-late-font',kind:'font',fontFamily:'W18LateFont',sha256:createHash('sha256').update(bytes).digest('hex')},bytes);f.root.context.resources.register(font.descriptor,font.retire);
+}
+function editableParagraph(f){let result;const visit=node=>{if(node instanceof RenderEditable)result=node;node.visitChildren(visit);};visit(f.root.pipeline.root);assert(result);return result;}
+
+test('the actual editor keeps one InlineSpan painter through directional alignment, nonlinear scaling and document replacement',{timeout},async()=>{
+  class NonlinearScaler extends TextScaler {scale(size){return size+size*size/100;}get textScaleFactor(){return 1.16;}}
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('אבג 한글 👩‍👩‍👧‍👦'),scaler=new NonlinearScaler();editing(f);let owner;
+  const editable=()=>{let result;const visit=node=>{if(node instanceof RenderEditable)result=node;node.visitChildren(visit);};visit(f.root.pipeline.root);assert(result);return result;};
+  try{
+    for(const direction of ['ltr','rtl'])for(const textAlign of ['start','center','end']){
+      f.set(media(new SizedBox(110,64,editor(controller,{maxLines:1},{textDirection:direction,textAlign,textScaler:scaler}))));
+      const box=editable(),painter=box.textPainter;assert(painter.text instanceof TextSpan);assert.equal(painter.plainText,controller.text);owner??=painter;assert.equal(painter,owner);
+      const reference=new TextPainter({text:new TextSpan({text:controller.text,style}),textDirection:direction,textAlign,textScaler:scaler,maxLines:1},{text:f.root.context.text,resources:f.root.context.resources,font:f.root.context.defaultFont,scale:1,transient:true});
+      try{reference.layout({minWidth:110,maxWidth:Infinity});assert.equal(painter.width,reference.width);assert.equal(painter.height,reference.height);assert.equal(painter._paintOffset,reference._paintOffset);assert.deepEqual(painter.getPositionForOffset({x:50,y:10}),reference.getPositionForOffset({x:50,y:10}));}finally{reference.dispose();}
+    }
+    const old=owner._layoutSnapshot().resource;controller.text='새 문서 العربية e\u0301';f.frame();assert.equal(editable().textPainter,owner);assert.equal(owner.plainText,controller.text);assert(!f.root.context.resources.hasInitialProducer(old));
+    f.set(new SizedBox());assertParagraphOwnership(f);assert.equal(f.library.debugTextStats.producers,0);
+  }finally{await f.close();controller.dispose();}
+});
+
+test('changing only strut policy refreshes the live editor style and line policy without rebinding its input',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('한글 A'),bindings=editing(f);
+  const editable=()=>{let result;const visit=node=>{if(node instanceof RenderEditable)result=node;node.visitChildren(visit);};visit(f.root.pipeline.root);assert(result);return result;};
+  try{
+    f.set(media(new SizedBox(200,undefined,editor(controller,{minLines:2,maxLines:3}))));const initial=editable(),before=initial.semantics.editorStyle.lineHeight;assert.equal(before,initial.textPainter.preferredLineHeight);
+    const strut=new StrutStyle({fontSize:40,height:1,forceStrutHeight:true});f.set(media(new SizedBox(200,undefined,editor(controller,{minLines:2,maxLines:3},{strutStyle:strut}))));const current=editable();assert.equal(current,initial);assert.equal(bindings.length,1);assert(current.textPainter.preferredLineHeight>before);assert.equal(current.semantics.editorStyle.lineHeight,current.textPainter.preferredLineHeight);assert.equal(current.size.height,current.textPainter.preferredLineHeight*2);
+    f.set(new SizedBox());assert(bindings[0].closed);assertParagraphOwnership(f);assert.equal(f.library.debugTextStats.producers,0);
+  }finally{await f.close();controller.dispose();}
+});
+
+test('the app font notification refreshes both actual editor shaping and its cached source metrics',{timeout},async()=>{
+ const {messenger,binding,handlers}=await fontApplication(),f=await engineFixture({fonts:true,platformServices:binding,binaryMessenger:messenger}),controller=new TextEditingController('ABC'),dynamicStyle=new TextStyle({fontSize:20,fontFamily:'W18LateFont'}),bindings=editing(f);let reference;
+ const editable=()=>{let result;const visit=node=>{if(node instanceof RenderEditable)result=node;node.visitChildren(visit);};visit(f.root.pipeline.root);assert(result);return result;};
+ try{
+  f.set(media(new SizedBox(200,undefined,editor(controller,{maxLines:1},{textStyle:dynamicStyle}))));const box=editable(),before=box.semantics.editorStyle.lineHeight,old=box.textPainter._layoutSnapshot().resource;
+  registerLateFont(f);
+  reference=new TextPainter({text:new TextSpan({text:' ',style:dynamicStyle}),textDirection:'ltr'},{text:f.library,resources:f.root.context.resources,font:f.root.context.defaultFont,scale:1,transient:true});reference.layout();const expected=reference.height;assert.notEqual(expected,before,'The newly registered real font must change the measured baseline sample');
+  await binding.handleSystemMessage(new Map([['type','fontsChange']]));f.advance(16);assert.equal(editable(),box);assert.equal(bindings.length,1);assert.equal(box.semantics.editorStyle.lineHeight,expected);assert.equal(box.textPainter.height,expected);assert(!f.root.context.resources.hasInitialProducer(old));
+  reference.dispose();reference=undefined;f.set(new SizedBox());assertParagraphOwnership(f);
+ }finally{reference?.dispose();await f.close();controller.dispose();binding.dispose();assert.equal(handlers.size,0);}
+});
+
+test('shared app font notifications stay on each View and pending editor callbacks retire with that View',{timeout},async()=>{
+ const {messenger,binding,handlers}=await fontApplication(),fonts=binding.systemFonts,listeners=new Set(),add=fonts.addListener,remove=fonts.removeListener;
+ fonts.addListener=function(listener){listeners.add(listener);return add.call(this,listener);};fonts.removeListener=function(listener){listeners.delete(listener);return remove.call(this,listener);};
+ const a=await engineFixture({fonts:true,platformServices:binding,binaryMessenger:messenger,viewId:'w18-font-a'}),b=await engineFixture({fonts:true,platformServices:binding,binaryMessenger:messenger,viewId:'w18-font-b'}),ca=new TextEditingController('A'),cb=new TextEditingController('B'),dynamicStyle=new TextStyle({fontSize:20,fontFamily:'W18LateFont'}),ba=editing(a),bb=editing(b);let openA=true;
+ const notify=()=>binding.handleSystemMessage(new Map([['type','fontsChange']])),value=c=>media(new SizedBox(200,undefined,editor(c,{maxLines:1},{textStyle:dynamicStyle})));
+ try{
+  a.set(value(ca));b.set(value(cb));assert.equal(listeners.size,4);const ra=editableParagraph(a),rb=editableParagraph(b),before=rb.semantics.editorStyle.lineHeight;registerLateFont(a);
+  await notify();a.advance(16);assert.equal(editableParagraph(a),ra);const expected=ra.semantics.editorStyle.lineHeight;assert.notEqual(expected,before);assert.equal(rb.semantics.editorStyle.lineHeight,before,'Another View does not run its pending build on this View frame');b.advance(16);assert.equal(rb.semantics.editorStyle.lineHeight,before,'Font registries remain owned by their respective engine');
+  registerLateFont(b);await notify();await notify();openA=false;await a.close();assert.equal(listeners.size,2);assert.equal(binding.isClosed,false);await notify();b.advance(16);assert.equal(editableParagraph(b),rb);assert.equal(rb.semantics.editorStyle.lineHeight,expected);assert.equal(rb.textPainter.height,expected);assert.equal(ba.length,1);assert.equal(bb.length,1);assert(ba[0].closed);
+  b.set(new SizedBox());assert.equal(listeners.size,0);await notify();b.advance(16);assertParagraphOwnership(b);
+ }finally{if(openA)await a.close();await b.close();ca.dispose();cb.dispose();fonts.addListener=add;fonts.removeListener=remove;binding.dispose();assert.equal(handlers.size,0);assert.equal(listeners.size,0);}
+});
 
 test('actual editor grows and clamps measured hard lines, retains binding through line policy/scale changes and retires measurements',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),controller=new TextEditingController(),bindings=editing(f);

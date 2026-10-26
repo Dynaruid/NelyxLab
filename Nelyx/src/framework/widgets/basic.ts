@@ -26,7 +26,7 @@ import type {StackFit,MainAxisAlignment,CrossAxisAlignment,RenderFlexOptions,Rel
 import type {TextOverflow,TextWidthBasis} from '../painting/text-painter.ts';
 import type {TextScaler} from '../painting/text-scaler.ts';
 import type {TextStyle} from '../painting/text-style.ts';import type {StrutStyle} from '../painting/strut-style.ts';import type {TextAlign} from '../../ui/typography.ts';import {TextHeightBehavior} from '../../ui/typography.ts';
-import {resolveTextInput} from './text-input.ts';
+import {resolveTextConfiguration} from './text-input.ts';
 import type {InlineSpan} from '../painting/inline-span.ts';import {RichText} from './rich-text.ts';
 import {Alignment,AlignmentDirectional,AlignmentGeometry} from '../painting/alignment.ts';
 import {EdgeInsets,EdgeInsetsGeometry} from '../painting/edge-insets.ts';
@@ -243,8 +243,8 @@ export class Text extends StatelessWidget {
   constructor(readonly text:string,readonly options:TextOptions={}){super(options.key??null);}
   static rich(span:InlineSpan,options:TextOptions={}):Widget{return new RichTextFromText(span,options);}
   build(context:BuildContext):Widget{return buildTextSelection(context,this.options,(childContext,key,registrar,color)=>new PlainTextWidget(this,key,registrar,color));}
-  make(context:BuildContext):RenderParagraph{const resolved=resolveTextInput(context,this.text,this.options);return SourceRenderParagraph._fromConfiguration({...resolved,span:new TextSpan({text:this.text}),placeholders:[]},{text:context.services.text,resources:context.services.resources,font:resolved.input.font,scale:resolved.input.scale});}
-  configure(render:RenderParagraph,context:BuildContext):void{const resolved=resolveTextInput(context,this.text,this.options);if(render instanceof SourceRenderParagraph){render.config={...resolved,span:new TextSpan({text:this.text}),placeholders:[]};render.devicePixelRatio=resolved.input.scale;}else{render.input=resolved.input;render.paragraphOptions=resolved.paragraphOptions;}render.semantics={id:render.semanticsId,role:'text',name:this.text,enabled:true};}
+  make(context:BuildContext):RenderParagraph{const resolved=resolveTextConfiguration(context,this.options);return SourceRenderParagraph._fromConfiguration({...resolved,span:new TextSpan({text:this.text}),placeholderCount:0},{text:context.services.text,resources:context.services.resources,font:resolved.font,scale:resolved.scale});}
+  configure(render:RenderParagraph,context:BuildContext):void{const resolved=resolveTextConfiguration(context,this.options);invariant(render instanceof SourceRenderParagraph,'invalid-text-renderer','Text requires a source RenderParagraph; custom Text renderers must override configure');render.config={...resolved,span:new TextSpan({text:this.text}),placeholderCount:0};render.devicePixelRatio=resolved.scale;render.semantics={id:render.semanticsId,role:'text',name:this.text,enabled:true};}
 }
 class PlainTextWidget extends BoxWidget<RenderParagraph> {
   constructor(readonly textWidget:Text,key:Key|null,readonly registrar:SelectionRegistrar|null,readonly selectionColor:number){super([],key,'leaf');}
@@ -286,7 +286,7 @@ class RenderColoredBox extends RenderProxyBox {
 }
 class RichTextFromText extends StatelessWidget {
   constructor(readonly span:InlineSpan,readonly options:TextOptions){super(options.key??null);}
-  build(context:BuildContext):Widget{const resolved=resolveTextInput(context,this.span.toPlainText({includeSemanticsLabels:false}),this.options),{textScale:_scale,textScaler:_scaler,key:_key,...options}=this.options;return buildTextSelection(context,this.options,(_childContext,key,registrar,color)=>new RichText(this.span,{...options,...(key?{key}:{}),...resolved.paragraphOptions,...(resolved.painterOptions.maxLines!=null?{maxLines:resolved.painterOptions.maxLines}:{}),textAlign:resolved.input.textAlign!,...(resolved.input.textHeightBehavior?{textHeightBehavior:new TextHeightBehavior(resolved.input.textHeightBehavior)}:{}),style:resolved.style,textScaler:resolved.scaler,selectionRegistrar:registrar,selectionColor:color}));}
+  build(context:BuildContext):Widget{const resolved=resolveTextConfiguration(context,this.options),{textScale:_scale,textScaler:_scaler,key:_key,...options}=this.options;return buildTextSelection(context,this.options,(_childContext,key,registrar,color)=>new RichText(this.span,{...options,...(key?{key}:{}),...resolved.paragraphOptions,...(resolved.painterOptions.maxLines!=null?{maxLines:resolved.painterOptions.maxLines}:{}),textAlign:resolved.painterOptions.textAlign!,...(resolved.painterOptions.textHeightBehavior?{textHeightBehavior:new TextHeightBehavior(resolved.painterOptions.textHeightBehavior)}:{}),style:resolved.style,textScaler:resolved.scaler,selectionRegistrar:registrar,selectionColor:color}));}
 }
 export class Image extends BoxWidget<RenderImage> {
   constructor(readonly asset:string|ResourceId,readonly width:number,readonly height:number,key:Key|null=null){super([],key,'leaf');}

@@ -26,6 +26,7 @@ import {GestureArenaManager} from '../gestures/arena.ts';
 import type {GestureBinding} from '../gestures/binding.ts';
 import type {SemanticsBinding} from '../semantics/binding.ts';
 import type {Disposable} from '../../foundation/disposable.ts';
+import type {Listenable} from '../../foundation/notifier.ts';
 import {FocusScope} from './focus.ts';
 import {initializeElementType} from './widget-class-identity.ts';
 import type {FocusManagerOptions} from './focus.ts';
@@ -175,7 +176,7 @@ export class BuildOwner {
   get buildRevision():number{return this.buildRevisionValue;}
   get hasDirty():boolean{return this.queuedBuilds>0;}
   get globalKeyCount():number{return this.globals.size;}
-  constructor(services:ViewControllerContext,readonly invalidate:()=>void,readonly postFrame:(callback:()=>void)=>void=callback=>callback(),focusOptions:FocusManagerOptions={}) {
+  constructor(services:ViewControllerContext,readonly invalidate:()=>void,readonly postFrame:(callback:()=>void)=>void=callback=>callback(),focusOptions:FocusManagerOptions={},readonly systemFonts:Listenable|null=null) {
     // Keep one live service facade per owner. A separate extensible target also
     // supports frozen host contexts; methods retain the host receiver/private
     // fields, and captured readMetrics functions record their actual build user.

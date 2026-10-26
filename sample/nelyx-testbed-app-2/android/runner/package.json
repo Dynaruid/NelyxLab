@@ -13,8 +13,8 @@
     "run": "node run.mjs"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.16.0-8f68a0d22e395be023d8f982593d227a2ce731bd61ea06ca513a59c2a2fe50b3.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.20.0-e1ee9ce414feccc4190977135dbd63d1edf538b3683278a2d890aa86dc52fa28.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.16.0-58789365091132b4c3218132d754d7cee4d8f79efbb0f80ed8cae18cad3c76a8.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.20.0-a560aa81a2ed2dfbce2fbeff82e01d5e3ee7b804536631931c9a99e781a75979.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/android/nelyx-skia-rn-0.6.0-78570d05d9638934f89c1688500640746dee27638a4a917361a5fe84cde892bc.tgz",
     "react-native-skia-graphite-android": "154.1.0",
     "react": "19.2.0",
@@ -24,8 +24,8 @@
     "@nelyx/skia-native": "file:../../.nelyx/supply/android/nelyx-skia-native-0.1.0-be110344001c0ccdc021d407bf4f1111b2d52eee5b8ec030ebb746a8c1e396d3.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-f613e5db43d417587c2b85e237cda39e75d71cac55c28629e68724cefb45c9db.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-be4f5de2ba9c962fcdff3f7f64b61cef6472d866103fe9d84f425146d5816dea.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-458af09be30d1b263f3e83e7a81ea7f4b81dbffdfe06e81d1d70770fe0aab1b1.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-fd0200317d7c06c2b274ecd09b2f70550dbdea830f74e87cc3792a9e8848d1c6.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",

@@ -6,7 +6,8 @@ const timeout=1_200_000;
 test('Core native paragraph tickets read the original shape and never wait for a busy owner',{timeout,skip:process.platform!=='win32'},()=>{
  const run=(file,args)=>{const r=spawnSync(file,args,{encoding:'utf8',windowsHide:true,timeout,maxBuffer:3*1024*1024});if(r.error)throw r.error;assert.equal(r.status,0,r.stdout+r.stderr);return r.stdout;};
  const root=path.resolve(import.meta.dirname,'../../..');const disk=fs.statfsSync(root);assert(disk.bavail*disk.bsize>=20*1024**3,'Need 20 GiB before native validation');
- const runner=path.join(root,'sample/nelyx-testbed-app-2/windows/runner'),inputs=verifyWindowsInputs({runner,input:path.join(root,'Nelyx/.cache/native/windows/current/inputs.json')}),binding=path.join(runner,'node_modules/@nelyx/skia-rn');
+ const app=path.join(root,'sample/nelyx-testbed-app-2'),runner=path.join(app,'windows/runner'),prepared=JSON.parse(fs.readFileSync(path.join(app,'.nelyx/windows/native-inputs.json'),'utf8'));assert.equal(prepared.schema,'nelyx.rnw-prepared/v1');
+ const inputs=verifyWindowsInputs({runner,input:prepared.input}),binding=path.join(runner,'node_modules/@nelyx/skia-rn');assert.equal(inputs.sha256,prepared.sha256,'The current prepared native locator must match its verified input');
  const vs=run(path.join(process.env['ProgramFiles(x86)'],'Microsoft Visual Studio/Installer/vswhere.exe'),['-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath']).trim();assert(vs);const directory=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-core-paragraph-'));
  try{
   const output=path.join(directory,'paragraph.exe'),entry=path.join(directory,'compile.cmd'),libraries=inputs.manifest.libraries.map(file=>'"'+path.join(inputs.root,file)+'"');

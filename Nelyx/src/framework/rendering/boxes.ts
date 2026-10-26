@@ -5,15 +5,12 @@ import {assertOutsideRenderPaint} from './phase.ts';
 import type {Size,Insets,TransformMatrix,Offset} from '../../ui/geometry.ts';
 import {captureTransform,fullTransform,multiply,translate,identity,inversePaintTransform,transform,inverse} from '../../ui/geometry.ts';
 import type {Rect} from '../../ui/types.ts';
-import type {ResourceId,TextLayoutInput,TextLayout,TextLayoutGeometry} from '../../ui/types.ts';
-import {textLimits} from '../../ui/text.ts';
-import {copyResourceId} from '../../ui/resource-retention.ts';
+import type {ResourceId,TextLayout} from '../../ui/types.ts';
 import {BoxConstraints} from './constraints.ts';
 import {RenderBox,ContainerBoxParentData} from './object.ts';
 import type {RenderObject,TextBaseline,HitTestEntry} from './object.ts';
 import type {PaintingContext} from '../painting/context.ts';
 import type {TextPainter} from '../painting/text-painter.ts';
-import {paragraphLayoutWidth,paragraphContentWidth,paragraphHasOverflow,paintParagraphOverflow} from './paragraph-overflow.ts';
 import type {ParagraphLayoutOptions} from './paragraph-overflow.ts';
 import {Alignment,AlignmentDirectional,AlignmentGeometry} from '../painting/alignment.ts';
 import {Offset as OffsetValue} from '../../ui/offset.ts';
@@ -421,24 +418,22 @@ export class RenderImage extends RenderBox {
   protected performLayout(constraints:BoxConstraints):Size {return constraints.constrain({width:this.width,height:this.height});}
   override paint(context:PaintingContext):void {context.image(this.resource,{x:0,y:0,...this.size});}
 }
-export class RenderParagraph extends RenderBox {
+/** Shared selection identity; concrete paragraphs own their source configuration and layout. */
+export abstract class RenderParagraph extends RenderBox {
   protected override get childCountLimit():number{return 0;}
   override setChildren(children:readonly RenderBox[]):void {invariant(children.length<=this.childCountLimit,'invalid-render-child','RenderParagraph child capacity exceeded');super.setChildren(children);}
   private static nextSemanticsId=0;
   readonly semanticsId='text-'+(++RenderParagraph.nextSemanticsId);
   paragraph:TextLayout|undefined;
-  private textInput:Omit<TextLayoutInput,'width'>;
-  private layoutOptions:ParagraphLayoutOptions;
   private selectionRegistrar:SelectionRegistrar|null=null;
   private fragments:readonly SelectableParagraphFragment[]|null=null;
   private highlightColor:number|null=null;
   protected paintOffsetX=0;
-  constructor(protected readonly painter:TextPainter,input:Omit<TextLayoutInput,'width'>,options:ParagraphLayoutOptions={}){super();painter.validateResources(input);this.textInput=Object.freeze({...input,font:copyResourceId(input.font)});this.layoutOptions=Object.freeze({...options});}
-  get paragraphOptions():ParagraphLayoutOptions{return this.layoutOptions;}
-  set paragraphOptions(value:ParagraphLayoutOptions){this.assertCanMutateLayoutProperty();if(JSON.stringify(value)===JSON.stringify(this.layoutOptions))return;this.layoutOptions=Object.freeze({...value});this.markNeedsLayout();}
-  get input():Omit<TextLayoutInput,'width'>{return this.textInput;}
-  set input(value:Omit<TextLayoutInput,'width'>){this.assertCanMutateLayoutProperty();this.painter.validateResources(value);const next=Object.freeze({...value,font:copyResourceId(value.font)});if(JSON.stringify(next)===JSON.stringify(this.textInput))return;this.textInput=next;this.markNeedsLayout();this.replaceSelectionFragments();}
-  get textDirection():'ltr'|'rtl'{return this.input.direction??'ltr';}
+  constructor(protected readonly painter:TextPainter){super();}
+  abstract get paragraphOptions():ParagraphLayoutOptions;
+  abstract set paragraphOptions(value:ParagraphLayoutOptions);
+  abstract get plainText():string;
+  get textDirection():'ltr'|'rtl'{return this.painter.textDirection??'ltr';}
   get registrar():SelectionRegistrar|null{return this.selectionRegistrar;}
   set registrar(value:SelectionRegistrar|null){this.assertCanMutateLayoutProperty();if(value===this.selectionRegistrar)return;this.disposeSelectionFragments();this.selectionRegistrar=value;this.registerSelectionFragments();}
   get selectionColor():number|null{return this.highlightColor;}
@@ -456,32 +451,15 @@ export class RenderParagraph extends RenderBox {
   getWordBoundary(position:TextPosition):TextRange{return this.painter.getWordBoundary(position);}
   /** @internal Source handle anchor is at the bottom of the caret. */
   selectionOffsetForPosition(position:TextPosition):OffsetValue{return this.getOffsetForCaret(position,RectValue.zero).translate(0,this.getFullHeightForCaret(position));}
-  private registerSelectionFragments():void{if(this.selectionRegistrar===null)return;if(this.fragments===null){const text=this.input.text,fragments:SelectableParagraphFragment[]=[];let start=0;while(start<text.length){let end=text.indexOf('\ufffc',start);if(start!==end){if(end===-1)end=text.length;fragments.push(new SelectableParagraphFragment({paragraph:this,fullText:text,range:new TextRange({start,end})}));start=end;}start++;}this.fragments=fragments;}for(const fragment of this.fragments)this.selectionRegistrar.add(fragment);}
+  private registerSelectionFragments():void{if(this.selectionRegistrar===null)return;if(this.fragments===null){const text=this.plainText,fragments:SelectableParagraphFragment[]=[];let start=0;while(start<text.length){let end=text.indexOf('\ufffc',start);if(start!==end){if(end===-1)end=text.length;fragments.push(new SelectableParagraphFragment({paragraph:this,paragraphType:RenderParagraph,fullText:text,range:new TextRange({start,end})}));start=end;}start++;}this.fragments=fragments;}for(const fragment of this.fragments)this.selectionRegistrar.add(fragment);}
   private disposeSelectionFragments():void{if(this.fragments===null)return;const fragments=this.fragments;this.fragments=null;const errors:unknown[]=[];for(const fragment of fragments){if(this.selectionRegistrar)try{this.selectionRegistrar.remove(fragment);}catch(error){errors.push(error);}try{fragment.dispose();}catch(error){errors.push(error);}}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Paragraph selection teardown failed');}
   protected replaceSelectionFragments():void{this.disposeSelectionFragments();this.registerSelectionFragments();}
   protected invalidateSelectionLayout():void{for(const fragment of this.fragments??[])fragment.didChangeParagraphLayout();}
   override markNeedsLayout():void{this.invalidateSelectionLayout();super.markNeedsLayout();}
   protected paintSelections(context:PaintingContext):void{if(!this.fragments)return;if(this.clips){context.save();context.clipRect({x:0,y:0,...this.size});}try{for(const fragment of this.fragments)fragment.paintSelection(context);}finally{if(this.clips)context.restore();}}
   protected paintSelectionHandles(context:PaintingContext):void{for(const fragment of this.fragments??[])fragment.paintHandles(context);}
-  private intrinsicGeometry():TextLayoutGeometry{return this.painter.measure({...this.textInput,width:textLimits.width});}
-  private paragraphMetrics(constraints:BoxConstraints):{layoutWidth:number;contentWidth:number}{
-    const intrinsic=this.intrinsicGeometry().maxIntrinsicWidth;invariant(intrinsic<=textLimits.width,'oversize','Paragraph intrinsic width exceeds its layout budget');
-    let width=paragraphLayoutWidth(constraints.hasBoundedWidth?constraints.maxWidth:Math.max(constraints.minWidth,Math.ceil(intrinsic)),this.layoutOptions);
-    // A fresh SkParagraph can round its intrinsic advance down. Do not create a new soft break at that boundary.
-    if(width>=intrinsic-1e-10)width=Math.max(width,Math.ceil(intrinsic));const contentWidth=this.layoutOptions.textWidthBasis==='longestLine'?paragraphContentWidth(this.painter.measure({...this.textInput,width}),this.layoutOptions):intrinsic;return {layoutWidth:width,contentWidth:constraints.constrainWidth(contentWidth)};
-  }
-  protected computeMinIntrinsicWidth(_height:number):number{return this.intrinsicGeometry().minIntrinsicWidth;}
-  protected computeMaxIntrinsicWidth(_height:number):number{return this.intrinsicGeometry().maxIntrinsicWidth;}
-  protected computeMinIntrinsicHeight(width:number):number{return this.painter.measure({...this.textInput,width:this.paragraphMetrics(BoxConstraints.tightFor(Number.isFinite(width)?width:undefined)).layoutWidth}).height;}
-  protected computeMaxIntrinsicHeight(width:number):number{return this.computeMinIntrinsicHeight(width);}
-  protected computeDryLayout(constraints:BoxConstraints):Size{const metrics=this.paragraphMetrics(constraints),geometry=this.painter.measure({...this.textInput,width:metrics.layoutWidth});return constraints.constrain({width:metrics.contentWidth,height:geometry.height});}
-  protected computeDryBaseline(constraints:BoxConstraints,baseline:TextBaseline):number{return this.painter.measure({...this.textInput,width:this.paragraphMetrics(constraints).layoutWidth})[baseline==='alphabetic'?'alphabeticBaseline':'ideographicBaseline'];}
-  protected computeDistanceToActualBaseline(baseline:TextBaseline):number|null{return this.paragraph?.[baseline==='alphabetic'?'alphabeticBaseline':'ideographicBaseline']??null;}
-  protected performLayout(constraints:BoxConstraints):Size {this.invalidateSelectionLayout();const metrics=this.paragraphMetrics(constraints);this.paragraph=this.painter.layout({...this.textInput,width:metrics.layoutWidth});const align=this.textInput.textAlign??'start',rtl=this.textInput.direction==='rtl',fraction=align==='center'?.5:align==='right'||align==='start'&&rtl||align==='end'&&!rtl||align==='justify'&&rtl?1:0;this.paintOffsetX=(metrics.contentWidth-this.paragraph.width)*fraction;this.painter.setPaintGeometry(metrics.contentWidth,this.paintOffsetX);return constraints.constrain({width:metrics.contentWidth,height:this.paragraph.height});}
-  get baseline():number {return this.paragraph?.alphabeticBaseline??0;}
-  get hasVisualOverflow():boolean {return paragraphHasOverflow(this.paragraph,this.size);}
-  override get clips():boolean{return this.hasVisualOverflow&&this.layoutOptions.overflow!=='visible';}
-  override paint(context:PaintingContext):void {if(!this.paragraph)return;this.paintSelections(context);paintParagraphOverflow(context,this.paragraph,this.size,this.layoutOptions,this.textInput,this.painter,()=>context.paragraph(this.paragraph!.resource,this.paintOffsetX));this.paintSelectionHandles(context);}
+  get baseline():number{return this.paragraph?.alphabeticBaseline??0;}
+  abstract get hasVisualOverflow():boolean;
   override detach():void{try{super.detach();}finally{if(!this.attached){this.paragraph=undefined;this.painter._releaseLayoutResources();}}}
   override dispose():void {const errors:unknown[]=[];try{super.dispose();}catch(error){errors.push(error);}if(this.debugDisposed){try{this.disposeSelectionFragments();}catch(error){errors.push(error);}this.selectionRegistrar=null;try{this.painter.dispose();}catch(error){errors.push(error);}finally{this.paragraph=undefined;}}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Paragraph teardown failed');}
 }

@@ -7,6 +7,43 @@ const node=()=>({id:'action',role:'button',name:'Action',enabled:true,bounds:{x:
 const make=()=>new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
 function expectFailure(run,expected){let caught=false;try{run();}catch(error){caught=true;assert.equal(error,expected);}assert(caught);}
 
+test('disabled native input rejects new work but completes matching synchronization receipts without retries',{timeout},()=>{
+ for(const receipt of ['acknowledged','rejected']){
+  const interaction=make(),changes=[],rejections=[],commands=[],token={};let enabled=true,focused=0,actions=0;
+  const binding=interaction.editing.bind(owner,initial,value=>changes.push(value),{id:'field',readInputState:()=>({enabled,focusable:true,label:'Field'}),focusChanged:()=>focused++,onAction:()=>actions++,synchronizationRejected:(...args)=>rejections.push(args)});
+  const detach=interaction.attachEditor('field',token,{replace(...args){commands.push(args);},focus(){},blur(){}});
+  const observe=(revision,text='value',extra={})=>interaction.observeSnapshot(token,{revision,text,anchor:text.length,focus:text.length,composingStart:-1,composingEnd:-1,source:'native',...extra});
+  try{
+   assert.equal(observe(1),true);binding.replace({...binding.read(),text:'Core',selection:{anchor:4,focus:4}},41);enabled=false;
+   assert.equal(observe(2,'late',{focused:true,action:'done'}),false);assert.equal(interaction.requestCharacterBounds(token,0,1,1),false);assert.equal(changes.length,0);assert.equal(focused,0);assert.equal(actions,0);
+   assert.equal(observe(2,'Core',{source:'programmatic',request:42}),false,'A foreign receipt cannot bypass admission');
+   if(receipt==='acknowledged'){assert.equal(observe(2,'Core',{source:'programmatic',request:41,focused:true,action:'done'}),true);assert.equal(changes.length,1);assert.equal(changes[0].source,'programmatic');assert.deepEqual(rejections,[]);}
+   else{assert.equal(observe(1,'value',{source:'programmatic',request:41,rejection:'stale'}),true);assert.deepEqual(rejections,[[41,'stale']]);assert.equal(changes.length,0);}
+   assert.equal(commands.length,1,'A receipt after admission stops cannot send another command');assert.equal(focused,0);assert.equal(actions,0);
+  }finally{binding.dispose();detach();interaction.dispose();}
+ }
+});
+
+test('native snapshot continuations cannot focus or act after its content callback retires the input owner',{timeout},()=>{
+ for(const retirement of ['disabled','binding','port']){
+  const interaction=make(),token={};let enabled=true,focused=0,actions=0,binding,detach;
+  binding=interaction.editing.bind(owner,initial,()=>{if(retirement==='disabled')enabled=false;else if(retirement==='binding')binding.dispose();else detach();},{id:'field',readInputState:()=>({enabled,focusable:true,label:'Field'}),focusChanged:()=>focused++,onAction:()=>actions++});
+  detach=interaction.attachEditor('field',token,{replace(){},focus(){},blur(){}});
+  try{assert.equal(interaction.observeSnapshot(token,{revision:1,text:'new',anchor:3,focus:3,source:'native',composingStart:-1,composingEnd:-1,focused:true,action:'done'}),true);assert.equal(focused,0,retirement);assert.equal(actions,0,retirement);}
+  finally{binding.dispose();detach();interaction.dispose();}
+ }
+});
+
+test('public native input follows live Core admission while blur still releases its focus owner',{timeout},()=>{
+ const interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls'}),token={},changes=[],focus=[];let enabled=true,actions=0;
+ const binding=interaction.editing.bind(owner,{...initial,composing:{status:'unavailable'}},value=>changes.push(value),{id:'field',readInputState:()=>({enabled,focusable:true,label:'Field'}),focusChanged:value=>focus.push(value),onAction:()=>actions++}),detach=interaction.attachEditor('field',token,{replace(){},focus(){},blur(){}});
+ try{
+  assert.equal(interaction.observe(token,{kind:'focus'}),true);enabled=false;
+  for(const event of [{kind:'text',text:'late',eventCount:1},{kind:'selection',start:0,end:0},{kind:'focus'},{kind:'submit'}])assert.equal(interaction.observe(token,event),false);
+  assert.equal(interaction.observe(token,{kind:'blur'}),true);assert.deepEqual(focus,[true,false]);assert.deepEqual(changes,[]);assert.equal(actions,0);
+ }finally{binding.dispose();detach();interaction.dispose();}
+});
+
 test('permanent native interaction close fences reentry, publishes once and clears every endpoint after a falsey listener failure',{timeout},()=>{
  for(const leased of [false,true])for(const failure of [undefined,null,0]){
   const interaction=make(),services=leased?interaction.acquireServices():interaction;

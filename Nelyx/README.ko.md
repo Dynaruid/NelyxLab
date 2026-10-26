@@ -1,5 +1,17 @@
 # Nelyx Core
 
+`RichParagraphConfiguration`은 이제 `span`·`style`·`scaler`·`painterOptions`·`paragraphOptions`와 함께 `font`·`scale`·`placeholderCount`를 가집니다. raw `input`·flattened `placeholders` record와 render paragraph의 `input` setter는 제거됐습니다. 설정 entry에서 사용하는 필드를 한 번 읽어 소유한 frozen record와 option record로 캡처하므로, caller의 options를 수정해도 렌더러 설정은 바뀌지 않습니다. source 객체의 identity와 receiver는 유지합니다. 논리 본문은 `plainText`로 읽고, 새 source configuration을 대입하거나 실제 RenderParagraph 속성으로 변경합니다. 사용자 `Text.make()` 구현은 source RenderParagraph를 반환하거나 자체 설정 계약에 맞게 `Text.configure()`도 override해야 합니다. Engine backend는 실제 문단 layout에서 계속 캡처한 `TextLayoutInput`을 받습니다.
+
+Rich renderer 설정은 사용하지 않는 transport run·strut descriptor를 직렬화하지 않습니다. source 문단 준비에서 실제 사용하는 builder·shaping callback을 실행하며, 제거된 descriptor만을 위한 callback은 실행하지 않습니다. 필요한 앱 준비는 widget 생성이나 `InlineSpan.build`로 옮기고 실제 준비/layout 경계에서 실패를 처리합니다. 편집기는 OS에 게시할 실제 editor style을 계속 캡처합니다. strut 변경은 편집 binding을 유지하면서 Core line policy와 이 editor style을 함께 갱신합니다.
+
+`widgets/text-input`의 저수준 helper는 이제 `resolveTextConfiguration(context, options, flags?)`이며 source font/style/scaler와 painter 정책을 반환합니다. 옛 `resolveTextInput(context, text, options, flags?)` 호출은 본문 인수를 제거하고 새 이름으로 이전합니다. 렌더러의 InlineSpan은 별도로 전달합니다.
+
+`FrameworkRoot`는 BuildOwner와 PipelineOwner를 같은 앱 소유 `PaintingBinding.systemFonts` notifier에 연결합니다. `fontsChange` 시스템 메시지는 입력 binding을 유지하면서 해당 View의 다음 frame에서 편집 metric과 문단 shaping을 함께 갱신합니다. View별 scheduler·font registry는 독립적이며, View를 닫으면 공유 앱 binding을 유지한 채 그 View의 listener와 대기 중인 font callback을 제거합니다. standalone BuildOwner에는 선택적인 다섯 번째 생성자 인수로 같은 notifier를 전달할 수 있고, standalone TextPainter 소비자는 글꼴 변경 뒤 `markNeedsLayout()`으로 painter를 갱신합니다.
+
+저수준 문단 렌더러는 source `TextPainter`를 직접 소유합니다. `RenderRichParagraph(configuration, paragraphContext)`로 생성하며 옛 `(painter, configuration)` 생성자는 제거됐습니다. `rendering/boxes`의 `RenderParagraph`는 같은 nominal identity를 유지하는 추상 selection base입니다. 실제 텍스트 layout에는 `rendering/paragraph`의 `RenderParagraph`를 생성합니다. TextPainter는 `(options, paragraphContext)`와 `layout({minWidth, maxWidth})`를 받으며 service/registry 생성자와 raw `TextLayoutInput` layout/measurement overload는 제거됐습니다. backend 구현은 계속 Engine의 `TextLayoutService`를 직접 사용합니다.
+
+`RenderEditable.textLayout`은 이제 `{options, context, minLines, maxLines, expands}`를 받습니다. `options.text`에 본문의 `InlineSpan`, `context`에 앱의 `ParagraphContext`를 전달합니다. painter가 source 설정을 소유하며 한 줄 편집은 줄바꿈 없이, 여러 줄은 사용 가능한 폭으로 layout합니다. geometry 측정의 native producer는 동기적으로 회수하고, 그린 문단과 frame lease의 수명은 독립적으로 유지합니다. `Text`·`RichText`·`WidgetSpan`·`SelectableText`·`EditableText` 위젯 생성자 API는 유지됩니다.
+
 `FrameworkRoot.build(scene)`은 이제 배열 대신 `FrameRecording`을 반환합니다.
 View는 완성된 immutable command buffer와 기존 resource hold를 한 번 넘겨받으며
 resource 명령을 다시 capture하지 않습니다. 직접 CPU에서 소비하려면 `ui/frame`의
@@ -13,6 +25,14 @@ commit합니다. recording 거부 시 pending geometry를 버리고, geometry �
 owner close에서는 이미 sealing한 recording의 hold도 반환합니다.
 `RenderObject.didCommitTextInputGeometry` 시점의 painting Canvas는 이미 닫혀 있습니다.
 이 알림에서 그리던 코드는 `paint`로 옮기고 다음 frame은 `markNeedsPaint`로 요청합니다.
+host semantics는 같은 recording과 geometry commit이 성공한 뒤 게시합니다.
+recording 거부 시 마지막 immutable host snapshot을 유지하고 실패한 후보의 action은
+거부합니다. 보류한 action은 성공한 snapshot을 게시한 뒤 실행합니다.
+이 경계는 논리 CPU commit입니다. GPU admission이 busy이거나 surface 크기가 0이어도
+강제 frame의 최신 입력 geometry는 제공하며, 실제 표시 완료를 뜻하지 않습니다.
+View 종료는 진행 중인 동기 renderer 제출 결과를 확인한 뒤 drain합니다.
+수락한 frame의 lease는 renderer가 유지하며, close 중 busy 응답의 caller lease는
+반환합니다. 폐기한 controller에는 뒤늦은 제출 callback을 호출하지 않습니다.
 사용자 `createScene`/controller는 기존 command 배열을 계속 반환할 수 있으며,
 이 배열은 기존 입력 capture와 독립 resource hold 경계를 유지합니다.
 
@@ -33,6 +53,8 @@ recording이 다른 자원을 붙잡지 않습니다.
 TreeSliver의 value/type capture·행 identity·animation map·ParentData helper는 canonical 선언 owner인 `framework/widgets/sliver-tree.generated`로 옮겼습니다. 내부 `treeNodeType`·`treeWidgetType` 소비자는 이 owner에서 import하며, `tree-generic-witnesses`에는 추상 interface token과 공통 framework witness가 남습니다. 기존 `tree-widget-source-types` 모듈은 제거했습니다. 공개 `TreeSliver`·`TreeSliverNode`·`TreeSliverController`·`TreeView` import는 유지됩니다.
 
 `AppSession.dispose()`와 `ViewRuntime.dispose()`는 정리 callback을 호출하기 전에 owner Promise 하나를 게시합니다. controller·clock·observer·renderer 정리 중 재진입해도 같은 Promise를 반환하고 retirement를 반복하지 않습니다. 입력·예약은 즉시 닫고, 소유 renderer의 drain이 끝난 뒤 service를 반환합니다. View drain 실패는 의존 service와 거부된 종료 Promise를 유지합니다. callback·resource·drain이 함께 실패하면 `undefined`·`null`·`0`을 던진 경우까지 AggregateError에 보존합니다.
+
+`ViewControllerContext.readStatus()`는 소유 View의 `open`·`failed`·`closing`·`closed` 상태를 읽습니다. 직접 만든 standalone context도 수명 reader를 제공해야 합니다. Root action·annotation query·편집 geometry는 controller 폐기 전부터 이 owner를 확인하며, 이전 semantics도 실패·`beginClose()` 뒤 새 작업을 실행할 수 없습니다. 편집 host는 새 입력과 glyph 질의 전에 살아 있는 `EditingOptions.readInputState()`를 다시 확인합니다. 이미 보낸 동기화와 조합 취소의 programmatic 완료 응답은 계속 처리하지만, 완료 후 focus 복원이나 새 사용자 action을 실행하지 않습니다.
 
 `emptyWidgetStateSet`은 `framework/widgets/widget-state`에서 import합니다. 구현은 canonical WidgetState enum과 같은 모듈로 옮겼으며, 기존 `internal/framework/widgets/widget-state-full-collections`의 이 함수 export를 대체합니다. 나머지 const/map factory는 기존 모듈과 identity를 유지합니다.
 

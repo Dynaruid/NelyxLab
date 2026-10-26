@@ -1,5 +1,17 @@
 # Nelyx Core
 
+`RichParagraphConfiguration` now contains `font`, `scale` and `placeholderCount` alongside `span`, `style`, `scaler`, `painterOptions` and `paragraphOptions`. Its raw `input` and flattened `placeholders` records and the render paragraph's `input` setter are removed. Configuration entry captures consumed fields once into an owned frozen record and option records; changing the caller's options does not update a renderer. Source objects retain their original identities and receivers. Read the logical body through `plainText`; assign a new source configuration or use the concrete RenderParagraph properties. Custom `Text.make()` implementations must return a source RenderParagraph or override `Text.configure()` with their own configuration contract. Engine backends still receive captured `TextLayoutInput` at actual paragraph layout.
+
+Rich renderer configuration no longer serializes an unused transport run or strut descriptor. Source paragraph preparation invokes the builder and shaping callbacks it consumes; callbacks used only by the removed descriptor do not run. Move required application preparation into widget construction or `InlineSpan.build`, and keep failure handling at the actual preparation/layout boundary. Editing still captures the concrete OS editor style it publishes. Strut changes update both Core line policy and that editor style while preserving the editing binding.
+
+The low-level widget helper is now `resolveTextConfiguration(context, options, flags?)` in `widgets/text-input`. It returns source font/style/scaler and painter policy. Migrate old `resolveTextInput(context, text, options, flags?)` calls by removing the body argument and using the new name; the renderer receives its InlineSpan separately.
+
+`FrameworkRoot` connects its BuildOwner and PipelineOwner to the same app-owned `PaintingBinding.systemFonts` notifier. A `fontsChange` system message refreshes editable source metrics and paragraph shaping on that View's next frame, preserving its input binding. Views retain separate schedulers and font registries; closing a View removes its listeners and pending font callbacks while the shared app binding stays alive. A standalone BuildOwner can receive that notifier as its optional fifth constructor argument; standalone TextPainter consumers invalidate their painter with `markNeedsLayout()` after font changes.
+
+Low-level paragraph renderers now own a source `TextPainter`. Construct `RenderRichParagraph(configuration, paragraphContext)`; the former `(painter, configuration)` constructor is removed. The `RenderParagraph` declaration in `rendering/boxes` is an abstract selection base with the same nominal identity. Instantiate `RenderParagraph` from `rendering/paragraph` for concrete text layout. TextPainter accepts `(options, paragraphContext)` and `layout({minWidth, maxWidth})`; its service/registry constructor and raw `TextLayoutInput` layout/measurement overloads are removed. Backend implementations still use the Engine's `TextLayoutService` directly.
+
+`RenderEditable.textLayout` now takes `{options, context, minLines, maxLines, expands}`: supply the body's `InlineSpan` in `options.text` and the app's `ParagraphContext` in `context`. The painter is the source configuration owner; single-line editing disables wrapping and multiline editing uses the available width. Geometry probes retire native producers synchronously while the painted paragraph and its frame leases keep independent lifetimes. `Text`, `RichText`, `WidgetSpan`, `SelectableText` and `EditableText` widget constructors keep their APIs.
+
 `FrameworkRoot.build(scene)` now returns a `FrameRecording` instead of an array.
 The View takes its completed immutable command buffer and existing resource
 holds once, without recapturing resource commands. A direct CPU consumer calls
@@ -13,6 +25,14 @@ text-input geometry. Rejected recordings discard pending geometry; failed
 geometry notifications or owner close return any sealed recording's holds.
 `RenderObject.didCommitTextInputGeometry` observes an already closed painting
 Canvas. Move drawing into `paint` and use `markNeedsPaint` for a later frame.
+Host semantics publish after the same recording and geometry commit succeeds.
+Rejected recordings keep the previous immutable host snapshot and revoke failed
+candidate actions. Deferred actions run after this successful publication.
+This is a logical CPU commit: forced input geometry remains available while GPU
+admission is busy or the surface is zero-sized; it does not assert presentation.
+View disposal waits for an active synchronous renderer submission before drain.
+Accepted frames keep the renderer's lease; a busy result during close returns the
+caller's lease. A disposed controller receives no later submission callback.
 Custom `createScene`/controller implementations may still return command arrays,
 which retain ordinary input capture and independent resource holds.
 
@@ -33,6 +53,8 @@ it validates the input owner and live resource without rebinding captured IDs.
 TreeSliver's value/type capture, row identity, animation map and ParentData helpers now live with their canonical declarations in `framework/widgets/sliver-tree.generated`. Internal consumers of `treeNodeType` and `treeWidgetType` import that owner; `tree-generic-witnesses` retains the abstract interface token and shared framework witnesses. The former `tree-widget-source-types` module has been removed. Public `TreeSliver`, `TreeSliverNode`, `TreeSliverController` and `TreeView` imports remain unchanged.
 
 `AppSession.dispose()` and `ViewRuntime.dispose()` publish one owner Promise before invoking cleanup callbacks. Reentrant calls from controller, clock, observer or renderer cleanup return that same Promise and never repeat retirement. Input and scheduling close immediately. Services wait for owned renderer drain; a failed View drain retains dependent services and the rejected close Promise. Concurrent callback, resource and drain failures remain in the resulting AggregateError, including thrown `undefined`, `null` and `0`.
+
+`ViewControllerContext.readStatus()` reads the owning View's `open`, `failed`, `closing` or `closed` state. Custom standalone contexts must provide their own lifecycle reader. Root actions, annotation queries and editor geometry use this owner before controller retirement; retained semantics cannot admit work after failure or `beginClose()`. Editing hosts recheck the live `EditingOptions.readInputState()` before new input and glyph queries. Matching programmatic synchronization receipts, including a composition cancellation already in flight, still finish; completion cannot restore focus or start another user action.
 
 Import `emptyWidgetStateSet` from `framework/widgets/widget-state`; its implementation now lives with the canonical WidgetState enum. The former `internal/framework/widgets/widget-state-full-collections` export of that function has moved. The remaining const/map factories keep their existing module and identities.
 

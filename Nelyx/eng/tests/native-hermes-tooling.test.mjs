@@ -4,7 +4,27 @@ import {assertNativeRuntimeGraph,buildNativeApplication,nativeWindowsOperation,p
 import {execute} from '../../sdk/tooling/cli/src/commands.mjs';
 import {startWindowsProcess} from '../../sdk/tooling/cli/src/windows-process.mjs';
 import {buildNativeHost} from '../build-native-hermes.mjs';
+import {nativePackageEnvironment} from '../../sdk/tooling/cli/src/windows-native-host.mjs';
+import {createHash} from 'node:crypto';
 const timeout=1_200_000;
+
+test('direct host rejects a supplied archive that its installed dependency receipt has not adopted',{timeout},async()=>{
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-native-supply-'));
+ const json=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value));};
+ try{
+  const archive=path.join(folder,'current-core.tgz'),lock=path.join(folder,'node_modules/.package-lock.json');fs.writeFileSync(archive,'current owned archive');
+  json(path.join(folder,'package.json'),{name:'native-supply-fixture',private:true,dependencies:{'@nelyx/core':'file:./current-core.tgz'}});
+  for(const [name,entry]of [['core','version'],['sdk','version'],['skia-native','renderer']]){const directory=path.join(folder,'node_modules/@nelyx',name);json(path.join(directory,'package.json'),{name:'@nelyx/'+name,version:'0.0.0',exports:{['./'+entry]:'./value.js'}});fs.writeFileSync(path.join(directory,'value.js'),'');}
+  const integrity='sha512-'+createHash('sha512').update(fs.readFileSync(archive)).digest('base64'),receipt={resolved:'file:./previous-core.tgz',integrity};
+  json(lock,{packages:{'node_modules/@nelyx/core':receipt}});
+  assert.throws(()=>nativePackageEnvironment(folder),/Installed runner supply differs for @nelyx\/core: archive location/);
+  await assert.rejects(buildNativeHost({app:folder,engineInputs:path.join(folder,'not-created'),nativeInputs:'absent'}),/Installed runner supply differs/);assert(!fs.existsSync(path.join(folder,'not-created')));assert(!fs.existsSync(path.join(folder,'.nelyx')));
+  receipt.resolved='file:./current-core.tgz';receipt.integrity='sha512-stale';json(lock,{packages:{'node_modules/@nelyx/core':receipt}});
+  assert.throws(()=>nativePackageEnvironment(folder),/archive integrity/);
+  receipt.integrity=integrity;json(lock,{packages:{'node_modules/@nelyx/core':receipt}});assert.equal(nativePackageEnvironment(folder).runner,folder);
+  fs.unlinkSync(lock);assert.throws(()=>nativePackageEnvironment(folder),/installation receipt is missing/);
+ }finally{assert.equal(path.dirname(fs.realpathSync(folder)),fs.realpathSync(os.tmpdir()));assert(path.basename(folder).startsWith('nelyx-native-supply-'));assert(!fs.lstatSync(folder).isSymbolicLink());fs.rmSync(folder,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
+});
 
 test('prepare refreshes recorded supplier hashes while build and doctor reject the stale locator',{timeout},async()=>{
   const folder=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-native-prepare-'));

@@ -30,6 +30,20 @@ test('native retirement reentry observes the same renderer close before GPU leas
  }finally{await f.session.dispose();}
 });
 
+test('close during native submission or its accepted notification waits for lease transfer and never calls a retired controller',{timeout},async()=>{
+ for(const boundary of ['native','accepted','busy']){
+  const f=fixture(),calls=[];let closing;
+  f.view.controller={frameSubmitted(){calls.push('submitted-after-close');},dispose(){calls.push('controller-close');}};
+  const close=()=>{if(!closing){calls.push('close-request');closing=f.view.dispose();void closing.catch(()=>{});}};
+  const context=f.renderer.context();let observer;
+  if(boundary==='accepted')observer=f.renderer.observe(event=>{if(event.kind==='submitted')close();});
+  else if(boundary==='native'){const submit=context.nelyxSubmit;context.nelyxSubmit=function(...args){close();return submit.apply(this,args);};}
+  else{const reserve=context.nelyxReserve;context.nelyxReserve=function(...args){close();f.deny=true;return reserve.apply(this,args);};}
+  try{f.view.requestFrame();f.tick();assert(closing);await closing;assert.deepEqual(f.errors,[]);assert.deepEqual(calls,['close-request','controller-close']);assert.equal(f.renderer.leases.size,0);assert.equal(f.submissions.length,boundary==='busy'?0:1);}
+  finally{observer?.dispose();await f.session.dispose();assert.equal(f.callbacks.size,0);}
+ }
+});
+
 test('an unknown scheduled submission reports its native failure and retains uncertain resources until drain',{timeout},async()=>{
   const f=fixture();try{f.failSubmission=true;f.view.requestFrame();f.tick();assert.equal(f.view.status,'failed');assert.equal(f.errors.length,1);assert.match(String(f.errors[0]),/Renderer submission failed:.*native-recording-failure/);f.view.requestFrame();f.tick();assert.equal(f.errors.length,1);assert.equal(f.submissions.length,0);}
   finally{await f.session.dispose();assert.equal(f.view.status,'closed');assert.equal(f.callbacks.size,0);}
@@ -99,6 +113,40 @@ test('replacing an obsolete CPU frame holds its resources through capture and re
     }finally{await f.session.dispose();}
     assert.equal(retired,1);assert.equal(f.renderer.leases.size,0);assert.equal(f.callbacks.size,0);
   }
+});
+test('a close reentered by capture, controller admission or old-frame retirement cannot strand a replacement lease',{timeout},async()=>{
+ for(const boundary of ['capture','admission','retirement','pump']){
+  const next={id:'close-during-'+boundary,generation:1,kind:'paragraph'},old={id:'old-before-close',generation:1,kind:'paragraph'};let closing,retired=0,closed=false;
+  const close=()=>{if(!closed){closed=true;closing=f.view.dispose();void closing.catch(()=>{});}};
+  const f=fixture({scene(_context,value){if(boundary==='retirement'&&value===42)return [{op:'paragraph',resource:old,x:0,y:0}];return [{get op(){if(boundary==='capture')close();return 'paragraph';},resource:next,x:0,y:0}];}});
+  f.session.resources.register(next,()=>retired++);f.session.resources.register(old,close);
+  try{
+   f.nativeRecordings=2;
+   if(boundary==='retirement'){f.value=42;f.view.requestFrame();f.tick();f.session.resources.releaseProducer(old);f.nativeRecordings=1;f.value=99;}
+   if(boundary==='pump'){f.view.requestFrame();f.tick();}
+   if(boundary==='admission'||boundary==='pump')f.view.controller={shouldSubmitFrame(){close();return true;},dispose(){}};
+   if(boundary==='pump')f.view.pump();else{f.view.requestFrame();f.tick();}assert(closed,'The close callback must run');await closing;
+   f.session.resources.releaseProducer(next);assert.equal(retired,1,'The replacement must return its caller hold before the closed View completes');
+   assert.deepEqual(f.submissions,[]);assert.deepEqual(f.errors,[]);
+  }finally{await f.session.dispose();assert.equal(f.callbacks.size,0);}
+ }
+});
+test('replacement failure retains both falsey old-frame retirement and new-lease cleanup errors',{timeout},async()=>{
+ const old={id:'old-retirement-failure',generation:1,kind:'paragraph'},next={id:'new-retirement-failure',generation:1,kind:'paragraph'};
+ const f=fixture({scene(_context,value){return [{op:'paragraph',resource:value===42?old:next,x:0,y:0}];}});
+ f.session.resources.register(old,()=>{f.session.resources.releaseProducer(next);throw 0;});f.session.resources.register(next,()=>{throw undefined;});
+ try{
+  f.nativeRecordings=2;f.value=42;f.view.requestFrame();f.tick();f.session.resources.releaseProducer(old);
+  f.nativeRecordings=1;f.value=99;f.view.requestFrame();f.tick();assert.equal(f.errors.length,1);assert(f.errors[0] instanceof AggregateError);const errors=f.errors[0].errors;assert.equal(errors.length,2);assert(errors.every(error=>error instanceof AggregateError));assert.deepEqual(errors[0].errors,[0]);assert.deepEqual(errors[1].errors,[undefined]);assert.deepEqual(f.submissions,[]);
+ }finally{await f.session.dispose();assert.equal(f.callbacks.size,0);}
+});
+test('controller admission failure preserves its original falsey error alongside caller lease retirement',{timeout},async()=>{
+ const resource={id:'admission-retirement-failure',generation:1,kind:'paragraph'},f=fixture({scene(){return [{op:'paragraph',resource,x:0,y:0}];}});
+ f.session.resources.register(resource,()=>{throw undefined;});
+ try{
+  f.nativeRecordings=2;f.view.requestFrame();f.tick();f.session.resources.releaseProducer(resource);f.view.controller={shouldSubmitFrame(){throw 0;},dispose(){}};
+  assert.throws(()=>f.view.pump(),error=>error instanceof AggregateError&&error.errors[0]===0&&error.errors[1] instanceof AggregateError&&error.errors[1].errors.length===1&&error.errors[1].errors[0]===undefined);
+ }finally{await f.session.dispose();}
 });
 test('submit remains authoritative when native admission changes after the build hint',{timeout},async()=>{
   const f=fixture();try{
