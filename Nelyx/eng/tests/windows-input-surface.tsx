@@ -101,6 +101,7 @@ async function compose(shift=false){const before=insertions;observedComposition=
 async function run(application:ReactNativeApplication){
  stage='native connect';
  check(tag>0,'Actual native Fabric tag missing');check(!RN.NativeModules.NelyxWindowsEditing,'Fixture unexpectedly registered the legacy visible editor');
+ const precisionOwner=await fixture.precisionOwner(tag,owner);check(precisionOwner.resolves===12&&precisionOwner.stable===true,'Semantics coordinate leases replaced the actual canvas precision owner');
  const initialRoot=application.view.controller;check(initialRoot instanceof FrameworkRoot&&initialRoot.scheduler.visible,'Preparing must schedule the initial Core frame while native first-content visibility is gated');
  const contentDeadline=Date.now()+5000;while(!firstContentReady){check(Date.now()<contentDeadline,'Matching first content was not acknowledged');await delay(20);}
  const activation=await fixture.activate();check(activation.foreground,'Native fixture could not activate its own AppWindow: '+JSON.stringify(activation));

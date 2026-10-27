@@ -58,21 +58,22 @@ public:
     // Validate the static envelope independently of a transient resize epoch.
     // Coordinate queries remain strict until actual and admitted layouts agree.
     if(!self->projection(nullptr,false))throw std::invalid_argument("Unsupported Windows input envelope: use static SDK NativeLayer containers; native transforms, ScrollView and custom clips require a dedicated screen mapper");
-    // Reuse the exact, clipped screen mapper used by TSF and semantics.
-    try{
-      const auto weak=std::weak_ptr<TextInputSkiaSurface>(self);
-      self->precision_=RNSkia::WindowsPrecisionTrackpad::create(root->window(),[weak](POINT point)->std::optional<RNSkia::WindowsPrecisionPoint>{
-        const auto current=weak.lock();if(!current)return std::nullopt;
+    // Many semantics peers resolve this same surface. The canvas owns one
+    // input viewport; coordinate-reader leases must never register competitors.
+    if(!shell->state->precisionTrackpad())try{
+      auto precision=RNSkia::WindowsPrecisionTrackpad::create(root->window(),[current=self](POINT point)->std::optional<RNSkia::WindowsPrecisionPoint>{
         const auto projection=current->projection(nullptr);const auto root=current->root_.lock();const auto state=current->state_.lock();
         if(!projection||!projection->visible||!root||!state)return std::nullopt;
         const auto local=root->island().CoordinateConverter().ConvertScreenToLocal(winrt::Windows::Graphics::PointInt32{point.x,point.y});
         const auto& clip=projection->clip;if(local.X<clip.x||local.Y<clip.y||local.X>=clip.x+clip.width||local.Y>=clip.y+clip.height)return std::nullopt;
         const auto status=state->inputSurface();if(!status)return std::nullopt;
         return RNSkia::WindowsPrecisionPoint{local.X-projection->x,local.Y-projection->y,status->scale,status->surfaceGeneration};
-      },[weak](auto const& event){if(auto current=weak.lock())if(auto state=current->state_.lock())state->precision(event);},
+      },[weak=std::weak_ptr<RNSkia::WindowsSkiaViewState>(shell->state)](auto const& event){if(auto state=weak.lock())state->precision(event);},
       [dispatcher=view.ReactContext().UIDispatcher()](std::function<void()> job){dispatcher.Post([job=std::move(job)]{job();});});
-      shell->state->setPrecisionTrackpad(self->precision_);
-    }catch(...){self->precision_.reset();shell->state->setPrecisionTrackpad({});} // Explicit capability fallback; native wheel remains active.
+      // The viewport retains its mapper; the mapper refers weakly to the canvas.
+      // Releasing the first semantics/service lease cannot strand its mapping.
+      shell->state->setPrecisionTrackpad(precision);
+    }catch(...){shell->state->setPrecisionTrackpad({});} // Explicit capability fallback; native wheel remains active.
     TextInputProtocolCallbacks result;
     result.active=[self]{return self->live();};
     result.visible=[self]{const auto map=self->projection(nullptr,false);return map&&map->visible;};
@@ -147,7 +148,6 @@ private:
   }
   std::weak_ptr<TextInputRoot> root_;winrt::weak_ref<Component> view_;std::weak_ptr<RNSkia::WindowsSkiaViewState> state_;uint64_t const nativeId_,generation_;winrt::hstring const identity_;
   bool retired_=false,queued_=false;std::function<void(std::string const&)> retirement_;std::function<void()> unobserve_;Component::Destroying_revoker destroying_;std::vector<Watch> watches_;
-  std::shared_ptr<RNSkia::WindowsPrecisionTrackpad> precision_;
 };
 inline void installSkiaTextInputSurfaces(RN::ReactInstanceSettings const& settings,std::shared_ptr<TextInputRoot> const& root){
   RN::ReactPropertyBag(settings.Properties()).Set(TextInputSurfaceResolverProperty(),TextInputSurfaceResolver{[weak=std::weak_ptr<TextInputRoot>(root)](RN::IReactContext const& context,uint64_t tag,Owner const& owner){return TextInputSkiaSurface::resolve(weak.lock(),context,tag,owner);}});

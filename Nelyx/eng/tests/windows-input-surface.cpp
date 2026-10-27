@@ -104,6 +104,18 @@ struct NelyxInputSurfaceFixture {
   void initialize(RN::ReactContext const& value)noexcept{context=value;}
   REACT_METHOD(validateSemantics)
   void validateSemantics(RN::JSValue packet,RN::ReactPromise<RN::JSValueObject> promise)noexcept{auto value=std::make_shared<RN::JSValue>(std::move(packet));post(promise,[value](RN::ReactContext const&){try{const auto parsed=Nelyx::WindowsSemantics::readCoreSemanticsSnapshot(*value);return RN::JSValueObject{{"accepted",true},{"textRevision",parsed.text?double(parsed.text->textRevision):-1}};}catch(Nelyx::WindowsSemantics::TextError const&){return RN::JSValueObject{{"accepted",false}};}catch(std::invalid_argument const&){return RN::JSValueObject{{"accepted",false}};}});}
+  REACT_METHOD(precisionOwner)
+  void precisionOwner(double tag,RN::JSValue owner,RN::ReactPromise<RN::JSValueObject> promise)noexcept{auto value=std::make_shared<RN::JSValue>(std::move(owner));post(promise,[tag,value](RN::ReactContext const& current){
+    const auto component=RN::Composition::CompositionUIService::ComponentFromReactTag(current.Handle(),static_cast<int64_t>(tag));
+    const auto shell=RNSkia::WindowsSkiaComponent::findInputComponent(component);if(!shell||!shell->state)throw std::runtime_error("Precision probe lost its real canvas");
+    const auto state=shell->state;const auto resolver=*current.Properties().Get(TextInputSurfaceResolverProperty());const auto identity=InputWire::owner(*value);
+    {auto initial=resolver(current.Handle(),static_cast<uint64_t>(tag),identity);}
+    const auto expected=state->precisionTrackpad();if(!expected)throw std::runtime_error("Precision probe requires the actual DirectManipulation input owner after its first coordinate lease is released");
+    std::vector<TextInputProtocolCallbacks> mappings;
+    for(unsigned index=0;index<12;++index){mappings.push_back(resolver(current.Handle(),static_cast<uint64_t>(tag),identity));if(state->precisionTrackpad()!=expected)throw std::runtime_error("Semantics coordinate resolution replaced the canvas precision input owner");}
+    mappings.clear();if(state->precisionTrackpad()!=expected)throw std::runtime_error("Coordinate lease retirement released canvas precision input");
+    std::cout<<"INPUT_PRECISION_OWNER resolves=12 stable=1"<<std::endl;return RN::JSValueObject{{"resolves",12},{"stable",true}};
+  });}
   REACT_METHOD(semantics)
   void semantics(double tag,std::string mode,RN::ReactPromise<RN::JSValueObject> promise)noexcept{
     if(automationWorker.joinable())automationWorker.join();const auto current=context;const auto top=winrt::Microsoft::UI::GetWindowFromWindowId(window.Id());

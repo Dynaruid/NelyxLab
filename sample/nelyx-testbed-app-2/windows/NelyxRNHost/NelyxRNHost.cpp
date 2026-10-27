@@ -12,7 +12,7 @@
 #include <TextInputModule.h>
 #include <SemanticsComponent.h>
 
-static void Log(std::string const& message){OutputDebugStringA((message+"\n").c_str());}
+static void Log(std::string const& message){OutputDebugStringA((message+"\n").c_str());if(RNSkia::windowsPrecisionDiagnosticsEnabled())RNSkia::windowsPrecisionDiagnostic("host "+message);}
 struct ErrorReporter:winrt::implements<ErrorReporter,winrt::Microsoft::ReactNative::IRedBoxHandler>{
   bool IsDevSupportEnabled()const noexcept{return true;}
   void ShowNewError(winrt::Microsoft::ReactNative::IRedBoxErrorInfo const& info,winrt::Microsoft::ReactNative::RedBoxErrorType)noexcept{

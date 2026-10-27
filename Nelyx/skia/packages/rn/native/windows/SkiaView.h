@@ -65,7 +65,7 @@ class WindowsSkiaViewState final : public std::enable_shared_from_this<WindowsSk
     uint64_t inputSequence=0,pendingLayoutRevision=0,presentedGeneration=0;
     std::optional<winrt::Microsoft::ReactNative::LayoutMetrics> desiredLayout,pendingLayout;
     bool resizeAwaiting=false;
-    std::weak_ptr<WindowsPrecisionTrackpad> precision;
+    std::shared_ptr<WindowsPrecisionTrackpad> precision;
     uint64_t nextKeyboardProxy=0;
     std::map<int64_t,std::pair<uint64_t,uint64_t>> keyboardProxies;
     bool keyboardFocused=false;
@@ -103,15 +103,16 @@ public:
     return [weak=weak_from_this(),id]{if(auto current=weak.lock()){current->requireUi();current->inputObservers.erase(id);}};
   }
   bool hasCursorHover()const{requireUi();return data&&!data->failed&&data->status.bound&&data->status.visible&&!data->hoverPointers.empty();}
-  void setPrecisionTrackpad(std::shared_ptr<WindowsPrecisionTrackpad> const& value){requireUi();if(data){data->precision=value;data->status.precisionAvailable=bool(value);emit("input-ready",value?"":"DirectManipulation unavailable; native wheel fallback");}}
+  std::shared_ptr<WindowsPrecisionTrackpad> precisionTrackpad()const{requireUi();return data?data->precision:nullptr;}
+  void setPrecisionTrackpad(std::shared_ptr<WindowsPrecisionTrackpad> const& value){requireUi();if(data){if(data->precision&&data->precision!=value)throw std::logic_error("A live Skia surface already owns its precision input");data->precision=value;data->status.precisionAvailable=bool(value);emit("input-ready",value?"":"DirectManipulation unavailable; native wheel fallback");}}
   void precision(WindowsPrecisionEvent const& event){
-    requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="inertiaCancel"))return;
+    requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="inertiaCancel")){if(windowsPrecisionDiagnosticsEnabled())windowsPrecisionDiagnostic("surface-rejected kind="+event.kind);return;}
     using namespace winrt::Microsoft::ReactNative;
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"kind",event.kind},{"device","trackpad"},
       {"pointer",double(event.pointer)},{"buttons",0},{"x",event.origin.x},{"y",event.origin.y},{"panX",event.panX},{"panY",event.panY},
       {"deltaX",event.deltaX},{"deltaY",event.deltaY},{"scale",event.scale},{"rotation",0},{"timestamp",event.timestamp},{"sequence",double(++data->inputSequence)},
       {"surfaceGeneration",double(event.origin.generation)}});
-    data->emitter.DispatchEvent(L"windowsPointer",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});
+    data->emitter.DispatchEvent(L"windowsPointer",[payload,kind=event.kind,sequence=data->inputSequence](IJSValueWriter const& writer) noexcept {if(windowsPrecisionDiagnosticsEnabled()&&(kind!="panZoomUpdate"||sequence%32==0))windowsPrecisionDiagnostic("js-delivered kind="+kind+" sequence="+std::to_string(sequence));WriteValue(writer,*payload);});
   }
   void props(WindowsSkiaProps const& props) {
     requireUi();if(!data||data->failed||data->closing)return;if(props.highBitDepth)throw std::runtime_error("Windows SkiaView supports BGRA8/sRGB only");
@@ -148,7 +149,7 @@ public:
     data->desiredLayout=metrics;const auto revision=++data->status.layoutRevision;
     if(data->status.bound&&data->status.visible&&w>0&&h>0)session->resize->requested(data->status.nativeId,revision);
     session->frameTrace.add({},data->status.nativeId,revision,6,static_cast<uint32_t>(w),static_cast<uint32_t>(h));
-    cancelPointers();if(auto precision=data->precision.lock())precision->cancel();
+    cancelPointers();if(data->precision)data->precision->cancel();
     // Keep one admitted immutable epoch active through its surface commit. Replacing
     // its backing on every WM_SIZE would reject all CPU frames under fast drag.
     if(data->resizeAwaiting&&data->status.visible&&data->view&&w>0&&h>0){
@@ -182,7 +183,7 @@ public:
     requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady())return false;
     auto properties=point.Properties();auto position=point.Position();
     INPUT_MESSAGE_SOURCE source{};const bool trackpad=GetCurrentInputMessageSource(&source)&&source.deviceType==IMDT_TOUCHPAD;
-    if(trackpad)if(auto precision=data->precision.lock();precision&&precision->ownsWheel())return true;
+    if(trackpad&&data->precision&&data->precision->ownsWheel())return true;
     UINT units=3;SystemParametersInfoW(properties.IsHorizontalMouseWheel()?SPI_GETWHEELSCROLLCHARS:SPI_GETWHEELSCROLLLINES,0,&units,0);
     const auto extent=units==WHEEL_PAGESCROLL?(properties.IsHorizontalMouseWheel()?data->status.logicalWidth:data->status.logicalHeight):double(units)*16.0;
     const auto delta=-double(properties.MouseWheelDelta())/120.0*extent;
@@ -348,7 +349,8 @@ private:
   }
   void requireUi() const {if(std::this_thread::get_id()!=owner)throw std::runtime_error("Windows SkiaView requires its UI owner");}
   void closeBinding() {
-    if(!data)return;if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
+    if(!data)return;auto precision=std::move(data->precision);data->status.precisionAvailable=false;if(precision)precision->cancel();precision.reset();
+    if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
     data->view->setFrameScheduler({});data->view->stopContent();
     data->surface->setPresented({});data->surface->setResizeCancelled({});data->surface->setRequestRedraw({});data->surface->setCanPresent({});
     session->retireScreenshot(data->status.reactTag,data->view);session->retireView(data->ticket);
