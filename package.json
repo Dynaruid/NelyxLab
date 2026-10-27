@@ -84,6 +84,7 @@
     "test:native-hermes": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-display-list.test.mjs Nelyx/eng/tests/native-frame-metrics.test.mjs Nelyx/eng/tests/native-scroll-report.test.mjs Nelyx/eng/tests/native-product-sources.test.mjs Nelyx/eng/tests/native-hermes-interaction.test.mjs Nelyx/eng/tests/vm-environment.test.mjs Nelyx/eng/tests/native-hermes-tooling.test.mjs Nelyx/eng/tests/hermes-property-cache.test.mjs Nelyx/eng/tests/native-memory-results.test.mjs Nelyx/eng/tests/native-hermes-application.test.mjs",
     "test:windows-wheel-pacer": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-wheel-pacer.test.mjs",
     "test:native-hermes-host": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-hermes-host.test.mjs",
+    "test:native-shadows": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-shadow.test.mjs",
     "probe:native-memory": "node Nelyx/eng/run-native-memory.mjs"
   },
   "devDependencies": {

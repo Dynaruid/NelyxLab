@@ -33,6 +33,9 @@ endif()
 if(NOT TARGET nelyx_skia_core)
   add_subdirectory("${NELYX_RN_PACKAGE}/generated/core" "${CMAKE_CURRENT_BINARY_DIR}/nelyx-core")
 endif()
+# The core archive is a separate target: binding definitions do not propagate
+# backwards through target_link_libraries. Its shadow replay needs Graphite too.
+target_compile_definitions(nelyx_skia_core PRIVATE SK_GRAPHITE)
 set(NELYX_BINDING_CPP "${NELYX_RN_PACKAGE}/generated/jsi")
 set(NELYX_BINDING_PLATFORM "${NELYX_RN_PACKAGE}/generated/native-vulkan")
 set(NELYX_BINDING_CORE "${NELYX_RN_PACKAGE}/generated/core")

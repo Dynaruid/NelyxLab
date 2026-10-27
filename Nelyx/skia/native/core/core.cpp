@@ -11,13 +11,13 @@
 #include "include/core/SkPoint3.h"
 #include "include/utils/SkShadowUtils.h"
 #if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
-#include "include/core/SkVertices.h"
+#include "include/core/SkBlurTypes.h"
+#include "include/core/SkMaskFilter.h"
 #include "include/utils/SkPaintFilterCanvas.h"
+#include "src/core/SkBlurMask.h"
 #include "src/core/SkCanvasPriv.h"
-#include "src/core/SkColorFilterPriv.h"
 #include "src/core/SkDevice.h"
 #include "src/core/SkDrawShadowInfo.h"
-#include "src/utils/SkShadowTessellator.h"
 #endif
 #include "paint_effects.h"
 #include <unordered_map>
@@ -32,32 +32,32 @@ bool drawStableShadow(SkCanvas& canvas,const SkPath& path,const SkDrawShadowRec&
      rec.fZPlaneParams.fX!=0||rec.fZPlaneParams.fY!=0||!rec.fZPlaneParams.isFinite()||
      !rec.fLightPos.isFinite()||!std::isfinite(rec.fLightRadius)||
      ((rec.fFlags&SkShadowFlags::kConcaveBlurOnly_ShadowFlag)&&!path.isConvex()))return false;
-  // The pinned Skia directional spot tessellator includes the device translation
-  // in its polygon/umbra calculations. Fractional scrolling changes the mesh
-  // (or makes it fail) even inside a layer, particularly for wide cards. Light
-  // direction and a flat Z plane are translation invariant: tessellate without
-  // translation, then place the mesh with that exact, unsnapped translation.
-  auto neutral=matrix;neutral.setTranslateX(0);neutral.setTranslateY(0);
-  sk_sp<SkVertices> spot;
-  if(SkColorGetA(rec.fSpotColor)){
-    spot=SkShadowTessellator::MakeSpot(path,neutral,rec.fZPlaneParams,rec.fLightPos,rec.fLightRadius,
-      (rec.fFlags&SkShadowFlags::kTransparentOccluder_ShadowFlag)!=0,true);
-    if(!spot)return false;
-  }
-  // Skia already generates the ambient mesh without translation.
-  SkShadowUtils::DrawShadow(&canvas,path,rec.fZPlaneParams,rec.fLightPos,rec.fLightRadius,
-    rec.fAmbientColor,SK_ColorTRANSPARENT,rec.fFlags);
-  if(spot){
-    SkAutoCanvasRestore restore(&canvas,true);
-    const auto placement=device->deviceToGlobal()*SkM44::Translate(matrix.getTranslateX(),matrix.getTranslateY());
-    canvas.setMatrix(placement);
-    SkPaint paint;paint.setColorFilter(SkColorFilters::Blend(rec.fSpotColor,SkBlendMode::kModulate)->makeComposed(SkColorFilterPriv::MakeGaussian()));
-    canvas.drawVertices(spot,SkBlendMode::kDst,paint);
-  }
+  // The pinned geometric tessellator changes its inner ring at fractional
+  // elevations, even after centering and with occluder culling disabled.
+  // Use Skia's blur fallback consistently instead of switching mesh topology
+  // during an animation. Graphite implements rounded-rect mask blur natively.
+  const auto devicePath=path.makeTransform(matrix);
+  SkScalar spotRadius,spotScale;SkVector spotOffset;
+  SkDrawShadowMetrics::GetDirectionalParams(rec.fZPlaneParams.fZ,rec.fLightPos.fX,rec.fLightPos.fY,
+    rec.fLightPos.fZ,rec.fLightRadius,&spotRadius,&spotScale,&spotOffset);
+  if(!devicePath.isFinite()||!std::isfinite(spotRadius)||spotRadius<0||!spotOffset.isFinite())return false;
+  SkAutoCanvasRestore restore(&canvas,true);
+  canvas.setMatrix(device->deviceToGlobal());
+  const auto blur=[&](const SkPath& outline,SkColor color,SkScalar radius,SkScalar strokeWidth){
+    if(!SkColorGetA(color))return;
+    SkPaint paint;paint.setAntiAlias(true);paint.setColor(color);
+    if(strokeWidth>0){paint.setStyle(SkPaint::kStrokeAndFill_Style);paint.setStrokeWidth(strokeWidth);}
+    paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle,SkBlurMask::ConvertRadiusToSigma(radius),false));
+    canvas.drawPath(outline,paint);
+  };
+  const auto ambientOutset=SkDrawShadowMetrics::AmbientBlurRadius(rec.fZPlaneParams.fZ);
+  const auto ambientRadius=.5f*ambientOutset*SkDrawShadowMetrics::AmbientRecipAlpha(rec.fZPlaneParams.fZ);
+  blur(devicePath,rec.fAmbientColor,ambientRadius,.5f*(ambientOutset-ambientRadius));
+  blur(devicePath.makeOffset(spotOffset.x(),spotOffset.y()),rec.fSpotColor,spotRadius,0);
   return true;
 }
 // Keep shadows as native shadow commands in retained pictures. Resolve their
-// mesh at replay, when the complete parent transform and clip are available.
+// blur at replay, when the complete parent transform and clip are available.
 class ShadowReplayCanvas final:public SkPaintFilterCanvas {
   SkCanvas& target;
 public:

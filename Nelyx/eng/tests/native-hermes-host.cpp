@@ -230,6 +230,7 @@ static void scrollingShadowChecks(std::shared_ptr<RNSkia::RNSkPlatformContext> c
   require(shadowsPresent,"Scrolling card shadow disappeared from the actual Vulkan surface");
   std::cout<<"PASS 28 actual Vulkan card shadow positions at two/single-column widths, DPR1/2 and nested RTree pictures; affine/layer/colour/transparent shadows preserve canvas state and GPU work drains\n";
 }
+#include "native-shadow-checks.h"
 static void recordingLifetime(jsi::Runtime& rt,std::shared_ptr<Scheduler> scheduler){
   RNSkia::VulkanPlatformServices services;services.fontManager=[](){return SkFontMgr_New_DirectWrite();};services.dispatchToMain=[](auto task){task();};services.reportError=[](auto const& error){throw std::runtime_error(error.what());};services.stream=[](auto const&,auto const&){throw std::runtime_error("Unexpected recording fixture stream");};services.screenshot=[](size_t){return sk_sp<SkImage>{};};services.createDevice=[](){return std::make_shared<nelyx::vulkan::Device>();};
   auto scope=std::make_unique<RNSkia::RNSkVulkanRuntime>(rt,scheduler,1,std::move(services),[]{});
@@ -238,7 +239,7 @@ static void recordingLifetime(jsi::Runtime& rt,std::shared_ptr<Scheduler> schedu
   auto wrapper=std::make_shared<RNSkia::JsiSkGraphiteContext>(scope->getPlatformContext(),target);auto canvas=wrapper->beginRecording();std::weak_ptr<RNSkia::JsiSkCanvas> borrowed=canvas;canvas.reset();rt.instrumentation().collectGarbage("native-display-list-lifetime");
   require(!borrowed.expired(),"An open native recording lost its canvas to JS liveness/GC");
   jsi::Value args[]{packet(rt,{0x4e4c444c,1,1,0,22,9,0,0,0,32,32,0,0,0xff123456,1}),jsi::Value(jsi::Array(rt,0))};wrapper->nelyxReplayDisplayList(rt,jsi::Value::undefined(),args,2);
-  auto recording=wrapper->finishRecording();require(borrowed.expired(),"Snapped canvas wrapper was retained after its native recording");recording.reset();wrapper->nelyxClose();wrapper->nelyxReset();wrapper.reset();target.reset();scrollingShadowChecks(scope->getPlatformContext());scope->close(rt);scope.reset();
+  auto recording=wrapper->finishRecording();require(borrowed.expired(),"Snapped canvas wrapper was retained after its native recording");recording.reset();wrapper->nelyxClose();wrapper->nelyxReset();wrapper.reset();target.reset();scrollingShadowChecks(scope->getPlatformContext());elevationShadowChecks(scope->getPlatformContext()->getGpuContext());scope->close(rt);scope.reset();
   std::cout<<"PASS actual Vulkan recording keeps its canvas through forced Hermes GC and releases it at snap/drain\n";
 }
 int main(int count,char** args){try{

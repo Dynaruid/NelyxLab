@@ -97,6 +97,35 @@ test('wide gallery text-field traversal stays in the content column across sideb
     assert(f.root.buildOwner.focus.next(true));await Promise.resolve();f.frame();assert(f.root.nodes.find(node=>node.id==='field-filled')?.focused,'Reverse traversal returns to the first editor');
   }finally{await f.close();}
 });
+test('actual gallery pointer press, release and hover exit keep continuous opaque button shadows',{timeout},async()=>{
+  const f=await gallery();
+  try{
+    const node=f.root.nodes.find(node=>node.id==='demo-elevated');assert(node);
+    // Keep the native Vulkan animation fixture tied to the real gallery geometry.
+    assert.equal(Math.fround(node.bounds.width),106.269775390625);assert.equal(node.bounds.height,32);
+    const x=node.bounds.x+node.bounds.width/2,y=node.bounds.y+node.bounds.height/2;
+    const shadow=commands=>{
+      const matches=commands.filter(command=>command.op==='drawShadow'&&command.path.operations.some(row=>row.verb==='addRRect'&&row.values[2]===Math.fround(node.bounds.width)&&row.values[3]===Math.fround(node.bounds.height)));
+      assert.equal(matches.length,1,'Every animation frame must retain the actual button shadow');
+      assert.equal(matches[0].transparentOccluder,false);return matches[0].elevation;
+    };
+    const pointer=(kind,buttons,px=x,py=y)=>{f.root.pointer({kind,buttons,x:px,y:py,pointer:77,device:'mouse',timestamp:f.root.context.clock.now(),viewportGeneration:f.root.context.readMetrics().viewportGeneration});return f.frame();};
+    const settle=(commands,target)=>{
+      let previous=shadow(commands);const increasing=target>previous,samples=[];
+      for(let frame=0;frame<14;frame++){
+        const value=shadow(f.advance(1000/60));assert(value>=1&&value<=3);
+        assert(increasing?value>=previous:value<=previous,'Button elevation must not reverse mid-transition');previous=value;samples.push(value);
+      }
+      assert.equal(previous,target);return samples;
+    };
+    settle(pointer('move',0),3);
+    pointer('down',1);await new Promise(resolve=>setTimeout(resolve,150));const press=settle(f.frame(),1);
+    assert(press.some(value=>Math.abs(value-1.1586084)<1e-6),'The actual input trace must cover the native flash regression');
+    settle(pointer('up',0),3);assert(texts(f).some(text=>text.includes('Elevated pressed')));
+    settle(pointer('move',0,10,20),1);
+  }finally{await f.close();}
+});
+
 function galleryControllers(fixture) {
   const controllers = new Set();
   const visit = element => {
