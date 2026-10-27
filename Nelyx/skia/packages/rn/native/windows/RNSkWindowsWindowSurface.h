@@ -13,13 +13,13 @@ class RNSkWindowsWindowSurface final : public RNSkWindowSurface, public std::ena
     std::unique_ptr<WindowsCompositionSurface> surface;
     Releaser release;
     bool visualDetached=false;
-    void disconnectVisual(){if(visual&&!visualDetached){try{visual.Brush(nullptr);}catch(winrt::hresult_error const& error){if(error.code()!=RO_E_CLOSED)throw;}visualDetached=true;}}
+    void disconnectVisual(){if(!visualDetached){if(surface)surface->disconnectVisual();if(visual)try{visual.Brush(nullptr);}catch(winrt::hresult_error const& error){if(error.code()!=RO_E_CLOSED)throw;}visualDetached=true;}}
     void close(){disconnectVisual();if(surface){surface->close();surface.reset();}if(release)release(winrt::get_abi(visual));release={};visual=nullptr;if(consumer){consumer->close();consumer.reset();}}
   };
 public:
   RNSkWindowsWindowSurface(std::shared_ptr<WindowsCompositionSession> session,std::shared_ptr<WindowsCompositionDevice> device,
-      WindowsCompositionSurface::CopyObserver observer={})
-    :session(std::move(session)),device(std::move(device)),owner(std::this_thread::get_id()),observer(std::move(observer)) {
+      WindowsCompositionSurface::CopyObserver observer={},bool windowViewport=false)
+    :session(std::move(session)),device(std::move(device)),owner(std::this_thread::get_id()),observer(std::move(observer)),windowViewport(windowViewport) {
     if(!this->session || !this->device)throw std::runtime_error("Windows surface requires actual native UI/session owners");
     this->session->requireUi();platform=this->session->uiPlatform();
     format=platform->getGpuContext().textureInfo(kBGRA_8888_SkColorType);
@@ -34,9 +34,9 @@ public:
     detach();auto next=std::make_unique<Attachment>();winrt::copy_from_abi(next->visual,handle);
     try{next->consumer=session->acquireConsumer();
     next->surface=std::make_unique<WindowsCompositionSurface>(device,
-      [value=next->consumer](uint32_t count){return value->admitRender(count);},[value=next->consumer]{return value->ready();});
+      [value=next->consumer](uint32_t count){return value->admitRender(count);},[value=next->consumer]{return value->ready();},next->visual,windowViewport);
     next->surface->resize(width,height);next->release=std::move(release);
-    auto compositor=next->visual.Compositor();next->visual.Brush(compositor.CreateSurfaceBrush(next->surface->content()));
+    next->visual.Brush(next->surface->brush());
     }catch(...){session->fail();failed=true;next.release();throw;}
     attachment=std::move(next);{std::lock_guard lock(mutex);attached=true;wide=width;high=height;}requestRedraw();
   }
@@ -56,9 +56,10 @@ public:
   void setRequestRedraw(std::function<void()> callback) override {std::lock_guard lock(mutex);redraw=std::move(callback);}
   void setCanPresent(std::function<bool()> callback) override {std::lock_guard lock(mutex);visible=std::move(callback);}
   void setPresented(std::function<void(uint64_t)> callback) {requireUi();presented=std::move(callback);}
+  void setResizeCancelled(std::function<void()> callback){requireUi();resizeCancelled=std::move(callback);}
   void whenIdle(std::function<void()> complete){
     requireUi();if(!complete||retiring)throw std::runtime_error("Windows surface retirement requires one completion");
-    retiring=true;presented={};{std::lock_guard lock(mutex);redraw={};visible={};}
+    retiring=true;presented={};resizeCancelled={};{std::lock_guard lock(mutex);redraw={};visible={};}
     // RNW can explicitly close its SpriteVisual during child destruction.
     // Disconnect while that UI owner is retiring, before waiting for GPU work.
     // A closed visual is already detached; its native GPU packet still drains.
@@ -118,8 +119,10 @@ private:
     trace(1);
     try{
       const auto& frame=plan->frames.at(plan->next);
-      attachment->surface->publish(packet,frame.generation==generation&&canPresent());
-      trace(packet->updated?2:4);
+      attachment->surface->publish(packet,frame.generation==generation&&canPresent(),session->resize->defers(viewIdentity,frame.generation));
+      if(packet->staged){
+        session->resize->stage(viewIdentity,frame.generation,[weak=weak_from_this(),packet](bool commit){if(auto self=weak.lock()){packet->resolution=commit;self->finishPrepared(packet);}});
+      }else trace(packet->updated?2:4);
       auto weak=weak_from_this();auto dispatch=platform;auto sessionOwner=session;
       session->gpuWorker()->post([weak,packet,dispatch,sessionOwner]{
         std::string failure;
@@ -127,14 +130,39 @@ private:
         try{dispatch->runOnMainThread([weak,packet,failure=std::move(failure)]{if(auto self=weak.lock())self->consumerReady(packet,failure);});}
         catch(std::exception const& error){sessionOwner->fail(error.what());}catch(...){sessionOwner->fail("Windows consumer completion dispatch failed");}
       });
+      // EndDraw has committed the immutable front. Start the next CPU resize
+      // while this packet's native references retire on the worker.
+      if(packet->updated&&frame.generation==generation&&presented)presented(++frames);
     }catch(std::exception const& error){failAsync(error.what());}catch(...){failAsync("Windows publish native HRESULT failure");}
   }
   void consumerReady(const std::shared_ptr<WindowsCompositionSurface::Prepared>& packet,const std::string& failure){
     requireUi();if(!failure.empty()){failAsync(failure);return;}
     try{
+    // Optional diagnostics inspect the completed source copy on its UI owner.
+    // Retirement has already confirmed the native fence; no GPU wait is added
+    // to ordinary frames and the callback never receives a worker-owned object.
+    if(observer&&(packet->updated||packet->staged))observer(packet->texture.get(),{0,0},packet->width,packet->height);
     attachment->surface->complete(packet);
-    trace(3);
-    if(packet->updated){plan->updated=plan->next;if(plan->frames.at(plan->next).generation==generation&&presented)presented(++frames);}
+    packet->retired=true;
+    trace(packet->staged?12:3);
+    const auto& frame=plan->frames.at(plan->next);
+    if(packet->updated||packet->staged)session->resize->ready(viewIdentity,frame.generation);
+    if(packet->staged){finishPrepared(packet);return;}
+    finishPacket(packet);
+    }catch(std::exception const& error){failAsync(error.what());}catch(...){failAsync("Windows native terminal HRESULT failure");}
+  }
+  void finishPrepared(const std::shared_ptr<WindowsCompositionSurface::Prepared>& packet){
+    requireUi();if(!packet->retired||!packet->resolution)return;
+    try{
+      const auto& frame=plan->frames.at(plan->next);
+      const bool commit=*packet->resolution&&frame.generation==generation&&canPresent();
+      attachment->surface->resolvePrepared(packet,commit);trace(commit?2:4);trace(3);
+      if(commit&&presented)presented(++frames);else if(!commit&&resizeCancelled)resizeCancelled();
+      finishPacket(packet);
+    }catch(std::exception const& error){failAsync(error.what());}catch(...){failAsync("Windows prepared resize terminal HRESULT failure");}
+  }
+  void finishPacket(const std::shared_ptr<WindowsCompositionSurface::Prepared>& packet){
+    if(packet->updated)plan->updated=plan->next;
     ++plan->next;
     if(plan->next<plan->frames.size()){startNext();return;}
     auto finished=std::move(plan);auto complete=std::move(finished->complete);const auto updated=finished->updated;finished.reset();
@@ -142,7 +170,6 @@ private:
     // The UI child may retire before its admitted producer completes. Hold
     // its native attachment/consumer until every batch packet has retired.
     if(idleCompletion){auto complete=std::move(idleCompletion);complete();}
-    }catch(std::exception const& error){failAsync(error.what());}catch(...){failAsync("Windows native terminal HRESULT failure");}
   }
   void failAsync(std::string reason){
     trace(5);
@@ -173,9 +200,11 @@ private:
   std::function<void()> idleCompletion;
   uint64_t generation=0;
   WindowsCompositionSurface::CopyObserver observer;
+  const bool windowViewport;
   std::function<void()> redraw;
   std::function<bool()> visible;
   uint64_t frames=0;
   std::function<void(uint64_t)> presented;
+  std::function<void()> resizeCancelled;
 };
 } // namespace RNSkia

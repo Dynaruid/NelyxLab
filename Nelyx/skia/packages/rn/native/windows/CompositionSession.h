@@ -4,6 +4,8 @@
 #include "rnskia/RNSkView.h"
 #include "windows/WindowsFrameWorker.h"
 #include "WindowsFrameTrace.h"
+#include "WindowsResizeCoordinator.h"
+#include "WindowsWindowPointer.h"
 #include <ReactPropertyBag.h>
 #include <algorithm>
 #include <map>
@@ -15,6 +17,7 @@ class WindowsCompositionConsumer;
 // supplies immutable adapter bytes; the runtime creates/closes its GPU on JS.
 class WindowsCompositionSession final : public std::enable_shared_from_this<WindowsCompositionSession> {
 public:
+  std::shared_ptr<WindowsWindowPointer> windowPointer;
   using Completion=std::function<void(std::string)>;
   using ShutdownDispatcher=std::function<void(Completion)>;
   struct ViewTicket {uint64_t id,token;std::atomic<bool> active{true};};
@@ -60,7 +63,20 @@ public:
     requireUi();windowVisible();if(!changed||nextVisibility==UINT64_MAX)throw std::runtime_error("Window visibility observer unavailable");const auto id=++nextVisibility;visibilityObservers.emplace(id,std::move(changed));
     return [weak=weak_from_this(),id]{if(auto self=weak.lock()){self->requireUi();self->visibilityObservers.erase(id);}};
   }
-  bool windowVisibilityRetired()const{requireUi();return visibilityObservers.empty();}
+  struct WindowViewport{uint32_t width,height;float scale;};
+  void setWindowViewport(uint32_t width,uint32_t height,float scale){
+    requireUi();if(windowViewport&&windowViewport->width==width&&windowViewport->height==height&&windowViewport->scale==scale)return;
+    windowViewport=WindowViewport{width,height,scale};const auto value=*windowViewport;const auto callbacks=viewportObservers;
+    for(auto const& [id,callback]:callbacks)if(viewportObservers.contains(id))callback(value);
+  }
+  std::optional<WindowViewport> getWindowViewport()const{requireUi();return windowViewport;}
+  std::function<void()> observeWindowViewport(std::function<void(WindowViewport)> changed){
+    requireUi();if(!changed||nextViewport==UINT64_MAX)throw std::runtime_error("Window viewport observer unavailable");const auto id=++nextViewport;
+    viewportObservers.emplace(id,changed);try{if(windowViewport)changed(*windowViewport);}catch(...){viewportObservers.erase(id);throw;}
+    return [weak=weak_from_this(),id]{if(auto self=weak.lock()){self->requireUi();self->viewportObservers.erase(id);}};
+  }
+  bool hasWindowViewportObservers()const{requireUi();return !viewportObservers.empty();}
+  bool windowVisibilityRetired()const{requireUi();return visibilityObservers.empty()&&viewportObservers.empty();}
   std::shared_ptr<RNSkVulkanPlatformContext> uiPlatform() {
     requireUi();std::lock_guard lock(mutex);if(phase!="active")throw std::runtime_error("Windows UI requires its active JS platform");return context;
   }
@@ -125,6 +141,7 @@ public:
   void requireUi() const {if(std::this_thread::get_id()!=uiOwner)throw std::runtime_error("Composition consumer requires its UI owner");}
   std::shared_ptr<WindowsFrameWorker> gpuWorker() const{return worker;}
   WindowsFrameTrace frameTrace;
+  const std::shared_ptr<WindowsResizeCoordinator> resize=std::make_shared<WindowsResizeCoordinator>();
 private:
   friend class WindowsCompositionConsumer;
   void requireJs() const {if(jsOwner!=std::this_thread::get_id())throw std::runtime_error("Composition GPU lifecycle requires its bound JS owner");}
@@ -148,6 +165,8 @@ private:
   std::shared_ptr<WindowsFrameWorker> worker=std::make_shared<WindowsFrameWorker>();
   uint64_t nextVisibility=0;
   std::map<uint64_t,std::function<void(bool)>> visibilityObservers;
+  std::optional<WindowViewport> windowViewport;uint64_t nextViewport=0;
+  std::map<uint64_t,std::function<void(WindowViewport)>> viewportObservers;
 };
 // Explicit acknowledgement after the caller releases its surface/renderer.
 // Dropping an unclosed consumer retains its native payload and poisons admission.

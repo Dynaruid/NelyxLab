@@ -7,8 +7,8 @@ import {main} from '../../src/index.ts';
 
 export default function App(){
   const shared=useMemo(()=>main(),[]),[error,setError]=useState('');
-  return <NativeLayer style={{flex:1,backgroundColor:'#101827'}}>
+  return <NativeLayer style={{flex:1}}>
     {error?<NativeText style={{color:'#ffb4ab'}}>{error}</NativeText>:null}
-    <ApplicationSurface definition={shared.definition} generation={1} onReady={()=>{}} onError={error=>{const message=describeError(error);console.error(message,error);setError(message);}}/>
+    <ApplicationSurface windowViewport definition={shared.definition} generation={1} onReady={()=>{}} onError={error=>{const message=describeError(error);console.error(message,error);setError(message);}}/>
   </NativeLayer>;
 }

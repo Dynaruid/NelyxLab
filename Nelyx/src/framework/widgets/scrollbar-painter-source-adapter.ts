@@ -25,7 +25,9 @@ export interface ScrollbarCustomPainterContract {
   readonly semanticsBuilder:((size:Size)=>readonly CustomPainterSemantics[])|null;
 }
 /** Nominal source interface boundary; all paint algorithms are supplied by generation. */
+const sourcePainterOwners=new WeakSet<object>();
 export abstract class ScrollbarPainterNotifier extends ChangeNotifier implements ScrollbarCustomPainterContract {
+  constructor(reportError?:(error:unknown)=>void){super(reportError);sourcePainterOwners.add(this);}
   abstract paint(canvas:Canvas,size:Size):void;
   abstract hitTest(position:Offset):boolean|null;
   abstract shouldRepaint(oldDelegate:ScrollbarCustomPainterContract):boolean;
@@ -61,6 +63,17 @@ class ScrollbarPainterBridge extends CustomPainter {
   override shouldRepaint(old:CustomPainter):boolean{return !(old instanceof ScrollbarPainterBridge)||this.source.shouldRepaint(old.source);}
   override shouldRebuildSemantics(old:CustomPainter):boolean{return !(old instanceof ScrollbarPainterBridge)||this.source.shouldRebuildSemantics(old.source);}
   override get semanticsBuilder():SemanticsBuilderCallback|null{const builder=this.source.semanticsBuilder;return builder===null?null:size=>builder(new Size(size.width,size.height));}
+}
+/** The canonical source getter is null; overrides keep the full semantic path. */
+export function scrollbarRegisterEmptyPainterSemantics(prototype:object):void{
+  const getter=Object.getOwnPropertyDescriptor(prototype,'semanticsBuilder')?.get;
+  invariant(getter,'missing-scrollbar-semantics-getter','Expected the canonical source painter getter');
+  CustomPainter._registerEmptySemanticsGetter(Object.getOwnPropertyDescriptor(ScrollbarPainterBridge.prototype,'semanticsBuilder')!.get!,painter=>{
+    if(!(painter instanceof ScrollbarPainterBridge)||!sourcePainterOwners.has(painter.source))return false;
+    let source:object|null=painter.source;
+    while(source){const descriptor=Object.getOwnPropertyDescriptor(source,'semanticsBuilder');if(descriptor)return descriptor.get===getter;source=Object.getPrototypeOf(source);}
+    return false;
+  });
 }
 // A bridge has no independent subscriptions or disposal ownership. The source
 // State owns its ChangeNotifier; the renderer adds/removes the same listener.

@@ -22,6 +22,7 @@ import type {ScrollController} from './scroll-controller.ts';
 import type {ScrollMetrics} from './scroll-metrics.ts';
 import type {ScrollNotificationPredicate} from './scroll-notification.ts';
 import {SourceScrollbarOrientation as ScrollbarOrientation,SourceScrollbarPainter,SourceRawScrollbar,SourceRawScrollbarState} from './scrollbar.generated.ts';
+import {scrollbarRegisterEmptyPainterSemantics} from './scrollbar-painter-source-adapter.ts';
 export {ScrollbarOrientation};
 
 export interface ScrollbarPainterOptions {
@@ -29,7 +30,7 @@ export interface ScrollbarPainterOptions {
 }
 class SourcePainterFacade extends CustomPainter {
     private closed=false;
-    constructor(readonly source:SourceScrollbarPainter,private readonly ownsSource:boolean){super();}
+    constructor(readonly source:SourceScrollbarPainter,private readonly ownsSource:boolean){super();scrollbarRegisterEmptyPainterSemantics(SourceScrollbarPainter.prototype);}
     override addListener(listener:()=>void):void{this.source.addListener(listener);}
     override removeListener(listener:()=>void):void{this.source.removeListener(listener);}
     get fadeoutOpacityAnimation():Animation<number>{return this.source.fadeoutOpacityAnimation;}
@@ -72,7 +73,7 @@ export interface RawScrollbarOptions extends WidgetOptions {
 }
 export class RawScrollbar extends StatefulWidget {
     readonly options:Readonly<RawScrollbarOptions>;
-    constructor(options:RawScrollbarOptions){super(options.key??null);invariant(!(options.thumbVisibility===false&&options.trackVisibility),'track-without-scrollbar-thumb','A visible scrollbar track requires its thumb');this.options=Object.freeze({...options});}
+    constructor(options:RawScrollbarOptions){super(options.key??null);scrollbarRegisterEmptyPainterSemantics(SourceScrollbarPainter.prototype);invariant(!(options.thumbVisibility===false&&options.trackVisibility),'track-without-scrollbar-thumb','A visible scrollbar track requires its thumb');this.options=Object.freeze({...options});}
     createState():RawScrollbarState{return new RawScrollbarState();}
 }
 export class RawScrollbarState extends State<RawScrollbar> {

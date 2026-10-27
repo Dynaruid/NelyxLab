@@ -56,3 +56,4 @@ export class RenderPointerListener extends RenderProxyBoxWithHitTestBehavior {
   }
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new FlagsSummary('listeners',new Map<string,unknown>([['down',this.onPointerDown],['move',this.onPointerMove],['up',this.onPointerUp],['hover',this.onPointerHover],['cancel',this.onPointerCancel],['panZoomStart',this.onPointerPanZoomStart],['panZoomUpdate',this.onPointerPanZoomUpdate],['panZoomEnd',this.onPointerPanZoomEnd],['signal',this.onPointerSignal]].map(([key,value])=>[key as string,value??null])),{ifEmpty:'<none>'}));}
 }
+RenderProxyBox._registerGeometryLayoutSemantics(RenderPointerListener.prototype);

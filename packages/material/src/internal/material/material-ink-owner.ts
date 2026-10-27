@@ -24,6 +24,12 @@ export class MaterialInkRender extends RenderProxyBox implements MaterialInkCont
     constructor(readonly vsync: TickerProvider, public color: Color | null, public absorbHitTest: boolean) {
         super();
     }
+    protected override markNeedsPaintAfterLayout(): void {
+        if (this.hasDefaultPaintSemantics(MaterialInkRender.prototype, MaterialInkRender.prototype.markNeedsPaint))
+            this.markNeedsPaintAfterGeometryLayout();
+        else
+            super.markNeedsPaintAfterLayout();
+    }
     override markNeedsPaint(): void {
         // Ink changes pixels inside the same clip. Layout and explicit semantic
         // changes invalidate their own geometry/configuration; custom renderers

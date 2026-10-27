@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
-import {SizedBox,Transform,Row} from '@nelyx/core/framework/widgets/basic';
+import {SizedBox,Transform,Row,Stack} from '@nelyx/core/framework/widgets/basic';
 import {ClipRect} from '@nelyx/core/framework/widgets/clip';
-import {Semantics} from '@nelyx/core/framework/widgets/semantics';
+import {Semantics,ExcludeSemantics} from '@nelyx/core/framework/widgets/semantics';
 import {SliderControl} from '@nelyx/core/framework/widgets/slider-control';
 import {RenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
+import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
 import {RenderProxyBox,RenderTransform,RenderDecoratedBox} from '@nelyx/core/framework/rendering/boxes';
 import {RenderFractionalTranslation} from '@nelyx/core/framework/rendering/fractional-translation';
+import {RenderSemanticsGestureHandler} from '../../dist/framework/rendering/semantics-gesture-handler.js';
 import {BoxDecoration} from '@nelyx/core/framework/painting/box-decoration';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import {Matrix4} from '@nelyx/core/math/matrix4';
@@ -39,6 +41,62 @@ import {Color} from '@nelyx/core/ui/color';
 import {InkHighlight} from '@nelyx/material/ink-highlight';
 import {MaterialInkRender,InkFeature} from '../../../packages/material/dist/internal/material/material-ink-owner.js';
 const timeout=1_200_000;
+
+test('unvisited offstage layouts do not defeat size-only deferral and publish fresh content when shown',{timeout},()=>{
+ const f=fixture({semanticsUpdateInterval:50});let hidden;
+ class Hidden extends RenderBox{
+  performLayout(c){return c.biggest;}
+  describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.textDirection='ltr';config.label='Width '+this.size.width;}
+ }
+ class Carrier extends RenderObjectWidget{get childWidgets(){return [];}createRenderObject(){return hidden=new Hidden();}}
+ const child=new Carrier(),tree=offstage=>new Stack([new Semantics({transportId:'visible-resize',container:true,label:'Visible',textDirection:'ltr',child:new SizedBox(100,80)}),new Offstage(child,{offstage})],{fit:'expand'});
+ try{
+  f.set(tree(true));assert.equal(existingSemanticsFor(hidden),undefined);let captures=0;const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+  const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:300,physicalWidth:300,viewportGeneration:metrics.viewportGeneration+1});f.advance(10);assert.equal(captures,0);f.advance(50);assert.equal(captures,1);
+  f.set(tree(false));assert.equal(captures,2);assert(f.root.nodes.some(node=>node.name==='Width 300'));
+ }finally{f.close();}
+});
+
+test('size-only accessibility work follows the latest viewport after resizing becomes quiet',{timeout},()=>{
+ const f=fixture({semanticsUpdateInterval:50}),calls=[];
+ const metrics=f.root.context.readMetrics();metrics.environment={safeArea:{top:0,right:0,bottom:0,left:0},safeAreaSource:'application',keyboardInset:0,keyboardSource:'unavailable',textScale:1};
+ const tree=label=>new Semantics({textDirection:'ltr',transportId:'resize-action',container:true,label,onTap:()=>calls.push(label),child:new SizedBox(100,80)});
+ try{
+  f.set(tree('Resize'));let captures=0;const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);
+  f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+  f.frame();assert.equal(captures,0,'Equivalent captured environment records reuse the snapshot');
+  const resize=width=>{Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1,nativeSurfaceGeneration:(metrics.nativeSurfaceGeneration??0)+1});f.advance(10);};
+  resize(300);resize(320);assert.equal(captures,0);assert.equal(f.root.nodes.find(node=>node.id==='resize-action').bounds.width,240);
+  f.advance(49);assert.equal(captures,0);f.advance(1);assert.equal(captures,1);assert.equal(f.root.nodes.find(node=>node.id==='resize-action').bounds.width,320);assert.equal(f.root.semanticsWake,undefined);
+  const current=f.root.nodes.find(node=>node.id==='resize-action');resize(340);current.actions.activate();assert.deepEqual(calls,[]);f.frame();assert.equal(captures,2);assert.deepEqual(calls,['Resize']);assert.equal(f.root.nodes.find(node=>node.id==='resize-action').bounds.width,340);
+  resize(360);f.set(tree('Changed'));assert.equal(captures,3);assert.equal(f.root.nodes.find(node=>node.id==='resize-action').name,'Changed');
+  resize(380);metrics.scale=2;metrics.viewportGeneration++;f.frame();assert.equal(captures,4,'DPI changes publish immediately');
+  resize(400);metrics.environment={safeArea:{top:1,right:0,bottom:0,left:0},safeAreaSource:'application',keyboardInset:0,keyboardSource:'unavailable',textScale:1};metrics.viewportGeneration++;f.frame();assert.equal(captures,5,'Environment changes publish immediately');
+ }finally{f.close();}
+});
+
+test('host gesture geometry reuses configuration while mutable labels and callbacks still refresh',{timeout},()=>{
+ const f=fixture(),calls=[];let render;
+ class Carrier extends RenderObjectWidget{get childWidgets(){return [new SizedBox(80,60)];}createRenderObject(){render=new RenderSemanticsGestureHandler({onTap:()=>calls.push('first')});render.semanticsId='resize-host-gesture';render.semanticsLabel='Press';return render;}}
+ try{
+  f.set(new Carrier());const configuration=existingSemanticsFor(render).configProvider.original,metrics=f.root.context.readMetrics(),resize=width=>{Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1});f.frame();};
+  resize(300);assert.equal(existingSemanticsFor(render).configProvider.original,configuration);assert.equal(f.root.nodes.find(node=>node.id==='resize-host-gesture').bounds.width,300);
+  render.semanticsLabel='Changed';render.onTap=()=>calls.push('changed');resize(320);assert.notEqual(existingSemanticsFor(render).configProvider.original,configuration);const node=f.root.nodes.find(node=>node.id==='resize-host-gesture');assert.equal(node.name,'Changed');node.actions.activate();assert.deepEqual(calls,['changed']);
+  render.semanticsEnabled=false;resize(340);assert.equal(f.root.nodes.find(node=>node.id==='resize-host-gesture').enabled,false);node.actions.activate();assert.deepEqual(calls,['changed']);
+ }finally{f.close();}
+});
+
+test('scroll viewport width changes defer geometry but scrollability changes publish immediately',{timeout},()=>{
+ FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
+ const f=fixture({semanticsUpdateInterval:50}),scroll=new ScrollController();
+ try{
+  f.set(new Directionality('ltr',ListView.builder({controller:scroll,primary:false,padding:EdgeInsets.zero,cacheExtent:500,itemCount:4,itemBuilder:(_context,index)=>new Semantics({textDirection:'ltr',transportId:'resize-row-'+index,container:true,label:'Row '+index,child:new SizedBox(100,80)})})));
+  let captures=0;const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+  const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:300,physicalWidth:300,viewportGeneration:metrics.viewportGeneration+1});f.advance(10);assert.equal(captures,0);
+  f.advance(50);assert.equal(captures,1);assert.equal(f.root.nodes.find(node=>node.id==='resize-row-0').bounds.width,300);
+  Object.assign(metrics,{logicalHeight:500,physicalHeight:500,viewportGeneration:metrics.viewportGeneration+1});f.advance(10);assert.equal(captures,2,'Newly visible children and changed scroll actions bypass geometry deferral');assert.equal(scroll.position.maxScrollExtent,0);
+ }finally{f.close();scroll.dispose();}
+});
 
 test('a replaced, consumed or invalidated transport candidate cannot revive its old action generation',{timeout},()=>{
  const f=fixture();let calls=0;
@@ -310,6 +368,8 @@ test('Material ink animates, changes color and retires without recapturing uncha
     assert.equal(existingSemanticsFor(render).configProvider.original,config);assert.equal(captures,0);assert.equal(f.root.nodes.find(node=>node.id==='ink-child'),node);
     render.markNeedsSemanticsUpdate();f.frame();assert(captures>0,'Explicit semantic invalidation still publishes');
     const afterExplicit=captures;render.markNeedsLayout();f.frame();assert(captures>afterExplicit,'Completed layout retains its semantic invalidation');
+    const resizedConfig=existingSemanticsFor(render).configProvider.original,metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:300,physicalWidth:300,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+    assert.equal(existingSemanticsFor(render).configProvider.original,resizedConfig,'Ink layout preserves its stored semantic configuration');assert.equal(f.root.nodes.find(node=>node.id==='ink-child').bounds.width,300);
   }finally{f.close();}
 });
 
@@ -497,6 +557,94 @@ test('unready offstage geometry preserves snapshot reuse and materializing it ca
     const visible=f.root.nodes.find(node=>node.id==='visible');f.frame();f.frame();assert.equal(captures,0,'Unready future geometry does not change this published tree');visible.actions.activate();assert.deepEqual(calls,['visible']);
     f.set(tree(false));assert(captures>0);const shown=f.root.nodes.find(node=>node.id==='hidden');assert(shown);shown.actions.activate();assert.deepEqual(calls,['visible','hidden']);visible.actions.activate();assert.deepEqual(calls,['visible','hidden']);
   }finally{f.close();}
+});
+
+test('exclude-semantics resize retains its root configuration and actual exclusion still retires the subtree',{timeout},()=>{
+ const f=fixture(),child=new Semantics(new SizedBox(80,60),{id:'exclude-resize',role:'text',name:'Visible'});
+ try{
+  f.set(new ExcludeSemantics({child,excluding:false}));const root=f.root.pipeline.root,configuration=existingSemanticsFor(root).configProvider.original;
+  const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:300,physicalWidth:300,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+  assert.equal(existingSemanticsFor(root).configProvider.original,configuration);assert.equal(f.root.nodes.find(node=>node.id==='exclude-resize').bounds.width,300);
+  f.set(new ExcludeSemantics({child,excluding:true}));assert(!f.root.nodes.some(node=>node.id==='exclude-resize'));
+  f.set(new ExcludeSemantics({child,excluding:false}));assert(f.root.nodes.some(node=>node.id==='exclude-resize'));
+ }finally{f.close();}
+});
+
+test('gesture resize retains action configuration while scroll deltas use current geometry',{timeout},()=>{
+ const f=fixture(),deltas=[];let render;
+ class Carrier extends RenderObjectWidget {get childWidgets(){return [new SizedBox(80,60)];}createRenderObject(){return render=new RenderSemanticsGestureHandler({onHorizontalDragUpdate:details=>deltas.push(details.primaryDelta)});}}
+ try{
+  f.set(new Carrier());const configuration=existingSemanticsFor(render).configProvider.original;
+  for(const width of [300,280]){
+   const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+   assert.equal(existingSemanticsFor(render).configProvider.original,configuration);configuration.onScrollRight();assert.equal(deltas.at(-1),width*0.8);
+  }
+  render.onHorizontalDragUpdate=null;f.frame();assert.notEqual(existingSemanticsFor(render).configProvider.original,configuration);assert.equal(existingSemanticsFor(render).configProvider.original.onScrollRight,null);
+ }finally{f.close();}
+});
+
+test('layout-builder resize preserves its static root configuration and invalidates changed child structure',{timeout},()=>{
+ const f=fixture(),narrow=new Semantics(new SizedBox(80,60),{id:'layout-small',role:'text',name:'Narrow'}),wide=new Row([new Semantics(new SizedBox(40,60),{id:'layout-wide',role:'text',name:'Wide'})]);
+ try{
+  f.set(new LayoutBuilder((_context,constraints)=>constraints.maxWidth<330?narrow:wide));const root=f.root.pipeline.root,configuration=existingSemanticsFor(root).configProvider.original;
+  const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:300,physicalWidth:300,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+  assert.equal(existingSemanticsFor(root).configProvider.original,configuration);assert.equal(f.root.nodes.find(node=>node.id==='layout-small').bounds.width,300);
+  Object.assign(metrics,{logicalWidth:360,physicalWidth:360,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+  assert.notEqual(existingSemanticsFor(root).configProvider.original,configuration);assert(f.root.nodes.some(node=>node.id==='layout-wide'));assert(!f.root.nodes.some(node=>node.id==='layout-small'));
+ }finally{f.close();}
+});
+
+test('box resize retains static configurations and refreshes visible geometry, children and actions',{timeout},()=>{
+  const f=fixture(),calls=[];let render;
+  class Carrier extends RenderObjectWidget {
+    constructor(id){super();this.id=id;}
+    get childWidgets(){return [new Semantics({textDirection:'ltr',transportId:this.id,label:this.id,container:true,onTap:()=>calls.push(this.id),child:new SizedBox(80,60)})];}
+    createRenderObject(){return render=new RenderProxyBox();}
+  }
+  try{
+    f.set(new Carrier('before'));const original=existingSemanticsFor(render).configProvider.original,annotation=render.children[0],annotated=existingSemanticsFor(annotation).configProvider.original,old=f.root.nodes.find(node=>node.id==='before');
+    for(const width of [300,360,280]){
+      const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+      assert.equal(existingSemanticsFor(render).configProvider.original,original);
+      assert.equal(existingSemanticsFor(annotation).configProvider.original,annotated,'Stored labels and actions do not change with box dimensions');
+      assert.equal(f.root.nodes.find(node=>node.id==='before').bounds.width,width);
+    }
+    old.actions.activate();assert.deepEqual(calls,[],'Old snapshot actions stay retired after geometry changes');
+    f.root.nodes.find(node=>node.id==='before').actions.activate();assert.deepEqual(calls,['before']);
+    f.set(new Carrier('after'));assert(!f.root.nodes.some(node=>node.id==='before'));f.root.nodes.find(node=>node.id==='after').actions.activate();assert.deepEqual(calls,['before','after']);
+  }finally{f.close();}
+});
+
+test('unmodified proxy subclasses retain empty configurations while custom semantic getters stay live',{timeout},()=>{
+ class PlainBox extends RenderProxyBox {}
+ class DynamicBox extends RenderProxyBox {get semanticsTransport(){return this.hasSize&&this.size.width>=300?{id:'dynamic-width',role:'text',name:'Wide'}:null;}}
+ for(const Type of [PlainBox,DynamicBox]){
+  const f=fixture();let render;
+  class Carrier extends RenderObjectWidget {get childWidgets(){return [new SizedBox(80,60)];}createRenderObject(){return render=new Type();}}
+  try{
+   f.set(new Carrier());const configuration=existingSemanticsFor(render).configProvider.original,metrics=f.root.context.readMetrics();
+   for(const width of [300,240]){Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1});f.frame();if(Type===PlainBox)assert.equal(existingSemanticsFor(render).configProvider.original,configuration);else assert.equal(f.root.nodes.some(node=>node.id==='dynamic-width'),width>=300);}
+  }finally{f.close();}
+ }
+});
+
+test('custom box layout semantics and instance paint hooks retain conservative invalidation',{timeout},()=>{
+  class SemanticBox extends RenderProxyBox {
+    describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.label='Width '+this.size.width;config.textDirection='ltr';}
+  }
+  for(const instanceHook of [false,true]){
+    const f=fixture();let render,invalidations=0;
+    class Carrier extends RenderObjectWidget {
+      get childWidgets(){return [new SizedBox(80,60)];}
+      createRenderObject(){render=instanceHook?new RenderProxyBox():new SemanticBox();if(instanceHook){const paint=render.markNeedsPaint;render.markNeedsPaint=function(){invalidations++;return paint.call(this);};}return render;}
+    }
+    try{
+      f.set(new Carrier());const before=invalidations;
+      const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:300,physicalWidth:300,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+      if(instanceHook)assert(invalidations>before);
+      else{assert(f.root.nodes.some(node=>node.name==='Width 300'));assert(!f.root.nodes.some(node=>node.name==='Width 240'));}
+    }finally{f.close();}
+  }
 });
 
 test('stable sliver scrolling preserves semantic configurations and refreshes clip, membership and actions',{timeout},()=>{

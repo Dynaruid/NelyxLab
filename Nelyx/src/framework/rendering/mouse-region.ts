@@ -28,3 +28,4 @@ export class RenderMouseRegion extends RenderProxyBox implements MouseTrackerAnn
     if((hit||this.behavior==='translucent')&&!result.some(entry=>entry.target===this))result.push({target:this,transform:toLocal});return hit&&this._opaque;
   }
 }
+RenderProxyBox._registerGeometryLayoutSemantics(RenderMouseRegion.prototype);

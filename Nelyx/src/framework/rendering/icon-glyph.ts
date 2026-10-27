@@ -68,6 +68,10 @@ export class RenderIconGlyph extends RenderProxyBox {
     else this.paintChild(context,this.paragraph);
   }
   override visitChildrenForSemantics(_visitor:(child:RenderObject)=>void):void{}
+  protected override markNeedsPaintAfterLayout():void{
+    if(this.hasStaticLayoutSemantics(RenderIconGlyph.prototype,RenderIconGlyph.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryChange();
+    else super.markNeedsPaintAfterLayout();
+  }
   override describeSemanticsConfiguration(config:SemanticsConfiguration):void{
     super.describeSemanticsConfiguration(config);
     if(this.configuration.label!==null){config.label=this.configuration.label;config.textDirection=this.configuration.labelDirection;}

@@ -65,3 +65,4 @@ export class RenderWrap extends RenderBox {
   override get clips():boolean{return this.visualOverflow&&this.clipping!=='none';}
   override paint(context:PaintingContext):void{if(this.clips){context.save();context.clip({x:0,y:0,...this.size});try{super.paint(context);}finally{context.restore();}}else super.paint(context);}
 }
+RenderBox._registerGeometryLayoutSemantics(RenderWrap.prototype);

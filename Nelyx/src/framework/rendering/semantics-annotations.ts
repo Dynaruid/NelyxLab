@@ -15,11 +15,19 @@ export interface RenderSemanticsAnnotationsOptions {
   readonly localeForSubtree?:Locale|null;readonly textDirection?:'ltr'|'rtl'|null;
 }
 export class RenderSemanticsAnnotations extends SemanticsAnnotationsMixin(RenderProxyBox) {
+  protected override markNeedsPaintAfterLayout():void{
+    if(this.hasStaticLayoutSemantics(RenderSemanticsAnnotations.prototype,RenderSemanticsAnnotations.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   constructor({child,properties,container=false,explicitChildNodes=false,excludeSemantics=false,blockUserActions=false,localeForSubtree=null,textDirection=null}:RenderSemanticsAnnotationsOptions){
     super(child);this.initSemanticsAnnotations({properties,container,explicitChildNodes,excludeSemantics,blockUserActions,localeForSubtree,textDirection});
   }
 }
 export class RenderBlockSemantics extends RenderProxyBox {
+  protected override markNeedsPaintAfterLayout():void{
+    if(this.hasStaticLayoutSemantics(RenderBlockSemantics.prototype,RenderBlockSemantics.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   private _blocking:boolean;
   constructor({child,blocking=true}:{readonly child?:RenderBox;readonly blocking?:boolean}={}){super(child);this._blocking=blocking;}
   get blocking():boolean{return this._blocking;}
@@ -28,6 +36,10 @@ export class RenderBlockSemantics extends RenderProxyBox {
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('blocking',this.blocking));}
 }
 export class RenderMergeSemantics extends RenderProxyBox {
+  protected override markNeedsPaintAfterLayout():void{
+    if(this.hasStaticLayoutSemantics(RenderMergeSemantics.prototype,RenderMergeSemantics.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   constructor({child}:{readonly child?:RenderBox}={}){super(child);}
   override describeSemanticsConfiguration(config:SemanticsConfiguration):void{super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.isMergingSemanticsOfDescendants=true;}
 }
@@ -39,3 +51,4 @@ export class RenderExcludeSemantics extends RenderProxyBox {
   override visitChildrenForSemantics(visitor:(child:RenderObject)=>void):void{if(!this.excluding)super.visitChildrenForSemantics(visitor);}
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('excluding',this.excluding));}
 }
+RenderProxyBox._registerGeometryLayoutSemantics(RenderExcludeSemantics.prototype);

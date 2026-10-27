@@ -73,6 +73,7 @@ export class ComponentsGallery extends StatefulWidget {
   createState(): State<ComponentsGallery> {return new GalleryState();}
 }
 class GalleryState extends State<ComponentsGallery> {
+  private pageRevision=0;
   private readonly updates=new GalleryUpdates();
   private cupertino = false;
   private pendingDesign: boolean | null = null;
@@ -122,18 +123,19 @@ class GalleryState extends State<ComponentsGallery> {
   private record(action: string): void {
     this.lastAction = action; this.actionCount++;this.updates.status.notifyListeners();
   }
+  private changePage(change:()=>void):void{this.setState(change);this.updates.page.notifyListeners();}
   private select(category: CategoryId | 'all'): void {
     this.firstExtents.reset();this.secondExtents.reset();
-    this.setState(() => {this.category = category;});
+    this.changePage(() => {this.category = category;});
     for (const controller of [this.firstScroll, this.secondScroll]) if (controller.hasClients) controller.jumpTo(0);
   }
   private showDesign(cupertino: boolean): void {
     // Retire the current App/editor tree before mounting another design App.
     // This keeps both live paragraph producers and borrowed editors bounded.
-    this.setState(() => {this.pendingDesign = cupertino;});
+    this.changePage(() => {this.pendingDesign = cupertino;});
   }
   private readonly designRetired = (): void => {
-    if (this.mounted && this.pendingDesign !== null) this.setState(() => {
+    if (this.mounted && this.pendingDesign !== null) this.changePage(() => {
       if (this.pendingDesign) {this.navigator.dispose(); this.navigator = new NavigatorController();}
       this.cupertino = this.pendingDesign!; this.pendingDesign = null;
     });
@@ -152,19 +154,27 @@ class GalleryState extends State<ComponentsGallery> {
     });
   }
   build(): Widget {
+    ++this.pageRevision;
     if (this.pendingDesign !== null) return new SizedBox();
     if (this.cupertino) return new DesignSession(new CupertinoGallery(this.cupertinoValues, () => this.showDesign(false)), this.designRetired);
     // Value changes do not replace the inherited theme or the section metric
     // revision. Recompute the palette only when its actual inputs change.
     if(!this.themeCache||this.themeCache.seed!==this.seed||this.themeCache.dark!==this.dark)this.themeCache={seed:this.seed,dark:this.dark,data:new ThemeData({colorScheme:ColorScheme.fromSeed({seedColor:this.seed,brightness:this.dark?'dark':'light'}),fontFamily:'NelyxSample'})};
     const theme=this.themeCache.data;
+    let page:{mode:number;revision:number;theme:ThemeData;child:Widget}|undefined;
     return new DesignSession(new RepaintBoundary(new MaterialApp({
       theme, locale: 'ko-KR', supportedLocales: ['ko-KR', 'en'], navigatorController: this.navigator,
-      home: new RepaintBoundary(new LayoutBuilder((context, constraints) => this.page(context, constraints.maxWidth, constraints.maxHeight))),
+      home: new RepaintBoundary(new ListenableBuilder(this.updates.page,()=>new LayoutBuilder((context, constraints) => {
+        const short=constraints.maxHeight<600,wide=constraints.maxWidth>=1120&&!short,compact=constraints.maxWidth<600,mode=Number(short)|Number(wide)<<1|Number(compact)<<2,resolved=Theme.of(context);
+        // The render tree receives every constraint change. Widget structure
+        // changes only at a breakpoint, on theme changes, or on a State build.
+        if(!page||page.mode!==mode||page.revision!==this.pageRevision||page.theme!==resolved)page={mode,revision:this.pageRevision,theme:resolved,child:this.page(context,compact,short,wide)};
+        return page.child;
+      }))),
     })), this.designRetired);
   }
-  private page(context: BuildContext, width: number, height: number): Widget {
-    const theme=Theme.of(context),colors = theme.colorScheme, short = height < 600, wide = width >= 1120 && !short, compact = width < 600;
+  private page(context: BuildContext, compact: boolean, short: boolean, wide: boolean): Widget {
+    const theme=Theme.of(context),colors = theme.colorScheme;
     const catalog = visibleDemos(this.category, this.includePlanned || this.category === 'navigation');
     // The editor always belongs to the primary scroll owner, including after a
     // filter/column change. Stable keys remap its lazy index without rebinding it.
@@ -186,7 +196,7 @@ class GalleryState extends State<ComponentsGallery> {
       twoColumns ? new Expanded(list(secondary, this.secondScroll)) : new SizedBox(0),
     ], {crossAlign: 'stretch'});
     const title=this.category === 'all' ? 'Components' : categories.find(group => group.id === this.category)!.title;
-    const themeButton=()=>new TextFieldTapRegion(new IconButton({id: 'toggle-theme', icon: icon(this.dark ? Icons.light_mode : Icons.dark_mode), tooltip: this.dark ? 'Light mode' : 'Dark mode', onPressed: () => this.setState(() => {this.dark = !this.dark;})}));
+    const themeButton=()=>new TextFieldTapRegion(new IconButton({id: 'toggle-theme', icon: icon(this.dark ? Icons.light_mode : Icons.dark_mode), tooltip: this.dark ? 'Light mode' : 'Dark mode', onPressed: () => this.changePage(() => {this.dark = !this.dark;})}));
     const designButton=()=>new TextButton({id: 'show-cupertino', child: new Text('Cupertino'), onPressed: () => this.showDesign(true)});
     const listButton=()=>new TextButton({id: 'show-list-view', child: new Text('ListView'), onPressed: () => this.openListView()});
     const heading = new Padding(EdgeInsets.fromLTRB(compact ? 16 : 28, short ? 8 : 18, compact ? 16 : 28, short ? 8 : 16), short ? new Row([
@@ -206,9 +216,9 @@ class GalleryState extends State<ComponentsGallery> {
         ...seeds.map((seed, index) => new IconButton({
           id: 'seed-' + index, icon: icon(this.seed === seed ? Icons.check_circle : Icons.circle, seed, 23),
           tooltip: ['Purple theme', 'Green theme', 'Blue theme', 'Coral theme'][index]!,
-          onPressed: () => this.setState(() => {this.seed = seed;}),
+          onPressed: () => this.changePage(() => {this.seed = seed;}),
         })),
-        new TextButton({id: 'toggle-planned', child: new Text(this.includePlanned ? '데모만 보기' : '준비 중 포함'), onPressed: () => {this.firstExtents.reset();this.secondExtents.reset();this.setState(() => {this.includePlanned = !this.includePlanned;}); for (const controller of [this.firstScroll, this.secondScroll]) if (controller.hasClients) controller.jumpTo(0);}}),
+        new TextButton({id: 'toggle-planned', child: new Text(this.includePlanned ? '데모만 보기' : '준비 중 포함'), onPressed: () => {this.firstExtents.reset();this.secondExtents.reset();this.changePage(() => {this.includePlanned = !this.includePlanned;}); for (const controller of [this.firstScroll, this.secondScroll]) if (controller.hasClients) controller.jumpTo(0);}}),
         new Text(catalog.length + '개 섹션 · 스크롤하여 탐색', {fontSize: 12, color: colors.onSurfaceVariant}),
       ),
     ));

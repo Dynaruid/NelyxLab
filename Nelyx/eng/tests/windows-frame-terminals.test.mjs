@@ -9,6 +9,11 @@ test('interleaved views with the same local submission retain separate packet se
   const first=packet([0,1,2,3]),second=packet([0,1,4,3]).map(value=>({...value,view:2}));
   assert.deepEqual(validateNativeFrameTerminals(first.flatMap((value,index)=>[value,second[index]])),{completed:2,superseded:1});
 });
+
+test('prepared resize copies keep their final terminal after the actual geometry commit',{timeout},()=>{
+  assert.deepEqual(validateNativeFrameTerminals(packet([6,7,0,1,12,8,9,2,3,10])),{completed:1,superseded:0});
+  assert.deepEqual(validateNativeFrameTerminals(packet([0,1,12,11,4,3])),{completed:1,superseded:1});
+});
 test('discarded middle observations and malformed later replays are rejected',{timeout},()=>{
   for(const stages of [[0,3],[0,1,3],[0,1,3,2],[0,1,2,3,1,2,3],[0,1,0],[0,1,2,3,0,2,3]])assert.throws(()=>validateNativeFrameTerminals(packet(stages)),/terminal order|restarted/);
 });

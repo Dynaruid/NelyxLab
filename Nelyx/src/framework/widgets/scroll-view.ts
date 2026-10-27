@@ -55,7 +55,7 @@ export abstract class BoxScrollView extends ScrollView {
   readonly padding:EdgeInsetsGeometry|null;
   constructor({padding=null,...options}:BoxScrollViewOptions={}){super(options);this.padding=padding;protect(this,['padding']);}
   buildSlivers(context:BuildContext):readonly Widget[]{
-    let sliver=this.buildChildLayout(context),padding=this.padding;const media=context.maybeDependOn(MediaQuery)?.data;
+    let sliver=this.buildChildLayout(context),padding=this.padding;const media=padding===null?context.maybeDependOn(MediaQuery)?.data:undefined;
     if(padding===null&&media){
       const sourcePadding=MediaQuery.paddingOf(context),horizontal=sourcePadding.copyWith({top:0,bottom:0}),vertical=sourcePadding.copyWith({left:0,right:0});
       padding=this.scrollDirection===Axis.vertical?vertical:horizontal;

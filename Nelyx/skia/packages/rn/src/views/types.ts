@@ -60,6 +60,8 @@ export interface ISkiaViewApi {
 
 /** The props every Skia view takes, whichever way it is drawn. */
 export interface SkiaBaseViewProps extends ViewProps {
+  /** Windows: this canvas owns the full HWND client viewport, including resize metrics. */
+  windowViewport?:boolean;
   /** Actual native canvas cursor kind, supplied by the app-owned SDK port. */
   mouseCursor?:string;
   onNativeMouseEvent?:(event:NativeSyntheticEvent<NativeMouseEvent>)=>void;
@@ -123,6 +125,7 @@ export interface WindowsSurfaceStatus {
   readonly pointerVersion:1;
   readonly keyboardVersion:2;
   readonly visibilityVersion:1;
+  readonly windowViewport?:boolean;
   readonly phase:string;readonly reason:string;readonly nativeId:number;readonly reactTag:number;
   readonly viewGeneration:number;readonly surfaceGeneration:number;readonly frames:number;
   readonly logicalWidth:number;readonly logicalHeight:number;readonly width:number;readonly height:number;readonly scale:number;

@@ -109,6 +109,7 @@ class CupertinoGalleryPage extends StatefulWidget {
   createState(): State<CupertinoGalleryPage> {return new CupertinoGalleryState();}
 }
 class CupertinoGalleryState extends State<CupertinoGalleryPage> {
+  private pageRevision=0;
   private readonly updates=new GalleryUpdates();
   private readonly scroll = new ScrollController({debugLabel: 'cupertino-gallery'});
   private readonly extents=new GallerySectionExtents();
@@ -117,7 +118,7 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
   private readonly radioToken = {};
   private get values(): CupertinoGalleryValues {return this.widget.values;}
   override dispose(): void {this.updates.dispose();this.scroll.dispose(); super.dispose();}
-  private change(change: () => void): void {this.setState(change);}
+  private change(change: () => void): void {this.setState(change);this.updates.page.notifyListeners();}
   private changeTheme(change: () => void): void {this.change(change); this.widget.onThemeChanged();}
   private browse(change: () => void): void {
     this.extents.reset();
@@ -150,10 +151,16 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
     }).catch(error => {if (this.mounted) this.record(String(error));});
   }
   build(): Widget {
-    return new RepaintBoundary(new LayoutBuilder((context, constraints) => new CupertinoPageScaffold('Cupertino', this.page(context, constraints.maxWidth, constraints.maxHeight))));
+    ++this.pageRevision;
+    let page:{mode:number;revision:number;theme:CupertinoThemeData;child:Widget}|undefined;
+    return new RepaintBoundary(new ListenableBuilder(this.updates.page,()=>new LayoutBuilder((context, constraints) => {
+      const compact=constraints.maxWidth<600,short=constraints.maxHeight<600,mode=Number(short)|Number(compact)<<1,theme=CupertinoTheme.of(context);
+      if(!page||page.mode!==mode||page.revision!==this.pageRevision||!page.theme.equals(theme))page={mode,revision:this.pageRevision,theme,child:new CupertinoPageScaffold('Cupertino',this.page(context,compact,short))};
+      return page.child;
+    })));
   }
-  private page(context: BuildContext, width: number, height: number): Widget {
-    const v = this.values, theme = CupertinoTheme.of(context), compact = width < 600, short = height < 600;
+  private page(context: BuildContext, compact: boolean, short: boolean): Widget {
+    const v = this.values, theme = CupertinoTheme.of(context);
     const catalog = visibleCupertinoDemos(v.category, v.includePlanned);
     const available = cupertinoDemos.filter(demo => demo.status !== 'planned').length;
     return new Column([

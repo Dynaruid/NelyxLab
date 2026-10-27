@@ -3,10 +3,10 @@ import type {NativeSyntheticEvent} from 'react-native';
 import type {WindowsSurfaceStatus} from '@nelyx/skia-rn/views/types';
 import type {ReactNativeSurfaceBinding} from '../../backends/react-native/surface.tsx';
 /** Yoga layout alone cannot admit the Windows renderer. */
-export function createWindowsNativeSurfaceProps(binding:ReactNativeSurfaceBinding,verifyHost:()=>unknown,isClosing:()=>boolean=()=>false) {
+export function createWindowsNativeSurfaceProps(binding:ReactNativeSurfaceBinding,verifyHost:()=>unknown,isClosing:()=>boolean=()=>false,windowViewport=false) {
   let failed=false,viewGeneration=0,surfaceGeneration=0,reactTag=0,nativeId=0;
   const reject=(reason:string)=>{if(failed)return;failed=true;binding.failed(new Error(reason));};
-  return {onWindowsSurfaceStatus(event:NativeSyntheticEvent<WindowsSurfaceStatus>){
+  return {windowViewport,onWindowsSurfaceStatus(event:NativeSyntheticEvent<WindowsSurfaceStatus>){
     if(failed)return;const status=event.nativeEvent;
     if(status.phase==='failed'){reject(status.reason||'Windows native surface failed');return;}
     // Only the admitted epoch may open first-content readiness. A completion
@@ -20,6 +20,7 @@ export function createWindowsNativeSurfaceProps(binding:ReactNativeSurfaceBindin
     if(status.pointerVersion!==1){reject('Windows native pointer port1 is required; rebuild the matching host');return;}
     if(status.keyboardVersion!==2){reject('Windows native keyboard port2 is required; rebuild the matching host');return;}
     if(status.visibilityVersion!==1){reject('Windows native visibility port1 is required; resupply and rebuild the matching host');return;}
+    if(windowViewport&&status.bound&&status.windowViewport!==true){reject('Windows native full-window viewport ownership is required; resupply and rebuild the matching host');return;}
     try{
       // Native close stops admission before the JS shutdown callback drains its
       // owners. Late layout/visibility receipts can still arrive in that gap.

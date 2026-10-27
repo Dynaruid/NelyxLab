@@ -32,7 +32,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE,HINSTANCE,PSTR,int showCom
   try{development=NelyxDevelopment::read(NELYX_WINDOWS_DEVELOPMENT==1);}catch(std::exception const& error){Log(std::string("DEVELOPMENT_SOURCE_REJECTED ")+error.what());return 2;}
   winrt::init_apartment(winrt::apartment_type::single_threaded);SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
   wchar_t directory[MAX_PATH]{};GetModuleFileNameW(nullptr,directory,MAX_PATH);PathCchRemoveFileSpec(directory,MAX_PATH);
-  auto app=winrt::Microsoft::ReactNative::ReactNativeAppBuilder().Build();auto settings=app.ReactNativeHost().InstanceSettings();
+  RNSkia::WindowsReactApp app;auto settings=app.ReactNativeHost().InstanceSettings();
   // RNW's public enum has only Hermes/V8. The verified JSC supplier owns the
   // default slot and publishes its independent JSC VM identity to the SDK.
   settings.JSIEngineOverride(NELYX_WINDOWS_V8?winrt::Microsoft::ReactNative::JSIEngine::V8:winrt::Microsoft::ReactNative::JSIEngine::Hermes);

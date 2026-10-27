@@ -177,3 +177,4 @@ export class RenderPhysicalShape extends RenderPhysicalModelBase<Path> {
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('clipper',this.clipper));}
   override dispose():void{const errors:unknown[]=[];attempt(errors,()=>super.dispose());if(this.debugDisposed)attempt(errors,()=>this.clippingLayer.layer=null);failures(errors,'Physical shape teardown failed');}
 }
+RenderProxyBox._registerGeometryLayoutSemantics(RenderPhysicalModel.prototype,RenderPhysicalShape.prototype);

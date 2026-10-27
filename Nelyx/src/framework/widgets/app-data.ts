@@ -12,7 +12,7 @@ import type {BorderRadius} from '../painting/border-radius.ts';
 import {EdgeInsets} from '../painting/edge-insets.ts';
 import {invariant} from '../../foundation/errors.ts';
 const defaultGestureSettings=new DeviceGestureSettings();
-const mediaAspects={padding:Symbol('MediaQuery.padding'),viewPadding:Symbol('MediaQuery.viewPadding'),viewInsets:Symbol('MediaQuery.viewInsets'),brightness:Symbol('MediaQuery.platformBrightness'),contrast:Symbol('MediaQuery.highContrast'),radii:Symbol('MediaQuery.displayCornerRadii'),text:Symbol('MediaQuery.textScaler'),gesture:Symbol('MediaQuery.gestureSettings'),navigation:Symbol('MediaQuery.navigationMode')};
+const mediaAspects={safeArea:Symbol('MediaQuery.safeArea'),padding:Symbol('MediaQuery.padding'),viewPadding:Symbol('MediaQuery.viewPadding'),viewInsets:Symbol('MediaQuery.viewInsets'),brightness:Symbol('MediaQuery.platformBrightness'),contrast:Symbol('MediaQuery.highContrast'),radii:Symbol('MediaQuery.displayCornerRadii'),text:Symbol('MediaQuery.textScaler'),scale:Symbol('MediaQuery.devicePixelRatio'),textMetrics:Symbol('MediaQuery.textMetrics'),gesture:Symbol('MediaQuery.gestureSettings'),navigation:Symbol('MediaQuery.navigationMode')};
 export const NavigationMode=Object.freeze({traditional:'traditional',directional:'directional'} as const);
 export type NavigationMode=typeof NavigationMode[keyof typeof NavigationMode];
 export interface MediaData {readonly padding?:EdgeInsets;readonly viewPadding?:EdgeInsets;readonly viewInsets?:EdgeInsets;readonly displayCornerRadii?:BorderRadius|null;readonly platformBrightness?:'light'|'dark';readonly width:number;readonly height:number;readonly scale:number;readonly textScale:number;readonly textScaler?:TextScaler;readonly safeArea:Insets;readonly keyboardInset:number;readonly safeAreaSource?:'native'|'css'|'application';readonly keyboardSource?:'native-ime'|'visual-viewport-occlusion'|'unavailable';readonly textScaleSource?:'native'|'application';readonly accessibleNavigation?:boolean;readonly disableAnimations?:boolean;readonly invertColors?:boolean;readonly boldText?:boolean;readonly reduceMotion?:boolean;readonly highContrast?:boolean;readonly onOffSwitchLabels?:boolean;readonly supportsAnnounce?:boolean;readonly autoPlayAnimatedImages?:boolean;readonly autoPlayVideos?:boolean;readonly deterministicCursor?:boolean;readonly navigationMode?:NavigationMode;readonly gestureSettings?:DeviceGestureSettings}
@@ -48,6 +48,7 @@ function maybeMediaAspectData(context:BuildContext,aspect:symbol):MediaData|unde
 function equalMediaValue(a:unknown,b:unknown):boolean{return a===b||a!==null&&typeof a==='object'&&typeof (a as {equals?:unknown}).equals==='function'&&(a as {equals(other:unknown):boolean}).equals(b);}
 function mediaAspectChanged(a:MediaData,b:MediaData,aspect:symbol):boolean{
   switch(aspect){
+    case mediaAspects.safeArea:return (['left','top','right','bottom'] as const).some(side=>a.safeArea[side]!==b.safeArea[side]);
     case mediaAspects.padding:return !mediaPadding(a).equals(mediaPadding(b));
     case mediaAspects.viewPadding:return !mediaViewPadding(a).equals(mediaViewPadding(b));
     case mediaAspects.viewInsets:return !mediaViewInsets(a).equals(mediaViewInsets(b));
@@ -55,6 +56,8 @@ function mediaAspectChanged(a:MediaData,b:MediaData,aspect:symbol):boolean{
     case mediaAspects.contrast:return (a.highContrast??false)!==(b.highContrast??false);
     case mediaAspects.radii:return !equalMediaValue(a.displayCornerRadii??null,b.displayCornerRadii??null);
     case mediaAspects.text:return !(a.textScaler??TextScaler.linear(a.textScale)).equals(b.textScaler??TextScaler.linear(b.textScale));
+    case mediaAspects.scale:return a.scale!==b.scale;
+    case mediaAspects.textMetrics:return a.scale!==b.scale||a.textScale!==b.textScale||a.textScaler!==b.textScaler||(a.boldText??false)!==(b.boldText??false);
     case mediaAspects.gesture:return !equalMediaValue(a.gestureSettings??defaultGestureSettings,b.gestureSettings??defaultGestureSettings);
     case mediaAspects.navigation:return (a.navigationMode??'traditional')!==(b.navigationMode??'traditional');
     default:return true;
@@ -71,6 +74,8 @@ export class MediaQuery extends InheritedModel<symbol> {
     return new MediaQueryClampedTextScaling(options.child,min,max);
   }
   constructor(readonly data:MediaData,child:Widget,options:WidgetOptions={}){super(child,options.key??null);}
+  /** @internal Raw host insets for adapters that preserve the safeArea contract. */
+  static _safeAreaOf(context:BuildContext):Insets{return mediaAspectData(context,mediaAspects.safeArea,this).safeArea;}
   static paddingOf(context:BuildContext):EdgeInsets{return mediaPadding(mediaAspectData(context,mediaAspects.padding,this));}
   static viewPaddingOf(context:BuildContext):EdgeInsets{return mediaViewPadding(mediaAspectData(context,mediaAspects.viewPadding,this));}
   static viewInsetsOf(context:BuildContext):EdgeInsets{return mediaViewInsets(mediaAspectData(context,mediaAspects.viewInsets,this));}
@@ -83,6 +88,11 @@ export class MediaQuery extends InheritedModel<symbol> {
   static of(context:BuildContext):MediaData{return context.dependOn(MediaQuery).data;}
   static displayCornerRadiiOf(context:BuildContext):BorderRadius|null{return mediaAspectData(context,mediaAspects.radii,this).displayCornerRadii??null;}
   static textScalerOf(context:BuildContext):TextScaler{const data=mediaAspectData(context,mediaAspects.text,this);return data.textScaler??TextScaler.linear(data.textScale);}
+  static maybeTextScalerOf(context:BuildContext):TextScaler|null{const data=maybeMediaAspectData(context,mediaAspects.text);return data?data.textScaler??TextScaler.linear(data.textScale):null;}
+  static devicePixelRatioOf(context:BuildContext):number{return mediaAspectData(context,mediaAspects.scale,this).scale;}
+  static maybeDevicePixelRatioOf(context:BuildContext):number|null{return maybeMediaAspectData(context,mediaAspects.scale)?.scale??null;}
+  /** @internal Section estimates observe typography; constraints supply their width. */
+  static _maybeTextMetricsOf(context:BuildContext):Pick<MediaData,'scale'|'textScale'|'textScaler'|'boldText'>|null{return maybeMediaAspectData(context,mediaAspects.textMetrics)??null;}
   static maybeGestureSettingsOf(context:BuildContext):DeviceGestureSettings|null{const data=maybeMediaAspectData(context,mediaAspects.gesture);return data?data.gestureSettings??defaultGestureSettings:null;}
   static gestureSettingsOf(context:BuildContext):DeviceGestureSettings{return mediaAspectData(context,mediaAspects.gesture).gestureSettings??defaultGestureSettings;}
   static maybeNavigationModeOf(context:BuildContext):NavigationMode|null{const data=maybeMediaAspectData(context,mediaAspects.navigation);return data?data.navigationMode??'traditional':null;}

@@ -15,9 +15,25 @@ import {Directionality} from '@nelyx/core/framework/widgets/app-data';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
 import {engineFixture,assertParagraphOwnership} from '../../../packages/material/tests/engine-fixture.mjs';
 import {RenderParagraph as TransportParagraph} from '@nelyx/core/framework/rendering/boxes';
+import {RenderRichParagraph} from '@nelyx/core/framework/rendering/paragraph';
+import {existingSemanticsFor} from '../../dist/framework/rendering/semantics-pipeline.js';
 import {SelectionRegistrar,SelectWordSelectionEvent,ClearSelectionEvent} from '@nelyx/core/framework/rendering/selection';
 import {Offset} from '@nelyx/core/ui/offset';
 const timeout=1_200_000;
+
+test('plain paragraph resize retains its label configuration and refreshes geometry and replacement text',{timeout},async()=>{
+ const f=await engineFixture({fonts:true});let render;
+ const tree=text=>new Directionality('ltr',new RichText(new TextSpan({text}),{style:new TextStyle({fontSize:16})}));
+ try{
+  f.set(tree('Resize keeps this label'));const visit=node=>{if(node instanceof RenderRichParagraph)render=node;node.visitChildren(visit);};visit(f.root.pipeline.root);assert(render);
+  const configuration=existingSemanticsFor(render).configProvider.original;
+  for(const width of [300,180,280]){
+   const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+   assert.equal(existingSemanticsFor(render).configProvider.original,configuration);assert(f.root.nodes.some(node=>node.name==='Resize keeps this label'&&node.bounds.width===width));
+  }
+  f.set(tree('Replacement label'));assert(f.root.nodes.some(node=>node.name==='Replacement label'));assert(!f.root.nodes.some(node=>node.name==='Resize keeps this label'));
+ }finally{f.set(new SizedBox());await f.close();}
+});
 
 test('the actual selectable body keeps its source owner through RTL keys, selection paint and text replacement',{timeout},async()=>{
  const f=await engineFixture({fonts:true}),controller=new TextSelectionController('אבג A😀 한글');let render;

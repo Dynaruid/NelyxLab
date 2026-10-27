@@ -27,6 +27,7 @@ class RenderTheater extends RenderStack {
   override visitChildrenForSemantics(visitor:(child:RenderObject)=>void):void{for(const child of this.children.slice(this.skipCount))visitor(child);}
   override collectSemantics(output:SemanticsNode[],matrix:TransformMatrix=identity,clip?:Rect):void{const own=bounds(matrix,this.size),next=this.clips?(clip?intersect(clip,own):own):clip;for(const child of this.children.slice(this.skipCount))child.collectSemantics(output,multiply(matrix,this.childTransform(child)),next);}
 }
+RenderStack._registerGeometryLayoutSemantics(RenderTheater.prototype);
 export class OverlayTheater extends RenderObjectWidget {
   constructor(readonly children:readonly Widget[],readonly skipCount:number,readonly clipBehavior:Clip){super();}
   get childWidgets():readonly Widget[]{return this.children;}

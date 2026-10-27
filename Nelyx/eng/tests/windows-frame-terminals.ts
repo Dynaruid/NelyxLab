@@ -9,7 +9,7 @@ export function validateNativeFrameTerminals(entries:readonly NativeFrameObserva
   const groups=new Map<string,{started:boolean;packet:NativeFrameObservation[]}>();
   let completed=0,superseded=0;
   for(const entry of entries){
-    if(entry.stage===6||entry.stage===7)continue;
+    if(entry.stage>=6)continue;
     if(entry.stage===5)throw Error('Native frame failed: '+JSON.stringify(entry));
     const key=entry.view+':'+entry.contextGeneration+':'+entry.submission;
     let group=groups.get(key);if(!group)groups.set(key,group={started:false,packet:[]});

@@ -8,11 +8,12 @@ import {ChangeNotifier} from '@nelyx/core/foundation/notifier';
 
 /** A control changes its section; navigation and theme changes rebuild the page. */
 export class GalleryUpdates {
+  readonly page=new ChangeNotifier();
   readonly status=new ChangeNotifier();
   private readonly sections=new Map<string,ChangeNotifier>();
   section(id:string):ChangeNotifier{let signal=this.sections.get(id);if(!signal){signal=new ChangeNotifier();this.sections.set(id,signal);}return signal;}
   change(id:string,update:()=>void,related:readonly string[]=[]):void{update();this.sections.get(id)?.notifyListeners();for(const other of related)this.sections.get(other)?.notifyListeners();}
-  dispose():void{this.status.dispose();for(const signal of this.sections.values())signal.dispose();this.sections.clear();}
+  dispose():void{this.page.dispose();this.status.dispose();for(const signal of this.sections.values())signal.dispose();this.sections.clear();}
 }
 
 /** Catalog membership changes preserve a surviving visible section by ID.

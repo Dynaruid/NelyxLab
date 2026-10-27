@@ -7,6 +7,7 @@ import {AppRegistry,NativeModules,DeviceEventEmitter} from 'react-native';
 import {SharedAssetPool} from './node_modules/@nelyx/sdk/src/backends/shared-assets.ts';
 import {ViewRuntime} from '@nelyx/core/hosting/runtime';
 import {FrameworkRoot} from '@nelyx/core/framework/widgets/root';
+import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';
 import {GestureBinding} from '@nelyx/core/framework/gestures/binding';
 import {ScrollPositionWithSingleContext} from '@nelyx/core/framework/widgets/scroll-position-with-single-context';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
@@ -66,7 +67,7 @@ if(childPolicy!=='legacy'){
  const builder=ListView.builder;
  ListView.builder=function(options){const eligible=(typeof options.itemExtent==='number'&&options.itemExtent>0||options.extentIndex!=null)&&options.cacheExtent===undefined&&options.scrollCacheExtent===undefined&&!options.shrinkWrap&&options.childPolicy===undefined;return builder.call(this,eligible?{...options,childPolicy:{mode:'bounded',preparation:childPolicy==='observed-budget'?'observed-budget':'disabled'}}:options);};
 }
-const diagnostic=traceFlags===null?__DIAGNOSTIC__:(traceFlags&2)!==0,trace=(traceFlags===null?__TRACE__:(traceFlags&1)!==0)||diagnostic,mode:string=__MODE__,resize=__RESIZE__,resizeCase:string=__RESIZE_CASE__,semanticsInterval:number|null=__SEMANTICS_INTERVAL__;
+const diagnostic=traceFlags===null?__DIAGNOSTIC__:(traceFlags&2)!==0,trace=(traceFlags===null?__TRACE__:(traceFlags&1)!==0)||diagnostic,mode:string=__MODE__,resize=__RESIZE__||mode==='live-resize',resizeCase:string=__RESIZE_CASE__,semanticsInterval:number|null=__SEMANTICS_INTERVAL__;
 const v8Profile=__V8_PROFILE__;
 // An intentionally empty RN root exercises the actual native 30s deadline.
 // No Core surface is created and no timer or failure is substituted in the SDK.
@@ -78,7 +79,7 @@ if(mode==='startup-probe'){
 }
 const continuousInput=host.continuousScroll?.()===true;
 const fullCatalog=continuousInput&&host.fullCatalog?.()===true;
-const cpuOnly=mode==='cpu-timing'||mode==='research-engine';
+const cpuOnly=mode==='cpu-timing'||mode==='research-engine'||mode==='live-resize';
 const wheelInput:boolean=__WHEEL_INPUT__;
 const wheelInputMode:string=__WHEEL_INPUT_MODE__;
 const wheelInterval:number=__WHEEL_INTERVAL__,wheelDelta:number=__WHEEL_DELTA__;
@@ -201,8 +202,17 @@ if(diagnostic){
   }
  });
 }
+if(mode==='live-resize'){
+ const pointer=FrameworkRoot.prototype.pointer,packets:any[]=[];(globalThis as any).__resizePointerPackets=packets;
+ FrameworkRoot.prototype.pointer=function(event){if(packets.length<32)packets.push({kind:event.kind,x:event.x,y:event.y,buttons:event.buttons});return pointer.call(this,event);};
+ // Install before the first CPU build (ViewRuntime.pump runs after that build).
+ // This fixture-only sensor follows real Stack layout at the right edge, even
+ // on pages whose own header has no right-aligned content.
+ const build=FrameworkRoot.prototype.build,wrapped=new WeakMap<FrameworkRoot,GlobalKey>();let reported=0;
+ FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){let sensor=wrapped.get(this);if(!sensor){sensor=new GlobalKey('resize-edge-sensor');wrapped.set(this,sensor);const key=sensor,controller=this as any,createRoot=controller.options.createRoot;controller.options={...controller.options,createRoot:(...rootArgs:any[])=>new BasicWidgets.Stack([createRoot(...rootArgs),new BasicWidgets.Positioned(new BasicWidgets.ColoredBox({key,color:0xff00e65b,isAntiAlias:false}),{right:10,top:6,width:2,height:2})],{fit:'expand'})};}const result=build.apply(this,args),render=sensor.currentContext?.findRenderObject();if(render){count('Resize.sensorLayouts');const metrics=args[0].token.metrics,point=render.localToGlobal({x:0,y:0});if(Math.abs(point.x-(metrics.logicalWidth-12))>0.01||Math.abs(point.y-6)>0.01){count('Resize.sensorLayoutMismatches');if(reported++<4)host.report('live-resize-layout '+JSON.stringify({point,expected:{x:metrics.logicalWidth-12,y:6},metrics}));}}return result;};
+}
 const original=ViewRuntime.prototype.pump;ViewRuntime.prototype.pump=function(){view=this;if(semanticsInterval!==null){const controller=(this as any).controller;controller.options={...controller.options,semanticsUpdateInterval:semanticsInterval};}if(trace&&(this as any).controller.sourceSemanticsSnapshot)wrap((this as any).controller.sourceSemanticsSnapshot.constructor,'capture','Semantics.capture');if(cpuOnly){const snapshot=(this as any).controller.sourceSemanticsSnapshot,capture=snapshot?.capture;if(snapshot)snapshot.capture=function(...args:any[]){count('Semantics.captures');return capture.apply(this,args);};}ViewRuntime.prototype.pump=original;return original.apply(this);};
-if(diagnostic||continuousInput){
+if(diagnostic||continuousInput||mode==='live-resize'){
  let failures=0;
  for(const method of ['build','dispose'] as const){const original=FrameworkRoot.prototype[method];(FrameworkRoot.prototype as any)[method]=function(...args:any[]){try{return (original as any).apply(this,args);}catch(error){
   if(failures++<3)try{const causes:Array<Record<string,unknown>>=[],seen=new Set<unknown>(),pending=[{value:error as any,path:method as string,depth:0}];while(pending.length&&seen.size<4096&&causes.length<4){const {value,path,depth}=pending.pop()!;if(seen.has(value))continue;seen.add(value);const children=Array.isArray(value?.errors)?value.errors:[],cause=value?.cause;if(children.length||cause!==undefined){if(cause!==undefined)pending.push({value:cause,path:path+'.cause',depth:depth+1});for(let i=children.length-1;i>=0;i--)pending.push({value:children[i],path:path+'.errors['+i+']',depth:depth+1});}else causes.push({path:path.slice(-500),depth,message:String(value),stack:typeof value?.stack==='string'?value.stack.slice(0,1800):undefined});}host.report('CORE_FAILURE '+JSON.stringify({phase,error:String(error),causes,visited:seen.size}));}catch{/* Diagnostics must preserve the original thrown object. */}
@@ -282,7 +292,57 @@ async function drainWheelRendering(){
  for(;;){while(pending()){if(performance.now()>deadline)throw Error('Final wheel frame did not drain');await delay(1);}await host.windowSnapshot();if(!pending())return;}
 }
 async function resizeSettled(previousGeneration:number){const deadline=performance.now()+3000;while(performance.now()<deadline){const metrics=view.currentMetrics,native=resizeRenderer?.context();if(native&&metrics.nativeSurfaceGeneration>previousGeneration&&Math.round(native.width*metrics.scale)===metrics.physicalWidth&&Math.round(native.height*metrics.scale)===metrics.physicalHeight&&retiredResizeMetrics?.nativeSurfaceGeneration===metrics.nativeSurfaceGeneration&&retiredResizeMetrics.viewportGeneration===metrics.viewportGeneration){settledResizes++;host.report('resize-settled '+metrics.physicalWidth+'x'+metrics.physicalHeight);return;}await delay(16);}throw Error('Resize did not retire a frame matching the current native backing and viewport');}
-async function dragResize(){const generation=view.currentMetrics.nativeSurfaceGeneration;const interval=await host.dragResize();await resizeSettled(generation);return interval;}
+async function dragResize(corner='bottom-right'){const generation=view.currentMetrics.nativeSurfaceGeneration;const interval=await host.dragResize(corner);await resizeSettled(generation);return interval;}
+async function liveResize(){
+ const actions=material().actionCount;await host.pointerClick('demo-elevated',false);await delay(250);await drainWheelRendering();
+ host.report('live-resize-pointer '+JSON.stringify({before:actions,after:material().actionCount,lastAction:material().lastAction,target:view.controller.nodes.find((node:any)=>node.id==='demo-elevated')?.bounds,packets:(globalThis as any).__resizePointerPackets}));
+ if(material().actionCount!==actions+1||material().lastAction!=='Elevated pressed')throw Error('Full-window native pointer click did not reach the Core button');
+ host.report('live-resize-pointer PASS');
+ const api=(globalThis as any).NelyxWindowsHost;
+ const failures:string[]=[];
+ const frameworkErrors:string[]=[],reportError=FlutterError.onError;FlutterError.onError=details=>{frameworkErrors.push(String(details.exception));reportError?.(details);};
+ try{
+ for(const page of ['material','list','cupertino']){
+  if(page==='list')tap('show-list-view');
+  else if(page==='cupertino'){tap('list-view-back');await delay(300);tap('show-cupertino');}
+  for(const corner of ['bottom-right','top-left']){
+  await host.resize(Math.round(500*view.currentMetrics.scale),Math.round(500*view.currentMetrics.scale));
+  await delay(500);await drainWheelRendering();api.drainFrameTrace();
+  const entries:any[]=[];let overflow=false;
+  const collect=()=>{const batch=api.drainFrameTrace();if(entries.length+batch.length>4096)overflow=true;else if(!overflow)entries.push(...batch);};
+  start(page+'-resize-'+corner);const poll=setInterval(collect,16);let interval:any;
+  try{interval=await dragResize(corner);await drainWheelRendering();}finally{clearInterval(poll);collect();}
+  end();
+  if(overflow)throw Error('Live resize trace exceeded its bounded fixture buffer');
+  const requests=entries.filter(entry=>entry.stage===6),updates=entries.filter(entry=>entry.stage===2);
+  const during=updates.filter(entry=>entry.nativeTimestamp>=interval.began&&entry.nativeTimestamp<interval.ended);
+  const latencies=updates.flatMap(entry=>{const request=requests.find(value=>value.surfaceGeneration===entry.surfaceGeneration);return request?[entry.nativeTimestamp-request.nativeTimestamp]:[];}).sort((a,b)=>a-b);
+  const times=[interval.began,...during.map(entry=>entry.nativeTimestamp),interval.ended],maxGap=Math.max(...times.slice(1).map((time,index)=>time-times[index]));
+  const lag=during.flatMap(entry=>{const latest=requests.filter(request=>request.nativeTimestamp<=entry.nativeTimestamp).at(-1);return latest?[Math.max(Math.abs(entry.width-latest.width),Math.abs(entry.height-latest.height))]:[];});
+  const overlappedAdmissions=entries.filter((entry,index)=>entry.stage===7&&entries.slice(0,index).some((front,frontIndex)=>front.stage===2&&front.surfaceGeneration!==entry.surfaceGeneration&&!entries.slice(frontIndex+1,index).some(terminal=>terminal.stage===3&&terminal.surfaceGeneration===front.surfaceGeneration))).length;
+  const prepared=entries.filter(entry=>entry.stage===8),committed=entries.filter(entry=>entry.stage===10),timeouts=entries.filter(entry=>entry.stage===11);
+  const result={page,corner,requests:requests.length,updates:during.length,overlappedAdmissions,prepared:prepared.length,committed:committed.length,timeouts:timeouts.length,sourceSamples:interval.sourceSamples,sourceMisses:interval.sourceMisses,geometrySamples:interval.geometrySamples,geometryMismatches:interval.geometryMismatches,edgeGlyphChanges:interval.edgeGlyphChanges,missingEdgeGlyphs:interval.missingEdgeGlyphs,maximumEdgeDelta:interval.maximumEdgeDelta,durationMs:interval.ended-interval.began,maxGapMs:maxGap,maxSizeLagPx:Math.max(0,...lag),requestToSurfaceP95:latencies[Math.ceil(latencies.length*.95)-1],pixelSamples:interval.pixelSamples,distinctPixelSizes:interval.distinctPixelSizes,backgroundExposures:interval.backgroundExposures,glyphChanges:interval.glyphChanges,missingGlyphs:interval.missingGlyphs,maximumGlyphDelta:interval.maximumGlyphDelta,glyphWidth:interval.glyphWidth,glyphHeight:interval.glyphHeight,...(trace||diagnostic?{stages:entries.map(entry=>({stage:entry.stage,surface:entry.surfaceGeneration,width:entry.width,height:entry.height,t:entry.nativeTimestamp}))}:{}),displayed:'owned-desktop-frame-native-border-and-layout-sensor'};
+  host.report('live-resize '+JSON.stringify(result));
+  validateNativeFrameTerminals(entries);
+  if(during.length<4||maxGap>(interval.ended-interval.began)/2)throw Error('Live resize stalled during the actual sizing loop: '+JSON.stringify(result));
+  if(prepared.length<4||committed.length<4||timeouts.length)throw Error('Resize did not prepare and commit exact frames within its deadline: '+JSON.stringify(result));
+  if(interval.geometrySamples<4||interval.geometryMismatches)throw Error('Committed window geometry outran its actual content frame: '+JSON.stringify(result));
+  if(interval.pixelSamples<8||interval.distinctPixelSizes<4)throw Error('Window capture did not observe enough actual resize frames: '+JSON.stringify({...result,distinctPixelSizes:interval.distinctPixelSizes}));
+  if(interval.backgroundExposures!==0)throw Error('Window background was exposed during live resize: '+JSON.stringify(result));
+  if(interval.glyphChanges!==0||interval.missingGlyphs!==0)failures.push('Header glyphs changed size during live resize: '+JSON.stringify(result));
+  if(interval.edgeGlyphChanges!==0||interval.missingEdgeGlyphs!==0)failures.push('Right header content did not follow the displayed client edge: '+JSON.stringify(result));
+  if(frameworkErrors.length)throw Error('Framework errors during live resize: '+JSON.stringify(frameworkErrors));
+  }
+ }
+ await drainWheelRendering();api.drainFrameTrace();
+ const cancellation=await host.cancelResizePreparation();await drainWheelRendering();
+ const cancelledEntries=api.drainFrameTrace();validateNativeFrameTerminals(cancelledEntries);
+ if(!cancellation.preparedOffTree||!cancellation.restoredActualGeometry||!cancelledEntries.some((entry:any)=>entry.stage===4)||cancelledEntries.some((entry:any)=>entry.stage===11))throw Error('Cancelled resize did not retire its invisible candidate and restore actual geometry: '+JSON.stringify(cancellation));
+ host.report('live-resize-cancellation '+JSON.stringify(cancellation));
+ if(failures.length)throw Error(failures.join('\n'));
+ host.report('live-resize PASS');
+ }finally{FlutterError.onError=reportError;}
+}
 async function resizeWindow(){for(const [width,height]of [[1500,1080],[680,760],[2400,1280],[420,540],[1320,900],[1000,1000]]){host.report('resize '+width+'x'+height);const generation=view.currentMetrics.nativeSurfaceGeneration;await host.resize(width,height);await delay(90);await resizeSettled(generation);}}
 function states(){const all:any[]=[];function visit(element:any){if(element.state)all.push({widget:element.widget,state:element.state});for(const child of element.children)visit(child);}visit(view.controller.root);return all;}
 function material(){return states().find(entry=>entry.widget instanceof ComponentsGallery)!.state;}
@@ -553,6 +613,7 @@ setTimeout(()=>{if(host.startupDeadlineEnabled())return;if(mode==='interactive')
   else if(viewport==='maximized'){const generation=view.currentMetrics.nativeSurfaceGeneration;await host.windowMode('maximize');const deadline=performance.now()+5000;while(view.currentMetrics.nativeSurfaceGeneration<=generation){if(performance.now()>deadline)throw Error('Maximized viewport did not update');await delay(16);}await delay(300);}
  }
  host.report('window-selected '+JSON.stringify(await host.windowSnapshot()));host.report('view-metrics '+JSON.stringify(view.currentMetrics));
+ if(mode==='live-resize'){await liveResize();return;}
  if(wheelInputMode==='os'){
   if(continuousInput){await host.windowMode(viewport==='maximized'?'input-maximized':'input');await delay(100);}
   if((await host.windowSnapshot()).foreground===false)throw Error('Native input workload requires its own foreground window');

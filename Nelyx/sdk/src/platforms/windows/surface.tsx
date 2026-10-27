@@ -8,13 +8,16 @@ import {createWindowsNativeSurfaceProps} from './native-surface.ts';
 import {createWindowsSemanticsTree} from '../../backends/react-native/windows-semantics.tsx';
 import {openWindowsInput} from './input.ts';
 import {createWindowsFrameScheduler} from './frame-clock.ts';
-export interface ApplicationSurfaceProps extends ReactNativeSurfaceProps {}
+export interface ApplicationSurfaceProps extends ReactNativeSurfaceProps {
+  /** The surface covers the full native window; its host supplies resize metrics directly. */
+  readonly windowViewport?:boolean;
+}
 const Surface=createReactNativeSurface<ApplicationSurfaceProps>({
   target:'windows',backend:windowsBackend,assets:windowsAssets,environment:windowsEnvironment,retainOwner:retainWindowsNativeHostOwner,isClosing:isWindowsNativeHostClosing,
   assetServices:{acquire:acquireWindowsAssets,service:windowsAssetService},visibility:()=>windowsBackend().native.AppState,frameScheduler:createWindowsFrameScheduler,
   interaction:owner=>new WindowsInteraction(owner),interactionControls:createWindowsSemanticsTree(windowsBackend),
   openInput(interaction,view,metrics,onError){const {native}=windowsBackend();return openWindowsInput(interaction,view,metrics,native.NativeModules.NelyxWindowsInput,native.DeviceEventEmitter,onError);},
-  requiresNativeBinding:true,nativeViewProps:(_props,binding)=>createWindowsNativeSurfaceProps(binding,verifyWindowsNativeHost,isWindowsNativeHostClosing),
+  requiresNativeBinding:true,nativeViewProps:(props,binding)=>createWindowsNativeSurfaceProps(binding,verifyWindowsNativeHost,isWindowsNativeHostClosing,props.windowViewport===true),
 });
 /** Fabric owns the native surface; shared RN services own AppSession and bounded Graphite leases. */
 export function ApplicationSurface(props:ApplicationSurfaceProps){return windowsBackend().react.createElement(Surface,{...props,...(props.assets?{assets:resolveWindowsAssetConfiguration(props.assets)}:{})});}

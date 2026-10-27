@@ -3,6 +3,8 @@
 #include "../../generated/vulkan/device.h"
 #include <d3d11_4.h>
 #include <dxgi1_2.h>
+#include <dcomp.h>
+#pragma comment(lib,"dcomp.lib")
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Composition.Interop.h>
 #include <winrt/Microsoft.Graphics.DirectX.h>
@@ -20,9 +22,13 @@ class WindowsCompositionDevice final {
     winrt::Microsoft::UI::Composition::CompositionGraphicsDevice graphics{nullptr};
     winrt::com_ptr<ID3D11Device5> device;
     winrt::com_ptr<ID3D11DeviceContext4> context;
+    HWND window=nullptr;
+    winrt::com_ptr<IDCompositionDevice> rootDevice;
+    winrt::com_ptr<IDCompositionTarget> rootTarget;
+    winrt::com_ptr<IDCompositionVisual> rootVisual;
   };
 public:
-  WindowsCompositionDevice(winrt::Microsoft::UI::Composition::Compositor compositor,IDXGIAdapter1* adapter)
+  WindowsCompositionDevice(winrt::Microsoft::UI::Composition::Compositor compositor,IDXGIAdapter1* adapter,HWND window=nullptr)
     :owner(std::this_thread::get_id()),data(std::make_unique<Payload>()) {
     if(!compositor || !adapter)throw std::runtime_error("Actual compositor and explicit hardware DXGI adapter required");
     DXGI_ADAPTER_DESC1 description{};winrt::check_hresult(adapter->GetDesc1(&description));
@@ -36,6 +42,7 @@ public:
     winrt::Microsoft::UI::Composition::ICompositionGraphicsDevice graphics{nullptr};
     winrt::check_hresult(interop->CreateGraphicsDevice(data->device.get(),&graphics));
     data->graphics=graphics.as<winrt::Microsoft::UI::Composition::CompositionGraphicsDevice>();
+    data->window=window;
   }
   ~WindowsCompositionDevice(){if(data && (owner!=std::this_thread::get_id() || surfaces.load() || poisoned.load()))data.release();}
   WindowsCompositionDevice(const WindowsCompositionDevice&)=delete;
@@ -49,6 +56,13 @@ public:
   }
   uint32_t activeSurfaces() const{return surfaces.load();}
   uint64_t logicalTargetBytes() const{return targetBytes.load();}
+  void commitWindowComposition(){
+    requireOwner();if(!data->rootDevice)return;
+    winrt::check_hresult(data->rootDevice->Commit());
+    // Native DirectComposition completion does not need the HWND dispatcher.
+    // Prepared copy retirement is already confirmed before a resize commits.
+    winrt::check_hresult(data->rootDevice->WaitForCommitCompletion());
+  }
   void close() {
     if(owner!=std::this_thread::get_id())throw std::runtime_error("Composition close requires its UI owner");
     if(closed.load())return;
@@ -58,6 +72,17 @@ public:
   }
 private:
   friend class WindowsCompositionSurface;
+  winrt::com_ptr<IDCompositionVisual> createRootVisual(){
+    requireOwner();if(!data->window)throw std::runtime_error("Window viewport requires its actual HWND composition owner");
+    if(!data->rootDevice){
+      winrt::check_hresult(DCompositionCreateDevice(data->device.as<IDXGIDevice>().get(),__uuidof(IDCompositionDevice),data->rootDevice.put_void()));
+      winrt::check_hresult(data->rootDevice->CreateTargetForHwnd(data->window,TRUE,data->rootTarget.put()));
+      winrt::check_hresult(data->rootDevice->CreateVisual(data->rootVisual.put()));
+      winrt::check_hresult(data->rootTarget->SetRoot(data->rootVisual.get()));
+    }
+    winrt::com_ptr<IDCompositionVisual> visual;winrt::check_hresult(data->rootDevice->CreateVisual(visual.put()));
+    winrt::check_hresult(data->rootVisual->AddVisual(visual.get(),TRUE,nullptr));return visual;
+  }
   const std::thread::id owner;
   nelyx::vulkan::Win32DeviceOptions options{};
   std::unique_ptr<Payload> data;

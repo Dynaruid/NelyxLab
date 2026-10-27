@@ -64,6 +64,10 @@ export class SliverSemantics extends _SemanticsBase {
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('container',this.container));properties.add(new DiagnosticsProperty('properties',this.properties));this.properties.debugFillProperties(properties);}
 }
 class RenderSemantics extends RenderSemanticsAnnotations {
+  protected override markNeedsPaintAfterLayout():void{
+    if(this.hasStaticLayoutSemantics(RenderSemantics.prototype,RenderSemantics.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   private hostOptions:SemanticsOptions|null=null;private transportIdOnly=false;
   constructor(widget:Semantics,textDirection:'ltr'|'rtl'|null){super({container:widget.container,explicitChildNodes:widget.explicitChildNodes,excludeSemantics:widget.excludeSemantics,blockUserActions:widget.blockUserActions,properties:widget.properties,localeForSubtree:widget.localeForSubtree,textDirection});this.setHostOptions(widget.transportOptions,'transportId' in widget.options&&widget.options.transportId!=null);this.setRange(widget.transportRange,widget.transportRangeActions);}
   protected override get hasSourceSemanticsConfiguration():boolean{return this.hostOptions===null||this.transportIdOnly;}

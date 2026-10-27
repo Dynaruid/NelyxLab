@@ -3,9 +3,12 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
 import {BuildOwner,StatelessWidget} from '@nelyx/core/framework/widgets/framework';
 import {Row,SizedBox,Builder} from '@nelyx/core/framework/widgets/basic';
+import {resolveTextConfiguration} from '../../dist/framework/widgets/text-input.js';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
-import {MediaQuery,mediaFromView} from '@nelyx/core/framework/widgets/app-data';
+import {MediaQuery,mediaFromView,Localizations} from '@nelyx/core/framework/widgets/app-data';
+import {WidgetsApp} from '@nelyx/core/framework/widgets/app';
 import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
+import {scrollbarMediaPadding} from '../../dist/framework/widgets/scrollbar-raw-source-adapter.js';
 import {FrameworkRoot} from '@nelyx/core/framework/widgets/root';
 import {DeviceGestureSettings} from '@nelyx/core/framework/gestures/gesture-settings';
 import {BorderRadius} from '@nelyx/core/framework/painting/border-radius';
@@ -14,6 +17,17 @@ const timeout=1_200_000;
 class Probe extends StatelessWidget{constructor(builder){super();this.builder=builder;}build(context){return this.builder(context);}}
 const named=(id,name)=>new Semantics(new SizedBox(10,10),{id,role:'text',name});
 function resize(f,values){const metrics=f.root.context.readMetrics();Object.assign(metrics,values,{viewportGeneration:metrics.viewportGeneration+1});f.frame();}
+
+test('scrollbar host padding ignores size and keyboard churn and still observes raw safe-area changes',{timeout},()=>{
+ const f=fixture();let builds=0,padding,data={width:240,height:160,scale:1,textScale:1,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0};
+ const child=new Probe(context=>{builds++;padding=scrollbarMediaPadding(context);return new SizedBox(10,10);}),set=change=>{data={...data,...change};f.set(new MediaQuery(data,child));};
+ try{
+  set({});const before=builds;
+  set({width:300,height:180});set({keyboardInset:40});assert.equal(builds,before);
+  set({safeArea:{left:4,top:6,right:8,bottom:12}});assert.equal(builds,before+1);assert.deepEqual([padding.left,padding.top,padding.right,padding.bottom],[4,6,8,12]);
+  set({width:400,safeArea:{left:4,top:6,right:8,bottom:12}});assert.equal(builds,before+1);
+ }finally{f.close();}
+});
 
 test('a rejected recording or geometry notification never publishes its candidate semantics',{timeout},()=>{
  for(const failure of ['save','getter','close','geometry-throw','geometry-close']){
@@ -132,7 +146,7 @@ test('an isolated layout build keeps a later default-scope rebuild scheduled',{t
 
 test('MediaQuery property readers rebuild only for their observed values while full and unknown-aspect readers remain conservative',{timeout},()=>{
  const f=fixture(),counts={},values={};let data={width:240,height:160,scale:1,textScale:1,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0};
- const readers={full:c=>MediaQuery.of(c).width,text:c=>MediaQuery.textScalerOf(c).scale(10),brightness:MediaQuery.maybePlatformBrightnessOf.bind(MediaQuery),contrast:MediaQuery.maybeHighContrastOf.bind(MediaQuery),padding:c=>MediaQuery.paddingOf(c).bottom,viewPadding:c=>MediaQuery.viewPaddingOf(c).bottom,insets:c=>MediaQuery.viewInsetsOf(c).bottom,gesture:c=>MediaQuery.gestureSettingsOf(c).touchSlop,navigation:MediaQuery.navigationModeOf.bind(MediaQuery),radii:MediaQuery.displayCornerRadiiOf.bind(MediaQuery),multi:c=>[MediaQuery.textScalerOf(c),MediaQuery.maybeHighContrastOf(c)],allThenText:c=>[MediaQuery.of(c),MediaQuery.textScalerOf(c)],textThenAll:c=>[MediaQuery.textScalerOf(c),MediaQuery.of(c)],unknown:c=>c.dependOn(MediaQuery,'consumer-aspect').data.width};
+ const readers={full:c=>MediaQuery.of(c).width,text:c=>MediaQuery.textScalerOf(c).scale(10),scale:MediaQuery.devicePixelRatioOf.bind(MediaQuery),maybeScale:MediaQuery.maybeDevicePixelRatioOf.bind(MediaQuery),brightness:MediaQuery.maybePlatformBrightnessOf.bind(MediaQuery),contrast:MediaQuery.maybeHighContrastOf.bind(MediaQuery),padding:c=>MediaQuery.paddingOf(c).bottom,viewPadding:c=>MediaQuery.viewPaddingOf(c).bottom,insets:c=>MediaQuery.viewInsetsOf(c).bottom,gesture:c=>MediaQuery.gestureSettingsOf(c).touchSlop,navigation:MediaQuery.navigationModeOf.bind(MediaQuery),radii:MediaQuery.displayCornerRadiiOf.bind(MediaQuery),multi:c=>[MediaQuery.textScalerOf(c),MediaQuery.maybeHighContrastOf(c)],allThenText:c=>[MediaQuery.of(c),MediaQuery.textScalerOf(c)],textThenAll:c=>[MediaQuery.textScalerOf(c),MediaQuery.of(c)],unknown:c=>c.dependOn(MediaQuery,'consumer-aspect').data.width};
  const child=new Row(Object.entries(readers).map(([name,read])=>new Probe(c=>{counts[name]=(counts[name]??0)+1;values[name]=read(c);return new SizedBox(5,5);}))),put=(patch,changed)=>{const before={...counts};data={...data,...patch};f.set(new MediaQuery(data,child));for(const name of Object.keys(readers))assert.equal(counts[name],before[name]+(changed.includes(name)?1:0),name+' dependencies for '+Object.keys(patch));};
  const all=['full','allThenText','textThenAll','unknown'];
  try{f.set(new MediaQuery(data,child));
@@ -145,7 +159,7 @@ test('MediaQuery property readers rebuild only for their observed values while f
   put({gestureSettings:new DeviceGestureSettings({touchSlop:12})},[]);
   put({displayCornerRadii:BorderRadius.circular(5)},[...all,'radii']);
   put({displayCornerRadii:BorderRadius.circular(5)},[]);
-  put({scale:2},all);
+  put({scale:2},[...all,'scale','maybeScale']);assert.equal(values.scale,2);assert.equal(values.maybeScale,2);
  }finally{f.close();}
 });
 
@@ -176,6 +190,39 @@ test('viewport changes rebuild actual metrics readers without rebuilding a stabl
   assert.equal(staticBuilds,1);assert.equal(reads,1);resize(f,{logicalWidth:320,physicalWidth:640,scale:2});assert.equal(staticBuilds,1);assert.equal(reads,2);assert.equal(f.root.nodes.find(n=>n.id==='metrics').name,'320:2');
   resize(f,{logicalWidth:400,physicalWidth:800});assert.equal(staticBuilds,1);assert.equal(reads,3);
   f.root.context.readMetrics().rendererGeneration++;f.frame();assert.equal(staticBuilds,2,'Renderer replacement keeps the conservative rebuild');
+ }finally{f.close();}
+});
+
+test('selected metrics readers merge fields and keep full reads conservative across resize and renderer replacement',{timeout},()=>{
+ const f=fixture(),counts={scale:0,size:0,full:0,mixed:0,fullFirst:0},read=f.root.buildOwner.services.readMetrics;
+ const probe=(name,observe)=>new Probe(()=>{counts[name]++;observe();return new SizedBox(5,5);});
+ try{f.set(new Row([probe('scale',()=>read('scale')),probe('size',()=>{read('logicalWidth');read('logicalHeight');}),probe('full',()=>read()),probe('mixed',()=>{read('scale');read();}),probe('fullFirst',()=>{read();read('scale');})]));
+  assert.deepEqual(counts,{scale:1,size:1,full:1,mixed:1,fullFirst:1});
+  resize(f,{logicalWidth:320,physicalWidth:320});assert.deepEqual(counts,{scale:1,size:2,full:2,mixed:2,fullFirst:2});
+  resize(f,{logicalHeight:180,physicalHeight:180});assert.deepEqual(counts,{scale:1,size:3,full:3,mixed:3,fullFirst:3});
+  resize(f,{scale:2,physicalWidth:640,physicalHeight:360});assert.deepEqual(counts,{scale:2,size:3,full:4,mixed:4,fullFirst:4});
+  resize(f,{});assert.deepEqual(counts,{scale:2,size:3,full:5,mixed:5,fullFirst:5});
+  f.root.context.readMetrics().rendererGeneration++;f.frame();assert.deepEqual(counts,{scale:3,size:4,full:6,mixed:6,fullFirst:6});
+ }finally{f.close();}
+});
+
+test('WidgetsApp resizing preserves its default localization catalog and actual option changes refresh the overlay',{timeout},()=>{
+ const f=fixture();let builds=0,catalog;
+ const child=new Probe(context=>{builds++;const locale=Localizations.of(context);catalog=locale.messages;return named('app-locale',locale.locale+':'+locale.text('value'));});
+ try{f.set(new WidgetsApp({child}));const initial=builds,messages=catalog;
+  for(const logicalWidth of [300,320,340]){resize(f,{logicalWidth,physicalWidth:logicalWidth});assert.equal(builds,initial);assert(catalog===messages);}
+  f.set(new WidgetsApp({child:named('app-replacement','New content')}));assert(f.root.nodes.some(node=>node.id==='app-replacement'));
+  f.set(new WidgetsApp({locale:'ko-KR',supportedLocales:['en','ko-KR'],messages:{'ko-KR':{value:'Changed'}},child}));assert.equal(f.root.nodes.find(node=>node.id==='app-locale').name,'ko-KR:Changed');
+ }finally{f.close();}
+});
+
+test('text configuration keeps its widget build during width-only resizing and refreshes on DPI and text scale changes',{timeout},()=>{
+ const f=fixture();let builds=0,scale=0;
+ const text=new Probe(context=>{builds++;const config=resolveTextConfiguration(context,{font:{id:'resize-font',generation:1}});scale=config.scaler.scale(10);return new SizedBox(10,10);});
+ try{f.set(new Probe(context=>new MediaQuery(mediaFromView(context),text)));const initial=builds;
+  for(const logicalWidth of [320,360,280]){resize(f,{logicalWidth,physicalWidth:logicalWidth});assert.equal(builds,initial,'Width changes still relayout the render tree without rebuilding scale readers');}
+  resize(f,{scale:2,physicalWidth:560,physicalHeight:320});assert(builds>initial,'A real DPI change must refresh the text configuration');const afterDpi=builds;
+  resize(f,{environment:{safeArea:{left:0,top:0,right:0,bottom:0},safeAreaSource:'application',keyboardInset:0,keyboardSource:'unavailable',textScale:1.5}});assert(builds>afterDpi);assert.equal(scale,15,'Inherited text scaling must still refresh the text configuration');
  }finally{f.close();}
 });
 

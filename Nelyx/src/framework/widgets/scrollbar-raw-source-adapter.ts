@@ -17,7 +17,7 @@ export function scrollbarGestureKey():GlobalKey<RawGestureDetectorState>{return 
 function owner(state:State<StatefulWidget>):Element{invariant(state.mounted&&state.context instanceof Element,'invalid-scrollbar-owner','Scrollbar services require their actual mounted View');return state.context;}
 export function scrollbarPostFrame(state:State<StatefulWidget>,callback:(duration:number)=>void,options:{debugLabel?:string}={}):void{tickerScheduler(owner(state)).addPostFrameCallback(callback,options);}
 export function scrollbarRegisterSignal(state:State<StatefulWidget>,event:PointerSignalEvent,callback:(event:PointerEvent)=>void):void{owner(state).owner.gestureBinding.pointerSignalResolver.register(event,callback);}
-export function scrollbarMediaPadding(context:BuildContext):EdgeInsets{const value=MediaQuery.of(context).safeArea;return EdgeInsets.fromLTRB(value.left,value.top,value.right,value.bottom);}
+export function scrollbarMediaPadding(context:BuildContext):EdgeInsets{const value=MediaQuery._safeAreaOf(context);return EdgeInsets.fromLTRB(value.left,value.top,value.right,value.bottom);}
 export function scrollbarLocalToGlobal(render:RenderBox,position:Offset):Offset{const value=render.localToGlobal(position);return new Offset(value.x,value.y);}
 const gestureKeys=Object.freeze({accepts:(value:unknown):value is GestureRecognizerType=>typeof value==='function'&&value.prototype instanceof GestureRecognizer,hash:(value:unknown)=>value,equals:(stored:GestureRecognizerType,query:unknown)=>stored===query});
 export function scrollbarGestureMap():DartMap<GestureRecognizerType,GestureRecognizerFactory>{return new DartMap(gestureKeys,(value):value is GestureRecognizerFactory=>value instanceof GestureRecognizerFactory);}

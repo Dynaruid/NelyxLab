@@ -14,6 +14,6 @@ import base from 'react-native/Libraries/NativeComponent/BaseViewConfig';
 const SkiaView=register('SkiaView',()=>createViewConfig({
   uiViewClassName:'SkiaView',bubblingEventTypes:base.bubblingEventTypes,
   directEventTypes:{...base.directEventTypes,topWindowsSurfaceStatus:{registrationName:'onWindowsSurfaceStatus'},topWindowsWheel:{registrationName:'onWindowsWheel'},topWindowsPointer:{registrationName:'onWindowsPointer'},topWindowsKey:{registrationName:'onWindowsKey'},topWindowsKeyboardFocus:{registrationName:'onWindowsKeyboardFocus'},topWindowsText:{registrationName:'onWindowsText'}},
-  validAttributes:{...base.validAttributes,opaque:true,highBitDepth:true,mouseCursor:true,onWindowsSurfaceStatus:true,onWindowsWheel:true,onWindowsPointer:true,onWindowsKey:true,onWindowsKeyboardFocus:true,onWindowsText:true},
+  validAttributes:{...base.validAttributes,opaque:true,highBitDepth:true,mouseCursor:true,windowViewport:true,onWindowsSurfaceStatus:true,onWindowsWheel:true,onWindowsPointer:true,onWindowsKey:true,onWindowsKeyboardFocus:true,onWindowsText:true},
 })) as HostComponent<SkiaBaseViewProps>;
 export default SkiaView;

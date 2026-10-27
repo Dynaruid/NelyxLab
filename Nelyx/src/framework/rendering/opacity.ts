@@ -20,3 +20,4 @@ export class RenderOpacity extends RenderProxyBox {
   override visitChildrenForSemantics(visitor:(child:RenderObject)=>void):void{if(this.alpha!==0||this.include)super.visitChildrenForSemantics(visitor);}
   override collectSemantics(output:SemanticsNode[],matrix?:TransformMatrix,clip?:Rect):void{if(this.alpha!==0||this.include)super.collectSemantics(output,matrix,clip);}
 }
+RenderProxyBox._registerGeometryLayoutSemantics(RenderOpacity.prototype);

@@ -28,7 +28,7 @@ export class DividerRenderWidget extends LeafRenderObjectWidget {
     // separate pure scopes. Keep their lookup order and distinct directions.
     context.maybeDependOn(Directionality)?.direction;
     const direction=context.maybeDependOn(Directionality)?.direction??null;
-    const painting=new ImageConfiguration({images:context.services.images??null,textDirection:context.maybeDependOn(Directionality)?.direction??null,devicePixelRatio:context.services.readMetrics().scale,locale:context.maybeDependOn(Localizations)?.locale??null});
+    const painting=new ImageConfiguration({images:context.services.images??null,textDirection:context.maybeDependOn(Directionality)?.direction??null,devicePixelRatio:context.services.readMetrics('scale').scale,locale:context.maybeDependOn(Localizations)?.locale??null});
     (render as RenderDivider).configure(this.configuration,direction,painting);
   }
 }
@@ -69,3 +69,4 @@ class RenderDivider extends RenderConstrainedBox {
     if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Divider decoration retirement failed');
   }
 }
+RenderConstrainedBox._registerGeometryLayoutSemantics(RenderDivider.prototype);

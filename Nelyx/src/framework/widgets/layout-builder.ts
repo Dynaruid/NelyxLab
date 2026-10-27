@@ -67,3 +67,4 @@ class _RenderLayoutBuilder extends RenderAbstractLayoutBuilderMixin<BoxConstrain
   protected override computeDryBaseline(_constraints:BoxConstraints,_baseline:TextBaseline):never{throw new Error('LayoutBuilder cannot compute dry baseline without speculative tree mutation');}
   protected override performLayout(constraints:BoxConstraints){this.runLayoutCallback();if(this.child){this.child.layout(constraints,{parentUsesSize:true});this.child.layoutOffset={x:0,y:0};return constraints.constrain(this.child.size);}return constraints.biggest;}
 }
+RenderBox._registerGeometryLayoutSemantics(_RenderLayoutBuilder.prototype);

@@ -9,10 +9,11 @@ import type {Key} from '../../foundation/key.ts';
 import {applyDartType} from '../../foundation/dart-type-witness.ts';
 import type {DartTypeWitness} from '../../foundation/dart-type-witness.ts';
 import {scrollbarStatefulType,scrollbarStateType,scrollbarTickerStateType} from './scrollbar-raw-source-adapter.ts';
-import {SourceRawScrollbar,SourceRawScrollbarState} from './scrollbar.generated.ts';
+import {SourceRawScrollbar,SourceRawScrollbarState,SourceScrollbarPainter} from './scrollbar.generated.ts';
+import {scrollbarRegisterEmptyPainterSemantics} from './scrollbar-painter-source-adapter.ts';
 
 export abstract class ScrollbarStatelessHost extends StatelessWidget {
-    constructor({key=null}:{key?:Key|null}={}){super(key);}
+    constructor({key=null}:{key?:Key|null}={}){super(key);scrollbarRegisterEmptyPainterSemantics(SourceScrollbarPainter.prototype);}
 }
 export abstract class ScrollbarInheritedThemeHost extends InheritedTheme {
     constructor({key=null,child}:{key?:Key|null;child:Widget}){super(child,key);}

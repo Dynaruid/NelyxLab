@@ -3,6 +3,14 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {createWindowsNativeSurfaceProps} from '../../sdk/dist/platforms/windows/native-surface.js';
 const timeout=1_200_000;
 
+test('full-window surfaces explicitly require native viewport ownership while embedded surfaces keep Fabric layout',{timeout},()=>{
+  const ready=[],errors=[];const binding={ready:value=>ready.push(value),visibility(){},failed:error=>errors.push(error)};
+  assert.equal(createWindowsNativeSurfaceProps(binding,()=>{}).windowViewport,false);
+  const props=createWindowsNativeSurfaceProps(binding,()=>{},()=>false,true);assert.equal(props.windowViewport,true);
+  props.onWindowsSurfaceStatus({nativeEvent:status({windowViewport:true})});assert.equal(ready.length,1);assert.equal(errors.length,0);
+  props.onWindowsSurfaceStatus({nativeEvent:status({windowViewport:false,surfaceGeneration:6})});assert.equal(ready.length,1);assert.match(errors[0].message,/viewport ownership/);
+});
+
 test('native closing suspends late surface receipts before active admission without hiding native failures',{timeout},()=>{
   let closing=false,verified=0;const ready=[],visibility=[],errors=[];
   const props=createWindowsNativeSurfaceProps({ready:value=>ready.push(value),visibility:value=>visibility.push(value),failed:error=>errors.push(error)},()=>{verified++;if(closing)throw Error('Active admission is closed');},()=>closing);

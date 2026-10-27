@@ -12,6 +12,12 @@ import {PageRouteBuilder} from '@nelyx/core/framework/widgets/pages';
 import {Offstage} from '@nelyx/core/framework/widgets/offstage';
 import {ChangeNotifier} from '@nelyx/core/foundation/notifier';
 import {FramePictureService} from '@nelyx/core/hosting/pictures';
+import {existingSemanticsFor} from '../../dist/framework/rendering/semantics-pipeline.js';
+import {AlwaysStoppedAnimation} from '@nelyx/core/framework/animation/animations';
+import {Color} from '@nelyx/core/ui/color';
+import {SourceScrollbarPainter} from '../../dist/framework/widgets/scrollbar.generated.js';
+import {scrollbarCorePainter,scrollbarRegisterEmptyPainterSemantics} from '../../dist/framework/widgets/scrollbar-painter-source-adapter.js';
+import '@nelyx/core/framework/widgets/scrollbar';
 const timeout=1_200_000;
 class Painter extends CustomPainter {
   count=0;color=0xff123456;
@@ -19,6 +25,21 @@ class Painter extends CustomPainter {
   paint(canvas){this.count++;canvas.rect({x:0,y:0,width:10,height:10},this.color);}
   shouldRepaint(){return false;}
 }
+
+test('scrollbar resize retains empty painter semantics and observes an overridden source builder',{timeout},()=>{
+  scrollbarRegisterEmptyPainterSemantics(SourceScrollbarPainter.prototype);
+  const f=fixture(),source=new SourceScrollbarPainter({color:new Color(0xff123456),fadeoutOpacityAnimation:new AlwaysStoppedAnimation(0)});
+  const resize=width=>{const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:width,physicalWidth:width,viewportGeneration:metrics.viewportGeneration+1});f.frame();};
+  try{
+    f.set(new CustomPaint(new SizedBox(20,20),{painter:scrollbarCorePainter(source)}));
+    const render=f.root.pipeline.root,configuration=existingSemanticsFor(render).configProvider.original;
+    resize(300);assert.equal(existingSemanticsFor(render).configProvider.original,configuration);
+    Object.defineProperty(source,'semanticsBuilder',{configurable:true,get(){return size=>[new CustomPainterSemantics({rect:{x:0,y:0,width:size.width,height:size.height},properties:{role:'text',name:`Width ${size.width}`,enabled:true}})];}});
+    resize(280);assert(f.root.nodes.some(node=>node.name==='Width 280'));
+    resize(260);assert(f.root.nodes.some(node=>node.name==='Width 260'));assert(!f.root.nodes.some(node=>node.name==='Width 280'));
+    delete source.semanticsBuilder;resize(300);assert(!f.root.nodes.some(node=>node.name?.startsWith('Width ')));
+  }finally{f.close();source.dispose();}
+});
 
 test('CustomPainter repaint signals preserve semantics while delegate semantic changes still publish',{timeout},()=>{
   const f=fixture(),changes=new ChangeNotifier(),calls=[];let updates=0;

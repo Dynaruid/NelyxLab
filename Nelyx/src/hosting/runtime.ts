@@ -75,7 +75,8 @@ export interface ViewControllerContext extends ViewServices {
   readonly owner: ViewOwner; readonly resources: ResourceRegistry;
   readonly requestFrame: () => void;
   readonly requestForcedFrame?:()=>void;
-  readonly readMetrics: () => ViewMetrics;
+  /** Widget builds may observe selected fields; an omitted selection observes all metrics. */
+  readonly readMetrics: (...fields:readonly (keyof ViewMetrics)[]) => ViewMetrics;
   /** The View owner is authoritative before controller/service retirement. */
   readonly readStatus:()=>ViewRuntimeStatus;
   readonly reportError?:(error:unknown)=>void;

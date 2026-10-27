@@ -587,7 +587,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     return undefined;
   }
   /** The host collects semantics on the next frame, independently of paint caches. */
-  markNeedsSemanticsUpdate():void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)pipelineSemantics(this.owner).requestUpdate(this);else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
+  markNeedsSemanticsUpdate():void{this.invalidateSemantics(false);}
+  /** Stored scroll extents change with layout, while labels and action availability stay fixed. */
+  protected markNeedsSemanticsGeometryUpdate():void{this.invalidateSemantics(true);}
+  private invalidateSemantics(geometryOnly:boolean):void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)pipelineSemantics(this.owner).requestUpdate(this,geometryOnly);else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
   get localTransform():TransformMatrix {return identity;}
   get isDisplayed():boolean{return this.parent?.isDisplayed??true;}
   get clips():boolean {return false;}
@@ -1063,6 +1066,31 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
 
 export type TextBaseline='alphabetic'|'ideographic';
 export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObject>> extends RenderObject {
+  private static readonly geometryLayoutSemantics=new WeakSet<object>();
+  private static readonly defaultLayoutGetters={
+    children:Object.getOwnPropertyDescriptor(RenderBox.prototype,'children')!.get!,
+    objectChildren:Object.getOwnPropertyDescriptor(RenderObject.prototype,'children')!.get!,
+    semantics:Object.getOwnPropertyDescriptor(RenderBox.prototype,'semantics')!.get!,
+    transport:Object.getOwnPropertyDescriptor(RenderBox.prototype,'semanticsTransport')!.get!,
+    source:Object.getOwnPropertyDescriptor(RenderObject.prototype,'hasSourceSemanticsConfiguration')!.get!,
+  };
+  private static readonly defaultLayoutMethods={visit:RenderObject.prototype.visitChildren,semantics:RenderBox.prototype.visitChildrenForSemantics,assemble:RenderObject.prototype.assembleSemanticsNode,describe:RenderBox.prototype.describeSemanticsConfiguration};
+  private usesLayoutGetter(name:string,getter:Function):boolean{
+    let prototype:object|null=this;
+    while(prototype){const descriptor=Object.getOwnPropertyDescriptor(prototype,name);if(descriptor)return descriptor.get===getter;prototype=Object.getPrototypeOf(prototype);}
+    return false;
+  }
+  private hasDefaultLayoutSemantics():boolean{
+    const methods=RenderBox.defaultLayoutMethods,getters=RenderBox.defaultLayoutGetters;
+    return this.visitChildren===methods.visit&&this.visitChildrenForSemantics===methods.semantics&&this.assembleSemanticsNode===methods.assemble&&this.describeSemanticsConfiguration===methods.describe&&Object.getOwnPropertyDescriptor(RenderObject.prototype,'children')?.get===getters.objectChildren&&this.usesLayoutGetter('children',getters.children)&&this.usesLayoutGetter('semantics',getters.semantics)&&this.usesLayoutGetter('semanticsTransport',getters.transport)&&this.usesLayoutGetter('hasSourceSemanticsConfiguration',getters.source);
+  }
+  /** @internal Exact built-in types whose layout only changes semantic geometry. */
+  static _registerGeometryLayoutSemantics(...prototypes:readonly object[]):void{for(const prototype of prototypes)RenderBox.geometryLayoutSemantics.add(prototype);}
+  protected override markNeedsPaintAfterLayout():void{
+    const prototype=Object.getPrototypeOf(this);
+    if((RenderBox.geometryLayoutSemantics.has(prototype)||this.hasDefaultLayoutSemantics())&&this.hasDefaultPaintSemantics(prototype))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('size',this.measuredSize??null,{missingIfNull:true}));}
   private readonly childType:abstract new (...args:never[])=>RenderObject;
   /** Non-box child protocols supply a runtime token as generic types erase. */
@@ -1103,7 +1131,11 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   /** Specialize only the unchanged built-in renderer. Subclass or instance
    * semantics and paint hooks retain conservative configuration invalidation. */
   protected hasDefaultPaintSemantics(prototype:object,paintInvalidator:RenderObject['markNeedsPaint']=RenderObject.prototype.markNeedsPaint):boolean{
-    return Object.getPrototypeOf(this)===prototype&&this.markNeedsPaint===paintInvalidator&&this.describeSemanticsConfiguration===RenderBox.prototype.describeSemanticsConfiguration&&this.semanticsTransport===null&&!Object.hasOwn(this,'semantics')&&!Object.hasOwn(this,'semanticsTransport')&&!Object.hasOwn(this,'hasSourceSemanticsConfiguration')&&!Object.hasOwn(this,'semanticBounds')&&!Object.hasOwn(this,'paintBounds')&&!Object.hasOwn(this,'visitChildrenForSemantics')&&!Object.hasOwn(this,'visitChildren')&&!Object.hasOwn(this,'paint')&&!Object.hasOwn(this,'localTransform')&&!Object.hasOwn(this,'childTransform')&&!Object.hasOwn(this,'applyPaintTransform')&&!Object.hasOwn(this,'describeApproximatePaintClip')&&!Object.hasOwn(this,'describeSemanticsClip')&&!Object.hasOwn(this,'paintsChild')&&!Object.hasOwn(this,'clips');
+    return this.semanticsTransport===null&&this.hasStaticLayoutSemantics(prototype,RenderBox.prototype.describeSemanticsConfiguration,paintInvalidator);
+  }
+  /** Stored annotations invalidate through their setters; layout only refreshes geometry. */
+  protected hasStaticLayoutSemantics(prototype:object,configuration:RenderObject['describeSemanticsConfiguration'],paintInvalidator:RenderObject['markNeedsPaint']=RenderObject.prototype.markNeedsPaint):boolean{
+    return Object.getPrototypeOf(this)===prototype&&this.markNeedsPaint===paintInvalidator&&this.describeSemanticsConfiguration===configuration&&!Object.hasOwn(this,'semantics')&&!Object.hasOwn(this,'semanticsTransport')&&!Object.hasOwn(this,'hasSourceSemanticsConfiguration')&&!Object.hasOwn(this,'semanticBounds')&&!Object.hasOwn(this,'paintBounds')&&!Object.hasOwn(this,'visitChildrenForSemantics')&&!Object.hasOwn(this,'visitChildren')&&!Object.hasOwn(this,'paint')&&!Object.hasOwn(this,'localTransform')&&!Object.hasOwn(this,'childTransform')&&!Object.hasOwn(this,'applyPaintTransform')&&!Object.hasOwn(this,'describeApproximatePaintClip')&&!Object.hasOwn(this,'describeSemanticsClip')&&!Object.hasOwn(this,'paintsChild')&&!Object.hasOwn(this,'clips');
   }
   override visitChildrenForSemantics(visitor:(child:RenderObject)=>void):void{const role=this.semanticsTransport?.role;if(!this.hasSourceSemanticsConfiguration&&(role==='button'||role==='text-field'))return;super.visitChildrenForSemantics(visitor);}
   override layout(constraints:BoxConstraints,options:LayoutOptions={}):void {

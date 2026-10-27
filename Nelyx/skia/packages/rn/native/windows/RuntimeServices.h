@@ -3,6 +3,7 @@
 #include "RNSkVulkanPlatformContext.h"
 #include <ReactCommon/CallInvoker.h>
 #include "rnskia/RNSkOwnerAsyncQueue.h"
+#include "WindowsResizeCoordinator.h"
 #include "include/ports/SkTypeface_win.h"
 #include <ReactContext.h>
 #include <windows.h>
@@ -20,9 +21,10 @@ namespace RNSkia {
 class WindowsRuntimeServices final : public std::enable_shared_from_this<WindowsRuntimeServices> {
 public:
   WindowsRuntimeServices(winrt::Microsoft::ReactNative::ReactContext context,
-      std::shared_ptr<facebook::react::CallInvoker> invoker,std::vector<std::wstring> roots)
+      std::shared_ptr<facebook::react::CallInvoker> invoker,std::vector<std::wstring> roots,
+      std::shared_ptr<WindowsResizeCoordinator> resize={})
       : context(std::move(context)),owner(std::this_thread::get_id()),
-        async(std::make_shared<RNSkOwnerAsyncQueue<RNSkAsyncResult>>(
+        resize(std::move(resize)),async(std::make_shared<RNSkOwnerAsyncQueue<RNSkAsyncResult>>(
           [invoker](auto job){invoker->invokeAsync(std::move(job));})) {
     if(!this->context || !invoker || roots.empty() || roots.size()>8)
       throw std::runtime_error("Windows services require actual RN context/invoker and 1..8 asset roots");
@@ -119,18 +121,22 @@ private:
   void postUi(std::function<void()> job) {
     uint64_t id;
     {std::lock_guard lock(mutex);if(failed.load())throw std::runtime_error("Windows UI task failed: "+uiFailure);if(sealed.load())throw std::runtime_error("Windows UI admission closed");if(jobs.size()>=64)throw std::runtime_error("Windows UI queue full (64 pending jobs)");id=++next;jobs.emplace(id,std::move(job));}
-    context.UIDispatcher().Post([weak=weak_from_this(),id]() {
+    auto run=[weak=weak_from_this(),id]() {
       auto self=weak.lock();if(!self)return;std::function<void()> task;
       {std::lock_guard lock(self->mutex);auto found=self->jobs.find(id);if(self->sealed.load() || found==self->jobs.end())return;task=std::move(found->second);self->jobs.erase(found);++self->inFlight;}
       try{task();}catch(const winrt::hresult_error& error){self->recordUiFailure("HRESULT="+std::to_string(error.code().value)+" "+winrt::to_string(error.message()));}
       catch(const std::exception& error){self->recordUiFailure(error.what());}catch(...){self->recordUiFailure("unknown native exception");}
       task=nullptr;{std::lock_guard lock(self->mutex);--self->inFlight;}
-    });
+    };
+    auto dispatcher=context.UIDispatcher();
+    if(resize)resize->post(std::move(run),[dispatcher](auto job){dispatcher.Post(std::move(job));});
+    else dispatcher.Post(std::move(run));
   }
   void requireOwner() const {if(owner!=std::this_thread::get_id())throw std::runtime_error("Windows services require their JS owner");}
   winrt::Microsoft::ReactNative::ReactContext context;
   const std::thread::id owner;
   std::vector<std::wstring> assetRoots;
+  std::shared_ptr<WindowsResizeCoordinator> resize;
   std::shared_ptr<RNSkOwnerAsyncQueue<RNSkAsyncResult>> async;
   std::atomic<bool> sealed{false},failed{false};
   std::mutex mutex;

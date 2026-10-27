@@ -44,6 +44,23 @@ test('the shared app entry forwards the accessibility build override and retains
   assert.equal(main(undefined,{accessibilityEnabled:true}).definition.accessibilityEnabled,true);
 });
 
+test('window resizing retains scroll positions and gallery pages until responsive structure or theme changes',{timeout},async()=>{
+ const f=await gallery(),metrics=f.root.context.readMetrics();
+ const stateFor=predicate=>{let state;const visit=element=>{if(predicate(element.widget))state=element.stateObject;element.visitChildren(visit);};visit(f.root.root);assert(state);return state;};
+ const resize=(width,height=800)=>{Object.assign(metrics,{logicalWidth:width,logicalHeight:height,physicalWidth:Math.round(width*metrics.scale),physicalHeight:Math.round(height*metrics.scale),viewportGeneration:metrics.viewportGeneration+1});f.frame();};
+ const observePage=state=>{let builds=0;const page=state.page;state.page=function(...args){builds++;return page.apply(this,args);};return ()=>builds;};
+ try{
+  f.tap('show-list-view');const list=stateFor(widget=>widget instanceof ListViewPage),position=list.scroll.position;
+  for(const width of [1000,1020,1040]){resize(width);assert(list.scroll.position===position,'A size-only change must keep the live ScrollPosition');}
+  f.tap('list-view-back');const material=stateFor(widget=>widget instanceof ComponentsGallery),materialBuilds=observePage(material),materialPosition=material.firstScroll.position;
+  for(const width of [1030,1020,1000]){resize(width);assert(material.firstScroll.position===materialPosition,'Material scroll position changed on resize');assert.equal(materialBuilds(),0);}
+  resize(580);assert(materialBuilds()>0,'Crossing the compact breakpoint must rebuild the page');const beforeTheme=materialBuilds();f.tap('toggle-theme');assert(materialBuilds()>beforeTheme);
+  f.tap('show-cupertino');const cupertino=stateFor(widget=>widget.constructor.name==='CupertinoGalleryPage'),cupertinoBuilds=observePage(cupertino),cupertinoPosition=cupertino.scroll.position;
+  for(const width of [570,560,550]){resize(width);assert(cupertino.scroll.position===cupertinoPosition,'Cupertino scroll position changed on resize');assert.equal(cupertinoBuilds(),0);}
+  const beforeCupertinoTheme=cupertinoBuilds();f.tap('cupertino-toggle-theme');assert(cupertinoBuilds()>beforeCupertinoTheme);
+ }finally{f.close();}
+});
+
 test('control and status changes rebuild their owning section while the gallery page stays retained',{timeout},async()=>{
   const f=await gallery();
   const stateFor=predicate=>{let state;const visit=element=>{if(predicate(element.widget))state=element.stateObject;element.visitChildren(visit);};visit(f.root.root);assert(state);return state;};

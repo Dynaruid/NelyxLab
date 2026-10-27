@@ -40,3 +40,4 @@ export class RenderButtonInputPadding extends RenderShiftedBox {
         return true; const child = this.child; if (!child)
         return false; const center = { x: child.size.width / 2, y: child.size.height / 2 }; return child.hitTest(center, result, multiply([0, 0, 0, 0, center.x, center.y], toLocal)); }
 }
+RenderShiftedBox._registerGeometryLayoutSemantics(RenderButtonInputPadding.prototype);

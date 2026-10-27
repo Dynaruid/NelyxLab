@@ -23,7 +23,8 @@ inline auto WindowsCompositionDeviceProperty() {
 }
 struct WindowsSurfaceStatus {
   std::string phase,reason;uint64_t nativeId=0,viewGeneration=0,surfaceGeneration=0,frames=0,reactTag=0,layoutRevision=0;
-  double logicalWidth=0,logicalHeight=0,width=0,height=0,scale=1;
+  double logicalWidth=0,logicalHeight=0,width=0,height=0,scale=1,presentedWidth=0,presentedHeight=0;
+  uint64_t presentedSurfaceGeneration=0;
   bool bound=false,visible=false,precisionAvailable=false;
 };
 struct WindowsSkiaViewOptions {
@@ -32,7 +33,7 @@ struct WindowsSkiaViewOptions {
 };
 struct WindowsSkiaProps : winrt::implements<WindowsSkiaProps,winrt::Microsoft::ReactNative::IComponentProps> {
   WindowsSkiaProps(winrt::Microsoft::ReactNative::ViewProps const&,winrt::Microsoft::ReactNative::IComponentProps const& previous) {
-    if(previous){auto old=previous.as<WindowsSkiaProps>();nativeId=old->nativeId;opaque=old->opaque;highBitDepth=old->highBitDepth;mouseCursor=old->mouseCursor;}
+    if(previous){auto old=previous.as<WindowsSkiaProps>();nativeId=old->nativeId;opaque=old->opaque;highBitDepth=old->highBitDepth;mouseCursor=old->mouseCursor;windowViewport=old->windowViewport;}
   }
   void SetProp(uint32_t,winrt::hstring const& name,winrt::Microsoft::ReactNative::IJSValueReader const& value) noexcept {
     using winrt::Microsoft::ReactNative::ReadValue;
@@ -40,10 +41,11 @@ struct WindowsSkiaProps : winrt::implements<WindowsSkiaProps,winrt::Microsoft::R
     else if(name==L"opaque")ReadValue(value,opaque);
     else if(name==L"highBitDepth")ReadValue(value,highBitDepth);
     else if(name==L"mouseCursor")ReadValue(value,mouseCursor);
+    else if(name==L"windowViewport")ReadValue(value,windowViewport);
   }
   std::string nativeId;
   std::string mouseCursor="basic";
-  bool opaque=false,highBitDepth=false;
+  bool opaque=false,highBitDepth=false,windowViewport=false;
 };
 class WindowsSkiaViewState final : public std::enable_shared_from_this<WindowsSkiaViewState> {
   struct PointerSample {std::string device;double x,y;uint64_t generation;};
@@ -67,7 +69,8 @@ class WindowsSkiaViewState final : public std::enable_shared_from_this<WindowsSk
     uint64_t nextKeyboardProxy=0;
     std::map<int64_t,std::pair<uint64_t,uint64_t>> keyboardProxies;
     bool keyboardFocused=false;
-    std::function<void()> unwatchVisibility;
+    std::function<void()> unwatchVisibility,unwatchViewport;
+    bool windowViewport=false;
     bool failed=false,inputRetiring=false,closing=false;
   };
 public:
@@ -117,20 +120,37 @@ public:
     if(parsed.ec!=std::errc{}||parsed.ptr!=props.nativeId.data()+props.nativeId.size()||!id||id>9007199254740991ULL)
       throw std::runtime_error("Windows SkiaView nativeID must be a positive safe integer");
     if(data->status.nativeId!=id){data->inputRetiring=true;notifyInputSurface();closeBinding();data->status.nativeId=id;++data->status.viewGeneration;data->inputRetiring=false;}
-    bindIfReady();notifyInputSurface();
+    configureWindowViewport(props.windowViewport);bindIfReady();notifyInputSurface();
+  }
+  void configureWindowViewport(bool enabled){
+    if(enabled==bool(data->unwatchViewport))return;
+    if(data->view)throw std::runtime_error("Window viewport ownership requires a remount when changed");
+    if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=enabled;
+    if(enabled)data->unwatchViewport=session->observeWindowViewport([weak=weak_from_this()](WindowsCompositionSession::WindowViewport viewport){if(auto self=weak.lock();self&&self->data&&!self->data->closing)self->layoutWindowViewport(viewport);});
+  }
+  void layoutWindowViewport(WindowsCompositionSession::WindowViewport viewport){
+    auto metrics=data->desiredLayout.value_or(winrt::Microsoft::ReactNative::LayoutMetrics{});
+    metrics.Frame={0,0,float(viewport.width)/viewport.scale,float(viewport.height)/viewport.scale};metrics.PointScaleFactor=viewport.scale;
+    layoutContent(metrics);
   }
   void layout(winrt::Microsoft::ReactNative::LayoutMetrics const& metrics) {
+    requireUi();if(!data||data->failed||data->closing)return;
+    if(data->windowViewport){if(const auto viewport=session->getWindowViewport())layoutWindowViewport(*viewport);return;}
+    layoutContent(metrics);
+  }
+  void layoutContent(winrt::Microsoft::ReactNative::LayoutMetrics const& metrics) {
     requireUi();if(!data||data->failed||data->closing)return;
     const double scale=metrics.PointScaleFactor,w=std::round(double(metrics.Frame.Width)*scale),h=std::round(double(metrics.Frame.Height)*scale);
     if(!std::isfinite(scale)||scale<=0||scale>8||!std::isfinite(w)||!std::isfinite(h)||w<0||h<0||w>4096||h>4096)
       throw std::runtime_error("Windows SkiaView backing dimensions exceed admission");
+    data->visual.Size({static_cast<float>(w),static_cast<float>(h)});
     if(data->desiredLayout){const auto& old=*data->desiredLayout;if(old.PointScaleFactor==metrics.PointScaleFactor&&old.Frame.Width==metrics.Frame.Width&&old.Frame.Height==metrics.Frame.Height)return;}
     data->desiredLayout=metrics;const auto revision=++data->status.layoutRevision;
+    if(data->status.bound&&data->status.visible&&w>0&&h>0)session->resize->requested(data->status.nativeId,revision);
     session->frameTrace.add({},data->status.nativeId,revision,6,static_cast<uint32_t>(w),static_cast<uint32_t>(h));
     cancelPointers();if(auto precision=data->precision.lock())precision->cancel();
-    // Keep one admitted immutable epoch active through its terminal. Replacing
+    // Keep one admitted immutable epoch active through its surface commit. Replacing
     // its backing on every WM_SIZE would reject all CPU frames under fast drag.
-    data->visual.Size({static_cast<float>(w),static_cast<float>(h)});
     if(data->resizeAwaiting&&data->status.visible&&data->view&&w>0&&h>0){
       data->pendingLayout=metrics;data->pendingLayoutRevision=revision;emit("resize-pending","");return;
     }
@@ -152,12 +172,17 @@ public:
   }
   bool pointerGeometryReady()const{return data&&data->status.surfaceGeneration==data->status.layoutRevision&&data->presentedGeneration==data->status.surfaceGeneration;}
   void emitter(winrt::Microsoft::ReactNative::EventEmitter value) {requireUi();if(!data)return;data->emitter=std::move(value);if(data->failed)emit("failed",data->status.reason);else if(data->status.bound)emit("bound","");}
+  bool ownsWindowViewport()const{return data&&data->windowViewport;}
+  auto windowPointer()const{return session->windowPointer;}
   void wheel(winrt::Microsoft::ReactNative::Composition::Input::PointerRoutedEventArgs const& args) {
-    requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady())return;
-    auto point=args.GetCurrentPoint(static_cast<int64_t>(data->status.reactTag));
+    if(!data||ownsWindowViewport())return;
+    if(wheelPoint(args.GetCurrentPoint(static_cast<int64_t>(data->status.reactTag))))args.Handled(true);
+  }
+  template<class Point> bool wheelPoint(Point const& point) {
+    requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady())return false;
     auto properties=point.Properties();auto position=point.Position();
     INPUT_MESSAGE_SOURCE source{};const bool trackpad=GetCurrentInputMessageSource(&source)&&source.deviceType==IMDT_TOUCHPAD;
-    if(trackpad)if(auto precision=data->precision.lock();precision&&precision->ownsWheel()){args.Handled(true);return;}
+    if(trackpad)if(auto precision=data->precision.lock();precision&&precision->ownsWheel())return true;
     UINT units=3;SystemParametersInfoW(properties.IsHorizontalMouseWheel()?SPI_GETWHEELSCROLLCHARS:SPI_GETWHEELSCROLLLINES,0,&units,0);
     const auto extent=units==WHEEL_PAGESCROLL?(properties.IsHorizontalMouseWheel()?data->status.logicalWidth:data->status.logicalHeight):double(units)*16.0;
     const auto delta=-double(properties.MouseWheelDelta())/120.0*extent;
@@ -166,16 +191,19 @@ public:
       {"deltaX",properties.IsHorizontalMouseWheel()?delta:0.0},{"deltaY",properties.IsHorizontalMouseWheel()?0.0:delta},
       {"surfaceGeneration",double(data->status.surfaceGeneration)},{"timestamp",windowsMonotonicMilliseconds()},{"sourceTimestamp",double(point.Timestamp())},
       {"sequence",double(++data->inputSequence)},{"pointer",double(point.PointerId())},{"device",trackpad?"trackpad":"mouse"}});
-    data->emitter.DispatchEvent(L"windowsWheel",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});args.Handled(true);
+    data->emitter.DispatchEvent(L"windowsWheel",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});return true;
   }
   void pointer(std::string kind,winrt::Microsoft::ReactNative::Composition::Input::PointerRoutedEventArgs const& args) {
+    if(data&&!ownsWindowViewport())pointerPoint(std::move(kind),args.GetCurrentPoint(static_cast<int32_t>(data->status.reactTag)));
+  }
+  template<class Point> void pointerPoint(std::string kind,Point const& point) {
     requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady())return;
-    using namespace winrt::Microsoft::ReactNative::Composition::Input;
-    const auto point=args.GetCurrentPoint(static_cast<int32_t>(data->status.reactTag));
     const auto properties=point.Properties();const auto position=point.Position();
     const auto type=point.PointerDeviceType();
+    using PointerDeviceType=decltype(type);
     const std::string pointerDevice=type==PointerDeviceType::Mouse?"mouse":type==PointerDeviceType::Pen?"pen":type==PointerDeviceType::Touch?"touch":"unknown";
     const auto update=properties.PointerUpdateKind();
+    using PointerUpdateKind=decltype(update);
     const bool released=update==PointerUpdateKind::LeftButtonReleased||update==PointerUpdateKind::RightButtonReleased||
       update==PointerUpdateKind::MiddleButtonReleased||update==PointerUpdateKind::XButton1Released||update==PointerUpdateKind::XButton2Released;
     const bool inside=position.X>=0&&position.Y>=0&&position.X<data->status.logicalWidth&&position.Y<data->status.logicalHeight;
@@ -320,9 +348,9 @@ private:
   }
   void requireUi() const {if(std::this_thread::get_id()!=owner)throw std::runtime_error("Windows SkiaView requires its UI owner");}
   void closeBinding() {
-    if(!data)return;data->resizeAwaiting=false;data->presentedGeneration=0;keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
+    if(!data)return;if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
     data->view->setFrameScheduler({});data->view->stopContent();
-    data->surface->setPresented({});data->surface->setRequestRedraw({});data->surface->setCanPresent({});
+    data->surface->setPresented({});data->surface->setResizeCancelled({});data->surface->setRequestRedraw({});data->surface->setCanPresent({});
     session->retireScreenshot(data->status.reactTag,data->view);session->retireView(data->ticket);
     data->surface->detach();data->ticket.reset();data->view.reset();data->surface.reset();if(data->pendingLayout){const auto latest=*data->pendingLayout;data->status.logicalWidth=latest.Frame.Width;data->status.logicalHeight=latest.Frame.Height;data->status.scale=latest.PointScaleFactor;data->status.width=std::round(double(latest.Frame.Width)*latest.PointScaleFactor);data->status.height=std::round(double(latest.Frame.Height)*latest.PointScaleFactor);data->status.surfaceGeneration=data->pendingLayoutRevision;data->pendingLayout.reset();}
   }
@@ -330,13 +358,14 @@ private:
     if(data&&!data->failed&&!data->closing&&!data->unwatchVisibility)data->unwatchVisibility=session->observeWindowVisibility([weak=weak_from_this()](bool shown){if(auto self=weak.lock())try{self->windowVisibility(shown);}catch(std::exception const& error){self->fail(error.what());}catch(...){self->fail("Windows surface visibility failed");}});
     if(!data||data->failed||data->closing||data->view||!data->status.nativeId||!data->status.width||!data->status.height)return;
     auto& status=data->status;auto platform=session->uiPlatform();
-    data->surface=std::make_shared<RNSkWindowsWindowSurface>(session,device,options.observeCopy);
+    data->surface=std::make_shared<RNSkWindowsWindowSurface>(session,device,options.observeCopy,data->windowViewport);
     data->surface->setSurfaceGeneration(status.surfaceGeneration);
     data->surface->setViewIdentity(status.nativeId);
     data->view=std::make_shared<RNSkView>(platform,data->surface);
     const auto generation=status.viewGeneration;auto weak=weak_from_this();
     data->surface->setCanPresent([weak,generation]{auto self=weak.lock();return self&&self->data&&!self->data->failed&&self->data->status.viewGeneration==generation&&(self->data->status.visible||self->session->preparingWindow());});
-    data->surface->setPresented([weak,generation](uint64_t frames){if(auto self=weak.lock();self&&self->data&&self->data->status.viewGeneration==generation){self->data->status.frames=frames;self->data->presentedGeneration=self->data->status.surfaceGeneration;self->emit("frame","");if(self->session->preparingWindow()){self->session->firstContentReady();self->emit("visibility","");}self->finishResize();}});
+    data->surface->setPresented([weak,generation](uint64_t frames){if(auto self=weak.lock();self&&self->data&&self->data->status.viewGeneration==generation){auto& status=self->data->status;status.frames=frames;status.presentedSurfaceGeneration=status.surfaceGeneration;status.presentedWidth=status.width;status.presentedHeight=status.height;self->data->presentedGeneration=status.surfaceGeneration;self->emit("frame","");if(self->session->preparingWindow()){self->session->firstContentReady();self->emit("visibility","");}self->finishResize();}});
+    data->surface->setResizeCancelled([weak,generation]{if(auto self=weak.lock();self&&self->data&&self->data->status.viewGeneration==generation)self->finishResize();});
     data->surface->setLayoutSize(static_cast<int>(status.width),static_cast<int>(status.height));
     data->surface->attach(winrt::get_abi(data->visual),static_cast<int>(status.width),static_cast<int>(status.height),false,false,{});
     session->registerScreenshot(status.reactTag,data->view);
@@ -354,7 +383,7 @@ private:
       {"phase",status.phase},{"reason",status.reason},{"nativeId",double(status.nativeId)},{"reactTag",double(status.reactTag)},
       {"viewGeneration",double(status.viewGeneration)},{"surfaceGeneration",double(status.surfaceGeneration)},{"frames",double(status.frames)},
       {"logicalWidth",status.logicalWidth},{"logicalHeight",status.logicalHeight},{"width",status.width},{"height",status.height},{"scale",status.scale},
-      {"layoutRevision",double(status.layoutRevision)},{"resizePending",status.layoutRevision!=status.surfaceGeneration||data->resizeAwaiting},{"pointerGeometryReady",pointerGeometryReady()},{"bound",status.bound},{"visible",status.visible},{"preparing",session&&session->preparingWindow()},{"precisionAvailable",status.precisionAvailable},{"framePipelineVersion",2},{"pointerVersion",1},{"keyboardVersion",2},{"visibilityVersion",1}});
+      {"layoutRevision",double(status.layoutRevision)},{"resizePending",status.layoutRevision!=status.surfaceGeneration||data->resizeAwaiting},{"pointerGeometryReady",pointerGeometryReady()},{"bound",status.bound},{"visible",status.visible},{"preparing",session&&session->preparingWindow()},{"precisionAvailable",status.precisionAvailable},{"framePipelineVersion",2},{"pointerVersion",1},{"keyboardVersion",2},{"visibilityVersion",1},{"windowViewport",data->windowViewport}});
       // Fabric expects one object, not CallJSFunction's argument array. Own
       // its bytes until the emitter evaluates the writer on the JS owner.
       data->emitter.DispatchEvent(L"windowsSurfaceStatus",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});}
@@ -404,6 +433,7 @@ public:
   winrt::Microsoft::UI::Input::InputPointerSource pointerOwnerSource{nullptr};
   winrt::event_token islandExited{};
   bool hasIslandExited=false;
+  std::function<void()> unwatchWindowPointer;
   uint64_t mountGeneration=0;
   bool isMounted=false;
   winrt::Microsoft::ReactNative::ComponentView keyboardParent{nullptr};
@@ -449,12 +479,13 @@ public:
     }
     state->keyboardFocus(ownsKeyboard());
   }
-  void detachInputSource(){
+  void detachInputSource(bool preserveWindowPointer=false){
     cursor.detach();
     // InputPointerSource does not implement IWeakReferenceSource. Its
     // auto_revoke overload crashes while constructing the weak revoker.
     // Own the source until explicit token removal on the same UI owner.
     if(islandSource&&hasIslandExited)islandSource.PointerExited(islandExited);
+    if(unwatchWindowPointer&&!preserveWindowPointer){auto stop=std::move(unwatchWindowPointer);unwatchWindowPointer={};stop();}
     hasIslandExited=false;islandSource=nullptr;
   }
   void mountInputSource(winrt::Microsoft::ReactNative::ComponentView const& view){
@@ -469,7 +500,7 @@ public:
   }
   void retireInputSource(){isMounted=false;++mountGeneration;detachInputSource();retireKeyboardParent();state->leavePointers();pointerOwnerSource=nullptr;}
   void unmountInputSource(winrt::Microsoft::ReactNative::ComponentView const& view){
-    isMounted=false;const auto generation=++mountGeneration;detachInputSource();
+    isMounted=false;const auto generation=++mountGeneration;detachInputSource(true);
     auto dispatcher=view.ReactContext().UIDispatcher();
     if(!dispatcher||!dispatcher.HasThreadAccess())throw std::runtime_error("Windows pointer retirement requires its UI dispatcher");
     // Fabric removes and reinserts surviving ComponentViews within one mount
@@ -477,11 +508,11 @@ public:
     // Detach the island listener immediately, but cancel the press only when
     // this same view remains unmounted after the transaction has returned.
     dispatcher.Post([weak=get_weak(),generation]{if(auto current=weak.get();current&&!current->isMounted&&current->mountGeneration==generation){
-      current->boundary([&]{current->retireKeyboardParent();current->state->leavePointers();current->pointerOwnerSource=nullptr;});
+      current->boundary([&]{current->detachInputSource();current->retireKeyboardParent();current->state->leavePointers();current->pointerOwnerSource=nullptr;});
     }});
   }
   void attachInputSource(winrt::Microsoft::ReactNative::ComponentView const& view){
-    detachInputSource();const auto root=view.as<winrt::Microsoft::ReactNative::Composition::ComponentView>().Root();
+    detachInputSource(true);const auto root=view.as<winrt::Microsoft::ReactNative::Composition::ComponentView>().Root();
     const auto island=root?root.ReactNativeIsland():nullptr;const auto content=island?island.Island():nullptr;
     if(!content)throw std::runtime_error("Windows pointer port requires its mounted ContentIsland");
     attachKeyboardParent(view,content);
@@ -489,13 +520,21 @@ public:
     if(!source)throw std::runtime_error("Windows owning island has no pointer source");
     // A surviving view may retain a press only on its original input owner.
     // Surface/layout replacement also cancels in WindowsSkiaViewState.
-    if(pointerOwnerSource&&pointerOwnerSource!=source)state->leavePointers();
+    if(pointerOwnerSource&&pointerOwnerSource!=source){detachInputSource();state->leavePointers();}
     pointerOwnerSource=source;islandSource=source;
     cursor.bind(source);queueCursor();
     // ComponentView.Exited follows RNW's JS hover path. A custom event emitter
     // can leave that path empty, so observe the owning island's real boundary.
     try{
-      islandExited=islandSource.PointerExited([weak=get_weak()](auto const&,auto const& args){if(auto current=weak.get())current->boundary([&]{if(auto point=args.CurrentPoint())current->state->leavePointer(point.PointerId());else current->state->leaveHoverPointers();current->queueCursor();});});hasIslandExited=true;
+      // Native root composition receives HWND input outside the island's
+      // visual input tree. Its host owns the same untransformed viewport.
+      if(state->ownsWindowViewport()){
+        const auto input=state->windowPointer();if(!input)throw std::runtime_error("Window viewport requires its native pointer owner");
+        cursor.bind(input->window());
+        if(!unwatchWindowPointer)unwatchWindowPointer=input->listen([weak=get_weak()](std::string const& kind,WindowsWindowPointer::Point const& point){if(auto current=weak.get())current->boundary([&]{if(kind=="wheel")current->state->wheelPoint(point);else current->state->pointerPoint(kind,point);current->queueCursor();});});
+      }else{
+        islandExited=islandSource.PointerExited([weak=get_weak()](auto const&,auto const& args){if(auto current=weak.get())current->boundary([&]{if(auto point=args.CurrentPoint())current->state->leavePointer(point.PointerId());else current->state->leaveHoverPointers();current->queueCursor();});});hasIslandExited=true;
+      }
       // Capture loss belongs to the capturing ComponentView. The island's
       // global event can describe a sibling editor losing capture while a new
       // canvas press is being admitted; it must not cancel this view's press.

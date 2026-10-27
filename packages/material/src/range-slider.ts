@@ -602,7 +602,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
         invariant(w.labels === null || font, 'missing-range-slider-font', 'RangeSlider labels require the actual application font');
         const model: RangePaintModel = {
             owner: this, theme: effective, direction: this.direction, screen: new Size(media.width, media.height), scale: media.textScale, textContext: font ? {
-                text: context.services.text, resources: context.services.resources, font, scale: context.services.readMetrics().scale
+                text: context.services.text, resources: context.services.resources, font, scale: context.services.readMetrics('scale').scale
             } : null, preferred: new Size(144 + Math.max(thumb.width, overlay.width, tick.width), Math.max(effective.trackHeight ?? 0, thumb.height, effective.padding === null ? overlay.height : thumb.height, tick.height))
         };
         let content: Widget = new RawGestureDetector(new RangePaintWidget(model, this.surfaceKey), {

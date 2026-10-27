@@ -14,6 +14,10 @@ import type {Rect,SemanticsNode} from '../../ui/types.ts';
  * Core semantics snapshot. The first emitted child node receives the index.
  * Native collection/reader announcements require their provider mappings. */
 export class RenderIndexedSemantics extends RenderProxyBox {
+  protected override markNeedsPaintAfterLayout():void{
+    if(this.hasStaticLayoutSemantics(RenderIndexedSemantics.prototype,RenderIndexedSemantics.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   private _index:number;
   constructor({child,index}:{readonly child?:RenderBox;readonly index:number}){super(child);this._index=this.validIndex(index);}
   private validIndex(value:number):number{invariant(Number.isSafeInteger(value)&&value>=0,'invalid-semantic-index','Semantic index must be a nonnegative safe integer');return value;}

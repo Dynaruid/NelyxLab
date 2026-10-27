@@ -16,6 +16,7 @@ import type {JsonDiagnosticsNode} from '../../foundation/diagnostics-serializati
 import {FoundationBuildMode} from '../../foundation/constants.ts';
 import type {Key} from '../../foundation/key.ts';
 import type {ViewControllerContext} from '../../hosting/runtime.ts';
+import type {ViewMetrics} from '../../ui/types.ts';
 import {ViewWorkBudget} from './view-work-budget.ts';
 import {DormantChildCache} from './dormant-child-cache.ts';
 import {RenderObject} from '../rendering/object.ts';
@@ -139,7 +140,7 @@ export class BuildOwner {
     catch(error){const errors=[error];if(root.active||root.parent)try{this.deactivateChild(root);}catch(failure){errors.push(failure);}this.inactive.delete(root);try{root.unmount();}catch(failure){errors.push(failure);}if(errors.length>1)throw new AggregateError(errors,'Dormant activation and cleanup failed');throw error;}
   }
   readonly services:ViewControllerContext;
-  private readonly viewMetricsReaders=new Set<Element>();
+  private readonly viewMetricsReaders=new Map<Element,Set<keyof ViewMetrics>|null>();
   readonly keyboard:HardwareKeyboard;
   readonly rawKeyboard:RawKeyboard;
   readonly gestures=new GestureArenaManager();
@@ -182,13 +183,21 @@ export class BuildOwner {
     // fields, and captured readMetrics functions record their actual build user.
     const methods=new Map<PropertyKey,{value:Function;bound:Function}>();
     const read=(key:PropertyKey):unknown=>{const value=Reflect.get(services,key,services);if(typeof value!=='function'||key==='constructor')return value;const previous=methods.get(key);if(previous&&previous.value===value)return previous.bound;
-      const bound=key==='readMetrics'?(...args:unknown[])=>{const element=this.currentElement;if(element?.active&&element.owner===this)this.viewMetricsReaders.add(element);return Reflect.apply(value,services,args);}:value.bind(services);methods.set(key,{value,bound});return bound;};
+      const bound=key==='readMetrics'?(...fields:(keyof ViewMetrics)[])=>{const element=this.currentElement;if(element?.active&&element.owner===this){
+        if(!fields.length)this.viewMetricsReaders.set(element,null);
+        else if(this.viewMetricsReaders.get(element)!==null){let observed=this.viewMetricsReaders.get(element);if(!observed)this.viewMetricsReaders.set(element,observed=new Set());for(const field of fields)observed.add(field);}
+      }return Reflect.apply(value,services,[]);}:value.bind(services);methods.set(key,{value,bound});return bound;};
     this.services=new Proxy(Object.create(null) as ViewControllerContext,{get:(_target,key)=>read(key),has:(_target,key)=>Reflect.has(services,key),ownKeys:()=>Reflect.ownKeys(services),getPrototypeOf:()=>Reflect.getPrototypeOf(services),getOwnPropertyDescriptor:(_target,key)=>{const descriptor=Reflect.getOwnPropertyDescriptor(services,key);return descriptor?{value:read(key),enumerable:descriptor.enumerable??false,configurable:true,writable:false}:undefined;},set:()=>false,defineProperty:()=>false,deleteProperty:()=>false,preventExtensions:()=>false});
     this.keyboard=services.platformServices?.keyboard??new HardwareKeyboard();this.rawKeyboard=services.platformServices?.rawKeyboard??new RawKeyboard();this.focus=new FocusScope(this.keyboard,focusOptions);
   }
-  /** @internal Viewport changes rebuild service readers; inherited data then
-   * notifies its own dependents. Renderer replacement keeps the Root's full pass. */
-  _viewMetricsChanged():void{for(const element of [...this.viewMetricsReaders]){if(element.active&&element.owner===this)element.markNeedsBuild();else this.viewMetricsReaders.delete(element);}}
+  /** @internal Only changed selected fields rebuild their readers. Full reads
+   * remain conservative; renderer replacement keeps the Root's full pass. */
+  _viewMetricsChanged(previous:ViewMetrics|undefined,next:ViewMetrics):void{
+    for(const [element,fields] of [...this.viewMetricsReaders]){
+      if(!element.active||element.owner!==this){this.viewMetricsReaders.delete(element);continue;}
+      if(!previous||fields===null||[...fields].some(field=>!Object.is(previous[field],next[field])))element.markNeedsBuild();
+    }
+  }
   /** @internal Deactivation retires dependencies just like inherited lookups. */
   _forgetViewMetricsReader(element:Element):void{this.viewMetricsReaders.delete(element);}
   /** Global source hook runs first; the owning View may also observe handled errors. */

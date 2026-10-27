@@ -19,6 +19,16 @@ import {invariant} from '../../foundation/errors.ts';
 let nextSemanticsGestureId=0;
 export interface RenderSemanticsGestureHandlerOptions {readonly child?:RenderBox<RenderObject>;readonly behavior?:HitTestBehavior;readonly onTap?:GestureTapCallback|null;readonly onLongPress?:GestureTapCallback|null;readonly onHorizontalDragUpdate?:GestureDragUpdateCallback|null;readonly onVerticalDragUpdate?:GestureDragUpdateCallback|null;readonly scrollFactor?:number}
 export class RenderSemanticsGestureHandler extends RenderProxyBoxWithHitTestBehavior {
+  protected override markNeedsPaintAfterLayout():void{
+    const host=this.hasSourceSemanticsConfiguration?null:this.hostMetadata();
+    if(this.hasStaticLayoutSemantics(RenderSemanticsGestureHandler.prototype,RenderSemanticsGestureHandler.prototype.describeSemanticsConfiguration)){
+      this.markNeedsPaintAfterGeometryLayout();
+      if(host!==null&&!(this.describedHostMetadata?.length===host.length&&host.every((value,index)=>value===this.describedHostMetadata![index])))this.markNeedsSemanticsUpdate();
+    }
+    else super.markNeedsPaintAfterLayout();
+  }
+  private describedHostMetadata:readonly unknown[]|undefined;
+  private hostMetadata():readonly unknown[]{return [this.semanticsId,this.semanticsLabel,this.semanticsEnabled,this.tap,this.longPress,this.horizontal,this.vertical,this.validActionsValue===null,...this.validActionsValue??[]];}
   private readonly generatedId='gesture-semantics-'+ ++nextSemanticsGestureId;semanticsId:string|null=null;semanticsLabel='';semanticsEnabled=true;
   private validActionsValue:Set<SemanticsAction>|null=null;private tap:GestureTapCallback|null;private longPress:GestureTapCallback|null;private horizontal:GestureDragUpdateCallback|null;private vertical:GestureDragUpdateCallback|null;scrollFactor:number;
   constructor(options:RenderSemanticsGestureHandlerOptions={}){super(options);this.tap=options.onTap??null;this.longPress=options.onLongPress??null;this.horizontal=options.onHorizontalDragUpdate??null;this.vertical=options.onVerticalDragUpdate??null;this.scrollFactor=options.scrollFactor??0.8;}
@@ -30,6 +40,7 @@ export class RenderSemanticsGestureHandler extends RenderProxyBoxWithHitTestBeha
     if(this.onLongPress!==null&&this.isValidAction(SemanticsAction.longPress))config.onLongPress=this.onLongPress;
     if(this.onHorizontalDragUpdate!==null){if(this.isValidAction(SemanticsAction.scrollRight))config.onScrollRight=this.performScrollRight;if(this.isValidAction(SemanticsAction.scrollLeft))config.onScrollLeft=this.performScrollLeft;}
     if(this.onVerticalDragUpdate!==null){if(this.isValidAction(SemanticsAction.scrollUp))config.onScrollUp=this.performScrollUp;if(this.isValidAction(SemanticsAction.scrollDown))config.onScrollDown=this.performScrollDown;}
+    this.describedHostMetadata=this.hostMetadata();
   }
   get validActions():Set<SemanticsAction>|null{return this.validActionsValue;}
   set validActions(value:Set<SemanticsAction>|null){if(this.validActionsValue===value||this.validActionsValue!==null&&value!==null&&this.validActionsValue.size===value.size&&[...value].every(action=>this.validActionsValue!.has(action)))return;this.validActionsValue=value;this.markNeedsSemanticsUpdate();}

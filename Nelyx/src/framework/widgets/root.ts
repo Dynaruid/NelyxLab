@@ -3,7 +3,7 @@ import {invariant} from '../../foundation/errors.ts';
 import {initializeFoundationBindings} from '../../foundation/binding.ts';
 import type {SemanticsBinding} from '../../hosting/interaction.ts';
 import type {ApplicationDefinition,ViewController,ViewControllerContext,SceneContext} from '../../hosting/runtime.ts';
-import type {SemanticsNode,ViewMetrics,FrameBuildToken,ResourceId} from '../../ui/types.ts';
+import type {SemanticsNode,ViewMetrics,ViewEnvironment,FrameBuildToken,ResourceId} from '../../ui/types.ts';
 import type {PointerEvent,KeyEvent} from '../../ui/input.ts';
 import {transform,inversePaintTransform,captureTransform} from '../../ui/geometry.ts';
 import {BuildOwner} from './framework.ts';
@@ -48,6 +48,11 @@ import type {KeyEventResult} from './focus.ts';
 const keyboardOwners=new WeakMap<HardwareKeyboard,FrameworkRoot>();
 const keyboardDispatches=new WeakSet<HardwareKeyboard>();
 interface LogicalPointerStream {readonly nativePointer:number;readonly sourcePointer:number}
+// Frame capture clones environment records. Their identity cannot decide
+// whether DPI, safe area, keyboard or gesture settings actually changed.
+function sameSemanticsEnvironment(a:ViewEnvironment|undefined,b:ViewEnvironment|undefined):boolean{
+  return a===b||!!a&&!!b&&(['safeAreaSource','keyboardInset','keyboardSource','textScale','textScaleSource','gestureSettingsSource'] as const).every(key=>a[key]===b[key])&&(['top','right','bottom','left'] as const).every(key=>a.safeArea[key]===b.safeArea[key])&&a.gestureSettings?.physicalTouchSlop===b.gestureSettings?.physicalTouchSlop&&a.gestureSettings?.physicalDoubleTapSlop===b.gestureSettings?.physicalDoubleTapSlop;
+}
 /** The embedding owns one semantics request for its accessible View. */
 class ViewPipelineManifold extends PipelineManifold {
   constructor(private readonly binding:SemanticsActionBinding,private readonly requestFrame:()=>void){super();}
@@ -70,6 +75,7 @@ export class FrameworkRoot implements ViewController {
   private readonly sourceSemanticsSnapshot:SemanticsTransportSnapshot|undefined;
   private semanticsCache:{render:RenderObject;owner:PipelineOwner['semanticsOwner'];viewOwner:SceneContext['token']['owner'];metrics:ViewMetrics;transform:RenderObject['localTransform'];snapshot:readonly SemanticsNode[];nodes:readonly SemanticsNode[]}|undefined;
   private semanticsPublishedAt:number|undefined;
+  private semanticsResizeAt:number|undefined;
   private semanticsDeferred=false;
   private semanticsWake:number|undefined;
   private semanticsFocus:BuildOwner['focus']['primaryFocus'];
@@ -163,7 +169,8 @@ export class FrameworkRoot implements ViewController {
       const buildRevision=this.buildOwner.buildRevision;
       if(!this.root){const root=this.options.createRoot(this.buildOwner.services,this.scheduler).createElement();this.root=root;root.mount(undefined,this.buildOwner);}
       const metricsChanged=this.metrics?.viewportGeneration!==scene.token.metrics.viewportGeneration || this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration;
-      if(metricsChanged){this.cancelPointers();if(this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration){const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};visit(this.root);}else this.buildOwner._viewMetricsChanged();}
+      if(this.metrics&&(this.metrics.logicalWidth!==scene.token.metrics.logicalWidth||this.metrics.logicalHeight!==scene.token.metrics.logicalHeight||this.metrics.physicalWidth!==scene.token.metrics.physicalWidth||this.metrics.physicalHeight!==scene.token.metrics.physicalHeight))this.semanticsResizeAt=this.scheduler.currentSystemFrameTimeStamp;
+      if(metricsChanged){this.cancelPointers();if(this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration){const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};visit(this.root);}else this.buildOwner._viewMetricsChanged(this.metrics,scene.token.metrics);}
       this.metrics=scene.token.metrics;
       this.buildOwner.flushBuild();
       let render=this.renderRoot();this.pipeline.setRoot(render);
@@ -187,10 +194,14 @@ export class FrameworkRoot implements ViewController {
         this.scheduler.phase='semantics';
         const rebuilt=this.buildOwner.buildRevision!==buildRevision;
         const cached=this.semanticsCache,semanticsPipeline=existingPipelineSemantics(this.pipeline),currentTransform=render.localTransform,metrics=scene.token.metrics;
-        const sameScope=!!cached&&cached.render===render&&cached.owner===this.pipeline.semanticsOwner&&cached.viewOwner.id===scene.token.owner.id&&cached.viewOwner.generation===scene.token.owner.generation&&(Object.keys(metrics) as (keyof ViewMetrics)[]).every(key=>cached.metrics[key]===metrics[key])&&cached.transform.length===currentTransform.length&&currentTransform.every((value,index)=>Object.is(value,cached.transform[index]));
+        const sameTreeScope=!!cached&&cached.render===render&&cached.owner===this.pipeline.semanticsOwner&&cached.viewOwner.id===scene.token.owner.id&&cached.viewOwner.generation===scene.token.owner.generation&&cached.transform.length===currentTransform.length&&currentTransform.every((value,index)=>Object.is(value,cached.transform[index]));
+        const sameEnvironment=!!cached&&sameSemanticsEnvironment(cached.metrics.environment,metrics.environment);
+        const sameScope=sameTreeScope&&sameEnvironment&&(Object.keys(metrics) as (keyof ViewMetrics)[]).every(key=>key==='environment'||cached!.metrics[key]===metrics[key]);
+        const resizeScope=sameTreeScope&&sameEnvironment&&(cached!.metrics.logicalWidth!==metrics.logicalWidth||cached!.metrics.logicalHeight!==metrics.logicalHeight||cached!.metrics.physicalWidth!==metrics.physicalWidth||cached!.metrics.physicalHeight!==metrics.physicalHeight)&&(['scale','rendererGeneration','nativeContextGeneration'] as const).every(key=>cached!.metrics[key]===metrics[key]);
         let reuse=sameScope&&!this.semanticsDeferred&&this.pendingSemanticsActions.length===0&&!geometryCommit.hasInputGeometry&&!semanticsPipeline?.hasPendingChanges;
         const now=this.scheduler.currentSystemFrameTimeStamp,elapsed=this.semanticsPublishedAt===undefined?Infinity:now-this.semanticsPublishedAt;
-        const defer=!reuse&&sameScope&&(!rebuilt||!semanticsPipeline?.hasConfigurationChanges)&&!geometryCommit.hasInputGeometry&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates&&elapsed>=0&&elapsed<(this.options.semanticsUpdateInterval??0);
+        const interval=this.options.semanticsUpdateInterval??0,resizeElapsed=this.semanticsResizeAt===undefined?Infinity:now-this.semanticsResizeAt;
+        const defer=!reuse&&this.pendingSemanticsActions.length===0&&this.semanticsPublishedAt!==undefined&&((sameScope&&(!rebuilt||!semanticsPipeline?.hasConfigurationChanges)&&elapsed>=0&&elapsed<interval)||(resizeScope&&!semanticsPipeline?.hasConfigurationChanges&&resizeElapsed>=0&&resizeElapsed<interval))&&!geometryCommit.hasInputGeometry&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates;
         if(defer){
           // Keep dirty work queued; actions request an earlier fresh snapshot.
           // A one-shot host frame also delivers the trailing update after motion stops.

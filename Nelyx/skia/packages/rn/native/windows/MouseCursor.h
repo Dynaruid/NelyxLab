@@ -9,7 +9,7 @@
 namespace ABI::Microsoft::UI::Input {struct IInputCursor;}
 #include <Microsoft.UI.Input.InputCursor.Interop.h>
 namespace RNSkia {
-inline winrt::Microsoft::UI::Input::InputCursor windowsMouseCursor(const std::string& kind) {
+inline HCURSOR windowsMouseCursorHandle(const std::string& kind) {
 static const std::map<std::string,const wchar_t*> cursors={
       {"allScroll", IDC_SIZEALL},
       {"basic", IDC_ARROW},
@@ -41,6 +41,10 @@ static const std::map<std::string,const wchar_t*> cursors={
   auto found=cursors.find(kind);const auto name=found==cursors.end()?IDC_ARROW:found->second;
   if(!name)return nullptr;
   auto handle=::LoadCursorW(nullptr,name);if(!handle)winrt::throw_last_error();
+  return handle;
+}
+inline winrt::Microsoft::UI::Input::InputCursor windowsMouseCursor(const std::string& kind) {
+  const auto handle=windowsMouseCursorHandle(kind);if(!handle)return nullptr;
   auto factory=winrt::get_activation_factory<winrt::Microsoft::UI::Input::InputCursor,ABI::Microsoft::UI::Input::IInputCursorStaticsInterop>();
   winrt::com_ptr<IUnknown> result;
   winrt::check_hresult(factory->CreateFromHCursor(handle,reinterpret_cast<ABI::Microsoft::UI::Input::IInputCursor**>(result.put_void())));
@@ -50,12 +54,14 @@ static const std::map<std::string,const wchar_t*> cursors={
 class WindowsMouseCursor {
 public:
   void bind(winrt::Microsoft::UI::Input::InputPointerSource const& value){release();source=value;}
+  void bind(HWND value){detach();window=value;}
   void kind(std::string value){requested=std::move(value);}
-  void apply(){if(!source)return;auto current=source.Cursor();if(!owned||current!=applied)previous=current;applied=windowsMouseCursor(requested);owned=true;source.Cursor(applied);}
+  void apply(){if(window){POINT point{};RECT client{};if(GetCursorPos(&point)&&GetAncestor(WindowFromPoint(point),GA_ROOT)==window&&ScreenToClient(window,&point)&&GetClientRect(window,&client)&&PtInRect(&client,point))SetCursor(windowsMouseCursorHandle(requested));return;}if(!source)return;auto current=source.Cursor();if(!owned||current!=applied)previous=current;applied=windowsMouseCursor(requested);owned=true;source.Cursor(applied);}
   void release(){if(source&&owned&&source.Cursor()==applied)source.Cursor(previous);owned=false;applied=nullptr;previous=nullptr;}
-  void detach(){release();source=nullptr;}
+  void detach(){release();source=nullptr;window=nullptr;}
 private:
   std::string requested="basic";bool owned=false;
+  HWND window=nullptr;
   winrt::Microsoft::UI::Input::InputPointerSource source{nullptr};
   winrt::Microsoft::UI::Input::InputCursor previous{nullptr},applied{nullptr};
 };

@@ -418,6 +418,15 @@ export class RenderImage extends RenderBox {
   protected performLayout(constraints:BoxConstraints):Size {return constraints.constrain({width:this.width,height:this.height});}
   override paint(context:PaintingContext):void {context.image(this.resource,{x:0,y:0,...this.size});}
 }
+// These exact built-ins describe no size-dependent semantic configuration.
+// Keep their source fragments on resize and refresh bounds/clip/transforms;
+// custom subclasses, instance hooks and changed child membership stay conservative.
+RenderBox._registerGeometryLayoutSemantics(...[
+  RenderProxyBox,RenderConstrainedBox,RenderPadding,RenderPositionedBox,RenderAlign,
+  RenderLimitedBox,RenderAspectRatio,RenderIntrinsicWidth,RenderIntrinsicHeight,
+  RenderIgnoreBaseline,RenderBaseline,RenderFlex,RenderStack,RenderDecoratedBox,
+  RenderClip,RenderTransform,RenderImage,
+].map(type=>type.prototype));
 /** Shared selection identity; concrete paragraphs own their source configuration and layout. */
 export abstract class RenderParagraph extends RenderBox {
   protected override get childCountLimit():number{return 0;}

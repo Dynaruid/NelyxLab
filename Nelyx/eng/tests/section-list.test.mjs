@@ -110,6 +110,17 @@ test('section index ownership rejects concurrent renderers and releases on dispo
   const c=setup({count:2,index});try{c.set(c.tree());assert.equal(c.index.anchor.index,0);}finally{c.close();}
 });
 
+test('size-only MediaQuery changes remeasure sections without rebuilding the retained delegate children',{timeout},()=>{
+  const f=fixture(),index=new SectionExtentIndex(1000),controller=new ScrollController(),built=[];
+  const child=new Directionality('ltr',ListView.builder({controller,extentIndex:index,itemCount:1000,cacheExtent:0,padding:EdgeInsets.zero,itemBuilder:(_context,i)=>{built.push(i);return new Semantics({container:true,transportId:'resize-section-'+i,label:'Section',textDirection:'ltr',child:new SizedBox(null,60)});}}));
+  const tree=(width,{scale=1,textScale=1,boldText=false}={})=>new MediaQuery({width,height:160,scale,textScale,boldText,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},child);
+  try{
+    f.set(tree(240));built.length=0;
+    for(const width of [260,280,300]){Object.assign(f.root.context.readMetrics(),{logicalWidth:width,physicalWidth:width,viewportGeneration:width});f.set(tree(width));assert.deepEqual(built,[],'Viewport changes must not invoke the unchanged section builder');assert.equal(f.root.nodes.find(n=>n.id==='resize-section-0').bounds.width,width);}
+    for(const options of [{scale:2},{scale:2,textScale:1.5},{scale:2,textScale:1.5,boldText:true}]){f.set(tree(300,options));assert(built.length>0,'Typography changes must still refresh the section environment');built.length=0;}
+  }finally{f.close();controller.dispose();}
+});
+
 test('inherited scale, locale and direction invalidate offscreen estimates without creating those sections',{timeout},()=>{
   const f=fixture(),index=new SectionExtentIndex(1000),controller=new ScrollController(),built=new Set();
   const tree=(scale,locale,direction,deviceScale=1)=>new MediaQuery({width:240,height:160,scale:deviceScale,textScale:scale,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},new Localizations(locale,{},'en',new Directionality(direction,ListView.builder({controller,extentIndex:index,itemCount:1000,cacheExtent:0,padding:EdgeInsets.zero,itemBuilder:(context,i)=>{built.add(i);return new Semantics({container:true,transportId:'environment-'+i,label:'Environment',textDirection:direction,child:new SizedBox(null,70*MediaQuery.of(context).textScale)});}}))));

@@ -28,7 +28,10 @@ import {withRenderPaint,assertOutsideRenderPaint} from './phase.ts';
 export type CustomPainterProperties=Omit<SemanticsNode,'id'|'bounds'|'children'>;
 export type SemanticsBuilderCallback=(size:Size)=>readonly CustomPainterSemantics[];
 export interface CustomPainterOptions {readonly repaint?:Listenable|null;readonly typeToken?:object|symbol}
+const emptySemanticsGetters=new WeakMap<Function,(painter:CustomPainter)=>boolean>();
 export abstract class CustomPainter extends Listenable {
+  /** @internal Adapters prove an unchanged source getter has no semantics. */
+  static _registerEmptySemanticsGetter(getter:Function,verify:(painter:CustomPainter)=>boolean):void{if(!emptySemanticsGetters.has(getter))emptySemanticsGetters.set(getter,verify);}
   readonly repaint:Listenable|null;readonly typeToken:object|symbol;
   constructor(options:CustomPainterOptions={}){super();this.repaint=options.repaint??null;this.typeToken=options.typeToken??this.constructor;invariant(!this.repaint||typeof this.repaint.addListener==='function'&&typeof this.repaint.removeListener==='function','invalid-custom-painter','repaint must implement Listenable');}
   addListener(listener:()=>void):void{this.repaint?.addListener(listener);}
@@ -62,9 +65,19 @@ function failures(errors:unknown[],message:string):void{if(errors.length===1)thr
 function attempt(errors:unknown[],callback:()=>void):void{try{callback();}catch(error){errors.push(error);}}
 function preferred(value:Size):Size{invariant(value&&[value.width,value.height].every(n=>typeof n==='number'&&!Number.isNaN(n)&&n>=0),'invalid-custom-paint-size','Preferred size must be nonnegative without NaN');return Object.freeze({width:value.width,height:value.height});}
 function painter(value:CustomPainter|null|undefined):CustomPainter|null{invariant(value==null||value instanceof CustomPainter,'invalid-custom-painter','Painter must extend CustomPainter');return value??null;}
+function usesDefaultPainterSemantics(painter:CustomPainter|null):boolean{
+  if(!painter)return true;
+  let prototype:object|null=painter;
+  while(prototype){const descriptor=Object.getOwnPropertyDescriptor(prototype,'semanticsBuilder');if(descriptor)return descriptor.get===Object.getOwnPropertyDescriptor(CustomPainter.prototype,'semanticsBuilder')!.get||descriptor.get!==undefined&&emptySemanticsGetters.get(descriptor.get)?.(painter)===true;prototype=Object.getPrototypeOf(prototype);}
+  return false;
+}
 let nextRenderId=0;
 export interface RenderCustomPaintOptions {readonly painter?:CustomPainter|null;readonly foregroundPainter?:CustomPainter|null;readonly preferredSize?:Size;readonly child?:RenderBox<RenderObject>}
 export class RenderCustomPaint extends RenderProxyBox {
+  protected override markNeedsPaintAfterLayout():void{
+    if(!this.background.hasBuilder&&!this.foreground.hasBuilder&&usesDefaultPainterSemantics(this.background.painter)&&usesDefaultPainterSemantics(this.foreground.painter)&&this.hasStaticLayoutSemantics(RenderCustomPaint.prototype,RenderCustomPaint.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryLayout();
+    else super.markNeedsPaintAfterLayout();
+  }
   private readonly sourcePainterNodes=new Map<string,SourceSemanticsNode>();
   private readonly background:PainterSlot={painter:null,subscription:undefined,dirty:true,hasBuilder:false,entries:[]};
   private readonly foreground:PainterSlot={painter:null,subscription:undefined,dirty:true,hasBuilder:false,entries:[]};

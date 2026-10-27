@@ -24,3 +24,4 @@ export class RenderOffstage extends RenderProxyBox {
   visitChildrenForSemantics(visitor:(child:RenderObject)=>void):void{if(!this.offstage&&this.child)visitor(this.child);}
   override collectSemantics(output:SemanticsNode[],matrix?:TransformMatrix,clip?:Rect):void{if(!this.offstage)super.collectSemantics(output,matrix,clip);}
 }
+RenderProxyBox._registerGeometryLayoutSemantics(RenderOffstage.prototype);

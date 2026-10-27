@@ -225,13 +225,21 @@ export function existingPipelineSemantics(owner:PipelineOwner):RenderSemanticsPi
 export class RenderSemanticsPipeline {
   /** Render fragments with a produced node; detached trees never stay in the transport index. */
   readonly transportSources=new Set<RenderObject>();
-  owner:SemanticsOwner|null=null;readonly dirty=new Set<RenderObject>();readonly geometryDirty=new Set<RenderObject>();private readonly pendingConfigurations=new Set<RenderObject>();private readonly deferredGeometry=new Set<RenderObject>();private readonly offsetDirty=new Set<RenderObject>();private flushing=false;
+  owner:SemanticsOwner|null=null;readonly dirty=new Set<RenderObject>();readonly geometryDirty=new Set<RenderObject>();private readonly pendingConfigurations=new Set<RenderObject>();private readonly pendingGeometryConfigurations=new Set<RenderObject>();private readonly deferredGeometry=new Set<RenderObject>();private readonly offsetDirty=new Set<RenderObject>();private flushing=false;
   constructor(private readonly pipeline:PipelineOwner){}
-  get hasConfigurationChanges():boolean{return this.pendingConfigurations.size>0||this.dirty.size>0;}
+  private contributes(render:RenderObject):boolean{return render.owner===this.pipeline&&!render.needsLayout&&existingSemanticsFor(render)?.parentDataDirty===false;}
+  get hasConfigurationChanges():boolean{
+    if(this.dirty.size>0)return true;
+    // Unvisited/offstage fragments join through their parent's structural
+    // update. Their own layout must not flush the active accessibility tree.
+    for(const render of this.pendingConfigurations)if(this.contributes(render))return true;
+    return false;
+  }
   /** @internal Read before flushing; transport metadata may change even when
    * its source annotation has the same serialized values. */
   get hasPendingChanges():boolean{
-    if(this.pendingConfigurations.size>0||this.dirty.size>0||this.geometryDirty.size>0||this.owner?.hasPendingUpdates===true)return true;
+    if(this.dirty.size>0||this.geometryDirty.size>0||this.owner?.hasPendingUpdates===true)return true;
+    for(const pending of [this.pendingConfigurations,this.pendingGeometryConfigurations])for(const render of pending)if(this.contributes(render))return true;
     // Deferred fragments outside the current semantic tree cannot affect its
     // transport snapshot until they are ready. Keep them for the normal flush;
     // offsetDirty is provenance for that geometry work, not another work queue.
@@ -239,12 +247,14 @@ export class RenderSemanticsPipeline {
     return false;
   }
   enable(options:SemanticsOwnerOptions,scheduleRoot=true):void{invariant(this.owner===null,'duplicate-semantics-owner','Semantics owner is already enabled');this.owner=new SemanticsOwner(options);const root=this.pipeline.rootNode;if(root&&scheduleRoot){root.clearSemantics();root.scheduleInitialSemantics();}}
-  disable():void{const owner=this.owner;if(owner===null)return;this.owner=null;const errors:unknown[]=[];for(const run of [()=>owner.rootSemanticsNode?.detach(),()=>this.pipeline.rootNode?.clearSemantics(),()=>owner.dispose()])try{run();}catch(error){errors.push(error);}this.transportSources.clear();this.pendingConfigurations.clear();this.dirty.clear();this.geometryDirty.clear();this.deferredGeometry.clear();this.offsetDirty.clear();if(errors.length)throw new AggregateError(errors,'Semantics owner retirement failed');}
-  rootChanged(previous:RenderObject|undefined,current:RenderObject|undefined):void{if(this.owner===null)return;this.transportSources.clear();this.pendingConfigurations.clear();if(previous){this.owner.rootSemanticsNode?.detach();previous.clearSemantics();}if(current){current.clearSemantics();this.dirty.add(current);this.geometryDirty.add(current);}}
-  detached(render:RenderObject):void{this.transportSources.delete(render);this.pendingConfigurations.delete(render);this.dirty.delete(render);this.geometryDirty.delete(render);this.deferredGeometry.delete(render);this.offsetDirty.delete(render);}
-  requestUpdate(render:RenderObject):void{
+  disable():void{const owner=this.owner;if(owner===null)return;this.owner=null;const errors:unknown[]=[];for(const run of [()=>owner.rootSemanticsNode?.detach(),()=>this.pipeline.rootNode?.clearSemantics(),()=>owner.dispose()])try{run();}catch(error){errors.push(error);}this.transportSources.clear();this.pendingConfigurations.clear();this.pendingGeometryConfigurations.clear();this.dirty.clear();this.geometryDirty.clear();this.deferredGeometry.clear();this.offsetDirty.clear();if(errors.length)throw new AggregateError(errors,'Semantics owner retirement failed');}
+  rootChanged(previous:RenderObject|undefined,current:RenderObject|undefined):void{if(this.owner===null)return;this.transportSources.clear();this.pendingConfigurations.clear();this.pendingGeometryConfigurations.clear();if(previous){this.owner.rootSemanticsNode?.detach();previous.clearSemantics();}if(current){current.clearSemantics();this.dirty.add(current);this.geometryDirty.add(current);}}
+  detached(render:RenderObject):void{this.transportSources.delete(render);this.pendingConfigurations.delete(render);this.pendingGeometryConfigurations.delete(render);this.dirty.delete(render);this.geometryDirty.delete(render);this.deferredGeometry.delete(render);this.offsetDirty.delete(render);}
+  requestUpdate(render:RenderObject,geometryOnly=false):void{
     invariant(!this.flushing,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');
-    const state=existingSemanticsFor(render);state?.invalidateConfiguration();this.pendingConfigurations.add(render);
+    const state=existingSemanticsFor(render);state?.invalidateConfiguration();
+    if(geometryOnly&&state&&!this.pendingConfigurations.has(render))this.pendingGeometryConfigurations.add(render);
+    else{this.pendingGeometryConfigurations.delete(render);this.pendingConfigurations.add(render);}
     // A caller may enable semantics after attaching the root. Its first
     // invalidation still has to admit that unvisited tree's initial commit.
     if(!state){const root=this.pipeline.rootNode;if(root&&!existingSemanticsFor(root)){this.dirty.add(root);this.geometryDirty.add(root);}}
@@ -254,12 +264,12 @@ export class RenderSemanticsPipeline {
     const owner=this.owner;if(owner===null)return;invariant(!this.flushing,'reentrant-semantics-flush','Cannot flush semantics recursively');this.flushing=true;geometryPaths.set(this.pipeline,new Map());
     let nodes:RenderObject[]=[];
     try{
-      for(const render of this.pendingConfigurations){
-        if(render.owner!==this.pipeline){this.pendingConfigurations.delete(render);continue;}
+      for(const pending of [this.pendingConfigurations,this.pendingGeometryConfigurations])for(const render of pending){
+        if(render.owner!==this.pipeline){pending.delete(render);continue;}
         if(render.needsLayout)continue;
         // Unvisited new fragments are collected by their parent's structural
         // update. Hidden/private render children need no fragment at all.
-        existingSemanticsFor(render)?.applyPendingUpdate();this.pendingConfigurations.delete(render);
+        existingSemanticsFor(render)?.applyPendingUpdate();pending.delete(render);
       }
       nodes=[...this.dirty].filter(node=>!node.needsLayout&&node.owner===this.pipeline).sort((a,b)=>a.depth-b.depth);this.dirty.clear();const root=this.pipeline.rootNode;for(const node of nodes){const semantics=semanticsFor(node);if(!semantics.parentDataDirty)semantics.updateChildren();}
       if(FoundationBuildMode.debug){check(nodes.length===0||root!==undefined,'Semantic updates need a render root');if(root)_RenderObjectSemantics.debugCheckForParentData(root);}

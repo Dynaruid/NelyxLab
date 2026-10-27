@@ -5,7 +5,7 @@ import {LayerHandle,OffsetLayer,ContainerLayer} from './layer.ts';
 import {invariant} from '../../foundation/errors.ts';
 import type {PictureRasterizer} from '../../ui/picture.ts';
 import type {Image} from '../../ui/image.ts';
-import {RenderObject} from './object.ts';
+import {RenderObject,RenderBox} from './object.ts';
 export class RenderRepaintBoundary extends RenderConstrainedBox {
   private version=-1;
   private contentsVersion=-1;
@@ -55,3 +55,4 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
   override dispose():void{try{super.dispose();}finally{if(this.debugDisposed)this.clearCache();}}
 }
 RenderObject._registerPaintInvalidationBoundary(RenderRepaintBoundary.prototype);
+RenderBox._registerGeometryLayoutSemantics(RenderRepaintBoundary.prototype);

@@ -64,7 +64,7 @@ private:
   void initialize(winrt::Microsoft::ReactNative::ReactContext context) {
     requireOwner();namespace jsi=facebook::jsi;
     if(!runtime.global().getProperty(runtime,"NelyxWindowsHost").isUndefined())throw std::runtime_error("Windows host status already installed");
-    auto invoker=context.CallInvoker();services=std::make_shared<WindowsRuntimeServices>(context,invoker,options.assetRoots);
+    auto invoker=context.CallInvoker();services=std::make_shared<WindowsRuntimeServices>(context,invoker,options.assetRoots,options.composition?options.composition->resize:nullptr);
     services->initializeIcu(options.icuUri);
     auto ports=services->ports([weak=weak_from_this()](){auto self=weak.lock();if(!self)throw std::runtime_error("Windows device owner expired");++self->deviceCreations;return self->options.createDevice();},options.screenshot,options.reportError);
     scope=std::make_shared<RNSkVulkanRuntime>(runtime,std::move(invoker),options.density,std::move(ports),[services=services](){services->close();});

@@ -98,6 +98,7 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   private paintWidth:number|null=null;private paintDimensions:readonly PlaceholderDimensions[]=[];
   private intrinsicPainter:TextPainter|undefined;private canonicalTextSize:Size|undefined;private canonicalFade:Shader|undefined;
   private sourceSemanticsInfo:readonly InlineSpanSemanticsInformation[]|null=null;
+  private describedSemanticsConfiguration:RichParagraphConfiguration|undefined;
   private cachedCombinedSemanticsInfo:readonly InlineSpanSemanticsInformation[]|null=null;
   private cachedAttributedLabels:AttributedString[]|null=null;
   private cachedChildSemanticsNodes:Map<Key,SourceSemanticsNode>|null=null;
@@ -174,12 +175,20 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
     if(span!==null&&'handleEvent' in span&&typeof span.handleEvent==='function'){result.push({target:span as InlineSpan&HitTestTarget,transform:toLocal});return true;}return this.hitTestInlineChildren(result,position,toLocal);
   }
   protected override get hasSourceSemanticsConfiguration():boolean{return true;}
+  protected override markNeedsPaintAfterLayout():void{
+    const span=this.configuration.span,plain=Object.getPrototypeOf(span)===TextSpan.prototype?span as TextSpan:null,prototype=Object.getPrototypeOf(this);
+    // A plain unchanged TextSpan has a static label. Inline nodes/recognizers
+    // still assemble from current paragraph boxes after every layout.
+    if((prototype===RenderRichParagraph.prototype||prototype===RenderParagraph.prototype)&&this.describedSemanticsConfiguration===this.configuration&&plain&&plain.children===null&&plain.recognizer===null&&plain.semanticsIdentifier===null&&!Object.hasOwn(plain,'getSemanticsInformation')&&this.hasStaticLayoutSemantics(prototype,RenderRichParagraph.prototype.describeSemanticsConfiguration))this.markNeedsPaintAfterGeometryChange();
+    else super.markNeedsPaintAfterLayout();
+  }
   override describeSemanticsConfiguration(config:SemanticsConfiguration):void{
     super.describeSemanticsConfiguration(config);if(this.semantics&&(this.semantics.focusable||this.semantics.activate||this.semantics.actions)){describeTransportActions(config,this.semantics,()=>this.showOnScreen());config.isFocused=this.semantics.focused??(this.semantics.focusable?false:null);}this.sourceSemanticsInfo=this.configuration.span.getSemanticsInformation();let assemble=false,delegate=false;
     for(const info of this.sourceSemanticsInfo){if(info.recognizer!==null||info.semanticsIdentifier!==null){assemble=true;break;}delegate||=info.isPlaceholder;}
     if(assemble){config.explicitChildNodes=true;config.isSemanticBoundary=true;}
     else if(delegate)config.childConfigurationsDelegate=this.childSemanticsConfigurationsDelegate;
     else{if(this.cachedAttributedLabels===null){let text='',offset=0;const attributes:StringAttribute[]=[];for(const info of this.sourceSemanticsInfo){const label=info.semanticsLabel??info.text;for(const attribute of info.stringAttributes)attributes.push(attribute.copy({range:new TextRange({start:offset+attribute.range.start,end:offset+attribute.range.end})}));text+=label;offset+=label.length;}this.cachedAttributedLabels=[new AttributedString(text,{attributes})];}config.attributedLabel=this.cachedAttributedLabels[0]!;config.textDirection=this.textDirection;}
+    this.describedSemanticsConfiguration=this.configuration;
   }
   private readonly childSemanticsConfigurationsDelegate=(configs:readonly SemanticsConfiguration[]):ChildSemanticsConfigurationsResult=>{
     const builder=new ChildSemanticsConfigurationsResultBuilder();let placeholder=0,child=0,label=0;this.cachedCombinedSemanticsInfo??=combineSemanticsInfo(this.sourceSemanticsInfo!);
@@ -201,7 +210,7 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
     if(FoundationBuildMode.debug){invariant(childIndex===children.length,'unused-inline-semantics-child','Not all inline semantics children were consumed');invariant(renderIndex===this.children.length,'unused-inline-render-child','Not all inline render children were consumed');}
     this.cachedChildSemanticsNodes=cache;node.updateWith({config,childrenInInversePaintOrder:next});
   }
-  override clearSemantics():void{super.clearSemantics();this.collectedSemanticsNode?.updateWith({config:null});this.collectedSemanticsNode=null;this.collectedPlaceholderNodes.clear();this.cachedChildSemanticsNodes=null;}
+  override clearSemantics():void{super.clearSemantics();this.describedSemanticsConfiguration=undefined;this.collectedSemanticsNode?.updateWith({config:null});this.collectedSemanticsNode=null;this.collectedPlaceholderNodes.clear();this.cachedChildSemanticsNodes=null;}
   /** Current View DTO boundary. Source assembly owns span geometry and identity;
    * legacy inline widgets retain their complete existing transport payloads. */
   private collectAssembledSemantics(config:SemanticsConfiguration,matrix:TransformMatrix,clip:Rect|undefined):SemanticsNode[]{

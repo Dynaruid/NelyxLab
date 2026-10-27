@@ -398,7 +398,7 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
                 invariant(o.label == null || font, 'missing-slider-label-font', 'Slider labels require the actual application font');
                 return new SliderPaintWidget({
                     theme: effective, visual, enabled, divisions: widget.divisions, secondary: o.secondaryTrackValue == null ? null : widget.max === widget.min ? 0 : (o.secondaryTrackValue - widget.min) / (widget.max - widget.min), label: o.label ?? null, scale, screen: new Size(media.width, media.height), textContext: font ? {
-                        text: buildContext.services.text, resources: buildContext.services.resources, font, scale: buildContext.services.readMetrics().scale
+                        text: buildContext.services.text, resources: buildContext.services.resources, font, scale: buildContext.services.readMetrics('scale').scale
                     } : null, owner: this
                 }, this.surfaceKey);
             }
