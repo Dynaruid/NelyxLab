@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <Windows.h>
+#include "windows/WindowsInputTrace.h"
 #include <commctrl.h>
 #include <algorithm>
 #include <functional>
@@ -68,6 +69,7 @@ private:
   bool message(MSG const& message){
     if(closed||!observer||!message.hwnd||GetAncestor(message.hwnd,GA_ROOT)!=target)return false;
     const auto msg=message.message;const auto wp=message.wParam;const auto lp=message.lParam;
+    if(msg==WM_MOUSEWHEEL||msg==WM_MOUSEHWHEEL)windowsInputTrace(WindowsInputStage::WindowWheel,reinterpret_cast<uintptr_t>(message.hwnd),0,0,double(static_cast<short>(HIWORD(wp))),msg==WM_MOUSEHWHEEL?1:0);
     const bool mouse=(msg>=WM_MOUSEFIRST&&msg<=WM_MOUSELAST)||msg==WM_MOUSELEAVE;
     const bool pointer=msg==WM_POINTERDOWN||msg==WM_POINTERUPDATE||msg==WM_POINTERUP||msg==WM_POINTERLEAVE||msg==WM_POINTERCAPTURECHANGED;
     if(!mouse&&!pointer)return false;

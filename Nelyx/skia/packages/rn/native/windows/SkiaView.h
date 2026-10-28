@@ -108,13 +108,14 @@ public:
   std::shared_ptr<WindowsPrecisionTrackpad> precisionTrackpad()const{requireUi();return data?data->precision:nullptr;}
   void setPrecisionTrackpad(std::shared_ptr<WindowsPrecisionTrackpad> const& value){requireUi();if(data){if(data->precision&&data->precision!=value)throw std::logic_error("A live Skia surface already owns its precision input");data->precision=value;data->status.precisionAvailable=bool(value);emit("input-ready",value?"":"DirectManipulation unavailable; native wheel fallback");}}
   void precision(WindowsPrecisionEvent const& event){
-    requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="inertiaCancel")){if(windowsPrecisionDiagnosticsEnabled())windowsPrecisionDiagnostic("surface-rejected kind="+event.kind);return;}
+    requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="inertiaCancel")){windowsInputTrace(WindowsInputStage::PrecisionSurfaceDrop,data?data->status.reactTag:0,event.origin.generation,0,windowsInputKind(event.kind),!data?1:data->failed?2:!data->status.bound?3:!data->emitter?4:5,true);if(windowsPrecisionDiagnosticsEnabled())windowsPrecisionDiagnostic("surface-rejected kind="+event.kind);return;}
     using namespace winrt::Microsoft::ReactNative;
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"kind",event.kind},{"device","trackpad"},
       {"pointer",double(event.pointer)},{"buttons",0},{"x",event.origin.x},{"y",event.origin.y},{"panX",event.panX},{"panY",event.panY},
       {"deltaX",event.deltaX},{"deltaY",event.deltaY},{"scale",event.scale},{"rotation",0},{"timestamp",event.timestamp},{"sequence",double(++data->inputSequence)},
       {"surfaceGeneration",double(event.origin.generation)}});
-    data->emitter.DispatchEvent(L"windowsPointer",[payload,kind=event.kind,sequence=data->inputSequence](IJSValueWriter const& writer) noexcept {if(windowsPrecisionDiagnosticsEnabled()&&(kind!="panZoomUpdate"||sequence%32==0))windowsPrecisionDiagnostic("js-delivered kind="+kind+" sequence="+std::to_string(sequence));WriteValue(writer,*payload);});
+    windowsInputTrace(WindowsInputStage::NativeInput,data->status.reactTag,event.origin.generation,data->inputSequence,windowsInputKind(event.kind),event.deltaY,event.kind!="panZoomUpdate");
+    data->emitter.DispatchEvent(L"windowsPointer",[payload,kind=event.kind,sequence=data->inputSequence,view=data->status.reactTag,surface=event.origin.generation](IJSValueWriter const& writer) noexcept {if(windowsPrecisionDiagnosticsEnabled()&&(kind!="panZoomUpdate"||sequence%32==0))windowsPrecisionDiagnostic("payload-written kind="+kind+" sequence="+std::to_string(sequence));WriteValue(writer,*payload);windowsInputTrace(WindowsInputStage::PayloadWritten,view,surface,sequence,windowsInputKind(kind));});
   }
   void props(WindowsSkiaProps const& props) {
     requireUi();if(!data||data->failed||data->closing)return;if(props.highBitDepth)throw std::runtime_error("Windows SkiaView supports BGRA8/sRGB only");
@@ -182,10 +183,10 @@ public:
     if(wheelPoint(args.GetCurrentPoint(static_cast<int64_t>(data->status.reactTag))))args.Handled(true);
   }
   template<class Point> bool wheelPoint(Point const& point) {
-    requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady())return false;
+    requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady()){windowsInputTrace(WindowsInputStage::WheelSurfaceDrop,data?data->status.reactTag:0,data?data->status.surfaceGeneration:0,0,!data?1:data->failed?2:!data->status.bound?3:!data->status.visible?4:!data->emitter?5:6,0,true);return false;}
     auto properties=point.Properties();auto position=point.Position();
     INPUT_MESSAGE_SOURCE source{};const bool trackpad=GetCurrentInputMessageSource(&source)&&source.deviceType==IMDT_TOUCHPAD;
-    if(trackpad&&data->precision&&data->precision->ownsWheel())return true;
+    if(trackpad&&data->precision&&data->precision->ownsWheel()){windowsInputTrace(WindowsInputStage::WheelSuppressed,data->status.reactTag,data->status.surfaceGeneration,0,data->precision->diagnosticFlags(),properties.MouseWheelDelta());return true;}
     UINT units=3;SystemParametersInfoW(properties.IsHorizontalMouseWheel()?SPI_GETWHEELSCROLLCHARS:SPI_GETWHEELSCROLLLINES,0,&units,0);
     const auto extent=units==WHEEL_PAGESCROLL?(properties.IsHorizontalMouseWheel()?data->status.logicalWidth:data->status.logicalHeight):double(units)*16.0;
     const auto delta=-double(properties.MouseWheelDelta())/120.0*extent;
@@ -194,7 +195,8 @@ public:
       {"deltaX",properties.IsHorizontalMouseWheel()?delta:0.0},{"deltaY",properties.IsHorizontalMouseWheel()?0.0:delta},
       {"surfaceGeneration",double(data->status.surfaceGeneration)},{"timestamp",windowsMonotonicMilliseconds()},{"sourceTimestamp",double(point.Timestamp())},
       {"sequence",double(++data->inputSequence)},{"pointer",double(point.PointerId())},{"device",trackpad?"trackpad":"mouse"}});
-    data->emitter.DispatchEvent(L"windowsWheel",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});return true;
+    windowsInputTrace(WindowsInputStage::NativeInput,data->status.reactTag,data->status.surfaceGeneration,data->inputSequence,0,delta);
+    data->emitter.DispatchEvent(L"windowsWheel",[payload,sequence=data->inputSequence,view=data->status.reactTag,surface=data->status.surfaceGeneration](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);windowsInputTrace(WindowsInputStage::PayloadWritten,view,surface,sequence,0);});return true;
   }
   void pointer(std::string kind,winrt::Microsoft::ReactNative::Composition::Input::PointerRoutedEventArgs const& args) {
     if(data&&!ownsWindowViewport())pointerPoint(std::move(kind),args.GetCurrentPoint(static_cast<int32_t>(data->status.reactTag)));
@@ -249,7 +251,7 @@ public:
     requireUi();if(!data)return;
     if(data->observedKeyboard){if(focused&&data->status.bound)data->observedKeyboard->focus(data->keyboardOwner,[weak=weak_from_this()](ObservedKeyboardState::FocusStamp const& stamp,uint32_t key,uint32_t scan,uint32_t repeat){if(auto self=weak.lock())self->consumedKeyUp(stamp,key,scan,repeat);});else data->observedKeyboard->blur(data->keyboardOwner);}
     if(!focused){data->keyboard->reset();++data->keyGeneration;}
-    if(data->keyboardFocused==focused)return;data->keyboardFocused=focused;
+    if(data->keyboardFocused==focused)return;data->keyboardFocused=focused;windowsInputTrace(WindowsInputStage::Focus,data->status.reactTag,data->status.surfaceGeneration,0,focused?1:0,0,true);
     if(!data->status.bound||!data->emitter)return;
     using namespace winrt::Microsoft::ReactNative;
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"sequence",double(nextKeySequence())},{"focused",focused},{"viewGeneration",double(data->status.viewGeneration)}});
@@ -326,7 +328,8 @@ private:
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"kind",kind},{"device",sample.device},
       {"pointer",double(id)},{"buttons",double(buttons)},{"x",sample.x},{"y",sample.y},
       {"surfaceGeneration",double(sample.generation)},{"timestamp",windowsMonotonicMilliseconds()},{"sequence",double(++data->inputSequence)}});
-    data->emitter.DispatchEvent(L"windowsPointer",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});
+    windowsInputTrace(WindowsInputStage::NativeInput,data->status.reactTag,sample.generation,data->inputSequence,windowsInputKind(kind),0,kind!="hover"&&kind!="move");
+    data->emitter.DispatchEvent(L"windowsPointer",[payload,sequence=data->inputSequence,view=data->status.reactTag,surface=sample.generation,kind](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);windowsInputTrace(WindowsInputStage::PayloadWritten,view,surface,sequence,windowsInputKind(kind));});
   }
 public:
   void fail(std::string reason) noexcept {

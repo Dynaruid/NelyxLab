@@ -1,7 +1,7 @@
 import type { Clock, FrameClock } from '../foundation/clock.ts';
 import type { Disposable } from '../foundation/disposable.ts';
 import type { AssetRef } from '../foundation/assets.ts';
-import type { Renderer, ViewRuntime } from './runtime.ts';
+import type { Renderer, ViewRuntime,ViewInputObservation } from './runtime.ts';
 import type { ResourceRegistry } from './resources.ts';
 import type { BackendIdentity } from './platform.ts';
 import type { ResourceDescriptor, TextLayoutService, ViewMetrics, ViewOwner } from '../ui/types.ts';
@@ -33,6 +33,7 @@ export interface TextServiceFactory<TText extends TextLayoutService = TextLayout
   create(resources: ResourceRegistry): TText;
 }
 export interface BackendServices<TText extends TextLayoutService = TextLayoutService> {
+  readonly observeInput?:(event:ViewInputObservation)=>void;
   readonly nativeSelectionContextMenu?:import('./interaction.ts').NativeSelectionContextMenuHost;
   readonly pictures?:{create(resources:ResourceRegistry):import('./pictures.ts').FramePictureService};
   readonly rasterization?:{create(resources:ResourceRegistry):import('./rasterization.ts').RasterizationService};

@@ -10,7 +10,7 @@ import {Semantics} from '@nelyx/core/framework/widgets/semantics';
 import {SizedBox} from '@nelyx/core/framework/widgets/basic';
 const timeout=1_200_000;
 const metrics={logicalWidth:100,logicalHeight:100,physicalWidth:100,physicalHeight:100,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:1,nativeSurfaceGeneration:1};
-function fixture({scene}={}){
+function fixture({scene,observeInput}={}){
   const callbacks=new Map(),notifications=[],submissions=[],errors=[];let next=0,builds=0,value=0,drawn,deny=false,nativeRecordings=0,releaseAfterHint=false,failSubmission=false;
   const clock={request(callback){const id=++next;callbacks.set(id,callback);return {dispose(){callbacks.delete(id);}};}};
   const tick=timing=>{const batch=[...callbacks.values()];callbacks.clear();batch.forEach(callback=>callback(timing));};
@@ -19,7 +19,7 @@ function fixture({scene}={}){
     nelyxClose(){nativeRecordings=0;for(const id of renderer.leases.keys())notifications.push(7,id,0);},nelyxStats:()=>{const value=[7,0,nativeRecordings,0,0];if(releaseAfterHint){releaseAfterHint=false;nativeRecordings=1;}return value;},nelyxReset(){},dispose(){}};
   const renderer=new GraphiteRenderer({Color:value=>value,Paint:()=>({setAntiAlias(){},dispose(){}})},()=>context,{id:'pressure',generation:1},{image(){throw Error('Unexpected image');},paragraph(){throw Error('Unexpected paragraph');}});
   const session=new AppSession({id:'pressure',createScene:()=>context=>{builds++;return scene?scene(context,value):[{op:'clear',color:value}];}},clock);
-  const view=session.attach({id:'pressure',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error)});
+  const view=session.attach({id:'pressure',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error),observeInput});
   return {view,renderer,session,callbacks,notifications,submissions,errors,tick,get builds(){return builds;},set value(next){value=next;},set deny(next){deny=next;},set nativeRecordings(next){nativeRecordings=next;},set releaseAfterHint(next){releaseAfterHint=next;},set failSubmission(next){failSubmission=next;}};
 }
 
@@ -161,6 +161,20 @@ test('input mailbox drains updates in order before the same tick builds and trea
     const count=events.length;f.view.queuePointer(packet('wheel',99));f.tick();assert.equal(events.length,count,'An old epoch cannot be reassigned to current input geometry');
   }finally{await f.session.dispose();}
 });
+test('numeric input observations distinguish queued, handled and rejected packets without affecting delivery or handler failures',{timeout},async()=>{
+  const observed=[],handled=[],failure=Error('original controller failure');let fail=false;
+  const f=fixture({observeInput:event=>{observed.push(event);assert(Object.isFrozen(event));if(event.stage==='queued')throw Error('observer failure');}});
+  f.view.controller={pointer(event){if(fail)throw failure;handled.push(event.inputSequence);f.view.requestFrame();},dispose(){}};
+  const packet={kind:'wheel',pointer:1,device:'trackpad',buttons:0,x:1,y:1,timestamp:10,viewportGeneration:1,deltaY:1,inputSequence:71};
+  try{
+    f.view.queuePointer(packet);assert.deepEqual(handled,[]);assert.deepEqual(observed.map(event=>event.stage),['queued']);assert.equal(observed[0].pending,1);assert.equal(f.callbacks.size,1);
+    f.tick();assert.deepEqual(handled,[71]);assert.deepEqual(observed.map(event=>event.stage),['queued','dispatch-begin','dispatch-end']);assert.equal(observed.at(-1).nativeInputSequence,71);assert.equal(observed.at(-1).inputSequence,1);assert.equal(observed.at(-1).reason,0);assert.equal(f.builds,1);assert.equal(f.callbacks.size,0);
+    f.view.queuePointer({...packet,viewportGeneration:0});assert.equal(observed.at(-1).stage,'drop');assert.equal(observed.at(-1).reason,3);assert.deepEqual(handled,[71]);
+    f.view.setVisible(false);f.view.queuePointer(packet);assert.equal(observed.at(-1).reason,2);f.view.setVisible(true);
+    fail=true;assert.throws(()=>f.view.dispatchPointer({...packet,kind:'panZoomStart',inputSequence:72}),error=>error===failure);assert.equal(observed.at(-1).stage,'dispatch-end');assert.equal(observed.at(-1).reason,4);
+  }finally{await f.session.dispose();}
+});
+
 test('reentrant input cannot grow the mailbox beyond its capacity or keep an owner in an endless drain',{timeout},async()=>{
   for(const mode of ['overflow','cycle']){
     const f=fixture(),packet={kind:'wheel',pointer:4,device:'mouse',buttons:0,x:12,y:15,timestamp:10,viewportGeneration:1,deltaY:.25};

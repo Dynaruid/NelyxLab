@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "windows/WindowsMonotonic.h"
+#include "windows/WindowsInputTrace.h"
 #include "rnskia/RNSkGraphiteTarget.h"
 #include <array>
 namespace RNSkia {
@@ -23,6 +24,7 @@ struct WindowsFrameTraceEntry {
 class WindowsFrameTrace final {
 public:
   void add(NelyxFrameIdentity identity,uint64_t view,uint64_t surface,uint32_t stage,uint32_t width,uint32_t height){
+    if(stage<=5)windowsInputTrace(stage==0?WindowsInputStage::FrameSubmitted:stage==1?WindowsInputStage::GpuComplete:stage==2?WindowsInputStage::SurfaceUpdated:stage==3?WindowsInputStage::FrameRetired:stage==4?WindowsInputStage::FrameSuperseded:WindowsInputStage::FrameFailed,view,surface,identity.input,double(identity.frame),double(identity.submission),stage==5);
     std::lock_guard lock(mutex);if(stage==0)++inFlight;else if(stage==3&&inFlight)--inFlight;
     entries[next]={identity,view,surface,stage,width,height,windowsMonotonicMilliseconds()};next=(next+1)%entries.size();count=std::min(count+1,entries.size());
   }

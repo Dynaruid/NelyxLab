@@ -165,6 +165,38 @@ finally { Remove-Item Env:NELYX_WINDOWS_FRAME_DIAGNOSTICS -ErrorAction SilentlyC
 
 This reports waits of at least 100ms in the frame clock, JS frame scheduling/work, native UI queue/work, GPU producer/retirement, and shutdown stages. Normal runs do not print these observations or create log files. An accepted window close hides the window first; the command returns after input, GPU, and RNW cleanup finishes.
 
+When behavior depends on the launching terminal or tool session, observe the current app from a separate read-only process:
+
+```powershell
+$scrollApp = Get-Process NelyxRNHost | Select-Object -First 1
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id
+# Read immediately after reproduction while keeping the app open.
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id -Read
+# Stop observation while keeping the app open.
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id -Stop
+```
+
+The observer starts independently through Explorer. For up to 20 minutes, it observes OS wheel activity over this app, focus/capture, UI responsiveness, and a desktop hash of the app area. Shared memory holds only the latest roughly 102 seconds (512 samples); keyboard content, images, and file logs are not stored. Hooks, GDI resources, and shared memory are retired at app exit or timeout; the final records remain available for up to two minutes after app exit. OS wheel observation does not establish native-message, SDK, or Core receipt, and the desktop hash is not FPS or full display acceptance. It does not capture every DirectManipulation trackpad input.
+
+To trace brief pauses during scrolling, start a fresh process from a package containing the current SDK and native diagnostics:
+
+```powershell
+$env:NELYX_WINDOWS_INPUT_TRACE='1'
+try { npm run run:windows --workspace '@nelyx/testbed-2' }
+finally { Remove-Item Env:NELYX_WINDOWS_INPUT_TRACE -ErrorAction SilentlyContinue }
+```
+
+Read immediately after reproduction from another terminal while keeping the app open. The optional desktop observer supports `-NoHook` to avoid installing an OS mouse hook:
+
+```powershell
+$scrollApp = Get-Process NelyxRNHost | Select-Object -First 1
+pwsh -NoProfile -File Nelyx/eng/windows-input-trace.ps1 -TargetProcessId $scrollApp.Id
+# Add -Raw for all currently retained samples.
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id -NoHook
+```
+
+Native diagnostics keep only counters/latest values for 32 stages and up to 8,192 numeric records in shared memory. Ordinary updates are sampled every 16 events; state changes, rejections, SDK/Core input latency of at least 200ms, JS frame work of at least 100ms, and stage gaps of at least 250ms are retained. There is no console/file output, extra frame request, or input hook; disabled runs allocate no memory. `payload-written` means native serialization, `sdk-received` means actual SDK ingress, and `core-dispatch-end` means the controller scope exited; handler failures also publish `core-drop` reason 4. Native packet sequence and Core input counter differ; Core observations link them through `input` and `a`. SDK generation/order drops and Core hidden/viewport drops are distinct. `gaps` reports sampled-stage intervals of at least 500ms. `frameGaps` reports submission intervals of at least 300ms with nearby gesture start/end/cancel events; only `consecutiveSubmissions=true` establishes a gap between actual consecutive submissions. An end/cancel event does not prove finger lift or normal idle. Trackpad updates use an active HWND timer independently of rendering; animation requests use DWM refresh deadlines. These scheduling ticks do not acknowledge presentation. Submission, GPU completion, surface update, and retirement are not display receipts; compare them with desktop observations. Native records disappear when the app exits.
+
 ### Experimental direct Hermes host
 
 After supplying and installing the current Windows packages:

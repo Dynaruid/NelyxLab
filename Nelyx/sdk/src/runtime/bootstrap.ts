@@ -133,6 +133,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       initialize({ session, text, image, font, metrics: services.surface.readMetrics() });
     }
     view = session.attach({ ...services.surface.owner, metrics: services.surface.readMetrics(), renderer, ownership: 'owned',
+      ...(services.observeInput?{observeInput:services.observeInput}:{}),
       onError:error=>{void application?.dispose().catch(()=>{});if(services.reportError)services.reportError(error);else throw error;},
       services:{assets,text,clock:{now:()=>performance.now()},editing:services.editing,semantics:services.semantics,...(services.nativeSelectionContextMenu?{nativeSelectionContextMenu:services.nativeSelectionContextMenu}:{}),...(rasterOwner?{rasterizer:rasterOwner}:{}),...(pictureOwner?{pictures:pictureOwner}:{}),...(services.paths?{paths:services.paths}:{}),...(imageOwner?{images:imageOwner}:{}),...(platformViewRegistration?{platformView:platformViewRegistration.view}:{}),...(messages?{binaryMessenger:messages.binaryMessenger}:{}),...(osServices?{platformServices:osServices}:{})} });
     const attached = view;

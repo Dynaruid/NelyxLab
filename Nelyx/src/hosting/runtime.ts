@@ -100,7 +100,9 @@ export interface ViewController {
   keyboardFocusLost?():void;
   dispose(): void;
 }
-export interface ViewOptions { readonly id: string; readonly generation: number; readonly metrics: ViewMetrics; readonly renderer: Renderer; readonly ownership: "owned" | "borrowed"; readonly services?: ViewServices;readonly onError?:(error:unknown)=>void }
+/** Numeric input observations only; observers cannot replace or mutate packets. */
+export interface ViewInputObservation {readonly stage:'queued'|'dispatch-begin'|'dispatch-end'|'drop';readonly nativeInputSequence:number;readonly surfaceGeneration:number;readonly inputSequence:number;readonly timestamp:number;readonly pending:number;/** 1 closed, 2 hidden, 3 viewport, 4 handler failure. */readonly reason:number;}
+export interface ViewOptions { readonly id: string; readonly generation: number; readonly metrics: ViewMetrics; readonly renderer: Renderer; readonly ownership: "owned" | "borrowed"; readonly services?: ViewServices;readonly onError?:(error:unknown)=>void;readonly observeInput?:(event:ViewInputObservation)=>void }
 export class ViewRuntime implements Disposable {
   readonly owner: ViewOwner;
   private metrics: ViewMetrics;
@@ -151,24 +153,28 @@ export class ViewRuntime implements Disposable {
   }
   get currentMetrics(): ViewMetrics { return this.metrics; }
   get status():ViewRuntimeStatus { return this.state; }
+  private observeInput(stage:ViewInputObservation['stage'],event:PointerEvent,reason=0):void{
+    if(!this.options.observeInput)return;
+    try{this.options.observeInput(Object.freeze({stage,nativeInputSequence:event.inputSequence??0,surfaceGeneration:this.metrics.nativeSurfaceGeneration??0,inputSequence:this.inputSequence,timestamp:event.timestamp,pending:this.pointerMailbox.length,reason}));}catch{/* Diagnostics never change delivery, exceptions or scheduling. */}
+  }
   /** Windows ingress batches updates until the next owned tick. Never sum
    * wheel deltas across unknown hit targets or retain more than 256 packets. */
   queuePointer(event:PointerEvent):void{
-    if(this.state!=='open'||!this.visible||event.viewportGeneration!==this.metrics.viewportGeneration)return;
+    if(this.state!=='open'||!this.visible||event.viewportGeneration!==this.metrics.viewportGeneration){this.observeInput('drop',event,this.state!=='open'?1:!this.visible?2:3);return;}
     if(!['move','hover','wheel','panZoomUpdate'].includes(event.kind)){this.dispatchPointer(event);return;}
     if(this.pointerMailbox.length===256){
       invariant(!this.drainingPointers,'input-mailbox-overflow','Reentrant input exceeded the 256-packet mailbox');
       this.flushPointerInput();
       if(this.state!=='open'||!this.visible||event.viewportGeneration!==this.metrics.viewportGeneration)return;
     }
-    this.pointerMailbox.push(Object.freeze({...event,...(event.globalPosition?{globalPosition:Object.freeze({...event.globalPosition})}:{}),...(event.globalDelta?{globalDelta:Object.freeze({...event.globalDelta})}:{}),...(event.localTransform?{localTransform:Object.freeze([...event.localTransform]) as typeof event.localTransform}:{})}));this.schedulePump();
+    this.pointerMailbox.push(Object.freeze({...event,...(event.globalPosition?{globalPosition:Object.freeze({...event.globalPosition})}:{}),...(event.globalDelta?{globalDelta:Object.freeze({...event.globalDelta})}:{}),...(event.localTransform?{localTransform:Object.freeze([...event.localTransform]) as typeof event.localTransform}:{})}));this.observeInput('queued',event);this.schedulePump();
   }
   private flushPointerInput():void{
     if(this.drainingPointers)return;this.drainingPointers=true;
     try{let passes=0;while(this.pointerMailbox.length){invariant(++passes<=30,'input-did-not-converge','Reentrant input remained pending after 30 batches');const batch=this.pointerMailbox.splice(0);for(const event of batch)this.dispatchPointer(event);}}
     finally{this.drainingPointers=false;}
   }
-  dispatchPointer(event:PointerEvent):void {this.flushPointerInput();if(this.state==='open'&&this.visible&&event.viewportGeneration===this.metrics.viewportGeneration){this.inputSequence++;this.inputTimestamp=event.timestamp;this.controller?.pointer?.(event);}}
+  dispatchPointer(event:PointerEvent):void {this.flushPointerInput();if(this.state==='open'&&this.visible&&event.viewportGeneration===this.metrics.viewportGeneration){this.inputSequence++;this.inputTimestamp=event.timestamp;this.observeInput('dispatch-begin',event);let completed=false;try{this.controller?.pointer?.(event);completed=true;}finally{this.observeInput('dispatch-end',event,completed?0:4);}}else this.observeInput('drop',event,this.state!=='open'?1:!this.visible?2:3);}
   dispatchKey(event:KeyEvent):boolean {this.flushPointerInput();return this.state==='open'&&this.visible&&this.controller?.key?.(event)===true;}
   /** Raw messages are admitted only by a controller that implements this route. */
   dispatchRawKey(message:RawKeyMessage,transport?:KeyEvent):boolean{this.flushPointerInput();return this.state==='open'&&this.visible&&this.controller?.rawKey?.(message,transport)===true;}

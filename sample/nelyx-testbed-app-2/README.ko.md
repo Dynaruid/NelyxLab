@@ -165,6 +165,38 @@ finally { Remove-Item Env:NELYX_WINDOWS_FRAME_DIAGNOSTICS -ErrorAction SilentlyC
 
 100ms 이상 걸린 frame clock 대기, JS 프레임 예약·실행, native UI 큐·작업, GPU producer·retirement와 종료 단계를 구분해 출력합니다. 일반 실행에서는 출력하지 않으며 파일 로그를 만들지 않습니다. 닫기를 수락한 창은 먼저 숨겨지고, 실행 명령은 입력·GPU·RNW 정리가 끝난 뒤 반환됩니다.
 
+실행한 터미널이나 도구 세션에 따라 증상이 달라지면, 별도 프로세스에서 현재 앱을 읽기 전용으로 관찰할 수 있습니다.
+
+```powershell
+$scrollApp = Get-Process NelyxRNHost | Select-Object -First 1
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id
+# 재현 직후, 앱을 열어둔 채 읽기
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id -Read
+# 관찰만 종료하고 앱은 유지
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id -Stop
+```
+
+관찰 프로세스는 Explorer를 통해 독립 실행됩니다. 최대 20분 동안 이 앱 위의 OS 휠 감지, 포커스·capture, UI 응답과 앱 영역의 desktop hash를 관찰하고 최근 약 102초(512개 표본)만 공유 메모리에 유지합니다. 키보드 내용·이미지·파일 로그는 저장하지 않습니다. 앱 종료 또는 시간 만료 시 hook·GDI·공유 메모리를 정리하며, 앱 종료 뒤에는 마지막 기록을 최대 2분 유지합니다. OS 휠 감지는 native 메시지·SDK·Core 수신을 증명하지 않으며 desktop hash는 FPS나 전체 표시 수락이 아닙니다. 트랙패드의 모든 DirectManipulation 입력을 포착하지는 않습니다.
+
+스크롤 도중 짧게 화면이 멈추는 구간을 추적하려면, 현재 SDK와 native 진단이 포함된 패키지를 새 프로세스로 실행합니다.
+
+```powershell
+$env:NELYX_WINDOWS_INPUT_TRACE='1'
+try { npm run run:windows --workspace '@nelyx/testbed-2' }
+finally { Remove-Item Env:NELYX_WINDOWS_INPUT_TRACE -ErrorAction SilentlyContinue }
+```
+
+재현 직후 다른 터미널에서 앱을 열어둔 채 읽습니다. 화면 관찰에는 OS mouse hook을 설치하지 않는 `-NoHook` 모드를 함께 사용할 수 있습니다.
+
+```powershell
+$scrollApp = Get-Process NelyxRNHost | Select-Object -First 1
+pwsh -NoProfile -File Nelyx/eng/windows-input-trace.ps1 -TargetProcessId $scrollApp.Id
+# 전체 현재 표본이 필요하면 -Raw 추가
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $scrollApp.Id -NoHook
+```
+
+native 진단은 32개 단계의 누계·최신값과 최대 8,192개 숫자 기록만 공유 메모리에 둡니다. 일반 갱신은 16회마다 표본화하며 상태 전환·거절·SDK/Core 입력 지연 200ms 이상·JS frame work 100ms 이상·단계 간격 250ms 이상은 보존합니다. console/file 출력·추가 프레임 요청·입력 hook은 없고 비활성 시 메모리를 할당하지 않습니다. `payload-written`은 native payload 작성, `sdk-received`는 실제 SDK 수신, `core-dispatch-end`는 controller 처리 종료를 뜻하며 handler 실패는 `core-drop` reason 4도 남깁니다. native packet sequence와 Core input counter는 별개이며 Core 관찰의 `input`과 `a`로 연결합니다. SDK의 세대/순서 거절과 Core의 hidden/viewport 거절도 구분합니다. `gaps`는 500ms 이상 단계 표본 간격입니다. `frameGaps`는 300ms 이상 제출 간격과 주변 제스처 시작·종료·취소를 함께 보여주며, `consecutiveSubmissions=true`인 경우만 실제 연속 제출 사이의 공백으로 확정합니다. 종료·취소 기록만으로 손을 뗐거나 정상 idle이었다고 판단하지 않습니다. 트랙패드는 활성 HWND 타이머로 렌더링과 독립해 갱신하며 애니메이션 요청은 DWM refresh deadline으로 예약합니다. 이 예약 tick은 화면 표시 완료를 뜻하지 않습니다. 프레임 제출·GPU 완료·surface update·retirement는 실제 표시 receipt가 아니므로 화면 관찰과 비교합니다. 앱을 닫으면 native 기록은 사라집니다.
+
 ### 실험적인 직접 Hermes 호스트
 
 현재 Windows 패키지를 공급하고 설치한 뒤 실행합니다.

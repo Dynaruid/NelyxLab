@@ -163,8 +163,8 @@ FPS는 측정 구간의 연속적인 rect 변화로 구한다. 전체 구간에�
 
 ## 8. 현재 결과와 남은 작업
 
-- 최신 확인: **2026-10-28 / PAUSED / PARTIAL / `resizePerformanceAccepted=false`**. 사용자 “일단 중간 마무리 하자” 요청으로 구현·고비용 검증을 중단했다. 일반 스크롤 정지는 자동 검사와 사용자 확인을 통과했다. 창 크기 조절의 화면·수명 검사는 통과했지만 **51 geometry 변화/s·CPU p95 10ms 목표는 미달**이다.
-- 이번 재개 시작점은 `491ea1d`, 당시 dirty 없음이었다. 현재 수정은 commit하지 않았으며 재개 때 diff를 먼저 확인한다. 작업 소유 앱·test·compiler 프로세스는 남아 있지 않다. 과거 엔진·컴파일러 계획은 재개하지 않았다.
+- 최신 확인: **2026-10-28 / 리사이즈 PAUSED / PARTIAL / `resizePerformanceAccepted=false`**. 사용자 “일단 중간 마무리 하자” 요청으로 리사이즈 구현·고비용 검증을 중단했다. 이후 실제 AOT 사용 확인에서 사용자는 **창 크기 조절 FPS는 괜찮게 느껴진다**고 답했으나 §6 수치 수락으로 옮기지 않는다. **트랙패드와 마우스 휠의 간헐적 먹통은 다시 보고되어 §9에서 원인 조사 중**이다.
+- 이번 재개 시작점은 `491ea1d`, 당시 dirty 없음이었다. 중간 마무리 뒤 저장소 HEAD가 `a09b23b0216f2827887de1a00a6a8bb8f8a2e251`이고 clean인 것을 확인했다. 추가 조사에서 새 commit은 만들지 않았다. 리사이즈 test·compiler는 멈췄으며 사용자 재현용 진단 앱은 §9에 따라 켜두었다. 과거 엔진·컴파일러 계획은 재개하지 않았다.
 
 | 단계 | 상태 | 현재 결과와 남은 범위 |
 | --- | --- | --- |
@@ -250,7 +250,7 @@ flowchart LR
 ### 일반 스크롤·입력·닫기
 
 - 재개 직후 최종 native header의 held-producer 종료 검사(`NELYX_WINDOWS_INPUT_CLOSE_ONLY=1`) **PASS**. `admitted=1 before=active after=closing`, 좌표 매핑 12회 동안 입력 객체 동일성, `views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. 당시 Core는 이전 공급본이며 이 검사를 새 Core 전체 TSF/UIA/IME 수락으로 옮기지 않는다.
-- 사용자는 재개 전 최종 수정 패키지의 물리 마우스/트랙패드 정지 재현 질문에 **“현재는 정상 동작함”**이라고 확인했다. 일반 스크롤 정지의 해당 재현 구간은 해결 확인으로 기록한다. 다른 장치·장시간 입력과 새 Core의 물리 표시 수락은 별도다.
+- 사용자는 이전 재현 구간에서는 **“현재는 정상 동작함”**이라고 답했지만, 중간 마무리 뒤 같은 실제 AOT에서 **트랙패드와 마우스 휠 모두 간헐적 먹통**을 다시 보고했다. 정상 확인과 자동 OS 휠 통과를 장시간 물리 입력의 해결로 확대하지 않는다. 최신 원인 조사 범위는 §9를 따른다.
 - 새 Core가 포함된 위 실제 Release 패키지의 `test:windows-continuous-scroll`도 **PASS**. 세 화면에서 방향을 반전하는 3초 연속 OS 휠을 2회씩, 입력 직후 닫기를 실행했다. Material은 최대화·복원과 포인터 이동도 포함했다. UIA는 초기 화면 선택에만 사용했고 JS offset이나 UIA 변화로 표시를 대신 수락하지 않았다.
 
 | 화면 | 입력 중 최대 픽셀 변화 간격 | 숨김 | HWND 파괴 | 프로세스 종료 |
@@ -268,13 +268,13 @@ flowchart LR
 - 이전 중단 폴더 `C:\Users\parti\AppData\Local\Temp\nelyx-windows-input-surface-DkFyS3`는 남아 있다. 검증한 절대 경로에 대한 PowerShell 삭제가 재개 때도 자동 승인 검토에서 **`blocked by policy`**로 거부됐다. 우회 삭제나 archive 이동은 하지 않는다. 새 native fixture·공급 임시 디렉터리·AOT staging은 실행의 `finally`에서 정리하고 이전 dist·archive·receipt·consumer·profile·history를 누적하지 않는다.
 - 현재 실행은 저장소 루트의 `npm run run:windows --workspace @nelyx/testbed-2`다. 검사·진단 사용법은 Testbed 한·영 README에 둔다.
 - **재개 시작점:** 먼저 diff·위 supply/package SHA와 설치 바이트를 확인한다. `windows-animation.tsx`에 추가한 scheduler 단계별 `resizeRequestSources`(횟수·단계당 1개/1,800자 stack)는 아직 native 실행 검증 전이다. 이 계측을 검토한 뒤 **`NELYX_ANIMATION_HERMES_MODE=static-aot`**, live-resize / optimized / semantics 50ms / 61Hz / 4초의 같은 기본 6조합·최소 계측·width/height QPC·600px breakpoint를 실행한다. Static AOT 비교 시도는 결과를 확보하지 못했고 중간 마무리 확인 때 관련 프로세스·임시 폴더가 없었다. 이를 AOT 성능 검사 통과로 세지 않는다.
-- 그 다음 필요 변경을 source·native에서 검증하고 **`npm run build:windows:static-aot --workspace @nelyx/testbed-2`**의 전체 종료 코드 0을 기다린 뒤 package inventory·runtime·locator/hash와 실제 연속 스크롤을 확인한다. 현재 실행은 위 표의 picture 재사용 AOT이며 최신 deadline 소스와 같지 않다. width **139 build/68 metrics**·height **207 build/101 metrics**의 추가 요청 원인과 width layout/paint·height native 동기화가 남았다. 접근성 간격·action/focus/input geometry 즉시성, 모든 실제 요청의 paint/capture/submit과 paint 중 무효화를 보존한다. 철회한 Root 재사용·admission 기반 제출 생략을 재도입하지 않는다. native 대기를 바꾸기 전 source frame·desktop frame·composition commit의 관계를 더 연결한다.
+- 그 다음 필요 변경을 source·native에서 검증하고 **`npm run build:windows:static-aot --workspace @nelyx/testbed-2`**의 전체 종료 코드 0을 기다린 뒤 package inventory·runtime·locator/hash와 실제 연속 스크롤을 확인한다. 중간 마무리 때 실행은 위 표의 picture 재사용 AOT였으며 최신 deadline 소스와 달랐다. 그 뒤 입력 예방 보강용으로 갱신한 패키지는 §9를 따른다. width **139 build/68 metrics**·height **207 build/101 metrics**의 추가 요청 원인과 width layout/paint·height native 동기화가 남았다. 접근성 간격·action/focus/input geometry 즉시성, 모든 실제 요청의 paint/capture/submit과 paint 중 무효화를 보존한다. 철회한 Root 재사용·admission 기반 제출 생략을 재도입하지 않는다. native 대기를 바꾸기 전 source frame·desktop frame·composition commit의 관계를 더 연결한다.
 - 일시적 marker 실패의 source frame·viewport·desktop frame·composition commit 연결, 큰 최대화/복원, 비-short typography, 물리 DPI 전환·IME·장시간 트랙패드·사용자 resize 체감·전체 scanout은 **notVerified / 미수락**이다. §6 목표가 미달하므로 전체 계획을 완료로 바꾸지 않는다.
-- 중간 마무리 확인: 현재 exe·AOT DLL·package manifest SHA와 last-package locator가 위 표와 일치한다. 새 fixture·공급 임시 폴더와 staging은 남지 않았고 현재 dist·각 패키지의 최신 공급 archive만 유지한다. 작업 소유 실행 프로세스 0개, commit 없음이다. work·한/영 README 3문서의 local link 22개·anchor·fence·공백과 `git diff --check`가 통과했다. 이는 문서·출력 확인이며 추가 native·AOT 성능 수락이 아니다.
+- 중간 마무리 당시 exe·AOT DLL·package manifest SHA와 last-package locator가 위 표와 일치했다. 새 fixture·공급 임시 폴더와 staging은 남지 않았고 현재 dist·각 패키지의 최신 공급 archive만 유지했다. 당시 작업 소유 실행 프로세스 0개, 새 commit 없음이었다. work·한/영 README 3문서의 local link 22개·anchor·fence·공백과 `git diff --check`가 통과했다. 이는 문서·출력 확인이며 추가 native·AOT 성능 수락이 아니다. 이후 사용자가 확인할 앱을 실행했고 최신 진단 실행 상태는 §9를 따른다.
 
 ## 9. 별도 수정 — Windows 트랙패드 반복 스크롤 중단 (2026-10-27)
 
-- 상태: **수정·실행 패키지 반영·사용자 실제 트랙패드 재확인 완료**. 사용자가 수정본에서 반복 스크롤·ListView 왕복 후 현재 정상 동작을 확인했다. 첫 제스처 상태 수정만으로는 재발했으나 중복 입력 소유자 수정 후 이 재현 구간이 통과했다. 이 기록 작성 당시 리사이즈 FPS 작업의 S0~S5는 `NOT_STARTED`였으며, 이후 최신 상태는 §8을 따른다.
+- 상태: **REOPENED / 예방 보강 후 물리 재현 — 실행 경로 차이 조사 중**. 앞선 수정본의 반복 스크롤·ListView 왕복은 한 차례 정상 확인을 받았으나, 최신 사용자 확인에서는 **트랙패드와 마우스 휠 모두 손을 떼고 다시 스크롤하면 회복되다가 간헐적으로 먹통**이 된다고 답했다. 중복 입력 소유자 수정의 자동·수동 통과 범위를 유지하되 이 재발까지 해결됐다고 보지 않는다. 리사이즈 FPS 작업은 §8의 PAUSED를 유지한다.
 - 실행에서 확인한 원인: 같은 Skia 화면의 부팅 중 DirectManipulation 객체가 **17개** 생성됐고 스크롤 중에도 추가 생성됐다. `TextInputSkiaSurface::resolve`가 서비스·접근성 요소의 좌표 매핑 요청마다 트랙패드 viewport까지 등록하고, 화면은 마지막 객체만 약한 참조로 관찰했다. 좌표 독자의 생성·해제가 실제 입력 소유자를 교체하는 구조였다.
 - 수정: 실제 `WindowsSkiaViewState`가 입력 객체 하나를 소유한다. 좌표 매핑의 생성·해제는 이 객체를 교체하지 않는다. 입력 객체는 자신의 화면 매퍼를 유지하고, 매퍼는 화면을 약하게 참조한다. 화면 binding 종료 시 contact·viewport·clock과 매퍼를 함께 정리한다.
 - 선행 제스처 수정: 접촉의 `BEGIN`/`END`와 초기화 중에도 compositor tick을 유지하고, 갱신 후 실제 `READY` 상태로 초기화 완료를 판정한다. 관성 없는 종료도 transform을 초기화하고 취소 시 native contact를 종료한다. 이 수정의 자동 검사 통과가 실제 재발 해결을 의미하지 않았음을 사용자 재현으로 확인했다.
@@ -284,3 +284,123 @@ flowchart LR
 - 식별자: 실행 파일 SHA-256 `9f52c765b57e5d5ec2efeef71dc69988475478de9bad46957cbdf28c32d6406a`; native inputs SHA-256 `9fa53dc1f48284aa645f3efbb63a8d7d1a03d18df227e986c8357273596bc13b`.
 - 실제 재확인: 사용자 반복 스크롤·ListView 왕복 중 초기화 객체와 입력 pointer가 **1개**로 유지됐고 native 시작·종료가 JS에 전달됐다. 수집한 진단 구간의 오류는 0건이었다. 사용자가 계속 조작 중인 수정 앱은 켜두었다. 다음 실행도 기존 `run:windows` 명령을 사용한다.
 - 범위: 창 전환·리사이즈 후 물리 재입력과 다른 트랙패드 장치의 장시간 사용은 별도 **`notVerified`**이며, 리사이즈 FPS 성능 수락과 전체 TSF/UIA/IME 수락으로 확대하지 않는다.
+- 추가 진단(2026-10-28): 같은 실제 Release 패키지를 **`NELYX_TRACKPAD_DIAGNOSTICS=1`와 `NELYX_WINDOWS_FRAME_DIAGNOSTICS=1`**로 새 실행했다. 사용자는 이 진단 창에서는 **“지금은 재현되지않음”**이라고 답했다. 확보한 로그에서 precision 객체 하나의 RUNNING/INERTIA/READY 전환과 native event writer 호출을 관찰했다. `js-delivered`라는 기존 로그는 native payload writer 내부 기록이므로 실제 SDK 수신·Core 처리·화면 표시의 완료 증거로 해석하지 않는다. 약 101ms의 JS frame work/queue 지연도 있었지만 신고된 먹통과 동일 구간인지 확인되지 않았다. 일반 실행과 진단 실행의 차이만으로 원인을 확정하거나 해결로 판정하지 않는다.
+- 예방 보강 전 조사 범위: **공통 입력 순서·프레임 예약/admission·native UI/GPU completion과 실제 화면 변화 연결**을 먼저 확인한다. DirectManipulation reset 중 새 contact가 겹치는 경로도 후보이지만, 마우스 휠 재발을 함께 설명하는 증거는 아직 없다. 당시에는 runtime 수정·빌드·수정 완료 판정 없이 진단 앱을 사용자 재현용으로 켜두었다. 이후 변경·검증은 아래 예방 보강을 따른다. 재발 시점·화면(Material/ListView/Cupertino)을 받아 같은 실행의 입력 sequence와 프레임을 연결하는 것이 다음 시작점이다. 콘솔 로그·별도 checkpoint/history 파일은 보관하지 않는다.
+- 접근성 포커스 가설(2026-10-28): `SemanticsComponent.h::syncFocus`는 Core의 focused 값과 native focused component가 다르면 `focusSurface`/`TryFocus` 또는 `focusCanvas`로 실제 포커스를 동기화한다. UIA의 명시적 `SetFocus`도 별도 이동 경로다. 따라서 가설은 조사 대상으로 유지한다. Windows semantics View는 `pointerEvents:'none'`이며, `SkiaView::precision`/`wheelPoint`의 입력 허용 조건에는 keyboardFocused 검사가 없다. 포커스 변경 하나만으로 공통 스크롤 정지의 원인을 확정하지 않는다.
+- 같은 실행을 **120초간 읽기 전용으로 관찰**했다. 자기 앱 process로 필터링한 UIA focus 기록은 시작 시의 **Window 1건**, 관찰 오류 **0건**이었고 접근성 요소로의 이동은 관찰하지 못했다. native focus는 처음 앱 최상위 HWND였으며, 이후 앱이 foreground를 잃을 때 0으로 바뀌고 정상 cancel이 기록됐다. 관찰 구간에 native pan 이벤트도 있었다. 이 실행에서 사용자가 신고한 먹통은 재현되지 않았으므로 간헐적 포커스 경합을 배제하는 결과는 아니다. observer는 `finally`에서 해제했고 runtime 소스·설치 패키지는 바꾸지 않았다. 다음 재발에서 포커스·입력 sequence·프레임 지연을 같은 시각으로 연결한다.
+### 예방 보강 (2026-10-28)
+
+- 사용자 요청에 따라 포커스·정밀 스크롤의 확인 가능한 취약 경로를 보강한다. 최초 간헐적 먹통의 원인은 아직 확정하지 않았으며 물리 입력 해결 판정은 `notVerified`다. §8 리사이즈 성능 작업은 **PAUSED / PARTIAL**을 유지한다.
+- 접근성: geometry·selection·metadata만 갱신되는 snapshot은 native 포커스를 다시 가져오거나 아직 Core가 승인하지 않은 UIA 포커스를 해제하지 않는다. 실제 논리 포커스 전환만 활성 island 안에서 동기화하며 비활성 island의 passive 갱신·peer 해제는 다른 창의 포커스를 가져오지 않는다. 명시적 UIA `SetFocus`와 Core의 실제 focus/blur 전환 경로는 유지한다.
+- 정밀 스크롤: 새 contact 직전에 이전 reset의 callback을 먼저 처리하고 `READY` 확인 후 접촉을 등록한다. reset 중 합성 callback을 실제 제스처로 해석하지 않는다. 화면 좌표를 얻지 못해 precision 시작을 내보내지 않은 stream은 fallback 휠을 차단하지 않는다.
+- 제어된 회귀에서 수정 전 포커스 반복 요청·reset 직후 빠른 재접촉·좌표 없는 관성의 휠 차단 실패를 확인했다. 수정 후 회귀에는 미승인 UIA 포커스 해제 방지도 포함한다. `windows-precision`, `windows-semantics-text`, `windows-window-pointer`, `windows-pointer-timing` **4/4 PASS**, 접근성 tree·packet·action·편집 검사 **31/31 PASS**, 전체 workspace typecheck **PASS**. 실제 Fabric/UIA·TSF 전체 통합 검사도 **PASS**다. UIA blur/focus 8회, Core 승인 전 새 commit에서도 native peer 유지(22→23), 캔버스 포커스의 passive 갱신 보존과 명시적 UIA 복원, 텍스트·선택·privacy·range reveal·OS keyboard/Unicode·픽셀·backing resize를 확인했다. `views=0 consumers=0 gpuDrained=1 inputRetired=1`, exit 0이다. Hermes supplier / optimized bytecode 범위이며 물리 IME·reader 수락은 아니다. 모든 테스트 timeout은 20분이다.
+- 공급을 갱신하고 Core source **623개**·dist **2,492개**, Windows header **54개**(SDK 33 + Skia RN 14 + 공통 host 7)가 설치본과 byte 일치함을 확인했다. Core `9c2a4bd08e5548ce0e5b2c1130b178e6364d9e376579288ac439687bd35b9804`, SDK `0800feb9c44111b2ff63788aabe7eefbdbc8a15e7068aa21ec00bcb91d64b640`, Skia RN `9444254ae37889bcde4033e0d61047dd263cee5f37aea1fa2f9399b4add52cc3`, Skia Native archive `e4cdb6c3909405305f17977e6c572cdfb3d68ceeb3a2d4ae0e0d26e7aaa1fad0`다. 첫 통합 시도의 이전 compiled-source manifest 불일치를 native 증분 빌드·재준비로 해소했으며 새 native inputs는 `e020d665ac6bb962b5ce7bfeac4a7ec14576443fd776f6685920d34637ac0ccd`다.
+- 기존 진단 앱은 정상 닫기로 종료했다. exit **0**, `views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. 새 Static Hermes / optimized / x64 Release AOT 앱의 빌드·패키징 **PASS / exit 0**다. 이전 AOT에 없던 최신 Core deadline·실패 취소 보완과 이번 native 입력 보강이 포함된다. 1,774개 파일 inventory·runtime·last-package locator digest 검사를 통과했다. 이 빌드의 성공을 §8 리사이즈 성능 재검증으로 확대하지 않는다. 새 패키지의 `test:windows-continuous-scroll`도 **PASS**다. 세 화면마다 양방향 3초 OS 휠, 입력 후 닫기와 실제 desktop pixel 변화를 확인했다. 세 프로세스 모두 exit 0·drain 정상이다. 별도 로그·history·checkpoint는 만들지 않는다.
+
+| 예방 보강·최신 Core 반영 Release 출력 | SHA-256 |
+| --- | --- |
+| exe | `92cb6b450ded733095987108742cfe63bdee0ecb0ab76c10053c007d396515f1` |
+| AOT DLL | `66cd390bb8839f0cb08a5cc89a2b6f1026c37755820040389a497a4ce3fdc16b` |
+| package manifest | `968a2fb37ce6448690fd0d2868913e71703f658a2fb1cbc177a4e4593a6ace1f` |
+
+| 예방 보강 AOT의 실제 연속 OS 휠 | 입력 중 최대 픽셀 변화 간격 | 숨김 | HWND 파괴 | 프로세스 종료 |
+| --- | --- | --- | --- | --- |
+| Material | 219.13ms | 2.19ms | 1,800.29ms | 1,845.94ms |
+| ListView | 146.01ms | 2.65ms | 1,838.62ms | 1,904.22ms |
+| Cupertino | 170.09ms | 1.95ms | 627.60ms | 691.80ms |
+
+- Material 최대화·복원과 포인터 이동도 포함했다. 기존과 같이 큰 창 전환에서 `actual-frame`·`actual-commit` timeout이 각 2회 있었다. 이를 새 회귀 실패나 리사이즈 성능 통과로 바꾸지 않으며 §8의 미수락 경계를 유지한다. 장시간 실제 마우스·트랙패드와 원래 간헐적 먹통의 해소는 아직 `notVerified`다.
+- 진단 옵션을 끈 일반 `npm run run:windows --workspace @nelyx/testbed-2`로 수정 패키지를 사용자 재확인용으로 실행해두었다. PID **10436**, `NelyxTestbed2`, visible·`Responding=True`를 확인했다. native 통합 임시 폴더·AOT staging은 정리됐고 별도 로그·이전 dist·archive·checkpoint는 추가 보관하지 않았다. 기존 자동 승인 검토에서 거절된 임시 폴더는 위 기록대로 유지한다.
+
+### 예방 보강 후 재현·실행 경로 분리 (2026-10-28)
+
+- 사용자는 위 예방 보강 AOT에서도 **스크롤 막힘이 재현됐다**고 답했다. 따라서 원래 간헐적 문제는 미해결이다. 앞선 회귀·UIA/TSF·자동 OS 휠 통과 범위를 유지하되 물리 입력 해결로 판정하지 않는다. 발생 화면은 아직 특정하지 못했다.
+- 추가 단서: **에이전트가 켜둔 창을 대화 종료 후 조작할 때만 막히고, 사용자 직접 실행이나 에이전트 테스트 중에는 재현되지 않는다**는 사용자 보고다. 실행 세션·출력 연결·활성화 차이를 먼저 분리한다. `startWindowsProcess`는 stdout/stderr를 CLI의 stderr로 pipe한다. 그러나 남아 있던 일반 실행에서 확보한 출력은 시작·종료뿐이라 출력 폭주나 backpressure가 원인이라고 확정하지 않는다. 기존 PID 10436은 exit 0으로 종료됐고 재발 구간의 내부 입력 로그는 없었다.
+- 제품 바이너리는 바꾸지 않고 같은 exe SHA `92cb6b450ded733095987108742cfe63bdee0ecb0ab76c10053c007d396515f1`를 **desktop Explorer 자동화를 통해 독립 실행**했다. 현재 앱 **PID 6692**, parent **explorer PID 9668**, visible·`Responding=True`다. 단순 `Shell.Application.ShellExecute`의 첫 시도는 parent가 pwsh로 남아 정상 닫은 뒤, desktop의 실제 Shell automation으로 다시 실행해 Explorer parent를 확인했다.
+- `Nelyx/eng/windows-scroll-observer.ps1`를 추가했다. 관찰자도 Explorer 자식으로 독립 실행하며 현재 **PID 28564**, 공유 메모리 `Local\NelyxScrollObserver.v1.6692`다. 최대 20분 동안 QPC·이 앱 위의 OS 휠 수·합계·포커스/capture·foreground·커서 소유창·UI WM_NULL 응답·CPU 누계·화면 hash를 약 200ms 간격으로 읽는다. 최근 512개 표본(약 102초)만 RAM에 두고 이미지·키보드 내용·파일 로그는 저장하지 않는다. 앱 종료 시 hook을 해제하고 마지막 기록을 최대 2분 유지한다. 시간 만료나 `-Stop`은 hook·GDI·메모리를 정리한다.
+- 범위: 휠 감지는 **OS mouse hook 관찰**이며 앱의 WM_MOUSEWHEEL·SDK 수신·Core 소비의 완료 증거가 아니다. 모든 DirectManipulation 제스처를 감지하지는 않는다. 화면 hash도 32×64 축소 표본으로 전체 화면/FPS/scanout 수락이 아니다. native→SDK→Core 상세 계측은 이번 실행 경로 비교 결과가 필요할 때 추가한다.
+- 관찰 도구 검증: C# 컴파일·공유 메모리 읽기·제한 시간 종료·메모리 제거·`-Stop` 협력 종료와 앱 응답 유지 **PASS-scoped**다. 초기 휠 필터의 보정 입력 누락을 발견해 현재 커서의 소유창으로 필터를 보완했다. 보완 후 앱 안의 OS 주입 휠 **3회 / delta -360**이 관찰됐고 같은 구간에 desktop hash **3개**, UI timeout **0**을 확인했다. 현재 관찰자는 보정 뒤 새로 시작해 카운터 0이며 hook error 0이다. 이전 관찰 프로세스는 모두 종료됐다. 이는 관찰기의 기능 검증이며 신고된 재현을 포착한 결과가 아니다.
+- 사용법은 Testbed 한·영 README에 반영했다. 재현 직후 앱을 열어둔 채 다음 명령으로 현재 관찰을 읽는다. 대화 종료 뒤의 독립 실행에서도 발생하는지는 다음 사용자 확인 사항이다. 이번 단계에는 제품 runtime 변경·재빌드가 없으며 §8 리사이즈 작업은 PAUSED다.
+
+```powershell
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId 6692 -Read
+```
+
+### 독립 실행 재현과 약 1초 스크롤 화면 정지 진단 (2026-10-28)
+
+- 사용자는 Explorer에서 독립 실행한 PID 6692에서도 **트랙패드 재현**을 보고했다. 증상은 창이 계속 멈추는 것이 아니라 **스크롤 중 약 1초 화면 움직임이 끊겼다가 이어지는 현상**이다. 입력은 계속되지만 화면 갱신이 밀릴 수 있다는 사용자 가설을 포함해, native 입력→SDK→Core→프레임→화면의 시간 간격을 비교한다. CLI pipe 연결만으로 원인을 확정하지 않는다.
+- 즉시 읽은 외부 관찰 512개 표본에서 조작 구간의 native HWND focus는 일정하고 capture는 0이었다. UI WM_NULL timeout 0, 해당 구간 최대 응답 약 **1.79ms**였다. 이는 창 전체의 응답성 관찰이며 1초 스크롤 끊김을 부정하거나 UIA의 논리 focus 이동을 배제하는 증거가 아니다. 일부 초 단위 구간은 화면 hash가 유지됐지만 물리 입력 시점과 연결할 내부 기록이 없어 그 구간을 신고된 정지로 확정할 수 없다. OS mouse-wheel count 0은 DirectManipulation 트랙패드 입력 중단의 증거가 아니다.
+- 새 진단은 `NELYX_WINDOWS_INPUT_TRACE=1`로만 활성화한다. `WindowsInputTrace.h`가 현재 process의 32개 단계별 누계·최신값과 최대 **8,192개 numeric entry**를 공유 메모리에 유지한다. 일반 갱신은 16회당 1개를 표본화하고, 상태 전환·거절·200ms 이상 SDK/Core 입력 지연·100ms 이상 JS frame work·250ms 이상 단계 간격은 남긴다. console/file 출력·scene/callback/resource 보관·추가 입력/pump·예약/admission 변경은 없다. 비활성 시 메모리도 할당하지 않는다.
+- native DirectManipulation 상태·contact·clock/tick·content·발행/거절, RNW payload 작성, 실제 SDK 수신/세대·순서 거절, Core queue·controller 처리 시작/종료, frame request/clock/JS·UI 작업, native 제출·producer 완료·surface update·retirement, canvas/UIA focus를 관찰한다. **native packet sequence와 Core 내부 input counter를 따로 기록**하며 Core 관찰로 둘을 연결한다. SDK/Core의 지연은 같은 시계 domain 안에서 계산하고, 관찰 시각은 native QPC다. 기존 `js-delivered` 문구는 실제 의미인 `payload-written`으로 바꾼다.
+- `windows-input-trace.ps1 -TargetProcessId <PID>`가 기록을 읽고 `-Raw`로 현재 표본을 반환한다. 읽기에는 JS·UI callback이 필요 없고 파일을 쓰지 않는다. native retirement/surface update는 실제 desktop pixel receipt가 아니므로, 다음 진단에는 기존 화면 관찰기를 **`-NoHook`**로 실행해 OS input hook 없이 화면 hash와 연결한다. 외부 관찰기는 이미 정상 종료했으며 기존 앱도 닫힌 상태다. 기존 앱 ExitCode는 독립적으로 검증하지 못해 종료 코드 0으로 기록하지 않는다.
+- 회귀: 새 recorder의 opt-in/미할당·표본화·희귀 거절 보존·RAII 정리, SDK 수신/거절 관찰, 진단 callback 실패 시 입력 보존, Core queue/dispatch/거절/원래 예외 보존과 frame/backpressure·clock 검사 **38/38 PASS**. 전체 workspace typecheck **PASS**. precision·UIA text·runtime close는 **15/15 PASS**였고 window-pointer standalone의 새 common-header include 누락을 harness에서 고친 뒤 해당 검사 **1/1 PASS**다. 진단을 켠 실제 Fabric/UIA·TSF 전체 통합도 **PASS**다(Hermes supplier optimized bytecode, 약 162.5초). 8회 UIA blur/focus·queued native focus·canvas 보존·text/selection/privacy·pixel·backing resize·정상 close/drain을 유지했다. native recorder와 PowerShell reader를 실제 별도 프로세스로 연결한 protocol 검사도 PASS다. 새 Static Hermes / optimized / x64 Release AOT 빌드·패키징 **PASS / exit 0**다. 최종 1,775개 파일 inventory·runtime·last-package digest 검사도 PASS이며 SDK source 113개도 설치본과 byte 일치한다. 모든 테스트 timeout은 20분이다. SDK의 optional property type 오류는 공급 전 빌드 단계에서 수정했다.
+- 새 Core·SDK dist 및 네이티브 패키지를 다시 공급·설치했다. native source manifest는 `c46d594817e80d8514165c7f84faf7c17004ec7b725678a7d6af4feb3ad0e148`다. 이전 실제 AOT의 예방 보강과 이번 계측 소스를 구분한다. 현재 설치 Core source 623개·dist 2,492개, Windows header 55개(SDK 33 + RN 14 + host 8)가 원본과 byte 일치한다. 현재 archive SHA는 Core `88017afdfabc914e2f1de458acfa80dbcb80e99cf2e302cda5b2ff7a6debb98a`, SDK `3c7f5900c877527da688c8287c968a63155d73c4314e4f16c3abe2fd6c0baa99`, RN `174c7f10547a9a36f3d5359e3357acae56c0aabe1800920be627748b5ab15ef6`, Skia Native `98a3e1fc0649116c4358bcb641458b7710635ea27361900d16928a1fe0573e28`다. 원래 약 1초 끊김은 계속 **미해결 / notVerified**, 리사이즈 성능 작업은 **PAUSED / PARTIAL**이다.
+
+| 약 1초 스크롤 끊김 진단을 포함한 Release 출력 | SHA-256 |
+| --- | --- |
+| exe | `38c6bfb5c8a111fa5a6cefee092c44b25e74001c9b7b8794f17c1b9406486edf` |
+| AOT DLL | `f93c29d1d65f6a59ff59133c7ea9d427bc4bdab80c37b0a6f64f9efe1f18333a` |
+| package manifest | `337c33f5bd171d2b1e896c4246add14097449b3c0638a5b71ba58ba6aad84802` |
+
+- 당시 진단 앱 **PID 27828**, `NelyxTestbed2`, visible·`Responding=True`를 확인했다. Explorer에서 시작한 독립 launcher가 이 앱에만 `NELYX_WINDOWS_INPUT_TRACE=1`을 전달했고 npm/도구의 stdout pipe에 묶지 않았다. 실제 native 공유 메모리와 SDK/Core 관찰이 활성화됐고 화면 관찰자 **PID 23844**는 **`-NoHook` / hookInstalled=false**였다. 이 앱과 관찰자는 이후 종료됐으며 종료 코드는 독립 검증하지 않았다. 아래 재현 분석은 재현 직후 읽었던 기록을 기준으로 한다.
+- 실제 AOT의 owned foreground canvas에 주입한 OS 휠 **3회씩 2묶음(총 6회)**으로 진단 경로를 확인했다. 마지막 묶음의 native packet **52 → SDK 52 → Core nativeInput 52**, Core counter **52 → frame-retired counter 52**가 연결됐고 마지막 Core 처리까지의 입력 지연은 **7.69ms**였다. 같은 초에 외부 desktop hash **4개**를 관찰했고 UI timeout은 0이다. 이는 계측의 연결 검증이며 사용자의 물리 트랙패드 재현이나 원인 규명 결과가 아니다. 새 패키지의 3화면 연속 OS 휠을 다시 실행했다고 기록하지 않는다.
+- 현재 기록의 약 199.6ms JS frame work 1건은 초기 첫 프레임이며 1초 스크롤 정지 원인으로 해석하지 않는다. Microsoft [compositor clock 안내](https://learn.microsoft.com/en-us/windows/win32/directcomp/compositor-clock/compositor-clock)도 확인했다. 문서는 display가 갱신되는 동안 compositor가 idle이어도 clock 신호가 진행된다고 설명한다. 소스의 1000ms wait timeout 숫자와 신고된 정지 시간의 유사성만으로 clock 원인을 확정하지 않는다.
+- 재현 후 앱을 닫기 전에 아래 두 기록을 같은 QPC 구간으로 읽는다. native의 `gaps`는 500ms 이상 단계 표본 간격과 그동안의 이동 입력 표본 수를 보여주며 정상 idle도 포함할 수 있다. 상세 표본은 `-Raw -Tail 512`로 제한해 읽을 수 있다. 다음 물리 재현에서 입력이 진행되는 동안 frame/surface/pixel 갱신이 밀리는지를 판별한다. 파일 로그·이전 dist·별도 receipt/history를 추가 보관하지 않는다. 기존 거절된 임시 폴더는 앞선 기록을 유지한다.
+
+```powershell
+pwsh -NoProfile -File Nelyx/eng/windows-input-trace.ps1 -TargetProcessId 27828
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId 27828 -Read
+```
+
+### 물리 재현의 조기 종료·초기화 경로 보강 (2026-10-28)
+
+- 사용자는 **후반부에 재현됐고 손가락을 계속 움직이는 도중** 약 0.7~1초 끊긴다고 명확히 했다. 종료·관성 취소가 보였다는 이유로 해당 공백을 정상적인 제스처 사이 대기로 해석했던 판단을 철회한다. §8 리사이즈 작업은 **PAUSED / PARTIAL**을 유지한다.
+- 직전 진단의 누계는 native 입력·payload 작성·SDK 수신·Core 처리 시작/종료가 각각 **4,272건**이며 SDK/Core drop·frame failure는 없었다. 마지막 30초의 보존된 관찰에서 SDK 지연 최대 약 34.74ms, Core 처리 종료까지 약 121.52ms, JS frame work 약 43.12ms였다. 1초 입력 backlog나 JS CPU 정지가 이 구간에서 확인되지는 않았으나, native에서 이미 끝난 것으로 처리해 발행하지 못한 물리 입력까지 이 누계로 정상 판정하지 않는다. 마지막 조작 구간에 명시적 UIA focus 전환 기록도 없었다.
+- 실제 연속 native submission **3009 → 3010** 사이에 **713.42ms** 공백이 있었다. QPC **23846489.8973**의 RUNNING→INERTIA 직전 flags **107**, **23846505.6152**의 INERTIA→READY 직전 flags **109** 모두 `interacting=true`다. 그 사이 `panZoomEnd`가 발행됐고 READY 직후 **23846505.6162**에 `inertiaCancel`, 이어 합성 RUNNING→READY 초기화가 실행됐다. 다음 start는 **23847203.5017**이었다. 이것은 실제 종료·초기화 순서의 증거이며 해당 callback을 물리 손 떼기의 증거로 해석하지 않는다.
+- 소스에서 `status(READY)`가 interaction 활성 여부와 관계없이 즉시 `inertiaCancel`·`ZoomToRect`를 실행하던 경로를 보강했다. READY의 취소·초기화는 보류하고 `Update`의 callback 처리가 끝난 뒤 interaction·RUNNING·INERTIA가 모두 종료된 경우에만 적용한다. 그 전에 새 RUNNING이 오면 이전 보류를 폐기해 계속되는 입력의 transform을 초기화하지 않는다. 합성 초기화의 BEGIN/END는 실제 interaction 소유권을 변경하지 않으며, 창 비활성화·명시적 취소는 보류된 취소까지 정확히 정리한다. **조기 초기화가 이번 물리 증상의 확정 원인인지는 수정 앱에서 별도 확인해야 한다.**
+- Windows의 [상태 callback 안내](https://learn.microsoft.com/en-us/windows/win32/api/directmanipulation/nf-directmanipulation-idirectmanipulationviewporteventhandler-onviewportstatuschanged)도 통지가 비동기이므로 callback 안의 GetStatus와 통지 상태가 다를 수 있음을 명시한다. 상태 통지 하나를 실제 손동작 종료와 동일시하지 않는다.
+- `windows-input-trace.ps1`에 `frameGaps`를 추가했다. 300ms 이상 간격에서 native submission id가 연속인지와 주변 start/end/cancel을 함께 보여준다. `consecutiveSubmissions=true`만 실제 연속 제출 공백이며 표본 누락 간격과 구분한다. 종료·취소가 포함된 공백을 정상 idle로 자동 분류하지 않는다. 현재 테스트는 실제 C++ 공유 메모리→PowerShell 판독으로 **700ms 연속 제출 공백과 terminal 보존·submission 16개 생략·다른 surface 제외**를 확인했다. 입력 recorder 검사 **1/1 PASS**다.
+- 네이티브 회귀는 active interaction의 READY 후 초기화 보류, 보류 중 새 RUNNING의 정상 update, 실제 END 후 취소·초기화 정리, 합성 BEGIN/END 소유권 보존, 명시적 취소 시 보류 취소 정리를 추가했다. precision·native window pointer·compositor clock **3/3 PASS**다. 물리 접촉 주입 검사는 아니며 기존 12회 반복·stationary·관성 없는 종료·재접촉·cancel/close 경로도 유지했다. 모든 테스트 timeout은 20분이며 임시 디렉터리는 finally에서 정리했다.
+- 공급한 RN·Skia Native의 공통 헤더와 설치 헤더 SHA-256은 **`3a5a32ba2beb82ca2734b3205fb9097026788bdf7ac58ff7a9329a0b6b1b67a2`**로 일치한다. 새 native inputs는 **`a24ef05b9de6298335840f11262bb6e1ccb3a2ec81d7996d30251e2883366e23`**다. RN archive는 `6b148e0f236726ed3c17bc3f5189e59c5df1cfb4d02a44a2f69598027b5311f3`, Skia Native archive는 `215dc514da82a7a8a3f8dd2b180ff8843372d799f14c35b70a023beacbaae95f`다. Core·SDK TypeScript는 이번 단계에서 변경하지 않았다. 실제 Static Hermes / optimized / x64 Release 앱 빌드·패키징은 **PASS / exit 0**이며 1,775개 파일 inventory·runtime·last-package locator 검사를 통과했다. 물리 스크롤 해결 판정은 **`notVerified`**다.
+- 새 실제 패키지의 ListView에서 양방향 각각 3초 OS 휠을 확인했다. 입력 530/534개, 입력 중 화면 변화 123/116개, 최대 화면 변화 간격 **30.00/146.67ms**였다. 창 숨김 **2.01ms**, HWND 파괴 약 **2,078.74ms**, 프로세스 종료 약 **2,140.03ms**, exit 0·`views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. 이번 단계에서 Material/Cupertino나 리사이즈 성능 검사를 다시 실행한 것으로 기록하지 않는다. 물리 트랙패드 재현 해결과 별도의 자동 검증이다.
+- 사용자 재확인용 수정 앱 **PID 15972**, `NelyxTestbed2`, visible·`Responding=True`를 확인했다. Explorer가 시작한 숨김 launcher를 통해 독립 실행했고 앱에만 `NELYX_WINDOWS_INPUT_TRACE=1`을 전달했다. 콘솔용 trackpad/frame 진단은 끄고 native 공유 메모리 활성 상태를 읽었다. 화면 관찰자 **PID 23380**, **`-NoHook` / hookInstalled=false**, 최대 20분이다. 앱이 닫히기 전에 아래 명령으로 같은 실행의 기록을 읽는다. 새 AOT staging·supply 임시 디렉터리는 모두 0개이며 별도 로그·receipt·history는 만들지 않았다.
+
+| 조기 종료·초기화 보강 Release 출력 | SHA-256 |
+| --- | --- |
+| exe | `c9e7d8954797b9be921f26c9d00c7e94d9a15478dd06c19a590c1ea4d6b9887e` |
+| AOT DLL | `b1ffa3c021199bbb512b86e28a6ec57919b85e405f0ea6ccd0b2f79798f04c8b` |
+| package manifest | `c3bbee4d0d4d30471f2f843d08a02d82e1cd79d6abc11ce87eb00195df167e88` |
+
+```powershell
+pwsh -NoProfile -File Nelyx/eng/windows-input-trace.ps1 -TargetProcessId 15972
+pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId 15972 -Read
+```
+
+### Flutter Windows 입력·프레임 주기 적용과 합성 reset 회귀 수정 (2026-10-28)
+
+- 최신 상태: **PAUSED / PARTIAL — 사용자 외출·마무리 요청으로 구현·검증 중단점 정리 완료**. 최신 AOT 빌드·공급 검증과 추가 종료 전용 검사는 통과했다. 최종 수정 AOT의 세 화면 연속 휠 재검과 물리 트랙패드 수락은 남겨둔다. 자동으로 작업을 재개하지 않는다.
+- 사용자는 위 PID 15972 수정본에서도 **스크롤이 약 0.7초 늦게 끊기듯 움직인다**고 보고했고, Flutter와 비슷한 방식의 수정을 요청했다. 따라서 앞선 조기 초기화 보강은 문제 해결이 아니며 **REOPENED / 물리 입력 notVerified**다. §8 리사이즈 작업은 **PAUSED / PARTIAL**을 유지한다.
+- 재현 직후 읽은 RAM 기록에서 native·payload·SDK·Core 처리 누계는 각각 **3,805건**이며 drop·frame failure는 없었다. 한 실제 구간은 native start **26322047.9436** → SDK **26322048.1514** → Core 처리 종료 **26322049.3484**였지만 첫 이동은 **26322230.4772**에 발행됐다. 시작 인식보다 **첫 이동 발행까지 약 182.53ms 공백 후 deltaY 약 749.93 logical units가 전달되는 경로**가 확인됐다. 일반 clock 기록은 표본이므로 표본 간 간격만으로 모든 clock 대기 시간을 확정하지 않는다.
+- 앞선 보강에는 회귀도 있었다. 초기화를 Update 뒤로 미루면서 같은 Update 안의 `GetStatus(READY)`로 합성 억제를 너무 일찍 해제했다. 뒤늦은 합성 RUNNING→READY가 실제 panZoomStart/update/end로 새어 나갔다. 보존된 start/end 127구간 중 54구간은 1ms 미만이었으며, 예를 들어 **26330478.6081~26330478.6338**의 짧은 제스처가 초기화 직후 SDK/Core에 전달된 것을 확인했다. 기존 회귀 fixture는 실제 native transform이 identity라 이 callback을 만들지 않아 놓쳤다.
+- Flutter 공식 [Windows 입력 구현](https://api.flutter.dev/windows-embedder/classflutter_1_1_flutter_window.html)은 DirectManipulation을 14ms HWND timer로 갱신한다. [Windows 엔진의 OnVsync·FrameInterval](https://api.flutter.dev/windows-embedder/flutter__windows__engine_8cc_source.html)은 DWM 주기로 다음 tick을 계산한다. [DirectManipulation 상태 처리](https://api.flutter.dev/windows-embedder/direct__manipulation_8cc_source.html)는 reset 콜백을 합성으로 억제하고 native inertia 이동과 framework momentum을 구분한다. 현재 [hit slop](https://api.flutter.dev/flutter/gestures/computeHitSlop.html)은 Flutter와 같아 임계값을 줄이는 변경은 하지 않았다.
+- 트랙패드의 compositor 대기 worker를 제거하고 활성 입력 동안 **14ms HWND timer**로 Update를 실행한다. idle·종료 시 자기 timer를 정리하며 다른 WM_TIMER를 소비하지 않는다. 프레임 clock은 **DWM refresh 주기와 QPC phase를 기준으로 한 취소 가능한 고해상도 waitable timer**로 다음 요청을 예약한다. DWM 정보를 얻지 못하면 Flutter처럼 60Hz 기본 주기를 사용한다. 입력 시작에 새 compositor 활동을 기다리는 의존을 제거하며, 이 tick을 실제 vblank·표시 receipt로 판정하지 않는다.
+- 이전 READY 취소·초기화 보류 변경을 철회하고 Flutter의 상태 처리 순서로 되돌렸다. 합성 reset은 READY까지 억제하고, GetStatus 보정도 **해당 reset 이후의 Update를 실제로 처리한 경우에만** 허용하도록 reset serial을 확인한다. 실제 새 제스처 직전 reset drain, 명시적 취소·fallback 휠·단일 입력 소유권은 유지한다. SDK의 두 네이티브 호스트도 더 이상 precision 입력용 UI-post callback을 전달하지 않는다.
+- 관련 회귀 **40/40 PASS**다. 기존 frame/backpressure·native receipt·SDK sequence·정상 취소 외에 실제 HWND timer의 stationary 갱신·idle 정리·다른 timer 제외, **실제 nonidentity native transform의 ZoomToRect reset callback**을 추가했다. native frame clock의 요청 8회 최대 대기는 **6.54ms**, idle 중 자체 tick 0, stop 후 callback 0이었다. 이는 clock 검사이며 앱 FPS·물리 스크롤 해결 수치가 아니다. 모든 테스트 timeout은 20분이고 임시 폴더는 finally에서 정리했다.
+- 공통 precision/header 설치본은 원본과 byte 일치한다. precision SHA-256은 `9b0dfed73feb0fedb3f2e0ebdc82a304c4e00abc1bd06197ca1475d00f746f08`, frame clock은 `c484cfd9bdf44034b936c11d188d6fc9c2e03e8225d0e5ef8c969cdb7f3abb0c`다. SDK archive `a73020207bb0359707dca069b6928c7b58ac7f065020aacd7828b4bf9d1a5edd`, RN `928e829c4b7f7ff0dcbc907e92e69952260895219aa7de761938172ee483bf63`, Skia Native `5cce6cfc42562e8eaf29862440bc7538cd19211531b58c523703393b444cc1ae`를 설치했고 새 native inputs는 `bd21dc7581ae9c71cc5cf7ed970aedc6578ace752009c272d29665c822e21a9e`다. Core·SDK TypeScript 변경은 없다.
+- 이전 진단 앱은 정상 닫기 요청 뒤 종료를 확인했고 관찰자도 협력 종료했다. 종료 코드 조회는 null이라 exit 0으로 기록하지 않는다. Flutter 주기 반영 AOT 빌드·패키징은 exit 0이며, 전체 native UI 통합 검증도 **PASS**였다(Hermes supplier optimized bytecode, 약 165.89초). 실제 Fabric/UIA·TSF·픽셀·입력 소유자 1개·정상 close/drain 범위다. 새 물리 재현 해결 판정은 아직 **notVerified**다. raw 로그·별도 receipt·history는 보관하지 않는다.
+- 뒤이은 실제 AOT 세 화면의 연속 OS 휠 검사에서는 Material 최대 화면 변화 간격 **169.64ms**, ListView **98.25ms**, Cupertino **98.11ms**였다. 세 프로세스 모두 exit 0·drain을 관찰했지만 **Cupertino 종료 중 `Windows UI requires its active JS platform` / `REACT_ERROR`가 발생해 전체 검사는 FAIL**이다. Material 창 전환의 기존 actual-frame/actual-commit resize timeout 각 2회도 유지했다. 이를 스크롤·리사이즈 성능 수락으로 바꾸지 않는다.
+- 종료 경합 보강: UI의 Composition 상태가 이미 closing/closed/failed이면 큐에 남아 있던 JS frame batch와 그 안의 다음 callback을 실행하지 않는다. UI close에서 JS shutdown handler 도착까지의 틈에 새 UI 작업을 시작하지 않도록 `RNSkWindowsHost::canDeliverFrames`를 추가했다. 이미 승인된 GPU producer의 별도 drain permit은 유지한다. **수정 후 실제 종료 전용 통합 1/1 PASS**다(약 145.00초, supplier optimized bytecode). native producer가 active에서 승인된 뒤 closing에서 완료되고 `views=0 consumers=0 gpuDrained=1 inputRetired=1`로 종료됐다. harness에 위 React/platform 오류가 없어야 한다는 조건도 추가했다. **최신 AOT의 원래 세 화면 검사 전체는 사용자 마무리 요청으로 다시 실행하지 않았다.**
+- 최신 RN archive는 **`080765e384fd55284142d34fa508cc40e8d2a41fc73736f795903d9a065c45b0`**, 설치·원본 host header는 **`f8e006f74ffe71f6084ea76a5782f20b077c442e6183c295b9dfd8ecfac4eab1`**로 일치한다. native inputs `bd21dc7581ae9c71cc5cf7ed970aedc6578ace752009c272d29665c822e21a9e`와 위 precision/frame clock·SDK·Core 공급은 그대로다. 최신 Static Hermes / optimized / x64 Release 빌드·패키징은 **PASS / exit 0**, 1,775개 파일 inventory·runtime·last-package locator 검증도 PASS다.
+
+| 현재 중단점의 최종 Release 출력 | SHA-256 |
+| --- | --- |
+| exe | `adc6f7c306c17a0f330979bde39509e118f5d48509b3ac46d99392900e1f089b` |
+| AOT DLL | `a7277de3c12f69e2a033733c975043cb4ffbe13c6db14fff0bf3cfb2142c3f60` |
+| package manifest | `7e357735ba60b25a200922839c7f2eb23558094abc4aa9a216170136c0fa9cbb` |
+
+- 재개 순서: 최신 패키지의 `test:windows-continuous-scroll`을 다시 실행해 Cupertino 종료 오류 보강을 원래 조건에서 확인한 뒤, 사용자의 실제 트랙패드 시작 지연·연속 움직임·제스처 전환을 확인한다. 자동 휠 통과만으로 물리 문제 해결을 선언하지 않는다. 수정 패키지는 아래 기존 명령으로 실행할 수 있다. 현재 진단 앱·화면 관찰자·진행 중 검증은 종료된 상태이며 새 임시 staging·추가 로그를 남기지 않는다. 기존 자동 승인에서 거절된 옛 임시 폴더는 재시도하지 않았다.
+
+```powershell
+npm.cmd run test:windows-continuous-scroll
+npm.cmd run run:windows --workspace @nelyx/testbed-2
+```

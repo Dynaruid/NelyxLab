@@ -116,6 +116,15 @@ struct NelyxInputSurfaceFixture {
     mappings.clear();if(state->precisionTrackpad()!=expected)throw std::runtime_error("Coordinate lease retirement released canvas precision input");
     std::cout<<"INPUT_PRECISION_OWNER resolves=12 stable=1"<<std::endl;return RN::JSValueObject{{"resolves",12},{"stable",true}};
   });}
+  REACT_METHOD(semanticsNativeFocus)
+  void semanticsNativeFocus(double tag,double surface,bool focusCanvas,RN::ReactPromise<RN::JSValueObject> promise)noexcept{post(promise,[tag,surface,focusCanvas](RN::ReactContext const& current){
+    const auto peer=RN::Composition::CompositionUIService::ComponentFromReactTag(current.Handle(),static_cast<int64_t>(tag));
+    const auto canvas=RN::Composition::CompositionUIService::ComponentFromReactTag(current.Handle(),static_cast<int64_t>(surface));
+    const auto root=inputComponentRoot(peer);if(!peer||!canvas||!root||inputComponentRoot(canvas)!=root)throw std::runtime_error("Focus probe requires the same real Fabric input owner");
+    const auto parent=canvas.Parent();if(!parent)throw std::runtime_error("Focus probe lost its real keyboard canvas");
+    if(focusCanvas&&!parent.TryFocus(RN::FocusState::Programmatic))throw std::runtime_error("Explicit fixture canvas focus failed");
+    const auto focused=root.GetFocusedComponent();return RN::JSValueObject{{"peer",double(peer.Tag())},{"canvas",double(parent.Tag())},{"focused",focused?double(focused.Tag()):0.}};
+  });}
   REACT_METHOD(semantics)
   void semantics(double tag,std::string mode,RN::ReactPromise<RN::JSValueObject> promise)noexcept{
     if(automationWorker.joinable())automationWorker.join();const auto current=context;const auto top=winrt::Microsoft::UI::GetWindowFromWindowId(window.Id());

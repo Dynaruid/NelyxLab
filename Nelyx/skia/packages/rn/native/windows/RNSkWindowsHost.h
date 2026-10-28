@@ -5,6 +5,7 @@
 #include "CompositionSession.h"
 #include "windows/CompositorFrameClock.h"
 #include "windows/WindowsMonotonic.h"
+#include "windows/WindowsInputTrace.h"
 #include <map>
 
 namespace RNSkia {
@@ -77,11 +78,21 @@ private:
         });});
     frameClock=std::make_unique<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker(),requestedAt=frameRequestedAt](std::string failure){
       const auto tick=windowsMonotonicMilliseconds();
+      windowsInputTrace(WindowsInputStage::ClockReady,0,0,0,0,failure.empty()?0:1);
       if(windowsFrameDiagnosticsEnabled())windowsFrameDiagnosticDelay("clock-wait",requestedAt->load(),tick);
       scheduler->invokeAsync([weak,tick,failure=std::move(failure)](jsi::Runtime& rt){if(auto self=weak.lock())self->deliverFrames(rt,failure,tick);});
     });
     jsi::Object api(runtime);auto weak=weak_from_this();
     api.setProperty(runtime,"frameClockVersion",1);
+    api.setProperty(runtime,"inputTraceEnabled",windowsInputTraceEnabled());
+    api.setProperty(runtime,"traceInput",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"traceInput"),6,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
+        if(!windowsInputTraceEnabled()||count!=6)return jsi::Value::undefined();auto self=weak.lock();if(!self||!self->isActive())return jsi::Value::undefined();self->requireOwner();
+        for(size_t i=0;i<6;++i)if(!args[i].isNumber()||!std::isfinite(args[i].getNumber()))return jsi::Value::undefined();
+        for(size_t i=0;i<4;++i)if(args[i].getNumber()<0||args[i].getNumber()>9007199254740991.||std::floor(args[i].getNumber())!=args[i].getNumber())return jsi::Value::undefined();
+        const auto stage=uint64_t(args[0].getNumber());if(stage<11||stage>17)return jsi::Value::undefined();
+        windowsInputTrace(static_cast<WindowsInputStage>(stage),uint64_t(args[1].getNumber()),uint64_t(args[2].getNumber()),uint64_t(args[3].getNumber()),args[4].getNumber(),args[5].getNumber(),stage==12||stage==17);return jsi::Value::undefined();
+      }));
     api.setProperty(runtime,"getMonotonicTime",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"getMonotonicTime"),0,
       [](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return jsi::Value(windowsMonotonicMilliseconds());}));
     api.setProperty(runtime,"drainFrameTrace",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"drainFrameTrace"),0,
@@ -101,6 +112,7 @@ private:
         auto self=weak.lock();if(!self)throw jsi::JSError(rt,"Windows frame owner expired");self->requireOwner();
         if(!self->isActive()||count!=1||!args[0].isObject()||!args[0].getObject(rt).isFunction(rt)||self->frameCallbacks.size()>=4096||self->nextFrame>=9007199254740991ULL)throw jsi::JSError(rt,"Windows frame request requires an active owner and callback within admission");
         const auto id=++self->nextFrame;self->frameCallbacks.emplace(id,args[0].getObject(rt).getFunction(rt));
+        windowsInputTrace(WindowsInputStage::FrameRequested,0,0,id,0,double(self->frameCallbacks.size()));
         if(!self->frameArmed){try{if(windowsFrameDiagnosticsEnabled())self->frameRequestedAt->store(windowsMonotonicMilliseconds());self->frameClock->request();self->frameArmed=true;}catch(std::exception const& error){self->frameCallbacks.erase(id);throw jsi::JSError(rt,error.what());}}
         return jsi::Value(static_cast<double>(id));
       }));
@@ -163,17 +175,29 @@ private:
     catch(const std::exception& error){options.composition->fail(error.what());retainUnconfirmed(shared_from_this());if(!shutdownAcknowledged){shutdownAcknowledged=true;complete(error.what());}}
   }
   void deliverFrames(facebook::jsi::Runtime& rt,const std::string& failure,double tick){
-    requireOwner();if(!isActive())return;frameArmed=false;++frameTicks;
+    requireOwner();if(!canDeliverFrames())return;frameArmed=false;++frameTicks;
+    windowsInputTrace(WindowsInputStage::JsFrameBegin,0,0,frameTicks,double(frameCallbacks.size()),failure.empty()?0:1);
+    const auto inputTraceBegan=windowsInputTraceEnabled()?windowsMonotonicMilliseconds():0.;
     const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;if(began)windowsFrameDiagnosticDelay("js-frame-queue",tick,began);
     std::vector<uint64_t> batch;batch.reserve(frameCallbacks.size());for(auto const& entry:frameCallbacks)batch.push_back(entry.first);
     std::exception_ptr firstFailure;
-    for(const auto id:batch){const auto found=frameCallbacks.find(id);if(found==frameCallbacks.end())continue;auto callback=std::move(found->second);frameCallbacks.erase(found);
+    for(const auto id:batch){if(!canDeliverFrames())break;const auto found=frameCallbacks.find(id);if(found==frameCallbacks.end())continue;auto callback=std::move(found->second);frameCallbacks.erase(found);
       try{if(failure.empty()){
         facebook::jsi::Object timing(rt);timing.setProperty(rt,"nativeTick",tick);timing.setProperty(rt,"nativeDispatch",windowsMonotonicMilliseconds());
         callback.call(rt,facebook::jsi::Value::undefined(),std::move(timing));
       }else callback.call(rt,facebook::jsi::String::createFromUtf8(rt,failure));}catch(...){if(!firstFailure)firstFailure=std::current_exception();}}
     if(began)windowsFrameDiagnosticDelay("js-frame-work",began,windowsMonotonicMilliseconds());
+    if(inputTraceBegan){const auto elapsed=windowsMonotonicMilliseconds()-inputTraceBegan;windowsInputTrace(WindowsInputStage::JsFrameEnd,0,0,frameTicks,double(frameCallbacks.size()),elapsed,elapsed>=100);}
     if(firstFailure)std::rethrow_exception(firstFailure);
+  }
+  bool canDeliverFrames()const{
+    if(!isActive())return false;
+    if(!options.composition)return true;
+    // UI close seals the Composition platform before its JS shutdown task can
+    // run. A tick already queued on JS must not reopen UI work in that gap.
+    // Previously admitted GPU batches retain their independent drain permits.
+    const auto phase=options.composition->status().phase;
+    return phase!="closing"&&phase!="closed"&&phase!="failed";
   }
   facebook::jsi::Runtime &runtime;
   WindowsSkiaHostOptions options;

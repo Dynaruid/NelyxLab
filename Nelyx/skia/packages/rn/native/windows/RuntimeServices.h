@@ -5,6 +5,7 @@
 #include "rnskia/RNSkOwnerAsyncQueue.h"
 #include "WindowsResizeCoordinator.h"
 #include "WindowsFrameDiagnostics.h"
+#include "windows/WindowsInputTrace.h"
 #include "include/ports/SkTypeface_win.h"
 #include <ReactContext.h>
 #include <windows.h>
@@ -120,16 +121,19 @@ private:
     OutputDebugStringA(("Windows UI task failed: "+uiFailure+"\n").c_str());
   }
   void postUi(std::function<void()> job) {
-    const auto queued=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;
+    const auto queued=windowsFrameDiagnosticsEnabled()||windowsInputTraceEnabled()?windowsMonotonicMilliseconds():0.;
     uint64_t id;
     {std::lock_guard lock(mutex);if(failed.load())throw std::runtime_error("Windows UI task failed: "+uiFailure);if(sealed.load())throw std::runtime_error("Windows UI admission closed");if(jobs.size()>=64)throw std::runtime_error("Windows UI queue full (64 pending jobs)");id=++next;jobs.emplace(id,std::move(job));}
+    windowsInputTrace(WindowsInputStage::UiQueued,0,0,id);
     auto run=[weak=weak_from_this(),id,queued]() {
       auto self=weak.lock();if(!self)return;std::function<void()> task;
       {std::lock_guard lock(self->mutex);auto found=self->jobs.find(id);if(self->sealed.load() || found==self->jobs.end())return;task=std::move(found->second);self->jobs.erase(found);++self->inFlight;}
       const auto began=queued?windowsMonotonicMilliseconds():0.;
+      const auto inputQueueDelay=queued?windowsMonotonicMilliseconds()-queued:0.;windowsInputTrace(WindowsInputStage::UiBegin,0,0,id,inputQueueDelay,0,inputQueueDelay>=200);
       try{task();}catch(const winrt::hresult_error& error){self->recordUiFailure("HRESULT="+std::to_string(error.code().value)+" "+winrt::to_string(error.message()));}
       catch(const std::exception& error){self->recordUiFailure(error.what());}catch(...){self->recordUiFailure("unknown native exception");}
       task=nullptr;{std::lock_guard lock(self->mutex);--self->inFlight;}
+      windowsInputTrace(WindowsInputStage::UiEnd,0,0,id,self->failed.load()?1:0);
       if(queued){windowsFrameDiagnosticDelay("ui-queue",queued,began);windowsFrameDiagnosticDelay("ui-work",began,windowsMonotonicMilliseconds());}
     };
     auto dispatcher=context.UIDispatcher();

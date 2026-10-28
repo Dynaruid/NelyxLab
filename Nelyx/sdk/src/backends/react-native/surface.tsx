@@ -16,6 +16,7 @@ import type {ReactNativePlatform} from '@nelyx/core/hosting/platform';
 import {NativeInteraction} from '../../runtime/native-interaction.ts';
 import {createReactNativeInteractionControls} from './interaction-controls.tsx';
 import {nativeInputProps,nativeKeyboardProps} from './input.ts';
+import {windowsCoreInputObserver} from '../../platforms/windows/input-trace.ts';
 import {createWindowsKeyboardHost} from './windows-keyboard.tsx';
 import {windowsSurfaceEnvelope,windowsInputSurfaceId} from './windows-surface-envelope.ts';
 import {createAndroidEnvironment} from './android-environment.tsx';
@@ -246,11 +247,13 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
     const profile = adapter.backend().profile;
     const interaction=owner.interactionServices=owner.interaction.acquireServices();
     const definition=props.definition.assets?props.definition:{...props.definition,assets:configuration.manifest.map(({id,kind,sha256})=>({id,kind,sha256}))};
+    const observeInput=adapter.target==='windows'?windowsCoreInputObserver():undefined;
     owner.opening = bootstrapApplication(definition, {
       platformMessages:props.platformMessages??createReactNativePlatformMessages(adapter.backend().native,adapter.target as ReactNativePlatform,adapter.visibility(),{activate(kind){if(!current(owner))throw new PlatformException({code:'closed-owner',message:'Native cursor View is retired'});const view=ref.current as (SkiaGraphiteViewRef&{getMouseCursorVersion?:()=>number})|null;if(view?.getMouseCursorVersion?.()!==1)throw new PlatformException({code:'native-cursor-cohort',message:'Native cursor protocol1 requires matching rebuilt Skia View sources'});setCursorState({epoch:owner.epoch,kind});},dispose(){if(current(owner))setCursorState({epoch:owner.epoch,kind:'basic'});}},{viewId:0,isLive:()=>current(owner)&&visible(owner),rootTag(){return adapter.target==='android'?androidKeyboardHost.current?.getNativeTag()??null:adapter.backend().native.findNodeHandle(keyboardHost.current);},nodeTag:id=>owner.interaction.nativeSemanticsTag(id)},{key:definition.id},definition.accessibilityEnabled!==false),
       initializePlatformServices:props.initializePlatformServices??!props.platformMessages,
       ...(props.useDefaultBinaryMessenger?{useDefaultBinaryMessenger:true}:{}),
       reportError:error=>fail(owner,error),
+      ...(observeInput?{observeInput}:{}),
       identity:profile.identity,
       surface:{owner:viewOwner,readMetrics:()=>owner.metrics!,attach(view,notify){owner.view=view;owner.notify=notify;if(!current(owner))view.beginClose();notify({kind:'visibility',visible:visible(owner)});return {dispose(){owner.closed=true;stopNotifications();delete owner.notify;delete owner.view;}};},dispose:()=>{owner.closed=true;stopNotifications();return owner.lease!.release();}},
       ...engine.services,assets:adapter.assetServices.service(configuration),

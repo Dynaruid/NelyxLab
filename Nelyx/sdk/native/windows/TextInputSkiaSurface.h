@@ -68,8 +68,7 @@ public:
         const auto& clip=projection->clip;if(local.X<clip.x||local.Y<clip.y||local.X>=clip.x+clip.width||local.Y>=clip.y+clip.height)return std::nullopt;
         const auto status=state->inputSurface();if(!status)return std::nullopt;
         return RNSkia::WindowsPrecisionPoint{local.X-projection->x,local.Y-projection->y,status->scale,status->surfaceGeneration};
-      },[weak=std::weak_ptr<RNSkia::WindowsSkiaViewState>(shell->state)](auto const& event){if(auto state=weak.lock())state->precision(event);},
-      [dispatcher=view.ReactContext().UIDispatcher()](std::function<void()> job){dispatcher.Post([job=std::move(job)]{job();});});
+      },[weak=std::weak_ptr<RNSkia::WindowsSkiaViewState>(shell->state)](auto const& event){if(auto state=weak.lock())state->precision(event);});
       // The viewport retains its mapper; the mapper refers weakly to the canvas.
       // Releasing the first semantics/service lease cannot strand its mapping.
       shell->state->setPrecisionTrackpad(precision);

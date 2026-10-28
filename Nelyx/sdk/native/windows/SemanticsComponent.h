@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "SemanticsSnapshot.h"
+#include "SemanticsFocus.h"
+#include <windows/WindowsInputTrace.h>
 #include "SemanticsTextProvider.h"
 #include "TextInputModule.h"
 #include <CompositionSession.h>
@@ -93,7 +95,7 @@ struct SemanticsComponent:winrt::implements<SemanticsComponent,winrt::Windows::F
 private:
   void retireFocusProxy()noexcept{
     pendingFocus_.reset();if(!unregisterFocus_)return;
-    try{const auto view=view_.get();const auto nativeRoot=Nelyx::WindowsInput::inputComponentRoot(view);if(nativeRoot&&nativeRoot.GetFocusedComponent()==view&&state_->mapping.active&&state_->mapping.active()&&state_->mapping.focusCanvas)state_->mapping.focusCanvas();}catch(...){}
+    try{const auto view=view_.get();const auto nativeRoot=Nelyx::WindowsInput::inputComponentRoot(view);const auto root=state_->root.lock();if(nativeRoot&&nativeRoot.GetFocusedComponent()==view&&root&&winrt::Microsoft::UI::Input::InputFocusController::GetForIsland(root->island()).HasFocus()&&state_->mapping.active&&state_->mapping.active()&&state_->mapping.focusCanvas)state_->mapping.focusCanvas();}catch(...){}
     try{unregisterFocus_();}catch(...){}unregisterFocus_={};
   }
   void retireText()noexcept{if(state_->document){try{state_->document->retire();}catch(...){}state_->document.reset();}state_->text.Reset();}
@@ -102,7 +104,7 @@ private:
     if(state_->snapshot){const auto& old=*state_->snapshot;require(old.id==next.id&&old.source==next.source&&old.owner==next.owner&&old.surface==next.surface);require(next.commit>=old.commit);}
     if(!state_->mapping.active){const auto root=properties.Get(Nelyx::WindowsInput::TextInputRootProperty());const auto resolver=properties.Get(Nelyx::WindowsInput::TextInputSurfaceResolverProperty());require(root&&*root&&resolver&&*resolver);state_->root=*root;state_->mapping=(*resolver)(context,next.surface,next.owner);const auto weak=get_weak();
       if(state_->mapping.watchRetirement)unwatch_=state_->mapping.watchRetirement([weak](std::string const& reason){if(auto self=weak.get())self->fail(reason);});
-      state_->focus=[weak]{if(auto self=weak.get()){const auto view=self->view_.get();return view&&self->state_->mapping.focusSurface&&self->state_->mapping.focusSurface()&&self->dispatch("focus",{})&&view.TryFocus(RN::FocusState::Programmatic);}return false;};
+      state_->focus=[weak]{if(auto self=weak.get()){const auto view=self->view_.get();if(view)RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::Focus,view.Tag(),0,0,4,0,true);return view&&self->state_->mapping.focusSurface&&self->state_->mapping.focusSurface()&&self->dispatch("focus",{})&&view.TryFocus(RN::FocusState::Programmatic);}return false;};
       state_->activate=[weak]{if(auto self=weak.get())return self->dispatch("activate",{});return false;};
     }
     if(!unregisterFocus_){require(static_cast<bool>(state_->mapping.registerFocusProxy),UIA_E_INVALIDOPERATION);unregisterFocus_=state_->mapping.registerFocusProxy(view.Tag());}
@@ -110,7 +112,7 @@ private:
       mapping.screenBox=[convert=state_->mapping.screenRect,frame=next.frame](LogicalBox const& box)->std::optional<ScreenBox>{const auto value=convert(box,frame);if(!value)return std::nullopt;return ScreenBox{double(value->left),double(value->top),double(value->right-value->left),double(value->bottom-value->top)};};
       mapping.viewPoint=[convert=state_->mapping.viewPoint,frame=next.frame](double x,double y)->std::optional<LogicalPoint>{const auto rx=std::round(x),ry=std::round(y);if(!std::isfinite(rx)||!std::isfinite(ry)||rx<LONG_MIN||rx>LONG_MAX||ry<LONG_MIN||ry>LONG_MAX)return std::nullopt;const auto point=convert({static_cast<LONG>(rx),static_cast<LONG>(ry)},GXFPF_NEAREST,frame);if(!point||point->outside)return std::nullopt;return LogicalPoint{point->x,point->y};};attachParagraphQueries(next,std::move(mapping));
     }
-    const bool wasFocused=state_->snapshot&&state_->snapshot->focused;
+    const bool wasFocused=state_->snapshot&&state_->snapshot->enabled&&state_->snapshot->focusable&&state_->snapshot->focused;
     if(state_->snapshot&&!pendingMetadata_)pendingMetadata_.emplace(*state_->snapshot);
     const bool textReady=next.text&&(next.text->obscured||!next.text->characters.empty());if(!textReady)retireText();else{
       if(state_->document&&state_->snapshot&&state_->snapshot->text&&state_->snapshot->text->generation!=next.text->generation)retireText();
@@ -136,11 +138,15 @@ private:
     const auto view=view_.get();if(!view||!state_->snapshot||!state_->mapping.active()||(state_->mapping.visible&&!state_->mapping.visible()))return;
     const auto nativeRoot=Nelyx::WindowsInput::inputComponentRoot(view);if(!nativeRoot)return;
     const auto& snapshot=*state_->snapshot;const bool focused=snapshot.enabled&&snapshot.focusable&&snapshot.focused;bool moved=false;
-    if(focused&&nativeRoot.GetFocusedComponent()!=view){require(state_->mapping.focusSurface&&state_->mapping.focusSurface(),UIA_E_INVALIDOPERATION);require(view.TryFocus(RN::FocusState::Programmatic),UIA_E_INVALIDOPERATION);moved=true;}
-    else if(!focused&&nativeRoot.GetFocusedComponent()==view){require(state_->mapping.focusCanvas&&state_->mapping.focusCanvas(),UIA_E_INVALIDOPERATION);moved=true;}
+    const auto root=state_->root.lock();const bool ownerFocused=root&&winrt::Microsoft::UI::Input::InputFocusController::GetForIsland(root->island()).HasFocus();
+    const bool peerFocused=nativeRoot.GetFocusedComponent()==view;
+    const auto action=semanticsFocusAction(wasFocused,focused,peerFocused,ownerFocused);
+    if(action!=NativeFocusAction::None||wasFocused!=focused)RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::Focus,view.Tag(),0,0,action==NativeFocusAction::Peer?2:action==NativeFocusAction::Canvas?3:6,unsigned(ownerFocused)|(unsigned(peerFocused)<<1)|(unsigned(focused)<<2)|(unsigned(wasFocused)<<3),true);
+    if(action==NativeFocusAction::Peer){require(state_->mapping.focusSurface&&state_->mapping.focusSurface(),UIA_E_INVALIDOPERATION);require(view.TryFocus(RN::FocusState::Programmatic),UIA_E_INVALIDOPERATION);moved=true;}
+    else if(action==NativeFocusAction::Canvas){require(state_->mapping.focusCanvas&&state_->mapping.focusCanvas(),UIA_E_INVALIDOPERATION);moved=true;}
     // RNW raises focus notifications when native focus actually moves. A UIA
     // request can move it before Core publishes the acknowledged focus value.
-    if(!moved&&peer_&&wasFocused!=focused&&UiaClientsAreListening()){
+    if(!moved&&peer_&&ownerFocused&&peerFocused&&wasFocused!=focused&&UiaClientsAreListening()){
       AutomationVariant before,after;before.data.vt=after.data.vt=VT_BOOL;before.data.boolVal=wasFocused?VARIANT_TRUE:VARIANT_FALSE;after.data.boolVal=focused?VARIANT_TRUE:VARIANT_FALSE;
       checked(UiaRaiseAutomationPropertyChangedEvent(peer_.Get(),UIA_HasKeyboardFocusPropertyId,before.data,after.data));if(focused)checked(UiaRaiseAutomationEvent(peer_.Get(),UIA_AutomationFocusChangedEventId));
     }

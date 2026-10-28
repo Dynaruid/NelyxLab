@@ -9,6 +9,6 @@ test('real DirectManipulation initializes, resets and accepts repeated gesture c
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-precision-'));
   try{
     const executable=path.join(directory,'precision.exe');run('cl.exe',['/nologo','/std:c++20','/EHsc','/MD','/O2','/DNOMINMAX','/DWIN32_LEAN_AND_MEAN','/Fe:'+executable,'/Fo:'+path.join(directory,'precision.obj'),path.join(import.meta.dirname,'windows-precision.cpp'),'/link','ole32.lib','user32.lib','uuid.lib','windowsapp.lib'],{cwd:directory,env});
-    const result=run(executable,[],{cwd:directory});assert.match(result,/PASS precision initialized=1 retired=1 repeatedGestures=12 stationary=1 noInertia=4 interruptedInertia=1 cancellation=2 physicalInput=unobserved/);console.log(result.trim());
+    const result=run(executable,[],{cwd:directory});assert.match(result,/PASS precision initialized=1 retired=1 repeatedGestures=12 stationary=1 noInertia=4 interruptedInertia=1 cancellation=2 hwndTimer=1 idleTimerRetired=1 syntheticReset=1 nativeZoomReset=1 synthesizedInteraction=2 physicalInput=unobserved/);console.log(result.trim());
   }finally{assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert(path.basename(directory).startsWith('nelyx-precision-'));assert(!fs.lstatSync(directory).isSymbolicLink());fs.rmSync(directory,{recursive:true,force:true});}
 });

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "SemanticsTextProvider.h"
+#include "SemanticsFocus.h"
 #include <iostream>
 #include <stdexcept>
 #include <source_location>
@@ -77,7 +78,19 @@ static void geometryReentrancy(){
   current.hit=[](double,double)->std::optional<int>{return 2;};document->publish(current);ComPtr<ITextRangeProvider> hit;check(provider->RangeFromPoint({1,2},&hit)==E_INVALIDARG&&!hit,"Malformed source hit replies cannot split a surrogate");
   current.hit=[&](double,double)->std::optional<int>{document->retire();return 0;};document->publish(current);check(provider->RangeFromPoint({1,2},&hit)==UIA_E_ELEMENTNOTAVAILABLE&&!hit,"A hit cannot escape after node retirement");
 }
+static void passiveFocusPublications(){
+  // A scroll/selection publication must not reclaim a peer after the user
+  // moves to the canvas, or undo UIA focus while Core's ACK is still queued.
+  check(semanticsFocusAction(true,true,false,true)==NativeFocusAction::None,"A stationary focused snapshot reclaimed native focus from another target");
+  check(semanticsFocusAction(false,false,true,true)==NativeFocusAction::None,"A geometry-only snapshot blurred an unacknowledged UIA focus request");
+  check(semanticsFocusAction(false,true,false,false)==NativeFocusAction::None,"An inactive island tried to acquire focus from a passive Core publication");
+  check(semanticsFocusAction(true,false,true,false)==NativeFocusAction::None,"An inactive peer tried to activate the canvas while clearing focus");
+  check(semanticsFocusAction(false,true,false,true)==NativeFocusAction::Peer,"A real Core focus transition did not reach the active native peer");
+  check(semanticsFocusAction(true,false,true,true)==NativeFocusAction::Canvas,"A real Core blur did not return its owned active focus to the canvas");
+  check(semanticsFocusAction(false,true,true,true)==NativeFocusAction::None,"Core's UIA acknowledgement requested native focus twice");
+  check(semanticsFocusAction(true,false,false,true)==NativeFocusAction::None,"A Core blur moved focus already owned by a different native target");
+}
 int main(){
   const auto initialized=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);if(FAILED(initialized))return 2;
-  int result=0;try{rangesAndQueries();lifetimeAndValidation();geometryReentrancy();std::cout<<"PASS-scoped Core-fed UIA Text/Text2/Value ranges, Unicode stops, commands, privacy, retirement and reentrant geometry\n";}catch(std::exception const& error){std::cerr<<error.what()<<'\n';result=1;}catch(TextError const& error){std::cerr<<"Text failure "<<std::hex<<error.result<<'\n';result=1;}CoUninitialize();return result;
+  int result=0;try{passiveFocusPublications();rangesAndQueries();lifetimeAndValidation();geometryReentrancy();std::cout<<"PASS-scoped Core-fed UIA Text/Text2/Value ranges, Unicode stops, commands, privacy, retirement, reentrant geometry and passive focus transitions\n";}catch(std::exception const& error){std::cerr<<error.what()<<'\n';result=1;}catch(TextError const& error){std::cerr<<"Text failure "<<std::hex<<error.result<<'\n';result=1;}CoUninitialize();return result;
 }
