@@ -16,6 +16,24 @@ import {matrix4Identity,matrix4FromAffine,multiplyMatrix4} from '@nelyx/core/ui/
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
 const timeout=1_200_000,bounds={x:0,y:0,width:64,height:64};
 
+test('an unchanged picture exposes current pixels beyond its old estimated bounds after viewport growth',{timeout},async()=>{
+  const f=await engineFixture(),surface=f.ck.MakeSurface(64,64),root=new ContainerLayer(),contexts=[];assert(surface);
+  const read=(commands,width)=>{
+    const destination=new Canvas();try{destination.addCommands([{op:'clear',color:0xff000000}]);destination.clipRect({...bounds,width},{doAntiAlias:false});destination.addCommands(commands);f.library.replay(surface.getCanvas(),{commands:destination.commands});surface.flush();const image=surface.makeImageSnapshot();try{return Buffer.from(image.readPixels(0,0,{width:64,height:64,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));}finally{image.delete();}}finally{destination.dispose();}
+  };
+  let picture;
+  try{
+    for(const width of [32,64,24,64]){
+      const current={...bounds,width},context=new PaintingContext(null,current,true),reference=new Canvas();contexts.push(context);
+      try{
+        for(const canvas of [context,reference])canvas.rect({x:48,y:8,width:8,height:8},0xffff0000);
+        context.compose(root,current);const layer=root.firstChild.firstChild;if(picture)assert.equal(layer.picture,picture);else picture=layer.picture;
+        const pixels=read(context.commands,width);assert.deepEqual(pixels,read(reference.commands,width));assert.equal(pixels[(10*64+50)*4],width===64?255:0);
+      }finally{reference.dispose();context.dispose();}
+    }
+  }finally{for(const context of contexts)context.dispose();root.dispose();surface.dispose();await f.close();}
+});
+
 test('deep Canvas scopes retain one Layer owner with ordered real children and exact source transforms',{timeout},()=>{
   const root=new ContainerLayer(),context=new PaintingContext(null,bounds,true),type=new AnnotationType('recorded-depth'),first={},second={},a=new AnnotatedRegionLayer(first,{annotationType:type,size:{width:40,height:40}}),b=new AnnotatedRegionLayer(second,{annotationType:type,size:{width:10,height:10}}),seen=[];
   root.attach({});a.addCompositionCallback(layer=>seen.push(layer.parent.applyTransform(layer)));
@@ -79,15 +97,20 @@ test('recording state and retained insertions match direct CanvasKit pixels for 
   };
   try{
     for(let index=0;index<9;index++){
-      const root=new ContainerLayer(),context=new PaintingContext(null,bounds,true),reference=new Canvas(),offset=new OffsetLayer({offset:{x:3,y:5}}),pictureLayer=new PictureLayer(bounds);
+      const root=new ContainerLayer(),offset=new OffsetLayer({offset:{x:3,y:5}}),pictureLayer=new PictureLayer(bounds);
       // Each source Layer owns its separate Picture producer.
-      const shaders=[],localRecorder=new PictureRecorder(),local=new Canvas(localRecorder);local.drawPicture(picture);pictureLayer.picture=localRecorder.endRecording();local.dispose();offset.append(pictureLayer);
+      const localRecorder=new PictureRecorder(),local=new Canvas(localRecorder);local.drawPicture(picture);pictureLayer.picture=localRecorder.endRecording();local.dispose();offset.append(pictureLayer);
       try{
-        for(const canvas of [context,reference]){canvas.addCommands([{op:'clear',color:0xffd0d8e0}]);prefix(canvas,index);const shader=Gradient.linear({x:0,y:0},{x:3,y:3},[0xffff0000,0xff00ff00]);shaders.push(shader);canvas.drawRect({x:0,y:0,width:2,height:3},new Paint({shader}));}
+       for(const width of [2,11,2]){
+        const context=new PaintingContext(null,bounds,true),reference=new Canvas(),shaders=[];
+        try{
+        for(const canvas of [context,reference]){canvas.addCommands([{op:'clear',color:0xffd0d8e0}]);prefix(canvas,index);const shader=Gradient.linear({x:0,y:0},{x:3,y:3},[0xffff0000,0xff00ff00]);shaders.push(shader);canvas.save();canvas.drawRect({x:0,y:0,width,height:3},new Paint({shader}));canvas.save();canvas.translate(2,1);canvas.drawOval({x:0,y:0,width:4,height:5},outline);canvas.restore();canvas.restore();}
         context.addLayer(offset);reference.save();reference.translate(3,5);reference.drawPicture(picture);reference.restore();
         for(const canvas of [context,reference]){canvas.drawRect({x:31,y:28,width:9,height:8},outline);if(index===4||index===8)canvas.restore();canvas.restore();canvas.drawRect({x:55,y:57,width:4,height:3},paint);}
-        context.compose(root,bounds);assert.deepEqual(read(context.commands),read(reference.commands),'Canvas recipe '+index);
-      }finally{reference.dispose();context.dispose();root.dispose();for(const shader of shaders)shader.dispose();}
+        context.compose(root,bounds);assert.deepEqual(read(context.commands),read(reference.commands),'Canvas recipe '+index+' width '+width);
+        }finally{reference.dispose();context.dispose();for(const shader of shaders)shader.dispose();}
+       }
+      }finally{root.dispose();}
     }
   }finally{picture.dispose();surface.dispose();await f.close();}
 });

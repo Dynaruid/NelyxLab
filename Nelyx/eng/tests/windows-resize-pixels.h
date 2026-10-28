@@ -32,10 +32,10 @@ class WindowsResizePixels final {
     std::mutex mutex;Frame latest{nullptr};std::exception_ptr failure;bool closed=false;
     winrt::handle ready{CreateEventW(nullptr,FALSE,FALSE,nullptr)};
   };
-  HWND window;bool apartment=false,colorsChanged=false,calibrated=false;double scale=1;
+  HWND window;bool apartment=false,colorsChanged=false,calibrated=false,responsiveShortHeader=false;double scale=1;
   RECT monitor{},region{};COLORREF oldCaption=DWMWA_COLOR_DEFAULT,oldBorder=DWMWA_COLOR_DEFAULT;
   static constexpr COLORREF sensorColor=RGB(229,17,203);
-  int left=0,right=0,top=0,bottom=0,headerHeight=0,capacityWidth=0,capacityHeight=0,lastWidth=0;
+  int left=0,right=0,top=0,bottom=0,headerHeight=0,capacityWidth=0,capacityHeight=0,lastWidth=0,referenceClientWidth=0,lastOriginSide=0;
   winrt::com_ptr<ID3D11Device> device;winrt::com_ptr<ID3D11DeviceContext> context;winrt::com_ptr<ID3D11Texture2D> staging;
   winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool pool{nullptr};
   winrt::Windows::Graphics::Capture::GraphicsCaptureSession session{nullptr};winrt::event_token arrived{};
@@ -72,6 +72,7 @@ class WindowsResizePixels final {
       if(countBorder<100)throw std::runtime_error("Owned displayed window border is absent or occluded");
       if(!calibrated){RECT client{};POINT origin{};if(!GetClientRect(window,&client)||!ClientToScreen(window,&origin))throw std::runtime_error("Desktop calibration client unavailable");left=origin.x-region.left-minX;top=origin.y-region.top-minY;right=region.left+maxX+1-origin.x-client.right;bottom=region.top+maxY+1-origin.y-client.bottom;calibrated=true;}
       const int width=maxX-minX+1-left-right,height=maxY-minY+1-top-bottom,clientX=minX+left,clientY=minY+top;lastWidth=width;
+      if(responsiveShortHeader&&height/scale>=600)throw std::runtime_error("Responsive probe requires Material's short 18px header");
       if(width<=0||clientX<0||clientY<0||clientX+width>regionWidth||clientY+headerHeight>regionHeight)throw std::runtime_error("Displayed header left the bounded owned region");
       const auto dark=[&](int x,int y){const auto p=pixel(clientX+x,clientY+y);return p[0]<80&&p[1]<80&&p[2]<80;};
       if(observe){++samples;sizes.emplace(width,height);Nelyx::Fixture::appendChanged(displayChanges,double(frame.SystemRelativeTime().count())/10000.,RECT{minX,minY,maxX+1,maxY+1});unsigned count=0;for(int part=1;part<=3;part++)if(dark(width*part/4,6))++count;if(count==3)++backgroundExposures;}
@@ -88,8 +89,8 @@ class WindowsResizePixels final {
   }
 public:
   std::vector<Nelyx::Fixture::ResizeObservation> displayChanges;
-  unsigned samples=0,racedSamples=0,backgroundExposures=0,glyphChanges=0,missingGlyphs=0,edgeGlyphChanges=0,missingEdgeGlyphs=0;int maximumGlyphDelta=0,maximumEdgeDelta=0;
-  explicit WindowsResizePixels(HWND window):window(window){
+  unsigned samples=0,racedSamples=0,backgroundExposures=0,glyphChanges=0,missingGlyphs=0,edgeGlyphChanges=0,missingEdgeGlyphs=0,originChanges=0,originTransitions=0;int maximumGlyphDelta=0,maximumEdgeDelta=0,maximumOriginDelta=0;
+  explicit WindowsResizePixels(HWND window,bool responsiveShort=false):window(window),responsiveShortHeader(responsiveShort){
     try{
       DWORD process=0;GetWindowThreadProcessId(window,&process);if(process!=GetCurrentProcessId()||GetForegroundWindow()!=window)throw std::runtime_error("Capture requires the fixture's own foreground window");
       winrt::init_apartment(winrt::apartment_type::multi_threaded);apartment=true;if(!state->ready)winrt::throw_last_error();
@@ -122,6 +123,7 @@ public:
         stable=same?stable+1:0;reference=value;
       }
       if(stable<2)throw std::runtime_error("Resting header capture did not stabilize before resize");
+      referenceClientWidth=lastWidth;lastOriginSide=lastWidth/scale>=600;
       if(std::abs(reference.rightInset-static_cast<int>(10*scale))>1||std::abs(reference.edgeTop-static_cast<int>(6*scale))>1)throw std::runtime_error("Fixture right-edge layout sensor is absent");
     }catch(...){release();throw;}
   }
@@ -131,7 +133,12 @@ public:
     if(GetForegroundWindow()!=window)throw std::runtime_error("Owned desktop probe lost foreground");
     auto frame=take(false);if(!frame)return;const auto glyph=capture(frame,true);frame.Close();if(!glyph.width)return;
     const auto delta=std::max(std::abs(glyph.width-reference.width),std::abs(glyph.height-reference.height));maximumGlyphDelta=std::max(maximumGlyphDelta,delta);if(delta>1){++glyphChanges;if(glyphChanges<=8)std::printf("ANIMATION_GLYPH_MISMATCH actual=%d,%d,%d,%d expected=%d,%d,%d,%d\n",glyph.x,glyph.y,glyph.width,glyph.height,reference.x,reference.y,reference.width,reference.height);}
-    const auto originDelta=std::max(std::abs(glyph.x-reference.x),std::abs(glyph.y-reference.y));if(originDelta>1&&samples<8)std::printf("ANIMATION_ORIGIN_MISMATCH x=%d y=%d expected=%d,%d delta=%d\n",glyph.x,glyph.y,reference.x,reference.y,originDelta);
+    const auto expectedX=responsiveShortHeader?resizeMaterialShortOrigin(reference.x,referenceClientWidth,lastWidth,scale):reference.x;
+    const auto originDelta=std::max(std::abs(glyph.x-expectedX),std::abs(glyph.y-reference.y));
+    if(responsiveShortHeader){
+      maximumOriginDelta=std::max(maximumOriginDelta,originDelta);if(originDelta>1){++originChanges;if(originChanges<=8)std::printf("ANIMATION_RESPONSIVE_ORIGIN_MISMATCH width=%d x=%d y=%d expected=%d,%d delta=%d\n",lastWidth,glyph.x,glyph.y,expectedX,reference.y,originDelta);}
+      const int side=lastWidth/scale>=600;if(side!=lastOriginSide){lastOriginSide=side;++originTransitions;std::printf("ANIMATION_RESPONSIVE_ORIGIN width=%d x=%d expected=%d fontSize=18\n",lastWidth,glyph.x,expectedX);}
+    }else if(originDelta>1&&samples<8)std::printf("ANIMATION_ORIGIN_MISMATCH x=%d y=%d expected=%d,%d delta=%d\n",glyph.x,glyph.y,reference.x,reference.y,originDelta);
     if(glyph.rightInset>=0){const auto edge=std::max(std::abs(glyph.rightInset-reference.rightInset),std::abs(glyph.edgeTop-reference.edgeTop));maximumEdgeDelta=std::max(maximumEdgeDelta,edge);if(edge>1){++edgeGlyphChanges;if(edgeGlyphChanges<=8){RECT client{},outer{},extended{};GetClientRect(window,&client);GetWindowRect(window,&outer);DwmGetWindowAttribute(window,DWMWA_EXTENDED_FRAME_BOUNDS,&extended,sizeof(extended));std::printf("ANIMATION_EDGE_MISMATCH inset=%d expected=%d delta=%d top=%d expectedTop=%d captured=%d client=%ld outer=%ld extended=%ld insets=%d,%d\n",glyph.rightInset,reference.rightInset,edge,glyph.edgeTop,reference.edgeTop,lastWidth,client.right,outer.right-outer.left,extended.right-extended.left,left,right);}}}
   }
   int distinctSizes()const{return static_cast<int>(sizes.size());}

@@ -130,11 +130,15 @@ export class LayerHandle<T extends Layer> {
   toString():string{return `LayerHandle(${this.value?.constructor.name??'DISPOSED'})`;}
 }
 export class PictureLayer extends Layer {
-  readonly canvasBounds:Rect;
+  private boundsValue:Rect;
   private value:Picture|null=null;
   private complex=false;
   private changing=false;
-  constructor(canvasBounds:Rect){super();this.canvasBounds=rect(canvasBounds);}
+  constructor(canvasBounds:Rect){super();this.boundsValue=rect(canvasBounds);}
+  get canvasBounds():Rect{return this.boundsValue;}
+  /** @internal Recording bounds describe the current paint extent. Pictures
+   * own immutable commands, not a raster cropped to these estimated bounds. */
+  _updateCanvasBounds(value:Rect):void{this.assertMutable();const next=rect(value);this.boundsValue=next;this.markNeedsAddToScene();}
   get picture():Picture|null{return this.value;}
   set picture(value:Picture|null){this.assertMutable();if(!(value===null||value instanceof Picture&&!value.debugDisposed))invariant(false,'invalid-layer-picture','PictureLayer requires a live Picture');if(value===this.value)return;const old=this.value;this.value=value;this.markNeedsAddToScene();old?.dispose();}
   get isComplexHint():boolean{return this.complex;}

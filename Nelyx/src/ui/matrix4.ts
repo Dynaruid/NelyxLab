@@ -4,6 +4,8 @@ import type {Matrix2D} from './geometry.ts';
 /** Column-major storage, matching Flutter Canvas.transform and vector_math. */
 export type Matrix4Storage=readonly [number,number,number,number,number,number,number,number,number,number,number,number,number,number,number,number];
 const capturedMatrices=new WeakSet<object>();
+/** @internal Only storage captured here is deeply immutable and validated. */
+export function isCapturedMatrix4(value:readonly number[]):boolean{return capturedMatrices.has(value);}
 export const matrix4Identity:Matrix4Storage=freezeValues([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
 function freezeValues(values:number[]):Matrix4Storage{invariant(values.length===16,'invalid-transform','Matrix4 requires sixteen values');invariant(values.every(Number.isFinite),'invalid-transform','Matrix4 values must be finite');const result=Object.freeze(values) as Matrix4Storage;capturedMatrices.add(result);return result;}
 export function captureMatrix4(value:readonly number[]|Float64Array):Matrix4Storage{

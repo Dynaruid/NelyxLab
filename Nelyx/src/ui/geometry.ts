@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import {invariant} from '../foundation/errors.ts';
 import type {Rect} from './types.ts';
-import {captureMatrix4,matrix4FromAffine,multiplyMatrix4,inverseMatrix4,removePerspectiveMatrix4,transformMatrix4Point} from './matrix4.ts';
+import {captureMatrix4,isCapturedMatrix4,matrix4FromAffine,multiplyMatrix4,inverseMatrix4,removePerspectiveMatrix4,transformMatrix4Point} from './matrix4.ts';
 import type {Matrix4Storage} from './matrix4.ts';
 export interface Size { readonly width:number; readonly height:number }
 export interface Offset { readonly x:number; readonly y:number }
@@ -14,6 +14,8 @@ export type TransformMatrix=Matrix2D|Matrix4Storage;
 const capturedAffines=new WeakSet<object>(),expandedAffines=new WeakMap<object,Matrix4Storage>();
 const paintInverses=new WeakMap<object,TransformMatrix|null>();
 const affineProducts=new WeakMap<object,{right:Matrix2D;value:Matrix2D}>();
+/** @internal Frozen caller storage alone does not prove captured ownership. */
+export function isCapturedTransform(matrix:readonly number[]):boolean{return capturedAffines.has(matrix)||isCapturedMatrix4(matrix);}
 export function captureTransform(matrix:readonly number[]|Float64Array):TransformMatrix{
   if(capturedAffines.has(matrix))return matrix as Matrix2D;
   if(matrix.length===16)return captureMatrix4(matrix);

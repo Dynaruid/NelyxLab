@@ -7,6 +7,7 @@ import {paintEffectRecordCount} from './paint-effects-wire.ts';
 import {resourceKey,copyResourceId,retainCommandResources,releaseCommandResources,ownFrameResources,releaseFrameResources,resourceOwner,canTransferCommandResources} from './resource-retention.ts';
 export {resourceKey} from './resource-retention.ts';
 import {GestureSettings} from './gesture-settings.ts';
+import {isCapturedTransform} from './geometry.ts';
 import type { FrameBuildToken, PaintCommand, PaintFrame, Rect, ResourceId, ViewMetrics, ViewOwner,ViewEnvironment } from "./types.ts";
 import type {Canvas} from './canvas.ts';
 export function sameOwner(a: ViewOwner, b: ViewOwner): boolean { return a.id === b.id && a.generation === b.generation; }
@@ -44,6 +45,9 @@ export function paintCommandRecordCount(command:PaintCommand):number {
   const pathRecords=command.op==='drawPath'||command.op==='clipPath'||command.op==='drawShadow'?command.path.operations.reduce((count,item)=>count+(item.verb==='addRRect'?2:1),0):0;
   return (command.op==='drawImageRect'||command.op==='drawImageNine'?3:command.op==='transform'&&command.matrix.length===16?3:command.op==='drawPath'||command.op==='drawShadow'?2+pathRecords:command.op==='clipPath'?1+pathRecords:(command.op==='drawRRect'||command.op==='clipRRect')&&'rrect'in command?'paint'in command?3:2:'paint'in command?2:1)+('paint'in command?paintEffectRecordCount(command.paint):0);
 }
+// Weak identity tags keep no matrices alive. Only our own immutable storage can
+// reuse SkScalar validation; caller iterators and frozen arrays still snapshot.
+const paintTransforms=new WeakSet<readonly number[]>();
 /** Capture value arguments at recording time; frame admission revalidates untrusted commands. */
 function freezePaintCommandValue(command:PaintCommand):PaintCommand {
   const point=(value:{readonly x:number;readonly y:number})=>Object.freeze({x:finite(value.x,'x'),y:finite(value.y,'y')});
@@ -54,9 +58,14 @@ function freezePaintCommandValue(command:PaintCommand):PaintCommand {
     case 'drawPicture':return Object.freeze({...command,resource:resource(command.resource)});
     case 'transform':{
       // A stateful caller iterator must not supply different values after validation.
-      const matrix=Array.from(command.matrix);if(!(matrix.length===6||matrix.length===16))invariant(false,'invalid-transform','Transform needs six affine or sixteen column-major values');
-      for(let index=0;index<matrix.length;index++){const value=matrix[index]!;finite(value,'matrix');if(!(Number.isFinite(Math.fround(value))))invariant(false,'invalid-transform','Matrix values must fit finite SkScalar');}
-      return Object.freeze({...command,matrix:Object.freeze(matrix)});
+      let matrix=command.matrix;
+      if(!paintTransforms.has(matrix)){
+        if(!isCapturedTransform(matrix))matrix=Array.from(matrix);
+        if(!(matrix.length===6||matrix.length===16))invariant(false,'invalid-transform','Transform needs six affine or sixteen column-major values');
+        for(let index=0;index<matrix.length;index++){const value=matrix[index]!;finite(value,'matrix');if(!(Number.isFinite(Math.fround(value))))invariant(false,'invalid-transform','Matrix values must fit finite SkScalar');}
+        Object.freeze(matrix);paintTransforms.add(matrix);
+      }
+      return Object.freeze({...command,matrix});
     }
     case 'clip':return Object.freeze({...command,rect:rect(command.rect)});
     case 'rect':case 'rrect':if(!(Number.isInteger(command.color)&&command.color>=0&&command.color<=0xffffffff))invariant(false,'invalid-color','ARGB must be uint32');if(command.op==='rrect'){if(!(finite(command.radius,'radius')>=0))invariant(false,'invalid-radius','negative radius');}return Object.freeze({...command,rect:rect(command.rect)});

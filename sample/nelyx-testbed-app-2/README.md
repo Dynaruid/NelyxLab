@@ -133,6 +133,10 @@ npm run test:windows-resize
 
 This checks both corners in Material, ListView and Cupertino. It reports requested/actual input frequency, window rect changes, surface updates and captured display changes separately. Input defaults to 61Hz; set `NELYX_ANIMATION_DRAG_HZ` to change it. Use `NELYX_ANIMATION_PIXELS=0` for a CPU/geometry comparison without capture. A pass covers screen and frame lifetime checks; it does not certify the target FPS. Evaluate capture overhead and the user's drag experience separately. The fixture app and temporary build are cleaned up on exit.
 
+`NELYX_ANIMATION_TRACE=1` connects Core metrics, frame requests, layout, paint, semantics, capture, and native submission using the same QPC clock. It separates all active frames from the exact native prepared-copy frames. Keep this instrumented run separate from measurements with tracing disabled.
+
+Set `NELYX_ANIMATION_RESIZE_PAGES=material`, `NELYX_ANIMATION_RESIZE_WIDTH=600`, and `NELYX_ANIMATION_RESPONSIVE_SHORT_HEADER=1` together to check the short header's breakpoint. The title stays at 18px; the displayed width in the same desktop frame selects the expected 16↔28 padding coordinates. The taller header's 28↔36px title transition is outside this profile.
+
 ### Rendering continuity diagnostics
 
 Use the same Windows preparation and installed runner, then run this from the repository root. Leave the mouse and trackpad idle during its real OS wheel input.

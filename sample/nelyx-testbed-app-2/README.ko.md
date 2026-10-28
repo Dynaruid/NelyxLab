@@ -133,6 +133,10 @@ npm run test:windows-resize
 
 Material·ListView·Cupertino의 양쪽 모서리를 검사하고, 요청/실제 입력 빈도, 창 rect 변화, surface 갱신과 캡처에서 관찰한 표시 변화를 각각 출력합니다. 기본 입력은 61Hz이며 `NELYX_ANIMATION_DRAG_HZ`로 바꿀 수 있습니다. `NELYX_ANIMATION_PIXELS=0`은 캡처를 끈 CPU·geometry 비교에 사용합니다. 검사 통과는 화면·프레임 수명 조건의 통과이며 목표 FPS 달성을 뜻하지 않습니다. 캡처 실행의 비용과 실제 사용자의 드래그 체감은 별도로 평가해야 합니다. 검사 앱과 임시 빌드는 종료 시 정리됩니다.
 
+`NELYX_ANIMATION_TRACE=1`은 Core metrics 수신, 프레임 예약, layout·paint·semantics·capture와 native 제출을 같은 QPC 시계로 연결합니다. 전체 활성 프레임과 정확히 일치하는 native prepared-copy 프레임의 비용을 따로 보고하며, 계측을 끈 성능과 구분해야 합니다.
+
+`NELYX_ANIMATION_RESIZE_PAGES=material`, `NELYX_ANIMATION_RESIZE_WIDTH=600`, `NELYX_ANIMATION_RESPONSIVE_SHORT_HEADER=1`을 함께 설정하면 short header의 breakpoint를 검사합니다. 18px 제목은 유지하고, 같은 desktop frame의 창 폭에 따라 padding 16↔28 전환의 예상 좌표를 검사합니다. 높이 600 logical px 이상에서 제목이 28↔36px로 바뀌는 경우는 이 프로필의 대상이 아닙니다.
+
 ### 렌더링 연속성 진단
 
 같은 Windows 준비·runner 설치를 사용해 저장소 루트에서 실행합니다. 실제 OS 휠 입력을 사용하므로 실행 중에는 마우스·트랙패드 조작을 멈추세요.

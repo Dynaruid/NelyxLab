@@ -75,6 +75,9 @@ export interface ViewControllerContext extends ViewServices {
   readonly owner: ViewOwner; readonly resources: ResourceRegistry;
   readonly requestFrame: () => void;
   readonly requestForcedFrame?:()=>void;
+  /** One cancellable request in this Clock's epoch. Its callback runs on the
+   * due owner frame, never inline; ordinary requests can still run earlier. */
+  readonly requestFrameAt?:(notBefore:number,callback:()=>void)=>Disposable;
   /** Widget builds may observe selected fields; an omitted selection observes all metrics. */
   readonly readMetrics: (...fields:readonly (keyof ViewMetrics)[]) => ViewMetrics;
   /** The View owner is authoritative before controller/service retirement. */
@@ -105,6 +108,7 @@ export class ViewRuntime implements Disposable {
   private submitting:{frame:PaintFrame;lease:ResourceLease}|undefined;
   private submissionFinished:(()=>void)|undefined;
   private task: Disposable | undefined;
+  private readonly deferredFrames=new Set<{readonly notBefore:number;callback:(()=>void)|undefined}>();
   private state:ViewRuntimeStatus="open";
   private sequence = 0;
   private inputSequence=0;
@@ -127,7 +131,7 @@ export class ViewRuntime implements Disposable {
     try {
     if (session.definition.createView) {
       invariant(options.services,'missing-view-services','Widget applications require per-view services');
-      this.controller = session.definition.createView({...options.services,owner:this.owner,resources:session.resources,requestFrame:()=>this.requestFrame(),requestForcedFrame:()=>this.requestForcedFrame(),readMetrics:()=>this.metrics,readStatus:()=>this.state,...(options.onError?{reportError:options.onError}:{})});
+      this.controller = session.definition.createView({...options.services,owner:this.owner,resources:session.resources,requestFrame:()=>this.requestFrame(),requestForcedFrame:()=>this.requestForcedFrame(),requestFrameAt:(notBefore,callback)=>this.requestFrameAt(notBefore,callback),readMetrics:()=>this.metrics,readStatus:()=>this.state,...(options.onError?{reportError:options.onError}:{})});
       this.scene = context => this.controller!.build(context);
     } else {
       invariant(session.definition.createScene,'missing-scene','Application requires createScene or createView');
@@ -140,7 +144,7 @@ export class ViewRuntime implements Disposable {
       this.rendererBinding=options.renderer.observe(event=>this.rendererEvent(event));
     }
     } catch(error) {
-      this.state='failed';const errors:unknown[]=[error];
+      this.state='failed';this.cancelDeferredFrames();const errors:unknown[]=[error];
       for(const cleanup of [()=>this.task?.dispose(),()=>this.rendererBinding?.dispose(),()=>this.controller?.dispose()])try{cleanup();}catch(failure){errors.push(failure);}
       if(errors.length>1)throw new AggregateError(errors,'View initialization cleanup failed');throw error;
     }
@@ -181,7 +185,7 @@ export class ViewRuntime implements Disposable {
       const accepted=this.observedSubmissions.get(event.submission);
       if(!accepted || !this.sameToken(accepted,event.token)){return;}
       if(event.kind==='retired'){this.observedSubmissions.delete(event.submission);}
-      else {this.state='failed';}
+      else {this.state='failed';this.cancelDeferredFrames();}
     }
   }
   private sameToken(a:FrameBuildToken,b:FrameBuildToken):boolean {return a.sequence===b.sequence && a.owner.id===b.owner.id && a.owner.generation===b.owner.generation && (Object.keys(b.metrics) as (keyof ViewMetrics)[]).every(key=>a.metrics[key]===b.metrics[key]);}
@@ -197,6 +201,31 @@ export class ViewRuntime implements Disposable {
     if (this.state !== "open") return;
     this.dirty = true;
     this.schedulePump();
+  }
+  private requestFrameAt(notBefore:number,callback:()=>void):Disposable{
+    if(this.state!=='open')return {dispose(){}};
+    invariant(Number.isFinite(notBefore),'invalid-frame-deadline','Frame deadline must be finite');
+    invariant(typeof callback==='function','invalid-frame-wake','Frame wake must be a callback');
+    const request={notBefore,callback:callback as (()=>void)|undefined};this.deferredFrames.add(request);
+    try{this.schedulePump();}catch(error){this.deferredFrames.delete(request);request.callback=undefined;throw error;}
+    return {dispose:()=>{
+      if(!this.deferredFrames.delete(request))return;request.callback=undefined;
+      if(!this.dirty&&!this.pending&&!this.pointerMailbox.length&&!this.deferredFrames.size){const task=this.task;this.task=undefined;task?.dispose();}
+    }};
+  }
+  private cancelDeferredFrames():void{for(const request of this.deferredFrames)request.callback=undefined;this.deferredFrames.clear();}
+  private flushDeferredFrames():void{
+    if(!this.visible||!this.deferredFrames.size)return;
+    const now=this.frameTiming?.tick??this.options.services?.clock.now();
+    invariant(typeof now==='number'&&Number.isFinite(now),'invalid-clock','Deferred frames require a finite owner clock');
+    const due=[];for(const request of this.deferredFrames)if(request.notBefore<=now)due.push(request);
+    due.sort((a,b)=>a.notBefore-b.notBefore);
+    for(const request of due){
+      if(this.state!=='open'||!this.visible)break;
+      if(!this.deferredFrames.delete(request))continue;
+      const callback=request.callback;request.callback=undefined;
+      if(callback){this.dirty=true;callback();}
+    }
   }
   requestForcedFrame():void{if(this.state!=='open')return;this.forcedFrame=true;this.dirty=true;this.schedulePump();}
   setVisible(visible: boolean): void {
@@ -254,10 +283,10 @@ export class ViewRuntime implements Disposable {
     let result: SubmitResult;caller=false;
     try {result = this.options.renderer.submit(item.frame, item.lease);} catch (error) {
       // An exception cannot prove whether native accepted. Preserve references until owned renderer drain.
-      this.uncertain.push(item.lease);if(this.state==='open')this.state='failed';throw error;
+      this.uncertain.push(item.lease);if(this.state==='open')this.state='failed';this.cancelDeferredFrames();throw error;
     }
     if (result.status === "accepted") {if(this.state==='open')this.controller?.frameSubmitted?.(item.frame.token);}
-    else if (result.status === "unknown") {this.uncertain.push(item.lease);if(this.state==='open')this.state='failed';}
+    else if (result.status === "unknown") {this.uncertain.push(item.lease);if(this.state==='open')this.state='failed';this.cancelDeferredFrames();}
     else{caller=true;if(result.reason==='busy'&&this.state==='open'&&!this.pending){this.pending=item;caller=false;this.schedulePump();}}
 
     return result;
@@ -265,24 +294,34 @@ export class ViewRuntime implements Disposable {
     finally{try{if(caller)item.lease.returnBy('caller');}catch(error){if(failed)throw new AggregateError([failure,error],'Frame admission and retirement failed');throw error;}finally{this.submitting=undefined;const finished=this.submissionFinished;this.submissionFinished=undefined;finished?.();}}
   }
   private schedulePump(): void {
-    if(!this.task && (this.visible||this.forcedFrame) && (this.dirty || this.pending || this.pointerMailbox.length))this.task=this.session.clock.request(timing=>{
+    if(!this.task && (this.visible||this.forcedFrame) && (this.dirty || this.pending || this.pointerMailbox.length || this.deferredFrames.size))this.task=this.session.clock.request(timing=>{
       this.frameTiming=timing;
       if(this.state!=='open'||!this.visible&&!this.forcedFrame){this.task=undefined;return;}
       const forced=this.forcedFrame;this.forcedFrame=false;
-      try{this.flushPointerInput();this.task=undefined;if(this.buildPending(forced)!==false){const result=this.pump();if(result?.status==='unknown')throw new Error('Renderer submission failed: '+result.reason);}}
-      catch(error){this.task=undefined;if(this.state==='open')this.state='failed';if(this.options.onError)this.options.onError(error);else throw error;}
+      try{
+        // Keep the current task through wake callbacks: a callback requesting a
+        // redraw joins this tick instead of adding another compositor wait.
+        this.flushPointerInput();this.flushDeferredFrames();this.task=undefined;
+        if(this.state!=='open'||!this.visible&&!forced)return;
+        if(this.buildPending(forced)!==false){const result=this.pump();if(result?.status==='unknown')throw new Error('Renderer submission failed: '+result.reason);}
+        if(this.deferredFrames.size)this.schedulePump();
+      }catch(error){
+        const task=this.task;this.task=undefined;this.cancelDeferredFrames();let failure=error;
+        try{task?.dispose();}catch(cleanup){failure=new AggregateError([error,cleanup],'Frame callback and cancellation failed');}
+        if(this.state==='open')this.state='failed';if(this.options.onError)this.options.onError(failure);else throw failure;
+      }
     });
   }
   private clearPending(): void { const pending = this.pending; this.pending = undefined; if(pending){pending.lease.returnBy("caller");} }
   /** Stop framework work while a sibling native service still owns resources. */
-  beginClose():void{if(this.state==='closing'||this.state==='closed')return;this.state='closing';this.pointerMailbox.length=0;const task=this.task;this.task=undefined;task?.dispose();}
+  beginClose():void{if(this.state==='closing'||this.state==='closed')return;this.state='closing';this.cancelDeferredFrames();this.pointerMailbox.length=0;const task=this.task;this.task=undefined;task?.dispose();}
   dispose(): Promise<void> {
     if (this.closePromise) return this.closePromise;
     // Publish the owner transaction before any user/native cleanup can reenter.
     let resolve!:()=>void,reject!:(error:unknown)=>void;
     const closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});this.closePromise=closing;
     this.state = "closing"; const errors: unknown[] = []; const task = this.task; this.task = undefined;
-    this.pointerMailbox.length=0;
+    this.pointerMailbox.length=0;this.cancelDeferredFrames();
 
     try {task?.dispose();} catch(error) {errors.push(error);}
     try {this.controller?.dispose();} catch(error) {errors.push(error);}

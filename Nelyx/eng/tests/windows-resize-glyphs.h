@@ -1,8 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <algorithm>
+#include <cmath>
+#include <stdexcept>
 #include <vector>
 struct ResizeGlyphBounds{int x=0,y=0,width=0,height=0,pixels=0,anchor=-1;};
+// Material's short header keeps its 18px title. At 600 logical pixels only
+// horizontal Padding changes from 16 to 28; use the displayed client width.
+inline int resizeMaterialShortOrigin(int referenceX,int referenceWidth,int width,double scale){
+ if(referenceWidth<=0||width<=0||!std::isfinite(scale)||scale<=0)throw std::invalid_argument("Invalid responsive header extent");
+ const auto padding=[&](int extent){return extent/scale<600?16:28;};
+ return referenceX+static_cast<int>(std::lround((padding(width)-padding(referenceWidth))*scale));
+}
 // Track components crossing a calibrated text row. A separate pointer overlay
 // above the letters is not text. Scaling extends the same components; a text
 // translation that misses the row is an explicit missing-glyph observation.

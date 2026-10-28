@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import {Canvas} from '../../ui/canvas.ts';
-import type {Matrix2D,TransformMatrix} from '../../ui/geometry.ts';
+import type {TransformMatrix} from '../../ui/geometry.ts';
 import type {RenderObject} from '../rendering/object.ts';
 import type {Offset} from '../../ui/geometry.ts';
 import type {Rect,PaintCommand} from '../../ui/types.ts';
@@ -14,16 +14,24 @@ import {Matrix4} from '../../math/matrix4.ts';
 import {Rect as SourceRect} from '../../ui/rect.ts';
 import {MatrixUtils} from './matrix-utils.ts';
 import {RecordedCompositionLayer} from './recorded-layer.ts';
+import {partitionPictureBatch} from './picture-batching.ts';
+import type {PictureBatchPart} from './picture-batching.ts';
 import {invariant} from '../../foundation/errors.ts';
 import {paintCommandRecordCount,paintFrameLimits,isCapturedPaintCommand} from '../../ui/frame.ts';
 import {resourceOwner} from '../../ui/resource-retention.ts';
 interface CompositionEntry {readonly mark:number;readonly layer:Layer;readonly parent:ContainerLayer|null}
 interface CompositionStructure {readonly layer:Layer;readonly parent:ContainerLayer|null;readonly children:readonly Layer[]|null;readonly picture:Picture|null}
 interface CompositionCommand {readonly value:PaintCommand;readonly resourceOwner:object|null;readonly shaderOwner:object|null}
-interface CompositionPicture {readonly layer:PictureLayer;readonly picture:Picture;readonly parent:ContainerLayer;readonly commands:readonly CompositionCommand[]|null}
-interface RetainedComposition {readonly body:ContainerLayer;readonly bounds:Rect;readonly commands:readonly CompositionCommand[]|null;readonly pictures:readonly CompositionPicture[];readonly entries:readonly CompositionEntry[];readonly structure:readonly CompositionStructure[]}
+interface CompositionPicture {readonly layer:PictureLayer;readonly picture:Picture;readonly parent:ContainerLayer}
+interface CompositionPart extends PictureBatchPart {readonly picture:CompositionPicture|null}
+interface CompositionBatch {readonly commands:readonly CompositionCommand[]|null;readonly parts:readonly CompositionPart[]}
+interface RetainedComposition {readonly body:ContainerLayer;readonly bounds:Rect;readonly commands:readonly CompositionCommand[]|null;readonly pictures:readonly CompositionBatch[];readonly entries:readonly CompositionEntry[];readonly structure:readonly CompositionStructure[]}
 const retainedCompositions=new WeakMap<ContainerLayer,RetainedComposition>();
-const recordedLayerPictures=new WeakMap<ContainerLayer,readonly CompositionPicture[]>();
+const recordedLayerPictures=new WeakMap<ContainerLayer,readonly CompositionBatch[]>();
+// Captured commands and their resource bindings are immutable. Weak identity
+// metadata follows the recording's lifetime and never keeps an owner alive on
+// its own; frozen external commands still have to cross Canvas admission.
+const compositionCommands=new WeakMap<PaintCommand,CompositionCommand|null>();
 // Command capture preserves extension fields for its public callers. Only the
 // validated native fields below have deeply immutable values suitable for reuse.
 const compositionFields:Readonly<Record<PaintCommand['op'],readonly string[]>>={
@@ -45,11 +53,13 @@ function sameSnapshot(a:unknown,b:unknown):boolean{
   return keys.length===Object.keys(right).length&&keys.every(key=>Object.prototype.hasOwnProperty.call(right,key)&&sameSnapshot(left[key],right[key]));
 }
 function captureCompositionCommand(value:PaintCommand):CompositionCommand|null{
-  if(!isCapturedPaintCommand(value)||!Object.keys(value).every(key=>compositionFields[value.op].includes(key)))return null;
+  const cached=compositionCommands.get(value);if(cached!==undefined)return cached;
+  if(!isCapturedPaintCommand(value))return null;
+  if(!Object.keys(value).every(key=>compositionFields[value.op].includes(key))){compositionCommands.set(value,null);return null;}
   const owner='resource'in value?resourceOwner(value.resource):null,shader='paint'in value&&value.paint.shader?.kind==='image'?resourceOwner(value.paint.shader.image):null;
   // Unbound names do not prove that two recordings refer to the same resource.
-  if('resource'in value&&owner===null||'paint'in value&&value.paint.shader?.kind==='image'&&shader===null)return null;
-  return {value,resourceOwner:owner,shaderOwner:shader};
+  const captured='resource'in value&&owner===null||'paint'in value&&value.paint.shader?.kind==='image'&&shader===null?null:Object.freeze({value,resourceOwner:owner,shaderOwner:shader});
+  compositionCommands.set(value,captured);return captured;
 }
 function sameCompositionCommand(a:CompositionCommand,b:PaintCommand):boolean{
   if(!isCapturedPaintCommand(b)||a.value.op!==b.op)return false;
@@ -60,7 +70,7 @@ function sameCompositionCommand(a:CompositionCommand,b:PaintCommand):boolean{
 function captureCompositionCommands(commands:readonly PaintCommand[]):readonly CompositionCommand[]|null{
   const snapshots:CompositionCommand[]=[];for(const command of commands){const snapshot=captureCompositionCommand(command);if(!snapshot)return null;snapshots.push(snapshot);}return snapshots;
 }
-function captureComposition(body:ContainerLayer,bounds:Rect,commands:readonly PaintCommand[],pictures:readonly CompositionPicture[],entries:readonly {readonly mark:number;readonly handle:LayerHandle<Layer>}[]):RetainedComposition{
+function captureComposition(body:ContainerLayer,bounds:Rect,commands:readonly PaintCommand[],pictures:readonly CompositionBatch[],entries:readonly {readonly mark:number;readonly handle:LayerHandle<Layer>}[]):RetainedComposition{
   const snapshots=captureCompositionCommands(commands);
   const insertions=entries.map(entry=>({mark:entry.mark,layer:entry.handle.layer!,parent:entry.handle.layer!.parent})),retained=new Set(insertions.map(entry=>entry.layer)),structure:CompositionStructure[]=[],pending:Layer[]=[body];
   while(pending.length){const layer=pending.pop()!;if(retained.has(layer))continue;const children=layer instanceof ContainerLayer?layer.children:null;structure.push({layer,parent:layer.parent,children,picture:layer instanceof PictureLayer?layer.picture:null});if(children)for(const child of children)pending.push(child);}
@@ -72,16 +82,11 @@ export class PaintingContext extends Canvas {
   private readonly entries:Array<{readonly mark:number;readonly handle:LayerHandle<Layer>}>=[];
   private assembled=false;
   private exporting=false;
-  private readonly pictureBatches:CompositionPicture[]=[];
+  private readonly pictureBatches:CompositionBatch[]=[];
   readonly estimatedBounds:Rect;
   constructor(recorder:PictureRecorder|null=null,cullRect:Rect|null=null,readonly recordsLayers=false){super(recorder,cullRect);this.estimatedBounds=Object.freeze({...cullRect??{x:0,y:0,width:0,height:0}});}
   protected override record(command:PaintCommand):void{if(!(!this.recordsLayers||!this.assembled||this.exporting))invariant(false,'closed-layer-recording','Layer recording has ended');super.record(command);}
-  override transform(matrix:Matrix2D|readonly number[]|Float64Array):void{
-    // The built-in recorder captures synchronously. Custom recording hooks
-    // retain Canvas's independent argument before they can mutate or store it.
-    if(this.record===PaintingContext.capturedRecord)this.record({op:'transform',matrix:matrix as readonly number[]});
-    else super.transform(matrix);
-  }
+  protected override get recordsSynchronously():boolean{return this.record===PaintingContext.capturedRecord;}
   get canvas():Canvas{return this;}
   paintChild(child:RenderObject,transform:TransformMatrix):void{this.save();try{this.transform(transform);child.paint(this);}finally{this.restore();}}
   /** Consume retained CPU scene snapshots in the current transform/clip scope. */
@@ -103,7 +108,7 @@ export class PaintingContext extends Canvas {
   }
   override dispose():void{const errors:unknown[]=[];try{super.dispose();}catch(error){errors.push(error);}const entries=this.entries.splice(0);for(const entry of entries)try{entry.handle.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'PaintingContext retirement failed');}
   /** Assemble state scopes and interleaved retained children without flattening those children. */
-  private finishLayer(bounds:Rect,reusablePictures?:readonly CompositionPicture[],previousDepth=0):ContainerLayer{
+  private finishLayer(bounds:Rect,reusablePictures?:readonly CompositionBatch[],previousDepth=0):ContainerLayer{
     if(!(this.recordsLayers&&!this.assembled&&!this.debugDisposed))invariant(false,'closed-layer-recording','Layer recording has ended');this.assembled=true;
     if(!(this.commands.length<=paintFrameLimits.commands&&this.entries.length<=paintFrameLimits.commands))invariant(false,'oversize','Layer recording budget exceeded');
     const root=new RecordedCompositionLayer();
@@ -117,21 +122,30 @@ export class PaintingContext extends Canvas {
     let pendingRecords=0,pictureIndex=0;
     const flush=()=>{
       if(!pending.length)return;const commands=pending,previous=reusablePictures?.[pictureIndex++];pending=[];pendingRecords=0;
-      // Canvas state around an insertion can change while its primitive batches
-      // stay identical. Move the owned PictureLayer rather than share a producer
-      // between two layers; earlier Scene/GPU captures keep independent holds.
-      if(previous?.commands&&!previous.layer.debugDisposed&&previous.layer.parent===previous.parent&&previous.layer.picture===previous.picture&&!previous.picture.debugDisposed&&!previous.layer.isComplexHint&&!previous.layer.willChangeHint&&sameBounds(previous.layer.canvasBounds,bounds)&&previous.commands.length===commands.length&&previous.commands.every((command,index)=>sameCompositionCommand(command,commands[index]!))){
-        const handle=new LayerHandle(previous.layer),errors:unknown[]=[];
-        try{previous.layer.remove();root.appendRecordedChild(previous.layer);this.pictureBatches.push({...previous,parent:root});}catch(error){errors.push(error);}
-        try{handle.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Retained picture transfer failed');return;
+      const snapshots=reusablePictures?captureCompositionCommands(commands):null;
+      const compatible=snapshots!==null&&previous?.commands!==null&&previous?.commands.length===commands.length&&previous.commands.every((command,index)=>command.value.op===commands[index]!.op);
+      const parts=compatible?partitionPictureBatch(commands,previous.parts,previous.commands!.map((command,index)=>sameCompositionCommand(command,commands[index]!))):[{from:0,to:commands.length,state:false}];
+      const captured:CompositionPart[]=[];
+      for(const part of parts){
+        if(part.state){root.appendState(commands[part.from]!);captured.push({...part,picture:null});continue;}
+        const old='previous'in part?previous!.parts[part.previous!]!.picture:null;
+        // Move the producer, never share it between layers. Earlier Scene/GPU
+        // captures retain independent holds while current state stays current.
+        if(old&&!old.layer.debugDisposed&&old.layer.parent===old.parent&&old.layer.picture===old.picture&&!old.picture.debugDisposed&&!old.layer.isComplexHint&&!old.layer.willChangeHint){
+          const handle=new LayerHandle(old.layer),errors:unknown[]=[];
+          try{if(!sameBounds(old.layer.canvasBounds,bounds))old.layer._updateCanvasBounds(bounds);old.layer.remove();root.appendRecordedChild(old.layer);captured.push({...part,picture:{...old,parent:root}});}catch(error){errors.push(error);}
+          try{handle.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Retained picture transfer failed');
+        }else{
+          const values=part.from===0&&part.to===commands.length?commands:commands.slice(part.from,part.to),picture=PaintingContext._recordBatch(values,bounds),child=new PictureLayer(bounds);child.picture=picture;
+          try{root.appendRecordedChild(child);}catch(error){child.dispose();throw error;}captured.push({...part,picture:{layer:child,picture,parent:root}});
+        }
       }
-      const snapshots=reusablePictures?captureCompositionCommands(commands):null,picture=PaintingContext._recordBatch(commands,bounds),child=new PictureLayer(bounds);child.picture=picture;
-      try{root.appendRecordedChild(child);}catch(error){child.dispose();throw error;}if(reusablePictures)this.pictureBatches.push({layer:child,picture,parent:root,commands:snapshots});
+      if(reusablePictures)this.pictureBatches.push({commands:snapshots,parts:captured});
     };
     try{
-      // A canvas scope only needs scene layers when a retained child is inserted
-      // inside it. Keep the other scopes in their picture: splitting every child
-      // save/transform/clip compiled hundreds of tiny native pictures per frame.
+      // Initially keep a scope together unless a retained child is inserted.
+      // flush refines changing batches from their previous recording. Splitting
+      // every save/transform/clip initially compiled hundreds of tiny pictures.
       const batches=new Map<number,{end:number;records:number;effects:number}>(),scopes:Array<{index:number;insertions:number;records:number;effects:number}>=[],costs=this.commands.map(paintCommandRecordCount);let insertions=0,records=0,effects=0;
       for(let index=0;index<this.commands.length;index++){
         insertions+=at.get(index)?.length??0;const command=this.commands[index]!,before=records,beforeEffects=effects;records+=costs[index]!;

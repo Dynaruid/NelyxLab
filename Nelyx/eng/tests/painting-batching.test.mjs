@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
-import {ContainerLayer,AnnotatedRegionLayer,AnnotationType,LayerHandle,LayerLink,LeaderLayer,FollowerLayer} from '@nelyx/core/framework/rendering/layer';
+import {ContainerLayer,PictureLayer,AnnotatedRegionLayer,AnnotationType,LayerHandle,LayerLink,LeaderLayer,FollowerLayer} from '@nelyx/core/framework/rendering/layer';
 import {Paint} from '@nelyx/core/ui/paint';
 import {Picture} from '@nelyx/core/ui/picture';
 import {Gradient,ImageShader} from '@nelyx/core/ui/shader';
@@ -173,6 +173,70 @@ test('moving a retained insertion preserves unchanged primitive batches and the 
     paint(60,0xffabcdef).dispose();assert.equal(f.compiled.length,3,'Only the changed primitive batch needs a new picture');assert.equal(f.compiled[0].find(command=>command.op==='drawRect').paint.color,0xff123456);assert.equal(f.retired.length,0);
     f.root.removeAllChildren();assert.equal(f.retired.length,1);held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,3);
   }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();handle.dispose();}
+});
+
+test('viewport changes retain identical primitive pictures with current bounds and independent admitted frames',{timeout},()=>{
+  for(const childLayer of [false,true]){
+    const f=fixture(),contexts=[],destination=new ContainerLayer(),type=new AnnotationType('resize-batches'),value={},region=new AnnotatedRegionLayer(value,{annotationType:type,size:{width:10,height:10}}),handles=[new LayerHandle(destination),new LayerHandle(region)];let held;
+    const paint=(width,color=0xff123456)=>{
+      const current={...bounds,width},c=new PaintingContext(null,current,true);contexts.push(c);
+      const draw=context=>{context.rect({x:0,y:0,width:5,height:5},color);context.save();context.translate(width-20,20);context.addLayer(region);context.restore();context.rect({x:10,y:0,width:5,height:5},0xffabcdef);};
+      if(childLayer)c.pushLayer(destination,draw,{x:0,y:0},current);else draw(c);
+      c.compose(f.root,current,f.pictures);return c;
+    };
+    const layers=layer=>layer instanceof PictureLayer?[layer]:(layer.children??[]).flatMap(layers);
+    try{
+      const first=paint(300);held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();
+      const original=layers(f.root).map(layer=>layer.picture),oldBounds=layers(f.root).map(layer=>layer.canvasBounds);assert.equal(f.compiled.length,2);
+      for(const width of [420,240,300]){
+        const current=paint(width);assert.equal(f.compiled.length,2,'A new viewport must not recompile identical primitive commands');
+        assert.deepEqual(layers(f.root).map(layer=>layer.picture),original);assert(layers(f.root).every(layer=>layer.canvasBounds.width===width));
+        assert.equal(f.root.find(type,{x:width-15,y:25}),value);assert.equal(f.root.find(type,{x:width+5,y:25}),null);current.dispose();
+      }
+      assert(oldBounds.every(rect=>rect.width===300),'Previously observed bounds must remain immutable');
+      paint(420,0xff654321).dispose();assert.equal(f.compiled.length,3,'Changed drawing must still compile and submit a new picture');assert.equal(f.retired.length,0);
+      f.root.removeAllChildren();for(const handle of handles)handle.dispose();assert.equal(f.retired.length,1,'The earlier admitted frame keeps its original pictures alive');
+      held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,3);
+    }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();for(const handle of handles)handle.dispose();}
+  }
+});
+
+test('resizing a background recompiles its drawing while unchanged nested content retains independent native pictures',{timeout},()=>{
+  const f=fixture(),contexts=[];let held,staticPicture;
+  const paint=width=>{
+    const current={...bounds,width},c=new PaintingContext(null,current,true);contexts.push(c);
+    c.save();c.translate(10,20);c.rect({x:0,y:0,width,height:40},0xff123456);
+    c.save();c.translate(5,7);c.rect({x:0,y:0,width:5,height:6},0xffabcdef);c.restore();c.restore();
+    c.compose(f.root,current,f.pictures);return c;
+  };
+  try{
+    const first=paint(300);held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();
+    paint(320).dispose();assert.equal(f.compiled.length,3,'The first change separates the background and static nested scope');
+    const layers=()=>f.root.firstChild.children.filter(layer=>layer instanceof PictureLayer);
+    staticPicture=layers().at(-1).picture;
+    for(const width of [340,280,300]){
+      const before=f.compiled.length;paint(width).dispose();assert.equal(f.compiled.length,before+1);
+      assert.deepEqual(f.compiled.at(-1).map(command=>command.op),['rect'],'Only the changed background is compiled');
+      assert.equal(f.compiled.at(-1)[0].rect.width,width);assert.equal(layers().at(-1).picture,staticPicture);
+      assert(layers().every(layer=>layer.canvasBounds.width===width));
+    }
+    const before=f.compiled.length;paint(300).dispose();assert.equal(f.compiled.length,before,'A stationary frame keeps its existing partition');
+    f.root.removeAllChildren();assert.equal(staticPicture.debugDisposed,true);assert.equal(f.retired.length,f.compiled.length-1);
+    held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,f.compiled.length);
+  }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();}
+});
+
+test('an adaptive static scope observes changed resource generations while an earlier submitted frame retains its original input',{timeout},()=>{
+  const f=fixture(),contexts=[],retired=[],images=[1,2].map(generation=>({id:'adaptive-image',generation,kind:'image'}));let held;
+  for(const image of images){f.resources.register(image,()=>retired.push(image.generation));f.resources.bindResource(image);}
+  const paint=(width,image)=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.save();c.rect({x:0,y:0,width,height:40},0xff123456);c.save();c.translate(3,4);c.image(image,{x:0,y:0,width:8,height:9});c.restore();c.restore();c.compose(f.root,bounds,f.pictures);return c;};
+  try{
+    const first=paint(30,images[0]);held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();
+    paint(40,images[0]).dispose();const before=f.compiled.length;paint(50,images[0]).dispose();assert.equal(f.compiled.length,before+1);
+    const changed=f.compiled.length;paint(60,images[1]).dispose();assert.equal(f.compiled.length,changed+2,'The static scope must recompile its new resource generation');assert.equal(f.compiled.at(-1).find(command=>command.op==='image').resource.generation,2);
+    for(const image of images)f.resources.releaseProducer(image);assert.deepEqual(retired,[]);f.root.removeAllChildren();assert.deepEqual(retired,[2]);
+    held.returnBy('renderer');held=undefined;assert.deepEqual(retired,[2,1]);
+  }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();}
 });
 
 test('a recording failure after batch reuse retires partial frame holds and retries without a cached partial assembly',{timeout},()=>{

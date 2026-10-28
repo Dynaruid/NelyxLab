@@ -77,7 +77,8 @@ export class FrameworkRoot implements ViewController {
   private semanticsPublishedAt:number|undefined;
   private semanticsResizeAt:number|undefined;
   private semanticsDeferred=false;
-  private semanticsWake:number|undefined;
+  private semanticsWake:number|Disposable|undefined;
+  private semanticsWakeDeadline:number|undefined;
   private semanticsFocus:BuildOwner['focus']['primaryFocus'];
   private pendingSemanticsActions:{source:SourceSemanticsNode;perform:(node:SemanticsNode)=>void}[]=[];
   private readonly viewSemanticsHandle:SemanticsHandle|undefined;
@@ -120,6 +121,7 @@ export class FrameworkRoot implements ViewController {
     this.context=font?{...context,defaultFont:font}:context;context=this.context;
     initializeFoundationBindings();
     this.scheduler=new FrameScheduler(context.clock,context.requestFrame,{...(context.reportError?{reportError:context.reportError}:{}),...(context.requestForcedFrame?{requestForcedFrame:context.requestForcedFrame}:{})});
+    this.scheduler.observeDispose(()=>this.cancelSemanticsWake());
     const dispatcher=context.binaryMessenger?PlatformDispatcher.maybeForMessenger(context.binaryMessenger):undefined;
     this.semanticsActionBinding=new SemanticsActionBinding({accessibilityEnabled:options.accessibilityEnabled!==false,...(dispatcher?{dispatcher}:{}),scheduler:this.scheduler,viewId:context.platformView?.viewId??context.owner.id,performSemanticsAction:event=>{if(!this.isInputLive()||typeof event.nodeId!=='number')return;const owner=this.pipeline.semanticsOwner,source=owner?.getSemanticsNode(event.nodeId);if(this.semanticsDeferred){if(source)this.queueSemanticsAction(source,()=>owner!.performAction(source.id,event.type,event.arguments));}else owner?.performAction(event.nodeId,event.type,event.arguments);}});
     if(options.accessibilityEnabled!==false)this.semanticsActionBinding.addAccessibilityFeaturesChangedListener(()=>{if(this.closed)return;const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};if(this.root)visit(this.root);this.scheduler.requestFrame();});
@@ -204,9 +206,10 @@ export class FrameworkRoot implements ViewController {
         const defer=!reuse&&this.pendingSemanticsActions.length===0&&this.semanticsPublishedAt!==undefined&&((sameScope&&(!rebuilt||!semanticsPipeline?.hasConfigurationChanges)&&elapsed>=0&&elapsed<interval)||(resizeScope&&!semanticsPipeline?.hasConfigurationChanges&&resizeElapsed>=0&&resizeElapsed<interval))&&!geometryCommit.hasInputGeometry&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates;
         if(defer){
           // Keep dirty work queued; actions request an earlier fresh snapshot.
-          // A one-shot host frame also delivers the trailing update after motion stops.
+          // Wake at the existing semantic deadline. Clock-only polling before
+          // then must not keep painting the same deferred accessibility work.
           this.semanticsDeferred=true;this.sourceSemanticsSnapshot.defer();
-          if(this.semanticsWake===undefined)this.semanticsWake=this.scheduler.scheduleFrameCallback(()=>{this.semanticsWake=undefined;});
+          this.scheduleSemanticsWake((resizeScope?this.semanticsResizeAt!:this.semanticsPublishedAt!)+interval);
         }else{
           this.cancelSemanticsWake();this.semanticsDeferred=false;
           if(!reuse)this.sourceSemanticsSnapshot.invalidate();this.pipeline.flushSemantics();
@@ -355,7 +358,23 @@ export class FrameworkRoot implements ViewController {
       break;
     }
   }
-  private cancelSemanticsWake():void{if(this.semanticsWake!==undefined){this.scheduler.cancelFrameCallbackWithId(this.semanticsWake);this.semanticsWake=undefined;}}
+  private scheduleSemanticsWake(deadline:number):void{
+    const request=this.context.requestFrameAt;
+    if(!request){if(this.semanticsWake===undefined)this.semanticsWake=this.scheduler.scheduleFrameCallback(()=>{this.semanticsWake=undefined;});return;}
+    if(this.semanticsWake!==undefined&&Object.is(this.semanticsWakeDeadline,deadline))return;
+    this.cancelSemanticsWake();if(!Number.isFinite(deadline))return;
+    let host:Disposable|undefined,cancelled=false;
+    const wake={dispose:()=>{if(cancelled)return;cancelled=true;host?.dispose();}};
+    this.semanticsWake=wake;this.semanticsWakeDeadline=deadline;
+    try{
+      host=request(deadline,()=>{
+        if(this.semanticsWake!==wake)return;this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;cancelled=true;
+        if(this.isInputLive())this.scheduler.requestFrame();
+      });
+      if(cancelled)host.dispose();
+    }catch(error){if(this.semanticsWake===wake){this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;}cancelled=true;throw error;}
+  }
+  private cancelSemanticsWake():void{const wake=this.semanticsWake;this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;if(typeof wake==='number')this.scheduler.cancelFrameCallbackWithId(wake);else wake?.dispose();}
   setVisible(visible:boolean):void {if(this.closed)return;if(!visible)this.buildOwner.maybeViewWorkBudget?.cancelPreparation();if(this.visible!==visible){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsDeferred=false;this.semanticsCache=undefined;this.sourceSemanticsSnapshot?.invalidate();}this.visible=visible;if(!visible&&this.sourceSemanticsSnapshot)this.semanticsActionBinding.updateViewSemantics(this.context.owner.id,[]);const errors:unknown[]=[];if(!visible)for(const stop of [()=>this.cancelPointers(),()=>this.mouseTracker.clearDevices(),()=>this.keyboardFocusLost()])try{stop();}catch(error){errors.push(error);}try{this.scheduler.setVisible(visible);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'View input visibility transition failed');}
   shouldSubmitFrame():boolean{return this.scheduler.sendFramesToEngine;}
   frameSubmitted(_token:FrameBuildToken):void{this.scheduler.markFirstFrameSubmitted();}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type {PaintCommand,Rect,ResourceId,ClipOptions} from './types.ts';
 import type {Matrix2D,Offset} from './geometry.ts';
+import {isCapturedTransform} from './geometry.ts';
 import {matrix4Identity,matrix4FromAffine,captureMatrix4,multiplyMatrix4} from './matrix4.ts';
 import {finite} from '../foundation/numbers.ts';
 import {invariant} from '../foundation/errors.ts';
@@ -18,18 +19,25 @@ import type {PictureRecorder} from './picture-recorder.ts';
 /** Records commands only; GPU objects never enter the framework tree. */
 export class Canvas {
   private static readonly baseRecord=Canvas.prototype.record;
+  private static readonly saveCommand=freezePaintCommand({op:'save'});
+  private static readonly restoreCommand=freezePaintCommand({op:'restore'});
+  // One resource-free command per owned immutable matrix. Weak keys retire
+  // with the render/scene storage; submitted recordings keep their own values.
+  private static readonly transformCommands=new WeakMap<readonly number[],PaintCommand>();
   readonly commands:PaintCommand[]=[];
   private dead=false;
   constructor(private readonly recorder:PictureRecorder|null=null,cullRect:Rect|null=null,private readonly pictures:PictureResourceProvider|null=null){recorder?._beginRecording(this,cullRect);}
   get debugDisposed():boolean{return this.dead;}
   protected record(command:PaintCommand):void{if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');this.commands.push(freezePaintCommand(command));}
+  /** Custom recording hooks must keep their independent, mutable arguments. */
+  protected get recordsSynchronously():boolean{return this.record===Canvas.baseRecord;}
   addCommands(commands:readonly PaintCommand[]):void{this._addCommandRange(commands,0,commands.length);}
   /** @internal Retained replay copies a range without allocating an intermediate list. */
   _addCommandRange(commands:readonly PaintCommand[],from:number,to:number):void{if(!(Number.isSafeInteger(from)&&Number.isSafeInteger(to)&&from>=0&&to>=from&&to<=commands.length))invariant(false,'invalid-command-range','Invalid command copy range');const start=this.commands.length;try{for(let index=from;index<to;index++)this.record(commands[index]!);}catch(error){try{this.rollback(start);}catch(cleanup){throw new AggregateError([error,cleanup],'Command copy and rollback failed');}throw error;}}
   rollback(start:number):void{if(!(Number.isSafeInteger(start)&&start>=0&&start<=this.commands.length))invariant(false,'invalid-command-mark','Invalid recording rollback');releaseCommandResources(this.commands.splice(start));}
   dispose():void{if(this.dead)return;this.dead=true;releaseCommandResources(this.commands);}
-  save():void {this.record({op:'save'});}
-  restore():void {if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');if(this.recorder&&this.getSaveCount()===1)return;this.record({op:'restore'});}
+  save():void {this.record(this.recordsSynchronously?Canvas.saveCommand:{op:'save'});}
+  restore():void {if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');if(this.recorder&&this.getSaveCount()===1)return;this.record(this.recordsSynchronously?Canvas.restoreCommand:{op:'restore'});}
   drawPicture(picture:Picture):void{if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');if(!(picture instanceof Picture))invariant(false,'invalid-picture','drawPicture requires Picture');if(this.pictures)this.record({op:'drawPicture',resource:this.pictures.resource(picture)});else picture._draw(this);}
   /** The final argument supplies this view's DPR in place of Dart's implicit window. */
   drawShadow(path:Path,color:number,elevation:number,transparentOccluder:boolean,devicePixelRatio=1):void{if(!(path instanceof Path))invariant(false,'invalid-path','drawShadow requires Path');this.record({op:'drawShadow',path:path.snapshot(),color,elevation,transparentOccluder,devicePixelRatio});}
@@ -37,7 +45,13 @@ export class Canvas {
   transform(matrix:Matrix2D|readonly number[]|Float64Array):void {
     // The base recorder captures synchronously. A custom hook still receives
     // an independent argument even when it mutates or retains that argument.
-    this.record({op:'transform',matrix:this.record===Canvas.baseRecord?matrix as readonly number[]:Array.from(matrix)});
+    if(this.recordsSynchronously){
+      if(isCapturedTransform(matrix as readonly number[])){
+        let command=Canvas.transformCommands.get(matrix as readonly number[]);
+        if(!command){command=freezePaintCommand({op:'transform',matrix:matrix as readonly number[]});Canvas.transformCommands.set(matrix as readonly number[],command);}
+        this.record(command);
+      }else this.record({op:'transform',matrix:matrix as readonly number[]});
+    }else this.record({op:'transform',matrix:Array.from(matrix)});
   }
   translate(dx:number,dy:number):void{this.transform([1,0,0,1,dx,dy]);}
   scale(sx:number,sy=sx):void{this.transform([sx,0,0,sy,0,0]);}

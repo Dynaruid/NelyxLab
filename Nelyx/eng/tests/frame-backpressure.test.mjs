@@ -5,6 +5,9 @@ import {AppSession} from '@nelyx/core/hosting/runtime';
 import {GraphiteRenderer} from '@nelyx/skia-native/renderer';
 import {ResourceLease} from '@nelyx/core/hosting/resources';
 import {freezeFrame} from '@nelyx/core/ui/frame';
+import {FrameworkRoot} from '@nelyx/core/framework/widgets/root';
+import {Semantics} from '@nelyx/core/framework/widgets/semantics';
+import {SizedBox} from '@nelyx/core/framework/widgets/basic';
 const timeout=1_200_000;
 const metrics={logicalWidth:100,logicalHeight:100,physicalWidth:100,physicalHeight:100,scale:1,viewportGeneration:1,rendererGeneration:1,nativeContextGeneration:1,nativeSurfaceGeneration:1};
 function fixture({scene}={}){
@@ -19,6 +22,102 @@ function fixture({scene}={}){
   const view=session.attach({id:'pressure',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error)});
   return {view,renderer,session,callbacks,notifications,submissions,errors,tick,get builds(){return builds;},set value(next){value=next;},set deny(next){deny=next;},set nativeRecordings(next){nativeRecordings=next;},set releaseAfterHint(next){releaseAfterHint=next;},set failSubmission(next){failSubmission=next;}};
 }
+
+function deadlineFixture({widgets=false,notifications=false}={}){
+ const callbacks=new Set(),errors=[],submissions=[],actions=[];let now=0,builds=0,services,root,listener;
+ const clock={now:()=>now,request(callback){callbacks.add(callback);return {dispose(){callbacks.delete(callback);}};}};
+ const renderer={capabilities:{notifications:notifications?'submitted-and-retired':'unavailable'},updateMetrics(){},observe(callback){listener=callback;return {dispose(){listener=undefined;}};},submit(frame,lease){submissions.push(frame.token);listener?.({kind:'submitted',token:frame.token,submission:submissions.length});lease.transfer();lease.returnBy('renderer');return {status:'accepted'};},dispose(){}};
+ const session=new AppSession({id:'deadline',createView(context){services=context;const controller=widgets?(root=new FrameworkRoot(context,{id:'deadline',semanticsUpdateInterval:50,createRoot:()=>new Semantics({transportId:'deadline-action',label:'Action',container:true,onTap:()=>actions.push(context.readMetrics().logicalHeight),child:new SizedBox(40,40)})})):{build(){return [{op:'clear',color:0}];},dispose(){}};const build=controller.build;controller.build=function(...args){builds++;return build.apply(this,args);};return controller;}},clock);
+ const view=session.attach({id:'deadline',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error),services:{clock,assets:new Map(),text:{createParagraph(){throw Error('Unexpected text');}},editing:{capability:'unavailable'},semantics:{capability:'unavailable'}}});
+ return {view,session,clock,callbacks,errors,submissions,actions,notify:event=>listener?.(event),get context(){return services;},get root(){return root;},get builds(){return builds;},tick(time){now=time;const batch=[...callbacks];callbacks.clear();for(const callback of batch)callback({tick:now,dispatch:now,queueDelay:0,clockUncertainty:0});}};
+}
+
+test('a deferred frame waits on its owner clock without building early and runs its callback in the due frame',{timeout},async()=>{
+ const f=deadlineFixture(),calls=[];
+ try{
+  f.view.requestFrame();f.tick(0);assert.equal(f.builds,1);
+  f.context.requestFrameAt(50,()=>{calls.push('due');f.context.requestFrame();});
+  for(const time of [6,12,18,24,30,36,42,48]){f.tick(time);assert.equal(f.builds,1);assert.deepEqual(calls,[]);}
+  f.tick(50);assert.deepEqual(calls,['due']);assert.equal(f.builds,2,'A due request uses this tick, without waiting for another vsync');assert.equal(f.submissions.length,2);assert.equal(f.callbacks.size,0);assert.deepEqual(f.errors,[]);
+ }finally{await f.session.dispose();assert.equal(f.callbacks.size,0);}
+});
+
+test('ordinary and forced frames bypass a future wake and cancellation cannot consume a requested redraw',{timeout},async()=>{
+ const f=deadlineFixture(),calls=[];
+ try{
+  f.view.requestFrame();f.tick(0);const future=f.context.requestFrameAt(1000,()=>calls.push('late'));
+  f.context.requestFrame();f.tick(10);assert.equal(f.builds,2);assert.deepEqual(calls,[]);
+  f.view.setVisible(false);f.view.requestForcedFrame();f.tick(20);assert.equal(f.builds,3);assert.deepEqual(calls,[]);
+  f.view.setVisible(true);f.context.requestFrame();future.dispose();f.tick(30);assert.equal(f.builds,4);assert.equal(f.callbacks.size,0);
+  f.context.requestFrame();f.tick(40);assert.equal(f.builds,5,'A stationary explicit redraw must still paint and submit');assert.equal(f.submissions.length,5);assert.deepEqual(f.errors,[]);
+ }finally{await f.session.dispose();}
+});
+
+test('deferred callbacks cancel before reentrant close and a falsey failure stops all future clock work',{timeout},async()=>{
+ for(const fail of [false,true]){
+  const f=deadlineFixture(),calls=[];
+  try{
+   f.view.requestFrame();f.tick(0);
+   f.context.requestFrameAt(10,()=>{calls.push('first');f.context.requestFrameAt(30,()=>calls.push('future'));if(fail)throw 0;f.view.beginClose();});
+   f.context.requestFrameAt(10,()=>calls.push('cancelled sibling'));f.tick(10);
+   assert.deepEqual(calls,['first']);assert.equal(f.builds,1);assert.equal(f.callbacks.size,0);assert.equal(f.view.status,fail?'failed':'closing');assert.deepEqual(f.errors,fail?[0]:[]);
+   f.tick(100);assert.deepEqual(calls,['first']);
+  }finally{await f.session.dispose();assert.equal(f.callbacks.size,0);}
+ }
+});
+
+test('invalid deferred deadlines do not acquire a frame clock callback',{timeout},async()=>{
+ const f=deadlineFixture();try{for(const value of [NaN,Infinity,-Infinity])assert.throws(()=>f.context.requestFrameAt(value,()=>{}),/finite/);assert.equal(f.callbacks.size,0);assert.equal(f.builds,0);}finally{await f.session.dispose();}
+});
+
+test('a failed native retirement releases deferred callbacks before the owner closes',{timeout},async()=>{
+ const f=deadlineFixture({notifications:true}),calls=[];
+ try{
+  f.view.requestFrame();f.tick(0);f.context.requestFrameAt(1000,()=>calls.push('late'));
+  f.notify({kind:'failed',token:f.submissions[0],submission:1,reason:'native-failure'});
+  assert.equal(f.view.status,'failed');assert.equal(f.view.deferredFrames.size,0,'A failed owner must not retain callbacks until disposal');f.tick(1000);assert.deepEqual(calls,[]);assert.equal(f.callbacks.size,0);assert.equal(f.builds,1);
+ }finally{await f.session.dispose();}
+});
+
+test('a hidden owner keeps due work dormant until visible even when it receives a forced frame',{timeout},async()=>{
+ const f=deadlineFixture(),calls=[];
+ try{
+  f.context.requestFrameAt(10,()=>{calls.push('hide');f.view.setVisible(false);});f.context.requestFrameAt(10,()=>calls.push('visible again'));
+  f.tick(10);assert.deepEqual(calls,['hide']);assert.equal(f.builds,0);assert.equal(f.callbacks.size,0);
+  f.view.requestForcedFrame();f.tick(20);assert.equal(f.builds,1);assert.deepEqual(calls,['hide']);
+  f.view.setVisible(true);f.tick(30);assert.deepEqual(calls,['hide','visible again']);assert.equal(f.builds,2);assert.equal(f.callbacks.size,0);
+ }finally{await f.session.dispose();}
+});
+
+test('cancelling a deferred wake cannot consume a sibling View request on the same clock',{timeout},async()=>{
+ const callbacks=new Set(),contexts=new Map(),builds=[],calls=[];
+ const clock={now:()=>10,request(callback){callbacks.add(callback);return {dispose(){callbacks.delete(callback);}};}};
+ const session=new AppSession({id:'siblings',createView(context){contexts.set(context.owner.id,context);return {build(){builds.push(context.owner.id);return [{op:'clear',color:0}];},dispose(){}};}},clock);
+ const attach=id=>session.attach({id,generation:1,metrics,ownership:'owned',renderer:{capabilities:{notifications:'unavailable'},updateMetrics(){},submit(_frame,lease){lease.transfer();lease.returnBy('renderer');return {status:'accepted'};},dispose(){}},services:{clock,assets:new Map(),text:{createParagraph(){throw Error('Unexpected text');}},editing:{capability:'unavailable'},semantics:{capability:'unavailable'}}});
+ try{
+  attach('first');const sibling=attach('second');const cancelled=contexts.get('first').requestFrameAt(10,()=>calls.push('cancelled'));contexts.get('second').requestFrameAt(10,()=>calls.push('due'));sibling.requestFrame();cancelled.dispose();
+  assert.equal(callbacks.size,1);const batch=[...callbacks];callbacks.clear();for(const callback of batch)callback({tick:10,dispatch:10,queueDelay:0,clockUncertainty:0});
+  assert.deepEqual(calls,['due']);assert.deepEqual(builds,['second']);assert.equal(callbacks.size,0);
+ }finally{await session.dispose();assert.equal(callbacks.size,0);}
+});
+
+test('size-only semantics requests one deadline frame while resize, time dilation and actions keep their existing fences',{timeout},async()=>{
+ const f=deadlineFixture({widgets:true});let captures=0;
+ const resize=(height,time)=>{f.view.updateMetrics({...f.view.currentMetrics,logicalHeight:height,physicalHeight:height,viewportGeneration:f.view.currentMetrics.viewportGeneration+1});f.tick(time);};
+ try{
+  f.view.requestFrame();f.tick(0);const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};f.root.scheduler.timeDilation=10;
+  resize(120,1);const before=f.builds;assert.notEqual(f.root.semanticsWake,undefined);
+  for(const time of [7,13,19,25,31,37,43,49]){f.tick(time);assert.equal(f.builds,before,'Deadline polling must not repaint Root before semantics is due');assert.equal(captures,0);}
+  f.tick(51);assert.equal(f.builds,before+1);assert.equal(captures,1);assert.equal(f.root.nodes.find(node=>node.id==='deadline-action').bounds.height,120);assert.equal(f.callbacks.size,0);
+  resize(140,60);const older=f.root.nodes.find(node=>node.id==='deadline-action');resize(160,80);const pending=f.builds;f.tick(110);assert.equal(f.builds,pending,'A later resize replaces the earlier trailing deadline');f.tick(130);assert.equal(captures,2);assert.equal(f.root.nodes.find(node=>node.id==='deadline-action').bounds.height,160);
+  resize(180,140);older.actions.activate();f.tick(141);assert.deepEqual(f.actions,[],'Superseded source snapshots cannot perform an action');
+  const current=f.root.nodes.find(node=>node.id==='deadline-action');current.actions.activate();f.tick(142);assert.deepEqual(f.actions,[180]);assert.equal(f.root.semanticsWake,undefined);assert.deepEqual(f.errors,[]);
+ }finally{await f.session.dispose();assert.equal(f.callbacks.size,0);}
+});
+
+test('disposing the widget scheduler cancels its deferred semantics wake before Root or View retirement',{timeout},async()=>{
+ const f=deadlineFixture({widgets:true});try{f.view.requestFrame();f.tick(0);f.view.updateMetrics({...metrics,logicalHeight:120,physicalHeight:120,viewportGeneration:2});f.tick(1);assert.notEqual(f.root.semanticsWake,undefined);assert.equal(f.callbacks.size,1);const before=f.builds;f.root.scheduler.dispose();assert.equal(f.root.semanticsWake,undefined);assert.equal(f.callbacks.size,0);f.tick(100);assert.equal(f.builds,before);assert.deepEqual(f.errors,[]);}finally{await f.session.dispose();}
+});
 
 test('native retirement reentry observes the same renderer close before GPU leases and event identities retire',{timeout},async()=>{
  const f=fixture();let reentered,retired=0;

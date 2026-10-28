@@ -3,6 +3,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {freezePaintCommand,freezeFrame,captureBorrowedFrame,disposeFrame} from '@nelyx/core/ui/frame';
 import {Canvas} from '@nelyx/core/ui/canvas';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
+import {captureTransform} from '@nelyx/core/ui/geometry';
 import {Paint,freezePaint} from '@nelyx/core/ui/paint';
 import {ImageShader} from '@nelyx/core/ui/shader';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
@@ -58,6 +59,34 @@ test('transform validation captures an external iterator once and validates the 
       for(const length of [5,7]){const input=Array(6).fill(0);input[Symbol.iterator]=function*(){for(let index=0;index<length;index++)yield 0;};assert.throws(()=>canvas.transform(input),/six affine or sixteen/);}
       const invalid=Array(6).fill(0);invalid[Symbol.iterator]=function*(){yield* [1,0,0,1,NaN,0];};assert.throws(()=>canvas.transform(invalid),/finite/);assert.equal(canvas.commands.length,1);
     }finally{canvas.dispose();}
+  }
+});
+
+test('built-in state recording shares only owned values while custom hooks keep independent mutable arguments',{timeout},()=>{
+  for(const Base of [Canvas,PaintingContext]){
+    const first=new Base(),second=new Base(),observed=[];
+    class Custom extends Base{record(command){command.marker=observed.length+1;observed.push(command);if(command.op==='transform')command.matrix[4]=17;super.record(command);}}
+    const custom=new Custom();
+    try{
+      first.save();first.restore();second.save();second.restore();
+      assert.equal(first.commands[0],second.commands[0],'Save has no mutable values or resource holds');
+      assert.equal(first.commands[1],second.commands[1],'Restore has no mutable values or resource holds');
+      for(const length of [6,16]){
+        const values=length===6?[1,-0,0,1,-0,8]:[1,-0,0,0,0,1,0,0,0,0,1,0,-0,8,0,1],owned=captureTransform(values),start=first.commands.length;
+        first.transform(owned);second.transform(owned);
+        assert.equal(first.commands[start].matrix,owned);assert.equal(second.commands.at(-1).matrix,owned);
+        assert.equal(first.commands[start],second.commands.at(-1),'Owned transforms have no command resource sidecar');
+        const external=Object.freeze([...values]);first.transform(external);first.transform(external);
+        assert.notEqual(first.commands.at(-1).matrix,external);assert.notEqual(first.commands.at(-1).matrix,first.commands.at(-2).matrix);
+        const invalid=[...values];invalid[0]=1e100;assert.throws(()=>first.transform(captureTransform(invalid)),/SkScalar/);
+        custom.transform(owned);assert.equal(owned[4],values[4]);assert.notEqual(observed.at(-1).matrix,owned);
+      }
+      custom.save();custom.save();custom.restore();
+      assert.notEqual(observed.at(-2),observed.at(-3));assert(observed.every(command=>!Object.isFrozen(command)));
+      for(const command of observed)command.marker=99;
+      assert.deepEqual(custom.commands.map(command=>command.marker),[1,2,3,4,5]);
+      const external=freezePaintCommand({op:'save',marker:'external'});assert.equal(external.marker,'external');assert.notEqual(external,first.commands[0]);
+    }finally{first.dispose();second.dispose();custom.dispose();}
   }
 });
 

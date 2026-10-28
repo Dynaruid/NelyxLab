@@ -1,7 +1,7 @@
 # Windows 창 크기 조절 FPS 개선 계획
 
 - 작성일: 2026-10-27
-- 상태: **PAUSED / PARTIAL — 사용자 외출 요청으로 중간 정리. 창 입력·종료 수정과 Release 빌드 완료, 최종 실행·일반 스크롤 지연 재확인 미완료**
+- 상태: **PAUSED / PARTIAL — 2026-10-28 사용자 요청으로 중간 마무리. picture 재사용의 native·실제 Release 검증 완료, deadline 수정은 source·bytecode native 확인 및 설치 완료 / 실제 AOT 미반영. 51 geometry 변화/s·CPU p95 10ms는 미달**
 - 대상: `sample/nelyx-testbed-app-2` 및 공통 Windows 리사이즈·프레임 처리 경로
 - 계획 기준 커밋: `708d9edffa5dab673e15e142c833286eeb4a6b72` / 구현 시작: `dd98826b25b19c158258d6df24ffc99d8c19af52`
 - 성능 수락: **`resizePerformanceAccepted=false`**
@@ -87,13 +87,13 @@ Doroti의 사전 준비·합성 클록 정렬·실제 geometry 직후 적용 방
 - [ ] native admission, worker 대기, raster, copy, fence retirement, ready, stage 13 클록 대기, actual geometry, 각 commit/flush의 시작·종료를 연결한다.
 - [x] frame·surface·viewport·transaction 식별자와 clock domain을 보존한다. 서로 보정하지 않은 JS·QPC·capture 시각을 빼서 지연을 만들지 않는다.
 - [x] critical path와 중첩 구간을 그린다. CPU 전체 비용을 단순히 Core build 비용으로 부르거나 겹치는 시간을 중복 합산하지 않는다.
-- [ ] 계측 켜기/끄기의 비용을 대표 사례에서 비교한다. bitmap readback과 고밀도 JS 래핑이 붙은 진단 실행은 최종 성능 수락에서 제외한다.
+- [x] 계측 켜기/끄기의 비용을 대표 사례에서 비교한다. bitmap readback과 고밀도 JS 래핑이 붙은 진단 실행은 최종 성능 수락에서 제외한다.
 
 **완료 조건:** 낮은 FPS를 설명하는 주된 구간과 지불하지 않아도 될 것으로 의심되는 대기가 수치로 특정되어야 한다. 아래 단계는 확인된 병목의 순서대로 진행하며 불필요한 단계의 코드를 바꾸지 않는다.
 
 ### S2 — 프레임 예약과 직렬 대기 개선
 
-- [ ] resize 준비 요청이 이미 프레임 tick에 정렬됐는데 다시 다음 tick을 기다리는지 확인한다.
+- [x] resize 준비 요청이 이미 프레임 tick에 정렬됐는데 다시 다음 tick을 기다리는지 확인한다.
 - [ ] 필요한 경우 현재 프레임 scheduler·owner/admission 계약 안에서 resize 준비의 우선순위나 예약 방식을 개선한다. 기존 forced frame 경로를 무조건 우회 호출하지 않는다.
 - [ ] 같은 extent·scale의 중복 Arrange/status와 아직 제출하지 않은 오래된 metrics 작업을 줄인다. 입력 순서와 이미 제출된 recording의 upload/retirement는 보존한다.
 - [x] pre-geometry clock, WinUI/native commit, 완료 대기, `DwmFlush` 각각의 역할을 검증한다. 측정 근거가 있는 중복 대기만 한 항목씩 줄이거나 합친다.
@@ -124,9 +124,9 @@ Doroti의 사전 준비·합성 클록 정렬·실제 geometry 직후 적용 방
 ### S5 — 통합 수락·배포 출력·정리
 
 - [x] 낮은/높은 입력 빈도, 양방향 왕복, 네 변과 모서리의 대표 사례, 창 이동을 동반하는 좌상단 변경을 확인한다.
-- [ ] 고정 typography 구간은 기존 glyph·marker 검사를 유지한다. 반응형 breakpoint를 넘는 별도 사례는 정상적인 글꼴·layout 전환의 예상값을 사용한다.
+- [x] 고정 typography 구간은 기존 glyph·marker 검사를 유지한다. 반응형 breakpoint를 넘는 별도 사례는 정상적인 글꼴·layout 전환의 예상값을 사용한다. 현재 short header 18px·padding 16↔28 범위이며 높이 600 이상 28/36px 제목은 별도 notVerified다.
 - [ ] 실제 OS 입력으로 클릭·휠·capture loss·드래그 유지, 최대화/복원, 취소, 종료를 확인한다. 물리 IME·터치패드 미검증은 별도 표기한다.
-- [x] 변경한 영역의 회귀 검사·typecheck, Release 빌드, 설치 header 바이트와 실행/패키지 SHA 일치를 확인한다.
+- [ ] 변경한 영역의 회귀 검사·typecheck, Release 빌드, 설치 header 바이트와 실행/패키지 SHA 일치를 확인한다. picture 재사용 단계는 완료했으며 후속 deadline 수정의 실제 AOT 반영·검증은 남았다.
 - [ ] 대표 사용자 드래그에서 창 자체의 부드러움과 콘텐츠 정합성을 함께 확인한다. 자동 캡처 결과로 사용자의 체감이나 전체 scanout을 대신 수락하지 않는다.
 - [x] 최신 결과·미달 항목·다음 시작점만 이 문서에 남기고, 제품 실행 방법은 기존 README에 반영한다.
 
@@ -163,167 +163,114 @@ FPS는 측정 구간의 연속적인 rect 변화로 구한다. 전체 구간에�
 
 ## 8. 현재 결과와 남은 작업
 
-- 최신 확인: **2026-10-28 / PARTIAL / `resizePerformanceAccepted=false`**. 아래 구현·회귀·공급 검사는 수행했지만 S1 세부 시간 분해와 S3 CPU 목표, S5 성능·물리 표시 수락은 완료하지 못했다.
+- 최신 확인: **2026-10-28 / PAUSED / PARTIAL / `resizePerformanceAccepted=false`**. 사용자 “일단 중간 마무리 하자” 요청으로 구현·고비용 검증을 중단했다. 일반 스크롤 정지는 자동 검사와 사용자 확인을 통과했다. 창 크기 조절의 화면·수명 검사는 통과했지만 **51 geometry 변화/s·CPU p95 10ms 목표는 미달**이다.
+- 이번 재개 시작점은 `491ea1d`, 당시 dirty 없음이었다. 현재 수정은 commit하지 않았으며 재개 때 diff를 먼저 확인한다. 작업 소유 앱·test·compiler 프로세스는 남아 있지 않다. 과거 엔진·컴파일러 계획은 재개하지 않았다.
 
-| 단계 | 상태 | 결과와 남은 범위 |
+| 단계 | 상태 | 현재 결과와 남은 범위 |
 | --- | --- | --- |
-| S0 FPS 기준 | DONE-scoped | QPC·시간 기반 왕복 입력, 실제 주입/WM_SIZING 처리/연속 HWND rect/surface/desktop frame 변화 구분 |
-| S1 시간 분해 | PARTIAL | UI 대기·CPU 메서드·worker/import/producer wait/retirement 분해; metrics JS 수신과 예약을 transaction에 연결하는 span·계측 overhead 수락은 남음 |
-| S2 예약·대기 | PARTIAL | pre-clock·native commit 완료·DwmFlush 유지. 대기 제거는 확장 화면 검사 실패로 철회. 100ms 제안 거절과 늦은 세대 표시 금지 구현. scheduler 추가 우선순위는 미변경 |
-| S3 Core CPU | PARTIAL | Root paint 재사용·제출 생략은 스크롤/애니메이션 중단 회귀로 철회. 요청 프레임의 paint·제출 복원, repaint boundary의 paint 중 무효화 보존은 유지 |
-| S4 GPU·처리량 | CONDITIONAL | 현재 width 변경의 CPU가 우선 병목. GPU buffer/admission/renderer 구조 변경 없음 |
-| S5 통합 수락 | PARTIAL | 수정 Core 220회귀·20회 실제 pixel redraw·실제 Static Hermes 앱 OS 스크롤 12묶음·공급 검증 통과. 이전 marker/timeout 실패 보존. FPS·큰 창 전환·physical/scanout 미수락 |
+| S0 FPS 기준 | DONE-scoped | QPC·시간 기반 왕복 입력, 주입/WM_SIZING/연속 HWND rect/surface/desktop 변화 구분 |
+| S1 시간 분해 | PARTIAL | Core metrics·예약·layout/paint/semantics/capture와 native frame을 QPC로 연결. 세부 native 구간·transaction 전체 연결과 지속적인 overhead 수락은 남음 |
+| S2 예약·대기 | PARTIAL | width 68/68·height 101/101 metrics가 기존 예약 재사용. metrics→build p95 3.99/4.37ms. height의 native 대기도 분리했으나 동기화 변경은 없음 |
+| S3 Core CPU | PARTIAL | 동일 primitive picture·불변 상태값·변경 batch의 하위 scope 재사용 검증. deadline 대기의 조기 Root 실행은 source에서 제거했지만 native FPS 개선·추가 build 감소는 입증하지 못함 |
+| S4 GPU·처리량 | CONDITIONAL | 현재 CPU가 우선. GPU buffer/admission/renderer 구조와 자원 소유권 변경 없음 |
+| S5 통합 수락 | PARTIAL | picture 재사용 Core의 10 resize 사례·실제 Release 스크롤 통과. 뒤이은 deadline 수정은 아직 실제 AOT에 미반영. 과거 실패·큰 창 전환 timeout·물리 표시 수락 경계 유지 |
 
-### 구현·비교 조건
+### 구현과 보관·해제 계약
 
-- 시작점은 `dd98826b25b19c158258d6df24ffc99d8c19af52`, dirty 없음. 원계획의 `708d9ed...` 이후 트랙패드 수정은 유지했다. 시작 실행 파일은 §9의 Static Hermes `9f52c765...`와 실제 SHA가 일치했다. FPS 비교는 **Hermes bytecode / optimized / x64 Release** fixture이고, 현재 사용 패키지는 **Static Hermes / optimized / x64 Release**이다. 두 엔진 모드의 FPS를 합치지 않는다.
-- 환경: 주 모니터 2560×1600 / 165Hz / DPI 192, AMD Radeon 780M. 초기 입력 2초 왕복, 공통 Core 후속 비교는 4초 왕복이다. 외곽 약 500 logical px, 준비 500ms와 캡처 시 hover 300ms, 접근성 켜짐·기존 semantics 간격 50ms 유지. 고빈도 입력은 별도 thread의 경과 시간 궤적으로 주입해 readback 비용이 입력 clock이 되지 않는다. 느린 capture callback에서도 입력이 진행되는 native 회귀가 통과했다.
-- 기준 Material 우하단/좌상단은 16.44/16.28 geometry 변화/s, Cupertino 좌상단 단독 기준은 16.93/s였다. 같은 단독 조건에서 DwmFlush 생략은 18.91/s였다. 최종 검사는 실제 주입이 60Hz 이상이도록 61Hz를 요청하고, 세로 변화도 관찰하도록 캡처 ROI를 창의 전체 경계까지 확장했다. ROI·입력 조건이 다른 최종 값 전체를 원인 하나의 개선율로 계산하지 않는다.
-- GPU copy retirement → pre-geometry clock → 실제 geometry → WinUI/native commit 완료를 유지한다. native commit 완료 대기 제거는 대표 실행에서 빨라졌으나 후속 Material 좌상단에서 marker 불일치 1건/11px이 검출돼 철회했다. DwmFlush 생략도 초기 6조합에서는 통과했으나, 공통 Core 후속 4초 확장 캡처에서 변/timeout의 경계 불일치가 나와 **철회하고 복원**했다. 최초 기준 Cupertino 좌상단의 1건/8px 실패도 과거 실패로 유지한다. pre-clock 제거와 초기 Core 소규모 변경은 채택하지 않았다.
-- 준비가 100ms를 넘으면 `WM_SIZING` 제안을 실제 기존 rect로 되돌리고 canonical metrics를 복원한다. view별 취소 세대 fence가 늦은 producer의 표시를 막으며 upload/retirement는 완료한다. fence는 view unbind 때 해제되고 장면·GPU 객체나 과거 제안 queue를 보관하지 않는다. 제한 시간을 늘리거나 오래된 이미지를 확대·crop하지 않는다.
+- 실제 extent·owner/view/viewport/surface 세대를 맞춘 prepared frame만 적용한다. 100ms 준비 deadline을 넘으면 USER32 제안을 실제 기존 rect로 되돌리고 canonical metrics를 복원한다. view별 취소 세대 fence가 늦은 producer의 표시를 막지만 upload/retirement는 완료한다. view unbind 때 fence를 해제한다. 과거 제안 queue나 장면·GPU 객체를 보관하지 않는다.
+- GPU copy retirement → pre-geometry clock → 실제 geometry → WinUI/native commit 완료 → DwmFlush를 유지한다. 대기 제거 실험은 확장 화면 검사 실패로 철회했다. 배경 선행 칠하기·과거 이미지 확대·crop으로 정합성을 숨기지 않는다.
+- Root paint 재사용·visual/submitted epoch·admission 기반 제출 생략은 명시적 redraw와 persistent callback의 두 번째 제출 누락(`1 !== 2`)으로 철회했다. `FrameworkRoot`는 요청 프레임마다 recordPaint → compose → capture → submit한다. repaint boundary의 paint 진입 version 보존은 유지한다.
+- 새 수정은 **깊이 검증된 immutable primitive 명령과 resource owner가 같은 batch**에 한정한다. viewport bounds만 바뀌면 기존 PictureLayer의 bounds metadata를 현재 값으로 갱신하고 같은 picture producer를 이동한다. Picture는 CPU 명령의 소유자이며 이전 크기의 raster 이미지가 아니다. 독립 Scene/제출 프레임은 각자의 자원 hold를 유지한다. 명령·스타일·resource owner/generation 변경과 실패는 기존 재기록·해제 경로를 따른다. layer 퇴역 때 producer를 해제하며 전역 cache·임의 MB/capacity 제한을 추가하지 않는다.
+- 수정 전 같은 primitive batch의 viewport 변경에서 컴파일 수 **`4 !== 2`** 실패를 재현했다. 수정 후 root/child layer 양쪽의 A→B→A, 현재 bounds, 바뀐 색, annotation 좌표, 이전 제출 프레임의 독립 수명과 정상 해제를 확인했다. 실제 CanvasKit 픽셀에서도 옛 bounds 밖의 내용이 새 viewport에서 정확히 드러나고 다시 가려지는 것을 확인했다.
+- built-in Canvas/PaintingContext는 자원이 없는 save/restore 명령과 Core가 캡처한 불변 행렬의 transform 명령을 공유한다. 행렬의 finite SkScalar 검증은 유지한다. 임의의 frozen 외부 배열·stateful iterator는 새로 캡처·검증하며, custom recording hook에는 매번 독립적인 가변 인자를 준다. 행렬→명령과 명령→검증된 composition metadata는 WeakMap/WeakSet이므로 render/scene/recording이 놓은 값을 전역 cache가 붙들지 않는다. 캡처된 ResourceId 바인딩은 재바인딩할 수 없으므로 owner 비교 결과도 같은 수명을 따른다.
+- 처음에는 기존의 큰 batch를 유지한다. 이후 명령 수와 op 순서가 맞는 직전 batch에서만 값·자원 owner를 비교하고, 바뀐 내용 주변의 state를 현재 composition program으로 옮겨 불변의 균형 잡힌 하위 scope를 분리·재사용한다. 연속 draw를 하나씩 분할하지 않는다. 분할 경계는 같은 내용의 다음 프레임에도 유지하고, 구조 변경은 전체 batch로 복귀한다. 보관 범위는 현재 body의 명령·part 수이며 검색 history·새 임의 capacity는 없다. body/Layer 퇴역 때 producer와 상태 hold를 해제하고, 기존 native picture LRU·frame budget·실패 rollback을 유지한다. 이전 제출 프레임은 독립 hold로 살아 있다.
+- 실제 샘플의 **source recipe 진단**에서는 width 변경 때 backend compile에 넘긴 명령이 워밍업 뒤 **856→6개/frame**, source fixture의 FramePictureService 항목은 **32개**였다. 이 진단의 backend는 CPU fixture이며 실제 native compile 시간·GPU 수락이 아니다. 같은 V8 sampled-allocation 진단 24프레임에서 paint 표본은 **27.06→24.16MB**, 전체는 **66.00→63.24MB**, composition metadata 함수의 paint당 표본은 약 **120→38KB**였다. 이를 Hermes 메모리·FPS 개선율로 옮기지 않는다.
+- 크기 변경 한 번 뒤 기존 semantics 간격 50ms를 기다리는 source 재현에서 Root가 **9회** 깨어났다. 새 `requestFrameAt`은 View의 같은 owner clock에서 deadline을 기다리며, 그 전 tick에는 Root를 build하지 않는다. due callback과 redraw는 같은 tick에 합쳐지고 일반·forced·action 요청은 먼저 실행될 수 있다. View/Root/scheduler 종료·숨김·실패 때 callback을 해제하며 다른 View의 예약을 취소하지 않는다. 시간 배율은 시스템 시각의 기존 deadline을 늦추지 않는다. 실제 요청 프레임은 계속 paint/capture/submit한다. source와 bytecode native 검사를 통과했지만 native의 추가 Root 실행과 FPS는 이전과 비슷하므로 주된 병목으로 확정하지 않는다.
+- 후속 수명 검사에서 native 실패 통지 뒤 deferred callback이 owner 종료까지 남는 **`1 !== 0`**을 재현했다. 실패 통지·불확실 제출·제출 예외에서 callback을 즉시 놓도록 보완했고, 관련 **131/131** source 회귀를 다시 통과했다. 이 마지막 보완은 아래 bytecode 성능 측정 뒤 추가했으며 아직 실제 AOT에는 반영하지 않았다.
+- 창의 수직·수평 휠을 이미 처리했으면 0을 반환해 자식 HWND의 동일 휠이 부모에서 재전달되지 않게 한다. 닫기를 수락하면 입력·가시성을 먼저 차단하고 창을 숨긴 뒤 기존 ACK/GPU drain으로 owner를 파괴한다. 신규 Skia binding은 active 세션에만 허가한다. 이 native 수정은 재개 전 최종 공급본을 유지한다.
 
-### 공통 Core 개선 전 6조합
+### 동일 조건 비교와 최신 resize 결과
 
-`WM_SIZING/s`는 앱의 크기 제안 처리 빈도이며 raw mouse-message 처리 횟수가 아니다. 모든 시각은 native QPC 영역이고 표시 변화는 같은 monitor frame의 caption/client 경계로 별도 관찰했다. 초기 resting rect·같은 rect 반복은 제외하고 A→B→A는 새 변화로 센다.
+- 환경은 주 모니터 **2560×1600 / 165Hz / DPI 192**, AMD Radeon 780M이다. 비교 fixture는 **Hermes bytecode / optimized / x64 Release**, 실제 사용 패키지는 **Static Hermes / optimized / x64 Release**다. 두 모드의 성능을 합치지 않는다. 접근성 켜짐·semantics 간격 50ms, 준비 500ms, 캡처 hover 정리 300ms, 왕복 입력 4초를 사용했다.
+- 초기 bounds 수정의 같은 설치 경로·Material 우하단·61Hz·capture on/trace off 한 쌍은 geometry **15.83→16.83/s**, desktop 변화 **15.59→16.58/s**, geometry 간격 p95 **72.86→66.72ms**, resize CPU p95 **40.93→32.20ms**였다. 화면 오류·timeout·제안 거절 0건, 취소·종료 drain PASS다. 이후 baseline 확장의 CPU는 **36.50~40.75ms**였다. 한 쌍의 32.20ms를 일관된 최종 성능으로 부르지 않는다.
+- 고밀도 진단의 native picture compile은 **418/121→383/129 frame**, 즉 frame당 약 **3.45→2.97회**였다. 동일 primitive의 재컴파일 절감은 확인했지만 고밀도 진단의 CPU와 작은 실행 간 차이는 최종 FPS 수락에 쓰지 않는다.
 
-| 장면 / 모서리 | 실제 주입Hz | WM_SIZING/s | geometry/s | surface/s | 캡처 표시 변화/s | geometry 간격 p95 | 입력→geometry p95 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| material / bottom-right | 60.97 | 17.74 | 17.74 | 17.74 | 17.26 | 66.66ms | 71.69ms |
-| material / top-left | 60.98 | 17.67 | 17.67 | 17.67 | 17.19 | 72.78ms | 75.29ms |
-| list / bottom-right | 60.96 | 19.33 | 19.33 | 19.33 | 18.86 | 60.59ms | 83.43ms |
-| list / top-left | 60.97 | 19.24 | 19.24 | 19.24 | 19.24 | 60.81ms | 67.22ms |
-| cupertino / bottom-right | 60.97 | 18.97 | 18.97 | 18.97 | 18.50 | 60.95ms | 76.57ms |
-| cupertino / top-left | 60.98 | 19.00 | 19.00 | 19.00 | 18.53 | 66.02ms | 83.06ms |
+아래는 deadline 수정 Core `18c6eaac04110daaea777ac29714283429ceab10b29d7bb3d0a85abbfa0ffe20`의 기본 6조합이며 capture on·trace off다. 입력·geometry·surface·desktop 변화의 정의는 §6을 따른다. 직전 picture 재사용 Core는 geometry **17.44~18.43/s**, resize CPU p95 **30.39~37.03ms**였다. 뚜렷한 추가 FPS 개선은 입증하지 못했으며 두 실행을 반복 분포나 최종 성능 수락으로 확대하지 않는다.
 
-- 위 6조합의 배경 노출·glyph 변화·marker 불일치·geometry/generation 불일치·준비 timeout은 **0건**이다. 각 입력 지연은 주입 tag와 제안/실제 rect가 모두 일치한 표본만 사용한다. 캡처 표본은 monitor compositor 관찰이며 실제 전체 scanout 수락이 아니다.
-- 네 변 대표 사례는 좌/우 18.40/18.03, 위/아래 31.37/32.00 geometry 변화/s, 화면 오류·timeout 0건이었다. height-only resize CPU p95는 10.49~11.05ms이나 width/모서리 resize CPU p95는 **33.60~46.34ms**로 목표 10ms를 넘는다. idle RAF는 이 분포에 섞지 않았다.
-- 120ms CPU 지연을 한 번 강제로 넣은 검사에서 제안 2회 거절, 늦은 프레임 오표시·geometry 불일치·화면 오류 0건, 정상 취소·종료가 통과했다. 폭 600 logical px breakpoint 왕복에서는 제안 1회 거절, geometry 불일치 0건이나 resize CPU p95 85.44ms / geometry 15.39/s였다. 이 breakpoint 실행은 캡처를 끄므로 typography·표시 정합성은 별도 **notVerified**다.
-- 기준 시간 분해는 Arrange p95 약 0.5ms, 준비 후 나머지 대기 47~50ms, pre-clock 약 6ms, resolve/WinUI 약 0.5ms, native commit 완료 약 9ms, DwmFlush 약 8ms였다. 최종 prepare-after-Arrange p95 44.84~56.70ms, producer+queue 5.86~7.03ms, copy+retirement 1.93~3.75ms다. 각 p95를 더해 transaction p95로 부르지 않으며 합성 GPU 구간을 순수 GPU 실행 시간으로 부르지 않는다.
-- CPU 귀속 진단에서 recording/retained child 생성, Flex/Padding 등 layout, semantics geometry/assembly가 컸다. 고밀도 래핑의 CPU 수치는 최종 수락에 쓰지 않는다. identity 명령 생략도 화면 검사는 통과했으나 trace 실행의 resize CPU p95가 44.16ms였고 geometry는 16.91/s에 그쳤다. source alias가 다른 진단과의 작은 차이를 개선율로 인정하지 않고 해당 Core 변경과 실험 전용 회귀를 제거했다.
+| 장면 / 모서리 | 실제 입력Hz | geometry/s | desktop 변화/s | geometry 간격 p95 | resize CPU p95 |
+| --- | --- | --- | --- | --- | --- |
+| Material / bottom-right | 60.98 | 17.91 | 17.66 | 66.57ms | 34.69ms |
+| Material / top-left | 60.98 | 18.13 | 17.89 | 60.79ms | 30.08ms |
+| ListView / bottom-right | 60.99 | 17.86 | 17.61 | 66.69ms | 34.56ms |
+| ListView / top-left | 60.98 | 17.98 | 17.73 | 61.04ms | 34.12ms |
+| Cupertino / bottom-right | 60.99 | 17.76 | 17.51 | 66.71ms | 37.51ms |
+| Cupertino / top-left | 60.99 | 17.72 | 17.72 | 66.67ms | 34.35ms |
 
-### 공통 Core 개선 전 설치본 입력 빈도·계측 비교
+- deadline Core의 **10 resize 사례**(기본 6·최소 계측·width/height QPC·breakpoint)는 **종료 코드 0**이다. capture on 7사례의 **1,538개**에서 배경·glyph 크기·우측 marker·예상 origin·실제 geometry/generation 오류 0건이다. capture off 3사례는 화면 `notObserved`다. **5개 앱** 모두 정상 close/drain이다. 최소 계측 Material 우하단은 **17.27 geometry/s**, CPU p95 **37.77ms**로 여전히 목표 미달이다. 직전 picture 재사용 Core의 10사례·1,540캡처 통과와 구분한다.
+- metadata 재사용 직전의 같은 scope 분할본에서도 13사례를 통과했다. 120ms 강제 지연은 timeout·제안 거절 **각 2건** 뒤 실제 기존 크기로 복귀했다. 120Hz 입력의 geometry는 **17.93/s**, height-only 위/아래는 **26.45/26.74/s**, CPU p95 **12.40/13.18ms**였다. 이전 bounds-only 16사례/3,016캡처·두 추가 진단도 통과했으나 현재 Core의 전체 네 변·20Hz 재실행으로 대체하지 않는다. 이전 왼쪽/오른쪽 **16.24/16.08/s**, 20/120Hz 실제 입력 **20.00/119.98Hz** 기록도 그 당시 범위다.
+- 최신 600 logical px breakpoint는 **16.03 geometry/s**, CPU p95 **91.38ms**, timeout·제안 거절 **각 4건**이다. 캡처 219개에서 source-defined origin 두 전환과 최대 오차 **0px**를 확인했다. 제목은 short header의 **18px 고정**이며 padding **16↔28 logical px**만 변한다. 앞선 별도 진단의 **1208px에서 x=59 / 1190px에서 x=35**, 217캡처·CPU p95 103.97ms·각 4 timeout/거절 기록도 같은 구분을 뒷받침한다. 첫 일반 origin 검사의 35→59px는 정상 padding 전환이었다. 높이 600 logical px 이상 제목 **28/36px** 전환은 별도 `notVerified`다.
 
-아래는 같은 native header·개선 전 설치 Core를 사용한 Material 실행이다. JS trace는 고밀도 진단과 구분한다. 20Hz 입력은 60Hz 성능 목표의 수락 입력을 충족하지 않는다.
-
-| 설정 / 모서리 | 실제 주입Hz | geometry/s | 캡처 표시 변화/s | geometry 간격 p95 | resize CPU p95 | 결과 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 20Hz, capture on, trace off / bottom-right | 19.99 | 18.15 | 17.67 | 61.13ms | 35.88ms | 화면 오류·timeout 0 |
-| 20Hz, capture on, trace off / top-left | 19.99 | 18.46 | 17.51 | 60.69ms | 34.63ms | 화면 오류·timeout 0 |
-| 120Hz, capture on, trace off / bottom-right | 119.92 | 18.14 | 17.66 | 60.76ms | 37.16ms | 화면 오류·timeout 0 |
-| 120Hz, capture on, trace off / top-left | 119.93 | 18.76 | 18.29 | 60.54ms | 34.54ms | 화면 오류·timeout 0 |
-| 61Hz, capture off, trace off / bottom-right | 60.95 | 14.98 | notObserved | 78.74ms | 50.47ms | 준비 timeout/제안 거절 2건; quality gate **FAIL** |
-| 61Hz, capture on, trace on / bottom-right | 60.98 | 18.02 | 17.55 | 66.73ms | 37.16ms | 화면 오류·timeout 0 |
-
-설치본 묶음 명령의 최종 종료 코드는 **1**이었다. 실패한 최소 계측 실행을 버리거나 성공한 다음 실행으로 대체하지 않는다. 이 실행의 실제 geometry/generation 불일치는 0건이고 종료 drain은 통과했으나, 캡처가 없으므로 화면 오류 0건을 관찰했다고 주장하지 않는다. capture/trace 비용의 일관된 차이를 이 표로 수락하지 않는다.
-
-### Critical path와 추가 native 진단
+### QPC 진단의 범위
 
 ```mermaid
 flowchart LR
-  proposal[WM_SIZING 제안] --> arrange[canonical metrics와 Arrange]
-  arrange --> js[JS 수신과 compositor tick 예약]
-  js --> cpu[build와 layout과 paint와 semantics]
-  cpu --> producer[GPU worker와 producer 완료]
-  producer --> copy[UI copy와 worker retirement]
-  copy --> ready[exact prepared frame ready]
+  proposal[WM_SIZING 제안] --> arrange[Arrange와 native layout 요청]
+  arrange --> metrics[Core metrics 수신]
+  metrics --> scheduled[기존 예약과 Core build]
+  scheduled --> cpu[layout와 paint와 semantics와 capture]
+  cpu --> submit[같은 frame의 native 제출]
+  submit --> gpu[producer와 UI copy와 retirement]
+  gpu --> ready[prepared copy]
   ready --> clock[pre-geometry clock]
   clock --> actual[실제 HWND geometry]
-  actual --> commit[WinUI와 native commit 완료]
-  commit --> desktop[DwmFlush 경계]
+  actual --> commit[WinUI와 native commit과 DwmFlush]
+  cpu -. 다음 프레임 예약 .-> scheduled
 ```
 
-- 한 제안이 표시되기 위한 의존 순서다. JS의 다음 callback과 이미 제출된 native packet의 worker/retirement는 겹칠 수 있다. `producerAndQueue`, `copyAndRetirement`에는 queue·dispatch도 포함되며 순수 GPU 시간으로 취급하지 않는다. JS span과 QPC transaction의 미연결 구간은 이 그림으로 채워졌다고 보지 않는다.
-- 설치본 Material 우하단, 61Hz/capture off/JS trace와 native overlay on의 별도 진단은 geometry 16.49/s, 준비 timeout 0건, 정상 종료였다. `Runtime.updateMetrics` p95 0.09ms, layout 9.77ms, recordPaint 19.76ms, compose 8.25ms, flushSemantics 9.41ms, resize callback 전체 CPU 39.25ms였다. 서로 중첩되는 메서드나 각 p95를 합산하지 않는다. 이 실행은 **최소 계측 성능 수락이 아니다**.
-- 같은 진단의 native p95: prepare 0.50ms, worker render 6.22ms, publish/copy 제출 1.03ms, worker retirement 3.06ms. 내부 import 2.34ms, recording 삽입 1.81ms, producer wait 1.00ms, Graphite retirement 0.11ms, 전체 native frame 함수 4.50ms였다. GPU cache 전체 purge는 0건이다. 이 수치로 GPU admission/buffer 구조 변경을 우선할 근거는 없으며 S4는 보류한다.
-- 진단 overlay의 현재 `publish(..., defer)`·`wheelPoint` 시그니처 불일치도 수정했다. native 계측을 요청한 resize 실행은 실제 native span의 존재·유효 수치·cache purge 부재를 검사한다. 제품의 고밀도 timing callback·파일 로그는 도입하지 않았다. `commitTail`은 마지막 trace 경계까지의 시간이다. 생략 실행의 tail을 DwmFlush 비용으로 부르지 않으며, 현재 복원한 경로의 tail에는 DwmFlush가 포함된다.
+한 프레임의 의존 순서다. 다음 JS callback과 이미 제출한 native packet의 worker/retirement는 겹칠 수 있다. 이를 구간별 p95 합계로 해석하지 않는다.
 
-### 공통 Core 개선 전 공급·실행 검증
+- opt-in trace에서 JS Core metrics 수신·기존 예약 유무·새 예약·Root 실행·layout·recordPaint·compose·semantics·capture의 시작/끝을 **native QPC 직접 호출**로 기록한다. JS performance 시각과 보정하지 않은 뺄셈을 하지 않는다. View/owner/viewport/surface/context/frame 식별자를 유지하고 관찰은 실행별 숫자 배열 4,096개 이내이며 장면·callback·파일 로그를 보관하지 않는다.
+- 최신 width 진단은 **2,022 event·invalid 0**, metrics **68/68회** 기존 예약 재사용, 첫 build **68/68개**가 정확한 native prepared copy에 대응했다. 총 build는 **139개**다. native layout 요청→Core metrics 수신 p95 **3.67ms**, metrics→build **3.99ms**, metrics→prepared copy retirement **47.78ms**다. 이 cohort의 p95는 Root build **34.87ms**, recordPaint **17.50ms**, compose **6.90ms**, capture **0.25ms**, build 종료→native 제출 **1.69ms**다. layout은 136 flush / p95 **11.92ms**, semantics는 3 flush / p95 **10.96ms**다. 직전 138 build / 67 metrics와 비슷하며 여전히 paint/layout 비용이 크다.
+- 최신 height 진단은 **3,003 event·invalid 0**, metrics **101/101회** 기존 예약 재사용, 첫 build **101/101개**가 prepared copy에 대응하며 총 build는 **207개**다. 해당 Root build의 중앙값/p95는 **7.51/17.11ms**, recordPaint **1.85/5.97ms**, compose **1.05/2.13ms**다. metrics→build p95 **4.37ms**, metrics→prepared copy retirement p95 **29.79ms**인데 geometry는 **25.02/s**다. UI 측 prepare-after-arrange 중앙값은 **18.51ms**이며, 그 뒤 pre-geometry clock **3.05ms**, WinUI commit **0.38ms**, native commit 완료 **7.27ms**, DwmFlush tail **5.00ms**의 각 중앙값을 관찰했다. 직전 212 build / 103 metrics와 비슷하다. 준비와 native 동기화 양쪽을 계속 줄여야 하며 이 구간들의 p95를 합하지 않는다.
+- 전체 활성 프레임의 Root build/layout/paint/semantics/capture는 중첩된다. 전체 활성 프레임의 제출 대기를 resize 준비의 critical path로 대체하지 않는다. native prepared copy는 실제 표시 receipt가 아니며, GPU producer/queue와 copy/retirement도 순수 GPU 실행 시간이 아니다. 첫 진단의 63/63 기존 예약 재사용과 같은 결과이므로 별도의 double-tick 낭비는 관찰하지 못했다.
+- 이전 capture off의 trace off/on은 geometry **15.59/15.40/s**, CPU p95 **39.61/43.89ms**였다. 최신 같은 비교는 **17.27/16.60/s**, **37.77/36.43ms**다. 작은 실행 간 분산 때문에 overhead의 크기나 방향을 고정하지 않는다. 최종 성능 기준은 최소 계측 실행이며 지속적인 overhead 수락은 남는다.
 
-- 최종 회귀 **184/184 PASS**, workspace typecheck PASS. Core 실험 제거·재빌드 뒤 paint capture/batching·retained scene 검사까지 포함해 확인했다. 모든 Node/native 테스트 timeout은 20분이다. 실제 OS resize 12조합(6개 기준+네 변+강제 timeout+breakpoint)과 설치본 실행의 normal close에서 `views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. native pointer/capture-loss·DirectManipulation·frame/close/semantics 회귀는 각 검사의 범위를 유지한다.
-- SDK·Skia를 재공급·설치했다. 원본/설치 Windows header **45개**와 Core dist **2,488개**가 byte 일치한다. header 집계 SHA-256은 `aab59f6dcd7985dcb7d777530eb0fafc0bf02166d85f7a9d159a916143f181df`다. 증분 MSBuild가 실제 `NelyxRNHost.cpp`를 재컴파일했으며 vendor/SDK 전체를 복제하지 않았다.
-- 당시 실행/패키지 exe SHA-256: `2f953a1d1049060638b96a47b2e3617f44a7db729a9084c6ff91f236e2e20f5e`; manifest SHA-256: `7393a77dcf7955ff66b954b1b4f08c0443bcdc910aed891f3f5c13fbe6fdf737`; native inputs: `9fa53dc1f48284aa645f3efbb63a8d7d1a03d18df227e986c8357273596bc13b`. 실행/빌드/패키지 SHA와 1,773개 패키지 file inventory·Static Hermes runtime 검증이 통과했다.
-- 당시 SDK archive: `13db05bb571f1d6728f0badaa8d43e110818641a2f8749a838d5602287c11c95`; Skia RN archive: `3bbc8445eed0ff0143371b5518277d3311defffc69eac2a0d1763124957576b5`. 파일명 digest와 실제 archive SHA가 일치한다.
-- 패키지 실행은 `Responding=True`, OS 최대화·최소화·복원, 원래 rect 복귀, 정상 종료 코드 0과 입력/GPU drain이 통과했다. 다만 큰 최대화/복원에서 `actual-frame`/`actual-commit` timeout이 각각 2회 관찰됐다. 이후 정상 정착/종료가 됐다는 결과를 그 전환의 화면·FPS 통과로 바꾸지 않는다. 앱은 검사 후 닫았다.
-- 현재 실행은 저장소 루트의 `npm run run:windows --workspace @nelyx/testbed-2`, 재현 검사는 `npm run test:windows-resize`다. 사용 방법은 한·영 Testbed README에 반영했다. 예전 dist/staging/별도 소비자·profile·로그·receipt·checkpoint/history는 누적하지 않는다.
-- API 경계 참고: [native commit 처리 완료](https://learn.microsoft.com/en-us/windows/win32/api/dcomp/nf-dcomp-idcompositiondevice-waitforcommitcompletion), [DwmFlush 범위](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmflush), [capture QPC 시각](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.direct3d11captureframe.systemrelativetime). 서로 다른 완료 신호를 같은 표시 receipt로 간주하지 않는다.
+### 회귀·공급·Release 패키지
 
-### 초기 공통 Core 개선 — 후속 렌더링 중단 회귀로 fast path 철회
+- 마지막 native 실패 취소 보완 전, paint/scene/semantics/liveness·bounds와 분할의 실제 픽셀·resource 세대·root metrics·backpressure/close·frame terminal·QPC·responsive glyph·native scene와 접근성 회귀 **275/275 PASS**, 전체 workspace typecheck **PASS**였다. 당시 deadline 전용 8검사는 조기 build·취소·숨김·다중 View·action·scheduler 종료 경계를 확인했다. 후속 보완 뒤 131/131 targeted 회귀와 typecheck를 다시 통과했으며 두 검사 수를 합산하지 않는다. 테스트 timeout은 모두 **20분**이다. 분할의 픽셀 비교는 clip·affine/perspective/singular matrix·offscreen/backdrop filter 등 9 recipe의 A→B→A, 총 27회다. 외부 값·custom recording hook·이전 프레임의 자원 수명과 실패 rollback도 유지한다.
+- picture 재사용 단계의 설치 Core source **623개**·dist **2,492개**, Windows header **50개**(SDK 29 + Skia RN 14 + 공통 host 7)가 원본과 byte 일치했다. 당시 Core archive는 `4786402144b0781fa37236b6552b979eb0ca145c0e9f3b64981e22faabf89787`다. SDK `e7facda71b17e847ff019666cf255f41ffde748201c310e4262dd711d443822f`, Skia RN `6d5b6075730db5c7013fb84c207fb5e3cc5ad6ec86e01ecd8e8f5c105eea1175`와 native supplier `9fa53dc1f48284aa645f3efbb63a8d7d1a03d18df227e986c8357273596bc13b`는 유지한다. archive 파일명 digest와 실제 SHA가 일치한다.
+- 아래 **Static Hermes / optimized / x64 Release 전체 앱 빌드 PASS**는 picture 재사용 Core `4786402144b0781fa37236b6552b979eb0ca145c0e9f3b64981e22faabf89787`를 포함한다. 1,774파일 inventory·runtime·build/package/locator digest 검사 PASS-scoped다. deadline와 마지막 실패 취소 보완은 아직 이 AOT에 미반영이다. **현재 공급·설치 Core는 `9c2a4bd08e5548ce0e5b2c1130b178e6364d9e376579288ac439687bd35b9804`**이며 source 623개·dist 2,492개가 원본과 byte 일치한다. 최신 targeted source 회귀 131/131과 전체 typecheck는 PASS다. `qualification=notVerified`는 유지한다.
 
-아래 시도와 당시 측정은 후속 내부 렌더링 중단을 발견하기 전의 기록이다. Root paint 재사용·visual epoch 기반 제출 생략은 현재 코드에서 제거했으며, 최신 조치는 아래 렌더링 중단 수정 항목을 따른다.
+| 실제 Release 출력 — picture 재사용 반영 / deadline 수정 전 | SHA-256 |
+| --- | --- |
+| exe | `d14cb237b976f99caef7e689e84f643167c352ad4585347315ed0a56bdb9ed88` |
+| AOT DLL | `3a2ee95ec6ee5088a6569a7ad935be5d23d5948c478ee4d74c4dd28bbe0fba39` |
+| package manifest | `a432f27b96300c3cd7d0166d82bf1fd516603d7cf1c83211bd9f6117677ee9d6` |
 
-- 기존 변경을 유지한 상태에서 `FrameworkRoot`·`PaintingContext`·`RenderRepaintBoundary`·`ViewRuntime`의 프레임 수명과 무효화를 함께 검토했다. 실행 모드·compiler·GPU admission 구조를 바꾸지 않았다.
-- `FrameworkRoot`는 같은 render paint version·transform·layer body·picture provider·배경·paint geometry/환경일 때 View가 이미 소유한 **CPU layer tree**를 재합성한다. 접근성·입력 geometry·composition callback은 계속 완료한다. 신규 전역 raster cache나 과거 크기의 이미지를 보관하지 않으며 추가 보관은 View별 의존 metadata다. geometry·DPI·context/renderer·환경 변경, 실패·숨김·닫기에서는 paint를 무효화한다. geometry가 같은 viewport/backing 세대 변경은 CPU paint를 재사용해도 새 세대 프레임을 반드시 제출한다.
-- **빌드한 그림과 renderer가 실제 수락한 그림을 구분**한다. 같은 visual revision이 이미 수락됐을 때만 native 재제출을 생략한다. busy·거절·강제 build·첫 프레임 지연은 수락으로 인정하지 않는다. 각 CPU recording은 독립 resource hold를 가지며 pending 교체·retirement 계약을 유지한다.
-- `RenderRepaintBoundary.refresh`가 paint 완료 뒤의 version을 저장하던 결함을 수정했다. paint 진입 시 version을 저장해 painter/recording callback이 요청한 다음 프레임을 이미 그린 것으로 오판하지 않는다. post-frame command 변경은 retained baseline으로 인정하지 않고 실패 후에는 재기록한다.
-- 실제 AppSession/ViewRuntime 회귀 9개와 독립 picture lease/callback 회귀 1개를 추가했다. 정지·semantics-only·busy·forced·첫 프레임 지연·paint 중 invalidation·layer-only transform·viewport/DPI/backing/renderer/show·동일 geometry의 세대 A→B→A·post-frame 변경·실패 후 재시도를 확인했다. 관련 통합 회귀 **219/219 PASS**, 전체 workspace typecheck **PASS**, 테스트 timeout 20분이다. Core 한·영 README에 사용자 정의 paint 무효화와 낮은 수준의 제출 수락 계약을 반영했다.
-- 설치본을 사용하는 동일 Material 우하단·61Hz·4초 왕복·capture/trace off의 한 쌍 비교에서 geometry **17.10→19.51/s**, geometry 간격 p95 **72.97→60.41ms**, resize CPU p95 **42.17→34.19ms**, stable CPU p95 **20.80→15.09ms**였다. 실제 입력은 양쪽 약 60.99Hz, timeout·제안 거절·geometry 불일치 0건, 종료 drain 통과다. 이는 제한된 한 실행 비교이며 표시 정합성·전체 성능 수락 근거로 확대하지 않는다. 초기 행렬·identity 생략 실험은 계속 제거된 상태다.
-- 위 비교와 첫 확장 캡처는 DwmFlush 생략 상태였다. 기본 6조합은 오류 0건이지만 왼쪽 변 marker **1건/6px**, 강제 timeout marker **1건/4px**로 확장 quality gate가 실패했다. 저속 입력 묶음은 resize 전에 전경 창/포인터 표적 확보에 실패했다. 모든 실행은 정상 close/drain을 마쳤으며 실패 기록을 보존한다. 전경 확보는 기존 own-caption activation을 이용하는 3회 제한 확인으로 보완하고 DwmFlush를 복원했다. 위 19.51/s를 복원 후 최종 제품의 FPS로 부르지 않는다.
-- 대기를 복원한 중간 Core(`638a6e17...`)의 4초 검사도 Cupertino 좌상단에서 marker **1건/6px**로 묶음 종료 코드 **1**이었다. 14개 resize 사례 중 나머지 13개는 통과했고, 저속 입력·네 변·강제 timeout 취소·최소 계측은 통과했다. 복원 자체가 일시적 화면 불일치를 해결했다고 주장하지 않는다. 그 뒤 동일 geometry의 viewport/backing epoch와 paint 입력을 분리한 최종 Core(`21264020...`)로 아래 검사를 수행했다.
+### 일반 스크롤·입력·닫기
 
-최종 설치본의 4초 왕복·bytecode/optimized·capture on·trace off 결과다. 마지막 최소 계측 행은 capture off다. 입력·geometry·표시 관찰의 정의는 위 표와 같고, **9사례 quality gate 종료 코드 0**이다.
+- 재개 직후 최종 native header의 held-producer 종료 검사(`NELYX_WINDOWS_INPUT_CLOSE_ONLY=1`) **PASS**. `admitted=1 before=active after=closing`, 좌표 매핑 12회 동안 입력 객체 동일성, `views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. 당시 Core는 이전 공급본이며 이 검사를 새 Core 전체 TSF/UIA/IME 수락으로 옮기지 않는다.
+- 사용자는 재개 전 최종 수정 패키지의 물리 마우스/트랙패드 정지 재현 질문에 **“현재는 정상 동작함”**이라고 확인했다. 일반 스크롤 정지의 해당 재현 구간은 해결 확인으로 기록한다. 다른 장치·장시간 입력과 새 Core의 물리 표시 수락은 별도다.
+- 새 Core가 포함된 위 실제 Release 패키지의 `test:windows-continuous-scroll`도 **PASS**. 세 화면에서 방향을 반전하는 3초 연속 OS 휠을 2회씩, 입력 직후 닫기를 실행했다. Material은 최대화·복원과 포인터 이동도 포함했다. UIA는 초기 화면 선택에만 사용했고 JS offset이나 UIA 변화로 표시를 대신 수락하지 않았다.
 
-| 장면 / 모서리 | 실제 입력Hz | geometry/s | 캡처 변화/s | geometry 간격 p95 | resize CPU p95 |
-| --- | --- | --- | --- | --- | --- |
-| Material / bottom-right | 60.99 | 16.83 | 16.59 | 66.76ms | 35.85ms |
-| Material / top-left | 60.98 | 16.46 | 16.21 | 67.24ms | 40.25ms |
-| ListView / bottom-right | 61.00 | 17.90 | 17.66 | 66.64ms | 32.66ms |
-| ListView / top-left | 60.99 | 17.80 | 17.56 | 66.25ms | 32.11ms |
-| Cupertino / bottom-right | 60.98 | 17.56 | 17.32 | 66.76ms | 35.93ms |
-| Cupertino / top-left | 60.99 | 17.11 | 16.87 | 66.78ms | 37.86ms |
-| Material / left | 60.99 | 14.53 | 14.29 | 79.28ms | 41.22ms |
-| Material / bottom-right (120ms 지연) | 60.99 | 15.55 | 15.30 | 66.83ms | 35.51ms |
-| Material / 최소 계측 | 60.98 | 15.53 | notObserved | 73.04ms | 39.38ms |
+| 화면 | 입력 중 최대 픽셀 변화 간격 | 숨김 | HWND 파괴 | 프로세스 종료 |
+| --- | --- | --- | --- | --- |
+| Material | 218.38ms | 2.07ms | 662.41ms | 706.82ms |
+| ListView | 168.05ms | 2.03ms | 1,823.55ms | 1,896.37ms |
+| Cupertino | 194.02ms | 1.96ms | 1,776.22ms | 1,838.71ms |
 
-- 캡처 1,761개에서 배경 노출·glyph 변화·marker 불일치 0건, 실제 geometry/generation 불일치 0건이다. 강제 지연의 제안 거절/timeout은 **각 2건**이고 실제 크기는 안전하게 유지됐다. 나머지 8사례의 timeout/제안 거절은 0건이다. 4개 앱 실행 모두 정상 close/drain을 확인했다. 최소 계측 행의 화면을 관찰했다고 주장하지 않는다.
-- 기본 6조합의 Root paint 기록/재합성은 **865/24회**, 왼쪽 변은 **76/238회**였다. 재사용이 유효한 일부 프레임의 재기록을 줄였지만, 실제 크기 변경은 아직 많은 layout·paint를 요구한다. geometry 51/s·간격 p95 33.33ms·resize CPU p95 10ms 목표는 미달이다. 이번 9사례 통과로 앞선 1프레임 실패의 원인이 증명되거나 전체 표시 수락이 끝났다고 보지 않는다.
+- 세 실행 모두 exit **0**, `REACT_ERROR` 등 오류 **0**, 정상 입력/GPU drain이다. Material 최대화/복원의 `actual-frame`·`actual-commit` timeout은 여전히 **각 2회**다. 새 연속 스크롤 통과를 큰 창 전환의 화면/FPS 통과로 확대하지 않는다.
+- 앞선 두 전체 실행은 Cupertino 휠 시작 전 `Own caption is occluded`로 종료됐다. 고정 좌표 대신 해당 앱 HWND·DPI·실제 HTCAPTION을 확인하는 활성화로 검사를 보강했다. 전체 세 화면 통과 뒤 `-CaptionActivation`으로 fallback을 직접 실행했고, owned caption 클릭·Cupertino 연속 휠·exit 0·drain까지 통과했다. 이 harness 실패를 renderer 정지로 기록하지 않는다.
 
-### 렌더링 중단 수정 전 공급·Release 실행
+### 실패·정리·다음 시작점
 
-- 최종 설치 Core source **622개**·dist **2,488개**, SDK/Skia Windows header **45개**가 원본과 byte 일치한다. Core archive SHA-256은 `212640209ebb7e28808baeb8646af719df98f0fbf3663fa031b8227d475eacbc`, SDK는 `22ee6106c7fd83eb78f0d120ffa0fdba3bbf39f0d5ba8ceb2b1736e1cd7ac066`, Skia RN은 `3bbc8445eed0ff0143371b5518277d3311defffc69eac2a0d1763124957576b5`이며 파일명 digest와 일치한다.
-- `npm run build:windows:static-aot --workspace @nelyx/testbed-2` **PASS**. `NelyxRNHost.cpp`와 전체 앱 AOT image를 다시 컴파일했다. 생성 번들에 최종 paint scope·제출 상태·repaint boundary entry-version 코드가 포함된다. 최종 패키지의 1,773개 file inventory·Static Hermes runtime 검증, build/package/locator SHA 일치가 **PASS-scoped**다. 패키지의 제품 수락 표시는 계속 `qualification=notVerified`다.
-- 최종 실행/패키지 exe SHA-256: `700d515e8427439bbc0d1c4437e52d9e4307e82c778b0f7e2a10dcd73a7510d9`; `NelyxApp.aot.dll`: `a3536ceaa874e66036564222783cf8c8f88fecc23d2ca65123a9aa95398c06aa`; package manifest: `11682c19bcebe79eae01c3246b94d906d974b8894ac11e6f974ca63e8dfeccb8`; native supplier inputs: `9fa53dc1f48284aa645f3efbb63a8d7d1a03d18df227e986c8357273596bc13b`.
-- 실제 패키지에서 visible·`Responding=True`, 최대화→일반 창→최소화→복원, 원래 rect 복귀, 정상 종료 코드 **0**, `views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. 큰 최대화/일반 창 전환의 `actual-frame`·`actual-commit` timeout은 **각 2회**로 여전히 남는다. 이 전환의 화면·FPS는 미수락이다. 최초 smoke 스크립트는 최대화→최소화→복원이 최대화 상태로 돌아오는 동작에 일반 rect를 기대해 잘못 실패했다. 일반 창 복원을 명시한 뒤 상태·rect·종료 검사가 통과했다.
-- 앱은 검사 후 닫았다. 검증용 native fixture·AOT 임시 디렉터리·이전 dist/staging·로그·receipt·checkpoint/history 출력은 남기지 않았다. 한·영 Core/Testbed README와 이 문서의 local link **64개**, code fence, `git diff --check`도 통과했다. 문서 검사는 제품 수락과 구분한다.
-
-### 스크롤·애니메이션 중 내부 렌더링 중단 수정
-
-- 사용자 보고는 창 크기 조절에 한정되지 않고 스크롤 같은 일반 동작 중에도 내부 렌더링이 간헐적으로 멈추는 회귀다. 따라서 FPS 최적화보다 요청된 내부 프레임의 실행·제출 복원을 우선한다.
-- 직전 Core에서 **명시적 redraw의 두 번째 제출 누락**, **persistent frame callback이 변경한 색의 두 번째 제출 누락**을 각각 재현했다. 수정 전 두 회귀가 모두 `1 !== 2`로 실패했다. `paintVersion`·동일 geometry만으로 프레임의 paint 결과를 고정하고, `present=unobserved`인 renderer의 admission을 표시 완료처럼 사용한 fast path가 원인이다.
-- `FrameworkRoot`의 paint cache·visual/submitted epoch·제출 생략을 철회해 기존 `recordPaint → compose → capture → submit` 경로를 복원했다. 추가 `PaintingContext.recompose` API와 전용 진단도 제거했다. 첫 프레임 지연·busy의 최신 pending 교체·독립 자원 수명과 기존 repaint boundary/layer 내부 재사용은 유지한다. `RenderRepaintBoundary.refresh`의 paint 진입 version 보존 수정은 유지한다.
-- 수정 후 관련 회귀 **220/220 PASS**, 전체 workspace typecheck **PASS**. 요청된 정지/접근성 프레임, 지속 콜백 8프레임, busy/forced, 새 viewport/backing, post-frame 명령, 실패 후 재시도와 자원 수명을 확인했다. 앞선 219개 통과만으로 일반 동작의 liveness가 증명되지 않았음을 반영했다.
-- 실제 OS 휠 12묶음과 idle redraw 8회를 같은 surface generation에서 실행하고, 매번 서로 다른 색의 실제 desktop pixel 및 native frame 증가를 확인하는 `test:windows-render-liveness`를 추가했다. 설치 Core·Hermes bytecode/optimized 실행에서 **20/20 pixel receipt·176 native frame·최대 redraw 39.27ms**, 정상 close/drain으로 **PASS**했다. 단순 JS offset이나 마지막 프레임 한 번의 완료만으로 통과시키지 않는다.
-- 설치 Core source **622개**·dist **2,488개**가 원본과 byte 일치한다. Core archive는 `f341c8dbaa53fe28ea02db24fd7501d6f2b5be944b72e479a84c1d2e75c44de0`이다. 새 AOT 입력 번들에서 철회한 `samePaintInputs`·`submittedPaintEpoch` 코드가 없고 repaint boundary entry-version 수정이 포함됨을 확인했다.
-- Static Hermes/optimized/x64 Release 전체 앱을 다시 컴파일했다. 최종 1,773개 file inventory·runtime·build/package/locator SHA 검증 **PASS-scoped**. exe는 native 변경이 없어 `700d515e8427439bbc0d1c4437e52d9e4307e82c778b0f7e2a10dcd73a7510d9`이며, 수정된 **AOT DLL은 `28f9dd38ed4808f33c93b4107bf132e12eb361f4013f7b6218a96321663b6bc9`**, manifest는 `74879dd8a3ad2fa568f74d4c79dfac0f038c6cb9e74863fdae669d23684175df`다. SDK·Skia RN·native supplier 입력은 위 기록과 같다.
-- 실제 수정 Release 앱에서 UIA로 ListView를 열고 실제 OS 휠을 **12묶음 왕복**했다. 모든 묶음에서 visible row가 **996↔991**로 바뀌고, 창 내부 본문을 실제 desktop에서 읽은 pixel hash가 함께 바뀌었다(**12/12 PASS**). `Responding=True`, 종료 코드 **0**, 입력/GPU drain을 확인했다. JS offset이나 UIA 정보만의 변화로 표시를 수락하지 않았다.
-- 별도 실앱 수명 검사에서 최대화→일반 창→최소화→복원, 원래 rect 복귀·응답성·종료/drain **PASS**. 큰 창 전환의 `actual-frame`·`actual-commit` timeout은 여전히 **각 2회**로 남는다. 이번 수정의 일반 스크롤/프레임 연속성 확인을 창 전환 FPS나 전체 scanout 수락으로 확대하지 않는다. 검사 앱은 닫았으며 임시 fixture/AOT/staging·별도 소비자·로그/receipt/history 출력은 남기지 않았다.
-
-### 공통 Windows 창 입력·종료 재검토 (2026-10-28)
-
-- 사용자는 실제 `npm run run:windows --workspace @nelyx/testbed-2`에서 여러 화면·활성 창에서도 스크롤 중 갱신이 멈추고 손을 뗀 약 1초 뒤 갱신되며, 닫기도 늦다고 재보고했다. 앞선 짧은 휠 묶음·마지막 픽셀 확인을 이 재현의 해결로 인정하지 않는다.
-- 이번 시작의 실제 패키지는 Static Hermes/optimized/Release였다. exe SHA-256은 `595e5e7aef8fe8c2cec6161469d01b51b575982e2c8d2668a194eed4e3a2ec92`, AOT DLL은 `7ca02bb6e5a1f186438b95a081c1f3d5607bd4854a57193a84b2fd9477c7aa37`, locator manifest는 `d8e76c580fb78adeadba3786f6adef1189d89640eb6ba348ad722e44e3dc756c`로, 앞선 기록의 hash와 달랐다. 현재 디스크를 기준선으로 읽고 설치 Core의 철회한 fast path가 없음을 확인했다.
-- 창 입력 결함을 독립 native 검사에서 재현했다. `WM_MOUSEWHEEL` 한 개를 자식 HWND에 보내면 이미 관찰한 휠을 `DefSubclassProc`가 부모 HWND로 다시 전파해 **2회** 전달했다. 기존 검사는 마지막 delta만 검사해 중복을 놓쳤다. 처리한 수직·수평 휠에서 0을 반환해 전파를 끝내고, 자식/부모 각각 정확한 횟수를 검증한다. 수정 전 `One child wheel packet produced 2 deliveries through the window chain` 실패, 수정 후 PASS다.
-- 종료 직후 실제 앱에서 `Windows UI requires its active JS platform` 오류를 관찰했다. `WindowsAppHost`는 닫기를 수락하면 native 입력·가시성을 먼저 차단하고 창을 숨긴다. 이미 허가된 GPU 작업·native owner는 기존 ACK/drain 뒤 파괴한다. `SkiaView.bindIfReady`는 세션이 active인 동안만 신규 binding을 허가한다. 강제 종료·GPU wait 생략으로 정상 종료를 가장하지 않는다.
-- 관련 native 입력·DirectManipulation·resize mailbox·Core backpressure/close 회귀 **34/34 PASS**, timeout 20분. 한 번의 짧은 입력 뒤 기다리는 대신, 독립 thread의 연속 OS 휠과 연속 desktop 본문 픽셀 변화, 입력 직후 닫기를 검사하는 `test:windows-continuous-scroll`을 추가 중이다. UIA는 초기 화면 선택에만 사용하고 입력을 프레임별로 기다리지 않는다. 창 숨김·파괴와 프로세스 종료 시간을 구분하고 오류 로그도 실패 처리한다.
-- 수정 전 자동 실행의 작은 delta 연속 입력에서는 1초 갱신 정지가 동일하게 재현되지 않았다. 큰 delta Material 검사의 약 1초 무변화는 입력 끝점/내용 경계를 분리하지 못한 실패 기록이며 원인 증거로 확정하지 않는다. 창 파괴는 약 **120~221ms**, 일부 프로세스 종료는 약 **2.2~2.3초**였다. 이 둘을 같은 창 응답 지연으로 부르지 않는다.
-- 첫 수정 빌드(`b117e589...`)의 Material 연속 반전 입력에서는 최대 픽셀 변화 간격 **217.89ms**, 닫기 뒤 숨김 **2.10ms**, 파괴 **1,816ms**·프로세스 종료 **1,886ms**, 오류 0건·정상 drain을 관찰했다. 초기 검사의 별도 파괴 1.5초 제한은 **FAIL**이며, 이를 빠른 자원 정리 통과로 바꾸지 않는다. 사용자 응답인 창 숨김과 실제 자원 정리는 다른 단계이므로 최종 검사는 숨김 350ms와 독립된 15초 내 정상 파괴/종료/drain을 확인하고 두 실측 시간을 모두 출력한다.
-- GPU producer를 실제 진행 중인 채 닫는 native 통합 검사 **PASS**: `admitted=1 before=active after=closing`, `views=0 consumers=0 gpuDrained=1 inputRetired=1`. 범위는 Hermes bytecode의 해당 수명 경로이며 전체 TSF/UIA/IME 수락이 아니다.
-- 물리 입력에서의 1초 정지를 아직 자동화가 동일하게 재현하지 못했으므로 `NELYX_WINDOWS_FRAME_DIAGNOSTICS=1`의 현재 실행 진단을 추가한다. 100ms 이상 clock wait·JS 예약 대기/프레임 실행·native UI 큐/작업·GPU producer/retirement와 JS/binding/RNW 종료 단계를 구분한다. 기본 실행은 출력하지 않으며 파일 로그·scene·callback을 추가 보관하지 않는다.
-- 진단과 component 생성/실제 GPU binding의 admission 분리를 포함한 최종 SDK·Skia RN의 재공급·설치·Static Hermes/optimized/x64 Release 빌드는 **PASS-scoped**다. 최종 native 창 코드가 다시 컴파일됐고 JS의 typed/app/RNW PAL unit은 내용이 일치해 모두 cache hit였다. 진단의 clock worker는 독립된 공유 atomic 숫자만 관찰하며 JS/GPU owner를 강하게 소유하지 않는다.
-- 최종 설치 Windows header **43개**(SDK 29 + Skia RN 14)가 원본과 byte 일치한다. SDK archive SHA-256은 `e7facda71b17e847ff019666cf255f41ffde748201c310e4262dd711d443822f`, Skia RN은 `6d5b6075730db5c7013fb84c207fb5e3cc5ad6ec86e01ecd8e8f5c105eea1175`이며 archive 파일명 digest와 일치한다. Core는 앞선 `f341c8db...` 공급을 유지한다. 최종 exe는 `d14cb237b976f99caef7e689e84f643167c352ad4585347315ed0a56bdb9ed88`, AOT DLL은 `c6b63d60d9eda09c436e7fb14267cb3ca377f7fff346a2d03b48f44779823ea6`, package manifest는 `483f589a24c7c34e8e63500e3f4b5775db0754ebffdc88e2e9ae55902159ed04`다. build/package exe 및 locator/manifest digest 일치, inventory 1,773개를 확인했다. `qualification=notVerified`다.
-
-### 중간 정리 — PAUSED (2026-10-28)
-
-- 사용자 요청: **“일단 나 외출해야하니 마무리해줘”**. 추가 구현과 비용이 큰 native 검증을 중단했다. 최종 진단본의 `windows-input-surface` 실행은 **INTERRUPTED / notVerified**이며 앞선 수정본의 PASS를 최종본의 실행 PASS로 옮기지 않는다. 최종 세 화면 `test:windows-continuous-scroll` 및 물리 마우스/트랙패드의 약 1초 정지 재현도 **미완료**다. 이전 34개 회귀·held producer 종료 통과, 중간 Material 검사 실패/실측과 원래 resize FPS·scanout 미수락 경계를 유지한다.
-- 실행 중인 이 작업의 검증 process tree를 종료했고 `InputSurface`·`NelyxRNHost`·compiler/MSBuild 잔류 프로세스는 없다. 임시 runner 진입 파일 `nelyx-input-surface-36988.tsx`는 제거했다. Git 수정과 현재 패키지는 유지하며 commit은 만들지 않았다.
-- **정리 제한:** 최종 검증의 임시 폴더 `C:\Users\parti\AppData\Local\Temp\nelyx-windows-input-surface-DkFyS3`는 남아 있다. 절대 경로·일반 directory·해당 검증 소유를 확인했지만 자동 승인 검토가 PowerShell 삭제를 세부 사유 없이 **`blocked by policy`**로 거부했다. 삭제 성공으로 기록하지 않는다. 폴더에는 해당 중단 실행의 project/generated/obj/out만 있으며 재시작 시 먼저 승인 가능한 정리 경로를 확인한다. 별도 archive·receipt·history로 옮기지 않았다.
-- 재개: 임시 폴더 정리 → 현재 공급/패키지 hash 확인 → 최종 held producer 종료 검사(`NELYX_WINDOWS_INPUT_CLOSE_ONLY=1`, timeout 20분) → `npm run test:windows-continuous-scroll` → 실제 사용자 입력의 frame 진단 순서다. 세 화면 자동 검사에서 숨김·파괴·process exit/drain 시간을 구분하고 `REACT_ERROR`를 무시하지 않는다. `npm run run:windows --workspace '@nelyx/testbed-2'`는 현재 최종 패키지를 연다. 진단 실행 방법은 Testbed 한·영 README에 있다.
-
-### 다음 시작점과 미수락 범위
-
-1. 사용자가 보고한 활성 창·여러 화면의 약 1초 일반 스크롤 정지를 최우선으로 재확인한다. 최종 설치 패키지와 `NELYX_WINDOWS_FRAME_DIAGNOSTICS=1`의 clock/JS/UI/GPU 지연 및 실제 픽셀 변화 구간을 연결한다. 자동 입력 통과만으로 물리 입력 재현을 닫지 않는다.
-2. S1/S2/S5의 일시적 marker 불일치를 특정한다. capture 시각·실제 rect·정확한 source frame/viewport/surface·composition commit을 연결해 CPU 장면의 크기와 desktop 경계의 어느 시점이 어긋나는지 구분한다. DwmFlush 복원과 단일 최종 통과만으로 원인 해결을 선언하지 않으며, 허용 오차 확대·실패 표본 제외·반복 성공 선별로 통과시키지 않는다.
-3. S3의 width 변경 CPU를 줄이되, 요청 프레임의 paint·제출과 paint 중 invalidation 보존을 유지한다. 철회한 Root 재사용·admission 기반 제출 생략을 다시 도입하지 않는다. `root.ts`의 layout/recordPaint, `painting/context.ts`의 `_recordChildLayer`/retained recording, `semantics-pipeline.ts`의 geometry/assembly와 metrics JS 수신/예약을 측정한다. CPU 감소 뒤 남은 critical path에 한정해 S2 scheduler 또는 S4를 진행하며 GPU owner/admission·버퍼 수명은 유지한다.
-4. 큰 최대화/복원과 breakpoint typography의 실제 표시, 물리 DPI 전환·IME·트랙패드·사용자 드래그 체감 및 전체 scanout은 **notVerified / 미수락**이다. 51 geometry 변화/s, p95 33.33ms 등 §6 목표에 미달했으므로 전체 계획을 완료로 바꾸지 않는다.
+- 과거 native commit 완료 대기 제거의 **11px**, DwmFlush 제거 확장 검사의 변/timeout **6/4px**, 복원 후 Cupertino 좌상단의 **6px**, 최초 기준의 **8px** 일시적 marker 실패는 과거 실패로 유지한다. 과거 최소 계측의 준비 timeout 2건도 보존한다. 이번 성공한 행렬로 그 원인이 증명되거나 전체 scanout 수락이 끝났다고 보지 않는다.
+- 이전 중단 폴더 `C:\Users\parti\AppData\Local\Temp\nelyx-windows-input-surface-DkFyS3`는 남아 있다. 검증한 절대 경로에 대한 PowerShell 삭제가 재개 때도 자동 승인 검토에서 **`blocked by policy`**로 거부됐다. 우회 삭제나 archive 이동은 하지 않는다. 새 native fixture·공급 임시 디렉터리·AOT staging은 실행의 `finally`에서 정리하고 이전 dist·archive·receipt·consumer·profile·history를 누적하지 않는다.
+- 현재 실행은 저장소 루트의 `npm run run:windows --workspace @nelyx/testbed-2`다. 검사·진단 사용법은 Testbed 한·영 README에 둔다.
+- **재개 시작점:** 먼저 diff·위 supply/package SHA와 설치 바이트를 확인한다. `windows-animation.tsx`에 추가한 scheduler 단계별 `resizeRequestSources`(횟수·단계당 1개/1,800자 stack)는 아직 native 실행 검증 전이다. 이 계측을 검토한 뒤 **`NELYX_ANIMATION_HERMES_MODE=static-aot`**, live-resize / optimized / semantics 50ms / 61Hz / 4초의 같은 기본 6조합·최소 계측·width/height QPC·600px breakpoint를 실행한다. Static AOT 비교 시도는 결과를 확보하지 못했고 중간 마무리 확인 때 관련 프로세스·임시 폴더가 없었다. 이를 AOT 성능 검사 통과로 세지 않는다.
+- 그 다음 필요 변경을 source·native에서 검증하고 **`npm run build:windows:static-aot --workspace @nelyx/testbed-2`**의 전체 종료 코드 0을 기다린 뒤 package inventory·runtime·locator/hash와 실제 연속 스크롤을 확인한다. 현재 실행은 위 표의 picture 재사용 AOT이며 최신 deadline 소스와 같지 않다. width **139 build/68 metrics**·height **207 build/101 metrics**의 추가 요청 원인과 width layout/paint·height native 동기화가 남았다. 접근성 간격·action/focus/input geometry 즉시성, 모든 실제 요청의 paint/capture/submit과 paint 중 무효화를 보존한다. 철회한 Root 재사용·admission 기반 제출 생략을 재도입하지 않는다. native 대기를 바꾸기 전 source frame·desktop frame·composition commit의 관계를 더 연결한다.
+- 일시적 marker 실패의 source frame·viewport·desktop frame·composition commit 연결, 큰 최대화/복원, 비-short typography, 물리 DPI 전환·IME·장시간 트랙패드·사용자 resize 체감·전체 scanout은 **notVerified / 미수락**이다. §6 목표가 미달하므로 전체 계획을 완료로 바꾸지 않는다.
+- 중간 마무리 확인: 현재 exe·AOT DLL·package manifest SHA와 last-package locator가 위 표와 일치한다. 새 fixture·공급 임시 폴더와 staging은 남지 않았고 현재 dist·각 패키지의 최신 공급 archive만 유지한다. 작업 소유 실행 프로세스 0개, commit 없음이다. work·한/영 README 3문서의 local link 22개·anchor·fence·공백과 `git diff --check`가 통과했다. 이는 문서·출력 확인이며 추가 native·AOT 성능 수락이 아니다.
 
 ## 9. 별도 수정 — Windows 트랙패드 반복 스크롤 중단 (2026-10-27)
 

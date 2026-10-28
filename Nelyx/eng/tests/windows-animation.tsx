@@ -24,6 +24,7 @@ import {TextLayoutCache} from '@nelyx/core/hosting/text-layout-cache';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
 import {NativeTextLayoutService} from '@nelyx/skia-native/text';
 import {Canvas} from '@nelyx/core/ui/canvas';
+import {FrameRecording} from '@nelyx/core/ui/frame';
 import {PictureRecorder} from '@nelyx/core/ui/picture-recorder';
 import {TextPainter} from '@nelyx/core/framework/painting/text-painter';
 import {Paragraph} from '@nelyx/core/ui/paragraph';
@@ -108,6 +109,16 @@ if(originalGalleryPublish)interactionPrototype.publish=function(...args:any[]){g
 let view:any,phase='',stats:Record<string,number[]>={},exclusive:Record<string,number[]>={},counts:Record<string,number>={},gcBefore:Record<string,unknown>={},lastBuild=0,tree:Record<string,number>={};
 let classOwners:Record<string,{n:number;selfMs:number;maxSelfMs:number}>={};
 let longFrames:Array<Record<string,number>>=[];
+const resizeTimeline=mode==='live-resize'&&trace,resizeSpanStages:Record<string,number>={'Pipeline.flushLayout':27,'Root.recordPaint':29,'Pipeline.flushSemantics':31,'Painting.compose':33,'Frame.capture':35};
+let resizeTimelineView=0,resizeTimelineToken:any,resizeCpuEvents:any[]=[],resizeCpuOverflow=false;
+let resizeRequestSources:Record<string,{attempts:number;scheduled:number;withTransient:number;firstStack?:string}>={};
+function resizeSpan(stage:number,token=resizeTimelineToken):void{
+ if(!resizeTimeline||!phase||!resizeTimelineView||!token)return;
+ const metrics=token.metrics;if(metrics.nativeSurfaceGeneration===null)return;
+ if(resizeCpuEvents.length>=4096){resizeCpuOverflow=true;return;}
+ const nativeTimestamp=(globalThis as any).NelyxWindowsHost.getMonotonicTime();if(!Number.isFinite(nativeTimestamp))throw Error('Resize CPU span requires the native QPC clock');
+ resizeCpuEvents.push({stage,view:resizeTimelineView,surfaceGeneration:metrics.nativeSurfaceGeneration,viewportGeneration:metrics.viewportGeneration,ownerGeneration:token.owner.generation,contextGeneration:metrics.nativeContextGeneration,frameSequence:token.sequence,nativeTimestamp});
+}
 const fixtureInput=wheelInputMode==='queued'?nativeInputProps('windows',()=>view):undefined;
 const fixtureWheel=fixtureInput?DeviceEventEmitter.addListener('nelyxFixtureWheel',native=>{
  (fixtureInput.onWindowsWheel as (event:unknown)=>void)({nativeEvent:native});
@@ -139,7 +150,7 @@ if(continuousInput){
   };
  }
 }
-function measured<T>(label:string,callback:()=>T):T{const boot=bootTracing&&(label==='Picture.nativeCompile'||label==='Picture.endRecording');if(boot)bootMark(label+' enter');const allocation=diagnostic&&phase&&allocationScopes.has(label)?gc().js_totalAllocatedBytes:undefined,start=performance.now(),entry={children:0};stack.push(entry);try{return callback();}finally{const elapsed=performance.now()-start;stack.pop();if(stack.length)stack[stack.length-1]!.children+=elapsed;sample(label,elapsed);if(phase&&diagnostic)(exclusive[label]??=[]).push(Math.max(0,elapsed-entry.children));if(typeof allocation==='number'){const after=gc().js_totalAllocatedBytes;if(typeof after==='number')sample('Allocated.'+label,after-allocation);}if(boot)bootMark(label+' exit');}}
+function measured<T>(label:string,callback:()=>T):T{const boot=bootTracing&&(label==='Picture.nativeCompile'||label==='Picture.endRecording');if(boot)bootMark(label+' enter');const allocation=diagnostic&&phase&&allocationScopes.has(label)?gc().js_totalAllocatedBytes:undefined,start=performance.now(),entry={children:0},resizeStage=resizeTimeline?resizeSpanStages[label]:undefined;if(resizeStage!==undefined)resizeSpan(resizeStage);stack.push(entry);try{return callback();}finally{if(resizeStage!==undefined)resizeSpan(resizeStage+1);const elapsed=performance.now()-start;stack.pop();if(stack.length)stack[stack.length-1]!.children+=elapsed;sample(label,elapsed);if(phase&&diagnostic)(exclusive[label]??=[]).push(Math.max(0,elapsed-entry.children));if(typeof allocation==='number'){const after=gc().js_totalAllocatedBytes;if(typeof after==='number')sample('Allocated.'+label,after-allocation);}if(boot)bootMark(label+' exit');}}
 function measuredClass<T>(label:string,callback:()=>T):T{if(!phase)return callback();const start=performance.now(),entry={children:0};stack.push(entry);try{return callback();}finally{const elapsed=performance.now()-start;stack.pop();if(stack.length)stack[stack.length-1]!.children+=elapsed;const own=Math.max(0,elapsed-entry.children),value=classOwners[label]??={n:0,selfMs:0,maxSelfMs:0};value.n++;value.selfMs+=own;value.maxSelfMs=Math.max(value.maxSelfMs,own);}}
 let bootTracing=false;
 const bootStages=new Set(['Root.build','Widgets.flushBuild','Pipeline.flushLayout','Pipeline.flushSemantics','Painting.compose','Painting.finishLayer','Boundary.refresh','Painting.recordChild']);
@@ -151,6 +162,21 @@ function wrapFrameCallbacks(decorate:(callback:(...args:any[])=>void)=>(...args:
 }
 
 if(trace)for(const [type,names,label]of [[FrameworkRoot,['build','recordPaint'],'Root'],[ViewRuntime,['updateMetrics','buildPending','pump'],'Runtime'],[PaintingContext,['compose','finishLayer'],'Painting'],[SceneBuilder,['build','addRetained','pop'],'Scene'],[RenderRepaintBoundary,['refresh'],'Boundary'],[RenderObject,['commitTextInputGeometries','markNeedsPaint'],'Geometry'],[PipelineOwner,['flushLayout','flushSemantics'],'Pipeline'],[GraphiteRenderer,['submit','pollNotifications'],'Renderer'],[BuildOwner,['flushBuild','finalizeTree'],'Widgets'],[SemanticsBinding,['updateViewSemantics'],'Semantics'],[SemanticsNode,['updateWith','getSemanticsData'],'SemanticsNode'],[SemanticsOwner,['sendSemanticsUpdate'],'SemanticsOwner']] as const)for(const name of names)wrap(type,name,label+'.'+name);
+if(resizeTimeline){
+ // Only the owned diagnostic fixture installs these aggregate spans. Every
+ // timestamp comes directly from the same native clock as the frame trace.
+ const build=FrameworkRoot.prototype.build,metrics=ViewRuntime.prototype.updateMetrics,capture=FrameRecording.capture,prototype=ViewRuntime.prototype as any,schedule=prototype.schedulePump;
+ FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){const previous=resizeTimelineToken;resizeTimelineToken=args[0].token;resizeSpan(25);try{return build.apply(this,args);}finally{try{resizeSpan(26);}finally{resizeTimelineToken=previous;}}};
+ ViewRuntime.prototype.updateMetrics=function(...args:Parameters<typeof metrics>){const token={metrics:args[0],owner:this.owner,sequence:0};resizeSpan(20,token);if((this as any).task)resizeSpan(23,token);try{return metrics.apply(this,args);}finally{resizeSpan(21,token);}};
+ prototype.schedulePump=function(...args:any[]){const pending=this.task;const result=schedule.apply(this,args);if(!pending&&this.task)resizeSpan(22,{metrics:this.currentMetrics,owner:this.owner,sequence:0});return result;};
+ const request=FrameScheduler.prototype.requestFrame;
+ FrameScheduler.prototype.requestFrame=function(){
+  if(!phase||!resizeTimelineView||this!==view?.controller?.scheduler)return request.call(this);
+  const source=resizeRequestSources[this.phase]??={attempts:0,scheduled:0,withTransient:0},pending=this.hasScheduledFrame;source.attempts++;
+  const result=request.call(this);if(!pending&&this.hasScheduledFrame){source.scheduled++;if(this.transientCallbackCount)source.withTransient++;if(source.firstStack===undefined)source.firstStack=String(new Error('Resize frame request').stack??'unavailable').slice(0,1800);}return result;
+ };
+ FrameRecording.capture=function(...args:Parameters<typeof capture>){return measured('Frame.capture',()=>capture.apply(this,args));};
+}
 if(diagnostic){
  // Attribute tree ownership work in the actual installed engine. These nested
  // spans expose exclusive time; minimal CPU qualification keeps them disabled.
@@ -326,18 +352,20 @@ async function liveResize(){
  const frameworkErrors:string[]=[],reportError=FlutterError.onError;FlutterError.onError=details=>{frameworkErrors.push(String(details.exception));reportError?.(details);};
  try{
  const config=host.resizeConfig(),pages=config.pages.split(','),corners=config.corners.split(',');if(!pages.length||pages.some((p:string)=>!['material','list','cupertino'].includes(p))||corners.some((c:string)=>!['left','right','top','bottom','bottom-right','top-left','top-right','bottom-left'].includes(c)))throw Error('Invalid owned resize cases');let currentPage='material';
+ if(config.responsiveShortHeader==='1'&&(pages.length!==1||pages[0]!=='material'))throw Error('Responsive short-header expectations belong to the Material page');
  for(const page of pages){
   if(page==='list')tap('show-list-view');
   else if(page==='cupertino'){if(currentPage==='list'){tap('list-view-back');await delay(300);}tap('show-cupertino');}currentPage=page;
   for(const corner of corners){
   await host.resize(Math.round(500*view.currentMetrics.scale),Math.round(500*view.currentMetrics.scale));
-  await delay(500);await drainWheelRendering();api.drainFrameTrace();
+  await delay(500);await drainWheelRendering();const seed=api.drainFrameTrace();
+  if(resizeTimeline){const views=[...new Set<number>(seed.filter((entry:any)=>entry.view>0).map((entry:any)=>entry.view))];if(views.length!==1)throw Error('Resize CPU timeline requires one observed native View');resizeTimelineView=views[0]!;resizeCpuEvents=[];resizeCpuOverflow=false;resizeRequestSources={};}
   const entries:any[]=[];let overflow=false;
   const collect=()=>{const batch=api.drainFrameTrace();if(entries.length+batch.length>4096)overflow=true;else if(!overflow)entries.push(...batch);};
   start(page+'-resize-'+corner);const poll=setInterval(collect,16);let interval:any;
   try{interval=await dragResize(corner);await drainWheelRendering();}finally{clearInterval(poll);collect();}
   end();
-  if(overflow)throw Error('Live resize trace exceeded its bounded fixture buffer');
+  if(overflow||resizeCpuOverflow)throw Error('Live resize trace exceeded its bounded fixture buffer');
   const requests=entries.filter(entry=>entry.stage===6),updates=entries.filter(entry=>entry.stage===2);
   const during=updates.filter(entry=>entry.nativeTimestamp>=interval.began&&entry.nativeTimestamp<interval.ended);
   const latencies=updates.flatMap(entry=>{const request=requests.find(value=>value.surfaceGeneration===entry.surfaceGeneration);return request?[entry.nativeTimestamp-request.nativeTimestamp]:[];}).sort((a,b)=>a-b);
@@ -345,8 +373,10 @@ async function liveResize(){
   const lag=during.flatMap(entry=>{const latest=requests.filter(request=>request.nativeTimestamp<=entry.nativeTimestamp).at(-1);return latest?[Math.max(Math.abs(entry.width-latest.width),Math.abs(entry.height-latest.height))]:[];});
   const overlappedAdmissions=entries.filter((entry,index)=>entry.stage===7&&entries.slice(0,index).some((front,frontIndex)=>front.stage===2&&front.surfaceGeneration!==entry.surfaceGeneration&&!entries.slice(frontIndex+1,index).some(terminal=>terminal.stage===3&&terminal.surfaceGeneration===front.surfaceGeneration))).length;
   const rejected=entries.filter(entry=>entry.stage===19),prepared=entries.filter(entry=>entry.stage===8),committed=entries.filter(entry=>entry.stage===10),timeouts=entries.filter(entry=>entry.stage===11);
-  const result={label:config.label,page,corner,timing:resizeStatistics(interval,entries),requests:requests.length,updates:during.length,overlappedAdmissions,rejectedProposals:rejected.length,prepared:prepared.length,committed:committed.length,timeouts:timeouts.length,sourceSamples:interval.sourceSamples,sourceMisses:interval.sourceMisses,geometrySamples:interval.geometrySamples,geometryMismatches:interval.geometryMismatches,edgeGlyphChanges:interval.edgeGlyphChanges,missingEdgeGlyphs:interval.missingEdgeGlyphs,maximumEdgeDelta:interval.maximumEdgeDelta,durationMs:interval.ended-interval.began,maxGapMs:maxGap,maxSizeLagPx:Math.max(0,...lag),requestToSurfaceP95:latencies[Math.ceil(latencies.length*.95)-1],pixelSamples:interval.pixelSamples,distinctPixelSizes:interval.distinctPixelSizes,backgroundExposures:interval.backgroundExposures,glyphChanges:interval.glyphChanges,missingGlyphs:interval.missingGlyphs,maximumGlyphDelta:interval.maximumGlyphDelta,glyphWidth:interval.glyphWidth,glyphHeight:interval.glyphHeight,...(trace||diagnostic?{stages:entries.map(entry=>({stage:entry.stage,surface:entry.surfaceGeneration,width:entry.width,height:entry.height,t:entry.nativeTimestamp}))}:{}),displayed:interval.captureEnabled?'owned-desktop-frame-native-border-and-layout-sensor':'notObserved'};
+  const result={label:config.label,page,corner,timing:resizeStatistics(interval,entries,resizeCpuEvents),requestSources:resizeTimeline?resizeRequestSources:undefined,requests:requests.length,updates:during.length,overlappedAdmissions,rejectedProposals:rejected.length,prepared:prepared.length,committed:committed.length,timeouts:timeouts.length,sourceSamples:interval.sourceSamples,sourceMisses:interval.sourceMisses,geometrySamples:interval.geometrySamples,geometryMismatches:interval.geometryMismatches,edgeGlyphChanges:interval.edgeGlyphChanges,missingEdgeGlyphs:interval.missingEdgeGlyphs,maximumEdgeDelta:interval.maximumEdgeDelta,durationMs:interval.ended-interval.began,maxGapMs:maxGap,maxSizeLagPx:Math.max(0,...lag),requestToSurfaceP95:latencies[Math.ceil(latencies.length*.95)-1],pixelSamples:interval.pixelSamples,distinctPixelSizes:interval.distinctPixelSizes,backgroundExposures:interval.backgroundExposures,glyphChanges:interval.glyphChanges,missingGlyphs:interval.missingGlyphs,maximumGlyphDelta:interval.maximumGlyphDelta,glyphWidth:interval.glyphWidth,glyphHeight:interval.glyphHeight,responsiveShortHeader:interval.responsiveShortHeader,originChanges:interval.originChanges,originTransitions:interval.originTransitions,maximumOriginDelta:interval.maximumOriginDelta,...(trace||diagnostic?{stages:entries.map(entry=>({stage:entry.stage,surface:entry.surfaceGeneration,width:entry.width,height:entry.height,t:entry.nativeTimestamp}))}:{}),displayed:interval.captureEnabled?'owned-desktop-frame-native-border-and-layout-sensor':'notObserved'};
   host.report('live-resize '+JSON.stringify(result));
+  if(config.responsiveShortHeader==='1'&&(!interval.responsiveShortHeader||interval.originChanges!==0||interval.originTransitions<2))throw Error('Responsive short-header pixels did not follow both expected 16/28 padding transitions: '+JSON.stringify(result));
+  if(resizeTimeline){const cpu=result.timing.cpu;if(!cpu||cpu.invalidEvents||!cpu.coverage.newFrameRequests&&!cpu.coverage.metricsWithPendingFrame||!cpu.resizeFrames.n||!cpu.resizeFrames.buildEndToNativeSubmit.n||['requestToCoreMetrics','metricsToBuild','metricsToCopyRetired','buildEndToNativeSubmit','coreMetrics','build','layout','recordPaint','semantics','compose','capture'].some(key=>!cpu[key].n))throw Error('Resize CPU timeline lost its exact native View/epoch/frame pairs');}
   validateNativeFrameTerminals(entries);
   if(Number(config.delayResize)>0&&!rejected.length)throw Error('Injected preparation timeout did not reject its proposed geometry');
   if(during.length<4||maxGap>(interval.ended-interval.began)/2)throw Error('Live resize stalled during the actual sizing loop: '+JSON.stringify(result));

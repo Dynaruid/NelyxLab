@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[switch]$MouseMotion,[switch]$WindowTransitions)
+param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$CaptionActivation)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 Add-Type @'
@@ -22,6 +22,9 @@ public static class NelyxContinuousScroll {
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window,ref Point point);
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window,out Rect rect);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Rect rect);
+  [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr window);
+  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
+  [DllImport("user32.dll")] static extern IntPtr SendMessageTimeoutW(IntPtr window,uint message,IntPtr wp,IntPtr lp,uint flags,uint timeout,out UIntPtr result);
   [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window,uint flags);
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
@@ -44,14 +47,25 @@ public static class NelyxContinuousScroll {
     Point point;if(GetForegroundWindow()!=window||!GetCursorPos(out point)||GetAncestor(WindowFromPoint(point),2)!=window)throw new Exception("Input left the owned foreground window");
     if(GetAsyncKeyState(1)<0||GetAsyncKeyState(2)<0||GetAsyncKeyState(4)<0)throw new Exception("Release physical mouse buttons during the input test");
   }
-  public static void Activate(IntPtr window) {
-    Rect rect;if(!GetWindowRect(window,out rect))throw new Exception("Own caption unavailable");
-    var point=new Point { X=(rect.Left+rect.Right)/2,Y=rect.Top+14 };
-    if(GetAncestor(WindowFromPoint(point),2)!=window)throw new Exception("Own caption is occluded");
+  public static bool Activate(IntPtr window) {
     if(GetAsyncKeyState(1)<0||GetAsyncKeyState(2)<0||GetAsyncKeyState(4)<0)throw new Exception("Caption activation requires released physical mouse buttons");
+    // Raise only this test's already discovered app window without activating
+    // another surface. A fixed top-center point can fall in the DWM shadow or
+    // stay behind the previously foreground application.
+    if(!SetWindowPos(window,IntPtr.Zero,0,0,0,0,0x1|0x2|0x10|0x40))return false;
+    Rect rect;if(!GetWindowRect(window,out rect))throw new Exception("Own caption unavailable");
+    double scale=Math.Max(96u,GetDpiForWindow(window))/96.0;Point point=new Point();bool found=false;
+    foreach(int offset in new[]{200,80,320})for(int y=8;y<=56&&!found;y+=4){
+      var candidate=new Point { X=rect.Left+Math.Min((rect.Right-rect.Left)/3,(int)Math.Round(offset*scale)),Y=rect.Top+(int)Math.Round(y*scale) };
+      UIntPtr hit;var packed=new IntPtr(unchecked((int)((uint)(ushort)candidate.X|((uint)(ushort)candidate.Y<<16))));
+      if(GetAncestor(WindowFromPoint(candidate),2)==window&&SendMessageTimeoutW(window,0x84,IntPtr.Zero,packed,2,1000,out hit)!=IntPtr.Zero&&hit.ToUInt64()==2){point=candidate;found=true;break;}
+    }
+    if(!found)return false;
     SetCursorPos(point.X,point.Y);
+    if(GetAncestor(WindowFromPoint(point),2)!=window)return false;
     var inputs=new[]{new Input { Type=0,Mouse=new Mouse { Flags=2 } },new Input { Type=0,Mouse=new Mouse { Flags=4 } }};
     if(SendInput(2,inputs,Marshal.SizeOf<Input>())!=2)throw new Exception("OS caption activation failed");
+    return true;
   }
   public static void CloseAfterInput(IntPtr window) {
     var clock=Stopwatch.StartNew();double next=0;
@@ -97,7 +111,8 @@ try {
   $deadline=[DateTime]::UtcNow.AddSeconds(25)
   do { if($application.HasExited){throw 'App exited during startup'};$application.Refresh();$window=$application.MainWindowHandle;if($window -eq [IntPtr]::Zero){Start-Sleep -Milliseconds 50} } while($window -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
   if($window -eq [IntPtr]::Zero){throw 'Visible app window unavailable'}
-  for($attempt=0;$attempt -lt 3;$attempt++){[NelyxContinuousScroll]::SetForegroundWindow($window)|Out-Null;Start-Sleep -Milliseconds 150;if([NelyxContinuousScroll]::GetForegroundWindow() -eq $window){break};[NelyxContinuousScroll]::Activate($window);Start-Sleep -Milliseconds 150}
+  if($CaptionActivation){$clicked=[NelyxContinuousScroll]::Activate($window);Write-Output ('CONTINUOUS_ACTIVATION '+(@{page=$Page;attempt='probe';ownedCaptionClicked=$clicked}|ConvertTo-Json -Compress));if(-not $clicked){throw 'Owned caption activation probe failed'};Start-Sleep -Milliseconds 150}
+  for($attempt=0;$attempt -lt 3;$attempt++){[NelyxContinuousScroll]::SetForegroundWindow($window)|Out-Null;Start-Sleep -Milliseconds 150;if([NelyxContinuousScroll]::GetForegroundWindow() -eq $window){break};$clicked=[NelyxContinuousScroll]::Activate($window);Write-Output ('CONTINUOUS_ACTIVATION '+(@{page=$Page;attempt=$attempt;ownedCaptionClicked=$clicked}|ConvertTo-Json -Compress));Start-Sleep -Milliseconds 150}
   if([NelyxContinuousScroll]::GetForegroundWindow() -ne $window){throw 'Own foreground unavailable'}
   if($WindowTransitions){foreach($command in @(3,9)){[NelyxContinuousScroll]::ShowWindow($window,$command)|Out-Null;Start-Sleep -Milliseconds 400}}
   function Find-Action([string]$id){
