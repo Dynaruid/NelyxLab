@@ -123,6 +123,44 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run dev -- --port 808
 
 Hermes Metro·네이티브 Debug 세션을 시작합니다. Metro만 실행하려면 `--launch false`를 추가하고, Ctrl+C로 종료합니다. V8·JSC·Static Hermes는 이 개발 refresh 경로를 지원하지 않습니다.
 
+### 창 크기 변경 진단
+
+Windows 준비·runner 재설치 후 저장소 루트에서 실행합니다. 실제 OS 마우스로 임시 검사 앱을 드래그하므로 실행 중에는 마우스·트랙패드 조작을 멈추세요.
+
+```powershell
+npm run test:windows-resize
+```
+
+Material·ListView·Cupertino의 양쪽 모서리를 검사하고, 요청/실제 입력 빈도, 창 rect 변화, surface 갱신과 캡처에서 관찰한 표시 변화를 각각 출력합니다. 기본 입력은 61Hz이며 `NELYX_ANIMATION_DRAG_HZ`로 바꿀 수 있습니다. `NELYX_ANIMATION_PIXELS=0`은 캡처를 끈 CPU·geometry 비교에 사용합니다. 검사 통과는 화면·프레임 수명 조건의 통과이며 목표 FPS 달성을 뜻하지 않습니다. 캡처 실행의 비용과 실제 사용자의 드래그 체감은 별도로 평가해야 합니다. 검사 앱과 임시 빌드는 종료 시 정리됩니다.
+
+### 렌더링 연속성 진단
+
+같은 Windows 준비·runner 설치를 사용해 저장소 루트에서 실행합니다. 실제 OS 휠 입력을 사용하므로 실행 중에는 마우스·트랙패드 조작을 멈추세요.
+
+```powershell
+npm run test:windows-render-liveness
+```
+
+창 크기를 고정한 채 idle redraw 8회와 OS 스크롤 12묶음을 실행합니다. 요청마다 서로 다른 색의 실제 desktop pixel과 native 프레임 증가를 확인해, JS 상태만 바뀌고 화면이 멈추는 문제를 검사합니다. 이 명령은 Hermes bytecode 검사이며 Static Hermes의 성능이나 전체 scanout 수락을 대신하지 않습니다. 앱과 임시 빌드는 종료 시 정리됩니다.
+
+현재 빌드된 Windows 패키지에서 연속 입력·닫기를 검사하려면 다음 명령을 사용합니다.
+
+```powershell
+npm run test:windows-continuous-scroll
+```
+
+Material·ListView·Cupertino에서 독립적으로 OS 휠을 연속 입력하며 본문 화면 변화의 간격을 측정합니다. 입력 직후 닫기를 요청하고 창 숨김·파괴, 프로세스 종료와 native drain을 따로 확인합니다. Material은 최대화·복원과 마우스 이동을 포함합니다. 실제 마우스·트랙패드는 검사 중 조작하지 마세요. 이 검사는 현재 패키지의 제한된 자동 입력이며 물리 트랙패드나 전체 표시 성능 수락을 대신하지 않습니다.
+
+실제 사용 중 지연 구간을 콘솔에서 확인하려면 새 프로세스를 다음과 같이 실행합니다.
+
+```powershell
+$env:NELYX_WINDOWS_FRAME_DIAGNOSTICS='1'
+try { npm run run:windows --workspace '@nelyx/testbed-2' }
+finally { Remove-Item Env:NELYX_WINDOWS_FRAME_DIAGNOSTICS -ErrorAction SilentlyContinue }
+```
+
+100ms 이상 걸린 frame clock 대기, JS 프레임 예약·실행, native UI 큐·작업, GPU producer·retirement와 종료 단계를 구분해 출력합니다. 일반 실행에서는 출력하지 않으며 파일 로그를 만들지 않습니다. 닫기를 수락한 창은 먼저 숨겨지고, 실행 명령은 입력·GPU·RNW 정리가 끝난 뒤 반환됩니다.
+
 ### 실험적인 직접 Hermes 호스트
 
 현재 Windows 패키지를 공급하고 설치한 뒤 실행합니다.

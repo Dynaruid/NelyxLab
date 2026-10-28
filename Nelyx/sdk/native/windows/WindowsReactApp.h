@@ -8,6 +8,7 @@
 #include <winrt/Microsoft.UI.Interop.h>
 #include <winrt/Microsoft.UI.Windowing.h>
 #include <stdexcept>
+#include <WindowsFrameDiagnostics.h>
 
 namespace RNSkia {
 inline auto WindowsCompositorControllerProperty(){
@@ -41,12 +42,15 @@ public:
     host.ReloadInstance();
     window.ReactNativeIsland().ReactViewHost(winrt::Microsoft::ReactNative::ReactCoreInjection::MakeViewHost(host,options));
     appWindow.Destroying([this](auto const&,auto const&){
+      const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;windowsFrameDiagnostic("rnw-unload-begin");
       auto unload=host.UnloadInstance();
-      unload.Completed([settings=host.InstanceSettings()](auto const&,auto status){
+      unload.Completed([settings=host.InstanceSettings(),began](auto const&,auto status){
+        windowsFrameDiagnostic("rnw-unload-end");if(began)windowsFrameDiagnosticDelay("rnw-unload-work",began,windowsMonotonicMilliseconds());
         settings.UIDispatcher().Post([status]{PostQuitMessage(status==winrt::Windows::Foundation::AsyncStatus::Completed?0:2);});
       });
     });
-    queue.DispatcherQueue().RunEventLoop();appWindow.Destroy();queue.ShutdownQueue();
+    queue.DispatcherQueue().RunEventLoop();windowsFrameDiagnostic("event-loop-stopped");appWindow.Destroy();
+    const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;queue.ShutdownQueue();if(began)windowsFrameDiagnosticDelay("dispatcher-shutdown",began,windowsMonotonicMilliseconds());
   }
 private:
   static winrt::Microsoft::UI::Windowing::AppWindow createAppWindow(){

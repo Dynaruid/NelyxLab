@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <windows.h>
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <deque>
@@ -51,7 +52,10 @@ public:
     auto found=entries.find(view);
     if(found!=entries.end()&&found->second.generation==generation)return;
     std::function<void(bool)> cancel;
-    if(found!=entries.end())cancel=std::move(found->second.resolve);
+    if(found!=entries.end()){
+      cancelledThrough[view]=std::max(cancelledThrough[view],found->second.generation);
+      cancel=std::move(found->second.resolve);
+    }
     entries[view]={generation,false,{}};
     if(cancel)cancel(false);
   }
@@ -72,8 +76,14 @@ public:
   }
   bool ready()const{requireUi();for(const auto& [view,entry]:entries)if(!entry.ready)return false;return true;}
   bool hasRequests()const{requireUi();return !entries.empty();}
+  bool cancelled(uint64_t view,uint64_t generation)const{requireUi();const auto found=cancelledThrough.find(view);return found!=cancelledThrough.end()&&generation<=found->second;}
+  void retire(uint64_t view){
+    requireUi();cancelledThrough.erase(view);const auto found=entries.find(view);if(found==entries.end())return;
+    auto resolve=std::move(found->second.resolve);entries.erase(found);if(resolve)resolve(false);
+  }
   void resolve(bool commit){
-    requireUi();active=0;deferred=false;std::map<uint64_t,Entry> terminal;terminal.swap(entries);
+    requireUi();if(!commit)for(const auto& [view,entry]:entries)cancelledThrough[view]=std::max(cancelledThrough[view],entry.generation);
+    active=0;deferred=false;std::map<uint64_t,Entry> terminal;terminal.swap(entries);
     // Detach the transaction first: completion may admit another layout epoch.
     for(auto& [view,entry]:terminal)if(entry.resolve)entry.resolve(commit);
   }
@@ -83,5 +93,9 @@ private:
   const std::thread::id owner;HANDLE signal;
   std::mutex mutex;std::deque<std::function<void()>> jobs;
   uint64_t next=0,active=0;bool deferred=false;std::map<uint64_t,Entry> entries;
+  // One numeric fence per live view, not a queue of rejected proposals. A late
+  // producer still uploads/retires, but can never publish a cancelled epoch.
+  // View unbind retires the fence; no scene, callback or GPU resource is kept.
+  std::map<uint64_t,uint64_t> cancelledThrough;
 };
 }

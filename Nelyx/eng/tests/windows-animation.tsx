@@ -11,6 +11,8 @@ import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';
 import {GestureBinding} from '@nelyx/core/framework/gestures/binding';
 import {ScrollPositionWithSingleContext} from '@nelyx/core/framework/widgets/scroll-position-with-single-context';
 import {PaintingContext} from '@nelyx/core/framework/painting/context';
+import {CustomPaint} from '@nelyx/core/framework/widgets/custom-paint';
+import {CustomPainter} from '@nelyx/core/framework/rendering/custom-paint';
 import {RenderRepaintBoundary} from '@nelyx/core/framework/rendering/repaint-boundary';
 import {RenderObject,PipelineOwner} from '@nelyx/core/framework/rendering/object';
 import {SceneBuilder} from '@nelyx/core/ui/scene';
@@ -86,6 +88,20 @@ const wheelInterval:number=__WHEEL_INTERVAL__,wheelDelta:number=__WHEEL_DELTA__;
 const wheelWarmup:boolean=/*__WHEEL_WARMUP__*/false;
 const wheelHover:boolean=__WHEEL_HOVER__;
 const viewport:string=__VIEWPORT__;
+let livenessColor=0xff222222;
+if(mode==='render-liveness'){
+ class LivenessPainter extends CustomPainter{
+  override paint(canvas:Canvas):void{canvas.rect({x:0,y:0,width:24,height:24},livenessColor);}
+  override shouldRepaint():boolean{return true;}
+ }
+ const build=FrameworkRoot.prototype.build,wrapped=new WeakSet<object>();
+ FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){
+  if(!wrapped.has(this)){wrapped.add(this);const controller=this as any,createRoot=controller.options.createRoot;
+   controller.options={...controller.options,createRoot:(...rootArgs:any[])=>new BasicWidgets.Stack([createRoot(...rootArgs),new BasicWidgets.Positioned(new CustomPaint(new BasicWidgets.SizedBox(24,24),{painter:new LivenessPainter()}),{left:8,top:72,width:24,height:24})],{fit:'expand'})};
+  }
+  return build.apply(this,args);
+ };
+}
 let galleryInteraction:any;
 const interactionPrototype=NativeInteraction.prototype as any,originalGalleryPublish=(mode==='gallery-regression'||mode==='full-runtime-regression')?interactionPrototype.publish:undefined;
 if(originalGalleryPublish)interactionPrototype.publish=function(...args:any[]){galleryInteraction=this;return originalGalleryPublish.apply(this,args);};
@@ -134,7 +150,7 @@ function wrapFrameCallbacks(decorate:(callback:(...args:any[])=>void)=>(...args:
  const api=(globalThis as any).NelyxWindowsHost;if(api?.frameClockVersion===1){const request=api.requestFrame;api.requestFrame=(callback:any)=>request.call(api,decorate(callback));}
 }
 
-if(trace)for(const [type,names,label]of [[FrameworkRoot,['build'],'Root'],[ViewRuntime,['buildPending','pump'],'Runtime'],[PaintingContext,['compose','finishLayer'],'Painting'],[SceneBuilder,['build','addRetained','pop'],'Scene'],[RenderRepaintBoundary,['refresh'],'Boundary'],[RenderObject,['commitTextInputGeometries','markNeedsPaint'],'Geometry'],[PipelineOwner,['flushLayout','flushSemantics'],'Pipeline'],[GraphiteRenderer,['submit','pollNotifications'],'Renderer'],[BuildOwner,['flushBuild','finalizeTree'],'Widgets'],[SemanticsBinding,['updateViewSemantics'],'Semantics'],[SemanticsNode,['updateWith','getSemanticsData'],'SemanticsNode'],[SemanticsOwner,['sendSemanticsUpdate'],'SemanticsOwner']] as const)for(const name of names)wrap(type,name,label+'.'+name);
+if(trace)for(const [type,names,label]of [[FrameworkRoot,['build','recordPaint'],'Root'],[ViewRuntime,['updateMetrics','buildPending','pump'],'Runtime'],[PaintingContext,['compose','finishLayer'],'Painting'],[SceneBuilder,['build','addRetained','pop'],'Scene'],[RenderRepaintBoundary,['refresh'],'Boundary'],[RenderObject,['commitTextInputGeometries','markNeedsPaint'],'Geometry'],[PipelineOwner,['flushLayout','flushSemantics'],'Pipeline'],[GraphiteRenderer,['submit','pollNotifications'],'Renderer'],[BuildOwner,['flushBuild','finalizeTree'],'Widgets'],[SemanticsBinding,['updateViewSemantics'],'Semantics'],[SemanticsNode,['updateWith','getSemanticsData'],'SemanticsNode'],[SemanticsOwner,['sendSemanticsUpdate'],'SemanticsOwner']] as const)for(const name of names)wrap(type,name,label+'.'+name);
 if(diagnostic){
  // Attribute tree ownership work in the actual installed engine. These nested
  // spans expose exclusive time; minimal CPU qualification keeps them disabled.
@@ -184,9 +200,13 @@ for(const [type,label]of [[ViewRuntime,'Core'],[GraphiteRenderer,'Renderer']] as
 // Measure the complete owned frame callback (RN RAF or Windows compositor)
 // including admission/submission, not pump alone: scene construction precedes pump. Idle polls
 // are reported separately and cannot dilute frame CPU percentiles.
-if(trace||cpuOnly){let built=0;const build=FrameworkRoot.prototype.build;FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){built++;return build.apply(this,args);};wrapFrameCallbacks(callback=>(...args)=>{const before=built,mounts=counts['Element.mount']??0,unmounts=counts['Element.unmount']??0,start=performance.now();try{return callback(...args);}finally{
+if(cpuOnly){
+ const paint=(FrameworkRoot.prototype as any).recordPaint;
+ (FrameworkRoot.prototype as any).recordPaint=function(...args:any[]){count('Paint.recorded');return paint.apply(this,args);};
+}
+if(trace||cpuOnly){let built=0,resized=0;const extents=new WeakMap<object,{width:number;height:number}>(),build=FrameworkRoot.prototype.build;FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){built++;const metrics=args[0].token.metrics,previous=extents.get(this);if(previous&&(previous.width!==metrics.physicalWidth||previous.height!==metrics.physicalHeight))resized++;extents.set(this,{width:metrics.physicalWidth,height:metrics.physicalHeight});return build.apply(this,args);};wrapFrameCallbacks(callback=>(...args)=>{const before=built,beforeResize=resized,mounts=counts['Element.mount']??0,unmounts=counts['Element.unmount']??0,start=performance.now();try{return callback(...args);}finally{
  if(built!==before)observeContinuousCoverage?.();
- const elapsed=performance.now()-start;sample(built!==before?'Frame.cpu':'Idle.rafCpu',elapsed);
+ const elapsed=performance.now()-start;sample(built!==before?'Frame.cpu':'Idle.rafCpu',elapsed);if(built!==before)sample(resized!==beforeResize?'Frame.resizeCpu':'Frame.stableCpu',elapsed);
  if(built!==before){sample((counts['Element.mount']??0)>mounts?'Frame.entryCpu':'Frame.retainedCpu',elapsed);if((counts['Element.unmount']??0)>unmounts)sample('Frame.retirementCpu',elapsed);}
  // Keep every frame in the full distribution. Also expose the first build
  // after each actual route action, rather than hiding mount cost in a mean.
@@ -203,13 +223,14 @@ if(diagnostic){
  });
 }
 if(mode==='live-resize'){
+ const delayMillis=Number(host.resizeConfig().delayResize),previousExtents=new WeakMap<object,string>();let injectedDelay=false;if(!Number.isFinite(delayMillis)||delayMillis<0||delayMillis>250)throw Error('Bounded resize delay must be 0..250ms');
  const pointer=FrameworkRoot.prototype.pointer,packets:any[]=[];(globalThis as any).__resizePointerPackets=packets;
  FrameworkRoot.prototype.pointer=function(event){if(packets.length<32)packets.push({kind:event.kind,x:event.x,y:event.y,buttons:event.buttons});return pointer.call(this,event);};
  // Install before the first CPU build (ViewRuntime.pump runs after that build).
  // This fixture-only sensor follows real Stack layout at the right edge, even
  // on pages whose own header has no right-aligned content.
  const build=FrameworkRoot.prototype.build,wrapped=new WeakMap<FrameworkRoot,GlobalKey>();let reported=0;
- FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){let sensor=wrapped.get(this);if(!sensor){sensor=new GlobalKey('resize-edge-sensor');wrapped.set(this,sensor);const key=sensor,controller=this as any,createRoot=controller.options.createRoot;controller.options={...controller.options,createRoot:(...rootArgs:any[])=>new BasicWidgets.Stack([createRoot(...rootArgs),new BasicWidgets.Positioned(new BasicWidgets.ColoredBox({key,color:0xff00e65b,isAntiAlias:false}),{right:10,top:6,width:2,height:2})],{fit:'expand'})};}const result=build.apply(this,args),render=sensor.currentContext?.findRenderObject();if(render){count('Resize.sensorLayouts');const metrics=args[0].token.metrics,point=render.localToGlobal({x:0,y:0});if(Math.abs(point.x-(metrics.logicalWidth-12))>0.01||Math.abs(point.y-6)>0.01){count('Resize.sensorLayoutMismatches');if(reported++<4)host.report('live-resize-layout '+JSON.stringify({point,expected:{x:metrics.logicalWidth-12,y:6},metrics}));}}return result;};
+ FrameworkRoot.prototype.build=function(...args:Parameters<typeof build>){const m=args[0].token.metrics,extent=m.physicalWidth+','+m.physicalHeight,previous=previousExtents.get(this);previousExtents.set(this,extent);if(delayMillis&&!injectedDelay&&previous!==undefined&&extent!==previous&&host.resizing()){injectedDelay=true;const until=performance.now()+delayMillis;while(performance.now()<until){}host.report('live-resize-injected-delay '+delayMillis);}let sensor=wrapped.get(this);if(!sensor){sensor=new GlobalKey('resize-edge-sensor');wrapped.set(this,sensor);const key=sensor,controller=this as any,createRoot=controller.options.createRoot;controller.options={...controller.options,createRoot:(...rootArgs:any[])=>new BasicWidgets.Stack([createRoot(...rootArgs),new BasicWidgets.Positioned(new BasicWidgets.ColoredBox({key,color:0xff00e65b,isAntiAlias:false}),{right:10,top:6,width:2,height:2})],{fit:'expand'})};}const result=build.apply(this,args),render=sensor.currentContext?.findRenderObject();if(render){count('Resize.sensorLayouts');const metrics=args[0].token.metrics,point=render.localToGlobal({x:0,y:0});if(Math.abs(point.x-(metrics.logicalWidth-12))>0.01||Math.abs(point.y-6)>0.01){count('Resize.sensorLayoutMismatches');if(reported++<4)host.report('live-resize-layout '+JSON.stringify({point,expected:{x:metrics.logicalWidth-12,y:6},metrics}));}}return result;};
 }
 const original=ViewRuntime.prototype.pump;ViewRuntime.prototype.pump=function(){view=this;if(semanticsInterval!==null){const controller=(this as any).controller;controller.options={...controller.options,semanticsUpdateInterval:semanticsInterval};}if(trace&&(this as any).controller.sourceSemanticsSnapshot)wrap((this as any).controller.sourceSemanticsSnapshot.constructor,'capture','Semantics.capture');if(cpuOnly){const snapshot=(this as any).controller.sourceSemanticsSnapshot,capture=snapshot?.capture;if(snapshot)snapshot.capture=function(...args:any[]){count('Semantics.captures');return capture.apply(this,args);};}ViewRuntime.prototype.pump=original;return original.apply(this);};
 if(diagnostic||continuousInput||mode==='live-resize'){
@@ -294,6 +315,8 @@ async function drainWheelRendering(){
 async function resizeSettled(previousGeneration:number){const deadline=performance.now()+3000;while(performance.now()<deadline){const metrics=view.currentMetrics,native=resizeRenderer?.context();if(native&&metrics.nativeSurfaceGeneration>previousGeneration&&Math.round(native.width*metrics.scale)===metrics.physicalWidth&&Math.round(native.height*metrics.scale)===metrics.physicalHeight&&retiredResizeMetrics?.nativeSurfaceGeneration===metrics.nativeSurfaceGeneration&&retiredResizeMetrics.viewportGeneration===metrics.viewportGeneration){settledResizes++;host.report('resize-settled '+metrics.physicalWidth+'x'+metrics.physicalHeight);return;}await delay(16);}throw Error('Resize did not retire a frame matching the current native backing and viewport');}
 async function dragResize(corner='bottom-right'){const generation=view.currentMetrics.nativeSurfaceGeneration;const interval=await host.dragResize(corner);await resizeSettled(generation);return interval;}
 async function liveResize(){
+ for(let attempt=0;attempt<3;attempt++){await host.windowMode('input');await delay(100);if((await host.windowSnapshot()).foreground)break;}
+ if(!(await host.windowSnapshot()).foreground)throw Error('Owned resize window did not acquire foreground before its pointer check');
  const actions=material().actionCount;await host.pointerClick('demo-elevated',false);await delay(250);await drainWheelRendering();
  host.report('live-resize-pointer '+JSON.stringify({before:actions,after:material().actionCount,lastAction:material().lastAction,target:view.controller.nodes.find((node:any)=>node.id==='demo-elevated')?.bounds,packets:(globalThis as any).__resizePointerPackets}));
  if(material().actionCount!==actions+1||material().lastAction!=='Elevated pressed')throw Error('Full-window native pointer click did not reach the Core button');
@@ -302,10 +325,11 @@ async function liveResize(){
  const failures:string[]=[];
  const frameworkErrors:string[]=[],reportError=FlutterError.onError;FlutterError.onError=details=>{frameworkErrors.push(String(details.exception));reportError?.(details);};
  try{
- for(const page of ['material','list','cupertino']){
+ const config=host.resizeConfig(),pages=config.pages.split(','),corners=config.corners.split(',');if(!pages.length||pages.some((p:string)=>!['material','list','cupertino'].includes(p))||corners.some((c:string)=>!['left','right','top','bottom','bottom-right','top-left','top-right','bottom-left'].includes(c)))throw Error('Invalid owned resize cases');let currentPage='material';
+ for(const page of pages){
   if(page==='list')tap('show-list-view');
-  else if(page==='cupertino'){tap('list-view-back');await delay(300);tap('show-cupertino');}
-  for(const corner of ['bottom-right','top-left']){
+  else if(page==='cupertino'){if(currentPage==='list'){tap('list-view-back');await delay(300);}tap('show-cupertino');}currentPage=page;
+  for(const corner of corners){
   await host.resize(Math.round(500*view.currentMetrics.scale),Math.round(500*view.currentMetrics.scale));
   await delay(500);await drainWheelRendering();api.drainFrameTrace();
   const entries:any[]=[];let overflow=false;
@@ -320,14 +344,15 @@ async function liveResize(){
   const times=[interval.began,...during.map(entry=>entry.nativeTimestamp),interval.ended],maxGap=Math.max(...times.slice(1).map((time,index)=>time-times[index]));
   const lag=during.flatMap(entry=>{const latest=requests.filter(request=>request.nativeTimestamp<=entry.nativeTimestamp).at(-1);return latest?[Math.max(Math.abs(entry.width-latest.width),Math.abs(entry.height-latest.height))]:[];});
   const overlappedAdmissions=entries.filter((entry,index)=>entry.stage===7&&entries.slice(0,index).some((front,frontIndex)=>front.stage===2&&front.surfaceGeneration!==entry.surfaceGeneration&&!entries.slice(frontIndex+1,index).some(terminal=>terminal.stage===3&&terminal.surfaceGeneration===front.surfaceGeneration))).length;
-  const prepared=entries.filter(entry=>entry.stage===8),committed=entries.filter(entry=>entry.stage===10),timeouts=entries.filter(entry=>entry.stage===11);
-  const result={page,corner,requests:requests.length,updates:during.length,overlappedAdmissions,prepared:prepared.length,committed:committed.length,timeouts:timeouts.length,sourceSamples:interval.sourceSamples,sourceMisses:interval.sourceMisses,geometrySamples:interval.geometrySamples,geometryMismatches:interval.geometryMismatches,edgeGlyphChanges:interval.edgeGlyphChanges,missingEdgeGlyphs:interval.missingEdgeGlyphs,maximumEdgeDelta:interval.maximumEdgeDelta,durationMs:interval.ended-interval.began,maxGapMs:maxGap,maxSizeLagPx:Math.max(0,...lag),requestToSurfaceP95:latencies[Math.ceil(latencies.length*.95)-1],pixelSamples:interval.pixelSamples,distinctPixelSizes:interval.distinctPixelSizes,backgroundExposures:interval.backgroundExposures,glyphChanges:interval.glyphChanges,missingGlyphs:interval.missingGlyphs,maximumGlyphDelta:interval.maximumGlyphDelta,glyphWidth:interval.glyphWidth,glyphHeight:interval.glyphHeight,...(trace||diagnostic?{stages:entries.map(entry=>({stage:entry.stage,surface:entry.surfaceGeneration,width:entry.width,height:entry.height,t:entry.nativeTimestamp}))}:{}),displayed:'owned-desktop-frame-native-border-and-layout-sensor'};
+  const rejected=entries.filter(entry=>entry.stage===19),prepared=entries.filter(entry=>entry.stage===8),committed=entries.filter(entry=>entry.stage===10),timeouts=entries.filter(entry=>entry.stage===11);
+  const result={label:config.label,page,corner,timing:resizeStatistics(interval,entries),requests:requests.length,updates:during.length,overlappedAdmissions,rejectedProposals:rejected.length,prepared:prepared.length,committed:committed.length,timeouts:timeouts.length,sourceSamples:interval.sourceSamples,sourceMisses:interval.sourceMisses,geometrySamples:interval.geometrySamples,geometryMismatches:interval.geometryMismatches,edgeGlyphChanges:interval.edgeGlyphChanges,missingEdgeGlyphs:interval.missingEdgeGlyphs,maximumEdgeDelta:interval.maximumEdgeDelta,durationMs:interval.ended-interval.began,maxGapMs:maxGap,maxSizeLagPx:Math.max(0,...lag),requestToSurfaceP95:latencies[Math.ceil(latencies.length*.95)-1],pixelSamples:interval.pixelSamples,distinctPixelSizes:interval.distinctPixelSizes,backgroundExposures:interval.backgroundExposures,glyphChanges:interval.glyphChanges,missingGlyphs:interval.missingGlyphs,maximumGlyphDelta:interval.maximumGlyphDelta,glyphWidth:interval.glyphWidth,glyphHeight:interval.glyphHeight,...(trace||diagnostic?{stages:entries.map(entry=>({stage:entry.stage,surface:entry.surfaceGeneration,width:entry.width,height:entry.height,t:entry.nativeTimestamp}))}:{}),displayed:interval.captureEnabled?'owned-desktop-frame-native-border-and-layout-sensor':'notObserved'};
   host.report('live-resize '+JSON.stringify(result));
   validateNativeFrameTerminals(entries);
+  if(Number(config.delayResize)>0&&!rejected.length)throw Error('Injected preparation timeout did not reject its proposed geometry');
   if(during.length<4||maxGap>(interval.ended-interval.began)/2)throw Error('Live resize stalled during the actual sizing loop: '+JSON.stringify(result));
-  if(prepared.length<4||committed.length<4||timeouts.length)throw Error('Resize did not prepare and commit exact frames within its deadline: '+JSON.stringify(result));
+  if(prepared.length<4||committed.length<4||timeouts.some(timeout=>config.allowRejections!=='1'||!rejected.some(reject=>reject.surfaceGeneration===timeout.surfaceGeneration)))throw Error('Resize did not prepare and commit exact frames within its deadline: '+JSON.stringify(result));
   if(interval.geometrySamples<4||interval.geometryMismatches)throw Error('Committed window geometry outran its actual content frame: '+JSON.stringify(result));
-  if(interval.pixelSamples<8||interval.distinctPixelSizes<4)throw Error('Window capture did not observe enough actual resize frames: '+JSON.stringify({...result,distinctPixelSizes:interval.distinctPixelSizes}));
+  if(interval.captureEnabled&&(interval.pixelSamples<8||interval.distinctPixelSizes<4))throw Error('Window capture did not observe enough actual resize frames: '+JSON.stringify({...result,distinctPixelSizes:interval.distinctPixelSizes}));
   if(interval.backgroundExposures!==0)throw Error('Window background was exposed during live resize: '+JSON.stringify(result));
   if(interval.glyphChanges!==0||interval.missingGlyphs!==0)failures.push('Header glyphs changed size during live resize: '+JSON.stringify(result));
   if(interval.edgeGlyphChanges!==0||interval.missingEdgeGlyphs!==0)failures.push('Right header content did not follow the displayed client edge: '+JSON.stringify(result));
@@ -357,7 +382,7 @@ let textCacheBefore:any={};
 function textCacheStats(){return view?.controller?.context?.text?.debugStats?.cache??{};}
 function start(name:string){stats={};exclusive={};counts={};classOwners={};longFrames=[];lastBuild=0;tree=diagnostic?treeSize():{};gcBefore=gc();textCacheBefore=textCacheStats();phase=name;profileBoundary(name,true);host.begin(name);}
 function summarize(values:number[]){values.sort((a,b)=>a-b);return {n:values.length,sum:values.reduce((a,b)=>a+b,0),p50:values[Math.floor(values.length*.5)],p95:values[Math.floor(values.length*.95)],p99:values[Math.floor(values.length*.99)],max:values.at(-1)};}
-function end(){const result:any={phase,childPolicy,childBudget:view?.controller?.buildOwner?.maybeViewWorkBudget?.debugStats??null,engine:(globalThis as any).__nelyxJavaScriptEngine??((globalThis as any).HermesInternal?'hermes':'unknown'),mode,trace,diagnostic,tree,wheelWarmup,wheelHover,lifecycle:{mounts:counts['Element.mount']??0,unmounts:counts['Element.unmount']??0},wheelPacing:mode==='research-engine'?(continuousInput?(wheelInputMode==='queued'?'sdk-queue-continuous':'os-wheel-continuous'):phase==='list-warm'?'os-wheel':'programmatic') : wheelInput?(wheelInputMode==='queued'?'owned-queue-render-drain':'continuous-render-drain'):'animated',semanticsUpdateInterval:(view.controller as any).options.semanticsUpdateInterval??0,...(cpuOnly?{transportCaptures:counts['Semantics.captures']??0}:{})};for(const [name,values]of Object.entries(stats))result[name]=summarize(values);if(diagnostic){result.longFrames=longFrames;result.exclusive=Object.fromEntries(Object.entries(exclusive).map(([name,values])=>[name,summarize(values)]));result.counts=counts;result.classOwners=Object.fromEntries(Object.entries(classOwners).sort((a,b)=>b[1].selfMs-a[1].selfMs).slice(0,16));}const after=gc();result.hermesDelta=Object.fromEntries(['js_numGCs','js_gcCPUTime','js_gcTime','js_totalAllocatedBytes'].filter(key=>typeof after[key]==='number'&&typeof gcBefore[key]==='number').map(key=>[key,(after[key] as number)-(gcBefore[key] as number)]));const memory=(value:Record<string,unknown>)=>Object.fromEntries(Object.entries(value).filter(([key,value])=>/allocated|heap|malloc/i.test(key)&&typeof value==='number').slice(0,20));result.hermesMemoryBefore=memory(gcBefore);result.hermesMemoryAfter=memory(after);const cache=textCacheStats();result.textCache={hits:(cache.hits??0)-(textCacheBefore.hits??0),misses:(cache.misses??0)-(textCacheBefore.misses??0),cacheOnlyHits:(cache.cacheOnlyHits??0)-(textCacheBefore.cacheOnlyHits??0),resident:cache.resident??0,units:cache.units??0,bytes:cache.bytes??0};host.report(JSON.stringify(result));profileBoundary(phase,false);phase='';host.end();}
+function end(){const result:any={phase,childPolicy,childBudget:view?.controller?.buildOwner?.maybeViewWorkBudget?.debugStats??null,engine:(globalThis as any).__nelyxJavaScriptEngine??((globalThis as any).HermesInternal?'hermes':'unknown'),mode,trace,diagnostic,tree,wheelWarmup,wheelHover,lifecycle:{mounts:counts['Element.mount']??0,unmounts:counts['Element.unmount']??0},wheelPacing:mode==='research-engine'?(continuousInput?(wheelInputMode==='queued'?'sdk-queue-continuous':'os-wheel-continuous'):phase==='list-warm'?'os-wheel':'programmatic') : wheelInput?(wheelInputMode==='queued'?'owned-queue-render-drain':'continuous-render-drain'):'animated',semanticsUpdateInterval:(view.controller as any).options.semanticsUpdateInterval??0,...(cpuOnly?{transportCaptures:counts['Semantics.captures']??0,paintWork:{recorded:counts['Paint.recorded']??0}}:{})};for(const [name,values]of Object.entries(stats))result[name]=summarize(values);if(diagnostic){result.longFrames=longFrames;result.exclusive=Object.fromEntries(Object.entries(exclusive).map(([name,values])=>[name,summarize(values)]));result.counts=counts;result.classOwners=Object.fromEntries(Object.entries(classOwners).sort((a,b)=>b[1].selfMs-a[1].selfMs).slice(0,16));}const after=gc();result.hermesDelta=Object.fromEntries(['js_numGCs','js_gcCPUTime','js_gcTime','js_totalAllocatedBytes'].filter(key=>typeof after[key]==='number'&&typeof gcBefore[key]==='number').map(key=>[key,(after[key] as number)-(gcBefore[key] as number)]));const memory=(value:Record<string,unknown>)=>Object.fromEntries(Object.entries(value).filter(([key,value])=>/allocated|heap|malloc/i.test(key)&&typeof value==='number').slice(0,20));result.hermesMemoryBefore=memory(gcBefore);result.hermesMemoryAfter=memory(after);const cache=textCacheStats();result.textCache={hits:(cache.hits??0)-(textCacheBefore.hits??0),misses:(cache.misses??0)-(textCacheBefore.misses??0),cacheOnlyHits:(cache.cacheOnlyHits??0)-(textCacheBefore.cacheOnlyHits??0),resident:cache.resident??0,units:cache.units??0,bytes:cache.bytes??0};host.report(JSON.stringify(result));profileBoundary(phase,false);phase='';host.end();}
 async function editingResize(){
  const publicOrder=resizeCase==='public-order';
  material().firstScroll.jumpTo(publicOrder?0:240);await delay(200);if(publicOrder)await host.pointerClick('demo-icon-filled',false);else tap('demo-icon-filled');await delay(200);
@@ -384,6 +409,28 @@ async function editingResize(){
   const previous=retiredResizeFrames;await host.windowMode(show);view.requestFrame();const shownDeadline=performance.now()+3000;while(!view.controller.scheduler.visible||retiredResizeFrames<=previous||retiredResizeMetrics?.nativeSurfaceGeneration!==view.currentMetrics.nativeSurfaceGeneration){if(performance.now()>shownDeadline)throw Error('Window resume did not retire a current backing frame after '+hide+' '+JSON.stringify({coreVisible:view.controller.scheduler.visible,rendererVisible:resizeRenderer?.visible,previous,retiredResizeFrames,retiredResizeMetrics,metrics:view.currentMetrics,window:await host.windowSnapshot()}));await delay(20);}if(JSON.stringify(material().outlined.value)!==JSON.stringify(original))throw Error('Window '+hide+' replaced Core text/selection');const field=view.controller.nodes.find((node:any)=>node.id==='field-outlined');field?.actions?.focus();const focused=await focusProbe('field-outlined');if(!focused.ok)throw Error('Window resume did not restore actual UIA/Core focus after '+hide);host.report('window-visibility PASS '+hide+' / '+show);
  }
  host.report('editing-resize PASS');
+}
+async function renderLiveness(){
+ for(let attempt=0;attempt<3;attempt++){await host.windowMode('input');await delay(100);if((await host.windowSnapshot()).foreground)break;}
+ if(!(await host.windowSnapshot()).foreground)throw Error('Rendering liveness requires its own foreground window');
+ tap('show-list-view');await delay(500);
+ const list=states().find(entry=>entry.widget instanceof ListViewPage)?.state as any;
+ if(!list?.scroll?.hasClients)throw Error('ListView did not attach its actual scroll position');
+ list.scroll.jumpTo(600);await delay(200);await drainWheelRendering();
+ const begin=await host.windowSnapshot(),scope=view.currentMetrics.nativeSurfaceGeneration,receipts:any[]=[];
+ for(let index=0;index<20;index++){
+  const before=list.scroll.offset;
+  if(index>=8){await host.wheel(view.currentMetrics.logicalWidth*.65,view.currentMetrics.logicalHeight*.65,index%2?-120:120,4,8);await delay(100);await drainWheelRendering();if(Math.abs(list.scroll.offset-before)<.1)throw Error('OS wheel did not move the actual ListView: '+index);}
+  // No Widget/layout/paint invalidation accompanies this explicit redraw.
+  // The ordinary paint callback reads current frame state, as animation can.
+  const frames=(await host.windowSnapshot()).surfaceFrames,expected=0xff000000+(24+index*10)*0x10000+0x8040;
+  livenessColor=expected;const began=performance.now();view.requestFrame();let observed=0;
+  for(;;){observed=await host.samplePixel(12,76);if([0,8,16].every(shift=>Math.abs((observed>>>shift&255)-(expected>>>shift&255))<=2))break;if(performance.now()-began>1500)throw Error('Requested rendering stopped: '+JSON.stringify({index,expected,observed,frames,window:await host.windowSnapshot(),metrics:view.currentMetrics}));await delay(16);}
+  const after=await host.windowSnapshot();if(after.surfaceFrames<=frames)throw Error('Desktop pixels did not have a fresh native surface frame: '+index);
+  if(view.currentMetrics.nativeSurfaceGeneration!==scope)throw Error('A resize masked the fixed-scope rendering regression');
+  receipts.push({index,wheel:index>=8,offset:list.scroll.offset,frames:after.surfaceFrames,elapsedMs:performance.now()-began});
+ }
+ host.report('render-liveness PASS '+JSON.stringify({redraws:20,osWheelBursts:12,pixelReceipts:receipts.length,nativeFrames:(await host.windowSnapshot()).surfaceFrames-begin.surfaceFrames,maximumRedrawMs:Math.max(...receipts.map(value=>value.elapsedMs)),scope:'owned desktop points and native frames; fixed surface generation'}));
 }
 async function galleryRegression(){
  const errors:unknown[]=[],previous=FlutterError.onError;FlutterError.onError=details=>{errors.push(details.exception);previous?.(details);};
@@ -622,6 +669,7 @@ setTimeout(()=>{if(host.startupDeadlineEnabled())return;if(mode==='interactive')
  if(mode==='editing-resize'){await editingResize();return;}
  if(mode==='full-runtime-regression'){await editingResize();const previous=view.currentMetrics.nativeSurfaceGeneration;await host.windowMode('maximize');await resizeSettled(previous);await galleryRegression();return;}
  if(mode==='gallery-regression'){await galleryRegression();return;}
+ if(mode==='render-liveness'){await renderLiveness();return;}
   if(mode==='research-engine'){await researchEngine();return;}
  if(resize){if(!host.queueFailureStart())throw Error('UI failure probe could not start');const deadline=performance.now()+1500;while(!host.queueFailureReady()&&performance.now()<deadline)await delay(10);if(!host.queueFailureReady()||!host.queueFailureFinish())throw Error('UI failure lost its original error or released unconfirmed work');}
  if(resize&&resizeCase==='initial'){await dragResize();await resizeWindow();}

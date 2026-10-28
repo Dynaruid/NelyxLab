@@ -2,6 +2,7 @@
 #pragma once
 #include "CompositionSession.h"
 #include "CompositionSurface.h"
+#include "WindowsFrameDiagnostics.h"
 #include "rnskia/RNSkWindowSurface.h"
 #include "include/core/SkCanvas.h"
 
@@ -109,7 +110,9 @@ private:
     auto weak=weak_from_this();auto dispatch=platform;auto sessionOwner=session;
     session->gpuWorker()->post([weak,packet,dispatch,sessionOwner]{
       std::string failure;
+      const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;
       try{packet->render();}catch(std::exception const& error){failure=error.what();}catch(...){failure="Windows producer native HRESULT failure";}
+      if(began)windowsFrameDiagnosticDelay("gpu-producer",began,windowsMonotonicMilliseconds());
       try{dispatch->runOnMainThread([weak,packet,failure=std::move(failure)]{if(auto self=weak.lock())self->producerReady(packet,failure);});}
       catch(std::exception const& error){sessionOwner->fail(error.what());}catch(...){sessionOwner->fail("Windows producer completion dispatch failed");}
     });
@@ -119,14 +122,16 @@ private:
     trace(1);
     try{
       const auto& frame=plan->frames.at(plan->next);
-      attachment->surface->publish(packet,frame.generation==generation&&canPresent(),session->resize->defers(viewIdentity,frame.generation));
+      attachment->surface->publish(packet,frame.generation==generation&&!session->resize->cancelled(viewIdentity,frame.generation)&&canPresent(),session->resize->defers(viewIdentity,frame.generation));
       if(packet->staged){
         session->resize->stage(viewIdentity,frame.generation,[weak=weak_from_this(),packet](bool commit){if(auto self=weak.lock()){packet->resolution=commit;self->finishPrepared(packet);}});
       }else trace(packet->updated?2:4);
       auto weak=weak_from_this();auto dispatch=platform;auto sessionOwner=session;
       session->gpuWorker()->post([weak,packet,dispatch,sessionOwner]{
         std::string failure;
+        const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;
         try{packet->retire();}catch(std::exception const& error){failure=error.what();}catch(...){failure="Windows consumer native HRESULT failure";}
+        if(began)windowsFrameDiagnosticDelay("gpu-retirement",began,windowsMonotonicMilliseconds());
         try{dispatch->runOnMainThread([weak,packet,failure=std::move(failure)]{if(auto self=weak.lock())self->consumerReady(packet,failure);});}
         catch(std::exception const& error){sessionOwner->fail(error.what());}catch(...){sessionOwner->fail("Windows consumer completion dispatch failed");}
       });
@@ -148,6 +153,7 @@ private:
     const auto& frame=plan->frames.at(plan->next);
     if(packet->updated||packet->staged)session->resize->ready(viewIdentity,frame.generation);
     if(packet->staged){finishPrepared(packet);return;}
+    if(!packet->updated&&session->resize->cancelled(viewIdentity,frame.generation)&&resizeCancelled)resizeCancelled();
     finishPacket(packet);
     }catch(std::exception const& error){failAsync(error.what());}catch(...){failAsync("Windows native terminal HRESULT failure");}
   }

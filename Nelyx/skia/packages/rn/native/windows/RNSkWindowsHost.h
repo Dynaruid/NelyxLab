@@ -47,12 +47,14 @@ public:
     requireOwner();if(closed.load())return;
     if(retained || !scope)throw std::runtime_error("Windows binding cleanup is unconfirmed");
     if(options.composition)options.composition->prepareJsClose(); // recoverable while UI leases remain
+    const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;windowsFrameDiagnostic("bindings-close-begin");
     try {
       frameClock->stop();frameCallbacks.clear();frameArmed=false;
       scope->close(runtime);scope.reset();services.reset();
       if(options.composition)options.composition->finishJsClose();
       shutdownHandler.reset();closed.store(true);
       std::lock_guard lock(processMutex);if(published.lock().get()==this)published.reset();
+      windowsFrameDiagnostic("bindings-close-end");if(began)windowsFrameDiagnosticDelay("bindings-close-work",began,windowsMonotonicMilliseconds());
     }catch(...){retainUnconfirmed(shared_from_this());throw;}
   }
 private:
@@ -73,8 +75,9 @@ private:
         scheduler->invokeAsync([weak,complete=std::move(complete)](jsi::Runtime&) mutable {
           if(auto self=weak.lock())self->requestShutdown(std::move(complete));else complete("Windows runtime owner expired");
         });});
-    frameClock=std::make_unique<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker()](std::string failure){
+    frameClock=std::make_unique<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker(),requestedAt=frameRequestedAt](std::string failure){
       const auto tick=windowsMonotonicMilliseconds();
+      if(windowsFrameDiagnosticsEnabled())windowsFrameDiagnosticDelay("clock-wait",requestedAt->load(),tick);
       scheduler->invokeAsync([weak,tick,failure=std::move(failure)](jsi::Runtime& rt){if(auto self=weak.lock())self->deliverFrames(rt,failure,tick);});
     });
     jsi::Object api(runtime);auto weak=weak_from_this();
@@ -98,7 +101,7 @@ private:
         auto self=weak.lock();if(!self)throw jsi::JSError(rt,"Windows frame owner expired");self->requireOwner();
         if(!self->isActive()||count!=1||!args[0].isObject()||!args[0].getObject(rt).isFunction(rt)||self->frameCallbacks.size()>=4096||self->nextFrame>=9007199254740991ULL)throw jsi::JSError(rt,"Windows frame request requires an active owner and callback within admission");
         const auto id=++self->nextFrame;self->frameCallbacks.emplace(id,args[0].getObject(rt).getFunction(rt));
-        if(!self->frameArmed){try{self->frameClock->request();self->frameArmed=true;}catch(std::exception const& error){self->frameCallbacks.erase(id);throw jsi::JSError(rt,error.what());}}
+        if(!self->frameArmed){try{if(windowsFrameDiagnosticsEnabled())self->frameRequestedAt->store(windowsMonotonicMilliseconds());self->frameClock->request();self->frameArmed=true;}catch(std::exception const& error){self->frameCallbacks.erase(id);throw jsi::JSError(rt,error.what());}}
         return jsi::Value(static_cast<double>(id));
       }));
     api.setProperty(runtime,"cancelFrame",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"cancelFrame"),1,
@@ -145,7 +148,7 @@ private:
   void requestShutdown(WindowsCompositionSession::Completion complete) {
     requireOwner();namespace jsi=facebook::jsi;
     if(shutdownRequested || !shutdownHandler){complete("Windows JS shutdown handler unavailable or stale");retainUnconfirmed(shared_from_this());return;}
-    shutdownRequested=true;
+    shutdownRequested=true;windowsFrameDiagnostic("shutdown-js-request");
     auto callback=shutdownHandler->getFunction(runtime);shutdownHandler.reset(); // local JS-owner copy permits synchronous ACK
     auto acknowledge=jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"completeWindowsShutdown"),1,
       [weak=weak_from_this(),complete](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {
@@ -154,13 +157,14 @@ private:
         std::string failure=count && args[0].isString()?args[0].getString(rt).utf8(rt):"";
         if(failure.size()>1024)failure.resize(1024);
         if(failure.empty() && !self->isClosed())throw jsi::JSError(rt,"Windows ACK requires confirmed JS binding/GPU close");
-        self->shutdownAcknowledged=true;if(!failure.empty()){self->options.composition->fail(failure);retainUnconfirmed(self);}complete(std::move(failure));return jsi::Value::undefined();
+        self->shutdownAcknowledged=true;windowsFrameDiagnostic("shutdown-js-ack");if(!failure.empty()){self->options.composition->fail(failure);retainUnconfirmed(self);}complete(std::move(failure));return jsi::Value::undefined();
       });
     try{callback.call(runtime,std::move(acknowledge));}
     catch(const std::exception& error){options.composition->fail(error.what());retainUnconfirmed(shared_from_this());if(!shutdownAcknowledged){shutdownAcknowledged=true;complete(error.what());}}
   }
   void deliverFrames(facebook::jsi::Runtime& rt,const std::string& failure,double tick){
     requireOwner();if(!isActive())return;frameArmed=false;++frameTicks;
+    const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;if(began)windowsFrameDiagnosticDelay("js-frame-queue",tick,began);
     std::vector<uint64_t> batch;batch.reserve(frameCallbacks.size());for(auto const& entry:frameCallbacks)batch.push_back(entry.first);
     std::exception_ptr firstFailure;
     for(const auto id:batch){const auto found=frameCallbacks.find(id);if(found==frameCallbacks.end())continue;auto callback=std::move(found->second);frameCallbacks.erase(found);
@@ -168,6 +172,7 @@ private:
         facebook::jsi::Object timing(rt);timing.setProperty(rt,"nativeTick",tick);timing.setProperty(rt,"nativeDispatch",windowsMonotonicMilliseconds());
         callback.call(rt,facebook::jsi::Value::undefined(),std::move(timing));
       }else callback.call(rt,facebook::jsi::String::createFromUtf8(rt,failure));}catch(...){if(!firstFailure)firstFailure=std::current_exception();}}
+    if(began)windowsFrameDiagnosticDelay("js-frame-work",began,windowsMonotonicMilliseconds());
     if(firstFailure)std::rethrow_exception(firstFailure);
   }
   facebook::jsi::Runtime &runtime;
@@ -180,6 +185,9 @@ private:
   std::unique_ptr<CompositorFrameClock> frameClock;
   std::map<uint64_t,facebook::jsi::Function> frameCallbacks;
   uint64_t nextFrame=0,frameTicks=0;bool frameArmed=false;
+  // The clock worker holds only this independent numeric observation, never
+  // a strong reference that could retire the JS/GPU owner on that worker.
+  const std::shared_ptr<std::atomic<double>> frameRequestedAt=std::make_shared<std::atomic<double>>(0.);
   bool shutdownRegistered=false,shutdownRequested=false,shutdownAcknowledged=false;
   std::atomic<bool> closed{false};
   std::atomic<bool> retained{false};

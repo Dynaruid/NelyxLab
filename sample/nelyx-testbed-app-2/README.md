@@ -123,6 +123,44 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run dev -- --port 808
 
 This starts the Hermes Metro/native Debug session. Add `--launch false` to start Metro alone. Stop with Ctrl+C. V8/JSC and Static Hermes do not support this development refresh path.
 
+### Resize diagnostics
+
+After preparing Windows and reinstalling the runner packages, run this from the repository root. The fixture drags its temporary app with real OS mouse input; leave the mouse and trackpad idle while it runs.
+
+```powershell
+npm run test:windows-resize
+```
+
+This checks both corners in Material, ListView and Cupertino. It reports requested/actual input frequency, window rect changes, surface updates and captured display changes separately. Input defaults to 61Hz; set `NELYX_ANIMATION_DRAG_HZ` to change it. Use `NELYX_ANIMATION_PIXELS=0` for a CPU/geometry comparison without capture. A pass covers screen and frame lifetime checks; it does not certify the target FPS. Evaluate capture overhead and the user's drag experience separately. The fixture app and temporary build are cleaned up on exit.
+
+### Rendering continuity diagnostics
+
+Use the same Windows preparation and installed runner, then run this from the repository root. Leave the mouse and trackpad idle during its real OS wheel input.
+
+```powershell
+npm run test:windows-render-liveness
+```
+
+This keeps the window size fixed and performs eight idle redraws and twelve OS scroll bursts. Each request must produce a distinct color in an owned desktop pixel and advance native frames, catching cases where JS state changes while rendering stops. This runs Hermes bytecode; it does not qualify Static Hermes performance or complete scanout. The app and temporary build are cleaned up on exit.
+
+To check continuous input and close in the currently built Windows package, run:
+
+```powershell
+npm run test:windows-continuous-scroll
+```
+
+The test sends uninterrupted OS wheel streams and measures gaps between body pixel changes in Material, ListView, and Cupertino. It requests close immediately after input and separately checks window hiding/destruction, process exit, and native drain. Material also includes maximize/restore and mouse movement. Leave the physical mouse and trackpad idle during the test. This is bounded automated input for the current package, not physical trackpad or complete display performance acceptance.
+
+To observe delays during actual use, start a fresh process with console diagnostics:
+
+```powershell
+$env:NELYX_WINDOWS_FRAME_DIAGNOSTICS='1'
+try { npm run run:windows --workspace '@nelyx/testbed-2' }
+finally { Remove-Item Env:NELYX_WINDOWS_FRAME_DIAGNOSTICS -ErrorAction SilentlyContinue }
+```
+
+This reports waits of at least 100ms in the frame clock, JS frame scheduling/work, native UI queue/work, GPU producer/retirement, and shutdown stages. Normal runs do not print these observations or create log files. An accepted window close hides the window first; the command returns after input, GPU, and RNW cleanup finishes.
+
 ### Experimental direct Hermes host
 
 After supplying and installing the current Windows packages:

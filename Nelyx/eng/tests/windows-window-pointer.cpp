@@ -20,8 +20,11 @@ int main(){
  SendMessageW(child,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(10,20));assert(events.back().kind=="down"&&events.back().point.buttons==1);
  SendMessageW(child,WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(-30,20));assert(events.back().kind=="move"&&events.back().point.x<0);
  SendMessageW(child,WM_LBUTTONUP,0,MAKELPARAM(-30,20));assert(events.back().kind=="up"&&events.back().point.buttons==0);
- POINT wheel{10,20};assert(ClientToScreen(child,&wheel));SendMessageW(child,WM_MOUSEWHEEL,MAKEWPARAM(0,120),MAKELPARAM(wheel.x,wheel.y));
+ POINT wheel{10,20};assert(ClientToScreen(child,&wheel));const auto beforeWheel=events.size();SendMessageW(child,WM_MOUSEWHEEL,MAKEWPARAM(0,120),MAKELPARAM(wheel.x,wheel.y));
+ if(events.size()!=beforeWheel+1){std::cerr<<"One child wheel packet produced "<<events.size()-beforeWheel<<" deliveries through the window chain\n";return 1;}
  assert(events.back().kind=="wheel"&&events.back().point.wheel==120&&!events.back().point.horizontal);assert(std::abs(events.back().point.x-27/scale)<.01);
+ SendMessageW(child,WM_MOUSEHWHEEL,MAKEWPARAM(0,-120),MAKELPARAM(wheel.x,wheel.y));assert(events.size()==beforeWheel+2&&events.back().point.horizontal&&events.back().point.wheel==-120);
+ SendMessageW(root,WM_MOUSEWHEEL,MAKEWPARAM(0,-120),MAKELPARAM(wheel.x,wheel.y));assert(events.size()==beforeWheel+3&&events.back().point.wheel==-120);
  SendMessageW(child,WM_RBUTTONDOWN,MK_RBUTTON,MAKELPARAM(10,20));SendMessageW(child,WM_CAPTURECHANGED,0,reinterpret_cast<LPARAM>(other));assert(events.back().kind=="cancel");
  SendMessageW(child,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(10,20));stop();assert(events.back().kind=="cancel");const auto count=events.size();
  SendMessageW(child,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(10,20));assert(events.size()==count);

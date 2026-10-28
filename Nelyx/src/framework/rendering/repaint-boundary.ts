@@ -30,10 +30,13 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
   private clearCache():void{const old=this.retained.layer;this.version=this.contentsVersion=-1;this.nestedBoundaries=[];const errors:unknown[]=[];try{old?.remove();}catch(error){errors.push(error);}if(old?.attached)try{old.detach();}catch(error){errors.push(error);}try{this.retained.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Repaint boundary retirement failed');}
   private refresh(context:PaintingContext):void{
     this._finishPaintInvalidationBatch();
+    // A painter/recording callback may invalidate a later frame. Committing
+    // the versions read after painting would mark those unseen pixels clean.
+    const paintVersion=this.paintVersion,contentsVersion=this.paintContentsVersion;
     if(this.contentsVersion!==this.paintContentsVersion||!this.retained.layer){
       const old=this.retained.layer,previous=old?.firstChild===old?.lastChild&&old?.firstChild instanceof ContainerLayer?old.firstChild:null;
       const child=context._recordChildLayer(recording=>super.paint(recording),{x:0,y:0,...this.size},previous),layer=old??new OffsetLayer(),next=new LayerHandle(layer);let appended=false;
-      try{layer.removeAllChildren();layer.append(child);appended=true;if(this.owner&&!context.recordsLayers&&!layer.attached)layer.attach(this.owner);this.retained.layer=layer;this.contentsVersion=this.paintContentsVersion;
+      try{layer.removeAllChildren();layer.append(child);appended=true;if(this.owner&&!context.recordsLayers&&!layer.attached)layer.attach(this.owner);this.retained.layer=layer;this.contentsVersion=contentsVersion;
         const nested:RenderRepaintBoundary[]=[];
         const visit=(parent:RenderObject)=>parent.visitChildren(child=>{if(!parent.paintsChild(child))return;if(child instanceof RenderRepaintBoundary)nested.push(child);else visit(child);});visit(this);this.nestedBoundaries=nested;
       }finally{next.dispose();if(!appended)child.dispose();}
@@ -45,7 +48,7 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
       // ticks need not rediscover it through every static render object.
       for(const child of this.nestedBoundaries)if(child.version!==child.paintVersion)child.refresh(context);
     }
-    this.version=this.paintVersion;
+    this.version=paintVersion;
   }
   override paint(context:PaintingContext):void{
     this.refresh(context);

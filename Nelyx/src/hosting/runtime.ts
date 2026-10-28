@@ -84,7 +84,11 @@ export interface ViewControllerContext extends ViewServices {
 export interface ViewController {
   build(context: SceneContext): SceneFrameSource;
   setVisible?(visible: boolean): void;
+  /** Owner gate, for example first-frame deferral. Native admission alone
+   * cannot suppress a requested future frame: present may be unobserved. */
   shouldSubmitFrame?():boolean;
+  /** Called after renderer admission. This is not a display receipt and does
+   * not acknowledge the pixels or paint dependencies of later frames. */
   frameSubmitted?(token:FrameBuildToken):void;
   pointer?(event:PointerEvent):void;
   key?(event:KeyEvent):boolean|void;

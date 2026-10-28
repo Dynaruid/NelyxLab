@@ -17,6 +17,7 @@
 #include <mutex>
 #include <set>
 #include <stdexcept>
+#include "windows-resize-timing.h"
 #pragma comment(lib,"windowsapp.lib")
 #pragma comment(lib,"d3d11.lib")
 
@@ -34,7 +35,7 @@ class WindowsResizePixels final {
   HWND window;bool apartment=false,colorsChanged=false,calibrated=false;double scale=1;
   RECT monitor{},region{};COLORREF oldCaption=DWMWA_COLOR_DEFAULT,oldBorder=DWMWA_COLOR_DEFAULT;
   static constexpr COLORREF sensorColor=RGB(229,17,203);
-  int left=0,right=0,top=0,headerHeight=0,capacityWidth=0,capacityHeight=0,lastWidth=0;
+  int left=0,right=0,top=0,bottom=0,headerHeight=0,capacityWidth=0,capacityHeight=0,lastWidth=0;
   winrt::com_ptr<ID3D11Device> device;winrt::com_ptr<ID3D11DeviceContext> context;winrt::com_ptr<ID3D11Texture2D> staging;
   winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool pool{nullptr};
   winrt::Windows::Graphics::Capture::GraphicsCaptureSession session{nullptr};winrt::event_token arrived{};
@@ -66,14 +67,14 @@ class WindowsResizePixels final {
     try{
       const int regionWidth=region.right-region.left,regionHeight=region.bottom-region.top;
       const auto pixel=[&](int x,int y){return static_cast<const unsigned char*>(mapped.pData)+y*mapped.RowPitch+x*4;};
-      int minX=regionWidth,minY=regionHeight,maxX=-1,countBorder=0;
-      for(int y=0;y<regionHeight;y++)for(int x=0;x<regionWidth;x++){const auto p=pixel(x,y);if(std::abs(int(p[2])-229)<=6&&std::abs(int(p[1])-17)<=6&&std::abs(int(p[0])-203)<=6){minX=std::min(minX,x);minY=std::min(minY,y);maxX=std::max(maxX,x);++countBorder;}}
+      int minX=regionWidth,minY=regionHeight,maxX=-1,maxY=-1,countBorder=0;
+      for(int y=0;y<regionHeight;y++)for(int x=0;x<regionWidth;x++){const auto p=pixel(x,y);if(std::abs(int(p[2])-229)<=6&&std::abs(int(p[1])-17)<=6&&std::abs(int(p[0])-203)<=6){minX=std::min(minX,x);minY=std::min(minY,y);maxX=std::max(maxX,x);maxY=std::max(maxY,y);++countBorder;}}
       if(countBorder<100)throw std::runtime_error("Owned displayed window border is absent or occluded");
-      if(!calibrated){RECT client{};POINT origin{};if(!GetClientRect(window,&client)||!ClientToScreen(window,&origin))throw std::runtime_error("Desktop calibration client unavailable");left=origin.x-region.left-minX;top=origin.y-region.top-minY;right=region.left+maxX+1-origin.x-client.right;calibrated=true;}
-      const int width=maxX-minX+1-left-right,clientX=minX+left,clientY=minY+top;lastWidth=width;
+      if(!calibrated){RECT client{};POINT origin{};if(!GetClientRect(window,&client)||!ClientToScreen(window,&origin))throw std::runtime_error("Desktop calibration client unavailable");left=origin.x-region.left-minX;top=origin.y-region.top-minY;right=region.left+maxX+1-origin.x-client.right;bottom=region.top+maxY+1-origin.y-client.bottom;calibrated=true;}
+      const int width=maxX-minX+1-left-right,height=maxY-minY+1-top-bottom,clientX=minX+left,clientY=minY+top;lastWidth=width;
       if(width<=0||clientX<0||clientY<0||clientX+width>regionWidth||clientY+headerHeight>regionHeight)throw std::runtime_error("Displayed header left the bounded owned region");
       const auto dark=[&](int x,int y){const auto p=pixel(clientX+x,clientY+y);return p[0]<80&&p[1]<80&&p[2]<80;};
-      if(observe){++samples;sizes.emplace(width,0);unsigned count=0;for(int part=1;part<=3;part++)if(dark(width*part/4,6))++count;if(count==3)++backgroundExposures;}
+      if(observe){++samples;sizes.emplace(width,height);Nelyx::Fixture::appendChanged(displayChanges,double(frame.SystemRelativeTime().count())/10000.,RECT{minX,minY,maxX+1,maxY+1});unsigned count=0;for(int part=1;part<=3;part++)if(dark(width*part/4,6))++count;if(count==3)++backgroundExposures;}
       const int xBegin=static_cast<int>(8*scale),yBegin=static_cast<int>(4*scale),xEnd=std::min(width,static_cast<int>(240*scale));
       const auto glyph=resizeGlyphBounds(xBegin,yBegin,xEnd,headerHeight,dark,observe?reference.anchor:-1);
       if(glyph.pixels<10){if(observe)++missingGlyphs;else throw std::runtime_error("Captured header glyph calibration is empty");}
@@ -86,6 +87,7 @@ class WindowsResizePixels final {
     }catch(...){context->Unmap(staging.get(),0);throw;}
   }
 public:
+  std::vector<Nelyx::Fixture::ResizeObservation> displayChanges;
   unsigned samples=0,racedSamples=0,backgroundExposures=0,glyphChanges=0,missingGlyphs=0,edgeGlyphChanges=0,missingEdgeGlyphs=0;int maximumGlyphDelta=0,maximumEdgeDelta=0;
   explicit WindowsResizePixels(HWND window):window(window){
     try{
@@ -98,7 +100,7 @@ public:
       const auto target=MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST);MONITORINFO info{sizeof(info)};if(!GetMonitorInfoW(target,&info))throw std::runtime_error("Owned monitor unavailable");monitor=info.rcMonitor;capacityWidth=monitor.right-monitor.left;capacityHeight=monitor.bottom-monitor.top;
       RECT outer{};POINT origin{};if(!GetWindowRect(window,&outer)||!ClientToScreen(window,&origin))throw std::runtime_error("Owned header region unavailable");
       const int growth=static_cast<int>(std::ceil(84*scale))+16,rise=static_cast<int>(std::ceil(28*scale))+16;
-      region={std::max(monitor.left,outer.left-growth),std::max(monitor.top,outer.top-rise),std::min(monitor.right,outer.right+growth),std::min(monitor.bottom,LONG(origin.y+headerHeight+rise))};
+      region={std::max(monitor.left,outer.left-growth),std::max(monitor.top,outer.top-rise),std::min(monitor.right,outer.right+growth),std::min(monitor.bottom,outer.bottom+rise)};
       DwmGetWindowAttribute(window,DWMWA_CAPTION_COLOR,&oldCaption,sizeof(oldCaption));DwmGetWindowAttribute(window,DWMWA_BORDER_COLOR,&oldBorder,sizeof(oldBorder));
       winrt::check_hresult(DwmSetWindowAttribute(window,DWMWA_CAPTION_COLOR,&sensorColor,sizeof(sensorColor)));colorsChanged=true;winrt::check_hresult(DwmSetWindowAttribute(window,DWMWA_BORDER_COLOR,&sensorColor,sizeof(sensorColor)));winrt::check_hresult(DwmFlush());
       winrt::Windows::Graphics::Capture::GraphicsCaptureItem item{nullptr};winrt::check_hresult(winrt::get_activation_factory<winrt::Windows::Graphics::Capture::GraphicsCaptureItem,IGraphicsCaptureItemInterop>()->CreateForMonitor(target,winrt::guid_of<winrt::Windows::Graphics::Capture::GraphicsCaptureItem>(),winrt::put_abi(item)));

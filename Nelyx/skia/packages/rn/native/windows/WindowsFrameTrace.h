@@ -16,6 +16,9 @@ struct WindowsFrameTraceEntry {
 // 7 layout admitted, 8 proposed window frame ready, 9 actual window geometry,
 // 10 exact resize commit/DWM boundary, 11 resize timeout, 12 prepared copy retired,
 // 13 pre-geometry clock boundary (width=status, height=elapsed microseconds).
+// 14 proposal begin, 15 Arrange end, 16 WinUI Commit end,
+// 17 native Commit/completion end, 18 DwmFlush end (surface=transaction).
+// 19 rejected proposal: USER32 retains its actual extent (surface=transaction).
 // Display pixels are observed separately by the desktop-capture fixture.
 class WindowsFrameTrace final {
 public:

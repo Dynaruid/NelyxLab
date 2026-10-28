@@ -10,6 +10,9 @@
 #include <winrt/Microsoft.Graphics.DirectX.h>
 #include <atomic>
 #include <cstring>
+#ifdef NELYX_RESIZE_WAIT_EXPERIMENTS
+#include <cstdlib>
+#endif
 #include <thread>
 #include <stdexcept>
 
@@ -59,8 +62,11 @@ public:
   void commitWindowComposition(){
     requireOwner();if(!data->rootDevice)return;
     winrt::check_hresult(data->rootDevice->Commit());
-    // Native DirectComposition completion does not need the HWND dispatcher.
-    // Prepared copy retirement is already confirmed before a resize commits.
+    // Confirm the native root batch without needing the HWND dispatcher.
+    // The prepared copy has independently retired its GPU fence already.
+#ifdef NELYX_RESIZE_WAIT_EXPERIMENTS
+    if(!std::getenv("NELYX_FIXTURE_SKIP_NATIVE"))
+#endif
     winrt::check_hresult(data->rootDevice->WaitForCommitCompletion());
   }
   void close() {

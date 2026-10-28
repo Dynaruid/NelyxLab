@@ -72,7 +72,9 @@ Controllers, FocusNodes, images, and other resources supplied by the application
 
 Custom render objects use the common layout, paint, hit-test, and invalidation contracts in [framework/rendering/](src/framework/rendering/). Keep drawing in `paint`, invalidate layout or paint through the render object, and release owned resources during disposal.
 
-For low-level scene consumers, `FrameworkRoot.build(scene)` returns a `FrameRecording`. The capture and disposal contracts live in [ui/frame.ts](src/ui/frame.ts); recordings and submitted GPU work have separate resource lifetimes.
+Each requested frame paints and submits to the renderer. Renderer admission (`accepted`) does not confirm display. Matching geometry, paint versions or previous admission cannot suppress later redraw, animation or scrolling frames. Existing resource reuse within repaint boundaries and layers remains available.
+
+For low-level scene consumers, `FrameworkRoot.build(scene)` returns a `FrameRecording`. Respect owner gates such as first-frame deferral through `shouldSubmitFrame()`, and call `frameSubmitted(token)` after renderer admission. The capture and disposal contracts live in [ui/frame.ts](src/ui/frame.ts); recordings and submitted GPU work have separate resource lifetimes.
 
 ## Build and check
 

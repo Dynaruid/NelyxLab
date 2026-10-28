@@ -83,7 +83,9 @@ public:
     data->observedKeyboard=WindowsKeyboardState(context);data->keyboardOwner=data->observedKeyboard->newOwner();
     auto nativeSession=context.Properties().Get(WindowsCompositionSessionProperty());auto nativeDevice=context.Properties().Get(WindowsCompositionDeviceProperty());
     if(!nativeSession||!nativeDevice)throw std::runtime_error("Actual Windows module/session/UI device properties are required");
-    session=*nativeSession;device=*nativeDevice;session->uiPlatform();
+    // Fabric can construct a CPU component while shutdown/mount work crosses.
+    // Validate GPU admission at bindIfReady, where a surface is actually made.
+    session=*nativeSession;device=*nativeDevice;
     }catch(const std::exception& error){data->failed=true;data->status.reason=error.what();}
     catch(...){data->failed=true;data->status.reason="Windows SkiaView native initialization failed";}
   }
@@ -353,12 +355,13 @@ private:
     if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
     data->view->setFrameScheduler({});data->view->stopContent();
     data->surface->setPresented({});data->surface->setResizeCancelled({});data->surface->setRequestRedraw({});data->surface->setCanPresent({});
+    session->resize->retire(data->status.nativeId);
     session->retireScreenshot(data->status.reactTag,data->view);session->retireView(data->ticket);
     data->surface->detach();data->ticket.reset();data->view.reset();data->surface.reset();if(data->pendingLayout){const auto latest=*data->pendingLayout;data->status.logicalWidth=latest.Frame.Width;data->status.logicalHeight=latest.Frame.Height;data->status.scale=latest.PointScaleFactor;data->status.width=std::round(double(latest.Frame.Width)*latest.PointScaleFactor);data->status.height=std::round(double(latest.Frame.Height)*latest.PointScaleFactor);data->status.surfaceGeneration=data->pendingLayoutRevision;data->pendingLayout.reset();}
   }
   void bindIfReady() {
     if(data&&!data->failed&&!data->closing&&!data->unwatchVisibility)data->unwatchVisibility=session->observeWindowVisibility([weak=weak_from_this()](bool shown){if(auto self=weak.lock())try{self->windowVisibility(shown);}catch(std::exception const& error){self->fail(error.what());}catch(...){self->fail("Windows surface visibility failed");}});
-    if(!data||data->failed||data->closing||data->view||!data->status.nativeId||!data->status.width||!data->status.height)return;
+    if(!data||data->failed||data->closing||data->view||!data->status.nativeId||!data->status.width||!data->status.height||session->status().phase!="active")return;
     auto& status=data->status;auto platform=session->uiPlatform();
     data->surface=std::make_shared<RNSkWindowsWindowSurface>(session,device,options.observeCopy,data->windowViewport);
     data->surface->setSurfaceGeneration(status.surfaceGeneration);

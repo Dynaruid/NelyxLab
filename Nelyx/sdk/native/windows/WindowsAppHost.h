@@ -122,7 +122,7 @@ private:
     if(message==WM_WINDOWPOSCHANGING&&!host->firstContent){auto* position=reinterpret_cast<WINDOWPOS*>(lparam);position->flags&=~SWP_SHOWWINDOW;}
     if(message==WM_TIMER&&wparam==id){KillTimer(hwnd,id);host->failedClose("First content startup deadline exceeded");}
     if(message==WM_SIZING&&lparam&&host->firstContent&&!host->closing&&!host->closed){
-      try{host->prepareSizing(*reinterpret_cast<const RECT*>(lparam));}
+      try{host->prepareSizing(*reinterpret_cast<RECT*>(lparam));}
       catch(std::exception const& error){host->resizeFailure(error.what());}
       catch(...){host->resizeFailure("Native resize preparation HRESULT failure");}
     }
@@ -191,7 +191,7 @@ private:
   }
   static WindowsResizeCoordinator::Deadline resizeDeadline(){return WindowsResizeCoordinator::Clock::now()+std::chrono::milliseconds(100);}
   bool resizeReady()const{return session->resize->ready()&&(!session->windowVisible()||!session->hasWindowViewportObservers()||session->resize->hasRequests());}
-  void prepareSizing(const RECT& proposed){
+  void prepareSizing(RECT& proposed){
     RECT window{},client{};
     if(!GetWindowRect(startupWindow,&window)||!GetClientRect(startupWindow,&client))throw std::runtime_error("Proposed resize bounds unavailable");
     const int width=proposed.right-proposed.left-(window.right-window.left-client.right),height=proposed.bottom-proposed.top-(window.bottom-window.top-client.bottom);
@@ -203,7 +203,9 @@ private:
     // the candidate for every edge; publishing a fixed-origin layout early
     // would move right-aligned content ahead of the still-old client edge.
     const auto id=session->resize->begin(true);resizeTransaction=ResizeTransaction{id,width,height};
+    session->frameTrace.add({},0,id,14,width,height);
     const auto deadline=resizeDeadline();arrangeExtent(width,height,scale);
+    session->frameTrace.add({},0,id,15,width,height);
     const bool ready=session->resize->waitUntil([this]{return resizeReady();},deadline);
     if(ready){
       session->frameTrace.add({},0,id,8,width,height);
@@ -211,17 +213,39 @@ private:
       // USER32 geometry and native root commit in the same compositor cycle.
       using WaitClock=DWORD(WINAPI*)(UINT,const HANDLE*,DWORD);
       static const auto wait=reinterpret_cast<WaitClock>(GetProcAddress(GetModuleHandleW(L"dcomp.dll"),"DCompositionWaitForCompositorClock"));
-      const auto started=WindowsResizeCoordinator::Clock::now();const auto result=wait?wait(0,nullptr,32):0xc0000002u;
+      const auto started=WindowsResizeCoordinator::Clock::now();const auto result=
+#ifdef NELYX_RESIZE_WAIT_EXPERIMENTS
+        std::getenv("NELYX_FIXTURE_SKIP_CLOCK")?0u:
+#endif
+        wait?wait(0,nullptr,32):0xc0000002u;
       const auto micros=std::chrono::duration_cast<std::chrono::microseconds>(WindowsResizeCoordinator::Clock::now()-started).count();
       session->frameTrace.add({},0,id,13,result,static_cast<uint32_t>(micros));
-    }else resizeTimeout("proposed-frame");
+    }else{
+      resizeTimeout("proposed-frame");
+      // USER32 must not apply an extent for which no exact front is ready.
+      // Fence the rejected epoch before restoring canonical actual metrics;
+      // a late producer still uploads/retires without changing the old front.
+      proposed=window;session->frameTrace.add({},0,id,19,client.right,client.bottom);
+      session->resize->resolve(false);resizeTransaction.reset();
+      arrangeExtent(client.right,client.bottom,scale);
+    }
   }
   bool commitResize(){
     // Explicitly submit the UI-owned batch. WinUI's asynchronous completion
     // notifications themselves require its dispatcher; waiting for one here
     // would throttle every proposal until timeout. GPU copy retirement is
     // already confirmed separately, before this geometry/publication boundary.
-    commitController.Commit();device->commitWindowComposition();winrt::check_hresult(DwmFlush());return true;
+    const auto id=resizeTransaction?resizeTransaction->id:0;
+    commitController.Commit();session->frameTrace.add({},0,id,16,0,0);
+    device->commitWindowComposition();session->frameTrace.add({},0,id,17,0,0);
+#ifdef NELYX_RESIZE_WAIT_EXPERIMENTS
+    if(!std::getenv("NELYX_FIXTURE_SKIP_DWM"))
+#endif
+    // Native commit acceptance and the desktop's window/content boundary have
+    // different clocks. Keep this barrier: longer edge/timeout captures found
+    // a one-frame mismatch when it was omitted, despite a completed commit.
+    winrt::check_hresult(DwmFlush());
+    session->frameTrace.add({},0,id,18,0,0);return true;
   }
   void finishActualResize(){
     if(!resizeTransaction||finishingResize)return;
@@ -265,7 +289,7 @@ private:
       if(session->windowPointer){session->windowPointer->close();session->windowPointer.reset();}
       if(input){input->close();input.reset();}if(device){device->close();device.reset();}
       if(auto window=winrt::Microsoft::UI::Windowing::AppWindow::GetFromWindowId(windowId))window.Destroy();
-      closed=true;closePending=false;closing=false;write("closed views=0 consumers=0 gpuDrained=1 inputRetired=1");
+      closed=true;closePending=false;closing=false;write("closed views=0 consumers=0 gpuDrained=1 inputRetired=1");windowsFrameDiagnostic("close-ui-complete");
     }catch(std::exception const& error){failedClose(error.what());}
     catch(...){failedClose("nativeHRESULT");}
   }
@@ -275,11 +299,18 @@ private:
     if(!loadComplete){write("startup-cancelled nativeOwnersRetainedUntilProcessExit=1");TerminateProcess(GetCurrentProcess(),0);return;}
     if(loadFailed)failedClose("JavaScript bundle failed to load");
     if(session->status().phase=="failed")failedClose("Native Composition session failed: "+session->status().failure);
-    closing=true;session->resize->resolve(false);resizeTransaction.reset();auto self=shared_from_this();
+    closing=true;auto self=shared_from_this();windowsFrameDiagnostic("close-ui-request");
+    try{session->resize->resolve(false);resizeTransaction.reset();
+    // An accepted close seals native input/visibility before posting shutdown
+    // to JS. The HWND need not remain on screen while RNW unloads its runtime;
+    // admitted GPU packets and native owners still drain before destruction.
+    session->setWindowVisible(false);
+    if(session->windowPointer)session->windowPointer->close();
+    ShowWindow(startupWindow,SW_HIDE);
     // JS may have closed the GPU before this explicit window close. Finish
     // the remaining native input/device owners without requesting JS again.
     if(session->status().phase=="closed"){finishClose();return;}
-    try{session->requestCloseUi([self](std::string failure){
+    session->requestCloseUi([self](std::string failure){
       self->dispatcher.Post([self,failure=std::move(failure)]{
         if(!failure.empty())self->failedClose(failure);
         self->finishClose();
