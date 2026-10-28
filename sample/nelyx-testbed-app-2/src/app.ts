@@ -6,5 +6,5 @@ export interface ApplicationState {readonly initialText: string}
 export interface ApplicationOptions {readonly accessibilityEnabled?:boolean}
 export function createApplicationState(): ApplicationState {return {initialText: '안녕하세요, Nelyx!'};}
 export function defineApplication(state: ApplicationState,options:ApplicationOptions={}): ApplicationDefinition {
-  return widgetApplication({id: 'nelyx.components-gallery', defaultFont: 'sample-font', accessibilityEnabled: options.accessibilityEnabled??true, semanticsUpdateInterval: 1000, createRoot: () => new ComponentsGallery(state.initialText)});
+  return widgetApplication({id: 'nelyx.components-gallery', defaultFont: 'sample-font', accessibilityEnabled: options.accessibilityEnabled??true, semanticsUpdateInterval: 300, createRoot: () => new ComponentsGallery(state.initialText)});
 }

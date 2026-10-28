@@ -48,10 +48,10 @@ for(const [platform,Interaction,accessibilityEnabled] of [
   }finally{unsubscribe();await f.close();for(const detach of detaches)detach();interaction.dispose();scroll.dispose();for(const controller of controllers)controller.dispose();}
 });
 
-test('one-second accessibility motion throttling keeps every editor geometry current and flushes state, edits and the settled position',{timeout},async()=>{
+test('300ms accessibility motion throttling keeps every editor geometry current and flushes state, edits and the settled position',{timeout},async()=>{
   FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
   const f=await engineFixture({fonts:true}),interaction=new WindowsInteraction(f.root.context.owner),scroll=new ScrollController();
-  f.root.options.semanticsUpdateInterval=1000;
+  f.root.options.semanticsUpdateInterval=300;
   f.root.context.editing=interaction.editing;f.root.context.semantics=interaction.semantics;
   const controllers=Array.from({length:4},(_,i)=>new TextEditingController('Editor '+i)),packets=new Map(),detaches=[],deadlines=new Set();
   let captures=0,publications=0;
@@ -64,16 +64,16 @@ test('one-second accessibility motion throttling keeps every editor geometry cur
     f.set(new Directionality('ltr',new ListView({controller:scroll,children:[...controllers.map((controller,i)=>new EditableText('throttle-'+i,controller,'Editor '+i,undefined,24,null,{minHeight:0,maxLines:1})),new SizedBox(200,300)]})));
     for(const {id}of interaction.editorClients){const sent=[];packets.set(id,sent);detaches.push(interaction.attachEditor(id,{}, {replace(){},focus(){},blur(){},updateGeometry(geometry){sent.push(geometry);}}));}
     f.frame();captures=0;publications=0;
-    for(let i=1;i<=20;i++){
+    for(let i=1;i<=18;i++){
       for(const sent of packets.values())sent.length=0;
       scroll.jumpTo(i);advance(50);
-      assert.equal(captures,i===20?1:0,'Continuous motion publishes at most once per second, including text fields');
-      assert.equal(publications,i===20?1:0);
+      assert.equal(captures,Math.floor(i/6),'Continuous motion publishes every 300ms, including text fields');
+      assert.equal(publications,Math.floor(i/6));
       for(const [id,sent]of packets){assert.equal(sent.length,1);assert(sent[0]);assert.deepEqual(interaction.editorInputBounds(id),sent[0].bounds);}
     }
-    scroll.jumpTo(25);advance(50);assert.equal(captures,1);assert.equal(deadlines.size,1);
-    advance(99);assert.equal(captures,1,'Unrelated frames do not push the quiet deadline back');
-    advance(1);assert.equal(captures,2,'Final coordinates arrive 100ms after the last motion');assert.equal(deadlines.size,0);
+    scroll.jumpTo(25);advance(50);assert.equal(captures,3);assert.equal(deadlines.size,1);
+    advance(99);assert.equal(captures,3,'Unrelated frames do not push the quiet deadline back');
+    advance(1);assert.equal(captures,4,'Final coordinates arrive 100ms after the last motion');assert.equal(deadlines.size,0);
     for(const [id,sent]of packets){const node=f.root.nodes.find(node=>node.id===id);if(node){assert.deepEqual(node.textInputGeometry.bounds,sent.at(-1).bounds);assert.equal(node.textInputGeometry.layoutEpoch,sent.at(-1).layoutEpoch);}}
 
     scroll.jumpTo(26);advance(10);const before=captures;

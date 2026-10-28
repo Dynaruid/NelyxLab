@@ -115,7 +115,7 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run run -- --package 
 
 상대 패키지 경로는 runner 디렉터리 기준입니다. 고정 출력은 이 앱의 `.nelyx/windows/packages/Release/`·`Debug/`입니다.
 
-Gallery는 스크롤 중 위치만 바뀌는 접근성 계산을 최대 1초 간격으로 합치고, 마지막 움직임 뒤 100ms가 지나면 최종 위치를 반영합니다. 포커스·값·활성 상태 변경과 접근성 동작은 기다리지 않으며 IME 입력 좌표는 매 프레임 갱신합니다. 앱의 `semanticsUpdateInterval`로 간격을 조정할 수 있고, `0`은 매 변경 프레임을 반영합니다.
+Gallery는 스크롤 중 위치만 바뀌는 접근성 계산을 최대 300ms 간격으로 합치고, 마지막 움직임 뒤 100ms가 지나면 최종 위치를 반영합니다. 포커스·값·활성 상태 변경과 접근성 동작은 기다리지 않으며 IME 입력 좌표는 매 프레임 갱신합니다. 앱의 `semanticsUpdateInterval`로 간격을 조정할 수 있고, `0`은 매 변경 프레임을 반영합니다.
 
 GPU 기본값은 주 모니터에 연결된 하드웨어 adapter입니다. 실행 전에 `NELYX_WINDOWS_GPU_VENDOR`를 설정해 제조사를 선택할 수 있습니다. 예를 들어 AMD는 `4098`입니다.
 

@@ -115,7 +115,7 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run run -- --package 
 
 Relative package paths resolve from the runner directory. Fixed outputs are `.nelyx/windows/packages/Release/` and `Debug/` inside this app.
 
-During scrolling, the gallery coalesces accessibility calculations for position changes to at most once per second, then publishes the final position after 100ms without motion. Focus, value, enabled-state changes and accessibility actions bypass the delay; IME coordinates still update every frame. Adjust the app's `semanticsUpdateInterval` to change the interval; `0` publishes every changed frame.
+During scrolling, the gallery coalesces accessibility calculations for position changes to at most once every 300ms, then publishes the final position after 100ms without motion. Focus, value, enabled-state changes and accessibility actions bypass the delay; IME coordinates still update every frame. Adjust the app's `semanticsUpdateInterval` to change the interval; `0` publishes every changed frame.
 
 The GPU defaults to the hardware adapter attached to the primary display. Set `NELYX_WINDOWS_GPU_VENDOR` before launch to select a vendor explicitly, such as `4098` for AMD.
 
