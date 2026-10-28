@@ -26,6 +26,13 @@ function validateNativeTiming(output,expectedPhases){
     if(process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1'){assert(phase.stages['NativeCore.frame'],'Device timing object was not linked');assert(!phase.stages['NativeCore.cacheFallback'],'Selected frames must confirm wrapper retirement without a full cache purge');}
   }
 }
+function validateAotExecution(output,partition){
+  assert.match(output,/ANIMATION_JS AOT_NATIVE initialized=true/,'The native SHUnit must initialize before accepting frame evidence');
+  const line=output.split('\n').find(line=>line.startsWith('ANIMATION_JS TYPED_EXECUTION '));assert(line,'Missing actual selected body call evidence');
+  const counts=JSON.parse(line.slice('ANIMATION_JS TYPED_EXECUTION '.length));
+  for(const binding of partition.bindings)assert(Number.isSafeInteger(counts[binding.globalName])&&counts[binding.globalName]>=0,'Missing selected body counter: '+binding.id);
+  assert(partition.bindings.some(binding=>counts[binding.globalName]>0),'No specialized product body executed');
+}
 function run(file,args,options={}){const {nativeDiagnostics=false,expectedStatus=0,...execution}=options;const result=spawnSync(file,args,{encoding:'utf8',windowsHide:true,timeout,maxBuffer:4*1024*1024,...execution});if(nativeDiagnostics)process.stdout.write(compactResizeOutput((result.stdout??'')+(result.stderr??'')));if(result.error)throw result.error;assert.equal(result.status,expectedStatus,((result.stdout??'')+(result.stderr??'')).split('\n').map(line=>line.slice(0,500)).slice(-45).join('\n'));return result.stdout;}
 test('Windows sample actions preserve native completion or the expected first failure; ablations are diagnostic only'+(process.env.NELYX_ANIMATION_PREFLIGHT_ONLY==='1'?' [source preflight only]':process.env.NELYX_ANIMATION_BUILD_ONLY==='1'?' [build only]':''),{timeout,skip:process.platform!=='win32'},async(t)=>{
   const runner=fs.realpathSync(process.env.NELYX_WINDOWS_TEST_RUNNER??path.join(root,'sample/nelyx-testbed-app-2/windows/runner')),rnw=path.join(runner,'node_modules/react-native-windows');
@@ -213,7 +220,7 @@ EndGlobal
       const bundleStarted=performance.now();let metroFinished;
       fs.writeFileSync(entry,fs.readFileSync(path.join(import.meta.dirname,'windows-animation.tsx'),'utf8').replace("import './main.tsx'","import './"+path.basename(mainFile)+"'").replace('__TRACE__',process.env.NELYX_ANIMATION_TRACE==='1'?'true':'false').replace('__DIAGNOSTIC__',diagnostic?'true':'false').replace('__V8_PROFILE__',v8Profile?'true':'false').replace('__MODE__',reuseBundle?'NativeModules.NelyxAnimation.mode()':JSON.stringify(mode)).replace('__RESIZE__',resize||mode==='editing-resize'||mode==='full-runtime-regression'||mode==='research-engine'?'true':'false').replace('__RESIZE_CASE__',JSON.stringify(process.env.NELYX_ANIMATION_RESIZE_CASE??'initial')).replace('__SEMANTICS_INTERVAL__',JSON.stringify(semanticsInterval)).replace('__WHEEL_INPUT__',wheelInputMode!=='none'?'true':'false').replace('__WHEEL_INPUT_MODE__',JSON.stringify(wheelInputMode)).replace('__VIEWPORT__',reuseBundle?'NativeModules.NelyxAnimation.viewport()':JSON.stringify(viewport)).replace('__WHEEL_INTERVAL__',String(wheelInterval)).replace('__WHEEL_DELTA__',String(wheelDelta)).replace('/*__WHEEL_WARMUP__*/false',process.env.NELYX_ANIMATION_WHEEL_WARMUP==='1'?'true':'false').replace('__WHEEL_HOVER__',process.env.NELYX_ANIMATION_OWNED_HOVER==='1'?'true':'false'));entryOwned=true;
       fs.appendFileSync(entry,'\n'+fs.readFileSync(path.join(import.meta.dirname,'windows-frame-terminals.ts'),'utf8'));
-      fs.appendFileSync(entry,'\n'+fs.readFileSync(path.join(import.meta.dirname,'windows-resize-statistics.mjs'),'utf8').replaceAll('export function ','function '));
+      fs.appendFileSync(entry,'\n'+fs.readFileSync(path.join(import.meta.dirname,'windows-resize-statistics.ts'),'utf8').replaceAll('export ',''));
       fs.appendFileSync(entry,'\n'+fs.readFileSync(path.join(import.meta.dirname,'windows-context-diagnostics.ts'),'utf8').replace('export function timedNativeContext','function timedNativeContext'));
       if(aot)fs.appendFileSync(entry,"\nPromise.resolve().then(()=>{if(!(globalThis as any).__nelyxStaticHermes?.initialized)throw Error('Native SHUnit initialization missing');NativeModules.NelyxAnimation.report('AOT_NATIVE initialized=true');});\n");
       if(process.env.NELYX_ANIMATION_PREFLIGHT_ONLY==='1'){
@@ -273,6 +280,7 @@ EndGlobal
           const env={...process.env,NELYX_ANIMATION_VIEWPORT:viewport};for(const [key,value]of Object.entries(config)){assert(Object.hasOwn(keys,key)&&typeof value==='string');env[keys[key]]=value;}
           const output=run(path.join(directory,'out/InputSurface.exe'),[bundle],{cwd:path.join(directory,'out'),env,nativeDiagnostics:true});
           assert.match(output,/closed views=0 consumers=0 gpuDrained=1 inputRetired=1/);
+          if(typed)validateAotExecution(output,partition);
           validateNativeTiming(output);
           const qualityPassed=/ANIMATION_JS live-resize PASS/.test(output)&&!/ANIMATION_JS ERROR/.test(output);if(!qualityPassed)failures++;
           console.log('ANIMATION_RESIZE_RUN '+JSON.stringify({config,qualityPassed,scope:process.env.NELYX_ANIMATION_RESIZE_EXPERIMENTS==='1'?'temporary diagnostic host; no product acceptance':'current host'}));
@@ -280,8 +288,7 @@ EndGlobal
         if(process.env.NELYX_ANIMATION_RESIZE_EXPERIMENTS!=='1')assert.equal(failures,0,'Resize quality regression');completed++;break;
       }
       const output=run(path.join(directory,'out/InputSurface.exe'),[bundle,...(mode==='interactive'?['manual']:[])],{cwd:path.join(directory,'out'),env:{...process.env,NELYX_ANIMATION_VIEWPORT:viewport},nativeDiagnostics:!reuseBundle,expectedStatus:expectAllocationFailure?2:0});
-      if(aot)assert.match(output,/ANIMATION_JS AOT_NATIVE initialized=true/,'The native SHUnit must initialize before accepting frame evidence');
-      if(typed){const line=output.split('\n').find(line=>line.startsWith('ANIMATION_JS TYPED_EXECUTION '));assert(line,'Missing actual selected body call evidence');const counts=JSON.parse(line.slice('ANIMATION_JS TYPED_EXECUTION '.length));for(const binding of partition.bindings)assert(Number.isSafeInteger(counts[binding.globalName])&&counts[binding.globalName]>=0,'Missing selected body counter: '+binding.id);assert(partition.bindings.some(binding=>counts[binding.globalName]>0),'No specialized product body executed');}
+      if(typed)validateAotExecution(output,partition);
       if(v8Profile){
         const logfile=path.join(directory,'out/v8-profile.log');assert(fs.statSync(logfile).size<=64*1024**2,'Bounded diagnostic V8 log exceeded64MiB');
         const rawLogText=fs.readFileSync(logfile,'utf8');

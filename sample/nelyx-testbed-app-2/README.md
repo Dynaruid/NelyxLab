@@ -131,7 +131,19 @@ After preparing Windows and reinstalling the runner packages, run this from the 
 npm run test:windows-resize
 ```
 
-This checks both corners in Material, ListView and Cupertino. It reports requested/actual input frequency, window rect changes, surface updates and captured display changes separately. Input defaults to 61Hz; set `NELYX_ANIMATION_DRAG_HZ` to change it. Use `NELYX_ANIMATION_PIXELS=0` for a CPU/geometry comparison without capture. A pass covers screen and frame lifetime checks; it does not certify the target FPS. Evaluate capture overhead and the user's drag experience separately. The fixture app and temporary build are cleaned up on exit.
+This checks both corners in Material, ListView and Cupertino. It reports requested/actual input frequency, window rect changes, surface updates and captured display changes separately. Input defaults to 61Hz with a four-second round trip; set `NELYX_ANIMATION_DRAG_HZ` and `NELYX_ANIMATION_DRAG_DURATION_MS` to change them. Use `NELYX_ANIMATION_PIXELS=0` for a CPU/geometry comparison without capture. A pass covers screen and frame lifetime checks; it does not certify the target FPS. Evaluate capture overhead and the user's drag experience separately. The fixture app and temporary build are cleaned up on exit.
+
+The default engine mode is Hermes bytecode. After preparing Static Hermes for this app, build and run the AOT fixture in a separate PowerShell process as follows. Each run also verifies native initialization and actual AOT function calls. This leaves the current product package in place; compare the two modes separately.
+
+```powershell
+pwsh -NoProfile -Command {
+    $runtime = Get-Content sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json -Raw | ConvertFrom-Json
+    $env:NELYX_STATIC_HERMES_INPUTS = $runtime.directory
+    $env:NELYX_ANIMATION_HERMES_MODE = 'static-aot'
+    npm.cmd run test:windows-resize
+    exit $LASTEXITCODE
+}
+```
 
 `NELYX_ANIMATION_TRACE=1` connects Core metrics, frame requests, layout, paint, semantics, capture, and native submission using the same QPC clock. It separates all active frames from the exact native prepared-copy frames. Keep this instrumented run separate from measurements with tracing disabled.
 

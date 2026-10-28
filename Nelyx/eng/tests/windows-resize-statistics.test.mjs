@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';
-import {resizeStatistics,resizeDistribution,resizeCpuStatistics} from './windows-resize-statistics.mjs';
+import {resizeStatistics,resizeDistribution,resizeCpuStatistics} from './windows-resize-statistics.ts';
 const timeout=1_200_000;
 test('resize counts consecutive rect changes including A-B-A and excludes repeated notifications',{timeout},()=>{
   const row=(t,w,id=0)=>[t,0,0,w,100,id],rows=[row(10,100),row(20,100),row(30,120),row(40,100)];

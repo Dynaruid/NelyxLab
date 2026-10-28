@@ -131,7 +131,19 @@ Windows 준비·runner 재설치 후 저장소 루트에서 실행합니다. 실
 npm run test:windows-resize
 ```
 
-Material·ListView·Cupertino의 양쪽 모서리를 검사하고, 요청/실제 입력 빈도, 창 rect 변화, surface 갱신과 캡처에서 관찰한 표시 변화를 각각 출력합니다. 기본 입력은 61Hz이며 `NELYX_ANIMATION_DRAG_HZ`로 바꿀 수 있습니다. `NELYX_ANIMATION_PIXELS=0`은 캡처를 끈 CPU·geometry 비교에 사용합니다. 검사 통과는 화면·프레임 수명 조건의 통과이며 목표 FPS 달성을 뜻하지 않습니다. 캡처 실행의 비용과 실제 사용자의 드래그 체감은 별도로 평가해야 합니다. 검사 앱과 임시 빌드는 종료 시 정리됩니다.
+Material·ListView·Cupertino의 양쪽 모서리를 검사하고, 요청/실제 입력 빈도, 창 rect 변화, surface 갱신과 캡처에서 관찰한 표시 변화를 각각 출력합니다. 기본 입력은 61Hz·4초 왕복이며 `NELYX_ANIMATION_DRAG_HZ`와 `NELYX_ANIMATION_DRAG_DURATION_MS`로 바꿀 수 있습니다. `NELYX_ANIMATION_PIXELS=0`은 캡처를 끈 CPU·geometry 비교에 사용합니다. 검사 통과는 화면·프레임 수명 조건의 통과이며 목표 FPS 달성을 뜻하지 않습니다. 캡처 실행의 비용과 실제 사용자의 드래그 체감은 별도로 평가해야 합니다. 검사 앱과 임시 빌드는 종료 시 정리됩니다.
+
+기본 엔진 모드는 Hermes bytecode입니다. Static Hermes를 준비한 앱에서는 다음처럼 별도 PowerShell 프로세스에서 AOT fixture를 빌드·실행할 수 있습니다. 각 실행은 native 초기화와 실제 AOT 함수 호출도 확인합니다. 현재 제품 패키지를 교체하지 않으며, 두 모드의 성능은 따로 비교하세요.
+
+```powershell
+pwsh -NoProfile -Command {
+    $runtime = Get-Content sample/nelyx-testbed-app-2/.nelyx/windows/static-hermes-inputs.json -Raw | ConvertFrom-Json
+    $env:NELYX_STATIC_HERMES_INPUTS = $runtime.directory
+    $env:NELYX_ANIMATION_HERMES_MODE = 'static-aot'
+    npm.cmd run test:windows-resize
+    exit $LASTEXITCODE
+}
+```
 
 `NELYX_ANIMATION_TRACE=1`은 Core metrics 수신, 프레임 예약, layout·paint·semantics·capture와 native 제출을 같은 QPC 시계로 연결합니다. 전체 활성 프레임과 정확히 일치하는 native prepared-copy 프레임의 비용을 따로 보고하며, 계측을 끈 성능과 구분해야 합니다.
 
