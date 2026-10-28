@@ -9,7 +9,7 @@
     "check:windows": "npm --prefix windows/runner run check",
     "bundle:windows": "npm --prefix windows/runner run bundle",
     "build:windows": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
-    "run:windows": "npm --prefix windows/runner run run",
+    "run:windows": "node ../../Nelyx/eng/run-sample-windows.mjs",
     "start:windows:v8": "npm --prefix windows/runner run build -- --engine v8 && npm run run:windows",
     "start:windows:hermes": "npm run build:windows:hermes && npm run run:windows",
     "start:windows:hermes:debug": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile debug && npm run run:windows",

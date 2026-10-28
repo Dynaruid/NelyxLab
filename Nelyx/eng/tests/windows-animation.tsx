@@ -82,7 +82,7 @@ if(mode==='startup-probe'){
 }
 const continuousInput=host.continuousScroll?.()===true;
 const fullCatalog=continuousInput&&host.fullCatalog?.()===true;
-const cpuOnly=mode==='cpu-timing'||mode==='research-engine'||mode==='live-resize';
+const cpuOnly=mode==='cpu-timing'||mode==='research-engine'||mode==='live-resize'||mode==='semantics-scroll';
 const wheelInput:boolean=__WHEEL_INPUT__;
 const wheelInputMode:string=__WHEEL_INPUT_MODE__;
 const wheelInterval:number=__WHEEL_INTERVAL__,wheelDelta:number=__WHEEL_DELTA__;
@@ -248,6 +248,11 @@ if(diagnostic){
   }
  });
 }
+if(mode==='semantics-scroll'){
+ const publish=(NativeInteraction.prototype as any).publish;
+ (NativeInteraction.prototype as any).publish=function(...args:any[]){if(phase.endsWith('-held')){this.version++;count('Host.held');return;}return measured('Host.publish',()=>publish.apply(this,args));};
+ wrap(NativeInteraction,'updateSemantics','Host.updateSemantics');
+}
 if(mode==='live-resize'){
  const delayMillis=Number(host.resizeConfig().delayResize),previousExtents=new WeakMap<object,string>();let injectedDelay=false;if(!Number.isFinite(delayMillis)||delayMillis<0||delayMillis>250)throw Error('Bounded resize delay must be 0..250ms');
  const pointer=FrameworkRoot.prototype.pointer,packets:any[]=[];(globalThis as any).__resizePointerPackets=packets;
@@ -268,7 +273,7 @@ if(diagnostic||continuousInput||mode==='live-resize'){
 }
 if(wheelInput||mode==='research-engine'){const pointer=FrameworkRoot.prototype.pointer;FrameworkRoot.prototype.pointer=function(event){if(event.kind==='wheel'){count('Input.wheel');count('Input.wheelDistance',Math.abs(event.deltaY??0));count('Input.wheelNetDistance',event.deltaY??0);}return trace?measured('Input.pointer',()=>pointer.call(this,event)):pointer.call(this,event);};}
 let resizeRenderer:any,retiredResizeMetrics:any,settledResizes=0,retiredResizeFrames=0;
-if(resize||wheelInput||mode==='gallery-regression'){const observed=new WeakSet<object>(),submit=GraphiteRenderer.prototype.submit;GraphiteRenderer.prototype.submit=function(frame,lease){resizeRenderer=this;if(resize&&!observed.has(this)){observed.add(this);this.observe(event=>{if(event.kind==='retired'&&event.result==='gpu-retired'){retiredResizeMetrics=event.token.metrics;retiredResizeFrames++;}});}return submit.call(this,frame,lease);};}
+if(resize||wheelInput||mode==='gallery-regression'||mode==='semantics-scroll'){const observed=new WeakSet<object>(),submit=GraphiteRenderer.prototype.submit;GraphiteRenderer.prototype.submit=function(frame,lease){resizeRenderer=this;if(resize&&!observed.has(this)){observed.add(this);this.observe(event=>{if(event.kind==='retired'&&event.result==='gpu-retired'){retiredResizeMetrics=event.token.metrics;retiredResizeFrames++;}});}return submit.call(this,frame,lease);};}
 const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
 async function fitPerformanceViewport(){
  const before=view.currentMetrics,width=1000+Math.round(800*before.scale-before.physicalWidth),height=1000+Math.round(600*before.scale-before.physicalHeight);
@@ -512,6 +517,28 @@ async function galleryRegression(){
   await drainWheelRendering();if((await host.windowSnapshot()).surfaceFrames<=before)throw Error('Gallery did not complete a native frame');host.report('gallery-regression PASS');
  }finally{FlutterError.onError=previous;if(originalGalleryPublish)interactionPrototype.publish=originalGalleryPublish;}
 }
+/** The held phases isolate host publication cost, not an accessibility mode
+ * supported by the product. Core layout/paint/semantics continue unchanged. */
+async function semanticsScroll(){
+ for(const category of ['selection','text'] as const){
+  material().select(category);await delay(600);const scroll=material().firstScroll;
+  if(scroll.position.maxScrollExtent<=0)throw Error('Semantics diagnostic requires overflowing '+category);
+  const low=Math.min(60,scroll.position.maxScrollExtent*.1),high=Math.min(scroll.position.maxScrollExtent,low+240);
+  for(const transport of ['live','held']){
+   scroll.jumpTo(low);await delay(180);await drainWheelRendering();start('semantics-'+category+'-'+transport);
+   for(let i=0;i<2;i++){await scroll.animateTo(high,{duration:600,curve:Curves.linear});await scroll.animateTo(low,{duration:600,curve:Curves.linear});}
+   await drainWheelRendering();await delay(120);end();await delay(180);
+   if(transport==='live'){
+    const nodes=(view.controller as any).nodes as readonly any[],node=nodes.find(node=>category==='text'?node.role==='text-field':node.checked!==undefined);
+    if(!node)throw Error('Missing settled accessible '+category+' control');
+    const actual=await host.semanticsBounds(node.semanticsIdentifier??node.id),scale=view.currentMetrics.scale,bounds=node.bounds;
+    if(actual.error||Math.abs(actual.left-actual.originX-bounds.x*scale)>1||Math.abs(actual.top-actual.originY-bounds.y*scale)>1||Math.abs(actual.width-bounds.width*scale)>1||Math.abs(actual.height-bounds.height*scale)>1)throw Error('Settled UIA bounds disagree with Core '+JSON.stringify({category,bounds,scale,actual}));
+    host.report('semantics-bounds '+category+' PASS');
+   }
+  }
+ }
+ host.report('semantics-scroll PASS');
+}
 /** W16: one uninterrupted native stream per phase. Only the stream boundary
  * drains rendering; no seek, per-packet timer or render wait paces input. */
 async function continuousScroll(){
@@ -691,6 +718,7 @@ setTimeout(()=>{if(host.startupDeadlineEnabled())return;if(mode==='interactive')
  }
  host.report('window-selected '+JSON.stringify(await host.windowSnapshot()));host.report('view-metrics '+JSON.stringify(view.currentMetrics));
  if(mode==='live-resize'){await liveResize();return;}
+ if(mode==='semantics-scroll'){await semanticsScroll();return;}
  if(wheelInputMode==='os'){
   if(continuousInput){await host.windowMode(viewport==='maximized'?'input-maximized':'input');await delay(100);}
   if((await host.windowSnapshot()).foreground===false)throw Error('Native input workload requires its own foreground window');

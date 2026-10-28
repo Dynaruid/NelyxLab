@@ -15,7 +15,7 @@ npm ci
 npm run build:sdk
 ```
 
-Run the commands in this guide from the repository root. In PowerShell, use `npm.cmd` when forwarding native options with `--`. After changing SDK or design sources, repeat the SDK build, target supply, runner installation, and target build.
+Run the commands in this guide from the repository root. In PowerShell, use `npm.cmd` when forwarding native options with `--`. Windows `run:windows` refreshes changed workspace SDK/design packages and rebuilds the app when needed. Other targets require repeating the SDK build, target supply, runner installation, and target build after source changes.
 
 ## Web
 
@@ -61,7 +61,9 @@ Replace the example path with the supplier's actual `inputs.json`. Install the r
 | JSC JIT | `npm.cmd run start:windows:jsc --workspace @nelyx/testbed-2` |
 | JSC interpreter | `npm.cmd run start:windows:jsc:interpreter --workspace @nelyx/testbed-2` |
 | Hermes bytecode with the debug compiler profile | `npm.cmd run start:windows:hermes:debug --workspace @nelyx/testbed-2` |
-| Reopen the last built package | `npm.cmd run run:windows --workspace @nelyx/testbed-2` |
+| Run, rebuilding when SDK inputs changed | `npm.cmd run run:windows --workspace @nelyx/testbed-2` |
+
+`run:windows` compares actual workspace and installed SDK contents, compiles stale TypeScript, supplies and reinstalls changed packages, then rebuilds if the installed SDK differs from the last app package. It preserves that package's engine, AOT/bytecode mode, compiler profile, and Debug/Release configuration. Unchanged inputs reuse the package. Packages built before input tracking rebuild once. Close an existing Testbed before a rebuild; build failures stop launch. An explicit runner `run -- --package <directory>` opens the selected snapshot without refreshing it.
 
 Prepare V8 once before its first build:
 
@@ -112,6 +114,8 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run run -- --package 
 ```
 
 Relative package paths resolve from the runner directory. Fixed outputs are `.nelyx/windows/packages/Release/` and `Debug/` inside this app.
+
+During scrolling, the gallery coalesces accessibility calculations for position changes to at most once per second, then publishes the final position after 100ms without motion. Focus, value, enabled-state changes and accessibility actions bypass the delay; IME coordinates still update every frame. Adjust the app's `semanticsUpdateInterval` to change the interval; `0` publishes every changed frame.
 
 The GPU defaults to the hardware adapter attached to the primary display. Set `NELYX_WINDOWS_GPU_VENDOR` before launch to select a vendor explicitly, such as `4098` for AMD.
 

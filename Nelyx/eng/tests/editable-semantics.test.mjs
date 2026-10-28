@@ -15,6 +15,8 @@ import {TextPosition} from '@nelyx/core/ui/text-position';
 import {TextSelection} from '@nelyx/core/services/text-editing';
 import {TextStyle} from '@nelyx/core/framework/painting/text-style';
 import {ScrollController} from '@nelyx/core/framework/widgets/scroll-controller';
+import {ListView} from '@nelyx/core/framework/widgets/scroll-view';
+import {Directionality} from '@nelyx/core/framework/widgets/app-data';
 import {graphemeBoundaries} from '@nelyx/core/foundation/grapheme-boundaries';
 import {freezeSemantics} from '@nelyx/core/framework/semantics/semantics';
 import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
@@ -37,6 +39,21 @@ async function setup(){
   f.root.context.semantics=interaction.semantics;const records=input(f);
   return {f,interaction,records,async close(){await f.close();interaction.dispose();}};
 }
+
+test('deferred text selection and range reveal refresh coordinates while retaining editing revision and owner guards',{timeout},async()=>{
+  const h=await setup(),controller=new TextEditingController(Array.from({length:12},(_,i)=>'Line '+i).join('\n')),focus=new FocusNode(),key=new GlobalKey('deferred text'),outer=new ScrollController(),inner=new ScrollController(),events=[];
+  h.f.root.options.semanticsUpdateInterval=1000;
+  const tree=options=>new Directionality('ltr',new ListView({controller:outer,children:[new SizedBox(200,20),field(controller,focus,key,{maxLines:2,minHeight:0,scrollController:inner,configuration:{readOnly:true},...options}),new SizedBox(200,300)]}));
+  const node=()=>h.f.root.nodes.find(node=>node.id==='field');
+  try{
+    h.f.root.semanticsActionBinding.addSemanticsActionListener(event=>events.push(event.type));h.f.set(tree());const value=controller.value,start=controller.text.indexOf('Line 5');
+    const original=node();outer.jumpTo(5);h.f.advance(10);assert(h.f.root.semanticsDeferred);assert(h.interaction.performTextAction('field',{kind:'scroll-range',start,end:start+6,alignToTop:true},original.textInputRevision,original.textInputGeneration));assert.equal(inner.offset,0);h.f.frame();h.f.frame();
+    assert(inner.offset>0);assert.deepEqual(controller.value,value);assert.equal(focus.hasPrimaryFocus,false);assert.equal(events.filter(type=>type===SemanticsAction.showOnScreen).length,1);
+    const selection=node();outer.jumpTo(6);h.f.advance(10);assert(h.f.root.semanticsDeferred);selection.textActions.setSelection({anchor:1,focus:3});h.f.frame();assert.deepEqual(controller.selection,{anchor:1,focus:3});h.f.frame();
+    const stale=node();outer.jumpTo(7);h.f.advance(10);stale.textActions.setSelection({anchor:0,focus:2});controller.selection={anchor:4,focus:4};h.f.frame();assert.deepEqual(controller.selection,{anchor:4,focus:4},'A selection revision change cancels the old deferred request');h.f.frame();
+    const disabled=node();outer.jumpTo(8);h.f.advance(10);disabled.textActions.setSelection({anchor:0,focus:2});h.f.set(tree({enabled:false}));assert.deepEqual(controller.selection,{anchor:4,focus:4},'Disabling a field retires a pending edit');assert.equal(node().enabled,false);
+  }finally{await h.close();controller.dispose();focus.dispose();outer.dispose();inner.dispose();}
+});
 
 test('accessible ranges align the actual Core paragraph without changing readonly text, selection or focus',{timeout},async()=>{
   const h=await setup(),text=Array.from({length:12},(_,index)=>'Line '+index).join('\n'),controller=new TextEditingController(text),focus=new FocusNode(),scroll=new ScrollController(),key=new GlobalKey('accessible range'),events=[];

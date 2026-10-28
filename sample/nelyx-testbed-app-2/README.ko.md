@@ -15,7 +15,7 @@ npm ci
 npm run build:sdk
 ```
 
-이 문서의 명령은 저장소 루트 기준입니다. PowerShell에서 `--` 뒤로 네이티브 옵션을 전달할 때는 `npm.cmd`를 사용하세요. SDK·디자인 소스를 수정하면 SDK 빌드, 대상별 공급, runner 설치와 대상 빌드를 반복합니다.
+이 문서의 명령은 저장소 루트 기준입니다. PowerShell에서 `--` 뒤로 네이티브 옵션을 전달할 때는 `npm.cmd`를 사용하세요. Windows `run:windows`는 변경된 저장소 SDK·디자인 패키지를 갱신하고 필요한 경우 앱을 재빌드합니다. 다른 대상은 소스를 수정하면 SDK 빌드, 대상별 공급, runner 설치와 대상 빌드를 반복합니다.
 
 ## Web 실행
 
@@ -61,7 +61,9 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run prepare:native --
 | JSC JIT | `npm.cmd run start:windows:jsc --workspace @nelyx/testbed-2` |
 | JSC interpreter | `npm.cmd run start:windows:jsc:interpreter --workspace @nelyx/testbed-2` |
 | Hermes bytecode·debug compiler profile | `npm.cmd run start:windows:hermes:debug --workspace @nelyx/testbed-2` |
-| 마지막 빌드 다시 실행 | `npm.cmd run run:windows --workspace @nelyx/testbed-2` |
+| SDK 변경 시 재빌드 후 실행 | `npm.cmd run run:windows --workspace @nelyx/testbed-2` |
+
+`run:windows`는 저장소와 설치된 SDK의 실제 파일 내용을 비교해 오래된 TypeScript 출력을 빌드하고, 변경된 패키지를 공급·재설치합니다. 설치 SDK가 마지막 앱 패키지와 다르면 앱도 재빌드하며 기존 엔진·AOT/bytecode·compiler profile·Debug/Release 설정을 유지합니다. 변경이 없으면 기존 패키지를 사용하고, 입력 추적 이전 패키지는 한 번 재빌드합니다. 재빌드 전에는 기존 Testbed를 닫으세요. 빌드 실패 시 앱을 실행하지 않습니다. Runner에서 명시한 `run -- --package <directory>`는 선택한 패키지를 갱신 없이 실행합니다.
 
 V8은 처음 빌드하기 전에 한 번 준비합니다.
 
@@ -112,6 +114,8 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run run -- --package 
 ```
 
 상대 패키지 경로는 runner 디렉터리 기준입니다. 고정 출력은 이 앱의 `.nelyx/windows/packages/Release/`·`Debug/`입니다.
+
+Gallery는 스크롤 중 위치만 바뀌는 접근성 계산을 최대 1초 간격으로 합치고, 마지막 움직임 뒤 100ms가 지나면 최종 위치를 반영합니다. 포커스·값·활성 상태 변경과 접근성 동작은 기다리지 않으며 IME 입력 좌표는 매 프레임 갱신합니다. 앱의 `semanticsUpdateInterval`로 간격을 조정할 수 있고, `0`은 매 변경 프레임을 반영합니다.
 
 GPU 기본값은 주 모니터에 연결된 하드웨어 adapter입니다. 실행 전에 `NELYX_WINDOWS_GPU_VENDOR`를 설정해 제조사를 선택할 수 있습니다. 예를 들어 AMD는 `4098`입니다.
 

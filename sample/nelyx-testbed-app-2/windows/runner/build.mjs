@@ -47,7 +47,11 @@ const verifiedAssets=load('@nelyx/metro/assets').verifyAppAssets(app,config.asse
 const assets=new Map();for(const entry of verifiedAssets)assets.set(entry.path.slice(2),entry.file);
 const state=path.join(app,'.nelyx/windows');fs.mkdirSync(state,{recursive:true});
 function writeChanged(file,value){if(!fs.existsSync(file)||fs.readFileSync(file,'utf8')!==value)fs.writeFileSync(file,value);}
-writeChanged(path.join(state,'NelyxAppConfig.h'),'// Generated from app-config.json\n#define NELYX_APP_NAME L"'+config.name+'"\n#define NELYX_WINDOWS_DEVELOPMENT '+(configuration==='Debug'?1:0)+'\n#define NELYX_WINDOWS_V8 '+(v8?1:0)+'\n');
+const sdkInputsSha256=process.env.NELYX_WINDOWS_SDK_INPUTS_SHA256??null;
+if(sdkInputsSha256!==null&&!/^[a-f0-9]{64}$/.test(sdkInputsSha256))throw Error('Invalid Windows SDK build input identity');
+// Content changes must invalidate native compilation even when npm archives
+// preserve older header timestamps. This header is included by the host TU.
+writeChanged(path.join(state,'NelyxAppConfig.h'),'// Generated from app-config.json\n#define NELYX_APP_NAME L"'+config.name+'"\n#define NELYX_WINDOWS_DEVELOPMENT '+(configuration==='Debug'?1:0)+'\n#define NELYX_WINDOWS_V8 '+(v8?1:0)+'\n#define NELYX_WINDOWS_SDK_INPUTS_SHA256 "'+(sdkInputsSha256??'untracked')+'"\n');
 const sdk=path.dirname(load.resolve('@nelyx/sdk/package.json'));
 const include=[state,path.join(sdk,'native/windows'),path.join(binding,'native/windows'),binding,...['generated/core','generated/gpu','generated/vulkan','generated/host','generated/jsi','generated/native-vulkan','generated/jsi/rnskia','generated/jsi/api','generated/jsi/jsi','generated/jsi/utils'].map(name=>path.join(binding,name)),headerRoot];
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
@@ -99,5 +103,5 @@ for(const entry of verifiedAssets){const destination=path.join(assetRoot,entry.p
 load('@nelyx/metro/assets').copyAppNotices(app,config.assets,path.join(assetRoot,'licenses'));
 fs.copyFileSync(files.get(manifest.icu),path.join(assetRoot,'icudtl.dat'));
 const executable=path.join(output,'NelyxRNHost.exe');if(!fs.existsSync(executable))throw new Error('Native exe output absent');
-fs.writeFileSync(path.join(state,'last-build.json'),JSON.stringify({schema:'nelyx.rnw-build/v1',runner,output,executable,exeSha256:sha(executable),nativeInputsSha256:sha(input),configuration,engine,engineInputsSha256:jsc?.sha256??v8?.sha256??aot?.sha256??null,jscExecutionMode,jscCompilerPolicy,hermesExecutionMode:hermesMode,v8CompilerPolicy,hermesCompilerFlags,hermesCompilerProfile:hermes?.profile??null,hermesCompilerPolicy:hermes?.id??null,nativeBindingConfiguration:'Release',crt:'MD',iteratorDebugLevel:0,architecture:'x64',app:config.name},null,2)+'\n');
+fs.writeFileSync(path.join(state,'last-build.json'),JSON.stringify({schema:'nelyx.rnw-build/v1',runner,output,executable,exeSha256:sha(executable),nativeInputsSha256:sha(input),sdkInputsSha256,configuration,engine,engineInputsSha256:jsc?.sha256??v8?.sha256??aot?.sha256??null,jscExecutionMode,jscCompilerPolicy,hermesExecutionMode:hermesMode,v8CompilerPolicy,hermesCompilerFlags,hermesCompilerProfile:hermes?.profile??null,hermesCompilerPolicy:hermes?.id??null,nativeBindingConfiguration:'Release',crt:'MD',iteratorDebugLevel:0,architecture:'x64',app:config.name},null,2)+'\n');
 console.log(JSON.stringify({result:'PASS-scoped',output,exeSha256:sha(executable),app:config.name}));

@@ -226,6 +226,9 @@ export class RenderSemanticsPipeline {
   /** Render fragments with a produced node; detached trees never stay in the transport index. */
   readonly transportSources=new Set<RenderObject>();
   owner:SemanticsOwner|null=null;readonly dirty=new Set<RenderObject>();readonly geometryDirty=new Set<RenderObject>();private readonly pendingConfigurations=new Set<RenderObject>();private readonly pendingGeometryConfigurations=new Set<RenderObject>();private readonly deferredGeometry=new Set<RenderObject>();private readonly offsetDirty=new Set<RenderObject>();private flushing=false;
+  private changeRevision=0;
+  /** New invalidations, including motion added to an already dirty subtree. */
+  get updateRevision():number{return this.changeRevision;}
   constructor(private readonly pipeline:PipelineOwner){}
   private contributes(render:RenderObject):boolean{return render.owner===this.pipeline&&!render.needsLayout&&existingSemanticsFor(render)?.parentDataDirty===false;}
   get hasConfigurationChanges():boolean{
@@ -252,6 +255,7 @@ export class RenderSemanticsPipeline {
   detached(render:RenderObject):void{this.transportSources.delete(render);this.pendingConfigurations.delete(render);this.pendingGeometryConfigurations.delete(render);this.dirty.delete(render);this.geometryDirty.delete(render);this.deferredGeometry.delete(render);this.offsetDirty.delete(render);}
   requestUpdate(render:RenderObject,geometryOnly=false):void{
     invariant(!this.flushing,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');
+    this.changeRevision++;
     const state=existingSemanticsFor(render);state?.invalidateConfiguration();
     if(geometryOnly&&state&&!this.pendingConfigurations.has(render))this.pendingGeometryConfigurations.add(render);
     else{this.pendingGeometryConfigurations.delete(render);this.pendingConfigurations.add(render);}
@@ -259,7 +263,7 @@ export class RenderSemanticsPipeline {
     // invalidation still has to admit that unvisited tree's initial commit.
     if(!state){const root=this.pipeline.rootNode;if(root&&!existingSemanticsFor(root)){this.dirty.add(root);this.geometryDirty.add(root);}}
   }
-  offsetChanged(render:RenderObject):void{this.geometryDirty.add(render);this.offsetDirty.add(render);}
+  offsetChanged(render:RenderObject):void{this.changeRevision++;this.geometryDirty.add(render);this.offsetDirty.add(render);}
   flush():void{
     const owner=this.owner;if(owner===null)return;invariant(!this.flushing,'reentrant-semantics-flush','Cannot flush semantics recursively');this.flushing=true;geometryPaths.set(this.pipeline,new Map());
     let nodes:RenderObject[]=[];

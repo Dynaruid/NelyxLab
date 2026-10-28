@@ -25,7 +25,7 @@ function sameSemantics(a:unknown,b:unknown):boolean {
 }
 export interface NativeTextPositionRequest {readonly request:number;readonly point:{readonly x:number;readonly y:number};readonly options:TextInputHitOptions;readonly layoutEpoch:number;readonly nativeRevision:number}
 export interface NativeEditorPort {readNativeTag?():number|null;replace(text:string,selection:{start:number;end:number},revision?:number,request?:number):void;replaceComposing?(text:string,selection:{start:number;end:number},revision:number,request?:number):void;updateGeometry?(geometry:TextInputGeometry|null,text:string,characters:TextInputCharacterBounds|null,nativeRevision:number,selection:Readonly<{anchor:number;focus:number}>):void;updateCaretBounds?(bounds:TextInputRangeBounds,nativeRevision:number):void;updateTextPosition?(request:number,position:TextInputHitTest,nativeRevision:number):void;focus(request?:InputFocusRequest):void;blur():void;revealCaret?():void}
-export interface NativeInteractionPolicy {readonly commands:boolean;readonly selectionEvents:boolean;readonly semantics:'native-controls'|'unavailable';readonly nativeSnapshots?:boolean;readonly compositionReplacement?:boolean;readonly geometry?:'observed'|'unavailable'}
+export interface NativeInteractionPolicy {readonly commands:boolean;readonly selectionEvents:boolean;readonly semantics:'native-controls'|'unavailable';readonly nativeSnapshots?:boolean;readonly compositionReplacement?:boolean;readonly geometry?:'observed'|'unavailable';/** Nonvisual input consumes Core geometry directly, without positioning a backing control. */readonly inputControl?:'visual'|'nonvisual'}
 interface AttachedEditor {token:object;commands:NativeEditorPort;generation:number}
 interface PendingReplacement {readonly value:TextEditingValue;readonly base:TextEditingValue;readonly request:number|undefined;readonly cancelComposition:boolean;readonly selectionOnly?:boolean;retries:number}
 function sendReplacement(port:NativeEditorPort,request:PendingReplacement,revision:number):void{
@@ -190,7 +190,21 @@ export class NativeInteraction {
     const current=()=>{if(this.closed||this.editors.get(id)!==editor)throw new Error('Native editor session closed');return editor.session;};
     const replaceControl=(value:TextEditingValue)=>this.currentPort(id)?.commands.replace(value.text,{start:Math.min(value.selection.anchor,value.selection.focus),end:Math.max(value.selection.anchor,value.selection.focus)});
     if(this.policy.commands&&editor.kind==='public')replaceControl(initial);
-    const binding:EditingBinding={read:()=>current().value,updateGeometry:geometry=>{current();this.refreshInputState(id,editor);current();if(geometry===null){delete editor.inputGeometry;delete editor.inputGeometrySource;delete editor.inputGeometryValue;delete editor.characterRequest;delete editor.hitRequest;this.publishInputGeometry(id,editor);return;}if(editor.inputGeometrySource===geometry){this.publishInputGeometry(id,editor);return;}const snapshot=freezeTextInputGeometry(geometry);if(!sameOwner(snapshot.owner,this.owner))throw new Error('Foreign Core input geometry');editor.inputGeometry=snapshot;editor.inputGeometrySource=geometry;const previous=editor.inputBounds,bounds=snapshot.bounds,moved=!previous||previous.x!==bounds.x||previous.y!==bounds.y||previous.width!==bounds.width||previous.height!==bounds.height;editor.inputBounds=bounds;const core=editor.options?.readValue?.();if(core)editor.inputGeometryValue={text:core.text,selection:Object.freeze({...core.selection})};this.publishInputGeometry(id,editor);if(moved)this.publish();},readGeometry:()=>{current();return editor.geometry;},revealCaret:()=>{current();this.currentPort(id)?.commands.revealCaret?.();},replace:(value,synchronizationRequest)=>{
+    const binding:EditingBinding={read:()=>current().value,updateGeometry:geometry=>{
+      current();this.refreshInputState(id,editor);current();
+      if(geometry===null){delete editor.inputGeometry;delete editor.inputGeometrySource;delete editor.inputGeometryValue;delete editor.characterRequest;delete editor.hitRequest;this.publishInputGeometry(id,editor);return;}
+      if(editor.inputGeometrySource===geometry){this.publishInputGeometry(id,editor);return;}
+      const snapshot=freezeTextInputGeometry(geometry);if(!sameOwner(snapshot.owner,this.owner))throw new Error('Foreign Core input geometry');
+      editor.inputGeometry=snapshot;editor.inputGeometrySource=geometry;
+      const previous=editor.inputBounds,bounds=snapshot.bounds,moved=!previous||previous.x!==bounds.x||previous.y!==bounds.y||previous.width!==bounds.width||previous.height!==bounds.height;editor.inputBounds=bounds;
+      const core=editor.options?.readValue?.();if(core)editor.inputGeometryValue={text:core.text,selection:Object.freeze({...core.selection})};
+      this.publishInputGeometry(id,editor);
+      // Windows TSF receives coordinates above. Its accessibility tree is
+      // published by the completed semantics snapshot, once for the frame.
+      // Publishing here rerenders that whole tree once per moving editor,
+      // including intermediate snapshots with the previous frame's nodes.
+      if(moved&&this.policy.inputControl!=='nonvisual')this.publish();
+    },readGeometry:()=>{current();return editor.geometry;},revealCaret:()=>{current();this.currentPort(id)?.commands.revealCaret?.();},replace:(value,synchronizationRequest)=>{
       if(synchronizationRequest!==undefined&&(!Number.isSafeInteger(synchronizationRequest)||synchronizationRequest<=0))throw new Error('Invalid native synchronization request');
       if(!this.policy.commands)throw new Error('Native replacement unavailable');const session=current();if(!sameOwner(value.session,owner)||value.revision!==session.value.revision)throw new Error('Stale native replacement');
       if(editor.kind==='observed'){

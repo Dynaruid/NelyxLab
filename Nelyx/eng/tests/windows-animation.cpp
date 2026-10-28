@@ -251,6 +251,13 @@ struct NelyxAnimation {
    catch(winrt::hresult_error const& error){result={{"error",winrt::to_string(error.message())}};}if(SUCCEEDED(apartment))CoUninitialize();auto value=std::make_shared<RN::JSValueObject>(std::move(result));current.UIDispatcher().Post([promise,value]{promise.Resolve(std::move(*value));});
   });
  }
+ REACT_METHOD(semanticsBounds) void semanticsBounds(std::string identifier,RN::ReactPromise<RN::JSValueObject> promise)noexcept{
+  if(focusWorker.joinable())focusWorker.join();const auto current=context;const auto window=winrt::Microsoft::UI::GetWindowFromWindowId(fixtureWindow.Id());
+  focusWorker=std::jthread([current,promise,window,identifier=std::move(identifier)]{const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);RN::JSValueObject result;
+   try{winrt::check_hresult(apartment);Microsoft::WRL::ComPtr<IUIAutomation> client;winrt::check_hresult(CoCreateInstance(CLSID_CUIAutomation,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&client)));Microsoft::WRL::ComPtr<IUIAutomationElement> root,element;winrt::check_hresult(client->ElementFromHandle(window,&root));Nelyx::WindowsSemantics::AutomationVariant value;const auto wide=winrt::to_hstring(identifier);value.string(std::wstring(wide.c_str(),wide.size()));Microsoft::WRL::ComPtr<IUIAutomationCondition> condition;winrt::check_hresult(client->CreatePropertyCondition(UIA_AutomationIdPropertyId,value.data,&condition));winrt::check_hresult(root->FindFirst(TreeScope_Descendants,condition.Get(),&element));winrt::check_bool(element!=nullptr);RECT bounds{};winrt::check_hresult(element->get_CurrentBoundingRectangle(&bounds));POINT origin{};winrt::check_bool(ClientToScreen(window,&origin));result={{"left",bounds.left},{"top",bounds.top},{"width",bounds.right-bounds.left},{"height",bounds.bottom-bounds.top},{"originX",origin.x},{"originY",origin.y}};}
+   catch(winrt::hresult_error const& error){result={{"error",winrt::to_string(error.message())}};}if(SUCCEEDED(apartment))CoUninitialize();auto value=std::make_shared<RN::JSValueObject>(std::move(result));current.UIDispatcher().Post([promise,value]{promise.Resolve(std::move(*value));});
+  });
+ }
  REACT_METHOD(tab) void tab(bool reverse,RN::ReactPromise<void> promise)noexcept{context.UIDispatcher().Post([reverse,promise]{
   if(GetForegroundWindow()!=winrt::Microsoft::UI::GetWindowFromWindowId(fixtureWindow.Id())){promise.Reject("Tab fixture requires its own foreground window");return;}
   for(const auto key:{VK_CONTROL,VK_SHIFT,VK_MENU})if(GetAsyncKeyState(key)&0x8000){promise.Reject("Tab fixture requires released physical modifiers");return;}

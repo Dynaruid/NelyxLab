@@ -61,6 +61,10 @@ npx --no-install nelyx run --app ../.. --target web --port 8080
 
 대상별 옵션 조합은 [src/main.mjs](src/main.mjs)에 정의되어 있습니다.
 
+Windows RNW의 `run`은 설치된 Nelyx SDK 파일이 패키지에 기록된 입력과 다르면 기존 엔진·실행 모드·compiler profile·빌드 구성을 유지해 재빌드합니다. 변경이 없으면 기존 패키지를 사용하고, 입력 기록이 없는 이전 패키지는 한 번 재빌드합니다. 빌드 실패 시 앱을 실행하지 않습니다. 외부 앱은 SDK 패키지를 먼저 공급·설치하세요. 저장소 Testbed의 `run:windows`는 저장소 SDK 패키지도 자동 갱신합니다. 특정 패키지를 재빌드 없이 실행하려면 `run --package <directory>`를 사용하세요.
+
+기존 외부 앱은 SDK 입력 기록과 네이티브 헤더 무효화를 위해 `windows/runner/build.mjs`를 현재 starter 템플릿으로 한 번 갱신하세요. 저장소 Testbed에는 이 갱신이 포함되어 있습니다.
+
 ## 네이티브 준비 조건
 
 | 대상 | 필요한 준비 |

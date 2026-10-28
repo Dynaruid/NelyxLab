@@ -20,6 +20,8 @@ import {assertWindowsPackageReplaceable,publishWindowsPackage,pruneWindowsPackag
 import {windowsHermesPolicy} from './windows-hermes-policy.mjs';
 import nativeV8Transformer from '@nelyx/metro/native-v8-transformer';
 import {windowsHermesExecutionMode} from './windows-aot-mode.mjs';
+import {windowsBuildInputs} from './windows-build-inputs.mjs';
+import {prepareWindowsRun} from './windows-run-preparation.mjs';
 
 const packageManifest='nelyx-package.json';
 // Compiler profiles belong to the exact supplier and travel with the package.
@@ -90,6 +92,7 @@ export async function prepareWindows({app,nativeInputs,engine,engineInputs,herme
 /** Validate inventory, bundle format and the selected native engine supplier. */
 export function verifyWindowsPackage(directory){
   directory=fs.realpathSync(directory);const file=localFile(directory,packageManifest),manifest=JSON.parse(fs.readFileSync(file,'utf8'));
+  if(manifest.sdkInputsSha256!==undefined&&!/^[a-f0-9]{64}$/.test(manifest.sdkInputsSha256))throw Error('Invalid Windows SDK build input identity');
   if(manifest.schema!=='nelyx.rnw-package/v1'||manifest.target!=='windows'||!['rn-graphite-vulkan','rn-v8-graphite-vulkan','rn-jsc-graphite-vulkan'].includes(manifest.profile)||manifest.architecture!=='x64'||!['Debug','Release'].includes(manifest.configuration)||!(/^[A-Z][A-Za-z0-9]*$/).test(manifest.app)||manifest.executable!=='NelyxRNHost.exe'||manifest.bundle!=='Bundle/index.windows.bundle'||manifest.qualification!=='notVerified'||!/^[a-f0-9]{64}$/.test(manifest.nativeInputsSha256))throw new Error('RNW package identity mismatch');
   if(manifest.nativeBindingConfiguration!=='Release'||manifest.crt!=='MD'||manifest.iteratorDebugLevel!==0)throw Error('RNW package native supplier ABI identity differs');
   const v8=manifest.cohort?.engine==='v8',jsc=manifest.cohort?.engine==='jsc',sourceEngine=v8||jsc;
@@ -121,6 +124,7 @@ export async function buildWindows({app,nativeInputs,output,configuration='Relea
   isStaticHermes(hermesMode,engine??'hermes',configuration);hermesProfile??=configuration==='Release'?'optimized':'debug';
   if(!['debug','optimized'].includes(hermesProfile))throw Error('Choose Windows --hermes-profile debug or optimized');
   host();const value=selectEngine(await application(app),engine),native=verifyWindowsInputs({runner:value.runner,input:inputFor(value.app,nativeInputs)}),v8=value.cohort.engine==='v8'?v8For(value.app,engineInputs):undefined;
+  const sdkInputsSha256=windowsBuildInputs(value.runner);
   if(jscMode!==undefined)windowsJscMode(jscMode,value.cohort.engine);
   if(value.cohort.engine==='jsc'&&explicitHermesProfile!==undefined)throw Error('--hermes-profile requires --engine hermes');
   const jsc=value.cohort.engine==='jsc'?jscFor(value.app,engineInputs):undefined,jscExecutionMode=jsc?windowsJscMode(jscMode):null;
@@ -135,8 +139,10 @@ export async function buildWindows({app,nativeInputs,output,configuration='Relea
   const contains=(parent,child)=>{const rest=path.relative(parent,child);return !rest.startsWith('..')&&!path.isAbsolute(rest);};
   if(contains(directory,source)||contains(source,directory))throw new Error('Package output must be separate from native build output');
   fs.mkdirSync(path.dirname(directory),{recursive:true});if(fs.realpathSync(path.dirname(directory))!==path.dirname(directory))throw new Error('Package output parent symlink rejected');
-  configureWindowsApplication(value);await execute(process.execPath,[localFile(value.runner,'build.mjs'),'--native-inputs',native.input,'--configuration',configuration,'--engine',value.cohort.engine,...(jsc?['--engine-inputs',jsc.directory,'--jsc-mode',jscExecutionMode]:v8?['--engine-inputs',v8.directory]:['--hermes-profile',hermes.profile]),...(aot?['--hermes-mode',hermesMode,'--engine-inputs',aot.directory]:[])],{cwd:value.runner,signal});signal?.throwIfAborted();
+  configureWindowsApplication(value);await execute(process.execPath,[localFile(value.runner,'build.mjs'),'--native-inputs',native.input,'--configuration',configuration,'--engine',value.cohort.engine,...(jsc?['--engine-inputs',jsc.directory,'--jsc-mode',jscExecutionMode]:v8?['--engine-inputs',v8.directory]:['--hermes-profile',hermes.profile]),...(aot?['--hermes-mode',hermesMode,'--engine-inputs',aot.directory]:[])],{cwd:value.runner,signal,env:{...process.env,NELYX_WINDOWS_SDK_INPUTS_SHA256:sdkInputsSha256}});signal?.throwIfAborted();
+  if(windowsBuildInputs(value.runner)!==sdkInputsSha256)throw Error('Installed Windows SDK changed during the build; rerun with stable inputs');
   const built=JSON.parse(fs.readFileSync(state(value.app,'last-build.json'),'utf8'));
+  if(built.sdkInputsSha256!==sdkInputsSha256)throw Error('Windows runner did not acknowledge SDK build inputs; update build.mjs from the current template');
   if(built.schema!=='nelyx.rnw-build/v1'||built.configuration!==configuration||built.output!==source||built.executable!==path.join(source,'NelyxRNHost.exe')||built.nativeInputsSha256!==native.sha256||sha256(built.executable)!==built.exeSha256)throw new Error('RNW build acknowledgement mismatch');
   const legacyCompiler=built.hermesCompilerProfile===undefined&&built.hermesCompilerPolicy===undefined&&(v8||hermes?.profile==='debug');
   if(built.hermesCompilerFlags!==hermesCompilerFlags||!legacyCompiler&&(built.hermesCompilerProfile!==(hermes?.profile??null)||built.hermesCompilerPolicy!==(hermes?.id??null))||built.engine!==value.cohort.engine||v8&&(built.engineInputsSha256!==v8.sha256||built.v8CompilerPolicy!==nativeV8Transformer.compilerPolicy)||!v8&&built.v8CompilerPolicy!==undefined&&built.v8CompilerPolicy!==null)throw Error('Windows runner engine/compiler acknowledgement differs; update build.mjs from the current template');
@@ -153,7 +159,7 @@ export async function buildWindows({app,nativeInputs,output,configuration='Relea
     writePortableMetroMap({app:value.app,runner:value.runner,directory:stage,bundle:aot?'Bundle/index.windows.aot.js':'Bundle/index.windows.bundle',mapPath:'sourcemaps/react/index.windows.bundle.map'});
     for(const name of fileTree(stage)){const file=localFile(stage,name);records.push({path:name,bytes:fs.statSync(file).size,sha256:sha256(file)});}
     const manifest={schema:'nelyx.rnw-package/v1',target:'windows',profile:value.profile.id,architecture:'x64',configuration,nativeBindingConfiguration:'Release',crt:'MD',iteratorDebugLevel:0,app:value.config.name,cohort:value.cohort,
-      executable:'NelyxRNHost.exe',bundle:'Bundle/index.windows.bundle',hermesCompilerFlags,hermesCompilerProfile:hermes?.profile??null,hermesCompilerPolicy:hermes?.id??null,hermesExecutionMode:hermesMode,v8CompilerPolicy:v8?nativeV8Transformer.compilerPolicy:null,jscExecutionMode,jscCompilerPolicy:jsc?nativeJscTransformer.compilerPolicy:null,nativeInputsSha256:native.sha256,qualification:'notVerified',files:records};
+      executable:'NelyxRNHost.exe',bundle:'Bundle/index.windows.bundle',hermesCompilerFlags,hermesCompilerProfile:hermes?.profile??null,hermesCompilerPolicy:hermes?.id??null,hermesExecutionMode:hermesMode,v8CompilerPolicy:v8?nativeV8Transformer.compilerPolicy:null,jscExecutionMode,jscCompilerPolicy:jsc?nativeJscTransformer.compilerPolicy:null,nativeInputsSha256:native.sha256,sdkInputsSha256,qualification:'notVerified',files:records};
     fs.writeFileSync(path.join(stage,packageManifest),JSON.stringify(manifest,null,2)+'\n');
   },verify(candidate){signal?.throwIfAborted();const checked=verifyWindowsPackage(candidate);verifyWindowsRuntime(candidate);return checked;}});
   const cleanup=pruneWindowsPackages({app:value.app,appName:value.config.name,current:directory});
@@ -166,8 +172,9 @@ function packageFor(app,directory){
   if(locator.schema!=='nelyx.rnw-package-locator/v1'||sha256(path.join(locator.directory,packageManifest))!==locator.manifestSha256)throw new Error('RNW package locator changed');
   return verifyWindowsPackage(locator.directory);
 }
-export async function runWindows({app,directory,arguments:args=[]}){
-  host();const verified=packageFor(app,directory),executable=localFile(verified.directory,verified.manifest.executable);
+export async function runWindows({app,directory,hermesMode,arguments:args=[]}){
+  host();if(hermesMode!==undefined)windowsHermesExecutionMode(hermesMode);
+  const verified=await prepareWindowsRun({app,directory,hermesMode},{packageFor,readInputs:app=>windowsBuildInputs(path.join(path.resolve(app),'windows/runner')),build:buildWindows,onRebuild:()=>process.stderr.write('Nelyx SDK inputs changed; rebuilding the Windows package before launch.\n')}),executable=localFile(verified.directory,verified.manifest.executable);
   verifyWindowsRuntime(verified.directory);
   const child=startWindowsProcess(executable,args,{cwd:verified.directory});process.stderr.write(JSON.stringify({event:'nelyx.native-started',pid:child.pid,executable})+'\n');
   const close=()=>{void child.stop();};process.on('SIGINT',close);process.on('SIGTERM',close);

@@ -4,7 +4,7 @@ import {SemanticsConfiguration,SemanticsNode,SemanticsTag,DebugSemanticsDumpOrde
 import {AttributedString} from '../semantics/attributed-string.ts';
 import {SemanticsAction} from '../../ui/semantics-action.ts';
 import {Tristate,CheckedState,SemanticsRole} from '../../ui/semantics.ts';
-import type {SemanticsNode as HostNode,SemanticsAction as HostAction,Rect,ViewOwner,ViewMetrics,TextInputGeometry,SemanticsTextNavigation,SemanticsTextParagraph} from '../../ui/types.ts';
+import type {SemanticsNode as HostNode,SemanticsAction as HostAction,SemanticsTextAction,Rect,ViewOwner,ViewMetrics,TextInputGeometry,SemanticsTextNavigation,SemanticsTextParagraph} from '../../ui/types.ts';
 import type {TransformMatrix} from '../../ui/geometry.ts';
 import {bounds,multiply,translate,identity,intersect,fullTransform} from '../../ui/geometry.ts';
 import {captureMatrix4} from '../../ui/matrix4.ts';
@@ -61,7 +61,7 @@ export class SemanticsTransportSnapshot {
   private generation:object|null=null;private nextId=0;private readonly ids=new WeakMap<SemanticsNode,string>();
   private deferredGeneration:object|null=null;
   private pendingGeneration:object|null=null;
-  constructor(private readonly pipeline:PipelineOwner,private readonly isLive:()=>boolean,private readonly deferAction?:(source:SemanticsNode,action:HostAction)=>void,private readonly deferRangeAction?:(source:SemanticsNode,value:number,range:NonNullable<HostNode['numericRange']>)=>void){}
+  constructor(private readonly pipeline:PipelineOwner,private readonly isLive:()=>boolean,private readonly deferAction?:(source:SemanticsNode,action:HostAction)=>void,private readonly deferRangeAction?:(source:SemanticsNode,value:number,range:NonNullable<HostNode['numericRange']>)=>void,private readonly deferTextAction?:(source:SemanticsNode,perform:(current:HostNode)=>void)=>void){}
   invalidate():void{this.generation=null;this.deferredGeneration=null;this.pendingGeneration=null;}
   /** Only the last published generation may request a fresh action after motion. */
   defer():void{this.pendingGeneration=null;if(this.generation!==null){this.deferredGeneration=this.generation;this.generation=null;}}
@@ -103,11 +103,27 @@ export class SemanticsTransportSnapshot {
       const result:Mutable<HostNode>={id,sourceNodeId:node.id,role,name:data.label,nameAttributes:data.attributedLabel.attributes,enabled:flags.isEnabled!==Tristate.isFalse&&(metadata?.enabled??true),bounds:rect};
       if(navigation)result.textNavigation=navigation;if(paragraph)result.textParagraph=paragraph;
       if(role==='text-field'){
-        const performText=(action:SemanticsAction,args:unknown)=>{if(metadata?.enabled===false||this.generation!==generation||!this.isLive()||this.pipeline.semanticsOwner!==owner||owner.getSemanticsNode(node.id)!==node||node.isInvisible)return;const current=node.getSemanticsData();if(current.flagsCollection.isHidden||current.flagsCollection.isEnabled===Tristate.isFalse||!current.hasAction(action))return;owner.performAction(node.id,action,args);};
+        const performText=(action:SemanticsTextAction)=>{
+          if(metadata?.enabled===false||!this.isLive()||this.pipeline.semanticsOwner!==owner||owner.getSemanticsNode(node.id)!==node||node.isInvisible)return;
+          if(this.deferredGeneration===generation){
+            this.deferTextAction?.(node,current=>{
+              // Motion may postpone coordinates, never admit a queued edit
+              // against changed content, selection, privacy or editing owner.
+              if(current.role!=='text-field'||current.textInputRevision!==result.textInputRevision||current.textRevision!==result.textRevision||current.textInputGeneration!==result.textInputGeneration||current.value!==result.value||current.readOnly!==result.readOnly||current.obscured!==result.obscured)return;
+              if(action.kind==='set-text')current.textActions?.setText?.(action.text);
+              else if(action.kind==='set-selection')current.textActions?.setSelection?.({anchor:action.anchor,focus:action.focus});
+              else current.textActions?.scrollRange?.(action.start,action.end,action.alignToTop);
+            });return;
+          }
+          if(this.generation!==generation)return;
+          const type=action.kind==='set-text'?SemanticsAction.setText:action.kind==='set-selection'?SemanticsAction.setSelection:SemanticsAction.showOnScreen,current=node.getSemanticsData();
+          if(current.flagsCollection.isHidden||current.flagsCollection.isEnabled===Tristate.isFalse||!current.hasAction(type))return;
+          owner.performAction(node.id,type,action.kind==='set-text'?action.text:action.kind==='set-selection'?new Map([['base',action.anchor],['extent',action.focus]]):Object.freeze({start:action.start,end:action.end,alignToTop:action.alignToTop}));
+        };
         const textActions:Mutable<NonNullable<HostNode['textActions']>>={};
-        if(data.hasAction(SemanticsAction.setText))textActions.setText=text=>performText(SemanticsAction.setText,text);
-        if(data.hasAction(SemanticsAction.setSelection))textActions.setSelection=selection=>performText(SemanticsAction.setSelection,new Map([['base',selection.anchor],['extent',selection.focus]]));
-        if(metadata?.textActions?.scrollRange&&data.hasAction(SemanticsAction.showOnScreen))textActions.scrollRange=(start,end,alignToTop)=>performText(SemanticsAction.showOnScreen,Object.freeze({start,end,alignToTop}));
+        if(data.hasAction(SemanticsAction.setText))textActions.setText=text=>performText({kind:'set-text',text});
+        if(data.hasAction(SemanticsAction.setSelection))textActions.setSelection=selection=>performText({kind:'set-selection',...selection});
+        if(metadata?.textActions?.scrollRange&&data.hasAction(SemanticsAction.showOnScreen))textActions.scrollRange=(start,end,alignToTop)=>performText({kind:'scroll-range',start,end,alignToTop});
         if(textActions.setText||textActions.setSelection||textActions.scrollRange)result.textActions=textActions;
         if(metadata?.textInputRevision!==undefined)result.textInputRevision=metadata.textInputRevision;
         if(metadata?.textRevision!==undefined)result.textRevision=metadata.textRevision;

@@ -64,7 +64,7 @@ class ViewPipelineManifold extends PipelineManifold {
 class RenderHitTestBuilder extends HitTestResult {
   addRenderEntry(entry:HitTestEntry):void{this.pushTransform(entry.transform);try{const source=entry.createSourceEntry?.()??new SourceHitTestEntry(entry.target);invariant(source.target===entry.target&&source.transform===null,'invalid-source-hit-entry','Render hit entry factory must create a fresh entry for its actual target');this.add(source);entry.onSourceEntry?.(source);}finally{this.popTransform();}}
 }
-export interface WidgetApplicationOptions {readonly id:string;readonly background?:number;readonly assets?:ApplicationDefinition['assets'];readonly defaultFont?:string|ResourceId;/** Startup opt-out: false skips all accessibility processing for this app. Default: true. */readonly accessibilityEnabled?:boolean;/** Minimum milliseconds between motion-only accessibility snapshots; 0 (default) publishes every changed frame. */readonly semanticsUpdateInterval?:number;readonly createRoot:(context:ViewControllerContext,scheduler:FrameScheduler)=>Widget}
+export interface WidgetApplicationOptions {readonly id:string;readonly background?:number;readonly assets?:ApplicationDefinition['assets'];readonly defaultFont?:string|ResourceId;/** Startup opt-out: false skips all accessibility processing for this app. Default: true. */readonly accessibilityEnabled?:boolean;/** Milliseconds between motion-only accessibility snapshots; 0 (default) publishes every changed frame. Intervals above 100ms also publish after 100ms without a changed frame. Input geometry and semantic state changes are immediate. */readonly semanticsUpdateInterval?:number;readonly createRoot:(context:ViewControllerContext,scheduler:FrameScheduler)=>Widget}
 export function widgetApplication(options:WidgetApplicationOptions):ApplicationDefinition {
   return {id:options.id,...(options.accessibilityEnabled!==undefined?{accessibilityEnabled:options.accessibilityEnabled}:{}),...(options.assets?{assets:options.assets}:{}),createView:context=>new FrameworkRoot(context,options)};
 }
@@ -79,6 +79,9 @@ export class FrameworkRoot implements ViewController {
   private semanticsDeferred=false;
   private semanticsWake:number|Disposable|undefined;
   private semanticsWakeDeadline:number|undefined;
+  private semanticsWakeDue=false;
+  private semanticsMotionRevision:number|undefined;
+  private semanticsQuietDeadline:number|undefined;
   private semanticsFocus:BuildOwner['focus']['primaryFocus'];
   private pendingSemanticsActions:{source:SourceSemanticsNode;perform:(node:SemanticsNode)=>void}[]=[];
   private readonly viewSemanticsHandle:SemanticsHandle|undefined;
@@ -134,7 +137,7 @@ export class FrameworkRoot implements ViewController {
     // not submit engine packets, so do not build a second copy to dispose it.
     const systemFonts=context.platformServices instanceof PaintingBinding?context.platformServices.systemFonts:null;
     this.buildOwner=new BuildOwner(context,invalidate,callback=>{if(!this.closed)this.scheduler.addPostFrame(callback);},{mouseIsConnected:()=>this.mouseTracker.mouseIsConnected},systemFonts);this.pipeline=new PipelineOwner({accessibilityEnabled:options.accessibilityEnabled!==false,onNeedVisualUpdate:invalidatePipeline,onSemanticsUpdate:update=>update.dispose(),onSemanticsOwnerCreated:()=>this.pipeline.rootNode?.scheduleInitialSemantics(),createSemanticsUpdateBuilder:()=>null,systemFonts:systemFonts?{systemFonts,scheduler:this.scheduler}:null,...(context.binaryMessenger?{messenger:context.binaryMessenger}:{})});this.layerRoot.layer!.attach(this.pipeline);this.mouseTracker=new MouseTracker(position=>this.pointerHitTest(position),context.owner.id,context.platformServices?.channels.mouseCursor??(context.binaryMessenger?new SystemChannelSet(context.binaryMessenger).mouseCursor:null));
-    this.sourceSemanticsSnapshot=options.accessibilityEnabled===false?undefined:new SemanticsTransportSnapshot(this.pipeline,()=>this.isInputLive(),(source,action)=>this.queueSemanticsAction(source,node=>node.actions?.[action]?.()),(source,value,range)=>this.queueSemanticsAction(source,node=>{const current=node.numericRange;if(current&&current.min===range.min&&current.max===range.max&&current.value===range.value&&current.smallChange===range.smallChange&&current.largeChange===range.largeChange)node.rangeActions?.setValue(value);}));
+    this.sourceSemanticsSnapshot=options.accessibilityEnabled===false?undefined:new SemanticsTransportSnapshot(this.pipeline,()=>this.isInputLive(),(source,action)=>this.queueSemanticsAction(source,node=>node.actions?.[action]?.()),(source,value,range)=>this.queueSemanticsAction(source,node=>{const current=node.numericRange;if(current&&current.min===range.min&&current.max===range.max&&current.value===range.value&&current.smallChange===range.smallChange&&current.largeChange===range.largeChange)node.rangeActions?.setValue(value);}), (source,perform)=>this.queueSemanticsAction(source,perform));
     this.pipeline.attach(new ViewPipelineManifold(this.semanticsActionBinding,invalidatePipeline));
     this.viewSemanticsHandle=options.accessibilityEnabled===false?undefined:this.semanticsActionBinding.ensureSemantics();
     this.gestureBinding=new GestureBinding({implicitViewId:context.owner.id,pointerRouter:this.pointerRouter,gestureArena:this.buildOwner.gestures,scheduler:this.scheduler,clock:new SamplingClock(()=>context.clock.now(),()=>context.clock.now()),devicePixelRatioForView:viewId=>!this.closed&&viewId===context.owner.id?context.readMetrics().scale:null,
@@ -168,9 +171,9 @@ export class FrameworkRoot implements ViewController {
       if(!this.isViewOpen()||this.scheduler.disposed)return [];
       this.scheduler.runPersistentFrameCallbacks();if(!this.isViewOpen()||this.scheduler.disposed)return [];
       this.scheduler.phase='build';
-      const buildRevision=this.buildOwner.buildRevision;
       if(!this.root){const root=this.options.createRoot(this.buildOwner.services,this.scheduler).createElement();this.root=root;root.mount(undefined,this.buildOwner);}
       const metricsChanged=this.metrics?.viewportGeneration!==scene.token.metrics.viewportGeneration || this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration;
+      const buildRevision=this.buildOwner.buildRevision;
       if(this.metrics&&(this.metrics.logicalWidth!==scene.token.metrics.logicalWidth||this.metrics.logicalHeight!==scene.token.metrics.logicalHeight||this.metrics.physicalWidth!==scene.token.metrics.physicalWidth||this.metrics.physicalHeight!==scene.token.metrics.physicalHeight))this.semanticsResizeAt=this.scheduler.currentSystemFrameTimeStamp;
       if(metricsChanged){this.cancelPointers();if(this.metrics?.rendererGeneration!==scene.token.metrics.rendererGeneration){const visit=(element:Element)=>{element.markNeedsBuild();for(const child of element.children)visit(child);};visit(this.root);}else this.buildOwner._viewMetricsChanged(this.metrics,scene.token.metrics);}
       this.metrics=scene.token.metrics;
@@ -200,16 +203,19 @@ export class FrameworkRoot implements ViewController {
         const sameEnvironment=!!cached&&sameSemanticsEnvironment(cached.metrics.environment,metrics.environment);
         const sameScope=sameTreeScope&&sameEnvironment&&(Object.keys(metrics) as (keyof ViewMetrics)[]).every(key=>key==='environment'||cached!.metrics[key]===metrics[key]);
         const resizeScope=sameTreeScope&&sameEnvironment&&(cached!.metrics.logicalWidth!==metrics.logicalWidth||cached!.metrics.logicalHeight!==metrics.logicalHeight||cached!.metrics.physicalWidth!==metrics.physicalWidth||cached!.metrics.physicalHeight!==metrics.physicalHeight)&&(['scale','rendererGeneration','nativeContextGeneration'] as const).every(key=>cached!.metrics[key]===metrics[key]);
-        let reuse=sameScope&&!this.semanticsDeferred&&this.pendingSemanticsActions.length===0&&!geometryCommit.hasInputGeometry&&!semanticsPipeline?.hasPendingChanges;
+        let reuse=sameScope&&!this.semanticsDeferred&&this.pendingSemanticsActions.length===0&&!geometryCommit.hasInputGeometry&&!cached!.nodes.some(node=>node.role==='text-field')&&!semanticsPipeline?.hasPendingChanges;
         const now=this.scheduler.currentSystemFrameTimeStamp,elapsed=this.semanticsPublishedAt===undefined?Infinity:now-this.semanticsPublishedAt;
         const interval=this.options.semanticsUpdateInterval??0,resizeElapsed=this.semanticsResizeAt===undefined?Infinity:now-this.semanticsResizeAt;
-        const defer=!reuse&&this.pendingSemanticsActions.length===0&&this.semanticsPublishedAt!==undefined&&((sameScope&&(!rebuilt||!semanticsPipeline?.hasConfigurationChanges)&&elapsed>=0&&elapsed<interval)||(resizeScope&&!semanticsPipeline?.hasConfigurationChanges&&resizeElapsed>=0&&resizeElapsed<interval))&&!geometryCommit.hasInputGeometry&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates;
+        const wakeDue=this.semanticsWakeDue;this.semanticsWakeDue=false;
+        const defer=!reuse&&!wakeDue&&this.pendingSemanticsActions.length===0&&this.semanticsPublishedAt!==undefined&&((sameScope&&(!rebuilt||!semanticsPipeline?.hasConfigurationChanges)&&elapsed>=0&&elapsed<interval)||(resizeScope&&!semanticsPipeline?.hasConfigurationChanges&&resizeElapsed>=0&&resizeElapsed<interval))&&(!(geometryCommit.hasInputGeometry||cached?.nodes.some(node=>node.role==='text-field'))||semanticsPipeline?.hasPendingChanges===true)&&this.semanticsFocus===this.buildOwner.focus.primaryFocus&&!this.pipeline.semanticsOwner?.hasPendingUpdates;
         if(defer){
           // Keep dirty work queued; actions request an earlier fresh snapshot.
           // Wake at the existing semantic deadline. Clock-only polling before
           // then must not keep painting the same deferred accessibility work.
+          if(!this.semanticsDeferred||this.semanticsMotionRevision!==semanticsPipeline?.updateRevision){this.semanticsMotionRevision=semanticsPipeline?.updateRevision;this.semanticsQuietDeadline=now+100;}
           this.semanticsDeferred=true;this.sourceSemanticsSnapshot.defer();
-          this.scheduleSemanticsWake((resizeScope?this.semanticsResizeAt!:this.semanticsPublishedAt!)+interval);
+          const deadline=(resizeScope?this.semanticsResizeAt!:this.semanticsPublishedAt!)+interval;
+          this.scheduleSemanticsWake(interval>100?Math.min(deadline,this.semanticsPublishedAt!+interval,this.semanticsQuietDeadline!):deadline);
         }else{
           this.cancelSemanticsWake();this.semanticsDeferred=false;
           if(!reuse)this.sourceSemanticsSnapshot.invalidate();this.pipeline.flushSemantics();
@@ -217,7 +223,10 @@ export class FrameworkRoot implements ViewController {
           let snapshot:readonly SemanticsNode[],nodes:readonly SemanticsNode[],candidate:ReturnType<SemanticsTransportSnapshot['capture']>|undefined;
           if(reuse){snapshot=cached!.snapshot;nodes=cached!.nodes;}
           else{candidate=this.sourceSemanticsSnapshot.capture(render,render.localTransform,{owner:scene.token.owner,metrics,inputGeometryToken:geometryCommit.token});snapshot=freezeSemantics(candidate.nodes);nodes=flattenSemantics(snapshot);}
-          const nextCache=reuse?cached:!geometryCommit.hasInputGeometry&&!nodes.some(node=>node.role==='text-field')?{render,owner:this.pipeline.semanticsOwner,viewOwner:{...scene.token.owner},metrics:{...metrics},transform:captureTransform(render.localTransform),snapshot,nodes}:undefined,focus=this.buildOwner.focus.primaryFocus;
+          // Editable snapshots are never reused: their paragraph/geometry fences
+          // still belong to a captured frame. Retain their scope so motion can
+          // defer accessibility work after input geometry commits independently.
+          const nextCache=reuse?cached:{render,owner:this.pipeline.semanticsOwner,viewOwner:{...scene.token.owner},metrics:{...metrics},transform:captureTransform(render.localTransform),snapshot,nodes},focus=this.buildOwner.focus.primaryFocus;
           // Preparing a snapshot cannot publish an unsealed or rejected frame.
           // Input coordinates and host semantics share this CPU commit; GPU
           // admission remains independent for forced synchronous input queries.
@@ -360,7 +369,11 @@ export class FrameworkRoot implements ViewController {
   }
   private scheduleSemanticsWake(deadline:number):void{
     const request=this.context.requestFrameAt;
-    if(!request){if(this.semanticsWake===undefined)this.semanticsWake=this.scheduler.scheduleFrameCallback(()=>{this.semanticsWake=undefined;});return;}
+    if(!request){
+      if(this.semanticsWake!==undefined&&Object.is(this.semanticsWakeDeadline,deadline))return;
+      this.cancelSemanticsWake();this.semanticsWakeDeadline=deadline;
+      this.semanticsWake=this.scheduler.scheduleFrameCallback(()=>{this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;if(this.scheduler.currentSystemFrameTimeStamp>=deadline)this.semanticsWakeDue=true;});return;
+    }
     if(this.semanticsWake!==undefined&&Object.is(this.semanticsWakeDeadline,deadline))return;
     this.cancelSemanticsWake();if(!Number.isFinite(deadline))return;
     let host:Disposable|undefined,cancelled=false;
@@ -369,12 +382,12 @@ export class FrameworkRoot implements ViewController {
     try{
       host=request(deadline,()=>{
         if(this.semanticsWake!==wake)return;this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;cancelled=true;
-        if(this.isInputLive())this.scheduler.requestFrame();
+        if(this.isInputLive()){this.semanticsWakeDue=true;this.scheduler.requestFrame();}
       });
       if(cancelled)host.dispose();
     }catch(error){if(this.semanticsWake===wake){this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;}cancelled=true;throw error;}
   }
-  private cancelSemanticsWake():void{const wake=this.semanticsWake;this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;if(typeof wake==='number')this.scheduler.cancelFrameCallbackWithId(wake);else wake?.dispose();}
+  private cancelSemanticsWake():void{const wake=this.semanticsWake;this.semanticsWake=undefined;this.semanticsWakeDeadline=undefined;this.semanticsWakeDue=false;if(typeof wake==='number')this.scheduler.cancelFrameCallbackWithId(wake);else wake?.dispose();}
   setVisible(visible:boolean):void {if(this.closed)return;if(!visible)this.buildOwner.maybeViewWorkBudget?.cancelPreparation();if(this.visible!==visible){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsDeferred=false;this.semanticsCache=undefined;this.sourceSemanticsSnapshot?.invalidate();}this.visible=visible;if(!visible&&this.sourceSemanticsSnapshot)this.semanticsActionBinding.updateViewSemantics(this.context.owner.id,[]);const errors:unknown[]=[];if(!visible)for(const stop of [()=>this.cancelPointers(),()=>this.mouseTracker.clearDevices(),()=>this.keyboardFocusLost()])try{stop();}catch(error){errors.push(error);}try{this.scheduler.setVisible(visible);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'View input visibility transition failed');}
   shouldSubmitFrame():boolean{return this.scheduler.sendFramesToEngine;}
   frameSubmitted(_token:FrameBuildToken):void{this.scheduler.markFirstFrameSubmitted();}

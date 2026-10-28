@@ -144,6 +144,11 @@ test('Windows sample actions preserve native completion or the expected first fa
       source=source.replace(wheelDelta,wheelDelta+'\n    NelyxAnimationDiagnostics::record("Input.nativeWheelAbsoluteDelta",std::abs(delta));NelyxAnimationDiagnostics::record("Input.nativeWheelNetDelta",delta);');
       fs.writeFileSync(path.join(directory,'SkiaView.h'),source);
     }
+    if(process.env.NELYX_ANIMATION_SEMANTICS_TRACE==='1'){
+      let source=fs.readFileSync(path.join(sdk,'SemanticsComponent.h'),'utf8');
+      for(const [anchor,label]of [['void props(SemanticsProps const& value){','NativeSemantics.props'],['  void apply(){','NativeSemantics.apply']]){assert.equal(source.split(anchor).length,2);source=source.replace(anchor,anchor+'NelyxAnimationDiagnostics::Scope timing{"'+label+'"};');}
+      fs.writeFileSync(path.join(directory,'SemanticsComponent.h'),source);
+    }
     fs.writeFileSync(path.join(directory,'pch.h'),'#pragma once\n#include <windows.h>\n#undef GetCurrentTime\n#include <CppWinRTIncludes.h>\n#include <NativeModules.h>\n');
     fs.writeFileSync(path.join(directory,'pch.cpp'),'#include "pch.h"\n');
     fs.writeFileSync(path.join(directory,'InputSurface.vcxproj'),`<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
@@ -194,7 +199,7 @@ EndGlobal
       const viewport=iterative?(process.env.NELYX_ANIMATION_VIEWPORT??'fixed'):requestedViewports[pass],resize=process.env.NELYX_ANIMATION_RESIZE==='1'&&(!both||viewport==='fixed');assert(['fixed','default','maximized'].includes(viewport));
       const wheelInputMode=process.env.NELYX_ANIMATION_WHEEL_INPUT==='queued'?'queued':process.env.NELYX_ANIMATION_WHEEL_INPUT==='1'?'os':'none';
       const wheelInterval=Number(process.env.NELYX_ANIMATION_WHEEL_INTERVAL_MS??8),wheelDelta=Number(process.env.NELYX_ANIMATION_WHEEL_DELTA??6);assert(Number.isInteger(wheelInterval)&&wheelInterval>=1&&wheelInterval<=16);assert(Number.isInteger(wheelDelta)&&wheelDelta>=1&&wheelDelta<=120);
-      const semanticsInterval=process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL===undefined?null:Number(process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL);assert(semanticsInterval===null||Number.isFinite(semanticsInterval)&&semanticsInterval>=0);const diagnostic=process.env.NELYX_ANIMATION_DIAGNOSTIC==='1',mode=process.env.NELYX_ANIMATION_MODE??'standard',optimization=process.env.NELYX_ANIMATION_HERMES_OPT??'optimized';assert(['standard','cpu-timing','renderer-clear','host-semantics-static','editing-resize','gallery-regression','render-liveness','full-runtime-regression','research-engine','live-resize','startup-probe','interactive'].includes(mode));const compilerFlags=windowsHermesProfileFlags(optimization);assert(mode==='standard'||mode==='cpu-timing'||mode==='editing-resize'||mode==='gallery-regression'||mode==='render-liveness'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'||mode==='startup-probe'||mode==='interactive'||diagnostic,'Ablation requires diagnostic mode');
+      const semanticsInterval=process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL===undefined?null:Number(process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL);assert(semanticsInterval===null||Number.isFinite(semanticsInterval)&&semanticsInterval>=0);const diagnostic=process.env.NELYX_ANIMATION_DIAGNOSTIC==='1',mode=process.env.NELYX_ANIMATION_MODE??'standard',optimization=process.env.NELYX_ANIMATION_HERMES_OPT??'optimized';assert(['standard','cpu-timing','renderer-clear','host-semantics-static','editing-resize','gallery-regression','render-liveness','full-runtime-regression','research-engine','live-resize','startup-probe','interactive','semantics-scroll'].includes(mode));const compilerFlags=windowsHermesProfileFlags(optimization);assert(mode==='standard'||mode==='cpu-timing'||mode==='editing-resize'||mode==='gallery-regression'||mode==='render-liveness'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'||mode==='startup-probe'||mode==='interactive'||mode==='semantics-scroll'||diagnostic,'Ablation requires diagnostic mode');
       if(mode==='cpu-timing')assert(!diagnostic&&process.env.NELYX_ANIMATION_TRACE!=='1','Minimal CPU timing requires per-method diagnostics and trace disabled');
       console.log('ANIMATION_CONFIG '+JSON.stringify({engine,hermesMode,hermesRuntime:staticToolchain?'source-hook':'stock',viewport,v8Profile,sourceCompiler,inlineRequires,nativeClasses:engine==='v8',wheelInput:wheelInputMode!=='none',wheelInputMode,wheelInterval,wheelDelta,trace:process.env.NELYX_ANIMATION_TRACE==='1',diagnostic,nativeTrace:process.env.NELYX_ANIMATION_NATIVE_TRACE==='1',nativeCoreTrace:process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1',allocationTrace:process.env.NELYX_ANIMATION_ALLOCATIONS==='1',mode,minified:!v8&&!staticToolchain,optimization:v8?'source-js':optimization,compilerFlags:v8?[]:compilerFlags,sourceAlias:process.env.NELYX_ANIMATION_SOURCE==='1',semanticsIntervalOverride:semanticsInterval,resize:resize||mode==='editing-resize'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'}));
       if(!bundleBuilt&&process.env.NELYX_ANIMATION_REUSE_CURRENT_INPUT){
@@ -322,6 +327,14 @@ EndGlobal
       // Interactive repair may rebundle changed Core sources after a failed
       // diagnostic pass; only a fully successful current pass clears it.
       if(mode==='live-resize'){assert.match(output,/ANIMATION_JS live-resize PASS/);assert.match(output,/ANIMATION_DRAG entered=1 exited=1 sizing=[1-9]\d*/);validateNativeTiming(output);completed++;lastError=undefined;break;}
+      if(mode==='semantics-scroll'){
+        assert.match(output,/ANIMATION_JS semantics-scroll PASS/);
+        assert.match(output,/ANIMATION_JS semantics-bounds selection PASS/);assert.match(output,/ANIMATION_JS semantics-bounds text PASS/);
+        const phases=output.split('\n').filter(line=>line.startsWith('ANIMATION_JS {"phase"')).map(line=>JSON.parse(line.slice('ANIMATION_JS '.length)));
+        assert.deepEqual(phases.map(value=>value.phase),['semantics-selection-live','semantics-selection-held','semantics-text-live','semantics-text-held']);
+        for(const value of phases)assert(value['Frame.cpu']?.n>10&&value['Root.build']?.n>10,'Missing active semantics scroll frames');
+        completed++;lastError=undefined;break;
+      }
       assert.match(output,/ANIMATION_JS font-collection PASS registration\/rollover\/dispose\/live-builder/);
       assert.match(output,/ANIMATION_JS text-reuse-budget PASS idle-owner\/released-query-rejection\/retained-full\/reuse\/new-rejection\/retirement/);
       if(mode==='editing-resize'){assert.match(output,/ANIMATION_JS editing-resize PASS/);completed++;break;}

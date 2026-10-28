@@ -23,11 +23,11 @@ function fixture({scene,observeInput}={}){
   return {view,renderer,session,callbacks,notifications,submissions,errors,tick,get builds(){return builds;},set value(next){value=next;},set deny(next){deny=next;},set nativeRecordings(next){nativeRecordings=next;},set releaseAfterHint(next){releaseAfterHint=next;},set failSubmission(next){failSubmission=next;}};
 }
 
-function deadlineFixture({widgets=false,notifications=false}={}){
+function deadlineFixture({widgets=false,notifications=false,semanticsUpdateInterval=50}={}){
  const callbacks=new Set(),errors=[],submissions=[],actions=[];let now=0,builds=0,services,root,listener;
  const clock={now:()=>now,request(callback){callbacks.add(callback);return {dispose(){callbacks.delete(callback);}};}};
  const renderer={capabilities:{notifications:notifications?'submitted-and-retired':'unavailable'},updateMetrics(){},observe(callback){listener=callback;return {dispose(){listener=undefined;}};},submit(frame,lease){submissions.push(frame.token);listener?.({kind:'submitted',token:frame.token,submission:submissions.length});lease.transfer();lease.returnBy('renderer');return {status:'accepted'};},dispose(){}};
- const session=new AppSession({id:'deadline',createView(context){services=context;const controller=widgets?(root=new FrameworkRoot(context,{id:'deadline',semanticsUpdateInterval:50,createRoot:()=>new Semantics({transportId:'deadline-action',label:'Action',container:true,onTap:()=>actions.push(context.readMetrics().logicalHeight),child:new SizedBox(40,40)})})):{build(){return [{op:'clear',color:0}];},dispose(){}};const build=controller.build;controller.build=function(...args){builds++;return build.apply(this,args);};return controller;}},clock);
+ const session=new AppSession({id:'deadline',createView(context){services=context;const controller=widgets?(root=new FrameworkRoot(context,{id:'deadline',semanticsUpdateInterval,createRoot:()=>new Semantics({transportId:'deadline-action',label:'Action',container:true,onTap:()=>actions.push(context.readMetrics().logicalHeight),child:new SizedBox(40,40)})})):{build(){return [{op:'clear',color:0}];},dispose(){}};const build=controller.build;controller.build=function(...args){builds++;return build.apply(this,args);};return controller;}},clock);
  const view=session.attach({id:'deadline',generation:1,metrics,renderer,ownership:'owned',onError:error=>errors.push(error),services:{clock,assets:new Map(),text:{createParagraph(){throw Error('Unexpected text');}},editing:{capability:'unavailable'},semantics:{capability:'unavailable'}}});
  return {view,session,clock,callbacks,errors,submissions,actions,notify:event=>listener?.(event),get context(){return services;},get root(){return root;},get builds(){return builds;},tick(time){now=time;const batch=[...callbacks];callbacks.clear();for(const callback of batch)callback({tick:now,dispatch:now,queueDelay:0,clockUncertainty:0});}};
 }
@@ -117,6 +117,18 @@ test('size-only semantics requests one deadline frame while resize, time dilatio
 
 test('disposing the widget scheduler cancels its deferred semantics wake before Root or View retirement',{timeout},async()=>{
  const f=deadlineFixture({widgets:true});try{f.view.requestFrame();f.tick(0);f.view.updateMetrics({...metrics,logicalHeight:120,physicalHeight:120,viewportGeneration:2});f.tick(1);assert.notEqual(f.root.semanticsWake,undefined);assert.equal(f.callbacks.size,1);const before=f.builds;f.root.scheduler.dispose();assert.equal(f.root.semanticsWake,undefined);assert.equal(f.callbacks.size,0);f.tick(100);assert.equal(f.builds,before);assert.deepEqual(f.errors,[]);}finally{await f.session.dispose();}
+});
+
+test('a long accessibility interval bounds continuous motion and publishes after a quiet period without early repaint',{timeout},async()=>{
+ const f=deadlineFixture({widgets:true,semanticsUpdateInterval:1000});let captures=0;
+ const resize=(height,time)=>{f.view.updateMetrics({...f.view.currentMetrics,logicalHeight:height,physicalHeight:height,viewportGeneration:f.view.currentMetrics.viewportGeneration+1});f.tick(time);};
+ try{
+  f.view.requestFrame();f.tick(0);const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+  for(let i=0;i<20;i++){resize(120+i,10+i*50);assert.equal(captures,0);}
+  f.tick(1000);assert.equal(captures,1,'Continuous motion cannot postpone publication beyond one second');assert.equal(f.root.nodes.find(node=>node.id==='deadline-action').bounds.height,139);
+  resize(200,1010);const before=f.builds;f.tick(1050);f.tick(1109);assert.equal(f.builds,before,'A pending quiet deadline does not repaint while polling');
+  f.tick(1110);assert.equal(captures,2);assert.equal(f.root.nodes.find(node=>node.id==='deadline-action').bounds.height,200);assert.equal(f.root.semanticsWake,undefined);assert.equal(f.callbacks.size,0);assert.deepEqual(f.errors,[]);
+ }finally{await f.session.dispose();assert.equal(f.callbacks.size,0);}
 });
 
 test('native retirement reentry observes the same renderer close before GPU leases and event identities retire',{timeout},async()=>{
