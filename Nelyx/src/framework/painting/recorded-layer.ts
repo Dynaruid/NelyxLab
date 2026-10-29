@@ -8,7 +8,7 @@ import type {SceneBuilder} from '../../ui/scene.ts';
 import {freezePaintCommand} from '../../ui/frame.ts';
 import {releaseCommandResources} from '../../ui/resource-retention.ts';
 import type {PaintCommand} from '../../ui/types.ts';
-import {matrix4Identity,matrix4FromAffine,captureMatrix4,multiplyMatrix4} from '../../ui/matrix4.ts';
+import {matrix4Identity,matrix4FromAffine,captureMatrix4,multiplyMatrix4,isCapturedMatrix4} from '../../ui/matrix4.ts';
 import type {Matrix4Storage} from '../../ui/matrix4.ts';
 import {contains,transform,inverse,captureTransform,identity} from '../../ui/geometry.ts';
 import type {Matrix2D,Offset} from '../../ui/geometry.ts';
@@ -20,12 +20,15 @@ interface Scope {
   readonly commands:PaintCommand[];
   readonly entries:Array<Scope|Layer>;
   scene:readonly PaintCommand[];
+  transforms:readonly Matrix4Storage[]|null;
+  transformCache:{readonly input:Matrix4Storage;readonly value:Matrix4Storage}|undefined;
   closes:boolean;
 }
 const none:readonly PaintCommand[]=Object.freeze([]);
 const save:readonly PaintCommand[]=Object.freeze([freezePaintCommand({op:'save'})]);
 const restore:readonly PaintCommand[]=Object.freeze([freezePaintCommand({op:'restore'})]);
-const scope=(parent:Scope|null):Scope=>({parent,commands:[],entries:[],scene:none,closes:false});
+const noTransforms:readonly Matrix4Storage[]=Object.freeze([]);
+const scope=(parent:Scope|null):Scope=>({parent,commands:[],entries:[],scene:none,transforms:null,transformCache:undefined,closes:false});
 const isIdentity=(matrix:readonly number[])=>{const expected=matrix.length===6?identity:matrix4Identity;return expected.length===matrix.length&&expected.every((value,index)=>matrix[index]===value);};
 
 /** Preserve operation order, including clip queries and singular transforms.
@@ -97,8 +100,22 @@ export class RecordedCompositionLayer extends ContainerLayer {
   }
   override applyTransform(child:Layer|null,matrix:Matrix4Storage=matrix4Identity):Matrix4Storage{
     let result=super.applyTransform(child,matrix);if(child===null)return result;
-    const path:Scope[]=[];for(let node=this.childScopes.get(child);node;node=node.parent??undefined)path.push(node);
-    for(let index=path.length-1;index>=0;index--)for(const command of path[index]!.commands)if(command.op==='transform')result=multiplyMatrix4(result,command.matrix.length===6?matrix4FromAffine(command.matrix as unknown as Matrix2D):captureMatrix4(command.matrix));
+    const parent=this.childScopes.get(child),input=result,reusable=this.sealed&&isCapturedMatrix4(input),cached=parent?.transformCache;
+    // Parent layers may recapture an equal immutable matrix. Compare every
+    // lane exactly (including signed zero) before reusing the whole scope path.
+    if(reusable&&cached&&(cached.input===input||cached.input.every((value,index)=>Object.is(value,input[index]))))return cached.value;
+    const path:Scope[]=[];for(let node=parent;node;node=node.parent??undefined)path.push(node);
+    // Sealed scope values never change. Reuse their captured matrices while
+    // applying each operation in its original order; custom incoming matrices
+    // and changed parent transforms still participate in every query.
+    for(let index=path.length-1;index>=0;index--){const node=path[index]!;
+      if(this.sealed){
+        const transforms=node.transforms??=Object.freeze(node.commands.filter(command=>command.op==='transform').map(command=>command.matrix.length===6?matrix4FromAffine(command.matrix as unknown as Matrix2D):captureMatrix4(command.matrix)));
+        if(!transforms.length)continue;
+        for(const transform of transforms)result=multiplyMatrix4(result,transform);
+      }else for(const command of node.commands)if(command.op==='transform')result=multiplyMatrix4(result,command.matrix.length===6?matrix4FromAffine(command.matrix as unknown as Matrix2D):captureMatrix4(command.matrix));
+    }
+    if(reusable&&parent)parent.transformCache={input,value:result};
     return result;
   }
   protected override findChildrenAnnotations<T extends {}>(result:AnnotationResult<T>,position:Offset,options:{readonly onlyFirst:boolean}):boolean{
@@ -119,7 +136,7 @@ export class RecordedCompositionLayer extends ContainerLayer {
       this.states.length=0;this.childScopes.clear();
       // A caller can retain a disposed Layer. Drop its complete private program,
       // including the last active scope's parent chain and captured commands.
-      for(const node of this.scopes){node.commands.length=0;node.entries.length=0;node.scene=none;node.closes=false;}
+      for(const node of this.scopes){node.commands.length=0;node.entries.length=0;node.scene=none;node.transforms=noTransforms;node.transformCache=undefined;node.closes=false;}
       this.current=this.program;this.scopes.length=0;this.stack.length=0;
     }
     if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Canvas recording retirement failed');

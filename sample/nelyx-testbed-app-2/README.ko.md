@@ -119,7 +119,9 @@ Gallery는 스크롤 중 위치만 바뀌는 접근성 계산을 최대 300ms �
 
 All Components의 indexed section 목록에는 `childPolicy: {mode: 'bounded', capacity: 2, preparation: 'disabled'}`를 적용했습니다. 가까운 섹션의 State와 paint recording을 보존해 되돌아올 때 재사용합니다. 엔진의 목록별 `capacity`는 선택 보존할 섹션 `0`~`8`개(기본 `8`)이며, View 전체의 optional child 16개·Element 2,048개 한도 안에서 동작합니다. 편집기의 명시적 keep-alive는 별도이며, capacity를 줄이면 일반 layout 경로로 선택 보존 섹션을 정리합니다. 섹션은 필요할 때 생성하므로 복잡한 섹션의 첫 build에는 긴 프레임이 남을 수 있습니다.
 
-저장소 루트에서 `node Nelyx/eng/profile-gallery-scroll.mjs`를 실행하면 실제 Gallery의 Node/CanvasKit CPU 단계 비용을 확인할 수 있습니다. `--profile`은 메모리 안에서 CPU 표본을 수집하고, `--entries`는 긴 프레임의 문단 측정을 분리하며, `--viewport=wide`는 두 열 화면을 사용합니다. `--hover`는 텍스트필드 안팎에 고정한 합성 마우스로 같은 구간을 스크롤하며 rebuild/layout 횟수도 비교합니다. `--children=legacy`는 fixture에서만 보존 정책을 비교합니다. profile 파일을 저장하지 않으며, 이 수치를 native FPS나 물리 트랙패드·표시 성능으로 해석하지 않습니다.
+저장소 루트에서 `node Nelyx/eng/profile-gallery-scroll.mjs`를 실행하면 실제 Gallery의 Node/CanvasKit CPU 단계 비용을 확인할 수 있습니다. `--profile`은 메모리 안에서 CPU 표본을 수집하고, `--entries`는 긴 프레임의 문단 측정을 분리하며, `--viewport=wide`는 두 열 화면을 사용합니다. `--pictures`는 제품과 같은 bounded Picture 소유자를 사용해 유지된 레이어의 합성과 native Picture 생성 비용도 측정합니다. `--hover`는 텍스트필드와 All Components의 ElevatedButton 안팎에 고정한 합성 마우스로 같은 구간을 스크롤하며 rebuild/layout 횟수도 비교합니다. `pointer-sweep` 구간은 스크롤을 고정하고 포인터를 컨트롤과 헤더 사이로 옮기며, `includesPointerDispatch: true`로 입력 전달 시간을 포함한 CPU 수치를 구분합니다. `--viewport=wide`와 함께 쓰면 실제 All Components 두 열의 텍스트필드 구간도 측정합니다. Material의 그림자·색상 애니메이션은 paint 경로에서 갱신하며, 도형·방향과 사용자 상태별 layout 변경도 반영합니다. `--children=legacy`는 fixture에서만 보존 정책을 비교합니다. profile 파일을 저장하지 않으며, 이 수치를 native FPS나 물리 트랙패드·표시 성능으로 해석하지 않습니다.
+
+`gallery-all-text-hover-burst` 진단은 두 컬럼을 스크롤하면서 source 프레임마다 hover 입력 4개를 전달합니다. `hitTransforms.unused`는 pointer handler가 없는 대상의 좌표 변환 조회 횟수입니다. Native Gallery fixture에도 스크롤 중 hover를 queue에 넣는 구간이 있습니다. 둘 다 통제된 작업 부하이며 물리 입력의 체감 수락과 구분합니다.
 
 GPU 기본값은 주 모니터에 연결된 하드웨어 adapter입니다. 실행 전에 `NELYX_WINDOWS_GPU_VENDOR`를 설정해 제조사를 선택할 수 있습니다. 예를 들어 AMD는 `4098`입니다.
 

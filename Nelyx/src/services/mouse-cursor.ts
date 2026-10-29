@@ -62,11 +62,14 @@ export class SystemMouseCursor extends MouseCursor {
 }
 export class MouseCursorManager {
   private readonly lastSession=new Map<number,MouseCursorSession>();private live=true;
+  /** @internal Normal updates consume only candidates; removal consumes the event. */
+  static _usesOnlyRemovalEvent(manager:MouseCursorManager):boolean{return manager.handleDeviceCursorUpdate===defaultCursorUpdate;}
   constructor(readonly fallbackMouseCursor:MouseCursor,private readonly channel:MethodChannel=SystemChannels.mouseCursor){invariant(fallbackMouseCursor!==MouseCursor.defer,'invalid-cursor-fallback','Cursor fallback cannot defer');}
   debugDeviceActiveCursor(device:number):MouseCursor|null{return FoundationBuildMode.debug?this.lastSession.get(device)?.cursor??null:null;}
   handleDeviceCursorUpdate(device:number,triggeringEvent:PointerEvent|null,cursorCandidates:Iterable<MouseCursor>):void{if(!this.live)return;if(triggeringEvent instanceof PointerRemovedEvent){const session=this.lastSession.get(device);this.lastSession.delete(device);session?.dispose();return;}const last=this.lastSession.get(device),next=DeferringMouseCursor.firstNonDeferred(cursorCandidates)??this.fallbackMouseCursor;if(last?.cursor.equals(next))return;const session=next.createSession(device,this.channel);this.lastSession.set(device,session);try{last?.dispose();}finally{if(this.live&&this.lastSession.get(device)===session)void session.activate().catch(exception=>FlutterError.reportError(new FlutterErrorDetails({exception,library:'mouse cursor service'})));}}
   dispose():void{if(!this.live)return;this.live=false;const sessions=[...this.lastSession.values()];this.lastSession.clear();const errors:unknown[]=[];for(const session of sessions)try{session.dispose();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Mouse cursor manager retirement failed');}
 }
+const defaultCursorUpdate=MouseCursorManager.prototype.handleDeviceCursorUpdate;
 
 /** Exact source system cursor names; platform mappings may differ. */
 export class SystemMouseCursors {

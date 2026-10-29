@@ -12,6 +12,7 @@ export type Matrix2D = readonly [number,number,number,number,number,number];
 export type TransformMatrix=Matrix2D|Matrix4Storage;
 /** Copy caller-owned storage at render/widget/semantics admission. */
 const capturedAffines=new WeakSet<object>(),expandedAffines=new WeakMap<object,Matrix4Storage>();
+const identityAffines=new WeakSet<object>(),unsignedZeroAffines=new WeakSet<object>();
 const paintInverses=new WeakMap<object,TransformMatrix|null>();
 const affineProducts=new WeakMap<object,{right:Matrix2D;value:Matrix2D}>();
 /** @internal Frozen caller storage alone does not prove captured ownership. */
@@ -21,7 +22,10 @@ export function captureTransform(matrix:readonly number[]|Float64Array):Transfor
   if(matrix.length===16)return captureMatrix4(matrix);
   if(!(matrix.length===6))invariant(false,'invalid-transform','Transform requires six affine or sixteen column-major values');const values=Array.from(matrix);
   if(!(values.length===6))invariant(false,'invalid-transform','Transform requires six affine values');if(!(values.every(Number.isFinite)))invariant(false,'invalid-transform','Transform values must be finite');
-  const result=Object.freeze(values) as Matrix2D;capturedAffines.add(result);return result;
+  const result=Object.freeze(values) as Matrix2D;capturedAffines.add(result);
+  if(!values.some(value=>Object.is(value,-0)))unsignedZeroAffines.add(result);
+  if(values[0]===1&&values[1]===0&&values[2]===0&&values[3]===1&&values[4]===0&&values[5]===0)identityAffines.add(result);
+  return result;
 }
 export function fullTransform(matrix:TransformMatrix):Matrix4Storage{
   if(matrix.length!==6)return matrix;
@@ -32,11 +36,16 @@ export function fullTransform(matrix:TransformMatrix):Matrix4Storage{
 }
 export const identity:Matrix2D=Object.freeze([1,0,0,1,0,0]);
 capturedAffines.add(identity);
+identityAffines.add(identity);unsignedZeroAffines.add(identity);
 export function multiply(a:Matrix2D,b:Matrix2D):Matrix2D;
 export function multiply(a:TransformMatrix,b:TransformMatrix):TransformMatrix;
 export function multiply(a:TransformMatrix,b:TransformMatrix):TransformMatrix {
   if(a.length!==6||b.length!==6)return multiplyMatrix4(fullTransform(a),fullTransform(b));
   const owned=capturedAffines.has(a)&&capturedAffines.has(b),cached=owned?affineProducts.get(a):undefined;
+  // Hit tests cross many zero-offset wrappers. An owned finite identity
+  // product only normalizes signed zero; reuse storage when that cannot change
+  // a lane. Mutable inputs and signed-zero-sensitive values still calculate.
+  if(owned){if(identityAffines.has(a)&&unsignedZeroAffines.has(b))return b;if(identityAffines.has(b)&&unsignedZeroAffines.has(a))return a;}
   if(cached?.right===b)return cached.value;
   const value:Matrix2D=[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
   // One latest product per owned left matrix. Mutable inputs and nonfinite

@@ -10,6 +10,7 @@ import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import {Text} from '@nelyx/core/framework/widgets/basic';
 import {ListView} from '@nelyx/core/framework/widgets/scroll-view';
 import {ImageService} from '@nelyx/core/hosting/images';
+import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {RawImage} from '@nelyx/core/framework/widgets/raw-image';
 import {StandardMessageCodec} from '@nelyx/core/services/message-codecs';
 import {TextField} from '@nelyx/material/text-field';
@@ -37,6 +38,21 @@ const {cupertinoDemos} = await import('../src/cupertino-catalog.ts');
 FoundationPlatform.configure({kind: 'native', operatingSystem: 'windows'});
 const timeout = 1_200_000;
 
+test('a button hover animates its actual shadow without rebuilding or relaying out the sliver on each tick',{timeout},async()=>{
+  const f=await gallery();
+  const renderObjects=()=>{const result=[],pending=[f.root.pipeline.root];while(pending.length){const render=pending.pop();result.push(render);pending.push(...render.children);}return result;};
+  try{
+    const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:1280,physicalWidth:1280,logicalHeight:730,physicalHeight:730,viewportGeneration:metrics.viewportGeneration+1});f.frame();f.tap('category-actions');f.advance(250);
+    const bounds=f.root.nodes.find(node=>node.id==='demo-elevated').bounds,focus=f.root.buildOwner.focus.primaryFocus;
+    f.root.pointer({kind:'hover',pointer:94,device:'mouse',buttons:0,x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2,timestamp:f.root.context.clock.now(),viewportGeneration:metrics.viewportGeneration});f.frame();
+    let layouts=0;for(const render of renderObjects().filter(render=>render.constructor.name==='RenderSliverSectionList')){const layout=render.performLayout;render.performLayout=function(...args){layouts++;return layout.apply(this,args);};}
+    const shapes=renderObjects().filter(render=>render.constructor.name==='RenderPhysicalShape'),before=shapes.map(render=>render.elevation);
+    for(let frame=0;frame<6;frame++){f.elapse(17);f.frame();}
+    assert.equal(layouts,0,'Paint-only hover ticks must not schedule section layout');assert(shapes.some((render,index)=>render.elevation!==before[index]),'The real shadow must keep animating');assert.equal(f.root.buildOwner.focus.primaryFocus,focus);
+    f.tap('demo-elevated');assert(f.root.nodes.some(node=>node.name?.includes('Elevated')));f.root.mouseTracker.clearDevices();f.advance(250);
+  }finally{await f.close();}
+});
+
 test('a fixed mouse over scrolling text fields retains editor Widgets and avoids paragraph reshaping',{timeout},async()=>{
   const f=await gallery();
   const editors=()=>{const result=new Map(),pending=[f.root.root];while(pending.length){const element=pending.pop();if(element.widget instanceof EditableText)result.set(element.widget.id,element.widget);pending.push(...element.children);}return result;};
@@ -46,6 +62,22 @@ test('a fixed mouse over scrolling text fields retains editor Widgets and avoids
     const original=editors(),scroll=galleryControllers(f)[0],shape=f.library.layout.bind(f.library);let shapes=0;f.library.layout=(...args)=>{shapes++;return shape(...args);};
     for(const offset of [16,32,48,64,80,96,80,64,48,32,16,0]){scroll.jumpTo(offset);f.elapse(17);f.frame();const current=editors();for(const [id,widget]of original)assert.equal(current.get(id),widget,id+' must not rebuild its editor for hover');}
     assert.equal(shapes,0);assert.equal(original.get('field-filled').controller.text,'Hover stable');
+  }finally{await f.close();}
+});
+
+test('two-column All Components defers motion semantics during field hover without delaying labels or focus',{timeout},async()=>{
+  const f=await gallery();
+  try{
+    const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:1280,physicalWidth:1280,logicalHeight:730,physicalHeight:730,viewportGeneration:metrics.viewportGeneration+1});f.root.options.semanticsUpdateInterval=300;f.frame();
+    const scroll=galleryControllers(f).find(controller=>controller.debugLabel==='material-gallery-first');assert(scroll);
+    let field;for(let step=0;step<24;step++){scroll.jumpTo(step*256);f.elapse(350);f.frame();field=f.root.nodes.find(node=>node.id==='field-filled'&&node.bounds.y>=120&&node.bounds.y+node.bounds.height<=730);if(field)break;}assert(field);
+    const origin=scroll.offset,focus=f.root.buildOwner.focus.primaryFocus;
+    f.root.pointer({kind:'hover',pointer:95,device:'mouse',buttons:0,x:field.bounds.x+20,y:field.bounds.y+20,timestamp:f.root.context.clock.now(),viewportGeneration:metrics.viewportGeneration});f.frame();f.advance(250);
+    let captures=0;const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+    for(let step=0;step<24;step++){scroll.jumpTo(origin+(step<12?step:23-step)*16);f.elapse(17);f.frame();}
+    assert(captures<=3,'Pure scroll motion must keep the semantic deadline during hover rebuilds');assert.equal(f.root.buildOwner.focus.primaryFocus,focus);
+    f.advance(350);const current=f.root.nodes.find(node=>node.id==='field-filled');assert(current);assert(Math.abs(current.bounds.y-field.bounds.y)<.01,'Quiet-time semantics must publish the final field bounds');
+    const before=captures;f.nativeEdit('field-filled','Still editable');assert.equal(f.root.nodes.find(node=>node.id==='field-filled').value,'Still editable');assert(captures>before,'Editing must publish immediately');
   }finally{await f.close();}
 });
 
@@ -159,7 +191,7 @@ function sweep(fixture, inspect) {
     }
   }
 }
-async function gallery({withImages = false, onParagraphLayout} = {}) {
+async function gallery({withImages = false, withPictures = false, onParagraphLayout} = {}) {
   const fixture = await engineFixture({fonts: true});
   if (onParagraphLayout) {
     const layout = fixture.library.layout.bind(fixture.library);
@@ -234,8 +266,9 @@ async function gallery({withImages = false, onParagraphLayout} = {}) {
     scheduleTimer(callback, milliseconds) {const timer = setTimeout(callback, milliseconds); return {dispose() {clearTimeout(timer);}};},
   });
   context.images = images;
+  const pictures=withPictures?new FramePictureService(context.resources,fixture.library.framePictureBackend,context.owner):null;if(pictures)context.pictures=pictures;
   const close = fixture.close;
-  fixture.close = async () => {fixture.root.dispose(); await images.dispose(); await close(); context.editing.dispose();};
+  fixture.close = async () => {fixture.root.dispose(); pictures?.dispose(); await images.dispose(); await close(); context.editing.dispose();};
   try {fixture.set(new ComponentsGallery());} catch (error) {await fixture.close(); throw error;}
   return fixture;
 }
@@ -386,8 +419,8 @@ test('ListView CPU profile separates fixed-extent row entry from retained frames
 test('all 29 Material sections remain continuously reachable in two and one columns with bounded paragraph ownership', {timeout}, async t => {
   const peaks = {producers: 0, paragraphs: 0};
   const observe = stats => {for (const key of Object.keys(peaks)) peaks[key] = Math.max(peaks[key], stats[key]);};
-  const f = await gallery({withImages: true, onParagraphLayout: observe});
-  const sample = () => observe(f.library.debugTextStats);
+  const f = await gallery({withImages: true, withPictures: true, onParagraphLayout: observe});
+  const sample = () => {observe(f.library.debugTextStats);const stats=f.root.context.pictures.debugStats;assert(stats.cached<=64&&stats.bytes<=32*1024*1024,'Native retention must keep the existing Picture budgets');};
   const findEditor = () => {
     let found;
     const visit = element => {if (element.widget instanceof EditableText && element.widget.id === 'field-filled') found = element.stateObject; element.visitChildren(visit);};

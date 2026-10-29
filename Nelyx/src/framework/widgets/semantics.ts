@@ -17,6 +17,15 @@ import type {SemanticsSortKey,SemanticsPropertiesOptions} from '../semantics/sem
 import {setSemanticsTransportRange} from '../rendering/semantics-transport.ts';
 import {valueEquals} from '../painting/value-equality.ts';
 
+const semanticPropertyFields=Object.keys(new SemanticsProperties()) as (keyof SemanticsProperties)[];
+function sameSimpleSemanticsProperties(previous:SemanticsProperties,value:SemanticsProperties):boolean{
+  // Base instances are shallowly frozen. Collections and derived properties
+  // can change behind the same reference and retain conservative invalidation.
+  if(Object.getPrototypeOf(previous)!==SemanticsProperties.prototype||Object.getPrototypeOf(value)!==SemanticsProperties.prototype||!Object.isFrozen(previous)||!Object.isFrozen(value))return false;
+  for(const key of semanticPropertyFields){const before=previous[key],after=value[key];if(before!==after||before!==null&&typeof before==='object')return false;}
+  return true;
+}
+
 export interface SemanticsAnnotationOptions {readonly tagForChildren?:SemanticsTag;readonly sortKey?:SemanticsSortKey|null;readonly container?:boolean}
 /** Existing host-id adapter. Source-shaped widgets use SemanticsWidgetOptions. */
 export interface SemanticsOptions extends Omit<SemanticsNode,'bounds'|'children'>,SemanticsAnnotationOptions {readonly excludeChildren?:boolean;readonly merge?:boolean}
@@ -49,7 +58,7 @@ export class Semantics extends _SemanticsBase {
   }
   static fromProperties(options:SemanticsFromPropertiesOptions):Semantics{return new Semantics(options);}
   createRenderObject(context?:BuildContext):RenderSemanticsAnnotations{return new RenderSemantics(this,this.getTextDirection(context));}
-  updateRenderObject(context:BuildContext,object:RenderBox):void{const render=object as RenderSemantics;render.container=this.container;render.explicitChildNodes=this.explicitChildNodes;render.excludeSemantics=this.excludeSemantics;render.blockUserActions=this.blockUserActions;render.properties=this.properties;render.textDirection=this.getTextDirection(context);render.localeForSubtree=this.localeForSubtree;render.setHostOptions(this.hostOptions,'transportId' in this.options&&this.options.transportId!=null);render.setRange(this.transportRange,this.transportRangeActions);}
+  updateRenderObject(context:BuildContext,object:RenderBox):void{const render=object as RenderSemantics;render.container=this.container;render.explicitChildNodes=this.explicitChildNodes;render.excludeSemantics=this.excludeSemantics;render.blockUserActions=this.blockUserActions;render.updateProperties(this.properties);render.textDirection=this.getTextDirection(context);render.localeForSubtree=this.localeForSubtree;render.setHostOptions(this.hostOptions,'transportId' in this.options&&this.options.transportId!=null);render.setRange(this.transportRange,this.transportRangeActions);}
   /** @internal The host-id compatibility path shares the source renderer. */
   get transportRange():SemanticsNode['numericRange']|null{return 'transportRange' in this.options?this.options.transportRange??null:null;}
   get transportRangeActions():SemanticsNode['rangeActions']|null{return !this.blockUserActions&&'transportRangeActions' in this.options?this.options.transportRangeActions??null:null;}
@@ -69,6 +78,11 @@ class RenderSemantics extends RenderSemanticsAnnotations {
     else super.markNeedsPaintAfterLayout();
   }
   private hostOptions:SemanticsOptions|null=null;private transportIdOnly=false;
+  updateProperties(value:SemanticsProperties):void{
+    if(this.properties===value)return;
+    if(!Object.hasOwn(this,'properties')&&this.hasStaticLayoutSemantics(RenderSemantics.prototype,RenderSemantics.prototype.describeSemanticsConfiguration)&&sameSimpleSemanticsProperties(this.properties,value)){this._replaceSemanticsProperties(value);return;}
+    this.properties=value;
+  }
   constructor(widget:Semantics,textDirection:'ltr'|'rtl'|null){super({container:widget.container,explicitChildNodes:widget.explicitChildNodes,excludeSemantics:widget.excludeSemantics,blockUserActions:widget.blockUserActions,properties:widget.properties,localeForSubtree:widget.localeForSubtree,textDirection});this.setHostOptions(widget.transportOptions,'transportId' in widget.options&&widget.options.transportId!=null);this.setRange(widget.transportRange,widget.transportRangeActions);}
   protected override get hasSourceSemanticsConfiguration():boolean{return this.hostOptions===null||this.transportIdOnly;}
   setRange(value:SemanticsNode['numericRange']|null,actions:SemanticsNode['rangeActions']|null):void{if(setSemanticsTransportRange(this,value,actions))this.markNeedsSemanticsUpdate();}

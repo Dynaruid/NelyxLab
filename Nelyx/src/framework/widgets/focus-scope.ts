@@ -47,6 +47,7 @@ class FocusState extends State<Focus> {
   private internal:FocusNode|undefined;protected node!:FocusNode;private attachment:FocusAttachment|undefined;private autofocusHandled=false;private queued=false;
   private lastPrimary=false;private lastCanRequest=false;private lastDescendantsFocusable=false;private lastDescendantsTraversable=false;
   protected readonly semanticsId='focus-'+(++nextSemanticsId);
+  private requestSemanticsFocus=()=>this.node.requestFocus();
   private standardState():boolean{const prototype=Object.getPrototypeOf(this.node);return (prototype===FocusNode.prototype||prototype===FocusScopeNode.prototype)&&!Object.hasOwn(this.node,'hasPrimaryFocus')&&!Object.hasOwn(this.node,'canRequestFocus')&&!Object.hasOwn(this.node,'descendantsAreFocusable')&&!Object.hasOwn(this.node,'descendantsAreTraversable');}
   private readonly changed=()=>{
     if(!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
@@ -62,11 +63,11 @@ class FocusState extends State<Focus> {
   override initState():void{super.initState();this.connect();}
   override didChangeDependencies():void{super.didChangeDependencies();Focus.maybeOf(this.context,{scopeOk:true});this.attachment!.reparent();this.autofocus();}
   private autofocus():void{if(!this.autofocusHandled&&this.widget.autofocus){FocusScope.of(this.context).autofocus(this.node);this.autofocusHandled=true;}}
-  override didUpdateWidget(old:Focus):void{super.didUpdateWidget(old);if(old.focusNode!==this.widget.focusNode){this.node.removeListener(this.changed);this.attachment?.detach();this.connect();}else{this.configure();this.attachment=this.node.attach(this.context,{...this.widget.attachmentCommands,onKeyEvent:this.widget.onKeyEvent??null,onKey:this.widget.onKey??null});}if(old.autofocus!==this.widget.autofocus)this.autofocus();}
+  override didUpdateWidget(old:Focus):void{super.didUpdateWidget(old);if(old.focusNode!==this.widget.focusNode){this.requestSemanticsFocus=()=>this.node.requestFocus();this.node.removeListener(this.changed);this.attachment?.detach();this.connect();}else{this.configure();this.attachment=this.node.attach(this.context,{...this.widget.attachmentCommands,onKeyEvent:this.widget.onKeyEvent??null,onKey:this.widget.onKey??null});}if(old.autofocus!==this.widget.autofocus)this.autofocus();}
   override deactivate():void{this.attachment?.reparent({parent:(this.context as Element).owner.focus.rootScope});this.autofocusHandled=false;super.deactivate();}
   override activate():void{super.activate();this.attachment?.reparent();}
   protected inherited(child:Widget):Widget{return new FocusInheritedScope(this.node,child);}
-  protected semantics(child:Widget):Widget{const can=this.node.canRequestFocus;return this.widget.includeSemantics?new Semantics({child,transportId:this.semanticsId,focusable:can,focused:can?this.node.hasPrimaryFocus:null,onFocus:can&&FoundationPlatform.defaultTargetPlatform!=='iOS'?()=>this.node.requestFocus():null}):child;}
+  protected semantics(child:Widget):Widget{const can=this.node.canRequestFocus;return this.widget.includeSemantics?new Semantics({child,transportId:this.semanticsId,focusable:can,focused:can?this.node.hasPrimaryFocus:null,onFocus:can&&FoundationPlatform.defaultTargetPlatform!=='iOS'?this.requestSemanticsFocus:null}):child;}
   protected compose(child:Widget):Widget{return this.inherited(this.semantics(child));}
   build():Widget{this.attachment!.reparent({parent:this.widget.parentNode});return this.compose(this.widget.child);}
   override dispose():void{const errors:unknown[]=[];for(const dispose of [()=>this.node.removeListener(this.changed),()=>this.attachment?.detach(),()=>this.internal?.dispose(),()=>super.dispose()])try{dispose();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Focus widget teardown failed');}

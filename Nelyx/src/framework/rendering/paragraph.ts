@@ -18,7 +18,7 @@ import type {PaintingContext} from '../painting/context.ts';import type {Resourc
 import {paragraphHasOverflow,paintParagraphOverflow} from './paragraph-overflow.ts';
 import type {ParagraphLayoutOptions} from './paragraph-overflow.ts';
 import {RenderComparison} from '../painting/basic-types.ts';
-import {TextSpan} from '../painting/text-span.ts';
+import {TextSpan,isCapturedTextSpan} from '../painting/text-span.ts';
 import {combineSemanticsInfo} from '../painting/inline-span.ts';
 import type {InlineSpanSemanticsInformation} from '../painting/inline-span.ts';
 import {TextSelection} from '../../services/text-editing.ts';
@@ -109,10 +109,19 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   private nextHostSpanId=0;
   constructor(configuration:RichParagraphConfiguration,context:ParagraphContext){configuration=captureRichParagraphConfiguration(configuration);const painter=new TextPainter({},context);super(painter);painter.validateResources({font:configuration.font});this.configuration=configuration;this.configurePainter(painter);}
   get config():RichParagraphConfiguration{return this.configuration;}
+  private samePlainTextSemantics(previous:RichParagraphConfiguration,value:RichParagraphConfiguration):boolean{
+    const before=previous.span,after=value.span,prototype=Object.getPrototypeOf(this);
+    return this.describedSemanticsConfiguration===previous&&(prototype===RenderRichParagraph.prototype||prototype===RenderParagraph.prototype)&&this.hasStaticLayoutSemantics(prototype,RenderRichParagraph.prototype.describeSemanticsConfiguration)&&
+      isCapturedTextSpan(before)&&isCapturedTextSpan(after)&&before instanceof TextSpan&&after instanceof TextSpan&&before.children===null&&after.children===null&&before.recognizer===null&&after.recognizer===null&&before.semanticsIdentifier===null&&after.semanticsIdentifier===null&&
+      before.text===after.text&&before.semanticsLabel===after.semanticsLabel&&before.locale===after.locale&&before.spellOut===after.spellOut&&before.onEnter===after.onEnter&&before.onExit===after.onExit&&before.mouseCursor===after.mouseCursor&&
+      (previous.painterOptions?.textDirection??'ltr')===(value.painterOptions?.textDirection??'ltr');
+  }
   set config(value:RichParagraphConfiguration){
     this.assertCanMutateLayoutProperty();value=captureRichParagraphConfiguration(value);this.painter.validateResources({font:value.font});const old=this.configuration,span=old.span.compareTo(value.span),style=old.style.compareTo(value.style),damage=span.index>style.index?span:style;
-    this.configuration=value;if(old.span!==value.span){this.cachedCombinedSemanticsInfo=null;if(damage!==RenderComparison.metadata)this.cachedAttributedLabels=null;}this.configurePainter(this.painter);
+    const sameSemantics=this.samePlainTextSemantics(old,value);
+    this.configuration=value;if(old.span!==value.span&&!sameSemantics){this.cachedCombinedSemanticsInfo=null;if(damage!==RenderComparison.metadata)this.cachedAttributedLabels=null;}this.configurePainter(this.painter);
     const layout=damage===RenderComparison.layout||this.painter._needsLayout||old.paragraphOptions?.softWrap!==value.paragraphOptions?.softWrap||old.paragraphOptions?.overflow!==value.paragraphOptions?.overflow,paint=damage===RenderComparison.paint;
+    if(!layout&&sameSemantics&&(paint||damage===RenderComparison.identical)){this.describedSemanticsConfiguration=value;if(paint)this.markNeedsPaintOnly();return;}
     // compareTo describes layout/paint damage and deliberately omits locale,
     // labels and hover callbacks. Keep the incoming metadata in the live owner.
     if(!layout&&!paint&&damage===RenderComparison.identical){if(old.span!==value.span)this.markNeedsSemanticsUpdate();return;}

@@ -16,6 +16,7 @@ import {ExcludeFocus} from '@nelyx/core/framework/widgets/focus-scope';
 import {TextFieldTapRegion} from '@nelyx/core/framework/widgets/tap-region';
 import {GestureDetector} from '@nelyx/core/framework/widgets/gesture-detector';
 import {MouseRegion} from '@nelyx/core/framework/widgets/mouse-region';
+import {RepaintBoundary} from '@nelyx/core/framework/widgets/repaint-boundary';
 import {HitTestBehavior} from '@nelyx/core/framework/rendering/pointer-listener';
 import {validateEditableLinePolicy} from '@nelyx/core/framework/rendering/editable';
 import {SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';
@@ -129,6 +130,8 @@ class TextFieldState extends State<TextField> {
     });
     if(!reuse)this.editorCache={widget:this.widget,style,controller:this.controller,focus:this.focus,editor};
     const child=decoration?new InputDecorator({decoration,baseStyle:style,textAlign:o.textAlign??'start',textAlignVertical:o.textAlignVertical??null,expands:o.expands??false,isFocused:this.focus.hasFocus,isHovering:this.hovering,isEmpty:this.controller.text.length===0,child:editor}):editor;
-    return new Directionality(o.textDirection??Directionality.of(context),new TextFieldTapRegion(new ExcludeFocus(new MouseRegion(new GestureDetector(child,{behavior:HitTestBehavior.translucent,excludeFromSemantics:true,onTap:enabled?()=>{this.focus.requestFocus();o.onTap?.();}:null}),{cursor:enabled?SystemMouseCursors.text:SystemMouseCursors.basic,onEnter:()=>{if(!this.hovering)this.setState(()=>{this.hovering=true;});},onExit:()=>{if(this.hovering)this.setState(()=>{this.hovering=false;});}}),{excluding:!enabled}),{groupId:this.widget.groupId}));
+    // Keep other controls' retained recordings intact while this field's
+    // hover border, selection or caret changes.
+    return new RepaintBoundary(new Directionality(o.textDirection??Directionality.of(context),new TextFieldTapRegion(new ExcludeFocus(new MouseRegion(new GestureDetector(child,{behavior:HitTestBehavior.translucent,excludeFromSemantics:true,onTap:enabled?()=>{this.focus.requestFocus();o.onTap?.();}:null}),{cursor:enabled?SystemMouseCursors.text:SystemMouseCursors.basic,onEnter:()=>{if(!this.hovering)this.setState(()=>{this.hovering=true;});},onExit:()=>{if(this.hovering)this.setState(()=>{this.hovering=false;});}}),{excluding:!enabled}),{groupId:this.widget.groupId})));
   }
 }

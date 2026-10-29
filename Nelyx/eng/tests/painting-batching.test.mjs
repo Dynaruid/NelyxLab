@@ -89,16 +89,17 @@ test('stationary retained composition preserves layer attachment, callbacks and 
   try{
     const first=paint(10),compiled=f.compiled.length;held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();
     region.attachedCount=region.detachedCount=0;calls.length=0;const second=paint(10);
-    assert.equal(region.attachedCount,0);assert.equal(region.detachedCount,0);assert.deepEqual(calls,[true]);assert.equal(f.compiled.length,compiled);assert.deepEqual(second.commands,first.commands);assert.equal(f.root.find(type,{x:15,y:15}),value);
-    first.dispose();second.dispose();paint(40).dispose();assert.equal(f.root.find(type,{x:45,y:15}),value);assert.equal(f.root.find(type,{x:15,y:15}),null);assert.equal(f.retired.length,0,'The earlier admitted frame still owns its picture');
-    held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,0,'Moving the canvas scope still uses the same primitive picture');f.root.removeAllChildren();assert.equal(f.retired.length,1);
+    assert.equal(region.attachedCount,0);assert.equal(region.detachedCount,0);assert.deepEqual(calls,[true]);assert.equal(f.compiled.length,compiled+1,'The first retained frame captures the complete hierarchy');assert.equal(second.commands.filter(command=>command.op==='drawPicture').length,1);assert.equal(f.root.find(type,{x:15,y:15}),value);
+    const third=paint(10);assert.equal(f.compiled.length,compiled+1,'Later retained frames must not compile again');assert.deepEqual(third.commands,second.commands);third.dispose();
+    const original=first.commands.find(command=>command.op==='drawPicture').resource;first.dispose();second.dispose();paint(40).dispose();assert.equal(f.root.find(type,{x:45,y:15}),value);assert.equal(f.root.find(type,{x:15,y:15}),null);assert(f.resources.has(original),'The earlier admitted frame still owns its picture');
+    held.returnBy('renderer');held=undefined;assert(f.resources.has(original),'Moving the canvas scope still uses the same primitive picture');f.root.removeAllChildren();assert.equal(f.retired.length,f.compiled.length);
   }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();handle.dispose();}
 });
 
 test('a failed composition retries the same content and never reuses a partially built assembly',{timeout},()=>{
   let fail=false;const f=fixture({beforeCompile(){if(fail)throw Error('compile interrupted');}}),contexts=[];
   const paint=color=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.rect({x:0,y:0,width:10,height:10},color);c.compose(f.root,bounds,f.pictures);return c;};
-  try{paint(0xff123456).dispose();fail=true;assert.throws(()=>paint(0xffabcdef),/compile interrupted/);fail=false;const current=paint(0xffabcdef);assert.equal(f.compiled.at(-1).find(command=>command.op==='rect').color,0xffabcdef);const compiled=f.compiled.length;paint(0xffabcdef);assert.equal(f.compiled.length,compiled);assert(current.commands.some(command=>command.op==='drawPicture'));}
+  try{paint(0xff123456).dispose();fail=true;assert.throws(()=>paint(0xffabcdef),/compile interrupted/);fail=false;const current=paint(0xffabcdef);assert.equal(f.compiled.at(-1).find(command=>command.op==='rect').color,0xffabcdef);paint(0xffabcdef);const compiled=f.compiled.length;paint(0xffabcdef);assert.equal(f.compiled.length,compiled,'The completed retained hierarchy is reusable after retry');assert(current.commands.some(command=>command.op==='drawPicture'));}
   finally{for(const c of contexts)c.dispose();f.close();}
 });
 
@@ -122,9 +123,9 @@ test('unchanged painted and resource commands reuse an assembly while old frames
   const paint=(color=0xff123456)=>{const c=new PaintingContext(null,bounds,true);contexts.push(c);c.drawRect({x:0,y:0,width:20,height:20},new Paint({color}));c.image(image,{x:1,y:2,width:4,height:5});c.paragraph(paragraph,7,8);c.compose(f.root,bounds,f.pictures);return c;};
   try{
     const first=paint(),body=f.root.firstChild;held=f.resources.acquire(first.commands.filter(command=>command.op==='drawPicture').map(command=>command.resource));held.transfer();first.dispose();
-    const second=paint();assert.equal(f.root.firstChild,body);assert.equal(f.compiled.length,1);assert.equal(f.compiled[0].filter(command=>'resource'in command).length,2);
-    second.dispose();paint(0xffabcdef).dispose();assert.notEqual(f.root.firstChild,body);assert.equal(f.compiled.length,2);assert.equal(f.compiled[0].find(command=>command.op==='drawRect').paint.color,0xff123456);assert.equal(f.retired.length,0,'The previous submitted frame still owns its original native picture');
-    for(const resource of [image,paragraph])f.resources.releaseProducer(resource);assert.equal(released,0);f.root.removeAllChildren();assert.equal(f.retired.length,1);assert.equal(released,0);held.returnBy('renderer');held=undefined;assert.equal(released,2);
+    const second=paint();assert.equal(f.root.firstChild,body);assert.equal(f.compiled.length,2);assert.equal(f.compiled[0].filter(command=>'resource'in command).length,2);paint().dispose();assert.equal(f.compiled.length,2,'The retained hierarchy compiles only once');
+    second.dispose();paint(0xffabcdef).dispose();assert.notEqual(f.root.firstChild,body);assert.equal(f.compiled.length,3);assert.equal(f.compiled[0].find(command=>command.op==='drawRect').paint.color,0xff123456);assert.equal(f.retired.length,1,'Only the replaced aggregate retires while its original submitted picture stays held');
+    for(const resource of [image,paragraph])f.resources.releaseProducer(resource);assert.equal(released,0);f.root.removeAllChildren();assert.equal(f.retired.length,f.compiled.length-1);assert.equal(released,0);held.returnBy('renderer');held=undefined;assert.equal(released,2);
   }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();}
 });
 
@@ -220,7 +221,7 @@ test('resizing a background recompiles its drawing while unchanged nested conten
       assert.equal(f.compiled.at(-1)[0].rect.width,width);assert.equal(layers().at(-1).picture,staticPicture);
       assert(layers().every(layer=>layer.canvasBounds.width===width));
     }
-    const before=f.compiled.length;paint(300).dispose();assert.equal(f.compiled.length,before,'A stationary frame keeps its existing partition');
+    paint(300).dispose();const before=f.compiled.length;paint(300).dispose();assert.equal(f.compiled.length,before,'A stationary frame keeps its completed retained hierarchy');
     f.root.removeAllChildren();assert.equal(staticPicture.debugDisposed,true);assert.equal(f.retired.length,f.compiled.length-1);
     held.returnBy('renderer');held=undefined;assert.equal(f.retired.length,f.compiled.length);
   }finally{if(held)held.returnBy('renderer');for(const c of contexts)c.dispose();f.close();}

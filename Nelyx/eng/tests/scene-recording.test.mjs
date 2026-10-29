@@ -5,9 +5,36 @@ import {Picture} from '@nelyx/core/ui/picture';
 import {PictureRecorder} from '@nelyx/core/ui/picture-recorder';
 import {Canvas} from '@nelyx/core/ui/canvas';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
+import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {OffsetLayer,PictureLayer,ContainerLayer,LayerHandle} from '@nelyx/core/framework/rendering/layer';
 const timeout=1_200_000;
 function leaf(resource){const recorder=new PictureRecorder(),canvas=new Canvas(recorder);try{if(resource)canvas.image(resource,{x:0,y:0,width:1,height:1});else canvas.rect({x:0,y:0,width:5,height:5},0xff123456);return recorder.endRecording();}finally{canvas.dispose();}}
+
+test('native retained layers reuse one complete recording while parent motion and frame resource holds stay current',{timeout},()=>{
+  const resources=new ResourceRegistry(),image={id:'retained-image',generation:1,kind:'image'},compiled=[],retired=[];let imageRetired=0;
+  resources.register(image,()=>imageRetired++);resources.bindResource(image);
+  const owner=new FramePictureService(resources,{compile(capture,descriptor){compiled.push({descriptor,commands:capture.frame.commands});return {bytes:128,retire(){retired.push(descriptor.id);}};}},{id:'retained-owner',generation:1});
+  const picture=leaf(image),initial=new SceneBuilder(owner),outputs=[],layers=[],cpu=new Canvas();let layer;
+  try{
+    layer=initial.pushOffset(4,6);layers.push(layer);for(let index=0;index<16;index++)layers.push(initial.pushOffset(1,2));initial.addPicture({x:0,y:0},picture);const first=new Canvas();outputs.push(first);initial._buildInto(first);layer._draw(cpu);const baseline=[...cpu.commands];
+    const ids=[];
+    for(const dx of [10,35,-12]){const builder=new SceneBuilder(owner),output=new Canvas();outputs.push(output);try{layers.push(builder.pushOffset(dx,0));builder.addRetained(layer);builder._buildInto(output);const draws=output.commands.filter(command=>command.op==='drawPicture');assert.equal(draws.length,1);ids.push(draws[0].resource.id);assert(output.commands.length<10,'A retained hierarchy must not expand into every scrolling frame');assert(output.commands.some(command=>command.op==='transform'&&command.matrix[4]===dx),'The current parent motion remains outside the retained recording');}finally{builder.dispose();}}
+    assert.equal(new Set(ids).size,1);assert.equal(compiled.length,2,'One leaf and one retained hierarchy compile once');assert.deepEqual(compiled[1].commands,baseline,'Native retention preserves the complete scoped CPU display list');
+    for(const value of layers)value.dispose();picture.dispose();resources.releaseProducer(image);owner.dispose();assert.equal(imageRetired,0,'Recorded frames keep native pictures and their image inputs alive');
+    for(const output of outputs)output.dispose();cpu.dispose();assert.equal(imageRetired,1);assert.equal(retired.length,2);assert.deepEqual(owner.debugStats,{cached:0,live:0,bytes:0});
+  }finally{for(const output of outputs)output.dispose();cpu.dispose();for(const value of layers)value.dispose();initial.dispose();picture.dispose();owner.dispose();resources.dispose();}
+});
+
+test('failed native retained capture rolls back the output and permits a fresh owner retry',{timeout},()=>{
+  const resources=new ResourceRegistry(),compiled=[];let reject=false;
+  const owner=new FramePictureService(resources,{compile(capture,descriptor){if(reject){reject=false;throw Error('retained compile failed');}compiled.push(capture.frame);return {bytes:128,retire(){}};}},{id:'retry-owner',generation:1});
+  const picture=leaf(),first=new SceneBuilder(owner),output=new Canvas();let layer;
+  try{
+    layer=first.pushOffset(4,6);first.addPicture({x:0,y:0},picture);first._buildInto(output);output.rollback(0);output.rect({x:0,y:0,width:2,height:2},0xff123456);const before=[...output.commands];
+    const failed=new SceneBuilder(owner);try{failed.addRetained(layer);reject=true;assert.throws(()=>failed._buildInto(output),/retained compile failed/);assert.deepEqual(output.commands,before);assert.equal(layer.debugDisposed,false);}finally{failed.dispose();}
+    const retry=new SceneBuilder(owner);try{retry.addRetained(layer);retry._buildInto(output);assert.equal(compiled.length,2);assert.equal(output.commands.filter(command=>command.op==='drawPicture').length,1);}finally{retry.dispose();}
+  }finally{output.dispose();layer?.dispose();first.dispose();picture.dispose();owner.dispose();resources.dispose();}
+});
 
 test('layer child snapshots stay frozen across removal and depth-first traversal preserves sibling order',{timeout},()=>{
   const root=new ContainerLayer(),branch=new OffsetLayer(),first=new ContainerLayer(),second=new ContainerLayer(),handle=new LayerHandle(first);

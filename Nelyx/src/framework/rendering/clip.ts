@@ -127,9 +127,10 @@ function physicalShape(value:BoxShape):BoxShape{invariant(value==='rectangle'||v
 abstract class RenderPhysicalModelBase<T> extends RenderCustomClip<T> {
   private z:number;private background:number;private shadow:number;protected readonly density:()=>number;
   constructor({elevation=0,color,shadowColor=0xff000000,readDevicePixelRatio=()=>1,...options}:RenderPhysicalBaseOptions<T>){super({...options,clipBehavior:options.clipBehavior??'none'});this.z=physicalElevation(elevation);this.background=physicalColor(color);this.shadow=physicalColor(shadowColor);invariant(typeof readDevicePixelRatio==='function','invalid-physical-density','Expected a device pixel ratio reader');this.density=readDevicePixelRatio;}
-  get elevation():number{return this.z;}set elevation(value:number){this.assertCanMutateLayoutProperty();value=physicalElevation(value);if(value===this.z)return;this.z=value;this.markNeedsPaint();}
-  get color():number{return this.background;}set color(value:number){this.assertCanMutateLayoutProperty();value=physicalColor(value);if(value===this.background)return;this.background=value;this.markNeedsPaint();}
-  get shadowColor():number{return this.shadow;}set shadowColor(value:number){this.assertCanMutateLayoutProperty();value=physicalColor(value);if(value===this.shadow)return;this.shadow=value;this.markNeedsPaint();}
+  private physicalPaintChanged():void{const prototype=this instanceof RenderPhysicalShape?RenderPhysicalShape.prototype:RenderPhysicalModel.prototype;if(this.hasStaticLayoutSemantics(prototype,RenderProxyBox.prototype.describeSemanticsConfiguration))this.markNeedsPaintOnly();else this.markNeedsPaint();}
+  get elevation():number{return this.z;}set elevation(value:number){this.assertCanMutateLayoutProperty();value=physicalElevation(value);if(value===this.z)return;this.z=value;this.physicalPaintChanged();}
+  get color():number{return this.background;}set color(value:number){this.assertCanMutateLayoutProperty();value=physicalColor(value);if(value===this.background)return;this.background=value;this.physicalPaintChanged();}
+  get shadowColor():number{return this.shadow;}set shadowColor(value:number){this.assertCanMutateLayoutProperty();value=physicalColor(value);if(value===this.shadow)return;this.shadow=value;this.physicalPaintChanged();}
   override debugFillProperties(properties:DiagnosticPropertiesBuilder):void{super.debugFillProperties(properties);properties.add(new DiagnosticsProperty('elevation',this.elevation));properties.add(new DiagnosticsProperty('color',this.color));properties.add(new DiagnosticsProperty('shadowColor',this.color));}
 }
 /** Source physical paint order and clipping, backed by actual SkShadowUtils. */

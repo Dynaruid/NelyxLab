@@ -307,6 +307,22 @@ test('unchanged embedding ranges retain semantic snapshots while changed and mut
   }
 });
 
+test('equal primitive source properties retain their snapshot, while mutable and derived properties still publish',{timeout},()=>{
+  const f=fixture(),child=new SizedBox(80,60),calls=[];let receiver;const tap=function(){receiver=this;};
+  const tree=properties=>Semantics.fromProperties({properties,container:true,child});
+  try{
+    f.set(tree(new SemanticsProperties({label:'Unchanged',textDirection:'ltr',onTap:tap})));
+    let captures=0;const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
+    const original=f.root.nodes.find(node=>node.name==='Unchanged');
+    const equal=new SemanticsProperties({label:'Unchanged',textDirection:'ltr',onTap:tap});f.set(tree(equal));assert.equal(captures,0);assert.equal(f.root.nodes.find(node=>node.id===original.id),original);original.actions.activate();assert.equal(receiver,equal,'A retained action must still use the current properties as its receiver');
+    f.set(tree(new SemanticsProperties({label:'Changed',textDirection:'ltr',onTap:()=>calls.push('new')})));assert.equal(captures,1);assert(f.root.nodes.some(node=>node.name==='Changed'));original.actions.activate();assert.deepEqual(calls,[]);
+    f.root.nodes.find(node=>node.name==='Changed').actions.activate();assert.deepEqual(calls,['new']);
+    const controls=new Set(['target']);const properties=()=>new SemanticsProperties({label:'Mutable',textDirection:'ltr',controlsNodes:controls});f.set(tree(properties()));const before=captures;controls.add('other');f.set(tree(properties()));assert.equal(captures,before+1,'Aliased collections must not suppress a fresh source update');
+    class Properties extends SemanticsProperties{}
+    f.set(tree(new Properties({label:'Derived',textDirection:'ltr'})));const derived=captures;f.set(tree(new Properties({label:'Derived',textDirection:'ltr'})));assert.equal(captures,derived+1);
+  }finally{f.close();}
+});
+
 test('a stable source transport id reuses its snapshot and changed source callbacks and ids still revoke old actions',{timeout},()=>{
   const f=fixture(),calls=[],child=new SizedBox(80,60);let id='stable-source-id',properties=new SemanticsProperties({label:'Source id',textDirection:'ltr',onTap:()=>calls.push('old')});
   const tree=()=>Semantics.fromProperties({properties,transportId:id,container:true,child});

@@ -7,8 +7,34 @@ import {Rect} from '@nelyx/core/ui/rect';
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import {NativeInteraction} from '../../sdk/dist/runtime/native-interaction.js';
+import {RenderPhysicalModel} from '@nelyx/core/framework/rendering/clip';
+import {RenderMouseRegion} from '@nelyx/core/framework/rendering/mouse-region';
+import {SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';
+import {LeafRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
+import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
 const timeout=1_200_000,owner={id:'semantics-updates',generation:1};
 const button=(extra={})=>({id:'button',sourceNodeId:1,role:'button',name:'Run',enabled:true,bounds:{x:0,y:0,width:80,height:32},actions:{activate(){}},...extra});
+
+test('physical paint changes still publish semantics for custom render configurations',{timeout},()=>{
+  class SemanticModel extends RenderPhysicalModel {
+    describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.label='Elevation '+this.elevation;config.textDirection='ltr';}
+  }
+  const render=new SemanticModel({elevation:1,color:0xffabcdef});
+  class Model extends LeafRenderObjectWidget{createRenderObject(){return render;}}
+  const f=fixture();
+  try{f.set(new Model());assert(f.root.nodes.some(node=>node.name==='Elevation 1'));render.elevation=3;f.frame();assert(f.root.nodes.some(node=>node.name==='Elevation 3'));}
+  finally{f.close();}
+});
+
+test('mouse annotation changes still publish semantics for custom render configurations',{timeout},()=>{
+  class SemanticMouseRegion extends RenderMouseRegion {
+    describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.label=this.cursor===SystemMouseCursors.text?'Text cursor':'Basic cursor';config.textDirection='ltr';}
+  }
+  const render=new SemanticMouseRegion();class Region extends LeafRenderObjectWidget{createRenderObject(){return render;}}
+  const f=fixture();
+  try{f.set(new Region());assert(f.root.nodes.some(node=>node.name==='Basic cursor'));render.cursor=SystemMouseCursors.text;f.frame();assert(f.root.nodes.some(node=>node.name==='Text cursor'));}
+  finally{f.close();}
+});
 
 test('retiring the last semantic node publishes one empty update and releases detached work',{timeout},()=>{
   FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});

@@ -218,6 +218,8 @@ class ParentInkScope extends InheritedWidget {
     }
 }
 class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
+    private semanticsTap = () => this.simulateTap();
+    private semanticsLongPress = () => this.simulateLongPress();
     private internalStates: WidgetStatesController | null = null;
     private ownedFocus: FocusNode | null = null;
     private controller!: WidgetStatesController;
@@ -569,6 +571,8 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
     }
     override didUpdateWidget(old: InkResponse): void {
         super.didUpdateWidget(old);
+        if(old.options.onTap!==this.widget.options.onTap)this.semanticsTap=()=>this.simulateTap();
+        if(old.options.onLongPress!==this.widget.options.onLongPress)this.semanticsLongPress=()=>this.simulateLongPress();
         const o = this.widget.options;
         if (o.statesController !== old.options.statesController) {
             this.controller.removeListener(this.statesChanged);
@@ -621,7 +625,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
             excludeFromSemantics: true, behavior: HitTestBehavior.opaque, onTapDown: this.primary() ? d => this.handleTapDown(d) : null, onTapUp: this.primary() ? d => this.handleTapUp(d) : null, onTap: this.primary() ? () => this.handleTap() : null, onTapCancel: this.primary() ? () => this.handleTapCancel() : null, onDoubleTap: o.onDoubleTap ? () => this.handleDoubleTap() : null, onLongPress: o.onLongPress ? () => this.handleLongPress() : null, onLongPressUp: o.onLongPressUp ? () => this.handleLongPressUp() : null, onSecondaryTapDown: this.secondary() ? d => this.handleSecondaryTapDown(d) : null, onSecondaryTapUp: this.secondary() ? d => this.handleSecondaryTapUp(d) : null, onSecondaryTap: this.secondary() ? () => this.handleSecondaryTap() : null, onSecondaryTapCancel: this.secondary() ? () => this.handleSecondaryTapCancel() : null
         };
         const body = new GestureDetector(o.child ?? new SizedBox(), gestures), semantics = new Semantics({
-            child: body, transportId: o.id ?? null, identifier: o.id ?? null, onTap: !o.excludeFromSemantics && o.onTap ? () => this.simulateTap() : null, onLongPress: !o.excludeFromSemantics && o.onLongPress ? () => this.simulateLongPress() : null
+            child: body, transportId: o.id ?? null, identifier: o.id ?? null, onTap: !o.excludeFromSemantics && o.onTap ? this.semanticsTap : null, onLongPress: !o.excludeFromSemantics && o.onLongPress ? this.semanticsLongPress : null
         });
         return new ParentInkScope(this, new Actions({ actions: new Map([[ActivateIntent, this.activateAction], [ButtonActivateIntent, this.buttonAction]]), child: new Focus(new MouseRegion(DefaultSelectionStyle.merge({ mouseCursor: cursor, child: semantics }), {
                 cursor, onEnter: () => {

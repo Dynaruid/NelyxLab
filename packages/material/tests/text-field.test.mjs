@@ -14,6 +14,7 @@ import {WidgetState,WidgetStateTextStyle} from '@nelyx/core/framework/widgets/wi
 import {Color} from '@nelyx/core/ui/color';
 import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
 import {RepaintBoundary} from '@nelyx/core/framework/widgets/repaint-boundary';
+import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {RenderInputDecoration} from '../dist/internal/input/input-decorator-layout.js';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import {TextEditingController,EditableText} from '@nelyx/core/framework/widgets/editable-text';
@@ -39,11 +40,11 @@ function editors(f){const bindings=[];f.root.context.editing={capabilities:{inde
 }};return bindings;}
 function node(f,id='field'){const result=f.root.nodes.find(n=>n.id===id);assert(result,'Expected editor '+id);return result;}
 
-test('hover inside a retained section paints the field background without relayout, editor replacement or text shaping',{timeout},async()=>{
-  const f=await engineFixture({fonts:true}),controller=new TextEditingController('Ada'),bindings=editors(f),surface=f.ck.MakeSurface(240,160);
+test('hover inside a native Picture retained section paints the field background without relayout, editor replacement or text shaping',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('Ada'),bindings=editors(f),surface=f.ck.MakeSurface(240,160),pictures=new FramePictureService(f.root.context.resources,f.library.framePictureBackend,f.root.context.owner);f.root.context.pictures=pictures;
   const field=new TextField({id:'field',controller,decoration:new InputDecoration({labelText:'Name',filled:true,fillColor:new Color(0xffff0000),hoverColor:new Color(0xff00ff00),border:new OutlineInputBorder()})});
   const renderFor=Type=>{const pending=[f.root.pipeline.root];while(pending.length){const render=pending.pop();if(render instanceof Type)return render;pending.push(...render.children);}throw Error('Missing '+Type.name);};
-  const pixel=(x,y)=>{f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();const image=surface.makeImageSnapshot();try{return Array.from(image.readPixels(Math.floor(x),Math.floor(y),{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));}finally{image.delete();}};
+  const pixel=(x,y)=>{const commands=f.frame();assert(commands.some(command=>command.op==='drawPicture'),'The pixel regression must replay native Pictures');f.library.replay(surface.getCanvas(),{commands});surface.flush();const image=surface.makeImageSnapshot();try{return Array.from(image.readPixels(Math.floor(x),Math.floor(y),{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));}finally{image.delete();}};
   try{
     f.set(wrap(new RepaintBoundary(field)));f.advance(200);const editor=find(f.root.root,EditableText),widget=editor.widget,state=editor.stateObject,decorator=find(f.root.root,InputDecorator).stateObject,container=decorator.containerKey.currentContext.findRenderObject(),position=container.localToGlobal(new Offset(0,0));
     assert.deepEqual(pixel(position.x+5,position.y+container.size.height/2),[255,0,0,255]);
@@ -54,8 +55,8 @@ test('hover inside a retained section paints the field background without relayo
     paints=0;for(let frame=0;frame<10;frame++)f.advance(17);
     assert.equal(layouts,0);assert.equal(shapes,0);assert.equal(paints,0,'Border animation must not repaint the editor');
     assert.deepEqual(pixel(position.x+5,position.y+container.size.height/2),[0,255,0,255]);assert.equal(controller.text,'Ada');assert.equal(bindings[0].disposed,false);
-    const signal=decorator.borderPaint;f.set(new SizedBox());assert.equal(signal.hasListeners,false);assert.equal(f.root.scheduler.transientCallbackCount,0);assertParagraphOwnership(f);
-  }finally{surface.delete();await f.close();controller.dispose();}
+    const signal=decorator.borderPaint;f.set(new SizedBox());assert.equal(signal.hasListeners,false);assert.equal(f.root.scheduler.transientCallbackCount,0);pictures.dispose();assertParagraphOwnership(f);
+  }finally{pictures.dispose();surface.delete();await f.close();controller.dispose();}
 });
 
 test('a hover-dependent editor style still updates while composition and its native owner survive',{timeout},async()=>{

@@ -50,11 +50,12 @@ export class RenderFollowerLayer extends RenderProxyBox {
       const transform=layer.getLastTransform(),visible=this.connection.leader!==null||this.showing,previous=this.semanticsTransform;
       const same=previous===transform||previous!==undefined&&previous!==null&&transform!==null&&previous.every((value,index)=>Object.is(value,transform[index]));
       if(same&&this.semanticsVisible===visible)return;
+      const geometryOnly=this.semanticsVisible===visible&&previous!==undefined&&previous!==null&&transform!==null&&this.hasStaticLayoutSemantics(RenderFollowerLayer.prototype,RenderProxyBox.prototype.describeSemanticsConfiguration);
       this.semanticsTransform=transform;this.semanticsVisible=visible;
       // A retained follower can move when only its leader repaints. Its own
       // render subtree then has no layout/paint invalidation, but source
       // semantics must use the transform just established by composition.
-      this.markNeedsSemanticsUpdate();
+      if(geometryOnly)this.markNeedsSemanticsGeometryUpdate();else this.markNeedsSemanticsUpdate();
     });
   }
   private stopCompositionObservation():void{this.stopObservingComposition?.();this.stopObservingComposition=null;this.observedCompositionLayer=null;this.semanticsTransform=undefined;this.semanticsVisible=undefined;}

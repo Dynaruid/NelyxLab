@@ -17,7 +17,13 @@ import type {TransformMatrix} from '../../ui/geometry.ts';
 let nextScrollSemantics=0;
 /** Source two-pane assembly; host list identities are separate snapshot metadata. */
 export class _RenderScrollSemantics extends RenderProxyBox {
-  private readonly id='source-scroll-semantics-'+ ++nextScrollSemantics;private currentPosition:ScrollPosition;private implicitScrolling:boolean;private childCount:number|null;private innerNode:SourceSemanticsNode|null=null;private readonly changed=()=>this.markNeedsSemanticsUpdate();
+  private readonly id='source-scroll-semantics-'+ ++nextScrollSemantics;private currentPosition:ScrollPosition;private implicitScrolling:boolean;private childCount:number|null;private innerNode:SourceSemanticsNode|null=null;
+  private describedExtents:{readonly min:number;readonly max:number}|undefined;
+  private readonly changed=()=>{
+    const extents=this.describedExtents;
+    if(extents&&this.position.haveDimensions&&extents.min===this.position.minScrollExtent&&extents.max===this.position.maxScrollExtent&&this.describedScrollable===this.scrollable&&this.hasStaticLayoutSemantics(_RenderScrollSemantics.prototype,_RenderScrollSemantics.prototype.describeSemanticsConfiguration))this.markNeedsSemanticsGeometryUpdate();
+    else this.markNeedsSemanticsUpdate();
+  };
   private readonly onScrollToOffset=(offset:Offset):void=>this.position.jumpTo(this.axis===Axis.horizontal?offset.dx:offset.dy);
   private describedScrollable:boolean|undefined;
   constructor(position:ScrollPosition,allowImplicitScrolling:boolean,public axis:Axis,semanticChildCount:number|null){super();this.currentPosition=position;this.implicitScrolling=allowImplicitScrolling;this.childCount=semanticChildCount;position.addListener(this.changed);}
@@ -33,7 +39,7 @@ export class _RenderScrollSemantics extends RenderProxyBox {
       if(this.describedScrollable===this.scrollable)this.markNeedsSemanticsGeometryUpdate();else this.markNeedsSemanticsUpdate();
     }else super.markNeedsPaintAfterLayout();
   }
-  override describeSemanticsConfiguration(config:SemanticsConfiguration):void{super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.hasImplicitScrolling=this.allowImplicitScrolling;this.describedScrollable=this.scrollable;if(this.position.haveDimensions){config.scrollPosition=this.position.pixels;config.scrollExtentMax=this.position.maxScrollExtent;config.scrollExtentMin=this.position.minScrollExtent;config.scrollChildCount=this.semanticChildCount;if(this.describedScrollable)config.onScrollToOffset=this.onScrollToOffset;}}
+  override describeSemanticsConfiguration(config:SemanticsConfiguration):void{super.describeSemanticsConfiguration(config);config.isSemanticBoundary=true;config.hasImplicitScrolling=this.allowImplicitScrolling;this.describedScrollable=this.scrollable;this.describedExtents=this.position.haveDimensions?{min:this.position.minScrollExtent,max:this.position.maxScrollExtent}:undefined;if(this.position.haveDimensions){config.scrollPosition=this.position.pixels;config.scrollExtentMax=this.position.maxScrollExtent;config.scrollExtentMin=this.position.minScrollExtent;config.scrollChildCount=this.semanticChildCount;if(this.describedScrollable)config.onScrollToOffset=this.onScrollToOffset;}}
   override assembleSemanticsNode(node:SourceSemanticsNode,config:SemanticsConfiguration,children:SourceSemanticsNode[]):void{
     if(children.length===0||!children[0]!.isTagged(RenderViewport.useTwoPaneSemantics)){this.innerNode=null;super.assembleSemanticsNode(node,config,children);return;}
     (this.innerNode??=new SourceSemanticsNode({showOnScreen:()=>this.showOnScreen()})).rect=node.rect;let firstVisibleIndex:number|null=null;const excluded=[this.innerNode],included:SourceSemanticsNode[]=[];

@@ -8,9 +8,24 @@ import {WidgetState,WidgetStatesController} from '@nelyx/core/framework/widgets/
 import {State,StatefulWidget} from '@nelyx/core/framework/widgets/framework';import {TextStyle} from '@nelyx/core/framework/painting/text-style';import {Color} from '@nelyx/core/ui/color';import {Size} from '@nelyx/core/ui/size';import {Offset} from '@nelyx/core/ui/offset';import {AlignmentDirectional} from '@nelyx/core/framework/painting/alignment';import {EdgeInsetsDirectional} from '@nelyx/core/framework/painting/edge-insets';import {CircleBorder} from '@nelyx/core/framework/painting/circle-border';import {BorderSide} from '@nelyx/core/framework/painting/borders';
 import {Builder,Align,SizedBox,Row,Text,ConstrainedBox} from '@nelyx/core/framework/widgets/basic';import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';import {AppFocus} from '@nelyx/core/framework/widgets/app-focus';import {SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {colorAll,doubleAll} from '../dist/internal/button/style-properties.js';import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
+import {MaterialType} from '@nelyx/material/material';
+import {StadiumBorder} from '@nelyx/core/framework/painting/stadium-border';
 const timeout=1_200_000,empty=()=>emptyWidgetStateSet();FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
 const families=[[FilledButton,FilledButtonTheme,FilledButtonThemeData,'filled'],[ElevatedButton,ElevatedButtonTheme,ElevatedButtonThemeData,'elevated'],[TextButton,TextButtonTheme,TextButtonThemeData,'text'],[OutlinedButton,OutlinedButtonTheme,OutlinedButtonThemeData,'outlined']],source=JSON.parse(fs.readFileSync(new URL('./fixtures/concrete-button-defaults.json',import.meta.url))),order=[WidgetState.disabled,WidgetState.selected,WidgetState.pressed,WidgetState.hovered,WidgetState.focused];
 const wrap=(child,{theme=new ThemeData({platform:'windows',materialTapTargetSize:MaterialTapTargetSize.padded}),direction='ltr',scale=1}={})=>new Directionality(direction,new MediaQuery({width:240,height:160,scale:1,textScale:scale,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},new Theme(theme,new AppFocus(new Align(child)))));
+
+test('physical Material animation retargets live shape, tint and shadow, updates RTL and drains its paint listeners',{timeout},async()=>{
+ const f=await engineFixture(),child=new SizedBox(80,40);
+ const make=(elevation,shape,direction='ltr',duration=200)=>wrap(new Material({type:MaterialType.button,elevation,shape,color:new Color(0xffcc8844),shadowColor:new Color(0xff123456),surfaceTintColor:new Color(0xff2244ee),animationDuration:duration,child}),{direction});
+ try{
+  f.set(make(1,new StadiumBorder()));f.advance(250);
+  const render=()=>{const pending=[f.root.pipeline.root];while(pending.length){const object=pending.pop();if(object.constructor.name==='RenderPhysicalShape')return object;pending.push(...object.children);}throw Error('Missing physical Material');},physical=render();
+  f.set(make(6,new CircleBorder()));f.advance(60);assert(physical.elevation>1&&physical.elevation<6);assert.notEqual(physical.color,0xffcc8844);
+  f.set(make(2,new StadiumBorder(),'rtl'));f.advance(250);assert.equal(render(),physical);assert.equal(physical.elevation,2);assert.equal(physical.clipper.textDirection,'rtl');assert(physical.clipper.shape instanceof StadiumBorder);assert.equal(physical.shadowColor,0xff123456);
+  f.set(make(0,new CircleBorder(),'ltr',0));f.advance(1);assert.equal(physical.elevation,0);assert(physical.clipper.shape instanceof CircleBorder);
+  f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);f.advance(250);assert(physical.debugDisposed);
+ }finally{await f.close();}
+});
 function elements(f,predicate){const result=[],visit=e=>{if(predicate(e))result.push(e);e.visitChildren(visit);};visit(f.root.root);return result;}
 const geometry=v=>[v.left,v.top,v.right,v.bottom],size=v=>[Number.isFinite(v.width)?v.width:'infinity',Number.isFinite(v.height)?v.height:'infinity'];
 test('five M3 concrete defaults match 640 original Dart token and padding cases on actual inherited contexts',{timeout},async()=>{

@@ -18,6 +18,7 @@ import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
@@ -117,6 +118,8 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
         simulateTap(): void;
         simulateLongPress(): void;
     }>('Button ink');
+    private semanticsTap = () => this.inkKey.currentState?.simulateTap();
+    private semanticsLongPress = () => this.inkKey.currentState?.simulateLongPress();
     private internal: WidgetStatesController | null = null;
     private retired = false;
     private suspended = false;
@@ -131,7 +134,7 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
         this.internal = new WidgetStatesController(); this.controller.update(WidgetState.disabled, !this.widget.enabled); if (Object.hasOwn(this.widget.options, 'selected'))
         this.controller.update(WidgetState.selected, this.widget.options.selected ?? false); this.controller.addListener(this.statesChanged); }
     override initState(): void { super.initState(); this.connect(); }
-    override didUpdateWidget(old: ButtonStyleButton): void { super.didUpdateWidget(old); if (old.options.statesController !== this.widget.options.statesController) {
+    override didUpdateWidget(old: ButtonStyleButton): void { super.didUpdateWidget(old); if(old.options.onPressed!==this.widget.options.onPressed)this.semanticsTap=()=>this.inkKey.currentState?.simulateTap();if(old.options.onLongPress!==this.widget.options.onLongPress)this.semanticsLongPress=()=>this.inkKey.currentState?.simulateLongPress();if (old.options.statesController !== this.widget.options.statesController) {
         (old.options.statesController ?? this.internal)?.removeListener(this.statesChanged);
         if (this.widget.options.statesController) {
             this.internal?.dispose();
@@ -214,6 +217,8 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
         if (o.tooltip != null)
             result = new Tooltip({ message: o.tooltip, child: result });
         result = new Material({ elevation, color: background, shadowColor: resolve(s => s.shadowColor), surfaceTintColor: resolve(s => s.surfaceTintColor), textStyle: resolve(s => s.textStyle)?.copyWith({ color: foreground?.toARGB32() ?? null }) ?? null, shape: border, type: background === null ? MaterialType.transparency : MaterialType.button, animationDuration: duration, clipBehavior: o.clipBehavior ?? (backgroundBuilder || foregroundBuilder ? 'antiAlias' : 'none'), borderOnForeground: false, child: result });
-        return new Semantics({ container: true, button: o.isSemanticButton ?? true, enabled: widget.enabled, selected: o.selected ?? null, label: o.semanticsLabel ?? null, excludeSemantics: o.semanticsLabel !== undefined, onTap: o.semanticsLabel !== undefined && widget.enabled && o.onPressed ? () => this.inkKey.currentState?.simulateTap() : null, onLongPress: o.semanticsLabel !== undefined && widget.enabled && o.onLongPress ? () => this.inkKey.currentState?.simulateLongPress() : null, identifier: o.id ?? null, transportId: o.id ?? null, child: new ButtonInputPadding(target === MaterialTapTargetSize.padded ? { width: 48 + adjust.dx, height: 48 + adjust.dy } : Size.zero, new ConstrainedBox(result, constraints)) });
+        // Include the animated physical shape and ink, so their repaint does
+        // not expand every other button's recording in the enclosing section.
+        return new Semantics({ container: true, button: o.isSemanticButton ?? true, enabled: widget.enabled, selected: o.selected ?? null, label: o.semanticsLabel ?? null, excludeSemantics: o.semanticsLabel !== undefined, onTap: o.semanticsLabel !== undefined && widget.enabled && o.onPressed ? this.semanticsTap : null, onLongPress: o.semanticsLabel !== undefined && widget.enabled && o.onLongPress ? this.semanticsLongPress : null, identifier: o.id ?? null, transportId: o.id ?? null, child: new RepaintBoundary(new ButtonInputPadding(target === MaterialTapTargetSize.padded ? { width: 48 + adjust.dx, height: 48 + adjust.dy } : Size.zero, new ConstrainedBox(result, constraints))) });
     }
 }

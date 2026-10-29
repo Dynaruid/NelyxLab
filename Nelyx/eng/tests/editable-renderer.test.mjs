@@ -53,6 +53,21 @@ function reference(f,text,width,direction='ltr'){
 }
 const editor=(controller,focus,options={})=>new Center(new SizedBox(180,undefined,new EditableText('editor',controller,'Core editor',focus,0,null,{textStyle:style,minHeight:0,maxLines:null,cursorColor,selectionColor,...options})));
 
+test('ancestor motion reuses local editor geometry while selection, caret dimensions and custom geometry stay live',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('local geometry'),focus=new FocusNode(),host=input(f);let queries=0;
+  const boxes=f.library.boxes;f.library.boxes=function(...args){queries++;return boxes.apply(this,args);};controller.selection={anchor:0,focus:3};
+  const scene=options=>new Transform(editor(controller,focus,options),[1,0,0,1,0,0]);
+  try{
+    f.set(scene());const render=findRender(f.root.root),local=render.editingGeometry,initial=host.geometries.at(-1);let ancestor=render.parent;while(ancestor&&!(ancestor instanceof RenderTransform))ancestor=ancestor.parent;assert(ancestor);queries=0;
+    for(const dx of [11,24,-8]){ancestor.matrix=[1,0,0,1,dx,0];f.frame();assert.equal(render.editingGeometry,local);assert.equal(host.geometries.at(-1).caret.x,initial.caret.x+dx);}
+    assert.equal(queries,0,'Scrolling cannot repeat unchanged native range queries');
+    controller.selection={anchor:0,focus:5};f.frame();const selected=render.editingGeometry;assert.notEqual(selected,local);assert(selected.selectionRects.length>0);assert(queries>0);queries=0;assert.equal(render.editingGeometry,selected);assert.equal(queries,0);
+    f.set(scene({cursorWidth:4,cursorHeight:12}));const resized=render.editingGeometry;assert.notEqual(resized,selected);assert.equal(resized.caret.width,4);assert.equal(resized.caret.height,12);
+    const caret=render.getLocalRectForCaret;let custom=0;render.getLocalRectForCaret=function(...args){custom++;return caret.apply(this,args);};assert.notEqual(render.editingGeometry,render.editingGeometry);assert.equal(custom,2);delete render.getLocalRectForCaret;
+    render.markNeedsLayout();assert.throws(()=>render.editingGeometry,/current attached Core layout/);f.frame();const current=render.editingGeometry;f.set(new SizedBox());assert.throws(()=>render.editingGeometry,/current attached Core layout/);assert(Object.isFrozen(current));
+  }finally{f.library.boxes=boxes;await f.close();controller.dispose();focus.dispose();}
+});
+
 test('Core commands and formatters paint immediately; delayed OS synchronization cannot overwrite new input or nested commands',{timeout},async()=>{
   const f=await engineFixture({fonts:true}),controller=new TextEditingController('initial'),focus=new FocusNode(),host=input(f,{deferred:true}),changes=[];
   try{

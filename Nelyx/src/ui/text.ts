@@ -106,6 +106,9 @@ export function freezeTextRect(rect:Rect):Rect {
   return Object.freeze({x,y,width,height});
 }
 export function textRange(layout:TextLayout,start:number,end:number):void {textOffset(layout.input.text,start);textOffset(layout.input.text,end);if(!(end>=start))invariant(false,'invalid-text-offset','reversed text range');}
+const capturedLayouts=new WeakSet<TextLayout>();
+/** @internal Only layouts captured here have immutable input and line geometry. */
+export function isCapturedTextLayout(layout:TextLayout):boolean{return capturedLayouts.has(layout);}
 export function freezeTextLayout(resource:ResourceId,input:TextLayoutInput,geometry:TextLayoutGeometry):TextLayout {
   generation(resource.generation);if(!(resource.id.length>0))invariant(false,'invalid-text','layout has no resource ID');
   const snapshot=freezeTextInput(input);
@@ -120,5 +123,6 @@ export function freezeTextLayout(resource:ResourceId,input:TextLayoutInput,geome
   const lines=geometry.lines.map(line=>{textOffset(snapshot.text,line.start);textOffset(snapshot.text,line.end);if(!(line.end>=line.start))invariant(false,'invalid-text','reversed line range');finite(line.baseline,'line baseline');if(line.height!==undefined){if(!(finite(line.height,'line height')>=0))invariant(false,'invalid-text','Negative line height');}if(line.metrics){const m=line.metrics;if(!(typeof m.hardBreak==='boolean'&&Number.isSafeInteger(m.lineNumber)&&m.lineNumber>=0&&[m.ascent,m.descent,m.unscaledAscent,m.height,m.width,m.left,m.baseline].every(Number.isFinite)))invariant(false,'invalid-text','Malformed full line metrics');}return Object.freeze({start:line.start,end:line.end,baseline:line.baseline,bounds:freezeTextRect(line.bounds),...(line.height!==undefined?{height:line.height}:{}),...(line.metrics?{metrics:Object.freeze({...line.metrics})}:{})});});
   const placeholderBoxes=geometry.placeholderBoxes?.map(freezeTextRect);if(!(!placeholderBoxes||placeholderBoxes.length<=(snapshot.placeholders?.length??0)))invariant(false,'invalid-text','Unexpected placeholder geometry');
   const directions=geometry.placeholderDirections;if(!(!directions||directions.length===(placeholderBoxes?.length??0)&&directions.every(d=>d==='ltr'||d==='rtl')))invariant(false,'invalid-text','Malformed placeholder directions');
-  return Object.freeze({width:geometry.width,height:geometry.height,alphabeticBaseline:geometry.alphabeticBaseline,ideographicBaseline:geometry.ideographicBaseline,minIntrinsicWidth:geometry.minIntrinsicWidth,maxIntrinsicWidth:geometry.maxIntrinsicWidth,longestLine,overflow:geometry.overflow,unresolvedGlyphs:geometry.unresolvedGlyphs,resource:Object.freeze({...resource}),input:snapshot,lines:Object.freeze(lines),indexUnit:'utf16' as const,...(placeholderBoxes?{placeholderBoxes:Object.freeze(placeholderBoxes)}:{}),...(directions?{placeholderDirections:Object.freeze([...directions])}:{})});
+  const layout=Object.freeze({width:geometry.width,height:geometry.height,alphabeticBaseline:geometry.alphabeticBaseline,ideographicBaseline:geometry.ideographicBaseline,minIntrinsicWidth:geometry.minIntrinsicWidth,maxIntrinsicWidth:geometry.maxIntrinsicWidth,longestLine,overflow:geometry.overflow,unresolvedGlyphs:geometry.unresolvedGlyphs,resource:Object.freeze({...resource}),input:snapshot,lines:Object.freeze(lines),indexUnit:'utf16' as const,...(placeholderBoxes?{placeholderBoxes:Object.freeze(placeholderBoxes)}:{}),...(directions?{placeholderDirections:Object.freeze([...directions])}:{})});
+  capturedLayouts.add(layout);return layout;
 }

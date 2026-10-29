@@ -14,7 +14,7 @@ const timeout=1_200_000,root=path.resolve(import.meta.dirname,'../../..');
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
 function compactResizeOutput(output){return output.split('\n').map(line=>{
   if(process.env.NELYX_ANIMATION_SUMMARY==='1'&&line.startsWith('ANIMATION_NATIVE '))try{const value=JSON.parse(line.slice('ANIMATION_NATIVE '.length)),intervals=value.intervals;if(Array.isArray(intervals)){const sorted=[...intervals].sort((a,b)=>a-b);value.intervals={n:sorted.length,p50:sorted[Math.ceil(sorted.length*.5)-1]??0,p95:sorted[Math.ceil(sorted.length*.95)-1]??0,max:sorted.at(-1)??0};}return 'ANIMATION_NATIVE '+JSON.stringify(value);}catch{}
-  if(process.env.NELYX_ANIMATION_SUMMARY==='1'&&line.startsWith('ANIMATION_JS {'))try{const value=JSON.parse(line.slice('ANIMATION_JS '.length));if(value.phase)return 'ANIMATION_SUMMARY '+JSON.stringify(Object.fromEntries(['phase','engine','mode','semanticsUpdateInterval','Frame.cpu','Frame.entryCpu','Frame.retainedCpu','Pipeline.flushLayout','Root.recordPaint','Painting.compose','Geometry.commitTextInputGeometries','Pipeline.flushSemantics','Semantics.capture','Host.publish','hermesDelta','childBudget'].filter(key=>value[key]!==undefined).map(key=>[key,value[key]])));}catch{}
+  if(process.env.NELYX_ANIMATION_SUMMARY==='1'&&line.startsWith('ANIMATION_JS {'))try{const value=JSON.parse(line.slice('ANIMATION_JS '.length));if(value.phase){const result=Object.fromEntries(['phase','engine','mode','semanticsUpdateInterval','Frame.cpu','Frame.entryCpu','Frame.retainedCpu','Pipeline.flushLayout','Root.recordPaint','Painting.compose','Geometry.commitTextInputGeometries','Geometry.editableLocal','Frame.capture','Pipeline.flushSemantics','Semantics.capture','Host.publish','Picture.nativeCompile','NativeText.layout','hermesDelta','childBudget','textCache'].filter(key=>value[key]!==undefined).map(key=>[key,value[key]]));if(value.exclusive)result.exclusive=Object.fromEntries(Object.entries(value.exclusive).sort((a,b)=>b[1].sum-a[1].sum).slice(0,8));if(value.classOwners)result.classOwners=Object.fromEntries(Object.entries(value.classOwners).slice(0,8));return 'ANIMATION_SUMMARY '+JSON.stringify(result);}}catch{}
   const prefix='ANIMATION_JS live-resize ';if(line.startsWith(prefix))try{const value=JSON.parse(line.slice(prefix.length));delete value.stages;return prefix+JSON.stringify(value);}catch{}
   return line.startsWith('ANIMATION_JS ERROR ')?line.slice(0,2000):line;
 }).join('\n');}
@@ -339,9 +339,9 @@ EndGlobal
       if(mode==='gallery-scroll'){
         assert.match(output,/ANIMATION_JS gallery-scroll PASS programmatic/);
         const phases=output.split('\n').filter(line=>line.startsWith('ANIMATION_JS {')).map(line=>JSON.parse(line.slice('ANIMATION_JS '.length)));
-        assert.deepEqual(phases.map(value=>value.phase),['list-scroll','gallery-cold','gallery-revisit','gallery-retained','gallery-text','gallery-text-no-hover','gallery-text-hover']);
+        assert.deepEqual(phases.map(value=>value.phase),['list-scroll','gallery-cold','gallery-revisit','gallery-retained','gallery-text','gallery-text-no-hover','gallery-text-hover','gallery-button-no-hover','gallery-button-hover','gallery-all-text-no-hover','gallery-all-text-hover','gallery-all-text-hover-burst']);
         for(const value of phases)assert(value['Frame.cpu']?.n>10,'Missing active gallery/list frames');
-        validateNativeTiming(output,7);
+        validateNativeTiming(output,12);
         if(process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1'&&process.env.NELYX_ANIMATION_SCRATCH_BYTES_PER_PIXEL!=='40'){
           const retained=output.split('\n').filter(line=>line.startsWith('ANIMATION_STAGES ')).map(line=>JSON.parse(line.slice('ANIMATION_STAGES '.length))).find(value=>value.phase==='gallery-retained');
           const frames=retained?.stages['NativeCore.frame']?.n;assert(frames>10,'Missing warmed gallery GPU workload');

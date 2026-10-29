@@ -20,7 +20,7 @@ import {RenderObject,RenderBox,ParentData} from './object.ts';
 import type {LayoutOptions,HitTestEntry as LegacyHitTestEntry} from './object.ts';
 import {HitTestResult,HitTestEntry} from '../gestures/hit-test.ts';
 import {Offset} from '../../ui/offset.ts';
-import {identity,multiply,translate,inversePaintTransform,transform} from '../../ui/geometry.ts';
+import {identity,multiply,translate,inversePaintTransform,transform,captureTransform} from '../../ui/geometry.ts';
 import type {TransformMatrix} from '../../ui/geometry.ts';
 import type {Rect,SemanticsNode} from '../../ui/types.ts';
 import type {PaintingContext} from '../painting/context.ts';
@@ -41,12 +41,12 @@ export interface SliverAxisHitOptions extends SliverHitPosition {readonly paintO
 export class SliverHitTestResult extends HitTestResult {
   private readonly legacyCallbacks:Map<HitTestEntry,{readonly createSourceEntry?:()=>HitTestEntry;readonly onSourceEntry?:(entry:HitTestEntry)=>void}>;
   private readonly deferBoxCallbacks:boolean;
-  constructor(wrapped?:HitTestResult,deferBoxCallbacks=false){super(wrapped);this.legacyCallbacks=wrapped instanceof SliverHitTestResult?wrapped.legacyCallbacks:new Map();this.deferBoxCallbacks=wrapped instanceof SliverHitTestResult?wrapped.deferBoxCallbacks:deferBoxCallbacks;}
+  constructor(wrapped?:HitTestResult,deferBoxCallbacks=false){super(wrapped,deferBoxCallbacks);this.legacyCallbacks=wrapped instanceof SliverHitTestResult?wrapped.legacyCallbacks:new Map();this.deferBoxCallbacks=wrapped instanceof SliverHitTestResult?wrapped.deferBoxCallbacks:deferBoxCallbacks;}
   static override wrap(result:HitTestResult):SliverHitTestResult{return new SliverHitTestResult(result);}
   /** @internal The Root applies metadata once to the final admitted entry. */
   static _forLegacy():SliverHitTestResult{return new SliverHitTestResult(undefined,true);}
   /** @internal Preserve source entry kinds and deferred box metadata. */
-  _toLegacy(toLocal:TransformMatrix):LegacyHitTestEntry[]{return this.path.map(entry=>{const callbacks=this.legacyCallbacks.get(entry),createSourceEntry=callbacks?.createSourceEntry??(entry instanceof SliverHitTestEntry?()=>new SliverHitTestEntry(entry.target,entry):()=>new HitTestEntry(entry.target));return {target:entry.target,transform:multiply(entry.transform??identity,toLocal),createSourceEntry,...(callbacks?.onSourceEntry?{onSourceEntry:callbacks.onSourceEntry}:{})};});}
+  _toLegacy(toLocal:TransformMatrix):LegacyHitTestEntry[]{const captured=captureTransform(toLocal);return this.path.map(entry=>{const callbacks=this.legacyCallbacks.get(entry),createSourceEntry=callbacks?.createSourceEntry??(entry instanceof SliverHitTestEntry?()=>new SliverHitTestEntry(entry.target,entry):()=>new HitTestEntry(entry.target));let matrix:TransformMatrix|undefined;const legacy={target:entry.target,get transform(){return matrix??=multiply(entry.transform??identity,captured);},createSourceEntry,...(callbacks?.onSourceEntry?{onSourceEntry:callbacks.onSourceEntry}:{})};if(!callbacks?.createSourceEntry&&!callbacks?.onSourceEntry)this.captureLegacyTransform(legacy,entry,captured);return legacy;});}
   addWithAxisOffset({paintOffset,mainAxisOffset,crossAxisOffset,mainAxisPosition,crossAxisPosition,hitTest}:SliverAxisHitOptions):boolean{if(paintOffset!==null)this.pushOffset(new Offset(-paintOffset.dx,-paintOffset.dy));try{return hitTest(this,{mainAxisPosition:mainAxisPosition-mainAxisOffset,crossAxisPosition:crossAxisPosition-crossAxisOffset});}finally{if(paintOffset!==null)this.popTransform();}}
   /** @internal Bridge the current RenderBox hit path into the source result. */
   _addBoxChild(child:RenderBox,position:Offset,paintOffset:Offset):boolean{

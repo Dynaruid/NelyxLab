@@ -20,26 +20,44 @@ const affineIdentity=[1,0,0,1,0,0],identity44=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 const restoreCommands:readonly PaintCommand[]=Object.freeze([freezePaintCommand({op:'restore'})]);
 function isIdentity(matrix:readonly number[]|Float64Array):boolean{const identity=matrix.length===6?affineIdentity:matrix.length===16?identity44:null;return identity!==null&&identity.every((value,index)=>matrix[index]===value);}
 
-interface LayerInsertion {readonly mark:number;readonly recording:LayerRecording}
+interface LayerInsertion {readonly mark:number;readonly recording:LayerRecording;readonly retained?:boolean}
 /** Retain child snapshots without copying their display lists into every ancestor. */
 class LayerRecording {
   private references=1;
   private readonly needsScope:boolean;
+  private nativePicture:{readonly owner:PictureResourceProvider;readonly picture:Picture}|undefined;
   constructor(private readonly canvas:Canvas,private readonly insertions:readonly LayerInsertion[]){
     canvas.restoreToCount(1);let depth=0,changesState=false;
     for(const command of canvas.commands){if(command.op==='save'||command.op==='saveLayer'||command.op==='saveBackdropFilter')depth++;else if(command.op==='restore')depth--;else if(depth===0&&(command.op==='transform'||command.op==='clip'||command.op==='clipRect'||command.op==='clipRRect'||command.op==='clipPath'))changesState=true;}
     this.needsScope=changesState;
   }
   retain():LayerRecording{if(!(this.references>0))invariant(false,'disposed-engine-recording','Engine recording has retired');this.references++;return this;}
-  draw(canvas:Canvas,scoped=true):void{
+  draw(canvas:Canvas,scoped=true,pictures:PictureResourceProvider|null=null):void{
     if(!(this.references>0))invariant(false,'disposed-engine-recording','Engine recording has retired');const mark=canvas.commands.length;
     const stack=[{recording:this as LayerRecording,start:0,next:0,scoped:scoped&&this.needsScope,entered:false}];
     // These restores close our own saves. Replay them directly so a recorder
     // does not rescan its entire growing command list at every nested pop.
-    try{while(stack.length){const frame=stack[stack.length-1]!,record=frame.recording;if(!frame.entered){if(frame.scoped)canvas.save();frame.entered=true;}const entry=record.insertions[frame.next++];if(entry){if(frame.start<entry.mark)canvas._addCommandRange(record.canvas.commands,frame.start,entry.mark);frame.start=entry.mark;stack.push({recording:entry.recording,start:0,next:0,scoped:entry.recording.needsScope,entered:false});}else{if(frame.start<record.canvas.commands.length)canvas._addCommandRange(record.canvas.commands,frame.start,record.canvas.commands.length);if(frame.scoped)canvas.addCommands(restoreCommands);stack.pop();}if(!(canvas.commands.length-mark<=paintFrameLimits.commands))invariant(false,'oversize','Scene command budget exceeded');}}
+    try{while(stack.length){const frame=stack[stack.length-1]!,record=frame.recording;if(!frame.entered){if(frame.scoped)canvas.save();frame.entered=true;}const entry=record.insertions[frame.next++];if(entry){if(frame.start<entry.mark)canvas._addCommandRange(record.canvas.commands,frame.start,entry.mark);frame.start=entry.mark;if(entry.retained&&pictures)entry.recording.drawNative(canvas,pictures);else stack.push({recording:entry.recording,start:0,next:0,scoped:entry.recording.needsScope,entered:false});}else{if(frame.start<record.canvas.commands.length)canvas._addCommandRange(record.canvas.commands,frame.start,record.canvas.commands.length);if(frame.scoped)canvas.addCommands(restoreCommands);stack.pop();}if(!(canvas.commands.length-mark<=paintFrameLimits.commands))invariant(false,'oversize','Scene command budget exceeded');}}
     catch(error){try{canvas.rollback(mark);}catch(cleanup){throw new AggregateError([error,cleanup],'Engine recording replay and rollback failed');}throw error;}
   }
-  dispose():void{const pending:LayerRecording[]=[this],errors:unknown[]=[];while(pending.length){const record=pending.pop()!;if(--record.references>0)continue;try{if(!(record.references===0))invariant(false,'disposed-engine-recording','Engine recording retired twice');record.canvas.dispose();}catch(error){errors.push(error);}for(const entry of record.insertions)pending.push(entry.recording);}if(errors.length)throw new AggregateError(errors,'Engine recording retirement failed');}
+  private drawNative(canvas:Canvas,owner:PictureResourceProvider):void{
+    invariant(this.references>0,'disposed-engine-recording','Engine recording has retired');
+    // A retained recording is immutable. Compile its state and child pictures
+    // once through the existing bounded app owner instead of flattening the
+    // same hierarchy into every scrolling frame. CPU-only consumers still
+    // traverse the original recording, independently of this native snapshot.
+    let cached=this.nativePicture;
+    if(cached&&cached.owner!==owner){this.draw(canvas,true,owner);return;}
+    if(!cached){
+      const flat=new Canvas(),errors:unknown[]=[];let picture:Picture|undefined;
+      try{this.draw(flat,true);picture=Picture._fromBorrowedRecording(flat.commands);Picture.onCreate?.(picture);invariant(this.references>0,'disposed-engine-recording','Engine recording retired during native capture');}catch(error){errors.push(error);}
+      try{flat.dispose();}catch(error){errors.push(error);}
+      if(errors.length){try{picture?.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];throw new AggregateError(errors,'Retained native picture capture failed');}
+      this.nativePicture=cached={owner,picture:picture!};
+    }
+    canvas.addCommands([{op:'drawPicture',resource:owner.resource(cached.picture)}]);
+  }
+  dispose():void{const pending:LayerRecording[]=[this],errors:unknown[]=[];while(pending.length){const record=pending.pop()!;if(--record.references>0)continue;try{if(!(record.references===0))invariant(false,'disposed-engine-recording','Engine recording retired twice');}catch(error){errors.push(error);}const picture=record.nativePicture;record.nativePicture=undefined;for(const release of [()=>picture?.picture.dispose(),()=>record.canvas.dispose()])try{release();}catch(error){errors.push(error);}for(const entry of record.insertions)pending.push(entry.recording);}if(errors.length)throw new AggregateError(errors,'Engine recording retirement failed');}
 }
 /** CPU composition snapshot; native Picture leaves remain affine to its explicit app owner. */
 export abstract class EngineLayer {
@@ -121,7 +139,7 @@ export class SceneBuilder {
     const canvas=this.current().canvas,mark=canvas.commands.length;
     try{if(offset.x===0&&offset.y===0)canvas.drawPicture(picture);else{canvas.save();canvas.translate(offset.x,offset.y);canvas.drawPicture(picture);canvas.restore();}}catch(error){try{canvas.rollback(mark);}catch(cleanup){throw new AggregateError([error,cleanup],'Scene picture insertion and rollback failed');}throw error;}
   }
-  addRetained(layer:EngineLayer):void{const current=this.current(),subtree=layer._subtree();if(!(this._canRetain(layer)))invariant(false,'foreign-engine-layer','Retained layer belongs to a different Picture owner');if(!(subtree.every(entry=>!this.used.has(entry))))invariant(false,'duplicate-retained-layer','A retained layer and its descendants can only be used once in a scene');current.insertions.push({mark:current.canvas.commands.length,recording:layer._capture()});for(const entry of subtree)this.used.add(entry);current.children.push(layer);}
+  addRetained(layer:EngineLayer):void{const current=this.current(),subtree=layer._subtree();if(!(this._canRetain(layer)))invariant(false,'foreign-engine-layer','Retained layer belongs to a different Picture owner');if(!(subtree.every(entry=>!this.used.has(entry))))invariant(false,'duplicate-retained-layer','A retained layer and its descendants can only be used once in a scene');current.insertions.push({mark:current.canvas.commands.length,recording:layer._capture(),retained:true});for(const entry of subtree)this.used.add(entry);current.children.push(layer);}
   pop():void{
     this.current();if(this.stack.length===1)return;const next=this.stack.pop()!;let snapshot:LayerRecording|undefined,adopted=false;
     try{snapshot=new LayerRecording(next.canvas,next.insertions);next.layer!._complete(snapshot,next.children,this.pictures);snapshot=undefined;adopted=true;const parent=this.current();parent.insertions.push({mark:parent.canvas.commands.length,recording:next.layer!._capture()});parent.children.push(next.layer!);this.used.add(next.layer!);}catch(error){if(snapshot)snapshot.dispose();else if(!adopted)retireRecording(next);throw error;}
@@ -131,7 +149,7 @@ export class SceneBuilder {
     this.current();const mark=canvas.commands.length;
     try{
       while(this.stack.length>1)this.pop();const root=this.stack.pop()!,errors:unknown[]=[];let snapshot:LayerRecording|undefined;
-      try{snapshot=new LayerRecording(root.canvas,root.insertions);snapshot.draw(canvas,false);validateCapturedPaintCommands(canvas.commands,mark);}catch(error){errors.push(error);}
+      try{snapshot=new LayerRecording(root.canvas,root.insertions);snapshot.draw(canvas,false,this.pictures);validateCapturedPaintCommands(canvas.commands,mark);}catch(error){errors.push(error);}
       try{if(snapshot)snapshot.dispose();else retireRecording(root);}catch(error){errors.push(error);}
       if(errors.length){try{canvas.rollback(mark);}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];throw new AggregateError(errors,'Scene streaming and retirement failed');}
       this.dead=true;
@@ -139,7 +157,7 @@ export class SceneBuilder {
   }
   build():Scene{
     this.current();try{while(this.stack.length>1)this.pop();const root=this.stack.pop()!,recorder=new PictureRecorder(),canvas=new Canvas(recorder),errors:unknown[]=[];let snapshot:LayerRecording|undefined,picture:Picture|undefined;
-      try{snapshot=new LayerRecording(root.canvas,root.insertions);snapshot.draw(canvas,false);picture=recorder.endRecording();}catch(error){errors.push(error);}
+      try{snapshot=new LayerRecording(root.canvas,root.insertions);snapshot.draw(canvas,false,this.pictures);picture=recorder.endRecording();}catch(error){errors.push(error);}
       for(const release of [()=>canvas.dispose(),()=>snapshot?snapshot.dispose():retireRecording(root)])try{release();}catch(error){errors.push(error);}
       if(errors.length){try{picture?.dispose();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];throw new AggregateError(errors,'Scene assembly and retirement failed');}this.dead=true;return Scene._fromPicture(picture!);
     }catch(error){try{this.dispose();}catch(cleanup){throw new AggregateError([error,cleanup],'Scene build and rollback failed');}throw error;}

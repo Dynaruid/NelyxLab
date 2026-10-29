@@ -16,7 +16,7 @@ import type {ParagraphContext} from '../../ui/paragraph.ts';
 import type {TextPainterOptions} from '../painting/text-painter.ts';
 import {TextScaler} from '../painting/text-scaler.ts';
 import {TextPainter} from '../painting/text-painter.ts';
-import {textLimits} from '../../ui/text.ts';
+import {textLimits,isCapturedTextLayout} from '../../ui/text.ts';
 import type {PaintingContext} from '../painting/context.ts';
 import type {TextSelection,Composition,TextLayout} from '../../ui/types.ts';
 import {TextSelection as Selection} from '../../services/text-editing.ts';
@@ -47,6 +47,11 @@ export interface EditableGeometry {
   readonly coordinates:'editable-local';readonly epoch:number;readonly width:number;readonly height:number;
   readonly caret:Rect;readonly caretBaseline:Point;readonly selectionRects:readonly Rect[];
 }
+interface LocalEditingGeometry {
+  readonly paragraph:TextLayout;readonly epoch:number;readonly width:number;readonly height:number;
+  readonly paintX:number;readonly scrollX:number;readonly scrollY:number;readonly cursorWidth:number;readonly cursorHeight:number|undefined;
+  readonly baseline:number|undefined;readonly geometry:EditableGeometry;
+}
 export interface EditableSelectionLinks {readonly start:LayerLink;readonly end:LayerLink;readonly toolbar:LayerLink}
 interface VisualGraphemeEdge {readonly left:number;readonly right:number;readonly leftPosition:TextPosition;readonly rightPosition:TextPosition}
 export function validateEditableLinePolicy(policy:EditableLinePolicy):void {
@@ -59,10 +64,13 @@ function hardLineBreaks(text:string):number{let count=0;for(let index=0;index<te
 /** Core owns shaping, glyph/selection/composing/caret paint, hit testing and scroll.
  * An OS input connection may consume this geometry; it never supplies it. */
 export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(RenderBox as abstract new()=>RenderBox) {
+  private static readonly caretGeometry=RenderEditable.prototype.getLocalRectForCaret;
+  private static readonly selectionGeometry=RenderEditable.prototype.getBoxesForSelection;
   private preferredHeight:number;
   private baselines:(Readonly<Record<TextBaseline,number>>&{readonly lineHeight:number})|null=null;
   private layoutValue:EditableLinePolicy|null=null;private measurements:TextPainter|undefined;
   private paragraph:TextLayout|undefined;private epoch=0;private paintX=0;private caretRevealPending=true;
+  private localEditingGeometry:LocalEditingGeometry|undefined;
   private readonly fixedOffset=ViewportOffset.zero();private viewportOffset:ViewportOffset=this.fixedOffset;private observingOffset=false;
   get offset():ViewportOffset{return this.viewportOffset;}
   set offset(value:ViewportOffset){
@@ -101,7 +109,7 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(RenderBox
   override systemFontsDidChange():void{
     super.systemFontsDidChange();
     if(this.debugDisposed||!this.attached)return;
-    this.paragraph=undefined;this.visualNavigation=undefined;this.textNavigationCache=undefined;this.caretRevealPending=true;this.epoch++;
+    this.paragraph=undefined;this.localEditingGeometry=undefined;this.visualNavigation=undefined;this.textNavigationCache=undefined;this.caretRevealPending=true;this.epoch++;
     this.measurements?.markNeedsLayout();
   }
   override get clips():boolean{return true;}
@@ -110,7 +118,7 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(RenderBox
   get height():number{return this.preferredHeight;}
   set height(value:number){this.checkHeight(value);if(value===this.preferredHeight)return;this.preferredHeight=value;this.markNeedsLayout();}
   set textLayout(value:EditableTextLayout|null){
-    if(value===null){if(this.layoutValue===null)return;this.measurements?.dispose();this.measurements=undefined;this.paragraph=undefined;this.layoutValue=null;this.visualNavigation=undefined;this.markNeedsLayout();return;}
+    if(value===null){if(this.layoutValue===null)return;this.measurements?.dispose();this.measurements=undefined;this.paragraph=undefined;this.localEditingGeometry=undefined;this.layoutValue=null;this.visualNavigation=undefined;this.markNeedsLayout();return;}
     validateEditableLinePolicy(value);const context=value.context,o=value.options,previous=this.layoutValue;
     if(!this.measurements||this.measurements._paragraphContext.text!==context.text||this.measurements._paragraphContext.resources!==context.resources){this.measurements?.dispose();this.measurements=new TextPainter({},context);this.paragraph=undefined;}
     const painter=this.measurements;painter._updateContext(context);painter.text=o.text??null;painter.textAlign=o.textAlign??'start';painter.textDirection=o.textDirection??null;painter.textScaler=o.textScaler??TextScaler.linear(o.textScaleFactor??1);painter.maxLines=value.maxLines===1?1:null;painter.ellipsis=null;painter.locale=o.locale??null;painter.strutStyle=o.strutStyle??null;painter.textWidthBasis='parent';painter.textHeightBehavior=o.textHeightBehavior??null;painter.hyphens=o.hyphens??'manual';
@@ -265,11 +273,25 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(RenderBox
     return rangeRect();
   }
   get editingGeometry():EditableGeometry{
+    // Ancestor scrolling changes view coordinates, not paragraph-local caret
+    // geometry. Still validate the live layout on every read; world transforms,
+    // clipping and the input-frame commit remain current for every frame.
+    const standard=this.constructor===RenderEditable&&this.getLocalRectForCaret===RenderEditable.caretGeometry&&this.getBoxesForSelection===RenderEditable.selectionGeometry;
+    if(standard)this.requireParagraph();
+    const reusable=standard&&isCapturedTextLayout(this.paragraph!);
+    const previous=this.localEditingGeometry;
+    if(reusable&&previous&&this.sameLocalEditingGeometry(previous))return previous.geometry;
+    const stamp=reusable?{paragraph:this.paragraph!,epoch:this.epoch,width:this.size.width,height:this.size.height,paintX:this.paintX,scrollX:this.scrollX,scrollY:this.scrollY,cursorWidth:this.visual.cursorWidth??1,cursorHeight:this.visual.cursorHeight,baseline:this.baselines?.alphabetic}:null;
     const selection=this.visual.selection,position=new TextPosition({offset:selection.focus,affinity:this.visual.affinity??'downstream'}),caret=this.getLocalRectForCaret(position),lines=this.paragraph!.lines,range=lines.some(line=>position.offset>=line.start&&position.offset<=line.end)?this.requireParagraph().getLineBoundary(position):null,line=range?lines.find(line=>line.start===range.start&&line.end===range.end):lines.at(-1);
     invariant(!range||line,'missing-editable-line','The caret line must belong to its painted paragraph');
     const baseline=(line?.baseline??this.baselines?.alphabetic??this.paragraph!.alphabeticBaseline)+this.top-this.scrollY;
-    return Object.freeze({coordinates:'editable-local',epoch:this.epoch,width:this.size.width,height:this.size.height,caret,caretBaseline:Object.freeze({x:caret.x,y:baseline}),selectionRects:this.getBoxesForSelection(new Selection({baseOffset:selection.anchor,extentOffset:selection.focus}))});
+    const geometry=Object.freeze({coordinates:'editable-local' as const,epoch:this.epoch,width:this.size.width,height:this.size.height,caret,caretBaseline:Object.freeze({x:caret.x,y:baseline}),selectionRects:this.getBoxesForSelection(new Selection({baseOffset:selection.anchor,extentOffset:selection.focus}))});
+    // A backend query may reenter the owner. Never retain a result across a
+    // selection, layout or internal-scroll change observed during the query.
+    this.localEditingGeometry=stamp&&this.attached&&!this.needsLayout&&this.sameLocalEditingGeometry(stamp)?{...stamp,geometry}:undefined;
+    return geometry;
   }
+  private sameLocalEditingGeometry(value:Omit<LocalEditingGeometry,'geometry'>):boolean{return this.paragraph===value.paragraph&&this.epoch===value.epoch&&Object.is(this.size.width,value.width)&&Object.is(this.size.height,value.height)&&Object.is(this.paintX,value.paintX)&&Object.is(this.scrollX,value.scrollX)&&Object.is(this.scrollY,value.scrollY)&&Object.is(this.visual.cursorWidth??1,value.cursorWidth)&&Object.is(this.visual.cursorHeight,value.cursorHeight)&&Object.is(this.baselines?.alphabetic,value.baseline);}
   onInputGeometryChanged:(()=>void)|undefined;
   protected override didCommitTextInputGeometry():void{this.onInputGeometryChanged?.();}
   override get coreEditingGeometry():EditableGeometry|null{return this.layoutValue&&this.hasSize&&!this.needsLayout&&this.attached?this.editingGeometry:null;}
@@ -318,8 +340,8 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(RenderBox
     this.caretRevealPending=reveal;return size;
   }
   override attach(owner:PipelineOwner):void{super.attach(owner);if(!this.observingOffset)try{this.offset.addListener(this.offsetChanged);this.observingOffset=true;}catch(error){super.detach();throw error;}}
-  override detach():void{const errors:unknown[]=[];if(this.observingOffset){this.observingOffset=false;try{this.offset.removeListener(this.offsetChanged);}catch(error){errors.push(error);}}try{super.detach();}catch(error){errors.push(error);}if(!this.attached){this.paragraph=undefined;this.visualNavigation=undefined;this.textNavigationCache=undefined;try{this.measurements?._releaseLayoutResources();}catch(error){errors.push(error);}for(const leader of this.leaders)try{leader.dispose();}catch(error){errors.push(error);}}if(errors.length)throw new AggregateError(errors,'Editable detach failed');}
-  override dispose():void{try{super.dispose();}finally{if(this.debugDisposed){this.visualNavigation=undefined;this.textNavigationCache=undefined;this.measurements?.dispose();this.measurements=undefined;this.paragraph=undefined;this.layoutValue=null;this.fixedOffset.dispose();for(const leader of this.leaders)leader.dispose();}}}
+  override detach():void{const errors:unknown[]=[];if(this.observingOffset){this.observingOffset=false;try{this.offset.removeListener(this.offsetChanged);}catch(error){errors.push(error);}}try{super.detach();}catch(error){errors.push(error);}if(!this.attached){this.paragraph=undefined;this.localEditingGeometry=undefined;this.visualNavigation=undefined;this.textNavigationCache=undefined;try{this.measurements?._releaseLayoutResources();}catch(error){errors.push(error);}for(const leader of this.leaders)try{leader.dispose();}catch(error){errors.push(error);}}if(errors.length)throw new AggregateError(errors,'Editable detach failed');}
+  override dispose():void{try{super.dispose();}finally{if(this.debugDisposed){this.localEditingGeometry=undefined;this.visualNavigation=undefined;this.textNavigationCache=undefined;this.measurements?.dispose();this.measurements=undefined;this.paragraph=undefined;this.layoutValue=null;this.fixedOffset.dispose();for(const leader of this.leaders)leader.dispose();}}}
 }
 export class TextSelectionPoint {
   constructor(readonly point:Offset,readonly direction:'ltr'|'rtl'|null){protect(this,['point','direction']);}

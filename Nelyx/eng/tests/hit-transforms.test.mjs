@@ -2,11 +2,77 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {HitTestResult,HitTestEntry} from '@nelyx/core/framework/gestures/hit-test';
 import {captureTransform,multiply,fullTransform,translate,identity,inverse,inversePaintTransform} from '@nelyx/core/ui/geometry';
-import {RenderBox,BoxParentData} from '@nelyx/core/framework/rendering/object';
+import {RenderBox,RenderObject,BoxParentData} from '@nelyx/core/framework/rendering/object';
+import {MouseRegion} from '@nelyx/core/framework/widgets/mouse-region';
+import {Padding,SizedBox} from '@nelyx/core/framework/widgets/basic';
+import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
+import {fixture} from '../../../packages/material/tests/root-fixture.mjs';
 import {matrix4Identity,captureMatrix4,multiplyMatrix4,inverseMatrix4} from '@nelyx/core/ui/matrix4';
 import {Offset} from '@nelyx/core/ui/offset';
+import {SliverHitTestResult} from '@nelyx/core/framework/rendering/sliver';
+import {MouseTracker} from '@nelyx/core/framework/rendering/mouse-tracker';
+import {MouseCursorManager,SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';
+import {PointerHoverEvent,PointerRemovedEvent} from '@nelyx/core/framework/gestures/events';
 const timeout=1_200_000,target={handleEvent(){}};
-class Builder extends HitTestResult{push(matrix){this.pushTransform(matrix);}offset(value){this.pushOffset(value);}pop(){this.popTransform();}}
+
+test('root hover dispatch leaves unused hit transforms lazy while preserving annotation and handler coordinates',{timeout},()=>{
+  const f=fixture(),entered=[],hovered=[],exited=[],descriptor=Object.getOwnPropertyDescriptor(HitTestEntry.prototype,'transform');let unused=0;
+  let child=new MouseRegion(new SizedBox(20,20),{onEnter:event=>entered.push(event.localPosition),onHover:event=>hovered.push(event.localPosition),onExit:event=>exited.push(event.localPosition)});
+  for(let depth=0;depth<16;depth++)child=new Padding(EdgeInsets.all(1),child);
+  try{
+    f.set(child);
+    const pending=[f.root.pipeline.root];let semanticAncestors=0;while(pending.length){const render=pending.pop();if(render.constructor.name==='RenderPadding')render.semantics={id:'hover-ancestor-'+semanticAncestors++,role:'text',name:'Ancestor',enabled:true};pending.push(...render.children);}assert.equal(semanticAncestors,16);f.frame();
+    Object.defineProperty(HitTestEntry.prototype,'transform',{...descriptor,get(){const value=descriptor.get.call(this);if(value!==null&&this.target instanceof RenderObject&&this.target.handleEvent===RenderObject.prototype.handleEvent&&this.target.onPointer===undefined)unused++;return value;}});
+    for(const [x,y]of [[17,17],[18,18]])f.root.pointer({kind:'hover',pointer:91,device:'mouse',buttons:0,x,y,timestamp:f.root.context.clock.now(),viewportGeneration:1});
+    f.root.pointer({kind:'leave',pointer:91,device:'mouse',buttons:0,x:19,y:19,timestamp:f.root.context.clock.now(),viewportGeneration:1});
+    assert.equal(unused,0,'No-op ancestors must not materialize transforms for MouseTracker');
+    assert.deepEqual(entered,[new Offset(1,1)]);assert.deepEqual(hovered,[new Offset(1,1),new Offset(2,2)]);assert.deepEqual(exited,[new Offset(3,3)]);
+  }finally{Object.defineProperty(HitTestEntry.prototype,'transform',descriptor);f.close();}
+});
+
+test('cursor-only mouse motion avoids duplicate source events and still activates the requested system cursor',{timeout},()=>{
+  const calls=[],channel={invokeMethod(method,args){calls.push([method,args]);return Promise.resolve();}},annotation={handleEvent(){},validForMouseTracker:true,cursor:SystemMouseCursors.text},path=[{target:annotation,transform:identity}],tracker=new MouseTracker(()=>path,7,channel);let reads=0;
+  const event=x=>({kind:'hover',pointer:1,device:'mouse',buttons:0,x,y:4,timestamp:1,viewportGeneration:1,get globalPosition(){reads++;return {x:this.x,y:this.y};}});
+  try{tracker.updateWithEvent(event(3),path);tracker.updateWithEvent(event(5),path);assert.equal(reads,0,'Cursor-only updates must not construct source geometry');assert.equal(calls.length,1);assert.equal(calls[0][0],'activateSystemCursor');assert.equal(calls[0][1].get('kind'),'text');tracker.clearDevices();assert.equal(tracker.mouseIsConnected,false);}finally{tracker.dispose();}
+});
+
+test('custom cursor update hooks and actual enter/exit handlers retain their source pointer events',{timeout},()=>{
+  const original=MouseCursorManager.prototype.handleDeviceCursorUpdate,events=[],entered=[],exited=[],channel={invokeMethod(){return Promise.resolve();}},annotation={handleEvent(){},validForMouseTracker:true,cursor:SystemMouseCursors.click,onEnter:event=>entered.push(event),onExit:event=>exited.push(event)},path=[{target:annotation,transform:identity}],tracker=new MouseTracker(()=>path,7,channel);
+  MouseCursorManager.prototype.handleDeviceCursorUpdate=function(device,event,candidates){events.push(event);return original.call(this,device,event,candidates);};
+  try{tracker.updateWithEvent({kind:'hover',pointer:1,device:'mouse',buttons:0,x:3,y:4,timestamp:1,viewportGeneration:1},path);assert(events[0] instanceof PointerHoverEvent);assert.equal(entered.length,1);assert.equal(entered[0].position.dx,3);tracker.clearDevices();assert(events.at(-1) instanceof PointerRemovedEvent);assert.equal(exited.length,1);}finally{MouseCursorManager.prototype.handleDeviceCursorUpdate=original;tracker.dispose();}
+});
+class Builder extends HitTestResult{push(matrix){this.pushTransform(matrix);}offset(value){this.pushOffset(value);}pop(){this.popTransform();}admit(legacy){return this.addCapturedLegacyEntry(legacy);}}
+
+test('owned affine identity products reuse storage without changing signed zero, extremes or mutable callers',{timeout},()=>{
+  for(const values of [[1,0,0,1,13,-17],[1e-300,-1e300,1e300,-1e-300,Number.MAX_VALUE,-Number.MIN_VALUE],[-0,0,-0,1,-0,0]]){
+    const captured=captureTransform(values),neutral=captureTransform([1,-0,-0,1,-0,0]);
+    for(const [a,b]of [[identity,captured],[captured,identity],[neutral,captured],[captured,neutral]]){
+      assert.deepEqual(multiply(a,b),multiply([...a],[...b]));
+      if(!values.some(v=>Object.is(v,-0)))assert.equal(multiply(a,b),captured);
+    }
+    const external=[...values],expected=multiply([...identity],[...values]),product=multiply(identity,external);external[4]=71;assert.deepEqual(product,expected);
+  }
+});
+
+test('internal sliver bridges defer unconsumed transform products and capture the exact final path',{timeout},()=>{
+  const local=[.75,-.3,.2,-2,40,-50],targets=[{handleEvent(){}},{handleEvent(){}}];
+  class Child extends RenderBox{
+    get localTransform(){return local;}
+    hitTest(_position,path,toLocal){for(const target of targets)path.push({target,transform:toLocal});return true;}
+  }
+  const child=new Child(),offset=new Offset(13,-17),outer=[1,0,0,1,29,-31],source=new SliverHitTestResult(),bridge=SliverHitTestResult._forLegacy();
+  const hit=result=>result.addWithAxisOffset({paintOffset:new Offset(-3,5),mainAxisOffset:0,crossAxisOffset:0,mainAxisPosition:0,crossAxisPosition:0,hitTest:r=>SliverHitTestResult.wrap(r)._addBoxChild(child,new Offset(4,7),offset)});
+  try{
+    hit(source);const expected=source.path.map(entry=>multiply(entry.transform,outer)),freeze=Object.freeze;let fullMatrices=0;
+    Object.freeze=value=>{if(Array.isArray(value)&&value.length===16)fullMatrices++;return freeze(value);};
+    try{hit(bridge);const path=bridge._toLegacy(outer);assert.equal(fullMatrices,0,'Unused bridges must not allocate full matrix products');const root=new Builder();for(const legacy of path)assert(root.admit(legacy));assert.equal(fullMatrices,0,'Root admission must preserve the captured lazy path too');local[4]=100;outer[4]=200;
+      assert.equal(path.length,2);assert.equal(path[0].target,targets[0]);assert.deepEqual(path[0].transform,expected[0]);assert.deepEqual(path[1].transform,expected[1]);assert.equal(path[0].transform,path[0].transform);
+      assert.deepEqual(root.path.map(entry=>entry.transform),expected.map(value=>multiply(value,matrix4Identity)));
+      assert.equal(new Builder().admit(Object.freeze({target:targets[0],transform:matrix4Identity})),false,'A frozen external entry cannot claim captured bridge ownership');
+      const create=path[0].createSourceEntry;path[0].createSourceEntry=()=>new HitTestEntry(targets[0]);assert.equal(new Builder().admit(path[0]),false,'A changed factory keeps its original eager protocol');path[0].createSourceEntry=create;
+    }finally{Object.freeze=freeze;}
+  }finally{child.dispose();}
+});
 
 test('relative render transforms stop at the common ancestor and preserve live offsets, perspective and reparented depth gaps',{timeout},()=>{
   class Box extends RenderBox{current=identity;reads=0;get localTransform(){this.reads++;return this.current;}setupParentData(child){child.parentData??=new BoxParentData();}}

@@ -11,10 +11,25 @@ import {PictureRecorder} from '@nelyx/core/ui/picture-recorder';
 import {ImageFilter} from '@nelyx/core/ui/image-filter';
 import {Gradient,ImageShader} from '@nelyx/core/ui/shader';
 import {ResourceRegistry} from '@nelyx/core/hosting/resources';
+import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {freezeFrame,disposeFrame} from '@nelyx/core/ui/frame';
-import {matrix4Identity,matrix4FromAffine,multiplyMatrix4} from '@nelyx/core/ui/matrix4';
+import {matrix4Identity,matrix4FromAffine,multiplyMatrix4,captureMatrix4} from '@nelyx/core/ui/matrix4';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
+import {RecordedCompositionLayer} from '../../dist/framework/painting/recorded-layer.js';
 const timeout=1_200_000,bounds={x:0,y:0,width:64,height:64};
+
+test('recorded scope transforms are live before sealing and reuse immutable work afterward without capturing caller matrices',{timeout},()=>{
+  const layer=new RecordedCompositionLayer(),child=new ContainerLayer(),hold=new LayerHandle(child),matrix=[1,0,0,1,7,11];
+  try{
+    layer.appendState({op:'transform',matrix});layer.appendRecordedChild(child);const expected=matrix4FromAffine(matrix);assert.deepEqual(layer.applyTransform(child),expected);matrix[4]=99;layer.seal();
+    const captured=layer.applyTransform(child);assert.deepEqual(captured,expected);assert.equal(layer.applyTransform(child),captured);assert.equal(layer.applyTransform(child,captureMatrix4([...matrix4Identity])),captured);
+    const negativeZero=[...matrix4Identity];negativeZero[3]=-0;const signed=layer.applyTransform(child,captureMatrix4(negativeZero));assert.notEqual(signed,captured);assert.deepEqual(signed,multiplyMatrix4(captureMatrix4(negativeZero),expected));
+    const incoming=[...matrix4Identity];incoming[12]=13;assert.equal(layer.applyTransform(child,incoming)[12],20);incoming[12]=31;assert.equal(layer.applyTransform(child,incoming)[12],38);
+    const owned=captureMatrix4(incoming),ownedResult=layer.applyTransform(child,owned);assert.equal(layer.applyTransform(child,captureMatrix4([...incoming])),ownedResult);
+    incoming[12]=53;assert.equal(layer.applyTransform(child,captureMatrix4(incoming))[12],60);assert.equal(layer.applyTransform(child,Object.freeze([...incoming]))[12],60);
+    child.remove();layer.append(child);assert.deepEqual(layer.applyTransform(child),matrix4Identity);
+  }finally{layer.dispose();hold.dispose();}
+});
 
 test('an unchanged picture exposes current pixels beyond its old estimated bounds after viewport growth',{timeout},async()=>{
   const f=await engineFixture(),surface=f.ck.MakeSurface(64,64),root=new ContainerLayer(),contexts=[];assert(surface);
@@ -81,8 +96,8 @@ test('retained state shaders survive owner replacement only for the independentl
   }finally{if(frame)disposeFrame(frame);context.dispose();if(!root.debugDisposed)root.dispose();if(!shader.debugDisposed)shader.dispose();resources.dispose();}
 });
 
-test('recording state and retained insertions match direct CanvasKit pixels for clip, matrix and filter recipes',{timeout},async()=>{
-  const f=await engineFixture(),surface=f.ck.MakeSurface(64,64);assert(surface);
+test('native recording state and retained insertions match direct CanvasKit pixels for clip, matrix and filter recipes',{timeout},async()=>{
+  const f=await engineFixture(),surface=f.ck.MakeSurface(64,64),pictures=new FramePictureService(f.root.context.resources,f.library.framePictureBackend,f.root.context.owner);assert(surface);
   const paint=new Paint({color:0xffed6a23}),outline=new Paint({color:0xff2462e3}),path=new Path();path.addOval({x:0,y:0,width:43,height:49});
   const recorder=new PictureRecorder(),leaf=new Canvas(recorder);leaf.drawRect({x:0,y:0,width:27,height:31},paint);leaf.drawOval({x:4,y:6,width:30,height:22},outline);const picture=recorder.endRecording();leaf.dispose();
   const read=commands=>{f.library.replay(surface.getCanvas(),{commands});surface.flush();const image=surface.makeImageSnapshot();try{return Buffer.from(image.readPixels(0,0,{width:64,height:64,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));}finally{image.delete();}};
@@ -107,10 +122,10 @@ test('recording state and retained insertions match direct CanvasKit pixels for 
         for(const canvas of [context,reference]){canvas.addCommands([{op:'clear',color:0xffd0d8e0}]);prefix(canvas,index);const shader=Gradient.linear({x:0,y:0},{x:3,y:3},[0xffff0000,0xff00ff00]);shaders.push(shader);canvas.save();canvas.drawRect({x:0,y:0,width,height:3},new Paint({shader}));canvas.save();canvas.translate(2,1);canvas.drawOval({x:0,y:0,width:4,height:5},outline);canvas.restore();canvas.restore();}
         context.addLayer(offset);reference.save();reference.translate(3,5);reference.drawPicture(picture);reference.restore();
         for(const canvas of [context,reference]){canvas.drawRect({x:31,y:28,width:9,height:8},outline);if(index===4||index===8)canvas.restore();canvas.restore();canvas.drawRect({x:55,y:57,width:4,height:3},paint);}
-        context.compose(root,bounds);assert.deepEqual(read(context.commands),read(reference.commands),'Canvas recipe '+index+' width '+width);
+        context.compose(root,bounds,pictures);assert.deepEqual(read(context.commands),read(reference.commands),'Canvas recipe '+index+' width '+width);
         }finally{reference.dispose();context.dispose();for(const shader of shaders)shader.dispose();}
        }
       }finally{root.dispose();}
     }
-  }finally{picture.dispose();surface.dispose();await f.close();}
+  }finally{picture.dispose();pictures.dispose();surface.dispose();await f.close();}
 });

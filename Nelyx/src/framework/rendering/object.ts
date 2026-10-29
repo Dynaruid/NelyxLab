@@ -628,6 +628,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     const offset=child.parentData instanceof BoxParentData?child.parentData.offset:{x:0,y:0},local=child.localTransform;
     if(local!==identity)return multiply(translate(offset.x,offset.y),local);
     const x=offset.x,y=offset.y;if(!Number.isFinite(x)||!Number.isFinite(y))return multiply(translate(x,y),local);
+    if(x===0&&y===0)return identity;
     const cached=child.boxTranslation;
     if(cached&&Object.is(cached.x,x)&&Object.is(cached.y,y))return cached.matrix;
     // The identity product only normalizes signed zero in the offsets. Avoid
@@ -767,7 +768,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
   return SystemFontsRelayoutRenderObject as unknown as SystemFontsRelayoutConstructor<Base>;
 }
 export interface SemanticsAnnotationsOptions {readonly properties:SemanticsProperties;readonly container:boolean;readonly explicitChildNodes:boolean;readonly excludeSemantics:boolean;readonly blockUserActions:boolean;readonly localeForSubtree:Locale|null;readonly textDirection:'ltr'|'rtl'|null;}
-export interface SemanticsAnnotations {properties:SemanticsProperties;container:boolean;explicitChildNodes:boolean;excludeSemantics:boolean;blockUserActions:boolean;localeForSubtree:Locale|null;textDirection:'ltr'|'rtl'|null;initSemanticsAnnotations(options:SemanticsAnnotationsOptions):void}
+export interface SemanticsAnnotations {properties:SemanticsProperties;container:boolean;explicitChildNodes:boolean;excludeSemantics:boolean;blockUserActions:boolean;localeForSubtree:Locale|null;textDirection:'ltr'|'rtl'|null;initSemanticsAnnotations(options:SemanticsAnnotationsOptions):void;/** @internal Install an equivalent immutable owner without changing its published configuration. */_replaceSemanticsProperties(value:SemanticsProperties):void}
 export type SemanticsAnnotationsConstructor<Base extends RenderObjectConstructor>=abstract new (...args:ConstructorParameters<Base>)=>InstanceType<Base>&SemanticsAnnotations;
 // Most annotations have no actions. Keep the render instance below the small
 // object field limit and create only the stable wrappers actually requested.
@@ -811,6 +812,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     initSemanticsAnnotations(options:SemanticsAnnotationsOptions):void{this._properties=options.properties;this._container=options.container;this._explicitChildNodes=options.explicitChildNodes;this._excludeSemantics=options.excludeSemantics;this._blockUserActions=options.blockUserActions;this._localeForSubtree=options.localeForSubtree;this._textDirection=options.textDirection;}
     get properties():SemanticsProperties{return this._properties;}
     set properties(value:SemanticsProperties){if(this._properties===value)return;this._properties=value;this.markNeedsSemanticsUpdate();}
+    _replaceSemanticsProperties(value:SemanticsProperties):void{this._properties=value;}
     get container():boolean{return this._container;}
     set container(value:boolean){if(this._container===value)return;this._container=value;this.markNeedsSemanticsUpdate();}
     get explicitChildNodes():boolean{return this._explicitChildNodes;}

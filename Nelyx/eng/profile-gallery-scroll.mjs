@@ -18,16 +18,19 @@ import {WindowsInteraction} from '../sdk/dist/platforms/windows/interaction.js';
 import {DefaultAssetBundle} from '@nelyx/core/framework/widgets/default-asset-bundle';
 import {AssetBundle} from '@nelyx/core/services/asset-bundle';
 import {ImageService} from '@nelyx/core/hosting/images';
+import {FramePictureService} from '@nelyx/core/hosting/pictures';
 import {ListView} from '@nelyx/core/framework/widgets/scroll-view';
 import {EditableText} from '@nelyx/core/framework/widgets/editable-text';
 import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
 import {MouseTracker} from '@nelyx/core/framework/rendering/mouse-tracker';
+import {HitTestEntry} from '@nelyx/core/framework/gestures/hit-test';
 import {TextField} from '@nelyx/material/text-field';
+import {ButtonStyleButton} from '@nelyx/material/button-style-button';
 import {InputDecorator} from '@nelyx/material/input-decorator';
 import {RenderInputDecoration} from '../../packages/material/dist/internal/input/input-decorator-layout.js';
 
-const profiling=process.argv.includes('--profile'),entries=process.argv.includes('--entries'),hover=process.argv.includes('--hover'),policy=process.argv.find(value=>value.startsWith('--children='))?.slice(11)??'product',viewport=process.argv.find(value=>value.startsWith('--viewport='))?.slice(11)??'compact';
-if(!['product','legacy','dormant','bounded'].includes(policy)||!['compact','wide'].includes(viewport)||process.argv.slice(2).some(value=>value!=='--profile'&&value!=='--entries'&&value!=='--hover'&&!value.startsWith('--children=')&&!value.startsWith('--viewport=')))throw Error('Choose --profile, --entries, --hover, --viewport=compact|wide and/or --children=product|legacy|dormant|bounded');
+const profiling=process.argv.includes('--profile'),entries=process.argv.includes('--entries'),hover=process.argv.includes('--hover'),pictures=process.argv.includes('--pictures'),policy=process.argv.find(value=>value.startsWith('--children='))?.slice(11)??'product',viewport=process.argv.find(value=>value.startsWith('--viewport='))?.slice(11)??'compact';
+if(!['product','legacy','dormant','bounded'].includes(policy)||!['compact','wide'].includes(viewport)||process.argv.slice(2).some(value=>value!=='--profile'&&value!=='--entries'&&value!=='--hover'&&value!=='--pictures'&&!value.startsWith('--children=')&&!value.startsWith('--viewport=')))throw Error('Choose --profile, --entries, --hover, --pictures, --viewport=compact|wide and/or --children=product|legacy|dormant|bounded');
 
 const sourceRoot=new URL('../../sample/nelyx-testbed-app-2/src/',import.meta.url).href;
 const hook=registerHooks({load(url,context,next){
@@ -39,7 +42,7 @@ const {ListViewPage}=await import('../../sample/nelyx-testbed-app-2/src/list-vie
 const inspector=new Session();inspector.connect();
 const post=(method,args={})=>new Promise((resolve,reject)=>inspector.post(method,args,(error,result)=>error?reject(error):resolve(result)));
 const deadline=setTimeout(()=>{console.error('Gallery diagnosis exceeded 20 minutes');process.exit(1);},1_200_000);
-let fixture,interaction,images,sampling=false,active=null,textEntries=[],semanticInvalidations={},layoutInvalidations={};
+let fixture,interaction,images,pictureOwner,sampling=false,active=null,textEntries=[],semanticInvalidations={},layoutInvalidations={},hitTransformReads=0,unusedHitTransformReads=0;
 const restores=[];
 if(policy!=='product'){
   const builder=ListView.builder;ListView.builder=function(options){return builder.call(this,options.extentIndex?{...options,childPolicy:policy==='legacy'?'legacy':policy==='dormant'?{mode:'dormant',capacity:4}:{mode:'bounded',preparation:'disabled'}}:options);};restores.push(()=>{ListView.builder=builder;});
@@ -53,6 +56,7 @@ try{
   Object.assign(context.readMetrics(),viewport==='wide'?{logicalWidth:1280,logicalHeight:730,physicalWidth:2560,physicalHeight:1460,scale:2}:{logicalWidth:487,logicalHeight:464.5,physicalWidth:974,physicalHeight:929,scale:2});
   f.root.options.semanticsUpdateInterval=300;
   interaction=new WindowsInteraction(context.owner);context.editing=interaction.editing;context.semantics=interaction.semantics;
+  if(pictures){const backend=f.library.framePictureBackend;measure(backend,'compile','pictureCompile');pictureOwner=new FramePictureService(context.resources,backend,context.owner);context.pictures=pictureOwner;measure(pictureOwner,'resource','pictureResource');}
   const app=fileURLToPath(new URL('../../sample/nelyx-testbed-app-2/',import.meta.url));
   images=new ImageService(context.resources,{
     instantiateCodec:(bytes,options)=>f.library.instantiateImageCodec(bytes,options),
@@ -72,11 +76,11 @@ try{
   f.set(new DefaultAssetBundle(new DeclaredAssets(),new ComponentsGallery()));
   const gallery=stateFor(f,ComponentsGallery);
   if(profiling){await post('Profiler.enable');await post('Profiler.setSamplingInterval',{interval:500});}
-  async function phase(name,scroll,offsets){
-    const frames=[],counts=[],details=[];active={};semanticInvalidations={};layoutInvalidations={};if(profiling){await post('Profiler.start');sampling=true;}
-    for(const offset of offsets){
+  async function phase(name,scroll,offsets,movePointer){
+    const frames=[],counts=[],details=[];active={};semanticInvalidations={};layoutInvalidations={};hitTransformReads=unusedHitTransformReads=0;if(profiling){await post('Profiler.start');sampling=true;}
+    for(const [index,offset]of offsets.entries()){
       const before=entries?Object.fromEntries(Object.entries(active).map(([key,value])=>[key,value.length])):null;
-      textEntries=[];scroll.jumpTo(offset);f.elapse(17);const start=performance.now(),commands=f.frame(),cpu=performance.now()-start;frames.push(cpu);counts.push(commands.length);
+      textEntries=[];scroll.jumpTo(offset);f.elapse(17);const start=performance.now();movePointer?.(index);const commands=f.frame(),cpu=performance.now()-start;frames.push(cpu);counts.push(commands.length);
       if(entries)details.push({offset:scroll.offset,cpu,commands:commands.length,stages:Object.fromEntries(Object.entries(active).map(([key,value])=>[key,value.slice(before[key]??0).reduce((a,b)=>a+b,0)])),textEntries});
     }
     const stages=Object.fromEntries(Object.entries(active).map(([key,value])=>[key,summarize(value)]));active=null;
@@ -87,7 +91,7 @@ try{
     for(let i=0;i<profile.samples.length;i++){const node=nodes.get(profile.samples[i]),frame=node.callFrame;if(frame.url==='node:inspector')continue;const key=JSON.stringify({function:frame.functionName,file:frame.url.replace('file:///',''),line:frame.lineNumber+1});totals.set(key,(totals.get(key)??0)+(profile.timeDeltas[i]??0)/1000);}
     hottest=[...totals].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([key,ms])=>({...JSON.parse(key),ms}));
     }
-    console.log(JSON.stringify({name,policy,viewport,scope:'Node/CanvasKit CPU attribution; not native FPS or physical input/display acceptance',frames:summarize(frames),commands:summarize(counts),stages,...(hover?{semanticInvalidations,layoutInvalidations}:{}),...(hottest?{hottest}:{}),...(entries?{longestFrames:details.sort((a,b)=>b.cpu-a.cpu).slice(0,4)}:{})}));
+    console.log(JSON.stringify({name,policy,viewport,scope:'Node/CanvasKit CPU attribution; not native FPS or physical input/display acceptance',...(movePointer?{includesPointerDispatch:true}:{}),frames:summarize(frames),commands:summarize(counts),stages,...(pictureOwner?{pictures:pictureOwner.debugStats}:{}),...(hover?{semanticInvalidations,layoutInvalidations,hitTransforms:{reads:hitTransformReads,unused:unusedHitTransformReads}}:{}),...(hottest?{hottest}:{}),...(entries?{longestFrames:details.sort((a,b)=>b.cpu-a.cpu).slice(0,4)}:{})}));
   }
   await phase('gallery-cold',gallery.firstScroll,Array.from({length:24},(_,i)=>(i+1)*140));
   await phase('gallery-revisit',gallery.firstScroll,Array.from({length:24},(_,i)=>(23-i)*140));
@@ -95,8 +99,10 @@ try{
   gallery.select('text');f.frame();
   await phase('gallery-text',gallery.firstScroll,Array.from({length:24},(_,i)=>60+(i%12)*2));
   if(hover){
+    const transform=Object.getOwnPropertyDescriptor(HitTestEntry.prototype,'transform');Object.defineProperty(HitTestEntry.prototype,'transform',{...transform,get(){const value=transform.get.call(this);if(active&&value!==null){hitTransformReads++;if(this.target instanceof RenderObject&&this.target.handleEvent===RenderObject.prototype.handleEvent&&this.target.onPointer===undefined)unusedHitTransformReads++;}return value;}});restores.push(()=>Object.defineProperty(HitTestEntry.prototype,'transform',transform));
     for(const [method,counts]of [['markNeedsSemanticsUpdate',()=>semanticInvalidations],['markNeedsLayout',()=>layoutInvalidations]]){const original=RenderObject.prototype[method];RenderObject.prototype[method]=function(...args){if(active){const name=this.constructor.name,record=counts()[name]??={n:0,...(entries?{stack:new Error().stack.split('\n').slice(2,5)}:{})};record.n++;}return original.apply(this,args);};restores.push(()=>{RenderObject.prototype[method]=original;});}
     measure(MouseTracker.prototype,'updateAllDevices','mouseTracker');measure(RenderInputDecoration.prototype,'performLayout','decorationLayout');measure(RenderEditable.prototype,'performLayout','editableLayout');
+    measure(MouseTracker.prototype,'updateWithEvent','pointerMouseTracker');measure(f.root,'pointer','pointerInput');
     measure(Object.getPrototypeOf(stateFor(f,TextField)),'build','fieldBuild');measure(Object.getPrototypeOf(stateFor(f,InputDecorator)),'build','decorationBuild');measure(Object.getPrototypeOf(stateFor(f,EditableText)),'build','editableBuild');
     const offsets=Array.from({length:24},(_,i)=>(i<12?i:23-i)*16);
     gallery.firstScroll.jumpTo(0);f.elapse(200);f.frame();
@@ -107,11 +113,41 @@ try{
     f.root.pointer({...point,kind:'hover',timestamp:context.clock.now()});f.frame();f.elapse(200);f.frame();
     await phase('gallery-text-hover',gallery.firstScroll,offsets);
     f.root.pointer({...point,kind:'leave',timestamp:context.clock.now()});f.frame();f.elapse(200);f.frame();
+    gallery.select('all');f.frame();gallery.firstScroll.jumpTo(176);f.frame();gallery.firstScroll.jumpTo(0);f.elapse(250);f.frame();
+    const button=f.root.nodes.find(node=>node.id==='demo-elevated');if(!button)throw Error('Expected the visible Material button');
+    measure(Object.getPrototypeOf(stateFor(f,ButtonStyleButton)),'build','buttonBuild');
+    const buttonPoint={...point,x:button.bounds.x+button.bounds.width/2,y:button.bounds.y+button.bounds.height/2};
+    await phase('gallery-button-no-hover',gallery.firstScroll,offsets);
+    gallery.firstScroll.jumpTo(0);f.elapse(250);f.frame();
+    f.root.pointer({...buttonPoint,kind:'hover',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+    await phase('gallery-button-hover',gallery.firstScroll,offsets);
+    f.root.pointer({...buttonPoint,kind:'leave',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+    await phase('gallery-button-pointer-sweep',gallery.firstScroll,Array(24).fill(0),index=>f.root.pointer({...buttonPoint,y:index%2===0?buttonPoint.y:60,kind:'hover',timestamp:context.clock.now()}));
+    f.root.pointer({...buttonPoint,kind:'leave',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+    if(viewport==='wide'){
+      let field;
+      for(let step=0;step<24;step++){
+        gallery.firstScroll.jumpTo(step*256);f.elapse(350);f.frame();
+        field=f.root.nodes.find(node=>node.id==='field-filled'&&node.bounds.y>=120&&node.bounds.y+node.bounds.height<=context.readMetrics().logicalHeight);
+        if(field)break;
+      }
+      if(!field)throw Error('Expected the visible field in the actual two-column All Components page');
+      const origin=gallery.firstScroll.offset,allOffsets=offsets.map(offset=>origin+offset),allPoint={...point,x:field.bounds.x+20,y:field.bounds.y+20};
+      await phase('gallery-all-text-no-hover',gallery.firstScroll,allOffsets);
+      gallery.firstScroll.jumpTo(origin);f.elapse(350);f.frame();
+      f.root.pointer({...allPoint,kind:'hover',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+      await phase('gallery-all-text-hover',gallery.firstScroll,allOffsets);
+      f.root.pointer({...allPoint,kind:'leave',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+      await phase('gallery-all-text-pointer-sweep',gallery.firstScroll,Array(24).fill(origin),index=>f.root.pointer({...allPoint,y:index%2===0?allPoint.y:60,kind:'hover',timestamp:context.clock.now()}));
+      f.root.pointer({...allPoint,kind:'leave',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+      await phase('gallery-all-text-hover-burst',gallery.firstScroll,allOffsets,()=>{for(let packet=0;packet<4;packet++)f.root.pointer({...allPoint,x:allPoint.x+(packet%2)*.125,kind:'hover',timestamp:context.clock.now()});});
+      f.root.pointer({...allPoint,kind:'leave',timestamp:context.clock.now()});f.frame();f.elapse(250);f.frame();
+    }
   }
   gallery.select('all');f.frame();
   f.tap('show-list-view');const list=stateFor(f,ListViewPage);
   await phase('list-cold',list.scroll,Array.from({length:24},(_,i)=>(i+1)*70));
   await phase('list-revisit',list.scroll,Array.from({length:24},(_,i)=>(23-i)*70));
 }finally{
-  active=null;try{if(sampling)await post('Profiler.stop');}finally{inspector.disconnect();clearTimeout(deadline);for(const restore of restores.reverse())restore();try{fixture?.root.dispose();await images?.dispose();await fixture?.close();}finally{interaction?.dispose();hook.deregister();}}
+  active=null;try{if(sampling)await post('Profiler.stop');}finally{inspector.disconnect();clearTimeout(deadline);for(const restore of restores.reverse())restore();try{fixture?.root.dispose();await images?.dispose();pictureOwner?.dispose();await fixture?.close();}finally{interaction?.dispose();hook.deregister();}}
 }

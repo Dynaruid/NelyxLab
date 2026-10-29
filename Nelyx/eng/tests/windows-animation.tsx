@@ -15,6 +15,7 @@ import {CustomPaint} from '@nelyx/core/framework/widgets/custom-paint';
 import {CustomPainter} from '@nelyx/core/framework/rendering/custom-paint';
 import {RenderRepaintBoundary} from '@nelyx/core/framework/rendering/repaint-boundary';
 import {RenderObject,RenderBox,PipelineOwner} from '@nelyx/core/framework/rendering/object';
+import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
 import {SceneBuilder} from '@nelyx/core/ui/scene';
 import {BuildOwner,Element,RenderObjectElement} from '@nelyx/core/framework/widgets/framework';
 import {SliverMultiBoxAdaptorElement} from '@nelyx/core/framework/widgets/sliver';
@@ -163,6 +164,7 @@ function wrapFrameCallbacks(decorate:(callback:(...args:any[])=>void)=>(...args:
 }
 
 if(trace)for(const [type,names,label]of [[FrameworkRoot,['build','recordPaint'],'Root'],[ViewRuntime,['updateMetrics','buildPending','pump'],'Runtime'],[PaintingContext,['compose','finishLayer'],'Painting'],[SceneBuilder,['build','addRetained','pop'],'Scene'],[RenderRepaintBoundary,['refresh'],'Boundary'],[RenderObject,['commitTextInputGeometries','markNeedsPaint'],'Geometry'],[PipelineOwner,['flushLayout','flushSemantics'],'Pipeline'],[GraphiteRenderer,['submit','pollNotifications'],'Renderer'],[BuildOwner,['flushBuild','finalizeTree'],'Widgets'],[SemanticsBinding,['updateViewSemantics'],'Semantics'],[SemanticsNode,['updateWith','getSemanticsData'],'SemanticsNode'],[SemanticsOwner,['sendSemanticsUpdate'],'SemanticsOwner']] as const)for(const name of names)wrap(type,name,label+'.'+name);
+if(trace&&!resizeTimeline){const capture=FrameRecording.capture;FrameRecording.capture=function(...args:Parameters<typeof capture>){return measured('Frame.capture',()=>capture.apply(this,args));};}
 if(resizeTimeline){
  // Only the owned diagnostic fixture installs these aggregate spans. Every
  // timestamp comes directly from the same native clock as the frame trace.
@@ -179,6 +181,7 @@ if(resizeTimeline){
  FrameRecording.capture=function(...args:Parameters<typeof capture>){return measured('Frame.capture',()=>capture.apply(this,args));};
 }
 if(diagnostic){
+ const localGeometry=Object.getOwnPropertyDescriptor(RenderEditable.prototype,'editingGeometry')!;Object.defineProperty(RenderEditable.prototype,'editingGeometry',{...localGeometry,get:function(){return measured('Geometry.editableLocal',()=>localGeometry.get!.call(this));}});
  // Attribute tree ownership work in the actual installed engine. These nested
  // spans expose exclusive time; minimal CPU qualification keeps them disabled.
  // FinalizeTree and Element lifecycle counters cover recursive retirement.
@@ -567,6 +570,42 @@ async function galleryScroll(){
  await measure('gallery-text-hover',async()=>{await sweep(scroll,176,1200);await sweep(scroll,0,1200);});
  const mouse=(view.controller.mouseTracker as any).states;if(mouse.size!==1||mouse.get(0)?.event.x!==x||mouse.get(0)?.event.y!==y)throw Error('Owned hover workload received external pointer input');
  if(view.controller.buildOwner.focus.primaryFocus!==focus)throw Error('Hover must not focus an editor');
+ view.controller.mouseTracker.clearDevices();await delay(200);await drainWheelRendering();
+ material().select('all');await delay(400);scroll.jumpTo(176);await delay(200);scroll.jumpTo(0);await delay(200);
+ const button=view.controller.nodes.find((node:any)=>node.id==='demo-elevated');if(!button)throw Error('Visible button for hover workload missing');
+ const bx=button.bounds.x+button.bounds.width/2,by=button.bounds.y+button.bounds.height/2;
+ const buttonHover=(pointX:number)=>{view.controller.mouseTracker.clearDevices();view.dispatchPointer({kind:'hover',x:pointX,y:by,pointer:0,device:'mouse',buttons:0,timestamp:view.controller.context.clock.now(),viewportGeneration:view.currentMetrics.viewportGeneration});};
+ buttonHover(Math.max(0,button.bounds.x-24));await delay(250);await drainWheelRendering();
+ await measure('gallery-button-no-hover',async()=>{await sweep(scroll,176,1200);await sweep(scroll,0,1200);});
+ buttonHover(bx);await delay(250);await drainWheelRendering();
+ await measure('gallery-button-hover',async()=>{await sweep(scroll,176,1200);await sweep(scroll,0,1200);});
+ const buttonMouse=(view.controller.mouseTracker as any).states;if(buttonMouse.size!==1||buttonMouse.get(0)?.event.x!==bx||buttonMouse.get(0)?.event.y!==by)throw Error('Owned button hover workload received external pointer input');
+ if(view.controller.buildOwner.focus.primaryFocus!==focus)throw Error('Button hover changed focus');
+ view.controller.mouseTracker.clearDevices();await delay(200);await drainWheelRendering();
+ let allField:any;
+ for(let step=0;step<24;step++){
+  scroll.jumpTo(step*256);await delay(350);
+  allField=view.controller.nodes.find((node:any)=>node.id==='field-filled'&&node.bounds.y>=96&&node.bounds.y+node.bounds.height<=view.currentMetrics.logicalHeight);
+  if(allField)break;
+ }
+ if(!allField)throw Error('Visible field in actual All Components page missing');
+ const origin=scroll.offset,ax=allField.bounds.x+20,ay=allField.bounds.y+20;
+ const allHover=(pointX:number)=>{view.controller.mouseTracker.clearDevices();view.dispatchPointer({kind:'hover',x:pointX,y:ay,pointer:0,device:'mouse',buttons:0,timestamp:view.controller.context.clock.now(),viewportGeneration:view.currentMetrics.viewportGeneration});};
+ allHover(Math.max(0,allField.bounds.x-24));await delay(250);await drainWheelRendering();
+ await measure('gallery-all-text-no-hover',async()=>{await sweep(scroll,origin+176,1200);await sweep(scroll,origin,1200);});
+ allHover(ax);await delay(250);await drainWheelRendering();
+ const allHovered=states().find(({widget})=>widget instanceof TextField&&widget.id==='field-filled');if(!allHovered?.state.hovering)throw Error('All Components pointer did not enter the actual field');
+ await measure('gallery-all-text-hover',async()=>{await sweep(scroll,origin+176,1200);await sweep(scroll,origin,1200);});
+ const allMouse=(view.controller.mouseTracker as any).states;if(allMouse.size!==1||allMouse.get(0)?.event.x!==ax||allMouse.get(0)?.event.y!==ay)throw Error('Owned All Components hover workload received external pointer input');
+ if(view.controller.buildOwner.focus.primaryFocus!==focus)throw Error('All Components hover changed focus');
+ view.controller.mouseTracker.clearDevices();await delay(200);await drainWheelRendering();
+ scroll.jumpTo(origin);await delay(250);let queuedHoverPackets=0;
+ await measure('gallery-all-text-hover-burst',async()=>{await Promise.all([
+   (async()=>{await sweep(scroll,origin+176,1200);await sweep(scroll,origin,1200);})(),
+   (async()=>{const until=performance.now()+2400;while(performance.now()<until){view.queuePointer({kind:'hover',x:ax+(queuedHoverPackets%2)*.125,y:ay,pointer:0,device:'mouse',buttons:0,timestamp:view.controller.context.clock.now(),viewportGeneration:view.currentMetrics.viewportGeneration});queuedHoverPackets++;await delay(4);}})(),
+ ]);});
+ if(queuedHoverPackets<30)throw Error('Queued hover stress did not deliver a sustained stream');
+ if(view.controller.buildOwner.focus.primaryFocus!==focus)throw Error('Queued hover changed focus');
  view.controller.mouseTracker.clearDevices();await delay(200);await drainWheelRendering();
  host.report('gallery-scroll PASS programmatic; physical-trackpad=notVerified displayed=unobserved');
 }
