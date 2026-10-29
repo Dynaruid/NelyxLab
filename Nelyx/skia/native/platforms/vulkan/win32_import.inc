@@ -189,10 +189,12 @@ std::shared_ptr<const Win32Frame> renderWin32Frame(std::shared_ptr<Device> owner
   // their returns on this serialized Context owner. Graphite keeps referenced
   // and unfinished resources; queued upload/recording owners are not discarded.
   if(winReplayWidth&&(winReplayWidth!=data->width||winReplayHeight!=data->height))context->freeGpuResources();
-  // MSAA scratch grows with the actual backing, including a maximized/DPI
-  // window. Keep its recent working set without changing the allocator's
-  // independent 256MiB cap or retaining resources across a size change.
-  const auto scratch=static_cast<uint64_t>(data->width)*static_cast<uint64_t>(data->height)*40;
+  // Budget for the MSAA attachments together with offscreen/layer resources.
+  // Fitting only the large attachments evicts them again as other resources
+  // enter the cache, causing large allocations on every scroll frame. Keep
+  // the backing-size budget bounded independently of the allocator's 256MiB
+  // cap, and release the old size's scratch before admitting another size.
+  const auto scratch=static_cast<uint64_t>(data->width)*static_cast<uint64_t>(data->height)*48;
   context->setMaxBudgetedBytes(static_cast<size_t>(std::clamp<uint64_t>(scratch,96*1024*1024,192*1024*1024)));
   // Allocate retention before importing/submitting; the failure path never allocates.
   auto frame=std::shared_ptr<const Win32Frame>(new Win32Frame(data->width,data->height,data->signal,data,

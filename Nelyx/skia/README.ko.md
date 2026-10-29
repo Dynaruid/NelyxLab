@@ -58,6 +58,8 @@ nelyx prepare --app <app> --target windows --native-inputs <inputs.json>
 
 기준 C++·JSI 소스가 바뀌면 소스 준비·공급 파일 빌드를 반복하고 새 manifest로 앱을 준비하세요. 기본값은 stock RNW Core입니다.
 
+Windows의 Graphite 캐시 예산은 physical backing의 픽셀당 48 bytes로 계산하고 96–192MiB 범위로 제한합니다. MSAA attachment와 offscreen/layer 리소스를 함께 보존해 스크롤 중 큰 scratch surface의 반복 할당을 줄입니다. 별도의 allocator 256MiB 상한과 backing-size 변경 시 정리는 유지합니다. native `gallery-scroll` 진단에 `NELYX_ANIMATION_NATIVE_TRACE=1`과 `NELYX_ANIMATION_NATIVE_CORE_TRACE=1`을 사용하면 warm 상태의 scratch 재사용을 검사할 수 있습니다. 이 검사는 물리 트랙패드나 표시 성능 수락을 증명하지 않습니다.
+
 ## Linux 네이티브 입력
 
 [linux-graphite-probe.lock.json](vendor/linux-graphite-probe.lock.json)의 SDK와 대응하는 RNL/RN 0.81.6 소스를 사용합니다. [prepare-rn-modules.py](eng/source-build/prepare-rn-modules.py)로 모듈을 준비한 뒤 재배치 가능한 공급 파일을 만듭니다.

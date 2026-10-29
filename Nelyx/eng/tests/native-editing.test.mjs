@@ -10,8 +10,22 @@ import {TextPosition} from '@nelyx/core/ui/text-position';
 import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
 import {FlutterError} from '@nelyx/core/foundation/flutter-error';
+import {freezeTextInputGeometry} from '@nelyx/core/ui/editing';
 const timeout=1_200_000;
 FoundationPlatform.configure({kind:'native',operatingSystem:'android'});
+
+test('SDK reuses captured Core geometry and recaptures reused mutable caller packets',{timeout},()=>{
+  const owner={id:'geometry-capture',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true});
+  const binding=interaction.editing.bind(owner,{session:owner,text:'',selection:{anchor:0,focus:0},composing:{status:'none'},revision:0,source:'programmatic'},()=>{},{id:'field'});
+  const packet={coordinates:'view-logical',owner,viewportGeneration:1,layoutEpoch:1,scale:1,transform:[1,0,0,1,0,0],bounds:{x:0,y:0,width:80,height:20},clip:{x:0,y:0,width:80,height:20},caret:{x:0,y:0,width:1,height:20},caretBaseline:{x:0,y:15},selectionRects:[]};
+  try{
+    binding.updateGeometry(packet);const first=interaction.editorInputBounds('field');assert.notEqual(first,packet.bounds);
+    packet.bounds.x=12;packet.layoutEpoch=2;binding.updateGeometry(packet);assert.equal(first.x,0);assert.equal(interaction.editorInputBounds('field').x,12,'Reference reuse does not make a mutable packet current');
+    const captured=freezeTextInputGeometry(packet);assert.equal(freezeTextInputGeometry(captured),captured);binding.updateGeometry(captured);assert.equal(interaction.editorInputBounds('field'),captured.bounds,'The SDK must reuse validated immutable rectangle identities');
+    const external=Object.freeze({...packet,bounds:{...packet.bounds,width:-1}});assert.throws(()=>binding.updateGeometry(external));assert.equal(interaction.editorInputBounds('field'),captured.bounds);
+    binding.updateGeometry(null);
+  }finally{binding.dispose();interaction.dispose();}
+});
 
 test('native carrier reattachment preserves the focus origin and marks replay as restoration',{timeout},()=>{
   const owner={id:'focus-order',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true}),requests=[];

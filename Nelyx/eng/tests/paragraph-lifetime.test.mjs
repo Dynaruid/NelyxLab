@@ -14,6 +14,7 @@ import {ParagraphStyle} from '@nelyx/core/ui/paragraph-style';
 import {ParagraphConstraints} from '@nelyx/core/ui/paragraph-constraints';
 import {RenderParagraph,RenderRichParagraph} from '@nelyx/core/framework/rendering/paragraph';
 import {PipelineOwner} from '@nelyx/core/framework/rendering/object';
+import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import {TextScaler} from '@nelyx/core/framework/painting/text-scaler';
 import {Paint} from '@nelyx/core/ui/paint';
 import {Locale} from '@nelyx/core/ui/locale';
@@ -67,6 +68,32 @@ test('source measurements reuse one captured span before painting and keep geome
   p._releaseLayoutResources();assert.equal(f.library.debugTextStats.producers,0);assert(narrow.lines.every(line=>Number.isFinite(line.baseline)&&line.bounds.height>0));
   p._measure(70);assert.equal(builds,2);p.dispose();p=undefined;assert.equal(f.library.debugTextStats.producers,0);
  }finally{p?.dispose();await f.close();}
+});
+
+test('dry text layout matches painted alignment and width policies without retaining native producers',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),owner=context(f);let dry,painted;
+ try{
+  for(const textDirection of ['ltr','rtl'])for(const textAlign of ['start','center','right'])for(const textWidthBasis of ['parent','longestLine'])for(const maxWidth of [80,Infinity]){
+   const options={text:new TextSpan({text:'one 한글 two three',style:new TextStyle({fontSize:16})}),textDirection,textAlign,textWidthBasis},constraints={minWidth:40,maxWidth};
+   dry=new TextPainter(options,owner);painted=new TextPainter(options,owner);
+   const geometry=dry._measureLayout(constraints);assert.equal(f.library.debugTextStats.producers,0);assert(!('resource'in geometry));assert(!('input'in geometry));assert(Object.isFrozen(geometry.lines[0].bounds));
+   painted.layout(constraints);assert.equal(geometry.width,painted.width);assert.equal(geometry.height,painted.height);assert.equal(geometry.alphabeticBaseline,painted._layoutSnapshot().alphabeticBaseline);assert.deepEqual(geometry.lines,painted._layoutSnapshot().lines);
+   const layout=f.library.layout;let calls=0;f.library.layout=function(...args){calls++;return layout.apply(this,args);};
+   try{painted._measure(painted._layoutSnapshot().input.width);assert.equal(calls,0,'Measuring the completed width must use its current producer geometry');}finally{f.library.layout=layout;}
+   painted.dispose();painted=undefined;dry.dispose();dry=undefined;assert.equal(f.library.debugTextStats.producers,0);
+  }
+ }finally{dry?.dispose();painted?.dispose();await f.close();}
+});
+
+test('rich dry size and baseline queries reuse geometry and font invalidation refreshes the probe',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),owner=context(f),layout=f.library.layout;let calls=0,render;
+ f.library.layout=function(...args){calls++;return layout.apply(this,args);};
+ try{
+  render=new RenderParagraph(span(0xff123456),{textDirection:'ltr'},owner);const constraints=new BoxConstraints(0,100,0,200);
+  const size=render.getDryLayout(constraints),baseline=render.getDryBaseline(constraints,'alphabetic');assert(size.height>0);assert(baseline>0);assert.equal(calls,1,'Dry baseline must reuse the size probe for the same paragraph width');assert.equal(f.library.debugTextStats.producers,0);
+  render.markNeedsLayout();render.getDryLayout(constraints);assert.equal(calls,2,'Explicit layout invalidation must retire the measurement cache too');
+  render.systemFontsDidChange();render.getDryBaseline(constraints,'alphabetic');assert.equal(calls,3,'Font notifications must retire cached source geometry');assert.equal(f.library.debugTextStats.producers,0);
+ }finally{render?.dispose();f.library.layout=layout;await f.close();}
 });
 
 test('source geometry failures preserve falsey backend and retirement errors while retiring the transient producer',{timeout},async()=>{

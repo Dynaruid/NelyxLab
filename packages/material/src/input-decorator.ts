@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Stateful M3 input decoration; rendering and editing retain their Core owners.
-import {StatefulWidget,Element,InheritedWidget} from '@nelyx/core/framework/widgets/framework';
-import type {Widget,WidgetOptions,BuildContext,State} from '@nelyx/core/framework/widgets/framework';
+import {StatefulWidget,Element,InheritedWidget,Widget} from '@nelyx/core/framework/widgets/framework';
+import type {WidgetOptions,BuildContext,State} from '@nelyx/core/framework/widgets/framework';
 import {TickerProviderStateMixin} from '@nelyx/core/framework/widgets/ticker-provider';
 import {AnimationController} from '@nelyx/core/framework/animation/animation-controller';
+import {ValueNotifier} from '@nelyx/core/foundation/notifier';
 import {Curves} from '@nelyx/core/framework/animation/curves';
 import {Padding,Text,SizedBox,ConstrainedBox,KeyedSubtree} from '@nelyx/core/framework/widgets/basic';
 import {Directionality,MediaQuery} from '@nelyx/core/framework/widgets/app-data';
 import {DefaultTextStyle} from '@nelyx/core/framework/widgets/default-text-style';
 import {Opacity} from '@nelyx/core/framework/widgets/opacity';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
+import {SemanticsProperties} from '@nelyx/core/framework/semantics/semantics';
 import {AnimatedSwitcher} from '@nelyx/core/framework/widgets/animated-switcher';
 import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';
 import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';
@@ -39,7 +41,7 @@ import {FloatingLabelAlignment} from './floating-label-alignment.ts';
 import {floatingLabelAlignmentX} from './internal/input/floating-label-values.ts';
 import {Theme} from './theme.ts';
 import {DecorationLayout,DecorationBorder} from './internal/input/input-decorator-layout.ts';
-import type {DecorationSlot} from './internal/input/input-decorator-layout.ts';
+import type {DecorationSlot,DecorationBorderConfiguration} from './internal/input/input-decorator-layout.ts';
 export {InputDecoration} from './input-decoration.ts';
 export type {InputDecorationOptions,CollapsedInputDecorationOptions} from './input-decoration.ts';
 
@@ -77,12 +79,35 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     private readonly containerKey=new GlobalKey('InputDecorator container');
     private floatingTarget=0;private hoverTarget=0;private hintTarget=0;
     private queued=false;
+    private readonly stableChildren=new Map<string,{readonly values:readonly unknown[];readonly child:Widget|null}>();
+    private hintProperties:SemanticsProperties|null=null;
+    private borderPaint:ValueNotifier<DecorationBorderConfiguration>|undefined;private paintDirection:'ltr'|'rtl'='ltr';private layoutBorder:InputBorder|null=null;
+    /** Animation ticks reuse unchanged content instead of reconfiguring text,
+     * editor and semantic owners for a background/border color change. */
+    private stableChild(key:string,values:readonly unknown[],create:()=>Widget|null):Widget|null{
+        const previous=this.stableChildren.get(key);
+        if(previous&&previous.values.length===values.length&&values.every((value,index)=>value instanceof Widget||previous.values[index] instanceof Widget?value===previous.values[index]:valueEquals(value,previous.values[index])))return previous.child;
+        const child=create();this.stableChildren.set(key,{values:Object.freeze([...values]),child});return child;
+    }
     private readonly animationChanged=()=>{
         if(!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
         if(this.context.owner.building){if(!this.queued){this.queued=true;this.context.owner.postFrame(()=>{this.queued=false;if(this.mounted&&this.context instanceof Element&&this.context.active)this.setState(()=>{});});}}
         else this.setState(()=>{});
     };
-    override initState():void{super.initState();this.floating=new AnimationController({vsync:this,duration:transitionDuration});this.border=new AnimationController({vsync:this,duration:transitionDuration,value:1});this.hover=new AnimationController({vsync:this,duration:15});this.hint=new AnimationController({vsync:this,duration:20});for(const controller of [this.floating,this.border,this.hover,this.hint])controller.addListener(this.animationChanged);}
+    private updateBorderPaint():void{
+        if(!this.borderPaint||!this.end||!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
+        const v=this.visual();this.borderPaint.value=Object.freeze({border:v.border,fill:Color.alphaBlend(v.hover.withValues({alpha:v.hover.a*this.hover.value}),v.fill).toARGB32(),direction:this.paintDirection,progress:Curves.fastOutSlowIn.transform(this.floating.value)});
+    }
+    private readonly borderChanged=()=>{
+        this.updateBorderPaint();if(!this.begin||!this.end)return;
+        const border=this.visual().border,layout=this.layoutBorder;
+        // Stroke offset and outline gap also position the floating label.
+        const layoutChanged=layout!==null&&(layout.isOutline!==border.isOutline||layout.borderSide.strokeOffset!==border.borderSide.strokeOffset||(layout instanceof OutlineInputBorder?layout.gapPadding:null)!==(border instanceof OutlineInputBorder?border.gapPadding:null));
+        if(layoutChanged||!this.begin.label.equals(this.end.label)||!this.begin.floating.equals(this.end.floating))this.animationChanged();
+    };
+    private readonly hoverChanged=()=>this.updateBorderPaint();
+    private readonly floatingChanged=()=>{this.updateBorderPaint();this.animationChanged();};
+    override initState():void{super.initState();this.floating=new AnimationController({vsync:this,duration:transitionDuration});this.border=new AnimationController({vsync:this,duration:transitionDuration,value:1});this.hover=new AnimationController({vsync:this,duration:15});this.hint=new AnimationController({vsync:this,duration:20});this.floating.addListener(this.floatingChanged);this.border.addListener(this.borderChanged);this.hover.addListener(this.hoverChanged);this.hint.addListener(this.animationChanged);}
     private states():DartSet<WidgetState>{const states=emptyWidgetStateSet();if(!this.decoration.enabled)states.add(WidgetState.disabled);if(this.widget.isFocused)states.add(WidgetState.focused);if(this.widget.isHovering)states.add(WidgetState.hovered);if(this.decoration.error!==null||this.decoration.errorText!==null)states.add(WidgetState.error);return states;}
     private hasLabel():boolean{return this.decoration.label!==null||this.decoration.labelText!==null;}
     private withdrawn():boolean{return !this.widget.isEmpty||this.widget.isFocused&&this.decoration.enabled;}
@@ -131,29 +156,34 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     }
     override didChangeDependencies():void{super.didChangeDependencies();this.sync();}
     override didUpdateWidget(old:InputDecorator):void{super.didUpdateWidget(old);this.sync();}
-    override dispose():void{try{for(const controller of [this.floating,this.border,this.hover,this.hint])controller.dispose();}finally{super.dispose();}}
+    override dispose():void{try{for(const controller of [this.floating,this.border,this.hover,this.hint])controller.dispose();}finally{this.borderPaint?.dispose();this.borderPaint=undefined;this.stableChildren.clear();this.hintProperties=null;this.layoutBorder=null;super.dispose();}}
     build(context:BuildContext):Widget {
         const d=this.decoration,v=this.visual(),direction=Directionality.of(context),theme=Theme.of(context),progress=Curves.fastOutSlowIn.transform(this.floating.value),border=v.border,outline=border.isOutline,collapsed=d.isCollapsed??false,dense=d.isDense??false;
         const padding=d.contentPadding??(collapsed?EdgeInsets.zero:outline?new EdgeInsets(12,dense?16:20,12,dense?8:12):new EdgeInsets(d.filled?12:0,dense?4:8,d.filled?12:0,dense?4:8));
         const slots=new Map<DecorationSlot,Widget>();
         const fill=Color.alphaBlend(v.hover.withValues({alpha:v.hover.a*this.hover.value}),v.fill);
-        slots.set('container',new DecorationBorder({border,fill:fill.toARGB32(),direction,progress},this.containerKey));
+        this.paintDirection=direction;this.layoutBorder=border;const paint=Object.freeze({border,fill:fill.toARGB32(),direction,progress});if(this.borderPaint)this.borderPaint.value=paint;else this.borderPaint=new ValueNotifier(paint);
+        slots.set('container',new DecorationBorder(paint,this.containerKey,this.borderPaint));
         if(d.icon)slots.set('icon',new Padding(EdgeInsetsDirectional.only({end:16}),IconTheme.merge({data:new IconThemeData({color:v.icon,size:24}),child:d.icon})));
-        const withStyle=(child:Widget|null,text:string|null,style:TextStyle,maxLines:number|null=null,textDirection:'ltr'|'rtl'=direction):Widget|null=>child===null&&text===null?null:new DefaultTextStyle(style,child??new Text(text!,{style,...(maxLines===null?{}:{maxLines}),direction:textDirection}),{...(this.widget.textAlign===null?{}:{textAlign:this.widget.textAlign}),maxLines});
-        const label=withStyle(d.label,d.labelText,TextStyle.lerp(v.label,v.floating,progress)!);
+        const withStyle=(slot:DecorationSlot,child:Widget|null,text:string|null,style:TextStyle,maxLines:number|null=null,textDirection:'ltr'|'rtl'=direction):Widget|null=>this.stableChild('text:'+slot,[child,text,style,maxLines,textDirection,this.widget.textAlign],()=>child===null&&text===null?null:new DefaultTextStyle(style,child??new Text(text!,{style,...(maxLines===null?{}:{maxLines}),direction:textDirection}),{...(this.widget.textAlign===null?{}:{textAlign:this.widget.textAlign}),maxLines}));
+        const label=withStyle('label',d.label,d.labelText,TextStyle.lerp(v.label,v.floating,progress)!);
         const inlineHidden=d.floatingLabelBehavior===FloatingLabelBehavior.never&&this.withdrawn();
         if(label)slots.set('label',new Opacity(label,{opacity:inlineHidden?0:1}));
-        const hint=withStyle(d.hint,d.hintText,v.hint,d.hintMaxLines,d.hintTextDirection??direction);if(hint)slots.set('hint',new Opacity(hint,{opacity:this.hint.value}));
-        const prefix=withStyle(d.prefix,d.prefixText,v.prefix),suffix=withStyle(d.suffix,d.suffixText,v.suffix),affixOpacity=!this.hasLabel()||this.withdrawn()?1:0;
+        const hint=withStyle('hint',d.hint,d.hintText,v.hint,d.hintMaxLines,d.hintTextDirection??direction);if(hint)slots.set('hint',new Opacity(hint,{opacity:this.hint.value}));
+        const prefix=withStyle('prefix',d.prefix,d.prefixText,v.prefix),suffix=withStyle('suffix',d.suffix,d.suffixText,v.suffix),affixOpacity=!this.hasLabel()||this.withdrawn()?1:0;
         if(prefix)slots.set('prefix',new Opacity(prefix,{opacity:affixOpacity}));if(suffix)slots.set('suffix',new Opacity(suffix,{opacity:affixOpacity}));
-        for(const [slot,child,constraints,color]of [['prefixIcon',d.prefixIcon,d.prefixIconConstraints,v.prefixIcon],['suffixIcon',d.suffixIcon,d.suffixIconConstraints,v.suffixIcon]] as const)
-            if(child)slots.set(slot,new ConstrainedBox(IconTheme.merge({data:new IconThemeData({color,size:24}),child}),constraints??new BoxConstraints(48,Infinity,48,Infinity)));
-        slots.set('input',new DefaultTextStyle(v.base,this.widget.child??SizedBox.shrink(),{...(this.widget.textAlign===null?{}:{textAlign:this.widget.textAlign})}));
-        const error=d.error!==null||d.errorText!==null,helper=error?withStyle(d.error,d.errorText,v.error,d.errorMaxLines):withStyle(d.helper,d.helperText,v.helper,d.helperMaxLines);
-        slots.set('helperError',new AnimatedSwitcher({duration:transitionDuration,child:helper?new KeyedSubtree({key:new ValueKey(error?'error':'helper'),child:new Semantics({liveRegion:error,child:helper})}):null}));
-        const counter=withStyle(d.counter,d.counterText===''?null:d.counterText,v.counter);if(counter)slots.set('counter',d.semanticCounterText===null?counter:new Semantics({label:d.semanticCounterText,excludeSemantics:true,child:counter}));
+        for(const [slot,child,constraints,color]of [['prefixIcon',d.prefixIcon,d.prefixIconConstraints,v.prefixIcon],['suffixIcon',d.suffixIcon,d.suffixIconConstraints,v.suffixIcon]] as const){
+            const icon=this.stableChild(slot,[child,constraints,color],()=>child?new ConstrainedBox(IconTheme.merge({data:new IconThemeData({color,size:24}),child}),constraints??new BoxConstraints(48,Infinity,48,Infinity)):null);if(icon)slots.set(slot,icon);
+        }
+        slots.set('input',this.stableChild('input',[v.base,this.widget.child,this.widget.textAlign],()=>new DefaultTextStyle(v.base,this.widget.child??SizedBox.shrink(),{...(this.widget.textAlign===null?{}:{textAlign:this.widget.textAlign})}))!);
+        const error=d.error!==null||d.errorText!==null,helper=error?withStyle('helperError',d.error,d.errorText,v.error,d.errorMaxLines):withStyle('helperError',d.helper,d.helperText,v.helper,d.helperMaxLines);
+        const helperChild=this.stableChild('helper:wrapper',[helper,error],()=>helper?new KeyedSubtree({key:new ValueKey(error?'error':'helper'),child:new Semantics({liveRegion:error,child:helper})}):null);
+        slots.set('helperError',new AnimatedSwitcher({duration:transitionDuration,child:helperChild}));
+        const counter=withStyle('counter',d.counter,d.counterText===''?null:d.counterText,v.counter);
+        const counterChild=this.stableChild('counter:wrapper',[counter,d.semanticCounterText],()=>counter?(d.semanticCounterText===null?counter:new Semantics({label:d.semanticCounterText,excludeSemantics:true,child:counter})):null);if(counterChild)slots.set('counter',counterChild);
         const density=(d.visualDensity??theme.visualDensity).baseSizeAdjustment;
-        let result:Widget=new Semantics({hint:d.errorText,child:new DecorationLayout(slots,{padding:padding.resolve(direction),direction,baseline:v.base.textBaseline??'alphabetic',
+        const properties=this.hintProperties?.hint===d.errorText?this.hintProperties:(this.hintProperties=new SemanticsProperties({hint:d.errorText}));
+        let result:Widget=Semantics.fromProperties({properties,child:new DecorationLayout(slots,{padding:padding.resolve(direction),direction,baseline:v.base.textBaseline??'alphabetic',
             floatingLabelHeight:MediaQuery.textScalerOf(context).scale(4+.75*(v.label.fontSize??16)),labelProgress:progress,labelAlignment:floatingLabelAlignmentX(d.floatingLabelAlignment??FloatingLabelAlignment.start),outline,borderStrokeOffset:border.borderSide.strokeOffset,hasLabel:label!==null,
             isEmpty:this.widget.isEmpty,isCollapsed:collapsed,isDense:dense,maintainHintSize:d.maintainHintSize,maintainLabelSize:d.maintainLabelSize,labelVisible:!inlineHidden,alignLabelWithHint:d.alignLabelWithHint??false,
             density:{width:density.dx,height:density.dy},inputGap:border instanceof OutlineInputBorder?border.gapPadding:outline||d.filled?4:0,expands:this.widget.expands,vertical:this.widget.textAlignVertical})});

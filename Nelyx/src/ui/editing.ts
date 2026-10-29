@@ -3,12 +3,17 @@ import { sameOwner } from "./frame.ts";
 import type { TextEditingValue, ViewOwner,EditingGeometry,TextInputGeometry } from "./types.ts";
 import {freezeTextRect} from './text.ts';
 import {captureTransform} from './geometry.ts';
+// Identity reuse is limited to snapshots validated and deeply captured here.
+// Object.freeze on a caller's outer object does not validate its nested values.
+const capturedInputGeometries=new WeakSet<TextInputGeometry>();
 export function freezeTextInputGeometry(geometry:TextInputGeometry):TextInputGeometry {
+  if(capturedInputGeometries.has(geometry))return geometry;
   invariant(geometry.nativeSurfaceGeneration===undefined||(Number.isSafeInteger(geometry.nativeSurfaceGeneration)&&geometry.nativeSurfaceGeneration>=0),'invalid-text-input-geometry','Invalid native surface generation');
   invariant(geometry.coordinates==='view-logical'&&!!geometry.owner.id&&Number.isSafeInteger(geometry.owner.generation)&&geometry.owner.generation>=0&&Number.isSafeInteger(geometry.viewportGeneration)&&geometry.viewportGeneration>=0&&Number.isSafeInteger(geometry.layoutEpoch)&&geometry.layoutEpoch>=0&&Number.isFinite(geometry.scale)&&geometry.scale>0,'invalid-text-input-geometry','Invalid Core input geometry owner, epoch or coordinate space');
   invariant(geometry.selectionRects.length<=4096,'text-input-geometry-budget','Core selection geometry exceeds the editing text budget');
   invariant(Number.isFinite(geometry.caretBaseline.x)&&Number.isFinite(geometry.caretBaseline.y),'invalid-text-input-geometry','Core caret baseline must be finite');
-  return Object.freeze({...geometry,owner:Object.freeze({...geometry.owner}),transform:captureTransform(geometry.transform),bounds:freezeTextRect(geometry.bounds),clip:freezeTextRect(geometry.clip),caret:freezeTextRect(geometry.caret),caretBaseline:Object.freeze({...geometry.caretBaseline}),selectionRects:Object.freeze(geometry.selectionRects.map(freezeTextRect))});
+  const captured=Object.freeze({...geometry,owner:Object.freeze({...geometry.owner}),transform:captureTransform(geometry.transform),bounds:freezeTextRect(geometry.bounds),clip:freezeTextRect(geometry.clip),caret:freezeTextRect(geometry.caret),caretBaseline:Object.freeze({...geometry.caretBaseline}),selectionRects:Object.freeze(geometry.selectionRects.map(freezeTextRect))});
+  capturedInputGeometries.add(captured);return captured;
 }
 export function freezeEditingGeometry(geometry:EditingGeometry):EditingGeometry {
   if(geometry.status==='unavailable')return Object.freeze({status:'unavailable'});

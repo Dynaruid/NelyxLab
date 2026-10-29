@@ -756,6 +756,26 @@ test('input geometry avoids ancestor visibility queries for non-editor branches 
   try{f.set(tree);visibility=commits=0;f.frame();assert.equal(visibility,0);assert.equal(commits,20);}finally{f.close();}
 });
 
+test('deep editor visibility is checked once per override and stays live across hidden ancestors and instance changes',{timeout},()=>{
+  const f=fixture();let editor,gate,checks=0,glyphReads=0;
+  class Geometry extends RenderProxyBox{get coreEditingGeometry(){glyphReads++;return {epoch:1,width:this.size.width,height:this.size.height,caret:{x:0,y:0,width:1,height:20},caretBaseline:{x:0,y:15},selectionRects:[]};}}
+  class Gate extends RenderProxyBox{shown=true;painted=true;get isDisplayed(){checks++;return this.shown&&super.isDisplayed;}paintsChild(child){return this.painted&&super.paintsChild(child);}}
+  class Carrier extends RenderObjectWidget{get childWidgets(){return [new SizedBox(80,60)];}createRenderObject(){return editor=new Geometry();}}
+  class Wrapper extends RenderObjectWidget{constructor(child,isGate=false){super();this.child=child;this.isGate=isGate;}get childWidgets(){return [this.child];}createRenderObject(){return this.isGate?(gate=new Gate()):new RenderProxyBox();}}
+  let tree=new Carrier();for(let i=0;i<64;i++)tree=new Wrapper(tree);tree=new Wrapper(tree,true);
+  const read=()=>editor.readTextInputGeometry(f.root.context.owner,f.root.context.readMetrics());
+  try{
+    f.set(tree);checks=0;const first=read();assert(first);assert.equal(checks,1,'Ordinary wrappers must not repeatedly re-enter the same visibility override');
+    gate.shown=false;assert.equal(read(),null,'A hidden ancestor revokes an already committed geometry packet');
+    Object.defineProperty(editor,'isDisplayed',{configurable:true,get(){return true;}});assert.equal(read(),null,'A descendant returning true cannot bypass a hidden ancestor');
+    gate.shown=true;assert(read());delete editor.isDisplayed;
+    Object.defineProperty(editor,'isDisplayed',{configurable:true,value:false});assert.equal(read(),null,'Instance visibility changes are observed without reattachment');delete editor.isDisplayed;
+    checks=0;f.frame();assert(read());assert(checks<=4,'Commit and fresh reads must each check the override at most once');
+    gate.shown=false;glyphReads=0;f.frame();assert.equal(read(),null);assert.equal(glyphReads,0,'Hidden editors must withdraw geometry before querying glyphs');gate.shown=true;f.frame();assert(read());
+    gate.painted=false;assert.equal(read(),null,'A cached/unpainted child cannot reuse an earlier geometry packet');glyphReads=0;f.frame();assert.equal(glyphReads,0);assert.equal(read(),null);gate.painted=true;f.frame();assert(read());
+  }finally{gate.shown=true;delete editor.isDisplayed;f.close();}
+});
+
 test('input geometry skips ordinary subtrees and tracks hook insertion, removal and reparenting',{timeout},()=>{
   const f=fixture();let visits=0,commits=0;
   class Hook extends RenderProxyBox{didCommitTextInputGeometry(){commits++;}}

@@ -7,14 +7,15 @@ import type {FrameTiming} from '../../foundation/clock.ts';
 
 /** Opt-in State retention. Dormant rows deactivate; user timers remain the
  * State's responsibility and framework tickers resume with elapsed wall time. */
-export type SliverChildPolicy='legacy'|{readonly mode:'bounded';readonly preparation?:'disabled'|'observed-budget'}|{readonly mode:'dormant';readonly capacity:number};
+export type SliverChildPolicy='legacy'|{readonly mode:'bounded';readonly preparation?:'disabled'|'observed-budget';/** Optional live sections per sliver, within the shared View budget. */readonly capacity?:number}|{readonly mode:'dormant';readonly capacity:number};
 export function normalizeSliverChildPolicy(value:SliverChildPolicy|undefined):SliverChildPolicy{
  if(value===undefined||value==='legacy')return 'legacy';
  if(value!==null&&typeof value==='object'&&value.mode==='dormant'){
   invariant(Number.isSafeInteger(value.capacity)&&value.capacity>0&&value.capacity<=32,'invalid-dormant-capacity','Dormant capacity must be in 1..32');return Object.freeze({mode:'dormant',capacity:value.capacity});
  }
  invariant(value!==null&&typeof value==='object'&&value.mode==='bounded'&&(value.preparation===undefined||value.preparation==='disabled'||value.preparation==='observed-budget'),'invalid-sliver-child-policy','Choose legacy or bounded with disabled/observed-budget preparation');
- return Object.freeze({mode:'bounded',preparation:value.preparation??'disabled'});
+ invariant(value.capacity===undefined||Number.isSafeInteger(value.capacity)&&value.capacity>=0&&value.capacity<=8,'invalid-bounded-capacity','Bounded capacity must be in 0..8');
+ return Object.freeze({mode:'bounded',preparation:value.preparation??'disabled',...(value.capacity===undefined?{}:{capacity:value.capacity})});
 }
 export const viewChildBudgetLimits=Object.freeze({perSliver:8,children:16,elements:2048});
 interface ChildRecord {
@@ -22,7 +23,7 @@ interface ChildRecord {
  elements:number;charged:boolean;retiring:boolean;evictionRequested:boolean;preparedRoot:Element|undefined;
 }
 /** @internal A request only dirties its real sliver. Root owns both layout passes. */
-export interface OptionalChildCandidate {readonly owner:Element;readonly estimatedMs:number;readonly elements:number;readonly valid:()=>boolean;readonly request:()=>void;readonly finish:()=>void}
+export interface OptionalChildCandidate {readonly owner:Element;readonly estimatedMs:number;readonly elements:number;readonly capacity?:number;readonly valid:()=>boolean;readonly request:()=>void;readonly finish:()=>void}
 /** Non-owning bookkeeping over the canonical Element/adaptor owners.
  * Counts follow actual mount/unmount/activation; no subtree census or leases. */
 export class ViewWorkBudget {
@@ -72,17 +73,19 @@ export class ViewWorkBudget {
  forget(root:Element):void{const record=this.record(root);if(record)record.retiring=true;}
  private get pressure():boolean{const value=this.resources.accountedTotals;return value.resident>=textLimits.retainedResources||value.residentUnits>=textLimits.retainedUnits||value.residentBytes>=textLimits.retainedInputBytes||value.producerUnits>=textLimits.producerUnits||value.producerBytes>=textLimits.producerInputBytes;}
  private requestEviction(record:ChildRecord):boolean{if(record.evictionRequested||record.retiring)return false;record.evictionRequested=true;record.requestLayout();return true;}
- retain(root:Element):boolean{
+ retain(root:Element,capacity:number=viewChildBudgetLimits.perSliver):boolean{
   const record=this.record(root);if(!record||record.retiring||record.evictionRequested||record.elements===0||record.elements>viewChildBudgetLimits.elements)return false;
   if(record.charged)return true;
   const owned=[...this.optional].filter(value=>value.owner===record.owner).length;
-  if(this.pressure||owned>=viewChildBudgetLimits.perSliver||this.optional.size>=viewChildBudgetLimits.children||this.chargedElements+record.elements>viewChildBudgetLimits.elements){
-   const victim=[...this.optional].find(value=>!value.retiring&&!value.evictionRequested&&(owned<viewChildBudgetLimits.perSliver||value.owner===record.owner));if(victim)this.requestEviction(victim);return false;
+  if(this.pressure||owned>=capacity||this.optional.size>=viewChildBudgetLimits.children||this.chargedElements+record.elements>viewChildBudgetLimits.elements){
+   const victim=[...this.optional].find(value=>!value.retiring&&!value.evictionRequested&&(owned<capacity||value.owner===record.owner));if(victim)this.requestEviction(victim);return false;
   }
   record.charged=true;this.optional.add(record);this.chargedElements+=record.elements;this.peakChargedElements=Math.max(this.peakChargedElements,this.chargedElements);return true;
  }
  retained(root:Element):boolean{const record=this.record(root);return !!record?.charged&&!record.retiring&&!record.evictionRequested;}
  evictOwner(owner:Element):void{for(const record of this.optional)if(record.owner===owner)this.requestEviction(record);}
+ /** A smaller consumer limit retires through the same canonical layout path. */
+ limitOwner(owner:Element,capacity:number):void{const owned=[...this.optional].filter(record=>record.owner===owner&&!record.evictionRequested);for(let i=0;i<owned.length-capacity;i++)this.requestEviction(owned[i]!);}
  /** Called at the canonical frame boundary, never from native retirement. */
  enforcePressure():boolean{let requested=false;if(this.pressure)for(const record of this.optional)requested=this.requestEviction(record)||requested;return requested;}
  scheduleEvictions():boolean{let pending=false;for(const record of this.optional)if(record.evictionRequested&&!record.retiring){record.requestLayout();pending=true;}return pending;}
@@ -90,7 +93,7 @@ export class ViewWorkBudget {
  setCandidate(candidate:OptionalChildCandidate):void{if(this.candidates.has(candidate.owner))this.cancelledCandidates++;this.candidates.set(candidate.owner,candidate);}
  cancelOwner(owner:Element):void{if(this.candidates.delete(owner))this.cancelledCandidates++;}
  cancelPreparation():void{this.cancelledCandidates+=this.candidates.size;this.candidates.clear();}
- private capacity(candidate:OptionalChildCandidate):boolean{return candidate.elements>0&&candidate.elements<=viewChildBudgetLimits.elements&&!this.pressure&&this.optional.size<viewChildBudgetLimits.children&&this.chargedElements+candidate.elements<=viewChildBudgetLimits.elements&&[...this.optional].filter(record=>record.owner===candidate.owner).length<viewChildBudgetLimits.perSliver;}
+ private capacity(candidate:OptionalChildCandidate):boolean{return candidate.elements>0&&candidate.elements<=viewChildBudgetLimits.elements&&!this.pressure&&this.optional.size<viewChildBudgetLimits.children&&this.chargedElements+candidate.elements<=viewChildBudgetLimits.elements&&[...this.optional].filter(record=>record.owner===candidate.owner).length<(candidate.capacity??viewChildBudgetLimits.perSliver);}
  /** At most one non-preemptible item per existing host tick. All required
   * PipelineOwners have converged before Root calls this method. */
  runOptional(timing:FrameTiming|undefined,now:()=>number,allowed:()=>boolean,layout:()=>void,requestFrame:()=>void):void{

@@ -47,6 +47,21 @@ test('explicit keep-alive survives optional eviction and releases through its no
  assert.equal(live.size,0);
 });
 
+test('a dense list can lower its live cache capacity and releases optional rows through normal layout',{timeout},()=>{
+ const f=fixture(),scroll=new ScrollController(),live=new Map();let capacity=2;
+ class Item extends StatefulWidget{constructor(index){super(new ValueKey(index));this.index=index;}createState(){return new ItemState();}}
+ class ItemState extends State{initState(){super.initState();live.set(this.widget.index,this);}build(){return new SizedBox(100,80);}dispose(){live.delete(this.widget.index);super.dispose();}}
+ const tree=()=>new Directionality('ltr',ListView.builder({controller:scroll,primary:false,itemExtent:80,itemCount:100,padding:EdgeInsets.zero,childPolicy:{mode:'bounded',capacity},itemBuilder:(_context,index)=>new Item(index)}));
+ try{
+  f.set(tree());const original=live.get(0),budget=f.root.buildOwner.maybeViewWorkBudget;
+  scroll.jumpTo(80);f.frame();scroll.jumpTo(0);f.frame();assert.equal(live.get(0),original);
+  for(const offset of [80,160,240,320]){scroll.jumpTo(offset);f.frame();assert(budget.debugStats.optionalChildren<=2);}
+  const visible=live.get(4);capacity=0;f.set(tree());assert.equal(budget.debugStats.optionalChildren,0);assert.equal(live.get(4),visible,'Required State survives optional cache retirement');assert.equal(live.size,2);
+ }finally{f.close();scroll.dispose();}
+ assert.equal(live.size,0);
+ for(const capacity of [-1,9,1.5,NaN])assert.throws(()=>ListView.builder({itemExtent:80,itemCount:4,childPolicy:{mode:'bounded',capacity},itemBuilder:()=>new SizedBox(20,80)}),/Bounded capacity/);
+});
+
 test('a large atomic row is required normally but cannot enter the optional Element budget',{timeout},()=>{
  const f=fixture(),scroll=new ScrollController(),live=new Set();
  class Wrapper extends StatelessWidget{constructor(child){super();this.child=child;}build(){return this.child;}}

@@ -183,6 +183,7 @@ class GalleryState extends State<ComponentsGallery> {
     const twoColumns = wide && this.category === 'all';
     const list = (items: readonly ComponentDemo[], controller: ScrollController): Widget => ListView.builder({
       extentIndex:(controller===this.firstScroll?this.firstExtents:this.secondExtents).forItems(items.map(demo=>demo.id)),metricRevision:theme,
+      childPolicy:{mode:'bounded',capacity:2,preparation:'disabled'},
       controller, primary: false, padding: EdgeInsets.fromLTRB(0, 0, 0, 20),
       findChildIndexCallback: key => {const index = items.findIndex(demo => this.sectionKeys.get(demo.id) === key); return index < 0 ? null : index;},
       itemCount: items.length, itemBuilder: (itemContext, index) => {

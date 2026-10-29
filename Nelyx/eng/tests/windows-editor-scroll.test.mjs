@@ -10,8 +10,27 @@ import {ListView} from '@nelyx/core/framework/widgets/scroll-view';
 import {ScrollController} from '@nelyx/core/framework/widgets/scroll-controller';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';
 import {engineFixture} from '../../../packages/material/tests/engine-fixture.mjs';
+import {KeepAlive} from '@nelyx/core/framework/widgets/sliver';
+import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
 
 const timeout=1_200_000;
+
+test('cached editor rows withdraw native geometry without querying glyphs and restore the same editor on return',{timeout},async()=>{
+ FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
+ const f=await engineFixture({fonts:true}),interaction=new WindowsInteraction(f.root.context.owner),scroll=new ScrollController(),controller=new TextEditingController('Kept 한글 editor'),packets=[];
+ f.root.context.editing=interaction.editing;f.root.context.semantics=interaction.semantics;let detach,editor,render,queries=0;
+ const find=element=>{if(element.widget instanceof EditableText)editor=element;element.visitChildren(find);};
+ try{
+  f.set(new Directionality('ltr',ListView.builder({controller:scroll,primary:false,itemExtent:80,itemCount:30,childPolicy:{mode:'bounded',capacity:0},addAutomaticKeepAlives:false,addRepaintBoundaries:false,addSemanticIndexes:false,itemBuilder:(_context,index)=>new KeepAlive({keepAlive:index===0,child:index===0?new EditableText('cached-editor',controller,'Kept',undefined,24,null,{minHeight:0,maxLines:1}):new SizedBox(200,80)})})));
+  find(f.root.root);assert(editor);const state=editor.stateObject,pending=[...editor.renderObjects],geometry=Object.getOwnPropertyDescriptor(RenderEditable.prototype,'coreEditingGeometry').get;
+  while(pending.length){const node=pending.pop();if(node instanceof RenderEditable){render=node;break;}pending.push(...node.children);}assert(render);
+  Object.defineProperty(render,'coreEditingGeometry',{configurable:true,get(){queries++;return geometry.call(this);}});
+  detach=interaction.attachEditor('cached-editor',{}, {replace(){},focus(){},blur(){},updateGeometry(value){packets.push(value);}});f.frame();assert(packets.at(-1));
+  queries=0;packets.length=0;scroll.jumpTo(800);f.frame();assert.equal(queries,0,'A keep-alive bucket must be tested before the editor reads its paragraph');assert.deepEqual(packets,[null]);
+  packets.length=0;for(const offset of [880,960,1040]){scroll.jumpTo(offset);f.frame();}assert.equal(queries,0);assert.equal(packets.length,0,'An already withdrawn native endpoint needs no duplicate publication');assert.equal(interaction.editorClients.length,1);
+  scroll.jumpTo(0);f.frame();assert(queries>0);assert(packets.at(-1));find(f.root.root);assert.equal(editor.stateObject,state);assert.equal(controller.text,'Kept 한글 editor');
+ }finally{if(render)delete render.coreEditingGeometry;await f.close();detach?.();interaction.dispose();scroll.dispose();controller.dispose();}
+});
 
 for(const [platform,Interaction,accessibilityEnabled] of [
   ['windows',WindowsInteraction,true],

@@ -130,6 +130,7 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   protected ensureTextLayout():void{if(FoundationBuildMode.debug)invariant(!this.debugNeedsLayout,'paragraph-needs-layout','RenderParagraph queries require current layout');if(this.paintWidth!==null)this.paragraph=this.layoutCanonical(this.constraints,this.paintDimensions);}
   protected get hasOverflowShader():boolean{return this.canonicalFade!==undefined;}
   protected clearOverflowShader():void{const previous=this.canonicalFade;this.canonicalFade=undefined;previous?.dispose();}
+  protected override clearCachedLayoutData():void{super.clearCachedLayoutData();this.intrinsicPainter?.markNeedsLayout();}
   private updateCanonicalOverflow(size:Size):void{
     this.clearOverflowShader();
     if(this.configuration.paragraphOptions?.overflow!=='fade'||!paragraphHasOverflow(this.paragraph,size,this.canonicalTextSize!.width))return;
@@ -144,8 +145,7 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   private adjustedWidth(width:number):number{return this.configuration.paragraphOptions?.softWrap===false&&this.configuration.paragraphOptions.overflow!=='ellipsis'?Infinity:width;}
   private canonicalProbe(constraints:BoxConstraints,intrinsic:'min'|'max'|null=null):TextLayoutGeometry{
     const painter=this.intrinsicPainter??=new TextPainter({}, {...this.painter._paragraphContext,transient:true});this.configurePainter(painter,true);
-    try{painter.setPlaceholderDimensions(this.dimensions(constraints.maxWidth,true,intrinsic));painter.layout({minWidth:constraints.minWidth,maxWidth:intrinsic===null?this.adjustedWidth(constraints.maxWidth):Infinity});const {resource:_resource,input:_input,indexUnit:_indexUnit,...geometry}=painter._layoutSnapshot();return {...geometry,width:painter.width};}
-    finally{painter.markNeedsLayout();} // RenderBox caches query values; engine probes keep one transient producer at most.
+    painter.setPlaceholderDimensions(this.dimensions(constraints.maxWidth,true,intrinsic));return painter._measureLayout({minWidth:constraints.minWidth,maxWidth:intrinsic===null?this.adjustedWidth(constraints.maxWidth):Infinity});
   }
   private layoutCanonical(constraints:BoxConstraints,dimensions:readonly PlaceholderDimensions[]):TextLayout{this.painter.setPlaceholderDimensions(dimensions);this.painter.layout({minWidth:constraints.minWidth,maxWidth:this.adjustedWidth(constraints.maxWidth)});this.canonicalTextSize=this.painter.size;this.paintOffsetX=this.painter._paintOffset;return this.painter._layoutSnapshot();}
   private dimensions(width:number,dry:boolean,intrinsic:'min'|'max'|null=null):readonly PlaceholderDimensions[]{invariant(this.children.length===this.configuration.placeholderCount,'inline-child-count','RichText child count differs from WidgetSpans');return this.layoutInlineChildren(width,intrinsic!==null?(child=>({width:intrinsic==='min'?child.getMinIntrinsicWidth(Infinity):child.getMaxIntrinsicWidth(Infinity),height:0})):dry?ChildLayoutHelper.dryLayoutChild:ChildLayoutHelper.layoutChild,dry||intrinsic!==null?ChildLayoutHelper.getDryBaseline:ChildLayoutHelper.getBaseline);}

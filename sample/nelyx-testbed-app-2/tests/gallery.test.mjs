@@ -37,6 +37,18 @@ const {cupertinoDemos} = await import('../src/cupertino-catalog.ts');
 FoundationPlatform.configure({kind: 'native', operatingSystem: 'windows'});
 const timeout = 1_200_000;
 
+test('a fixed mouse over scrolling text fields retains editor Widgets and avoids paragraph reshaping',{timeout},async()=>{
+  const f=await gallery();
+  const editors=()=>{const result=new Map(),pending=[f.root.root];while(pending.length){const element=pending.pop();if(element.widget instanceof EditableText)result.set(element.widget.id,element.widget);pending.push(...element.children);}return result;};
+  try{
+    const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:1280,physicalWidth:1280,logicalHeight:730,physicalHeight:730,viewportGeneration:metrics.viewportGeneration+1});f.frame();f.tap('category-text');f.advance(200);f.nativeEdit('field-filled','Hover stable');
+    const bounds=f.root.nodes.find(node=>node.id==='field-filled').bounds;f.root.pointer({kind:'hover',pointer:93,device:'mouse',buttons:0,x:bounds.x+20,y:bounds.y+bounds.height/2,timestamp:f.root.context.clock.now(),viewportGeneration:metrics.viewportGeneration});f.frame();f.advance(200);
+    const original=editors(),scroll=galleryControllers(f)[0],shape=f.library.layout.bind(f.library);let shapes=0;f.library.layout=(...args)=>{shapes++;return shape(...args);};
+    for(const offset of [16,32,48,64,80,96,80,64,48,32,16,0]){scroll.jumpTo(offset);f.elapse(17);f.frame();const current=editors();for(const [id,widget]of original)assert.equal(current.get(id),widget,id+' must not rebuild its editor for hover');}
+    assert.equal(shapes,0);assert.equal(original.get('field-filled').controller.text,'Hover stable');
+  }finally{await f.close();}
+});
+
 test('the shared app entry forwards the accessibility build override and retains its enabled default',{timeout},async()=>{
   const {main}=await import('../src/index.ts');
   assert.equal(main().definition.accessibilityEnabled,true);
@@ -325,6 +337,21 @@ test('precision pan events reach the actual ListView drag recognizer and a new g
     const metrics=f.root.context.readMetrics(),row=f.root.nodes.find(node=>node.id==='list-view-item-0');assert(row);
     const event=(kind,panY=0,deltaY=0)=>{f.elapse(16);f.root.pointer({kind,pointer:707,device:'trackpad',buttons:0,x:row.bounds.x+100,y:row.bounds.y+20,timestamp:f.root.context.clock.now(),viewportGeneration:metrics.viewportGeneration,panX:0,panY,deltaX:0,deltaY,scale:1,rotation:0});f.frame();};
     for(let gesture=0;gesture<2;gesture++){const before=scroll.offset;event('panZoomStart');event('panZoomUpdate',-60,-60);event('panZoomUpdate',-120,-60);assert(scroll.offset>before,'Trackpad drag must move the real fixed-extent viewport');event('panZoomEnd');event('inertiaCancel');}
+  }finally{await f.close();}
+});
+
+test('All Components keeps its bounded section cache and accepts consecutive precision trackpad contacts',{timeout},async()=>{
+  const f=await gallery();
+  try{
+    const metrics=f.root.context.readMetrics();Object.assign(metrics,{logicalWidth:487,physicalWidth:974,logicalHeight:464.5,physicalHeight:929,scale:2,viewportGeneration:metrics.viewportGeneration+1});f.frame();
+    const scroll=galleryControllers(f)[0],render=scroll.position.context.notificationContext.findRenderObject(),point=render.localToGlobal({x:render.size.width*.5,y:render.size.height*.5});
+    const send=(kind,panY=0,deltaY=0)=>{f.elapse(16);f.root.pointer({kind,pointer:708,device:'trackpad',buttons:0,x:point.x,y:point.y,timestamp:f.root.context.clock.now(),viewportGeneration:metrics.viewportGeneration,panX:0,panY,deltaX:0,deltaY,scale:1,rotation:0});f.frame();};
+    for(let contact=0;contact<2;contact++){const before=scroll.offset;send('panZoomStart');send('panZoomUpdate',-60,-60);send('panZoomUpdate',-120,-60);assert(scroll.offset>before,'A new trackpad contact must continue scrolling All Components');send('panZoomEnd');send('inertiaCancel');}
+    const budget=f.root.buildOwner.maybeViewWorkBudget;assert(budget,'All Components must use the shared engine budget');
+    for(const offset of [0,450,0,600,1200,1800,1200,600,0]){scroll.jumpTo(offset);f.frame();}
+    assert(budget.debugStats.retainedHits>0,'Revisiting a nearby section must reuse its live subtree');
+    assert(budget.debugStats.optionalElements<=2048);assert(budget.debugStats.optionalChildren<=16);
+    f.tap('show-list-view');f.tap('list-view-back');assert(galleryControllers(f)[0].hasClients,'The cached gallery must survive route coverage and return');
   }finally{await f.close();}
 });
 

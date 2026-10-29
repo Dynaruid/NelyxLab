@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <iomanip>
 #include <map>
 #include <mutex>
 #include <sstream>
@@ -28,6 +29,7 @@ inline void end(std::string const& phase){
   std::lock_guard lock(mutex);active=false;
   if(values.empty())return;
   std::ostringstream output;
+  output<<std::setprecision(17);
   output<<"ANIMATION_STAGES {\"phase\":\""<<phase<<"\",\"stages\":{";
   bool comma=false;
   for(auto& [label,samples]:values){

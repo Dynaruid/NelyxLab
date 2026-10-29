@@ -84,6 +84,7 @@ class TextFieldState extends State<TextField> {
   private readonly editorKey=new GlobalKey('Material TextField editor');
   private controller!:TextEditingController;private ownsController=false;private focus!:FocusNode;private ownsFocus=false;
   private hovering=false;private queued=false;
+  private editorCache:{readonly widget:TextField;readonly style:TextStyle;readonly controller:TextEditingController;readonly focus:FocusNode;readonly editor:EditableText}|undefined;
   private readonly changed=()=>{
     if(!this.mounted||!(this.context instanceof Element)||!this.context.active)return;
     if(this.context.owner.building){if(!this.queued){this.queued=true;this.context.owner.postFrame(()=>{this.queued=false;if(this.mounted&&this.context instanceof Element&&this.context.active)this.setState(()=>{});});}}else this.setState(()=>{});
@@ -91,12 +92,13 @@ class TextFieldState extends State<TextField> {
   private connectController(previous?:TextEditingController):void{this.ownsController=this.widget.options.controller==null;this.controller=this.widget.options.controller??new TextEditingController(previous?.text??'');if(this.ownsController&&previous){this.controller.selection=previous.selection;this.controller.clearHistory();}this.controller.addListener(this.changed);}
   private connectFocus():void{this.ownsFocus=this.widget.options.focusNode==null;this.focus=this.widget.options.focusNode??new FocusNode();this.focus.addListener(this.changed);}
   override initState():void{super.initState();this.connectController();this.connectFocus();}
+  override didChangeDependencies():void{super.didChangeDependencies();this.editorCache=undefined;}
   override didUpdateWidget(old:TextField):void{
     super.didUpdateWidget(old);const context=this.context;invariant(context instanceof Element,'invalid-field-context','TextField requires an Element');
     if(old.controller!==this.widget.controller){const previous=this.controller,owned=this.ownsController;previous.removeListener(this.changed);this.connectController(previous);if(owned)context.owner.postFrame(()=>previous.dispose());}
     if(old.focusNode!==this.widget.focusNode){const previous=this.focus,owned=this.ownsFocus;previous.removeListener(this.changed);this.connectFocus();if(owned)context.owner.postFrame(()=>previous.dispose());}
   }
-  override dispose():void{try{this.controller.removeListener(this.changed);this.focus.removeListener(this.changed);if(this.ownsController)this.controller.dispose();if(this.ownsFocus)this.focus.dispose();}finally{super.dispose();}}
+  override dispose():void{try{this.controller.removeListener(this.changed);this.focus.removeListener(this.changed);if(this.ownsController)this.controller.dispose();if(this.ownsFocus)this.focus.dispose();}finally{this.editorCache=undefined;super.dispose();}}
   build(context:BuildContext):Widget {
     const o=this.widget.options,theme=Theme.of(context),selection=TextSelectionTheme.of(context),enabled=this.widget.enabled,states=emptyWidgetStateSet();
     if(!enabled)states.add(WidgetState.disabled);if(this.focus.hasFocus)states.add(WidgetState.focused);if(this.hovering)states.add(WidgetState.hovered);
@@ -113,7 +115,11 @@ class TextFieldState extends State<TextField> {
       }
     }
     const formatters=[...(o.inputFormatters??[]),...(maxLength!==null&&maxLength>0?[new LengthLimitingTextInputFormatter(maxLength)]:[])];
-    const editor=new EditableText(o.id,this.controller,decoration?.labelText??decoration?.hintText??'',this.focus,0,this.editorKey,{
+    // Hover decoration can change while the editor's inputs stay identical.
+    // The editor listens to its controller/focus and inherited dependencies;
+    // retain its Widget instead of reconfiguring that subtree for each enter.
+    const cached=this.editorCache,reuse=cached?.widget===this.widget&&cached.controller===this.controller&&cached.focus===this.focus&&cached.style.equals(style);
+    const editor=reuse?cached.editor:new EditableText(o.id,this.controller,decoration?.labelText??decoration?.hintText??'',this.focus,0,this.editorKey,{
       selectionControls:o.selectionControls??(theme.platform==='iOS'?cupertinoTextSelectionHandleControls:theme.platform==='macOS'?cupertinoDesktopTextSelectionHandleControls:theme.platform==='android'||theme.platform==='fuchsia'?materialTextSelectionHandleControls:desktopTextSelectionHandleControls),contextMenuBuilder:o.contextMenuBuilder===undefined?TextField.defaultContextMenuBuilder:o.contextMenuBuilder,magnifierConfiguration:o.magnifierConfiguration??TextMagnifier.adaptiveMagnifierConfiguration,cursorWidth:o.cursorWidth??2,...(o.cursorHeight!==undefined?{cursorHeight:o.cursorHeight}:{}),...(o.strutStyle?{strutStyle:o.strutStyle}:{}),...(o.textScaler?{textScaler:o.textScaler}:{}),
       enableInteractiveSelection:this.widget.enableInteractiveSelection,groupId:this.widget.groupId,...(o.onTapOutside!==undefined?{onTapOutside:o.onTapOutside}:{}),...(o.onTapUpOutside!==undefined?{onTapUpOutside:o.onTapUpOutside}:{}),
       configuration:{readOnly:o.readOnly??false,obscureText:o.obscureText??false,autocorrect:o.autocorrect??true,enableSuggestions:o.enableSuggestions??true,keyboardType:o.keyboardType??'text',capitalization:o.textCapitalization??'none',autofillHints:o.autofillHints??null},
@@ -121,6 +127,7 @@ class TextFieldState extends State<TextField> {
       cursorColor:(hasError?o.cursorErrorColor?.toARGB32()??theme.colorScheme.error:o.cursorColor?.toARGB32()??selection.cursorColor??theme.colorScheme.primary),selectionColor:selection.selectionColor??new Color(theme.colorScheme.primary).withOpacity(.4).toARGB32(),
       ...(o.textInputAction?{action:o.textInputAction}:{}),inputFormatters:formatters,...(o.onChanged?{onChanged:o.onChanged}:{}),...(o.onEditingComplete?{onEditingComplete:o.onEditingComplete}:{}),...(o.onSubmitted?{onSubmitted:o.onSubmitted}:{}),
     });
+    if(!reuse)this.editorCache={widget:this.widget,style,controller:this.controller,focus:this.focus,editor};
     const child=decoration?new InputDecorator({decoration,baseStyle:style,textAlign:o.textAlign??'start',textAlignVertical:o.textAlignVertical??null,expands:o.expands??false,isFocused:this.focus.hasFocus,isHovering:this.hovering,isEmpty:this.controller.text.length===0,child:editor}):editor;
     return new Directionality(o.textDirection??Directionality.of(context),new TextFieldTapRegion(new ExcludeFocus(new MouseRegion(new GestureDetector(child,{behavior:HitTestBehavior.translucent,excludeFromSemantics:true,onTap:enabled?()=>{this.focus.requestFocus();o.onTap?.();}:null}),{cursor:enabled?SystemMouseCursors.text:SystemMouseCursors.basic,onEnter:()=>{if(!this.hovering)this.setState(()=>{this.hovering=true;});},onExit:()=>{if(this.hovering)this.setState(()=>{this.hovering=false;});}}),{excluding:!enabled}),{groupId:this.widget.groupId}));
   }

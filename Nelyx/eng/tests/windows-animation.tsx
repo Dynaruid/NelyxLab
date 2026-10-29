@@ -42,6 +42,7 @@ import {GraphiteRenderer} from '@nelyx/skia-native/renderer';
 import {ComponentsGallery} from '../../src/gallery';
 import {ListViewPage} from '../../src/list-view';
 import {Theme} from '@nelyx/material/theme';
+import {TextField} from '@nelyx/material/text-field';
 import {GallerySection} from '../../src/gallery-section';
 import {demos} from '../../src/catalog';
 import {cupertinoDemos} from '../../src/cupertino-catalog';
@@ -82,7 +83,7 @@ if(mode==='startup-probe'){
 }
 const continuousInput=host.continuousScroll?.()===true;
 const fullCatalog=continuousInput&&host.fullCatalog?.()===true;
-const cpuOnly=mode==='cpu-timing'||mode==='research-engine'||mode==='live-resize'||mode==='semantics-scroll';
+const cpuOnly=mode==='cpu-timing'||mode==='research-engine'||mode==='live-resize'||mode==='semantics-scroll'||mode==='gallery-scroll';
 const wheelInput:boolean=__WHEEL_INPUT__;
 const wheelInputMode:string=__WHEEL_INPUT_MODE__;
 const wheelInterval:number=__WHEEL_INTERVAL__,wheelDelta:number=__WHEEL_DELTA__;
@@ -133,7 +134,7 @@ function count(label:string,value=1){if(phase)counts[label]=(counts[label]??0)+v
 function counted<This,Args extends unknown[],Result>(original:(this:This,...args:Args)=>Result,label:string,inspect?:(args:Args)=>void){return function(this:This,...args:Args):Result{count(label);inspect?.(args);return original.apply(this,args);};}
 const mountedGallerySections=new Set<Element>();
 let observeContinuousCoverage:(()=>void)|undefined;
-if(wheelInput||mode==='research-engine'){
+if(wheelInput||mode==='research-engine'||mode==='gallery-scroll'){
  // Observe registration, not recursive lifecycle entry. Wrapping unmount adds
  // persistent JS/native call frames at every level of a deep product tree.
  const register=BuildOwner.prototype.register,unregister=BuildOwner.prototype.unregister;
@@ -271,9 +272,9 @@ if(diagnostic||continuousInput||mode==='live-resize'){
   throw error;
  }};}
 }
-if(wheelInput||mode==='research-engine'){const pointer=FrameworkRoot.prototype.pointer;FrameworkRoot.prototype.pointer=function(event){if(event.kind==='wheel'){count('Input.wheel');count('Input.wheelDistance',Math.abs(event.deltaY??0));count('Input.wheelNetDistance',event.deltaY??0);}return trace?measured('Input.pointer',()=>pointer.call(this,event)):pointer.call(this,event);};}
+if(wheelInput||mode==='research-engine'||mode==='gallery-scroll'){const pointer=FrameworkRoot.prototype.pointer;FrameworkRoot.prototype.pointer=function(event){if(event.kind==='wheel'){count('Input.wheel');count('Input.wheelDistance',Math.abs(event.deltaY??0));count('Input.wheelNetDistance',event.deltaY??0);}return trace?measured('Input.pointer',()=>pointer.call(this,event)):pointer.call(this,event);};}
 let resizeRenderer:any,retiredResizeMetrics:any,settledResizes=0,retiredResizeFrames=0;
-if(resize||wheelInput||mode==='gallery-regression'||mode==='semantics-scroll'){const observed=new WeakSet<object>(),submit=GraphiteRenderer.prototype.submit;GraphiteRenderer.prototype.submit=function(frame,lease){resizeRenderer=this;if(resize&&!observed.has(this)){observed.add(this);this.observe(event=>{if(event.kind==='retired'&&event.result==='gpu-retired'){retiredResizeMetrics=event.token.metrics;retiredResizeFrames++;}});}return submit.call(this,frame,lease);};}
+if(resize||wheelInput||mode==='gallery-regression'||mode==='semantics-scroll'||mode==='gallery-scroll'){const observed=new WeakSet<object>(),submit=GraphiteRenderer.prototype.submit;GraphiteRenderer.prototype.submit=function(frame,lease){resizeRenderer=this;if(resize&&!observed.has(this)){observed.add(this);this.observe(event=>{if(event.kind==='retired'&&event.result==='gpu-retired'){retiredResizeMetrics=event.token.metrics;retiredResizeFrames++;}});}return submit.call(this,frame,lease);};}
 const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
 async function fitPerformanceViewport(){
  const before=view.currentMetrics,width=1000+Math.round(800*before.scale-before.physicalWidth),height=1000+Math.round(600*before.scale-before.physicalHeight);
@@ -417,7 +418,7 @@ let textCacheBefore:any={};
 function textCacheStats(){return view?.controller?.context?.text?.debugStats?.cache??{};}
 function start(name:string){stats={};exclusive={};counts={};classOwners={};longFrames=[];lastBuild=0;tree=diagnostic?treeSize():{};gcBefore=gc();textCacheBefore=textCacheStats();phase=name;profileBoundary(name,true);host.begin(name);}
 function summarize(values:number[]){values.sort((a,b)=>a-b);return {n:values.length,sum:values.reduce((a,b)=>a+b,0),p50:values[Math.floor(values.length*.5)],p95:values[Math.floor(values.length*.95)],p99:values[Math.floor(values.length*.99)],max:values.at(-1)};}
-function end(){const result:any={phase,childPolicy,childBudget:view?.controller?.buildOwner?.maybeViewWorkBudget?.debugStats??null,engine:(globalThis as any).__nelyxJavaScriptEngine??((globalThis as any).HermesInternal?'hermes':'unknown'),mode,trace,diagnostic,tree,wheelWarmup,wheelHover,lifecycle:{mounts:counts['Element.mount']??0,unmounts:counts['Element.unmount']??0},wheelPacing:mode==='research-engine'?(continuousInput?(wheelInputMode==='queued'?'sdk-queue-continuous':'os-wheel-continuous'):phase==='list-warm'?'os-wheel':'programmatic') : wheelInput?(wheelInputMode==='queued'?'owned-queue-render-drain':'continuous-render-drain'):'animated',semanticsUpdateInterval:(view.controller as any).options.semanticsUpdateInterval??0,...(cpuOnly?{transportCaptures:counts['Semantics.captures']??0,paintWork:{recorded:counts['Paint.recorded']??0}}:{})};for(const [name,values]of Object.entries(stats))result[name]=summarize(values);if(diagnostic){result.longFrames=longFrames;result.exclusive=Object.fromEntries(Object.entries(exclusive).map(([name,values])=>[name,summarize(values)]));result.counts=counts;result.classOwners=Object.fromEntries(Object.entries(classOwners).sort((a,b)=>b[1].selfMs-a[1].selfMs).slice(0,16));}const after=gc();result.hermesDelta=Object.fromEntries(['js_numGCs','js_gcCPUTime','js_gcTime','js_totalAllocatedBytes'].filter(key=>typeof after[key]==='number'&&typeof gcBefore[key]==='number').map(key=>[key,(after[key] as number)-(gcBefore[key] as number)]));const memory=(value:Record<string,unknown>)=>Object.fromEntries(Object.entries(value).filter(([key,value])=>/allocated|heap|malloc/i.test(key)&&typeof value==='number').slice(0,20));result.hermesMemoryBefore=memory(gcBefore);result.hermesMemoryAfter=memory(after);const cache=textCacheStats();result.textCache={hits:(cache.hits??0)-(textCacheBefore.hits??0),misses:(cache.misses??0)-(textCacheBefore.misses??0),cacheOnlyHits:(cache.cacheOnlyHits??0)-(textCacheBefore.cacheOnlyHits??0),resident:cache.resident??0,units:cache.units??0,bytes:cache.bytes??0};host.report(JSON.stringify(result));profileBoundary(phase,false);phase='';host.end();}
+function end(){const result:any={phase,childPolicy,childBudget:view?.controller?.buildOwner?.maybeViewWorkBudget?.debugStats??null,engine:(globalThis as any).__nelyxJavaScriptEngine??((globalThis as any).HermesInternal?'hermes':'unknown'),mode,trace,diagnostic,tree,wheelWarmup,wheelHover,lifecycle:{mounts:counts['Element.mount']??0,unmounts:counts['Element.unmount']??0},wheelPacing:mode==='gallery-scroll'?'programmatic':mode==='research-engine'?(continuousInput?(wheelInputMode==='queued'?'sdk-queue-continuous':'os-wheel-continuous'):phase==='list-warm'?'os-wheel':'programmatic') : wheelInput?(wheelInputMode==='queued'?'owned-queue-render-drain':'continuous-render-drain'):'animated',semanticsUpdateInterval:(view.controller as any).options.semanticsUpdateInterval??0,...(cpuOnly?{transportCaptures:counts['Semantics.captures']??0,paintWork:{recorded:counts['Paint.recorded']??0}}:{})};for(const [name,values]of Object.entries(stats))result[name]=summarize(values);if(diagnostic){result.longFrames=longFrames;result.exclusive=Object.fromEntries(Object.entries(exclusive).map(([name,values])=>[name,summarize(values)]));result.counts=counts;result.classOwners=Object.fromEntries(Object.entries(classOwners).sort((a,b)=>b[1].selfMs-a[1].selfMs).slice(0,16));}const after=gc();result.hermesDelta=Object.fromEntries(['js_numGCs','js_gcCPUTime','js_gcTime','js_totalAllocatedBytes'].filter(key=>typeof after[key]==='number'&&typeof gcBefore[key]==='number').map(key=>[key,(after[key] as number)-(gcBefore[key] as number)]));const memory=(value:Record<string,unknown>)=>Object.fromEntries(Object.entries(value).filter(([key,value])=>/allocated|heap|malloc/i.test(key)&&typeof value==='number').slice(0,20));result.hermesMemoryBefore=memory(gcBefore);result.hermesMemoryAfter=memory(after);const cache=textCacheStats();result.textCache={hits:(cache.hits??0)-(textCacheBefore.hits??0),misses:(cache.misses??0)-(textCacheBefore.misses??0),cacheOnlyHits:(cache.cacheOnlyHits??0)-(textCacheBefore.cacheOnlyHits??0),resident:cache.resident??0,units:cache.units??0,bytes:cache.bytes??0};host.report(JSON.stringify(result));profileBoundary(phase,false);phase='';host.end();}
 async function editingResize(){
  const publicOrder=resizeCase==='public-order';
  material().firstScroll.jumpTo(publicOrder?0:240);await delay(200);if(publicOrder)await host.pointerClick('demo-icon-filled',false);else tap('demo-icon-filled');await delay(200);
@@ -538,6 +539,36 @@ async function semanticsScroll(){
   }
  }
  host.report('semantics-scroll PASS');
+}
+/** Native CPU comparison of the actual list and dense gallery. Programmatic
+ * offsets isolate frame work; OS wheel and physical trackpad are separate. */
+async function galleryScroll(){
+ const measure=async(name:string,run:()=>Promise<void>)=>{await drainWheelRendering();start(name);await run();await drainWheelRendering();end();await delay(150);};
+ tap('show-list-view');await delay(400);
+ const list=states().find(({widget})=>widget instanceof ListViewPage)?.state;if(!list?.scroll?.hasClients)throw Error('List scroll owner missing');
+ const sweep=async(scroll:any,target:number,duration=1800)=>scroll.animateTo(target,{duration,curve:Curves.linear});
+ await measure('list-scroll',async()=>{await sweep(list.scroll,1800);await sweep(list.scroll,0);});
+ tap('list-view-back');await delay(400);material().select('all');await delay(400);
+ const scroll=material().firstScroll;
+ await measure('gallery-cold',async()=>{await sweep(scroll,scroll.position.maxScrollExtent,2800);});
+ await measure('gallery-revisit',async()=>{await sweep(scroll,0,2800);});
+ scroll.jumpTo(60);await delay(180);
+ await measure('gallery-retained',async()=>{await sweep(scroll,84,600);await sweep(scroll,60,600);});
+ material().select('text');await delay(400);scroll.jumpTo(60);await delay(180);
+ await measure('gallery-text',async()=>{await sweep(scroll,84,600);await sweep(scroll,60,600);});
+ scroll.jumpTo(0);await delay(400);
+ const field=view.controller.nodes.find((node:any)=>node.id==='field-filled');if(!field)throw Error('Visible field for hover workload missing');
+ const x=field.bounds.x+Math.min(20,field.bounds.width/2),y=field.bounds.y+field.bounds.height/2,focus=view.controller.buildOwner.focus.primaryFocus;
+ const hover=(pointX:number)=>{view.controller.mouseTracker.clearDevices();view.dispatchPointer({kind:'hover',x:pointX,y,pointer:0,device:'mouse',buttons:0,timestamp:view.controller.context.clock.now(),viewportGeneration:view.currentMetrics.viewportGeneration});};
+ hover(Math.max(0,field.bounds.x-24));await delay(250);await drainWheelRendering();
+ await measure('gallery-text-no-hover',async()=>{await sweep(scroll,176,1200);await sweep(scroll,0,1200);});
+ hover(x);await delay(250);await drainWheelRendering();
+ const hovered=states().find(({widget})=>widget instanceof TextField&&widget.id==='field-filled');if(!hovered?.state.hovering)throw Error('Fixed pointer did not enter the actual Material field');
+ await measure('gallery-text-hover',async()=>{await sweep(scroll,176,1200);await sweep(scroll,0,1200);});
+ const mouse=(view.controller.mouseTracker as any).states;if(mouse.size!==1||mouse.get(0)?.event.x!==x||mouse.get(0)?.event.y!==y)throw Error('Owned hover workload received external pointer input');
+ if(view.controller.buildOwner.focus.primaryFocus!==focus)throw Error('Hover must not focus an editor');
+ view.controller.mouseTracker.clearDevices();await delay(200);await drainWheelRendering();
+ host.report('gallery-scroll PASS programmatic; physical-trackpad=notVerified displayed=unobserved');
 }
 /** W16: one uninterrupted native stream per phase. Only the stream boundary
  * drains rendering; no seek, per-packet timer or render wait paces input. */
@@ -719,6 +750,7 @@ setTimeout(()=>{if(host.startupDeadlineEnabled())return;if(mode==='interactive')
  host.report('window-selected '+JSON.stringify(await host.windowSnapshot()));host.report('view-metrics '+JSON.stringify(view.currentMetrics));
  if(mode==='live-resize'){await liveResize();return;}
  if(mode==='semantics-scroll'){await semanticsScroll();return;}
+ if(mode==='gallery-scroll'){await galleryScroll();return;}
  if(wheelInputMode==='os'){
   if(continuousInput){await host.windowMode(viewport==='maximized'?'input-maximized':'input');await delay(100);}
   if((await host.windowSnapshot()).foreground===false)throw Error('Native input workload requires its own foreground window');

@@ -58,6 +58,8 @@ nelyx prepare --app <app> --target windows --native-inputs <inputs.json>
 
 After canonical C++/JSI sources change, rerun source preparation, rebuild the supplier, and prepare the app with its new manifest. The default uses stock RNW Core.
 
+On Windows, Graphite's cache budget follows the physical backing size at 48 bytes per pixel, clamped to 96–192 MiB. This leaves room for offscreen/layer resources alongside MSAA attachments so large scratch surfaces can be reused during scrolling. The allocator's separate 256 MiB limit and cleanup on backing-size changes still apply. The native `gallery-scroll` diagnostic can check warmed scratch reuse with `NELYX_ANIMATION_NATIVE_TRACE=1` and `NELYX_ANIMATION_NATIVE_CORE_TRACE=1`; it does not establish physical trackpad or display performance.
+
 ## Linux native inputs
 
 Use the SDK in [linux-graphite-probe.lock.json](vendor/linux-graphite-probe.lock.json) and matching RNL/RN 0.81.6 sources. Prepare modules with [prepare-rn-modules.py](eng/source-build/prepare-rn-modules.py), then create a relocatable supplier:

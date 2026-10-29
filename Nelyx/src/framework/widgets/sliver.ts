@@ -84,7 +84,8 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
   private get preparationEnabled():boolean{const policy=this.adaptorWidget.childPolicy;return policy!=='legacy'&&policy.mode==='bounded'&&policy.preparation==='observed-budget';}
   private readonly requestBudgetLayout=()=>{if(this.active)this.renderObject.markNeedsLayout();};
   private childElement(child:RenderBox):Element{const element=this._childElements.get(this.renderObject.indexOf(child));invariant(element,'missing-sliver-child-element','Retained render child needs its actual Element slot');return element;}
-  retainChild(child:RenderBox):boolean{if(!this.boundedChildren)return false;const element=this.childElement(child),budget=this.owner.viewWorkBudget;budget.withChild(this,element,this.requestBudgetLayout,()=>{});return budget.retain(element);}
+  private get retentionCapacity():number{const policy=this.adaptorWidget.childPolicy;return policy!=='legacy'&&policy.mode==='bounded'?policy.capacity??8:0;}
+  retainChild(child:RenderBox):boolean{if(!this.boundedChildren)return false;const element=this.childElement(child),budget=this.owner.viewWorkBudget;budget.withChild(this,element,this.requestBudgetLayout,()=>{});return budget.retain(element,this.retentionCapacity);}
   isRetainedChild(child:RenderBox):boolean{return this.boundedChildren&&!!this.owner.maybeViewWorkBudget?.retained(this.childElement(child));}
   didObtainChild(child:RenderBox,reason:'active'|'explicit'='active'):void{this.owner.maybeViewWorkBudget?.required(this.childElement(child),reason==='active');}
   override mount(parent:Element|undefined,owner:BuildOwner,slot?:unknown):void{super.mount(parent,owner,slot);this.ready=true;}
@@ -92,6 +93,7 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
   override update(widget:Widget):void{
     invariant(widget instanceof SliverMultiBoxAdaptorWidget,'invalid-sliver-widget','Sliver Element requires a SliverMultiBoxAdaptorWidget');const old=this.adaptorWidget,already=this._rebuildChildren;super.update(widget);
     const policy=widget.childPolicy;this.owner.maybeDormantChildren?.trimOwner(this,widget.delegate===old.delegate&&policy!=='legacy'&&policy.mode==='dormant'?policy.capacity:0);
+    this.owner.maybeViewWorkBudget?.limitOwner(this,this.retentionCapacity);
     if(widget!==old){this.creationCost=undefined;this.owner.maybeViewWorkBudget?.cancelOwner(this);}
     this._rebuildChildren=already||widget.delegate!==old.delegate&&(widget.delegate.constructor!==old.delegate.constructor||widget.delegate.shouldRebuild(old.delegate));
   }
@@ -179,7 +181,7 @@ export class SliverMultiBoxAdaptorElement extends RenderObjectElement implements
     let index=render.indexOf(edge)+this.preparationDirection;
     for(let skipped=0;skipped<8&&this._childElements.has(index);skipped++)index+=this.preparationDirection;
     if(index<0||index>=count||this._childElements.has(index)){budget.cancelOwner(this);return;}
-    budget.setCandidate({owner:this,estimatedMs:this.creationCost,elements:budget.estimateElements(this),valid:()=>this.active&&this.widget===widget&&this.preparationEnabled&&render.attached&&render.constraints===c&&!this._childElements.has(index),request:()=>{this.preparationTarget=index;this.requestBudgetLayout();},finish:()=>{this.preparationTarget=null;this.preparationRestoring=true;this.requestBudgetLayout();}});
+    budget.setCandidate({owner:this,estimatedMs:this.creationCost,elements:budget.estimateElements(this),capacity:this.retentionCapacity,valid:()=>this.active&&this.widget===widget&&this.preparationEnabled&&render.attached&&render.constraints===c&&!this._childElements.has(index),request:()=>{this.preparationTarget=index;this.requestBudgetLayout();},finish:()=>{this.preparationTarget=null;this.preparationRestoring=true;this.requestBudgetLayout();}});
   }
   get estimatedChildCount():number|null{return this.adaptorWidget.delegate.estimatedChildCount;}
   get childCount():number{

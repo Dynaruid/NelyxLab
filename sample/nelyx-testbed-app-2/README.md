@@ -117,6 +117,10 @@ Relative package paths resolve from the runner directory. Fixed outputs are `.ne
 
 During scrolling, the gallery coalesces accessibility calculations for position changes to at most once every 300ms, then publishes the final position after 100ms without motion. Focus, value, enabled-state changes and accessibility actions bypass the delay; IME coordinates still update every frame. Adjust the app's `semanticsUpdateInterval` to change the interval; `0` publishes every changed frame.
 
+All Components uses `childPolicy: {mode: 'bounded', capacity: 2, preparation: 'disabled'}` on its indexed section lists. Nearby sections can retain their live State and paint recordings for a return scroll. The engine accepts a per-list `capacity` of `0`–`8` optional sections (default `8`), within the shared View limits of 16 optional children and 2,048 Elements. Explicit editor keep-alive remains independent. Lowering capacity evicts optional sections through normal layout. Section creation is demand driven; a complex section's first build can still produce a long frame.
+
+To inspect the actual gallery's CPU stages in Node/CanvasKit, run `node Nelyx/eng/profile-gallery-scroll.mjs` from the repository root. Add `--profile` for in-memory CPU sampling, `--entries` for paragraph measurements in long frames, or `--viewport=wide` for the two-column page. `--hover` adds equal text-field scroll sweeps with a fixed synthetic mouse inside and outside the fields, including rebuild/layout counts. Use `--children=legacy` for a fixture-only retention comparison. This prints diagnostics without saving profiles; these timings do not measure native FPS or physical trackpad/display performance.
+
 The GPU defaults to the hardware adapter attached to the primary display. Set `NELYX_WINDOWS_GPU_VENDOR` before launch to select a vendor explicitly, such as `4098` for AMD.
 
 ### Development session
@@ -212,6 +216,8 @@ pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $sc
 ```
 
 Native diagnostics keep only counters/latest values for 32 stages and up to 8,192 numeric records in shared memory. Ordinary updates are sampled every 16 events; state changes, rejections, SDK/Core input latency of at least 200ms, JS frame work of at least 100ms, and stage gaps of at least 250ms are retained. There is no console/file output, extra frame request, or input hook; disabled runs allocate no memory. `payload-written` means native serialization, `sdk-received` means actual SDK ingress, and `core-dispatch-end` means the controller scope exited; handler failures also publish `core-drop` reason 4. Native packet sequence and Core input counter differ; Core observations link them through `input` and `a`. SDK generation/order drops and Core hidden/viewport drops are distinct. `gaps` reports sampled-stage intervals of at least 500ms. `frameGaps` reports submission intervals of at least 300ms with nearby gesture start/end/cancel events; only `consecutiveSubmissions=true` establishes a gap between actual consecutive submissions. An end/cancel event does not prove finger lift or normal idle. Trackpad updates use an active HWND timer independently of rendering; animation requests use DWM refresh deadlines. These scheduling ticks do not acknowledge presentation. Submission, GPU completion, surface update, and retirement are not display receipts; compare them with desktop observations. Native records disappear when the app exits.
+
+For a brief recording of every event, also set `NELYX_WINDOWS_INPUT_TRACE_FULL='1'` before launch and remove it afterward. The same 8,192-entry ring overwrites its oldest events; read it immediately after scrolling. `sampleEvery` reports `1` for this mode and `16` for default sampling.
 
 ### Experimental direct Hermes host
 

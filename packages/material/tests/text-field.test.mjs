@@ -10,6 +10,11 @@ import {OutlineInputBorder} from '@nelyx/material/input-border';
 import {Theme} from '@nelyx/material/theme';
 import {ThemeData,VisualDensity} from '@nelyx/material/theme-data';
 import {TextStyle} from '@nelyx/core/framework/painting/text-style';
+import {WidgetState,WidgetStateTextStyle} from '@nelyx/core/framework/widgets/widget-state';
+import {Color} from '@nelyx/core/ui/color';
+import {RenderEditable} from '@nelyx/core/framework/rendering/editable';
+import {RepaintBoundary} from '@nelyx/core/framework/widgets/repaint-boundary';
+import {RenderInputDecoration} from '../dist/internal/input/input-decorator-layout.js';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import {TextEditingController,EditableText} from '@nelyx/core/framework/widgets/editable-text';
 import {FocusNode} from '@nelyx/core/framework/widgets/focus';
@@ -33,6 +38,36 @@ function editors(f){const bindings=[];f.root.context.editing={capabilities:{inde
   return {get isComposing(){return session.value.composing.status==='active';},read:()=>session.value,replace,focus(){options.focusChanged?.(true);},blur(){options.focusChanged?.(false);},dispose(){assert(!disposed);disposed=true;session.dispose();}};
 }};return bindings;}
 function node(f,id='field'){const result=f.root.nodes.find(n=>n.id===id);assert(result,'Expected editor '+id);return result;}
+
+test('hover inside a retained section paints the field background without relayout, editor replacement or text shaping',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController('Ada'),bindings=editors(f),surface=f.ck.MakeSurface(240,160);
+  const field=new TextField({id:'field',controller,decoration:new InputDecoration({labelText:'Name',filled:true,fillColor:new Color(0xffff0000),hoverColor:new Color(0xff00ff00),border:new OutlineInputBorder()})});
+  const renderFor=Type=>{const pending=[f.root.pipeline.root];while(pending.length){const render=pending.pop();if(render instanceof Type)return render;pending.push(...render.children);}throw Error('Missing '+Type.name);};
+  const pixel=(x,y)=>{f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();const image=surface.makeImageSnapshot();try{return Array.from(image.readPixels(Math.floor(x),Math.floor(y),{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));}finally{image.delete();}};
+  try{
+    f.set(wrap(new RepaintBoundary(field)));f.advance(200);const editor=find(f.root.root,EditableText),widget=editor.widget,state=editor.stateObject,decorator=find(f.root.root,InputDecorator).stateObject,container=decorator.containerKey.currentContext.findRenderObject(),position=container.localToGlobal(new Offset(0,0));
+    assert.deepEqual(pixel(position.x+5,position.y+container.size.height/2),[255,0,0,255]);
+    const layout=renderFor(RenderInputDecoration),editable=renderFor(RenderEditable),perform=layout.performLayout.bind(layout),paint=editable.paint.bind(editable),shape=f.library.layout.bind(f.library);let layouts=0,paints=0,shapes=0;
+    layout.performLayout=(...args)=>{layouts++;return perform(...args);};editable.paint=(...args)=>{paints++;return paint(...args);};f.library.layout=(...args)=>{shapes++;return shape(...args);};
+    const bounds=node(f).bounds;f.root.pointer({kind:'hover',pointer:91,device:'mouse',buttons:0,x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2,timestamp:f.root.context.clock.now(),viewportGeneration:1});f.frame();
+    assert.equal(find(f.root.root,EditableText).widget,widget);assert.equal(find(f.root.root,EditableText).stateObject,state);assert.equal(bindings.length,1);
+    paints=0;for(let frame=0;frame<10;frame++)f.advance(17);
+    assert.equal(layouts,0);assert.equal(shapes,0);assert.equal(paints,0,'Border animation must not repaint the editor');
+    assert.deepEqual(pixel(position.x+5,position.y+container.size.height/2),[0,255,0,255]);assert.equal(controller.text,'Ada');assert.equal(bindings[0].disposed,false);
+    const signal=decorator.borderPaint;f.set(new SizedBox());assert.equal(signal.hasListeners,false);assert.equal(f.root.scheduler.transientCallbackCount,0);assertParagraphOwnership(f);
+  }finally{surface.delete();await f.close();controller.dispose();}
+});
+
+test('a hover-dependent editor style still updates while composition and its native owner survive',{timeout},async()=>{
+  const f=await engineFixture({fonts:true}),controller=new TextEditingController(),focus=new FocusNode(),bindings=editors(f);
+  const style=WidgetStateTextStyle.resolveWith(states=>new TextStyle({fontSize:states.contains(WidgetState.hovered)?22:16})),field=new TextField({id:'field',controller,focusNode:focus,style,decoration:new InputDecoration({labelText:'Message'})});
+  try{
+    f.set(wrap(field));bindings[0].native('한',{status:'active',start:0,end:1});f.frame();const before=find(f.root.root,EditableText),state=before.stateObject,widget=before.widget,bounds=node(f).bounds;
+    f.root.pointer({kind:'hover',pointer:92,device:'mouse',buttons:0,x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2,timestamp:f.root.context.clock.now(),viewportGeneration:1});f.frame();
+    assert.notEqual(find(f.root.root,EditableText).widget,widget);assert.equal(find(f.root.root,EditableText).stateObject,state);assert.equal(node(f).editorStyle.fontSize,22);assert.equal(bindings.length,1);assert(controller.isComposing);assert.equal(focus.hasFocus,false);
+    f.root.pointer({kind:'leave',pointer:92,device:'mouse',buttons:0,x:0,y:0,timestamp:f.root.context.clock.now(),viewportGeneration:1});f.frame();assert.equal(node(f).editorStyle.fontSize,16);assert.equal(find(f.root.root,EditableText).stateObject,state);assert(controller.isComposing);
+  }finally{await f.close();controller.dispose();focus.dispose();}
+});
 
 test('M3 TextField uses canonical exports, measured editor styling and focusable decoration',{timeout},async()=>{
   assert.equal(AggregateField,TextField);assert.equal(AggregateFormField,TextFormField);

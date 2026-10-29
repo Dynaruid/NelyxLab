@@ -33,7 +33,7 @@ function sendReplacement(port:NativeEditorPort,request:PendingReplacement,revisi
   const selection={start:request.value.selection.anchor,end:request.value.selection.focus};
   if(request.request===undefined)send.call(port,request.value.text,selection,revision);else send.call(port,request.value.text,selection,revision,request.request);
 }
-type Editor=({kind:'public';session:PublicNativeEditingSession}|{kind:'observed';session:EditingSession})&{changed:(value:TextEditingValue)=>void;nativeRevision:number;nativeFocused?:boolean;options:EditingOptions|undefined;configuration:EditingConfiguration;geometry:EditingGeometry;generation:number;inputStateKey?:string;inputBounds?:Rect;pendingReplacement?:PendingReplacement;inputGeometry?:TextInputGeometry;inputGeometrySource?:TextInputGeometry;geometryPublication?:{readonly token:object;readonly epoch:number|null;readonly revision:number};inputGeometryValue?:Pick<TextEditingValue,'text'|'selection'>;characterRequest?:{readonly start:number;readonly end:number;readonly nativeRevision:number;readonly layoutEpoch?:number};hitRequest?:NativeTextPositionRequest;hitRequestSequence?:number};
+type Editor=({kind:'public';session:PublicNativeEditingSession}|{kind:'observed';session:EditingSession})&{changed:(value:TextEditingValue)=>void;nativeRevision:number;nativeFocused?:boolean;options:EditingOptions|undefined;configuration:EditingConfiguration;geometry:EditingGeometry;generation:number;inputStateKey?:string;inputBounds?:Rect;pendingReplacement?:PendingReplacement;inputGeometry?:TextInputGeometry;geometryPublication?:{readonly token:object;readonly epoch:number|null;readonly revision:number};inputGeometryValue?:Pick<TextEditingValue,'text'|'selection'>;characterRequest?:{readonly start:number;readonly end:number;readonly nativeRevision:number;readonly layoutEpoch?:number};hitRequest?:NativeTextPositionRequest;hitRequestSequence?:number};
 export interface NativeEditingSnapshot {readonly text:string;readonly anchor:number;readonly focus:number;readonly revision:number;readonly request?:number;readonly source:'native'|'programmatic';readonly composingStart:number;readonly composingEnd:number;readonly focused?:boolean;readonly rejection?:'stale'|'composing';readonly action?:TextInputAction;readonly geometry?:{readonly width:number;readonly height:number;readonly caret:Rect;readonly selectionRects:readonly Rect[]}}
 /** Each control owns a session and counter; providers declare observed native capabilities. */
 export class NativeInteraction {
@@ -192,10 +192,12 @@ export class NativeInteraction {
     if(this.policy.commands&&editor.kind==='public')replaceControl(initial);
     const binding:EditingBinding={read:()=>current().value,updateGeometry:geometry=>{
       current();this.refreshInputState(id,editor);current();
-      if(geometry===null){delete editor.inputGeometry;delete editor.inputGeometrySource;delete editor.inputGeometryValue;delete editor.characterRequest;delete editor.hitRequest;this.publishInputGeometry(id,editor);return;}
-      if(editor.inputGeometrySource===geometry){this.publishInputGeometry(id,editor);return;}
+      if(geometry===null){delete editor.inputGeometry;delete editor.inputGeometryValue;delete editor.characterRequest;delete editor.hitRequest;this.publishInputGeometry(id,editor);return;}
       const snapshot=freezeTextInputGeometry(geometry);if(!sameOwner(snapshot.owner,this.owner))throw new Error('Foreign Core input geometry');
-      editor.inputGeometry=snapshot;editor.inputGeometrySource=geometry;
+      // Core snapshots cross this boundary without copying their immutable
+      // rectangles again. Reused mutable caller objects still require capture.
+      if(editor.inputGeometry===snapshot){this.publishInputGeometry(id,editor);return;}
+      editor.inputGeometry=snapshot;
       const previous=editor.inputBounds,bounds=snapshot.bounds,moved=!previous||previous.x!==bounds.x||previous.y!==bounds.y||previous.width!==bounds.width||previous.height!==bounds.height;editor.inputBounds=bounds;
       const core=editor.options?.readValue?.();if(core)editor.inputGeometryValue={text:core.text,selection:Object.freeze({...core.selection})};
       this.publishInputGeometry(id,editor);

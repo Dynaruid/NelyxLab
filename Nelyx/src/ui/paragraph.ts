@@ -49,14 +49,19 @@ export class Paragraph {
     const input:TextLayoutInput=Object.freeze({...this.contents,font:context.font,width:constraints.width,fontSize:style.fontSize??14,scale:context.scale,locale:typeof locale==='string'?locale:locale.toString(),direction:style.textDirection??'ltr',textAlign:style.textAlign??'start',color:context.color??0xff000000,maxLines:style.maxLines??128,...(style.maxLines===null?{unlimitedLines:true}:{}),ellipsis:style.ellipsis??'',...(style.strutStyle?{strutStyle:style.strutStyle}:{}),...(style.textHeightBehavior?{textHeightBehavior:style.textHeightBehavior}:{}),...(style.hyphens?{hyphens:style.hyphens}:{})});markCapturedTextRecord(input);
     return input;
   }
+  /** @internal Copy geometry from the completed producer without borrowing it. */
+  _measuredGeometry():TextLayoutGeometry{return this.captureGeometry(this.laidOut());}
+  private captureGeometry(layout:TextLayout):TextLayoutGeometry{
+    const {resource:_resource,input:_input,indexUnit:_indexUnit,...geometry}=layout;
+    return Object.freeze({...geometry,lines:Object.freeze(geometry.lines.map(line=>Object.freeze({...line,bounds:Object.freeze({...line.bounds})})))});
+  }
   /** @internal A synchronous geometry probe never replaces or retains the painted producer. */
   _measure(constraints:ParagraphConstraints):TextLayoutGeometry{
     const input=this.layoutInput(constraints),context=this.context!,layout=context.text.layout(input,{transient:true});let result:TextLayoutGeometry|undefined,failed=false,failure:unknown;
     try{
       this.live();
       invariant(this.style.maxLines!==null||!!this.style.ellipsis||!layout.overflow,'paragraph-line-budget','Unbounded Paragraph exceeds the host line budget');
-      const {resource:_resource,input:_input,indexUnit:_indexUnit,...geometry}=layout;
-      result=Object.freeze({...geometry,lines:Object.freeze(geometry.lines.map(line=>Object.freeze({...line,bounds:Object.freeze({...line.bounds})})))});
+      result=this.captureGeometry(layout);
     }catch(error){failed=true;failure=error;}
     try{if(context.resources.hasInitialProducer(layout.resource))context.resources.releaseProducer(layout.resource);}catch(error){if(failed)throw new AggregateError([failure,error],'Paragraph measurement and retirement failed');throw error;}
     if(failed)throw failure;return result!;

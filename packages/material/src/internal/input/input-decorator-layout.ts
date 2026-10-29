@@ -7,7 +7,9 @@ import {KeyedSubtree} from '@nelyx/core/framework/widgets/basic';
 import {ValueKey} from '@nelyx/core/foundation/key';
 import type {Key} from '@nelyx/core/foundation/key';
 import {RenderBox} from '@nelyx/core/framework/rendering/object';
-import type {RenderObject,TextBaseline} from '@nelyx/core/framework/rendering/object';
+import {RenderRepaintBoundary} from '@nelyx/core/framework/rendering/repaint-boundary';
+import type {RenderObject,TextBaseline,PipelineOwner} from '@nelyx/core/framework/rendering/object';
+import type {ValueListenable} from '@nelyx/core/foundation/notifier';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import type {PaintingContext} from '@nelyx/core/framework/painting/context';
 import type {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
@@ -29,18 +31,30 @@ export interface DecorationLayoutConfiguration {
 }
 export interface DecorationBorderConfiguration {readonly border:InputBorder;readonly fill:number;readonly direction:'ltr'|'rtl';readonly progress:number}
 export class DecorationBorder extends LeafRenderObjectWidget {
-    constructor(readonly configuration:DecorationBorderConfiguration,key:Key|null=null){super(key);}
-    createRenderObject():RenderObject{return new RenderDecorationBorder(this.configuration);}
-    updateRenderObject(_context:BuildContext,object:RenderObject):void{invariant(object instanceof RenderDecorationBorder,'invalid-decoration-border','Expected the input border render owner');object.configure(this.configuration);}
+    constructor(readonly configuration:DecorationBorderConfiguration,key:Key|null=null,readonly animation:ValueListenable<DecorationBorderConfiguration>|null=null){super(key);}
+    createRenderObject():RenderObject{return new RenderDecorationBorder(this.configuration,this.animation);}
+    updateRenderObject(_context:BuildContext,object:RenderObject):void{invariant(object instanceof RenderDecorationBorder,'invalid-decoration-border','Expected the input border render owner');object.configure(this.configuration,this.animation);}
 }
-class RenderDecorationBorder extends RenderBox {
-    gapStart:number|null=null;gapExtent=0;
-    constructor(private configuration:DecorationBorderConfiguration){super();}
-    configure(value:DecorationBorderConfiguration):void{this.configuration=value;this.markNeedsPaint();}
+class RenderDecorationBorder extends RenderRepaintBoundary {
+    private listening=false;
+    private readonly animationChanged=()=>{if(this.attached)this.markNeedsPaintOnly();};
+    private gapStartValue:number|null=null;private gapExtentValue=0;
+    get gapStart():number|null{return this.gapStartValue;}
+    set gapStart(value:number|null){if(value===this.gapStartValue)return;this.gapStartValue=value;this.markNeedsPaintOnly();}
+    get gapExtent():number{return this.gapExtentValue;}
+    set gapExtent(value:number){if(value===this.gapExtentValue)return;this.gapExtentValue=value;this.markNeedsPaintOnly();}
+    protected override get childCountLimit():number{return 0;}
+    constructor(private configuration:DecorationBorderConfiguration,private animation:ValueListenable<DecorationBorderConfiguration>|null){super();}
+    private startListening():void{if(!this.listening&&this.animation&&this.attached){this.animation.addListener(this.animationChanged);this.listening=true;}}
+    private stopListening():void{if(this.listening){this.listening=false;this.animation!.removeListener(this.animationChanged);}}
+    override attach(owner:PipelineOwner):void{super.attach(owner);this.startListening();}
+    override detach():void{try{super.detach();}finally{if(!this.attached)this.stopListening();}}
+    override dispose():void{try{super.dispose();}finally{if(this.debugDisposed)this.stopListening();}}
+    configure(value:DecorationBorderConfiguration,animation:ValueListenable<DecorationBorderConfiguration>|null):void{if(this.animation!==animation){this.stopListening();this.animation=animation;this.startListening();}this.configuration=value;this.markNeedsPaintOnly();}
     protected override computeDryLayout(constraints:BoxConstraints):Size{return constraints.smallest;}
     protected override performLayout(constraints:BoxConstraints):Size{return this.computeDryLayout(constraints);}
-    override paint(context:PaintingContext):void {
-        const c=this.configuration,rect=Rect.fromLTWH(0,0,this.size.width,this.size.height);
+    protected override paintContents(context:PaintingContext):void {
+        const c=this.animation?.value??this.configuration,rect=Rect.fromLTWH(0,0,this.size.width,this.size.height);
         if(c.fill>>>24){const path=c.border.getOuterPath(rect,{textDirection:c.direction});context.drawPath(path,new Paint({color:c.fill}));}
         c.border.paint(context,rect,{textDirection:c.direction,gapStart:this.gapStart,gapExtent:this.gapExtent,gapPercentage:c.progress});
     }
@@ -56,10 +70,16 @@ export class DecorationLayout extends MultiChildRenderObjectWidget {
 interface Measured {readonly size:Size;readonly baseline:number;readonly constraints:BoxConstraints}
 interface Measurement {readonly size:Size;readonly offsets:ReadonlyMap<DecorationSlot,Offset>;readonly baseline:number;readonly labelScale:number;readonly gapStart:number|null;readonly gapExtent:number}
 const zero:Measured={size:{width:0,height:0},baseline:0,constraints:new BoxConstraints()};
+const layoutFields=['direction','baseline','floatingLabelHeight','labelProgress','labelAlignment','outline','borderStrokeOffset','hasLabel','labelVisible','isEmpty','isCollapsed','isDense','maintainHintSize','maintainLabelSize','alignLabelWithHint','inputGap','expands'] as const;
+const captureLayout=(value:DecorationLayoutConfiguration):DecorationLayoutConfiguration=>Object.freeze({...value,density:Object.freeze({...value.density})});
 export class RenderInputDecoration extends RenderBox {
     private measured:Measurement|null=null;
-    constructor(private slots:readonly DecorationSlot[],private configuration:DecorationLayoutConfiguration){super();}
-    configure(slots:readonly DecorationSlot[],configuration:DecorationLayoutConfiguration):void{this.slots=slots;this.configuration=configuration;this.markNeedsLayout();this.markNeedsPaint();}
+    private slots:readonly DecorationSlot[];private configuration:DecorationLayoutConfiguration;
+    constructor(slots:readonly DecorationSlot[],configuration:DecorationLayoutConfiguration){super();this.slots=Object.freeze([...slots]);this.configuration=captureLayout(configuration);}
+    configure(slots:readonly DecorationSlot[],configuration:DecorationLayoutConfiguration):void{
+        const previous=this.configuration,changed=this.slots.length!==slots.length||this.slots.some((slot,index)=>slot!==slots[index])||!previous.padding.equals(configuration.padding)||layoutFields.some(field=>previous[field]!==configuration[field])||previous.density.width!==configuration.density.width||previous.density.height!==configuration.density.height||previous.vertical?.y!==configuration.vertical?.y;
+        this.slots=Object.freeze([...slots]);this.configuration=captureLayout(configuration);if(changed)this.markNeedsLayout();
+    }
     private childFor(slot:DecorationSlot):RenderBox<RenderObject>|undefined{return this.children[this.slots.indexOf(slot)];}
     get container():RenderBox<RenderObject>|null{return this.childFor('container')??null;}
     private measure(constraints:BoxConstraints,dry:boolean,intrinsic=false):Measurement {

@@ -13,6 +13,8 @@ import {nativePcSources} from './windows-pc-results.mjs';
 const timeout=1_200_000,root=path.resolve(import.meta.dirname,'../../..');
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
 function compactResizeOutput(output){return output.split('\n').map(line=>{
+  if(process.env.NELYX_ANIMATION_SUMMARY==='1'&&line.startsWith('ANIMATION_NATIVE '))try{const value=JSON.parse(line.slice('ANIMATION_NATIVE '.length)),intervals=value.intervals;if(Array.isArray(intervals)){const sorted=[...intervals].sort((a,b)=>a-b);value.intervals={n:sorted.length,p50:sorted[Math.ceil(sorted.length*.5)-1]??0,p95:sorted[Math.ceil(sorted.length*.95)-1]??0,max:sorted.at(-1)??0};}return 'ANIMATION_NATIVE '+JSON.stringify(value);}catch{}
+  if(process.env.NELYX_ANIMATION_SUMMARY==='1'&&line.startsWith('ANIMATION_JS {'))try{const value=JSON.parse(line.slice('ANIMATION_JS '.length));if(value.phase)return 'ANIMATION_SUMMARY '+JSON.stringify(Object.fromEntries(['phase','engine','mode','semanticsUpdateInterval','Frame.cpu','Frame.entryCpu','Frame.retainedCpu','Pipeline.flushLayout','Root.recordPaint','Painting.compose','Geometry.commitTextInputGeometries','Pipeline.flushSemantics','Semantics.capture','Host.publish','hermesDelta','childBudget'].filter(key=>value[key]!==undefined).map(key=>[key,value[key]])));}catch{}
   const prefix='ANIMATION_JS live-resize ';if(line.startsWith(prefix))try{const value=JSON.parse(line.slice(prefix.length));delete value.stages;return prefix+JSON.stringify(value);}catch{}
   return line.startsWith('ANIMATION_JS ERROR ')?line.slice(0,2000):line;
 }).join('\n');}
@@ -23,7 +25,11 @@ function validateNativeTiming(output,expectedPhases){
   for(const phase of phases){
     for(const summary of Object.values(phase.stages)){assert(summary.n>0);assert(['sum','p50','p95','max'].every(key=>Number.isFinite(summary[key])&&summary[key]>=0));}
     assert(phase.stages['Native.publish']);
-    if(process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1'){assert(phase.stages['NativeCore.frame'],'Device timing object was not linked');assert(!phase.stages['NativeCore.cacheFallback'],'Selected frames must confirm wrapper retirement without a full cache purge');}
+    if(process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1'){
+      assert(phase.stages['NativeCore.frame'],'Device timing object was not linked');assert(!phase.stages['NativeCore.cacheFallback'],'Selected frames must confirm wrapper retirement without a full cache purge');
+      const budget=phase.stages['NativeMemory.contextBudgetBytes'];assert(budget&&budget.max<=192*1024**2,'Context cache must stay within its existing soft cap');
+      const live=phase.stages['NativeMemory.liveBytes'];if(live)assert(live.max<=256*1024**2,'Graphite allocations must stay within the allocator cap');
+    }
   }
 }
 function validateAotExecution(output,partition){
@@ -35,6 +41,7 @@ function validateAotExecution(output,partition){
 }
 function run(file,args,options={}){const {nativeDiagnostics=false,expectedStatus=0,...execution}=options;const result=spawnSync(file,args,{encoding:'utf8',windowsHide:true,timeout,maxBuffer:4*1024*1024,...execution});if(nativeDiagnostics)process.stdout.write(compactResizeOutput((result.stdout??'')+(result.stderr??'')));if(result.error)throw result.error;assert.equal(result.status,expectedStatus,((result.stdout??'')+(result.stderr??'')).split('\n').map(line=>line.slice(0,500)).slice(-45).join('\n'));return result.stdout;}
 test('Windows sample actions preserve native completion or the expected first failure; ablations are diagnostic only'+(process.env.NELYX_ANIMATION_PREFLIGHT_ONLY==='1'?' [source preflight only]':process.env.NELYX_ANIMATION_BUILD_ONLY==='1'?' [build only]':''),{timeout,skip:process.platform!=='win32'},async(t)=>{
+  if(process.env.NELYX_ANIMATION_SCRATCH_BYTES_PER_PIXEL!==undefined)assert.equal(process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE,'1','A context cache ablation requires the isolated instrumented Device');
   const runner=fs.realpathSync(process.env.NELYX_WINDOWS_TEST_RUNNER??path.join(root,'sample/nelyx-testbed-app-2/windows/runner')),rnw=path.join(runner,'node_modules/react-native-windows');
   assert(fs.statfsSync(root).bavail*fs.statfsSync(root).bsize>=20*1024**3,'Need 20 GiB for native build');
   const app=path.resolve(runner,'../..'),engine=process.env.NELYX_ANIMATION_ENGINE??'hermes';assert(['hermes','v8'].includes(engine));
@@ -109,7 +116,8 @@ test('Windows sample actions preserve native completion or the expected first fa
       for(const name of ['device.cpp','device.h','frame_lease_gate.h','win32_import.inc'])assert.deepEqual(fs.readFileSync(path.join(binding,'generated/vulkan',name)),fs.readFileSync(path.join(root,'Nelyx/skia/native/platforms/vulkan',name)),name);
       let source=fs.readFileSync(path.join(binding,'generated/vulkan/win32_import.inc'),'utf8');
       const replace=(before,after)=>{assert.equal(source.split(before).length,2,'Native core diagnostic anchor changed: '+before);source=source.replace(before,after);};
-      replace('  try {\n    importWin32Frame(*data);','  NelyxAnimationDiagnostics::Scope animationScope{"NativeCore.frame"};auto animationPrevious=NelyxAnimationDiagnostics::Clock::now();\n  try {\n    importWin32Frame(*data);\n    NelyxAnimationDiagnostics::step("NativeCore.import",animationPrevious);');
+      const scratchBytes=process.env.NELYX_ANIMATION_SCRATCH_BYTES_PER_PIXEL;if(scratchBytes!==undefined){assert(['40','48'].includes(scratchBytes),'Choose a bounded Windows scratch cache comparison');const factors=source.match(/data->height\)\*(?:40|48);/g);assert.equal(factors?.length,1,'Scratch cache comparison anchor changed');source=source.replace(factors[0],`data->height)*${scratchBytes};`);}
+      replace('  try {\n    importWin32Frame(*data);','  NelyxAnimationDiagnostics::record("NativeMemory.contextBudgetBytes",static_cast<double>(context->maxBudgetedBytes()));\n  NelyxAnimationDiagnostics::Scope animationScope{"NativeCore.frame"};auto animationPrevious=NelyxAnimationDiagnostics::Clock::now();\n  try {\n    importWin32Frame(*data);\n    NelyxAnimationDiagnostics::step("NativeCore.import",animationPrevious);');
       replace('target.waitValue!=0,false,"Windows acquire submission",false);','target.waitValue!=0,false,"Windows acquire submission",false);\n    if(std::getenv("NELYX_QUEUE_FAIL_AFTER_ACQUIRE"))throw std::runtime_error("Queue test failure after acquire submission");\n    NelyxAnimationDiagnostics::step("NativeCore.acquireQueued",animationPrevious);');
       replace('auto finalState=skgpu::MutableTextureStates::MakeVulkan(VK_IMAGE_LAYOUT_GENERAL,graphics);','NelyxAnimationDiagnostics::step("NativeCore.wrapAndBaseRecording",animationPrevious);\n    auto finalState=skgpu::MutableTextureStates::MakeVulkan(VK_IMAGE_LAYOUT_GENERAL,graphics);');
       replace('    if(!context->submit())throw std::runtime_error("Windows Graphite submit unconfirmed");','    NelyxAnimationDiagnostics::step("NativeCore.insertRecordings",animationPrevious);\n    if(!context->submit())throw std::runtime_error("Windows Graphite submit unconfirmed");\n    NelyxAnimationDiagnostics::step("NativeCore.submit",animationPrevious);');
@@ -117,6 +125,7 @@ test('Windows sample actions preserve native completion or the expected first fa
       replace('  void awaitProducer() {','  void awaitProducer() {\n    NelyxAnimationDiagnostics::Scope wait{"NativeCore.producerWait"};');
       replace('  void finishProducer() {','  void finishProducer() {\n    NelyxAnimationDiagnostics::Scope finish{"NativeCore.graphiteRetirement"};');
       replace('if(!wrapperReleased->load())context->freeGpuResources();','if(!wrapperReleased->load()){NelyxAnimationDiagnostics::Scope fallback{"NativeCore.cacheFallback"};context->freeGpuResources();}');
+      replace('context->performDeferredCleanup(std::chrono::milliseconds(1000));','context->performDeferredCleanup(std::chrono::milliseconds(1000));NelyxAnimationDiagnostics::record("NativeMemory.contextCacheBytes",static_cast<double>(context->currentBudgetedBytes()));');
       fs.writeFileSync(path.join(directory,'win32_import.inc'),source);
       source=fs.readFileSync(path.join(binding,'generated/vulkan/device.cpp'),'utf8');
       const allocation='const auto result=api.get<PFN_vkAllocateMemory>("vkAllocateMemory")(api.device,&info,nullptr,&value.memory);';assert.equal(source.split(allocation).length,2);source=source.replace(allocation,'const auto allocationStart=NelyxAnimationDiagnostics::Clock::now();'+allocation+'NelyxAnimationDiagnostics::record("NativeCore.vkAllocateMemory",std::chrono::duration<double,std::milli>(NelyxAnimationDiagnostics::Clock::now()-allocationStart).count());');
@@ -135,10 +144,10 @@ test('Windows sample actions preserve native completion or the expected first fa
       replace('  void publish(const std::shared_ptr<Prepared>& packet,bool current,bool defer=false){','  void publish(const std::shared_ptr<Prepared>& packet,bool current,bool defer=false){\n    NelyxAnimationDiagnostics::Scope publish{"Native.publish"};');
       fs.writeFileSync(path.join(directory,'CompositionSurface.h'),source);
       source=fs.readFileSync(path.join(directory,'SkiaView.h'),'utf8');
-      const wheelGuard='    requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady())return false;';
+      const wheelGuard='    requireUi();if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady()){';
       const wheelStart=source.indexOf('  template<class Point> bool wheelPoint('),guardStart=source.indexOf(wheelGuard,wheelStart),wheelEnd=source.indexOf('\n  void ',wheelStart+1);
       assert(wheelStart>=0&&guardStart>wheelStart&&wheelEnd>guardStart,'Native wheel diagnostic guard changed');
-      source=source.slice(0,guardStart)+'    requireUi();NelyxAnimationDiagnostics::record("Input.wheelCallback",1);if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter){NelyxAnimationDiagnostics::record("Input.wheelStateRejected",1);return false;}if(!pointerGeometryReady()){NelyxAnimationDiagnostics::record("Input.wheelGeometryRejected",1);return false;}'+source.slice(guardStart+wheelGuard.length);
+      source=source.slice(0,guardStart)+'    requireUi();NelyxAnimationDiagnostics::record("Input.wheelCallback",1);if(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter||!pointerGeometryReady()){NelyxAnimationDiagnostics::record(!data||data->failed||!data->status.bound||!data->status.visible||!data->emitter?"Input.wheelStateRejected":"Input.wheelGeometryRejected",1);'+source.slice(guardStart+wheelGuard.length);
       const wheelDelta='    const auto delta=-double(properties.MouseWheelDelta())/120.0*extent;';
       assert.equal(source.split(wheelDelta).length,2,'Native wheel diagnostic delta changed');
       source=source.replace(wheelDelta,wheelDelta+'\n    NelyxAnimationDiagnostics::record("Input.nativeWheelAbsoluteDelta",std::abs(delta));NelyxAnimationDiagnostics::record("Input.nativeWheelNetDelta",delta);');
@@ -199,9 +208,9 @@ EndGlobal
       const viewport=iterative?(process.env.NELYX_ANIMATION_VIEWPORT??'fixed'):requestedViewports[pass],resize=process.env.NELYX_ANIMATION_RESIZE==='1'&&(!both||viewport==='fixed');assert(['fixed','default','maximized'].includes(viewport));
       const wheelInputMode=process.env.NELYX_ANIMATION_WHEEL_INPUT==='queued'?'queued':process.env.NELYX_ANIMATION_WHEEL_INPUT==='1'?'os':'none';
       const wheelInterval=Number(process.env.NELYX_ANIMATION_WHEEL_INTERVAL_MS??8),wheelDelta=Number(process.env.NELYX_ANIMATION_WHEEL_DELTA??6);assert(Number.isInteger(wheelInterval)&&wheelInterval>=1&&wheelInterval<=16);assert(Number.isInteger(wheelDelta)&&wheelDelta>=1&&wheelDelta<=120);
-      const semanticsInterval=process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL===undefined?null:Number(process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL);assert(semanticsInterval===null||Number.isFinite(semanticsInterval)&&semanticsInterval>=0);const diagnostic=process.env.NELYX_ANIMATION_DIAGNOSTIC==='1',mode=process.env.NELYX_ANIMATION_MODE??'standard',optimization=process.env.NELYX_ANIMATION_HERMES_OPT??'optimized';assert(['standard','cpu-timing','renderer-clear','host-semantics-static','editing-resize','gallery-regression','render-liveness','full-runtime-regression','research-engine','live-resize','startup-probe','interactive','semantics-scroll'].includes(mode));const compilerFlags=windowsHermesProfileFlags(optimization);assert(mode==='standard'||mode==='cpu-timing'||mode==='editing-resize'||mode==='gallery-regression'||mode==='render-liveness'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'||mode==='startup-probe'||mode==='interactive'||mode==='semantics-scroll'||diagnostic,'Ablation requires diagnostic mode');
+      const semanticsInterval=process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL===undefined?null:Number(process.env.NELYX_ANIMATION_SEMANTICS_INTERVAL);assert(semanticsInterval===null||Number.isFinite(semanticsInterval)&&semanticsInterval>=0);const diagnostic=process.env.NELYX_ANIMATION_DIAGNOSTIC==='1',mode=process.env.NELYX_ANIMATION_MODE??'standard',optimization=process.env.NELYX_ANIMATION_HERMES_OPT??'optimized';assert(['standard','cpu-timing','renderer-clear','host-semantics-static','editing-resize','gallery-regression','render-liveness','full-runtime-regression','research-engine','live-resize','startup-probe','interactive','semantics-scroll','gallery-scroll'].includes(mode));const compilerFlags=windowsHermesProfileFlags(optimization);assert(mode==='standard'||mode==='cpu-timing'||mode==='editing-resize'||mode==='gallery-regression'||mode==='render-liveness'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'||mode==='startup-probe'||mode==='interactive'||mode==='semantics-scroll'||mode==='gallery-scroll'||diagnostic,'Ablation requires diagnostic mode');
       if(mode==='cpu-timing')assert(!diagnostic&&process.env.NELYX_ANIMATION_TRACE!=='1','Minimal CPU timing requires per-method diagnostics and trace disabled');
-      console.log('ANIMATION_CONFIG '+JSON.stringify({engine,hermesMode,hermesRuntime:staticToolchain?'source-hook':'stock',viewport,v8Profile,sourceCompiler,inlineRequires,nativeClasses:engine==='v8',wheelInput:wheelInputMode!=='none',wheelInputMode,wheelInterval,wheelDelta,trace:process.env.NELYX_ANIMATION_TRACE==='1',diagnostic,nativeTrace:process.env.NELYX_ANIMATION_NATIVE_TRACE==='1',nativeCoreTrace:process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1',allocationTrace:process.env.NELYX_ANIMATION_ALLOCATIONS==='1',mode,minified:!v8&&!staticToolchain,optimization:v8?'source-js':optimization,compilerFlags:v8?[]:compilerFlags,sourceAlias:process.env.NELYX_ANIMATION_SOURCE==='1',semanticsIntervalOverride:semanticsInterval,resize:resize||mode==='editing-resize'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'}));
+      console.log('ANIMATION_CONFIG '+JSON.stringify({engine,hermesMode,hermesRuntime:staticToolchain?'source-hook':'stock',viewport,v8Profile,sourceCompiler,inlineRequires,nativeClasses:engine==='v8',wheelInput:wheelInputMode!=='none',wheelInputMode,wheelInterval,wheelDelta,trace:process.env.NELYX_ANIMATION_TRACE==='1',diagnostic,nativeTrace:process.env.NELYX_ANIMATION_NATIVE_TRACE==='1',nativeCoreTrace:process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1',scratchBytesPerPixelOverride:process.env.NELYX_ANIMATION_SCRATCH_BYTES_PER_PIXEL??null,allocationTrace:process.env.NELYX_ANIMATION_ALLOCATIONS==='1',mode,minified:!v8&&!staticToolchain,optimization:v8?'source-js':optimization,compilerFlags:v8?[]:compilerFlags,sourceAlias:process.env.NELYX_ANIMATION_SOURCE==='1',semanticsIntervalOverride:semanticsInterval,resize:resize||mode==='editing-resize'||mode==='full-runtime-regression'||mode==='research-engine'||mode==='live-resize'}));
       if(!bundleBuilt&&process.env.NELYX_ANIMATION_REUSE_CURRENT_INPUT){
         assert(buildOnly&&reuseBundle&&process.env.NELYX_ANIMATION_NATIVE_TRACE==='1'&&process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1','Current input reuse is a diagnostic host only');
         const admitted=JSON.parse(process.env.NELYX_ANIMATION_REUSE_CURRENT_INPUT),supplied=fs.realpathSync(admitted.directory),hash=file=>createRequire(import.meta.url)('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -327,6 +336,22 @@ EndGlobal
       // Interactive repair may rebundle changed Core sources after a failed
       // diagnostic pass; only a fully successful current pass clears it.
       if(mode==='live-resize'){assert.match(output,/ANIMATION_JS live-resize PASS/);assert.match(output,/ANIMATION_DRAG entered=1 exited=1 sizing=[1-9]\d*/);validateNativeTiming(output);completed++;lastError=undefined;break;}
+      if(mode==='gallery-scroll'){
+        assert.match(output,/ANIMATION_JS gallery-scroll PASS programmatic/);
+        const phases=output.split('\n').filter(line=>line.startsWith('ANIMATION_JS {')).map(line=>JSON.parse(line.slice('ANIMATION_JS '.length)));
+        assert.deepEqual(phases.map(value=>value.phase),['list-scroll','gallery-cold','gallery-revisit','gallery-retained','gallery-text','gallery-text-no-hover','gallery-text-hover']);
+        for(const value of phases)assert(value['Frame.cpu']?.n>10,'Missing active gallery/list frames');
+        validateNativeTiming(output,7);
+        if(process.env.NELYX_ANIMATION_NATIVE_CORE_TRACE==='1'&&process.env.NELYX_ANIMATION_SCRATCH_BYTES_PER_PIXEL!=='40'){
+          const retained=output.split('\n').filter(line=>line.startsWith('ANIMATION_STAGES ')).map(line=>JSON.parse(line.slice('ANIMATION_STAGES '.length))).find(value=>value.phase==='gallery-retained');
+          const frames=retained?.stages['NativeCore.frame']?.n;assert(frames>10,'Missing warmed gallery GPU workload');
+          // Allow small uploads and cache changes, but reject reallocating the
+          // full-size scratch attachments for each unchanged backing size.
+          const bytes=retained.stages['NativeMemory.allocationBytes']?.sum??0;
+          assert(bytes/frames<16*1024**2,'Warmed gallery must reuse large GPU scratch attachments');
+        }
+        completed++;break;
+      }
       if(mode==='semantics-scroll'){
         assert.match(output,/ANIMATION_JS semantics-scroll PASS/);
         assert.match(output,/ANIMATION_JS semantics-bounds selection PASS/);assert.match(output,/ANIMATION_JS semantics-bounds text PASS/);

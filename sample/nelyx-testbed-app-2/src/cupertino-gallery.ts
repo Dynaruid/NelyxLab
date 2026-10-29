@@ -186,6 +186,7 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
       // The same lazy list/editor owner survives width changes and scrolling.
       new Expanded(ListView.builder({
         extentIndex:this.extents.forItems(catalog.map(demo=>demo.id)),metricRevision:theme,
+        childPolicy:{mode:'bounded',capacity:2,preparation:'disabled'},
         controller: this.scroll, primary: false,
         findChildIndexCallback: key => {const index = catalog.findIndex(demo => this.sectionKeys.get(demo.id) === key); return index < 0 ? null : index;},
         padding: EdgeInsets.all(compact ? 16 : 28), itemCount: catalog.length,

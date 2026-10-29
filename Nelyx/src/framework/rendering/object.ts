@@ -281,6 +281,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   private static readonly emptyInputGeometryCommit=RenderObject.prototype.didCommitTextInputGeometry;
   private static readonly emptyInputGeometryGetter=Object.getOwnPropertyDescriptor(RenderObject.prototype,'coreEditingGeometry')!.get;
+  private static readonly inheritedDisplayGetter=Object.getOwnPropertyDescriptor(RenderObject.prototype,'isDisplayed')!.get;
   /** Actual Source diagnostic mode; it must not populate normal measurement caches. */
   static debugCheckingIntrinsics=false;
   override toStringShort():string{let header=describeIdentity(this);if(!FoundationBuildMode.release){if(this.dead)return header+' DISPOSED';let count=0;for(let node:RenderObject|undefined=this;node&&node.boundary!==true;node=node.parent){if(node.boundary===undefined){count=-1;break;}count++;}if(count>0)header+=' relayoutBoundary=up'+count;if(this.needsLayout)header+=' NEEDS-LAYOUT';if(!this.attached)header+=' DETACHED';}return header;}
@@ -324,6 +325,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private layoutRevision=0;
   private inputGeometryOwnWork=0;
   private inputGeometrySubtreeWork=0;
+  private inputGeometryProvider=false;
   private changeInputGeometryWork(delta:number):void{if(delta)for(let node:RenderObject|undefined=this;node;node=node.parent)node.inputGeometrySubtreeWork+=delta;}
   private refreshInputGeometryWork():void{
     let prototype:object|null=this,geometry:PropertyDescriptor|undefined,boundary:PropertyDescriptor|undefined,retirement:PropertyDescriptor|undefined,owner:PropertyDescriptor|undefined,parent:PropertyDescriptor|undefined;
@@ -334,7 +336,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     this.paintInvalidationBoundary=this.paintCoalesces?(known!.boundary?this:this.renderParent?.paintInvalidationBoundary):undefined;
     // A virtual visitor can filter/reorder/retry children. Keep that branch in
     // the walk even when it has no editor, preserving its callback protocol.
-    const work=geometry?.get!==RenderObject.emptyInputGeometryGetter||this.didCommitTextInputGeometry!==RenderObject.emptyInputGeometryCommit||this.visitChildren!==RenderObject.prototype.visitChildren?1:0;
+    this.inputGeometryProvider=geometry?.get!==RenderObject.emptyInputGeometryGetter;
+    const work=this.inputGeometryProvider||this.didCommitTextInputGeometry!==RenderObject.emptyInputGeometryCommit||this.visitChildren!==RenderObject.prototype.visitChildren?1:0;
     this.changeInputGeometryWork(work-this.inputGeometryOwnWork);this.inputGeometryOwnWork=work;
   }
   private layoutDependencies:Set<RenderObject>|undefined;
@@ -593,6 +596,33 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private invalidateSemantics(geometryOnly:boolean):void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)pipelineSemantics(this.owner).requestUpdate(this,geometryOnly);else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
   get localTransform():TransformMatrix {return identity;}
   get isDisplayed():boolean{return this.parent?.isDisplayed??true;}
+  /** Check each visibility override once. Asking every ordinary ancestor for
+   * isDisplayed recursively walks the same parent chain again at each edge.
+   * Descriptors live only for this query/commit; instance overrides and changes
+   * between frames remain observable, including overrides that ignore super. */
+  private inputGeometryDisplayed(descriptors=new Map<object,PropertyDescriptor|null>()):boolean{
+    for(let node:RenderObject|undefined=this;node;node=node.parent){
+      if(!node.inputGeometryNodeDisplayed(descriptors)||node.parent&&!node.parent.paintsChild(node))return false;
+    }
+    return true;
+  }
+  /** Kept-alive sliver rows withdraw geometry before reading their glyphs. */
+  private inputGeometryNodeDisplayed(descriptors:Map<object,PropertyDescriptor|null>):boolean{
+    let descriptor=Object.getOwnPropertyDescriptor(this,'isDisplayed');
+    if(!descriptor){
+      const prototype=Object.getPrototypeOf(this) as object|null;
+      if(prototype){
+        const cached=descriptors.get(prototype);
+        if(cached!==undefined)descriptor=cached??undefined;
+        else{
+          let current:object|null=prototype;
+          while(current){descriptor=Object.getOwnPropertyDescriptor(current,'isDisplayed');if(descriptor)break;current=Object.getPrototypeOf(current);}
+          descriptors.set(prototype,descriptor??null);
+        }
+      }
+    }
+    return descriptor?.get===RenderObject.inheritedDisplayGetter||this.isDisplayed;
+  }
   get clips():boolean {return false;}
   protected childTransform(child:RenderObject):TransformMatrix {
     const offset=child.parentData instanceof BoxParentData?child.parentData.offset:{x:0,y:0},local=child.localTransform;
@@ -640,13 +670,11 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** Record OS input coordinates once after the complete Core render tree paints. */
   commitTextInputGeometries(frame:{readonly owner:ViewOwner;readonly metrics:ViewMetrics}):{readonly token:object;readonly hasInputGeometry:boolean;commit():void;discard():void} {
     this._finishPaintInvalidationBatch();
-    const root=this,paintVersion=this.paintVersion,scope:InputGeometryScope={token:{},committed:false,aborted:false},notifications:RenderObject[]=[];let hasInputGeometry=false,parentDisplayed=true;
+    const root=this,paintVersion=this.paintVersion,scope:InputGeometryScope={token:{},committed:false,aborted:false},notifications:RenderObject[]=[],displayDescriptors=new Map<object,PropertyDescriptor|null>();let hasInputGeometry=false,parentDisplayed=true;
     // Keep provider-only locals out of the per-node recursive activation.
     const updateGeometry=(render:RenderObject,core:CoreEditingGeometry|null,previous:CommittedInputGeometry|undefined):void=>{
       hasInputGeometry=true;
-      let visible=core!==null;
-      if(visible)for(let node:RenderObject|undefined=render;node;node=node.parent)if(!node.isDisplayed){visible=false;break;}
-      const captured=core&&visible?captureInputGeometry(render,core,frame,previous):undefined;
+      const captured=core&&(render.inputGeometryProvider||render.inputGeometryDisplayed(displayDescriptors))?captureInputGeometry(render,core,frame,previous):undefined;
       if(captured)committedInputGeometries.set(render,{scope,root,paintVersion,...captured});
       else committedInputGeometries.delete(render);
     };
@@ -655,7 +683,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       const previous=committedInputGeometries.get(render),before=parentDisplayed;
       parentDisplayed=parentDisplayed&&render.attached&&!render.needsLayout;
       try{
-        const core=parentDisplayed?render.coreEditingGeometry:null;
+        const visible=parentDisplayed&&(!render.inputGeometryProvider||render.inputGeometryDisplayed(displayDescriptors));
+        const core=visible?render.coreEditingGeometry:null;
         if(core!==null||previous!==undefined)updateGeometry(render,core,previous);
         else committedInputGeometries.delete(render);
         if(render.didCommitTextInputGeometry!==RenderObject.emptyInputGeometryCommit)notifications.push(render);
@@ -669,9 +698,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** Dirty paint/layout and a different View/viewport cannot reuse recorded OS coordinates. */
   readTextInputGeometry(owner:ViewOwner,metrics:ViewMetrics,pendingFrameToken?:object):TextInputGeometry|null {
     const committed=committedInputGeometries.get(this),value=committed?.value;
-    if(!committed||!value||committed.scope.aborted||!committed.scope.committed&&committed.scope.token!==pendingFrameToken||!this.attached||this.needsLayout||!this.isDisplayed||committed.root.paintVersion!==committed.paintVersion||
+    if(!committed||!value||committed.scope.aborted||!committed.scope.committed&&committed.scope.token!==pendingFrameToken||!this.attached||this.needsLayout||committed.root.paintVersion!==committed.paintVersion||
       value.owner.id!==owner.id||value.owner.generation!==owner.generation||value.viewportGeneration!==metrics.viewportGeneration||value.nativeSurfaceGeneration!==(metrics.nativeSurfaceGeneration??undefined)||value.scale!==metrics.scale)return null;
-    for(let parent=this.parent;parent;parent=parent.parent)if(parent.needsLayout||!parent.isDisplayed)return null;
+    for(let parent=this.parent;parent;parent=parent.parent)if(parent.needsLayout)return null;
+    if(!this.inputGeometryDisplayed())return null;
     return value;
   }
   protected didCommitTextInputGeometry():void {}

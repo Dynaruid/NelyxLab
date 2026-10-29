@@ -6,7 +6,8 @@ import {CustomPainter,CustomPainterSemantics} from '@nelyx/core/framework/render
 import {SemanticsNode} from '@nelyx/core/framework/semantics/semantics';
 import {RepaintBoundary} from '@nelyx/core/framework/widgets/repaint-boundary';
 import {SizedBox,Transform,Row} from '@nelyx/core/framework/widgets/basic';
-import {State,StatefulWidget,RenderObjectElement} from '@nelyx/core/framework/widgets/framework';
+import {State,StatefulWidget,RenderObjectElement,LeafRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
+import {RenderRepaintBoundary} from '@nelyx/core/framework/rendering/repaint-boundary';
 import {Navigator,NavigatorController,Route} from '@nelyx/core/framework/widgets/navigation';
 import {PageRouteBuilder} from '@nelyx/core/framework/widgets/pages';
 import {Offstage} from '@nelyx/core/framework/widgets/offstage';
@@ -25,6 +26,23 @@ class Painter extends CustomPainter {
   paint(canvas){this.count++;canvas.rect({x:0,y:0,width:10,height:10},this.color);}
   shouldRepaint(){return false;}
 }
+
+test('a retained leaf owns its paint contents, refreshes pixels and retries a failed recording',{timeout},()=>{
+  const f=fixture(),outerChanges=new ChangeNotifier(),outer=new Painter(outerChanges);let render;
+  class Leaf extends LeafRenderObjectWidget {createRenderObject(){return render=new(class extends RenderRepaintBoundary {
+    paints=0;color=0xff123456;fail=false;
+    performLayout(c){return c.constrain({width:20,height:20});}
+    paintContents(context){this.paints++;if(this.fail)throw Error('leaf paint failed');context.rect({x:0,y:0,width:20,height:20},this.color);}
+    repaint(color){this.color=color;this.markNeedsPaintOnly();}
+  })();}}
+  try{
+    f.set(new RepaintBoundary(new CustomPaint(new Leaf(),{painter:outer})));assert.equal(render.paints,1);const parentPaints=outer.count;
+    render.repaint(0xffabcdef);assert(f.frame().some(command=>command.op==='rect'&&command.color===0xffabcdef));assert.equal(render.paints,2);assert.equal(outer.count,parentPaints);
+    f.frame();assert.equal(render.paints,2);render.fail=true;render.repaint(0xff234567);assert.throws(()=>f.frame(),/leaf paint failed/);
+    render.fail=false;assert(f.frame().some(command=>command.op==='rect'&&command.color===0xff234567));assert.equal(outer.count,parentPaints);
+    f.set(new SizedBox());assert(render.debugDisposed);
+  }finally{f.close();outerChanges.dispose();}
+});
 
 test('scrollbar resize retains empty painter semantics and observes an overridden source builder',{timeout},()=>{
   scrollbarRegisterEmptyPainterSemantics(SourceScrollbarPainter.prototype);

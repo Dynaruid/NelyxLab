@@ -29,6 +29,17 @@ function media(child,scale=1){return new MediaQuery({width:240,height:160,scale:
 function editing(f){const bindings=[];f.root.context.editing={capabilities:{indexUnit:'utf16',composing:'observed',selectionDirection:'observed'},bind(owner,initial,changed,options){const session=new EditingSession(owner,initial);let closed=false;const replace=value=>{assert(session.update({...value,revision:session.value.revision+1}));changed(session.value);};const host={options,get closed(){return closed;},native(text,composing={status:'none'}){replace({...session.value,text,selection:{anchor:text.length,focus:text.length},composing,source:'native'});}};bindings.push(host);return {get isComposing(){return session.value.composing.status==='active';},read:()=>session.value,replace,focus(){options.focusChanged?.(true);},blur(){options.focusChanged?.(false);},dispose(){assert(!closed);closed=true;session.dispose();}};}};return bindings;}
 const editor=(controller,lines={maxLines:null},extra={})=>new EditableText('editor',controller,'Message',undefined,0,null,{textStyle:style,minHeight:0,...lines,...extra});
 const render=f=>find(f.root.root,e=>e.widget instanceof EditableText).renderObjects[0];
+
+test('actual editor measures its height from the painted paragraph during first layout and document replacement',{timeout},async()=>{
+ const f=await engineFixture({fonts:true}),controller=new TextEditingController('first 한글 line'),layout=f.library.layout,calls=[];editing(f);
+ f.library.layout=function(input,request){if(input.text===controller.text)calls.push({text:input.text,transient:request?.transient});return layout.call(this,input,request);};
+ try{
+  for(const maxLines of [1,null]){
+   calls.length=0;controller.text=maxLines===1?'single 한글 line':'wrapped 한글 line one two three four five';
+   f.set(media(new SizedBox(100,undefined,editor(controller,{maxLines}))));const box=render(f);assert.equal(calls.length,1,'Wet layout must not shape the same document in a transient slot first');assert(!calls[0].transient);assert(box.size.height>0);assert.equal(f.library.debugTextStats.producers,1);box.getDistanceToActualBaseline('alphabetic');assert.equal(calls.length,1);
+  }
+ }finally{f.library.layout=layout;await f.close();controller.dispose();}
+});
 async function fontApplication(){
  const codec=new JSONMethodCodec(),handlers=new Map(),environment=new Map([['revision',1],['locales',['en']],['localeSource','runtime'],['brightness','light'],['lifecycle','resumed'],['textScale',1],['capabilities',new Map([['clipboardRead','unavailable'],['clipboardWrite','unavailable'],['navigation','unavailable']])]]);
  class Messenger extends BinaryMessenger {send(channel){return Promise.resolve(channel==='nelyx/environment'?codec.encodeSuccessEnvelope(environment):null);}setMessageHandler(channel,handler){if(handler)handlers.set(channel,handler);else handlers.delete(channel);}async handlePlatformMessage(channel,data,reply){reply?.(await handlers.get(channel)?.(data)??null);}}

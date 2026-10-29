@@ -249,9 +249,18 @@ export class TextPainter {
   _measure(width:number):TextLayoutGeometry{
     this.live();this.validateResources({font:this._paragraphContext.font});
     const cached=this.measurements.get(width);if(cached)return cached;
-    const revision=this.inputRevision,paragraph=this.cache?.paragraph??this.prepareParagraph(),geometry=paragraph._measure(new ParagraphConstraints({width}));
+    const revision=this.inputRevision,paragraph=this.cache?.paragraph??this.prepareParagraph(),geometry=this.current?.input.width===width?paragraph._measuredGeometry():paragraph._measure(new ParagraphConstraints({width}));
     invariant(!this.dead&&revision===this.inputRevision,'text-owner-changed','Text owner changed during measurement');
     if(this.measurements.size>=2)this.measurements.delete(this.measurements.keys().next().value!);this.measurements.set(width,geometry);return geometry;
+  }
+  /** @internal Dry render queries retain geometry, never a native producer. */
+  _measureLayout({minWidth=0,maxWidth=Infinity}:TextPainterLayoutOptions={}):TextLayoutGeometry{
+    this.live();invariant(!Number.isNaN(minWidth)&&!Number.isNaN(maxWidth)&&minWidth>=0&&minWidth<=maxWidth,'invalid-text-width','Text layout requires ordered nonnegative widths');
+    let geometry=this._measure(maxWidth);
+    const width=Math.min(maxWidth,Math.max(minWidth,this.textWidthBasis===TextWidthBasis.longestLine?geometry.longestLine:geometry.maxIntrinsicWidth));
+    const rtl=this.textDirection==='rtl',align=this.textAlign,aligned=align==='center'||align==='right'||align==='start'&&rtl||align==='end'&&!rtl||align==='justify'&&rtl;
+    if(!Number.isFinite(maxWidth)&&aligned&&Number.isFinite(minWidth))geometry=this._measure(geometry.maxIntrinsicWidth);
+    return width===geometry.width?geometry:Object.freeze({...geometry,width});
   }
   dispose():void {if(this.dead){if(FoundationBuildMode.debug)invariant(false,'disposed-text-painter','TextPainter already disposed');return;}const errors:unknown[]=[];try{this.clearTemplate();}catch(error){errors.push(error);}try{this.markNeedsLayout();}catch(error){errors.push(error);}this.dead=true;this._text=null;this.template=undefined;this.caret=undefined;this.measurements.clear();if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'TextPainter retirement failed');}
 }

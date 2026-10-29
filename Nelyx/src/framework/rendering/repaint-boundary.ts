@@ -35,7 +35,7 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
     const paintVersion=this.paintVersion,contentsVersion=this.paintContentsVersion;
     if(this.contentsVersion!==this.paintContentsVersion||!this.retained.layer){
       const old=this.retained.layer,previous=old?.firstChild===old?.lastChild&&old?.firstChild instanceof ContainerLayer?old.firstChild:null;
-      const child=context._recordChildLayer(recording=>super.paint(recording),{x:0,y:0,...this.size},previous),layer=old??new OffsetLayer(),next=new LayerHandle(layer);let appended=false;
+      const child=context._recordChildLayer(recording=>this.paintContents(recording),{x:0,y:0,...this.size},previous),layer=old??new OffsetLayer(),next=new LayerHandle(layer);let appended=false;
       try{layer.removeAllChildren();layer.append(child);appended=true;if(this.owner&&!context.recordsLayers&&!layer.attached)layer.attach(this.owner);this.retained.layer=layer;this.contentsVersion=contentsVersion;
         const nested:RenderRepaintBoundary[]=[];
         const visit=(parent:RenderObject)=>parent.visitChildren(child=>{if(!parent.paintsChild(child))return;if(child instanceof RenderRepaintBoundary)nested.push(child);else visit(child);});visit(this);this.nestedBoundaries=nested;
@@ -50,6 +50,8 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
     }
     this.version=paintVersion;
   }
+  /** Custom contents share the boundary's recording and retirement owner. */
+  protected paintContents(context:PaintingContext):void{super.paint(context);}
   override paint(context:PaintingContext):void{
     this.refresh(context);
     context.addLayer(this.retained.layer!);

@@ -13,6 +13,7 @@ import {WidgetState,WidgetStatesConstraint,WidgetStateTextStyle} from '@nelyx/co
 import {WidgetStateTextStyle as CanonicalStateStyle} from '@nelyx/core/framework/widgets/widget-state-text-style';
 import {TextAlignVertical} from '@nelyx/core/framework/painting/text-align-vertical';
 import {TextStyle} from '@nelyx/core/framework/painting/text-style';
+import {BorderSide} from '@nelyx/core/framework/painting/borders';
 import {Color} from '@nelyx/core/ui/color';
 import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
@@ -93,6 +94,18 @@ test('real M3 decorator lays out bounded input and independent footer slots with
     f.set(media(new Center(new SizedBox(200,undefined,new InputDecorator({decoration:InputDecoration.collapsed({hintText:null}),child:new Finite(80,12,9)})))));
     f.advance(168); // The previous helper remains during its real outgoing transition.
     const render=find(f.root.root,element=>element.widget.constructor.name==='DecorationLayout').renderObject;assert.deepEqual(render.size,{width:200,height:12});
+  }finally{f.close();}
+});
+
+test('outline stroke animation keeps a floating label aligned when its text styles stay constant',{timeout},()=>{
+  const f=fixture(),style=new TextStyle({fontSize:16,color:0xff123456}),child=new Finite(80,24,18);
+  const decoration=new InputDecoration({label:new Finite(60,20,15),labelStyle:style,floatingLabelStyle:style,enabledBorder:new OutlineInputBorder({borderSide:new BorderSide({width:1})}),focusedBorder:new OutlineInputBorder({borderSide:new BorderSide({width:5})})});
+  const make=focused=>media(new Center(new SizedBox(200,undefined,new InputDecorator({key:new ValueKey('field'),decoration,isFocused:focused,isEmpty:false,child}))));
+  try{
+    f.set(make(false));const render=find(f.root.root,element=>element.widget.constructor.name==='DecorationLayout').renderObject,label=render.children[render.slots.indexOf('label')],initial=label.layoutOffset.y;
+    f.set(make(true));f.advance(84);assert(render.configuration.borderStrokeOffset<-1&&render.configuration.borderStrokeOffset>-5);assert(label.layoutOffset.y>initial&&label.layoutOffset.y<initial+2);
+    f.advance(84);assert.equal(render.configuration.borderStrokeOffset,-5);assert.equal(label.layoutOffset.y,initial+2);
+    f.set(make(false));f.advance(168);assert.equal(render.configuration.borderStrokeOffset,-1);assert.equal(label.layoutOffset.y,initial);
   }finally{f.close();}
 });
 

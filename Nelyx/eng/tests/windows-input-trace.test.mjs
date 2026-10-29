@@ -11,7 +11,7 @@ test('Windows input observations allocate only when enabled, preserve their read
     const executable=path.join(directory,'trace.exe');run('cl.exe',['/nologo','/std:c++20','/EHsc','/MD','/O2','/DNOMINMAX','/DWIN32_LEAN_AND_MEAN','/Fe:'+executable,'/Fo:'+path.join(directory,'trace.obj'),path.join(import.meta.dirname,'windows-input-trace.cpp'),'/link','user32.lib'],{cwd:directory,env});
     assert.match(run(executable,['--disabled'],{cwd:directory,env:{...env,NELYX_WINDOWS_INPUT_TRACE:'0'}}),/PASS input-trace disabled=1 allocated=0/);
     async function readRecorder(mode,raw,verify){
-      const child=spawn(executable,[mode],{cwd:directory,env:{...env,NELYX_WINDOWS_INPUT_TRACE:'1'},windowsHide:true,timeout});let output='',errors='',ready;
+      const full=mode==='--full-reader',child=spawn(executable,[mode],{cwd:directory,env:{...env,NELYX_WINDOWS_INPUT_TRACE:'1',NELYX_WINDOWS_INPUT_TRACE_FULL:full?'1':'0'},windowsHide:true,timeout});let output='',errors='',ready;
       const admitted=new Promise(resolve=>{ready=resolve;});child.stdout.on('data',chunk=>{output+=chunk.toString();if(output.includes('INPUT_TRACE_READY pid='))ready();});child.stderr.on('data',chunk=>{errors+=chunk.toString();});
       const completed=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',code=>resolve(code));});
       try{
@@ -19,10 +19,13 @@ test('Windows input observations allocate only when enabled, preserve their read
         const receipt=JSON.parse(run('pwsh.exe',['-NoProfile','-NonInteractive','-File',path.resolve(import.meta.dirname,'../windows-input-trace.ps1'),'-TargetProcessId',String(child.pid),...(raw?['-Raw']:[])],{cwd:directory}));
         assert.equal(receipt.pid,child.pid);verify(receipt);
       }finally{assert.equal(await completed,0,errors);}
-      assert.match(output,/PASS input-trace capacity=8192 sampleEvery=16 latest=17 rareDrop=1 cleanup=1/);console.log(output.trim());
+      assert(output.includes(`PASS input-trace capacity=8192 sampleEvery=${full?1:16} latest=17 rareDrop=1 cleanup=1`));console.log(output.trim());
     }
     await readRecorder('--reader',true,receipt=>{
       assert.equal(receipt.retained,3);assert.equal(receipt.stages.find(value=>value.stage==='sdk-received').count,17);assert.equal(receipt.entries.at(-1).stage,'sdk-drop');assert.equal(receipt.entries.at(-1).input,16);
+    });
+    await readRecorder('--full-reader',true,receipt=>{
+      assert.equal(receipt.sampleEvery,1);assert.equal(receipt.retained,18);assert.deepEqual(receipt.entries.slice(0,17).map(value=>value.input),Array.from({length:17},(_,i)=>i+1));assert.equal(receipt.entries.at(-1).stage,'sdk-drop');
     });
     await readRecorder('--gesture-reader',false,receipt=>{
       assert.equal(receipt.frameGaps.length,2,'Different surface generations must not form a frame gap');

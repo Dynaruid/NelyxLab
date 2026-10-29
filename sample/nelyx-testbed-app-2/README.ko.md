@@ -117,6 +117,10 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run run -- --package 
 
 Gallery는 스크롤 중 위치만 바뀌는 접근성 계산을 최대 300ms 간격으로 합치고, 마지막 움직임 뒤 100ms가 지나면 최종 위치를 반영합니다. 포커스·값·활성 상태 변경과 접근성 동작은 기다리지 않으며 IME 입력 좌표는 매 프레임 갱신합니다. 앱의 `semanticsUpdateInterval`로 간격을 조정할 수 있고, `0`은 매 변경 프레임을 반영합니다.
 
+All Components의 indexed section 목록에는 `childPolicy: {mode: 'bounded', capacity: 2, preparation: 'disabled'}`를 적용했습니다. 가까운 섹션의 State와 paint recording을 보존해 되돌아올 때 재사용합니다. 엔진의 목록별 `capacity`는 선택 보존할 섹션 `0`~`8`개(기본 `8`)이며, View 전체의 optional child 16개·Element 2,048개 한도 안에서 동작합니다. 편집기의 명시적 keep-alive는 별도이며, capacity를 줄이면 일반 layout 경로로 선택 보존 섹션을 정리합니다. 섹션은 필요할 때 생성하므로 복잡한 섹션의 첫 build에는 긴 프레임이 남을 수 있습니다.
+
+저장소 루트에서 `node Nelyx/eng/profile-gallery-scroll.mjs`를 실행하면 실제 Gallery의 Node/CanvasKit CPU 단계 비용을 확인할 수 있습니다. `--profile`은 메모리 안에서 CPU 표본을 수집하고, `--entries`는 긴 프레임의 문단 측정을 분리하며, `--viewport=wide`는 두 열 화면을 사용합니다. `--hover`는 텍스트필드 안팎에 고정한 합성 마우스로 같은 구간을 스크롤하며 rebuild/layout 횟수도 비교합니다. `--children=legacy`는 fixture에서만 보존 정책을 비교합니다. profile 파일을 저장하지 않으며, 이 수치를 native FPS나 물리 트랙패드·표시 성능으로 해석하지 않습니다.
+
 GPU 기본값은 주 모니터에 연결된 하드웨어 adapter입니다. 실행 전에 `NELYX_WINDOWS_GPU_VENDOR`를 설정해 제조사를 선택할 수 있습니다. 예를 들어 AMD는 `4098`입니다.
 
 ### 개발 세션
@@ -212,6 +216,8 @@ pwsh -NoProfile -File Nelyx/eng/windows-scroll-observer.ps1 -TargetProcessId $sc
 ```
 
 native 진단은 32개 단계의 누계·최신값과 최대 8,192개 숫자 기록만 공유 메모리에 둡니다. 일반 갱신은 16회마다 표본화하며 상태 전환·거절·SDK/Core 입력 지연 200ms 이상·JS frame work 100ms 이상·단계 간격 250ms 이상은 보존합니다. console/file 출력·추가 프레임 요청·입력 hook은 없고 비활성 시 메모리를 할당하지 않습니다. `payload-written`은 native payload 작성, `sdk-received`는 실제 SDK 수신, `core-dispatch-end`는 controller 처리 종료를 뜻하며 handler 실패는 `core-drop` reason 4도 남깁니다. native packet sequence와 Core input counter는 별개이며 Core 관찰의 `input`과 `a`로 연결합니다. SDK의 세대/순서 거절과 Core의 hidden/viewport 거절도 구분합니다. `gaps`는 500ms 이상 단계 표본 간격입니다. `frameGaps`는 300ms 이상 제출 간격과 주변 제스처 시작·종료·취소를 함께 보여주며, `consecutiveSubmissions=true`인 경우만 실제 연속 제출 사이의 공백으로 확정합니다. 종료·취소 기록만으로 손을 뗐거나 정상 idle이었다고 판단하지 않습니다. 트랙패드는 활성 HWND 타이머로 렌더링과 독립해 갱신하며 애니메이션 요청은 DWM refresh deadline으로 예약합니다. 이 예약 tick은 화면 표시 완료를 뜻하지 않습니다. 프레임 제출·GPU 완료·surface update·retirement는 실제 표시 receipt가 아니므로 화면 관찰과 비교합니다. 앱을 닫으면 native 기록은 사라집니다.
+
+짧은 구간의 모든 이벤트가 필요하면 실행 전 `NELYX_WINDOWS_INPUT_TRACE_FULL='1'`도 설정하고 실행 뒤 해제하세요. 같은 8,192개 ring의 오래된 이벤트를 덮어쓰므로 스크롤 직후 읽어야 합니다. `sampleEvery`는 이 모드에서 `1`, 기본 표본 모드에서 `16`입니다.
 
 ### 실험적인 직접 Hermes 호스트
 
