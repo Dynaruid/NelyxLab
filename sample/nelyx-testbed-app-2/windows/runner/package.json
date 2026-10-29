@@ -16,7 +16,7 @@
     "pack": "nelyx pack --app ../.. --target windows"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.16.0-68b46461b1805544c637b6e9f8d7b29e2bacd1d8b7dfe8268157be072e52a865.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.16.0-a0db5495e95c132d9eb1243c89e080566aabc1ee201922b9430e28585799c222.tgz",
     "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.20.0-f14442331fe7b4e2f76b996d8761d0925a193e401780462313be3b8f04b04657.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-bd88275d4d3e423ba410b88c3fd54a8d23210026ee8bbedfed4cde0278ebc5e5.tgz",
     "react": "19.2.0",

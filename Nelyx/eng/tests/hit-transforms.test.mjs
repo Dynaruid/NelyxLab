@@ -54,6 +54,14 @@ test('owned affine identity products reuse storage without changing signed zero,
   }
 });
 
+test('owned affine products preserve retained snapshots across later products and keep nonfinite arithmetic uncaptured',{timeout},()=>{
+  const left=captureTransform([.75,-.25,.5,2,13,-17]),right=captureTransform([-0,.125,-.5,1,-0,7]),expected=multiply([...left],[...right]),first=multiply(left,right),held=fullTransform(first),snapshot=[...held];
+  assert.deepEqual(first,expected);assert(Object.isFrozen(first));assert.equal(captureTransform(first),first);
+  const next=multiply(left,captureTransform([2,-.125,.25,3,5,-11]));assert.notEqual(next,first);assert.deepEqual(first,expected);assert.deepEqual(held,snapshot);assert.equal(fullTransform(first),held);
+  const huge=captureTransform([1e308,0,0,1,0,0]),twice=captureTransform([2,0,0,1,0,0]),overflow=multiply(huge,twice);
+  assert.equal(overflow[0],Infinity);assert.equal(Object.isFrozen(overflow),false);assert.notEqual(multiply(huge,twice),overflow);assert.throws(()=>captureTransform(overflow),/finite/);
+});
+
 test('internal sliver bridges defer unconsumed transform products and capture the exact final path',{timeout},()=>{
   const local=[.75,-.3,.2,-2,40,-50],targets=[{handleEvent(){}},{handleEvent(){}}];
   class Child extends RenderBox{
@@ -129,6 +137,7 @@ test('captured transforms retain owned immutable storage while external and arit
 test('matrix admission checks actual iterable storage and rejects malformed or nonfinite captured values',{timeout},()=>{
   for(const length of [6,16])for(const count of [length-1,length+1]){const input={length,*[Symbol.iterator](){yield* Array(count).fill(1);}};assert.throws(()=>captureTransform(input),/six|sixteen/);if(length===16)assert.throws(()=>captureMatrix4(input),/sixteen/);}
   for(const length of [6,16]){const matrix=Array(length).fill(0);matrix[0]=NaN;assert.throws(()=>captureTransform(Object.freeze(matrix)),/finite/);}
+  for(let lane=0;lane<6;lane++)for(const invalid of [NaN,Infinity,-Infinity]){const matrix=[1,0,0,1,0,0];matrix[lane]=invalid;assert.throws(()=>captureTransform(Object.freeze(matrix)),/finite/,'Affine lane '+lane+' must be validated');}
 });
 test('root hit entries retain the exact full matrix product, signed-zero normalization and captured caller values',{timeout},()=>{
   const matrices=[[1,0,0,1,0,0],[-0,-0,0,-0,-0,0],[.75,-.3,.2,-2,400,-50],[1e-120,1e120,-1e120,1e-120,-1e100,1e100],

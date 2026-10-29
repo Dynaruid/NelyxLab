@@ -85,13 +85,16 @@ try{
     }
     const stages=Object.fromEntries(Object.entries(active).map(([key,value])=>[key,summarize(value)]));active=null;
     const {profile}=profiling?await post('Profiler.stop'):{};sampling=false;
-    let hottest;
+    let hottest,hottestPaths;
     if(profile){
-    const nodes=new Map(profile.nodes.map(node=>[node.id,node])),totals=new Map();
-    for(let i=0;i<profile.samples.length;i++){const node=nodes.get(profile.samples[i]),frame=node.callFrame;if(frame.url==='node:inspector')continue;const key=JSON.stringify({function:frame.functionName,file:frame.url.replace('file:///',''),line:frame.lineNumber+1});totals.set(key,(totals.get(key)??0)+(profile.timeDeltas[i]??0)/1000);}
+    const nodes=new Map(profile.nodes.map(node=>[node.id,node])),parents=new Map(),totals=new Map(),paths=new Map();
+    for(const node of profile.nodes)for(const child of node.children??[])parents.set(child,node.id);
+    const describe=frame=>({function:frame.functionName,file:frame.url.replace('file:///',''),line:frame.lineNumber+1});
+    for(let i=0;i<profile.samples.length;i++){const node=nodes.get(profile.samples[i]),frame=node.callFrame;if(frame.url==='node:inspector')continue;const ms=(profile.timeDeltas[i]??0)/1000,key=JSON.stringify(describe(frame));totals.set(key,(totals.get(key)??0)+ms);const stack=[];let current=node;while(current&&stack.length<4){stack.push(describe(current.callFrame));current=nodes.get(parents.get(current.id));}const pathKey=JSON.stringify(stack);paths.set(pathKey,(paths.get(pathKey)??0)+ms);}
     hottest=[...totals].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([key,ms])=>({...JSON.parse(key),ms}));
+    hottestPaths=[...paths].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([key,ms])=>({stack:JSON.parse(key),ms}));
     }
-    console.log(JSON.stringify({name,policy,viewport,scope:'Node/CanvasKit CPU attribution; not native FPS or physical input/display acceptance',...(movePointer?{includesPointerDispatch:true}:{}),frames:summarize(frames),commands:summarize(counts),stages,...(pictureOwner?{pictures:pictureOwner.debugStats}:{}),...(hover?{semanticInvalidations,layoutInvalidations,hitTransforms:{reads:hitTransformReads,unused:unusedHitTransformReads}}:{}),...(hottest?{hottest}:{}),...(entries?{longestFrames:details.sort((a,b)=>b.cpu-a.cpu).slice(0,4)}:{})}));
+    console.log(JSON.stringify({name,policy,viewport,scope:'Node/CanvasKit CPU attribution; not native FPS or physical input/display acceptance',...(movePointer?{includesPointerDispatch:true}:{}),frames:summarize(frames),commands:summarize(counts),stages,...(pictureOwner?{pictures:pictureOwner.debugStats}:{}),...(hover?{semanticInvalidations,layoutInvalidations,hitTransforms:{reads:hitTransformReads,unused:unusedHitTransformReads}}:{}),...(hottest?{hottest,hottestPaths}:{}),...(entries?{longestFrames:details.sort((a,b)=>b.cpu-a.cpu).slice(0,4)}:{})}));
   }
   await phase('gallery-cold',gallery.firstScroll,Array.from({length:24},(_,i)=>(i+1)*140));
   await phase('gallery-revisit',gallery.firstScroll,Array.from({length:24},(_,i)=>(23-i)*140));

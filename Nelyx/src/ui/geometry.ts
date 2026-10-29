@@ -15,17 +15,23 @@ const capturedAffines=new WeakSet<object>(),expandedAffines=new WeakMap<object,M
 const identityAffines=new WeakSet<object>(),unsignedZeroAffines=new WeakSet<object>();
 const paintInverses=new WeakMap<object,TransformMatrix|null>();
 const affineProducts=new WeakMap<object,{right:Matrix2D;value:Matrix2D}>();
+function finiteAffine(values:readonly number[]):boolean{return Number.isFinite(values[0])&&Number.isFinite(values[1])&&Number.isFinite(values[2])&&Number.isFinite(values[3])&&Number.isFinite(values[4])&&Number.isFinite(values[5]);}
+/** Adopt only fresh private six-lane storage after finite validation. Public
+ * admission still copies caller storage, including frozen and iterable input. */
+function captureAffineValues(values:number[]):Matrix2D{
+  const result=Object.freeze(values) as Matrix2D;capturedAffines.add(result);
+  if(!Object.is(values[0],-0)&&!Object.is(values[1],-0)&&!Object.is(values[2],-0)&&!Object.is(values[3],-0)&&!Object.is(values[4],-0)&&!Object.is(values[5],-0))unsignedZeroAffines.add(result);
+  if(values[0]===1&&values[1]===0&&values[2]===0&&values[3]===1&&values[4]===0&&values[5]===0)identityAffines.add(result);
+  return result;
+}
 /** @internal Frozen caller storage alone does not prove captured ownership. */
 export function isCapturedTransform(matrix:readonly number[]):boolean{return capturedAffines.has(matrix)||isCapturedMatrix4(matrix);}
 export function captureTransform(matrix:readonly number[]|Float64Array):TransformMatrix{
   if(capturedAffines.has(matrix))return matrix as Matrix2D;
   if(matrix.length===16)return captureMatrix4(matrix);
   if(!(matrix.length===6))invariant(false,'invalid-transform','Transform requires six affine or sixteen column-major values');const values=Array.from(matrix);
-  if(!(values.length===6))invariant(false,'invalid-transform','Transform requires six affine values');if(!(values.every(Number.isFinite)))invariant(false,'invalid-transform','Transform values must be finite');
-  const result=Object.freeze(values) as Matrix2D;capturedAffines.add(result);
-  if(!values.some(value=>Object.is(value,-0)))unsignedZeroAffines.add(result);
-  if(values[0]===1&&values[1]===0&&values[2]===0&&values[3]===1&&values[4]===0&&values[5]===0)identityAffines.add(result);
-  return result;
+  if(!(values.length===6))invariant(false,'invalid-transform','Transform requires six affine values');if(!finiteAffine(values))invariant(false,'invalid-transform','Transform values must be finite');
+  return captureAffineValues(values);
 }
 export function fullTransform(matrix:TransformMatrix):Matrix4Storage{
   if(matrix.length!==6)return matrix;
@@ -47,10 +53,10 @@ export function multiply(a:TransformMatrix,b:TransformMatrix):TransformMatrix {
   // a lane. Mutable inputs and signed-zero-sensitive values still calculate.
   if(owned){if(identityAffines.has(a)&&unsignedZeroAffines.has(b))return b;if(identityAffines.has(b)&&unsignedZeroAffines.has(a))return a;}
   if(cached?.right===b)return cached.value;
-  const value:Matrix2D=[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
+  const value:[number,number,number,number,number,number]=[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
   // One latest product per owned left matrix. Mutable inputs and nonfinite
   // arithmetic retain the uncached path and its original IEEE behavior.
-  if(owned&&value.every(Number.isFinite)){const captured=captureTransform(value) as Matrix2D;affineProducts.set(a,{right:b,value:captured});return captured;}
+  if(owned&&finiteAffine(value)){const captured=captureAffineValues(value);affineProducts.set(a,{right:b,value:captured});return captured;}
   return value;
 }
 export function translate(x:number,y:number):Matrix2D {return [1,0,0,1,x,y];}
