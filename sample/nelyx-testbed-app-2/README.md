@@ -6,7 +6,7 @@ A shared TypeScript application for exploring Nelyx's Material 3 and Cupertino c
 
 The app shares [src/](src/) across Web, Windows, and Android. Each target has its own runner, dependencies, and build configuration.
 
-Open **Scroll view** in the Material gallery for a page mixing 12 text fields and 36 buttons. All rows mount together in one `Column` inside a single scrollable box, with no lazy builder. Edit a field, scroll away and back, or use the send, count, reset, first, and last controls.
+Open **입력·버튼 스크롤** (Input & Button Scroll) in the Material gallery for a page mixing 12 text fields and 36 buttons. All rows mount together in one `Column` inside a single scrollable box, with no lazy builder. Edit a field, scroll away and back, or use the send, count, reset, first, and last controls.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ npm ci
 npm run build:sdk
 ```
 
-Run the commands in this guide from the repository root. In PowerShell, use `npm.cmd` when forwarding native options with `--`. Windows `run:windows` refreshes changed workspace SDK/design packages and rebuilds the app when needed. Other targets require repeating the SDK build, target supply, runner installation, and target build after source changes.
+Run the commands in this guide from the repository root. In PowerShell, use `npm.cmd` when forwarding native options with `--`. Windows `run:windows` refreshes changed workspace SDK/design packages and rebuilds when application source, assets, Windows configuration, or SDK contents change. Unchanged inputs reuse the current package. Other targets require repeating the SDK build, target supply, runner installation, and target build after source changes.
 
 ## Web
 

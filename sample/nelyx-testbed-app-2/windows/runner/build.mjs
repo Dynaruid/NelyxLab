@@ -177,6 +177,9 @@ function writeChanged(file, value) {
 const sdkInputsSha256 = process.env.NELYX_WINDOWS_SDK_INPUTS_SHA256 ?? null;
 if (sdkInputsSha256 !== null && !/^[a-f0-9]{64}$/.test(sdkInputsSha256))
   throw Error('Invalid Windows SDK build input identity');
+const appInputsSha256 = process.env.NELYX_WINDOWS_APP_INPUTS_SHA256 ?? null;
+if (appInputsSha256 !== null && !/^[a-f0-9]{64}$/.test(appInputsSha256))
+  throw Error('Invalid Windows application build input identity');
 // Content changes must invalidate native compilation even when npm archives
 // preserve older header timestamps. This header is included by the host TU.
 writeChanged(
@@ -447,6 +450,7 @@ fs.writeFileSync(
       exeSha256: sha(executable),
       nativeInputsSha256: sha(input),
       sdkInputsSha256,
+      appInputsSha256,
       configuration,
       engine,
       engineInputsSha256: jsc?.sha256 ?? v8?.sha256 ?? aot?.sha256 ?? null,

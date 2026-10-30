@@ -397,7 +397,7 @@ class GalleryState extends State<ComponentsGallery> {
     const mixedScrollButton = () =>
       new TextButton({
         id: 'show-mixed-scroll',
-        child: new Text('Scroll view'),
+        child: new Text('입력·버튼 스크롤'),
         onPressed: () => this.openMixedScroll(),
       });
     const heading = new Padding(

@@ -37,7 +37,7 @@
     "@react-native-windows/find-dotnet-tools": "0.0.0",
     "@types/react": "19.2.2",
     "typescript": "5.9.3",
-    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.10.0-fd69abb942893bbea89e7e04fb422862aea49f8b6b525cd0cb410c6635608a92.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.10.0-42c829f656b4e922a9910dfdca62702ba7582e9f0122a7b0a99e5c921a97b594.tgz",
     "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-de9e35b0578ced02085453094b42297682a0c02b9a3665709a4b49c7b51ba516.tgz"
   }
 }

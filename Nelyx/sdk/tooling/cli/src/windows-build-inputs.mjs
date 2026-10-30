@@ -74,3 +74,51 @@ export function windowsBuildInputs(runner) {
   if (!inputs.length) throw Error('Windows runner has no installed Nelyx SDK packages');
   return createHash('sha256').update(JSON.stringify(inputs)).digest('hex');
 }
+
+/** App-owned sources, assets and Windows configuration, independent of mtimes.
+ * Exclude compiler/IDE outputs so a successful build remains reusable. */
+export function windowsAppBuildInputs(app) {
+  app = fs.realpathSync(app);
+  const hash = createHash('sha256').update('nelyx.windows-app-inputs/v1\n'),
+    manifest = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')),
+    assetFiles = new Set(
+      (manifest.nelyx?.assets ?? []).flatMap((asset) =>
+        [asset.path, asset.notice?.path].filter(Boolean).map((name) => name.replace(/^\.\//, '')),
+      ),
+    ),
+    otherTargets = new Set(['android', 'ios', 'macos', 'linux', 'web']),
+    generated = new Set(['.git', '.idea', '.bundle', 'ipch', 'Generated Files']),
+    generatedFiles = new Set([
+      'windows/runner/app-config.json',
+      'windows/runner/tsconfig.generated.json',
+      'windows/Directory.Build.targets',
+    ]);
+  const visit = (directory, prefix = '') => {
+    for (const entry of fs
+      .readdirSync(directory, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+      const relative = prefix + entry.name;
+      if (
+        !isTemplateInput(relative) ||
+        generated.has(entry.name) ||
+        (!prefix && otherTargets.has(entry.name)) ||
+        relative === 'windows/packages' ||
+        /^windows\/[^/]+\/Bundle$/.test(relative) ||
+        generatedFiles.has(relative) ||
+        /^windows\/[^/]+\/AutolinkedNativeModules\.g\.(?:cpp|h|props|targets)$/.test(relative)
+      )
+        continue;
+      if (entry.isSymbolicLink()) throw Error('Windows application input is a link: ' + relative);
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(file, relative + '/');
+      else if (entry.isFile()) {
+        if (/\.md$/i.test(relative) && !assetFiles.has(relative)) continue;
+        const bytes = fs.readFileSync(file);
+        hash.update(JSON.stringify([relative, bytes.length]) + '\n');
+        hash.update(bytes);
+      } else throw Error('Windows application input is not a regular file: ' + relative);
+    }
+  };
+  visit(app);
+  return hash.digest('hex');
+}

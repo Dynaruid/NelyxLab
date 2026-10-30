@@ -72,7 +72,7 @@ class MixedScrollPageState extends State<MixedScrollPage> {
                   tooltip: '갤러리로 돌아가기',
                   onPressed: this.widget.onBack,
                 }),
-                new Expanded(new Text('Text fields & buttons', { fontSize: 24 })),
+                new Expanded(new Text('입력·버튼 스크롤', { fontSize: 24 })),
               ],
               { crossAlign: 'center', spacing: 8 },
             ),

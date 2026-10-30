@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
-/** An explicit package is a chosen snapshot. Default run follows installed SDK
+/** An explicit package is a chosen snapshot. Default run follows app and SDK
  * bytes, retaining the last package's engine, compiler and execution mode. */
 export async function prepareWindowsRun(
   { app, directory, hermesMode },
-  { packageFor, readInputs, build, onRebuild = () => {} },
+  { packageFor, readInputs, readAppInputs, build, onRebuild = () => {} },
 ) {
   let verified = packageFor(app, directory);
   if (directory) {
@@ -16,8 +16,13 @@ export async function prepareWindowsRun(
   }
   const manifest = verified.manifest,
     current = readInputs(app),
+    currentApp = readAppInputs(app),
     mode = hermesMode ?? manifest.hermesExecutionMode ?? 'bytecode';
-  if (manifest.sdkInputsSha256 === current && mode === (manifest.hermesExecutionMode ?? 'bytecode'))
+  if (
+    manifest.sdkInputsSha256 === current &&
+    manifest.appInputsSha256 === currentApp &&
+    mode === (manifest.hermesExecutionMode ?? 'bytecode')
+  )
     return verified;
   const options = {
     app,
@@ -34,5 +39,7 @@ export async function prepareWindowsRun(
   verified = packageFor(app);
   if (verified.manifest.sdkInputsSha256 !== readInputs(app))
     throw Error('Windows rebuild did not capture the current installed SDK');
+  if (verified.manifest.appInputsSha256 !== readAppInputs(app))
+    throw Error('Windows rebuild did not capture the current application inputs');
   return verified;
 }

@@ -515,3 +515,14 @@ git diff --check
 - Android의 실제 검사 APK는 `sample/nelyx-testbed-app-2/android/app/build/outputs/apk/release/app-release.apk`, SHA-256 `82150f3a0513c6684c5846e7e5184df0350cd2b1f3dedf286f25added008e9c6`다. process-local Temurin 21.0.11로 Release/x86_64를 빌드했으며 기존 Android compiler policy `-Og`를 유지했다. Android 30 x86_64 Vulkan 에뮬레이터에서 새 페이지의 첫/마지막 편집기 OS 입력, 전송 live region·횟수, 처음 복귀 후 값 보존·초기화·Gallery 복귀가 통과했다. 예전 `.nelyx/android/packages` APK와 구별한다.
 - 이번 검증의 scroll fixture·supply 임시 디렉터리, Web browser/server/설치·profile, Android 임시 script/remote XML·에뮬레이터는 finally에서 삭제·종료했다. 현재 Windows 교체 staging은 없고 Release 제품 하나를 사용한다. 작업 시작 전 존재하던 출력과 임시 디렉터리를 이번 실행의 산출물로 간주해 일괄 삭제하지 않았다.
 - **잔여 작업:** cold native recording-finish 106.87ms의 내부 원인 분리, 최종 소스의 추가 성능 개선과 재측정, RNW 전체 단계의 동일 frame 연결, 실제 60Hz 조건, 물리 트랙패드·한국어 IME·scanout 확인이 남았다. 새 페이지 기능·제품 검증 완료와 스크롤 성능 수락을 구별하며 `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력·표시 `notVerified`를 유지한다.
+- 이후 명칭 변경 요청에 따라 Gallery 진입 버튼과 페이지 제목을 **입력·버튼 스크롤**로 통일했다. 위 제품 검증 당시 이름은 `Scroll view`이며, 이름 변경의 공통 소스·Web 검사 selector·한/영 사용 안내를 함께 갱신했다. 해당 페이지 회귀 1/1, 변경 코드 lint·format과 diff 검사를 통과했다. 이름 변경 후 플랫폼 제품 재빌드·실행은 하지 않았다.
+
+### 10.7 일반 Windows 실행의 앱 변경 감지 수정
+
+- 사용자와 같은 `npm run run:windows --workspace @nelyx/testbed-2`를 실제 실행해, 소스는 **입력·버튼 스크롤**인데 화면은 예전 `Scroll view`인 상태를 재현했다. 실행 준비가 SDK 입력만 비교하고 앱 입력을 기록·비교하지 않는 것이 원인이었다.
+- 공통 CLI의 Windows build/run에 `appInputsSha256`을 추가했다. 앱 소스·에셋·Windows 설정의 내용과 파일 목록을 비교하며 timestamp에 의존하지 않는다. 기존 입력 기록이 없는 제품도 재빌드한다. build acknowledgement·패키지 manifest·실행 전 검사를 연결했고, starter와 기존 Testbed runner를 함께 갱신했다.
+- 빌드 출력·캐시·생성 설정·autolink 파일은 앱 입력에서 제외한다. 첫 실제 빌드에서 native project의 `Bundle` 출력이 입력으로 잡힌 것을 발견해 제외 범위를 보강했고, 해당 실행은 변경 중인 입력 검사에서 중단돼 제품을 실행하지 않았다. 빌드 실패·빌드 중 실제 입력 변경 시 이전 제품 실행을 막는다.
+- 기존 엔진·실행 모드·compiler profile·Debug/Release 구성과 명시적 `--package`의 고정 패키지 실행을 유지한다. 관련 회귀 **16/16**, 변경 코드 lint·format·diff 검사가 통과했다. CLI와 Testbed의 기존 한/영 사용 안내도 갱신했다.
+- 실제 일반 명령으로 CLI 갱신·재빌드·실행을 완료했다. 한 실행에서 제목에 임시 확인 문구를 넣었다가 정상 닫기 exit 0 후 finally에서 원본 바이트로 복원했다. **SDK 해시가 같은 상태에서 앱 해시만 달라진 다음 실행도 자동 재빌드했고**, 실제 Gallery 버튼과 페이지 제목이 모두 **입력·버튼 스크롤**인 것을 확인했다. 이 실행도 정상 닫기 exit 0이었다.
+- 최종 Windows는 Hermes bytecode / optimized / Release다. EXE `403c57c783a4a95994f8e38da2351b2cb101cf847ecebd5105fad72dc99955d0`, bundle `67d5f272220b2b5fee5ca75442ac23d93ab23a66d3ce79e8e9a61b99fdb306e6`, 앱 입력 `f9272fda9daaf87a29993063155d796addcaa24105c36bb9b49abb367aca3b67`, SDK 입력 `72d4eb6d85519c5283c05adf7c969d651be1a227c1cb44c23fe34d51815b0225`다. SDK가 같은 앱 수정 전후에 EXE는 같고 bundle은 달라졌다.
+- 변경 없이 동일 명령을 다시 실행했을 때 공급·재빌드 없이 같은 제품을 시작했다. `last-build.json`과 package manifest의 수정 시각도 동일했다. 이 제품의 새 페이지를 열어 두었으며, 임시 확인 문구와 검증용 임시 디렉터리는 남기지 않았다.

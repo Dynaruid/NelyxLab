@@ -24,7 +24,7 @@ import {
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
 import nativeV8Transformer from '@nelyx/metro/native-v8-transformer';
 import { windowsHermesExecutionMode } from './windows-aot-mode.mjs';
-import { windowsBuildInputs } from './windows-build-inputs.mjs';
+import { windowsAppBuildInputs, windowsBuildInputs } from './windows-build-inputs.mjs';
 import { prepareWindowsRun } from './windows-run-preparation.mjs';
 
 const packageManifest = 'nelyx-package.json';
@@ -232,6 +232,8 @@ export function verifyWindowsPackage(directory) {
     manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (manifest.sdkInputsSha256 !== undefined && !/^[a-f0-9]{64}$/.test(manifest.sdkInputsSha256))
     throw Error('Invalid Windows SDK build input identity');
+  if (manifest.appInputsSha256 !== undefined && !/^[a-f0-9]{64}$/.test(manifest.appInputsSha256))
+    throw Error('Invalid Windows application build input identity');
   if (
     manifest.schema !== 'nelyx.rnw-package/v1' ||
     manifest.target !== 'windows' ||
@@ -374,7 +376,8 @@ export async function buildWindows({
       input: inputFor(value.app, nativeInputs),
     }),
     v8 = value.cohort.engine === 'v8' ? v8For(value.app, engineInputs) : undefined;
-  const sdkInputsSha256 = windowsBuildInputs(value.runner);
+  const sdkInputsSha256 = windowsBuildInputs(value.runner),
+    appInputsSha256 = windowsAppBuildInputs(value.app);
   if (jscMode !== undefined) windowsJscMode(jscMode, value.cohort.engine);
   if (value.cohort.engine === 'jsc' && explicitHermesProfile !== undefined)
     throw Error('--hermes-profile requires --engine hermes');
@@ -423,16 +426,26 @@ export async function buildWindows({
     {
       cwd: value.runner,
       signal,
-      env: { ...process.env, NELYX_WINDOWS_SDK_INPUTS_SHA256: sdkInputsSha256 },
+      env: {
+        ...process.env,
+        NELYX_WINDOWS_SDK_INPUTS_SHA256: sdkInputsSha256,
+        NELYX_WINDOWS_APP_INPUTS_SHA256: appInputsSha256,
+      },
     },
   );
   signal?.throwIfAborted();
   if (windowsBuildInputs(value.runner) !== sdkInputsSha256)
     throw Error('Installed Windows SDK changed during the build; rerun with stable inputs');
+  if (windowsAppBuildInputs(value.app) !== appInputsSha256)
+    throw Error('Windows application inputs changed during the build; rerun with stable inputs');
   const built = JSON.parse(fs.readFileSync(state(value.app, 'last-build.json'), 'utf8'));
   if (built.sdkInputsSha256 !== sdkInputsSha256)
     throw Error(
       'Windows runner did not acknowledge SDK build inputs; update build.mjs from the current template',
+    );
+  if (built.appInputsSha256 !== appInputsSha256)
+    throw Error(
+      'Windows runner did not acknowledge application build inputs; update build.mjs from the current template',
     );
   if (
     built.schema !== 'nelyx.rnw-build/v1' ||
@@ -533,6 +546,7 @@ export async function buildWindows({
         jscCompilerPolicy: jsc ? nativeJscTransformer.compilerPolicy : null,
         nativeInputsSha256: native.sha256,
         sdkInputsSha256,
+        appInputsSha256,
         qualification: 'notVerified',
         files: records,
       };
@@ -584,10 +598,11 @@ export async function runWindows({ app, directory, hermesMode, arguments: args =
       {
         packageFor,
         readInputs: (app) => windowsBuildInputs(path.join(path.resolve(app), 'windows/runner')),
+        readAppInputs: windowsAppBuildInputs,
         build: buildWindows,
         onRebuild: () =>
           process.stderr.write(
-            'Nelyx SDK inputs changed; rebuilding the Windows package before launch.\n',
+            'Nelyx application or SDK inputs changed; rebuilding the Windows package before launch.\n',
           ),
       },
     ),

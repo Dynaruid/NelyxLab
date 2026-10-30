@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   packageBuildInputs,
+  windowsAppBuildInputs,
   windowsBuildInputs,
 } from '../../sdk/tooling/cli/src/windows-build-inputs.mjs';
 import { prepareWindowsRun } from '../../sdk/tooling/cli/src/windows-run-preparation.mjs';
@@ -177,6 +178,74 @@ test(
 );
 
 test(
+  'Windows app identity follows source, assets and config bytes and ignores build outputs',
+  { timeout },
+  () => {
+    const f = temporary(),
+      app = path.join(f.root, 'app');
+    try {
+      json(path.join(app, 'package.json'), {
+        nelyx: { assets: [{ path: './assets/font.ttf', notice: { path: './assets/font.md' } }] },
+      });
+      for (const name of [
+        'src/gallery.ts',
+        'assets/font.ttf',
+        'assets/font.md',
+        'windows/runner/metro.config.cjs',
+        'windows/runner/package-lock.json',
+        'windows/NelyxRNHost/NelyxRNHost.cpp',
+      ])
+        write(path.join(app, name), 'first');
+      const original = windowsAppBuildInputs(app);
+      for (const relative of [
+        'src/gallery.ts',
+        'assets/font.ttf',
+        'assets/font.md',
+        'windows/runner/metro.config.cjs',
+        'windows/runner/package-lock.json',
+        'windows/NelyxRNHost/NelyxRNHost.cpp',
+      ]) {
+        const file = path.join(app, relative),
+          stat = fs.statSync(file);
+        fs.writeFileSync(file, 'other');
+        fs.utimesSync(file, stat.atime, stat.mtime);
+        assert.notEqual(windowsAppBuildInputs(app), original, relative);
+        fs.writeFileSync(file, 'first');
+      }
+      for (const relative of [
+        '.nelyx/windows/last-build.json',
+        'windows/x64/Release/Bundle/index.windows.bundle',
+        'windows/NelyxRNHost/Bundle/index.windows.bundle',
+        'windows/packages/restored/cache.bin',
+        'windows/runner/node_modules/example/index.js',
+        'windows/runner/.bundle/index.windows.bundle',
+        'windows/runner/app-config.json',
+        'windows/runner/tsconfig.generated.json',
+        'windows/Directory.Build.targets',
+        'windows/NelyxRNHost/AutolinkedNativeModules.g.cpp',
+        'android/runner/App.tsx',
+        'README.md',
+      ])
+        write(path.join(app, relative), 'generated or unrelated');
+      assert.equal(windowsAppBuildInputs(app), original);
+      const added = path.join(app, 'src/added.ts'),
+        renamed = path.join(app, 'src/renamed.ts');
+      write(added, 'first');
+      const withAdded = windowsAppBuildInputs(app);
+      assert.notEqual(withAdded, original);
+      fs.renameSync(added, renamed);
+      assert.notEqual(windowsAppBuildInputs(app), withAdded);
+      fs.unlinkSync(renamed);
+      assert.equal(windowsAppBuildInputs(app), original);
+      json(path.join(app, 'package.json'), { nelyx: { assets: [], appEntry: './src/new.ts' } });
+      assert.notEqual(windowsAppBuildInputs(app), original);
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
   'sample run compiles stale SDK source, supplies, installs, then skips all steps when unchanged',
   { timeout },
   async () => {
@@ -319,7 +388,8 @@ test(
 
 function packageFixture(manifest) {
   let current = { directory: 'package', manifest: { ...manifest } },
-    inputs = 'new';
+    inputs = 'new',
+    appInputs = 'app-new';
   const calls = [];
   return {
     calls,
@@ -329,12 +399,23 @@ function packageFixture(manifest) {
     set inputs(value) {
       inputs = value;
     },
+    set appInputs(value) {
+      appInputs = value;
+    },
     ports: {
       packageFor: () => current,
       readInputs: () => inputs,
+      readAppInputs: () => appInputs,
       build: async (options) => {
         calls.push(options);
-        current = { ...current, manifest: { ...current.manifest, sdkInputsSha256: inputs } };
+        current = {
+          ...current,
+          manifest: {
+            ...current.manifest,
+            sdkInputsSha256: inputs,
+            appInputsSha256: appInputs,
+          },
+        };
       },
     },
   };
@@ -396,6 +477,7 @@ test(
       {
         ...f.ports,
         readInputs: () => assert.fail('Explicit package must not inspect installed SDK'),
+        readAppInputs: () => assert.fail('Explicit package must not inspect application sources'),
       },
     );
     assert.equal(f.calls.length, 0);
@@ -407,6 +489,71 @@ test(
     );
   },
 );
+
+test(
+  'default run rebuilds app edits with an unchanged SDK, then reuses the rebuilt package',
+  { timeout },
+  async () => {
+    const f = packageFixture({
+      cohort: { engine: 'hermes' },
+      configuration: 'Release',
+      hermesExecutionMode: 'bytecode',
+      hermesCompilerProfile: 'optimized',
+      sdkInputsSha256: 'new',
+      appInputsSha256: 'app-old',
+    });
+    const result = await prepareWindowsRun({ app: 'app' }, f.ports);
+    assert.equal(f.calls.length, 1);
+    assert.equal(result.manifest.appInputsSha256, 'app-new');
+    await prepareWindowsRun({ app: 'app' }, f.ports);
+    assert.equal(f.calls.length, 1);
+    f.appInputs = 'app-next';
+    await prepareWindowsRun({ app: 'app' }, f.ports);
+    assert.equal(f.calls.length, 2);
+    assert.equal(f.current.manifest.appInputsSha256, 'app-next');
+  },
+);
+
+test(
+  'packages without app identity rebuild even when their SDK is current',
+  { timeout },
+  async () => {
+    const f = packageFixture({
+      cohort: { engine: 'hermes' },
+      configuration: 'Release',
+      hermesExecutionMode: 'bytecode',
+      hermesCompilerProfile: 'optimized',
+      sdkInputsSha256: 'new',
+    });
+    await prepareWindowsRun({ app: 'app' }, f.ports);
+    await prepareWindowsRun({ app: 'app' }, f.ports);
+    assert.equal(f.calls.length, 1);
+  },
+);
+
+test('app changes during rebuild cannot launch stale output', { timeout }, async () => {
+  const f = packageFixture({
+    cohort: { engine: 'hermes' },
+    configuration: 'Release',
+    hermesExecutionMode: 'bytecode',
+    hermesCompilerProfile: 'optimized',
+    sdkInputsSha256: 'new',
+    appInputsSha256: 'app-old',
+  });
+  await assert.rejects(
+    prepareWindowsRun(
+      { app: 'app' },
+      {
+        ...f.ports,
+        build: async (options) => {
+          await f.ports.build(options);
+          f.appInputs = 'edited-during-build';
+        },
+      },
+    ),
+    /did not capture the current application/,
+  );
+});
 
 test(
   'failed or stale rebuilds cannot return the old executable for launch',

@@ -61,9 +61,9 @@ Use `npx --no-install nelyx dev --app ../.. --target web` for development on por
 
 Options vary by target; [src/main.mjs](src/main.mjs) defines accepted combinations.
 
-For Windows RNW, `run` rebuilds when the installed Nelyx SDK files differ from the package's recorded inputs, preserving its engine, execution mode, compiler profile, and build configuration. Unchanged inputs reuse the package; older packages without recorded inputs rebuild once. A failed build stops launch. Supply and install updated SDK packages first for an external app. The repository Testbed's `run:windows` also refreshes workspace SDK packages automatically. Use `run --package <directory>` to execute a specific package without rebuilding it.
+For Windows RNW, `run` compares application source, assets, Windows configuration, and installed Nelyx SDK contents with the package's recorded inputs. Changes trigger a rebuild with the same engine, execution mode, compiler profile, and build configuration. Unchanged inputs reuse the package; older packages without recorded inputs rebuild once. A failed build or inputs changing during the build stops launch. Supply and install updated SDK packages first for an external app. The repository Testbed's `run:windows` also refreshes workspace SDK packages automatically. Use `run --package <directory>` to execute a specific package without rebuilding it.
 
-For an existing external app, update `windows/runner/build.mjs` from the current starter template once to enable SDK input acknowledgement and native header invalidation. The repository Testbed already includes this update.
+For an existing external app, update `windows/runner/build.mjs` from the current starter template once to enable application/SDK input acknowledgement and native SDK header invalidation. The repository Testbed already includes this update.
 
 ## Native prerequisites
 
