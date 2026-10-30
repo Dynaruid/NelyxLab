@@ -1,10 +1,12 @@
 # 스크롤 잔끊김 개선 — Flutter 소스 비교와 렌더링·엔진 작업계획
 
-작성: **2026-10-30 KST** · 상태: **PAUSED — 사용자 외출로 20:55 KST 중단 / P0 직접 native 측정 완료·RNW PARTIAL / producer gate 철회 / P1 clock·P2 이후 NOT_STARTED**
+작성: **2026-10-30 KST** · 상태: **PAUSED — 사용자 외출로 20:55 KST 중단 / 기존 Static AOT 측정 보존·재개 검증은 Hermes bytecode 전용 / RNW PARTIAL / producer gate 철회 / P1 clock·P2 이후 NOT_STARTED**
 
 ## 1. 목표와 판단
 
 목표는 스크롤을 시작할 때, 연속 이동할 때, 새 섹션이 들어올 때, 버튼·텍스트필드 위에 포인터가 있을 때 발생하는 짧은 끊김을 줄이는 것이다. 평균 FPS보다 **입력 이후 화면이 움직이기까지의 지연, 프레임 간격의 흔들림, p99·최대 긴 프레임**을 우선한다.
+
+**이 문서의 이후 실행·성능 검토는 Hermes bytecode / optimized / Release만 사용한다.** 사용자가 Static AOT의 빌드 시간이 길고 바이트코드와의 성능 차이를 크게 느끼지 않았다고 판단해 검증 범위를 변경했다. Static AOT 준비·빌드·실행·성능 비교·전용 검사는 이번 작업 범위에서 제외하며 완료 조건으로 요구하지 않는다. 기존 AOT 수치·중단 기록은 과거 근거로 보존한다.
 
 **권고는 기존 TypeScript UI Runtime과 Skia/Graphite를 유지하면서, Flutter가 사용하는 변경 경계별 paint 처리와 프레임 생산·소비 계약을 엔진에 완성하는 것이다.** Nelyx에는 이미 Widget/Element/RenderObject, sliver, RepaintBoundary, retained Layer/Picture, 제한된 프레임 제출이 있다. 이를 처음부터 다시 만들거나 렌더러만 교체하는 계획으로 잡지 않는다.
 
@@ -13,7 +15,7 @@
 1. Flutter는 dirty repaint boundary를 모아 paint하고 layer 속성 변경을 따로 처리한다. Nelyx는 하위 recording을 재사용하지만 Root에서 매 요청마다 `recordPaint → compose → capture`를 시작한다.
 2. Flutter는 프레임 생산 슬롯과 vsync 시작·목표 시간을 연결한다. Nelyx의 Windows 경로는 제출 상한과 clock을 갖췄지만 **worker가 깨어난 시각과 JS dispatch 시각만 전달**한다. 선택 작업에 필요한 deadline은 전달하지 않는다.
 3. 현재 Gallery는 이미 lazy list다. 그러나 lazy child 하나가 큰 데모 섹션 전체이므로, 처음 들어오는 child의 동기 build/layout/텍스트·Picture 생성 비용이 한 프레임에 몰릴 수 있다.
-4. native GPU worker가 이미 있어도 **JS owner에서 수행하는 packet 구성·검증·Graphite recording** 비용까지 자동으로 사라지지는 않는다. 이 경계를 실제 AOT에서 계측해야 한다.
+4. native GPU worker가 이미 있어도 **JS owner에서 수행하는 packet 구성·검증·Graphite recording** 비용까지 자동으로 사라지지는 않는다. 이 경계를 실제 Hermes bytecode native 실행에서 계측해야 한다.
 
 진행 순서는 **P0 기준 측정 → P1 clock·생산 여유 계약 → P2 dirty paint 파이프라인 → P3 cold 생성 단위 개선 → P4 입력·보조 작업 → 필요할 때 P5 전송/P6 GPU 개선 → P7 제품 검증**으로 둔다. 기존 리사이즈 계획의 단계 번호와 별개인 새 스크롤 계획이다.
 
@@ -48,7 +50,7 @@
 | native 진단 CPU p95: no-hover 23.21→15.95ms, field-hover 22.97→19.18ms | CPU 여유가 작았다는 단서다. 서로 다른 빌드의 단일 전후 진단을 현재 성능이나 FPS로 환산하지 않는다. |
 | hit test p95 1.220→1.001ms, p99 3.64→4.65ms, cold 최대 245.87ms | 평균·p95 개선만으로 잔끊김이 사라지지 않는다. cold와 tail을 분리한다. |
 | Static AOT resize 약 19~20 geometry/s, CPU p95 약 22~27ms | 기존 `resizePerformanceAccepted=false`는 유지한다. resize 동기화 제거를 스크롤 개선으로 묶지 않는다. |
-| 10월 30일 포맷·소스 정리 후 native/AOT 제품 재검증 없음 | P0는 현재 소스·설치본·실행 제품의 일치부터 확인한다. |
+| 10월 30일 포맷·소스 정리 후 native/AOT 제품 재검증 없음 | 재개 시 Hermes bytecode로 전환하고 현재 소스·설치본·실행 제품의 일치부터 확인한다. AOT 재검증은 제외한다. |
 
 기존 `performanceAccepted=false`, 표시·scanout `notVerified`도 이번 문서 작성으로 바꾸지 않는다.
 
@@ -134,7 +136,7 @@ semantics는 현재 Gallery에서 **300ms 및 정지 후 100ms quiet 갱신**, f
 
 ### F. GPU·presentation 간격 — 추가 증거 필요
 
-그림자·clip·opacity·큰 surface의 replay, upload, allocator miss, publish 지연이 원인일 가능성도 있다. 기존 warm allocator 진단이 좋았다는 기록은 현재 AOT·최대화·cold 장면의 GPU 통과 증거가 아니다. `GPU producer → surface publish → retirement`를 frame identity로 연결한다. CPU와 GPU가 겹치므로 각 p95를 더해 frame latency라고 계산하지 않는다.
+그림자·clip·opacity·큰 surface의 replay, upload, allocator miss, publish 지연이 원인일 가능성도 있다. 기존 warm allocator 진단이 좋았다는 기록은 현재 Hermes bytecode·최대화·cold 장면의 GPU 통과 증거가 아니다. `GPU producer → surface publish → retirement`를 frame identity로 연결한다. CPU와 GPU가 겹치므로 각 p95를 더해 frame latency라고 계산하지 않는다.
 
 **현재 소스만으로 GC, GPU, DirectManipulation, RNW 중 하나를 단독 원인으로 확정하지 않는다.**
 
@@ -164,20 +166,21 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 ## 6. 작업 단계
 
-**P0의 직접 native 기준 3회·source-stage 1회·producer gate 변경 후 3회 비교를 완료했다. gate는 surface tail 악화로 철회했다.** RNW 단계별 계측·물리 입력은 PARTIAL/notVerified, clock/deadline 확장은 미구현이며 P2 이후에는 진입하지 않았다. 각 단계는 비용 감소와 동작 보존을 함께 확인한 뒤 다음 단계로 넘어간다. 성능 근거가 없는 변경은 롤백하고 짧은 판단만 이 문서에 남긴다.
+**기존 Static AOT에서 P0의 직접 native 기준 3회·source-stage 1회·producer gate 변경 후 3회 비교를 완료했다. gate는 surface tail 악화로 철회했다.** 재개 후에는 Hermes bytecode 기준을 확보해 후속 변경과 비교한다. RNW 단계별 계측·물리 입력은 PARTIAL/notVerified, clock/deadline 확장은 미구현이며 P2 이후에는 진입하지 않았다. 각 단계는 비용 감소와 동작 보존을 함께 확인한 뒤 다음 단계로 넘어간다. 성능 근거가 없는 변경은 롤백하고 짧은 판단만 이 문서에 남긴다.
 
 ### P0. 현재 제품에서 끊기는 프레임 찾기
 
 대상: [`runtime.ts`](Nelyx/src/hosting/runtime.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts), [`WindowsFrameTrace.h`](Nelyx/skia/packages/rn/native/windows/WindowsFrameTrace.h), [`windows-scroll-observer.ps1`](Nelyx/eng/windows-scroll-observer.ps1), 기존 native 측정 runner.
 
-- [x] 사용자가 사용하는 일반 명령으로 변경 전 제품을 먼저 실행했다. 저장된 Hermes / Static AOT / optimized / Release를 유지했고 최대화 두 열·자동 OS scroll·정상 닫기를 확인했다. 모니터별 주사율은 별도로 확인했으며 물리 입력은 `notVerified`다(§10).
-- [x] 변경 전 소스→dist/설치 패키지→빌드 acknowledgement→실행 EXE/AOT 연결을 확인했다. 변경 후 제품은 비교 실행 뒤 다시 식별한다. 과거 SHA·PID를 현재 제품의 식별자로 재사용하지 않는다.
+- [x] 이전 Static AOT 검증에서 사용자가 사용하는 일반 명령으로 변경 전 제품을 먼저 실행했다. 저장된 Hermes / Static AOT / optimized / Release를 유지했고 최대화 두 열·자동 OS scroll·정상 닫기를 확인했다. 모니터별 주사율은 별도로 확인했으며 물리 입력은 `notVerified`다(§10).
+- [x] 이전 Static AOT 검증에서 변경 전 소스→dist/설치 패키지→빌드 acknowledgement→실행 EXE/AOT 연결을 확인했다. 이 식별은 당시 제품에만 적용한다.
+- [ ] §8의 명시적 build로 Hermes bytecode / optimized / Release로 전환하고 일반 명령으로 실행한다. 현재 소스→dist/설치 패키지→SDK acknowledgement·package manifest→실행 EXE·bytecode 식별을 확인한다. 변경 후 제품도 다시 식별하며 과거 SHA·PID를 재사용하지 않는다.
 - [ ] idle/시작·재접촉, warm 왕복 no-hover, warm 버튼·TextField hover/focus, cold 첫 섹션 진입을 분리한다. 두 열은 왼쪽/오른쪽 및 pointer 이동을 포함하고 ListView·Cupertino를 회귀 장면으로 둔다.
 - [ ] 기존 trace를 확장해 input→dispatch, build, layout, paint, compose, capture, geometry, semantics, post-frame hit-test, packet/validation/Picture compile/Graphite recording, GPU·publish·retirement를 동일 frame identity로 연결한다. host가 기록하지 않는 단계는 먼저 작은 계측을 추가한다.
 - [ ] 시간뿐 아니라 dirty node 수, boundary 방문·재기록 수, command/packet bytes, mailbox 깊이·입력 나이, pending frame 나이, native credit, paragraph/Picture 생성·cache miss·GC를 기록한다. GC pause를 관찰할 수 없는 실행은 `unobserved`로 둔다.
 - [ ] 기본은 저비용 bounded RAM 표본, 느린 프레임에서만 상세 수집이다. source 내부 함수 monkey patch 진단의 오버헤드를 구분하고 최종 판정은 계측을 끈 동일 제품에서 한다.
 
-완료 조건: 주 재현 장면별 기준 trial 3회로 어느 구간이 긴 frame 또는 제출 공백과 함께 발생했는지 설명할 수 있다. 이 기준 실행은 P7의 변경 전후 비교에 재사용하며 같은 조건을 불필요하게 다시 측정하지 않는다. 모든 원인을 한 수치로 뭉치지 않는다. [`profile-gallery-scroll.mjs`](Nelyx/eng/profile-gallery-scroll.mjs)는 실제 sample Widget을 쓰는 **Node/CanvasKit CPU 진단**이므로 코드 기여 분석에만 사용하고 Hermes native 성능 수락으로 쓰지 않는다.
+완료 조건: Hermes bytecode에서 주 재현 장면별 기준 trial 3회로 어느 구간이 긴 frame 또는 제출 공백과 함께 발생했는지 설명할 수 있다. 이 기준 실행은 P7의 변경 전후 비교에 재사용하며 같은 조건을 불필요하게 다시 측정하지 않는다. 기존 Static AOT 수치를 bytecode 기준값으로 승계하거나 AOT 비교를 다시 실행하지 않는다. 모든 원인을 한 수치로 뭉치지 않는다. [`profile-gallery-scroll.mjs`](Nelyx/eng/profile-gallery-scroll.mjs)는 실제 sample Widget을 쓰는 **Node/CanvasKit CPU 진단**이므로 코드 기여 분석에만 사용하고 Hermes native 성능 수락으로 쓰지 않는다.
 
 ### P1. clock·deadline·생산 여유를 하나의 계약으로 연결
 
@@ -201,7 +204,7 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 - [ ] Root는 dirty layout/paint 수렴 후 scene을 compose·capture한다. 실제 요청 frame의 capture·submit과 post-frame 동작은 유지한다. 재사용하는 것은 검증된 recording이며 요청 자체를 취소하지 않는다.
 - [ ] paint 도중 다시 무효화된 version을 clean으로 확정하지 않는다. 현재 refresh가 paint 이전 version을 잡는 규칙을 보존하고 다음 frame으로 남긴다.
 
-완료 조건: 같은 화면에서 버튼·caret 하나의 animation이 정적인 형제 recording을 다시 만들지 않는다. 구조 fixture에서 방문·재기록 수로 입증하고 native AOT에서 paint/compose/capture 및 frame CPU p99가 개선돼야 한다. 실측 이득 없이 복잡성만 늘어나면 해당 경로를 채택하지 않는다.
+완료 조건: 같은 화면에서 버튼·caret 하나의 animation이 정적인 형제 recording을 다시 만들지 않는다. 구조 fixture에서 방문·재기록 수로 입증하고 Hermes bytecode native 실행에서 paint/compose/capture 및 frame CPU p99가 개선돼야 한다. 실측 이득 없이 복잡성만 늘어나면 해당 경로를 채택하지 않는다.
 
 ### P3. cold child의 동기 작업량을 줄이는 sliver 구성
 
@@ -236,7 +239,7 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 - [ ] packet의 frame-local buffer 재사용 또는 native immutable scene handle을 작은 범위에서 비교한다. 기존 동기 replay와 수명·세대·오류 복구가 같아야 한다. JS buffer 공유·무검증 zero-copy는 채택하지 않는다.
 - [ ] native scene/recording을 worker로 옮기는 경우 typed native resource와 generation 검증을 먼저 설계한다. 같은 Graphite recorder를 여러 thread에서 사용하거나 JSI 객체를 worker에 보관하지 않는다.
 
-완료 조건: 실제 AOT에서 command bytes·할당/복사·recording 시간과 전체 p99가 함께 줄고 memory/retirement가 악화되지 않는다. 이득이 작으면 기존 경로를 유지하고 조건부 미진입 사유를 기록한다.
+완료 조건: 실제 Hermes bytecode native 실행에서 command bytes·할당/복사·recording 시간과 전체 p99가 함께 줄고 memory/retirement가 악화되지 않는다. 이득이 작으면 기존 경로를 유지하고 조건부 미진입 사유를 기록한다.
 
 ### P6. GPU replay·effect·raster 캐시 검토 — 조건부
 
@@ -253,7 +256,7 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 의존: P1~P4, P5/P6는 진입 여부와 판단 기록. 대상: 실제 Testbed, 기존 tests·SDK 공급·README·현재 문서.
 
-- [ ] 변경한 공통 경로에 맞는 회귀 검사·타입 검사와 native supplier rebuild/reinstall을 완료한다. AOT·bytecode는 각각 식별·검증하며 한쪽 결과를 다른 쪽에 승계하지 않는다.
+- [ ] 변경한 공통 경로에 맞는 회귀 검사·타입 검사와 Hermes bytecode 실행에 필요한 native supplier rebuild/reinstall을 완료한다. 실제 bytecode package·실행 제품을 식별하며 Static AOT 검증은 완료 조건에 넣지 않는다.
 - [ ] 같은 화면·배율·장치·제품 구성의 변경 전후 paired trial을 최소 3쌍 수행한다. 주요 네 장면 기준 24회 이내를 기본으로 하고 기존 검증과 중복되는 반복을 늘리지 않는다.
 - [ ] 물리 트랙패드 시작·연속·반전·재접촉, 두 열 사이 pointer 이동, Button hover/press, 편집 중 스크롤 후 입력·한국어 IME, minimize/restore·close를 확인한다. 자동 OS wheel은 물리 트랙패드 확인과 별도로 기록한다.
 - [ ] 공통 Core 변경은 Web/Android에도 layout·입력·수명 smoke를 적용한다. 이번 Windows 결과를 다른 플랫폼 성능 수락으로 확장하지 않는다.
@@ -264,7 +267,7 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 ### 7.1 비교 방법
 
-P0에서 엔진·프로파일·AOT/bytecode·native inputs·실행 제품, 화면·창·DPI·모니터·주사율, semantics 설정, 입력 패턴과 cold/warm 조건을 고정한다. 성능 비교는 같은 조건의 optimized Release를 별도 기준으로 삼되, 사용자의 일반 명령에서 문제를 재현하고 마지막에 같은 명령으로 확인하는 절차도 유지한다.
+P0에서 **Hermes / bytecode / optimized / Release**와 native inputs·실행 제품, 화면·창·DPI·모니터·주사율, semantics 설정, 입력 패턴과 cold/warm 조건을 고정한다. 변경 전후 성능은 같은 bytecode 조건에서 비교하며, 사용자의 일반 명령에서 문제를 재현하고 마지막에 같은 명령으로 확인하는 절차도 유지한다.
 
 primary 장면은 **All Components 두 열의 warm no-hover / Button hover / TextField hover·focus / cold 첫 탐색**이다. 한 trial은 정지→시작→10초 이상 연속→왕복·반전→손을 뗀 뒤 재접촉을 포함한다. cold는 재시작한 프로세스의 첫 진입만 측정하며 font/asset·driver cache 상태도 적는다. frame 표본이 적으면 p99를 안정된 값으로 제시하지 않고 n·max와 함께 남긴다.
 
@@ -291,13 +294,24 @@ native surface update·GPU retirement는 scanout/FPS 증명이 아니다. 물리
 
 ## 8. 실행 명령과 검증 경계
 
-일반 실행 기준 명령:
+재개 시 먼저 Hermes bytecode / optimized / Release package를 명시적으로 빌드한 뒤 일반 명령으로 실행한다. `run:windows`는 마지막 package 설정을 유지하므로 저장된 Static AOT 설정에 의존해 바로 재개하지 않는다.
 
 ```powershell
+npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-mode bytecode --hermes-profile optimized --configuration Release
 npm.cmd run run:windows --workspace @nelyx/testbed-2
 ```
 
-구현 뒤에는 변경 범위에 맞춰 다음 검사를 선택한다. 실제 실행 결과는 §10에 기록한다. 각 테스트 timeout은 저장소 지침대로 20분을 유지한다.
+전환 뒤에는 일반 명령을 계속 사용한다. 실제 package manifest의 `cohort.engine=hermes`, `hermesExecutionMode=bytecode`, optimized/Release 설정과 실행 EXE·bytecode 식별을 확인한다. `test:windows-continuous-scroll`은 `.nelyx/windows/last-package.json`의 제품을 사용하므로 이 locator가 최신 bytecode package를 가리키는지도 먼저 확인한다.
+
+직접 native 진단도 bytecode 모드를 명시한다. P0 기준 CPU 3회는 이후 비교에 재사용하고 stages·GC는 필요한 원인 분석에만 선택한다.
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --scroll-scenes --scope cpu --repeat 3
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --scroll-scenes --scope stages
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --scroll-scenes --scope gc
+```
+
+구현 뒤에는 변경 범위에 맞춰 다음 공통 회귀·타입·공급 검사를 선택한다. Static AOT 전용 검사나 AOT 실행을 추가하지 않는다. 실제 실행 결과는 §10에 기록한다. 각 테스트 timeout은 저장소 지침대로 20분을 유지한다.
 
 ```powershell
 # clock·backpressure·입력 수명
@@ -338,11 +352,11 @@ git diff --check
 | --- | --- |
 | 현재 Nelyx·로컬 Flutter 소스 및 기존 기록 검토 | DONE |
 | 원인 후보·목표 책임·단계·수락 기준 작성 | DONE |
-| P0 현재 제품 계측 | PARTIAL: 일반 실행·직접 native 3회 + source-stage 1회 완료, RNW 단계별·물리 입력 미완료 |
+| P0 현재 제품 계측 | PARTIAL: 기존 Static AOT 일반 실행·직접 native 3회 + source-stage 1회 보존, 새 bytecode 기준·RNW 단계별·물리 입력 미완료 |
 | P1 clock·생산 정책 | PARTIAL: producer gate 비교 후 철회; clock/deadline wire는 NOT_STARTED |
 | P2~P4 기본 개선 | NOT_STARTED |
 | P5/P6 추가 엔진·GPU 개선 | CONDITIONAL / NOT_STARTED |
-| P7 제품·물리 입력·표시 검증 | NOT_STARTED |
+| P7 bytecode 제품·물리 입력·표시 검증 | NOT_STARTED |
 | 스크롤 성능 최종 수락 | `performanceAccepted=false` 유지 |
 | resize 성능 수락 | `resizePerformanceAccepted=false` 유지 |
 
@@ -360,7 +374,7 @@ git diff --check
 - Static AOT 직접 호스트에서 `--scope cpu --scroll-scenes --repeat 3`을 완료했다(네 장면 × 새 프로세스 3개, 전부 정상 닫기 exit 0). host source `621c3fcd808234f96fdbd01bfd6d8a8e86eff20b405bab285ffaf4d79d415c1d`, diagnostic bundle `9b4098f022896ea40dbe3c6b4653df3a2fac8766896f50d5747f60f6758950e0`. 최대화 client 2560×1459 physical / 1280×729.5 logical, DPI 192, scale 2, native view가 보고한 모니터 165Hz, AMD Vulkan이다. DWM clock의 실제 목표 cadence는 아직 wire에서 관찰하지 못했으므로 60Hz 예산·deadline miss·FPS로 환산하지 않는다.
 - 첫 source-stage 실행은 lazy extent가 바뀐 뒤 최초 요청 target과만 비교하는 진단 assertion에서 실패했다. 현재 extent에 clamp한 target 도달을 검증하도록 고쳤고, 실패한 실행의 중간 수치는 기준 trial에 포함하지 않았다. 원래 요청·현재 extent·실제 offset을 함께 남겨 임의의 미도달을 통과시키지 않는다.
 
-#### P0 직접 native 기준값 — 변경 전 3회
+#### 기존 Static AOT의 P0 직접 native 기준값 — 변경 전 3회
 
 각 칸은 trial 1 / 2 / 3이며 단위는 ms다. CPU는 owned frame callback wall이고 뒤따르는 microtask checkpoint·입력 dispatch와 별개다. surface는 **연속 이동 구간 안의 copy 완료 갱신 간격**이며 display/scanout receipt가 아니다. font/driver/system cache를 지우지 않은 새 프로세스의 첫 탐색이며 재부팅 cold가 아니다.
 
@@ -373,9 +387,9 @@ git diff --check
 
 두 열은 함께 움직인다. warm은 이미 방문한 96 logical px 경로의 5초 왕복 후 정지·0.5초 재접촉 왕복이며 cold는 10초 첫 이동이다. Button/field 포인터는 framework 합성 입력이고 OS pointer는 진단 호스트가 안전한 위치에 두었다. warm의 `focus=true`는 focus manager에 primary node가 있다는 뜻만 가지므로 editor focus와 혼동하지 않는다. 다음 source-stage 실행은 실제 `field-filled`의 FocusNode가 primary인지 별도로 검증한다.
 
-이 결과는 cold tail과 focus 장면의 CPU·dispatch queue 증가를 반복 관찰한 근거다. RNW 일반 제품·물리 트랙패드의 동일 수치로 승계하지 않는다.
+이 결과는 당시 Static AOT의 cold tail과 focus 장면의 CPU·dispatch queue 증가를 반복 관찰한 근거다. 새 Hermes bytecode 기준이나 RNW 일반 제품·물리 트랙패드의 동일 수치로 승계하지 않는다.
 
-#### P0 source-stage 1회와 P1 비교 범위
+#### 기존 Static AOT의 P0 source-stage 1회와 P1 비교 범위
 
 - 같은 native source의 source-stage bundle `601ab347de7c535e564aa9308022de6ccbfb06ab0a4239fb29d4b874fdbcee57`도 네 장면·정상 닫기 exit 0을 완료했다. ring overwrite/invalid는 없었고 실제 `field-filled` FocusNode는 field 장면에서만 primary였다. 이 계측 실행을 최소 CPU 기준 3회에 섞지 않는다.
 - cold의 가장 긴 callback 109.23ms 중 native `recording-finish`가 101.96ms였고, 다른 101.12ms frame에는 layout 54.50ms·paint 23.15ms가 함께 있었다. Button 첫 hover의 68.87ms frame도 recording-finish 63.70ms였다. 따라서 긴 frame을 text layout 하나로 단정하지 않는다. recording finish 내부의 driver/Graphite 기여와 GC pause는 아직 개별 관찰하지 못했다.
@@ -401,9 +415,16 @@ git diff --check
 - 사용자가 외출을 위해 중간 종료를 요청해 **PAUSED**로 둔다. commit·배포는 하지 않았다. 시작 HEAD는 그대로이며 현재 working tree는 위 구현·검사·README·이 문서의 변경을 포함한다.
 - 중단한 실행 소유의 Node/clang 프로세스가 모두 종료됐고, AOT 임시 `.nelyx-sh-VPdcWZ` 디렉터리가 finally에서 제거된 것을 확인했다. 실행 중인 Testbed 프로세스도 없다.
 - 복구한 Core와 최신 CLI는 Windows runner에 재공급됐다. 일반 명령 `npm.cmd run run:windows --workspace @nelyx/testbed-2`의 RNW 호스트 컴파일·링크와 AOT frontend(97.92초)는 통과했으나, **앱 C unit 컴파일 도중 중단했다.** typed/PAL unit은 cache hit였다. 최신 AOT package 완성·실행·화면·입력·닫기 검증은 하지 않았으며, §10.1의 EXE SHA를 최신 제품으로 해석하지 않는다.
-- source/dist/설치본 확인과 제품 실행 완료는 별개다. 다음에는 같은 일반 명령을 다시 실행해 저장된 **Hermes / Static AOT / optimized / Release**를 유지하고, 새 SDK acknowledgement·package manifest·실행 EXE/AOT identity를 확인한다. 기존 정상 package를 최신 소스 검증으로 승계하지 않는다.
+- source/dist/설치본 확인과 제품 실행 완료는 별개다. 재개 시에는 §8의 명령으로 **Hermes / bytecode / optimized / Release**로 전환하고 새 SDK acknowledgement·package manifest·실행 EXE·bytecode identity를 확인한다. 중단한 AOT 컴파일은 재개하지 않으며 기존 정상 package를 최신 소스 검증으로 승계하지 않는다.
 - 이어서 실제 RNW 최대화 All Components·ListView·Cupertino의 OS 입력 smoke와 물리 트랙패드/편집·한국어 IME 재현 범위를 확인한다. 직접 native 결과만으로 P0 전체 또는 성능 수락을 완료하지 않는다. P1 clock start/target/refresh/deadline wire는 아직 미구현이며 P2~P4는 미진입이다. P5/P6도 조건부 미진입이다.
 - GC 누적 통계의 별도 수집을 위해 `--scroll-scenes --scope gc`를 허용하고 한/영 README에 명령·해석 한계를 추가했다. 옵션/보고 검사 6/6은 통과했지만 해당 실제 GC 실행은 하지 않았다. 현재 AOT frame별 GC pause는 계속 `unobserved`다.
 - 최종 사용자 입력 확인이나 추가 빌드는 중단 요청 이후 시작하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력·표시 `notVerified`를 유지한다.
+
+### 10.2 2026-10-30 검증 범위 변경 — Hermes bytecode 전용
+
+- 사용자 요청에 따라 이후 P0~P7의 실행·성능 검토를 Hermes bytecode / optimized / Release로 통일했다. Static AOT의 긴 빌드 시간과 성능 차이가 크지 않았다는 사용자 관찰이 변경 이유이며, 두 모드의 정량적 동등성을 새로 검증한 결과는 아니다.
+- Static AOT 준비·빌드·실행·전용 검사·성능 재비교는 수행하지 않는다. §10.1의 기존 AOT 측정값과 미완료 package 기록은 보존하며 bytecode 검증 결과로 바꾸지 않는다.
+- 다음 재개 지점은 §8의 명시적 bytecode build와 일반 실행, 현재 제품 식별, 후속 비교에 사용할 bytecode 기준 측정이다. 이후 같은 bytecode 조건으로 변경 전후를 비교한다.
+- 이번 변경은 `work.md` 수정만 수행했다. 빌드·앱 실행·성능 측정은 시작하지 않았으며 PAUSED와 기존 미수락 상태를 유지한다.
 
 추가 구현과 수치는 현재 작업에서 실제 확인한 범위만 이 문서에 갱신한다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력·scanout `notVerified`를 유지한다.
