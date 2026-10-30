@@ -2,7 +2,7 @@
 
 기록일: 2026-10-27 KST · Git 범위: `e65e861`~`ed99ba3` · 근거: 해당 커밋의 소스 변경과 루트 `work.md`
 
-상태: **Windows 리사이즈 동기화·그림자·트랙패드 수정 반영 / 리사이즈 FPS 개선 PLANNED**. `resizePerformanceAccepted=false`이며, W18의 `performanceAccepted=false`와 미검증 경계를 유지한다. 이 문서는 당일 작업 요약이고 현재 실행 계획은 [루트 work.md](../../../../work.md)에 있다. 기록 작성 중 새 빌드·앱 실행·성능 측정은 수행하지 않았다.
+상태: **Windows 리사이즈 동기화·그림자·트랙패드 수정 반영 / 리사이즈 FPS 개선 PLANNED**. `resizePerformanceAccepted=false`이며, W18의 `performanceAccepted=false`와 미검증 경계를 유지한다. 이 문서는 당일 작업 요약이며 이후 작업 결과는 [10월 30일 통합 요약](../30/work-summary.md)에 보관했다. 기록 작성 중 새 빌드·앱 실행·성능 측정은 수행하지 않았다.
 
 ## 당일 변경 범위
 
@@ -63,4 +63,4 @@ retained Picture에는 native shadow 명령을 보존하고 replay 때 최종 �
 
 당일 W18 전후 성능 검토는 Git에 남은 기존 측정과 코드 비교였다. W18 초반 대조 소스 대비 선정 후보의 대표 ListView CPU p95 약 **18~28% 감소**는 이전 직접 host 진단이며, 당일 RNW 공급의 새 FPS·물리 표시 측정이 아니다. 빠른 스크롤·최종 성능·메모리·물리 입력·플랫폼 수락의 잔여를 완료 처리하지 않는다.
 
-[W18 기반 개편](../25/work18-summary.md) · [현재 작업](../../../../work.md) · [Windows 입력·합성 계약](../../../../Nelyx/skia/packages/rn/native/windows/README.md) · [현재 사용 안내](../../../../README.ko.md)
+[W18 기반 개편](../25/work18-summary.md) · [후속 작업 요약](../30/work-summary.md) · [Windows 입력·합성 계약](../../../../Nelyx/skia/packages/rn/native/windows/README.md) · [현재 사용 안내](../../../../README.ko.md)

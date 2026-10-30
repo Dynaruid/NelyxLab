@@ -16,18 +16,18 @@
     "pack": "nelyx pack --app ../.. --target windows"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.16.0-a0db5495e95c132d9eb1243c89e080566aabc1ee201922b9430e28585799c222.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.20.0-f14442331fe7b4e2f76b996d8761d0925a193e401780462313be3b8f04b04657.tgz",
-    "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-bd88275d4d3e423ba410b88c3fd54a8d23210026ee8bbedfed4cde0278ebc5e5.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.16.0-3509073f74381a13a036941d888858c4fd6872826553571d74de3ab0c627d3f6.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.20.0-e1bfe2e7fb9eb32e93b753c5434c93993a43491bc5531413d5dd0e6b877398fd.tgz",
+    "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-b1f7f16eb7541134740cda48cb5f76118c72ebde421ba5049915c207628c0235.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-windows": "0.83.2",
-    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.1.0-af9e66de4ce7af9105af14417a78fc111225cabeaf0f6437c9cf3ca6c694fff4.tgz",
-    "@nelyx/cupertino": "file:../../.nelyx/supply/windows/nelyx-cupertino-0.1.0-0770b41cdc2b96b22d8887168f0b0cc82253b6fe9ac9dd196fa29b9667c19030.tgz",
-    "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-160e68458b4938330aa7cfff611c9b6443f5b3a90d8f02af225306e1c4ae90b7.tgz"
+    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.1.0-5cee6277fc27349a1c2f7f154d9bf023fdaa3c621d4985f4e44189e885acfd3d.tgz",
+    "@nelyx/cupertino": "file:../../.nelyx/supply/windows/nelyx-cupertino-0.1.0-4ea3866c0ee4c3f2dfedbc204b6fb4928797143c8cf4e3bd23f91212d384eae4.tgz",
+    "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-a1545689809b3095836db76020038e62927f3285173629fe40bf69403919e767.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-26b8618fbeee763095ceeee22e682652f87e48ae8f712a79d731bf781fb7814c.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-cfb4ba258781b6e0599fa6b792a088772db9dbe63a08d609f0965c785d21790b.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",
@@ -37,7 +37,7 @@
     "@react-native-windows/find-dotnet-tools": "0.0.0",
     "@types/react": "19.2.2",
     "typescript": "5.9.3",
-    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.10.0-d1c3c1e36ca5c348f9118f2a18c48e2f22a314a165cbf5c9103eeb85f98c9563.tgz",
-    "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-f948a49e386cfb22a4f46fe03c105d0ad8b427512605a20693d3a13f75fcd8e4.tgz"
+    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.10.0-83ad227c7cf8fb936b5f17ba5d9825099cb7ce6418e2b90f741ec90019a2cb01.tgz",
+    "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-de9e35b0578ced02085453094b42297682a0c02b9a3665709a4b49c7b51ba516.tgz"
   }
 }
