@@ -6,6 +6,8 @@ Nelyx의 Material 3·Cupertino 컴포넌트를 살펴보는 공통 TypeScript �
 
 Web·Windows·Android에서 [src/](src/)를 공유하고, 각 대상은 자체 runner·의존성·빌드 설정을 사용합니다.
 
+Material 갤러리의 **Scroll view**에서 텍스트필드 12개와 버튼 36개를 섞은 페이지를 엽니다. lazy builder 없이 하나의 스크롤 영역 안 `Column`에 모든 항목을 한 번에 생성합니다. 편집 후 스크롤 왕복, 전송·횟수·초기화, 처음·끝 이동을 확인할 수 있습니다.
+
 ## 준비 조건
 
 Node.js **>=24.3.0 <25**, npm과 Python 3가 필요합니다. 대상별 준비 전에 저장소 루트에서 실행합니다.
@@ -51,6 +53,8 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run prepare:native --
 ```
 
 예시 경로를 실제 공급 파일의 `inputs.json`으로 바꾸세요. 공급 파일을 컴파일할 때는 runner를 먼저 설치해야 합니다. 준비 명령이 네이티브 입력을 기억하며, 공급 파일을 교체하면 다시 준비합니다.
+
+Windows frame clock은 네이티브 protocol version 2를 요구합니다. 이전 공급본에서 갱신한다면 공급 파일을 재빌드하고 입력 준비와 앱 빌드를 다시 수행하세요. 예측 frame target은 선택 작업의 예산이며 표시 완료 receipt가 아닙니다.
 
 ### 실행 모드 선택
 

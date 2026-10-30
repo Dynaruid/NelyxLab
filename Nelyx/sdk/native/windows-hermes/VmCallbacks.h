@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include "windows/CompositorFrameTiming.h"
 #include <jsi/jsi.h>
 #include <algorithm>
 #include <cmath>
@@ -21,6 +22,7 @@ public:
   VmCallbacks(VmCallbacks const&)=delete;VmCallbacks& operator=(VmCallbacks const&)=delete;
   void install(facebook::jsi::Object& api){
     checkOwner();
+    api.setProperty(runtime,"frameClockVersion",2);
     auto method=[&](const char* name,size_t arity,facebook::jsi::HostFunctionType call){api.setProperty(runtime,name,facebook::jsi::Function::createFromHostFunction(runtime,facebook::jsi::PropNameID::forAscii(runtime,name),arity,std::move(call)));};
     method("setTimer",3,[this](auto& rt,auto const&,auto* args,size_t count){
       checkOpen();if(count!=3||timers.size()>=limit||!args[1].isNumber()||!args[2].isBool())throw facebook::jsi::JSError(rt,"Native timer admission failed");
@@ -44,9 +46,13 @@ public:
     for(auto id:due){auto found=timers.find(id);if(found==timers.end())continue;auto callback=found->second.callback.getFunction(runtime);
       if(found->second.period)found->second.deadline=tick+found->second.period;else timers.erase(found);callback.call(runtime);runtime.drainMicrotasks();}
   }
-  size_t dispatchFrames(double tick){
+  size_t dispatchFrames(double tick,const RNSkia::CompositorFrameTiming* frame=nullptr){
     checkOpen();frameArmed=false;std::vector<uint64_t> due;for(auto const& [id,callback]:frames)due.push_back(id);size_t dispatched=0;
-    for(auto id:due){auto found=frames.find(id);if(found==frames.end())continue;auto callback=std::move(found->second);frames.erase(found);++dispatched;callback.call(runtime,tick,now());}return dispatched;
+    for(auto id:due){auto found=frames.find(id);if(found==frames.end())continue;auto callback=std::move(found->second);frames.erase(found);++dispatched;
+      if(frame){facebook::jsi::Object timing(runtime);timing.setProperty(runtime,"nativeFrameStart",frame->start);timing.setProperty(runtime,"nativeFrameTarget",frame->target);timing.setProperty(runtime,"refreshInterval",frame->interval);
+        timing.setProperty(runtime,"nativeUncertainty",frame->uncertainty);timing.setProperty(runtime,"timingRevision",double(frame->revision));timing.setProperty(runtime,"timingSource",frame->observed?"dwm-predicted":"timer-fallback");callback.call(runtime,tick,now(),std::move(timing));
+      }else callback.call(runtime,tick,now());
+    }return dispatched;
   }
   bool empty()const{checkOwner();return timers.empty()&&frames.empty();}
   void close(){checkOwner();closed=true;frames.clear();timers.clear();}

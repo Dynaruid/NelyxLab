@@ -332,6 +332,7 @@ test(
       );
     for (const name of [
       'CompositorFrameClock.h',
+      'CompositorFrameTiming.h',
       'WindowsKeyboardInput.h',
       'ObservedKeyboardState.h',
       'WindowsCharacterObservation.h',

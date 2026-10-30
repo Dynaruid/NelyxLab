@@ -2,11 +2,122 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSurfaceFrameClock } from '../../sdk/dist/runtime/frame-clock.js';
+import { freezeFrame, disposeFrame } from '@nelyx/core/ui/frame';
 import {
   createWindowsFrameScheduler,
   windowsMonotonicTimestamp,
+  captureWindowsFrameTiming,
 } from '../../sdk/dist/platforms/windows/frame-clock.js';
 const timeout = 1_200_000;
+test(
+  'native prediction, timer fallback and late dispatch keep distinct work limits',
+  { timeout },
+  () => {
+    const receipt = {
+      nativeTick: 100,
+      nativeDispatch: 102,
+      nativeFrameStart: 100,
+      nativeFrameTarget: 110,
+      refreshInterval: 10,
+      nativeUncertainty: 0.2,
+      timingRevision: 1,
+      timingSource: 'dwm-predicted',
+    };
+    const timing = captureWindowsFrameTiming(receipt, { offset: 1000, uncertainty: 0.1 });
+    assert.equal(timing.tick, 1100);
+    assert.equal(timing.frameStart, 1100);
+    assert.equal(timing.observedDeadline, 1110);
+    assert.equal(timing.refreshInterval, 10);
+    assert.equal(timing.queueDelay, 2);
+    assert(Math.abs(timing.clockUncertainty - 0.3) < 0.00001);
+    const frame = freezeFrame(
+      {
+        owner: { id: 'clock', generation: 1 },
+        sequence: 1,
+        timing,
+        metrics: {
+          logicalWidth: 1,
+          logicalHeight: 1,
+          physicalWidth: 1,
+          physicalHeight: 1,
+          scale: 1,
+          viewportGeneration: 1,
+          rendererGeneration: 1,
+          nativeContextGeneration: null,
+          nativeSurfaceGeneration: null,
+        },
+      },
+      [],
+    );
+    assert.deepEqual(
+      frame.token.timing,
+      timing,
+      'Frame capture preserves the predicted clock domain',
+    );
+    disposeFrame(frame);
+    for (const change of [
+      { timingSource: 'timer-fallback' },
+      { nativeDispatch: 110 },
+      { nativeUncertainty: 3 },
+    ])
+      assert.equal(
+        captureWindowsFrameTiming({ ...receipt, ...change }).observedDeadline,
+        undefined,
+      );
+    for (const change of [
+      { nativeFrameTarget: NaN },
+      { refreshInterval: 16 },
+      { timingRevision: 0 },
+      { timingSource: 'displayed' },
+      { nativeUncertainty: -1 },
+    ])
+      assert.throws(() => captureWindowsFrameTiming({ ...receipt, ...change }), /prediction/);
+  },
+);
+test(
+  'a native cadence revision recalibrates its JS epoch and rejects the old wire',
+  { timeout },
+  () => {
+    const n = native();
+    let offset = 10000,
+      samples = 0;
+    n.api.getMonotonicTime = () => {
+      samples++;
+      return performance.now() + offset;
+    };
+    const scheduler = createWindowsFrameScheduler(() => n.api);
+    const deliver = (id, revision) => {
+      const tick = performance.now() + offset;
+      n.pending.get(id)(undefined, {
+        nativeTick: tick,
+        nativeDispatch: tick + 1,
+        nativeFrameStart: tick,
+        nativeFrameTarget: tick + 10,
+        refreshInterval: 10,
+        nativeUncertainty: 0.1,
+        timingSource: 'dwm-predicted',
+        timingRevision: revision,
+      });
+    };
+    let first, second;
+    scheduler.request((value) => {
+      first = value;
+    });
+    deliver(1, 1);
+    assert.equal(samples, 1);
+    offset += 1000;
+    scheduler.request((value) => {
+      second = value;
+    });
+    deliver(2, 2);
+    assert.equal(samples, 2);
+    assert(Math.abs(second.tick - first.tick) < 50, 'Cadence changes resample the native domain');
+    assert.throws(
+      () => createWindowsFrameScheduler(() => ({ ...n.api, frameClockVersion: 1 })),
+      /clock2/,
+    );
+  },
+);
 test(
   'surface close fences every callback before cancellation and reports all failed handles',
   { timeout },
@@ -130,7 +241,7 @@ function native() {
   const pending = new Map(),
     canceled = [];
   const api = {
-    frameClockVersion: 1,
+    frameClockVersion: 2,
     requestFrame(callback) {
       pending.set(++next, callback);
       return next;

@@ -324,6 +324,7 @@ test(
     ];
     const bridge = {
       abi: 2,
+      frameClockVersion: 2,
       mode: 'bytecode',
       assetRoot: 'C:/owned',
       capabilities: { vm: 1, services: 1, editing: 1, semantics: 1 },

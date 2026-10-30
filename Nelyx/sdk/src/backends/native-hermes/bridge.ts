@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ViewMetrics } from '@nelyx/core/ui/types';
 import type { OsEnvironment } from '../../runtime/os-services.ts';
+import type { WindowsFrameReceipt } from '../../platforms/windows/frame-clock.ts';
 export interface NativeHermesBridge {
   readonly abi: 2;
+  readonly frameClockVersion: 2;
   readonly capabilities: {
     readonly vm: 1;
     readonly services: 1;
@@ -23,7 +25,13 @@ export interface NativeHermesBridge {
   pressedKeys(): readonly { readonly keyCode: number; readonly scanCode: number }[];
   setTimer(callback: () => void, delay: number, repeat: boolean): number;
   clearTimer(id: number): void;
-  requestFrame(callback: (tick: number, dispatch: number) => void): number;
+  requestFrame(
+    callback: (
+      tick: number,
+      dispatch: number,
+      timing?: Omit<WindowsFrameReceipt, 'nativeTick' | 'nativeDispatch'>,
+    ) => void,
+  ): number;
   cancelFrame(id: number): void;
   queueMicrotask(callback: () => void): void;
   completeShutdown(): void;
@@ -45,11 +53,12 @@ export function nativeHermesBridge(): NativeHermesBridge {
   if (
     !value ||
     value.abi !== 2 ||
+    value.frameClockVersion !== 2 ||
     !['bytecode', 'static-aot'].includes(value.mode) ||
     typeof value.assetRoot !== 'string' ||
     !value.assetRoot
   )
-    throw new Error('Native Hermes host ABI 2 is required');
+    throw new Error('Native Hermes host ABI 2 and frame clock2 are required');
   for (const capability of ['vm', 'services', 'editing', 'semantics'] as const)
     if (value.capabilities?.[capability] !== 1)
       throw new Error('Missing native Hermes capability: ' + capability);

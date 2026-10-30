@@ -47,6 +47,29 @@ export declare function analyseNativeInputWindow(
   readonly after: NativeInputState;
 };
 export declare function distribution(values: readonly number[]): Distribution;
+export declare function analyseNativeFrameDeadlines(
+  trace: NativeFrameTrace,
+  frames: readonly {
+    readonly sequence: number;
+    readonly end: number;
+    readonly timing?: import('@nelyx/core/foundation/clock').FrameTiming;
+  }[],
+): {
+  readonly scope: string;
+  readonly built: number;
+  readonly eligible: number;
+  readonly withoutPrediction: number;
+  readonly missingCopy: number;
+  readonly sources: Readonly<Record<string, number>>;
+  readonly refreshInterval: Distribution;
+  readonly readySlack: Distribution;
+  readonly surfaceSlack: Distribution;
+  readonly readyMisses: number;
+  readonly surfaceMisses: number;
+  readonly missRule: string;
+  readonly displayed: 'unobserved';
+  readonly performanceAccepted: false;
+};
 export declare function nativeScrollTargetState(
   positions: readonly {
     readonly offset: number;

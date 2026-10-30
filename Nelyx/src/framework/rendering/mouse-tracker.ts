@@ -32,6 +32,14 @@ function annotations(
   }
   return result;
 }
+function sameAnnotationTargets(
+  previous: ReadonlyMap<MouseTrackerAnnotation, TransformMatrix | null>,
+  next: ReadonlyMap<MouseTrackerAnnotation, TransformMatrix | null>,
+): boolean {
+  if (previous.size !== next.size) return false;
+  for (const target of next.keys()) if (!previous.has(target)) return false;
+  return true;
+}
 function updateMouseEvents(
   previous: ReadonlyMap<MouseTrackerAnnotation, TransformMatrix | null>,
   next: ReadonlyMap<MouseTrackerAnnotation, TransformMatrix | null>,
@@ -123,18 +131,20 @@ export class MouseTracker extends ChangeNotifier {
           event.kind === 'leave'
             ? new Map<MouseTrackerAnnotation, TransformMatrix | null>()
             : annotations(hitTestResult ?? this.hitTestInView(event)),
-        active = new Map(previous?.annotations);
+        unchanged = previous !== undefined && sameAnnotationTargets(previous.annotations, next),
+        active = unchanged ? next : new Map(previous?.annotations);
       if (event.kind === 'leave') this.states.delete(event.pointer);
       else this.states.set(event.pointer, { event, annotations: active });
       try {
-        updateMouseEvents(
-          previous?.annotations ?? new Map(),
-          next,
-          event,
-          this.viewId,
-          active,
-          () => !this.retired && !this.clearRequested,
-        );
+        if (!unchanged)
+          updateMouseEvents(
+            previous?.annotations ?? new Map(),
+            next,
+            event,
+            this.viewId,
+            active,
+            () => !this.retired && !this.clearRequested,
+          );
       } finally {
         if (!this.retired && !this.clearRequested)
           this.mouseCursorMixin?.handleDeviceCursorUpdate(
@@ -168,16 +178,18 @@ export class MouseTracker extends ChangeNotifier {
         if (this.retired || this.clearRequested) break;
         const next = annotations(this.hitTestInView(state.event)),
           previous = state.annotations;
-        state.annotations = new Map(previous);
+        const unchanged = sameAnnotationTargets(previous, next);
+        state.annotations = unchanged ? next : new Map(previous);
         try {
-          updateMouseEvents(
-            previous,
-            next,
-            state.event,
-            this.viewId,
-            state.annotations,
-            () => !this.retired && !this.clearRequested,
-          );
+          if (!unchanged)
+            updateMouseEvents(
+              previous,
+              next,
+              state.event,
+              this.viewId,
+              state.annotations,
+              () => !this.retired && !this.clearRequested,
+            );
         } finally {
           if (!this.retired && !this.clearRequested)
             this.mouseCursorMixin?.handleDeviceCursorUpdate(

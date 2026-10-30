@@ -1,6 +1,6 @@
 # 스크롤 잔끊김 개선 — Flutter 소스 비교와 렌더링·엔진 작업계획
 
-작성: **2026-10-30 KST** · 상태: **PAUSED — 사용자 외출로 20:55 KST 중단 / 기존 Static AOT 측정 보존·재개 검증은 Hermes bytecode 전용 / RNW PARTIAL / producer gate 철회 / P1 clock·P2 이후 NOT_STARTED**
+작성: **2026-10-30 KST** · 상태: **PARTIAL — eager 혼합 페이지·3플랫폼 제품 검증 완료 / bytecode 비교 후 P2/P3 후보 철회 / 성능 미수락**
 
 ## 1. 목표와 판단
 
@@ -166,7 +166,7 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 ## 6. 작업 단계
 
-**기존 Static AOT에서 P0의 직접 native 기준 3회·source-stage 1회·producer gate 변경 후 3회 비교를 완료했다. gate는 surface tail 악화로 철회했다.** 재개 후에는 Hermes bytecode 기준을 확보해 후속 변경과 비교한다. RNW 단계별 계측·물리 입력은 PARTIAL/notVerified, clock/deadline 확장은 미구현이며 P2 이후에는 진입하지 않았다. 각 단계는 비용 감소와 동작 보존을 함께 확인한 뒤 다음 단계로 넘어간다. 성능 근거가 없는 변경은 롤백하고 짧은 판단만 이 문서에 남긴다.
+**기존 Static AOT의 producer gate는 surface tail 악화로 철회한 상태를 유지한다.** 이번 재개에서는 Hermes bytecode 네 장면 × 기준 3회와 source-stage 1회를 완료했고 clock/deadline·P2~P4 구현 및 공통·제품 회귀를 진행했다(§10.3). 추가 요청한 eager 혼합 스크롤 페이지도 구현했다(§10.4). RNW 전체 단계 연결·물리 입력·표시 수락은 PARTIAL/notVerified다. 각 단계는 비용 감소와 동작 보존을 함께 확인하며, 성능 근거가 없는 최적화는 채택하지 않는다.
 
 ### P0. 현재 제품에서 끊기는 프레임 찾기
 
@@ -174,7 +174,7 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 - [x] 이전 Static AOT 검증에서 사용자가 사용하는 일반 명령으로 변경 전 제품을 먼저 실행했다. 저장된 Hermes / Static AOT / optimized / Release를 유지했고 최대화 두 열·자동 OS scroll·정상 닫기를 확인했다. 모니터별 주사율은 별도로 확인했으며 물리 입력은 `notVerified`다(§10).
 - [x] 이전 Static AOT 검증에서 변경 전 소스→dist/설치 패키지→빌드 acknowledgement→실행 EXE/AOT 연결을 확인했다. 이 식별은 당시 제품에만 적용한다.
-- [ ] §8의 명시적 build로 Hermes bytecode / optimized / Release로 전환하고 일반 명령으로 실행한다. 현재 소스→dist/설치 패키지→SDK acknowledgement·package manifest→실행 EXE·bytecode 식별을 확인한다. 변경 후 제품도 다시 식별하며 과거 SHA·PID를 재사용하지 않는다.
+- [x] §8의 명시적 build로 Hermes bytecode / optimized / Release로 전환하고 일반 명령으로 실행한다. 현재 소스→dist/설치 패키지→SDK acknowledgement·package manifest→실행 EXE·bytecode 식별을 확인한다. 변경 후 제품도 다시 식별하며 과거 SHA·PID를 재사용하지 않는다.
 - [ ] idle/시작·재접촉, warm 왕복 no-hover, warm 버튼·TextField hover/focus, cold 첫 섹션 진입을 분리한다. 두 열은 왼쪽/오른쪽 및 pointer 이동을 포함하고 ListView·Cupertino를 회귀 장면으로 둔다.
 - [ ] 기존 trace를 확장해 input→dispatch, build, layout, paint, compose, capture, geometry, semantics, post-frame hit-test, packet/validation/Picture compile/Graphite recording, GPU·publish·retirement를 동일 frame identity로 연결한다. host가 기록하지 않는 단계는 먼저 작은 계측을 추가한다.
 - [ ] 시간뿐 아니라 dirty node 수, boundary 방문·재기록 수, command/packet bytes, mailbox 깊이·입력 나이, pending frame 나이, native credit, paragraph/Picture 생성·cache miss·GC를 기록한다. GC pause를 관찰할 수 없는 실행은 `unobserved`로 둔다.
@@ -186,8 +186,8 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 의존: P0. 대상: [`CompositorFrameClock.h`](Nelyx/skia/native/host/windows/CompositorFrameClock.h), [`RNSkWindowsHost.h`](Nelyx/skia/packages/rn/native/windows/RNSkWindowsHost.h), [`frame-clock.ts`](Nelyx/sdk/src/platforms/windows/frame-clock.ts), [`clock.ts`](Nelyx/src/foundation/clock.ts), [`runtime.ts`](Nelyx/src/hosting/runtime.ts), [`renderer.ts`](Nelyx/skia/packages/native/src/renderer.ts).
 
-- [ ] native에서 계산한 frame start/target·refresh interval·timer wake/dispatch를 구분해 전달한다. DWM 예측, fallback, clock uncertainty와 monitor/DPI 변경 시 재보정을 포함한다. 예측 target은 실제 표시 receipt가 아니다.
-- [ ] `observedDeadline`의 의미를 host-advertised 작업 한계로 명시하고, 부정확하거나 이미 지난 값에서는 선택 작업을 금지한다. Core에서 `tick + 16.67ms`로 만들어 넣지 않는다. wire/API 확장 시 SDK·native 버전과 공급 검사도 함께 갱신한다.
+- [x] native에서 계산한 frame start/target·refresh interval·timer wake/dispatch를 구분해 전달한다. DWM 예측, fallback, clock uncertainty와 monitor/DPI 변경 시 재보정을 포함한다. 예측 target은 실제 표시 receipt가 아니다.
+- [x] `observedDeadline`의 의미를 host-advertised 작업 한계로 명시하고, 부정확하거나 이미 지난 값에서는 선택 작업을 금지한다. Core에서 `tick + 16.67ms`로 만들어 넣지 않는다. wire/API 확장 시 SDK·native 버전과 공급 검사도 함께 갱신한다.
 - [ ] 현재 한 장 CPU 선행 정책을 계측한 뒤, 필요하면 producer credit 예약·취소·반납을 추가한다. hint 조회와 실제 `nelyxReserve`의 경합을 구분하고, JS build 동안 GPU lock이나 WinUI 대기를 잡지 않는다.
 - [ ] busy 상태에서도 입력 dispatch·필요한 forced geometry는 진행한다. 최신 dirty 상태로 미제출 frame을 교체하되 old lease는 새 capture 성공까지 유지한다. retirement/credit 알림 뒤 재시도와 숨김·복원·종료를 처리한다.
 - [ ] animation/scroll의 다음 요청, explicit redraw, 여러 view의 공정성, clock callback 도중 재진입을 회귀 검증한다. 불필요한 polling이 크면 completion wake를 사용하되 정지 후 재개 누락이 없어야 한다.
@@ -195,6 +195,8 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 완료 조건: deadline 없는 호스트는 기존 필수 경로로 동작하고 선택 작업은 비활성이다. busy 중 무한 CPU 재기록·credit 누수·입력 starvation·닫기 hang이 없고, 입력→dispatch/submit tail이 기준보다 악화되지 않는다.
 
 ### P2. dirty repaint boundary 중심의 공통 paint 파이프라인
+
+**판정: 후보 구현·구조 검사 후 native 전후 비교에서 묶음의 tail이 악화돼 철회했다(§10.5).** 아래 최종 채택 항목은 완료로 바꾸지 않는다.
 
 의존: P0·P1. 대상: [`object.ts`](Nelyx/src/framework/rendering/object.ts), [`repaint-boundary.ts`](Nelyx/src/framework/rendering/repaint-boundary.ts), [`context.ts`](Nelyx/src/framework/painting/context.ts), [`layer.ts`](Nelyx/src/framework/rendering/layer.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts), [`scene.ts`](Nelyx/src/ui/scene.ts).
 
@@ -207,6 +209,8 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 완료 조건: 같은 화면에서 버튼·caret 하나의 animation이 정적인 형제 recording을 다시 만들지 않는다. 구조 fixture에서 방문·재기록 수로 입증하고 Hermes bytecode native 실행에서 paint/compose/capture 및 frame CPU p99가 개선돼야 한다. 실측 이득 없이 복잡성만 늘어나면 해당 경로를 채택하지 않는다.
 
 ### P3. cold child의 동기 작업량을 줄이는 sliver 구성
+
+**판정: Gallery 네 child 분할 후보는 P2와 함께 철회했다(§10.5).** 추가 요청의 eager 혼합 페이지는 §10.4의 별도 기능이며 P3 lazy 최적화의 완료로 계산하지 않는다.
 
 의존: P0, 선택적 준비는 P1 완료 후. 대상: [`sliver.ts`](Nelyx/src/framework/widgets/sliver.ts), [`sliver-multi-box-adaptor.ts`](Nelyx/src/framework/rendering/sliver-multi-box-adaptor.ts), [`sliver-list.ts`](Nelyx/src/framework/rendering/sliver-list.ts), [`view-work-budget.ts`](Nelyx/src/framework/widgets/view-work-budget.ts), [`gallery.ts`](sample/nelyx-testbed-app-2/src/gallery.ts), [`gallery-section.ts`](sample/nelyx-testbed-app-2/src/gallery-section.ts).
 
@@ -223,8 +227,8 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 의존: P0 및 변경된 layout/paint 경계. 대상: [`runtime.ts`](Nelyx/src/hosting/runtime.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts), [`mouse-tracker.ts`](Nelyx/src/framework/rendering/mouse-tracker.ts), [`scroll-position-with-single-context.ts`](Nelyx/src/framework/widgets/scroll-position-with-single-context.ts), [`semantics-pipeline.ts`](Nelyx/src/framework/rendering/semantics-pipeline.ts).
 
 - [ ] mailbox burst의 dispatch·hit-test·알림 수를 측정한다. 우선 allocation·변환 snapshot·dirty 전파의 중복을 줄인다. delta를 합치려면 동일 view/device/gesture/viewport/target·transform 범위를 증명해야 하고, 경계 clamp·반전·listener side effect가 있으면 원순서를 유지한다.
-- [ ] down/up/cancel·panZoom start/end·focus 전환과 key 입력의 선후 관계를 유지한다. coalescing을 도입해도 원본 sequence/timestamp와 진단 연결을 보존한다.
-- [ ] layout 후의 hover 재검사는 유지한다. 포인터가 정지해 있어도 content가 움직여 target이 바뀔 수 있다. scene/hit-test revision이 같은 경우만 재사용하고 enter/exit·cursor 변화는 빠뜨리지 않는다.
+- [x] down/up/cancel·panZoom start/end·focus 전환과 key 입력의 선후 관계를 유지한다. coalescing을 도입해도 원본 sequence/timestamp와 진단 연결을 보존한다.
+- [x] layout 후의 hover 재검사는 유지한다. 포인터가 정지해 있어도 content가 움직여 target이 바뀔 수 있다. scene/hit-test revision이 같은 경우만 재사용하고 enter/exit·cursor 변화는 빠뜨리지 않는다.
 - [ ] semantics의 configuration 변경과 위치 변경을 기존 큐에서 구분한다. 300ms/quiet 정책을 더 늘리지 않고 계산·transport 중복을 줄인다. value/focus/action과 지연 action의 revision 재검증은 유지한다.
 - [ ] text shaping/selection local geometry는 재사용하되 매 frame의 부모 transform·clip·TSF/caret 화면 좌표를 적용한다. 스크롤 후 재클릭 없이 입력·선택·조합이 계속돼야 한다.
 
@@ -256,12 +260,12 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 
 의존: P1~P4, P5/P6는 진입 여부와 판단 기록. 대상: 실제 Testbed, 기존 tests·SDK 공급·README·현재 문서.
 
-- [ ] 변경한 공통 경로에 맞는 회귀 검사·타입 검사와 Hermes bytecode 실행에 필요한 native supplier rebuild/reinstall을 완료한다. 실제 bytecode package·실행 제품을 식별하며 Static AOT 검증은 완료 조건에 넣지 않는다.
-- [ ] 같은 화면·배율·장치·제품 구성의 변경 전후 paired trial을 최소 3쌍 수행한다. 주요 네 장면 기준 24회 이내를 기본으로 하고 기존 검증과 중복되는 반복을 늘리지 않는다.
+- [x] 변경한 공통 경로에 맞는 회귀 검사·타입 검사와 Hermes bytecode 실행에 필요한 native supplier rebuild/reinstall을 완료한다. 실제 bytecode package·실행 제품을 식별하며 Static AOT 검증은 완료 조건에 넣지 않는다. 철회 후 최종 제품은 §10.6에 기록했다.
+- [x] 같은 화면·배율·장치·제품 구성의 변경 전후 paired trial을 최소 3쌍 수행한다. 주요 네 장면 기준 24회 이내를 기본으로 하고 기존 검증과 중복되는 반복을 늘리지 않는다. 후보 비교와 철회 판단은 §10.5이며 최종 소스의 성능 수락이 아니다.
 - [ ] 물리 트랙패드 시작·연속·반전·재접촉, 두 열 사이 pointer 이동, Button hover/press, 편집 중 스크롤 후 입력·한국어 IME, minimize/restore·close를 확인한다. 자동 OS wheel은 물리 트랙패드 확인과 별도로 기록한다.
-- [ ] 공통 Core 변경은 Web/Android에도 layout·입력·수명 smoke를 적용한다. 이번 Windows 결과를 다른 플랫폼 성능 수락으로 확장하지 않는다.
+- [x] 공통 Core 변경은 Web/Android에도 layout·입력·수명 smoke를 적용한다. 이번 Windows 결과를 다른 플랫폼 성능 수락으로 확장하지 않는다.
 - [ ] 계측을 끈 일반 명령에서 사용자 체감을 확인하고, 남은 문제는 장면·입력·단계별로 PARTIAL/notVerified를 유지한다. 사용 방법이 바뀐 경우에만 기존 한/영 README를 갱신한다.
-- [ ] 실행별 임시 파일·생성 runner·staging·profile은 성공/실패/중단 모두 finally에서 정리한다. 현재 dist/제품만 유지하고 이 문서에 짧은 결과·잔여 작업을 남긴다.
+- [x] 실행별 임시 파일·생성 runner·staging·profile은 성공/실패/중단 모두 finally에서 정리한다. 현재 dist/제품만 유지하고 이 문서에 짧은 결과·잔여 작업을 남긴다. 이번 실행이 만든 임시 산출물의 정리 범위는 §10.6과 같다.
 
 ## 7. 측정·수락 기준
 
@@ -352,11 +356,12 @@ git diff --check
 | --- | --- |
 | 현재 Nelyx·로컬 Flutter 소스 및 기존 기록 검토 | DONE |
 | 원인 후보·목표 책임·단계·수락 기준 작성 | DONE |
-| P0 현재 제품 계측 | PARTIAL: 기존 Static AOT 일반 실행·직접 native 3회 + source-stage 1회 보존, 새 bytecode 기준·RNW 단계별·물리 입력 미완료 |
-| P1 clock·생산 정책 | PARTIAL: producer gate 비교 후 철회; clock/deadline wire는 NOT_STARTED |
-| P2~P4 기본 개선 | NOT_STARTED |
-| P5/P6 추가 엔진·GPU 개선 | CONDITIONAL / NOT_STARTED |
-| P7 bytecode 제품·물리 입력·표시 검증 | NOT_STARTED |
+| P0 현재 제품 계측 | PARTIAL: bytecode 네 장면 × 기준 3회와 source-stage 1회 완료; RNW 전체 단계 연결·물리 입력/표시는 미완료 |
+| P1 clock·생산 정책 | clock version 2 구현·C++/SDK/RNW 회귀 및 실제 6.06ms DWM prediction 전달 확인; 기존 한 장 선행 유지 |
+| P2 dirty paint / P3 Gallery 분할 | NOT_ADOPTED: 후보 구현·검사 후 bytecode 3회 비교에서 전체 tail 악화; 소스 철회 (§10.5) |
+| P4 입력 보조 작업 | 동일 annotation 집합의 Map 복제·차이 계산 감소 유지; hit-test/순서/geometry/semantics 정책 유지. 체감 수락은 미완료 |
+| P5/P6 추가 엔진·GPU 개선 | packet 전송 재설계·GPU cache 미진입. cold recording-finish 긴 frame의 추가 원인 분석은 OPEN |
+| P7 bytecode 제품·물리 입력·표시 검증 | 철회 후 최종 제품 재공급·RNW/OS wheel·Web/Android smoke 완료 (§10.6). 물리 입력·표시는 notVerified |
 | 스크롤 성능 최종 수락 | `performanceAccepted=false` 유지 |
 | resize 성능 수락 | `resizePerformanceAccepted=false` 유지 |
 
@@ -427,4 +432,86 @@ git diff --check
 - 다음 재개 지점은 §8의 명시적 bytecode build와 일반 실행, 현재 제품 식별, 후속 비교에 사용할 bytecode 기준 측정이다. 이후 같은 bytecode 조건으로 변경 전후를 비교한다.
 - 이번 변경은 `work.md` 수정만 수행했다. 빌드·앱 실행·성능 측정은 시작하지 않았으며 PAUSED와 기존 미수락 상태를 유지한다.
 
+### 10.3 2026-10-30 bytecode 작업 재개
+
+- 재개 HEAD `6f2e920322e6c8447115a2d5a8edee70d4bc50ac`, 시작 작업 트리는 clean이었다. 기존 producer gate 롤백을 유지한다. Static AOT 준비·빌드·실행·전용 검사는 시작하지 않았다.
+- §8의 명시적 bytecode build가 통과했다. RNW EXE SHA-256 `67a6029081f2f49db86ab673a4e8702ff7165ce649c32dbdb63d7139a4ca2ff1`, bytecode `d030e4ff0ef1c8ad8e86b4a7987702008726ab0285e0ebb885cde7c5956cb5b8`; SDK package와 build acknowledgement의 digest는 모두 `1984c48fe42e89b673eea655915cac08cb7064e07cea825897478dcc7d0ca2cd`다. 제품 구성은 Hermes / bytecode / optimized / Release다.
+- 변경 전 직접 native bytecode CPU 기준을 네 장면 × 새 프로세스 3회로 완료했다. source `621c3fcd808234f96fdbd01bfd6d8a8e86eff20b405bab285ffaf4d79d415c1d`, host EXE `4904b2e9b1854ef0c0b0401499ae8aeb92542387d4c13606c90d84615933fb82`, bundle `8814207067d3858c0af5556c08b506e71bdf8690db7e052cebcee6de3d02b36b`, VM `de31402961ea5c2f2d7da367b81f0f219786ffab98c24ba3bad6e34d07fe5696`다. 세 프로세스 모두 네 장면과 정상 닫기 exit 0을 완료했다. 임시 진단 제품은 finally에서 삭제했다.
+- 화면은 2560×1459 physical / 1280×729.5 logical, DPI 192, view가 보고한 모니터 165Hz다. 변경 전 wire는 실제 목표 cadence를 전달하지 않아 deadline miss를 계산하지 않는다. 첫 탐색은 font/driver cache를 지우지 않은 새 프로세스 기준이다. 프로그램 스크롤과 framework hover/focus를 사용했으므로 OS wheel·물리 입력 수락이 아니다.
+
+| 변경 전 bytecode 장면 | CPU n (trial 1 / 2 / 3) | CPU p95 ms | CPU p99 ms | CPU max ms | 연속 surface 간격 p99 ms |
+| --- | --- | --- | --- | --- | --- |
+| cold 두 열 | 804 / 805 / 814 | 11.55 / 10.37 / 10.17 | 28.99 / 23.14 / 23.53 | 112.38 / 113.15 / 121.31 | 49.44 / 30.37 / 31.83 |
+| warm no-hover | 933 / 941 / 931 | 12.02 / 9.97 / 9.82 | 15.92 / 16.30 / 16.16 | 21.08 / 23.02 / 47.77 | 27.65 / 24.35 / 23.59 |
+| warm Button hover | 976 / 1016 / 994 | 14.33 / 10.92 / 10.30 | 22.02 / 17.37 / 19.89 | 62.67 / 22.52 / 26.85 | 27.48 / 24.56 / 24.52 |
+| warm TextField focus | 890 / 891 / 893 | 19.39 / 19.55 / 19.67 | 26.32 / 25.71 / 25.66 | 36.27 / 33.00 / 37.29 | 25.49 / 26.34 / 25.61 |
+
+- bytecode의 Hermes 누적 GC 통계가 CPU 실행에서도 관찰됐다. focus 장면의 11초 이동·정지·재접촉 구간에 약 1.00GB allocation, 267~268 collections, young GC 누적 842~901ms가 있었다. 개별 frame의 GC pause와 GPU 독립 시간은 계속 `unobserved`다. 계측 단계별 실행을 CPU 기준 세 trial에 섞지 않는다.
+- P1 native clock2 prediction wire·SDK 검증/재보정, P2 owner의 dirty boundary 처리, P3 편집 section 분할, P4 동일 mouse annotation 집합의 임시 Map 복제 감소를 후보로 구현했다. 아래 구현 검사는 철회 전 기록이며, P2/P3의 최종 미채택 판단은 §10.5에 있다.
+
+#### 변경 전 bytecode source-stage 진단 1회
+
+- 네 장면 모두 정상 종료했다. 위 CPU 3회와 별도인 계측 실행이다. source는 같은 `621c3fcd…`, 진단 bundle은 `3423d87384a245650595a256e58659336ad6edaa58b2d4eb3e4f2a88f8c92329`다. 변경 전 Gallery 소스를 메모리에 보관·복원하는 한 실행의 임시 script를 사용했고, finally에서 복원·삭제했다.
+- cold callback 최대 111.64ms인 frame은 layout 69.53ms, paint 10.40ms, compose 4.85ms, semantics 14.24ms였다. 별도의 98.52ms frame은 recording-finish 92.84ms였다. cold tail을 텍스트 shaping 한 원인으로 단정하지 않는다.
+- TextField focus callback p95/p99/max는 23.44/29.04/50.45ms, paint p95 7.41ms, compose 3.67ms, input geometry 2.13ms, geometry 전달 2.61ms, semantics 6.09ms였다. packet p95/p99는 0.181/0.229ms, native replay p95 1.76ms였다. packet의 단발 최대 25.83ms는 있었으나 통상 비용만으로 P5 대규모 전송 재설계에 진입하지 않는다.
+- 변경 전 clock에는 target이 없어 deadline eligible 표본은 0이다. miss 0을 성공으로 해석하지 않는다. GPU 독립 시간·frame별 GC pause는 관찰하지 못했다.
+
+#### 철회 전 공통 후보 변경과 당시 제품 회귀
+
+이 절의 제품 식별과 P2/P3 검사는 철회 전 후보의 기록이다. 철회 후 최종 소스·제품은 §10.5~10.6을 기준으로 한다.
+
+- P1은 wake·dispatch와 DWM 예측 start/target/interval·uncertainty·revision을 구분한다. SDK는 주기적으로 QPC/JS epoch를 재보정하고, fallback·불확실·dispatch 때 이미 지난 target에서는 optional deadline을 내주지 않는다. wire version은 2이며 재빌드한 공급본을 요구한다. 기존 한 장 CPU 선행 정책과 producer gate 철회는 유지한다.
+- P2는 owner가 dirty 경계를 깊이순으로 모으되, Root가 실제로 도달한 재사용 boundary 안에서만 하위를 갱신한다. 초기 paint·custom ancestor·숨김·실패는 기존 재귀 경로를 유지한다. compose/capture/submit·post-frame을 생략하지 않는다. 구조 검사에서 8중 boundary의 단일 leaf 변경은 방문 2회·재기록 1회이며 정적 형제 recording은 유지됐다. 최종 paint 회귀 152/152 통과.
+- P3는 기존 공통 `SliverChildGroupedDelegate`를 사용해 TextField section을 filled/outlined/controls/Form의 네 lazy child로 나눴다. controller와 editor keep-alive를 유지하고 실제 child ID로 extent/anchor를 추적한다. 한 열·두 열에서 하나의 Card 모양을 유지한다. 선택적 preparation은 아직 `disabled`다.
+- P4는 매 layout 후 hit-test와 최신 transform·cursor 갱신을 유지하면서 같은 annotation 집합의 Map 복제·enter/exit 비교를 줄였다. 입력 delta·순서, semantics의 기존 quiet 정책, IME geometry의 매 frame 좌표 적용은 바꾸지 않았다.
+- scroll-engine 282/282 통과 후 custom paint visibility 보강을 추가했고, 최종 소스로 paint 전체 152/152를 다시 통과했다. clock/native application/optional work 18/18, native frame metrics 11/11, native replay·scene·engine 26/26, runner supply 6/6을 통과했다. 최종 workspace type check와 변경 JS/TS lint·format도 통과했다. workspace type check에 기존 static-aot type project가 포함되지만 AOT 준비·빌드·실행·전용 검사는 수행하지 않았다.
+- 현재 RNW 일반 명령 `npm.cmd run run:windows --workspace @nelyx/testbed-2`에서 stale SDK 자동 재빌드·공급·설치 후 실행했다. Hermes bytecode/optimized/Release, EXE `cdff88a0204314cb01404232ec6d7af09c7ea5b54e0fd89921229384e39ee918`, bytecode `0ad74c104b548ed7b99c7de8a069267333edbd1f49b1ee79794b5b2f0d13d7f9`, SDK manifest/ack `62d150cf679fa246af58c29ee15b4e82b9f725b2179cb8d431f4825c0ea345be`, native inputs `6f1f9658bd0a4916395f6635d435b36cde66bbf03625ccff1be7c3e633f32360`다. 최대화 두 열·분할 Card·편집 중 OS scroll 후 재클릭 없는 추가 입력·Form 오류 표시·정상 닫기 exit 0을 확인했다. 변경 전 RNW 화면 확인은 명시적 build 뒤 `--package`로 당시 package를 고정한 실행이므로 no-args 명령과 구별한다.
+- 현재 RNW package의 `test:windows-continuous-scroll`은 Material/ListView/Cupertino 모두 OS wheel 중 desktop pixel 변화와 정상 close·GPU/input drain을 통과했다. Material minimize/restore·크기 변경·pointer motion도 포함한다. 각 방향 최대 관찰 gap은 56.98~276.07ms였다. 이 검사는 입력 정지·수명 회귀 통과이며 부드러움 수락이 아니다.
+- Web 현재 build bundle `3c8dc28034270f114e9b50bc6c34b462c5d88748f27c7245cd889a3fd4f56d56`에서 실제 Chrome catalog smoke가 통과했다. Material 29개·Cupertino 20개 선언, 대표 컨트롤·named route·design 복귀 상태 보존, page/console error 0을 확인했다. 임시 Playwright 설치와 browser/server는 finally에서 삭제·종료됐다.
+- Android는 현재 Core/SDK를 기존 runner에 공급·재설치하고 process-local Temurin 21.0.11로 Release/x86_64 build를 통과했다. APK `18462ac41703092f9206e40a4d046b9e7bb69e2398cc8185e072486107271cfd`, Android의 기존 compiler policy는 `-Og`이며 Windows optimized 비교에 섞지 않는다. Android 30 x86_64 Vulkan 에뮬레이터 1920×1200/density 240에서 OS 입력, 스크롤, Form 오류·저장·초기화, Material↔Cupertino 복귀 시 편집 내용 보존, background/resume 동일 PID, Back에 의한 Activity 종료를 확인했다. remote UI dump는 매번 finally에서 삭제했고 검증용 에뮬레이터도 종료했다. 물리 Android·한국어 IME·성능 수락은 검증하지 않았다.
+
 추가 구현과 수치는 현재 작업에서 실제 확인한 범위만 이 문서에 갱신한다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력·scanout `notVerified`를 유지한다.
+
+### 10.4 실행 중 추가 요청 — lazy 생성 없는 혼합 스크롤 페이지
+
+- 사용자 요청에 따라 Material Gallery의 `Scroll view`로 여는 `/mixed-scroll` route를 추가했다. 하나의 `Column`을 단일 scrollable box에 넣어 TextField 12개·버튼 36개를 첫 진입에 모두 build/layout한다. builder/delegate에 의한 항목 지연 생성·해제는 없다. 24개 시도는 기존 256 paragraph producer 예산을 넘었으므로 예산을 유지하고 12개로 구성했다.
+- filled/outlined, 한 줄/여러 줄 편집기를 섞고 항목별 전송·누른 횟수·초기화, 처음·끝 이동과 Gallery 복귀를 제공한다. controller는 각 row State가 소유하고 route가 닫힐 때 해제한다.
+- 구조·동작 검사에서 첫 스크롤 전 offscreen editor까지 12개가 모두 mounted였고, 끝 이동·복귀·폭 변경 후에도 동일 controller를 유지했다. 두 끝의 전송·횟수·초기화와 route 종료 후 전체 controller 해제를 확인했다. sample 전체 31 pass / 1 diagnostic profile skip, 이후 결과 live region 보강 후 focused 검사 1/1, type check·lint·format 통과.
+- 분할 후보에서는 Form을 실제 scroll로 드러내고 motion-only 검사를 warm 44px 왕복으로 분리했었다. P3 철회 시 **기존 Form 검사와 원래 176px semantics 왕복 검사를 함께 복원했고 모두 통과했다.** 새 페이지의 eager 수명 검사는 유지한다.
+- 변경 후 CPU 비교 첫 시도는 RNW 진단 host 컴파일과 겹친 trial 1을 성능 비교에서 제외했다. 추가 페이지 요청을 반영하기 위해 trial 2의 측정 시작 전에 창을 정상 닫았으며, CLI가 불완전 실행을 실패로 보고하고 finally에서 임시 package를 삭제했다. 다음 비교에는 다른 build/test를 겹치지 않는다.
+- bytecode RNW animation 전체 27/27 통과: native clock, Material progress/scroll, Cupertino activity/route, 정상 close와 drain을 확인했다. 이 실행은 새 페이지 추가 전 bundle의 진단이며 새 페이지 검증으로 승계하지 않는다.
+- 실제 Android 검사에서 Card 내부의 결과 문구가 접근성 트리에 빠지는 것을 발견해 결과 상태를 별도 live region으로 노출했다. 최종 소스로 Web/RNW/Android 모두 결과 전달을 확인했다. Android의 static text `resource-id` 전달을 가정하지 않고 실제 접근성 label을 확인했다.
+- 철회 전 새 페이지 검증 RNW는 §8의 명시적 bytecode build 뒤 일반 no-args 명령으로 실행했다. EXE/SDK/native inputs는 §10.3 제품과 같고 bytecode는 `173a5c11735804891ea71619002f8bab11c51b9c42fd557a30449c806887ac52`다. 실제 창에서 새 route·입력·전송·버튼 횟수·처음/끝 왕복과 값 보존을 확인했고, live region의 빈 메시지 결과·정상 close exit 0도 확인했다.
+- 철회 전 Web bundle `706e302c9c02935e2036e819ef10474fe07044c936ffeed040acf8cf45e935e5`에서 catalog 전체와 새 route의 전송 결과 접근성·횟수 상태·마지막 편집기 위치·처음 복귀·back smoke를 통과했다. page/console error 0이며 browser/server/임시 설치는 finally에서 정리했다.
+- 철회 전 Android APK `fea4ed9a9acc8bd8be8e814b093f5c17978f6cab2c0cc0a80e481a275e62ff14`에서 첫 편집기의 OS 입력·전송 결과 live region·횟수, 마지막 편집기 입력·처음 복귀 값/횟수 보존·초기화·Gallery 복귀가 통과했다. 20분 timeout을 둔 한 실행의 임시 smoke script·remote XML과 검증용 에뮬레이터는 finally에서 삭제·종료했다. 이 검사는 Android 30 x86_64 Vulkan 에뮬레이터에 한정한다. 철회 후 세 플랫폼의 최종 제품에서도 §10.6의 검사를 수행했다.
+
+### 10.5 bytecode 전후 비교와 후보 철회
+
+- 같은 2560×1459 / DPI 192 / 모니터 165Hz, bytecode/optimized/Release에서 기준 3회와 후보 3회를 완료했다. 아래는 **각 trial 통계의 중앙값**이며 frame을 합친 통계가 아니다. 기준 3회 후 후보 3회를 실행했으며 font/driver cache와 thermal 상태를 초기화하거나 A/B를 교차 실행하지 않았다. 표시 FPS·물리 입력 수락으로 사용하지 않는다.
+- 후보 source `3b3ad5da830f9ba068d583121c4ca57bec4ca78b606778d291f1b0a71fac96ef`, host `bdcb8795174d8c7565de6c6e6ca43e512e287c62519eb4b3f668cb4c4659b45e`, CPU bundle `6351f2b4d824e7112d5d297c04f145d11d0c1ba673207834881a099adef355bd`; VM은 기준과 같은 `de314029…`다. 세 유효 CPU 프로세스와 별도 source-stage 프로세스 모두 정상 exit 0이다.
+- 후보의 처음 2회 이후 세 번째 프로세스는 OS 입력 189건이 있는 상태에서 실패했다. 해당 불완전 실행은 제외하고, 사용자가 입력을 멈춘 구간에 남은 CPU 1회와 source-stage 1회를 완료했다. 그보다 앞서 RNW host 컴파일과 겹친 시도도 제외했다. 기본 전후 비교는 네 장면 × 3쌍 = 24개 유효 phase이며 source-stage는 별도다.
+
+| 장면 | 후보 CPU n (1 / 2 / 3) | CPU p95 기준→후보 ms | CPU p99 기준→후보 ms | trial max 중앙값 기준→후보 ms | surface 간격 p99 기준→후보 ms |
+| --- | --- | --- | --- | --- | --- |
+| cold 두 열 | 789 / 806 / 784 | 10.37→11.05 | 23.53→29.22 | 113.15→94.24 | 31.83→38.64 |
+| warm no-hover | 911 / 917 / 917 | 9.97→10.33 | 16.16→13.73 | 23.02→23.19 | 24.35→24.67 |
+| warm Button hover | 960 / 970 / 967 | 10.92→11.35 | 19.89→19.83 | 26.85→73.08 | 24.56→30.01 |
+| warm TextField focus | 829 / 840 / 826 | 19.55→21.30 | 25.71→26.66 | 36.27→39.71 | 25.61→35.53 |
+
+- 후보의 field source-stage는 CPU p95/p99 21.35/26.82ms, paint p95 6.94ms, compose 4.92ms, input geometry 1.87ms, geometry 전달 2.36ms, semantics 5.82ms였다. 기준 단계 진단의 compose 3.67ms보다 커졌다. 일부 paint·geometry 비용 감소와 no-hover p99 감소만으로 cold/hover/focus와 surface tail 악화를 수락하지 않는다. **P2 owner dirty paint와 P3 Gallery 네 child 분할을 묶어 철회했다.** 각 변경의 단독 기여를 분리해 확정한 결과는 아니다.
+- 현재 `object.ts`, `repaint-boundary.ts`, `root.ts`, `gallery-section.ts`는 시작 HEAD의 경로로 복원됐다. Gallery는 기존 하나의 TextField section과 extent/delegate 구성을 사용한다. 후보 전용 traversal 검사·extent 검사·index 호환 분기도 제거했다. 요청된 새 `/mixed-scroll` 페이지와 그 eager 수명·상태·접근성 검사는 유지한다.
+- source-stage bundle `694a135eedf36ff2477bf4f8323c22f3245f8ae82f9c65207ce696b4457514b2`에서 DWM interval은 약 6.0605ms였다. cold의 eligible 765 중 ready miss 629, matching copy 674 중 surface miss 674였고 missing copy 91은 별도다. field는 built 818 중 eligible 635, dispatch 때 이미 지난 prediction 등 제외 183, ready miss 635/635, matching surface miss 597/597, missing copy 38이었다. **prediction 전달 검증이며 목표 통과가 아니다.** expired receipt에 deadline이 빠지는 실제 사례도 확인했다.
+- 이 165Hz 조건의 작은 여유로 자동 child 준비를 켜지 않는다. 기존 `disabled`를 유지한다. 실제 60Hz 조건의 별도 trial은 없으며 60Hz 예산으로 통과시킨 결과도 없다.
+- field packet p95/p99는 0.139/0.174ms로 전송 전면 재설계의 근거가 부족하다. 반면 cold 최대 115.03ms frame에는 recording-finish 106.87ms가 있었고, field에는 compose 최대 15.59ms·recording-finish 최대 23.44ms가 있었다. GC·driver compilation·GPU fence 등의 세부 원인은 아직 분리하지 못했다. P5의 cold native recording 분석은 잔여 작업이며 임의의 zero-copy·thread 이동·P6 raster cache로 덮지 않는다.
+- 철회 후 현재 소스로 Core build, scroll-engine **281/281**, paint **150/150**, sample **31 pass / 1 diagnostic profile skip**, 전체 workspace type check가 통과했다. 현재 제품의 추가 검증과 식별은 다음 절에 기록한다. 철회 후 성능 3쌍을 새로 측정한 결과는 없으며 위 후보 수치를 최종 소스의 성능으로 승계하지 않는다.
+
+### 10.6 철회 후 최종 제품과 남은 작업
+
+- 최종 소스에는 P1 clock2·선택 작업 deadline 계약, P4 동일 mouse annotation 집합의 임시 할당 감소, 계측과 새 `/mixed-scroll` 페이지를 유지한다. P2/P3 후보는 포함하지 않는다. Core를 다시 빌드해 기존 Windows/Web/Android runner에 순차 공급·설치했으며, 복원한 paint 경로와 유지한 mouse/frame 경로의 dist·설치본 SHA-256이 세 플랫폼에서 일치했다.
+- 최종 공통 검사는 scroll-engine 281/281, paint-recording 150/150, sample 31 pass / 1 선택적 진단 skip, 전체 타입 검사와 변경 JS/TS 21개 lint·format, `git diff --check`가 통과했다. 실행 검사는 모두 20분 timeout을 사용했다. AOT 준비·빌드·실행·전용 검사는 추가하지 않았다.
+- Windows는 Hermes bytecode / optimized / Release로 다시 빌드했다. EXE `ce3b0f5ae02bbab34e2052bac938c9ce35afd31a372e72c2d654acbdc64bb5bd`, bundle `8742fc1bf2fe215a87aa05e885d609767664c42d5f27844bf824a4d652d2e66e`, SDK manifest/ack `faee7844e241f3dbe948018d0edd904de4704829ae4a65a5d3c5aeb7e0f1eb97`, native inputs `6f1f9658bd0a4916395f6635d435b36cde66bbf03625ccff1be7c3e633f32360`다.
+- 해당 최종 Windows 제품의 `test:windows-continuous-scroll`이 통과했다. Material/ListView/Cupertino의 양방향 OS wheel과 정상 close exit 0, `views=0 consumers=0 gpuDrained=1 inputRetired=1`을 확인했다. Material 창 전환·pointer 이동도 포함한다. 최대 관찰 gap은 약 240ms여서 부드러움 수락으로 해석하지 않는다. 이후 정확한 일반 명령 `npm.cmd run run:windows --workspace @nelyx/testbed-2`으로 같은 Release 제품을 실행했고, Gallery → `Scroll view`의 새 페이지를 최대화해 열어 두었다.
+- Web bundle `fbabe4b74675d35625a2f9cd9ed4fc89adfb597651a84a086122868e07b1ba5d`의 실제 Chrome catalog smoke가 통과했다. 49개 선언·대표 컨트롤·route/상태 보존, 새 페이지의 빈 전송 결과 접근성·횟수·끝 이동/마지막 편집기 위치·처음 복귀·back을 확인했고 page/console error는 0이었다.
+- Android의 실제 검사 APK는 `sample/nelyx-testbed-app-2/android/app/build/outputs/apk/release/app-release.apk`, SHA-256 `82150f3a0513c6684c5846e7e5184df0350cd2b1f3dedf286f25added008e9c6`다. process-local Temurin 21.0.11로 Release/x86_64를 빌드했으며 기존 Android compiler policy `-Og`를 유지했다. Android 30 x86_64 Vulkan 에뮬레이터에서 새 페이지의 첫/마지막 편집기 OS 입력, 전송 live region·횟수, 처음 복귀 후 값 보존·초기화·Gallery 복귀가 통과했다. 예전 `.nelyx/android/packages` APK와 구별한다.
+- 이번 검증의 scroll fixture·supply 임시 디렉터리, Web browser/server/설치·profile, Android 임시 script/remote XML·에뮬레이터는 finally에서 삭제·종료했다. 현재 Windows 교체 staging은 없고 Release 제품 하나를 사용한다. 작업 시작 전 존재하던 출력과 임시 디렉터리를 이번 실행의 산출물로 간주해 일괄 삭제하지 않았다.
+- **잔여 작업:** cold native recording-finish 106.87ms의 내부 원인 분리, 최종 소스의 추가 성능 개선과 재측정, RNW 전체 단계의 동일 frame 연결, 실제 60Hz 조건, 물리 트랙패드·한국어 IME·scanout 확인이 남았다. 새 페이지 기능·제품 검증 완료와 스크롤 성능 수락을 구별하며 `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력·표시 `notVerified`를 유지한다.

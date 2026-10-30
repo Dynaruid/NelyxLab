@@ -885,6 +885,72 @@ function texts(fixture) {
   return result;
 }
 test(
+  'mixed scroll eagerly mounts every editor and keeps its owners through end, return and resize',
+  { timeout },
+  async () => {
+    const f = await gallery();
+    const fields = () => {
+      const result = new Map();
+      const visit = (element) => {
+        if (
+          element.widget instanceof TextField &&
+          element.widget.id.startsWith('mixed-scroll-field-')
+        )
+          result.set(element.widget.id, element.widget.controller);
+        element.visitChildren(visit);
+      };
+      visit(f.root.root);
+      return result;
+    };
+    try {
+      f.tap('show-mixed-scroll');
+      f.advance(501);
+      const initial = fields();
+      assert.equal(initial.size, 12, 'Offscreen rows are mounted before the first scroll');
+      initial.get('mixed-scroll-field-0').text = 'Retained message';
+      f.frame();
+      f.tap('mixed-scroll-send-0');
+      assert(texts(f).includes('전송: Retained message'));
+      assert.equal(
+        f.root.nodes.find((node) => node.id === 'mixed-scroll-status-0')?.name,
+        '전송: Retained message',
+      );
+      f.tap('mixed-scroll-count-0');
+      assert(texts(f).includes('누른 횟수 1'));
+      f.tap('mixed-scroll-last');
+      assert.deepEqual(fields(), initial);
+      initial.get('mixed-scroll-field-11').text = 'Last message';
+      f.frame();
+      f.tap('mixed-scroll-send-11');
+      assert(texts(f).includes('전송: Last message'));
+      const metrics = f.root.context.readMetrics();
+      Object.assign(metrics, {
+        logicalWidth: 390,
+        physicalWidth: 390,
+        viewportGeneration: metrics.viewportGeneration + 1,
+      });
+      f.frame();
+      f.tap('mixed-scroll-first');
+      assert.deepEqual(fields(), initial);
+      assert.equal(initial.get('mixed-scroll-field-0').text, 'Retained message');
+      f.tap('mixed-scroll-clear-0');
+      assert.equal(initial.get('mixed-scroll-field-0').text, '');
+      f.tap('mixed-scroll-back');
+      f.advance(501);
+      await Promise.resolve();
+      f.frame();
+      assert.equal(fields().size, 0);
+      for (const controller of initial.values())
+        assert.throws(() => {
+          controller.text = 'retired';
+        }, /dispose/i);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+test(
   'ListView route lazily reaches both ends, retains selection through scrolling and resize, and retires on return',
   { timeout },
   async () => {

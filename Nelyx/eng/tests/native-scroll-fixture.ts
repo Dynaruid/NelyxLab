@@ -22,6 +22,7 @@ import {
   analyseNativeInputWindow,
   analyseNativeFrameTrace,
   analyseNativeFrameTurns,
+  analyseNativeFrameDeadlines,
   analyseNativeMotionIntervals,
   analyseNativeCatalogCoverage,
   readHermesGCStats,
@@ -89,6 +90,7 @@ export function installNativeScrollProbe(
     pump = ViewRuntime.prototype.pump,
     submit = GraphiteRenderer.prototype.submit;
   let observeCatalog: ((sequence: number) => void) | undefined;
+  let observedFrameTiming: import('@nelyx/core/foundation/clock').FrameTiming | undefined;
   const previousError = FlutterError.onError;
   FlutterError.onError = (details) => {
     if (errors.length < 4) errors.push(String(details.exception));
@@ -96,6 +98,7 @@ export function installNativeScrollProbe(
   };
   FrameworkRoot.prototype.build = function (...args: Parameters<typeof build>) {
     built++;
+    if (sourceStages) observedFrameTiming = args[0].token.timing;
     const result = build.apply(this, args);
     if (active) observeCatalog?.(args[0].token.sequence);
     return result;
@@ -133,6 +136,7 @@ export function installNativeScrollProbe(
         spans = active && options.scope === 'diagnostic' ? { ...totals } : null,
         mounts = counts.mount ?? 0,
         unmounts = counts.unmount ?? 0;
+      observedFrameTiming = undefined;
       try {
         return callback(...args);
       } finally {
@@ -162,6 +166,7 @@ export function installNativeScrollProbe(
             wall: elapsed,
             sequence: view?.sequence,
             input: view?.inputSequence,
+            ...(sourceStages && observedFrameTiming ? { timing: observedFrameTiming } : {}),
             mounts: (counts.mount ?? 0) - mounts,
             unmounts: (counts.unmount ?? 0) - unmounts,
             ...(spans
@@ -317,6 +322,11 @@ export function installNativeScrollProbe(
   }
   async function foreground() {
     const ready = async () => {
+      // External activation can restore a maximized HWND. Reestablish the
+      // requested viewport before parking input or starting any timed phase.
+      api.diagnosticWindow(options.viewport === 'maximized' ? 'maximize' : 'restore');
+      await delay(100);
+      await settled();
       if (options.pacing === 'programmatic') {
         api.diagnosticParkCursor();
         await delay(100);
@@ -336,7 +346,7 @@ export function installNativeScrollProbe(
     // owned window to be activated before measurement; no input is injected
     // and the existing per-phase foreground/visibility guards stay required.
     api.log('NELYX_NATIVE_PROBE_FOREGROUND_WAIT');
-    for (let attempt = 0; attempt < 60; attempt++) {
+    for (let attempt = 0; attempt < 180; attempt++) {
       await delay(500);
       if (api.diagnosticState().foreground) {
         await ready();
@@ -476,6 +486,7 @@ export function installNativeScrollProbe(
           'owned-frame-callback-wall; frameTurns also includes following checkpoint; pointer dispatch is separate',
         inputWindow,
         frameTurns,
+        ...(sourceStages ? { deadlines: analyseNativeFrameDeadlines(trace, frameRows) } : {}),
         spans:
           options.scope === 'diagnostic'
             ? 'inclusive'

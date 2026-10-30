@@ -567,7 +567,11 @@ function captureFrame(
     if (token.timing) {
       if (
         !(
-          Object.values(token.timing).every(Number.isFinite) &&
+          Object.entries(token.timing).every(([key, value]) =>
+            key === 'timingSource'
+              ? value === 'dwm-predicted' || value === 'timer-fallback'
+              : Number.isFinite(value),
+          ) &&
           token.timing.queueDelay >= 0 &&
           token.timing.clockUncertainty >= 0
         )

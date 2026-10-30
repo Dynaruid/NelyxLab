@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "../../skia/native/host/windows/CompositorFrameClock.h"
 #include <chrono>
+#include <cmath>
 #include <iostream>
 int main(){
   try{
     std::mutex mutex;std::condition_variable changed;unsigned ticks=0;std::string failure;
-    RNSkia::CompositorFrameClock clock([&](std::string error){std::lock_guard lock(mutex);++ticks;failure=std::move(error);changed.notify_one();});
+    RNSkia::CompositorFrameTiming receipt;
+    RNSkia::CompositorFrameClock clock([&](std::string error,RNSkia::CompositorFrameTiming timing){std::lock_guard lock(mutex);++ticks;failure=std::move(error);receipt=timing;changed.notify_one();});
     std::this_thread::sleep_for(std::chrono::milliseconds(80));{std::lock_guard lock(mutex);if(ticks)throw std::runtime_error("An idle refresh clock manufactured work");}
     double maximum=0;
     for(unsigned request=1;request<=8;++request){
       const auto start=std::chrono::steady_clock::now();clock.request();
-      {std::unique_lock lock(mutex);if(!changed.wait_for(lock,std::chrono::seconds(3),[&]{return ticks>=request;}))throw std::runtime_error("DWM refresh deadline did not wake");if(!failure.empty())throw std::runtime_error(failure);}
+      {std::unique_lock lock(mutex);if(!changed.wait_for(lock,std::chrono::seconds(3),[&]{return ticks>=request;}))throw std::runtime_error("DWM refresh deadline did not wake");if(!failure.empty())throw std::runtime_error(failure);
+        if(receipt.revision<1||receipt.start<=0||receipt.target<=receipt.start||receipt.interval<=0||receipt.wake<=0||receipt.uncertainty<0||std::abs(receipt.target-receipt.start-receipt.interval)>0.001)throw std::runtime_error("Invalid native clock prediction");}
       const auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();maximum=std::max(maximum,elapsed);
       if(elapsed>150)throw std::runtime_error("A refresh request waited for compositor activity instead of its next deadline");
     }

@@ -6,6 +6,8 @@ A shared TypeScript application for exploring Nelyx's Material 3 and Cupertino c
 
 The app shares [src/](src/) across Web, Windows, and Android. Each target has its own runner, dependencies, and build configuration.
 
+Open **Scroll view** in the Material gallery for a page mixing 12 text fields and 36 buttons. All rows mount together in one `Column` inside a single scrollable box, with no lazy builder. Edit a field, scroll away and back, or use the send, count, reset, first, and last controls.
+
 ## Prerequisites
 
 Use Node.js **>=24.3.0 <25**, npm, and Python 3. Run the following from the repository root before setting up a target:
@@ -51,6 +53,8 @@ npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run prepare:native --
 ```
 
 Replace the example path with the supplier's actual `inputs.json`. Install the runner before compiling its supplier. Preparation remembers native inputs for later builds; repeat it after replacing the supplier.
+
+The Windows frame clock requires native protocol version 2. After updating from an older supplier, rebuild the supplier, prepare its inputs again, and rebuild the app. Predicted frame targets guide optional work; they are not display-completion receipts.
 
 ### Choose an execution mode
 

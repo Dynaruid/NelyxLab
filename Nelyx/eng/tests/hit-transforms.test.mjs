@@ -31,6 +31,58 @@ const timeout = 1_200_000,
   target = { handleEvent() {} };
 
 test(
+  'stationary post-layout mouse checks retain fresh transforms and target order',
+  { timeout },
+  () => {
+    const events = [];
+    let entries;
+    const first = {
+        validForMouseTracker: true,
+        onEnter: (e) => events.push(['enter-a', e.localPosition.dx]),
+        onExit: (e) => events.push(['exit-a', e.localPosition.dx]),
+      },
+      second = {
+        validForMouseTracker: true,
+        onEnter: () => events.push(['enter-b']),
+        onExit: () => events.push(['exit-b']),
+      },
+      tracker = new MouseTracker(() => entries);
+    const point = {
+      kind: 'hover',
+      device: 'mouse',
+      pointer: 1,
+      x: 10,
+      y: 20,
+      buttons: 0,
+      timestamp: 0,
+      viewportGeneration: 1,
+    };
+    try {
+      entries = [
+        { target: first, transform: captureTransform([1, 0, 0, 1, -2, 0]) },
+        { target: second, transform: identity },
+      ];
+      tracker.updateWithEvent(point);
+      assert.deepEqual(events, [['enter-b'], ['enter-a', 8]]);
+      events.length = 0;
+      entries = [
+        { target: second, transform: identity },
+        { target: first, transform: captureTransform([1, 0, 0, 1, -7, 0]) },
+      ];
+      tracker.updateAllDevices();
+      assert.deepEqual(events, [], 'Reordering the same targets produces no false enter/exit');
+      entries = [{ target: second, transform: identity }];
+      tracker.updateAllDevices();
+      assert.deepEqual(events, [['exit-a', 3]], 'Exit uses the latest post-layout transform');
+      tracker.clearDevices();
+      assert.deepEqual(events.at(-1), ['exit-b']);
+    } finally {
+      tracker.dispose();
+    }
+  },
+);
+
+test(
   'root hover dispatch leaves unused hit transforms lazy while preserving annotation and handler coordinates',
   { timeout },
   () => {

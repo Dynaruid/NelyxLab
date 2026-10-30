@@ -13,6 +13,7 @@ import type { NativeEngineServices } from '../../runtime/native-engine.ts';
 import { OwnedDisposal, finishOwnedDisposal } from '../../runtime/owned-disposal.ts';
 import { NativeInteraction } from '../../runtime/native-interaction.ts';
 import { createSurfaceFrameClock } from '../../runtime/frame-clock.ts';
+import { captureWindowsFrameTiming } from '../../platforms/windows/frame-clock.ts';
 import { nativeHermesBridge } from './bridge.ts';
 import { connectNativeInteraction } from './interaction.ts';
 import { createNativeServices } from './services.ts';
@@ -292,9 +293,11 @@ async function composeNativeHermesApplication(
     }
     const scheduler = {
       request(callback: (timing?: import('@nelyx/core/foundation/clock').FrameTiming) => void) {
-        return bridge.requestFrame((tick, dispatch) => {
+        return bridge.requestFrame((tick, dispatch, timing) => {
           try {
-            callback({ tick, dispatch, queueDelay: dispatch - tick, clockUncertainty: 0 });
+            callback(
+              captureWindowsFrameTiming({ ...timing, nativeTick: tick, nativeDispatch: dispatch }),
+            );
           } catch (error) {
             fail(error);
           }

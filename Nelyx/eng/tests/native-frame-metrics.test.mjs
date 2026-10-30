@@ -8,6 +8,7 @@ import {
   analyseNativeFrameTrace,
   analyseNativeMotionIntervals,
   analyseNativeFrameTurns,
+  analyseNativeFrameDeadlines,
   analyseNativeCatalogCoverage,
   readHermesGCStats,
   readHermesSamplingProfile,
@@ -36,6 +37,47 @@ const fixture = () => ({
     [3, 1, 2, 1, 11, 4, 2, 2, 974, 929, 30],
   ]),
 });
+
+test(
+  'host deadline joins count late work and copies without turning missing or fallback observations into success',
+  { timeout },
+  () => {
+    const timing = (observedDeadline) => ({
+        tick: 10,
+        dispatch: 11,
+        queueDelay: 1,
+        clockUncertainty: 0.1,
+        timingSource: 'dwm-predicted',
+        refreshInterval: 10,
+        observedDeadline,
+      }),
+      frames = [
+        { sequence: 10, end: 19, timing: timing(20) },
+        { sequence: 11, end: 26, timing: timing(25) },
+        { sequence: 12, end: 30, timing: timing(35) },
+        {
+          sequence: 13,
+          end: 40,
+          timing: { ...timing(45), observedDeadline: undefined, timingSource: 'timer-fallback' },
+        },
+      ],
+      result = analyseNativeFrameDeadlines(fixture(), frames);
+    assert.equal(result.eligible, 3);
+    assert.equal(result.withoutPrediction, 1);
+    assert.equal(result.missingCopy, 1);
+    assert.equal(result.readyMisses, 1);
+    assert.equal(result.surfaceMisses, 1);
+    assert.equal(result.surfaceSlack.n, 2);
+    assert.equal(result.surfaceSlack.max, 0, 'The first matching copy is joined once');
+    assert.equal(result.displayed, 'unobserved');
+    assert.equal(result.performanceAccepted, false);
+    assert.throws(() => analyseNativeFrameDeadlines({ ...fixture(), lostSurfaces: 1 }, frames));
+    assert.throws(() => analyseNativeFrameDeadlines(fixture(), [...frames, frames[0]]));
+    assert.throws(() =>
+      analyseNativeFrameDeadlines(fixture(), [{ sequence: 1, end: 3, timing: timing(10) }]),
+    );
+  },
+);
 test(
   'scroll completion follows measured extent clamps while rejecting short or invalid motion',
   { timeout },

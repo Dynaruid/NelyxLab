@@ -429,7 +429,7 @@ function wrapFrameCallbacks(
   const raf = globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame = (callback) => raf(decorate(callback));
   const api = (globalThis as any).NelyxWindowsHost;
-  if (api?.frameClockVersion === 1) {
+  if (api?.frameClockVersion === 2) {
     const request = api.requestFrame;
     api.requestFrame = (callback: any) => request.call(api, decorate(callback));
   }
@@ -1427,7 +1427,7 @@ function probeNativeTextReuseBudget() {
 }
 async function probeNativeClock() {
   const api = (globalThis as any).NelyxWindowsHost;
-  if (api?.frameClockVersion !== 1) throw Error('Public Windows compositor clock1 missing');
+  if (api?.frameClockVersion !== 2) throw Error('Public Windows compositor clock2 missing');
   await new Promise<void>((resolve, reject) => {
     let canceled: number;
     api.requestFrame((failure?: string) => {

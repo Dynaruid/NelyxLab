@@ -46,8 +46,11 @@ export function analyseNativeInputWindow(before, after, { pacing }) {
   };
 }
 export function distribution(values) {
+  return timingDistribution(values, false);
+}
+function timingDistribution(values, signed) {
   requireValue(
-    values.every((value) => Number.isFinite(value) && value >= 0),
+    values.every((value) => Number.isFinite(value) && (signed || value >= 0)),
     'Invalid timing sample',
   );
   const sorted = [...values].sort((a, b) => a - b),
@@ -325,6 +328,89 @@ export function analyseNativeFrameTurns(trace, frames, { begin = -Infinity, end 
     wall: distribution(selected.map((t) => t[6] - t[4])),
     checkpoint: distribution(selected.map((t) => t[6] - t[5])),
     queue: distribution(selected.map((t) => t[4] - t[3])),
+  };
+}
+/** Join a host work prediction to its CPU callback and matching surface copy.
+ * Missing/unsubmitted frames stay explicit; none of these events prove scanout. */
+export function analyseNativeFrameDeadlines(trace, frames) {
+  requireValue(
+    trace?.schema === 1 &&
+      trace.clock === 'qpc-ms' &&
+      trace.surfaceStride === 11 &&
+      trace.lostSurfaces === 0 &&
+      Array.isArray(frames) &&
+      frames.length <= 16384,
+    'Invalid deadline trace',
+  );
+  const copied = new Map();
+  for (const row of unpack(trace.surfaces, 11)) {
+    requireValue(
+      counter(row[4]) && row[4] > 0 && row[10] >= 0,
+      'Invalid deadline surface identity',
+    );
+    if (!copied.has(row[4])) copied.set(row[4], row[10]);
+  }
+  const seen = new Set(),
+    readySlack = [],
+    surfaceSlack = [],
+    intervals = [],
+    sources = {};
+  let eligible = 0,
+    missingCopy = 0,
+    readyMisses = 0,
+    surfaceMisses = 0;
+  for (const frame of frames) {
+    requireValue(
+      counter(frame.sequence) &&
+        frame.sequence > 0 &&
+        !seen.has(frame.sequence) &&
+        Number.isFinite(frame.end),
+      'Invalid or duplicate deadline frame',
+    );
+    seen.add(frame.sequence);
+    const timing = frame.timing;
+    const source = timing?.timingSource ?? 'unobserved';
+    requireValue(
+      ['dwm-predicted', 'timer-fallback', 'unobserved'].includes(source),
+      'Invalid deadline source',
+    );
+    sources[source] = (sources[source] ?? 0) + 1;
+    if (Number.isFinite(timing?.refreshInterval)) intervals.push(timing.refreshInterval);
+    if (timing?.observedDeadline === undefined) continue;
+    requireValue(
+      source === 'dwm-predicted' &&
+        Number.isFinite(timing.observedDeadline) &&
+        Number.isFinite(timing.dispatch) &&
+        Number.isFinite(timing.clockUncertainty) &&
+        timing.clockUncertainty >= 0 &&
+        timing.observedDeadline > timing.dispatch,
+      'Invalid host deadline',
+    );
+    eligible++;
+    readySlack.push(timing.observedDeadline - frame.end);
+    if (frame.end - timing.clockUncertainty > timing.observedDeadline) readyMisses++;
+    const at = copied.get(frame.sequence);
+    if (at === undefined) missingCopy++;
+    else {
+      surfaceSlack.push(timing.observedDeadline - at);
+      if (at - timing.clockUncertainty > timing.observedDeadline) surfaceMisses++;
+    }
+  }
+  return {
+    scope: 'host-work-prediction-to-callback-and-matching-surface-copy',
+    built: frames.length,
+    eligible,
+    withoutPrediction: frames.length - eligible,
+    missingCopy,
+    sources,
+    refreshInterval: distribution(intervals),
+    readySlack: timingDistribution(readySlack, true),
+    surfaceSlack: timingDistribution(surfaceSlack, true),
+    readyMisses,
+    surfaceMisses,
+    missRule: 'event minus clock uncertainty is later than target; missing copies are separate',
+    displayed: 'unobserved',
+    performanceAccepted: false,
   };
 }
 export function analyseNativeFrameTrace(

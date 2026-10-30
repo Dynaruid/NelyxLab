@@ -233,6 +233,21 @@ test(
         await button('Favorite').getAttribute('aria-selected'),
         before === 'true' ? 'false' : 'true',
       );
+      await click('Scroll view');
+      await button('처음으로').waitFor({ state: 'visible' });
+      await click('전송');
+      assert((await page.locator('[aria-label="메시지가 비어 있습니다."]').count()) > 0);
+      await click('누른 횟수 0');
+      assert.equal(await button('누른 횟수 1').count(), 1);
+      await click('끝으로');
+      const lastField = page.getByRole('textbox', { name: '메시지 12', exact: true });
+      await lastField.waitFor({ state: 'visible' });
+      const lastBounds = await lastField.boundingBox();
+      assert(lastBounds && lastBounds.y >= 0 && lastBounds.y < 1000);
+      await click('처음으로');
+      assert.equal(await button('누른 횟수 1').count(), 1);
+      await click('갤러리로 돌아가기');
+      await button('Scroll view').waitFor({ state: 'visible' });
       assert.deepEqual(errors, []);
       assert.deepEqual(consoleErrors, []);
       console.log(

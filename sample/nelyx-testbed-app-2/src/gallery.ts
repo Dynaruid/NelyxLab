@@ -67,6 +67,7 @@ import type { CategoryId, ComponentDemo } from './catalog.ts';
 import { CupertinoGallery, CupertinoGalleryValues } from './cupertino-gallery.ts';
 import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
 import { ListViewPage } from './list-view.ts';
+import { MixedScrollPage } from './mixed-scroll.ts';
 
 const available = demos.filter((demo) => demo.status !== 'planned').length;
 const seeds = [0xff6750a4, 0xff006c4c, 0xff0061a4, 0xff9c4230] as const;
@@ -231,6 +232,21 @@ class GalleryState extends State<ComponentsGallery> {
         if (this.mounted) this.record(String(error));
       });
   }
+  private openMixedScroll(): void {
+    void this.navigator
+      .push(
+        new Route(
+          () =>
+            new MixedScrollPage(() => {
+              void this.navigator.pop();
+            }),
+          '/mixed-scroll',
+        ),
+      )
+      .catch((error) => {
+        if (this.mounted) this.record(String(error));
+      });
+  }
   build(): Widget {
     ++this.pageRevision;
     if (this.pendingDesign !== null) return new SizedBox();
@@ -378,17 +394,21 @@ class GalleryState extends State<ComponentsGallery> {
         child: new Text('ListView'),
         onPressed: () => this.openListView(),
       });
+    const mixedScrollButton = () =>
+      new TextButton({
+        id: 'show-mixed-scroll',
+        child: new Text('Scroll view'),
+        onPressed: () => this.openMixedScroll(),
+      });
     const heading = new Padding(
       EdgeInsets.fromLTRB(compact ? 16 : 28, short ? 8 : 18, compact ? 16 : 28, short ? 8 : 16),
       short
-        ? new Row(
-            [
-              new Expanded(new Text(title, { fontSize: 18 })),
-              listButton(),
-              designButton(),
-              themeButton(),
-            ],
-            { crossAlign: 'center', spacing: 8 },
+        ? column(
+            new Row([new Expanded(new Text(title, { fontSize: 18 })), themeButton()], {
+              crossAlign: 'center',
+              spacing: 8,
+            }),
+            flow(listButton(), mixedScrollButton(), designButton()),
           )
         : column(
             new Row(
@@ -409,6 +429,7 @@ class GalleryState extends State<ComponentsGallery> {
             ),
             flow(
               designButton(),
+              mixedScrollButton(),
               new Text(available + '개 데모 · ' + (demos.length - available) + '개 준비 중', {
                 fontSize: 12,
                 color: colors.onSurfaceVariant,

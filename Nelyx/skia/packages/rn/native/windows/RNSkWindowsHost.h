@@ -76,14 +76,14 @@ private:
         scheduler->invokeAsync([weak,complete=std::move(complete)](jsi::Runtime&) mutable {
           if(auto self=weak.lock())self->requestShutdown(std::move(complete));else complete("Windows runtime owner expired");
         });});
-    frameClock=std::make_unique<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker(),requestedAt=frameRequestedAt](std::string failure){
-      const auto tick=windowsMonotonicMilliseconds();
+    frameClock=std::make_unique<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker(),requestedAt=frameRequestedAt](std::string failure,CompositorFrameTiming timing){
+      const auto tick=timing.wake;
       windowsInputTrace(WindowsInputStage::ClockReady,0,0,0,0,failure.empty()?0:1);
       if(windowsFrameDiagnosticsEnabled())windowsFrameDiagnosticDelay("clock-wait",requestedAt->load(),tick);
-      scheduler->invokeAsync([weak,tick,failure=std::move(failure)](jsi::Runtime& rt){if(auto self=weak.lock())self->deliverFrames(rt,failure,tick);});
+      scheduler->invokeAsync([weak,timing,failure=std::move(failure)](jsi::Runtime& rt){if(auto self=weak.lock())self->deliverFrames(rt,failure,timing);});
     });
     jsi::Object api(runtime);auto weak=weak_from_this();
-    api.setProperty(runtime,"frameClockVersion",1);
+    api.setProperty(runtime,"frameClockVersion",2);
     api.setProperty(runtime,"inputTraceEnabled",windowsInputTraceEnabled());
     api.setProperty(runtime,"traceInput",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"traceInput"),6,
       [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
@@ -174,16 +174,18 @@ private:
     try{callback.call(runtime,std::move(acknowledge));}
     catch(const std::exception& error){options.composition->fail(error.what());retainUnconfirmed(shared_from_this());if(!shutdownAcknowledged){shutdownAcknowledged=true;complete(error.what());}}
   }
-  void deliverFrames(facebook::jsi::Runtime& rt,const std::string& failure,double tick){
+  void deliverFrames(facebook::jsi::Runtime& rt,const std::string& failure,CompositorFrameTiming frame){
     requireOwner();if(!canDeliverFrames())return;frameArmed=false;++frameTicks;
     windowsInputTrace(WindowsInputStage::JsFrameBegin,0,0,frameTicks,double(frameCallbacks.size()),failure.empty()?0:1);
     const auto inputTraceBegan=windowsInputTraceEnabled()?windowsMonotonicMilliseconds():0.;
-    const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;if(began)windowsFrameDiagnosticDelay("js-frame-queue",tick,began);
+    const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;if(began)windowsFrameDiagnosticDelay("js-frame-queue",frame.wake,began);
     std::vector<uint64_t> batch;batch.reserve(frameCallbacks.size());for(auto const& entry:frameCallbacks)batch.push_back(entry.first);
     std::exception_ptr firstFailure;
     for(const auto id:batch){if(!canDeliverFrames())break;const auto found=frameCallbacks.find(id);if(found==frameCallbacks.end())continue;auto callback=std::move(found->second);frameCallbacks.erase(found);
       try{if(failure.empty()){
-        facebook::jsi::Object timing(rt);timing.setProperty(rt,"nativeTick",tick);timing.setProperty(rt,"nativeDispatch",windowsMonotonicMilliseconds());
+        facebook::jsi::Object timing(rt);timing.setProperty(rt,"nativeTick",frame.wake);timing.setProperty(rt,"nativeDispatch",windowsMonotonicMilliseconds());
+        timing.setProperty(rt,"nativeFrameStart",frame.start);timing.setProperty(rt,"nativeFrameTarget",frame.target);timing.setProperty(rt,"refreshInterval",frame.interval);
+        timing.setProperty(rt,"nativeUncertainty",frame.uncertainty);timing.setProperty(rt,"timingRevision",double(frame.revision));timing.setProperty(rt,"timingSource",frame.observed?"dwm-predicted":"timer-fallback");
         callback.call(rt,facebook::jsi::Value::undefined(),std::move(timing));
       }else callback.call(rt,facebook::jsi::String::createFromUtf8(rt,failure));}catch(...){if(!firstFailure)firstFailure=std::current_exception();}}
     if(began)windowsFrameDiagnosticDelay("js-frame-work",began,windowsMonotonicMilliseconds());
