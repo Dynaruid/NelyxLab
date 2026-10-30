@@ -6,8 +6,22 @@ import { Theme } from './theme.ts';
 import { OutlinedButtonThemeData } from './outlined-button-theme-data.ts';
 export { OutlinedButtonThemeData } from './outlined-button-theme-data.ts';
 export class OutlinedButtonTheme extends InheritedTheme {
-    constructor(readonly data: OutlinedButtonThemeData, child: Widget, options: WidgetOptions = {}) { super(child, options.key ?? null); }
-    static of(context: BuildContext): OutlinedButtonThemeData { return context.maybeDependOn(OutlinedButtonTheme)?.data ?? Theme.of(context).outlinedButtonTheme; }
-    wrap(_context: BuildContext, child: Widget): Widget { return new OutlinedButtonTheme(this.data, child); }
-    updateShouldNotify(old: this): boolean { return !this.data.equals(old.data); }
+  constructor(
+    readonly data: OutlinedButtonThemeData,
+    child: Widget,
+    options: WidgetOptions = {},
+  ) {
+    super(child, options.key ?? null);
+  }
+  static of(context: BuildContext): OutlinedButtonThemeData {
+    return (
+      context.maybeDependOn(OutlinedButtonTheme)?.data ?? Theme.of(context).outlinedButtonTheme
+    );
+  }
+  wrap(_context: BuildContext, child: Widget): Widget {
+    return new OutlinedButtonTheme(this.data, child);
+  }
+  updateShouldNotify(old: this): boolean {
+    return !this.data.equals(old.data);
+  }
 }

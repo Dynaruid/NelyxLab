@@ -1,30 +1,152 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {spawnSync} from 'node:child_process';
-import {verifyWindowsStaticHermes,windowsCompilerEnvironment} from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
-import {compileWindowsStaticAot,staticAotBootstrap} from '../../sdk/tooling/cli/src/windows-static-aot.mjs';
-import {nativeCohort} from '../../sdk/dist/runtime/cohorts.js';
-const timeout=1_200_000;
-test('versioned typed and untyped roots share the actual Node-API runtime and retain failure owners',{timeout,skip:process.platform!=='win32'||!process.env.NELYX_STATIC_HERMES_INPUTS},async t=>{
-  const checked=verifyWindowsStaticHermes(process.env.NELYX_STATIC_HERMES_INPUTS),env=windowsCompilerEnvironment(),folder=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-typed-admission-'));
-  const run=(file,args)=>{const value=spawnSync(file,args,{env,cwd:folder,encoding:'utf8',windowsHide:true,timeout,maxBuffer:4*1024**2});assert.ifError(value.error);assert.equal(value.status,0,value.stdout+value.stderr);return value.stdout+value.stderr;};
-  try{
-    const typedSource=path.join(folder,'typed.ts'),source=path.join(folder,'root.js'),output=path.join(folder,'NelyxApp.aot.dll'),hermesDirectory=path.join(process.env.USERPROFILE,'.nuget/packages/microsoft.javascript.hermes/0.0.0-2604.21001-94aa5e1d');
-    fs.writeFileSync(typedSource,'function square(x:number):number{return x*x;} function checked(x):number{return square(x);} function relay(fn,x):number{return fn(x);} function identity(value){return value;} globalThis.typedChecked=checked;globalThis.typedRelay=relay;globalThis.typedIdentity=identity;');
-    const root="if(__nelyxStaticHermes.initialized||__nelyxStaticHermes.unitsInitialized!==1||typeof typedChecked!=='function')throw Error('unit order');let reads=0;const object={get value(){return ++reads;}};class Private{#value=7;read(){return this.#value;}}const privateObject=new Private();if(typedIdentity(object)!==object||typedIdentity(privateObject)!==privateObject||typedIdentity(privateObject).read()!==7)throw Error('identity split');if(typedRelay(value=>value.value,object)!==1||reads!==1)throw Error('getter order');const error=Error('sentinel');let caught=false;try{typedRelay(()=>{throw error;},object);}catch(value){caught=value===error;}if(!caught)throw Error('exception identity');let invalid=false;try{typedChecked('3');}catch(value){invalid=value instanceof TypeError;}if(!invalid)throw Error('checked boundary');let reentry=false;try{__nelyxLoadStaticHermes()}catch(e){reentry=true}if(!reentry)throw Error('reentry admitted');globalThis.unitPrivate=privateObject;globalThis.unitClosure=x=>typedChecked(x)+privateObject.read();globalThis.unitHost=typedRelay(hostAdd,typedChecked(3));globalThis.unitPromise=0;Promise.resolve().then(()=>unitPromise++);";
-    fs.writeFileSync(source,root);
-    fs.appendFileSync(source,"globalThis.unitVerify=()=>{if(__nelyxStaticHermes.mode!=='static-native-aot'||!__nelyxStaticHermes.initialized||__nelyxStaticHermes.unitsInitialized!==2||unitPromise!==1||unitClosure(5)!==32||unitHost!==16)throw Error('hybrid initialization mismatch');gc();if(unitPrivate.read()!==7||typedIdentity(unitPrivate)!==unitPrivate||unitClosure(5)!==32)throw Error('hybrid roots lost');const audit=__nelyxStaticHermesAudit();if(!audit.internalJavaScriptNative||!audit.nativeStarted||audit.sourcePreparations||audit.sourceExecutions||audit.bytecodeExecutions)throw Error('unexpected non-native execution');if(JSON.stringify(Iterator.from([1,2,3]).map(value=>value*2).filter(value=>value>2).toArray())!=='[4,6]')throw Error('native iterator builtins differ');let blocked=0;try{(0,eval)('1')}catch(error){blocked++;}try{Function('return 1')}catch(error){blocked++;}if(blocked!==2)throw Error('runtime source generation accepted');};");
-    fs.appendFileSync(typedSource,"globalThis.typedFailureVerify=()=>{if(__nelyxStaticHermes.initialized||__nelyxStaticHermes.unitsInitialized!==1)throw Error('failed root acknowledged');gc();if(typedChecked(7)!==49)throw Error('typed owner lost after root failure');};");
-    const options={toolchain:checked.directory,source,typedSource,partitionSha256:'a'.repeat(64),output,hermesDirectory,cohort:nativeCohort('windows'),signal:t.signal};await compileWindowsStaticAot(options);
-    fs.copyFileSync(path.join(checked.directory,'build/API/hermes_shared/hermes.dll'),path.join(folder,'hermes.dll'));fs.copyFileSync(path.join(hermesDirectory,'build/native/win32/x64/hermes-icu.dll'),path.join(folder,'hermes-icu.dll'));
-    const executable=path.join(folder,'admission.exe'),include=path.join(hermesDirectory,'build/native/include');
-    run('cl.exe',['/nologo','/std:c++20','/EHsc','/MD','/O2','/DNDEBUG','/I'+include,'/I'+path.join(include,'node-api'),'/I'+path.resolve('Nelyx/sdk/native/windows'),'/Fe'+executable,'/Fo'+path.join(folder,'admission.obj'),path.join(import.meta.dirname,'windows-typed-hermes-admission.cpp'),'/link',path.join(checked.directory,'build/API/hermes_shared/hermes.lib')]);
-    assert.match(run(executable,['ordered']),/PASS-typed-native-admission mode=ordered/);
-    assert.match(run(executable,['preexisting-source']),/rejects prior source\/bytecode execution/);
-    const image=fs.readFileSync(output);
-    for(const [mode,from,to,diagnostic]of [['retired-plan','nelyx_sh_plan_v5','nelyx_sh_plan_v4',/unit plan differs/],['missing','sh_export_nelyx_typed','sh_export_nelyx_typXd',/leaf unit export missing/],['plan','windows-hermes-94aa5e1d-typed-no-cfg-v1','windows-hermes-94aa5e1d-typed-no-cfg-v0',/unit plan differs/],['order','nelyx_typed\0','nelyx_wrong\0',/unit plan differs/]]){
-      const patched=Buffer.from(image),needle=Buffer.from(from),offset=patched.indexOf(needle);assert(offset>=0);assert.equal(Buffer.byteLength(from),Buffer.byteLength(to));patched.write(to,offset);fs.writeFileSync(output,patched);assert.match(run(executable,[mode]),diagnostic);
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
+import {
+  verifyWindowsStaticHermes,
+  windowsCompilerEnvironment,
+} from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
+import {
+  compileWindowsStaticAot,
+  staticAotBootstrap,
+} from '../../sdk/tooling/cli/src/windows-static-aot.mjs';
+import { nativeCohort } from '../../sdk/dist/runtime/cohorts.js';
+const timeout = 1_200_000;
+test(
+  'versioned typed and untyped roots share the actual Node-API runtime and retain failure owners',
+  { timeout, skip: process.platform !== 'win32' || !process.env.NELYX_STATIC_HERMES_INPUTS },
+  async (t) => {
+    const checked = verifyWindowsStaticHermes(process.env.NELYX_STATIC_HERMES_INPUTS),
+      env = windowsCompilerEnvironment(),
+      folder = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-typed-admission-'));
+    const run = (file, args) => {
+      const value = spawnSync(file, args, {
+        env,
+        cwd: folder,
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout,
+        maxBuffer: 4 * 1024 ** 2,
+      });
+      assert.ifError(value.error);
+      assert.equal(value.status, 0, value.stdout + value.stderr);
+      return value.stdout + value.stderr;
+    };
+    try {
+      const typedSource = path.join(folder, 'typed.ts'),
+        source = path.join(folder, 'root.js'),
+        output = path.join(folder, 'NelyxApp.aot.dll'),
+        hermesDirectory = path.join(
+          process.env.USERPROFILE,
+          '.nuget/packages/microsoft.javascript.hermes/0.0.0-2604.21001-94aa5e1d',
+        );
+      fs.writeFileSync(
+        typedSource,
+        'function square(x:number):number{return x*x;} function checked(x):number{return square(x);} function relay(fn,x):number{return fn(x);} function identity(value){return value;} globalThis.typedChecked=checked;globalThis.typedRelay=relay;globalThis.typedIdentity=identity;',
+      );
+      const root =
+        "if(__nelyxStaticHermes.initialized||__nelyxStaticHermes.unitsInitialized!==1||typeof typedChecked!=='function')throw Error('unit order');let reads=0;const object={get value(){return ++reads;}};class Private{#value=7;read(){return this.#value;}}const privateObject=new Private();if(typedIdentity(object)!==object||typedIdentity(privateObject)!==privateObject||typedIdentity(privateObject).read()!==7)throw Error('identity split');if(typedRelay(value=>value.value,object)!==1||reads!==1)throw Error('getter order');const error=Error('sentinel');let caught=false;try{typedRelay(()=>{throw error;},object);}catch(value){caught=value===error;}if(!caught)throw Error('exception identity');let invalid=false;try{typedChecked('3');}catch(value){invalid=value instanceof TypeError;}if(!invalid)throw Error('checked boundary');let reentry=false;try{__nelyxLoadStaticHermes()}catch(e){reentry=true}if(!reentry)throw Error('reentry admitted');globalThis.unitPrivate=privateObject;globalThis.unitClosure=x=>typedChecked(x)+privateObject.read();globalThis.unitHost=typedRelay(hostAdd,typedChecked(3));globalThis.unitPromise=0;Promise.resolve().then(()=>unitPromise++);";
+      fs.writeFileSync(source, root);
+      fs.appendFileSync(
+        source,
+        "globalThis.unitVerify=()=>{if(__nelyxStaticHermes.mode!=='static-native-aot'||!__nelyxStaticHermes.initialized||__nelyxStaticHermes.unitsInitialized!==2||unitPromise!==1||unitClosure(5)!==32||unitHost!==16)throw Error('hybrid initialization mismatch');gc();if(unitPrivate.read()!==7||typedIdentity(unitPrivate)!==unitPrivate||unitClosure(5)!==32)throw Error('hybrid roots lost');const audit=__nelyxStaticHermesAudit();if(!audit.internalJavaScriptNative||!audit.nativeStarted||audit.sourcePreparations||audit.sourceExecutions||audit.bytecodeExecutions)throw Error('unexpected non-native execution');if(JSON.stringify(Iterator.from([1,2,3]).map(value=>value*2).filter(value=>value>2).toArray())!=='[4,6]')throw Error('native iterator builtins differ');let blocked=0;try{(0,eval)('1')}catch(error){blocked++;}try{Function('return 1')}catch(error){blocked++;}if(blocked!==2)throw Error('runtime source generation accepted');};",
+      );
+      fs.appendFileSync(
+        typedSource,
+        "globalThis.typedFailureVerify=()=>{if(__nelyxStaticHermes.initialized||__nelyxStaticHermes.unitsInitialized!==1)throw Error('failed root acknowledged');gc();if(typedChecked(7)!==49)throw Error('typed owner lost after root failure');};",
+      );
+      const options = {
+        toolchain: checked.directory,
+        source,
+        typedSource,
+        partitionSha256: 'a'.repeat(64),
+        output,
+        hermesDirectory,
+        cohort: nativeCohort('windows'),
+        signal: t.signal,
+      };
+      await compileWindowsStaticAot(options);
+      fs.copyFileSync(
+        path.join(checked.directory, 'build/API/hermes_shared/hermes.dll'),
+        path.join(folder, 'hermes.dll'),
+      );
+      fs.copyFileSync(
+        path.join(hermesDirectory, 'build/native/win32/x64/hermes-icu.dll'),
+        path.join(folder, 'hermes-icu.dll'),
+      );
+      const executable = path.join(folder, 'admission.exe'),
+        include = path.join(hermesDirectory, 'build/native/include');
+      run('cl.exe', [
+        '/nologo',
+        '/std:c++20',
+        '/EHsc',
+        '/MD',
+        '/O2',
+        '/DNDEBUG',
+        '/I' + include,
+        '/I' + path.join(include, 'node-api'),
+        '/I' + path.resolve('Nelyx/sdk/native/windows'),
+        '/Fe' + executable,
+        '/Fo' + path.join(folder, 'admission.obj'),
+        path.join(import.meta.dirname, 'windows-typed-hermes-admission.cpp'),
+        '/link',
+        path.join(checked.directory, 'build/API/hermes_shared/hermes.lib'),
+      ]);
+      assert.match(run(executable, ['ordered']), /PASS-typed-native-admission mode=ordered/);
+      assert.match(
+        run(executable, ['preexisting-source']),
+        /rejects prior source\/bytecode execution/,
+      );
+      const image = fs.readFileSync(output);
+      for (const [mode, from, to, diagnostic] of [
+        ['retired-plan', 'nelyx_sh_plan_v5', 'nelyx_sh_plan_v4', /unit plan differs/],
+        ['missing', 'sh_export_nelyx_typed', 'sh_export_nelyx_typXd', /leaf unit export missing/],
+        [
+          'plan',
+          'windows-hermes-94aa5e1d-typed-no-cfg-v1',
+          'windows-hermes-94aa5e1d-typed-no-cfg-v0',
+          /unit plan differs/,
+        ],
+        ['order', 'nelyx_typed\0', 'nelyx_wrong\0', /unit plan differs/],
+      ]) {
+        const patched = Buffer.from(image),
+          needle = Buffer.from(from),
+          offset = patched.indexOf(needle);
+        assert(offset >= 0);
+        assert.equal(Buffer.byteLength(from), Buffer.byteLength(to));
+        patched.write(to, offset);
+        fs.writeFileSync(output, patched);
+        assert.match(run(executable, [mode]), diagnostic);
+      }
+      fs.writeFileSync(source, "throw Error('root sentinel');");
+      await compileWindowsStaticAot(options);
+      assert.match(run(executable, ['root-failure']), /root sentinel/);
+      console.log(
+        'TYPED_NODE_API_ADMISSION ' +
+          JSON.stringify({
+            runtime: checked.manifest.runtimeSha256,
+            toolchain: checked.sha256,
+            marker: staticAotBootstrap.trim(),
+            sameVM: true,
+            unitOrder: ['nelyx_typed', 'nelyx_app'],
+            failures: [
+              'retired-plan-export',
+              'missing-export',
+              'wrong-policy',
+              'wrong-order',
+              'root-throw',
+            ],
+            gc: true,
+          }),
+      );
+    } finally {
+      assert.equal(path.dirname(folder), fs.realpathSync(os.tmpdir()));
+      assert(path.basename(folder).startsWith('nelyx-typed-admission-'));
+      assert(!fs.lstatSync(folder).isSymbolicLink());
+      fs.rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
-    fs.writeFileSync(source,"throw Error('root sentinel');");await compileWindowsStaticAot(options);assert.match(run(executable,['root-failure']),/root sentinel/);
-    console.log('TYPED_NODE_API_ADMISSION '+JSON.stringify({runtime:checked.manifest.runtimeSha256,toolchain:checked.sha256,marker:staticAotBootstrap.trim(),sameVM:true,unitOrder:['nelyx_typed','nelyx_app'],failures:['retired-plan-export','missing-export','wrong-policy','wrong-order','root-throw'],gc:true}));
-  }finally{assert.equal(path.dirname(folder),fs.realpathSync(os.tmpdir()));assert(path.basename(folder).startsWith('nelyx-typed-admission-'));assert(!fs.lstatSync(folder).isSymbolicLink());fs.rmSync(folder,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
-});
+  },
+);

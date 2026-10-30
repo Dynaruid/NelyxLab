@@ -1,10 +1,10 @@
-import type {GPUTextureHandle} from '../GPUTexture.ts';
+import type { GPUTextureHandle } from '../GPUTexture.ts';
 
-import type {SkSurface} from './Surface.ts';
+import type { SkSurface } from './Surface.ts';
 
 export const ColorSpace = {
-  SRGB: "srgb",
-  DisplayP3: "display-p3",
+  SRGB: 'srgb',
+  DisplayP3: 'display-p3',
 } as const;
 
 export type ColorSpaceValue = (typeof ColorSpace)[keyof typeof ColorSpace];
@@ -29,11 +29,7 @@ export interface SurfaceFactory {
    * @param height - number of pixels of the height of the drawable area.
    * @param opts - optional surface options (e.g. colorSpace: "display-p3" | "srgb").
    */
-  MakeOffscreen: (
-    width: number,
-    height: number,
-    opts?: SurfaceOptions
-  ) => SkSurface | null;
+  MakeOffscreen: (width: number, height: number, opts?: SurfaceOptions) => SkSurface | null;
 
   /**
    * Creates a GPU backed surface that draws directly into a WebGPU texture

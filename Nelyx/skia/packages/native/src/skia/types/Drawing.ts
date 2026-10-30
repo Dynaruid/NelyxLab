@@ -1,21 +1,21 @@
-import type {SkRect} from './Rect.ts';
-import type {SkSVG} from './SVG/SVG.ts';
-import type {SkColor} from './Color.ts';
-import type {InputRRect} from './RRect.ts';
-import type {BlendMode} from './Paint/BlendMode.ts';
-import type {SkPoint, PointMode, Vector} from './Point.ts';
-import type {SkImageFilter, TileMode} from './ImageFilter/ImageFilter.ts';
-import type {SkVertices} from './Vertices/Vertices.ts';
-import type {SkRSXform} from './RSXform.ts';
-import type {SkJSIInstance} from './JsiInstance.ts';
-import type {SkTypeface} from './Typeface/Typeface.ts';
-import type {SkData} from './Data/Data.ts';
-import type {GPUTextureHandle} from './GPUTexture.ts';
-import type {ColorType} from './Image/ColorType.ts';
-import type {Matrix3, Matrix4, Transforms3d} from './Matrix4.ts';
-import {processTransform3d} from './Matrix4.ts';
-import type {SkMaskFilter} from './MaskFilter.ts';
-import type {SkColorFilter} from './ColorFilter/ColorFilter.ts';
+import type { SkRect } from './Rect.ts';
+import type { SkSVG } from './SVG/SVG.ts';
+import type { SkColor } from './Color.ts';
+import type { InputRRect } from './RRect.ts';
+import type { BlendMode } from './Paint/BlendMode.ts';
+import type { SkPoint, PointMode, Vector } from './Point.ts';
+import type { SkImageFilter, TileMode } from './ImageFilter/ImageFilter.ts';
+import type { SkVertices } from './Vertices/Vertices.ts';
+import type { SkRSXform } from './RSXform.ts';
+import type { SkJSIInstance } from './JsiInstance.ts';
+import type { SkTypeface } from './Typeface/Typeface.ts';
+import type { SkData } from './Data/Data.ts';
+import type { GPUTextureHandle } from './GPUTexture.ts';
+import type { ColorType } from './Image/ColorType.ts';
+import type { Matrix3, Matrix4, Transforms3d } from './Matrix4.ts';
+import { processTransform3d } from './Matrix4.ts';
+import type { SkMaskFilter } from './MaskFilter.ts';
+import type { SkColorFilter } from './ColorFilter/ColorFilter.ts';
 
 // Canvas.ts
 
@@ -53,7 +53,7 @@ export interface SkCanvas {
     src: SkRect,
     dest: SkRect,
     paint: SkPaint,
-    fastSample?: boolean
+    fastSample?: boolean,
   ): void;
 
   /**
@@ -72,7 +72,7 @@ export interface SkCanvas {
     top: number,
     B: number,
     C: number,
-    paint?: SkPaint | null
+    paint?: SkPaint | null,
   ): void;
 
   /**
@@ -92,7 +92,7 @@ export interface SkCanvas {
     top: number,
     fm: FilterMode,
     mm: MipmapMode,
-    paint?: SkPaint | null
+    paint?: SkPaint | null,
   ): void;
 
   /**
@@ -110,7 +110,7 @@ export interface SkCanvas {
     center: SkRect,
     dest: SkRect,
     filter: FilterMode,
-    paint?: SkPaint | null
+    paint?: SkPaint | null,
   ): void;
 
   /**
@@ -129,7 +129,7 @@ export interface SkCanvas {
     dest: SkRect,
     B: number,
     C: number,
-    paint?: SkPaint | null
+    paint?: SkPaint | null,
   ): void;
 
   /**
@@ -149,7 +149,7 @@ export interface SkCanvas {
     dest: SkRect,
     fm: FilterMode,
     mm: MipmapMode,
-    paint?: SkPaint | null
+    paint?: SkPaint | null,
   ): void;
 
   /** Fills clip with SkPaint paint. SkPaint components, SkShader,
@@ -175,13 +175,7 @@ export interface SkCanvas {
 
         example: https://fiddle.skia.org/c/@Canvas_drawLine
     */
-  drawLine: (
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number,
-    paint: SkPaint
-  ) => void;
+  drawLine: (x0: number, y0: number, x1: number, y1: number, paint: SkPaint) => void;
   /** Draws SkRect rect using clip, SkMatrix, and SkPaint paint.
         In paint: SkPaint::Style determines if rectangle is stroked or filled;
         if stroked, SkPaint stroke width describes the line thickness, and
@@ -230,7 +224,7 @@ export interface SkCanvas {
     colors?: readonly SkColor[] | null,
     texs?: readonly SkPoint[] | null,
     mode?: BlendMode | null,
-    paint?: SkPaint
+    paint?: SkPaint,
   ): void;
 
   /**
@@ -280,7 +274,7 @@ export interface SkCanvas {
     startAngle: number,
     sweepAngle: number,
     useCenter: boolean,
-    paint: SkPaint
+    paint: SkPaint,
   ) => void;
 
   /**
@@ -324,7 +318,13 @@ export interface SkCanvas {
     */
   drawPath: (path: SkPath, paint: SkPaint) => void;
   /** Nelyx's pinned Flutter directional/tonal SkShadowUtils operation. */
-  nelyxDrawShadow: (path: SkPath, color:number, elevation:number, transparentOccluder:boolean, devicePixelRatio:number) => void;
+  nelyxDrawShadow: (
+    path: SkPath,
+    color: number,
+    elevation: number,
+    transparentOccluder: boolean,
+    devicePixelRatio: number,
+  ) => void;
 
   /**
    * Draw the given text at the location (x, y) using the provided paint and font. The text will
@@ -335,13 +335,7 @@ export interface SkCanvas {
    * @param paint
    * @param font
    */
-  drawText(
-    str: string,
-    x: number,
-    y: number,
-    paint: SkPaint,
-    font: SkFont
-  ): void;
+  drawText(str: string, x: number, y: number, paint: SkPaint, font: SkFont): void;
 
   /**
    * Draws the given TextBlob at (x, y) using the current clip, current matrix, and the
@@ -368,7 +362,7 @@ export interface SkCanvas {
     x: number,
     y: number,
     font: SkFont,
-    paint: SkPaint
+    paint: SkPaint,
   ): void;
 
   /**
@@ -408,7 +402,7 @@ export interface SkCanvas {
     paint?: SkPaint,
     bounds?: SkRect | null,
     backdrop?: SkImageFilter | null,
-    flags?: SaveLayerFlag
+    flags?: SaveLayerFlag,
   ): number;
 
   /** Removes changes to SkMatrix and clip since SkCanvas state was
@@ -526,7 +520,7 @@ export interface SkCanvas {
     paint: SkPaint,
     blendMode?: BlendMode,
     colors?: SkColor[],
-    sampling?: SamplingOptions
+    sampling?: SamplingOptions,
   ): void;
 
   /** Read Image pixels
@@ -536,11 +530,7 @@ export interface SkCanvas {
    * @param imageInfo - describes the pixel format and dimensions of the data to read into
    * @return Float32Array or Uint8Array with data or null if the read failed.
    */
-  readPixels(
-    srcX: number,
-    srcY: number,
-    imageInfo: ImageInfo
-  ): Float32Array | Uint8Array | null;
+  readPixels(srcX: number, srcY: number, imageInfo: ImageInfo): Float32Array | Uint8Array | null;
 }
 
 // Font/Font.ts
@@ -552,7 +542,7 @@ export interface FontMetrics {
   bounds?: SkRect; // smallest rect containing all glyphs (relative to 0,0)
 }
 
-export interface SkFont extends SkJSIInstance<"Font"> {
+export interface SkFont extends SkJSIInstance<'Font'> {
   /**
    * Returns the advance width of text.
    * The advance is the normal distance to move before drawing additional text.
@@ -608,12 +598,7 @@ export interface SkFont extends SkJSIInstance<"Font"> {
    * @param bottom        bottom of the thick "line" to use for intersection testing
    * @return              array of [start, end] x-coordinate pairs. Maybe be empty.
    */
-  getGlyphIntercepts(
-    glyphs: number[],
-    positions: SkPoint[],
-    top: number,
-    bottom: number
-  ): number[];
+  getGlyphIntercepts(glyphs: number[], positions: SkPoint[], top: number, bottom: number): number[];
 
   /**
    * Returns text scale on x-axis. Default value is 1.
@@ -705,11 +690,11 @@ export interface SkFont extends SkJSIInstance<"Font"> {
   setTypeface(face: SkTypeface | null): void;
 }
 
-const fontStyle = (
-  weight: FontWeight,
-  width: FontWidth,
-  slant: FontSlant
-): FontStyle => ({ weight, width, slant });
+const fontStyle = (weight: FontWeight, width: FontWidth, slant: FontSlant): FontStyle => ({
+  weight,
+  width,
+  slant,
+});
 
 export interface FontStyle {
   weight?: FontWeight;
@@ -800,11 +785,9 @@ export enum ImageFormat {
 
 export type SamplingOptions = CubicResampler | FilterOptions;
 
-export const isCubicSampling = (
-  sampling: SamplingOptions
-): sampling is CubicResampler => {
-  "worklet";
-  return "B" in sampling && "C" in sampling;
+export const isCubicSampling = (sampling: SamplingOptions): sampling is CubicResampler => {
+  'worklet';
+  return 'B' in sampling && 'C' in sampling;
 };
 
 export const MitchellCubicSampling = { B: 1 / 3.0, C: 1 / 3.0 };
@@ -815,7 +798,7 @@ export const CubicSampling = { B: 0, C: 0 };
 
 export const MakeCubic = (B: number, C: number) => ({ B, C });
 
-export interface SkImage extends SkJSIInstance<"Image"> {
+export interface SkImage extends SkJSIInstance<'Image'> {
   /**
    * Returns the possibly scaled height of the image.
    */
@@ -845,7 +828,7 @@ export interface SkImage extends SkJSIInstance<"Image"> {
     ty: TileMode,
     fm: FilterMode,
     mm: MipmapMode,
-    localMatrix?: SkMatrix
+    localMatrix?: SkMatrix,
   ): SkShader;
 
   /**
@@ -861,7 +844,7 @@ export interface SkImage extends SkJSIInstance<"Image"> {
     ty: TileMode,
     B: number,
     C: number,
-    localMatrix?: SkMatrix
+    localMatrix?: SkMatrix,
   ): SkShader;
 
   /** Encodes Image pixels, returning result as UInt8Array. Returns existing
@@ -901,11 +884,7 @@ export interface SkImage extends SkJSIInstance<"Image"> {
    * @param imageInfo - optional describes the pixel format and dimensions of the data to read into
    * @return Float32Array or Uint8Array with data or null if the read failed.
    */
-  readPixels(
-    srcX?: number,
-    srcY?: number,
-    imageInfo?: ImageInfo
-  ): Float32Array | Uint8Array | null;
+  readPixels(srcX?: number, srcY?: number, imageInfo?: ImageInfo): Float32Array | Uint8Array | null;
 
   /**
    * Returns raster image or lazy image. Copies SkImage backed by GPU texture
@@ -1014,9 +993,9 @@ export interface ImageFactory {
 // Matrix.ts
 
 export const isMatrix = (obj: unknown): obj is SkMatrix =>
-  obj !== null && (obj as SkJSIInstance<string>).__typename__ === "Matrix";
+  obj !== null && (obj as SkJSIInstance<string>).__typename__ === 'Matrix';
 
-export interface SkMatrix extends SkJSIInstance<"Matrix"> {
+export interface SkMatrix extends SkJSIInstance<'Matrix'> {
   concat: (matrix: InputMatrix) => SkMatrix;
   translate: (x: number, y: number) => SkMatrix;
   scale: (x: number, y?: number) => SkMatrix;
@@ -1036,11 +1015,8 @@ export interface TransformProp {
   transform?: Transforms3d;
 }
 
-export const processTransform = <T extends SkMatrix | SkCanvas>(
-  m: T,
-  transforms: Transforms3d
-) => {
-  "worklet";
+export const processTransform = <T extends SkMatrix | SkCanvas>(m: T, transforms: Transforms3d) => {
+  'worklet';
   const m3 = processTransform3d(transforms);
   m.concat(m3);
   return m;
@@ -1070,9 +1046,9 @@ export enum StrokeJoin {
 }
 
 export const isPaint = (obj: SkJSIInstance<string> | null): obj is SkPaint =>
-  obj !== null && obj.__typename__ === "Paint";
+  obj !== null && obj.__typename__ === 'Paint';
 
-export interface SkPaint extends SkJSIInstance<"Paint"> {
+export interface SkPaint extends SkJSIInstance<'Paint'> {
   /**
    * Retrieves alpha from the color used when stroking and filling.
    */
@@ -1217,11 +1193,10 @@ export interface SkPaint extends SkJSIInstance<"Paint"> {
 
 // PathEffect.ts
 
-export interface SkPathEffect extends SkJSIInstance<"PathEffect"> {}
+export interface SkPathEffect extends SkJSIInstance<'PathEffect'> {}
 
-export const isPathEffect = (
-  obj: SkJSIInstance<string> | null
-): obj is SkPathEffect => obj !== null && obj.__typename__ === "PathEffect";
+export const isPathEffect = (obj: SkJSIInstance<string> | null): obj is SkPathEffect =>
+  obj !== null && obj.__typename__ === 'PathEffect';
 
 export enum Path1DEffectStyle {
   Translate,
@@ -1254,11 +1229,7 @@ export interface PathEffectFactory {
    * @param dev - limit of the movement of the endpoints.
    * @param seedAssist - modifies the randomness. See SkDiscretePathEffect.h for more.
    */
-  MakeDiscrete(
-    segLength: number,
-    dev: number,
-    seedAssist: number
-  ): SkPathEffect;
+  MakeDiscrete(segLength: number, dev: number, seedAssist: number): SkPathEffect;
 
   /**
    *
@@ -1298,7 +1269,7 @@ export interface PathEffectFactory {
     path: SkPath,
     advance: number,
     phase: number,
-    style: Path1DEffectStyle
+    style: Path1DEffectStyle,
   ): SkPathEffect | null;
 
   /**
@@ -1356,11 +1327,11 @@ export enum PathVerb {
 export type PathCommand = number[];
 
 export const isPath = (obj: SkJSIInstance<string> | null): obj is SkPath => {
-  "worklet";
-  return obj !== null && obj.__typename__ === "Path";
+  'worklet';
+  return obj !== null && obj.__typename__ === 'Path';
 };
 
-export interface SkPath extends SkJSIInstance<"Path"> {
+export interface SkPath extends SkJSIInstance<'Path'> {
   /**
    * Returns the number of points in this path. Initially zero.
    */
@@ -1473,8 +1444,8 @@ export interface SkPath extends SkJSIInstance<"Path"> {
 
 // Picture/Picture.ts
 
-export interface SkPicture extends SkJSIInstance<"Picture"> {
-  approximateBytesUsed():number;
+export interface SkPicture extends SkJSIInstance<'Picture'> {
+  approximateBytesUsed(): number;
   /**
    *  Returns a new shader that will draw with this picture.
    *
@@ -1493,7 +1464,7 @@ export interface SkPicture extends SkJSIInstance<"Picture"> {
     tmy: TileMode,
     mode: FilterMode,
     localMatrix?: SkMatrix,
-    tileRect?: SkRect
+    tileRect?: SkRect,
   ): SkShader;
 
   /**
@@ -1513,11 +1484,11 @@ export interface SkSLUniform {
   isInteger: boolean;
 }
 
-export interface SkRuntimeShaderBuilder extends SkJSIInstance<"RuntimeShaderBuilder"> {
+export interface SkRuntimeShaderBuilder extends SkJSIInstance<'RuntimeShaderBuilder'> {
   setUniform(name: string, value: readonly number[]): void;
 }
 
-export interface SkRuntimeEffect extends SkJSIInstance<"RuntimeEffect"> {
+export interface SkRuntimeEffect extends SkJSIInstance<'RuntimeEffect'> {
   /**
    * Returns a shader executed using the given uniform data.
    * @param uniforms
@@ -1534,7 +1505,7 @@ export interface SkRuntimeEffect extends SkJSIInstance<"RuntimeEffect"> {
   makeShaderWithChildren(
     uniforms: number[],
     children?: SkShader[],
-    localMatrix?: SkMatrix
+    localMatrix?: SkMatrix,
   ): SkShader;
 
   /**
@@ -1570,26 +1541,27 @@ export interface SkRuntimeEffect extends SkJSIInstance<"RuntimeEffect"> {
 // Shader/Shader.ts
 
 export const isShader = (obj: SkJSIInstance<string> | null): obj is SkShader =>
-  obj !== null && obj.__typename__ === "Shader";
+  obj !== null && obj.__typename__ === 'Shader';
 
-export interface SkShader extends SkJSIInstance<"Shader"> {nelyxIsValid():boolean}
+export interface SkShader extends SkJSIInstance<'Shader'> {
+  nelyxIsValid(): boolean;
+}
 
-export type Uniform =
-  number | Vector | Float32Array | readonly Uniform[] | Uniform[];
+export type Uniform = number | Vector | Float32Array | readonly Uniform[] | Uniform[];
 
 export interface Uniforms {
   [name: string]: Uniform;
 }
 
 const isVector = (obj: unknown): obj is Vector => {
-  "worklet";
+  'worklet';
   // We have an issue to check property existence on JSI backed instances
   return (obj as any).x !== undefined && (obj as any).y !== undefined;
 };
 
 function processValue(values: number[], value: Uniform) {
-  "worklet";
-  if (typeof value === "number") {
+  'worklet';
+  if (typeof value === 'number') {
     values.push(value);
   } else if (Array.isArray(value)) {
     value.forEach((v) => processValue(values, v));
@@ -1603,9 +1575,9 @@ function processValue(values: number[], value: Uniform) {
 export const processUniforms = (
   source: SkRuntimeEffect,
   uniforms: Uniforms,
-  builder?: SkRuntimeShaderBuilder
+  builder?: SkRuntimeShaderBuilder,
 ) => {
-  "worklet";
+  'worklet';
   const result: number[] = [];
   const uniformsCount = source.getUniformCount();
   for (let i = 0; i < uniformsCount; i++) {
@@ -1613,7 +1585,7 @@ export const processUniforms = (
     const value = uniforms[name];
     if (value === undefined) {
       throw new Error(
-        `The runtime effect has the uniform value "${name}" declared, but it is missing from the uniforms property of the Runtime effect.`
+        `The runtime effect has the uniform value "${name}" declared, but it is missing from the uniforms property of the Runtime effect.`,
       );
     }
     if (builder === undefined) {
@@ -1630,7 +1602,7 @@ export const processUniforms = (
 
 // TextBlob.ts
 
-export interface SkTextBlob extends SkJSIInstance<"TextBlob"> {}
+export interface SkTextBlob extends SkJSIInstance<'TextBlob'> {}
 
 export interface TextBlobFactory {
   /**
@@ -1672,9 +1644,5 @@ export interface TextBlobFactory {
    * @param rsxforms
    * @param font
    */
-  MakeFromRSXformGlyphs(
-    glyphs: number[],
-    rsxforms: SkRSXform[],
-    font: SkFont
-  ): SkTextBlob;
+  MakeFromRSXformGlyphs(glyphs: number[], rsxforms: SkRSXform[], font: SkFont): SkTextBlob;
 }

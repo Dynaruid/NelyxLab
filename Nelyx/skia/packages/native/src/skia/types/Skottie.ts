@@ -1,13 +1,13 @@
-import type {SkCanvas} from "./Drawing.ts";
-import type {SkColor} from './Color.ts';
-import type {SkData} from './Data/Data.ts';
-import type {SkJSIInstance} from './JsiInstance.ts';
-import type {StrokeJoin} from "./Drawing.ts";
-import type {TextAlign, TextDirection} from './Paragraph/ParagraphStyle.ts';
-import type {SkPoint} from './Point.ts';
-import type {SkRect} from './Rect.ts';
-import type {SkSize} from './Size.ts';
-import type {SkTypeface} from './Typeface/Typeface.ts';
+import type { SkCanvas } from './Drawing.ts';
+import type { SkColor } from './Color.ts';
+import type { SkData } from './Data/Data.ts';
+import type { SkJSIInstance } from './JsiInstance.ts';
+import type { StrokeJoin } from './Drawing.ts';
+import type { TextAlign, TextDirection } from './Paragraph/ParagraphStyle.ts';
+import type { SkPoint } from './Point.ts';
+import type { SkRect } from './Rect.ts';
+import type { SkSize } from './Size.ts';
+import type { SkTypeface } from './Typeface/Typeface.ts';
 
 export enum LineBreakType {
   SoftLineBreak,
@@ -194,7 +194,7 @@ export interface SlottableTextProperty {
   strokeColor?: SkColor;
 }
 
-export interface SkSkottieAnimation extends SkJSIInstance<"SkottieAnimation"> {
+export interface SkSkottieAnimation extends SkJSIInstance<'SkottieAnimation'> {
   /**
    * Returns the animation duration in seconds.
    */
@@ -257,7 +257,7 @@ export interface SkSkottieAnimation extends SkJSIInstance<"SkottieAnimation"> {
     scale: SkPoint,
     rotation: number,
     skew: number,
-    skewAxis: number
+    skewAxis: number,
   ): boolean;
 }
 

@@ -1,15 +1,12 @@
-import type { CanvasKit } from "canvaskit-wasm";
+import type { CanvasKit } from 'canvaskit-wasm';
 
-import type {SkSVG} from "@nelyx/skia-native/skia/types/SVG/SVG";
+import type { SkSVG } from '@nelyx/skia-native/skia/types/SVG/SVG';
 
-import {HostObject} from './Host.ts';
+import { HostObject } from './Host.ts';
 
-export class JsiSkSVG
-  extends HostObject<HTMLImageElement, "SVG">
-  implements SkSVG
-{
+export class JsiSkSVG extends HostObject<HTMLImageElement, 'SVG'> implements SkSVG {
   constructor(CanvasKit: CanvasKit, ref: HTMLImageElement) {
-    super(CanvasKit, ref, "SVG");
+    super(CanvasKit, ref, 'SVG');
   }
 
   width(): number {

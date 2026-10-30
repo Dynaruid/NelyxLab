@@ -1,10 +1,10 @@
-import type {TileMode} from '../ImageFilter/ImageFilter.ts';
-import type {SkPoint} from '../Point.ts';
-import type {SkMatrix} from "../Drawing.ts";
-import type {SkColor} from '../Color.ts';
-import type {BlendMode} from '../Paint/BlendMode.ts';
+import type { TileMode } from '../ImageFilter/ImageFilter.ts';
+import type { SkPoint } from '../Point.ts';
+import type { SkMatrix } from '../Drawing.ts';
+import type { SkColor } from '../Color.ts';
+import type { BlendMode } from '../Paint/BlendMode.ts';
 
-import type {SkShader} from "../Drawing.ts";
+import type { SkShader } from '../Drawing.ts';
 
 export interface ShaderFactory {
   /**
@@ -29,7 +29,7 @@ export interface ShaderFactory {
     pos: number[] | null,
     mode: TileMode,
     localMatrix?: SkMatrix,
-    flags?: number
+    flags?: number,
     // colorSpace: ColorSpace
   ): SkShader;
 
@@ -52,7 +52,7 @@ export interface ShaderFactory {
     pos: number[] | null,
     mode: TileMode,
     localMatrix?: SkMatrix,
-    flags?: number
+    flags?: number,
     // colorSpace?: ColorSpace
   ): SkShader;
 
@@ -78,7 +78,7 @@ export interface ShaderFactory {
     pos: number[] | null,
     mode: TileMode,
     localMatrix?: SkMatrix,
-    flags?: number
+    flags?: number,
     //  colorSpace?: ColorSpace
   ): SkShader;
 
@@ -105,7 +105,7 @@ export interface ShaderFactory {
     localMatrix?: SkMatrix | null,
     flags?: number,
     startAngleInDegrees?: number,
-    endAngleInDegrees?: number
+    endAngleInDegrees?: number,
     //  colorSpace?: ColorSpace
   ): SkShader;
 
@@ -127,7 +127,7 @@ export interface ShaderFactory {
     octaves: number,
     seed: number,
     tileW: number,
-    tileH: number
+    tileH: number,
   ): SkShader;
 
   /**
@@ -148,7 +148,7 @@ export interface ShaderFactory {
     octaves: number,
     seed: number,
     tileW: number,
-    tileH: number
+    tileH: number,
   ): SkShader;
 
   /**
@@ -164,6 +164,6 @@ export interface ShaderFactory {
    * @param color
    */
   MakeColor(
-    color: SkColor //,space: ColorSpace
+    color: SkColor, //,space: ColorSpace
   ): SkShader;
 }

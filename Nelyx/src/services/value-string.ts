@@ -1,4 +1,39 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {diagnosticDoubleString} from '../foundation/debug.ts';
+import { diagnosticDoubleString } from '../foundation/debug.ts';
 /** Codec numbers are doubles and bigint values are integers. */
-export function codecValueString(value:unknown,seen:Set<object>=new Set()):string{if(typeof value==='number')return diagnosticDoubleString(value);if(value!==null&&typeof value==='object'){const array=Array.isArray(value),map=value instanceof Map,typed=ArrayBuffer.isView(value)&&!(value instanceof DataView);if(array||map||typed){const open=map?'{':'[',close=map?'}':']';if(seen.has(value))return open+'...'+close;seen.add(value);try{if(map)return '{'+Array.from(value,([key,item])=>codecValueString(key,seen)+': '+codecValueString(item,seen)).join(', ')+'}';const floating=value instanceof Float32Array||value instanceof Float64Array;return '['+Array.from(value as Iterable<unknown>,item=>typed&&!floating?String(item):codecValueString(item,seen)).join(', ')+']';}finally{seen.delete(value);}}}return String(value);}
+export function codecValueString(value: unknown, seen: Set<object> = new Set()): string {
+  if (typeof value === 'number') return diagnosticDoubleString(value);
+  if (value !== null && typeof value === 'object') {
+    const array = Array.isArray(value),
+      map = value instanceof Map,
+      typed = ArrayBuffer.isView(value) && !(value instanceof DataView);
+    if (array || map || typed) {
+      const open = map ? '{' : '[',
+        close = map ? '}' : ']';
+      if (seen.has(value)) return open + '...' + close;
+      seen.add(value);
+      try {
+        if (map)
+          return (
+            '{' +
+            Array.from(
+              value,
+              ([key, item]) => codecValueString(key, seen) + ': ' + codecValueString(item, seen),
+            ).join(', ') +
+            '}'
+          );
+        const floating = value instanceof Float32Array || value instanceof Float64Array;
+        return (
+          '[' +
+          Array.from(value as Iterable<unknown>, (item) =>
+            typed && !floating ? String(item) : codecValueString(item, seen),
+          ).join(', ') +
+          ']'
+        );
+      } finally {
+        seen.delete(value);
+      }
+    }
+  }
+  return String(value);
+}

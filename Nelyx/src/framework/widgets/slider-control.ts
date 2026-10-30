@@ -1,99 +1,770 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Pinned Cupertino/Material slider policies on the existing View gesture/focus/ticker owners.
-import {StatefulWidget,State,Element,SingleChildRenderObjectWidget} from './framework.ts';import type {Widget,WidgetOptions,BuildContext} from './framework.ts';
-import {TickerProviderStateMixin} from './ticker-provider.ts';import {AnimationController} from '../animation/animation-controller.ts';import type {Animation} from '../animation/animation.ts';import {Curves} from '../animation/curves.ts';
-import {WidgetState,WidgetStatesController} from './widget-state.ts';import type {ControlVisualState} from './control-interaction.ts';
-import {FocusableActionDetector} from './focusable-action-detector.ts';import {FocusNode} from './focus.ts';import {MouseRegion} from './mouse-region.ts';
-import {Intent,CallbackAction} from './actions.ts';import type {ActionHandle,IntentType} from './actions.ts';import {LogicalKeyboardKey} from '../../services/keyboard-key.ts';import {SingleActivator} from './shortcuts.ts';import type {ShortcutMap} from './shortcuts.ts';
-import {RawGestureDetector,GestureRecognizerFactoryWithHandlers} from './raw-gesture-detector.ts';import type {GestureRecognizerFactories,GestureRecognizerType,GestureRecognizerFactory} from './raw-gesture-detector.ts';
-import {HorizontalDragGestureRecognizer} from '../gestures/monodrag.ts';import {TapGestureRecognizer} from '../gestures/tap.ts';import {GestureArenaTeam} from '../gestures/team.ts';import type {DragStartDetails,DragUpdateDetails} from '../gestures/drag-details.ts';
-import {HitTestBehavior} from '../rendering/pointer-listener.ts';import {RenderProxyBox} from '../rendering/boxes.ts';import type {RenderBox,RenderObject,HitTestEntry} from '../rendering/object.ts';import {BoxConstraints} from '../rendering/constraints.ts';
-import {Semantics} from './semantics.ts';import {Directionality,MediaQuery} from './app-data.ts';import {GlobalKey} from './global-key.ts';import {ValueKey} from '../../foundation/key.ts';
-import {SystemMouseCursors} from '../../services/mouse-cursor.ts';import type {MouseCursor} from '../../services/mouse-cursor.ts';import type {Size,Offset,TransformMatrix} from '../../ui/geometry.ts';import {identity} from '../../ui/geometry.ts';import {clampDouble} from '../../ui/math.ts';import {invariant} from '../../foundation/errors.ts';
-export type SliderInteraction='tapAndSlide'|'tapOnly'|'slideOnly'|'slideThumb';
-export type SliderPolicy='material'|'cupertino';
-export function discretizeSliderValue(value:number,divisions:number|null):number{const fraction=clampDouble(value,0,1);return divisions===null?fraction:Math.floor(fraction*divisions+.5)/divisions;}
-export function sliderValueFromFraction(min:number,max:number,fraction:number,policy:SliderPolicy):number{return policy==='cupertino'?min*(1-fraction)+max*fraction:fraction*(max-min)+min;}
-export interface SliderTrackGeometry {readonly left:number;readonly right:number;readonly centerX:number;readonly centerY:number;}
-export interface SliderGeometry {readonly width:number;readonly height:number;readonly trackInset:number;readonly thumbHitRadius:number;readonly minDragExtent:number;readonly expand:boolean;}
-export interface SliderVisualState extends Omit<ControlVisualState,'focusNode'> {readonly focusNode:FocusNode|null;readonly position:Animation<number>;readonly fraction:number;readonly dragging:boolean;readonly hoveringThumb:boolean;readonly direction:'ltr'|'rtl';readonly geometry:SliderGeometry;}
+import { StatefulWidget, State, Element, SingleChildRenderObjectWidget } from './framework.ts';
+import type { Widget, WidgetOptions, BuildContext } from './framework.ts';
+import { TickerProviderStateMixin } from './ticker-provider.ts';
+import { AnimationController } from '../animation/animation-controller.ts';
+import type { Animation } from '../animation/animation.ts';
+import { Curves } from '../animation/curves.ts';
+import { WidgetState, WidgetStatesController } from './widget-state.ts';
+import type { ControlVisualState } from './control-interaction.ts';
+import { FocusableActionDetector } from './focusable-action-detector.ts';
+import { FocusNode } from './focus.ts';
+import { MouseRegion } from './mouse-region.ts';
+import { Intent, CallbackAction } from './actions.ts';
+import type { ActionHandle, IntentType } from './actions.ts';
+import { LogicalKeyboardKey } from '../../services/keyboard-key.ts';
+import { SingleActivator } from './shortcuts.ts';
+import type { ShortcutMap } from './shortcuts.ts';
+import {
+  RawGestureDetector,
+  GestureRecognizerFactoryWithHandlers,
+} from './raw-gesture-detector.ts';
+import type {
+  GestureRecognizerFactories,
+  GestureRecognizerType,
+  GestureRecognizerFactory,
+} from './raw-gesture-detector.ts';
+import { HorizontalDragGestureRecognizer } from '../gestures/monodrag.ts';
+import { TapGestureRecognizer } from '../gestures/tap.ts';
+import { GestureArenaTeam } from '../gestures/team.ts';
+import type { DragStartDetails, DragUpdateDetails } from '../gestures/drag-details.ts';
+import { HitTestBehavior } from '../rendering/pointer-listener.ts';
+import { RenderProxyBox } from '../rendering/boxes.ts';
+import type { RenderBox, RenderObject, HitTestEntry } from '../rendering/object.ts';
+import { BoxConstraints } from '../rendering/constraints.ts';
+import { Semantics } from './semantics.ts';
+import { Directionality, MediaQuery } from './app-data.ts';
+import { GlobalKey } from './global-key.ts';
+import { ValueKey } from '../../foundation/key.ts';
+import { SystemMouseCursors } from '../../services/mouse-cursor.ts';
+import type { MouseCursor } from '../../services/mouse-cursor.ts';
+import type { Size, Offset, TransformMatrix } from '../../ui/geometry.ts';
+import { identity } from '../../ui/geometry.ts';
+import { clampDouble } from '../../ui/math.ts';
+import { invariant } from '../../foundation/errors.ts';
+export type SliderInteraction = 'tapAndSlide' | 'tapOnly' | 'slideOnly' | 'slideThumb';
+export type SliderPolicy = 'material' | 'cupertino';
+export function discretizeSliderValue(value: number, divisions: number | null): number {
+  const fraction = clampDouble(value, 0, 1);
+  return divisions === null ? fraction : Math.floor(fraction * divisions + 0.5) / divisions;
+}
+export function sliderValueFromFraction(
+  min: number,
+  max: number,
+  fraction: number,
+  policy: SliderPolicy,
+): number {
+  return policy === 'cupertino'
+    ? min * (1 - fraction) + max * fraction
+    : fraction * (max - min) + min;
+}
+export interface SliderTrackGeometry {
+  readonly left: number;
+  readonly right: number;
+  readonly centerX: number;
+  readonly centerY: number;
+}
+export interface SliderGeometry {
+  readonly width: number;
+  readonly height: number;
+  readonly trackInset: number;
+  readonly thumbHitRadius: number;
+  readonly minDragExtent: number;
+  readonly expand: boolean;
+}
+export interface SliderVisualState extends Omit<ControlVisualState, 'focusNode'> {
+  readonly focusNode: FocusNode | null;
+  readonly position: Animation<number>;
+  readonly fraction: number;
+  readonly dragging: boolean;
+  readonly hoveringThumb: boolean;
+  readonly direction: 'ltr' | 'rtl';
+  readonly geometry: SliderGeometry;
+}
 export interface SliderControlOptions extends WidgetOptions {
- readonly value:number;readonly min?:number;readonly max?:number;readonly divisions?:number|null;readonly policy:SliderPolicy;readonly interaction?:SliderInteraction;readonly geometry:SliderGeometry;readonly enabled?:boolean;
- readonly onChanged:((value:number,isFastDrag:boolean)=>void)|null;readonly onChangeStart?:((value:number)=>void)|null;readonly onChangeEnd?:((value:number)=>void)|null;
- readonly focusNode?:FocusNode|null;readonly autofocus?:boolean;readonly statesController?:WidgetStatesController|null;readonly mouseCursor?:MouseCursor;
- readonly adjustmentUnit:number;readonly semanticFormatter?:(value:number)=>string;readonly label?:string|null;readonly id?:string;
- readonly trackGeometry?:(parentBox:RenderBox,fraction:number,direction:'ltr'|'rtl')=>SliderTrackGeometry;
- readonly resolveMouseCursor?:(visual:SliderVisualState)=>MouseCursor;
- readonly onInteractionChange?:(active:boolean)=>void;readonly onFocusHighlightChange?:(focused:boolean)=>void;
- readonly builder:(context:BuildContext,visual:SliderVisualState)=>Widget;
+  readonly value: number;
+  readonly min?: number;
+  readonly max?: number;
+  readonly divisions?: number | null;
+  readonly policy: SliderPolicy;
+  readonly interaction?: SliderInteraction;
+  readonly geometry: SliderGeometry;
+  readonly enabled?: boolean;
+  readonly onChanged: ((value: number, isFastDrag: boolean) => void) | null;
+  readonly onChangeStart?: ((value: number) => void) | null;
+  readonly onChangeEnd?: ((value: number) => void) | null;
+  readonly focusNode?: FocusNode | null;
+  readonly autofocus?: boolean;
+  readonly statesController?: WidgetStatesController | null;
+  readonly mouseCursor?: MouseCursor;
+  readonly adjustmentUnit: number;
+  readonly semanticFormatter?: (value: number) => string;
+  readonly label?: string | null;
+  readonly id?: string;
+  readonly trackGeometry?: (
+    parentBox: RenderBox,
+    fraction: number,
+    direction: 'ltr' | 'rtl',
+  ) => SliderTrackGeometry;
+  readonly resolveMouseCursor?: (visual: SliderVisualState) => MouseCursor;
+  readonly onInteractionChange?: (active: boolean) => void;
+  readonly onFocusHighlightChange?: (focused: boolean) => void;
+  readonly builder: (context: BuildContext, visual: SliderVisualState) => Widget;
 }
 export class SliderControl extends StatefulWidget {
- readonly options:Readonly<SliderControlOptions>;
- constructor(options:SliderControlOptions){super(options.key??null);const min=options.min??0,max=options.max??1;invariant([min,max,options.value].every(Number.isFinite)&&max>=min&&options.value>=min&&options.value<=max,'invalid-slider-value','Slider value must be finite and within its ordered min/max range');invariant(options.divisions==null||Number.isSafeInteger(options.divisions)&&options.divisions>0,'invalid-slider-divisions','Slider divisions must be a positive safe integer');invariant(options.adjustmentUnit>0&&Number.isFinite(options.adjustmentUnit),'invalid-slider-adjustment','Slider adjustment must be positive');const g=options.geometry;invariant([g.width,g.height,g.trackInset,g.thumbHitRadius,g.minDragExtent].every(Number.isFinite)&&g.width>0&&g.height>=0&&g.trackInset>=0&&g.thumbHitRadius>=0&&g.minDragExtent>=0,'invalid-slider-geometry','Slider geometry must be finite and nonnegative');this.options=Object.freeze({...options,geometry:Object.freeze({...g})});}
- createState():State{return new SliderControlState();}
+  readonly options: Readonly<SliderControlOptions>;
+  constructor(options: SliderControlOptions) {
+    super(options.key ?? null);
+    const min = options.min ?? 0,
+      max = options.max ?? 1;
+    invariant(
+      [min, max, options.value].every(Number.isFinite) &&
+        max >= min &&
+        options.value >= min &&
+        options.value <= max,
+      'invalid-slider-value',
+      'Slider value must be finite and within its ordered min/max range',
+    );
+    invariant(
+      options.divisions == null ||
+        (Number.isSafeInteger(options.divisions) && options.divisions > 0),
+      'invalid-slider-divisions',
+      'Slider divisions must be a positive safe integer',
+    );
+    invariant(
+      options.adjustmentUnit > 0 && Number.isFinite(options.adjustmentUnit),
+      'invalid-slider-adjustment',
+      'Slider adjustment must be positive',
+    );
+    const g = options.geometry;
+    invariant(
+      [g.width, g.height, g.trackInset, g.thumbHitRadius, g.minDragExtent].every(Number.isFinite) &&
+        g.width > 0 &&
+        g.height >= 0 &&
+        g.trackInset >= 0 &&
+        g.thumbHitRadius >= 0 &&
+        g.minDragExtent >= 0,
+      'invalid-slider-geometry',
+      'Slider geometry must be finite and nonnegative',
+    );
+    this.options = Object.freeze({ ...options, geometry: Object.freeze({ ...g }) });
+  }
+  createState(): State {
+    return new SliderControlState();
+  }
 }
-class SliderAdjustmentIntent extends Intent {constructor(readonly direction:'up'|'down'|'left'|'right'){super();}}
-class SliderAdjustmentAction extends CallbackAction<SliderAdjustmentIntent>{constructor(private readonly owner:SliderControlState){super(SliderAdjustmentIntent,intent=>owner.adjust(intent.direction));}override get isActionEnabled():boolean{return this.owner.interactive;}}
-const shortcuts:ShortcutMap=new Map([[new SingleActivator(LogicalKeyboardKey.arrowUp),new SliderAdjustmentIntent('up')],[new SingleActivator(LogicalKeyboardKey.arrowDown),new SliderAdjustmentIntent('down')],[new SingleActivator(LogicalKeyboardKey.arrowLeft),new SliderAdjustmentIntent('left')],[new SingleActivator(LogicalKeyboardKey.arrowRight),new SliderAdjustmentIntent('right')]]);
+class SliderAdjustmentIntent extends Intent {
+  constructor(readonly direction: 'up' | 'down' | 'left' | 'right') {
+    super();
+  }
+}
+class SliderAdjustmentAction extends CallbackAction<SliderAdjustmentIntent> {
+  constructor(private readonly owner: SliderControlState) {
+    super(SliderAdjustmentIntent, (intent) => owner.adjust(intent.direction));
+  }
+  override get isActionEnabled(): boolean {
+    return this.owner.interactive;
+  }
+}
+const shortcuts: ShortcutMap = new Map([
+  [new SingleActivator(LogicalKeyboardKey.arrowUp), new SliderAdjustmentIntent('up')],
+  [new SingleActivator(LogicalKeyboardKey.arrowDown), new SliderAdjustmentIntent('down')],
+  [new SingleActivator(LogicalKeyboardKey.arrowLeft), new SliderAdjustmentIntent('left')],
+  [new SingleActivator(LogicalKeyboardKey.arrowRight), new SliderAdjustmentIntent('right')],
+]);
 class SliderControlState extends TickerProviderStateMixin<SliderControl> {
- private position!:AnimationController;private overlay!:AnimationController;private internalNode:FocusNode|undefined;private states!:WidgetStatesController;private ownsStates=false;private team!:GestureArenaTeam;
- private readonly surfaceKey=new GlobalKey('Slider surface');private active=false;private dragValue=0;private changedValue:number|null=null;private lastTimestamp:number|null=null;private suspended=false;private retired=false;private focusHighlight=false;private hoverHighlight=false;private hoveringThumb=false;
- private readonly action=new SliderAdjustmentAction(this);
- private readonly rangeActions={setValue:(value:number)=>this.setSemanticValue(value)};
- private get live():boolean{return this.mounted&&!this.suspended&&!this.retired&&(this.context as Element).active;}
- get interactive():boolean{return this.live&&this.widget.options.onChanged!==null&&(this.widget.options.enabled??true)&&(this.widget.options.max??1)>(this.widget.options.min??0);}
- private get node():FocusNode{return this.widget.options.focusNode??(this.internalNode??=new FocusNode({debugLabel:'SliderControl'}));}
- private get direction():'ltr'|'rtl'{return Directionality.of(this.context);}
- private get fraction():number{const o=this.widget.options,min=o.min??0,max=o.max??1;return max===min?0:(o.value-min)/(max-min);}
- private value(fraction:number):number{const o=this.widget.options;return sliderValueFromFraction(o.min??0,o.max??1,fraction,o.policy);}
- private get divisions():number|null{return this.widget.options.divisions??null;}
- private quantize(value:number):number{return discretizeSliderValue(value,this.divisions);}
- private target():number{return this.widget.options.policy==='material'?this.quantize(this.fraction):this.fraction;}
- private readonly visualChanged=()=>{if(this.live)this.setState(()=>{});};
- private connectStates():void{this.ownsStates=this.widget.options.statesController==null;this.states=this.widget.options.statesController??new WidgetStatesController();this.states.update(WidgetState.disabled,this.widget.options.onChanged===null||this.widget.options.enabled===false||(this.widget.options.max??1)<=(this.widget.options.min??0));this.states.addListener(this.visualChanged);}
- private disconnectStates():void{this.states.removeListener(this.visualChanged);if(this.ownsStates)this.states.dispose();}
- override initState():void{super.initState();this.connectStates();this.position=new AnimationController({vsync:this,value:this.target(),duration:this.widget.options.policy==='cupertino'?500:75});this.overlay=new AnimationController({vsync:this,duration:200});this.position.addListener(this.visualChanged);this.overlay.addListener(this.visualChanged);this.team=new GestureArenaTeam((this.context as Element).owner.gestureBinding.gestureArena);}
- private settle():void{const value=this.target();if(this.divisions===null)this.position.value=value;else if(this.widget.options.policy==='cupertino'){this.position.duration=500;this.position.animateTo(value,{curve:Curves.fastOutSlowIn});}else{const distance=Math.abs(value-this.position.value);this.position.duration=distance===0?0:Math.round(75000/distance)/1000;this.position.animateTo(value,{duration:Math.round(this.position.duration*1000*distance)/1000,curve:Curves.easeInOut});}}
- override didUpdateWidget(old:SliderControl):void{super.didUpdateWidget(old);if(old.options.statesController!==this.widget.options.statesController){this.disconnectStates();this.connectStates();}this.states.update(WidgetState.disabled,this.widget.options.onChanged===null||this.widget.options.enabled===false||(this.widget.options.max??1)<=(this.widget.options.min??0));if(!this.interactive||old.options.policy!==this.widget.options.policy)this.cancel();if(old.options.value!==this.widget.options.value||old.options.min!==this.widget.options.min||old.options.max!==this.widget.options.max||old.options.divisions!==this.widget.options.divisions||old.options.policy!==this.widget.options.policy)this.settle();}
- private surface():SliderSurfaceRender|null{const render=this.surfaceKey.currentContext?.findRenderObject();return render instanceof SliderSurfaceRender&&render.hasSize?render:null;}
- private track(render:RenderBox):SliderTrackGeometry{const custom=this.widget.options.trackGeometry;if(custom)return custom(render,this.position.value,this.direction);const g=this.widget.options.geometry;return {left:g.trackInset,right:render.size.width-g.trackInset,centerX:this.center(render.size),centerY:render.size.height/2};}
- private center(size:Size):number{const g=this.widget.options.geometry,value=this.widget.options.policy==='material'?this.position.value:this.target(),fraction=this.direction==='ltr'?value:1-value;return g.trackInset+fraction*(this.widget.options.policy==='cupertino'?size.width-g.trackInset*2:Math.max(0,size.width-g.trackInset*2));}
- private extent(size:Size,render?:RenderBox):number{const track=render?this.track(render):null;return Math.max(this.widget.options.geometry.minDragExtent,track?track.right-track.left:size.width-this.widget.options.geometry.trackInset*2);}
- private emit(value:number,isFastDrag=false,discretize=true):void{if(!this.interactive)return;const fraction=discretize?this.quantize(value):clampDouble(value,0,1),next=this.value(fraction);if(this.widget.options.policy==='material'){if(this.changedValue===next)return;this.changedValue=next;}if(next!==this.widget.options.value)this.widget.options.onChanged!(next,isFastDrag);}
- private updateOverlay():void{if(this.live&&this.widget.options.policy==='material'){if(this.active||this.focusHighlight||this.hoveringThumb)this.overlay.forward();else this.overlay.reverse();}}
- private markActive(value:boolean):void{this.active=value;this.states.update(WidgetState.dragged,value);this.states.update(WidgetState.pressed,value);this.updateOverlay();this.widget.options.onInteractionChange?.(value);}
- private start(globalPosition:Offset,timestamp:number|null):void{if(!this.interactive||this.active)return;const render=this.surface();if(!render||this.extent(render.size,render)<=0)return;const options=this.widget.options,local=render.globalToLocal(globalPosition),track=this.track(render),interaction=options.interaction??'tapAndSlide';if(options.policy==='material'&&interaction==='slideThumb'&&(Math.abs(local.x-track.centerX)>options.geometry.thumbHitRadius||Math.abs(local.y-track.centerY)>options.geometry.thumbHitRadius))return;
-  this.markActive(true);if(options.policy==='cupertino'){options.onChangeStart?.(this.value(this.quantize(this.dragValue)));if(!this.interactive)return;this.dragValue=this.fraction;}else{this.dragValue=interaction==='tapAndSlide'||interaction==='tapOnly'?(this.direction==='ltr'?1:-1)*(local.x-track.left)/this.extent(render.size,render)+(this.direction==='rtl'?1:0):this.fraction;options.onChangeStart?.(this.value(this.quantize(this.fraction)));if(!this.interactive)return;}
-  this.lastTimestamp=timestamp;if(options.policy==='material')this.node.requestFocus();this.emit(this.dragValue);
- }
- private dragStart(details:DragStartDetails):void{this.start(details.globalPosition,details.sourceTimeStamp);}
- private dragUpdate(details:DragUpdateDetails):void{if(!this.interactive||!this.active||this.widget.options.policy==='material'&&this.widget.options.interaction==='tapOnly')return;const render=this.surface();if(!render)return;const extent=this.extent(render.size,render);if(extent<=0)return;const delta=details.primaryDelta!/extent;this.dragValue+=delta*(this.direction==='rtl'?-1:1);const timestamp=details.sourceTimeStamp,isFast=this.widget.options.policy==='cupertino'&&timestamp!==null&&this.lastTimestamp!==null&&Math.abs(delta)*1000/Math.trunc(timestamp-this.lastTimestamp)>1;this.lastTimestamp=timestamp;this.emit(this.dragValue,isFast);}
- private end():void{if(!this.active)return;const value=this.value(this.quantize(this.dragValue));this.markActive(false);this.changedValue=null;this.dragValue=0;this.lastTimestamp=null;if(this.interactive)this.widget.options.onChangeEnd?.(value);}
- private cancel():void{this.active=false;this.changedValue=null;this.dragValue=0;this.lastTimestamp=null;this.states.update(WidgetState.dragged,false);this.states.update(WidgetState.pressed,false);if(this.live){this.overlay.stop();this.overlay.value=0;}}
- adjust(direction:'up'|'down'|'left'|'right'):void{this.adjustBy(direction==='up'||direction==='right'&&this.direction==='ltr'||direction==='left'&&this.direction==='rtl');}
- private setSemanticValue(value:number):void{const {min=0,max=1}=this.widget.options;if(!this.interactive||!Number.isFinite(value)||value<min||value>max)return;const span=max-min;this.adjustTo(this.quantize(Number.isFinite(span)?(value-min)/span:(value/2-min/2)/(max/2-min/2)));}
- private adjustBy(increase:boolean):void{if(!this.interactive)return;this.adjustTo(clampDouble(this.target()+(increase?1:-1)*(this.divisions===null?this.widget.options.adjustmentUnit:1/this.divisions),0,1));}
- private adjustTo(next:number):void{if(!this.interactive)return;const old=this.target();try{if(this.widget.options.policy==='material')this.widget.options.onChangeStart?.(this.value(old));this.emit(next,false,false);if(this.interactive&&this.widget.options.policy==='material')this.widget.options.onChangeEnd?.(this.value(next));}finally{this.changedValue=null;}}
- override deactivate():void{this.suspended=true;this.cancel();this.states.update(WidgetState.hovered,false);this.states.update(WidgetState.focused,false);try{this.position.stop();this.overlay.stop();this.position.value=this.target();this.overlay.value=0;}finally{super.deactivate();}}
- override activate():void{super.activate();this.suspended=false;}
- override dispose():void{this.retired=true;const errors:unknown[]=[];for(const close of [()=>this.team.dispose(),()=>this.position.dispose(),()=>this.overlay.dispose(),()=>this.disconnectStates(),()=>this.internalNode?.dispose(),()=>super.dispose()])try{close();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Slider teardown failed');}
- private recognizers():GestureRecognizerFactories{const result=new Map<GestureRecognizerType,GestureRecognizerFactory>();if(!this.interactive)return result;const binding=(this.context as Element).owner.gestureBinding,settings=MediaQuery.maybeGestureSettingsOf(this.context),material=this.widget.options.policy==='material';result.set(HorizontalDragGestureRecognizer,new GestureRecognizerFactoryWithHandlers(HorizontalDragGestureRecognizer,()=>{const drag=new HorizontalDragGestureRecognizer({binding,debugOwner:this});if(material)drag.team=this.team;return drag;},drag=>{drag.onStart=details=>this.dragStart(details);drag.onUpdate=details=>this.dragUpdate(details);drag.onEnd=()=>this.end();drag.onCancel=()=>this.end();drag.gestureSettings=settings;}));if(material)result.set(TapGestureRecognizer,new GestureRecognizerFactoryWithHandlers(TapGestureRecognizer,()=>{const tap=new TapGestureRecognizer({binding,debugOwner:this});tap.team=this.team;return tap;},tap=>{tap.onTapDown=details=>this.start(details.globalPosition,null);tap.onTapUp=()=>this.end();tap.gestureSettings=settings;}));return result;}
- build(context:BuildContext):Widget{const options=this.widget.options,enabled=this.interactive,material=options.policy==='material',node=material?this.node:null,states=this.states.value;const visual:SliderVisualState=Object.freeze({states,focusNode:node,pressed:this.active,hovered:states.contains(WidgetState.hovered),focused:node?.hasFocus??false,showFocusHighlight:this.focusHighlight,showHoverHighlight:this.hoverHighlight,pressProgress:material?Curves.fastOutSlowIn.transform(this.overlay.value):this.overlay.value,dragging:this.active,hoveringThumb:this.hoveringThumb,position:this.position,fraction:this.target(),direction:this.direction,geometry:options.geometry}),cursor=options.resolveMouseCursor?.(visual)??options.mouseCursor??(enabled?SystemMouseCursors.click:SystemMouseCursors.basic),body=options.builder(context,visual),gesture=new RawGestureDetector(body,{key:new ValueKey(options.policy),gestures:this.recognizers(),behavior:HitTestBehavior.opaque,excludeFromSemantics:true}),semanticUnit=this.divisions===null?options.adjustmentUnit:1/this.divisions,smallChange=((options.max??1)-(options.min??0))*semanticUnit,format=(fraction:number)=>options.semanticFormatter?.(this.value(fraction))??String(Math.floor(fraction*100+.5))+'%';
-  const semantics=new Semantics({child:new MouseRegion(gesture,{cursor,onEnter:()=>{if(this.interactive)this.states.update(WidgetState.hovered,true);},onExit:()=>{if(this.live){this.states.update(WidgetState.hovered,false);this.hoveringThumb=false;this.updateOverlay();}},onHover:event=>{const render=this.surface();if(!this.interactive||!render)return;const local=render.globalToLocal(event.position),track=this.track(render),radius=options.geometry.thumbHitRadius,hovering=Math.abs(local.x-track.centerX)<=radius&&Math.abs(local.y-track.centerY)<=radius;if(hovering!==this.hoveringThumb){this.hoveringThumb=hovering;this.updateOverlay();}}}),container:true,transportId:options.id??null,identifier:options.id??null,slider:true,transportRange:{min:options.min??0,max:options.max??1,value:this.value(this.target()),...(Number.isFinite(smallChange)?{smallChange}:{})},transportRangeActions:enabled?this.rangeActions:null,enabled,focusable:material?enabled:null,focused:material?node!.hasFocus:null,label:options.label??null,value:options.policy==='material'||enabled?format(this.target()):null,increasedValue:enabled?format(clampDouble(this.target()+semanticUnit,0,1)):null,decreasedValue:enabled?format(clampDouble(this.target()-semanticUnit,0,1)):null,onIncrease:enabled?()=>this.adjustBy(true):null,onDecrease:enabled?()=>this.adjustBy(false):null,onFocus:material&&enabled?()=>{if(this.interactive)this.node.requestFocus();}:null});
-  const focused=material?new FocusableActionDetector(semantics,{enabled,focusNode:node!,autofocus:options.autofocus??false,includeFocusSemantics:false,mouseCursor:cursor,shortcuts:MediaQuery.maybeNavigationModeOf(context)==='directional'?new Map([...shortcuts].filter(([,intent])=>intent instanceof SliderAdjustmentIntent&&(intent.direction==='left'||intent.direction==='right'))):shortcuts,actions:new Map<IntentType,ActionHandle>([[SliderAdjustmentIntent,this.action]]),onFocusChange:value=>{if(this.live)this.states.update(WidgetState.focused,value);},onShowFocusHighlight:value=>{if(this.live&&this.focusHighlight!==value)this.setState(()=>{this.focusHighlight=value;});this.updateOverlay();options.onFocusHighlightChange?.(value);},onShowHoverHighlight:value=>{if(this.live&&this.hoverHighlight!==value)this.setState(()=>{this.hoverHighlight=value;});}}):semantics;return new SliderSurface(focused,options.geometry,(point,size)=>options.policy!=='cupertino'||Math.abs(point.x-this.center(size))<options.geometry.thumbHitRadius,this.surfaceKey);
- }
+  private position!: AnimationController;
+  private overlay!: AnimationController;
+  private internalNode: FocusNode | undefined;
+  private states!: WidgetStatesController;
+  private ownsStates = false;
+  private team!: GestureArenaTeam;
+  private readonly surfaceKey = new GlobalKey('Slider surface');
+  private active = false;
+  private dragValue = 0;
+  private changedValue: number | null = null;
+  private lastTimestamp: number | null = null;
+  private suspended = false;
+  private retired = false;
+  private focusHighlight = false;
+  private hoverHighlight = false;
+  private hoveringThumb = false;
+  private readonly action = new SliderAdjustmentAction(this);
+  private readonly rangeActions = { setValue: (value: number) => this.setSemanticValue(value) };
+  private get live(): boolean {
+    return this.mounted && !this.suspended && !this.retired && (this.context as Element).active;
+  }
+  get interactive(): boolean {
+    return (
+      this.live &&
+      this.widget.options.onChanged !== null &&
+      (this.widget.options.enabled ?? true) &&
+      (this.widget.options.max ?? 1) > (this.widget.options.min ?? 0)
+    );
+  }
+  private get node(): FocusNode {
+    return (
+      this.widget.options.focusNode ??
+      (this.internalNode ??= new FocusNode({ debugLabel: 'SliderControl' }))
+    );
+  }
+  private get direction(): 'ltr' | 'rtl' {
+    return Directionality.of(this.context);
+  }
+  private get fraction(): number {
+    const o = this.widget.options,
+      min = o.min ?? 0,
+      max = o.max ?? 1;
+    return max === min ? 0 : (o.value - min) / (max - min);
+  }
+  private value(fraction: number): number {
+    const o = this.widget.options;
+    return sliderValueFromFraction(o.min ?? 0, o.max ?? 1, fraction, o.policy);
+  }
+  private get divisions(): number | null {
+    return this.widget.options.divisions ?? null;
+  }
+  private quantize(value: number): number {
+    return discretizeSliderValue(value, this.divisions);
+  }
+  private target(): number {
+    return this.widget.options.policy === 'material' ? this.quantize(this.fraction) : this.fraction;
+  }
+  private readonly visualChanged = () => {
+    if (this.live) this.setState(() => {});
+  };
+  private connectStates(): void {
+    this.ownsStates = this.widget.options.statesController == null;
+    this.states = this.widget.options.statesController ?? new WidgetStatesController();
+    this.states.update(
+      WidgetState.disabled,
+      this.widget.options.onChanged === null ||
+        this.widget.options.enabled === false ||
+        (this.widget.options.max ?? 1) <= (this.widget.options.min ?? 0),
+    );
+    this.states.addListener(this.visualChanged);
+  }
+  private disconnectStates(): void {
+    this.states.removeListener(this.visualChanged);
+    if (this.ownsStates) this.states.dispose();
+  }
+  override initState(): void {
+    super.initState();
+    this.connectStates();
+    this.position = new AnimationController({
+      vsync: this,
+      value: this.target(),
+      duration: this.widget.options.policy === 'cupertino' ? 500 : 75,
+    });
+    this.overlay = new AnimationController({ vsync: this, duration: 200 });
+    this.position.addListener(this.visualChanged);
+    this.overlay.addListener(this.visualChanged);
+    this.team = new GestureArenaTeam((this.context as Element).owner.gestureBinding.gestureArena);
+  }
+  private settle(): void {
+    const value = this.target();
+    if (this.divisions === null) this.position.value = value;
+    else if (this.widget.options.policy === 'cupertino') {
+      this.position.duration = 500;
+      this.position.animateTo(value, { curve: Curves.fastOutSlowIn });
+    } else {
+      const distance = Math.abs(value - this.position.value);
+      this.position.duration = distance === 0 ? 0 : Math.round(75000 / distance) / 1000;
+      this.position.animateTo(value, {
+        duration: Math.round(this.position.duration * 1000 * distance) / 1000,
+        curve: Curves.easeInOut,
+      });
+    }
+  }
+  override didUpdateWidget(old: SliderControl): void {
+    super.didUpdateWidget(old);
+    if (old.options.statesController !== this.widget.options.statesController) {
+      this.disconnectStates();
+      this.connectStates();
+    }
+    this.states.update(
+      WidgetState.disabled,
+      this.widget.options.onChanged === null ||
+        this.widget.options.enabled === false ||
+        (this.widget.options.max ?? 1) <= (this.widget.options.min ?? 0),
+    );
+    if (!this.interactive || old.options.policy !== this.widget.options.policy) this.cancel();
+    if (
+      old.options.value !== this.widget.options.value ||
+      old.options.min !== this.widget.options.min ||
+      old.options.max !== this.widget.options.max ||
+      old.options.divisions !== this.widget.options.divisions ||
+      old.options.policy !== this.widget.options.policy
+    )
+      this.settle();
+  }
+  private surface(): SliderSurfaceRender | null {
+    const render = this.surfaceKey.currentContext?.findRenderObject();
+    return render instanceof SliderSurfaceRender && render.hasSize ? render : null;
+  }
+  private track(render: RenderBox): SliderTrackGeometry {
+    const custom = this.widget.options.trackGeometry;
+    if (custom) return custom(render, this.position.value, this.direction);
+    const g = this.widget.options.geometry;
+    return {
+      left: g.trackInset,
+      right: render.size.width - g.trackInset,
+      centerX: this.center(render.size),
+      centerY: render.size.height / 2,
+    };
+  }
+  private center(size: Size): number {
+    const g = this.widget.options.geometry,
+      value = this.widget.options.policy === 'material' ? this.position.value : this.target(),
+      fraction = this.direction === 'ltr' ? value : 1 - value;
+    return (
+      g.trackInset +
+      fraction *
+        (this.widget.options.policy === 'cupertino'
+          ? size.width - g.trackInset * 2
+          : Math.max(0, size.width - g.trackInset * 2))
+    );
+  }
+  private extent(size: Size, render?: RenderBox): number {
+    const track = render ? this.track(render) : null;
+    return Math.max(
+      this.widget.options.geometry.minDragExtent,
+      track ? track.right - track.left : size.width - this.widget.options.geometry.trackInset * 2,
+    );
+  }
+  private emit(value: number, isFastDrag = false, discretize = true): void {
+    if (!this.interactive) return;
+    const fraction = discretize ? this.quantize(value) : clampDouble(value, 0, 1),
+      next = this.value(fraction);
+    if (this.widget.options.policy === 'material') {
+      if (this.changedValue === next) return;
+      this.changedValue = next;
+    }
+    if (next !== this.widget.options.value) this.widget.options.onChanged!(next, isFastDrag);
+  }
+  private updateOverlay(): void {
+    if (this.live && this.widget.options.policy === 'material') {
+      if (this.active || this.focusHighlight || this.hoveringThumb) this.overlay.forward();
+      else this.overlay.reverse();
+    }
+  }
+  private markActive(value: boolean): void {
+    this.active = value;
+    this.states.update(WidgetState.dragged, value);
+    this.states.update(WidgetState.pressed, value);
+    this.updateOverlay();
+    this.widget.options.onInteractionChange?.(value);
+  }
+  private start(globalPosition: Offset, timestamp: number | null): void {
+    if (!this.interactive || this.active) return;
+    const render = this.surface();
+    if (!render || this.extent(render.size, render) <= 0) return;
+    const options = this.widget.options,
+      local = render.globalToLocal(globalPosition),
+      track = this.track(render),
+      interaction = options.interaction ?? 'tapAndSlide';
+    if (
+      options.policy === 'material' &&
+      interaction === 'slideThumb' &&
+      (Math.abs(local.x - track.centerX) > options.geometry.thumbHitRadius ||
+        Math.abs(local.y - track.centerY) > options.geometry.thumbHitRadius)
+    )
+      return;
+    this.markActive(true);
+    if (options.policy === 'cupertino') {
+      options.onChangeStart?.(this.value(this.quantize(this.dragValue)));
+      if (!this.interactive) return;
+      this.dragValue = this.fraction;
+    } else {
+      this.dragValue =
+        interaction === 'tapAndSlide' || interaction === 'tapOnly'
+          ? ((this.direction === 'ltr' ? 1 : -1) * (local.x - track.left)) /
+              this.extent(render.size, render) +
+            (this.direction === 'rtl' ? 1 : 0)
+          : this.fraction;
+      options.onChangeStart?.(this.value(this.quantize(this.fraction)));
+      if (!this.interactive) return;
+    }
+    this.lastTimestamp = timestamp;
+    if (options.policy === 'material') this.node.requestFocus();
+    this.emit(this.dragValue);
+  }
+  private dragStart(details: DragStartDetails): void {
+    this.start(details.globalPosition, details.sourceTimeStamp);
+  }
+  private dragUpdate(details: DragUpdateDetails): void {
+    if (
+      !this.interactive ||
+      !this.active ||
+      (this.widget.options.policy === 'material' && this.widget.options.interaction === 'tapOnly')
+    )
+      return;
+    const render = this.surface();
+    if (!render) return;
+    const extent = this.extent(render.size, render);
+    if (extent <= 0) return;
+    const delta = details.primaryDelta! / extent;
+    this.dragValue += delta * (this.direction === 'rtl' ? -1 : 1);
+    const timestamp = details.sourceTimeStamp,
+      isFast =
+        this.widget.options.policy === 'cupertino' &&
+        timestamp !== null &&
+        this.lastTimestamp !== null &&
+        (Math.abs(delta) * 1000) / Math.trunc(timestamp - this.lastTimestamp) > 1;
+    this.lastTimestamp = timestamp;
+    this.emit(this.dragValue, isFast);
+  }
+  private end(): void {
+    if (!this.active) return;
+    const value = this.value(this.quantize(this.dragValue));
+    this.markActive(false);
+    this.changedValue = null;
+    this.dragValue = 0;
+    this.lastTimestamp = null;
+    if (this.interactive) this.widget.options.onChangeEnd?.(value);
+  }
+  private cancel(): void {
+    this.active = false;
+    this.changedValue = null;
+    this.dragValue = 0;
+    this.lastTimestamp = null;
+    this.states.update(WidgetState.dragged, false);
+    this.states.update(WidgetState.pressed, false);
+    if (this.live) {
+      this.overlay.stop();
+      this.overlay.value = 0;
+    }
+  }
+  adjust(direction: 'up' | 'down' | 'left' | 'right'): void {
+    this.adjustBy(
+      direction === 'up' ||
+        (direction === 'right' && this.direction === 'ltr') ||
+        (direction === 'left' && this.direction === 'rtl'),
+    );
+  }
+  private setSemanticValue(value: number): void {
+    const { min = 0, max = 1 } = this.widget.options;
+    if (!this.interactive || !Number.isFinite(value) || value < min || value > max) return;
+    const span = max - min;
+    this.adjustTo(
+      this.quantize(
+        Number.isFinite(span) ? (value - min) / span : (value / 2 - min / 2) / (max / 2 - min / 2),
+      ),
+    );
+  }
+  private adjustBy(increase: boolean): void {
+    if (!this.interactive) return;
+    this.adjustTo(
+      clampDouble(
+        this.target() +
+          (increase ? 1 : -1) *
+            (this.divisions === null ? this.widget.options.adjustmentUnit : 1 / this.divisions),
+        0,
+        1,
+      ),
+    );
+  }
+  private adjustTo(next: number): void {
+    if (!this.interactive) return;
+    const old = this.target();
+    try {
+      if (this.widget.options.policy === 'material')
+        this.widget.options.onChangeStart?.(this.value(old));
+      this.emit(next, false, false);
+      if (this.interactive && this.widget.options.policy === 'material')
+        this.widget.options.onChangeEnd?.(this.value(next));
+    } finally {
+      this.changedValue = null;
+    }
+  }
+  override deactivate(): void {
+    this.suspended = true;
+    this.cancel();
+    this.states.update(WidgetState.hovered, false);
+    this.states.update(WidgetState.focused, false);
+    try {
+      this.position.stop();
+      this.overlay.stop();
+      this.position.value = this.target();
+      this.overlay.value = 0;
+    } finally {
+      super.deactivate();
+    }
+  }
+  override activate(): void {
+    super.activate();
+    this.suspended = false;
+  }
+  override dispose(): void {
+    this.retired = true;
+    const errors: unknown[] = [];
+    for (const close of [
+      () => this.team.dispose(),
+      () => this.position.dispose(),
+      () => this.overlay.dispose(),
+      () => this.disconnectStates(),
+      () => this.internalNode?.dispose(),
+      () => super.dispose(),
+    ])
+      try {
+        close();
+      } catch (error) {
+        errors.push(error);
+      }
+    if (errors.length) throw new AggregateError(errors, 'Slider teardown failed');
+  }
+  private recognizers(): GestureRecognizerFactories {
+    const result = new Map<GestureRecognizerType, GestureRecognizerFactory>();
+    if (!this.interactive) return result;
+    const binding = (this.context as Element).owner.gestureBinding,
+      settings = MediaQuery.maybeGestureSettingsOf(this.context),
+      material = this.widget.options.policy === 'material';
+    result.set(
+      HorizontalDragGestureRecognizer,
+      new GestureRecognizerFactoryWithHandlers(
+        HorizontalDragGestureRecognizer,
+        () => {
+          const drag = new HorizontalDragGestureRecognizer({ binding, debugOwner: this });
+          if (material) drag.team = this.team;
+          return drag;
+        },
+        (drag) => {
+          drag.onStart = (details) => this.dragStart(details);
+          drag.onUpdate = (details) => this.dragUpdate(details);
+          drag.onEnd = () => this.end();
+          drag.onCancel = () => this.end();
+          drag.gestureSettings = settings;
+        },
+      ),
+    );
+    if (material)
+      result.set(
+        TapGestureRecognizer,
+        new GestureRecognizerFactoryWithHandlers(
+          TapGestureRecognizer,
+          () => {
+            const tap = new TapGestureRecognizer({ binding, debugOwner: this });
+            tap.team = this.team;
+            return tap;
+          },
+          (tap) => {
+            tap.onTapDown = (details) => this.start(details.globalPosition, null);
+            tap.onTapUp = () => this.end();
+            tap.gestureSettings = settings;
+          },
+        ),
+      );
+    return result;
+  }
+  build(context: BuildContext): Widget {
+    const options = this.widget.options,
+      enabled = this.interactive,
+      material = options.policy === 'material',
+      node = material ? this.node : null,
+      states = this.states.value;
+    const visual: SliderVisualState = Object.freeze({
+        states,
+        focusNode: node,
+        pressed: this.active,
+        hovered: states.contains(WidgetState.hovered),
+        focused: node?.hasFocus ?? false,
+        showFocusHighlight: this.focusHighlight,
+        showHoverHighlight: this.hoverHighlight,
+        pressProgress: material
+          ? Curves.fastOutSlowIn.transform(this.overlay.value)
+          : this.overlay.value,
+        dragging: this.active,
+        hoveringThumb: this.hoveringThumb,
+        position: this.position,
+        fraction: this.target(),
+        direction: this.direction,
+        geometry: options.geometry,
+      }),
+      cursor =
+        options.resolveMouseCursor?.(visual) ??
+        options.mouseCursor ??
+        (enabled ? SystemMouseCursors.click : SystemMouseCursors.basic),
+      body = options.builder(context, visual),
+      gesture = new RawGestureDetector(body, {
+        key: new ValueKey(options.policy),
+        gestures: this.recognizers(),
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+      }),
+      semanticUnit = this.divisions === null ? options.adjustmentUnit : 1 / this.divisions,
+      smallChange = ((options.max ?? 1) - (options.min ?? 0)) * semanticUnit,
+      format = (fraction: number) =>
+        options.semanticFormatter?.(this.value(fraction)) ??
+        String(Math.floor(fraction * 100 + 0.5)) + '%';
+    const semantics = new Semantics({
+      child: new MouseRegion(gesture, {
+        cursor,
+        onEnter: () => {
+          if (this.interactive) this.states.update(WidgetState.hovered, true);
+        },
+        onExit: () => {
+          if (this.live) {
+            this.states.update(WidgetState.hovered, false);
+            this.hoveringThumb = false;
+            this.updateOverlay();
+          }
+        },
+        onHover: (event) => {
+          const render = this.surface();
+          if (!this.interactive || !render) return;
+          const local = render.globalToLocal(event.position),
+            track = this.track(render),
+            radius = options.geometry.thumbHitRadius,
+            hovering =
+              Math.abs(local.x - track.centerX) <= radius &&
+              Math.abs(local.y - track.centerY) <= radius;
+          if (hovering !== this.hoveringThumb) {
+            this.hoveringThumb = hovering;
+            this.updateOverlay();
+          }
+        },
+      }),
+      container: true,
+      transportId: options.id ?? null,
+      identifier: options.id ?? null,
+      slider: true,
+      transportRange: {
+        min: options.min ?? 0,
+        max: options.max ?? 1,
+        value: this.value(this.target()),
+        ...(Number.isFinite(smallChange) ? { smallChange } : {}),
+      },
+      transportRangeActions: enabled ? this.rangeActions : null,
+      enabled,
+      focusable: material ? enabled : null,
+      focused: material ? node!.hasFocus : null,
+      label: options.label ?? null,
+      value: options.policy === 'material' || enabled ? format(this.target()) : null,
+      increasedValue: enabled ? format(clampDouble(this.target() + semanticUnit, 0, 1)) : null,
+      decreasedValue: enabled ? format(clampDouble(this.target() - semanticUnit, 0, 1)) : null,
+      onIncrease: enabled ? () => this.adjustBy(true) : null,
+      onDecrease: enabled ? () => this.adjustBy(false) : null,
+      onFocus:
+        material && enabled
+          ? () => {
+              if (this.interactive) this.node.requestFocus();
+            }
+          : null,
+    });
+    const focused = material
+      ? new FocusableActionDetector(semantics, {
+          enabled,
+          focusNode: node!,
+          autofocus: options.autofocus ?? false,
+          includeFocusSemantics: false,
+          mouseCursor: cursor,
+          shortcuts:
+            MediaQuery.maybeNavigationModeOf(context) === 'directional'
+              ? new Map(
+                  [...shortcuts].filter(
+                    ([, intent]) =>
+                      intent instanceof SliderAdjustmentIntent &&
+                      (intent.direction === 'left' || intent.direction === 'right'),
+                  ),
+                )
+              : shortcuts,
+          actions: new Map<IntentType, ActionHandle>([[SliderAdjustmentIntent, this.action]]),
+          onFocusChange: (value) => {
+            if (this.live) this.states.update(WidgetState.focused, value);
+          },
+          onShowFocusHighlight: (value) => {
+            if (this.live && this.focusHighlight !== value)
+              this.setState(() => {
+                this.focusHighlight = value;
+              });
+            this.updateOverlay();
+            options.onFocusHighlightChange?.(value);
+          },
+          onShowHoverHighlight: (value) => {
+            if (this.live && this.hoverHighlight !== value)
+              this.setState(() => {
+                this.hoverHighlight = value;
+              });
+          },
+        })
+      : semantics;
+    return new SliderSurface(
+      focused,
+      options.geometry,
+      (point, size) =>
+        options.policy !== 'cupertino' ||
+        Math.abs(point.x - this.center(size)) < options.geometry.thumbHitRadius,
+      this.surfaceKey,
+    );
+  }
 }
 class SliderSurface extends SingleChildRenderObjectWidget {
- constructor(child:Widget,readonly geometry:SliderGeometry,readonly accepts:(position:Offset,size:Size)=>boolean,key:GlobalKey){super(child,{key});}
- createRenderObject():SliderSurfaceRender{return new SliderSurfaceRender(this.geometry,this.accepts);}
- updateRenderObject(_context:BuildContext,render:RenderObject):void{invariant(render instanceof SliderSurfaceRender,'invalid-slider-surface','Slider surface requires its owning render box');render.geometry=this.geometry;render.accepts=this.accepts;render.markNeedsLayout();}
+  constructor(
+    child: Widget,
+    readonly geometry: SliderGeometry,
+    readonly accepts: (position: Offset, size: Size) => boolean,
+    key: GlobalKey,
+  ) {
+    super(child, { key });
+  }
+  createRenderObject(): SliderSurfaceRender {
+    return new SliderSurfaceRender(this.geometry, this.accepts);
+  }
+  updateRenderObject(_context: BuildContext, render: RenderObject): void {
+    invariant(
+      render instanceof SliderSurfaceRender,
+      'invalid-slider-surface',
+      'Slider surface requires its owning render box',
+    );
+    render.geometry = this.geometry;
+    render.accepts = this.accepts;
+    render.markNeedsLayout();
+  }
 }
 class SliderSurfaceRender extends RenderProxyBox {
- constructor(public geometry:SliderGeometry,public accepts:(position:Offset,size:Size)=>boolean){super();}
- protected override computeMinIntrinsicWidth(_height:number):number{return this.geometry.width;}protected override computeMaxIntrinsicWidth(height:number):number{return this.computeMinIntrinsicWidth(height);}
- protected override computeMinIntrinsicHeight(_width:number):number{return this.geometry.height;}protected override computeMaxIntrinsicHeight(width:number):number{return this.computeMinIntrinsicHeight(width);}
- protected override computeDryLayout(constraints:BoxConstraints):Size{return constraints.constrain({width:this.geometry.expand&&Number.isFinite(constraints.maxWidth)?constraints.maxWidth:this.geometry.width,height:this.geometry.expand&&Number.isFinite(constraints.maxHeight)?constraints.maxHeight:this.geometry.height});}
- protected override performLayout(constraints:BoxConstraints):Size{const size=this.computeDryLayout(constraints);this.child?.layout(BoxConstraints.tight(size),{parentUsesSize:true});if(this.child)this.child.layoutOffset={x:0,y:0};return size;}
- override hitTest(position:Offset,result:HitTestEntry[],toLocal:TransformMatrix=identity):boolean{return this.accepts(position,this.size)&&super.hitTest(position,result,toLocal);}
+  constructor(
+    public geometry: SliderGeometry,
+    public accepts: (position: Offset, size: Size) => boolean,
+  ) {
+    super();
+  }
+  protected override computeMinIntrinsicWidth(_height: number): number {
+    return this.geometry.width;
+  }
+  protected override computeMaxIntrinsicWidth(height: number): number {
+    return this.computeMinIntrinsicWidth(height);
+  }
+  protected override computeMinIntrinsicHeight(_width: number): number {
+    return this.geometry.height;
+  }
+  protected override computeMaxIntrinsicHeight(width: number): number {
+    return this.computeMinIntrinsicHeight(width);
+  }
+  protected override computeDryLayout(constraints: BoxConstraints): Size {
+    return constraints.constrain({
+      width:
+        this.geometry.expand && Number.isFinite(constraints.maxWidth)
+          ? constraints.maxWidth
+          : this.geometry.width,
+      height:
+        this.geometry.expand && Number.isFinite(constraints.maxHeight)
+          ? constraints.maxHeight
+          : this.geometry.height,
+    });
+  }
+  protected override performLayout(constraints: BoxConstraints): Size {
+    const size = this.computeDryLayout(constraints);
+    this.child?.layout(BoxConstraints.tight(size), { parentUsesSize: true });
+    if (this.child) this.child.layoutOffset = { x: 0, y: 0 };
+    return size;
+  }
+  override hitTest(
+    position: Offset,
+    result: HitTestEntry[],
+    toLocal: TransformMatrix = identity,
+  ): boolean {
+    return this.accepts(position, this.size) && super.hitTest(position, result, toLocal);
+  }
 }

@@ -1,12 +1,80 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Complete finite original value/enum bodies; separate from the promoted batch registry.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
-import {emitDart} from './src/dart-emitter.ts';import type {BodyIr,ModuleRecipe} from './src/body-ir.ts';import {writeVerificationReceipt} from './checks/compiled-inputs.mjs';
-const sha=(bytes:string|Buffer)=>createHash('sha256').update(bytes).digest('hex'),ref=(file:string)=>({file,sha256:sha(fs.readFileSync(file))}),candidateFile='.tmp/work8/w11-slider-values-candidate/result.json',candidate=JSON.parse(fs.readFileSync(candidateFile,'utf8')),receiptFile='.tmp/work8/w11-slider-values-ownership.json',previous=fs.existsSync(receiptFile)?JSON.parse(fs.readFileSync(receiptFile,'utf8')):null;
-for(const row of candidate.inputs)assert.equal(ref(row.file).sha256,row.sha256);const records=candidate.inputs.flatMap((row:{file:string})=>(JSON.parse(fs.readFileSync(row.file,'utf8')) as BodyIr).records),outputs=[];
-assert.deepEqual(candidate.results.map((row:{module:ModuleRecipe})=>row.module.symbols),[['RangeValues','RangeLabels'],['ShowValueIndicator','Thumb'],['SliderInteraction']]);
-for(const row of candidate.results){assert.equal(row.status,'EMITTED');const module:ModuleRecipe=row.module,source='.tmp/work6/flutter-source/'+module.source;assert.equal(sha(fs.readFileSync(source,'utf8').replaceAll('\r\n','\n')),module.sha256);const bytes=emitDart(module.symbols.map(symbol=>records.find(record=>record.source===module.source&&record.symbol===symbol)!.ir!),module),file=module.destination;
- if(fs.existsSync(file)){assert(previous,'Existing slider values have no ownership receipt');assert.equal(ref(file).sha256,previous.outputs.find((item:{file:string})=>item.file===file)?.sha256,'Managed value output was edited');}
- if(process.argv.includes('--check'))assert.equal(fs.readFileSync(file,'utf8'),bytes);else{if(fs.existsSync(file)&&fs.readFileSync(file,'utf8')!==bytes){const old=fs.readFileSync(file),history=path.join('.tmp/work8/receipt-history',sha(old)+'-'+path.basename(file));if(!fs.existsSync(history))fs.writeFileSync(history,old,{flag:'wx'});}fs.writeFileSync(file,bytes);}outputs.push({...ref(file),source:ref(source),symbols:module.symbols});
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { emitDart } from './src/dart-emitter.ts';
+import type { BodyIr, ModuleRecipe } from './src/body-ir.ts';
+import { writeVerificationReceipt } from './checks/compiled-inputs.mjs';
+const sha = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex'),
+  ref = (file: string) => ({ file, sha256: sha(fs.readFileSync(file)) }),
+  candidateFile = '.tmp/work8/w11-slider-values-candidate/result.json',
+  candidate = JSON.parse(fs.readFileSync(candidateFile, 'utf8')),
+  receiptFile = '.tmp/work8/w11-slider-values-ownership.json',
+  previous = fs.existsSync(receiptFile) ? JSON.parse(fs.readFileSync(receiptFile, 'utf8')) : null;
+for (const row of candidate.inputs) assert.equal(ref(row.file).sha256, row.sha256);
+const records = candidate.inputs.flatMap(
+    (row: { file: string }) => (JSON.parse(fs.readFileSync(row.file, 'utf8')) as BodyIr).records,
+  ),
+  outputs = [];
+assert.deepEqual(
+  candidate.results.map((row: { module: ModuleRecipe }) => row.module.symbols),
+  [['RangeValues', 'RangeLabels'], ['ShowValueIndicator', 'Thumb'], ['SliderInteraction']],
+);
+for (const row of candidate.results) {
+  assert.equal(row.status, 'EMITTED');
+  const module: ModuleRecipe = row.module,
+    source = '.tmp/work6/flutter-source/' + module.source;
+  assert.equal(sha(fs.readFileSync(source, 'utf8').replaceAll('\r\n', '\n')), module.sha256);
+  const bytes = emitDart(
+      module.symbols.map(
+        (symbol) =>
+          records.find((record) => record.source === module.source && record.symbol === symbol)!
+            .ir!,
+      ),
+      module,
+    ),
+    file = module.destination;
+  if (fs.existsSync(file)) {
+    assert(previous, 'Existing slider values have no ownership receipt');
+    assert.equal(
+      ref(file).sha256,
+      previous.outputs.find((item: { file: string }) => item.file === file)?.sha256,
+      'Managed value output was edited',
+    );
+  }
+  if (process.argv.includes('--check')) assert.equal(fs.readFileSync(file, 'utf8'), bytes);
+  else {
+    if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') !== bytes) {
+      const old = fs.readFileSync(file),
+        history = path.join('.tmp/work8/receipt-history', sha(old) + '-' + path.basename(file));
+      if (!fs.existsSync(history)) fs.writeFileSync(history, old, { flag: 'wx' });
+    }
+    fs.writeFileSync(file, bytes);
+  }
+  outputs.push({ ...ref(file), source: ref(source), symbols: module.symbols });
 }
-if(!process.argv.includes('--check'))writeVerificationReceipt(receiptFile,{schema:'nelyx.w11-slider-value-bodies/v1',status:'PASS-scoped',recordedAt:new Date().toISOString(),inputs:[ref(candidateFile),...candidate.inputs,ref('tools/Nelyx.FrameworkToTypeScript/generate-slider-values.ts'),ref('tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts')],outputs,scope:'Complete original constructors/fields/equals/hashCode/toString and three enum bodies from current pinned resolved IR. Exact host value/type/hash/string adapters are separate and require runtime/source qualification. This finite managed body generation is not a newly promoted recipe or complete Slider/RangeSlider/theme conversion.'});console.log(JSON.stringify({status:'PASS-scoped',modules:outputs.length,symbols:5,checkOnly:process.argv.includes('--check')}));
+if (!process.argv.includes('--check'))
+  writeVerificationReceipt(receiptFile, {
+    schema: 'nelyx.w11-slider-value-bodies/v1',
+    status: 'PASS-scoped',
+    recordedAt: new Date().toISOString(),
+    inputs: [
+      ref(candidateFile),
+      ...candidate.inputs,
+      ref('tools/Nelyx.FrameworkToTypeScript/generate-slider-values.ts'),
+      ref('tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts'),
+    ],
+    outputs,
+    scope:
+      'Complete original constructors/fields/equals/hashCode/toString and three enum bodies from current pinned resolved IR. Exact host value/type/hash/string adapters are separate and require runtime/source qualification. This finite managed body generation is not a newly promoted recipe or complete Slider/RangeSlider/theme conversion.',
+  });
+console.log(
+  JSON.stringify({
+    status: 'PASS-scoped',
+    modules: outputs.length,
+    symbols: 5,
+    checkOnly: process.argv.includes('--check'),
+  }),
+);

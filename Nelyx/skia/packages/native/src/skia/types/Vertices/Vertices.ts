@@ -1,5 +1,5 @@
-import type {SkRect} from '../Rect.ts';
-import type {SkJSIInstance} from '../JsiInstance.ts';
+import type { SkRect } from '../Rect.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
 
 export enum VertexMode {
   Triangles,
@@ -7,7 +7,7 @@ export enum VertexMode {
   TriangleFan,
 }
 
-export interface SkVertices extends SkJSIInstance<"Vertices"> {
+export interface SkVertices extends SkJSIInstance<'Vertices'> {
   /**
    * Return the bounding area for the vertices.
    */

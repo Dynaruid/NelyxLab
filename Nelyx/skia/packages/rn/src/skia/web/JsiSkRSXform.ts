@@ -1,16 +1,13 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { CanvasKit } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { CanvasKit } from 'canvaskit-wasm';
 
-import type {SkRSXform} from "@nelyx/skia-native/skia/types/RSXform";
+import type { SkRSXform } from '@nelyx/skia-native/skia/types/RSXform';
 
-import {BaseHostObject} from './Host.ts';
+import { BaseHostObject } from './Host.ts';
 
 export type RSXform = Float32Array;
 
-export class JsiSkRSXform
-  extends BaseHostObject<RSXform, "RSXform">
-  implements SkRSXform
-{
+export class JsiSkRSXform extends BaseHostObject<RSXform, 'RSXform'> implements SkRSXform {
   static fromValue(rsxform: SkRSXform) {
     if (rsxform instanceof JsiSkRSXform) {
       return rsxform.ref;
@@ -19,7 +16,7 @@ export class JsiSkRSXform
   }
 
   constructor(CanvasKit: CanvasKit, ref: RSXform) {
-    super(CanvasKit, ref, "RSXform");
+    super(CanvasKit, ref, 'RSXform');
   }
 
   set(scos: number, ssin: number, tx: number, ty: number) {

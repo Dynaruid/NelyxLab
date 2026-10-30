@@ -1,67 +1,607 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';
-import {ColorScheme,DynamicSchemeVariant} from '@nelyx/material/color-scheme';import {DynamicSchemeVariant as CanonicalVariant} from '@nelyx/material/dynamic-scheme-variant';import {ColorScheme as AggregateScheme,DynamicSchemeVariant as AggregateVariant} from '@nelyx/material/widgets';
-import {ThemeData} from '@nelyx/material/theme-data';import {Theme} from '@nelyx/material/theme';import {Switch} from '@nelyx/material/switch';import '@nelyx/material/typography';
-import {Color} from '@nelyx/core/ui/color';import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {SeededRandom} from '@nelyx/core/internal/math/seeded-random';
-import {MemoryImage,ImageProvider,imageCacheFor} from '@nelyx/core/framework/painting/image-provider';import {ImageConfiguration} from '@nelyx/core/framework/painting/image-configuration';import {ImageStreamCompleter,ImageStream} from '@nelyx/core/framework/painting/image-stream';import {ImageService} from '@nelyx/core/hosting/images';import {RasterizationService} from '@nelyx/core/hosting/rasterization';
-import {Align,Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {Directionality} from '@nelyx/core/framework/widgets/app-data';import {WebSkiaLibrary} from '@nelyx/skia-web/library';import {fixture} from './root-fixture.mjs';
-import {quantizeMaterialImage,materialImageSeed} from '../dist/internal/color-scheme/image-colors.js';import {imageProviderPixels} from '../dist/internal/color-scheme/image-provider-colors.js';
-const timeout=1_200_000;FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const seedRows=JSON.parse(fs.readFileSync(new URL('./fixtures/color-scheme-seeds.json',import.meta.url))),roles=Object.keys(seedRows[0].roles).filter(r=>!['background','onBackground','surfaceVariant'].includes(r));
-const paletteRows=JSON.parse(fs.readFileSync(new URL('./fixtures/color-image-palettes.json',import.meta.url))),randomRows=JSON.parse(fs.readFileSync(new URL('./fixtures/color-palette-random.json',import.meta.url)));
-test('source dynamic scheme enum and all 59 native-oracle seeds preserve 46 roles across every variant/brightness/contrast',{timeout},()=>{
- assert.equal(ColorScheme,AggregateScheme);assert.equal(DynamicSchemeVariant,CanonicalVariant);assert.equal(DynamicSchemeVariant,AggregateVariant);assert.equal(roles.length,46);assert.deepEqual(DynamicSchemeVariant.values.map(v=>[v.name,v.index]),['tonalSpot','fidelity','monochrome','neutral','vibrant','expressive','content','rainbow','fruitSalad'].map((name,index)=>[name,index]));
- for(const row of seedRows){const q=row.input,scheme=ColorScheme.fromSeed({seedColor:new Color(q.seed),brightness:q.brightness,dynamicSchemeVariant:DynamicSchemeVariant[q.variant],contrastLevel:q.contrast});for(const role of roles)assert.equal(scheme[role],row.roles[role],JSON.stringify(q)+' '+role);assert.equal(scheme.surfaceTint,scheme.primary);assert(Object.isFrozen(scheme));}
-});
-test('seed overrides/null copies/ARGB ingress, removed roles, interpolation and diagnostics use source value contracts',{timeout},()=>{
- const a=ColorScheme.fromSeed({seedColor:0xff6750a4,primary:0,onPrimary:null});assert.equal(a.primary,0);assert.equal(a.copyWith({primary:null}).primary,0);assert.equal(a.copyWith({brightness:null}).brightness,'light');assert(a.equals(a.copyWith()));assert.equal(a.hashCode,a.copyWith().hashCode);assert.equal(ColorScheme.lerp(a,a,4),a);
- const b=a.copyWith({primary:0xffffffff,brightness:'dark'}),mixed=ColorScheme.lerp(a,b,.5);assert.equal(mixed.brightness,'dark');assert.equal(mixed.primary,0x80808080);
- const floating=Color.from({alpha:1,red:.123456,green:.234567,blue:.345678});assert(ColorScheme.fromSeed({seedColor:floating}).equals(ColorScheme.fromSeed({seedColor:floating.toARGB32()})));
- for(const contrast of [NaN,Infinity,-1.01,1.01])assert.throws(()=>ColorScheme.fromSeed({seedColor:0xff123456,contrastLevel:contrast}),/contrastLevel/);assert.throws(()=>ColorScheme.fromSeed({seedColor:Color.from({alpha:1,red:NaN,green:0,blue:0})}),/finite/);
- assert.throws(()=>ColorScheme.fromSeed({seedColor:0xff123456,dynamicSchemeVariant:{name:'tonalSpot'}}),/canonical/);assert.throws(()=>ColorScheme.fromSeed({seedColor:1.5}),/integer/);
- for(const role of ['background','onBackground','surfaceVariant']){assert.equal(a[role],undefined);assert.throws(()=>new ColorScheme({[role]:0}),/deprecated/);assert.throws(()=>a.copyWith({[role]:0}),/Deprecated/);assert.throws(()=>ColorScheme.fromSeed({seedColor:0xff123456,[role]:0}),/Deprecated/);}
- assert.equal(ColorScheme.fromSwatch,undefined);assert.equal(ColorScheme.highContrastLight,undefined);
- const mode=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';try{const p=new DiagnosticPropertiesBuilder();a.debugFillProperties(p);assert.deepEqual(p.properties.map(n=>n.name),['brightness',...roles]);}finally{FoundationBuildMode.mode=mode;}
-});
-test('ThemeData seed/default brightness and actual Root control consume generated colors with source construction constraints',{timeout},()=>{
- const scheme=ColorScheme.fromSeed({seedColor:0xff1122aa,brightness:'dark'}),data=new ThemeData({colorSchemeSeed:0xff1122aa,brightness:'dark',platform:'windows'});assert(data.colorScheme.equals(scheme));assert.equal(new ThemeData({colorScheme:scheme}).brightness,'dark');assert.equal(new ThemeData({colorScheme:null,brightness:null}).brightness,'light');assert.equal(data.copyWith({brightness:'light'}).brightness,'light');assert(data.copyWith().colorScheme.equals(data.colorScheme));
- assert.throws(()=>new ThemeData({colorSchemeSeed:1,colorScheme:scheme}),/cannot be combined/);assert.throws(()=>new ThemeData({colorSchemeSeed:1,primaryColor:new Color(0xff000000)}),/cannot be combined/);assert.throws(()=>new ThemeData({colorScheme:scheme,brightness:'light'}),/match/);
- const f=fixture(),seen=[];try{const commands=f.set(new Theme(data,new Builder(context=>{seen.push(Theme.of(context));return new Directionality('ltr',new Align(new Switch({value:true,onChanged(){},id:'seed-switch'})));})));assert(seen[0].colorScheme.equals(data.colorScheme));assert(commands.some(c=>c.op==='drawRRect'&&c.paint.color===scheme.primary));f.tap('seed-switch');f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{f.close();}
-});
-test('pinned Dart palette populations/score and shared Random.nextInt match independently captured native values',{timeout},()=>{
- for(const row of paletteRows){assert.deepEqual([...quantizeMaterialImage(row.input.pixels,row.input.maxColors)],row.palette,row.input.name);if(row.input.maxColors===128&&row.input.pixels.length){const rgba=Uint8Array.from(row.input.pixels.flatMap(p=>[p&255,p>>>8&255,p>>>16&255,p>>>24]));assert.equal(materialImageSeed(rgba),row.seed,row.input.name);}}
- for(const row of randomRows){const random=new SeededRandom(0x42688);assert.deepEqual(Array.from({length:6},()=>random.nextInt(row.max)),row.ints);assert.equal(random.nextDouble(),row.double);}
- for(const value of [0,-1,1.2,4294967297,NaN])assert.throws(()=>new SeededRandom(1).nextInt(value),/positive/);assert.throws(()=>materialImageSeed(new Uint8Array()),/RGBA/);for(const value of [NaN,1.25,-1])assert.throws(()=>quantizeMaterialImage([value]),/uint32 integers/);
-});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { ColorScheme, DynamicSchemeVariant } from '@nelyx/material/color-scheme';
+import { DynamicSchemeVariant as CanonicalVariant } from '@nelyx/material/dynamic-scheme-variant';
+import {
+  ColorScheme as AggregateScheme,
+  DynamicSchemeVariant as AggregateVariant,
+} from '@nelyx/material/widgets';
+import { ThemeData } from '@nelyx/material/theme-data';
+import { Theme } from '@nelyx/material/theme';
+import { Switch } from '@nelyx/material/switch';
+import '@nelyx/material/typography';
+import { Color } from '@nelyx/core/ui/color';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { SeededRandom } from '@nelyx/core/internal/math/seeded-random';
+import {
+  MemoryImage,
+  ImageProvider,
+  imageCacheFor,
+} from '@nelyx/core/framework/painting/image-provider';
+import { ImageConfiguration } from '@nelyx/core/framework/painting/image-configuration';
+import { ImageStreamCompleter, ImageStream } from '@nelyx/core/framework/painting/image-stream';
+import { ImageService } from '@nelyx/core/hosting/images';
+import { RasterizationService } from '@nelyx/core/hosting/rasterization';
+import { Align, Builder, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { WebSkiaLibrary } from '@nelyx/skia-web/library';
+import { fixture } from './root-fixture.mjs';
+import {
+  quantizeMaterialImage,
+  materialImageSeed,
+} from '../dist/internal/color-scheme/image-colors.js';
+import { imageProviderPixels } from '../dist/internal/color-scheme/image-provider-colors.js';
+const timeout = 1_200_000;
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const seedRows = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/color-scheme-seeds.json', import.meta.url)),
+  ),
+  roles = Object.keys(seedRows[0].roles).filter(
+    (r) => !['background', 'onBackground', 'surfaceVariant'].includes(r),
+  );
+const paletteRows = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/color-image-palettes.json', import.meta.url)),
+  ),
+  randomRows = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/color-palette-random.json', import.meta.url)),
+  );
+test(
+  'source dynamic scheme enum and all 59 native-oracle seeds preserve 46 roles across every variant/brightness/contrast',
+  { timeout },
+  () => {
+    assert.equal(ColorScheme, AggregateScheme);
+    assert.equal(DynamicSchemeVariant, CanonicalVariant);
+    assert.equal(DynamicSchemeVariant, AggregateVariant);
+    assert.equal(roles.length, 46);
+    assert.deepEqual(
+      DynamicSchemeVariant.values.map((v) => [v.name, v.index]),
+      [
+        'tonalSpot',
+        'fidelity',
+        'monochrome',
+        'neutral',
+        'vibrant',
+        'expressive',
+        'content',
+        'rainbow',
+        'fruitSalad',
+      ].map((name, index) => [name, index]),
+    );
+    for (const row of seedRows) {
+      const q = row.input,
+        scheme = ColorScheme.fromSeed({
+          seedColor: new Color(q.seed),
+          brightness: q.brightness,
+          dynamicSchemeVariant: DynamicSchemeVariant[q.variant],
+          contrastLevel: q.contrast,
+        });
+      for (const role of roles)
+        assert.equal(scheme[role], row.roles[role], JSON.stringify(q) + ' ' + role);
+      assert.equal(scheme.surfaceTint, scheme.primary);
+      assert(Object.isFrozen(scheme));
+    }
+  },
+);
+test(
+  'seed overrides/null copies/ARGB ingress, removed roles, interpolation and diagnostics use source value contracts',
+  { timeout },
+  () => {
+    const a = ColorScheme.fromSeed({ seedColor: 0xff6750a4, primary: 0, onPrimary: null });
+    assert.equal(a.primary, 0);
+    assert.equal(a.copyWith({ primary: null }).primary, 0);
+    assert.equal(a.copyWith({ brightness: null }).brightness, 'light');
+    assert(a.equals(a.copyWith()));
+    assert.equal(a.hashCode, a.copyWith().hashCode);
+    assert.equal(ColorScheme.lerp(a, a, 4), a);
+    const b = a.copyWith({ primary: 0xffffffff, brightness: 'dark' }),
+      mixed = ColorScheme.lerp(a, b, 0.5);
+    assert.equal(mixed.brightness, 'dark');
+    assert.equal(mixed.primary, 0x80808080);
+    const floating = Color.from({ alpha: 1, red: 0.123456, green: 0.234567, blue: 0.345678 });
+    assert(
+      ColorScheme.fromSeed({ seedColor: floating }).equals(
+        ColorScheme.fromSeed({ seedColor: floating.toARGB32() }),
+      ),
+    );
+    for (const contrast of [NaN, Infinity, -1.01, 1.01])
+      assert.throws(
+        () => ColorScheme.fromSeed({ seedColor: 0xff123456, contrastLevel: contrast }),
+        /contrastLevel/,
+      );
+    assert.throws(
+      () =>
+        ColorScheme.fromSeed({ seedColor: Color.from({ alpha: 1, red: NaN, green: 0, blue: 0 }) }),
+      /finite/,
+    );
+    assert.throws(
+      () =>
+        ColorScheme.fromSeed({
+          seedColor: 0xff123456,
+          dynamicSchemeVariant: { name: 'tonalSpot' },
+        }),
+      /canonical/,
+    );
+    assert.throws(() => ColorScheme.fromSeed({ seedColor: 1.5 }), /integer/);
+    for (const role of ['background', 'onBackground', 'surfaceVariant']) {
+      assert.equal(a[role], undefined);
+      assert.throws(() => new ColorScheme({ [role]: 0 }), /deprecated/);
+      assert.throws(() => a.copyWith({ [role]: 0 }), /Deprecated/);
+      assert.throws(() => ColorScheme.fromSeed({ seedColor: 0xff123456, [role]: 0 }), /Deprecated/);
+    }
+    assert.equal(ColorScheme.fromSwatch, undefined);
+    assert.equal(ColorScheme.highContrastLight, undefined);
+    const mode = FoundationBuildMode.mode;
+    FoundationBuildMode.mode = 'debug';
+    try {
+      const p = new DiagnosticPropertiesBuilder();
+      a.debugFillProperties(p);
+      assert.deepEqual(
+        p.properties.map((n) => n.name),
+        ['brightness', ...roles],
+      );
+    } finally {
+      FoundationBuildMode.mode = mode;
+    }
+  },
+);
+test(
+  'ThemeData seed/default brightness and actual Root control consume generated colors with source construction constraints',
+  { timeout },
+  () => {
+    const scheme = ColorScheme.fromSeed({ seedColor: 0xff1122aa, brightness: 'dark' }),
+      data = new ThemeData({
+        colorSchemeSeed: 0xff1122aa,
+        brightness: 'dark',
+        platform: 'windows',
+      });
+    assert(data.colorScheme.equals(scheme));
+    assert.equal(new ThemeData({ colorScheme: scheme }).brightness, 'dark');
+    assert.equal(new ThemeData({ colorScheme: null, brightness: null }).brightness, 'light');
+    assert.equal(data.copyWith({ brightness: 'light' }).brightness, 'light');
+    assert(data.copyWith().colorScheme.equals(data.colorScheme));
+    assert.throws(
+      () => new ThemeData({ colorSchemeSeed: 1, colorScheme: scheme }),
+      /cannot be combined/,
+    );
+    assert.throws(
+      () => new ThemeData({ colorSchemeSeed: 1, primaryColor: new Color(0xff000000) }),
+      /cannot be combined/,
+    );
+    assert.throws(() => new ThemeData({ colorScheme: scheme, brightness: 'light' }), /match/);
+    const f = fixture(),
+      seen = [];
+    try {
+      const commands = f.set(
+        new Theme(
+          data,
+          new Builder((context) => {
+            seen.push(Theme.of(context));
+            return new Directionality(
+              'ltr',
+              new Align(new Switch({ value: true, onChanged() {}, id: 'seed-switch' })),
+            );
+          }),
+        ),
+      );
+      assert(seen[0].colorScheme.equals(data.colorScheme));
+      assert(commands.some((c) => c.op === 'drawRRect' && c.paint.color === scheme.primary));
+      f.tap('seed-switch');
+      f.set(new SizedBox(1, 1));
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'pinned Dart palette populations/score and shared Random.nextInt match independently captured native values',
+  { timeout },
+  () => {
+    for (const row of paletteRows) {
+      assert.deepEqual(
+        [...quantizeMaterialImage(row.input.pixels, row.input.maxColors)],
+        row.palette,
+        row.input.name,
+      );
+      if (row.input.maxColors === 128 && row.input.pixels.length) {
+        const rgba = Uint8Array.from(
+          row.input.pixels.flatMap((p) => [p & 255, (p >>> 8) & 255, (p >>> 16) & 255, p >>> 24]),
+        );
+        assert.equal(materialImageSeed(rgba), row.seed, row.input.name);
+      }
+    }
+    for (const row of randomRows) {
+      const random = new SeededRandom(0x42688);
+      assert.deepEqual(
+        Array.from({ length: 6 }, () => random.nextInt(row.max)),
+        row.ints,
+      );
+      assert.equal(random.nextDouble(), row.double);
+    }
+    for (const value of [0, -1, 1.2, 4294967297, NaN])
+      assert.throws(() => new SeededRandom(1).nextInt(value), /positive/);
+    assert.throws(() => materialImageSeed(new Uint8Array()), /RGBA/);
+    for (const value of [NaN, 1.25, -1])
+      assert.throws(() => quantizeMaterialImage([value]), /uint32 integers/);
+  },
+);
 let canvasKit;
-async function imageFixture(){
- if(!canvasKit){const require=createRequire(import.meta.url),runtime=new URL('../generated/runtime/',import.meta.resolve('@nelyx/skia-web/library'));canvasKit=await require(fileURLToPath(new URL('canvaskit.js',runtime)))({wasmBinary:fs.readFileSync(new URL('canvaskit.wasm',runtime))});}
- const ck=canvasKit,f=fixture(),context=f.root.context,library=new WebSkiaLibrary(ck,null,context.owner),frames=new Map(),timers=new Map(),rasters=[];library.bind(context.resources);let now=0,readMode='normal',resolveRead,reads=0,rasterId=0,liveRasters=0;
- const images=new ImageService(context.resources,{instantiateCodec:(bytes,options)=>library.instantiateImageCodec(bytes,options),async loadAsset(){throw Error('No assets declared');},async loadNetwork(){throw Error('No network declared');}},{request(callback){const key={};frames.set(key,callback);return {dispose(){frames.delete(key);}};}},{now:()=>now,scheduleTimer(callback,ms){const key={};timers.set(key,{callback,at:now+ms});return {dispose(){timers.delete(key);}};}});
- // Explicit CPU backend: production replay on a real CK raster surface. The
- // product WebSkiaLibrary.rasterize method requires a separate WebGL context.
- const rasterizer=new RasterizationService(context.resources,{rasterize(capture,width,height){rasters.push({width,height});const surface=ck.MakeSurface(width,height);assert(surface);let image;try{surface.getCanvas().clear(ck.Color(0,0,0,0));library.replay(surface.getCanvas(),capture.frame);surface.flush();image=surface.makeImageSnapshot();}finally{surface.delete();}liveRasters++;return {descriptor:{kind:'image',id:'palette-cpu-'+(++rasterId),generation:1},width,height,duration:0,async readBytes(format){assert.equal(format,'rawRgba');reads++;const bytes=image.readPixels(0,0,{width,height,colorType:ck.ColorType.RGBA_8888,alphaType:ck.AlphaType.Premul,colorSpace:ck.ColorSpace.SRGB});if(readMode==='null')return null;if(readMode==='throw')throw Error('Injected readback failure');if(readMode==='deferred')await new Promise(resolve=>{resolveRead=resolve;});return bytes;},retire(){image.delete();liveRasters--;}};},dispose(){}});
- const configuration=new ImageConfiguration({images});
- const png=(width,height)=>{const surface=ck.MakeSurface(width,height),canvas=surface.getCanvas();canvas.clear(ck.Color(255,0,0,1));const paint=new ck.Paint();paint.setColor(ck.Color(0,255,0,1));canvas.drawRect(ck.XYWHRect(width/2,0,width/2,height),paint);paint.delete();surface.flush();const image=surface.makeImageSnapshot();try{return image.encodeToBytes();}finally{image.delete();surface.delete();}};
- const flush=async()=>{await new Promise(setImmediate);const snapshot=[...frames];for(const [key,callback]of snapshot){frames.delete(key);callback();}f.frame();};
- const settle=async promise=>{let done=false,result,error;promise.then(v=>{done=true;result=v;},e=>{done=true;error=e;});for(let i=0;i<40&&!done;i++)await flush();assert(done,'Expected the actual image operation to settle');if(error)throw error;return result;};
- return {ck,f,context,library,images,rasterizer,configuration,png,flush,settle,rasters,timers,frames,get reads(){return reads;},setReadMode(mode){readMode=mode;},releaseRead(){assert(resolveRead);resolveRead();},get waitingRead(){return !!resolveRead;},tick(ms){now+=ms;const snapshot1=[...timers];for(const [key,timer]of snapshot1)if(timer.at<=now){timers.delete(key);timer.callback();}},async close(){await images.dispose();await rasterizer.dispose();assert.equal(timers.size,0);assert.equal(frames.size,0);assert.equal(library.images.size,0);assert.equal(liveRasters,0);f.close();await library.dispose();}};
+async function imageFixture() {
+  if (!canvasKit) {
+    const require = createRequire(import.meta.url),
+      runtime = new URL('../generated/runtime/', import.meta.resolve('@nelyx/skia-web/library'));
+    canvasKit = await require(fileURLToPath(new URL('canvaskit.js', runtime)))({
+      wasmBinary: fs.readFileSync(new URL('canvaskit.wasm', runtime)),
+    });
+  }
+  const ck = canvasKit,
+    f = fixture(),
+    context = f.root.context,
+    library = new WebSkiaLibrary(ck, null, context.owner),
+    frames = new Map(),
+    timers = new Map(),
+    rasters = [];
+  library.bind(context.resources);
+  let now = 0,
+    readMode = 'normal',
+    resolveRead,
+    reads = 0,
+    rasterId = 0,
+    liveRasters = 0;
+  const images = new ImageService(
+    context.resources,
+    {
+      instantiateCodec: (bytes, options) => library.instantiateImageCodec(bytes, options),
+      async loadAsset() {
+        throw Error('No assets declared');
+      },
+      async loadNetwork() {
+        throw Error('No network declared');
+      },
+    },
+    {
+      request(callback) {
+        const key = {};
+        frames.set(key, callback);
+        return {
+          dispose() {
+            frames.delete(key);
+          },
+        };
+      },
+    },
+    {
+      now: () => now,
+      scheduleTimer(callback, ms) {
+        const key = {};
+        timers.set(key, { callback, at: now + ms });
+        return {
+          dispose() {
+            timers.delete(key);
+          },
+        };
+      },
+    },
+  );
+  // Explicit CPU backend: production replay on a real CK raster surface. The
+  // product WebSkiaLibrary.rasterize method requires a separate WebGL context.
+  const rasterizer = new RasterizationService(context.resources, {
+    rasterize(capture, width, height) {
+      rasters.push({ width, height });
+      const surface = ck.MakeSurface(width, height);
+      assert(surface);
+      let image;
+      try {
+        surface.getCanvas().clear(ck.Color(0, 0, 0, 0));
+        library.replay(surface.getCanvas(), capture.frame);
+        surface.flush();
+        image = surface.makeImageSnapshot();
+      } finally {
+        surface.delete();
+      }
+      liveRasters++;
+      return {
+        descriptor: { kind: 'image', id: 'palette-cpu-' + ++rasterId, generation: 1 },
+        width,
+        height,
+        duration: 0,
+        async readBytes(format) {
+          assert.equal(format, 'rawRgba');
+          reads++;
+          const bytes = image.readPixels(0, 0, {
+            width,
+            height,
+            colorType: ck.ColorType.RGBA_8888,
+            alphaType: ck.AlphaType.Premul,
+            colorSpace: ck.ColorSpace.SRGB,
+          });
+          if (readMode === 'null') return null;
+          if (readMode === 'throw') throw Error('Injected readback failure');
+          if (readMode === 'deferred')
+            await new Promise((resolve) => {
+              resolveRead = resolve;
+            });
+          return bytes;
+        },
+        retire() {
+          image.delete();
+          liveRasters--;
+        },
+      };
+    },
+    dispose() {},
+  });
+  const configuration = new ImageConfiguration({ images });
+  const png = (width, height) => {
+    const surface = ck.MakeSurface(width, height),
+      canvas = surface.getCanvas();
+    canvas.clear(ck.Color(255, 0, 0, 1));
+    const paint = new ck.Paint();
+    paint.setColor(ck.Color(0, 255, 0, 1));
+    canvas.drawRect(ck.XYWHRect(width / 2, 0, width / 2, height), paint);
+    paint.delete();
+    surface.flush();
+    const image = surface.makeImageSnapshot();
+    try {
+      return image.encodeToBytes();
+    } finally {
+      image.delete();
+      surface.delete();
+    }
+  };
+  const flush = async () => {
+    await new Promise(setImmediate);
+    const snapshot = [...frames];
+    for (const [key, callback] of snapshot) {
+      frames.delete(key);
+      callback();
+    }
+    f.frame();
+  };
+  const settle = async (promise) => {
+    let done = false,
+      result,
+      error;
+    promise.then(
+      (v) => {
+        done = true;
+        result = v;
+      },
+      (e) => {
+        done = true;
+        error = e;
+      },
+    );
+    for (let i = 0; i < 40 && !done; i++) await flush();
+    assert(done, 'Expected the actual image operation to settle');
+    if (error) throw error;
+    return result;
+  };
+  return {
+    ck,
+    f,
+    context,
+    library,
+    images,
+    rasterizer,
+    configuration,
+    png,
+    flush,
+    settle,
+    rasters,
+    timers,
+    frames,
+    get reads() {
+      return reads;
+    },
+    setReadMode(mode) {
+      readMode = mode;
+    },
+    releaseRead() {
+      assert(resolveRead);
+      resolveRead();
+    },
+    get waitingRead() {
+      return !!resolveRead;
+    },
+    tick(ms) {
+      now += ms;
+      const snapshot1 = [...timers];
+      for (const [key, timer] of snapshot1)
+        if (timer.at <= now) {
+          timers.delete(key);
+          timer.callback();
+        }
+    },
+    async close() {
+      await images.dispose();
+      await rasterizer.dispose();
+      assert.equal(timers.size, 0);
+      assert.equal(frames.size, 0);
+      assert.equal(library.images.size, 0);
+      assert.equal(liveRasters, 0);
+      f.close();
+      await library.dispose();
+    },
+  };
 }
-test('fromImageProvider uses actual decode/nearest 112px raster/readback, source score/seed and exact retirement',{timeout},async()=>{
- // oxlint-disable-next-line unicorn/no-useless-spread -- Convert typed views to ordinary arrays for strict value comparisons.
- const p=await imageFixture();try{for(const [width,height,scaledWidth,scaledHeight]of[[2,2,2,2],[224,112,112,56],[56,224,28,112]]){const provider=new MemoryImage(p.png(width,height)),pixels=await p.settle(imageProviderPixels(provider,p.configuration,p.rasterizer));assert.equal(pixels.length,scaledWidth*scaledHeight*4);assert.deepEqual([...pixels.slice(0,4)],[255,0,0,255]);assert.deepEqual([...pixels.slice(-4)],[0,255,0,255]);assert.deepEqual(p.rasters.at(-1),{width:scaledWidth,height:scaledHeight});const expected=ColorScheme.fromSeed({seedColor:materialImageSeed(pixels),brightness:'dark',dynamicSchemeVariant:DynamicSchemeVariant.fidelity,contrastLevel:.5,primary:0xff123456}),actual=await p.settle(ColorScheme.fromImageProvider({provider,configuration:p.configuration,rasterizer:p.rasterizer,brightness:'dark',dynamicSchemeVariant:DynamicSchemeVariant.fidelity,contrastLevel:.5,primary:0xff123456}));assert(actual.equals(expected));assert.equal(actual.primary,0xff123456);assert.equal(p.timers.size,0);}
- assert.equal(p.reads,6);assert.equal(imageCacheFor(p.images).pendingImageCount,0);assert(p.library.images.size>0,'The caller-owned image cache remains live until owner shutdown');
- }finally{await p.close();}
-});
-test('actual image failures, zero scaled extent, explicit owner mismatch and five-second timeout retire listeners/resources',{timeout},async()=>{
- const p=await imageFixture(),other=await imageFixture();try{const options={configuration:p.configuration,rasterizer:p.rasterizer};await assert.rejects(()=>p.settle(ColorScheme.fromImageProvider({provider:new MemoryImage(new Uint8Array([1,2,3])),...options})),/Failed to render image/);
- const provider=new MemoryImage(p.png(4,4));p.setReadMode('null');await assert.rejects(()=>p.settle(ColorScheme.fromImageProvider({provider,...options})),/RGBA/);p.setReadMode('throw');await assert.rejects(()=>p.settle(ColorScheme.fromImageProvider({provider,...options})),/readback failure/);p.setReadMode('normal');await assert.rejects(()=>p.settle(ColorScheme.fromImageProvider({provider:new MemoryImage(p.png(1,224)),...options})),/positive|Invalid|bounds|dimension/i);
- await assert.rejects(ColorScheme.fromImageProvider({provider,...options,rasterizer:other.rasterizer}),/same View resource owner/);
- class Never extends ImageProvider{constructor(){super();this.completer=new ImageStreamCompleter();this.listeners=0;}createStream(){const provider=this;return new(class extends ImageStream{addListener(listener){provider.listeners++;super.addListener(listener);}removeListener(listener){provider.listeners--;super.removeListener(listener);}})();}obtainKey(){return this;}loadImage(){return this.completer;}}
- const never=new Never(),pending=ColorScheme.fromImageProvider({provider:never,...options});const failure=assert.rejects(pending,/Timeout occurred/);await p.flush();assert.equal(never.listeners,1);p.tick(5000);await failure;assert.equal(never.listeners,0);assert.equal(p.timers.size,0);
- }finally{await p.close();await other.close();}
-});
-test('closing the image owner cancels the palette result while retaining a pending actual readback through drain',{timeout},async()=>{
- const p=await imageFixture();try{p.setReadMode('deferred');const pending=ColorScheme.fromImageProvider({provider:new MemoryImage(p.png(4,4)),configuration:p.configuration,rasterizer:p.rasterizer}),failure=assert.rejects(pending,/owner closed/);for(let i=0;i<20&&!p.waitingRead;i++)await p.flush();assert(p.waitingRead);let drained=false;const closing=p.images.dispose().then(()=>{drained=true;});await failure;await p.flush();assert.equal(drained,false,'Owner drain must include the pending image extraction/readback');assert(p.library.images.size>0);p.releaseRead();await closing;for(let i=0;i<3;i++)await p.flush();assert.equal(p.library.images.size,0);
- }finally{if(p.waitingRead){p.releaseRead();for(let i=0;i<3;i++)await p.flush();}await p.close();}
-});
+test(
+  'fromImageProvider uses actual decode/nearest 112px raster/readback, source score/seed and exact retirement',
+  { timeout },
+  async () => {
+    /* oxlint-disable unicorn/no-useless-spread -- Convert typed views to ordinary arrays for strict value comparisons. */
+    const p = await imageFixture();
+    try {
+      for (const [width, height, scaledWidth, scaledHeight] of [
+        [2, 2, 2, 2],
+        [224, 112, 112, 56],
+        [56, 224, 28, 112],
+      ]) {
+        const provider = new MemoryImage(p.png(width, height)),
+          pixels = await p.settle(imageProviderPixels(provider, p.configuration, p.rasterizer));
+        assert.equal(pixels.length, scaledWidth * scaledHeight * 4);
+        assert.deepEqual([...pixels.slice(0, 4)], [255, 0, 0, 255]);
+        assert.deepEqual([...pixels.slice(-4)], [0, 255, 0, 255]);
+        assert.deepEqual(p.rasters.at(-1), { width: scaledWidth, height: scaledHeight });
+        const expected = ColorScheme.fromSeed({
+            seedColor: materialImageSeed(pixels),
+            brightness: 'dark',
+            dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+            contrastLevel: 0.5,
+            primary: 0xff123456,
+          }),
+          actual = await p.settle(
+            ColorScheme.fromImageProvider({
+              provider,
+              configuration: p.configuration,
+              rasterizer: p.rasterizer,
+              brightness: 'dark',
+              dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+              contrastLevel: 0.5,
+              primary: 0xff123456,
+            }),
+          );
+        assert(actual.equals(expected));
+        assert.equal(actual.primary, 0xff123456);
+        assert.equal(p.timers.size, 0);
+      }
+      /* oxlint-enable unicorn/no-useless-spread */
+      assert.equal(p.reads, 6);
+      assert.equal(imageCacheFor(p.images).pendingImageCount, 0);
+      assert(
+        p.library.images.size > 0,
+        'The caller-owned image cache remains live until owner shutdown',
+      );
+    } finally {
+      await p.close();
+    }
+  },
+);
+test(
+  'actual image failures, zero scaled extent, explicit owner mismatch and five-second timeout retire listeners/resources',
+  { timeout },
+  async () => {
+    const p = await imageFixture(),
+      other = await imageFixture();
+    try {
+      const options = { configuration: p.configuration, rasterizer: p.rasterizer };
+      await assert.rejects(
+        () =>
+          p.settle(
+            ColorScheme.fromImageProvider({
+              provider: new MemoryImage(new Uint8Array([1, 2, 3])),
+              ...options,
+            }),
+          ),
+        /Failed to render image/,
+      );
+      const provider = new MemoryImage(p.png(4, 4));
+      p.setReadMode('null');
+      await assert.rejects(
+        () => p.settle(ColorScheme.fromImageProvider({ provider, ...options })),
+        /RGBA/,
+      );
+      p.setReadMode('throw');
+      await assert.rejects(
+        () => p.settle(ColorScheme.fromImageProvider({ provider, ...options })),
+        /readback failure/,
+      );
+      p.setReadMode('normal');
+      await assert.rejects(
+        () =>
+          p.settle(
+            ColorScheme.fromImageProvider({ provider: new MemoryImage(p.png(1, 224)), ...options }),
+          ),
+        /positive|Invalid|bounds|dimension/i,
+      );
+      await assert.rejects(
+        ColorScheme.fromImageProvider({ provider, ...options, rasterizer: other.rasterizer }),
+        /same View resource owner/,
+      );
+      class Never extends ImageProvider {
+        constructor() {
+          super();
+          this.completer = new ImageStreamCompleter();
+          this.listeners = 0;
+        }
+        createStream() {
+          const provider = this;
+          return new (class extends ImageStream {
+            addListener(listener) {
+              provider.listeners++;
+              super.addListener(listener);
+            }
+            removeListener(listener) {
+              provider.listeners--;
+              super.removeListener(listener);
+            }
+          })();
+        }
+        obtainKey() {
+          return this;
+        }
+        loadImage() {
+          return this.completer;
+        }
+      }
+      const never = new Never(),
+        pending = ColorScheme.fromImageProvider({ provider: never, ...options });
+      const failure = assert.rejects(pending, /Timeout occurred/);
+      await p.flush();
+      assert.equal(never.listeners, 1);
+      p.tick(5000);
+      await failure;
+      assert.equal(never.listeners, 0);
+      assert.equal(p.timers.size, 0);
+    } finally {
+      await p.close();
+      await other.close();
+    }
+  },
+);
+test(
+  'closing the image owner cancels the palette result while retaining a pending actual readback through drain',
+  { timeout },
+  async () => {
+    const p = await imageFixture();
+    try {
+      p.setReadMode('deferred');
+      const pending = ColorScheme.fromImageProvider({
+          provider: new MemoryImage(p.png(4, 4)),
+          configuration: p.configuration,
+          rasterizer: p.rasterizer,
+        }),
+        failure = assert.rejects(pending, /owner closed/);
+      for (let i = 0; i < 20 && !p.waitingRead; i++) await p.flush();
+      assert(p.waitingRead);
+      let drained = false;
+      const closing = p.images.dispose().then(() => {
+        drained = true;
+      });
+      await failure;
+      await p.flush();
+      assert.equal(
+        drained,
+        false,
+        'Owner drain must include the pending image extraction/readback',
+      );
+      assert(p.library.images.size > 0);
+      p.releaseRead();
+      await closing;
+      for (let i = 0; i < 3; i++) await p.flush();
+      assert.equal(p.library.images.size, 0);
+    } finally {
+      if (p.waitingRead) {
+        p.releaseRead();
+        for (let i = 0; i < 3; i++) await p.flush();
+      }
+      await p.close();
+    }
+  },
+);

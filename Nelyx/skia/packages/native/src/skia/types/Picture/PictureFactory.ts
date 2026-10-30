@@ -1,4 +1,4 @@
-import type {SkPicture} from "../Drawing.ts";
+import type { SkPicture } from '../Drawing.ts';
 
 export interface PictureFactory {
   /**

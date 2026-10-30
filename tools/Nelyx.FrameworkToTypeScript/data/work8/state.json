@@ -8,9 +8,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/painting/matrix-utils-base.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "a3e5d4edbff8c5bd717c28a85f6ecaa3203048540273f287313e056e63b2e220",
-          "productHash": "a3e5d4edbff8c5bd717c28a85f6ecaa3203048540273f287313e056e63b2e220",
+          "productHash": "1d4c9f557549735c0c063071140788106d67b4ab4741eca7a25e045ddbf999b5",
           "fingerprint": "2637659a646348d29a132c6938a2416c71e7580aa389b3ce4eb9e1faadf88e97",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/matrix.json"
         }
@@ -437,9 +437,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/animation/bounce.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "88352ca56a236af3a7ee24a4043c361e2436559a8e35d91f23f73c80f73d7f6b",
-          "productHash": "88352ca56a236af3a7ee24a4043c361e2436559a8e35d91f23f73c80f73d7f6b",
+          "productHash": "c855237ce4b5323aa82be0ad5d618588da86e1a14642da2e5d040728805c94af",
           "fingerprint": "86462f543d2a4984643e837f17a1bce3f7a17679c1dfd210882ffc18384f3466",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/bounce.json"
         }
@@ -1155,9 +1155,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/physics/utils.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "725a0ba83a0ae671a7debbeebe9f9734c4efda2ff2f7c36107983c93da92d3e9",
-          "productHash": "725a0ba83a0ae671a7debbeebe9f9734c4efda2ff2f7c36107983c93da92d3e9",
+          "productHash": "afac5f6f1e4d048ee1343f327f11a517a9dc5766cc915a390ed52291cd3c4193",
           "fingerprint": "74fbdffc77553ac78059581bd8d92e040977c33170802cf8c74cd4a003908c1b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/physics.json"
         }
@@ -1345,9 +1345,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/animation/tween-sequence-item.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "a489bdbe3bf638b2bae88ae2199e4fb8a848ad96484363b1a3e3b0020943de24",
-          "productHash": "a489bdbe3bf638b2bae88ae2199e4fb8a848ad96484363b1a3e3b0020943de24",
+          "productHash": "159b84ead0b2ca1ca3f02452d6a82b02a13ee3c18de99efce841ee764748971b",
           "fingerprint": "1ccd226b26896ec88659ef2efd422e7044d3cb3fb0e7d436742a6e0a0eff291f",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/tween-sequence-item.json"
         }
@@ -1575,9 +1575,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/physics/spring-simulation.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "74175064fd063b23768462deff4b0d55a1b75b62ec3537ad324a4615c06523c7",
-          "productHash": "74175064fd063b23768462deff4b0d55a1b75b62ec3537ad324a4615c06523c7",
+          "productHash": "35a89225d9ae731c47fcd55c2e87dcb0d1e6e1bcb67130401b6bcff473c5fcbb",
           "fingerprint": "9253f14ad37a2b89f9c06d160a1ad99afb173af7fb51edc6cf32f34b3c483633",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/spring-description.json"
         }
@@ -1805,9 +1805,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/widgets/desktop-text-selection-toolbar-layout-delegate.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "886571ffdc3612e3a5e989c08538b88b5cb289796458168941f46f5cb717de92",
-          "productHash": "886571ffdc3612e3a5e989c08538b88b5cb289796458168941f46f5cb717de92",
+          "productHash": "986188daf80bbeb0037062fc38828b6bbed94d1312a0cdb4ada83a92cb4e0ac1",
           "fingerprint": "36cf19f0e68f5e0205c8b65a16c219d6f3fc9be526b0a4a0010da534f3215d5e",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/desktop-selection-toolbar-layout.json"
         }
@@ -2123,17 +2123,17 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/physics/gravity-simulation.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "c51f9f6f27ed3f934ffb90d7cc26b5bd3c57d2e80cc905b7538b4fbaa9f7fe0e",
-          "productHash": "c51f9f6f27ed3f934ffb90d7cc26b5bd3c57d2e80cc905b7538b4fbaa9f7fe0e",
+          "productHash": "636040099e731f234ed6e8dd48ac429e357338c9e018260b69169946eaccbdfc",
           "fingerprint": "fd265a746cfd091d2b62aa787f904e59077ed4b3d081ebc6e22c824b149e21c8",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/simulation-wrappers.json"
         },
         {
           "destination": "Nelyx/src/framework/physics/clamped-simulation.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "cb3c1c44907b1c85ee1c29cb0feae324c5e0a39a4faad3c4d68543135a5cc604",
-          "productHash": "cb3c1c44907b1c85ee1c29cb0feae324c5e0a39a4faad3c4d68543135a5cc604",
+          "productHash": "e9f97859af204dd684655f2d3961ff4e50d6b1c4c6ae4dccead63235d8c6f09a",
           "fingerprint": "fd265a746cfd091d2b62aa787f904e59077ed4b3d081ebc6e22c824b149e21c8",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/simulation-wrappers.json"
         }
@@ -2441,7 +2441,7 @@
           "destination": "Nelyx/src/framework/widgets/list-wheel-physics.generated.ts",
           "mode": "adopted",
           "baseHash": "5216eab0f7aa58d8790b88cdd355755b66abd8be2d8ffa8f170ee9ceadcef72b",
-          "productHash": "19fde02b9eb6304271e643e2a000f693dcebbd81027a6174ae174536eb61b775",
+          "productHash": "ac5cacdbd83c489a5c0799d8f648c636736a37a2bc67cbb3c3538ee9a51549cf",
           "fingerprint": "4200ba4a4753a27498aed1c413205a2e8e8f172fa07be4438cc0804745f13d4b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-physics.json"
         }
@@ -2953,7 +2953,7 @@
           "destination": "Nelyx/src/framework/widgets/list-wheel-controller.generated.ts",
           "mode": "adopted",
           "baseHash": "8abed7eb024264bcd7986e4ce278b0a86f1b66581a82b5b3789d7ccf491d20f9",
-          "productHash": "df8649a71536cee6dc9495b57a5512652bb68f6fd36318b788894a21ddbf8398",
+          "productHash": "93519ddf8a8371f0106c2f35518200ddfcb265a7a0d08a3b76c44d7952fa7ea3",
           "fingerprint": "9beb0123e4409201f84f816198404edaf37976a28df73d4a88f0456f6c542162",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-controller.json"
         }
@@ -3422,7 +3422,7 @@
           "destination": "Nelyx/src/framework/widgets/list-wheel-delegate.generated.ts",
           "mode": "adopted",
           "baseHash": "5380a45ad537e668a4e149cabf4ce93bd736b3648adbac3682bcb781ee159660",
-          "productHash": "1fbc5c5203487609e02a06bfe320364809c0e9a074589825e7bf50ad6d924daa",
+          "productHash": "6321bb767031d100c1ad0e8f61964e3a8c554fb8b5c44d8dc9280a80f7fbacd0",
           "fingerprint": "c36fbb6ddc3dbe5f6a89c3a044257e8648544cbbe88bed202a24a5c25a156cc4",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-builder.json"
         }
@@ -3973,9 +3973,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/widgets/list-wheel-position.generated.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "c4d4ab7952fde451bee668603a162ffd0468fcf3d0c582714642e7965418e170",
-          "productHash": "c4d4ab7952fde451bee668603a162ffd0468fcf3d0c582714642e7965418e170",
+          "productHash": "43bbf7969ffe706c070c3d5cfb5c0bd556f9a63111518b482be339504d106fdb",
           "fingerprint": "299cc28c3814d1a0590fb5e93e04026eed28657ad1b96c7ef9225b472828e2bd",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-position.json"
         }
@@ -4462,7 +4462,7 @@
           "destination": "Nelyx/src/framework/rendering/list-wheel-viewport.generated.ts",
           "mode": "adopted",
           "baseHash": "ffdc13027d8455e9c441d8ce3b2ae7e49a535cdd5345f6b3895e572ed3627b63",
-          "productHash": "5f01b5921f71af4d0d7b06f531f18b6f2a5c730f049e69097d5ea605b2d5015e",
+          "productHash": "a8967184926ab9ba566514fde25f4aa60c7975e9b1a57ad773d4ca040a034c24",
           "fingerprint": "71d8bc8704f9b6a720d22e5147ef9a3d53509fa6893b39c4c9abae25affe607f",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-renderer.json"
         }
@@ -5277,7 +5277,7 @@
           "destination": "Nelyx/src/framework/widgets/list-wheel-widget.generated.ts",
           "mode": "adopted",
           "baseHash": "b5c9d84ecab5603b293ac213a99710043f60ee2ad4c3a71824b9536b147e2dca",
-          "productHash": "e17b622c89f83710e43bfadd5020f531707d20aeb9b3b0a8a9aa3737b1bd6257",
+          "productHash": "16353b0dbadd54345dd59937f96f460e9cb3d0a485ab8961f17616345774b582",
           "fingerprint": "5d9df998c3d505c3b537bef5a833b0401a0b2f783443a64920e4f9da7f7cdea7",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-wheel-widget.json"
         }
@@ -7004,9 +7004,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/widgets/child-vicinity.generated.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "42b5f99f875fc47600bad51d1a36aa0244397ce912a23fc9b105b54f075ed649",
-          "productHash": "42b5f99f875fc47600bad51d1a36aa0244397ce912a23fc9b105b54f075ed649",
+          "productHash": "8dcd83fb294e94d2b05e8a04bfef941a76d03df81a3a2e7672b82525a59bc432",
           "fingerprint": "d22740574bd325137bf03737373a4069164fd5d05f7f7f4ec9b7d5a0244e903b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-two-dimensional.json"
         },
@@ -7014,7 +7014,7 @@
           "destination": "Nelyx/src/framework/widgets/two-dimensional-delegate.generated.ts",
           "mode": "adopted",
           "baseHash": "eb7d3c335e3be616ad54f4291e24510650eda1db0fded9fe0304660d0df830bd",
-          "productHash": "e0023df808f689265258a8d1deff7faf2f28db7e221aeaaf8290b71303596f90",
+          "productHash": "e5d12e25e3ea3e0ea35d9157349a3b6e7619588eb3d912ab97742386cb185e10",
           "fingerprint": "d22740574bd325137bf03737373a4069164fd5d05f7f7f4ec9b7d5a0244e903b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-two-dimensional.json"
         },
@@ -7022,7 +7022,7 @@
           "destination": "Nelyx/src/framework/widgets/two-dimensional-viewport.generated.ts",
           "mode": "adopted",
           "baseHash": "59b6f5f1355852366f5cbf004201adfd69403d7a33223983290cfc9925edf91c",
-          "productHash": "7247b30ac17a16731fadb67b275e80552047e32da27bf073994ccca66b36be57",
+          "productHash": "3941043554bd5c224742b517e4f388ba9f36952728c11963173f097c9e132441",
           "fingerprint": "d22740574bd325137bf03737373a4069164fd5d05f7f7f4ec9b7d5a0244e903b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-two-dimensional.json"
         },
@@ -7030,7 +7030,7 @@
           "destination": "Nelyx/src/framework/widgets/scrollable-details.generated.ts",
           "mode": "adopted",
           "baseHash": "e481c1fd69f15cfea8c3e454193afc87c3f8f88e57867fe4d7aff5d4508482a9",
-          "productHash": "dccaeeec39613b841f6ebc726c2d982566e4714739982e8a384379829cab8293",
+          "productHash": "6efc30f4d8d0af3a6db5398c4bb347d0c3457ca7727ff81f3999ac463f17963c",
           "fingerprint": "d22740574bd325137bf03737373a4069164fd5d05f7f7f4ec9b7d5a0244e903b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-two-dimensional.json"
         },
@@ -7038,7 +7038,7 @@
           "destination": "Nelyx/src/framework/widgets/two-dimensional-scrollable.generated.ts",
           "mode": "adopted",
           "baseHash": "2cd24c45ff3fc85e65cbc79aac9742391b76923240f8091f2bb01a2b9d54ccf5",
-          "productHash": "2f51035028645dac55177f69dfb41c38d91e6c3cffcba99d335c0265e3456ed7",
+          "productHash": "afbfae09a7ec2331e2362f94a25270a6c325de69058e2157a15d7e4c19a0da0d",
           "fingerprint": "d22740574bd325137bf03737373a4069164fd5d05f7f7f4ec9b7d5a0244e903b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-two-dimensional.json"
         },
@@ -7046,7 +7046,7 @@
           "destination": "Nelyx/src/framework/widgets/two-dimensional-scroll-view.generated.ts",
           "mode": "adopted",
           "baseHash": "6cb2713f90f183756e6f92c5c0affb03c778e04788de1a8a7b5091b6a6ad6be1",
-          "productHash": "7a7764679f30c32dc4099aaeac31ef36ec59e8955e5d8d8b14280101918ffa3f",
+          "productHash": "acd12218a5d99fd78fcecd2c13dbf5fd866072a95aaf0ffa8a2af3c8065e65f9",
           "fingerprint": "d22740574bd325137bf03737373a4069164fd5d05f7f7f4ec9b7d5a0244e903b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-two-dimensional.json"
         }
@@ -10453,15 +10453,15 @@
           "destination": "Nelyx/src/framework/widgets/sliver-tree.generated.ts",
           "mode": "adopted",
           "baseHash": "d0732d05f7753af35d97c3a01aa6002291f374a5e1507c46b3173950648a6492",
-          "productHash": "5031c7e4dbb33accadc4bf4c9688f73ae3f72b3c94decfdcf93a3ea536b75c7f",
+          "productHash": "fb152df43a8eedf78e3fb718d8d7d45630bc0717411cfa10a3ca5d425e9a02ca",
           "fingerprint": "45390d5c2e92f491ba477375d211194ed013d661738bd34af073c5e5c1958a55",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-tree.json"
         },
         {
           "destination": "Nelyx/src/framework/rendering/sliver-tree.generated.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "64cee6cf2a619f40a9345266498e1cf6c85bcaa10d38d360af3d690c8e88abcd",
-          "productHash": "64cee6cf2a619f40a9345266498e1cf6c85bcaa10d38d360af3d690c8e88abcd",
+          "productHash": "1ccaae4f520f9516e6079d6caca1cadb5c5c4c38b5b5d105011352f2dae7c5e4",
           "fingerprint": "45390d5c2e92f491ba477375d211194ed013d661738bd34af073c5e5c1958a55",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-tree.json"
         }
@@ -13233,7 +13233,7 @@
           "destination": "Nelyx/src/framework/widgets/interactive-viewer.generated.ts",
           "mode": "adopted",
           "baseHash": "d18470c5a9e03f84bff383409d18b9ac3f14d221a00c3a9080246b2b891188cc",
-          "productHash": "8f236779ae43f90a1604b95b8d29b23db8d1ece14f7fa03be765798cffd38a9e",
+          "productHash": "9328708afa3774d8e9d54b27d4be40a2d36c0f68d288f39015d02bb4d499ea40",
           "fingerprint": "08162ca82bff5f2a8df54d53eb5aacb01890de22367885ef44bbfd42d17e783b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-viewer.json"
         },
@@ -13241,7 +13241,7 @@
           "destination": "Nelyx/src/math/quad.generated.ts",
           "mode": "adopted",
           "baseHash": "2bb297c7d337e11b6e14b97e5eaf123128391bdc34fcd9bc7d1e6eeeb4b6db2b",
-          "productHash": "6925248129d7fc27183e37523e2a9995503ffc56ee78836b4718e35366bb2c9a",
+          "productHash": "7b6cf5ec9f7aedfaabc06996a7b27b985c4c0f18d2504d254dcac6df2302850a",
           "fingerprint": "08162ca82bff5f2a8df54d53eb5aacb01890de22367885ef44bbfd42d17e783b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-viewer.json"
         },
@@ -13249,7 +13249,7 @@
           "destination": "Nelyx/src/math/triangle.generated.ts",
           "mode": "adopted",
           "baseHash": "e12554062e3fbb4311dff01b68af95de68f61f4ef01928f0fe2663add18e7414",
-          "productHash": "168cf06608b1d1e43f2099e82522193918655e5a4eaf6f40cb39f61c979b79a3",
+          "productHash": "a5adadfb4369b0fe2674b8980d6a4a25fc7ecd43b2e27d684c81e6c95b427bd6",
           "fingerprint": "08162ca82bff5f2a8df54d53eb5aacb01890de22367885ef44bbfd42d17e783b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-viewer.json"
         }
@@ -15155,9 +15155,9 @@
       "files": [
         {
           "destination": "Nelyx/src/ui/lerp-double.generated.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "8de73eb61a1258ca83bc76e5fe605a0e905da015fb3d46f8f5d2dabdaa04f308",
-          "productHash": "8de73eb61a1258ca83bc76e5fe605a0e905da015fb3d46f8f5d2dabdaa04f308",
+          "productHash": "15f3a4ac3f190c144c738045c56493e9f0d94cfce58d8d18db31c5c7e0a39daa",
           "fingerprint": "e50587db0220ce74c106f88dfb75ee33ffd99b93aa59c1dc596b5d701100f071",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-lerp-double.json"
         }
@@ -15351,7 +15351,7 @@
           "destination": "Nelyx/src/framework/widgets/widget-state.generated.ts",
           "mode": "adopted",
           "baseHash": "29173841307bbc2a1e72b9414c9b7d0aebb96e58482dea973d172de95d867129",
-          "productHash": "82f6a711ab5cd3da77609af9d9761ddfcd3abc92d82ac0376dc1511f1896b7a2",
+          "productHash": "8311416b7554c76c5d59c7a77883714e3047c5279b51254cb86bd40b7fa88529",
           "fingerprint": "d22340c239b1cb9fe62d460bfd374576415eb63d5963624abdf47d437d6832ca",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-widget-state.json"
         }
@@ -16509,7 +16509,7 @@
           "destination": "Nelyx/src/framework/widgets/scrollbar.generated.ts",
           "mode": "adopted",
           "baseHash": "5507f79336750bbef33c39e4a47baed80d05bc0489b740c3ba6bb19e7dcebde6",
-          "productHash": "f2705a131744adde36bc1c45e65f036e291385845484de35106ce63fb393d2b0",
+          "productHash": "5f59a7c2e8e39286b4be6cad0bbf7ee7d960aea5ee880d389a1781c7b81ab890",
           "fingerprint": "a098776646a2d565b20cf8924a478cba684262160cb87b5e80ddf208f6ec7865",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-raw-scrollbar.json"
         }
@@ -18638,9 +18638,9 @@
       "files": [
         {
           "destination": "Nelyx/src/framework/painting/color-property.generated.ts",
-          "mode": "generated",
+          "mode": "adopted",
           "baseHash": "fe0db8972d356974d28f953f385ee1d1c3850160e80a6b448a8f0697a9df68aa",
-          "productHash": "fe0db8972d356974d28f953f385ee1d1c3850160e80a6b448a8f0697a9df68aa",
+          "productHash": "118839009dbf8d103b92f20fbacda86ba8af621e97dc0809c8b23a13f5242473",
           "fingerprint": "05cff0d13f3cc06b209123b34473499f7aa17d2fce88fa20d756f01bfe37194f",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-color-property.json"
         }
@@ -19314,7 +19314,7 @@
           "destination": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
           "mode": "adopted",
           "baseHash": "a4917056845d12208a0da7799ec34eeab60b0d867520f8d06137f357d0eb9b34",
-          "productHash": "c2caa3a5425fc12b030af8d94312af62b21534813f50b7849848110be8da8266",
+          "productHash": "fa544eeae1c9cb790a3a9ee5ec59c4b4ed495d4427b8dbb3efb146319019de52",
           "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
         },
@@ -19322,7 +19322,7 @@
           "destination": "packages/cupertino/src/generated/theme/interface-level.generated.ts",
           "mode": "adopted",
           "baseHash": "13a6d73b7db1410a201a318c779e341be4d06238c9179730896ea096b7d7756e",
-          "productHash": "89a88548d0d6f73a0bb1baa0c1a07d5a823e63bc601b45180023a28b826d73db",
+          "productHash": "a29ff499e5dcaca47c3ffcd80e3e3b499cf1f38cc9cfb58b0d14459cfda8196b",
           "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
         },
@@ -19330,7 +19330,7 @@
           "destination": "packages/cupertino/src/generated/scrollbar/scrollbar.generated.ts",
           "mode": "adopted",
           "baseHash": "7c1f0daa3c08d94e91a41c2328baa50b8baaa7c5eab0a72e6a9621ecd343896a",
-          "productHash": "329158c5e9fc120e28404921b1509573d8d0e631691c394c31ffb85b135c2050",
+          "productHash": "7d175517a45f07d05f9efa7742e3f0b4c101453f1cdd3c5b84a25c1401eb5bb4",
           "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
         }
@@ -22414,7 +22414,7 @@
           "destination": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
           "mode": "adopted",
           "baseHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
-          "productHash": "143664f317c4e7dadfd6bb7cafa97c30c58dc36237d2718f9efad0b6e3aae9a7",
+          "productHash": "b41f11a67066304cf9f6e58a1238b589406b8d55783d9c6b6f2b2e630540d235",
           "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
         },
@@ -22422,7 +22422,7 @@
           "destination": "packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts",
           "mode": "adopted",
           "baseHash": "f7c3bc1adbc5cee0e58b5599c9aff9c63a13e7d310bfae2161c3d0c2882b1494",
-          "productHash": "254e56ce8f2b75816ac93f0c7feefeae127205bc43e59a1ec441b1c4692d5bed",
+          "productHash": "3d974fa01cd052d406e10814bc6aab7471a8a3e5ab68fc1878c34ff6435621e9",
           "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
         }
@@ -26407,7 +26407,7 @@
           "destination": "Nelyx/src/framework/widgets/stretch-effect.generated.ts",
           "mode": "adopted",
           "baseHash": "0a744ff009a6a5200383eded9d30a4d6905a27629c83723852762060b52d5250",
-          "productHash": "27a914cca17c8e7f8fb4ebaf30b8e5ae44b1ee2a0a21e1a3d93858dbb18cf203",
+          "productHash": "ad08c1588860c356f203aa8423c6763e83a1393c795395def974f93d4b33cc8e",
           "fingerprint": "7a35b6dbce53df1d86af71345895be97471d2da5ba8dba3834904f4d51ff849e",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-stretching-overscroll.json"
         },
@@ -26415,7 +26415,7 @@
           "destination": "Nelyx/src/framework/widgets/stretching-overscroll-indicator.generated.ts",
           "mode": "adopted",
           "baseHash": "d3aac7fe73a7c3980dd1b8999472a544e6e358eb8e618549832033c37c3e9b8d",
-          "productHash": "3596c6a7c5856631e8ba896a5d7820c305ec0b72a7e558e0ad06d5443c2ccec2",
+          "productHash": "4d61426ce7e5f7376e90be4c2479eafa9c0269aea2dd588dbcc7eec1e223606b",
           "fingerprint": "7a35b6dbce53df1d86af71345895be97471d2da5ba8dba3834904f4d51ff849e",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-stretching-overscroll.json"
         }
@@ -30361,7 +30361,7 @@
           "destination": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
           "mode": "adopted",
           "baseHash": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
-          "productHash": "59863b988c56615768fcc4c7360fd9e45154f73dfce82dd26dfed3f11b690594",
+          "productHash": "ae12e0657fdd90c4be3f369315a0d970e4d82041e6e098c9313af781f1589505",
           "fingerprint": "d691bd2b7709f6a65146d9dedc6d2ba95c0d196cd901d4c5e9de67c658fb594b",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scroll-behavior.json"
         }
@@ -32532,7 +32532,7 @@
           "destination": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
           "mode": "adopted",
           "baseHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
-          "productHash": "6e844212d06950d9eb476f6188332f8bf7901046a43eabf89d17605f604f88e2",
+          "productHash": "78fae099f4271929b34028c01d0a1784f873b13a816b26b3195528c0a9d26a0f",
           "fingerprint": "9d7192abeda613add4d5fd7bdd1e6a0819bf9e8373d23b17b046a0381d4c0141",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scroll-behavior.json"
         }
@@ -34714,7 +34714,7 @@
           "destination": "packages/cupertino/src/generated/colors/palette.generated.ts",
           "mode": "adopted",
           "baseHash": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
-          "productHash": "a72ac9aebeb7d1258742057e2c718f6b36ea7df93dccaf78dff708dfd9a3916f",
+          "productHash": "b0215bf7ae8832788e6f497f4c9c96ea20e49a8fc72cdc3980dc6f8722192c5d",
           "fingerprint": "e5bf35325e47b3d82db9f39a30e47bc0004880b4451906bbc91664721e755c99",
           "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w11-cupertino-palette.json"
         }

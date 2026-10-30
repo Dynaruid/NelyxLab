@@ -615,19 +615,19 @@
   "outputs": [
     {
       "file": "packages/material/src/generated/colors/colors.generated.ts",
-      "sha256": "9e61aecff2252b005b3bf486740ea831c2dac8b68eeae16032a02b510abebff2"
+      "sha256": "c5a17e521d37d58cc46cc15d48685a1a670cf012a12e6249f4eac974dc936d41"
     },
     {
       "file": "packages/material/src/generated/theme/typography-data.ts",
-      "sha256": "f6104799dad786ce32cd2643fb07a3d2460fe93c77167ac8baaaa329f8a79b2b"
+      "sha256": "bfa3a385718888a2a6704cb8efcf7a00e45495895d2fc5aff155dccbd0bdd84f"
     },
     {
       "file": "packages/material/src/generated/theme/color-scheme-data.ts",
-      "sha256": "c6a43c5d8847aa46da2b83f73357e4851d12987cf72bc7523912396a8bd97c65"
+      "sha256": "70cbb71cb4fe32b01d4a895e67bb986df054d1b7cb4bb4839ab79fce791722fb"
     },
     {
       "file": "packages/material/src/generated/localizations/script-categories.ts",
-      "sha256": "0ff5958095eb596eb451a3cdbab3960190f8265b630907745886d31cb8424ba2"
+      "sha256": "729265b7671dc95dfd2847b6bfcce48ed108e31747da2a8046e54a344c3903e0"
     }
   ],
   "scope": "Full original Material palette values, M3 geometry scales, all ten platform color/font themes, ARB script categories and ThemeData M3 default role tokens. Data output is separate from handwritten functional classes. No Dart dependency in product build/runtime."

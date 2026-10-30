@@ -5,8 +5,10 @@ type Reader = (context: BuildContext) => 'light' | 'dark' | null;
 let themeReader: Reader | null = null;
 /** Keep generated dynamic colors independent of Theme's palette initialization. */
 export function registerCupertinoThemeBrightnessReader(reader: Reader): void {
-    themeReader = reader;
+  themeReader = reader;
 }
 export function cupertinoThemeBrightness(context: BuildContext): 'light' | 'dark' | null {
-    return themeReader === null ? MediaQuery.maybePlatformBrightnessOf(context) : themeReader(context);
+  return themeReader === null
+    ? MediaQuery.maybePlatformBrightnessOf(context)
+    : themeReader(context);
 }

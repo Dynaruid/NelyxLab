@@ -1,4 +1,4 @@
-import type {SkRuntimeEffect} from "../Drawing.ts";
+import type { SkRuntimeEffect } from '../Drawing.ts';
 
 export interface RuntimeEffectFactory {
   /**

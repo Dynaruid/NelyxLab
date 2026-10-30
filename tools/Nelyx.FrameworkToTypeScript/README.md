@@ -19,6 +19,8 @@ bun run test:emitter
 
 `test:emitter`는 중첩 switch의 반환·break 범위, getter 실행 횟수와 모듈 초기화를 검증합니다. 각 테스트의 제한 시간은 20분입니다. 저장소 전체 린트는 루트에서 `npm run lint`로 실행합니다.
 
+JS/TS 포맷 기준은 루트의 [Oxfmt 설정](../../.oxfmtrc.json)을 공유합니다. 루트에서 `npm run format:check`로 확인하고 `npm run format`으로 적용합니다. 생성 결과를 직접 정리하면 기존 base/fingerprint를 보존하고 adopted 출력의 현재 productHash와 소유권 SHA를 갱신한 뒤 `npm run check:design-ownership`으로 확인하세요. 포맷 변경은 원본 동작이나 네이티브 실행의 검증을 대신하지 않습니다.
+
 Dart 분석은 대응하는 Dart SDK와 [dart/](dart/)의 analyzer 입력을, C# 분석은 .NET과 [roslyn/](roslyn/)의 SourceReader를 사용합니다. 선택한 입력 언어와 recipe에 필요한 도구만 준비하세요.
 
 ## 구성

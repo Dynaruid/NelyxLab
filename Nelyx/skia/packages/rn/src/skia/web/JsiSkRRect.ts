@@ -1,16 +1,13 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { CanvasKit, RRect } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { CanvasKit, RRect } from 'canvaskit-wasm';
 
-import type {InputRRect, SkRRect} from "@nelyx/skia-native/skia/types/RRect";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type { InputRRect, SkRRect } from '@nelyx/skia-native/skia/types/RRect';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
 
-import {BaseHostObject} from './Host.ts';
-import {JsiSkRect} from './JsiSkRect.ts';
+import { BaseHostObject } from './Host.ts';
+import { JsiSkRect } from './JsiSkRect.ts';
 
-export class JsiSkRRect
-  extends BaseHostObject<RRect, "RRect">
-  implements SkRRect
-{
+export class JsiSkRRect extends BaseHostObject<RRect, 'RRect'> implements SkRRect {
   [Symbol.dispose]() {
     // nothing to do here, RRect is a Float32Array
   }
@@ -19,12 +16,7 @@ export class JsiSkRRect
     if (rect instanceof JsiSkRRect) {
       return rect.ref;
     }
-    if (
-      "topLeft" in rect &&
-      "topRight" in rect &&
-      "bottomRight" in rect &&
-      "bottomLeft" in rect
-    ) {
+    if ('topLeft' in rect && 'topRight' in rect && 'bottomRight' in rect && 'bottomLeft' in rect) {
       const bounds = JsiSkRect.fromValue(CanvasKit, rect.rect);
       return Float32Array.of(
         arrayItem(bounds, 0),
@@ -38,14 +30,10 @@ export class JsiSkRRect
         rect.bottomRight.x,
         rect.bottomRight.y,
         rect.bottomLeft.x,
-        rect.bottomLeft.y
+        rect.bottomLeft.y,
       );
     }
-    return CanvasKit.RRectXY(
-      JsiSkRect.fromValue(CanvasKit, rect.rect),
-      rect.rx,
-      rect.ry
-    );
+    return CanvasKit.RRectXY(JsiSkRect.fromValue(CanvasKit, rect.rect), rect.rx, rect.ry);
   }
 
   constructor(CanvasKit: CanvasKit, rect: SkRect, rx: number, ry: number) {
@@ -60,7 +48,7 @@ export class JsiSkRRect
       ry *= scale;
     }
     const ref = CanvasKit.RRectXY(JsiSkRect.fromValue(CanvasKit, rect), rx, ry);
-    super(CanvasKit, ref, "RRect");
+    super(CanvasKit, ref, 'RRect');
   }
 
   get rx() {
@@ -74,7 +62,7 @@ export class JsiSkRRect
   get rect() {
     return new JsiSkRect(
       this.CanvasKit,
-      Float32Array.of(...[0,1,2,3].map(index => arrayItem(this.ref, index)))
+      Float32Array.of(...[0, 1, 2, 3].map((index) => arrayItem(this.ref, index))),
     );
   }
 }

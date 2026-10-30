@@ -1,9 +1,9 @@
-import type {SkFont} from "../Drawing.ts";
-import type {SkRect} from '../Rect.ts';
-import type {SkPoint} from '../Point.ts';
-import type {InputRRect} from '../RRect.ts';
+import type { SkFont } from '../Drawing.ts';
+import type { SkRect } from '../Rect.ts';
+import type { SkPoint } from '../Point.ts';
+import type { InputRRect } from '../RRect.ts';
 
-import type {SkPath, PathOp, PathCommand, StrokeOpts} from "../Drawing.ts";
+import type { SkPath, PathOp, PathCommand, StrokeOpts } from '../Drawing.ts';
 
 export interface PathFactory {
   Make(): SkPath;
@@ -99,12 +99,7 @@ export interface PathFactory {
    * @param isComplement - if true, returns the complement
    * @returns trimmed path or null if operation fails
    */
-  Trim(
-    path: SkPath,
-    start: number,
-    end: number,
-    isComplement: boolean
-  ): SkPath | null;
+  Trim(path: SkPath, start: number, end: number, isComplement: boolean): SkPath | null;
 
   /**
    * Simplifies the path to non-overlapping contours.

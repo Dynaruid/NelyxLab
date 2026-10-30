@@ -1,9 +1,9 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
-import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
-import type {ISkiaViewApi} from '../views/types.ts';
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { SkGraphiteContext } from '@nelyx/skia-native/skia/types/Graphite';
+import type { SkImage } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPicture } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
+import type { ISkiaViewApi } from '../views/types.ts';
 
 /** What the web view registers under its native id. */
 export interface SkiaWebViewHandle {
@@ -21,12 +21,10 @@ export interface SkiaWebViewHandle {
       width: number,
       height: number,
       pageX: number,
-      pageY: number
-    ) => void
+      pageY: number,
+    ) => void,
   ): void;
-  measureInWindow(
-    callback: (x: number, y: number, width: number, height: number) => void
-  ): void;
+  measureInWindow(callback: (x: number, y: number, width: number, height: number) => void): void;
 }
 
 export type ISkiaViewApiWeb = ISkiaViewApi & {
@@ -60,7 +58,7 @@ global.SkiaViewApi = {
     delete this.deferedPictures[nativeId];
   },
   setJsiProperty(nativeId: number, name: string, value: any) {
-    if (name === "picture") {
+    if (name === 'picture') {
       const id = `${nativeId}`;
       const view = this.views[id];
       if (view) {
@@ -92,7 +90,7 @@ global.SkiaViewApi = {
     const view = this.views[`${nativeId}`];
     if (!view) {
       throw new Error(
-        `Cannot make image snapshot: view with nativeID ${nativeId} is not registered (it may have unmounted)`
+        `Cannot make image snapshot: view with nativeID ${nativeId} is not registered (it may have unmounted)`,
       );
     }
     return view.makeImageSnapshot(rect);
@@ -101,7 +99,7 @@ global.SkiaViewApi = {
     const view = this.views[`${nativeId}`];
     if (!view) {
       throw new Error(
-        `Cannot make a Graphite context: no view with nativeID ${nativeId} is mounted`
+        `Cannot make a Graphite context: no view with nativeID ${nativeId} is mounted`,
       );
     }
     return view.getContext();
@@ -112,8 +110,8 @@ global.SkiaViewApi = {
       if (!view) {
         reject(
           new Error(
-            `Cannot make image snapshot: view with nativeID ${nativeId} is not registered (it may have unmounted)`
-          )
+            `Cannot make image snapshot: view with nativeID ${nativeId} is not registered (it may have unmounted)`,
+          ),
         );
         return;
       }
@@ -121,7 +119,7 @@ global.SkiaViewApi = {
       if (result) {
         resolve(result);
       } else {
-        reject(new Error("Failed to make image snapshot"));
+        reject(new Error('Failed to make image snapshot'));
       }
     });
   },

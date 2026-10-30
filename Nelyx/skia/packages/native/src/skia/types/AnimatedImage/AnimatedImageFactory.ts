@@ -1,6 +1,6 @@
-import type {SkData} from '../Data/Data.ts';
+import type { SkData } from '../Data/Data.ts';
 
-import type {SkAnimatedImage} from './AnimatedImage.ts';
+import type { SkAnimatedImage } from './AnimatedImage.ts';
 
 export interface AnimatedImageFactory {
   /**

@@ -1,3 +1,7 @@
-const path=require('node:path');
-const {createRunnerConfig}=require('@nelyx/metro/runner-config');
-module.exports=createRunnerConfig({target:'macos',runnerRoot:__dirname,appRoot:path.resolve(__dirname,'../..')});
+const path = require('node:path');
+const { createRunnerConfig } = require('@nelyx/metro/runner-config');
+module.exports = createRunnerConfig({
+  target: 'macos',
+  runnerRoot: __dirname,
+  appRoot: path.resolve(__dirname, '../..'),
+});

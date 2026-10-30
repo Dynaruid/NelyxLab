@@ -13,29 +13,128 @@ import { createLocalImageConfiguration } from '@nelyx/core/framework/widgets/ima
 import { ImageConfiguration } from '@nelyx/core/framework/painting/image-configuration';
 import { HapticFeedback } from '@nelyx/core/services/haptic-feedback';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
-import { resolveCupertinoSwitchPaint, resolveCupertinoSwitchCursor, switchConfig, switchSize, disabledOpacity, trackWidth } from './switch-values.ts';
+import {
+  resolveCupertinoSwitchPaint,
+  resolveCupertinoSwitchCursor,
+  switchConfig,
+  switchSize,
+  disabledOpacity,
+  trackWidth,
+} from './switch-values.ts';
 import type { CupertinoSwitch } from '../../switch.ts';
 export class CupertinoSwitchState extends State<CupertinoSwitch> {
-    private readonly painter = new SwitchPainter();
-    private vibration(context: BuildContext): void { const messenger = context.services.binaryMessenger ?? context.services.platformServices?.defaultBinaryMessenger; if (messenger && FoundationPlatform.defaultTargetPlatform === 'iOS')
-        void HapticFeedback.lightImpact(messenger).catch(error => context.services.reportError?.(error)); }
-    build(context: BuildContext): Widget {
-        const w = this.widget, o = w.options, { key, id, semanticLabel, value, onChanged, activeTrackColor, inactiveTrackColor, thumbColor, inactiveThumbColor, focusColor, onLabelColor, offLabelColor, activeThumbImage, onActiveThumbImageError, inactiveThumbImage, onInactiveThumbImageError, trackOutlineColor, trackOutlineWidth, thumbIcon, mouseCursor, focusNode, onFocusChange, autofocus, applyTheme, dragStartBehavior, ...interaction } = o;
-        const configuration = w.activeThumbImage !== null || w.inactiveThumbImage !== null ? createLocalImageConfiguration(context) : ImageConfiguration.empty;
-        return new ToggleableControl({ ...interaction, value: w.value, onChanged: w.onChanged === null ? null : next => { if (next !== null) {
+  private readonly painter = new SwitchPainter();
+  private vibration(context: BuildContext): void {
+    const messenger =
+      context.services.binaryMessenger ?? context.services.platformServices?.defaultBinaryMessenger;
+    if (messenger && FoundationPlatform.defaultTargetPlatform === 'iOS')
+      void HapticFeedback.lightImpact(messenger).catch((error) =>
+        context.services.reportError?.(error),
+      );
+  }
+  build(context: BuildContext): Widget {
+    const w = this.widget,
+      o = w.options,
+      {
+        key,
+        id,
+        semanticLabel,
+        value,
+        onChanged,
+        activeTrackColor,
+        inactiveTrackColor,
+        thumbColor,
+        inactiveThumbColor,
+        focusColor,
+        onLabelColor,
+        offLabelColor,
+        activeThumbImage,
+        onActiveThumbImageError,
+        inactiveThumbImage,
+        onInactiveThumbImageError,
+        trackOutlineColor,
+        trackOutlineWidth,
+        thumbIcon,
+        mouseCursor,
+        focusNode,
+        onFocusChange,
+        autofocus,
+        applyTheme,
+        dragStartBehavior,
+        ...interaction
+      } = o;
+    const configuration =
+      w.activeThumbImage !== null || w.inactiveThumbImage !== null
+        ? createLocalImageConfiguration(context)
+        : ImageConfiguration.empty;
+    return new ToggleableControl({
+      ...interaction,
+      value: w.value,
+      onChanged:
+        w.onChanged === null
+          ? null
+          : (next) => {
+              if (next !== null) {
                 w.onChanged!(next);
                 this.vibration(context);
-            } }, onSwitchDragValueChanged: () => this.vibration(context), onSwitchDragCommit: next => this.widget.onChanged?.(next), focusNode: w.focusNode, autofocus: w.autofocus, ...(w.onFocusChange === null ? {} : { onFocusChange: w.onFocusChange }), dragStartBehavior: w.dragStartBehavior, motion: 'source', motionProfile: switchConfig.motion, switchDrag: { policy: 'cupertino', extent: trackWidth, deferSettleToBuild: true }, mouseCursorResolver: states => resolveCupertinoSwitchCursor(w, states), semantics: { label: semanticLabel ?? null, identifier: id ?? null, transportId: id ?? null, toggled: w.value }, builder: (context, state, position, motion) => {
-                const paint = resolveCupertinoSwitchPaint(w, context, state.states);
-                this.painter.update({ ...paint, ...motion, position, config: switchConfig, cupertino: true, onOffLabels: paint.labels, rtl: Directionality.of(context) === 'rtl', isFocused: state.states.contains(WidgetState.focused), isHovered: state.states.contains(WidgetState.hovered), activeImage: w.activeThumbImage, inactiveImage: w.inactiveThumbImage, activeError: w.onActiveThumbImageError, inactiveError: w.onInactiveThumbImageError, configuration, iconTheme: IconTheme.of(context), paragraphContext: context.services.defaultFont ? { text: context.services.text, resources: context.services.resources, font: context.services.defaultFont, scale: context.services.readMetrics('scale').scale, locale: context.maybeDependOn(Localizations)?.locale ?? 'en' } : null });
-                const child = new CustomPaint(undefined, { size: switchSize, painter: this.painter });
-                return state.states.contains(WidgetState.disabled) ? new Opacity(child, { opacity: disabledOpacity }) : child;
-            } });
+              }
+            },
+      onSwitchDragValueChanged: () => this.vibration(context),
+      onSwitchDragCommit: (next) => this.widget.onChanged?.(next),
+      focusNode: w.focusNode,
+      autofocus: w.autofocus,
+      ...(w.onFocusChange === null ? {} : { onFocusChange: w.onFocusChange }),
+      dragStartBehavior: w.dragStartBehavior,
+      motion: 'source',
+      motionProfile: switchConfig.motion,
+      switchDrag: { policy: 'cupertino', extent: trackWidth, deferSettleToBuild: true },
+      mouseCursorResolver: (states) => resolveCupertinoSwitchCursor(w, states),
+      semantics: {
+        label: semanticLabel ?? null,
+        identifier: id ?? null,
+        transportId: id ?? null,
+        toggled: w.value,
+      },
+      builder: (context, state, position, motion) => {
+        const paint = resolveCupertinoSwitchPaint(w, context, state.states);
+        this.painter.update({
+          ...paint,
+          ...motion,
+          position,
+          config: switchConfig,
+          cupertino: true,
+          onOffLabels: paint.labels,
+          rtl: Directionality.of(context) === 'rtl',
+          isFocused: state.states.contains(WidgetState.focused),
+          isHovered: state.states.contains(WidgetState.hovered),
+          activeImage: w.activeThumbImage,
+          inactiveImage: w.inactiveThumbImage,
+          activeError: w.onActiveThumbImageError,
+          inactiveError: w.onInactiveThumbImageError,
+          configuration,
+          iconTheme: IconTheme.of(context),
+          paragraphContext: context.services.defaultFont
+            ? {
+                text: context.services.text,
+                resources: context.services.resources,
+                font: context.services.defaultFont,
+                scale: context.services.readMetrics('scale').scale,
+                locale: context.maybeDependOn(Localizations)?.locale ?? 'en',
+              }
+            : null,
+        });
+        const child = new CustomPaint(undefined, { size: switchSize, painter: this.painter });
+        return state.states.contains(WidgetState.disabled)
+          ? new Opacity(child, { opacity: disabledOpacity })
+          : child;
+      },
+    });
+  }
+  override dispose(): void {
+    try {
+      this.painter.dispose();
+    } finally {
+      super.dispose();
     }
-    override dispose(): void { try {
-        this.painter.dispose();
-    }
-    finally {
-        super.dispose();
-    } }
+  }
 }

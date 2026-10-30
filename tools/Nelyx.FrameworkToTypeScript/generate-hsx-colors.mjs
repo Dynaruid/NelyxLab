@@ -1,38 +1,142 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Complete selected data API projection and explicit functional bodies on the Core Color owner.
-import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
-const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-cupertino-checkbox-candidate/result.json',candidate=read(candidateFile);assert.equal(sha(candidate.ir.file),candidate.ir.sha256);const ir=read(candidate.ir.file),file='Nelyx/src/framework/painting/colors.ts',ownerFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-hsx-colors-ownership.json',check=process.argv.includes('--check'),record=n=>ir.records.find(r=>r.symbol===n).ir;
-const doc=(params,ret)=>{const tags=params.filter(p=>p.numeric).map(p=>' * @dartParam '+p.name+' '+p.numeric.type);if(ret)tags.push(' * @dartReturn '+ret.type);return tags.length?'/**\n'+tags.join('\n')+'\n */\n':'';};
-let text=`// SPDX-License-Identifier: BSD-3-Clause
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8')),
+  sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
+  ref = (file) => ({ file, sha256: sha(file) }),
+  candidateFile = '.tmp/work8/w11-cupertino-checkbox-candidate/result.json',
+  candidate = read(candidateFile);
+assert.equal(sha(candidate.ir.file), candidate.ir.sha256);
+const ir = read(candidate.ir.file),
+  file = 'Nelyx/src/framework/painting/colors.ts',
+  ownerFile = 'tools/Nelyx.FrameworkToTypeScript/data/work8/w11-hsx-colors-ownership.json',
+  check = process.argv.includes('--check'),
+  record = (n) => ir.records.find((r) => r.symbol === n).ir;
+const doc = (params, ret) => {
+  const tags = params
+    .filter((p) => p.numeric)
+    .map((p) => ' * @dartParam ' + p.name + ' ' + p.numeric.type);
+  if (ret) tags.push(' * @dartReturn ' + ret.type);
+  return tags.length ? '/**\n' + tags.join('\n') + '\n */\n' : '';
+};
+let text = `// SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Resolved numeric API projection with explicit ports of HSV/HSL and their complete hue helpers.
 import {Color} from '../../ui/color.ts';import {clamp,modulo,roundInteger,protect} from '../../ui/value-math.ts';import {lerpDouble} from '../../ui/lerp-double.generated.ts';import {FoundationBuildMode} from '../../foundation/constants.ts';import {invariant} from '../../foundation/errors.ts';import {objectRuntimeType} from '../../foundation/object.ts';import {diagnosticDoubleString} from '../../foundation/debug.ts';import {hashValues} from './value-equality.ts';import {applyDartType,captureDartType} from '../../foundation/dart-type-witness.ts';import {registerDartValueSemantics} from '../../foundation/dart-value.ts';import {canonicalDartObject} from '../../foundation/dart-const.ts';
 export {ColorSwatch} from './color-swatch.ts';
 `;
-text+=doc(record('_getHue').parameters,record('_getHue').numericReturn)+`function _getHue(red:number,green:number,blue:number,max:number,delta:number):number{let hue:number;if(max===0)hue=0;else if(max===red)hue=60*modulo((green-blue)/delta,6);else if(max===green)hue=60*((blue-red)/delta+2);else if(max===blue)hue=60*((red-green)/delta+4);else throw new Error('Unreachable RGB maximum');return Number.isNaN(hue)?0:hue;}
+text +=
+  doc(record('_getHue').parameters, record('_getHue').numericReturn) +
+  `function _getHue(red:number,green:number,blue:number,max:number,delta:number):number{let hue:number;if(max===0)hue=0;else if(max===red)hue=60*modulo((green-blue)/delta,6);else if(max===green)hue=60*((blue-red)/delta+2);else if(max===blue)hue=60*((red-green)/delta+4);else throw new Error('Unreachable RGB maximum');return Number.isNaN(hue)?0:hue;}
 `;
-text+=doc(record('_lerpHue').parameters,record('_lerpHue').numericReturn)+`function _lerpHue(a:number,b:number,t:number):number{let delta=b-a;if(delta>180)delta-=360;else if(delta< -180)delta+=360;return modulo(a+delta*t,360);}
+text +=
+  doc(record('_lerpHue').parameters, record('_lerpHue').numericReturn) +
+  `function _lerpHue(a:number,b:number,t:number):number{let delta=b-a;if(delta>180)delta-=360;else if(delta< -180)delta+=360;return modulo(a+delta*t,360);}
 `;
-text+=doc(record('_colorFromHue').parameters)+`function _colorFromHue(alpha:number,hue:number,chroma:number,secondary:number,match:number):Color{const [red,green,blue]=hue<60?[chroma,secondary,0]:hue<120?[secondary,chroma,0]:hue<180?[0,chroma,secondary]:hue<240?[0,secondary,chroma]:hue<300?[secondary,0,chroma]:[chroma,0,secondary];return Color.fromARGB(roundInteger(alpha*255),roundInteger((red!+match)*255),roundInteger((green!+match)*255),roundInteger((blue!+match)*255));}
+text +=
+  doc(record('_colorFromHue').parameters) +
+  `function _colorFromHue(alpha:number,hue:number,chroma:number,secondary:number,match:number):Color{const [red,green,blue]=hue<60?[chroma,secondary,0]:hue<120?[secondary,chroma,0]:hue<180?[0,chroma,secondary]:hue<240?[0,secondary,chroma]:hue<300?[secondary,0,chroma]:[chroma,0,secondary];return Color.fromARGB(roundInteger(alpha*255),roundInteger((red!+match)*255),roundInteger((green!+match)*255),roundInteger((blue!+match)*255));}
 `;
-for(const name of['HSVColor','HSLColor']){
-  const r=record(name),fields=r.fields.filter(f=>!f.static),axis=name==='HSVColor'?'value':'lightness',factory=name==='HSVColor'?'fromAHSV':'fromAHSL',methods=new Map(r.methods.map(m=>[m.name,m]));assert.equal(fields.length,4);for(const f of fields)assert.equal(f.numeric.type,'double');for(const p of r.constructor.parameters)assert.equal(p.numeric.type,'double');
-  text+='export class '+name+' {\n'+fields.map(f=>'  /** @dartType '+f.numeric.type+' */ readonly '+f.name+':number;').join('\n')+'\n';
-  text+=doc(r.constructor.parameters)+`  constructor(alpha:number,hue:number,saturation:number,${axis}:number){if(FoundationBuildMode.debug)invariant(alpha>=0&&alpha<=1&&hue>=0&&hue<=360&&saturation>=0&&saturation<=1&&${axis}>=0&&${axis}<=1,'invalid-hsx-color','Color components are outside their source ranges');this.alpha=alpha;this.hue=hue;this.saturation=saturation;this.${axis}=${axis};captureDartType(this,source${name}Type);protect(this,${JSON.stringify(fields.map(f=>f.name))});if(new.target===${name})Object.freeze(this);}
+for (const name of ['HSVColor', 'HSLColor']) {
+  const r = record(name),
+    fields = r.fields.filter((f) => !f.static),
+    axis = name === 'HSVColor' ? 'value' : 'lightness',
+    factory = name === 'HSVColor' ? 'fromAHSV' : 'fromAHSL',
+    methods = new Map(r.methods.map((m) => [m.name, m]));
+  assert.equal(fields.length, 4);
+  for (const f of fields) assert.equal(f.numeric.type, 'double');
+  for (const p of r.constructor.parameters) assert.equal(p.numeric.type, 'double');
+  text +=
+    'export class ' +
+    name +
+    ' {\n' +
+    fields
+      .map((f) => '  /** @dartType ' + f.numeric.type + ' */ readonly ' + f.name + ':number;')
+      .join('\n') +
+    '\n';
+  text +=
+    doc(r.constructor.parameters) +
+    `  constructor(alpha:number,hue:number,saturation:number,${axis}:number){if(FoundationBuildMode.debug)invariant(alpha>=0&&alpha<=1&&hue>=0&&hue<=360&&saturation>=0&&saturation<=1&&${axis}>=0&&${axis}<=1,'invalid-hsx-color','Color components are outside their source ranges');this.alpha=alpha;this.hue=hue;this.saturation=saturation;this.${axis}=${axis};captureDartType(this,source${name}Type);protect(this,${JSON.stringify(fields.map((f) => f.name))});if(new.target===${name})Object.freeze(this);}
 `;
-  text+=doc(r.constructor.parameters)+`  static ${factory}(alpha:number,hue:number,saturation:number,${axis}:number):${name}{return new ${name}(alpha,hue,saturation,${axis});}
+  text +=
+    doc(r.constructor.parameters) +
+    `  static ${factory}(alpha:number,hue:number,saturation:number,${axis}:number):${name}{return new ${name}(alpha,hue,saturation,${axis});}
   static fromColor(color:Color):${name}{const red=color.red/255,green=color.green/255,blue=color.blue/255,max=Math.max(red,Math.max(green,blue)),min=Math.min(red,Math.min(green,blue)),delta=max-min,alpha=color.alpha/255,hue=_getHue(red,green,blue,max,delta);
 `;
-  text+=name==='HSVColor'?`    const saturation=max===0?0:delta/max;return ${name}.${factory}(alpha,hue,saturation,max);}\n`:`    const lightness=(max+min)/2,saturation=min===max?0:clamp(delta/(1-Math.abs(2*lightness-1)),0,1);return ${name}.${factory}(alpha,hue,saturation,lightness);}\n`;
-  for(const f of fields){const method='with'+f.name[0].toUpperCase()+f.name.slice(1),m=methods.get(method);assert(m);text+=doc(m.parameters)+`  ${method}(${f.name}:number):${name}{return ${name}.${factory}(${fields.map(x=>x.name===f.name?f.name:'this.'+x.name).join(',')});}\n`;}
-  text+=`  toColor():Color{const chroma=${name==='HSVColor'?'this.saturation*this.value':'(1-Math.abs(2*this.lightness-1))*this.saturation'},secondary=chroma*(1-Math.abs(modulo(this.hue/60,2)-1)),match=${name==='HSVColor'?'this.value-chroma':'this.lightness-chroma/2'};return _colorFromHue(this.alpha,this.hue,chroma,secondary,match);}\n`;
-  text+=doc(methods.get('_scaleAlpha').parameters)+`  private _scaleAlpha(factor:number):${name}{return this.withAlpha(this.alpha*factor);}\n`;
-  text+=doc(methods.get('lerp').parameters)+`  static lerp(a:${name}|null,b:${name}|null,t:number):${name}|null{if(a===b)return a;if(a===null)return b!._scaleAlpha(t);if(b===null)return a._scaleAlpha(1-t);return ${name}.${factory}(clamp(lerpDouble(a.alpha,b.alpha,t)!,0,1),_lerpHue(a.hue,b.hue,t),clamp(lerpDouble(a.saturation,b.saturation,t)!,0,1),clamp(lerpDouble(a.${axis},b.${axis},t)!,0,1));}\n`;
-  text+=`  equals(other:unknown):boolean{return this===other||other instanceof ${name}&&${fields.map(f=>'other.'+f.name+'===this.'+f.name).join('&&')};}\n`;
-  text+=doc([],methods.get('hashCode').numericReturn)+`  get hashCode():number{return hashValues(${fields.map(f=>'this.'+f.name).join(',')});}\n`;
-  text+=`  toString():string{return objectRuntimeType(this,'${name}')+'('+[${fields.map(f=>'this.'+f.name).join(',')}].map(diagnosticDoubleString).join(', ')+')';}\n}\n`;
+  text +=
+    name === 'HSVColor'
+      ? `    const saturation=max===0?0:delta/max;return ${name}.${factory}(alpha,hue,saturation,max);}\n`
+      : `    const lightness=(max+min)/2,saturation=min===max?0:clamp(delta/(1-Math.abs(2*lightness-1)),0,1);return ${name}.${factory}(alpha,hue,saturation,lightness);}\n`;
+  for (const f of fields) {
+    const method = 'with' + f.name[0].toUpperCase() + f.name.slice(1),
+      m = methods.get(method);
+    assert(m);
+    text +=
+      doc(m.parameters) +
+      `  ${method}(${f.name}:number):${name}{return ${name}.${factory}(${fields.map((x) => (x.name === f.name ? f.name : 'this.' + x.name)).join(',')});}\n`;
+  }
+  text += `  toColor():Color{const chroma=${name === 'HSVColor' ? 'this.saturation*this.value' : '(1-Math.abs(2*this.lightness-1))*this.saturation'},secondary=chroma*(1-Math.abs(modulo(this.hue/60,2)-1)),match=${name === 'HSVColor' ? 'this.value-chroma' : 'this.lightness-chroma/2'};return _colorFromHue(this.alpha,this.hue,chroma,secondary,match);}\n`;
+  text +=
+    doc(methods.get('_scaleAlpha').parameters) +
+    `  private _scaleAlpha(factor:number):${name}{return this.withAlpha(this.alpha*factor);}\n`;
+  text +=
+    doc(methods.get('lerp').parameters) +
+    `  static lerp(a:${name}|null,b:${name}|null,t:number):${name}|null{if(a===b)return a;if(a===null)return b!._scaleAlpha(t);if(b===null)return a._scaleAlpha(1-t);return ${name}.${factory}(clamp(lerpDouble(a.alpha,b.alpha,t)!,0,1),_lerpHue(a.hue,b.hue,t),clamp(lerpDouble(a.saturation,b.saturation,t)!,0,1),clamp(lerpDouble(a.${axis},b.${axis},t)!,0,1));}\n`;
+  text += `  equals(other:unknown):boolean{return this===other||other instanceof ${name}&&${fields.map((f) => 'other.' + f.name + '===this.' + f.name).join('&&')};}\n`;
+  text +=
+    doc([], methods.get('hashCode').numericReturn) +
+    `  get hashCode():number{return hashValues(${fields.map((f) => 'this.' + f.name).join(',')});}\n`;
+  text += `  toString():string{return objectRuntimeType(this,'${name}')+'('+[${fields.map((f) => 'this.' + f.name).join(',')}].map(diagnosticDoubleString).join(', ')+')';}\n}\n`;
 }
-for(const name of['HSVColor','HSLColor']){const r=record(name);assert.equal(r.constructor.const,true);const fields=r.fields.filter(f=>!f.static),axis=fields.at(-1).name;
-text+=`export const source${name}Type=applyDartType<${name}>(${name},'${name}',[],[]);\nregisterDartValueSemantics(${name},{accepts:(value:unknown):value is ${name}=>value instanceof ${name},equals:(value,other)=>value.equals(other),hash:value=>value.hashCode,string:value=>value.toString()});\n`;
-text+=doc(r.constructor.parameters)+`export function const${name}(alpha:number,hue:number,saturation:number,${axis}:number):${name}{invariant(alpha>=0&&alpha<=1&&hue>=0&&hue<=360&&saturation>=0&&saturation<=1&&${axis}>=0&&${axis}<=1,'invalid-hsx-const','Const color components are outside their source ranges');return canonicalDartObject(${name},source${name}Type,${JSON.stringify(fields.map(f=>[f.name,'double']))},()=>new ${name}(alpha,hue,saturation,${axis}),false); }\n`;}
-if(check){assert.equal(fs.readFileSync(file,'utf8'),text);const o=read(ownerFile);assert.equal(o.generator.sha256,sha(import.meta.filename));assert.equal(o.output.sha256,sha(file));}else{let previous=null;if(fs.existsSync(ownerFile)){const o=read(ownerFile);assert.equal(sha(file),o.output.sha256,'Edited managed HSV/HSL owner');const seal=f=>{const target='.tmp/work8/receipt-history/'+sha(f)+'-w11-hsx-'+f.split('/').at(-1);if(!fs.existsSync(target))fs.copyFileSync(f,target);return ref(target);};previous={ownership:seal(ownerFile),output:seal(file)};}fs.writeFileSync(file,text);fs.writeFileSync(ownerFile,JSON.stringify({schema:'nelyx.w11-hsx-colors-ownership/v1',status:'PASS-scoped',candidate:ref(candidateFile),ir:candidate.ir,generator:ref(import.meta.filename),output:ref(file),previous,numericFields:8,helpers:3,scope:'Complete selected HSV/HSL fields/named/TS constructor/copy/conversion/lerp/equality/local hash/source text; explicit functional bodies with resolved numeric field/parameter/return annotations. Core ColorSwatch is reexported from its existing owner. Source debug assertions are preserved; resolved pure const constructors/root witnesses/virtual value ownership; no VM hash or wide-gamut qualification.'},null,2)+'\n');}console.log(JSON.stringify({status:'PASS-scoped',numericFields:8,helpers:3,check}));
+for (const name of ['HSVColor', 'HSLColor']) {
+  const r = record(name);
+  assert.equal(r.constructor.const, true);
+  const fields = r.fields.filter((f) => !f.static),
+    axis = fields.at(-1).name;
+  text += `export const source${name}Type=applyDartType<${name}>(${name},'${name}',[],[]);\nregisterDartValueSemantics(${name},{accepts:(value:unknown):value is ${name}=>value instanceof ${name},equals:(value,other)=>value.equals(other),hash:value=>value.hashCode,string:value=>value.toString()});\n`;
+  text +=
+    doc(r.constructor.parameters) +
+    `export function const${name}(alpha:number,hue:number,saturation:number,${axis}:number):${name}{invariant(alpha>=0&&alpha<=1&&hue>=0&&hue<=360&&saturation>=0&&saturation<=1&&${axis}>=0&&${axis}<=1,'invalid-hsx-const','Const color components are outside their source ranges');return canonicalDartObject(${name},source${name}Type,${JSON.stringify(fields.map((f) => [f.name, 'double']))},()=>new ${name}(alpha,hue,saturation,${axis}),false); }\n`;
+}
+if (check) {
+  assert.equal(fs.readFileSync(file, 'utf8'), text);
+  const o = read(ownerFile);
+  assert.equal(o.generator.sha256, sha(import.meta.filename));
+  assert.equal(o.output.sha256, sha(file));
+} else {
+  let previous = null;
+  if (fs.existsSync(ownerFile)) {
+    const o = read(ownerFile);
+    assert.equal(sha(file), o.output.sha256, 'Edited managed HSV/HSL owner');
+    const seal = (f) => {
+      const target = '.tmp/work8/receipt-history/' + sha(f) + '-w11-hsx-' + f.split('/').at(-1);
+      if (!fs.existsSync(target)) fs.copyFileSync(f, target);
+      return ref(target);
+    };
+    previous = { ownership: seal(ownerFile), output: seal(file) };
+  }
+  fs.writeFileSync(file, text);
+  fs.writeFileSync(
+    ownerFile,
+    JSON.stringify(
+      {
+        schema: 'nelyx.w11-hsx-colors-ownership/v1',
+        status: 'PASS-scoped',
+        candidate: ref(candidateFile),
+        ir: candidate.ir,
+        generator: ref(import.meta.filename),
+        output: ref(file),
+        previous,
+        numericFields: 8,
+        helpers: 3,
+        scope:
+          'Complete selected HSV/HSL fields/named/TS constructor/copy/conversion/lerp/equality/local hash/source text; explicit functional bodies with resolved numeric field/parameter/return annotations. Core ColorSwatch is reexported from its existing owner. Source debug assertions are preserved; resolved pure const constructors/root witnesses/virtual value ownership; no VM hash or wide-gamut qualification.',
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+}
+console.log(JSON.stringify({ status: 'PASS-scoped', numericFields: 8, helpers: 3, check }));

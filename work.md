@@ -630,3 +630,13 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 - 기존 생성/adopted 소스의 **baseHash와 fingerprint는 모두 보존**했다. 직접 수정한 generated 상태 17개는 adopted로 보호하고 현재 productHash·디자인 소유권 SHA만 동기화했다. 수정 전 HEAD와도 불일치하던 현재 소유권 지문은 별도로 확인해 현행화했으며, 과거 base/previous 기록을 다시 쓰지 않았다. `check:design-ownership`은 56 moved·8 adopted·11 managed owner 범위에서 PASS-scoped다.
 - 검증: SDK 전체 빌드와 마지막 Core 빌드, 전체 workspace·CLI·Metro·변환 도구 타입 검사 PASS. Material 테스트 전체와 Core 23개 파일 실행 exitCode 0, 추가 SDK/focus/route 13개 파일은 **83 PASS·1 SKIP·0 FAIL**, 생성기 **5 PASS**다. 모든 테스트 제한 시간은 20분이다. `git diff --check`도 통과했다. 재사용 명령과 예외 기준은 한/영 README 및 변환 도구 README에 반영했다.
 - 이번 확인은 저장소 소스·로컬 SDK 출력의 검사다. 플랫폼 runner에 새 archive를 공급/설치하거나 네이티브 AOT·앱을 재빌드/재실행하지 않았다. §23의 전달 제품·물리 입력 기록과 `PARTIAL` / `resizePerformanceAccepted=false`는 기존 범위를 유지하며, 이번 정리를 물리 입력·IME·표시 FPS·성능 수락으로 확대하지 않는다. 별도 검증 로그·receipt·임시 소비자 설치본을 추가 보관하지 않았다.
+
+## 25. JS/TS 전체 포맷팅 검토·적용 (2026-10-30)
+
+- 상태: **완료 — Oxfmt 0.75.0, JS/TS 1,733파일과 린트·포맷 설정 2파일 검사 PASS**. JS/TS 1,711파일과 기존 린트 설정의 포맷을 정리했다. 루트 `npm run format`은 적용, `npm run format:check`는 변경 없이 검사한다. 같은 포맷 명령 재실행에서 소스 변경 0개도 확인했다.
+- 기준은 들여쓰기 2칸·printWidth 100·작은따옴표·세미콜론·LF다. import/패키지 JSON 정렬과 내장 언어 포맷을 끄고 속성 키 표기를 유지한다. 긴 문자열·정규식·출처 주석은 값과 근거를 보존하므로 100자는 강제 최대 길이가 아니다. 네이티브 C++/C#/Dart와 과거 데이터 JSON은 이번 Oxfmt 대상이 아니다.
+- 포맷 직후 1,721파일의 정규화 구문 트리가 일치했다. 나머지 12파일은 동일 논리 연산자의 결합 괄호와 JSX 공백 차이였으며, 피연산자 순서·리터럴과 JSX 실행 코드 비교로 동등성을 확인했다. 태그 템플릿·내장 native 패치 문자열과 import 평가 순서를 보존했다. 기존 `oxlint-disable-next-line` 80곳은 같은 검토 구문을 감싸는 disable/enable 범위로 바꿔 줄바꿈 후에도 예외를 유지했다.
+- 포맷을 전제로 하지 않던 소스 검사 2곳도 보완했다. `prepare-native.mjs`의 wire 버전 추출은 공백·줄바꿈을 허용하고, Windows animation fixture의 등록 코드 치환은 여러 줄 호출을 허용한다. 실제 Windows 템플릿·샘플의 포맷 전/후 네 경우에서 마지막 최상위 등록 호출만 매칭·치환되는지 확인했다. 최초 SDK 빌드의 wire 버전 검사 실패를 수정한 뒤 같은 `npm run build:sdk` 전체 명령을 다시 실행해 통과했다.
+- 현재 소유권 SHA 99개와 현재 productHash 39개를 갱신하고 generated 출력 13개를 adopted로 보호했다. **기존 baseHash·fingerprint와 registry의 previous 기록은 보존**했다. 포맷 전부터 현재 productHash가 달랐던 spring-description·simulation-wrappers·child-vicinity·rendering/sliver-tree 4개도 별도로 구분해 현재 바이트에 맞췄다. 이 작업은 과거 recipe/native 검증의 재수락이 아니다. `history/` 변경과 무관한 기존 의존성 변경은 없다.
+- 최종 검증: `format:check`, `lint`(오류·경고 0), `git diff --check`, 전체 workspace·CLI·Metro·변환 도구 타입 검사와 `build:sdk` PASS. Material **271 PASS**, Core·layout **289 PASS**, 추가 공급/VM/Metro **31 PASS·1 조건부 native-cache SKIP**, 생성기 **5 PASS**다. 모든 테스트 timeout은 20분이다. 패키지 경계는 945파일·7,616 runtime edge·design cycle 0, 디자인 소유권은 56 moved·8 adopted·11 managed owner 범위에서 PASS-scoped다.
+- 한/영 README와 변환 도구 README에 검사·적용 명령 및 범위를 반영했다. 플랫폼 runner 공급/설치·네이티브 AOT/앱 재실행·물리 입력/표시 성능 검증은 수행하지 않았다. §23의 전달 제품 기록, `PARTIAL`과 `resizePerformanceAccepted=false`는 기존 범위를 유지한다. 별도 검증 로그·receipt·이전 출력/임시 설치본을 누적하지 않았다.

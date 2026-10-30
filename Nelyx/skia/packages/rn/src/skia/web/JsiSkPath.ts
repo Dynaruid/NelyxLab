@@ -1,16 +1,16 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { CanvasKit, PathBuilder as CKPathBuilder } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { CanvasKit, PathBuilder as CKPathBuilder } from 'canvaskit-wasm';
 
-import {PathVerb} from "@nelyx/skia-native/skia/types/Drawing";
-import type {FillType, PathCommand, SkPath} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkMatrix, InputMatrix} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPoint} from "@nelyx/skia-native/skia/types/Point";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import { PathVerb } from '@nelyx/skia-native/skia/types/Drawing';
+import type { FillType, PathCommand, SkPath } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkMatrix, InputMatrix } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPoint } from '@nelyx/skia-native/skia/types/Point';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
 
-import {HostObject} from './Host.ts';
-import {JsiSkPoint} from './JsiSkPoint.ts';
-import {JsiSkRect} from './JsiSkRect.ts';
-import {JsiSkMatrix} from './JsiSkMatrix.ts';
+import { HostObject } from './Host.ts';
+import { JsiSkPoint } from './JsiSkPoint.ts';
+import { JsiSkRect } from './JsiSkRect.ts';
+import { JsiSkMatrix } from './JsiSkMatrix.ts';
 
 const CommandCount = {
   [PathVerb.Move]: 3,
@@ -49,12 +49,9 @@ export const toMatrix3x3 = (m: InputMatrix): number[] => {
  * methods. Use snapshot() internally to get
  * an immutable CK Path for read-only operations.
  */
-export class JsiSkPath
-  extends HostObject<CKPathBuilder, "Path">
-  implements SkPath
-{
+export class JsiSkPath extends HostObject<CKPathBuilder, 'Path'> implements SkPath {
   constructor(CanvasKit: CanvasKit, ref: CKPathBuilder) {
-    super(CanvasKit, ref, "Path");
+    super(CanvasKit, ref, 'Path');
   }
 
   /** Returns an immutable CK Path snapshot for read-only operations. */
@@ -89,10 +86,7 @@ export class JsiSkPath
 
   copy() {
     const path = this.asPath();
-    const result = new JsiSkPath(
-      this.CanvasKit,
-      new this.CanvasKit.PathBuilder(path)
-    );
+    const result = new JsiSkPath(this.CanvasKit, new this.CanvasKit.PathBuilder(path));
     path.delete();
     return result;
   }
@@ -168,10 +162,7 @@ export class JsiSkPath
     if (path === null) {
       return null;
     }
-    const result = new JsiSkPath(
-      this.CanvasKit,
-      new this.CanvasKit.PathBuilder(path)
-    );
+    const result = new JsiSkPath(this.CanvasKit, new this.CanvasKit.PathBuilder(path));
     path.delete();
     return result;
   }

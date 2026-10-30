@@ -1,25 +1,22 @@
 /* global HTMLCanvasElement */
-import React, {
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from "react";
-import type { ViewProps } from "react-native";
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import type { ViewProps } from 'react-native';
 
-import type {SkCanvas} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkGraphiteContext, SkGraphiteRecording} from "@nelyx/skia-native/skia/types/Graphite";
-import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
-import {JsiSkPictureRecorder} from '../skia/web/JsiSkPictureRecorder.ts';
-import {Platform} from '../Platform/Platform.ts';
-import type {ISkiaViewApiWeb, SkiaWebViewHandle} from '../specs/NativeSkiaModule.web.ts';
+import type { SkCanvas } from '@nelyx/skia-native/skia/types/Drawing';
+import type {
+  SkGraphiteContext,
+  SkGraphiteRecording,
+} from '@nelyx/skia-native/skia/types/Graphite';
+import type { SkImage } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPicture } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
+import { JsiSkPictureRecorder } from '../skia/web/JsiSkPictureRecorder.ts';
+import { Platform } from '../Platform/Platform.ts';
+import type { ISkiaViewApiWeb, SkiaWebViewHandle } from '../specs/NativeSkiaModule.web.ts';
 
-import {SkiaViewNativeId} from './SkiaViewNativeId.ts';
-import {useSkiaWebRenderer} from './SkiaWebRenderer.ts';
-import type {Renderer, WebFrame} from './SkiaWebRenderer.ts';
+import { SkiaViewNativeId } from './SkiaViewNativeId.ts';
+import { useSkiaWebRenderer } from './SkiaWebRenderer.ts';
+import type { Renderer, WebFrame } from './SkiaWebRenderer.ts';
 
 // The web has no Graphite: the view paints pictures on a WebGL canvas (with
 // context-loss recovery and the destroy-context-after-render mode). It shows
@@ -46,7 +43,7 @@ export interface SkiaViewProps extends ViewProps {
  * view lets go of it.
  */
 class WebGraphiteRecording implements SkGraphiteRecording {
-  readonly __typename__ = "GraphiteRecording" as const;
+  readonly __typename__ = 'GraphiteRecording' as const;
   private holds = 0;
   private disposed = false;
 
@@ -84,7 +81,7 @@ interface RecordingTarget {
 }
 
 class WebGraphiteContext implements SkGraphiteContext {
-  readonly __typename__ = "GraphiteContext" as const;
+  readonly __typename__ = 'GraphiteContext' as const;
   private recorder: JsiSkPictureRecorder | null = null;
 
   constructor(private readonly target: RecordingTarget) {}
@@ -100,25 +97,20 @@ class WebGraphiteContext implements SkGraphiteContext {
   beginRecording(): SkCanvas {
     if (this.recorder) {
       throw new Error(
-        "SkiaGraphiteView: a recording is already open, call finishRecording() first."
+        'SkiaGraphiteView: a recording is already open, call finishRecording() first.',
       );
     }
     const { width, height } = this.target.getSize();
     if (width <= 0 || height <= 0) {
-      throw new Error("SkiaGraphiteView: the view has no size yet.");
+      throw new Error('SkiaGraphiteView: the view has no size yet.');
     }
-    this.recorder = new JsiSkPictureRecorder(
-      CanvasKit,
-      new CanvasKit.PictureRecorder()
-    );
+    this.recorder = new JsiSkPictureRecorder(CanvasKit, new CanvasKit.PictureRecorder());
     return this.recorder.beginRecording({ x: 0, y: 0, width, height });
   }
 
   finishRecording(): SkGraphiteRecording {
     if (!this.recorder) {
-      throw new Error(
-        "SkiaGraphiteView: no recording is open, call beginRecording() first."
-      );
+      throw new Error('SkiaGraphiteView: no recording is open, call beginRecording() first.');
     }
     const picture = this.recorder.finishRecordingAsPicture();
     this.recorder.dispose();
@@ -128,9 +120,7 @@ class WebGraphiteContext implements SkGraphiteContext {
 
   submit(recording: SkGraphiteRecording) {
     if (!(recording instanceof WebGraphiteRecording)) {
-      throw new Error(
-        "SkiaGraphiteView: submit() expects a recording from finishRecording()."
-      );
+      throw new Error('SkiaGraphiteView: submit() expects a recording from finishRecording().');
     }
     this.target.submit(recording);
   }
@@ -151,11 +141,8 @@ export const SkiaView = (props: SkiaViewProps) => {
   const shownRef = useRef<WebGraphiteRecording[]>([]);
   const flushScheduledRef = useRef(false);
   const nativeId = useMemo(
-    () =>
-      props.nativeID !== undefined
-        ? Number(props.nativeID)
-        : SkiaViewNativeId.current++,
-    [props.nativeID]
+    () => (props.nativeID !== undefined ? Number(props.nativeID) : SkiaViewNativeId.current++),
+    [props.nativeID],
   );
 
   const isStatic = props.__destroyWebGLContextAfterRender === true;
@@ -190,11 +177,11 @@ export const SkiaView = (props: SkiaViewProps) => {
         renderer.draw(shownRef.current.map((recording) => recording.picture));
       }
     },
-    [present]
+    [present],
   );
   const rendererRef = useSkiaWebRenderer(canvasRef, isStatic, {
     paint,
-    ...(onLayout ? {onLayout} : {}),
+    ...(onLayout ? { onLayout } : {}),
   });
 
   // Draws are flushed from a microtask rather than an animation frame: the
@@ -225,7 +212,7 @@ export const SkiaView = (props: SkiaViewProps) => {
       pictureRef.current = picture;
       redraw();
     },
-    [redraw]
+    [redraw],
   );
 
   const submit = useCallback(
@@ -234,7 +221,7 @@ export const SkiaView = (props: SkiaViewProps) => {
       queueRef.current.push(recording);
       redraw();
     },
-    [redraw]
+    [redraw],
   );
 
   const getSize = useCallback(
@@ -242,12 +229,12 @@ export const SkiaView = (props: SkiaViewProps) => {
       width: canvasRef.current?.clientWidth || 0,
       height: canvasRef.current?.clientHeight || 0,
     }),
-    []
+    [],
   );
 
   const getContext = useCallback(
     (): SkGraphiteContext => new WebGraphiteContext({ getSize, submit }),
-    [getSize, submit]
+    [getSize, submit],
   );
 
   const makeImageSnapshot = useCallback(
@@ -269,7 +256,7 @@ export const SkiaView = (props: SkiaViewProps) => {
       }
       return renderer.makeImageSnapshot(frame, rect);
     },
-    [rendererRef]
+    [rendererRef],
   );
 
   const measure = useCallback(
@@ -280,8 +267,8 @@ export const SkiaView = (props: SkiaViewProps) => {
         width: number,
         height: number,
         pageX: number,
-        pageY: number
-      ) => void
+        pageY: number,
+      ) => void,
     ) => {
       if (canvasRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
@@ -298,23 +285,21 @@ export const SkiaView = (props: SkiaViewProps) => {
           rect.height,
           // pageX, pageY are absolute screen coordinates
           rect.left + window.scrollX,
-          rect.top + window.scrollY
+          rect.top + window.scrollY,
         );
       }
     },
-    []
+    [],
   );
 
   const measureInWindow = useCallback(
-    (
-      callback: (x: number, y: number, width: number, height: number) => void
-    ) => {
+    (callback: (x: number, y: number, width: number, height: number) => void) => {
       if (canvasRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
         callback(rect.left, rect.top, rect.width, rect.height);
       }
     },
-    []
+    [],
   );
 
   // No flush cancellation is needed on unmount: a microtask queued before
@@ -335,15 +320,7 @@ export const SkiaView = (props: SkiaViewProps) => {
         return () => canvasRef.current;
       },
     }),
-    [
-      setPicture,
-      getContext,
-      getSize,
-      redraw,
-      makeImageSnapshot,
-      measure,
-      measureInWindow,
-    ]
+    [setPicture, getContext, getSize, redraw, makeImageSnapshot, measure, measureInWindow],
   );
 
   useEffect(() => {
@@ -381,7 +358,7 @@ export const SkiaView = (props: SkiaViewProps) => {
       shownRef.current.forEach((recording) => recording.release());
       shownRef.current = [];
     },
-    []
+    [],
   );
 
   const {
@@ -397,9 +374,9 @@ export const SkiaView = (props: SkiaViewProps) => {
         // A canvas element is bound to one context kind for life (WebGL for
         // the live renderer, 2D for the static one), so switching renderers
         // needs a fresh element.
-        key={isStatic ? "static" : "webgl"}
+        key={isStatic ? 'static' : 'webgl'}
         ref={canvasRef}
-        style={{ display: "block", width: "100%", height: "100%" }}
+        style={{ display: 'block', width: '100%', height: '100%' }}
       />
     </Platform.View>
   );

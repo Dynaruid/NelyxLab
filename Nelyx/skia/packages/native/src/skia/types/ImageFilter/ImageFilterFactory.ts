@@ -1,14 +1,14 @@
-import type {SkColor} from '../Color.ts';
-import type {SkColorFilter} from '../ColorFilter/ColorFilter.ts';
-import type {FilterMode, MipmapMode, SkImage} from "../Drawing.ts";
-import type {SkMatrix} from "../Drawing.ts";
-import type {BlendMode} from '../Paint/BlendMode.ts';
-import type {SkPicture} from "../Drawing.ts";
-import type {SkRect} from '../Rect.ts';
-import type {SkRuntimeShaderBuilder} from "../Drawing.ts";
-import type {SkShader} from "../Drawing.ts";
+import type { SkColor } from '../Color.ts';
+import type { SkColorFilter } from '../ColorFilter/ColorFilter.ts';
+import type { FilterMode, MipmapMode, SkImage } from '../Drawing.ts';
+import type { SkMatrix } from '../Drawing.ts';
+import type { BlendMode } from '../Paint/BlendMode.ts';
+import type { SkPicture } from '../Drawing.ts';
+import type { SkRect } from '../Rect.ts';
+import type { SkRuntimeShaderBuilder } from '../Drawing.ts';
+import type { SkShader } from '../Drawing.ts';
 
-import type {SkImageFilter, TileMode} from './ImageFilter.ts';
+import type { SkImageFilter, TileMode } from './ImageFilter.ts';
 
 export enum ColorChannel {
   R,
@@ -30,7 +30,7 @@ export interface ImageFilterFactory {
     dx: number,
     dy: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
   /**
    * Spatially displace pixel values of the filtered image
@@ -48,7 +48,7 @@ export interface ImageFilterFactory {
     scale: number,
     in1: SkImageFilter,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
   /**
    * Transforms a shader into an impage filter
@@ -57,11 +57,7 @@ export interface ImageFilterFactory {
    * @param dither - Whether to apply dithering to the shader
    * @param cropRect - Optional rectangle that crops the input and output
    */
-  MakeShader(
-    shader: SkShader,
-    dither?: boolean,
-    cropRect?: SkRect | null
-  ): SkImageFilter;
+  MakeShader(shader: SkShader, dither?: boolean, cropRect?: SkRect | null): SkImageFilter;
   /**
    * Create a filter that blurs its input by the separate X and Y sigmas. The provided tile mode
    * is used when the blur kernel goes outside the input image.
@@ -77,7 +73,7 @@ export interface ImageFilterFactory {
     sigmaY: number,
     mode: TileMode,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -90,7 +86,7 @@ export interface ImageFilterFactory {
   MakeColorFilter(
     colorFilter: SkColorFilter,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -100,10 +96,7 @@ export interface ImageFilterFactory {
    * @param outer
    * @param inner - if null, it will use the dynamic source image (e.g. a saved layer)
    */
-  MakeCompose(
-    outer: SkImageFilter | null,
-    inner: SkImageFilter | null
-  ): SkImageFilter;
+  MakeCompose(outer: SkImageFilter | null, inner: SkImageFilter | null): SkImageFilter;
 
   /**
    * Create a filter that draws a drop shadow under the input content.
@@ -123,7 +116,7 @@ export interface ImageFilterFactory {
     sigmaY: number,
     color: SkColor,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ) => SkImageFilter;
   /**
    * Create a filter that renders a drop shadow, in exactly the same manner as ::DropShadow, except
@@ -144,7 +137,7 @@ export interface ImageFilterFactory {
     sigmaY: number,
     color: SkColor,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ) => SkImageFilter;
   /**
    *  Create a filter that erodes each input pixel's channel values to the minimum channel value
@@ -158,7 +151,7 @@ export interface ImageFilterFactory {
     rx: number,
     ry: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ) => SkImageFilter;
   /**
    *  Create a filter that dilates each input pixel's channel values to the max value within the
@@ -172,7 +165,7 @@ export interface ImageFilterFactory {
     rx: number,
     ry: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ) => SkImageFilter;
   /**
    *  This filter takes an SkBlendMode and uses it to composite the two filters together.
@@ -185,7 +178,7 @@ export interface ImageFilterFactory {
     mode: BlendMode,
     background: SkImageFilter,
     foreground?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ) => SkImageFilter;
   /**
    *  Create a filter that fills the output with the per-pixel evaluation of the SkShader produced
@@ -204,7 +197,7 @@ export interface ImageFilterFactory {
   MakeRuntimeShader: (
     builder: SkRuntimeShaderBuilder,
     childShaderName: string | null,
-    input?: SkImageFilter | null
+    input?: SkImageFilter | null,
   ) => SkImageFilter;
 
   /**
@@ -226,7 +219,7 @@ export interface ImageFilterFactory {
     enforcePMColor: boolean,
     background?: SkImageFilter | null,
     foreground?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -243,11 +236,7 @@ export interface ImageFilterFactory {
    *  @param tileMode The TileMode applied to pixels *outside* of 'crop' @default TileMode.Decal
    *  @param input    The input filter that is cropped, uses source image if this is null
    */
-  MakeCrop(
-    rect: SkRect,
-    tileMode?: TileMode | null,
-    input?: SkImageFilter | null
-  ): SkImageFilter;
+  MakeCrop(rect: SkRect, tileMode?: TileMode | null, input?: SkImageFilter | null): SkImageFilter;
 
   /**
    * Create a filter that always produces transparent black.
@@ -270,7 +259,7 @@ export interface ImageFilterFactory {
     srcRect?: SkRect | null,
     dstRect?: SkRect | null,
     filterMode?: FilterMode,
-    mipmap?: MipmapMode
+    mipmap?: MipmapMode,
   ): SkImageFilter;
 
   /**
@@ -291,7 +280,7 @@ export interface ImageFilterFactory {
     filterMode?: FilterMode,
     mipmap?: MipmapMode,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -326,7 +315,7 @@ export interface ImageFilterFactory {
     tileMode: TileMode,
     convolveAlpha: boolean,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -342,7 +331,7 @@ export interface ImageFilterFactory {
     matrix: SkMatrix,
     filterMode?: FilterMode,
     mipmap?: MipmapMode,
-    input?: SkImageFilter | null
+    input?: SkImageFilter | null,
   ): SkImageFilter;
   /** Nelyx source FilterQuality.high uses the same Mitchell cubic sampler. */
   MakeMatrixTransformCubic(matrix: SkMatrix, B: number, C: number): SkImageFilter;
@@ -354,10 +343,7 @@ export interface ImageFilterFactory {
    *                  filter pointers will use the source bitmap instead.
    *  @param cropRect Optional rectangle that crops all input filters and the output.
    */
-  MakeMerge(
-    filters: Array<SkImageFilter | null>,
-    cropRect?: SkRect | null
-  ): SkImageFilter;
+  MakeMerge(filters: Array<SkImageFilter | null>, cropRect?: SkRect | null): SkImageFilter;
 
   /**
    *  Create a filter that produces the SkPicture as its output, clipped to both 'targetRect' and
@@ -395,7 +381,7 @@ export interface ImageFilterFactory {
     builder: SkRuntimeShaderBuilder,
     sampleRadius: number,
     childShaderNames: string[],
-    inputs: Array<SkImageFilter | null>
+    inputs: Array<SkImageFilter | null>,
   ) => SkImageFilter;
 
   /**
@@ -404,11 +390,7 @@ export interface ImageFilterFactory {
    *  @param dst   Defines the pixel region that the tiles will be drawn to
    *  @param input The input that will be tiled, if null the source bitmap is used instead.
    */
-  MakeTile(
-    src: SkRect,
-    dst: SkRect,
-    input?: SkImageFilter | null
-  ): SkImageFilter;
+  MakeTile(src: SkRect, dst: SkRect, input?: SkImageFilter | null): SkImageFilter;
 
   /**
    *  Create a filter that calculates the diffuse illumination from a distant light source,
@@ -428,7 +410,7 @@ export interface ImageFilterFactory {
     surfaceScale: number,
     kd: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -449,7 +431,7 @@ export interface ImageFilterFactory {
     surfaceScale: number,
     kd: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -477,7 +459,7 @@ export interface ImageFilterFactory {
     surfaceScale: number,
     kd: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -500,7 +482,7 @@ export interface ImageFilterFactory {
     ks: number,
     shininess: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -523,7 +505,7 @@ export interface ImageFilterFactory {
     ks: number,
     shininess: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 
   /**
@@ -553,7 +535,7 @@ export interface ImageFilterFactory {
     ks: number,
     shininess: number,
     input?: SkImageFilter | null,
-    cropRect?: SkRect | null
+    cropRect?: SkRect | null,
   ): SkImageFilter;
 }
 

@@ -2,81 +2,102 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/two_dimensional_viewport.dart; SHA256 a3bca9a23d5367265ebb00bf6618ac912a74c4b008568ba0d0da1364a66cf69e
 // Adopted product owner: nominal checks use the classes declared here.
-import { checkedInteger } from "../../ui/value-math.ts";
-import { protect } from "../../ui/value-math.ts";
-import { invariant } from "../../foundation/errors.ts";
-import { FoundationBuildMode } from "../../foundation/constants.ts";
-import { hashValues } from "../painting/value-equality.ts";
-import { constantChildVicinity } from "./child-vicinity-constant.ts";
+import { checkedInteger } from '../../ui/value-math.ts';
+import { protect } from '../../ui/value-math.ts';
+import { invariant } from '../../foundation/errors.ts';
+import { FoundationBuildMode } from '../../foundation/constants.ts';
+import { hashValues } from '../painting/value-equality.ts';
+import { constantChildVicinity } from './child-vicinity-constant.ts';
 export class ChildVicinity implements DartComparable<ChildVicinity> {
+  /**
+   * @dartType int
+   * @dartTypeOrigin explicit
+   */
+  readonly xIndex: number;
+  /**
+   * @dartType int
+   * @dartTypeOrigin explicit
+   */
+  readonly yIndex: number;
+  static readonly invalid: ChildVicinity = constantChildVicinity(ChildVicinity, {
+    xIndex: checkedInteger(-1),
+    yIndex: checkedInteger(-1),
+  });
+  /**
+   * @dartParam xIndex int
+   * @dartParamOrigin xIndex inferred
+   * @dartParam yIndex int
+   * @dartParamOrigin yIndex inferred
+   */
+  constructor({ xIndex, yIndex }: { readonly xIndex: number; readonly yIndex: number }) {
+    checkedInteger(xIndex);
+    checkedInteger(yIndex);
     /**
      * @dartType int
-     * @dartTypeOrigin explicit
+     * @dartTypeOrigin inferred
      */
-    readonly xIndex: number;
+    const _initialField0 = xIndex;
     /**
      * @dartType int
-     * @dartTypeOrigin explicit
+     * @dartTypeOrigin inferred
      */
-    readonly yIndex: number;
-    static readonly invalid: ChildVicinity = constantChildVicinity(ChildVicinity, { xIndex: checkedInteger(-1), yIndex: checkedInteger(-1) });
-    /**
-     * @dartParam xIndex int
-     * @dartParamOrigin xIndex inferred
-     * @dartParam yIndex int
-     * @dartParamOrigin yIndex inferred
-     */
-    constructor({ xIndex, yIndex }: {
-        readonly xIndex: number;
-        readonly yIndex: number;
-    }) {
-        checkedInteger(xIndex);
-        checkedInteger(yIndex);
-        /**
-         * @dartType int
-         * @dartTypeOrigin inferred
-         */
-        const _initialField0 = xIndex;
-        /**
-         * @dartType int
-         * @dartTypeOrigin inferred
-         */
-        const _initialField1 = yIndex;
-        if (FoundationBuildMode.debug)
-            invariant(checkedInteger(xIndex) >= checkedInteger(-1), "generated-source-assert", "Pinned Dart assertion failed");
-        if (FoundationBuildMode.debug)
-            invariant(checkedInteger(yIndex) >= checkedInteger(-1), "generated-source-assert", "Pinned Dart assertion failed");
-        this.xIndex = _initialField0;
-        this.yIndex = _initialField1;
-        protect(this, ["xIndex", "yIndex"]);
+    const _initialField1 = yIndex;
+    if (FoundationBuildMode.debug)
+      invariant(
+        checkedInteger(xIndex) >= checkedInteger(-1),
+        'generated-source-assert',
+        'Pinned Dart assertion failed',
+      );
+    if (FoundationBuildMode.debug)
+      invariant(
+        checkedInteger(yIndex) >= checkedInteger(-1),
+        'generated-source-assert',
+        'Pinned Dart assertion failed',
+      );
+    this.xIndex = _initialField0;
+    this.yIndex = _initialField1;
+    protect(this, ['xIndex', 'yIndex']);
+  }
+  equals(other: {}): boolean {
+    return (
+      isChildVicinity(other) &&
+      checkedInteger(other.xIndex) === checkedInteger(this.xIndex) &&
+      checkedInteger(other.yIndex) === checkedInteger(this.yIndex)
+    );
+  }
+  /**
+   * @dartReturn int
+   * @dartReturnOrigin explicit
+   */
+  get hashCode(): number {
+    return checkedInteger(hashValues(checkedInteger(this.xIndex), checkedInteger(this.yIndex)));
+  }
+  /**
+   * @dartReturn int
+   * @dartReturnOrigin explicit
+   */
+  compareTo(other: ChildVicinity): number {
+    if (checkedInteger(this.xIndex) === checkedInteger(other.xIndex)) {
+      return checkedInteger(checkedInteger(this.yIndex) - checkedInteger(other.yIndex));
     }
-    equals(other: {}): boolean {
-        return isChildVicinity(other) && checkedInteger(other.xIndex) === checkedInteger(this.xIndex) && checkedInteger(other.yIndex) === checkedInteger(this.yIndex);
-    }
-    /**
-     * @dartReturn int
-     * @dartReturnOrigin explicit
-     */
-    get hashCode(): number {
-        return checkedInteger(hashValues(checkedInteger(this.xIndex), checkedInteger(this.yIndex)));
-    }
-    /**
-     * @dartReturn int
-     * @dartReturnOrigin explicit
-     */
-    compareTo(other: ChildVicinity): number {
-        if (checkedInteger(this.xIndex) === checkedInteger(other.xIndex)) {
-            return checkedInteger(checkedInteger(this.yIndex) - checkedInteger(other.yIndex));
-        }
-        return checkedInteger(checkedInteger(this.xIndex) - checkedInteger(other.xIndex));
-    }
-    toString(): string {
-        return `(xIndex: ${integerString(checkedInteger(this.xIndex))}, yIndex: ${integerString(checkedInteger(this.yIndex))})`;
-    }
+    return checkedInteger(checkedInteger(this.xIndex) - checkedInteger(other.xIndex));
+  }
+  toString(): string {
+    return `(xIndex: ${integerString(checkedInteger(this.xIndex))}, yIndex: ${integerString(checkedInteger(this.yIndex))})`;
+  }
 }
-protect(ChildVicinity, ["invalid"]);
+protect(ChildVicinity, ['invalid']);
 
-export interface DartComparable<T>{compareTo(other:T):number;}
-export function integerString(value:number):string{return String(checkedInteger(value));}
-export function isChildVicinity(value:unknown):value is ChildVicinity{return value instanceof ChildVicinity;}
-export function castChildVicinity(value:unknown):ChildVicinity{if(!isChildVicinity(value))throw new TypeError('Expected ChildVicinity');return value;}
+export interface DartComparable<T> {
+  compareTo(other: T): number;
+}
+export function integerString(value: number): string {
+  return String(checkedInteger(value));
+}
+export function isChildVicinity(value: unknown): value is ChildVicinity {
+  return value instanceof ChildVicinity;
+}
+export function castChildVicinity(value: unknown): ChildVicinity {
+  if (!isChildVicinity(value)) throw new TypeError('Expected ChildVicinity');
+  return value;
+}

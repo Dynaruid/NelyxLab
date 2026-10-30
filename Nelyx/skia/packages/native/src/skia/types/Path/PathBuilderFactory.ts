@@ -1,5 +1,5 @@
-import type {SkPath} from "../Drawing.ts";
-import type {SkPathBuilder} from './PathBuilder.ts';
+import type { SkPath } from '../Drawing.ts';
+import type { SkPathBuilder } from './PathBuilder.ts';
 
 export interface PathBuilderFactory {
   /**

@@ -27,30 +27,20 @@ export type AnimatedProp<T> = T | { value: T } | SharedValueSelector<T>;
  */
 export const select = <T extends object, K extends keyof T & string>(
   value: SharedValue<T>,
-  key: K
+  key: K,
 ): SharedValueSelector<T[K]> => ({
   __sv: value as unknown as { value: Record<string, unknown> },
   __key: key,
 });
 
 export type AnimatedProps<T, O extends keyof T | never = never> = {
-  [K in keyof T]: K extends "children"
-    ? T[K]
-    : K extends O
-      ? T[K]
-      : AnimatedProp<T[K]>;
+  [K in keyof T]: K extends 'children' ? T[K] : K extends O ? T[K] : AnimatedProp<T[K]>;
 };
 
-export type SkiaProps<
-  P = object,
-  O extends keyof P | never = never,
-> = AnimatedProps<P, O>;
+export type SkiaProps<P = object, O extends keyof P | never = never> = AnimatedProps<P, O>;
 
 type WithOptional<T extends object, N extends keyof T> = Omit<T, N> & {
   [K in N]?: T[K];
 };
 
-export type SkiaDefaultProps<
-  T extends object,
-  N extends keyof T,
-> = WithOptional<SkiaProps<T>, N>;
+export type SkiaDefaultProps<T extends object, N extends keyof T> = WithOptional<SkiaProps<T>, N>;

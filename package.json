@@ -89,7 +89,9 @@
     "test:windows-wheel-pacer": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-wheel-pacer.test.mjs",
     "test:native-hermes-host": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-hermes-host.test.mjs",
     "test:native-shadows": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-shadow.test.mjs",
-    "probe:native-memory": "node Nelyx/eng/run-native-memory.mjs"
+    "probe:native-memory": "node Nelyx/eng/run-native-memory.mjs",
+    "format": "oxfmt --write \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json",
+    "format:check": "oxfmt --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
@@ -103,7 +105,8 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@react-native/metro-config": "0.83.10",
-    "@react-native/metro-babel-transformer": "0.83.10"
+    "@react-native/metro-babel-transformer": "0.83.10",
+    "oxfmt": "0.75.0"
   },
   "engines": {
     "node": ">=24.3.0"

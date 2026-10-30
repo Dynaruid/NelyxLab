@@ -1,33 +1,294 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {ThemeData} from '@nelyx/material/theme-data';import {ColorScheme} from '@nelyx/material/color-scheme';import {Typography} from '@nelyx/material/typography';
-import {Colors} from '@nelyx/material/colors';import {kDefaultIconLightColor,kDefaultIconDarkColor} from '@nelyx/material/constants';
-import {AppBarTheme,AppBarThemeData} from '@nelyx/material/app-bar-theme';import {InputDecorationTheme,InputDecorationThemeData} from '@nelyx/material/input-decoration-theme';
-import {IconButton} from '@nelyx/material/icon-button';import {Theme} from '@nelyx/material/theme';import {ThemeExtension} from '@nelyx/material/theme-extension';import {Adaptation} from '@nelyx/material/adaptation';
-import {InkSparkle} from '@nelyx/material/ink-sparkle';import {InkRipple} from '@nelyx/material/ink-ripple';
-import {CupertinoThemeData,NoDefaultCupertinoThemeData} from '@nelyx/cupertino/theme';
-import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';
-import {Color} from '@nelyx/core/ui/color';import {TextStyle} from '@nelyx/core/framework/painting/text-style';
-import {dartObjectType} from '@nelyx/core/foundation/dart-type-witness';import {FoundationPlatform} from '@nelyx/core/foundation/platform';
-import {Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
-import {fixture} from './root-fixture.mjs';
-const timeout=1200000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/theme-factory-source.json',import.meta.url))),icons=JSON.parse(fs.readFileSync(new URL('./fixtures/theme-factory-icon-source.json',import.meta.url)));
-const configure=environment=>FoundationPlatform.configure({kind:environment==='web'?'web':'native',operatingSystem:'windows'});
-function project(field,value){if(value===null)return null;if(value instanceof Color)return value.toARGB32();if(value instanceof ColorScheme)return {brightness:value.brightness,primary:value.primary,surface:value.surface,outline:value.outline,onSurface:value.onSurface,onSurfaceVariant:value.onSurfaceVariant};if(value instanceof IconThemeData)return value.color?.toARGB32()??null;if(value instanceof Typography)return 'finite-typography';if(field==='visualDensity')return [value.horizontal,value.vertical];if(field==='materialTapTargetSize')return value.name;if(field==='adaptationMap'||field==='extensions')return value.size;if(field==='splashFactory'){if(value===InkSparkle.splashFactory)return 'InkSparkle';if(value===InkRipple.splashFactory)return 'InkRipple';throw Error('Unexpected factory');}if(typeof value==='string')return value;return value.constructor.name==='SourceScrollbarThemeData'?'ScrollbarThemeData':value.constructor.name;}
-test('unchanged complete factory body agrees with24 native/web M3 default value and selected const identity recipes',{timeout},()=>{
-    let checked=0,identities=0;for(const [environment,result]of Object.entries(source.environments)){configure(environment);for(const row of result.rows){const options={platform:row.platform,brightness:row.brightness},a=new ThemeData(options),b=new ThemeData(options);for(const [field,expected]of Object.entries(row.fields)){if(field==='textTheme'||field==='primaryTextTheme'){assert.equal(a[field].bodyMedium.color,a.typography[expected.mode].bodyMedium.color,field);continue;}assert.deepEqual(project(field,a[field]),expected,environment+'/'+row.platform+'/'+row.brightness+'/'+field);checked++;}for(const [field,expected]of Object.entries(row.identical)){if(source.identityExclusions.includes(field))continue;assert.equal(a[field]===b[field],expected,environment+'/'+row.platform+'/'+row.brightness+'/'+field+' identity');identities++;}}}assert.equal(checked,24*75);assert.equal(identities,24*75);
-});
-test('factory and copyWith unwrap exact canonical AppBar/Input inherited values and reject structural counterfeits',{timeout},()=>{
-    configure('native');const app=new AppBarThemeData(),input=new InputDecorationThemeData(),appWidget=new AppBarTheme(app),inputWidget=new InputDecorationTheme(input),a=new ThemeData({appBarTheme:appWidget,inputDecorationTheme:inputWidget}),b=a.copyWith({appBarTheme:appWidget,inputDecorationTheme:inputWidget});for(const value of [a,b]){assert.equal(value.appBarTheme,app);assert.equal(value.inputDecorationTheme,input);}for(const create of [o=>new ThemeData(o),o=>a.copyWith(o)])for(const [key,data]of [['appBarTheme',app],['inputDecorationTheme',input]])assert.throws(()=>create({[key]:{data}}),/must be either/);const broken=new AppBarTheme(app);Object.defineProperty(broken,'data',{get:()=>({})});assert.throws(()=>new ThemeData({appBarTheme:broken}),/canonical AppBarThemeData/);assert.equal(source.environments.native.wrappers.app,true);assert.equal(source.environments.native.wrappers.input,true);assert.equal(source.environments.native.wrappers.structuralRejected,true);
-});
-test('source final default Icon colors differ from equal const/new colors and eight original themeStyleOf cases match actual Core context',{timeout},()=>{
-    configure('native');assert.notEqual(kDefaultIconDarkColor,Colors.black87);assert.notEqual(kDefaultIconLightColor,Colors.white);assert(kDefaultIconDarkColor.equals(Colors.black87));assert(kDefaultIconLightColor.equals(Colors.white));const f=fixture(),states=emptyWidgetStateSet();try{for(const row of icons.cases){const color=row.kind==='default'?(row.brightness==='light'?kDefaultIconDarkColor:kDefaultIconLightColor):row.kind==='constEqual'?(row.brightness==='light'?Colors.black87:Colors.white):new Color(row.color);f.set(new Theme(new ThemeData({brightness:row.brightness}),new IconTheme(new IconThemeData({color,size:24}),new Builder(context=>{const button=new IconButton({icon:new SizedBox(1,1),onPressed(){}}).build(),style=button.themeStyleOf(context);assert.equal(style.foregroundColor?.resolve(states)?.toARGB32()??null,row.foregroundColor,row.brightness+'/'+row.kind);assert.equal(style.iconSize?.resolve(states)?.value??null,row.iconSize);return new SizedBox(1,1);}))));}}finally{f.close();}
-});
-test('complete source factory callback order and exactly-once type getters survive normalization and raw map creation',{timeout},()=>{
-    configure('native');const trace=[];class Override extends NoDefaultCupertinoThemeData{noDefault(){trace.push('cupertino');return this;}}class Primary extends Color{computeLuminance(){trace.push('color');return super.computeLuminance();}}class Adapter extends Adaptation{constructor(){super(dartObjectType);}get type(){trace.push('adapt');return super.type;}}class Extension extends ThemeExtension{constructor(){super(Extension);}get type(){trace.push('extension');return super.type;}copyWith(){return this;}lerp(){return this;}}
-    const input=new InputDecorationTheme(new InputDecorationThemeData()),app=new AppBarTheme(new AppBarThemeData()),inputData=input.data,appData=app.data;Object.defineProperty(input,'data',{get(){trace.push('input');return inputData;}});Object.defineProperty(app,'data',{get(){trace.push('app');return appData;}});new ThemeData({cupertinoOverrideTheme:new Override(),inputDecorationTheme:input,appBarTheme:app,primaryColor:new Primary(0xff123456),adaptations:[new Adapter()],extensions:[new Extension()]});assert.deepEqual(trace,source.environments.native.trace);trace.length=0;new ThemeData().copyWith({cupertinoOverrideTheme:new Override(),inputDecorationTheme:input,appBarTheme:app,adaptations:[new Adapter()],extensions:[new Extension()]});assert.deepEqual(trace,source.environments.native.copyTrace);
-});
-test('complete factory font apply recipe preserves family/fallback/package through the canonical text-style owner',{timeout},()=>{
-    configure('native');const fonts=source.environments.native.fonts,data=new ThemeData({fontFamily:fonts.fontFamily,fontFamilyFallback:fonts.fontFamilyFallback,package:fonts.package}),expected=new TextStyle({fontFamily:fonts.fontFamily,fontFamilyFallback:fonts.fontFamilyFallback,package:fonts.package});for(const theme of [data.textTheme,data.primaryTextTheme]){assert.equal(theme.bodyMedium.fontFamily,expected.fontFamily);assert.deepEqual(theme.bodyMedium.fontFamilyFallback,expected.fontFamilyFallback);}assert.equal(new ThemeData().cupertinoOverrideTheme,null);assert(new ThemeData({cupertinoOverrideTheme:new CupertinoThemeData()}).cupertinoOverrideTheme instanceof NoDefaultCupertinoThemeData);
-});
-
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { ThemeData } from '@nelyx/material/theme-data';
+import { ColorScheme } from '@nelyx/material/color-scheme';
+import { Typography } from '@nelyx/material/typography';
+import { Colors } from '@nelyx/material/colors';
+import { kDefaultIconLightColor, kDefaultIconDarkColor } from '@nelyx/material/constants';
+import { AppBarTheme, AppBarThemeData } from '@nelyx/material/app-bar-theme';
+import {
+  InputDecorationTheme,
+  InputDecorationThemeData,
+} from '@nelyx/material/input-decoration-theme';
+import { IconButton } from '@nelyx/material/icon-button';
+import { Theme } from '@nelyx/material/theme';
+import { ThemeExtension } from '@nelyx/material/theme-extension';
+import { Adaptation } from '@nelyx/material/adaptation';
+import { InkSparkle } from '@nelyx/material/ink-sparkle';
+import { InkRipple } from '@nelyx/material/ink-ripple';
+import { CupertinoThemeData, NoDefaultCupertinoThemeData } from '@nelyx/cupertino/theme';
+import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import { Color } from '@nelyx/core/ui/color';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { dartObjectType } from '@nelyx/core/foundation/dart-type-witness';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { Builder, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
+import { fixture } from './root-fixture.mjs';
+const timeout = 1200000,
+  source = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/theme-factory-source.json', import.meta.url)),
+  ),
+  icons = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/theme-factory-icon-source.json', import.meta.url)),
+  );
+const configure = (environment) =>
+  FoundationPlatform.configure({
+    kind: environment === 'web' ? 'web' : 'native',
+    operatingSystem: 'windows',
+  });
+function project(field, value) {
+  if (value === null) return null;
+  if (value instanceof Color) return value.toARGB32();
+  if (value instanceof ColorScheme)
+    return {
+      brightness: value.brightness,
+      primary: value.primary,
+      surface: value.surface,
+      outline: value.outline,
+      onSurface: value.onSurface,
+      onSurfaceVariant: value.onSurfaceVariant,
+    };
+  if (value instanceof IconThemeData) return value.color?.toARGB32() ?? null;
+  if (value instanceof Typography) return 'finite-typography';
+  if (field === 'visualDensity') return [value.horizontal, value.vertical];
+  if (field === 'materialTapTargetSize') return value.name;
+  if (field === 'adaptationMap' || field === 'extensions') return value.size;
+  if (field === 'splashFactory') {
+    if (value === InkSparkle.splashFactory) return 'InkSparkle';
+    if (value === InkRipple.splashFactory) return 'InkRipple';
+    throw Error('Unexpected factory');
+  }
+  if (typeof value === 'string') return value;
+  return value.constructor.name === 'SourceScrollbarThemeData'
+    ? 'ScrollbarThemeData'
+    : value.constructor.name;
+}
+test(
+  'unchanged complete factory body agrees with24 native/web M3 default value and selected const identity recipes',
+  { timeout },
+  () => {
+    let checked = 0,
+      identities = 0;
+    for (const [environment, result] of Object.entries(source.environments)) {
+      configure(environment);
+      for (const row of result.rows) {
+        const options = { platform: row.platform, brightness: row.brightness },
+          a = new ThemeData(options),
+          b = new ThemeData(options);
+        for (const [field, expected] of Object.entries(row.fields)) {
+          if (field === 'textTheme' || field === 'primaryTextTheme') {
+            assert.equal(
+              a[field].bodyMedium.color,
+              a.typography[expected.mode].bodyMedium.color,
+              field,
+            );
+            continue;
+          }
+          assert.deepEqual(
+            project(field, a[field]),
+            expected,
+            environment + '/' + row.platform + '/' + row.brightness + '/' + field,
+          );
+          checked++;
+        }
+        for (const [field, expected] of Object.entries(row.identical)) {
+          if (source.identityExclusions.includes(field)) continue;
+          assert.equal(
+            a[field] === b[field],
+            expected,
+            environment + '/' + row.platform + '/' + row.brightness + '/' + field + ' identity',
+          );
+          identities++;
+        }
+      }
+    }
+    assert.equal(checked, 24 * 75);
+    assert.equal(identities, 24 * 75);
+  },
+);
+test(
+  'factory and copyWith unwrap exact canonical AppBar/Input inherited values and reject structural counterfeits',
+  { timeout },
+  () => {
+    configure('native');
+    const app = new AppBarThemeData(),
+      input = new InputDecorationThemeData(),
+      appWidget = new AppBarTheme(app),
+      inputWidget = new InputDecorationTheme(input),
+      a = new ThemeData({ appBarTheme: appWidget, inputDecorationTheme: inputWidget }),
+      b = a.copyWith({ appBarTheme: appWidget, inputDecorationTheme: inputWidget });
+    for (const value of [a, b]) {
+      assert.equal(value.appBarTheme, app);
+      assert.equal(value.inputDecorationTheme, input);
+    }
+    for (const create of [(o) => new ThemeData(o), (o) => a.copyWith(o)])
+      for (const [key, data] of [
+        ['appBarTheme', app],
+        ['inputDecorationTheme', input],
+      ])
+        assert.throws(() => create({ [key]: { data } }), /must be either/);
+    const broken = new AppBarTheme(app);
+    Object.defineProperty(broken, 'data', { get: () => ({}) });
+    assert.throws(() => new ThemeData({ appBarTheme: broken }), /canonical AppBarThemeData/);
+    assert.equal(source.environments.native.wrappers.app, true);
+    assert.equal(source.environments.native.wrappers.input, true);
+    assert.equal(source.environments.native.wrappers.structuralRejected, true);
+  },
+);
+test(
+  'source final default Icon colors differ from equal const/new colors and eight original themeStyleOf cases match actual Core context',
+  { timeout },
+  () => {
+    configure('native');
+    assert.notEqual(kDefaultIconDarkColor, Colors.black87);
+    assert.notEqual(kDefaultIconLightColor, Colors.white);
+    assert(kDefaultIconDarkColor.equals(Colors.black87));
+    assert(kDefaultIconLightColor.equals(Colors.white));
+    const f = fixture(),
+      states = emptyWidgetStateSet();
+    try {
+      for (const row of icons.cases) {
+        const color =
+          row.kind === 'default'
+            ? row.brightness === 'light'
+              ? kDefaultIconDarkColor
+              : kDefaultIconLightColor
+            : row.kind === 'constEqual'
+              ? row.brightness === 'light'
+                ? Colors.black87
+                : Colors.white
+              : new Color(row.color);
+        f.set(
+          new Theme(
+            new ThemeData({ brightness: row.brightness }),
+            new IconTheme(
+              new IconThemeData({ color, size: 24 }),
+              new Builder((context) => {
+                const button = new IconButton({ icon: new SizedBox(1, 1), onPressed() {} }).build(),
+                  style = button.themeStyleOf(context);
+                assert.equal(
+                  style.foregroundColor?.resolve(states)?.toARGB32() ?? null,
+                  row.foregroundColor,
+                  row.brightness + '/' + row.kind,
+                );
+                assert.equal(style.iconSize?.resolve(states)?.value ?? null, row.iconSize);
+                return new SizedBox(1, 1);
+              }),
+            ),
+          ),
+        );
+      }
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'complete source factory callback order and exactly-once type getters survive normalization and raw map creation',
+  { timeout },
+  () => {
+    configure('native');
+    const trace = [];
+    class Override extends NoDefaultCupertinoThemeData {
+      noDefault() {
+        trace.push('cupertino');
+        return this;
+      }
+    }
+    class Primary extends Color {
+      computeLuminance() {
+        trace.push('color');
+        return super.computeLuminance();
+      }
+    }
+    class Adapter extends Adaptation {
+      constructor() {
+        super(dartObjectType);
+      }
+      get type() {
+        trace.push('adapt');
+        return super.type;
+      }
+    }
+    class Extension extends ThemeExtension {
+      constructor() {
+        super(Extension);
+      }
+      get type() {
+        trace.push('extension');
+        return super.type;
+      }
+      copyWith() {
+        return this;
+      }
+      lerp() {
+        return this;
+      }
+    }
+    const input = new InputDecorationTheme(new InputDecorationThemeData()),
+      app = new AppBarTheme(new AppBarThemeData()),
+      inputData = input.data,
+      appData = app.data;
+    Object.defineProperty(input, 'data', {
+      get() {
+        trace.push('input');
+        return inputData;
+      },
+    });
+    Object.defineProperty(app, 'data', {
+      get() {
+        trace.push('app');
+        return appData;
+      },
+    });
+    new ThemeData({
+      cupertinoOverrideTheme: new Override(),
+      inputDecorationTheme: input,
+      appBarTheme: app,
+      primaryColor: new Primary(0xff123456),
+      adaptations: [new Adapter()],
+      extensions: [new Extension()],
+    });
+    assert.deepEqual(trace, source.environments.native.trace);
+    trace.length = 0;
+    new ThemeData().copyWith({
+      cupertinoOverrideTheme: new Override(),
+      inputDecorationTheme: input,
+      appBarTheme: app,
+      adaptations: [new Adapter()],
+      extensions: [new Extension()],
+    });
+    assert.deepEqual(trace, source.environments.native.copyTrace);
+  },
+);
+test(
+  'complete factory font apply recipe preserves family/fallback/package through the canonical text-style owner',
+  { timeout },
+  () => {
+    configure('native');
+    const fonts = source.environments.native.fonts,
+      data = new ThemeData({
+        fontFamily: fonts.fontFamily,
+        fontFamilyFallback: fonts.fontFamilyFallback,
+        package: fonts.package,
+      }),
+      expected = new TextStyle({
+        fontFamily: fonts.fontFamily,
+        fontFamilyFallback: fonts.fontFamilyFallback,
+        package: fonts.package,
+      });
+    for (const theme of [data.textTheme, data.primaryTextTheme]) {
+      assert.equal(theme.bodyMedium.fontFamily, expected.fontFamily);
+      assert.deepEqual(theme.bodyMedium.fontFamilyFallback, expected.fontFamilyFallback);
+    }
+    assert.equal(new ThemeData().cupertinoOverrideTheme, null);
+    assert(
+      new ThemeData({ cupertinoOverrideTheme: new CupertinoThemeData() })
+        .cupertinoOverrideTheme instanceof NoDefaultCupertinoThemeData,
+    );
+  },
+);

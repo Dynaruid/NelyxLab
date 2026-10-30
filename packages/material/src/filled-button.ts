@@ -24,59 +24,120 @@ import { concreteStyleFrom } from './internal/button/concrete-style-from.ts';
 import { insetsAll } from './internal/button/style-properties.ts';
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 export interface FilledButtonOptions extends Omit<MaterialButtonOptions, 'onPressed' | 'selected'> {
-    readonly onPressed: (() => void) | null;
+  readonly onPressed: (() => void) | null;
 }
 export interface FilledButtonIconOptions extends Omit<FilledButtonOptions, 'child'> {
-    readonly icon?: Widget | null;
-    readonly label: Widget;
-    readonly iconAlignment?: IconAlignment | null;
+  readonly icon?: Widget | null;
+  readonly label: Widget;
+  readonly iconAlignment?: IconAlignment | null;
 }
 export interface FilledButtonStyleFromOptions {
-    readonly foregroundColor?: Color | null;
-    readonly backgroundColor?: Color | null;
-    readonly disabledForegroundColor?: Color | null;
-    readonly disabledBackgroundColor?: Color | null;
-    readonly shadowColor?: Color | null;
-    readonly surfaceTintColor?: Color | null;
-    readonly iconColor?: Color | null;
-    /** @dartType double? */ readonly iconSize?: number | null;
-    readonly iconAlignment?: IconAlignment | null;
-    readonly disabledIconColor?: Color | null;
-    readonly overlayColor?: Color | null;
-    /** @dartType double? */ readonly elevation?: number | null;
-    readonly textStyle?: TextStyle | null;
-    readonly padding?: EdgeInsetsGeometry | null;
-    readonly minimumSize?: Size | null;
-    readonly fixedSize?: Size | null;
-    readonly maximumSize?: Size | null;
-    readonly side?: BorderSide | null;
-    readonly shape?: OutlinedBorder | null;
-    readonly enabledMouseCursor?: MouseCursor | null;
-    readonly disabledMouseCursor?: MouseCursor | null;
-    readonly visualDensity?: VisualDensity | null;
-    readonly tapTargetSize?: MaterialTapTargetSize | null;
-    readonly animationDuration?: number | null;
-    readonly enableFeedback?: boolean | null;
-    readonly alignment?: AlignmentGeometry | null;
-    readonly splashFactory?: InteractiveInkFeatureFactory | null;
-    readonly backgroundBuilder?: ButtonLayerBuilder | null;
-    readonly foregroundBuilder?: ButtonLayerBuilder | null;
+  readonly foregroundColor?: Color | null;
+  readonly backgroundColor?: Color | null;
+  readonly disabledForegroundColor?: Color | null;
+  readonly disabledBackgroundColor?: Color | null;
+  readonly shadowColor?: Color | null;
+  readonly surfaceTintColor?: Color | null;
+  readonly iconColor?: Color | null;
+  /** @dartType double? */ readonly iconSize?: number | null;
+  readonly iconAlignment?: IconAlignment | null;
+  readonly disabledIconColor?: Color | null;
+  readonly overlayColor?: Color | null;
+  /** @dartType double? */ readonly elevation?: number | null;
+  readonly textStyle?: TextStyle | null;
+  readonly padding?: EdgeInsetsGeometry | null;
+  readonly minimumSize?: Size | null;
+  readonly fixedSize?: Size | null;
+  readonly maximumSize?: Size | null;
+  readonly side?: BorderSide | null;
+  readonly shape?: OutlinedBorder | null;
+  readonly enabledMouseCursor?: MouseCursor | null;
+  readonly disabledMouseCursor?: MouseCursor | null;
+  readonly visualDensity?: VisualDensity | null;
+  readonly tapTargetSize?: MaterialTapTargetSize | null;
+  readonly animationDuration?: number | null;
+  readonly enableFeedback?: boolean | null;
+  readonly alignment?: AlignmentGeometry | null;
+  readonly splashFactory?: InteractiveInkFeatureFactory | null;
+  readonly backgroundBuilder?: ButtonLayerBuilder | null;
+  readonly foregroundBuilder?: ButtonLayerBuilder | null;
 }
 export class FilledButton extends ButtonStyleButton {
-    private addPadding = false;
-    private tonalVariant = false;
-    override get variant(): MaterialButtonVariant { return this.tonalVariant ? 'tonal' : 'filled'; }
-    constructor(options: FilledButtonOptions);
-    constructor(id: string, label: string, onPressed: (() => void) | undefined);
-    constructor(first: FilledButtonOptions | string, label?: string, onPressed?: (() => void)) { const options: FilledButtonOptions = typeof first === 'string' ? { id: first, semanticsLabel: label ?? '', child: new Text(label ?? ''), onPressed: onPressed ?? null } : first; if (!Object.hasOwn(options, 'onPressed'))
-        throw new TypeError('FilledButton requires the nullable onPressed argument'); if (!Object.hasOwn(options, 'child'))
-        throw new TypeError('FilledButton requires the nullable child argument'); super({ ...options, clipBehavior: options.clipBehavior === undefined ? "none" : options.clipBehavior }); }
-    static icon(options: FilledButtonIconOptions): FilledButton { const { icon = null, label, iconAlignment = null, ...base } = options; const button = new FilledButton({ ...base, clipBehavior: base.clipBehavior === undefined ? "none" : base.clipBehavior, child: icon === null ? label : new ButtonIconLabel(label, icon, options.style ?? null, iconAlignment, context => FilledButtonTheme.of(context).style) }); button.addPadding = icon !== null; return button; }
-    static tonal(options: FilledButtonOptions): FilledButton { const button = new FilledButton(options); button.tonalVariant = true; return button; }
-    static tonalIcon(options: FilledButtonIconOptions): FilledButton { const button = FilledButton.icon(options); button.tonalVariant = true; return button; }
-    /** @dartParam iconSize double?
-    * @dartParam elevation double? */ static styleFrom(options: FilledButtonStyleFromOptions = {}): ButtonStyle { return concreteStyleFrom(options, 'filled'); }
-    override defaultStyleOf(context: BuildContext): ButtonStyle { const style = super.defaultStyleOf(context); if (!this.addPadding)
-        return style; const fontSize = style.textStyle?.resolve(emptyWidgetStateSet())?.fontSize ?? 14, scale = MediaQuery.textScalerOf(context).scale(fontSize) / 14, padding = ButtonStyleButton.scaledPadding(EdgeInsetsDirectional.fromSTEB(16, 0, 24, 0), EdgeInsetsDirectional.fromSTEB(8, 0, 12, 0), EdgeInsetsDirectional.fromSTEB(4, 0, 6, 0), scale); return style.copyWith({ padding: insetsAll(padding) }); }
-    override themeStyleOf(context: BuildContext): ButtonStyle | null { return FilledButtonTheme.of(context).style; }
+  private addPadding = false;
+  private tonalVariant = false;
+  override get variant(): MaterialButtonVariant {
+    return this.tonalVariant ? 'tonal' : 'filled';
+  }
+  constructor(options: FilledButtonOptions);
+  constructor(id: string, label: string, onPressed: (() => void) | undefined);
+  constructor(first: FilledButtonOptions | string, label?: string, onPressed?: () => void) {
+    const options: FilledButtonOptions =
+      typeof first === 'string'
+        ? {
+            id: first,
+            semanticsLabel: label ?? '',
+            child: new Text(label ?? ''),
+            onPressed: onPressed ?? null,
+          }
+        : first;
+    if (!Object.hasOwn(options, 'onPressed'))
+      throw new TypeError('FilledButton requires the nullable onPressed argument');
+    if (!Object.hasOwn(options, 'child'))
+      throw new TypeError('FilledButton requires the nullable child argument');
+    super({
+      ...options,
+      clipBehavior: options.clipBehavior === undefined ? 'none' : options.clipBehavior,
+    });
+  }
+  static icon(options: FilledButtonIconOptions): FilledButton {
+    const { icon = null, label, iconAlignment = null, ...base } = options;
+    const button = new FilledButton({
+      ...base,
+      clipBehavior: base.clipBehavior === undefined ? 'none' : base.clipBehavior,
+      child:
+        icon === null
+          ? label
+          : new ButtonIconLabel(
+              label,
+              icon,
+              options.style ?? null,
+              iconAlignment,
+              (context) => FilledButtonTheme.of(context).style,
+            ),
+    });
+    button.addPadding = icon !== null;
+    return button;
+  }
+  static tonal(options: FilledButtonOptions): FilledButton {
+    const button = new FilledButton(options);
+    button.tonalVariant = true;
+    return button;
+  }
+  static tonalIcon(options: FilledButtonIconOptions): FilledButton {
+    const button = FilledButton.icon(options);
+    button.tonalVariant = true;
+    return button;
+  }
+  /** @dartParam iconSize double?
+   * @dartParam elevation double? */ static styleFrom(
+    options: FilledButtonStyleFromOptions = {},
+  ): ButtonStyle {
+    return concreteStyleFrom(options, 'filled');
+  }
+  override defaultStyleOf(context: BuildContext): ButtonStyle {
+    const style = super.defaultStyleOf(context);
+    if (!this.addPadding) return style;
+    const fontSize = style.textStyle?.resolve(emptyWidgetStateSet())?.fontSize ?? 14,
+      scale = MediaQuery.textScalerOf(context).scale(fontSize) / 14,
+      padding = ButtonStyleButton.scaledPadding(
+        EdgeInsetsDirectional.fromSTEB(16, 0, 24, 0),
+        EdgeInsetsDirectional.fromSTEB(8, 0, 12, 0),
+        EdgeInsetsDirectional.fromSTEB(4, 0, 6, 0),
+        scale,
+      );
+    return style.copyWith({ padding: insetsAll(padding) });
+  }
+  override themeStyleOf(context: BuildContext): ButtonStyle | null {
+    return FilledButtonTheme.of(context).style;
+  }
 }

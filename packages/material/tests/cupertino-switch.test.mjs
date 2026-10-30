@@ -1,33 +1,696 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {CupertinoSwitch} from '@nelyx/cupertino/switch';import {CupertinoSwitch as AggregateSwitch} from '@nelyx/cupertino/widgets';import {CupertinoTheme,CupertinoThemeData} from '@nelyx/cupertino/theme';import '@nelyx/cupertino/colors';
-import {StatefulWidget} from '@nelyx/core/framework/widgets/framework';import {WidgetState,WidgetStateColor,WidgetStatesController,WidgetStateProperty} from '@nelyx/core/framework/widgets/widget-state';import {FocusNode} from '@nelyx/core/framework/widgets/focus';import '@nelyx/core/framework/widgets/toggleable-control';import {CustomPaint} from '@nelyx/core/framework/widgets/custom-paint';import {SwitchPainter} from '@nelyx/core/internal/framework/widgets/switch-painter';
-import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {DartDouble} from '@nelyx/core/foundation/dart-numeric';import {nullableDartType,dartDoubleType} from '@nelyx/core/foundation/dart-type-witness';import {sourceColorType,captureSourceColor} from '@nelyx/core/ui/color-source';
-import {Color} from '@nelyx/core/ui/color';import {Size} from '@nelyx/core/ui/size';import {AnimationStatus} from '@nelyx/core/framework/animation/animation';import {ImageConfiguration} from '@nelyx/core/framework/painting/image-configuration';import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';import {Icon} from '@nelyx/core/framework/widgets/icon';import {Icons} from '@nelyx/material/icons';import {MemoryImage} from '@nelyx/core/framework/painting/image-provider';import {ImageService} from '@nelyx/core/hosting/images';
-import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';import {AppFocus} from '@nelyx/core/framework/widgets/app-focus';import {SizedBox,Align,Builder} from '@nelyx/core/framework/widgets/basic';import {MouseCursor,SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';import {DragStartBehavior} from '@nelyx/core/framework/gestures/recognizer';import {JSONMethodCodec} from '@nelyx/core/services/message-codecs';import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
-import {switchConfig,resolveCupertinoSwitchPaint,resolveCupertinoSwitchCursor} from '../../cupertino/dist/internal/switch/switch-values.js';import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
-const timeout=1_200_000,empty=()=>emptyWidgetStateSet(),color=value=>new Color(value),property=resolve=>WidgetStateProperty.resolveWith(nullableDartType(sourceColorType),resolve);FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const wrap=(child,{direction='ltr',labels=false,highContrast=false,brightness='light',theme=new CupertinoThemeData()}={})=>new Directionality(direction,new MediaQuery({width:240,height:160,scale:1,textScale:1,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0,onOffSwitchLabels:labels,highContrast,platformBrightness:brightness},new CupertinoTheme(theme,new AppFocus(new Align(child)))));
-function elements(f,predicate){const result=[],visit=e=>{if(predicate(e))result.push(e);e.visitChildren(visit);};visit(f.root.root);return result;}const painter=f=>elements(f,e=>e.widget instanceof CustomPaint&&e.widget.painter instanceof SwitchPainter)[0].widget.painter;
-test('CupertinoSwitch exposes all 23 eligible constructor arguments and canonical State with removed deprecated aliases',{timeout},()=>{
- assert.equal(CupertinoSwitch,AggregateSwitch);const widget=new CupertinoSwitch({value:false,onChanged:null});assert(widget instanceof StatefulWidget);assert(Object.isFrozen(widget.options));assert.equal(widget.autofocus,false);assert.equal(widget.dragStartBehavior,DragStartBehavior.start);assert.equal(widget.trackOutlineWidth,null);assert.equal(widget.applyTheme,null);assert.equal(widget.activeColor,undefined);assert.equal(widget.trackColor,undefined);assert.throws(()=>new CupertinoSwitch({value:false}),/onChanged/);assert.throws(()=>new CupertinoSwitch({value:false,onChanged:null,activeColor:0}),/Deprecated/);assert.throws(()=>new CupertinoSwitch({value:false,onChanged:null,trackColor:null}),/Deprecated/);assert.throws(()=>new CupertinoSwitch({value:false,onChanged:null,onActiveThumbImageError(){}}),/requires an image/);const mode=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';try{const p=new DiagnosticPropertiesBuilder();widget.debugFillProperties(p);assert(p.properties.some(p=>p.name==='value'));assert(p.properties.some(p=>p.name==='onChanged'));}finally{FoundationBuildMode.mode=mode;}
-});
-test('shared Core painter matches 120 original Dart geometry/track/outline/focus/label/shadow method cases',{timeout},()=>{
- const source=JSON.parse(fs.readFileSync(new URL('./fixtures/cupertino-switch-paint.json',import.meta.url))),paint=new SwitchPainter(),values={activeColor:color(0xffeeeeee),inactiveColor:color(0xffaaaaaa),activePressedColor:color(0xffdddddd),inactivePressedColor:color(0xffbbbbbb),activeTrackColor:color(0xff112233),inactiveTrackColor:color(0xff99aabb),activeOutline:color(0xff889922),inactiveOutline:color(0xff332299),activeOutlineWidth:4,inactiveOutlineWidth:2,activeIcon:null,inactiveIcon:null,activeIconColor:color(0xff000000),inactiveIconColor:color(0xff000000),activeRadius:14,inactiveRadius:14,activeReaction:color(0),inactiveReaction:color(0),focusColor:color(0xffbb44aa),hoverColor:color(0),splashRadius:0,surface:color(0xff223344),config:switchConfig,cupertino:true,isHovered:false,activeImage:null,inactiveImage:null,activeError:null,inactiveError:null,configuration:ImageConfiguration.empty,iconTheme:new IconThemeData(),paragraphContext:null,previousValue:false,positionStatus:AnimationStatus.completed,reactionFocusFade:0,reactionHoverFade:0,downPosition:null};
- const rect=r=>[r.left,r.top,r.right,r.bottom],style=p=>({color:p.color,style:p.style,width:p.strokeWidth});try{for(const row of source.results){const actual=[],canvas={drawRRect(r,p){actual.push({op:'rrect',rect:rect(r),radius:r.tlRadiusX,...style(p)});},drawRect(r,p){actual.push({op:'rect',rect:rect(r),...style(p)});},drawCircle(o,radius,p){actual.push({op:'circle',center:[o.dx,o.dy],radius,...style(p)});},clipRRect(r){actual.push({op:'clip',rect:rect(r),radius:r.tlRadiusX});},save(){},restore(){}};paint.update({...values,position:row.value,rawPosition:row.value,colorPosition:row.colorPosition,reaction:row.reaction,reactionStatus:row.reaction===0?AnimationStatus.dismissed:AnimationStatus.forward,rtl:row.direction==='rtl',isFocused:row.focused,onOffLabels:row.labels?{on:color(0xffffffff),off:color(0xffb3b3b3)}:null});paint.paint(canvas,new Size(59,39));const request=row.commands.find(c=>c.op==='thumb'),expected=row.commands.filter(c=>c.op!=='thumb');expected.push({op:'rrect',rect:[...request.offset,request.offset[0]+request.size[0],request.offset[1]+request.size[1]],radius:request.size[1]/2,color:request.color,style:'fill',width:0});assert.deepEqual(actual,expected,JSON.stringify({value:row.value,reaction:row.reaction,direction:row.direction,focused:row.focused,labels:row.labels}));}assert.equal(source.results.length,120);}finally{paint.dispose();}
-});
-test('source themes, state colors, outline doubles, cursor and on/off high-contrast labels resolve without mutating caller states',{timeout},async()=>{
- const f=await engineFixture(),states=empty(),seen=[];states.add(WidgetState.disabled);const stateColor=WidgetStateColor.resolveWith(s=>captureSourceColor(color(s.contains(WidgetState.pressed)?0xffabcdef:s.contains(WidgetState.selected)?0xff112233:0xff445566))),width=WidgetStateProperty.resolveWith(nullableDartType(dartDoubleType),s=>DartDouble.fromSource(s.contains(WidgetState.selected)?4:2));try{for(const applyTheme of [false,true,null]){const w=new CupertinoSwitch({value:true,onChanged(){},applyTheme,thumbColor:stateColor,inactiveThumbColor:color(0xff778899),trackOutlineWidth:width,trackOutlineColor:property(s=>color(s.contains(WidgetState.selected)?0xffff0000:0xff0000ff))});f.set(wrap(new Builder(context=>{seen.push(resolveCupertinoSwitchPaint(w,context,states));return new SizedBox(1,1);}),{labels:true,highContrast:true,theme:new CupertinoThemeData({primaryColor:0xff13579b,applyThemeToAll:true})}));const p=seen.at(-1);assert.equal(p.activeTrackColor.toARGB32(),applyTheme===false?0xff248a3d:0xff13579b);assert.equal(p.activeColor.toARGB32(),0xff112233);assert.equal(p.inactiveColor.toARGB32(),0xff778899);assert.equal(p.activePressedColor.toARGB32(),0xffabcdef);assert.equal(p.inactivePressedColor.toARGB32(),0xffabcdef);assert.equal(p.activeOutlineWidth,4);assert.equal(p.inactiveOutlineWidth,2);assert.equal(p.labels.off.toARGB32(),0xffffffff);assert.deepEqual([...states],[WidgetState.disabled]);}const w=new CupertinoSwitch({value:false,onChanged(){}});assert.equal(resolveCupertinoSwitchCursor(w,empty()),MouseCursor.defer);FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});assert.equal(resolveCupertinoSwitchCursor(w,empty()),SystemMouseCursors.click);assert.equal(resolveCupertinoSwitchCursor(w,states),MouseCursor.defer);f.set(wrap(new CupertinoSwitch({id:'geometry',value:true,onChanged(){}}),{labels:true,direction:'rtl'}));const node=f.root.nodes.find(n=>n.id==='geometry');assert.equal(node.bounds.width,59);assert.equal(node.bounds.height,39);assert.equal(painter(f).options.rtl,true);assert(painter(f).options.onOffLabels);f.set(wrap(new Builder(context=>{assert.throws(()=>resolveCupertinoSwitchPaint(new CupertinoSwitch({value:false,onChanged(){},trackOutlineWidth:{resolve:()=>2}}),context,states),/DartDouble/);return new SizedBox(1,1);})));}finally{FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});await f.close();}
-});
-test('actual switch position/color curves and 300ms thumb extension animate on canonical Core controllers',{timeout},async()=>{
- const f=await engineFixture(),make=value=>wrap(new CupertinoSwitch({id:'motion',value,onChanged(){}}));try{f.set(make(false));const owner=elements(f,e=>e.widget instanceof CupertinoSwitch)[0].stateObject;f.set(make(true));f.advance(100);const p=painter(f).options;assert(Math.abs(p.rawPosition-.5)<.001);assert(p.position>.5&&p.position<1);assert(p.colorPosition>p.rawPosition&&p.colorPosition<1);assert.notEqual(p.position,p.colorPosition);assert.equal(elements(f,e=>e.widget instanceof CupertinoSwitch)[0].stateObject,owner);f.advance(110);assert.equal(painter(f).options.position,1);const node=f.root.nodes.find(n=>n.id==='motion'),x=node.bounds.x+node.bounds.width/2,y=node.bounds.y+node.bounds.height/2;f.root.pointer({kind:'down',x,y,pointer:3,device:'mouse',buttons:1,timestamp:0,viewportGeneration:1});f.frame();f.root.pointer({kind:'move',x:x+40,y,pointer:3,device:'mouse',buttons:1,timestamp:1,viewportGeneration:1});f.frame();f.advance(150);assert(painter(f).options.reaction>0&&painter(f).options.reaction<1);f.advance(200);assert.equal(painter(f).options.reaction,1);f.root.pointer({kind:'cancel',x,y,pointer:3,device:'mouse',buttons:0,timestamp:1,viewportGeneration:1});f.frame();f.advance(400);assert.equal(painter(f).options.reaction,0);f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{await f.close();}
-});
-test('actual Cupertino drag hysteresis emits one iOS feedback per crossing and no duplicate feedback on commit',{timeout},async()=>{
- const codec=new JSONMethodCodec(),calls=[],changes=[],binaryMessenger={send(channel,message){if(channel==='flutter/platform'){const call=codec.decodeMethodCall(message);calls.push([call.method,call.arguments]);return Promise.resolve(codec.encodeSuccessEnvelope(null));}return Promise.resolve(null);},setMessageHandler(){}},f=await engineFixture({binaryMessenger});FoundationPlatform.configure({kind:'native',operatingSystem:'ios'});try{const make=direction=>wrap(new CupertinoSwitch({id:'drag-cup',value:false,onChanged:value=>changes.push(value),dragStartBehavior:DragStartBehavior.down}),{direction});f.set(make('ltr'));const node=f.root.nodes.find(n=>n.id==='drag-cup'),x=node.bounds.x+node.bounds.width/2,y=node.bounds.y+node.bounds.height/2;const send=(kind,dx)=>{f.root.pointer({kind,x:x+dx,y,pointer:7,device:'mouse',buttons:kind==='up'||kind==='cancel'?0:1,timestamp:0,viewportGeneration:1});f.frame();};send('down',0);send('move',36);send('move',45);assert.equal(calls.length,1);send('move',10);assert.equal(calls.length,2);send('up',10);assert.deepEqual(changes,[]);send('down',0);send('move',40);send('up',40);assert.deepEqual(changes,[true]);assert.equal(calls.length,3);f.tap('drag-cup');assert.deepEqual(changes,[true,true]);assert.equal(calls.length,4);assert(calls.every(([method,args])=>method==='HapticFeedback.vibrate'&&args==='HapticFeedbackType.lightImpact'));FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});f.tap('drag-cup');assert.equal(calls.length,4);f.set(make('rtl'));send('down',0);send('move',-40);send('up',-40);assert.deepEqual(changes,[true,true,true,true]);f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});await f.close();}
-});
-test('same Cupertino State retains caller focus/controllers across value/theme replacement and rejects disabled/retired actions',{timeout},async()=>{
- const f=await engineFixture(),focus=new FocusNode(),a=new WidgetStatesController(),b=new WidgetStatesController(),changes=[],make=(value,enabled,states)=>wrap(new CupertinoSwitch({id:'owners',value,onChanged:enabled?next=>changes.push(next):null,focusNode:focus,statesController:states}));try{f.set(make(false,true,a));const owner=elements(f,e=>e.widget instanceof CupertinoSwitch)[0].stateObject,paint=painter(f),stale=f.root.nodes.find(n=>n.id==='owners').activate;f.tap('owners');assert.deepEqual(changes,[true]);f.set(make(true,true,b));assert.equal(elements(f,e=>e.widget instanceof CupertinoSwitch)[0].stateObject,owner);assert.equal(painter(f),paint);assert.equal(a.hasListeners,false);focus.requestFocus();f.frame();const key=kind=>({kind,key:' ',code:'Space',shift:false,control:false,alt:false,meta:false,repeat:false});f.root.key(key('down'));f.root.key(key('up'));f.frame();assert.deepEqual(changes,[true,false]);f.set(make(true,false,b));stale();f.tap('owners');assert.deepEqual(changes,[true,false]);assert(b.value.contains(WidgetState.disabled));f.set(new SizedBox(1,1));stale();assert.equal(b.hasListeners,false);assert.equal(f.root.scheduler.transientCallbackCount,0);focus.addListener(()=>{});a.addListener(()=>{});b.addListener(()=>{});}finally{await f.close();focus.dispose();a.dispose();b.dispose();}
-});
-test('real View image decode, icon glyph and on/off labels replay through CanvasKit and retire errors/resources',{timeout},async()=>{
- const f=await engineFixture({fonts:true}),context=f.root.context,frames=new Map(),errors=[],images=new ImageService(context.resources,{instantiateCodec:(bytes,options)=>f.library.instantiateImageCodec(bytes,options),async loadAsset(){throw Error('No asset image declared');},async loadNetwork(){throw Error('No network image declared');}},{request(callback){const key={};frames.set(key,callback);return{dispose(){frames.delete(key);}};}},{now:context.clock.now,scheduleTimer(callback,ms){const key=setTimeout(callback,ms);return{dispose(){clearTimeout(key);}};}});context.images=images;const origin=f.ck.MakeSurface(2,2);origin.getCanvas().clear(f.ck.Color(0,255,0,1));const native=origin.makeImageSnapshot(),png=native.encodeToBytes();native.delete();origin.delete();const raster=f.ck.MakeSurface(240,160),flush=async()=>{let commands;for(let i=0;i<8;i++){await new Promise(setImmediate);const snapshot=[...frames];for(const [key,callback]of snapshot){frames.delete(key);callback();}commands=f.frame();}return commands;};try{f.set(wrap(new CupertinoSwitch({id:'image-cup',value:true,onChanged(){},activeThumbImage:new MemoryImage(png)}),{labels:true}));let commands=await flush();assert(commands.some(c=>c.op==='drawImageRect'));f.library.replay(raster.getCanvas(),{commands});raster.flush();const rgba=raster.getCanvas().readPixels(130,80,{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB});assert.deepEqual([...rgba],[0,255,0,255]);f.set(wrap(new CupertinoSwitch({id:'glyph-cup',value:true,onChanged(){},thumbIcon:{resolve:()=>new Icon(Icons.check,{color:color(0xff000000)})}}),{labels:true}));commands=f.frame();assert(commands.some(c=>c.op==='paragraph'));assert([...f.library.paragraphs.values()].every(p=>p.layout.unresolvedGlyphs===0));f.library.replay(raster.getCanvas(),{commands});raster.flush();f.set(wrap(new CupertinoSwitch({value:true,onChanged(){},activeThumbImage:new MemoryImage(new Uint8Array([1,2,3])),onActiveThumbImageError:error=>errors.push(error)})));await flush();assert(errors.length>0);f.set(new SizedBox(1,1));await images.dispose();const count=errors.length;await flush();assert.equal(errors.length,count);assert.equal(f.library.images.size,0);assertParagraphOwnership(f);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{raster.delete();await images.dispose();await f.close();}
-});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { CupertinoSwitch } from '@nelyx/cupertino/switch';
+import { CupertinoSwitch as AggregateSwitch } from '@nelyx/cupertino/widgets';
+import { CupertinoTheme, CupertinoThemeData } from '@nelyx/cupertino/theme';
+import '@nelyx/cupertino/colors';
+import { StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import {
+  WidgetState,
+  WidgetStateColor,
+  WidgetStatesController,
+  WidgetStateProperty,
+} from '@nelyx/core/framework/widgets/widget-state';
+import { FocusNode } from '@nelyx/core/framework/widgets/focus';
+import '@nelyx/core/framework/widgets/toggleable-control';
+import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
+import { SwitchPainter } from '@nelyx/core/internal/framework/widgets/switch-painter';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
+import { nullableDartType, dartDoubleType } from '@nelyx/core/foundation/dart-type-witness';
+import { sourceColorType, captureSourceColor } from '@nelyx/core/ui/color-source';
+import { Color } from '@nelyx/core/ui/color';
+import { Size } from '@nelyx/core/ui/size';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
+import { ImageConfiguration } from '@nelyx/core/framework/painting/image-configuration';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { Icons } from '@nelyx/material/icons';
+import { MemoryImage } from '@nelyx/core/framework/painting/image-provider';
+import { ImageService } from '@nelyx/core/hosting/images';
+import { MediaQuery, Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
+import { SizedBox, Align, Builder } from '@nelyx/core/framework/widgets/basic';
+import { MouseCursor, SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
+import { DragStartBehavior } from '@nelyx/core/framework/gestures/recognizer';
+import { JSONMethodCodec } from '@nelyx/core/services/message-codecs';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
+import {
+  switchConfig,
+  resolveCupertinoSwitchPaint,
+  resolveCupertinoSwitchCursor,
+} from '../../cupertino/dist/internal/switch/switch-values.js';
+import { engineFixture, assertParagraphOwnership } from './engine-fixture.mjs';
+const timeout = 1_200_000,
+  empty = () => emptyWidgetStateSet(),
+  color = (value) => new Color(value),
+  property = (resolve) =>
+    WidgetStateProperty.resolveWith(nullableDartType(sourceColorType), resolve);
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const wrap = (
+  child,
+  {
+    direction = 'ltr',
+    labels = false,
+    highContrast = false,
+    brightness = 'light',
+    theme = new CupertinoThemeData(),
+  } = {},
+) =>
+  new Directionality(
+    direction,
+    new MediaQuery(
+      {
+        width: 240,
+        height: 160,
+        scale: 1,
+        textScale: 1,
+        safeArea: { left: 0, top: 0, right: 0, bottom: 0 },
+        keyboardInset: 0,
+        onOffSwitchLabels: labels,
+        highContrast,
+        platformBrightness: brightness,
+      },
+      new CupertinoTheme(theme, new AppFocus(new Align(child))),
+    ),
+  );
+function elements(f, predicate) {
+  const result = [],
+    visit = (e) => {
+      if (predicate(e)) result.push(e);
+      e.visitChildren(visit);
+    };
+  visit(f.root.root);
+  return result;
+}
+const painter = (f) =>
+  elements(
+    f,
+    (e) => e.widget instanceof CustomPaint && e.widget.painter instanceof SwitchPainter,
+  )[0].widget.painter;
+test(
+  'CupertinoSwitch exposes all 23 eligible constructor arguments and canonical State with removed deprecated aliases',
+  { timeout },
+  () => {
+    assert.equal(CupertinoSwitch, AggregateSwitch);
+    const widget = new CupertinoSwitch({ value: false, onChanged: null });
+    assert(widget instanceof StatefulWidget);
+    assert(Object.isFrozen(widget.options));
+    assert.equal(widget.autofocus, false);
+    assert.equal(widget.dragStartBehavior, DragStartBehavior.start);
+    assert.equal(widget.trackOutlineWidth, null);
+    assert.equal(widget.applyTheme, null);
+    assert.equal(widget.activeColor, undefined);
+    assert.equal(widget.trackColor, undefined);
+    assert.throws(() => new CupertinoSwitch({ value: false }), /onChanged/);
+    assert.throws(
+      () => new CupertinoSwitch({ value: false, onChanged: null, activeColor: 0 }),
+      /Deprecated/,
+    );
+    assert.throws(
+      () => new CupertinoSwitch({ value: false, onChanged: null, trackColor: null }),
+      /Deprecated/,
+    );
+    assert.throws(
+      () => new CupertinoSwitch({ value: false, onChanged: null, onActiveThumbImageError() {} }),
+      /requires an image/,
+    );
+    const mode = FoundationBuildMode.mode;
+    FoundationBuildMode.mode = 'debug';
+    try {
+      const p = new DiagnosticPropertiesBuilder();
+      widget.debugFillProperties(p);
+      assert(p.properties.some((p) => p.name === 'value'));
+      assert(p.properties.some((p) => p.name === 'onChanged'));
+    } finally {
+      FoundationBuildMode.mode = mode;
+    }
+  },
+);
+test(
+  'shared Core painter matches 120 original Dart geometry/track/outline/focus/label/shadow method cases',
+  { timeout },
+  () => {
+    const source = JSON.parse(
+        fs.readFileSync(new URL('./fixtures/cupertino-switch-paint.json', import.meta.url)),
+      ),
+      paint = new SwitchPainter(),
+      values = {
+        activeColor: color(0xffeeeeee),
+        inactiveColor: color(0xffaaaaaa),
+        activePressedColor: color(0xffdddddd),
+        inactivePressedColor: color(0xffbbbbbb),
+        activeTrackColor: color(0xff112233),
+        inactiveTrackColor: color(0xff99aabb),
+        activeOutline: color(0xff889922),
+        inactiveOutline: color(0xff332299),
+        activeOutlineWidth: 4,
+        inactiveOutlineWidth: 2,
+        activeIcon: null,
+        inactiveIcon: null,
+        activeIconColor: color(0xff000000),
+        inactiveIconColor: color(0xff000000),
+        activeRadius: 14,
+        inactiveRadius: 14,
+        activeReaction: color(0),
+        inactiveReaction: color(0),
+        focusColor: color(0xffbb44aa),
+        hoverColor: color(0),
+        splashRadius: 0,
+        surface: color(0xff223344),
+        config: switchConfig,
+        cupertino: true,
+        isHovered: false,
+        activeImage: null,
+        inactiveImage: null,
+        activeError: null,
+        inactiveError: null,
+        configuration: ImageConfiguration.empty,
+        iconTheme: new IconThemeData(),
+        paragraphContext: null,
+        previousValue: false,
+        positionStatus: AnimationStatus.completed,
+        reactionFocusFade: 0,
+        reactionHoverFade: 0,
+        downPosition: null,
+      };
+    const rect = (r) => [r.left, r.top, r.right, r.bottom],
+      style = (p) => ({ color: p.color, style: p.style, width: p.strokeWidth });
+    try {
+      for (const row of source.results) {
+        const actual = [],
+          canvas = {
+            drawRRect(r, p) {
+              actual.push({ op: 'rrect', rect: rect(r), radius: r.tlRadiusX, ...style(p) });
+            },
+            drawRect(r, p) {
+              actual.push({ op: 'rect', rect: rect(r), ...style(p) });
+            },
+            drawCircle(o, radius, p) {
+              actual.push({ op: 'circle', center: [o.dx, o.dy], radius, ...style(p) });
+            },
+            clipRRect(r) {
+              actual.push({ op: 'clip', rect: rect(r), radius: r.tlRadiusX });
+            },
+            save() {},
+            restore() {},
+          };
+        paint.update({
+          ...values,
+          position: row.value,
+          rawPosition: row.value,
+          colorPosition: row.colorPosition,
+          reaction: row.reaction,
+          reactionStatus: row.reaction === 0 ? AnimationStatus.dismissed : AnimationStatus.forward,
+          rtl: row.direction === 'rtl',
+          isFocused: row.focused,
+          onOffLabels: row.labels ? { on: color(0xffffffff), off: color(0xffb3b3b3) } : null,
+        });
+        paint.paint(canvas, new Size(59, 39));
+        const request = row.commands.find((c) => c.op === 'thumb'),
+          expected = row.commands.filter((c) => c.op !== 'thumb');
+        expected.push({
+          op: 'rrect',
+          rect: [
+            ...request.offset,
+            request.offset[0] + request.size[0],
+            request.offset[1] + request.size[1],
+          ],
+          radius: request.size[1] / 2,
+          color: request.color,
+          style: 'fill',
+          width: 0,
+        });
+        assert.deepEqual(
+          actual,
+          expected,
+          JSON.stringify({
+            value: row.value,
+            reaction: row.reaction,
+            direction: row.direction,
+            focused: row.focused,
+            labels: row.labels,
+          }),
+        );
+      }
+      assert.equal(source.results.length, 120);
+    } finally {
+      paint.dispose();
+    }
+  },
+);
+test(
+  'source themes, state colors, outline doubles, cursor and on/off high-contrast labels resolve without mutating caller states',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      states = empty(),
+      seen = [];
+    states.add(WidgetState.disabled);
+    const stateColor = WidgetStateColor.resolveWith((s) =>
+        captureSourceColor(
+          color(
+            s.contains(WidgetState.pressed)
+              ? 0xffabcdef
+              : s.contains(WidgetState.selected)
+                ? 0xff112233
+                : 0xff445566,
+          ),
+        ),
+      ),
+      width = WidgetStateProperty.resolveWith(nullableDartType(dartDoubleType), (s) =>
+        DartDouble.fromSource(s.contains(WidgetState.selected) ? 4 : 2),
+      );
+    try {
+      for (const applyTheme of [false, true, null]) {
+        const w = new CupertinoSwitch({
+          value: true,
+          onChanged() {},
+          applyTheme,
+          thumbColor: stateColor,
+          inactiveThumbColor: color(0xff778899),
+          trackOutlineWidth: width,
+          trackOutlineColor: property((s) =>
+            color(s.contains(WidgetState.selected) ? 0xffff0000 : 0xff0000ff),
+          ),
+        });
+        f.set(
+          wrap(
+            new Builder((context) => {
+              seen.push(resolveCupertinoSwitchPaint(w, context, states));
+              return new SizedBox(1, 1);
+            }),
+            {
+              labels: true,
+              highContrast: true,
+              theme: new CupertinoThemeData({ primaryColor: 0xff13579b, applyThemeToAll: true }),
+            },
+          ),
+        );
+        const p = seen.at(-1);
+        assert.equal(p.activeTrackColor.toARGB32(), applyTheme === false ? 0xff248a3d : 0xff13579b);
+        assert.equal(p.activeColor.toARGB32(), 0xff112233);
+        assert.equal(p.inactiveColor.toARGB32(), 0xff778899);
+        assert.equal(p.activePressedColor.toARGB32(), 0xffabcdef);
+        assert.equal(p.inactivePressedColor.toARGB32(), 0xffabcdef);
+        assert.equal(p.activeOutlineWidth, 4);
+        assert.equal(p.inactiveOutlineWidth, 2);
+        assert.equal(p.labels.off.toARGB32(), 0xffffffff);
+        assert.deepEqual([...states], [WidgetState.disabled]);
+      }
+      const w = new CupertinoSwitch({ value: false, onChanged() {} });
+      assert.equal(resolveCupertinoSwitchCursor(w, empty()), MouseCursor.defer);
+      FoundationPlatform.configure({ kind: 'web', operatingSystem: 'windows' });
+      assert.equal(resolveCupertinoSwitchCursor(w, empty()), SystemMouseCursors.click);
+      assert.equal(resolveCupertinoSwitchCursor(w, states), MouseCursor.defer);
+      f.set(
+        wrap(new CupertinoSwitch({ id: 'geometry', value: true, onChanged() {} }), {
+          labels: true,
+          direction: 'rtl',
+        }),
+      );
+      const node = f.root.nodes.find((n) => n.id === 'geometry');
+      assert.equal(node.bounds.width, 59);
+      assert.equal(node.bounds.height, 39);
+      assert.equal(painter(f).options.rtl, true);
+      assert(painter(f).options.onOffLabels);
+      f.set(
+        wrap(
+          new Builder((context) => {
+            assert.throws(
+              () =>
+                resolveCupertinoSwitchPaint(
+                  new CupertinoSwitch({
+                    value: false,
+                    onChanged() {},
+                    trackOutlineWidth: { resolve: () => 2 },
+                  }),
+                  context,
+                  states,
+                ),
+              /DartDouble/,
+            );
+            return new SizedBox(1, 1);
+          }),
+        ),
+      );
+    } finally {
+      FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+      await f.close();
+    }
+  },
+);
+test(
+  'actual switch position/color curves and 300ms thumb extension animate on canonical Core controllers',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      make = (value) => wrap(new CupertinoSwitch({ id: 'motion', value, onChanged() {} }));
+    try {
+      f.set(make(false));
+      const owner = elements(f, (e) => e.widget instanceof CupertinoSwitch)[0].stateObject;
+      f.set(make(true));
+      f.advance(100);
+      const p = painter(f).options;
+      assert(Math.abs(p.rawPosition - 0.5) < 0.001);
+      assert(p.position > 0.5 && p.position < 1);
+      assert(p.colorPosition > p.rawPosition && p.colorPosition < 1);
+      assert.notEqual(p.position, p.colorPosition);
+      assert.equal(elements(f, (e) => e.widget instanceof CupertinoSwitch)[0].stateObject, owner);
+      f.advance(110);
+      assert.equal(painter(f).options.position, 1);
+      const node = f.root.nodes.find((n) => n.id === 'motion'),
+        x = node.bounds.x + node.bounds.width / 2,
+        y = node.bounds.y + node.bounds.height / 2;
+      f.root.pointer({
+        kind: 'down',
+        x,
+        y,
+        pointer: 3,
+        device: 'mouse',
+        buttons: 1,
+        timestamp: 0,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      f.root.pointer({
+        kind: 'move',
+        x: x + 40,
+        y,
+        pointer: 3,
+        device: 'mouse',
+        buttons: 1,
+        timestamp: 1,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      f.advance(150);
+      assert(painter(f).options.reaction > 0 && painter(f).options.reaction < 1);
+      f.advance(200);
+      assert.equal(painter(f).options.reaction, 1);
+      f.root.pointer({
+        kind: 'cancel',
+        x,
+        y,
+        pointer: 3,
+        device: 'mouse',
+        buttons: 0,
+        timestamp: 1,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      f.advance(400);
+      assert.equal(painter(f).options.reaction, 0);
+      f.set(new SizedBox(1, 1));
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      await f.close();
+    }
+  },
+);
+test(
+  'actual Cupertino drag hysteresis emits one iOS feedback per crossing and no duplicate feedback on commit',
+  { timeout },
+  async () => {
+    const codec = new JSONMethodCodec(),
+      calls = [],
+      changes = [],
+      binaryMessenger = {
+        send(channel, message) {
+          if (channel === 'flutter/platform') {
+            const call = codec.decodeMethodCall(message);
+            calls.push([call.method, call.arguments]);
+            return Promise.resolve(codec.encodeSuccessEnvelope(null));
+          }
+          return Promise.resolve(null);
+        },
+        setMessageHandler() {},
+      },
+      f = await engineFixture({ binaryMessenger });
+    FoundationPlatform.configure({ kind: 'native', operatingSystem: 'ios' });
+    try {
+      const make = (direction) =>
+        wrap(
+          new CupertinoSwitch({
+            id: 'drag-cup',
+            value: false,
+            onChanged: (value) => changes.push(value),
+            dragStartBehavior: DragStartBehavior.down,
+          }),
+          { direction },
+        );
+      f.set(make('ltr'));
+      const node = f.root.nodes.find((n) => n.id === 'drag-cup'),
+        x = node.bounds.x + node.bounds.width / 2,
+        y = node.bounds.y + node.bounds.height / 2;
+      const send = (kind, dx) => {
+        f.root.pointer({
+          kind,
+          x: x + dx,
+          y,
+          pointer: 7,
+          device: 'mouse',
+          buttons: kind === 'up' || kind === 'cancel' ? 0 : 1,
+          timestamp: 0,
+          viewportGeneration: 1,
+        });
+        f.frame();
+      };
+      send('down', 0);
+      send('move', 36);
+      send('move', 45);
+      assert.equal(calls.length, 1);
+      send('move', 10);
+      assert.equal(calls.length, 2);
+      send('up', 10);
+      assert.deepEqual(changes, []);
+      send('down', 0);
+      send('move', 40);
+      send('up', 40);
+      assert.deepEqual(changes, [true]);
+      assert.equal(calls.length, 3);
+      f.tap('drag-cup');
+      assert.deepEqual(changes, [true, true]);
+      assert.equal(calls.length, 4);
+      assert(
+        calls.every(
+          ([method, args]) =>
+            method === 'HapticFeedback.vibrate' && args === 'HapticFeedbackType.lightImpact',
+        ),
+      );
+      FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+      f.tap('drag-cup');
+      assert.equal(calls.length, 4);
+      f.set(make('rtl'));
+      send('down', 0);
+      send('move', -40);
+      send('up', -40);
+      assert.deepEqual(changes, [true, true, true, true]);
+      f.set(new SizedBox(1, 1));
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+      await f.close();
+    }
+  },
+);
+test(
+  'same Cupertino State retains caller focus/controllers across value/theme replacement and rejects disabled/retired actions',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      focus = new FocusNode(),
+      a = new WidgetStatesController(),
+      b = new WidgetStatesController(),
+      changes = [],
+      make = (value, enabled, states) =>
+        wrap(
+          new CupertinoSwitch({
+            id: 'owners',
+            value,
+            onChanged: enabled ? (next) => changes.push(next) : null,
+            focusNode: focus,
+            statesController: states,
+          }),
+        );
+    try {
+      f.set(make(false, true, a));
+      const owner = elements(f, (e) => e.widget instanceof CupertinoSwitch)[0].stateObject,
+        paint = painter(f),
+        stale = f.root.nodes.find((n) => n.id === 'owners').activate;
+      f.tap('owners');
+      assert.deepEqual(changes, [true]);
+      f.set(make(true, true, b));
+      assert.equal(elements(f, (e) => e.widget instanceof CupertinoSwitch)[0].stateObject, owner);
+      assert.equal(painter(f), paint);
+      assert.equal(a.hasListeners, false);
+      focus.requestFocus();
+      f.frame();
+      const key = (kind) => ({
+        kind,
+        key: ' ',
+        code: 'Space',
+        shift: false,
+        control: false,
+        alt: false,
+        meta: false,
+        repeat: false,
+      });
+      f.root.key(key('down'));
+      f.root.key(key('up'));
+      f.frame();
+      assert.deepEqual(changes, [true, false]);
+      f.set(make(true, false, b));
+      stale();
+      f.tap('owners');
+      assert.deepEqual(changes, [true, false]);
+      assert(b.value.contains(WidgetState.disabled));
+      f.set(new SizedBox(1, 1));
+      stale();
+      assert.equal(b.hasListeners, false);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+      focus.addListener(() => {});
+      a.addListener(() => {});
+      b.addListener(() => {});
+    } finally {
+      await f.close();
+      focus.dispose();
+      a.dispose();
+      b.dispose();
+    }
+  },
+);
+test(
+  'real View image decode, icon glyph and on/off labels replay through CanvasKit and retire errors/resources',
+  { timeout },
+  async () => {
+    const f = await engineFixture({ fonts: true }),
+      context = f.root.context,
+      frames = new Map(),
+      errors = [],
+      images = new ImageService(
+        context.resources,
+        {
+          instantiateCodec: (bytes, options) => f.library.instantiateImageCodec(bytes, options),
+          async loadAsset() {
+            throw Error('No asset image declared');
+          },
+          async loadNetwork() {
+            throw Error('No network image declared');
+          },
+        },
+        {
+          request(callback) {
+            const key = {};
+            frames.set(key, callback);
+            return {
+              dispose() {
+                frames.delete(key);
+              },
+            };
+          },
+        },
+        {
+          now: context.clock.now,
+          scheduleTimer(callback, ms) {
+            const key = setTimeout(callback, ms);
+            return {
+              dispose() {
+                clearTimeout(key);
+              },
+            };
+          },
+        },
+      );
+    context.images = images;
+    const origin = f.ck.MakeSurface(2, 2);
+    origin.getCanvas().clear(f.ck.Color(0, 255, 0, 1));
+    const native = origin.makeImageSnapshot(),
+      png = native.encodeToBytes();
+    native.delete();
+    origin.delete();
+    const raster = f.ck.MakeSurface(240, 160),
+      flush = async () => {
+        let commands;
+        for (let i = 0; i < 8; i++) {
+          await new Promise(setImmediate);
+          const snapshot = [...frames];
+          for (const [key, callback] of snapshot) {
+            frames.delete(key);
+            callback();
+          }
+          commands = f.frame();
+        }
+        return commands;
+      };
+    try {
+      f.set(
+        wrap(
+          new CupertinoSwitch({
+            id: 'image-cup',
+            value: true,
+            onChanged() {},
+            activeThumbImage: new MemoryImage(png),
+          }),
+          { labels: true },
+        ),
+      );
+      let commands = await flush();
+      assert(commands.some((c) => c.op === 'drawImageRect'));
+      f.library.replay(raster.getCanvas(), { commands });
+      raster.flush();
+      const rgba = raster.getCanvas().readPixels(130, 80, {
+        width: 1,
+        height: 1,
+        colorType: f.ck.ColorType.RGBA_8888,
+        alphaType: f.ck.AlphaType.Unpremul,
+        colorSpace: f.ck.ColorSpace.SRGB,
+      });
+      assert.deepEqual([...rgba], [0, 255, 0, 255]);
+      f.set(
+        wrap(
+          new CupertinoSwitch({
+            id: 'glyph-cup',
+            value: true,
+            onChanged() {},
+            thumbIcon: { resolve: () => new Icon(Icons.check, { color: color(0xff000000) }) },
+          }),
+          { labels: true },
+        ),
+      );
+      commands = f.frame();
+      assert(commands.some((c) => c.op === 'paragraph'));
+      assert([...f.library.paragraphs.values()].every((p) => p.layout.unresolvedGlyphs === 0));
+      f.library.replay(raster.getCanvas(), { commands });
+      raster.flush();
+      f.set(
+        wrap(
+          new CupertinoSwitch({
+            value: true,
+            onChanged() {},
+            activeThumbImage: new MemoryImage(new Uint8Array([1, 2, 3])),
+            onActiveThumbImageError: (error) => errors.push(error),
+          }),
+        ),
+      );
+      await flush();
+      assert(errors.length > 0);
+      f.set(new SizedBox(1, 1));
+      await images.dispose();
+      const count = errors.length;
+      await flush();
+      assert.equal(errors.length, count);
+      assert.equal(f.library.images.size, 0);
+      assertParagraphOwnership(f);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      raster.delete();
+      await images.dispose();
+      await f.close();
+    }
+  },
+);

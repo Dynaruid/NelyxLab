@@ -1,10 +1,10 @@
-import type {SkCanvas} from "../Drawing.ts";
-import type {SkJSIInstance} from '../JsiInstance.ts';
-import type {SkRect} from '../Rect.ts';
+import type { SkCanvas } from '../Drawing.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
+import type { SkRect } from '../Rect.ts';
 
-import type {SkPicture} from "../Drawing.ts";
+import type { SkPicture } from '../Drawing.ts';
 
-export interface SkPictureRecorder extends SkJSIInstance<"PictureRecorder"> {
+export interface SkPictureRecorder extends SkJSIInstance<'PictureRecorder'> {
   /**
    * Returns a canvas on which to draw. When done drawing, call finishRecordingAsPicture()
    *

@@ -1,11 +1,11 @@
-import type {SkCanvas} from "./Drawing.ts";
-import type {SkJSIInstance} from './JsiInstance.ts';
+import type { SkCanvas } from './Drawing.ts';
+import type { SkJSIInstance } from './JsiInstance.ts';
 
 /**
  * A frame recorded for a view. Immutable once finished: submit it to the view
  * as many times as needed, from any runtime.
  */
-export interface SkGraphiteRecording extends SkJSIInstance<"GraphiteRecording"> {}
+export interface SkGraphiteRecording extends SkJSIInstance<'GraphiteRecording'> {}
 
 /**
  * The recording side of a view, obtained from the ref of a SkiaGraphiteView.
@@ -15,7 +15,7 @@ export interface SkGraphiteRecording extends SkJSIInstance<"GraphiteRecording"> 
  * the Reanimated UI runtime or a dedicated worklet runtime. One recording is
  * open at a time.
  */
-export interface SkGraphiteContext extends SkJSIInstance<"GraphiteContext"> {
+export interface SkGraphiteContext extends SkJSIInstance<'GraphiteContext'> {
   /** Width of the view in points. */
   readonly width: number;
   /** Height of the view in points. */

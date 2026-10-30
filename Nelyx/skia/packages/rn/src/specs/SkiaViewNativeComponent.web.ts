@@ -1,14 +1,14 @@
-import type { ViewProps } from "react-native";
-import { createElement } from "react";
-import type { FunctionComponentElement } from "react";
-import {SkiaView} from '../views/SkiaView.web.tsx';
-import type {SkiaViewProps} from '../views/SkiaView.web.tsx';
+import type { ViewProps } from 'react-native';
+import { createElement } from 'react';
+import type { FunctionComponentElement } from 'react';
+import { SkiaView } from '../views/SkiaView.web.tsx';
+import type { SkiaViewProps } from '../views/SkiaView.web.tsx';
 
 export interface NativeProps extends ViewProps {
   opaque?: boolean;
   highBitDepth?: boolean;
   nativeID: string;
-  androidSurfaceType?: "auto" | "SurfaceView" | "TextureView";
+  androidSurfaceType?: 'auto' | 'SurfaceView' | 'TextureView';
   androidZOrderOnTop?: boolean;
 }
 

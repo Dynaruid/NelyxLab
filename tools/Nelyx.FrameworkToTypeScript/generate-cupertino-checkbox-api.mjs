@@ -1,30 +1,242 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { relocateProductModule } from './product-module-layout.mjs';
-import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
-const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),controlFile='.tmp/work8/w11-controls-candidate/ir.json',extraFile='.tmp/work8/w11-cupertino-checkbox-candidate/ir.json',control=read(controlFile),extra=read(extraFile),record=control.records.find(r=>r.symbol==='CupertinoCheckbox'),ir=record.ir,sourceFile='.tmp/work6/flutter-source/'+record.source,check=process.argv.includes('--check'),ownerFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-checkbox-api-ownership.json',previous=fs.existsSync(ownerFile)?read(ownerFile):null,outputs=[];
-assert.equal(createHash('sha256').update(fs.readFileSync(sourceFile,'utf8').replaceAll('\r\n','\n')).digest('hex'),record.sourceSha256);const excluded=['inactiveColor'],fields=ir.fields.filter(f=>!f.static&&!excluded.includes(f.name)),params=ir.constructor.parameters.filter(p=>p.name!=='key'&&!excluded.includes(p.name)),extensions=['key','enabled','skipTraversal','statesController','onFocusChange','onHover','onHighlightChanged','onShowFocusHighlight','onShowHoverHighlight','shortcuts','actions'];assert.equal(fields.length,14);
-const bindings=new Set(['Color','MouseCursor','WidgetStateProperty','FocusNode','BorderSide','OutlinedBorder','Size']);function type(t,ingress=false){let s;if(t.kind==='void')s='void';else if(t.kind==='function')s='(('+t.parameters.map((p,i)=>'value'+i+':'+type(p.type)).join(',')+')=>'+type(t.returnType)+')';else{assert.equal(t.kind,'interface');const n=t.reference.name;s=n==='bool'?'boolean':n==='String'?'string':ingress&&n==='Color'?'CupertinoColor':n;assert(['bool','String'].includes(n)||bindings.has(n),'Unbound '+n);if(t.arguments.length)s+='<'+t.arguments.map(x=>type(x)).join(',')+'>';}return s+(t.nullable?'|null':'');}
-function emit(file,text){({file,text}=relocateProductModule(file,text));if(check)assert.equal(fs.readFileSync(file,'utf8'),text);else{if(previous){const old=previous.outputs.find(r=>r.file===file);assert.equal(sha(file),old?.sha256,'Edited managed Cupertino checkbox owner');}fs.writeFileSync(file,text);}outputs.push(ref(file));}
-const header='// SPDX-License-Identifier: BSD-3-Clause\n// Copyright 2014 The Flutter Authors. All rights reserved.\n// Resolved pinned API/default projection; functional build/paint share existing Core owners.\n';
-const width=ir.fields.find(f=>f.name==='width');assert.equal(width.numeric.type,'double');assert.equal(width.initializer.kind,'literal');let text=header+`import {StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';import type {BuildContext,Widget} from '@nelyx/core/framework/widgets/framework';import type {ControlInteractionOptions} from '@nelyx/core/framework/widgets/control-interaction';import {Color} from '@nelyx/core/ui/color';import type {Size} from '@nelyx/core/ui/size';import type {MouseCursor} from '@nelyx/core/services/mouse-cursor';import type {WidgetStateProperty} from '@nelyx/core/framework/widgets/widget-state';import type {FocusNode} from '@nelyx/core/framework/widgets/focus';import type {BorderSide,OutlinedBorder} from '@nelyx/core/framework/painting/borders';import {invariant} from '@nelyx/core/foundation/errors';import {coreCupertinoColor} from './color-values.ts';import type {CupertinoColor} from './color-values.ts';import {buildCupertinoCheckbox} from './checkbox-build.ts';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8')),
+  sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
+  ref = (file) => ({ file, sha256: sha(file) }),
+  controlFile = '.tmp/work8/w11-controls-candidate/ir.json',
+  extraFile = '.tmp/work8/w11-cupertino-checkbox-candidate/ir.json',
+  control = read(controlFile),
+  extra = read(extraFile),
+  record = control.records.find((r) => r.symbol === 'CupertinoCheckbox'),
+  ir = record.ir,
+  sourceFile = '.tmp/work6/flutter-source/' + record.source,
+  check = process.argv.includes('--check'),
+  ownerFile =
+    'tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-checkbox-api-ownership.json',
+  previous = fs.existsSync(ownerFile) ? read(ownerFile) : null,
+  outputs = [];
+assert.equal(
+  createHash('sha256')
+    .update(fs.readFileSync(sourceFile, 'utf8').replaceAll('\r\n', '\n'))
+    .digest('hex'),
+  record.sourceSha256,
+);
+const excluded = ['inactiveColor'],
+  fields = ir.fields.filter((f) => !f.static && !excluded.includes(f.name)),
+  params = ir.constructor.parameters.filter((p) => p.name !== 'key' && !excluded.includes(p.name)),
+  extensions = [
+    'key',
+    'enabled',
+    'skipTraversal',
+    'statesController',
+    'onFocusChange',
+    'onHover',
+    'onHighlightChanged',
+    'onShowFocusHighlight',
+    'onShowHoverHighlight',
+    'shortcuts',
+    'actions',
+  ];
+assert.equal(fields.length, 14);
+const bindings = new Set([
+  'Color',
+  'MouseCursor',
+  'WidgetStateProperty',
+  'FocusNode',
+  'BorderSide',
+  'OutlinedBorder',
+  'Size',
+]);
+function type(t, ingress = false) {
+  let s;
+  if (t.kind === 'void') s = 'void';
+  else if (t.kind === 'function')
+    s =
+      '((' +
+      t.parameters.map((p, i) => 'value' + i + ':' + type(p.type)).join(',') +
+      ')=>' +
+      type(t.returnType) +
+      ')';
+  else {
+    assert.equal(t.kind, 'interface');
+    const n = t.reference.name;
+    s =
+      n === 'bool'
+        ? 'boolean'
+        : n === 'String'
+          ? 'string'
+          : ingress && n === 'Color'
+            ? 'CupertinoColor'
+            : n;
+    assert(['bool', 'String'].includes(n) || bindings.has(n), 'Unbound ' + n);
+    if (t.arguments.length) s += '<' + t.arguments.map((x) => type(x)).join(',') + '>';
+  }
+  return s + (t.nullable ? '|null' : '');
+}
+function emit(file, text) {
+  ({ file, text } = relocateProductModule(file, text));
+  if (check) assert.equal(fs.readFileSync(file, 'utf8'), text);
+  else {
+    if (previous) {
+      const old = previous.outputs.find((r) => r.file === file);
+      assert.equal(sha(file), old?.sha256, 'Edited managed Cupertino checkbox owner');
+    }
+    fs.writeFileSync(file, text);
+  }
+  outputs.push(ref(file));
+}
+const header =
+  '// SPDX-License-Identifier: BSD-3-Clause\n// Copyright 2014 The Flutter Authors. All rights reserved.\n// Resolved pinned API/default projection; functional build/paint share existing Core owners.\n';
+const width = ir.fields.find((f) => f.name === 'width');
+assert.equal(width.numeric.type, 'double');
+assert.equal(width.initializer.kind, 'literal');
+let text =
+  header +
+  `import {StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';import type {BuildContext,Widget} from '@nelyx/core/framework/widgets/framework';import type {ControlInteractionOptions} from '@nelyx/core/framework/widgets/control-interaction';import {Color} from '@nelyx/core/ui/color';import type {Size} from '@nelyx/core/ui/size';import type {MouseCursor} from '@nelyx/core/services/mouse-cursor';import type {WidgetStateProperty} from '@nelyx/core/framework/widgets/widget-state';import type {FocusNode} from '@nelyx/core/framework/widgets/focus';import type {BorderSide,OutlinedBorder} from '@nelyx/core/framework/painting/borders';import {invariant} from '@nelyx/core/foundation/errors';import {coreCupertinoColor} from './color-values.ts';import type {CupertinoColor} from './color-values.ts';import {buildCupertinoCheckbox} from './checkbox-build.ts';
 type InteractionOptions=Pick<ControlInteractionOptions,${extensions.map(JSON.stringify).join('|')}>;
 export interface CupertinoCheckboxOptions extends InteractionOptions {readonly id?:string;
-${params.map(p=>'  readonly '+p.name+(p.required?'':'?')+':'+type(p.resolvedType,true)+';').join('\n')}
+${params.map((p) => '  readonly ' + p.name + (p.required ? '' : '?') + ':' + type(p.resolvedType, true) + ';').join('\n')}
 }
 export class CupertinoCheckbox extends StatefulWidget {
   readonly options:Readonly<CupertinoCheckboxOptions>;
-${fields.map(f=>'  readonly '+f.name+':'+type(f.type)+';').join('\n')}
+${fields.map((f) => '  readonly ' + f.name + ':' + type(f.type) + ';').join('\n')}
   /** @dartType ${width.numeric.type} */ static readonly width=${width.initializer.value};
-  constructor(o:CupertinoCheckboxOptions){super(o.key??null);invariant(Object.keys(o).every(key=>${JSON.stringify([...extensions,'id',...params.map(p=>p.name)])}.includes(key)),'unsupported-cupertino-checkbox-option','Unknown or removed CupertinoCheckbox option');invariant(o.onChanged===null||typeof o.onChanged==='function','invalid-checkbox-callback','CupertinoCheckbox requires an explicit nullable callback');this.options=Object.freeze({...o});
-${fields.map(f=>{const p=params.find(p=>p.name===f.name);assert(p);assert(p.default===null||p.default.kind==='literal');const value=f.type.kind==='interface'&&f.type.reference.name==='Color'?'o.'+f.name+'==null?null:coreCupertinoColor(o.'+f.name+')':p.required?'o.'+f.name:'o.'+f.name+'??'+(p.default===null?'null':JSON.stringify(p.default.value));return '    this.'+f.name+'='+value+';';}).join('\n')}
+  constructor(o:CupertinoCheckboxOptions){super(o.key??null);invariant(Object.keys(o).every(key=>${JSON.stringify([...extensions, 'id', ...params.map((p) => p.name)])}.includes(key)),'unsupported-cupertino-checkbox-option','Unknown or removed CupertinoCheckbox option');invariant(o.onChanged===null||typeof o.onChanged==='function','invalid-checkbox-callback','CupertinoCheckbox requires an explicit nullable callback');this.options=Object.freeze({...o});
+${fields
+  .map((f) => {
+    const p = params.find((p) => p.name === f.name);
+    assert(p);
+    assert(p.default === null || p.default.kind === 'literal');
+    const value =
+      f.type.kind === 'interface' && f.type.reference.name === 'Color'
+        ? 'o.' + f.name + '==null?null:coreCupertinoColor(o.' + f.name + ')'
+        : p.required
+          ? 'o.' + f.name
+          : 'o.' + f.name + '??' + (p.default === null ? 'null' : JSON.stringify(p.default.value));
+    return '    this.' + f.name + '=' + value + ';';
+  })
+  .join('\n')}
     invariant(typeof this.value==='boolean'||this.tristate&&this.value===null,'invalid-checkbox-value','Null checkbox values require tristate');
   }
   createState():State<CupertinoCheckbox>{return new CupertinoCheckboxState();}
 }
 class CupertinoCheckboxState extends State<CupertinoCheckbox>{build(context:BuildContext):Widget{return buildCupertinoCheckbox(this.widget,context);}}
 `;
-emit('packages/cupertino/src/checkbox.ts',text);
-const records=extra.records.filter(r=>r.ir.kind==='constant');function value(v){if(v.kind==='literal'){assert(v.numeric?.type==='double'||v.numeric?.type==='int');return JSON.stringify(v.value);}if(v.kind==='list'){assert.equal(v.elementType.reference.id,'dart:core::double:CLASS');assert(v.values.every(x=>x.kind==='literal'&&x.numeric?.type==='double'));return 'canonicalDartList(dartDoubleType,['+v.values.map(x=>'DartDouble.fromSource('+value(x)+')').join(',')+'])';}if(v.kind==='property'){assert.equal(v.reference.owner,'CupertinoColors');assert(['white','activeBlue'].includes(v.name));return 'CupertinoColors.'+v.name;}if(v.kind==='construct'){if(v.reference.id==='dart:ui::Color.Color.fromARGB:CONSTRUCTOR'){assert(v.args.every(a=>a.value.kind==='literal'&&a.value.numeric?.type==='int'));const [a,r,g,b]=v.args.map(a=>a.value.value);return 'constSourceColor(Color,'+Number((BigInt(a)&255n)<<24n|(BigInt(r)&255n)<<16n|(BigInt(g)&255n)<<8n|BigInt(b)&255n)+')';}assert.equal(v.reference.id,'package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor.CupertinoDynamicColor.withBrightness:CONSTRUCTOR');return 'constCupertinoDynamicColorWithBrightness({'+v.args.map(a=>a.name+':'+value(a.value)).join(',')+'})';}throw Error('Unbound constant '+v.kind);}
-text=header+`import {canonicalDartList} from '@nelyx/core/internal/foundation/dart-const';import {dartDoubleType} from '@nelyx/core/foundation/dart-type-witness';import {DartDouble} from '@nelyx/core/foundation/dart-numeric';import {Color} from '@nelyx/core/ui/color';import {constSourceColor} from '@nelyx/core/ui/color-source';import {CupertinoColors,constCupertinoDynamicColorWithBrightness} from './colors.ts';\n`+records.map(r=>(r.ir.numeric?'/** @dartType '+r.ir.numeric.type+' */ ':'')+'export const '+r.symbol+'='+value(r.ir.value)+';').join('\n')+'\n';
-emit('packages/cupertino/src/checkbox-defaults.generated.ts',text);
-if(check){assert.equal(previous.generator.sha256,sha(import.meta.filename));for(const r of previous.outputs)assert.equal(sha(r.file),r.sha256);}else{let history=null;if(previous){const seal=f=>{const target='.tmp/work8/receipt-history/'+sha(f)+'-w11-cupertino-checkbox-api-'+f.split('/').at(-1);if(!fs.existsSync(target))fs.copyFileSync(f,target);return ref(target);};history=seal(ownerFile);}fs.writeFileSync(ownerFile,JSON.stringify({schema:'nelyx.w11-cupertino-checkbox-api-ownership/v1',status:'PASS-scoped',source:ref(sourceFile),normalizedSourceSha256:record.sourceSha256,controls:ref(controlFile),extra:ref(extraFile),generator:ref(import.meta.filename),outputs,previous:history,fields:fields.length,numericFields:1,constants:records.length,removed:['inactiveColor'],scope:'All14 nondeprecated CupertinoCheckbox fields/required/default constructor, resolved width double and complete12 selected checkbox/focus/tap defaults via existing canonical Color/dynamic-color factories. Deprecated unused inactiveColor is removed per legacy-removal policy, including JS rejection. Nelyx numeric Color ingress is explicitly normalized to Core Color; functional paint/input and adaptive behavior have separate evidence.'},null,2)+'\n');}console.log(JSON.stringify({status:'PASS-scoped',fields:14,numericFields:1,constants:records.length,check}));
+emit('packages/cupertino/src/checkbox.ts', text);
+const records = extra.records.filter((r) => r.ir.kind === 'constant');
+function value(v) {
+  if (v.kind === 'literal') {
+    assert(v.numeric?.type === 'double' || v.numeric?.type === 'int');
+    return JSON.stringify(v.value);
+  }
+  if (v.kind === 'list') {
+    assert.equal(v.elementType.reference.id, 'dart:core::double:CLASS');
+    assert(v.values.every((x) => x.kind === 'literal' && x.numeric?.type === 'double'));
+    return (
+      'canonicalDartList(dartDoubleType,[' +
+      v.values.map((x) => 'DartDouble.fromSource(' + value(x) + ')').join(',') +
+      '])'
+    );
+  }
+  if (v.kind === 'property') {
+    assert.equal(v.reference.owner, 'CupertinoColors');
+    assert(['white', 'activeBlue'].includes(v.name));
+    return 'CupertinoColors.' + v.name;
+  }
+  if (v.kind === 'construct') {
+    if (v.reference.id === 'dart:ui::Color.Color.fromARGB:CONSTRUCTOR') {
+      assert(v.args.every((a) => a.value.kind === 'literal' && a.value.numeric?.type === 'int'));
+      const [a, r, g, b] = v.args.map((a) => a.value.value);
+      return (
+        'constSourceColor(Color,' +
+        Number(
+          ((BigInt(a) & 255n) << 24n) |
+            ((BigInt(r) & 255n) << 16n) |
+            ((BigInt(g) & 255n) << 8n) |
+            (BigInt(b) & 255n),
+        ) +
+        ')'
+      );
+    }
+    assert.equal(
+      v.reference.id,
+      'package:flutter/src/cupertino/colors.dart::CupertinoDynamicColor.CupertinoDynamicColor.withBrightness:CONSTRUCTOR',
+    );
+    return (
+      'constCupertinoDynamicColorWithBrightness({' +
+      v.args.map((a) => a.name + ':' + value(a.value)).join(',') +
+      '})'
+    );
+  }
+  throw Error('Unbound constant ' + v.kind);
+}
+text =
+  header +
+  `import {canonicalDartList} from '@nelyx/core/internal/foundation/dart-const';import {dartDoubleType} from '@nelyx/core/foundation/dart-type-witness';import {DartDouble} from '@nelyx/core/foundation/dart-numeric';import {Color} from '@nelyx/core/ui/color';import {constSourceColor} from '@nelyx/core/ui/color-source';import {CupertinoColors,constCupertinoDynamicColorWithBrightness} from './colors.ts';\n` +
+  records
+    .map(
+      (r) =>
+        (r.ir.numeric ? '/** @dartType ' + r.ir.numeric.type + ' */ ' : '') +
+        'export const ' +
+        r.symbol +
+        '=' +
+        value(r.ir.value) +
+        ';',
+    )
+    .join('\n') +
+  '\n';
+emit('packages/cupertino/src/checkbox-defaults.generated.ts', text);
+if (check) {
+  assert.equal(previous.generator.sha256, sha(import.meta.filename));
+  for (const r of previous.outputs) assert.equal(sha(r.file), r.sha256);
+} else {
+  let history = null;
+  if (previous) {
+    const seal = (f) => {
+      const target =
+        '.tmp/work8/receipt-history/' +
+        sha(f) +
+        '-w11-cupertino-checkbox-api-' +
+        f.split('/').at(-1);
+      if (!fs.existsSync(target)) fs.copyFileSync(f, target);
+      return ref(target);
+    };
+    history = seal(ownerFile);
+  }
+  fs.writeFileSync(
+    ownerFile,
+    JSON.stringify(
+      {
+        schema: 'nelyx.w11-cupertino-checkbox-api-ownership/v1',
+        status: 'PASS-scoped',
+        source: ref(sourceFile),
+        normalizedSourceSha256: record.sourceSha256,
+        controls: ref(controlFile),
+        extra: ref(extraFile),
+        generator: ref(import.meta.filename),
+        outputs,
+        previous: history,
+        fields: fields.length,
+        numericFields: 1,
+        constants: records.length,
+        removed: ['inactiveColor'],
+        scope:
+          'All14 nondeprecated CupertinoCheckbox fields/required/default constructor, resolved width double and complete12 selected checkbox/focus/tap defaults via existing canonical Color/dynamic-color factories. Deprecated unused inactiveColor is removed per legacy-removal policy, including JS rejection. Nelyx numeric Color ingress is explicitly normalized to Core Color; functional paint/input and adaptive behavior have separate evidence.',
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+}
+console.log(
+  JSON.stringify({
+    status: 'PASS-scoped',
+    fields: 14,
+    numericFields: 1,
+    constants: records.length,
+    check,
+  }),
+);

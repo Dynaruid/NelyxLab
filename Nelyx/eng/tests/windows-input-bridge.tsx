@@ -1,34 +1,227 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import * as React from 'react';import * as RN from 'react-native';
-import {WindowsInputService} from './node_modules/@nelyx/sdk/dist/platforms/windows/input-service.js';
-import {WindowsInputView} from './node_modules/@nelyx/sdk/dist/platforms/windows/input-view.js';
-import {NativeInteraction} from './node_modules/@nelyx/sdk/dist/runtime/native-interaction.js';
-const owner={id:'module-input',generation:1},interaction=new NativeInteraction(owner,{commands:true,selectionEvents:true,semantics:'native-controls',nativeSnapshots:true,geometry:'unavailable'}),native=RN.NativeModules.NelyxWindowsInput;
-let finished=false,service:WindowsInputService|undefined,inputView:WindowsInputView|undefined,binding:ReturnType<typeof interaction.editing.bind>|undefined;const values:string[]=[],focus:boolean[]=[];
-function require(condition:unknown,message:string):asserts condition{if(!condition)throw new Error(message);}
-async function waitFor(test:()=>boolean,message:string){const end=Date.now()+5000;while(!test()){if(Date.now()>end)throw new Error(message);await new Promise<void>(resolve=>setTimeout(resolve,10));}}
-async function finish(ok:boolean,message:string){if(finished)return;finished=true;try{binding?.dispose();await inputView?.dispose();await service?.dispose();interaction.dispose();}catch(error){ok=false;message+='; close: '+String(error);}RN.NativeModules.NelyxInputFixture.complete(ok,message);}
-(globalThis as unknown as {ErrorUtils:{setGlobalHandler(handler:(error:Error)=>void):void}}).ErrorUtils.setGlobalHandler(error=>{void finish(false,error.stack??error.message);});
-async function run(tag:number){
- require(native?.getInputProtocol?.()===3,'Actual nonvisual native module unavailable');service=await WindowsInputService.connect(interaction,native,RN.DeviceEventEmitter,tag,error=>{void finish(false,String(error));});
- binding=interaction.editing.bind(owner,{session:owner,text:'seed',selection:{anchor:4,focus:0},revision:0,source:'programmatic',composing:{status:'none'}},value=>values.push(value.text),{id:'field',readInputState:()=>({enabled:true,focusable:true,label:'Field'}),focusChanged:value=>focus.push(value)});
- const client=await service.attach('field',{maximum:4096,scope:0});await service.configure(client,{enabled:true,readOnly:false,multiline:false,scope:0});
- // Queue focus and replace before the focus receipt. TSF advances its focus
- // revision first and rejects the old write with that same revision.
- binding.focus();binding.replace({...binding.read(),text:'한😀',selection:{anchor:3,focus:1}},51);await waitFor(()=>values.includes('한😀')&&focus.includes(true),'Actual module focus/stale-retry/replacement did not reach Core');require(binding.read().selection.anchor===3&&binding.read().selection.focus===1,'Native directed UTF-16 selection changed');require(values.length===1,'A native focus/rejection receipt became another edit');
- binding.replace({...binding.read(),text:'implicit',selection:{anchor:8,focus:0}});await waitFor(()=>values.at(-1)==='implicit','Adapter-generated command id lost its implicit caller');binding.blur();await waitFor(()=>focus.at(-1)===false,'Actual TSF blur did not reach Core');
- await client.dispose();require(!await native.command(service.identity,client.client,'replace',['late',4,4,0,100]),'Retired native client accepted a late command');
- const old=service.identity;await service.dispose();let rejected=false;try{await native.command(old,client.client,'focus',[]);}catch{rejected=true;}require(rejected,'Disconnected native service accepted a late command');
- service=await WindowsInputService.connect(interaction,native,RN.DeviceEventEmitter,tag,error=>{void finish(false,String(error));});require(service.identity>old,'New native lease reused old event identity');const next=await service.attach('field',{maximum:4096,scope:0});binding.replace({...binding.read(),text:'reconnected',selection:{anchor:11,focus:2}},52);await waitFor(()=>values.at(-1)==='reconnected','New native client failed after real service retirement');await next.dispose();
- await service.dispose();service=undefined;
- let opens=0,closes=0;const configured:Array<readonly [boolean,boolean,boolean,number]>=[];
- const observed={getInputProtocol:()=>native.getInputProtocol(),insertText:(...args:Parameters<typeof native.insertText>)=>native.insertText(...args),connect:(...args:Parameters<typeof native.connect>)=>native.connect(...args),openClient:async(...args:Parameters<typeof native.openClient>)=>{const result=await native.openClient(...args);opens++;return result;},configureClient:async(...args:[number,number,boolean,boolean,boolean,number])=>{const result=await native.configureClient(...args);configured.push(args.slice(2) as [boolean,boolean,boolean,number]);return result;},command:(...args:Parameters<typeof native.command>)=>native.command(...args),closeClient:async(...args:Parameters<typeof native.closeClient>)=>{const result=await native.closeClient(...args);closes++;return result;},disconnect:(...args:Parameters<typeof native.disconnect>)=>native.disconnect(...args)};
- inputView=new WindowsInputView(interaction,observed,RN.DeviceEventEmitter,tag,error=>{void finish(false,String(error));});await inputView.ready;require(opens===1,'View did not automatically open its existing Core binding');require(JSON.stringify(configured[0])==='[true,false,false,57]','View did not configure its actual OS scope before attaching');
- const semantics=interaction.semantics.bind([],()=>{});semantics.dispose();binding.focus();binding.replace({...binding.read(),text:'automatic',selection:{anchor:9,focus:1}},53);await waitFor(()=>values.at(-1)==='automatic','Automatic View client did not receive its actual native acknowledgement');require(opens===1&&closes===0,'Removing semantics changed the input client lifetime');
- binding.dispose();binding=undefined;await waitFor(()=>closes===1,'Removed Core binding did not await native client retirement');
- binding=interaction.editing.bind(owner,{session:owner,text:'replacement',selection:{anchor:11,focus:2},revision:0,source:'programmatic',composing:{status:'none'}},value=>values.push(value.text),{id:'field',configuration:{readOnly:true},readInputState:()=>({enabled:true,focusable:true,label:'Replacement'})});await waitFor(()=>opens===2&&configured.length===2,'Replacement generation did not open/configure');require(configured[1][1]===true,'Replacement readOnly was not configured');
- await inputView.dispose();inputView=undefined;
- await finish(true,'actual RNW/Hermes module + product SDK/Core binding: native service/client create, focused revision race and same-revision retry, UTF-16/directed replacement acknowledgements, implicit request mapping, blur, stale client/service rejection, reconnect, automatic View client/configuration-before-port, independent semantics lifetime, generation replacement and awaited native retirement. Mapping is controlled; Skia producer/keyboard text/default provider/physical IME remain notVerified.');
+import * as React from 'react';
+import * as RN from 'react-native';
+import { WindowsInputService } from './node_modules/@nelyx/sdk/dist/platforms/windows/input-service.js';
+import { WindowsInputView } from './node_modules/@nelyx/sdk/dist/platforms/windows/input-view.js';
+import { NativeInteraction } from './node_modules/@nelyx/sdk/dist/runtime/native-interaction.js';
+const owner = { id: 'module-input', generation: 1 },
+  interaction = new NativeInteraction(owner, {
+    commands: true,
+    selectionEvents: true,
+    semantics: 'native-controls',
+    nativeSnapshots: true,
+    geometry: 'unavailable',
+  }),
+  native = RN.NativeModules.NelyxWindowsInput;
+let finished = false,
+  service: WindowsInputService | undefined,
+  inputView: WindowsInputView | undefined,
+  binding: ReturnType<typeof interaction.editing.bind> | undefined;
+const values: string[] = [],
+  focus: boolean[] = [];
+function require(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
 }
-function App(){const ref=React.useRef<RN.View>(null);React.useEffect(()=>{const tag=RN.findNodeHandle(ref.current);require(tag&&tag>0,'Actual fixture RNW tag unavailable');void run(tag).catch(error=>{void finish(false,error.stack??String(error));});},[]);return React.createElement(RN.View,{ref,focusable:true,style:{flex:1}});}
-setTimeout(()=>{void finish(false,'Actual module bridge timed out');},20_000);RN.AppRegistry.registerComponent('NelyxInputFixture',()=>App);
+async function waitFor(test: () => boolean, message: string) {
+  const end = Date.now() + 5000;
+  while (!test()) {
+    if (Date.now() > end) throw new Error(message);
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  }
+}
+async function finish(ok: boolean, message: string) {
+  if (finished) return;
+  finished = true;
+  try {
+    binding?.dispose();
+    await inputView?.dispose();
+    await service?.dispose();
+    interaction.dispose();
+  } catch (error) {
+    ok = false;
+    message += '; close: ' + String(error);
+  }
+  RN.NativeModules.NelyxInputFixture.complete(ok, message);
+}
+(
+  globalThis as unknown as {
+    ErrorUtils: { setGlobalHandler(handler: (error: Error) => void): void };
+  }
+).ErrorUtils.setGlobalHandler((error) => {
+  void finish(false, error.stack ?? error.message);
+});
+async function run(tag: number) {
+  require(native?.getInputProtocol?.() === 3, 'Actual nonvisual native module unavailable');
+  service = await WindowsInputService.connect(
+    interaction,
+    native,
+    RN.DeviceEventEmitter,
+    tag,
+    (error) => {
+      void finish(false, String(error));
+    },
+  );
+  binding = interaction.editing.bind(
+    owner,
+    {
+      session: owner,
+      text: 'seed',
+      selection: { anchor: 4, focus: 0 },
+      revision: 0,
+      source: 'programmatic',
+      composing: { status: 'none' },
+    },
+    (value) => values.push(value.text),
+    {
+      id: 'field',
+      readInputState: () => ({ enabled: true, focusable: true, label: 'Field' }),
+      focusChanged: (value) => focus.push(value),
+    },
+  );
+  const client = await service.attach('field', { maximum: 4096, scope: 0 });
+  await service.configure(client, { enabled: true, readOnly: false, multiline: false, scope: 0 });
+  // Queue focus and replace before the focus receipt. TSF advances its focus
+  // revision first and rejects the old write with that same revision.
+  binding.focus();
+  binding.replace({ ...binding.read(), text: '한😀', selection: { anchor: 3, focus: 1 } }, 51);
+  await waitFor(
+    () => values.includes('한😀') && focus.includes(true),
+    'Actual module focus/stale-retry/replacement did not reach Core',
+  );
+  require(binding.read().selection.anchor === 3 &&
+    binding.read().selection.focus === 1, 'Native directed UTF-16 selection changed');
+  require(values.length === 1, 'A native focus/rejection receipt became another edit');
+  binding.replace({ ...binding.read(), text: 'implicit', selection: { anchor: 8, focus: 0 } });
+  await waitFor(
+    () => values.at(-1) === 'implicit',
+    'Adapter-generated command id lost its implicit caller',
+  );
+  binding.blur();
+  await waitFor(() => focus.at(-1) === false, 'Actual TSF blur did not reach Core');
+  await client.dispose();
+  require(!(await native.command(service.identity, client.client, 'replace', [
+    'late',
+    4,
+    4,
+    0,
+    100,
+  ])), 'Retired native client accepted a late command');
+  const old = service.identity;
+  await service.dispose();
+  let rejected = false;
+  try {
+    await native.command(old, client.client, 'focus', []);
+  } catch {
+    rejected = true;
+  }
+  require(rejected, 'Disconnected native service accepted a late command');
+  service = await WindowsInputService.connect(
+    interaction,
+    native,
+    RN.DeviceEventEmitter,
+    tag,
+    (error) => {
+      void finish(false, String(error));
+    },
+  );
+  require(service.identity > old, 'New native lease reused old event identity');
+  const next = await service.attach('field', { maximum: 4096, scope: 0 });
+  binding.replace(
+    { ...binding.read(), text: 'reconnected', selection: { anchor: 11, focus: 2 } },
+    52,
+  );
+  await waitFor(
+    () => values.at(-1) === 'reconnected',
+    'New native client failed after real service retirement',
+  );
+  await next.dispose();
+  await service.dispose();
+  service = undefined;
+  let opens = 0,
+    closes = 0;
+  const configured: Array<readonly [boolean, boolean, boolean, number]> = [];
+  const observed = {
+    getInputProtocol: () => native.getInputProtocol(),
+    insertText: (...args: Parameters<typeof native.insertText>) => native.insertText(...args),
+    connect: (...args: Parameters<typeof native.connect>) => native.connect(...args),
+    openClient: async (...args: Parameters<typeof native.openClient>) => {
+      const result = await native.openClient(...args);
+      opens++;
+      return result;
+    },
+    configureClient: async (...args: [number, number, boolean, boolean, boolean, number]) => {
+      const result = await native.configureClient(...args);
+      configured.push(args.slice(2) as [boolean, boolean, boolean, number]);
+      return result;
+    },
+    command: (...args: Parameters<typeof native.command>) => native.command(...args),
+    closeClient: async (...args: Parameters<typeof native.closeClient>) => {
+      const result = await native.closeClient(...args);
+      closes++;
+      return result;
+    },
+    disconnect: (...args: Parameters<typeof native.disconnect>) => native.disconnect(...args),
+  };
+  inputView = new WindowsInputView(interaction, observed, RN.DeviceEventEmitter, tag, (error) => {
+    void finish(false, String(error));
+  });
+  await inputView.ready;
+  require(opens === 1, 'View did not automatically open its existing Core binding');
+  require(JSON.stringify(configured[0]) ===
+    '[true,false,false,57]', 'View did not configure its actual OS scope before attaching');
+  const semantics = interaction.semantics.bind([], () => {});
+  semantics.dispose();
+  binding.focus();
+  binding.replace({ ...binding.read(), text: 'automatic', selection: { anchor: 9, focus: 1 } }, 53);
+  await waitFor(
+    () => values.at(-1) === 'automatic',
+    'Automatic View client did not receive its actual native acknowledgement',
+  );
+  require(opens === 1 && closes === 0, 'Removing semantics changed the input client lifetime');
+  binding.dispose();
+  binding = undefined;
+  await waitFor(() => closes === 1, 'Removed Core binding did not await native client retirement');
+  binding = interaction.editing.bind(
+    owner,
+    {
+      session: owner,
+      text: 'replacement',
+      selection: { anchor: 11, focus: 2 },
+      revision: 0,
+      source: 'programmatic',
+      composing: { status: 'none' },
+    },
+    (value) => values.push(value.text),
+    {
+      id: 'field',
+      configuration: { readOnly: true },
+      readInputState: () => ({ enabled: true, focusable: true, label: 'Replacement' }),
+    },
+  );
+  await waitFor(
+    () => opens === 2 && configured.length === 2,
+    'Replacement generation did not open/configure',
+  );
+  require(configured[1][1] === true, 'Replacement readOnly was not configured');
+  await inputView.dispose();
+  inputView = undefined;
+  await finish(
+    true,
+    'actual RNW/Hermes module + product SDK/Core binding: native service/client create, focused revision race and same-revision retry, UTF-16/directed replacement acknowledgements, implicit request mapping, blur, stale client/service rejection, reconnect, automatic View client/configuration-before-port, independent semantics lifetime, generation replacement and awaited native retirement. Mapping is controlled; Skia producer/keyboard text/default provider/physical IME remain notVerified.',
+  );
+}
+function App() {
+  const ref = React.useRef<RN.View>(null);
+  React.useEffect(() => {
+    const tag = RN.findNodeHandle(ref.current);
+    require(tag && tag > 0, 'Actual fixture RNW tag unavailable');
+    void run(tag).catch((error) => {
+      void finish(false, error.stack ?? String(error));
+    });
+  }, []);
+  return React.createElement(RN.View, { ref, focusable: true, style: { flex: 1 } });
+}
+setTimeout(() => {
+  void finish(false, 'Actual module bridge timed out');
+}, 20_000);
+RN.AppRegistry.registerComponent('NelyxInputFixture', () => App);

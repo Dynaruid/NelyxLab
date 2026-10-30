@@ -1,18 +1,14 @@
-import type { CanvasKit, Matrix3x3 } from "canvaskit-wasm";
-import {toMatrix3} from "@nelyx/skia-native/skia/types/Matrix4";
-import type {SkMatrix, InputMatrix} from "@nelyx/skia-native/skia/types/Drawing";
-import type {Matrix4} from "@nelyx/skia-native/skia/types/Matrix4";
-import {HostObject} from './Host.ts';
+import type { CanvasKit, Matrix3x3 } from 'canvaskit-wasm';
+import { toMatrix3 } from '@nelyx/skia-native/skia/types/Matrix4';
+import type { SkMatrix, InputMatrix } from '@nelyx/skia-native/skia/types/Drawing';
+import type { Matrix4 } from '@nelyx/skia-native/skia/types/Matrix4';
+import { HostObject } from './Host.ts';
 
-const isMatrixHostObject = (obj: InputMatrix): obj is SkMatrix =>
-  !Array.isArray(obj);
+const isMatrixHostObject = (obj: InputMatrix): obj is SkMatrix => !Array.isArray(obj);
 
-export class JsiSkMatrix
-  extends HostObject<Matrix3x3, "Matrix">
-  implements SkMatrix
-{
+export class JsiSkMatrix extends HostObject<Matrix3x3, 'Matrix'> implements SkMatrix {
   constructor(CanvasKit: CanvasKit, ref: Matrix3x3) {
-    super(CanvasKit, ref, "Matrix");
+    super(CanvasKit, ref, 'Matrix');
   }
 
   private preMultiply(matrix: number[]) {
@@ -29,7 +25,7 @@ export class JsiSkMatrix
         ? JsiSkMatrix.fromValue(matrix)
         : matrix.length === 16
           ? toMatrix3(matrix as Matrix4)
-          : [...matrix]
+          : [...matrix],
     );
     return this;
   }

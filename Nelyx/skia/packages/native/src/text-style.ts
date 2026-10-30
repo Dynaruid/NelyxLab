@@ -1,7 +1,98 @@
-import {paragraphFontVariations} from '@nelyx/core/ui/text-builder';
+import { paragraphFontVariations } from '@nelyx/core/ui/text-builder';
 // SPDX-License-Identifier: BSD-3-Clause
-import type {Skia} from './skia/types/Skia.ts';import type {SkTextStyle} from './skia/types/Paragraph/TextStyle.ts';import type {SkParagraphStyle} from './skia/types/Paragraph/ParagraphStyle.ts';
-import type {TextRunStyle} from '@nelyx/core/ui/text-styles';import type {TextLayoutInput} from '@nelyx/core/ui/types';
-const names=(values:readonly string[]|undefined,primary:string,fallback:readonly string[])=>[...new Set([...(values??[]),primary,...fallback])];
-export function nativeTextStyle(api:Skia,input:TextLayoutInput,style:TextRunStyle,primary:string,families:readonly string[]):SkTextStyle{return {...(style.textBaseline?{textBaseline:style.textBaseline==='ideographic'?1:0}:{}),fontFamilies:names(style.fontFamilies,primary,families),fontSize:(style.fontSize??input.fontSize)*(input.textScale??1),locale:style.locale??input.locale,color:api.Color(style.color??input.color??0xffeef5ff),fontStyle:{weight:style.fontWeight??400,slant:style.fontStyle==='italic'?1:0},...(style.backgroundColor!==undefined?{backgroundColor:api.Color(style.backgroundColor)}:{}),...(style.letterSpacing!==undefined?{letterSpacing:style.letterSpacing}:{}),...(style.wordSpacing!==undefined?{wordSpacing:style.wordSpacing}:{}),...(style.height!==undefined?{heightMultiplier:style.height}:{}),halfLeading:(style.leadingDistribution??input.textHeightBehavior?.leadingDistribution)==='even',...(style.decoration!==undefined?{decoration:style.decoration}:{}),...(style.decorationColor!==undefined?{decorationColor:api.Color(style.decorationColor)}:{}),decorationThickness:style.decorationThickness??1,...(style.decorationStyle?{decorationStyle:['solid','double','dotted','dashed','wavy'].indexOf(style.decorationStyle)}:{}),...(style.fontFeatures?{fontFeatures:style.fontFeatures.map(f=>({...f}))}:{}),fontVariations:paragraphFontVariations(style),...(style.shadows?{shadows:style.shadows.map(s=>({color:api.Color(s.color),offset:s.offset,blurRadius:s.blurSigma}))}:{})};}
-export function nativeParagraphStyle(api:Skia,input:TextLayoutInput,primary:string,families:readonly string[]):SkParagraphStyle{const s=input.strutStyle,b=input.textHeightBehavior;return {disableHinting:true,replaceTabCharacters:true,applyRoundingHack:false,textAlign:['left','right','center','justify','start','end'].indexOf(input.textAlign??'start'),textDirection:input.direction==='rtl'?0:1,...(input.unlimitedLines?{}:{maxLines:input.maxLines!}),ellipsis:input.ellipsis!,...(input.hyphens!==undefined?{renderSoftHyphens:input.hyphens==='manual'}:{}),textStyle:nativeTextStyle(api,input,input.style??{},primary,families),textHeightBehavior:(b?.applyHeightToFirstAscent===false?1:0)|(b?.applyHeightToLastDescent===false?2:0),...(s?{strutStyle:{strutEnabled:true,fontFamilies:names(s.fontFamilies,primary,families),fontSize:(s.fontSize??input.fontSize)*(input.textScale??1),fontStyle:{weight:s.fontWeight??400,slant:s.fontStyle==='italic'?1:0},...(s.height!==undefined?{heightMultiplier:s.height}:{}),halfLeading:(s.leadingDistribution??b?.leadingDistribution)==='even',leading:s.leading??0,forceStrutHeight:s.forceStrutHeight??false}}:{})};}
+import type { Skia } from './skia/types/Skia.ts';
+import type { SkTextStyle } from './skia/types/Paragraph/TextStyle.ts';
+import type { SkParagraphStyle } from './skia/types/Paragraph/ParagraphStyle.ts';
+import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
+import type { TextLayoutInput } from '@nelyx/core/ui/types';
+const names = (
+  values: readonly string[] | undefined,
+  primary: string,
+  fallback: readonly string[],
+) => [...new Set([...(values ?? []), primary, ...fallback])];
+export function nativeTextStyle(
+  api: Skia,
+  input: TextLayoutInput,
+  style: TextRunStyle,
+  primary: string,
+  families: readonly string[],
+): SkTextStyle {
+  return {
+    ...(style.textBaseline ? { textBaseline: style.textBaseline === 'ideographic' ? 1 : 0 } : {}),
+    fontFamilies: names(style.fontFamilies, primary, families),
+    fontSize: (style.fontSize ?? input.fontSize) * (input.textScale ?? 1),
+    locale: style.locale ?? input.locale,
+    color: api.Color(style.color ?? input.color ?? 0xffeef5ff),
+    fontStyle: { weight: style.fontWeight ?? 400, slant: style.fontStyle === 'italic' ? 1 : 0 },
+    ...(style.backgroundColor !== undefined
+      ? { backgroundColor: api.Color(style.backgroundColor) }
+      : {}),
+    ...(style.letterSpacing !== undefined ? { letterSpacing: style.letterSpacing } : {}),
+    ...(style.wordSpacing !== undefined ? { wordSpacing: style.wordSpacing } : {}),
+    ...(style.height !== undefined ? { heightMultiplier: style.height } : {}),
+    halfLeading:
+      (style.leadingDistribution ?? input.textHeightBehavior?.leadingDistribution) === 'even',
+    ...(style.decoration !== undefined ? { decoration: style.decoration } : {}),
+    ...(style.decorationColor !== undefined
+      ? { decorationColor: api.Color(style.decorationColor) }
+      : {}),
+    decorationThickness: style.decorationThickness ?? 1,
+    ...(style.decorationStyle
+      ? {
+          decorationStyle: ['solid', 'double', 'dotted', 'dashed', 'wavy'].indexOf(
+            style.decorationStyle,
+          ),
+        }
+      : {}),
+    ...(style.fontFeatures ? { fontFeatures: style.fontFeatures.map((f) => ({ ...f })) } : {}),
+    fontVariations: paragraphFontVariations(style),
+    ...(style.shadows
+      ? {
+          shadows: style.shadows.map((s) => ({
+            color: api.Color(s.color),
+            offset: s.offset,
+            blurRadius: s.blurSigma,
+          })),
+        }
+      : {}),
+  };
+}
+export function nativeParagraphStyle(
+  api: Skia,
+  input: TextLayoutInput,
+  primary: string,
+  families: readonly string[],
+): SkParagraphStyle {
+  const s = input.strutStyle,
+    b = input.textHeightBehavior;
+  return {
+    disableHinting: true,
+    replaceTabCharacters: true,
+    applyRoundingHack: false,
+    textAlign: ['left', 'right', 'center', 'justify', 'start', 'end'].indexOf(
+      input.textAlign ?? 'start',
+    ),
+    textDirection: input.direction === 'rtl' ? 0 : 1,
+    ...(input.unlimitedLines ? {} : { maxLines: input.maxLines! }),
+    ellipsis: input.ellipsis!,
+    ...(input.hyphens !== undefined ? { renderSoftHyphens: input.hyphens === 'manual' } : {}),
+    textStyle: nativeTextStyle(api, input, input.style ?? {}, primary, families),
+    textHeightBehavior:
+      (b?.applyHeightToFirstAscent === false ? 1 : 0) |
+      (b?.applyHeightToLastDescent === false ? 2 : 0),
+    ...(s
+      ? {
+          strutStyle: {
+            strutEnabled: true,
+            fontFamilies: names(s.fontFamilies, primary, families),
+            fontSize: (s.fontSize ?? input.fontSize) * (input.textScale ?? 1),
+            fontStyle: { weight: s.fontWeight ?? 400, slant: s.fontStyle === 'italic' ? 1 : 0 },
+            ...(s.height !== undefined ? { heightMultiplier: s.height } : {}),
+            halfLeading: (s.leadingDistribution ?? b?.leadingDistribution) === 'even',
+            leading: s.leading ?? 0,
+            forceStrutHeight: s.forceStrutHeight ?? false,
+          },
+        }
+      : {}),
+  };
+}

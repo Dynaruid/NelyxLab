@@ -1,14 +1,11 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { CanvasKit, Point } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { CanvasKit, Point } from 'canvaskit-wasm';
 
-import type {SkPoint} from "@nelyx/skia-native/skia/types/Point";
+import type { SkPoint } from '@nelyx/skia-native/skia/types/Point';
 
-import {BaseHostObject} from './Host.ts';
+import { BaseHostObject } from './Host.ts';
 
-export class JsiSkPoint
-  extends BaseHostObject<Point, "Point">
-  implements SkPoint
-{
+export class JsiSkPoint extends BaseHostObject<Point, 'Point'> implements SkPoint {
   static fromValue(point: SkPoint) {
     if (point instanceof JsiSkPoint) {
       return point.ref;
@@ -17,7 +14,7 @@ export class JsiSkPoint
   }
 
   constructor(CanvasKit: CanvasKit, ref: Point) {
-    super(CanvasKit, ref, "Point");
+    super(CanvasKit, ref, 'Point');
   }
 
   get x() {

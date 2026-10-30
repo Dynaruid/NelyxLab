@@ -1250,7 +1250,7 @@
   ],
   "output": {
     "file": "packages/material/src/generated/slider/slider-theme-fields.generated.ts",
-    "sha256": "be95a789924fc9094ab0266554863144d387752f839dda4e1ce6b4dedba44815"
+    "sha256": "5ffaa60322b5aee955b343b8d8de19367da19856f677155588394511ce52f2e4"
   },
   "scope": "All 36 final instance fields/types projected from full pinned resolved SliderThemeData IR. Three nullable double fields and the function-valued numeric signature retain only resolved analyzer metadata. Functional methods and owning widget/shape implementation are separate; whole class/body conversion and promotion are not inferred.",
   "previousReceipt": {

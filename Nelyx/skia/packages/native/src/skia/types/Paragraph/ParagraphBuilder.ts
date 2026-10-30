@@ -1,20 +1,20 @@
-import type {SkJSIInstance} from '../JsiInstance.ts';
-import type {SkPaint} from "../Drawing.ts";
+import type { SkJSIInstance } from '../JsiInstance.ts';
+import type { SkPaint } from '../Drawing.ts';
 
-import type {SkParagraph} from './Paragraph.ts';
-import type {SkParagraphStyle} from './ParagraphStyle.ts';
-import type {SkTextStyle, TextBaseline} from './TextStyle.ts';
-import type {SkTypefaceFontProvider} from './TypefaceFontProvider.ts';
+import type { SkParagraph } from './Paragraph.ts';
+import type { SkParagraphStyle } from './ParagraphStyle.ts';
+import type { SkTextStyle, TextBaseline } from './TextStyle.ts';
+import type { SkTypefaceFontProvider } from './TypefaceFontProvider.ts';
 
 export interface ParagraphBuilderFactory {
   /** Nelyx font-variation binding revision; absent in older native suppliers. */
-  nelyxTextStyleVersion?():number;
+  nelyxTextStyleVersion?(): number;
   /** Nelyx UTF16 glyph/word boundary binding; absent in older native suppliers. */
-  nelyxTextBoundaryVersion?():number;
+  nelyxTextBoundaryVersion?(): number;
   /** Directional boxes and height/width selection styles. */
-  nelyxTextBoxVersion?():number;
+  nelyxTextBoxVersion?(): number;
   /** API2: positive-infinite layout width, complete line metrics, UTF16 visible-line lookup and soft-hyphen policy. */
-  nelyxParagraphApiVersion?():number;
+  nelyxParagraphApiVersion?(): number;
   /**
    * Creates a new ParagraphBuilder object from custom fonts.
    * @param paragraphStyle Initial paragraph style
@@ -22,7 +22,7 @@ export interface ParagraphBuilderFactory {
    */
   Make(
     paragraphStyle?: SkParagraphStyle,
-    typefaceProvider?: SkTypefaceFontProvider
+    typefaceProvider?: SkTypefaceFontProvider,
   ): SkParagraphBuilder;
 }
 
@@ -54,7 +54,7 @@ export enum PlaceholderAlignment {
   Middle,
 }
 
-export interface SkParagraphBuilder extends SkJSIInstance<"ParagraphBuilder"> {
+export interface SkParagraphBuilder extends SkJSIInstance<'ParagraphBuilder'> {
   /**
    * Creates a Paragraph object from the builder and the inputs given to the builder.
    */
@@ -73,7 +73,7 @@ export interface SkParagraphBuilder extends SkJSIInstance<"ParagraphBuilder"> {
   pushStyle: (
     style: SkTextStyle,
     foregroundPaint?: SkPaint | undefined,
-    backgroundPaint?: SkPaint | undefined
+    backgroundPaint?: SkPaint | undefined,
   ) => SkParagraphBuilder;
   /**
    * Pops the current text style from the builder
@@ -99,6 +99,6 @@ export interface SkParagraphBuilder extends SkJSIInstance<"ParagraphBuilder"> {
     height?: number,
     alignment?: PlaceholderAlignment,
     baseline?: TextBaseline,
-    offset?: number
+    offset?: number,
   ): SkParagraphBuilder;
 }

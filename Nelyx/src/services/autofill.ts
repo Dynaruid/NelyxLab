@@ -1,50 +1,416 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {invariant} from '../foundation/errors.ts';
-import type {Disposable} from '../foundation/disposable.ts';
-import type {BinaryMessenger} from './binary-messenger.ts';
-import type {ViewOwner} from '../ui/types.ts';
-import {sameOwner} from '../ui/frame.ts';
-import {SystemChannelSet} from './system-channels.ts';
+import { invariant } from '../foundation/errors.ts';
+import type { Disposable } from '../foundation/disposable.ts';
+import type { BinaryMessenger } from './binary-messenger.ts';
+import type { ViewOwner } from '../ui/types.ts';
+import { sameOwner } from '../ui/frame.ts';
+import { SystemChannelSet } from './system-channels.ts';
 
-export type AutofillDisposeAction='commit'|'cancel'|'none';
-export interface AutofillCapabilities {readonly hints:boolean;readonly groups:'section'|'activity'|'unavailable';readonly request:boolean;readonly finish:boolean;readonly scope:'activity'|'unavailable';readonly provider:'enabled'|'disabled'|'unknown'}
-export interface AutofillRequestResult {readonly status:'requested'|'unavailable';readonly scope:'activity'|'unavailable';readonly reason:string|null}
-export interface AutofillGroupRegistration extends Disposable {readonly section:string;readonly owner:ViewOwner;readonly active:boolean;registerClient(id:string,hints:readonly string[]):Disposable;finish(shouldSave?:boolean):Promise<AutofillRequestResult>;reparent(parent:AutofillGroupRegistration|null):void;dispose(action?:AutofillDisposeAction):Promise<void>}
-const unavailableCapabilities:AutofillCapabilities=Object.freeze({hints:false,groups:'unavailable',request:false,finish:false,scope:'unavailable',provider:'unknown'});
-const unavailable=(reason:string):AutofillRequestResult=>Object.freeze({status:'unavailable',scope:'unavailable',reason});
-function capabilities(value:unknown):AutofillCapabilities{if(value===null)return unavailableCapabilities;invariant(value instanceof Map&&value.get('protocol')===1&&typeof value.get('hints')==='boolean'&&['section','activity','unavailable'].includes(value.get('groups'))&&typeof value.get('request')==='boolean'&&typeof value.get('finish')==='boolean'&&['activity','unavailable'].includes(value.get('scope'))&&['enabled','disabled','unknown'].includes(value.get('provider')),'invalid-autofill-capability','Invalid autofill capability acknowledgement');const result=Object.fromEntries(value) as unknown as AutofillCapabilities;invariant(!(result.request||result.finish)||result.scope==='activity','invalid-autofill-capability','Autofill context operations require an activity scope');return Object.freeze({hints:result.hints,groups:result.groups,request:result.request,finish:result.finish,scope:result.scope,provider:result.provider});}
-function result(value:unknown):AutofillRequestResult{if(value===null)return unavailable('not-implemented');invariant(value instanceof Map&&['requested','unavailable'].includes(value.get('status'))&&['activity','unavailable'].includes(value.get('scope'))&&(value.get('reason')===null||typeof value.get('reason')==='string'&&value.get('reason').length<=256),'invalid-autofill-result','Invalid autofill request acknowledgement');const status=value.get('status') as AutofillRequestResult['status'],scope=value.get('scope') as AutofillRequestResult['scope'];invariant(status!=='requested'||scope==='activity','invalid-autofill-result','Requested autofill operation requires activity scope');return Object.freeze({status,scope,reason:value.get('reason') as string|null});}
-interface Group {readonly owner:ViewOwner;readonly section:string;parent:Group|null;readonly action:AutofillDisposeAction;readonly clients:Set<string>;active:boolean;closing?:Promise<void>}
-let nextServiceNamespace=0;
+export type AutofillDisposeAction = 'commit' | 'cancel' | 'none';
+export interface AutofillCapabilities {
+  readonly hints: boolean;
+  readonly groups: 'section' | 'activity' | 'unavailable';
+  readonly request: boolean;
+  readonly finish: boolean;
+  readonly scope: 'activity' | 'unavailable';
+  readonly provider: 'enabled' | 'disabled' | 'unknown';
+}
+export interface AutofillRequestResult {
+  readonly status: 'requested' | 'unavailable';
+  readonly scope: 'activity' | 'unavailable';
+  readonly reason: string | null;
+}
+export interface AutofillGroupRegistration extends Disposable {
+  readonly section: string;
+  readonly owner: ViewOwner;
+  readonly active: boolean;
+  registerClient(id: string, hints: readonly string[]): Disposable;
+  finish(shouldSave?: boolean): Promise<AutofillRequestResult>;
+  reparent(parent: AutofillGroupRegistration | null): void;
+  dispose(action?: AutofillDisposeAction): Promise<void>;
+}
+const unavailableCapabilities: AutofillCapabilities = Object.freeze({
+  hints: false,
+  groups: 'unavailable',
+  request: false,
+  finish: false,
+  scope: 'unavailable',
+  provider: 'unknown',
+});
+const unavailable = (reason: string): AutofillRequestResult =>
+  Object.freeze({ status: 'unavailable', scope: 'unavailable', reason });
+function capabilities(value: unknown): AutofillCapabilities {
+  if (value === null) return unavailableCapabilities;
+  invariant(
+    value instanceof Map &&
+      value.get('protocol') === 1 &&
+      typeof value.get('hints') === 'boolean' &&
+      ['section', 'activity', 'unavailable'].includes(value.get('groups')) &&
+      typeof value.get('request') === 'boolean' &&
+      typeof value.get('finish') === 'boolean' &&
+      ['activity', 'unavailable'].includes(value.get('scope')) &&
+      ['enabled', 'disabled', 'unknown'].includes(value.get('provider')),
+    'invalid-autofill-capability',
+    'Invalid autofill capability acknowledgement',
+  );
+  const result = Object.fromEntries(value) as unknown as AutofillCapabilities;
+  invariant(
+    !(result.request || result.finish) || result.scope === 'activity',
+    'invalid-autofill-capability',
+    'Autofill context operations require an activity scope',
+  );
+  return Object.freeze({
+    hints: result.hints,
+    groups: result.groups,
+    request: result.request,
+    finish: result.finish,
+    scope: result.scope,
+    provider: result.provider,
+  });
+}
+function result(value: unknown): AutofillRequestResult {
+  if (value === null) return unavailable('not-implemented');
+  invariant(
+    value instanceof Map &&
+      ['requested', 'unavailable'].includes(value.get('status')) &&
+      ['activity', 'unavailable'].includes(value.get('scope')) &&
+      (value.get('reason') === null ||
+        (typeof value.get('reason') === 'string' && value.get('reason').length <= 256)),
+    'invalid-autofill-result',
+    'Invalid autofill request acknowledgement',
+  );
+  const status = value.get('status') as AutofillRequestResult['status'],
+    scope = value.get('scope') as AutofillRequestResult['scope'];
+  invariant(
+    status !== 'requested' || scope === 'activity',
+    'invalid-autofill-result',
+    'Requested autofill operation requires activity scope',
+  );
+  return Object.freeze({ status, scope, reason: value.get('reason') as string | null });
+}
+interface Group {
+  readonly owner: ViewOwner;
+  readonly section: string;
+  parent: Group | null;
+  readonly action: AutofillDisposeAction;
+  readonly clients: Set<string>;
+  active: boolean;
+  closing?: Promise<void>;
+}
+let nextServiceNamespace = 0;
 /** Per-messenger logical groups. Field values remain in the actual editing controls. */
 export class AutofillService implements Disposable {
-  private readonly namespace=++nextServiceNamespace;private closed=false;private sequence=0;private finishing=0;private completion:{readonly save:boolean;readonly promise:Promise<AutofillRequestResult>}|undefined;private readonly groups=new Set<Group>();private readonly handles=new WeakMap<AutofillGroupRegistration,Group>();private readonly clients=new Map<string,object>();
-  private readonly channel:SystemChannelSet['textInput']|null;
-  constructor(messenger:BinaryMessenger|null=null){invariant(Number.isSafeInteger(this.namespace),'autofill-service-budget','Too many autofill services');this.channel=messenger===null?null:new SystemChannelSet(messenger).textInput;}
-  get isClosed():boolean{return this.closed;}
-  private open():void{invariant(!this.closed,'closed-autofill-service','Autofill service is closed');}
-  async readCapabilities():Promise<AutofillCapabilities>{this.open();if(!this.channel)return unavailableCapabilities;try{const value=await this.channel.invokeMethod('TextInput.getAutofillCapabilities');return this.closed?unavailableCapabilities:capabilities(value);}catch(error){if(this.closed)return unavailableCapabilities;throw error;}}
-  private async invoke(method:string,args:unknown):Promise<AutofillRequestResult>{this.open();if(!this.channel)return unavailable('no-messenger');try{const value=await this.channel.invokeMethod(method,args);return this.closed?unavailable('closed'):result(value);}catch(error){if(this.closed)return unavailable('closed');throw error;}}
-  requestAutofill():Promise<AutofillRequestResult>{this.open();invariant(this.finishing===0,'pending-autofill-context','Await autofill context completion before requesting another fill');return this.invoke('TextInput.requestAutofill',null);}
+  private readonly namespace = ++nextServiceNamespace;
+  private closed = false;
+  private sequence = 0;
+  private finishing = 0;
+  private completion:
+    | { readonly save: boolean; readonly promise: Promise<AutofillRequestResult> }
+    | undefined;
+  private readonly groups = new Set<Group>();
+  private readonly handles = new WeakMap<AutofillGroupRegistration, Group>();
+  private readonly clients = new Map<string, object>();
+  private readonly channel: SystemChannelSet['textInput'] | null;
+  constructor(messenger: BinaryMessenger | null = null) {
+    invariant(
+      Number.isSafeInteger(this.namespace),
+      'autofill-service-budget',
+      'Too many autofill services',
+    );
+    this.channel = messenger === null ? null : new SystemChannelSet(messenger).textInput;
+  }
+  get isClosed(): boolean {
+    return this.closed;
+  }
+  private open(): void {
+    invariant(!this.closed, 'closed-autofill-service', 'Autofill service is closed');
+  }
+  async readCapabilities(): Promise<AutofillCapabilities> {
+    this.open();
+    if (!this.channel) return unavailableCapabilities;
+    try {
+      const value = await this.channel.invokeMethod('TextInput.getAutofillCapabilities');
+      return this.closed ? unavailableCapabilities : capabilities(value);
+    } catch (error) {
+      if (this.closed) return unavailableCapabilities;
+      throw error;
+    }
+  }
+  private async invoke(method: string, args: unknown): Promise<AutofillRequestResult> {
+    this.open();
+    if (!this.channel) return unavailable('no-messenger');
+    try {
+      const value = await this.channel.invokeMethod(method, args);
+      return this.closed ? unavailable('closed') : result(value);
+    } catch (error) {
+      if (this.closed) return unavailable('closed');
+      throw error;
+    }
+  }
+  requestAutofill(): Promise<AutofillRequestResult> {
+    this.open();
+    invariant(
+      this.finishing === 0,
+      'pending-autofill-context',
+      'Await autofill context completion before requesting another fill',
+    );
+    return this.invoke('TextInput.requestAutofill', null);
+  }
   /** Acknowledges an OS request, never that a password manager saved data. */
-  finishAutofillContext(shouldSave=true):Promise<AutofillRequestResult>{
-    this.open();invariant(typeof shouldSave==='boolean','invalid-autofill-disposition','Autofill disposition must be boolean');if(this.completion){invariant(this.completion.save===shouldSave,'conflicting-autofill-completion','A different autofill disposition is already pending');return this.completion.promise;}
-    let resolve!:(value:AutofillRequestResult)=>void,reject!:(error:unknown)=>void;const promise=new Promise<AutofillRequestResult>((done,fail)=>{resolve=done;reject=fail;});this.completion={save:shouldSave,promise};this.finishing++;
-    void this.invoke('TextInput.finishAutofillContext',shouldSave).then(value=>{this.completion=undefined;this.finishing--;resolve(value);},error=>{this.completion=undefined;this.finishing--;reject(error);});return promise;
+  finishAutofillContext(shouldSave = true): Promise<AutofillRequestResult> {
+    this.open();
+    invariant(
+      typeof shouldSave === 'boolean',
+      'invalid-autofill-disposition',
+      'Autofill disposition must be boolean',
+    );
+    if (this.completion) {
+      invariant(
+        this.completion.save === shouldSave,
+        'conflicting-autofill-completion',
+        'A different autofill disposition is already pending',
+      );
+      return this.completion.promise;
+    }
+    let resolve!: (value: AutofillRequestResult) => void, reject!: (error: unknown) => void;
+    const promise = new Promise<AutofillRequestResult>((done, fail) => {
+      resolve = done;
+      reject = fail;
+    });
+    this.completion = { save: shouldSave, promise };
+    this.finishing++;
+    void this.invoke('TextInput.finishAutofillContext', shouldSave).then(
+      (value) => {
+        this.completion = undefined;
+        this.finishing--;
+        resolve(value);
+      },
+      (error) => {
+        this.completion = undefined;
+        this.finishing--;
+        reject(error);
+      },
+    );
+    return promise;
   }
-  beginGroup(owner:ViewOwner,{parent=null,onDisposeAction='none'}:{readonly parent?:AutofillGroupRegistration|null;readonly onDisposeAction?:AutofillDisposeAction}={}):AutofillGroupRegistration{
-    this.open();invariant(this.finishing===0,'pending-autofill-context','Await autofill context completion before beginning another group');invariant(typeof owner.id==='string'&&owner.id.length>0&&owner.id.length<=1024&&Number.isSafeInteger(owner.generation)&&owner.generation>0,'invalid-autofill-owner','Autofill owner must be bounded and current');invariant(this.groups.size<256&&this.sequence<Number.MAX_SAFE_INTEGER,'autofill-group-budget','Too many autofill groups');invariant(['commit','cancel','none'].includes(onDisposeAction),'invalid-autofill-disposition','Unknown autofill dispose action');
-    const ancestor=parent===null?null:this.handles.get(parent);invariant(parent===null||ancestor?.active&&sameOwner(ancestor.owner,owner),'foreign-autofill-group','Autofill parent belongs to another service or View');let depth=0;for(let node=ancestor;node;node=node.parent)invariant(++depth<64,'autofill-group-depth','Autofill nesting exceeds 64');
-    const encoded=Array.from({length:owner.id.length},(_,index)=>owner.id.charCodeAt(index).toString(16).padStart(4,'0')).join(''),group:Group={owner:Object.freeze({...owner}),section:`nelyx-${this.namespace}-${encoded}-${owner.generation}-${++this.sequence}`,parent:ancestor??null,action:onDisposeAction,clients:new Set(),active:true};this.groups.add(group);
-    const handle:AutofillGroupRegistration=Object.freeze({section:group.section,owner:group.owner,get active(){return group.active;},registerClient:(id:string,hints:readonly string[])=>this.register(group,id,hints),finish:(shouldSave=true)=>{this.open();invariant(typeof shouldSave==='boolean','invalid-autofill-disposition','Autofill disposition must be boolean');invariant(group.active,'closed-autofill-group','Autofill group is closed');if(group.parent||[...this.groups].some(other=>other.active&&!other.parent&&other!==group))return Promise.resolve(unavailable('other-groups-active'));return this.finishAutofillContext(shouldSave);},reparent:(parent:AutofillGroupRegistration|null)=>this.reparent(group,parent),dispose:(action?:AutofillDisposeAction)=>this.release(group,action)});this.handles.set(handle,group);return handle;
+  beginGroup(
+    owner: ViewOwner,
+    {
+      parent = null,
+      onDisposeAction = 'none',
+    }: {
+      readonly parent?: AutofillGroupRegistration | null;
+      readonly onDisposeAction?: AutofillDisposeAction;
+    } = {},
+  ): AutofillGroupRegistration {
+    this.open();
+    invariant(
+      this.finishing === 0,
+      'pending-autofill-context',
+      'Await autofill context completion before beginning another group',
+    );
+    invariant(
+      typeof owner.id === 'string' &&
+        owner.id.length > 0 &&
+        owner.id.length <= 1024 &&
+        Number.isSafeInteger(owner.generation) &&
+        owner.generation > 0,
+      'invalid-autofill-owner',
+      'Autofill owner must be bounded and current',
+    );
+    invariant(
+      this.groups.size < 256 && this.sequence < Number.MAX_SAFE_INTEGER,
+      'autofill-group-budget',
+      'Too many autofill groups',
+    );
+    invariant(
+      ['commit', 'cancel', 'none'].includes(onDisposeAction),
+      'invalid-autofill-disposition',
+      'Unknown autofill dispose action',
+    );
+    const ancestor = parent === null ? null : this.handles.get(parent);
+    invariant(
+      parent === null || (ancestor?.active && sameOwner(ancestor.owner, owner)),
+      'foreign-autofill-group',
+      'Autofill parent belongs to another service or View',
+    );
+    let depth = 0;
+    for (let node = ancestor; node; node = node.parent)
+      invariant(++depth < 64, 'autofill-group-depth', 'Autofill nesting exceeds 64');
+    const encoded = Array.from({ length: owner.id.length }, (_, index) =>
+        owner.id.charCodeAt(index).toString(16).padStart(4, '0'),
+      ).join(''),
+      group: Group = {
+        owner: Object.freeze({ ...owner }),
+        section: `nelyx-${this.namespace}-${encoded}-${owner.generation}-${++this.sequence}`,
+        parent: ancestor ?? null,
+        action: onDisposeAction,
+        clients: new Set(),
+        active: true,
+      };
+    this.groups.add(group);
+    const handle: AutofillGroupRegistration = Object.freeze({
+      section: group.section,
+      owner: group.owner,
+      get active() {
+        return group.active;
+      },
+      registerClient: (id: string, hints: readonly string[]) => this.register(group, id, hints),
+      finish: (shouldSave = true) => {
+        this.open();
+        invariant(
+          typeof shouldSave === 'boolean',
+          'invalid-autofill-disposition',
+          'Autofill disposition must be boolean',
+        );
+        invariant(group.active, 'closed-autofill-group', 'Autofill group is closed');
+        if (
+          group.parent ||
+          [...this.groups].some((other) => other.active && !other.parent && other !== group)
+        )
+          return Promise.resolve(unavailable('other-groups-active'));
+        return this.finishAutofillContext(shouldSave);
+      },
+      reparent: (parent: AutofillGroupRegistration | null) => this.reparent(group, parent),
+      dispose: (action?: AutofillDisposeAction) => this.release(group, action),
+    });
+    this.handles.set(handle, group);
+    return handle;
   }
-  private reparent(group:Group,parent:AutofillGroupRegistration|null):void{
-    this.open();invariant(group.active,'closed-autofill-group','Autofill group is closed');const ancestor=parent===null?null:this.handles.get(parent);invariant(parent===null||ancestor?.active&&sameOwner(ancestor.owner,group.owner),'foreign-autofill-group','Autofill parent belongs to another service or View');if(ancestor===group.parent)return;
-    invariant(this.finishing===0,'pending-autofill-context','Await autofill context completion before moving a group');let depth=0;for(let node=ancestor;node;node=node.parent){invariant(node!==group,'cyclic-autofill-group','Autofill groups cannot contain themselves');depth++;}
-    for(const candidate of this.groups){let distance=0,node:Group|null=candidate;while(node&&node!==group){distance++;node=node.parent;}if(node===group)invariant(depth+distance<64,'autofill-group-depth','Autofill nesting exceeds 64');}group.parent=ancestor??null;
+  private reparent(group: Group, parent: AutofillGroupRegistration | null): void {
+    this.open();
+    invariant(group.active, 'closed-autofill-group', 'Autofill group is closed');
+    const ancestor = parent === null ? null : this.handles.get(parent);
+    invariant(
+      parent === null || (ancestor?.active && sameOwner(ancestor.owner, group.owner)),
+      'foreign-autofill-group',
+      'Autofill parent belongs to another service or View',
+    );
+    if (ancestor === group.parent) return;
+    invariant(
+      this.finishing === 0,
+      'pending-autofill-context',
+      'Await autofill context completion before moving a group',
+    );
+    let depth = 0;
+    for (let node = ancestor; node; node = node.parent) {
+      invariant(
+        node !== group,
+        'cyclic-autofill-group',
+        'Autofill groups cannot contain themselves',
+      );
+      depth++;
+    }
+    for (const candidate of this.groups) {
+      let distance = 0,
+        node: Group | null = candidate;
+      while (node && node !== group) {
+        distance++;
+        node = node.parent;
+      }
+      if (node === group)
+        invariant(depth + distance < 64, 'autofill-group-depth', 'Autofill nesting exceeds 64');
+    }
+    group.parent = ancestor ?? null;
   }
-  private register(group:Group,id:string,hints:readonly string[]):Disposable{this.open();invariant(this.finishing===0,'pending-autofill-context','Await autofill context completion before registering a new client');invariant(group.active&&typeof id==='string'&&id.length>0&&id.length<=1024&&Array.isArray(hints)&&hints.length<=32&&hints.every(hint=>typeof hint==='string'&&hint.length>0&&hint.length<=100&&/^[a-zA-Z][a-zA-Z0-9-]*$/.test(hint)),'invalid-autofill-client','Autofill client metadata must be bounded');invariant(this.clients.size<1024,'autofill-client-budget','Too many autofill clients');const key=JSON.stringify([group.owner.id,group.owner.generation,id]);invariant(!this.clients.has(key),'duplicate-autofill-client','Autofill client already belongs to a live group');const token={};this.clients.set(key,token);group.clients.add(key);let live=true;return {dispose:()=>{if(!live)return;live=false;group.clients.delete(key);if(this.clients.get(key)===token)this.clients.delete(key);}};}
-  private release(group:Group,action:AutofillDisposeAction=group.action):Promise<void>{invariant(['commit','cancel','none'].includes(action),'invalid-autofill-disposition','Unknown autofill dispose action');if(group.closing)return group.closing;if(!group.active)return Promise.resolve();let resolve!:()=>void,reject!:(error:unknown)=>void;group.closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});const children=[...this.groups].filter(child=>{let parent=child.parent;while(parent){if(parent===group)return true;parent=parent.parent;}return false;});for(const child of [...children,group]){child.active=false;this.groups.delete(child);for(const key of child.clients)this.clients.delete(key);child.clients.clear();}if(this.closed||group.parent||action==='none'||[...this.groups].some(other=>other.active&&!other.parent)){resolve();return group.closing;}try{void this.finishAutofillContext(action==='commit').then(()=>resolve(),reject);}catch(error){reject(error);}return group.closing;}
-  get debugStats(){return Object.freeze({groups:this.groups.size,clients:this.clients.size});}
-  dispose():void{if(this.closed)return;this.closed=true;for(const group of this.groups){group.active=false;group.clients.clear();}this.groups.clear();this.clients.clear();}
+  private register(group: Group, id: string, hints: readonly string[]): Disposable {
+    this.open();
+    invariant(
+      this.finishing === 0,
+      'pending-autofill-context',
+      'Await autofill context completion before registering a new client',
+    );
+    invariant(
+      group.active &&
+        typeof id === 'string' &&
+        id.length > 0 &&
+        id.length <= 1024 &&
+        Array.isArray(hints) &&
+        hints.length <= 32 &&
+        hints.every(
+          (hint) =>
+            typeof hint === 'string' &&
+            hint.length > 0 &&
+            hint.length <= 100 &&
+            /^[a-zA-Z][a-zA-Z0-9-]*$/.test(hint),
+        ),
+      'invalid-autofill-client',
+      'Autofill client metadata must be bounded',
+    );
+    invariant(this.clients.size < 1024, 'autofill-client-budget', 'Too many autofill clients');
+    const key = JSON.stringify([group.owner.id, group.owner.generation, id]);
+    invariant(
+      !this.clients.has(key),
+      'duplicate-autofill-client',
+      'Autofill client already belongs to a live group',
+    );
+    const token = {};
+    this.clients.set(key, token);
+    group.clients.add(key);
+    let live = true;
+    return {
+      dispose: () => {
+        if (!live) return;
+        live = false;
+        group.clients.delete(key);
+        if (this.clients.get(key) === token) this.clients.delete(key);
+      },
+    };
+  }
+  private release(group: Group, action: AutofillDisposeAction = group.action): Promise<void> {
+    invariant(
+      ['commit', 'cancel', 'none'].includes(action),
+      'invalid-autofill-disposition',
+      'Unknown autofill dispose action',
+    );
+    if (group.closing) return group.closing;
+    if (!group.active) return Promise.resolve();
+    let resolve!: () => void, reject!: (error: unknown) => void;
+    group.closing = new Promise<void>((done, fail) => {
+      resolve = done;
+      reject = fail;
+    });
+    const children = [...this.groups].filter((child) => {
+      let parent = child.parent;
+      while (parent) {
+        if (parent === group) return true;
+        parent = parent.parent;
+      }
+      return false;
+    });
+    for (const child of [...children, group]) {
+      child.active = false;
+      this.groups.delete(child);
+      for (const key of child.clients) this.clients.delete(key);
+      child.clients.clear();
+    }
+    if (
+      this.closed ||
+      group.parent ||
+      action === 'none' ||
+      [...this.groups].some((other) => other.active && !other.parent)
+    ) {
+      resolve();
+      return group.closing;
+    }
+    try {
+      void this.finishAutofillContext(action === 'commit').then(() => resolve(), reject);
+    } catch (error) {
+      reject(error);
+    }
+    return group.closing;
+  }
+  get debugStats() {
+    return Object.freeze({ groups: this.groups.size, clients: this.clients.size });
+  }
+  dispose(): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const group of this.groups) {
+      group.active = false;
+      group.clients.clear();
+    }
+    this.groups.clear();
+    this.clients.clear();
+  }
 }

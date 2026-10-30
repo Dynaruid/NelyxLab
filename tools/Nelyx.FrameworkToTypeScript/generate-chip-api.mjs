@@ -1,38 +1,263 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { relocateProductModule } from './product-module-layout.mjs';
 // Finite resolved public-field/constructor projection; State/render/default bodies are functional ports.
-import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
-const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-chips-candidate/result.json',candidate=read(candidateFile);assert.equal(sha(candidate.ir.file),candidate.ir.sha256);const ir=read(candidate.ir.file),check=process.argv.includes('--check'),outputs=[];
-const bound=new Set(['Widget','TextStyle','EdgeInsetsGeometry','BorderSide','OutlinedBorder','ShapeBorder','Clip','FocusNode','Color','WidgetStateProperty','VisualDensity','MaterialTapTargetSize','IconThemeData','BoxConstraints','ChipAnimationStyle','MouseCursor','ChipThemeData']);
-function type(t){let s;if(t.kind==='void')s='void';else if(t.kind==='function')s='(('+t.parameters.map((p,i)=>'value'+i+':'+type(p.type)).join(',')+')=>'+type(t.returnType)+')';else if(t.kind==='interface'){const name=t.reference.name;if(t.reference.id==='dart:core::bool:CLASS')s='boolean';else if(t.reference.id==='dart:core::String:CLASS')s='string';else if(['dart:core::double:CLASS','dart:core::int:CLASS'].includes(t.reference.id))s='number';else{assert(bound.has(name),'Unbound source type '+t.reference.id);s=name+(t.arguments?.length?'<'+t.arguments.map(type).join(',')+'>':'');}}else throw Error('Unsupported resolved type '+t.kind);return s+(t.nullable?'|null':'');}
-const ownershipFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json',previousOwnership=fs.existsSync(ownershipFile)?JSON.parse(fs.readFileSync(ownershipFile,'utf8')):null;
-const header=`// SPDX-License-Identifier: BSD-3-Clause
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8')),
+  sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
+  ref = (file) => ({ file, sha256: sha(file) }),
+  candidateFile = '.tmp/work8/w11-chips-candidate/result.json',
+  candidate = read(candidateFile);
+assert.equal(sha(candidate.ir.file), candidate.ir.sha256);
+const ir = read(candidate.ir.file),
+  check = process.argv.includes('--check'),
+  outputs = [];
+const bound = new Set([
+  'Widget',
+  'TextStyle',
+  'EdgeInsetsGeometry',
+  'BorderSide',
+  'OutlinedBorder',
+  'ShapeBorder',
+  'Clip',
+  'FocusNode',
+  'Color',
+  'WidgetStateProperty',
+  'VisualDensity',
+  'MaterialTapTargetSize',
+  'IconThemeData',
+  'BoxConstraints',
+  'ChipAnimationStyle',
+  'MouseCursor',
+  'ChipThemeData',
+]);
+function type(t) {
+  let s;
+  if (t.kind === 'void') s = 'void';
+  else if (t.kind === 'function')
+    s =
+      '((' +
+      t.parameters.map((p, i) => 'value' + i + ':' + type(p.type)).join(',') +
+      ')=>' +
+      type(t.returnType) +
+      ')';
+  else if (t.kind === 'interface') {
+    const name = t.reference.name;
+    if (t.reference.id === 'dart:core::bool:CLASS') s = 'boolean';
+    else if (t.reference.id === 'dart:core::String:CLASS') s = 'string';
+    else if (['dart:core::double:CLASS', 'dart:core::int:CLASS'].includes(t.reference.id))
+      s = 'number';
+    else {
+      assert(bound.has(name), 'Unbound source type ' + t.reference.id);
+      s = name + (t.arguments?.length ? '<' + t.arguments.map(type).join(',') + '>' : '');
+    }
+  } else throw Error('Unsupported resolved type ' + t.kind);
+  return s + (t.nullable ? '|null' : '');
+}
+const ownershipFile = 'tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json',
+  previousOwnership = fs.existsSync(ownershipFile)
+    ? JSON.parse(fs.readFileSync(ownershipFile, 'utf8'))
+    : null;
+const header = `// SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Resolved API projection from the assessed full pinned source IR; functional build/State/render owners are explicit.
 import {StatefulWidget,StatelessWidget,Widget} from '@nelyx/core/framework/widgets/framework';import type {WidgetOptions,State,BuildContext} from '@nelyx/core/framework/widgets/framework';
 import type {TextStyle} from '@nelyx/core/framework/painting/text-style';import type {EdgeInsetsGeometry} from '@nelyx/core/framework/painting/edge-insets';import type {BorderSide,OutlinedBorder,ShapeBorder} from '@nelyx/core/framework/painting/borders';import {CircleBorder} from '@nelyx/core/framework/painting/circle-border';import type {Clip} from '@nelyx/core/ui/clip';import type {FocusNode} from '@nelyx/core/framework/widgets/focus';import type {Color} from '@nelyx/core/ui/color';import type {WidgetStateProperty} from '@nelyx/core/framework/widgets/widget-state';import type {VisualDensity,MaterialTapTargetSize} from './theme-data.ts';import type {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';import type {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';import type {ChipAnimationStyle} from './chip-animation-style.ts';import type {MouseCursor} from '@nelyx/core/services/mouse-cursor';import type {ChipThemeData} from './chip-theme.ts';import {ChipTheme} from './chip-theme.ts';import {Icon} from '@nelyx/core/framework/widgets/icon';import {Icons} from './icons.ts';import {chipDefaultsM3} from './chip-defaults.ts';import {invariant} from '@nelyx/core/foundation/errors';
 `;
-const numeric=n=>n?`/** @dartType ${n.type} */ `:'',constructorNumeric=r=>r.constructor.parameters.filter(p=>p.numeric).map(p=>' * @dartParam '+p.name+' '+p.numeric.type).join('\n');
-function defaultValue(p){const d=p.default;if(d===null){assert(p.required||p.resolvedType.nullable,'Missing source default '+p.name);return p.required?'o.'+p.name:'o.'+p.name+'??null';}if(d.kind==='literal')return 'o.'+p.name+'??'+JSON.stringify(d.value);if(d.kind==='property'&&d.reference.id==='dart:ui::Clip.none:GETTER')return 'o.'+p.name+"??'none'";if(d.kind==='construct'&&d.reference.id==='package:flutter/src/painting/circle_border.dart::CircleBorder.CircleBorder.new:CONSTRUCTOR'&&d.args.length===0)return 'o.'+p.name+'??new CircleBorder()';throw Error('Unbound source default '+p.name);}
-function emit(symbol,file,extra=''){
-  const r=ir.records.find(r=>r.symbol===symbol).ir,raw=symbol==='RawChip',fields=r.fields.filter(f=>!f.name.startsWith('_')),params=r.constructor.parameters.filter(p=>p.name!=='key');let text=header+extra;
-  text+='export interface '+symbol+'Options extends WidgetOptions {\n'+params.map(p=>'  '+numeric(p.numeric)+'readonly '+p.name+(p.required?'':'?')+':'+type(p.resolvedType)+';').join('\n')+'\n}\n';
-  text+='export class '+symbol+' extends '+(raw?'StatefulWidget':'StatelessWidget')+' {\n'+fields.map(f=>'  '+numeric(f.numeric)+'readonly '+f.name+':'+type(f.type)+';').join('\n')+'\n';if(['ActionChip','ChoiceChip','FilterChip'].includes(symbol))text+='  private elevatedVariant=false;\n  get isEnabled():boolean{return this.'+(symbol==='ActionChip'?'onPressed':'onSelected')+'!==null;}\n';
-  text+='  /**\n'+constructorNumeric(r)+'\n   */\n  constructor(o:'+symbol+'Options){super(o.key??null);invariant(o.label instanceof Widget,\'invalid-chip-label\',\'Chip requires an owning Widget label\');\n';for(const f of fields){const p=params.find(p=>p.name===f.name);assert(p,'Missing field parameter '+f.name);let value=defaultValue(p);if(raw&&f.name==='deleteIcon')value='o.deleteIcon??defaultDeleteIcon';text+='    this.'+f.name+'='+value+';\n';}for(const f of ['elevation','pressElevation'].filter(n=>fields.some(f=>f.name===n)))text+=`    invariant(this.${f}===null||this.${f}>=0,'invalid-chip-elevation','Chip elevation must be nonnegative');\n`;text+='  }\n';
-  if(raw)text+='  createState():State{return new RawChipState();}\n';else{
-    if(['ActionChip','ChoiceChip','FilterChip'].includes(symbol))text+='  /**\n'+constructorNumeric(r)+'\n   */\n  static elevated(o:'+symbol+'Options):'+symbol+'{const result=new '+symbol+'(o);result.elevatedVariant=true;return result;}\n';
-    const projections=fields.map(f=>f.name+':this.'+f.name),overrides=[];
-    if(symbol==='Chip')overrides.push('tapEnabled:false');
-    else{overrides.push("defaultProperties:chipDefaultsM3(context,'"+symbol+"',this.isEnabled,"+(fields.some(f=>f.name==='selected')?'this.selected':'false')+','+(symbol==='InputChip'?'false':'this.elevatedVariant')+')');if(symbol!=='InputChip')overrides.push('isEnabled:this.isEnabled');}
-    if(symbol==='ChoiceChip')overrides.push('labelStyle:this.labelStyle??(this.selected?ChipTheme.of(context).secondaryLabelStyle:null)','showCheckmark:this.showCheckmark??ChipTheme.of(context).showCheckmark??true','selectedColor:this.selectedColor??ChipTheme.of(context).secondarySelectedColor');
-    if(symbol==='FilterChip'||symbol==='InputChip')overrides.push('deleteIcon:this.deleteIcon??new Icon(Icons.clear,{size:18})');
-    if(symbol==='InputChip')overrides.push('isEnabled:this.isEnabled&&(this.onSelected!==null||this.onDeleted!==null||this.onPressed!==null)');
-    const replaced=new Set(overrides.map(p=>p.split(':')[0]));text+='  build(context:BuildContext):Widget{return new RawChip({'+[...projections.filter(p=>!replaced.has(p.split(':')[0])),...overrides].join(',')+'});}\n';
-  }text+='}\n';({file,text}=relocateProductModule(file,text));if(check)assert.equal(fs.readFileSync(file,'utf8'),text,file);else{if(fs.existsSync(file)){const prior=previousOwnership?.outputs.find(row=>row.file===file);assert(prior&&prior.sha256===sha(file),'Edited managed Chip API '+file);}fs.writeFileSync(file,text);}outputs.push({...ref(file),symbol,numericFields:fields.filter(f=>f.numeric).map(f=>({name:f.name,numeric:f.numeric}))});
+const numeric = (n) => (n ? `/** @dartType ${n.type} */ ` : ''),
+  constructorNumeric = (r) =>
+    r.constructor.parameters
+      .filter((p) => p.numeric)
+      .map((p) => ' * @dartParam ' + p.name + ' ' + p.numeric.type)
+      .join('\n');
+function defaultValue(p) {
+  const d = p.default;
+  if (d === null) {
+    assert(p.required || p.resolvedType.nullable, 'Missing source default ' + p.name);
+    return p.required ? 'o.' + p.name : 'o.' + p.name + '??null';
+  }
+  if (d.kind === 'literal') return 'o.' + p.name + '??' + JSON.stringify(d.value);
+  if (d.kind === 'property' && d.reference.id === 'dart:ui::Clip.none:GETTER')
+    return 'o.' + p.name + "??'none'";
+  if (
+    d.kind === 'construct' &&
+    d.reference.id ===
+      'package:flutter/src/painting/circle_border.dart::CircleBorder.CircleBorder.new:CONSTRUCTOR' &&
+    d.args.length === 0
+  )
+    return 'o.' + p.name + '??new CircleBorder()';
+  throw Error('Unbound source default ' + p.name);
 }
-let attributes='';for(const symbol of ['ChipAttributes','DeletableChipAttributes','SelectableChipAttributes','CheckmarkableChipAttributes','DisabledChipAttributes','TappableChipAttributes']){const r=ir.records.find(r=>r.symbol===symbol).ir;attributes+='export interface '+symbol+' {\n'+r.methods.map(m=>'  '+numeric(m.numericReturn)+'readonly '+m.name+':'+type(m.returnType)+';').join('\n')+'\n}\n';}
-emit('RawChip','packages/material/src/raw-chip.ts',"import {RawChipState} from './raw-chip-state.ts';\nexport {ChipAnimationStyle} from './chip-animation-style.ts';\nconst defaultDeleteIcon=new Icon(Icons.cancel);\n"+attributes);
+function emit(symbol, file, extra = '') {
+  const r = ir.records.find((r) => r.symbol === symbol).ir,
+    raw = symbol === 'RawChip',
+    fields = r.fields.filter((f) => !f.name.startsWith('_')),
+    params = r.constructor.parameters.filter((p) => p.name !== 'key');
+  let text = header + extra;
+  text +=
+    'export interface ' +
+    symbol +
+    'Options extends WidgetOptions {\n' +
+    params
+      .map(
+        (p) =>
+          '  ' +
+          numeric(p.numeric) +
+          'readonly ' +
+          p.name +
+          (p.required ? '' : '?') +
+          ':' +
+          type(p.resolvedType) +
+          ';',
+      )
+      .join('\n') +
+    '\n}\n';
+  text +=
+    'export class ' +
+    symbol +
+    ' extends ' +
+    (raw ? 'StatefulWidget' : 'StatelessWidget') +
+    ' {\n' +
+    fields
+      .map((f) => '  ' + numeric(f.numeric) + 'readonly ' + f.name + ':' + type(f.type) + ';')
+      .join('\n') +
+    '\n';
+  if (['ActionChip', 'ChoiceChip', 'FilterChip'].includes(symbol))
+    text +=
+      '  private elevatedVariant=false;\n  get isEnabled():boolean{return this.' +
+      (symbol === 'ActionChip' ? 'onPressed' : 'onSelected') +
+      '!==null;}\n';
+  text +=
+    '  /**\n' +
+    constructorNumeric(r) +
+    '\n   */\n  constructor(o:' +
+    symbol +
+    "Options){super(o.key??null);invariant(o.label instanceof Widget,'invalid-chip-label','Chip requires an owning Widget label');\n";
+  for (const f of fields) {
+    const p = params.find((p) => p.name === f.name);
+    assert(p, 'Missing field parameter ' + f.name);
+    let value = defaultValue(p);
+    if (raw && f.name === 'deleteIcon') value = 'o.deleteIcon??defaultDeleteIcon';
+    text += '    this.' + f.name + '=' + value + ';\n';
+  }
+  for (const f of ['elevation', 'pressElevation'].filter((n) => fields.some((f) => f.name === n)))
+    text += `    invariant(this.${f}===null||this.${f}>=0,'invalid-chip-elevation','Chip elevation must be nonnegative');\n`;
+  text += '  }\n';
+  if (raw) text += '  createState():State{return new RawChipState();}\n';
+  else {
+    if (['ActionChip', 'ChoiceChip', 'FilterChip'].includes(symbol))
+      text +=
+        '  /**\n' +
+        constructorNumeric(r) +
+        '\n   */\n  static elevated(o:' +
+        symbol +
+        'Options):' +
+        symbol +
+        '{const result=new ' +
+        symbol +
+        '(o);result.elevatedVariant=true;return result;}\n';
+    const projections = fields.map((f) => f.name + ':this.' + f.name),
+      overrides = [];
+    if (symbol === 'Chip') overrides.push('tapEnabled:false');
+    else {
+      overrides.push(
+        "defaultProperties:chipDefaultsM3(context,'" +
+          symbol +
+          "',this.isEnabled," +
+          (fields.some((f) => f.name === 'selected') ? 'this.selected' : 'false') +
+          ',' +
+          (symbol === 'InputChip' ? 'false' : 'this.elevatedVariant') +
+          ')',
+      );
+      if (symbol !== 'InputChip') overrides.push('isEnabled:this.isEnabled');
+    }
+    if (symbol === 'ChoiceChip')
+      overrides.push(
+        'labelStyle:this.labelStyle??(this.selected?ChipTheme.of(context).secondaryLabelStyle:null)',
+        'showCheckmark:this.showCheckmark??ChipTheme.of(context).showCheckmark??true',
+        'selectedColor:this.selectedColor??ChipTheme.of(context).secondarySelectedColor',
+      );
+    if (symbol === 'FilterChip' || symbol === 'InputChip')
+      overrides.push('deleteIcon:this.deleteIcon??new Icon(Icons.clear,{size:18})');
+    if (symbol === 'InputChip')
+      overrides.push(
+        'isEnabled:this.isEnabled&&(this.onSelected!==null||this.onDeleted!==null||this.onPressed!==null)',
+      );
+    const replaced = new Set(overrides.map((p) => p.split(':')[0]));
+    text +=
+      '  build(context:BuildContext):Widget{return new RawChip({' +
+      [...projections.filter((p) => !replaced.has(p.split(':')[0])), ...overrides].join(',') +
+      '});}\n';
+  }
+  text += '}\n';
+  ({ file, text } = relocateProductModule(file, text));
+  if (check) assert.equal(fs.readFileSync(file, 'utf8'), text, file);
+  else {
+    if (fs.existsSync(file)) {
+      const prior = previousOwnership?.outputs.find((row) => row.file === file);
+      assert(prior && prior.sha256 === sha(file), 'Edited managed Chip API ' + file);
+    }
+    fs.writeFileSync(file, text);
+  }
+  outputs.push({
+    ...ref(file),
+    symbol,
+    numericFields: fields
+      .filter((f) => f.numeric)
+      .map((f) => ({ name: f.name, numeric: f.numeric })),
+  });
+}
+let attributes = '';
+for (const symbol of [
+  'ChipAttributes',
+  'DeletableChipAttributes',
+  'SelectableChipAttributes',
+  'CheckmarkableChipAttributes',
+  'DisabledChipAttributes',
+  'TappableChipAttributes',
+]) {
+  const r = ir.records.find((r) => r.symbol === symbol).ir;
+  attributes +=
+    'export interface ' +
+    symbol +
+    ' {\n' +
+    r.methods
+      .map(
+        (m) =>
+          '  ' + numeric(m.numericReturn) + 'readonly ' + m.name + ':' + type(m.returnType) + ';',
+      )
+      .join('\n') +
+    '\n}\n';
+}
+emit(
+  'RawChip',
+  'packages/material/src/raw-chip.ts',
+  "import {RawChipState} from './raw-chip-state.ts';\nexport {ChipAnimationStyle} from './chip-animation-style.ts';\nconst defaultDeleteIcon=new Icon(Icons.cancel);\n" +
+    attributes,
+);
 // Generated Chip wrappers depend directly on the RawChip owner, independently from the public grouping facade.
-const chipFile='packages/material/src/chip-wrapper.generated.ts';emit('Chip',chipFile,"import {RawChip} from './raw-chip.ts';\n");
-for(const [symbol,file]of [['ActionChip','action-chip'],['ChoiceChip','choice-chip'],['FilterChip','filter-chip'],['InputChip','input-chip']])emit(symbol,'packages/material/src/'+file+'.ts',"import {RawChip} from './raw-chip.ts';\n");
-outputs[0]= {...outputs[0],...ref('packages/material/src/raw-chip.ts')};const record={status:'PASS-scoped',candidate:ref(candidateFile),ir:candidate.ir,outputs,scope:'Finite exact resolved public field/constructor/default projection and wrapper delegation onto explicit full functional State/render/default owners. Numeric source annotations retained; no arbitrary type fallback, full body emission, source native hierarchy or compiler/batch promotion claim.'};if(!check)fs.writeFileSync('tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json',JSON.stringify(record,null,2)+'\n');console.log(JSON.stringify({status:'PASS-scoped',owners:outputs.length,check}));
+const chipFile = 'packages/material/src/chip-wrapper.generated.ts';
+emit('Chip', chipFile, "import {RawChip} from './raw-chip.ts';\n");
+for (const [symbol, file] of [
+  ['ActionChip', 'action-chip'],
+  ['ChoiceChip', 'choice-chip'],
+  ['FilterChip', 'filter-chip'],
+  ['InputChip', 'input-chip'],
+])
+  emit(symbol, 'packages/material/src/' + file + '.ts', "import {RawChip} from './raw-chip.ts';\n");
+outputs[0] = { ...outputs[0], ...ref('packages/material/src/raw-chip.ts') };
+const record = {
+  status: 'PASS-scoped',
+  candidate: ref(candidateFile),
+  ir: candidate.ir,
+  outputs,
+  scope:
+    'Finite exact resolved public field/constructor/default projection and wrapper delegation onto explicit full functional State/render/default owners. Numeric source annotations retained; no arbitrary type fallback, full body emission, source native hierarchy or compiler/batch promotion claim.',
+};
+if (!check)
+  fs.writeFileSync(
+    'tools/Nelyx.FrameworkToTypeScript/data/work8/w11-chip-api-ownership.json',
+    JSON.stringify(record, null, 2) + '\n',
+  );
+console.log(JSON.stringify({ status: 'PASS-scoped', owners: outputs.length, check }));

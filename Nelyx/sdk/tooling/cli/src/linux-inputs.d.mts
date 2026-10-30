@@ -1,3 +1,23 @@
-export interface LinuxNativeInputs {readonly input:string;readonly root:string;readonly sha256:string;readonly files:number;readonly bytes:number;readonly manifest:{readonly sdk:string;readonly modules:string;readonly headers:string;readonly libraries:readonly string[];readonly files:readonly {file:string;sha256:string;bytes:number}[];readonly [name:string]:unknown};}
-export function verifyLinuxInputs(options:{runner:string;input:string}):LinuxNativeInputs;
-export function prepareLinuxInputs(options:{app:string;runner:string;input:string}):{schema:'nelyx.linux-prepared/v1';input:string;sha256:string;files:number;bytes:number};
+export interface LinuxNativeInputs {
+  readonly input: string;
+  readonly root: string;
+  readonly sha256: string;
+  readonly files: number;
+  readonly bytes: number;
+  readonly manifest: {
+    readonly sdk: string;
+    readonly modules: string;
+    readonly headers: string;
+    readonly libraries: readonly string[];
+    readonly files: readonly { file: string; sha256: string; bytes: number }[];
+    readonly [name: string]: unknown;
+  };
+}
+export function verifyLinuxInputs(options: { runner: string; input: string }): LinuxNativeInputs;
+export function prepareLinuxInputs(options: { app: string; runner: string; input: string }): {
+  schema: 'nelyx.linux-prepared/v1';
+  input: string;
+  sha256: string;
+  files: number;
+  bytes: number;
+};

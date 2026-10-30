@@ -1,35 +1,562 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {InputDecorationThemeData,InputDecorationTheme,InputBorder,UnderlineInputBorder,OutlineInputBorder,FloatingLabelBehavior,FloatingLabelAlignment,ThemeData,Theme,VisualDensity,Material} from '@nelyx/material/widgets';
-import {InputDecorationThemeData as CanonicalData} from '@nelyx/material/input-decoration-theme-data';import {InputBorder as CanonicalBorder} from '@nelyx/material/input-border';import {FloatingLabelAlignment as CanonicalAlignment} from '@nelyx/material/floating-label-alignment';
-import {Color} from '@nelyx/core/ui/color';import {Paint} from '@nelyx/core/ui/paint';import {Path} from '@nelyx/core/ui/path';import {Rect} from '@nelyx/core/ui/rect';import {Offset} from '@nelyx/core/ui/offset';import {Size} from '@nelyx/core/ui/size';import {Radius} from '@nelyx/core/ui/radius';import {BorderSide,ShapeBorder} from '@nelyx/core/framework/painting/borders';import {BoxBorder} from '@nelyx/core/framework/painting/box-border';import {BorderRadius} from '@nelyx/core/framework/painting/border-radius';import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';import {TextStyle} from '@nelyx/core/framework/painting/text-style';import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';import {CustomPainter} from '@nelyx/core/framework/rendering/custom-paint';import {CustomPaint} from '@nelyx/core/framework/widgets/custom-paint';import {State,StatefulWidget} from '@nelyx/core/framework/widgets/framework';import {Builder,SizedBox,Center} from '@nelyx/core/framework/widgets/basic';import {InheritedTheme} from '@nelyx/core/framework/widgets/inherited-theme';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {fixture} from './root-fixture.mjs';import {engineFixture} from './engine-fixture.mjs';
-const timeout=1_200_000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/input-theme-source.json',import.meta.url))),f32=Math.fround;
-FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const rect=r=>[r.left,r.top,r.right,r.bottom].map(f32),rrect=r=>[r.left,r.top,r.right,r.bottom,r.tlRadiusX,r.tlRadiusY,r.trRadiusX,r.trRadiusY,r.brRadiusX,r.brRadiusY,r.blRadiusX,r.blRadiusY].map(f32);
-function encode(value){if(value==null||typeof value==='number'||typeof value==='boolean'||typeof value==='string')return value;if(value instanceof Color)return value.toARGB32();if(value instanceof TextStyle)return value.fontSize;if(value instanceof EdgeInsets)return [value.left,value.top,value.right,value.bottom];if(value instanceof BoxConstraints)return value.minWidth;if(value instanceof VisualDensity)return value.horizontal;if(value instanceof FloatingLabelBehavior)return value.name;if(value instanceof FloatingLabelAlignment)return value.toString();if(value instanceof InputBorder)return {kind:value.isOutline?'outline':value===InputBorder.none?'none':'underline',width:value.borderSide.width,gap:value instanceof OutlineInputBorder?value.gapPadding:null};if(value instanceof BorderSide)return value.width;throw Error('Unknown finite input value '+value.constructor.name);}
-function sample(side){const a=side==='a';return Object.fromEntries(source.fields.map(f=>{let v;switch(f.type){case 'int':v=a?2:7;break;case 'bool':v=!a;break;case 'FloatingLabelBehavior':v=a?FloatingLabelBehavior.auto:FloatingLabelBehavior.always;break;case 'FloatingLabelAlignment':v=a?FloatingLabelAlignment.start:FloatingLabelAlignment.center;break;case 'Color':v=new Color(a?0xff123456:0xffabcdef);break;case 'TextStyle':v=new TextStyle({fontSize:a?12:20});break;case 'Duration':v=a?20:50;break;case 'EdgeInsetsGeometry':v=EdgeInsets.all(a?2:6);break;case 'BoxConstraints':v=new BoxConstraints(a?10:30);break;case 'VisualDensity':v=new VisualDensity({horizontal:a?0:2});break;case 'BorderSide':v=new BorderSide({width:a?2:6});break;case 'InputBorder':v=a?new OutlineInputBorder({gapPadding:2}):new UnderlineInputBorder();break;default:throw Error(f.type);}return [f.name,v];}));}
-test('37-field input theme default/copy/merge and 37 diagnostics match seven complete unchanged Dart source cases',{timeout},()=>{
- const old=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';try{const a=new InputDecorationThemeData(sample('a')),b=new InputDecorationThemeData(sample('b')),allNull=Object.fromEntries(source.fields.map(f=>[f.name,null])),values={default:new InputDecorationThemeData(),a,copyB:a.copyWith(b),copyNull:a.copyWith(allNull),mergeB:a.merge(b),mergeNull:a.merge(null),defaultMergeB:new InputDecorationThemeData().merge(b)};for(const row of source.themes){const value=values[row.mode],p=new DiagnosticPropertiesBuilder();value.debugFillProperties(p);assert.deepEqual(Object.fromEntries(source.fields.map(f=>[f.name,encode(value[f.name])])),row.fields,row.mode);assert.deepEqual(p.properties.map(d=>({name:d.name,type:d.propertyType,value:encode(d.value),default:encode(d.defaultValue)})),row.diagnostics,row.mode+'.diagnostics');}assert.equal(values.mergeNull,a);assert(a.copyWith(allNull).equals(a));assert.equal(a.hashCode,a.copyWith(allNull).hashCode);assert.equal(values.defaultMergeB.floatingLabelBehavior,FloatingLabelBehavior.auto);assert.equal(values.defaultMergeB.floatingLabelAlignment,FloatingLabelAlignment.start);for(const name of ['isDense','isCollapsed','filled','alignLabelWithHint'])assert.equal(values.defaultMergeB[name],false);assert.equal(values.defaultMergeB.hintMaxLines,7);assert.equal(InputDecorationThemeData.lerp,undefined);class Derived extends InputDecorationThemeData{}assert.equal(a.equals(new Derived(sample('a'))),false);assert(Object.isFrozen(a));}finally{FoundationBuildMode.mode=old;}
-});
-test('27 original border paint/path/dimensions/scale cases match canonical Core primitive and BoxBorder boundary arguments',{timeout},()=>{
- const originals=new Map(),paths=new WeakMap();for(const name of ['addRect','addRRect','addArc','moveTo','lineTo']){const original=Path.prototype[name];originals.set(name,original);Path.prototype[name]=function(...args){let rows=paths.get(this);if(!rows)paths.set(this,rows=[]);const values=name==='addRect'?rect(args[0]):name==='addRRect'?rrect(args[0]):name==='addArc'?[...rect(args[0]),f32(args[1]),f32(args[2])]:args.map(f32);rows.push([name,values]);return original.apply(this,args);};}
- const oldNonUniform=BoxBorder.paintNonUniformBorder;let rows;BoxBorder.paintNonUniformBorder=(_canvas,bounds,o)=>rows.push(['nonUniform',rect(bounds),rrect(o.borderRadius.toRRect(bounds)),o.bottom.width,o.bottom.strokeAlign,o.color,o.textDirection??null]);
- try{for(const {spec,paint,outer,inner,dimensions,scaled,nullCopyEqual}of source.borders){const side=new BorderSide({color:0xff123456,width:spec.width,strokeAlign:spec.align,style:spec.style??'solid'}),radius=spec.radius==null?BorderRadius.only({topLeft:Radius.circular(4),topRight:Radius.circular(4)}):BorderRadius.circular(spec.radius),border=spec.kind==='none'?InputBorder.none:spec.kind==='outline'?new OutlineInputBorder({borderSide:side,borderRadius:radius}):new UnderlineInputBorder({borderSide:side,borderRadius:radius}),bounds=Rect.fromLTWH(0,0,120,48);rows=[];const canvas={drawRRect(r,p){rows.push(['rrect',rrect(r),p.color,p.strokeWidth]);},drawRect(r,p){rows.push(['rect',rect(r),p.color,p.strokeWidth]);},drawLine(a,b,p){rows.push(['line',[a.dx,a.dy,b.dx,b.dy].map(f32),p.color,p.strokeWidth]);},drawPath(path,p){rows.push(['path',paths.get(path)??[],p.color,p.strokeWidth]);}};border.paint(canvas,bounds,{gapStart:spec.gapStart,gapExtent:spec.gapExtent,gapPercentage:spec.percentage,textDirection:spec.direction});assert.deepEqual(rows,paint,JSON.stringify(spec));assert.deepEqual(paths.get(border.getOuterPath(bounds,{textDirection:spec.direction})),outer);assert.deepEqual(paths.get(border.getInnerPath(bounds,{textDirection:spec.direction})),inner);const d=border.dimensions;assert.deepEqual([d.left,d.top,d.right,d.bottom],dimensions);assert.deepEqual(encode(border.scale(.5)),scaled);const copy=border.copyWith();assert.equal(copy===border||copy.equals?.(border)===true,nullCopyEqual);}}finally{for(const[name,original]of originals)Path.prototype[name]=original;BoxBorder.paintNonUniformBorder=oldNonUniform;}
-});
-test('source border value/scale/gap direction and canonical outer shape hit contracts retain source decisions',{timeout},()=>{
- const a=new OutlineInputBorder({gapPadding:2,borderRadius:BorderRadius.circular(4),borderSide:new BorderSide({width:2})}),b=new OutlineInputBorder({gapPadding:8,borderRadius:BorderRadius.circular(12),borderSide:new BorderSide({width:6})});assert.equal(ShapeBorder.lerp(a,b,.25).gapPadding,2);assert.equal(a.lerpTo(b,.25).gapPadding,8);assert.equal(a.lerpFrom(b,.25).gapPadding,8);const u=new UnderlineInputBorder({borderRadius:BorderRadius.circular(20)});assert(u.scale(.5).borderRadius.equals(BorderRadius.only({topLeft:Radius.circular(4),topRight:Radius.circular(4)})));assert.equal(b.scale(.5).borderRadius.topLeft.x,6);assert.equal(b.scale(.5).gapPadding,4);assert.equal(InputBorder.none.copyWith({borderSide:new BorderSide()}),InputBorder.none);assert.equal(InputBorder.none.scale(.5),InputBorder.none);const bounds=Rect.fromLTWH(0,0,40,40);assert.equal(b.hitTest(bounds,new Offset(0,0)),false);assert.equal(b.hitTest(bounds,new Offset(20,20)),true);assert.equal(u.hitTest(bounds,new Offset(-1,20)),false);assert.equal(InputBorder.none.hitTest(bounds,new Offset(1,1)),true);assert.equal(InputBorder.none.hitTest(bounds,new Offset(40,1)),false);
- assert.throws(()=>new OutlineInputBorder({gapPadding:-1}));assert.throws(()=>b.paint({},bounds,{gapPercentage:2}));assert.throws(()=>b.paint({},bounds,{gapStart:3,gapExtent:20,gapPercentage:1}),/textDirection/);assert.throws(()=>new OutlineInputBorder({borderRadius:BorderRadius.all(Radius.elliptical(2,3))}).paint({},bounds),/circular/);assert(a.copyWith({gapPadding:null,borderSide:null,borderRadius:null}).equals(a));assert.equal(a.hashCode,a.copyWith().hashCode);
-});
-test('canonical enums/int provenance and modern input-theme mode reject malformed or obsolete values',{timeout},()=>{
- assert.equal(InputDecorationThemeData,CanonicalData);assert.equal(InputBorder,CanonicalBorder);assert.equal(FloatingLabelAlignment,CanonicalAlignment);assert.deepEqual(FloatingLabelBehavior.values.map(v=>[v.name,v.index]),[['never',0],['auto',1],['always',2]]);assert(Object.isFrozen(FloatingLabelAlignment.center));assert.equal(FloatingLabelAlignment.start.toString(),'FloatingLabelAlignment.start');assert.equal(FloatingLabelAlignment.center.toString(),'FloatingLabelAlignment.center');assert.notEqual(FloatingLabelAlignment.start.hashCode,FloatingLabelAlignment.center.hashCode);for(const field of ['floatingLabelBehavior','floatingLabelAlignment','isDense','isCollapsed','filled','alignLabelWithHint'])assert.throws(()=>new InputDecorationThemeData({[field]:null}),/non-nullable/);assert.throws(()=>new InputDecorationThemeData({helperMaxLines:1.5}),/source int/);assert.throws(()=>new InputDecorationThemeData({hintMaxLines:Number.MAX_SAFE_INTEGER+1}),/source int/);assert.throws(()=>new InputDecorationThemeData({border:{}}),/InputBorder/);assert.throws(()=>new InputDecorationThemeData({floatingLabelBehavior:{name:'auto',index:1}}),/canonical/);assert.throws(()=>new InputDecorationTheme({labelStyle:null}),/canonical data/);assert.equal(new InputDecorationTheme().child instanceof SizedBox,true);
-});
-test('global/local input theme retains one State across updates and capture, with null-retaining ThemeData copy',{timeout},()=>{
- const f=fixture();let created=0,disposed=0,read,captured;class Probe extends StatefulWidget{createState(){created++;return new ProbeState();}}class ProbeState extends State{build(context){read=InputDecorationTheme.of(context);captured=InheritedTheme.capture(context);return new SizedBox(1,1);}dispose(){disposed++;super.dispose();}}
- const global=new InputDecorationThemeData({hintMaxLines:5,isDense:true}),local=new InputDecorationThemeData({border:InputBorder.none}),changed=local.copyWith({isDense:true}),data=new ThemeData({inputDecorationTheme:global}),probe=new Probe();try{assert(new ThemeData().inputDecorationTheme instanceof InputDecorationThemeData);assert.equal(data.copyWith({inputDecorationTheme:null}).inputDecorationTheme,global);f.set(new Theme(data,new InputDecorationTheme(local,probe)));assert.equal(read,local);assert.equal(read.hintMaxLines,null);assert.equal(read.isDense,false);f.set(new Theme(data,new InputDecorationTheme(changed,probe)));assert.equal(read,changed);assert.equal(created,1);assert.equal(new InputDecorationTheme(changed,probe).updateShouldNotify(new InputDecorationTheme(changed.copyWith(),probe)),false);f.set(new Theme(data,captured.wrap(new Builder(context=>{read=InputDecorationTheme.of(context);return new SizedBox(1,1);})))) ;assert.equal(read,changed);}finally{f.close();}assert.equal(created,1);assert.equal(disposed,1);
-});
-test('actual owned CPU renders input border label gaps and rounded underline, and canonical Material shape/hits drain',{timeout},async()=>{
- const f=await engineFixture(),surface=f.ck.MakeSurface(240,160);class BorderPainter extends CustomPainter{constructor(border){super();this.border=border;}paint(canvas){canvas.save();canvas.translate(20,20);const bounds=Rect.fromLTWH(0,0,120,48);this.border.paintInterior(canvas,bounds,new Paint({color:0xff00ff00}));this.border.paint(canvas,bounds,{gapStart:30,gapExtent:40,gapPercentage:1,textDirection:'ltr'});canvas.restore();}shouldRepaint(old){return old.border!==this.border;}}
- const side=new BorderSide({color:0xffff0000,width:4}),outline=new OutlineInputBorder({borderSide:side,borderRadius:BorderRadius.circular(8)}),underline=new UnderlineInputBorder({borderSide:side,borderRadius:BorderRadius.circular(12)}),pixel=(x,y)=>{const image=surface.makeImageSnapshot();try{return Array.from(image.readPixels(x,y,{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB}));}finally{image.delete();}};
- try{for(const border of [outline,underline]){const data=new InputDecorationThemeData({border}),child=new Builder(context=>new CustomPaint(undefined,{painter:new BorderPainter(InputDecorationTheme.of(context).border),size:new Size(180,100)}));f.set(new Theme(new ThemeData({inputDecorationTheme:data}),child));f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();if(border===outline){assert.deepEqual(pixel(30,21),[255,0,0,255]);assert.deepEqual(pixel(60,21),[0,255,0,255]);}else{assert.deepEqual(pixel(80,66),[255,0,0,255]);assert.deepEqual(pixel(80,40),[0,255,0,255]);}}f.set(new Theme(new ThemeData(),new Center(new SizedBox(80,60,new Material({shape:outline,color:new Color(0xff00ff00),clipBehavior:'antiAlias'})))));f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();assert.deepEqual(pixel(120,80),[0,255,0,255]);f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);assert.equal(f.library.paragraphs.size,0);
- }finally{surface.delete();await f.close();}
-});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {
+  InputDecorationThemeData,
+  InputDecorationTheme,
+  InputBorder,
+  UnderlineInputBorder,
+  OutlineInputBorder,
+  FloatingLabelBehavior,
+  FloatingLabelAlignment,
+  ThemeData,
+  Theme,
+  VisualDensity,
+  Material,
+} from '@nelyx/material/widgets';
+import { InputDecorationThemeData as CanonicalData } from '@nelyx/material/input-decoration-theme-data';
+import { InputBorder as CanonicalBorder } from '@nelyx/material/input-border';
+import { FloatingLabelAlignment as CanonicalAlignment } from '@nelyx/material/floating-label-alignment';
+import { Color } from '@nelyx/core/ui/color';
+import { Paint } from '@nelyx/core/ui/paint';
+import { Path } from '@nelyx/core/ui/path';
+import { Rect } from '@nelyx/core/ui/rect';
+import { Offset } from '@nelyx/core/ui/offset';
+import { Size } from '@nelyx/core/ui/size';
+import { Radius } from '@nelyx/core/ui/radius';
+import { BorderSide, ShapeBorder } from '@nelyx/core/framework/painting/borders';
+import { BoxBorder } from '@nelyx/core/framework/painting/box-border';
+import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
+import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
+import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { Builder, SizedBox, Center } from '@nelyx/core/framework/widgets/basic';
+import { InheritedTheme } from '@nelyx/core/framework/widgets/inherited-theme';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { fixture } from './root-fixture.mjs';
+import { engineFixture } from './engine-fixture.mjs';
+const timeout = 1_200_000,
+  source = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/input-theme-source.json', import.meta.url)),
+  ),
+  f32 = Math.fround;
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const rect = (r) => [r.left, r.top, r.right, r.bottom].map(f32),
+  rrect = (r) =>
+    [
+      r.left,
+      r.top,
+      r.right,
+      r.bottom,
+      r.tlRadiusX,
+      r.tlRadiusY,
+      r.trRadiusX,
+      r.trRadiusY,
+      r.brRadiusX,
+      r.brRadiusY,
+      r.blRadiusX,
+      r.blRadiusY,
+    ].map(f32);
+function encode(value) {
+  if (
+    value == null ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'string'
+  )
+    return value;
+  if (value instanceof Color) return value.toARGB32();
+  if (value instanceof TextStyle) return value.fontSize;
+  if (value instanceof EdgeInsets) return [value.left, value.top, value.right, value.bottom];
+  if (value instanceof BoxConstraints) return value.minWidth;
+  if (value instanceof VisualDensity) return value.horizontal;
+  if (value instanceof FloatingLabelBehavior) return value.name;
+  if (value instanceof FloatingLabelAlignment) return value.toString();
+  if (value instanceof InputBorder)
+    return {
+      kind: value.isOutline ? 'outline' : value === InputBorder.none ? 'none' : 'underline',
+      width: value.borderSide.width,
+      gap: value instanceof OutlineInputBorder ? value.gapPadding : null,
+    };
+  if (value instanceof BorderSide) return value.width;
+  throw Error('Unknown finite input value ' + value.constructor.name);
+}
+function sample(side) {
+  const a = side === 'a';
+  return Object.fromEntries(
+    source.fields.map((f) => {
+      let v;
+      switch (f.type) {
+        case 'int':
+          v = a ? 2 : 7;
+          break;
+        case 'bool':
+          v = !a;
+          break;
+        case 'FloatingLabelBehavior':
+          v = a ? FloatingLabelBehavior.auto : FloatingLabelBehavior.always;
+          break;
+        case 'FloatingLabelAlignment':
+          v = a ? FloatingLabelAlignment.start : FloatingLabelAlignment.center;
+          break;
+        case 'Color':
+          v = new Color(a ? 0xff123456 : 0xffabcdef);
+          break;
+        case 'TextStyle':
+          v = new TextStyle({ fontSize: a ? 12 : 20 });
+          break;
+        case 'Duration':
+          v = a ? 20 : 50;
+          break;
+        case 'EdgeInsetsGeometry':
+          v = EdgeInsets.all(a ? 2 : 6);
+          break;
+        case 'BoxConstraints':
+          v = new BoxConstraints(a ? 10 : 30);
+          break;
+        case 'VisualDensity':
+          v = new VisualDensity({ horizontal: a ? 0 : 2 });
+          break;
+        case 'BorderSide':
+          v = new BorderSide({ width: a ? 2 : 6 });
+          break;
+        case 'InputBorder':
+          v = a ? new OutlineInputBorder({ gapPadding: 2 }) : new UnderlineInputBorder();
+          break;
+        default:
+          throw Error(f.type);
+      }
+      return [f.name, v];
+    }),
+  );
+}
+test(
+  '37-field input theme default/copy/merge and 37 diagnostics match seven complete unchanged Dart source cases',
+  { timeout },
+  () => {
+    const old = FoundationBuildMode.mode;
+    FoundationBuildMode.mode = 'debug';
+    try {
+      const a = new InputDecorationThemeData(sample('a')),
+        b = new InputDecorationThemeData(sample('b')),
+        allNull = Object.fromEntries(source.fields.map((f) => [f.name, null])),
+        values = {
+          default: new InputDecorationThemeData(),
+          a,
+          copyB: a.copyWith(b),
+          copyNull: a.copyWith(allNull),
+          mergeB: a.merge(b),
+          mergeNull: a.merge(null),
+          defaultMergeB: new InputDecorationThemeData().merge(b),
+        };
+      for (const row of source.themes) {
+        const value = values[row.mode],
+          p = new DiagnosticPropertiesBuilder();
+        value.debugFillProperties(p);
+        assert.deepEqual(
+          Object.fromEntries(source.fields.map((f) => [f.name, encode(value[f.name])])),
+          row.fields,
+          row.mode,
+        );
+        assert.deepEqual(
+          p.properties.map((d) => ({
+            name: d.name,
+            type: d.propertyType,
+            value: encode(d.value),
+            default: encode(d.defaultValue),
+          })),
+          row.diagnostics,
+          row.mode + '.diagnostics',
+        );
+      }
+      assert.equal(values.mergeNull, a);
+      assert(a.copyWith(allNull).equals(a));
+      assert.equal(a.hashCode, a.copyWith(allNull).hashCode);
+      assert.equal(values.defaultMergeB.floatingLabelBehavior, FloatingLabelBehavior.auto);
+      assert.equal(values.defaultMergeB.floatingLabelAlignment, FloatingLabelAlignment.start);
+      for (const name of ['isDense', 'isCollapsed', 'filled', 'alignLabelWithHint'])
+        assert.equal(values.defaultMergeB[name], false);
+      assert.equal(values.defaultMergeB.hintMaxLines, 7);
+      assert.equal(InputDecorationThemeData.lerp, undefined);
+      class Derived extends InputDecorationThemeData {}
+      assert.equal(a.equals(new Derived(sample('a'))), false);
+      assert(Object.isFrozen(a));
+    } finally {
+      FoundationBuildMode.mode = old;
+    }
+  },
+);
+test(
+  '27 original border paint/path/dimensions/scale cases match canonical Core primitive and BoxBorder boundary arguments',
+  { timeout },
+  () => {
+    const originals = new Map(),
+      paths = new WeakMap();
+    for (const name of ['addRect', 'addRRect', 'addArc', 'moveTo', 'lineTo']) {
+      const original = Path.prototype[name];
+      originals.set(name, original);
+      Path.prototype[name] = function (...args) {
+        let rows = paths.get(this);
+        if (!rows) paths.set(this, (rows = []));
+        const values =
+          name === 'addRect'
+            ? rect(args[0])
+            : name === 'addRRect'
+              ? rrect(args[0])
+              : name === 'addArc'
+                ? [...rect(args[0]), f32(args[1]), f32(args[2])]
+                : args.map(f32);
+        rows.push([name, values]);
+        return original.apply(this, args);
+      };
+    }
+    const oldNonUniform = BoxBorder.paintNonUniformBorder;
+    let rows;
+    BoxBorder.paintNonUniformBorder = (_canvas, bounds, o) =>
+      rows.push([
+        'nonUniform',
+        rect(bounds),
+        rrect(o.borderRadius.toRRect(bounds)),
+        o.bottom.width,
+        o.bottom.strokeAlign,
+        o.color,
+        o.textDirection ?? null,
+      ]);
+    try {
+      for (const {
+        spec,
+        paint,
+        outer,
+        inner,
+        dimensions,
+        scaled,
+        nullCopyEqual,
+      } of source.borders) {
+        const side = new BorderSide({
+            color: 0xff123456,
+            width: spec.width,
+            strokeAlign: spec.align,
+            style: spec.style ?? 'solid',
+          }),
+          radius =
+            spec.radius == null
+              ? BorderRadius.only({ topLeft: Radius.circular(4), topRight: Radius.circular(4) })
+              : BorderRadius.circular(spec.radius),
+          border =
+            spec.kind === 'none'
+              ? InputBorder.none
+              : spec.kind === 'outline'
+                ? new OutlineInputBorder({ borderSide: side, borderRadius: radius })
+                : new UnderlineInputBorder({ borderSide: side, borderRadius: radius }),
+          bounds = Rect.fromLTWH(0, 0, 120, 48);
+        rows = [];
+        const canvas = {
+          drawRRect(r, p) {
+            rows.push(['rrect', rrect(r), p.color, p.strokeWidth]);
+          },
+          drawRect(r, p) {
+            rows.push(['rect', rect(r), p.color, p.strokeWidth]);
+          },
+          drawLine(a, b, p) {
+            rows.push(['line', [a.dx, a.dy, b.dx, b.dy].map(f32), p.color, p.strokeWidth]);
+          },
+          drawPath(path, p) {
+            rows.push(['path', paths.get(path) ?? [], p.color, p.strokeWidth]);
+          },
+        };
+        border.paint(canvas, bounds, {
+          gapStart: spec.gapStart,
+          gapExtent: spec.gapExtent,
+          gapPercentage: spec.percentage,
+          textDirection: spec.direction,
+        });
+        assert.deepEqual(rows, paint, JSON.stringify(spec));
+        assert.deepEqual(
+          paths.get(border.getOuterPath(bounds, { textDirection: spec.direction })),
+          outer,
+        );
+        assert.deepEqual(
+          paths.get(border.getInnerPath(bounds, { textDirection: spec.direction })),
+          inner,
+        );
+        const d = border.dimensions;
+        assert.deepEqual([d.left, d.top, d.right, d.bottom], dimensions);
+        assert.deepEqual(encode(border.scale(0.5)), scaled);
+        const copy = border.copyWith();
+        assert.equal(copy === border || copy.equals?.(border) === true, nullCopyEqual);
+      }
+    } finally {
+      for (const [name, original] of originals) Path.prototype[name] = original;
+      BoxBorder.paintNonUniformBorder = oldNonUniform;
+    }
+  },
+);
+test(
+  'source border value/scale/gap direction and canonical outer shape hit contracts retain source decisions',
+  { timeout },
+  () => {
+    const a = new OutlineInputBorder({
+        gapPadding: 2,
+        borderRadius: BorderRadius.circular(4),
+        borderSide: new BorderSide({ width: 2 }),
+      }),
+      b = new OutlineInputBorder({
+        gapPadding: 8,
+        borderRadius: BorderRadius.circular(12),
+        borderSide: new BorderSide({ width: 6 }),
+      });
+    assert.equal(ShapeBorder.lerp(a, b, 0.25).gapPadding, 2);
+    assert.equal(a.lerpTo(b, 0.25).gapPadding, 8);
+    assert.equal(a.lerpFrom(b, 0.25).gapPadding, 8);
+    const u = new UnderlineInputBorder({ borderRadius: BorderRadius.circular(20) });
+    assert(
+      u
+        .scale(0.5)
+        .borderRadius.equals(
+          BorderRadius.only({ topLeft: Radius.circular(4), topRight: Radius.circular(4) }),
+        ),
+    );
+    assert.equal(b.scale(0.5).borderRadius.topLeft.x, 6);
+    assert.equal(b.scale(0.5).gapPadding, 4);
+    assert.equal(InputBorder.none.copyWith({ borderSide: new BorderSide() }), InputBorder.none);
+    assert.equal(InputBorder.none.scale(0.5), InputBorder.none);
+    const bounds = Rect.fromLTWH(0, 0, 40, 40);
+    assert.equal(b.hitTest(bounds, new Offset(0, 0)), false);
+    assert.equal(b.hitTest(bounds, new Offset(20, 20)), true);
+    assert.equal(u.hitTest(bounds, new Offset(-1, 20)), false);
+    assert.equal(InputBorder.none.hitTest(bounds, new Offset(1, 1)), true);
+    assert.equal(InputBorder.none.hitTest(bounds, new Offset(40, 1)), false);
+    assert.throws(() => new OutlineInputBorder({ gapPadding: -1 }));
+    assert.throws(() => b.paint({}, bounds, { gapPercentage: 2 }));
+    assert.throws(
+      () => b.paint({}, bounds, { gapStart: 3, gapExtent: 20, gapPercentage: 1 }),
+      /textDirection/,
+    );
+    assert.throws(
+      () =>
+        new OutlineInputBorder({ borderRadius: BorderRadius.all(Radius.elliptical(2, 3)) }).paint(
+          {},
+          bounds,
+        ),
+      /circular/,
+    );
+    assert(a.copyWith({ gapPadding: null, borderSide: null, borderRadius: null }).equals(a));
+    assert.equal(a.hashCode, a.copyWith().hashCode);
+  },
+);
+test(
+  'canonical enums/int provenance and modern input-theme mode reject malformed or obsolete values',
+  { timeout },
+  () => {
+    assert.equal(InputDecorationThemeData, CanonicalData);
+    assert.equal(InputBorder, CanonicalBorder);
+    assert.equal(FloatingLabelAlignment, CanonicalAlignment);
+    assert.deepEqual(
+      FloatingLabelBehavior.values.map((v) => [v.name, v.index]),
+      [
+        ['never', 0],
+        ['auto', 1],
+        ['always', 2],
+      ],
+    );
+    assert(Object.isFrozen(FloatingLabelAlignment.center));
+    assert.equal(FloatingLabelAlignment.start.toString(), 'FloatingLabelAlignment.start');
+    assert.equal(FloatingLabelAlignment.center.toString(), 'FloatingLabelAlignment.center');
+    assert.notEqual(FloatingLabelAlignment.start.hashCode, FloatingLabelAlignment.center.hashCode);
+    for (const field of [
+      'floatingLabelBehavior',
+      'floatingLabelAlignment',
+      'isDense',
+      'isCollapsed',
+      'filled',
+      'alignLabelWithHint',
+    ])
+      assert.throws(() => new InputDecorationThemeData({ [field]: null }), /non-nullable/);
+    assert.throws(() => new InputDecorationThemeData({ helperMaxLines: 1.5 }), /source int/);
+    assert.throws(
+      () => new InputDecorationThemeData({ hintMaxLines: Number.MAX_SAFE_INTEGER + 1 }),
+      /source int/,
+    );
+    assert.throws(() => new InputDecorationThemeData({ border: {} }), /InputBorder/);
+    assert.throws(
+      () => new InputDecorationThemeData({ floatingLabelBehavior: { name: 'auto', index: 1 } }),
+      /canonical/,
+    );
+    assert.throws(() => new InputDecorationTheme({ labelStyle: null }), /canonical data/);
+    assert.equal(new InputDecorationTheme().child instanceof SizedBox, true);
+  },
+);
+test(
+  'global/local input theme retains one State across updates and capture, with null-retaining ThemeData copy',
+  { timeout },
+  () => {
+    const f = fixture();
+    let created = 0,
+      disposed = 0,
+      read,
+      captured;
+    class Probe extends StatefulWidget {
+      createState() {
+        created++;
+        return new ProbeState();
+      }
+    }
+    class ProbeState extends State {
+      build(context) {
+        read = InputDecorationTheme.of(context);
+        captured = InheritedTheme.capture(context);
+        return new SizedBox(1, 1);
+      }
+      dispose() {
+        disposed++;
+        super.dispose();
+      }
+    }
+    const global = new InputDecorationThemeData({ hintMaxLines: 5, isDense: true }),
+      local = new InputDecorationThemeData({ border: InputBorder.none }),
+      changed = local.copyWith({ isDense: true }),
+      data = new ThemeData({ inputDecorationTheme: global }),
+      probe = new Probe();
+    try {
+      assert(new ThemeData().inputDecorationTheme instanceof InputDecorationThemeData);
+      assert.equal(data.copyWith({ inputDecorationTheme: null }).inputDecorationTheme, global);
+      f.set(new Theme(data, new InputDecorationTheme(local, probe)));
+      assert.equal(read, local);
+      assert.equal(read.hintMaxLines, null);
+      assert.equal(read.isDense, false);
+      f.set(new Theme(data, new InputDecorationTheme(changed, probe)));
+      assert.equal(read, changed);
+      assert.equal(created, 1);
+      assert.equal(
+        new InputDecorationTheme(changed, probe).updateShouldNotify(
+          new InputDecorationTheme(changed.copyWith(), probe),
+        ),
+        false,
+      );
+      f.set(
+        new Theme(
+          data,
+          captured.wrap(
+            new Builder((context) => {
+              read = InputDecorationTheme.of(context);
+              return new SizedBox(1, 1);
+            }),
+          ),
+        ),
+      );
+      assert.equal(read, changed);
+    } finally {
+      f.close();
+    }
+    assert.equal(created, 1);
+    assert.equal(disposed, 1);
+  },
+);
+test(
+  'actual owned CPU renders input border label gaps and rounded underline, and canonical Material shape/hits drain',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      surface = f.ck.MakeSurface(240, 160);
+    class BorderPainter extends CustomPainter {
+      constructor(border) {
+        super();
+        this.border = border;
+      }
+      paint(canvas) {
+        canvas.save();
+        canvas.translate(20, 20);
+        const bounds = Rect.fromLTWH(0, 0, 120, 48);
+        this.border.paintInterior(canvas, bounds, new Paint({ color: 0xff00ff00 }));
+        this.border.paint(canvas, bounds, {
+          gapStart: 30,
+          gapExtent: 40,
+          gapPercentage: 1,
+          textDirection: 'ltr',
+        });
+        canvas.restore();
+      }
+      shouldRepaint(old) {
+        return old.border !== this.border;
+      }
+    }
+    const side = new BorderSide({ color: 0xffff0000, width: 4 }),
+      outline = new OutlineInputBorder({
+        borderSide: side,
+        borderRadius: BorderRadius.circular(8),
+      }),
+      underline = new UnderlineInputBorder({
+        borderSide: side,
+        borderRadius: BorderRadius.circular(12),
+      }),
+      pixel = (x, y) => {
+        const image = surface.makeImageSnapshot();
+        try {
+          return Array.from(
+            image.readPixels(x, y, {
+              width: 1,
+              height: 1,
+              colorType: f.ck.ColorType.RGBA_8888,
+              alphaType: f.ck.AlphaType.Unpremul,
+              colorSpace: f.ck.ColorSpace.SRGB,
+            }),
+          );
+        } finally {
+          image.delete();
+        }
+      };
+    try {
+      for (const border of [outline, underline]) {
+        const data = new InputDecorationThemeData({ border }),
+          child = new Builder(
+            (context) =>
+              new CustomPaint(undefined, {
+                painter: new BorderPainter(InputDecorationTheme.of(context).border),
+                size: new Size(180, 100),
+              }),
+          );
+        f.set(new Theme(new ThemeData({ inputDecorationTheme: data }), child));
+        f.library.replay(surface.getCanvas(), { commands: f.frame() });
+        surface.flush();
+        if (border === outline) {
+          assert.deepEqual(pixel(30, 21), [255, 0, 0, 255]);
+          assert.deepEqual(pixel(60, 21), [0, 255, 0, 255]);
+        } else {
+          assert.deepEqual(pixel(80, 66), [255, 0, 0, 255]);
+          assert.deepEqual(pixel(80, 40), [0, 255, 0, 255]);
+        }
+      }
+      f.set(
+        new Theme(
+          new ThemeData(),
+          new Center(
+            new SizedBox(
+              80,
+              60,
+              new Material({
+                shape: outline,
+                color: new Color(0xff00ff00),
+                clipBehavior: 'antiAlias',
+              }),
+            ),
+          ),
+        ),
+      );
+      f.library.replay(surface.getCanvas(), { commands: f.frame() });
+      surface.flush();
+      assert.deepEqual(pixel(120, 80), [0, 255, 0, 255]);
+      f.set(new SizedBox(1, 1));
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+      assert.equal(f.library.paragraphs.size, 0);
+    } finally {
+      surface.delete();
+      await f.close();
+    }
+  },
+);

@@ -1,7 +1,7 @@
-import type {SkJSIInstance} from '../JsiInstance.ts';
-import type {SkImage} from "../Drawing.ts";
+import type { SkJSIInstance } from '../JsiInstance.ts';
+import type { SkImage } from '../Drawing.ts';
 
-export interface SkAnimatedImage extends SkJSIInstance<"AnimatedImage"> {
+export interface SkAnimatedImage extends SkJSIInstance<'AnimatedImage'> {
   /**
    *  Decode the next frame.
    *
@@ -30,8 +30,8 @@ export interface SkAnimatedImage extends SkJSIInstance<"AnimatedImage"> {
    *
    */
   getFrameCount(): number;
-  getRepetitionCount():number;
-  reset():void;
+  getRepetitionCount(): number;
+  reset(): void;
 
   // TODO - add the rest of the methods from the Skia API (see SkAnimatedImage.h)
 }

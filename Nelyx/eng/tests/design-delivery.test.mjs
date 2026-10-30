@@ -3,75 +3,134 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {createHash} from 'node:crypto';
-import {spawnSync} from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 const root = path.resolve(import.meta.dirname, '../../..');
 const timeout = 1_200_000;
-const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 function run(command, args, cwd) {
-  const result = spawnSync(command, args, {cwd, timeout, encoding: 'utf8', windowsHide: true, maxBuffer: 8 * 1024 * 1024});
+  const result = spawnSync(command, args, {
+    cwd,
+    timeout,
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 8 * 1024 * 1024,
+  });
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return result.stdout;
 }
-const npm = (args, cwd) => process.platform === 'win32'
-  ? run('cmd.exe', ['/d', '/c', 'npm.cmd', ...args], cwd)
-  : run('npm', args, cwd);
+const npm = (args, cwd) =>
+  process.platform === 'win32'
+    ? run('cmd.exe', ['/d', '/c', 'npm.cmd', ...args], cwd)
+    : run('npm', args, cwd);
 
-test('current design archives install independently with canonical identity, types, maps, assets and OverflowBar scaling', {timeout}, () => {
-  const disk = fs.statfsSync(os.tmpdir(), {bigint: true});
-  assert(disk.bavail * disk.bsize >= 20n * 1024n ** 3n, 'Independent installation requires 20 GiB free');
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-design-delivery-'));
-  try {
-    const archives = [];
-    const inputs = ['Nelyx', 'packages/cupertino', 'packages/material', 'node_modules/@material/material-color-utilities'];
-    const packages = inputs.map(input => {
-      const source = path.join(root, input);
-      const manifest = JSON.parse(fs.readFileSync(path.join(source, 'package.json')));
-      const [packed] = JSON.parse(npm(['pack', source, '--pack-destination', directory, '--ignore-scripts', '--json'], directory));
-      archives.push(path.join(directory, packed.filename));
-      if (manifest.name === '@nelyx/material') assert(packed.files.some(file => file.path === 'assets/shaders/ink_sparkle.sksl'), 'Material must supply its canonical SkSL asset');
-      return {source, manifest, packed};
-    });
-    fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({private: true, type: 'module'}));
-    npm(['install', ...archives, '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false'], directory);
-    for (const {source, manifest, packed} of packages) {
-      const installed = path.join(directory, 'node_modules', manifest.name);
-      assert(!fs.lstatSync(installed).isSymbolicLink(), 'Use archive bytes, not workspace links');
-      for (const file of packed.files) {
-        const original = path.join(source, file.path), actual = path.join(installed, file.path);
-        assert.equal(hash(actual), hash(original), manifest.name + '/' + file.path);
-      }
-      if (!manifest.name.startsWith('@nelyx/')) continue;
-      for (const entry of Object.values(manifest.exports)) {
-        for (const target of typeof entry === 'string' ? [entry] : Object.values(entry)) assert(fs.existsSync(path.join(installed, target)), 'Missing public export ' + target);
-      }
-      const visit = folder => {
-        for (const entry of fs.readdirSync(folder, {withFileTypes: true})) {
-          const file = path.join(folder, entry.name);
-          if (entry.isDirectory()) visit(file);
-          else if (file.endsWith('.map')) {
-            const map = JSON.parse(fs.readFileSync(file));
-            assert.equal(map.version, 3);
-            if (map.sourcesContent) assert.equal(map.sources.length, map.sourcesContent.length);
-            else assert(file.endsWith('.d.ts.map'), 'JavaScript maps must include source text');
-            map.sources.forEach((source, index) => {
-              const original = path.resolve(path.dirname(file), source);
-              assert(original.startsWith(installed + path.sep), 'Map must reference installed source');
-              assert(fs.existsSync(original), 'Map source must be supplied in the archive');
-              if (map.sourcesContent) assert.equal(createHash('sha256').update(map.sourcesContent[index]).digest('hex'), hash(original), 'Source map content differs from installed source: ' + manifest.name + '/' + path.relative(installed, original));
-            });
-          }
+test(
+  'current design archives install independently with canonical identity, types, maps, assets and OverflowBar scaling',
+  { timeout },
+  () => {
+    const disk = fs.statfsSync(os.tmpdir(), { bigint: true });
+    assert(
+      disk.bavail * disk.bsize >= 20n * 1024n ** 3n,
+      'Independent installation requires 20 GiB free',
+    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-design-delivery-'));
+    try {
+      const archives = [];
+      const inputs = [
+        'Nelyx',
+        'packages/cupertino',
+        'packages/material',
+        'node_modules/@material/material-color-utilities',
+      ];
+      const packages = inputs.map((input) => {
+        const source = path.join(root, input);
+        const manifest = JSON.parse(fs.readFileSync(path.join(source, 'package.json')));
+        const [packed] = JSON.parse(
+          npm(
+            ['pack', source, '--pack-destination', directory, '--ignore-scripts', '--json'],
+            directory,
+          ),
+        );
+        archives.push(path.join(directory, packed.filename));
+        if (manifest.name === '@nelyx/material')
+          assert(
+            packed.files.some((file) => file.path === 'assets/shaders/ink_sparkle.sksl'),
+            'Material must supply its canonical SkSL asset',
+          );
+        return { source, manifest, packed };
+      });
+      fs.writeFileSync(
+        path.join(directory, 'package.json'),
+        JSON.stringify({ private: true, type: 'module' }),
+      );
+      npm(
+        [
+          'install',
+          ...archives,
+          '--offline',
+          '--ignore-scripts',
+          '--no-audit',
+          '--no-fund',
+          '--package-lock=false',
+        ],
+        directory,
+      );
+      for (const { source, manifest, packed } of packages) {
+        const installed = path.join(directory, 'node_modules', manifest.name);
+        assert(!fs.lstatSync(installed).isSymbolicLink(), 'Use archive bytes, not workspace links');
+        for (const file of packed.files) {
+          const original = path.join(source, file.path),
+            actual = path.join(installed, file.path);
+          assert.equal(hash(actual), hash(original), manifest.name + '/' + file.path);
         }
-      };
-      visit(path.join(installed, 'dist'));
-      assert(fs.existsSync(path.join(installed, 'LICENSE.md')));
-      assert(fs.readdirSync(path.join(installed, 'licenses')).length > 0);
-    }
-    fs.copyFileSync(path.join(root, 'packages/material/tests/root-fixture.mjs'), path.join(directory, 'root-fixture.mjs'));
-    fs.writeFileSync(path.join(directory, 'icons.mjs'), `
+        if (!manifest.name.startsWith('@nelyx/')) continue;
+        for (const entry of Object.values(manifest.exports)) {
+          for (const target of typeof entry === 'string' ? [entry] : Object.values(entry))
+            assert(fs.existsSync(path.join(installed, target)), 'Missing public export ' + target);
+        }
+        const visit = (folder) => {
+          for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
+            const file = path.join(folder, entry.name);
+            if (entry.isDirectory()) visit(file);
+            else if (file.endsWith('.map')) {
+              const map = JSON.parse(fs.readFileSync(file));
+              assert.equal(map.version, 3);
+              if (map.sourcesContent) assert.equal(map.sources.length, map.sourcesContent.length);
+              else assert(file.endsWith('.d.ts.map'), 'JavaScript maps must include source text');
+              map.sources.forEach((source, index) => {
+                const original = path.resolve(path.dirname(file), source);
+                assert(
+                  original.startsWith(installed + path.sep),
+                  'Map must reference installed source',
+                );
+                assert(fs.existsSync(original), 'Map source must be supplied in the archive');
+                if (map.sourcesContent)
+                  assert.equal(
+                    createHash('sha256').update(map.sourcesContent[index]).digest('hex'),
+                    hash(original),
+                    'Source map content differs from installed source: ' +
+                      manifest.name +
+                      '/' +
+                      path.relative(installed, original),
+                  );
+              });
+            }
+          }
+        };
+        visit(path.join(installed, 'dist'));
+        assert(fs.existsSync(path.join(installed, 'LICENSE.md')));
+        assert(fs.readdirSync(path.join(installed, 'licenses')).length > 0);
+      }
+      fs.copyFileSync(
+        path.join(root, 'packages/material/tests/root-fixture.mjs'),
+        path.join(directory, 'root-fixture.mjs'),
+      );
+      fs.writeFileSync(
+        path.join(directory, 'icons.mjs'),
+        `
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 const loaded = [];
@@ -82,9 +141,12 @@ const {IconData} = await import('@nelyx/core/framework/widgets/icon-data');
 assert(Icons.add instanceof IconData); assert(CupertinoIcons.add instanceof IconData);
 assert(loaded.filter(url => /\\/@nelyx\\/(material|cupertino)\\/dist\\//.test(url)).every(url => /\\/(?:generated\\/icons\\/)?icons\\.js$/.test(url)));
 assert(!loaded.some(url => /\\/framework\\/(rendering|widgets)\\/(?!icon-data\\.js)/.test(url)), 'Icon data must not load Widget/render owners');
-`);
-    run(process.execPath, ['icons.mjs'], directory);
-    fs.writeFileSync(path.join(directory, 'consumer.mjs'), `
+`,
+      );
+      run(process.execPath, ['icons.mjs'], directory);
+      fs.writeFileSync(
+        path.join(directory, 'consumer.mjs'),
+        `
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
@@ -142,9 +204,12 @@ try {
   f.set(new SizedBox());
   f.set(new MediaQuery({width: 240, height: 160, scale: 1, textScale: 3, safeArea: {left: 0, top: 0, right: 0, bottom: 0}, keyboardInset: 22}, MediaQuery.withClampedTextScaling({maxScaleFactor: 1.5, child: new Builder(context => {assert.equal(MediaQuery.textScalerOf(context).scale(20), 30); assert.equal(MediaQuery.of(context).keyboardInset, 22); return new SizedBox();})})));
 } finally {f.close();}
-`);
-    run(process.execPath, ['consumer.mjs'], directory);
-    fs.writeFileSync(path.join(directory, 'consumer.ts'), `
+`,
+      );
+      run(process.execPath, ['consumer.mjs'], directory);
+      fs.writeFileSync(
+        path.join(directory, 'consumer.ts'),
+        `
 import {OverflowBar, type OverflowBarOptions} from '@nelyx/core/framework/widgets/overflow-bar';
 import {MediaQuery} from '@nelyx/core/framework/widgets/app-data';
 import {FilledButton} from '@nelyx/material/filled-button';
@@ -184,16 +249,37 @@ void formRow; void formSection;
 const cupertinoInput: Widget = new CupertinoTextField({id: 'message', placeholder: 'Message', clearButtonMode: OverlayVisibilityMode.editing, minLines: 1, maxLines: 3});
 const cupertinoForm: Widget = new CupertinoTextFormFieldRow({id: 'contact', initialValue: 'Ada', onFieldSubmitted(value) {value.toUpperCase();}, validator: value => value ? null : 'Required'});
 void cupertinoInput; void cupertinoForm;
-`);
-    fs.writeFileSync(path.join(directory, 'tsconfig.json'), JSON.stringify({compilerOptions: {strict: true, noEmit: true, module: 'NodeNext', target: 'ES2022', types: []}, files: ['consumer.ts']}));
-    run(process.execPath, [path.join(root, 'node_modules/@typescript/native/bin/tsc'), '-p', 'tsconfig.json'], directory);
-    const declarations = fs.readFileSync(path.join(directory, 'node_modules/@nelyx/core/dist/framework/widgets/overflow-bar.d.ts'), 'utf8');
-    assert(declarations.includes('@dartType double'));
-    assert(declarations.includes('@dartParam spacing double'));
-  } finally {
-    assert.equal(path.dirname(directory), path.resolve(os.tmpdir()));
-    assert(path.basename(directory).startsWith('nelyx-design-delivery-'));
-    assert(!fs.lstatSync(directory).isSymbolicLink());
-    fs.rmSync(directory, {recursive: true, force: true, maxRetries: 3, retryDelay: 100});
-  }
-});
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'tsconfig.json'),
+        JSON.stringify({
+          compilerOptions: {
+            strict: true,
+            noEmit: true,
+            module: 'NodeNext',
+            target: 'ES2022',
+            types: [],
+          },
+          files: ['consumer.ts'],
+        }),
+      );
+      run(
+        process.execPath,
+        [path.join(root, 'node_modules/@typescript/native/bin/tsc'), '-p', 'tsconfig.json'],
+        directory,
+      );
+      const declarations = fs.readFileSync(
+        path.join(directory, 'node_modules/@nelyx/core/dist/framework/widgets/overflow-bar.d.ts'),
+        'utf8',
+      );
+      assert(declarations.includes('@dartType double'));
+      assert(declarations.includes('@dartParam spacing double'));
+    } finally {
+      assert.equal(path.dirname(directory), path.resolve(os.tmpdir()));
+      assert(path.basename(directory).startsWith('nelyx-design-delivery-'));
+      assert(!fs.lstatSync(directory).isSymbolicLink());
+      fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    }
+  },
+);

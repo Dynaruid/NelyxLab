@@ -1,9 +1,9 @@
-import type { CanvasKit, EmbindEnumEntity } from "canvaskit-wasm";
+import type { CanvasKit, EmbindEnumEntity } from 'canvaskit-wasm';
 
-import type {SkJSIInstance} from "@nelyx/skia-native/skia/types/JsiInstance";
+import type { SkJSIInstance } from '@nelyx/skia-native/skia/types/JsiInstance';
 
 export const throwNotImplementedOnRNWeb = <T>(): T => {
-  throw new Error("Not implemented on React Native Web");
+  throw new Error('Not implemented on React Native Web');
 };
 
 export abstract class Host {
@@ -14,10 +14,7 @@ export abstract class Host {
   }
 }
 
-export abstract class BaseHostObject<T, N extends string>
-  extends Host
-  implements SkJSIInstance<N>
-{
+export abstract class BaseHostObject<T, N extends string> extends Host implements SkJSIInstance<N> {
   readonly __typename__: N;
   ref: T;
 
@@ -34,15 +31,15 @@ export abstract class BaseHostObject<T, N extends string>
   [Symbol.dispose](): void {
     if (
       this.ref !== null &&
-      typeof this.ref === "object" &&
-      "delete" in this.ref &&
-      typeof this.ref.delete === "function"
+      typeof this.ref === 'object' &&
+      'delete' in this.ref &&
+      typeof this.ref.delete === 'function'
     ) {
       // Renderer-owned and user-owned disposal can overlap (and emscripten
       // throws on double delete) — make disposing an already-deleted object
       // a no-op.
       const ref = this.ref as unknown as { isDeleted?: () => boolean };
-      if (typeof ref.isDeleted === "function" && ref.isDeleted()) {
+      if (typeof ref.isDeleted === 'function' && ref.isDeleted()) {
         return;
       }
       this.ref.delete();
@@ -50,10 +47,7 @@ export abstract class BaseHostObject<T, N extends string>
   }
 }
 
-export abstract class HostObject<T, N extends string> extends BaseHostObject<
-  T,
-  N
-> {
+export abstract class HostObject<T, N extends string> extends BaseHostObject<T, N> {
   static fromValue<T>(value: SkJSIInstance<string>) {
     return (value as HostObject<T, string>).ref;
   }
@@ -62,23 +56,17 @@ export abstract class HostObject<T, N extends string> extends BaseHostObject<
 export const getEnum = (
   CanvasKit: CanvasKit,
   name: keyof CanvasKit,
-  v: number
+  v: number,
 ): EmbindEnumEntity => {
   const e = CanvasKit[name];
-  if (typeof e !== "function") {
+  if (typeof e !== 'function') {
     throw new Error(`${name} is not an number`);
   }
   const result = Object.values(e).find(
-    (entry) =>
-      entry !== null &&
-      typeof entry === "object" &&
-      "value" in entry &&
-      entry.value === v
+    (entry) => entry !== null && typeof entry === 'object' && 'value' in entry && entry.value === v,
   );
   if (!result) {
-    throw new Error(
-      `Enum ${name} does not have value ${v} on React Native Web`
-    );
+    throw new Error(`Enum ${name} does not have value ${v} on React Native Web`);
   }
   return result;
 };
@@ -86,7 +74,7 @@ export const getEnum = (
 export const optEnum = (
   CanvasKit: CanvasKit,
   name: keyof CanvasKit,
-  v: number | undefined
+  v: number | undefined,
 ): EmbindEnumEntity | undefined => {
   return v === undefined ? undefined : getEnum(CanvasKit, name, v);
 };

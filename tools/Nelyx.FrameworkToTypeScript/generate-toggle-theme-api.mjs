@@ -1,18 +1,231 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { relocateProductModule, productModulePath } from './product-module-layout.mjs';
 // Fail-closed finite projection of all resolved toggle-theme data fields onto explicit value operations.
-import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
-const sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),read=f=>JSON.parse(fs.readFileSync(f,'utf8')),candidateFile='.tmp/work8/w11-toggle-foundation-candidate/result.json',candidate=read(candidateFile);assert.equal(sha(candidate.ir.file),candidate.ir.sha256);const ir=read(candidate.ir.file),file=productModulePath('packages/material/src/toggle-theme-data.generated.ts'),ownership='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-toggle-theme-api-ownership.json',check=process.argv.includes('--check');if(fs.existsSync(ownership))for(const r of read(ownership).outputs)assert.equal(sha(r.file),r.sha256,'Managed theme output was edited');
-const bindings=new Set(['WidgetStateProperty','MouseCursor','Color','MaterialTapTargetSize','VisualDensity','OutlinedBorder','BorderSide','Icon','EdgeInsetsGeometry']);function type(t,generic=false){assert.equal(t.kind,'interface');let s;if(t.reference.id==='dart:core::double:CLASS')s=generic?'DartDouble':'number';else{assert(bindings.has(t.reference.name),'Unbound resolved theme type '+t.reference.id);s=t.reference.name+(t.arguments?.length?'<'+t.arguments.map(t=>type(t,true)).join(',')+'>':'');}return s+(t.nullable?'|null':'');}
-let previousOwnership=null;if(!check&&fs.existsSync(ownership)){const old=read(ownership);for(const r of [...old.outputs,ref(ownership)]){const target='.tmp/work8/receipt-history/'+r.sha256+'-w11-toggle-theme-api-before-'+r.file.split('/').at(-1);if(!fs.existsSync(target))fs.copyFileSync(r.file,target);if(r.file===ownership)previousOwnership={file:target,sha256:r.sha256};}}
-let text=`// SPDX-License-Identifier: BSD-3-Clause
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+const sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
+  ref = (file) => ({ file, sha256: sha(file) }),
+  read = (f) => JSON.parse(fs.readFileSync(f, 'utf8')),
+  candidateFile = '.tmp/work8/w11-toggle-foundation-candidate/result.json',
+  candidate = read(candidateFile);
+assert.equal(sha(candidate.ir.file), candidate.ir.sha256);
+const ir = read(candidate.ir.file),
+  file = productModulePath('packages/material/src/toggle-theme-data.generated.ts'),
+  ownership = 'tools/Nelyx.FrameworkToTypeScript/data/work8/w11-toggle-theme-api-ownership.json',
+  check = process.argv.includes('--check');
+if (fs.existsSync(ownership))
+  for (const r of read(ownership).outputs)
+    assert.equal(sha(r.file), r.sha256, 'Managed theme output was edited');
+const bindings = new Set([
+  'WidgetStateProperty',
+  'MouseCursor',
+  'Color',
+  'MaterialTapTargetSize',
+  'VisualDensity',
+  'OutlinedBorder',
+  'BorderSide',
+  'Icon',
+  'EdgeInsetsGeometry',
+]);
+function type(t, generic = false) {
+  assert.equal(t.kind, 'interface');
+  let s;
+  if (t.reference.id === 'dart:core::double:CLASS') s = generic ? 'DartDouble' : 'number';
+  else {
+    assert(bindings.has(t.reference.name), 'Unbound resolved theme type ' + t.reference.id);
+    s =
+      t.reference.name +
+      (t.arguments?.length ? '<' + t.arguments.map((t) => type(t, true)).join(',') + '>' : '');
+  }
+  return s + (t.nullable ? '|null' : '');
+}
+let previousOwnership = null;
+if (!check && fs.existsSync(ownership)) {
+  const old = read(ownership);
+  for (const r of [...old.outputs, ref(ownership)]) {
+    const target =
+      '.tmp/work8/receipt-history/' +
+      r.sha256 +
+      '-w11-toggle-theme-api-before-' +
+      r.file.split('/').at(-1);
+    if (!fs.existsSync(target)) fs.copyFileSync(r.file, target);
+    if (r.file === ownership) previousOwnership = { file: target, sha256: r.sha256 };
+  }
+}
+let text = `// SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Managed resolved API projection; complete source value operations use canonical Core owners.
 import type {WidgetStateProperty} from '@nelyx/core/framework/widgets/widget-state';import type {MouseCursor} from '@nelyx/core/services/mouse-cursor';import type {Color} from '@nelyx/core/ui/color';import {OutlinedBorder} from '@nelyx/core/framework/painting/borders';import type {BorderSide} from '@nelyx/core/framework/painting/borders';import type {Icon} from '@nelyx/core/framework/widgets/icon';import {EdgeInsetsGeometry} from '@nelyx/core/framework/painting/edge-insets';import type {DartDouble} from '@nelyx/core/foundation/dart-numeric';import type {MaterialTapTargetSize,VisualDensity} from './theme-data.ts';import {Diagnosticable} from '@nelyx/core/foundation/diagnosticable';import {DiagnosticsProperty} from '@nelyx/core/foundation/diagnostics';import type {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {DoubleProperty} from '@nelyx/core/foundation/diagnostic-properties';import {valueEquals,hashValues} from '@nelyx/core/framework/painting/value-equality';import {lerpDouble} from '@nelyx/core/internal/ui/lerp-double.generated';import {lerpToggleColors,lerpToggleDoubles,lerpToggleSides} from './toggle-theme-values.ts';
 `;
-const records=[];for(const symbol of ['CheckboxThemeData','RadioThemeData','SwitchThemeData']){const r=ir.records.find(r=>r.symbol===symbol).ir,fields=r.fields.filter(f=>!f.static),params=r.constructor.parameters.filter(p=>p.name!=='key');assert.equal(fields.length,params.length);for(const f of fields){assert(f.final&&f.initializer===null);assert(params.some(p=>p.name===f.name&&p.resolvedType.nullable));}const numeric=f=>f.numeric?'/** @dartType '+f.numeric.type+' */ ':'';text+='export interface '+symbol+'Options {\n'+fields.map(f=>'  '+numeric(f)+'readonly '+f.name+'?:'+type(f.type)+';').join('\n')+'\n}\n';text+='const '+symbol+'Fields='+JSON.stringify(fields.map(f=>f.name))+' as const;\nexport class '+symbol+' extends Diagnosticable(class {}) {\n'+fields.map(f=>'  '+numeric(f)+'readonly '+f.name+':'+type(f.type)+';').join('\n')+'\n';text+='  /**\n'+params.filter(p=>p.numeric).map(p=>'   * @dartParam '+p.name+' '+p.numeric.type).join('\n')+'\n   */\n  constructor(o:'+symbol+'Options={}){super();'+fields.map(f=>'this.'+f.name+'=o.'+f.name+'??null;').join('')+'if(new.target==='+symbol+')Object.freeze(this);}\n';text+='  /**\n'+r.methods.find(m=>m.name==='copyWith').parameters.filter(p=>p.numeric).map(p=>'   * @dartParam '+p.name+' '+p.numeric.type).join('\n')+'\n   */\n';text+='  copyWith(o:'+symbol+'Options={}):'+symbol+'{return new '+symbol+'({'+fields.map(f=>f.name+':o.'+f.name+'??this.'+f.name).join(',')+'});}\n';
- text+='  /** @dartParam t double */ static lerp(a:'+symbol+'|null,b:'+symbol+'|null,t:number):'+symbol+'{if(a===b&&a!==null)return a;return new '+symbol+'({'+fields.map(f=>{const a='a?.'+f.name+'??null',b='b?.'+f.name+'??null',id=f.type.reference.id,arg=f.type.arguments?.[0]?.reference?.id;let value;if(f.type.reference.id==='dart:core::double:CLASS')value='lerpDouble('+a+','+b+',t)';else if(id.endsWith('::WidgetStateProperty:CLASS')&&arg==='dart:ui::Color:CLASS')value='lerpToggleColors('+a+','+b+',t)';else if(id.endsWith('::WidgetStateProperty:CLASS')&&arg==='dart:core::double:CLASS')value='lerpToggleDoubles('+a+','+b+',t)';else if(f.type.reference.name==='OutlinedBorder')value='OutlinedBorder.lerp('+a+','+b+',t)';else if(f.type.reference.name==='BorderSide')value='lerpToggleSides('+a+','+b+',t)';else if(f.type.reference.name==='EdgeInsetsGeometry')value='EdgeInsetsGeometry.lerp('+a+','+b+',t)';else value='t<.5?'+a+':'+b;return f.name+':'+value;}).join(',')+'});}\n';
- text+='  equals(other:unknown):boolean{return this===other||other instanceof '+symbol+'&&other.constructor===this.constructor&&'+symbol+'Fields.every(f=>valueEquals(this[f],other[f]));}\n  /** @dartReturn int */ get hashCode():number{return hashValues(...'+symbol+'Fields.map(f=>this[f]));}\n  override debugFillProperties(p:DiagnosticPropertiesBuilder):void{super.debugFillProperties(p);'+fields.map(f=>f.type.reference.id==='dart:core::double:CLASS'?'p.add(new DoubleProperty('+JSON.stringify(f.name)+',this.'+f.name+',{defaultValue:null}));':'p.add(new DiagnosticsProperty('+JSON.stringify(f.name)+',this.'+f.name+',{defaultValue:null,typeName:'+JSON.stringify(f.type.reference.name+(f.type.arguments?.length?'<'+f.type.arguments.map(t=>t.reference.name+(t.nullable?'?':'')).join(',')+'>':''))+'}));').join('')+'}\n}\n';records.push({symbol,fields:fields.map(f=>({name:f.name,type:f.type,numeric:f.numeric})),numericParameters:params.filter(p=>p.numeric).map(p=>({name:p.name,numeric:p.numeric}))});}
-for(const symbol of ['Checkbox','Radio','Switch'])text=text.replaceAll(symbol+'ThemeDataOptions',symbol+'ThemeOptions');
-text=relocateProductModule('packages/material/src/toggle-theme-data.generated.ts',text).text;
-if(check)assert.equal(fs.readFileSync(file,'utf8'),text,file);else{fs.writeFileSync(file,text);fs.writeFileSync(ownership,JSON.stringify({status:'PASS-scoped',previousOwnership,candidate:ref(candidateFile),ir:candidate.ir,outputs:[ref(file)],records,scope:'All resolved9 Checkbox,9 Radio and10 Switch theme data fields/defaults, source null-retaining copy, nullable endpoints/non-null result lerp, property/color/double/side/shape/padding/step policies, runtime class equality/hash relations and diagnostic fields on canonical Core. Generic source double values retain explicit DartDouble carriers; no raw-number provenance. Full source body emission, native hierarchy/VM hash and complete toggle-control implementation are not inferred.'},null,2)+'\n');}console.log(JSON.stringify({status:'PASS-scoped',classes:records.length,fields:records.reduce((n,r)=>n+r.fields.length,0),check}));
+const records = [];
+for (const symbol of ['CheckboxThemeData', 'RadioThemeData', 'SwitchThemeData']) {
+  const r = ir.records.find((r) => r.symbol === symbol).ir,
+    fields = r.fields.filter((f) => !f.static),
+    params = r.constructor.parameters.filter((p) => p.name !== 'key');
+  assert.equal(fields.length, params.length);
+  for (const f of fields) {
+    assert(f.final && f.initializer === null);
+    assert(params.some((p) => p.name === f.name && p.resolvedType.nullable));
+  }
+  const numeric = (f) => (f.numeric ? '/** @dartType ' + f.numeric.type + ' */ ' : '');
+  text +=
+    'export interface ' +
+    symbol +
+    'Options {\n' +
+    fields
+      .map((f) => '  ' + numeric(f) + 'readonly ' + f.name + '?:' + type(f.type) + ';')
+      .join('\n') +
+    '\n}\n';
+  text +=
+    'const ' +
+    symbol +
+    'Fields=' +
+    JSON.stringify(fields.map((f) => f.name)) +
+    ' as const;\nexport class ' +
+    symbol +
+    ' extends Diagnosticable(class {}) {\n' +
+    fields
+      .map((f) => '  ' + numeric(f) + 'readonly ' + f.name + ':' + type(f.type) + ';')
+      .join('\n') +
+    '\n';
+  text +=
+    '  /**\n' +
+    params
+      .filter((p) => p.numeric)
+      .map((p) => '   * @dartParam ' + p.name + ' ' + p.numeric.type)
+      .join('\n') +
+    '\n   */\n  constructor(o:' +
+    symbol +
+    'Options={}){super();' +
+    fields.map((f) => 'this.' + f.name + '=o.' + f.name + '??null;').join('') +
+    'if(new.target===' +
+    symbol +
+    ')Object.freeze(this);}\n';
+  text +=
+    '  /**\n' +
+    r.methods
+      .find((m) => m.name === 'copyWith')
+      .parameters.filter((p) => p.numeric)
+      .map((p) => '   * @dartParam ' + p.name + ' ' + p.numeric.type)
+      .join('\n') +
+    '\n   */\n';
+  text +=
+    '  copyWith(o:' +
+    symbol +
+    'Options={}):' +
+    symbol +
+    '{return new ' +
+    symbol +
+    '({' +
+    fields.map((f) => f.name + ':o.' + f.name + '??this.' + f.name).join(',') +
+    '});}\n';
+  text +=
+    '  /** @dartParam t double */ static lerp(a:' +
+    symbol +
+    '|null,b:' +
+    symbol +
+    '|null,t:number):' +
+    symbol +
+    '{if(a===b&&a!==null)return a;return new ' +
+    symbol +
+    '({' +
+    fields
+      .map((f) => {
+        const a = 'a?.' + f.name + '??null',
+          b = 'b?.' + f.name + '??null',
+          id = f.type.reference.id,
+          arg = f.type.arguments?.[0]?.reference?.id;
+        let value;
+        if (f.type.reference.id === 'dart:core::double:CLASS')
+          value = 'lerpDouble(' + a + ',' + b + ',t)';
+        else if (id.endsWith('::WidgetStateProperty:CLASS') && arg === 'dart:ui::Color:CLASS')
+          value = 'lerpToggleColors(' + a + ',' + b + ',t)';
+        else if (id.endsWith('::WidgetStateProperty:CLASS') && arg === 'dart:core::double:CLASS')
+          value = 'lerpToggleDoubles(' + a + ',' + b + ',t)';
+        else if (f.type.reference.name === 'OutlinedBorder')
+          value = 'OutlinedBorder.lerp(' + a + ',' + b + ',t)';
+        else if (f.type.reference.name === 'BorderSide')
+          value = 'lerpToggleSides(' + a + ',' + b + ',t)';
+        else if (f.type.reference.name === 'EdgeInsetsGeometry')
+          value = 'EdgeInsetsGeometry.lerp(' + a + ',' + b + ',t)';
+        else value = 't<.5?' + a + ':' + b;
+        return f.name + ':' + value;
+      })
+      .join(',') +
+    '});}\n';
+  text +=
+    '  equals(other:unknown):boolean{return this===other||other instanceof ' +
+    symbol +
+    '&&other.constructor===this.constructor&&' +
+    symbol +
+    'Fields.every(f=>valueEquals(this[f],other[f]));}\n  /** @dartReturn int */ get hashCode():number{return hashValues(...' +
+    symbol +
+    'Fields.map(f=>this[f]));}\n  override debugFillProperties(p:DiagnosticPropertiesBuilder):void{super.debugFillProperties(p);' +
+    fields
+      .map((f) =>
+        f.type.reference.id === 'dart:core::double:CLASS'
+          ? 'p.add(new DoubleProperty(' +
+            JSON.stringify(f.name) +
+            ',this.' +
+            f.name +
+            ',{defaultValue:null}));'
+          : 'p.add(new DiagnosticsProperty(' +
+            JSON.stringify(f.name) +
+            ',this.' +
+            f.name +
+            ',{defaultValue:null,typeName:' +
+            JSON.stringify(
+              f.type.reference.name +
+                (f.type.arguments?.length
+                  ? '<' +
+                    f.type.arguments
+                      .map((t) => t.reference.name + (t.nullable ? '?' : ''))
+                      .join(',') +
+                    '>'
+                  : ''),
+            ) +
+            '}));',
+      )
+      .join('') +
+    '}\n}\n';
+  records.push({
+    symbol,
+    fields: fields.map((f) => ({ name: f.name, type: f.type, numeric: f.numeric })),
+    numericParameters: params
+      .filter((p) => p.numeric)
+      .map((p) => ({ name: p.name, numeric: p.numeric })),
+  });
+}
+for (const symbol of ['Checkbox', 'Radio', 'Switch'])
+  text = text.replaceAll(symbol + 'ThemeDataOptions', symbol + 'ThemeOptions');
+text = relocateProductModule('packages/material/src/toggle-theme-data.generated.ts', text).text;
+if (check) assert.equal(fs.readFileSync(file, 'utf8'), text, file);
+else {
+  fs.writeFileSync(file, text);
+  fs.writeFileSync(
+    ownership,
+    JSON.stringify(
+      {
+        status: 'PASS-scoped',
+        previousOwnership,
+        candidate: ref(candidateFile),
+        ir: candidate.ir,
+        outputs: [ref(file)],
+        records,
+        scope:
+          'All resolved9 Checkbox,9 Radio and10 Switch theme data fields/defaults, source null-retaining copy, nullable endpoints/non-null result lerp, property/color/double/side/shape/padding/step policies, runtime class equality/hash relations and diagnostic fields on canonical Core. Generic source double values retain explicit DartDouble carriers; no raw-number provenance. Full source body emission, native hierarchy/VM hash and complete toggle-control implementation are not inferred.',
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+}
+console.log(
+  JSON.stringify({
+    status: 'PASS-scoped',
+    classes: records.length,
+    fields: records.reduce((n, r) => n + r.fields.length, 0),
+    check,
+  }),
+);

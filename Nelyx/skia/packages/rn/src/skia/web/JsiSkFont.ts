@@ -1,21 +1,21 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { CanvasKit, Font, Paint } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { CanvasKit, Font, Paint } from 'canvaskit-wasm';
 
-import type {FontEdging, FontHinting, SkFont} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPaint} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPoint} from "@nelyx/skia-native/skia/types/Point";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
-import type {SkTypeface} from "@nelyx/skia-native/skia/types/Typeface/Typeface";
+import type { FontEdging, FontHinting, SkFont } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPaint } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPoint } from '@nelyx/skia-native/skia/types/Point';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
+import type { SkTypeface } from '@nelyx/skia-native/skia/types/Typeface/Typeface';
 
-import {HostObject, getEnum} from './Host.ts';
-import {JsiSkPaint} from './JsiSkPaint.ts';
-import {JsiSkPoint} from './JsiSkPoint.ts';
-import {JsiSkRect} from './JsiSkRect.ts';
-import {JsiSkTypeface} from './JsiSkTypeface.ts';
+import { HostObject, getEnum } from './Host.ts';
+import { JsiSkPaint } from './JsiSkPaint.ts';
+import { JsiSkPoint } from './JsiSkPoint.ts';
+import { JsiSkRect } from './JsiSkRect.ts';
+import { JsiSkTypeface } from './JsiSkTypeface.ts';
 
-export class JsiSkFont extends HostObject<Font, "Font"> implements SkFont {
+export class JsiSkFont extends HostObject<Font, 'Font'> implements SkFont {
   constructor(CanvasKit: CanvasKit, ref: Font) {
-    super(CanvasKit, ref, "Font");
+    super(CanvasKit, ref, 'Font');
   }
 
   measureText(text: string, paint?: SkPaint | undefined): SkRect {
@@ -60,10 +60,7 @@ export class JsiSkFont extends HostObject<Font, "Font"> implements SkFont {
         bottom = Math.max(bottom, b);
       }
     }
-    return new JsiSkRect(
-      this.CanvasKit,
-      this.CanvasKit.LTRBRect(left, top, right, bottom)
-    );
+    return new JsiSkRect(this.CanvasKit, this.CanvasKit.LTRBRect(left, top, right, bottom));
   }
 
   getTextWidth(text: string, paint?: SkPaint | undefined) {
@@ -78,7 +75,7 @@ export class JsiSkFont extends HostObject<Font, "Font"> implements SkFont {
       ascent: result.ascent,
       descent: result.descent,
       leading: result.leading,
-      ...(result.bounds ? {bounds: new JsiSkRect(this.CanvasKit, result.bounds)} : {}),
+      ...(result.bounds ? { bounds: new JsiSkRect(this.CanvasKit, result.bounds) } : {}),
     };
   }
 
@@ -89,26 +86,16 @@ export class JsiSkFont extends HostObject<Font, "Font"> implements SkFont {
 
   // TODO: Fix return value in the C++ implementation, it return float32
   getGlyphWidths(glyphs: number[], paint?: SkPaint | null) {
-    return [
-      ...this.ref.getGlyphWidths(
-        glyphs,
-        paint ? JsiSkPaint.fromValue(paint) : null
-      ),
-    ];
+    return [...this.ref.getGlyphWidths(glyphs, paint ? JsiSkPaint.fromValue(paint) : null)];
   }
 
-  getGlyphIntercepts(
-    glyphs: number[],
-    positions: SkPoint[],
-    top: number,
-    bottom: number
-  ) {
+  getGlyphIntercepts(glyphs: number[], positions: SkPoint[], top: number, bottom: number) {
     return [
       ...this.ref.getGlyphIntercepts(
         glyphs,
         positions.map((p) => Array.from(JsiSkPoint.fromValue(p))).flat(),
         top,
-        bottom
+        bottom,
       ),
     ];
   }
@@ -135,7 +122,7 @@ export class JsiSkFont extends HostObject<Font, "Font"> implements SkFont {
   }
 
   setEdging(edging: FontEdging) {
-    this.ref.setEdging(getEnum(this.CanvasKit, "FontEdging", edging));
+    this.ref.setEdging(getEnum(this.CanvasKit, 'FontEdging', edging));
   }
 
   setEmbeddedBitmaps(embeddedBitmaps: boolean) {
@@ -143,7 +130,7 @@ export class JsiSkFont extends HostObject<Font, "Font"> implements SkFont {
   }
 
   setHinting(hinting: FontHinting) {
-    this.ref.setHinting(getEnum(this.CanvasKit, "FontHinting", hinting));
+    this.ref.setHinting(getEnum(this.CanvasKit, 'FontHinting', hinting));
   }
 
   setLinearMetrics(linearMetrics: boolean) {

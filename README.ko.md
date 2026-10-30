@@ -76,6 +76,8 @@ Windows·Android 준비와 실행은 [Testbed 가이드](sample/nelyx-testbed-ap
 
 [린트 설정](.oxlintrc.json)은 rest에서 제외하기 위한 바인딩, `_`로 시작하는 미사용 매개변수, 부수 효과가 있는 단축 평가식과 `this`의 소유자 참조·트리 순회 커서를 허용합니다. 숫자 경계값 연산, 입력 필터, 프로토콜 데이터와 언어 검증 fixture는 이유를 적은 국소 예외를 사용합니다. 생성 소스도 검사 대상에 포함합니다.
 
+포맷 검사는 `npm run format:check`, 적용은 `npm run format`으로 실행합니다. [Oxfmt 설정](.oxfmtrc.json)은 들여쓰기 2칸·100자 줄바꿈 기준·작은따옴표·세미콜론·LF를 사용합니다. JS/TS 소스와 린트·포맷 설정 두 파일이 대상이며, import 순서와 내장 코드 문자열을 보존합니다. 과거 메타데이터와 빌드 출력은 포맷 대상에서 제외합니다. 린트 예외는 명시적인 범위로 표시해 줄바꿈 후에도 적용 범위를 유지합니다.
+
 워크스페이스 타입은 `npm run check:types`, 관리되는 디자인 소스의 소유권은 `npm run check:design-ownership`으로 확인합니다. 변환 도구의 별도 검사는 [도구 가이드](tools/Nelyx.FrameworkToTypeScript/README.md)를 참고하세요.
 
 ## 문서

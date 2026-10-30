@@ -1,21 +1,21 @@
-import type {FillType, StrokeOpts} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkImage, SamplingOptions} from "@nelyx/skia-native/skia/types/Drawing";
-import type {Vector, SkPoint, PointMode} from "@nelyx/skia-native/skia/types/Point";
-import type {Color, SkColor} from "@nelyx/skia-native/skia/types/Color";
-import type {BlendMode} from "@nelyx/skia-native/skia/types/Paint/BlendMode";
-import type {VertexMode} from "@nelyx/skia-native/skia/types/Vertices/Vertices";
-import type {SkFont} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkRRect} from "@nelyx/skia-native/skia/types/RRect";
-import type {SkTextBlob} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkSVG} from "@nelyx/skia-native/skia/types/SVG/SVG";
-import type {SkPaint} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
-import type {SkRSXform} from "@nelyx/skia-native/skia/types/RSXform";
-import type {SkSkottieAnimation} from "@nelyx/skia-native/skia/types/Skottie";
-import type {SkImageFilter} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
+import type { FillType, StrokeOpts } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkImage, SamplingOptions } from '@nelyx/skia-native/skia/types/Drawing';
+import type { Vector, SkPoint, PointMode } from '@nelyx/skia-native/skia/types/Point';
+import type { Color, SkColor } from '@nelyx/skia-native/skia/types/Color';
+import type { BlendMode } from '@nelyx/skia-native/skia/types/Paint/BlendMode';
+import type { VertexMode } from '@nelyx/skia-native/skia/types/Vertices/Vertices';
+import type { SkFont } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkRRect } from '@nelyx/skia-native/skia/types/RRect';
+import type { SkTextBlob } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPicture } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkSVG } from '@nelyx/skia-native/skia/types/SVG/SVG';
+import type { SkPaint } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
+import type { SkRSXform } from '@nelyx/skia-native/skia/types/RSXform';
+import type { SkSkottieAnimation } from '@nelyx/skia-native/skia/types/Skottie';
+import type { SkImageFilter } from '@nelyx/skia-native/skia/types/ImageFilter/ImageFilter';
 
-import type {CircleDef, Fit, GroupProps, PathDef, RectDef, RRectDef, SkEnum} from './Common.ts';
+import type { CircleDef, Fit, GroupProps, PathDef, RectDef, RRectDef, SkEnum } from './Common.ts';
 
 export interface DrawingNodeProps extends GroupProps {
   paint?: SkPaint;
@@ -66,12 +66,7 @@ export interface CubicBezierHandle {
 
 export interface PatchProps extends DrawingNodeProps {
   colors?: Color[];
-  patch: [
-    CubicBezierHandle,
-    CubicBezierHandle,
-    CubicBezierHandle,
-    CubicBezierHandle,
-  ];
+  patch: [CubicBezierHandle, CubicBezierHandle, CubicBezierHandle, CubicBezierHandle];
   texture?: readonly [SkPoint, SkPoint, SkPoint, SkPoint];
   blendMode?: SkEnum<typeof BlendMode>;
 }

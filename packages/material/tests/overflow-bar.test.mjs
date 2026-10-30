@@ -1,27 +1,458 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {OverflowBar,OverflowBarAlignment} from '@nelyx/core/framework/widgets/overflow-bar';import {VerticalDirection} from '@nelyx/core/framework/painting/basic-types';import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';import {TextScaler} from '@nelyx/core/framework/painting/text-scaler';import {State,StatefulWidget,LeafRenderObjectWidget} from '@nelyx/core/framework/widgets/framework';import {RenderBox} from '@nelyx/core/framework/rendering/object';import {SizedBox,Center,Builder,ColoredBox,ConstrainedBox} from '@nelyx/core/framework/widgets/basic';import {Semantics} from '@nelyx/core/framework/widgets/semantics';import {GestureDetector} from '@nelyx/core/framework/widgets/gesture-detector';import {HitTestBehavior} from '@nelyx/core/framework/rendering/pointer-listener';import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';import {ValueKey} from '@nelyx/core/foundation/key';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {fixture} from './root-fixture.mjs';import {engineFixture} from './engine-fixture.mjs';
-const timeout=1200000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/overflow-bar-source.json',import.meta.url))).result;
-FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const media=(child,scale=3)=>new MediaQuery({width:240,height:160,scale:1,textScale:scale,safeArea:{left:1,top:2,right:3,bottom:4},keyboardInset:30},child);
-function find(root,predicate){let found;const visit=e=>{if(predicate(e))found=e;e.visitChildren(visit);};visit(root);assert(found);return found;}
-class Finite extends LeafRenderObjectWidget{constructor(input){super();this.input=input;}createRenderObject(){return new class extends RenderBox{constructor(input){super();this.input=input;}computeMinIntrinsicWidth(){return this.input[0];}computeMaxIntrinsicWidth(){return this.input[0];}computeMinIntrinsicHeight(){return this.input[1];}computeMaxIntrinsicHeight(){return this.input[1];}performLayout(c){return c.constrain({width:this.input[0],height:this.input[1]});}computeDryLayout(c){return this.performLayout(c);}computeDryBaseline(){return this.input[2];}computeDistanceToActualBaseline(){return this.input[2];}}(this.input);}}
-const bar=(row,children=row.input.map(r=>new Finite(r)))=>new OverflowBar({spacing:row.spacing,alignment:row.alignment,overflowSpacing:row.overflowSpacing,overflowAlignment:OverflowBarAlignment[row.overflowAlignment],overflowDirection:VerticalDirection[row.vertical],textDirection:row.direction,children});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { OverflowBar, OverflowBarAlignment } from '@nelyx/core/framework/widgets/overflow-bar';
+import { VerticalDirection } from '@nelyx/core/framework/painting/basic-types';
+import { MediaQuery, Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { TextScaler } from '@nelyx/core/framework/painting/text-scaler';
+import {
+  State,
+  StatefulWidget,
+  LeafRenderObjectWidget,
+} from '@nelyx/core/framework/widgets/framework';
+import { RenderBox } from '@nelyx/core/framework/rendering/object';
+import {
+  SizedBox,
+  Center,
+  Builder,
+  ColoredBox,
+  ConstrainedBox,
+} from '@nelyx/core/framework/widgets/basic';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
+import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { ValueKey } from '@nelyx/core/foundation/key';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { fixture } from './root-fixture.mjs';
+import { engineFixture } from './engine-fixture.mjs';
+const timeout = 1200000,
+  source = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/overflow-bar-source.json', import.meta.url)),
+  ).result;
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const media = (child, scale = 3) =>
+  new MediaQuery(
+    {
+      width: 240,
+      height: 160,
+      scale: 1,
+      textScale: scale,
+      safeArea: { left: 1, top: 2, right: 3, bottom: 4 },
+      keyboardInset: 30,
+    },
+    child,
+  );
+function find(root, predicate) {
+  let found;
+  const visit = (e) => {
+    if (predicate(e)) found = e;
+    e.visitChildren(visit);
+  };
+  visit(root);
+  assert(found);
+  return found;
+}
+class Finite extends LeafRenderObjectWidget {
+  constructor(input) {
+    super();
+    this.input = input;
+  }
+  createRenderObject() {
+    return new (class extends RenderBox {
+      constructor(input) {
+        super();
+        this.input = input;
+      }
+      computeMinIntrinsicWidth() {
+        return this.input[0];
+      }
+      computeMaxIntrinsicWidth() {
+        return this.input[0];
+      }
+      computeMinIntrinsicHeight() {
+        return this.input[1];
+      }
+      computeMaxIntrinsicHeight() {
+        return this.input[1];
+      }
+      performLayout(c) {
+        return c.constrain({ width: this.input[0], height: this.input[1] });
+      }
+      computeDryLayout(c) {
+        return this.performLayout(c);
+      }
+      computeDryBaseline() {
+        return this.input[2];
+      }
+      computeDistanceToActualBaseline() {
+        return this.input[2];
+      }
+    })(this.input);
+  }
+}
+const bar = (row, children = row.input.map((r) => new Finite(r))) =>
+  new OverflowBar({
+    spacing: row.spacing,
+    alignment: row.alignment,
+    overflowSpacing: row.overflowSpacing,
+    overflowAlignment: OverflowBarAlignment[row.overflowAlignment],
+    overflowDirection: VerticalDirection[row.vertical],
+    textDirection: row.direction,
+    children,
+  });
 
-test('OverflowBar public defaults/key/children, typed enum owners, directions and diagnostics are canonical',{timeout},()=>{
- const key=new ValueKey('overflow'),a=new SizedBox(20,10),children=[a],widget=new OverflowBar({key,children});children.length=0;assert.equal(widget.key,key);assert.equal(widget.childWidgets[0],a);assert.equal(widget.spacing,0);assert.equal(widget.overflowSpacing,0);assert.equal(widget.alignment,null);assert.equal(widget.textDirection,null);assert.equal(widget.overflowAlignment,OverflowBarAlignment.start);assert.equal(widget.overflowDirection,VerticalDirection.down);const p=new DiagnosticPropertiesBuilder(),oldMode=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';widget.debugFillProperties(p);FoundationBuildMode.mode=oldMode;assert.deepEqual(p.properties.filter(v=>['spacing','alignment','overflowSpacing','overflowAlignment','overflowDirection','textDirection'].includes(v.name)).map(v=>v.value),[0,null,0,OverflowBarAlignment.start,VerticalDirection.down,null]);const f=fixture();try{f.set(new Builder(c=>{assert.throws(()=>widget.createRenderObject(c));const explicit=new OverflowBar({textDirection:'rtl'}).createRenderObject(c);explicit.dispose();return new SizedBox();}));}finally{f.close();}
-});
-test('46 unchanged source OverflowBar render recipes match actual Core layout/dry/baseline/intrinsics across both directions',{timeout},()=>{
- const f=fixture();try{for(const row of source.rows){const widget=bar(row);f.set(new Center(new SizedBox(row.width,undefined,widget)));const render=find(f.root.root,e=>e.widget===widget).renderObject,c=new BoxConstraints(0,row.width,0,200);render.layout(c);assert.deepEqual(render.size,{width:row.size[0],height:row.size[1]});assert.deepEqual(render.children.map(child=>[child.layoutOffset.x,child.layoutOffset.y]),row.offsets);assert.deepEqual(render.children.map(child=>[child.size.width,child.size.height]),row.childSizes);assert.deepEqual(render.getDryLayout(c),{width:row.drySize[0],height:row.drySize[1]});assert.equal(render.getDryBaseline(c,'alphabetic'),row.dryBaseline);assert.equal(render.getDistanceToActualBaseline('alphabetic'),row.actualBaseline);assert.equal(render.getMinIntrinsicWidth(100),row.minWidth);assert.equal(render.getMaxIntrinsicWidth(100),row.maxWidth);assert.equal(render.getMinIntrinsicHeight(row.width),row.minHeight);assert.equal(render.getMaxIntrinsicHeight(row.width),row.maxHeight);f.set(new SizedBox());}}finally{f.close();}
-});
-test('actual OverflowBar keeps keyed child State, current paint/hit/semantics and pointer routes through row/column/reorder updates',{timeout},()=>{
- const f=fixture(),created=new Map(),disposed=new Map(),taps=[];class Probe extends StatefulWidget{constructor(id){super(new ValueKey(id));this.id=id;}createState(){const id=this.id;created.set(id,(created.get(id)??0)+1);return new class extends State{build(){return new Semantics({transportId:'overflow-'+id,label:id,child:new GestureDetector(new SizedBox(50,20),{behavior:HitTestBehavior.opaque,onTap:()=>taps.push(id)})});}dispose(){disposed.set(id,(disposed.get(id)??0)+1);super.dispose();}}();}}const make=(width,ids,direction='ltr',vertical=VerticalDirection.down)=>media(new Directionality(direction,new Center(new SizedBox(width,undefined,new OverflowBar({spacing:8,overflowSpacing:4,overflowDirection:vertical,overflowAlignment:OverflowBarAlignment.end,children:ids.map(id=>new Probe(id))})))));
- try{for(const [width,ids,direction,vertical]of[[240,['a','b','c'],'ltr',VerticalDirection.down],[80,['a','b','c'],'rtl',VerticalDirection.up],[80,['c','a','b'],'ltr',VerticalDirection.down],[240,['b','c','a'],'rtl',VerticalDirection.down]]){f.set(make(width,ids,direction,vertical));for(const id of ids)f.tap('overflow-'+id);assert.deepEqual([...created],[['a',1],['b',1],['c',1]]);assert.equal(disposed.size,0);}assert.equal(taps.join(','),'a,b,c,a,b,c,c,a,b,b,c,a');f.set(new SizedBox());assert.deepEqual([...disposed].sort(),[['a',1],['b',1],['c',1]]);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{f.close();}
-});
-test('source row/overflow rectangle geometry transfers through actual Core CPU paint with full independent pixels',{timeout},async()=>{
- const f=await engineFixture(),surface=f.ck.MakeSurface(240,160),reference=f.ck.MakeSurface(240,160),colors=[0xffff0000,0xff00ff00,0xff0000ff],rows=[source.rows[0],source.rows[1],source.rows[8],source.rows[15],source.rows[29],source.rows[31]],read=s=>{const image=s.makeImageSnapshot();try{return image.readPixels(0,0,{width:240,height:160,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB});}finally{image.delete();}};try{for(const row of rows){const children=row.input.map((v,i)=>new ColoredBox({color:colors[i],child:new SizedBox(v[0],v[1])}));f.set(new Center(new ConstrainedBox(bar(row,children),new BoxConstraints(0,row.width,0,200))));f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();const actual=read(surface),canvas=reference.getCanvas();canvas.clear(f.ck.Color(16,24,39,1));row.childSizes.forEach((size,i)=>{const [x,y]=row.offsets[i],paint=new f.ck.Paint();paint.setAntiAlias(false);paint.setColor(f.ck.Color(colors[i]>>>16&255,colors[i]>>>8&255,colors[i]&255,1));canvas.drawRect(f.ck.XYWHRect((240-row.size[0])/2+x,(160-row.size[1])/2+y,size[0],size[1]),paint);paint.delete();});reference.flush();const expected=read(reference),mismatches=actual.reduce((n,v,i)=>n+(v!==expected[i]?1:0),0);assert.equal(mismatches,0,'source input '+source.rows.indexOf(row));}f.set(new SizedBox());assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{surface.delete();reference.delete();await f.close();}
-});
-test('MediaQuery clamped scaling matches7 unchanged source helpers and preserves nonlinear scaling, insets and keyed State',{timeout},()=>{
- const f=fixture(),leaf=new SizedBox(),key=new ValueKey('ignored'),counts={created:0,disposed:0},seen=[];class Probe extends StatefulWidget{createState(){counts.created++;return new class extends State{build(c){const d=MediaQuery.of(c),scaler=MediaQuery.textScalerOf(c);seen.push({sizes:[10,20,40].map(size=>scaler.scale(size)),data:d});return leaf;}dispose(){counts.disposed++;super.dispose();}}();}}const probe=new Probe();try{for(const row of source.clamps){const [factor,min,max]=row.input;f.set(media(new Builder(c=>{const helper=MediaQuery.withClampedTextScaling({key,child:leaf,minScaleFactor:min,maxScaleFactor:max});assert.equal(helper.key,null);const result=helper.build(c);assert.equal(result.child,leaf);assert.deepEqual([10,20,40].map(size=>result.data.textScaler.scale(size)),row.sizes);assert.equal(result.data.safeArea,MediaQuery.of(c).safeArea);assert.equal(result.data.keyboardInset,30);return new SizedBox();}),factor));}
- class Nonlinear extends TextScaler{get textScaleFactor(){return 1.2;}scale(size){return size*(size<=16?1.2:3);}}for(const scale of [TextScaler.linear(3),new Nonlinear()]){f.set(new MediaQuery({width:240,height:160,scale:1,textScale:scale.textScaleFactor,textScaler:scale,safeArea:{left:1,top:2,right:3,bottom:4},keyboardInset:30},MediaQuery.withClampedTextScaling({child:probe,maxScaleFactor:1.5})));assert.equal(counts.created,1);}assert.deepEqual(seen.at(-1).sizes,[12,30,60]);assert.equal(seen.at(-1).data.keyboardInset,30);for(const [min,max]of[[2,1],[-1,1],[NaN,1],[0,NaN],[Infinity,Infinity]])assert.throws(()=>MediaQuery.withClampedTextScaling({child:leaf,minScaleFactor:min,maxScaleFactor:max}));f.set(new SizedBox());assert.equal(counts.disposed,1);}finally{f.close();}
-});
+test(
+  'OverflowBar public defaults/key/children, typed enum owners, directions and diagnostics are canonical',
+  { timeout },
+  () => {
+    const key = new ValueKey('overflow'),
+      a = new SizedBox(20, 10),
+      children = [a],
+      widget = new OverflowBar({ key, children });
+    children.length = 0;
+    assert.equal(widget.key, key);
+    assert.equal(widget.childWidgets[0], a);
+    assert.equal(widget.spacing, 0);
+    assert.equal(widget.overflowSpacing, 0);
+    assert.equal(widget.alignment, null);
+    assert.equal(widget.textDirection, null);
+    assert.equal(widget.overflowAlignment, OverflowBarAlignment.start);
+    assert.equal(widget.overflowDirection, VerticalDirection.down);
+    const p = new DiagnosticPropertiesBuilder(),
+      oldMode = FoundationBuildMode.mode;
+    FoundationBuildMode.mode = 'debug';
+    widget.debugFillProperties(p);
+    FoundationBuildMode.mode = oldMode;
+    assert.deepEqual(
+      p.properties
+        .filter((v) =>
+          [
+            'spacing',
+            'alignment',
+            'overflowSpacing',
+            'overflowAlignment',
+            'overflowDirection',
+            'textDirection',
+          ].includes(v.name),
+        )
+        .map((v) => v.value),
+      [0, null, 0, OverflowBarAlignment.start, VerticalDirection.down, null],
+    );
+    const f = fixture();
+    try {
+      f.set(
+        new Builder((c) => {
+          assert.throws(() => widget.createRenderObject(c));
+          const explicit = new OverflowBar({ textDirection: 'rtl' }).createRenderObject(c);
+          explicit.dispose();
+          return new SizedBox();
+        }),
+      );
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  '46 unchanged source OverflowBar render recipes match actual Core layout/dry/baseline/intrinsics across both directions',
+  { timeout },
+  () => {
+    const f = fixture();
+    try {
+      for (const row of source.rows) {
+        const widget = bar(row);
+        f.set(new Center(new SizedBox(row.width, undefined, widget)));
+        const render = find(f.root.root, (e) => e.widget === widget).renderObject,
+          c = new BoxConstraints(0, row.width, 0, 200);
+        render.layout(c);
+        assert.deepEqual(render.size, { width: row.size[0], height: row.size[1] });
+        assert.deepEqual(
+          render.children.map((child) => [child.layoutOffset.x, child.layoutOffset.y]),
+          row.offsets,
+        );
+        assert.deepEqual(
+          render.children.map((child) => [child.size.width, child.size.height]),
+          row.childSizes,
+        );
+        assert.deepEqual(render.getDryLayout(c), { width: row.drySize[0], height: row.drySize[1] });
+        assert.equal(render.getDryBaseline(c, 'alphabetic'), row.dryBaseline);
+        assert.equal(render.getDistanceToActualBaseline('alphabetic'), row.actualBaseline);
+        assert.equal(render.getMinIntrinsicWidth(100), row.minWidth);
+        assert.equal(render.getMaxIntrinsicWidth(100), row.maxWidth);
+        assert.equal(render.getMinIntrinsicHeight(row.width), row.minHeight);
+        assert.equal(render.getMaxIntrinsicHeight(row.width), row.maxHeight);
+        f.set(new SizedBox());
+      }
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'actual OverflowBar keeps keyed child State, current paint/hit/semantics and pointer routes through row/column/reorder updates',
+  { timeout },
+  () => {
+    const f = fixture(),
+      created = new Map(),
+      disposed = new Map(),
+      taps = [];
+    class Probe extends StatefulWidget {
+      constructor(id) {
+        super(new ValueKey(id));
+        this.id = id;
+      }
+      createState() {
+        const id = this.id;
+        created.set(id, (created.get(id) ?? 0) + 1);
+        return new (class extends State {
+          build() {
+            return new Semantics({
+              transportId: 'overflow-' + id,
+              label: id,
+              child: new GestureDetector(new SizedBox(50, 20), {
+                behavior: HitTestBehavior.opaque,
+                onTap: () => taps.push(id),
+              }),
+            });
+          }
+          dispose() {
+            disposed.set(id, (disposed.get(id) ?? 0) + 1);
+            super.dispose();
+          }
+        })();
+      }
+    }
+    const make = (width, ids, direction = 'ltr', vertical = VerticalDirection.down) =>
+      media(
+        new Directionality(
+          direction,
+          new Center(
+            new SizedBox(
+              width,
+              undefined,
+              new OverflowBar({
+                spacing: 8,
+                overflowSpacing: 4,
+                overflowDirection: vertical,
+                overflowAlignment: OverflowBarAlignment.end,
+                children: ids.map((id) => new Probe(id)),
+              }),
+            ),
+          ),
+        ),
+      );
+    try {
+      for (const [width, ids, direction, vertical] of [
+        [240, ['a', 'b', 'c'], 'ltr', VerticalDirection.down],
+        [80, ['a', 'b', 'c'], 'rtl', VerticalDirection.up],
+        [80, ['c', 'a', 'b'], 'ltr', VerticalDirection.down],
+        [240, ['b', 'c', 'a'], 'rtl', VerticalDirection.down],
+      ]) {
+        f.set(make(width, ids, direction, vertical));
+        for (const id of ids) f.tap('overflow-' + id);
+        assert.deepEqual(
+          [...created],
+          [
+            ['a', 1],
+            ['b', 1],
+            ['c', 1],
+          ],
+        );
+        assert.equal(disposed.size, 0);
+      }
+      assert.equal(taps.join(','), 'a,b,c,a,b,c,c,a,b,b,c,a');
+      f.set(new SizedBox());
+      assert.deepEqual([...disposed].sort(), [
+        ['a', 1],
+        ['b', 1],
+        ['c', 1],
+      ]);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'source row/overflow rectangle geometry transfers through actual Core CPU paint with full independent pixels',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      surface = f.ck.MakeSurface(240, 160),
+      reference = f.ck.MakeSurface(240, 160),
+      colors = [0xffff0000, 0xff00ff00, 0xff0000ff],
+      rows = [
+        source.rows[0],
+        source.rows[1],
+        source.rows[8],
+        source.rows[15],
+        source.rows[29],
+        source.rows[31],
+      ],
+      read = (s) => {
+        const image = s.makeImageSnapshot();
+        try {
+          return image.readPixels(0, 0, {
+            width: 240,
+            height: 160,
+            colorType: f.ck.ColorType.RGBA_8888,
+            alphaType: f.ck.AlphaType.Unpremul,
+            colorSpace: f.ck.ColorSpace.SRGB,
+          });
+        } finally {
+          image.delete();
+        }
+      };
+    try {
+      for (const row of rows) {
+        const children = row.input.map(
+          (v, i) => new ColoredBox({ color: colors[i], child: new SizedBox(v[0], v[1]) }),
+        );
+        f.set(
+          new Center(
+            new ConstrainedBox(bar(row, children), new BoxConstraints(0, row.width, 0, 200)),
+          ),
+        );
+        f.library.replay(surface.getCanvas(), { commands: f.frame() });
+        surface.flush();
+        const actual = read(surface),
+          canvas = reference.getCanvas();
+        canvas.clear(f.ck.Color(16, 24, 39, 1));
+        row.childSizes.forEach((size, i) => {
+          const [x, y] = row.offsets[i],
+            paint = new f.ck.Paint();
+          paint.setAntiAlias(false);
+          paint.setColor(
+            f.ck.Color((colors[i] >>> 16) & 255, (colors[i] >>> 8) & 255, colors[i] & 255, 1),
+          );
+          canvas.drawRect(
+            f.ck.XYWHRect(
+              (240 - row.size[0]) / 2 + x,
+              (160 - row.size[1]) / 2 + y,
+              size[0],
+              size[1],
+            ),
+            paint,
+          );
+          paint.delete();
+        });
+        reference.flush();
+        const expected = read(reference),
+          mismatches = actual.reduce((n, v, i) => n + (v !== expected[i] ? 1 : 0), 0);
+        assert.equal(mismatches, 0, 'source input ' + source.rows.indexOf(row));
+      }
+      f.set(new SizedBox());
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      surface.delete();
+      reference.delete();
+      await f.close();
+    }
+  },
+);
+test(
+  'MediaQuery clamped scaling matches7 unchanged source helpers and preserves nonlinear scaling, insets and keyed State',
+  { timeout },
+  () => {
+    const f = fixture(),
+      leaf = new SizedBox(),
+      key = new ValueKey('ignored'),
+      counts = { created: 0, disposed: 0 },
+      seen = [];
+    class Probe extends StatefulWidget {
+      createState() {
+        counts.created++;
+        return new (class extends State {
+          build(c) {
+            const d = MediaQuery.of(c),
+              scaler = MediaQuery.textScalerOf(c);
+            seen.push({ sizes: [10, 20, 40].map((size) => scaler.scale(size)), data: d });
+            return leaf;
+          }
+          dispose() {
+            counts.disposed++;
+            super.dispose();
+          }
+        })();
+      }
+    }
+    const probe = new Probe();
+    try {
+      for (const row of source.clamps) {
+        const [factor, min, max] = row.input;
+        f.set(
+          media(
+            new Builder((c) => {
+              const helper = MediaQuery.withClampedTextScaling({
+                key,
+                child: leaf,
+                minScaleFactor: min,
+                maxScaleFactor: max,
+              });
+              assert.equal(helper.key, null);
+              const result = helper.build(c);
+              assert.equal(result.child, leaf);
+              assert.deepEqual(
+                [10, 20, 40].map((size) => result.data.textScaler.scale(size)),
+                row.sizes,
+              );
+              assert.equal(result.data.safeArea, MediaQuery.of(c).safeArea);
+              assert.equal(result.data.keyboardInset, 30);
+              return new SizedBox();
+            }),
+            factor,
+          ),
+        );
+      }
+      class Nonlinear extends TextScaler {
+        get textScaleFactor() {
+          return 1.2;
+        }
+        scale(size) {
+          return size * (size <= 16 ? 1.2 : 3);
+        }
+      }
+      for (const scale of [TextScaler.linear(3), new Nonlinear()]) {
+        f.set(
+          new MediaQuery(
+            {
+              width: 240,
+              height: 160,
+              scale: 1,
+              textScale: scale.textScaleFactor,
+              textScaler: scale,
+              safeArea: { left: 1, top: 2, right: 3, bottom: 4 },
+              keyboardInset: 30,
+            },
+            MediaQuery.withClampedTextScaling({ child: probe, maxScaleFactor: 1.5 }),
+          ),
+        );
+        assert.equal(counts.created, 1);
+      }
+      assert.deepEqual(seen.at(-1).sizes, [12, 30, 60]);
+      assert.equal(seen.at(-1).data.keyboardInset, 30);
+      for (const [min, max] of [
+        [2, 1],
+        [-1, 1],
+        [NaN, 1],
+        [0, NaN],
+        [Infinity, Infinity],
+      ])
+        assert.throws(() =>
+          MediaQuery.withClampedTextScaling({
+            child: leaf,
+            minScaleFactor: min,
+            maxScaleFactor: max,
+          }),
+        );
+      f.set(new SizedBox());
+      assert.equal(counts.disposed, 1);
+    } finally {
+      f.close();
+    }
+  },
+);

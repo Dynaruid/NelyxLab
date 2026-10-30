@@ -1,46 +1,417 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { Theme, AnimatedTheme, kThemeAnimationDuration } from '@nelyx/material/theme';
-import {ThemeData} from '@nelyx/material/theme-data';import {MaterialLocalizations,MaterialLocalizationsScope} from '@nelyx/material/material-localizations';import {ScriptCategory} from '@nelyx/material/script-category';import {TextSelectionThemeData} from '@nelyx/material/text-selection-theme';
-import {CupertinoTheme,InheritedCupertinoTheme,CupertinoThemeData} from '@nelyx/cupertino/theme';import {CupertinoColors} from '@nelyx/cupertino/colors';import {CupertinoIconThemeData} from '@nelyx/cupertino/icon-theme-data';
-import {StatelessWidget,StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';import {Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {MediaQuery} from '@nelyx/core/framework/widgets/app-data';
-import {InheritedTheme} from '@nelyx/core/framework/widgets/inherited-theme';import {DefaultTextStyle} from '@nelyx/core/framework/widgets/default-text-style';import {TextStyle} from '@nelyx/core/framework/painting/text-style';import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';import {DefaultSelectionStyle} from '@nelyx/core/framework/widgets/default-selection-style';
-import {ValueKey} from '@nelyx/core/foundation/key';import {Color} from '@nelyx/core/ui/color';import {Curves} from '@nelyx/core/framework/animation/curves';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {fixture} from './root-fixture.mjs';
-import {FoundationPlatform} from '@nelyx/core/foundation/platform';FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const timeout=1200000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/theme-widget-source.json',import.meta.url))).result;
-const closeColor=(a,b)=>{for(const field of ['a','r','g','b'])assert(Math.abs(a[field]-b[field])<=Number.EPSILON*8,field+': '+a[field]+' != '+b[field]);};
-const media=(brightness,highContrast,child)=>new MediaQuery({width:240,height:160,scale:1,textScale:1,safeArea:{top:0,left:0,right:0,bottom:0},keyboardInset:0,platformBrightness:brightness,highContrast},child);
-function tree(w){if(w instanceof InheritedCupertinoTheme)return {type:'CupertinoScope',child:tree(w.child)};if(w.constructor.name==='InheritedMaterialTheme')return {type:'MaterialScope',child:tree(w.child)};if(w instanceof CupertinoTheme)return {type:'CupertinoTheme',data:'material:a',child:tree(w.child)};if(w instanceof IconTheme)return {type:'IconTheme',color:w.data.color.toARGB32(),child:tree(w.child)};if(w instanceof DefaultSelectionStyle)return {type:'DefaultSelectionStyle',cursor:w.cursorColor,selection:w.selectionColor,child:tree(w.child)};return {type:'Leaf'};}
+import { ThemeData } from '@nelyx/material/theme-data';
+import {
+  MaterialLocalizations,
+  MaterialLocalizationsScope,
+} from '@nelyx/material/material-localizations';
+import { ScriptCategory } from '@nelyx/material/script-category';
+import { TextSelectionThemeData } from '@nelyx/material/text-selection-theme';
+import {
+  CupertinoTheme,
+  InheritedCupertinoTheme,
+  CupertinoThemeData,
+} from '@nelyx/cupertino/theme';
+import { CupertinoColors } from '@nelyx/cupertino/colors';
+import { CupertinoIconThemeData } from '@nelyx/cupertino/icon-theme-data';
+import { StatelessWidget, StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
+import { Builder, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { InheritedTheme } from '@nelyx/core/framework/widgets/inherited-theme';
+import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import { DefaultSelectionStyle } from '@nelyx/core/framework/widgets/default-selection-style';
+import { ValueKey } from '@nelyx/core/foundation/key';
+import { Color } from '@nelyx/core/ui/color';
+import { Curves } from '@nelyx/core/framework/animation/curves';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { fixture } from './root-fixture.mjs';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const timeout = 1200000,
+  source = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/theme-widget-source.json', import.meta.url)),
+  ).result;
+const closeColor = (a, b) => {
+  for (const field of ['a', 'r', 'g', 'b'])
+    assert(
+      Math.abs(a[field] - b[field]) <= Number.EPSILON * 8,
+      field + ': ' + a[field] + ' != ' + b[field],
+    );
+};
+const media = (brightness, highContrast, child) =>
+  new MediaQuery(
+    {
+      width: 240,
+      height: 160,
+      scale: 1,
+      textScale: 1,
+      safeArea: { top: 0, left: 0, right: 0, bottom: 0 },
+      keyboardInset: 0,
+      platformBrightness: brightness,
+      highContrast,
+    },
+    child,
+  );
+function tree(w) {
+  if (w instanceof InheritedCupertinoTheme) return { type: 'CupertinoScope', child: tree(w.child) };
+  if (w.constructor.name === 'InheritedMaterialTheme')
+    return { type: 'MaterialScope', child: tree(w.child) };
+  if (w instanceof CupertinoTheme)
+    return { type: 'CupertinoTheme', data: 'material:a', child: tree(w.child) };
+  if (w instanceof IconTheme)
+    return { type: 'IconTheme', color: w.data.color.toARGB32(), child: tree(w.child) };
+  if (w instanceof DefaultSelectionStyle)
+    return {
+      type: 'DefaultSelectionStyle',
+      cursor: w.cursorColor,
+      selection: w.selectionColor,
+      child: tree(w.child),
+    };
+  return { type: 'Leaf' };
+}
 
-test('eight unchanged source declarations supply public Theme keys/child, inherited build ownership and wrapping policy',{timeout},()=>{
- const f=fixture(),leaf=new SizedBox(1,1),a=new ThemeData({brightness:'dark',iconTheme:new IconThemeData({color:new Color(0xff112233)}),textSelectionTheme:new TextSelectionThemeData({cursorColor:0xff123456})}),b=a.copyWith({brightness:'light'}),theme=new Theme({key:new ValueKey('public'),data:a,child:leaf}),cupData=new CupertinoThemeData({brightness:'dark',primaryColor:0xffabcdef}),cup=new CupertinoTheme({key:new ValueKey('cup-public'),data:cupData,child:leaf});let built,cupBuilt;
- try{f.set(new DefaultSelectionStyle({cursorColor:0xff111111,selectionColor:0x55223344,child:new Builder(context=>{built=theme.build(context);cupBuilt=cup.build(context);return built;})}));assert(theme instanceof StatelessWidget);assert(cup instanceof StatelessWidget);assert(!(theme instanceof InheritedTheme));assert(!(cup instanceof InheritedTheme));assert.deepEqual(tree(built),source.materialBuild);assert.deepEqual(tree(cupBuilt),source.cupertinoBuild);assert(cupBuilt.child.data instanceof CupertinoIconThemeData);
- const wrapped=built.wrap(null,leaf),cupWrapped=cupBuilt.wrap(null,leaf);const actual={key:theme.key.value,childSame:theme.child===leaf,capturedDataSame:wrapped.data===a,capturedChildSame:wrapped.child===leaf,cupKey:cup.key.value,cupChildSame:cup.child===leaf,cupCapturedDataSame:cupWrapped.data===cupData,equalNotify:built.updateShouldNotify(new Theme(a.copyWith(),leaf).build(f.root.root)),differentNotify:built.updateShouldNotify(new Theme(b,leaf).build(f.root.root)),cupEqualNotify:cupBuilt.updateShouldNotify(new InheritedCupertinoTheme({theme:new CupertinoTheme(cupData.copyWith(),leaf),child:leaf}))};assert.deepEqual(actual,source.public);
- const old=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';try{const p=new DiagnosticPropertiesBuilder();theme.debugFillProperties(p);assert.deepEqual(p.properties.filter(p=>p.name==='data').map(p=>({name:p.name,showName:p.showName})),source.diagnostics.theme);}finally{FoundationBuildMode.mode=old;}
- }finally{f.close();}
-});
-test('original twelve Material/Cupertino/fallback and three script-category lookups use actual inherited dependencies',{timeout},()=>{
- const f=fixture(),a=new ThemeData({brightness:'dark'}),cup=new CupertinoThemeData({brightness:'dark',primaryColor:0xffabcdef}),seen=[];
- class Localization extends MaterialLocalizations{constructor(category){super();this.categoryValue=category;}get scriptCategory(){return this.categoryValue;}}
- try{for(const row of source.rows){let child=new Builder(context=>{seen.push(Theme.of(context));return new SizedBox(1,1);});if(['material','both'].includes(row.kind))child=new Theme(a,child);if(['cupertino','both'].includes(row.kind))child=new CupertinoTheme(cup,child);f.set(new MaterialLocalizationsScope(new Localization(ScriptCategory[row.category]),child));const actual=seen.at(-1);assert.equal(actual.brightness,row.brightness);assert.equal(actual.textTheme.bodyMedium.textBaseline,row.category==='dense'?'ideographic':'alphabetic');if(row.id==='a')assert(actual.colorScheme.equals(a.colorScheme));if(row.id==='cup:parent')assert.equal(actual.colorScheme.primary,cup.primaryColor);if(row.id==='fallback')assert(actual.colorScheme.equals(ThemeData.fallback().colorScheme));}}
- finally{f.close();}
-});
-test('Theme preserves ambient DefaultTextStyle, captured themes restore palette and equal values avoid brightness-dependent rebuilds',{timeout},()=>{
- const f=fixture(),style=new TextStyle({fontSize:31,color:0xff456789}),a=new ThemeData({brightness:'dark'}),key=new ValueKey('theme'),counts={created:0,disposed:0},seen=[];let captured;
- class Probe extends StatefulWidget{createState(){counts.created++;return new(class extends State{build(context){seen.push({brightness:Theme.brightnessOf(context),style:DefaultTextStyle.of(context)?.style});captured=InheritedTheme.capture(context);return new SizedBox(1,1);}dispose(){counts.disposed++;super.dispose();}})();}}
- const probe=new Probe(),wrap=data=>new DefaultTextStyle(style,new Theme({key,data,child:probe}));try{f.set(wrap(a));const builds=seen.length;f.set(wrap(a.copyWith()));assert.equal(seen.length,builds);assert.equal(seen.at(-1).style,style);f.set(wrap(a.copyWith({brightness:'light'})));assert.equal(seen.length,builds+1);assert.equal(counts.created,1);assert.equal(seen.at(-1).brightness,'light');const snapshot=captured;f.set(snapshot.wrap(new Builder(context=>{assert.equal(Theme.brightnessOf(context),'light');assert.equal(DefaultTextStyle.of(context)?.style,style);return new SizedBox(1,1);})));assert.equal(counts.disposed,1);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{f.close();}
- assert.equal(counts.created,counts.disposed);
-});
-test('canonical Cupertino IconTheme resolves source dynamic colors inside its own brightness/high-contrast scope',{timeout},()=>{
- const f=fixture(),read=[],child=new Builder(context=>{read.push({icon:IconTheme.of(context),cup:CupertinoTheme.of(context),brightness:CupertinoTheme.brightnessOf(context)});return new SizedBox(1,1);});
- try{for(const brightness of ['light','dark'])for(const contrast of [false,true]){const data=new CupertinoThemeData({brightness,primaryColor:CupertinoColors.systemBlue});f.set(media(brightness==='dark'?'light':'dark',contrast,new CupertinoTheme(data,child)));const value=read.at(-1);assert.equal(value.icon.color.toARGB32(),value.cup.primaryColor);assert.equal(value.brightness,brightness);assert.equal(value.icon.color.toARGB32(),brightness==='dark'?(contrast?0xff409cff:0xff0a84ff):(contrast?0xff0040dd:0xff007aff));}f.set(new DefaultTextStyle(new TextStyle({fontSize:29}),new CupertinoTheme(new CupertinoThemeData(),new Builder(context=>{assert.equal(DefaultTextStyle.of(context).style.fontSize,29);return new SizedBox(1,1);})))) ;f.set(new SizedBox());assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{f.close();}
-});
-test('original optional/required brightness policy and Cupertino public fallback require real ambient media',{timeout},()=>{
- const f=fixture();try{for(const row of source.brightness){let actual;let child=new Builder(context=>{let required;try{required=Theme.brightnessOf(context);}catch{required='throws';}actual={...row,maybe:Theme.maybeBrightnessOf(context),required};return new SizedBox(1,1);});if(row.material)child=new Theme(new ThemeData({brightness:'dark'}),child);if(row.media)child=media('light',false,child);f.set(child);assert.deepEqual(actual,row);}f.set(new Builder(context=>{assert.equal(CupertinoTheme.maybeBrightnessOf(context),null);assert.throws(()=>CupertinoTheme.brightnessOf(context));return new SizedBox(1,1);}));}finally{f.close();}
-});
-test('AnimatedTheme source defaults and actual interrupted motion retain public key, child State and current onEnd',{timeout},()=>{
- const f=fixture(),a=new ThemeData(),b=a.copyWith({canvasColor:new Color(0xff123456)}),c=a.copyWith({canvasColor:new Color(0xffabcdef)}),key=new ValueKey('animated'),seen=[],counts={created:0,disposed:0};let firstEnd=0,lastEnd=0;
- class Probe extends StatefulWidget{createState(){counts.created++;return new(class extends State{build(context){seen.push(Theme.of(context));return new SizedBox(1,1);}dispose(){counts.disposed++;super.dispose();}})();}}
- const child=new Probe(),defaults=new AnimatedTheme({key,data:a,child});assert.equal(kThemeAnimationDuration,source.animation.duration);assert.equal(defaults.duration,kThemeAnimationDuration);assert.equal(defaults.curve===Curves.linear,source.animation.linear);assert.equal(defaults.child===child,source.animation.childSame);assert.equal(defaults.key,key);
- try{f.set(defaults);f.set(new AnimatedTheme({key,data:b,child,duration:100,onEnd:()=>firstEnd++}));f.frame();f.advance(40);const interrupted=ThemeData.lerp(a,b,.4);closeColor(seen.at(-1).canvasColor,interrupted.canvasColor);f.set(new AnimatedTheme({key,data:c,child,duration:200,onEnd:()=>lastEnd++}));f.frame();f.advance(100);closeColor(seen.at(-1).canvasColor,ThemeData.lerp(interrupted,c,.5).canvasColor);f.advance(101);assert(seen.at(-1).canvasColor.equals(c.canvasColor));assert.equal(firstEnd,0);assert.equal(lastEnd,1);assert.equal(counts.created,1);f.set(new AnimatedTheme({key,data:c.copyWith(),child,duration:0,onEnd:()=>lastEnd++}));f.advance(1);assert.equal(lastEnd,1);f.set(new SizedBox());assert.equal(counts.disposed,1);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{f.close();}
-});
+test(
+  'eight unchanged source declarations supply public Theme keys/child, inherited build ownership and wrapping policy',
+  { timeout },
+  () => {
+    const f = fixture(),
+      leaf = new SizedBox(1, 1),
+      a = new ThemeData({
+        brightness: 'dark',
+        iconTheme: new IconThemeData({ color: new Color(0xff112233) }),
+        textSelectionTheme: new TextSelectionThemeData({ cursorColor: 0xff123456 }),
+      }),
+      b = a.copyWith({ brightness: 'light' }),
+      theme = new Theme({ key: new ValueKey('public'), data: a, child: leaf }),
+      cupData = new CupertinoThemeData({ brightness: 'dark', primaryColor: 0xffabcdef }),
+      cup = new CupertinoTheme({ key: new ValueKey('cup-public'), data: cupData, child: leaf });
+    let built, cupBuilt;
+    try {
+      f.set(
+        new DefaultSelectionStyle({
+          cursorColor: 0xff111111,
+          selectionColor: 0x55223344,
+          child: new Builder((context) => {
+            built = theme.build(context);
+            cupBuilt = cup.build(context);
+            return built;
+          }),
+        }),
+      );
+      assert(theme instanceof StatelessWidget);
+      assert(cup instanceof StatelessWidget);
+      assert(!(theme instanceof InheritedTheme));
+      assert(!(cup instanceof InheritedTheme));
+      assert.deepEqual(tree(built), source.materialBuild);
+      assert.deepEqual(tree(cupBuilt), source.cupertinoBuild);
+      assert(cupBuilt.child.data instanceof CupertinoIconThemeData);
+      const wrapped = built.wrap(null, leaf),
+        cupWrapped = cupBuilt.wrap(null, leaf);
+      const actual = {
+        key: theme.key.value,
+        childSame: theme.child === leaf,
+        capturedDataSame: wrapped.data === a,
+        capturedChildSame: wrapped.child === leaf,
+        cupKey: cup.key.value,
+        cupChildSame: cup.child === leaf,
+        cupCapturedDataSame: cupWrapped.data === cupData,
+        equalNotify: built.updateShouldNotify(new Theme(a.copyWith(), leaf).build(f.root.root)),
+        differentNotify: built.updateShouldNotify(new Theme(b, leaf).build(f.root.root)),
+        cupEqualNotify: cupBuilt.updateShouldNotify(
+          new InheritedCupertinoTheme({
+            theme: new CupertinoTheme(cupData.copyWith(), leaf),
+            child: leaf,
+          }),
+        ),
+      };
+      assert.deepEqual(actual, source.public);
+      const old = FoundationBuildMode.mode;
+      FoundationBuildMode.mode = 'debug';
+      try {
+        const p = new DiagnosticPropertiesBuilder();
+        theme.debugFillProperties(p);
+        assert.deepEqual(
+          p.properties
+            .filter((p) => p.name === 'data')
+            .map((p) => ({ name: p.name, showName: p.showName })),
+          source.diagnostics.theme,
+        );
+      } finally {
+        FoundationBuildMode.mode = old;
+      }
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'original twelve Material/Cupertino/fallback and three script-category lookups use actual inherited dependencies',
+  { timeout },
+  () => {
+    const f = fixture(),
+      a = new ThemeData({ brightness: 'dark' }),
+      cup = new CupertinoThemeData({ brightness: 'dark', primaryColor: 0xffabcdef }),
+      seen = [];
+    class Localization extends MaterialLocalizations {
+      constructor(category) {
+        super();
+        this.categoryValue = category;
+      }
+      get scriptCategory() {
+        return this.categoryValue;
+      }
+    }
+    try {
+      for (const row of source.rows) {
+        let child = new Builder((context) => {
+          seen.push(Theme.of(context));
+          return new SizedBox(1, 1);
+        });
+        if (['material', 'both'].includes(row.kind)) child = new Theme(a, child);
+        if (['cupertino', 'both'].includes(row.kind)) child = new CupertinoTheme(cup, child);
+        f.set(
+          new MaterialLocalizationsScope(new Localization(ScriptCategory[row.category]), child),
+        );
+        const actual = seen.at(-1);
+        assert.equal(actual.brightness, row.brightness);
+        assert.equal(
+          actual.textTheme.bodyMedium.textBaseline,
+          row.category === 'dense' ? 'ideographic' : 'alphabetic',
+        );
+        if (row.id === 'a') assert(actual.colorScheme.equals(a.colorScheme));
+        if (row.id === 'cup:parent') assert.equal(actual.colorScheme.primary, cup.primaryColor);
+        if (row.id === 'fallback')
+          assert(actual.colorScheme.equals(ThemeData.fallback().colorScheme));
+      }
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'Theme preserves ambient DefaultTextStyle, captured themes restore palette and equal values avoid brightness-dependent rebuilds',
+  { timeout },
+  () => {
+    const f = fixture(),
+      style = new TextStyle({ fontSize: 31, color: 0xff456789 }),
+      a = new ThemeData({ brightness: 'dark' }),
+      key = new ValueKey('theme'),
+      counts = { created: 0, disposed: 0 },
+      seen = [];
+    let captured;
+    class Probe extends StatefulWidget {
+      createState() {
+        counts.created++;
+        return new (class extends State {
+          build(context) {
+            seen.push({
+              brightness: Theme.brightnessOf(context),
+              style: DefaultTextStyle.of(context)?.style,
+            });
+            captured = InheritedTheme.capture(context);
+            return new SizedBox(1, 1);
+          }
+          dispose() {
+            counts.disposed++;
+            super.dispose();
+          }
+        })();
+      }
+    }
+    const probe = new Probe(),
+      wrap = (data) => new DefaultTextStyle(style, new Theme({ key, data, child: probe }));
+    try {
+      f.set(wrap(a));
+      const builds = seen.length;
+      f.set(wrap(a.copyWith()));
+      assert.equal(seen.length, builds);
+      assert.equal(seen.at(-1).style, style);
+      f.set(wrap(a.copyWith({ brightness: 'light' })));
+      assert.equal(seen.length, builds + 1);
+      assert.equal(counts.created, 1);
+      assert.equal(seen.at(-1).brightness, 'light');
+      const snapshot = captured;
+      f.set(
+        snapshot.wrap(
+          new Builder((context) => {
+            assert.equal(Theme.brightnessOf(context), 'light');
+            assert.equal(DefaultTextStyle.of(context)?.style, style);
+            return new SizedBox(1, 1);
+          }),
+        ),
+      );
+      assert.equal(counts.disposed, 1);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+    assert.equal(counts.created, counts.disposed);
+  },
+);
+test(
+  'canonical Cupertino IconTheme resolves source dynamic colors inside its own brightness/high-contrast scope',
+  { timeout },
+  () => {
+    const f = fixture(),
+      read = [],
+      child = new Builder((context) => {
+        read.push({
+          icon: IconTheme.of(context),
+          cup: CupertinoTheme.of(context),
+          brightness: CupertinoTheme.brightnessOf(context),
+        });
+        return new SizedBox(1, 1);
+      });
+    try {
+      for (const brightness of ['light', 'dark'])
+        for (const contrast of [false, true]) {
+          const data = new CupertinoThemeData({
+            brightness,
+            primaryColor: CupertinoColors.systemBlue,
+          });
+          f.set(
+            media(
+              brightness === 'dark' ? 'light' : 'dark',
+              contrast,
+              new CupertinoTheme(data, child),
+            ),
+          );
+          const value = read.at(-1);
+          assert.equal(value.icon.color.toARGB32(), value.cup.primaryColor);
+          assert.equal(value.brightness, brightness);
+          assert.equal(
+            value.icon.color.toARGB32(),
+            brightness === 'dark'
+              ? contrast
+                ? 0xff409cff
+                : 0xff0a84ff
+              : contrast
+                ? 0xff0040dd
+                : 0xff007aff,
+          );
+        }
+      f.set(
+        new DefaultTextStyle(
+          new TextStyle({ fontSize: 29 }),
+          new CupertinoTheme(
+            new CupertinoThemeData(),
+            new Builder((context) => {
+              assert.equal(DefaultTextStyle.of(context).style.fontSize, 29);
+              return new SizedBox(1, 1);
+            }),
+          ),
+        ),
+      );
+      f.set(new SizedBox());
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'original optional/required brightness policy and Cupertino public fallback require real ambient media',
+  { timeout },
+  () => {
+    const f = fixture();
+    try {
+      for (const row of source.brightness) {
+        let actual;
+        let child = new Builder((context) => {
+          let required;
+          try {
+            required = Theme.brightnessOf(context);
+          } catch {
+            required = 'throws';
+          }
+          actual = { ...row, maybe: Theme.maybeBrightnessOf(context), required };
+          return new SizedBox(1, 1);
+        });
+        if (row.material) child = new Theme(new ThemeData({ brightness: 'dark' }), child);
+        if (row.media) child = media('light', false, child);
+        f.set(child);
+        assert.deepEqual(actual, row);
+      }
+      f.set(
+        new Builder((context) => {
+          assert.equal(CupertinoTheme.maybeBrightnessOf(context), null);
+          assert.throws(() => CupertinoTheme.brightnessOf(context));
+          return new SizedBox(1, 1);
+        }),
+      );
+    } finally {
+      f.close();
+    }
+  },
+);
+test(
+  'AnimatedTheme source defaults and actual interrupted motion retain public key, child State and current onEnd',
+  { timeout },
+  () => {
+    const f = fixture(),
+      a = new ThemeData(),
+      b = a.copyWith({ canvasColor: new Color(0xff123456) }),
+      c = a.copyWith({ canvasColor: new Color(0xffabcdef) }),
+      key = new ValueKey('animated'),
+      seen = [],
+      counts = { created: 0, disposed: 0 };
+    let firstEnd = 0,
+      lastEnd = 0;
+    class Probe extends StatefulWidget {
+      createState() {
+        counts.created++;
+        return new (class extends State {
+          build(context) {
+            seen.push(Theme.of(context));
+            return new SizedBox(1, 1);
+          }
+          dispose() {
+            counts.disposed++;
+            super.dispose();
+          }
+        })();
+      }
+    }
+    const child = new Probe(),
+      defaults = new AnimatedTheme({ key, data: a, child });
+    assert.equal(kThemeAnimationDuration, source.animation.duration);
+    assert.equal(defaults.duration, kThemeAnimationDuration);
+    assert.equal(defaults.curve === Curves.linear, source.animation.linear);
+    assert.equal(defaults.child === child, source.animation.childSame);
+    assert.equal(defaults.key, key);
+    try {
+      f.set(defaults);
+      f.set(new AnimatedTheme({ key, data: b, child, duration: 100, onEnd: () => firstEnd++ }));
+      f.frame();
+      f.advance(40);
+      const interrupted = ThemeData.lerp(a, b, 0.4);
+      closeColor(seen.at(-1).canvasColor, interrupted.canvasColor);
+      f.set(new AnimatedTheme({ key, data: c, child, duration: 200, onEnd: () => lastEnd++ }));
+      f.frame();
+      f.advance(100);
+      closeColor(seen.at(-1).canvasColor, ThemeData.lerp(interrupted, c, 0.5).canvasColor);
+      f.advance(101);
+      assert(seen.at(-1).canvasColor.equals(c.canvasColor));
+      assert.equal(firstEnd, 0);
+      assert.equal(lastEnd, 1);
+      assert.equal(counts.created, 1);
+      f.set(
+        new AnimatedTheme({ key, data: c.copyWith(), child, duration: 0, onEnd: () => lastEnd++ }),
+      );
+      f.advance(1);
+      assert.equal(lastEnd, 1);
+      f.set(new SizedBox());
+      assert.equal(counts.disposed, 1);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);

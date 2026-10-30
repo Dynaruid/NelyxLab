@@ -1,6 +1,6 @@
-import type {SkColor} from '../Color.ts';
-import type {FontSlant, FontWeight, FontWidth} from "../Drawing.ts";
-import type {SkPoint} from '../Point.ts';
+import type { SkColor } from '../Color.ts';
+import type { FontSlant, FontWeight, FontWidth } from '../Drawing.ts';
+import type { SkPoint } from '../Point.ts';
 
 export enum TextDecoration {
   NoDecoration = 0x0,

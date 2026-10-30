@@ -1,22 +1,162 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { relocateProductModule } from './product-module-layout.mjs';
 // Managed resolved API projection; functional build/input bodies have separate owners.
-import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
-const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-list-family-candidate/result.json',candidate=read(candidateFile),ir=read(candidate.ir.file),check=process.argv.includes('--check'),ownershipFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-list-api-ownership.json',previous=fs.existsSync(ownershipFile)?read(ownershipFile):null,outputs=[];assert.equal(sha(candidate.ir.file),candidate.ir.sha256);
-const record=s=>{const r=ir.records.find(r=>r.symbol===s);assert(r?.ir,s);return r.ir;},head='// SPDX-License-Identifier: BSD-3-Clause\n// Copyright 2014 The Flutter Authors. All rights reserved.\n// Managed resolved public API projection; behavior uses canonical Core owners.\n';
-function emit(file,text){({file,text}=relocateProductModule(file,text));if(check)assert.equal(fs.readFileSync(file,'utf8'),text,file);else{if(previous&&fs.existsSync(file))assert.equal(sha(file),previous.outputs.find(r=>r.file===file)?.sha256,'Edited managed API '+file);fs.writeFileSync(file,text);}outputs.push(ref(file));}
-const allowed=new Set(['Widget','Color','EdgeInsetsGeometry','BoxDecoration','Clip','CupertinoListSectionType']);
-function type(t){let s;if(t.kind==='void')s='void';else if(t.kind==='function')s='(('+t.parameters.map((p,i)=>'value'+i+':'+type(p.type)).join(',')+')=>'+type(t.returnType)+')';else if(t.kind==='interface'){const n=t.reference.name;if(n==='bool')s='boolean';else if(n==='double'||n==='int')s='number';else if(n==='FutureOr'){assert.equal(t.arguments[0].kind,'void');s='void|Promise<void>';}else if(n==='List'){assert.equal(t.arguments.length,1);s='readonly ('+type(t.arguments[0])+')[]';}else{assert(allowed.has(n),'Unbound type '+t.reference.id);s=n;}}else throw Error('Unbound '+t.kind);return s+(t.nullable?'|null':'');}
-const numeric=f=>f.numeric?'/** @dartType '+f.numeric.type+' */ ':'',params=c=>c.parameters.filter(p=>p.numeric).map(p=>' * @dartParam '+p.name+' '+p.numeric.type).join('\n');
-let enums=head;const e=record('CupertinoListSectionType');assert.equal(e.numericIndex.type,'int');enums+='export class CupertinoListSectionType {\n'+e.values.map(v=>'  static readonly '+v.name+'=new CupertinoListSectionType('+v.index+','+JSON.stringify(v.name)+');').join('\n')+'\n  static readonly values:readonly CupertinoListSectionType[]=Object.freeze(['+e.values.map(v=>'CupertinoListSectionType.'+v.name).join(',')+']);\n  /** @dartType int */ readonly index:number;readonly name:string;\n  private constructor(index:number,name:string){this.index=index;this.name=name;Object.freeze(this);}\n  toString():string{return "CupertinoListSectionType."+this.name;}\n}\n';emit('packages/cupertino/src/list-section-types.ts',enums);
-const common=`import {Widget,StatefulWidget,StatelessWidget,State,Element} from '@nelyx/core/framework/widgets/framework';import type {WidgetOptions,BuildContext} from '@nelyx/core/framework/widgets/framework';import {Text} from '@nelyx/core/framework/widgets/basic';import {Color} from '@nelyx/core/ui/color';import {EdgeInsets,EdgeInsetsDirectional,EdgeInsetsGeometry} from '@nelyx/core/framework/painting/edge-insets';import {BoxDecoration} from '@nelyx/core/framework/painting/box-decoration';import type {Clip} from '@nelyx/core/ui/clip';import {invariant,exceptionStack} from '@nelyx/core/foundation/errors';import {FlutterError} from '@nelyx/core/foundation/flutter-error';import {FlutterErrorDetails} from '@nelyx/core/foundation/assertions';import {ErrorDescription} from '@nelyx/core/foundation/diagnostics';\n`;
-const tile=record('CupertinoListTile'),tf=tile.fields.filter(f=>!f.name.startsWith('_')),tp=tile.constructor.parameters.filter(p=>p.name!=='key'),notched=tile.namedConstructors.find(c=>c.name==='notched');assert(notched);
-const tileSource='.tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/list_tile.dart',source=fs.readFileSync(tileSource,'utf8');
-function constant(p){assert.equal(p.default.kind,'identifier');const name=p.default.name,m=source.match(new RegExp('const double '+name+' = ([0-9.]+);'));assert(m,name);assert.equal(p.numeric.type,'double');return Number(m[1]);}
-let text=head+common+`import {buildCupertinoListTile,buildCupertinoListTileChevron} from './list-build.ts';\nexport interface CupertinoListTileOptions extends WidgetOptions {readonly id?:string;\n`+tp.map(p=>'  '+numeric(p)+'readonly '+p.name+(p.required?'':'?')+':'+type(p.resolvedType)+';').join('\n')+'\n}\nexport class CupertinoListTile extends StatefulWidget {\n  readonly id:string|undefined;private notchedVariant=false;\n'+tf.map(f=>'  '+numeric(f)+'readonly '+f.name+':'+type(f.type)+';').join('\n')+'\n  /**\n'+params(tile.constructor)+'\n   */\n  constructor(o:CupertinoListTileOptions);\n  constructor(id:string,title:string,onPressed:()=>void);\n  constructor(first:CupertinoListTileOptions|string,title?:string,onPressed?:()=>void){const o:CupertinoListTileOptions=typeof first===\'string\'?{id:first,title:new Text(title??\'\'),onTap:onPressed??null}:first;super(o.key??null);this.id=o.id;\n';
-for(const f of tf){const p=tp.find(p=>p.name===f.name);assert(p);text+='    this.'+f.name+'=o.'+f.name+(p.required?'':('??'+(p.default===null?'null':constant(p))))+';\n';}
-text+='    invariant(this.title instanceof Widget,"invalid-cupertino-list-title","CupertinoListTile requires a title Widget");\n  }\n  /**\n'+params(notched)+'\n   */\n  static notched(o:CupertinoListTileOptions):CupertinoListTile{const tile=new CupertinoListTile({...o,leadingSize:o.leadingSize??'+constant(notched.parameters.find(p=>p.name==='leadingSize'))+',leadingToTitle:o.leadingToTitle??'+constant(notched.parameters.find(p=>p.name==='leadingToTitle'))+'});tile.notchedVariant=true;return tile;}\n';
-text+=`  createState():State<CupertinoListTile>{return new class CupertinoListTileState extends State<CupertinoListTile> {
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8')),
+  sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex'),
+  ref = (file) => ({ file, sha256: sha(file) }),
+  candidateFile = '.tmp/work8/w11-list-family-candidate/result.json',
+  candidate = read(candidateFile),
+  ir = read(candidate.ir.file),
+  check = process.argv.includes('--check'),
+  ownershipFile =
+    'tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-list-api-ownership.json',
+  previous = fs.existsSync(ownershipFile) ? read(ownershipFile) : null,
+  outputs = [];
+assert.equal(sha(candidate.ir.file), candidate.ir.sha256);
+const record = (s) => {
+    const r = ir.records.find((r) => r.symbol === s);
+    assert(r?.ir, s);
+    return r.ir;
+  },
+  head =
+    '// SPDX-License-Identifier: BSD-3-Clause\n// Copyright 2014 The Flutter Authors. All rights reserved.\n// Managed resolved public API projection; behavior uses canonical Core owners.\n';
+function emit(file, text) {
+  ({ file, text } = relocateProductModule(file, text));
+  if (check) assert.equal(fs.readFileSync(file, 'utf8'), text, file);
+  else {
+    if (previous && fs.existsSync(file))
+      assert.equal(
+        sha(file),
+        previous.outputs.find((r) => r.file === file)?.sha256,
+        'Edited managed API ' + file,
+      );
+    fs.writeFileSync(file, text);
+  }
+  outputs.push(ref(file));
+}
+const allowed = new Set([
+  'Widget',
+  'Color',
+  'EdgeInsetsGeometry',
+  'BoxDecoration',
+  'Clip',
+  'CupertinoListSectionType',
+]);
+function type(t) {
+  let s;
+  if (t.kind === 'void') s = 'void';
+  else if (t.kind === 'function')
+    s =
+      '((' +
+      t.parameters.map((p, i) => 'value' + i + ':' + type(p.type)).join(',') +
+      ')=>' +
+      type(t.returnType) +
+      ')';
+  else if (t.kind === 'interface') {
+    const n = t.reference.name;
+    if (n === 'bool') s = 'boolean';
+    else if (n === 'double' || n === 'int') s = 'number';
+    else if (n === 'FutureOr') {
+      assert.equal(t.arguments[0].kind, 'void');
+      s = 'void|Promise<void>';
+    } else if (n === 'List') {
+      assert.equal(t.arguments.length, 1);
+      s = 'readonly (' + type(t.arguments[0]) + ')[]';
+    } else {
+      assert(allowed.has(n), 'Unbound type ' + t.reference.id);
+      s = n;
+    }
+  } else throw Error('Unbound ' + t.kind);
+  return s + (t.nullable ? '|null' : '');
+}
+const numeric = (f) => (f.numeric ? '/** @dartType ' + f.numeric.type + ' */ ' : ''),
+  params = (c) =>
+    c.parameters
+      .filter((p) => p.numeric)
+      .map((p) => ' * @dartParam ' + p.name + ' ' + p.numeric.type)
+      .join('\n');
+let enums = head;
+const e = record('CupertinoListSectionType');
+assert.equal(e.numericIndex.type, 'int');
+enums +=
+  'export class CupertinoListSectionType {\n' +
+  e.values
+    .map(
+      (v) =>
+        '  static readonly ' +
+        v.name +
+        '=new CupertinoListSectionType(' +
+        v.index +
+        ',' +
+        JSON.stringify(v.name) +
+        ');',
+    )
+    .join('\n') +
+  '\n  static readonly values:readonly CupertinoListSectionType[]=Object.freeze([' +
+  e.values.map((v) => 'CupertinoListSectionType.' + v.name).join(',') +
+  ']);\n  /** @dartType int */ readonly index:number;readonly name:string;\n  private constructor(index:number,name:string){this.index=index;this.name=name;Object.freeze(this);}\n  toString():string{return "CupertinoListSectionType."+this.name;}\n}\n';
+emit('packages/cupertino/src/list-section-types.ts', enums);
+const common = `import {Widget,StatefulWidget,StatelessWidget,State,Element} from '@nelyx/core/framework/widgets/framework';import type {WidgetOptions,BuildContext} from '@nelyx/core/framework/widgets/framework';import {Text} from '@nelyx/core/framework/widgets/basic';import {Color} from '@nelyx/core/ui/color';import {EdgeInsets,EdgeInsetsDirectional,EdgeInsetsGeometry} from '@nelyx/core/framework/painting/edge-insets';import {BoxDecoration} from '@nelyx/core/framework/painting/box-decoration';import type {Clip} from '@nelyx/core/ui/clip';import {invariant,exceptionStack} from '@nelyx/core/foundation/errors';import {FlutterError} from '@nelyx/core/foundation/flutter-error';import {FlutterErrorDetails} from '@nelyx/core/foundation/assertions';import {ErrorDescription} from '@nelyx/core/foundation/diagnostics';\n`;
+const tile = record('CupertinoListTile'),
+  tf = tile.fields.filter((f) => !f.name.startsWith('_')),
+  tp = tile.constructor.parameters.filter((p) => p.name !== 'key'),
+  notched = tile.namedConstructors.find((c) => c.name === 'notched');
+assert(notched);
+const tileSource = '.tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/list_tile.dart',
+  source = fs.readFileSync(tileSource, 'utf8');
+function constant(p) {
+  assert.equal(p.default.kind, 'identifier');
+  const name = p.default.name,
+    m = source.match(new RegExp('const double ' + name + ' = ([0-9.]+);'));
+  assert(m, name);
+  assert.equal(p.numeric.type, 'double');
+  return Number(m[1]);
+}
+let text =
+  head +
+  common +
+  `import {buildCupertinoListTile,buildCupertinoListTileChevron} from './list-build.ts';\nexport interface CupertinoListTileOptions extends WidgetOptions {readonly id?:string;\n` +
+  tp
+    .map(
+      (p) =>
+        '  ' +
+        numeric(p) +
+        'readonly ' +
+        p.name +
+        (p.required ? '' : '?') +
+        ':' +
+        type(p.resolvedType) +
+        ';',
+    )
+    .join('\n') +
+  '\n}\nexport class CupertinoListTile extends StatefulWidget {\n  readonly id:string|undefined;private notchedVariant=false;\n' +
+  tf.map((f) => '  ' + numeric(f) + 'readonly ' + f.name + ':' + type(f.type) + ';').join('\n') +
+  '\n  /**\n' +
+  params(tile.constructor) +
+  "\n   */\n  constructor(o:CupertinoListTileOptions);\n  constructor(id:string,title:string,onPressed:()=>void);\n  constructor(first:CupertinoListTileOptions|string,title?:string,onPressed?:()=>void){const o:CupertinoListTileOptions=typeof first==='string'?{id:first,title:new Text(title??''),onTap:onPressed??null}:first;super(o.key??null);this.id=o.id;\n";
+for (const f of tf) {
+  const p = tp.find((p) => p.name === f.name);
+  assert(p);
+  text +=
+    '    this.' +
+    f.name +
+    '=o.' +
+    f.name +
+    (p.required ? '' : '??' + (p.default === null ? 'null' : constant(p))) +
+    ';\n';
+}
+text +=
+  '    invariant(this.title instanceof Widget,"invalid-cupertino-list-title","CupertinoListTile requires a title Widget");\n  }\n  /**\n' +
+  params(notched) +
+  '\n   */\n  static notched(o:CupertinoListTileOptions):CupertinoListTile{const tile=new CupertinoListTile({...o,leadingSize:o.leadingSize??' +
+  constant(notched.parameters.find((p) => p.name === 'leadingSize')) +
+  ',leadingToTitle:o.leadingToTitle??' +
+  constant(notched.parameters.find((p) => p.name === 'leadingToTitle')) +
+  '});tile.notchedVariant=true;return tile;}\n';
+text += `  createState():State<CupertinoListTile>{return new class CupertinoListTileState extends State<CupertinoListTile> {
     private tapped=false;
     build(context:BuildContext):Widget{
       const report=(exception:unknown):void=>{const details=new FlutterErrorDetails({exception,stack:exceptionStack(exception),library:'Cupertino library',context:new ErrorDescription('while handling a CupertinoListTile tap')});if(context instanceof Element)context.owner.reportError(details);else FlutterError.reportError(details);};
@@ -25,7 +165,49 @@ text+=`  createState():State<CupertinoListTile>{return new class CupertinoListTi
   }();}
 }
 export class CupertinoListTileChevron extends StatelessWidget {constructor(o:WidgetOptions={}){super(o.key??null);}build(context:BuildContext):Widget{return buildCupertinoListTileChevron(context);}}
-`;emit('packages/cupertino/src/list-tile.ts',text);
-const section=record('CupertinoListSection'),sf=section.fields.filter(f=>!f.name.startsWith('_')),sp=section.constructor.parameters.filter(p=>p.name!=='key'),inset=section.namedConstructors.find(c=>c.name==='insetGrouped');assert(inset);
-text=head+common+`import {CupertinoColors} from './colors.ts';import {CupertinoListSectionType} from './list-section-types.ts';import {buildCupertinoListSection} from './list-build.ts';\nexport {CupertinoListSectionType} from './list-section-types.ts';\nconst defaultRowsMargin=EdgeInsets.only({bottom:8}),defaultInsetRowsMargin=EdgeInsetsDirectional.fromSTEB(20,20,20,10),defaultInsetRowsMarginWithHeader=EdgeInsetsDirectional.fromSTEB(20,0,20,10);\nexport interface CupertinoListSectionOptions extends WidgetOptions {\n`+sp.map(p=>'  '+numeric(p)+'readonly '+p.name+'?:'+type(p.resolvedType)+';').join('\n')+'\n}\nexport interface CupertinoListSectionInsetGroupedOptions extends Omit<CupertinoListSectionOptions,"margin"> {readonly margin?:EdgeInsetsGeometry|null;}\nexport class CupertinoListSection extends StatelessWidget {\n'+sf.map(f=>'  '+numeric(f)+'readonly '+f.name+':'+type(f.type)+';').join('\n')+'\n  /**\n'+params(section.constructor)+'\n   */\n  constructor(o:CupertinoListSectionOptions={}){super(o.key??null);this.type=CupertinoListSectionType.base;this.header=o.header??null;this.footer=o.footer??null;this.children=o.children??null;this.margin=o.margin??defaultRowsMargin;this.backgroundColor=o.backgroundColor??CupertinoColors.systemGroupedBackground;this.decoration=o.decoration??null;this.clipBehavior=o.clipBehavior??"none";this.dividerMargin=o.dividerMargin??20;this.additionalDividerMargin=o.additionalDividerMargin??((o.hasLeading??true)?44:0);this.topMargin=o.topMargin===undefined?22:o.topMargin;this.separatorColor=o.separatorColor??null;invariant(this.children!==null&&this.children.length>0||this.header!==null,"empty-cupertino-list-section","CupertinoListSection requires nonempty children or a header");}\n  /**\n'+params(inset)+'\n   */\n  static insetGrouped(o:CupertinoListSectionInsetGroupedOptions={}):CupertinoListSection{const section=new CupertinoListSection({...o,margin:o.margin??(o.header==null?defaultInsetRowsMargin:defaultInsetRowsMarginWithHeader),clipBehavior:o.clipBehavior??"hardEdge",dividerMargin:o.dividerMargin??14,additionalDividerMargin:o.additionalDividerMargin??((o.hasLeading??true)?42:14),topMargin:o.topMargin??null});Object.defineProperty(section,"type",{value:CupertinoListSectionType.insetGrouped,enumerable:true});return section;}\n  build(context:BuildContext):Widget{return buildCupertinoListSection(this,context);}\n}\n';emit('packages/cupertino/src/list-section.ts',text);
-if(!check)fs.writeFileSync(ownershipFile,JSON.stringify({schema:'nelyx.w11-cupertino-list-api-ownership/v1',status:'PASS-scoped',candidate:ref(candidateFile),ir:candidate.ir,generator:ref(import.meta.filename),sourceInputs:[ref(tileSource),ref('.tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/list_section.dart')],outputs,numericFields:5,scope:'Resolved full public Tile/Section field/constructor types and numeric provenance, exact enum catalog; source-shaped defaults/factories are functional ports and independently compared. Existing positional id/string/onPressed ingress normalizes to source Widget/onTap. Async rejection is reported to the owning host error channel with the source tapped latch preserved; original Zone/runtime hierarchy is not claimed.'},null,2)+'\n');console.log(JSON.stringify({status:'PASS-scoped',owners:outputs.length,check}));
+`;
+emit('packages/cupertino/src/list-tile.ts', text);
+const section = record('CupertinoListSection'),
+  sf = section.fields.filter((f) => !f.name.startsWith('_')),
+  sp = section.constructor.parameters.filter((p) => p.name !== 'key'),
+  inset = section.namedConstructors.find((c) => c.name === 'insetGrouped');
+assert(inset);
+text =
+  head +
+  common +
+  `import {CupertinoColors} from './colors.ts';import {CupertinoListSectionType} from './list-section-types.ts';import {buildCupertinoListSection} from './list-build.ts';\nexport {CupertinoListSectionType} from './list-section-types.ts';\nconst defaultRowsMargin=EdgeInsets.only({bottom:8}),defaultInsetRowsMargin=EdgeInsetsDirectional.fromSTEB(20,20,20,10),defaultInsetRowsMarginWithHeader=EdgeInsetsDirectional.fromSTEB(20,0,20,10);\nexport interface CupertinoListSectionOptions extends WidgetOptions {\n` +
+  sp
+    .map((p) => '  ' + numeric(p) + 'readonly ' + p.name + '?:' + type(p.resolvedType) + ';')
+    .join('\n') +
+  '\n}\nexport interface CupertinoListSectionInsetGroupedOptions extends Omit<CupertinoListSectionOptions,"margin"> {readonly margin?:EdgeInsetsGeometry|null;}\nexport class CupertinoListSection extends StatelessWidget {\n' +
+  sf.map((f) => '  ' + numeric(f) + 'readonly ' + f.name + ':' + type(f.type) + ';').join('\n') +
+  '\n  /**\n' +
+  params(section.constructor) +
+  '\n   */\n  constructor(o:CupertinoListSectionOptions={}){super(o.key??null);this.type=CupertinoListSectionType.base;this.header=o.header??null;this.footer=o.footer??null;this.children=o.children??null;this.margin=o.margin??defaultRowsMargin;this.backgroundColor=o.backgroundColor??CupertinoColors.systemGroupedBackground;this.decoration=o.decoration??null;this.clipBehavior=o.clipBehavior??"none";this.dividerMargin=o.dividerMargin??20;this.additionalDividerMargin=o.additionalDividerMargin??((o.hasLeading??true)?44:0);this.topMargin=o.topMargin===undefined?22:o.topMargin;this.separatorColor=o.separatorColor??null;invariant(this.children!==null&&this.children.length>0||this.header!==null,"empty-cupertino-list-section","CupertinoListSection requires nonempty children or a header");}\n  /**\n' +
+  params(inset) +
+  '\n   */\n  static insetGrouped(o:CupertinoListSectionInsetGroupedOptions={}):CupertinoListSection{const section=new CupertinoListSection({...o,margin:o.margin??(o.header==null?defaultInsetRowsMargin:defaultInsetRowsMarginWithHeader),clipBehavior:o.clipBehavior??"hardEdge",dividerMargin:o.dividerMargin??14,additionalDividerMargin:o.additionalDividerMargin??((o.hasLeading??true)?42:14),topMargin:o.topMargin??null});Object.defineProperty(section,"type",{value:CupertinoListSectionType.insetGrouped,enumerable:true});return section;}\n  build(context:BuildContext):Widget{return buildCupertinoListSection(this,context);}\n}\n';
+emit('packages/cupertino/src/list-section.ts', text);
+if (!check)
+  fs.writeFileSync(
+    ownershipFile,
+    JSON.stringify(
+      {
+        schema: 'nelyx.w11-cupertino-list-api-ownership/v1',
+        status: 'PASS-scoped',
+        candidate: ref(candidateFile),
+        ir: candidate.ir,
+        generator: ref(import.meta.filename),
+        sourceInputs: [
+          ref(tileSource),
+          ref('.tmp/work6/flutter-source/packages/flutter/lib/src/cupertino/list_section.dart'),
+        ],
+        outputs,
+        numericFields: 5,
+        scope:
+          'Resolved full public Tile/Section field/constructor types and numeric provenance, exact enum catalog; source-shaped defaults/factories are functional ports and independently compared. Existing positional id/string/onPressed ingress normalizes to source Widget/onTap. Async rejection is reported to the owning host error channel with the source tapped latch preserved; original Zone/runtime hierarchy is not claimed.',
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+console.log(JSON.stringify({ status: 'PASS-scoped', owners: outputs.length, check }));

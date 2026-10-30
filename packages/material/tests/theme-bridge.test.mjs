@@ -1,42 +1,334 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {ThemeData,MaterialBasedCupertinoThemeData,CupertinoBasedMaterialThemeData} from '@nelyx/material/theme-data';
-import {Theme} from '@nelyx/material/theme';import {ColorScheme} from '@nelyx/material/color-scheme';import {Colors} from '@nelyx/material/colors';import {TextSelectionThemeData} from '@nelyx/material/text-selection-theme';
-import {CupertinoTheme,CupertinoThemeData,NoDefaultCupertinoThemeData} from '@nelyx/cupertino/theme';import {CupertinoColors} from '@nelyx/cupertino/colors';
-import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {Color} from '@nelyx/core/ui/color';import {Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {State,StatefulWidget} from '@nelyx/core/framework/widgets/framework';
-import {MediaQuery,Localizations} from '@nelyx/core/framework/widgets/app-data';import {DefaultSelectionStyle} from '@nelyx/core/framework/widgets/default-selection-style';import {fixture} from './root-fixture.mjs';
-const timeout=1_200_000;FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});const argb=value=>value.toARGB32();
-const source=JSON.parse(fs.readFileSync(new URL('./fixtures/color-scheme-seeds.json',import.meta.url)));
-const media=(brightness,highContrast,child)=>new MediaQuery({width:240,height:160,scale:1,textScale:1,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0,platformBrightness:brightness,highContrast},child);
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {
+  ThemeData,
+  MaterialBasedCupertinoThemeData,
+  CupertinoBasedMaterialThemeData,
+} from '@nelyx/material/theme-data';
+import { Theme } from '@nelyx/material/theme';
+import { ColorScheme } from '@nelyx/material/color-scheme';
+import { Colors } from '@nelyx/material/colors';
+import { TextSelectionThemeData } from '@nelyx/material/text-selection-theme';
+import {
+  CupertinoTheme,
+  CupertinoThemeData,
+  NoDefaultCupertinoThemeData,
+} from '@nelyx/cupertino/theme';
+import { CupertinoColors } from '@nelyx/cupertino/colors';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { Color } from '@nelyx/core/ui/color';
+import { Builder, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { MediaQuery, Localizations } from '@nelyx/core/framework/widgets/app-data';
+import { DefaultSelectionStyle } from '@nelyx/core/framework/widgets/default-selection-style';
+import { fixture } from './root-fixture.mjs';
+const timeout = 1_200_000;
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const argb = (value) => value.toARGB32();
+const source = JSON.parse(
+  fs.readFileSync(new URL('./fixtures/color-scheme-seeds.json', import.meta.url)),
+);
+const media = (brightness, highContrast, child) =>
+  new MediaQuery(
+    {
+      width: 240,
+      height: 160,
+      scale: 1,
+      textScale: 1,
+      safeArea: { left: 0, top: 0, right: 0, bottom: 0 },
+      keyboardInset: 0,
+      platformBrightness: brightness,
+      highContrast,
+    },
+    child,
+  );
 
-test('M3 ThemeData supplies source swatch/surface/hint defaults, from factory and null-retaining copy',{timeout},()=>{
- for(const brightness of ['light','dark'])for(const platform of ['android','iOS','fuchsia','windows','macOS','linux']){
-  const data=new ThemeData({brightness,platform});const dark=brightness==='dark';assert.equal(argb(data.primaryColorLight),argb(dark?Colors.grey.shade500:Colors.blue.shade100));assert.equal(argb(data.primaryColorDark),argb(dark?Colors.black:Colors.blue.shade700));assert.equal(argb(data.secondaryHeaderColor),argb(dark?Colors.grey.shade700:Colors.blue.shade50));assert.equal(argb(data.hintColor),argb(dark?Colors.white60:Colors.black.withOpacity(.6)));assert.equal(argb(data.unselectedWidgetColor),argb(dark?Colors.white70:Colors.black54));assert.equal(argb(data.scaffoldBackgroundColor),data.colorScheme.surface);assert(Object.isFrozen(data));
- }
- const swatch=new ThemeData({primarySwatch:Colors.red});assert.equal(swatch.primaryColorLight,Colors.red.shade100);assert.equal(swatch.secondaryHeaderColor,Colors.red.shade50);assert.equal(swatch.primaryColorDark,Colors.red.shade700);assert.throws(()=>new ThemeData({colorSchemeSeed:0xff00ff00,primarySwatch:Colors.red}),/primarySwatch/);
- const names=['primaryColorLight','primaryColorDark','scaffoldBackgroundColor','secondaryHeaderColor','hintColor','unselectedWidgetColor'],overrides=Object.fromEntries(names.map((name,i)=>[name,new Color(0xff010100+i)])),data=new ThemeData({...overrides,platform:'iOS'});for(const name of names){assert.equal(data[name],overrides[name]);assert.equal(data.copyWith({[name]:null})[name],overrides[name]);}assert.equal(data.copyWith({platform:null}).platform,'iOS');assert.equal(data.copyWith({typography:null}).typography,data.typography);assert.equal(data.copyWith({primaryIconTheme:null}).primaryIconTheme,data.primaryIconTheme);
- const scheme=new ColorScheme({brightness:'dark',onSurface:0xffabcdef}),from=ThemeData.from({colorScheme:scheme});assert.equal(argb(from.dividerColor),argb(new Color(scheme.onSurface).withOpacity(.12)));assert.equal(argb(from.scaffoldBackgroundColor),scheme.surface);const copy=data.copyWith({colorScheme:scheme,brightness:'light'});assert.equal(copy.brightness,'light');assert.equal(copy.colorScheme.onSurface,scheme.onSurface);assert.equal(data.copyWith({brightness:null}).brightness,'light');assert(data.copyWith({textSelectionTheme:null}).textSelectionTheme instanceof TextSelectionThemeData);
-});
+test(
+  'M3 ThemeData supplies source swatch/surface/hint defaults, from factory and null-retaining copy',
+  { timeout },
+  () => {
+    for (const brightness of ['light', 'dark'])
+      for (const platform of ['android', 'iOS', 'fuchsia', 'windows', 'macOS', 'linux']) {
+        const data = new ThemeData({ brightness, platform });
+        const dark = brightness === 'dark';
+        assert.equal(
+          argb(data.primaryColorLight),
+          argb(dark ? Colors.grey.shade500 : Colors.blue.shade100),
+        );
+        assert.equal(argb(data.primaryColorDark), argb(dark ? Colors.black : Colors.blue.shade700));
+        assert.equal(
+          argb(data.secondaryHeaderColor),
+          argb(dark ? Colors.grey.shade700 : Colors.blue.shade50),
+        );
+        assert.equal(
+          argb(data.hintColor),
+          argb(dark ? Colors.white60 : Colors.black.withOpacity(0.6)),
+        );
+        assert.equal(
+          argb(data.unselectedWidgetColor),
+          argb(dark ? Colors.white70 : Colors.black54),
+        );
+        assert.equal(argb(data.scaffoldBackgroundColor), data.colorScheme.surface);
+        assert(Object.isFrozen(data));
+      }
+    const swatch = new ThemeData({ primarySwatch: Colors.red });
+    assert.equal(swatch.primaryColorLight, Colors.red.shade100);
+    assert.equal(swatch.secondaryHeaderColor, Colors.red.shade50);
+    assert.equal(swatch.primaryColorDark, Colors.red.shade700);
+    assert.throws(
+      () => new ThemeData({ colorSchemeSeed: 0xff00ff00, primarySwatch: Colors.red }),
+      /primarySwatch/,
+    );
+    const names = [
+        'primaryColorLight',
+        'primaryColorDark',
+        'scaffoldBackgroundColor',
+        'secondaryHeaderColor',
+        'hintColor',
+        'unselectedWidgetColor',
+      ],
+      overrides = Object.fromEntries(names.map((name, i) => [name, new Color(0xff010100 + i)])),
+      data = new ThemeData({ ...overrides, platform: 'iOS' });
+    for (const name of names) {
+      assert.equal(data[name], overrides[name]);
+      assert.equal(data.copyWith({ [name]: null })[name], overrides[name]);
+    }
+    assert.equal(data.copyWith({ platform: null }).platform, 'iOS');
+    assert.equal(data.copyWith({ typography: null }).typography, data.typography);
+    assert.equal(data.copyWith({ primaryIconTheme: null }).primaryIconTheme, data.primaryIconTheme);
+    const scheme = new ColorScheme({ brightness: 'dark', onSurface: 0xffabcdef }),
+      from = ThemeData.from({ colorScheme: scheme });
+    assert.equal(argb(from.dividerColor), argb(new Color(scheme.onSurface).withOpacity(0.12)));
+    assert.equal(argb(from.scaffoldBackgroundColor), scheme.surface);
+    const copy = data.copyWith({ colorScheme: scheme, brightness: 'light' });
+    assert.equal(copy.brightness, 'light');
+    assert.equal(copy.colorScheme.onSurface, scheme.onSurface);
+    assert.equal(data.copyWith({ brightness: null }).brightness, 'light');
+    assert(
+      data.copyWith({ textSelectionTheme: null }).textSelectionTheme instanceof
+        TextSelectionThemeData,
+    );
+  },
+);
 
-test('Material based Cupertino values retain raw overrides through copy and derive text/selection colors',{timeout},()=>{
- const explicit=new CupertinoThemeData(),material=new ThemeData({brightness:'dark',scaffoldBackgroundColor:new Color(0xff123456),cupertinoOverrideTheme:explicit,textSelectionTheme:new TextSelectionThemeData({selectionHandleColor:0xffabcdef})});assert(material.cupertinoOverrideTheme instanceof NoDefaultCupertinoThemeData);assert.equal(material.cupertinoOverrideTheme.primaryColor,null);assert.equal(material.copyWith({cupertinoOverrideTheme:null}).cupertinoOverrideTheme,material.cupertinoOverrideTheme);
- const bridge=new MaterialBasedCupertinoThemeData({materialTheme:material});assert(bridge instanceof CupertinoThemeData);assert.equal(bridge.brightness,'dark');assert.equal(bridge.primaryColor,material.colorScheme.primary);assert.equal(bridge.primaryContrastingColor,material.colorScheme.onPrimary);assert.equal(bridge.scaffoldBackgroundColor,0xff123456);assert.equal(bridge.textTheme.actionTextStyle.color,material.colorScheme.primary);assert.equal(bridge.selectionHandleColor,0xffabcdef);assert.equal(bridge.noDefault().primaryColor,null);assert.equal(bridge.noDefault().brightness,null);
- const copy=bridge.copyWith({primaryColor:0,applyThemeToAll:true});assert(copy instanceof MaterialBasedCupertinoThemeData);assert.equal(copy.primaryColor,0);assert.equal(copy.copyWith({primaryColor:null}).primaryColor,0);assert.equal(copy.primaryContrastingColor,material.colorScheme.onPrimary);assert.equal(copy.noDefault().primaryContrastingColor,null);assert.equal(copy.noDefault().textTheme,null);assert.equal(copy.noDefault().scaffoldBackgroundColor,null);assert.equal(copy.applyThemeToAll,true);assert(Object.isFrozen(copy));
-});
+test(
+  'Material based Cupertino values retain raw overrides through copy and derive text/selection colors',
+  { timeout },
+  () => {
+    const explicit = new CupertinoThemeData(),
+      material = new ThemeData({
+        brightness: 'dark',
+        scaffoldBackgroundColor: new Color(0xff123456),
+        cupertinoOverrideTheme: explicit,
+        textSelectionTheme: new TextSelectionThemeData({ selectionHandleColor: 0xffabcdef }),
+      });
+    assert(material.cupertinoOverrideTheme instanceof NoDefaultCupertinoThemeData);
+    assert.equal(material.cupertinoOverrideTheme.primaryColor, null);
+    assert.equal(
+      material.copyWith({ cupertinoOverrideTheme: null }).cupertinoOverrideTheme,
+      material.cupertinoOverrideTheme,
+    );
+    const bridge = new MaterialBasedCupertinoThemeData({ materialTheme: material });
+    assert(bridge instanceof CupertinoThemeData);
+    assert.equal(bridge.brightness, 'dark');
+    assert.equal(bridge.primaryColor, material.colorScheme.primary);
+    assert.equal(bridge.primaryContrastingColor, material.colorScheme.onPrimary);
+    assert.equal(bridge.scaffoldBackgroundColor, 0xff123456);
+    assert.equal(bridge.textTheme.actionTextStyle.color, material.colorScheme.primary);
+    assert.equal(bridge.selectionHandleColor, 0xffabcdef);
+    assert.equal(bridge.noDefault().primaryColor, null);
+    assert.equal(bridge.noDefault().brightness, null);
+    const copy = bridge.copyWith({ primaryColor: 0, applyThemeToAll: true });
+    assert(copy instanceof MaterialBasedCupertinoThemeData);
+    assert.equal(copy.primaryColor, 0);
+    assert.equal(copy.copyWith({ primaryColor: null }).primaryColor, 0);
+    assert.equal(copy.primaryContrastingColor, material.colorScheme.onPrimary);
+    assert.equal(copy.noDefault().primaryContrastingColor, null);
+    assert.equal(copy.noDefault().textTheme, null);
+    assert.equal(copy.noDefault().scaffoldBackgroundColor, null);
+    assert.equal(copy.applyThemeToAll, true);
+    assert(Object.isFrozen(copy));
+  },
+);
 
-test('actual Root resolves Material/Cupertino dark and high contrast colors while preserving State',{timeout},()=>{
- const f=fixture(),seen=[],created=[],disposed=[];class Probe extends StatefulWidget{createState(){return new(class extends State{initState(){created.push(this);}build(context){seen.push({state:this,material:Theme.of(context),cupertino:CupertinoTheme.of(context),maybe:CupertinoTheme.maybeBrightnessOf(context),brightness:Theme.brightnessOf(context),selection:DefaultSelectionStyle.of(context)});return new SizedBox(1,1);}dispose(){disposed.push(this);super.dispose();}})();}}const probe=new Probe();
- try{for(const [brightness,highContrast]of[['light',false],['dark',false],['dark',true],['light',true]]){const data=new ThemeData({brightness,cupertinoOverrideTheme:new CupertinoThemeData({primaryColor:CupertinoColors.systemBlue,barBackgroundColor:CupertinoColors.systemBackground}),textSelectionTheme:new TextSelectionThemeData({cursorColor:0xff123456,selectionColor:0x55123456,selectionHandleColor:0xffabcdef})});f.set(media(brightness,highContrast,new Theme(data,probe)));const value=seen.at(-1);assert.equal(value.state,created[0]);assert.equal(value.brightness,brightness);assert.equal(value.maybe,brightness);assert.equal(value.cupertino.brightness,brightness);assert.equal(value.cupertino.primaryColor,brightness==='dark'?(highContrast?0xff409cff:0xff0a84ff):(highContrast?0xff0040dd:0xff007aff));assert.equal(value.cupertino.barBackgroundColor,brightness==='dark'?0xff000000:0xffffffff);assert.equal(value.cupertino.textTheme.actionTextStyle.color,value.cupertino.primaryColor);assert.equal(value.cupertino.selectionHandleColor,0xffabcdef);assert.equal(value.selection.cursorColor,0xff123456);assert.equal(value.selection.selectionColor,0x55123456);}
-  assert.equal(created.length,1);assert.equal(disposed.length,0);f.set(new SizedBox(1,1));assert.equal(disposed.length,1);assert.equal(f.root.scheduler.transientCallbackCount,0);
- }finally{f.close();}
-});
+test(
+  'actual Root resolves Material/Cupertino dark and high contrast colors while preserving State',
+  { timeout },
+  () => {
+    const f = fixture(),
+      seen = [],
+      created = [],
+      disposed = [];
+    class Probe extends StatefulWidget {
+      createState() {
+        return new (class extends State {
+          initState() {
+            created.push(this);
+          }
+          build(context) {
+            seen.push({
+              state: this,
+              material: Theme.of(context),
+              cupertino: CupertinoTheme.of(context),
+              maybe: CupertinoTheme.maybeBrightnessOf(context),
+              brightness: Theme.brightnessOf(context),
+              selection: DefaultSelectionStyle.of(context),
+            });
+            return new SizedBox(1, 1);
+          }
+          dispose() {
+            disposed.push(this);
+            super.dispose();
+          }
+        })();
+      }
+    }
+    const probe = new Probe();
+    try {
+      for (const [brightness, highContrast] of [
+        ['light', false],
+        ['dark', false],
+        ['dark', true],
+        ['light', true],
+      ]) {
+        const data = new ThemeData({
+          brightness,
+          cupertinoOverrideTheme: new CupertinoThemeData({
+            primaryColor: CupertinoColors.systemBlue,
+            barBackgroundColor: CupertinoColors.systemBackground,
+          }),
+          textSelectionTheme: new TextSelectionThemeData({
+            cursorColor: 0xff123456,
+            selectionColor: 0x55123456,
+            selectionHandleColor: 0xffabcdef,
+          }),
+        });
+        f.set(media(brightness, highContrast, new Theme(data, probe)));
+        const value = seen.at(-1);
+        assert.equal(value.state, created[0]);
+        assert.equal(value.brightness, brightness);
+        assert.equal(value.maybe, brightness);
+        assert.equal(value.cupertino.brightness, brightness);
+        assert.equal(
+          value.cupertino.primaryColor,
+          brightness === 'dark'
+            ? highContrast
+              ? 0xff409cff
+              : 0xff0a84ff
+            : highContrast
+              ? 0xff0040dd
+              : 0xff007aff,
+        );
+        assert.equal(
+          value.cupertino.barBackgroundColor,
+          brightness === 'dark' ? 0xff000000 : 0xffffffff,
+        );
+        assert.equal(value.cupertino.textTheme.actionTextStyle.color, value.cupertino.primaryColor);
+        assert.equal(value.cupertino.selectionHandleColor, 0xffabcdef);
+        assert.equal(value.selection.cursorColor, 0xff123456);
+        assert.equal(value.selection.selectionColor, 0x55123456);
+      }
+      assert.equal(created.length, 1);
+      assert.equal(disposed.length, 0);
+      f.set(new SizedBox(1, 1));
+      assert.equal(disposed.length, 1);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);
 
-test('Cupertino-only Root derives localized Material M3 seed roles and uses explicit primary/onPrimary',{timeout},()=>{
- const row=source.find(r=>r.input.brightness==='dark'&&r.input.variant==='tonalSpot'&&r.input.contrast===0),cup=new CupertinoThemeData({brightness:'dark',primaryColor:row.input.seed,primaryContrastingColor:0}),bridge=new CupertinoBasedMaterialThemeData({themeData:cup});assert.equal(bridge.materialTheme.colorScheme.primary,row.input.seed);assert.equal(bridge.materialTheme.colorScheme.onPrimary,0);for(const [name,value]of Object.entries(row.roles))if(!['background','onBackground','surfaceVariant','primary','onPrimary'].includes(name))assert.equal(bridge.materialTheme.colorScheme[name],value,name);
- const f=fixture(),seen=[];try{f.set(media('light',false,new Localizations('ko',{},'en',new CupertinoTheme(cup,new Builder(context=>{seen.push(Theme.of(context));return new SizedBox(1,1);})))));const current=seen.at(-1);assert.equal(current.colorScheme.primary,row.input.seed);assert.equal(current.colorScheme.onPrimary,0);assert.equal(current.brightness,'dark');assert.equal(current.textTheme.bodyMedium.textBaseline,'ideographic');assert.equal(current.colorScheme.secondary,bridge.materialTheme.colorScheme.secondary);}finally{f.close();}
-});
+test(
+  'Cupertino-only Root derives localized Material M3 seed roles and uses explicit primary/onPrimary',
+  { timeout },
+  () => {
+    const row = source.find(
+        (r) =>
+          r.input.brightness === 'dark' &&
+          r.input.variant === 'tonalSpot' &&
+          r.input.contrast === 0,
+      ),
+      cup = new CupertinoThemeData({
+        brightness: 'dark',
+        primaryColor: row.input.seed,
+        primaryContrastingColor: 0,
+      }),
+      bridge = new CupertinoBasedMaterialThemeData({ themeData: cup });
+    assert.equal(bridge.materialTheme.colorScheme.primary, row.input.seed);
+    assert.equal(bridge.materialTheme.colorScheme.onPrimary, 0);
+    for (const [name, value] of Object.entries(row.roles))
+      if (!['background', 'onBackground', 'surfaceVariant', 'primary', 'onPrimary'].includes(name))
+        assert.equal(bridge.materialTheme.colorScheme[name], value, name);
+    const f = fixture(),
+      seen = [];
+    try {
+      f.set(
+        media(
+          'light',
+          false,
+          new Localizations(
+            'ko',
+            {},
+            'en',
+            new CupertinoTheme(
+              cup,
+              new Builder((context) => {
+                seen.push(Theme.of(context));
+                return new SizedBox(1, 1);
+              }),
+            ),
+          ),
+        ),
+      );
+      const current = seen.at(-1);
+      assert.equal(current.colorScheme.primary, row.input.seed);
+      assert.equal(current.colorScheme.onPrimary, 0);
+      assert.equal(current.brightness, 'dark');
+      assert.equal(current.textTheme.bodyMedium.textBaseline, 'ideographic');
+      assert.equal(current.colorScheme.secondary, bridge.materialTheme.colorScheme.secondary);
+    } finally {
+      f.close();
+    }
+  },
+);
 
-test('nested theme precedence and brightness lookups use inherited contracts without inventing a Material fallback',{timeout},()=>{
- const f=fixture(),seen=[];const probe=new Builder(context=>{seen.push({material:Theme.of(context),cupertino:CupertinoTheme.of(context),brightness:Theme.maybeBrightnessOf(context)});return new SizedBox(1,1);});const parent=new CupertinoThemeData({brightness:'dark',primaryColor:0xff123456,scaffoldBackgroundColor:0xffabcdef}),material=new ThemeData({brightness:'light'});
- try{f.set(media('dark',false,new CupertinoTheme(parent,new Theme(material,probe))));let value=seen.at(-1);assert.equal(value.material.colorScheme.primary,material.colorScheme.primary);assert.equal(value.cupertino.primaryColor,0xff123456);assert.equal(value.cupertino.scaffoldBackgroundColor,0xffabcdef);assert.equal(value.brightness,'light');f.set(media('dark',false,probe));assert.equal(seen.at(-1).brightness,'dark');f.set(probe);assert.equal(seen.at(-1).brightness,null);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{f.close();}
-});
+test(
+  'nested theme precedence and brightness lookups use inherited contracts without inventing a Material fallback',
+  { timeout },
+  () => {
+    const f = fixture(),
+      seen = [];
+    const probe = new Builder((context) => {
+      seen.push({
+        material: Theme.of(context),
+        cupertino: CupertinoTheme.of(context),
+        brightness: Theme.maybeBrightnessOf(context),
+      });
+      return new SizedBox(1, 1);
+    });
+    const parent = new CupertinoThemeData({
+        brightness: 'dark',
+        primaryColor: 0xff123456,
+        scaffoldBackgroundColor: 0xffabcdef,
+      }),
+      material = new ThemeData({ brightness: 'light' });
+    try {
+      f.set(media('dark', false, new CupertinoTheme(parent, new Theme(material, probe))));
+      let value = seen.at(-1);
+      assert.equal(value.material.colorScheme.primary, material.colorScheme.primary);
+      assert.equal(value.cupertino.primaryColor, 0xff123456);
+      assert.equal(value.cupertino.scaffoldBackgroundColor, 0xffabcdef);
+      assert.equal(value.brightness, 'light');
+      f.set(media('dark', false, probe));
+      assert.equal(seen.at(-1).brightness, 'dark');
+      f.set(probe);
+      assert.equal(seen.at(-1).brightness, null);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);

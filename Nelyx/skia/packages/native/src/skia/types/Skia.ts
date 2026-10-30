@@ -1,37 +1,37 @@
-import type {ImageFilterFactory} from './ImageFilter/ImageFilterFactory.ts';
-import type {PathFactory} from './Path/PathFactory.ts';
-import type {PathBuilderFactory} from './Path/PathBuilderFactory.ts';
-import type {ColorFilterFactory} from './ColorFilter/ColorFilterFactory.ts';
-import type {SkFont} from "./Drawing.ts";
-import type {FontMgrFactory} from './Font/FontMgrFactory.ts';
-import type {SkTypeface} from './Typeface/Typeface.ts';
-import type {TypefaceFactory} from './Typeface/TypefaceFactory.ts';
-import type {ImageFactory} from "./Drawing.ts";
-import type {MaskFilterFactory} from './MaskFilter.ts';
-import type {SkPaint} from "./Drawing.ts";
-import type {SkHostRect, SkRect} from './Rect.ts';
-import type {SkRRect} from './RRect.ts';
-import type {RuntimeEffectFactory} from './RuntimeEffect/RuntimeEffectFactory.ts';
-import type {SkRuntimeEffect, SkRuntimeShaderBuilder} from "./Drawing.ts";
-import type {ShaderFactory} from './Shader/ShaderFactory.ts';
-import type {SkMatrix} from "./Drawing.ts";
-import type {PathEffectFactory} from "./Drawing.ts";
-import type {SkPoint} from './Point.ts';
-import type {SkVertices, VertexMode} from './Vertices/Vertices.ts';
-import type {DataFactory} from './Data/DataFactory.ts';
-import type {SVGFactory} from './SVG/SVGFactory.ts';
-import type {TextBlobFactory} from "./Drawing.ts";
-import type {SurfaceFactory} from './Surface/SurfaceFactory.ts';
-import type {SkRSXform} from './RSXform.ts';
-import type {SkPath} from "./Drawing.ts";
-import type {SkContourMeasureIter} from './ContourMeasure.ts';
-import type {PictureFactory} from './Picture/PictureFactory.ts';
-import type {SkPictureRecorder} from './Picture/PictureRecorder.ts';
-import type {Color, SkColor} from './Color.ts';
-import type {TypefaceFontProviderFactory} from './Paragraph/TypefaceFontProviderFactory.ts';
-import type {AnimatedImageFactory} from './AnimatedImage/AnimatedImageFactory.ts';
-import type {ParagraphBuilderFactory} from './Paragraph/ParagraphBuilder.ts';
-import type {SkottieFactory} from './Skottie.ts';
+import type { ImageFilterFactory } from './ImageFilter/ImageFilterFactory.ts';
+import type { PathFactory } from './Path/PathFactory.ts';
+import type { PathBuilderFactory } from './Path/PathBuilderFactory.ts';
+import type { ColorFilterFactory } from './ColorFilter/ColorFilterFactory.ts';
+import type { SkFont } from './Drawing.ts';
+import type { FontMgrFactory } from './Font/FontMgrFactory.ts';
+import type { SkTypeface } from './Typeface/Typeface.ts';
+import type { TypefaceFactory } from './Typeface/TypefaceFactory.ts';
+import type { ImageFactory } from './Drawing.ts';
+import type { MaskFilterFactory } from './MaskFilter.ts';
+import type { SkPaint } from './Drawing.ts';
+import type { SkHostRect, SkRect } from './Rect.ts';
+import type { SkRRect } from './RRect.ts';
+import type { RuntimeEffectFactory } from './RuntimeEffect/RuntimeEffectFactory.ts';
+import type { SkRuntimeEffect, SkRuntimeShaderBuilder } from './Drawing.ts';
+import type { ShaderFactory } from './Shader/ShaderFactory.ts';
+import type { SkMatrix } from './Drawing.ts';
+import type { PathEffectFactory } from './Drawing.ts';
+import type { SkPoint } from './Point.ts';
+import type { SkVertices, VertexMode } from './Vertices/Vertices.ts';
+import type { DataFactory } from './Data/DataFactory.ts';
+import type { SVGFactory } from './SVG/SVGFactory.ts';
+import type { TextBlobFactory } from './Drawing.ts';
+import type { SurfaceFactory } from './Surface/SurfaceFactory.ts';
+import type { SkRSXform } from './RSXform.ts';
+import type { SkPath } from './Drawing.ts';
+import type { SkContourMeasureIter } from './ContourMeasure.ts';
+import type { PictureFactory } from './Picture/PictureFactory.ts';
+import type { SkPictureRecorder } from './Picture/PictureRecorder.ts';
+import type { Color, SkColor } from './Color.ts';
+import type { TypefaceFontProviderFactory } from './Paragraph/TypefaceFontProviderFactory.ts';
+import type { AnimatedImageFactory } from './AnimatedImage/AnimatedImageFactory.ts';
+import type { ParagraphBuilderFactory } from './Paragraph/ParagraphBuilder.ts';
+import type { SkottieFactory } from './Skottie.ts';
 
 /**
  * Declares the interface for the native Skia API
@@ -48,13 +48,13 @@ export interface Skia {
     tx: number,
     ty: number,
     px: number,
-    py: number
+    py: number,
   ) => SkRSXform;
   Color: (color: Color) => SkColor;
   ContourMeasureIter: (
     path: SkPath,
     forceClosed: boolean,
-    resScale: number
+    resScale: number,
   ) => SkContourMeasureIter;
   Paint: () => SkPaint;
   PictureRecorder: () => SkPictureRecorder;
@@ -88,7 +88,7 @@ export interface Skia {
     textureCoordinates?: SkPoint[] | null,
     colors?: SkColor[],
     indices?: number[] | null,
-    isVolatile?: boolean
+    isVolatile?: boolean,
   ): SkVertices;
   Data: DataFactory;
   Image: ImageFactory;

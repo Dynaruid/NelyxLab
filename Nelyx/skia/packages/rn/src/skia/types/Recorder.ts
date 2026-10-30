@@ -1,35 +1,48 @@
 import type { SharedValue } from '../../runtime/shared-value.ts';
 
-import type {TextProps, AtlasProps, BoxProps, BoxShadowProps, CircleProps, DiffRectProps, GlyphsProps, ImageProps, ImageSVGProps, LineProps, OvalProps, PatchProps, PathProps, PictureProps, PointsProps, RectProps, RoundedRectProps, TextBlobProps, TextPathProps, VerticesProps, SkottieProps, DrawingNodeProps} from '../../dom/types/Drawings.ts';
-import type {BlurMaskFilterProps} from '../../dom/types/MaskFilters.ts';
-import type {CTMProps, PaintProps} from '../../dom/types/Common.ts';
-import type {NodeType} from '../../dom/types/NodeType.ts';
-import type {ParagraphProps} from '../../dom/types/Paragraph.ts';
-import type {AnimatedProps} from '../../renderer/processors/Animations/Animations.ts';
+import type {
+  TextProps,
+  AtlasProps,
+  BoxProps,
+  BoxShadowProps,
+  CircleProps,
+  DiffRectProps,
+  GlyphsProps,
+  ImageProps,
+  ImageSVGProps,
+  LineProps,
+  OvalProps,
+  PatchProps,
+  PathProps,
+  PictureProps,
+  PointsProps,
+  RectProps,
+  RoundedRectProps,
+  TextBlobProps,
+  TextPathProps,
+  VerticesProps,
+  SkottieProps,
+  DrawingNodeProps,
+} from '../../dom/types/Drawings.ts';
+import type { BlurMaskFilterProps } from '../../dom/types/MaskFilters.ts';
+import type { CTMProps, PaintProps } from '../../dom/types/Common.ts';
+import type { NodeType } from '../../dom/types/NodeType.ts';
+import type { ParagraphProps } from '../../dom/types/Paragraph.ts';
+import type { AnimatedProps } from '../../renderer/processors/Animations/Animations.ts';
 
-import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
+import type { SkPicture } from '@nelyx/skia-native/skia/types/Drawing';
 
 export interface BaseRecorder {
-  saveGroup(props?: AnimatedProps<Pick<DrawingNodeProps, "zIndex">>): void;
+  saveGroup(props?: AnimatedProps<Pick<DrawingNodeProps, 'zIndex'>>): void;
   restoreGroup(): void;
   savePaint(props: AnimatedProps<PaintProps>, standalone: boolean): void;
   restorePaint(): void;
   restorePaintDeclaration(): void;
   materializePaint(): void;
   pushPathEffect(pathEffectType: NodeType, props: AnimatedProps<unknown>): void;
-  pushImageFilter(
-    imageFilterType: NodeType,
-    props: AnimatedProps<unknown>
-  ): void;
-  pushColorFilter(
-    colorFilterType: NodeType,
-    props: AnimatedProps<unknown>
-  ): void;
-  pushShader(
-    shaderType: NodeType,
-    props: AnimatedProps<unknown>,
-    children: number
-  ): void;
+  pushImageFilter(imageFilterType: NodeType, props: AnimatedProps<unknown>): void;
+  pushColorFilter(colorFilterType: NodeType, props: AnimatedProps<unknown>): void;
+  pushShader(shaderType: NodeType, props: AnimatedProps<unknown>, children: number): void;
   pushBlurMaskFilter(props: AnimatedProps<BlurMaskFilterProps>): void;
   composePathEffect(): void;
   composeColorFilter(): void;
@@ -44,7 +57,7 @@ export interface BaseRecorder {
     shadows: {
       props: BoxShadowProps;
       animatedProps?: Record<string, SharedValue<unknown>>;
-    }[]
+    }[],
   ): void;
   drawImage(props: AnimatedProps<ImageProps>): void;
   drawCircle(props: AnimatedProps<CircleProps>): void;

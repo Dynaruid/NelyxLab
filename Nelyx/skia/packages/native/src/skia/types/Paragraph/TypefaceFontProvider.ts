@@ -1,5 +1,5 @@
-import type {SkFontMgr} from '../Font/FontMgr.ts';
-import type {SkTypeface} from '../Typeface/Typeface.ts';
+import type { SkFontMgr } from '../Font/FontMgr.ts';
+import type { SkTypeface } from '../Typeface/Typeface.ts';
 
 export interface SkTypefaceFontProvider extends SkFontMgr {
   /**

@@ -20,7 +20,7 @@
   },
   "output": {
     "file": "packages/material/src/checkbox.ts",
-    "sha256": "54ceca3c01457d131fb5d8af7488e40b37d96e4c4d12adbc3e4e9df58f97e525"
+    "sha256": "f6dd89a05440c166b11e1781ae4d6de3293b4392874226deb747f92bfbd33a2d"
   },
   "previous": {
     "output": {

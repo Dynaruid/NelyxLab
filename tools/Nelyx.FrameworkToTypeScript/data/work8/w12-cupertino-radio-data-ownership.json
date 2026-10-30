@@ -25,11 +25,11 @@
   "outputs": [
     {
       "file": "packages/cupertino/src/generated/radio/radio-defaults.generated.ts",
-      "sha256": "1705b302110b54b57fcbfeabece5859fbd3d0e06bf0571cd6380729f41940ecc"
+      "sha256": "264ef70c3680550d40b3c6aa016c7d4dd1306a107f648d4649734db58d7e019d"
     },
     {
       "file": "Nelyx/src/framework/widgets/radio-localizations.generated.ts",
-      "sha256": "6a24bd577bdebf053cbd3614e335dc00397cfaefc90ccf5632a34ec18923936c"
+      "sha256": "b406a51eebaf7c774759b3004adce3dc3fe15b66e918f1d9ad97d1d9906c2132"
     },
     {
       "file": "Nelyx/licenses/radio-localizations-sources.json",

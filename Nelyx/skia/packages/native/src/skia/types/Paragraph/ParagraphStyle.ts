@@ -1,4 +1,4 @@
-import type {SkTextFontStyle, SkTextStyle} from './TextStyle.ts';
+import type { SkTextFontStyle, SkTextStyle } from './TextStyle.ts';
 
 export enum TextDirection {
   RTL = 0,

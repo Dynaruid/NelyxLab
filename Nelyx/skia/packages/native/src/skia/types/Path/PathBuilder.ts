@@ -1,16 +1,16 @@
-import type {SkRect} from '../Rect.ts';
-import type {SkPoint} from '../Point.ts';
-import type {InputRRect} from '../RRect.ts';
-import type {InputMatrix, SkMatrix} from "../Drawing.ts";
-import type {SkJSIInstance} from '../JsiInstance.ts';
+import type { SkRect } from '../Rect.ts';
+import type { SkPoint } from '../Point.ts';
+import type { InputRRect } from '../RRect.ts';
+import type { InputMatrix, SkMatrix } from '../Drawing.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
 
-import type {FillType, SkPath} from "../Drawing.ts";
+import type { FillType, SkPath } from '../Drawing.ts';
 
 /**
  * SkPathBuilder is a mutable builder for constructing SkPath objects.
  * Once construction is complete, call build() or detach() to get the immutable SkPath.
  */
-export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
+export interface SkPathBuilder extends SkJSIInstance<'PathBuilder'> {
   // Movement methods
 
   /**
@@ -60,48 +60,22 @@ export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
   /**
    * Adds conic from last point towards (x1, y1), to (x2, y2), weighted by w.
    */
-  conicTo(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    w: number
-  ): SkPathBuilder;
+  conicTo(x1: number, y1: number, x2: number, y2: number, w: number): SkPathBuilder;
 
   /**
    * Relative version of conicTo.
    */
-  rConicTo(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    w: number
-  ): SkPathBuilder;
+  rConicTo(x1: number, y1: number, x2: number, y2: number, w: number): SkPathBuilder;
 
   /**
    * Adds cubic from last point towards (x1, y1), then towards (x2, y2), ending at (x3, y3).
    */
-  cubicTo(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    x3: number,
-    y3: number
-  ): SkPathBuilder;
+  cubicTo(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): SkPathBuilder;
 
   /**
    * Relative version of cubicTo.
    */
-  rCubicTo(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    x3: number,
-    y3: number
-  ): SkPathBuilder;
+  rCubicTo(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): SkPathBuilder;
 
   /**
    * Appends CLOSE_VERB to the builder, connecting first and last points.
@@ -121,7 +95,7 @@ export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
     oval: SkRect,
     startAngleInDegrees: number,
     sweepAngleInDegrees: number,
-    forceMoveTo: boolean
+    forceMoveTo: boolean,
   ): SkPathBuilder;
 
   /**
@@ -141,7 +115,7 @@ export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
     useSmallArc: boolean,
     isCCW: boolean,
     x: number,
-    y: number
+    y: number,
   ): SkPathBuilder;
 
   /**
@@ -154,7 +128,7 @@ export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
     useSmallArc: boolean,
     isCCW: boolean,
     dx: number,
-    dy: number
+    dy: number,
   ): SkPathBuilder;
 
   /**
@@ -165,13 +139,7 @@ export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
    * @param y2 - y of second tangent point
    * @param radius - arc radius
    */
-  arcToTangent(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    radius: number
-  ): SkPathBuilder;
+  arcToTangent(x1: number, y1: number, x2: number, y2: number, radius: number): SkPathBuilder;
 
   // Shape methods
 
@@ -196,11 +164,7 @@ export interface SkPathBuilder extends SkJSIInstance<"PathBuilder"> {
    * @param startAngleInDegrees - starting angle
    * @param sweepAngleInDegrees - sweep angle
    */
-  addArc(
-    oval: SkRect,
-    startAngleInDegrees: number,
-    sweepAngleInDegrees: number
-  ): SkPathBuilder;
+  addArc(oval: SkRect, startAngleInDegrees: number, sweepAngleInDegrees: number): SkPathBuilder;
 
   /**
    * Adds rounded rectangle to the builder.

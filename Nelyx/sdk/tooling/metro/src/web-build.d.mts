@@ -1,2 +1,21 @@
-import type {ConfigT} from 'metro-config';
-export function buildWeb(options:{config:ConfigT;entry:string;outputDirectory:string;assetsDirectory:string;profile?:string;development?:boolean;runtimeDirectory?:string}):Promise<{outputDirectory:string;schema:'nelyx.web-build/v1';profile:string;renderer:string;gpuBackend:string;gpuImplementation:string;development:boolean;files:{path:string;sha256:string}[];sourceRebuild:string;noticeQualification:string}>;
+import type { ConfigT } from 'metro-config';
+export function buildWeb(options: {
+  config: ConfigT;
+  entry: string;
+  outputDirectory: string;
+  assetsDirectory: string;
+  profile?: string;
+  development?: boolean;
+  runtimeDirectory?: string;
+}): Promise<{
+  outputDirectory: string;
+  schema: 'nelyx.web-build/v1';
+  profile: string;
+  renderer: string;
+  gpuBackend: string;
+  gpuImplementation: string;
+  development: boolean;
+  files: { path: string; sha256: string }[];
+  sourceRebuild: string;
+  noticeQualification: string;
+}>;

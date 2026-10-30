@@ -1,13 +1,13 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
 /* global HTMLCanvasElement, ResizeObserver, MediaQueryList */
-import type { RefObject } from "react";
-import { useLayoutEffect, useRef } from "react";
-import type { LayoutChangeEvent } from "react-native";
-import type { GrDirectContext, WebGLContextHandle } from "canvaskit-wasm";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
-import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
-import {JsiSkSurface} from '../skia/web/JsiSkSurface.ts';
+import type { RefObject } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
+import type { GrDirectContext, WebGLContextHandle } from 'canvaskit-wasm';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
+import type { SkPicture } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkImage } from '@nelyx/skia-native/skia/types/Drawing';
+import { JsiSkSurface } from '../skia/web/JsiSkSurface.ts';
 
 // The WebGL renderers behind the web view (SkiaView.web):
 // a <canvas> element, its WebGL context and the CanvasKit surface built on
@@ -95,14 +95,14 @@ export class WebGLRenderer implements Renderer {
     private canvas: HTMLCanvasElement,
     // Called when the renderer becomes able to paint again and the current
     // frame should be drawn.
-    private requestRedraw: () => void
+    private requestRedraw: () => void,
   ) {
     const entry = canvasWebGL.get(canvas);
     if (entry) {
       entry.owner = this;
     }
-    canvas.addEventListener("webglcontextlost", this.onContextLost);
-    canvas.addEventListener("webglcontextrestored", this.onContextRestored);
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     this.acquire();
   }
 
@@ -124,7 +124,7 @@ export class WebGLRenderer implements Renderer {
     }
     const handle = CanvasKit.GetWebGLContext(canvas);
     if (!handle) {
-      throw new Error("Could not create a WebGL context");
+      throw new Error('Could not create a WebGL context');
     }
     const entry = known ?? this.trackContext();
     let grContext: GrDirectContext | null = null;
@@ -138,13 +138,13 @@ export class WebGLRenderer implements Renderer {
       }
     }
     if (!grContext) {
-      throw new Error("Could not create a graphics context");
+      throw new Error('Could not create a graphics context');
     }
     this.restoreWanted = false;
     this.contextHandle = handle;
     this.grContext = grContext;
     if (entry) {
-      entry.gl.drawingBufferColorSpace = "display-p3";
+      entry.gl.drawingBufferColorSpace = 'display-p3';
     }
     this.onResize();
   }
@@ -153,13 +153,13 @@ export class WebGLRenderer implements Renderer {
   // back the same object (the attributes are only honored the first time).
   private trackContext(): CanvasWebGL | null {
     const { canvas } = this;
-    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
     if (!gl) {
       return null;
     }
     const entry: CanvasWebGL = {
       gl,
-      loseContext: gl.getExtension("WEBGL_lose_context"),
+      loseContext: gl.getExtension('WEBGL_lose_context'),
       lossAnnounced: false,
       owner: this,
     };
@@ -172,11 +172,11 @@ export class WebGLRenderer implements Renderer {
     // element does. They are registered ahead of any renderer's, and the
     // loss can't be announced before they exist since the event is
     // asynchronous.
-    canvas.addEventListener("webglcontextlost", (event) => {
+    canvas.addEventListener('webglcontextlost', (event) => {
       event.preventDefault();
       entry.lossAnnounced = true;
     });
-    canvas.addEventListener("webglcontextrestored", () => {
+    canvas.addEventListener('webglcontextrestored', () => {
       entry.lossAnnounced = false;
     });
     return entry;
@@ -262,10 +262,10 @@ export class WebGLRenderer implements Renderer {
       this.grContext,
       canvas.width,
       canvas.height,
-      CanvasKit.ColorSpace.SRGB
+      CanvasKit.ColorSpace.SRGB,
     );
     if (!surface) {
-      throw new Error("Could not create surface");
+      throw new Error('Could not create surface');
     }
     this.surface = new JsiSkSurface(CanvasKit, surface);
   }
@@ -288,8 +288,8 @@ export class WebGLRenderer implements Renderer {
 
   dispose(): void {
     const { canvas } = this;
-    canvas.removeEventListener("webglcontextlost", this.onContextLost);
-    canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
+    canvas.removeEventListener('webglcontextlost', this.onContextLost);
+    canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     if (this.restoreRequest !== null) {
       clearTimeout(this.restoreRequest);
       this.restoreRequest = null;
@@ -317,11 +317,7 @@ export class WebGLRenderer implements Renderer {
     // collected, and browsers cap the number of live contexts per page
     // (16 in Chrome, which then evicts the oldest one, visible or not).
     queueMicrotask(() => {
-      if (
-        entry.owner === null &&
-        !canvas.isConnected &&
-        !entry.gl.isContextLost()
-      ) {
+      if (entry.owner === null && !canvas.isConnected && !entry.gl.isContextLost()) {
         entry.loseContext?.loseContext();
       }
     });
@@ -352,7 +348,7 @@ export class StaticWebGLRenderer implements Renderer {
     }
     const tempCanvas = new OffscreenCanvas(
       this.canvas.clientWidth * this.pd,
-      this.canvas.clientHeight * this.pd
+      this.canvas.clientHeight * this.pd,
     );
 
     let surface: JsiSkSurface | null = null;
@@ -362,25 +358,25 @@ export class StaticWebGLRenderer implements Renderer {
     try {
       contextHandle = CanvasKit.GetWebGLContext(tempCanvas);
       if (!contextHandle) {
-        throw new Error("Could not create a WebGL context");
+        throw new Error('Could not create a WebGL context');
       }
       grContext = CanvasKit.MakeWebGLContext(contextHandle);
       if (!grContext) {
-        throw new Error("Could not create a graphics context");
+        throw new Error('Could not create a graphics context');
       }
-      const ctx = tempCanvas.getContext("webgl2");
+      const ctx = tempCanvas.getContext('webgl2');
       if (ctx) {
-        ctx.drawingBufferColorSpace = "display-p3";
+        ctx.drawingBufferColorSpace = 'display-p3';
       }
       const webglSurface = CanvasKit.MakeOnScreenGLSurface(
         grContext,
         tempCanvas.width,
         tempCanvas.height,
-        CanvasKit.ColorSpace.SRGB
+        CanvasKit.ColorSpace.SRGB,
       );
 
       if (!webglSurface) {
-        throw new Error("Could not create WebGL surface");
+        throw new Error('Could not create WebGL surface');
       }
 
       surface = new JsiSkSurface(CanvasKit, webglSurface);
@@ -418,10 +414,7 @@ export class StaticWebGLRenderer implements Renderer {
       result.grContext.releaseResourcesAndAbandonContext();
       result.grContext.delete();
     }
-    result.tempCanvas
-      .getContext("webgl2")
-      ?.getExtension("WEBGL_lose_context")
-      ?.loseContext();
+    result.tempCanvas.getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext();
     if (result.contextHandle) {
       // Unregister the context from CanvasKit's internal registry, otherwise
       // it retains the OffscreenCanvas forever.
@@ -437,10 +430,10 @@ export class StaticWebGLRenderer implements Renderer {
       return false;
     }
     const { tempCanvas } = renderResult;
-    const ctx2d = this.canvas.getContext("2d");
+    const ctx2d = this.canvas.getContext('2d');
     if (!ctx2d) {
       this.cleanupRenderResult(renderResult);
-      throw new Error("Could not get 2D context");
+      throw new Error('Could not get 2D context');
     }
 
     // Set canvas dimensions to match pixel density
@@ -457,7 +450,7 @@ export class StaticWebGLRenderer implements Renderer {
       0,
       0,
       this.canvas.clientWidth * this.pd,
-      this.canvas.clientHeight * this.pd
+      this.canvas.clientHeight * this.pd,
     );
 
     this.cleanupRenderResult(renderResult);
@@ -472,11 +465,9 @@ export class StaticWebGLRenderer implements Renderer {
       }
 
       try {
-        this.cachedImage = renderResult.surface.makeImageSnapshot(
-          dp2Pixel(this.pd, rect)
-        );
+        this.cachedImage = renderResult.surface.makeImageSnapshot(dp2Pixel(this.pd, rect));
       } catch (error) {
-        console.error("Error creating image snapshot:", error);
+        console.error('Error creating image snapshot:', error);
       } finally {
         this.cleanupRenderResult(renderResult);
       }
@@ -496,7 +487,7 @@ export const makeLayoutEvent = (
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
 ): LayoutChangeEvent => ({
   timeStamp: Date.now(),
   nativeEvent: { layout: { x, y, width, height } },
@@ -509,22 +500,22 @@ export const makeLayoutEvent = (
   defaultPrevented: false,
   eventPhase: 0,
   isDefaultPrevented() {
-    throw new Error("Method not supported on web.");
+    throw new Error('Method not supported on web.');
   },
   isPropagationStopped() {
-    throw new Error("Method not supported on web.");
+    throw new Error('Method not supported on web.');
   },
   persist() {
-    throw new Error("Method not supported on web.");
+    throw new Error('Method not supported on web.');
   },
   preventDefault() {
-    throw new Error("Method not supported on web.");
+    throw new Error('Method not supported on web.');
   },
   stopPropagation() {
-    throw new Error("Method not supported on web.");
+    throw new Error('Method not supported on web.');
   },
   isTrusted: true,
-  type: "",
+  type: '',
 });
 
 export interface WebRendererHost {
@@ -556,7 +547,7 @@ export interface WebRendererHost {
 export const useSkiaWebRenderer = (
   canvasRef: RefObject<HTMLCanvasElement | null>,
   isStatic: boolean,
-  host: WebRendererHost
+  host: WebRendererHost,
 ): RefObject<Renderer | null> => {
   const rendererRef = useRef<Renderer | null>(null);
   const hostRef = useRef(host);
@@ -586,11 +577,7 @@ export const useSkiaWebRenderer = (
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       const pixelDensity = window.devicePixelRatio;
-      if (
-        width === lastWidth &&
-        height === lastHeight &&
-        pixelDensity === lastPixelDensity
-      ) {
+      if (width === lastWidth && height === lastHeight && pixelDensity === lastPixelDensity) {
         return;
       }
       lastWidth = width;
@@ -606,10 +593,7 @@ export const useSkiaWebRenderer = (
       if (layoutHandler) {
         const { left, top, width, height } = arrayItem(entries, 0).contentRect;
         // setTimeout 0 is taken from react-native-web (UIManager)
-        setTimeout(
-          () => layoutHandler(makeLayoutEvent(left, top, width, height)),
-          0
-        );
+        setTimeout(() => layoutHandler(makeLayoutEvent(left, top, width, height)), 0);
       }
     });
     observer.observe(canvas);
@@ -627,15 +611,13 @@ export const useSkiaWebRenderer = (
       watchPixelDensity();
     };
     const watchPixelDensity = () => {
-      media?.removeEventListener("change", onPixelDensityChange);
+      media?.removeEventListener('change', onPixelDensityChange);
       media = null;
-      if (typeof window.matchMedia === "function") {
-        const query = window.matchMedia(
-          `(resolution: ${window.devicePixelRatio}dppx)`
-        );
-        if (typeof query.addEventListener === "function") {
+      if (typeof window.matchMedia === 'function') {
+        const query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+        if (typeof query.addEventListener === 'function') {
           media = query;
-          media.addEventListener("change", onPixelDensityChange);
+          media.addEventListener('change', onPixelDensityChange);
         }
       }
     };
@@ -646,7 +628,7 @@ export const useSkiaWebRenderer = (
 
     return () => {
       observer.disconnect();
-      media?.removeEventListener("change", onPixelDensityChange);
+      media?.removeEventListener('change', onPixelDensityChange);
       rendererRef.current = null;
       renderer.dispose();
     };

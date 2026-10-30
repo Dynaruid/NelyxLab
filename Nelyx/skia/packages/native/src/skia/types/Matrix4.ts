@@ -1,4 +1,4 @@
-import {arrayItem} from '../../runtime/arrays.ts';
+import { arrayItem } from '../../runtime/arrays.ts';
 type Point = { x: number; y: number };
 type Vec2 = readonly [number, number];
 export type Vec3 = readonly [number, number, number];
@@ -36,51 +36,51 @@ export type Matrix4 = readonly [
 ];
 
 type Transform3dName =
-  | "translateX"
-  | "translateY"
-  | "translateZ"
-  | "translate"
-  | "scale"
-  | "scaleX"
-  | "scaleY"
-  | "skewX"
-  | "skewY"
-  | "rotateZ"
-  | "rotate"
-  | "perspective"
-  | "rotateX"
-  | "rotateY"
-  | "matrix";
+  | 'translateX'
+  | 'translateY'
+  | 'translateZ'
+  | 'translate'
+  | 'scale'
+  | 'scaleX'
+  | 'scaleY'
+  | 'skewX'
+  | 'skewY'
+  | 'rotateZ'
+  | 'rotate'
+  | 'perspective'
+  | 'rotateX'
+  | 'rotateY'
+  | 'matrix';
 
 type Transformations = {
-  [Name in Transform3dName]: Name extends "matrix"
+  [Name in Transform3dName]: Name extends 'matrix'
     ? Matrix4
-    : Name extends "translate"
+    : Name extends 'translate'
       ? Vec3 | Vec2
       : number;
 };
 
 type Transform3d =
-  | Pick<Transformations, "translateX">
-  | Pick<Transformations, "translateY">
-  | Pick<Transformations, "translateZ">
-  | Pick<Transformations, "translate">
-  | Pick<Transformations, "scale">
-  | Pick<Transformations, "scaleX">
-  | Pick<Transformations, "scaleY">
-  | Pick<Transformations, "skewX">
-  | Pick<Transformations, "skewY">
-  | Pick<Transformations, "perspective">
-  | Pick<Transformations, "rotateX">
-  | Pick<Transformations, "rotateY">
-  | Pick<Transformations, "rotateZ">
-  | Pick<Transformations, "rotate">
-  | Pick<Transformations, "matrix">;
+  | Pick<Transformations, 'translateX'>
+  | Pick<Transformations, 'translateY'>
+  | Pick<Transformations, 'translateZ'>
+  | Pick<Transformations, 'translate'>
+  | Pick<Transformations, 'scale'>
+  | Pick<Transformations, 'scaleX'>
+  | Pick<Transformations, 'scaleY'>
+  | Pick<Transformations, 'skewX'>
+  | Pick<Transformations, 'skewY'>
+  | Pick<Transformations, 'perspective'>
+  | Pick<Transformations, 'rotateX'>
+  | Pick<Transformations, 'rotateY'>
+  | Pick<Transformations, 'rotateZ'>
+  | Pick<Transformations, 'rotate'>
+  | Pick<Transformations, 'matrix'>;
 
 export type Transforms3d = Transform3d[];
 
 const exhaustiveCheck = (a: never): never => {
-  "worklet";
+  'worklet';
   throw new Error(`Unexhaustive handling for ${a}`);
 };
 
@@ -88,7 +88,7 @@ const exhaustiveCheck = (a: never): never => {
  * @worklet
  */
 export const Matrix4 = (): Matrix4 => {
-  "worklet";
+  'worklet';
   return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 };
 
@@ -96,7 +96,7 @@ export const Matrix4 = (): Matrix4 => {
  * @worklet
  */
 export const translate = (x: number, y: number, z = 0): Matrix4 => {
-  "worklet";
+  'worklet';
   return [1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1];
 };
 
@@ -104,12 +104,12 @@ export const translate = (x: number, y: number, z = 0): Matrix4 => {
  * @worklet
  */
 export const perspective = (p: number): Matrix4 => {
-  "worklet";
+  'worklet';
   return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -1 / p, 1];
 };
 
 const normalizeVec = (vec: Vec3): Vec3 => {
-  "worklet";
+  'worklet';
   const [x, y, z] = vec;
   const length = Math.sqrt(x * x + y * y + z * z);
   // Check for zero length to avoid division by zero
@@ -119,12 +119,8 @@ const normalizeVec = (vec: Vec3): Vec3 => {
   return [x / length, y / length, z / length];
 };
 
-const rotatedUnitSinCos = (
-  axisVec: Vec3,
-  sinAngle: number,
-  cosAngle: number
-): Matrix4 => {
-  "worklet";
+const rotatedUnitSinCos = (axisVec: Vec3, sinAngle: number, cosAngle: number): Matrix4 => {
+  'worklet';
   const x = axisVec[0];
   const y = axisVec[1];
   const z = axisVec[2];
@@ -155,7 +151,7 @@ const rotatedUnitSinCos = (
  * @worklet
  */
 export const matrixVecMul4 = (m: Matrix4, v: Vec4): Vec4 => {
-  "worklet";
+  'worklet';
   return [
     m[0] * v[0] + m[1] * v[1] + m[2] * v[2] + m[3] * v[3],
     m[4] * v[0] + m[5] * v[1] + m[6] * v[2] + m[7] * v[3],
@@ -168,7 +164,7 @@ export const matrixVecMul4 = (m: Matrix4, v: Vec4): Vec4 => {
  * @worklet
  */
 export const mapPoint3d = (m: Matrix4, v: Vec3) => {
-  "worklet";
+  'worklet';
   const r = matrixVecMul4(m, [...v, 1]);
   return [r[0] / r[3], r[1] / r[3], r[2] / r[3]] as const;
 };
@@ -177,9 +173,10 @@ export const mapPoint3d = (m: Matrix4, v: Vec3) => {
  * @worklet
  */
 export const multiply4 = (a: Matrix4, b: Matrix4): Matrix4 => {
-  "worklet";
-  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
+  'worklet';
+  /* oxlint-disable unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics. */
   const result = new Array(16).fill(0);
+  /* oxlint-enable unicorn/no-new-array */
   for (let i = 0; i < 4; i++) {
     for (let j = 0; j < 4; j++) {
       result[i * 4 + j] =
@@ -197,12 +194,12 @@ export const multiply4 = (a: Matrix4, b: Matrix4): Matrix4 => {
 // column 0. React Native's MatrixMath stores the same transforms column-major,
 // and porting its indices verbatim is what swapped the two axes here.
 const skewX = (angle: number): Matrix4 => {
-  "worklet";
+  'worklet';
   return [1, Math.tan(angle), 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 };
 
 const skewY = (angle: number): Matrix4 => {
-  "worklet";
+  'worklet';
   return [1, 0, 0, 0, Math.tan(angle), 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 };
 
@@ -210,24 +207,20 @@ const skewY = (angle: number): Matrix4 => {
  * @worklet
  */
 export const toMatrix3 = (m: Matrix4) => {
-  "worklet";
+  'worklet';
   return [m[0], m[1], m[3], m[4], m[5], m[7], m[12], m[13], m[15]];
 };
 
 const rotate = (axis: Vec3, value: number) => {
-  "worklet";
-  return rotatedUnitSinCos(
-    normalizeVec(axis),
-    Math.sin(value),
-    Math.cos(value)
-  );
+  'worklet';
+  return rotatedUnitSinCos(normalizeVec(axis), Math.sin(value), Math.cos(value));
 };
 
 /**
  * @worklet
  */
 export const pivot = (m: Matrix4, p: Point) => {
-  "worklet";
+  'worklet';
   return multiply4(translate(p.x, p.y), multiply4(m, translate(-p.x, -p.y)));
 };
 
@@ -235,7 +228,7 @@ export const pivot = (m: Matrix4, p: Point) => {
  * @worklet
  */
 export const scale = (sx: number, sy: number, sz = 1, p?: Point): Matrix4 => {
-  "worklet";
+  'worklet';
   const m4: Matrix4 = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, sz, 0, 0, 0, 0, 1];
   if (p) {
     return pivot(m4, p);
@@ -244,7 +237,7 @@ export const scale = (sx: number, sy: number, sz = 1, p?: Point): Matrix4 => {
 };
 
 const rotateAxis = (axis: Vec3, angle: number, p?: Point) => {
-  "worklet";
+  'worklet';
   const result = rotate(axis, angle);
   if (p) {
     return pivot(result, p);
@@ -256,7 +249,7 @@ const rotateAxis = (axis: Vec3, angle: number, p?: Point) => {
  * @worklet
  */
 export const rotateZ = (value: number, p?: Point) => {
-  "worklet";
+  'worklet';
   return rotateAxis([0, 0, 1], value, p);
 };
 
@@ -264,7 +257,7 @@ export const rotateZ = (value: number, p?: Point) => {
  * @worklet
  */
 export const rotateX = (value: number, p?: Point) => {
-  "worklet";
+  'worklet';
   return rotateAxis([1, 0, 0], value, p);
 };
 
@@ -272,7 +265,7 @@ export const rotateX = (value: number, p?: Point) => {
  * @worklet
  */
 export const rotateY = (value: number, p?: Point) => {
-  "worklet";
+  'worklet';
   return rotateAxis([0, 1, 0], value, p);
 };
 
@@ -280,63 +273,63 @@ export const rotateY = (value: number, p?: Point) => {
  * @worklet
  */
 export const processTransform3d = (transforms: Transforms3d) => {
-  "worklet";
+  'worklet';
   return transforms.reduce((acc, val) => {
     const key = Object.keys(val)[0] as Transform3dName;
     const transform = val as Pick<Transformations, typeof key>;
-    if (key === "translateX") {
+    if (key === 'translateX') {
       const value = transform[key];
       return multiply4(acc, translate(value, 0, 0));
     }
-    if (key === "translate") {
+    if (key === 'translate') {
       const [x, y, z = 0] = transform[key];
       return multiply4(acc, translate(x, y, z));
     }
-    if (key === "translateY") {
+    if (key === 'translateY') {
       const value = transform[key];
       return multiply4(acc, translate(0, value, 0));
     }
-    if (key === "translateZ") {
+    if (key === 'translateZ') {
       const value = transform[key];
       return multiply4(acc, translate(0, 0, value));
     }
-    if (key === "scale") {
+    if (key === 'scale') {
       const value = transform[key];
       return multiply4(acc, scale(value, value, 1));
     }
-    if (key === "scaleX") {
+    if (key === 'scaleX') {
       const value = transform[key];
       return multiply4(acc, scale(value, 1, 1));
     }
-    if (key === "scaleY") {
+    if (key === 'scaleY') {
       const value = transform[key];
       return multiply4(acc, scale(1, value, 1));
     }
-    if (key === "skewX") {
+    if (key === 'skewX') {
       const value = transform[key];
       return multiply4(acc, skewX(value));
     }
-    if (key === "skewY") {
+    if (key === 'skewY') {
       const value = transform[key];
       return multiply4(acc, skewY(value));
     }
-    if (key === "rotateX") {
+    if (key === 'rotateX') {
       const value = transform[key];
       return multiply4(acc, rotate([1, 0, 0], value));
     }
-    if (key === "rotateY") {
+    if (key === 'rotateY') {
       const value = transform[key];
       return multiply4(acc, rotate([0, 1, 0], value));
     }
-    if (key === "perspective") {
+    if (key === 'perspective') {
       const value = transform[key];
       return multiply4(acc, perspective(value));
     }
-    if (key === "rotate" || key === "rotateZ") {
+    if (key === 'rotate' || key === 'rotateZ') {
       const value = transform[key];
       return multiply4(acc, rotate([0, 0, 1], value));
     }
-    if (key === "matrix") {
+    if (key === 'matrix') {
       const value = transform[key];
       return multiply4(acc, value);
     }
@@ -348,10 +341,11 @@ export const processTransform3d = (transforms: Transforms3d) => {
  * @worklet
  */
 export const convertToColumnMajor = (rowMajorMatrix: Matrix4) => {
-  "worklet";
+  'worklet';
 
-  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
+  /* oxlint-disable unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics. */
   const colMajorMatrix = new Array<number>(16);
+  /* oxlint-enable unicorn/no-new-array */
   const size = 4;
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
@@ -365,10 +359,11 @@ export const convertToColumnMajor = (rowMajorMatrix: Matrix4) => {
  * @worklet
  */
 export const convertToColumnMajor3 = (rowMajorMatrix: Matrix3 | number[]) => {
-  "worklet";
+  'worklet';
 
-  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
+  /* oxlint-disable unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics. */
   const colMajorMatrix = new Array<number>(9);
+  /* oxlint-enable unicorn/no-new-array */
   const size = 3;
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
@@ -382,7 +377,7 @@ export const convertToColumnMajor3 = (rowMajorMatrix: Matrix3 | number[]) => {
  * @worklet
  */
 export const convertToAffineMatrix = (m4: Matrix4) => {
-  "worklet";
+  'worklet';
   // Extracting the relevant components from the 4x4 matrix
   const a = m4[0]; // Scale X
   const b = m4[1]; // Skew Y
@@ -408,13 +403,11 @@ const det3x3 = (
   a12: number,
   a20: number,
   a21: number,
-  a22: number
+  a22: number,
 ): number => {
-  "worklet";
+  'worklet';
   return (
-    a00 * (a11 * a22 - a12 * a21) +
-    a01 * (a12 * a20 - a10 * a22) +
-    a02 * (a10 * a21 - a11 * a20)
+    a00 * (a11 * a22 - a12 * a21) + a01 * (a12 * a20 - a10 * a22) + a02 * (a10 * a21 - a11 * a20)
   );
 };
 
@@ -424,7 +417,7 @@ const det3x3 = (
  * @returns The inverted matrix, or the identity matrix if the input is not invertible
  */
 export const invert4 = (m: Matrix4): Matrix4 => {
-  "worklet";
+  'worklet';
 
   const a00 = m[0],
     a01 = m[1],
@@ -497,21 +490,17 @@ export const invert4 = (m: Matrix4): Matrix4 => {
 };
 
 const vecSub = (a: Vec3, b: Vec3): Vec3 => {
-  "worklet";
+  'worklet';
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 };
 
 const vecCross = (a: Vec3, b: Vec3): Vec3 => {
-  "worklet";
-  return [
-    a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0],
-  ];
+  'worklet';
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 };
 
 const lookat = (eyeVec: Vec3, centerVec: Vec3, upVec: Vec3): Matrix4 => {
-  "worklet";
+  'worklet';
   const f = normalizeVec(vecSub(centerVec, eyeVec));
   const u = normalizeVec(upVec);
   const s = normalizeVec(vecCross(f, u));
@@ -540,12 +529,8 @@ const lookat = (eyeVec: Vec3, centerVec: Vec3, upVec: Vec3): Matrix4 => {
   return invert4(m);
 };
 
-const perspectiveMatrix = (
-  near: number,
-  far: number,
-  angle: number
-): Matrix4 => {
-  "worklet";
+const perspectiveMatrix = (near: number, far: number, angle: number): Matrix4 => {
+  'worklet';
   const dInv = 1 / (far - near);
   const halfAngle = angle / 2;
   const cot = Math.cos(halfAngle) / Math.sin(halfAngle);
@@ -578,26 +563,15 @@ export interface CameraConfig {
   angle: number;
 }
 
-export const setupCamera = (
-  area: Vec4,
-  zscale: number,
-  cam: CameraConfig
-): Matrix4 => {
-  "worklet";
+export const setupCamera = (area: Vec4, zscale: number, cam: CameraConfig): Matrix4 => {
+  'worklet';
   const camera = lookat(cam.eye, cam.coa, cam.up);
   const p = perspectiveMatrix(cam.near, cam.far, cam.angle);
   const center: Vec3 = [(area[0] + area[2]) / 2, (area[1] + area[3]) / 2, 0];
-  const viewScale: Vec3 = [
-    (area[2] - area[0]) / 2,
-    (area[3] - area[1]) / 2,
-    zscale,
-  ];
+  const viewScale: Vec3 = [(area[2] - area[0]) / 2, (area[3] - area[1]) / 2, zscale];
   const viewport = multiply4(
     translate(center[0], center[1], center[2]),
-    scale(viewScale[0], viewScale[1], viewScale[2])
+    scale(viewScale[0], viewScale[1], viewScale[2]),
   );
-  return multiply4(
-    multiply4(viewport, p),
-    multiply4(camera, invert4(viewport))
-  );
+  return multiply4(multiply4(viewport, p), multiply4(camera, invert4(viewport)));
 };

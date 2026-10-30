@@ -475,7 +475,7 @@
   "outputs": [
     {
       "file": "packages/material/src/generated/localizations/refresh-localizations-data.ts",
-      "sha256": "4781b9b702e58daeb01158f51096daf46c30360bf19d7aba7f7841121d481f0c"
+      "sha256": "378543d13de49687564ca1f16c256ae4b4b07d0d7db38e21ccbb860639ab26ec"
     }
   ],
   "contract": "All116 pinned Material ARB refreshIndicatorSemanticLabel strings, with existing locale candidate resolution; no algorithm/locale/date/time completeness inferred."

@@ -32,11 +32,11 @@
   "outputs": [
     {
       "file": "packages/material/src/generated/icons/icons.ts",
-      "sha256": "e63417c68e2ced847179f466f84d3426927f2a79e932533040bfade35c8ddea9"
+      "sha256": "e6d97b256f9d6b6e84d4f84292a60ba5d36caea6ad7bbdc1885dc88a4595b25d"
     },
     {
       "file": "packages/cupertino/src/generated/icons/icons.ts",
-      "sha256": "4bbfba115b0e82dd727bed455baeb5376593044ac8a102f854761ace5c411828"
+      "sha256": "4976446e20c278f330178d52d5c2414eadb4b15c11458665398049013b5c2176"
     }
   ],
   "catalogs": [

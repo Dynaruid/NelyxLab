@@ -1,21 +1,26 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { Blender, CanvasKit, Paint } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { Blender, CanvasKit, Paint } from 'canvaskit-wasm';
 
-import type {StrokeJoin, SkPaint, StrokeCap, PaintStyle} from "@nelyx/skia-native/skia/types/Drawing";
-import type {BlendMode} from "@nelyx/skia-native/skia/types/Paint/BlendMode";
-import type {SkColor} from "@nelyx/skia-native/skia/types/Color";
-import type {SkColorFilter} from "@nelyx/skia-native/skia/types/ColorFilter/ColorFilter";
-import type {SkImageFilter} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
-import type {SkShader} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkMaskFilter} from "@nelyx/skia-native/skia/types/MaskFilter";
-import type {SkPathEffect} from "@nelyx/skia-native/skia/types/Drawing";
+import type {
+  StrokeJoin,
+  SkPaint,
+  StrokeCap,
+  PaintStyle,
+} from '@nelyx/skia-native/skia/types/Drawing';
+import type { BlendMode } from '@nelyx/skia-native/skia/types/Paint/BlendMode';
+import type { SkColor } from '@nelyx/skia-native/skia/types/Color';
+import type { SkColorFilter } from '@nelyx/skia-native/skia/types/ColorFilter/ColorFilter';
+import type { SkImageFilter } from '@nelyx/skia-native/skia/types/ImageFilter/ImageFilter';
+import type { SkShader } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkMaskFilter } from '@nelyx/skia-native/skia/types/MaskFilter';
+import type { SkPathEffect } from '@nelyx/skia-native/skia/types/Drawing';
 
-import {HostObject, getEnum} from './Host.ts';
-import {JsiSkColorFilter} from './JsiSkColorFilter.ts';
-import {JsiSkImageFilter} from './JsiSkImageFilter.ts';
-import {JsiSkMaskFilter} from './JsiSkMaskFilter.ts';
-import {JsiSkPathEffect} from './JsiSkPathEffect.ts';
-import {JsiSkShader} from './JsiSkShader.ts';
+import { HostObject, getEnum } from './Host.ts';
+import { JsiSkColorFilter } from './JsiSkColorFilter.ts';
+import { JsiSkImageFilter } from './JsiSkImageFilter.ts';
+import { JsiSkMaskFilter } from './JsiSkMaskFilter.ts';
+import { JsiSkPathEffect } from './JsiSkPathEffect.ts';
+import { JsiSkShader } from './JsiSkShader.ts';
 
 // Custom blend mode values (must match TypeScript BlendMode enum)
 const kBlendModePlusDarker = 1001;
@@ -62,9 +67,9 @@ const getBlenderCache = (ck: CanvasKit): BlenderCache => {
   return cache;
 };
 
-export class JsiSkPaint extends HostObject<Paint, "Paint"> implements SkPaint {
+export class JsiSkPaint extends HostObject<Paint, 'Paint'> implements SkPaint {
   constructor(CanvasKit: CanvasKit, ref: Paint) {
-    super(CanvasKit, ref, "Paint");
+    super(CanvasKit, ref, 'Paint');
   }
 
   copy() {
@@ -125,8 +130,7 @@ export class JsiSkPaint extends HostObject<Paint, "Paint"> implements SkPaint {
       // Use custom PlusDarker blender via SkRuntimeEffect
       const cache = getBlenderCache(this.CanvasKit);
       if (!cache.plusDarker) {
-        const effect =
-          this.CanvasKit.RuntimeEffect.MakeForBlender(plusDarkerSkSL);
+        const effect = this.CanvasKit.RuntimeEffect.MakeForBlender(plusDarkerSkSL);
         if (effect) {
           cache.plusDarker = effect.makeBlender([]);
         }
@@ -138,8 +142,7 @@ export class JsiSkPaint extends HostObject<Paint, "Paint"> implements SkPaint {
       // Use custom PlusLighter blender via SkRuntimeEffect
       const cache = getBlenderCache(this.CanvasKit);
       if (!cache.plusLighter) {
-        const effect =
-          this.CanvasKit.RuntimeEffect.MakeForBlender(plusLighterSkSL);
+        const effect = this.CanvasKit.RuntimeEffect.MakeForBlender(plusLighterSkSL);
         if (effect) {
           cache.plusLighter = effect.makeBlender([]);
         }
@@ -148,7 +151,7 @@ export class JsiSkPaint extends HostObject<Paint, "Paint"> implements SkPaint {
         this.ref.setBlender(cache.plusLighter);
       }
     } else {
-      this.ref.setBlendMode(getEnum(this.CanvasKit, "BlendMode", blendMode));
+      this.ref.setBlendMode(getEnum(this.CanvasKit, 'BlendMode', blendMode));
     }
   }
 
@@ -177,11 +180,11 @@ export class JsiSkPaint extends HostObject<Paint, "Paint"> implements SkPaint {
   }
 
   setStrokeCap(cap: StrokeCap) {
-    this.ref.setStrokeCap(getEnum(this.CanvasKit, "StrokeCap", cap));
+    this.ref.setStrokeCap(getEnum(this.CanvasKit, 'StrokeCap', cap));
   }
 
   setStrokeJoin(join: StrokeJoin) {
-    this.ref.setStrokeJoin(getEnum(this.CanvasKit, "StrokeJoin", join));
+    this.ref.setStrokeJoin(getEnum(this.CanvasKit, 'StrokeJoin', join));
   }
 
   setStrokeMiter(limit: number) {

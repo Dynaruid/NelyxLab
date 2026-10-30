@@ -1,4 +1,3 @@
-
 /**
  * Skia and WebGPU API objects are implemented with the JSI NativeState
  * pattern: plain JS objects with a shared prototype and native state
@@ -27,35 +26,35 @@ interface BoxedNativeObject {
 }
 
 const determine = (value: object): value is object => {
-  "worklet";
-  return typeof (value as any).__box === "function";
+  'worklet';
+  return typeof (value as any).__box === 'function';
 };
 
 const pack = (value: object): BoxedNativeObject => {
-  "worklet";
+  'worklet';
   return (value as any).__box();
 };
 
 const unpack = (packed: BoxedNativeObject): object => {
-  "worklet";
+  'worklet';
   return packed.unbox();
 };
 
 export const registerSkiaWorkletSerialization = () => {
   try {
-    const worklets = require("react-native-worklets");
-    if (typeof worklets.registerCustomSerializable === "function") {
+    const worklets = require('react-native-worklets');
+    if (typeof worklets.registerCustomSerializable === 'function') {
       worklets.registerCustomSerializable({
-        name: "ReactNativeSkia",
+        name: 'ReactNativeSkia',
         determine,
         pack,
         unpack,
       });
     } else {
       console.error(
-        "React Native Skia requires react-native-worklets >= 0.7.0 " +
-          "(registerCustomSerializable) to use Skia objects inside worklets. " +
-          "Please upgrade react-native-worklets and react-native-reanimated."
+        'React Native Skia requires react-native-worklets >= 0.7.0 ' +
+          '(registerCustomSerializable) to use Skia objects inside worklets. ' +
+          'Please upgrade react-native-worklets and react-native-reanimated.',
       );
     }
   } catch (_e) {

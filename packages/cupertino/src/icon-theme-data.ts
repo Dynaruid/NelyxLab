@@ -7,20 +7,19 @@ import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
 import { CupertinoDynamicColor, createCupertinoColorProperty } from './colors.ts';
 export class CupertinoIconThemeData extends Diagnosticable(IconThemeData) {
-    constructor(options: IconThemeDataOptions = {}) {
-        super(options);
-        if (new.target === CupertinoIconThemeData)
-            Object.freeze(this);
-    }
-    override resolve(context: BuildContext): IconThemeData {
-        const color = CupertinoDynamicColor.maybeResolve(this.color, context);
-        return color === this.color || color?.equals(this.color) ? this : this.copyWith({ color });
-    }
-    override copyWith(options: IconThemeDataOptions = {}): CupertinoIconThemeData {
-        return new CupertinoIconThemeData(super.copyWith(options));
-    }
-    override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
-        super.debugFillProperties(properties);
-        properties.add(createCupertinoColorProperty('color', this.color, { defaultValue: null }));
-    }
+  constructor(options: IconThemeDataOptions = {}) {
+    super(options);
+    if (new.target === CupertinoIconThemeData) Object.freeze(this);
+  }
+  override resolve(context: BuildContext): IconThemeData {
+    const color = CupertinoDynamicColor.maybeResolve(this.color, context);
+    return color === this.color || color?.equals(this.color) ? this : this.copyWith({ color });
+  }
+  override copyWith(options: IconThemeDataOptions = {}): CupertinoIconThemeData {
+    return new CupertinoIconThemeData(super.copyWith(options));
+  }
+  override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
+    super.debugFillProperties(properties);
+    properties.add(createCupertinoColorProperty('color', this.color, { defaultValue: null }));
+  }
 }

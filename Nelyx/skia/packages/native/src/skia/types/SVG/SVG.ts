@@ -1,6 +1,6 @@
-import type {SkJSIInstance} from '../JsiInstance.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
 
-export interface SkSVG extends SkJSIInstance<"SVG"> {
+export interface SkSVG extends SkJSIInstance<'SVG'> {
   width(): number;
   height(): number;
 }

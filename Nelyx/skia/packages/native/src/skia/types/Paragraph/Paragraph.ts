@@ -1,12 +1,12 @@
-import type {SkCanvas} from "../Drawing.ts";
-import type {SkFont} from "../Drawing.ts";
-import type {SkJSIInstance} from '../JsiInstance.ts';
-import type {SkPath} from "../Drawing.ts";
-import type {SkPoint} from '../Point.ts';
-import type {SkRect} from '../Rect.ts';
-import type {SkSize} from '../Size.ts';
+import type { SkCanvas } from '../Drawing.ts';
+import type { SkFont } from '../Drawing.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
+import type { SkPath } from '../Drawing.ts';
+import type { SkPoint } from '../Point.ts';
+import type { SkRect } from '../Rect.ts';
+import type { SkSize } from '../Size.ts';
 
-import type {TextDirection} from './ParagraphStyle.ts';
+import type { TextDirection } from './ParagraphStyle.ts';
 
 export interface LineMetrics {
   /** The index in the text buffer the line begins. */
@@ -84,10 +84,10 @@ export interface ParagraphVisitorInfo {
  */
 export type ParagraphExtendedVisitor = (
   lineNumber: number,
-  info: ParagraphVisitorInfo | null
+  info: ParagraphVisitorInfo | null,
 ) => void;
 
-export interface SkParagraph extends SkJSIInstance<"Paragraph"> {
+export interface SkParagraph extends SkJSIInstance<'Paragraph'> {
   /**
    * Calculates the position of the the glyphs in the paragraph
    * @param width Max width of the paragraph

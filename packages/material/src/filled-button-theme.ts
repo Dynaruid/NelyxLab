@@ -6,8 +6,20 @@ import { Theme } from './theme.ts';
 import { FilledButtonThemeData } from './filled-button-theme-data.ts';
 export { FilledButtonThemeData } from './filled-button-theme-data.ts';
 export class FilledButtonTheme extends InheritedTheme {
-    constructor(readonly data: FilledButtonThemeData, child: Widget, options: WidgetOptions = {}) { super(child, options.key ?? null); }
-    static of(context: BuildContext): FilledButtonThemeData { return context.maybeDependOn(FilledButtonTheme)?.data ?? Theme.of(context).filledButtonTheme; }
-    wrap(_context: BuildContext, child: Widget): Widget { return new FilledButtonTheme(this.data, child); }
-    updateShouldNotify(old: this): boolean { return !this.data.equals(old.data); }
+  constructor(
+    readonly data: FilledButtonThemeData,
+    child: Widget,
+    options: WidgetOptions = {},
+  ) {
+    super(child, options.key ?? null);
+  }
+  static of(context: BuildContext): FilledButtonThemeData {
+    return context.maybeDependOn(FilledButtonTheme)?.data ?? Theme.of(context).filledButtonTheme;
+  }
+  wrap(_context: BuildContext, child: Widget): Widget {
+    return new FilledButtonTheme(this.data, child);
+  }
+  updateShouldNotify(old: this): boolean {
+    return !this.data.equals(old.data);
+  }
 }

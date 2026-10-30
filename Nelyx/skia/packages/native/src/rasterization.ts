@@ -1,28 +1,224 @@
-import {readNativeImageBytes} from './image-bytes.ts';
+import { readNativeImageBytes } from './image-bytes.ts';
 // SPDX-License-Identifier: BSD-3-Clause
-import {NativePictureCache,RasterizationPendingError,NativeRetirementError} from '@nelyx/core/hosting/rasterization';
-import type {RasterizationBackend} from '@nelyx/core/hosting/rasterization';
-import {imageLimits,imageTargetSize} from '@nelyx/core/hosting/images';
-import {resourceKey} from '@nelyx/core/ui/frame';
-import type {ViewOwner,ResourceId} from '@nelyx/core/ui/types';
-import type {Skia} from './skia/types/Skia.ts';
-import type {SkImage,SkPicture} from './skia/types/Drawing.ts';
-import {replayFrame} from './renderer.ts';
-import {submitNativeScene} from './scene.ts';
-import type {DisplayListTarget} from './display-list.ts';
-import type {GraphiteResources} from './renderer.ts';
-import type {PictureCapture} from '@nelyx/core/ui/picture';
-export function createRasterizationBackend(api:Skia,images:Map<string,SkImage>,resources:GraphiteResources,owner:ViewOwner,memory:{reserve(bytes:number):()=>void},assertOpen:()=>void,isTaken:(resource:ResourceId)=>boolean=()=>false,allocate?:()=>ResourceId):RasterizationBackend{
- let closed=false,sequence=0;let unconfirmed:NativeRetirementError|undefined;const ensure=()=>{assertOpen();if(unconfirmed)throw unconfirmed;if(closed)throw new Error('Native rasterization owner closed');};
- const compile=(capture:PictureCapture):SkPicture=>{const temporary:{dispose():void}[]=[],errors:unknown[]=[],unknownOwners:unknown[]=[];let picture:SkPicture|undefined;try{const recorder=api.PictureRecorder();temporary.push(recorder);const bounds=api.XYWHRect(0,0,imageLimits.dimension,imageLimits.dimension);temporary.push(bounds);const canvas=recorder.beginRecording(bounds);
-  if(resources.nativeDisplayLists){if(typeof recorder.nelyxReplayDisplayList!=='function')throw new Error('Native picture display-list1 binding required; rebuild the native supplier');submitNativeScene(api,recorder as DisplayListTarget,capture.frame,resources);}
-  else replayFrame(api,canvas,capture.frame,resources);
-  picture=recorder.finishRecordingAsPicture();}catch(error){errors.push(error);}finally{for(const value of temporary.reverse())try{value.dispose();}catch(error){unknownOwners.push(value);errors.push(error);}}if(errors.length){try{picture?.dispose();}catch(error){unknownOwners.push(picture);errors.push(error);}if(unknownOwners.length){unconfirmed=new NativeRetirementError(errors,unknownOwners);throw unconfirmed;}if(errors.length===1)throw errors[0];throw new AggregateError(errors,'Native picture recording/retirement failed');}return picture!;};
- const cache=new NativePictureCache(compile,picture=>{if(typeof picture.approximateBytesUsed!=='function')throw new Error('Rebuild matching native picture memory binding');return picture.approximateBytesUsed();},picture=>picture.dispose());
- return {rasterize(capture,width,height){ensure();imageTargetSize(width,height);if(images.size>=1024)throw new Error('Native raster image count budget');let resource:ResourceId,key:string;do{resource=allocate?.()??{id:`${owner.id}:${owner.generation}:raster:${++sequence}`,generation:1};key=resourceKey(resource);}while(images.has(key)||isTaken(resource));const cost=width*height*4,releaseImage=memory.reserve(cost);let releaseTemporary:(()=>void)|undefined,surface:ReturnType<Skia['Surface']['MakeOffscreen']>=null,texture:SkImage|null=null,output:SkImage|null=null;const errors:unknown[]=[];let completed=false;
-  // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
-  try{releaseTemporary=memory.reserve(cost*2);const picture=cache.get(capture);surface=api.Surface.MakeOffscreen(width,height,{colorSpace:'srgb'});if(!surface)throw new Error('Native rasterization GPU surface unavailable');const canvas=surface.getCanvas();canvas.clear(api.Color(0));canvas.drawPicture(picture);surface.flush(true);texture=surface.makeImageSnapshot();output=texture.makeNonTextureImage();if(!output)throw new Error('Native rasterization GPU readback failed');completed=true;}catch(error){errors.push(error);}finally{if(surface&&!completed){try{surface.nelyxRetire();}catch(error){errors.push(error);let drained=false,cleanupStarted=false,finished=false;let terminal:unknown;const drain=()=>{if(finished)return;if(cleanupStarted)throw terminal;if(!drained){surface!.nelyxRetire();drained=true;}cleanupStarted=true;const failures:unknown[]=[];for(const cleanup of [()=>output?.dispose(),()=>texture?.dispose(),()=>surface?.dispose(),()=>releaseTemporary?.(),releaseImage])try{cleanup();}catch(error){failures.push(error);}if(failures.length){terminal=failures.length===1?failures[0]:new AggregateError(failures,'Native raster drain/retirement failed');throw terminal;}finished=true;};throw new RasterizationPendingError(Object.freeze([...errors]),drain,{canRetry:()=>!drained&&!cleanupStarted,retry:drain});}}for(const cleanup of [()=>texture?.dispose(),()=>surface?.dispose(),()=>releaseTemporary?.()])try{cleanup();}catch(error){errors.push(error);}}
-  if(errors.length){for(const cleanup of [()=>output?.dispose(),releaseImage])try{cleanup();}catch(error){errors.push(error);}if(errors.length===1)throw errors[0];throw new AggregateError(errors,'Native rasterization/temporary retirement failed');}
-  const image=output!;images.set(key,image);let retired=false;return {descriptor:{...resource,kind:'image'},width,height,duration:0,readBytes:async format=>{if(retired)throw new Error('Native raster image retired');return readNativeImageBytes(image,format);},retire:()=>{if(retired)return;image.dispose();retired=true;images.delete(key);releaseImage();}};
- },dispose(){closed=true;if(unconfirmed)throw unconfirmed;cache.dispose();}};
+import {
+  NativePictureCache,
+  RasterizationPendingError,
+  NativeRetirementError,
+} from '@nelyx/core/hosting/rasterization';
+import type { RasterizationBackend } from '@nelyx/core/hosting/rasterization';
+import { imageLimits, imageTargetSize } from '@nelyx/core/hosting/images';
+import { resourceKey } from '@nelyx/core/ui/frame';
+import type { ViewOwner, ResourceId } from '@nelyx/core/ui/types';
+import type { Skia } from './skia/types/Skia.ts';
+import type { SkImage, SkPicture } from './skia/types/Drawing.ts';
+import { replayFrame } from './renderer.ts';
+import { submitNativeScene } from './scene.ts';
+import type { DisplayListTarget } from './display-list.ts';
+import type { GraphiteResources } from './renderer.ts';
+import type { PictureCapture } from '@nelyx/core/ui/picture';
+export function createRasterizationBackend(
+  api: Skia,
+  images: Map<string, SkImage>,
+  resources: GraphiteResources,
+  owner: ViewOwner,
+  memory: { reserve(bytes: number): () => void },
+  assertOpen: () => void,
+  isTaken: (resource: ResourceId) => boolean = () => false,
+  allocate?: () => ResourceId,
+): RasterizationBackend {
+  let closed = false,
+    sequence = 0;
+  let unconfirmed: NativeRetirementError | undefined;
+  const ensure = () => {
+    assertOpen();
+    if (unconfirmed) throw unconfirmed;
+    if (closed) throw new Error('Native rasterization owner closed');
+  };
+  const compile = (capture: PictureCapture): SkPicture => {
+    const temporary: { dispose(): void }[] = [],
+      errors: unknown[] = [],
+      unknownOwners: unknown[] = [];
+    let picture: SkPicture | undefined;
+    try {
+      const recorder = api.PictureRecorder();
+      temporary.push(recorder);
+      const bounds = api.XYWHRect(0, 0, imageLimits.dimension, imageLimits.dimension);
+      temporary.push(bounds);
+      const canvas = recorder.beginRecording(bounds);
+      if (resources.nativeDisplayLists) {
+        if (typeof recorder.nelyxReplayDisplayList !== 'function')
+          throw new Error(
+            'Native picture display-list1 binding required; rebuild the native supplier',
+          );
+        submitNativeScene(api, recorder as DisplayListTarget, capture.frame, resources);
+      } else replayFrame(api, canvas, capture.frame, resources);
+      picture = recorder.finishRecordingAsPicture();
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      for (const value of temporary.reverse())
+        try {
+          value.dispose();
+        } catch (error) {
+          unknownOwners.push(value);
+          errors.push(error);
+        }
+    }
+    if (errors.length) {
+      try {
+        picture?.dispose();
+      } catch (error) {
+        unknownOwners.push(picture);
+        errors.push(error);
+      }
+      if (unknownOwners.length) {
+        unconfirmed = new NativeRetirementError(errors, unknownOwners);
+        throw unconfirmed;
+      }
+      if (errors.length === 1) throw errors[0];
+      throw new AggregateError(errors, 'Native picture recording/retirement failed');
+    }
+    return picture!;
+  };
+  const cache = new NativePictureCache(
+    compile,
+    (picture) => {
+      if (typeof picture.approximateBytesUsed !== 'function')
+        throw new Error('Rebuild matching native picture memory binding');
+      return picture.approximateBytesUsed();
+    },
+    (picture) => picture.dispose(),
+  );
+  return {
+    rasterize(capture, width, height) {
+      ensure();
+      imageTargetSize(width, height);
+      if (images.size >= 1024) throw new Error('Native raster image count budget');
+      let resource: ResourceId, key: string;
+      do {
+        resource = allocate?.() ?? {
+          id: `${owner.id}:${owner.generation}:raster:${++sequence}`,
+          generation: 1,
+        };
+        key = resourceKey(resource);
+      } while (images.has(key) || isTaken(resource));
+      const cost = width * height * 4,
+        releaseImage = memory.reserve(cost);
+      let releaseTemporary: (() => void) | undefined,
+        surface: ReturnType<Skia['Surface']['MakeOffscreen']> = null,
+        texture: SkImage | null = null,
+        output: SkImage | null = null;
+      const errors: unknown[] = [];
+      let completed = false;
+      /* oxlint-disable no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test. */
+      try {
+        releaseTemporary = memory.reserve(cost * 2);
+        const picture = cache.get(capture);
+        surface = api.Surface.MakeOffscreen(width, height, { colorSpace: 'srgb' });
+        if (!surface) throw new Error('Native rasterization GPU surface unavailable');
+        const canvas = surface.getCanvas();
+        canvas.clear(api.Color(0));
+        canvas.drawPicture(picture);
+        surface.flush(true);
+        texture = surface.makeImageSnapshot();
+        output = texture.makeNonTextureImage();
+        if (!output) throw new Error('Native rasterization GPU readback failed');
+        completed = true;
+      } catch (error) {
+        errors.push(error);
+      } finally {
+        if (surface && !completed) {
+          try {
+            surface.nelyxRetire();
+          } catch (error) {
+            errors.push(error);
+            let drained = false,
+              cleanupStarted = false,
+              finished = false;
+            let terminal: unknown;
+            const drain = () => {
+              if (finished) return;
+              if (cleanupStarted) throw terminal;
+              if (!drained) {
+                surface!.nelyxRetire();
+                drained = true;
+              }
+              cleanupStarted = true;
+              const failures: unknown[] = [];
+              for (const cleanup of [
+                () => output?.dispose(),
+                () => texture?.dispose(),
+                () => surface?.dispose(),
+                () => releaseTemporary?.(),
+                releaseImage,
+              ])
+                try {
+                  cleanup();
+                } catch (error) {
+                  failures.push(error);
+                }
+              if (failures.length) {
+                terminal =
+                  failures.length === 1
+                    ? failures[0]
+                    : new AggregateError(failures, 'Native raster drain/retirement failed');
+                throw terminal;
+              }
+              finished = true;
+            };
+            throw new RasterizationPendingError(Object.freeze([...errors]), drain, {
+              canRetry: () => !drained && !cleanupStarted,
+              retry: drain,
+            });
+          }
+        }
+        for (const cleanup of [
+          () => texture?.dispose(),
+          () => surface?.dispose(),
+          () => releaseTemporary?.(),
+        ])
+          try {
+            cleanup();
+          } catch (error) {
+            errors.push(error);
+          }
+      }
+      /* oxlint-enable no-unsafe-finally */
+      if (errors.length) {
+        for (const cleanup of [() => output?.dispose(), releaseImage])
+          try {
+            cleanup();
+          } catch (error) {
+            errors.push(error);
+          }
+        if (errors.length === 1) throw errors[0];
+        throw new AggregateError(errors, 'Native rasterization/temporary retirement failed');
+      }
+      const image = output!;
+      images.set(key, image);
+      let retired = false;
+      return {
+        descriptor: { ...resource, kind: 'image' },
+        width,
+        height,
+        duration: 0,
+        readBytes: async (format) => {
+          if (retired) throw new Error('Native raster image retired');
+          return readNativeImageBytes(image, format);
+        },
+        retire: () => {
+          if (retired) return;
+          image.dispose();
+          retired = true;
+          images.delete(key);
+          releaseImage();
+        },
+      };
+    },
+    dispose() {
+      closed = true;
+      if (unconfirmed) throw unconfirmed;
+      cache.dispose();
+    },
+  };
 }

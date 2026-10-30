@@ -1,50 +1,540 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {bridgeDartFunction} from '@nelyx/core/internal/foundation/dart-function';
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import { bridgeDartFunction } from '@nelyx/core/internal/foundation/dart-function';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import * as material from '@nelyx/material/widgets';
-import {ThemeData} from '@nelyx/material/theme-data';import {Theme} from '@nelyx/material/theme';import {MenuStyle} from '@nelyx/material/menu-style';
-import {Color} from '@nelyx/core/ui/color';import {Size} from '@nelyx/core/ui/size';import {Offset} from '@nelyx/core/ui/offset';import {TextStyle} from '@nelyx/core/framework/painting/text-style';import { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';import {AlignmentDirectional} from '@nelyx/core/framework/painting/alignment';import {CircleBorder} from '@nelyx/core/framework/painting/circle-border';import {BorderSide} from '@nelyx/core/framework/painting/borders';import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';import {Icon} from '@nelyx/core/framework/widgets/icon';import {WidgetStateProperty,WidgetState,WidgetStateBorderSide} from '@nelyx/core/framework/widgets/widget-state';import {DartDouble} from '@nelyx/core/foundation/dart-numeric';import { nullableDartType } from '@nelyx/core/foundation/dart-type-witness';import {TextCapitalization} from '@nelyx/core/services/text-capitalization';import {sourceIconThemeDataType,captureSourceIconThemeData,sourceWidgetType,captureSourceWidget} from '@nelyx/core/internal/framework/widgets/source-value-types';
-import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {InheritedTheme} from '@nelyx/core/framework/widgets/inherited-theme';import {State,StatefulWidget,InheritedWidget} from '@nelyx/core/framework/widgets/framework';import {Builder,SizedBox,Center} from '@nelyx/core/framework/widgets/basic';import {Directionality,MediaQuery} from '@nelyx/core/framework/widgets/app-data';import {fixture} from './root-fixture.mjs';import {engineFixture} from './engine-fixture.mjs';
-import {colorAll,doubleAll,textAll,insetsAll,shapeAll,sizeAll,sideAll} from '../dist/internal/button/style-properties.js';
-const timeout=1_200_000,empty=()=>emptyWidgetStateSet(),oracle=JSON.parse(fs.readFileSync(new URL('./fixtures/theme-values-source.json',import.meta.url))),label=material.NavigationDestinationLabelBehavior;
-FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const familyNames=['ActionIcon','Badge','Card','CarouselView','Drawer','ExpansionTile','NavigationBar','NavigationDrawer','SearchBar','SearchView','SegmentedButton','MenuBar','MenuButton','Menu','FloatingActionButton','Dialog'];
-const families=familyNames.map(n=>[material[n+'ThemeData'],material[n+'Theme'],n[0].toLowerCase()+n.slice(1)+'Theme']);
-const builderA=()=>new SizedBox(1,1),builderB=()=>new SizedBox(2,2),widgetA=new SizedBox(1,1),widgetB=new SizedBox(2,2);
-function sample(field,side){const a=side==='a';switch(field.type){case 'function':return a?builderA:builderB;case 'double':return a?2:10;case 'bool':return !a;case 'Clip':return a?'none':'antiAlias';case 'TextCapitalization':return a?TextCapitalization.words:TextCapitalization.characters;case 'NavigationDestinationLabelBehavior':return a?label.alwaysHide:label.onlyShowSelected;case 'Widget':return a?widgetA:widgetB;case 'WidgetStateProperty':if(field.inner==='double')return doubleAll(a?2:10);if(field.inner==='Widget')return WidgetStateProperty.all(nullableDartType(sourceWidgetType),captureSourceWidget(a?widgetA:widgetB));return null;default:return null;}}
-function encode(value){if(value==null||typeof value==='number'||typeof value==='boolean'||typeof value==='string')return value;if(DartDouble.is(value))return value.value;if(value.resolve)return encode(value.resolve(empty()));if(value===builderA||value===widgetA)return 'a';if(value===builderB||value===widgetB)return 'b';if(value.name)return value.name;throw Error('Unexpected source receiver '+value.constructor.name);}
-test('17 theme/style lerps match 136 unchanged Dart VM scalar/null/identity cases',{timeout},()=>{
- let checked=0;for(const contract of oracle.contracts){const Data=material[contract.symbol],a=new Data(Object.fromEntries(contract.fields.map(f=>[f.name,sample(f,'a')]))),b=new Data(Object.fromEntries(contract.fields.map(f=>[f.name,sample(f,'b')])));for(const row of oracle.results.filter(r=>r.symbol===contract.symbol)){const result=Data.lerp(['nullA','bothNull'].includes(row.mode)?null:a,['nullB','bothNull'].includes(row.mode)?null:row.mode==='identity'?a:b,row.t);assert.equal(result===null,row.isNull,contract.symbol+'.'+row.mode);assert.equal(result===a,row.identicalA,contract.symbol+'.identity');if(result!==null)assert.deepEqual(Object.fromEntries(contract.fields.map(f=>[f.name,encode(result[f.name])])),row.fields,contract.symbol+'.'+row.mode+'.'+row.t);checked++;}}
- assert.equal(checked,136);assert.equal(material.BadgeThemeData.lerp(null,null,.5) instanceof material.BadgeThemeData,true);assert.equal(material.DrawerThemeData.lerp(null,null,.5),null);
-});
-test('canonical value equality, null copy, inheritance, merge and source diagnostic omissions',{timeout},()=>{
- for(const {symbol,fields,copyWith}of oracle.contracts){const Data=material[symbol],options=Object.fromEntries(fields.map(f=>[f.name,sample(f,'a')])),a=new Data(options),b=new Data(options);assert(Object.isFrozen(a));assert(a.equals(b),symbol);assert.equal(a.hashCode,b.hashCode);class Derived extends Data {}assert.equal(a.equals(new Derived(options)),false,symbol+'.runtimeType');assert.equal(typeof a.copyWith==='function',copyWith);if(copyWith){const copied=a.copyWith(Object.fromEntries(fields.map(f=>[f.name,null])));assert(copied.equals(a),symbol+'.null copy');}}
- assert(new material.MenuBarThemeData() instanceof material.MenuThemeData);assert.equal(new material.MenuBarThemeData().submenuIcon,null);assert.equal(new material.MenuThemeData().copyWith,undefined);assert.equal(new material.MenuButtonThemeData().copyWith,undefined);
- const bridge1=bridgeDartFunction(builderA,'theme-builder-1',source=>context=>source(context)),bridge2=bridgeDartFunction(builderA,'theme-builder-2',source=>context=>source(context)),action1=new material.ActionIconThemeData({backButtonIconBuilder:bridge1}),action2=new material.ActionIconThemeData({backButtonIconBuilder:bridge2});assert(action1.equals(action2));assert.equal(action1.hashCode,action2.hashCode);
- const a=new MenuStyle({elevation:doubleAll(2)}),b=new MenuStyle({backgroundColor:colorAll(new Color(0xffabcdef)),elevation:doubleAll(10)});assert.equal(a.merge(null),a);assert.equal(a.merge(b).elevation,a.elevation);assert.equal(a.merge(b).backgroundColor,b.backgroundColor);
- assert.throws(()=>new material.CardThemeData({elevation:-1}));const p=new DiagnosticPropertiesBuilder(),old=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';try{new material.SegmentedButtonThemeData({selectedIcon:widgetA}).debugFillProperties(p);assert.deepEqual(p.properties.map(v=>v.name),['style']);}finally{FoundationBuildMode.mode=old;}
-});
-test('state properties interpolate real canonical text/icon/geometry/shape and retained numeric values',{timeout},()=>{
- const c1=new Color(0xff123456),c2=new Color(0xffabcdef),text1=new TextStyle({fontSize:12}),text2=new TextStyle({fontSize:20}),pad1=EdgeInsetsDirectional.fromSTEB(2,4,6,8),pad2=EdgeInsetsDirectional.fromSTEB(10,12,14,16),shape=new CircleBorder();
- const a=new material.SearchBarThemeData({elevation:doubleAll(2),backgroundColor:colorAll(c1),textStyle:textAll(text1),padding:insetsAll(pad1),shape:shapeAll(shape),side:sideAll(new BorderSide({color:0xff123456,width:4})),constraints:new BoxConstraints(10,100)}),b=new material.SearchBarThemeData({elevation:doubleAll(10),backgroundColor:colorAll(c2),textStyle:textAll(text2),padding:insetsAll(pad2),shape:shapeAll(shape),constraints:new BoxConstraints(30,200)}),v=material.SearchBarThemeData.lerp(a,b,.25);
- assert(DartDouble.is(v.elevation.resolve(empty())));assert.equal(v.elevation.resolve(empty()).value,4);assert.equal(v.textStyle.resolve(empty()).fontSize,14);assert.equal(v.backgroundColor.resolve(empty()).toARGB32(),Color.lerp(c1,c2,.25).toARGB32());const padding=v.padding.resolve(empty()).resolve('rtl');assert.deepEqual([padding.left,padding.top,padding.right,padding.bottom],[8,6,4,10]);assert(v.shape.resolve(empty()) instanceof CircleBorder);assert.equal(v.constraints.minWidth,15);assert.equal(v.constraints.maxWidth,125);assert.equal(v.side.resolve(empty()).width,3);
- const iconProperty=size=>WidgetStateProperty.resolveWith(nullableDartType(sourceIconThemeDataType),states=>captureSourceIconThemeData(new IconThemeData({size:states.contains(WidgetState.selected)?size*2:size,color:c1}))),nav=material.NavigationBarThemeData.lerp(new material.NavigationBarThemeData({iconTheme:iconProperty(10),labelTextStyle:textAll(text1)}),new material.NavigationBarThemeData({iconTheme:iconProperty(30),labelTextStyle:textAll(text2)}),.5),states=empty();assert.equal(nav.iconTheme.resolve(states).size,20);states.add(WidgetState.selected);assert.equal(nav.iconTheme.resolve(states).size,40);assert.equal(nav.labelTextStyle.resolve(states).fontSize,16);
- const menu=MenuStyle.lerp(new MenuStyle({minimumSize:sizeAll(new Size(20,30)),padding:insetsAll(pad1),elevation:doubleAll(2)}),new MenuStyle({minimumSize:sizeAll(new Size(60,70)),padding:insetsAll(pad2),elevation:doubleAll(10)}),.5);assert.equal(menu.minimumSize.resolve(empty()).width,40);assert.equal(menu.elevation.resolve(empty()).value,6);
- const raw={resolve:()=>3};assert.throws(()=>material.SearchBarThemeData.lerp(new material.SearchBarThemeData({elevation:raw}),new material.SearchBarThemeData({elevation:doubleAll(2)}),.5).elevation.resolve(empty()),/DartDouble|retained|type/);
-});
-test('pinned asymmetric field routing and stateful nullable search border fade are preserved',{timeout},()=>{
- const sizeA=new Size(10,20),sizeB=new Size(30,40),a=new material.NavigationDrawerThemeData({indicatorSize:sizeA}),b=new material.NavigationDrawerThemeData({indicatorSize:sizeB});assert(material.NavigationDrawerThemeData.lerp(a,b,.75).indicatorSize.equals(sizeA));
- const textA=new TextStyle({fontSize:12}),textB=new TextStyle({fontSize:20}),search=material.SearchViewThemeData.lerp(new material.SearchViewThemeData({headerTextStyle:textA,headerHintStyle:new TextStyle({fontSize:100})}),new material.SearchViewThemeData({headerTextStyle:textB,headerHintStyle:new TextStyle({fontSize:200})}),.25);assert.equal(search.headerTextStyle.fontSize,14);assert.equal(search.headerHintStyle.fontSize,14);
- const side=WidgetStateBorderSide.resolveWith(()=>new BorderSide({width:4,color:0xff123456})),fade=material.SearchViewThemeData.lerp(new material.SearchViewThemeData({side}),new material.SearchViewThemeData(),.5).side;assert.equal(fade.width,2);assert.equal(new Color(fade.color).alpha,128);assert.equal(material.SearchViewThemeData.lerp(new material.SearchViewThemeData(),new material.SearchViewThemeData(),.5).side,null);
- const badge=material.BadgeThemeData.lerp(new material.BadgeThemeData({offset:new Offset(2,4),alignment:new AlignmentDirectional(-1,0)}),new material.BadgeThemeData({offset:new Offset(10,12),alignment:new AlignmentDirectional(1,1)}),.5);assert.equal(badge.offset.dx,6);assert(badge.alignment.resolve('rtl').x===0);
-});
-test('16 inherited themes retain State, shadow global values, notify by value and capture eligible ancestors',{timeout},()=>{
- const f=fixture();let created=0,disposed=0,reads=[],captured;class Probe extends StatefulWidget{createState(){created++;return new ProbeState();}}class ProbeState extends State{build(context){reads=families.map(([,Theme])=>Theme.of(context));assert.equal(material.SegmentedButtonTheme.maybeOf(context),reads[10]);captured=InheritedTheme.capture(context);return new SizedBox(1,1);}dispose(){disposed++;super.dispose();}}
- const global=Object.fromEntries(families.map(([Data,,field])=>[field,new Data()])),data=new ThemeData(global),wrap=(values,child)=>new Theme(data,families.reduceRight((child,[,Theme],i)=>new Theme(values[i],child),child));try{const values=families.map(([Data])=>new Data()),probe=new Probe();f.set(wrap(values,probe));assert.equal(created,1);assert.deepEqual(reads,values);for(const [i,[Data,Theme,field]]of families.entries()){const same=new Data();assert.equal(new Theme(same,widgetA).updateShouldNotify(new Theme(values[i],widgetA)),false,field);assert.equal(data[field],global[field]);assert.equal(data.copyWith({[field]:null})[field],global[field]);assert.equal(field==='actionIconTheme'?new ThemeData()[field]===null:new ThemeData()[field] instanceof Data,true);}
- const changed=values.slice();changed[1]=new material.BadgeThemeData({smallSize:14});f.set(wrap(changed,probe));assert.equal(created,1);assert.equal(reads[1].smallSize,14);f.set(new Theme(data,captured.wrap(new Builder(context=>{reads=families.map(([,Theme])=>Theme.of(context));return new SizedBox(1,1);})))) ;assert.equal(reads[1].smallSize,14);assert.equal(reads[2],global.cardTheme);assert.equal(reads[8],global.searchBarTheme);assert.equal(reads[15],changed[15]);assert.equal(material.CardTheme.prototype instanceof InheritedWidget,true);assert.equal(material.CardTheme.prototype instanceof InheritedTheme,false);assert.equal(material.DialogTheme.prototype instanceof InheritedTheme,true);assert.equal(material.SearchBarTheme.prototype instanceof InheritedTheme,false);assert.equal(new material.CardTheme().child instanceof SizedBox,true);assert.equal(new material.DialogTheme().child instanceof SizedBox,true);
- }finally{f.close();}assert.equal(created,1);assert.equal(disposed,1);
-});
-test('new theme values feed actual Material and IconTheme owned CPU paint without leaked glyph resources',{timeout},async()=>{
- const f=await engineFixture({fonts:true}),surface=f.ck.MakeSurface(240,160);try{const card=new material.CardThemeData({color:new Color(0xff00ff00),shape:new CircleBorder(),clipBehavior:'antiAlias',elevation:0}),icon=captureSourceIconThemeData(new IconThemeData({size:24,color:new Color(0xff0000ff)})),nav=new material.NavigationBarThemeData({iconTheme:WidgetStateProperty.all(nullableDartType(sourceIconThemeDataType),icon)}),child=new Builder(context=>{const c=material.CardTheme.of(context),n=material.NavigationBarTheme.of(context);return new Center(new SizedBox(80,80,new material.Material({color:c.color,shape:c.shape,elevation:c.elevation,clipBehavior:c.clipBehavior,child:new IconTheme(n.iconTheme.resolve(empty()),new Icon(material.Icons.check))})));}),media=new MediaQuery({width:240,height:160,scale:1,textScale:1,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},new Theme(new ThemeData({cardTheme:card,navigationBarTheme:nav}),child));f.set(new Directionality('ltr',media));f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();const pixels=surface.makeImageSnapshot();try{const rgba=pixels.readPixels(100,65,{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB});assert.deepEqual(Array.from(rgba),[0,255,0,255]);}finally{pixels.delete();}assert([...f.library.paragraphs.values()].every(p=>p.layout.unresolvedGlyphs===0));assert(f.library.paragraphs.size>0);f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);
- }finally{surface.delete();await f.close();}
-});
+import { ThemeData } from '@nelyx/material/theme-data';
+import { Theme } from '@nelyx/material/theme';
+import { MenuStyle } from '@nelyx/material/menu-style';
+import { Color } from '@nelyx/core/ui/color';
+import { Size } from '@nelyx/core/ui/size';
+import { Offset } from '@nelyx/core/ui/offset';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
+import { AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
+import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
+import { BorderSide } from '@nelyx/core/framework/painting/borders';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import {
+  WidgetStateProperty,
+  WidgetState,
+  WidgetStateBorderSide,
+} from '@nelyx/core/framework/widgets/widget-state';
+import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
+import { nullableDartType } from '@nelyx/core/foundation/dart-type-witness';
+import { TextCapitalization } from '@nelyx/core/services/text-capitalization';
+import {
+  sourceIconThemeDataType,
+  captureSourceIconThemeData,
+  sourceWidgetType,
+  captureSourceWidget,
+} from '@nelyx/core/internal/framework/widgets/source-value-types';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { InheritedTheme } from '@nelyx/core/framework/widgets/inherited-theme';
+import { State, StatefulWidget, InheritedWidget } from '@nelyx/core/framework/widgets/framework';
+import { Builder, SizedBox, Center } from '@nelyx/core/framework/widgets/basic';
+import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { fixture } from './root-fixture.mjs';
+import { engineFixture } from './engine-fixture.mjs';
+import {
+  colorAll,
+  doubleAll,
+  textAll,
+  insetsAll,
+  shapeAll,
+  sizeAll,
+  sideAll,
+} from '../dist/internal/button/style-properties.js';
+const timeout = 1_200_000,
+  empty = () => emptyWidgetStateSet(),
+  oracle = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/theme-values-source.json', import.meta.url)),
+  ),
+  label = material.NavigationDestinationLabelBehavior;
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const familyNames = [
+  'ActionIcon',
+  'Badge',
+  'Card',
+  'CarouselView',
+  'Drawer',
+  'ExpansionTile',
+  'NavigationBar',
+  'NavigationDrawer',
+  'SearchBar',
+  'SearchView',
+  'SegmentedButton',
+  'MenuBar',
+  'MenuButton',
+  'Menu',
+  'FloatingActionButton',
+  'Dialog',
+];
+const families = familyNames.map((n) => [
+  material[n + 'ThemeData'],
+  material[n + 'Theme'],
+  n[0].toLowerCase() + n.slice(1) + 'Theme',
+]);
+const builderA = () => new SizedBox(1, 1),
+  builderB = () => new SizedBox(2, 2),
+  widgetA = new SizedBox(1, 1),
+  widgetB = new SizedBox(2, 2);
+function sample(field, side) {
+  const a = side === 'a';
+  switch (field.type) {
+    case 'function':
+      return a ? builderA : builderB;
+    case 'double':
+      return a ? 2 : 10;
+    case 'bool':
+      return !a;
+    case 'Clip':
+      return a ? 'none' : 'antiAlias';
+    case 'TextCapitalization':
+      return a ? TextCapitalization.words : TextCapitalization.characters;
+    case 'NavigationDestinationLabelBehavior':
+      return a ? label.alwaysHide : label.onlyShowSelected;
+    case 'Widget':
+      return a ? widgetA : widgetB;
+    case 'WidgetStateProperty':
+      if (field.inner === 'double') return doubleAll(a ? 2 : 10);
+      if (field.inner === 'Widget')
+        return WidgetStateProperty.all(
+          nullableDartType(sourceWidgetType),
+          captureSourceWidget(a ? widgetA : widgetB),
+        );
+      return null;
+    default:
+      return null;
+  }
+}
+function encode(value) {
+  if (
+    value == null ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'string'
+  )
+    return value;
+  if (DartDouble.is(value)) return value.value;
+  if (value.resolve) return encode(value.resolve(empty()));
+  if (value === builderA || value === widgetA) return 'a';
+  if (value === builderB || value === widgetB) return 'b';
+  if (value.name) return value.name;
+  throw Error('Unexpected source receiver ' + value.constructor.name);
+}
+test(
+  '17 theme/style lerps match 136 unchanged Dart VM scalar/null/identity cases',
+  { timeout },
+  () => {
+    let checked = 0;
+    for (const contract of oracle.contracts) {
+      const Data = material[contract.symbol],
+        a = new Data(Object.fromEntries(contract.fields.map((f) => [f.name, sample(f, 'a')]))),
+        b = new Data(Object.fromEntries(contract.fields.map((f) => [f.name, sample(f, 'b')])));
+      for (const row of oracle.results.filter((r) => r.symbol === contract.symbol)) {
+        const result = Data.lerp(
+          ['nullA', 'bothNull'].includes(row.mode) ? null : a,
+          ['nullB', 'bothNull'].includes(row.mode) ? null : row.mode === 'identity' ? a : b,
+          row.t,
+        );
+        assert.equal(result === null, row.isNull, contract.symbol + '.' + row.mode);
+        assert.equal(result === a, row.identicalA, contract.symbol + '.identity');
+        if (result !== null)
+          assert.deepEqual(
+            Object.fromEntries(contract.fields.map((f) => [f.name, encode(result[f.name])])),
+            row.fields,
+            contract.symbol + '.' + row.mode + '.' + row.t,
+          );
+        checked++;
+      }
+    }
+    assert.equal(checked, 136);
+    assert.equal(
+      material.BadgeThemeData.lerp(null, null, 0.5) instanceof material.BadgeThemeData,
+      true,
+    );
+    assert.equal(material.DrawerThemeData.lerp(null, null, 0.5), null);
+  },
+);
+test(
+  'canonical value equality, null copy, inheritance, merge and source diagnostic omissions',
+  { timeout },
+  () => {
+    for (const { symbol, fields, copyWith } of oracle.contracts) {
+      const Data = material[symbol],
+        options = Object.fromEntries(fields.map((f) => [f.name, sample(f, 'a')])),
+        a = new Data(options),
+        b = new Data(options);
+      assert(Object.isFrozen(a));
+      assert(a.equals(b), symbol);
+      assert.equal(a.hashCode, b.hashCode);
+      class Derived extends Data {}
+      assert.equal(a.equals(new Derived(options)), false, symbol + '.runtimeType');
+      assert.equal(typeof a.copyWith === 'function', copyWith);
+      if (copyWith) {
+        const copied = a.copyWith(Object.fromEntries(fields.map((f) => [f.name, null])));
+        assert(copied.equals(a), symbol + '.null copy');
+      }
+    }
+    assert(new material.MenuBarThemeData() instanceof material.MenuThemeData);
+    assert.equal(new material.MenuBarThemeData().submenuIcon, null);
+    assert.equal(new material.MenuThemeData().copyWith, undefined);
+    assert.equal(new material.MenuButtonThemeData().copyWith, undefined);
+    const bridge1 = bridgeDartFunction(
+        builderA,
+        'theme-builder-1',
+        (source) => (context) => source(context),
+      ),
+      bridge2 = bridgeDartFunction(
+        builderA,
+        'theme-builder-2',
+        (source) => (context) => source(context),
+      ),
+      action1 = new material.ActionIconThemeData({ backButtonIconBuilder: bridge1 }),
+      action2 = new material.ActionIconThemeData({ backButtonIconBuilder: bridge2 });
+    assert(action1.equals(action2));
+    assert.equal(action1.hashCode, action2.hashCode);
+    const a = new MenuStyle({ elevation: doubleAll(2) }),
+      b = new MenuStyle({
+        backgroundColor: colorAll(new Color(0xffabcdef)),
+        elevation: doubleAll(10),
+      });
+    assert.equal(a.merge(null), a);
+    assert.equal(a.merge(b).elevation, a.elevation);
+    assert.equal(a.merge(b).backgroundColor, b.backgroundColor);
+    assert.throws(() => new material.CardThemeData({ elevation: -1 }));
+    const p = new DiagnosticPropertiesBuilder(),
+      old = FoundationBuildMode.mode;
+    FoundationBuildMode.mode = 'debug';
+    try {
+      new material.SegmentedButtonThemeData({ selectedIcon: widgetA }).debugFillProperties(p);
+      assert.deepEqual(
+        p.properties.map((v) => v.name),
+        ['style'],
+      );
+    } finally {
+      FoundationBuildMode.mode = old;
+    }
+  },
+);
+test(
+  'state properties interpolate real canonical text/icon/geometry/shape and retained numeric values',
+  { timeout },
+  () => {
+    const c1 = new Color(0xff123456),
+      c2 = new Color(0xffabcdef),
+      text1 = new TextStyle({ fontSize: 12 }),
+      text2 = new TextStyle({ fontSize: 20 }),
+      pad1 = EdgeInsetsDirectional.fromSTEB(2, 4, 6, 8),
+      pad2 = EdgeInsetsDirectional.fromSTEB(10, 12, 14, 16),
+      shape = new CircleBorder();
+    const a = new material.SearchBarThemeData({
+        elevation: doubleAll(2),
+        backgroundColor: colorAll(c1),
+        textStyle: textAll(text1),
+        padding: insetsAll(pad1),
+        shape: shapeAll(shape),
+        side: sideAll(new BorderSide({ color: 0xff123456, width: 4 })),
+        constraints: new BoxConstraints(10, 100),
+      }),
+      b = new material.SearchBarThemeData({
+        elevation: doubleAll(10),
+        backgroundColor: colorAll(c2),
+        textStyle: textAll(text2),
+        padding: insetsAll(pad2),
+        shape: shapeAll(shape),
+        constraints: new BoxConstraints(30, 200),
+      }),
+      v = material.SearchBarThemeData.lerp(a, b, 0.25);
+    assert(DartDouble.is(v.elevation.resolve(empty())));
+    assert.equal(v.elevation.resolve(empty()).value, 4);
+    assert.equal(v.textStyle.resolve(empty()).fontSize, 14);
+    assert.equal(
+      v.backgroundColor.resolve(empty()).toARGB32(),
+      Color.lerp(c1, c2, 0.25).toARGB32(),
+    );
+    const padding = v.padding.resolve(empty()).resolve('rtl');
+    assert.deepEqual([padding.left, padding.top, padding.right, padding.bottom], [8, 6, 4, 10]);
+    assert(v.shape.resolve(empty()) instanceof CircleBorder);
+    assert.equal(v.constraints.minWidth, 15);
+    assert.equal(v.constraints.maxWidth, 125);
+    assert.equal(v.side.resolve(empty()).width, 3);
+    const iconProperty = (size) =>
+        WidgetStateProperty.resolveWith(nullableDartType(sourceIconThemeDataType), (states) =>
+          captureSourceIconThemeData(
+            new IconThemeData({
+              size: states.contains(WidgetState.selected) ? size * 2 : size,
+              color: c1,
+            }),
+          ),
+        ),
+      nav = material.NavigationBarThemeData.lerp(
+        new material.NavigationBarThemeData({
+          iconTheme: iconProperty(10),
+          labelTextStyle: textAll(text1),
+        }),
+        new material.NavigationBarThemeData({
+          iconTheme: iconProperty(30),
+          labelTextStyle: textAll(text2),
+        }),
+        0.5,
+      ),
+      states = empty();
+    assert.equal(nav.iconTheme.resolve(states).size, 20);
+    states.add(WidgetState.selected);
+    assert.equal(nav.iconTheme.resolve(states).size, 40);
+    assert.equal(nav.labelTextStyle.resolve(states).fontSize, 16);
+    const menu = MenuStyle.lerp(
+      new MenuStyle({
+        minimumSize: sizeAll(new Size(20, 30)),
+        padding: insetsAll(pad1),
+        elevation: doubleAll(2),
+      }),
+      new MenuStyle({
+        minimumSize: sizeAll(new Size(60, 70)),
+        padding: insetsAll(pad2),
+        elevation: doubleAll(10),
+      }),
+      0.5,
+    );
+    assert.equal(menu.minimumSize.resolve(empty()).width, 40);
+    assert.equal(menu.elevation.resolve(empty()).value, 6);
+    const raw = { resolve: () => 3 };
+    assert.throws(
+      () =>
+        material.SearchBarThemeData.lerp(
+          new material.SearchBarThemeData({ elevation: raw }),
+          new material.SearchBarThemeData({ elevation: doubleAll(2) }),
+          0.5,
+        ).elevation.resolve(empty()),
+      /DartDouble|retained|type/,
+    );
+  },
+);
+test(
+  'pinned asymmetric field routing and stateful nullable search border fade are preserved',
+  { timeout },
+  () => {
+    const sizeA = new Size(10, 20),
+      sizeB = new Size(30, 40),
+      a = new material.NavigationDrawerThemeData({ indicatorSize: sizeA }),
+      b = new material.NavigationDrawerThemeData({ indicatorSize: sizeB });
+    assert(material.NavigationDrawerThemeData.lerp(a, b, 0.75).indicatorSize.equals(sizeA));
+    const textA = new TextStyle({ fontSize: 12 }),
+      textB = new TextStyle({ fontSize: 20 }),
+      search = material.SearchViewThemeData.lerp(
+        new material.SearchViewThemeData({
+          headerTextStyle: textA,
+          headerHintStyle: new TextStyle({ fontSize: 100 }),
+        }),
+        new material.SearchViewThemeData({
+          headerTextStyle: textB,
+          headerHintStyle: new TextStyle({ fontSize: 200 }),
+        }),
+        0.25,
+      );
+    assert.equal(search.headerTextStyle.fontSize, 14);
+    assert.equal(search.headerHintStyle.fontSize, 14);
+    const side = WidgetStateBorderSide.resolveWith(
+        () => new BorderSide({ width: 4, color: 0xff123456 }),
+      ),
+      fade = material.SearchViewThemeData.lerp(
+        new material.SearchViewThemeData({ side }),
+        new material.SearchViewThemeData(),
+        0.5,
+      ).side;
+    assert.equal(fade.width, 2);
+    assert.equal(new Color(fade.color).alpha, 128);
+    assert.equal(
+      material.SearchViewThemeData.lerp(
+        new material.SearchViewThemeData(),
+        new material.SearchViewThemeData(),
+        0.5,
+      ).side,
+      null,
+    );
+    const badge = material.BadgeThemeData.lerp(
+      new material.BadgeThemeData({
+        offset: new Offset(2, 4),
+        alignment: new AlignmentDirectional(-1, 0),
+      }),
+      new material.BadgeThemeData({
+        offset: new Offset(10, 12),
+        alignment: new AlignmentDirectional(1, 1),
+      }),
+      0.5,
+    );
+    assert.equal(badge.offset.dx, 6);
+    assert(badge.alignment.resolve('rtl').x === 0);
+  },
+);
+test(
+  '16 inherited themes retain State, shadow global values, notify by value and capture eligible ancestors',
+  { timeout },
+  () => {
+    const f = fixture();
+    let created = 0,
+      disposed = 0,
+      reads = [],
+      captured;
+    class Probe extends StatefulWidget {
+      createState() {
+        created++;
+        return new ProbeState();
+      }
+    }
+    class ProbeState extends State {
+      build(context) {
+        reads = families.map(([, Theme]) => Theme.of(context));
+        assert.equal(material.SegmentedButtonTheme.maybeOf(context), reads[10]);
+        captured = InheritedTheme.capture(context);
+        return new SizedBox(1, 1);
+      }
+      dispose() {
+        disposed++;
+        super.dispose();
+      }
+    }
+    const global = Object.fromEntries(families.map(([Data, , field]) => [field, new Data()])),
+      data = new ThemeData(global),
+      wrap = (values, child) =>
+        new Theme(
+          data,
+          families.reduceRight((child, [, Theme], i) => new Theme(values[i], child), child),
+        );
+    try {
+      const values = families.map(([Data]) => new Data()),
+        probe = new Probe();
+      f.set(wrap(values, probe));
+      assert.equal(created, 1);
+      assert.deepEqual(reads, values);
+      for (const [i, [Data, Theme, field]] of families.entries()) {
+        const same = new Data();
+        assert.equal(
+          new Theme(same, widgetA).updateShouldNotify(new Theme(values[i], widgetA)),
+          false,
+          field,
+        );
+        assert.equal(data[field], global[field]);
+        assert.equal(data.copyWith({ [field]: null })[field], global[field]);
+        assert.equal(
+          field === 'actionIconTheme'
+            ? new ThemeData()[field] === null
+            : new ThemeData()[field] instanceof Data,
+          true,
+        );
+      }
+      const changed = values.slice();
+      changed[1] = new material.BadgeThemeData({ smallSize: 14 });
+      f.set(wrap(changed, probe));
+      assert.equal(created, 1);
+      assert.equal(reads[1].smallSize, 14);
+      f.set(
+        new Theme(
+          data,
+          captured.wrap(
+            new Builder((context) => {
+              reads = families.map(([, Theme]) => Theme.of(context));
+              return new SizedBox(1, 1);
+            }),
+          ),
+        ),
+      );
+      assert.equal(reads[1].smallSize, 14);
+      assert.equal(reads[2], global.cardTheme);
+      assert.equal(reads[8], global.searchBarTheme);
+      assert.equal(reads[15], changed[15]);
+      assert.equal(material.CardTheme.prototype instanceof InheritedWidget, true);
+      assert.equal(material.CardTheme.prototype instanceof InheritedTheme, false);
+      assert.equal(material.DialogTheme.prototype instanceof InheritedTheme, true);
+      assert.equal(material.SearchBarTheme.prototype instanceof InheritedTheme, false);
+      assert.equal(new material.CardTheme().child instanceof SizedBox, true);
+      assert.equal(new material.DialogTheme().child instanceof SizedBox, true);
+    } finally {
+      f.close();
+    }
+    assert.equal(created, 1);
+    assert.equal(disposed, 1);
+  },
+);
+test(
+  'new theme values feed actual Material and IconTheme owned CPU paint without leaked glyph resources',
+  { timeout },
+  async () => {
+    const f = await engineFixture({ fonts: true }),
+      surface = f.ck.MakeSurface(240, 160);
+    try {
+      const card = new material.CardThemeData({
+          color: new Color(0xff00ff00),
+          shape: new CircleBorder(),
+          clipBehavior: 'antiAlias',
+          elevation: 0,
+        }),
+        icon = captureSourceIconThemeData(
+          new IconThemeData({ size: 24, color: new Color(0xff0000ff) }),
+        ),
+        nav = new material.NavigationBarThemeData({
+          iconTheme: WidgetStateProperty.all(nullableDartType(sourceIconThemeDataType), icon),
+        }),
+        child = new Builder((context) => {
+          const c = material.CardTheme.of(context),
+            n = material.NavigationBarTheme.of(context);
+          return new Center(
+            new SizedBox(
+              80,
+              80,
+              new material.Material({
+                color: c.color,
+                shape: c.shape,
+                elevation: c.elevation,
+                clipBehavior: c.clipBehavior,
+                child: new IconTheme(n.iconTheme.resolve(empty()), new Icon(material.Icons.check)),
+              }),
+            ),
+          );
+        }),
+        media = new MediaQuery(
+          {
+            width: 240,
+            height: 160,
+            scale: 1,
+            textScale: 1,
+            safeArea: { left: 0, top: 0, right: 0, bottom: 0 },
+            keyboardInset: 0,
+          },
+          new Theme(new ThemeData({ cardTheme: card, navigationBarTheme: nav }), child),
+        );
+      f.set(new Directionality('ltr', media));
+      f.library.replay(surface.getCanvas(), { commands: f.frame() });
+      surface.flush();
+      const pixels = surface.makeImageSnapshot();
+      try {
+        const rgba = pixels.readPixels(100, 65, {
+          width: 1,
+          height: 1,
+          colorType: f.ck.ColorType.RGBA_8888,
+          alphaType: f.ck.AlphaType.Unpremul,
+          colorSpace: f.ck.ColorSpace.SRGB,
+        });
+        assert.deepEqual(Array.from(rgba), [0, 255, 0, 255]);
+      } finally {
+        pixels.delete();
+      }
+      assert([...f.library.paragraphs.values()].every((p) => p.layout.unresolvedGlyphs === 0));
+      assert(f.library.paragraphs.size > 0);
+      f.set(new SizedBox(1, 1));
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      surface.delete();
+      await f.close();
+    }
+  },
+);

@@ -1,34 +1,239 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {createProviderRegistry, validateProvider} from '@nelyx/sdk/runtime/providers';
-import {sdkVersion} from '@nelyx/sdk/version';
+import { createProviderRegistry, validateProvider } from '@nelyx/sdk/runtime/providers';
+import { sdkVersion } from '@nelyx/sdk/version';
 
-const root=path.resolve(import.meta.dirname,'../..'),directory=path.join(root,'Nelyx/sdk/providers');
-const registry=createProviderRegistry(),targets=['web','ios','android','windows','macos','linux'],operations=['doctor','build','run','dev','pack'],systems=['windows','darwin','linux','android','ios','browser'],buildSystems=['windows','darwin','linux'],architectures=['x86_64','arm64','wasm32'];
-const list=items=>({type:'array',minItems:1,uniqueItems:true,items}),strings=list({type:'string',minLength:1}),enumList=values=>list({enum:values});
-const object=properties=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
-const wireAbi=registry.descriptor('web').wireAbi;
-const stable='(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)';
-const definitions={
-  cohort:object({id:{type:'string',pattern:'^[a-z0-9][a-z0-9.-]*$'},react:{type:'string',pattern:`^${stable}$`},reactNative:{anyOf:[{type:'string',pattern:`^${stable}$`},{type:'null'}]},nativeReactNative:{anyOf:[{type:'string',pattern:`^${stable}$`},{type:'null'}]},framework:{enum:['react-native','react-native-windows','react-native-macos','react-native-linux','react-native-web']},frameworkVersion:{type:'string',pattern:`^${stable}$`},frameworkRevision:{anyOf:[{type:'string',pattern:'^[a-f0-9]{40}$'},{type:'null'}]},engine:{enum:['hermes','v8','jsc','browser']},engineVersion:{anyOf:[{type:'string',pattern:`^${stable}$`},{type:'null'}]},engineRevision:{anyOf:[{type:'string',pattern:'^[a-f0-9]{40}$'},{type:'null'}]},bytecodeVersion:{anyOf:[{type:'integer',minimum:1},{type:'null'}]}}),
-  identity:object({target:{enum:targets},runtime:{enum:['browser','hermes','v8','jsc']},host:{enum:['react-dom','fabric']},renderer:{enum:['skia-graphite','skia-ganesh']},gpuBackend:{enum:['webgl2','vulkan','metal']},gpuImplementation:{enum:['dawn','browser-webgl2','native-vulkan']},profile:{type:'string',pattern:'^[a-z0-9][a-z0-9-]*$'}}),
-  abi:object({host:{anyOf:[{type:'integer',minimum:1},{type:'null'}]},skia:{const:1}}),
-  artifact:object({entry:{anyOf:[{type:'string',pattern:'^@nelyx/(sdk|skia-rn|skia-web)/[A-Za-z0-9_./-]+\\.json$'},{type:'null'}]},kind:{enum:['binary','recipe']},required:strings}),
-  capabilities:object({rendering:object({admission:{enum:['bounded','rate-limited-only','unavailable']},completion:{enum:['gpu-retired','native-retained','unobserved','unavailable']},present:{enum:['native-observed','unobserved']},notifications:{enum:['submitted-and-retired','submitted-only','unavailable']},nativeIdentity:{type:'boolean'},textRanges:{type:'boolean'}}),editing:object({indexUnit:{const:'utf16'},composing:{enum:['observed','unavailable']},selectionDirection:{enum:['observed','unavailable']},nativeRevision:{enum:['observed','event-count','unavailable']}}),semantics:{enum:['native-controls','dom','unavailable']}}),
-  qualification:object({status:{enum:['scoped','notVerified']},scope:{type:'string',minLength:1},architectures:{...enumList(architectures),minItems:0},evidence:{...strings,minItems:0},limitations:strings}),
-  tooling:object({id:{type:'string',pattern:'^[a-z0-9][a-z0-9.-]*$'},kind:{enum:['executable','package','sdk','component']},versionRange:{anyOf:[{type:'string',pattern:`^(?:>=|<=|>|<|=)?${stable}(?:\\.(?:0|[1-9][0-9]*))?(?: +(?:>=|<=|>|<|=)?${stable}(?:\\.(?:0|[1-9][0-9]*))?)*$`},{type:'null'}]},operations:enumList(operations),hostOperatingSystems:enumList(buildSystems)}),
+const root = path.resolve(import.meta.dirname, '../..'),
+  directory = path.join(root, 'Nelyx/sdk/providers');
+const registry = createProviderRegistry(),
+  targets = ['web', 'ios', 'android', 'windows', 'macos', 'linux'],
+  operations = ['doctor', 'build', 'run', 'dev', 'pack'],
+  systems = ['windows', 'darwin', 'linux', 'android', 'ios', 'browser'],
+  buildSystems = ['windows', 'darwin', 'linux'],
+  architectures = ['x86_64', 'arm64', 'wasm32'];
+const list = (items) => ({ type: 'array', minItems: 1, uniqueItems: true, items }),
+  strings = list({ type: 'string', minLength: 1 }),
+  enumList = (values) => list({ enum: values });
+const object = (properties) => ({
+  type: 'object',
+  additionalProperties: false,
+  required: Object.keys(properties),
+  properties,
+});
+const wireAbi = registry.descriptor('web').wireAbi;
+const stable = '(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)';
+const definitions = {
+  cohort: object({
+    id: { type: 'string', pattern: '^[a-z0-9][a-z0-9.-]*$' },
+    react: { type: 'string', pattern: `^${stable}$` },
+    reactNative: { anyOf: [{ type: 'string', pattern: `^${stable}$` }, { type: 'null' }] },
+    nativeReactNative: { anyOf: [{ type: 'string', pattern: `^${stable}$` }, { type: 'null' }] },
+    framework: {
+      enum: [
+        'react-native',
+        'react-native-windows',
+        'react-native-macos',
+        'react-native-linux',
+        'react-native-web',
+      ],
+    },
+    frameworkVersion: { type: 'string', pattern: `^${stable}$` },
+    frameworkRevision: { anyOf: [{ type: 'string', pattern: '^[a-f0-9]{40}$' }, { type: 'null' }] },
+    engine: { enum: ['hermes', 'v8', 'jsc', 'browser'] },
+    engineVersion: { anyOf: [{ type: 'string', pattern: `^${stable}$` }, { type: 'null' }] },
+    engineRevision: { anyOf: [{ type: 'string', pattern: '^[a-f0-9]{40}$' }, { type: 'null' }] },
+    bytecodeVersion: { anyOf: [{ type: 'integer', minimum: 1 }, { type: 'null' }] },
+  }),
+  identity: object({
+    target: { enum: targets },
+    runtime: { enum: ['browser', 'hermes', 'v8', 'jsc'] },
+    host: { enum: ['react-dom', 'fabric'] },
+    renderer: { enum: ['skia-graphite', 'skia-ganesh'] },
+    gpuBackend: { enum: ['webgl2', 'vulkan', 'metal'] },
+    gpuImplementation: { enum: ['dawn', 'browser-webgl2', 'native-vulkan'] },
+    profile: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
+  }),
+  abi: object({
+    host: { anyOf: [{ type: 'integer', minimum: 1 }, { type: 'null' }] },
+    skia: { const: 1 },
+  }),
+  artifact: object({
+    entry: {
+      anyOf: [
+        { type: 'string', pattern: '^@nelyx/(sdk|skia-rn|skia-web)/[A-Za-z0-9_./-]+\\.json$' },
+        { type: 'null' },
+      ],
+    },
+    kind: { enum: ['binary', 'recipe'] },
+    required: strings,
+  }),
+  capabilities: object({
+    rendering: object({
+      admission: { enum: ['bounded', 'rate-limited-only', 'unavailable'] },
+      completion: { enum: ['gpu-retired', 'native-retained', 'unobserved', 'unavailable'] },
+      present: { enum: ['native-observed', 'unobserved'] },
+      notifications: { enum: ['submitted-and-retired', 'submitted-only', 'unavailable'] },
+      nativeIdentity: { type: 'boolean' },
+      textRanges: { type: 'boolean' },
+    }),
+    editing: object({
+      indexUnit: { const: 'utf16' },
+      composing: { enum: ['observed', 'unavailable'] },
+      selectionDirection: { enum: ['observed', 'unavailable'] },
+      nativeRevision: { enum: ['observed', 'event-count', 'unavailable'] },
+    }),
+    semantics: { enum: ['native-controls', 'dom', 'unavailable'] },
+  }),
+  qualification: object({
+    status: { enum: ['scoped', 'notVerified'] },
+    scope: { type: 'string', minLength: 1 },
+    architectures: { ...enumList(architectures), minItems: 0 },
+    evidence: { ...strings, minItems: 0 },
+    limitations: strings,
+  }),
+  tooling: object({
+    id: { type: 'string', pattern: '^[a-z0-9][a-z0-9.-]*$' },
+    kind: { enum: ['executable', 'package', 'sdk', 'component'] },
+    versionRange: {
+      anyOf: [
+        {
+          type: 'string',
+          pattern: `^(?:>=|<=|>|<|=)?${stable}(?:\\.(?:0|[1-9][0-9]*))?(?: +(?:>=|<=|>|<|=)?${stable}(?:\\.(?:0|[1-9][0-9]*))?)*$`,
+        },
+        { type: 'null' },
+      ],
+    },
+    operations: enumList(operations),
+    hostOperatingSystems: enumList(buildSystems),
+  }),
 };
-const profile=object({id:{type:'string',pattern:'^[a-z0-9][a-z0-9-]*$'},identity:{$ref:'#/$defs/identity'},status:{enum:['implemented','unsupported']},reason:{type:'string',minLength:1},cohorts:strings,executionOperatingSystems:enumList(systems),architectures:enumList(architectures),artifactManifest:{$ref:'#/$defs/artifact'},nativeAbi:{$ref:'#/$defs/abi'},wireAbi:{const:wireAbi},capabilities:{$ref:'#/$defs/capabilities'},qualification:{$ref:'#/$defs/qualification'}});
-// oxlint-disable-next-line unicorn/no-thenable -- The then property is schema/IR data, not a callable Promise hook.
-profile.allOf=[{if:{properties:{status:{const:'unsupported'}}},then:{properties:{qualification:{properties:{status:{const:'notVerified'},architectures:{maxItems:0},evidence:{maxItems:0}}},capabilities:{properties:{rendering:{properties:{admission:{const:'unavailable'},completion:{const:'unavailable'},present:{const:'unobserved'},notifications:{const:'unavailable'},nativeIdentity:{const:false},textRanges:{const:false}}},editing:{properties:{composing:{const:'unavailable'},selectionDirection:{const:'unavailable'},nativeRevision:{const:'unavailable'}}},semantics:{const:'unavailable'}}}}}},{if:{properties:{status:{const:'implemented'}}},then:{properties:{artifactManifest:{properties:{entry:{type:'string'}}}}}}];
-const schema={
-  $schema:'https://json-schema.org/draft/2020-12/schema',$id:'https://nelyx.dev/schemas/provider-v4.json',title:'Nelyx SDK provider v4',
-  ...object({schema:{const:'nelyx.provider/v4'},id:{type:'string',pattern:'^nelyx\\.(web|ios|android|windows|macos|linux)$'},version:{const:sdkVersion},coreRange:{type:'string',pattern:`^(?:>=|<=|>|<|=)?${stable}(?: +(?:>=|<=|>|<|=)?${stable})*$`},protocolVersion:{const:1},target:{enum:targets},runtime:definitions.identity.properties.runtime,host:definitions.identity.properties.host,renderer:definitions.identity.properties.renderer,entry:{type:'string',pattern:'^@nelyx/sdk/platforms/(web|ios|android|windows|macos|linux)/application$'},defaultProfile:{type:'string',pattern:'^[a-z0-9][a-z0-9-]*$'},defaultCohort:{type:'string',minLength:1},cohorts:list({$ref:'#/$defs/cohort'}),hostOperatingSystems:{type:'object',additionalProperties:false,minProperties:1,properties:Object.fromEntries(operations.map(operation=>[operation,enumList(buildSystems)]))},operations:enumList(operations),architectures:enumList(architectures),tooling:{type:'array',minItems:1,items:{$ref:'#/$defs/tooling'}},artifactManifest:{$ref:'#/$defs/artifact'},nativeAbi:{$ref:'#/$defs/abi'},wireAbi:{const:wireAbi},capabilities:{$ref:'#/$defs/capabilities'},qualification:{$ref:'#/$defs/qualification'},profiles:{type:'array',minItems:1,items:profile}}),
-  $defs:definitions,
-  // oxlint-disable-next-line unicorn/no-thenable -- The then property is schema/IR data, not a callable Promise hook.
-  allOf:targets.map(target=>({if:{properties:{target:{const:target}}},then:{properties:{id:{const:`nelyx.${target}`},entry:{const:`@nelyx/sdk/platforms/${target}/application`},profiles:{items:{properties:{identity:{properties:{target:{const:target}}}}}}}}})),
-  $comment:'The SDK validator additionally checks range compatibility, runtime/host/GPU combinations, duplicate profiles/tools, declared host operations, default profile mirroring, native ABI/manifest identities and qualification consistency. CLI host planning and target execution validation are distinct. Binary bytes remain subject to the target artifact loader.',
+const profile = object({
+  id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
+  identity: { $ref: '#/$defs/identity' },
+  status: { enum: ['implemented', 'unsupported'] },
+  reason: { type: 'string', minLength: 1 },
+  cohorts: strings,
+  executionOperatingSystems: enumList(systems),
+  architectures: enumList(architectures),
+  artifactManifest: { $ref: '#/$defs/artifact' },
+  nativeAbi: { $ref: '#/$defs/abi' },
+  wireAbi: { const: wireAbi },
+  capabilities: { $ref: '#/$defs/capabilities' },
+  qualification: { $ref: '#/$defs/qualification' },
+});
+/* oxlint-disable unicorn/no-thenable -- The then property is schema/IR data, not a callable Promise hook. */
+profile.allOf = [
+  {
+    if: { properties: { status: { const: 'unsupported' } } },
+    then: {
+      properties: {
+        qualification: {
+          properties: {
+            status: { const: 'notVerified' },
+            architectures: { maxItems: 0 },
+            evidence: { maxItems: 0 },
+          },
+        },
+        capabilities: {
+          properties: {
+            rendering: {
+              properties: {
+                admission: { const: 'unavailable' },
+                completion: { const: 'unavailable' },
+                present: { const: 'unobserved' },
+                notifications: { const: 'unavailable' },
+                nativeIdentity: { const: false },
+                textRanges: { const: false },
+              },
+            },
+            editing: {
+              properties: {
+                composing: { const: 'unavailable' },
+                selectionDirection: { const: 'unavailable' },
+                nativeRevision: { const: 'unavailable' },
+              },
+            },
+            semantics: { const: 'unavailable' },
+          },
+        },
+      },
+    },
+  },
+  {
+    if: { properties: { status: { const: 'implemented' } } },
+    then: { properties: { artifactManifest: { properties: { entry: { type: 'string' } } } } },
+  },
+];
+/* oxlint-enable unicorn/no-thenable */
+const schema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://nelyx.dev/schemas/provider-v4.json',
+  title: 'Nelyx SDK provider v4',
+  ...object({
+    schema: { const: 'nelyx.provider/v4' },
+    id: { type: 'string', pattern: '^nelyx\\.(web|ios|android|windows|macos|linux)$' },
+    version: { const: sdkVersion },
+    coreRange: {
+      type: 'string',
+      pattern: `^(?:>=|<=|>|<|=)?${stable}(?: +(?:>=|<=|>|<|=)?${stable})*$`,
+    },
+    protocolVersion: { const: 1 },
+    target: { enum: targets },
+    runtime: definitions.identity.properties.runtime,
+    host: definitions.identity.properties.host,
+    renderer: definitions.identity.properties.renderer,
+    entry: {
+      type: 'string',
+      pattern: '^@nelyx/sdk/platforms/(web|ios|android|windows|macos|linux)/application$',
+    },
+    defaultProfile: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
+    defaultCohort: { type: 'string', minLength: 1 },
+    cohorts: list({ $ref: '#/$defs/cohort' }),
+    hostOperatingSystems: {
+      type: 'object',
+      additionalProperties: false,
+      minProperties: 1,
+      properties: Object.fromEntries(
+        operations.map((operation) => [operation, enumList(buildSystems)]),
+      ),
+    },
+    operations: enumList(operations),
+    architectures: enumList(architectures),
+    tooling: { type: 'array', minItems: 1, items: { $ref: '#/$defs/tooling' } },
+    artifactManifest: { $ref: '#/$defs/artifact' },
+    nativeAbi: { $ref: '#/$defs/abi' },
+    wireAbi: { const: wireAbi },
+    capabilities: { $ref: '#/$defs/capabilities' },
+    qualification: { $ref: '#/$defs/qualification' },
+    profiles: { type: 'array', minItems: 1, items: profile },
+  }),
+  $defs: definitions,
+  /* oxlint-disable unicorn/no-thenable -- The then property is schema/IR data, not a callable Promise hook. */
+  allOf: targets.map((target) => ({
+    if: { properties: { target: { const: target } } },
+    then: {
+      properties: {
+        id: { const: `nelyx.${target}` },
+        entry: { const: `@nelyx/sdk/platforms/${target}/application` },
+        profiles: {
+          items: { properties: { identity: { properties: { target: { const: target } } } } },
+        },
+      },
+    },
+  })),
+  /* oxlint-enable unicorn/no-thenable */
+  $comment:
+    'The SDK validator additionally checks range compatibility, runtime/host/GPU combinations, duplicate profiles/tools, declared host operations, default profile mirroring, native ABI/manifest identities and qualification consistency. CLI host planning and target execution validation are distinct. Binary bytes remain subject to the target artifact loader.',
 };
-const files=new Map([...targets.map(target=>[`${target}.json`,registry.descriptor(target)]),['schema.json',schema]]);
-for(const [name,value]of files){if(name!=='schema.json')validateProvider(value);const file=path.join(directory,name),text=JSON.stringify(value,null,2)+'\n';fs.mkdirSync(directory,{recursive:true});if(!fs.existsSync(file)||fs.readFileSync(file,'utf8')!==text)fs.writeFileSync(file,text);}
+const files = new Map([
+  ...targets.map((target) => [`${target}.json`, registry.descriptor(target)]),
+  ['schema.json', schema],
+]);
+for (const [name, value] of files) {
+  if (name !== 'schema.json') validateProvider(value);
+  const file = path.join(directory, name),
+    text = JSON.stringify(value, null, 2) + '\n';
+  fs.mkdirSync(directory, { recursive: true });
+  if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== text) fs.writeFileSync(file, text);
+}
 console.log('Generated provider descriptors and schema.');

@@ -21,11 +21,11 @@
   "outputs": [
     {
       "file": "packages/cupertino/src/checkbox.ts",
-      "sha256": "e91a2b0ac41da1c9fa8c04ee8f2aa0c19515e2f6afa56a257c570038394d14b5"
+      "sha256": "23302bc44217272eab6c645513ff05d251141bb3dbd15c55a83126841a1d0f45"
     },
     {
       "file": "packages/cupertino/src/generated/checkbox/checkbox-defaults.generated.ts",
-      "sha256": "21ec2c61955ad1219ac12c70e807934780c37a135a1f4db0c3e93b08d6628a72"
+      "sha256": "31446050fa946ade6ddc3df0327006dafd202b12a96b476131c507a4d17858bd"
     }
   ],
   "previous": {

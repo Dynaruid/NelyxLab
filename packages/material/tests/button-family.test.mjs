@@ -1,74 +1,789 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {ButtonStyle} from '@nelyx/material/button-style';import {ButtonStyleButton} from '@nelyx/material/button-style-button';import {IconButton} from '@nelyx/material/icon-button';import {IconAlignment} from '@nelyx/material/icon-alignment';
-import {IconButton as AggregateIconButton,IconAlignment as AggregateAlignment} from '@nelyx/material/widgets';import {IconButtonTheme,IconButtonThemeData} from '@nelyx/material/icon-button-theme';
-import {Theme} from '@nelyx/material/theme';import {ThemeData,VisualDensity,MaterialTapTargetSize} from '@nelyx/material/theme-data';import {ColorScheme} from '@nelyx/material/color-scheme';import {Material} from '@nelyx/material/material';import {InkWell} from '@nelyx/material/ink-well';import {Icons} from '@nelyx/material/icons';
-import {Icon} from '@nelyx/core/framework/widgets/icon';import {StatelessWidget} from '@nelyx/core/framework/widgets/framework';import {IconTheme} from '@nelyx/core/framework/widgets/icon-theme';import {IconThemeData} from '@nelyx/core/framework/widgets/icon-theme-data';
-import {WidgetState,WidgetStateProperty,WidgetStatesController} from '@nelyx/core/framework/widgets/widget-state';import {FocusNode} from '@nelyx/core/framework/widgets/focus';import {DartDouble} from '@nelyx/core/foundation/dart-numeric';import {dartDoubleType,nullableDartType} from '@nelyx/core/foundation/dart-type-witness';
-import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {FoundationBuildMode} from '@nelyx/core/foundation/constants';import {DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';
-import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';import {Color} from '@nelyx/core/ui/color';import {Size} from '@nelyx/core/ui/size';
-import {EdgeInsets,EdgeInsetsDirectional} from '@nelyx/core/framework/painting/edge-insets';import {Alignment,AlignmentDirectional} from '@nelyx/core/framework/painting/alignment';import {TextStyle} from '@nelyx/core/framework/painting/text-style';
-import {CircleBorder} from '@nelyx/core/framework/painting/circle-border';import {StadiumBorder} from '@nelyx/core/framework/painting/stadium-border';import {BorderSide} from '@nelyx/core/framework/painting/borders';import {SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';
-import { Builder, Align, SizedBox } from '@nelyx/core/framework/widgets/basic';import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';import {AppFocus} from '@nelyx/core/framework/widgets/app-focus';
-import {iconButtonDefaults} from '../dist/internal/button/icon-button-defaults.js';import {colorAll,colorProperty,doubleAll,doubleProperty,sizeAll,insetsAll,shapeAll,textAll,sideAll} from '../dist/internal/button/style-properties.js';
-import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
-const timeout=1_200_000;FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
-const source=JSON.parse(fs.readFileSync(new URL('./fixtures/icon-button-defaults.json',import.meta.url))),variants=['standard','filled','filledTonal','outlined'],stateOrder=[WidgetState.disabled,WidgetState.selected,WidgetState.pressed,WidgetState.hovered,WidgetState.focused],empty=()=>emptyWidgetStateSet();
-const fields=['textStyle','backgroundColor','foregroundColor','overlayColor','shadowColor','surfaceTintColor','elevation','padding','minimumSize','fixedSize','maximumSize','iconColor','iconSize','iconAlignment','side','shape','mouseCursor','visualDensity','tapTargetSize','animationDuration','enableFeedback','alignment','splashFactory','backgroundBuilder','foregroundBuilder'];
-function elements(f,predicate){const result=[],visit=e=>{if(predicate(e))result.push(e);e.visitChildren(visit);};visit(f.root.root);return result;}
-const wrap=(child,{theme=new ThemeData({platform:'windows',materialTapTargetSize:MaterialTapTargetSize.padded}),direction='ltr',scale=1}={})=>new Directionality(direction,new MediaQuery({width:240,height:160,scale:1,textScale:scale,safeArea:{left:0,top:0,right:0,bottom:0},keyboardInset:0},new Theme(theme,new AppFocus(new Align(child)))));
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { ButtonStyle } from '@nelyx/material/button-style';
+import { ButtonStyleButton } from '@nelyx/material/button-style-button';
+import { IconButton } from '@nelyx/material/icon-button';
+import { IconAlignment } from '@nelyx/material/icon-alignment';
+import {
+  IconButton as AggregateIconButton,
+  IconAlignment as AggregateAlignment,
+} from '@nelyx/material/widgets';
+import { IconButtonTheme, IconButtonThemeData } from '@nelyx/material/icon-button-theme';
+import { Theme } from '@nelyx/material/theme';
+import { ThemeData, VisualDensity, MaterialTapTargetSize } from '@nelyx/material/theme-data';
+import { ColorScheme } from '@nelyx/material/color-scheme';
+import { Material } from '@nelyx/material/material';
+import { InkWell } from '@nelyx/material/ink-well';
+import { Icons } from '@nelyx/material/icons';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
+import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import {
+  WidgetState,
+  WidgetStateProperty,
+  WidgetStatesController,
+} from '@nelyx/core/framework/widgets/widget-state';
+import { FocusNode } from '@nelyx/core/framework/widgets/focus';
+import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
+import { dartDoubleType, nullableDartType } from '@nelyx/core/foundation/dart-type-witness';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
+import { Color } from '@nelyx/core/ui/color';
+import { Size } from '@nelyx/core/ui/size';
+import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
+import { Alignment, AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
+import { StadiumBorder } from '@nelyx/core/framework/painting/stadium-border';
+import { BorderSide } from '@nelyx/core/framework/painting/borders';
+import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
+import { Builder, Align, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { MediaQuery, Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
+import { iconButtonDefaults } from '../dist/internal/button/icon-button-defaults.js';
+import {
+  colorAll,
+  colorProperty,
+  doubleAll,
+  doubleProperty,
+  sizeAll,
+  insetsAll,
+  shapeAll,
+  textAll,
+  sideAll,
+} from '../dist/internal/button/style-properties.js';
+import { engineFixture, assertParagraphOwnership } from './engine-fixture.mjs';
+const timeout = 1_200_000;
+FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+const source = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/icon-button-defaults.json', import.meta.url)),
+  ),
+  variants = ['standard', 'filled', 'filledTonal', 'outlined'],
+  stateOrder = [
+    WidgetState.disabled,
+    WidgetState.selected,
+    WidgetState.pressed,
+    WidgetState.hovered,
+    WidgetState.focused,
+  ],
+  empty = () => emptyWidgetStateSet();
+const fields = [
+  'textStyle',
+  'backgroundColor',
+  'foregroundColor',
+  'overlayColor',
+  'shadowColor',
+  'surfaceTintColor',
+  'elevation',
+  'padding',
+  'minimumSize',
+  'fixedSize',
+  'maximumSize',
+  'iconColor',
+  'iconSize',
+  'iconAlignment',
+  'side',
+  'shape',
+  'mouseCursor',
+  'visualDensity',
+  'tapTargetSize',
+  'animationDuration',
+  'enableFeedback',
+  'alignment',
+  'splashFactory',
+  'backgroundBuilder',
+  'foregroundBuilder',
+];
+function elements(f, predicate) {
+  const result = [],
+    visit = (e) => {
+      if (predicate(e)) result.push(e);
+      e.visitChildren(visit);
+    };
+  visit(f.root.root);
+  return result;
+}
+const wrap = (
+  child,
+  {
+    theme = new ThemeData({
+      platform: 'windows',
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+    }),
+    direction = 'ltr',
+    scale = 1,
+  } = {},
+) =>
+  new Directionality(
+    direction,
+    new MediaQuery(
+      {
+        width: 240,
+        height: 160,
+        scale: 1,
+        textScale: scale,
+        safeArea: { left: 0, top: 0, right: 0, bottom: 0 },
+        keyboardInset: 0,
+      },
+      new Theme(theme, new AppFocus(new Align(child))),
+    ),
+  );
 
-test('ButtonStyle supplies all 25 source fields, null copy/merge, subtype value equality and diagnostics',{timeout},()=>{
- assert.equal(IconButton,AggregateIconButton);assert.equal(IconAlignment,AggregateAlignment);assert.deepEqual(IconAlignment.values.map(v=>[v.name,v.index,String(v)]),[['start',0,'IconAlignment.start'],['end',1,'IconAlignment.end']]);assert(Object.isFrozen(IconAlignment.values));assert.throws(()=>new IconAlignment(0,'start'),/canonical/);assert.throws(()=>new ButtonStyle({iconAlignment:{index:0,name:'start'}}),/canonical/);
- const style=new ButtonStyle();for(const field of fields)assert.equal(style[field],null,field);assert(Object.isFrozen(style));assert.equal(style.radius,undefined);assert.throws(()=>new ButtonStyle({radius:doubleAll(1)}),/removed/);assert.throws(()=>style.copyWith({radius:null}),/removed/);
- const one=new ButtonStyle({foregroundColor:colorAll(new Color(0xff123456)),elevation:doubleAll(4),shape:shapeAll(new CircleBorder()),iconAlignment:IconAlignment.end,enableFeedback:false,animationDuration:70,alignment:AlignmentDirectional.centerEnd}),two=new ButtonStyle({foregroundColor:colorAll(new Color(0xffabcdef)),backgroundColor:colorAll(new Color(0xff012345))});
- const copy=one.copyWith({foregroundColor:null});assert.equal(copy.foregroundColor,one.foregroundColor);assert(copy.equals(one));assert.equal(copy.hashCode,one.hashCode);const merged=one.merge(two);assert.equal(merged.foregroundColor,one.foregroundColor);assert.equal(merged.backgroundColor,two.backgroundColor);assert.equal(one.merge(null),one);class Derived extends ButtonStyle{}assert(one.equals(new Derived(one)));
- const mode=FoundationBuildMode.mode;FoundationBuildMode.mode='debug';try{const p=new DiagnosticPropertiesBuilder();one.debugFillProperties(p);assert.deepEqual(p.properties.map(v=>v.name),fields.filter(n=>n!=='splashFactory'));}finally{FoundationBuildMode.mode=mode;}
-});
-test('source property lerp retains double provenance, null border fade, directional geometry and discrete fields',{timeout},()=>{
- const a=new ButtonStyle({elevation:doubleAll(2),iconSize:doubleAll(20),padding:insetsAll(EdgeInsetsDirectional.fromSTEB(2,4,6,8)),minimumSize:sizeAll(new Size(40,20)),maximumSize:sizeAll(Size.infinite),shape:shapeAll(new StadiumBorder()),textStyle:textAll(new TextStyle({fontSize:10})),alignment:AlignmentDirectional.centerStart,iconAlignment:IconAlignment.start,animationDuration:10,enableFeedback:false}),b=new ButtonStyle({elevation:doubleAll(6),iconSize:doubleAll(40),padding:insetsAll(EdgeInsetsDirectional.fromSTEB(10,12,14,16)),minimumSize:sizeAll(new Size(80,60)),maximumSize:sizeAll(Size.infinite),shape:shapeAll(new StadiumBorder()),side:sideAll(new BorderSide({color:0xff123456,width:4})),textStyle:textAll(new TextStyle({fontSize:30})),alignment:AlignmentDirectional.centerEnd,iconAlignment:IconAlignment.end,animationDuration:30,enableFeedback:true});
- const q=ButtonStyle.lerp(a,b,.25);assert.equal(q.elevation.resolve(empty()).value,3);assert(DartDouble.is(q.iconSize.resolve(empty())));assert.equal(q.iconSize.resolve(empty()).value,25);assert.deepEqual([q.minimumSize.resolve(empty()).width,q.minimumSize.resolve(empty()).height],[50,30]);assert.equal(q.maximumSize.resolve(empty()).width,Infinity);assert.equal(q.padding.resolve(empty()).resolve('rtl').left,8);assert.equal(q.textStyle.resolve(empty()).fontSize,15);assert.equal(q.side.resolve(empty()).width,1);assert.equal(q.side.resolve(empty()).color>>>24,64);assert.equal(q.alignment.resolve('rtl').x,.5);assert.equal(q.iconAlignment,IconAlignment.start);assert.equal(q.enableFeedback,false);assert.equal(ButtonStyle.lerp(a,b,.5).iconAlignment,IconAlignment.end);assert.equal(ButtonStyle.lerp(a,a,3),a);assert.equal(ButtonStyle.lerp(null,null,.5),null);
- const invalid=WidgetStateProperty.resolveWith(nullableDartType(dartDoubleType),()=>4);assert.throws(()=>ButtonStyle.lerp(new ButtonStyle({elevation:invalid}),new ButtonStyle({elevation:doubleAll(6)}),.5).elevation.resolve(empty()),/provenance/);const sameInfinity=ButtonStyle.lerp(new ButtonStyle({elevation:doubleAll(Infinity)}),new ButtonStyle({elevation:doubleAll(Infinity)}),0);assert.equal(sameInfinity.elevation.resolve(empty()).value,Infinity);
- const directional=ButtonStyleButton.scaledPadding(EdgeInsets.all(24),EdgeInsets.all(12),EdgeInsets.all(6),1.5);assert.equal(directional.resolve('ltr').left,18);assert.equal(ButtonStyleButton.scaledPadding(EdgeInsets.all(24),EdgeInsets.all(12),EdgeInsets.all(6),4).resolve('ltr').left,6);
-});
-test('all four M3 variants match 512 unchanged Dart source token cases and exact shared value owners',{timeout},()=>{
- const themes=new Map(source.palettes.map(p=>[p.brightness,new ThemeData({colorScheme:new ColorScheme(Object.fromEntries([...Object.entries(p.roles).filter(([n])=>!['background','onBackground','surfaceVariant'].includes(n)),['brightness',p.brightness]])),materialTapTargetSize:MaterialTapTargetSize.shrinkWrap})]));
- for(const row of source.results){const style=iconButtonDefaults(themes.get(row.brightness),variants[row.variant],row.toggleable),states=empty();stateOrder.forEach((state,bit)=>{if(row.mask&(1<<bit))states.add(state);});for(const name of ['backgroundColor','foregroundColor','overlayColor'])assert.equal(style[name].resolve(states).toARGB32(),row[name],`${row.variant}/${row.mask}/${name}`);for(const name of ['elevation','iconSize'])assert.equal(style[name].resolve(states).value,row[name]);const p=style.padding.resolve(states).resolve('ltr');assert.deepEqual([p.left,p.top,p.right,p.bottom],row.padding);for(const name of ['minimumSize','maximumSize']){const size=style[name].resolve(states);assert(size instanceof Size);assert.deepEqual([size.width===Infinity?'infinity':size.width,size.height===Infinity?'infinity':size.height],row[name]);}const side=style.side?.resolve(states)??null;assert.deepEqual(side===null?null:[side.color,side.width],row.side);assert(style.shape.resolve(states) instanceof StadiumBorder);assert.equal(style.mouseCursor.resolve(states),SystemMouseCursors.basic);assert.equal(style.visualDensity,VisualDensity.standard);assert.equal(style.tapTargetSize.name,row.tapTargetSize);assert.equal(style.animationDuration,row.animationDuration);assert.equal(style.enableFeedback,row.enableFeedback);assert.equal(style.alignment,Alignment.center);}
- FoundationPlatform.configure({kind:'web',operatingSystem:'windows'});try{const style=iconButtonDefaults(themes.get('light'),'standard',false);assert.equal(style.mouseCursor.resolve(empty()),SystemMouseCursors.click);const states=empty();states.add(WidgetState.disabled);assert.equal(style.mouseCursor.resolve(states),SystemMouseCursors.basic);}finally{FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});}
-});
-test('IconButton styleFrom preserves source disabled/null and transparent overlay decisions across every value field',{timeout},()=>{
- const transparent=new Color(0),enabled=new Color(0xff123456),disabled=new Color(0xffabcdef),hover=new Color(0xff456789),style=IconButton.styleFrom({foregroundColor:enabled,disabledForegroundColor:disabled,backgroundColor:enabled,disabledBackgroundColor:disabled,hoverColor:hover,elevation:3,iconSize:32,fixedSize:new Size(80,50),maximumSize:new Size(100,70),padding:EdgeInsetsDirectional.fromSTEB(1,2,3,4),side:new BorderSide({width:2}),shape:new CircleBorder(),enabledMouseCursor:SystemMouseCursors.click,disabledMouseCursor:SystemMouseCursors.basic,visualDensity:VisualDensity.compact,tapTargetSize:MaterialTapTargetSize.shrinkWrap,animationDuration:75,enableFeedback:false,alignment:AlignmentDirectional.centerEnd});
- assert.equal(style.foregroundColor.resolve(empty()),enabled);const states=empty();states.add(WidgetState.disabled);assert.equal(style.foregroundColor.resolve(states),disabled);assert.equal(style.mouseCursor.resolve(states),SystemMouseCursors.basic);states.clear();states.add(WidgetState.hovered);assert.equal(style.overlayColor.resolve(states),hover);states.add(WidgetState.pressed);assert.equal(style.overlayColor.resolve(states).toARGB32(),enabled.withOpacity(.1).toARGB32());const zero=IconButton.styleFrom({foregroundColor:enabled,overlayColor:transparent,hoverColor:hover});assert.equal(zero.overlayColor.resolve(states),transparent);assert.equal(IconButton.styleFrom().foregroundColor,null);assert.equal(style.elevation.resolve(empty()).value,3);assert.equal(style.iconSize.resolve(empty()).value,32);assert.equal(style.fixedSize.resolve(empty()).width,80);assert(style.shape.resolve(empty()) instanceof CircleBorder);assert.equal(style.enableFeedback,false);assert.equal(style.padding.resolve(empty()).resolve('rtl').left,3);assert.throws(()=>new IconButton({icon:new SizedBox(),onPressed:null,splashRadius:0}),/positive/);
-});
-test('actual Root consumes 25-field shape/layout/builders/icon policy and padded edge input on a real path engine',{timeout},async()=>{
- const f=await engineFixture(),events=[],seen=[],builderStates=[],focus=new FocusNode(),states=new WidgetStatesController(),probe=new Builder(context=>{seen.push(IconTheme.of(context));return new SizedBox(12,12);});
- try{const button=IconButton.filled({id:'styled-icon',icon:probe,focusNode:focus,statesController:states,onPressed:()=>events.push('tap'),style:new ButtonStyle({fixedSize:sizeAll(new Size(60,44)),minimumSize:sizeAll(new Size(20,20)),maximumSize:sizeAll(new Size(90,80)),backgroundColor:colorAll(new Color(0xff123456)),iconColor:colorAll(new Color(0xffabcdef)),iconSize:doubleAll(30),elevation:doubleAll(2),shape:shapeAll(new CircleBorder()),side:sideAll(new BorderSide({color:0xff987654,width:2})),padding:insetsAll(EdgeInsetsDirectional.fromSTEB(3,5,7,9)),backgroundBuilder:(_context,current,child)=>{builderStates.push(current);return child;},foregroundBuilder:(_context,current,child)=>{builderStates.push(current);return child;}})});assert(button instanceof StatelessWidget);const commands=f.set(wrap(button,{direction:'rtl'}));assert(commands.some(c=>c.op==='drawShadow'));const material=elements(f,e=>e.widget instanceof Material)[0].widget;assert.equal(material.elevation,2);assert(material.shape instanceof CircleBorder);assert.equal(material.shape.side.width,2);assert.equal(seen.at(-1).size,30);assert.equal(seen.at(-1).color.toARGB32(),0xffabcdef);assert(builderStates.every(s=>s===states.value));const node=f.root.nodes.find(n=>n.id==='styled-icon');assert.equal(node.bounds.width,60);assert.equal(node.bounds.height,48);f.tap('styled-icon');assert.deepEqual(events,['tap']);assert(f.queries>0);assert.equal(f.livePaths,0);f.set(new SizedBox(1,1));assert.equal(f.root.scheduler.transientCallbackCount,0);assert.equal(states.hasListeners,false);focus.addListener(()=>{});}
- finally{await f.close();focus.dispose();states.dispose();}
-});
-test('IconButton local theme and widget style win over IconTheme while default icon colors preserve M3 policy',{timeout},async()=>{
- const f=await engineFixture(),seen=[],probe=new Builder(context=>{seen.push(IconTheme.of(context));return new SizedBox(8,8);}),local=new IconButtonThemeData({style:new ButtonStyle({foregroundColor:colorAll(new Color(0xff112233)),iconSize:doubleAll(28)})});
- try{f.set(wrap(new IconButtonTheme(local,new IconTheme(new IconThemeData({color:new Color(0xff556677),size:34}),new IconButton({icon:probe,onPressed(){}})))));assert.equal(seen.at(-1).color.toARGB32(),0xff112233);assert.equal(seen.at(-1).size,28);f.set(wrap(new IconButtonTheme(local,new IconButton({icon:probe,onPressed(){},style:new ButtonStyle({iconColor:colorAll(new Color(0xffaabbcc)),iconSize:doubleAll(40)})}))));assert.equal(seen.at(-1).color.toARGB32(),0xffaabbcc);assert.equal(seen.at(-1).size,40);const theme=new ThemeData({platform:'windows'});f.set(wrap(new IconButton({icon:probe,onPressed(){}}),{theme}));assert.equal(seen.at(-1).color.toARGB32(),theme.colorScheme.onSurfaceVariant);f.set(wrap(new IconTheme(new IconThemeData({color:new Color(0xff778899),size:33}),new IconButton({icon:probe,onPressed(){}}))));assert.equal(seen.at(-1).color.toARGB32(),0xff778899);assert.equal(seen.at(-1).size,33);}
- finally{await f.close();}
-});
-test('IconButton selection/controller/focus replacement keeps one State, controlled callbacks and exact borrowed-owner lifetime',{timeout},async()=>{
- const f=await engineFixture(),a=new WidgetStatesController(),b=new WidgetStatesController(),focus=new FocusNode(),events=[],seen=[],normal=new Builder(context=>{seen.push(['normal',IconTheme.of(context).color.toARGB32()]);return new SizedBox(8,8);}),selected=new Builder(context=>{seen.push(['selected',IconTheme.of(context).color.toARGB32()]);return new SizedBox(12,12);});
- const make=(factory,value,enabled,controller)=>wrap(factory({id:'selection',icon:normal,selectedIcon:selected,isSelected:value,statesController:controller,focusNode:focus,onPressed:enabled?()=>events.push(value):null,onLongPress:()=>events.push('long')}));
- try{f.set(make(IconButton.filled,false,true,a));const owner=elements(f,e=>e.widget instanceof ButtonStyleButton)[0].stateObject;const stale=f.root.nodes.find(n=>n.id==='selection').activate;f.tap('selection');assert.deepEqual(events,[false]);assert.equal(a.value.contains(WidgetState.selected),false);f.set(make(IconButton.outlined,true,true,b));assert.equal(elements(f,e=>e.widget instanceof ButtonStyleButton)[0].stateObject,owner);assert.equal(a.hasListeners,false);assert.equal(b.value.contains(WidgetState.selected),true);assert.equal(seen.at(-1)[0],'selected');f.set(make(IconButton.filledTonal,true,false,b));stale?.();f.tap('selection');assert.deepEqual(events,[false]);assert.equal(b.value.contains(WidgetState.disabled),true);assert.equal(elements(f,e=>e.widget instanceof InkWell)[0].widget.options.onLongPress,null);f.set(new SizedBox(1,1));stale?.();assert.equal(b.hasListeners,false);assert.equal(f.root.scheduler.transientCallbackCount,0);focus.addListener(()=>{});}
- finally{await f.close();a.dispose();b.dispose();focus.dispose();}
-});
-test('actual IconButton glyph and four M3 surfaces replay on owned CanvasKit with no missing glyph or retained producer',{timeout},async()=>{
- const f=await engineFixture({fonts:true}),surface=f.ck.MakeSurface(240,160);assert(surface);
- try{for(const [factory,selected]of[[o=>new IconButton(o),false],[IconButton.filled,true],[IconButton.filledTonal,false],[IconButton.outlined,true]]){const commands=f.set(wrap(factory({id:'glyph',isSelected:selected,icon:new Icon(Icons.arrow_back),selectedIcon:new Icon(Icons.check),onPressed(){}})));f.library.replay(surface.getCanvas(),{commands});surface.flush();assert(f.library.paragraphs.size>0);assert([...f.library.paragraphs.values()].every(p=>p.layout.unresolvedGlyphs===0));const pixels=surface.getCanvas().readPixels(0,0,{width:240,height:160,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB});assert(pixels.some(v=>v!==0));f.tap('glyph');f.advance(300);}f.set(new SizedBox(1,1));assertParagraphOwnership(f);assert.equal(f.root.scheduler.transientCallbackCount,0);}
- finally{surface.delete();await f.close();}
-});
+test(
+  'ButtonStyle supplies all 25 source fields, null copy/merge, subtype value equality and diagnostics',
+  { timeout },
+  () => {
+    assert.equal(IconButton, AggregateIconButton);
+    assert.equal(IconAlignment, AggregateAlignment);
+    assert.deepEqual(
+      IconAlignment.values.map((v) => [v.name, v.index, String(v)]),
+      [
+        ['start', 0, 'IconAlignment.start'],
+        ['end', 1, 'IconAlignment.end'],
+      ],
+    );
+    assert(Object.isFrozen(IconAlignment.values));
+    assert.throws(() => new IconAlignment(0, 'start'), /canonical/);
+    assert.throws(
+      () => new ButtonStyle({ iconAlignment: { index: 0, name: 'start' } }),
+      /canonical/,
+    );
+    const style = new ButtonStyle();
+    for (const field of fields) assert.equal(style[field], null, field);
+    assert(Object.isFrozen(style));
+    assert.equal(style.radius, undefined);
+    assert.throws(() => new ButtonStyle({ radius: doubleAll(1) }), /removed/);
+    assert.throws(() => style.copyWith({ radius: null }), /removed/);
+    const one = new ButtonStyle({
+        foregroundColor: colorAll(new Color(0xff123456)),
+        elevation: doubleAll(4),
+        shape: shapeAll(new CircleBorder()),
+        iconAlignment: IconAlignment.end,
+        enableFeedback: false,
+        animationDuration: 70,
+        alignment: AlignmentDirectional.centerEnd,
+      }),
+      two = new ButtonStyle({
+        foregroundColor: colorAll(new Color(0xffabcdef)),
+        backgroundColor: colorAll(new Color(0xff012345)),
+      });
+    const copy = one.copyWith({ foregroundColor: null });
+    assert.equal(copy.foregroundColor, one.foregroundColor);
+    assert(copy.equals(one));
+    assert.equal(copy.hashCode, one.hashCode);
+    const merged = one.merge(two);
+    assert.equal(merged.foregroundColor, one.foregroundColor);
+    assert.equal(merged.backgroundColor, two.backgroundColor);
+    assert.equal(one.merge(null), one);
+    class Derived extends ButtonStyle {}
+    assert(one.equals(new Derived(one)));
+    const mode = FoundationBuildMode.mode;
+    FoundationBuildMode.mode = 'debug';
+    try {
+      const p = new DiagnosticPropertiesBuilder();
+      one.debugFillProperties(p);
+      assert.deepEqual(
+        p.properties.map((v) => v.name),
+        fields.filter((n) => n !== 'splashFactory'),
+      );
+    } finally {
+      FoundationBuildMode.mode = mode;
+    }
+  },
+);
+test(
+  'source property lerp retains double provenance, null border fade, directional geometry and discrete fields',
+  { timeout },
+  () => {
+    const a = new ButtonStyle({
+        elevation: doubleAll(2),
+        iconSize: doubleAll(20),
+        padding: insetsAll(EdgeInsetsDirectional.fromSTEB(2, 4, 6, 8)),
+        minimumSize: sizeAll(new Size(40, 20)),
+        maximumSize: sizeAll(Size.infinite),
+        shape: shapeAll(new StadiumBorder()),
+        textStyle: textAll(new TextStyle({ fontSize: 10 })),
+        alignment: AlignmentDirectional.centerStart,
+        iconAlignment: IconAlignment.start,
+        animationDuration: 10,
+        enableFeedback: false,
+      }),
+      b = new ButtonStyle({
+        elevation: doubleAll(6),
+        iconSize: doubleAll(40),
+        padding: insetsAll(EdgeInsetsDirectional.fromSTEB(10, 12, 14, 16)),
+        minimumSize: sizeAll(new Size(80, 60)),
+        maximumSize: sizeAll(Size.infinite),
+        shape: shapeAll(new StadiumBorder()),
+        side: sideAll(new BorderSide({ color: 0xff123456, width: 4 })),
+        textStyle: textAll(new TextStyle({ fontSize: 30 })),
+        alignment: AlignmentDirectional.centerEnd,
+        iconAlignment: IconAlignment.end,
+        animationDuration: 30,
+        enableFeedback: true,
+      });
+    const q = ButtonStyle.lerp(a, b, 0.25);
+    assert.equal(q.elevation.resolve(empty()).value, 3);
+    assert(DartDouble.is(q.iconSize.resolve(empty())));
+    assert.equal(q.iconSize.resolve(empty()).value, 25);
+    assert.deepEqual(
+      [q.minimumSize.resolve(empty()).width, q.minimumSize.resolve(empty()).height],
+      [50, 30],
+    );
+    assert.equal(q.maximumSize.resolve(empty()).width, Infinity);
+    assert.equal(q.padding.resolve(empty()).resolve('rtl').left, 8);
+    assert.equal(q.textStyle.resolve(empty()).fontSize, 15);
+    assert.equal(q.side.resolve(empty()).width, 1);
+    assert.equal(q.side.resolve(empty()).color >>> 24, 64);
+    assert.equal(q.alignment.resolve('rtl').x, 0.5);
+    assert.equal(q.iconAlignment, IconAlignment.start);
+    assert.equal(q.enableFeedback, false);
+    assert.equal(ButtonStyle.lerp(a, b, 0.5).iconAlignment, IconAlignment.end);
+    assert.equal(ButtonStyle.lerp(a, a, 3), a);
+    assert.equal(ButtonStyle.lerp(null, null, 0.5), null);
+    const invalid = WidgetStateProperty.resolveWith(nullableDartType(dartDoubleType), () => 4);
+    assert.throws(
+      () =>
+        ButtonStyle.lerp(
+          new ButtonStyle({ elevation: invalid }),
+          new ButtonStyle({ elevation: doubleAll(6) }),
+          0.5,
+        ).elevation.resolve(empty()),
+      /provenance/,
+    );
+    const sameInfinity = ButtonStyle.lerp(
+      new ButtonStyle({ elevation: doubleAll(Infinity) }),
+      new ButtonStyle({ elevation: doubleAll(Infinity) }),
+      0,
+    );
+    assert.equal(sameInfinity.elevation.resolve(empty()).value, Infinity);
+    const directional = ButtonStyleButton.scaledPadding(
+      EdgeInsets.all(24),
+      EdgeInsets.all(12),
+      EdgeInsets.all(6),
+      1.5,
+    );
+    assert.equal(directional.resolve('ltr').left, 18);
+    assert.equal(
+      ButtonStyleButton.scaledPadding(
+        EdgeInsets.all(24),
+        EdgeInsets.all(12),
+        EdgeInsets.all(6),
+        4,
+      ).resolve('ltr').left,
+      6,
+    );
+  },
+);
+test(
+  'all four M3 variants match 512 unchanged Dart source token cases and exact shared value owners',
+  { timeout },
+  () => {
+    const themes = new Map(
+      source.palettes.map((p) => [
+        p.brightness,
+        new ThemeData({
+          colorScheme: new ColorScheme(
+            Object.fromEntries([
+              ...Object.entries(p.roles).filter(
+                ([n]) => !['background', 'onBackground', 'surfaceVariant'].includes(n),
+              ),
+              ['brightness', p.brightness],
+            ]),
+          ),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        }),
+      ]),
+    );
+    for (const row of source.results) {
+      const style = iconButtonDefaults(
+          themes.get(row.brightness),
+          variants[row.variant],
+          row.toggleable,
+        ),
+        states = empty();
+      stateOrder.forEach((state, bit) => {
+        if (row.mask & (1 << bit)) states.add(state);
+      });
+      for (const name of ['backgroundColor', 'foregroundColor', 'overlayColor'])
+        assert.equal(
+          style[name].resolve(states).toARGB32(),
+          row[name],
+          `${row.variant}/${row.mask}/${name}`,
+        );
+      for (const name of ['elevation', 'iconSize'])
+        assert.equal(style[name].resolve(states).value, row[name]);
+      const p = style.padding.resolve(states).resolve('ltr');
+      assert.deepEqual([p.left, p.top, p.right, p.bottom], row.padding);
+      for (const name of ['minimumSize', 'maximumSize']) {
+        const size = style[name].resolve(states);
+        assert(size instanceof Size);
+        assert.deepEqual(
+          [
+            size.width === Infinity ? 'infinity' : size.width,
+            size.height === Infinity ? 'infinity' : size.height,
+          ],
+          row[name],
+        );
+      }
+      const side = style.side?.resolve(states) ?? null;
+      assert.deepEqual(side === null ? null : [side.color, side.width], row.side);
+      assert(style.shape.resolve(states) instanceof StadiumBorder);
+      assert.equal(style.mouseCursor.resolve(states), SystemMouseCursors.basic);
+      assert.equal(style.visualDensity, VisualDensity.standard);
+      assert.equal(style.tapTargetSize.name, row.tapTargetSize);
+      assert.equal(style.animationDuration, row.animationDuration);
+      assert.equal(style.enableFeedback, row.enableFeedback);
+      assert.equal(style.alignment, Alignment.center);
+    }
+    FoundationPlatform.configure({ kind: 'web', operatingSystem: 'windows' });
+    try {
+      const style = iconButtonDefaults(themes.get('light'), 'standard', false);
+      assert.equal(style.mouseCursor.resolve(empty()), SystemMouseCursors.click);
+      const states = empty();
+      states.add(WidgetState.disabled);
+      assert.equal(style.mouseCursor.resolve(states), SystemMouseCursors.basic);
+    } finally {
+      FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+    }
+  },
+);
+test(
+  'IconButton styleFrom preserves source disabled/null and transparent overlay decisions across every value field',
+  { timeout },
+  () => {
+    const transparent = new Color(0),
+      enabled = new Color(0xff123456),
+      disabled = new Color(0xffabcdef),
+      hover = new Color(0xff456789),
+      style = IconButton.styleFrom({
+        foregroundColor: enabled,
+        disabledForegroundColor: disabled,
+        backgroundColor: enabled,
+        disabledBackgroundColor: disabled,
+        hoverColor: hover,
+        elevation: 3,
+        iconSize: 32,
+        fixedSize: new Size(80, 50),
+        maximumSize: new Size(100, 70),
+        padding: EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4),
+        side: new BorderSide({ width: 2 }),
+        shape: new CircleBorder(),
+        enabledMouseCursor: SystemMouseCursors.click,
+        disabledMouseCursor: SystemMouseCursors.basic,
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        animationDuration: 75,
+        enableFeedback: false,
+        alignment: AlignmentDirectional.centerEnd,
+      });
+    assert.equal(style.foregroundColor.resolve(empty()), enabled);
+    const states = empty();
+    states.add(WidgetState.disabled);
+    assert.equal(style.foregroundColor.resolve(states), disabled);
+    assert.equal(style.mouseCursor.resolve(states), SystemMouseCursors.basic);
+    states.clear();
+    states.add(WidgetState.hovered);
+    assert.equal(style.overlayColor.resolve(states), hover);
+    states.add(WidgetState.pressed);
+    assert.equal(
+      style.overlayColor.resolve(states).toARGB32(),
+      enabled.withOpacity(0.1).toARGB32(),
+    );
+    const zero = IconButton.styleFrom({
+      foregroundColor: enabled,
+      overlayColor: transparent,
+      hoverColor: hover,
+    });
+    assert.equal(zero.overlayColor.resolve(states), transparent);
+    assert.equal(IconButton.styleFrom().foregroundColor, null);
+    assert.equal(style.elevation.resolve(empty()).value, 3);
+    assert.equal(style.iconSize.resolve(empty()).value, 32);
+    assert.equal(style.fixedSize.resolve(empty()).width, 80);
+    assert(style.shape.resolve(empty()) instanceof CircleBorder);
+    assert.equal(style.enableFeedback, false);
+    assert.equal(style.padding.resolve(empty()).resolve('rtl').left, 3);
+    assert.throws(
+      () => new IconButton({ icon: new SizedBox(), onPressed: null, splashRadius: 0 }),
+      /positive/,
+    );
+  },
+);
+test(
+  'actual Root consumes 25-field shape/layout/builders/icon policy and padded edge input on a real path engine',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      events = [],
+      seen = [],
+      builderStates = [],
+      focus = new FocusNode(),
+      states = new WidgetStatesController(),
+      probe = new Builder((context) => {
+        seen.push(IconTheme.of(context));
+        return new SizedBox(12, 12);
+      });
+    try {
+      const button = IconButton.filled({
+        id: 'styled-icon',
+        icon: probe,
+        focusNode: focus,
+        statesController: states,
+        onPressed: () => events.push('tap'),
+        style: new ButtonStyle({
+          fixedSize: sizeAll(new Size(60, 44)),
+          minimumSize: sizeAll(new Size(20, 20)),
+          maximumSize: sizeAll(new Size(90, 80)),
+          backgroundColor: colorAll(new Color(0xff123456)),
+          iconColor: colorAll(new Color(0xffabcdef)),
+          iconSize: doubleAll(30),
+          elevation: doubleAll(2),
+          shape: shapeAll(new CircleBorder()),
+          side: sideAll(new BorderSide({ color: 0xff987654, width: 2 })),
+          padding: insetsAll(EdgeInsetsDirectional.fromSTEB(3, 5, 7, 9)),
+          backgroundBuilder: (_context, current, child) => {
+            builderStates.push(current);
+            return child;
+          },
+          foregroundBuilder: (_context, current, child) => {
+            builderStates.push(current);
+            return child;
+          },
+        }),
+      });
+      assert(button instanceof StatelessWidget);
+      const commands = f.set(wrap(button, { direction: 'rtl' }));
+      assert(commands.some((c) => c.op === 'drawShadow'));
+      const material = elements(f, (e) => e.widget instanceof Material)[0].widget;
+      assert.equal(material.elevation, 2);
+      assert(material.shape instanceof CircleBorder);
+      assert.equal(material.shape.side.width, 2);
+      assert.equal(seen.at(-1).size, 30);
+      assert.equal(seen.at(-1).color.toARGB32(), 0xffabcdef);
+      assert(builderStates.every((s) => s === states.value));
+      const node = f.root.nodes.find((n) => n.id === 'styled-icon');
+      assert.equal(node.bounds.width, 60);
+      assert.equal(node.bounds.height, 48);
+      f.tap('styled-icon');
+      assert.deepEqual(events, ['tap']);
+      assert(f.queries > 0);
+      assert.equal(f.livePaths, 0);
+      f.set(new SizedBox(1, 1));
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+      assert.equal(states.hasListeners, false);
+      focus.addListener(() => {});
+    } finally {
+      await f.close();
+      focus.dispose();
+      states.dispose();
+    }
+  },
+);
+test(
+  'IconButton local theme and widget style win over IconTheme while default icon colors preserve M3 policy',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      seen = [],
+      probe = new Builder((context) => {
+        seen.push(IconTheme.of(context));
+        return new SizedBox(8, 8);
+      }),
+      local = new IconButtonThemeData({
+        style: new ButtonStyle({
+          foregroundColor: colorAll(new Color(0xff112233)),
+          iconSize: doubleAll(28),
+        }),
+      });
+    try {
+      f.set(
+        wrap(
+          new IconButtonTheme(
+            local,
+            new IconTheme(
+              new IconThemeData({ color: new Color(0xff556677), size: 34 }),
+              new IconButton({ icon: probe, onPressed() {} }),
+            ),
+          ),
+        ),
+      );
+      assert.equal(seen.at(-1).color.toARGB32(), 0xff112233);
+      assert.equal(seen.at(-1).size, 28);
+      f.set(
+        wrap(
+          new IconButtonTheme(
+            local,
+            new IconButton({
+              icon: probe,
+              onPressed() {},
+              style: new ButtonStyle({
+                iconColor: colorAll(new Color(0xffaabbcc)),
+                iconSize: doubleAll(40),
+              }),
+            }),
+          ),
+        ),
+      );
+      assert.equal(seen.at(-1).color.toARGB32(), 0xffaabbcc);
+      assert.equal(seen.at(-1).size, 40);
+      const theme = new ThemeData({ platform: 'windows' });
+      f.set(wrap(new IconButton({ icon: probe, onPressed() {} }), { theme }));
+      assert.equal(seen.at(-1).color.toARGB32(), theme.colorScheme.onSurfaceVariant);
+      f.set(
+        wrap(
+          new IconTheme(
+            new IconThemeData({ color: new Color(0xff778899), size: 33 }),
+            new IconButton({ icon: probe, onPressed() {} }),
+          ),
+        ),
+      );
+      assert.equal(seen.at(-1).color.toARGB32(), 0xff778899);
+      assert.equal(seen.at(-1).size, 33);
+    } finally {
+      await f.close();
+    }
+  },
+);
+test(
+  'IconButton selection/controller/focus replacement keeps one State, controlled callbacks and exact borrowed-owner lifetime',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      a = new WidgetStatesController(),
+      b = new WidgetStatesController(),
+      focus = new FocusNode(),
+      events = [],
+      seen = [],
+      normal = new Builder((context) => {
+        seen.push(['normal', IconTheme.of(context).color.toARGB32()]);
+        return new SizedBox(8, 8);
+      }),
+      selected = new Builder((context) => {
+        seen.push(['selected', IconTheme.of(context).color.toARGB32()]);
+        return new SizedBox(12, 12);
+      });
+    const make = (factory, value, enabled, controller) =>
+      wrap(
+        factory({
+          id: 'selection',
+          icon: normal,
+          selectedIcon: selected,
+          isSelected: value,
+          statesController: controller,
+          focusNode: focus,
+          onPressed: enabled ? () => events.push(value) : null,
+          onLongPress: () => events.push('long'),
+        }),
+      );
+    try {
+      f.set(make(IconButton.filled, false, true, a));
+      const owner = elements(f, (e) => e.widget instanceof ButtonStyleButton)[0].stateObject;
+      const stale = f.root.nodes.find((n) => n.id === 'selection').activate;
+      f.tap('selection');
+      assert.deepEqual(events, [false]);
+      assert.equal(a.value.contains(WidgetState.selected), false);
+      f.set(make(IconButton.outlined, true, true, b));
+      assert.equal(elements(f, (e) => e.widget instanceof ButtonStyleButton)[0].stateObject, owner);
+      assert.equal(a.hasListeners, false);
+      assert.equal(b.value.contains(WidgetState.selected), true);
+      assert.equal(seen.at(-1)[0], 'selected');
+      f.set(make(IconButton.filledTonal, true, false, b));
+      stale?.();
+      f.tap('selection');
+      assert.deepEqual(events, [false]);
+      assert.equal(b.value.contains(WidgetState.disabled), true);
+      assert.equal(
+        elements(f, (e) => e.widget instanceof InkWell)[0].widget.options.onLongPress,
+        null,
+      );
+      f.set(new SizedBox(1, 1));
+      stale?.();
+      assert.equal(b.hasListeners, false);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+      focus.addListener(() => {});
+    } finally {
+      await f.close();
+      a.dispose();
+      b.dispose();
+      focus.dispose();
+    }
+  },
+);
+test(
+  'actual IconButton glyph and four M3 surfaces replay on owned CanvasKit with no missing glyph or retained producer',
+  { timeout },
+  async () => {
+    const f = await engineFixture({ fonts: true }),
+      surface = f.ck.MakeSurface(240, 160);
+    assert(surface);
+    try {
+      for (const [factory, selected] of [
+        [(o) => new IconButton(o), false],
+        [IconButton.filled, true],
+        [IconButton.filledTonal, false],
+        [IconButton.outlined, true],
+      ]) {
+        const commands = f.set(
+          wrap(
+            factory({
+              id: 'glyph',
+              isSelected: selected,
+              icon: new Icon(Icons.arrow_back),
+              selectedIcon: new Icon(Icons.check),
+              onPressed() {},
+            }),
+          ),
+        );
+        f.library.replay(surface.getCanvas(), { commands });
+        surface.flush();
+        assert(f.library.paragraphs.size > 0);
+        assert([...f.library.paragraphs.values()].every((p) => p.layout.unresolvedGlyphs === 0));
+        const pixels = surface.getCanvas().readPixels(0, 0, {
+          width: 240,
+          height: 160,
+          colorType: f.ck.ColorType.RGBA_8888,
+          alphaType: f.ck.AlphaType.Unpremul,
+          colorSpace: f.ck.ColorSpace.SRGB,
+        });
+        assert(pixels.some((v) => v !== 0));
+        f.tap('glyph');
+        f.advance(300);
+      }
+      f.set(new SizedBox(1, 1));
+      assertParagraphOwnership(f);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      surface.delete();
+      await f.close();
+    }
+  },
+);
 
-test('real ticker delays a translucent background until elevation reaches zero and drains on retirement',{timeout},async()=>{
- const f=await engineFixture(),states=new WidgetStatesController(),style=new ButtonStyle({backgroundColor:colorProperty(current=>current.contains(WidgetState.disabled)?new Color(0):new Color(0xff123456)),elevation:doubleProperty(current=>current.contains(WidgetState.disabled)?0:2),animationDuration:200});
- const make=enabled=>wrap(new IconButton({icon:new SizedBox(8,8),onPressed:enabled?()=>{}:null,statesController:states,style}));
- const material=()=>elements(f,e=>e.widget instanceof Material)[0].widget;
- try{f.set(make(true));assert.equal(material().color.toARGB32(),0xff123456);f.set(make(false));assert.equal(material().elevation,0);assert.equal(material().color.toARGB32(),0xff123456);f.advance(100);assert.equal(material().color.toARGB32(),0xff123456);f.advance(110);assert.equal(material().color.toARGB32(),0);f.set(new SizedBox(1,1));assert.equal(states.hasListeners,false);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{await f.close();states.dispose();}
-});
-test('padded edge, keyboard and semantic activation share actual InkWell and reject stale actions after disable',{timeout},async()=>{
- const f=await engineFixture(),focus=new FocusNode(),events=[];const make=enabled=>wrap(new IconButton({id:'action-icon',icon:new SizedBox(8,8),focusNode:focus,onPressed:enabled?()=>events.push('tap'):null}));
- try{f.set(make(true));const node=f.root.nodes.find(n=>n.id==='action-icon');assert.equal(node.bounds.width,48);assert.equal(node.bounds.height,48);const x=node.bounds.x+1,y=node.bounds.y+1;f.root.pointer({kind:'down',x,y,pointer:9,device:'mouse',buttons:1,timestamp:0,viewportGeneration:1});f.frame();f.root.pointer({kind:'up',x,y,pointer:9,device:'mouse',buttons:0,timestamp:1,viewportGeneration:1});f.frame();assert.deepEqual(events,['tap']);focus.requestFocus();f.frame();const key=kind=>({kind,key:' ',code:'Space',shift:false,control:false,alt:false,meta:false,repeat:false});assert.equal(f.root.key(key('down')),true);f.root.key(key('up'));f.frame();assert.deepEqual(events,['tap','tap']);const semantic=f.root.nodes.find(n=>n.id==='action-icon').activate;assert.equal(typeof semantic,'function');semantic();f.frame();assert.deepEqual(events,['tap','tap','tap']);f.set(make(false));semantic();f.tap('action-icon');assert.equal(events.length,3);f.set(new SizedBox(1,1));semantic();assert.equal(events.length,3);assert.equal(f.root.scheduler.transientCallbackCount,0);}finally{await f.close();focus.dispose();}
-});
+test(
+  'real ticker delays a translucent background until elevation reaches zero and drains on retirement',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      states = new WidgetStatesController(),
+      style = new ButtonStyle({
+        backgroundColor: colorProperty((current) =>
+          current.contains(WidgetState.disabled) ? new Color(0) : new Color(0xff123456),
+        ),
+        elevation: doubleProperty((current) => (current.contains(WidgetState.disabled) ? 0 : 2)),
+        animationDuration: 200,
+      });
+    const make = (enabled) =>
+      wrap(
+        new IconButton({
+          icon: new SizedBox(8, 8),
+          onPressed: enabled ? () => {} : null,
+          statesController: states,
+          style,
+        }),
+      );
+    const material = () => elements(f, (e) => e.widget instanceof Material)[0].widget;
+    try {
+      f.set(make(true));
+      assert.equal(material().color.toARGB32(), 0xff123456);
+      f.set(make(false));
+      assert.equal(material().elevation, 0);
+      assert.equal(material().color.toARGB32(), 0xff123456);
+      f.advance(100);
+      assert.equal(material().color.toARGB32(), 0xff123456);
+      f.advance(110);
+      assert.equal(material().color.toARGB32(), 0);
+      f.set(new SizedBox(1, 1));
+      assert.equal(states.hasListeners, false);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      await f.close();
+      states.dispose();
+    }
+  },
+);
+test(
+  'padded edge, keyboard and semantic activation share actual InkWell and reject stale actions after disable',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      focus = new FocusNode(),
+      events = [];
+    const make = (enabled) =>
+      wrap(
+        new IconButton({
+          id: 'action-icon',
+          icon: new SizedBox(8, 8),
+          focusNode: focus,
+          onPressed: enabled ? () => events.push('tap') : null,
+        }),
+      );
+    try {
+      f.set(make(true));
+      const node = f.root.nodes.find((n) => n.id === 'action-icon');
+      assert.equal(node.bounds.width, 48);
+      assert.equal(node.bounds.height, 48);
+      const x = node.bounds.x + 1,
+        y = node.bounds.y + 1;
+      f.root.pointer({
+        kind: 'down',
+        x,
+        y,
+        pointer: 9,
+        device: 'mouse',
+        buttons: 1,
+        timestamp: 0,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      f.root.pointer({
+        kind: 'up',
+        x,
+        y,
+        pointer: 9,
+        device: 'mouse',
+        buttons: 0,
+        timestamp: 1,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      assert.deepEqual(events, ['tap']);
+      focus.requestFocus();
+      f.frame();
+      const key = (kind) => ({
+        kind,
+        key: ' ',
+        code: 'Space',
+        shift: false,
+        control: false,
+        alt: false,
+        meta: false,
+        repeat: false,
+      });
+      assert.equal(f.root.key(key('down')), true);
+      f.root.key(key('up'));
+      f.frame();
+      assert.deepEqual(events, ['tap', 'tap']);
+      const semantic = f.root.nodes.find((n) => n.id === 'action-icon').activate;
+      assert.equal(typeof semantic, 'function');
+      semantic();
+      f.frame();
+      assert.deepEqual(events, ['tap', 'tap', 'tap']);
+      f.set(make(false));
+      semantic();
+      f.tap('action-icon');
+      assert.equal(events.length, 3);
+      f.set(new SizedBox(1, 1));
+      semantic();
+      assert.equal(events.length, 3);
+      assert.equal(f.root.scheduler.transientCallbackCount, 0);
+    } finally {
+      await f.close();
+      focus.dispose();
+    }
+  },
+);

@@ -1,62 +1,284 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import test from 'node:test';import assert from 'node:assert/strict';
-import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {spawnSync} from 'node:child_process';
-import {windowsTypedHermesPolicy} from '../../sdk/tooling/cli/src/windows-typed-hermes-policy.mjs';
-import {verifyWindowsStaticHermes,windowsCompilerEnvironment} from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
-import {nativeCohort} from '../../sdk/dist/runtime/cohorts.js';
-import {lowerNumericPartition} from '../../sdk/tooling/static-aot/src/numeric-partition.mjs';
-import {lowerPartition} from '../../sdk/tooling/static-aot/src/partition.mjs';
-import {Cubic} from '../../dist/framework/animation/curves.js';
-const timeout=1_200_000,cohort=nativeCohort('windows');
-test('typed compiler policy retains native preparation and the exact no-CFG supplier boundary',{timeout},()=>{
-  const value=windowsTypedHermesPolicy(cohort);assert.match(value.flags.at(-1),/^-Xcustom-opt=stripdebug,lowergeneratorfunction,/);
-  assert(!value.flags.join(',').includes('simplifycfg'));assert(value.flags.includes('-fno-inline'));assert(value.flags.includes('-parse-ts'));
-  assert(windowsTypedHermesPolicy(cohort,'flow').flags.includes('-parse-flow'));
-  assert.throws(()=>windowsTypedHermesPolicy({...cohort,engineRevision:'other'}),/pinned/);assert.throws(()=>windowsTypedHermesPolicy(cohort,'stripped'),/dialect/);
-});
-test('pinned typed frontend support and native number semantics are measured rather than inferred from annotations',{timeout,skip:process.platform!=='win32'||!process.env.NELYX_STATIC_HERMES_INPUTS},()=>{
-  const toolchain=verifyWindowsStaticHermes(process.env.NELYX_STATIC_HERMES_INPUTS),env=windowsCompilerEnvironment();
-  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'nelyx-typed-hermes-'));
-  const compiler=path.join(toolchain.directory,'build/bin/shermes.exe'),policy=windowsTypedHermesPolicy(cohort);
-  const run=(file,args,expected=0)=>{const r=spawnSync(file,args,{env,cwd:folder,encoding:'utf8',windowsHide:true,timeout,maxBuffer:4*1024**2});assert.ifError(r.error);assert.equal(r.status,expected,(r.stdout??'')+(r.stderr??''));return r.stdout+r.stderr;};
-  const probes=[
-    ['generic','function f<T>(x:T):T{return x;} print(f<number>(3));','TSTypeParameter'],
-    ['union','function f(x:number|string):number|string{return x;} print(f(3));','TSUnionType'],
-    ['nullable','function f(x:number|null|undefined):number{return x==null?0:x;} print(f(null));','TSUnionType'],
-    ['readonly','function f(x:readonly number[]):number{return x[0];} print(f([3]));',"expected at end of function parameter list"],
-    ['object','function f(x:{a:number,b:number}):number{return x.a+x.b;} print(f({a:1,b:2}));','TSTypeLiteral'],
-    ['class','class C{x:number;constructor(x:number){this.x=x;}f():number{return this.x;}} print(new C(3).f());','TSTypeAnnotation in FunctionExpression'],
-    ['private','class C{#x:number=3;f():number{return this.#x;}} print(new C().f());','TSTypeAnnotation in ClassPrivateProperty'],
-    ['accessor','class C{get x():number{return 3;}} print(new C().x);','TSTypeAnnotation in FunctionExpression'],
-    ['async','async function f():Promise<number>{return 3;} print(f());','unimplemented type params'],
-    ['overload','function f(x:number):number;function f(x:string):string;function f(x:number|string):number|string{return x;} print(f(3));',"expected in function declaration"],
-  ];
-  try{
-    for(const [id,body,diagnostic] of probes){const file=path.join(folder,id+'.ts');fs.writeFileSync(file,body);const output=run(compiler,[...policy.flags,'-dump-ir',file],1);assert(output.includes(diagnostic),output);assert.match(output,new RegExp(id+'\\.ts:1:[0-9]+: error:'));}
-    const source=path.join(folder,'numeric.ts');
-    fs.writeFileSync(source,'function square(x:number):number{return x*x;} function reciprocal(x:number):number{return 1/x;} function cubic(a:number,b:number,m:number):number{return 3*a*(1-m)*(1-m)*m+3*b*(1-m)*m*m+m*m*m;} function checkedSquare(x):number{return square(x);} function checkedReciprocal(x):number{return reciprocal(x);} function checkedCubic(a,b,m):number{return cubic(a,b,m);} globalThis.typedSquare=checkedSquare;globalThis.typedReciprocal=checkedReciprocal;globalThis.typedCubic=checkedCubic;');
-    const core=path.resolve(import.meta.dirname,'../..'),partition=lowerNumericPartition({entry:path.join(core,'src/framework/animation/curves.ts'),applicationRoot:core,packageRoots:[]},[{module:'application/src/framework/animation/curves.ts',className:'Cubic',name:'_evaluateCubic'},{module:'application/src/ui/value-math.ts',name:'lerp'}]);
-    const control=lowerPartition({entry:path.join(core,'src/framework/animation/curves.ts'),applicationRoot:core,packageRoots:[]},['transformInternal','_evaluateCubic'].map(name=>({module:'application/src/framework/animation/curves.ts',className:'Cubic',name})));
-    fs.appendFileSync(source,'\n'+partition.source+'\n{\n'+control.source+'\n}\n');
-    const ir=run(compiler,[...policy.flags,'-dump-ir',source]);assert.match(ir,/function square\(x: number\): number \[[^\]]*typed\]/);assert.match(ir,/FMultiplyInst/);assert.match(ir,/FDivideInst/);assert.match(ir,/CheckedTypeCastInst/);assert.match(ir,/function kernel0[^\n]+typed/);
-    const c=path.join(folder,'typed.c'),object=path.join(folder,'typed.obj'),library=path.join(folder,'NelyxApp.aot.dll');
-    run(compiler,[...policy.flags,'-emit-c','-exported-unit=nelyx_app','-o',c,source]);assert.match(fs.readFileSync(c,'utf8'),/_sh_ljs_double/);
-    run(path.join(process.env.ProgramFiles,'LLVM/bin/clang.exe'),['-c',c,'-o',object,'-O3','-ffp-contract=off','-DNDEBUG','-DSTATIC_HERMES','-fno-strict-aliasing','-fno-strict-overflow','-fms-runtime-lib=dll','-I'+path.join(toolchain.directory,'source/include'),'-I'+path.join(toolchain.directory,'build/lib/config')]);
-    run('link.exe',['/DLL','/NOLOGO','/OUT:'+library,'/EXPORT:sh_export_nelyx_app',object,path.join(toolchain.directory,'build/API/hermes_shared/hermes.lib')]);
-    const supplier=path.join(process.env.USERPROFILE,'.nuget/packages/microsoft.javascript.hermes/0.0.0-2604.21001-94aa5e1d'),include=path.join(supplier,'build/native/include');
-    fs.copyFileSync(path.join(toolchain.directory,'build/API/hermes_shared/hermes.dll'),path.join(folder,'hermes.dll'));fs.copyFileSync(path.join(supplier,'build/native/win32/x64/hermes-icu.dll'),path.join(folder,'hermes-icu.dll'));
-    const executable=path.join(folder,'probe.exe');run('cl.exe',['/nologo','/std:c++20','/EHsc','/MD','/O2','/DNDEBUG','/I'+include,'/I'+path.join(include,'node-api'),'/Fe'+executable,'/Fo'+path.join(folder,'probe.obj'),path.join(import.meta.dirname,'windows-typed-hermes-probe.cpp'),'/link',path.join(toolchain.directory,'build/API/hermes_shared/hermes.lib')]);
-    const checks=path.join(folder,'verify.js');
-    fs.writeFileSync(checks,`(()=>{const values=[NaN,Infinity,-Infinity,-0,0,Number.MIN_VALUE,-Number.MIN_VALUE,.5,3];for(const x of values){if(!Object.is(typedSquare(x),x*x)||!Object.is(typedReciprocal(x),1/x))throw Error('numeric semantics '+x);}for(const m of [0,.125,.5,.875,1]){const a=.4,b=.2;if(!Object.is(typedCubic(a,b,m),3*a*(1-m)*(1-m)*m+3*b*(1-m)*m*m+m*m*m))throw Error('cubic evaluation order');}gc();if(typedSquare(7)!==49)throw Error('GC closure');let rejected=false,result;try{result=typedSquare('3')}catch(e){rejected=e instanceof TypeError;}if(!rejected)throw Error('typed boundary accepted a string, result='+result);return 'PASS number/NaN/Infinity/negative-zero/subnormal/cubic/GC/checked-cast';})()`);
-    fs.appendFileSync(checks,`;(()=>{const cubic=globalThis[${JSON.stringify(partition.bindings[0].globalName)}],lerp=globalThis[${JSON.stringify(partition.bindings[1].globalName)}];for(const values of [[.4,.2,.5],[-0,0,-0],[Infinity,1,.5],[NaN,2,1],[Number.MIN_VALUE,-Number.MIN_VALUE,.75]]){const [a,b,m]=values;if(!Object.is(cubic(a,b,m),3*a*(1-m)*(1-m)*m+3*b*(1-m)*m*m+m*m*m)||!Object.is(lerp(a,b,m),a*(1-m)+b*m))throw Error('real Core body mismatch');}gc();if(lerp(0,1,.5)!==.5)throw Error('real Core body lost after GC');return 'PASS real-Core-Cubic/lerp numeric IR source identity';})()`);
-    const expected=[-1,0,Number.MIN_VALUE,.000001,.1,.25,.5,.75,.999999,1,2].map(t=>[t,new Cubic(.4,0,.2,1).transform(t)]);
-    const curveCases=[];for(const controls of [[.4,0,.2,1],[.25,-2,.75,2],[Number.MAX_VALUE,0,Number.MAX_VALUE,1]])for(const t of [0,Number.MIN_VALUE,.1,.5,.9,1]){const curve=new Cubic(...controls),item={controls,t};try{item.value=curve.transformInternal(t);}catch(error){item.error=error.message;}curveCases.push(item);}
-    const receiverReads=[],reference=new Proxy(new Cubic(.4,0,.2,1),{get(target,key,receiver){receiverReads.push(String(key));return Reflect.get(target,key,receiver);}}),proxyValue=Cubic.prototype.transformInternal.call(reference,.43);
-    fs.appendFileSync(checks,`;(()=>{const transform=globalThis[${JSON.stringify(control.bindings[0].globalName)}],evaluate=globalThis[${JSON.stringify(control.bindings[1].globalName)}];const receiver={a:.4,b:0,c:.2,d:1,_evaluateCubic(a,b,m){return evaluate(this,null,a,b,m);}},Cubic={_cubicMaxIterations:1076,_cubicErrorBound:.001};const environment=i=>[Number,RangeError,Cubic,Math][i];for(const [t,expected] of ${JSON.stringify(expected)})if(!Object.is(transform(receiver,environment,t),expected))throw Error('typed loop phi or receiver mismatch '+t);gc();if(transform(receiver,environment,0)!==0||transform(receiver,environment,1)!==1)throw Error('loop endpoints');let rejected=false;try{transform(receiver,environment,'3')}catch(e){rejected=e instanceof TypeError}if(!rejected)throw Error('loop boundary accepted wrong type');return 'PASS real-Core-Cubic typed loop and helper';})()`);
-    fs.appendFileSync(checks,`;(()=>{const transform=globalThis[${JSON.stringify(control.bindings[0].globalName)}],evaluate=globalThis[${JSON.stringify(control.bindings[1].globalName)}],Cubic={_cubicMaxIterations:1076,_cubicErrorBound:.001};for(const item of ${JSON.stringify(curveCases)}){const [a,b,c,d]=item.controls,receiver={a,b,c,d,_evaluateCubic(a,b,m){return evaluate(this,null,a,b,m);}};let value,error;try{value=transform(receiver,i=>[Number,RangeError,Cubic,Math][i],item.t);}catch(e){error=e.message;if(!(e instanceof RangeError))throw e;}if(item.error?error!==item.error:error!==undefined||!Object.is(value,item.value))throw Error('typed overshoot/extreme convergence mismatch');}if(typeof globalThis.kernel0!=='undefined'||typeof globalThis.boundary0!=='undefined')throw Error('trusted ABI leaked');return 'PASS real-Core-Cubic typed loop, overshoot/extreme convergence and private ABI';})()`);
-    fs.appendFileSync(checks,`;(()=>{const count0=globalThis[${JSON.stringify(control.bindings[0].globalName+'_calls')}],count1=globalThis[${JSON.stringify(control.bindings[1].globalName+'_calls')}];if(count0()<20||count1()<20)throw Error('typed mutable counter closure mismatch '+count0()+'/'+count1());gc();if(count0()<20)throw Error('typed counter lost after GC');return 'PASS real-Core-Cubic calls='+count0()+'/'+count1();})()`);
-    fs.appendFileSync(checks,`;(()=>{const transform=globalThis[${JSON.stringify(control.bindings[0].globalName)}],evaluate=globalThis[${JSON.stringify(control.bindings[1].globalName)}],Cubic={_cubicMaxIterations:1076,_cubicErrorBound:.001},environment=i=>[Number,RangeError,Cubic,Math][i],target=Object.freeze({a:.4,b:0,c:.2,d:1,_evaluateCubic(a,b,m){return evaluate(this,null,a,b,m);}}),reads=[],receiver=new Proxy(target,{get(target,key,receiver){reads.push(String(key));return Reflect.get(target,key,receiver);}});if(!Object.is(transform(receiver,environment,.43),${JSON.stringify(proxyValue)})||JSON.stringify(reads)!==${JSON.stringify(JSON.stringify(receiverReads))})throw Error('dynamic Proxy changed values or receiver read order '+JSON.stringify(reads));let wrongReads=0,rejected=false;const wrong={get a(){wrongReads++;return '0.4'},b:0,c:.2,d:1,_evaluateCubic:target._evaluateCubic};try{transform(wrong,environment,.43)}catch(error){rejected=error instanceof TypeError}if(!rejected||wrongReads!==1)throw Error('dynamic numeric field lost its checked boundary');return 'PASS real-Core checked dynamic Proxy/freeze/getter boundary';})()`);
-    assert.match(run(executable,[checks]),/TYPED_PROBE_RESULT PASS real-Core/);
-    console.log('TYPED_COMPILER_SUPPORT '+JSON.stringify({revision:toolchain.manifest.revision,policy:policy.id,tsExcluded:probes.map(p=>p[0]),nativeNumeric:'PASS',productHybrid:'notVerified'}));
-  }finally{assert.equal(path.dirname(fs.realpathSync(folder)),fs.realpathSync(os.tmpdir()));assert(path.basename(folder).startsWith('nelyx-typed-hermes-'));assert(!fs.lstatSync(folder).isSymbolicLink());fs.rmSync(folder,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
-});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { windowsTypedHermesPolicy } from '../../sdk/tooling/cli/src/windows-typed-hermes-policy.mjs';
+import {
+  verifyWindowsStaticHermes,
+  windowsCompilerEnvironment,
+} from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
+import { nativeCohort } from '../../sdk/dist/runtime/cohorts.js';
+import { lowerNumericPartition } from '../../sdk/tooling/static-aot/src/numeric-partition.mjs';
+import { lowerPartition } from '../../sdk/tooling/static-aot/src/partition.mjs';
+import { Cubic } from '../../dist/framework/animation/curves.js';
+const timeout = 1_200_000,
+  cohort = nativeCohort('windows');
+test(
+  'typed compiler policy retains native preparation and the exact no-CFG supplier boundary',
+  { timeout },
+  () => {
+    const value = windowsTypedHermesPolicy(cohort);
+    assert.match(value.flags.at(-1), /^-Xcustom-opt=stripdebug,lowergeneratorfunction,/);
+    assert(!value.flags.join(',').includes('simplifycfg'));
+    assert(value.flags.includes('-fno-inline'));
+    assert(value.flags.includes('-parse-ts'));
+    assert(windowsTypedHermesPolicy(cohort, 'flow').flags.includes('-parse-flow'));
+    assert.throws(() => windowsTypedHermesPolicy({ ...cohort, engineRevision: 'other' }), /pinned/);
+    assert.throws(() => windowsTypedHermesPolicy(cohort, 'stripped'), /dialect/);
+  },
+);
+test(
+  'pinned typed frontend support and native number semantics are measured rather than inferred from annotations',
+  { timeout, skip: process.platform !== 'win32' || !process.env.NELYX_STATIC_HERMES_INPUTS },
+  () => {
+    const toolchain = verifyWindowsStaticHermes(process.env.NELYX_STATIC_HERMES_INPUTS),
+      env = windowsCompilerEnvironment();
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-typed-hermes-'));
+    const compiler = path.join(toolchain.directory, 'build/bin/shermes.exe'),
+      policy = windowsTypedHermesPolicy(cohort);
+    const run = (file, args, expected = 0) => {
+      const r = spawnSync(file, args, {
+        env,
+        cwd: folder,
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout,
+        maxBuffer: 4 * 1024 ** 2,
+      });
+      assert.ifError(r.error);
+      assert.equal(r.status, expected, (r.stdout ?? '') + (r.stderr ?? ''));
+      return r.stdout + r.stderr;
+    };
+    const probes = [
+      ['generic', 'function f<T>(x:T):T{return x;} print(f<number>(3));', 'TSTypeParameter'],
+      ['union', 'function f(x:number|string):number|string{return x;} print(f(3));', 'TSUnionType'],
+      [
+        'nullable',
+        'function f(x:number|null|undefined):number{return x==null?0:x;} print(f(null));',
+        'TSUnionType',
+      ],
+      [
+        'readonly',
+        'function f(x:readonly number[]):number{return x[0];} print(f([3]));',
+        'expected at end of function parameter list',
+      ],
+      [
+        'object',
+        'function f(x:{a:number,b:number}):number{return x.a+x.b;} print(f({a:1,b:2}));',
+        'TSTypeLiteral',
+      ],
+      [
+        'class',
+        'class C{x:number;constructor(x:number){this.x=x;}f():number{return this.x;}} print(new C(3).f());',
+        'TSTypeAnnotation in FunctionExpression',
+      ],
+      [
+        'private',
+        'class C{#x:number=3;f():number{return this.#x;}} print(new C().f());',
+        'TSTypeAnnotation in ClassPrivateProperty',
+      ],
+      [
+        'accessor',
+        'class C{get x():number{return 3;}} print(new C().x);',
+        'TSTypeAnnotation in FunctionExpression',
+      ],
+      [
+        'async',
+        'async function f():Promise<number>{return 3;} print(f());',
+        'unimplemented type params',
+      ],
+      [
+        'overload',
+        'function f(x:number):number;function f(x:string):string;function f(x:number|string):number|string{return x;} print(f(3));',
+        'expected in function declaration',
+      ],
+    ];
+    try {
+      for (const [id, body, diagnostic] of probes) {
+        const file = path.join(folder, id + '.ts');
+        fs.writeFileSync(file, body);
+        const output = run(compiler, [...policy.flags, '-dump-ir', file], 1);
+        assert(output.includes(diagnostic), output);
+        assert.match(output, new RegExp(id + '\\.ts:1:[0-9]+: error:'));
+      }
+      const source = path.join(folder, 'numeric.ts');
+      fs.writeFileSync(
+        source,
+        'function square(x:number):number{return x*x;} function reciprocal(x:number):number{return 1/x;} function cubic(a:number,b:number,m:number):number{return 3*a*(1-m)*(1-m)*m+3*b*(1-m)*m*m+m*m*m;} function checkedSquare(x):number{return square(x);} function checkedReciprocal(x):number{return reciprocal(x);} function checkedCubic(a,b,m):number{return cubic(a,b,m);} globalThis.typedSquare=checkedSquare;globalThis.typedReciprocal=checkedReciprocal;globalThis.typedCubic=checkedCubic;',
+      );
+      const core = path.resolve(import.meta.dirname, '../..'),
+        partition = lowerNumericPartition(
+          {
+            entry: path.join(core, 'src/framework/animation/curves.ts'),
+            applicationRoot: core,
+            packageRoots: [],
+          },
+          [
+            {
+              module: 'application/src/framework/animation/curves.ts',
+              className: 'Cubic',
+              name: '_evaluateCubic',
+            },
+            { module: 'application/src/ui/value-math.ts', name: 'lerp' },
+          ],
+        );
+      const control = lowerPartition(
+        {
+          entry: path.join(core, 'src/framework/animation/curves.ts'),
+          applicationRoot: core,
+          packageRoots: [],
+        },
+        ['transformInternal', '_evaluateCubic'].map((name) => ({
+          module: 'application/src/framework/animation/curves.ts',
+          className: 'Cubic',
+          name,
+        })),
+      );
+      fs.appendFileSync(source, '\n' + partition.source + '\n{\n' + control.source + '\n}\n');
+      const ir = run(compiler, [...policy.flags, '-dump-ir', source]);
+      assert.match(ir, /function square\(x: number\): number \[[^\]]*typed\]/);
+      assert.match(ir, /FMultiplyInst/);
+      assert.match(ir, /FDivideInst/);
+      assert.match(ir, /CheckedTypeCastInst/);
+      assert.match(ir, /function kernel0[^\n]+typed/);
+      const c = path.join(folder, 'typed.c'),
+        object = path.join(folder, 'typed.obj'),
+        library = path.join(folder, 'NelyxApp.aot.dll');
+      run(compiler, [...policy.flags, '-emit-c', '-exported-unit=nelyx_app', '-o', c, source]);
+      assert.match(fs.readFileSync(c, 'utf8'), /_sh_ljs_double/);
+      run(path.join(process.env.ProgramFiles, 'LLVM/bin/clang.exe'), [
+        '-c',
+        c,
+        '-o',
+        object,
+        '-O3',
+        '-ffp-contract=off',
+        '-DNDEBUG',
+        '-DSTATIC_HERMES',
+        '-fno-strict-aliasing',
+        '-fno-strict-overflow',
+        '-fms-runtime-lib=dll',
+        '-I' + path.join(toolchain.directory, 'source/include'),
+        '-I' + path.join(toolchain.directory, 'build/lib/config'),
+      ]);
+      run('link.exe', [
+        '/DLL',
+        '/NOLOGO',
+        '/OUT:' + library,
+        '/EXPORT:sh_export_nelyx_app',
+        object,
+        path.join(toolchain.directory, 'build/API/hermes_shared/hermes.lib'),
+      ]);
+      const supplier = path.join(
+          process.env.USERPROFILE,
+          '.nuget/packages/microsoft.javascript.hermes/0.0.0-2604.21001-94aa5e1d',
+        ),
+        include = path.join(supplier, 'build/native/include');
+      fs.copyFileSync(
+        path.join(toolchain.directory, 'build/API/hermes_shared/hermes.dll'),
+        path.join(folder, 'hermes.dll'),
+      );
+      fs.copyFileSync(
+        path.join(supplier, 'build/native/win32/x64/hermes-icu.dll'),
+        path.join(folder, 'hermes-icu.dll'),
+      );
+      const executable = path.join(folder, 'probe.exe');
+      run('cl.exe', [
+        '/nologo',
+        '/std:c++20',
+        '/EHsc',
+        '/MD',
+        '/O2',
+        '/DNDEBUG',
+        '/I' + include,
+        '/I' + path.join(include, 'node-api'),
+        '/Fe' + executable,
+        '/Fo' + path.join(folder, 'probe.obj'),
+        path.join(import.meta.dirname, 'windows-typed-hermes-probe.cpp'),
+        '/link',
+        path.join(toolchain.directory, 'build/API/hermes_shared/hermes.lib'),
+      ]);
+      const checks = path.join(folder, 'verify.js');
+      fs.writeFileSync(
+        checks,
+        `(()=>{const values=[NaN,Infinity,-Infinity,-0,0,Number.MIN_VALUE,-Number.MIN_VALUE,.5,3];for(const x of values){if(!Object.is(typedSquare(x),x*x)||!Object.is(typedReciprocal(x),1/x))throw Error('numeric semantics '+x);}for(const m of [0,.125,.5,.875,1]){const a=.4,b=.2;if(!Object.is(typedCubic(a,b,m),3*a*(1-m)*(1-m)*m+3*b*(1-m)*m*m+m*m*m))throw Error('cubic evaluation order');}gc();if(typedSquare(7)!==49)throw Error('GC closure');let rejected=false,result;try{result=typedSquare('3')}catch(e){rejected=e instanceof TypeError;}if(!rejected)throw Error('typed boundary accepted a string, result='+result);return 'PASS number/NaN/Infinity/negative-zero/subnormal/cubic/GC/checked-cast';})()`,
+      );
+      fs.appendFileSync(
+        checks,
+        `;(()=>{const cubic=globalThis[${JSON.stringify(partition.bindings[0].globalName)}],lerp=globalThis[${JSON.stringify(partition.bindings[1].globalName)}];for(const values of [[.4,.2,.5],[-0,0,-0],[Infinity,1,.5],[NaN,2,1],[Number.MIN_VALUE,-Number.MIN_VALUE,.75]]){const [a,b,m]=values;if(!Object.is(cubic(a,b,m),3*a*(1-m)*(1-m)*m+3*b*(1-m)*m*m+m*m*m)||!Object.is(lerp(a,b,m),a*(1-m)+b*m))throw Error('real Core body mismatch');}gc();if(lerp(0,1,.5)!==.5)throw Error('real Core body lost after GC');return 'PASS real-Core-Cubic/lerp numeric IR source identity';})()`,
+      );
+      const expected = [
+        -1,
+        0,
+        Number.MIN_VALUE,
+        0.000001,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        0.999999,
+        1,
+        2,
+      ].map((t) => [t, new Cubic(0.4, 0, 0.2, 1).transform(t)]);
+      const curveCases = [];
+      for (const controls of [
+        [0.4, 0, 0.2, 1],
+        [0.25, -2, 0.75, 2],
+        [Number.MAX_VALUE, 0, Number.MAX_VALUE, 1],
+      ])
+        for (const t of [0, Number.MIN_VALUE, 0.1, 0.5, 0.9, 1]) {
+          const curve = new Cubic(...controls),
+            item = { controls, t };
+          try {
+            item.value = curve.transformInternal(t);
+          } catch (error) {
+            item.error = error.message;
+          }
+          curveCases.push(item);
+        }
+      const receiverReads = [],
+        reference = new Proxy(new Cubic(0.4, 0, 0.2, 1), {
+          get(target, key, receiver) {
+            receiverReads.push(String(key));
+            return Reflect.get(target, key, receiver);
+          },
+        }),
+        proxyValue = Cubic.prototype.transformInternal.call(reference, 0.43);
+      fs.appendFileSync(
+        checks,
+        `;(()=>{const transform=globalThis[${JSON.stringify(control.bindings[0].globalName)}],evaluate=globalThis[${JSON.stringify(control.bindings[1].globalName)}];const receiver={a:.4,b:0,c:.2,d:1,_evaluateCubic(a,b,m){return evaluate(this,null,a,b,m);}},Cubic={_cubicMaxIterations:1076,_cubicErrorBound:.001};const environment=i=>[Number,RangeError,Cubic,Math][i];for(const [t,expected] of ${JSON.stringify(expected)})if(!Object.is(transform(receiver,environment,t),expected))throw Error('typed loop phi or receiver mismatch '+t);gc();if(transform(receiver,environment,0)!==0||transform(receiver,environment,1)!==1)throw Error('loop endpoints');let rejected=false;try{transform(receiver,environment,'3')}catch(e){rejected=e instanceof TypeError}if(!rejected)throw Error('loop boundary accepted wrong type');return 'PASS real-Core-Cubic typed loop and helper';})()`,
+      );
+      fs.appendFileSync(
+        checks,
+        `;(()=>{const transform=globalThis[${JSON.stringify(control.bindings[0].globalName)}],evaluate=globalThis[${JSON.stringify(control.bindings[1].globalName)}],Cubic={_cubicMaxIterations:1076,_cubicErrorBound:.001};for(const item of ${JSON.stringify(curveCases)}){const [a,b,c,d]=item.controls,receiver={a,b,c,d,_evaluateCubic(a,b,m){return evaluate(this,null,a,b,m);}};let value,error;try{value=transform(receiver,i=>[Number,RangeError,Cubic,Math][i],item.t);}catch(e){error=e.message;if(!(e instanceof RangeError))throw e;}if(item.error?error!==item.error:error!==undefined||!Object.is(value,item.value))throw Error('typed overshoot/extreme convergence mismatch');}if(typeof globalThis.kernel0!=='undefined'||typeof globalThis.boundary0!=='undefined')throw Error('trusted ABI leaked');return 'PASS real-Core-Cubic typed loop, overshoot/extreme convergence and private ABI';})()`,
+      );
+      fs.appendFileSync(
+        checks,
+        `;(()=>{const count0=globalThis[${JSON.stringify(control.bindings[0].globalName + '_calls')}],count1=globalThis[${JSON.stringify(control.bindings[1].globalName + '_calls')}];if(count0()<20||count1()<20)throw Error('typed mutable counter closure mismatch '+count0()+'/'+count1());gc();if(count0()<20)throw Error('typed counter lost after GC');return 'PASS real-Core-Cubic calls='+count0()+'/'+count1();})()`,
+      );
+      fs.appendFileSync(
+        checks,
+        `;(()=>{const transform=globalThis[${JSON.stringify(control.bindings[0].globalName)}],evaluate=globalThis[${JSON.stringify(control.bindings[1].globalName)}],Cubic={_cubicMaxIterations:1076,_cubicErrorBound:.001},environment=i=>[Number,RangeError,Cubic,Math][i],target=Object.freeze({a:.4,b:0,c:.2,d:1,_evaluateCubic(a,b,m){return evaluate(this,null,a,b,m);}}),reads=[],receiver=new Proxy(target,{get(target,key,receiver){reads.push(String(key));return Reflect.get(target,key,receiver);}});if(!Object.is(transform(receiver,environment,.43),${JSON.stringify(proxyValue)})||JSON.stringify(reads)!==${JSON.stringify(JSON.stringify(receiverReads))})throw Error('dynamic Proxy changed values or receiver read order '+JSON.stringify(reads));let wrongReads=0,rejected=false;const wrong={get a(){wrongReads++;return '0.4'},b:0,c:.2,d:1,_evaluateCubic:target._evaluateCubic};try{transform(wrong,environment,.43)}catch(error){rejected=error instanceof TypeError}if(!rejected||wrongReads!==1)throw Error('dynamic numeric field lost its checked boundary');return 'PASS real-Core checked dynamic Proxy/freeze/getter boundary';})()`,
+      );
+      assert.match(run(executable, [checks]), /TYPED_PROBE_RESULT PASS real-Core/);
+      console.log(
+        'TYPED_COMPILER_SUPPORT ' +
+          JSON.stringify({
+            revision: toolchain.manifest.revision,
+            policy: policy.id,
+            tsExcluded: probes.map((p) => p[0]),
+            nativeNumeric: 'PASS',
+            productHybrid: 'notVerified',
+          }),
+      );
+    } finally {
+      assert.equal(path.dirname(fs.realpathSync(folder)), fs.realpathSync(os.tmpdir()));
+      assert(path.basename(folder).startsWith('nelyx-typed-hermes-'));
+      assert(!fs.lstatSync(folder).isSymbolicLink());
+      fs.rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  },
+);

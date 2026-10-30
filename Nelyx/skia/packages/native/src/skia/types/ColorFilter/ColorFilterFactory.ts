@@ -1,7 +1,7 @@
-import type {SkColor} from '../Color.ts';
-import type {BlendMode} from '../Paint/BlendMode.ts';
+import type { SkColor } from '../Color.ts';
+import type { BlendMode } from '../Paint/BlendMode.ts';
 
-import type {SkColorFilter} from './ColorFilter.ts';
+import type { SkColorFilter } from './ColorFilter.ts';
 
 export type InputColorMatrix = number[];
 

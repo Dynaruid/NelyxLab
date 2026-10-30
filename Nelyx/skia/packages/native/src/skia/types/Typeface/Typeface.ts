@@ -1,6 +1,6 @@
-import type {SkJSIInstance} from '../JsiInstance.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
 
-export interface SkTypeface extends SkJSIInstance<"Typeface"> {
+export interface SkTypeface extends SkJSIInstance<'Typeface'> {
   /**
    * Retrieves the glyph ids for each code point in the provided string. This call is passed to
    * the typeface of this font. Note that glyph IDs are typeface-dependent; different faces

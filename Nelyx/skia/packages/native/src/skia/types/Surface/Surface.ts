@@ -1,11 +1,11 @@
-import type {SkImage} from "../Drawing.ts";
-import type {SkCanvas} from "../Drawing.ts";
-import type {SkJSIInstance} from '../JsiInstance.ts';
-import type {SkRect} from '../Rect.ts';
+import type { SkImage } from '../Drawing.ts';
+import type { SkCanvas } from '../Drawing.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
+import type { SkRect } from '../Rect.ts';
 
-export interface SkSurface extends SkJSIInstance<"Surface"> {
+export interface SkSurface extends SkJSIInstance<'Surface'> {
   /** Checked owner GPU drain; throws rather than releasing unconfirmed work. */
-  nelyxRetire():void;
+  nelyxRetire(): void;
   /** Returns Canvas that draws into the surface. Subsequent calls return the
      same Canvas. Canvas returned is managed and owned by Surface, and is
      deleted when Surface is deleted.

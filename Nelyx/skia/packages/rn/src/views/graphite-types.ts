@@ -1,6 +1,6 @@
 import type React from 'react';
-import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
-import type {SkiaGraphiteViewNativeProps} from './types.ts';
+import type { SkGraphiteContext } from '@nelyx/skia-native/skia/types/Graphite';
+import type { SkiaGraphiteViewNativeProps } from './types.ts';
 export interface SkiaGraphiteViewRef {
   /**
    * The recording side of the view. Call it once the view is mounted. The
@@ -8,10 +8,9 @@ export interface SkiaGraphiteViewRef {
    */
   getContext(): SkGraphiteContext;
   getNativeId(): number;
-  getMouseCursorVersion():number;
+  getMouseCursorVersion(): number;
 }
 
 export interface SkiaGraphiteViewProps extends SkiaGraphiteViewNativeProps {
   ref?: React.Ref<SkiaGraphiteViewRef>;
 }
-

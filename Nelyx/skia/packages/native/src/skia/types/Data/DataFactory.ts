@@ -1,4 +1,4 @@
-import type {SkData} from './Data.ts';
+import type { SkData } from './Data.ts';
 
 export interface DataFactory {
   /** Actual compiled process architecture and shared native core ABI; no surface is created. */

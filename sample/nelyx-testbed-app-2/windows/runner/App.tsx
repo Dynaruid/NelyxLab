@@ -1,22 +1,37 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {describeError} from '@nelyx/core/foundation/errors';
-import React,{useMemo,useState} from 'react';
-import {ApplicationSurface} from '@nelyx/sdk/platforms/windows/surface';
-import {NativeLayer,NativeText} from '@nelyx/sdk/platforms/windows/controls';
-import {main} from '../../src/index.ts';
-import runtimeConfig from './app-config.json' with {type:'json'};
+import { describeError } from '@nelyx/core/foundation/errors';
+import React, { useMemo, useState } from 'react';
+import { ApplicationSurface } from '@nelyx/sdk/platforms/windows/surface';
+import { NativeLayer, NativeText } from '@nelyx/sdk/platforms/windows/controls';
+import { main } from '../../src/index.ts';
+import runtimeConfig from './app-config.json' with { type: 'json' };
 
-function readAccessibilityEnabled():boolean|undefined {
-  const value='accessibilityEnabled' in runtimeConfig?runtimeConfig.accessibilityEnabled:undefined;
-  if(value!==undefined&&typeof value!=='boolean')throw new TypeError('Invalid accessibility build option');
+function readAccessibilityEnabled(): boolean | undefined {
+  const value =
+    'accessibilityEnabled' in runtimeConfig ? runtimeConfig.accessibilityEnabled : undefined;
+  if (value !== undefined && typeof value !== 'boolean')
+    throw new TypeError('Invalid accessibility build option');
   return value;
 }
-const accessibilityEnabled=readAccessibilityEnabled();
+const accessibilityEnabled = readAccessibilityEnabled();
 
-export default function App(){
-  const shared=useMemo(()=>main(undefined,{accessibilityEnabled}),[]),[error,setError]=useState('');
-  return <NativeLayer style={{flex:1}}>
-    {error?<NativeText style={{color:'#ffb4ab'}}>{error}</NativeText>:null}
-    <ApplicationSurface windowViewport definition={shared.definition} generation={1} onReady={()=>{}} onError={error=>{const message=describeError(error);console.error(message,error);setError(message);}}/>
-  </NativeLayer>;
+export default function App() {
+  const shared = useMemo(() => main(undefined, { accessibilityEnabled }), []),
+    [error, setError] = useState('');
+  return (
+    <NativeLayer style={{ flex: 1 }}>
+      {error ? <NativeText style={{ color: '#ffb4ab' }}>{error}</NativeText> : null}
+      <ApplicationSurface
+        windowViewport
+        definition={shared.definition}
+        generation={1}
+        onReady={() => {}}
+        onError={(error) => {
+          const message = describeError(error);
+          console.error(message, error);
+          setError(message);
+        }}
+      />
+    </NativeLayer>
+  );
 }

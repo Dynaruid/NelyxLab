@@ -1,14 +1,11 @@
-import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-import type { CanvasKit, Rect } from "canvaskit-wasm";
+import { arrayItem } from '@nelyx/skia-native/runtime/arrays';
+import type { CanvasKit, Rect } from 'canvaskit-wasm';
 
-import type {SkHostRect, SkRect} from "@nelyx/skia-native/skia/types/Rect";
+import type { SkHostRect, SkRect } from '@nelyx/skia-native/skia/types/Rect';
 
-import {BaseHostObject} from './Host.ts';
+import { BaseHostObject } from './Host.ts';
 
-export class JsiSkRect
-  extends BaseHostObject<Rect, "Rect">
-  implements SkHostRect
-{
+export class JsiSkRect extends BaseHostObject<Rect, 'Rect'> implements SkHostRect {
   static fromValue(CanvasKit: CanvasKit, rect: SkRect) {
     if (rect instanceof JsiSkRect) {
       return rect.ref;
@@ -17,7 +14,7 @@ export class JsiSkRect
   }
 
   constructor(CanvasKit: CanvasKit, ref: Rect) {
-    super(CanvasKit, ref, "Rect");
+    super(CanvasKit, ref, 'Rect');
   }
 
   setXYWH(x: number, y: number, width: number, height: number): void {

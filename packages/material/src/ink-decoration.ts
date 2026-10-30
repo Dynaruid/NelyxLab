@@ -35,198 +35,250 @@ import { Material, InkFeature } from './material.ts';
 import type { InkFeatureOptions } from './material.ts';
 import { emptyInkDecoration } from './internal/material/empty-ink-decoration.ts';
 export interface InkOptions extends WidgetOptions {
-    readonly child?: Widget | null;
-    readonly padding?: EdgeInsetsGeometry | null;
-    readonly decoration?: Decoration | null;
-    readonly color?: Color | null; /** @dartType double? */
-    readonly width?: number | null; /** @dartType double? */
-    readonly height?: number | null;
+  readonly child?: Widget | null;
+  readonly padding?: EdgeInsetsGeometry | null;
+  readonly decoration?: Decoration | null;
+  readonly color?: Color | null /** @dartType double? */;
+  readonly width?: number | null /** @dartType double? */;
+  readonly height?: number | null;
 }
 export interface InkImageOptions extends Omit<InkOptions, 'color' | 'decoration'> {
-    readonly image: ImageProvider;
-    readonly onImageError?: ImageErrorListener | null;
-    readonly colorFilter?: ColorFilter | null;
-    readonly fit?: BoxFit | null;
-    readonly alignment?: AlignmentGeometry;
-    readonly centerSlice?: Rect | null;
-    readonly repeat?: ImageRepeat;
-    readonly matchTextDirection?: boolean;
+  readonly image: ImageProvider;
+  readonly onImageError?: ImageErrorListener | null;
+  readonly colorFilter?: ColorFilter | null;
+  readonly fit?: BoxFit | null;
+  readonly alignment?: AlignmentGeometry;
+  readonly centerSlice?: Rect | null;
+  readonly repeat?: ImageRepeat;
+  readonly matchTextDirection?: boolean;
 }
 export class Ink extends StatefulWidget {
-    readonly child: Widget | null;
-    readonly padding: EdgeInsetsGeometry | null;
-    readonly decoration: Decoration | null; /** @dartType double? */
-    readonly width: number | null; /** @dartType double? */
-    readonly height: number | null;
-    constructor({ key = null, child = null, padding = null, decoration = null, color = null, width = null, height = null }: InkOptions = {}) {
-        super(key);
-        invariant(padding === null || padding.isNonNegative, 'invalid-ink-padding', 'Ink padding must be nonnegative');
-        invariant(decoration === null || decoration.debugAssertIsValid(), 'invalid-ink-decoration', 'Ink requires a valid decoration');
-        invariant(color === null || decoration === null, 'conflicting-ink-decoration', 'Ink color and decoration are exclusive');
-        this.child = child;
-        this.padding = padding;
-        this.decoration = decoration ?? (color !== null ? new BoxDecoration({ color: color.toARGB32() }) : null);
-        this.width = width;
-        this.height = height;
-    }
-    static image({ image, onImageError = null, colorFilter = null, fit = null, alignment, centerSlice = null, repeat = 'noRepeat', matchTextDirection = false, ...options }: InkImageOptions): Ink {
-        return new Ink({ ...options, decoration: new BoxDecoration({ image: new DecorationImage({
-                    image, onError: onImageError, colorFilter, fit, ...alignment ? { alignment } : {}, centerSlice, repeat, matchTextDirection
-                }) }) });
-    }
-    get paddingIncludingDecoration(): EdgeInsetsGeometry {
-        return (this.padding ?? EdgeInsets.zero).add(this.decoration?.padding ?? EdgeInsets.zero);
-    }
-    createState(): State {
-        return new InkState();
-    }
-    override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
-        super.debugFillProperties(properties);
-        properties.add(new DiagnosticsProperty('padding', this.padding, { defaultValue: null }));
-        properties.add(new DiagnosticsProperty('bg', this.decoration, { defaultValue: null }));
-    }
+  readonly child: Widget | null;
+  readonly padding: EdgeInsetsGeometry | null;
+  readonly decoration: Decoration | null; /** @dartType double? */
+  readonly width: number | null; /** @dartType double? */
+  readonly height: number | null;
+  constructor({
+    key = null,
+    child = null,
+    padding = null,
+    decoration = null,
+    color = null,
+    width = null,
+    height = null,
+  }: InkOptions = {}) {
+    super(key);
+    invariant(
+      padding === null || padding.isNonNegative,
+      'invalid-ink-padding',
+      'Ink padding must be nonnegative',
+    );
+    invariant(
+      decoration === null || decoration.debugAssertIsValid(),
+      'invalid-ink-decoration',
+      'Ink requires a valid decoration',
+    );
+    invariant(
+      color === null || decoration === null,
+      'conflicting-ink-decoration',
+      'Ink color and decoration are exclusive',
+    );
+    this.child = child;
+    this.padding = padding;
+    this.decoration =
+      decoration ?? (color !== null ? new BoxDecoration({ color: color.toARGB32() }) : null);
+    this.width = width;
+    this.height = height;
+  }
+  static image({
+    image,
+    onImageError = null,
+    colorFilter = null,
+    fit = null,
+    alignment,
+    centerSlice = null,
+    repeat = 'noRepeat',
+    matchTextDirection = false,
+    ...options
+  }: InkImageOptions): Ink {
+    return new Ink({
+      ...options,
+      decoration: new BoxDecoration({
+        image: new DecorationImage({
+          image,
+          onError: onImageError,
+          colorFilter,
+          fit,
+          ...(alignment ? { alignment } : {}),
+          centerSlice,
+          repeat,
+          matchTextDirection,
+        }),
+      }),
+    });
+  }
+  get paddingIncludingDecoration(): EdgeInsetsGeometry {
+    return (this.padding ?? EdgeInsets.zero).add(this.decoration?.padding ?? EdgeInsets.zero);
+  }
+  createState(): State {
+    return new InkState();
+  }
+  override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
+    super.debugFillProperties(properties);
+    properties.add(new DiagnosticsProperty('padding', this.padding, { defaultValue: null }));
+    properties.add(new DiagnosticsProperty('bg', this.decoration, { defaultValue: null }));
+  }
 }
 class InkState extends State<Ink> {
-    private readonly boxKey = createFrameworkAnchorKey();
-    private ink: InkDecoration | null = null;
-    private readonly removed = () => {
-        this.ink = null;
-    };
-    private buildContents(context: BuildContext): Widget {
-        if (this.ink === null) {
-            const reference = this.boxKey.currentContext?.findRenderObject();
-            invariant(reference instanceof RenderBox, 'missing-ink-reference', 'Ink requires its actual Padding render box');
-            this.ink = new InkDecoration({
-                decoration: this.widget.decoration, isVisible: Visibility.of(context), configuration: createLocalImageConfiguration(context), controller: Material.of(context), referenceBox: reference, onRemoved: this.removed
-            });
-        }
-        else {
-            this.ink.decoration = this.widget.decoration;
-            this.ink.isVisible = Visibility.of(context);
-            this.ink.configuration = createLocalImageConfiguration(context);
-        }
-        return this.widget.child ?? new ConstrainedBox(undefined, BoxConstraints.expand());
+  private readonly boxKey = createFrameworkAnchorKey();
+  private ink: InkDecoration | null = null;
+  private readonly removed = () => {
+    this.ink = null;
+  };
+  private buildContents(context: BuildContext): Widget {
+    if (this.ink === null) {
+      const reference = this.boxKey.currentContext?.findRenderObject();
+      invariant(
+        reference instanceof RenderBox,
+        'missing-ink-reference',
+        'Ink requires its actual Padding render box',
+      );
+      this.ink = new InkDecoration({
+        decoration: this.widget.decoration,
+        isVisible: Visibility.of(context),
+        configuration: createLocalImageConfiguration(context),
+        controller: Material.of(context),
+        referenceBox: reference,
+        onRemoved: this.removed,
+      });
+    } else {
+      this.ink.decoration = this.widget.decoration;
+      this.ink.isVisible = Visibility.of(context);
+      this.ink.configuration = createLocalImageConfiguration(context);
     }
-    build(context: BuildContext): Widget {
-        Material.of(context);
-        let result: Widget = new Padding(this.widget.paddingIncludingDecoration, new Builder(c => this.buildContents(c)), this.boxKey);
-        if (this.widget.width !== null || this.widget.height !== null)
-            result = new SizedBox(this.widget.width ?? undefined, this.widget.height ?? undefined, result);
-        return result;
+    return this.widget.child ?? new ConstrainedBox(undefined, BoxConstraints.expand());
+  }
+  build(context: BuildContext): Widget {
+    Material.of(context);
+    let result: Widget = new Padding(
+      this.widget.paddingIncludingDecoration,
+      new Builder((c) => this.buildContents(c)),
+      this.boxKey,
+    );
+    if (this.widget.width !== null || this.widget.height !== null)
+      result = new SizedBox(
+        this.widget.width ?? undefined,
+        this.widget.height ?? undefined,
+        result,
+      );
+    return result;
+  }
+  override deactivate(): void {
+    try {
+      this.ink?.dispose();
+    } finally {
+      super.deactivate();
     }
-    override deactivate(): void {
-        try {
-            this.ink?.dispose();
-        }
-        finally {
-            super.deactivate();
-        }
+  }
+  override dispose(): void {
+    try {
+      this.ink?.dispose();
+    } finally {
+      super.dispose();
     }
-    override dispose(): void {
-        try {
-            this.ink?.dispose();
-        }
-        finally {
-            super.dispose();
-        }
-    }
+  }
 }
 export interface InkDecorationOptions extends InkFeatureOptions {
-    readonly decoration: Decoration | null;
-    readonly configuration: ImageConfiguration;
-    readonly isVisible?: boolean;
+  readonly decoration: Decoration | null;
+  readonly configuration: ImageConfiguration;
+  readonly isVisible?: boolean;
 }
 export class InkDecoration extends InkFeature {
-    private readonly canonicalDecoration: boolean;
-    private emptyPaint = false;
-    private painter: BoxPainter | null = null;
-    private currentDecoration: Decoration | null = null;
-    private visible = true;
-    private currentConfiguration: ImageConfiguration;
-    constructor({ decoration, configuration, isVisible = true, ...options }: InkDecorationOptions) {
-        super(options);
-        this.canonicalDecoration = new.target === InkDecoration;
-        this.currentConfiguration = configuration;
-        this.decoration = decoration;
-        this.isVisible = isVisible;
-        this.controller.addInkFeature(this);
+  private readonly canonicalDecoration: boolean;
+  private emptyPaint = false;
+  private painter: BoxPainter | null = null;
+  private currentDecoration: Decoration | null = null;
+  private visible = true;
+  private currentConfiguration: ImageConfiguration;
+  constructor({ decoration, configuration, isVisible = true, ...options }: InkDecorationOptions) {
+    super(options);
+    this.canonicalDecoration = new.target === InkDecoration;
+    this.currentConfiguration = configuration;
+    this.decoration = decoration;
+    this.isVisible = isVisible;
+    this.controller.addInkFeature(this);
+  }
+  private assertLive(): void {
+    invariant(!this.debugDisposed, 'disposed-ink-decoration', 'InkDecoration is disposed');
+  }
+  get decoration(): Decoration | null {
+    return this.currentDecoration;
+  }
+  set decoration(value: Decoration | null) {
+    this.assertLive();
+    if (valueEquals(value, this.currentDecoration)) {
+      // Keep the original value/painter equality contract, including a
+      // caller's equal decoration. Only our still-owned default can cull.
+      this.emptyPaint =
+        this.canonicalDecoration &&
+        value === emptyInkDecoration &&
+        this.currentDecoration === emptyInkDecoration;
+      return;
     }
-    private assertLive(): void {
-        invariant(!this.debugDisposed, 'disposed-ink-decoration', 'InkDecoration is disposed');
+    this.emptyPaint = false;
+    this.currentDecoration = value;
+    this.painter?.dispose();
+    this.painter =
+      value?.createBoxPainter(() => {
+        if (!this.debugDisposed) this.controller.markNeedsPaint();
+      }) ?? null;
+    this.emptyPaint = this.canonicalDecoration && value === emptyInkDecoration;
+    this.controller.markNeedsPaint();
+  }
+  get isVisible(): boolean {
+    return this.visible;
+  }
+  set isVisible(value: boolean) {
+    this.assertLive();
+    if (value === this.visible) return;
+    this.visible = value;
+    this.controller.markNeedsPaint();
+  }
+  get configuration(): ImageConfiguration {
+    return this.currentConfiguration;
+  }
+  set configuration(value: ImageConfiguration) {
+    this.assertLive();
+    if (value.equals(this.currentConfiguration)) return;
+    this.currentConfiguration = value;
+    this.controller.markNeedsPaint();
+  }
+  override paintOnMaterial(canvas: Canvas): void {
+    if (this.emptyPaint) return;
+    super.paintOnMaterial(canvas);
+  }
+  protected paintFeature(canvas: Canvas, transform: Matrix4): void {
+    if (this.painter === null || !this.visible) return;
+    const origin = MatrixUtils.getAsTranslation(transform),
+      configuration = this.currentConfiguration.copyWith({ size: this.referenceBox.size });
+    if (origin === null) {
+      canvas.save();
+      try {
+        canvas.transform(transform.storage);
+        this.painter.paint(canvas, Offset.zero, configuration);
+      } finally {
+        canvas.restore();
+      }
+    } else this.painter.paint(canvas, origin, configuration);
+  }
+  override dispose(): void {
+    if (this.debugDisposed) return;
+    const painter = this.painter;
+    this.painter = null;
+    try {
+      painter?.dispose();
+    } finally {
+      super.dispose();
     }
-    get decoration(): Decoration | null {
-        return this.currentDecoration;
-    }
-    set decoration(value: Decoration | null) {
-        this.assertLive();
-        if (valueEquals(value, this.currentDecoration)) {
-            // Keep the original value/painter equality contract, including a
-            // caller's equal decoration. Only our still-owned default can cull.
-            this.emptyPaint = this.canonicalDecoration && value === emptyInkDecoration && this.currentDecoration === emptyInkDecoration;
-            return;
-        }
-        this.emptyPaint = false;
-        this.currentDecoration = value;
-        this.painter?.dispose();
-        this.painter = value?.createBoxPainter(() => {
-            if (!this.debugDisposed)
-                this.controller.markNeedsPaint();
-        }) ?? null;
-        this.emptyPaint = this.canonicalDecoration && value === emptyInkDecoration;
-        this.controller.markNeedsPaint();
-    }
-    get isVisible(): boolean {
-        return this.visible;
-    }
-    set isVisible(value: boolean) {
-        this.assertLive();
-        if (value === this.visible)
-            return;
-        this.visible = value;
-        this.controller.markNeedsPaint();
-    }
-    get configuration(): ImageConfiguration {
-        return this.currentConfiguration;
-    }
-    set configuration(value: ImageConfiguration) {
-        this.assertLive();
-        if (value.equals(this.currentConfiguration))
-            return;
-        this.currentConfiguration = value;
-        this.controller.markNeedsPaint();
-    }
-    override paintOnMaterial(canvas: Canvas): void {
-        if (this.emptyPaint)
-            return;
-        super.paintOnMaterial(canvas);
-    }
-    protected paintFeature(canvas: Canvas, transform: Matrix4): void {
-        if (this.painter === null || !this.visible)
-            return;
-        const origin = MatrixUtils.getAsTranslation(transform), configuration = this.currentConfiguration.copyWith({ size: this.referenceBox.size });
-        if (origin === null) {
-            canvas.save();
-            try {
-                canvas.transform(transform.storage);
-                this.painter.paint(canvas, Offset.zero, configuration);
-            }
-            finally {
-                canvas.restore();
-            }
-        }
-        else
-            this.painter.paint(canvas, origin, configuration);
-    }
-    override dispose(): void {
-        if (this.debugDisposed)
-            return;
-        const painter = this.painter;
-        this.painter = null;
-        try {
-            painter?.dispose();
-        }
-        finally {
-            super.dispose();
-        }
-    }
+  }
 }

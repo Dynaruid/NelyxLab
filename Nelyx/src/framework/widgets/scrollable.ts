@@ -1,106 +1,711 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import {FoundationBuildMode} from '../../foundation/constants.ts';
-import {StatefulWidget,InheritedWidget,Element,SingleChildRenderObjectWidget} from './framework.ts';
-import type {Widget,BuildContext,WidgetOptions} from './framework.ts';
-import {TickerProviderStateMixin} from './ticker-provider.ts';import type {TickerProvider} from '../animation/ticker.ts';
-import {ScrollController} from './scroll-controller.ts';import {ScrollPosition} from './scroll-position.ts';import {ScrollMetricsNotification} from './scroll-position.ts';
-import type {EnsureVisibleOptions} from './scroll-position.ts';
-import {ScrollConfiguration} from './scroll-configuration.ts';import type {ScrollBehavior} from './scroll-configuration.ts';import type {ScrollPhysics} from './scroll-physics.ts';import type {ScrollContext} from './scroll-context.ts';
-import {ScrollableDetails} from './scrollable-helpers.ts';import type {ScrollIncrementCalculator} from './scrollable-helpers.ts';
-import {Axis,AxisDirection,axisDirectionToAxis,axisDirectionIsReversed,flipAxis} from '../painting/basic-types.ts';
-import {Offset} from '../../ui/offset.ts';import type {Clip} from '../../ui/clip.ts';
-import {SemanticsAction} from '../../ui/semantics-action.ts';import {PointerDeviceKind} from '../../ui/pointer.ts';
-import {PointerScrollEvent,PointerScrollInertiaCancelEvent} from '../gestures/events.ts';import type {PointerSignalEvent} from '../gestures/events.ts';
-import {DragStartBehavior} from '../gestures/recognizer.ts';import {VerticalDragGestureRecognizer,HorizontalDragGestureRecognizer} from '../gestures/monodrag.ts';import type {DragGestureRecognizer} from '../gestures/monodrag.ts';
-import type {DragDownDetails,DragStartDetails,DragUpdateDetails,DragEndDetails} from '../gestures/drag-details.ts';import type {Drag} from '../gestures/drag.ts';import type {ScrollHoldController} from './scroll-activity.ts';
-import {RawGestureDetector,RawGestureDetectorState,GestureRecognizerFactoryWithHandlers} from './raw-gesture-detector.ts';import type {GestureRecognizerFactories,GestureRecognizerType} from './raw-gesture-detector.ts';
-import {HitTestBehavior} from '../rendering/pointer-listener.ts';import {RenderIgnorePointer} from '../rendering/pointer-blocking.ts';import {IgnorePointer} from './pointer-blocking.ts';
-import {_RenderScrollSemantics} from '../rendering/scroll-semantics.ts';import type { RenderObject } from '../rendering/object.ts';
-import {GlobalKey} from './global-key.ts';import {MediaQuery} from './app-data.ts';import {Listener} from './listener.ts';import {NotificationListener} from './notification-listener.ts';
-import {invariant} from '../../foundation/errors.ts';
-import {RestorationOwner} from './restoration.ts';
-import {SelectionContainer} from './selection-container.ts';import {ScrollableSelectionHandler} from './scrollable-selection.ts';
-export type ViewportBuilder=(context:BuildContext,position:ScrollPosition)=>Widget;
+import { FoundationBuildMode } from '../../foundation/constants.ts';
+import {
+  StatefulWidget,
+  InheritedWidget,
+  Element,
+  SingleChildRenderObjectWidget,
+} from './framework.ts';
+import type { Widget, BuildContext, WidgetOptions } from './framework.ts';
+import { TickerProviderStateMixin } from './ticker-provider.ts';
+import type { TickerProvider } from '../animation/ticker.ts';
+import { ScrollController } from './scroll-controller.ts';
+import { ScrollPosition } from './scroll-position.ts';
+import { ScrollMetricsNotification } from './scroll-position.ts';
+import type { EnsureVisibleOptions } from './scroll-position.ts';
+import { ScrollConfiguration } from './scroll-configuration.ts';
+import type { ScrollBehavior } from './scroll-configuration.ts';
+import type { ScrollPhysics } from './scroll-physics.ts';
+import type { ScrollContext } from './scroll-context.ts';
+import { ScrollableDetails } from './scrollable-helpers.ts';
+import type { ScrollIncrementCalculator } from './scrollable-helpers.ts';
+import {
+  Axis,
+  AxisDirection,
+  axisDirectionToAxis,
+  axisDirectionIsReversed,
+  flipAxis,
+} from '../painting/basic-types.ts';
+import { Offset } from '../../ui/offset.ts';
+import type { Clip } from '../../ui/clip.ts';
+import { SemanticsAction } from '../../ui/semantics-action.ts';
+import { PointerDeviceKind } from '../../ui/pointer.ts';
+import { PointerScrollEvent, PointerScrollInertiaCancelEvent } from '../gestures/events.ts';
+import type { PointerSignalEvent } from '../gestures/events.ts';
+import { DragStartBehavior } from '../gestures/recognizer.ts';
+import {
+  VerticalDragGestureRecognizer,
+  HorizontalDragGestureRecognizer,
+} from '../gestures/monodrag.ts';
+import type { DragGestureRecognizer } from '../gestures/monodrag.ts';
+import type {
+  DragDownDetails,
+  DragStartDetails,
+  DragUpdateDetails,
+  DragEndDetails,
+} from '../gestures/drag-details.ts';
+import type { Drag } from '../gestures/drag.ts';
+import type { ScrollHoldController } from './scroll-activity.ts';
+import {
+  RawGestureDetector,
+  RawGestureDetectorState,
+  GestureRecognizerFactoryWithHandlers,
+} from './raw-gesture-detector.ts';
+import type { GestureRecognizerFactories, GestureRecognizerType } from './raw-gesture-detector.ts';
+import { HitTestBehavior } from '../rendering/pointer-listener.ts';
+import { RenderIgnorePointer } from '../rendering/pointer-blocking.ts';
+import { IgnorePointer } from './pointer-blocking.ts';
+import { _RenderScrollSemantics } from '../rendering/scroll-semantics.ts';
+import type { RenderObject } from '../rendering/object.ts';
+import { GlobalKey } from './global-key.ts';
+import { MediaQuery } from './app-data.ts';
+import { Listener } from './listener.ts';
+import { NotificationListener } from './notification-listener.ts';
+import { invariant } from '../../foundation/errors.ts';
+import { RestorationOwner } from './restoration.ts';
+import { SelectionContainer } from './selection-container.ts';
+import { ScrollableSelectionHandler } from './scrollable-selection.ts';
+export type ViewportBuilder = (context: BuildContext, position: ScrollPosition) => Widget;
 export interface ScrollableOptions extends WidgetOptions {
-  readonly viewportBuilder:ViewportBuilder;readonly axisDirection?:AxisDirection;readonly controller?:ScrollController|null;readonly physics?:ScrollPhysics|null;readonly incrementCalculator?:ScrollIncrementCalculator|null;readonly excludeFromSemantics?:boolean;readonly semanticChildCount?:number|null;readonly dragStartBehavior?:DragStartBehavior;readonly restorationId?:string|null;readonly scrollBehavior?:ScrollBehavior|null;readonly clipBehavior?:Clip;readonly hitTestBehavior?:HitTestBehavior;
+  readonly viewportBuilder: ViewportBuilder;
+  readonly axisDirection?: AxisDirection;
+  readonly controller?: ScrollController | null;
+  readonly physics?: ScrollPhysics | null;
+  readonly incrementCalculator?: ScrollIncrementCalculator | null;
+  readonly excludeFromSemantics?: boolean;
+  readonly semanticChildCount?: number | null;
+  readonly dragStartBehavior?: DragStartBehavior;
+  readonly restorationId?: string | null;
+  readonly scrollBehavior?: ScrollBehavior | null;
+  readonly clipBehavior?: Clip;
+  readonly hitTestBehavior?: HitTestBehavior;
 }
 export class Scrollable extends StatefulWidget {
-  readonly viewportBuilder:ViewportBuilder;readonly axisDirection:AxisDirection;readonly controller:ScrollController|null;readonly physics:ScrollPhysics|null;readonly incrementCalculator:ScrollIncrementCalculator|null;readonly excludeFromSemantics:boolean;readonly semanticChildCount:number|null;readonly dragStartBehavior:DragStartBehavior;readonly restorationId:string|null;readonly scrollBehavior:ScrollBehavior|null;readonly clipBehavior:Clip;readonly hitTestBehavior:HitTestBehavior;
-  constructor({viewportBuilder,axisDirection=AxisDirection.down,controller=null,physics=null,incrementCalculator=null,excludeFromSemantics=false,semanticChildCount=null,dragStartBehavior=DragStartBehavior.start,restorationId=null,scrollBehavior=null,clipBehavior='hardEdge',hitTestBehavior=HitTestBehavior.opaque,...options}:ScrollableOptions){super(options.key??null);invariant(semanticChildCount===null||Number.isSafeInteger(semanticChildCount)&&semanticChildCount>=0,'invalid-scroll-semantic-count','Semantic child count must be a nonnegative integer');this.viewportBuilder=viewportBuilder;this.axisDirection=axisDirection;this.controller=controller;this.physics=physics;this.incrementCalculator=incrementCalculator;this.excludeFromSemantics=excludeFromSemantics;this.semanticChildCount=semanticChildCount;this.dragStartBehavior=dragStartBehavior;this.restorationId=restorationId;this.scrollBehavior=scrollBehavior;this.clipBehavior=clipBehavior;this.hitTestBehavior=hitTestBehavior;}
-  get axis():Axis{return axisDirectionToAxis(this.axisDirection);}
-  createState():ScrollableState{return new ScrollableState();}
-  static maybeOf(context:BuildContext,{axis=null}:{readonly axis?:Axis|null}={}):ScrollableState|null{const original=context;let element=context.getElementForInheritedWidgetOfExactType(_ScrollableScope);while(element){const scrollable=(element.widget as _ScrollableScope).scrollable;if(axis===null||axisDirectionToAxis(scrollable.axisDirection)===axis){original.dependOnInheritedElement(element);return scrollable;}context=scrollable.context;element=context.getElementForInheritedWidgetOfExactType(_ScrollableScope);}return null;}
-  static of(context:BuildContext,options:{readonly axis?:Axis|null}={}):ScrollableState{const state=this.maybeOf(context,options);invariant(state,'missing-scrollable','Scrollable.of requires a matching Scrollable ancestor');return state;}
-  static ensureVisible(context:BuildContext,options:Omit<EnsureVisibleOptions,'targetRenderObject'>={}):Promise<void>{
-    const futures:Promise<void>[]=[];let targetRenderObject:RenderObject|null=null,scrollable=this.maybeOf(context);const seen=new Set<ScrollableState>();
-    while(scrollable!==null){invariant(!seen.has(scrollable),'cyclic-scrollable-reveal','Scrollable ancestry must be acyclic');seen.add(scrollable);const render=context.findRenderObject();invariant(render,'missing-ensure-visible-render','ensureVisible requires a mounted render object');const result=scrollable.performEnsureVisible(render,{...options,targetRenderObject});futures.push(...result[0]);targetRenderObject??=render;if(!scrollable.mounted||!result[1].mounted)break;context=result[1].context;scrollable=this.maybeOf(context);}
-    return Promise.all(futures).then(()=>undefined);
+  readonly viewportBuilder: ViewportBuilder;
+  readonly axisDirection: AxisDirection;
+  readonly controller: ScrollController | null;
+  readonly physics: ScrollPhysics | null;
+  readonly incrementCalculator: ScrollIncrementCalculator | null;
+  readonly excludeFromSemantics: boolean;
+  readonly semanticChildCount: number | null;
+  readonly dragStartBehavior: DragStartBehavior;
+  readonly restorationId: string | null;
+  readonly scrollBehavior: ScrollBehavior | null;
+  readonly clipBehavior: Clip;
+  readonly hitTestBehavior: HitTestBehavior;
+  constructor({
+    viewportBuilder,
+    axisDirection = AxisDirection.down,
+    controller = null,
+    physics = null,
+    incrementCalculator = null,
+    excludeFromSemantics = false,
+    semanticChildCount = null,
+    dragStartBehavior = DragStartBehavior.start,
+    restorationId = null,
+    scrollBehavior = null,
+    clipBehavior = 'hardEdge',
+    hitTestBehavior = HitTestBehavior.opaque,
+    ...options
+  }: ScrollableOptions) {
+    super(options.key ?? null);
+    invariant(
+      semanticChildCount === null ||
+        (Number.isSafeInteger(semanticChildCount) && semanticChildCount >= 0),
+      'invalid-scroll-semantic-count',
+      'Semantic child count must be a nonnegative integer',
+    );
+    this.viewportBuilder = viewportBuilder;
+    this.axisDirection = axisDirection;
+    this.controller = controller;
+    this.physics = physics;
+    this.incrementCalculator = incrementCalculator;
+    this.excludeFromSemantics = excludeFromSemantics;
+    this.semanticChildCount = semanticChildCount;
+    this.dragStartBehavior = dragStartBehavior;
+    this.restorationId = restorationId;
+    this.scrollBehavior = scrollBehavior;
+    this.clipBehavior = clipBehavior;
+    this.hitTestBehavior = hitTestBehavior;
+  }
+  get axis(): Axis {
+    return axisDirectionToAxis(this.axisDirection);
+  }
+  createState(): ScrollableState {
+    return new ScrollableState();
+  }
+  static maybeOf(
+    context: BuildContext,
+    { axis = null }: { readonly axis?: Axis | null } = {},
+  ): ScrollableState | null {
+    const original = context;
+    let element = context.getElementForInheritedWidgetOfExactType(_ScrollableScope);
+    while (element) {
+      const scrollable = (element.widget as _ScrollableScope).scrollable;
+      if (axis === null || axisDirectionToAxis(scrollable.axisDirection) === axis) {
+        original.dependOnInheritedElement(element);
+        return scrollable;
+      }
+      context = scrollable.context;
+      element = context.getElementForInheritedWidgetOfExactType(_ScrollableScope);
+    }
+    return null;
+  }
+  static of(context: BuildContext, options: { readonly axis?: Axis | null } = {}): ScrollableState {
+    const state = this.maybeOf(context, options);
+    invariant(state, 'missing-scrollable', 'Scrollable.of requires a matching Scrollable ancestor');
+    return state;
+  }
+  static ensureVisible(
+    context: BuildContext,
+    options: Omit<EnsureVisibleOptions, 'targetRenderObject'> = {},
+  ): Promise<void> {
+    const futures: Promise<void>[] = [];
+    let targetRenderObject: RenderObject | null = null,
+      scrollable = this.maybeOf(context);
+    const seen = new Set<ScrollableState>();
+    while (scrollable !== null) {
+      invariant(
+        !seen.has(scrollable),
+        'cyclic-scrollable-reveal',
+        'Scrollable ancestry must be acyclic',
+      );
+      seen.add(scrollable);
+      const render = context.findRenderObject();
+      invariant(
+        render,
+        'missing-ensure-visible-render',
+        'ensureVisible requires a mounted render object',
+      );
+      const result = scrollable.performEnsureVisible(render, { ...options, targetRenderObject });
+      futures.push(...result[0]);
+      targetRenderObject ??= render;
+      if (!scrollable.mounted || !result[1].mounted) break;
+      context = result[1].context;
+      scrollable = this.maybeOf(context);
+    }
+    return Promise.all(futures).then(() => undefined);
   }
 }
 class _ScrollableScope extends InheritedWidget {
-  constructor(readonly scrollable:ScrollableState,readonly position:ScrollPosition,child:Widget){super(child);}
-  updateShouldNotify(old:this):boolean{return this.position!==old.position;}
+  constructor(
+    readonly scrollable: ScrollableState,
+    readonly position: ScrollPosition,
+    child: Widget,
+  ) {
+    super(child);
+  }
+  updateShouldNotify(old: this): boolean {
+    return this.position !== old.position;
+  }
 }
 export class ScrollableState extends TickerProviderStateMixin<Scrollable> implements ScrollContext {
-  private currentPosition:ScrollPosition|null=null;protected physics:ScrollPhysics|null=null;protected scrollConfiguration!:ScrollBehavior;private fallbackController:ScrollController|null=null;private ratio=1;protected mediaGestureSettings:ReturnType<typeof MediaQuery.maybeGestureSettingsOf>=null;
-  protected readonly gestureKey=new GlobalKey<RawGestureDetectorState>('scrollable gestures');private readonly ignoreKey=new GlobalKey('scrollable ignore');private readonly semanticsKey=new GlobalKey('scrollable semantics');
-  protected recognizers:GestureRecognizerFactories=new Map();private ignorePointer=false;protected lastCanDrag:boolean|null=null;protected lastAxis:Axis|null=null;private holdController:ScrollHoldController|null=null;private dragController:Drag|null=null;private scrollableClosed=false;
-  private persistedOffset:number|null=null;
-  private readonly restoration=new RestorationOwner(this,(bucket,initialRestore,needsRestore)=>{if(needsRestore){const value=bucket?.read('offset')??null;invariant(value===null||typeof value==='number'&&Number.isFinite(value),'invalid-restored-scroll-offset','Restored scroll offsets must be finite numbers');this.persistedOffset=value;if(value!==null)this.position.restoreOffset(value,{initialRestore});}else if(bucket!==null&&this.persistedOffset!==null)bucket.write('offset',this.persistedOffset);});
-  private attachedController:ScrollController|null=null;
-  get position():ScrollPosition{invariant(this.currentPosition,'uninitialized-scroll-position','Scrollable position is not initialized');return this.currentPosition;}get resolvedPhysics():ScrollPhysics|null{return this.physics;}
+  private currentPosition: ScrollPosition | null = null;
+  protected physics: ScrollPhysics | null = null;
+  protected scrollConfiguration!: ScrollBehavior;
+  private fallbackController: ScrollController | null = null;
+  private ratio = 1;
+  protected mediaGestureSettings: ReturnType<typeof MediaQuery.maybeGestureSettingsOf> = null;
+  protected readonly gestureKey = new GlobalKey<RawGestureDetectorState>('scrollable gestures');
+  private readonly ignoreKey = new GlobalKey('scrollable ignore');
+  private readonly semanticsKey = new GlobalKey('scrollable semantics');
+  protected recognizers: GestureRecognizerFactories = new Map();
+  private ignorePointer = false;
+  protected lastCanDrag: boolean | null = null;
+  protected lastAxis: Axis | null = null;
+  private holdController: ScrollHoldController | null = null;
+  private dragController: Drag | null = null;
+  private scrollableClosed = false;
+  private persistedOffset: number | null = null;
+  private readonly restoration = new RestorationOwner(
+    this,
+    (bucket, initialRestore, needsRestore) => {
+      if (needsRestore) {
+        const value = bucket?.read('offset') ?? null;
+        invariant(
+          value === null || (typeof value === 'number' && Number.isFinite(value)),
+          'invalid-restored-scroll-offset',
+          'Restored scroll offsets must be finite numbers',
+        );
+        this.persistedOffset = value;
+        if (value !== null) this.position.restoreOffset(value, { initialRestore });
+      } else if (bucket !== null && this.persistedOffset !== null)
+        bucket.write('offset', this.persistedOffset);
+    },
+  );
+  private attachedController: ScrollController | null = null;
+  get position(): ScrollPosition {
+    invariant(
+      this.currentPosition,
+      'uninitialized-scroll-position',
+      'Scrollable position is not initialized',
+    );
+    return this.currentPosition;
+  }
+  get resolvedPhysics(): ScrollPhysics | null {
+    return this.physics;
+  }
   /** Host subclasses may preserve an established restoration role name. */
-  protected get restorationId():string|null{return this.widget.restorationId;}
-  protected get effectiveController():ScrollController{return this.widget.controller??this.fallbackController!;}
-  get axisDirection():AxisDirection{return this.widget.axisDirection;}get vsync():TickerProvider{return this;}get devicePixelRatio():number{return this.ratio;}get notificationContext():BuildContext|null{return this.gestureKey.currentContext??null;}get storageContext():BuildContext{return this.context;}
-  get deltaToScrollOrigin():Offset{switch(this.axisDirection){case AxisDirection.up:return new Offset(0,-this.position.pixels);case AxisDirection.down:return new Offset(0,this.position.pixels);case AxisDirection.left:return new Offset(-this.position.pixels,0);default:return new Offset(this.position.pixels,0);}}
-  override initState():void{super.initState();if(this.widget.controller===null)this.fallbackController=new ScrollController();}
-  override didChangeDependencies():void{this.mediaGestureSettings=MediaQuery.maybeGestureSettingsOf(this.context);this.ratio=MediaQuery.maybeDevicePixelRatioOf(this.context)??this.context.services.readMetrics('scale').scale;this.updatePosition();super.didChangeDependencies();this.restoration.update(this.context,this.restorationId);}
-  private updatePosition():void{
-    const configuration=this.widget.scrollBehavior??ScrollConfiguration.of(this.context),override=this.widget.physics??this.widget.scrollBehavior?.getScrollPhysics(this.context),physics=override?.applyTo(configuration.getScrollPhysics(this.context))??configuration.getScrollPhysics(this.context),controller=this.effectiveController;
-    const old=this.currentPosition,previousController=this.attachedController;let next:ScrollPosition|null=null;
-    try{if(old&&previousController){try{previousController.detach(old);}finally{this.attachedController=null;}}next=controller.createScrollPosition(physics,this,old);this.currentPosition=next;this.attachedController=controller;controller.attach(next);this.physics=physics;this.scrollConfiguration=configuration;next._commitAbsorption();}
-    catch(error){const failures:unknown[]=[error];this.attachedController=null;if(next&&old&&!this.scrollableClosed)try{next._restoreAbsorbedPosition(old);}catch(failure){failures.push(failure);}if(next)try{next.dispose();}catch(failure){failures.push(failure);}this.currentPosition=this.scrollableClosed?null:old;if(this.scrollableClosed&&old)try{old.dispose();}catch(failure){failures.push(failure);}if(old&&previousController&&!this.scrollableClosed)try{previousController._restoreAttachmentAfterFailedTransfer(old,this);this.attachedController=previousController;}catch(failure){failures.push(failure);}if(failures.length===1)throw error;throw new AggregateError(failures,'Scroll position attachment failed');}
-    if(old)void Promise.resolve().then(()=>old.dispose());
+  protected get restorationId(): string | null {
+    return this.widget.restorationId;
   }
-  private shouldUpdatePosition(old:Scrollable):boolean{if((this.widget.scrollBehavior===null)!==(old.scrollBehavior===null))return true;if(this.widget.scrollBehavior!==null&&old.scrollBehavior!==null&&this.widget.scrollBehavior.shouldNotify(old.scrollBehavior))return true;const next=this.widget.physics??this.widget.scrollBehavior?.getScrollPhysics(this.context),previous=old.physics??old.scrollBehavior?.getScrollPhysics(this.context);return next?.constructor!==previous?.constructor||next!=null&&previous!=null&&next.shouldUpdate(previous)||this.widget.controller?.constructor!==old.controller?.constructor;}
-  override didUpdateWidget(old:Scrollable):void{super.didUpdateWidget(old);if(this.widget.controller!==old.controller){const previous=this.attachedController,previousFallback=this.fallbackController,nextFallback=this.widget.controller===null?new ScrollController():null,next=this.widget.controller??nextFallback!;try{if(previous){try{previous.detach(this.position);}finally{this.attachedController=null;}}next.attach(this.position);this.attachedController=next;this.fallbackController=nextFallback;previousFallback?.dispose();}catch(error){const failures:unknown[]=[error];if(this.attachedController===null&&previous)try{previous._restoreAttachmentAfterFailedTransfer(this.position,this);this.attachedController=previous;}catch(failure){failures.push(failure);}try{nextFallback?.dispose();}catch(failure){failures.push(failure);}this.fallbackController=previousFallback;if(failures.length===1)throw error;throw new AggregateError(failures,'Scroll controller replacement failed');}}if(this.shouldUpdatePosition(old))this.updatePosition();this.restoration.update(this.context,this.restorationId);}
-  /** Source saveOffset persists at scroll end even if no further frame is requested. */
-  saveOffset(offset:number):void{this.persistedOffset=offset;const bucket=this.restoration.bucket;if(bucket){bucket.write('offset',offset);const manager=bucket._restorationManager;if(manager){const report=this.context.services.reportError;void manager.flushData().catch(error=>report?.(error));}}}
-  setIgnorePointer(value:boolean):void{if(this.ignorePointer===value)return;this.ignorePointer=value;const render=this.ignoreKey.currentContext?.findRenderObject();if(render){invariant(render instanceof RenderIgnorePointer,'invalid-scroll-ignore-renderer','Scroll pointer suppression requires its actual mounted RenderIgnorePointer');render.ignoring=value;}}
-  setSemanticsActions(actions:Set<SemanticsAction>):void{this.gestureKey.currentState?.replaceSemanticsActions(actions);}
-  setCanDrag(value:boolean):void{
-    if(value===this.lastCanDrag&&(!value||this.widget.axis===this.lastAxis))return;
-    if(!value){this.recognizers=new Map();this.handleDragCancel();}else{
-      const type:GestureRecognizerType<DragGestureRecognizer>=this.widget.axis===Axis.vertical?VerticalDragGestureRecognizer:HorizontalDragGestureRecognizer,context=this.context;invariant(context instanceof Element,'invalid-scrollable-context','Scroll gestures require an Element');
-      this.recognizers=new Map([[type,new GestureRecognizerFactoryWithHandlers(type,()=>this.widget.axis===Axis.vertical?new VerticalDragGestureRecognizer({binding:context.owner.gestureBinding,supportedDevices:this.scrollConfiguration.dragDevices,debugOwner:this}):new HorizontalDragGestureRecognizer({binding:context.owner.gestureBinding,supportedDevices:this.scrollConfiguration.dragDevices,debugOwner:this}),recognizer=>{
-        recognizer.onDown=details=>this.handleDragDown(details);recognizer.onStart=details=>this.handleDragStart(details);recognizer.onUpdate=details=>this.handleDragUpdate(details);recognizer.onEnd=details=>this.handleDragEnd(details);recognizer.onCancel=()=>this.handleDragCancel();recognizer.minFlingDistance=this.physics?.minFlingDistance??null;recognizer.minFlingVelocity=this.physics?.minFlingVelocity??null;recognizer.maxFlingVelocity=this.physics?.maxFlingVelocity??null;recognizer.velocityTrackerBuilder=this.scrollConfiguration.velocityTrackerBuilder(this.context);recognizer.dragStartBehavior=this.widget.dragStartBehavior;recognizer.multitouchDragStrategy=this.scrollConfiguration.getMultitouchDragStrategy(this.context);recognizer.gestureSettings=this.mediaGestureSettings;recognizer.supportedDevices=this.scrollConfiguration.dragDevices;
-      })]]);
+  protected get effectiveController(): ScrollController {
+    return this.widget.controller ?? this.fallbackController!;
+  }
+  get axisDirection(): AxisDirection {
+    return this.widget.axisDirection;
+  }
+  get vsync(): TickerProvider {
+    return this;
+  }
+  get devicePixelRatio(): number {
+    return this.ratio;
+  }
+  get notificationContext(): BuildContext | null {
+    return this.gestureKey.currentContext ?? null;
+  }
+  get storageContext(): BuildContext {
+    return this.context;
+  }
+  get deltaToScrollOrigin(): Offset {
+    switch (this.axisDirection) {
+      case AxisDirection.up:
+        return new Offset(0, -this.position.pixels);
+      case AxisDirection.down:
+        return new Offset(0, this.position.pixels);
+      case AxisDirection.left:
+        return new Offset(-this.position.pixels, 0);
+      default:
+        return new Offset(this.position.pixels, 0);
     }
-    this.lastCanDrag=value;this.lastAxis=this.widget.axis;this.gestureKey.currentState?.replaceGestureRecognizers(this.recognizers);
   }
-  handleDragDown(_details:DragDownDetails):void{if(this.scrollableClosed)return;invariant(this.dragController===null&&this.holdController===null,'duplicate-scroll-gesture-hold','A scroll gesture already owns a drag or hold');this.holdController=this.position.hold(()=>{this.holdController=null;});}
-  handleDragStart(details:DragStartDetails):void{if(this.scrollableClosed)return;invariant(this.dragController===null,'duplicate-scroll-gesture-drag','A scroll gesture already owns a drag');this.dragController=this.position.drag(details,()=>{this.dragController=null;});this.holdController=null;}
-  handleDragUpdate(details:DragUpdateDetails):void{if(!this.scrollableClosed)this.dragController?.update(details);}handleDragEnd(details:DragEndDetails):void{if(!this.scrollableClosed)this.dragController?.end(details);}
-  handleDragCancel():void{if(this.scrollableClosed||this.gestureKey.currentContext===undefined)return;this.holdController?.cancel();this.dragController?.cancel();}
-  private signalDelta(event:PointerScrollEvent):number{const context=this.context;invariant(context instanceof Element,'invalid-scrollable-context','Scroll signals require an Element');const pressed=context.owner.keyboard.logicalKeysPressed,flip=event.kind===PointerDeviceKind.mouse&&[...pressed].some(key=>this.scrollConfiguration.pointerAxisModifiers.has(key)),axis=flip?flipAxis(this.widget.axis):this.widget.axis,delta=axis===Axis.horizontal?event.scrollDelta.dx:event.scrollDelta.dy;return axisDirectionIsReversed(this.axisDirection)?-delta:delta;}
-  private targetForDelta(delta:number):number{return Math.min(Math.max(this.position.pixels+delta,this.position.minScrollExtent),this.position.maxScrollExtent);}
-  private receivedPointerSignal(event:PointerSignalEvent):void{
-    if(this.scrollableClosed)return;if(event instanceof PointerScrollEvent){const delta=this.signalDelta(event);if(delta!==0&&this.position.canScrollBy(delta)){const context=this.context;invariant(context instanceof Element,'invalid-scrollable-context','Scroll signals require an Element');context.owner.gestureBinding.pointerSignalResolver.register(event,signal=>{if(this.scrollableClosed){signal.respond({allowPlatformDefault:true});return;}invariant(signal instanceof PointerScrollEvent,'invalid-scroll-signal','Resolved scroll signals must retain their concrete event type');const delta=this.signalDelta(signal);if(delta!==0&&this.position.canScrollBy(delta)){this.position.pointerScroll(delta);signal.respond({allowPlatformDefault:false});}else signal.respond({allowPlatformDefault:true});});}}else if(event instanceof PointerScrollInertiaCancelEvent)this.position.pointerScroll(0);
+  override initState(): void {
+    super.initState();
+    if (this.widget.controller === null) this.fallbackController = new ScrollController();
+  }
+  override didChangeDependencies(): void {
+    this.mediaGestureSettings = MediaQuery.maybeGestureSettingsOf(this.context);
+    this.ratio =
+      MediaQuery.maybeDevicePixelRatioOf(this.context) ??
+      this.context.services.readMetrics('scale').scale;
+    this.updatePosition();
+    super.didChangeDependencies();
+    this.restoration.update(this.context, this.restorationId);
+  }
+  private updatePosition(): void {
+    const configuration = this.widget.scrollBehavior ?? ScrollConfiguration.of(this.context),
+      override = this.widget.physics ?? this.widget.scrollBehavior?.getScrollPhysics(this.context),
+      physics =
+        override?.applyTo(configuration.getScrollPhysics(this.context)) ??
+        configuration.getScrollPhysics(this.context),
+      controller = this.effectiveController;
+    const old = this.currentPosition,
+      previousController = this.attachedController;
+    let next: ScrollPosition | null = null;
+    try {
+      if (old && previousController) {
+        try {
+          previousController.detach(old);
+        } finally {
+          this.attachedController = null;
+        }
+      }
+      next = controller.createScrollPosition(physics, this, old);
+      this.currentPosition = next;
+      this.attachedController = controller;
+      controller.attach(next);
+      this.physics = physics;
+      this.scrollConfiguration = configuration;
+      next._commitAbsorption();
+    } catch (error) {
+      const failures: unknown[] = [error];
+      this.attachedController = null;
+      if (next && old && !this.scrollableClosed)
+        try {
+          next._restoreAbsorbedPosition(old);
+        } catch (failure) {
+          failures.push(failure);
+        }
+      if (next)
+        try {
+          next.dispose();
+        } catch (failure) {
+          failures.push(failure);
+        }
+      this.currentPosition = this.scrollableClosed ? null : old;
+      if (this.scrollableClosed && old)
+        try {
+          old.dispose();
+        } catch (failure) {
+          failures.push(failure);
+        }
+      if (old && previousController && !this.scrollableClosed)
+        try {
+          previousController._restoreAttachmentAfterFailedTransfer(old, this);
+          this.attachedController = previousController;
+        } catch (failure) {
+          failures.push(failure);
+        }
+      if (failures.length === 1) throw error;
+      throw new AggregateError(failures, 'Scroll position attachment failed');
+    }
+    if (old) void Promise.resolve().then(() => old.dispose());
+  }
+  private shouldUpdatePosition(old: Scrollable): boolean {
+    if ((this.widget.scrollBehavior === null) !== (old.scrollBehavior === null)) return true;
+    if (
+      this.widget.scrollBehavior !== null &&
+      old.scrollBehavior !== null &&
+      this.widget.scrollBehavior.shouldNotify(old.scrollBehavior)
+    )
+      return true;
+    const next = this.widget.physics ?? this.widget.scrollBehavior?.getScrollPhysics(this.context),
+      previous = old.physics ?? old.scrollBehavior?.getScrollPhysics(this.context);
+    return (
+      next?.constructor !== previous?.constructor ||
+      (next != null && previous != null && next.shouldUpdate(previous)) ||
+      this.widget.controller?.constructor !== old.controller?.constructor
+    );
+  }
+  override didUpdateWidget(old: Scrollable): void {
+    super.didUpdateWidget(old);
+    if (this.widget.controller !== old.controller) {
+      const previous = this.attachedController,
+        previousFallback = this.fallbackController,
+        nextFallback = this.widget.controller === null ? new ScrollController() : null,
+        next = this.widget.controller ?? nextFallback!;
+      try {
+        if (previous) {
+          try {
+            previous.detach(this.position);
+          } finally {
+            this.attachedController = null;
+          }
+        }
+        next.attach(this.position);
+        this.attachedController = next;
+        this.fallbackController = nextFallback;
+        previousFallback?.dispose();
+      } catch (error) {
+        const failures: unknown[] = [error];
+        if (this.attachedController === null && previous)
+          try {
+            previous._restoreAttachmentAfterFailedTransfer(this.position, this);
+            this.attachedController = previous;
+          } catch (failure) {
+            failures.push(failure);
+          }
+        try {
+          nextFallback?.dispose();
+        } catch (failure) {
+          failures.push(failure);
+        }
+        this.fallbackController = previousFallback;
+        if (failures.length === 1) throw error;
+        throw new AggregateError(failures, 'Scroll controller replacement failed');
+      }
+    }
+    if (this.shouldUpdatePosition(old)) this.updatePosition();
+    this.restoration.update(this.context, this.restorationId);
+  }
+  /** Source saveOffset persists at scroll end even if no further frame is requested. */
+  saveOffset(offset: number): void {
+    this.persistedOffset = offset;
+    const bucket = this.restoration.bucket;
+    if (bucket) {
+      bucket.write('offset', offset);
+      const manager = bucket._restorationManager;
+      if (manager) {
+        const report = this.context.services.reportError;
+        void manager.flushData().catch((error) => report?.(error));
+      }
+    }
+  }
+  setIgnorePointer(value: boolean): void {
+    if (this.ignorePointer === value) return;
+    this.ignorePointer = value;
+    const render = this.ignoreKey.currentContext?.findRenderObject();
+    if (render) {
+      invariant(
+        render instanceof RenderIgnorePointer,
+        'invalid-scroll-ignore-renderer',
+        'Scroll pointer suppression requires its actual mounted RenderIgnorePointer',
+      );
+      render.ignoring = value;
+    }
+  }
+  setSemanticsActions(actions: Set<SemanticsAction>): void {
+    this.gestureKey.currentState?.replaceSemanticsActions(actions);
+  }
+  setCanDrag(value: boolean): void {
+    if (value === this.lastCanDrag && (!value || this.widget.axis === this.lastAxis)) return;
+    if (!value) {
+      this.recognizers = new Map();
+      this.handleDragCancel();
+    } else {
+      const type: GestureRecognizerType<DragGestureRecognizer> =
+          this.widget.axis === Axis.vertical
+            ? VerticalDragGestureRecognizer
+            : HorizontalDragGestureRecognizer,
+        context = this.context;
+      invariant(
+        context instanceof Element,
+        'invalid-scrollable-context',
+        'Scroll gestures require an Element',
+      );
+      this.recognizers = new Map([
+        [
+          type,
+          new GestureRecognizerFactoryWithHandlers(
+            type,
+            () =>
+              this.widget.axis === Axis.vertical
+                ? new VerticalDragGestureRecognizer({
+                    binding: context.owner.gestureBinding,
+                    supportedDevices: this.scrollConfiguration.dragDevices,
+                    debugOwner: this,
+                  })
+                : new HorizontalDragGestureRecognizer({
+                    binding: context.owner.gestureBinding,
+                    supportedDevices: this.scrollConfiguration.dragDevices,
+                    debugOwner: this,
+                  }),
+            (recognizer) => {
+              recognizer.onDown = (details) => this.handleDragDown(details);
+              recognizer.onStart = (details) => this.handleDragStart(details);
+              recognizer.onUpdate = (details) => this.handleDragUpdate(details);
+              recognizer.onEnd = (details) => this.handleDragEnd(details);
+              recognizer.onCancel = () => this.handleDragCancel();
+              recognizer.minFlingDistance = this.physics?.minFlingDistance ?? null;
+              recognizer.minFlingVelocity = this.physics?.minFlingVelocity ?? null;
+              recognizer.maxFlingVelocity = this.physics?.maxFlingVelocity ?? null;
+              recognizer.velocityTrackerBuilder = this.scrollConfiguration.velocityTrackerBuilder(
+                this.context,
+              );
+              recognizer.dragStartBehavior = this.widget.dragStartBehavior;
+              recognizer.multitouchDragStrategy =
+                this.scrollConfiguration.getMultitouchDragStrategy(this.context);
+              recognizer.gestureSettings = this.mediaGestureSettings;
+              recognizer.supportedDevices = this.scrollConfiguration.dragDevices;
+            },
+          ),
+        ],
+      ]);
+    }
+    this.lastCanDrag = value;
+    this.lastAxis = this.widget.axis;
+    this.gestureKey.currentState?.replaceGestureRecognizers(this.recognizers);
+  }
+  handleDragDown(_details: DragDownDetails): void {
+    if (this.scrollableClosed) return;
+    invariant(
+      this.dragController === null && this.holdController === null,
+      'duplicate-scroll-gesture-hold',
+      'A scroll gesture already owns a drag or hold',
+    );
+    this.holdController = this.position.hold(() => {
+      this.holdController = null;
+    });
+  }
+  handleDragStart(details: DragStartDetails): void {
+    if (this.scrollableClosed) return;
+    invariant(
+      this.dragController === null,
+      'duplicate-scroll-gesture-drag',
+      'A scroll gesture already owns a drag',
+    );
+    this.dragController = this.position.drag(details, () => {
+      this.dragController = null;
+    });
+    this.holdController = null;
+  }
+  handleDragUpdate(details: DragUpdateDetails): void {
+    if (!this.scrollableClosed) this.dragController?.update(details);
+  }
+  handleDragEnd(details: DragEndDetails): void {
+    if (!this.scrollableClosed) this.dragController?.end(details);
+  }
+  handleDragCancel(): void {
+    if (this.scrollableClosed || this.gestureKey.currentContext === undefined) return;
+    this.holdController?.cancel();
+    this.dragController?.cancel();
+  }
+  private signalDelta(event: PointerScrollEvent): number {
+    const context = this.context;
+    invariant(
+      context instanceof Element,
+      'invalid-scrollable-context',
+      'Scroll signals require an Element',
+    );
+    const pressed = context.owner.keyboard.logicalKeysPressed,
+      flip =
+        event.kind === PointerDeviceKind.mouse &&
+        [...pressed].some((key) => this.scrollConfiguration.pointerAxisModifiers.has(key)),
+      axis = flip ? flipAxis(this.widget.axis) : this.widget.axis,
+      delta = axis === Axis.horizontal ? event.scrollDelta.dx : event.scrollDelta.dy;
+    return axisDirectionIsReversed(this.axisDirection) ? -delta : delta;
+  }
+  private targetForDelta(delta: number): number {
+    return Math.min(
+      Math.max(this.position.pixels + delta, this.position.minScrollExtent),
+      this.position.maxScrollExtent,
+    );
+  }
+  private receivedPointerSignal(event: PointerSignalEvent): void {
+    if (this.scrollableClosed) return;
+    if (event instanceof PointerScrollEvent) {
+      const delta = this.signalDelta(event);
+      if (delta !== 0 && this.position.canScrollBy(delta)) {
+        const context = this.context;
+        invariant(
+          context instanceof Element,
+          'invalid-scrollable-context',
+          'Scroll signals require an Element',
+        );
+        context.owner.gestureBinding.pointerSignalResolver.register(event, (signal) => {
+          if (this.scrollableClosed) {
+            signal.respond({ allowPlatformDefault: true });
+            return;
+          }
+          invariant(
+            signal instanceof PointerScrollEvent,
+            'invalid-scroll-signal',
+            'Resolved scroll signals must retain their concrete event type',
+          );
+          const delta = this.signalDelta(signal);
+          if (delta !== 0 && this.position.canScrollBy(delta)) {
+            this.position.pointerScroll(delta);
+            signal.respond({ allowPlatformDefault: false });
+          } else signal.respond({ allowPlatformDefault: true });
+        });
+      }
+    } else if (event instanceof PointerScrollInertiaCancelEvent) this.position.pointerScroll(0);
   }
   /** A two-axis inner State can reveal both positions and return the outer State. */
-  performEnsureVisible(target:RenderObject,options:EnsureVisibleOptions={}):readonly[readonly Promise<void>[],ScrollableState]{return [[this.position.ensureVisible(target,options)],this];}
-  protected buildChrome(context:BuildContext,child:Widget):Widget{const details=new ScrollableDetails({direction:this.axisDirection,controller:this.effectiveController,decorationClipBehavior:this.widget.clipBehavior});return this.scrollConfiguration.buildScrollbar(context,this.scrollConfiguration.buildOverscrollIndicator(context,child,details),details);}
-  build(context:BuildContext):Widget{
-    let result:Widget=new _ScrollableScope(this,this.position,new Listener(new RawGestureDetector(new IgnorePointer(this.widget.viewportBuilder(context,this.position),{key:this.ignoreKey,ignoring:this.ignorePointer}),{key:this.gestureKey,gestures:this.recognizers,behavior:this.widget.hitTestBehavior,excludeFromSemantics:this.widget.excludeFromSemantics}),{onPointerSignal:event=>this.receivedPointerSignal(event)}));
-    if(!this.widget.excludeFromSemantics)result=new NotificationListener({notificationType:ScrollMetricsNotification,onNotification:notification=>{if(notification.depth===0)this.semanticsKey.currentContext?.findRenderObject()?.markNeedsPaint();return false;},child:new _ScrollSemantics(this.position,this.physics!.allowImplicitScrolling,this.widget.axis,this.widget.semanticChildCount,result,{key:this.semanticsKey})});
-    result=this.buildChrome(context,result);const registrar=SelectionContainer.maybeOf(context);return registrar===null?result:new ScrollableSelectionHandler(this,this.position,registrar,result);
+  performEnsureVisible(
+    target: RenderObject,
+    options: EnsureVisibleOptions = {},
+  ): readonly [readonly Promise<void>[], ScrollableState] {
+    return [[this.position.ensureVisible(target, options)], this];
   }
-  override dispose():void{if(this.scrollableClosed)return;this.scrollableClosed=true;const position=this.currentPosition,controller=this.attachedController;this.attachedController=null;const errors:unknown[]=[];for(const callback of [()=>{if(position&&controller)controller.detach(position);},()=>this.fallbackController?.dispose(),()=>position?.dispose(),()=>this.restoration.dispose(),()=>super.dispose()])try{callback();}catch(error){errors.push(error);}this.currentPosition=null;this.fallbackController=null;this.holdController=null;this.dragController=null;if(errors.length)throw new AggregateError(errors,'Scrollable owner retirement failed');}
+  protected buildChrome(context: BuildContext, child: Widget): Widget {
+    const details = new ScrollableDetails({
+      direction: this.axisDirection,
+      controller: this.effectiveController,
+      decorationClipBehavior: this.widget.clipBehavior,
+    });
+    return this.scrollConfiguration.buildScrollbar(
+      context,
+      this.scrollConfiguration.buildOverscrollIndicator(context, child, details),
+      details,
+    );
+  }
+  build(context: BuildContext): Widget {
+    let result: Widget = new _ScrollableScope(
+      this,
+      this.position,
+      new Listener(
+        new RawGestureDetector(
+          new IgnorePointer(this.widget.viewportBuilder(context, this.position), {
+            key: this.ignoreKey,
+            ignoring: this.ignorePointer,
+          }),
+          {
+            key: this.gestureKey,
+            gestures: this.recognizers,
+            behavior: this.widget.hitTestBehavior,
+            excludeFromSemantics: this.widget.excludeFromSemantics,
+          },
+        ),
+        { onPointerSignal: (event) => this.receivedPointerSignal(event) },
+      ),
+    );
+    if (!this.widget.excludeFromSemantics)
+      result = new NotificationListener({
+        notificationType: ScrollMetricsNotification,
+        onNotification: (notification) => {
+          if (notification.depth === 0)
+            this.semanticsKey.currentContext?.findRenderObject()?.markNeedsPaint();
+          return false;
+        },
+        child: new _ScrollSemantics(
+          this.position,
+          this.physics!.allowImplicitScrolling,
+          this.widget.axis,
+          this.widget.semanticChildCount,
+          result,
+          { key: this.semanticsKey },
+        ),
+      });
+    result = this.buildChrome(context, result);
+    const registrar = SelectionContainer.maybeOf(context);
+    return registrar === null
+      ? result
+      : new ScrollableSelectionHandler(this, this.position, registrar, result);
+  }
+  override dispose(): void {
+    if (this.scrollableClosed) return;
+    this.scrollableClosed = true;
+    const position = this.currentPosition,
+      controller = this.attachedController;
+    this.attachedController = null;
+    const errors: unknown[] = [];
+    for (const callback of [
+      () => {
+        if (position && controller) controller.detach(position);
+      },
+      () => this.fallbackController?.dispose(),
+      () => position?.dispose(),
+      () => this.restoration.dispose(),
+      () => super.dispose(),
+    ])
+      try {
+        callback();
+      } catch (error) {
+        errors.push(error);
+      }
+    this.currentPosition = null;
+    this.fallbackController = null;
+    this.holdController = null;
+    this.dragController = null;
+    if (errors.length) throw new AggregateError(errors, 'Scrollable owner retirement failed');
+  }
 }
 class _ScrollSemantics extends SingleChildRenderObjectWidget {
-  constructor(readonly position:ScrollPosition,readonly allowImplicitScrolling:boolean,readonly axis:Axis,readonly semanticChildCount:number|null,child:Widget,options:WidgetOptions={}){super(child,options);if(FoundationBuildMode.debug)invariant(semanticChildCount===null||semanticChildCount>=0,'invalid-semantic-child-count','Semantic child count must be nonnegative');}
-  createRenderObject():_RenderScrollSemantics{return new _RenderScrollSemantics(this.position,this.allowImplicitScrolling,this.axis,this.semanticChildCount);}
-  override updateRenderObject(_context:BuildContext,render:RenderObject):void{invariant(render instanceof _RenderScrollSemantics,'invalid-scroll-semantics-renderer','Scroll semantics require their own renderer');render.allowImplicitScrolling=this.allowImplicitScrolling;render.axis=this.axis;render.position=this.position;render.semanticChildCount=this.semanticChildCount;}
+  constructor(
+    readonly position: ScrollPosition,
+    readonly allowImplicitScrolling: boolean,
+    readonly axis: Axis,
+    readonly semanticChildCount: number | null,
+    child: Widget,
+    options: WidgetOptions = {},
+  ) {
+    super(child, options);
+    if (FoundationBuildMode.debug)
+      invariant(
+        semanticChildCount === null || semanticChildCount >= 0,
+        'invalid-semantic-child-count',
+        'Semantic child count must be nonnegative',
+      );
+  }
+  createRenderObject(): _RenderScrollSemantics {
+    return new _RenderScrollSemantics(
+      this.position,
+      this.allowImplicitScrolling,
+      this.axis,
+      this.semanticChildCount,
+    );
+  }
+  override updateRenderObject(_context: BuildContext, render: RenderObject): void {
+    invariant(
+      render instanceof _RenderScrollSemantics,
+      'invalid-scroll-semantics-renderer',
+      'Scroll semantics require their own renderer',
+    );
+    render.allowImplicitScrolling = this.allowImplicitScrolling;
+    render.axis = this.axis;
+    render.position = this.position;
+    render.semanticChildCount = this.semanticChildCount;
+  }
 }

@@ -1,23 +1,24 @@
-import type {
-  CanvasKit,
-  ImageInfo as CKImageInfo,
-  Image,
-} from "canvaskit-wasm";
+import type { CanvasKit, ImageInfo as CKImageInfo, Image } from 'canvaskit-wasm';
 
-import type {FilterMode, MipmapMode, SkImage, ImageFormat} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkMatrix} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkShader} from "@nelyx/skia-native/skia/types/Drawing";
-import type {TileMode} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
-import type {ImageInfo} from "@nelyx/skia-native/skia/types/Drawing";
-import {getEnum, HostObject} from './Host.ts';
-import {JsiSkMatrix} from './JsiSkMatrix.ts';
-import {JsiSkShader} from './JsiSkShader.ts';
+import type {
+  FilterMode,
+  MipmapMode,
+  SkImage,
+  ImageFormat,
+} from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkMatrix } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkShader } from '@nelyx/skia-native/skia/types/Drawing';
+import type { TileMode } from '@nelyx/skia-native/skia/types/ImageFilter/ImageFilter';
+import type { ImageInfo } from '@nelyx/skia-native/skia/types/Drawing';
+import { getEnum, HostObject } from './Host.ts';
+import { JsiSkMatrix } from './JsiSkMatrix.ts';
+import { JsiSkShader } from './JsiSkShader.ts';
 
 // https://github.com/google/skia/blob/1f193df9b393d50da39570dab77a0bb5d28ec8ef/modules/canvaskit/htmlcanvas/util.js
 export const toBase64String = (bytes: Uint8Array) => {
-  if (typeof Buffer !== "undefined") {
+  if (typeof Buffer !== 'undefined') {
     // Are we on node?
-    return Buffer.from(bytes).toString("base64");
+    return Buffer.from(bytes).toString('base64');
   } else {
     // From https://stackoverflow.com/a/25644409
     // because the naive solution of
@@ -26,7 +27,7 @@ export const toBase64String = (bytes: Uint8Array) => {
     var CHUNK_SIZE = 0x8000; //arbitrary number
     var index = 0;
     var { length } = bytes;
-    var result = "";
+    var result = '';
     var slice;
     while (index < length) {
       slice = bytes.slice(index, Math.min(index + CHUNK_SIZE, length));
@@ -37,9 +38,9 @@ export const toBase64String = (bytes: Uint8Array) => {
   }
 };
 
-export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
+export class JsiSkImage extends HostObject<Image, 'Image'> implements SkImage {
   constructor(CanvasKit: CanvasKit, ref: Image) {
-    super(CanvasKit, ref, "Image");
+    super(CanvasKit, ref, 'Image');
   }
 
   height() {
@@ -65,17 +66,17 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
     ty: TileMode,
     fm: FilterMode,
     mm: MipmapMode,
-    localMatrix?: SkMatrix
+    localMatrix?: SkMatrix,
   ): SkShader {
     return new JsiSkShader(
       this.CanvasKit,
       this.ref.makeShaderOptions(
-        getEnum(this.CanvasKit, "TileMode", tx),
-        getEnum(this.CanvasKit, "TileMode", ty),
-        getEnum(this.CanvasKit, "FilterMode", fm),
-        getEnum(this.CanvasKit, "MipmapMode", mm),
-        localMatrix ? JsiSkMatrix.fromValue(localMatrix) : undefined
-      )
+        getEnum(this.CanvasKit, 'TileMode', tx),
+        getEnum(this.CanvasKit, 'TileMode', ty),
+        getEnum(this.CanvasKit, 'FilterMode', fm),
+        getEnum(this.CanvasKit, 'MipmapMode', mm),
+        localMatrix ? JsiSkMatrix.fromValue(localMatrix) : undefined,
+      ),
     );
   }
 
@@ -84,17 +85,17 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
     ty: TileMode,
     B: number,
     C: number,
-    localMatrix?: SkMatrix
+    localMatrix?: SkMatrix,
   ): SkShader {
     return new JsiSkShader(
       this.CanvasKit,
       this.ref.makeShaderCubic(
-        getEnum(this.CanvasKit, "TileMode", tx),
-        getEnum(this.CanvasKit, "TileMode", ty),
+        getEnum(this.CanvasKit, 'TileMode', tx),
+        getEnum(this.CanvasKit, 'TileMode', ty),
         B,
         C,
-        localMatrix ? JsiSkMatrix.fromValue(localMatrix) : undefined
-      )
+        localMatrix ? JsiSkMatrix.fromValue(localMatrix) : undefined,
+      ),
     );
   }
 
@@ -105,18 +106,16 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
       // turn a valid quality of 0 into 100. The encoders clamp any quality
       // below 1 up to 1 anyway, so pass 1 to get the same output as 0.
       result = this.ref.encodeToBytes(
-        getEnum(this.CanvasKit, "ImageFormat", fmt),
-        Math.max(quality, 1)
+        getEnum(this.CanvasKit, 'ImageFormat', fmt),
+        Math.max(quality, 1),
       );
     } else if (fmt !== undefined) {
-      result = this.ref.encodeToBytes(
-        getEnum(this.CanvasKit, "ImageFormat", fmt)
-      );
+      result = this.ref.encodeToBytes(getEnum(this.CanvasKit, 'ImageFormat', fmt));
     } else {
       result = this.ref.encodeToBytes();
     }
     if (!result) {
-      throw new Error("encodeToBytes failed");
+      throw new Error('encodeToBytes failed');
     }
     return result;
   }
@@ -134,16 +133,8 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
       colorSpace: this.CanvasKit.ColorSpace.SRGB,
       width: imageInfo?.width ?? info.width,
       height: imageInfo?.height ?? info.height,
-      alphaType: getEnum(
-        this.CanvasKit,
-        "AlphaType",
-        (imageInfo ?? info).alphaType
-      ),
-      colorType: getEnum(
-        this.CanvasKit,
-        "ColorType",
-        (imageInfo ?? info).colorType
-      ),
+      alphaType: getEnum(this.CanvasKit, 'AlphaType', (imageInfo ?? info).alphaType),
+      colorType: getEnum(this.CanvasKit, 'ColorType', (imageInfo ?? info).colorType),
     };
     return this.ref.readPixels(srcX ?? 0, srcY ?? 0, pxInfo);
   }
@@ -158,11 +149,11 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
     };
     const pixels = this.ref.readPixels(0, 0, info) as Uint8Array | null;
     if (!pixels) {
-      throw new Error("Could not read pixels from image");
+      throw new Error('Could not read pixels from image');
     }
     const img = this.CanvasKit.MakeImage(info, pixels, info.width * 4);
     if (!img) {
-      throw new Error("Could not create image from bytes");
+      throw new Error('Could not create image from bytes');
     }
     return new JsiSkImage(this.CanvasKit, img);
   }

@@ -1,62 +1,589 @@
-import test from 'node:test';import assert from 'node:assert/strict';import crypto from 'node:crypto';import fs from 'node:fs';
-import {SnapshotWidget,SnapshotController,SnapshotMode,SnapshotPainter} from '@nelyx/core/framework/widgets/snapshot-widget';
-import {State,StatefulWidget,RenderObjectWidget} from '@nelyx/core/framework/widgets/framework';
-import {RenderBox} from '@nelyx/core/framework/rendering/object';
-import {Layer} from '@nelyx/core/framework/rendering/layer';
-import {RasterizationService} from '@nelyx/core/hosting/rasterization';
-import {MediaQuery} from '@nelyx/core/framework/widgets/app-data';
-import {SizedBox,Center} from '@nelyx/core/framework/widgets/basic';
-import {Listener} from '@nelyx/core/framework/widgets/listener';
-import {Paint} from '@nelyx/core/ui/paint';
-import {PaintingContext} from '@nelyx/core/framework/painting/context';
-import {ResourceRegistry} from '@nelyx/core/hosting/resources';
-import {Image} from '@nelyx/core/ui/image';
-import {Offset} from '@nelyx/core/ui/offset';
-import {Size} from '@nelyx/core/ui/size';
-import {engineFixture} from './engine-fixture.mjs';
-const timeout=1200000,wrap=(child,scale=1)=>new MediaQuery({width:240,height:160,scale,textScale:1,safeArea:{top:0,left:0,right:0,bottom:0},keyboardInset:0},child);
-const original=JSON.parse(fs.readFileSync(new URL('./fixtures/snapshot-widget-source.json',import.meta.url)));
-class PaintLeaf extends RenderObjectWidget{constructor(color,counts,unsupported=false){super();this.color=color;this.counts=counts;this.unsupported=unsupported;}get childWidgets(){return [];}createRenderObject(){const r=new LeafRender(this.counts);this.updateRenderObject({},r);return r;}updateRenderObject(_c,r){r.color=this.color;r.unsupported=this.unsupported;r.markNeedsPaint();}}
-class UnsupportedLayer extends Layer{supportsRasterization(){return false;}addToScene(){} }
-class LeafRender extends RenderBox{constructor(counts){super();this.counts=counts;this.color=0;this.unsupported=false;}performLayout(constraints){return constraints.biggest;}hitTestSelf(){return true;}paint(context){this.counts.paint++;const paint=new Paint();paint.color=this.color;context.drawRect({x:0,y:0,...this.size},paint);if(this.unsupported)context.addLayer(new UnsupportedLayer());}}
-class Probe extends StatefulWidget{constructor(color,counts){super();this.color=color;this.counts=counts;}createState(){this.counts.created++;return new ProbeState();}}
-class ProbeState extends State{build(){return new PaintLeaf(this.widget.color,this.widget.counts);}dispose(){this.widget.counts.disposed++;super.dispose();}}
-class SpyPainter extends SnapshotPainter{constructor(){super();this.snapshots=[];this.live=0;this.repaint=false;}paint(_context,offset,_size,painter){this.live++;painter(_context,offset);}paintSnapshot(_context,_offset,size,image,sourceSize,pixelRatio){this.snapshots.push({size:[size.width,size.height],image:[image.width,image.height],source:[sourceSize.width,sourceSize.height],pixelRatio});}shouldRepaint(){return this.repaint;}}
-async function snapshotFixture(){const f=await engineFixture(),{ck,library}=f,context=f.root.context,rasters=[];let live=0,id=0;const rasterizer=new RasterizationService(context.resources,{rasterize(capture,width,height){const surface=ck.MakeSurface(width,height);assert(surface);let image;try{surface.getCanvas().clear(ck.TRANSPARENT);library.replay(surface.getCanvas(),capture.frame);surface.flush();image=surface.makeImageSnapshot();const bytes=image.encodeToBytes();assert(bytes);const decoded=library.decode({kind:'image',id:'snapshot-cpu-'+(++id),sha256:crypto.createHash('sha256').update(bytes).digest('hex')},bytes);rasters.push({width,height});live++;return {...decoded,width,height,duration:0,retire(){decoded.retire();live--;}};}finally{image?.delete();surface.delete();}},dispose(){}},{bitmapCache:false});context.rasterizer=rasterizer;return {...f,rasters,rasterizer,get liveImages(){return live;},pixel(){const surface=ck.MakeSurface(240,160);assert(surface);let image;try{surface.getCanvas().clear(ck.WHITE);library.replay(surface.getCanvas(),{commands:f.frame(),resources:[]});surface.flush();image=surface.makeImageSnapshot();return [...image.readPixels(120,80,{width:1,height:1,colorType:ck.ColorType.RGBA_8888,alphaType:ck.AlphaType.Unpremul,colorSpace:ck.ColorSpace.SRGB})];}finally{image?.delete();surface.delete();}},async close(){f.set(new SizedBox());await rasterizer.dispose();await f.close();assert.equal(live,0);}};}
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import {
+  SnapshotWidget,
+  SnapshotController,
+  SnapshotMode,
+  SnapshotPainter,
+} from '@nelyx/core/framework/widgets/snapshot-widget';
+import { State, StatefulWidget, RenderObjectWidget } from '@nelyx/core/framework/widgets/framework';
+import { RenderBox } from '@nelyx/core/framework/rendering/object';
+import { Layer } from '@nelyx/core/framework/rendering/layer';
+import { RasterizationService } from '@nelyx/core/hosting/rasterization';
+import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { SizedBox, Center } from '@nelyx/core/framework/widgets/basic';
+import { Listener } from '@nelyx/core/framework/widgets/listener';
+import { Paint } from '@nelyx/core/ui/paint';
+import { PaintingContext } from '@nelyx/core/framework/painting/context';
+import { ResourceRegistry } from '@nelyx/core/hosting/resources';
+import { Image } from '@nelyx/core/ui/image';
+import { Offset } from '@nelyx/core/ui/offset';
+import { Size } from '@nelyx/core/ui/size';
+import { engineFixture } from './engine-fixture.mjs';
+const timeout = 1200000,
+  wrap = (child, scale = 1) =>
+    new MediaQuery(
+      {
+        width: 240,
+        height: 160,
+        scale,
+        textScale: 1,
+        safeArea: { top: 0, left: 0, right: 0, bottom: 0 },
+        keyboardInset: 0,
+      },
+      child,
+    );
+const original = JSON.parse(
+  fs.readFileSync(new URL('./fixtures/snapshot-widget-source.json', import.meta.url)),
+);
+class PaintLeaf extends RenderObjectWidget {
+  constructor(color, counts, unsupported = false) {
+    super();
+    this.color = color;
+    this.counts = counts;
+    this.unsupported = unsupported;
+  }
+  get childWidgets() {
+    return [];
+  }
+  createRenderObject() {
+    const r = new LeafRender(this.counts);
+    this.updateRenderObject({}, r);
+    return r;
+  }
+  updateRenderObject(_c, r) {
+    r.color = this.color;
+    r.unsupported = this.unsupported;
+    r.markNeedsPaint();
+  }
+}
+class UnsupportedLayer extends Layer {
+  supportsRasterization() {
+    return false;
+  }
+  addToScene() {}
+}
+class LeafRender extends RenderBox {
+  constructor(counts) {
+    super();
+    this.counts = counts;
+    this.color = 0;
+    this.unsupported = false;
+  }
+  performLayout(constraints) {
+    return constraints.biggest;
+  }
+  hitTestSelf() {
+    return true;
+  }
+  paint(context) {
+    this.counts.paint++;
+    const paint = new Paint();
+    paint.color = this.color;
+    context.drawRect({ x: 0, y: 0, ...this.size }, paint);
+    if (this.unsupported) context.addLayer(new UnsupportedLayer());
+  }
+}
+class Probe extends StatefulWidget {
+  constructor(color, counts) {
+    super();
+    this.color = color;
+    this.counts = counts;
+  }
+  createState() {
+    this.counts.created++;
+    return new ProbeState();
+  }
+}
+class ProbeState extends State {
+  build() {
+    return new PaintLeaf(this.widget.color, this.widget.counts);
+  }
+  dispose() {
+    this.widget.counts.disposed++;
+    super.dispose();
+  }
+}
+class SpyPainter extends SnapshotPainter {
+  constructor() {
+    super();
+    this.snapshots = [];
+    this.live = 0;
+    this.repaint = false;
+  }
+  paint(_context, offset, _size, painter) {
+    this.live++;
+    painter(_context, offset);
+  }
+  paintSnapshot(_context, _offset, size, image, sourceSize, pixelRatio) {
+    this.snapshots.push({
+      size: [size.width, size.height],
+      image: [image.width, image.height],
+      source: [sourceSize.width, sourceSize.height],
+      pixelRatio,
+    });
+  }
+  shouldRepaint() {
+    return this.repaint;
+  }
+}
+async function snapshotFixture() {
+  const f = await engineFixture(),
+    { ck, library } = f,
+    context = f.root.context,
+    rasters = [];
+  let live = 0,
+    id = 0;
+  const rasterizer = new RasterizationService(
+    context.resources,
+    {
+      rasterize(capture, width, height) {
+        const surface = ck.MakeSurface(width, height);
+        assert(surface);
+        let image;
+        try {
+          surface.getCanvas().clear(ck.TRANSPARENT);
+          library.replay(surface.getCanvas(), capture.frame);
+          surface.flush();
+          image = surface.makeImageSnapshot();
+          const bytes = image.encodeToBytes();
+          assert(bytes);
+          const decoded = library.decode(
+            {
+              kind: 'image',
+              id: 'snapshot-cpu-' + ++id,
+              sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+            },
+            bytes,
+          );
+          rasters.push({ width, height });
+          live++;
+          return {
+            ...decoded,
+            width,
+            height,
+            duration: 0,
+            retire() {
+              decoded.retire();
+              live--;
+            },
+          };
+        } finally {
+          image?.delete();
+          surface.delete();
+        }
+      },
+      dispose() {},
+    },
+    { bitmapCache: false },
+  );
+  context.rasterizer = rasterizer;
+  return {
+    ...f,
+    rasters,
+    rasterizer,
+    get liveImages() {
+      return live;
+    },
+    pixel() {
+      const surface = ck.MakeSurface(240, 160);
+      assert(surface);
+      let image;
+      try {
+        surface.getCanvas().clear(ck.WHITE);
+        library.replay(surface.getCanvas(), { commands: f.frame(), resources: [] });
+        surface.flush();
+        image = surface.makeImageSnapshot();
+        return [
+          ...image.readPixels(120, 80, {
+            width: 1,
+            height: 1,
+            colorType: ck.ColorType.RGBA_8888,
+            alphaType: ck.AlphaType.Unpremul,
+            colorSpace: ck.ColorSpace.SRGB,
+          }),
+        ];
+      } finally {
+        image?.delete();
+        surface.delete();
+      }
+    },
+    async close() {
+      f.set(new SizedBox());
+      await rasterizer.dispose();
+      await f.close();
+      assert.equal(live, 0);
+    },
+  };
+}
 
-test('SnapshotController changes and clear notify exactly; snapshot widget exposes source defaults and borrowed controller/painter',{timeout},()=>{
- const c=new SnapshotController();let calls=0;c.addListener(()=>calls++);c.allowSnapshotting=false;const events=[calls];c.clear();events.push(calls);c.allowSnapshotting=true;c.allowSnapshotting=true;events.push(calls);c.clear();events.push(calls);assert.deepEqual(events,original.notifications);const w=new SnapshotWidget({controller:c,child:new SizedBox()});assert.equal(w.mode,SnapshotMode.normal);assert.equal(w.autoresize,false);assert.equal(w.controller,c);assert.deepEqual(new SnapshotWidget({controller:c,child:null}).childWidgets,[]);assert.equal(w.painter.hasListeners,false);w.painter.dispose();assert.equal(w.painter.hasListeners,false);c.dispose();assert.throws(()=>c.clear());
-});
-test('actual canonical CPU image capture freezes paint while keeping child State; clear/disable recapture and final unmount release images/listeners',{timeout},async()=>{
- const f=await snapshotFixture(),c=new SnapshotController({allowSnapshotting:true}),counts={paint:0,created:0,disposed:0},set=color=>f.set(wrap(new SnapshotWidget({controller:c,child:new Probe(color,counts)})));
- try{set(0xffff0000);assert.deepEqual(f.pixel(),[255,0,0,255]);assert.equal(counts.paint,1);assert.equal(f.rasters.length,1);assert.equal(c.hasListeners,true);set(0xff00ff00);assert.deepEqual(f.pixel(),[255,0,0,255]);assert.equal(counts.paint,1);assert.equal(counts.created,1);c.clear();f.frame();assert.deepEqual(f.pixel(),[0,255,0,255]);assert.equal(counts.paint,2);c.allowSnapshotting=false;set(0xff0000ff);assert.deepEqual(f.pixel(),[0,0,255,255]);assert.equal(f.liveImages,0);c.allowSnapshotting=true;f.frame();assert.deepEqual(f.pixel(),[0,0,255,255]);assert.equal(f.rasters.length,3);}
- finally{await f.close();assert.equal(counts.created,counts.disposed);assert.equal(c.hasListeners,false);c.dispose();}
-});
-test('physical ceil dimensions keep fractional source size; scale/autoresize/painter/controller swaps follow source cache rules',{timeout},async()=>{
- const f=await snapshotFixture(),c=new SnapshotController({allowSnapshotting:true}),next=new SnapshotController({allowSnapshotting:true}),off=new SnapshotController(),p=new SpyPainter(),p2=new SpyPainter(),counts={paint:0},set=({controller=c,painter=p,width=31.25,height=17.5,scale=1.5,autoresize=false}={})=>f.set(wrap(new Center(new SizedBox(width,height,new SnapshotWidget({controller,painter,autoresize,child:new PaintLeaf(0xffff0000,counts)}))),scale));
- const phase=label=>assert.deepEqual({label,snapshot:label==='initial'||label==='resizeKept'||label==='resizeCaptured'?p.snapshots.at(-1):p2.snapshots.at(-1),captures:f.rasters.length,childPaints:counts.paint},original.trace.find(r=>r.label===label));try{set();phase('initial');assert.deepEqual(f.rasters.at(-1),{width:47,height:27});assert.deepEqual(p.snapshots.at(-1),{size:[31.25,17.5],image:[47,27],source:[46.875,26.25],pixelRatio:1.5});set({width:41.25});phase('resizeKept');assert.equal(f.rasters.length,1);assert.deepEqual(p.snapshots.at(-1).source,[46.875,26.25]);assert.deepEqual(p.snapshots.at(-1).size,[41.25,17.5]);set({width:41.25,autoresize:true});phase('resizeCaptured');assert.equal(f.rasters.length,2);set({width:41.25,autoresize:true,painter:p2});phase('painterKept');assert.equal(f.rasters.length,2);assert.equal(p.hasListeners,false);assert.equal(p2.hasListeners,true);set({width:41.25,autoresize:true,painter:p2,controller:next});phase('sameControllerKept');assert.equal(c.hasListeners,false);assert.equal(next.hasListeners,true);assert.equal(f.rasters.length,2);set({width:41.25,autoresize:true,painter:p2,controller:next,scale:2});phase('densityCaptured');assert.equal(f.rasters.length,3);assert.deepEqual(f.rasters.at(-1),{width:83,height:35});set({controller:off,painter:p2});phase('disabled');assert.equal(f.liveImages,0);assert.equal(p2.live,1);}
- finally{await f.close();for(const v of [c,next,off,p,p2]){assert.equal(v.hasListeners,false);v.dispose();}}
-});
-test('permissive blocks repeated unsupported-layer captures until clear; normal errors and forced captures use actual canonical layer policy',{timeout},async()=>{
- const f=await snapshotFixture(),c=new SnapshotController({allowSnapshotting:true}),counts={paint:0},set=(mode,unsupported=true)=>f.set(wrap(new SnapshotWidget({controller:c,mode,child:new PaintLeaf(0xffff0000,counts,unsupported)})));
- try{set(SnapshotMode.permissive);assert.equal(f.rasters.length,0);assert.equal(counts.paint,2);f.frame();assert.equal(counts.paint,3);set(SnapshotMode.permissive,false);assert.equal(f.rasters.length,0);c.clear();f.frame();assert.equal(f.rasters.length,1);c.clear();assert.throws(()=>set(SnapshotMode.normal),/SnapshotWidget used with a child/);set(SnapshotMode.forced);assert.equal(f.rasters.length,2);assert.deepEqual(f.pixel(),[255,0,0,255]);}
- finally{await f.close();assert.equal(c.hasListeners,false);c.dispose();}
-});
-test('snapshotted pixels keep real child hit input and zero size retires the cached image without replacing its borrowed controller',{timeout},async()=>{
- const f=await snapshotFixture(),c=new SnapshotController({allowSnapshotting:true}),counts={paint:0};let downs=0;const snapshot=new SnapshotWidget({controller:c,child:new Listener(new PaintLeaf(0xffff0000,counts),{onPointerDown:()=>downs++})});
- try{f.set(wrap(snapshot));f.root.pointer({kind:'down',x:120,y:80,pointer:1,device:'mouse',buttons:1,timestamp:1,viewportGeneration:1});f.frame();f.root.pointer({kind:'up',x:120,y:80,pointer:1,device:'mouse',buttons:0,timestamp:2,viewportGeneration:1});f.frame();assert.equal(downs,1);assert.equal(counts.paint,1);f.set(wrap(new Center(new SizedBox(0,0,snapshot))));assert.equal(f.liveImages,0);assert.equal(c.hasListeners,true);}
- finally{await f.close();assert.equal(c.hasListeners,false);c.dispose();}
-});
-test('capture fails explicitly without its View rasterizer, then the same live snapshot recovers with the provider',{timeout},async()=>{
- const f=await snapshotFixture(),c=new SnapshotController({allowSnapshotting:true}),counts={paint:0},snapshot=new SnapshotWidget({controller:c,child:new PaintLeaf(0xffff0000,counts)});
- try{f.root.context.rasterizer=undefined;assert.throws(()=>f.set(wrap(snapshot)),/SnapshotWidget capture requires/);f.root.context.rasterizer=f.rasterizer;f.set(wrap(new SnapshotWidget({controller:c,child:new PaintLeaf(0xffff0000,counts)})));assert.deepEqual(f.pixel(),[255,0,0,255]);assert.equal(f.rasters.length,1);}
- finally{await f.close();assert.equal(c.hasListeners,false);c.dispose();}
-});
+test(
+  'SnapshotController changes and clear notify exactly; snapshot widget exposes source defaults and borrowed controller/painter',
+  { timeout },
+  () => {
+    const c = new SnapshotController();
+    let calls = 0;
+    c.addListener(() => calls++);
+    c.allowSnapshotting = false;
+    const events = [calls];
+    c.clear();
+    events.push(calls);
+    c.allowSnapshotting = true;
+    c.allowSnapshotting = true;
+    events.push(calls);
+    c.clear();
+    events.push(calls);
+    assert.deepEqual(events, original.notifications);
+    const w = new SnapshotWidget({ controller: c, child: new SizedBox() });
+    assert.equal(w.mode, SnapshotMode.normal);
+    assert.equal(w.autoresize, false);
+    assert.equal(w.controller, c);
+    assert.deepEqual(new SnapshotWidget({ controller: c, child: null }).childWidgets, []);
+    assert.equal(w.painter.hasListeners, false);
+    w.painter.dispose();
+    assert.equal(w.painter.hasListeners, false);
+    c.dispose();
+    assert.throws(() => c.clear());
+  },
+);
+test(
+  'actual canonical CPU image capture freezes paint while keeping child State; clear/disable recapture and final unmount release images/listeners',
+  { timeout },
+  async () => {
+    const f = await snapshotFixture(),
+      c = new SnapshotController({ allowSnapshotting: true }),
+      counts = { paint: 0, created: 0, disposed: 0 },
+      set = (color) =>
+        f.set(wrap(new SnapshotWidget({ controller: c, child: new Probe(color, counts) })));
+    try {
+      set(0xffff0000);
+      assert.deepEqual(f.pixel(), [255, 0, 0, 255]);
+      assert.equal(counts.paint, 1);
+      assert.equal(f.rasters.length, 1);
+      assert.equal(c.hasListeners, true);
+      set(0xff00ff00);
+      assert.deepEqual(f.pixel(), [255, 0, 0, 255]);
+      assert.equal(counts.paint, 1);
+      assert.equal(counts.created, 1);
+      c.clear();
+      f.frame();
+      assert.deepEqual(f.pixel(), [0, 255, 0, 255]);
+      assert.equal(counts.paint, 2);
+      c.allowSnapshotting = false;
+      set(0xff0000ff);
+      assert.deepEqual(f.pixel(), [0, 0, 255, 255]);
+      assert.equal(f.liveImages, 0);
+      c.allowSnapshotting = true;
+      f.frame();
+      assert.deepEqual(f.pixel(), [0, 0, 255, 255]);
+      assert.equal(f.rasters.length, 3);
+    } finally {
+      await f.close();
+      assert.equal(counts.created, counts.disposed);
+      assert.equal(c.hasListeners, false);
+      c.dispose();
+    }
+  },
+);
+test(
+  'physical ceil dimensions keep fractional source size; scale/autoresize/painter/controller swaps follow source cache rules',
+  { timeout },
+  async () => {
+    const f = await snapshotFixture(),
+      c = new SnapshotController({ allowSnapshotting: true }),
+      next = new SnapshotController({ allowSnapshotting: true }),
+      off = new SnapshotController(),
+      p = new SpyPainter(),
+      p2 = new SpyPainter(),
+      counts = { paint: 0 },
+      set = ({
+        controller = c,
+        painter = p,
+        width = 31.25,
+        height = 17.5,
+        scale = 1.5,
+        autoresize = false,
+      } = {}) =>
+        f.set(
+          wrap(
+            new Center(
+              new SizedBox(
+                width,
+                height,
+                new SnapshotWidget({
+                  controller,
+                  painter,
+                  autoresize,
+                  child: new PaintLeaf(0xffff0000, counts),
+                }),
+              ),
+            ),
+            scale,
+          ),
+        );
+    const phase = (label) =>
+      assert.deepEqual(
+        {
+          label,
+          snapshot:
+            label === 'initial' || label === 'resizeKept' || label === 'resizeCaptured'
+              ? p.snapshots.at(-1)
+              : p2.snapshots.at(-1),
+          captures: f.rasters.length,
+          childPaints: counts.paint,
+        },
+        original.trace.find((r) => r.label === label),
+      );
+    try {
+      set();
+      phase('initial');
+      assert.deepEqual(f.rasters.at(-1), { width: 47, height: 27 });
+      assert.deepEqual(p.snapshots.at(-1), {
+        size: [31.25, 17.5],
+        image: [47, 27],
+        source: [46.875, 26.25],
+        pixelRatio: 1.5,
+      });
+      set({ width: 41.25 });
+      phase('resizeKept');
+      assert.equal(f.rasters.length, 1);
+      assert.deepEqual(p.snapshots.at(-1).source, [46.875, 26.25]);
+      assert.deepEqual(p.snapshots.at(-1).size, [41.25, 17.5]);
+      set({ width: 41.25, autoresize: true });
+      phase('resizeCaptured');
+      assert.equal(f.rasters.length, 2);
+      set({ width: 41.25, autoresize: true, painter: p2 });
+      phase('painterKept');
+      assert.equal(f.rasters.length, 2);
+      assert.equal(p.hasListeners, false);
+      assert.equal(p2.hasListeners, true);
+      set({ width: 41.25, autoresize: true, painter: p2, controller: next });
+      phase('sameControllerKept');
+      assert.equal(c.hasListeners, false);
+      assert.equal(next.hasListeners, true);
+      assert.equal(f.rasters.length, 2);
+      set({ width: 41.25, autoresize: true, painter: p2, controller: next, scale: 2 });
+      phase('densityCaptured');
+      assert.equal(f.rasters.length, 3);
+      assert.deepEqual(f.rasters.at(-1), { width: 83, height: 35 });
+      set({ controller: off, painter: p2 });
+      phase('disabled');
+      assert.equal(f.liveImages, 0);
+      assert.equal(p2.live, 1);
+    } finally {
+      await f.close();
+      for (const v of [c, next, off, p, p2]) {
+        assert.equal(v.hasListeners, false);
+        v.dispose();
+      }
+    }
+  },
+);
+test(
+  'permissive blocks repeated unsupported-layer captures until clear; normal errors and forced captures use actual canonical layer policy',
+  { timeout },
+  async () => {
+    const f = await snapshotFixture(),
+      c = new SnapshotController({ allowSnapshotting: true }),
+      counts = { paint: 0 },
+      set = (mode, unsupported = true) =>
+        f.set(
+          wrap(
+            new SnapshotWidget({
+              controller: c,
+              mode,
+              child: new PaintLeaf(0xffff0000, counts, unsupported),
+            }),
+          ),
+        );
+    try {
+      set(SnapshotMode.permissive);
+      assert.equal(f.rasters.length, 0);
+      assert.equal(counts.paint, 2);
+      f.frame();
+      assert.equal(counts.paint, 3);
+      set(SnapshotMode.permissive, false);
+      assert.equal(f.rasters.length, 0);
+      c.clear();
+      f.frame();
+      assert.equal(f.rasters.length, 1);
+      c.clear();
+      assert.throws(() => set(SnapshotMode.normal), /SnapshotWidget used with a child/);
+      set(SnapshotMode.forced);
+      assert.equal(f.rasters.length, 2);
+      assert.deepEqual(f.pixel(), [255, 0, 0, 255]);
+    } finally {
+      await f.close();
+      assert.equal(c.hasListeners, false);
+      c.dispose();
+    }
+  },
+);
+test(
+  'snapshotted pixels keep real child hit input and zero size retires the cached image without replacing its borrowed controller',
+  { timeout },
+  async () => {
+    const f = await snapshotFixture(),
+      c = new SnapshotController({ allowSnapshotting: true }),
+      counts = { paint: 0 };
+    let downs = 0;
+    const snapshot = new SnapshotWidget({
+      controller: c,
+      child: new Listener(new PaintLeaf(0xffff0000, counts), { onPointerDown: () => downs++ }),
+    });
+    try {
+      f.set(wrap(snapshot));
+      f.root.pointer({
+        kind: 'down',
+        x: 120,
+        y: 80,
+        pointer: 1,
+        device: 'mouse',
+        buttons: 1,
+        timestamp: 1,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      f.root.pointer({
+        kind: 'up',
+        x: 120,
+        y: 80,
+        pointer: 1,
+        device: 'mouse',
+        buttons: 0,
+        timestamp: 2,
+        viewportGeneration: 1,
+      });
+      f.frame();
+      assert.equal(downs, 1);
+      assert.equal(counts.paint, 1);
+      f.set(wrap(new Center(new SizedBox(0, 0, snapshot))));
+      assert.equal(f.liveImages, 0);
+      assert.equal(c.hasListeners, true);
+    } finally {
+      await f.close();
+      assert.equal(c.hasListeners, false);
+      c.dispose();
+    }
+  },
+);
+test(
+  'capture fails explicitly without its View rasterizer, then the same live snapshot recovers with the provider',
+  { timeout },
+  async () => {
+    const f = await snapshotFixture(),
+      c = new SnapshotController({ allowSnapshotting: true }),
+      counts = { paint: 0 },
+      snapshot = new SnapshotWidget({ controller: c, child: new PaintLeaf(0xffff0000, counts) });
+    try {
+      f.root.context.rasterizer = undefined;
+      assert.throws(() => f.set(wrap(snapshot)), /SnapshotWidget capture requires/);
+      f.root.context.rasterizer = f.rasterizer;
+      f.set(wrap(new SnapshotWidget({ controller: c, child: new PaintLeaf(0xffff0000, counts) })));
+      assert.deepEqual(f.pixel(), [255, 0, 0, 255]);
+      assert.equal(f.rasters.length, 1);
+    } finally {
+      await f.close();
+      assert.equal(c.hasListeners, false);
+      c.dispose();
+    }
+  },
+);
 
-test('unchanged default snapshot painter preserves exact fractional source rectangle and declared filter on canonical owned image commands',{timeout},()=>{
- const registry=new ResourceRegistry(),descriptor={kind:'image',id:'snapshot-default-value',generation:1},context=new PaintingContext(),c=new SnapshotController();registry.register(descriptor,()=>{});const image=Image.fromResource(registry,descriptor,47,27),w=new SnapshotWidget({controller:c,child:new SizedBox()});try{assert.deepEqual({mode:w.mode,autoresize:w.autoresize,hasListeners:w.painter.hasListeners},original.defaults);w.painter.paintSnapshot(context,new Offset(3,4),new Size(31.25,17.5),image,new Size(46.875,26.25),1.5);const row=context.commands.find(r=>r.op==='drawImageRect');assert.deepEqual({src:[row.src.x,row.src.y,row.src.width,row.src.height],dst:[row.dst.x,row.dst.y,row.dst.width,row.dst.height],quality:row.paint.filterQuality,image:[image.width,image.height]},original.defaultPaint[0]);}finally{context.dispose();image.dispose();registry.releaseProducer(descriptor);registry.dispose();c.dispose();}
-});
+test(
+  'unchanged default snapshot painter preserves exact fractional source rectangle and declared filter on canonical owned image commands',
+  { timeout },
+  () => {
+    const registry = new ResourceRegistry(),
+      descriptor = { kind: 'image', id: 'snapshot-default-value', generation: 1 },
+      context = new PaintingContext(),
+      c = new SnapshotController();
+    registry.register(descriptor, () => {});
+    const image = Image.fromResource(registry, descriptor, 47, 27),
+      w = new SnapshotWidget({ controller: c, child: new SizedBox() });
+    try {
+      assert.deepEqual(
+        { mode: w.mode, autoresize: w.autoresize, hasListeners: w.painter.hasListeners },
+        original.defaults,
+      );
+      w.painter.paintSnapshot(
+        context,
+        new Offset(3, 4),
+        new Size(31.25, 17.5),
+        image,
+        new Size(46.875, 26.25),
+        1.5,
+      );
+      const row = context.commands.find((r) => r.op === 'drawImageRect');
+      assert.deepEqual(
+        {
+          src: [row.src.x, row.src.y, row.src.width, row.src.height],
+          dst: [row.dst.x, row.dst.y, row.dst.width, row.dst.height],
+          quality: row.paint.filterQuality,
+          image: [image.width, image.height],
+        },
+        original.defaultPaint[0],
+      );
+    } finally {
+      context.dispose();
+      image.dispose();
+      registry.releaseProducer(descriptor);
+      registry.dispose();
+      c.dispose();
+    }
+  },
+);
 
-test('three unchanged source mode traces match actual Core unsupported layers and canonical CPU capture',{timeout},async()=>{
- for(const row of original.fallback){const f=await snapshotFixture(),c=new SnapshotController({allowSnapshotting:true}),p=new SpyPainter(),counts={paint:0};let render,threw=false;try{const w=new SnapshotWidget({controller:c,painter:p,mode:row.mode,child:new PaintLeaf(0xffff0000,counts,true)});try{f.set(wrap(w));f.frame();}catch{threw=true;}const find=e=>{if(e.widget===w)render=e.renderObject;e.visitChildren(find);};find(f.root.root);assert.deepEqual({mode:row.mode,throws:threw,childPaints:counts.paint,captures:f.rasters.length,disabled:render.disableSnapshotAttempt,snapshots:p.snapshots.length,live:p.live},row);}finally{await f.close();assert.equal(c.hasListeners,false);assert.equal(p.hasListeners,false);c.dispose();p.dispose();}}
-});
+test(
+  'three unchanged source mode traces match actual Core unsupported layers and canonical CPU capture',
+  { timeout },
+  async () => {
+    for (const row of original.fallback) {
+      const f = await snapshotFixture(),
+        c = new SnapshotController({ allowSnapshotting: true }),
+        p = new SpyPainter(),
+        counts = { paint: 0 };
+      let render,
+        threw = false;
+      try {
+        const w = new SnapshotWidget({
+          controller: c,
+          painter: p,
+          mode: row.mode,
+          child: new PaintLeaf(0xffff0000, counts, true),
+        });
+        try {
+          f.set(wrap(w));
+          f.frame();
+        } catch {
+          threw = true;
+        }
+        const find = (e) => {
+          if (e.widget === w) render = e.renderObject;
+          e.visitChildren(find);
+        };
+        find(f.root.root);
+        assert.deepEqual(
+          {
+            mode: row.mode,
+            throws: threw,
+            childPaints: counts.paint,
+            captures: f.rasters.length,
+            disabled: render.disableSnapshotAttempt,
+            snapshots: p.snapshots.length,
+            live: p.live,
+          },
+          row,
+        );
+      } finally {
+        await f.close();
+        assert.equal(c.hasListeners, false);
+        assert.equal(p.hasListeners, false);
+        c.dispose();
+        p.dispose();
+      }
+    }
+  },
+);

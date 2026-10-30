@@ -1,14 +1,18 @@
-import type {NativeKeyObservation,NativeKeyboardFocusObservation,NativeTextObservation} from '@nelyx/core/ui/input';
-import type { ViewProps,NativeSyntheticEvent } from "react-native";
+import type {
+  NativeKeyObservation,
+  NativeKeyboardFocusObservation,
+  NativeTextObservation,
+} from '@nelyx/core/ui/input';
+import type { ViewProps, NativeSyntheticEvent } from 'react-native';
 import type { SharedValue } from '../runtime/shared-value.ts';
 
-import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
-import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
-import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
-import type {SkSize} from "@nelyx/skia-native/skia/types/Size";
+import type { SkGraphiteContext } from '@nelyx/skia-native/skia/types/Graphite';
+import type { SkImage } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkPicture } from '@nelyx/skia-native/skia/types/Drawing';
+import type { SkRect } from '@nelyx/skia-native/skia/types/Rect';
+import type { SkSize } from '@nelyx/skia-native/skia/types/Size';
 
-export type AndroidSurfaceType = "SurfaceView" | "TextureView";
+export type AndroidSurfaceType = 'SurfaceView' | 'TextureView';
 
 export interface AndroidCanvasProps {
   /**
@@ -25,7 +29,7 @@ export interface AndroidCanvasProps {
 }
 
 export interface ISkiaViewApi {
-  mouseCursorVersion?:()=>number;
+  mouseCursorVersion?: () => number;
   web?: boolean;
   setJsiProperty: <T>(nativeId: number, name: string, value: T) => void;
   requestRedraw: (nativeId: number) => void;
@@ -36,11 +40,7 @@ export interface ISkiaViewApi {
    * current all the same. Ignored when the recording `recorderId` is neither
    * held by the view nor queued for it.
    */
-  applyUpdates: (
-    nativeId: number,
-    recorderId: number,
-    values: SharedValue<unknown>[]
-  ) => void;
+  applyUpdates: (nativeId: number, recorderId: number, values: SharedValue<unknown>[]) => void;
   makeImageSnapshot: (nativeId: number, rect?: SkRect) => SkImage;
   makeImageSnapshotAsync: (nativeId: number, rect?: SkRect) => Promise<SkImage>;
   size: (nativeId: number) => SkSize;
@@ -54,32 +54,32 @@ export interface ISkiaViewApi {
     height: number,
     opaque: boolean,
     highBitDepth: boolean,
-    pixelDensity?: number
+    pixelDensity?: number,
   ) => SkGraphiteContext;
 }
 
 /** The props every Skia view takes, whichever way it is drawn. */
 export interface SkiaBaseViewProps extends ViewProps {
   /** Windows: this canvas owns the full HWND client viewport, including resize metrics. */
-  windowViewport?:boolean;
+  windowViewport?: boolean;
   /** Actual native canvas cursor kind, supplied by the app-owned SDK port. */
-  mouseCursor?:string;
-  onNativeMouseEvent?:(event:NativeSyntheticEvent<NativeMouseEvent>)=>void;
+  mouseCursor?: string;
+  onNativeMouseEvent?: (event: NativeSyntheticEvent<NativeMouseEvent>) => void;
   /** Non-coalescing Android contact samples, including native MotionEvent history. */
-  onAndroidPointer?:(event:NativeSyntheticEvent<AndroidPointerEvent>)=>void;
+  onAndroidPointer?: (event: NativeSyntheticEvent<AndroidPointerEvent>) => void;
   /** Windows raw wheel input in logical coordinates; SDK owns routing and current-generation admission. */
-  onWindowsWheel?:(event:NativeSyntheticEvent<WindowsWheelEvent>)=>void;
+  onWindowsWheel?: (event: NativeSyntheticEvent<WindowsWheelEvent>) => void;
   /** Owned Windows pointer port; full native source and view lifetime are required. */
-  onWindowsPointer?:(event:NativeSyntheticEvent<WindowsPointerEvent>)=>void;
-  onWindowsKey?:(event:NativeSyntheticEvent<NativeKeyObservation>)=>void;
-  onWindowsKeyboardFocus?:(event:NativeSyntheticEvent<NativeKeyboardFocusObservation>)=>void;
-  onWindowsText?:(event:NativeSyntheticEvent<NativeTextObservation>)=>void;
+  onWindowsPointer?: (event: NativeSyntheticEvent<WindowsPointerEvent>) => void;
+  onWindowsKey?: (event: NativeSyntheticEvent<NativeKeyObservation>) => void;
+  onWindowsKeyboardFocus?: (event: NativeSyntheticEvent<NativeKeyboardFocusObservation>) => void;
+  onWindowsText?: (event: NativeSyntheticEvent<NativeTextObservation>) => void;
   /** Windows per-view binding/backing status; visible scanout is a separate check. */
-  onWindowsSurfaceStatus?: (event:NativeSyntheticEvent<WindowsSurfaceStatus>)=>void;
+  onWindowsSurfaceStatus?: (event: NativeSyntheticEvent<WindowsSurfaceStatus>) => void;
   /** Apple per-view backing/lifetime metadata; native qualification is separate. */
-  onAppleSurfaceStatus?: (event:NativeSyntheticEvent<AppleSurfaceStatus>)=>void;
+  onAppleSurfaceStatus?: (event: NativeSyntheticEvent<AppleSurfaceStatus>) => void;
   /** Linux Fabric view lifecycle/capability status. It does not certify GPU pixels. */
-  onLinuxSurfaceStatus?: (event:NativeSyntheticEvent<LinuxSurfaceStatus>)=>void;
+  onLinuxSurfaceStatus?: (event: NativeSyntheticEvent<LinuxSurfaceStatus>) => void;
   /**
    * Declares that the canvas covers every pixel of its bounds. On Android an
    * opaque canvas is backed by a `SurfaceView` by default, the cheapest path
@@ -102,43 +102,126 @@ export interface SkiaBaseViewProps extends ViewProps {
   __destroyWebGLContextAfterRender?: boolean;
 }
 export interface LinuxSurfaceStatus {
-  readonly phase:string;readonly reason:string;readonly nativeId:number;
-  readonly width:number;readonly height:number;readonly gpuPrepared:boolean;
-  readonly logicalWidth:number;readonly logicalHeight:number;readonly scale:number;
-  readonly surfaceGeneration:number;
-  readonly bound:boolean;readonly mapped:boolean;
+  readonly phase: string;
+  readonly reason: string;
+  readonly nativeId: number;
+  readonly width: number;
+  readonly height: number;
+  readonly gpuPrepared: boolean;
+  readonly logicalWidth: number;
+  readonly logicalHeight: number;
+  readonly scale: number;
+  readonly surfaceGeneration: number;
+  readonly bound: boolean;
+  readonly mapped: boolean;
 }
 /** Untrusted native event fields are validated by the owning SDK ingress. */
-export interface AndroidPointerSample {readonly kind:string;readonly device:string;readonly pointer:number;readonly buttons:number;readonly x:number;readonly y:number;readonly timestamp:number}
-export interface AndroidPointerEvent {readonly protocol:number;readonly nativeId:number;readonly samples:readonly AndroidPointerSample[]}
-export interface NativeMouseEvent {readonly protocol:number;readonly nativeId:number;readonly kind:string;readonly device:string;readonly pointer:number;readonly buttons:number;readonly x:number;readonly y:number;readonly timestamp:number}
+export interface AndroidPointerSample {
+  readonly kind: string;
+  readonly device: string;
+  readonly pointer: number;
+  readonly buttons: number;
+  readonly x: number;
+  readonly y: number;
+  readonly timestamp: number;
+}
+export interface AndroidPointerEvent {
+  readonly protocol: number;
+  readonly nativeId: number;
+  readonly samples: readonly AndroidPointerSample[];
+}
+export interface NativeMouseEvent {
+  readonly protocol: number;
+  readonly nativeId: number;
+  readonly kind: string;
+  readonly device: string;
+  readonly pointer: number;
+  readonly buttons: number;
+  readonly x: number;
+  readonly y: number;
+  readonly timestamp: number;
+}
 export interface AppleSurfaceStatus {
-  readonly phase:string;readonly reason:string;readonly nativeId:number;
-  readonly viewGeneration:number;readonly surfaceGeneration:number;
-  readonly logicalWidth:number;readonly logicalHeight:number;readonly width:number;readonly height:number;readonly scale:number;
-  readonly bound:boolean;readonly visible:boolean;
-  readonly layoutRevision?:number;readonly resizePending?:boolean;readonly pointerGeometryReady?:boolean;
+  readonly phase: string;
+  readonly reason: string;
+  readonly nativeId: number;
+  readonly viewGeneration: number;
+  readonly surfaceGeneration: number;
+  readonly logicalWidth: number;
+  readonly logicalHeight: number;
+  readonly width: number;
+  readonly height: number;
+  readonly scale: number;
+  readonly bound: boolean;
+  readonly visible: boolean;
+  readonly layoutRevision?: number;
+  readonly resizePending?: boolean;
+  readonly pointerGeometryReady?: boolean;
 }
 export interface WindowsSurfaceStatus {
-  readonly preparing:boolean;
-  readonly framePipelineVersion:2;
-  readonly pointerVersion:1;
-  readonly keyboardVersion:2;
-  readonly visibilityVersion:1;
-  readonly windowViewport?:boolean;
-  readonly phase:string;readonly reason:string;readonly nativeId:number;readonly reactTag:number;
-  readonly viewGeneration:number;readonly surfaceGeneration:number;readonly frames:number;
-  readonly logicalWidth:number;readonly logicalHeight:number;readonly width:number;readonly height:number;readonly scale:number;
-  readonly bound:boolean;readonly visible:boolean;
-  readonly layoutRevision?:number;readonly resizePending?:boolean;readonly pointerGeometryReady?:boolean;
+  readonly preparing: boolean;
+  readonly framePipelineVersion: 2;
+  readonly pointerVersion: 1;
+  readonly keyboardVersion: 2;
+  readonly visibilityVersion: 1;
+  readonly windowViewport?: boolean;
+  readonly phase: string;
+  readonly reason: string;
+  readonly nativeId: number;
+  readonly reactTag: number;
+  readonly viewGeneration: number;
+  readonly surfaceGeneration: number;
+  readonly frames: number;
+  readonly logicalWidth: number;
+  readonly logicalHeight: number;
+  readonly width: number;
+  readonly height: number;
+  readonly scale: number;
+  readonly bound: boolean;
+  readonly visible: boolean;
+  readonly layoutRevision?: number;
+  readonly resizePending?: boolean;
+  readonly pointerGeometryReady?: boolean;
 }
-export interface WindowsWheelEvent {readonly x:number;readonly y:number;readonly deltaX:number;readonly deltaY:number;readonly surfaceGeneration:number;readonly timestamp?:number;readonly sequence?:number;readonly sourceTimestamp?:number;readonly pointer?:number;readonly device?:'mouse'|'trackpad'}
+export interface WindowsWheelEvent {
+  readonly x: number;
+  readonly y: number;
+  readonly deltaX: number;
+  readonly deltaY: number;
+  readonly surfaceGeneration: number;
+  readonly timestamp?: number;
+  readonly sequence?: number;
+  readonly sourceTimestamp?: number;
+  readonly pointer?: number;
+  readonly device?: 'mouse' | 'trackpad';
+}
 export interface WindowsPointerEvent {
-  readonly protocol:1;readonly kind:'down'|'move'|'up'|'cancel'|'hover'|'leave'|'panZoomStart'|'panZoomUpdate'|'panZoomEnd'|'inertiaCancel';
-  readonly pointer:number;readonly device:'mouse'|'touch'|'pen'|'trackpad'|'unknown';readonly buttons:number;
-  readonly x:number;readonly y:number;readonly surfaceGeneration:number;
-  readonly timestamp?:number;readonly sequence?:number;
-  readonly panX?:number;readonly panY?:number;readonly deltaX?:number;readonly deltaY?:number;readonly scale?:number;readonly rotation?:number;
+  readonly protocol: 1;
+  readonly kind:
+    | 'down'
+    | 'move'
+    | 'up'
+    | 'cancel'
+    | 'hover'
+    | 'leave'
+    | 'panZoomStart'
+    | 'panZoomUpdate'
+    | 'panZoomEnd'
+    | 'inertiaCancel';
+  readonly pointer: number;
+  readonly device: 'mouse' | 'touch' | 'pen' | 'trackpad' | 'unknown';
+  readonly buttons: number;
+  readonly x: number;
+  readonly y: number;
+  readonly surfaceGeneration: number;
+  readonly timestamp?: number;
+  readonly sequence?: number;
+  readonly panX?: number;
+  readonly panY?: number;
+  readonly deltaX?: number;
+  readonly deltaY?: number;
+  readonly scale?: number;
+  readonly rotation?: number;
 }
 export interface SkiaPictureViewNativeProps extends SkiaBaseViewProps {
   picture?: SkPicture;

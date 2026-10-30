@@ -8,13 +8,37 @@ import { Column, Row, Expanded, Padding, Text } from '@nelyx/core/framework/widg
 import { Material as MaterialSurface } from './material.ts';
 import { Color } from '@nelyx/core/ui/color';
 export class Scaffold extends StatelessWidget {
-    constructor(readonly title: string, readonly body: Widget, readonly trailing?: Widget) {
-        super();
-    }
-    build(context: BuildContext): Widget {
-        const theme = AppTheme.of(context);
-        return new MaterialSurface({ color: new Color(theme.background), child: new Padding(allInsets(20), new Column([new Row([new Expanded(new Text(this.title, { fontSize: 28, color: theme.foreground })), ...(this.trailing ? [this.trailing] : [])], { spacing: 12 }), new Expanded(this.body)], {
-                spacing: 20, crossAlign: 'stretch', mainSize: 'max'
-            })) });
-    }
+  constructor(
+    readonly title: string,
+    readonly body: Widget,
+    readonly trailing?: Widget,
+  ) {
+    super();
+  }
+  build(context: BuildContext): Widget {
+    const theme = AppTheme.of(context);
+    return new MaterialSurface({
+      color: new Color(theme.background),
+      child: new Padding(
+        allInsets(20),
+        new Column(
+          [
+            new Row(
+              [
+                new Expanded(new Text(this.title, { fontSize: 28, color: theme.foreground })),
+                ...(this.trailing ? [this.trailing] : []),
+              ],
+              { spacing: 12 },
+            ),
+            new Expanded(this.body),
+          ],
+          {
+            spacing: 20,
+            crossAlign: 'stretch',
+            mainSize: 'max',
+          },
+        ),
+      ),
+    });
+  }
 }

@@ -1,4 +1,4 @@
-import type {SkFontMgr} from './FontMgr.ts';
+import type { SkFontMgr } from './FontMgr.ts';
 
 export interface FontMgrFactory {
   System(): SkFontMgr;

@@ -1,9 +1,67 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Complete finite MaterialType body from the current whole-family resolved IR.
-import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {emitDart} from './src/dart-emitter.ts';import type {BodyIr,ModuleRecipe} from './src/body-ir.ts';import {writeVerificationReceipt} from './checks/compiled-inputs.mjs';
-const sha=(bytes:string|Buffer)=>createHash('sha256').update(bytes).digest('hex'),ref=(file:string)=>({file,sha256:sha(fs.readFileSync(file))}),candidateFile='.tmp/work8/w11-material-ink-candidate/result.json',candidate=JSON.parse(fs.readFileSync(candidateFile,'utf8')),receiptFile='.tmp/work8/w11-material-values-ownership.json',previous=fs.existsSync(receiptFile)?JSON.parse(fs.readFileSync(receiptFile,'utf8')):null;
-assert.equal(ref(candidate.ir.file).sha256,candidate.ir.sha256);const ir=JSON.parse(fs.readFileSync(candidate.ir.file,'utf8')) as BodyIr,source='packages/flutter/lib/src/material/material.dart',row=candidate.upstream.find((row:{source:string})=>row.source===source);assert(row);assert.equal(sha(fs.readFileSync('.tmp/work6/flutter-source/'+source,'utf8').replaceAll('\r\n','\n')),row.sha256);
-const file='packages/material/src/material-values.generated.ts',module:ModuleRecipe={imports:{checkedInteger:'@nelyx/core/internal/ui/value-math'},numericTypes:{int:{representation:'safe-number',check:'checkedInteger'}},source,sha256:row.sha256,symbols:['MaterialType'],destination:file},record=ir.records.find(row=>row.source===source&&row.symbol==='MaterialType');assert(record?.ir);const bytes=emitDart([record.ir],module);
-if(fs.existsSync(file)){assert(previous,'Existing MaterialType output has no ownership receipt');assert.equal(ref(file).sha256,previous.output.sha256,'Managed MaterialType output was edited');}
-if(process.argv.includes('--check'))assert.equal(fs.readFileSync(file,'utf8'),bytes);else fs.writeFileSync(file,bytes);
-if(!process.argv.includes('--check'))writeVerificationReceipt(receiptFile,{schema:'nelyx.w11-material-value-bodies/v1',status:'PASS-scoped',recordedAt:new Date().toISOString(),inputs:[ref(candidateFile),candidate.ir,ref('tools/Nelyx.FrameworkToTypeScript/generate-material-values.ts'),ref('tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts')],output:{...ref(file),source:ref('.tmp/work6/flutter-source/'+source),symbols:module.symbols},scope:'Complete original finite MaterialType enum, canonical closed values/index/name/toString and preserved resolved integer annotation. Managed regenerate/direct-edit rejection; no newly promoted batch, generic compiler or complete Material hierarchy qualification.'});console.log(JSON.stringify({status:'PASS-scoped',symbols:1,checkOnly:process.argv.includes('--check')}));
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { emitDart } from './src/dart-emitter.ts';
+import type { BodyIr, ModuleRecipe } from './src/body-ir.ts';
+import { writeVerificationReceipt } from './checks/compiled-inputs.mjs';
+const sha = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex'),
+  ref = (file: string) => ({ file, sha256: sha(fs.readFileSync(file)) }),
+  candidateFile = '.tmp/work8/w11-material-ink-candidate/result.json',
+  candidate = JSON.parse(fs.readFileSync(candidateFile, 'utf8')),
+  receiptFile = '.tmp/work8/w11-material-values-ownership.json',
+  previous = fs.existsSync(receiptFile) ? JSON.parse(fs.readFileSync(receiptFile, 'utf8')) : null;
+assert.equal(ref(candidate.ir.file).sha256, candidate.ir.sha256);
+const ir = JSON.parse(fs.readFileSync(candidate.ir.file, 'utf8')) as BodyIr,
+  source = 'packages/flutter/lib/src/material/material.dart',
+  row = candidate.upstream.find((row: { source: string }) => row.source === source);
+assert(row);
+assert.equal(
+  sha(fs.readFileSync('.tmp/work6/flutter-source/' + source, 'utf8').replaceAll('\r\n', '\n')),
+  row.sha256,
+);
+const file = 'packages/material/src/material-values.generated.ts',
+  module: ModuleRecipe = {
+    imports: { checkedInteger: '@nelyx/core/internal/ui/value-math' },
+    numericTypes: { int: { representation: 'safe-number', check: 'checkedInteger' } },
+    source,
+    sha256: row.sha256,
+    symbols: ['MaterialType'],
+    destination: file,
+  },
+  record = ir.records.find((row) => row.source === source && row.symbol === 'MaterialType');
+assert(record?.ir);
+const bytes = emitDart([record.ir], module);
+if (fs.existsSync(file)) {
+  assert(previous, 'Existing MaterialType output has no ownership receipt');
+  assert.equal(ref(file).sha256, previous.output.sha256, 'Managed MaterialType output was edited');
+}
+if (process.argv.includes('--check')) assert.equal(fs.readFileSync(file, 'utf8'), bytes);
+else fs.writeFileSync(file, bytes);
+if (!process.argv.includes('--check'))
+  writeVerificationReceipt(receiptFile, {
+    schema: 'nelyx.w11-material-value-bodies/v1',
+    status: 'PASS-scoped',
+    recordedAt: new Date().toISOString(),
+    inputs: [
+      ref(candidateFile),
+      candidate.ir,
+      ref('tools/Nelyx.FrameworkToTypeScript/generate-material-values.ts'),
+      ref('tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts'),
+    ],
+    output: {
+      ...ref(file),
+      source: ref('.tmp/work6/flutter-source/' + source),
+      symbols: module.symbols,
+    },
+    scope:
+      'Complete original finite MaterialType enum, canonical closed values/index/name/toString and preserved resolved integer annotation. Managed regenerate/direct-edit rejection; no newly promoted batch, generic compiler or complete Material hierarchy qualification.',
+  });
+console.log(
+  JSON.stringify({
+    status: 'PASS-scoped',
+    symbols: 1,
+    checkOnly: process.argv.includes('--check'),
+  }),
+);

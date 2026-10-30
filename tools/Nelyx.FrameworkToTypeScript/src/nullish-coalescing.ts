@@ -8,7 +8,10 @@ export function createNullishCoalescing(left: ts.Expression, right: ts.Expressio
   const collect = (expression: ts.Expression): void => {
     let value = expression;
     while (ts.isParenthesizedExpression(value)) value = value.expression;
-    if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+    if (
+      ts.isBinaryExpression(value) &&
+      value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+    ) {
       collect(value.left);
       collect(value.right);
     } else {
@@ -22,8 +25,11 @@ export function createNullishCoalescing(left: ts.Expression, right: ts.Expressio
     while (ts.isParenthesizedExpression(value)) value = value.expression;
     return index === operands.length - 1 || value.kind !== ts.SyntaxKind.NullKeyword;
   });
-  return retained.slice(1).reduce<ts.Expression>(
-    (value, operand) => ts.factory.createBinaryExpression(value, ts.SyntaxKind.QuestionQuestionToken, operand),
-    retained[0]!,
-  );
+  return retained
+    .slice(1)
+    .reduce<ts.Expression>(
+      (value, operand) =>
+        ts.factory.createBinaryExpression(value, ts.SyntaxKind.QuestionQuestionToken, operand),
+      retained[0]!,
+    );
 }

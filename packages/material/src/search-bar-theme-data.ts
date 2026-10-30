@@ -1,22 +1,28 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import { BorderSide } from "@nelyx/core/framework/painting/borders";
-import { BoxConstraints } from "@nelyx/core/framework/rendering/constraints";
-import { Color } from "@nelyx/core/ui/color";
-import { DartDouble } from "@nelyx/core/foundation/dart-numeric";
-import { EdgeInsetsGeometry } from "@nelyx/core/framework/painting/edge-insets";
-import { OutlinedBorder } from "@nelyx/core/framework/painting/borders";
-import type { TextCapitalization } from "@nelyx/core/services/text-capitalization";
-import { TextStyle } from "@nelyx/core/framework/painting/text-style";
-import { WidgetStateProperty } from "@nelyx/core/framework/widgets/widget-state";
-import { lerpDoubleProperty, lerpColorProperty, lerpOutlinedBorderProperty, lerpEdgeInsetsGeometryProperty, lerpTextStyleProperty } from "./internal/theme/value-interpolation.ts";
-import { WidgetStateBorderSide } from "@nelyx/core/framework/widgets/widget-state";
-import { Diagnosticable } from "@nelyx/core/foundation/diagnosticable";
-import { DiagnosticsProperty } from "@nelyx/core/foundation/diagnostics";
-import type { DiagnosticPropertiesBuilder } from "@nelyx/core/foundation/diagnostics";
-import "@nelyx/core/foundation/diagnostic-properties";
-import "@nelyx/core/internal/framework/painting/color-property.generated";
-import { valueEquals, hashValues } from "@nelyx/core/framework/painting/value-equality";
+import { BorderSide } from '@nelyx/core/framework/painting/borders';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { Color } from '@nelyx/core/ui/color';
+import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
+import { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
+import { OutlinedBorder } from '@nelyx/core/framework/painting/borders';
+import type { TextCapitalization } from '@nelyx/core/services/text-capitalization';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
+import {
+  lerpDoubleProperty,
+  lerpColorProperty,
+  lerpOutlinedBorderProperty,
+  lerpEdgeInsetsGeometryProperty,
+  lerpTextStyleProperty,
+} from './internal/theme/value-interpolation.ts';
+import { WidgetStateBorderSide } from '@nelyx/core/framework/widgets/widget-state';
+import { Diagnosticable } from '@nelyx/core/foundation/diagnosticable';
+import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';
+import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import '@nelyx/core/foundation/diagnostic-properties';
+import '@nelyx/core/internal/framework/painting/color-property.generated';
+import { valueEquals, hashValues } from '@nelyx/core/framework/painting/value-equality';
 export interface SearchBarThemeDataOptions {
   /** @dartType WidgetStateProperty<double?>? */
   readonly elevation?: WidgetStateProperty<DartDouble | null> | null;
@@ -81,41 +87,143 @@ export class SearchBarThemeData extends Diagnosticable(class {}) {
     });
   }
   /** @dartParam t double */
-  static lerp(a: SearchBarThemeData | null, b: SearchBarThemeData | null, t: number): SearchBarThemeData | null {
-    if ((a === b)) {
-    return a;
-}
+  static lerp(
+    a: SearchBarThemeData | null,
+    b: SearchBarThemeData | null,
+    t: number,
+  ): SearchBarThemeData | null {
+    if (a === b) {
+      return a;
+    }
     return new SearchBarThemeData({
-      elevation: lerpDoubleProperty((a?.elevation ?? null), (b?.elevation ?? null), t),
-      backgroundColor: lerpColorProperty((a?.backgroundColor ?? null), (b?.backgroundColor ?? null), t),
-      shadowColor: lerpColorProperty((a?.shadowColor ?? null), (b?.shadowColor ?? null), t),
-      surfaceTintColor: lerpColorProperty((a?.surfaceTintColor ?? null), (b?.surfaceTintColor ?? null), t),
-      overlayColor: lerpColorProperty((a?.overlayColor ?? null), (b?.overlayColor ?? null), t),
-      side: WidgetStateBorderSide.lerp((a?.side ?? null), (b?.side ?? null), t),
-      shape: lerpOutlinedBorderProperty((a?.shape ?? null), (b?.shape ?? null), t),
-      padding: lerpEdgeInsetsGeometryProperty((a?.padding ?? null), (b?.padding ?? null), t),
-      textStyle: lerpTextStyleProperty((a?.textStyle ?? null), (b?.textStyle ?? null), t),
-      hintStyle: lerpTextStyleProperty((a?.hintStyle ?? null), (b?.hintStyle ?? null), t),
-      constraints: BoxConstraints.lerp((a?.constraints ?? null), (b?.constraints ?? null), t),
-      textCapitalization: ((t < 0.5) ? (a?.textCapitalization ?? null) : (b?.textCapitalization ?? null)),
+      elevation: lerpDoubleProperty(a?.elevation ?? null, b?.elevation ?? null, t),
+      backgroundColor: lerpColorProperty(a?.backgroundColor ?? null, b?.backgroundColor ?? null, t),
+      shadowColor: lerpColorProperty(a?.shadowColor ?? null, b?.shadowColor ?? null, t),
+      surfaceTintColor: lerpColorProperty(
+        a?.surfaceTintColor ?? null,
+        b?.surfaceTintColor ?? null,
+        t,
+      ),
+      overlayColor: lerpColorProperty(a?.overlayColor ?? null, b?.overlayColor ?? null, t),
+      side: WidgetStateBorderSide.lerp(a?.side ?? null, b?.side ?? null, t),
+      shape: lerpOutlinedBorderProperty(a?.shape ?? null, b?.shape ?? null, t),
+      padding: lerpEdgeInsetsGeometryProperty(a?.padding ?? null, b?.padding ?? null, t),
+      textStyle: lerpTextStyleProperty(a?.textStyle ?? null, b?.textStyle ?? null, t),
+      hintStyle: lerpTextStyleProperty(a?.hintStyle ?? null, b?.hintStyle ?? null, t),
+      constraints: BoxConstraints.lerp(a?.constraints ?? null, b?.constraints ?? null, t),
+      textCapitalization:
+        t < 0.5 ? (a?.textCapitalization ?? null) : (b?.textCapitalization ?? null),
     });
-}
-  equals(other: unknown): boolean { return this === other || other instanceof SearchBarThemeData && other.constructor === this.constructor && valueEquals(this.elevation, other.elevation) && valueEquals(this.backgroundColor, other.backgroundColor) && valueEquals(this.shadowColor, other.shadowColor) && valueEquals(this.surfaceTintColor, other.surfaceTintColor) && valueEquals(this.overlayColor, other.overlayColor) && valueEquals(this.side, other.side) && valueEquals(this.shape, other.shape) && valueEquals(this.padding, other.padding) && valueEquals(this.textStyle, other.textStyle) && valueEquals(this.hintStyle, other.hintStyle) && valueEquals(this.constraints, other.constraints) && valueEquals(this.textCapitalization, other.textCapitalization); }
+  }
+  equals(other: unknown): boolean {
+    return (
+      this === other ||
+      (other instanceof SearchBarThemeData &&
+        other.constructor === this.constructor &&
+        valueEquals(this.elevation, other.elevation) &&
+        valueEquals(this.backgroundColor, other.backgroundColor) &&
+        valueEquals(this.shadowColor, other.shadowColor) &&
+        valueEquals(this.surfaceTintColor, other.surfaceTintColor) &&
+        valueEquals(this.overlayColor, other.overlayColor) &&
+        valueEquals(this.side, other.side) &&
+        valueEquals(this.shape, other.shape) &&
+        valueEquals(this.padding, other.padding) &&
+        valueEquals(this.textStyle, other.textStyle) &&
+        valueEquals(this.hintStyle, other.hintStyle) &&
+        valueEquals(this.constraints, other.constraints) &&
+        valueEquals(this.textCapitalization, other.textCapitalization))
+    );
+  }
   /** @dartReturn int */
-  get hashCode(): number { return hashValues(this.elevation, this.backgroundColor, this.shadowColor, this.surfaceTintColor, this.overlayColor, this.side, this.shape, this.padding, this.textStyle, this.hintStyle, this.constraints, this.textCapitalization); }
+  get hashCode(): number {
+    return hashValues(
+      this.elevation,
+      this.backgroundColor,
+      this.shadowColor,
+      this.surfaceTintColor,
+      this.overlayColor,
+      this.side,
+      this.shape,
+      this.padding,
+      this.textStyle,
+      this.hintStyle,
+      this.constraints,
+      this.textCapitalization,
+    );
+  }
   override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
     super.debugFillProperties(properties);
-    properties.add(new DiagnosticsProperty("elevation", this.elevation, { defaultValue: null, typeName: "WidgetStateProperty<double?>" }));
-    properties.add(new DiagnosticsProperty("backgroundColor", this.backgroundColor, { defaultValue: null, typeName: "WidgetStateProperty<Color?>" }));
-    properties.add(new DiagnosticsProperty("shadowColor", this.shadowColor, { defaultValue: null, typeName: "WidgetStateProperty<Color?>" }));
-    properties.add(new DiagnosticsProperty("surfaceTintColor", this.surfaceTintColor, { defaultValue: null, typeName: "WidgetStateProperty<Color?>" }));
-    properties.add(new DiagnosticsProperty("overlayColor", this.overlayColor, { defaultValue: null, typeName: "WidgetStateProperty<Color?>" }));
-    properties.add(new DiagnosticsProperty("side", this.side, { defaultValue: null, typeName: "WidgetStateProperty<BorderSide?>" }));
-    properties.add(new DiagnosticsProperty("shape", this.shape, { defaultValue: null, typeName: "WidgetStateProperty<OutlinedBorder?>" }));
-    properties.add(new DiagnosticsProperty("padding", this.padding, { defaultValue: null, typeName: "WidgetStateProperty<EdgeInsetsGeometry?>" }));
-    properties.add(new DiagnosticsProperty("textStyle", this.textStyle, { defaultValue: null, typeName: "WidgetStateProperty<TextStyle?>" }));
-    properties.add(new DiagnosticsProperty("hintStyle", this.hintStyle, { defaultValue: null, typeName: "WidgetStateProperty<TextStyle?>" }));
-    properties.add(new DiagnosticsProperty("constraints", this.constraints, { defaultValue: null, typeName: "BoxConstraints" }));
-    properties.add(new DiagnosticsProperty("textCapitalization", this.textCapitalization, { defaultValue: null, typeName: "TextCapitalization" }));
+    properties.add(
+      new DiagnosticsProperty('elevation', this.elevation, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<double?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('backgroundColor', this.backgroundColor, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<Color?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('shadowColor', this.shadowColor, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<Color?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('surfaceTintColor', this.surfaceTintColor, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<Color?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('overlayColor', this.overlayColor, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<Color?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('side', this.side, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<BorderSide?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('shape', this.shape, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<OutlinedBorder?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('padding', this.padding, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<EdgeInsetsGeometry?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('textStyle', this.textStyle, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<TextStyle?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('hintStyle', this.hintStyle, {
+        defaultValue: null,
+        typeName: 'WidgetStateProperty<TextStyle?>',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('constraints', this.constraints, {
+        defaultValue: null,
+        typeName: 'BoxConstraints',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('textCapitalization', this.textCapitalization, {
+        defaultValue: null,
+        typeName: 'TextCapitalization',
+      }),
+    );
   }
 }

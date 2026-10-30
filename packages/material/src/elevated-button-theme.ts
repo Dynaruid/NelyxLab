@@ -6,8 +6,22 @@ import { Theme } from './theme.ts';
 import { ElevatedButtonThemeData } from './elevated-button-theme-data.ts';
 export { ElevatedButtonThemeData } from './elevated-button-theme-data.ts';
 export class ElevatedButtonTheme extends InheritedTheme {
-    constructor(readonly data: ElevatedButtonThemeData, child: Widget, options: WidgetOptions = {}) { super(child, options.key ?? null); }
-    static of(context: BuildContext): ElevatedButtonThemeData { return context.maybeDependOn(ElevatedButtonTheme)?.data ?? Theme.of(context).elevatedButtonTheme; }
-    wrap(_context: BuildContext, child: Widget): Widget { return new ElevatedButtonTheme(this.data, child); }
-    updateShouldNotify(old: this): boolean { return !this.data.equals(old.data); }
+  constructor(
+    readonly data: ElevatedButtonThemeData,
+    child: Widget,
+    options: WidgetOptions = {},
+  ) {
+    super(child, options.key ?? null);
+  }
+  static of(context: BuildContext): ElevatedButtonThemeData {
+    return (
+      context.maybeDependOn(ElevatedButtonTheme)?.data ?? Theme.of(context).elevatedButtonTheme
+    );
+  }
+  wrap(_context: BuildContext, child: Widget): Widget {
+    return new ElevatedButtonTheme(this.data, child);
+  }
+  updateShouldNotify(old: this): boolean {
+    return !this.data.equals(old.data);
+  }
 }

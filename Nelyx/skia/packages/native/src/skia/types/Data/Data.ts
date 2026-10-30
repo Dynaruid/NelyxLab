@@ -1,6 +1,6 @@
-import type {SkJSIInstance} from '../JsiInstance.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
 
-export interface SkData extends SkJSIInstance<"Data"> {
+export interface SkData extends SkJSIInstance<'Data'> {
   /** Fork capability: copied bytes; rejects disposed data and limits above 16 MiB. */
   nelyxBytes(maxBytes: number): Uint8Array;
   /** Fork capability: SHA-256 of immutable native storage under the same byte budget. */
@@ -22,15 +22,10 @@ export type DataModule = RNModule | ESModule | MetroAsset;
 export type DataSource = DataModule | string | Uint8Array;
 export type DataSourceParam = DataSource | null | undefined;
 
-export const isRNModule = (mod: DataModule): mod is RNModule =>
-  typeof mod === "number";
+export const isRNModule = (mod: DataModule): mod is RNModule => typeof mod === 'number';
 
 // Since Expo SDK 52, on web, require() may return an ES module interop
 // object ({ default: <asset> }) instead of the asset itself.
 // See https://github.com/Shopify/react-native-skia/issues/2784
-export const unwrapModule = (
-  mod: DataModule
-): RNModule | MetroAsset | string =>
-  typeof mod === "object" && mod !== null && "default" in mod
-    ? mod.default
-    : mod;
+export const unwrapModule = (mod: DataModule): RNModule | MetroAsset | string =>
+  typeof mod === 'object' && mod !== null && 'default' in mod ? mod.default : mod;

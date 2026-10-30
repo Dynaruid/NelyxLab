@@ -1,4 +1,4 @@
-import type {SkJSIInstance} from '../JsiInstance.ts';
+import type { SkJSIInstance } from '../JsiInstance.ts';
 
 export enum TileMode {
   /**
@@ -24,8 +24,7 @@ export enum TileMode {
   Decal,
 }
 
-export const isImageFilter = (
-  obj: SkJSIInstance<string> | null
-): obj is SkImageFilter => obj !== null && obj.__typename__ === "ImageFilter";
+export const isImageFilter = (obj: SkJSIInstance<string> | null): obj is SkImageFilter =>
+  obj !== null && obj.__typename__ === 'ImageFilter';
 
-export interface SkImageFilter extends SkJSIInstance<"ImageFilter"> {}
+export interface SkImageFilter extends SkJSIInstance<'ImageFilter'> {}

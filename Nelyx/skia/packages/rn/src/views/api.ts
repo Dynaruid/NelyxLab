@@ -1,4 +1,4 @@
-import type {ISkiaViewApi} from './types.ts';
+import type { ISkiaViewApi } from './types.ts';
 
 declare global {
   var SkiaViewApi: ISkiaViewApi;

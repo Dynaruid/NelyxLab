@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import type { TextStyle } from "@nelyx/core/framework/painting/text-style";
-import { FloatingLabelBehavior } from "./floating-label-behavior.ts";
-import { FloatingLabelAlignment } from "./floating-label-alignment.ts";
-import type { EdgeInsetsGeometry } from "@nelyx/core/framework/painting/edge-insets";
-import type { Color } from "@nelyx/core/ui/color";
-import type { BoxConstraints } from "@nelyx/core/framework/rendering/constraints";
-import type { BorderSide } from "@nelyx/core/framework/painting/borders";
-import { InputBorder } from "./input-border.ts";
-import type { VisualDensity } from "./theme-data.ts";
-import { Diagnosticable } from "@nelyx/core/foundation/diagnosticable";
-import { DiagnosticsProperty } from "@nelyx/core/foundation/diagnostics";
-import type { DiagnosticPropertiesBuilder } from "@nelyx/core/foundation/diagnostics";
-import { IntProperty } from "@nelyx/core/foundation/diagnostic-properties";
-import { ColorProperty } from "@nelyx/core/internal/framework/painting/color-property.generated";
-import { valueEquals, hashValues } from "@nelyx/core/framework/painting/value-equality";
+import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { FloatingLabelBehavior } from './floating-label-behavior.ts';
+import { FloatingLabelAlignment } from './floating-label-alignment.ts';
+import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
+import type { Color } from '@nelyx/core/ui/color';
+import type { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import type { BorderSide } from '@nelyx/core/framework/painting/borders';
+import { InputBorder } from './input-border.ts';
+import type { VisualDensity } from './theme-data.ts';
+import { Diagnosticable } from '@nelyx/core/foundation/diagnosticable';
+import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';
+import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
+import { IntProperty } from '@nelyx/core/foundation/diagnostic-properties';
+import { ColorProperty } from '@nelyx/core/internal/framework/painting/color-property.generated';
+import { valueEquals, hashValues } from '@nelyx/core/framework/painting/value-equality';
 export interface InputDecorationThemeDataOptions {
   readonly labelStyle?: TextStyle | null;
   readonly floatingLabelStyle?: TextStyle | null;
@@ -146,12 +146,15 @@ export class InputDecorationThemeData extends Diagnosticable(class {}) {
    * @dartParam errorMaxLines int? */
   constructor(options: InputDecorationThemeDataOptions = {}) {
     super();
-    if (options.floatingLabelBehavior === null) throw new TypeError("floatingLabelBehavior is non-nullable");
-    if (options.floatingLabelAlignment === null) throw new TypeError("floatingLabelAlignment is non-nullable");
-    if (options.isDense === null) throw new TypeError("isDense is non-nullable");
-    if (options.isCollapsed === null) throw new TypeError("isCollapsed is non-nullable");
-    if (options.filled === null) throw new TypeError("filled is non-nullable");
-    if (options.alignLabelWithHint === null) throw new TypeError("alignLabelWithHint is non-nullable");
+    if (options.floatingLabelBehavior === null)
+      throw new TypeError('floatingLabelBehavior is non-nullable');
+    if (options.floatingLabelAlignment === null)
+      throw new TypeError('floatingLabelAlignment is non-nullable');
+    if (options.isDense === null) throw new TypeError('isDense is non-nullable');
+    if (options.isCollapsed === null) throw new TypeError('isCollapsed is non-nullable');
+    if (options.filled === null) throw new TypeError('filled is non-nullable');
+    if (options.alignLabelWithHint === null)
+      throw new TypeError('alignLabelWithHint is non-nullable');
     this.labelStyle = options.labelStyle ?? null;
     this.floatingLabelStyle = options.floatingLabelStyle ?? null;
     this.helperStyle = options.helperStyle ?? null;
@@ -189,10 +192,23 @@ export class InputDecorationThemeData extends Diagnosticable(class {}) {
     this.alignLabelWithHint = options.alignLabelWithHint ?? false;
     this.constraints = options.constraints ?? null;
     this.visualDensity = options.visualDensity ?? null;
-    if (!FloatingLabelBehavior.values.includes(this.floatingLabelBehavior)) throw new TypeError("Expected canonical FloatingLabelBehavior");
-    if (!(this.floatingLabelAlignment instanceof FloatingLabelAlignment)) throw new TypeError("Expected canonical FloatingLabelAlignment");
-    for (const value of [this.helperMaxLines, this.hintMaxLines, this.errorMaxLines]) if (value !== null && !Number.isSafeInteger(value)) throw new TypeError("Input theme maxLines requires a safe source int");
-    for (const value of [this.errorBorder, this.focusedBorder, this.focusedErrorBorder, this.disabledBorder, this.enabledBorder, this.border]) if (value !== null && !(value instanceof InputBorder)) throw new TypeError("Input theme borders require the canonical InputBorder");
+    if (!FloatingLabelBehavior.values.includes(this.floatingLabelBehavior))
+      throw new TypeError('Expected canonical FloatingLabelBehavior');
+    if (!(this.floatingLabelAlignment instanceof FloatingLabelAlignment))
+      throw new TypeError('Expected canonical FloatingLabelAlignment');
+    for (const value of [this.helperMaxLines, this.hintMaxLines, this.errorMaxLines])
+      if (value !== null && !Number.isSafeInteger(value))
+        throw new TypeError('Input theme maxLines requires a safe source int');
+    for (const value of [
+      this.errorBorder,
+      this.focusedBorder,
+      this.focusedErrorBorder,
+      this.disabledBorder,
+      this.enabledBorder,
+      this.border,
+    ])
+      if (value !== null && !(value instanceof InputBorder))
+        throw new TypeError('Input theme borders require the canonical InputBorder');
     if (new.target === InputDecorationThemeData) Object.freeze(this);
   }
   /** @dartParam helperMaxLines int?
@@ -240,44 +256,48 @@ export class InputDecorationThemeData extends Diagnosticable(class {}) {
     });
   }
   merge(other: InputDecorationThemeData | null): InputDecorationThemeData {
-    return other === null ? this : this.copyWith({
-      labelStyle: this.labelStyle ?? other.labelStyle,
-      floatingLabelStyle: this.floatingLabelStyle ?? other.floatingLabelStyle,
-      helperStyle: this.helperStyle ?? other.helperStyle,
-      helperMaxLines: this.helperMaxLines ?? other.helperMaxLines,
-      hintStyle: this.hintStyle ?? other.hintStyle,
-      hintFadeDuration: this.hintFadeDuration ?? other.hintFadeDuration,
-      hintMaxLines: this.hintMaxLines ?? other.hintMaxLines,
-      errorStyle: this.errorStyle ?? other.errorStyle,
-      errorMaxLines: this.errorMaxLines ?? other.errorMaxLines,
-      contentPadding: this.contentPadding ?? other.contentPadding,
-      iconColor: this.iconColor ?? other.iconColor,
-      prefixStyle: this.prefixStyle ?? other.prefixStyle,
-      prefixIconColor: this.prefixIconColor ?? other.prefixIconColor,
-      prefixIconConstraints: this.prefixIconConstraints ?? other.prefixIconConstraints,
-      suffixStyle: this.suffixStyle ?? other.suffixStyle,
-      suffixIconColor: this.suffixIconColor ?? other.suffixIconColor,
-      suffixIconConstraints: this.suffixIconConstraints ?? other.suffixIconConstraints,
-      counterStyle: this.counterStyle ?? other.counterStyle,
-      fillColor: this.fillColor ?? other.fillColor,
-      activeIndicatorBorder: this.activeIndicatorBorder ?? other.activeIndicatorBorder,
-      outlineBorder: this.outlineBorder ?? other.outlineBorder,
-      focusColor: this.focusColor ?? other.focusColor,
-      hoverColor: this.hoverColor ?? other.hoverColor,
-      errorBorder: this.errorBorder ?? other.errorBorder,
-      focusedBorder: this.focusedBorder ?? other.focusedBorder,
-      focusedErrorBorder: this.focusedErrorBorder ?? other.focusedErrorBorder,
-      disabledBorder: this.disabledBorder ?? other.disabledBorder,
-      enabledBorder: this.enabledBorder ?? other.enabledBorder,
-      border: this.border ?? other.border,
-      constraints: this.constraints ?? other.constraints,
-      visualDensity: this.visualDensity ?? other.visualDensity,
-    });
+    return other === null
+      ? this
+      : this.copyWith({
+          labelStyle: this.labelStyle ?? other.labelStyle,
+          floatingLabelStyle: this.floatingLabelStyle ?? other.floatingLabelStyle,
+          helperStyle: this.helperStyle ?? other.helperStyle,
+          helperMaxLines: this.helperMaxLines ?? other.helperMaxLines,
+          hintStyle: this.hintStyle ?? other.hintStyle,
+          hintFadeDuration: this.hintFadeDuration ?? other.hintFadeDuration,
+          hintMaxLines: this.hintMaxLines ?? other.hintMaxLines,
+          errorStyle: this.errorStyle ?? other.errorStyle,
+          errorMaxLines: this.errorMaxLines ?? other.errorMaxLines,
+          contentPadding: this.contentPadding ?? other.contentPadding,
+          iconColor: this.iconColor ?? other.iconColor,
+          prefixStyle: this.prefixStyle ?? other.prefixStyle,
+          prefixIconColor: this.prefixIconColor ?? other.prefixIconColor,
+          prefixIconConstraints: this.prefixIconConstraints ?? other.prefixIconConstraints,
+          suffixStyle: this.suffixStyle ?? other.suffixStyle,
+          suffixIconColor: this.suffixIconColor ?? other.suffixIconColor,
+          suffixIconConstraints: this.suffixIconConstraints ?? other.suffixIconConstraints,
+          counterStyle: this.counterStyle ?? other.counterStyle,
+          fillColor: this.fillColor ?? other.fillColor,
+          activeIndicatorBorder: this.activeIndicatorBorder ?? other.activeIndicatorBorder,
+          outlineBorder: this.outlineBorder ?? other.outlineBorder,
+          focusColor: this.focusColor ?? other.focusColor,
+          hoverColor: this.hoverColor ?? other.hoverColor,
+          errorBorder: this.errorBorder ?? other.errorBorder,
+          focusedBorder: this.focusedBorder ?? other.focusedBorder,
+          focusedErrorBorder: this.focusedErrorBorder ?? other.focusedErrorBorder,
+          disabledBorder: this.disabledBorder ?? other.disabledBorder,
+          enabledBorder: this.enabledBorder ?? other.enabledBorder,
+          border: this.border ?? other.border,
+          constraints: this.constraints ?? other.constraints,
+          visualDensity: this.visualDensity ?? other.visualDensity,
+        });
   }
   equals(other: unknown): boolean {
     if (this === other) return true;
-    if (!(other instanceof InputDecorationThemeData) || other.constructor !== this.constructor) return false;
-    return valueEquals(this.labelStyle, other.labelStyle) &&
+    if (!(other instanceof InputDecorationThemeData) || other.constructor !== this.constructor)
+      return false;
+    return (
+      valueEquals(this.labelStyle, other.labelStyle) &&
       valueEquals(this.floatingLabelStyle, other.floatingLabelStyle) &&
       valueEquals(this.helperStyle, other.helperStyle) &&
       valueEquals(this.helperMaxLines, other.helperMaxLines) &&
@@ -313,7 +333,8 @@ export class InputDecorationThemeData extends Diagnosticable(class {}) {
       valueEquals(this.border, other.border) &&
       valueEquals(this.alignLabelWithHint, other.alignLabelWithHint) &&
       valueEquals(this.constraints, other.constraints) &&
-      valueEquals(this.visualDensity, other.visualDensity);
+      valueEquals(this.visualDensity, other.visualDensity)
+    );
   }
   /** @dartReturn int */
   get hashCode(): number {
@@ -360,42 +381,213 @@ export class InputDecorationThemeData extends Diagnosticable(class {}) {
   override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
     super.debugFillProperties(properties);
     const defaults = new InputDecorationThemeData();
-    properties.add(new DiagnosticsProperty("labelStyle", this.labelStyle, {defaultValue: defaults.labelStyle, typeName: "TextStyle"}));
-    properties.add(new DiagnosticsProperty("floatingLabelStyle", this.floatingLabelStyle, {defaultValue: defaults.floatingLabelStyle, typeName: "TextStyle"}));
-    properties.add(new DiagnosticsProperty("helperStyle", this.helperStyle, {defaultValue: defaults.helperStyle, typeName: "TextStyle"}));
-    properties.add(new IntProperty("helperMaxLines", this.helperMaxLines, {defaultValue: defaults.helperMaxLines}));
-    properties.add(new DiagnosticsProperty("hintStyle", this.hintStyle, {defaultValue: defaults.hintStyle, typeName: "TextStyle"}));
-    properties.add(new DiagnosticsProperty("hintFadeDuration", this.hintFadeDuration, {defaultValue: defaults.hintFadeDuration, typeName: "Duration"}));
-    properties.add(new IntProperty("hintMaxLines", this.hintMaxLines, {defaultValue: defaults.hintMaxLines}));
-    properties.add(new DiagnosticsProperty("errorStyle", this.errorStyle, {defaultValue: defaults.errorStyle, typeName: "TextStyle"}));
-    properties.add(new IntProperty("errorMaxLines", this.errorMaxLines, {defaultValue: defaults.errorMaxLines}));
-    properties.add(new DiagnosticsProperty("floatingLabelBehavior", this.floatingLabelBehavior, {defaultValue: defaults.floatingLabelBehavior, typeName: "FloatingLabelBehavior"}));
-    properties.add(new DiagnosticsProperty("floatingLabelAlignment", this.floatingLabelAlignment, {defaultValue: defaults.floatingLabelAlignment, typeName: "FloatingLabelAlignment"}));
-    properties.add(new DiagnosticsProperty("isDense", this.isDense, {defaultValue: defaults.isDense, typeName: "bool"}));
-    properties.add(new DiagnosticsProperty("contentPadding", this.contentPadding, {defaultValue: defaults.contentPadding, typeName: "EdgeInsetsGeometry"}));
-    properties.add(new DiagnosticsProperty("isCollapsed", this.isCollapsed, {defaultValue: defaults.isCollapsed, typeName: "bool"}));
-    properties.add(new DiagnosticsProperty("iconColor", this.iconColor, {defaultValue: defaults.iconColor, typeName: "Color"}));
-    properties.add(new DiagnosticsProperty("prefixIconColor", this.prefixIconColor, {defaultValue: defaults.prefixIconColor, typeName: "Color"}));
-    properties.add(new DiagnosticsProperty("prefixIconConstraints", this.prefixIconConstraints, {defaultValue: defaults.prefixIconConstraints, typeName: "BoxConstraints"}));
-    properties.add(new DiagnosticsProperty("prefixStyle", this.prefixStyle, {defaultValue: defaults.prefixStyle, typeName: "TextStyle"}));
-    properties.add(new DiagnosticsProperty("suffixIconColor", this.suffixIconColor, {defaultValue: defaults.suffixIconColor, typeName: "Color"}));
-    properties.add(new DiagnosticsProperty("suffixIconConstraints", this.suffixIconConstraints, {defaultValue: defaults.suffixIconConstraints, typeName: "BoxConstraints"}));
-    properties.add(new DiagnosticsProperty("suffixStyle", this.suffixStyle, {defaultValue: defaults.suffixStyle, typeName: "TextStyle"}));
-    properties.add(new DiagnosticsProperty("counterStyle", this.counterStyle, {defaultValue: defaults.counterStyle, typeName: "TextStyle"}));
-    properties.add(new DiagnosticsProperty("filled", this.filled, {defaultValue: defaults.filled, typeName: "bool"}));
-    properties.add(new ColorProperty("fillColor", this.fillColor, {defaultValue: defaults.fillColor}));
-    properties.add(new DiagnosticsProperty("activeIndicatorBorder", this.activeIndicatorBorder, {defaultValue: defaults.activeIndicatorBorder, typeName: "BorderSide"}));
-    properties.add(new DiagnosticsProperty("outlineBorder", this.outlineBorder, {defaultValue: defaults.outlineBorder, typeName: "BorderSide"}));
-    properties.add(new ColorProperty("focusColor", this.focusColor, {defaultValue: defaults.focusColor}));
-    properties.add(new ColorProperty("hoverColor", this.hoverColor, {defaultValue: defaults.hoverColor}));
-    properties.add(new DiagnosticsProperty("errorBorder", this.errorBorder, {defaultValue: defaults.errorBorder, typeName: "InputBorder"}));
-    properties.add(new DiagnosticsProperty("focusedBorder", this.focusedBorder, {defaultValue: defaults.focusedErrorBorder, typeName: "InputBorder"}));
-    properties.add(new DiagnosticsProperty("focusedErrorBorder", this.focusedErrorBorder, {defaultValue: defaults.focusedErrorBorder, typeName: "InputBorder"}));
-    properties.add(new DiagnosticsProperty("disabledBorder", this.disabledBorder, {defaultValue: defaults.disabledBorder, typeName: "InputBorder"}));
-    properties.add(new DiagnosticsProperty("enabledBorder", this.enabledBorder, {defaultValue: defaults.enabledBorder, typeName: "InputBorder"}));
-    properties.add(new DiagnosticsProperty("border", this.border, {defaultValue: defaults.border, typeName: "InputBorder"}));
-    properties.add(new DiagnosticsProperty("alignLabelWithHint", this.alignLabelWithHint, {defaultValue: defaults.alignLabelWithHint, typeName: "bool"}));
-    properties.add(new DiagnosticsProperty("constraints", this.constraints, {defaultValue: defaults.constraints, typeName: "BoxConstraints"}));
-    properties.add(new DiagnosticsProperty("visualDensity", this.visualDensity, {defaultValue: defaults.visualDensity, typeName: "VisualDensity"}));
+    properties.add(
+      new DiagnosticsProperty('labelStyle', this.labelStyle, {
+        defaultValue: defaults.labelStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('floatingLabelStyle', this.floatingLabelStyle, {
+        defaultValue: defaults.floatingLabelStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('helperStyle', this.helperStyle, {
+        defaultValue: defaults.helperStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new IntProperty('helperMaxLines', this.helperMaxLines, {
+        defaultValue: defaults.helperMaxLines,
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('hintStyle', this.hintStyle, {
+        defaultValue: defaults.hintStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('hintFadeDuration', this.hintFadeDuration, {
+        defaultValue: defaults.hintFadeDuration,
+        typeName: 'Duration',
+      }),
+    );
+    properties.add(
+      new IntProperty('hintMaxLines', this.hintMaxLines, { defaultValue: defaults.hintMaxLines }),
+    );
+    properties.add(
+      new DiagnosticsProperty('errorStyle', this.errorStyle, {
+        defaultValue: defaults.errorStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new IntProperty('errorMaxLines', this.errorMaxLines, {
+        defaultValue: defaults.errorMaxLines,
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('floatingLabelBehavior', this.floatingLabelBehavior, {
+        defaultValue: defaults.floatingLabelBehavior,
+        typeName: 'FloatingLabelBehavior',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('floatingLabelAlignment', this.floatingLabelAlignment, {
+        defaultValue: defaults.floatingLabelAlignment,
+        typeName: 'FloatingLabelAlignment',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('isDense', this.isDense, {
+        defaultValue: defaults.isDense,
+        typeName: 'bool',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('contentPadding', this.contentPadding, {
+        defaultValue: defaults.contentPadding,
+        typeName: 'EdgeInsetsGeometry',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('isCollapsed', this.isCollapsed, {
+        defaultValue: defaults.isCollapsed,
+        typeName: 'bool',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('iconColor', this.iconColor, {
+        defaultValue: defaults.iconColor,
+        typeName: 'Color',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('prefixIconColor', this.prefixIconColor, {
+        defaultValue: defaults.prefixIconColor,
+        typeName: 'Color',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('prefixIconConstraints', this.prefixIconConstraints, {
+        defaultValue: defaults.prefixIconConstraints,
+        typeName: 'BoxConstraints',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('prefixStyle', this.prefixStyle, {
+        defaultValue: defaults.prefixStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('suffixIconColor', this.suffixIconColor, {
+        defaultValue: defaults.suffixIconColor,
+        typeName: 'Color',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('suffixIconConstraints', this.suffixIconConstraints, {
+        defaultValue: defaults.suffixIconConstraints,
+        typeName: 'BoxConstraints',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('suffixStyle', this.suffixStyle, {
+        defaultValue: defaults.suffixStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('counterStyle', this.counterStyle, {
+        defaultValue: defaults.counterStyle,
+        typeName: 'TextStyle',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('filled', this.filled, {
+        defaultValue: defaults.filled,
+        typeName: 'bool',
+      }),
+    );
+    properties.add(
+      new ColorProperty('fillColor', this.fillColor, { defaultValue: defaults.fillColor }),
+    );
+    properties.add(
+      new DiagnosticsProperty('activeIndicatorBorder', this.activeIndicatorBorder, {
+        defaultValue: defaults.activeIndicatorBorder,
+        typeName: 'BorderSide',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('outlineBorder', this.outlineBorder, {
+        defaultValue: defaults.outlineBorder,
+        typeName: 'BorderSide',
+      }),
+    );
+    properties.add(
+      new ColorProperty('focusColor', this.focusColor, { defaultValue: defaults.focusColor }),
+    );
+    properties.add(
+      new ColorProperty('hoverColor', this.hoverColor, { defaultValue: defaults.hoverColor }),
+    );
+    properties.add(
+      new DiagnosticsProperty('errorBorder', this.errorBorder, {
+        defaultValue: defaults.errorBorder,
+        typeName: 'InputBorder',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('focusedBorder', this.focusedBorder, {
+        defaultValue: defaults.focusedErrorBorder,
+        typeName: 'InputBorder',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('focusedErrorBorder', this.focusedErrorBorder, {
+        defaultValue: defaults.focusedErrorBorder,
+        typeName: 'InputBorder',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('disabledBorder', this.disabledBorder, {
+        defaultValue: defaults.disabledBorder,
+        typeName: 'InputBorder',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('enabledBorder', this.enabledBorder, {
+        defaultValue: defaults.enabledBorder,
+        typeName: 'InputBorder',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('border', this.border, {
+        defaultValue: defaults.border,
+        typeName: 'InputBorder',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('alignLabelWithHint', this.alignLabelWithHint, {
+        defaultValue: defaults.alignLabelWithHint,
+        typeName: 'bool',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('constraints', this.constraints, {
+        defaultValue: defaults.constraints,
+        typeName: 'BoxConstraints',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('visualDensity', this.visualDensity, {
+        defaultValue: defaults.visualDensity,
+        typeName: 'VisualDensity',
+      }),
+    );
   }
 }
