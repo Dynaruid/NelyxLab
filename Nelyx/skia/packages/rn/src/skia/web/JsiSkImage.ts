@@ -9,7 +9,6 @@ import type {SkMatrix} from "@nelyx/skia-native/skia/types/Drawing";
 import type {SkShader} from "@nelyx/skia-native/skia/types/Drawing";
 import type {TileMode} from "@nelyx/skia-native/skia/types/ImageFilter/ImageFilter";
 import type {ImageInfo} from "@nelyx/skia-native/skia/types/Drawing";
-
 import {getEnum, HostObject} from './Host.ts';
 import {JsiSkMatrix} from './JsiSkMatrix.ts';
 import {JsiSkShader} from './JsiSkShader.ts';
@@ -31,7 +30,6 @@ export const toBase64String = (bytes: Uint8Array) => {
     var slice;
     while (index < length) {
       slice = bytes.slice(index, Math.min(index + CHUNK_SIZE, length));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       result += String.fromCharCode.apply(null, slice as any);
       index += CHUNK_SIZE;
     }

@@ -7,7 +7,7 @@ import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { SizedBox, Text } from '@nelyx/core/framework/widgets/basic';
 import { AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
-import { ContextMenuButtonItem, ContextMenuButtonType } from '@nelyx/core/framework/widgets/context-menu-button-item';
+import { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-menu-button-item';
 import type { TextSelectionToolbarAnchors } from '@nelyx/core/framework/widgets/text-selection-toolbar-anchors';
 import { SelectableRegion } from '@nelyx/core/framework/widgets/selectable-region-state';
 import type { SelectableRegionState } from '@nelyx/core/framework/widgets/selectable-region-state';

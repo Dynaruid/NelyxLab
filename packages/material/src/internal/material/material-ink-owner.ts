@@ -91,7 +91,8 @@ export class MaterialInkRender extends RenderProxyBox implements MaterialInkCont
             return;
         this.retired = true;
         const errors: unknown[] = [];
-        for (const feature of [...this.features])
+        const snapshot=[...this.features];
+        for (const feature of snapshot)
             try {
                 feature.dispose();
             }

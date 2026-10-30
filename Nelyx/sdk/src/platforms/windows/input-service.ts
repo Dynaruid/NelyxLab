@@ -79,7 +79,7 @@ export class WindowsInputService {
     }
     throw new Error('Windows keyboard text remained locked; input was not dropped');
   }
-  private progress():void{for(const done of [...this.waiters])done();}
+  private progress():void{const snapshot1=[...this.waiters];for(const done of snapshot1)done();}
   private until<T>(operation:Promise<T>,deadline:number):Promise<T>{
     return new Promise((resolve,reject)=>{
       const cleanup=()=>{clearTimeout(timer);this.waiters.delete(retired);};

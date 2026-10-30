@@ -109,7 +109,8 @@ export class FrameScheduler {
     if(this.closed)return;
     if(!(this.phase!=='idle'&&this.phase!=='transient'&&this.phase!=='post-frame'))invariant(false,'invalid-frame-phase','Persistent callbacks require a begun frame');
     if(this.persistentDispatched)return;this.persistentDispatched=true;this.phase='persistent';
-    for(const [id,callback]of [...this.persistent]){if(this.closed)break;if(this.persistent.has(id))this.invoke(callback);}
+    const snapshot=[...this.persistent];
+    for(const [id,callback]of snapshot){if(this.closed)break;if(this.persistent.has(id))this.invoke(callback);}
   }
   endFrame():void {
     if(this.closed)return;if(!(this.phase!=='idle'&&this.phase!=='transient'))invariant(false,'invalid-frame-phase','End frame requires a completed begin phase');
@@ -131,17 +132,18 @@ export class FrameScheduler {
   setVisible(visible:boolean):void {
     if(this.closed||visible===this.visibleValue)return;this.visibleValue=visible;if(!visible)this.scheduledFrame=false;
     const errors:unknown[]=[];
-    for(const callback of [...this.visibility])if(this.visibility.has(callback))try{callback(visible);}catch(error){errors.push(error);}
+    const snapshot1=[...this.visibility];
+    for(const callback of snapshot1)if(this.visibility.has(callback))try{callback(visible);}catch(error){errors.push(error);}
     if(visible)this.requestFrame();if(errors.length)throw new AggregateError(errors,'Scheduler visibility observers failed');
   }
   dispose():void {
     if(this.closed)return;this.closed=true;this.phase='idle';this.scheduledFrame=false;
     this.transient.clear();this.repeating.clear();this.persistent.clear();this.post=[];this.visibility.clear();
     const completion=this.completion;this.completion=undefined;completion?.reject(new NelyxError('frame-canceled','View closed before endOfFrame'));
-    const errors=this.errors;this.errors=[];for(const callback of [...this.closing])try{callback();}catch(error){errors.push(error);}this.closing.clear();
+    const errors=this.errors;this.errors=[];const snapshot2=[...this.closing];for(const callback of snapshot2)try{callback();}catch(error){errors.push(error);}this.closing.clear();
     if(errors.length)throw new AggregateError(errors,'Scheduler disposal observers failed');
   }
-  private ensureAlive():void{if(!(!this.closed))invariant(false,'closed-scheduler','Scheduler belongs to a closed View');}
+  private ensureAlive():void{if(this.closed)invariant(false,'closed-scheduler','Scheduler belongs to a closed View');}
   private invoke(callback:FrameCallback):void {
     try{callback(this.timestamp);}catch(error){
       if(this.options.reportError)try{this.options.reportError(error,this.phase);}catch(failure){if(this.closed)throw new AggregateError([error,failure],'Closed scheduler callback reporting failed');this.errors.push(error,failure);}

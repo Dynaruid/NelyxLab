@@ -91,7 +91,8 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     if(this.stopped||!this.root)return;
     const root=this.root,view=this.doc.defaultView,style=view?.getComputedStyle(this.canvas);
     root.style.left=this.canvas.offsetLeft+'px';root.style.top=this.canvas.offsetTop+'px';root.style.width=this.canvas.clientWidth+'px';root.style.height=this.canvas.clientHeight+'px';root.style.transform=style?.transform??'none';root.style.transformOrigin=style?.transformOrigin??'0 0';
-    for(const entry of [...this.entries]){entry.update();if(this.stopped)return;}
+    const snapshot=[...this.entries];
+    for(const entry of snapshot){entry.update();if(this.stopped)return;}
     const order=[...this.entries].sort((a,b)=>{const first=a.geometry?.paintOrder??[],second=b.geometry?.paintOrder??[];for(let i=0;i<Math.min(first.length,second.length);i++){const difference=first[i]!-second[i]!;if(difference)return difference;}return first.length-second.length;});
     let anchor:Node|null=null;for(const entry of order.reverse()){if(entry.element.nextSibling!==anchor)root.insertBefore(entry.element,anchor);anchor=entry.element;}
   }

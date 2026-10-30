@@ -33,6 +33,7 @@ export function debugPrintSynchronously(message:string|null,options:DebugPrintOp
 export function debugPrintThrottled(message:string|null,options:DebugPrintOptions={}):void{DebugPrint.controller.printThrottled(message,options);}
 const _indentPattern=/^ *(?:[-+*] |[0-9]+[.):] )?/;
 type _WordWrapParseMode='inSpace'|'inWord'|'atBreak';
+// oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
 const trimLeft=(message:string)=>message.replace(/^[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/,'');
 function substring(message:string,start:number,end:number):string{if(start<0||end<start||end>message.length)throw new RangeError('Word wrap substring is outside the message');return message.slice(start,end);}
 /** Error-message wrapping preserves ASCII break points and the source indentation rules. */

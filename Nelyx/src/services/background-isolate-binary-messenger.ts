@@ -65,6 +65,6 @@ export class BackgroundIsolateBinaryMessenger extends BinaryMessenger {
   }
   override handlePlatformMessage(_channel:string,_data:DataView|null,_callback:PlatformMessageResponseCallback|null):never{throw new UnimplementedError('handlePlatformMessage is deprecated.');}
   override setMessageHandler(_channel:string,_handler:MessageHandler|null):never{throw new UnsupportedError('Background isolates do not support setMessageHandler(). Messages from the host platform always go to the root isolate.');}
-  private stop():void{if(this.closing)return;this.closing=true;for(const callback of [...this.closingCallbacks])try{callback();}catch(error){report(error);}this.closingCallbacks.clear();}
-  private retire():void{if(this.retired)return;this.stop();this.retired=true;for(const completer of this._completers.values())completer.resolve(null);this._completers.clear();for(const release of this.releases)release();this.releases.length=0;for(const callback of [...this.retiredCallbacks])try{callback();}catch(error){report(error);}this.retiredCallbacks.clear();}
+  private stop():void{if(this.closing)return;this.closing=true;const snapshot1=[...this.closingCallbacks];for(const callback of snapshot1)try{callback();}catch(error){report(error);}this.closingCallbacks.clear();}
+  private retire():void{if(this.retired)return;this.stop();this.retired=true;for(const completer of this._completers.values())completer.resolve(null);this._completers.clear();for(const release of this.releases)release();this.releases.length=0;const snapshot2=[...this.retiredCallbacks];for(const callback of snapshot2)try{callback();}catch(error){report(error);}this.retiredCallbacks.clear();}
 }

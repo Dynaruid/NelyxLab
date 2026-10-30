@@ -24,5 +24,5 @@ export class GestureArenaTeam {
   add(pointer:number,member:GestureArenaMember):GestureArenaEntry {invariant(this.live,'closed-gesture-team','Gesture team owner is closed');let combiner=this.combiners.get(pointer);if(!combiner){combiner=new CombiningGestureArenaMember(this,pointer);this.combiners.set(pointer,combiner);}return combiner.add(pointer,member);}
   /** @internal Exact combiner identity protects a reused pointer owner. */
   removeCombiner(pointer:number,combiner:CombiningGestureArenaMember):void {invariant(this.combiners.get(pointer)===combiner,'invalid-team-owner','Team combiner ownership changed');this.combiners.delete(pointer);}
-  dispose():void {if(!this.live)return;this.live=false;const errors:unknown[]=[];for(const combiner of [...this.combiners.values()])try{combiner.retire();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Gesture team retirement failed');}
+  dispose():void {if(!this.live)return;this.live=false;const errors:unknown[]=[];const snapshot=[...this.combiners.values()];for(const combiner of snapshot)try{combiner.retire();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Gesture team retirement failed');}
 }

@@ -59,7 +59,8 @@ class Resampler {
     if(this.frameTime===null){this.frameTime=clock.now();this.frameTimeAge=clock.stopwatch();this.frameTimeAge.start();}
     if(this.timer===null)this.startTimer();
     const elapsedIntervals=Math.trunc(this.frameTimeAge!.elapsedMicroseconds/16667),sampleTime=this.frameTime+elapsedIntervals*samplingInterval+samplingOffset,nextSampleTime=sampleTime+samplingInterval;
-    for(const resampler of [...this.resamplers.values()]){if(this.generation!==generation)return;resampler.sample(sampleTime,nextSampleTime,this.handle);}
+    const snapshot=[...this.resamplers.values()];
+    for(const resampler of snapshot){if(this.generation!==generation)return;resampler.sample(sampleTime,nextSampleTime,this.handle);}
     if(this.generation!==generation)return;
     for(const [key,resampler]of this.resamplers)if(!resampler.hasPendingEvents&&!resampler.isDown)this.resamplers.delete(key);
     this.lastSampleTime=sampleTime;

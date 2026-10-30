@@ -1357,6 +1357,28 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
     const body=[f.createVariableStatement(undefined,f.createVariableDeclarationList([f.createVariableDeclaration(root,undefined,undefined,transferred(n.value,patternObjectType))],ts.NodeFlags.Const)),...patternCacheDeclarations(cache),...arms,f.createThrowStatement(f.createNewExpression(f.createIdentifier('TypeError'),undefined,[f.createStringLiteral('Non-exhaustive Dart pattern switch')]))];body.forEach(rejectSuspension);
     return f.createCallExpression(f.createParenthesizedExpression(f.createArrowFunction(undefined,undefined,[],resolvedType(n.resultType),undefined,f.createBlock(body,true))),undefined,[]);
   }
+  function exitsCase(node:ts.Statement,allowBreak=true):boolean {
+    if(ts.isReturnStatement(node)||ts.isThrowStatement(node)||ts.isContinueStatement(node))return true;
+    if(ts.isBreakStatement(node))return allowBreak;
+    if(ts.isBlock(node))return Boolean(node.statements.length&&exitsCase(node.statements.at(-1)!,allowBreak));
+    if(ts.isIfStatement(node))return Boolean(node.elseStatement&&exitsCase(node.thenStatement,allowBreak)&&exitsCase(node.elseStatement,allowBreak));
+    // A break belonging to a nested switch completes that switch normally.
+    // Only branches that escape it make an outer synthetic break redundant.
+    if(ts.isSwitchStatement(node)){
+      if(!node.caseBlock.clauses.some(ts.isDefaultClause))return false;
+      let followingExits=false;
+      for(let index=node.caseBlock.clauses.length-1;index>=0;index--){
+        const clause=node.caseBlock.clauses[index]!;
+        if(clause.statements.length)followingExits=exitsCase(clause.statements.at(-1)!,false);
+        if(!followingExits)return false;
+      }
+      return true;
+    }
+    return false;
+  }
+  function endCase(body:ts.Statement[],label?:ts.Identifier):ts.Statement[]{
+    return body.length&&exitsCase(body.at(-1)!)?body:[...body,f.createBreakStatement(label)];
+  }
   function patternSwitchStatement(n:Statement&{kind:'patternSwitch'}):ts.Statement {
     patternPolicy();const root=temporary(),cache:PatternCache=new Map(),arms:ts.Statement[]=[];
     for(let index=0;index<n.cases.length;index++){
@@ -1367,10 +1389,10 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
       const statements=()=>body.flatMap(value=>value.kind==='variables'?variableStatements(value):value.kind==='recordVariables'?recordVariableStatements(value):[statement(value)]);
       if(!arm.guard&&(arm.pattern===null||arm.pattern.kind==='wildcard'&&!arm.pattern.checkedType)){
         if(index!==n.cases.length-1)blocked('Pattern switch unconditional fallback must be last',n);
-        arms.push(...statements(),f.createBreakStatement());continue;
+        arms.push(...endCase(statements()));continue;
       }
       const matched=temporary(),attempt=patternAttempt(arm.pattern,patternLocal(root),arm.guard,cache);
-      arms.push(f.createVariableStatement(undefined,f.createVariableDeclarationList([f.createVariableDeclaration(matched,undefined,undefined,attempt.call)],ts.NodeFlags.Const)),f.createIfStatement(f.createBinaryExpression(matched,ts.SyntaxKind.ExclamationEqualsEqualsToken,f.createNull()),f.createBlock([...patternBindings(matched,attempt.bindings),...statements(),f.createBreakStatement()],true)));
+      arms.push(f.createVariableStatement(undefined,f.createVariableDeclarationList([f.createVariableDeclaration(matched,undefined,undefined,attempt.call)],ts.NodeFlags.Const)),f.createIfStatement(f.createBinaryExpression(matched,ts.SyntaxKind.ExclamationEqualsEqualsToken,f.createNull()),f.createBlock([...patternBindings(matched,attempt.bindings),...endCase(statements())],true)));
     }
     return f.createSwitchStatement(f.createTrue(),f.createCaseBlock([f.createDefaultClause([f.createBlock([f.createVariableStatement(undefined,f.createVariableDeclarationList([f.createVariableDeclaration(root,undefined,undefined,transferred(n.value,patternObjectType))],ts.NodeFlags.Const)),...patternCacheDeclarations(cache),...arms],true)])]));
   }
@@ -1427,7 +1449,7 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
       for(const index of item.path){if(type.kind!=='record'||type.nullable||!Number.isSafeInteger(index)||index<0||index>=type.fields.length)blocked('Invalid record pattern field path',node);field=f.createCallExpression(f.createIdentifier(read),undefined,[field,f.createNumericLiteral(index),f.createNumericLiteral(type.fields.length)]);type=type.fields[index]!;}
       if(numericGenerics&&(numericKind(type)||numericKind(item.test.numeric?.resolvedType))){const equals=recordBoundary().equals;if(!equals||!imported.has(equals))blocked('Record numeric patterns require an explicit value equality boundary',node);return f.createCallExpression(f.createIdentifier(equals!),undefined,[field,genericTransferred(item.test,item.test.numeric?.resolvedType)]);}
       return f.createBinaryExpression(field,ts.SyntaxKind.EqualsEqualsEqualsToken,expr(item.test));
-    }).reduce<ts.Expression>((a,b)=>f.createBinaryExpression(a,ts.SyntaxKind.AmpersandAmpersandToken,b),f.createTrue());
+    }).reduce<ts.Expression|undefined>((a,b)=>a?f.createBinaryExpression(a,ts.SyntaxKind.AmpersandAmpersandToken,b):b,undefined)??f.createTrue();
   }
   interface ControlTarget {kind:'loop'|'switch'|'block'|'dispatcher';labels:SourceLabel[];depth:number;label?:ts.Identifier;state?:ts.Identifier;cases?:Map<string,{name:string;index:number}>}
   let controlTargets:ControlTarget[]=[],dispatcherDepth=0;
@@ -1503,7 +1525,7 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
       case 'block':return f.createBlock(n.statements.flatMap(value=>value.kind==='variables'?variableStatements(value):value.kind==='recordVariables'?recordVariableStatements(value):[statement(value)]),true);
       case 'recordVariables':return f.createBlock(recordVariableStatements(n),true);
       case 'return':return f.createReturnStatement(n.value?transferred(n.value,returnStorage):returnStorage?.kind==='interface'&&returnStorage.reference.id==='dart:core::Null:CLASS'?f.createNull():undefined);
-      case 'expression':return f.createExpressionStatement(expr(n.value));
+      case 'expression':return f.createExpressionStatement(f.createVoidExpression(f.createParenthesizedExpression(expr(n.value))));
       case 'variables':return f.createVariableStatement(undefined,variables(n));
       case 'if':return f.createIfStatement(expr(n.test),statement(n.then),n.else?statement(n.else):undefined);
       case 'ifCase':return ifCaseStatement(n);
@@ -1517,7 +1539,7 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
         const target=controlTargets.at(-1)!;if(target.kind!=='dispatcher'||!target.label||!target.state)blocked('Case dispatcher lost its lexical control scope',n);
         const state=target.state!,label=target.label!;
         const entry=n.cases.flatMap((arm,index)=>arm.tests.map(test=>test?f.createCaseClause(expr(test),[f.createExpressionStatement(f.createAssignment(state,f.createNumericLiteral(index))),f.createBreakStatement()]):f.createDefaultClause([f.createExpressionStatement(f.createAssignment(state,f.createNumericLiteral(index))),f.createBreakStatement()])));
-        const clauses:ts.CaseOrDefaultClause[]=n.cases.map((arm,index)=>f.createCaseClause(f.createNumericLiteral(index),arm.statements.length?[f.createBlock([...arm.statements.flatMap(value=>value.kind==='variables'?variableStatements(value):value.kind==='recordVariables'?recordVariableStatements(value):[statement(value)]),f.createBreakStatement(label)],true)]:index===n.cases.length-1?[f.createBreakStatement(label)]:[]));
+        const clauses:ts.CaseOrDefaultClause[]=n.cases.map((arm,index)=>f.createCaseClause(f.createNumericLiteral(index),arm.statements.length?[f.createBlock(endCase(arm.statements.flatMap(value=>value.kind==='variables'?variableStatements(value):value.kind==='recordVariables'?recordVariableStatements(value):[statement(value)]),label),true)]:index===n.cases.length-1?[f.createBreakStatement(label)]:[]));
         clauses.push(f.createDefaultClause([n.exhaustive?f.createThrowStatement(f.createNewExpression(f.createIdentifier('TypeError'),undefined,[f.createStringLiteral('Invalid value outside exhaustive Dart case dispatcher')])):f.createBreakStatement(label)]));
         return f.createBlock([f.createVariableStatement(undefined,f.createVariableDeclarationList([f.createVariableDeclaration(state,undefined,undefined,f.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken,f.createNumericLiteral(1)))],ts.NodeFlags.Let)),f.createSwitchStatement(f.createAsExpression(expr(n.value),sourceType(n.value.type,n.value.numeric,n.value.storageType??n.value.numeric?.resolvedType)),f.createCaseBlock(entry)),f.createLabeledStatement(label,f.createWhileStatement(f.createTrue(),f.createBlock([f.createSwitchStatement(state,f.createCaseBlock(clauses))],true)))],true);
       }
@@ -1525,7 +1547,7 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
         if(n.recordType.kind!=='record'||n.recordType.nullable)blocked('Record switch requires a nonnullable positional record',n);
         const value=temporary();recordBoundary();
         const clauses=n.cases.map(c=>{
-          const body=c.statements.length?[f.createBlock([...c.statements.flatMap(v=>v.kind==='recordVariables'?recordVariableStatements(v):[statement(v)]),f.createBreakStatement()],true)]:[];
+          const body=c.statements.length?[f.createBlock(endCase(c.statements.flatMap(v=>v.kind==='recordVariables'?recordVariableStatements(v):[statement(v)])),true)]:[];
           if(c.tests===null)return f.createDefaultClause(body);
           return f.createCaseClause(recordPatternCondition(value,n.recordType,c.tests,n),body);
         });
@@ -1536,7 +1558,7 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
         // implicitly, whereas a JS case falls through without an explicit break.
         // The last empty source label exits the switch; it must not fall into
         // our synthetic exhaustive-value rejection clause.
-        const body=c.statements.length?[f.createBlock([...c.statements.flatMap(value=>value.kind==='recordVariables'?recordVariableStatements(value):[statement(value)]),f.createBreakStatement()],true)]:index===n.cases.length-1?[f.createBreakStatement()]:[];
+        const body=c.statements.length?[f.createBlock(endCase(c.statements.flatMap(value=>value.kind==='recordVariables'?recordVariableStatements(value):[statement(value)])),true)]:index===n.cases.length-1?[f.createBreakStatement()]:[];
         return c.test?f.createCaseClause(expr(c.test),body):f.createDefaultClause(body);
       });if(n.exhaustive&&recipe.sourceFlow?.policy==='resolved-source-flow'&&!n.cases.some(c=>c.test===null))clauses.push(f.createDefaultClause([f.createThrowStatement(f.createNewExpression(f.createIdentifier('TypeError'),undefined,[f.createStringLiteral('Invalid value outside exhaustive Dart switch')]))]));return f.createSwitchStatement(expr(n.value),f.createCaseBlock(clauses));}
       case 'for':return f.createForStatement(variables(n.variables),n.test?expr(n.test):undefined,n.updates.reduce<ts.Expression|undefined>((a,v)=>a?f.createBinaryExpression(a,ts.SyntaxKind.CommaToken,expr(v)):expr(v),undefined),statement(n.body));
@@ -2063,23 +2085,30 @@ export function emitDart(declarations:Declaration[],recipe:ModuleRecipe,manualDe
     const accessors=topGetters.map(value=>{if(value.body.async)blocked('Async source getter requires a separate callable representation',value);return callableDoc(f.createGetAccessorDeclaration(undefined,memberName(value.name,value.reference),[],resolvedType(value.resolvedReturnType),callableBody(value.body,[],value.resolvedReturnType)),[],value.numericReturn);});
     statements.push(f.createVariableStatement(undefined,f.createVariableDeclarationList([f.createVariableDeclaration(getterNamespace!,undefined,undefined,f.createCallExpression(dotted('Object.freeze'),undefined,[f.createObjectLiteralExpression(accessors,true)]))],ts.NodeFlags.Const)),f.createExportDeclaration(undefined,false,f.createNamedExports([f.createExportSpecifier(false,getterNamespace!,f.createIdentifier(recipe.topLevelGetters!.namespace))])));
   }
-  if(recipe.importEmission){
+  {
     const policy=recipe.importEmission;
-    if(policy.policy!=='used-identifiers')blocked('Unreviewed import emission policy');
-    const sideEffects=policy.sideEffects??[];
+    if(policy&&policy.policy!=='used-identifiers')blocked('Unreviewed import emission policy');
+    const sideEffects=policy?.sideEffects??[];
     if(sideEffects.some(module=>typeof module!=='string'||module.length===0)||new Set(sideEffects).size!==sideEffects.length)blocked('Invalid explicit initialization imports');
     const used=new Set<string>();
     const collect=(node:ts.Node):void=>{if(ts.isImportDeclaration(node))return;if(ts.isIdentifier(node))used.add(node.text);ts.forEachChild(node,collect);};
     statements.forEach(collect);
     for(const input of manualDeclarations)collect(ts.createSourceFile(input.file,input.source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS));
     const runtimeModules=new Set<string>();
-    const retained=statements.filter(statement=>{
-      if(!ts.isImportDeclaration(statement))return true;
+    const retained=statements.flatMap(statement=>{
+      if(!ts.isImportDeclaration(statement))return [statement];
       const clause=statement.importClause,binding=clause?.namedBindings;
       if(!binding||!ts.isNamedImports(binding)||binding.elements.length!==1)blocked('Unexpected generated import shape');
-      if(!used.has(binding.elements[0]!.name.text))return false;
+      if(!used.has(binding.elements[0]!.name.text)){
+        const module=(statement.moduleSpecifier as ts.StringLiteral).text;
+        if(policy||clause!.isTypeOnly||runtimeModules.has(module))return [];
+        // Without an explicit initialization policy, retain module evaluation
+        // even when its named binding is not needed by this generated body.
+        runtimeModules.add(module);
+        return [f.createImportDeclaration(undefined,undefined,statement.moduleSpecifier)];
+      }
       if(!clause!.isTypeOnly)runtimeModules.add((statement.moduleSpecifier as ts.StringLiteral).text);
-      return true;
+      return [statement];
     });
     const initialization=sideEffects.filter(module=>!runtimeModules.has(module)).map(module=>f.createImportDeclaration(undefined,undefined,f.createStringLiteral(module)));
     const firstBody=retained.findIndex(statement=>!ts.isImportDeclaration(statement));

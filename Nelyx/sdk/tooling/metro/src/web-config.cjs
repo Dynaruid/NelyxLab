@@ -21,10 +21,10 @@ async function createWebRunnerConfig({runnerRoot,appRoot}){
   if(path.resolve(cohort.runnerRoot,'../..')!==appRoot)throw new Error('Web runner must belong to its application');
   prepareAppAssetConfiguration(appRoot,cohort.runnerRoot);
   const config=await createWebConfig({projectRoot:cohort.runnerRoot,watchFolders:[appRoot],nodeModulesPaths:[cohort.nodeModules]});
-  return {...config,cacheStores:[new FileStore({root:path.join(cohort.runnerRoot,'.metro-cache')})],resolver:{...config.resolver,disableHierarchicalLookup:true,extraNodeModules:{...(config.resolver.extraNodeModules??{}),...cohort.roots}}};
+  return {...config,cacheStores:[new FileStore({root:path.join(cohort.runnerRoot,'.metro-cache')})],resolver:{...config.resolver,disableHierarchicalLookup:true,extraNodeModules:{...config.resolver.extraNodeModules,...cohort.roots}}};
 }
 function createWebRunnerTypeScriptConfig({runnerRoot,appRoot}){
-  const cohort=inspectWebRunnerCohort({runnerRoot}),load=createRequire(path.join(cohort.runnerRoot,'package.json')),paths={};
+  const cohort=inspectWebRunnerCohort({runnerRoot}),paths={};createRequire(path.join(cohort.runnerRoot,'package.json'));
   const installed=JSON.parse(fs.readFileSync(path.join(cohort.runnerRoot,'package.json'),'utf8'));
   for(const name of ['@nelyx/core','@nelyx/sdk',...['material','cupertino','localizations'].map(name=>'@nelyx/'+name).filter(name=>installed.dependencies?.[name])]){
     let directory=path.join(cohort.nodeModules,name);if(!fs.existsSync(path.join(directory,'package.json')))throw new Error('Missing selected package: '+name);

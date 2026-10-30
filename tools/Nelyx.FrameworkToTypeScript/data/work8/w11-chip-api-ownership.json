@@ -11,7 +11,7 @@
   "outputs": [
     {
       "file": "packages/material/src/raw-chip.ts",
-      "sha256": "465a5a9f44236357fad4de20d251b86654ce6dfaa19c2831a98ebb70ac1deb90",
+      "sha256": "04d683d712b75b3102c861b0e3f47a02c5b391fa33cbf1652cdd7252e4c0112c",
       "symbol": "RawChip",
       "numericFields": [
         {
@@ -58,7 +58,7 @@
     },
     {
       "file": "packages/material/src/generated/chip/chip-wrapper.generated.ts",
-      "sha256": "88e9d171ab87a47f78f9e2c56f55047d77c9a0e8eb41847d8305e6e69a25f449",
+      "sha256": "d39ead07eecd8965e9c47140c55cb4b47fee2e169b6c56bd894daeebd666d48e",
       "symbol": "Chip",
       "numericFields": [
         {
@@ -85,7 +85,7 @@
     },
     {
       "file": "packages/material/src/action-chip.ts",
-      "sha256": "b7547a9546d9f31ab0e94dd2f8c2f2c2e9cf268b2bdbef5abdc099c9486c29d0",
+      "sha256": "0d0abacdcc9ade473f5246a08d260d7c9da43a185bc8e7db2d84a50036e24199",
       "symbol": "ActionChip",
       "numericFields": [
         {
@@ -132,7 +132,7 @@
     },
     {
       "file": "packages/material/src/choice-chip.ts",
-      "sha256": "6d6efd1ca789638e32682b0fad56a94d0dd9826f7421e4c91eee714ef2c81941",
+      "sha256": "c9ec6f3e6553e79c019dade3e48af762aa420e99ebdd724b2f9d58ae26a8a7b1",
       "symbol": "ChoiceChip",
       "numericFields": [
         {
@@ -179,7 +179,7 @@
     },
     {
       "file": "packages/material/src/filter-chip.ts",
-      "sha256": "06ffb9db4f43816d66d7c2b0e8a83bf09b4c521f926c303cc76ccb91926dcb77",
+      "sha256": "f51b91e6db82cd33016c796013e586999a3597b247128e976ee821c1a3eb6345",
       "symbol": "FilterChip",
       "numericFields": [
         {
@@ -226,7 +226,7 @@
     },
     {
       "file": "packages/material/src/input-chip.ts",
-      "sha256": "5849af21d068a154f7ead518e24c2504ac85d50624be460decb6d61b47626f01",
+      "sha256": "1c4a60e67b0f11bf304ec0ba74a623248ccd8250a255ac4615d3769a33cf394f",
       "symbol": "InputChip",
       "numericFields": [
         {

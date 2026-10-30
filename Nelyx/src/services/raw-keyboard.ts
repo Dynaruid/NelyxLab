@@ -52,7 +52,8 @@ export class RawKeyboard {
     this.checkOpen();if(event instanceof RawKeyDownEvent)this.pressed.set(event.physicalKey.usbHidUsage,{physical:event.physicalKey,logical:event.logicalKey});else if(event instanceof RawKeyUpEvent)this.pressed.delete(event.physicalKey.usbHidUsage);
     this.synchronizeModifiers(event);
     if(FoundationBuildMode.debug&&event instanceof RawKeyDownEvent&&this.pressed.size===0)throw new FlutterError('Attempted key down when RawKeyboard.keysPressed is empty; modifier flags may be inconsistent');
-    for(const listener of [...this.listeners]){if(!this.live)break;if(this.listeners.includes(listener))try{listener(event);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'services library',context:new ErrorDescription('while processing a raw key listener')}));}}
+    const snapshot=[...this.listeners];
+    for(const listener of snapshot){if(!this.live)break;if(this.listeners.includes(listener))try{listener(event);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'services library',context:new ErrorDescription('while processing a raw key listener')}));}}
     return false;
   }
   private synchronizeModifiers(event:RawKeyEvent):void{

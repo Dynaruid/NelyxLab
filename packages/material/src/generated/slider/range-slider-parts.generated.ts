@@ -91,7 +91,7 @@ export abstract class RangeSliderValueIndicatorShape {
      * @dartReturn double
      * @dartReturnOrigin explicit
      */
-    getHorizontalShift({ parentBox = null, center = null, labelPainter = null, activationAnimation = null, textScaleFactor = null, sizeWithOverflow = null }: {
+    getHorizontalShift({ parentBox: _parentBox = null, center: _center = null, labelPainter: _labelPainter = null, activationAnimation: _activationAnimation = null, textScaleFactor: _textScaleFactor = null, sizeWithOverflow: _sizeWithOverflow = null }: {
         readonly parentBox?: RenderBox | null;
         readonly center?: Offset | null;
         readonly labelPainter?: TextPainter | null;

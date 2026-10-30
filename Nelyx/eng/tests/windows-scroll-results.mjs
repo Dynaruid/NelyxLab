@@ -86,7 +86,7 @@ export function continuousScrollResult(output,{engine,hermesMode,diagnostic,nati
   assert(audit.rnwPalNative&&audit.internalJavaScriptNative&&audit.nativeStarted&&!audit.sourcePreparations&&!audit.sourceExecutions&&!audit.bytecodeExecutions&&!audit.blockedFallbacks&&!audit.jitEnabled&&!audit.evalEnabled);
   const [calls]=records('ANIMATION_JS TYPED_EXECUTION ');assert(calls,'Missing actual specialized body counters');
   for(const {globalName}of bindings)assert(Number.isSafeInteger(calls[globalName])&&calls[globalName]>=0);
-  assert(bindings.length>0&&bindings.some(({globalName})=>calls[globalName]>0),'No selected product body executed');
+  assert(bindings.some(({globalName})=>calls[globalName]>0),'No selected product body executed');
  }
  const [memory]=records('ANIMATION_MEMORY ');assert(memory&&['workingSetBytes','peakWorkingSetBytes','privateBytes'].every(key=>Number.isSafeInteger(memory[key])&&memory[key]>0),'Missing native process memory');
  return {phases,metrics:samples,pacing:sends,memory};

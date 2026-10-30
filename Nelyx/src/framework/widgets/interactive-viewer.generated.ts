@@ -16,11 +16,10 @@ import { Size } from "../../ui/size.ts";
 import { Matrix4 } from "../../math/matrix4.ts";
 import { Vector3 } from "../../math/vector3.ts";
 import { SourceQuad } from "../../math/quad.generated.ts";
-import { SourceTriangle } from "../../math/triangle.generated.ts";
+import "../../math/triangle.generated.ts";
 import { Animation } from "../animation/animation.ts";
 import { AnimationController } from "../animation/animation-controller.ts";
-import { Animatable } from "../animation/tween.ts";
-import { Tween } from "../animation/tween.ts";
+import "../animation/tween.ts";
 import { CurveTween } from "../animation/tween.ts";
 import { Curves } from "../animation/curves.ts";
 import { Axis } from "../painting/basic-types.ts";
@@ -29,7 +28,7 @@ import { EdgeInsets } from "../painting/edge-insets.ts";
 import { BoxConstraints } from "../rendering/constraints.ts";
 import { RenderBox } from "../rendering/object.ts";
 import { HitTestBehavior } from "../rendering/pointer-listener.ts";
-import { PointerEvent } from "../gestures/events.ts";
+import "../gestures/events.ts";
 import { PointerSignalEvent } from "../gestures/events.ts";
 import { PointerScaleEvent } from "../gestures/events.ts";
 import { PointerScrollEvent } from "../gestures/events.ts";
@@ -37,7 +36,7 @@ import { ScaleStartDetails } from "../gestures/scale.ts";
 import { ScaleUpdateDetails } from "../gestures/scale.ts";
 import { ScaleEndDetails } from "../gestures/scale.ts";
 import { FrictionSimulation } from "../physics/friction-simulation.ts";
-import { ValueNotifier } from "../../foundation/notifier.ts";
+import "../../foundation/notifier.ts";
 import { ViewerStatefulHost } from "./viewer-widget-source-adapter.ts";
 import { ViewerStateHost } from "./viewer-widget-source-adapter.ts";
 import { ViewerValueNotifierHost } from "./viewer-widget-source-adapter.ts";
@@ -46,9 +45,7 @@ import { dartLateWrite } from "../../foundation/dart-late.ts";
 import { dartLateInitialize } from "../../foundation/dart-late.ts";
 import { dartLateLocal } from "../../foundation/dart-late.ts";
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
-import { dartStaticRead } from "../../foundation/dart-static-field.ts";
-import { dartStaticWrite } from "../../foundation/dart-static-field.ts";
-import { dartStaticSeal } from "../../foundation/dart-static-field.ts";
+import "../../foundation/dart-static-field.ts";
 import { invariant } from "../../foundation/errors.ts";
 import { FoundationBuildMode } from "../../foundation/constants.ts";
 import { kMinFlingVelocity } from "../gestures/constants.ts";
@@ -71,12 +68,9 @@ import { viewerFixed } from "./viewer-widget-source-adapter.ts";
 import { viewerParseDouble } from "./viewer-widget-source-adapter.ts";
 import { viewerKeyContext } from "./viewer-widget-source-adapter.ts";
 import { viewerEventTransform } from "./viewer-widget-source-adapter.ts";
-import { viewerIsRenderBox } from "./viewer-widget-source-adapter.ts";
 import { viewerCastRenderBox } from "./viewer-widget-source-adapter.ts";
 import { viewerIsScrollEvent } from "./viewer-widget-source-adapter.ts";
-import { viewerCastScrollEvent } from "./viewer-widget-source-adapter.ts";
 import { viewerIsScaleEvent } from "./viewer-widget-source-adapter.ts";
-import { viewerCastScaleEvent } from "./viewer-widget-source-adapter.ts";
 import { viewerDouble } from "./viewer-widget-source-adapter.ts";
 import { viewerTransformDelta } from "./viewer-widget-source-adapter.ts";
 import { viewerRenderSize } from "./viewer-widget-source-adapter.ts";
@@ -824,13 +818,13 @@ export class SourceInteractiveViewerState extends ViewerStateHost<SourceInteract
         if (this._dart_bb3c6814efa30c40_controller.isAnimating) {
             this._dart_bb3c6814efa30c40_controller.stop();
             this._dart_bb3c6814efa30c40_controller.reset();
-            (this._dart_bb3c6814efa30c40_animation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleInertiaAnimation)) ?? null);
+            void ((this._dart_bb3c6814efa30c40_animation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleInertiaAnimation)) ?? null));
             this._dart_bb3c6814efa30c40_animation = null;
         }
         if (this._dart_bb3c6814efa30c40_scaleController.isAnimating) {
             this._dart_bb3c6814efa30c40_scaleController.stop();
             this._dart_bb3c6814efa30c40_scaleController.reset();
-            (this._dart_bb3c6814efa30c40_scaleAnimation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleScaleAnimation)) ?? null);
+            void ((this._dart_bb3c6814efa30c40_scaleAnimation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleScaleAnimation)) ?? null));
             this._dart_bb3c6814efa30c40_scaleAnimation = null;
         }
         this._dart_bb3c6814efa30c40_gestureType = null;
@@ -976,8 +970,8 @@ export class SourceInteractiveViewerState extends ViewerStateHost<SourceInteract
         this._dart_bb3c6814efa30c40_scaleStart = null;
         this._dart_bb3c6814efa30c40_rotationStart = null;
         this._dart_bb3c6814efa30c40_referenceFocalPoint = null;
-        (this._dart_bb3c6814efa30c40_animation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleInertiaAnimation)) ?? null);
-        (this._dart_bb3c6814efa30c40_scaleAnimation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleScaleAnimation)) ?? null);
+        void ((this._dart_bb3c6814efa30c40_animation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleInertiaAnimation)) ?? null));
+        void ((this._dart_bb3c6814efa30c40_scaleAnimation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleScaleAnimation)) ?? null));
         this._dart_bb3c6814efa30c40_controller.reset();
         this._dart_bb3c6814efa30c40_scaleController.reset();
         if (!this._dart_bb3c6814efa30c40_gestureIsSupported(this._dart_bb3c6814efa30c40_gestureType)) {
@@ -1039,11 +1033,11 @@ export class SourceInteractiveViewerState extends ViewerStateHost<SourceInteract
             }
             case SourceGestureType.rotate: {
                 break;
-                break;
+
             }
             case null: {
                 break;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }
@@ -1149,7 +1143,7 @@ export class SourceInteractiveViewerState extends ViewerStateHost<SourceInteract
     _dart_bb3c6814efa30c40_handleInertiaAnimation(): void {
         if (!this._dart_bb3c6814efa30c40_controller.isAnimating) {
             this._dart_bb3c6814efa30c40_currentAxis = null;
-            (this._dart_bb3c6814efa30c40_animation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleInertiaAnimation)) ?? null);
+            void ((this._dart_bb3c6814efa30c40_animation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleInertiaAnimation)) ?? null));
             this._dart_bb3c6814efa30c40_animation = null;
             this._dart_bb3c6814efa30c40_controller.reset();
             return;
@@ -1166,7 +1160,7 @@ export class SourceInteractiveViewerState extends ViewerStateHost<SourceInteract
     _dart_bb3c6814efa30c40_handleScaleAnimation(): void {
         if (!this._dart_bb3c6814efa30c40_scaleController.isAnimating) {
             this._dart_bb3c6814efa30c40_currentAxis = null;
-            (this._dart_bb3c6814efa30c40_scaleAnimation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleScaleAnimation)) ?? null);
+            void ((this._dart_bb3c6814efa30c40_scaleAnimation?.removeListener(dartMethodTearOff(this, this._dart_bb3c6814efa30c40_handleScaleAnimation)) ?? null));
             this._dart_bb3c6814efa30c40_scaleAnimation = null;
             this._dart_bb3c6814efa30c40_scaleController.reset();
             return;

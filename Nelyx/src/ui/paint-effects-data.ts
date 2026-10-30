@@ -33,6 +33,7 @@ export function planeMatrix(value:readonly number[]):number[]{return [value[0]!,
 export function freezeShader(value:ShaderSnapshot):ShaderSnapshot {
  invariant(value&&typeof value==='object','invalid-paint-effect','Invalid shader');
  if(value.kind==='runtime'){
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   invariant(typeof value.source==='string'&&value.source.length>0&&value.source.length<=16384&&/^[\x09\x0a\x0d\x20-\x7e]+$/.test(value.source),'invalid-paint-effect','Runtime source must be bounded ASCII SkSL');
   const tokens=value.source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,' ');
   invariant(!/\buniform\s+(?:shader|colorFilter|blender)\b/.test(tokens),'invalid-paint-effect','Runtime child effects are unsupported');

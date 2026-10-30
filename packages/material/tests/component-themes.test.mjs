@@ -21,7 +21,7 @@ import {NotchedShape,CircularNotchedRectangle} from '@nelyx/core/framework/paint
 import {SystemUiOverlayStyle} from '@nelyx/core/services/system-ui-overlay-style';
 import {systemUiOverlayStyleToPlatformMap} from '@nelyx/core/internal/services/system-ui-overlay-style-source';
 import {SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';
-import {WidgetState,WidgetStateColor,WidgetStateProperty} from '@nelyx/core/framework/widgets/widget-state';
+import { WidgetState, WidgetStateColor } from '@nelyx/core/framework/widgets/widget-state';
 import {readDartType,describeDartType} from '@nelyx/core/foundation/dart-type-witness';
 import {WidgetStatePropertyAll} from '@nelyx/core/framework/widgets/widget-state';
 import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
@@ -116,7 +116,7 @@ test('13 inherited themes and all 14 ThemeData slots preserve one State and capt
  const families=source.contracts.map((c,i)=>[material[c.symbol],material[c.symbol.replace('Data','')],slots[i]]),f=fixture();let created=0,disposed=0,read,captured;
  class Probe extends StatefulWidget{createState(){created++;return new ProbeState();}}
  class ProbeState extends State{build(context){read=families.map(([,T,slot])=>T?T.of(context):material.Theme.of(context)[slot]);captured=InheritedTheme.capture(context);assert.equal(material.DatePickerTheme.maybeOf(context),read[6]);assert.equal(material.DropdownMenuTheme.maybeOf(context),read[7]);return new SizedBox(1,1);}dispose(){disposed++;super.dispose();}}
- const globals=families.map(([D])=>new D()),theme=new material.ThemeData(Object.fromEntries(families.map(([,T,slot],i)=>[slot,globals[i]]))),local=families.map(([D])=>new D()),wrap=(v,child)=>new material.Theme(theme,families.reduceRight((child,[,T],i)=>T?new T(v[i],child):child,child));
+ const globals=families.map(([D])=>new D()),theme=new material.ThemeData(Object.fromEntries(families.map(([,_T,slot],i)=>[slot,globals[i]]))),local=families.map(([D])=>new D()),wrap=(v,child)=>new material.Theme(theme,families.reduceRight((child,[,T],i)=>T?new T(v[i],child):child,child));
  try{const probe=new Probe();f.set(wrap(local,probe));assert.equal(created,1);for(const [i,[D,T,slot]]of families.entries()){assert(new material.ThemeData()[slot] instanceof D);assert.equal(theme.copyWith({[slot]:null})[slot],globals[i]);if(T){assert.equal(read[i],local[i]);assert.equal(new T(local[i],new SizedBox()).updateShouldNotify(new T(local[i].copyWith(),new SizedBox())),false);}}
  const changed=local.slice();changed[6]=new material.DatePickerThemeData({elevation:12});f.set(wrap(changed,probe));assert.equal(created,1);assert.equal(read[6].elevation,12);
  f.set(new material.Theme(theme,captured.wrap(new Builder(context=>{read=families.map(([,T,slot])=>T?T.of(context):material.Theme.of(context)[slot]);return new SizedBox(1,1);})))) ;

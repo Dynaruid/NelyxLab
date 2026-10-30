@@ -3,7 +3,7 @@
 // Adapted from the pinned Flutter foundation/assertions.dart.
 import {isException} from './errors.ts';
 import {FlutterError} from './flutter-error.ts';
-import {DiagnosticsNode,DiagnosticsProperty,DiagnosticsBlock,DiagnosticPropertiesBuilder,DiagnosticableNode,ErrorDescription,ErrorSummary,ErrorHint,ErrorSpacer} from './diagnostics.ts';
+import { DiagnosticsNode, DiagnosticsBlock, DiagnosticPropertiesBuilder, DiagnosticableNode, ErrorDescription, ErrorSummary, ErrorSpacer } from './diagnostics.ts';
 import type {Diagnosticable,DiagnosticsOptions,DiagnosticsStringOptions} from './diagnostics.ts';
 
 export type InformationCollector=()=>Iterable<DiagnosticsNode>;

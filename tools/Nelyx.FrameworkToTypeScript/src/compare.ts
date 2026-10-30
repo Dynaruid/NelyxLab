@@ -13,7 +13,7 @@ export async function compareSelections(beforeFile:string,afterFile:string,revie
   for(const id of new Set([...previous.keys(),...current.keys()])){
     const old=previous.get(id),next=current.get(id);
     if(old&&next&&JSON.stringify(old)===JSON.stringify(next)&&before.rules===after.rules)continue;
-    const destination=next?.destination??old!.destination,file=path.resolve(root,destination),relative=path.relative(root,file);
+    const destination=next?.destination??old!.destination,file=path.resolve(root,destination);
     if(!within(root,file))throw new Error('Reviewed destination escapes root');
     let reviewedSha256:string|undefined;
     try{const resolved=await realpath(file);if(!within(root,resolved))throw new Error('Linked reviewed destination escapes root');reviewedSha256=createHash('sha256').update(await readFile(resolved)).digest('hex');}

@@ -33,7 +33,8 @@ export class RendererEvents {
   drain():void {this.stop();this.pending.clear();}
   private publish(event:RendererNotification):void {
     if(this.stopped)return;
-    for(const listener of [...this.listeners]){
+    const snapshot1=[...this.listeners];
+    for(const listener of snapshot1){
       if(!this.listeners.has(listener))continue;
       try{listener(event);}catch{this.listeners.delete(listener);}
     }

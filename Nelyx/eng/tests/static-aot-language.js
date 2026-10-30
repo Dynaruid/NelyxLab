@@ -23,6 +23,7 @@
   function* sequence() { try { yield 6; yield 7; } finally { events.push('iterator-close'); } }
   const [first] = sequence();
   let tdz=false; {try {void later;} catch(error) {tdz=error instanceof ReferenceError;} let later=1;}
+  // oxlint-disable-next-line no-unused-vars, no-const-assign -- Exercise const assignment, temporal dead zones and class initialization failures.
   const binding=1;let readonly=false;try {binding=2;} catch(error) {readonly=error instanceof TypeError;}
   const closures = []; for (let i = 0; i < 3; i++) closures.push(() => i);
   const mutations=[];for(let index=0;index<4;index++){const start=index;while(index<1)index++;mutations.push([start,index]);}
@@ -38,6 +39,7 @@
   class FieldWrite {value=fieldCounter++;}
   let writeTdz=false;try{new FieldWrite();}catch(error){writeTdz=error instanceof ReferenceError;}
   let fieldCounter=2;const written=new FieldWrite();
+  // oxlint-disable-next-line no-unused-vars -- Exercise const assignment, temporal dead zones and class initialization failures.
   let staticTdz=false;try{class StaticField {static value=staticLater;}}catch(error){staticTdz=error instanceof ReferenceError;}const staticLater=1;
   const keys=[];for(let key in {a:1,b:2})keys.push(()=>key);
   const values=[];for(let item of [4,5])values.push(()=>item);
@@ -48,7 +50,9 @@
   let patternTdz=false;try{for(const [item]of item){}}catch(error){patternTdz=error instanceof ReferenceError;}
   let inTdz=false,ofTdz=false;try{for(let key in key){}}catch(error){inTdz=error instanceof ReferenceError;}try{for(let item of item){}}catch(error){ofTdz=error instanceof ReferenceError;}
   let rhsRead;for(let item of (rhsRead=()=>item,[1])){}let rhsTdz=false;try{rhsRead();}catch(error){rhsTdz=error instanceof ReferenceError;}
+  // oxlint-disable-next-line no-unused-vars -- Exercise const assignment, temporal dead zones and class initialization failures.
   const assignmentOrder=[];try{for(let item of (item=(assignmentOrder.push('rhs'),[1]))) {}}catch(error){assignmentOrder.push(error.name);}try{for(let item of (item+=(assignmentOrder.push('unreachable'),1))) {}}catch(error){assignmentOrder.push(error.name);}try{for(let item of ([item]=(assignmentOrder.push('destructure'),[1]))) {}}catch(error){assignmentOrder.push(error.name);}
+  // oxlint-disable-next-line no-sparse-arrays -- Exercise sparse-array iteration and spread behavior in the language conformance fixture.
   const array = [, 1], alias = array; alias.push(2);
   const buffer = new ArrayBuffer(8), bytes = new Uint8Array(buffer), view = new DataView(buffer); bytes[2] = 13;
   const map = new Map([[value, 17]]), weak = new WeakMap([[value, sentinel]]), set = new Set([value, value]);

@@ -8,7 +8,7 @@ import {StatefulWidget,State,StatelessWidget,InheritedWidget,Element,LeafRenderO
 import type {Widget,BuildContext,WidgetOptions} from './framework.ts';
 import {AutomaticKeepAliveClientMixin} from './automatic-keep-alive.ts';
 import {ScrollController} from './scroll-controller.ts';
-import {Scrollable,ScrollableState} from './scrollable.ts';
+import { Scrollable } from './scrollable.ts';
 import {ListView} from './scroll-view.ts';
 import type {ScrollPhysics} from './scroll-physics.ts';
 import {EdgeDraggingAutoScroller} from './scrollable-helpers.ts';

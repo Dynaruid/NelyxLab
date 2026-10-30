@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {Theme,AnimatedTheme,ThemeDataTween,kThemeAnimationDuration} from '@nelyx/material/theme';
+import { Theme, AnimatedTheme, kThemeAnimationDuration } from '@nelyx/material/theme';
 import {ThemeData} from '@nelyx/material/theme-data';import {MaterialLocalizations,MaterialLocalizationsScope} from '@nelyx/material/material-localizations';import {ScriptCategory} from '@nelyx/material/script-category';import {TextSelectionThemeData} from '@nelyx/material/text-selection-theme';
 import {CupertinoTheme,InheritedCupertinoTheme,CupertinoThemeData} from '@nelyx/cupertino/theme';import {CupertinoColors} from '@nelyx/cupertino/colors';import {CupertinoIconThemeData} from '@nelyx/cupertino/icon-theme-data';
 import {StatelessWidget,StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';import {Builder,SizedBox} from '@nelyx/core/framework/widgets/basic';import {MediaQuery} from '@nelyx/core/framework/widgets/app-data';

@@ -72,6 +72,7 @@ function copyAppNotices(projectRoot,assets,destination){
  * Only this manifest's previous hash-named font files are pruned. */
 function copyAndroidFontAssets(projectRoot,assets,destination){
   const verified=verifyAppAssets(projectRoot,assets),fonts=verified.filter(asset=>asset.kind==='font');destination=path.resolve(destination);
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   for(const font of fonts)if(typeof font.fontFamily!=='string'||font.fontFamily.length===0||font.fontFamily.length>256||/[\u0000-\u001f]/.test(font.fontFamily))throw new Error('Invalid Android font family: '+font.id);
   const records=fonts.map(font=>Object.freeze({id:font.id,family:font.fontFamily,sha256:font.sha256,bytes:font.bytes,file:'nelyx/fonts/'+font.sha256+'.ttf'})),unique=new Map(records.map(record=>[record.sha256,record]));
   const manifest=Object.freeze({schema:'nelyx.android-font-assets/v1',fonts:Object.freeze(records)});

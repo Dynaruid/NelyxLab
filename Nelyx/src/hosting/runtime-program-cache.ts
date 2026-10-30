@@ -26,6 +26,7 @@ export class RuntimeProgramCache<T extends object> {
   this.entries.delete(source);this.sourceBytes-=entry.bytes;
  }
  get(source:string):T{
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   this.available();invariant(typeof source==='string'&&source.length>0&&source.length<=this.limits.sourceBytes&&/^[\x09\x0a\x0d\x20-\x7e]+$/.test(source),'invalid-program-source','Runtime program source exceeds its ASCII budget');
   const previous=this.entries.get(source);if(previous){this.hits++;this.entries.delete(source);this.entries.set(source,previous);return previous.value;}
   this.misses++;this.busy=true;let value:T|undefined;
@@ -33,7 +34,7 @@ export class RuntimeProgramCache<T extends object> {
    value=this.compile(source);this.validate(value);this.compilations++;
    while(this.entries.size>=this.limits.entries||this.sourceBytes+source.length>this.limits.sourceBytes){this.remove(this.entries.keys().next().value!);this.evictions++;}
    this.entries.set(source,{value,bytes:source.length,failed:false});this.sourceBytes+=source.length;return value;
-  }catch(error){if(value!==undefined){try{this.retireValue(value);}catch(cleanup){throw cleanup;}}throw error;}
+  }catch(error){if(value!==undefined){this.retireValue(value);}throw error;}
   finally{this.busy=false;}
  }
  /** Successful context loss releases cached wrappers; later gets compile anew. */

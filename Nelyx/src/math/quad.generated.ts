@@ -5,7 +5,6 @@ import { Vector3 } from "./vector3.ts";
 import { Matrix4 } from "./matrix4.ts";
 import { SourceTriangle } from "./triangle.generated.ts";
 import { isSourceQuad } from "./viewer-geometry-source-adapter.ts";
-import { castSourceQuad } from "./viewer-geometry-source-adapter.ts";
 import { vectorSourceString } from "./viewer-geometry-source-adapter.ts";
 import { quadPointHash } from "./viewer-geometry-source-adapter.ts";
 import { checkedInteger } from "../ui/value-math.ts";

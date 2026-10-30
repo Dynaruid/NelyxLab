@@ -1,7 +1,7 @@
 import {reactNativeAssetBackend} from '../../backends/react-native/assets.ts';
 import type {AssetService} from '@nelyx/core/hosting/services';
 // SPDX-License-Identifier: BSD-3-Clause
-import {windowsBackend,windowsAssets,verifyWindowsNativeHost} from './application.ts';
+import { windowsBackend, verifyWindowsNativeHost } from './application.ts';
 import type {WindowsAssets} from './application.ts';
 import {resolveWindowsAssetSources} from './native-host.ts';
 import {createNativeAssetServices} from '../../runtime/native-assets.ts';

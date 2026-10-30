@@ -12,6 +12,7 @@ function inspect(root,allowLinks){
       const name=relativeFile(prefix+entry.name),file=path.join(directory,entry.name);if(name===manifestName)continue;
       const key=name.toLowerCase();if(seen.has(key))throw new Error('Case-colliding package paths');seen.add(key);
       if(entry.isSymbolicLink()){
+        // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
         const link=fs.readlinkSync(file);if(!allowLinks||path.isAbsolute(link)||/[\x00-\x1f]/.test(link)||!within(fs.realpathSync(file),root))throw new Error('Foreign or invalid package symlink');
         records.push({path:name,type:'symlink',link,bytes:Buffer.byteLength(link),sha256:digest(link)});
       }else if(entry.isDirectory())visit(file,name+'/');

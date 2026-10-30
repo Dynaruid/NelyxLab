@@ -4,18 +4,14 @@
 // Generated from packages/flutter/lib/src/widgets/widget_state.dart; SHA256 5caa69ece300d67a1984df9cb1ea7456fce7b30dc339c0a804540443242e916a
 import { protect } from "../../ui/value-math.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
-import { FoundationBuildMode } from "../../foundation/constants.ts";
-import { invariant } from "../../foundation/errors.ts";
+import "../../foundation/constants.ts";
+import "../../foundation/errors.ts";
 import { DartSet } from "../../foundation/dart-collections.ts";
 import { DartMap } from "../../foundation/dart-collections.ts";
-import { DartIterable } from "../../foundation/dart-collections.ts";
 import { ValueNotifier } from "../../foundation/notifier.ts";
 import { widgetStateConstEmpty } from "./widget-state-constraint-source-adapter.ts";
 import { registerWidgetStateConstraints } from "./widget-state-constraint-source-adapter.ts";
-import { dartStringType } from "../../foundation/dart-type-witness.ts";
-import { dartBoolType } from "../../foundation/dart-type-witness.ts";
-import { dartObjectType } from "../../foundation/dart-type-witness.ts";
-import { dartNullType } from "../../foundation/dart-type-witness.ts";
+import "../../foundation/dart-type-witness.ts";
 import { nullableDartType } from "../../foundation/dart-type-witness.ts";
 import { applyDartType } from "../../foundation/dart-type-witness.ts";
 import { captureDartType } from "../../foundation/dart-type-witness.ts";
@@ -33,7 +29,6 @@ import { WidgetStateDiagnosticableBase } from "./widget-state-diagnostic-source-
 import { widgetStateDiagnosticableType } from "./widget-state-diagnostic-source-adapter.ts";
 import { captureDartException } from "../../foundation/dart-exceptions.ts";
 import { isWidgetStateTypeError } from "./widget-state-diagnostic-source-adapter.ts";
-import { castWidgetStateTypeError } from "./widget-state-diagnostic-source-adapter.ts";
 import { WidgetStateArgumentError } from "./widget-state-diagnostic-source-adapter.ts";
 import { widgetStateSetString } from "./widget-state-map-source-adapter.ts";
 import { createWidgetStateMapHash } from "./widget-state-map-source-adapter.ts";
@@ -41,7 +36,7 @@ import { dartMapEquals } from "../../foundation/dart-map-equality.ts";
 import { widgetStateMapString } from "./widget-state-map-source-adapter.ts";
 import { createWidgetStateMapDiagnostics } from "./widget-state-map-source-adapter.ts";
 import { dartValueString } from "../../foundation/dart-value.ts";
-import { DartSymbol } from "../../foundation/dart-symbol.ts";
+import "../../foundation/dart-symbol.ts";
 import { dartSymbolString } from "../../foundation/dart-symbol.ts";
 import { WidgetStateInvocation } from "./widget-state-diagnostic-source-adapter.ts";
 import { widgetStateInvocationMemberName } from "./widget-state-diagnostic-source-adapter.ts";
@@ -50,31 +45,21 @@ import { ErrorSummary } from "../../foundation/diagnostics.ts";
 import { ErrorDescription } from "../../foundation/diagnostics.ts";
 import { ErrorHint } from "../../foundation/diagnostics.ts";
 import { DiagnosticPropertiesBuilder } from "../../foundation/diagnostics.ts";
-import { DiagnosticsProperty } from "../../foundation/diagnostics.ts";
 import { isSourceDartDouble } from "../../foundation/dart-numeric.ts";
 import { castSourceDartDouble } from "../../foundation/dart-numeric.ts";
 import { debugFormatDouble } from "../../foundation/debug.ts";
 import { widgetStateSet } from "./widget-state-constraint-source-adapter.ts";
-import { boxSourceDartInt } from "../../foundation/dart-numeric.ts";
-import { boxSourceDartDouble } from "../../foundation/dart-numeric.ts";
-import { castSourceDartInt } from "../../foundation/dart-numeric.ts";
-import { dartIntType } from "../../foundation/dart-type-witness.ts";
-import { dartDoubleType } from "../../foundation/dart-type-witness.ts";
-import { dartNumType } from "../../foundation/dart-type-witness.ts";
 import { canonicalDartObject } from "../../foundation/dart-const.ts";
-import { dartValueIdentical } from "../../foundation/dart-identity.ts";
-import { bridgeDartFunction } from "../../foundation/dart-function.ts";
-import { unwrapSourceDartNum } from "../../foundation/dart-numeric.ts";
-import { lerpDouble } from "../../ui/lerp-double.generated.ts";
+import "../../foundation/dart-identity.ts";
+import "../../foundation/dart-function.ts";
+import "../../ui/lerp-double.generated.ts";
 import type { DartMapEntry } from "../../foundation/dart-collections.ts";
-import type { Diagnosticable } from "../../foundation/diagnostics.ts";
 import type { DartTypeWitness } from "../../foundation/dart-type-witness.ts";
-import type { WidgetStateTypeError } from "./widget-state-diagnostic-source-adapter.ts";
 import type { DiagnosticLevel } from "../../foundation/diagnostics.ts";
-import type { DiagnosticsNode } from "../../foundation/diagnostics.ts";
-import type { DartNumeric } from "../../foundation/dart-numeric.ts";
-import type { DartInt } from "../../foundation/dart-numeric.ts";
-import type { DartDouble } from "../../foundation/dart-numeric.ts";
+
+
+
+
 export abstract class SourceWidgetStatesConstraint {
     constructor() {
     }
@@ -382,7 +367,7 @@ export class SourceWidgetStatePropertyAll<T extends {} | null> implements Source
         this.value = _initialField0;
         protect(this, ["value"]);
     }
-    resolve(states: DartSet<SourceWidgetState>): T {
+    resolve(_states: DartSet<SourceWidgetState>): T {
         return this.value;
     }
     toString(): string {

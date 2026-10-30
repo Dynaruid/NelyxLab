@@ -72,6 +72,7 @@ export function bindWindowsNativeHost(readApi:()=>unknown=currentApi) {
 export function windowsAssetUri(uri:string,root:string):string {
   if(!uri.startsWith('nelyx-asset:/'))return uri;
   const relative=uri.slice('nelyx-asset:/'.length),parts=relative.split('/');
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   if(!relative||relative.length>512||parts.some(part=>!part||part==='.'||part==='..'||/[\\:%?#\x00-\x1f]/.test(part)))throw new Error('Invalid Windows runner asset path');
   if(!/^[A-Za-z]:[\\/]/.test(root))throw new Error('Invalid Windows native asset root');
   const normalized=root.replaceAll('\\','/');

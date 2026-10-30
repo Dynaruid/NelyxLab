@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule } from './product-module-layout.mjs';
 // Finite resolved public fields/defaults/enums. Behavior lives in explicit Core-owner ports.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-list-family-candidate/result.json',candidate=read(candidateFile);assert.equal(sha(candidate.ir.file),candidate.ir.sha256);const ir=read(candidate.ir.file),check=process.argv.includes('--check'),outputs=[],ownershipFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-list-tile-api-ownership.json',previous=fs.existsSync(ownershipFile)?read(ownershipFile):null;

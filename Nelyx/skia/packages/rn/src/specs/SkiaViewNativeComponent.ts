@@ -10,7 +10,6 @@ type NativeMouseEvent=Readonly<{protocol:Double;nativeId:Double;kind:string;devi
 
 type AndroidPointerEvent=Readonly<{protocol:Double;nativeId:Double;samples:{kind:string;device:string;pointer:Double;buttons:Double;x:Double;y:Double;timestamp:Double}[]}>;
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - pointerEvents needs to be redeclared for codegen to generate native bindings
 export interface NativeProps extends ViewProps {
   mouseCursor?:string;
@@ -30,5 +29,4 @@ export interface NativeProps extends ViewProps {
   >;
 }
 
-// eslint-disable-next-line import/no-default-export
 export default codegenNativeComponent<NativeProps>("SkiaView");

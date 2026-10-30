@@ -23,7 +23,6 @@ export const isRRect = (def: unknown): def is SkRRect => {
   return (
     typeof def === "object" &&
     def !== null &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     typeof (def as any).rect === "object"
   );
 };

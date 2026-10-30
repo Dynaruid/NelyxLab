@@ -209,7 +209,7 @@ export class SourceStretchingOverscrollIndicatorState extends ScrollbarStateHost
         super.dispose();
     }
     override build(context: BuildContext): Widget {
-        return scrollbarNotificationListener({ onNotification: dartMethodTearOff(this, this._dart_a0c81569a74cec87_handleScrollNotification), child: new AnimatedBuilder({ animation: this._dart_a0c81569a74cec87_stretchController, builder: (context: BuildContext, child: Widget | null): ClipRect => {
+        return scrollbarNotificationListener({ onNotification: dartMethodTearOff(this, this._dart_a0c81569a74cec87_handleScrollNotification), child: new AnimatedBuilder({ animation: this._dart_a0c81569a74cec87_stretchController, builder: (context: BuildContext, _child: Widget | null): ClipRect => {
                     /**
                      * @dartType double
                      * @dartTypeOrigin explicit
@@ -440,7 +440,7 @@ export class SourceStretchController extends Listenable {
             }
             return null;
         });
-        (this._dart_a0c81569a74cec87_controller?.dispose() ?? null);
+        void ((this._dart_a0c81569a74cec87_controller?.dispose() ?? null));
         this._dart_a0c81569a74cec87_controller = controller;
     }
     /**
@@ -496,7 +496,7 @@ export class SourceStretchController extends Listenable {
         this.overscroll = newOverscroll + this._dart_a0c81569a74cec87_interruptedOverscroll;
     }
     dispose(): void {
-        (this._dart_a0c81569a74cec87_controller?.dispose() ?? null);
+        void ((this._dart_a0c81569a74cec87_controller?.dispose() ?? null));
         this._dart_a0c81569a74cec87_controller = null;
         this._dart_a0c81569a74cec87_overscrollNotifier.dispose();
     }

@@ -1,7 +1,6 @@
 import type { ViewProps } from "react-native";
 import { createElement } from "react";
 import type { FunctionComponentElement } from "react";
-
 import {SkiaView} from '../views/SkiaView.web.tsx';
 import type {SkiaViewProps} from '../views/SkiaView.web.tsx';
 
@@ -29,5 +28,4 @@ const SkiaViewNativeComponent = ({
     ...viewProps,
   });
 };
-// eslint-disable-next-line import/no-default-export
 export default SkiaViewNativeComponent;

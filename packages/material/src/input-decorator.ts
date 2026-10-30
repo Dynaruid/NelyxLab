@@ -175,7 +175,7 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
         for(const [slot,child,constraints,color]of [['prefixIcon',d.prefixIcon,d.prefixIconConstraints,v.prefixIcon],['suffixIcon',d.suffixIcon,d.suffixIconConstraints,v.suffixIcon]] as const){
             const icon=this.stableChild(slot,[child,constraints,color],()=>child?new ConstrainedBox(IconTheme.merge({data:new IconThemeData({color,size:24}),child}),constraints??new BoxConstraints(48,Infinity,48,Infinity)):null);if(icon)slots.set(slot,icon);
         }
-        slots.set('input',this.stableChild('input',[v.base,this.widget.child,this.widget.textAlign],()=>new DefaultTextStyle(v.base,this.widget.child??SizedBox.shrink(),{...(this.widget.textAlign===null?{}:{textAlign:this.widget.textAlign})}))!);
+        slots.set('input',this.stableChild('input',[v.base,this.widget.child,this.widget.textAlign],()=>new DefaultTextStyle(v.base,this.widget.child??SizedBox.shrink(),{...(!(this.widget.textAlign===null) && ({textAlign:this.widget.textAlign}))}))!);
         const error=d.error!==null||d.errorText!==null,helper=error?withStyle('helperError',d.error,d.errorText,v.error,d.errorMaxLines):withStyle('helperError',d.helper,d.helperText,v.helper,d.helperMaxLines);
         const helperChild=this.stableChild('helper:wrapper',[helper,error],()=>helper?new KeyedSubtree({key:new ValueKey(error?'error':'helper'),child:new Semantics({liveRegion:error,child:helper})}):null);
         slots.set('helperError',new AnimatedSwitcher({duration:transitionDuration,child:helperChild}));

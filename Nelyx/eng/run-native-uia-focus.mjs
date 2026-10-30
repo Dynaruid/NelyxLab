@@ -49,6 +49,7 @@ async function run(mode,product,pointer,range){
     if(clientError||overflow||closed.exitCode!==0||closed.forced||closed.error||/NELYX_NATIVE_\w*ERROR/.test(output+errors)||!(range?client?.includes('NELYX_NATIVE_UIA_RANGE '):client?.includes('"sameId":true')&&client.includes('"hasKeyboardFocus":true')))throw Error('External native UIA action did not qualify');
   }finally{
     clearTimeout(deadline);clearTimeout(readyTimer);process.off('SIGINT',interrupt);process.off('SIGTERM',interrupt);if(abortStop)controller.signal.removeEventListener('abort',abortStop);if(running)await running.stop();
+    // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
     if(temporary){if(path.dirname(temporary)!==parent||!path.basename(temporary).startsWith('.uia-fixture-')||fs.lstatSync(temporary).isSymbolicLink())throw Error('UIA cleanup escaped its owned temporary directory');fs.rmSync(temporary,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
   }
 }

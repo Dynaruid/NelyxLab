@@ -64,7 +64,8 @@ export function treeClipHandle():LayerHandle<ClipRectLayer>{return new LayerHand
  * earlier removals and value replacements, matching Dart Map.removeWhere. */
 export function treeMapRemoveWhere<K,V>(map:DartMap<K,V>,test:(key:K,value:V)=>boolean):void{
   map.checkMutable();
-  for(const key of [...map.keys]){
+  const snapshot=[...map.keys];
+  for(const key of snapshot){
     const guard=map.keys[Symbol.iterator](),remove=test(key,map.get(key)!);
     guard.next();
     if(remove)map.remove(key);

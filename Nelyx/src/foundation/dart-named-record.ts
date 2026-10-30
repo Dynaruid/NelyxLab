@@ -10,6 +10,7 @@ function shape(arity:number,names:readonly string[]):string[]{
 /** Entries are evaluated in source order before canonical shape construction.
  * Storage is shallow immutable: field objects retain their original identity. */
 export function dartNamedRecord<P extends readonly unknown[],N extends object>(arity:number,names:readonly string[],entries:readonly (readonly [number|string,unknown])[]):DartNamedRecord<P,N>{
+  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
   const sorted=shape(arity,names),positional:unknown[]=new Array(arity),named:Record<string,unknown>=Object.create(null),seen=new Set<number|string>();
   if(entries.length!==arity+sorted.length)throw new TypeError('Expected the exact named record shape');
   for(const [key,value]of entries){

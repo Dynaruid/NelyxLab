@@ -49,7 +49,7 @@ class NoInputBorder extends InputBorder {
     get isOutline(): boolean { return false; }
     get dimensions(): EdgeInsetsGeometry { return EdgeInsets.zero; }
     /** @dartParam t double */
-    scale(t: number): InputBorder { return InputBorder.none; }
+    scale(_t: number): InputBorder { return InputBorder.none; }
     getInnerPath(rect: Rect, _options: ShapeBorderOptions = {}): Path { const path = new Path(); path.addRect(rect); return path; }
     getOuterPath(rect: Rect, options: ShapeBorderOptions = {}): Path { return this.getInnerPath(rect, options); }
     override hitTest(rect: Rect, position: Offset, _options: ShapeBorderOptions = {}): boolean { return rect.contains(position); }

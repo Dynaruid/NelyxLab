@@ -21,6 +21,7 @@ try {
   console.log('Prepared current ' + target + ' package inputs. Install that runner next.');
 } finally {
   const owned = path.resolve(temporary);
+  // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
   if (path.dirname(owned) !== temporaryRoot || !path.basename(owned).startsWith('prepare-') || fs.lstatSync(owned).isSymbolicLink()) throw new Error('Unexpected temporary package owner');
   fs.rmSync(owned, {recursive: true, force: true});
 }

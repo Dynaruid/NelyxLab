@@ -3,7 +3,7 @@
 // Adapted from widgets/focus_traversal.dart at the recorded Flutter pin.
 import {invariant} from '../../foundation/errors.ts';
 import {Diagnosticable} from '../../foundation/diagnosticable.ts';
-import {DiagnosticsProperty,StringProperty,DiagnosticPropertiesBuilder} from '../../foundation/diagnostics.ts';
+import { StringProperty, DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
 import {DoubleProperty} from '../../foundation/diagnostic-properties.ts';
 import {Rect} from '../../ui/rect.ts';
 import {protect} from '../../ui/value-math.ts';

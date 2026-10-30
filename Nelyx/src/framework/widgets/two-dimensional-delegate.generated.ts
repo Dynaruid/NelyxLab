@@ -13,10 +13,9 @@ import { ErrorWidget } from "./framework.ts";
 import { FlutterError } from "../../foundation/flutter-error.ts";
 import { FlutterErrorDetails } from "../../foundation/assertions.ts";
 import { ErrorDescription } from "../../foundation/diagnostics.ts";
-import { RepaintBoundary } from "./repaint-boundary.ts";
+import "./repaint-boundary.ts";
 import { AutomaticKeepAlive } from "./automatic-keep-alive.ts";
-import { AutomaticKeepAliveClientMixin } from "./automatic-keep-alive.ts";
-import { SelectionContainer } from "./selection-container.ts";
+import "./selection-container.ts";
 import { SelectionRegistrarScope } from "./selection-container.ts";
 import { ChildVicinity } from "./child-vicinity.generated.ts";
 import { dartListGet } from "../../foundation/dart-list.ts";
@@ -29,7 +28,6 @@ import { captureDartException } from "../../foundation/dart-exceptions.ts";
 import { createSelectableMap } from "./two-dimensional-delegate-adapter.ts";
 import { createSelectableSet } from "./two-dimensional-delegate-adapter.ts";
 import { isChildVicinity } from "./child-vicinity.generated.ts";
-import { castChildVicinity } from "./child-vicinity.generated.ts";
 import { createTwoDimensionalRepaintBoundary } from "./two-dimensional-delegate-adapter.ts";
 import { TwoDimensionalSelectionHost } from "./two-dimensional-selection-host.ts";
 import { selectionParentFor } from "./two-dimensional-selection-host.ts";
@@ -44,6 +42,7 @@ import type { HostStackTrace } from "./two-dimensional-delegate-adapter.ts";
 export abstract class SourceTwoDimensionalChildDelegate extends ChangeNotifier {
     constructor() {
         super();
+        // oxlint-disable-next-line no-constant-condition -- Pinned source allocation tracing is intentionally disabled for this build.
         if (false) {
             ChangeNotifier.maybeDispatchObjectCreation(this);
         }
@@ -305,7 +304,7 @@ export class _SelectionKeepAliveState extends TwoDimensionalSelectionHost<_Selec
             })().add(selectable);
         }
         else {
-            (this.sourceSelections?.remove(selectable) ?? null);
+            void ((this.sourceSelections?.remove(selectable) ?? null));
         }
         this.wantKeepAlive = (() => {
             const _dartTemporary6 = this.sourceSelections;

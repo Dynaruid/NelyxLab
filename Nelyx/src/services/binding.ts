@@ -179,7 +179,8 @@ export class ServicesBinding implements Disposable {
     throw new MissingPluginException();
   }
   private notifyBackGesture(action:(observer:ServicesObserver)=>void):void{
-    for(const observer of [...this.backGestureObservers]){if(!this.live)break;if(!this.observers.has(observer)||!this.backGestureObservers.has(observer))continue;try{action(observer);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'services back gesture dispatch'}));}}
+    const snapshot1=[...this.backGestureObservers];
+    for(const observer of snapshot1){if(!this.live)break;if(!this.observers.has(observer)||!this.backGestureObservers.has(observer))continue;try{action(observer);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'services back gesture dispatch'}));}}
   }
   /** Source override point, routed through this application's system channel. */
   async handleSystemMessage(systemMessage:unknown):Promise<void>{
@@ -188,7 +189,8 @@ export class ServicesBinding implements Disposable {
   }
   handleMemoryPressure():void{this.notify(observer=>observer.didHaveMemoryPressure?.());}
   private notify(action:(observer:ServicesObserver)=>void,isCurrent:()=>boolean=()=>true):void {
-    for(const observer of [...this.observers]){if(!this.live||!isCurrent())break;if(!this.observers.has(observer))continue;try{action(observer);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'services library'}));}}
+    const snapshot2=[...this.observers];
+    for(const observer of snapshot2){if(!this.live||!isCurrent())break;if(!this.observers.has(observer))continue;try{action(observer);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'services library'}));}}
   }
   private accept(value:PlatformEnvironment):void {
     if(!this.live||this.current&&value.revision<=this.current.revision)return;this.current=value;

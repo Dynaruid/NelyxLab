@@ -86,6 +86,7 @@ async function prepare(variant,reuse){
  let prepared,parseFailure,tail=[];
  child=spawn(process.execPath,['--test','--test-reporter=spec','--test-timeout=1200000',path.join(import.meta.dirname,'windows-animation.test.mjs')],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']});
  const timer=setTimeout(kill,1_200_000);
+ // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
  const receive=raw=>{try{const line=raw.replace(/\x1b\[[0-9;]*m/g,'').trim().replace(/^# /,'');tail.push(line);if(tail.length>35)tail.shift();if(line.startsWith('ANIMATION_PREPARED '))prepared=JSON.parse(line.slice(19));if(/^(ANIMATION_(BUILD|AOT_COVERAGE|STATIC_HERMES|CONFIG)|STATIC_AOT_COMPILE) /.test(line))console.log(line);}catch(error){parseFailure??=error;kill();}};
  for(const stream of [child.stdout,child.stderr]){let buffer='';stream.setEncoding('utf8');stream.on('data',chunk=>{buffer+=chunk;let at;while((at=buffer.indexOf('\n'))>=0){receive(buffer.slice(0,at));buffer=buffer.slice(at+1);}});stream.on('end',()=>{if(buffer)receive(buffer);});}
  let status;try{status=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});}finally{clearTimeout(timer);child=undefined;}
@@ -176,5 +177,6 @@ try{
   try{assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert(path.basename(directory).startsWith('nelyx-windows-animation-'));if(fs.existsSync(directory)){assert(!fs.lstatSync(directory).isSymbolicLink());fs.rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}}catch(error){errors.push(error);}
  }
  try{if(suppliedConfig){assert(fs.readFileSync(configFile).equals(suppliedConfig),'Runner configuration changed during qualification');fs.writeFileSync(configFile,originalConfig);}}catch(error){errors.push(error);}
+ // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
  if(errors.length)throw new AggregateError(primary?[primary,...errors]:errors,'Scroll qualification cleanup failed');
 }

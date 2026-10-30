@@ -3,7 +3,7 @@ import type {SkImage,SkPaint} from './skia/types/Drawing.ts';
 import type {SkHostRect} from './skia/types/Rect.ts';
 import type {Skia} from './skia/types/Skia.ts';
 import type {SkParagraph} from './skia/types/Paragraph/Paragraph.ts';
-import {TextAlign,TextDirection} from './skia/types/Paragraph/ParagraphStyle.ts';
+import { TextDirection } from './skia/types/Paragraph/ParagraphStyle.ts';
 import type {SkTypeface} from './skia/types/Typeface/Typeface.ts';
 import type {SkTypefaceFontProvider} from './skia/types/Paragraph/TypefaceFontProvider.ts';
 import { invariant } from '@nelyx/core/foundation/errors';
@@ -11,7 +11,7 @@ import { freezeTextInput, freezeTextLayout, freezeTextRect, textLimits, textRang
 import { resourceKey } from '@nelyx/core/ui/frame';
 import { utf8ToUtf16 } from '@nelyx/core/ui/editing';
 import type { ResourceId, TextGlyphRun, TextHit, TextLayout, TextLayoutInput, TextLayoutService, ViewOwner,TextGlyphInfo,TextRangeBounds,TextLayoutRequest,TextBoxQuery,TextBoxGeometry,TextLayoutQueryReference } from '@nelyx/core/ui/types';
-import type { ResourceRegistry,ResourceLease } from '@nelyx/core/hosting/resources';
+import type { ResourceRegistry } from '@nelyx/core/hosting/resources';
 import {ParagraphFontCatalog,ParagraphFontProviders} from '@nelyx/core/hosting/text-fonts';
 import type {ParagraphFont} from '@nelyx/core/hosting/text-fonts';
 import {TextLayoutCache} from '@nelyx/core/hosting/text-layout-cache';

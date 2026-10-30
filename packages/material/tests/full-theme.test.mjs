@@ -13,12 +13,12 @@ import {Color} from '@nelyx/core/ui/color';import {FoundationPlatform} from '@ne
 import {SystemColor} from '@nelyx/core/ui/system-color';import {bindSystemColorProvider} from '@nelyx/core/internal/ui/system-color-binding';
 import {WidgetState} from '@nelyx/core/framework/widgets/widget-state';import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';
 import {TextTheme} from '@nelyx/material/text-theme';import {TextStyle} from '@nelyx/core/framework/painting/text-style';
-import {PageRouteBuilder,RouteSettings} from '@nelyx/core/framework/widgets/pages';import {PageTransitionsBuilder} from '@nelyx/core/framework/widgets/page-transitions-builder';
+import { RouteSettings } from '@nelyx/core/framework/widgets/pages';import {PageTransitionsBuilder} from '@nelyx/core/framework/widgets/page-transitions-builder';
 import {Navigator,NavigatorController} from '@nelyx/core/framework/widgets/navigation';
 import {AnimationStyle} from '@nelyx/core/framework/animation/animation-style';
-import {DiagnosticsProperty,DiagnosticPropertiesBuilder} from '@nelyx/core/foundation/diagnostics';
+import { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
 import {StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';
-import {Builder,SizedBox,ColoredBox} from '@nelyx/core/framework/widgets/basic';import {Localizations,MediaQuery} from '@nelyx/core/framework/widgets/app-data';
+import { Builder, SizedBox } from '@nelyx/core/framework/widgets/basic';import {Localizations,MediaQuery} from '@nelyx/core/framework/widgets/app-data';
 import {fixture} from './root-fixture.mjs';
 import {BinaryMessenger} from '@nelyx/core/services/binary-messenger';
 import {ServicesBinding} from '@nelyx/core/services/binding';

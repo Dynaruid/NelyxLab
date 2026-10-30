@@ -45,6 +45,7 @@ export class PlatformMessageWorkerOwner implements Disposable {
       const errors:unknown[]=[];
       try{peer.stop();}catch(error){errors.push(error);}
       void Promise.resolve().then(async()=>{
+        // oxlint-disable-next-line unicorn/no-useless-spread -- Snapshot pending work before Promise assimilation can trigger reentrant collection mutations.
         for(const result of await Promise.allSettled([...peer.pending]))if(result.status==='rejected')errors.push(result.reason);
         for(const release of [()=>send({kind:'closed'}),()=>endpoint.removeEventListener('message',receive),()=>endpoint.removeEventListener('messageerror',failed)])try{release();}catch(error){errors.push(error);}
         try{endpoint.close();this.peers.delete(peer);}catch(error){errors.push(error);}
@@ -123,7 +124,7 @@ export class BackgroundPlatformMessageConnection extends BinaryMessenger impleme
       if(errors.length>1)throw new AggregateError(errors,'Background registration and rollback failed');throw error;
     }
   }
-  private stop():void{if(this.gated)return;this.gated=true;for(const callback of [...this.closingListeners])try{callback();}catch(error){this.callbackErrors.push(error);}this.closingListeners.clear();}
+  private stop():void{if(this.gated)return;this.gated=true;const snapshot=[...this.closingListeners];for(const callback of snapshot)try{callback();}catch(error){this.callbackErrors.push(error);}this.closingListeners.clear();}
   /** Source IO facade. Web retains its source UnsupportedError; use this SDK
    * connection directly for the explicit DedicatedWorker extension. */
   async initializeBackgroundIsolate(options:{readonly useAsDefault?:boolean}={}):Promise<BinaryMessenger>{
@@ -160,7 +161,7 @@ export class BackgroundPlatformMessageConnection extends BinaryMessenger impleme
     for(const request of this.requests.values())request.reject(new Error('Worker root closed without replying'));this.requests.clear();
     const lease=this.sourceDispatcherLease;this.sourceDispatcherLease=undefined;this.sourceMessenger=undefined;
     const defaultLease=this.defaultLease;this.defaultLease=undefined;
-    const releases=[()=>defaultLease?.dispose(),()=>this.endpoint.removeEventListener('message',this.receive),()=>this.endpoint.removeEventListener('messageerror',this.failed),()=>this.endpoint.close(),...[...this.retiredListeners],()=>lease?.dispose()];this.retiredListeners.clear();
+    const releases=[()=>defaultLease?.dispose(),()=>this.endpoint.removeEventListener('message',this.receive),()=>this.endpoint.removeEventListener('messageerror',this.failed),()=>this.endpoint.close(),...this.retiredListeners,()=>lease?.dispose()];this.retiredListeners.clear();
     for(const release of releases)try{await release();}catch(error){this.callbackErrors.push(error);}
     if(this.callbackErrors.length)this.rejectClose?.(new AggregateError(this.callbackErrors,'Background messenger cleanup failed after retirement'));else this.resolveClose?.();
   }

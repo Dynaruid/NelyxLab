@@ -39,6 +39,7 @@ export function mergeSort<T>(list:T[],options:SortOptions<T>={}):void {
   const start=options.start??0,end=options.end??list.length,comparator=options.compare??defaultCompare;
   invariant(Number.isSafeInteger(start)&&Number.isSafeInteger(end)&&start>=0&&end>=start&&end<=list.length,'invalid-sort-range','Sort range must be inside the list');
   const count=end-start;if(count<2)return;
+  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
   let source=list.slice(start,end),target=new Array<T>(count);
   for(let width=1;width<count;width*=2){
     for(let begin=0;begin<count;begin+=width*2){

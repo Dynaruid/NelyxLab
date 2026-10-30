@@ -8,14 +8,11 @@ import { FoundationBuildMode } from "../../foundation/constants.ts";
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { dartLateRead } from "../../foundation/dart-late.ts";
 import { dartLateWrite } from "../../foundation/dart-late.ts";
-import { dartLateInitialize } from "../../foundation/dart-late.ts";
 import { dartLateLocal } from "../../foundation/dart-late.ts";
-import { dartStaticRead } from "../../foundation/dart-static-field.ts";
-import { dartStaticWrite } from "../../foundation/dart-static-field.ts";
-import { dartStaticSeal } from "../../foundation/dart-static-field.ts";
+import "../../foundation/dart-static-field.ts";
 import { Color } from "../../ui/color.ts";
 import { Radius } from "../../ui/radius.ts";
-import { ChangeNotifier } from "../../foundation/notifier.ts";
+import "../../foundation/notifier.ts";
 import { Canvas } from "../../ui/canvas.ts";
 import { Offset } from "../../ui/offset.ts";
 import { Size } from "../../ui/size.ts";
@@ -25,7 +22,6 @@ import { Path } from "../../ui/path.ts";
 import { PointerDeviceKind } from "../../ui/pointer.ts";
 import { AxisDirection } from "../painting/basic-types.ts";
 import { EdgeInsets } from "../painting/edge-insets.ts";
-import { EdgeInsetsDirectional } from "../painting/edge-insets.ts";
 import { EdgeInsetsGeometry } from "../painting/edge-insets.ts";
 import { OutlinedBorder } from "../painting/borders.ts";
 import { CustomPainterSemantics } from "../rendering/custom-paint.ts";
@@ -33,36 +29,28 @@ import { clampDouble } from "../../ui/math.ts";
 import { describeIdentity } from "../../foundation/diagnostics-identity.ts";
 import { ScrollbarSourcePaint } from "./scrollbar-painter-source-adapter.ts";
 import { scrollbarValueEquals } from "./scrollbar-painter-source-adapter.ts";
-import { scrollbarObjectEquals } from "./scrollbar-painter-source-adapter.ts";
 import { scrollbarIsDirectional } from "./scrollbar-painter-source-adapter.ts";
-import { scrollbarCastDirectional } from "./scrollbar-painter-source-adapter.ts";
 import { scrollbarIsInfinite } from "./scrollbar-painter-source-adapter.ts";
-import { scrollbarDouble } from "./scrollbar-painter-source-adapter.ts";
 import { scrollbarEnumString } from "./scrollbar-painter-source-adapter.ts";
 import { ScrollbarPainterNotifier } from "./scrollbar-painter-source-adapter.ts";
 import { scrollbarIsPainter } from "./scrollbar-painter-source-adapter.ts";
-import { scrollbarCastPainter } from "./scrollbar-painter-source-adapter.ts";
 import { GlobalKey } from "./global-key.ts";
 import { State } from "./framework.ts";
 import { StatefulWidget } from "./framework.ts";
 import { Widget } from "./framework.ts";
-import { Element } from "./framework.ts";
 import { RenderBox } from "../rendering/object.ts";
 import { CustomPaint } from "./custom-paint.ts";
 import { PointerEvent } from "../gestures/events.ts";
 import { PointerDownEvent } from "../gestures/events.ts";
 import { PointerPanZoomStartEvent } from "../gestures/events.ts";
-import { TapGestureRecognizer } from "../gestures/tap.ts";
-import { VerticalDragGestureRecognizer } from "../gestures/monodrag.ts";
-import { HorizontalDragGestureRecognizer } from "../gestures/monodrag.ts";
+import "../gestures/tap.ts";
+import "../gestures/monodrag.ts";
 import { ScrollbarTapHost } from "./scrollbar-gesture-source-adapter.ts";
 import { ScrollbarVerticalDragHost } from "./scrollbar-gesture-source-adapter.ts";
 import { ScrollbarHorizontalDragHost } from "./scrollbar-gesture-source-adapter.ts";
 import { scrollbarKeyContext } from "./scrollbar-gesture-source-adapter.ts";
 import { scrollbarRenderObject } from "./scrollbar-gesture-source-adapter.ts";
-import { scrollbarIsRenderBox } from "./scrollbar-gesture-source-adapter.ts";
 import { scrollbarCastRenderBox } from "./scrollbar-gesture-source-adapter.ts";
-import { scrollbarIsCustomPaint } from "./scrollbar-gesture-source-adapter.ts";
 import { scrollbarCastCustomPaint } from "./scrollbar-gesture-source-adapter.ts";
 import { scrollbarForegroundPainter } from "./scrollbar-gesture-source-adapter.ts";
 import { scrollbarGlobalToLocal } from "./scrollbar-gesture-source-adapter.ts";
@@ -72,38 +60,30 @@ import { Curves } from "../animation/curves.ts";
 import { Axis } from "../painting/basic-types.ts";
 import { PointerSignalEvent } from "../gestures/events.ts";
 import { PointerScrollEvent } from "../gestures/events.ts";
-import { viewerListener } from "./viewer-widget-source-adapter.ts";
-import { viewerIsScrollEvent } from "./viewer-widget-source-adapter.ts";
-import { viewerCastScrollEvent } from "./viewer-widget-source-adapter.ts";
+import "./viewer-widget-source-adapter.ts";
 import { DartSet } from "../../foundation/dart-collections.ts";
 import { DartMap } from "../../foundation/dart-collections.ts";
-import { DartIterable } from "../../foundation/dart-collections.ts";
-import { describeDartType } from "../../foundation/dart-type-witness.ts";
-import { WidgetStateDiagnosticableBase } from "./widget-state-diagnostic-source-adapter.ts";
-import { widgetStateSetString } from "./widget-state-map-source-adapter.ts";
-import { widgetStateMapString } from "./widget-state-map-source-adapter.ts";
+import "../../foundation/dart-type-witness.ts";
+import "./widget-state-diagnostic-source-adapter.ts";
+import "./widget-state-map-source-adapter.ts";
 import { FlutterError } from "../../foundation/flutter-error.ts";
 import { ErrorSummary } from "../../foundation/diagnostics.ts";
 import { ErrorDescription } from "../../foundation/diagnostics.ts";
 import { ErrorHint } from "../../foundation/diagnostics.ts";
-import { isSourceDartDouble } from "../../foundation/dart-numeric.ts";
-import { castSourceDartDouble } from "../../foundation/dart-numeric.ts";
+import "../../foundation/dart-numeric.ts";
 import { ScrollController } from "./scroll-controller.ts";
 import { ScrollNotification } from "./scroll-notification.ts";
 import { MouseCursor } from "../../services/mouse-cursor.ts";
-import { TickerProviderStateMixin } from "./ticker-provider.ts";
+import "./ticker-provider.ts";
 import { CurvedAnimation } from "../animation/animations.ts";
 import { Drag } from "../gestures/drag.ts";
 import { ScrollHoldController } from "./scroll-activity.ts";
 import { RawGestureDetectorState } from "./raw-gesture-detector.ts";
 import { AnimationStatus } from "../animation/animation.ts";
-import { Cubic } from "../animation/curves.ts";
-import { Curve } from "../animation/curves.ts";
 import { ScrollPosition } from "./scroll-position.ts";
-import { TickerFuture } from "../animation/ticker-future.ts";
-import { ScrollPhysics } from "./scroll-physics.ts";
-import { ScrollBehavior } from "./scroll-configuration.ts";
-import { RenderObject } from "../rendering/object.ts";
+import "../animation/ticker-future.ts";
+import "./scroll-physics.ts";
+import "./scroll-configuration.ts";
 import { DragStartDetails } from "../gestures/drag-details.ts";
 import { DragUpdateDetails } from "../gestures/drag-details.ts";
 import { Velocity } from "../gestures/velocity-tracker.ts";
@@ -113,25 +93,19 @@ import { ScrollableState } from "./scrollable.ts";
 import { ScrollIntent } from "./scrollable-helpers.ts";
 import { ScrollIncrementType } from "./scrollable-helpers.ts";
 import { ScrollMetricsNotification } from "./scroll-position.ts";
-import { ScrollUpdateNotification } from "./scroll-notification.ts";
-import { OverscrollNotification } from "./scroll-notification.ts";
-import { ScrollEndNotification } from "./scroll-notification.ts";
 import { DragDownDetails } from "../gestures/drag-details.ts";
 import { DragGestureRecognizer } from "../gestures/monodrag.ts";
 import { DeviceGestureSettings } from "../gestures/gesture-settings.ts";
 import { DragStartBehavior } from "../gestures/recognizer.ts";
 import { GestureRecognizerFactory } from "./raw-gesture-detector.ts";
 import { GestureRecognizer } from "../gestures/recognizer.ts";
-import { GestureRecognizerFactoryWithHandlers } from "./raw-gesture-detector.ts";
 import { PointerHoverEvent } from "../gestures/events.ts";
 import { PointerExitEvent } from "../gestures/events.ts";
-import { PointerSignalResolver } from "../gestures/pointer-signal-resolver.ts";
-import { PointerScrollInertiaCancelEvent } from "../gestures/events.ts";
-import { RepaintBoundary } from "./repaint-boundary.ts";
-import { MouseRegion } from "./mouse-region.ts";
-import { RawGestureDetector } from "./raw-gesture-detector.ts";
-import { Listener } from "./listener.ts";
-import { NotificationListener } from "./notification-listener.ts";
+import "../gestures/pointer-signal-resolver.ts";
+import "./repaint-boundary.ts";
+import "./mouse-region.ts";
+import "./listener.ts";
+import "./notification-listener.ts";
 import { SourceWidgetState } from "./widget-state.generated.ts";
 import { SourceWidgetStateProperty } from "./widget-state.generated.ts";
 import { ScrollbarTimer } from "./scrollbar-raw-source-adapter.ts";
@@ -174,9 +148,7 @@ import { captureDartException } from "../../foundation/dart-exceptions.ts";
 import { applyDartType } from "../../foundation/dart-type-witness.ts";
 import { captureDartType } from "../../foundation/dart-type-witness.ts";
 import { readDartType } from "../../foundation/dart-type-witness.ts";
-import { isDartType } from "../../foundation/dart-type-witness.ts";
 import { castDartType } from "../../foundation/dart-type-witness.ts";
-import { nullableDartType } from "../../foundation/dart-type-witness.ts";
 import { scrollbarStatefulType } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarStateType } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarTickerStateType } from "./scrollbar-raw-source-adapter.ts";
@@ -184,11 +156,7 @@ import { scrollbarSetGesture } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarIsWeb } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarIterableLength } from "./scrollbar-raw-source-adapter.ts";
 import { scrollbarRawObjectEquals } from "./scrollbar-raw-source-adapter.ts";
-import { scrollbarCastScrollUpdate } from "./scrollbar-raw-source-adapter.ts";
-import { scrollbarCastOverscroll } from "./scrollbar-raw-source-adapter.ts";
-import { scrollbarCastScrollEnd } from "./scrollbar-raw-source-adapter.ts";
-import { scrollbarCastInertiaCancel } from "./scrollbar-raw-source-adapter.ts";
-import { constSourceRadiusCircular } from "../../ui/radius-source-adapter.ts";
+import "../../ui/radius-source-adapter.ts";
 import { constSourceColor } from "../../ui/color-source-adapter.ts";
 import type { Animation } from "../animation/animation.ts";
 import type { ScrollMetrics } from "./scroll-metrics.ts";
@@ -197,13 +165,10 @@ import type { ScrollbarSourceList } from "./scrollbar-painter-source-adapter.ts"
 import type { ScrollbarCustomPainterContract } from "./scrollbar-painter-source-adapter.ts";
 import type { BuildContext } from "./framework.ts";
 import type { DiagnosticsNode } from "../../foundation/diagnostics.ts";
-import type { TickerProvider } from "../animation/ticker.ts";
 import type { TargetPlatform } from "../../foundation/platform.ts";
-import type { ScrollContext } from "./scroll-context.ts";
 import type { GestureRecognizerType } from "./raw-gesture-detector.ts";
-import type { ScrollbarFuture } from "./scrollbar-raw-source-adapter.ts";
 import type { DartTypeWitness } from "../../foundation/dart-type-witness.ts";
-import type { ScrollbarIterable } from "./scrollbar-raw-source-adapter.ts";
+
 const _dartTemporary0 = Symbol();
 export class SourceScrollbarOrientation {
     /**
@@ -1331,14 +1296,14 @@ export class SourceScrollbarPainter extends ScrollbarPainterNotifier implements 
             case PointerDeviceKind.touch:
             case PointerDeviceKind.trackpad: {
                 return paddedRect.contains(position);
-                break;
+
             }
             case PointerDeviceKind.mouse:
             case PointerDeviceKind.stylus:
             case PointerDeviceKind.invertedStylus:
             case PointerDeviceKind.unknown: {
                 return interactiveRect.contains(position);
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }
@@ -1371,7 +1336,7 @@ export class SourceScrollbarPainter extends ScrollbarPainterNotifier implements 
                         return _dartTemporary84!;
                     })().center, radius: _kMinInteractiveSize / 2 }));
                 return touchThumbRect.contains(position);
-                break;
+
             }
             case PointerDeviceKind.mouse:
             case PointerDeviceKind.stylus:
@@ -1383,7 +1348,7 @@ export class SourceScrollbarPainter extends ScrollbarPainterNotifier implements 
                         throw new TypeError("Null check operator used on a null value");
                     return _dartTemporary86!;
                 })().contains(position);
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }
@@ -1690,7 +1655,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         if (!this.showScrollbar) {
             return true;
         }
-        scrollbarPostFrame(this, (duration: number): void => {
+        scrollbarPostFrame(this, (_duration: number): void => {
             if (FoundationBuildMode.debug)
                 invariant(this._dart_1c5f203b5ad3537b_debugCheckHasValidScrollPosition(), "generated-source-assert", "Pinned Dart assertion failed");
         }, { debugLabel: "RawScrollbar.checkScrollPosition" });
@@ -1759,17 +1724,17 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         if (FoundationBuildMode.debug)
             invariant(((): boolean => {
                 try {
-                    (() => {
+                    void ((() => {
                         const _dartTemporary104 = scrollController;
                         if (_dartTemporary104 === null)
                             throw new TypeError("Null check operator used on a null value");
                         return _dartTemporary104!;
-                    })().position;
+                    })().position);
                 }
                 catch (_dartTemporary105) {
                     const _dartTemporary106 = captureDartException(_dartTemporary105);
                     {
-                        const error = _dartTemporary106.exception;
+                        void _dartTemporary106.exception;
                         if (scrollController === null || checkedInteger(scrollbarIterableLength((scrollController as ScrollController).positions)) <= 1) {
                             (() => {
                                 throw _dartTemporary106.exception;
@@ -1827,7 +1792,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
             if (this.widget.thumbVisibility ?? false) {
                 if (FoundationBuildMode.debug)
                     invariant(this._dart_1c5f203b5ad3537b_debugScheduleCheckHasValidScrollPosition(), "generated-source-assert", "Pinned Dart assertion failed");
-                (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+                void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
                 this._dart_1c5f203b5ad3537b_fadeoutAnimationController.animateTo(1);
             }
             else {
@@ -1845,7 +1810,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
     }
     _dart_1c5f203b5ad3537b_maybeStartFadeoutTimer(): void {
         if (!this.showScrollbar) {
-            (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+            void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
             this._dart_1c5f203b5ad3537b_fadeoutTimer = new ScrollbarTimer(this.widget.timeToFade, (): void => {
                 this._dart_1c5f203b5ad3537b_fadeoutAnimationController.reverse();
                 this._dart_1c5f203b5ad3537b_fadeoutTimer = null;
@@ -2001,7 +1966,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         if (this.getScrollbarDirection() === null) {
             return;
         }
-        (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+        void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
         this._dart_1c5f203b5ad3537b_thumbHold = (() => {
             const _dartTemporary124 = this._dart_1c5f203b5ad3537b_cachedController;
             if (_dartTemporary124 === null)
@@ -2016,7 +1981,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         if (direction === null) {
             return;
         }
-        (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+        void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
         this._dart_1c5f203b5ad3537b_fadeoutAnimationController.forward();
         if (FoundationBuildMode.debug)
             invariant(this._dart_1c5f203b5ad3537b_thumbDrag === null, "generated-source-assert", "Pinned Dart assertion failed");
@@ -2158,7 +2123,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
                     default: throw new TypeError("Non-exhaustive Dart switch expression");
                 }
             })() });
-        (this._dart_1c5f203b5ad3537b_thumbDrag?.end(details) ?? null);
+        void ((this._dart_1c5f203b5ad3537b_thumbDrag?.end(details) ?? null));
         if (FoundationBuildMode.debug)
             invariant(this._dart_1c5f203b5ad3537b_thumbDrag === null, "generated-source-assert", "Pinned Dart assertion failed");
         this._dart_1c5f203b5ad3537b_startDragScrollbarAxisOffset = null;
@@ -2288,7 +2253,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
             if (!this._dart_1c5f203b5ad3537b_fadeoutAnimationController.isForwardOrCompleted) {
                 this._dart_1c5f203b5ad3537b_fadeoutAnimationController.forward();
             }
-            (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+            void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
             if (this._dart_1c5f203b5ad3537b_shouldUpdatePainter(metrics.axis)) {
                 this.scrollbarPainter.update(metrics, metrics.axisDirection);
             }
@@ -2300,7 +2265,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         }
         return false;
     }
-    _dart_1c5f203b5ad3537b_handleThumbDragDown(details: DragDownDetails): void {
+    _dart_1c5f203b5ad3537b_handleThumbDragDown(_details: DragDownDetails): void {
         this.handleThumbPress();
     }
     _dart_1c5f203b5ad3537b_globalToScrollbar(offset: Offset): Offset {
@@ -2345,7 +2310,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
             case PointerDeviceKind.touch:
             case PointerDeviceKind.unknown: {
                 break;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }
@@ -2371,8 +2336,8 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         }
         if (FoundationBuildMode.debug)
             invariant(this._dart_1c5f203b5ad3537b_thumbHold === null || this._dart_1c5f203b5ad3537b_thumbDrag === null, "generated-source-assert", "Pinned Dart assertion failed");
-        (this._dart_1c5f203b5ad3537b_thumbHold?.cancel() ?? null);
-        (this._dart_1c5f203b5ad3537b_thumbDrag?.cancel() ?? null);
+        void ((this._dart_1c5f203b5ad3537b_thumbHold?.cancel() ?? null));
+        void ((this._dart_1c5f203b5ad3537b_thumbDrag?.cancel() ?? null));
         if (FoundationBuildMode.debug)
             invariant(this._dart_1c5f203b5ad3537b_thumbHold === null, "generated-source-assert", "Pinned Dart assertion failed");
         if (FoundationBuildMode.debug)
@@ -2482,7 +2447,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
         const localOffset: Offset = _getLocalOffset(this._dart_1c5f203b5ad3537b_scrollbarPainterKey, position);
         return this.scrollbarPainter.hitTestOnlyThumbInteractive(localOffset, kind);
     }
-    isPointerOverScrollbar(position: Offset, kind: PointerDeviceKind, { forHover = false }: {
+    isPointerOverScrollbar(position: Offset, kind: PointerDeviceKind, { forHover: _forHover = false }: {
         readonly forHover?: boolean;
     } = {}): boolean {
         if (scrollbarKeyContext(this._dart_1c5f203b5ad3537b_scrollbarPainterKey) === null) {
@@ -2496,7 +2461,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
             const wasHoverActive: boolean = this._dart_1c5f203b5ad3537b_hoverIsActive;
             this._dart_1c5f203b5ad3537b_hoverIsActive = true;
             this._dart_1c5f203b5ad3537b_fadeoutAnimationController.forward();
-            (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+            void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
             if (!wasHoverActive) {
                 this.updateMouseCursor();
             }
@@ -2507,7 +2472,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
             this.updateMouseCursor();
         }
     }
-    handleHoverExit(event: PointerExitEvent): void {
+    handleHoverExit(_event: PointerExitEvent): void {
         this._dart_1c5f203b5ad3537b_hoverIsActive = false;
         this._dart_1c5f203b5ad3537b_maybeStartFadeoutTimer();
         this.updateMouseCursor();
@@ -2653,7 +2618,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
     }
     override dispose(): void {
         this._dart_1c5f203b5ad3537b_fadeoutAnimationController.dispose();
-        (this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null);
+        void ((this._dart_1c5f203b5ad3537b_fadeoutTimer?.cancel() ?? null));
         this.scrollbarPainter.dispose();
         this._dart_1c5f203b5ad3537b_fadeoutOpacityAnimation.dispose();
         super.dispose();
@@ -2674,7 +2639,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
                                         case PointerDeviceKind.unknown:
                                         case PointerDeviceKind.touch: {
                                             break;
-                                            break;
+
                                         }
                                         default: throw new TypeError("Invalid value outside exhaustive Dart switch");
                                     }
@@ -2692,7 +2657,7 @@ export class SourceRawScrollbarState<T extends SourceRawScrollbar> extends Scrol
                                         case PointerDeviceKind.unknown:
                                         case PointerDeviceKind.touch: {
                                             break;
-                                            break;
+
                                         }
                                         default: throw new TypeError("Invalid value outside exhaustive Dart switch");
                                     }

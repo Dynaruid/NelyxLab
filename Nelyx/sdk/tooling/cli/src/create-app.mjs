@@ -61,7 +61,7 @@ export async function createApp(destination, sdkReference=sdkVersion, name='Nely
   if(!skiaReferences.targets||skiaReferences.targets.includes('linux')){
     const file=path.join(target,'linux/runner/package.json'),runner=JSON.parse(fs.readFileSync(file,'utf8'));
     const reference=value=>value.startsWith('file:')&&path.isAbsolute(value.slice(5))?'file:'+path.relative(path.dirname(file),value.slice(5)).replaceAll('\\','/'):value;
-    for(const [name,value]of Object.entries({'@nelyx/core':coreReference,'@nelyx/sdk':sdkReference,'@nelyx/skia-rn':skiaReferences.rn,...(skiaReferences.linuxPackages??{})}))runner.dependencies[name]=reference(value);
+    for(const [name,value]of Object.entries({'@nelyx/core':coreReference,'@nelyx/sdk':sdkReference,'@nelyx/skia-rn':skiaReferences.rn,...skiaReferences.linuxPackages}))runner.dependencies[name]=reference(value);
     for(const [name,value]of Object.entries({'@nelyx/metro':skiaReferences.metro,'@nelyx/cli':skiaReferences.cli}))runner.devDependencies[name]=reference(value);
     fs.writeFileSync(file,JSON.stringify(runner,null,2)+'\n');
   }

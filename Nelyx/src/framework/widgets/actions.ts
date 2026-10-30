@@ -51,7 +51,7 @@ export abstract class Action<T extends Intent> implements ActionHandle {
   toKeyEventResultFor(intent:Intent,result:unknown):KeyEventResult{return this.toKeyEventResult(this.checked(intent),result);}
   addActionListener(listener:ActionListenerCallback):void{this.listeners.push(listener);}
   removeActionListener(listener:ActionListenerCallback):void{const index=this.listeners.indexOf(listener);if(index>=0)this.listeners.splice(index,1);}
-  protected notifyActionListeners():void{for(const listener of [...this.listeners])if(this.listeners.includes(listener))try{listener(this);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'widgets library'}));}}
+  protected notifyActionListeners():void{const snapshot=[...this.listeners];for(const listener of snapshot)if(this.listeners.includes(listener))try{listener(this);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'widgets library'}));}}
   protected notifyActionListenersFor(action:Action<T>):void{action.notifyActionListeners();}
 }
 export abstract class ContextAction<T extends Intent> extends Action<T>{}

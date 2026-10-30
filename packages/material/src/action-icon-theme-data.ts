@@ -5,9 +5,9 @@ import type { Widget } from "@nelyx/core/framework/widgets/framework";
 import { Diagnosticable } from "@nelyx/core/foundation/diagnosticable";
 import { DiagnosticsProperty } from "@nelyx/core/foundation/diagnostics";
 import type { DiagnosticPropertiesBuilder } from "@nelyx/core/foundation/diagnostics";
-import { DoubleProperty, EnumProperty } from "@nelyx/core/foundation/diagnostic-properties";
-import { ColorProperty } from "@nelyx/core/internal/framework/painting/color-property.generated";
-import { valueEquals, valueHash, hashValues } from "@nelyx/core/framework/painting/value-equality";
+import "@nelyx/core/foundation/diagnostic-properties";
+import "@nelyx/core/internal/framework/painting/color-property.generated";
+import { valueEquals, hashValues } from "@nelyx/core/framework/painting/value-equality";
 import { sourceFunctionIdentity } from "@nelyx/core/internal/foundation/dart-function";
 const builderIdentity = (value: ((context: BuildContext) => Widget) | null): Function | null => value === null ? null : sourceFunctionIdentity(value);
 export interface ActionIconThemeDataOptions {

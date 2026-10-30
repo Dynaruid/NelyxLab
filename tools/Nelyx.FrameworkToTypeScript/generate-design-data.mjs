@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule } from './product-module-layout.mjs';
 // Finite immutable design data, not a general Dart/C# compiler.
 import fs from 'node:fs';
 import path from 'node:path';

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule } from './product-module-layout.mjs';
 // Managed resolved API projection; functional build/input bodies have separate owners.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-list-family-candidate/result.json',candidate=read(candidateFile),ir=read(candidate.ir.file),check=process.argv.includes('--check'),ownershipFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-cupertino-list-api-ownership.json',previous=fs.existsSync(ownershipFile)?read(ownershipFile):null,outputs=[];assert.equal(sha(candidate.ir.file),candidate.ir.sha256);

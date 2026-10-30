@@ -83,10 +83,12 @@ export function bounds(matrix:TransformMatrix,size:Size):Rect {
   // Project the four corners without allocating point/coordinate arrays on
   // every semantics, input geometry and hit-test bounds query. Keep the point
   // API's arithmetic order, including its zero terms and homogeneous divide.
+  // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
   let x0=a*0+c*0+tx,y0=b*0+d*0+ty,x1=a*width+c*0+tx,y1=b*width+d*0+ty,x2=a*0+c*height+tx,y2=b*0+d*height+ty,x3=a*width+c*height+tx,y3=b*width+d*height+ty;
   if(matrix.length===16){
     const w0=matrix[15],w1=matrix[3]*width+matrix[15],w2=matrix[7]*height+matrix[15],w3=matrix[3]*width+matrix[7]*height+matrix[15];
     if(Math.min(w0,w1,w2,w3)<=0&&Math.max(w0,w1,w2,w3)>=0)return {x:NaN,y:NaN,width:NaN,height:NaN};
+    // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
     const q0=matrix[3]*0+matrix[7]*0+matrix[15],q1=matrix[3]*width+matrix[7]*0+matrix[15],q2=matrix[3]*0+matrix[7]*height+matrix[15];
     if(q0!==1){x0/=q0;y0/=q0;}if(q1!==1){x1/=q1;y1/=q1;}if(q2!==1){x2/=q2;y2/=q2;}if(w3!==1){x3/=w3;y3/=w3;}
   }

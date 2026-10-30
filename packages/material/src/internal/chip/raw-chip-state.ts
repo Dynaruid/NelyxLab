@@ -13,7 +13,7 @@ import { nullableSourceBorderSideType } from '@nelyx/core/framework/widgets/widg
 import { BorderSide, OutlinedBorder } from '@nelyx/core/framework/painting/borders';
 import { StadiumBorder } from '@nelyx/core/framework/painting/stadium-border';
 import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
-import { EdgeInsets, EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import { MediaQuery, Directionality } from '@nelyx/core/framework/widgets/app-data';

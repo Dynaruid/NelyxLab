@@ -64,7 +64,8 @@ export class TextLayoutCache<T extends ParagraphFont=ParagraphFont> {
   /** Idle owners can leave; recorded frames continue charging residency. */
   trimIdle(except?:TextLayout):void{
     const errors:unknown[]=[];
-    for(const [key,value]of [...this.cached])if(value.layout!==except&&this.registry.initialProducerCount(value.layout.resource)===0&&this.cached.get(key)===value)try{this.releaseCached(key);}catch(error){errors.push(error);}
+    const snapshot=[...this.cached];
+    for(const [key,value]of snapshot)if(value.layout!==except&&this.registry.initialProducerCount(value.layout.resource)===0&&this.cached.get(key)===value)try{this.releaseCached(key);}catch(error){errors.push(error);}
     this.throwFailures(errors);
   }
   forget(key:string,layout:TextLayout):void{if(this.layouts.get(key)===layout)this.layouts.delete(key);if(this.cached.get(key)?.layout===layout)this.releaseCached(key);}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/material/material.dart; SHA256 fc58cf3b2ee621a1ea9e204a997ba0cf0ea2288d82e69c378d133c841f1a677f
-import { checkedInteger } from "@nelyx/core/internal/ui/value-math";
+import "@nelyx/core/internal/ui/value-math";
 const _dartTemporary0 = Symbol();
 export class MaterialType {
     /**

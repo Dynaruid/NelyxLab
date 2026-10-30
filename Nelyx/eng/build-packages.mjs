@@ -82,6 +82,7 @@ try {
 }catch(error){console.error(String(error));process.exitCode=1;}
 finally {
   for(const temporary of [staged,backup])try {
+    // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
     if(path.dirname(temporary)!==cache||!/^(?:sdk-|last-sdk-)/.test(path.basename(temporary)))throw new Error('Unexpected build cleanup target');
     if(fs.existsSync(temporary)){insideSdk(temporary);filesIn(temporary);fs.rmSync(temporary,{recursive:true,maxRetries:3,retryDelay:100});}
   }catch(error){console.error('Build temporary cleanup failed: '+String(error));process.exitCode=1;}

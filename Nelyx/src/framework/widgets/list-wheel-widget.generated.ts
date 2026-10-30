@@ -30,14 +30,11 @@ import { SourceRenderListWheelViewport } from "../rendering/list-wheel-viewport.
 import { isSourceRenderListWheelViewport } from "./list-wheel-widget-adapter.ts";
 import { castSourceRenderListWheelViewport } from "./list-wheel-widget-adapter.ts";
 import { Scrollable } from "./scrollable.ts";
-import { ScrollableState } from "./scrollable.ts";
 import { WheelScrollableStateHost } from "./list-wheel-widget-adapter.ts";
-import { StatefulWidget } from "./framework.ts";
+import "./framework.ts";
 import { WheelStatefulHost } from "./list-wheel-widget-adapter.ts";
 import { State } from "./framework.ts";
-import { RenderObjectElement } from "./framework.ts";
 import { WheelElementHost } from "./list-wheel-widget-adapter.ts";
-import { RenderObjectWidget } from "./framework.ts";
 import { WheelRenderWidgetHost } from "./list-wheel-widget-adapter.ts";
 import { HitTestBehavior } from "../rendering/pointer-listener.ts";
 import { DragStartBehavior } from "../gestures/recognizer.ts";
@@ -528,7 +525,7 @@ export class SourceListWheelScrollViewState extends State<SourceListWheelScrollV
         }
     }
     override dispose(): void {
-        (this._dart_7b25c3dc43b1ced7_backupController?.dispose() ?? null);
+        void ((this._dart_7b25c3dc43b1ced7_backupController?.dispose() ?? null));
         super.dispose();
     }
     _dart_7b25c3dc43b1ced7_reportSelectedItemChanged(notification: ScrollNotification): void {

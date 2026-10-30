@@ -24,7 +24,7 @@ export abstract class RawKeyEventData implements Diagnosticable {
   shouldDispatchEvent():boolean{return true;}
   equals(other:unknown):boolean{return this===other||other instanceof RawKeyEventData&&other.constructor===this.constructor&&this.equalityValues.length===other.equalityValues.length&&this.equalityValues.every((value,index)=>value===other.equalityValues[index]);}
   get hashCode():number{let hash=0x345678;for(const value of this.equalityValues){let part:number;if((typeof value==='object'&&value!==null)||typeof value==='function'){part=identityHashes.get(value)??++nextIdentityHash;identityHashes.set(value,part);}else part=typeof value==='number'?(value>>>0)^Math.floor(value/0x100000000):typeof value==='boolean'?Number(value):value===null?7:rawStringHash(String(value));hash=Math.imul(hash^part,1000003)>>>0;}return hash;}
-  debugFillProperties(properties:DiagnosticPropertiesBuilder):void{for(const [name,value] of Object.entries(this.diagnosticFields))properties.add(new DiagnosticsProperty(name,value,{...(value===null?{defaultValue:null}:{})}));}
+  debugFillProperties(properties:DiagnosticPropertiesBuilder):void{for(const [name,value] of Object.entries(this.diagnosticFields))properties.add(new DiagnosticsProperty(name,value,{...((value===null) && ({defaultValue:null}))}));}
   toDiagnosticsNode(options:DiagnosticsOptions={}){return new DiagnosticableNode(this,options);}
   toStringShort():string{return this.constructor.name;}
 }

@@ -15,7 +15,6 @@ import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
 import { HSLColor } from '@nelyx/core/framework/painting/colors';
 import { BoxShadow } from '@nelyx/core/framework/painting/box-shadow';
 import { Offset } from '@nelyx/core/ui/offset';
-import type { Icon } from '@nelyx/core/framework/widgets/icon';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import type { ToggleableMotionProfile } from '@nelyx/core/framework/widgets/toggleable-control';
 import { invariant } from '@nelyx/core/foundation/errors';

@@ -2,9 +2,8 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/scrollable.dart; SHA256 b8f9773bed19bb9d83fae2e253e173dcf1297a14832989cdb01c840dc572e377
 // Adopted product owner: nominal checks use the classes declared here.
-import { StatefulWidget } from "./framework.ts";
+import "./framework.ts";
 import { State } from "./framework.ts";
-import { InheritedWidget } from "./framework.ts";
 import { Scrollable } from "./scrollable.ts";
 import { ScrollableState } from "./scrollable.ts";
 import { SourceScrollableDetails } from "./scrollable-details.generated.ts";
@@ -15,7 +14,6 @@ import { Axis } from "../painting/basic-types.ts";
 import { AxisDirection } from "../painting/basic-types.ts";
 import { axisDirectionToAxis } from "../painting/basic-types.ts";
 import { DragStartBehavior } from "../gestures/recognizer.ts";
-import { GestureRecognizer } from "../gestures/recognizer.ts";
 import { PanGestureRecognizer } from "../gestures/monodrag.ts";
 import { DragDownDetails } from "../gestures/drag-details.ts";
 import { DragStartDetails } from "../gestures/drag-details.ts";
@@ -25,17 +23,14 @@ import { Velocity } from "../gestures/velocity-tracker.ts";
 import { HitTestBehavior } from "../rendering/pointer-listener.ts";
 import { Curves } from "../animation/curves.ts";
 import { ScrollPositionAlignmentPolicy } from "./scroll-position.ts";
-import { GestureRecognizerFactory } from "./raw-gesture-detector.ts";
-import { GestureRecognizerFactoryWithHandlers } from "./raw-gesture-detector.ts";
+import "./raw-gesture-detector.ts";
 import { Offset } from "../../ui/offset.ts";
-import { DartMap } from "../../foundation/dart-collections.ts";
+import "../../foundation/dart-collections.ts";
 import { dartRecord } from "../../foundation/dart-record.ts";
-import { dartRecordRead } from "../../foundation/dart-record.ts";
 import { dartLateRead } from "../../foundation/dart-late.ts";
 import { dartLateWrite } from "../../foundation/dart-late.ts";
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { protect } from "../../ui/value-math.ts";
-import { checkedInteger } from "../../ui/value-math.ts";
 import { invariant } from "../../foundation/errors.ts";
 import { FoundationBuildMode } from "../../foundation/constants.ts";
 import { FlutterError } from "../../foundation/flutter-error.ts";
@@ -52,7 +47,6 @@ import { createSourcePan } from "./two-dimensional-scrollable-adapter.ts";
 import { createSourcePanFactory } from "./two-dimensional-scrollable-adapter.ts";
 import { createSourceScrollableKey } from "./two-dimensional-scrollable-adapter.ts";
 import { sourceCurrentScrollable } from "./two-dimensional-scrollable-adapter.ts";
-import { sourceCurrentGestureDetector } from "./two-dimensional-scrollable-adapter.ts";
 import { replaceSourceGestureRecognizers } from "./two-dimensional-scrollable-adapter.ts";
 import { sourceObjectString } from "./two-dimensional-scrollable-adapter.ts";
 import { twoAxisSourcePosition } from "./two-dimensional-scrollable-adapter.ts";
@@ -63,13 +57,10 @@ import type { Curve } from "../animation/curves.ts";
 import type { ViewportOffset } from "../rendering/viewport-offset.ts";
 import type { ScrollIncrementDetails } from "./scrollable-helpers.ts";
 import type { ScrollPhysics } from "./scroll-physics.ts";
-import type { PointerEvent } from "../gestures/events.ts";
-import type { VelocityTracker } from "../gestures/velocity-tracker.ts";
 import type { RenderObject } from "../rendering/object.ts";
 import type { Clip } from "../../ui/clip.ts";
 import type { DartRecord } from "../../foundation/dart-record.ts";
 import type { SourceMutableList } from "./two-dimensional-scrollable-adapter.ts";
-import type { SourceGestureType } from "./two-dimensional-scrollable-adapter.ts";
 import type { Key } from "../../foundation/key.ts";
 import type { SourceFuture } from "./two-dimensional-scrollable-adapter.ts";
 export class SourceTwoDimensionalScrollable extends TwoAxisStatefulHost {
@@ -271,8 +262,8 @@ export class SourceTwoDimensionalScrollableState extends State<SourceTwoDimensio
         return new SourceTwoDimensionalScrollableScope({ twoDimensionalScrollable: this, child: result });
     }
     override dispose(): void {
-        (this._dart_538df04f7c78ed0e_verticalFallbackController?.dispose() ?? null);
-        (this._dart_538df04f7c78ed0e_horizontalFallbackController?.dispose() ?? null);
+        void ((this._dart_538df04f7c78ed0e_verticalFallbackController?.dispose() ?? null));
+        void ((this._dart_538df04f7c78ed0e_horizontalFallbackController?.dispose() ?? null));
         super.dispose();
     }
 }
@@ -390,7 +381,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
         switch (this.diagonalDragBehavior) {
             case DiagonalDragBehavior.none: {
                 break;
-                break;
+
             }
             case DiagonalDragBehavior.weightedEvent:
             case DiagonalDragBehavior.weightedContinuous:
@@ -407,7 +398,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
         switch (this.diagonalDragBehavior) {
             case DiagonalDragBehavior.none: {
                 break;
-                break;
+
             }
             case DiagonalDragBehavior.free: {
                 this.horizontalScrollable.handleDragStart(details);
@@ -424,7 +415,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
                     case Axis.horizontal: {
                         this.horizontalScrollable.handleDragStart(details);
                         return;
-                        break;
+
                     }
                     case Axis.vertical: break;
                     default: throw new TypeError("Invalid value outside exhaustive Dart switch");
@@ -442,13 +433,13 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
             case DiagonalDragBehavior.none: {
                 super.handleDragUpdate(verticalDragDetails);
                 return;
-                break;
+
             }
             case DiagonalDragBehavior.free: {
                 this.horizontalScrollable.handleDragUpdate(horizontalDragDetails);
                 super.handleDragUpdate(verticalDragDetails);
                 return;
-                break;
+
             }
             case DiagonalDragBehavior.weightedContinuous: {
                 this._dart_538df04f7c78ed0e_evaluateLockedAxis(details.globalPosition);
@@ -471,7 +462,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
             case Axis.horizontal: {
                 this.horizontalScrollable.handleDragUpdate(horizontalDragDetails);
                 return;
-                break;
+
             }
             case Axis.vertical: break;
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
@@ -496,7 +487,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
         switch (this.diagonalDragBehavior) {
             case DiagonalDragBehavior.none: {
                 break;
-                break;
+
             }
             case DiagonalDragBehavior.weightedEvent:
             case DiagonalDragBehavior.weightedContinuous:
@@ -514,7 +505,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
         switch (this.diagonalDragBehavior) {
             case DiagonalDragBehavior.none: {
                 break;
-                break;
+
             }
             case DiagonalDragBehavior.weightedEvent:
             case DiagonalDragBehavior.weightedContinuous:
@@ -531,7 +522,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
             case DiagonalDragBehavior.none: {
                 super.setCanDrag(value);
                 return;
-                break;
+
             }
             case DiagonalDragBehavior.weightedEvent:
             case DiagonalDragBehavior.weightedContinuous:
@@ -584,7 +575,7 @@ export class SourceVerticalOuterDimensionState extends TwoAxisScrollableStateHos
                     }
                 }
                 return;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }
@@ -673,7 +664,7 @@ export class SourceHorizontalInnerDimensionState extends TwoAxisScrollableStateH
             case DiagonalDragBehavior.none: {
                 super.setCanDrag(value);
                 return;
-                break;
+
             }
             case DiagonalDragBehavior.weightedEvent:
             case DiagonalDragBehavior.weightedContinuous:
@@ -699,7 +690,7 @@ export class SourceHorizontalInnerDimensionState extends TwoAxisScrollableStateH
                     }
                 }
                 return;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }

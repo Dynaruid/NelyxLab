@@ -14,9 +14,9 @@ import { WidgetStateBorderSide } from "@nelyx/core/framework/widgets/widget-stat
 import { Diagnosticable } from "@nelyx/core/foundation/diagnosticable";
 import { DiagnosticsProperty } from "@nelyx/core/foundation/diagnostics";
 import type { DiagnosticPropertiesBuilder } from "@nelyx/core/foundation/diagnostics";
-import { DoubleProperty, EnumProperty } from "@nelyx/core/foundation/diagnostic-properties";
-import { ColorProperty } from "@nelyx/core/internal/framework/painting/color-property.generated";
-import { valueEquals, valueHash, hashValues } from "@nelyx/core/framework/painting/value-equality";
+import "@nelyx/core/foundation/diagnostic-properties";
+import "@nelyx/core/internal/framework/painting/color-property.generated";
+import { valueEquals, hashValues } from "@nelyx/core/framework/painting/value-equality";
 export interface SearchBarThemeDataOptions {
   /** @dartType WidgetStateProperty<double?>? */
   readonly elevation?: WidgetStateProperty<DartDouble | null> | null;

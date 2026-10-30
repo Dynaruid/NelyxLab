@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "check:types": "tsc --noEmit",
+    "test:emitter": "bun test --timeout 1200000 src/dart-emitter.test.ts",
     "port": "bun src/main.ts"
   },
   "devDependencies": {

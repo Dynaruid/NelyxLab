@@ -14,7 +14,7 @@ import {invariant,exceptionStack} from '../../foundation/errors.ts';
 import {FlutterErrorDetails} from '../../foundation/assertions.ts';
 import {ErrorDescription} from '../../foundation/diagnostics.ts';
 import type {TextEditingValue,TextSelection,Composition,EditingGeometry,TextLayoutGeometry,TextInputGeometry,TextInputCharacterBounds,TextInputGeometryStamp,TextInputRangeBounds,TextInputHitOptions,TextInputHitTest,SemanticsTextActions} from '../../ui/types.ts';
-import {validateEditingContent,freezeEditingGeometry} from '../../ui/editing.ts';
+import { freezeEditingGeometry } from '../../ui/editing.ts';
 import {freezeEditingConfiguration,editingConfigurationKey} from '../../hosting/editing-configuration.ts';
 import type {EditingConfiguration,EditingConfigurationOptions} from '../../hosting/editing-configuration.ts';
 import type {EditingBinding,TextInputAction,EditingSynchronizationRejection} from '../../hosting/interaction.ts';
@@ -91,7 +91,7 @@ import type {TextMagnifierConfiguration} from './magnifier.ts';
 import {MagnifierInfo} from './magnifier.ts';
 import {Offset as SourceOffset} from '../../ui/offset.ts';
 import {Rect as SourceRect} from '../../ui/rect.ts';
-import {bounds,multiply,translate,captureTransform,transform,fullTransform,contains} from '../../ui/geometry.ts';
+import { bounds, multiply, translate, captureTransform, fullTransform, contains } from '../../ui/geometry.ts';
 import {tryUnprojectMatrix4Point} from '../../ui/matrix4.ts';
 import {PointerDeviceKind} from '../../ui/pointer.ts';
 export class TextEditingController extends ChangeNotifier {
@@ -650,7 +650,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if(!intent||!context?.mounted)return 'ignored';const action=Actions.maybeFind(context,intent);if(!action?.isEnabledFor(intent,context))return 'ignored';
     const result=Actions.of(context).invokeAction(action,intent,context);return action.toKeyEventResultFor(intent,result);
   }
-  private invokeEditingIntent(intent:Intent,context?:BuildContext):boolean{
+  private invokeEditingIntent(intent:Intent,_context?:BuildContext):boolean{
     if(!this.canInvokeEditingIntent(intent))return false;
     if(intent instanceof editingIntents.EditableTextTapUpOutsideIntent)return true;
     if(intent instanceof editingIntents.EditableTextTapOutsideIntent){

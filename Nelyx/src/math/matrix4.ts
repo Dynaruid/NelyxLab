@@ -1049,9 +1049,9 @@ export class Matrix4 {
         const x: number = argStorage[0]!;
         const y: number = argStorage[1]!;
         const z: number = argStorage[2]!;
-        argStorage[0]! = x * m00 + y * m01 + z * m02 + 0.0 * 0.0;
-        argStorage[1]! = x * m10 + y * m11 + z * m12 + 0.0 * 0.0;
-        argStorage[2]! = x * m20 + y * m21 + z * m22 + 0.0 * 0.0;
+        argStorage[0]! = x * m00 + y * m01 + z * m02 + 0.0;
+        argStorage[1]! = x * m10 + y * m11 + z * m12 + 0.0;
+        argStorage[2]! = x * m20 + y * m21 + z * m22 + 0.0;
         return arg;
     }
     add(o: Matrix4): void {

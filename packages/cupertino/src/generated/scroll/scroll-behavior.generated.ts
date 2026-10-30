@@ -30,13 +30,13 @@ export class CupertinoScrollBehavior extends ScrollBehavior {
                 if (FoundationBuildMode.debug)
                     invariant(details.controller !== null, "generated-source-assert", "Pinned Dart assertion failed");
                 return new SourceCupertinoScrollbar({ controller: details.controller, child: child });
-                break;
+
             }
             case "android":
             case "fuchsia":
             case "iOS": {
                 return child;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }

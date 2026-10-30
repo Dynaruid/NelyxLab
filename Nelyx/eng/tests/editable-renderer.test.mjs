@@ -294,7 +294,7 @@ test('paint-only ancestor transforms invalidate stale IME bounds and commit the 
   const transforms=()=>{const result=[];const visit=element=>{if(element.renderObject instanceof RenderTransform)result.push(element.renderObject);element.visitChildren(visit);};visit(f.root.root);return result;};
   try{
     f.set(new ClipRect(new Transform(editor(controller,focus),[1,0,0,1,0,0])));
-    const render=findRender(f.root.root),ancestor=transforms()[0],initial=f.root.nodes.find(node=>node.id==='editor').textInputGeometry,paragraph=f.library.paragraphs.values().next().value;
+    findRender(f.root.root);const ancestor=transforms()[0],initial=f.root.nodes.find(node=>node.id==='editor').textInputGeometry,paragraph=f.library.paragraphs.values().next().value;
     assert.equal(host.options.readCharacterBounds(0,1).layoutEpoch,initial.layoutEpoch);
     ancestor.matrix=[1,0,0,1,19,7];
     assert.equal(host.options.readCharacterBounds(0,1),null,'Dirty paint cannot answer using a transform that has not been recorded');

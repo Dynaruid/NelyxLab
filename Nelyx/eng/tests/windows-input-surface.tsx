@@ -106,7 +106,7 @@ async function run(application:ReactNativeApplication){
  const initialRoot=application.view.controller;check(initialRoot instanceof FrameworkRoot&&initialRoot.scheduler.visible,'Preparing must schedule the initial Core frame while native first-content visibility is gated');
  const contentDeadline=Date.now()+5000;while(!firstContentReady){check(Date.now()<contentDeadline,'Matching first content was not acknowledged');await delay(20);}
  const activation=await fixture.activate();check(activation.foreground,'Native fixture could not activate its own AppWindow: '+JSON.stringify(activation));
- if(Boolean(Number('__CLOSE_ONLY__'))){await fixture.beginCloseProducerProbe();controller.text+=' close';application.view.requestFrame();await finish(true,'forced admitted producer close only; full input acceptance not exercised');return;}
+ if(Number('__CLOSE_ONLY__')){await fixture.beginCloseProducerProbe();controller.text+=' close';application.view.requestFrame();await finish(true,'forced admitted producer close only; full input acceptance not exercised');return;}
  const raw=application.view.dispatchRawKey.bind(application.view);application.view.dispatchRawKey=(message,transport)=>{const handled=raw(message,transport);if('keymap'in message&&message.keymap==='windows'&&message.type==='keyup'){if(message.keyCode===0x87)releasedBarrier++;if(message.keyCode===0x27)releasedRight++;}trace({key:message,handled});return handled;};
  const end=Date.now()+5000;while(!interaction.editorClients.length){check(Date.now()<end,'Core binding was not painted');await delay(20);}focus.requestFocus();
  stage='initial pixels';const first=await pixels('Initial actual Core/Skia caret');check(first.textWindowFocused,'TSF did not use the actual focused InputSite HWND');

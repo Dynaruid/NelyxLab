@@ -8,9 +8,9 @@ import { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state'
 import { nullableDartType } from '@nelyx/core/foundation/dart-type-witness';
 import { sourceSizeType, sourceSizeLerp } from '@nelyx/core/ui/size-source';
 import { valueEquals, hashValues } from '@nelyx/core/framework/painting/value-equality';
-import { sliderDefaultShapes } from "./internal/slider/slider-shape-defaults.ts";
-import { Colors } from "./colors.ts";
-import { ShowValueIndicator } from "./generated/slider/slider-theme-values.generated.ts";
+import "./internal/slider/slider-shape-defaults.ts";
+import "./colors.ts";
+import "./generated/slider/slider-theme-values.generated.ts";
 import { SliderThemeFieldsBase, sliderThemeFieldNames, sliderThemeColorFields, sliderThemeNumberFields } from "./generated/slider/slider-theme-fields.generated.ts";
 import type { SliderThemeOptions } from "./generated/slider/slider-theme-fields.generated.ts";
 export type { SliderThemeOptions } from "./generated/slider/slider-theme-fields.generated.ts";

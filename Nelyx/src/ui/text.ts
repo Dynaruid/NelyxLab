@@ -61,7 +61,7 @@ function checkTextLayoutAdmission(state:TextLayoutResourceTotals&{readonly repla
 }
 export function textOffset(text:string,index:number):void {
   if(!(Number.isInteger(index) && index>=0 && index<=text.length))invariant(false,'invalid-text-offset','offset outside UTF-16 text');
-  if(index>0 && index<text.length){if(!(!(text.charCodeAt(index-1)>=0xd800 && text.charCodeAt(index-1)<=0xdbff && text.charCodeAt(index)>=0xdc00 && text.charCodeAt(index)<=0xdfff)))invariant(false,'invalid-text-offset','offset splits surrogate pair');}
+  if(index>0 && index<text.length){if((text.charCodeAt(index-1)>=0xd800 && text.charCodeAt(index-1)<=0xdbff && text.charCodeAt(index)>=0xdc00 && text.charCodeAt(index)<=0xdfff))invariant(false,'invalid-text-offset','offset splits surrogate pair');}
 }
 function validText(text:string):void {
   for(let i=0;i<text.length;i++){

@@ -106,7 +106,7 @@ export class BuildScope {
   _forget(element:Element):void{if(element._queuedBuildScope!==this)return;this.queue.remove(element);element._queuedBuildScope=undefined;element.owner._didUnqueueBuild(this);}
   /** @internal Rebuild only this scope, including newly dirtied shallow ancestors. */
   _flushDirtyElements(rebuild:(element:Element)=>void,callback?:()=>void,reportError:(details:FlutterErrorDetails)=>void=details=>FlutterError.reportError(details)):void{
-    if(!(!this._building))invariant(false,'reentrant-build-scope','BuildScope cannot recursively flush itself');this._building=true;
+    if(this._building)invariant(false,'reentrant-build-scope','BuildScope cannot recursively flush itself');this._building=true;
     try{callback?.();let element:Element|undefined;while((element=this.queue.pop())){
       element._queuedBuildScope=undefined;element.owner._didUnqueueBuild(this);
       if(element._buildQueueDepth!==element.depth){this._scheduleBuildFor(element);continue;}
@@ -193,7 +193,8 @@ export class BuildOwner {
   /** @internal Only changed selected fields rebuild their readers. Full reads
    * remain conservative; renderer replacement keeps the Root's full pass. */
   _viewMetricsChanged(previous:ViewMetrics|undefined,next:ViewMetrics):void{
-    for(const [element,fields] of [...this.viewMetricsReaders]){
+    const snapshot1=[...this.viewMetricsReaders];
+    for(const [element,fields] of snapshot1){
       if(!element.active||element.owner!==this){this.viewMetricsReaders.delete(element);continue;}
       if(!previous||fields===null||[...fields].some(field=>!Object.is(previous[field],next[field])))element.markNeedsBuild();
     }
@@ -204,7 +205,7 @@ export class BuildOwner {
   reportError(details:FlutterErrorDetails):void{FlutterError.reportError(details);this.services.reportError?.(details);}
   schedule(element:Element):void {
     assertOutsideRenderPaint();
-    if(!(!this.disposed))invariant(false,'closed-build-owner','Build after View close');
+    if(this.disposed)invariant(false,'closed-build-owner','Build after View close');
     if(!element.active)return;element.buildScope._scheduleBuildFor(element);
   }
   forget(element:Element):void {element._queuedBuildScope?._forget(element);}
@@ -289,8 +290,9 @@ export class BuildOwner {
     if(failed)throw failure;
   }
   finalizeTree():void {
-    if(!(!this.building))invariant(false,'finalize-during-build','Cannot finalize during build');const errors:unknown[]=[];
-    for(const root of [...this.inactive]){if(this.dormantChildrenValue?.has(root))continue;this.inactive.delete(root);if(!root.active)try{root.unmount();}catch(error){errors.push(error);}}
+    if(this.building)invariant(false,'finalize-during-build','Cannot finalize during build');const errors:unknown[]=[];
+    const snapshot2=[...this.inactive];
+    for(const root of snapshot2){if(this.dormantChildrenValue?.has(root))continue;this.inactive.delete(root);if(!root.active)try{root.unmount();}catch(error){errors.push(error);}}
     // Reparenting can reserve a key under successive live parents in one frame.
     // Verify completed ownership, as source does, after all parents rebuild.
     for(const {key,parents}of this.reservations.values())if([...parents].filter(parent=>parent.active&&parent.children.some(child=>child.parent===parent&&sameKey(child.widget.key,key))).length>1)errors.push(new Error('Multiple active parents retained the same GlobalKey'));
@@ -302,7 +304,8 @@ export class BuildOwner {
     assertOutsideRenderPaint();
     if(this.disposed)return;this.disposed=true;this.pointerBinding=undefined;const errors:unknown[]=[];
       for(const dispose of [()=>this.dormantChildrenValue?.dispose(),()=>this.finalizeTree(),()=>this.gestures.dispose(),()=>this.focus.dispose(),()=>{if(!this.services.platformServices)this.keyboard.dispose();}])try{dispose();}catch(error){errors.push(error);}
-    for(const element of [...this.globals.values()])try{element.unmount();}catch(error){errors.push(error);}
+    const snapshot3=[...this.globals.values()];
+    for(const element of snapshot3)try{element.unmount();}catch(error){errors.push(error);}
     if(!this.services.platformServices)try{this.rawKeyboard.dispose();}catch(error){errors.push(error);}
     this.globals.clear();while(this.dirtyScopes)this.dirtyScopes._clear();this.defaultBuildScope._clear();this.renderChildren.dispose();this.keyHandlers.clear();this.viewMetricsReaders.clear();
     try{this.viewWorkBudgetValue?.assertDrained();}catch(error){errors.push(error);}
@@ -547,7 +550,7 @@ export abstract class State<W extends StatefulWidget=StatefulWidget> extends Dia
   get mounted():boolean{return this.element!==undefined;}
   get widget():W {if(!(this.configuration))invariant(false,'unmounted-state','Widget after State disposal');return this.configuration;}
   get context():BuildContext {if(!(this.element))invariant(false,'unmounted-state','Context after State disposal');return this.element;}
-  attach(element:StatefulElement,widget:W):void {if(!(!this.element))invariant(false,'state-reused','State instance cannot belong to two Elements');this.element=element;this.configuration=widget;}
+  attach(element:StatefulElement,widget:W):void {if(this.element)invariant(false,'state-reused','State instance cannot belong to two Elements');this.element=element;this.configuration=widget;}
   update(widget:W):void {const old=this.widget;this.configuration=widget;this.didUpdateWidget(old);}
   detach():void {this.diagnosticLifecycle='defunct';this.element=undefined;this.configuration=undefined;}
   initState():void {}
@@ -628,7 +631,7 @@ export class InheritedElement extends ProxyElement {
   }
   removeDependent(element:Element):void {this.dependents.delete(element);}
   notifyDependent(_old:InheritedWidget,dependent:Element):void {dependent.dependenciesChanged();}
-  notifyClients(old:InheritedWidget):void {for(const dependent of [...this.dependents.keys()])if(dependent.active)this.notifyDependent(old,dependent);}
+  notifyClients(old:InheritedWidget):void {const snapshot4=[...this.dependents.keys()];for(const dependent of snapshot4)if(dependent.active)this.notifyDependent(old,dependent);}
   protected override updated(old:ProxyWidget):void {if((this.widget as InheritedWidget).updateShouldNotify(old as InheritedWidget))this.notifyClients(old as InheritedWidget);}
   protected build():readonly Widget[] {return [(this.widget as InheritedWidget).child];}
   override unmount():void {try{super.unmount();}finally{this.dependents.clear();}}
@@ -663,7 +666,7 @@ export class RenderObjectElement extends Element {
   removeRenderObjectChild(child:RenderObject,_slot:unknown):void{this.renderObject.remove(child);}
   override updateSlot(slot:unknown):void{const old=this.slot;super.updateSlot(slot);if(!sameSlot(old,slot))this.ancestor?.moveRenderObjectChild(this.renderObject,old,slot);}
   override attachRenderObject(slot:unknown):void {
-    if(!(!this.ancestor))invariant(false,'double-render-attachment','Render object already has an ancestor attachment');this.currentSlot=slot;
+    if(this.ancestor)invariant(false,'double-render-attachment','Render object already has an ancestor attachment');this.currentSlot=slot;
     this.ancestor=this.parentRenderOwner;
     try{this.ancestor?.insertRenderObjectChild(this.renderObject,slot);if(this.ancestor)this.owner._scheduleRenderChildren(this.ancestor);this.applyParentDataFromAncestors();}
     catch(error){const errors=[error];try{this.detachRenderObject();}catch(failure){errors.push(failure);}if(errors.length>1)throw new AggregateError(errors,'Render attachment and rollback failed');throw error;}

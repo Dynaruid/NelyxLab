@@ -44,6 +44,7 @@ export function quantizeMaterialImage(input: readonly number[], maxColors = 128)
     }
     const clusterIndices = points.map((_, index) => index % clusterCount);
     const matrix = Array.from({length: clusterCount}, () => Array.from({length: clusterCount}, (_, index) => ({distance: 0, index})));
+    // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
     const populations: number[] = new Array(clusterCount).fill(0);
     for (let iteration = 0; iteration < 5; iteration++) {
         for (let i = 0; i < clusterCount; i++) {
@@ -67,6 +68,7 @@ export function quantizeMaterialImage(input: readonly number[], maxColors = 128)
             if (next !== -1) {moved++; clusterIndices[i] = next;}
         }
         if (moved === 0 && iteration > 0) break;
+        // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
         const a: number[] = new Array(clusterCount).fill(0), b: number[] = new Array(clusterCount).fill(0), c: number[] = new Array(clusterCount).fill(0);
         populations.fill(0);
         for (let i = 0; i < points.length; i++) {

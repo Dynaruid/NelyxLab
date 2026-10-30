@@ -5,7 +5,7 @@ import {cupertinoEdgeShadowTween} from '@nelyx/cupertino/internal/route/edge-sha
 import {Animation,AnimationStatus} from '@nelyx/core/framework/animation/animation';
 import {SlideTransition,DecoratedBoxTransition} from '@nelyx/core/framework/widgets/transitions';
 import {Directionality,MediaQuery} from '@nelyx/core/framework/widgets/app-data';
-import {SizedBox,ColoredBox,Builder,DecoratedBox} from '@nelyx/core/framework/widgets/basic';
+import { SizedBox, ColoredBox, Builder } from '@nelyx/core/framework/widgets/basic';
 import {State,StatefulWidget} from '@nelyx/core/framework/widgets/framework';
 import {GestureDetector} from '@nelyx/core/framework/widgets/gesture-detector';
 import {Navigator,NavigatorController} from '@nelyx/core/framework/widgets/navigation';
@@ -16,7 +16,7 @@ import {fixture} from './root-fixture.mjs';import {engineFixture} from './engine
 import {FoundationBuildMode} from '@nelyx/core/foundation/constants';
 import {Semantics} from '@nelyx/core/framework/widgets/semantics';
 const timeout=1200000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/cupertino-transitions-source.json',import.meta.url))),flush=async()=>{await Promise.resolve();await Promise.resolve();};
-class Manual extends Animation{values=new Set();statuses=new Set();value=0;status=AnimationStatus.dismissed;addListener(l){this.values.add(l);}removeListener(l){this.values.delete(l);}addStatusListener(l){this.statuses.add(l);}removeStatusListener(l){this.statuses.delete(l);}set(value,status){const old=this.status;this.value=value;this.status=status;if(old!==status)for(const l of [...this.statuses])l(status);for(const l of [...this.values])l();}}
+class Manual extends Animation{values=new Set();statuses=new Set();value=0;status=AnimationStatus.dismissed;addListener(l){this.values.add(l);}removeListener(l){this.values.delete(l);}addStatusListener(l){this.statuses.add(l);}removeStatusListener(l){this.statuses.delete(l);}set(value,status){const old=this.status;this.value=value;this.status=status;if(old!==status){const snapshot=[...this.statuses];for(const l of snapshot)l(status);}const snapshot1=[...this.values];for(const l of snapshot1)l();}}
 const WidgetClass=family=>family==='page'?CupertinoPageTransition:CupertinoFullscreenDialogTransition;
 function tree(root,recipe,leaf){const result=[];const visit=(e,inside=false)=>{inside ||= e.widget===recipe;if(inside){const w=e.widget;if(w===leaf){result.push({kind:'leaf'});return;}if(w instanceof SlideTransition)result.push({kind:'slide',position:[w.position.value.dx,w.position.value.dy],textDirection:w.textDirection,transformHitTests:w.transformHitTests});else if(w instanceof DecoratedBoxTransition)result.push({kind:'decoration',decoration:{colors:w.decoration.value.colors?.map(c=>[c.a,c.r,c.g,c.b])??null}});}e.visitChildren(c=>visit(c,inside));};visit(root);return result;}
 function noListeners(...animations){for(const animation of animations){assert.equal(animation.values.size,0);assert.equal(animation.statuses.size,0);}}

@@ -197,6 +197,7 @@ export async function packWindows({app,directory,output}){
     fs.copyFileSync(archive,output,fs.constants.COPYFILE_EXCL);
     return {schema:'nelyx.pack/v2',target:'windows',file:output,sha256:sha256(output),files:verified.files,qualification:'notVerified'};
   }finally{
+    // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
     if(path.dirname(owner)!==work||!path.basename(owner).startsWith('pack-')||fs.lstatSync(owner).isSymbolicLink())throw Error('Unexpected pack temporary owner');
     fs.rmSync(owner,{recursive:true,force:true,maxRetries:5,retryDelay:100});
   }

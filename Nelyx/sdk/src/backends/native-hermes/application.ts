@@ -34,6 +34,7 @@ async function composeNativeHermesApplication(definition:ApplicationDefinition,c
   const bridge=nativeHermesBridge(),native=globalThis as unknown as {SkiaApi:Skia;SkiaViewApi:{makeGraphiteContext(id:number,width:number,height:number,opaque:boolean,highBitDepth:boolean,scale:number):NelyxGraphiteContext}};
   configuration={...configuration,sources:Object.fromEntries(Object.entries(configuration.sources).map(([id,source])=>{
     if(typeof source==='number'||!source.uri.startsWith('nelyx-asset:/'))return [id,source];
+    // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
     const relative=source.uri.slice('nelyx-asset:/'.length),parts=relative.split('/');if(!relative||parts.some(part=>!part||part==='.'||part==='..'||/[\\:%?#\x00-\x1f]/.test(part)))throw new Error('Invalid native asset path');
     const root=bridge.assetRoot.replaceAll('\\','/').replace(/\/$/,'');return [id,{uri:'file:///'+root.slice(0,2)+'/'+root.slice(2).split('/').filter(Boolean).map(encodeURIComponent).join('/')+'/'+parts.map(encodeURIComponent).join('/')}];
   }))};

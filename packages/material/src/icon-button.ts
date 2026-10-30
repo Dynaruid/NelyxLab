@@ -28,7 +28,7 @@ import type { MaterialButtonOptions, MaterialButtonVariant } from './button-styl
 import type { VisualDensity, MaterialTapTargetSize } from './theme-data.ts';
 import type { InteractiveInkFeatureFactory } from './ink-feature.ts';
 import { Theme } from './theme.ts';
-import { Colors } from './colors.ts';
+import './colors.ts';
 import { IconButtonTheme } from './icon-button-theme.ts';
 import { iconButtonDefaults } from './internal/button/icon-button-defaults.ts';
 import type { IconButtonVariant } from './internal/button/icon-button-defaults.ts';

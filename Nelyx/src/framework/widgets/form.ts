@@ -23,9 +23,9 @@ export class FormState extends State<Form> {
   register(field:RegisteredField):void{this.fields.add(field);}
   unregister(field:RegisteredField):void{this.fields.delete(field);}
   fieldChanged(user=true):void{if(this.resetting)return;this.interacted ||= user;for(const field of this.fields)if(field.mounted)field.rebuild();this.widget.options.onChanged?.();}
-  validate():boolean{invariant(this.mounted,'unmounted-form','Cannot validate an unmounted Form');let valid=true;for(const field of [...this.fields])if(this.fields.has(field)&&field.mounted&&field.enabled)valid=field.validate()&&valid;return valid;}
-  save():void{invariant(this.mounted,'unmounted-form','Cannot save an unmounted Form');for(const field of [...this.fields])if(this.fields.has(field)&&field.mounted&&field.enabled)field.save();}
-  reset():void{invariant(this.mounted,'unmounted-form','Cannot reset an unmounted Form');this.resetting=true;try{for(const field of [...this.fields])if(this.fields.has(field)&&field.mounted)field.reset();this.interacted=false;}finally{this.resetting=false;}this.widget.options.onChanged?.();}
+  validate():boolean{invariant(this.mounted,'unmounted-form','Cannot validate an unmounted Form');let valid=true;const snapshot=[...this.fields];for(const field of snapshot)if(this.fields.has(field)&&field.mounted&&field.enabled)valid=field.validate()&&valid;return valid;}
+  save():void{invariant(this.mounted,'unmounted-form','Cannot save an unmounted Form');const snapshot1=[...this.fields];for(const field of snapshot1)if(this.fields.has(field)&&field.mounted&&field.enabled)field.save();}
+  reset():void{invariant(this.mounted,'unmounted-form','Cannot reset an unmounted Form');this.resetting=true;try{const snapshot2=[...this.fields];for(const field of snapshot2)if(this.fields.has(field)&&field.mounted)field.reset();this.interacted=false;}finally{this.resetting=false;}this.widget.options.onChanged?.();}
   /** Validation precedes every save; invalid forms never invoke the submit callback. */
   submit(onValid:()=>void):boolean{if(!this.validate())return false;this.save();onValid();return true;}
   override dispose():void{this.fields.clear();super.dispose();}

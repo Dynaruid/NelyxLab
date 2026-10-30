@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Concrete Core bridges for complete source Widgets, with explicit queued Element admission.
 import {Widget,StatefulWidget,RenderObjectWidget,RenderObjectElement,Element,BuildOwner,BuildScope} from './framework.ts';
-import type {BuildContext} from './framework.ts';
 import type {Key} from '../../foundation/key.ts';
 import {ChangeNotifier} from '../../foundation/notifier.ts';
 import {invariant} from '../../foundation/errors.ts';

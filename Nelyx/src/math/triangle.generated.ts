@@ -3,7 +3,7 @@
 // Generated from package:vector_math/src/vector_math_64/triangle.dart; SHA256 dea04250d5b181b840118c94e97793c5a2201b608517b66110e65bb0f9dee36e
 import { Vector3 } from "./vector3.ts";
 import { Matrix4 } from "./matrix4.ts";
-import { checkedInteger } from "../ui/value-math.ts";
+import "../ui/value-math.ts";
 import { protect } from "../ui/value-math.ts";
 export class SourceTriangle {
     readonly _dart_db9869b6aff8475c_point0: Vector3;

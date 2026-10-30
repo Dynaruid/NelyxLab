@@ -26,7 +26,7 @@ import { sourceColorType } from '@nelyx/core/ui/color-source';
 import { nullableDartType, isDartType, captureDartInterface } from '@nelyx/core/foundation/dart-type-witness';
 import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';
 import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
-import { FlagProperty, EnumProperty, DoubleProperty } from '@nelyx/core/foundation/diagnostic-properties';
+import { FlagProperty, DoubleProperty } from '@nelyx/core/foundation/diagnostic-properties';
 import { ColorProperty } from '@nelyx/core/framework/painting/color-property';
 import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import { invariant } from '@nelyx/core/foundation/errors';
@@ -50,7 +50,7 @@ interface TileDefaultsProjection {readonly title:TextStyle;readonly subtitle:Tex
 // One immutable projection per live Theme. Resolve external members before
 // lookup, so style getters/overrides and live colour sources keep their order.
 const tileDefaults=new WeakMap<object,TileDefaultsProjection>();
-export function listTileDefaults(context: BuildContext, style: ListTileStyle): ListTileThemeData {
+export function listTileDefaults(context: BuildContext, _style: ListTileStyle): ListTileThemeData {
     const theme = Theme.of(context), text = theme.textTheme, colors = theme.colorScheme;
     const title=defaultTileTextStyle(text.bodyLarge!,colors,'onSurface'),subtitle=defaultTileTextStyle(text.bodyMedium!,colors,'onSurfaceVariant'),leading=defaultTileTextStyle(text.labelSmall!,colors,'onSurfaceVariant'),primary=colors.primary,previous=tileDefaults.get(theme);
     // Construct/validate the selected colour before reading the icon colour,

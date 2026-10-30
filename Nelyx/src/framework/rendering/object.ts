@@ -86,7 +86,7 @@ export function ContainerParentDataMixin<Base extends ParentDataConstructor>(Bas
   return LinkedParentData as unknown as ContainerParentDataConstructor<Base>;
 }
 /** @internal Shared phase guard for spatial parent-data implementations. */
-export function assertParentDataOffsetMutation():void{assertOutsideRenderPaint();if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurement cannot change child offsets');}
+export function assertParentDataOffsetMutation():void{assertOutsideRenderPaint();if(layoutQueries.length)invariant(false,'render-mutation-during-measurement','Measurement cannot change child offsets');}
 export class BoxParentData extends ParentData {
   private position:Offset=Object.freeze({x:0,y:0});
   get offset():Offset{return this.position;}
@@ -170,7 +170,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   requestVisualUpdate():void{if(this.onNeedVisualUpdate!==null)this.onNeedVisualUpdate();else this.manifold?.requestVisualUpdate();}
   get semanticsOwner():SemanticsOwner|null{return existingPipelineSemantics(this)?.owner??null;}
   get debugOutstandingSemanticsHandles():number{return this.outstandingSemanticsHandles;}
-  ensureSemantics({listener=null}:{readonly listener?:(()=>void)|null}={}):SemanticsHandle{if(!(!this.dead))invariant(false,'closed-render-pipeline','Cannot acquire semantics on a closed pipeline');if(!this.accessibilityEnabled)return SemanticsHandle._create(()=>{});this.outstandingSemanticsHandles++;this.updateSemanticsOwner();return new _LocalSemanticsHandle(this,listener,()=>{if(this.dead){if(FoundationBuildMode.debug){if(!(this.outstandingSemanticsHandles>0))invariant(false,'invalid-semantics-handle-count','No semantics handle remains');}this.outstandingSemanticsHandles--;return;}if(FoundationBuildMode.debug){if(!(this.semanticsOwner!==null))invariant(false,'missing-semantics-owner','Disposing a handle requires a semantics owner');}this.outstandingSemanticsHandles--;this.updateSemanticsOwner();});}
+  ensureSemantics({listener=null}:{readonly listener?:(()=>void)|null}={}):SemanticsHandle{if(this.dead)invariant(false,'closed-render-pipeline','Cannot acquire semantics on a closed pipeline');if(!this.accessibilityEnabled)return SemanticsHandle._create(()=>{});this.outstandingSemanticsHandles++;this.updateSemanticsOwner();return new _LocalSemanticsHandle(this,listener,()=>{if(this.dead){if(FoundationBuildMode.debug){if(!(this.outstandingSemanticsHandles>0))invariant(false,'invalid-semantics-handle-count','No semantics handle remains');}this.outstandingSemanticsHandles--;return;}if(FoundationBuildMode.debug){if(!(this.semanticsOwner!==null))invariant(false,'missing-semantics-owner','Disposing a handle requires a semantics owner');}this.outstandingSemanticsHandles--;this.updateSemanticsOwner();});}
   private readonly updateSemanticsOwner=():void=>{if(!this.accessibilityEnabled)return;if(this.explicitSemantics!==null||(this.manifold?.semanticsEnabled??false)||this.outstandingSemanticsHandles>0){if(this.semanticsOwner===null){const options=this.explicitSemantics??{...this.semanticsFactory,onSemanticsUpdate:this.onSemanticsUpdate!};if(!(options.onSemanticsUpdate!==null&&options.onSemanticsUpdate!==undefined))invariant(false,'missing-semantics-update','Enabling semantics requires an onSemanticsUpdate callback');const state=pipelineSemantics(this);state.enable(options,false);const created=state.owner;this.onSemanticsOwnerCreated?.();if(this.explicitSemantics!==null&&state.owner===created&&this.root)this.root.scheduleInitialSemantics();}}else if(this.semanticsOwner!==null){existingPipelineSemantics(this)!.disable();this.onSemanticsOwnerDisposed?.();}};
   /** App/View ownership supplies the update sink and optional application messenger. */
   enableSemantics(options:SemanticsOwnerOptions):void{if(!this.accessibilityEnabled)return;if(!(!this.dead&&this.explicitSemantics===null&&this.semanticsOwner===null))invariant(false,'closed-render-pipeline','Cannot duplicate or enable semantics on a closed pipeline');this.explicitSemantics=options;this.updateSemanticsOwner();}
@@ -380,7 +380,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private clearLayoutDependencies():void{const dependencies=this.layoutDependencies;if(!dependencies)return;for(const source of dependencies)source.layoutDependents?.delete(this);dependencies.clear();}
   protected runLayout(constraints:Constraints,options:LayoutOptions,perform?:()=>void):void{
     assertOutsideRenderPaint();
-    if(!(!this.dead&&!this.doingLayout&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition))invariant(false,'reentrant-layout','Layout on disposed, active or transitioning render object');if(!(!layoutQueries.length))invariant(false,'wet-layout-during-measurement','Dry/intrinsic measurement cannot invoke wet layout');constraints.debugAssertIsValid({isAppliedConstraint:true});
+    if(!(!this.dead&&!this.doingLayout&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition))invariant(false,'reentrant-layout','Layout on disposed, active or transitioning render object');if(layoutQueries.length)invariant(false,'wet-layout-during-measurement','Dry/intrinsic measurement cannot invoke wet layout');constraints.debugAssertIsValid({isAppliedConstraint:true});
     this.parentUsesSize=options.parentUsesSize??false;this.boundary=!this.parentUsesSize||this.sizedByParent||constraints.isTight||!this.parent;
     const same=this.lastConstraints!==undefined&&constraints.equals(this.lastConstraints);
     if(!this.needsLayout&&same)return;this.clearCachedLayoutData();this.clearLayoutDependencies();this.lastConstraints=constraints;
@@ -404,7 +404,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     if(!(!child.parent||child.parent===this))invariant(false,'render-parent','Render child already has a parent');
     if(!(child.parent===this?child.owner===this.owner:!child.owner))invariant(false,'render-owner','An attached root cannot be adopted; retained children must share their parent pipeline');
   }
-  protected adoptChild(child:RenderObject):void{if(!(!child.parent))invariant(false,'render-parent','Adopt requires an unparented child');this.setupParentData(child);child.renderParent=this;this.changeInputGeometryWork(child.inputGeometrySubtreeWork);child.layoutDirty=true;child.boundary=undefined;if(this.owner)attachRenderTree(child,this.owner);this.redepthChild(child);}
+  protected adoptChild(child:RenderObject):void{if(child.parent)invariant(false,'render-parent','Adopt requires an unparented child');this.setupParentData(child);child.renderParent=this;this.changeInputGeometryWork(child.inputGeometrySubtreeWork);child.layoutDirty=true;child.boundary=undefined;if(this.owner)attachRenderTree(child,this.owner);this.redepthChild(child);}
   protected dropChild(child:RenderObject):void{if(!(child.parent===this))invariant(false,'render-parent','Drop requires a child of this render object');const errors:unknown[]=[];this.releaseChild(child,errors);throwFailures(errors,'Dropping render child failed');}
   protected redepthChild(child:RenderObject):void{if(!(child.parent===this&&child.owner===this.owner))invariant(false,'render-parent','Redepth requires this parent and pipeline');if(child.renderDepth<=this.renderDepth){child.renderDepth=this.renderDepth+1;child.redepthChildren();}}
   redepthChildren():void{for(const child of this.children)this.redepthChild(child);}
@@ -472,7 +472,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   setChildren(values:readonly RenderObject[]):void {
     this.mutateChildren(errors=>{const children=[...values];
-    if(!(!this.dead))invariant(false,'disposed-render-object','Mutating a disposed render object');
+    if(this.dead)invariant(false,'disposed-render-object','Mutating a disposed render object');
     if(!(children.length<=this.childCountLimit))invariant(false,'invalid-render-child','Render object child capacity exceeded');
     const childSet=children.length>1?new Set(children):undefined;if(!(childSet===undefined||childSet.size===children.length))invariant(false,'duplicate-render-child','Render child attached twice');
     for(const child of children)this.validateChild(child);
@@ -511,7 +511,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     if(!(!this.changingAttachment&&!layoutQueries.length&&(!this.parent?.owner||recoveringDetach.has(this))))invariant(false,'invalid-render-owner','Detach the parent before its child; attachment and measurement must be idle');
     this.changingAttachment=true;detachRevisions.set(this,(detachRevisions.get(this)??0)+1);const owner=this.owner,errors:unknown[]=[],transition=enterTreeTransition(owner);this.pipelineOwner=undefined;this.paintCoalesces=false;this.paintInvalidationBarrier=this.paintInvalidationBoundary=undefined;this.paintBatch=this.paintContentsBatch=null;this.boundary=undefined;this.layoutDirty=true;committedInputGeometries.delete(this);layoutQueues.get(owner!)?.delete(this);layoutCallbackQueues.get(owner!)?.delete(this);
     if(owner)existingPipelineSemantics(owner)?.detached(this);
-    try{attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();for(const child of this.children)detachRenderTree(child,errors);}
+    try{attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents){const snapshot1=[...this.layoutDependents];for(const dependent of snapshot1)attempt(errors,()=>dependent.markNeedsLayout());}this.layoutDependents?.clear();for(const child of this.children)detachRenderTree(child,errors);}
     finally{this.changingAttachment=false;leaveTreeTransition(transition);}throwFailures(errors,'Detaching render tree failed');
   }
   private invalidateLayout(visited:Set<RenderObject>|undefined,errors:unknown[]|undefined):unknown[]|undefined{
@@ -519,11 +519,11 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     if(this.doingLayoutCallback){try{this.clearCachedLayoutData();}catch(error){(errors??=[]).push(error);}return errors;}
     const wasDirty=this.layoutDirty;this.layoutDirty=true;this.layoutRevision++;this.paintVersion++;
     try{this.clearCachedLayoutData();}catch(error){(errors??=[]).push(error);}this.clearLayoutDependencies();
-    if(this.layoutDependents)for(const dependent of [...this.layoutDependents]){
+    if(this.layoutDependents){const snapshot2=[...this.layoutDependents];for(const dependent of snapshot2){
       // A lone dirty leaf (or an active layout callback) needs no visit table.
       // The first traversed edge must include this root before any backedge.
       if(!visited){visited=new Set();visited.add(this);}errors=dependent.invalidateLayout(visited,errors);
-    }
+    }}
     if(this.parent&&this.boundary!==true){
       // The first invalidation already scheduled the size-dependent ancestor
       // chain. Wheel bursts and multi-property Widget updates can invalidate a
@@ -593,7 +593,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   markNeedsSemanticsUpdate():void{this.invalidateSemantics(false);}
   /** Stored scroll extents change with layout, while labels and action availability stay fixed. */
   protected markNeedsSemanticsGeometryUpdate():void{this.invalidateSemantics(true);}
-  private invalidateSemantics(geometryOnly:boolean):void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(!(!this.owner?.debugDoingSemantics))invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)pipelineSemantics(this.owner).requestUpdate(this,geometryOnly);else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
+  private invalidateSemantics(geometryOnly:boolean):void{if(this.owner?.accessibilityEnabled===false)return;if(!(!this.dead&&!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Disposed objects and measurements cannot invalidate semantics');if(FoundationBuildMode.debug){if(this.owner?.debugDoingSemantics)invariant(false,'semantics-mutation-during-flush','Cannot invalidate semantics during its flush');}if(this.owner?.semanticsOwner)pipelineSemantics(this.owner).requestUpdate(this,geometryOnly);else existingSemanticsFor(this)?.clear();const owner=this.invalidationOwner();if(owner){const callback=owner.invalidate;callback();}}
   get localTransform():TransformMatrix {return identity;}
   get isDisplayed():boolean{return this.parent?.isDisplayed??true;}
   /** Check each visibility override once. Asking every ordinary ancestor for
@@ -721,7 +721,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   assembleSemanticsNode(node:SourceSemanticsNode,config:SemanticsConfiguration,children:SourceSemanticsNode[]):void{node.updateWith({config,childrenInInversePaintOrder:children});}
   /** Source child walk; View-owned semantic attachment is cleared by its pipeline. */
   clearSemantics():void{existingSemanticsFor(this)?.clear();for(const child of this.children)child.clearSemantics();}
-  dispose():void {assertOutsideRenderPaint();if(this.dead)return;if(!(!this.parent&&!this.owner&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&!layoutQueries.length))invariant(false,'attached-render-dispose','Dispose requires an idle detached render object');const errors:unknown[]=[];attempt(errors,()=>this.clearSemantics());attempt(errors,()=>RenderObject.prototype.setChildren.call(this,[]));attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents)for(const dependent of [...this.layoutDependents])attempt(errors,()=>dependent.markNeedsLayout());this.layoutDependents?.clear();this.dead=true;this.onPointer=undefined;this.geometryLayoutChildren=undefined;throwFailures(errors,'Render object teardown failed');}
+  dispose():void {assertOutsideRenderPaint();if(this.dead)return;if(!(!this.parent&&!this.owner&&!this.changingChildren&&!this.changingAttachment&&!this.treeTransition&&!layoutQueries.length))invariant(false,'attached-render-dispose','Dispose requires an idle detached render object');const errors:unknown[]=[];attempt(errors,()=>this.clearSemantics());attempt(errors,()=>RenderObject.prototype.setChildren.call(this,[]));attempt(errors,()=>this.clearCachedLayoutData());this.clearLayoutDependencies();if(this.layoutDependents){const snapshot3=[...this.layoutDependents];for(const dependent of snapshot3)attempt(errors,()=>dependent.markNeedsLayout());}this.layoutDependents?.clear();this.dead=true;this.onPointer=undefined;this.geometryLayoutChildren=undefined;throwFailures(errors,'Render object teardown failed');}
 }
 export type RenderObjectConstructor=abstract new (...args:any[])=>RenderObject;
 export type SystemFontsRelayoutConstructor<Base extends RenderObjectConstructor>=abstract new (...args:ConstructorParameters<Base>)=>InstanceType<Base>&{systemFontsDidChange():void};
@@ -842,7 +842,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     override describeSemanticsConfiguration(config:SemanticsConfiguration):void{
       if(this.attributedProperties!==this._properties){this.updateAttributedFields(this._properties);this.attributedProperties=this._properties;}
       super.describeSemanticsConfiguration(config);config.isSemanticBoundary=this.container||this._properties.identifier!==null;config.explicitChildNodes=this.explicitChildNodes;config.isBlockingUserActions=this.blockUserActions;if(this.localeForSubtree!==null)config.localeForSubtree=this.localeForSubtree;
-      if(FoundationBuildMode.debug){if(!(!(this._properties.scopesRoute??false)||this.explicitChildNodes))invariant(false,'route-requires-explicit-semantics','explicitChildNodes must be set to true if scopes route is true');if(!(!((this._properties.toggled??false)&&(this._properties.checked??false))))invariant(false,'conflicting-toggle-check','A semantics node cannot be toggled and checked at the same time');}
+      if(FoundationBuildMode.debug){if(!(!(this._properties.scopesRoute??false)||this.explicitChildNodes))invariant(false,'route-requires-explicit-semantics','explicitChildNodes must be set to true if scopes route is true');if(((this._properties.toggled??false)&&(this._properties.checked??false)))invariant(false,'conflicting-toggle-check','A semantics node cannot be toggled and checked at the same time');}
     if (this._properties.enabled != null) {
       config.isEnabled = this._properties.enabled;
     }
@@ -1133,7 +1133,7 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   override setChildren(children:readonly RenderObject[]):void{if(!children.every(child=>child instanceof this.childType))invariant(false,'invalid-render-child',`RenderBox requires ${this.childType.name} children`);super.setChildren(children);}
   get layoutOffset():Offset{return this.parentData instanceof BoxParentData?this.parentData.offset:{x:0,y:0};}
   set layoutOffset(value:Offset){
-    assertOutsideRenderPaint();if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurement cannot change child offsets');
+    assertOutsideRenderPaint();if(layoutQueries.length)invariant(false,'render-mutation-during-measurement','Measurement cannot change child offsets');
     const data=this.parentData instanceof BoxParentData?this.parentData:new BoxParentData();this.parentData=data;
     const previous=data.offset;if(previous.x===value.x&&previous.y===value.y)return;data.offset=value;
     if(this.owner?.semanticsOwner){const state=existingSemanticsFor(this);if(state){
@@ -1149,7 +1149,7 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   private measuredSize:Size|undefined;
   get hasSize():boolean{return this.measuredSize!==undefined;}
   get size():Size{if(!(!layoutQueries.length||layoutQueries.at(-1)!.key.startsWith('baseline:')))invariant(false,'wet-size-during-measurement','Dry/intrinsic measurement cannot read wet size');if(!(activeLayout!==this.parent||!activeLayout||this.debugCanParentUseSize))invariant(false,'undeclared-size-dependency','A parent reading child size must pass parentUsesSize true');if(!this.measuredSize)invariant(false,'missing-render-size',`${this.constructor.name} has not been laid out`);return this.measuredSize;}
-  protected set size(value:Size){assertOutsideRenderPaint();if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurement cannot change wet size');this.measuredSize=validSize(value);}
+  protected set size(value:Size){assertOutsideRenderPaint();if(layoutQueries.length)invariant(false,'render-mutation-during-measurement','Measurement cannot change wet size');this.measuredSize=validSize(value);}
   override get paintBounds():Rect{return {x:0,y:0,...this.size};}
   override get constraints():BoxConstraints{return super.constraints as BoxConstraints;}
   private layoutCache:Map<string,Size|number|null>|undefined;
@@ -1157,7 +1157,7 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   private nextConstraintKey=0;
   private semanticProperties:Omit<SemanticsNode,'bounds'>|undefined;
   get semantics():Omit<SemanticsNode,'bounds'>|undefined{return this.semanticProperties;}
-  set semantics(value:Omit<SemanticsNode,'bounds'>|undefined){if(this.semanticProperties===value)return;if(!(!layoutQueries.length))invariant(false,'render-mutation-during-measurement','Measurements cannot change semantics');this.semanticProperties=value;if(!this.debugDisposed)this.markNeedsSemanticsUpdate();}
+  set semantics(value:Omit<SemanticsNode,'bounds'>|undefined){if(this.semanticProperties===value)return;if(layoutQueries.length)invariant(false,'render-mutation-during-measurement','Measurements cannot change semantics');this.semanticProperties=value;if(!this.debugDisposed)this.markNeedsSemanticsUpdate();}
   override get semanticsTransport():SemanticsTransportProperties|null{return this.semantics??null;}
   override describeSemanticsConfiguration(config:SemanticsConfiguration):void{super.describeSemanticsConfiguration(config);const value=this.semanticsTransport;if(value!==null&&!this.hasSourceSemanticsConfiguration)describeTransportSemantics(config,value,()=>this.showOnScreen());}
   /** Specialize only the unchanged built-in renderer. Subclass or instance
@@ -1179,7 +1179,7 @@ export abstract class RenderBox<Child extends RenderObject=RenderBox<RenderObjec
   protected override performResize():void{this.size=this.getDryLayout(this.constraints);}
   protected override clearCachedLayoutData():void{this.layoutCache?.clear();this.cachedConstraints.length=0;this.nextConstraintKey=0;}
   private query<T extends Size|number|null>(key:string,compute:()=>T):T{
-    if(!(!this.dead))invariant(false,'disposed-render-object','Measurement after dispose');this.registerLayoutQuery();
+    if(this.dead)invariant(false,'disposed-render-object','Measurement after dispose');this.registerLayoutQuery();
     const kind=key.split(':',1)[0];if(layoutQueries.some(query=>query.render===this&&query.key.split(':',1)[0]===kind))invariant(false,'cyclic-layout-measurement',`${this.constructor.name} recursively requested ${key}`);
     const shouldCache=!FoundationBuildMode.debug||!RenderObject.debugCheckingIntrinsics;if(shouldCache&&this.layoutCache?.has(key))return this.layoutCache.get(key) as T;layoutQueries.push({render:this,key});
     try{const result=compute();if(shouldCache){const cache=this.layoutCache??=new Map();if(cache.size>=64)cache.delete(cache.keys().next().value!);cache.set(key,result);}return result;}finally{layoutQueries.pop();}

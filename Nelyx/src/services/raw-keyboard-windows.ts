@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Reviewed port of services/raw_keyboard_windows.dart at 71e4717a61786faab4c7aa39825989305ed29e8a.
-import {RawKeyEventData,rawInteger,rawText,rawBoolean,rawCharacter,rawKeyId,rawStringHash,sealRawFields,sidePressed,modifierSide} from './raw-keyboard-data.ts';
+import { RawKeyEventData, rawInteger, rawCharacter, rawKeyId, sealRawFields, sidePressed, modifierSide } from './raw-keyboard-data.ts';
 import type {KeyboardSide,ModifierKey} from './raw-keyboard-data.ts';
 import {LogicalKeyboardKey,PhysicalKeyboardKey} from './keyboard-key.ts';
 import * as maps from './keyboard-platform-maps.ts';

@@ -22,9 +22,7 @@ import { wheelBoxHitTest } from "./list-wheel-renderer-adapter.ts";
 import { WheelBoxHitTestResult } from "./list-wheel-renderer-adapter.ts";
 import { wheelOffsetString } from "./list-wheel-renderer-adapter.ts";
 import { isWheelBox } from "./list-wheel-renderer-adapter.ts";
-import { castWheelBox } from "./list-wheel-renderer-adapter.ts";
 import { isWheelConstraints } from "./list-wheel-renderer-adapter.ts";
-import { castWheelConstraints } from "./list-wheel-renderer-adapter.ts";
 import { RenderBox } from "./object.ts";
 import { RenderObject } from "./object.ts";
 import { BoxConstraints } from "./constraints.ts";
@@ -45,7 +43,6 @@ import { roundInteger } from "../../ui/value-math.ts";
 import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
 import { createWheelRevealedOffset } from "./list-wheel-renderer-adapter.ts";
 import { isWheelRenderObject } from "./list-wheel-renderer-adapter.ts";
-import { castWheelRenderObject } from "./list-wheel-renderer-adapter.ts";
 import type { PipelineOwner } from "./object.ts";
 import type { WheelViewportContract } from "./list-wheel-renderer-adapter.ts";
 import type { RevealedOffset } from "./viewport.ts";
@@ -1031,7 +1028,7 @@ export class SourceRenderListWheelViewport extends WheelRenderHost implements Wh
     }
     _dart_5bcb85ae98e6dd3d_paintChildCylindrically(context: PaintingContext, offset: Offset, child: RenderBox, cylindricalTransform: Matrix4, offsetToCenter: Offset): void {
         const paintOriginOffset: Offset = offset.add(offsetToCenter);
-        const painter: (argument0: PaintingContext, argument1: Offset) => void = (context: PaintingContext, offset: Offset): void => {
+        const painter: (argument0: PaintingContext, argument1: Offset) => void = (context: PaintingContext, _offset: Offset): void => {
             wheelPaintChild(context, child, paintOriginOffset);
         };
         wheelPushTransform(context, this.needsCompositing, offset, this._dart_5bcb85ae98e6dd3d_centerOriginTransform(cylindricalTransform), painter);
@@ -1137,7 +1134,7 @@ export class SourceRenderListWheelViewport extends WheelRenderHost implements Wh
      * @dartParam alignment double
      * @dartParamOrigin alignment explicit
      */
-    getOffsetToReveal(target: RenderObject, alignment: number, { rect = null, axis = null }: {
+    getOffsetToReveal(target: RenderObject, alignment: number, { rect = null, axis: _axis = null }: {
         readonly rect?: Rect | null;
         readonly axis?: Axis | null;
     } = {}): RevealedOffset {

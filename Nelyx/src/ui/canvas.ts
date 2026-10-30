@@ -28,7 +28,7 @@ export class Canvas {
   private dead=false;
   constructor(private readonly recorder:PictureRecorder|null=null,cullRect:Rect|null=null,private readonly pictures:PictureResourceProvider|null=null){recorder?._beginRecording(this,cullRect);}
   get debugDisposed():boolean{return this.dead;}
-  protected record(command:PaintCommand):void{if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');this.commands.push(freezePaintCommand(command));}
+  protected record(command:PaintCommand):void{if(this.dead)invariant(false,'closed-canvas','Cannot record to a closed canvas');this.commands.push(freezePaintCommand(command));}
   /** Custom recording hooks must keep their independent, mutable arguments. */
   protected get recordsSynchronously():boolean{return this.record===Canvas.baseRecord;}
   addCommands(commands:readonly PaintCommand[]):void{this._addCommandRange(commands,0,commands.length);}
@@ -37,8 +37,8 @@ export class Canvas {
   rollback(start:number):void{if(!(Number.isSafeInteger(start)&&start>=0&&start<=this.commands.length))invariant(false,'invalid-command-mark','Invalid recording rollback');releaseCommandResources(this.commands.splice(start));}
   dispose():void{if(this.dead)return;this.dead=true;releaseCommandResources(this.commands);}
   save():void {this.record(this.recordsSynchronously?Canvas.saveCommand:{op:'save'});}
-  restore():void {if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');if(this.recorder&&this.getSaveCount()===1)return;this.record(this.recordsSynchronously?Canvas.restoreCommand:{op:'restore'});}
-  drawPicture(picture:Picture):void{if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');if(!(picture instanceof Picture))invariant(false,'invalid-picture','drawPicture requires Picture');if(this.pictures)this.record({op:'drawPicture',resource:this.pictures.resource(picture)});else picture._draw(this);}
+  restore():void {if(this.dead)invariant(false,'closed-canvas','Cannot record to a closed canvas');if(this.recorder&&this.getSaveCount()===1)return;this.record(this.recordsSynchronously?Canvas.restoreCommand:{op:'restore'});}
+  drawPicture(picture:Picture):void{if(this.dead)invariant(false,'closed-canvas','Cannot record to a closed canvas');if(!(picture instanceof Picture))invariant(false,'invalid-picture','drawPicture requires Picture');if(this.pictures)this.record({op:'drawPicture',resource:this.pictures.resource(picture)});else picture._draw(this);}
   /** The final argument supplies this view's DPR in place of Dart's implicit window. */
   drawShadow(path:Path,color:number,elevation:number,transparentOccluder:boolean,devicePixelRatio=1):void{if(!(path instanceof Path))invariant(false,'invalid-path','drawShadow requires Path');this.record({op:'drawShadow',path:path.snapshot(),color,elevation,transparentOccluder,devicePixelRatio});}
   drawPaint(paint:Paint):void{this.record({op:'drawPaint',paint:paint.snapshot()});}
@@ -78,7 +78,7 @@ export class Canvas {
   /** Exact rational quadratic ellipse segments on the existing path ABI.
    * Radians are clockwise in the screen coordinate system, as dart:ui Canvas. */
   drawArc(rect:Rect,startAngle:number,sweepAngle:number,useCenter:boolean,paint:Paint):void{
-    if(!(!this.dead))invariant(false,'closed-canvas','Cannot record to a closed canvas');
+    if(this.dead)invariant(false,'closed-canvas','Cannot record to a closed canvas');
     if(!(rect&&[rect.x,rect.y,rect.width,rect.height,startAngle,sweepAngle].every(Number.isFinite)&&typeof useCenter==='boolean'&&paint instanceof Paint))invariant(false,'invalid-arc','Arc needs finite bounds/angles and a Paint');
     if(rect.width<=0||rect.height<=0||sweepAngle===0)return;
     if(Math.abs(sweepAngle)>=Math.PI*2&&!useCenter){this.drawOval(rect,paint);return;}

@@ -56,7 +56,7 @@ test('current Android testbed connects nonvisual OS input to Core editing throug
   try {
     let ready=false;
     for(let attempt=0;attempt<30;attempt++){
-      try{const response=await fetch('http://127.0.0.1:8081/status',{signal:AbortSignal.any([t.signal,AbortSignal.timeout(1000)])});if(response.ok&&await response.text()==='packager-status:running'){assert.equal(path.resolve(response.headers.get('X-React-Native-Project-Root')),runner);ready=true;break;}}catch(error){t.signal.throwIfAborted();}
+      try{const response=await fetch('http://127.0.0.1:8081/status',{signal:AbortSignal.any([t.signal,AbortSignal.timeout(1000)])});if(response.ok&&await response.text()==='packager-status:running'){assert.equal(path.resolve(response.headers.get('X-React-Native-Project-Root')),runner);ready=true;break;}}catch(_error){t.signal.throwIfAborted();}
       await new Promise(resolve=>setTimeout(resolve,500));
     }
     assert(ready,'Owned Metro server must become ready');
@@ -115,6 +115,7 @@ test('current Android testbed connects nonvisual OS input to Core editing throug
     if(launched&&process.env.NELYX_ANDROID_PREVIEW){const shot=spawnSync(adb,['-s',serial,'exec-out','screencap','-p'],{timeout:30000,maxBuffer:8*1024*1024,windowsHide:true});if(shot.status===0)fs.writeFileSync(process.env.NELYX_ANDROID_PREVIEW,shot.stdout);}
     if(launched)try{capture(adb,['-s',serial,'shell','am','force-stop',applicationId],{timeout:30000});}catch(error){errors.push(error);}
     if(reverseCreated)try{capture(adb,['-s',serial,'reverse','--remove','tcp:8081'],{timeout:30000});}catch(error){errors.push(error);}
+    // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
     await metro.stop();if(errors.length&&!failure)throw new AggregateError(errors,'Native test cleanup failed');
   }
 });

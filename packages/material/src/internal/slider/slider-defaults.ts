@@ -13,7 +13,7 @@ import { SliderThemeData, ShowValueIndicator, SliderInteraction } from "../../sl
 import { sliderDefaultShapes } from './slider-shape-defaults.ts';
 const normalSize = constSourceSize(Size, 4, 44), pressedSize = constSourceSize(Size, 2, 44);
 export const sliderDefaultThumbSize = WidgetStateProperty.resolveWith<Size | null>(nullableDartType(sourceSizeType), states => states.contains(WidgetState.disabled) || states.contains(WidgetState.hovered) ? normalSize : states.contains(WidgetState.focused) || states.contains(WidgetState.pressed) ? pressedSize : normalSize);
-export function materialSliderDefaults(context: BuildContext, year2023: boolean, visual: SliderVisualState, ambient: SliderThemeData): SliderThemeData {
+export function materialSliderDefaults(context: BuildContext, year2023: boolean, visual: SliderVisualState, _ambient: SliderThemeData): SliderThemeData {
     const theme = Theme.of(context), c = theme.colorScheme, p = new Color(c.primary), on = new Color(c.onSurface), modern = !year2023, s = sliderDefaultShapes;
     const overlay = p.withOpacity(visual.dragging ? .1 : visual.showHoverHighlight ? .08 : visual.showFocusHighlight ? .1 : 0);
     return new SliderThemeData({

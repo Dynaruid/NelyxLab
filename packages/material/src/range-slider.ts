@@ -585,7 +585,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
             throw new AggregateError(errors, 'RangeSlider retirement failed');
     }
     build(context: BuildContext): Widget {
-        const w = this.widget, o = w.options, ambient = SliderTheme.of(context), theme = Theme.of(context), defaults = materialRangeSliderDefaults(context, w.year2023 ?? ambient.year2023 ?? true), states = emptyWidgetStateSet();
+        const w = this.widget, ambient = SliderTheme.of(context), theme = Theme.of(context), defaults = materialRangeSliderDefaults(context, w.year2023 ?? ambient.year2023 ?? true), states = emptyWidgetStateSet();
         if (w.onChanged === null)
             states.add(WidgetState.disabled);
         if (this.hovering && w.onChanged !== null)

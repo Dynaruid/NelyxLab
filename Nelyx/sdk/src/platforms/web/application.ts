@@ -32,6 +32,7 @@ export function registerApplication(name:string,application:ComponentType,rootTa
   catch(error){roots.delete(rootTag);registrations.delete(root);throw error;}
   let closed:Promise<void>|undefined;
   const close=()=>closed??=(async()=>{
+    // oxlint-disable-next-line unicorn/no-useless-spread -- Snapshot pending work before Promise assimilation can trigger reentrant collection mutations.
     root.closing=true;root.unmount();await Promise.all([...root.surfaces]);
     if(root.failure)throw root.failure.error;
     roots.delete(rootTag);registrations.delete(root);

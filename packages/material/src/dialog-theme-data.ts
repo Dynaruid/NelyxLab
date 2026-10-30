@@ -12,9 +12,9 @@ import { lerpDouble } from "@nelyx/core/internal/ui/lerp-double.generated";
 import { Diagnosticable } from "@nelyx/core/foundation/diagnosticable";
 import { DiagnosticsProperty } from "@nelyx/core/foundation/diagnostics";
 import type { DiagnosticPropertiesBuilder } from "@nelyx/core/foundation/diagnostics";
-import { DoubleProperty, EnumProperty } from "@nelyx/core/foundation/diagnostic-properties";
+import { DoubleProperty } from "@nelyx/core/foundation/diagnostic-properties";
 import { ColorProperty } from "@nelyx/core/internal/framework/painting/color-property.generated";
-import { valueEquals, valueHash, hashValues } from "@nelyx/core/framework/painting/value-equality";
+import { valueEquals, hashValues } from "@nelyx/core/framework/painting/value-equality";
 export interface DialogThemeDataOptions {
   readonly backgroundColor?: Color | null;
   /** @dartType double? */

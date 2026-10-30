@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule } from './product-module-layout.mjs';
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),read=f=>JSON.parse(fs.readFileSync(f,'utf8')),candidateFile='.tmp/work8/w11-controls-candidate/result.json',candidate=read(candidateFile),irFile=candidate.ir.file;assert.equal(sha(irFile),candidate.ir.sha256);
 const record=read(irFile).records.find(r=>r.symbol==='Checkbox'),ir=record.ir,params=ir.constructor.parameters.filter(p=>p.name!=='key'),fields=ir.fields.filter(f=>!f.name.startsWith('_')&&f.name!=='width'),file='packages/material/src/checkbox.ts',ownershipFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-checkbox-api-ownership.json',check=process.argv.includes('--check');

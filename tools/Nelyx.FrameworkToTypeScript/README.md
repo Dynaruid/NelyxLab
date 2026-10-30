@@ -12,9 +12,12 @@ Nelyx 프레임워크 소스 이전과 생성 코드 관리를 위한 독립적�
 cd tools/Nelyx.FrameworkToTypeScript
 bun install --frozen-lockfile
 bun run check:types
+bun run test:emitter
 ```
 
 패키지 의존성은 [package.json](package.json)·[bun.lock](bun.lock)에 고정되어 있습니다. 타입 검사는 native TypeScript CLI를, AST 분석·출력은 별도의 TypeScript Compiler API를 사용합니다.
+
+`test:emitter`는 중첩 switch의 반환·break 범위, getter 실행 횟수와 모듈 초기화를 검증합니다. 각 테스트의 제한 시간은 20분입니다. 저장소 전체 린트는 루트에서 `npm run lint`로 실행합니다.
 
 Dart 분석은 대응하는 Dart SDK와 [dart/](dart/)의 analyzer 입력을, C# 분석은 .NET과 [roslyn/](roslyn/)의 SourceReader를 사용합니다. 선택한 입력 언어와 recipe에 필요한 도구만 준비하세요.
 

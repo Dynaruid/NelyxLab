@@ -91,10 +91,10 @@ export class PaintingContext extends Canvas {
   paintChild(child:RenderObject,transform:TransformMatrix):void{this.save();try{this.transform(transform);child.paint(this);}finally{this.restore();}}
   /** Consume retained CPU scene snapshots in the current transform/clip scope. */
   addLayer(layer:Layer):void{
-    if(this.recordsLayers){if(!(!this.debugDisposed&&!this.assembled))invariant(false,'closed-layer-recording','Layer recording has ended');if(!(!this.entries.some(entry=>entry.handle.layer===layer)))invariant(false,'duplicate-paint-layer','A layer can only be appended once in a PaintingContext');this.entries.push({mark:this.commands.length,handle:new LayerHandle(layer)});return;}
+    if(this.recordsLayers){if(!(!this.debugDisposed&&!this.assembled))invariant(false,'closed-layer-recording','Layer recording has ended');if((this.entries.some(entry=>entry.handle.layer===layer)))invariant(false,'duplicate-paint-layer','A layer can only be appended once in a PaintingContext');this.entries.push({mark:this.commands.length,handle:new LayerHandle(layer)});return;}
     // Immediate drawing still creates retained engine snapshots. Keep transient
     // layers alive until this context retires, including layers without a caller cache.
-    if(!(!this.debugDisposed))invariant(false,'closed-layer-recording','Layer recording has ended');
+    if(this.debugDisposed)invariant(false,'closed-layer-recording','Layer recording has ended');
     this.entries.push({mark:this.commands.length,handle:new LayerHandle(layer)});
     const builder=new SceneBuilder();let scene:Scene|undefined;const errors:unknown[]=[];
     try{if(layer instanceof ContainerLayer)scene=layer.buildScene(builder);else{layer.updateSubtreeNeedsAddToScene();layer._addToSceneWithRetainedRendering(builder);layer._fireCompositionCallbacks(false);scene=builder.build();}scene._draw(this);}

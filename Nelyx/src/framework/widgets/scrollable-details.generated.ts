@@ -14,7 +14,7 @@ import type { Clip } from "../../ui/clip.ts";
 import type { ScrollController } from "./scroll-controller.ts";
 import type { ScrollPhysics } from "./scroll-physics.ts";
 import type { MutableDetailsList } from "./scrollable-details-adapter.ts";
-import type { HostType } from "./scrollable-details-adapter.ts";
+
 export class SourceScrollableDetails {
     readonly direction: AxisDirection;
     readonly controller: ScrollController | null;

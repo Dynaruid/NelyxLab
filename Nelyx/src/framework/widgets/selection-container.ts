@@ -49,7 +49,7 @@ class _SelectionContainerState extends SelectionRegistrant(_SelectableState) {
       const errors:unknown[]=[];
       if(oldWidget.delegate!==null){try{oldWidget.delegate._setSelectionContainerContext(null);}catch(error){errors.push(error);}for(const listener of this._listeners)try{oldWidget.delegate.removeListener(listener);}catch(error){errors.push(error);}}
       if(this.widget.delegate!==null){try{this.widget.delegate._setSelectionContainerContext(this.context);}catch(error){errors.push(error);}for(const listener of this._listeners)try{this.widget.delegate.addListener(listener);}catch(error){errors.push(error);}}
-      if(!valueEquals(oldWidget.delegate?.value,this.widget.delegate?.value))for(const listener of [...this._listeners])try{listener();}catch(error){errors.push(error);}
+      if(!valueEquals(oldWidget.delegate?.value,this.widget.delegate?.value)){const snapshot=[...this._listeners];for(const listener of snapshot)try{listener();}catch(error){errors.push(error);}}
       if(errors.length)throw new AggregateError(errors,'Selection delegate transfer failed');
     }
     if(this.widget._disabled)this.registrar=null;else if(this.widget.registrar!==null)this.registrar=this.widget.registrar;

@@ -71,7 +71,8 @@ export class TreeSliverState<T extends {}|null> extends SourceTreeSliverState<T>
     castDartType(oldWidget,treeWidgetType(readDartType<T>(this,SourceTreeSliverState,0)));
     const active=new Set<SourceTreeSliverNode<T>>(),pending=[...this.widget.tree];
     while(pending.length){const node=pending.pop()!;if(active.has(node))continue;active.add(node);for(const child of node.children)pending.push(child);}
-    for(const node of [...this._dart_8cfd46f68e2cffcc_currentAnimationForParent.keys])if(!active.has(node)||this.animationsDisabled())this.retireNodeAnimation(node);
+    const snapshot=[...this._dart_8cfd46f68e2cffcc_currentAnimationForParent.keys];
+    for(const node of snapshot)if(!active.has(node)||this.animationsDisabled())this.retireNodeAnimation(node);
     super.didUpdateWidget(oldWidget);
     this._dart_8cfd46f68e2cffcc_updateActiveAnimations();
   }

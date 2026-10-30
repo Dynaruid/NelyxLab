@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Skia and WebGPU API objects are implemented with the JSI NativeState
@@ -59,7 +58,7 @@ export const registerSkiaWorkletSerialization = () => {
           "Please upgrade react-native-worklets and react-native-reanimated."
       );
     }
-  } catch (e) {
+  } catch (_e) {
     // react-native-worklets is not installed. This is fine for apps that do
     // not use Reanimated: Skia objects simply cannot be used inside worklets
     // or shared values in this configuration.

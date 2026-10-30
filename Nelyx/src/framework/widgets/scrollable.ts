@@ -16,7 +16,7 @@ import {DragStartBehavior} from '../gestures/recognizer.ts';import {VerticalDrag
 import type {DragDownDetails,DragStartDetails,DragUpdateDetails,DragEndDetails} from '../gestures/drag-details.ts';import type {Drag} from '../gestures/drag.ts';import type {ScrollHoldController} from './scroll-activity.ts';
 import {RawGestureDetector,RawGestureDetectorState,GestureRecognizerFactoryWithHandlers} from './raw-gesture-detector.ts';import type {GestureRecognizerFactories,GestureRecognizerType} from './raw-gesture-detector.ts';
 import {HitTestBehavior} from '../rendering/pointer-listener.ts';import {RenderIgnorePointer} from '../rendering/pointer-blocking.ts';import {IgnorePointer} from './pointer-blocking.ts';
-import {_RenderScrollSemantics} from '../rendering/scroll-semantics.ts';import type {RenderBox,RenderObject} from '../rendering/object.ts';
+import {_RenderScrollSemantics} from '../rendering/scroll-semantics.ts';import type { RenderObject } from '../rendering/object.ts';
 import {GlobalKey} from './global-key.ts';import {MediaQuery} from './app-data.ts';import {Listener} from './listener.ts';import {NotificationListener} from './notification-listener.ts';
 import {invariant} from '../../foundation/errors.ts';
 import {RestorationOwner} from './restoration.ts';

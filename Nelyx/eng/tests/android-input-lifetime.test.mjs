@@ -65,6 +65,7 @@ test('Android input keeps its native identity and composition across Core semant
   } catch(error){failure=error;throw error;} finally {
     const errors=[];
     for(const close of [async()=>{if(tree){const load=createRequire(path.join(temp,'package.json'));await load('react').act(()=>{tree.unmount();});}},()=>f?.close(),()=>interaction?.dispose(),()=>controller?.dispose(),()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=previousAct;},()=>fs.rmSync(temp,{recursive:true,force:true,maxRetries:3,retryDelay:100})])try{await close();}catch(error){errors.push(error);}
+    // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
     if(errors.length)throw new AggregateError(failure?[failure,...errors]:errors,'Input lifetime fixture cleanup failed');
   }
 });

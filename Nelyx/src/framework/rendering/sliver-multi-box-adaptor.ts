@@ -98,7 +98,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   private _debugVerifyChildOrder():boolean{if(FoundationBuildMode.debug&&this._debugChildIntegrityEnabled)for(let i=1;i<this.activeChildren.length;i++){if(!(this.indexOf(this.activeChildren[i-1]!)<this.indexOf(this.activeChildren[i]!)))invariant(false,'invalid-sliver-child-order','Active sliver child indices must strictly increase');}return true;}
   override insert(child:RenderObject,after?:RenderObject):void{
     if(!(child instanceof RenderBox&&(!after||after instanceof RenderBox&&this.activeChildren.includes(after))))invariant(false,'invalid-sliver-insertion','Insert requires a box and an active preceding child');
-    if(!(![...this._keepAliveBucket.values()].includes(child)))invariant(false,'cached-sliver-insertion','Cached child must be obtained through its keep-alive bucket');
+    if(([...this._keepAliveBucket.values()].includes(child)))invariant(false,'cached-sliver-insertion','Cached child must be obtained through its keep-alive bucket');
     try{super.insert(child,after);}finally{if(child.parent===this&&!this.activeChildren.includes(child)){const index=after?this.activeChildren.indexOf(after as RenderBox)+1:0;this.activeChildren.splice(index,0,child);this.syncSiblingsAt(index);}}
     this._debugVerifyChildOrder();
   }
@@ -118,7 +118,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
     if(!(child instanceof RenderBox&&child.parent===this))invariant(false,'invalid-sliver-child','Remove requires an owned box');const data=this.data(child),index=data.index;
     try{super.remove(child);}finally{if(child.parent!==this){const active=this.activeChildren.indexOf(child);if(active>=0){this.activeChildren.splice(active,1);this.syncSiblingsAt(active);}if(index!==null&&this._keepAliveBucket.get(index)===child)this._keepAliveBucket.delete(index);this.danglingKeepAlives.delete(child);}}
   }
-  removeAll():void{const errors:unknown[]=[];for(const child of [...this.children])try{this.remove(child);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Sliver child removal failed');}
+  removeAll():void{const errors:unknown[]=[];const snapshot=[...this.children];for(const child of snapshot)try{this.remove(child);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Sliver child removal failed');}
   override setChildren(children:readonly RenderObject[]):void{if(children.length===this.children.length&&children.every((child,index)=>child===this.children[index]))return;if(!(children.length===0))invariant(false,'managed-sliver-children','SliverMultiBoxAdaptor children must be managed through its child manager');this.removeAll();}
   /** @internal Queued widget build scopes flush inside this owner's real layout callback. */
   _invokeChildManagerLayoutCallback(callback:()=>void):void{this.invokeLayoutCallback<SliverConstraints>(()=>callback());}
@@ -145,8 +145,8 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
     const data=this.data(child);
     if(data.keepAlive||this.childManager.retainChild?.(child)){
       if(data.keepAlive)this.childManager.didObtainChild?.(child,'explicit');
-      if(!(!data.keptAlive))invariant(false,'already-cached-sliver-child','An active child cannot already be cached');const index=this.indexOf(child);
-      if(!(!this._keepAliveBucket.has(index)))invariant(false,'duplicate-cached-sliver-index','A keep-alive index is already occupied');
+      if(data.keptAlive)invariant(false,'already-cached-sliver-child','An active child cannot already be cached');const index=this.indexOf(child);
+      if((this._keepAliveBucket.has(index)))invariant(false,'duplicate-cached-sliver-index','A keep-alive index is already occupied');
       const position=this.activeChildren.indexOf(child);this.activeChildren.splice(position,1);this.syncSiblingsAt(position);data.previousSibling=null;data.nextSibling=null;data._keptAlive=true;this._keepAliveBucket.set(index,child);
     }else{this.childManager.removeChild(child);if(!(child.parent===undefined))invariant(false,'sliver-child-not-removed','Child manager must actually remove the retired child');}
   }

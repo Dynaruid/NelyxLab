@@ -53,6 +53,7 @@ test('current Web Testbed visits every Material and Cupertino catalog declaratio
   assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);console.log(JSON.stringify({scope:'current-Web-Testbed-catalog',visited,physicalInput:'notVerified',displayed:'unobserved'}));
  }catch(error){const labels=page?await page.locator('[aria-label]').evaluateAll(elements=>elements.map(element=>({role:element.getAttribute('role')??element.tagName,name:element.getAttribute('aria-label')}))).catch(()=>null):null;throw new AggregateError([error,new Error(JSON.stringify({visited,errors,consoleErrors,labels}))],'Web catalog validation failed');}
  finally{
+  // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
   const failures=[];for(const cleanup of [()=>context?.close(),()=>browser?.close(),()=>server?.listening?new Promise(resolve=>server.close(resolve)):undefined,()=>{assert.equal(path.dirname(temporary),path.resolve(os.tmpdir()));assert(path.basename(temporary).startsWith('nelyx-web-catalog-')&&!fs.lstatSync(temporary).isSymbolicLink());fs.rmSync(temporary,{recursive:true,force:true,maxRetries:3,retryDelay:100});}])try{await cleanup();}catch(error){failures.push(error);}if(failures.length)throw new AggregateError(failures,'Web catalog cleanup failed');
  }
 });

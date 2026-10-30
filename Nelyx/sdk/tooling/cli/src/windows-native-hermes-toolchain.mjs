@@ -33,6 +33,7 @@ export async function prepareNativeHermes({directory,signal}={}){
   patchSource(source);
   const check=fs.mkdtempSync(path.join(directory,'.source-check-'));let sourceTreeSha256;
   try{await execute('tar.exe',['-xzf',archive,'-C',check,'--strip-components=1'],{env,signal,timeout});patchSource(check);sourceTreeSha256=sourceTree(check);if(sourceTree(source)!==sourceTreeSha256)throw Error('Native Hermes source differs from the pinned archive and current patches');}
+  // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
   finally{if(path.dirname(check)!==directory||!path.basename(check).startsWith('.source-check-')||fs.lstatSync(check).isSymbolicLink())throw Error('Unexpected Hermes source-check owner');fs.rmSync(check,{recursive:true,force:true});}
   const clang=path.join(process.env.ProgramFiles,'LLVM/bin/clang-cl.exe');
   await execute('cmake',['-S',source,'-B',build,'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',`-DCMAKE_C_COMPILER=${clang}`,`-DCMAKE_CXX_COMPILER=${clang}`,'-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL','-DHERMES_ENABLE_DEBUGGER=OFF','-DHERMES_ENABLE_TEST_SUITE=OFF','-DHERMES_ENABLE_CORE_EXTENSIONS=ON','-DHERMESVM_HEAP_HV_MODE=HEAP_HV_64','-DHERMESVM_ALLOW_JIT=0','-DHERMESVM_INTERNAL_JAVASCRIPT_NATIVE=ON','-DSHERMES_CC=clang'],{env,signal,timeout});

@@ -13,7 +13,7 @@ import type {Disposable} from '@nelyx/core/foundation/disposable';
 import type {PaintFrame,RendererCapabilities,RendererNotification,SubmitResult,ViewMetrics,ViewOwner,TextLayoutInput,TextLayout,TextLayoutService,ResourceId,TextLayoutRequest,TextBoxQuery,TextBoxGeometry} from '@nelyx/core/ui/types';
 import {isCurrent,resourceKey} from '@nelyx/core/ui/frame';
 import {RendererEvents} from '@nelyx/core/hosting/renderer-events';
-import {freezeTextInput,freezeTextLayout,freezeTextRect,textRange,textLimits} from '@nelyx/core/ui/text';
+import { freezeTextInput, freezeTextLayout, freezeTextRect, textRange } from '@nelyx/core/ui/text';
 import type {PaintSnapshot,BlendMode} from '@nelyx/core/ui/paint';
 import {Paint as UiPaint} from '@nelyx/core/ui/paint';
 import type {TextRunStyle} from '@nelyx/core/ui/text-styles';

@@ -37,7 +37,7 @@ test('full catalog qualification requires every product section on cold and revi
   f.extra[i]='ANIMATION_WHEEL_SEND '+JSON.stringify({...JSON.parse(f.extra[i].slice('ANIMATION_WHEEL_SEND '.length)),mode:'os-stream',count:300,requestedMs:p.requestedIntervalMs});
  }return f;}
  const f=fullFixture();assert.doesNotThrow(()=>continuousScrollResult(f.output(),fullOptions));
- for(const change of [f=>f.phases[4].coverage.seenIds.pop(),f=>f.phases[5].coverage.seenIds.pop(),f=>f.phases[4].coverage.reachedEdge=false,f=>f.phases[4].requestedCount=8193,f=>f.phases[1].createdElements--,f=>f.phases[1].itemCreateBuildFirstLayout.n=0,f=>{for(const p of f.phases.filter(p=>p.name.startsWith('material-0')))p.coverage.expectedIds.pop(),p.coverage.seenIds.pop();}]){
+ for(const change of [f=>f.phases[4].coverage.seenIds.pop(),f=>f.phases[5].coverage.seenIds.pop(),f=>f.phases[4].coverage.reachedEdge=false,f=>f.phases[4].requestedCount=8193,f=>f.phases[1].createdElements--,f=>f.phases[1].itemCreateBuildFirstLayout.n=0,f=>{for(const p of f.phases.filter(p=>p.name.startsWith('material-0')))void (p.coverage.expectedIds.pop(),p.coverage.seenIds.pop());}]){
   const broken=fullFixture();change(broken);assert.throws(()=>continuousScrollResult(broken.output(),fullOptions));
  }
  f.phases[6].coverage.seenIds=[];assert.doesNotThrow(()=>continuousScrollResult(f.output(),fullOptions),'Fast phase may skip painted sections while preserving delivery');

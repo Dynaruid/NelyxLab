@@ -413,7 +413,7 @@ export class SemanticsUpdateBuilder {
   private readonly nodes=new Map<number,SemanticsNodeUpdate>();
   private readonly customActions=new Map<number,CustomSemanticsActionUpdate>();
   private built=false;
-  private ensureOpen():void{if(!(!this.built))invariant(false,'used-semantics-builder','SemanticsUpdateBuilder cannot be used after build');}
+  private ensureOpen():void{if(this.built)invariant(false,'used-semantics-builder','SemanticsUpdateBuilder cannot be used after build');}
   updateNode(options:SemanticsNodeUpdateOptions):void{
     this.ensureOpen();
     const {headingLevel=0,linkUrl='',role=SemanticsRole.none,validationResult=SemanticsValidationResult.none,hitTestBehavior=SemanticsHitTestBehavior.defer}=options;

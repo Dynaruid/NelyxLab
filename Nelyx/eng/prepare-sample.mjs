@@ -47,6 +47,7 @@ console.log({...supplyRunner({app,target,packages,extra,reuseCurrent:!!selected}
 }
 } finally {
   const owned=path.resolve(packages);
+  // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
   if(path.dirname(owned)!==cache||!path.basename(owned).startsWith('supply-')||fs.lstatSync(owned).isSymbolicLink())throw new Error('Unexpected package temporary directory owner');
   fs.rmSync(owned,{recursive:true,force:true});
 }

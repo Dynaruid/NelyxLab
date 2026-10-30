@@ -6,7 +6,6 @@ import type {Offset} from '@nelyx/core/ui/geometry';
 import type {SkCanvas} from "./skia/types/Drawing.ts";
 import type {SkGraphiteContext} from './skia/types/Graphite.ts';
 import type {SkImage,SkPicture} from "./skia/types/Drawing.ts";
-import type {SkParagraph} from './skia/types/Paragraph/Paragraph.ts';
 import type {Skia} from './skia/types/Skia.ts';
 import { isCurrent, resourceKey } from '@nelyx/core/ui/frame';
 import type { PaintFrame, RendererCapabilities, RendererNotification, SubmitResult, ViewMetrics, ViewOwner } from '@nelyx/core/ui/types';

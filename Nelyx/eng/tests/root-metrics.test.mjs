@@ -31,7 +31,7 @@ test('scrollbar host padding ignores size and keyboard churn and still observes 
 
 test('a rejected recording or geometry notification never publishes its candidate semantics',{timeout},()=>{
  for(const failure of ['save','getter','close','geometry-throw','geometry-close']){
-  const f=fixture(),published=[],paint=f.root.recordPaint;let painting,source,retirements=0;
+  const f=fixture(),published=[],paint=f.root.recordPaint;let painting,retirements=0;
   const publish=nodes=>published.push(nodes);
   f.root.context.semantics={capability:'native-controls',bind(nodes){publish(nodes);return {update:publish,dispose(){retirements++;}};}};
   try{
@@ -45,7 +45,7 @@ test('a rejected recording or geometry notification never publishes its candidat
    else change();
    assert.equal(published.length,1,failure+' must leave the last published immutable host snapshot intact');
    if(!failure.endsWith('close'))assert.equal(f.root.nodes,previous,'Root exposes only its successful semantics commit');
-  }finally{if(source)releaseSceneFrameSource(source);f.close();}
+  }finally{f.close();}
   assert.equal(retirements,1,'The one successful host binding retires once');
  }
 });

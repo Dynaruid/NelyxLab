@@ -10,6 +10,7 @@ test('source Matrix4 products preserve IEEE lanes, self aliasing and private bor
   const values=[matrix4FromAffine([1,0,0,1,11,-13]),[-0,0,1,0,0,-0,0,1,1,0,-0,0,0,1,0,-0],[1e150,1e-150,0,.002,-3,4,0,.003,0,0,1,0,-20,10,0,1],Array.from({length:16},(_,i)=>i===0?Infinity:i===5?NaN:i-8)];
   for(const input of values){
     const borrowed=Float64Array.from(input),actual=new PrivateMatrix(borrowed),expected=Matrix4.fromList(input);expected.leftMultiply(Matrix4.fromList(input));actual.multiply(actual);assert.deepEqual([...borrowed],[...expected.storage]);
+    // oxlint-disable-next-line unicorn/no-useless-spread -- Convert typed views to ordinary arrays for strict value comparisons.
     borrowed.set(input);const right=Matrix4.fromList([1,0,0,0,0,1,0,0,0,0,1,0,.25,-.5,2,1]);right.leftMultiply(Matrix4.fromList(input));actual.translateByDouble(.25,-.5,2,1);assert.deepEqual([...borrowed.slice(0,12)],input.slice(0,12));assert.deepEqual([...borrowed.slice(12)],[...right.storage.slice(12)]);
   }
 });

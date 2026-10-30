@@ -17,6 +17,7 @@ export function readShaderAsset(packageRoot, importer, specifier) {
   if (!inside(real, shaders)) throw new Error('SkSL cannot link outside package assets/shaders: ' + asset);
   const source = fs.readFileSync(real, 'utf8');
   // Match Core RuntimeShader's source transport limits before publishing a package.
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   if (!source.trim() || source.length > 16384 || !/^[\x09\x0a\x0d\x20-\x7e]+$/.test(source))
     throw new Error('SkSL must contain at most 16384 ASCII characters: ' + asset);
   return {asset, source};

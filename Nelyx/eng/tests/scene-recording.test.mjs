@@ -27,7 +27,7 @@ test('native retained layers reuse one complete recording while parent motion an
 
 test('failed native retained capture rolls back the output and permits a fresh owner retry',{timeout},()=>{
   const resources=new ResourceRegistry(),compiled=[];let reject=false;
-  const owner=new FramePictureService(resources,{compile(capture,descriptor){if(reject){reject=false;throw Error('retained compile failed');}compiled.push(capture.frame);return {bytes:128,retire(){}};}},{id:'retry-owner',generation:1});
+  const owner=new FramePictureService(resources,{compile(capture,_descriptor){if(reject){reject=false;throw Error('retained compile failed');}compiled.push(capture.frame);return {bytes:128,retire(){}};}},{id:'retry-owner',generation:1});
   const picture=leaf(),first=new SceneBuilder(owner),output=new Canvas();let layer;
   try{
     layer=first.pushOffset(4,6);first.addPicture({x:0,y:0},picture);first._buildInto(output);output.rollback(0);output.rect({x:0,y:0,width:2,height:2},0xff123456);const before=[...output.commands];

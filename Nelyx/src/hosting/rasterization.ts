@@ -43,8 +43,10 @@ export class RasterizationService implements PictureRasterizer {
   retryDispose():Promise<void>{if(this.closingActive||this.disposed)return this.closing!;if(!this.retryDrain)return Promise.reject(new Error('Raster drain has no explicit recovery'));return this.startClose();}
   private startClose():Promise<void>{let resolve!:()=>void,reject!:(error:unknown)=>void;this.closing=new Promise<void>((done,fail)=>{resolve=done;reject=fail;});this.closingActive=true;void Promise.resolve().then(()=>this.close()).then(()=>{this.closingActive=false;resolve();},error=>{this.closingActive=false;reject(error);});return this.closing;}
   private async close():Promise<void>{
+    // oxlint-disable-next-line unicorn/no-useless-spread -- Snapshot pending work before Promise assimilation can trigger reentrant collection mutations.
     await Promise.allSettled([...this.jobs]);
-    for(const item of [...this.uncertain]){
+    const snapshot=[...this.uncertain];
+    for(const item of snapshot){
       const drain=this.retryDrain??item.error.drain;this.retryDrain=undefined;
       try{await drain();}catch(error){if(item.error.recovery?.canRetry()){this.retryDrain=item.error.recovery.retry;throw new PendingDisposalError([...item.error.errors,error],()=>this.retryDispose());}throw error;}
       // Input release is attempted once even when retirement callbacks throw.

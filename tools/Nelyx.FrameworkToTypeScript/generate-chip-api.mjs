@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule } from './product-module-layout.mjs';
 // Finite resolved public-field/constructor projection; State/render/default bodies are functional ports.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-chips-candidate/result.json',candidate=read(candidateFile);assert.equal(sha(candidate.ir.file),candidate.ir.sha256);const ir=read(candidate.ir.file),check=process.argv.includes('--check'),outputs=[];

@@ -62,6 +62,7 @@ const themedFields=Object.freeze([
     'suffixStyle','suffixIconColor','suffixIconConstraints','counterStyle','filled','fillColor','focusColor','hoverColor',
     'errorBorder','focusedBorder','focusedErrorBorder','disabledBorder','enabledBorder','border','alignLabelWithHint','constraints','visualDensity',
 ] as const);
+// oxlint-disable-next-line typescript/no-unsafe-declaration-merging -- The constructor explicitly initializes the interface fields through validated property assignment.
 export interface InputDecoration extends Readonly<DecorationValues> {}
 /** Immutable decoration specification. Widget and text forms of the same slot are exclusive. */
 export class InputDecoration extends Diagnosticable(class {}) {

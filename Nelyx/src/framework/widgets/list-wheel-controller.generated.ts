@@ -6,7 +6,6 @@ import { castWheelPositions } from "./list-wheel-controller-adapter.ts";
 import { waitForWheelMotions } from "./list-wheel-controller-adapter.ts";
 import { createWheelPosition } from "./list-wheel-controller-adapter.ts";
 import { castWheelPosition } from "./list-wheel-physics-adapter.ts";
-import { isWheelPosition } from "./list-wheel-physics-adapter.ts";
 import { FoundationBuildMode } from "../../foundation/constants.ts";
 import { invariant } from "../../foundation/errors.ts";
 import { checkedInteger } from "../../ui/value-math.ts";

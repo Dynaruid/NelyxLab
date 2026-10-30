@@ -1,4 +1,4 @@
-import type { Clock, FrameClock } from '../foundation/clock.ts';
+import type { FrameClock } from '../foundation/clock.ts';
 import type { Disposable } from '../foundation/disposable.ts';
 import type { AssetRef } from '../foundation/assets.ts';
 import type { Renderer, ViewRuntime,ViewInputObservation } from './runtime.ts';

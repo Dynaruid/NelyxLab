@@ -8,7 +8,7 @@ import {Navigator,NavigatorController,Route,PopScope} from '@nelyx/core/framewor
 import {DualTransitionBuilder} from '@nelyx/core/framework/widgets/dual-transition-builder';
 import {PageTransitionsBuilder,FadeUpwardsPageTransitionsBuilder,OpenUpwardsPageTransitionsBuilder} from '@nelyx/core/framework/widgets/page-transitions-builder';
 import {State,StatefulWidget} from '@nelyx/core/framework/widgets/framework';
-import {SizedBox,ColoredBox,Center,Builder} from '@nelyx/core/framework/widgets/basic';
+import { SizedBox, ColoredBox, Center } from '@nelyx/core/framework/widgets/basic';
 import {Directionality} from '@nelyx/core/framework/widgets/app-data';
 import {Color} from '@nelyx/core/ui/color';
 import {Focus} from '@nelyx/core/framework/widgets/focus-scope';
@@ -26,7 +26,7 @@ const source=JSON.parse(fs.readFileSync(new URL('./fixtures/route-primitives-sou
 class ManualAnimation extends Animation {
  values=new Set();statuses=new Set();value=0;status=AnimationStatus.dismissed;
  addListener(l){this.values.add(l);}removeListener(l){this.values.delete(l);}addStatusListener(l){this.statuses.add(l);}removeStatusListener(l){this.statuses.delete(l);}
- set(value,status){this.value=value;const old=this.status;this.status=status;if(old!==status)for(const l of [...this.statuses])l(status);for(const l of [...this.values])l();}
+ set(value,status){this.value=value;const old=this.status;this.status=status;if(old!==status){const snapshot=[...this.statuses];for(const l of snapshot)l(status);}const snapshot1=[...this.values];for(const l of snapshot1)l();}
 }
 function probe(label,counts,color=0xff00ff00){return new(class extends StatefulWidget{createState(){counts.created[label]=(counts.created[label]??0)+1;return new(class extends State{build(){return new ColoredBox({color,child:SizedBox.expand()});}dispose(){counts.disposed[label]=(counts.disposed[label]??0)+1;super.dispose();}})();}})();}
 const counts=()=>({created:{},disposed:{}}),settle=async(f,ms=400)=>{f.advance(1);f.advance(ms);await flush();f.frame();};

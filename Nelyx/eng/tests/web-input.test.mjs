@@ -166,6 +166,7 @@ try {
     assert.equal(path.dirname(temp),path.resolve(os.tmpdir()));assert(path.basename(temp).startsWith('nelyx-w13-browser-'));
     fs.rmSync(temp,{recursive:true,force:true,maxRetries:3,retryDelay:100});
   }])try{await cleanup();}catch(error){cleanupErrors.push(error);}
+  // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
   if(cleanupErrors.length)throw new AggregateError(cleanupErrors,'Web input test retirement failed');
 }
 });

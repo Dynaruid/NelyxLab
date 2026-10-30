@@ -37,7 +37,7 @@ export class PluginPlatformMessagePort implements PlatformMessagePort {
   }
   own(owner:Disposable):void{if(this.gated)throw new Error('Plugin port is closing');this.owners.add(owner);}
   onStop(callback:()=>void):void{if(this.attached||this.gated)throw new Error('Stop callbacks must register before attach');this.stopCallbacks.add(callback);}
-  stop():void{if(this.gated)return;this.gated=true;this.receiver=undefined;this.abort.abort();for(const callback of this.stopCallbacks)try{callback();}catch(error){this.stopErrors.push(error);}this.stopCallbacks.clear();for(const finish of [...this.incoming])finish(null);}
+  stop():void{if(this.gated)return;this.gated=true;this.receiver=undefined;this.abort.abort();for(const callback of this.stopCallbacks)try{callback();}catch(error){this.stopErrors.push(error);}this.stopCallbacks.clear();const snapshot=[...this.incoming];for(const finish of snapshot)finish(null);}
   onListening(callback:(channel:string,listening:boolean)=>void):void{if(this.attached||this.gated)throw new Error('Listener observers must register before attach');this.observers.add(callback);}
   attach(receiver:PlatformMessageReceiver):Disposable {
     if(this.attached||this.gated)throw new Error('Plugin port can attach only once');this.attached=true;this.receiver=receiver;
@@ -100,6 +100,7 @@ export class PluginPlatformMessagePort implements PlatformMessagePort {
     for(const channel of this.listening)for(const observer of this.observers)try{observer(channel,false);}catch(error){errors.push(error);}
     this.listening.clear();
     // Admitted handlers may still use owned services until their replies finish.
+    // oxlint-disable-next-line unicorn/no-useless-spread -- Snapshot pending work before Promise assimilation can trigger reentrant collection mutations.
     await Promise.all([...this.pending]);
     this.shutdown=new DisposalSequence([
       ...[...this.owners].map((owner,index)=>({name:'plugin-owner-'+index,run:async()=>{try{await owner.dispose();this.owners.delete(owner);}catch(error){if(error instanceof PendingDisposalError)throw new PendingDisposalError([...errors,error],async()=>{await error.retry();this.owners.delete(owner);});errors.push(error);}}})),

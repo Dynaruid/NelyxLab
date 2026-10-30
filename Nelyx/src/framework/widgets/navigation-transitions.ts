@@ -118,10 +118,11 @@ export class NavigationTransitions {
     private release(token:symbol):void{
         this.exiting.delete(token);this.pages.delete(token);this.adjacencies.delete(token);this.pendingRetirements.delete(token);const motion=this.motions.get(token);if(!motion)return;this.motions.delete(token);
         const errors:unknown[]=[];
-        for(const listener of [...motion.retirementListeners])try{listener();}catch(error){errors.push(error);}motion.retirementListeners.clear();
+        const snapshot=[...motion.retirementListeners];
+        for(const listener of snapshot)try{listener();}catch(error){errors.push(error);}motion.retirementListeners.clear();
         for(const other of this.motions.values())if(other.secondaryTarget===token)try{other.secondary.parent=kAlwaysDismissedAnimation;other.secondaryTarget=null;const remove=other.removeTrainHopping;other.removeTrainHopping=null;remove?.();}catch(error){errors.push(error);}
         for(const cleanup of [()=>motion.primary.removeStatusListener(motion.changed),()=>{motion.secondary.parent=null;},()=>{const remove=motion.removeTrainHopping;motion.removeTrainHopping=null;remove?.();},()=>motion.policy.detach(),()=>motion.primary.dispose()])try{cleanup();}catch(error){errors.push(error);}
         if(errors.length)throw new AggregateError(errors,'Route transition retirement failed');
     }
-    dispose():void{if(this.closed)return;this.closed=true;const errors:unknown[]=[];for(const token of [...this.motions.keys()])try{this.release(token);}catch(error){errors.push(error);}this.live=[];this.rendered=[];this.pages.clear();this.adjacencies.clear();this.pendingRetirements.clear();if(errors.length)throw new AggregateError(errors,'Navigator transition teardown failed');}
+    dispose():void{if(this.closed)return;this.closed=true;const errors:unknown[]=[];const snapshot1=[...this.motions.keys()];for(const token of snapshot1)try{this.release(token);}catch(error){errors.push(error);}this.live=[];this.rendered=[];this.pages.clear();this.adjacencies.clear();this.pendingRetirements.clear();if(errors.length)throw new AggregateError(errors,'Navigator transition teardown failed');}
 }

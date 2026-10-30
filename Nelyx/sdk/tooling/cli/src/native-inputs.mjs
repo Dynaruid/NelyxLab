@@ -29,6 +29,7 @@ export function prepareWindowsInputs({app,runner,input}){
     try{
       for(const record of verified.manifest.files){const target=path.join(stage,record.file);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(localFile(verified.root,record.file),target);}
       fs.copyFileSync(verified.input,path.join(stage,'inputs.json'));verifyWindowsInputs({runner,input:path.join(stage,'inputs.json')});fs.renameSync(stage,destination);
+    // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
     }finally{if(fs.existsSync(stage)){if(path.dirname(stage)!==base||!path.basename(stage).startsWith('.prepare-')||fs.lstatSync(stage).isSymbolicLink())throw Error('Native input temporary owner differs');fs.rmSync(stage,{recursive:true,force:true});}}
   }
   const prepared=verifyWindowsInputs({runner,input:path.join(destination,'inputs.json')});

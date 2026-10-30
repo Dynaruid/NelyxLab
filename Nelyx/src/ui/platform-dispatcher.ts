@@ -129,7 +129,8 @@ export class PlatformDispatcher {
     this.accessibilityObservers.add(observer);return ()=>{this.accessibilityObservers.delete(observer);};
   }
   private notifyAccessibility(invoke:(observer:PlatformAccessibilityObserver)=>void):void {
-    for(const observer of [...this.accessibilityObservers])if(this.active&&this.viewsOpen&&this.accessibilityObservers.has(observer))
+    const snapshot=[...this.accessibilityObservers];
+    for(const observer of snapshot)if(this.active&&this.viewsOpen&&this.accessibilityObservers.has(observer))
       try{invoke(observer);}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'platform accessibility'}));}
   }
   setSemanticsTreeEnabled(enabled:boolean):void{this.checkActive();if(typeof enabled!=='boolean')throw new TypeError('Expected semantics tree enabled boolean');this.host.setSemanticsTreeEnabled?.(enabled);}

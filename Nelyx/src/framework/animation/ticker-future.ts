@@ -23,6 +23,7 @@ export class TickerFuture implements PromiseLike<void> {
     return this.secondary.promise;
   }
   whenCompleteOrCancel(callback:()=>void|PromiseLike<void>):Promise<void>{return this.orCancel.then(callback,callback);}
+  // oxlint-disable-next-line unicorn/no-thenable -- TickerFuture deliberately implements the PromiseLike protocol.
   then<T=void,E=never>(fulfilled?:((value:void)=>T|PromiseLike<T>)|null,rejected?:((reason:unknown)=>E|PromiseLike<E>)|null):Promise<T|E>{return this.primary.then(fulfilled,rejected);}
   catch<T=never>(rejected:(reason:unknown)=>T|PromiseLike<T>):Promise<void|T>{return this.primary.catch(rejected);}
   finally(callback:()=>void):Promise<void>{return this.primary.finally(callback);}

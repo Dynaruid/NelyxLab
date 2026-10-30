@@ -15,7 +15,7 @@ const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;})
 async function until(predicate){for(let attempt=0;attempt<20&&!predicate();attempt++)await turn();assert(predicate(),'Expected the actual Core/native adapter transaction to settle');}
 function nativeModule(){
   const listeners=new Set(),clients=new Map(),calls=[];let disconnecting;
-  const emit=(client,value)=>{for(const listener of [...listeners])listener({service:11,client,type:'editing',value});};
+  const emit=(client,value)=>{const snapshot=[...listeners];for(const listener of snapshot)listener({service:11,client,type:'editing',value});};
   const publish=(id,source='native',request)=>{const client=clients.get(id);emit(id,{...client,source,...(request===undefined?{}:{request}),composingStart:-1,composingEnd:-1});};
   return {calls,listeners,clients,emit,set disconnecting(value){disconnecting=value;},
     events:{addListener(name,listener){assert.equal(name,'nelyxWindowsInput');listeners.add(listener);return {remove(){listeners.delete(listener);}};}},

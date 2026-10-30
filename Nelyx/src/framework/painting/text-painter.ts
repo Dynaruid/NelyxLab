@@ -86,7 +86,7 @@ export class TextPainter {
     if(value.font.id===previous.font.id&&value.font.generation===previous.font.generation&&value.scale===previous.scale&&String(value.locale)===String(previous.locale)&&value.color===previous.color&&value.transient===previous.transient)return;
     const errors:unknown[]=[];try{this.clearTemplate();}catch(error){errors.push(error);}try{this.markNeedsLayout();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'TextPainter context retirement failed');this.context=Object.freeze({...value,font:copyResourceId(value.font)});
   }
-  private live():void{if(!(!this.dead))invariant(false,'disposed-text-painter','Cannot use a disposed TextPainter');}
+  private live():void{if(this.dead)invariant(false,'disposed-text-painter','Cannot use a disposed TextPainter');}
   static computeWidth(options:TextPainterWidthOptions,context?:ParagraphContext|null):number{return TextPainter.compute(options,context,false);}
   static computeMaxIntrinsicWidth(options:TextPainterWidthOptions,context?:ParagraphContext|null):number{return TextPainter.compute(options,context,true);}
   private static compute(options:TextPainterWidthOptions,context:ParagraphContext|null|undefined,intrinsic:boolean):number{
@@ -151,12 +151,12 @@ export class TextPainter {
   get debugDisposed():boolean{if(!(FoundationBuildMode.debug))invariant(false,'debug-only','TextPainter.debugDisposed is only available when asserts are enabled');return this.dead;}
   static isHighSurrogate(value:number):boolean{if(FoundationBuildMode.debug){if(!(value>=0&&value<=0xfffff))invariant(false,'invalid-utf16','Value must be a UTF16 code unit');}return (value&0xfc00)===0xd800;}
   static isLowSurrogate(value:number):boolean{if(FoundationBuildMode.debug){if(!(value>=0&&value<=0xfffff))invariant(false,'invalid-utf16','Value must be a UTF16 code unit');}return (value&0xfc00)===0xdc00;}
-  private assertReflowed():void{if(FoundationBuildMode.debug){if(!(!this.needsRelayout))invariant(false,'text-needs-relayout','Call layout after changing textWidthBasis');}}
+  private assertReflowed():void{if(FoundationBuildMode.debug){if(this.needsRelayout)invariant(false,'text-needs-relayout','Call layout after changing textWidthBasis');}}
   /** @internal Validate before render-object equality shortcuts as well as caches. */
   validateResources(input:Pick<TextLayoutInput,'font'|'style'|'runs'>):void{for(const resource of [input.font,...textPaintResources(input)]){if(!(this.resources.has(resource)))invariant(false,'stale-resource','Text input contains a foreign or retired font/paint image');}}
   layout(options:TextPainterLayoutOptions={}):void{this.layoutInline(options);}
   private laidOut():TextLayout{this.live();if(!(this.current&&this.resources.hasInitialProducer(this.current.resource)))invariant(false,'text-not-laid-out','TextPainter requires a current live layout');return this.current;}
-  get width():number{const layout=this.laidOut();if(FoundationBuildMode.debug){if(!(!this.needsRelayout))invariant(false,'text-needs-relayout','Call layout after changing textWidthBasis');}return this.cache!.contentWidth;}
+  get width():number{this.laidOut();if(FoundationBuildMode.debug){if(this.needsRelayout)invariant(false,'text-needs-relayout','Call layout after changing textWidthBasis');}return this.cache!.contentWidth;}
   get height():number{return this.laidOut().height;}
   get minIntrinsicWidth():number{return this.laidOut().minIntrinsicWidth;}
   get maxIntrinsicWidth():number{return this.laidOut().maxIntrinsicWidth;}

@@ -274,7 +274,9 @@ export class ViewRuntime implements Disposable {
     }catch(error){failed=true;failure=error;}finally{
       try{releaseFrameResources(frame.resources);}catch(error){(cleanupErrors??=[]).push(error);}
       try{lease?.returnBy('caller');}catch(error){(cleanupErrors??=[]).push(error);}
+      // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
       if(cleanupErrors){if(failed)cleanupErrors.unshift(failure);if(cleanupErrors.length===1)throw cleanupErrors[0];throw new AggregateError(cleanupErrors,'Frame replacement and retirement failed');}
+      // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
       if(failed)throw failure;
     }
     }finally{releaseSceneFrameSource(commands);}
@@ -297,6 +299,7 @@ export class ViewRuntime implements Disposable {
 
     return result;
     }catch(error){failed=true;failure=error;throw error;}
+    // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
     finally{try{if(caller)item.lease.returnBy('caller');}catch(error){if(failed)throw new AggregateError([failure,error],'Frame admission and retirement failed');throw error;}finally{this.submitting=undefined;const finished=this.submissionFinished;this.submissionFinished=undefined;finished?.();}}
   }
   private schedulePump(): void {

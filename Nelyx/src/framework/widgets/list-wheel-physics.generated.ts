@@ -6,7 +6,7 @@ import { FoundationBuildMode } from "../../foundation/constants.ts";
 import { invariant } from "../../foundation/errors.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
 import { roundInteger } from "../../ui/value-math.ts";
-import { SpringSimulation } from "../physics/spring-simulation.ts";
+import "../physics/spring-simulation.ts";
 import { FrictionSimulation } from "../physics/friction-simulation.ts";
 import { isWheelPosition } from "./list-wheel-physics-adapter.ts";
 import { castWheelPosition } from "./list-wheel-physics-adapter.ts";

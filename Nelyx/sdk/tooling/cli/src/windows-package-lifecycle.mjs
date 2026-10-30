@@ -60,8 +60,10 @@ export function publishWindowsPackage({app,appName,directory,prepare,verify,repl
       }
     }finally{
       // A failed restore must leave the old package available for recovery.
+      // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
       if(!committed&&backedUp)throw Error('Windows package restore failed; previous package preserved at '+previous);
       try{directDirectory(parent,work);fs.rmSync(work,{recursive:true});}
+      // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
       catch(error){if(!committed)throw error;cleanup.retained.push({directory:work,reason:String(error.message??error)});}
     }
   }

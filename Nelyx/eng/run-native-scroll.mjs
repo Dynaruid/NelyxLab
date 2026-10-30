@@ -135,6 +135,7 @@ export async function runNativeScroll(options){
     return results.length===1?results[0]:results;
   }finally{
     clearTimeout(deadline);process.off('SIGINT',interrupted);process.off('SIGTERM',interrupted);if(abortStop)controller.signal.removeEventListener('abort',abortStop);if(running)await running.stop();
+    // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
     if(path.dirname(temporary)!==parent||!path.basename(temporary).startsWith('.scroll-fixture-')||fs.lstatSync(temporary).isSymbolicLink())throw Error('Native diagnostic cleanup escaped its owned directory');
     fs.rmSync(temporary,{recursive:true,force:true,maxRetries:5,retryDelay:100});
   }

@@ -279,8 +279,11 @@ export class FrameworkRoot implements ViewController {
       if(failed||captureFailed||semanticsFailed||errors.length||!this.isViewOpen()||this.scheduler.disposed||!currentScope){this.cancelSemanticsWake();this.pendingSemanticsActions=[];this.semanticsCache=undefined;this.semanticsDeferred=false;this.sourceSemanticsSnapshot?.invalidate();}
       // A failed notification cannot strand an already sealed frame's leases.
       if(failed||captureFailed||semanticsFailed||errors.length||!this.isViewOpen()||this.scheduler.disposed)try{if(recording)recording.dispose();else if(!captureAttempted)painting?.dispose();}catch(error){errors.push(error);}
+      // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
       if(errors.length){if(semanticsFailed)errors.unshift(semanticsError);if(captureFailed)errors.unshift(captureError);if(failed)errors.unshift(buildError);throw new AggregateError(errors,'Frame build/finalization failed');}
+      // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
       if(semanticsFailed)throw semanticsError;
+      // oxlint-disable-next-line no-unsafe-finally -- Retirement and finalization failures must propagate, including while unwinding a frame or test.
       if(captureFailed)throw captureError;
     }
     return !this.isViewOpen()||this.scheduler.disposed?[]:recording??[];

@@ -175,7 +175,7 @@ export class SourceStretchOverscrollEffectState extends StretchStateHost<SourceS
         this._dart_68e9b32ef498cec4_fragmentShader = null;
     }
     override dispose(): void {
-        (this._dart_68e9b32ef498cec4_fragmentShader?.dispose() ?? null);
+        void ((this._dart_68e9b32ef498cec4_fragmentShader?.dispose() ?? null));
         super.dispose();
     }
     override initState(): void {
@@ -186,7 +186,7 @@ export class SourceStretchOverscrollEffectState extends StretchStateHost<SourceS
         const isShaderNeeded: boolean = Math.abs(this.widget.stretchStrength) > 1e-10;
         let imageFilter: ImageFilter;
         if (SourceStretchEffectShader._dart_68e9b32ef498cec4_initialized) {
-            (this._dart_68e9b32ef498cec4_fragmentShader?.dispose() ?? null);
+            void ((this._dart_68e9b32ef498cec4_fragmentShader?.dispose() ?? null));
             this._dart_68e9b32ef498cec4_fragmentShader = (() => {
                 const _dartTemporary0 = SourceStretchEffectShader._dart_68e9b32ef498cec4_program;
                 if (_dartTemporary0 === null)
@@ -241,7 +241,7 @@ export class SourceStretchOverscrollEffectState extends StretchStateHost<SourceS
             })());
         }
         else {
-            (this._dart_68e9b32ef498cec4_fragmentShader?.dispose() ?? null);
+            void ((this._dart_68e9b32ef498cec4_fragmentShader?.dispose() ?? null));
             this._dart_68e9b32ef498cec4_fragmentShader = null;
             imageFilter = SourceStretchOverscrollEffectState._dart_68e9b32ef498cec4_emptyFilter;
         }

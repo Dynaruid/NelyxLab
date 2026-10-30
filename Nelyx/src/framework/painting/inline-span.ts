@@ -2,7 +2,6 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 import type {TextStyle} from './text-style.ts';
 import type {TextScaler} from './text-scaler.ts';
-import type {PlaceholderSpan} from './placeholder-span.ts';
 import type {RenderComparison} from './basic-types.ts';
 import type {TextPosition} from '../../ui/text-position.ts';
 import {checkedInteger,protect} from '../../ui/value-math.ts';

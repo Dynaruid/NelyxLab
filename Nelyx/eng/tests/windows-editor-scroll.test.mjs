@@ -77,7 +77,7 @@ test('300ms accessibility motion throttling keeps every editor geometry current 
   const capture=f.root.sourceSemanticsSnapshot.capture.bind(f.root.sourceSemanticsSnapshot);
   f.root.sourceSemanticsSnapshot.capture=(...args)=>{captures++;return capture(...args);};
   f.root.context.requestFrameAt=(deadline,wake)=>{const entry={deadline,wake};deadlines.add(entry);return {dispose(){deadlines.delete(entry);}};};
-  const advance=ms=>{f.elapse(ms);for(const entry of [...deadlines])if(entry.deadline<=f.root.context.clock.now()){deadlines.delete(entry);entry.wake();}return f.frame();};
+  const advance=ms=>{f.elapse(ms);const snapshot1=[...deadlines];for(const entry of snapshot1)if(entry.deadline<=f.root.context.clock.now()){deadlines.delete(entry);entry.wake();}return f.frame();};
   const unsubscribe=interaction.subscribe(()=>publications++);
   try{
     f.set(new Directionality('ltr',new ListView({controller:scroll,children:[...controllers.map((controller,i)=>new EditableText('throttle-'+i,controller,'Editor '+i,undefined,24,null,{minHeight:0,maxLines:1})),new SizedBox(200,300)]})));

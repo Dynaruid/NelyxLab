@@ -61,6 +61,6 @@ export class DormantChildCache {
   }
   evictAt(owner:Element,index:number):void{const record=this.owners.get(owner)?.get(index);if(record)this.evict(record);}
   trimOwner(owner:Element,capacity=0):void{const errors:unknown[]=[];while((this.owners.get(owner)?.size??0)>capacity){const record=this.owners.get(owner)!.values().next().value!;try{this.evict(record);}catch(error){errors.push(error);}}if(errors.length)throw new AggregateError(errors,'Dormant owner retirement failed');}
-  trim():void{const errors:unknown[]=[];for(const record of [...this.records.values()])if(this.records.has(record.root))try{this.evict(record);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Dormant cache retirement failed');}
+  trim():void{const errors:unknown[]=[];const snapshot=[...this.records.values()];for(const record of snapshot)if(this.records.has(record.root))try{this.evict(record);}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Dormant cache retirement failed');}
   dispose():void{if(this.closed)return;this.closed=true;this.pressureLease.dispose();this.trim();}
 }

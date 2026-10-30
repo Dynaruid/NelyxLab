@@ -1584,7 +1584,6 @@ export interface Uniforms {
 const isVector = (obj: unknown): obj is Vector => {
   "worklet";
   // We have an issue to check property existence on JSI backed instances
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (obj as any).x !== undefined && (obj as any).y !== undefined;
 };
 

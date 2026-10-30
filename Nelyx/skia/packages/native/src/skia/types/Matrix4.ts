@@ -178,6 +178,7 @@ export const mapPoint3d = (m: Matrix4, v: Vec3) => {
  */
 export const multiply4 = (a: Matrix4, b: Matrix4): Matrix4 => {
   "worklet";
+  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
   const result = new Array(16).fill(0);
   for (let i = 0; i < 4; i++) {
     for (let j = 0; j < 4; j++) {
@@ -349,6 +350,7 @@ export const processTransform3d = (transforms: Transforms3d) => {
 export const convertToColumnMajor = (rowMajorMatrix: Matrix4) => {
   "worklet";
 
+  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
   const colMajorMatrix = new Array<number>(16);
   const size = 4;
   for (let row = 0; row < size; row++) {
@@ -365,6 +367,7 @@ export const convertToColumnMajor = (rowMajorMatrix: Matrix4) => {
 export const convertToColumnMajor3 = (rowMajorMatrix: Matrix3 | number[]) => {
   "worklet";
 
+  // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
   const colMajorMatrix = new Array<number>(9);
   const size = 3;
   for (let row = 0; row < size; row++) {

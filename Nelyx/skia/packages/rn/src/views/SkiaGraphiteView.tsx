@@ -1,6 +1,4 @@
 import React, { useImperativeHandle, useMemo, useRef } from "react";
-
-import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
 import {Platform} from '../Platform/Platform.ts';
 // Explicit source extensions select an exact Metro file. Choose desktop
 // Fabric metadata lazily so the common codegen spec is not evaluated.
@@ -10,10 +8,8 @@ const SkiaViewNativeComponent:typeof import('../specs/SkiaViewNativeComponent.ts
 
 import {SkiaViewApi} from './api.ts';
 import {androidNativeProps} from './android.ts';
-import type {SkiaGraphiteViewNativeProps} from './types.ts';
 import {SkiaViewNativeId} from './SkiaViewNativeId.ts';
-
-import type {SkiaGraphiteViewProps, SkiaGraphiteViewRef} from './graphite-types.ts';
+import type { SkiaGraphiteViewProps } from './graphite-types.ts';
 import type {AppleSurfaceStatus,LinuxSurfaceStatus,WindowsSurfaceStatus} from './types.ts';
 
 // The layout is known synchronously on the new architecture;

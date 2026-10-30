@@ -122,5 +122,6 @@ export async function prepareWindowsJsc({runner,output,signal,bridgeDirectory}){
     verifyWindowsJsc(stage);
     if(fs.existsSync(supplier)){if(fs.realpathSync(supplier)!==supplier||path.dirname(supplier)!==output)throw Error('JSC supplier owner differs');fs.rmSync(supplier,{recursive:true,force:true});}
     fs.renameSync(stage,supplier);return verifyWindowsJsc(supplier);
+  // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
   }finally{process.off('SIGINT',stop);process.off('SIGTERM',stop);if(path.dirname(fs.realpathSync(scratch))!==output||!path.basename(scratch).startsWith('build-'))throw Error('Unexpected JSC build directory owner');fs.rmSync(scratch,{recursive:true,force:true});}
 }

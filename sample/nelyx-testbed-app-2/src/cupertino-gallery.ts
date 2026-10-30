@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import {State, StatefulWidget} from '@nelyx/core/framework/widgets/framework';
 import type {BuildContext, Widget} from '@nelyx/core/framework/widgets/framework';
-import {Column, Row, Expanded, Padding, Text, SizedBox, DecoratedBox} from '@nelyx/core/framework/widgets/basic';
+import { Column, Row, Expanded, Padding, Text, DecoratedBox } from '@nelyx/core/framework/widgets/basic';
 import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
 import {ListenableBuilder} from '@nelyx/core/framework/widgets/listenable-builder';
 import {Wrap} from '@nelyx/core/framework/widgets/wrap';

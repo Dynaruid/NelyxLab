@@ -9,7 +9,7 @@ import {FoundationPlatform} from '@nelyx/core/foundation/platform';import {Found
 import {emptyWidgetStateSet} from '@nelyx/core/framework/widgets/widget-state';import {Color} from '@nelyx/core/ui/color';import {Size} from '@nelyx/core/ui/size';
 import {EdgeInsets,EdgeInsetsDirectional} from '@nelyx/core/framework/painting/edge-insets';import {Alignment,AlignmentDirectional} from '@nelyx/core/framework/painting/alignment';import {TextStyle} from '@nelyx/core/framework/painting/text-style';
 import {CircleBorder} from '@nelyx/core/framework/painting/circle-border';import {StadiumBorder} from '@nelyx/core/framework/painting/stadium-border';import {BorderSide} from '@nelyx/core/framework/painting/borders';import {SystemMouseCursors} from '@nelyx/core/services/mouse-cursor';
-import {Builder,Align,SizedBox,ColoredBox} from '@nelyx/core/framework/widgets/basic';import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';import {AppFocus} from '@nelyx/core/framework/widgets/app-focus';
+import { Builder, Align, SizedBox } from '@nelyx/core/framework/widgets/basic';import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';import {AppFocus} from '@nelyx/core/framework/widgets/app-focus';
 import {iconButtonDefaults} from '../dist/internal/button/icon-button-defaults.js';import {colorAll,colorProperty,doubleAll,doubleProperty,sizeAll,insetsAll,shapeAll,textAll,sideAll} from '../dist/internal/button/style-properties.js';
 import {engineFixture,assertParagraphOwnership} from './engine-fixture.mjs';
 const timeout=1_200_000;FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});

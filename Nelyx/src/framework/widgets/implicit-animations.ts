@@ -88,7 +88,7 @@ export abstract class ImplicitlyAnimatedWidgetState<W extends ImplicitlyAnimated
   }
   override didUpdateWidget(oldWidget:W):void {
     super.didUpdateWidget(oldWidget);
-    if(!valuesEqual(this.widget.curve,oldWidget.curve)){this.animation;this.curvedAnimation!.dispose();this.curvedAnimation=this.createCurve();}
+    if(!valuesEqual(this.widget.curve,oldWidget.curve)){void (this.animation);this.curvedAnimation!.dispose();this.curvedAnimation=this.createCurve();}
     this.controller.duration=this.widget.duration;
     if(this.constructTweens()){
       this.forEachTween((tween,targetValue)=>{if(tween!==null){tween.begin=tween.evaluate(this.animation);tween.end=targetValue;}return tween;});
@@ -105,7 +105,7 @@ export abstract class ImplicitlyAnimatedWidgetState<W extends ImplicitlyAnimated
   }
   protected abstract forEachTween(visitor:TweenVisitor):void;
   protected didUpdateTweens():void {}
-  override dispose():void{this.animation;this.curvedAnimation!.dispose();this.controller.dispose();super.dispose();}
+  override dispose():void{void (this.animation);this.curvedAnimation!.dispose();this.controller.dispose();super.dispose();}
 }
 export abstract class AnimatedWidgetBaseState<W extends ImplicitlyAnimatedWidget> extends ImplicitlyAnimatedWidgetState<W> {
   private readonly handleAnimationChanged=()=>this.setState(()=>{});

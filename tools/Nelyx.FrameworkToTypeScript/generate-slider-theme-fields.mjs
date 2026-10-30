@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule, moduleLayoutIdentity } from './product-module-layout.mjs';
 // A finite resolved-IR field projection, not a whole SliderThemeData body conversion.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';const writeCurrentOwnership=(file,value)=>fs.writeFileSync(file,JSON.stringify({...value,moduleLayout:moduleLayoutIdentity()},null,2)+'\n');
 const sha=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-slider-dependencies-candidate/result.json',candidate=JSON.parse(fs.readFileSync(candidateFile,'utf8')),irFile=candidate.ir.file;

@@ -8,7 +8,7 @@ import {InputDecorationTheme,InputDecorationThemeData} from '@nelyx/material/inp
 import {InputBorder,OutlineInputBorder} from '@nelyx/material/input-border';
 import {Theme} from '@nelyx/material/theme';
 import {ThemeData,VisualDensity} from '@nelyx/material/theme-data';
-import {FloatingLabelBehavior} from '@nelyx/material/floating-label-behavior';
+import '@nelyx/material/floating-label-behavior';
 import {WidgetState,WidgetStatesConstraint,WidgetStateTextStyle} from '@nelyx/core/framework/widgets/widget-state';
 import {WidgetStateTextStyle as CanonicalStateStyle} from '@nelyx/core/framework/widgets/widget-state-text-style';
 import {TextAlignVertical} from '@nelyx/core/framework/painting/text-align-vertical';
@@ -19,7 +19,7 @@ import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
 import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
 import {RenderBox} from '@nelyx/core/framework/rendering/object';
 import {LeafRenderObjectWidget,StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';
-import {Center,SizedBox,Builder,Text,ColoredBox} from '@nelyx/core/framework/widgets/basic';
+import { Center, SizedBox, Builder, Text } from '@nelyx/core/framework/widgets/basic';
 import {DefaultTextStyle} from '@nelyx/core/framework/widgets/default-text-style';
 import {MediaQuery,Directionality} from '@nelyx/core/framework/widgets/app-data';
 import {FoundationPlatform} from '@nelyx/core/foundation/platform';

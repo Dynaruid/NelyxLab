@@ -199,6 +199,7 @@ test('custom style serialization cannot collapse different native shaping inputs
 
 test('extra callback and opaque style metadata cannot outlive their logical paragraph through the cache', {timeout}, async () => {
   const f=await engineFixture({fonts:true}),registry=f.root.context.resources,layouts=[];
+  // oxlint-disable-next-line no-unused-private-class-members -- The opaque private allocation is retained to exercise paragraph lifetime and memory accounting.
   class Opaque{#body=new Uint8Array(1024);constructor(){Object.freeze(this);}}
   const input={text:'Owned data only',width:220,font:f.root.context.defaultFont,fontSize:16,locale:'en',direction:'ltr',scale:1};
   try{

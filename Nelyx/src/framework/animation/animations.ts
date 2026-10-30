@@ -92,7 +92,7 @@ export class TrainHoppingAnimation extends EagerAnimation {
   get value():number{return this.liveTrain.value;}
   private get liveTrain():Animation<number>{invariant(this.train!==null,'disposed-train-hopping-animation','TrainHoppingAnimation used after disposal');return this.train;}
   private readonly statusChangeHandler=(status:AnimationStatus):void=>{
-    this.liveTrain;
+    void (this.liveTrain);
     if(status!==this.lastStatus){this.notifyStatusListeners(status);this.lastStatus=status;}
   };
   private readonly valueChangeHandler=():void=>{

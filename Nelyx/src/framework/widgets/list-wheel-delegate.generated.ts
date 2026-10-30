@@ -2,7 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Generated from packages/flutter/lib/src/widgets/list_wheel_scroll_view.dart; SHA256 6e6a545ed8eb253a4980888bbddd67da3989f9c9c218c70816f8ac28eb42484e
 import { createWheelIndexedSemantics } from "./list-wheel-delegate-adapter.ts";
-import { dartMethodTearOff } from "../../foundation/dart-method-tear-off.ts";
+import "../../foundation/dart-method-tear-off.ts";
 import { checkedInteger } from "../../ui/value-math.ts";
 import { protect } from "../../ui/value-math.ts";
 import { dartListGet } from "../../foundation/dart-list.ts";

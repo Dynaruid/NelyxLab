@@ -4,7 +4,7 @@
 import {StatefulWidget,State,RenderObjectWidget,LeafRenderObjectElement} from './framework.ts';
 import type {BuildContext,Widget} from './framework.ts';
 import type {TextOptions} from './basic.ts';
-import {Directionality,Localizations,MediaQuery,AppTheme} from './app-data.ts';
+import './app-data.ts';
 import {Focus} from './focus-scope.ts';
 import {FocusNode} from './focus.ts';
 import {TextSelectionController} from '../painting/text-selection-controller.ts';
@@ -12,7 +12,7 @@ import {RenderSelectableParagraph} from '../rendering/selectable-paragraph.ts';
 import type {RenderBox} from '../rendering/object.ts';
 import type {TextSelection} from '../../ui/types.ts';
 import type {RichParagraphConfiguration} from '../rendering/paragraph.ts';
-import {textLimits} from '../../ui/text.ts';
+import '../../ui/text.ts';
 import {Clipboard,ClipboardData} from '../../services/clipboard.ts';
 import {invariant} from '../../foundation/errors.ts';
 import {Element} from './framework.ts';
@@ -41,7 +41,7 @@ class SelectableTextState extends State<SelectableText> {
     }else if(old.text!==this.widget.text)this.controller.text=this.widget.text;}
   override dispose():void{this.disconnect();}
   private copy():void{const messenger=this.context.services.binaryMessenger;invariant(messenger,'missing-binary-messenger','SelectableText copy requires this app binary messenger');const epoch=this.epoch;void this.controller.copy({writeText:text=>Clipboard.setData(new ClipboardData(text),messenger)}).catch(error=>{if(!this.mounted||epoch!==this.epoch)return;if(this.widget.options.onCopyError)this.widget.options.onCopyError(error);else this.context.services.reportError?.(error);});}
-  build(context:BuildContext):Widget{return new Focus(new SelectableParagraphWidget(this.controller,this.widget.options,()=>this.focus.requestFocus(),this.widget.textSpan),{focusNode:this.focus,includeSemantics:false,onKeyEvent:(_node,event)=>{if(event.kind!=='down'||event.alt)return 'ignored';if((event.control||event.meta)&&event.key.toLowerCase()==='a'){this.controller.selectAll();return 'handled';}if((event.control||event.meta)&&event.key.toLowerCase()==='c'){this.copy();return 'handled';}return this.controller.handleKey(event)?'handled':'ignored';}});}
+  build(_context:BuildContext):Widget{return new Focus(new SelectableParagraphWidget(this.controller,this.widget.options,()=>this.focus.requestFocus(),this.widget.textSpan),{focusNode:this.focus,includeSemantics:false,onKeyEvent:(_node,event)=>{if(event.kind!=='down'||event.alt)return 'ignored';if((event.control||event.meta)&&event.key.toLowerCase()==='a'){this.controller.selectAll();return 'handled';}if((event.control||event.meta)&&event.key.toLowerCase()==='c'){this.copy();return 'handled';}return this.controller.handleKey(event)?'handled':'ignored';}});}
 }
 class SelectableParagraphWidget extends RenderObjectWidget {
   constructor(readonly controller:TextSelectionController,readonly options:SelectableTextOptions,readonly focus:()=>void,readonly span:TextSpan|null){super();}

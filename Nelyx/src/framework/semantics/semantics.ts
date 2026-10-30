@@ -1673,6 +1673,7 @@ function semanticsPointInParent(node:SemanticsNode,point:Offset):Offset{
     // Match transform3's private storage and arithmetic, including z*0. A
     // projected point needs neither a mutable vector nor its numeric sidecar.
     const m=numericObjectStorage(matrix,'Matrix4'),x=point.dx,y=point.dy;
+    // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
     return new Offset(m[0]!*x+m[4]!*y+m[8]!*0+m[12]!,m[1]!*x+m[5]!*y+m[9]!*0+m[13]!);
   }
   const vector=new Vector3(point.dx,point.dy,0);matrix.transform3(vector);return new Offset(vector.x,vector.y);

@@ -80,7 +80,6 @@ import { Axis } from "../painting/basic-types.ts";
 import { debugCheckHasBoundedAxis } from "./two-dimensional-viewport-adapter.ts";
 import { RevealedOffset } from "../rendering/viewport.ts";
 import { twoDimensionalTypeString } from "./two-dimensional-viewport-adapter.ts";
-import { ParentData } from "../rendering/object.ts";
 import { twoDimensionalRuntimeType } from "./two-dimensional-viewport-adapter.ts";
 import { twoDimensionalContainsBox } from "./two-dimensional-viewport-adapter.ts";
 import { twoDimensionalMoveTo } from "./two-dimensional-viewport-adapter.ts";
@@ -94,7 +93,7 @@ import type { Widget } from "./framework.ts";
 import type { BuildContext } from "./framework.ts";
 import type { DartMutableList } from "./two-dimensional-viewport-adapter.ts";
 import type { TwoDimensionalViewportContract } from "./two-dimensional-viewport-adapter.ts";
-import type { DartRecord } from "../../foundation/dart-record.ts";
+
 export abstract class SourceTwoDimensionalViewport extends TwoDimensionalWidgetHost {
     readonly verticalOffset: ViewportOffset;
     readonly verticalAxisDirection: AxisDirection;
@@ -1097,21 +1096,21 @@ export abstract class SourceRenderTwoDimensionalViewport extends TwoDimensionalR
         {
             const _dartTemporary76 = dartRecord([allowHorizontal, allowVertical] as const);
             switch (true) {
-                case true && dartRecordRead(_dartTemporary76, 0, 2) === true && dartRecordRead(_dartTemporary76, 1, 2) === true: {
+                case dartRecordRead(_dartTemporary76, 0, 2) === true && dartRecordRead(_dartTemporary76, 1, 2) === true: {
                     break;
-                    break;
+
                 }
-                case true && dartRecordRead(_dartTemporary76, 0, 2) === false && dartRecordRead(_dartTemporary76, 1, 2) === true: {
+                case dartRecordRead(_dartTemporary76, 0, 2) === false && dartRecordRead(_dartTemporary76, 1, 2) === true: {
                     axisDirection = this.verticalAxisDirection;
                     break;
                 }
-                case true && dartRecordRead(_dartTemporary76, 0, 2) === true && dartRecordRead(_dartTemporary76, 1, 2) === false: {
+                case dartRecordRead(_dartTemporary76, 0, 2) === true && dartRecordRead(_dartTemporary76, 1, 2) === false: {
                     axisDirection = this.horizontalAxisDirection;
                     break;
                 }
-                case true && dartRecordRead(_dartTemporary76, 0, 2) === false && dartRecordRead(_dartTemporary76, 1, 2) === false: {
+                case dartRecordRead(_dartTemporary76, 0, 2) === false && dartRecordRead(_dartTemporary76, 1, 2) === false: {
                     return super.sourceForwardShowOnScreen({ descendant: descendant, rect: rect, duration: duration, curve: curve });
-                    break;
+
                 }
             }
         }
@@ -1139,12 +1138,12 @@ export abstract class SourceRenderTwoDimensionalViewport extends TwoDimensionalR
             case AxisDirection.left:
             case AxisDirection.right: {
                 return showHorizontal(rect);
-                break;
+
             }
             case AxisDirection.up:
             case AxisDirection.down: {
                 return showVertical(rect);
-                break;
+
             }
             case null: {
                 rect = showHorizontal(rect) ?? rect;
@@ -1156,7 +1155,7 @@ export abstract class SourceRenderTwoDimensionalViewport extends TwoDimensionalR
                     return MatrixUtils.transformRect(transform, rect ?? wheelPaintBounds(descendant as RenderObject));
                 }
                 return rect as Rect;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }

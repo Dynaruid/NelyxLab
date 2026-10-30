@@ -15,6 +15,7 @@ import {createBrowserEditContext,hasBrowserEditContext} from './edit-context.ts'
 import type {BrowserInputViewport} from './edit-context.ts';
 interface Editor {element:HTMLElement;configuration?:EditingConfiguration;binding?:EditingBinding;value?:TextEditingValue;changed?:((value:TextEditingValue)=>void);composing:boolean;used:boolean}
 const inputCarrierStyle={pointerEvents:'none',opacity:'0',color:'transparent',caretColor:'transparent',background:'transparent',border:'0',outline:'none',boxShadow:'none',resize:'none',appearance:'none',overflow:'hidden',forcedColorAdjust:'none',fontSize:'16px',boxSizing:'border-box'};
+// oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
 const hasLineBreak=(text:string)=>/[\r\n\u0085\u000b\u000c\u2028\u2029]/.test(text);
 /** Stable DOM controls per editor; native composition ranges remain unavailable. */
 export function createDomInteraction(input:HTMLInputElement,button:HTMLButtonElement,cursor?:BrowserMouseCursor,readViewport?:()=>BrowserInputViewport,accessibilityEnabled=true){

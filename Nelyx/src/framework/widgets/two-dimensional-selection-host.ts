@@ -67,7 +67,8 @@ export abstract class TwoDimensionalSelectionHost<W extends StatefulWidget=State
       try{
         const callbacks=new Set(this.listeners.get(selectable)),source=this.sourceAttachments?.remove(selectable);if(source)callbacks.add(source);this.sourceSelections?.remove(selectable);
         for(const callback of callbacks){this.revoke(callback);this.forget(selectable,callback);try{selectable.removeListener(callback);}catch(error){this.capture(selectable,callback);errors.push(error);}}
-        for(const parent of [...this.parents])if(parent.members.has(selectable))try{parent.remove(selectable);}catch(error){if(error!==retiredSelection)errors.push(error);}
+        const snapshot=[...this.parents];
+        for(const parent of snapshot)if(parent.members.has(selectable))try{parent.remove(selectable);}catch(error){if(error!==retiredSelection)errors.push(error);}
       }finally{this.cleaning.delete(selectable);}
     }
     try{this.wantKeepAlive=this.sourceSelections?.isNotEmpty??false;}catch(error){errors.push(error);}

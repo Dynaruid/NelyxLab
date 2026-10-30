@@ -1,4 +1,4 @@
-import type { Clock, FrameClock } from '../foundation/clock.ts';
+import type { FrameClock } from '../foundation/clock.ts';
 import type { Disposable } from '../foundation/disposable.ts';
 import type { RendererCapabilities, ResourceId, TextLayoutService, ViewMetrics, ViewOwner } from '../ui/types.ts';
 import { AppSession } from './runtime.ts';

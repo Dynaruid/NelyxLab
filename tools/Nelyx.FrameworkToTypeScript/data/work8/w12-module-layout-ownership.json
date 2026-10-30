@@ -21,7 +21,7 @@
         "destination": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
         "mode": "adopted",
         "baseHash": "a4917056845d12208a0da7799ec34eeab60b0d867520f8d06137f357d0eb9b34",
-        "productHash": "3b538960454d5ae0c033c3f82b6ccb978127a70b718a3efa38d661403adc5dd3",
+        "productHash": "c2caa3a5425fc12b030af8d94312af62b21534813f50b7849848110be8da8266",
         "fingerprint": "ee1010c78def7423d342d6b6da1a75c0e3953b2c1e93d6abd9fa2adec65fb2df",
         "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scrollbar.json"
       },
@@ -81,7 +81,7 @@
         "destination": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
         "mode": "adopted",
         "baseHash": "4fd06c0b11625281643722c6657f455dbd17c010dc60e97eeef696454501169e",
-        "productHash": "603264349fb5b43d9c44baed5ab9eb57f7226b2b156c074e8363d74a512f6589",
+        "productHash": "143664f317c4e7dadfd6bb7cafa97c30c58dc36237d2718f9efad0b6e3aae9a7",
         "fingerprint": "399ce35e3a750059475acdf84db3974bd1ac4f96b3683f44e8273c5502f928a7",
         "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scrollbar.json"
       },
@@ -121,7 +121,7 @@
         "destination": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
         "mode": "adopted",
         "baseHash": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
-        "productHash": "059d5794dfcb7228ccc687f5d9a70d2b9dc9807fceedbbef20e37d0437a82d1f",
+        "productHash": "59863b988c56615768fcc4c7360fd9e45154f73dfce82dd26dfed3f11b690594",
         "fingerprint": "d691bd2b7709f6a65146d9dedc6d2ba95c0d196cd901d4c5e9de67c658fb594b",
         "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-cupertino-scroll-behavior.json"
       },
@@ -141,7 +141,7 @@
         "destination": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
         "mode": "adopted",
         "baseHash": "3defb4f4c1b4b63cfc1eec6d568d9e5ad992b971f340e05b3a06773c1ed0529e",
-        "productHash": "52cf0b080163ae6a6e9def8581239f1ae44eb95100326ccd299fbad37fe21f7d",
+        "productHash": "6e844212d06950d9eb476f6188332f8bf7901046a43eabf89d17605f604f88e2",
         "fingerprint": "9d7192abeda613add4d5fd7bdd1e6a0819bf9e8373d23b17b046a0381d4c0141",
         "recipe": "tools/Nelyx.FrameworkToTypeScript/data/work8/recipes/w10-material-scroll-behavior.json"
       },
@@ -217,7 +217,7 @@
       "previousSha256": "35c5945d83d6f606970b2801deab91d844dea892f683cb50b72dd95ebd323535",
       "current": {
         "file": "packages/cupertino/src/internal/checkbox/checkbox-build.ts",
-        "sha256": "38581ed92baac666424d9cac28068e40a9a83161e3a95412ac5781311f7d180a"
+        "sha256": "3d8130d249403cf60eb14451cf5aa25f623f28d592c0aa6be28fc7bf394caab1"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
     },
@@ -289,7 +289,7 @@
       "previousSha256": "fd6d997fab9f35474ee0fd040fb39aac5d7eb2a041a7461603ebf48daebd3220",
       "current": {
         "file": "packages/cupertino/src/generated/scroll/scroll-behavior.generated.ts",
-        "sha256": "059d5794dfcb7228ccc687f5d9a70d2b9dc9807fceedbbef20e37d0437a82d1f"
+        "sha256": "59863b988c56615768fcc4c7360fd9e45154f73dfce82dd26dfed3f11b690594"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -301,7 +301,7 @@
       "previousSha256": "d48158104ba383e81d3f53f9e0d416afe92c3c512b2f122591c61cd40268eb46",
       "current": {
         "file": "packages/material/src/internal/checkbox/checkbox-build.ts",
-        "sha256": "a5ab2c427b65e123aa17837c3e853871cd89f9d16eb2bab2ee2f2dd834c27604"
+        "sha256": "6b9e8bf7bd92db477e938919253e14c186954e399064476c6e7baba94b9342e0"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
     },
@@ -361,7 +361,7 @@
       "previousSha256": "dff29e5ce8018c476439fa492fd1791156d4eb1f9ec482b789a102480762fd1e",
       "current": {
         "file": "packages/material/src/generated/scrollbar/scrollbar.generated.ts",
-        "sha256": "603264349fb5b43d9c44baed5ab9eb57f7226b2b156c074e8363d74a512f6589"
+        "sha256": "143664f317c4e7dadfd6bb7cafa97c30c58dc36237d2718f9efad0b6e3aae9a7"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -373,7 +373,7 @@
       "previousSha256": "9834e91c9e20e0958f027f027b3850d02a1eb296a4f4a19a9ea7b507e9255510",
       "current": {
         "file": "packages/material/src/generated/scroll/scroll-behavior.generated.ts",
-        "sha256": "52cf0b080163ae6a6e9def8581239f1ae44eb95100326ccd299fbad37fe21f7d"
+        "sha256": "6e844212d06950d9eb476f6188332f8bf7901046a43eabf89d17605f604f88e2"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -457,7 +457,7 @@
       "previousSha256": "9cdeeda0bd36a7898d17257fc190fd8869b54b00f29c98a3ed09f93ddd84e994",
       "current": {
         "file": "packages/cupertino/src/generated/colors/dynamic-color.generated.ts",
-        "sha256": "3b538960454d5ae0c033c3f82b6ccb978127a70b718a3efa38d661403adc5dd3"
+        "sha256": "c2caa3a5425fc12b030af8d94312af62b21534813f50b7849848110be8da8266"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -529,7 +529,7 @@
       "previousSha256": "d50895ed4664e2b0a8f5a2e86f2bedfe6ed4ae0a1f6c2c2f07e7add2598fb696",
       "current": {
         "file": "packages/material/src/internal/chip/raw-chip-state.ts",
-        "sha256": "fbc8e4cea8fc41e294c07cac517b77b354820775acf8af2a1c8954b4cfe97625"
+        "sha256": "268459cb8dfaba665d52a15c400f19d5ca8c0604908ef76c6601ebe8788a37c1"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
     },
@@ -553,7 +553,7 @@
       "previousSha256": "bef3141728954624e532ade0a6f388f1872854b6e1b35fd0ac66664669652237",
       "current": {
         "file": "packages/material/src/internal/list/list-tile-build.ts",
-        "sha256": "89dfa05c3db6efb8afe8a52314f42edcb7f9f181c3198b4cf184cf410e0432f3"
+        "sha256": "49a0ca2b7c63243d5c8c5f2759d728f1050f88e4aca5e67b94ed4fd3d78e692b"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Current owned adaptation isolates the raw MediaQuery projection in ListTileSafeArea without changing safeArea/viewPadding/textScale/keyboard values. Runtime/AST checks are separate."
     },
@@ -613,7 +613,7 @@
       "previousSha256": "54b6d4846112de811434e264f6496c1baef1503e033f4e25b681b1d6cd5b7229",
       "current": {
         "file": "packages/material/src/internal/slider/slider-defaults.ts",
-        "sha256": "9e7d9d9291c6f126c79c6acc639ad57fba88db3a34c263dd0832c4de7dbeb875"
+        "sha256": "7936402b58ae3d37286b1515e7bb78b4e5c7b312d94713b3c4986c07511b29c6"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
     },
@@ -697,7 +697,7 @@
       "previousSha256": "26f0a55728b4514e5871da18dd207c50f3c9b3d1662a9d4137c96be046fdcee2",
       "current": {
         "file": "packages/material/src/internal/material/material-ink-owner.ts",
-        "sha256": "3ac2d17029442961c5d21fa553f91acaea851549de195fa044f5de2c3563b336"
+        "sha256": "1989f3cbd028f71875e96653a2e2b7a91531bc6462da0a4ad1b9d7b6f63a6c2a"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. W17: canonical ink paint invalidation retains unchanged semantics, with conservative custom-hook fallback. Runtime/AST checks are separate."
     },
@@ -709,7 +709,7 @@
       "previousSha256": "d9d144aa91bd371eb1ef6dbe4c20800617cf7209383325fe0ad4a7f41faa6dbb",
       "current": {
         "file": "packages/material/src/generated/chip/chip-wrapper.generated.ts",
-        "sha256": "88e9d171ab87a47f78f9e2c56f55047d77c9a0e8eb41847d8305e6e69a25f449"
+        "sha256": "d39ead07eecd8965e9c47140c55cb4b47fee2e169b6c56bd894daeebd666d48e"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -769,7 +769,7 @@
       "previousSha256": "6f3e64ed07d2e01af8b2bca7620beee13b62bce8e2dd4fb178d2b3b7c0d598ed",
       "current": {
         "file": "packages/material/src/generated/material/material-values.generated.ts",
-        "sha256": "6f3e64ed07d2e01af8b2bca7620beee13b62bce8e2dd4fb178d2b3b7c0d598ed"
+        "sha256": "cc1f1422c9f09daff01a55c196d852f1e85a67ecb8ac08e941b232ecdb26698a"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -841,7 +841,7 @@
       "previousSha256": "02021c03e097c2efb37ef78cb4ea0cf925cc6115767438b0523f449ad301d743",
       "current": {
         "file": "packages/material/src/generated/slider/slider-parts.generated.ts",
-        "sha256": "87a84a6742a33c708d55106f82479a43d7eaf54cc1efc88307c27979b96cb17e"
+        "sha256": "6bf6fcfab20490ed33ff9108839292e1949de115301ba01c7770e946628d1d54"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -865,7 +865,7 @@
       "previousSha256": "a702a216761c1cfc3423dfbe6c369ae85b4aa3764e6ed491aab87b7dc11449e7",
       "current": {
         "file": "packages/material/src/generated/slider/range-slider-parts.generated.ts",
-        "sha256": "cdab9fa164af133d4dee51e5426e5ac233a3f914cc1cbb7fe63b6feac9a87c91"
+        "sha256": "1ce4139c887f8a226cea90cdb714cc6fe8e943aa5c96b75d44e75f4ac6fec69c"
       },
       "bodyPolicy": "Only relative import/export/type-import/dynamic-literal module specifiers change; all other source bytes and numeric annotations retained"
     },
@@ -1066,39 +1066,39 @@
   "generatorSources": [
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-checkbox-api.mjs",
-      "sha256": "139eabb8ae7c052c68db8cc8c29f111cc360503388096f3cd5d7578459d42c0e"
+      "sha256": "e11b231f9fff5e1dccea44774060c39873eef379485bc569b72a2c5e90c4f9b8"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-list-api.mjs",
-      "sha256": "5682c2643cdc9f1ff55cd22f71a9bda2385633591647a98e4bad2ab990c9ad78"
+      "sha256": "f8b430eb654619da5525e21f93bdfcd248a5c53264f23e50b8fbb1070863d78e"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-list-tile-api.mjs",
-      "sha256": "f12a10f322edda2fc3357933556b766658dad65a239974ea812f95442a4d1bc0"
+      "sha256": "08c8c9eff20888553c2ef482e35932229ef1448e0b8747145b46af67b93a7ebe"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-checkbox-api.mjs",
-      "sha256": "3ed5fd2a19d9c7e40381da172931e04d744a689946669662c08185d9f2f3fd0f"
+      "sha256": "8ea778fa5bac60fc5a96cecbd20a00f8dd32eb90e5196bf748412e80916062b9"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-toggle-theme-api.mjs",
-      "sha256": "222ae822325e31205944dafd93e6f6f9528b9c7a905eb50b1bf32a5ec741e656"
+      "sha256": "bc082c9aa65314d96ee95820fe9a5681b9596b2a23168075778b667a8d8024c5"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-chip-api.mjs",
-      "sha256": "6fce6198ecefd01ac9c9fab86a1d4efec8a038708ef6914766bba9081abaf50b"
+      "sha256": "99059bd3666f393924570cee9cdec9c8d6ae52ffc10c36af250e2529324d08f1"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-design-data.mjs",
-      "sha256": "e9b6d9b6259e40eb5805179b60480d30cd58bebfe34a1961d9ef3e22a9e58e2e"
+      "sha256": "0aabc0621406ec519b99e539ed04524f4bf4e6e392f2c953bf130fa3f7f20166"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-icon-data.mjs",
-      "sha256": "76af1471b7edfc8147a70c2c82ed851a6cb53c6009190e5989f9a574054e2da1"
+      "sha256": "7e406136de05ee716d8dd37fa6370756fed9e4224500ff1b648f7027c3b43430"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-slider-theme-fields.mjs",
-      "sha256": "64bb5f96b34a868d8018d7ee2aeb804c2773009da1bbefa27016d1c807d833b7"
+      "sha256": "b716e2b3973fdbab4fbc4feb405e018ca379cdcd04df3699973d572ac94e9553"
     },
     {
       "file": "tools/Nelyx.FrameworkToTypeScript/generate-cupertino-radio-data.mjs",

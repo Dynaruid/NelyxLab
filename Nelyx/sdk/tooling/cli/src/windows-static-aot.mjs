@@ -15,7 +15,7 @@ import {nativeImageDebugIdentity,symbolizeNativePc} from './native-pc-map.mjs';
 export const staticAotBootstrap='/*nelyx:static-hermes-aot:94aa5e1d:v5*/\n';
 const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const partitionPlanSha256=value=>createHash('sha256').update(value).digest('hex');
-const bridgeHeader=path.join(path.dirname(createRequire(import.meta.url).resolve('@nelyx/sdk/package.json')),'native/windows/StaticHermes.h');
+path.join(path.dirname(createRequire(import.meta.url).resolve('@nelyx/sdk/package.json')),'native/windows/StaticHermes.h');
 export async function buildStaticAotMetroBundle({runner,entry,source,map,config,signal,nativeHost=false,applicationRoot=path.resolve(runner,'../..'),packageRoots}){
   signal?.throwIfAborted();
   const started=performance.now();

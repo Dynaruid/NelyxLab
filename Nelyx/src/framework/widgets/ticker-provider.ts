@@ -30,7 +30,7 @@ abstract class WidgetTickerProviderState<W extends StatefulWidget> extends State
     if(errors?.length===1)throw errors[0];if(errors)throw new AggregateError(errors,'Ticker provider deactivation failed');
   }
   override activate():void{super.activate();this.mode();this.updateTickers();for(const ticker of this.tickers)ticker.setMuted(this,false);}
-  override dispose():void{if(this.closed)return;this.closed=true;const active=[...this.tickers].some(ticker=>ticker.isActive);this.notifier?.removeListener(this.changed);this.notifier=undefined;const errors:unknown[]=[];for(const ticker of [...this.tickers])try{ticker.dispose();}catch(error){errors.push(error);}if(active)errors.unshift(new Error('TickerProvider State disposed with an active Ticker; dispose controllers before super.dispose()'));try{super.dispose();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Ticker provider teardown failed');}
+  override dispose():void{if(this.closed)return;this.closed=true;const active=[...this.tickers].some(ticker=>ticker.isActive);this.notifier?.removeListener(this.changed);this.notifier=undefined;const errors:unknown[]=[];const snapshot=[...this.tickers];for(const ticker of snapshot)try{ticker.dispose();}catch(error){errors.push(error);}if(active)errors.unshift(new Error('TickerProvider State disposed with an active Ticker; dispose controllers before super.dispose()'));try{super.dispose();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'Ticker provider teardown failed');}
   abstract createTicker(onTick:(elapsedMilliseconds:number)=>void):Ticker;
 }
 class WidgetTicker extends Ticker {

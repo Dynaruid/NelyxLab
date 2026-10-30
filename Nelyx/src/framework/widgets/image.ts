@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Adapted from pinned widgets/image.dart; IO/codec ownership stays with the app ImageService.
-import {invariant} from '../../foundation/errors.ts';
+import '../../foundation/errors.ts';
 import {FoundationBuildMode} from '../../foundation/constants.ts';
 import {FoundationPlatform} from '../../foundation/platform.ts';
 import {FlutterError} from '../../foundation/flutter-error.ts';

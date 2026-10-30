@@ -1,5 +1,4 @@
 import {arrayItem} from "@nelyx/skia-native/runtime/arrays";
-/* eslint-disable import/no-anonymous-default-export */
 import type {SkGraphiteContext} from "@nelyx/skia-native/skia/types/Graphite";
 import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
 import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
@@ -60,7 +59,6 @@ global.SkiaViewApi = {
     delete this.views[nativeId];
     delete this.deferedPictures[nativeId];
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setJsiProperty(nativeId: number, name: string, value: any) {
     if (name === "picture") {
       const id = `${nativeId}`;
@@ -129,5 +127,4 @@ global.SkiaViewApi = {
   },
 } as ISkiaViewApiWeb;
 
-// eslint-disable-next-line import/no-default-export
 export default {};

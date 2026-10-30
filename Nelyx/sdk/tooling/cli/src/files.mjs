@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 
 export function sha256(file){return createHash('sha256').update(fs.readFileSync(file)).digest('hex');}
 export function relativeFile(value){
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   if(typeof value!=='string'||!value||value.length>512||/[\\:\x00-\x1f]/.test(value)||path.isAbsolute(value)||value.split('/').some(part=>!part||part==='.'||part==='..'))throw new Error('Invalid inventory path');
   return value;
 }

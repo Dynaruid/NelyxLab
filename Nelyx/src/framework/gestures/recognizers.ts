@@ -26,5 +26,5 @@ export class TapDragRecognizer implements GestureArenaMember {
   }
   acceptGesture(pointer:number):void {const track=this.tracks.get(pointer);if(!track)return;track.accepted=true;if(track.up){this.tracks.delete(pointer);if(track.dragging){const seconds=Math.max(0.001,(track.last.timestamp-track.start.timestamp)/1000);this.onDragEnd?.((track.last.x-track.start.x)/seconds,(track.last.y-track.start.y)/seconds);}else this.onTap?.();}}
   rejectGesture(pointer:number):void {this.tracks.delete(pointer);}
-  dispose():void {this.closed=true;for(const track of [...this.tracks.values()])if(!track.accepted)track.entry.resolve(false);this.tracks.clear();}
+  dispose():void {this.closed=true;const snapshot=[...this.tracks.values()];for(const track of snapshot)if(!track.accepted)track.entry.resolve(false);this.tracks.clear();}
 }

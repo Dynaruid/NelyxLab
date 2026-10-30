@@ -46,7 +46,7 @@ export interface TextStyleParagraphOptions {
   readonly textHeightBehavior?:TextHeightBehavior|null;readonly hyphens?:Hyphens|null;readonly locale?:string|null;
   readonly fontFamily?:string|null;readonly fontSize?:number|null;readonly fontWeight?:FontWeight|null;readonly fontStyle?:FontStyle|null;readonly height?:number|null;readonly strutStyle?:StrutStyle|null;
 }
-const ordinaryFields=['fontSize','fontWeight','fontStyle','letterSpacing','wordSpacing','textBaseline','height','leadingDistribution','locale','foreground','background','shadows','fontFeatures','fontVariations','decoration','decorationColor','decorationStyle','decorationThickness','overflow'] as const;
+
 const layoutFields=['inherit','fontFamily','fontSize','fontStyle','letterSpacing','wordSpacing','textBaseline','height','leadingDistribution','locale','foreground','background','overflow'] as const;
 const paintFields=['color','backgroundColor','decorationColor','decorationStyle','decorationThickness'] as const;
 const paintIdentities=new WeakMap<Paint,number>();let nextPaintIdentity=0;

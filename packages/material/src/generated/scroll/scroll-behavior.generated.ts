@@ -29,7 +29,7 @@ export class MaterialScrollBehavior extends ScrollBehavior {
         switch (axisDirectionToAxis(details.direction)) {
             case Axis.horizontal: {
                 return child;
-                break;
+
             }
             case Axis.vertical: {
                 switch (this.getPlatform(context)) {
@@ -39,17 +39,17 @@ export class MaterialScrollBehavior extends ScrollBehavior {
                         if (FoundationBuildMode.debug)
                             invariant(details.controller !== null, "generated-source-assert", "Pinned Dart assertion failed");
                         return new SourceScrollbar({ controller: details.controller, child: child });
-                        break;
+
                     }
                     case "android":
                     case "fuchsia":
                     case "iOS": {
                         return child;
-                        break;
+
                     }
                     default: throw new TypeError("Invalid value outside exhaustive Dart switch");
                 }
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }
@@ -61,14 +61,14 @@ export class MaterialScrollBehavior extends ScrollBehavior {
             case "macOS":
             case "windows": {
                 return child;
-                break;
+
             }
             case "android": {
                 return new StretchingOverscrollIndicator({ axisDirection: details.direction, clipBehavior: details.clipBehavior ?? "hardEdge", child: child });
             }
             case "fuchsia": {
                 break;
-                break;
+
             }
             default: throw new TypeError("Invalid value outside exhaustive Dart switch");
         }

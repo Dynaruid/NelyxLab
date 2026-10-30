@@ -65,7 +65,7 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
   }
   acceptGesture(pointer:number):void{const drag=this.drags.get(pointer);if(!drag)return;drag.won=true;this.requestFocus();this.update(drag);if(drag.up)this.drags.delete(pointer);}
   rejectGesture(pointer:number):void{this.drags.delete(pointer);}
-  private cancelDrags():void{for(const drag of [...this.drags.values()])drag.resolve(false);this.drags.clear();}
+  private cancelDrags():void{const snapshot=[...this.drags.values()];for(const drag of snapshot)drag.resolve(false);this.drags.clear();}
   override detach():void{this.preferredX=undefined;this.cancelDrags();super.detach();}
   protected override paintLocal(context:PaintingContext):void{if(!this.paragraph)return;this.ensureTextLayout();context.save();try{context.clip({x:0,y:0,...this.size});if(this.selectionColor!==null){const range=this.controller.selection,selection=new TextSelection({baseOffset:range.anchor,extentOffset:range.focus}),paint=new Paint({color:this.selectionColor});for(const box of this.getBoxesForSelection(selection))context.canvas.drawRect(box.toRect(),paint);}super.paintLocal(context);}finally{context.restore();}}
   override dispose():void{if(this.debugDisposed)return;const errors:unknown[]=[];try{super.dispose();}catch(error){errors.push(error);}finally{if(this.debugDisposed){this.controller.removeListener(this.changed);this.cancelDrags();this.release();}}if(errors.length===1)throw errors[0];if(errors.length)throw new AggregateError(errors,'Selectable paragraph teardown failed');}

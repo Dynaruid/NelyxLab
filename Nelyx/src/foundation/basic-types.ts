@@ -15,7 +15,7 @@ const cacheAccess=Symbol('CachingIterable library-private iterator access');
 class StateError extends Error{constructor(message:string){super(message);this.name='StateError';}override toString():string{return 'Bad state: '+this.message;}}
 class _AssertionError extends Error{constructor(message:string){super(message);this.name='_AssertionError';}}
 function checkCount(value:number,name:string):void{if(!Number.isSafeInteger(value)||value<0)throw new RangeError(name+' must be a nonnegative safe integer');}
-const done=<T>():IteratorReturnResult<undefined>=>({done:true,value:undefined});
+const done=<_T>():IteratorReturnResult<undefined>=>({done:true,value:undefined});
 /** One source iterator and one cache shared by every reader and derived view. */
 export class CachingIterable<E> implements Iterable<E>{
   private readonly _results:E[]=[];
@@ -62,6 +62,7 @@ class _LazyListIterator<E> implements CachingIterator<E>{
 }
 /** Explicit type token preserves type identity without invoking the constructor. */
 export type FactoryType=string|{readonly name:string};
+// oxlint-disable-next-line typescript/no-unsafe-declaration-merging -- The constructor explicitly initializes the interface fields through validated property assignment.
 export interface Factory<T>{readonly constructor:ValueGetter<T>}
 export class Factory<T>{
   constructor(construct:ValueGetter<T>,readonly type:FactoryType){Object.defineProperty(this,'constructor',{value:construct,enumerable:true,writable:false,configurable:false});Object.freeze(this);}

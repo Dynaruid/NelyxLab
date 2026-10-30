@@ -10,7 +10,7 @@ import {AlwaysScrollableScrollPhysics} from './scroll-physics.ts';import type {S
 import {ScrollConfiguration} from './scroll-configuration.ts';import type {ScrollBehavior} from './scroll-configuration.ts';
 import {DragStartBehavior} from '../gestures/recognizer.ts';import {HitTestBehavior} from '../rendering/pointer-listener.ts';
 import {SliverPadding,getAxisDirectionFromAxisReverseAndDirectionality} from './basic.ts';
-import {Directionality,MediaQuery} from './app-data.ts';import {EdgeInsets} from '../painting/edge-insets.ts';import type {EdgeInsetsGeometry} from '../painting/edge-insets.ts';
+import {Directionality,MediaQuery} from './app-data.ts';import '../painting/edge-insets.ts';import type {EdgeInsetsGeometry} from '../painting/edge-insets.ts';
 import {NotificationListener} from './notification-listener.ts';import {ScrollUpdateNotification} from './scroll-notification.ts';import {FocusScope} from './focus-scope.ts';
 import {SliverList,SliverSectionList,SliverFixedExtentList,SliverVariedExtentList,SliverGrid} from './sliver.ts';import {SliverPrototypeExtentList} from './sliver-prototype-extent-list.ts';
 import {SliverChildBuilderDelegate,SliverChildListDelegate} from './scroll-delegate.ts';import type {SliverChildDelegate,NullableIndexedWidgetBuilder,ChildIndexGetter,SliverChildDelegateOptions} from './scroll-delegate.ts';

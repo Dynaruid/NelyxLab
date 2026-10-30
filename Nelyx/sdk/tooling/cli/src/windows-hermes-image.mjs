@@ -46,6 +46,7 @@ export async function compileHermesImage({checked,env,units,output,descriptor,si
     console.log('STATIC_AOT_CACHE image-miss');
     folder=fs.mkdtempSync(path.join(parent,'.nelyx-sh-'));const pdb=path.join(folder,'image.pdb');
     const controller=new AbortController(),childSignal=signal?AbortSignal.any([signal,controller.signal]):controller.signal;
+    // oxlint-disable-next-line unicorn/no-new-array -- The numeric argument is the required length; preserve preallocation and sparse storage semantics.
     const compiledUnits=new Array(units.length);
     let cursor=0;
     const compile=async({unit,key,sourceSha256})=>{
@@ -99,6 +100,7 @@ export async function compileHermesImage({checked,env,units,output,descriptor,si
     return {buildMs:performance.now()-started,cacheHit:false,units:measurements,...(nativePcMap?{nativePcMap}:{})};
   }finally{
     try{if(folder){
+      // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
       if(path.dirname(folder)!==parent||!path.basename(folder).startsWith('.nelyx-sh-')||fs.lstatSync(folder).isSymbolicLink())throw Error('Unexpected native image temporary owner');
       fs.rmSync(folder,{recursive:true,force:true,maxRetries:5,retryDelay:100});
     }}finally{cache?.close();}

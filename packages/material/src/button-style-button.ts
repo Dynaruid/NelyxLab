@@ -16,7 +16,7 @@ import type { DartTypeWitness } from '@nelyx/core/foundation/dart-type-witness';
 import { Padding, ConstrainedBox, Align, Text } from '@nelyx/core/framework/widgets/basic';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
-import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import '@nelyx/core/framework/widgets/icon-theme-data';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';

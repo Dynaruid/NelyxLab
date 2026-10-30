@@ -31,7 +31,8 @@ export class RenderTreeSliver extends SourceRenderTreeSliver{
   override _dart_7b9586d3cedbce5e_updateAnimationCache():void{
     let moved=false;for(const key of this.activeAnimations.keys){const r=this.range(key),identity=r.from+':'+r.to;if(this.previousRanges.has(key)&&this.previousRanges.get(key)!==identity)moved=true;}
     if(moved){this.baseDistances.clear();this._dart_7b9586d3cedbce5e_animationOffsets.clear();}
-    for(const key of [...this.previousRanges.keys()])if(this.activeAnimations.get(key)===null){this.previousRanges.delete(key);this.baseDistances.delete(key);}
+    const snapshot=[...this.previousRanges.keys()];
+    for(const key of snapshot)if(this.activeAnimations.get(key)===null){this.previousRanges.delete(key);this.baseDistances.delete(key);}
     for(const key of this.activeAnimations.keys){const r=this.range(key);this.previousRanges.set(key,r.from+':'+r.to);const base=this.baseDistances.get(key);if(base)this._dart_7b9586d3cedbce5e_animationOffsets.set(key,boxSourceDartDouble(base.prefix.at(-1)!));}
     super._dart_7b9586d3cedbce5e_updateAnimationCache();
     for(const [key,base]of this.baseDistances)this.ensureNestedDistances(key,base.position);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule, productModulePath } from './product-module-layout.mjs';
 // Fail-closed finite projection of all resolved toggle-theme data fields onto explicit value operations.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),read=f=>JSON.parse(fs.readFileSync(f,'utf8')),candidateFile='.tmp/work8/w11-toggle-foundation-candidate/result.json',candidate=read(candidateFile);assert.equal(sha(candidate.ir.file),candidate.ir.sha256);const ir=read(candidate.ir.file),file=productModulePath('packages/material/src/toggle-theme-data.generated.ts'),ownership='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-toggle-theme-api-ownership.json',check=process.argv.includes('--check');if(fs.existsSync(ownership))for(const r of read(ownership).outputs)assert.equal(sha(r.file),r.sha256,'Managed theme output was edited');

@@ -58,10 +58,12 @@ export class PlatformMessageConnection implements Disposable{
   }
   /** Synchronously gate new work; existing native bytes remain owned until drain. */
   stop():void{if(this.state!=='open')return;this.state='closing';
-    this.notifyingClosing=true;try{for(const callback of [...this.closingListeners])try{callback();}catch(error){this.stopErrors.push(error);}}finally{this.notifyingClosing=false;this.closingListeners.clear();}
+    this.notifyingClosing=true;try{const snapshot1=[...this.closingListeners];for(const callback of snapshot1)try{callback();}catch(error){this.stopErrors.push(error);}}finally{this.notifyingClosing=false;this.closingListeners.clear();}
     try{const result=this.binding?.dispose();if(result&&typeof result.then==='function')this.drains.push(result);}catch(error){this.stopErrors.push(error);}
-    for(const name of [...this.listening])try{this.channelBuffers.clearListener(name);}catch(error){this.stopErrors.push(error);}
-    for(const request of [...this.incoming])try{request.finish(null);}catch(error){this.stopErrors.push(error);}
+    const snapshot2=[...this.listening];
+    for(const name of snapshot2)try{this.channelBuffers.clearListener(name);}catch(error){this.stopErrors.push(error);}
+    const snapshot3=[...this.incoming];
+    for(const request of snapshot3)try{request.finish(null);}catch(error){this.stopErrors.push(error);}
     this.drains.push(...[...this.channels].map(name=>this.channelBuffers.drain(name,(_data,reply)=>reply(null))));
     try{this.port.stop?.();}catch(error){this.stopErrors.push(error);}
   }
@@ -72,9 +74,11 @@ export class PlatformMessageConnection implements Disposable{
     this.defaultLease?.dispose();this.defaultLease=undefined;
     this.shutdown=new DisposalSequence([{name:'native-port',run:async()=>{try{await this.port.dispose();}catch(error){this.state='failed';failedOwners.add(this);if(error instanceof PendingDisposalError)throw new PendingDisposalError([...errors,error],error.retry);throw new AggregateError([...errors,error],'platform message drain failed; port and bytes retained');}}},{name:'byte-retirement',run:async()=>{
     // Native has retired all byte access; unanswered sends now settle as missing.
-    for(const request of [...this.outgoing])try{request.finish(null);}catch(error){errors.push(error);}
+    const snapshot4=[...this.outgoing];
+    for(const request of snapshot4)try{request.finish(null);}catch(error){errors.push(error);}
     this.state='closed';this.outgoing.clear();this.incoming.clear();this.channels.clear();this.listening.clear();this.drains=[];this.binding=undefined;
-    for(const callback of [...this.retiredListeners])try{callback();}catch(error){errors.push(error);}this.retiredListeners.clear();
+    const snapshot5=[...this.retiredListeners];
+    for(const callback of snapshot5)try{callback();}catch(error){errors.push(error);}this.retiredListeners.clear();
     try{await this.dispatcherLease?.dispose();}catch(error){errors.push(error);}this.dispatcherLease=undefined;
     failedOwners.delete(this);if(errors.length)throw new AggregateError(errors,'platform message shutdown failed');
     }}]);

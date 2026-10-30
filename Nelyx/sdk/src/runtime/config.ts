@@ -48,6 +48,7 @@ export function defineConfig(configuration: unknown): NelyxConfig {
   const value = configuration as NelyxConfig;
   if (value.schema !== 'nelyx.app/v2') throw new Error('Removed app schema; migrate to nelyx.app/v2 with an RN component, cohort and explicit RN profile. Deno/raw config cannot be aliased.');
   if (typeof value.name !== 'string' || !/^[A-Z][A-Za-z0-9]*$/.test(value.name)) throw new Error('Invalid app schema/name');
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   if (value.displayName !== undefined && (typeof value.displayName !== 'string' || !value.displayName.trim() || /[\u0000-\u001f]/.test(value.displayName))) throw new Error('Invalid app displayName');
   if (!value.targets || typeof value.targets !== 'object' || Array.isArray(value.targets)) throw new Error('App targets must be an object');
   localPath(value.appEntry);

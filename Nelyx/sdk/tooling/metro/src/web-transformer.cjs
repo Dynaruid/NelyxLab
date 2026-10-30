@@ -15,6 +15,6 @@ module.exports.transform=({src,filename,options})=>{
   const environment=({types:t})=>({visitor:{MemberExpression(path){const node=path.node;if(t.isIdentifier(node.property,{name:'NODE_ENV'})&&t.isMemberExpression(node.object)&&t.isIdentifier(node.object.object,{name:'process'})&&t.isIdentifier(node.object.property,{name:'env'}))path.replaceWith(t.stringLiteral(options.dev?'development':'production'));}}});
   // Babel preserves named imports as module-property reads. Metro's experimental
   // ESM lowering snapshots named values before circular modules finish loading.
-  const result=babel.transformSync(src,{filename,ast:true,code:false,babelrc:false,configFile:false,envName:options.dev?'development':'production',sourceType:'unambiguous',plugins:[[require('@babel/plugin-transform-typescript'),{allExtensions:true,isTSX:/\.tsx$/.test(filename)}],[require('@babel/plugin-transform-react-jsx'),{runtime:'automatic'}],environment,...(refresh?[require('react-refresh/babel')]:[]),[require('@babel/plugin-transform-modules-commonjs'),{loose:false}]]});
+  const result=babel.transformSync(src,{filename,ast:true,code:false,babelrc:false,configFile:false,envName:options.dev?'development':'production',sourceType:'unambiguous',plugins:[[require('@babel/plugin-transform-typescript'),{allExtensions:true,isTSX:filename.endsWith('.tsx')}],[require('@babel/plugin-transform-react-jsx'),{runtime:'automatic'}],environment,...(refresh?[require('react-refresh/babel')]:[]),[require('@babel/plugin-transform-modules-commonjs'),{loose:false}]]});
   return {ast:result.ast};
 };

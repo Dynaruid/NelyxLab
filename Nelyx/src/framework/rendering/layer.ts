@@ -84,7 +84,7 @@ export abstract class Layer {
     failures(errors,'Retained scene cache retirement failed');
   }
   protected set engineLayer(value:EngineLayer|null){this.assertMutable();if(value===this.retained)return;const old=this.retained;this.retained=value;this.parent?.markNeedsAddToScene();old?.dispose();}
-  protected assertMutable():void{if(!(!this.dead))invariant(false,'disposed-layer','Layer has been disposed');if(!(compositionLock===0))invariant(false,'locked-layer','Layers cannot be mutated by composition callbacks');}
+  protected assertMutable():void{if(this.dead)invariant(false,'disposed-layer','Layer has been disposed');if(!(compositionLock===0))invariant(false,'locked-layer','Layers cannot be mutated by composition callbacks');}
   _retain():void{this.assertMutable();this.references++;}
   _release():void{this.assertMutable();if(!(this.references>0))invariant(false,'unowned-layer','Layer has no handle to release');if(--this.references===0)this.dispose();}
   markNeedsAddToScene():void{this.assertMutable();if(this.dirty)return;this.dirty=true;this.parent?.markNeedsAddToScene();}
@@ -97,12 +97,12 @@ export abstract class Layer {
   describeClipBounds():Rect|null{return null;}
   find<T extends {}>(type:AnnotationType<T>,localPosition:Offset,options:AnnotationQueryOptions={}):T|null{const result=new AnnotationResult(type,options);this.findAnnotations(result,localPosition,{onlyFirst:true});return result.entries[0]?.annotation??null;}
   findAllAnnotations<T extends {}>(type:AnnotationType<T>,localPosition:Offset,options:AnnotationQueryOptions={}):AnnotationResult<T>{const result=new AnnotationResult(type,options);this.findAnnotations(result,localPosition,{onlyFirst:false});return result;}
-  findAnnotations<T extends {}>(result:AnnotationResult<T>,localPosition:Offset,options:{readonly onlyFirst:boolean}):boolean{if(!(!this.dead))invariant(false,'disposed-layer','Layer has been disposed');if(!(result instanceof AnnotationResult&&typeof options.onlyFirst==='boolean'))invariant(false,'invalid-annotation-query','Invalid annotation search');offset(localPosition);return false;}
+  findAnnotations<T extends {}>(result:AnnotationResult<T>,localPosition:Offset,options:{readonly onlyFirst:boolean}):boolean{if(this.dead)invariant(false,'disposed-layer','Layer has been disposed');if(!(result instanceof AnnotationResult&&typeof options.onlyFirst==='boolean'))invariant(false,'invalid-annotation-query','Invalid annotation search');offset(localPosition);return false;}
   get subtreeHasCompositionCallbacks():boolean{return this.compositionCallbackCount>0;}
   private changeCompositionCallbackCount(delta:number):void{if(delta===0)return;for(let layer:Layer|null=this;layer;layer=layer.parent)layer.compositionCallbackCount+=delta;}
   protected changeChildCompositionCallbacks(child:Layer,sign:1|-1):void{this.changeCompositionCallbackCount(sign*child.compositionCallbackCount);}
   addCompositionCallback(callback:(layer:Layer)=>void):()=>void{
-    if(!(!this.dead))invariant(false,'disposed-layer','Layer has been disposed');const id=Symbol();this.callbacks.set(id,callback);this.changeCompositionCallbackCount(1);let active=true;
+    if(this.dead)invariant(false,'disposed-layer','Layer has been disposed');const id=Symbol();this.callbacks.set(id,callback);this.changeCompositionCallbackCount(1);let active=true;
     return ()=>{if(!active)return;active=false;if(this.callbacks.delete(id))this.changeCompositionCallbackCount(-1);};
   }
   _callbackSnapshot(includeChildren:boolean):readonly (readonly [Layer,(layer:Layer)=>void])[]{

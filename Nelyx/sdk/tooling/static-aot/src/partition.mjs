@@ -86,6 +86,7 @@ export function lowerSourcePartition({graph,program,checker,owners},selections){
       if(ts.isVariableStatement(node))return variables(node.declarationList);
       if(ts.isReturnStatement(node)&&node.expression){if(valueType(node.expression)!=='number')fail(node.expression,'Numeric returns require a number contract, without any widening');return {kind:'return',position:position(node),value:expression(node.expression)};}
       if(ts.isThrowStatement(node))return {kind:'throw',position:position(node),value:expression(node.expression)};
+      // oxlint-disable-next-line unicorn/no-thenable -- The then property is schema/IR data, not a callable Promise hook.
       if(ts.isIfStatement(node))return {kind:'if',position:position(node),test:expression(node.expression),then:statement(node.thenStatement),otherwise:node.elseStatement?statement(node.elseStatement):null};
       if(ts.isForStatement(node)&&node.initializer&&ts.isVariableDeclarationList(node.initializer)&&node.condition&&node.incrementor)return {kind:'for',position:position(node),initial:variables(node.initializer),test:expression(node.condition),increment:expression(node.incrementor),body:statement(node.statement)};
       if(ts.isBreakStatement(node)&&!node.label)return {kind:'break',position:position(node)};

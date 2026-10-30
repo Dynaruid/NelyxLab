@@ -90,9 +90,9 @@ export class Scene {
   static _fromPicture(picture:Picture):Scene{return new Scene(picture);}
   get debugDisposed():boolean{return this.dead;}
   /** The consuming PaintingContext takes independent command/resource holds. */
-  _draw(canvas:Canvas):void{if(!(!this.dead))invariant(false,'disposed-scene','Scene has been disposed');this.picture._draw(canvas);}
-  toImage(width:number,height:number,rasterizer:PictureRasterizer):Promise<Image>{if(!(!this.dead))invariant(false,'disposed-scene','Scene has been disposed');return this.picture.toImage(width,height,rasterizer);}
-  toImageSync(width:number,height:number,rasterizer:PictureRasterizer):Image{if(!(!this.dead))invariant(false,'disposed-scene','Scene has been disposed');return this.picture.toImageSync(width,height,rasterizer);}
+  _draw(canvas:Canvas):void{if(this.dead)invariant(false,'disposed-scene','Scene has been disposed');this.picture._draw(canvas);}
+  toImage(width:number,height:number,rasterizer:PictureRasterizer):Promise<Image>{if(this.dead)invariant(false,'disposed-scene','Scene has been disposed');return this.picture.toImage(width,height,rasterizer);}
+  toImageSync(width:number,height:number,rasterizer:PictureRasterizer):Image{if(this.dead)invariant(false,'disposed-scene','Scene has been disposed');return this.picture.toImageSync(width,height,rasterizer);}
   dispose():void{if(this.dead)return;this.dead=true;this.picture.dispose();}
 }
 interface Recording {readonly canvas:Canvas;readonly layer:EngineLayer|null;readonly children:EngineLayer[];readonly insertions:LayerInsertion[]}
@@ -105,7 +105,7 @@ export class SceneBuilder {
   private readonly created:EngineLayer[]=[];
   private readonly used=new Set<EngineLayer>();
   private dead=false;
-  private current():Recording{if(!(!this.dead))invariant(false,'closed-scene-builder','SceneBuilder has already ended');return this.stack[this.stack.length-1]!;}
+  private current():Recording{if(this.dead)invariant(false,'closed-scene-builder','SceneBuilder has already ended');return this.stack[this.stack.length-1]!;}
   private push<T extends EngineLayer>(layer:T,begin:(canvas:Canvas)=>void,oldLayer:EngineLayer|null):T{
     this.current();if(oldLayer){if(!(oldLayer.constructor===layer.constructor&&!oldLayer.debugDisposed&&!this.used.has(oldLayer)))invariant(false,'invalid-old-layer','Old layer has the wrong type, is disposed or already used in this scene');}
     if(!(this.created.length<paintFrameLimits.commands))invariant(false,'oversize','Scene layer budget exceeded');

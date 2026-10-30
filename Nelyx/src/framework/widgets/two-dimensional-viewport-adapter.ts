@@ -4,7 +4,7 @@ import {Element,RenderObjectElement,RenderObjectWidget,BuildScope,NotifiableElem
 import type {Widget,BuildOwner} from './framework.ts';
 import {ViewportElementMixin} from './scroll-notification.ts';
 import {RenderBox,RenderObject,ParentData} from '../rendering/object.ts';
-import type {PipelineOwner,HitTestEntry,ShowOnScreenOptions} from '../rendering/object.ts';
+import type { HitTestEntry, ShowOnScreenOptions } from '../rendering/object.ts';
 import {RenderAbstractViewport,RevealedOffset} from '../rendering/viewport.ts';
 import type {ViewportOffset,ViewportMoveOptions} from '../rendering/viewport-offset.ts';
 import {KeepAliveParentDataMixin} from '../rendering/sliver-multi-box-adaptor.ts';

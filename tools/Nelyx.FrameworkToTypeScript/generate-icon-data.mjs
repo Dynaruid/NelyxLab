@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {relocateProductModule, productModulePath, moduleLayoutIdentity} from './product-module-layout.mjs';
+import { relocateProductModule } from './product-module-layout.mjs';
 // Finite complete catalogs from analyzer-resolved IR; unsupported expressions fail closed.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import ts from 'typescript';
 const sha=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex'),ref=file=>({file,sha256:sha(file)}),candidateFile='.tmp/work8/w11-icons-candidate/result.json',candidate=JSON.parse(fs.readFileSync(candidateFile)),ir=JSON.parse(fs.readFileSync(candidate.ir.file)),recordFile='tools/Nelyx.FrameworkToTypeScript/data/work8/w11-icon-data-ownership.json',previous=fs.existsSync(recordFile)?JSON.parse(fs.readFileSync(recordFile)):null,outputs=[],catalogs=[];assert.equal(sha(candidate.ir.file),candidate.ir.sha256);assert.equal(candidate.records,3);

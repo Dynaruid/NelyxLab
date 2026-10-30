@@ -29,7 +29,7 @@ export function connectNativeEditing(interaction:NativeInteraction,bridge:Native
     },
     async insertText(service,client,text,revision,focusEpoch){const reply=await send('keyboardText',{...identity(service,client),text,revision,focusEpoch});if(!['applied','stale','busy','unavailable','limit'].includes(reply.status))throw new Error('Invalid native keyboard acknowledgement');return {status:reply.status as 'applied'|'stale'|'busy'|'unavailable'|'limit',revision:reply.revision};},
     async closeClient(service,client){await send('detach',identity(service,client));clients.delete(client);return true;},
-    async disconnect(service){if(!connected||service!==1)return true;for(const client of [...clients]){await send('detach',identity(service,client));clients.delete(client);}connected=false;return true;},
+    async disconnect(service){if(!connected||service!==1)return true;const snapshot=[...clients];for(const client of snapshot){await send('detach',identity(service,client));clients.delete(client);}connected=false;return true;},
   };
   const events:WindowsInputEvents={addListener(name,callback){if(name!=='nelyxWindowsInput'||listener)throw new Error('Native editing event owner already attached');listener=callback;return {remove(){listener=undefined;}};}};
   const native=new WindowsInputView(interaction,module,events,1,onError);

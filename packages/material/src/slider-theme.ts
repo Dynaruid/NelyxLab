@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import {InheritedTheme} from '@nelyx/core/framework/widgets/inherited-theme';
-import type {Widget,WidgetOptions,BuildContext} from '@nelyx/core/framework/widgets/framework';
+import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import {Theme} from './theme.ts';
 import {SliderThemeData} from './slider-theme-data.ts';
 export {SliderThemeData, ShowValueIndicator, Thumb, SliderInteraction} from './slider-theme-data.ts';

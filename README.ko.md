@@ -70,6 +70,14 @@ Windows·Android 준비와 실행은 [Testbed 가이드](sample/nelyx-testbed-ap
 
 공통 앱은 `src/index.ts`에서 `main()`을 export하고, 플랫폼 runner가 앱을 등록해 렌더링 표면을 제공합니다. `@nelyx/core/framework/widgets/basic`, `@nelyx/material/widgets`, `@nelyx/sdk/platforms/web/surface`처럼 패키지 하위 경로에서 API를 import합니다. [Widget 예제](Nelyx/README.ko.md#widget-앱)를 참고하세요.
 
+## 개발 검사
+
+`npm ci` 후 저장소 루트에서 `npm run lint`를 실행합니다. Oxlint가 Core·SDK·디자인 패키지·샘플·템플릿·테스트·변환 도구를 검사하며, 경고나 사용하지 않는 예외 주석이 있으면 실패합니다.
+
+[린트 설정](.oxlintrc.json)은 rest에서 제외하기 위한 바인딩, `_`로 시작하는 미사용 매개변수, 부수 효과가 있는 단축 평가식과 `this`의 소유자 참조·트리 순회 커서를 허용합니다. 숫자 경계값 연산, 입력 필터, 프로토콜 데이터와 언어 검증 fixture는 이유를 적은 국소 예외를 사용합니다. 생성 소스도 검사 대상에 포함합니다.
+
+워크스페이스 타입은 `npm run check:types`, 관리되는 디자인 소스의 소유권은 `npm run check:design-ownership`으로 확인합니다. 변환 도구의 별도 검사는 [도구 가이드](tools/Nelyx.FrameworkToTypeScript/README.md)를 참고하세요.
+
 ## 문서
 
 | 가이드 | 내용 |

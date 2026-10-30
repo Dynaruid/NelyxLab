@@ -11,6 +11,7 @@ export interface EditorStyle {
   readonly textAlign:TextAlign;readonly textDirection:'ltr'|'rtl';
 }
 export function freezeEditorStyle(value:EditorStyle):EditorStyle {
+  // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
   invariant(Array.isArray(value.fontFamilies)&&value.fontFamilies.length<=64&&value.fontFamilies.every(family=>typeof family==='string'&&family.length>0&&!/[\u0000-\u001f]/.test(family)),'invalid-editor-style','Editor font families must be nonempty names');
   invariant(Number.isFinite(value.fontSize)&&value.fontSize>0&&Number.isFinite(value.lineHeight)&&value.lineHeight>0&&Number.isFinite(value.letterSpacing)&&Number.isFinite(value.wordSpacing),'invalid-editor-style','Editor text dimensions must be finite and positive where required');
   invariant(Number.isInteger(value.fontWeight)&&value.fontWeight>=100&&value.fontWeight<=900&&['normal','italic'].includes(value.fontStyle),'invalid-editor-style','Invalid editor font weight/style');

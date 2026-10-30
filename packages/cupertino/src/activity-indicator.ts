@@ -134,7 +134,7 @@ export class CupertinoLinearActivityIndicator extends StatelessWidget {
         super(options.key ?? null);
         invariant(Number.isFinite(options.progress) && options.progress >= 0 && options.progress <= 1 && Number.isFinite(options.height ?? 4.5) && (options.height ?? 4.5) > 0, 'invalid-linear-activity', 'Activity progress must be within [0,1] with a positive height');
     }
-    build(context: BuildContext): Widget {
+    build(_context: BuildContext): Widget {
         return new ConstrainedBox(new CustomPaint(undefined, { painter: new CupertinoLinearActivityPainter(this.options.progress, coreCupertinoColor(this.options.color ?? CupertinoColors.activeBlue), coreCupertinoColor(CupertinoColors.systemFill)) }), new BoxConstraints(Infinity, Infinity, this.options.height ?? 4.5));
     }
 }

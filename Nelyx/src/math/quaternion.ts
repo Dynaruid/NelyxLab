@@ -214,9 +214,13 @@ export class Quaternion {
         const tiz: number = -z;
         const tiy: number = -y;
         const tix: number = -x;
+        // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
         const tx: number = tiw * v.x + tix * 0.0 + tiy * v.z - tiz * v.y;
+        // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
         const ty: number = tiw * v.y + tiy * 0.0 + tiz * v.x - tix * v.z;
+        // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
         const tz: number = tiw * v.z + tiz * 0.0 + tix * v.y - tiy * v.x;
+        // oxlint-disable-next-line oxc/erasing-op -- Keep source arithmetic order, signed zero and NaN/Infinity propagation in numeric transforms.
         const tw: number = tiw * 0.0 - tix * v.x - tiy * v.y - tiz * v.z;
         const resultX: number = tw * x + tx * w + ty * z - tz * y;
         const resultY: number = tw * y + ty * w + tz * x - tx * z;

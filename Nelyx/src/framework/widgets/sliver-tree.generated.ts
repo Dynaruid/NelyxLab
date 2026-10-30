@@ -104,7 +104,7 @@ import {ValueKey,sameKey} from '../../foundation/key.ts';
 import {RepaintBoundary} from './repaint-boundary.ts';
 import {fixedTreeExtent,registerFixedTreeExtent} from '../rendering/tree-sliver-source-adapter.ts';
 import {castDartType,isDartType,hasCapturedDartType,captureDartType,describeDartType,runtimeDartType} from '../../foundation/dart-type-witness.ts';
-import {registerDartValueSemantics,dartIdentityHash,dartValueEquals,dartValueHash,dartValueString} from '../../foundation/dart-value.ts';
+import { registerDartValueSemantics, dartIdentityHash, dartValueEquals, dartValueHash } from '../../foundation/dart-value.ts';
 
 type AnimationRecord=DartNamedRecord<readonly[],{controller:AnimationController;animation:CurvedAnimation;key:UniqueKey}>;
 type NodesAnimation=DartNamedRecord<readonly[],{fromIndex:DartInt;toIndex:DartInt;value:DartDouble}>;
@@ -493,7 +493,7 @@ export class SourceTreeSliver<T extends {} | null> extends TreeStatefulHost {
      * @dartReturn double
      * @dartReturnOrigin explicit
      */
-    static defaultTreeRowExtentBuilder(node: SourceTreeSliverNode<{} | null>, dimensions: SliverLayoutDimensions): number {
+    static defaultTreeRowExtentBuilder(node: SourceTreeSliverNode<{} | null>, _dimensions: SliverLayoutDimensions): number {
         castSourceDartType<SourceTreeSliverNode<{} | null>>(node, applyDartType<SourceTreeSliverNode<{} | null>>(SourceTreeSliverNode, "TreeSliverNode", [nullableDartType<{}>(dartObjectType)], []));
         return _kDefaultRowExtent;
     }
@@ -1049,7 +1049,7 @@ export class SourceTreeNodeParentDataWidget extends TreeParentDataHost<SourceTre
             needsLayout = true;
         }
         if (needsLayout) {
-            (treeRenderParent(renderObject)?.markNeedsLayout() ?? null);
+            void ((treeRenderParent(renderObject)?.markNeedsLayout() ?? null));
         }
     }
     override get debugTypicalAncestorWidgetClass(): TreeRuntimeType {

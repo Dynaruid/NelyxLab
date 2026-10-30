@@ -13,7 +13,7 @@ export async function readApplication(app,target='windows'){
   if(!declared.targets[target])throw new Error('App does not configure target: '+target);
   const prepared=load('@nelyx/metro/assets').prepareAppAssetConfiguration(app,runner);
   const config=Object.freeze({...declared,assets:defineAssetManifest(prepared.assets)});
-  const registry=createProviderRegistry(),settings=config.targets[target],profile=registry.profile(target,settings.profile),cohort=registry.cohort(target,{...(settings.cohort?{cohort:settings.cohort}:{})},profile.id);
+  const registry=createProviderRegistry(),settings=config.targets[target],profile=registry.profile(target,settings.profile),cohort=registry.cohort(target,{...((settings.cohort) && ({cohort:settings.cohort}))},profile.id);
   return {app,runner,load,config,profile,cohort};
 }
 export function configureWindowsApplication(application){

@@ -70,6 +70,14 @@ Native targets require their platform toolchain and matching renderer inputs. Wi
 
 The shared application exports `main()` from `src/index.ts`. A platform runner registers it and provides the rendering surface. Import APIs through package subpaths such as `@nelyx/core/framework/widgets/basic`, `@nelyx/material/widgets`, and `@nelyx/sdk/platforms/web/surface`. See the [Widget example](Nelyx/README.md#widget-applications).
 
+## Development checks
+
+After `npm ci`, run `npm run lint` from the repository root. Oxlint checks the Core, SDK, design packages, samples, templates, tests, and conversion tools. Warnings and unused suppression comments fail the command.
+
+The [lint configuration](.oxlintrc.json) permits intentional unused rest exclusions, `_`-prefixed parameters, effectful short-circuit expressions, and owner/traversal references to `this`. Numeric edge cases, input filters, protocol data, and language fixtures use local exceptions with explanations. Generated sources remain in the inspection scope.
+
+Run `npm run check:types` for workspace types and `npm run check:design-ownership` after modifying managed design sources. The [conversion tool guide](tools/Nelyx.FrameworkToTypeScript/README.md) includes its separate checks.
+
 ## Documentation
 
 | Guide | Contents |

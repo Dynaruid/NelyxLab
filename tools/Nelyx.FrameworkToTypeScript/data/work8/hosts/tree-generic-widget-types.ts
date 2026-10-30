@@ -19,7 +19,7 @@ import {fixedTreeExtent,registerFixedTreeExtent} from '../rendering/tree-sliver-
 import {castDartType,isDartType,hasCapturedDartType,captureDartType,describeDartType,runtimeDartType} from '../../foundation/dart-type-witness.ts';
 import type {DartTypeWitness} from '../../foundation/dart-type-witness.ts';
 import {DartInt,DartDouble} from '../../foundation/dart-numeric.ts';
-import {registerDartValueSemantics,dartIdentityHash,dartValueEquals,dartValueHash,dartValueString} from '../../foundation/dart-value.ts';
+import { registerDartValueSemantics, dartIdentityHash, dartValueEquals, dartValueHash } from '../../foundation/dart-value.ts';
 type AnimationRecord=DartNamedRecord<readonly[],{controller:AnimationController;animation:CurvedAnimation;key:UniqueKey}>;
 type NodesAnimation=DartNamedRecord<readonly[],{fromIndex:DartInt;toIndex:DartInt;value:DartDouble}>;
 let valueOwnersRegistered=false;

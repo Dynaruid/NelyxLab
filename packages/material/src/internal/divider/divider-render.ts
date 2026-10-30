@@ -26,7 +26,7 @@ export class DividerRenderWidget extends LeafRenderObjectWidget {
   updateRenderObject(context:BuildContext,render:RenderObject):void{
     // Center, margin and decoration originally read these ambient owners in
     // separate pure scopes. Keep their lookup order and distinct directions.
-    context.maybeDependOn(Directionality)?.direction;
+    void (context.maybeDependOn(Directionality)?.direction);
     const direction=context.maybeDependOn(Directionality)?.direction??null;
     const painting=new ImageConfiguration({images:context.services.images??null,textDirection:context.maybeDependOn(Directionality)?.direction??null,devicePixelRatio:context.services.readMetrics('scale').scale,locale:context.maybeDependOn(Localizations)?.locale??null});
     (render as RenderDivider).configure(this.configuration,direction,painting);

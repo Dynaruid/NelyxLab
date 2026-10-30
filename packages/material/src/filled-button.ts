@@ -5,7 +5,7 @@ import type { MaterialButtonOptions, MaterialButtonVariant } from './button-styl
 import { Text } from '@nelyx/core/framework/widgets/basic';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
-import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
+import { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import type { Color } from '@nelyx/core/ui/color';
 import type { Size } from '@nelyx/core/ui/size';

@@ -51,5 +51,5 @@ export class BroadcastStreamController<T>{
   addError(error:unknown,stack:string|null=null):void{if(this.closed)throw new StateError();for(const subscription of this.subscriptions)subscription.enqueue({kind:'error',error,stack});}
   close():Promise<void>{if(this.closed)return this.done;this.closed=true;const done=this.done;if(!this.subscriptions.size)this.complete?.();else for(const subscription of this.subscriptions)subscription.enqueue({kind:'done'});return done;}
   /** Embedding lifetime extension: cancel listeners before its transport is gated. */
-  cancelListeners():void{for(const subscription of [...this.subscriptions])void subscription.cancel();}
+  cancelListeners():void{const snapshot=[...this.subscriptions];for(const subscription of snapshot)void subscription.cancel();}
 }

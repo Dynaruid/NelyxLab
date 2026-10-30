@@ -149,7 +149,7 @@ test('actual CanvasKit image decode and thumb glyph paint retain and retire the 
       return (x, y) => {const i = (y * 240 + x) * 4; return ((bytes[i + 3] << 24) | (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2]) >>> 0;};
     } finally {snapshot.delete();}
   };
-  const flush = async () => {let commands;for(let i = 0; i < 8; i++){await new Promise(setImmediate); for(const [key, callback] of [...frames]) {frames.delete(key);callback();} commands = f.frame();}return commands;};
+  const flush = async () => {let commands;for(let i = 0; i < 8; i++){await new Promise(setImmediate); const snapshot1=[...frames];for(const [key, callback] of snapshot1) {frames.delete(key);callback();} commands = f.frame();}return commands;};
   try {
     f.set(wrap(new Switch({value: true, onChanged() {}, activeThumbImage: image, id: 'image-switch'})));
     let commands = await flush(); assert(commands.some(c => c.op === 'drawImageRect'));

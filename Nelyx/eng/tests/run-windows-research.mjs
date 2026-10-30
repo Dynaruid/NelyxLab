@@ -38,6 +38,7 @@ async function prepare(variant,index,preflight=false){
   child=spawn(process.execPath,['--test','--test-reporter=spec','--test-timeout=1200000',path.join(import.meta.dirname,'windows-animation.test.mjs')],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']});
   const timer=setTimeout(()=>{expired=true;kill();},1_200_000);
   const receive=raw=>{try{
+    // oxlint-disable-next-line no-control-regex -- Control code points are deliberately matched for input validation or normalization.
     const line=raw.replace(/\x1b\[[0-9;]*m/g,'').trim().replace(/^# /,'');if(!line)return;tail.push(line);if(tail.length>40)tail.shift();
     for(const prefix of ['ANIMATION_STATIC_HERMES ','ANIMATION_BUILD ','ANIMATION_REUSED '])if(line.startsWith(prefix)){const value=JSON.parse(line.slice(prefix.length));builds.push(value);console.log('RESEARCH_BUILD '+JSON.stringify({variant,...value}));}
     if(line.startsWith('ANIMATION_AOT_COVERAGE '))console.log('RESEARCH_COVERAGE '+JSON.stringify({variant,...JSON.parse(line.slice('ANIMATION_AOT_COVERAGE '.length))}));

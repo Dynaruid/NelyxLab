@@ -13,6 +13,7 @@ if(typeof __DEV__!=='undefined'&&__DEV__&&globalThis.__NELYX_WEB_DEVELOPMENT__){
   function clear(){document.getElementById('nelyx-development-error')?.remove();state.stage='ready';}
   const reload=()=>reloading??=(async()=>{state.stage='closing';state.reloads++;client.disable();if(!beforeReload)throw Error('Web runner must register its reload close handler');await beforeReload();state.stage='reloading';location.reload();})().catch(error=>{display(error);throw error;});
   const previousEval=globalThis.globalEvalWithSourceUrl;
+  // oxlint-disable-next-line no-eval -- Metro development refresh evaluates the local module update supplied by the development server.
   globalThis.globalEvalWithSourceUrl=(code,sourceURL)=>{if(disposed||reloading)return;if(previousEval)previousEval(code,sourceURL);else(0,eval)(code+'\n//# sourceURL='+String(sourceURL).replace(/[\r\n]/g,''));};
   Refresh.injectIntoGlobalHook(globalThis);
   globalThis[(globalThis.__METRO_GLOBAL_PREFIX__||'')+'__ReactRefresh']={

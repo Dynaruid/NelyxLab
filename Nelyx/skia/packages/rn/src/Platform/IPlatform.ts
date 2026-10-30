@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { NodeHandle, View } from "react-native";
-
 import type {DataModule} from "@nelyx/skia-native/skia/types/Data/Data";
 
 export interface IPlatform {

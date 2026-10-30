@@ -100,7 +100,7 @@ export abstract class OneSequenceGestureRecognizer extends GestureRecognizer {
   protected stopTrackingIfPointerNoLongerDown(event:PointerEvent):void{if(event instanceof PointerUpEvent||event instanceof PointerCancelEvent||event instanceof PointerPanZoomEndEvent)this.stopTrackingPointer(event.pointer);}
   override dispose():void {
     if(!this.beginDispose())return;const errors:unknown[]=[];this.disposalEntries=new Set(this.entries.values());
-    try{try{this.resolve(GestureDisposition.rejected);}catch(error){errors.push(error);}for(const entry of [...this.disposalEntries]){this.disposalEntries.delete(entry);try{entry.resolve(GestureDisposition.rejected);}catch(error){errors.push(error);}}this.entries.clear();for(const pointer of [...this.trackedPointers])try{this.binding.pointerRouter.removeRoute(pointer,this.route);}catch(error){errors.push(error);}this.trackedPointers.clear();}
+    try{try{this.resolve(GestureDisposition.rejected);}catch(error){errors.push(error);}const snapshot=[...this.disposalEntries];for(const entry of snapshot){this.disposalEntries.delete(entry);try{entry.resolve(GestureDisposition.rejected);}catch(error){errors.push(error);}}this.entries.clear();const snapshot1=[...this.trackedPointers];for(const pointer of snapshot1)try{this.binding.pointerRouter.removeRoute(pointer,this.route);}catch(error){errors.push(error);}this.trackedPointers.clear();}
     finally{this.disposalEntries=null;this.finishDispose();}
     if(errors.length)throw new AggregateError(errors,'Gesture recognizer retirement failed');
   }

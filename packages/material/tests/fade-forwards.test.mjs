@@ -19,7 +19,7 @@ const timeout=1200000,source=JSON.parse(fs.readFileSync(new URL('./fixtures/fade
 class Manual extends Animation{
  values=new Set();statuses=new Set();value=0;status=AnimationStatus.dismissed;
  addListener(l){this.values.add(l);}removeListener(l){this.values.delete(l);}addStatusListener(l){this.statuses.add(l);}removeStatusListener(l){this.statuses.delete(l);}
- set(value,status){const old=this.status;this.value=value;this.status=status;if(old!==status)for(const l of [...this.statuses])l(status);for(const l of [...this.values])l();}
+ set(value,status){const old=this.status;this.value=value;this.status=status;if(old!==status){const snapshot=[...this.statuses];for(const l of snapshot)l(status);}const snapshot1=[...this.values];for(const l of snapshot1)l();}
 }
 function tree(root,recipe,leaf){const result=[];const visit=(e,inside=false)=>{inside ||= e.widget===recipe;if(inside){const w=e.widget;if(w===leaf){result.push({kind:'leaf'});return;}if(w instanceof SlideTransition)result.push({kind:'slide',position:[w.position.value.dx,w.position.value.dy]});else if(w instanceof FadeTransition)result.push({kind:'fade',opacity:w.opacity.value});else if(w instanceof ColoredBox)result.push({kind:'colored',color:w.color});else if(w instanceof IgnorePointer)result.push({kind:'ignore',ignoring:w.ignoring});}e.visitChildren(c=>visit(c,inside));};visit(root);return result;}
 test('96 original FadeForwards and 96 delegated source trees match actual canonical Root, route opacity and theme context',{timeout},()=>{
@@ -31,7 +31,7 @@ test('96 original FadeForwards and 96 delegated source trees match actual canoni
 
 test('FadeForwards maintains interrupted direction, borrowed animation lifetime, nullable delegated child and directional-independent motion',{timeout},()=>{
  const f=fixture(),a=new Manual(),s=new Manual(),leaf=new SizedBox(1,1),policy=new FadeForwardsPageTransitionsBuilder({backgroundColor:new Color(0xff654321)});let recipe;
- const build=()=>new Directionality('rtl',new Builder(context=>{recipe=policy.buildTransitions(null,null,a,s,leaf);return recipe;}));
+ const build=()=>new Directionality('rtl',new Builder(_context=>{recipe=policy.buildTransitions(null,null,a,s,leaf);return recipe;}));
  try{a.set(.4,AnimationStatus.forward);f.set(build());const before=tree(f.root.root,recipe,leaf),ignore=before.find(n=>n.kind==='ignore');assert.equal(ignore.ignoring,false);a.set(.2,AnimationStatus.reverse);f.set(build());const interrupted=tree(f.root.root,recipe,leaf);assert.equal(interrupted[0].opacity,.2/.75);assert.equal(interrupted.find(n=>n.kind==='ignore').ignoring,false);assert(interrupted.find(n=>n.kind==='slide').position[0]>0);a.set(1,AnimationStatus.completed);f.set(build());a.set(.8,AnimationStatus.reverse);f.set(build());const reverse=tree(f.root.root,recipe,leaf);assert.equal(reverse[0].opacity,1);assert.equal(reverse.find(n=>n.kind==='ignore').ignoring,true);assert(Math.abs(reverse.filter(n=>n.kind==='fade')[1].opacity-.2)<1e-12);
  f.set(new Builder(context=>policy.delegatedTransition(context,a,s,true,null)));assert.equal(a.values.size,0);assert.equal(a.statuses.size,0);s.set(.5,AnimationStatus.forward);f.frame();}
  finally{f.close();}for(const animation of [a,s]){assert.equal(animation.values.size,0);assert.equal(animation.statuses.size,0);}
@@ -47,6 +47,6 @@ test('actual Navigator FadeForwards keeps both page States through primary/secon
 test('real owned CPU FadeForwards primary fade/slide and secondary default/explicit background drain on close',{timeout},async()=>{
  const f=await engineFixture(),surface=f.ck.MakeSurface(240,160),a=new Manual(),s=new Manual(),leaf=new ColoredBox({color:0xffff0000,child:SizedBox.expand()}),policy=new FadeForwardsPageTransitionsBuilder({backgroundColor:new Color(0xff0000ff)});
  const pixel=()=>{f.library.replay(surface.getCanvas(),{commands:f.frame()});surface.flush();const image=surface.makeImageSnapshot();try{return [...image.readPixels(120,80,{width:1,height:1,colorType:f.ck.ColorType.RGBA_8888,alphaType:f.ck.AlphaType.Unpremul,colorSpace:f.ck.ColorSpace.SRGB})];}finally{image.delete();}};
- try{a.set(.25,AnimationStatus.forward);s.set(0,AnimationStatus.dismissed);f.set(new ColoredBox({color:0xffffffff,child:new Directionality('ltr',new Builder(context=>policy.buildTransitions(null,null,a,s,leaf)))}));assert.deepEqual(pixel(),[255,170,170,255]);s.set(.5,AnimationStatus.forward);f.set(new Directionality('ltr',new Builder(context=>policy.delegatedTransition(context,a,s,false,leaf))));assert.deepEqual(pixel(),[0,0,255,255]);}
+ try{a.set(.25,AnimationStatus.forward);s.set(0,AnimationStatus.dismissed);f.set(new ColoredBox({color:0xffffffff,child:new Directionality('ltr',new Builder(_context=>policy.buildTransitions(null,null,a,s,leaf)))}));assert.deepEqual(pixel(),[255,170,170,255]);s.set(.5,AnimationStatus.forward);f.set(new Directionality('ltr',new Builder(context=>policy.delegatedTransition(context,a,s,false,leaf))));assert.deepEqual(pixel(),[0,0,255,255]);}
  finally{surface.delete();await f.close();}for(const animation of [a,s]){assert.equal(animation.values.size,0);assert.equal(animation.statuses.size,0);}
 });

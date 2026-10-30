@@ -71,11 +71,12 @@ export class NativeInteraction {
     // Synchronous native React commits can unsubscribe/remount controls during
     // notification. Iterating the live Set would revisit a re-added listener
     // indefinitely and prevent pointer input and native close from draining.
-    for(const listener of [...this.listeners])if(this.listeners.has(listener))listener();
+    const snapshot1=[...this.listeners];
+    for(const listener of snapshot1)if(this.listeners.has(listener))listener();
   }
   /** Retirement is one publication after all endpoint maps have been cleared.
    * A failing observer cannot leave a later native endpoint on the old owner. */
-  private publishRetirement(errors:unknown[]):void{this.version++;for(const listener of [...this.listeners])if(this.listeners.has(listener))try{listener();}catch(error){errors.push(error);}}
+  private publishRetirement(errors:unknown[]):void{this.version++;const snapshot2=[...this.listeners];for(const listener of snapshot2)if(this.listeners.has(listener))try{listener();}catch(error){errors.push(error);}}
   private retireEditors(errors:unknown[]):void{for(const editor of this.editors.values())try{editor.session.dispose();}catch(error){errors.push(error);}this.editors.clear();}
   get semanticNodes():readonly SemanticsNode[]{return this.roots;}
   /** Native input endpoints follow Core bindings, even when clipping removes their semantics nodes. */

@@ -4,7 +4,6 @@ import type { RefObject } from "react";
 import { useLayoutEffect, useRef } from "react";
 import type { LayoutChangeEvent } from "react-native";
 import type { GrDirectContext, WebGLContextHandle } from "canvaskit-wasm";
-
 import type {SkRect} from "@nelyx/skia-native/skia/types/Rect";
 import type {SkPicture} from "@nelyx/skia-native/skia/types/Drawing";
 import type {SkImage} from "@nelyx/skia-native/skia/types/Drawing";
@@ -397,7 +396,7 @@ export class StaticWebGLRenderer implements Renderer {
       surface.ref.flush();
 
       return { surface, tempCanvas, grContext, contextHandle };
-    } catch (error) {
+    } catch (_error) {
       this.cleanupRenderResult({
         surface,
         tempCanvas,
@@ -501,10 +500,8 @@ export const makeLayoutEvent = (
 ): LayoutChangeEvent => ({
   timeStamp: Date.now(),
   nativeEvent: { layout: { x, y, width, height } },
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-expect-error
   currentTarget: 0,
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-expect-error
   target: 0,
   bubbles: false,

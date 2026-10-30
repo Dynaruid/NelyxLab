@@ -18,6 +18,7 @@
     "Nelyx/sdk/tooling/static-aot"
   ],
   "scripts": {
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "inspect:static-aot-runtime": "node Nelyx/eng/inspect-static-aot-runtime.mjs",
     "test:static-aot-runtime": "node --test --test-timeout=1200000 Nelyx/eng/tests/static-aot-runtime-inventory.test.mjs Nelyx/eng/tests/windows-typed-runtime-gate.test.mjs",
     "test:static-aot": "node --test --test-timeout=1200000 Nelyx/eng/tests/typed-partition.test.mjs Nelyx/eng/tests/typed-metro.test.mjs Nelyx/eng/tests/typed-metro-cache.test.mjs Nelyx/eng/tests/static-aot-build-cache.test.mjs Nelyx/eng/tests/typed-source-graph.test.mjs Nelyx/eng/tests/typed-numeric-partition.test.mjs Nelyx/eng/tests/windows-frame-terminals.test.mjs Nelyx/eng/tests/windows-typed-hermes.test.mjs Nelyx/eng/tests/windows-typed-hermes-units.test.mjs Nelyx/eng/tests/windows-typed-hermes-admission.test.mjs Nelyx/eng/tests/windows-typed-hermes-boundaries.test.mjs Nelyx/eng/tests/windows-static-aot-mode.test.mjs Nelyx/eng/tests/static-aot-type-policy.test.mjs Nelyx/eng/tests/static-aot-release.test.mjs Nelyx/eng/tests/static-aot-constructor.test.mjs Nelyx/eng/tests/static-aot-native-map.test.mjs Nelyx/eng/tests/static-aot-language.test.mjs Nelyx/eng/tests/static-aot-execution-plan.test.mjs Nelyx/eng/tests/static-aot-guarded-native.test.mjs Nelyx/eng/tests/native-pc-map.test.mjs Nelyx/eng/tests/static-aot-rnw-pal.test.mjs Nelyx/eng/tests/windows-static-aot-app.test.mjs",
@@ -92,6 +93,7 @@
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "oxlint": "1.90.0",
     "react-dom": "19.2.0",
     "react-native-web": "0.21.3",
     "@typescript/native": "npm:typescript@7.0.2",

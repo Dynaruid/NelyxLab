@@ -79,6 +79,7 @@ export async function buildNativeApplication({app,mode,hermesMode,signal,engineI
     try{if(fs.existsSync(directory)){assertReplaceable(directory);if(!inside(parent,directory)||fs.lstatSync(directory).isSymbolicLink())throw Error('Native output cleanup outside owned package');fs.renameSync(directory,previous);moved=true;}fs.renameSync(stage,directory);published=true;}
     finally{if(moved){if(published)fs.rmSync(previous,{recursive:true,force:true});else fs.renameSync(previous,directory);}}
     return {directory,mode,bundle:path.join(directory,bundle),executable:path.join(directory,'NelyxHermesHost.exe'),assetRoot:path.join(directory,'Assets')};
+  // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
   }finally{try{if(stage&&fs.existsSync(stage)){if(path.dirname(stage)!==parent||path.basename(stage)!=='.build-'+mode||fs.lstatSync(stage).isSymbolicLink())throw Error('Unexpected native build stage');fs.rmSync(stage,{recursive:true,force:true});}}finally{packageOwner.close();}}
 }
 export function assertNativeRuntimeGraph(graph){if(!graph||!Array.isArray(graph.modules)||!graph.modules.length||graph.modules.some(module=>!module?.owner?.name||/^(?:react(?:$|-)|@react-native(?:-windows)?\/|@nelyx\/skia-rn$|yoga(?:-layout)?$|@microsoft\/node-api-jsi$)/.test(module.owner.name))||graph.evaluationConflicts?.length||graph.summary?.unresolvedDependencies||graph.unresolved?.length||graph.dynamicCodeCandidates?.length)throw Error('Direct host runtime graph contains an RN owner, unresolved edge or dynamic-code fallback');}
@@ -106,6 +107,7 @@ export async function packNativeApplication({app,directory,hermesMode='bytecode'
     await execute('powershell.exe',['-NoProfile','-Command',"$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::CreateFromDirectory($env:NELYX_NATIVE_PACKAGE,$env:NELYX_NATIVE_ZIP)"],{env:{...process.env,NELYX_NATIVE_PACKAGE:checked.directory,NELYX_NATIVE_ZIP:archive},timeout});
     verifyNativePackage(checked.directory);fs.copyFileSync(archive,output,fs.constants.COPYFILE_EXCL);
     return {schema:'nelyx.pack/v2',target:'windows',host:'native-hermes',file:output,sha256:hash(output),files:checked.files,qualification:'experimental'};
+  // oxlint-disable-next-line no-unsafe-finally -- Reject cleanup when directory ownership or rollback safety cannot be established.
   }finally{if(path.dirname(temporary)!==parent||!path.basename(temporary).startsWith('.native-pack-')||fs.lstatSync(temporary).isSymbolicLink())throw Error('Native pack temporary owner differs');fs.rmSync(temporary,{recursive:true,force:true});}
 }
 export async function runNativeApplication({app,directory,hermesMode='bytecode',arguments:args=[]}={}){

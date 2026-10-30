@@ -50,9 +50,9 @@ export class SemanticsBinding {
     if(!connection){
       const bindings=new Set<SemanticsBinding>();let treeEnabled=false;
       connection={bindings,
-        featuresChanged:()=>{for(const binding of [...bindings])if(binding.live&&bindings.has(binding))binding.scheduleAccessibilityFeaturesChanged();},
-        enabledChanged:()=>{for(const binding of [...bindings])if(binding.live&&bindings.has(binding))binding.handlePlatformSemanticsEnabledChanged();},
-        action:event=>{for(const binding of [...bindings])if(binding.live&&bindings.has(binding)&&binding.options.viewId===event.viewId)binding.handleSemanticsActionEvent(event,decoded=>binding.options.performSemanticsAction?.(decoded));},
+        featuresChanged:()=>{const snapshot1=[...bindings];for(const binding of snapshot1)if(binding.live&&bindings.has(binding))binding.scheduleAccessibilityFeaturesChanged();},
+        enabledChanged:()=>{const snapshot2=[...bindings];for(const binding of snapshot2)if(binding.live&&bindings.has(binding))binding.handlePlatformSemanticsEnabledChanged();},
+        action:event=>{const snapshot3=[...bindings];for(const binding of snapshot3)if(binding.live&&bindings.has(binding)&&binding.options.viewId===event.viewId)binding.handleSemanticsActionEvent(event,decoded=>binding.options.performSemanticsAction?.(decoded));},
         syncTree:()=>{const enabled=[...bindings].some(binding=>binding.semanticsEnabled);if(treeEnabled===enabled)return;dispatcher.setSemanticsTreeEnabled(enabled);treeEnabled=enabled;},
       };
       SemanticsBinding.connections.set(dispatcher,connection);
@@ -69,7 +69,8 @@ export class SemanticsBinding {
   addAccessibilityFeaturesChangedListener(listener:()=>void):()=>void{invariant(this.live,'closed-semantics-binding','Cannot observe a closed View');this.featureListeners.add(listener);return ()=>this.featureListeners.delete(listener);}
   handleAccessibilityFeaturesChanged():void{
     if(!this.live||!this.accessibilityEnabled)return;const dispatcher=this.options.dispatcher;if(dispatcher)this.features=dispatcher.accessibilityFeatures;
-    for(const listener of [...this.featureListeners])if(this.live&&this.featureListeners.has(listener))try{listener();}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'semantics library'}));}
+    const snapshot4=[...this.featureListeners];
+    for(const listener of snapshot4)if(this.live&&this.featureListeners.has(listener))try{listener();}catch(exception){FlutterError.reportError(new FlutterErrorDetails({exception,library:'semantics library'}));}
   }
   private scheduleAccessibilityFeaturesChanged():void{
     const scheduler=this.options.scheduler;

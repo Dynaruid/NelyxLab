@@ -46,7 +46,7 @@ export function buildSourceGraph({entry,applicationRoot,packageRoots,maxModules=
     const mapFile=runtime+'.map';ownedFile(owner,mapFile);const map=JSON.parse(fs.readFileSync(mapFile));
     if(map.version!==3||map.sources?.length!==1||map.sourcesContent?.length!==1)throw Error('Implementation requires one supplied source map body: '+specifier);
     const body=path.resolve(path.dirname(mapFile),map.sources[0]);
-    if(!inside(owner.root,body)||!/^src\//.test(slash(path.relative(owner.root,body)))||!/(?<!\.d)\.tsx?$/.test(body))throw Error('Mapped implementation escapes package source: '+specifier);
+    if(!inside(owner.root,body)||!slash(path.relative(owner.root,body)).startsWith('src/')||!/(?<!\.d)\.tsx?$/.test(body))throw Error('Mapped implementation escapes package source: '+specifier);
     ownedFile(owner,body);if(fs.readFileSync(body,'utf8')!==map.sourcesContent[0])throw Error('Installed source differs from runtime map: '+specifier);
     origins.set(body,emittedOrigin(owner,body,runtime));return body;
   };
@@ -57,7 +57,7 @@ export function buildSourceGraph({entry,applicationRoot,packageRoots,maxModules=
       // relative JS import. Recover its supplied implementation, too, so a
       // declaration cannot create a second private class/type identity.
       if(specifier.startsWith('.')){
-        const candidate=path.resolve(path.dirname(containing),specifier),runtime=/\.js$/.test(candidate)?candidate:path.extname(candidate)?null:candidate+'.js';
+        const candidate=path.resolve(path.dirname(containing),specifier),runtime=candidate.endsWith('.js')?candidate:path.extname(candidate)?null:candidate+'.js';
         if(runtime&&fs.existsSync(runtime)){const owner=ownerOf(runtime);if(owner?.manifest&&slash(path.relative(owner.root,runtime)).startsWith('dist/'))return {body:mappedBody(owner,ownedFile(owner,runtime),specifier),route:'emitted'};}
       }
       return null;

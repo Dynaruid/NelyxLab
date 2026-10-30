@@ -34,6 +34,7 @@ export interface ColorSchemeFromImageOptions extends Omit<ColorSchemeFromSeedOpt
 }
 const deprecatedRoles = ['background', 'onBackground', 'surfaceVariant'];
 const roles = Object.keys(m3LightColorRoles).filter(key => key !== 'brightness' && !deprecatedRoles.includes(key)) as ColorRole[];
+// oxlint-disable-next-line typescript/no-unsafe-declaration-merging -- The constructor explicitly initializes the interface fields through validated property assignment.
 export interface ColorScheme extends Readonly<Record<ColorRole, number>> {
 }
 export class ColorScheme extends Diagnosticable(class {}) {

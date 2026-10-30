@@ -136,14 +136,14 @@ export class CupertinoDynamicColor extends SourceColorDiagnosticBase implements 
         const resolved: Color = (() => {
             const _dartTemporary0 = dartRecord([brightness, level, highContrast] as const);
             switch (true) {
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.color;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.highContrastColor;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.elevatedColor;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.highContrastElevatedColor;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.darkColor;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.darkHighContrastColor;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.darkElevatedColor;
-                case true && dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.darkHighContrastElevatedColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.color;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.highContrastColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.elevatedColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.light && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.highContrastElevatedColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.darkColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.base && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.darkHighContrastColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === false: return this.darkElevatedColor;
+                case dartRecordRead(_dartTemporary0, 0, 3) === SourceBrightness.dark && dartRecordRead(_dartTemporary0, 1, 3) === CupertinoUserInterfaceLevelData.elevated && dartRecordRead(_dartTemporary0, 2, 3) === true: return this.darkHighContrastElevatedColor;
                 default: throw new TypeError("Non-exhaustive Dart record switch expression");
             }
         })();

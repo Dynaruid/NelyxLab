@@ -60,7 +60,7 @@ export function createReactNativeRegistration(target:ReactNativePlatform,ports:R
   function register(name:string,application:ComponentType,options:ReactNativeRegistrationOptions):void {
     if(!/^[A-Z][A-Za-z0-9]*$/.test(name)||typeof application!=='function'&&(!application||typeof application!=='object'))throw new Error('Invalid React Native application name/component');
     const selected=registry.profile(target,options.profile);
-    const cohort=registry.cohort(target,{...(options.cohort?{cohort:options.cohort}:{})},selected.id);
+    const cohort=registry.cohort(target,{...((options.cohort) && ({cohort:options.cohort}))},selected.id);
     if(selected.status==='unsupported')throw new Error(`Unsupported profile: ${target}/${selected.id}: ${selected.reason}`);
     const configuration=snapshotAssets(options.assets);
     if(poisoned)throw new Error('Native initialization failed; reload the JS runtime before registration');
