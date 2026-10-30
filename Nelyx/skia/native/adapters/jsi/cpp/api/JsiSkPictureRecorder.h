@@ -40,7 +40,11 @@ public:
     SkCanvas *canvas;
     if (rect.has_value()) {
       SkRTreeFactory factory;
-      canvas = getObject()->beginRecording(**rect, &factory);
+      // Keep the complete recording range. A float-range cull can overflow the
+      // R-tree's clip bounds and hide partially visible paths after replay.
+      // Such pictures retain their commands and use canvas clipping directly.
+      canvas = getObject()->beginRecording(**rect,
+          nelyx::skia_core::isSafePictureCull(**rect) ? &factory : nullptr);
     } else {
       SkISize size = SkISize::Make(2'000'000, 2'000'000);
       SkRect bounds = SkRect::Make(size);

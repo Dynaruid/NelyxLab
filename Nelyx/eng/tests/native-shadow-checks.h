@@ -2,11 +2,13 @@
 #pragma once
 #include <cmath>
 #include <iostream>
+#include <vector>
 #include "nelyx_skia/core.h"
 #include "nelyx_skia/gpu_context.h"
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPictureRecorder.h"
 #include "include/core/SkPixmap.h"
+#include "include/core/SkBBHFactory.h"
 
 static void elevationShadowChecks(nelyx::gpu::Context& gpu){
   constexpr int width=512,height=256;
@@ -47,6 +49,54 @@ static void elevationShadowChecks(nelyx::gpu::Context& gpu){
       require(elevation<1||mass>0,"Elevated button shadow disappeared at positive elevation");
       require(elevation!=0||mass==0,"Button shadow remained at zero elevation");
       previous=mass;previousElevation=elevation;first=false;
+    }
+  }
+  // A retained button must remain partially visible while crossing the scroll
+  // clip. Compare the actual delivered Graphite picture path with direct paint,
+  // including a nested native picture and R-tree (the app's picture compiler).
+  // drawPaint retains the unbounded cull rect. Scaling that cached recording
+  // used to reject all of its button geometry; draw-only pictures missed it.
+  for(float dpr:{1.f,1.25f,2.f})for(bool surfaceEdge:{false,true})for(const auto offset:surfaceEdge
+    ?std::vector<SkPoint>{SkPoint::Make(50,-16),SkPoint::Make(50,height/dpr-16),SkPoint::Make(-53,48),SkPoint::Make(width/dpr-53,48)}
+    :std::vector<SkPoint>{SkPoint::Make(50,12),SkPoint::Make(50,88),SkPoint::Make(0,48),SkPoint::Make(200,48)}){
+    sk_sp<SkImage> reference;
+    for(int retained:{0,1,2}){
+      auto surface=gpu.MakeOffscreen(width,height);
+      auto canvas=deferred->makeDeferredCanvas(surface->imageInfo(),gpu.textureInfo(surface->imageInfo().colorType()));
+      canvas->clear(SK_ColorWHITE);canvas->scale(dpr,dpr);
+      canvas->clipRect(surfaceEdge?SkRect::MakeWH(width/dpr,height/dpr):SkRect::MakeLTRB(40,24,216,104));
+      const auto paint=[&](SkCanvas* target){
+        SkPaint background;background.setColor(SK_ColorWHITE);target->drawPaint(background);
+        nelyx::skia_core::drawShadow(*target,path,SK_ColorBLACK,1,false,dpr);
+        target->drawPath(path,fill);
+        SkPaint marker;marker.setColor(0xff6750a4);target->drawRect(SkRect::MakeXYWH(12,8,72,16),marker);
+      };
+      if(retained){
+        SkPictureRecorder inner;SkRTreeFactory factory;
+        const float limit=retained==1?SK_ScalarMax/4:SK_ScalarMax;
+        paint(inner.beginRecording(SkRect::MakeLTRB(-limit,-limit,limit,limit),&factory));
+        if(retained==2)for(int i=0;i<64;++i)inner.getRecordingCanvas()->drawRect(SkRect::MakeXYWH(4000+i*4,4000,1,1),fill);
+        SkPictureRecorder outer;auto target=outer.beginRecording(SkRect::MakeLTRB(-SK_ScalarMax,-SK_ScalarMax,SK_ScalarMax,SK_ScalarMax),&factory);
+        target->concat(SkM44::Translate(offset.x(),offset.y(),0));
+        nelyx::skia_core::drawPicture(*target,inner.finishRecordingAsPicture());
+        nelyx::skia_core::drawPicture(*canvas,outer.finishRecordingAsPicture());
+      }else {canvas->translate(offset.x(),offset.y());paint(canvas);}
+      auto frame=deferred->snap(),initial=surface->recorder()->snap();
+      if(initial)gpu.submitRecording(initial.get());
+      require(frame&&gpu.insertRecordings({frame.get()},surface.get()),"Clipped button recording rejected");
+      auto image=surface->makeImageSnapshot();auto recording=surface->recorder()->snap();
+      if(recording)gpu.submitRecording(recording.get());
+      auto raster=gpu.MakeRasterImage(image);SkPixmap pixels;
+      require(raster&&raster->peekPixels(&pixels),"Clipped button pixels missing");
+      if(!retained){reference=std::move(raster);continue;}
+      SkPixmap expected;require(reference->peekPixels(&expected),"Clipped button reference missing");
+      unsigned body=0,missing=0;
+      for(int y=0;y<height;++y)for(int x=0;x<width;++x){
+        const auto color=expected.getColor(x,y);
+        if(color==0xffeeeeee||color==0xff6750a4){++body;if(pixels.getColor(x,y)!=color)++missing;}
+      }
+      if(missing)std::cerr<<"Clipped button dpr="<<dpr<<" offset="<<offset.x()<<','<<offset.y()<<" missing="<<missing<<'/'<<body<<'\n';
+      require(body>0&&missing==0,"A partially clipped retained button lost its body or label");
     }
   }
   deferred.reset();require(gpu.retireWork(),"Button shadow GPU work did not drain");

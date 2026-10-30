@@ -11,9 +11,10 @@ import { SliverMultiBoxAdaptorElement } from '@nelyx/core/framework/widgets/sliv
 import { RenderSliverMultiBoxAdaptor } from '@nelyx/core/framework/rendering/sliver-multi-box-adaptor';
 import { PipelineOwner } from '@nelyx/core/framework/rendering/object';
 import { PaintingContext } from '@nelyx/core/framework/painting/context';
-import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
+import { GraphiteRenderer, replayFrame } from '@nelyx/skia-native/renderer';
 import { NativeTextLayoutService } from '@nelyx/skia-native/text';
 import { Curves } from '@nelyx/core/framework/animation/curves';
+import { TextField } from '@nelyx/material/text-field';
 import { transform } from '@nelyx/core/ui/geometry';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import {
@@ -35,6 +36,8 @@ export function installNativeScrollProbe(
     scope: 'cpu' | 'gc' | 'diagnostic' | 'stages' | 'sampling';
     catalog: boolean;
     scrollScenes?: boolean;
+    mixedScrollScenes?: boolean;
+    mixedScrollPixels?: boolean;
     pacing: 'programmatic' | 'os';
     resourceCycles?: number;
   },
@@ -109,6 +112,7 @@ export function installNativeScrollProbe(
     return pump.call(this);
   };
   const dispatch = ViewRuntime.prototype.dispatchPointer;
+  let pixelRequest: ((frame: any, target: any) => void) | undefined;
   if (options.pacing === 'os')
     ViewRuntime.prototype.dispatchPointer = function (event) {
       const before = (this as any).inputSequence,
@@ -127,6 +131,11 @@ export function installNativeScrollProbe(
   GraphiteRenderer.prototype.submit = function (...args: Parameters<typeof submit>) {
     renderer = this;
     if (sourceStages) this.frameDiagnostics = sourceStages;
+    if (pixelRequest) {
+      const request = pixelRequest;
+      pixelRequest = undefined;
+      request(args[0], this);
+    }
     return submit.apply(this, args);
   };
   api.requestFrame = (callback: any) =>
@@ -320,14 +329,14 @@ export function installNativeScrollProbe(
       if (!pending()) return;
     }
   }
-  async function foreground() {
+  async function foreground(parkCursor = true) {
     const ready = async () => {
       // External activation can restore a maximized HWND. Reestablish the
       // requested viewport before parking input or starting any timed phase.
       api.diagnosticWindow(options.viewport === 'maximized' ? 'maximize' : 'restore');
       await delay(100);
       await settled();
-      if (options.pacing === 'programmatic') {
+      if (options.pacing === 'programmatic' && parkCursor) {
         api.diagnosticParkCursor();
         await delay(100);
         await settled();
@@ -931,6 +940,206 @@ export function installNativeScrollProbe(
     view.controller.buildOwner.focus.primaryFocus?.unfocus();
     await settled();
   }
+  async function enterMixedScroll() {
+    tap('show-mixed-scroll');
+    await settled();
+    const state = stateOf(sample.MixedScrollPage),
+      scroll = state?.scroll;
+    check(scroll?.hasClients, 'Actual mixed scroll page is missing');
+    const owners = entries().filter(
+      ({ widget }) =>
+        widget instanceof TextField && /^mixed-scroll-field-\d+$/.test(widget.id ?? ''),
+    );
+    const editorFocused = () =>
+      entries().some(
+        ({ widget, state }) =>
+          widget.options?.id === 'mixed-scroll-field-0' && state?.focus?.hasPrimaryFocus,
+      );
+    check(owners.length === 12, 'Every mixed editor must be mounted before scrolling');
+    return { scroll, owners, editorFocused };
+  }
+  async function mixedScrollPixels() {
+    const { scroll, owners } = await enterMixedScroll();
+    const pixels = () =>
+      new Promise<Uint8Array>((resolve, reject) => {
+        pixelRequest = (frame, target) => {
+          let surface: any, texture: any, raster: any, value: Uint8Array | undefined;
+          const errors: unknown[] = [];
+          try {
+            const draw = target.api,
+              m = view.currentMetrics;
+            surface = draw.Surface.MakeOffscreen(m.physicalWidth, m.physicalHeight, {
+              colorSpace: 'srgb',
+            });
+            check(surface, 'Native pixel surface unavailable');
+            const canvas = surface.getCanvas();
+            canvas.scale(m.scale, m.scale);
+            replayFrame(draw, canvas, frame, target.resources);
+            surface.flush(true);
+            texture = surface.makeImageSnapshot();
+            raster = texture.makeNonTextureImage();
+            check(raster, 'Native pixel readback unavailable');
+            value = raster.readPixels();
+            check(value instanceof Uint8Array, 'Native pixel read failed');
+          } catch (error) {
+            errors.push(error);
+          }
+          for (const dispose of [
+            () => raster?.dispose(),
+            () => texture?.dispose(),
+            () => surface?.nelyxRetire(),
+            () => surface?.dispose(),
+          ])
+            try {
+              dispose();
+            } catch (error) {
+              errors.push(error);
+            }
+          if (errors.length)
+            reject(new AggregateError(errors, 'Native button pixel capture failed'));
+          else resolve(value!);
+        };
+        view.requestFrame();
+      });
+    const baseOffset = 600;
+    for (const edge of ['top', 'bottom']) {
+      scroll.jumpTo(baseOffset);
+      await settled();
+      const buttons = ['send', 'count', 'clear'].map((kind) =>
+        view.controller.nodes.find((node: any) => node.id === 'mixed-scroll-' + kind + '-3'),
+      );
+      check(buttons.every(Boolean), 'Native pixel reference buttons are missing');
+      const before = await pixels(),
+        m = view.currentMetrics,
+        top = m.logicalHeight - scroll.position.viewportDimension,
+        target =
+          Math.round(
+            (baseOffset +
+              buttons[0].bounds.y +
+              buttons[0].bounds.height / 2 -
+              (edge === 'top' ? top : m.logicalHeight)) *
+              m.scale,
+          ) / m.scale;
+      scroll.jumpTo(target);
+      await settled();
+      const after = await pixels(),
+        delta = Math.round((target - baseOffset) * m.scale);
+      for (const button of buttons) {
+        const bounds = button.bounds;
+        let compared = 0,
+          missing = 0;
+        for (
+          let y = Math.max(Math.ceil(top * m.scale) + 2, Math.ceil(bounds.y * m.scale - delta) + 2);
+          y <
+          Math.min(
+            m.physicalHeight - 2,
+            Math.floor((bounds.y + bounds.height) * m.scale - delta) - 2,
+          );
+          y++
+        )
+          for (
+            let x = Math.ceil(bounds.x * m.scale) + 6;
+            x < Math.floor((bounds.x + bounds.width) * m.scale) - 6;
+            x++
+          ) {
+            const source = ((y + delta) * m.physicalWidth + x) * 4,
+              dest = (y * m.physicalWidth + x) * 4;
+            compared++;
+            if (
+              [0, 1, 2].some(
+                (channel) => Math.abs(before[source + channel] - after[dest + channel]) > 4,
+              )
+            )
+              missing++;
+          }
+        report({ type: 'mixed-native-pixels', edge, button: button.id, compared, missing });
+        check(
+          compared > 100 && missing <= compared * 0.01,
+          'Native clipped button pixels changed: ' +
+            edge +
+            ' ' +
+            button.id +
+            ' ' +
+            missing +
+            '/' +
+            compared,
+        );
+      }
+    }
+    check(
+      owners.every(({ element }: any) => entries().some((entry) => entry.element === element)),
+      'Pixel traversal replaced an eager editor',
+    );
+  }
+  async function mixedScrollScenes() {
+    const { scroll, owners, editorFocused } = await enterMixedScroll();
+    const move = async (target: number, duration: number, windows: any[]) => {
+      const begin = now();
+      await scroll.animateTo(target, { duration, curve: Curves.linear });
+      windows.push({ begin, end: now() });
+      check(Math.abs(scroll.offset - target) < 0.05, 'Mixed scroll target was not reached');
+      await settled();
+    };
+    await phase('mixed-scroll-traverse', async () => {
+      const motionWindows: any[] = [],
+        target = Math.min(scroll.position.maxScrollExtent, 3 * scroll.position.viewportDimension);
+      await move(target, 4000, motionWindows);
+      return { motionWindows, target, final: scroll.offset };
+    });
+    scroll.jumpTo(0);
+    await settled();
+    const pointer = (kind: string, point: { x: number; y: number }) =>
+      view.controller.pointer({
+        kind,
+        ...point,
+        pointer: 9001,
+        device: 'mouse',
+        buttons: kind === 'down' ? 1 : 0,
+        timestamp: now(),
+        viewportGeneration: view.currentMetrics.viewportGeneration,
+      });
+    const warm = async (name: string, point?: { x: number; y: number }) => {
+      await phase(name, async () => {
+        if (point) pointer('hover', point);
+        const motionWindows: any[] = [];
+        await move(96, 1500, motionWindows);
+        await move(0, 1500, motionWindows);
+        await delay(300);
+        await move(96, 500, motionWindows);
+        await move(0, 500, motionWindows);
+        return {
+          motionWindows,
+          editors: owners.length,
+          editorFocused: editorFocused(),
+        };
+      });
+      if (point) {
+        pointer('leave', point);
+        await settled();
+      }
+    };
+    await warm('mixed-scroll-no-hover');
+    const button = view.controller.nodes.find((node: any) => node.id === 'mixed-scroll-count-0');
+    check(button, 'Actual mixed scroll button is missing');
+    await warm('mixed-scroll-button-hover', {
+      x: button.bounds.x + button.bounds.width / 2,
+      y: button.bounds.y + button.bounds.height / 2,
+    });
+    const field = view.controller.nodes.find((node: any) => node.id === 'mixed-scroll-field-0');
+    check(field, 'Actual mixed scroll editor is missing');
+    const point = { x: field.bounds.x + 20, y: field.bounds.y + field.bounds.height / 2 };
+    pointer('down', point);
+    pointer('up', point);
+    await settled();
+    check(editorFocused(), 'Actual mixed scroll editor did not acquire primary focus');
+    await warm('mixed-scroll-field-focus', point);
+    check(
+      owners.every(({ element }) => entries().some((entry) => entry.element === element)),
+      'Mixed scroll replaced an eager editor',
+    );
+    view.controller.buildOwner.focus.primaryFocus?.unfocus();
+    await settled();
+  }
   function complete() {
     check(!errors.length, 'Handled framework errors during diagnostic: ' + errors.join('; '));
     report({
@@ -953,7 +1162,7 @@ export function installNativeScrollProbe(
       30000,
     );
     await settled();
-    await foreground();
+    await foreground(!options.mixedScrollScenes && !options.mixedScrollPixels);
     if (options.scope === 'sampling') {
       const pictures = view.controller.context.pictures;
       check(
@@ -983,6 +1192,16 @@ export function installNativeScrollProbe(
       performanceAccepted: false,
     });
     check(view.controller.pipeline.semanticsOwner, 'Accessibility must remain enabled');
+    if (options.mixedScrollPixels) {
+      await mixedScrollPixels();
+      complete();
+      return;
+    }
+    if (options.mixedScrollScenes) {
+      await mixedScrollScenes();
+      complete();
+      return;
+    }
     if (options.scrollScenes) {
       await galleryScrollScenes();
       complete();

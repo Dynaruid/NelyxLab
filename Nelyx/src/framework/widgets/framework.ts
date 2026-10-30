@@ -172,6 +172,16 @@ export class BuildScope {
   get hasDirty(): boolean {
     return this.queue.size > 0;
   }
+  /** @internal Covered layout scopes keep their dirty work without changing
+   * the already painted route. Unknown render ownership remains conservative. */
+  _hasDirtyInActiveLayout(): boolean {
+    return !this.queue.every((element) => {
+      if (!element.active || element.findRenderObject !== Element.prototype.findRenderObject)
+        return false;
+      const render = element.findRenderObject();
+      return render !== undefined && render.layoutSuppressedByAncestor;
+    });
+  }
   /** @internal BuildOwner uses the source scope scheduling protocol. */
   _scheduleBuildFor(element: Element): void {
     if (!(element.buildScope === this))
@@ -397,8 +407,10 @@ export class BuildOwner {
   // Element records own membership; nonempty scopes form one intrusive list.
   private dirtyScopes: BuildScope | undefined;
   private queuedBuilds = 0;
+  private buildQueueRevision = 0;
   /** @internal BuildScope changes both summaries with its actual queue. */
   _didQueueBuild(scope: BuildScope): void {
+    this.buildQueueRevision++;
     if (!scope._queuedOwner) {
       scope._queuedOwner = this;
       scope._nextDirtyScope = this.dirtyScopes;
@@ -409,6 +421,7 @@ export class BuildOwner {
   }
   /** @internal */
   _didUnqueueBuild(scope: BuildScope): void {
+    this.buildQueueRevision++;
     if (!(scope._queuedOwner === this && this.queuedBuilds > 0))
       invariant(false, 'invalid-dirty-owner', 'Dirty scope ownership is inconsistent');
     this.queuedBuilds--;
@@ -442,6 +455,13 @@ export class BuildOwner {
   }
   get hasDirty(): boolean {
     return this.queuedBuilds > 0;
+  }
+  /** Dirty work in a covered layout scope cannot change the visible snapshot. */
+  get hasDirtyInActiveLayout(): boolean {
+    const revision = this.buildQueueRevision;
+    for (let scope = this.dirtyScopes; scope; scope = scope._nextDirtyScope)
+      if (scope._hasDirtyInActiveLayout() || revision !== this.buildQueueRevision) return true;
+    return false;
   }
   get globalKeyCount(): number {
     return this.globals.size;

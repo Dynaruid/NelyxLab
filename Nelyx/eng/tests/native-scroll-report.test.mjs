@@ -239,6 +239,31 @@ test('native scroll options keep diagnostic modes and viewports explicit', { tim
   );
   assert.throws(() => nativeScrollOptions(['--scroll-scenes']), /Scroll scenes/);
   assert.equal(
+    nativeScrollOptions(['--mixed-scroll-scenes', '--viewport', 'maximized']).mixedScrollScenes,
+    true,
+  );
+  assert.throws(() => nativeScrollOptions(['--mixed-scroll-scenes']), /Scroll scenes/);
+  assert.equal(
+    nativeScrollOptions(['--mixed-scroll-pixels', '--viewport', 'maximized']).mixedScrollPixels,
+    true,
+  );
+  assert.throws(() => nativeScrollOptions(['--mixed-scroll-pixels']), /Scroll scenes/);
+  assert.throws(
+    () =>
+      nativeScrollOptions([
+        '--mixed-scroll-pixels',
+        '--mixed-scroll-scenes',
+        '--viewport',
+        'maximized',
+      ]),
+    /Scroll scenes/,
+  );
+  assert.throws(
+    () =>
+      nativeScrollOptions(['--mixed-scroll-scenes', '--scroll-scenes', '--viewport', 'maximized']),
+    /Scroll scenes/,
+  );
+  assert.equal(
     nativeScrollOptions(['--scroll-scenes', '--viewport', 'maximized', '--scope', 'gc']).scope,
     'gc',
   );

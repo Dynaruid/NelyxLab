@@ -222,7 +222,15 @@ test(
       assert.equal(f.submissions.length, 0);
       f.busy = false;
       f.request();
-      assert.equal(f.submissions.length, 1);
+      assert.equal(
+        f.submissions.length,
+        2,
+        'Submit the current prepared frame, then honor the new redraw',
+      );
+      assert.deepEqual(
+        f.submissions.map((frame) => frame.token.sequence),
+        [2, 3],
+      );
       assert.equal(f.painter.paints, 3);
       f.busy = true;
       f.painter.color = 0xffabcdef;
@@ -230,15 +238,126 @@ test(
       f.tick();
       f.view.requestForcedFrame();
       f.tick();
-      assert.equal(f.submissions.length, 1);
+      assert.equal(f.submissions.length, 2);
       f.busy = false;
       f.request();
-      assert.equal(f.submissions.length, 2);
+      assert.equal(f.submissions.length, 4);
       assert.deepEqual(f.submissions.at(-1).colors, [0xffabcdef]);
       f.request();
-      assert.equal(f.submissions.length, 3);
+      assert.equal(f.submissions.length, 5);
     } finally {
       await f.close();
+    }
+  },
+);
+
+test(
+  'prepared widget frames remain eligible only until paint, build, layout or input changes',
+  { timeout },
+  async () => {
+    const f = fixture({ boundary: true });
+    let lastToken;
+    try {
+      f.busy = true;
+      f.request();
+      const current = () => {
+        lastToken = f.view.pending.frame.token;
+        assert(f.root.canSubmitPreparedFrame(lastToken));
+      };
+      current();
+      f.view.requestFrame();
+      assert(
+        f.root.canSubmitPreparedFrame(lastToken),
+        'A future tick does not change already prepared pixels',
+      );
+      f.painter.color = 0xffabcdef;
+      f.signal.notifyListeners();
+      assert.equal(
+        f.root.canSubmitPreparedFrame(lastToken),
+        false,
+        'Nested paint invalidation revokes the snapshot',
+      );
+      f.view.requestForcedFrame();
+      f.tick();
+      current();
+      f.root.root.markNeedsBuild();
+      assert.equal(f.root.canSubmitPreparedFrame(lastToken), false);
+      f.view.requestForcedFrame();
+      f.tick();
+      current();
+      f.root.pipeline.root.markNeedsLayout();
+      assert.equal(f.root.canSubmitPreparedFrame(lastToken), false);
+      f.view.requestForcedFrame();
+      f.tick();
+      current();
+      const previous = lastToken.sequence;
+      f.view.dispatchPointer({
+        kind: 'hover',
+        pointer: 1,
+        device: 'mouse',
+        buttons: 0,
+        x: 230,
+        y: 150,
+        timestamp: 100,
+        viewportGeneration: 1,
+      });
+      f.busy = false;
+      f.request();
+      assert.equal(
+        f.submissions.length,
+        1,
+        'New input replaces the prepared scene before native submission',
+      );
+      assert(f.submissions[0].token.sequence > previous);
+      assert.deepEqual(f.submissions[0].colors, [0xffabcdef]);
+    } finally {
+      await f.close();
+    }
+    assert.equal(f.root.canSubmitPreparedFrame(lastToken), false);
+  },
+);
+
+test(
+  'a current prepared widget frame overlaps queued motion while contact boundaries replace it',
+  { timeout },
+  async () => {
+    for (const kind of ['wheel', 'down']) {
+      const f = fixture();
+      try {
+        f.busy = true;
+        f.request();
+        const pointer = f.root.pointer;
+        f.root.pointer = function (event) {
+          pointer.call(this, event);
+          f.painter.color = 0xffabcdef;
+          f.signal.notifyListeners();
+        };
+        f.view.queuePointer({
+          kind,
+          pointer: 1,
+          device: 'mouse',
+          buttons: kind === 'down' ? 1 : 0,
+          x: 230,
+          y: 150,
+          timestamp: 100,
+          viewportGeneration: 1,
+          ...(kind === 'wheel' ? { deltaX: 0, deltaY: 8 } : {}),
+        });
+        f.busy = false;
+        f.tick();
+        assert.deepEqual(
+          f.submissions.map((frame) => frame.token.inputSequence),
+          kind === 'wheel' ? [0, 1] : [1],
+        );
+        assert.equal(
+          f.painter.paints,
+          2,
+          'Preparing the next tick never paints the preceding snapshot again',
+        );
+        assert.deepEqual(f.submissions.at(-1).colors, [0xffabcdef]);
+      } finally {
+        await f.close();
+      }
     }
   },
 );

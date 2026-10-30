@@ -5,8 +5,8 @@ import { WindowsInteraction } from '../../sdk/dist/platforms/windows/interaction
 import { AndroidInteraction } from '../../sdk/dist/platforms/android/interaction.js';
 import { EditableText, TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
-import { SizedBox } from '@nelyx/core/framework/widgets/basic';
-import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { SizedBox, Column, SliverToBoxAdapter } from '@nelyx/core/framework/widgets/basic';
+import { ListView, CustomScrollView } from '@nelyx/core/framework/widgets/scroll-view';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { engineFixture } from '../../../packages/material/tests/engine-fixture.mjs';
@@ -14,6 +14,104 @@ import { KeepAlive } from '@nelyx/core/framework/widgets/sliver';
 import { RenderEditable } from '@nelyx/core/framework/rendering/editable';
 
 const timeout = 1_200_000;
+
+test(
+  'eager editors withdraw only fully clipped input surfaces and restore the same connection',
+  { timeout },
+  async () => {
+    FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
+    const f = await engineFixture({ fonts: true }),
+      interaction = new WindowsInteraction(f.root.context.owner),
+      scroll = new ScrollController(),
+      controllers = Array.from({ length: 12 }, (_, i) => new TextEditingController('Editor ' + i)),
+      sent = [],
+      detaches = [];
+    f.root.context.editing = interaction.editing;
+    f.root.context.semantics = interaction.semantics;
+    try {
+      f.set(
+        new Directionality(
+          'ltr',
+          new CustomScrollView({
+            controller: scroll,
+            primary: false,
+            slivers: [
+              new SliverToBoxAdapter({
+                child: new Column(
+                  controllers.map(
+                    (controller, i) =>
+                      new SizedBox(
+                        240,
+                        80,
+                        new EditableText(
+                          'eager-' + i,
+                          controller,
+                          'Editor ' + i,
+                          undefined,
+                          24,
+                          null,
+                          { minHeight: 0, maxLines: 1 },
+                        ),
+                      ),
+                  ),
+                  { mainSize: 'min' },
+                ),
+              }),
+            ],
+          }),
+        ),
+      );
+      const clients = interaction.editorClients;
+      assert.equal(clients.length, 12, 'Clipping never unmounts an eager editor');
+      detaches.push(
+        interaction.attachEditor(
+          'eager-0',
+          {},
+          {
+            replace() {},
+            focus() {},
+            blur() {},
+            updateGeometry(geometry) {
+              sent.push(geometry);
+            },
+          },
+        ),
+      );
+      f.frame();
+      const initial = sent.at(-1);
+      assert(initial);
+      assert.equal(interaction.editorInputBounds('eager-11'), undefined);
+      scroll.jumpTo(8);
+      f.advance(17);
+      const partial = sent.at(-1);
+      assert(partial && partial.clip.height > 0);
+      assert.equal(partial.bounds.y, initial.bounds.y - 8);
+      assert(
+        partial.clip.height < initial.clip.height,
+        'A partial editor retains its visible input surface',
+      );
+      scroll.jumpTo(80);
+      f.advance(17);
+      assert.equal(sent.at(-1), null);
+      const withdrawn = sent.length;
+      scroll.jumpTo(96);
+      f.advance(17);
+      assert.equal(sent.length, withdrawn, 'Offscreen motion sends no duplicate empty geometry');
+      scroll.jumpTo(0);
+      f.advance(17);
+      assert(sent.at(-1));
+      assert(sent.at(-1).layoutEpoch > partial.layoutEpoch);
+      assert.equal(controllers[0].text, 'Editor 0');
+      assert.deepEqual(interaction.editorClients, clients);
+    } finally {
+      await f.close();
+      for (const detach of detaches) detach();
+      interaction.dispose();
+      scroll.dispose();
+      for (const controller of controllers) controller.dispose();
+    }
+  },
+);
 
 test(
   'cached editor rows withdraw native geometry without querying glyphs and restore the same editor on return',

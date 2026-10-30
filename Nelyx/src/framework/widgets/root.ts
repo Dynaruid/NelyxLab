@@ -165,6 +165,9 @@ export class FrameworkRoot implements ViewController {
   readonly scheduler: FrameScheduler;
   readonly buildOwner: BuildOwner;
   readonly pipeline: PipelineOwner;
+  private preparedFrame:
+    | { sequence: number; render: RenderObject; paintVersion: number; buildRevision: number }
+    | undefined;
   private readonly sourceSemanticsSnapshot: SemanticsTransportSnapshot | undefined;
   private semanticsCache:
     | {
@@ -549,6 +552,8 @@ export class FrameworkRoot implements ViewController {
   build(scene: SceneContext): SceneFrameSource {
     invariant(!this.closed, 'closed-framework-root', 'Frame after root disposal');
     if (!this.isViewOpen()) return [];
+    this.preparedFrame = undefined;
+    let preparedFrame: FrameworkRoot['preparedFrame'];
     const diagnostics = scene.frameDiagnostics;
     let diagnosticAt = diagnostics?.now();
     const finishDiagnostic = diagnostics
@@ -661,6 +666,13 @@ export class FrameworkRoot implements ViewController {
         ? { paintChildCalls: 0, boundaryVisits: 0, boundaryRecordings: 0, boundaryReuses: 0 }
         : undefined;
       painting = new PaintingContext(null, null, true, paintCounts);
+      render._finishPaintInvalidationBatch();
+      preparedFrame = {
+        sequence: scene.token.sequence,
+        render,
+        paintVersion: render.paintVersion,
+        buildRevision: this.buildOwner.buildRevision,
+      };
       this.recordPaint(render, painting);
       finishDiagnostic?.('paint');
       withRenderPaint(() =>
@@ -1093,7 +1105,9 @@ export class FrameworkRoot implements ViewController {
       if (captureFailed) throw captureError;
       /* oxlint-enable no-unsafe-finally */
     }
-    return !this.isViewOpen() || this.scheduler.disposed ? [] : (recording ?? []);
+    if (!this.isViewOpen() || this.scheduler.disposed) return [];
+    if (recording) this.preparedFrame = preparedFrame;
+    return recording ?? [];
   }
   private isCurrentFrame(token: FrameBuildToken): boolean {
     const current = this.context.readMetrics(),
@@ -1482,10 +1496,28 @@ export class FrameworkRoot implements ViewController {
   shouldSubmitFrame(): boolean {
     return this.scheduler.sendFramesToEngine;
   }
+  canSubmitPreparedFrame(token: FrameBuildToken): boolean {
+    const prepared = this.preparedFrame;
+    if (!prepared || prepared.sequence !== token.sequence || !this.isCurrentFrame(token))
+      return false;
+    prepared.render._finishPaintInvalidationBatch();
+    return (
+      !this.closed &&
+      !this.scheduler.disposed &&
+      this.scheduler.sendFramesToEngine &&
+      !this.buildOwner.hasDirtyInActiveLayout &&
+      this.buildOwner.buildRevision === prepared.buildRevision &&
+      this.pipeline.root === prepared.render &&
+      !prepared.render.needsLayout &&
+      !this.pipeline.hasActiveLayoutWork &&
+      prepared.render.paintVersion === prepared.paintVersion
+    );
+  }
   frameSubmitted(_token: FrameBuildToken): void {
     this.scheduler.markFirstFrameSubmitted();
   }
   dispose(): void {
+    this.preparedFrame = undefined;
     this.buildOwner.maybeViewWorkBudget?.cancelPreparation();
     this.cancelSemanticsWake();
     this.pendingSemanticsActions = [];

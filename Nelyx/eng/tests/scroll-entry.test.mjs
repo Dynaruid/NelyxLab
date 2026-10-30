@@ -15,6 +15,50 @@ import { fixture } from '../../../packages/material/tests/root-fixture.mjs';
 FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
 
 test(
+  'deferred scroll metrics refresh semantics without invalidating the completed paint',
+  { timeout: 1_200_000 },
+  async () => {
+    const f = fixture(),
+      scroll = new ScrollController();
+    try {
+      f.set(
+        new Directionality(
+          'ltr',
+          new ListView({
+            controller: scroll,
+            primary: false,
+            padding: EdgeInsets.zero,
+            children: Array.from({ length: 20 }, () => new SizedBox(240, 80)),
+          }),
+        ),
+      );
+      await Promise.resolve();
+      f.frame();
+      scroll.jumpTo(80);
+      f.frame();
+      const root = f.root.pipeline.root,
+        version = root.paintVersion;
+      await Promise.resolve();
+      assert.equal(
+        root.paintVersion,
+        version,
+        'A metrics-only microtask must not discard the frame waiting for native credit',
+      );
+      assert.equal(
+        f.root.scheduler.hasScheduledFrame,
+        true,
+        'The changed semantics still requests its next publication',
+      );
+      f.frame();
+      assert.equal(scroll.offset, 80);
+    } finally {
+      f.close();
+      scroll.dispose();
+    }
+  },
+);
+
+test(
   'continuous entry and reversal preserve active links, actual visible rows and bounded State ownership',
   { timeout: 1_200_000 },
   () => {

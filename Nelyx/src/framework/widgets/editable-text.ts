@@ -662,7 +662,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       !render?.attached ||
       !render.hasSize ||
       render.needsLayout ||
-      !render.isDisplayed ||
       metrics.viewportGeneration !== this.layoutViewportGeneration
     )
       return null;

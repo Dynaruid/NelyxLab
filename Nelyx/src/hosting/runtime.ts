@@ -110,6 +110,9 @@ export interface ViewController {
   /** Owner gate, for example first-frame deferral. Native admission alone
    * cannot suppress a requested future frame: present may be unobserved. */
   shouldSubmitFrame?(): boolean;
+  /** Whether this still-unsubmitted CPU snapshot remains current before the
+   * next animation tick. This never acknowledges display or skips a redraw. */
+  canSubmitPreparedFrame?(token: FrameBuildToken): boolean;
   /** Called after renderer admission. This is not a display receipt and does
    * not acknowledge the pixels or paint dependencies of later frames. */
   frameSubmitted?(token: FrameBuildToken): void;
@@ -750,6 +753,24 @@ export class ViewRuntime implements Disposable {
         const forced = this.forcedFrame;
         this.forcedFrame = false;
         try {
+          // A requested future tick need not invalidate the CPU scene already
+          // waiting for native credit. Submit that verified-current snapshot
+          // before dispatching queued motion/building its successor, keeping GPU
+          // and owner work overlapped. Already dispatched input, forced geometry
+          // and unknown/custom scene owners retain replace-before-submit.
+          if (
+            !forced &&
+            this.pending &&
+            (this.dirty || this.pointerMailbox.length > 0 || this.deferredFrames.size > 0) &&
+            this.pending.frame.token.inputSequence === this.inputSequence &&
+            this.controller?.canSubmitPreparedFrame?.(this.pending.frame.token) === true &&
+            this.options.renderer.canBuildFrame?.() === true
+          ) {
+            const result = this.pump();
+            if (result?.status === 'unknown')
+              throw new Error('Renderer submission failed: ' + result.reason);
+          }
+          if (this.state !== 'open') return;
           // Keep the current task through wake callbacks: a callback requesting a
           // redraw joins this tick instead of adding another compositor wait.
           this.flushPointerInput();

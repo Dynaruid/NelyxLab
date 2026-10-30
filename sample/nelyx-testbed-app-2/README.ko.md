@@ -248,6 +248,16 @@ node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximiz
 
 `gc`는 별도로 실행해 Hermes 누적 할당·수집·pause 통계를 켭니다. 장면별 누적값 차이는 개별 frame 안의 pause 위치를 알려주지 않으며, 해당 타이밍을 `cpu` 기준값 대신 사용하지 않습니다.
 
+**입력·버튼 스크롤** 페이지는 별도 명령으로 측정합니다. 하나의 Column과 12개 편집기를 처음부터 모두 유지한 채 이동, 짧은 왕복, 버튼 hover, 편집기 focus를 확인합니다.
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope stages
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope cpu
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-pixels --scope cpu
+```
+
+이 명령에도 위의 직접 호스트·합성 입력 진단 범위와 데스크톱 입력 중지 조건이 적용됩니다. `--mixed-scroll-pixels`는 실제 페이지의 세 버튼을 위·아래 경계에 걸쳐 native GPU 픽셀로 비교하는 별도 검사이며 성능 측정이 아닙니다. 세 옵션 `--scroll-scenes`, `--mixed-scroll-scenes`, `--mixed-scroll-pixels`는 서로 함께 사용하지 않습니다.
+
 ## Android
 
 표준 OpenJDK **21**, Android SDK·build tools **36**, NDK **27.1.12297006**, Vulkan을 지원하는 x86_64 에뮬레이터와 대응하는 Android Skia 공급 파일이 필요합니다. 빌드 전에 `JAVA_HOME`을 사용할 JDK로 설정하세요. Android runner의 package.json이 참조하는 네이티브 공급 archive가 설치 전에 있어야 하며, `prepare:sample`은 Nelyx 패키지를 공급합니다.

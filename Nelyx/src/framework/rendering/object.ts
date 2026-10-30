@@ -110,6 +110,10 @@ function captureInputGeometry(
     width: frame.metrics.logicalWidth,
     height: frame.metrics.logicalHeight,
   });
+  // A fully clipped editor keeps its State/connection, but has no native input
+  // surface. Withdraw its old packet before projecting caret/selection or
+  // walking the same clip ancestors for every offscreen eager child.
+  if (clip.width === 0 || clip.height === 0) return undefined;
   for (let child = render, parent = render.parent; parent; child = parent, parent = parent.parent) {
     const local = parent.describeApproximatePaintClip(child);
     if (local)
@@ -117,6 +121,7 @@ function captureInputGeometry(
         clip,
         bounds(multiply(parent.getTransformTo(null), translate(local.x, local.y)), local),
       );
+    if (clip.width === 0 || clip.height === 0) return undefined;
   }
   const caret = project(core.caret),
     selectionRects = core.selectionRects.map(project),
@@ -363,6 +368,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   private changingRoot = false;
   private readonly dirtyLayout = new Set<RenderObject>();
   private readonly layoutCallbacks = new Set<RenderObject>();
+  private layoutWorkRevision = 0;
   private readonly paintRetirements = new Set<RenderObject>();
   /** @internal One synchronous layout transaction, never a frame/geometry lease. */
   _paintInvalidationBatch: object | null = null;
@@ -454,6 +460,17 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   /** Diagnostic queue size, not a count of every node laid out recursively. */
   get debugPendingLayoutCount(): number {
     return this.dirtyLayout.size;
+  }
+  /** Covered layout callbacks stay queued until their ancestor reveals them. */
+  get hasActiveLayoutWork(): boolean {
+    const revision = this.layoutWorkRevision,
+      children = this.childRevision;
+    for (const nodes of [this.dirtyLayout, this.layoutCallbacks])
+      for (const node of nodes)
+        if (node.owner === this && node.needsLayout && !node.layoutSuppressedByAncestor)
+          return true;
+    for (const child of this.childOwners) if (child.hasActiveLayoutWork) return true;
+    return revision !== this.layoutWorkRevision || children !== this.childRevision;
   }
   get debugDoingSemantics(): boolean {
     return FoundationBuildMode.debug && this.flushingSemantics;
@@ -673,6 +690,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
     assertOutsideRenderPaint();
     if (!(!this.dead && node.owner === this))
       invariant(false, 'invalid-render-owner', 'Layout request requires this live pipeline');
+    this.layoutWorkRevision++;
     if (!this.dirtyLayout.has(node)) {
       this.dirtyLayout.add(node);
       this.invalidate();
@@ -683,10 +701,12 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
     assertOutsideRenderPaint();
     if (!(!this.dead && node.owner === this))
       invariant(false, 'invalid-render-owner', 'Layout callback requires this live pipeline');
+    this.layoutWorkRevision++;
     this.layoutCallbacks.add(node);
   }
   flushLayout(size?: Size): void {
     assertOutsideRenderPaint();
+    this.layoutWorkRevision++;
     if (
       !(
         !this.dead &&

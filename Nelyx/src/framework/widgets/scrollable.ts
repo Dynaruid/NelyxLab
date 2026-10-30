@@ -626,7 +626,7 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
         notificationType: ScrollMetricsNotification,
         onNotification: (notification) => {
           if (notification.depth === 0)
-            this.semanticsKey.currentContext?.findRenderObject()?.markNeedsPaint();
+            this.semanticsKey.currentContext?.findRenderObject()?.markNeedsSemanticsUpdate();
           return false;
         },
         child: new _ScrollSemantics(

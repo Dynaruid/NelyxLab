@@ -39,6 +39,7 @@ registerHooks({
 });
 const { ComponentsGallery } = await import('../src/gallery.ts');
 const { ListViewPage } = await import('../src/list-view.ts');
+const { MixedScrollPage } = await import('../src/mixed-scroll.ts');
 const { demos } = await import('../src/catalog.ts');
 const { cupertinoDemos } = await import('../src/cupertino-catalog.ts');
 FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
@@ -885,6 +886,104 @@ function texts(fixture) {
   return result;
 }
 test(
+  'mixed scroll preserves partially clipped button pixels while retained content moves',
+  { timeout },
+  async () => {
+    const f = await gallery({ withPictures: true }),
+      width = 487,
+      height = 464,
+      surface = f.ck.MakeSurface(width, height);
+    const pixels = () => {
+      f.library.replay(surface.getCanvas(), { commands: f.frame() });
+      surface.flush();
+      return surface.getCanvas().readPixels(0, 0, {
+        width,
+        height,
+        colorType: f.ck.ColorType.RGBA_8888,
+        alphaType: f.ck.AlphaType.Unpremul,
+        colorSpace: f.ck.ColorSpace.SRGB,
+      });
+    };
+    try {
+      Object.assign(f.root.context.readMetrics(), {
+        logicalWidth: width,
+        logicalHeight: height,
+        physicalWidth: width,
+        physicalHeight: height,
+        viewportGeneration: 2,
+      });
+      f.frame();
+      f.tap('show-mixed-scroll');
+      f.advance(501);
+      const pending = [f.root.root];
+      let page;
+      while (pending.length) {
+        const element = pending.pop();
+        if (element.widget instanceof MixedScrollPage) page = element.stateObject;
+        pending.push(...element.children);
+      }
+      assert(page);
+      const top = height - page.scroll.position.viewportDimension;
+      for (const edge of ['top', 'bottom']) {
+        page.scroll.jumpTo(edge === 'top' ? 0 : 220);
+        f.advance(250);
+        await Promise.resolve();
+        f.frame();
+        const buttons = ['send', 'count', 'clear'].map((kind) => {
+          const id = 'mixed-scroll-' + kind + '-' + (edge === 'top' ? 0 : 1),
+            button = f.root.nodes.find((node) => node.id === id);
+          assert(button, 'Reference button missing: ' + id);
+          return button;
+        });
+        const before = pixels(),
+          bounds = buttons[0].bounds,
+          offset = Math.round(
+            page.scroll.offset + bounds.y + bounds.height / 2 - (edge === 'top' ? top : height),
+          ),
+          delta = offset - page.scroll.offset;
+        page.scroll.jumpTo(offset);
+        f.advance(250);
+        await Promise.resolve();
+        f.frame();
+        const after = pixels();
+        for (const { id, bounds } of buttons) {
+          let compared = 0,
+            missing = 0;
+          for (
+            let y = Math.max(Math.ceil(top) + 2, Math.ceil(bounds.y - delta));
+            y < Math.min(height - 2, Math.floor(bounds.y + bounds.height - delta));
+            y++
+          )
+            for (
+              let x = Math.ceil(bounds.x) + 3;
+              x < Math.floor(bounds.x + bounds.width) - 3;
+              x++
+            ) {
+              const source = ((y + delta) * width + x) * 4,
+                target = (y * width + x) * 4;
+              compared++;
+              if (
+                [0, 1, 2].some(
+                  (channel) => Math.abs(before[source + channel] - after[target + channel]) > 4,
+                )
+              )
+                missing++;
+            }
+          assert(compared > 100);
+          assert(
+            missing <= compared * 0.01,
+            edge + ' clipped ' + id + ' changed ' + missing + '/' + compared + ' pixels',
+          );
+        }
+      }
+    } finally {
+      surface.delete();
+      await f.close();
+    }
+  },
+);
+
+test(
   'mixed scroll eagerly mounts every editor and keeps its owners through end, return and resize',
   { timeout },
   async () => {
@@ -907,7 +1006,22 @@ test(
       f.advance(501);
       const initial = fields();
       assert.equal(initial.size, 12, 'Offscreen rows are mounted before the first scroll');
+      assert.equal(
+        f.root.buildOwner.hasDirtyInActiveLayout,
+        false,
+        'Covered gallery builds do not invalidate the visible mixed page',
+      );
+      assert.equal(
+        f.root.pipeline.hasActiveLayoutWork,
+        false,
+        'Covered gallery layout callbacks wait for route return',
+      );
       initial.get('mixed-scroll-field-0').text = 'Retained message';
+      assert.equal(
+        f.root.buildOwner.hasDirtyInActiveLayout,
+        true,
+        'A visible editor change still invalidates a prepared frame',
+      );
       f.frame();
       f.tap('mixed-scroll-send-0');
       assert(texts(f).includes('전송: Retained message'));

@@ -12,8 +12,16 @@ export interface DepthQueueRecord {
 export class DepthQueue<T extends DepthQueueRecord> {
   private readonly heap: T[] = [];
   private order = 0;
+  private revision = 0;
   get size(): number {
     return this.heap.length;
+  }
+  /** Read only the queued records; a reentrant mutation makes validation fail. */
+  every(predicate: (record: T) => boolean): boolean {
+    const revision = this.revision;
+    for (const record of this.heap)
+      if (!predicate(record) || this.revision !== revision) return false;
+    return true;
   }
   private before(a: T, b: T): boolean {
     return (
@@ -59,6 +67,7 @@ export class DepthQueue<T extends DepthQueueRecord> {
       this.order = 0;
     }
     record._buildQueueDepth = record.depth;
+    this.revision++;
     record._buildQueueOrder = ++this.order;
     if (index < 0) {
       this.heap.push(record);
@@ -72,6 +81,7 @@ export class DepthQueue<T extends DepthQueueRecord> {
     if (!(index >= 0 && this.heap[index] === record))
       invariant(false, 'foreign-depth-record', 'Dirty record is not queued here');
     const last = this.heap.pop()!;
+    this.revision++;
     record._buildQueueIndex = -1;
     if (index < this.heap.length) {
       if (index > 0 && this.before(last, this.heap[(index - 1) >> 1]!)) this.up(index, last);

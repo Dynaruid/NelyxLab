@@ -104,12 +104,26 @@ void drawShadow(SkCanvas& canvas,const SkPath& path,SkColor color,float elevatio
 #endif
   SkShadowUtils::DrawShadow(&canvas,path,height,light,800.0f/600.0f,ambient,spot,flags);
 }
+bool isSafePictureCull(const SkRect& bounds) noexcept {
+  constexpr float clipLimit=536870911.f;
+  return SkRect::MakeLTRB(-clipLimit,-clipLimit,clipLimit,clipLimit).contains(bounds);
+}
 void drawPicture(SkCanvas& canvas,const sk_sp<SkPicture>& picture) {
+  if(!picture)return;
+  const auto cull=picture->cullRect();
+  // drawPaint/unknown-bounds ops can retain float-range culls, including
+  // one-sided ranges whose width/height are still finite. Device clip/matrix
+  // arithmetic can reject those entire pictures at display scale. Use direct
+  // playback outside the safe integer clip range; this does not crop content.
+  // Flatten them into recording parents too, preserving nested replay.
+  const bool unbounded=!isSafePictureCull(cull);
 #if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
   if(canvas.recorder()){
-    SkAutoCanvasRestore restore(&canvas,true);ShadowReplayCanvas replay(canvas);replay.drawPicture(picture);return;
+    SkAutoCanvasRestore restore(&canvas,true);ShadowReplayCanvas replay(canvas);
+    if(unbounded)picture->playback(&replay);else replay.drawPicture(picture);return;
   }
 #endif
+  if(unbounded){SkAutoCanvasRestore restore(&canvas,true);picture->playback(&canvas);return;}
   canvas.drawPicture(picture);
 }
 void drawImage(SkCanvas& canvas,const sk_sp<SkImage>& image,const SkRect& destination) {if(!image)throw std::runtime_error("missing image");canvas.drawImageRect(image,destination,SkSamplingOptions(SkFilterMode::kLinear));}

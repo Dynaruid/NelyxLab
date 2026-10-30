@@ -248,6 +248,16 @@ The four scenes separate first exposure, warm motion, button hover, and focused 
 
 Run `gc` separately to enable cumulative Hermes allocation/collection/pause counters. Its phase deltas do not locate an individual pause inside a frame, and its timings do not replace the `cpu` baseline.
 
+Measure the **입력·버튼 스크롤** (inputs and buttons) page separately. Its single Column and all 12 editors stay mounted through traversal, short round trips, button hover, and editor focus.
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope stages
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope cpu
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-pixels --scope cpu
+```
+
+The same direct-host, synthetic-input diagnostic scope and idle-desktop requirement apply. `--mixed-scroll-pixels` separately compares native GPU pixels for the page's three buttons at both scroll edges; it does not measure performance. The options `--scroll-scenes`, `--mixed-scroll-scenes`, and `--mixed-scroll-pixels` are mutually exclusive.
+
 ## Android
 
 Use a standard OpenJDK **21**, Android SDK/build tools **36**, NDK **27.1.12297006**, a Vulkan-capable x86_64 emulator, and the matching Android Skia supply. Set `JAVA_HOME` to your JDK before building. The native supplier archive referenced by the Android runner's package.json must exist before installation; `prepare:sample` supplies the Nelyx packages.

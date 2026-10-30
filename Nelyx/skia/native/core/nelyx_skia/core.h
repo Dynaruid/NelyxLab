@@ -24,6 +24,7 @@ void concatMatrix4(SkCanvas& canvas, const std::array<float,16>& columnMajor);
 void drawRect(SkCanvas& canvas, const SkRect& rect, const SkPaint& paint);
 void drawRRect(SkCanvas& canvas, const SkRRect& rect, const SkPaint& paint);
 void drawShadow(SkCanvas& canvas, const SkPath& path, SkColor color, float elevation, bool transparentOccluder, float devicePixelRatio);
+bool isSafePictureCull(const SkRect& bounds) noexcept;
 void drawPicture(SkCanvas& canvas, const sk_sp<SkPicture>& picture);
 void drawImage(SkCanvas& canvas, const sk_sp<SkImage>& image, const SkRect& destination);
 void drawImageRect(SkCanvas& canvas, const sk_sp<SkImage>& image, const SkRect& source, const SkRect& destination, const SkSamplingOptions& sampling, const SkPaint* paint, SkCanvas::SrcRectConstraint constraint);

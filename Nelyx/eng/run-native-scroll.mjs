@@ -262,6 +262,8 @@ export function nativeScrollOptions(args) {
     pacing: 'programmatic',
     catalog: false,
     scrollScenes: false,
+    mixedScrollScenes: false,
+    mixedScrollPixels: false,
     details: false,
     resourceCycles: 0,
     repeat: 1,
@@ -283,6 +285,14 @@ export function nativeScrollOptions(args) {
     }
     if (name === '--scroll-scenes') {
       result.scrollScenes = true;
+      continue;
+    }
+    if (name === '--mixed-scroll-scenes') {
+      result.mixedScrollScenes = true;
+      continue;
+    }
+    if (name === '--mixed-scroll-pixels') {
+      result.mixedScrollPixels = true;
       continue;
     }
     if (name === '--details') {
@@ -313,8 +323,10 @@ export function nativeScrollOptions(args) {
     );
   result.resourceCycles = Number(result.resourceCycles);
   if (
-    result.scrollScenes &&
-    (result.catalog ||
+    (result.scrollScenes || result.mixedScrollScenes || result.mixedScrollPixels) &&
+    ([result.scrollScenes, result.mixedScrollScenes, result.mixedScrollPixels].filter(Boolean)
+      .length > 1 ||
+      result.catalog ||
       result.pacing !== 'programmatic' ||
       result.resourceCycles !== 0 ||
       result.viewport !== 'maximized' ||
@@ -496,6 +508,7 @@ export async function runNativeScroll(options) {
       ['main', path.resolve(app, config.appEntry)],
       ['ComponentsGallery', path.join(app, 'src/gallery.ts')],
       ['ListViewPage', path.join(app, 'src/list-view.ts')],
+      ['MixedScrollPage', path.join(app, 'src/mixed-scroll.ts')],
       ['GallerySection', path.join(app, 'src/gallery-section.ts')],
       ['demos', path.join(app, 'src/catalog.ts')],
       ['cupertinoDemos', path.join(app, 'src/cupertino-catalog.ts')],
@@ -523,11 +536,13 @@ export async function runNativeScroll(options) {
             ';',
         )
         .join('\n') +
-        '\nimport {installNativeScrollProbe} from "./native-scroll-fixture.ts";\nexport function main(){installNativeScrollProbe({ComponentsGallery,ListViewPage,GallerySection,demos,cupertinoDemos},' +
+        '\nimport {installNativeScrollProbe} from "./native-scroll-fixture.ts";\nexport function main(){installNativeScrollProbe({ComponentsGallery,ListViewPage,MixedScrollPage,GallerySection,demos,cupertinoDemos},' +
         JSON.stringify({
           scope: options.scope,
           catalog: options.catalog,
           scrollScenes: options.scrollScenes === true,
+          mixedScrollScenes: options.mixedScrollScenes === true,
+          mixedScrollPixels: options.mixedScrollPixels === true,
           pacing: options.pacing,
           resourceCycles: options.resourceCycles,
         }) +
@@ -652,9 +667,35 @@ export async function runNativeScroll(options) {
               errors: errors.slice(-3000),
             }),
         );
-      const expectedPhases = options.catalog ? (viewport === 'maximized' ? 13 : 10) : 4;
+      const expectedPhases = options.mixedScrollPixels
+        ? 0
+        : options.catalog
+          ? viewport === 'maximized'
+            ? 13
+            : 10
+          : 4;
       if (reports.filter((report) => report.type === 'phase').length !== expectedPhases)
         throw Error('Native diagnostic scenario incomplete');
+      if (options.mixedScrollPixels) {
+        const pixels = reports.filter((report) => report.type === 'mixed-native-pixels'),
+          expected = new Set(
+            ['top', 'bottom'].flatMap((edge) =>
+              ['send', 'count', 'clear'].map((kind) => edge + ':mixed-scroll-' + kind + '-3'),
+            ),
+          );
+        for (const row of pixels)
+          if (
+            !expected.delete(row.edge + ':' + row.button) ||
+            !Number.isSafeInteger(row.compared) ||
+            row.compared <= 100 ||
+            !Number.isSafeInteger(row.missing) ||
+            row.missing < 0 ||
+            row.missing > row.compared * 0.01
+          )
+            throw Error('Native mixed scroll pixel comparison failed or repeated');
+        if (pixels.length !== 6 || expected.size)
+          throw Error('Native mixed scroll pixel comparison incomplete');
+      }
       const loadedIdentity = verifyNativeLoadedIdentity(output, checked.manifest);
       const nativeViews = output
         .split(/\r?\n/)
