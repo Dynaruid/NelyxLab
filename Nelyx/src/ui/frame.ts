@@ -28,6 +28,8 @@ import type {
   ViewEnvironment,
 } from './types.ts';
 import type { Canvas } from './canvas.ts';
+export { FrameDiagnostics } from './frame-diagnostics.ts';
+export type { FrameDiagnosticSample, FrameDiagnosticStage } from './frame-diagnostics.ts';
 export function sameOwner(a: ViewOwner, b: ViewOwner): boolean {
   return a.id === b.id && a.generation === b.generation;
 }

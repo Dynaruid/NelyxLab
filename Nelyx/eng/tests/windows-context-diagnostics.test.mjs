@@ -15,12 +15,41 @@ test(
   () => {
     // Execute the fixture's exact hook against Core without creating an RN host.
     const fixture = fs.readFileSync(new URL('./windows-animation.tsx', import.meta.url), 'utf8'),
-      hook = fixture
-        .split('\n')
-        .find((line) =>
-          line.trimStart().startsWith('const runLayout=(RenderObject.prototype as any).runLayout;'),
-        );
-    assert(hook, 'The installed fixture layout hook must be exercised');
+      source = ts.createSourceFile(
+        'windows-animation.tsx',
+        fixture,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TSX,
+      ),
+      hooks = [];
+    const visit = (node) => {
+      if (ts.isBlock(node))
+        for (let index = 0; index + 1 < node.statements.length; index++) {
+          const declaration = node.statements[index],
+            assignment = node.statements[index + 1];
+          if (
+            ts.isVariableStatement(declaration) &&
+            declaration.declarationList.declarations.some(
+              (value) => ts.isIdentifier(value.name) && value.name.text === 'runLayout',
+            ) &&
+            ts.isExpressionStatement(assignment) &&
+            ts.isBinaryExpression(assignment.expression) &&
+            ts.isPropertyAccessExpression(assignment.expression.left) &&
+            assignment.expression.left.name.text === 'runLayout' &&
+            ts.isFunctionExpression(assignment.expression.right)
+          )
+            hooks.push(declaration.getText(source) + '\n' + assignment.getText(source));
+        }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    assert.equal(
+      hooks.length,
+      1,
+      'The actual fixture layout hook must be exercised independent of formatting',
+    );
+    const hook = hooks[0];
     const original = RenderObject.prototype.runLayout,
       mode = FoundationBuildMode.mode,
       labels = [];

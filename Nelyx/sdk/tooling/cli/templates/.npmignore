@@ -1,0 +1,15 @@
+# Keep this list aligned with src/template-inputs.mjs.
+**/.gradle/
+**/.kotlin/
+**/.nelyx/
+**/.cache/
+**/.metro-cache/
+**/.cxx/
+**/.vs/
+**/node_modules/
+**/build/
+**/dist/
+**/x64/
+**/obj/
+**/bin/
+**/DerivedData/

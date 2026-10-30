@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { AppSession } from '@nelyx/core/hosting/runtime';
 import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
 import { ResourceLease } from '@nelyx/core/hosting/resources';
-import { freezeFrame } from '@nelyx/core/ui/frame';
+import { freezeFrame, FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { SizedBox } from '@nelyx/core/framework/widgets/basic';
@@ -143,6 +143,73 @@ function fixture({ scene, observeInput } = {}) {
     },
   };
 }
+
+test(
+  'CPU diagnostics join input, prepared frame and native submission without changing backpressure',
+  { timeout },
+  async () => {
+    const f = fixture();
+    let time = 100;
+    const trace = new FrameDiagnostics({ now: () => ++time });
+    f.view.frameDiagnostics = f.renderer.frameDiagnostics = trace;
+    try {
+      f.view.dispatchPointer({
+        kind: 'hover',
+        x: 1,
+        y: 1,
+        pointer: 1,
+        device: 'mouse',
+        buttons: 0,
+        timestamp: 90,
+        viewportGeneration: 1,
+      });
+      f.deny = true;
+      f.view.requestFrame();
+      f.tick();
+      assert.equal(f.builds, 1);
+      assert.equal(f.submissions.length, 0);
+      time += 30;
+      f.deny = false;
+      f.tick();
+      assert.equal(f.builds, 1, 'A retry must reuse its captured pending frame');
+      assert.equal(f.submissions.length, 1);
+      const samples = trace.drain().samples;
+      assert(
+        samples.some(
+          (sample) => sample.stage === 'input-queue' && sample.frame === 0 && sample.input === 1,
+        ),
+      );
+      assert(samples.some((sample) => sample.stage === 'pending' && sample.duration >= 30));
+      for (const stage of [
+        'capture-transfer',
+        'admission',
+        'recording-begin',
+        'recording-finish',
+        'native-submit',
+        'submit',
+      ])
+        assert(
+          samples.some(
+            (sample) => sample.stage === stage && sample.frame === 1 && sample.input === 1,
+          ),
+          'Missing joined stage ' + stage,
+        );
+      f.view.frameDiagnostics = f.renderer.frameDiagnostics = undefined;
+      f.notifications.push(7, 1, 0);
+      f.view.requestFrame();
+      f.tick();
+      assert.equal(
+        f.submissions.length,
+        2,
+        'Explicit redraw still submits with unobserved presentation',
+      );
+      assert.deepEqual(trace.drain().samples, []);
+      assert.deepEqual(f.errors, []);
+    } finally {
+      await f.session.dispose();
+    }
+  },
+);
 
 function deadlineFixture({
   widgets = false,

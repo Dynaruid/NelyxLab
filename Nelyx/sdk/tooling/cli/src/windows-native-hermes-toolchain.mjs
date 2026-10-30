@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execute } from './commands.mjs';
-import { sha256, fileTree, localFile } from './files.mjs';
+import { sha256, localFile } from './files.mjs';
+import { nativeHermesSourceTree as sourceTree } from './windows-native-hermes-source.mjs';
 import { openNativeBuildCache } from './native-build-cache.mjs';
 import { windowsCompilerEnvironment, windowsStaticHermesPin } from './windows-static-hermes.mjs';
 import { patchStaticHermesCompiler } from './static-hermes-compiler-patch.mjs';
@@ -19,14 +20,9 @@ const producer = () =>
           'static-hermes-compiler-patch.mjs',
           'windows-hermes-policy.mjs',
           'windows-static-hermes.mjs',
+          'windows-native-hermes-source.mjs',
         ].map((name) => [name, sha256(path.join(import.meta.dirname, name))]),
       ),
-    )
-    .digest('hex');
-const sourceTree = (directory) =>
-  createHash('sha256')
-    .update(
-      JSON.stringify(fileTree(directory).map((name) => [name, sha256(path.join(directory, name))])),
     )
     .digest('hex');
 const names = [

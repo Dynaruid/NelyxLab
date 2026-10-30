@@ -2,6 +2,7 @@
 import type { PaintFrame } from '@nelyx/core/ui/types';
 import type { PaintSnapshot } from '@nelyx/core/ui/paint';
 import { resourceKey } from '@nelyx/core/ui/frame';
+import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import type { Skia } from './skia/types/Skia.ts';
 import type { SkPaint } from './skia/types/Drawing.ts';
 import type { GraphiteResources } from './renderer.ts';
@@ -92,6 +93,9 @@ class ScenePacket {
       this.handles,
     );
   }
+  get byteLength(): number {
+    return this.used * 8;
+  }
   clear(): void {
     this.handles.length = 0;
     this.ids.clear();
@@ -124,7 +128,9 @@ export function submitNativeScene(
   frame: PaintFrame,
   resources: GraphiteResources,
   programs = resources.runtimePrograms,
+  diagnostics?: FrameDiagnostics,
 ): void {
+  let diagnosticAt = diagnostics?.now();
   const packet = new ScenePacket(frame.commands.length),
     temporary: unknown[] = [],
     errors: unknown[] = [];
@@ -384,7 +390,28 @@ export function submitNativeScene(
           );
       }
     }
-    packet.submit(target);
+    if (diagnostics)
+      diagnosticAt = diagnostics.record(
+        frame.token,
+        'packet',
+        diagnosticAt!,
+        frame.commands.length,
+        packet.byteLength,
+      );
+    try {
+      // The synchronous native call includes buffer copy, validation and replay.
+      // Do not report this combined span as independent GPU execution time.
+      packet.submit(target);
+    } finally {
+      if (diagnostics)
+        diagnostics.record(
+          frame.token,
+          'native-replay',
+          diagnosticAt!,
+          frame.commands.length,
+          packet.byteLength,
+        );
+    }
   } catch (error) {
     errors.push(error);
   } finally {

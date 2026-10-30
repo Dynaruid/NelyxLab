@@ -232,6 +232,18 @@ node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot
 
 These commands build and run the same app with the direct HWND/Skia/TSF/UIA host. They require Windows x64, matching native inputs, Visual Studio C++ tools, LLVM, CMake, and Ninja. Packages live in this app's `.nelyx/native-windows/current-bytecode/` and `current-static-aot/`. RNW remains the default host. See the [CLI guide](../../Nelyx/sdk/tooling/cli/README.md#native-prerequisites) for external apps.
 
+For CPU attribution in the actual two-column Gallery, use the bounded source-stage probe, then collect three fresh-process CPU trials:
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scroll-scenes --scope stages
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scroll-scenes --scope cpu --repeat 3
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scroll-scenes --scope gc
+```
+
+The four scenes separate first exposure, warm motion, button hover, and focused text editing. Scrolling and hover are driven through the framework; these are direct-host diagnostics, with RNW, OS wheel, physical trackpad, IME, and display acceptance remaining separate. Keep the desktop idle during trials. `stages` adds opt-in RAM samples; `cpu` disables them. `motion.intervals` excludes quiet/recontact gaps. Native replay combines synchronous buffer copy, validation, and recording; it is not GPU time. Temporary probe packages are removed on completion or failure, and the commands do not save profiles or verification logs.
+
+Run `gc` separately to enable cumulative Hermes allocation/collection/pause counters. Its phase deltas do not locate an individual pause inside a frame, and its timings do not replace the `cpu` baseline.
+
 ## Android
 
 Use a standard OpenJDK **21**, Android SDK/build tools **36**, NDK **27.1.12297006**, a Vulkan-capable x86_64 emulator, and the matching Android Skia supply. Set `JAVA_HOME` to your JDK before building. The native supplier archive referenced by the Android runner's package.json must exist before installation; `prepare:sample` supplies the Nelyx packages.

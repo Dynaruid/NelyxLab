@@ -15,6 +15,7 @@ import {
   isCurrent,
 } from '../ui/frame.ts';
 import type { SceneFrameSource } from '../ui/frame.ts';
+import type { FrameDiagnostics } from '../ui/frame-diagnostics.ts';
 import { releaseFrameResources } from '../ui/resource-retention.ts';
 import type { ImageService } from './images.ts';
 import type {
@@ -41,6 +42,7 @@ export interface Renderer extends Disposable {
 export interface SceneContext {
   readonly token: FrameBuildToken;
   readonly resources: ResourceRegistry;
+  readonly frameDiagnostics?: FrameDiagnostics;
   /** Live admission hint, required together with an observed host deadline. */ readonly canRunOptionalWork?: () => boolean;
 }
 export interface ApplicationStartupContext {
@@ -137,11 +139,14 @@ export interface ViewOptions {
   readonly services?: ViewServices;
   readonly onError?: (error: unknown) => void;
   readonly observeInput?: (event: ViewInputObservation) => void;
+  readonly frameDiagnostics?: FrameDiagnostics;
 }
 export class ViewRuntime implements Disposable {
   readonly owner: ViewOwner;
+  /** Optional owner-controlled CPU trace; disabled in ordinary execution. */
+  frameDiagnostics: FrameDiagnostics | undefined;
   private metrics: ViewMetrics;
-  private pending: { frame: PaintFrame; lease: ResourceLease } | undefined;
+  private pending: { frame: PaintFrame; lease: ResourceLease; preparedAt?: number } | undefined;
   private submitting: { frame: PaintFrame; lease: ResourceLease } | undefined;
   private submissionFinished: (() => void) | undefined;
   private task: Disposable | undefined;
@@ -170,6 +175,7 @@ export class ViewRuntime implements Disposable {
     private readonly options: ViewOptions,
   ) {
     this.owner = Object.freeze({ id: options.id, generation: generation(options.generation) });
+    this.frameDiagnostics = options.frameDiagnostics;
     this.metrics = captureMetrics(options.metrics);
     try {
       if (session.definition.createView) {
@@ -330,11 +336,30 @@ export class ViewRuntime implements Disposable {
       this.inputSequence++;
       this.inputTimestamp = event.timestamp;
       this.observeInput('dispatch-begin', event);
+      const diagnostics = this.frameDiagnostics;
+      // Input is associated by sequence; no CPU frame has been captured yet.
+      const diagnosticToken: FrameBuildToken | undefined = diagnostics
+        ? {
+            owner: this.owner,
+            metrics: this.metrics,
+            sequence: 0,
+            inputSequence: this.inputSequence,
+          }
+        : undefined;
+      if (diagnostics)
+        diagnostics.record(
+          diagnosticToken!,
+          'input-queue',
+          event.timestamp,
+          this.pointerMailbox.length,
+        );
+      const dispatchBegan = diagnostics?.now();
       let completed = false;
       try {
         this.controller?.pointer?.(event);
         completed = true;
       } finally {
+        if (diagnostics) diagnostics.record(diagnosticToken!, 'input-dispatch', dispatchBegan!);
         this.observeInput('dispatch-end', event, completed ? 0 : 4);
       }
     } else this.observeInput('drop', event, this.state !== 'open' ? 1 : !this.visible ? 2 : 3);
@@ -546,11 +571,13 @@ export class ViewRuntime implements Disposable {
       return;
     }
     const token = this.capture();
+    const diagnostics = this.frameDiagnostics;
     const commands =
       token.timing?.observedDeadline !== undefined
         ? this.scene({
             token,
             resources: this.session.resources,
+            ...(diagnostics ? { frameDiagnostics: diagnostics } : {}),
             canRunOptionalWork: () =>
               !forced &&
               this.state === 'open' &&
@@ -561,7 +588,11 @@ export class ViewRuntime implements Disposable {
               this.metrics === token.metrics &&
               this.options.renderer.canBuildFrame?.() === true,
           })
-        : this.scene({ token, resources: this.session.resources });
+        : this.scene({
+            token,
+            resources: this.session.resources,
+            ...(diagnostics ? { frameDiagnostics: diagnostics } : {}),
+          });
     try {
       if (this.state !== 'open' || this.metrics !== token.metrics) return;
       if (empty) {
@@ -573,7 +604,16 @@ export class ViewRuntime implements Disposable {
         return;
       }
       if (this.state !== 'open' || this.metrics !== token.metrics) return;
+      const captureBegan = diagnostics?.now();
       const frame = captureSceneFrame(token, commands);
+      if (diagnostics)
+        diagnostics.record(
+          token,
+          'capture-transfer',
+          captureBegan!,
+          frame.commands.length,
+          frame.estimatedBytes,
+        );
       let lease: ResourceLease | undefined,
         failed = false,
         failure: unknown,
@@ -585,7 +625,7 @@ export class ViewRuntime implements Disposable {
         lease = this.session.resources.acquire(frame.resources);
         this.clearPending();
         if (this.state !== 'open' || this.metrics !== token.metrics) return;
-        this.pending = { frame, lease };
+        this.pending = { frame, lease, ...(diagnostics ? { preparedAt: diagnostics.now() } : {}) };
         lease = undefined;
       } catch (error) {
         failed = true;
@@ -635,6 +675,10 @@ export class ViewRuntime implements Disposable {
         return { status: 'rejected', reason: 'zero-size' };
       let result: SubmitResult;
       caller = false;
+      const diagnostics = this.frameDiagnostics;
+      if (diagnostics && item.preparedAt !== undefined)
+        diagnostics.record(item.frame.token, 'pending', item.preparedAt);
+      const submitBegan = diagnostics?.now();
       try {
         result = this.options.renderer.submit(item.frame, item.lease);
       } catch (error) {
@@ -643,6 +687,15 @@ export class ViewRuntime implements Disposable {
         if (this.state === 'open') this.state = 'failed';
         this.cancelDeferredFrames();
         throw error;
+      } finally {
+        if (diagnostics)
+          diagnostics.record(
+            item.frame.token,
+            'submit',
+            submitBegan!,
+            item.frame.commands.length,
+            item.frame.estimatedBytes,
+          );
       }
       if (result.status === 'accepted') {
         if (this.state === 'open') this.controller?.frameSubmitted?.(item.frame.token);

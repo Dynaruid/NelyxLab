@@ -228,6 +228,28 @@ test(
 test('native scroll options keep diagnostic modes and viewports explicit', { timeout }, () => {
   assert.equal(nativeScrollOptions([]).mode, 'bytecode');
   assert.equal(nativeScrollOptions(['--scope', 'gc', '--catalog']).catalog, true);
+  assert.equal(
+    nativeScrollOptions(['--scope', 'stages', '--hermes-mode', 'static-aot']).scope,
+    'stages',
+  );
+  assert.equal(
+    nativeScrollOptions(['--scroll-scenes', '--viewport', 'maximized', '--repeat', '3'])
+      .scrollScenes,
+    true,
+  );
+  assert.throws(() => nativeScrollOptions(['--scroll-scenes']), /Scroll scenes/);
+  assert.equal(
+    nativeScrollOptions(['--scroll-scenes', '--viewport', 'maximized', '--scope', 'gc']).scope,
+    'gc',
+  );
+  assert.throws(
+    () => nativeScrollOptions(['--scroll-scenes', '--viewport', 'maximized', '--catalog']),
+    /Scroll scenes/,
+  );
+  assert.throws(
+    () => nativeScrollOptions(['--scroll-scenes', '--viewport', 'maximized', '--input', 'os']),
+    /Scroll scenes/,
+  );
   assert.equal(nativeScrollOptions(['--scope', 'sampling', '--details']).details, true);
   assert.throws(() => nativeScrollOptions(['--scope', 'sampling', '--hermes-mode', 'static-aot']));
   assert.equal(nativeScrollOptions(['--input', 'os']).pacing, 'os');

@@ -8,6 +8,7 @@ import type { SkGraphiteContext } from './skia/types/Graphite.ts';
 import type { SkImage, SkPicture } from './skia/types/Drawing.ts';
 import type { Skia } from './skia/types/Skia.ts';
 import { isCurrent, resourceKey } from '@nelyx/core/ui/frame';
+import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import type {
   PaintFrame,
   RendererCapabilities,
@@ -578,7 +579,11 @@ export class GraphiteRenderer implements Renderer {
   setVisible(visible: boolean): void {
     this.visible = visible;
   }
+  /** Optional bounded CPU observations; native GPU/publish traces are separate. */
+  frameDiagnostics: FrameDiagnostics | undefined;
   submit(frame: PaintFrame, lease: ResourceLease): SubmitResult {
+    const diagnostics = this.frameDiagnostics;
+    let diagnosticAt = diagnostics?.now();
     if (this.closed || this.failed) return { status: 'rejected', reason: 'closed' };
     if (!this.visible) return { status: 'rejected', reason: 'busy' };
     if (!this.metrics || !isCurrent(frame, this.owner, this.metrics))
@@ -604,6 +609,8 @@ export class GraphiteRenderer implements Renderer {
         this.metrics.nativeSurfaceGeneration ?? -1,
       );
       if (result !== 0) {
+        if (diagnostics)
+          diagnostics.record(frame.token, 'admission-rejected', diagnosticAt!, result);
         const reasons = {
           1: 'busy',
           2: 'stale',
@@ -614,9 +621,13 @@ export class GraphiteRenderer implements Renderer {
         return { status: 'rejected', reason: reasons[result as keyof typeof reasons] ?? 'closed' };
       }
     }
+    if (diagnostics)
+      diagnosticAt = diagnostics.record(frame.token, 'admission', diagnosticAt!, this.leases.size);
     try {
       const canvas = context.beginRecording();
       open = true;
+      if (diagnostics)
+        diagnosticAt = diagnostics.record(frame.token, 'recording-begin', diagnosticAt!);
       const target = context as SkGraphiteContext & Partial<DisplayListTarget>;
       if (this.resources.nativeDisplayLists && typeof target.nelyxReplayDisplayList !== 'function')
         throw new Error('Native display-list1 binding required; rebuild the native supplier');
@@ -627,10 +638,14 @@ export class GraphiteRenderer implements Renderer {
           frame,
           this.resources,
           this.runtimePrograms,
+          diagnostics,
         );
       else replayFrame(this.api, canvas, frame, this.resources, this.runtimePrograms);
+      diagnosticAt = diagnostics?.now();
       const recording = context.finishRecording();
       open = false;
+      if (diagnostics)
+        diagnosticAt = diagnostics.record(frame.token, 'recording-finish', diagnosticAt!);
       const submission = this.sequence + 1;
       try {
         if (native.nelyxSubmitFrame)
@@ -648,6 +663,7 @@ export class GraphiteRenderer implements Renderer {
         else native.nelyxSubmit(recording, submission);
       } finally {
         recording.dispose();
+        if (diagnostics) diagnostics.record(frame.token, 'native-submit', diagnosticAt!);
       }
       lease.transfer();
       {

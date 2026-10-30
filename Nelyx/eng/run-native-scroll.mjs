@@ -261,6 +261,7 @@ export function nativeScrollOptions(args) {
     scope: 'cpu',
     pacing: 'programmatic',
     catalog: false,
+    scrollScenes: false,
     details: false,
     resourceCycles: 0,
     repeat: 1,
@@ -280,6 +281,10 @@ export function nativeScrollOptions(args) {
       result.catalog = true;
       continue;
     }
+    if (name === '--scroll-scenes') {
+      result.scrollScenes = true;
+      continue;
+    }
     if (name === '--details') {
       result.details = true;
       continue;
@@ -292,11 +297,11 @@ export function nativeScrollOptions(args) {
   if (
     !['bytecode', 'static-aot'].includes(result.mode) ||
     !['default', 'maximized', 'both'].includes(result.viewport) ||
-    !['cpu', 'gc', 'diagnostic', 'sampling'].includes(result.scope) ||
+    !['cpu', 'gc', 'diagnostic', 'stages', 'sampling'].includes(result.scope) ||
     (result.scope === 'sampling' && result.mode !== 'bytecode')
   )
     throw Error(
-      'Choose a native Hermes mode, default|maximized|both viewport and cpu|gc|diagnostic|sampling scope (sampling requires bytecode)',
+      'Choose a native Hermes mode, default|maximized|both viewport and cpu|gc|diagnostic|stages|sampling scope (sampling requires bytecode)',
     );
   if (
     !['programmatic', 'os'].includes(result.pacing) ||
@@ -307,6 +312,17 @@ export function nativeScrollOptions(args) {
       'OS wheel supports cpu scope (including the catalog) or separate bytecode ListView sampling',
     );
   result.resourceCycles = Number(result.resourceCycles);
+  if (
+    result.scrollScenes &&
+    (result.catalog ||
+      result.pacing !== 'programmatic' ||
+      result.resourceCycles !== 0 ||
+      result.viewport !== 'maximized' ||
+      !['cpu', 'gc', 'diagnostic', 'stages'].includes(result.scope))
+  )
+    throw Error(
+      'Scroll scenes require maximized programmatic cpu|gc|diagnostic|stages without catalog or resource cycles',
+    );
   validateResourceCycleOptions(result);
   result.repeat = Number(result.repeat);
   nativeScrollRuns(result);
@@ -511,6 +527,7 @@ export async function runNativeScroll(options) {
         JSON.stringify({
           scope: options.scope,
           catalog: options.catalog,
+          scrollScenes: options.scrollScenes === true,
           pacing: options.pacing,
           resourceCycles: options.resourceCycles,
         }) +
@@ -639,6 +656,10 @@ export async function runNativeScroll(options) {
       if (reports.filter((report) => report.type === 'phase').length !== expectedPhases)
         throw Error('Native diagnostic scenario incomplete');
       const loadedIdentity = verifyNativeLoadedIdentity(output, checked.manifest);
+      const nativeViews = output
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('NELYX_NATIVE_VIEW '))
+        .map((line) => JSON.parse(line.slice('NELYX_NATIVE_VIEW '.length)));
       const coverage = catalogs
         ? verifyNativeCatalogReports(reports, { viewport, ...catalogs })
         : null;
@@ -653,6 +674,7 @@ export async function runNativeScroll(options) {
         qualification: 'diagnostic-only',
         sourceSha256: hostBuild.manifest.sourceSha256,
         loadedIdentity,
+        nativeView: nativeViews.at(-1) ?? null,
         packageFiles: checked.files,
         exit: exits[0],
         normalClose: true,

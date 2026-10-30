@@ -2,6 +2,7 @@
 // Copied into an owned temporary directory in the actual app before bundling.
 // No descendant lifecycle wrappers: those change native stack requirements.
 import { ViewRuntime } from '@nelyx/core/hosting/runtime';
+import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { FramePictureService } from '@nelyx/core/hosting/pictures';
 import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
@@ -17,9 +18,11 @@ import { transform } from '@nelyx/core/ui/geometry';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import {
   distribution,
+  nativeScrollTargetState,
   analyseNativeInputWindow,
   analyseNativeFrameTrace,
   analyseNativeFrameTurns,
+  analyseNativeMotionIntervals,
   analyseNativeCatalogCoverage,
   readHermesGCStats,
   readHermesSamplingProfile,
@@ -28,8 +31,9 @@ import {
 export function installNativeScrollProbe(
   sample: any,
   configuration: {
-    scope: 'cpu' | 'gc' | 'diagnostic' | 'sampling';
+    scope: 'cpu' | 'gc' | 'diagnostic' | 'stages' | 'sampling';
     catalog: boolean;
+    scrollScenes?: boolean;
     pacing: 'programmatic' | 'os';
     resourceCycles?: number;
   },
@@ -49,6 +53,7 @@ export function installNativeScrollProbe(
     phaseName = '',
     samples: Record<string, number[]> = {},
     frameRows: any[] = [],
+    slowSourceFrames: any[] = [],
     errors: string[] = [],
     counts: Record<string, number> = {},
     totals: Record<string, number> = {},
@@ -56,6 +61,7 @@ export function installNativeScrollProbe(
     changedCoreSequences: number[] = [];
   const now = () => api.now(),
     delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  const sourceStages = options.scope === 'stages' ? new FrameDiagnostics({ now }, 4096) : undefined;
   let reportSequence = 0;
   const report = (value: unknown) => {
     const text = JSON.stringify(value),
@@ -96,6 +102,7 @@ export function installNativeScrollProbe(
   };
   ViewRuntime.prototype.pump = function () {
     view = this;
+    if (sourceStages) this.frameDiagnostics = sourceStages;
     return pump.call(this);
   };
   const dispatch = ViewRuntime.prototype.dispatchPointer;
@@ -116,6 +123,7 @@ export function installNativeScrollProbe(
     };
   GraphiteRenderer.prototype.submit = function (...args: Parameters<typeof submit>) {
     renderer = this;
+    if (sourceStages) this.frameDiagnostics = sourceStages;
     return submit.apply(this, args);
   };
   api.requestFrame = (callback: any) =>
@@ -130,9 +138,25 @@ export function installNativeScrollProbe(
       } finally {
         const elapsed = now() - began;
         sampleTime(built === before ? 'Idle.callbackWall' : 'Frame.callbackWall', elapsed);
+        const drained = sourceStages?.drain();
+        if (drained) {
+          check(
+            drained.overwritten === 0 && drained.invalid === 0,
+            'Source stage samples were lost or invalid',
+          );
+          for (const sample of drained.samples) {
+            sampleTime('Source.' + sample.stage, sample.duration);
+            if (active && sample.count)
+              counts['Source.' + sample.stage] =
+                (counts['Source.' + sample.stage] ?? 0) + sample.count;
+            if (active && sample.bytes)
+              counts['Source.' + sample.stage + '.bytes'] =
+                (counts['Source.' + sample.stage + '.bytes'] ?? 0) + sample.bytes;
+          }
+        }
         if (active && built !== before) {
           check(frameRows.length < 16384, 'Frame sample overflow');
-          frameRows.push({
+          const row: any = {
             begin: began,
             end: now(),
             wall: elapsed,
@@ -149,7 +173,18 @@ export function installNativeScrollProbe(
                   ),
                 }
               : {}),
-          });
+          };
+          if (
+            drained &&
+            (slowSourceFrames.length < 6 ||
+              elapsed > slowSourceFrames[slowSourceFrames.length - 1].wall)
+          ) {
+            row.sourceStages = drained.samples.filter((sample) => sample.frame === view?.sequence);
+            slowSourceFrames.push(row);
+            slowSourceFrames.sort((a: any, b: any) => b.wall - a.wall);
+            if (slowSourceFrames.length > 6) delete slowSourceFrames.pop().sourceStages;
+          }
+          frameRows.push(row);
         }
       }
     });
@@ -348,6 +383,7 @@ export function installNativeScrollProbe(
     if (options.scope === 'sampling') api.cpuProfile('begin');
     samples = {};
     frameRows = [];
+    slowSourceFrames = [];
     counts = {};
     totals = {};
     changedCoreSequences = [];
@@ -440,7 +476,12 @@ export function installNativeScrollProbe(
           'owned-frame-callback-wall; frameTurns also includes following checkpoint; pointer dispatch is separate',
         inputWindow,
         frameTurns,
-        spans: options.scope === 'diagnostic' ? 'inclusive' : 'disabled',
+        spans:
+          options.scope === 'diagnostic'
+            ? 'inclusive'
+            : sourceStages
+              ? 'bounded-source-stages'
+              : 'disabled',
         elapsedMs: end - begin,
         metrics,
         beforeTree,
@@ -456,10 +497,13 @@ export function installNativeScrollProbe(
         samples: Object.fromEntries(
           Object.entries(samples).map(([key, value]) => [key, distribution(value)]),
         ),
-        ...(options.scope === 'diagnostic'
+        ...(options.scope === 'diagnostic' || sourceStages
           ? { longestFrames: [...frameRows].sort((a, b) => b.wall - a.wall).slice(0, 6) }
           : {}),
         workload,
+        ...(workload.motionWindows
+          ? { motion: analyseNativeMotionIntervals(trace, workload.motionWindows) }
+          : {}),
         evidence: extra(),
         receipts,
         performanceAccepted: false,
@@ -736,6 +780,161 @@ export function installNativeScrollProbe(
       });
     }
   }
+  async function galleryScrollScenes() {
+    const state = stateOf(sample.ComponentsGallery);
+    check(
+      state && options.viewport === 'maximized',
+      'Scroll scenes require the maximized actual Gallery',
+    );
+    const scrolls = [state.firstScroll, state.secondScroll];
+    const editorFocused = () =>
+      entries().some(
+        ({ widget, state }) =>
+          widget.options?.id === 'field-filled' && state?.focus?.hasPrimaryFocus,
+      );
+    check(
+      scrolls.every((scroll: any) => scroll.hasClients),
+      'Scroll scenes require both actual columns',
+    );
+    const pointer = (kind: string, point: { x: number; y: number }) =>
+      view.controller.pointer({
+        kind,
+        ...point,
+        pointer: 9001,
+        device: 'mouse',
+        buttons: kind === 'down' ? 1 : 0,
+        timestamp: now(),
+        viewportGeneration: view.currentMetrics.viewportGeneration,
+      });
+    const move = async (
+      targets: number[],
+      duration: number,
+      windows: { begin: number; end: number }[],
+    ) => {
+      const begin = now();
+      await Promise.all(
+        scrolls.map((scroll: any, index: number) =>
+          scroll.animateTo(targets[index], { duration, curve: Curves.linear }),
+        ),
+      );
+      windows.push({ begin, end: now() });
+      await settled();
+      const state = nativeScrollTargetState(
+        scrolls.map((scroll: any) => ({
+          offset: scroll.offset,
+          minimum: scroll.position.minScrollExtent,
+          maximum: scroll.position.maxScrollExtent,
+        })),
+        targets,
+      );
+      check(
+        state.every((column) => column.reached),
+        'A Gallery column stopped before its current extent-clamped target: ' +
+          JSON.stringify(state),
+      );
+      return state;
+    };
+    await phase('gallery-all-cold', async () => {
+      const motionWindows: { begin: number; end: number }[] = [];
+      const targets = scrolls.map((scroll: any) =>
+        Math.min(scroll.position.maxScrollExtent, 3 * scroll.position.viewportDimension),
+      );
+      const columns = await move(targets, 10000, motionWindows);
+      return {
+        kind: 'programmatic-two-column-scroll',
+        condition: 'first-exposure',
+        motionWindows,
+        targets,
+        columns,
+        physicalInputAccepted: 'notVerified',
+      };
+    });
+    const warm = async (name: string, point?: { x: number; y: number }) => {
+      const origins = scrolls.map((scroll: any) => scroll.offset),
+        targets = scrolls.map((scroll: any) =>
+          scroll.offset + 96 <= scroll.position.maxScrollExtent
+            ? scroll.offset + 96
+            : Math.max(0, scroll.offset - 96),
+        );
+      // Prepare only this short path before measuring its warm traversal.
+      for (const [index, scroll] of scrolls.entries()) scroll.jumpTo(targets[index]);
+      await settled();
+      for (const [index, scroll] of scrolls.entries()) scroll.jumpTo(origins[index]);
+      await settled();
+      await phase(name, async () => {
+        if (point) pointer('hover', point);
+        const motionWindows: { begin: number; end: number }[] = [];
+        await move(targets, 5000, motionWindows);
+        await move(origins, 5000, motionWindows);
+        await delay(300);
+        await move(targets, 500, motionWindows);
+        await move(origins, 500, motionWindows);
+        return {
+          kind: 'programmatic-two-column-scroll',
+          condition: name,
+          origins,
+          targets,
+          motionWindows,
+          pointer: point ? 'synthetic-framework-hover' : 'parked-native-cursor',
+          focus: !!view.controller.buildOwner.focus.primaryFocus,
+          editorFocused: editorFocused(),
+          physicalInputAccepted: 'notVerified',
+        };
+      });
+      if (point) {
+        pointer('leave', point);
+        await settled();
+      }
+    };
+    for (const scroll of scrolls) scroll.jumpTo(0);
+    await settled();
+    await warm('gallery-all-warm-no-hover');
+    const button = view.controller.nodes.find((node: any) => node.id === 'demo-elevated');
+    check(button, 'Actual Gallery button is missing');
+    await warm('gallery-all-warm-button-hover', {
+      x: button.bounds.x + button.bounds.width / 2,
+      y: button.bounds.y + button.bounds.height / 2,
+    });
+    const owners = [state.firstExtents, state.secondExtents];
+    const column = owners.findIndex((owner: any) => owner.ids.includes('text-fields'));
+    check(column >= 0, 'Actual editor section is missing');
+    owners[column].current.requestItem(owners[column].ids.indexOf('text-fields'));
+    await settled();
+    let field = view.controller.nodes.find((node: any) => node.id === 'field-filled');
+    check(field, 'Actual editor field is missing');
+    scrolls[column].jumpTo(Math.max(0, scrolls[column].offset + field.bounds.y - 220));
+    await settled();
+    field = view.controller.nodes.find((node: any) => node.id === 'field-filled');
+    check(
+      field &&
+        field.bounds.y >= 100 &&
+        field.bounds.y + field.bounds.height < view.currentMetrics.logicalHeight,
+      'Actual editor field is not visible',
+    );
+    const point = { x: field.bounds.x + 20, y: field.bounds.y + field.bounds.height / 2 };
+    pointer('down', point);
+    pointer('up', point);
+    await settled();
+    check(editorFocused(), 'Actual filled editor did not acquire framework primary focus');
+    await warm('gallery-all-warm-field-focus', point);
+    view.controller.buildOwner.focus.primaryFocus?.unfocus();
+    await settled();
+  }
+  function complete() {
+    check(!errors.length, 'Handled framework errors during diagnostic: ' + errors.join('; '));
+    report({
+      type: 'complete',
+      schema: 1,
+      mode: api.mode,
+      qualification: 'diagnostic-only',
+      metrics: view.currentMetrics,
+      tree: tree(),
+      native: renderer.context().nelyxStats(),
+      performanceAccepted: false,
+      physicalInputAccepted: 'notVerified',
+      displayed: 'unobserved',
+    });
+  }
   async function run() {
     await until(
       () => !!view && !!renderer && view.status === 'open',
@@ -773,6 +972,11 @@ export function installNativeScrollProbe(
       performanceAccepted: false,
     });
     check(view.controller.pipeline.semanticsOwner, 'Accessibility must remain enabled');
+    if (options.scrollScenes) {
+      await galleryScrollScenes();
+      complete();
+      return;
+    }
     tap('show-list-view');
     await settled();
     const list = stateOf(sample.ListViewPage);
@@ -952,19 +1156,7 @@ export function installNativeScrollProbe(
       const state = cupertino();
       await catalog('cupertino', state, [state.scroll], [state.extents], sample.cupertinoDemos);
     }
-    check(!errors.length, 'Handled framework errors during diagnostic: ' + errors.join('; '));
-    report({
-      type: 'complete',
-      schema: 1,
-      mode: api.mode,
-      qualification: 'diagnostic-only',
-      metrics: view.currentMetrics,
-      tree: tree(),
-      native: renderer.context().nelyxStats(),
-      performanceAccepted: false,
-      physicalInputAccepted: 'notVerified',
-      displayed: 'unobserved',
-    });
+    complete();
   }
   void run()
     .then(

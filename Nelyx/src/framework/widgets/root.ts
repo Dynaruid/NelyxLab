@@ -549,6 +549,17 @@ export class FrameworkRoot implements ViewController {
   build(scene: SceneContext): SceneFrameSource {
     invariant(!this.closed, 'closed-framework-root', 'Frame after root disposal');
     if (!this.isViewOpen()) return [];
+    const diagnostics = scene.frameDiagnostics;
+    let diagnosticAt = diagnostics?.now();
+    const finishDiagnostic = diagnostics
+      ? (
+          stage: import('../../ui/frame-diagnostics.ts').FrameDiagnosticStage,
+          count = 0,
+          bytes = 0,
+        ) => {
+          diagnosticAt = diagnostics.record(scene.token, stage, diagnosticAt!, count, bytes);
+        }
+      : undefined;
     this.scheduler.beginFrame(scene.token.timing?.tick);
     let failed = false,
       buildError: unknown,
@@ -559,6 +570,7 @@ export class FrameworkRoot implements ViewController {
     try {
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
       this.scheduler.runPersistentFrameCallbacks();
+      finishDiagnostic?.('animation');
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
       this.scheduler.phase = 'build';
       if (!this.root) {
@@ -595,6 +607,14 @@ export class FrameworkRoot implements ViewController {
       let render = this.renderRoot();
       this.pipeline.setRoot(render);
       this.buildOwner.maybeViewWorkBudget?.enforcePressure();
+      finishDiagnostic?.('build');
+      if (diagnostics)
+        diagnostics.record(
+          scene.token,
+          'dirty-layout',
+          diagnostics.now(),
+          this.pipeline.debugPendingLayoutCount,
+        );
       this.scheduler.phase = 'layout';
       this.pipeline.flushLayout({
         width: scene.token.metrics.logicalWidth,
@@ -621,6 +641,7 @@ export class FrameworkRoot implements ViewController {
         if (this.buildOwner.hasDirty) this.scheduler.requestFrame();
       }
       const workBudget = this.buildOwner.maybeViewWorkBudget;
+      finishDiagnostic?.('layout');
       workBudget?.enforcePressure();
       if (workBudget?.scheduleEvictions()) this.pipeline.flushLayout();
       workBudget?.runOptional(
@@ -633,10 +654,15 @@ export class FrameworkRoot implements ViewController {
         },
         () => this.scheduler.requestFrame(),
       );
+      finishDiagnostic?.('optional-work');
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
       this.scheduler.phase = 'paint';
-      painting = new PaintingContext(null, null, true);
+      const paintCounts = diagnostics
+        ? { paintChildCalls: 0, boundaryVisits: 0, boundaryRecordings: 0, boundaryReuses: 0 }
+        : undefined;
+      painting = new PaintingContext(null, null, true, paintCounts);
       this.recordPaint(render, painting);
+      finishDiagnostic?.('paint');
       withRenderPaint(() =>
         painting!.compose(
           this.layerRoot.layer!,
@@ -650,10 +676,19 @@ export class FrameworkRoot implements ViewController {
         ),
       );
       painting.commands.unshift({ op: 'clear', color: this.options.background ?? 0xff101827 });
+      finishDiagnostic?.('compose', painting.commands.length);
+      if (diagnostics && paintCounts) {
+        const now = diagnostics.now();
+        diagnostics.record(scene.token, 'paint-visits', now, paintCounts.paintChildCalls + 1);
+        diagnostics.record(scene.token, 'boundary-visits', now, paintCounts.boundaryVisits);
+        diagnostics.record(scene.token, 'boundary-recordings', now, paintCounts.boundaryRecordings);
+        diagnostics.record(scene.token, 'boundary-reuses', now, paintCounts.boundaryReuses);
+      }
       geometryCommit = render.commitTextInputGeometries({
         owner: scene.token.owner,
         metrics: scene.token.metrics,
       });
+      finishDiagnostic?.('input-geometry');
       if (this.sourceSemanticsSnapshot) {
         this.scheduler.phase = 'semantics';
         const rebuilt = this.buildOwner.buildRevision !== buildRevision;
@@ -924,6 +959,7 @@ export class FrameworkRoot implements ViewController {
       // is suppressed then, but the pending Widget must run on the next frame.
       if (this.buildOwner.defaultBuildScope.hasDirty) this.scheduler.requestFrame();
       this.pipeline._flushPaintRetirements();
+      finishDiagnostic?.('semantics');
       this.scheduler.addPostFrameCallback(() => {
         if (!this.closed) this.mouseTracker.updateAllDevices();
       });
@@ -945,6 +981,7 @@ export class FrameworkRoot implements ViewController {
           this.pendingSemanticsActions = [];
           errors.push(error);
         }
+      finishDiagnostic?.('post-frame');
       // Seal the completed CPU buffer before publishing its input coordinates.
       // Capture owns Canvas close on success and failure.
       let captureAttempted = false,
@@ -954,6 +991,7 @@ export class FrameworkRoot implements ViewController {
         captureAttempted = true;
         try {
           recording = FrameRecording.capture(scene.token, painting);
+          finishDiagnostic?.('capture', recording.commands.length);
         } catch (error) {
           captureFailed = true;
           captureError = error;
@@ -976,6 +1014,7 @@ export class FrameworkRoot implements ViewController {
             currentScope = this.isCurrentFrame(scene.token);
           if (!currentScope) geometryCommit?.discard();
           else geometryCommit?.commit();
+          finishDiagnostic?.('geometry-publish');
         } catch (error) {
           errors.push(error);
           try {
@@ -996,6 +1035,7 @@ export class FrameworkRoot implements ViewController {
             currentScope = this.isCurrentFrame(scene.token);
             if (currentScope) publishSemantics?.();
             else geometryCommit?.discard();
+            finishDiagnostic?.('semantics-publish');
           } catch (error) {
             semanticsFailed = true;
             semanticsError = error;

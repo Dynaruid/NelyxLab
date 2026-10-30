@@ -8,6 +8,7 @@ import { createFramePictureBackend } from '@nelyx/skia-native/pictures';
 import { createRasterizationBackend } from '@nelyx/skia-native/rasterization';
 import { Paint } from '@nelyx/core/ui/paint';
 import { ImageFilter } from '@nelyx/core/ui/image-filter';
+import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 const timeout = 1_200_000;
 test(
   'a required scene binding is checked before configuring or admitting a recording',
@@ -198,6 +199,48 @@ function fixture({ failNative = false, failRetire = false } = {}) {
 }
 const resource = { id: 'resource', generation: 1 },
   rect = { x: 1, y: 2, width: 3, height: 4 };
+
+test(
+  'source packet observations preserve bytes, replay and temporary retirement',
+  { timeout },
+  () => {
+    for (const failNative of [false, true]) {
+      const f = fixture({ failNative });
+      let time = 0;
+      const trace = new FrameDiagnostics({ now: () => ++time });
+      const frame = {
+        token: {
+          owner: { id: 'packet', generation: 1 },
+          sequence: 2,
+          inputSequence: 3,
+          metrics: {
+            viewportGeneration: 4,
+            rendererGeneration: 1,
+            nativeContextGeneration: 5,
+            nativeSurfaceGeneration: 6,
+          },
+        },
+        commands: [{ op: 'rect', rect, color: 0xffabcdef }],
+      };
+      const submit = () => submitNativeScene(f.api, f.target, frame, f.resources, undefined, trace);
+      if (failNative) assert.throws(submit, /native-reject/);
+      else submit();
+      const samples = trace.drain().samples;
+      assert.deepEqual(
+        samples.map((sample) => sample.stage),
+        ['packet', 'native-replay'],
+      );
+      assert(
+        samples.every(
+          (sample) =>
+            sample.frame === 2 && sample.input === 3 && sample.count === 1 && sample.bytes === 120,
+        ),
+      );
+      assert.equal(f.mutations, failNative ? 0 : 1);
+      f.verifyRetired();
+    }
+  },
+);
 test(
   'the native scene consumes Core commands directly with the existing packet meaning',
   { timeout },

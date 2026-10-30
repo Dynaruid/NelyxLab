@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   packageBuildInputs,
   windowsBuildInputs,
@@ -51,6 +52,52 @@ function write(file, value) {
 function json(file, value) {
   write(file, JSON.stringify(value));
 }
+
+test('CLI template caches neither change SDK identity nor enter npm archives', { timeout }, () => {
+  const temp = temporary();
+  try {
+    const root = temp.root;
+    json(path.join(root, 'package.json'), {
+      name: '@nelyx/cli',
+      version: '1.0.0',
+      files: ['src', 'templates'],
+    });
+    write(path.join(root, 'src/main.mjs'), 'export {};');
+    write(path.join(root, 'templates/nelyx-app/android/build.gradle'), '// source');
+    fs.copyFileSync(
+      new URL('../../sdk/tooling/cli/templates/.npmignore', import.meta.url),
+      path.join(root, 'templates/.npmignore'),
+    );
+    const before = packageBuildInputs(root);
+    for (const name of ['.gradle', 'build', 'node_modules', '.nelyx', '.kotlin', 'x64'])
+      write(path.join(root, 'templates/nelyx-app/android', name, 'cache.bin'), 'generated');
+    assert.equal(packageBuildInputs(root), before);
+    const result = spawnSync(
+      process.platform === 'win32' ? 'cmd.exe' : 'npm',
+      [
+        ...(process.platform === 'win32' ? ['/d', '/c', 'npm.cmd'] : []),
+        'pack',
+        '--dry-run',
+        '--json',
+        '--ignore-scripts',
+        '--workspaces=false',
+      ],
+      { cwd: root, encoding: 'utf8', windowsHide: true, timeout },
+    );
+    if (result.error) throw result.error;
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(
+      JSON.parse(result.stdout)[0]
+        .files.map((file) => file.path)
+        .sort(),
+      ['package.json', 'src/main.mjs', 'templates/nelyx-app/android/build.gradle'],
+    );
+    write(path.join(root, 'templates/nelyx-app/android/build.gradle'), '// changed source');
+    assert.notEqual(packageBuildInputs(root), before);
+  } finally {
+    temp.close();
+  }
+});
 function workspace() {
   const temp = temporary(),
     { root } = temp,

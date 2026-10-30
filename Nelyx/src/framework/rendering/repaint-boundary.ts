@@ -81,12 +81,15 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
     if (errors.length) throw new AggregateError(errors, 'Repaint boundary retirement failed');
   }
   private refresh(context: PaintingContext): void {
+    const diagnostics = context.diagnosticCounts;
+    if (diagnostics) diagnostics.boundaryVisits++;
     this._finishPaintInvalidationBatch();
     // A painter/recording callback may invalidate a later frame. Committing
     // the versions read after painting would mark those unseen pixels clean.
     const paintVersion = this.paintVersion,
       contentsVersion = this.paintContentsVersion;
     if (this.contentsVersion !== this.paintContentsVersion || !this.retained.layer) {
+      if (diagnostics) diagnostics.boundaryRecordings++;
       const old = this.retained.layer,
         previous =
           old?.firstChild === old?.lastChild && old?.firstChild instanceof ContainerLayer
@@ -120,14 +123,17 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
         next.dispose();
         if (!appended) child.dispose();
       }
-    } else if (this.version !== this.paintVersion) {
-      // A nested boundary updates its stable layer in place. Its parent keeps
-      // its static display list and only recomposes the changed child snapshot.
-      // The local recording already fixes the visible nearest boundaries.
-      // A local layout/paint change rebuilds that list above. Descendant-only
-      // ticks need not rediscover it through every static render object.
-      for (const child of this.nestedBoundaries)
-        if (child.version !== child.paintVersion) child.refresh(context);
+    } else {
+      if (diagnostics) diagnostics.boundaryReuses++;
+      if (this.version !== this.paintVersion) {
+        // A nested boundary updates its stable layer in place. Its parent keeps
+        // its static display list and only recomposes the changed child snapshot.
+        // The local recording already fixes the visible nearest boundaries.
+        // A local layout/paint change rebuilds that list above. Descendant-only
+        // ticks need not rediscover it through every static render object.
+        for (const child of this.nestedBoundaries)
+          if (child.version !== child.paintVersion) child.refresh(context);
+      }
     }
     this.version = paintVersion;
   }

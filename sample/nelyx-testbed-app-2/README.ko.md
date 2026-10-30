@@ -232,6 +232,18 @@ node Nelyx/eng/run-native-hermes.mjs --hermes-mode static-aot
 
 같은 앱을 직접 HWND·Skia·TSF·UIA 호스트로 빌드하고 실행합니다. Windows x64, 대응하는 네이티브 입력, Visual Studio C++ 도구, LLVM, CMake와 Ninja가 필요합니다. 패키지는 이 앱의 `.nelyx/native-windows/current-bytecode/`·`current-static-aot/`에 있습니다. 기본 호스트는 RNW입니다. 외부 앱 명령은 [CLI 가이드](../../Nelyx/sdk/tooling/cli/README.ko.md#네이티브-준비-조건)를 참고하세요.
 
+실제 두 열 Gallery의 CPU 비용은 제한된 RAM 기반 source-stage 진단 후 새 프로세스 3회로 측정합니다.
+
+```powershell
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scroll-scenes --scope stages
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scroll-scenes --scope cpu --repeat 3
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximized --scroll-scenes --scope gc
+```
+
+네 장면은 첫 진입, warm 이동, 버튼 hover, 포커스된 텍스트 편집을 구분합니다. 스크롤·hover는 framework에서 합성하며 직접 호스트 진단입니다. RNW·OS wheel·물리 트랙패드·IME·화면 표시 수락은 별도로 확인해야 합니다. 측정 중에는 데스크톱 입력을 멈추세요. `stages`만 RAM 계측을 켜고 `cpu`는 끕니다. `motion.intervals`는 정지·재접촉 사이 공백을 제외합니다. native replay는 동기 buffer copy·validation·recording을 합친 구간이며 GPU 시간이 아닙니다. 임시 진단 package는 성공·실패 시 제거하며 profile·검증 로그는 파일로 저장하지 않습니다.
+
+`gc`는 별도로 실행해 Hermes 누적 할당·수집·pause 통계를 켭니다. 장면별 누적값 차이는 개별 frame 안의 pause 위치를 알려주지 않으며, 해당 타이밍을 `cpu` 기준값 대신 사용하지 않습니다.
+
 ## Android
 
 표준 OpenJDK **21**, Android SDK·build tools **36**, NDK **27.1.12297006**, Vulkan을 지원하는 x86_64 에뮬레이터와 대응하는 Android Skia 공급 파일이 필요합니다. 빌드 전에 `JAVA_HOME`을 사용할 JDK로 설정하세요. Android runner의 package.json이 참조하는 네이티브 공급 archive가 설치 전에 있어야 하며, `prepare:sample`은 Nelyx 패키지를 공급합니다.

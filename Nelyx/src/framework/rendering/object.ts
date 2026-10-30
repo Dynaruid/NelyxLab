@@ -451,6 +451,10 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   get debugDoingLayout(): boolean {
     return this.flushingLayout || activeLayout?.owner === this;
   }
+  /** Diagnostic queue size, not a count of every node laid out recursively. */
+  get debugPendingLayoutCount(): number {
+    return this.dirtyLayout.size;
+  }
   get debugDoingSemantics(): boolean {
     return FoundationBuildMode.debug && this.flushingSemantics;
   }

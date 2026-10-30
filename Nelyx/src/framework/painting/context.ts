@@ -212,6 +212,12 @@ function captureComposition(
   };
 }
 /** Frame-local primitive recording and render-child paint scope; no GPU ownership. */
+export interface PaintDiagnosticCounts {
+  paintChildCalls: number;
+  boundaryVisits: number;
+  boundaryRecordings: number;
+  boundaryReuses: number;
+}
 export class PaintingContext extends Canvas {
   private static readonly capturedRecord = PaintingContext.prototype.record;
   private readonly entries: Array<{ readonly mark: number; readonly handle: LayerHandle<Layer> }> =
@@ -224,6 +230,7 @@ export class PaintingContext extends Canvas {
     recorder: PictureRecorder | null = null,
     cullRect: Rect | null = null,
     readonly recordsLayers = false,
+    readonly diagnosticCounts?: PaintDiagnosticCounts,
   ) {
     super(recorder, cullRect);
     this.estimatedBounds = Object.freeze({ ...(cullRect ?? { x: 0, y: 0, width: 0, height: 0 }) });
@@ -240,6 +247,7 @@ export class PaintingContext extends Canvas {
     return this;
   }
   paintChild(child: RenderObject, transform: TransformMatrix): void {
+    if (this.diagnosticCounts) this.diagnosticCounts.paintChildCalls++;
     this.save();
     try {
       this.transform(transform);
@@ -545,7 +553,7 @@ export class PaintingContext extends Canvas {
     bounds: Rect = { x: 0, y: 0, width: 0, height: 0 },
     previous: ContainerLayer | null = null,
   ): ContainerLayer {
-    const context = new PaintingContext(null, bounds, true),
+    const context = new PaintingContext(null, bounds, true, this.diagnosticCounts),
       errors: unknown[] = [];
     let layer: ContainerLayer | undefined;
     try {

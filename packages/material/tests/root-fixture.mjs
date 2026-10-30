@@ -64,7 +64,7 @@ export function fixture({
       errors.map((error) => String(error.exception ?? error)).join('\n'),
     );
   // This CPU consumer retains the latest recording through replay, then releases it.
-  const frame = ({ timing, canRunOptionalWork } = {}) => {
+  const frame = ({ timing, canRunOptionalWork, frameDiagnostics } = {}) => {
     if (lastFrame) disposeFrame(lastFrame);
     const token = {
       owner,
@@ -74,7 +74,12 @@ export function fixture({
     };
     lastFrame = captureSceneFrame(
       token,
-      root.build({ token, resources, ...(canRunOptionalWork ? { canRunOptionalWork } : {}) }),
+      root.build({
+        token,
+        resources,
+        ...(canRunOptionalWork ? { canRunOptionalWork } : {}),
+        ...(frameDiagnostics ? { frameDiagnostics } : {}),
+      }),
     );
     assertNoErrors();
     return lastFrame.commands;

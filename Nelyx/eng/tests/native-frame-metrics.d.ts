@@ -47,6 +47,31 @@ export declare function analyseNativeInputWindow(
   readonly after: NativeInputState;
 };
 export declare function distribution(values: readonly number[]): Distribution;
+export declare function nativeScrollTargetState(
+  positions: readonly {
+    readonly offset: number;
+    readonly minimum: number;
+    readonly maximum: number;
+  }[],
+  targets: readonly number[],
+): readonly {
+  readonly offset: number;
+  readonly minimum: number;
+  readonly maximum: number;
+  readonly requested: number;
+  readonly effective: number;
+  readonly reached: boolean;
+}[];
+export declare function analyseNativeMotionIntervals(
+  trace: NativeFrameTrace,
+  windows: readonly { readonly begin: number; readonly end: number }[],
+): {
+  readonly scope: 'surface-updates-within-explicit-motion-windows';
+  readonly windows: number;
+  readonly intervals: Distribution;
+  readonly displayed: 'unobserved';
+  readonly performanceAccepted: false;
+};
 export declare function readHermesGCStats(text: string): {
   readonly scope: string;
   readonly collector: string;

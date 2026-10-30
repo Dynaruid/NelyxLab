@@ -3,8 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   distribution,
+  nativeScrollTargetState,
   analyseNativeInputWindow,
   analyseNativeFrameTrace,
+  analyseNativeMotionIntervals,
   analyseNativeFrameTurns,
   analyseNativeCatalogCoverage,
   readHermesGCStats,
@@ -34,6 +36,82 @@ const fixture = () => ({
     [3, 1, 2, 1, 11, 4, 2, 2, 974, 929, 30],
   ]),
 });
+test(
+  'scroll completion follows measured extent clamps while rejecting short or invalid motion',
+  { timeout },
+  () => {
+    const result = nativeScrollTargetState(
+      [
+        { offset: 600, minimum: 0, maximum: 600 },
+        { offset: 500, minimum: 0, maximum: 600 },
+        { offset: 0, minimum: 0, maximum: 600 },
+      ],
+      [1000, 1000, -10],
+    );
+    assert.deepEqual(
+      result.map((value) => [value.effective, value.reached]),
+      [
+        [600, true],
+        [600, false],
+        [0, true],
+      ],
+    );
+    assert.throws(
+      () => nativeScrollTargetState([{ offset: NaN, minimum: 0, maximum: 600 }], [1000]),
+      /extent/,
+    );
+    assert.throws(
+      () => nativeScrollTargetState([{ offset: 0, minimum: 1, maximum: 0 }], [1000]),
+      /extent/,
+    );
+  },
+);
+
+test(
+  'surface cadence excludes stopped/recontact gaps and rejects missing samples',
+  { timeout },
+  () => {
+    const trace = fixture();
+    trace.surfaces = pack(
+      [0, 16, 32, 1000, 1016, 1032].map((time, index) => [
+        index + 1,
+        1,
+        2,
+        1,
+        index + 10,
+        0,
+        1,
+        2,
+        974,
+        929,
+        time,
+      ]),
+    );
+    const windows = [
+      { begin: 0, end: 32 },
+      { begin: 1000, end: 1032 },
+    ];
+    const result = analyseNativeMotionIntervals(trace, windows);
+    assert.equal(result.intervals.n, 4);
+    assert.equal(result.intervals.max, 16);
+    assert.equal(result.displayed, 'unobserved');
+    assert.equal(result.performanceAccepted, false);
+    assert.throws(
+      () => analyseNativeMotionIntervals({ ...trace, lostSurfaces: 1 }, windows),
+      /overflowed/,
+    );
+    assert.throws(
+      () =>
+        analyseNativeMotionIntervals(trace, [
+          { begin: 0, end: 20 },
+          { begin: 10, end: 30 },
+        ]),
+      /overlapping/,
+    );
+    new Float64Array(trace.surfaces)[11] = 3;
+    assert.throws(() => analyseNativeMotionIntervals(trace, windows), /sequence/);
+  },
+);
 
 test(
   'native measurement rejects unplanned keyboard, UIA actions and programmatic desktop input',

@@ -62,6 +62,34 @@ export function distribution(values) {
     max: n ? sorted[n - 1] : null,
   };
 }
+/** Lazy child measurement can change the extent during animateTo. Accept only
+ * the requested position or its current extent clamp, never arbitrary progress. */
+export function nativeScrollTargetState(positions, targets) {
+  requireValue(
+    Array.isArray(positions) &&
+      Array.isArray(targets) &&
+      positions.length > 0 &&
+      positions.length === targets.length,
+    'Invalid scroll targets',
+  );
+  return positions.map((position, index) => {
+    const { offset, minimum, maximum } = position,
+      requested = targets[index];
+    requireValue(
+      [offset, minimum, maximum, requested].every(Number.isFinite) && minimum <= maximum,
+      'Invalid scroll extent',
+    );
+    const effective = Math.max(minimum, Math.min(maximum, requested));
+    return {
+      offset,
+      minimum,
+      maximum,
+      requested,
+      effective,
+      reached: Math.abs(offset - effective) < 0.05,
+    };
+  });
+}
 export function readHermesGCStats(text) {
   // The pinned Hermes Instrumentation port returns a textual heading followed
   // by a JSON object, rather than a bare JSON document. These are cumulative
@@ -443,6 +471,56 @@ export function analyseNativeFrameTrace(
       oldest: distribution(oldest),
       latest: distribution(latest),
     },
+  };
+}
+/** Surface cadence only inside declared continuous motion. Quiet/recontact
+ * gaps and intervals crossing a motion boundary are excluded explicitly. */
+export function analyseNativeMotionIntervals(trace, windows) {
+  requireValue(
+    trace?.schema === 1 &&
+      trace.clock === 'qpc-ms' &&
+      trace.surfaceStride === 11 &&
+      trace.lostSurfaces === 0,
+    'Motion surface trace differs or overflowed',
+  );
+  requireValue(
+    Array.isArray(windows) && windows.length > 0 && windows.length <= 30,
+    'Invalid motion windows',
+  );
+  let previousEnd = -Infinity;
+  for (const window of windows) {
+    requireValue(
+      Number.isFinite(window.begin) &&
+        Number.isFinite(window.end) &&
+        window.begin < window.end &&
+        window.begin >= previousEnd,
+      'Invalid or overlapping motion window',
+    );
+    previousEnd = window.end;
+  }
+  const surfaces = unpack(trace.surfaces, 11),
+    intervals = [];
+  for (let index = 1; index < surfaces.length; index++) {
+    const before = surfaces[index - 1],
+      after = surfaces[index];
+    requireValue(
+      after[0] === before[0] + 1 && after[10] >= before[10],
+      'Motion surface sequence or clock differs',
+    );
+    if (windows.some((window) => before[10] >= window.begin && after[10] <= window.end)) {
+      requireValue(
+        [1, 2, 3, 7, 8, 9].every((field) => before[field] === after[field]),
+        'Motion surface scope changed',
+      );
+      intervals.push(after[10] - before[10]);
+    }
+  }
+  return {
+    scope: 'surface-updates-within-explicit-motion-windows',
+    windows: windows.length,
+    intervals: distribution(intervals),
+    displayed: 'unobserved',
+    performanceAccepted: false,
   };
 }
 /** Join Core visibility to copied content frames; a built/discarded frame is not surface evidence. */

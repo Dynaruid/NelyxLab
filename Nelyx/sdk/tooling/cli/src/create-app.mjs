@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { coreVersion } from '@nelyx/core/version';
 import { sdkVersion } from '@nelyx/sdk/version';
+import { isTemplateInput } from './template-inputs.mjs';
 const template = path.resolve(import.meta.dirname, '../templates/nelyx-app');
 export async function createApp(
   destination,
@@ -53,7 +54,10 @@ export async function createApp(
   const target = path.resolve(destination);
   if (fs.existsSync(target) && fs.readdirSync(target).length)
     throw new Error('Destination must be empty.');
-  fs.cpSync(template, target, { recursive: true });
+  fs.cpSync(template, target, {
+    recursive: true,
+    filter: (source) => isTemplateInput(path.relative(template, source)),
+  });
   const manifest = JSON.parse(fs.readFileSync(path.join(target, 'package.json.template'), 'utf8'));
   manifest.name = name.toLowerCase();
   manifest.dependencies['@nelyx/sdk'] = sdkReference;

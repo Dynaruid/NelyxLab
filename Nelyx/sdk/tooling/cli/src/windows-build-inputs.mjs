@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { isTemplateInput } from './template-inputs.mjs';
 
 /** Content identity of the package that is actually installed, including
  * native headers and emitted JS. Versions and mtimes cannot establish this. */
@@ -15,6 +16,12 @@ export function packageBuildInputs(directory) {
   };
   add('package.json', Buffer.from(JSON.stringify(manifest)));
   const visit = (relative, entry) => {
+    if (
+      manifest.name === '@nelyx/cli' &&
+      relative.startsWith('templates/') &&
+      !isTemplateInput(relative)
+    )
+      return;
     if (
       typeof relative !== 'string' ||
       !relative ||
