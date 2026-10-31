@@ -14,6 +14,62 @@ import {
   LayerHandle,
 } from '@nelyx/core/framework/rendering/layer';
 const timeout = 1_200_000;
+test(
+  'layer ownership drains all siblings and composition observers after hook failures',
+  { timeout },
+  () => {
+    const root = new ContainerLayer(),
+      events = [],
+      attachErrors = [Error('first attach'), Error('second attach')],
+      detachErrors = [Error('first detach'), Error('second detach')],
+      callbackError = Error('composition observer');
+    class Fault extends ContainerLayer {
+      constructor(index) {
+        super();
+        this.index = index;
+      }
+      attach(owner) {
+        super.attach(owner);
+        events.push('attach-' + this.index);
+        throw attachErrors[this.index];
+      }
+      detach() {
+        super.detach();
+        events.push('detach-' + this.index);
+        throw detachErrors[this.index];
+      }
+    }
+    root.append(new Fault(0));
+    root.append(new Fault(1));
+    const remove = root.addCompositionCallback(() => {
+      events.push('observer');
+      throw callbackError;
+    });
+    try {
+      assert.throws(
+        () => root.attach({}),
+        (error) => {
+          assert.deepEqual(error.errors, attachErrors);
+          return true;
+        },
+      );
+      assert(root.children.every((child) => child.attached));
+      assert.throws(
+        () => root.detach(),
+        (error) => {
+          assert.deepEqual(error.errors, [...detachErrors, callbackError]);
+          return true;
+        },
+      );
+      assert(root.children.every((child) => !child.attached));
+      assert.deepEqual(events, ['attach-0', 'attach-1', 'detach-0', 'detach-1', 'observer']);
+    } finally {
+      remove();
+      root.dispose();
+    }
+  },
+);
+
 function leaf(resource) {
   const recorder = new PictureRecorder(),
     canvas = new Canvas(recorder);

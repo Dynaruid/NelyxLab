@@ -189,6 +189,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
   private readonly producedSiblingNodesAndOwners = new Map<SemanticsNode, _SemanticsFragment[]>();
   parentData: _SemanticsParentData | null = null;
   geometry: _SemanticsGeometry | null = null;
+  private previousGeometry: _SemanticsGeometry | null = null;
   readonly configProvider: _SemanticsConfigurationProvider;
   parentInSemanticsTree: _RenderObjectSemantics | null = null;
   private currentTreeShapeToken: object = {};
@@ -287,6 +288,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     return node.isInvisible;
   }
   markNeedsBuild(): void {
+    this.previousGeometry = null;
     this.built = false;
     if (!this.parentDataDirty && !this.shouldFormSemanticsNode) return;
     for (const group of this.siblingMergeGroups)
@@ -297,6 +299,11 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
           !child.shouldFormSemanticsNode
         )
           child.markNeedsBuild();
+  }
+  markDetached(): void {
+    // Teardown must not read a pending user configuration or visit its hooks.
+    this.built = false;
+    this.previousGeometry = null;
   }
   private nonBlockedChildren(): _RenderObjectSemantics[] {
     const result: _RenderObjectSemantics[] = [];
@@ -492,30 +499,36 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
   private updateChildGeometry(onlyDirty = false): void {
     check(this.geometry !== null, 'Missing parent semantics geometry');
     const geometry = this.geometry!;
+    let rebuild = false;
     for (const child of this.childrenInSemanticsTree) {
-      if (onlyDirty && !child.geometryDirty) continue;
-      child.updateGeometry(
-        _SemanticsGeometry.computeChildGeometry(
-          null,
-          geometry.paintClipRect,
-          geometry.semanticsClipRect,
-          this,
-          child,
-        ),
-      );
+      if (!onlyDirty || child.geometryDirty)
+        child.updateGeometry(
+          _SemanticsGeometry.computeChildGeometry(
+            null,
+            geometry.paintClipRect,
+            geometry.semanticsClipRect,
+            this,
+            child,
+          ),
+        );
+      rebuild ||= !child.built;
     }
     for (const child of this.explicitSiblingChildren()) {
-      if (onlyDirty && !child.geometryDirty) continue;
-      child.updateGeometry(
-        _SemanticsGeometry.computeChildGeometry(
-          geometry.transform,
-          geometry.paintClipRect,
-          geometry.semanticsClipRect,
-          this,
-          child,
-        ),
-      );
+      if (!onlyDirty || child.geometryDirty)
+        child.updateGeometry(
+          _SemanticsGeometry.computeChildGeometry(
+            geometry.transform,
+            geometry.paintClipRect,
+            geometry.semanticsClipRect,
+            this,
+            child,
+          ),
+        );
+      rebuild ||= !child.built;
     }
+    // Size/visibility/configuration changes still rebuild membership through
+    // their forming ancestors. Pure motion can keep the other child nodes.
+    if (rebuild && this.built) this.markNeedsBuild();
   }
   private explicitSiblingChildren(): _RenderObjectSemantics[] {
     return this.siblingMergeGroups
@@ -532,19 +545,29 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     if (!this.contributesToSemanticsTree) {
       for (const child of this.mergeUp)
         if (child instanceof _RenderObjectSemantics) {
-          if (child.shouldFormSemanticsNode) child.geometry = null;
+          if (child.shouldFormSemanticsNode) child.markGeometryDirty();
           else
             for (const node of child.childrenInSemanticsTree) {
               check(node.shouldFormSemanticsNode, 'A semantics-tree child must form a node');
-              node.geometry = null;
+              node.markGeometryDirty();
             }
         }
-    } else for (const child of this.childrenInSemanticsTree) child.geometry = null;
-    for (const child of this.explicitSiblingChildren()) child.geometry = null;
+    } else for (const child of this.childrenInSemanticsTree) child.markGeometryDirty();
+    for (const child of this.explicitSiblingChildren()) child.markGeometryDirty();
+  }
+  markGeometryDirty(): void {
+    // Null still marks pending geometry, but motion must not erase the last
+    // built shape used by updateGeometry to distinguish a coordinate change
+    // from a size/visibility/configuration change that needs node assembly.
+    if (this.built && this.geometry !== null && this.producedSiblingNodesAndOwners.size === 0)
+      this.previousGeometry = this.geometry;
+    this.geometry = null;
   }
   // Nelyx nodes snapshot matrix/clip values: a same-size update must refresh geometry without replacing IDs.
   private updateGeometry(geometry: _SemanticsGeometry): void {
-    const current = this.geometry;
+    const invalidated = this.geometry === null && this.previousGeometry !== null,
+      current = this.geometry ?? this.previousGeometry;
+    this.previousGeometry = null;
     this.geometry = geometry;
     if (current !== null) {
       const hidden =
@@ -562,8 +585,9 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
         if (changed) {
           if (this.shouldFormSemanticsNode && this.cachedSemanticsNode !== null)
             this.updateNodeGeometry();
-          this.updateChildGeometry();
         }
+        // An unchanged viewport rect can still move or clip its descendants.
+        if (changed || invalidated) this.updateChildGeometry();
         return;
       }
     }
@@ -841,6 +865,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     this.cachedSemanticsNode = null;
     this.parentData = null;
     this.geometry = null;
+    this.previousGeometry = null;
     this.blocksPreviousSibling = null;
     this.containsIncompleteFragment = false;
     this.pendingWasBoundary = undefined;
@@ -1149,6 +1174,9 @@ export class RenderSemanticsPipeline {
     }
   }
   detached(render: RenderObject): void {
+    // A reparented render object keeps its fragment, but its old publication
+    // and geometry cannot prove membership in the new owner's transport set.
+    existingSemanticsFor(render)?.markDetached();
     this.transportSources.delete(render);
     this.pendingConfigurations.delete(render);
     this.pendingGeometryConfigurations.delete(render);
@@ -1236,7 +1264,7 @@ export class RenderSemanticsPipeline {
         const semantics = semanticsFor(node);
         if (semantics.shouldFormSemanticsNode && semantics.geometryDirty) continue;
         if (semantics.shouldFormSemanticsNode && node.isRelayoutBoundary) {
-          semantics.geometry = null;
+          semantics.markGeometryDirty();
           // A root rebuilds its own rect directly in ensureGeometry, without
           // updateGeometry's descendant refresh. Its clip/transform may still
           // change, so its immediate semantic children must also become dirty.

@@ -248,15 +248,16 @@ The four scenes separate first exposure, warm motion, button hover, and focused 
 
 Run `gc` separately to enable cumulative Hermes allocation/collection/pause counters. Its phase deltas do not locate an individual pause inside a frame, and its timings do not replace the `cpu` baseline.
 
-Measure the **입력·버튼 스크롤** (inputs and buttons) page separately. Its single Column and all 12 editors stay mounted through traversal, short round trips, button hover, and editor focus.
+Measure the **입력·버튼 스크롤** (inputs and buttons) page separately. Its single Column and all 12 editors stay mounted. Every scene travels from the top to the bottom of the entire scroll extent and back. The first traversal takes 4 seconds each way; no-hover, button-hover, and editor-focus scenes also repeat the full distance at 1.5 seconds each way after a pause. Reports include actual offsets, targets, extent, and viewport size; a range shorter than two viewports fails the diagnostic. Earlier 96px round trips are not comparable to this workload.
 
 ```powershell
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope stages
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope cpu
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope sampling
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-pixels --scope cpu
 ```
 
-The same direct-host, synthetic-input diagnostic scope and idle-desktop requirement apply. `--mixed-scroll-pixels` separately compares native GPU pixels for the page's three buttons at both scroll edges; it does not measure performance. The options `--scroll-scenes`, `--mixed-scroll-scenes`, and `--mixed-scroll-pixels` are mutually exclusive.
+The same direct-host, synthetic-input diagnostic scope and idle-desktop requirement apply. `--scope sampling` identifies hot Hermes functions in the mixed page's four scenes; compare timing separately with `--scope cpu --repeat 3`. Sampling weights are observations, not CPU milliseconds. `--mixed-scroll-pixels` separately compares native GPU pixels for the page's three buttons at both scroll edges; it does not measure performance. The options `--scroll-scenes`, `--mixed-scroll-scenes`, and `--mixed-scroll-pixels` are mutually exclusive.
 
 ## Android
 

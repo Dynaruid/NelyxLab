@@ -330,10 +330,16 @@ export function nativeScrollOptions(args) {
       result.pacing !== 'programmatic' ||
       result.resourceCycles !== 0 ||
       result.viewport !== 'maximized' ||
-      !['cpu', 'gc', 'diagnostic', 'stages'].includes(result.scope))
+      ![
+        'cpu',
+        'gc',
+        'diagnostic',
+        'stages',
+        ...(result.mixedScrollScenes ? ['sampling'] : []),
+      ].includes(result.scope))
   )
     throw Error(
-      'Scroll scenes require maximized programmatic cpu|gc|diagnostic|stages without catalog or resource cycles',
+      'Scroll scenes require maximized programmatic cpu|gc|diagnostic|stages (mixed scenes also allow sampling) without catalog or resource cycles',
     );
   validateResourceCycleOptions(result);
   result.repeat = Number(result.repeat);
@@ -371,6 +377,46 @@ function validateResourceCycleOptions(options) {
         options.catalog))
   )
     throw Error('Resource cycles require 3..30 cpu/programmatic ListView repetitions');
+}
+/** Mixed-page timing must cover the full page, including reverse and fast passes. */
+export function verifyNativeMixedScrollReports(reports) {
+  const expected = new Set([
+    'mixed-scroll-traverse',
+    'mixed-scroll-no-hover',
+    'mixed-scroll-button-hover',
+    'mixed-scroll-field-focus',
+  ]);
+  for (const report of reports.filter((value) => value.type === 'phase')) {
+    const range = report.workload?.scrollRange,
+      windows = report.workload?.motionWindows,
+      traverse = report.name === 'mixed-scroll-traverse';
+    if (
+      !expected.delete(report.name) ||
+      range?.scope !== 'full-scroll-extent' ||
+      !Number.isFinite(range.maximum) ||
+      !Number.isFinite(range.viewport) ||
+      range.viewport <= 0 ||
+      range.maximum < 2 * range.viewport ||
+      report.workload.editors !== 12 ||
+      !Array.isArray(windows) ||
+      windows.length !== (traverse ? 2 : 4) ||
+      windows.some((leg, index) => {
+        const from = index % 2 === 0 ? 0 : range.maximum,
+          target = index % 2 === 0 ? range.maximum : 0;
+        return (
+          ![leg.from, leg.target, leg.final, leg.begin, leg.end].every(Number.isFinite) ||
+          Math.abs(leg.from - from) >= 0.05 ||
+          Math.abs(leg.target - target) >= 0.05 ||
+          Math.abs(leg.final - target) >= 0.05 ||
+          leg.end <= leg.begin ||
+          leg.duration !== (index < 2 ? 4000 : 1500)
+        );
+      }) ||
+      (report.name === 'mixed-scroll-field-focus' && report.workload.editorFocused !== true)
+    )
+      throw Error('Native mixed scroll did not complete full-page round trips');
+  }
+  if (expected.size) throw Error('Native mixed scroll full-page scenes incomplete');
 }
 /** Resource accounting is a subset of H4; private process/GPU memory is separate. */
 export function verifyNativeResourceCycles(reports, cycles) {
@@ -676,6 +722,7 @@ export async function runNativeScroll(options) {
           : 4;
       if (reports.filter((report) => report.type === 'phase').length !== expectedPhases)
         throw Error('Native diagnostic scenario incomplete');
+      if (options.mixedScrollScenes) verifyNativeMixedScrollReports(reports);
       if (options.mixedScrollPixels) {
         const pixels = reports.filter((report) => report.type === 'mixed-native-pixels'),
           expected = new Set(

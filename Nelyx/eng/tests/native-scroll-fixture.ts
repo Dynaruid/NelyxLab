@@ -1074,17 +1074,34 @@ export function installNativeScrollProbe(
   async function mixedScrollScenes() {
     const { scroll, owners, editorFocused } = await enterMixedScroll();
     const move = async (target: number, duration: number, windows: any[]) => {
-      const begin = now();
+      const begin = now(),
+        from = scroll.offset,
+        maximum = scroll.position.maxScrollExtent;
       await scroll.animateTo(target, { duration, curve: Curves.linear });
-      windows.push({ begin, end: now() });
-      check(Math.abs(scroll.offset - target) < 0.05, 'Mixed scroll target was not reached');
+      windows.push({ begin, end: now(), from, target, final: scroll.offset, duration });
+      check(
+        Math.abs(scroll.offset - target) < 0.05,
+        'Mixed scroll target was not reached: ' +
+          JSON.stringify({ phase: phaseName, from, target, final: scroll.offset, duration }),
+      );
+      check(
+        Math.abs(scroll.position.maxScrollExtent - maximum) < 0.05,
+        'Mixed scroll extent changed during traversal',
+      );
       await settled();
+    };
+    const range = () => {
+      const maximum = scroll.position.maxScrollExtent,
+        viewport = scroll.position.viewportDimension;
+      check(maximum >= 2 * viewport, 'Mixed scroll must cross multiple viewports');
+      return { scope: 'full-scroll-extent', maximum, viewport };
     };
     await phase('mixed-scroll-traverse', async () => {
       const motionWindows: any[] = [],
-        target = Math.min(scroll.position.maxScrollExtent, 3 * scroll.position.viewportDimension);
-      await move(target, 4000, motionWindows);
-      return { motionWindows, target, final: scroll.offset };
+        scrollRange = range();
+      await move(scrollRange.maximum, 4000, motionWindows);
+      await move(0, 4000, motionWindows);
+      return { motionWindows, scrollRange, editors: owners.length, final: scroll.offset };
     });
     scroll.jumpTo(0);
     await settled();
@@ -1101,14 +1118,16 @@ export function installNativeScrollProbe(
     const warm = async (name: string, point?: { x: number; y: number }) => {
       await phase(name, async () => {
         if (point) pointer('hover', point);
-        const motionWindows: any[] = [];
-        await move(96, 1500, motionWindows);
-        await move(0, 1500, motionWindows);
+        const motionWindows: any[] = [],
+          scrollRange = range();
+        await move(scrollRange.maximum, 4000, motionWindows);
+        await move(0, 4000, motionWindows);
         await delay(300);
-        await move(96, 500, motionWindows);
-        await move(0, 500, motionWindows);
+        await move(scrollRange.maximum, 1500, motionWindows);
+        await move(0, 1500, motionWindows);
         return {
           motionWindows,
+          scrollRange,
           editors: owners.length,
           editorFocused: editorFocused(),
         };

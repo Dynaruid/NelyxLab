@@ -28,12 +28,41 @@ import {
   identity,
   intersect,
   fullTransform,
+  captureTransform,
 } from '../../ui/geometry.ts';
 import { captureMatrix4 } from '../../ui/matrix4.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { RenderObject, PipelineOwner } from './object.ts';
 import { existingSemanticsFor, existingPipelineSemantics } from './semantics-pipeline.ts';
 import { TextSelection } from '../../services/text-editing.ts';
+
+// Keep ordinary 2D source transforms affine through projection and clipping.
+// A genuine 3D/perspective transform retains the full matrix path. Capture the
+// mutable source storage on every snapshot; neither path caches across frames.
+function capturePaintTransform(matrix: readonly number[] | Float64Array): TransformMatrix {
+  if (
+    matrix.length === 16 &&
+    matrix[2] === 0 &&
+    matrix[3] === 0 &&
+    matrix[6] === 0 &&
+    matrix[7] === 0 &&
+    matrix[8] === 0 &&
+    matrix[9] === 0 &&
+    matrix[10] === 1 &&
+    matrix[11] === 0 &&
+    matrix[14] === 0 &&
+    matrix[15] === 1
+  )
+    return captureTransform([
+      matrix[0]!,
+      matrix[1]!,
+      matrix[4]!,
+      matrix[5]!,
+      matrix[12]!,
+      matrix[13]!,
+    ]);
+  return captureMatrix4(matrix);
+}
 
 export type SemanticsTransportProperties = Omit<HostNode, 'bounds' | 'children' | 'editorGeometry'>;
 type Mutable<Value> = { -readonly [Key in keyof Value]: Value[Key] };
@@ -243,7 +272,9 @@ export class SemanticsTransportSnapshot {
       ) {
         properties.set(state.cachedSemanticsNode, value);
         if (value.role === 'text-field') {
-          const matrix = fullTransform(multiply(transform, render.getTransformTo(root))),
+          const matrix = fullTransform(
+              multiply(transform, capturePaintTransform(render.getTransformTo(root))),
+            ),
             scaleX = matrix[0],
             scaleY = matrix[5],
             local = render.semanticBounds;
@@ -299,7 +330,7 @@ export class SemanticsTransportSnapshot {
       const data = node.getSemanticsData();
       if (node.isInvisible || data.flagsCollection.isHidden) return [];
       const matrix = node.transform
-          ? multiply(parentTransform, captureMatrix4(node.transform.storage))
+          ? multiply(parentTransform, capturePaintTransform(node.transform.storage))
           : parentTransform,
         projected = bounds(multiply(matrix, translate(data.rect.left, data.rect.top)), {
           width: data.rect.width,

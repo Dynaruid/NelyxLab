@@ -337,6 +337,18 @@ export class NativeInteraction {
     const attached = this.currentPort(id),
       port = attached?.commands;
     if (!attached || !port?.updateGeometry) return;
+    // A clipped eager editor may be visited on every scroll frame. Once this
+    // port/revision has withdrawn its coordinates, there is no geometry to
+    // validate or query again until Core supplies a new packet. Reattaching a
+    // port or observing a native revision still requires a fresh withdrawal.
+    const published = editor.geometryPublication;
+    if (
+      !editor.inputGeometry &&
+      published?.token === attached.token &&
+      published.epoch === null &&
+      published.revision === editor.nativeRevision
+    )
+      return;
     const revision = editor.nativeRevision,
       basicLive = () =>
         !this.closed &&

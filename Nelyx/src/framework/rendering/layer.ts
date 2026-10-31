@@ -533,16 +533,33 @@ export class ContainerLayer extends Layer {
   }
   override attach(owner: object): void {
     super.attach(owner);
-    const errors: unknown[] = [];
-    for (const child of this.children) attempt(errors, () => child.attach(owner));
-    failures(errors, 'Layer subtree attach failed');
+    let errors: unknown[] | undefined;
+    for (const child of this.children)
+      try {
+        child.attach(owner);
+      } catch (error) {
+        (errors ??= []).push(error);
+      }
+    if (errors) failures(errors, 'Layer subtree attach failed');
   }
   override detach(): void {
     this.detachSelf();
-    const errors: unknown[] = [];
-    for (const child of this.children) attempt(errors, () => child.detach());
-    attempt(errors, () => this._fireCompositionCallbacks(false));
-    failures(errors, 'Layer subtree detach failed');
+    // Retained subtrees move between recordings while scrolling. Keep the
+    // successful walk free of error arrays and per-child closures; failures
+    // still drain every child and composition observer before being reported.
+    let errors: unknown[] | undefined;
+    for (const child of this.children)
+      try {
+        child.detach();
+      } catch (error) {
+        (errors ??= []).push(error);
+      }
+    try {
+      this._fireCompositionCallbacks(false);
+    } catch (error) {
+      (errors ??= []).push(error);
+    }
+    if (errors) failures(errors, 'Layer subtree detach failed');
   }
   override supportsRasterization(): boolean {
     return this.children.every((child) => child.supportsRasterization());

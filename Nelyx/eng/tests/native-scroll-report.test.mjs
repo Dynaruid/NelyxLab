@@ -9,8 +9,56 @@ import {
   symbolicateNativeProfile,
   verifyNativeCatalogReports,
   verifyNativeResourceCycles,
+  verifyNativeMixedScrollReports,
 } from '../run-native-scroll.mjs';
 const timeout = 1_200_000;
+
+test(
+  'mixed-page qualification rejects short sweeps and incomplete reverse/fast passes',
+  { timeout },
+  () => {
+    const fixture = () =>
+      [
+        'mixed-scroll-traverse',
+        'mixed-scroll-no-hover',
+        'mixed-scroll-button-hover',
+        'mixed-scroll-field-focus',
+      ].map((name) => ({
+        type: 'phase',
+        name,
+        workload: {
+          editors: 12,
+          editorFocused: name === 'mixed-scroll-field-focus',
+          scrollRange: { scope: 'full-scroll-extent', maximum: 3000, viewport: 700 },
+          motionWindows: Array.from(
+            { length: name === 'mixed-scroll-traverse' ? 2 : 4 },
+            (_, i) => ({
+              from: i % 2 === 0 ? 0 : 3000,
+              target: i % 2 === 0 ? 3000 : 0,
+              final: i % 2 === 0 ? 3000 : 0,
+              begin: i * 5000,
+              end: i * 5000 + 4000,
+              duration: i < 2 ? 4000 : 1500,
+            }),
+          ),
+        },
+      }));
+    assert.doesNotThrow(() => verifyNativeMixedScrollReports(fixture()));
+    for (const mutate of [
+      (rows) => (rows[1].workload.scrollRange.maximum = 96),
+      (rows) => (rows[2].workload.motionWindows[1].final = 1500),
+      (rows) => rows[3].workload.motionWindows.pop(),
+      (rows) => (rows[0].workload.motionWindows[0].from = 96),
+      (rows) => (rows[3].workload.editorFocused = false),
+      (rows) => rows.pop(),
+      (rows) => rows.push(rows[0]),
+    ]) {
+      const rows = fixture();
+      mutate(rows);
+      assert.throws(() => verifyNativeMixedScrollReports(rows), /full-page/);
+    }
+  },
+);
 
 test(
   'CPU trial batches cover each viewport once per fresh-process trial and reject mixed repetition scopes',
@@ -243,6 +291,22 @@ test('native scroll options keep diagnostic modes and viewports explicit', { tim
     true,
   );
   assert.throws(() => nativeScrollOptions(['--mixed-scroll-scenes']), /Scroll scenes/);
+  assert.equal(
+    nativeScrollOptions(['--mixed-scroll-scenes', '--viewport', 'maximized', '--scope', 'sampling'])
+      .scope,
+    'sampling',
+  );
+  assert.throws(
+    () =>
+      nativeScrollOptions([
+        '--mixed-scroll-pixels',
+        '--viewport',
+        'maximized',
+        '--scope',
+        'sampling',
+      ]),
+    /Scroll scenes/,
+  );
   assert.equal(
     nativeScrollOptions(['--mixed-scroll-pixels', '--viewport', 'maximized']).mixedScrollPixels,
     true,

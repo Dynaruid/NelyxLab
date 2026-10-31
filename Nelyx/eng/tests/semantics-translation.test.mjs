@@ -18,6 +18,7 @@ import { RenderSemanticsGestureHandler } from '../../dist/framework/rendering/se
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { Matrix4 } from '@nelyx/core/math/matrix4';
+import { bounds as projectBounds, intersect } from '@nelyx/core/ui/geometry';
 import { RenderObject, RenderBox, PipelineOwner } from '@nelyx/core/framework/rendering/object';
 import { existingPipelineSemantics } from '../../dist/framework/rendering/semantics-pipeline.js';
 import { existingSemanticsFor } from '../../dist/framework/rendering/semantics-pipeline.js';
@@ -992,8 +993,16 @@ test(
       assert.equal(fragment.parent.renderObject, render.parent);
       const moved = f.root.nodes.filter((node) => node.id === 'moving-owner');
       assert.equal(moved.length, 1);
+      assert(existingPipelineSemantics(f.root.pipeline).transportSources.has(render));
       assert(moved[0].bounds.x > first.bounds.x);
+      let retiredReads = 0;
+      render.describeSemanticsConfiguration = () => {
+        retiredReads++;
+        throw Error('Retired configuration must not be evaluated');
+      };
+      render.markNeedsSemanticsUpdate();
       f.set(new SizedBox(20, 20));
+      assert.equal(retiredReads, 0);
       assert(!f.root.nodes.some((node) => node.id === 'moving-owner'));
       assert(!existingPipelineSemantics(f.root.pipeline).transportSources.has(render));
       assert.equal(render.debugDisposed, true);
@@ -1699,6 +1708,55 @@ test(
         render.markNeedsSemanticsUpdate();
         f.frame();
         assert.deepEqual(nodes(), geometry);
+      }
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
+  'host projection preserves full-matrix bounds for affine and genuine 3D source transforms',
+  { timeout },
+  () => {
+    const f = fixture();
+    try {
+      for (const matrix of [
+        Matrix4.identity().storage,
+        Matrix4.translationValues(13.25, -7.5, 0).storage,
+        Matrix4.rotationZ(0.3).storage,
+        [1.25, 0.1, 0, 0, -0.2, 0.75, 0, 0, 0, 0, 1, 0, 17, 21, 0, 1],
+        [1, 0, 0, 0.001, 0, 1, 0, -0.002, 0, 0, 1, 0, 7, 11, 0, 1],
+        Matrix4.rotationX(0.25).storage,
+        Matrix4.translationValues(5, 9, 17).storage,
+      ]) {
+        f.set(
+          new Stack([
+            new Transform(
+              new Semantics({
+                textDirection: 'ltr',
+                transportId: 'projected',
+                label: 'Projected',
+                container: true,
+                child: new SizedBox(80, 60),
+              }),
+              matrix,
+            ),
+          ]),
+        );
+        const actual = f.root.nodes.find((node) => node.id === 'projected')?.bounds,
+          expected = intersect(projectBounds(matrix, { width: 80, height: 60 }), {
+            x: 0,
+            y: 0,
+            width: 240,
+            height: 160,
+          });
+        assert(actual);
+        for (const key of ['x', 'y', 'width', 'height'])
+          assert(
+            Math.abs(actual[key] - expected[key]) < 1e-8,
+            `${key}: ${actual[key]} versus ${expected[key]}`,
+          );
       }
     } finally {
       f.close();
@@ -2879,13 +2937,14 @@ test(
 );
 
 test(
-  'offset-only motion updates clipped bounds and visibility without recalculating semantic configurations',
+  'offset-only motion updates clipped bounds and visibility without reassembling unchanged semantics',
   { timeout },
   () => {
     const f = fixture();
     let viewport,
       configurations = 0,
-      activated = 0;
+      activated = 0,
+      label = 'moving';
     class MovingViewport extends RenderProxyBox {
       get clips() {
         return true;
@@ -2903,7 +2962,7 @@ test(
           new Semantics({
             textDirection: 'ltr',
             transportId: 'moving',
-            label: 'moving',
+            label,
             container: true,
             onTap: () => activated++,
             child: new SizedBox(80, 60),
@@ -2926,14 +2985,29 @@ test(
       };
       watch(viewport);
       const source = f.root.nodes.find((node) => node.id === 'moving').sourceNodeId;
+      const live = f.root.pipeline.semanticsOwner.getSemanticsNode(source),
+        update = live.updateWith;
+      let assemblies = 0;
+      live.updateWith = function (...args) {
+        assemblies++;
+        return update.apply(this, args);
+      };
       for (const [x, y, expected] of [
         [20, 10, { x: 20, y: 10, width: 80, height: 60 }],
+        [40, 20, { x: 40, y: 20, width: 80, height: 60 }],
         [-20, -10, { x: 0, y: 0, width: 60, height: 50 }],
         [300, 0, null],
         [10, 10, { x: 10, y: 10, width: 80, height: 60 }],
       ]) {
+        const before = assemblies;
         viewport.child.layoutOffset = { x, y };
         f.frame();
+        if (x === 20 || x === 40)
+          assert.equal(
+            assemblies,
+            before,
+            'Pure translation updates geometry without node assembly',
+          );
         const node = f.root.nodes.find((node) => node.id === 'moving');
         if (expected) {
           assert.deepEqual(node.bounds, expected);
@@ -2941,12 +3015,24 @@ test(
           node.actions.activate();
         } else assert.equal(node, undefined);
       }
-      assert.equal(activated, 3);
+      assert.equal(activated, 4);
       assert.equal(
         configurations,
         0,
         'Moving already laid-out content must preserve its semantic configuration',
       );
+      const previous = f.root.nodes.find((node) => node.id === 'moving'),
+        before = assemblies;
+      viewport.child.layoutOffset = { x: 5, y: 5 };
+      label = 'Updated';
+      f.set(new Viewport());
+      const updated = f.root.nodes.find((node) => node.id === 'moving');
+      assert.equal(updated.name, 'Updated');
+      assert(assemblies > before, 'A configuration change cannot reuse pending motion geometry');
+      previous.actions.activate();
+      assert.equal(activated, 4, 'A new configuration retires the old transported action');
+      updated.actions.activate();
+      assert.equal(activated, 5);
     } finally {
       f.close();
     }
@@ -3026,6 +3112,125 @@ test(
           expected,
         );
       }
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
+  'sibling input surfaces share painted transforms and reread motion on the next commit',
+  { timeout },
+  () => {
+    const f = fixture(),
+      editors = [],
+      shared = [];
+    let edges = 0,
+      visibilityChecks = 0,
+      shown = true;
+    class Geometry extends RenderProxyBox {
+      get coreEditingGeometry() {
+        return {
+          epoch: 1,
+          ...this.size,
+          caret: { x: 0, y: 0, width: 1, height: 20 },
+          caretBaseline: { x: 0, y: 15 },
+          selectionRects: [],
+        };
+      }
+    }
+    class Carrier extends RenderObjectWidget {
+      get childWidgets() {
+        return [new SizedBox(20, 40)];
+      }
+      createRenderObject() {
+        const render = new Geometry();
+        editors.push(render);
+        return render;
+      }
+    }
+    class Shared extends RenderProxyBox {
+      childTransform(child) {
+        edges++;
+        return super.childTransform(child);
+      }
+    }
+    class Wrapper extends RenderObjectWidget {
+      constructor(child) {
+        super();
+        this.child = child;
+      }
+      get childWidgets() {
+        return [this.child];
+      }
+      createRenderObject() {
+        const render = new Shared();
+        shared.push(render);
+        return render;
+      }
+    }
+    let tree = new Row(Array.from({ length: 6 }, () => new Carrier()));
+    for (let i = 0; i < 16; i++) tree = new Wrapper(tree);
+    try {
+      f.set(new ClipRect(tree));
+      const root = f.root.pipeline.root,
+        frame = { owner: f.root.context.owner, metrics: f.root.context.readMetrics() };
+      Object.defineProperty(shared[2], 'isDisplayed', {
+        configurable: true,
+        get() {
+          visibilityChecks++;
+          return shown;
+        },
+      });
+      for (const x of [0, 3.25, -7.5, 0]) {
+        shared[0].child.layoutOffset = { x, y: 0 };
+        edges = 0;
+        visibilityChecks = 0;
+        root.commitTextInputGeometries(frame).commit();
+        assert.equal(
+          edges,
+          shared.length,
+          'Shared transform edges are composed once for all editors',
+        );
+        assert.equal(visibilityChecks, 1, 'Shared visibility is read once in each commit');
+        for (const editor of editors) {
+          const geometry = editor.readTextInputGeometry(frame.owner, frame.metrics);
+          assert(geometry);
+          assert.deepEqual(geometry.transform, editor.getTransformTo(null));
+        }
+      }
+      for (const matrix of [
+        Matrix4.rotationZ(0.037).storage,
+        Matrix4.fromList([1, 0, 0, 0.001, 0, 1, 0, -0.002, 0, 0, 1, 0, 7, 11, 0, 1]).storage,
+      ]) {
+        Object.defineProperty(shared[0], 'localTransform', { configurable: true, value: matrix });
+        root.commitTextInputGeometries(frame).commit();
+        for (const editor of editors) {
+          const geometry = editor.readTextInputGeometry(frame.owner, frame.metrics),
+            expected = editor.getTransformTo(null);
+          assert(geometry);
+          assert(geometry.transform.every((value, i) => Math.abs(value - expected[i]) < 1e-9));
+        }
+      }
+      delete shared[0].localTransform;
+      const editor = editors[0],
+        original = editor.getTransformTo;
+      editor.getTransformTo = () => Matrix4.translationValues(13, 17, 0).storage;
+      root.commitTextInputGeometries(frame).commit();
+      assert.equal(editor.readTextInputGeometry(frame.owner, frame.metrics).bounds.x, 13);
+      editor.getTransformTo = original;
+      shown = false;
+      for (const editor of editors)
+        assert.equal(editor.readTextInputGeometry(frame.owner, frame.metrics), null);
+      visibilityChecks = 0;
+      root.commitTextInputGeometries(frame).commit();
+      assert.equal(visibilityChecks, 1);
+      shown = true;
+      visibilityChecks = 0;
+      root.commitTextInputGeometries(frame).commit();
+      assert.equal(visibilityChecks, 1, 'The next commit rereads shared visibility');
+      for (const editor of editors)
+        assert(editor.readTextInputGeometry(frame.owner, frame.metrics));
     } finally {
       f.close();
     }

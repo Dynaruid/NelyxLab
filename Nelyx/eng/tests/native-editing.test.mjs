@@ -14,6 +14,57 @@ import { freezeTextInputGeometry } from '@nelyx/core/ui/editing';
 const timeout = 1_200_000;
 FoundationPlatform.configure({ kind: 'native', operatingSystem: 'android' });
 
+test('withdrawn input geometry stays quiet until the native endpoint changes', { timeout }, () => {
+  const owner = { id: 'withdrawn-input', generation: 1 },
+    interaction = new NativeInteraction(owner, {
+      commands: true,
+      selectionEvents: true,
+      semantics: 'native-controls',
+      nativeSnapshots: true,
+      inputControl: 'nonvisual',
+    }),
+    value = {
+      session: owner,
+      text: 'Editor',
+      selection: { anchor: 0, focus: 0 },
+      composing: { status: 'none' },
+      revision: 0,
+      source: 'programmatic',
+    },
+    packets = [];
+  let reads = 0,
+    detach;
+  const binding = interaction.editing.bind(owner, value, () => {}, {
+    id: 'field',
+    readValue: () => {
+      reads++;
+      return value;
+    },
+    readInputState: () => ({ enabled: true, focusable: true, label: 'Editor' }),
+  });
+  const port = () => ({
+    replace() {},
+    focus() {},
+    blur() {},
+    updateGeometry: (geometry) => packets.push(geometry),
+  });
+  try {
+    detach = interaction.attachEditor('field', {}, port());
+    assert.deepEqual(packets, [null]);
+    reads = 0;
+    for (let i = 0; i < 3; i++) binding.updateGeometry(null);
+    assert.deepEqual(packets, [null], 'Offscreen scroll cannot republish empty coordinates');
+    assert.equal(reads, 0, 'Withdrawn coordinates do not need another document query');
+    detach();
+    detach = interaction.attachEditor('field', {}, port());
+    assert.deepEqual(packets, [null, null], 'A replacement native endpoint must be withdrawn');
+  } finally {
+    detach?.();
+    binding.dispose();
+    interaction.dispose();
+  }
+});
+
 test(
   'SDK reuses captured Core geometry and recaptures reused mutable caller packets',
   { timeout },

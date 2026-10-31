@@ -100,8 +100,9 @@ function captureInputGeometry(
   core: CoreEditingGeometry,
   frame: { readonly owner: ViewOwner; readonly metrics: ViewMetrics },
   previous: CommittedInputGeometry | undefined,
+  transformToView: (render: RenderObject) => TransformMatrix,
 ): Pick<CommittedInputGeometry, 'key' | 'value'> | undefined {
-  const matrix = render.getTransformTo(null),
+  const matrix = fullTransform(transformToView(render)),
     project = (rect: Rect) => bounds(multiply(matrix, translate(rect.x, rect.y)), rect),
     full = project({ x: 0, y: 0, width: core.width, height: core.height });
   let clip = intersect(full, {
@@ -119,7 +120,10 @@ function captureInputGeometry(
     if (local)
       clip = intersect(
         clip,
-        bounds(multiply(parent.getTransformTo(null), translate(local.x, local.y)), local),
+        bounds(
+          multiply(fullTransform(transformToView(parent)), translate(local.x, local.y)),
+          local,
+        ),
       );
     if (clip.width === 0 || clip.height === 0) return undefined;
   }
@@ -1791,7 +1795,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     const state = existingSemanticsFor(this),
       owner = this.owner;
     if (owner?.semanticsOwner && state && !state.parentDataDirty) {
-      state.geometry = null;
+      state.markGeometryDirty();
       pipelineSemantics(owner).offsetChanged(this);
       this.markNeedsPaintOnly();
     } else this.markNeedsPaint();
@@ -2121,7 +2125,37 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       paintVersion = this.paintVersion,
       scope: InputGeometryScope = { token: {}, committed: false, aborted: false },
       notifications: RenderObject[] = [],
-      displayDescriptors = new Map<object, PropertyDescriptor | null>();
+      displayDescriptors = new Map<object, PropertyDescriptor | null>(),
+      displayed = new Map<RenderObject, boolean>(),
+      transforms = new Map<RenderObject, TransformMatrix>();
+    const displayedInCommit = (render: RenderObject): boolean => {
+      const cached = displayed.get(render);
+      if (cached !== undefined) return cached;
+      const parent = render.parent,
+        visible =
+          render.inputGeometryNodeDisplayed(displayDescriptors) &&
+          (!parent || (parent.paintsChild(render) && displayedInCommit(parent)));
+      displayed.set(render, visible);
+      return visible;
+    };
+    // This commit is one painted snapshot. Eager editors share long ancestor
+    // paths, including viewport clips; compose each shared edge once. The map
+    // ends with this walk, so scroll offsets and custom transforms are reread
+    // on the next frame. Keep virtual whole-path conversions authoritative.
+    const paintTransformToView = (render: RenderObject): TransformMatrix => {
+      const cached = transforms.get(render);
+      if (cached) return cached;
+      const parent = render.parent,
+        matrix = parent
+          ? multiply(paintTransformToView(parent), parent.childTransform(render))
+          : multiply(render.localTransform, identity);
+      transforms.set(render, matrix);
+      return matrix;
+    };
+    const transformToView = (render: RenderObject): TransformMatrix =>
+      render.getTransformTo !== RenderObject.prototype.getTransformTo
+        ? render.getTransformTo(null)
+        : paintTransformToView(render);
     let hasInputGeometry = false,
       parentDisplayed = true;
     // Keep provider-only locals out of the per-node recursive activation.
@@ -2132,8 +2166,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     ): void => {
       hasInputGeometry = true;
       const captured =
-        core && (render.inputGeometryProvider || render.inputGeometryDisplayed(displayDescriptors))
-          ? captureInputGeometry(render, core, frame, previous)
+        core && (render.inputGeometryProvider || displayedInCommit(render))
+          ? captureInputGeometry(render, core, frame, previous, transformToView)
           : undefined;
       if (captured)
         committedInputGeometries.set(render, { scope, root, paintVersion, ...captured });
@@ -2146,8 +2180,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       parentDisplayed = parentDisplayed && render.attached && !render.needsLayout;
       try {
         const visible =
-          parentDisplayed &&
-          (!render.inputGeometryProvider || render.inputGeometryDisplayed(displayDescriptors));
+          parentDisplayed && (!render.inputGeometryProvider || displayedInCommit(render));
         const core = visible ? render.coreEditingGeometry : null;
         if (core !== null || previous !== undefined) updateGeometry(render, core, previous);
         else committedInputGeometries.delete(render);
@@ -3064,7 +3097,7 @@ export abstract class RenderBox<
       const state = existingSemanticsFor(this);
       if (state) {
         // Moving laid-out content changes geometry, not its semantic configuration.
-        state.geometry = null;
+        state.markGeometryDirty();
         pipelineSemantics(this.owner).offsetChanged(this);
         this.owner.invalidate();
       }
