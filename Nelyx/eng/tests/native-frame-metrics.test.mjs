@@ -12,9 +12,36 @@ import {
   analyseNativeCatalogCoverage,
   readHermesGCStats,
   readHermesSamplingProfile,
+  readNativeRecordingStats,
 } from './native-frame-metrics.js';
 const timeout = 1_200_000,
   pack = (rows) => new Float64Array(rows.flat()).buffer;
+test(
+  'native recording observations preserve thread-CPU unobserved and reject invalid receipts',
+  { timeout },
+  () => {
+    assert.deepEqual(readNativeRecordingStats([1, 2, 3, 100, 4, 5]), {
+      serial: 2,
+      lockWaitMs: 3,
+      snapWallMs: 100,
+      snapThreadCpuMs: 4,
+      slotWallMs: 5,
+    });
+    assert.equal(readNativeRecordingStats([1, 1, 0, 0, -1, 0]).snapThreadCpuMs, null);
+    for (const values of [
+      [],
+      [2, 1, 0, 1, 1, 0],
+      [1, 0, 0, 1, 1, 0],
+      [1, 1, -1, 1, 1, 0],
+      [1, 1, 0, NaN, 1, 0],
+      [1, 1, 0, 1, -2, 0],
+      [1, 1, 0, 1, Infinity, 0],
+      [1, 1, 0, 1, 1, -1],
+      [1, 1, 0, 1, 1, 0, 0],
+    ])
+      assert.throws(() => readNativeRecordingStats(values), /recording diagnostics/);
+  },
+);
 const fixture = () => ({
   schema: 1,
   clock: 'qpc-ms',

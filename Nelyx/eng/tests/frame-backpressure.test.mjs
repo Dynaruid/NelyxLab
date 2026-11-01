@@ -115,6 +115,7 @@ function fixture({ scene, observeInput } = {}) {
     observeInput,
   });
   return {
+    context,
     view,
     renderer,
     session,
@@ -143,6 +144,46 @@ function fixture({ scene, observeInput } = {}) {
     },
   };
 }
+
+test(
+  'native snap observations are opt-in and preserve the ordinary recording and redraw path',
+  { timeout },
+  async () => {
+    const f = fixture();
+    let ordinary = 0,
+      observed = 0;
+    f.context.finishRecording = () => {
+      ordinary++;
+      return { dispose() {} };
+    };
+    f.context.nelyxFinishRecordingWithDiagnostics = () => {
+      observed++;
+      return { dispose() {} };
+    };
+    try {
+      f.view.requestFrame();
+      f.tick();
+      assert.equal(ordinary, 1);
+      assert.equal(observed, 0);
+      f.notifications.push(7, 1, 0);
+      f.renderer.frameDiagnostics = new FrameDiagnostics({ now: () => performance.now() });
+      f.view.requestFrame();
+      f.tick();
+      assert.equal(observed, 1);
+      assert.equal(ordinary, 1);
+      f.notifications.push(7, 2, 0);
+      f.renderer.frameDiagnostics = undefined;
+      f.view.requestFrame();
+      f.tick();
+      assert.equal(ordinary, 2);
+      assert.equal(observed, 1);
+      assert.equal(f.submissions.length, 3);
+      assert.deepEqual(f.errors, []);
+    } finally {
+      await f.session.dispose();
+    }
+  },
+);
 
 test(
   'CPU diagnostics join input, prepared frame and native submission without changing backpressure',

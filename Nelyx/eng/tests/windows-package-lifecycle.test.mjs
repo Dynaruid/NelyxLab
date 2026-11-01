@@ -10,11 +10,57 @@ import {
   publishWindowsPackage,
   pruneWindowsPackages,
   resetWindowsBuildAssets,
+  windowsPackageFiles,
 } from '../../sdk/tooling/cli/src/windows-package-lifecycle.mjs';
 
 const timeout = 1_200_000,
   appName = 'LifecycleTest',
   manifestName = 'nelyx-package.json';
+test(
+  'Windows export omits interrupted compiler staging while preserving product files and notices',
+  { timeout },
+  () => {
+    const directory = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), 'nelyx-package-files-'),
+    );
+    const keep = [
+      'NelyxRNHost.exe',
+      'Bundle/index.windows.bundle',
+      'licenses/source.lib',
+      'Assets/.nelyx-sh-public/icon.png',
+      '.nelyx-sh-note',
+      'sourcemaps/react/index.windows.bundle.map',
+    ];
+    const omit = [
+      '.nelyx-sh-mfB4Na/nelyx_app.baseline.c',
+      '.nelyx-sh-mfB4Na/nelyx_app.c',
+      '.nelyx-sh-mfB4Na/nelyx_app-66e0fbc6.obj.tmp',
+      '.NELYX-SH-stale/nested/generated.c',
+      'host.obj',
+      'host.pch',
+      'sourcemaps/react/index.windows.bundle.compiler.map',
+      'sourcemaps/react/index.windows.bundle.packager.map',
+    ];
+    try {
+      for (const name of [...keep, ...omit]) {
+        const file = path.join(directory, name);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, name);
+      }
+      assert.deepEqual(windowsPackageFiles(directory).sort(), [...keep].sort());
+      assert.deepEqual(
+        fileTree(directory).sort(),
+        [...keep, ...omit].sort(),
+        'Export never deletes build inputs',
+      );
+    } finally {
+      assert.equal(path.dirname(fs.realpathSync(directory)), fs.realpathSync(os.tmpdir()));
+      assert(path.basename(directory).startsWith('nelyx-package-files-'));
+      assert(!fs.lstatSync(directory).isSymbolicLink());
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
 function fixture(run) {
   const temporary = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-windows-packages-')),

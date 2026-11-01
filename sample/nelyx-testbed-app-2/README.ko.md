@@ -248,15 +248,28 @@ node Nelyx/eng/run-native-scroll.mjs --hermes-mode static-aot --viewport maximiz
 
 `gc`는 별도로 실행해 Hermes 누적 할당·수집·pause 통계를 켭니다. 장면별 누적값 차이는 개별 frame 안의 pause 위치를 알려주지 않으며, 해당 타이밍을 `cpu` 기준값 대신 사용하지 않습니다.
 
-**입력·버튼 스크롤** 페이지는 별도 명령으로 측정합니다. 하나의 Column과 12개 편집기를 처음부터 모두 유지한 채 이동, 짧은 왕복, 버튼 hover, 편집기 focus를 확인합니다.
+**입력·버튼 스크롤** 페이지는 별도 명령으로 측정합니다. 하나의 Column과 12개 편집기를 처음부터 모두 유지하며 모든 장면에서 실제 스크롤 범위의 맨 위부터 맨 아래까지 왕복합니다. 첫 이동은 편도 4초이며 no-hover·버튼 hover·편집기 focus는 정지 후 편도 1.5초의 빠른 전체 왕복도 수행합니다. 실제 offset·target·extent·viewport를 보고하며 두 viewport보다 짧으면 실패합니다. 이전 96px 왕복과 직접 비교하지 않습니다.
+
+`stages`의 `Native.recording*`와 `slowNativeRecordings`는 같은 frame의 native recorder lock 대기, Graphite snap 벽시계 시간, Windows 현재 스레드 CPU 시간, snap 이후 wrapping·slot 처리를 구분합니다. 스레드 CPU는 OS 집계 해상도의 제한을 받으며 미지원 값은 `null`입니다. 다른 스레드의 CPU와 프로세스 전체 CPU를 나타내지 않습니다. GPU 실행 시간이나 특정 driver/fence 원인을 확정하는 값이 아닙니다. 최신 native 공급본이 필요하며 일반 실행과 `cpu`에서는 이 추가 계측을 호출하지 않습니다.
 
 ```powershell
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope stages
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope cpu
+node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope sampling
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-pixels --scope cpu
 ```
 
-이 명령에도 위의 직접 호스트·합성 입력 진단 범위와 데스크톱 입력 중지 조건이 적용됩니다. `--mixed-scroll-pixels`는 실제 페이지의 세 버튼을 위·아래 경계에 걸쳐 native GPU 픽셀로 비교하는 별도 검사이며 성능 측정이 아닙니다. 세 옵션 `--scroll-scenes`, `--mixed-scroll-scenes`, `--mixed-scroll-pixels`는 서로 함께 사용하지 않습니다.
+이 명령에도 위의 직접 호스트·합성 입력 진단 범위와 데스크톱 입력 중지 조건이 적용됩니다. `sampling`은 네 장면의 상위 Hermes 함수를 조사하며 가중치는 CPU ms가 아닙니다. 성능은 별도 `--scope cpu --repeat 3`으로 비교합니다. `--mixed-scroll-pixels`는 실제 페이지의 세 버튼을 위·아래 경계에 걸쳐 native GPU 픽셀로 비교하는 별도 검사이며 성능 측정이 아닙니다. 세 옵션 `--scroll-scenes`, `--mixed-scroll-scenes`, `--mixed-scroll-pixels`는 서로 함께 사용하지 않습니다.
+
+실제 RNW 경로의 source 단계와 native 제출·producer 완료·surface 갱신·retirement를 같은 owner/viewport/context/surface/frame/input 식별로 연결하려면 다음 진단을 사용합니다.
+
+```powershell
+node Nelyx/eng/run-rnw-frame-probe.mjs
+```
+
+기존 Windows runner의 SDK를 갱신하고 임시 probe를 넣어 Hermes bytecode / optimized / Release로 빌드·실행합니다. 열린 앱에서 장면을 조작하고 정상 종료하면 `App.tsx`와 임시 소스는 finally에서 원복됩니다. 취소·실패 때도 자신이 만든 fixture만 정리하며, 실행 중 앱 소스가 외부에서 바뀌면 덮어쓰지 않습니다. 로그 파일은 만들지 않고 bounded RAM 표본과 느린 frame 상세를 stdout으로 냅니다. 이 진단의 wrapper·timer·native thread 관찰 비용을 일반 `cpu` 결과와 비교하지 않습니다. callback wall은 owned View callback 범위이며 native dispatch/poll과 이후 JS checkpoint는 제외합니다. 설치 전에 예약된 callback wall은 미관찰이고, 한 frame에 기여한 여러 callback의 시간도 합산하지 않습니다. Native input counter는 마지막 Core 입력 표식이며 개별 wheel의 offset 변경·표시 완료 증거가 아닙니다. 다음 일반 `run:windows`는 원복된 소스를 다시 빌드해 probe 없는 제품을 실행합니다.
+
+callback의 작업은 wet layout·measurement query·text layout·Element rebuild·sliver child 생성으로도 나눕니다. 범주는 서로 겹치며, `total`은 같은 범주의 중첩만 제외합니다. 상위 constructor 이름은 축약되거나 충돌할 수 있어 개별 class 식별로 사용하지 않습니다. 마지막 종료 보고·native 실패 수·binding close·shutdown acknowledgement를 검사하며, 개별 GC pause와 GPU 독립 실행 시간·scanout은 관찰하지 않습니다.
 
 ## Android
 

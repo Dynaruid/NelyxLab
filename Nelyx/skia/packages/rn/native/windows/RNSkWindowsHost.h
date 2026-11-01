@@ -85,6 +85,16 @@ private:
     jsi::Object api(runtime);auto weak=weak_from_this();
     api.setProperty(runtime,"frameClockVersion",2);
     api.setProperty(runtime,"inputTraceEnabled",windowsInputTraceEnabled());
+    api.setProperty(runtime,"frameDiagnosticsEnabled",windowsFrameDiagnosticsEnabled());
+    // Explicit diagnostic execution only; bounded numeric reports go to the
+    // owning launcher's stderr, never a persistent log or a display receipt.
+    api.setProperty(runtime,"writeFrameDiagnostics",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"writeFrameDiagnostics"),1,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
+        if(!windowsFrameDiagnosticsEnabled())return jsi::Value::undefined();auto self=weak.lock();if(!self||!self->isActive())return jsi::Value::undefined();self->requireOwner();
+        if(count!=1||!args[0].isString())throw jsi::JSError(rt,"Frame diagnostic report must be a string");
+        const auto value=args[0].getString(rt).utf8(rt);if(value.size()>65536)throw jsi::JSError(rt,"Frame diagnostic report exceeds its budget");
+        windowsFrameDiagnostic("cpu-frame "+value);return jsi::Value::undefined();
+      }));
     api.setProperty(runtime,"traceInput",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"traceInput"),6,
       [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         if(!windowsInputTraceEnabled()||count!=6)return jsi::Value::undefined();auto self=weak.lock();if(!self||!self->isActive())return jsi::Value::undefined();self->requireOwner();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <deque>
 #include <functional>
@@ -11,6 +12,9 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include "RNSkGraphiteTargetInfo.h"
 #include "RNSkPlatformContext.h"
@@ -280,22 +284,36 @@ public:
   }
 
   /** Snaps the open recording. Throws when no recording is open. */
-  std::shared_ptr<RNSkGraphiteRecording> finishRecording() {
+  std::shared_ptr<RNSkGraphiteRecording> finishRecording(bool observe=false) {
+    using Clock=std::chrono::steady_clock;
+    const auto began=observe?Clock::now():Clock::time_point{};
     std::lock_guard<std::mutex> lock(_stateMutex);
     if (!_recording) {
       throw std::runtime_error("SkiaGraphiteView: no recording is open, call "
                                "beginRecording() first.");
     }
     _recording = false;
+    const auto locked=observe?Clock::now():Clock::time_point{};
+    const auto cpuBefore=observe?recordingThreadCpuMilliseconds():-1.;
+    const auto snapBegan=observe?Clock::now():Clock::time_point{};
     auto recording = _recorder->recorder->snap();
+    const auto snapped=observe?Clock::now():Clock::time_point{};
+    const auto cpuAfter=observe?recordingThreadCpuMilliseconds():-1.;
     if (recording == nullptr) {
       throw std::runtime_error(
           "SkiaGraphiteView: snapping the recording failed.");
     }
     auto result=std::make_shared<RNSkGraphiteRecording>(_recorder,std::move(recording),_recordingTarget);
     {std::lock_guard<std::mutex> admission(_nelyx->mutex);if(_nelyx->enabled){if(!_nelyx->reserved)throw std::runtime_error("Nelyx missing recording reservation");_nelyx->reserved=false;++_nelyx->recordings;result->nelyxHold(std::make_shared<NelyxGraphiteSlot>(_nelyx));}}
+    if(observe){
+      const auto ms=[](auto duration){return std::chrono::duration<double,std::milli>(duration).count();};
+      _recordingDiagnostics={1.,++_recordingDiagnosticSerial,ms(locked-began),ms(snapped-snapBegan),
+        cpuBefore>=0&&cpuAfter>=cpuBefore?cpuAfter-cpuBefore:-1.,ms(Clock::now()-snapped)};
+    }
     return result;
   }
+  // Scalar snapshot only. Ordinary recordings do not read a clock or CPU times.
+  std::vector<double> nelyxRecordingDiagnostics(){std::lock_guard<std::mutex> lock(_stateMutex);return _recordingDiagnostics;}
 
   /**
    Queues a recording for the next frame. Recordings are never dropped: a
@@ -381,6 +399,16 @@ public:
   }
 
 private:
+  static double recordingThreadCpuMilliseconds() noexcept {
+#ifdef _WIN32
+    FILETIME created{},exited{},kernel{},user{};
+    if(!GetThreadTimes(GetCurrentThread(),&created,&exited,&kernel,&user))return -1.;
+    const auto ticks=[](FILETIME value){return (uint64_t(value.dwHighDateTime)<<32)|value.dwLowDateTime;};
+    return double(ticks(kernel)+ticks(user))/10000.;
+#else
+    return -1.; // This probe has no current-thread CPU receipt on other hosts.
+#endif
+  }
   /**
    The target to record against: the view's surface when it has one, else
    the pixel size the platform laid the view out with, else the layout size
@@ -449,6 +477,8 @@ private:
   std::mutex _stateMutex;
   std::shared_ptr<RNSkGraphiteRecorder> _recorder;
   bool _recording = false;
+  double _recordingDiagnosticSerial=0;
+  std::vector<double> _recordingDiagnostics;
   RNSkGraphiteTargetInfo _recordingTarget;
   RNSkGraphiteTargetInfo _nelyxReservedTarget;
   std::weak_ptr<RNSkWindowSurface> _surface;

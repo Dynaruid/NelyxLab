@@ -20,6 +20,7 @@ import {
   assertWindowsPackageReplaceable,
   publishWindowsPackage,
   pruneWindowsPackages,
+  windowsPackageFiles,
 } from './windows-package-lifecycle.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
 import nativeV8Transformer from '@nelyx/metro/native-v8-transformer';
@@ -494,19 +495,7 @@ export async function buildWindows({
     replace: !output,
     prepare(stage) {
       const records = [];
-      for (const name of fileTree(source)) {
-        if (
-          !name.startsWith('licenses/') &&
-          /\.(obj|pch|tlog|lib|exp|ilk|lastbuildstate)$/i.test(name)
-        )
-          continue;
-        if (
-          [
-            'sourcemaps/react/index.windows.bundle.compiler.map',
-            'sourcemaps/react/index.windows.bundle.packager.map',
-          ].includes(name)
-        )
-          continue;
+      for (const name of windowsPackageFiles(source)) {
         const input = localFile(source, name),
           target = path.join(stage, name);
         fs.mkdirSync(path.dirname(target), { recursive: true });

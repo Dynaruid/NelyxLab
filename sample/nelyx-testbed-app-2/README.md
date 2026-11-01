@@ -250,6 +250,8 @@ Run `gc` separately to enable cumulative Hermes allocation/collection/pause coun
 
 Measure the **입력·버튼 스크롤** (inputs and buttons) page separately. Its single Column and all 12 editors stay mounted. Every scene travels from the top to the bottom of the entire scroll extent and back. The first traversal takes 4 seconds each way; no-hover, button-hover, and editor-focus scenes also repeat the full distance at 1.5 seconds each way after a pause. Reports include actual offsets, targets, extent, and viewport size; a range shorter than two viewports fails the diagnostic. Earlier 96px round trips are not comparable to this workload.
 
+In `stages`, `Native.recording*` and `slowNativeRecordings` separate recorder lock wait, Graphite snap wall time, Windows current-thread CPU time, and wrapping/slot work after snap for the same frame. Thread CPU has OS accounting resolution limits and is `null` when unavailable. It excludes other threads and does not measure total process CPU. These observations do not measure GPU execution or identify a specific driver/fence cause. Rebuild the native supplier before using them. Ordinary runs and `cpu` do not invoke this additional instrumentation.
+
 ```powershell
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope stages
 node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --mixed-scroll-scenes --scope cpu
@@ -258,6 +260,16 @@ node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized
 ```
 
 The same direct-host, synthetic-input diagnostic scope and idle-desktop requirement apply. `--scope sampling` identifies hot Hermes functions in the mixed page's four scenes; compare timing separately with `--scope cpu --repeat 3`. Sampling weights are observations, not CPU milliseconds. `--mixed-scroll-pixels` separately compares native GPU pixels for the page's three buttons at both scroll edges; it does not measure performance. The options `--scroll-scenes`, `--mixed-scroll-scenes`, and `--mixed-scroll-pixels` are mutually exclusive.
+
+To join actual RNW source stages to native submission, producer completion, surface updates, and retirement by owner/viewport/context/surface/frame/input identity:
+
+```powershell
+node Nelyx/eng/run-rnw-frame-probe.mjs
+```
+
+This refreshes the existing Windows runner's SDK and builds a temporary Hermes bytecode / optimized / Release probe. Exercise the open app, then close it normally. A `finally` block restores `App.tsx` and removes the owned temporary sources on success, failure, or cancellation; concurrent source edits are preserved instead of overwritten. Reports use bounded RAM and stdout, without log files. Wrapper, timer, and native thread observation overhead makes this a diagnostic, separate from ordinary `cpu` results. Callback wall covers the owned View callback, excluding native dispatch/poll and the following JS checkpoint. A callback scheduled before attachment has unobserved wall time; contributions from different callbacks are not summed. Native input metadata tags the latest Core input and does not prove an individual wheel's offset change or displayed pixels. The next ordinary `run:windows` rebuilds the restored source and launches the product without the probe.
+
+Callback attribution also covers wet layout, measurement queries, text layout, Element rebuilds, and sliver child creation. Categories overlap; `total` excludes nesting only within the same category. Constructor names may be minified or collide and do not identify individual classes. The harness checks the final close report, native failure count, binding close, and shutdown acknowledgement. Individual GC pauses, independent GPU execution time, and scanout remain unobserved.
 
 ## Android
 

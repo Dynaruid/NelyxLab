@@ -94,6 +94,9 @@ export interface NelyxGraphiteContext extends SkGraphiteContext {
     uncertainty: number,
   ): void;
   nelyxNotifications(): number[];
+  /** Opt-in native wall/current-thread CPU observations; absent on older suppliers. */
+  nelyxFinishRecordingWithDiagnostics?(): ReturnType<SkGraphiteContext['finishRecording']>;
+  nelyxRecordingDiagnostics?(): number[];
 }
 export interface GraphiteResources {
   image(id: string): SkImage;
@@ -642,7 +645,10 @@ export class GraphiteRenderer implements Renderer {
         );
       else replayFrame(this.api, canvas, frame, this.resources, this.runtimePrograms);
       diagnosticAt = diagnostics?.now();
-      const recording = context.finishRecording();
+      const recording =
+        diagnostics && native.nelyxFinishRecordingWithDiagnostics
+          ? native.nelyxFinishRecordingWithDiagnostics()
+          : context.finishRecording();
       open = false;
       if (diagnostics)
         diagnosticAt = diagnostics.record(frame.token, 'recording-finish', diagnosticAt!);

@@ -45,14 +45,24 @@ public:
   }
 
   std::shared_ptr<JsiSkGraphiteRecording> finishRecording() {
+    return finish(false);
+  }
+  std::shared_ptr<JsiSkGraphiteRecording> nelyxFinishRecordingWithDiagnostics() {
+    return finish(true);
+  }
+  std::vector<double> nelyxRecordingDiagnostics(){return getObject()->nelyxRecordingDiagnostics();}
+
+private:
+  std::shared_ptr<JsiSkGraphiteRecording> finish(bool observe) {
     // The snap deletes the borrowed canvas, including a failed snap. Keep
     // the wrapper alive through packet encoding/GC, then invalidate aliases.
     if (_canvas) _canvas->setCanvas(nullptr);
     _canvas.reset();
-    auto recording = getObject()->finishRecording();
+    auto recording = getObject()->finishRecording(observe);
     return std::make_shared<JsiSkGraphiteRecording>(getContext(),
                                                     std::move(recording));
   }
+public:
 
   void submit(std::shared_ptr<JsiSkGraphiteRecording> recording) {
     getObject()->submit(recording->getObject());
@@ -107,6 +117,8 @@ public:
                   &JsiSkGraphiteContext::beginRecording);
     installMethod(runtime, prototype, "finishRecording",
                   &JsiSkGraphiteContext::finishRecording);
+    installMethod(runtime,prototype,"nelyxFinishRecordingWithDiagnostics",&JsiSkGraphiteContext::nelyxFinishRecordingWithDiagnostics);
+    installMethod(runtime,prototype,"nelyxRecordingDiagnostics",&JsiSkGraphiteContext::nelyxRecordingDiagnostics);
     installMethod(runtime, prototype, "submit", &JsiSkGraphiteContext::submit);
   }
 

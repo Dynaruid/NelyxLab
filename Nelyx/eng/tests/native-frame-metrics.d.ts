@@ -7,6 +7,13 @@ export interface Distribution {
   readonly p99: number | null;
   readonly max: number | null;
 }
+export declare function readNativeRecordingStats(values: unknown): {
+  readonly serial: number;
+  readonly lockWaitMs: number;
+  readonly snapWallMs: number;
+  readonly snapThreadCpuMs: number | null;
+  readonly slotWallMs: number;
+};
 export interface NativeFrameTrace {
   readonly schema: number;
   readonly clock: string;

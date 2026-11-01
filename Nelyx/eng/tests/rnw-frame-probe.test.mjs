@@ -1,0 +1,498 @@
+// SPDX-License-Identifier: BSD-3-Clause
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
+import { RnwFrameRecords } from './rnw-frame-records.js';
+import { RnwWorkProbe } from './rnw-work-probe.js';
+import { installRnwFrameProbe } from './rnw-frame-probe.js';
+import { withRnwFrameFixture, runRnwFrameProbe } from '../run-rnw-frame-probe.mjs';
+
+const timeout = 1_200_000;
+test(
+  'RNW work clock and label failures preserve the original return or exception',
+  { timeout },
+  () => {
+    const failure = Error('runtime failure');
+    for (const badClock of [false, true]) {
+      const target = {
+        run(fail) {
+          if (fail) throw failure;
+          return 7;
+        },
+      };
+      const probe = new RnwWorkProbe(() => {
+        if (badClock) throw Error('clock');
+        return 0;
+      });
+      probe.wrap(target, 'run', 'layout', () => {
+        throw Error('label');
+      });
+      try {
+        probe.begin();
+        assert.equal(target.run(false), 7);
+        assert.throws(
+          () => target.run(true),
+          (error) => error === failure,
+        );
+        probe.finish();
+        assert.equal(probe.errors, 2);
+      } finally {
+        probe.dispose();
+      }
+    }
+  },
+);
+test(
+  'RNW work attribution subtracts only same-category nesting and restores inherited methods',
+  { timeout },
+  () => {
+    let time = 0;
+    const probe = new RnwWorkProbe(() => time);
+    const inner = {
+      run() {
+        time += 3;
+        return 7;
+      },
+    };
+    const inherited = {
+      run() {
+        time += 2;
+        const result = inner.run();
+        time += 5;
+        return result;
+      },
+    };
+    const outer = Object.create(inherited);
+    probe.wrap(inner, 'run', 'layout', () => 'inner');
+    probe.wrap(outer, 'run', 'layout', () => 'outer');
+    try {
+      outer.run();
+      assert.equal(probe.finish(), null);
+      probe.begin();
+      assert.equal(outer.run(), 7);
+      const rows = probe.finish().layout;
+      assert.equal(rows.total, 10);
+      assert.deepEqual(rows.names.inner, [1, 3, 3, 3]);
+      assert.deepEqual(rows.names.outer, [1, 10, 7, 10]);
+      probe.begin();
+      for (let i = 0; i < 30; i++) {
+        const target = {
+          run() {
+            time++;
+          },
+        };
+        probe.wrap(target, 'run', 'layout', () => `name${i}`);
+        target.run();
+      }
+      const bounded = probe.finish().layout;
+      assert.equal(bounded.count, 30);
+      assert.equal(Object.keys(bounded.names).length, 4);
+      assert.equal(bounded.omittedNames, 20);
+    } finally {
+      probe.dispose();
+    }
+    assert(!Object.hasOwn(outer, 'run'));
+    assert.equal(outer.run, inherited.run);
+  },
+);
+
+test(
+  'RNW work observations preserve thrown errors and independent category nesting',
+  { timeout },
+  () => {
+    let time = 0;
+    const probe = new RnwWorkProbe(() => time),
+      failure = Error('original failure');
+    const inner = {
+      run() {
+        time += 3;
+        throw failure;
+      },
+    };
+    const outer = {
+      run() {
+        time += 2;
+        inner.run();
+      },
+    };
+    probe.wrap(inner, 'run', 'text', () => 'inner');
+    probe.wrap(outer, 'run', 'layout', () => 'outer');
+    try {
+      probe.begin();
+      assert.throws(
+        () => outer.run(),
+        (error) => error === failure,
+      );
+      const rows = probe.finish();
+      assert.equal(rows.layout.total, 5);
+      assert.equal(rows.text.total, 3);
+      assert.equal(rows.layout.names.outer[2], 5);
+    } finally {
+      probe.dispose();
+    }
+  },
+);
+const identity = {
+  view: 'fixture',
+  owner: 1,
+  viewport: 2,
+  renderer: 3,
+  context: 4,
+  surface: 5,
+  frame: 6,
+  input: 7,
+};
+const sample = (other = {}) => ({
+  ...identity,
+  stage: 'paint',
+  begin: 10,
+  end: 12,
+  duration: 2,
+  count: 3,
+  bytes: 4,
+  ...other,
+});
+const native = (other = {}) => ({
+  ownerGeneration: 1,
+  viewportGeneration: 2,
+  contextGeneration: 4,
+  surfaceGeneration: 5,
+  frameSequence: 6,
+  inputSequence: 7,
+  stage: 0,
+  nativeTimestamp: 1010,
+  submission: 8,
+  view: 9,
+  width: 100,
+  height: 80,
+  inputTimestamp: 9,
+  tick: 10,
+  clockUncertainty: 0.1,
+  ...other,
+});
+
+test(
+  'RNW scalar joins require the same owner, viewport, context, surface, frame and input',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords();
+    records.source(sample());
+    for (const name of [
+      'ownerGeneration',
+      'viewportGeneration',
+      'contextGeneration',
+      'surfaceGeneration',
+      'frameSequence',
+      'inputSequence',
+    ])
+      records.native(native({ [name]: 99 }));
+    assert.equal(records.joined, 0);
+    records.native(native());
+    records.native(native({ stage: 2, nativeTimestamp: 1015 }));
+    records.native(native({ stage: 3, nativeTimestamp: 1018 }));
+    const report = records.report({ offsetToJs: -1000, uncertainty: 0.1 });
+    assert.equal(report.joinedFrames, 1);
+    const joined = report.slowFrames.find((row) => row.joined);
+    assert.deepEqual(joined.source.paint, [10, 12, 2, 1, 3, 4]);
+    assert.equal(joined.native[2][0] - joined.native[0][0], 5);
+    assert.equal(report.performanceAccepted, false);
+    assert.equal(report.displayed, 'unobserved');
+    assert.deepEqual(report.nativeOutcomeCounts, [7, 0, 1, 1, 0, 0]);
+  },
+);
+
+test(
+  'RNW records bound frames, stages and slow details and never copy arbitrary objects',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords(3),
+      resource = {
+        dispose() {
+          throw Error('not owned');
+        },
+      };
+    for (let frame = 1; frame <= 10; frame++) records.source(sample({ frame, resource }));
+    assert.equal(records.rows.size, 3);
+    assert.equal(records.evicted, 7);
+    for (let i = 0; i < 60; i++) records.source(sample({ frame: 10, stage: `stage${i}` }));
+    assert(records.invalid > 0);
+    records.native(native({ nativeTimestamp: NaN }));
+    const report = records.report(null);
+    assert(report.slowFrames.length <= 6);
+    assert(!JSON.stringify(report).includes('resource'));
+    assert([...records.rows.values()].every((row) => Object.keys(row.source).length <= 48));
+  },
+);
+
+test(
+  'RNW fixture restores exact app bytes and removes only its temporary sources on success and failure',
+  { timeout },
+  async () => {
+    const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-rnw-fixture-'))),
+      original = Buffer.from('export const App = () => <Surface onReady={() => {}} />;\r\n');
+    try {
+      fs.writeFileSync(path.join(directory, 'App.tsx'), original);
+      for (const fail of [false, true]) {
+        const work = withRnwFrameFixture(directory, async ({ directory: fixture, appFile }) => {
+          assert.equal(path.dirname(fixture), directory);
+          assert(fs.readFileSync(appFile, 'utf8').includes('installRnwFrameProbe(application)'));
+          assert(fs.existsSync(path.join(fixture, 'rnw-frame-probe.js')));
+          if (fail) throw Error('intentional fixture failure');
+        });
+        if (fail) await assert.rejects(work, /intentional fixture failure/);
+        else await work;
+        assert(fs.readFileSync(path.join(directory, 'App.tsx')).equals(original));
+        assert.deepEqual(fs.readdirSync(directory), ['App.tsx']);
+      }
+    } finally {
+      assert.equal(path.dirname(fs.realpathSync(directory)), fs.realpathSync(os.tmpdir()));
+      assert(!fs.lstatSync(directory).isSymbolicLink());
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+function fixture() {
+  let time = 0,
+    interval,
+    stopped = false;
+  const writes = [],
+    entries = [];
+  const token = {
+    owner: { id: 'fixture', generation: 1 },
+    sequence: 6,
+    inputSequence: 7,
+    metrics: {
+      viewportGeneration: 2,
+      rendererGeneration: 3,
+      nativeContextGeneration: 4,
+      nativeSurfaceGeneration: 5,
+    },
+  };
+  const view = {
+    owner: token.owner,
+    frameDiagnostics: undefined,
+    pump() {
+      const began = time;
+      time += 3;
+      this.frameDiagnostics?.record(token, 'paint', began, 2, 40);
+    },
+  };
+  const callbacks = [];
+  const clock = {
+    request(callback) {
+      callbacks.push(callback);
+      return { dispose() {} };
+    },
+  };
+  const app = { view, services: { clock }, dispose: () => 'ordinary close' };
+  const api = {
+    frameDiagnosticsEnabled: true,
+    getMonotonicTime: () => time + 1000,
+    writeFrameDiagnostics: (value) => writes.push(JSON.parse(value)),
+    drainFrameTrace: () => entries.splice(0),
+  };
+  const options = {
+    api,
+    now: () => time,
+    setInterval: (callback) => {
+      interval = callback;
+      return 1;
+    },
+    clearInterval: (id) => {
+      assert.equal(id, 1);
+      stopped = true;
+    },
+  };
+  return {
+    app,
+    view,
+    token,
+    writes,
+    entries,
+    options,
+    queue(callback) {
+      clock.request(callback);
+    },
+    flush() {
+      callbacks.shift()();
+    },
+    frame(duration, stage = 'paint') {
+      clock.request(() => {
+        const began = time;
+        time += duration;
+        view.frameDiagnostics?.record(token, stage, began);
+      });
+      callbacks.shift()();
+    },
+    tick() {
+      clock.request(() => view.pump());
+      callbacks.shift()();
+    },
+    advance() {
+      time += 2100;
+      interval();
+    },
+    get stopped() {
+      return stopped;
+    },
+  };
+}
+
+test(
+  'RNW probe stays disabled without touching the app and restores its hooks before ordinary close',
+  { timeout },
+  () => {
+    assert.equal(
+      installRnwFrameProbe(
+        {
+          get view() {
+            throw Error('ordinary app was touched');
+          },
+        },
+        { api: { frameDiagnosticsEnabled: false } },
+      ),
+      undefined,
+    );
+    const f = fixture(),
+      request = f.app.services.clock.request,
+      submit = GraphiteRenderer.prototype.submit;
+    const probe = installRnwFrameProbe(f.app, f.options);
+    try {
+      f.tick();
+      f.entries.push(
+        native(),
+        native({ stage: 2, nativeTimestamp: 1017 }),
+        native({ stage: 3, nativeTimestamp: 1018 }),
+      );
+      f.advance();
+      const report = f.writes.at(-1);
+      assert.equal(report.joinedFrames, 1);
+      assert.equal(report.errors, 0);
+      assert.equal(report.slowFrames[0].callback.wall, 3);
+      assert.equal(report.clock.offsetToJs, -1000);
+      assert.equal(f.app.dispose(), 'ordinary close');
+      assert.equal(f.writes.at(-1).observationClosed, true);
+      assert.equal(f.app.services.clock.request, request);
+      assert.equal(f.view.frameDiagnostics, undefined);
+      assert.equal(GraphiteRenderer.prototype.submit, submit);
+      assert.equal(f.stopped, true);
+    } finally {
+      probe.dispose();
+    }
+  },
+);
+
+test(
+  'RNW callback observations keep the expensive build callback when submission occurs later',
+  { timeout },
+  () => {
+    const f = fixture(),
+      probe = installRnwFrameProbe(f.app, f.options);
+    try {
+      f.frame(100, 'layout');
+      f.frame(2, 'submit');
+      f.entries.push(
+        native(),
+        native({ stage: 2, nativeTimestamp: 1105 }),
+        native({ stage: 3, nativeTimestamp: 1106 }),
+      );
+      f.advance();
+      const report = f.writes.at(-1);
+      assert.equal(report.slowFrames[0].callback.wall, 100);
+      assert.equal(report.slowFrames[0].source.layout[2], 100);
+      assert.equal(report.latestFrame.native[3][0], 1106);
+    } finally {
+      probe.dispose();
+    }
+  },
+);
+
+test(
+  'a callback scheduled before RNW probe attachment has unobserved callback wall',
+  { timeout },
+  () => {
+    const f = fixture();
+    f.queue(() => f.view.pump());
+    const probe = installRnwFrameProbe(f.app, f.options);
+    try {
+      f.flush();
+      f.advance();
+      assert.equal(f.writes.at(-1).slowFrames[0].callback, null);
+    } finally {
+      probe.dispose();
+    }
+  },
+);
+
+test(
+  'cancelling the owned RNW build restores the app and removes its temporary fixture',
+  { timeout },
+  async () => {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-rnw-abort-'))),
+      runner = path.join(root, 'sample/nelyx-testbed-app-2/windows/runner'),
+      cli = path.join(runner, 'node_modules/@nelyx/cli'),
+      original = Buffer.from('export const App = () => <Surface onReady={() => {}} />;\n');
+    const controller = new AbortController();
+    let timer;
+    try {
+      fs.mkdirSync(cli, { recursive: true });
+      fs.writeFileSync(
+        path.join(cli, 'package.json'),
+        JSON.stringify({ bin: { nelyx: 'cli.mjs' } }),
+      );
+      fs.writeFileSync(path.join(cli, 'cli.mjs'), 'setTimeout(() => process.exit(2), 15000);\n');
+      fs.writeFileSync(path.join(runner, 'App.tsx'), original);
+      const began = Date.now();
+      timer = setTimeout(() => controller.abort(), 300);
+      await assert.rejects(
+        runRnwFrameProbe(root, { signal: controller.signal }),
+        /cancellation|aborted/,
+      );
+      assert(
+        Date.now() - began < 10000,
+        'Cancellation must stop the owned child before its own timeout',
+      );
+      assert(fs.readFileSync(path.join(runner, 'App.tsx')).equals(original));
+      assert(!fs.readdirSync(runner).some((name) => name.startsWith('.rnw-frame-probe-')));
+    } finally {
+      clearTimeout(timer);
+      controller.abort();
+      assert.equal(path.dirname(fs.realpathSync(root)), fs.realpathSync(os.tmpdir()));
+      assert(!fs.lstatSync(root).isSymbolicLink());
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'failed RNW observation cannot turn an accepted native submission into failure',
+  { timeout },
+  () => {
+    const f = fixture(),
+      previous = GraphiteRenderer.prototype.submit;
+    GraphiteRenderer.prototype.submit = () => ({ status: 'accepted', submission: 1 });
+    const probe = installRnwFrameProbe(f.app, f.options);
+    try {
+      const renderer = {
+        frameDiagnostics: undefined,
+        context() {
+          throw Error('observation unavailable');
+        },
+      };
+      assert.equal(
+        GraphiteRenderer.prototype.submit.call(renderer, { token: f.token }).status,
+        'accepted',
+      );
+      assert.equal(renderer.frameDiagnostics, undefined);
+      f.advance();
+      assert.equal(f.writes.at(-1).errors, 1);
+    } finally {
+      probe.dispose();
+      GraphiteRenderer.prototype.submit = previous;
+    }
+  },
+);

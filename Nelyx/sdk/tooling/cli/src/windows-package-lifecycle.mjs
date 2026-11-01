@@ -6,6 +6,19 @@ import { spawnSync } from 'node:child_process';
 import { fileTree, localFile, sha256, verifyInventory } from './files.mjs';
 
 const manifestName = 'nelyx-package.json';
+/** Export current product files. An interrupted compiler's private staging is
+ * not a runtime input; leave its build-directory owner untouched. */
+export function windowsPackageFiles(directory) {
+  return fileTree(directory).filter((name) => {
+    if (/^\.nelyx-sh-[^/]+\//i.test(name)) return false;
+    if (!name.startsWith('licenses/') && /\.(obj|pch|tlog|lib|exp|ilk|lastbuildstate)$/i.test(name))
+      return false;
+    return ![
+      'sourcemaps/react/index.windows.bundle.compiler.map',
+      'sourcemaps/react/index.windows.bundle.packager.map',
+    ].includes(name);
+  });
+}
 function directDirectory(parent, directory) {
   if (
     path.dirname(directory) !== parent ||

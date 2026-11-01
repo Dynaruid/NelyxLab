@@ -28,6 +28,7 @@ import {
   analyseNativeCatalogCoverage,
   readHermesGCStats,
   readHermesSamplingProfile,
+  readNativeRecordingStats,
 } from './native-frame-metrics.js';
 
 export function installNativeScrollProbe(
@@ -58,6 +59,7 @@ export function installNativeScrollProbe(
     samples: Record<string, number[]> = {},
     frameRows: any[] = [],
     slowSourceFrames: any[] = [],
+    slowNativeRecordings: any[] = [],
     errors: string[] = [],
     counts: Record<string, number> = {},
     totals: Record<string, number> = {},
@@ -94,6 +96,7 @@ export function installNativeScrollProbe(
     submit = GraphiteRenderer.prototype.submit;
   let observeCatalog: ((sequence: number) => void) | undefined;
   let observedFrameTiming: import('@nelyx/core/foundation/clock').FrameTiming | undefined;
+  let observedNativeRecording: any;
   const previousError = FlutterError.onError;
   FlutterError.onError = (details) => {
     if (errors.length < 4) errors.push(String(details.exception));
@@ -136,7 +139,34 @@ export function installNativeScrollProbe(
       pixelRequest = undefined;
       request(args[0], this);
     }
-    return submit.apply(this, args);
+    const result = submit.apply(this, args);
+    if (sourceStages && active && result.status === 'accepted') {
+      const context = (this as any).context();
+      check(
+        typeof context.nelyxRecordingDiagnostics === 'function',
+        'Native recording diagnostics require the rebuilt supplier',
+      );
+      const stats = readNativeRecordingStats(context.nelyxRecordingDiagnostics()),
+        token = args[0].token;
+      observedNativeRecording = {
+        frame: token.sequence,
+        input: token.inputSequence ?? 0,
+        owner: token.owner.generation,
+        viewport: token.metrics.viewportGeneration,
+        context: token.metrics.nativeContextGeneration,
+        surface: token.metrics.nativeSurfaceGeneration,
+        ...stats,
+      };
+      sampleTime('Native.recordingLockWait', stats.lockWaitMs);
+      sampleTime('Native.recordingSnapWall', stats.snapWallMs);
+      sampleTime('Native.recordingSlotWall', stats.slotWallMs);
+      if (stats.snapThreadCpuMs !== null)
+        sampleTime('Native.recordingSnapThreadCpu', stats.snapThreadCpuMs);
+      slowNativeRecordings.push(observedNativeRecording);
+      slowNativeRecordings.sort((a, b) => b.snapWallMs - a.snapWallMs);
+      if (slowNativeRecordings.length > 6) slowNativeRecordings.pop();
+    }
+    return result;
   };
   api.requestFrame = (callback: any) =>
     request.call(api, (...args: any[]) => {
@@ -146,6 +176,7 @@ export function installNativeScrollProbe(
         mounts = counts.mount ?? 0,
         unmounts = counts.unmount ?? 0;
       observedFrameTiming = undefined;
+      observedNativeRecording = undefined;
       try {
         return callback(...args);
       } finally {
@@ -176,6 +207,7 @@ export function installNativeScrollProbe(
             sequence: view?.sequence,
             input: view?.inputSequence,
             ...(sourceStages && observedFrameTiming ? { timing: observedFrameTiming } : {}),
+            ...(observedNativeRecording ? { nativeRecording: observedNativeRecording } : {}),
             mounts: (counts.mount ?? 0) - mounts,
             unmounts: (counts.unmount ?? 0) - unmounts,
             ...(spans
@@ -193,7 +225,10 @@ export function installNativeScrollProbe(
             (slowSourceFrames.length < 6 ||
               elapsed > slowSourceFrames[slowSourceFrames.length - 1].wall)
           ) {
-            row.sourceStages = drained.samples.filter((sample) => sample.frame === view?.sequence);
+            // A callback can submit the previous prepared frame before building
+            // the next one. Keep each sample's own identity rather than dropping
+            // that older frame's expensive native work from this callback.
+            row.sourceStages = drained.samples;
             slowSourceFrames.push(row);
             slowSourceFrames.sort((a: any, b: any) => b.wall - a.wall);
             if (slowSourceFrames.length > 6) delete slowSourceFrames.pop().sourceStages;
@@ -403,6 +438,7 @@ export function installNativeScrollProbe(
     samples = {};
     frameRows = [];
     slowSourceFrames = [];
+    slowNativeRecordings = [];
     counts = {};
     totals = {};
     changedCoreSequences = [];
@@ -519,6 +555,13 @@ export function installNativeScrollProbe(
         ),
         ...(options.scope === 'diagnostic' || sourceStages
           ? { longestFrames: [...frameRows].sort((a, b) => b.wall - a.wall).slice(0, 6) }
+          : {}),
+        ...(sourceStages
+          ? {
+              nativeRecordingScope:
+                'native snap wall/current-thread CPU; no driver or fence attribution',
+              slowNativeRecordings,
+            }
           : {}),
         workload,
         ...(workload.motionWindows

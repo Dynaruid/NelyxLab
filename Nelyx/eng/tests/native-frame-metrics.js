@@ -4,6 +4,27 @@ const requireValue = (value, message) => {
   if (!value) throw Error(message);
 };
 const counter = (value) => Number.isSafeInteger(value) && value >= 0;
+/** Native snap wall and current-thread CPU are distinct observations. A small
+ * CPU delta can expose waiting, but cannot identify a particular driver/fence. */
+export function readNativeRecordingStats(values) {
+  requireValue(
+    Array.isArray(values) &&
+      values.length === 6 &&
+      values[0] === 1 &&
+      counter(values[1]) &&
+      values[1] > 0 &&
+      [values[2], values[3], values[5]].every((v) => Number.isFinite(v) && v >= 0) &&
+      (values[4] === -1 || (Number.isFinite(values[4]) && values[4] >= 0)),
+    'Invalid native recording diagnostics',
+  );
+  return {
+    serial: values[1],
+    lockWaitMs: values[2],
+    snapWallMs: values[3],
+    snapThreadCpuMs: values[4] === -1 ? null : values[4],
+    slotWallMs: values[5],
+  };
+}
 export function analyseNativeInputWindow(before, after, { pacing }) {
   requireValue(pacing === 'os' || pacing === 'programmatic', 'Unknown diagnostic input pacing');
   requireValue(
