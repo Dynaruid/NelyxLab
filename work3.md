@@ -1,8 +1,8 @@
 # C++ 입력 geometry 모듈과 JSI 연동 작업계획
 
-작성: **2026-11-02 KST** · 상태: **PLANNED / NOT STARTED — 문서 작성만 완료, 구현·빌드·실행 미착수**
+작성·갱신: **2026-11-02 KST** · 상태: **ACTIVE / READY — work2 종료·이관 완료, C0부터 실행 예정**
 
-현재 작업계획은 이 문서다. [work2.md §6](work2.md#6-실행-상태--2026-11-02)의 미커밋 후보·공급 식별·실패·미수락 결과를 기준으로 이어간다. work2의 과거 단계나 이 문서의 체크리스트를 구현 완료로 해석하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·실제 한국어 IME·scanout의 `notVerified`를 유지한다.
+**현재 유일한 실행·진행 관리 문서는 work3.md다.** work2는 `CLOSED / SUPERSEDED`로 종료했으며, [work2.md §6](work2.md#6-실행-상태--2026-11-02)은 미커밋 후보·공급 식별·실패·미수락 결과를 확인하는 종료 기록이다. 앞으로 구현·검증·채택/철회·미완료 상태는 이 문서에 갱신하고 work2의 P0~P7을 별도로 재개하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·실제 한국어 IME·scanout의 `notVerified`를 이어받는다. 종료·이관을 구현이나 성능 수락 완료로 해석하지 않는다.
 
 **첫 구현은 입력 geometry의 transform·clip·caret/selection 투영을 처리하는 C++20 모듈과 얇은 JSI 배치 API다.** TS의 Widget/Element/RenderObject·layout·사용자 hook을 유지하고, 숫자로 표현되는 반복 작업부터 옮긴다. C++ 모듈 구현, 일반 제품 적용, 실제 성능 수락을 각각 판정한다. C++로 작성했다는 사실만으로 성능 개선을 수락하지 않는다.
 
@@ -200,6 +200,7 @@ npm.cmd run test:runner-supply
 
 ## 7. 현재 상태와 다음 시작점
 
+- [x] work2를 `CLOSED / SUPERSEDED`로 종료하고 이후 실행·진행 관리를 work3으로 전환했다. 종료 당시 실패·미수락 결과는 work2에 보존했다.
 - [x] work2의 최종 일반 제품·미수락·최대화 Gallery 실패를 이관하고 C++ 모듈 범위·JSI/수명·수락/철회 기준을 작성했다.
 - [ ] C0: 현재 작업 트리·일반 제품 대조, schema·상한·owner 확정.
 - [ ] C1: 순수 C++ 입력 geometry kernel과 실제 native differential 검사.
@@ -208,4 +209,4 @@ npm.cmd run test:runner-supply
 - [ ] C4: 현재 source/dist/설치본/native/SDK/package 공급과 Windows/Web/Android 회귀.
 - [ ] C5: 실제 RNW 대표 3쌍·전체 범위·입력·최대화 정지 판정과 최종 일반 제품 수락.
 
-**다음 시작점은 C0이다. 이번 요청으로 변경하는 것은 작업 문서뿐이며 C++/TS 구현, native 준비·빌드·앱 실행·성능 측정은 시작하지 않았다.**
+**다음 실행은 work3의 C0 → C1 → C2 순서로 진행한다. 현재는 문서 종료·이관만 반영했으며 C++/TS 구현, native 준비·빌드·앱 실행·성능 측정은 아직 시작하지 않았다.**
