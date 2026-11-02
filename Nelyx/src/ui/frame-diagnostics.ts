@@ -10,6 +10,14 @@ export type FrameDiagnosticStage =
   | 'paint'
   | 'compose'
   | 'input-geometry'
+  | 'input-geometry-extract'
+  | 'input-geometry-packet'
+  | 'input-geometry-jsi'
+  | 'input-geometry-copy-validate'
+  | 'input-geometry-kernel'
+  | 'input-geometry-decode'
+  | 'input-geometry-apply'
+  | 'input-geometry-fallback'
   | 'semantics'
   | 'post-frame'
   | 'capture'
@@ -88,7 +96,27 @@ export class FrameDiagnostics {
     count = 0,
     bytes = 0,
   ): number {
+    return this.recordInterval(token, stage, begin, this.now(), count, bytes);
+  }
+  /** Native monotonic duration; its epoch is not mixed with the JS clock. */
+  recordDuration(
+    token: FrameBuildToken,
+    stage: FrameDiagnosticStage,
+    duration: number,
+    count = 0,
+    bytes = 0,
+  ): number {
     const end = this.now();
+    return this.recordInterval(token, stage, end - duration, end, count, bytes);
+  }
+  private recordInterval(
+    token: FrameBuildToken,
+    stage: FrameDiagnosticStage,
+    begin: number,
+    end: number,
+    count: number,
+    bytes: number,
+  ): number {
     if (
       ![begin, end, count, bytes].every(Number.isFinite) ||
       end < begin ||

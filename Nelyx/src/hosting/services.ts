@@ -35,6 +35,7 @@ export interface TextServiceFactory<TText extends TextLayoutService = TextLayout
   create(resources: ResourceRegistry): TText;
 }
 export interface BackendServices<TText extends TextLayoutService = TextLayoutService> {
+  readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;
   readonly observeInput?: (event: ViewInputObservation) => void;
   readonly nativeSelectionContextMenu?: import('./interaction.ts').NativeSelectionContextMenuHost;
   readonly pictures?: {

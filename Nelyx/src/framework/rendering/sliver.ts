@@ -977,3 +977,7 @@ export class SliverGeometry extends Diagnosticable(class {}) {
     properties.add(new DoubleProperty('cacheExtent', this.cacheExtent, { defaultValue: 0 }));
   }
 }
+
+RenderObject._registerInputGeometryHooks(RenderSliver.prototype);
+RenderObject._registerInputGeometryHooks(RenderSliverSingleBoxAdapter.prototype);
+RenderObject._registerInputGeometryHooks(RenderSliverToBoxAdapter.prototype);

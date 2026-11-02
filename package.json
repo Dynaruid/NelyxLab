@@ -18,6 +18,7 @@
     "Nelyx/sdk/tooling/static-aot"
   ],
   "scripts": {
+    "test:input-geometry": "node --test --test-timeout=1200000 Nelyx/eng/tests/input-geometry-native.test.mjs Nelyx/eng/tests/input-geometry-integration.test.mjs",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "inspect:static-aot-runtime": "node Nelyx/eng/inspect-static-aot-runtime.mjs",
     "test:static-aot-runtime": "node --test --test-timeout=1200000 Nelyx/eng/tests/static-aot-runtime-inventory.test.mjs Nelyx/eng/tests/windows-typed-runtime-gate.test.mjs",

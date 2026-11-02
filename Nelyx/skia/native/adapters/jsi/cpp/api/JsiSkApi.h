@@ -5,6 +5,7 @@
 #include "rnskia/RNSkPlatformContext.h"
 
 #include "JsiSkNativeObjects.h"
+#include "JsiInputGeometry.h"
 
 #include "rnskia/RNSkPlatformContext.h"
 
@@ -163,6 +164,14 @@ public:
     return jsi::BigInt::fromUint64(runtime, getContext()->getGpuContext().webGpuDevice());
   }
 
+  double nelyxInputGeometryVersion() { return nelyx::input_geometry::version; }
+  JSI_HOST_FUNCTION(nelyxInputGeometrySession) {
+    if (count!=2 || !arguments[0].isNumber() || !arguments[1].isNumber())
+      throw jsi::JSError(runtime,"Input geometry requires a numeric session/owner");
+    auto session=std::make_shared<JsiInputGeometry>(nelyx::input_geometry::Owner{arguments[0].getNumber(),arguments[1].getNumber()});
+    return jsi::Object::createFromHostObject(runtime,std::move(session));
+  }
+
   JSI_HOST_FUNCTION(Recorder) {
     return JsiRecorder::createCtor(getContext())(runtime, thisValue, arguments,
                                                  count);
@@ -226,6 +235,8 @@ public:
   }
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+    installMethod(runtime,prototype,"nelyxInputGeometryVersion",&JsiSkApi::nelyxInputGeometryVersion);
+    installHostMethod(runtime,prototype,"nelyxInputGeometrySession",&JsiSkApi::nelyxInputGeometrySession);
     installHostMethod(runtime, prototype, "getNativeDevice",
                       &JsiSkApi::getNativeDevice);
     installHostMethod(runtime, prototype, "Font", &JsiSkApi::Font);

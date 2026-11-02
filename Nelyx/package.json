@@ -98,6 +98,10 @@
       "types": "./dist/hosting/services.d.ts",
       "default": "./dist/hosting/services.js"
     },
+    "./hosting/input-geometry": {
+      "types": "./dist/hosting/input-geometry.d.ts",
+      "default": "./dist/hosting/input-geometry.js"
+    },
     "./hosting/interaction": {
       "types": "./dist/hosting/interaction.d.ts",
       "default": "./dist/hosting/interaction.js"

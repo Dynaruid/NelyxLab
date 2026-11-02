@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+import { RenderObject as NumericGeometryRenderObject } from './object.ts';
 import { ParentData, RenderBox } from './object.ts';
 import type { RenderObject } from './object.ts';
 import { SliverLogicalParentData, RenderSliver } from './sliver.ts';
@@ -649,3 +650,5 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
     }
   }
 }
+
+NumericGeometryRenderObject._registerInputGeometryHooks(RenderSliverMultiBoxAdaptor.prototype);

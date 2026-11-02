@@ -46,6 +46,7 @@ export interface SceneContext {
   /** Live admission hint, required together with an observed host deadline. */ readonly canRunOptionalWork?: () => boolean;
 }
 export interface ApplicationStartupContext {
+  readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;
   readonly platformView?: import('../ui/platform-dispatcher.ts').PlatformViewIdentity;
   readonly nativeSelectionContextMenu?: NativeSelectionContextMenuHost;
   readonly rasterizer?: import('./rasterization.ts').RasterizationService;
@@ -73,6 +74,7 @@ export interface ApplicationDefinition {
   createView?(context: ViewControllerContext): ViewController;
 }
 export interface ViewServices {
+  readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;
   readonly platformView?: import('../ui/platform-dispatcher.ts').PlatformViewIdentity;
   readonly nativeSelectionContextMenu?: NativeSelectionContextMenuHost;
   readonly rasterizer?: import('./rasterization.ts').RasterizationService;

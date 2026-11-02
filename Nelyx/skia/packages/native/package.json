@@ -26,6 +26,11 @@
     "native-manifest.json"
   ],
   "exports": {
+    "./input-geometry": {
+      "types": "./dist/input-geometry.d.ts",
+      "react-native": "./src/input-geometry.ts",
+      "default": "./dist/input-geometry.js"
+    },
     "./renderer": {
       "types": "./dist/renderer.d.ts",
       "react-native": "./src/renderer.ts",

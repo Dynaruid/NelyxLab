@@ -167,6 +167,7 @@ export async function runRnwFrameProbe(root, { signal, detailedWork = true } = {
                       sourceSamples: row.sourceSamples,
                       nativeSamples: row.nativeSamples,
                       errors: row.errors,
+                      inputGeometry: row.inputGeometry,
                       slow: row.slowFrames?.slice(0, 2).map((f) => ({
                         identity: f.identity,
                         callbackWall: f.callback?.wall,

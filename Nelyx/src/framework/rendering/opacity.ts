@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { RenderObject as NumericGeometryRenderObject } from './object.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { LayerHandle, OpacityLayer } from './layer.ts';
 import type { SemanticsNode, Rect } from '../../ui/types.ts';
@@ -100,3 +101,5 @@ export class RenderOpacity extends RenderProxyBox {
   }
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderOpacity.prototype);
+
+NumericGeometryRenderObject._registerInputGeometryHooks(RenderOpacity.prototype);

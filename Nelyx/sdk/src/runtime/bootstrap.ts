@@ -133,6 +133,7 @@ export class ComposedApplication<
         () => this.platformViewRegistration?.dispose(),
         () => this.services.nativeSelectionContextMenu?.stop(),
         () => this.session.beginClose(),
+        () => this.services.inputGeometry?.dispose(),
         () => this.imageOwner?.stop(),
         () => this.rasterOwner?.stop(),
         () => this.pictureOwner?.stop(),
@@ -218,6 +219,7 @@ export class ComposedApplication<
             ? [this.services.nativeSelectionContextMenu]
             : []),
           this.services.semantics,
+          ...(this.services.inputGeometry ? [this.services.inputGeometry] : []),
           this.services.editing,
           this.services.assets,
           this.services.surface,
@@ -346,6 +348,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       owner: services.surface.owner,
       editing: services.editing,
       semantics: services.semantics,
+      ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
       ...(services.nativeSelectionContextMenu
         ? { nativeSelectionContextMenu: services.nativeSelectionContextMenu }
         : {}),
@@ -387,6 +390,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         clock: { now: () => performance.now() },
         editing: services.editing,
         semantics: services.semantics,
+        ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
         ...(services.nativeSelectionContextMenu
           ? { nativeSelectionContextMenu: services.nativeSelectionContextMenu }
           : {}),
@@ -443,6 +447,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       () => imageOwner?.stop(),
       () => rasterOwner?.stop(),
       () => pictureOwner?.stop(),
+      () => services.inputGeometry?.dispose(),
       () => messages?.stop(),
     ])
       try {
@@ -488,6 +493,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       [
         ...(services.nativeSelectionContextMenu ? [services.nativeSelectionContextMenu] : []),
         services.semantics,
+        ...(services.inputGeometry ? [services.inputGeometry] : []),
         services.editing,
         services.assets,
         services.surface,

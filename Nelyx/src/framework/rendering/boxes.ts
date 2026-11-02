@@ -17,7 +17,8 @@ import type { Rect } from '../../ui/types.ts';
 import type { ResourceId, TextLayout } from '../../ui/types.ts';
 import { BoxConstraints } from './constraints.ts';
 import { RenderBox, ContainerBoxParentData } from './object.ts';
-import type { RenderObject, TextBaseline, HitTestEntry } from './object.ts';
+import { RenderObject } from './object.ts';
+import type { TextBaseline, HitTestEntry } from './object.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { TextPainter } from '../painting/text-painter.ts';
 import type { ParagraphLayoutOptions } from './paragraph-overflow.ts';
@@ -2590,3 +2591,7 @@ export abstract class RenderParagraph extends RenderBox {
     if (errors.length) throw new AggregateError(errors, 'Paragraph teardown failed');
   }
 }
+
+RenderObject._registerInputGeometryHooks(RenderFlex.prototype);
+RenderObject._registerInputGeometryHooks(RenderStack.prototype);
+RenderObject._registerInputGeometryHooks(RenderClip.prototype);

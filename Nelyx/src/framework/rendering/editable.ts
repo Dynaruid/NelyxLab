@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Core paragraph painting and selected line/caret responsibilities from pinned rendering/editable.dart.
+import { RenderObject as NumericGeometryRenderObject } from './object.ts';
 import { Offset } from '../../ui/offset.ts';
 import { protect } from '../../ui/value-math.ts';
 import { hashValues } from '../painting/value-equality.ts';
@@ -1200,3 +1201,5 @@ export class TextSelectionPoint {
     return this.direction === null ? String(this.point) : this.point + '-' + this.direction;
   }
 }
+
+NumericGeometryRenderObject._registerInputGeometryHooks(RenderEditable.prototype);

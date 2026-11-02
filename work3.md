@@ -1,10 +1,12 @@
-# C++ 입력 geometry 모듈과 JSI 연동 작업계획
+# C++ 배치 처리·Scene 합성·Semantics geometry 작업계획
 
-작성·갱신: **2026-11-02 KST** · 상태: **ACTIVE / READY — work2 종료·이관 완료, C0부터 실행 예정**
+작성·갱신: **2026-11-02 KST** · 상태: **PLAN READY / 기존 제품 PARTIAL — §9의 D0~D6 구현 계획 구성. 신규 단계는 미착수이며 기존 입력 geometry 기본 적용 철회·성능 미수락은 유지**
 
 **현재 유일한 실행·진행 관리 문서는 work3.md다.** work2는 `CLOSED / SUPERSEDED`로 종료했으며, [work2.md §6](work2.md#6-실행-상태--2026-11-02)은 미커밋 후보·공급 식별·실패·미수락 결과를 확인하는 종료 기록이다. 앞으로 구현·검증·채택/철회·미완료 상태는 이 문서에 갱신하고 work2의 P0~P7을 별도로 재개하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·실제 한국어 IME·scanout의 `notVerified`를 이어받는다. 종료·이관을 구현이나 성능 수락 완료로 해석하지 않는다.
 
-**첫 구현은 입력 geometry의 transform·clip·caret/selection 투영을 처리하는 C++20 모듈과 얇은 JSI 배치 API다.** TS의 Widget/Element/RenderObject·layout·사용자 hook을 유지하고, 숫자로 표현되는 반복 작업부터 옮긴다. C++ 모듈 구현, 일반 제품 적용, 실제 성능 수락을 각각 판정한다. C++로 작성했다는 사실만으로 성능 개선을 수락하지 않는다.
+**현재 실행 순서는 §9의 D0 기준 확인 → D1 Path 배치 생성 → D2 clip·paint 배치 생성 → D3 Scene 합성 → D4 Semantics 좌표 계산 → D6 공급·제품 판정이다.** D5는 이미 C++인 producer 완료 대기의 원인을 D0부터 별도로 확인하는 항목이다. 각 후보를 독립 구현·검증·비교하며 모듈 구현, 일반 제품 적용, 실제 성능 수락을 각각 판정한다.
+
+§1~§8은 1차 입력 geometry C++/JSI 구현의 계약·실행·철회 기록이다. 대표 화면이 TS fallback이어서 C++ kernel의 실제 성능을 비교하지 못한 결과를 보존한다. 입력 geometry 기본 주입은 계속 꺼 두고, 새 후보는 캡처된 숫자·명령을 넘기는 경계부터 구현한다. **이번 갱신은 작업계획 구성만 수행했으며 신규 코드·빌드·공급·성능 검사는 실행하지 않았다.**
 
 ## 1. 출발점과 해결할 문제
 
@@ -25,7 +27,7 @@
 
 ### 1.2 이어받는 일반 제품
 
-작업 트리 HEAD는 `b2a9b70a49848224af13c0e281e7a84ce2abed15`이고 work2의 소스 변경은 미커밋·성능 미수락 후보다. 이 상태를 C++ 변경 전 기준으로 식별하고, 기존 변경을 정리한다며 원복하거나 새 모듈의 성과로 합산하지 않는다.
+문서 작성 당시 HEAD는 `b2a9b70a49848224af13c0e281e7a84ce2abed15`였다. 실행 착수 시 HEAD는 `86a1730cd494eb170d9d531fdc36eea23ffd17a2`, 작업 트리는 clean이었다. 이 최신 소스를 C++ 변경 전 기준으로 식별한다. work2의 성능 미수락은 계속 유효하며 기존 변경의 효과를 새 모듈 성과로 합산하지 않는다.
 
 | work2에 기록된 식별 | SHA-256 / 정책 |
 | --- | --- |
@@ -37,7 +39,7 @@
 | 원본 Windows App source | `92d045b43f1316023328f5f2f0922f94e8f7395b9f499e29a84983eabb261bfb` |
 | compiler policy | `windows-hermes-94aa5e1d-no-cfg-v1` |
 
-실행 착수 때 최신 locator·설치본·실행 파일과 대조한다. 문서의 SHA를 현재 실행 제품 확인으로 대신하지 않는다.
+위 표는 1차 실행의 기준이다. D0의 출발 제품은 §8.3의 최종 일반 제품이며, 실행 착수 때 최신 HEAD·dirty state·locator·설치본·실행 파일과 다시 대조한다. 현재 미커밋 구현을 보존하고 문서의 SHA를 현재 실행 제품 확인으로 대신하지 않는다.
 
 ## 2. 모듈 경계와 소스 배치
 
@@ -56,7 +58,7 @@ Nelyx에는 이미 [ScenePacket 배치 전송](Nelyx/skia/packages/native/src/sc
 
 ### 2.2 수정·신설 위치
 
-아래 신설 경로는 제안이며 아직 파일이 없다. C0에서 명칭을 확정하되 canonical source를 하나만 둔다.
+아래 신설 경로에 구현했다. canonical source는 하나만 두며 실제 공급·검사 결과는 §8에 기록한다.
 
 | 위치 | 계획 |
 | --- | --- |
@@ -110,9 +112,9 @@ Nelyx에는 이미 [ScenePacket 배치 전송](Nelyx/skia/packages/native/src/sc
 
 현재 Picture **64-entry / 32MiB**, optional child **16 / Element 2,048**, Gallery capacity **2**, CPU pending **1**·native recording **2**는 유지한다. 새 metadata의 목적·보유량·peak·해제 시점을 별도로 관찰한다.
 
-## 4. 실행 단계와 통과 조건
+## 4. 1차 C0~C5 실행 단계와 통과 조건
 
-순서는 **C0 → C1 → C2 → 필요한 C3 → C4 → C5**다. 첫 실행 요청이 오면 분석만 반복하지 않고 C1/C2의 실제 모듈과 통합까지 진행한다. 조건부 확장은 측정 근거가 있을 때만 수행한다.
+1차 실행은 **C0 → C1 → C2 → 필요한 C3 → C4 → C5**로 진행했으며 결과는 §8에 기록했다. 다음 구현 요청은 §9의 D0부터 시작한다. C0~C5의 완료한 구현을 다시 시작하거나 철회한 기본 주입을 자동 복원하지 않는다.
 
 | 단계 | 작업 | 통과·보류 기준 |
 | --- | --- | --- |
@@ -165,7 +167,7 @@ FPS는 실제 관측한 surface 갱신 수/이동 시간으로 표기한다. cal
 npm.cmd run run:windows --workspace @nelyx/testbed-2
 ```
 
-`run:windows`는 마지막 package 설정을 유지한다. C0에서 locator가 bytecode / optimized / Release인지 확인하고 다르면 아래 명시적 설정으로 빌드한 뒤 일반 명령으로 재검증한다.
+`run:windows`는 마지막 package 설정을 유지한다. D0에서 locator가 bytecode / optimized / Release인지 확인하고 다르면 아래 명시적 설정으로 빌드한 뒤 일반 명령으로 재검증한다.
 
 ```powershell
 npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-mode bytecode --hermes-profile optimized --configuration Release
@@ -174,10 +176,11 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 
 C1에는 실제 C++ kernel을 호출하는 differential fixture를 추가한다. identity/translation/scale/rotation·중첩 clip·perspective·빈/완전 clip·큰 유한 값·비유한 값·selection 복수 rect·epoch 재사용·잘린 packet·overflow·owner/version 오류를 포함한다. C2/C3에는 getter/재진입·custom fallback·stale frame·부분 실패·detach/reparent/dispose·late close 회귀를 추가한다. TS 결과를 다시 TS로 계산하는 mock만으로 native 검증을 대신하지 않는다.
 
-기존 검사는 변경 범위에 맞춰 선택하고, 겹치는 fixture는 작은 묶음과 전체 묶음에서 불필요하게 반복하지 않는다. 다음은 실행 단계에서 사용할 명령이며 **이번 문서 작성에서는 실행하지 않는다.**
+기존 검사는 변경 범위에 맞춰 선택하고, 겹치는 fixture는 작은 묶음과 전체 묶음에서 불필요하게 반복하지 않는다. 아래는 선택 가능한 명령이며 실제로 실행한 검사와 그 한계는 §8에 기록했다.
 
 ```powershell
 # geometry·painting·frame 계약
+npm.cmd run test:input-geometry
 npm.cmd run test:paint-recording
 npm.cmd run test:windows-animation
 npm.cmd run test:scroll-engine
@@ -202,11 +205,172 @@ npm.cmd run test:runner-supply
 
 - [x] work2를 `CLOSED / SUPERSEDED`로 종료하고 이후 실행·진행 관리를 work3으로 전환했다. 종료 당시 실패·미수락 결과는 work2에 보존했다.
 - [x] work2의 최종 일반 제품·미수락·최대화 Gallery 실패를 이관하고 C++ 모듈 범위·JSI/수명·수락/철회 기준을 작성했다.
-- [ ] C0: 현재 작업 트리·일반 제품 대조, schema·상한·owner 확정.
-- [ ] C1: 순수 C++ 입력 geometry kernel과 실제 native differential 검사.
-- [ ] C2: 기존 JSI·중립 서비스·TS 표준 경로 통합.
-- [ ] C3: 측정으로 필요성이 확인된 retained 숫자 metadata·dirty batch 또는 후속 확장. 비진입 이유도 기록.
-- [ ] C4: 현재 source/dist/설치본/native/SDK/package 공급과 Windows/Web/Android 회귀.
-- [ ] C5: 실제 RNW 대표 3쌍·전체 범위·입력·최대화 정지 판정과 최종 일반 제품 수락.
+- [x] C0: 현재 작업 트리·일반 제품 대조, schema·상한·owner 확정. 아래 실행 기록 참조.
+- [x] C1: 순수 C++ 입력 geometry kernel과 실제 native differential 검사.
+- [x] C2 구현: 기존 JSI·중립 서비스·증명 가능한 TS 표준 경로 통합. 실제 RNW API 실행, C++ 편집기 fixture 통과. 대표 제품의 기본 적용은 아래 사유로 철회했다.
+- [x] C3 판정: 비진입. 대표 화면은 안전성 검사에서 전체 TS fallback이므로 반복 packet 준비가 현재 병목이라는 근거가 없다. retained mirror나 예산 확대를 추가하지 않았다.
+- [x] C4 공급·회귀: 현재 source/dist/설치본/native/SDK/package 대조와 Windows/Web/Android 실제 실행·입력·종료. 기본 적용은 TS이며 Android C++ projection 직접 실행과 Apple/Linux runtime은 수락하지 않았다.
+- [x] C5 후보 평가: 실제 RNW 대표 3쌍, 실제 입력 회귀, 최대화 정지 관측 및 기본 적용 철회 판정.
+- [ ] C5 제품 수락: 지속 60fps·전체 범위 왕복·Windows 실제 한국어 IME와 최대화 Gallery 시각 실패 판정. 물리 트랙패드·scanout은 별도 관측 상태로 기록하며 §5.3대로 추가 체감 승인·scanout 입증을 완료 조건으로 요구하지 않는다.
+- [ ] D0: 현재 제품·대상별 비용·실제 native 적용률과 새 protocol/상한 확정.
+- [ ] D1: Path 숫자 명령의 C++ 일괄 생성과 실제 RNW 경로 연결·비교.
+- [ ] D2: clip·paint 숫자 명령의 C++ 일괄 생성과 실제 RNW 경로 연결·비교.
+- [ ] D3: 기존 Picture 재사용을 유지한 C++ Scene 합성·변경 배치·수명 검증.
+- [ ] D4: C++ Semantics 좌표·clip·가시성 계산과 기존 공개/action 정합성 검증.
+- [ ] D5: 기존 C++ producer의 import·submit·완료 대기·finish 비용 및 원인 판정.
+- [ ] D6: 후보별 채택/철회, 현재 공급·플랫폼 회귀·대표 3쌍·최종 제품 판정과 정리.
 
-**다음 실행은 work3의 C0 → C1 → C2 순서로 진행한다. 현재는 문서 종료·이관만 반영했으며 C++/TS 구현, native 준비·빌드·앱 실행·성능 측정은 아직 시작하지 않았다.**
+**다음 구현 시작점은 §9.2 D0의 현재 제품 확인과 최소 계측, 이어지는 D1 Path 배치 생성이다.** 입력 geometry의 C3 metadata 비진입 결론은 유지한다. 새 Scene·Semantics 모듈은 §9의 별도 대상이며, 기존 C2의 hook 증명·전체 범위/Windows IME·시각 정지 미완료를 문서 수정으로 통과시키지 않는다.
+
+## 8. 실행 기록 — 2026-11-02
+
+- **C0 제품:** 일반 명령 `npm.cmd run run:windows --workspace @nelyx/testbed-2`로 기준 제품을 실행해 실제 화면 표시·정상 종료를 확인했다. locator와 manifest/EXE/bytecode는 §1.2의 기존 제품과 일치하고 Hermes bytecode / optimized / Release, 기존 compiler policy다. 실제 측정 창은 2560×1459 physical / DPI 192다. 디스플레이 설정은 바꾸지 않았다.
+- **C0/C1 계약:** `Float64` v1, 16-word header(session·owner generation·transaction revision·viewport/surface generation·scale·크기·count/length), 24-word node(parent·6/16-lane transform·edge clip), 12-word editor와 4-word selection이다. 모든 숫자 식별/count/index를 cast 전 검증하며 parent는 앞선 index만 참조한다. 최대 **4MiB / nodes 8,192 / editors 256 / 전체 selection 16,384 / editor별 4,096 / depth 128**. 입력은 JSI 안에서 native vector로 복사하고 전체 검증 뒤 계산한다. 숫자 세션만 유지하고 명시적 close 뒤 호출·오래된 revision을 거부한다. GPU/JS 객체·callback·Runtime 포인터를 kernel/세션에 보유하지 않는다.
+- **C1:** 새 `input_geometry.cpp/.h`와 실제 MSVC C++20 fixture를 추가했다. 실제 TS geometry 연산과 비교한 **30개 사례**가 통과했다(affine/4×4·perspective horizon·중첩/완전 clip·복수 selection·큰 값/비유한 결과·잘린 packet·count overflow·depth 상한·owner/version·stale/close·선택적 native timing). node 마지막 lane에 내부 captured transform 여부를 전달해 raw affine의 기존 dense Matrix4 투영/overflow 오류도 보존한다. `/fp:strict`, 다른 CMake compiler의 `-fno-fast-math -ffp-contract=off`를 지정했다. 변경/epoch 판정은 기존 TS JSON key와 `freezeTextInputGeometry`에 남겨 `-0/+0`과 epoch 재사용 의미를 보존한다.
+- **C2 공통 통합:** 기존 JSI Api에 version/session capability, native adapter와 중립 `InputGeometryService`, SDK owner/disposal, Root의 기존 commit/discard를 연결했다. 실제 C++ fixture를 서비스 뒤에 연결한 편집기 검사에서 native 호출 **12회**, TS와 같은 값/동일 snapshot identity·epoch, scroll/clip·pending token·commit/discard·custom provider/visitor·prototype 교체 fallback·명시적 close가 통과했다. 계산 중 paint 변경 후 discard 알림과 재진입한 최신 transaction을 이전 결과가 덮거나 삭제하지 않는 fence도 통과했다. 이 검사는 RNW JSI 실행 증거와 구별한다.
+- **보수적 경로:** 내부 등록된 hook descriptor와 현재 instance/prototype·parent data를 확인한다. custom hook은 판별을 위해 실행하지 않는다. cold editor나 backend glyph 질의가 필요한 경로, 미등록 clipper/transform·교체 getter는 transaction 전체를 기존 TS로 처리한다. native는 따뜻한 표준 편집기 숫자 snapshot만 묶는다. node/editor/depth 상한은 getter 실행 전 TS 선택, 전체 selection 초과는 이미 읽은 표준 snapshot으로 TS 계산하며 native 실패를 숨기거나 hook을 재실행하지 않는다.
+- **진단:** 기존 bounded `FrameDiagnostics`에 extract·packet·JSI·copy/validation·kernel·decode·apply를 구분했다. native 두 duration은 해당 실행의 steady clock으로 측정하며 서로 다른 JS/native clock epoch를 합치지 않는다. 총 input geometry/JSI와 그 내부 구간은 겹치므로 합산하지 않는다. 일반 FPS 실행에는 source probe를 설치하지 않는다.
+- **기준 반복:** 새 프로세스 3회, source probe·상세 native 로그·GDI 캡처 없이 기존 surface counter와 OS wheel로 측정했다. 입력 페이지는 maximize/focus, 10초씩 두 방향, Gallery는 maximize·pointer X 66.7%·motion, 5초씩 두 방향이다. packet-defined 좁은 반전이며 전체 범위 수락이 아니다. 모두 exit 0. 입력 FPS는 **44.267/41.500, 44.907/40.316, 43.339/41.814**, Gallery는 **48.556/49.377, 49.968/49.663, 49.739/48.435**다. 이 기준은 §5의 60fps 미달이다.
+- **공통 회귀:** paint-recording **169/169**, scroll-engine 및 native-paint-replay(후자는 **69/69**), Windows input **7/7**, semantics **12/12**, workspace type check가 통과했다. AOT 실행/빌드/전용 검사는 수행하지 않았다. 현재 C4/C5·최대화 Gallery 정지·실제 한국어 IME는 아직 미판정이며 `performanceAccepted=false`, `resizePerformanceAccepted=false`다.
+- **실제 RNW 반환 경계:** 첫 실제 API 직접 호출 제품(manifest `8f25e202…`, native `8743432f…`)은 `0xc0000409`로 종료했다. 현재 pinned RNW 소스의 `JSI/JsiAbiApi.cpp:462`는 `createArrayBuffer`에서 `VerifyElseCrash(false)`를 실행한다. 해당 실행의 dump 주소/PDB 조회도 `abort → terminate → JsiAbiRuntime::createArrayBuffer → JsiInputGeometry::evaluate`를 확인했다. native external buffer 반환을 철회하고 기존 byte adapter와 같은 VM-owned `Float64Array.buffer` 할당·복사로 변경했다. 생성자/getter 재진입 뒤 buffer 길이와 session revision/close를 확인한다. 수정 제품(native `1fac5489…`)은 실제 pinned RNW에서 `available=true / executed=true / errors=0`, bindings close와 JS shutdown ack, 정상 exit 0을 확인했다. 진단 소스는 finally에서 원복·삭제했다. 진단 제품과 일반 제품을 구분한다.
+- **플랫폼 중간 회귀:** 일반 Web build(`application.js` `2ccc65e2…`)와 Chrome의 EditContext/moveBefore 유무·비시각 DOM 입력 **3/3**이 통과했다. Web은 TS 경로다. 최종 native 반환 수정의 Android Temurin 21.0.11 / Release / x86_64 / 기존 `-Og` build·emulator-5554 설치 및 OS 입력·clear/undo·secure/plain·Next/Done·Form·design return **1/1**을 통과했다. 첫 입력 검사는 Gboard 한글 모드가 `XY`를 `툐`로 조합해 ASCII 기대값에서 실패했으며 영문 모드로 전환한 재검사가 통과했다. Unicode 삽입이나 이 ASCII 검사를 실제 한국어 조합 수락으로 해석하지 않는다.
+
+### 8.1 대표 제품 비교와 철회
+
+비교 후보는 probe 없는 일반 제품 manifest `c4deda47652c5dafe086a7891ad3623cc7e1a1822ce5cb410c55644a06c63a47`, EXE `02399e47…`, bytecode `d672bd81…`, native `1fac5489…`다. §8 기준과 같은 창·DPI·명령·hover/focus·관찰 시간의 새 프로세스 3회이며 모든 프로세스 exit 0이다. source probe·GDI 캡처·다른 build/test는 측정 중 실행하지 않았다.
+
+| 장면 / trial | TS 기준 두 방향 surface FPS | 통합 후보 두 방향 surface FPS |
+| --- | --- | --- |
+| 입력 / 1 | 44.267 / 41.500 | 45.172 / 41.209 |
+| 입력 / 2 | 44.907 / 40.316 | 43.646 / 41.858 |
+| 입력 / 3 | 43.339 / 41.814 | 44.110 / 40.375 |
+| Gallery / 1 | 48.556 / 49.377 | 48.816 / 50.330 |
+| Gallery / 2 | 49.968 / 49.663 | 51.929 / 51.542 |
+| Gallery / 3 | 49.739 / 48.435 | 46.731 / 50.951 |
+
+입력 산술 평균은 **42.691 → 42.728 FPS(+0.09%)**, Gallery는 **49.290 → 50.050(+1.54%)**이나 이 수치를 C++ kernel 이득으로 채택하지 않는다. 별도 실제 RNW 진단의 입력 화면은 입력 관련 **359개 노드 / providers 12 / cold 0**이며 `paintsChild`, `isDisplayed`, `describeApproximatePaintClip/clips/clipBehavior`, `childTransform`, `childMainAxisPosition/childCrossAxisPosition`의 descriptor가 미증명이라 transaction 전체가 TS다. minified constructor 이름으로 구체 클래스를 확정하지 않는다. 일반 제품에는 이 분포를 수집하는 probe가 없다. 대표 화면 native 적용·60fps 개선의 증거가 없고 preflight 비용만 추가할 수 있으므로 **native-engine의 기본 주입을 철회**했다. 명시적 내부 `NativeEngineOptions.inputGeometry` 또는 중립 서비스 주입으로만 후보를 검사하며 일반 Windows/Android는 기존 TS를 유지한다. capability·C++ 모듈·서비스와 회귀 검사는 보존한다.
+
+custom Animation/clipper/alignment의 getter를 무조건 신뢰하거나 snapshot 순서를 바꿔 커버리지를 높이지 않았다. subtree 단독 commit은 검사 범위 밖 조상을 증명하지 못하므로 전체 TS를 유지한다. C3 metadata·worker·semantics 전체 이관에는 진입하지 않았다.
+
+### 8.2 최대화 Gallery 실패와 실제 입력 경계
+
+기존 helper에 visual 진단 때만 세 독립 화면 영역과 native surface counter·frame·generation을 같이 읽도록 보강했다. FPS 비교의 `-CadenceOnly`에는 GDI 캡처·추가 counter polling이 없다. 기존 350ms 실패 기준을 낮추거나 제거하지 않았다.
+
+`-Page material -WindowTransitions -Maximized -MouseMotion -InputDurationMs 5000 -InputXFraction 0.667`의 두 번째 구간에서 **85.745–1296.567ms(1210.822ms)** 동안 세 영역이 모두 정적이었다. 같은 구간 native **frame 311→358 / surface updates 47 / view 1000 / surface generation 4**이며 native QPC **113384830.8504→113386038.0966**다. 전체 구간의 관측 surface 진행 최대 간격은 **332.967ms**였다. 이는 선택 픽셀 정지를 surface 갱신 중단과 동일시할 수 없다는 근거지만, 이 자료만으로 endpoint clamp·다른 정적 내용·실제 시각 정지의 원인을 확정하지 않는다. **visual 검사는 FAIL 유지**다. 종료는 drain=true, exit 0, hidden 2.128ms였다. 이 별도 캡처 진단의 52.137/50.530 surface FPS를 probe 없는 대표 비교에 합치지 않는다.
+
+일반 명령의 실제 표시를 확인했지만 Computer Use의 좌표 클릭이 창 재선택·활성화 뒤에도 `foreground window did not report a process id`로 반복 실패했다. Tab 뒤의 편집 포커스도 확인하지 못해 확인 없는 창에 조합 키를 보내지 않았다. Alt+F4 종료는 동작했다. 이 도구 실패를 제품의 입력 실패로 확정하거나 Windows IME 통과로 바꾸지 않는다. 전체 범위·Windows 한국어 실제 조합·물리 트랙패드·scanout은 `notVerified`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. Android 실제 조합 시도는 아래에 별도로 기록한다.
+
+### 8.3 최종 공급과 재검증
+
+기본 주입 철회 뒤 실제 RNW 진단을 다시 실행해 **`productionEnabled=false / available=true / executed=true / errors=0`**, bindings close·JS shutdown ack·정상 exit 0을 확인했다. 해당 진단만 숫자 서비스를 명시적으로 만들고 close한다. fixture App 원문 복구·임시 디렉터리 삭제 뒤 일반 명령을 실행했으며 **`Nelyx application or SDK inputs changed; rebuilding the Windows package before launch.`**를 관찰했다. 최종 source의 빈 `onReady`와 원본 App bytes를 유지한다.
+
+| 최종 Windows 일반 제품 | SHA-256 / 값 |
+| --- | --- |
+| manifest | `9ecfc3911c20111cf2ddf370e07f8d6ad8033cff33a08ef80782e9258c52d388` |
+| EXE | `c1b6bdbfcb1553b3edfba4bef6b28888a8d7557159a478c7921c8963a6723b9c` |
+| bytecode bundle | `066430c5d07b21120927ca8173f618770ad551333577bed74871817176e83e44` |
+| native inputs | `1fac54895fd1dfd0bf77f73dcb94cc4088a182c965149ec953e85ec628757296` |
+| SDK inputs | `64ee6392b3589122e8800eb3fe67784adb8233e7c3fb4f669cbac284ca903079` |
+| app inputs | `42d31f969fd25625d4b1d5216cb44872e2a95f1e7dc7a735acedf5b5470a629b` |
+| mode / policy | Hermes bytecode / optimized / Release / `windows-hermes-94aa5e1d-no-cfg-v1` |
+
+최종 Windows package inventory·pinned runtime 검사를 통과했다. Windows/Android는 core·SDK·skia-native·skia-rn **4개씩**, Web은 core·SDK·skia-web **3개**의 source/dist/설치본 입력이 일치한다. 설치된 native 두 패키지는 각각 canonical **166 files**를 대조했다. Apple podspec의 `generated/core/**/*.{h,cpp}`와 공통 CMake 공급에 새 kernel이 포함되며 Apple/Linux 실제 runtime은 미검증이다.
+
+최종 Web `application.js` SHA-256은 `8e2e8918ce400132922e1ea5a602ca472994f44e20690bf3df6c17f2c79f8f74`, Chrome 입력 **3/3** 통과다. 최종 Android APK는 Release / x86_64 / emulator-vulkan / 기존 `-Og`, **66,185,760 bytes**, SHA-256 `c17f866ba5dab6ea42bc79247f81503a1d1c6c3da5c1b2305aac7a25e5729010`다. emulator-5554 설치 APK의 `sha256sum`과 일치한다. 물리 Samsung 기기는 사용하지 않았다.
+
+마지막 C++ differential **30 cases**와 실제 편집기/native 통합 **12 calls**(subtree 단독 commit의 조상 검사 포함), FrameDiagnostics/RNW probe **19/19**, workspace types, package-boundaries(948 files / design cycles 0), 변경 TS/JS lint·diff 검사를 통과했다. 최종 공급 native 라이브러리의 그림자 **1/1**도 DPR 1/1.25/1.5/2 direct/retained와 Vulkan drain을 통과했다. 이번 실행에서 생성한 이전 native 입력 `f73dfc7a…`, `8743432f…`와 실패 dump는 삭제했으며 현재 `1fac5489…` 및 기존 사용자 소유 출력은 보존했다. 임시 probe·supply staging·검증 로그·receipt archive를 추가 보관하지 않는다.
+
+최종 Windows 일반 명령은 실제 표시와 **exit 0**을 확인했다. 같은 제품의 기존 packaged-interaction 검사에서 OS pointer seed/theme·두 dialog, Material Form UIA 편집·OS Next/Done·저장/reset, route 결과·새 상태·design return이 통과했다. 최종 `test:windows-continuous-scroll`도 **1/1**, 내부 **Material/List/Cupertino/mixed 4개 페이지**의 기본 크기 연속 OS 입력·native drain·종료가 통과했다. 이는 §8.2 최대화/5초 확장 실패나 전체 범위 왕복을 대체하지 않는다. 최종 Android 설치 APK도 OS 입력 회귀 **1/1**을 다시 통과했다.
+
+### 8.4 실제 한국어 IME 시도 — Android 한정
+
+최종 APK / emulator-5554의 기존 Gboard **Korean two-bulsik**에서 편집 포커스를 확인하고 OS **`KEYCODE_G → KEYCODE_K → KEYCODE_S → KEYCODE_SPACE`**를 보냈다. Unicode 문자열 삽입을 사용하지 않았다. 실제 native 입력 endpoint에서 **`ㅎ → 하 → 한 → 한 `**을 순서대로 관찰했고, Core Ctrl+A/delete 뒤 Ctrl+Z로 조합 후 텍스트가 복원되는 ack까지 **1/1** 통과했다. 이 한정된 실제 IME 조합은 확인했으며 Windows IME·물리 키보드·candidate C++ 적용·caret 픽셀 정확성·FPS 수락으로 확대하지 않는다. 검사용 영문 전환은 원래 한글 모드로 복원했고 임시 XML·Metro·sample 앱을 정리했다. 기존 사용자 emulator는 종료하지 않았다.
+
+## 9. 후속 C++ 구현 계획 — D0~D6 / 미착수
+
+### 9.1 목표와 실행 순서
+
+**Path·clip·paint 생성 배치화, Scene 합성, Semantics 좌표 계산을 차례로 C++에 구현하고 실제 RNW에 연결한다.** 분석·API 선언·TS mock 검사만으로 단계를 완료하지 않는다. 각 모듈의 최소 구현과 실제 실행을 먼저 확인하고, 일반 제품 기본 활성화는 총비용·회귀·FPS 비교 뒤 별도로 판정한다. 한 후보의 미채택은 다음 독립 모듈의 구현을 막지 않는다.
+
+순서는 **D0 → D1 → D2 → D3 → D4 → D6**다. D5는 D0에서 기존 native 비용 분리를 시작해 각 후보 진단에서 함께 확인한다. 각 단계는 해당 후보만 바꾼 기준/후보로 비교한다. 앞선 후보를 유지하면 채택 근거와 기준 소스를 명시하고, 미채택이면 그 후보의 기본 연결을 원복한 상태에서 다음 단계로 간다. 여러 변경의 합산 효과를 개별 C++ 모듈 성과로 보고하지 않는다.
+
+현재 [Path 생성](Nelyx/skia/packages/native/src/path.ts)은 JS가 verb마다 native builder를 호출한다. [native Scene 준비](Nelyx/skia/packages/native/src/scene.ts)는 clip·복잡한 paint의 임시 객체를 JS에서 만들며, 단순 fill과 affine transform은 이미 숫자로 배치한다. [LayerRecording](Nelyx/src/ui/scene.ts)은 기존 native leaf/Picture를 재사용하지만 합성·명령 조립 작업이 남아 있다. [Semantics geometry](Nelyx/src/framework/rendering/semantics-pipeline.ts)는 이미 공유 조상 경로 캐시와 translation 빠른 경로가 있다. 이 기존 최적화를 출발점으로 삼는다.
+
+이전 진단의 native submit 전체 중앙값 약 **1.69ms**와 producer 완료 대기 **7.719ms**는 서로 다른 실행의 관찰이다. 이번 문서 구성 중 재측정하지 않았다. 첫 배치화의 개선 폭이나 다른 단계와의 합산 절감량으로 가정하지 않으며, D0에서 현재 비용을 다시 확인한다. work2의 TS 계획 캐시·executor/transport 실험 철회는 유지하고 새 C++ 경계의 차이를 명시한다.
+
+### 9.2 D0 — 기준 제품·실행률·공통 계약 확정
+
+1. §8.3 제품을 출발점으로 HEAD·현재 미커밋 변경·source/dist/설치본/native/SDK/package 입력을 확인한다. 입력 geometry 기본 주입은 끈 상태를 기준으로 한다. 기존 사용자 변경·검증된 공통 수정은 보존한다.
+2. §5 장면에서 같은 frame identity로 Path 수/verb 수, clip·paint 종류별 건수, 남은 합성 방문·명령 복사량, Semantics 숫자 노드/edge 수를 집계한다. JSI 호출 수, 임시 native wrapper 생성·폐기 수, 준비·복사/검증·native 처리·결과 반영을 구분한다. 관측하지 않은 GC pause·CPU 시간·GPU 실행 시간을 추정값으로 채우지 않는다.
+3. 대상 건수·native 실행 건수·fallback 사유를 bounded 숫자 계측으로 기록한다. 대상이 없는 장면은 `n/a`, 전체 fallback은 `nativeExecuted=0`으로 구분한다. 모듈 직접 호출 fixture와 일반 장면의 적용률을 따로 표기한다. §8의 전체 TS fallback 비교를 native 계산 성능 비교로 재사용하지 않는다.
+4. 기존 display-list 경계에 **버전 있는 Path/clip/paint 숫자 table**을 확장하는 계약을 정한다. v1 generic Canvas 경로는 유지하고 새 버전은 별도 capability로 확인한다. 입력 geometry v1과 새 scene schema를 혼용하지 않는다. owner/session·세대·transaction revision·context/viewport/surface·scale·count/byte 길이와 결과/오류 형식을 구현 전에 확정한다.
+5. frame의 현재 **4,096 records / 512KiB / layers 32**, Path **4,096 operations**, native display-list **16MiB / commands·handles 각 65,536** 상한을 유지한다. record 확장 비용도 계산한다. D3/D4 파생 metadata는 초기 설계 상한을 **각 서비스의 view/session별 합계 4MiB / live nodes 8,192 / depth 128**로 둔다. committed·staging·in-flight snapshot의 실제 보유 bytes를 합산하고 두 서비스 합계 peak도 보고하며, D0에서 크기 산식·동시 snapshot 보유량·해제 시점을 확정한다. 예산 초과 시 선택 단위를 사전에 TS로 처리하거나 명시적 오류를 내며 자동 확대·조용한 잘라내기를 하지 않는다.
+
+**완료 조건:** 현재 기준 식별, 후보별 적용 대상과 수량, 숫자 schema·상한·owner·실패 정책, 진단/일반 FPS 측정 구분을 이 문서에 기록한다. 계측만 확장하며 끝내지 않고 D1의 최소 C++ 구현으로 이어간다.
+
+### 9.3 D1 — Path 숫자 명령의 C++ 일괄 생성
+
+- TS의 기존 Path mutator·snapshot 확정·외부 값 격리를 유지한다. 캡처된 fill type·verb·operand를 숫자 table로 한 번 전달하고 C++에서 `SkPathBuilder` 순회를 수행한다. drawPath·clipPath·shadow가 같은 frame 안에서 같은 내부 snapshot을 사용하면 table 참조를 공유한다. 새 장기 Path cache나 GPU cache를 만들지 않는다.
+- [path.ts](Nelyx/skia/packages/native/src/path.ts), [scene.ts](Nelyx/skia/packages/native/src/scene.ts), [JsiDisplayList.h](Nelyx/skia/native/adapters/jsi/cpp/api/JsiDisplayList.h), [Skia API 타입](Nelyx/skia/packages/native/src/skia/types/Skia.ts)을 연결한다. 숫자 parser/상한 검사는 canonical core, Skia 객체 생성은 canonical native rendering, JSI adapter는 복사·호출·오류 전달에 둔다. 제안 파일명 `scene_packet.cpp/.h`, `scene_build.cpp/.h`는 D0에서 확정하며 generated 사본을 구현 원본으로 편집하지 않는다.
+- move/relative move·line·quadratic/cubic/conic·close·다중 contour·rect/oval/rrect·fill rule과 기존 숫자→SkScalar 변환을 보존한다. 빈 Path, 중복 close, 큰 값·비유한 값, 잘린 operand·지원하지 않는 verb·count overflow를 검사한다. 기존 API가 허용/거부하는 경계를 임의로 바꾸지 않는다.
+- 실제 C++ 결과를 기존 builder 경로와 비교한다. Path 의미·bounds·그리기/clip/shadow 픽셀, 캡처 뒤 원본 변경, 외부 getter/subclass, 중간 실패·명시적 폐기를 검사한다. native 실패 뒤 같은 JS getter/verb를 재실행하는 fallback은 허용하지 않는다.
+
+**완료 조건:** pinned RNW의 실제 새 batch 경로에서 지원 대상 Path가 실행되고 verb별 JSI 호출 감소·준비/폐기 포함 총비용을 확인한다. C++ correctness, 실제 적용률, 기본 채택 여부를 각각 기록한다. 대상이 적어 일반 앱 이득이 없으면 모듈을 보존하고 기본 연결은 미채택으로 판정한다.
+
+### 9.4 D2 — clip·paint 생성의 C++ 배치화
+
+- D1 schema에 rect/rrect clip과 지원하는 PaintSnapshot 속성을 확장한다. JS에서 `XYWHRect`·RRect·Paint를 만들고 속성마다 호출하던 작업을 C++ replay 준비 단계로 옮긴다. 기존 단순 fill·숫자 transform 경로의 재사용을 유지한다.
+- clip op·AA·rrect 모서리별 radius, color/alpha·blend·style·stroke/cap/join/miter, saveLayer/backdrop·지원 filter/shader를 현재 표현과 대조한다. 복잡한 효과는 지원 속성을 명시하며 미지원 여부를 packet 실행 전에 결정한다. unsupported와 malformed/foreign/stale를 구분하고 일부 drawing 후 legacy replay로 재시도하지 않는다.
+- 숫자 검증, handle owner/generation 확인, 필요한 독립 hold 획득을 끝낸 뒤 SkCanvas에 적용한다. 임시 SkPaint/SkPath와 image/paragraph/shader 참조는 실제 recording/frame 수명까지 유지하고 rollback·retirement·close에서 해제한다.
+- old/new 경로의 clip/save/restore 순서·pixel·그림자·누수·예외를 검사한다. 여러 clip, 중첩 opacity/saveLayer, fractional DPR, 투명/복잡 paint, 잘못된 table index와 해제된/다른 owner의 handle을 포함한다.
+
+**완료 조건:** 실제 Gallery·입력 화면의 clip/paint 유형별 native 실행 건수와 wrapper 생성/폐기·JSI 호출·packet bytes·총비용을 기록하고 D1 효과와 분리해 비교한다. 기능 축소·효과 생략·handle 안전성 완화로 성능을 얻지 않는다.
+
+### 9.5 D3 — C++ Scene 합성과 변경 배치
+
+- [PaintingContext 합성](Nelyx/src/framework/painting/context.ts), [Layer](Nelyx/src/framework/rendering/layer.ts), [SceneBuilder/LayerRecording](Nelyx/src/ui/scene.ts), [FrameRecording](Nelyx/src/ui/frame.ts), [native Scene](Nelyx/skia/packages/native/src/scene.ts)을 경계로 삼는다. 기존 native leaf·immutable Picture 재사용을 유지하면서, 표준 offset/transform·opacity·rect/rrect clip·child 순서의 숫자 합성과 명령 조립을 C++에 구현한다.
+- custom Layer/Scene hook은 기존 TS 순서로 평가하고, 소유가 증명된 캡처 값만 넘긴다. **JS에서 이미 전체 합성·flatten을 끝낸 뒤 같은 일을 C++에서 반복하는 경로를 최종 구조로 채택하지 않는다.** native 지원 경계에서는 flatten 전에 캡처된 표준 recording 구조와 변경된 숫자 속성·자식 관계·resource ID를 전달한다. CPU/custom/backend fallback은 같은 소스 의미를 유지한다.
+- view/session의 파생 숫자 상태에 create/update/remove/reparent를 배치 적용한다. ID/세대, cycle·dangling·duplicate·삭제 순서, mutation 중 실패를 검증한다. source revision별 불변 snapshot을 만들고 prepare/seal/commit/discard를 연결해 제출된 이전 frame이 뒤의 변경을 읽지 않게 한다.
+- Scene metadata는 숫자·명령 bytes·resource 식별을 보유한다. Picture/image/paragraph의 실제 native 참조는 frame별 독립 lease로 확보하며 metadata가 cache eviction을 막는 숨은 GPU hold가 되지 않게 한다. 기존 Core resource admission과 token/owner/estimated bytes 검사를 유지하고 renderer 큐·Picture 예산을 확대하지 않는다.
+- 변경은 layout/paint/recording 단계에서 이미 아는 dirty 값으로 수집한다. 매 frame 전체 JS tree 추출·native mirror 재생성의 비용을 숨기지 않는다. custom getter의 전이 의존성까지 증명할 수 없으면 해당 단위를 기존 TS로 처리하고, 지원 경계를 좁혀 적용률을 솔직하게 기록한다.
+- differential 명령 의미·동일 픽셀·fractional shadow, scroll·reorder/reparent·detach·eviction·context loss·DPI/resize·visibility·빠른 close·실패 rollback을 검사한다. native state/bytes·동시 snapshot 수·peak와 명시적 close 뒤 해제를 확인한다.
+
+**완료 조건:** 대표 표준 장면에서 실제 C++ 합성이 실행되고 TS planning/명령 복사·native 전송·합성·보유량을 포함한 순이득을 확인한다. 전체 mirror 전송이나 상태 유지 비용이 이득을 상쇄하면 기본 Scene 적용을 철회한다. 기존 TS 계획 캐시를 다시 켠 결과를 새 모듈 효과로 계산하지 않는다.
+
+### 9.6 D4 — Semantics 좌표·clip·가시성의 C++ 계산
+
+- [semantics-pipeline.ts](Nelyx/src/framework/rendering/semantics-pipeline.ts)의 `_SemanticsGeometry.computeChildGeometry`를 기준으로 parent transform·paint/semantics clip·local bounds의 숫자 계산을 배치화한다. 입력 geometry kernel의 공통 수학을 재사용·분리하되 기존의 입력 geometry 기본 주입은 계속 끈다. 의미·node ID·merge/order·focus/value/action 처리는 TS에 둔다.
+- 현재 공유 조상 캐시·translation 빠른 경로 이후의 남은 비용을 비교한다. 역행렬·singular/zero·perspective·비유한 값·빈 clip·hidden/sibling bounds와 연산 순서를 기존 TS에 맞춘다. float 축소·fast-math·임의 epsilon으로 결과/epoch를 바꾸지 않는다.
+- `applyPaintTransform`·paint/semantics clip·semanticBounds와 그 안에서 읽는 getter, Animation·clipper·alignment·ViewportOffset 등 전이 의존성의 custom 동작을 감사한다. 지원 판별을 위해 custom getter를 추가 실행하지 않는다. hook 호출 횟수·순서·예외·조기 종료를 보존할 수 없는 단위는 전체 TS 경로를 사용한다. 대표 표준 장면이 전부 fallback이면 실제 C++ 성능 비교 전 단계로 남긴다.
+- 중립 hosting service와 SDK owner/disposal을 통해 주입하고 frame token·source/configuration/editing revision·layout/paint·viewport/context/surface·scale을 fence한다. 새 native 결과는 기존 geometry commit/discard 이후의 semantics 공개 순서를 따른다. dirty/flushing 경로의 예외·재진입·late result가 최신 snapshot이나 action을 덮지 않게 한다.
+- [Semantics transport](Nelyx/src/framework/rendering/semantics-transport.ts), [Windows packet/action 검증](Nelyx/sdk/src/platforms/windows/semantics-packet.ts)과 연결한다. geometry와 무관한 문자열/전체 UIA tree 이관은 포함하지 않는다. quiet/300ms 정책을 늘리거나 최신 좌표·value/focus/action revision을 생략해 비용을 줄이지 않는다.
+
+**완료 조건:** 실제 C++ differential과 pinned RNW의 표준 Semantics 경로를 통과하고 native 노드/edge 수·fallback·추출/전송/공개 총비용을 확인한다. 화면 밖 입력 surface 철회·복귀, 첫/마지막 편집기 전체 이동 후 재클릭 없는 입력, stale action 거부와 reader/IME 관측 범위를 분리한다. 적용 이득이 없으면 기본 주입을 철회한다.
+
+### 9.7 D5 — 기존 C++ producer 완료 대기 원인 판정
+
+대상은 [GpuContext::renderWin32Frame](Nelyx/skia/native/platforms/vulkan/gpu_context.cpp), [Vulkan device/import](Nelyx/skia/native/platforms/vulkan/device.cpp), [Windows frame trace](Nelyx/skia/packages/rn/native/windows/WindowsFrameTrace.h)다. 이 구간은 이미 C++이므로 신규 TS→C++ 이관 성과와 구분한다.
+
+- 같은 frame의 import·replay/submit·completion wait·context/Recorder 준비·finish/retirement, worker/UI 복귀 지연을 분리한다. D1~D4가 JS 준비를 줄여도 실제 critical path가 남는지 확인하며 겹치는 wall 구간을 합산하지 않는다.
+- import·Recorder 준비·불필요한 동기화가 원인으로 확인되면 해당 기존 C++ 코드의 작은 수정으로 따로 비교한다. 독립 GPU 실행 시간은 실제 timestamp가 없으면 `unobserved`다. 대기 시간만 보고 GPU 병목·GC·driver 원인을 확정하지 않는다.
+- fence/완료 확인·독립 hold·drain을 유지한다. wait 삭제·무확인 재사용·큐/recording 확대·새 import cache·compiler 정책 변경을 대기 회피 수단으로 사용하지 않는다. 안전하고 유효한 수정 근거가 없으면 측정된 잔여 비용과 원인 미분리를 기록한다.
+
+**완료 조건:** 현재 producer 비용과 각 C++ 후보의 영향, 확인된 원인/미관찰, 수정 여부·별도 비교 결과를 기록한다. 비용이 남는다는 이유만으로 임의의 renderer 전면 교체로 확대하지 않는다.
+
+### 9.8 공통 소유·오류·공급 계약
+
+- canonical 위치는 숫자 schema/parser·기하 계산을 `Nelyx/skia/native/core`, Skia 생성/합성을 `Nelyx/skia/native/rendering`, 얇은 JSI 경계를 `Nelyx/skia/native/adapters/jsi/cpp/api`에 둔다. [native CMake](Nelyx/skia/native/CMakeLists.txt), [core CMake](Nelyx/skia/native/core/CMakeLists.txt), [JSI engine.cmake](Nelyx/skia/native/adapters/jsi/engine.cmake)의 standalone/embed 경로를 함께 확인한다. framework는 RN/Skia를 직접 import하지 않으며 새 Scene/Semantics 서비스의 중립 계약·native adapter 이름은 D0에서 확정한다.
+- 모든 byte/count/offset/index/ID의 정수성·범위·overflow를 allocation/cast 전에 검사한다. JSI 입력은 native 소유로 복사하고 전체 검증·handle admission 뒤 적용한다. §8에서 확인한 RNW external ArrayBuffer 실패를 반복하지 않도록 결과 buffer는 VM-owned storage를 사용하며 생성자/getter 재진입 뒤 길이·owner/revision/close를 재검증한다.
+- native 숫자 상태에 JS 객체·callback·Runtime 포인터를 보유하지 않는다. native Skia 객체·frame 참조에는 명시적 소유자·세대·close/retirement가 있어야 한다. protocol 불일치·stale 공급·부분 실패를 조용한 legacy fallback으로 숨기지 않는다. worker는 실제 이득과 affinity 계약이 확인될 때만 별도 확장한다.
+- D1~D4의 내부 진단 선택과 capability 범위를 분리해 후보별 효과를 비교한다. 일반 제품에는 판정된 기본 조합만 반영하며 실험 선택을 사용자 화면·설정 흐름에 노출하지 않는다.
+- Picture **64-entry / 32MiB**, optional child **16 / Element 2,048**, Gallery **2**, CPU pending **1**·native recording **2**를 유지한다. 새 숫자 metadata는 별도 peak/bytes·동시 snapshot·close 후 해제를 계측하며 이 상한과 기존 resource 비용을 함께 보고한다.
+- canonical → generated → 현재 dist → runner 설치본 → native/SDK/package → 실제 실행 제품을 대조한다. Windows 고정 cohort/JSI/CRT·bytecode 정책, Web TS fallback, Android Release/x86_64/Temurin 21.0.11·기존 `-Og`를 유지한다. Apple/Linux는 공급·source 검사와 실제 runtime 미검증을 구분한다.
+
+### 9.9 D6 — 단계별 검사·대표 비교·최종 판정
+
+1. **구현 검사:** D1/D2는 실제 C++ 생성 결과·픽셀·오류/handle 수명, D3는 합성 명령·불변 snapshot·delta/rollback·메모리, D4는 실제 C++ 기하 결과·commit/discard·Semantics/action을 검사한다. 새 테스트 파일·npm 명령은 해당 harness 구현과 함께 등록하며 현재 존재하는 실행 명령처럼 가정하지 않는다. §6의 기존 검사는 변경 범위에 맞춰 선택한다.
+2. **실제 적용 확인:** pinned RNW에서 새 API 및 대표 표준 장면의 해당 경로가 실제 실행됐는지 계측한다. 전체 대상/지원 대상/native 실행/fallback을 구분하고 cold/warm을 기록한다. direct API 한 번의 성공이나 미등록 hook으로 전체 TS fallback인 결과만으로 일반 제품 연결을 완료하지 않는다.
+3. **비용·FPS 비교:** 후보별 준비·할당·JSI 호출·복사/검증·native 처리·반영·보유량과 native producer를 구분한다. 같은 일반 제품 조건의 새 프로세스 대표 **3쌍**을 비교하고 유효한 기준을 재사용할 때 source/설정·조건 일치를 확인한다. 단일 현재 공급만 유지하며 측정 중 source probe·상세 로그·GDI 캡처·이중 경로·다른 build/test를 끈다.
+4. **제품 확인:** §5의 Gallery 좌/우열·입력 12개/버튼 36개·전체 범위 왕복·빠른 반전·hover/focus·재클릭 없는 입력·Windows 실제 IME 시도를 수행한다. 최대화 시각 실패는 scroll offset·frame identity·surface counter·복수 움직임 영역으로 원인을 판정한다. Android 조합 확인을 Windows IME 수락으로 확대하지 않는다. 정상 close/drain·late callback·context loss·DPI/resize·기존 그림자와 Web/Android 최신 설치본을 검증한다.
+5. **채택·철회:** 정확성·수명·입력 회귀가 있거나 전송/반영까지 포함한 순이득이 없으면 그 후보의 기본 연결을 철회한다. 실제 native 적용 없이 C++ 성능을 판정하지 않는다. 개선됐어도 대표 지속 이동·hover/focus가 **60 surface FPS 미만**이거나 최대화 시각 실패가 남으면 전체 상태는 `PARTIAL / performanceAccepted=false`다. resize·물리 입력·scanout의 기존 관측 한계는 별도로 유지하며 추가 사용자 승인·scanout 입증을 완료 조건으로 신설하지 않는다.
+6. **기록·정리:** 이 문서의 현재 상태에 D1~D4별 `구현 검사 / 실제 적용률 / 기본 채택·철회 / 성능 수락`을 분리해 남긴다. 기준/후보 source·제품 식별, 핵심 수치·잔여 병목·최종 일반 명령을 기록한다. 테스트는 **1,200,000ms**, 반복은 대부분 **30회 이내**, 소유 임시 파일·fixture·staging·진단 프로세스는 성공/실패/중단 모두 `finally`에서 정리한다. 기존 미커밋 변경을 보존하며 검증 로그·receipt·과거 package/SDK 사본을 추가 축적하지 않는다.

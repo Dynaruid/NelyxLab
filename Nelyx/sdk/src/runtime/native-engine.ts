@@ -17,6 +17,7 @@ import type {
 import { NativeTextLayoutService } from '@nelyx/skia-native/text';
 import { createFramePictureBackend } from '@nelyx/skia-native/pictures';
 import { createRasterizationBackend } from '@nelyx/skia-native/rasterization';
+import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
 import type { Skia } from '@nelyx/skia-native/skia/types/Skia';
 import type {
   NativeAssetBackend,
@@ -29,13 +30,15 @@ import { OwnedDisposal } from './owned-disposal.ts';
 
 export type NativeEnginePorts = Pick<
   BackendServices<NativeTextLayoutService>,
-  'renderer' | 'text' | 'paths' | 'pictures' | 'rasterization' | 'images'
+  'renderer' | 'text' | 'paths' | 'pictures' | 'rasterization' | 'images' | 'inputGeometry'
 >;
 export interface NativeEngineOptions {
   readonly api: Skia;
   /** Ownership transfers here; the renderer retires this same context. */
   readonly context: NelyxGraphiteContext;
   readonly owner: ViewOwner;
+  /** @internal Unadopted geometry candidate. Production keeps the TS path. */
+  readonly inputGeometry?: boolean;
   readonly retirement?: GraphiteRetirementClock;
   readonly assets: LoadedNativeAssets;
   readonly configuration: NativeAssetConfiguration;
@@ -77,7 +80,11 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     picture: (key) => pictures.picture(key),
   };
   const pictures = createFramePictureBackend(api, resources, () => context.nelyxIdentity());
+  const inputGeometry = options.inputGeometry
+    ? createInputGeometryService(api, owner, ensure)
+    : undefined;
   const services: NativeEnginePorts = {
+    ...(inputGeometry ? { inputGeometry } : {}),
     renderer: {
       create() {
         ensure();
@@ -151,6 +158,7 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     },
   };
   const retirement = new OwnedDisposal([
+    { name: 'input-geometry', run: () => inputGeometry?.dispose() },
     { name: 'renderer', run: () => renderer?.dispose() },
     // Startup can fail before bootstrap obtains a renderer. Its unused context
     // still has an owner and must not depend on VM finalizers for retirement.

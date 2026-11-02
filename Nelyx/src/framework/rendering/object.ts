@@ -78,6 +78,19 @@ import type { Curve } from '../animation/curves.ts';
 import { Listenable } from '../../foundation/notifier.ts';
 import type { FrameScheduler } from '../scheduler/scheduler.ts';
 import type { Disposable } from '../../foundation/disposable.ts';
+import { inputGeometryProtocol } from '../../hosting/input-geometry.ts';
+import { Offset as NumericGeometryOffset } from '../../ui/offset.ts';
+import type {
+  InputGeometryService,
+  InputGeometryNode,
+  InputGeometryEditor,
+  InputGeometryProjection,
+  InputGeometryFrame,
+} from '../../hosting/input-geometry.ts';
+const numericGeometryObjects = new WeakSet<object>();
+const numericOffsetGetters = ['dx', 'dy'].map(
+  (name) => Object.getOwnPropertyDescriptor(NumericGeometryOffset.prototype, name)!.get,
+);
 // Ordinary boxes retain their translation while scrolling moves an ancestor.
 // Keep one owned snapshot per child; offsets and virtual localTransform getters
 // are still read on every query, including in-place parent-data mutations.
@@ -151,34 +164,44 @@ function captureInputGeometry(
     Number.isFinite(caretBaseline.x) &&
     Number.isFinite(caretBaseline.y)
   ) {
-    const packet = {
-      coordinates: 'view-logical' as const,
-      owner: frame.owner,
-      viewportGeneration: frame.metrics.viewportGeneration,
-      ...(frame.metrics.nativeSurfaceGeneration === null
-        ? {}
-        : { nativeSurfaceGeneration: frame.metrics.nativeSurfaceGeneration }),
-      scale: frame.metrics.scale,
+    return finishInputGeometry(core, frame, previous, {
       transform: matrix,
       bounds: full,
       clip,
       caret,
       caretBaseline,
       selectionRects,
-    };
-    const key = JSON.stringify({ localEpoch: core.epoch, ...packet });
-    const value =
-      previous?.key === key
-        ? previous.value
-        : (invariant(
-            Number.isSafeInteger(nextInputGeometryEpoch + 1),
-            'input-geometry-epoch-exhausted',
-            'Core input geometry epoch space is exhausted',
-          ),
-          freezeTextInputGeometry({ ...packet, layoutEpoch: ++nextInputGeometryEpoch }));
-    return { key, value };
+    });
   }
   return undefined;
+}
+function finishInputGeometry(
+  core: CoreEditingGeometry,
+  frame: { readonly owner: ViewOwner; readonly metrics: ViewMetrics },
+  previous: CommittedInputGeometry | undefined,
+  projection: InputGeometryProjection,
+): Pick<CommittedInputGeometry, 'key' | 'value'> {
+  const packet = {
+    coordinates: 'view-logical' as const,
+    owner: frame.owner,
+    viewportGeneration: frame.metrics.viewportGeneration,
+    ...(frame.metrics.nativeSurfaceGeneration === null
+      ? {}
+      : { nativeSurfaceGeneration: frame.metrics.nativeSurfaceGeneration }),
+    scale: frame.metrics.scale,
+    ...projection,
+  };
+  const key = JSON.stringify({ localEpoch: core.epoch, ...packet });
+  const value =
+    previous?.key === key
+      ? previous.value
+      : (invariant(
+          Number.isSafeInteger(nextInputGeometryEpoch + 1),
+          'input-geometry-epoch-exhausted',
+          'Core input geometry epoch space is exhausted',
+        ),
+        freezeTextInputGeometry({ ...packet, layoutEpoch: ++nextInputGeometryEpoch }));
+  return { key, value };
 }
 
 export interface ShowOnScreenOptions {
@@ -925,6 +948,146 @@ const activeLayoutCallbacks: { root: RenderObject; owner: PipelineOwner }[] = []
 const layoutQueries: { readonly render: RenderBox<RenderObject>; readonly key: string }[] = [];
 /** Shared render ownership/tree contract. Geometry belongs to RenderBox or a specialized renderer. */
 export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
+  private readonly inputGeometryPrototype =
+    (numericGeometryObjects.add(this), Object.getPrototypeOf(this));
+  private inputGeometryRevision = 0;
+  private static readonly inputGeometryHookNames = [
+    'parent',
+    'owner',
+    'attached',
+    'needsLayout',
+    'children',
+    'isDisplayed',
+    'localTransform',
+    'getTransformTo',
+    'childTransform',
+    'visitChildren',
+    'paintsChild',
+    'describeApproximatePaintClip',
+    'coreEditingGeometry',
+    'didCommitTextInputGeometry',
+    'editingGeometry',
+    'size',
+    'hasSize',
+    'semanticBounds',
+    'paintBounds',
+    'clips',
+    'clipBehavior',
+    'getLocalRectForCaret',
+    'getBoxesForSelection',
+    'childMainAxisPosition',
+    'childCrossAxisPosition',
+    '_getRightWayUp',
+    'paintExtentOf',
+    'applyPaintTransformForBoxChild',
+    'requireParagraph',
+    'sameLocalEditingGeometry',
+  ] as const;
+  private static readonly inputGeometryHooks = new Map<string, Set<unknown>>();
+  /** @internal Capture implementation identities at module evaluation, never
+   * trust freeze, a constructor name or the current mutable prototype alone. */
+  static _registerInputGeometryHooks(prototype: object): void {
+    for (const name of RenderObject.inputGeometryHookNames) {
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+      if (!descriptor) continue;
+      let implementations = RenderObject.inputGeometryHooks.get(name);
+      if (!implementations)
+        RenderObject.inputGeometryHooks.set(name, (implementations = new Set()));
+      implementations.add(descriptor.get ?? descriptor.value);
+    }
+  }
+  private supportsNumericInputGeometry(): boolean {
+    const prototypes = new Map<object, boolean>();
+    let count = 0,
+      editors = 0;
+    const check = (node: RenderObject, depth: number): boolean => {
+      if (!numericGeometryObjects.has(node)) return false;
+      if (node.pipelineOwner && node.inputGeometrySubtreeWork === 0) return true;
+      if (
+        ++count > inputGeometryProtocol.nodes ||
+        depth > inputGeometryProtocol.depth ||
+        (node.inputGeometryProvider && ++editors > inputGeometryProtocol.editors)
+      )
+        return false;
+      const prototype = Object.getPrototypeOf(node);
+      if (prototype !== node.inputGeometryPrototype) return false;
+      for (const name of RenderObject.inputGeometryHookNames)
+        if (Object.hasOwn(node, name)) return false;
+      let standard = prototypes.get(prototype);
+      if (standard === undefined) {
+        standard = true;
+        for (const name of RenderObject.inputGeometryHookNames) {
+          let current: object | null = prototype,
+            descriptor: PropertyDescriptor | undefined;
+          while (current && !descriptor) {
+            descriptor = Object.getOwnPropertyDescriptor(current, name);
+            current = Object.getPrototypeOf(current);
+          }
+          if (
+            descriptor &&
+            !RenderObject.inputGeometryHooks.get(name)?.has(descriptor.get ?? descriptor.value)
+          ) {
+            standard = false;
+            break;
+          }
+        }
+        prototypes.set(prototype, standard);
+      }
+      if (!standard) return false;
+      if (node.inputGeometryProvider) {
+        // The standard warm editor snapshot performs no backend glyph query.
+        // Cold/reentrant/custom providers keep their original TS ordering.
+        const cached = Object.getOwnPropertyDescriptor(node, 'localEditingGeometry');
+        if (!cached || !('value' in cached) || !cached.value) return false;
+      }
+      const parentData = Object.getOwnPropertyDescriptor(node, 'parentData');
+      if (parentData && !('value' in parentData)) return false;
+      const data = parentData?.value as ParentData | undefined;
+      if (data) {
+        for (const name of ['layoutOffset', 'paintOffset', 'index', 'keepAlive']) {
+          const descriptor = Object.getOwnPropertyDescriptor(data, name);
+          if (descriptor && !('value' in descriptor)) return false;
+          if (name === 'paintOffset' && descriptor) {
+            const point = descriptor.value as NumericGeometryOffset;
+            if (
+              !point ||
+              Object.getPrototypeOf(point) !== NumericGeometryOffset.prototype ||
+              ['dx', 'dy'].some(
+                (key, i) =>
+                  Object.hasOwn(point, key) ||
+                  Object.getOwnPropertyDescriptor(NumericGeometryOffset.prototype, key)?.get !==
+                    numericOffsetGetters[i],
+              )
+            )
+              return false;
+            for (const key of ['horizontal', 'vertical']) {
+              const lane = Object.getOwnPropertyDescriptor(point, key);
+              if (!lane || !('value' in lane) || typeof lane.value !== 'number') return false;
+            }
+          }
+        }
+        if (data instanceof BoxParentData) {
+          let current: object | null = data,
+            offset: PropertyDescriptor | undefined;
+          while (current && !offset) {
+            offset = Object.getOwnPropertyDescriptor(current, 'offset');
+            current = Object.getPrototypeOf(current);
+          }
+          if (offset?.get !== RenderObject.inputGeometryBoxOffsetGetter) return false;
+        }
+      }
+      // Only a registered visitor may be invoked by this side-effect-free
+      // preflight. An unknown visitor is never evaluated to choose fallback.
+      let childrenStandard = true;
+      node.visitChildren((child) => {
+        if (childrenStandard) childrenStandard = check(child, depth + 1);
+      });
+      return childrenStandard;
+    };
+    // A subtree commit has unproved ancestors outside this walk. Keep its
+    // complete existing TS path instead of evaluating those hooks early.
+    return check(this, 1) && this.parent === undefined;
+  }
   private static readonly paintBoundaryOwners = new Map<
     Function,
     { hook: Function; boundary: boolean }
@@ -937,6 +1100,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private static readonly paintOwnerGetter = Object.getOwnPropertyDescriptor(
     RenderObject.prototype,
     'owner',
+  )!.get;
+  private static readonly inputGeometryBoxOffsetGetter = Object.getOwnPropertyDescriptor(
+    BoxParentData.prototype,
+    'offset',
   )!.get;
   private static readonly paintParentGetter = Object.getOwnPropertyDescriptor(
     RenderObject.prototype,
@@ -2128,13 +2295,23 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     return null;
   }
   /** Record OS input coordinates once after the complete Core render tree paints. */
-  commitTextInputGeometries(frame: { readonly owner: ViewOwner; readonly metrics: ViewMetrics }): {
+  commitTextInputGeometries(
+    frame: InputGeometryFrame & {
+      readonly inputGeometry?: InputGeometryService;
+    },
+  ): {
     readonly token: object;
     readonly hasInputGeometry: boolean;
     commit(): void;
     discard(): void;
   } {
     this._finishPaintInvalidationBatch();
+    invariant(
+      Number.isSafeInteger(this.inputGeometryRevision + 1),
+      'input-geometry-revision-exhausted',
+      'Input geometry transaction revision space is exhausted',
+    );
+    const revision = ++this.inputGeometryRevision;
     const root = this,
       paintVersion = this.paintVersion,
       scope: InputGeometryScope = { token: {}, committed: false, aborted: false },
@@ -2142,6 +2319,32 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       displayDescriptors = new Map<object, PropertyDescriptor | null>(),
       displayed = new Map<RenderObject, boolean>(),
       transforms = new Map<RenderObject, TransformMatrix>();
+    const diagnostic = frame.geometryDiagnostics,
+      trace = diagnostic?.diagnostics,
+      extractBegan = trace?.now();
+    const numeric =
+      frame.inputGeometry && this.supportsNumericInputGeometry() ? frame.inputGeometry : undefined;
+    const numericNodes: InputGeometryNode[] = [],
+      numericEditors: InputGeometryEditor[] = [],
+      nodeIndices = new Map<RenderObject, number>(),
+      pending: {
+        render: RenderObject;
+        core: CoreEditingGeometry | null;
+        previous: CommittedInputGeometry | undefined;
+        editor: number;
+      }[] = [];
+    const numericNode = (render: RenderObject): number => {
+      const existing = nodeIndices.get(render);
+      if (existing !== undefined) return existing;
+      const parent = render.parent,
+        parentIndex = parent ? numericNode(parent) : -1,
+        local = parent ? parent.childTransform(render) : render.localTransform,
+        clip = parent ? parent.describeApproximatePaintClip(render) : null,
+        index = numericNodes.length;
+      numericNodes.push({ parent: parentIndex, local, clip });
+      nodeIndices.set(render, index);
+      return index;
+    };
     const displayedInCommit = (render: RenderObject): boolean => {
       const cached = displayed.get(render);
       if (cached !== undefined) return cached;
@@ -2179,6 +2382,12 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       previous: CommittedInputGeometry | undefined,
     ): void => {
       hasInputGeometry = true;
+      if (numeric) {
+        const editor = core ? numericEditors.length : -1;
+        if (core) numericEditors.push({ node: numericNode(render), core });
+        pending.push({ render, core, previous, editor });
+        return;
+      }
       const captured =
         core && (render.inputGeometryProvider || displayedInCommit(render))
           ? captureInputGeometry(render, core, frame, previous, transformToView)
@@ -2206,6 +2415,52 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       }
     };
     visit(this);
+    if (trace)
+      trace.record(
+        diagnostic!.token,
+        numeric ? 'input-geometry-extract' : 'input-geometry-fallback',
+        extractBegan!,
+        numericEditors.length,
+        numericNodes.length * inputGeometryProtocol.nodeWords * 8,
+      );
+    if (numeric && pending.length) {
+      const selections = numericEditors.reduce(
+        (sum, editor) => sum + editor.core.selectionRects.length,
+        0,
+      );
+      const projections =
+        selections <= inputGeometryProtocol.selections
+          ? numeric.project(frame, numericNodes, numericEditors)
+          : undefined;
+      const applyBegan = trace?.now();
+      const captured = pending.map(({ render, core, previous, editor }) =>
+        core
+          ? projections
+            ? projections[editor]
+              ? finishInputGeometry(core, frame, previous, projections[editor]!)
+              : undefined
+            : captureInputGeometry(render, core, frame, previous, transformToView)
+          : undefined,
+      );
+      // Publication remains inside the existing frame scope. Native errors
+      // propagate; no partial application or retry through custom TS hooks.
+      const current =
+        this.inputGeometryRevision === revision &&
+        this.paintVersion === paintVersion &&
+        this.attached &&
+        !this.needsLayout;
+      for (let i = 0; i < pending.length; i++) {
+        const value = captured[i],
+          render = pending[i]!.render;
+        // A reentrant newer commit owns its entries. An old calculation may
+        // neither replace them nor silence discard notifications.
+        if (!current) continue;
+        if (value) committedInputGeometries.set(render, { scope, root, paintVersion, ...value });
+        else committedInputGeometries.delete(render);
+      }
+      if (trace)
+        trace.record(diagnostic!.token, 'input-geometry-apply', applyBegan!, pending.length);
+    }
     const notify = () => {
       const errors: unknown[] = [];
       for (const render of notifications)
@@ -3456,3 +3711,7 @@ export abstract class RenderBox<
     }
   }
 }
+
+RenderObject._registerInputGeometryHooks(RenderObject.prototype);
+
+RenderObject._registerInputGeometryHooks(RenderBox.prototype);

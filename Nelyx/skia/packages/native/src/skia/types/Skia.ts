@@ -37,6 +37,15 @@ import type { SkottieFactory } from './Skottie.ts';
  * Declares the interface for the native Skia API
  */
 export interface Skia {
+  /** Internal optional numeric capability; custom/Web backends can omit it. */
+  nelyxInputGeometryVersion?(): number;
+  nelyxInputGeometrySession?(
+    session: number,
+    generation: number,
+  ): {
+    evaluate(packet: ArrayBuffer): ArrayBuffer;
+    close(): void;
+  };
   Point: (x: number, y: number) => SkPoint;
   XYWHRect: (x: number, y: number, width: number, height: number) => SkHostRect;
   RuntimeShaderBuilder: (rt: SkRuntimeEffect) => SkRuntimeShaderBuilder;

@@ -3,6 +3,7 @@
 // wrapping is diagnostic overhead, never a cpu baseline or normal app path.
 import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
+import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
 import { RnwFrameRecords } from './rnw-frame-records.js';
 import { readNativeRecordingStats } from './native-frame-metrics.js';
 import { RnwWorkProbe } from './rnw-work-probe.js';
@@ -30,6 +31,106 @@ export function installRnwFrameProbe(application, options = {}) {
     close = application.dispose,
     previous = view.frameDiagnostics;
   const work = new RnwWorkProbe(now);
+  // Exercise the real installed JSI capability, independently of which
+  // conservative render paths are eligible in this diagnostic's current page.
+  // The candidate is withdrawn from the normal native engine. This explicit
+  // diagnostic owns its numeric service and optional Core injection instead.
+  const suppliedGeometry = application.services.inputGeometry;
+  const inputGeometry =
+    suppliedGeometry ??
+    (globalThis.SkiaApi
+      ? createInputGeometryService(globalThis.SkiaApi, view.owner, () => {})
+      : undefined);
+  const context = view.controller?.context;
+  const previousGeometry = context?.inputGeometry;
+  if (context && inputGeometry) context.inputGeometry = inputGeometry;
+  const closeGeometry = () => {
+    if (context && inputGeometry && context.inputGeometry === inputGeometry) {
+      if (previousGeometry === undefined) delete context.inputGeometry;
+      else context.inputGeometry = previousGeometry;
+    }
+    if (inputGeometry !== suppliedGeometry) inputGeometry?.dispose();
+  };
+  const inputGeometryApi = {
+    available: !!inputGeometry,
+    productionEnabled: !!suppliedGeometry,
+    executed: false,
+  };
+  try {
+    if (inputGeometry) {
+      const metrics = view.currentMetrics;
+      const result = inputGeometry.project(
+        { owner: view.owner, metrics },
+        [{ parent: -1, local: [1, 0, 0, 1, 0, 0], clip: null }],
+        [
+          {
+            node: 0,
+            core: {
+              coordinates: 'editable-local',
+              epoch: 1,
+              width: 1,
+              height: 1,
+              caret: { x: 0, y: 0, width: 0.25, height: 1 },
+              caretBaseline: { x: 0, y: 1 },
+              selectionRects: [],
+            },
+          },
+        ],
+      );
+      if (
+        result.length !== 1 ||
+        (metrics.logicalWidth > 0 &&
+          metrics.logicalHeight > 0 &&
+          (!result[0] || result[0].transform.length !== 16 || result[0].bounds.x !== 0))
+      )
+        throw Error('RNW installed input geometry API returned a different projection');
+      inputGeometryApi.executed = true;
+    }
+  } catch (error) {
+    closeGeometry();
+    throw error;
+  }
+  const geometrySupport = () => {
+    const root = view.controller?.root?.renderObjects?.[0],
+      pending = root ? [root] : [],
+      issues = new Set();
+    const children = Object.getOwnPropertyDescriptor(RenderObject.prototype, 'children')?.get;
+    let nodes = 0,
+      providers = 0,
+      cold = 0;
+    while (pending.length && nodes < 512) {
+      const node = pending.pop();
+      if (node.inputGeometrySubtreeWork === 0) continue;
+      nodes++;
+      if (node.inputGeometryProvider) {
+        providers++;
+        if (!node.localEditingGeometry) cold++;
+      }
+      for (const name of RenderObject.inputGeometryHookNames ?? []) {
+        let current = node,
+          descriptor;
+        while (current && !descriptor) {
+          descriptor = Object.getOwnPropertyDescriptor(current, name);
+          current = Object.getPrototypeOf(current);
+        }
+        if (
+          descriptor &&
+          !RenderObject.inputGeometryHooks?.get(name)?.has(descriptor.get ?? descriptor.value) &&
+          issues.size < 16
+        )
+          issues.add(node.constructor.name + '.' + name);
+      }
+      if (children) pending.push(...children.call(node));
+    }
+    return {
+      ...inputGeometryApi,
+      nodes,
+      providers,
+      cold,
+      unsupported: [...issues],
+      truncated: pending.length > 0,
+    };
+  };
   try {
     if (options.work !== false) {
       for (const prototype of [RenderObject.prototype, RenderBox.prototype, RenderSliver.prototype])
@@ -66,6 +167,7 @@ export function installRnwFrameProbe(application, options = {}) {
     }
   } catch (error) {
     work.dispose();
+    closeGeometry();
     throw error;
   }
   let live = true,
@@ -103,6 +205,7 @@ export function installRnwFrameProbe(application, options = {}) {
         offsetToJs: (before + after) / 2 - native,
         uncertainty: (after - before) / 2,
       });
+      report.inputGeometry = geometrySupport();
       report.scope =
         'actual RNW; owned View callback wall excludes native dispatch/poll and following JS checkpoint; a preexisting callback may be unobserved; opt-in wrappers and native thread observations';
       report.errors = errors + work.errors;
@@ -242,6 +345,7 @@ export function installRnwFrameProbe(application, options = {}) {
     live = false;
     (options.clearInterval ?? clearInterval)(timer);
     emit();
+    closeGeometry();
     work.dispose();
     if (clock.request === wrappedRequest) clock.request = request;
     if (GraphiteRenderer.prototype.submit === wrappedSubmit)

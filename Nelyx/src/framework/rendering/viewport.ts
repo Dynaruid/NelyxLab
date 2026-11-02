@@ -1396,3 +1396,9 @@ export class RenderShrinkWrappingViewport extends RenderViewportBase {
     return 'child ' + index;
   }
 }
+
+RenderObject._registerInputGeometryHooks(RenderViewportBase.prototype);
+
+RenderObject._registerInputGeometryHooks(RenderViewport.prototype);
+
+RenderObject._registerInputGeometryHooks(RenderShrinkWrappingViewport.prototype);

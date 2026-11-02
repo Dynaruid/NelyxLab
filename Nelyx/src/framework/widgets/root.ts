@@ -741,6 +741,8 @@ export class FrameworkRoot implements ViewController {
       geometryCommit = render.commitTextInputGeometries({
         owner: scene.token.owner,
         metrics: scene.token.metrics,
+        ...(this.context.inputGeometry ? { inputGeometry: this.context.inputGeometry } : {}),
+        ...(diagnostics ? { geometryDiagnostics: { diagnostics, token: scene.token } } : {}),
       });
       finishDiagnostic?.('input-geometry');
       if (this.sourceSemanticsSnapshot) {

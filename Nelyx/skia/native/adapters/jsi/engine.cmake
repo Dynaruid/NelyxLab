@@ -16,7 +16,12 @@ function(nelyx_add_vulkan_jsi_engine target)
     "${NELYX_BINDING_CPP}/api/JsiSkDispatcher.cpp" "${NELYX_BINDING_CPP}/api/third_party/CSSColorParser.cpp"
     "${NELYX_BINDING_CPP}/api/third_party/base64.cpp" "${NELYX_BINDING_CPP}/api/third_party/SkottieUtils.cpp")
   if(NELYX_BINDING_EMBED_CORE)
-    target_sources(${target} PRIVATE "${NELYX_BINDING_CORE}/core.cpp" "${NELYX_BINDING_CORE}/paragraph_queries.cpp")
+    target_sources(${target} PRIVATE "${NELYX_BINDING_CORE}/core.cpp" "${NELYX_BINDING_CORE}/paragraph_queries.cpp" "${NELYX_BINDING_CORE}/input_geometry.cpp")
+    if(MSVC)
+      set_source_files_properties("${NELYX_BINDING_CORE}/input_geometry.cpp" PROPERTIES COMPILE_OPTIONS "/fp:strict")
+    else()
+      set_source_files_properties("${NELYX_BINDING_CORE}/input_geometry.cpp" PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
+    endif()
   endif()
   target_include_directories(${target} PUBLIC
     ${NELYX_BINDING_EXTERNAL_INCLUDES}
