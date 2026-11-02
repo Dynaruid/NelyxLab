@@ -4,7 +4,7 @@
 
 **§11의 E0 기준 대조 → E1 Windows 입력 → E2 최대화 Gallery → E3 결합 후보 → E4 공급·회귀·정리를 마쳤다.** E1의 일반 제품 전체 범위 복귀 입력과 E2의 준비 조건을 갖춘 최대화 시각 3회는 통과했다. E3는 현재 native의 3개 fresh owner·전체 mixed 왕복 9회에서 allocation이 재현되지 않았으며, 과거 오류의 원인을 확정하거나 GPU 수정으로 선언하지 않는다. **최종 공급·일반 제품 판정·잔여 수락은 §12.2~§12.3을 따른다.**
 
-**현재 유일한 실행·진행 관리 문서는 work3.md다.** work2는 `CLOSED / SUPERSEDED`로 종료했으며, [work2.md §6](work2.md#6-실행-상태--2026-11-02)은 미커밋 후보·공급 식별·실패·미수락 결과를 확인하는 종료 기록이다. 앞으로 구현·검증·채택/철회·미완료 상태는 이 문서에 갱신하고 work2의 P0~P7을 별도로 재개하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·물리 키보드 직접 한글 조합·scanout의 `notVerified`를 이어받는다. 실제 OS key injection/IME의 한정 통과와 물리 입력 수락을 구분하며, 종료·이관을 구현이나 성능 수락 완료로 해석하지 않는다.
+**2026-11-03 후속 계획 이관:** work3의 구현·평가 종료 기록은 이 문서에 보존하며, 이후 잔끊김 개선의 현재 계획·진행·채택/철회·미완료 상태는 [work4.md](work4.md)에서 관리한다. work2는 `CLOSED / SUPERSEDED`로 종료했으며, [work2.md §6](work2.md#6-실행-상태--2026-11-02)은 당시 미커밋 후보·공급 식별·실패·미수락 결과를 확인하는 종료 기록이다. work2의 P0~P7이나 이 문서의 완료 단계를 별도로 재개하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·물리 키보드 직접 한글 조합·scanout의 `notVerified`를 이어받는다. 실제 OS key injection/IME의 한정 통과와 물리 입력 수락을 구분하며, 종료·이관을 구현이나 성능 수락 완료로 해석하지 않는다.
 
 **§9의 D0 → D1 → D2 → D3 → D4 → D6 순서로 구현·검증·비교·철회를 마쳤다.** D5는 이미 C++인 producer 완료 대기의 비용을 별도로 확인했다. 모듈 구현·후보 평가 종료와 일반 제품·실제 성능 수락은 구분하며, D0~D6 종료 근거는 §10, 최신 후속 결과는 §12를 따른다.
 
