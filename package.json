@@ -75,6 +75,7 @@
     "test:android-input-connection": "node --test --test-timeout=1200000 Nelyx/eng/tests/android-input-connection.test.mjs",
     "test:android-input-lifetime": "node --test --test-timeout=1200000 Nelyx/eng/tests/android-input-lifetime.test.mjs",
     "test:windows-input": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-document.test.mjs Nelyx/eng/tests/windows-editor-scroll.test.mjs",
+    "test:windows-mixed-input": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-mixed-input.test.mjs",
     "test:windows-semantics": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-semantics-text.test.mjs Nelyx/eng/tests/windows-semantics-packet.test.mjs Nelyx/eng/tests/windows-semantics-tree.test.mjs",
     "test:skia-paragraph-queries": "node --test --test-timeout=1200000 Nelyx/eng/tests/skia-paragraph-queries.test.mjs",
     "test:windows-input-island": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-island.test.mjs",

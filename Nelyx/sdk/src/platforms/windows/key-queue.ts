@@ -30,6 +30,7 @@ export class WindowsKeyQueue {
       focusEpoch?: number,
     ) => Promise<void>,
     private readonly onError: (error: unknown) => void,
+    private readonly hasTextOwner: () => boolean = () => true,
   ) {
     this.connection = windowsKeyConnection(view, readGeneration);
     this.detach = bindWindowsKeyboardRoute(view, this);
@@ -72,7 +73,8 @@ export class WindowsKeyQueue {
         }
         if (packet.kind === 'text') {
           const text = this.connection.text({ nativeEvent: packet.data });
-          if (text !== null) await this.after(false, text, packet.data.focusEpoch);
+          if (text !== null && this.hasTextOwner())
+            await this.after(false, text, packet.data.focusEpoch);
           continue;
         }
         const key = packet.data,
@@ -93,9 +95,13 @@ export class WindowsKeyQueue {
           !(key.modifiers & 1536) &&
           (!(key.modifiers & 64) || !!(key.modifiers & 8));
         if (key.repeatCount > 0xffff) throw new Error('Invalid Windows native repeat count');
-        const text = printable
-          ? String.fromCodePoint(key.characterCodePoint).repeat(Math.max(1, key.repeatCount))
-          : null;
+        // A focused button/canvas still receives its real key event, but owns
+        // no text insertion. Keep the TSF proof mandatory whenever either Core
+        // or the native endpoint still owns an editor, including clipped ones.
+        const text =
+          printable && (handled || this.hasTextOwner())
+            ? String.fromCodePoint(key.characterCodePoint).repeat(Math.max(1, key.repeatCount))
+            : null;
         if (!handled && text !== null && key.focusEpoch <= 0)
           throw new Error('Native printable key lacks its owning TSF character observation');
         if (text !== null) await this.after(handled, text, key.focusEpoch);

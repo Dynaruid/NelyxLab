@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.16.0-dae55b488a639e3a4db51f49564588c7a70b335134669de44189094ea5d06434.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.20.0-7e0b891f76878cbe98aaaa805ddb9efb0a9d85fdb3bbd9b6f44f5c81b690fd1a.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.20.0-421d402f406042efddfeef503a40da31fc0ec02ce4cbcd505cfa072372b13e08.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-62dca2e5a7766f72b7f28945db22eb8f830e1d9924e17b89feaada758fffead6.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",

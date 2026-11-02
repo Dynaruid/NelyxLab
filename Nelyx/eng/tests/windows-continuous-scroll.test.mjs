@@ -61,3 +61,58 @@ test(
     }
   },
 );
+
+test(
+  'maximized Gallery keeps moving through window transitions and both wheel directions in three fresh owners',
+  { timeout, skip: process.platform !== 'win32' },
+  () => {
+    const locator = JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'sample/nelyx-testbed-app-2/.nelyx/windows/last-package.json'),
+        'utf8',
+      ),
+    );
+    const checked = verifyWindowsPackage(locator.directory);
+    verifyWindowsRuntime(checked.directory);
+    for (let trial = 1; trial <= 3; trial++) {
+      const result = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          path.join(import.meta.dirname, 'windows-continuous-scroll.ps1'),
+          '-Executable',
+          path.join(checked.directory, checked.manifest.executable),
+          '-Page',
+          'material',
+          '-WindowTransitions',
+          '-Maximized',
+          '-MouseMotion',
+          '-InputDurationMs',
+          '5000',
+          '-InputXFraction',
+          '0.667',
+        ],
+        { cwd: root, encoding: 'utf8', windowsHide: true, timeout, maxBuffer: 512 * 1024 },
+      );
+      process.stdout.write((result.stdout ?? '') + (result.stderr ?? ''));
+      if (result.error) throw result.error;
+      assert.equal(result.status, 0, 'maximized Gallery owner ' + trial);
+      const line = result.stdout.split(/\r?\n/).find((row) => row.startsWith('CONTINUOUS_SCROLL '));
+      assert.ok(line, 'maximized Gallery report');
+      const report = JSON.parse(line.slice('CONTINUOUS_SCROLL '.length));
+      assert.equal(report.drained, true);
+      assert.equal(report.exitCode, 0);
+      assert.equal(report.checks.length, 2);
+      assert.ok(
+        report.checks.every((check) => check.primingPackets === 80 && check.maximumGapMs <= 350),
+      );
+      console.log('MAXIMIZED_GALLERY_PASS', {
+        trial,
+        gaps: report.checks.map((check) => check.maximumGapMs),
+      });
+    }
+  },
+);

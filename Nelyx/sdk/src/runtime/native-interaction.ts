@@ -287,6 +287,11 @@ export class NativeInteraction {
   get editorClients(): readonly { readonly id: string; readonly generation: number }[] {
     return [...this.editors].map(([id, editor]) => ({ id, generation: editor.generation }));
   }
+  /** Core focus survives clipped semantics. A missing native focus receipt
+   * cannot turn an active editing owner into an unowned keyboard route. */
+  editorHasFocus(id: string): boolean {
+    return !this.closed && this.editors.has(id) && this.desiredFocus === id;
+  }
   editorInputState(id: string): EditingInputState {
     const editor = this.editors.get(id),
       state = editor?.options?.readInputState?.(),

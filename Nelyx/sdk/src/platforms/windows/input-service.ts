@@ -312,6 +312,12 @@ export class WindowsInputService {
       await this.waitProgress(deadline);
     }
   }
+  get hasKeyboardOwner(): boolean {
+    return [...this.clients.values()].some(
+      (client) =>
+        this.live(client) && (client.focused || this.interaction.editorHasFocus(client.id)),
+    );
+  }
   async keyboardText(text: string, focusEpoch: number): Promise<void> {
     if (!positive(focusEpoch)) throw new Error('Native TSF character focus epoch required');
     await this.flush();

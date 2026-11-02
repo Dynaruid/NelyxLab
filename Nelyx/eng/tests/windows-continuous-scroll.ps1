@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino','mixed')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[ValidateRange(20,2000)][int]$WheelPacketsPerLeg=80,[ValidateRange(3000,20000)][int]$InputDurationMs=3000,[ValidateRange(0,2147483647)][int]$TargetProcessId=0,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$Maximized,[switch]$FocusEditor,[switch]$CadenceOnly,[switch]$CaptionActivation,[ValidateRange(0.1,0.9)][double]$InputXFraction=(2.0/3.0),[switch]$BothColumns)
+param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino','mixed')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[ValidateRange(20,2000)][int]$WheelPacketsPerLeg=80,[ValidateRange(3000,20000)][int]$InputDurationMs=3000,[ValidateRange(0,2147483647)][int]$TargetProcessId=0,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$Maximized,[switch]$FocusEditor,[switch]$CadenceOnly,[switch]$CaptionActivation,[ValidateRange(0.1,0.9)][double]$InputXFraction=(2.0/3.0),[switch]$BothColumns,[switch]$Unprimed)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 Add-Type @'
@@ -46,8 +46,33 @@ public static class NelyxContinuousScroll {
   [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr dc,int x,int y,int width,int height,IntPtr source,int sx,int sy,uint operation);
   [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr item);
   [DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr dc);
-  public sealed class Gap { public double BeginMs,EndMs,NativeBeginMs,NativeEndMs,FirstFrame,LastFrame; public long SurfaceUpdates,View,Surface; public int OtherRegionChanges; }
-  public sealed class Result { public int Packets,ChangesDuringInput,ChangesAfterInput,PhysicalWidth,PhysicalHeight,Dpi; public long SurfaceUpdates; public double MaximumGapMs,MaximumAllRegionsGapMs,MaximumSurfaceGapMs,FirstChangeMs,LastChangeMs,NativeBeginMs,SurfaceDurationMs,SurfaceFPS; public List<double> Changes=new List<double>(); public List<Gap> Gaps=new List<Gap>(); }
+  public sealed class InputWindow { public long SampleEvery,Retained,NativeWheelPositive,NativeWheelNegative,CoreWheelPositive,CoreWheelNegative,CoreWithoutWheelMapping; public double EarliestQpcMs,NativeWheelDelta,CoreWheelDelta; }
+  public sealed class Gap { public double BeginMs,EndMs,PixelBeginQpcMs,PixelEndQpcMs,NativeBeginMs,NativeEndMs,FirstFrame,LastFrame; public long SurfaceUpdates,View,Surface; public int OtherRegionChanges; public InputWindow Input; }
+  public sealed class Result { public int Packets,PrimingPackets,ChangesDuringInput,ChangesAfterInput,PhysicalWidth,PhysicalHeight,Dpi; public long SurfaceUpdates; public double PrimingDurationMs,MaximumGapMs,MaximumAllRegionsGapMs,MaximumSurfaceGapMs,FirstChangeMs,LastChangeMs,NativeBeginMs,SurfaceDurationMs,SurfaceFPS; public List<double> Changes=new List<double>(); public List<Gap> Gaps=new List<Gap>(); }
+  struct TraceRow { public long Stage,Input,Surface; public double Qpc,A,B; }
+  static InputWindow ReadInputWindow(IntPtr window,double begin,double end,long surface) {
+    uint pid;GetWindowThreadProcessId(window,out pid);
+    using(var map=MemoryMappedFile.OpenExisting("Local\\NelyxInputTrace.v1."+pid))
+    using(var view=map.CreateViewAccessor(0,0,MemoryMappedFileAccess.Read)) {
+      if(view.ReadInt64(0)!=0x4e4c585452414345L||view.ReadInt64(8)!=1||view.ReadInt64(16)!=pid||view.ReadInt64(32)!=64||view.ReadInt64(40)!=8192)throw new Exception("Gap input recorder identity changed");
+      var result=new InputWindow { SampleEvery=view.ReadInt64(48),EarliestQpcMs=double.PositiveInfinity };
+      long stored=view.ReadInt64(56);var rows=new List<TraceRow>();var wheel=new Dictionary<long,double>();
+      for(long sequence=Math.Max(1,stored-8191);sequence<=stored;sequence++) {
+        long offset=2176+((sequence-1)%8192)*64;if(view.ReadInt64(offset)!=sequence)continue;
+        var row=new TraceRow { Qpc=view.ReadDouble(offset+8),Stage=view.ReadInt64(offset+16),Surface=view.ReadInt64(offset+32),Input=view.ReadInt64(offset+40),A=view.ReadDouble(offset+48),B=view.ReadDouble(offset+56) };
+        if(view.ReadInt64(offset)!=sequence||row.Surface!=surface)continue;
+        result.EarliestQpcMs=Math.Min(result.EarliestQpcMs,row.Qpc);result.Retained++;
+        if(row.Stage==7&&row.A==0)wheel[row.Input]=row.B;
+        if(row.Qpc>=begin&&row.Qpc<=end)rows.Add(row);
+      }
+      foreach(var row in rows) {
+        if(row.Stage==7&&row.A==0){result.NativeWheelDelta+=row.B;if(row.B>0)result.NativeWheelPositive++;else if(row.B<0)result.NativeWheelNegative++;}
+        if(row.Stage==15){double delta;if(wheel.TryGetValue(row.Input,out delta)){result.CoreWheelDelta+=delta;if(delta>0)result.CoreWheelPositive++;else if(delta<0)result.CoreWheelNegative++;}else result.CoreWithoutWheelMapping++;}
+      }
+      if(double.IsPositiveInfinity(result.EarliestQpcMs))result.EarliestQpcMs=0;
+      return result;
+    }
+  }
   sealed class SurfaceCount { public long Count,View,Surface; public double At,Qpc,Frame; }
   static SurfaceCount ReadSurfaceCount(IntPtr window) {
     uint pid;GetWindowThreadProcessId(window,out pid);
@@ -97,18 +122,24 @@ public static class NelyxContinuousScroll {
     while(clock.Elapsed.TotalMilliseconds<1500){RequireInput(window);if(clock.Elapsed.TotalMilliseconds>=next){if(SendInput(1,input,Marshal.SizeOf<Input>())!=1)throw new Exception("OS close workload injection failed");next=clock.Elapsed.TotalMilliseconds+4;}Thread.Sleep(1);}
     PostMessageW(window,0x10,IntPtr.Zero,IntPtr.Zero);
   }
-  public static Result Run(IntPtr window,int direction,int magnitude,int packetsPerLeg,int durationMs,int intervalMs,bool motion,bool capture,double inputXFraction) {
+  public static Result Run(IntPtr window,int direction,int magnitude,int packetsPerLeg,int durationMs,int intervalMs,bool motion,bool capture,double inputXFraction,bool prime) {
     Rect rect; Point origin=new Point();
     if(GetForegroundWindow()!=window||!GetClientRect(window,out rect)||!ClientToScreen(window,ref origin))throw new Exception("Own foreground client unavailable");
     var target=new Point { X=origin.X+(int)((rect.Right-rect.Left)*inputXFraction),Y=origin.Y+(rect.Bottom-rect.Top)*2/3 };
     SetCursorPos(target.X,target.Y);if(GetAncestor(WindowFromPoint(target),2)!=window)throw new Exception("Owned scroll target is occluded");
+    // Establish the opposite leg using real OS wheel input. Starting an up-leg
+    // at the top otherwise measures a deliberate clamp until the packet-defined
+    // reversal, which can exceed a second when the sender is scheduled slowly.
+    // Keep the measured 80-packet reversals and the 350ms pixel limit unchanged.
+    int primingPackets=0;double primingDurationMs=0;
+    if(prime){var priming=Stopwatch.StartNew();double next=0;var input=new Input[1];while(primingPackets<packetsPerLeg){RequireInput(window);if(priming.Elapsed.TotalMilliseconds>=next){input[0]=new Input { Type=0,Mouse=new Mouse { Data=unchecked((uint)(-direction*magnitude)),Flags=0x800 } };if(SendInput(1,input,Marshal.SizeOf<Input>())!=1)throw new Exception("OS wheel priming failed");primingPackets++;next=priming.Elapsed.TotalMilliseconds+intervalMs;}Thread.Sleep(1);}primingDurationMs=priming.Elapsed.TotalMilliseconds;}
     int width=Math.Min(320,rect.Right-40),height=Math.Min(360,rect.Bottom-240);
     if(width<100||height<100)throw new Exception("Own list pixels unavailable");
     int sampleX=Math.Max(20,Math.Min(rect.Right-width-20,target.X-origin.X-width/2)),sampleY=Math.Max(180,Math.Min(rect.Bottom-height-20,target.Y-origin.Y-height/2));
     IntPtr screen=capture?GetDC(IntPtr.Zero):IntPtr.Zero,memory=capture?CreateCompatibleDC(screen):IntPtr.Zero,pixels=IntPtr.Zero;
     var info=new BitmapInfo { Size=(uint)Marshal.SizeOf<BitmapInfo>(),Width=width,Height=-height,Planes=1,Bits=32 };
     IntPtr bitmap=capture?CreateDIBSection(screen,ref info,0,out pixels,IntPtr.Zero,0):IntPtr.Zero,previous=capture?SelectObject(memory,bitmap):IntPtr.Zero;
-    var buffer=new int[capture?width*height:0]; var result=new Result { PhysicalWidth=rect.Right-rect.Left,PhysicalHeight=rect.Bottom-rect.Top,Dpi=(int)GetDpiForWindow(window) }; var clock=Stopwatch.StartNew();
+    var buffer=new int[capture?width*height:0]; var result=new Result { PrimingPackets=primingPackets,PrimingDurationMs=primingDurationMs,PhysicalWidth=rect.Right-rect.Left,PhysicalHeight=rect.Bottom-rect.Top,Dpi=(int)GetDpiForWindow(window) }; var clock=Stopwatch.StartNew();
     Thread sender=null; Exception failure=null; int packets=0; bool stop=false;
     // Three independent regions distinguish a static selected card from a
     // stopped surface. This extra sampling belongs only to visual diagnostics.
@@ -127,7 +158,10 @@ public static class NelyxContinuousScroll {
           if(surfaceCurrent.Count!=surfacePrevious.Count){result.MaximumSurfaceGapMs=Math.Max(result.MaximumSurfaceGapMs,now-lastSurfaceChange);lastSurfaceChange=now;surfacePrevious=surfaceCurrent;}
           if(other!=lastOther||top!=lastTop)otherChanges++;
           if(current!=last||other!=lastOther||top!=lastTop){result.MaximumAllRegionsGapMs=Math.Max(result.MaximumAllRegionsGapMs,now-lastAnyChange);lastAnyChange=now;}
-          if(current!=last){if(now-lastChange>=250&&result.Gaps.Count<32)result.Gaps.Add(new Gap { BeginMs=lastChange,EndMs=now,NativeBeginMs=gapBegin.Qpc,NativeEndMs=surfaceCurrent.Qpc,FirstFrame=gapBegin.Frame,LastFrame=surfaceCurrent.Frame,SurfaceUpdates=surfaceCurrent.Count-gapBegin.Count,View=surfaceCurrent.View,Surface=surfaceCurrent.Surface,OtherRegionChanges=otherChanges });gapBegin=surfaceCurrent;otherChanges=0;}
+          // Pixel sampling has its own QPC interval. A latest surface timestamp
+          // can predate it (for example during unmeasured priming at a clamp).
+          // Keep counter/frame brackets separate and exclude priming from input.
+          if(current!=last){if(now-lastChange>=250&&result.Gaps.Count<32)result.Gaps.Add(new Gap { BeginMs=lastChange,EndMs=now,PixelBeginQpcMs=result.NativeBeginMs+lastChange,PixelEndQpcMs=result.NativeBeginMs+now,NativeBeginMs=gapBegin.Qpc,NativeEndMs=surfaceCurrent.Qpc,FirstFrame=gapBegin.Frame,LastFrame=surfaceCurrent.Frame,SurfaceUpdates=surfaceCurrent.Count-gapBegin.Count,View=surfaceCurrent.View,Surface=surfaceCurrent.Surface,OtherRegionChanges=otherChanges,Input=ReadInputWindow(window,result.NativeBeginMs+lastChange,result.NativeBeginMs+now,surfaceCurrent.Surface) });gapBegin=surfaceCurrent;otherChanges=0;}
         }
         lastOther=other;lastTop=top;
         if(current!=last){result.Changes.Add(now);if(result.Changes.Count==1)result.FirstChangeMs=now;result.MaximumGapMs=Math.Max(result.MaximumGapMs,now-lastChange);lastChange=now;result.LastChangeMs=now;if(now<durationMs)result.ChangesDuringInput++;else result.ChangesAfterInput++;last=current;}Thread.Sleep(16);
@@ -187,9 +221,10 @@ try {
   foreach($fraction in $fractions){
   foreach($direction in $(if($Page -eq 'list'){@(1,-1)}else{@(-1,1)})){
     if([NelyxContinuousScroll]::GetForegroundWindow() -ne $window){[NelyxContinuousScroll]::SetForegroundWindow($window)|Out-Null;Start-Sleep -Milliseconds 150}
-    $observation=[NelyxContinuousScroll]::Run($window,$direction,$WheelDelta,$WheelPacketsPerLeg,$InputDurationMs,4,$MouseMotion.IsPresent,(-not $CadenceOnly.IsPresent),$fraction)
+    $observation=[NelyxContinuousScroll]::Run($window,$direction,$WheelDelta,$WheelPacketsPerLeg,$InputDurationMs,4,$MouseMotion.IsPresent,(-not $CadenceOnly.IsPresent),$fraction,(-not $Unprimed.IsPresent))
     $checks+=@{direction=$direction;wheelDelta=$WheelDelta;wheelPacketsPerLeg=$WheelPacketsPerLeg;nativeBeginMs=$observation.NativeBeginMs;packets=$observation.Packets;changesDuringInput=$observation.ChangesDuringInput;changesAfterInput=$observation.ChangesAfterInput;firstChangeMs=$observation.FirstChangeMs;maximumGapMs=$observation.MaximumGapMs;physicalWidth=$observation.PhysicalWidth;physicalHeight=$observation.PhysicalHeight;dpi=$observation.Dpi;surfaceUpdates=$observation.SurfaceUpdates;surfaceDurationMs=$observation.SurfaceDurationMs;surfaceFPS=$observation.SurfaceFPS;surfaceScope=$(if($ownsApplication){'native surface-updated counter during OS wheel; source probes disabled; scanout unobserved'}else{'native surface-updated counter in existing owner; source probes may be enabled; scanout unobserved'});rangeScope='packet-defined reversals; full-page endpoints require separate verification'}
     $checks[-1].inputXFraction=$fraction
+    $checks[-1].primingPackets=$observation.PrimingPackets;$checks[-1].primingDurationMs=$observation.PrimingDurationMs;$checks[-1].inputPrecondition=if($Unprimed){'unprimed historical reproduction; endpoint clamp may be included'}else{'opposite OS wheel leg before each measured direction; packet reversals and pixel threshold unchanged'}
     if(-not $CadenceOnly){$checks[-1].maximumAllRegionsGapMs=$observation.MaximumAllRegionsGapMs;$checks[-1].maximumSurfaceGapMs=$observation.MaximumSurfaceGapMs;$checks[-1].primaryGaps=$observation.Gaps;$checks[-1].visualScope='three desktop regions and current-process surface count/frame sampled together; surface progress is not scanout'}
     if($observation.MaximumGapMs -gt 350){Write-Output ('STALLED_CHANGES '+($observation.Changes|ConvertTo-Json -Compress))}
   }
@@ -202,6 +237,7 @@ try {
   if(-not $application.WaitForExit([Math]::Max(1,15000-[int]$closing.ElapsedMilliseconds))){throw 'Close did not complete within 15 seconds'}
   $closeMs=$closing.Elapsed.TotalMilliseconds;$output=$stdout.GetAwaiter().GetResult()+$stderr.GetAwaiter().GetResult()
   $drained=$output.Contains('closed views=0 consumers=0 gpuDrained=1 inputRetired=1')
+  if($output.Contains('"type":"rnw-frame-probe')){throw 'Source-instrumented package requires attached diagnostic scope; rebuild the ordinary App before product qualification'}
   $receipt=@{page=$Page;checks=$checks;desktopPixels=if($CadenceOnly){'unobserved'}else{'sampled'};closeMs=$closeMs;hiddenMs=$hiddenMs;windowCloseMs=$windowCloseMs;exitCode=$application.ExitCode;drained=if($CadenceOnly){'unobserved'}else{$drained};scope='actual package native surface counter during continuous OS wheel; desktop sampling is optional; scanout unobserved'}
   Write-Output ('CONTINUOUS_SCROLL '+($receipt|ConvertTo-Json -Depth 6 -Compress))
   Write-Output ($output -split "`n" | Where-Object {$_ -match 'NELYX_WINDOWS_FRAME|close-|closed |APP_STOP|ERROR|failed|resize-timeout'})

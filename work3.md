@@ -1,14 +1,14 @@
 # C++ 배치 처리·Scene 합성·Semantics geometry 구현·평가
 
-작성·갱신: **2026-11-02 KST** · 상태: **D0~D6 구현·후보 평가·정리 종료 / 제품 PARTIAL — 기본 적용 전부 철회. 지속 60fps·전체 범위 복귀 입력·최대화 Gallery 실패 미해결**
+작성·갱신: **2026-11-02~03 KST** · 상태: **D0~D6·E0~E4 구현·재현·평가·정리 종료 / 제품 PARTIAL — 입력·일반 최대화 시각 검증 PASS-scoped, 후보 기본 비활성 유지. 지속 60fps·resize 성능은 미수락**
 
-**후속 작업은 §11의 E0 기준 대조 → E1 Windows 입력 복귀 오류 → E2 최대화 Gallery 정지 → E3 결합 후보 GPU 할당 실패 순서다.** E4 공급·회귀·정리는 각 단계에 적용한다. 이번 갱신은 후속 계획 정리이며 E0~E4 구현·재검증은 아직 착수하지 않았다.
+**§11의 E0 기준 대조 → E1 Windows 입력 → E2 최대화 Gallery → E3 결합 후보 → E4 공급·회귀·정리를 마쳤다.** E1의 일반 제품 전체 범위 복귀 입력과 E2의 준비 조건을 갖춘 최대화 시각 3회는 통과했다. E3는 현재 native의 3개 fresh owner·전체 mixed 왕복 9회에서 allocation이 재현되지 않았으며, 과거 오류의 원인을 확정하거나 GPU 수정으로 선언하지 않는다. **최종 공급·일반 제품 판정·잔여 수락은 §12.2~§12.3을 따른다.**
 
-**현재 유일한 실행·진행 관리 문서는 work3.md다.** work2는 `CLOSED / SUPERSEDED`로 종료했으며, [work2.md §6](work2.md#6-실행-상태--2026-11-02)은 미커밋 후보·공급 식별·실패·미수락 결과를 확인하는 종료 기록이다. 앞으로 구현·검증·채택/철회·미완료 상태는 이 문서에 갱신하고 work2의 P0~P7을 별도로 재개하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·실제 한국어 IME·scanout의 `notVerified`를 이어받는다. 종료·이관을 구현이나 성능 수락 완료로 해석하지 않는다.
+**현재 유일한 실행·진행 관리 문서는 work3.md다.** work2는 `CLOSED / SUPERSEDED`로 종료했으며, [work2.md §6](work2.md#6-실행-상태--2026-11-02)은 미커밋 후보·공급 식별·실패·미수락 결과를 확인하는 종료 기록이다. 앞으로 구현·검증·채택/철회·미완료 상태는 이 문서에 갱신하고 work2의 P0~P7을 별도로 재개하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`와 물리 트랙패드·물리 키보드 직접 한글 조합·scanout의 `notVerified`를 이어받는다. 실제 OS key injection/IME의 한정 통과와 물리 입력 수락을 구분하며, 종료·이관을 구현이나 성능 수락 완료로 해석하지 않는다.
 
-**§9의 D0 → D1 → D2 → D3 → D4 → D6 순서로 구현·검증·비교·철회를 마쳤다.** D5는 이미 C++인 producer 완료 대기의 비용을 별도로 확인했다. 모듈 구현·후보 평가 종료와 일반 제품·실제 성능 수락은 구분하며, 최종 근거·실패·잔여 작업은 §10을 따른다.
+**§9의 D0 → D1 → D2 → D3 → D4 → D6 순서로 구현·검증·비교·철회를 마쳤다.** D5는 이미 C++인 producer 완료 대기의 비용을 별도로 확인했다. 모듈 구현·후보 평가 종료와 일반 제품·실제 성능 수락은 구분하며, D0~D6 종료 근거는 §10, 최신 후속 결과는 §12를 따른다.
 
-§1~§8은 1차 입력 geometry C++/JSI 구현의 계약·실행·철회 기록이다. 대표 화면이 TS fallback이어서 C++ kernel의 실제 성능을 비교하지 못한 결과를 보존한다. 입력 geometry 기본 주입은 계속 꺼 두고, 새 후보는 캡처된 숫자·명령을 넘기는 경계부터 구현한다. **현재 실행 결과는 §10에 갱신한다.**
+§1~§8은 1차 입력 geometry C++/JSI 구현의 계약·실행·철회 기록이다. 대표 화면이 TS fallback이어서 C++ kernel의 실제 성능을 비교하지 못한 결과를 보존한다. 입력 geometry 기본 주입은 계속 꺼 두고, 새 후보는 캡처된 숫자·명령을 넘기는 경계부터 구현했다. D0~D6 결과는 §10, 후속 최종 결과는 §12에 보존한다.
 
 ## 1. 출발점과 해결할 문제
 
@@ -507,15 +507,15 @@ D3/D4 metadata의 한 진단 관측 peak 합계는 **315,356 bytes**(Scene 309,9
 
 마지막 current package/runtime·supplier inventory 대조도 통과했고 원본 App·fixture 0, 작업 소유 Windows/Android 앱·Metro/8081 reverse 정리를 확인했다. 사용자 emulator PID 24540은 유지했다. 관련 변경의 lint/format·PowerShell parser·`git diff --check`가 통과했으며 커밋은 만들지 않았다.
 
-## 11. 다음 작업 계획 — Windows 입력 복귀·시각 정지·GPU 할당 실패
+## 11. 후속 작업 계획과 완료 기준 — Windows 입력 복귀·시각 정지·GPU 할당 실패
 
-계획 정리: **2026-11-02 KST / 구현 미착수**. §10의 실행 결과·실패·제품 식별을 기준으로 삼는다. D0~D6는 종료 상태를 유지하며 후속 작업의 성공으로 과거 실패 기록을 지우지 않는다. 일반 제품에서 재현되는 기능 오류인 E1을 먼저 수정하고, E2에서 체감 정지와 지속 이동 성능을 다룬다. E3는 기본 비활성화된 후보의 안정성 조사다.
+계획 정리 당시 **2026-11-02 KST / 구현 미착수**였으며 현재 실행 상태는 §12를 따른다. §10의 실행 결과·실패·제품 식별을 기준으로 삼는다. D0~D6는 종료 상태를 유지하며 후속 작업의 성공으로 과거 실패 기록을 지우지 않는다. 일반 제품에서 재현되는 기능 오류인 E1을 먼저 수정하고, E2에서 체감 정지와 지속 이동 성능을 다룬다. E3는 기본 비활성화된 후보의 안정성 조사다.
 
-- [ ] E0: 착수 시 현재 source·제품·설치본을 대조하고 재현 조건 확정.
-- [ ] E1: 편집기의 화면 밖 이동·복귀 후 재클릭 없는 TSF 입력 복구.
-- [ ] E2: 최대화 Gallery의 시각 정지 원인 분리·수정과 지속 이동 성능 검증.
-- [ ] E3: opt-in 결합 후보의 GPU allocation 실패 원인 분리·수명 검증.
-- [ ] E4: 각 변경의 현재 공급·회귀·일반 제품 판정·정리.
+- [x] E0: 착수 시 현재 source·제품·설치본을 대조하고 재현 조건 확정.
+- [x] E1: 편집기의 화면 밖 이동·복귀 후 재클릭 없는 TSF 입력과 버튼 키 소유 분리 검증 완료(§12).
+- [x] E2: 끝점 대기 원인 분리·입력 준비 수정·일반 최대화 시각 3회 통과·지속 FPS 평가 완료. 60fps 미달로 제품 PARTIAL(§12.2).
+- [x] E3: 개별·결합 후보 재현·수명 검증 완료. 현재 3 fresh owner에서 allocation 미재현, 과거 원인 미확정·기본 비활성 유지(§12.1).
+- [x] E4: 현재 source/dist·archive·설치본·일반 제품 대조, 회귀·판정·소유 출력/프로세스 정리 완료(§12.3).
 
 ### 11.1 E0 — 현재 기준과 재현 조건 대조
 
@@ -555,3 +555,110 @@ D3/D4 metadata의 한 진단 관측 peak 합계는 **315,356 bytes**(Scene 309,9
 2. 변경 경계에 맞는 기존 Windows key/input·semantics·scene/paint·close 검사와 types를 실행한다. 공통 native 변경이 있으면 Windows delivered binary 및 Android build/입력, Web fallback에 필요한 회귀를 수행한다. 이번 계획 작성으로 검사 결과가 새로 생긴 것으로 기록하지 않는다.
 3. 제품 기능, 최대화 시각 기준, 지속 60fps, 후보 기본 채택, resize·물리 입력·scanout을 따로 판정한다. E1 통과로 E2/E3를 완료 처리하지 않으며 `performanceAccepted=false`·`resizePerformanceAccepted=false`는 해당 수락 근거가 생길 때까지 유지한다.
 4. 테스트 timeout **1,200,000ms**, 반복은 대부분 **30회 이내**다. 관측은 bounded 메모리/현재 문서에 요약하고 소유 fixture·임시 디렉터리·프로세스·staging은 성공/실패/중단 모두 finally에서 정리한다. 현재 dist·필요한 최신 공급을 유지하며 로그·receipt·과거 SDK/package·browser profile을 누적하지 않는다. 상태·핵심 근거·잔여 작업은 이 문서에 갱신한다.
+
+## 12. E0~E4 실행 상태 — 2026-11-02~03 KST
+
+**구현·재현·평가·정리 완료 / E1 기능 PASS-scoped / E2 일반 최대화 시각 3/3 PASS-scoped·60fps 미수락 / E3 현재 재현·수명 3/3 PASS-scoped·과거 원인 미확정 / 제품 PARTIAL 유지.**
+
+- 착수 HEAD `b98ed671d7bdb649cf75f0bd1384d41bfbfaab5f`, clean. 일반 명령 `npm.cmd run run:windows --workspace @nelyx/testbed-2`를 실행했으며 기존 locator·1,794개 package files/runtime·EXE·bytecode·native/SDK/app 입력·App 원문·native-engine 원문의 SHA-256은 §10.3과 모두 일치했다. 종료 exit 0.
+- 첫 helper 실행은 소유 foreground 확보 전에 중단됐다. 기존 continuous-scroll의 실제 caption hit-test 후 활성화 방식을 mixed helper에도 적용하고 원래 topmost 상태를 복구하도록 했다. 입력이나 실패 기준은 완화하지 않았다.
+- 동일 일반 제품의 새 프로세스에서 첫 OS End/Z/Space는 `initialz `로 통과했고, mixed 전체 범위 왕복은 `range-1`에서 기존 **`Native printable key lacks its owning TSF character observation`**을 재현했다. 재클릭·복귀 후 SetFocus는 없었다. 작업 소유 프로세스는 finally에서 정상 close했다.
+- 임시 bounded trace에서 초기 WM_CHAR의 HWND·ContentIsland·TSF document 소유가 모두 일치했고, 실패 때는 실제 HWND/island focus는 유지되지만 TSF association이 0개였다. 추가 UIA focus 관측은 `InvokePattern.Invoke()` 뒤 실제 focused ID가 `mixed-scroll-last`/`mixed-scroll-first`로 바뀜을 확인했다. 기존 helper의 버튼 왕복은 편집기 focus를 보존하는 스크롤 검사가 아니었다. 과거 FAIL은 그대로 보존하며 이 원인 분리를 새 근거로 기록한다.
+- helper의 기본 왕복을 실제 OS wheel의 마지막 행→첫 행으로 바꿨다. 재클릭·복귀 후 SetFocus 없이 문자 입력·focus·collapsed insertion selection을 함께 검사한다. 별도 `-ButtonRange`는 기존 버튼 왕복 뒤 키가 이전 편집기를 바꾸지 않고 버튼에 전달되는지 확인한다. 실제 Korean 조합이 관측되지 않으면 성공으로 처리하지 않는다. 처음 selection 검사에 사용한 .NET enum namespace 오류는 helper 오류로 구분해 수정했다.
+- 제품 수정은 text insertion 소유자 판단이다. `WindowsInputService.hasKeyboardOwner`는 native focused client 또는 살아 있는 Core focus intent를 확인한다. `WindowsKeyQueue`는 소유자가 없는 버튼/canvas 키도 Core에 전달하되 text insertion으로 만들지 않는다. Core 편집기가 살아 있거나 native blur가 미관측이면 기존 TSF proof 필수 오류를 그대로 유지한다. 문자 합성·stale epoch 수락·강제 focus 복구는 추가하지 않았다. 임시 native 진단은 원복했다.
+- 관련 source/native **41/41 PASS**, 추가 native-editing/lifetime/semantics/진단 **63/63 PASS**, workspace 전체 types PASS. 기본 적용 모듈·GPU/queue/cache/compiler 정책은 그대로다. `test:windows-mixed-input`에 20분 timeout·소유 process finally close·3개 wheel owner/1개 button owner 회귀를 등록했다. 소유권을 잃은 경우 재개할 owner 번호를 `NELYX_WINDOWS_MIXED_TRIALS=3,4`처럼 좁혀 이미 통과한 owner를 반복하지 않는다.
+- **E1 실제 제품 PASS-scoped:** 일반 명령으로 시작한 프로세스의 첫↔마지막 전체 OS wheel 왕복 **3회**, 이후 별도 새 프로세스 **3개 각각 3회**에서 `retained → retainedz → …`(+실제 Space)·focus·collapsed selection `[10,10] / [12,12] / [14,14]`이 통과했다. 마지막 편집기의 `z `·selection `[2,2]`, 첫/마지막 send/count/clear, 실제 Korean HKL `0x04120412`에서 `ㅎ → 하 → 한 → 한 ` + clear/undo도 통과했다. 기존 버튼 왕복은 별도 새 프로세스에서 **3회**, focus가 버튼에 남고 기존 `retained`가 바뀌지 않으며 앱 오류가 없음을 확인했다. 유효 owner 4개 모두 `views=0 consumers=0 gpuDrained=1 inputRetired=1`, forced=false·exit 0. 도중 foreground를 잃은 2개 실행은 성공으로 집계하지 않고 정상 close했다. 사용자 입력 중지를 확인한 뒤 남은 owner 3·4만 재검증했다. 물리 키보드·트랙패드·scanout 수락은 아니다.
+- E1 공급 식별: manifest `ae084a4b50ae9d102f77a977b32503d163dedaddfa643c869232afa3fbc7d1eb`, EXE `4c3b24d0b8f170471746dd053870cfa6b74497b1bccb78169bcc140ee56e75e0`, bytecode `f014f968574874cc4e21f49d5efa8498f8bdeaf6d2eec1db8790177dec8e5e18`, native inputs는 §10.3의 `32d160b7…` 유지, SDK inputs `b2713a79bc2c76005676b58a55470adc8e2737786fde2bf79ae7b9e797893548`. SDK source/dist/설치 package identity와 최종 Windows SDK inputs 일치, App 원문은 §10.3과 같다.
+- E2 진단은 `run-rnw-motion-probe.mjs legacy`에서 동일 최대화·창 전환·우열 motion·5초 입력의 픽셀 gap과 Core scroll offset·native view/surface/frame/QPC를 연결한다. source probe 측정과 일반 FPS 수락을 구분한다. fixture·소유 process는 finally에서 정리하며 기록 파일을 남기지 않는다.
+- **E2 현재 근거:** 같은 source 진단 빌드(manifest `3eb0e529…`, native/SDK는 E1과 같음)의 새 owner 3개에서 첫 방향 최대 공통 gap **99.679 / 140.470 / 139.004ms**, 두 번째 방향 **1,058.607 / 1,230.672 / 980.834ms**를 관찰했다. 모두 정상 close·bindings close·JS ack, 진단 오류 0이다. 두 번째 실행의 gap은 view 1000/surface 4/frame 182→221·surface 39회와 **39개 Core frame**이 매칭됐으며 좌열 offset 0(39/39), 우열 offset 0(38/39)→6이었다. 세 번째는 frame 282→310·surface 28회·Core 28개 중 우열 25개가 0이고 끝 18이었다. 첫 실행은 bounded motion suffix에서 gap에 해당하는 Core 표본이 남지 않아 offset 원인을 확정하는 표본에서 제외한다.
+- 위 두 매칭 실행은 정적 픽셀 동안 Core도 범위 시작점에 머물렀음을 보인다. 기존 helper는 방향 구간 사이에 시작 offset을 준비하지 않아, 맨 위에서 위쪽 wheel 80개를 보내는 대기까지 시각 정지로 검사했다. sender의 실제 packet 수·시간과 gap의 native/Core wheel 방향을 추가 관측해 아래에서 이 경계를 확인했다. 새 기본 helper는 측정 전에 반대 방향 OS wheel 한 leg로 위치를 준비하며 **80-packet 반전·350ms 기준은 유지**한다. `-Unprimed`는 과거 조건을 그대로 재현한다. 이 helper 수정으로 renderer 속도 향상이나 과거 FAIL 해소를 미리 선언하지 않는다.
+- E3 비교 도구는 한 fixture/build에서 최대 3개 fresh owner를 순서대로 실행하며, Gallery→mixed의 실제 동작·Korean commit/undo→Gallery와 정상 drain을 검사한다. Picture 비용/recording slots·현재 process의 Windows GPU counter·private/working set을 구분해 bounded RAM에서 관측한다. metadata/Picture 추정치를 GPU resident bytes로 해석하지 않는다. 기본 경로의 과거 조건(`legacy --cycle --unprimed`)을 먼저 실행했다.
+- **E2 끝점 대기 확인:** `legacy --cycle --unprimed`의 최초 Gallery 두 번째 방향은 **1,194.425ms** 동안 정적이었다. 이때 같은 view 1000/surface 4/frame 284→317·surface 33회 중 **22개 Core frame**을 매칭했고 두 열의 offset이 전부 0이었다. full native ring의 그 구간은 위 방향 delta **72개**·반대 **5개**(합 -402), 매칭된 Core wheel은 **73개/4개**(-414)다. native 생성/dispatch의 interval 경계가 달라 합계는 동일 receipt 수가 아니며, non-wheel/hover Core는 별도로 분류한다. 실제 5초 packet 수는 323개였고 새 준비 leg 80개의 관측 wall은 약 1.24초였다. 따라서 4ms 요청 주기를 실제 4ms 간격으로 가정할 수 없으며, 시작점에서 위쪽 80개를 보내던 대기가 이전 약 1초 정지를 설명한다. GPU wait나 stale 화면 재사용을 그 gap의 원인으로 확정하지 않는다.
+- **E2 준비 조건 진단 3/3 PASS-scoped:** 같은 legacy 진단 패키지 `dcaa19b2…`를 manifest/1,794 files 검증 후 명시적 `--package`로 재사용했다. 새 owner 3개 각각 두 방향의 최대 픽셀 gap은 **140.332/181.587, 187.942/140.776, 142.468/146.249ms**다. 모든 native frame의 submitted/producer/surface/retired가 일치(641/632/629개), failed 0·bindings close·JS ack·`views=0 consumers=0 gpuDrained=1 inputRetired=1`·exit 0이다. source probe 수락이며 일반 제품의 별도 3회 시각·FPS 검사는 뒤에 수행한다. 첫 준비 조건 실행은 host 로그 관측 env가 빠져 새 drain 필수 gate가 미관측이었으며 성공에서 제외했다. 관측 env를 보정한 뒤 위 3개 owner만 유효 결과로 집계한다.
+- E3 Path 개별 왕복은 manifest `54e4ce8c…`에서 **native Path 345회**, 실제 12 fields/36 buttons·Korean commit/undo, 1,473 frames 전 단계/retirement 일치·failed 0·native drain·exit 0이다. 네 Gallery 방향 gap은 **194.631/165.340/281.408/190.269ms**다. 최종 요약 출력이 잘린 초기 실행은 성공에서 제외하고 같은 snapshot의 새 owner에서 이 결과를 확보했다. Picture 관측 peak는 cached 64/live 290/추정 458,372 bytes, process private는 Gallery 뒤 400,822,272→mixed 복귀 621,756,416→Gallery 뒤 492,843,008 bytes였다. 실제 GPU 할당별 소유량이나 누수 판정은 아니며 현재 CPU/GPU 회수 계약과 구분한다. paint/clip·Scene·Semantics와 결합 비교도 §12.1에서 마쳤다.
+
+### 12.1 E3 개별 후보 비교
+
+모두 native `32d160b7…`·SDK `b2713a79…`의 source opt-in이다. 각 새 process의 Gallery→12 fields/36 buttons·실제 Korean commit/undo→Gallery를 검사했다. 네 후보 모두 allocation/recording 실패 없이 bindings close·JS ack·native drain·exit 0이다. `work`는 호출 횟수가 아니라 해당 stage의 처리 항목 합계이며 메모리 수치와 구분한다.
+
+| 후보 | 진단 manifest | 실제 native 처리 항목 | source frame submitted/producer/surface/retired | 최대 Gallery pixel gap | close 후 numeric metadata |
+| --- | --- | --- | --- | --- | --- |
+| Path | `54e4ce8c…` | Path 345 | 각 1,473 / failed 0 | 281.408ms | 별도 numeric session 없음 |
+| paint/clip | `b58f9c19…` | clip 1,638 / paint 1 | 각 1,468 / failed 0 | 283.652ms | 별도 numeric session 없음 |
+| Scene | `dfe8a69e…` | native compose nodes 32,893 | 각 1,402 / failed 0 | 254.812ms | committed/staged nodes·bytes 모두 0, closed=1 / peak 293,979 bytes |
+| Semantics | `93257189…` | native queries 5,883 | 각 1,425 / failed 0 | **380.338ms FAIL** | nodes·bytes 모두 0, closed=1 / peak 5,432 bytes |
+
+Semantics의 복귀 후 첫 방향 380.338ms는 source 진단의 시각 실패로 보존한다. GPU 안정성 통과로 시각/60fps 수락을 대신하지 않으며 후보 기본 적용은 계속 꺼 둔다. native numeric session은 실제 기존 handle의 `stats()`만 관측하며 GPU 객체를 추가 보유하지 않는다. 각 handle은 실제 service `dispose()` 뒤 0·closed를 확인하고 관측 참조를 지운다. Windows GPU performance counter는 raw phase checkpoint이며 `SharedUsage`를 실제 resident bytes나 누수로 해석하지 않는다. 현재 allocator/cache/recording 예산은 바꾸지 않았다.
+
+최초 `combined --cycle --trials=3 --rounds=3`의 owner 1은 두 번 왕복 후 세 번째 Korean 첫 글자의 고정 350ms snapshot이 빈 문자열이어서 중단됐다. 실제 후속 상태는 `하→한→한 `이었고 foreground/scroll point 소유는 유지됐다. allocation 오류는 없었지만 세 번 왕복 성공으로 집계하지 않는다. source opt-in의 늦은 관측 가능성과 제품 기능 오류를 미리 동일시하지 않는다.
+
+IME helper는 기존 `WaitValue`와 같은 **30×100ms value-ack 상한**으로 각 실제 중간값이 보인 뒤 다음 OS key를 보낸다. 첫 `ㅎ`을 생략하거나 값을 합성하지 않으며, per-key latency·`receiptWithin350Ms`를 함께 기록해 느린 응답을 숨기지 않는다. 고정 대기를 늘려 성능 통과로 만들지 않는다. 완료 기준은 여전히 실제 `ㅎ→하→한→한 ` 관측·commit/clear/undo이며 latency/성능 수락은 별도다.
+
+같은 manifest `9cbd61b1…`의 새 owner들에서 `combined --cycle --trials=3 --rounds=3 --reuse=<full-manifest-sha256>`로 재검증했다. **3개 fresh owner 각각 3회 왕복**이며 결합 검사는 `ActionsOnly`를 사용하지 않았다. 매 왕복마다 편집기의 전체 OS wheel 복귀 3회·재클릭 없는 영문/selection/다른 편집기·Korean state ack를 모두 검사했다(전체 범위 복귀 총 27회). native 처리 5종·각 close의 numeric metadata 0·native GPU/input drain을 필수 gate로 유지했다. 첫 새 owner의 첫 왕복 IME 최대 ack는 142.932ms였다. 진단 snapshot은 현재 일반 제품으로 교체했으며 별도 보관하지 않는다.
+
+| 결합 fresh owner | 완료 왕복 / 편집기 전체 범위 복귀 | native frame 전 단계·retirement / failed | Path / clip / paint / compose nodes / semantics queries | Scene·Semantics close | 최대 source pixel gap |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 3 / 9 | 각 5,566 / 0 | 764 / 6,481 / 3 / 137,927 / 33,066 | 모두 nodes·bytes 0, closed=1 / peak 293,070·5,432 bytes | **370.315ms FAIL** |
+| 2 | 3 / 9 | 각 5,641 / 0 | 793 / 6,543 / 3 / 139,191 / 32,299 | 모두 nodes·bytes 0, closed=1 / peak 294,426·5,432 bytes | 308.898ms |
+| 3 | 3 / 9 | 각 5,669 / 0 | 785 / 6,594 / 3 / 139,902 / 32,814 | 모두 nodes·bytes 0, closed=1 / peak 294,609·5,432 bytes | **357.199ms FAIL** |
+
+**결합 GPU/수명 검증 3/3 PASS-scoped:** 세 owner 모두 actual per-key Korean 상태·commit/clear/undo, bindings close·JS ack·native GPU/input drain·exit 0이다. 총 **9회 Gallery→전체 mixed 입력→Gallery / 편집기 전체 범위 복귀 27회**, source native frame 전 단계·retirement **각 16,876 / failed 0**이다. 실제 native Path 2,342 / clip 19,618 / paint 9 / compose nodes 417,020 / semantics queries 98,179를 관측했다. 각 owner는 약 4분 15초 동안 실행됐으며 짧은 직접 API 검사로 대신하지 않았다.
+
+3회 왕복의 IME 최대 ack는 owner 1 **142.932ms**, owner 2 **346.638ms**, owner 3 **351.722ms**다. owner 3의 한 왕복은 `receiptWithin350Ms=false`이며 기능 상태 관측 통과로 지연을 지우지 않는다. 결합 source pixel 기준도 owner 1·3은 실패하므로 Node 진단 명령의 최종 code 2를 보존한다. 각 native app exit 0·GPU 안정성과 source 시각/성능 판정을 구분한다.
+
+Picture 관측 peak는 cached **64**, live **294**, 비용 추정 **539,880 bytes**였다. phase checkpoint의 process private 최고는 owner 1/2/3 **792,514,560 / 687,013,888 / 649,084,928 bytes**, 마지막 Gallery 뒤는 **542,871,552 / 537,923,584 / 550,232,064 bytes**다. GPU `TotalCommitted` raw counter는 각 최고 **320,798,720 / 320,491,520 / 303,931,392 bytes**였으며 실제 allocator 보유 bytes와 동일시하지 않는다. metadata의 관측 peak 합계 최대는 **300,041 bytes**이고 close 뒤 보유 nodes/bytes는 두 서비스 모두 0이다. GPU/recording/input의 실제 회수는 별도 native drain gate로 확인했다.
+
+현재 `32d160b7…`에서 §10.2의 과거 native `6af1b640…` allocation 오류는 재현하지 못했다. 그 과거 오류를 수정했다고 선언하거나 GPU/driver/메모리 누수 중 하나를 원인으로 정하지 않는다. 추가 GPU 제품 변경 없이 allocator/cache/fence/queue/compiler 예산과 후보 기본 비활성화를 유지한다. 후보 재채택·관측한 9회보다 긴 운용·물리 입력·scanout은 이 결과에 포함하지 않는다. E4의 최종 일반 제품은 아래와 같다.
+
+
+### 12.2 최종 일반 Windows 제품의 기능·시각·지속 FPS
+
+진단 fixture를 원복한 뒤 일반 명령 **`npm.cmd run run:windows --workspace @nelyx/testbed-2`**를 실행했다. app 입력 변경 감지에 따른 재빌드, 일반 App의 native instance load·first-content·정상 native drain/exit 0을 확인했다. first-content는 display/성능 수락 근거로 쓰지 않는다. 최종 manifest/EXE/bytecode는 §12 E1 공급과 **동일**하며 source probe 주입은 없다.
+
+`npm.cmd run test:windows-continuous-scroll`은 **2/2 tests PASS**다. 기본 크기 974×929 physical / DPI 192에서 Material/List/Cupertino/mixed 4페이지 각각 실제 OS wheel·350ms 기준·native drain·exit 0을 통과했다. 원래 최대화 명령 조건에 준비 OS wheel을 추가한 새 owner 3개는 2560×1459 / DPI 192에서 아래 결과다. sampler 영역·5초 duration·80-packet 반전·350ms 기준은 유지했다. 별도 `-Unprimed`로 과거 시작 조건을 재현할 수 있다.
+
+| 일반 최대화 owner | 두 방향 maximum primary pixel gap | 세 영역 공통 maximum gap | native drain / exit |
+| --- | --- | --- | --- |
+| 1 | 61.030 / 54.856ms | 61.030 / 54.856ms | true / 0 |
+| 2 | 97.871 / 88.572ms | 61.799 / 88.572ms | true / 0 |
+| 3 | 59.876 / 54.972ms | 59.876 / 54.972ms | true / 0 |
+
+이는 **입력 준비 조건을 바로잡은 일반 시각 검사 3/3 PASS-scoped**다. renderer/GPU 속도 향상이나 §10 과거 픽셀 관측을 없었던 일로 해석하지 않는다. pixel interval과 surface/frame counter bracket의 QPC를 별도 기록하며, gap의 input 집계는 pixel QPC interval을 사용해 준비 입력을 섞지 않는다. source 진단 패키지를 일반 제품 시각 검사에 넣으면 helper가 거부한다.
+
+IME ack helper 보강 뒤 같은 최종 일반 제품에서 `NELYX_WINDOWS_MIXED_TRIALS=1,4 npm.cmd run test:windows-mixed-input`에 해당하는 scoped 실행도 **1/1 test PASS**다(PowerShell에서는 env를 설정하고 finally에서 제거). 새 wheel owner는 전체 범위 복귀 3회·영문 value/selection/focus·마지막 편집기·첫/마지막 동작, 새 button owner는 버튼 왕복 3회·기존 편집기 미변경을 통과했다. 두 owner 모두 실제 `ㅎ→하→한→한 `·clear/undo·native drain·forced=false·exit 0이다. IME 최대 ack는 각각 **143.741 / 140.420ms**였다. E1의 앞선 일반 제품 3 fresh wheel owner 결과와 product hash가 같으며 이를 다른 제품의 수락으로 확대하지 않는다.
+
+아래 FPS는 이 일반 제품에서 새 mixed/Gallery process **각 3개**를 순서대로 측정했다. 2560×1459 / DPI 192, mixed focus 10초×2방향, Gallery mouse motion 좌열 X=0.4·우열 X=2/3 각각 5초×2방향이다. source probe·GDI capture·상세 native diagnostics가 없고 다른 build/test를 병행하지 않았다. 측정 전에 반대 OS wheel leg로 시작 위치를 준비했다. 6개 앱 모두 exit 0이며 cadence-only 실행의 drain/desktop pixels는 **unobserved**로 기록했다. native drain의 직접 관측은 위 별도 시각/입력 실행에 있다.
+
+| trial | mixed 두 방향 surface FPS | Gallery 좌열 두 방향 | Gallery 우열 두 방향 |
+| --- | --- | --- | --- |
+| 1 | 48.885 / 49.109 | 61.722 / 59.583 | 57.956 / 56.265 |
+| 2 | 50.110 / 49.667 | 55.289 / 58.217 | 59.901 / 56.874 |
+| 3 | 50.076 / 48.733 | 57.238 / 57.474 | 57.213 / 55.352 |
+
+6구간 평균은 mixed **49.430**, Gallery 좌열 **58.254**, 우열 **57.260 surface FPS**다. **지속 60fps 미달, `performanceAccepted=false` / `resizePerformanceAccepted=false` / 제품 PARTIAL**이다. 준비 조건이 다른 §10의 수치와 차이를 제품 최적화 효과로 계산하지 않는다. pixel 관측·surface counter·물리 입력·scanout·resize 성능은 각각 구분한다.
+
+### 12.3 최종 공급·회귀·정리와 잔여 수락
+
+| 최종 일반 제품 | SHA-256 / 값 |
+| --- | --- |
+| manifest | `ae084a4b50ae9d102f77a977b32503d163dedaddfa643c869232afa3fbc7d1eb` |
+| EXE | `4c3b24d0b8f170471746dd053870cfa6b74497b1bccb78169bcc140ee56e75e0` |
+| bytecode | `f014f968574874cc4e21f49d5efa8498f8bdeaf6d2eec1db8790177dec8e5e18` |
+| native inputs | `32d160b77d22012fc10fb6a478391a9435cdf1d494413500a32a2d571ad21777` |
+| SDK inputs | `b2713a79bc2c76005676b58a55470adc8e2737786fde2bf79ae7b9e797893548` |
+| app inputs | `4d0a057a95a69576f2a6cad187ae8044c6ed88b517e000b2df7bfbadd0db008c` |
+| SDK package source/install inputs | `4df4dc90c2a4227fc09fbf9bddfed797a1d830fff2774caa383b95ad67db5e2b` |
+| SDK archive | `421d402f406042efddfeef503a40da31fc0ec02ce4cbcd505cfa072372b13e08` |
+| App 원문 / native-engine 원문 | §10.3의 `92d045b4…` / `95e4b628…` 유지 |
+| package / runtime | 1,794 files, RNW 0.83.2 / JSI 21 / x64 / Release / MD / optimized Hermes bytecode |
+| compiler policy | `windows-hermes-94aa5e1d-no-cfg-v1` 유지 |
+
+9개 Windows 공급 패키지의 source/dist와 설치본 package inputs를 대조했고, 각 archive 파일 SHA-256 및 lockfile SHA-512 integrity도 일치했다. Core 628 / SDK 113 / Skia native 62 / RN 53 / Material 257 / Cupertino 63 emitted modules가 current source map과 일치한다. Skia native/RN의 canonical 입력은 각각 **175 files**이며 source/generated/설치본과 native 공급 inventory까지 검증했다. 최종 App은 일반 원문이며 모든 후보 기본 주입은 계속 꺼져 있다.
+
+최종 관련 source/native **104/104 tests PASS**, workspace 전체 types PASS, 변경 파일 lint/format·두 PowerShell parser·실제 helper C# compile·`git diff --check` PASS다. 실제 UI 회귀는 위 기본 4페이지·최대화 3 owner의 **2/2 tests**, 변경된 IME ack의 일반 wheel/button **1/1 test**와 별도 E1 3-owner/결합 3-owner 실행으로 구분한다. E1 제품 변경은 Windows TS 입력 라우팅과 공통 클래스의 순수 focus 조회 메서드다. 공통 native·Android/Web 동작은 바꾸지 않았고 이번 E0~E4에서는 그 runtime을 재실행하지 않았다. §10의 Android/Web 증거는 해당 당시 공급의 범위로 유지한다.
+
+진단 App/fixture는 finally에서 원복·삭제했고 작업 소유 Windows 앱·launcher·helper는 종료했다. 현재 Release package와 9개 현재 공급 archive만 유지하며 이전 SDK archive/staging·검증 로그·receipt·별도 소비자 설치본·browser profile을 만들거나 누적하지 않았다. 기존 사용자 native 공급과 emulator/다른 앱은 건드리지 않았다. 커밋은 만들지 않았다.
+
+남은 제품 수락은 **지속 60fps와 resize 성능**, **과거 다른 native의 allocation 오류 원인 미확정**, **후보의 source 시각/응답 지연과 순이득**, **물리 키보드·트랙패드·screen reader·scanout·Apple/Linux runtime·Static AOT 등 미관찰 범위**다. E0~E4의 구현·재현·평가·정리 종료로 이 수락을 완료 표시하지 않는다. allocation이 현재 재현되지 않은 상태에서 예산을 확대하거나 renderer/GPU를 추측으로 고치지 않았다.
+
+필요한 재검증 명령은 `npm.cmd run test:windows-mixed-input`, `npm.cmd run test:windows-continuous-scroll`이다. 결합 진단을 새로 빌드하려면 `node Nelyx/eng/run-rnw-motion-probe.mjs combined --cycle --trials=3 --rounds=3`를 쓰며, 끝난 뒤 일반 명령으로 다시 빌드해야 한다. `--reuse=<manifest-sha256>`는 그 진단이 현재 package와 동일할 때만 허용하고 선택한 native 모드·처리/회수도 확인한다. 옛 진단 snapshot을 보관한 것으로 가정하지 않는다.

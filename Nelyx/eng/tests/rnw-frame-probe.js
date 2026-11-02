@@ -108,6 +108,7 @@ export function installRnwFrameProbe(application, options = {}) {
   const context = view.controller?.context;
   const previousGeometry = context?.inputGeometry;
   const extraServices = [];
+  const nativeServices = [];
   const sceneResources = options.sceneBatch ? view.options?.renderer?.resources : undefined;
   const previousBatch = sceneResources?.sceneBatch;
   let sceneApi;
@@ -209,8 +210,22 @@ export function installRnwFrameProbe(application, options = {}) {
       ['semanticsGeometry', options.semanticsGeometry, createSemanticsGeometryService],
     ])
       if (enabled && context) {
+        const api = globalThis.SkiaApi,
+          prefix = name === 'sceneComposition' ? 'nelyxSceneComposition' : 'nelyxSemanticsGeometry',
+          // Retain only the existing numeric session for its close/stats check.
+          // No canvas, recording, image or GPU resource is added to this owner.
+          observedApi = {
+            [prefix + 'Version']: () => api[prefix + 'Version'](),
+            [prefix + 'Session'](...args) {
+              if (nativeServices.length >= 2)
+                throw Error('Numeric observation owner limit exceeded');
+              const native = api[prefix + 'Session'](...args);
+              nativeServices.push({ name, native });
+              return native;
+            },
+          };
         const previous = context[name],
-          service = previous ?? create(globalThis.SkiaApi, view.owner, () => {});
+          service = previous ?? create(observedApi, view.owner, () => {});
         if (!service) throw Error('Missing numeric ' + name + ' capability');
         context[name] = service;
         extraServices.push({ name, previous, service });
@@ -365,6 +380,46 @@ export function installRnwFrameProbe(application, options = {}) {
         uncertainty: (after - before) / 2,
       });
       report.inputGeometry = geometrySupport();
+      report.nativeMetadata = nativeServices.map(({ name, native }) => {
+        const stats = Array.from(new Float64Array(native.stats()));
+        if (stats.length !== 6 || stats.some((value) => !Number.isSafeInteger(value) || value < 0))
+          throw Error('Invalid numeric metadata lifetime observations');
+        return {
+          name,
+          stats,
+          columns: [
+            'committedNodes',
+            'stagedNodes',
+            'committedBytes',
+            'stagedBytes',
+            'peakBytes',
+            'closed',
+          ],
+        };
+      });
+      if (options.scrolls) {
+        const status = api.getStatus?.() ?? {};
+        report.lifetimes = {
+          nativeMs: native,
+          pictures: context?.pictures?.debugStats,
+          accounted: context?.resources?.accountedTotals,
+          nativeSlots: report.latestFrame?.slots,
+          runtime: Object.fromEntries(
+            [
+              'compositionPhase',
+              'uiConsumers',
+              'registeredViews',
+              'gpuCreatedOnJs',
+              'pendingAsync',
+              'pendingFrames',
+            ]
+              .filter((name) => status[name] !== undefined)
+              .map((name) => [name, status[name]]),
+          ),
+          scope:
+            'Picture estimated costs and registered accounting sidecars; native slots are recording lifetimes, not GPU resident bytes',
+        };
+      }
       if (sceneApi) report.sceneApi = sceneApi;
       if (options.nativeCalls)
         report.nativeCalls = {
@@ -377,13 +432,14 @@ export function installRnwFrameProbe(application, options = {}) {
       if (options.scrolls)
         report.motionSamples = [...records.rows.values()]
           .filter((row) => row.identity.frame > 0 && row.callback?.scrolls)
-          .slice(-256)
+          .slice(-128)
           .map((row) => ({
             identity: row.identity,
             scrolls: row.callback.scrolls,
             begin: row.callback.begin,
             end: row.callback.end,
             nativeMs: row.native[2]?.[0] ?? row.native[0]?.[0],
+            nativeView: row.native[2]?.[2] ?? row.native[0]?.[2],
           }));
       report.scope =
         'actual RNW; owned View callback wall excludes native dispatch/poll and following JS checkpoint; a preexisting callback may be unobserved; opt-in wrappers and native thread observations';
@@ -409,6 +465,16 @@ export function installRnwFrameProbe(application, options = {}) {
       let output = JSON.stringify(report);
       if (output.length > 60000) {
         report.slowFrames = report.slowFrames.slice(0, 3);
+        output = JSON.stringify(report);
+      }
+      // The native report port has a fixed byte budget. Keep a bounded recent
+      // motion suffix when detailed stage/slow-frame records need more space;
+      // expose omissions instead of losing every subsequent report to overflow.
+      while (output.length > 60000 && report.motionSamples?.length > 1) {
+        const keep = Math.floor(report.motionSamples.length / 2);
+        report.omittedMotionSamples =
+          (report.omittedMotionSamples ?? 0) + report.motionSamples.length - keep;
+        report.motionSamples = report.motionSamples.slice(-keep);
         output = JSON.stringify(report);
       }
       api.writeFrameDiagnostics(output);
@@ -532,8 +598,9 @@ export function installRnwFrameProbe(application, options = {}) {
     if (!live) return;
     live = false;
     (options.clearInterval ?? clearInterval)(timer);
-    emit();
     closeGeometry();
+    emit();
+    nativeServices.length = 0;
     work.dispose();
     if (clock.request === wrappedRequest) clock.request = request;
     if (GraphiteRenderer.prototype.submit === wrappedSubmit)

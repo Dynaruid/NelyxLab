@@ -122,6 +122,42 @@ function fixture() {
   };
 }
 test(
+  'Core editing focus keeps TSF proof required until native blur is observed, including clipped semantics',
+  { timeout },
+  async () => {
+    const f = fixture(),
+      service = await f.connect();
+    let client;
+    try {
+      client = await service.attach('field', { maximum: 4096, scope: 0 });
+      assert.equal(service.hasKeyboardOwner, false);
+      f.binding.focus();
+      assert.equal(
+        service.hasKeyboardOwner,
+        true,
+        'Missing native focus acknowledgement is still owned',
+      );
+      f.emit(service.identity, client.client, 'editing', f.snapshot(1, 'seed', { focused: true }));
+      f.binding.blur();
+      assert.equal(
+        service.hasKeyboardOwner,
+        true,
+        'Pending native blur cannot discard an owned character',
+      );
+      f.emit(service.identity, client.client, 'editing', f.snapshot(2, 'seed', { focused: false }));
+      assert.equal(service.hasKeyboardOwner, false);
+      f.binding.focus();
+      assert.equal(service.hasKeyboardOwner, true);
+      await client.dispose();
+      assert.equal(service.hasKeyboardOwner, false);
+    } finally {
+      await client?.dispose();
+      await service.dispose();
+      await f.close();
+    }
+  },
+);
+test(
   'Windows SDK service normalizes receipt ids and handles a same-revision TSF rejection without another edit',
   { timeout },
   async () => {

@@ -33,7 +33,12 @@ const key = (sequence, extra = {}) => ({
     ...extra,
   },
 });
-function fixture(dispatch = () => false, before = async () => {}, after = async () => {}) {
+function fixture(
+  dispatch = () => false,
+  before = async () => {},
+  after = async () => {},
+  hasTextOwner = () => true,
+) {
   const calls = [],
     errors = [];
   let generation = 7;
@@ -55,6 +60,7 @@ function fixture(dispatch = () => false, before = async () => {}, after = async 
       before,
       after,
       (error) => errors.push(error),
+      hasTextOwner,
     ),
     props = nativeInputProps(
       'windows',
@@ -384,6 +390,39 @@ test(
       } finally {
         f.queue.dispose();
       }
+    }
+  },
+);
+test(
+  'button keys retain Core dispatch without text, while a returning editor still requires its TSF proof',
+  { timeout },
+  async () => {
+    let owned = false;
+    const written = [],
+      f = fixture(
+        () => false,
+        async () => {},
+        async (_handled, text) => {
+          if (text !== null) written.push(text);
+        },
+        () => owned,
+      );
+    try {
+      f.props.onWindowsKey(key(1, { focusEpoch: 0 }));
+      f.props.onWindowsKey(key(2, { kind: 'up', characterCodePoint: 0, focusEpoch: 0 }));
+      f.props.onWindowsText({ nativeEvent: { ...key(3).nativeEvent, focusEpoch: 7 } });
+      await turn();
+      assert.equal(f.calls.length, 2, 'Button keyboard routing must still observe the real keys');
+      assert.deepEqual(written, []);
+      assert.deepEqual(f.errors, []);
+      owned = true;
+      f.props.onWindowsKey(key(4, { focusEpoch: 0 }));
+      await turn();
+      assert.equal(f.errors.length, 1);
+      assert.match(String(f.errors[0]), /owning TSF character observation/);
+      assert.deepEqual(written, []);
+    } finally {
+      f.queue.dispose();
     }
   },
 );

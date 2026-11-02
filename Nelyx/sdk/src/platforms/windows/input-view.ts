@@ -95,6 +95,7 @@ export class WindowsInputView {
         if (!handled && text !== null) await this.service!.keyboardText(text, focusEpoch!);
       },
       (error) => this.fail(error),
+      () => !this.stopped && !!this.service?.hasKeyboardOwner,
     );
   }
   private readonly schedule = (): void => {
