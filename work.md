@@ -1,6 +1,8 @@
 # 스크롤 잔끊김 개선 — Flutter 소스 비교와 렌더링·엔진 작업계획
 
-작성: **2026-10-30 KST** · 갱신: **2026-11-01 KST** · 상태: **PAUSED / PARTIAL — 사용자 외출 요청으로 중간 마무리 (§10.11)**
+작성: **2026-10-30 KST** · 갱신: **2026-11-02 KST** · 상태: **PAUSED / PARTIAL — 잔여 작업은 [work2.md](work2.md)로 이관**
+
+> **2026-11-02 이관:** 이후 남은 작업은 [work2.md](work2.md)를 기준으로 진행한다. 이 문서에는 소스 비교와 완료·철회·당시 중단 기록을 남긴다. §10의 과거 재개 지시보다 work2.md의 최신 순서를 우선하며, PAUSED와 기존 미수락 상태는 유지한다.
 
 ## 1. 목표와 판단
 
@@ -17,7 +19,7 @@
 3. 현재 Gallery는 이미 lazy list다. 그러나 lazy child 하나가 큰 데모 섹션 전체이므로, 처음 들어오는 child의 동기 build/layout/텍스트·Picture 생성 비용이 한 프레임에 몰릴 수 있다.
 4. native GPU worker가 이미 있어도 **JS owner에서 수행하는 packet 구성·검증·Graphite recording** 비용까지 자동으로 사라지지는 않는다. 이 경계를 실제 Hermes bytecode native 실행에서 계측해야 한다.
 
-진행 순서는 **P0 기준 측정 → P1 clock·생산 여유 계약 → P2 dirty paint 파이프라인 → P3 cold 생성 단위 개선 → P4 입력·보조 작업 → 필요할 때 P5 전송/P6 GPU 개선 → P7 제품 검증**으로 둔다. 기존 리사이즈 계획의 단계 번호와 별개인 새 스크롤 계획이다.
+계획 당시 진행 순서는 **P0 기준 측정 → P1 clock·생산 여유 계약 → P2 dirty paint 파이프라인 → P3 cold 생성 단위 개선 → P4 입력·보조 작업 → 필요할 때 P5 전송/P6 GPU 개선 → P7 제품 검증**으로 둔다. 기존 리사이즈 계획의 단계 번호와 별개인 새 스크롤 계획이다.
 
 ## 2. 검토 범위와 증거 수준
 
@@ -164,180 +166,80 @@ Flutter에서 가져올 것은 **변경된 작업을 정해진 owner와 단계�
 - 매 프레임 입력 geometry의 최신 transform·clip·visibility와 TSF/IME 정합성을 유지한다. semantics를 더 늦추거나 hover를 없애는 방식은 해결 조건이 아니다.
 - resize의 이전 front 보존·exact generation commit·native synchronization은 유지한다. 변경이 필요하면 resize 정합성과 성능을 별도 검증한다.
 
-## 6. 작업 단계
+## 6. 완료·철회 상태와 잔여 작업 이관
 
-**기존 Static AOT의 producer gate는 surface tail 악화로 철회한 상태를 유지한다.** 이번 재개에서는 Hermes bytecode 네 장면 × 기준 3회와 source-stage 1회를 완료했고 clock/deadline·P2~P4 구현 및 공통·제품 회귀를 진행했다(§10.3). 추가 요청한 eager 혼합 스크롤 페이지도 구현했다(§10.4). RNW 전체 단계 연결·물리 입력·표시 수락은 PARTIAL/notVerified다. 각 단계는 비용 감소와 동작 보존을 함께 확인하며, 성능 근거가 없는 최적화는 채택하지 않는다.
+2026-11-02에 미완료 체크리스트 30개와 최신 재개 순서를 [work2.md](work2.md)로 옮겼다. 아래 체크된 항목은 당시 완료 범위이며 최신 제품의 성능 수락을 뜻하지 않는다. 후보별 측정·철회와 최종 제품 식별은 §10에 보존한다.
 
 ### P0. 현재 제품에서 끊기는 프레임 찾기
 
-대상: [`runtime.ts`](Nelyx/src/hosting/runtime.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts), [`WindowsFrameTrace.h`](Nelyx/skia/packages/rn/native/windows/WindowsFrameTrace.h), [`windows-scroll-observer.ps1`](Nelyx/eng/windows-scroll-observer.ps1), 기존 native 측정 runner.
+bytecode 기준 측정과 RNW 동일 frame 연결을 완료했다. 실제 60Hz CPU 기준·추가 계측은 이관했다.
 
 - [x] 이전 Static AOT 검증에서 사용자가 사용하는 일반 명령으로 변경 전 제품을 먼저 실행했다. 저장된 Hermes / Static AOT / optimized / Release를 유지했고 최대화 두 열·자동 OS scroll·정상 닫기를 확인했다. 모니터별 주사율은 별도로 확인했으며 물리 입력은 `notVerified`다(§10).
 - [x] 이전 Static AOT 검증에서 변경 전 소스→dist/설치 패키지→빌드 acknowledgement→실행 EXE/AOT 연결을 확인했다. 이 식별은 당시 제품에만 적용한다.
 - [x] §8의 명시적 build로 Hermes bytecode / optimized / Release로 전환하고 일반 명령으로 실행한다. 현재 소스→dist/설치 패키지→SDK acknowledgement·package manifest→실행 EXE·bytecode 식별을 확인한다. 변경 후 제품도 다시 식별하며 과거 SHA·PID를 재사용하지 않는다.
-- [ ] idle/시작·재접촉, warm 왕복 no-hover, warm 버튼·TextField hover/focus, cold 첫 섹션 진입을 분리한다. 두 열은 왼쪽/오른쪽 및 pointer 이동을 포함하고 ListView·Cupertino를 회귀 장면으로 둔다.
-- [ ] 기존 trace를 확장해 input→dispatch, build, layout, paint, compose, capture, geometry, semantics, post-frame hit-test, packet/validation/Picture compile/Graphite recording, GPU·publish·retirement를 동일 frame identity로 연결한다. host가 기록하지 않는 단계는 먼저 작은 계측을 추가한다.
-- [ ] 시간뿐 아니라 dirty node 수, boundary 방문·재기록 수, command/packet bytes, mailbox 깊이·입력 나이, pending frame 나이, native credit, paragraph/Picture 생성·cache miss·GC를 기록한다. GC pause를 관찰할 수 없는 실행은 `unobserved`로 둔다.
-- [ ] 기본은 저비용 bounded RAM 표본, 느린 프레임에서만 상세 수집이다. source 내부 함수 monkey patch 진단의 오버헤드를 구분하고 최종 판정은 계측을 끈 동일 제품에서 한다.
 
-완료 조건: Hermes bytecode에서 주 재현 장면별 기준 trial 3회로 어느 구간이 긴 frame 또는 제출 공백과 함께 발생했는지 설명할 수 있다. 이 기준 실행은 P7의 변경 전후 비교에 재사용하며 같은 조건을 불필요하게 다시 측정하지 않는다. 기존 Static AOT 수치를 bytecode 기준값으로 승계하거나 AOT 비교를 다시 실행하지 않는다. 모든 원인을 한 수치로 뭉치지 않는다. [`profile-gallery-scroll.mjs`](Nelyx/eng/profile-gallery-scroll.mjs)는 실제 sample Widget을 쓰는 **Node/CanvasKit CPU 진단**이므로 코드 기여 분석에만 사용하고 Hermes native 성능 수락으로 쓰지 않는다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P0](work2.md).
 
 ### P1. clock·deadline·생산 여유를 하나의 계약으로 연결
 
-의존: P0. 대상: [`CompositorFrameClock.h`](Nelyx/skia/native/host/windows/CompositorFrameClock.h), [`RNSkWindowsHost.h`](Nelyx/skia/packages/rn/native/windows/RNSkWindowsHost.h), [`frame-clock.ts`](Nelyx/sdk/src/platforms/windows/frame-clock.ts), [`clock.ts`](Nelyx/src/foundation/clock.ts), [`runtime.ts`](Nelyx/src/hosting/runtime.ts), [`renderer.ts`](Nelyx/skia/packages/native/src/renderer.ts).
+clock version 2·deadline 전달은 유지한다. 한 장 CPU 선행 이후의 생산 정책·수명 검증은 이관했다.
 
 - [x] native에서 계산한 frame start/target·refresh interval·timer wake/dispatch를 구분해 전달한다. DWM 예측, fallback, clock uncertainty와 monitor/DPI 변경 시 재보정을 포함한다. 예측 target은 실제 표시 receipt가 아니다.
 - [x] `observedDeadline`의 의미를 host-advertised 작업 한계로 명시하고, 부정확하거나 이미 지난 값에서는 선택 작업을 금지한다. Core에서 `tick + 16.67ms`로 만들어 넣지 않는다. wire/API 확장 시 SDK·native 버전과 공급 검사도 함께 갱신한다.
-- [ ] 현재 한 장 CPU 선행 정책을 계측한 뒤, 필요하면 producer credit 예약·취소·반납을 추가한다. hint 조회와 실제 `nelyxReserve`의 경합을 구분하고, JS build 동안 GPU lock이나 WinUI 대기를 잡지 않는다.
-- [ ] busy 상태에서도 입력 dispatch·필요한 forced geometry는 진행한다. 최신 dirty 상태로 미제출 frame을 교체하되 old lease는 새 capture 성공까지 유지한다. retirement/credit 알림 뒤 재시도와 숨김·복원·종료를 처리한다.
-- [ ] animation/scroll의 다음 요청, explicit redraw, 여러 view의 공정성, clock callback 도중 재진입을 회귀 검증한다. 불필요한 polling이 크면 completion wake를 사용하되 정지 후 재개 누락이 없어야 한다.
 
-완료 조건: deadline 없는 호스트는 기존 필수 경로로 동작하고 선택 작업은 비활성이다. busy 중 무한 CPU 재기록·credit 누수·입력 starvation·닫기 hang이 없고, 입력→dispatch/submit tail이 기준보다 악화되지 않는다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P1](work2.md).
 
 ### P2. dirty repaint boundary 중심의 공통 paint 파이프라인
 
-**판정: 후보 구현·구조 검사 후 native 전후 비교에서 묶음의 tail이 악화돼 철회했다(§10.5).** 아래 최종 채택 항목은 완료로 바꾸지 않는다.
+NOT_ADOPTED: dirty paint 후보는 native 비교의 tail 악화로 철회했다. 재검토 조건과 미완료 항목은 이관했다.
 
-의존: P0·P1. 대상: [`object.ts`](Nelyx/src/framework/rendering/object.ts), [`repaint-boundary.ts`](Nelyx/src/framework/rendering/repaint-boundary.ts), [`context.ts`](Nelyx/src/framework/painting/context.ts), [`layer.ts`](Nelyx/src/framework/rendering/layer.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts), [`scene.ts`](Nelyx/src/ui/scene.ts).
-
-- [ ] dirty boundary와 layer 속성 변경을 소유하는 PipelineOwner 단계를 설계한다. 기존 layout·paint version·hidden retirement·nested boundary 캐시를 연결하고 같은 역할의 별도 트리를 만들지 않는다.
-- [ ] 내용 변경은 해당 boundary의 recording을 갱신하고, offset/transform/opacity 등 내용이 같은 변경은 검증된 layer 속성만 갱신한다. compositing 필요 여부가 바뀌는 shape/clip/effect도 반영한다.
-- [ ] attach·초기 frame·boundary 생성/제거·부모 변경·detached/hidden·custom paint의 안전한 fallback을 유지한다. dirty collection 순서와 부모/자식 중복 처리는 Flutter의 deepest-first 원칙을 참고해 수명 계약에 맞게 정한다.
-- [ ] Root는 dirty layout/paint 수렴 후 scene을 compose·capture한다. 실제 요청 frame의 capture·submit과 post-frame 동작은 유지한다. 재사용하는 것은 검증된 recording이며 요청 자체를 취소하지 않는다.
-- [ ] paint 도중 다시 무효화된 version을 clean으로 확정하지 않는다. 현재 refresh가 paint 이전 version을 잡는 규칙을 보존하고 다음 frame으로 남긴다.
-
-완료 조건: 같은 화면에서 버튼·caret 하나의 animation이 정적인 형제 recording을 다시 만들지 않는다. 구조 fixture에서 방문·재기록 수로 입증하고 Hermes bytecode native 실행에서 paint/compose/capture 및 frame CPU p99가 개선돼야 한다. 실측 이득 없이 복잡성만 늘어나면 해당 경로를 채택하지 않는다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P2](work2.md).
 
 ### P3. cold child의 동기 작업량을 줄이는 sliver 구성
 
-**판정: Gallery 네 child 분할 후보는 P2와 함께 철회했다(§10.5).** 추가 요청의 eager 혼합 페이지는 §10.4의 별도 기능이며 P3 lazy 최적화의 완료로 계산하지 않는다.
+NOT_ADOPTED: Gallery 네 child 분할과 이후 Form 단독 분리는 철회했다. eager 혼합 페이지는 별도 완료 기능이다.
 
-의존: P0, 선택적 준비는 P1 완료 후. 대상: [`sliver.ts`](Nelyx/src/framework/widgets/sliver.ts), [`sliver-multi-box-adaptor.ts`](Nelyx/src/framework/rendering/sliver-multi-box-adaptor.ts), [`sliver-list.ts`](Nelyx/src/framework/rendering/sliver-list.ts), [`view-work-budget.ts`](Nelyx/src/framework/widgets/view-work-budget.ts), [`gallery.ts`](sample/nelyx-testbed-app-2/src/gallery.ts), [`gallery-section.ts`](sample/nelyx-testbed-app-2/src/gallery-section.ts).
-
-- [ ] P0에서 가장 비싼 section을 작은 lazy child 단위로 나눈다. 우선 header/control group 등 의미 있는 단위로 분할하고 샘플의 일회성 memo만으로 공통 엔진 문제를 덮지 않는다.
-- [ ] 공통 delegate가 분할된 항목의 stable key·측정 extent·index lookup을 지원하도록 정리한다. 한 열↔두 열·filter·theme·font/DPI 변경에서 extent cache를 무효화하고 scroll anchor를 보존한다.
-- [ ] controller·Form·selection/focus·IME 수명은 child 생성 단위와 분리한다. editor keep-alive를 유지하며 모든 section을 영구 보관하지 않는다.
-- [ ] 비용이 충분히 작은 이웃 child만 선택적으로 준비하는 실험을 한다. 기존 1 child/tick·예상 2ms 이하·4ms reserve와 View 예산을 출발점으로 삼고 paint/submit tail까지 고려한다. 남은 시간이 없거나 새 입력·방향 전환·메모리 압력이 있으면 취소한다.
-- [ ] 준비 작업의 p99·과소 추정·overrun을 측정한다. 동기 child 생성은 중간 취소할 수 없으므로 큰 작업을 잘게 나누기 전에는 자동 준비를 기본값으로 켜지 않는다.
-
-완료 조건: 첫 진입의 긴 frame과 되돌아올 때의 재생성 비용이 함께 감소하고, producer/paragraph·Element·native bytes가 예산 안에 있다. cold 결과를 warm 평균에 섞지 않는다. ListView의 `dormant` 정책과 Gallery의 `bounded` 정책을 구분해 검증한다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P3](work2.md).
 
 ### P4. 입력·hover·semantics·IME의 중복 계산 정리
 
-의존: P0 및 변경된 layout/paint 경계. 대상: [`runtime.ts`](Nelyx/src/hosting/runtime.ts), [`root.ts`](Nelyx/src/framework/widgets/root.ts), [`mouse-tracker.ts`](Nelyx/src/framework/rendering/mouse-tracker.ts), [`scroll-position-with-single-context.ts`](Nelyx/src/framework/widgets/scroll-position-with-single-context.ts), [`semantics-pipeline.ts`](Nelyx/src/framework/rendering/semantics-pipeline.ts).
+입력 순서·post-layout hover와 최종 입력 보조 개선은 유지한다. 남은 중복 계산·IME 검증은 이관했다.
 
-- [ ] mailbox burst의 dispatch·hit-test·알림 수를 측정한다. 우선 allocation·변환 snapshot·dirty 전파의 중복을 줄인다. delta를 합치려면 동일 view/device/gesture/viewport/target·transform 범위를 증명해야 하고, 경계 clamp·반전·listener side effect가 있으면 원순서를 유지한다.
 - [x] down/up/cancel·panZoom start/end·focus 전환과 key 입력의 선후 관계를 유지한다. coalescing을 도입해도 원본 sequence/timestamp와 진단 연결을 보존한다.
 - [x] layout 후의 hover 재검사는 유지한다. 포인터가 정지해 있어도 content가 움직여 target이 바뀔 수 있다. scene/hit-test revision이 같은 경우만 재사용하고 enter/exit·cursor 변화는 빠뜨리지 않는다.
-- [ ] semantics의 configuration 변경과 위치 변경을 기존 큐에서 구분한다. 300ms/quiet 정책을 더 늘리지 않고 계산·transport 중복을 줄인다. value/focus/action과 지연 action의 revision 재검증은 유지한다.
-- [ ] text shaping/selection local geometry는 재사용하되 매 frame의 부모 transform·clip·TSF/caret 화면 좌표를 적용한다. 스크롤 후 재클릭 없이 입력·선택·조합이 계속돼야 한다.
 
-완료 조건: hover/focus 장면 p99가 개선되고 입력 누락·중복/지연, nested scroll·두 열 target 오류, accessibility/IME 회귀가 없다. 보간·가속도·마찰 계수 조정은 이 단계의 CPU 개선과 분리한다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P4](work2.md).
 
 ### P5. 남는 frame packet·native recording 비용 축소 — 조건부
 
-진입 조건: P0~P4 이후에도 packet/validation/Graphite recording이 deadline 초과의 주요 기여로 관찰됨. 대상: [`frame.ts`](Nelyx/src/ui/frame.ts), [`scene.ts`](Nelyx/src/ui/scene.ts), [`scene.ts(native)`](Nelyx/skia/packages/native/src/scene.ts), [`pictures.ts`](Nelyx/skia/packages/native/src/pictures.ts), [`JsiDisplayList.h`](Nelyx/skia/native/adapters/jsi/cpp/api/JsiDisplayList.h).
+조건부 미진입이다. native snap 관찰은 추가했으며 packet 재설계는 채택하지 않았다.
 
-- [ ] 먼저 현재 retained Picture hit/miss와 바뀐 frame command 수를 확인한다. 이미 한 번 compile한 recording을 다시 캐시하는 계층을 추가하지 않는다.
-- [ ] 내부에서 검증·소유한 immutable 명령은 admission metadata·resource hold를 재사용할 수 있는지 검토한다. 외부 mutable/frozen 배열·getter·custom hook에는 기존 검증을 유지한다.
-- [ ] packet의 frame-local buffer 재사용 또는 native immutable scene handle을 작은 범위에서 비교한다. 기존 동기 replay와 수명·세대·오류 복구가 같아야 한다. JS buffer 공유·무검증 zero-copy는 채택하지 않는다.
-- [ ] native scene/recording을 worker로 옮기는 경우 typed native resource와 generation 검증을 먼저 설계한다. 같은 Graphite recorder를 여러 thread에서 사용하거나 JSI 객체를 worker에 보관하지 않는다.
-
-완료 조건: 실제 Hermes bytecode native 실행에서 command bytes·할당/복사·recording 시간과 전체 p99가 함께 줄고 memory/retirement가 악화되지 않는다. 이득이 작으면 기존 경로를 유지하고 조건부 미진입 사유를 기록한다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P5](work2.md).
 
 ### P6. GPU replay·effect·raster 캐시 검토 — 조건부
 
-진입 조건: CPU 프레임이 예산에 들어온 뒤에도 GPU producer/publish가 주요 지연으로 남음. 대상: 기존 native Picture backend, [`CompositionSurface.h`](Nelyx/skia/packages/rn/native/windows/CompositionSurface.h), Vulkan/Graphite 실행과 effect 경로.
+조건부 미진입이다. GPU raster cache는 채택하지 않았다.
 
-- [ ] GPU 구간·upload·할당·fence 대기와 WinUI publish를 분리하고 shadow/clip/opacity/backdrop·surface 크기와의 관계를 본다.
-- [ ] 먼저 재생 불필요한 scene 방문·불필요한 offscreen pass를 줄인다. 화면 효과·그림자 품질을 임의로 제거하지 않는다.
-- [ ] 반복 replay가 비싼 정적 boundary에 한해 raster texture cache를 실험한다. 생성 비용, reuse 횟수, DPR·scale·transform·clip·context loss·fractional scroll의 cache key와 해제를 정의한다. blur·backdrop처럼 배경 의존 효과를 정적으로 캐시하지 않는다.
-- [ ] Picture 한도와 별도의 GPU bytes·eviction 예산을 명시하고 warm/cold·GPU memory를 함께 비교한다. 기존 48 bytes/physical pixel 등의 allocator 설정은 병목 증거 없이 확대하지 않는다.
-
-완료 조건: GPU 시간과 실제 surface update 간격이 함께 개선되고, 소수점 위치의 글자·그림자·clip 정합성과 device/context 수명이 유지된다. Impeller 도입·Skia 교체는 이번 1차 계획의 기본 항목이 아니다.
+잔여 체크리스트·대상·완료 조건: [work2.md의 P6](work2.md).
 
 ### P7. 일반 실행 제품에서 통합 검증·정리
 
-의존: P1~P4, P5/P6는 진입 여부와 판단 기록. 대상: 실제 Testbed, 기존 tests·SDK 공급·README·현재 문서.
+기존 제품·공통 회귀와 후보 비교는 아래 및 §10에 보존한다. 최신 일반 제품 식별·물리 입력·표시 검증은 이관했다.
 
 - [x] 변경한 공통 경로에 맞는 회귀 검사·타입 검사와 Hermes bytecode 실행에 필요한 native supplier rebuild/reinstall을 완료한다. 실제 bytecode package·실행 제품을 식별하며 Static AOT 검증은 완료 조건에 넣지 않는다. 철회 후 최종 제품은 §10.6에 기록했다.
 - [x] 같은 화면·배율·장치·제품 구성의 변경 전후 paired trial을 최소 3쌍 수행한다. 주요 네 장면 기준 24회 이내를 기본으로 하고 기존 검증과 중복되는 반복을 늘리지 않는다. 후보 비교와 철회 판단은 §10.5이며 최종 소스의 성능 수락이 아니다.
-- [ ] 물리 트랙패드 시작·연속·반전·재접촉, 두 열 사이 pointer 이동, Button hover/press, 편집 중 스크롤 후 입력·한국어 IME, minimize/restore·close를 확인한다. 자동 OS wheel은 물리 트랙패드 확인과 별도로 기록한다.
 - [x] 공통 Core 변경은 Web/Android에도 layout·입력·수명 smoke를 적용한다. 이번 Windows 결과를 다른 플랫폼 성능 수락으로 확장하지 않는다.
-- [ ] 계측을 끈 일반 명령에서 사용자 체감을 확인하고, 남은 문제는 장면·입력·단계별로 PARTIAL/notVerified를 유지한다. 사용 방법이 바뀐 경우에만 기존 한/영 README를 갱신한다.
 - [x] 실행별 임시 파일·생성 runner·staging·profile은 성공/실패/중단 모두 finally에서 정리한다. 현재 dist/제품만 유지하고 이 문서에 짧은 결과·잔여 작업을 남긴다. 이번 실행이 만든 임시 산출물의 정리 범위는 §10.6과 같다.
+
+잔여 체크리스트·대상·완료 조건: [work2.md의 P7](work2.md).
 
 ## 7. 측정·수락 기준
 
-### 7.1 비교 방법
-
-P0에서 **Hermes / bytecode / optimized / Release**와 native inputs·실행 제품, 화면·창·DPI·모니터·주사율, semantics 설정, 입력 패턴과 cold/warm 조건을 고정한다. 변경 전후 성능은 같은 bytecode 조건에서 비교하며, 사용자의 일반 명령에서 문제를 재현하고 마지막에 같은 명령으로 확인하는 절차도 유지한다.
-
-primary 장면은 **All Components 두 열의 warm no-hover / Button hover / TextField hover·focus / cold 첫 탐색**이다. 한 trial은 정지→시작→10초 이상 연속→왕복·반전→손을 뗀 뒤 재접촉을 포함한다. cold는 재시작한 프로세스의 첫 진입만 측정하며 font/asset·driver cache 상태도 적는다. frame 표본이 적으면 p99를 안정된 값으로 제시하지 않고 n·max와 함께 남긴다.
-
-### 7.2 제안 목표
-
-아래 수치는 **새 작업의 제안 목표이며 아직 통과하지 않았다.** P0 직후 같은 조건의 기준값과 함께 확정한다. 실제 cadence를 얻지 못한 실행에서는 deadline miss를 계산하지 않는다.
-
-`R = 해당 실행에서 선택한 목표 frame cadence`, `B = 1000 / R ms`로 정의한다. 먼저 60Hz 조건을 맞추고, 현재 주 모니터의 고주사율을 별도 조건으로 확인한다. 실제 165Hz로 구동하면서 결과를 60Hz 예산으로 통과시키지 않는다. 명시적 frame cap이 있으면 실제 cap과 표시 주사율을 모두 적는다.
-
-| 항목 | 1차 목표 | 60Hz 예시 |
-| --- | --- | --- |
-| warm UI frame CPU | p95 ≤ 0.6B, p99 ≤ B | 10ms / 16.67ms |
-| GPU producer의 독립 실행 시간 | p95 ≤ 0.6B, p99 ≤ B. publish 지연은 별도 집계 | 10ms / 16.67ms |
-| host target까지 ready/publish | 유효한 target이 있는 표본의 miss ≤ 1%, 원인별 집계 | 실측 target 기준 |
-| 연속 이동의 native surface update 간격 | p95 ≤ 1.5B, p99 ≤ 2B, warm 중 설명되지 않은 50ms 초과 정지 0회 | 25ms / 33.33ms |
-| 입력→해당 입력을 반영한 surface update | p95 ≤ 3B. input sequence 연결 가능한 표본만 사용 | 50ms |
-| cold 첫 진입 | 대표 section의 CPU max ≤ 3B를 1차 목표로 하고 초과 section을 명시 | 50ms |
-| 입력·제출·수명 | 입력 누락·중복, stale publish, resource leak, shutdown failure 0 | 정합성 필수 |
-| 메모리 | 기존 child/Picture 예산 유지, 같은 이동·복귀 후 live resource 증가 누적 없음 | peak와 복귀 후 resident 함께 확인 |
-
-native surface update·GPU retirement는 scanout/FPS 증명이 아니다. 물리 입력 체감은 별도 PASS-scoped로 기록하고, source frame→desktop/display 연결이 없으면 표시 성능 수락은 `notVerified`로 둔다. 정지 frame·관찰 표본 누락을 연속 이동 frame gap에 섞지 않는다.
-
-구조 변경은 관련 단계의 비용과 warm/cold p99가 함께 줄고 정확성·memory·다른 주 장면이 악화되지 않을 때 채택한다. 평균 개선과 max 악화가 같이 나오면 느린 frame을 분석하고 자동 수락하지 않는다. 기존 resize 목표·수락 상태는 이 표로 대체하지 않는다.
+비교 조건·전체 왕복 범위·제안 목표·수락 경계는 [work2.md §4](work2.md)로 옮겼다. 기존 `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력·표시/scanout `notVerified`를 유지한다.
 
 ## 8. 실행 명령과 검증 경계
 
-재개 시 먼저 Hermes bytecode / optimized / Release package를 명시적으로 빌드한 뒤 일반 명령으로 실행한다. `run:windows`는 마지막 package 설정을 유지하므로 저장된 Static AOT 설정에 의존해 바로 재개하지 않는다.
-
-```powershell
-npm.cmd --prefix sample/nelyx-testbed-app-2/windows/runner run build -- --engine hermes --hermes-mode bytecode --hermes-profile optimized --configuration Release
-npm.cmd run run:windows --workspace @nelyx/testbed-2
-```
-
-전환 뒤에는 일반 명령을 계속 사용한다. 실제 package manifest의 `cohort.engine=hermes`, `hermesExecutionMode=bytecode`, optimized/Release 설정과 실행 EXE·bytecode 식별을 확인한다. `test:windows-continuous-scroll`은 `.nelyx/windows/last-package.json`의 제품을 사용하므로 이 locator가 최신 bytecode package를 가리키는지도 먼저 확인한다.
-
-직접 native 진단도 bytecode 모드를 명시한다. P0 기준 CPU 3회는 이후 비교에 재사용하고 stages·GC는 필요한 원인 분석에만 선택한다.
-
-```powershell
-node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --scroll-scenes --scope cpu --repeat 3
-node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --scroll-scenes --scope stages
-node Nelyx/eng/run-native-scroll.mjs --hermes-mode bytecode --viewport maximized --scroll-scenes --scope gc
-```
-
-구현 뒤에는 변경 범위에 맞춰 다음 공통 회귀·타입·공급 검사를 선택한다. Static AOT 전용 검사나 AOT 실행을 추가하지 않는다. 실제 실행 결과는 §10에 기록한다. 각 테스트 timeout은 저장소 지침대로 20분을 유지한다.
-
-```powershell
-# clock·backpressure·입력 수명
-npm.cmd run test:windows-animation
-npm.cmd run test:native-paint-replay
-npm.cmd run test:scroll-engine
-
-# dirty paint·retained layer·geometry·반복 redraw
-npm.cmd run test:paint-recording
-
-# 실제 Windows 연속 OS wheel과 닫기 회귀
-npm.cmd run test:windows-continuous-scroll
-
-# 공통 Core 변경의 타입·공급 확인
-npm.cmd run check:types
-npm.cmd run test:runner-supply
-git diff --check
-```
-
-특히 [`frame-visual-commit.test.mjs`](Nelyx/eng/tests/frame-visual-commit.test.mjs)의 unobserved admission 이후 explicit redraw, [`frame-backpressure.test.mjs`](Nelyx/eng/tests/frame-backpressure.test.mjs)의 forced/deferred 요청과 lease·busy 경합, [`repaint-isolation.test.mjs`](Nelyx/eng/tests/repaint-isolation.test.mjs)의 nested repaint, [`optional-sliver-work.test.mjs`](Nelyx/eng/tests/optional-sliver-work.test.mjs)의 deadline·선택 작업을 변경 계약에 맞게 보강한다. GPU/shadow를 바꾸면 `test:native-shadows`, native 공급·ABI를 바꾸면 해당 공급 검사도 추가한다. source test·빌드 통과를 물리 입력·표시 성능 PASS로 바꾸지 않는다.
-
-[`copilot-instructions.md`](.github/copilot-instructions.md)의 임시 산출물·검증 로그·독립 설치본 누적 금지를 따른다. `Nelyx/docs/plans/`, `Nelyx/docs/migrations/`를 만들지 않으며 과거 archive를 새 checkpoint 저장소로 사용하지 않는다. baseline도 제품 전체 사본을 계속 쌓는 방식 대신 실행 중 비교 후 필요한 요약만 남긴다.
+일반 제품 재빌드·식별, Hermes bytecode 전용 명령, 진단·회귀 검사와 임시 산출물 정리 규칙은 [work2.md §5](work2.md)로 옮겼다. 재개 순서는 같은 문서 §1.2를 따른다. 이번 이관에서는 빌드·실행·검사를 재개하지 않았다.
 
 ## 9. Flutter 공식 참고자료
 
@@ -351,6 +253,8 @@ git diff --check
 - [Performance best practices](https://docs.flutter.dev/perf/best-practices): build 범위, lazy 목록, intrinsic layout·offscreen layer 비용을 검토할 때의 보조 기준.
 
 ## 10. 현재 진행 상태
+
+아래는 잔여 작업 이관 전의 수행 기록이다. 완료·철회와 당시 제품 식별을 보존하며, 현재 남은 작업과 재개 순서는 [work2.md](work2.md)를 따른다.
 
 | 항목 | 상태 |
 | --- | --- |
@@ -621,8 +525,6 @@ git diff --check
 - 마지막 진단은 EXE `f98909…`, bundle `496bef8cea4b5df2d77a9546432c5b714cf26fbba6c0d95aacf7819d4ef822c3`, manifest `25fec277b19f63b5530c1ec265f9b9aa78e48da48f977d6fd05297ce9bd14146`, SDK `c507e4…`, native `ec2335…`다. source 6,417개·native 976개·frame 244개를 결합했고 오류·invalid·source overwrite·native failed/superseded는 0이다. 제출/producer 완료/surface 갱신/retirement는 각각 244개, `observationClosed=true`, binding close·shutdown acknowledgement·정상 exit 0을 확인했다. `App.tsx`는 원래 byte로 돌아왔고 임시 probe/scroll fixture도 제거됐다.
 - 실제 설정 앱에서 디스플레이 1 `NE140QDM-NX7` / AMD Radeon 780M / 2560×1600 / 200% / 동적 새로 고침 끔을 확인하고 165→60Hz로 일시 변경했다. 60Hz에서 RNW 최대화·cold OS wheel 이동과 DWM 예측 `refreshInterval=16.666ms` 전달을 확인했다. 마지막 cold frame 6의 callback/layout은 `212.34/145.68ms`였다. CPU 기준 3회나 성능 수락은 수행하지 않았다. **마무리 때 desktop/active signal 모두 165Hz, 같은 해상도·동적 새로 고침 끔으로 복원하고 설정 창도 닫았다.**
 - 현재 on-disk Windows package/locator는 위 진단 bundle이다. 마지막 일반 제품 c65deb…의 검증과 구별한다. 재개 첫 단계는 아래 일반 명령으로 원복된 소스·README 입력을 감지해 probe 없는 제품을 다시 빌드하고 manifest/ack/실행 제품을 확인하는 것이다. 지금은 앱·native 진단·MSBuild/Hermes 빌드 프로세스를 남기지 않는다. 실행별 로그·receipt·이전 package 사본도 추가하지 않았다. 자동 승인 검토가 차단한 이전 native 캐시 두 개는 §10.10에 적은 그대로 남긴다.
-- 다음 잔여 범위는 실제 60Hz의 CPU 기준 3회, cold child 생성/텍스트 처리의 추가 원인 분리와 유효한 개선, IME 조합·물리 트랙패드·표시 검증이다. 이번 `Win+Space`에서도 언어 선택창이나 조합을 확인하지 못해 한국어 IME는 `notVerified`다. 성능 후보를 근거 없이 재채택하지 않으며 `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. 이후에도 Hermes bytecode / optimized / Release만 사용하고 Static AOT는 실행하지 않는다.
+- **잔여 작업 이관(2026-11-02):** 실제 60Hz CPU 기준 3회, cold child 생성/텍스트 처리의 추가 분석·개선, IME·물리 트랙패드·표시 검증과 P0~P7 미완료 항목은 [work2.md](work2.md)로 옮겼다. 이번 `Win+Space`에서도 언어 선택창이나 조합을 확인하지 못해 한국어 IME는 `notVerified`다. 성능 후보를 근거 없이 재채택하지 않으며 `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. 이후에도 Hermes bytecode / optimized / Release만 사용하고 Static AOT는 실행하지 않는다.
 
-```powershell
-npm.cmd run run:windows --workspace @nelyx/testbed-2
-```
+재개 명령과 실행 전 확인 사항: [work2.md §1.2·§5](work2.md).
