@@ -570,14 +570,16 @@ export class PaintingContext extends Canvas {
     root: ContainerLayer,
     bounds: Rect,
     pictures: PictureResourceProvider | null = null,
+    composition?: import('../../hosting/scene-composition.ts').SceneCompositionTransaction,
   ): void {
-    this.composeInto(root, bounds, pictures, true);
+    this.composeInto(root, bounds, pictures, true, composition);
   }
   private composeInto(
     root: ContainerLayer,
     bounds: Rect,
     pictures: PictureResourceProvider | null,
     exportScene: boolean,
+    composition?: import('../../hosting/scene-composition.ts').SceneCompositionTransaction,
   ): void {
     if (!(this.recordsLayers && !this.assembled && !this.debugDisposed))
       invariant(false, 'closed-layer-recording', 'Layer recording has ended');
@@ -689,7 +691,7 @@ export class PaintingContext extends Canvas {
       if (exportScene) {
         this.exporting = true;
         try {
-          root._buildSceneInto(new SceneBuilder(pictures), this);
+          root._buildSceneInto(new SceneBuilder(pictures, composition), this);
         } finally {
           this.exporting = false;
         }

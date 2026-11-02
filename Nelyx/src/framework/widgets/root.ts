@@ -21,7 +21,10 @@ import { BuildOwner } from './framework.ts';
 import type { Widget, Element } from './framework.ts';
 import { PipelineOwner, PipelineManifold, RenderBox, RenderObject } from '../rendering/object.ts';
 import { SemanticsTransportSnapshot } from '../rendering/semantics-transport.ts';
-import { existingPipelineSemantics } from '../rendering/semantics-pipeline.ts';
+import {
+  existingPipelineSemantics,
+  withSemanticsGeometry,
+} from '../rendering/semantics-pipeline.ts';
 import type { HitTestEntry } from '../rendering/object.ts';
 import { LayerHandle, OffsetLayer } from '../rendering/layer.ts';
 import { AnnotationType } from '../rendering/layer.ts';
@@ -588,6 +591,9 @@ export class FrameworkRoot implements ViewController {
       painting: PaintingContext | undefined,
       recording: FrameRecording | undefined,
       geometryCommit: ReturnType<RenderObject['commitTextInputGeometries']> | undefined,
+      sceneComposition:
+        | import('../../hosting/scene-composition.ts').SceneCompositionTransaction
+        | undefined,
       publishSemantics: (() => void) | undefined;
     try {
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
@@ -702,6 +708,7 @@ export class FrameworkRoot implements ViewController {
       };
       this.recordPaint(render, painting);
       finishDiagnostic?.('paint');
+      sceneComposition = this.context.sceneComposition?.begin(scene.token, diagnostics);
       withRenderPaint(() =>
         painting!.compose(
           this.layerRoot.layer!,
@@ -712,6 +719,7 @@ export class FrameworkRoot implements ViewController {
             height: scene.token.metrics.logicalHeight,
           },
           this.context.pictures ?? null,
+          sceneComposition,
         ),
       );
       painting.commands.unshift({ op: 'clear', color: this.options.background ?? 0xff101827 });
@@ -841,7 +849,13 @@ export class FrameworkRoot implements ViewController {
           this.cancelSemanticsWake();
           this.semanticsDeferred = false;
           if (!reuse) this.sourceSemanticsSnapshot.invalidate();
-          this.pipeline.flushSemantics();
+          withSemanticsGeometry(
+            this.pipeline,
+            this.context.semanticsGeometry,
+            scene.token,
+            diagnostics,
+            () => this.pipeline.flushSemantics(),
+          );
           if (reuse && semanticsPipeline?.hasPendingChanges) {
             reuse = false;
             this.sourceSemanticsSnapshot.invalidate();
@@ -1070,11 +1084,14 @@ export class FrameworkRoot implements ViewController {
             currentScope = this.isCurrentFrame(scene.token);
           if (!currentScope) geometryCommit?.discard();
           else geometryCommit?.commit();
+          if (currentScope) sceneComposition?.commit();
+          else sceneComposition?.discard();
           finishDiagnostic?.('geometry-publish');
         } catch (error) {
           errors.push(error);
           try {
             geometryCommit?.discard();
+            sceneComposition?.discard();
           } catch (cleanup) {
             errors.push(cleanup);
           }

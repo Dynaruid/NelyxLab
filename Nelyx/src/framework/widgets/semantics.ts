@@ -6,7 +6,8 @@ import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.t
 import type { SemanticsNode, Rect } from '../../ui/types.ts';
 import type { TransformMatrix } from '../../ui/geometry.ts';
 import type { Locale } from '../../ui/locale.ts';
-import type { RenderBox, RenderObject } from '../rendering/object.ts';
+import type { RenderBox } from '../rendering/object.ts';
+import { RenderObject } from '../rendering/object.ts';
 import {
   RenderSemanticsAnnotations,
   RenderBlockSemantics,
@@ -468,3 +469,4 @@ export class ExcludeSemantics extends RenderObjectWidget {
     properties.add(new DiagnosticsProperty('excluding', this.excluding));
   }
 }
+RenderObject._registerSemanticsGeometryPrototype(RenderSemantics.prototype);

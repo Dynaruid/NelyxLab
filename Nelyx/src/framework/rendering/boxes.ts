@@ -2595,3 +2595,7 @@ export abstract class RenderParagraph extends RenderBox {
 RenderObject._registerInputGeometryHooks(RenderFlex.prototype);
 RenderObject._registerInputGeometryHooks(RenderStack.prototype);
 RenderObject._registerInputGeometryHooks(RenderClip.prototype);
+RenderObject._registerSemanticsGeometryPrototype(
+  RenderShiftedBox.prototype,
+  RenderAligningShiftedBox.prototype,
+);

@@ -91,7 +91,11 @@ public:
   double nelyxWireVersion() {return nelyx::skia_core::frameWireVersion();}
   JSI_HOST_FUNCTION(nelyxReplayDisplayList) {
     auto canvas=_canvas;if(count!=2||!canvas)throw jsi::JSError(runtime,"Native display-list requires an open recording");
-    replayDisplayList(runtime,canvas->getCanvas(),arguments[0],arguments[1]);return jsi::Value::undefined();
+    auto* original=canvas->getCanvas();
+    replayDisplayList(runtime,original,arguments[0],arguments[1],[this,canvas,original]{
+      if(_canvas!=canvas||canvas->getCanvas()!=original)throw std::runtime_error("Display-list recording changed during handle admission");
+      getObject();
+    },getContext().get());return jsi::Value::undefined();
   }
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {

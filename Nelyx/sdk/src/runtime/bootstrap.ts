@@ -134,6 +134,8 @@ export class ComposedApplication<
         () => this.services.nativeSelectionContextMenu?.stop(),
         () => this.session.beginClose(),
         () => this.services.inputGeometry?.dispose(),
+        () => this.services.sceneComposition?.dispose(),
+        () => this.services.semanticsGeometry?.dispose(),
         () => this.imageOwner?.stop(),
         () => this.rasterOwner?.stop(),
         () => this.pictureOwner?.stop(),
@@ -220,6 +222,8 @@ export class ComposedApplication<
             : []),
           this.services.semantics,
           ...(this.services.inputGeometry ? [this.services.inputGeometry] : []),
+          ...(this.services.sceneComposition ? [this.services.sceneComposition] : []),
+          ...(this.services.semanticsGeometry ? [this.services.semanticsGeometry] : []),
           this.services.editing,
           this.services.assets,
           this.services.surface,
@@ -349,6 +353,8 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       editing: services.editing,
       semantics: services.semantics,
       ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
+      ...(services.sceneComposition ? { sceneComposition: services.sceneComposition } : {}),
+      ...(services.semanticsGeometry ? { semanticsGeometry: services.semanticsGeometry } : {}),
       ...(services.nativeSelectionContextMenu
         ? { nativeSelectionContextMenu: services.nativeSelectionContextMenu }
         : {}),
@@ -391,6 +397,8 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         editing: services.editing,
         semantics: services.semantics,
         ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
+        ...(services.sceneComposition ? { sceneComposition: services.sceneComposition } : {}),
+        ...(services.semanticsGeometry ? { semanticsGeometry: services.semanticsGeometry } : {}),
         ...(services.nativeSelectionContextMenu
           ? { nativeSelectionContextMenu: services.nativeSelectionContextMenu }
           : {}),
@@ -448,6 +456,8 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       () => rasterOwner?.stop(),
       () => pictureOwner?.stop(),
       () => services.inputGeometry?.dispose(),
+      () => services.sceneComposition?.dispose(),
+      () => services.semanticsGeometry?.dispose(),
       () => messages?.stop(),
     ])
       try {
@@ -494,6 +504,8 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         ...(services.nativeSelectionContextMenu ? [services.nativeSelectionContextMenu] : []),
         services.semantics,
         ...(services.inputGeometry ? [services.inputGeometry] : []),
+        ...(services.sceneComposition ? [services.sceneComposition] : []),
+        ...(services.semanticsGeometry ? [services.semanticsGeometry] : []),
         services.editing,
         services.assets,
         services.surface,

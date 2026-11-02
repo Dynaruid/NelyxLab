@@ -14,6 +14,21 @@ const countedWork = new Set([
   'composition-reuses',
   'composition-scope-misses',
   'composition-structure-misses',
+  'scene-paths',
+  'scene-path-native',
+  'scene-path-verbs',
+  'scene-clips',
+  'scene-clip-native',
+  'scene-paints',
+  'scene-paint-native',
+  'scene-wrappers',
+  'scene-compose-extract',
+  'scene-compose-edges',
+  'scene-compose-native',
+  'scene-compose-state',
+  'semantics-geometry-native',
+  'semantics-geometry-fallback',
+  'semantics-geometry-state',
 ]);
 
 export class RnwFrameRecords {
@@ -66,7 +81,7 @@ export class RnwFrameRecords {
     if (
       typeof sample.stage !== 'string' ||
       sample.stage.length > 40 ||
-      (!Object.hasOwn(row.source, sample.stage) && Object.keys(row.source).length >= 48) ||
+      (!Object.hasOwn(row.source, sample.stage) && Object.keys(row.source).length >= 64) ||
       ![sample.begin, sample.end, sample.duration, sample.count, sample.bytes].every(
         Number.isFinite,
       ) ||

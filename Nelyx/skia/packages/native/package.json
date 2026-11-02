@@ -26,6 +26,16 @@
     "native-manifest.json"
   ],
   "exports": {
+    "./semantics-geometry": {
+      "types": "./dist/semantics-geometry.d.ts",
+      "react-native": "./src/semantics-geometry.ts",
+      "default": "./dist/semantics-geometry.js"
+    },
+    "./scene-composition": {
+      "types": "./dist/scene-composition.d.ts",
+      "react-native": "./src/scene-composition.ts",
+      "default": "./dist/scene-composition.js"
+    },
     "./input-geometry": {
       "types": "./dist/input-geometry.d.ts",
       "react-native": "./src/input-geometry.ts",

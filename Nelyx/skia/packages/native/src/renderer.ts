@@ -99,6 +99,8 @@ export interface NelyxGraphiteContext extends SkGraphiteContext {
   nelyxRecordingDiagnostics?(): number[];
 }
 export interface GraphiteResources {
+  /** @internal Candidate selection; absent keeps the qualified v1 route. */
+  readonly sceneBatch?: 'path' | 'paint' | 'all';
   image(id: string): SkImage;
   paragraph(id: string): ParagraphPaint;
   picture?(id: string): SkPicture;

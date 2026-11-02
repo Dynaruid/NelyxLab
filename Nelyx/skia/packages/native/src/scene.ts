@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { PaintFrame } from '@nelyx/core/ui/types';
 import type { PaintSnapshot } from '@nelyx/core/ui/paint';
+import { blendModes } from '@nelyx/core/ui/paint';
+import { freezePath } from '@nelyx/core/ui/path';
+import type { PathSnapshot } from '@nelyx/core/ui/path';
 import { resourceKey } from '@nelyx/core/ui/frame';
 import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import type { Skia } from './skia/types/Skia.ts';
@@ -10,19 +13,106 @@ import type { DisplayListTarget } from './display-list.ts';
 import { displayListVersion } from './display-list.ts';
 import { configurePaint } from './paint.ts';
 import { applyPaintEffects } from './paint-effects.ts';
-import { createEnginePath } from './path.ts';
+import { createEnginePath, encodePath } from './path.ts';
 
 /** A frame-scoped numeric owner. No canvas facade, rest-argument arrays or
  * intermediate JS word list. Native validates the whole packet before replay.
  * Buffers and handle roots cannot survive this synchronous binding call. */
 class ScenePacket {
   data: Float64Array;
-  private used = 4;
+  private used: number;
   private commands = 0;
   readonly handles: unknown[] = [];
   private readonly ids = new Map<unknown, number>();
-  constructor(commands: number) {
+  private readonly pathIds = new Map<PathSnapshot, number>();
+  private readonly paintIds = new Map<PaintSnapshot, number>();
+  private readonly paths: number[][] = [];
+  private readonly paints: number[][] = [];
+  private tableWords = 0;
+  constructor(
+    commands: number,
+    private readonly frame: PaintFrame,
+    readonly batch: boolean,
+  ) {
+    this.used = batch ? 16 : 4;
     this.data = new Float64Array(Math.min(2 * 1024 * 1024, Math.max(32, 4 + commands * 8)));
+  }
+  path(value: PathSnapshot): number {
+    const snapshot = freezePath(value),
+      known = this.pathIds.get(snapshot);
+    if (known !== undefined) return known;
+    const words = encodePath(snapshot),
+      id = -2 - this.paths.length;
+    this.addTable(words.length);
+    this.paths.push(words);
+    this.pathIds.set(snapshot, id);
+    return id;
+  }
+  paint(value: PaintSnapshot): number {
+    const known = this.paintIds.get(value);
+    if (known !== undefined) return known;
+    const id = -2 - this.paints.length;
+    this.addTable(8);
+    this.paints.push([
+      value.color >>> 0,
+      value.isAntiAlias ? 1 : 0,
+      value.style === 'stroke' ? 1 : 0,
+      value.strokeWidth,
+      value.strokeMiterLimit,
+      ['butt', 'round', 'square'].indexOf(value.strokeCap),
+      ['miter', 'round', 'bevel'].indexOf(value.strokeJoin),
+      blendModes.indexOf(value.blendMode),
+    ]);
+    this.paintIds.set(value, id);
+    return id;
+  }
+  private addTable(words: number): void {
+    if (
+      this.paths.length + this.paints.length >= 65536 ||
+      this.used + this.tableWords + words > 2 * 1024 * 1024
+    )
+      throw Error('Native scene table exceeds its entry/16MiB budget');
+    this.tableWords += words;
+  }
+  rect(
+    op: number,
+    r: { x: number; y: number; width: number; height: number },
+    a: number,
+    b: number,
+  ): void {
+    const at = this.begin(op, 6),
+      d = this.data;
+    d[at] = r.x;
+    d[at + 1] = r.y;
+    d[at + 2] = r.width;
+    d[at + 3] = r.height;
+    d[at + 4] = a;
+    d[at + 5] = b;
+  }
+  rounded(
+    op: number,
+    value: {
+      readonly rrect?: { readonly values: readonly number[] };
+      readonly rect?: { x: number; y: number; width: number; height: number };
+      readonly radius?: number;
+    },
+    a: number,
+    b?: number,
+  ): void {
+    const at = this.begin(op, op === 24 ? 15 : 14),
+      d = this.data;
+    d[at] = value.rrect ? 1 : 0;
+    if (value.rrect) for (let i = 0; i < 12; i++) d[at + 1 + i] = value.rrect.values[i]!;
+    else {
+      const r = value.rect!;
+      d[at + 1] = r.x;
+      d[at + 2] = r.y;
+      d[at + 3] = r.width;
+      d[at + 4] = r.height;
+      for (let i = 4; i < 12; i++) d[at + 1 + i] = value.radius!;
+    }
+    d[at + 13] = a;
+    if (op === 24) d[at + 14] = b!;
   }
   ref(value: unknown): number {
     if (value == null) return -1;
@@ -36,7 +126,7 @@ class ScenePacket {
   }
   begin(op: number, count: number): number {
     const end = this.used + 2 + count;
-    if (this.commands >= 65536 || end > 2 * 1024 * 1024)
+    if (this.commands >= 65536 || end + this.tableWords > 2 * 1024 * 1024)
       throw Error('Native scene packet exceeds 16MiB');
     if (end > this.data.length) {
       const next = new Float64Array(Math.min(2 * 1024 * 1024, Math.max(end, this.data.length * 2)));
@@ -85,20 +175,54 @@ class ScenePacket {
   }
   submit(target: DisplayListTarget): void {
     this.data[0] = 0x4e4c444c;
-    this.data[1] = displayListVersion;
+    this.data[1] = this.batch ? 2 : displayListVersion;
     this.data[2] = this.commands;
     this.data[3] = this.handles.length;
-    target.nelyxReplayDisplayList(
-      this.data.buffer.slice(0, this.used * 8) as ArrayBuffer,
-      this.handles,
-    );
+    if (this.batch) {
+      const out = new Float64Array(this.used + this.tableWords),
+        token = this.frame.token,
+        m = token.metrics;
+      out.set(this.data.subarray(0, 16));
+      out.set(
+        [
+          out.length,
+          this.paths.length,
+          this.paints.length,
+          16 + this.tableWords,
+          token.owner.generation,
+          token.sequence,
+          m.viewportGeneration,
+          m.rendererGeneration,
+          m.nativeContextGeneration ?? -1,
+          m.nativeSurfaceGeneration ?? -1,
+          m.scale,
+          0,
+        ],
+        4,
+      );
+      let at = 16;
+      for (const table of [this.paths, this.paints])
+        for (const row of table) {
+          out.set(row, at);
+          at += row.length;
+        }
+      out.set(this.data.subarray(16, this.used), at);
+      target.nelyxReplayDisplayList(out.buffer, this.handles);
+    } else
+      target.nelyxReplayDisplayList(
+        this.data.buffer.slice(0, this.used * 8) as ArrayBuffer,
+        this.handles,
+      );
   }
   get byteLength(): number {
-    return this.used * 8;
+    return (this.used + this.tableWords) * 8;
   }
   clear(): void {
     this.handles.length = 0;
     this.ids.clear();
+    this.paths.length = this.paints.length = 0;
+    this.pathIds.clear();
+    this.paintIds.clear();
     this.data = new Float64Array(0);
   }
 }
@@ -131,7 +255,17 @@ export function submitNativeScene(
   diagnostics?: FrameDiagnostics,
 ): void {
   let diagnosticAt = diagnostics?.now();
-  const packet = new ScenePacket(frame.commands.length),
+  let pathsCount = 0,
+    verbsCount = 0,
+    clipsCount = 0,
+    paintsCount = 0,
+    nativePaintsCount = 0;
+  const mode = resources.sceneBatch,
+    batchPaths = mode === 'path' || mode === 'all',
+    batchPaints = mode === 'paint' || mode === 'all';
+  if (mode && api.nelyxScenePacketVersion?.() !== 2)
+    throw Error('Native scene2 binding required; rebuild the native supplier');
+  const packet = new ScenePacket(frame.commands.length, frame, !!mode),
     temporary: unknown[] = [],
     errors: unknown[] = [];
   const own = <T>(value: T): T => {
@@ -143,6 +277,21 @@ export function submitNativeScene(
   const fills = new Map<number, SkPaint>();
   let imagePaint: SkPaint | undefined;
   const style = (value: PaintSnapshot, backdrop = false) => {
+    if (diagnostics) paintsCount++;
+    if (
+      batchPaints &&
+      !backdrop &&
+      !value.shader &&
+      !value.colorFilter &&
+      !value.imageFilter &&
+      !value.maskFilter &&
+      !value.invertColors &&
+      !value.dither &&
+      value.strokeMiterLimit <= 2147483647
+    ) {
+      if (diagnostics) nativePaintsCount++;
+      return { id: packet.paint(value), filter: null };
+    }
     const shared = !backdrop && plainFill(value);
     let paint = shared ? fills.get(value.color) : undefined;
     let filter: ReturnType<typeof applyPaintEffects> = null;
@@ -156,7 +305,12 @@ export function submitNativeScene(
       }
       if (shared && fills.size < 64) fills.set(value.color, paint);
     }
-    return { paint, filter };
+    return { id: packet.ref(paint), filter };
+  };
+  const path = (value: PathSnapshot) => {
+    if (diagnostics) pathsCount++;
+    if (diagnostics) verbsCount += value.operations.length;
+    return batchPaths ? packet.path(value) : packet.ref(own(createEnginePath(api, value)));
   };
   const rounded = (v: readonly number[]) => {
     const rect = own(api.XYWHRect(0, 0, 0, 0));
@@ -171,6 +325,11 @@ export function submitNativeScene(
   };
   try {
     for (const command of frame.commands) {
+      if (
+        diagnostics &&
+        (command.op === 'clip' || command.op === 'clipRect' || command.op === 'clipRRect')
+      )
+        clipsCount++;
       if ('paint' in command) {
         const value = command.paint,
           primitive =
@@ -240,9 +399,19 @@ export function submitNativeScene(
           break;
         }
         case 'clip':
-          packet.three(8, packet.ref(rect(command.rect)), 1, 1);
+          if (batchPaints) packet.rect(23, command.rect, 1, 1);
+          else packet.three(8, packet.ref(rect(command.rect)), 1, 1);
           break;
         case 'clipRect':
+          if (batchPaints) {
+            packet.rect(
+              23,
+              command.rect,
+              command.clipOp === 'intersect' ? 1 : 0,
+              command.doAntiAlias ? 1 : 0,
+            );
+            break;
+          }
           packet.three(
             8,
             packet.ref(rect(command.rect)),
@@ -251,6 +420,15 @@ export function submitNativeScene(
           );
           break;
         case 'clipRRect': {
+          if (batchPaints) {
+            packet.rounded(
+              24,
+              command,
+              command.clipOp === 'intersect' ? 1 : 0,
+              command.doAntiAlias ? 1 : 0,
+            );
+            break;
+          }
           const r =
             'rrect' in command
               ? rounded(command.rrect.values)
@@ -267,24 +445,38 @@ export function submitNativeScene(
         case 'drawOval': {
           if (plainFill(command.paint))
             packet.fill(command.op === 'drawRect' ? 0 : 1, command.rect, 0, command.paint.color);
-          else
+          else if (batchPaints) {
+            const at = packet.begin(25, 6),
+              d = packet.data,
+              r = command.rect;
+            d[at] = command.op === 'drawRect' ? 0 : 1;
+            d[at + 1] = r.x;
+            d[at + 2] = r.y;
+            d[at + 3] = r.width;
+            d[at + 4] = r.height;
+            d[at + 5] = style(command.paint).id;
+          } else
             packet.two(
               command.op === 'drawRect' ? 4 : 5,
               packet.ref(rect(command.rect)),
-              packet.ref(style(command.paint).paint),
+              style(command.paint).id,
             );
           break;
         }
         case 'drawRRect': {
+          if (batchPaints) {
+            packet.rounded(26, command, style(command.paint).id);
+            break;
+          }
           const r =
             'rrect' in command
               ? rounded(command.rrect.values)
               : own(api.RRectXY(rect(command.rect), command.radius, command.radius));
-          packet.two(6, packet.ref(r), packet.ref(style(command.paint).paint));
+          packet.two(6, packet.ref(r), style(command.paint).id);
           break;
         }
         case 'drawLine': {
-          const paint = packet.ref(style(command.paint).paint),
+          const paint = style(command.paint).id,
             at = packet.begin(7, 5),
             data = packet.data;
           data[at] = command.from.x;
@@ -295,25 +487,21 @@ export function submitNativeScene(
           break;
         }
         case 'drawPath':
-          packet.two(
-            10,
-            packet.ref(own(createEnginePath(api, command.path))),
-            packet.ref(style(command.paint).paint),
-          );
+          packet.two(10, path(command.path), style(command.paint).id);
           break;
         case 'clipPath':
           packet.three(
             11,
-            packet.ref(own(createEnginePath(api, command.path))),
+            path(command.path),
             command.clipOp === 'intersect' ? 1 : 0,
             command.doAntiAlias ? 1 : 0,
           );
           break;
         case 'drawShadow': {
-          const path = packet.ref(own(createEnginePath(api, command.path))),
+          const shape = path(command.path),
             at = packet.begin(21, 5),
             data = packet.data;
-          data[at] = path;
+          data[at] = shape;
           data[at + 1] = command.color >>> 0;
           data[at + 2] = command.elevation;
           data[at + 3] = command.transparentOccluder ? 1 : 0;
@@ -321,14 +509,14 @@ export function submitNativeScene(
           break;
         }
         case 'drawPaint':
-          packet.one(3, packet.ref(style(command.paint).paint));
+          packet.one(3, style(command.paint).id);
           break;
         case 'saveLayer':
         case 'saveBackdropFilter': {
           const value = style(command.paint, command.op === 'saveBackdropFilter');
           packet.three(
             20,
-            packet.ref(value.paint),
+            value.id,
             command.op === 'saveLayer' && command.bounds ? packet.ref(rect(command.bounds)) : -1,
             packet.ref(value.filter),
           );
@@ -370,7 +558,7 @@ export function submitNativeScene(
           const image = packet.ref(resources.image(resourceKey(command.resource))),
             src = packet.ref(rect(command.op === 'drawImageRect' ? command.src : command.center)),
             dst = packet.ref(rect(command.dst)),
-            paint = packet.ref(style(command.paint).paint),
+            paint = style(command.paint).id,
             quality = command.paint.filterQuality ?? 'none',
             nine = command.op === 'drawImageNine',
             op = nine ? 17 : quality === 'high' ? 16 : 15,
@@ -390,7 +578,18 @@ export function submitNativeScene(
           );
       }
     }
-    if (diagnostics)
+    if (diagnostics) {
+      for (const [stage, count] of [
+        ['scene-paths', pathsCount],
+        ['scene-path-native', batchPaths ? pathsCount : 0],
+        ['scene-path-verbs', verbsCount],
+        ['scene-clips', clipsCount],
+        ['scene-clip-native', batchPaints ? clipsCount : 0],
+        ['scene-paints', paintsCount],
+        ['scene-paint-native', nativePaintsCount],
+        ['scene-wrappers', temporary.length],
+      ] as const)
+        diagnostics.recordDuration(frame.token, stage, 0, count);
       diagnosticAt = diagnostics.record(
         frame.token,
         'packet',
@@ -398,6 +597,7 @@ export function submitNativeScene(
         frame.commands.length,
         packet.byteLength,
       );
+    }
     try {
       // The synchronous native call includes buffer copy, validation and replay.
       // Do not report this combined span as independent GPU execution time.

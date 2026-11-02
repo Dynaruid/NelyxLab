@@ -11,8 +11,8 @@
     "dev": "nelyx dev --app ../.. --target web"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-2105f74aeb82f980c0a35639f77f6d0a75baa07103db5f00cd85b329b64ee275.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-a1abfe657a567f2e066520ce35e84ce64485c2b308b6c5983d023b64baef0eca.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-dae55b488a639e3a4db51f49564588c7a70b335134669de44189094ea5d06434.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-7e0b891f76878cbe98aaaa805ddb9efb0a9d85fdb3bbd9b6f44f5c81b690fd1a.tgz",
     "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-e32a86b9f271a43e0798efba993dfd60e54292ed3f39f498e57fb92ef565a463.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",

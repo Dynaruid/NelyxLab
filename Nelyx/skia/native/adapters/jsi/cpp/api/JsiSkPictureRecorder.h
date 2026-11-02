@@ -65,7 +65,13 @@ public:
     if(count!=2)throw jsi::JSError(runtime,"Native picture display-list requires a packet and handle table");
     auto recorder=getObject();auto* canvas=recorder->getRecordingCanvas();
     if(!canvas)throw jsi::JSError(runtime,"Native picture display-list requires an open recording");
-    replayDisplayList(runtime,canvas,arguments[0],arguments[1]);return jsi::Value::undefined();
+    if(_canvases.empty())throw jsi::JSError(runtime,"Native picture recording has no canvas owner");
+    // SkPictureRecorder can reuse its canvas address after finish/begin. A weak
+    // control-block identity distinguishes recordings even after wrapper GC.
+    const auto recording=_canvases.back();
+    replayDisplayList(runtime,canvas,arguments[0],arguments[1],[this,recorder,canvas,recording]{
+      if(getObject()!=recorder||recorder->getRecordingCanvas()!=canvas||_canvases.empty()||recording.owner_before(_canvases.back())||_canvases.back().owner_before(recording))throw std::runtime_error("Display-list recording changed during handle admission");
+    },getContext().get());return jsi::Value::undefined();
   }
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {

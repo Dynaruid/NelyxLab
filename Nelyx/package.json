@@ -14,6 +14,14 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./hosting/semantics-geometry": {
+      "types": "./dist/hosting/semantics-geometry.d.ts",
+      "default": "./dist/hosting/semantics-geometry.js"
+    },
+    "./hosting/scene-composition": {
+      "types": "./dist/hosting/scene-composition.d.ts",
+      "default": "./dist/hosting/scene-composition.js"
+    },
     "./services/text-editing": {
       "types": "./dist/services/text-editing.d.ts",
       "default": "./dist/services/text-editing.js"

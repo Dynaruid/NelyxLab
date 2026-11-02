@@ -134,3 +134,8 @@ export class RenderExcludeSemantics extends RenderProxyBox {
   }
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderExcludeSemantics.prototype);
+RenderProxyBox._registerSemanticsGeometryPrototype(
+  RenderSemanticsAnnotations.prototype,
+  RenderBlockSemantics.prototype,
+  RenderMergeSemantics.prototype,
+);

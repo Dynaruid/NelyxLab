@@ -225,7 +225,12 @@ test(
       const submit = () => submitNativeScene(f.api, f.target, frame, f.resources, undefined, trace);
       if (failNative) assert.throws(submit, /native-reject/);
       else submit();
-      const samples = trace.drain().samples;
+      const observed = trace.drain().samples;
+      const samples = observed.filter(
+        (sample) => sample.stage === 'packet' || sample.stage === 'native-replay',
+      );
+      assert.equal(observed.find((sample) => sample.stage === 'scene-path-native').count, 0);
+      assert(observed.every((sample) => sample.frame === 2 && sample.input === 3));
       assert.deepEqual(
         samples.map((sample) => sample.stage),
         ['packet', 'native-replay'],

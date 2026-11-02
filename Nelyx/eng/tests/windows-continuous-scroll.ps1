@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino','mixed')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[ValidateRange(20,2000)][int]$WheelPacketsPerLeg=80,[ValidateRange(3000,20000)][int]$InputDurationMs=3000,[ValidateRange(0,2147483647)][int]$TargetProcessId=0,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$Maximized,[switch]$FocusEditor,[switch]$CadenceOnly,[switch]$CaptionActivation,[ValidateRange(0.1,0.9)][double]$InputXFraction=(2.0/3.0))
+param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino','mixed')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[ValidateRange(20,2000)][int]$WheelPacketsPerLeg=80,[ValidateRange(3000,20000)][int]$InputDurationMs=3000,[ValidateRange(0,2147483647)][int]$TargetProcessId=0,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$Maximized,[switch]$FocusEditor,[switch]$CadenceOnly,[switch]$CaptionActivation,[ValidateRange(0.1,0.9)][double]$InputXFraction=(2.0/3.0),[switch]$BothColumns)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 Add-Type @'
@@ -24,7 +24,9 @@ public static class NelyxContinuousScroll {
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window,out Rect rect);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Rect rect);
   [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr window);
-  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
+  [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr window,int index);
+  public static bool IsTopmost(IntPtr window) { return (GetWindowLongPtr(window,-20).ToInt64()&8)!=0; }
   [DllImport("user32.dll")] static extern IntPtr SendMessageTimeoutW(IntPtr window,uint message,IntPtr wp,IntPtr lp,uint flags,uint timeout,out UIntPtr result);
   [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window,uint flags);
@@ -74,7 +76,7 @@ public static class NelyxContinuousScroll {
     // Raise only this test's already discovered app window without activating
     // another surface. A fixed top-center point can fall in the DWM shadow or
     // stay behind the previously foreground application.
-    if(!SetWindowPos(window,IntPtr.Zero,0,0,0,0,0x1|0x2|0x10|0x40))return false;
+    if(!SetWindowPos(window,new IntPtr(-1),0,0,0,0,0x1|0x2|0x10|0x40))return false;
     Rect rect;if(!GetWindowRect(window,out rect))throw new Exception("Own caption unavailable");
     double scale=Math.Max(96u,GetDpiForWindow(window))/96.0;Point point=new Point();bool found=false;
     foreach(int offset in new[]{200,80,320})for(int y=8;y<=56&&!found;y+=4){
@@ -140,7 +142,7 @@ public static class NelyxContinuousScroll {
 '@
 $application=$null; $originalPointer=New-Object NelyxContinuousScroll+Point; [NelyxContinuousScroll]::GetCursorPos([ref]$originalPointer)|Out-Null
 $ownsApplication=$TargetProcessId -eq 0
-$checks=@(); $drained=$false;$previousDpi=[NelyxContinuousScroll]::SetThreadDpiAwarenessContext([IntPtr](-4));$window=[IntPtr]::Zero;$lastInjectedPointer=$null
+$checks=@(); $drained=$false;$previousDpi=[NelyxContinuousScroll]::SetThreadDpiAwarenessContext([IntPtr](-4));$window=[IntPtr]::Zero;$lastInjectedPointer=$null;$topmostCaptured=$false;$wasTopmost=$false
 try {
   [NelyxContinuousScroll]::timeBeginPeriod(1)|Out-Null
   $start=[Diagnostics.ProcessStartInfo]::new($Executable)
@@ -155,6 +157,7 @@ try {
   $deadline=[DateTime]::UtcNow.AddSeconds(25)
   do { if($application.HasExited){throw 'App exited during startup'};$application.Refresh();$window=$application.MainWindowHandle;if($window -eq [IntPtr]::Zero){Start-Sleep -Milliseconds 50} } while($window -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
   if($window -eq [IntPtr]::Zero){throw 'Visible app window unavailable'}
+  $wasTopmost=[NelyxContinuousScroll]::IsTopmost($window);$topmostCaptured=$true
   if($CaptionActivation){$clicked=[NelyxContinuousScroll]::Activate($window);Write-Output ('CONTINUOUS_ACTIVATION '+(@{page=$Page;attempt='probe';ownedCaptionClicked=$clicked}|ConvertTo-Json -Compress));if(-not $clicked){throw 'Owned caption activation probe failed'};Start-Sleep -Milliseconds 150}
   for($attempt=0;$attempt -lt 3;$attempt++){[NelyxContinuousScroll]::SetForegroundWindow($window)|Out-Null;Start-Sleep -Milliseconds 150;if([NelyxContinuousScroll]::GetForegroundWindow() -eq $window){break};$clicked=[NelyxContinuousScroll]::Activate($window);Write-Output ('CONTINUOUS_ACTIVATION '+(@{page=$Page;attempt=$attempt;ownedCaptionClicked=$clicked}|ConvertTo-Json -Compress));Start-Sleep -Milliseconds 150}
   if([NelyxContinuousScroll]::GetForegroundWindow() -ne $window){throw 'Own foreground unavailable'}
@@ -179,12 +182,17 @@ try {
     $editor.SetFocus();Start-Sleep -Milliseconds 500
     if(-not $editor.Current.HasKeyboardFocus){throw 'Mixed editor did not acquire native focus'}
   }
+  if($BothColumns -and $Page -ne 'material'){throw 'Both columns requires Material Gallery'}
+  $fractions=if($BothColumns){@(0.4,(2.0/3.0))}else{@($InputXFraction)}
+  foreach($fraction in $fractions){
   foreach($direction in $(if($Page -eq 'list'){@(1,-1)}else{@(-1,1)})){
-    $observation=[NelyxContinuousScroll]::Run($window,$direction,$WheelDelta,$WheelPacketsPerLeg,$InputDurationMs,4,$MouseMotion.IsPresent,(-not $CadenceOnly.IsPresent),$InputXFraction)
+    if([NelyxContinuousScroll]::GetForegroundWindow() -ne $window){[NelyxContinuousScroll]::SetForegroundWindow($window)|Out-Null;Start-Sleep -Milliseconds 150}
+    $observation=[NelyxContinuousScroll]::Run($window,$direction,$WheelDelta,$WheelPacketsPerLeg,$InputDurationMs,4,$MouseMotion.IsPresent,(-not $CadenceOnly.IsPresent),$fraction)
     $checks+=@{direction=$direction;wheelDelta=$WheelDelta;wheelPacketsPerLeg=$WheelPacketsPerLeg;nativeBeginMs=$observation.NativeBeginMs;packets=$observation.Packets;changesDuringInput=$observation.ChangesDuringInput;changesAfterInput=$observation.ChangesAfterInput;firstChangeMs=$observation.FirstChangeMs;maximumGapMs=$observation.MaximumGapMs;physicalWidth=$observation.PhysicalWidth;physicalHeight=$observation.PhysicalHeight;dpi=$observation.Dpi;surfaceUpdates=$observation.SurfaceUpdates;surfaceDurationMs=$observation.SurfaceDurationMs;surfaceFPS=$observation.SurfaceFPS;surfaceScope=$(if($ownsApplication){'native surface-updated counter during OS wheel; source probes disabled; scanout unobserved'}else{'native surface-updated counter in existing owner; source probes may be enabled; scanout unobserved'});rangeScope='packet-defined reversals; full-page endpoints require separate verification'}
-    $checks[-1].inputXFraction=$InputXFraction
+    $checks[-1].inputXFraction=$fraction
     if(-not $CadenceOnly){$checks[-1].maximumAllRegionsGapMs=$observation.MaximumAllRegionsGapMs;$checks[-1].maximumSurfaceGapMs=$observation.MaximumSurfaceGapMs;$checks[-1].primaryGaps=$observation.Gaps;$checks[-1].visualScope='three desktop regions and current-process surface count/frame sampled together; surface progress is not scanout'}
     if($observation.MaximumGapMs -gt 350){Write-Output ('STALLED_CHANGES '+($observation.Changes|ConvertTo-Json -Compress))}
+  }
   }
   $lastInjectedPointer=New-Object NelyxContinuousScroll+Point;[NelyxContinuousScroll]::GetCursorPos([ref]$lastInjectedPointer)|Out-Null
   if(-not $ownsApplication){Write-Output ('CONTINUOUS_SCROLL '+(@{page=$Page;checks=$checks;qualification='attached-diagnostic-only';scope='existing owner may enable source probes; native surface observations are not a normal-product FPS qualification'}|ConvertTo-Json -Depth 6 -Compress));return}
@@ -201,7 +209,14 @@ try {
   if($output -match 'REACT_ERROR|close-failed|resize-failed'){throw 'Native interaction or close reported an error'}
   if(-not $CadenceOnly -and @($checks|Where-Object {$_.changesDuringInput -lt 10 -or $_.maximumGapMs -gt 350}).Count){throw 'Desktop rendering stalled during continuous OS input'}
   if($hiddenMs -gt 350){throw 'Native window remained visible after close'}
+} catch {
+  if($null -ne $application){
+    $alive=-not $application.HasExited
+    Write-Output ('CONTINUOUS_FAILURE '+(@{alive=$alive;exitCode=$(if($alive){$null}else{$application.ExitCode});foreground=[NelyxContinuousScroll]::GetForegroundWindow() -eq $window;visible=[NelyxContinuousScroll]::IsWindowVisible($window);message=$_.Exception.Message}|ConvertTo-Json -Compress))
+  }
+  throw
 } finally {
+  if($topmostCaptured -and [NelyxContinuousScroll]::IsWindow($window)){$after=if($wasTopmost){[IntPtr](-1)}else{[IntPtr](-2)};[void][NelyxContinuousScroll]::SetWindowPos($window,$after,0,0,0,0,0x13)}
   if($null -ne $application){if($ownsApplication -and -not $application.HasExited){$application.CloseMainWindow()|Out-Null;if(-not $application.WaitForExit(15000)){$application.Kill();$application.WaitForExit()}};$application.Dispose()}
   [NelyxContinuousScroll]::timeEndPeriod(1)|Out-Null
   $currentPointer=New-Object NelyxContinuousScroll+Point;[NelyxContinuousScroll]::GetCursorPos([ref]$currentPointer)|Out-Null

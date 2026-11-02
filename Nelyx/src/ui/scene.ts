@@ -15,6 +15,10 @@ import type { Offset } from './geometry.ts';
 import type { Clip } from './clip.ts';
 import type { RRect } from './rrect.ts';
 import type { Path } from './path.ts';
+import type {
+  SceneCompositionSource,
+  SceneCompositionTransaction,
+} from '../hosting/scene-composition.ts';
 import { paintFrameLimits, validateCapturedPaintCommands, freezePaintCommand } from './frame.ts';
 const affineIdentity = [1, 0, 0, 1, 0, 0],
   identity44 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -33,6 +37,13 @@ interface LayerInsertion {
 }
 /** Retain child snapshots without copying their display lists into every ancestor. */
 class LayerRecording {
+  private compositionSource:
+    | { owner: PictureResourceProvider | null; value: SceneCompositionSource }
+    | undefined;
+  private compositionLeaf:
+    | { owner: PictureResourceProvider; value: SceneCompositionSource }
+    | undefined;
+  private readonly disposeCallbacks = new Set<() => void>();
   private references = 1;
   private readonly needsScope: boolean;
   private readonly nativeLeaf: readonly PaintCommand[] | null;
@@ -79,6 +90,48 @@ class LayerRecording {
       invariant(false, 'disposed-engine-recording', 'Engine recording has retired');
     this.references++;
     return this;
+  }
+  /** Capture structure before draw's flattening. Internal immutable recordings
+   * are the only source; custom Layer hooks have already run in TS order. */
+  source(
+    owner: PictureResourceProvider | null,
+    retained = false,
+    depth = 1,
+  ): SceneCompositionSource | undefined {
+    if (!(this.references > 0))
+      invariant(false, 'disposed-engine-recording', 'Engine recording has retired');
+    if (depth > 128) return undefined;
+    if (retained && owner) {
+      if (this.compositionLeaf?.owner === owner) return this.compositionLeaf.value;
+      // Re-admit an opaque Picture at its original command position. Native
+      // orders a numeric leaf ID; no borrowed resource ID or JS callback enters
+      // its metadata, and cache eviction/Picture.onCreate keep their TS order.
+      if (this.nativePicture && this.nativePicture.owner !== owner) return undefined;
+      const value: SceneCompositionSource = {
+        commands: this.nativeLeaf ?? [],
+        ...(!this.nativeLeaf ? { draw: (canvas: Canvas) => this.drawNative(canvas, owner) } : {}),
+        scoped: false,
+        children: [],
+        onDispose: (callback) => this.disposeCallbacks.add(callback),
+      };
+      this.compositionLeaf = { owner, value };
+      return value;
+    }
+    if (this.compositionSource?.owner === owner) return this.compositionSource.value;
+    const children: { mark: number; source: SceneCompositionSource }[] = [];
+    for (const entry of this.insertions) {
+      const source = entry.recording.source(owner, entry.retained ?? false, depth + 1);
+      if (!source) return undefined;
+      children.push({ mark: entry.mark, source });
+    }
+    const value: SceneCompositionSource = {
+      commands: this.canvas.commands,
+      scoped: this.needsScope,
+      children,
+      onDispose: (callback) => this.disposeCallbacks.add(callback),
+    };
+    this.compositionSource = { owner, value };
+    return value;
   }
   draw(canvas: Canvas, scoped = true, pictures: PictureResourceProvider | null = null): void {
     if (!(this.references > 0))
@@ -204,6 +257,15 @@ class LayerRecording {
       }
       const picture = record.nativePicture;
       record.nativePicture = undefined;
+      record.compositionSource = undefined;
+      record.compositionLeaf = undefined;
+      for (const callback of record.disposeCallbacks)
+        try {
+          callback();
+        } catch (error) {
+          errors.push(error);
+        }
+      record.disposeCallbacks.clear();
       for (const release of [() => picture?.picture.dispose(), () => record.canvas.dispose()])
         try {
           release();
@@ -353,7 +415,10 @@ function retireRecording(record: Recording): void {
 }
 export class SceneBuilder {
   private readonly stack: Recording[];
-  constructor(private readonly pictures: PictureResourceProvider | null = null) {
+  constructor(
+    private readonly pictures: PictureResourceProvider | null = null,
+    private readonly composition?: SceneCompositionTransaction,
+  ) {
     this.stack = [recording(null, pictures)];
   }
   _canRetain(layer: EngineLayer): boolean {
@@ -641,7 +706,24 @@ export class SceneBuilder {
       let snapshot: LayerRecording | undefined;
       try {
         snapshot = new LayerRecording(root.canvas, root.insertions);
-        snapshot.draw(canvas, false, this.pictures);
+        const source = this.composition ? snapshot.source(this.pictures) : undefined;
+        const plan = this.composition?.compose(source);
+        if (plan)
+          for (const part of plan) {
+            if ('scope' in part) {
+              if (part.scope === 'save') canvas.save();
+              else canvas.addCommands(restoreCommands);
+            } else if (part.source.draw) {
+              if (part.begin !== 0 || part.end !== 1)
+                invariant(
+                  false,
+                  'invalid-scene-range',
+                  'Opaque scene leaf requires its complete range',
+                );
+              part.source.draw(canvas);
+            } else canvas._addCommandRange(part.source.commands, part.begin, part.end);
+          }
+        else snapshot.draw(canvas, false, this.pictures);
         validateCapturedPaintCommands(canvas.commands, mark);
       } catch (error) {
         errors.push(error);

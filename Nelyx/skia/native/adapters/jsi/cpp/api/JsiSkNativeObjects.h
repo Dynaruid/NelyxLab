@@ -113,6 +113,7 @@ public:
   explicit JsiSkNativeObject(std::shared_ptr<RNSkPlatformContext> context)
       : RNJsi::NativeObject<Derived>(Derived::CLASS_NAME),
         _context(std::move(context)) {}
+  bool nelyxOwnedBy(const RNSkPlatformContext* owner) const { return _context.get()==owner; }
 
   /**
    * Resolves the C++ instance backing `thisValue`. Throws a JSError if the

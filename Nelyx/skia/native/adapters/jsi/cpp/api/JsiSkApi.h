@@ -6,6 +6,10 @@
 
 #include "JsiSkNativeObjects.h"
 #include "JsiInputGeometry.h"
+#include "JsiSceneComposition.h"
+#include "JsiSemanticsGeometry.h"
+#include "nelyx_skia/scene_build.h"
+#include <cstring>
 
 #include "rnskia/RNSkPlatformContext.h"
 
@@ -165,6 +169,27 @@ public:
   }
 
   double nelyxInputGeometryVersion() { return nelyx::input_geometry::version; }
+  double nelyxScenePacketVersion() { return nelyx::scene_packet::version; }
+  double nelyxSceneCompositionVersion() { return 1; }
+  double nelyxSemanticsGeometryVersion() { return 1; }
+  JSI_HOST_FUNCTION(nelyxSemanticsGeometrySession) {
+    if(count!=2||!arguments[0].isNumber()||!arguments[1].isNumber())throw jsi::JSError(runtime,"Semantics geometry requires numeric session/generation");
+    return jsi::Object::createFromHostObject(runtime,std::make_shared<JsiSemanticsGeometry>(arguments[0].getNumber(),arguments[1].getNumber()));
+  }
+  JSI_HOST_FUNCTION(nelyxSceneCompositionSession) {
+    if(count!=2||!arguments[0].isNumber()||!arguments[1].isNumber())throw jsi::JSError(runtime,"Scene composition requires numeric session/generation");
+    return jsi::Object::createFromHostObject(runtime,std::make_shared<JsiSceneComposition>(arguments[0].getNumber(),arguments[1].getNumber()));
+  }
+  JSI_HOST_FUNCTION(nelyxMakePath) {
+    if(count!=1)throw jsi::JSError(runtime,"Numeric path requires one packet");
+    auto buffer=arguments[0].getObject(runtime).getArrayBuffer(runtime);
+    const auto bytes=buffer.size(runtime);
+    if(bytes<5*8||bytes>nelyx::scene_packet::maxWords*8||bytes%8)
+      throw jsi::JSError(runtime,"Numeric path byte budget/alignment");
+    std::vector<double> owned(bytes/8);std::memcpy(owned.data(),buffer.data(runtime),bytes);
+    auto path=nelyx::scene_build::path(nelyx::scene_packet::readPathPacket(owned));
+    return makeJsiObject(runtime,std::make_shared<JsiSkPath>(getContext(),std::move(path)));
+  }
   JSI_HOST_FUNCTION(nelyxInputGeometrySession) {
     if (count!=2 || !arguments[0].isNumber() || !arguments[1].isNumber())
       throw jsi::JSError(runtime,"Input geometry requires a numeric session/owner");
@@ -236,6 +261,12 @@ public:
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
     installMethod(runtime,prototype,"nelyxInputGeometryVersion",&JsiSkApi::nelyxInputGeometryVersion);
+    installMethod(runtime,prototype,"nelyxScenePacketVersion",&JsiSkApi::nelyxScenePacketVersion);
+    installMethod(runtime,prototype,"nelyxSceneCompositionVersion",&JsiSkApi::nelyxSceneCompositionVersion);
+    installMethod(runtime,prototype,"nelyxSemanticsGeometryVersion",&JsiSkApi::nelyxSemanticsGeometryVersion);
+    installHostMethod(runtime,prototype,"nelyxSemanticsGeometrySession",&JsiSkApi::nelyxSemanticsGeometrySession);
+    installHostMethod(runtime,prototype,"nelyxSceneCompositionSession",&JsiSkApi::nelyxSceneCompositionSession);
+    installHostMethod(runtime,prototype,"nelyxMakePath",&JsiSkApi::nelyxMakePath);
     installHostMethod(runtime,prototype,"nelyxInputGeometrySession",&JsiSkApi::nelyxInputGeometrySession);
     installHostMethod(runtime, prototype, "getNativeDevice",
                       &JsiSkApi::getNativeDevice);

@@ -4,11 +4,15 @@
 import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
 import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
+import { createSceneCompositionService } from '@nelyx/skia-native/scene-composition';
+import { createSemanticsGeometryService } from '@nelyx/skia-native/semantics-geometry';
+import { verifyRnwSceneApi } from './rnw-scene-api.js';
 import { RnwFrameRecords } from './rnw-frame-records.js';
 import { readNativeRecordingStats } from './native-frame-metrics.js';
 import { RnwWorkProbe } from './rnw-work-probe.js';
 import { RenderObject, RenderBox } from '@nelyx/core/framework/rendering/object';
 import { RenderSliver } from '@nelyx/core/framework/rendering/sliver';
+import { RenderViewportBase } from '@nelyx/core/framework/rendering/viewport';
 import { Element, InheritedElement } from '@nelyx/core/framework/widgets/framework';
 import { SliverMultiBoxAdaptorElement } from '@nelyx/core/framework/widgets/sliver';
 
@@ -24,13 +28,73 @@ export function installRnwFrameProbe(application, options = {}) {
   const now = options.now ?? (() => performance.now()),
     view = application.view,
     diagnostics = new FrameDiagnostics({ now }, 4096),
-    records = new RnwFrameRecords(),
+    records = new RnwFrameRecords(options.scrolls ? 1024 : 256),
     clock = application.services.clock,
     request = clock.request,
     submit = GraphiteRenderer.prototype.submit,
     close = application.dispose,
     previous = view.frameDiagnostics;
   const work = new RnwWorkProbe(now);
+  let nativeCallFailures = 0,
+    nativeCallMethods = 0;
+  const nativeCallTotals = Object.create(null),
+    scenePackets = { legacy: 0, numeric: 0, paths: 0, paints: 0, clips: 0, bytes: 0 };
+  const contextPrototypes = new WeakSet();
+  const watchNative = (target, methods, label) => {
+    for (const method of methods)
+      try {
+        work.wrap(target, method, 'jsi', (_target, args) => {
+          const name = label + '.' + method;
+          nativeCallTotals[name] = (nativeCallTotals[name] ?? 0) + 1;
+          if (method === 'nelyxReplayDisplayList') {
+            const words = new Float64Array(args[0]);
+            scenePackets.bytes += words.byteLength;
+            if (words[1] === 2) {
+              scenePackets.numeric++;
+              scenePackets.paths += words[5];
+              scenePackets.paints += words[6];
+              for (
+                let at = words[7], command = 0;
+                at < words.length && command < 65536;
+                command++, at += 2 + words[at + 1]
+              )
+                if (words[at] === 23 || words[at] === 24) scenePackets.clips++;
+            } else scenePackets.legacy++;
+          }
+          return name;
+        });
+        nativeCallMethods++;
+      } catch {
+        nativeCallFailures++;
+      }
+  };
+  const scrollIds = new WeakMap();
+  let nextScroll = 0;
+  const scrolls = () => {
+    const root = view.controller?.root?.renderObjects?.[0],
+      stack = root ? [root] : [],
+      values = [];
+    let visited = 0;
+    while (stack.length && visited++ < 8192) {
+      const node = stack.pop();
+      if (node instanceof RenderViewportBase) {
+        let id = scrollIds.get(node);
+        if (id === undefined) {
+          id = ++nextScroll;
+          scrollIds.set(node, id);
+        }
+        const offset = node.offset;
+        values.push([
+          id,
+          offset.pixels,
+          Number.isFinite(offset.minScrollExtent) ? offset.minScrollExtent : null,
+          Number.isFinite(offset.maxScrollExtent) ? offset.maxScrollExtent : null,
+        ]);
+      }
+      stack.push(...node.children);
+    }
+    return { values, truncated: stack.length > 0 };
+  };
   // Exercise the real installed JSI capability, independently of which
   // conservative render paths are eligible in this diagnostic's current page.
   // The candidate is withdrawn from the normal native engine. This explicit
@@ -38,13 +102,28 @@ export function installRnwFrameProbe(application, options = {}) {
   const suppliedGeometry = application.services.inputGeometry;
   const inputGeometry =
     suppliedGeometry ??
-    (globalThis.SkiaApi
+    (globalThis.SkiaApi && options.inputGeometry !== false
       ? createInputGeometryService(globalThis.SkiaApi, view.owner, () => {})
       : undefined);
   const context = view.controller?.context;
   const previousGeometry = context?.inputGeometry;
+  const extraServices = [];
+  const sceneResources = options.sceneBatch ? view.options?.renderer?.resources : undefined;
+  const previousBatch = sceneResources?.sceneBatch;
+  let sceneApi;
   if (context && inputGeometry) context.inputGeometry = inputGeometry;
   const closeGeometry = () => {
+    if (sceneResources && sceneResources.sceneBatch === options.sceneBatch) {
+      if (previousBatch === undefined) delete sceneResources.sceneBatch;
+      else sceneResources.sceneBatch = previousBatch;
+    }
+    for (const { name, previous, service } of extraServices) {
+      if (context[name] === service) {
+        if (previous === undefined) delete context[name];
+        else context[name] = previous;
+      }
+      if (service !== previous) service.dispose();
+    }
     if (context && inputGeometry && context.inputGeometry === inputGeometry) {
       if (previousGeometry === undefined) delete context.inputGeometry;
       else context.inputGeometry = previousGeometry;
@@ -57,6 +136,86 @@ export function installRnwFrameProbe(application, options = {}) {
     executed: false,
   };
   try {
+    if (options.sceneBatch) {
+      if (!sceneResources) throw Error('Scene batch diagnostic requires owned native resources');
+      // The renderer and retained Picture compiler share this resource owner.
+      // Keep the candidate through the whole callback, then restore on close.
+      sceneResources.sceneBatch = options.sceneBatch;
+    }
+    if (options.nativeCalls) {
+      const skia = globalThis.SkiaApi,
+        temporary = [];
+      try {
+        const paint = skia.Paint(),
+          rect = skia.XYWHRect(0, 0, 1, 1),
+          factory = skia.PathBuilder,
+          builder = factory.Make(),
+          recorder = skia.PictureRecorder();
+        temporary.push(paint, rect, builder, recorder);
+        const recorderPrototype = Object.getPrototypeOf(recorder);
+        contextPrototypes.add(recorderPrototype);
+        watchNative(recorderPrototype, ['nelyxReplayDisplayList'], 'scene');
+        watchNative(
+          Object.getPrototypeOf(paint),
+          [
+            'setColor',
+            'setAntiAlias',
+            'setStyle',
+            'setStrokeWidth',
+            'setStrokeMiter',
+            'setStrokeCap',
+            'setStrokeJoin',
+            'setBlendMode',
+            'dispose',
+          ],
+          'paint',
+        );
+        watchNative(Object.getPrototypeOf(rect), ['setLTRB', 'dispose'], 'rect');
+        watchNative(Object.getPrototypeOf(factory), ['Make'], 'path-factory');
+        watchNative(
+          Object.getPrototypeOf(builder),
+          [
+            'setFillType',
+            'moveTo',
+            'rMoveTo',
+            'lineTo',
+            'rLineTo',
+            'quadTo',
+            'rQuadTo',
+            'cubicTo',
+            'rCubicTo',
+            'conicTo',
+            'rConicTo',
+            'close',
+            'addRect',
+            'addOval',
+            'addRRect',
+            'build',
+            'dispose',
+          ],
+          'path',
+        );
+        watchNative(
+          skia,
+          ['Paint', 'XYWHRect', 'RRectXY', 'Color', 'nelyxScenePacketVersion', 'nelyxMakePath'],
+          'api',
+        );
+      } finally {
+        for (const value of temporary.reverse()) value.dispose();
+      }
+    }
+    for (const [name, enabled, create] of [
+      ['sceneComposition', options.sceneComposition, createSceneCompositionService],
+      ['semanticsGeometry', options.semanticsGeometry, createSemanticsGeometryService],
+    ])
+      if (enabled && context) {
+        const previous = context[name],
+          service = previous ?? create(globalThis.SkiaApi, view.owner, () => {});
+        if (!service) throw Error('Missing numeric ' + name + ' capability');
+        context[name] = service;
+        extraServices.push({ name, previous, service });
+      }
+    if (options.sceneApi) sceneApi = verifyRnwSceneApi(globalThis.SkiaApi);
     if (inputGeometry) {
       const metrics = view.currentMetrics;
       const result = inputGeometry.project(
@@ -206,6 +365,26 @@ export function installRnwFrameProbe(application, options = {}) {
         uncertainty: (after - before) / 2,
       });
       report.inputGeometry = geometrySupport();
+      if (sceneApi) report.sceneApi = sceneApi;
+      if (options.nativeCalls)
+        report.nativeCalls = {
+          methods: nativeCallMethods,
+          unsupported: nativeCallFailures,
+          calls: { ...nativeCallTotals },
+          scenePackets: { ...scenePackets },
+          scope: 'observed selected Path/Paint/Rect/packet API calls inside owned callbacks',
+        };
+      if (options.scrolls)
+        report.motionSamples = [...records.rows.values()]
+          .filter((row) => row.identity.frame > 0 && row.callback?.scrolls)
+          .slice(-256)
+          .map((row) => ({
+            identity: row.identity,
+            scrolls: row.callback.scrolls,
+            begin: row.callback.begin,
+            end: row.callback.end,
+            nativeMs: row.native[2]?.[0] ?? row.native[0]?.[0],
+          }));
       report.scope =
         'actual RNW; owned View callback wall excludes native dispatch/poll and following JS checkpoint; a preexisting callback may be unobserved; opt-in wrappers and native thread observations';
       report.errors = errors + work.errors;
@@ -255,6 +434,7 @@ export function installRnwFrameProbe(application, options = {}) {
             inputEvents: 0,
             inputWall: 0,
             work: work.finish(),
+            ...(options.scrolls ? { scrolls: scrolls() } : {}),
           };
           drain();
           const observed = activeCallback;
@@ -289,6 +469,14 @@ export function installRnwFrameProbe(application, options = {}) {
     )
       return submit.apply(this, args);
     const old = this.frameDiagnostics;
+    if (options.nativeCalls) {
+      const target = this.context(),
+        prototype = Object.getPrototypeOf(target);
+      if (!contextPrototypes.has(prototype)) {
+        contextPrototypes.add(prototype);
+        watchNative(prototype, ['nelyxReplayDisplayList'], 'scene');
+      }
+    }
     this.frameDiagnostics = diagnostics;
     try {
       const result = submit.apply(this, args);

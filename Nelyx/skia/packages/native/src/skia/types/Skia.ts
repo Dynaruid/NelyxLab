@@ -37,6 +37,28 @@ import type { SkottieFactory } from './Skottie.ts';
  * Declares the interface for the native Skia API
  */
 export interface Skia {
+  nelyxSemanticsGeometryVersion?(): number;
+  nelyxSemanticsGeometrySession?(
+    session: number,
+    generation: number,
+  ): {
+    evaluate(packet: ArrayBuffer): ArrayBuffer;
+    stats(): ArrayBuffer;
+    close(): void;
+  };
+  nelyxSceneCompositionVersion?(): number;
+  nelyxSceneCompositionSession?(
+    session: number,
+    generation: number,
+  ): {
+    prepare(packet: ArrayBuffer): ArrayBuffer;
+    commit(revision: number): void;
+    discard(revision: number): void;
+    stats(): ArrayBuffer;
+    close(): void;
+  };
+  nelyxScenePacketVersion?(): number;
+  nelyxMakePath?(packet: ArrayBuffer): SkPath;
   /** Internal optional numeric capability; custom/Web backends can omit it. */
   nelyxInputGeometryVersion?(): number;
   nelyxInputGeometrySession?(

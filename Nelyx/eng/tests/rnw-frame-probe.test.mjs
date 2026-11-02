@@ -390,13 +390,13 @@ test(
     for (let frame = 1; frame <= 10; frame++) records.source(sample({ frame, resource }));
     assert.equal(records.rows.size, 3);
     assert.equal(records.evicted, 7);
-    for (let i = 0; i < 60; i++) records.source(sample({ frame: 10, stage: `stage${i}` }));
+    for (let i = 0; i < 72; i++) records.source(sample({ frame: 10, stage: `stage${i}` }));
     assert(records.invalid > 0);
     records.native(native({ nativeTimestamp: NaN }));
     const report = records.report(null);
     assert(report.slowFrames.length <= 6);
     assert(!JSON.stringify(report).includes('resource'));
-    assert([...records.rows.values()].every((row) => Object.keys(row.source).length <= 48));
+    assert([...records.rows.values()].every((row) => Object.keys(row.source).length <= 64));
   },
 );
 

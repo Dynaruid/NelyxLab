@@ -1,9 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { Skia } from './skia/types/Skia.ts';
 import type { SkPath } from './skia/types/Drawing.ts';
-import { freezePath } from '@nelyx/core/ui/path';
+import { freezePath, pathOperationNames } from '@nelyx/core/ui/path';
 import type { PathSnapshot } from '@nelyx/core/ui/path';
-export function createEnginePath(api: Skia, value: PathSnapshot): SkPath {
+/** Already captured values only; freezing custom values happens once at entry. */
+export function encodePath(snapshot: PathSnapshot): number[] {
+  const words: number[] = [snapshot.fillType === 'evenOdd' ? 1 : 0, snapshot.operations.length, 0];
+  for (const op of snapshot.operations) {
+    words.push(pathOperationNames.indexOf(op.verb), op.values.length);
+    for (const value of op.values) words.push(value);
+  }
+  words[2] = words.length - 3;
+  return words;
+}
+export function createEnginePath(api: Skia, value: PathSnapshot, batch = false): SkPath {
+  if (batch) {
+    const snapshot = freezePath(value);
+    if (api.nelyxScenePacketVersion?.() !== 2 || !api.nelyxMakePath)
+      throw Error('Numeric path2 binding required; rebuild the native supplier');
+    return api.nelyxMakePath(new Float64Array([0x4e4c5054, 1, ...encodePath(snapshot)]).buffer);
+  }
   const snapshot = freezePath(value),
     temporary: { dispose(): void }[] = [],
     own = <T extends { dispose(): void }>(value: T): T => {

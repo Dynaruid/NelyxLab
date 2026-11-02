@@ -88,6 +88,7 @@ import type {
   InputGeometryFrame,
 } from '../../hosting/input-geometry.ts';
 const numericGeometryObjects = new WeakSet<object>();
+const numericSemanticsPrototypes = new WeakSet<object>();
 const numericOffsetGetters = ['dx', 'dy'].map(
   (name) => Object.getOwnPropertyDescriptor(NumericGeometryOffset.prototype, name)!.get,
 );
@@ -987,6 +988,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** @internal Capture implementation identities at module evaluation, never
    * trust freeze, a constructor name or the current mutable prototype alone. */
   static _registerInputGeometryHooks(prototype: object): void {
+    numericSemanticsPrototypes.add(prototype);
     for (const name of RenderObject.inputGeometryHookNames) {
       const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
       if (!descriptor) continue;
@@ -995,6 +997,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         RenderObject.inputGeometryHooks.set(name, (implementations = new Set()));
       implementations.add(descriptor.get ?? descriptor.value);
     }
+  }
+  /** @internal Register exact built-in prototypes, never an instance or caller value. */
+  static _registerSemanticsGeometryPrototype(...prototypes: readonly object[]): void {
+    for (const prototype of prototypes) numericSemanticsPrototypes.add(prototype);
   }
   private supportsNumericInputGeometry(): boolean {
     const prototypes = new Map<object, boolean>();
@@ -3248,6 +3254,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
       });
     }
   }
+  numericSemanticsPrototypes.add(AnnotatedRenderObject.prototype);
   return AnnotatedRenderObject as unknown as SemanticsAnnotationsConstructor<Base>;
 }
 
@@ -3299,7 +3306,10 @@ export abstract class RenderBox<
   }
   /** @internal Exact built-in types whose layout only changes semantic geometry. */
   static _registerGeometryLayoutSemantics(...prototypes: readonly object[]): void {
-    for (const prototype of prototypes) RenderBox.geometryLayoutSemantics.add(prototype);
+    for (const prototype of prototypes) {
+      RenderBox.geometryLayoutSemantics.add(prototype);
+      numericSemanticsPrototypes.add(prototype);
+    }
   }
   protected override markNeedsPaintAfterLayout(): void {
     const prototype = Object.getPrototypeOf(this);
@@ -3715,3 +3725,29 @@ export abstract class RenderBox<
 RenderObject._registerInputGeometryHooks(RenderObject.prototype);
 
 RenderObject._registerInputGeometryHooks(RenderBox.prototype);
+
+const numericSemanticsBoundsHooks = new Map<string, PropertyDescriptor>();
+for (const [prototype, names] of [
+  [RenderObject.prototype, ['semanticBounds', 'parent']],
+  [RenderBox.prototype, ['paintBounds', 'size']],
+] as const)
+  for (const name of names)
+    numericSemanticsBoundsHooks.set(name, Object.getOwnPropertyDescriptor(prototype, name)!);
+/** @internal Bounds may move across pure numeric work only when every getter
+ * used by the built-in box implementation is still the captured implementation. */
+export function captureNumericSemanticsBounds(render: RenderObject): Rect | undefined {
+  if (!numericGeometryObjects.has(render)) return undefined;
+  if (!numericSemanticsPrototypes.has(Object.getPrototypeOf(render))) return undefined;
+  for (const [name, expected] of numericSemanticsBoundsHooks) {
+    let current: object | null = render,
+      descriptor: PropertyDescriptor | undefined;
+    while (current && !descriptor) {
+      if (current !== render && !numericSemanticsPrototypes.has(current)) return undefined;
+      descriptor = Object.getOwnPropertyDescriptor(current, name);
+      if (!descriptor) current = Object.getPrototypeOf(current);
+    }
+    if (!descriptor || descriptor.get !== expected.get || descriptor.value !== expected.value)
+      return undefined;
+  }
+  return render.semanticBounds;
+}

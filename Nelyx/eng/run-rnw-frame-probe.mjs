@@ -7,7 +7,11 @@ import { createHash } from 'node:crypto';
 import { refreshSampleWindowsSdk } from './run-sample-windows.mjs';
 
 /** Patch only the existing runner, holding its original source in RAM. */
-export async function withRnwFrameFixture(runner, work, { detailedWork = true } = {}) {
+export async function withRnwFrameFixture(
+  runner,
+  work,
+  { detailedWork = true, probeOptions } = {},
+) {
   runner = fs.realpathSync(runner);
   const appFile = path.join(runner, 'App.tsx'),
     original = fs.readFileSync(appFile),
@@ -22,9 +26,11 @@ export async function withRnwFrameFixture(runner, work, { detailedWork = true } 
           .toString()
           .replace(
             marker,
-            detailedWork
-              ? 'onReady={(application) => { installRnwFrameProbe(application); }}'
-              : 'onReady={(application) => { installRnwFrameProbe(application, {work: false}); }}',
+            probeOptions
+              ? `onReady={(application) => { installRnwFrameProbe(application, ${JSON.stringify({ work: detailedWork, ...probeOptions })}); }}`
+              : detailedWork
+                ? 'onReady={(application) => { installRnwFrameProbe(application); }}'
+                : 'onReady={(application) => { installRnwFrameProbe(application, {work: false}); }}',
           ),
     );
   try {
@@ -33,6 +39,7 @@ export async function withRnwFrameFixture(runner, work, { detailedWork = true } 
       'rnw-frame-records.js',
       'native-frame-metrics.js',
       'rnw-work-probe.js',
+      'rnw-scene-api.js',
     ])
       fs.copyFileSync(path.join(import.meta.dirname, 'tests', name), path.join(directory, name));
     fs.writeFileSync(appFile, patched);
@@ -55,7 +62,10 @@ export async function withRnwFrameFixture(runner, work, { detailedWork = true } 
   }
 }
 
-export async function runRnwFrameProbe(root, { signal, detailedWork = true } = {}) {
+export async function runRnwFrameProbe(
+  root,
+  { signal, detailedWork = true, probeOptions, onObservation } = {},
+) {
   root = fs.realpathSync(root);
   const app = path.join(root, 'sample/nelyx-testbed-app-2'),
     runner = path.join(app, 'windows/runner'),
@@ -159,6 +169,7 @@ export async function runRnwFrameProbe(root, { signal, detailedWork = true } = {
                 if (row.type === 'rnw-frame-probe') {
                   latest = row;
                   reports++;
+                  onObservation?.(row);
                   console.log(
                     JSON.stringify({
                       event: 'rnw-frame-observation',
@@ -192,7 +203,7 @@ export async function runRnwFrameProbe(root, { signal, detailedWork = true } = {
               if (tail.length > 12) tail.shift();
             }
           }
-          if (carry.length > 131072) {
+          if (carry.length > 524288) {
             carry = '';
             skip = true;
           }
@@ -288,7 +299,7 @@ export async function runRnwFrameProbe(root, { signal, detailedWork = true } = {
             }),
         );
       },
-      { detailedWork },
+      { detailedWork, probeOptions },
     );
   } finally {
     process.removeListener('SIGINT', stop);

@@ -46,6 +46,8 @@ export interface SceneContext {
   /** Live admission hint, required together with an observed host deadline. */ readonly canRunOptionalWork?: () => boolean;
 }
 export interface ApplicationStartupContext {
+  readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;
+  readonly sceneComposition?: import('./scene-composition.ts').SceneCompositionService;
   readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;
   readonly platformView?: import('../ui/platform-dispatcher.ts').PlatformViewIdentity;
   readonly nativeSelectionContextMenu?: NativeSelectionContextMenuHost;
@@ -74,6 +76,8 @@ export interface ApplicationDefinition {
   createView?(context: ViewControllerContext): ViewController;
 }
 export interface ViewServices {
+  readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;
+  readonly sceneComposition?: import('./scene-composition.ts').SceneCompositionService;
   readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;
   readonly platformView?: import('../ui/platform-dispatcher.ts').PlatformViewIdentity;
   readonly nativeSelectionContextMenu?: NativeSelectionContextMenuHost;

@@ -16,14 +16,20 @@
     11
   ],
   "core": {
-    "CMakeLists.txt": "4d99a16d2c05978e012ada17103319f21bf122067109d54f558f1d1579ef01b1",
+    "CMakeLists.txt": "2185d30075ac3a84c5ccb8739e6f6045c8f106e2e43ab191421f27ad68622191",
     "core.cpp": "2fb1a8e8acbebc7c376c32ccacd8ff5f72ec8341e2d0f700cdbaa67b2a0493a3",
     "input_geometry.cpp": "bf32428ef86ae69da44367cd035a8e5dfc03310d274199e23d845d19a3ef5b04",
     "nelyx_skia/core.h": "0198c377188347868958bc196506ec506095b8d4cd90f2776291724dedcfbf1a",
     "nelyx_skia/input_geometry.h": "e9c80de6b64e684c5409fbc47b874c8f807d2c0d84a500068b5d28c01d0347d7",
     "nelyx_skia/paragraph_queries.h": "9952ed78ee36f39dab5803ae3112a06138093af6d84d4b6902b58a48aa476dbb",
+    "nelyx_skia/scene_composition.h": "2a21b6888699501a796ce68a9a755b2c56dc73ab11849ffc1bde9a6e8af39565",
+    "nelyx_skia/scene_packet.h": "ba07c3677dcfe4f801f0ba53a2cebb6e48e37ee1a46787da810a037886147ad2",
+    "nelyx_skia/semantics_geometry.h": "47f188e2ab545b3f3cc59a8cbb2424adb147435dac2096d0bcaaf642994adbc6",
     "paint_effects.h": "3283c5b3622816670709612b7f47b51e8fc5047136e14d9a263fa8486fdc930e",
-    "paragraph_queries.cpp": "9bd6715a8c78d86fe0428a2695f5ef7cf242533698eebedaca9e2ad23f9b6204"
+    "paragraph_queries.cpp": "9bd6715a8c78d86fe0428a2695f5ef7cf242533698eebedaca9e2ad23f9b6204",
+    "scene_composition.cpp": "246be60c565d2c7c28f23f73f4a1cf0a4397976b96f8bb9f88ba983ffe0c57db",
+    "scene_packet.cpp": "0e796edf0bb0c70c165584497167e7475d89ce00c46b94adf433b135d728a34a",
+    "semantics_geometry.cpp": "39247308e11d33a73a159c282238741d6ca67599d4ecb0d88459e013b85241f4"
   },
   "source": "Nelyx/skia/native",
   "referenceSnapshot": "08231a4ef8323782ab66e53abf5790a44c80a027c795e29a0f3a4ce2df9eeed4",

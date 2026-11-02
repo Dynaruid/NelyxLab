@@ -18,6 +18,8 @@ import { NativeTextLayoutService } from '@nelyx/skia-native/text';
 import { createFramePictureBackend } from '@nelyx/skia-native/pictures';
 import { createRasterizationBackend } from '@nelyx/skia-native/rasterization';
 import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
+import { createSceneCompositionService } from '@nelyx/skia-native/scene-composition';
+import { createSemanticsGeometryService } from '@nelyx/skia-native/semantics-geometry';
 import type { Skia } from '@nelyx/skia-native/skia/types/Skia';
 import type {
   NativeAssetBackend,
@@ -30,7 +32,15 @@ import { OwnedDisposal } from './owned-disposal.ts';
 
 export type NativeEnginePorts = Pick<
   BackendServices<NativeTextLayoutService>,
-  'renderer' | 'text' | 'paths' | 'pictures' | 'rasterization' | 'images' | 'inputGeometry'
+  | 'renderer'
+  | 'text'
+  | 'paths'
+  | 'pictures'
+  | 'rasterization'
+  | 'images'
+  | 'inputGeometry'
+  | 'sceneComposition'
+  | 'semanticsGeometry'
 >;
 export interface NativeEngineOptions {
   readonly api: Skia;
@@ -39,6 +49,10 @@ export interface NativeEngineOptions {
   readonly owner: ViewOwner;
   /** @internal Unadopted geometry candidate. Production keeps the TS path. */
   readonly inputGeometry?: boolean;
+  readonly sceneComposition?: boolean;
+  readonly semanticsGeometry?: boolean;
+  /** @internal Independently measured scene candidates. */
+  readonly sceneBatch?: 'path' | 'paint' | 'all';
   readonly retirement?: GraphiteRetirementClock;
   readonly assets: LoadedNativeAssets;
   readonly configuration: NativeAssetConfiguration;
@@ -73,6 +87,7 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     return text.paintResource(key);
   };
   const resources: GraphiteResources = {
+    ...(options.sceneBatch ? { sceneBatch: options.sceneBatch } : {}),
     nativeDisplayLists: true,
     runtimePrograms: programs,
     image,
@@ -83,7 +98,15 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
   const inputGeometry = options.inputGeometry
     ? createInputGeometryService(api, owner, ensure)
     : undefined;
+  const sceneComposition = options.sceneComposition
+    ? createSceneCompositionService(api, owner, ensure)
+    : undefined;
+  const semanticsGeometry = options.semanticsGeometry
+    ? createSemanticsGeometryService(api, owner, ensure)
+    : undefined;
   const services: NativeEnginePorts = {
+    ...(semanticsGeometry ? { semanticsGeometry } : {}),
+    ...(sceneComposition ? { sceneComposition } : {}),
     ...(inputGeometry ? { inputGeometry } : {}),
     renderer: {
       create() {
@@ -158,6 +181,8 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     },
   };
   const retirement = new OwnedDisposal([
+    { name: 'semantics-geometry', run: () => semanticsGeometry?.dispose() },
+    { name: 'scene-composition', run: () => sceneComposition?.dispose() },
     { name: 'input-geometry', run: () => inputGeometry?.dispose() },
     { name: 'renderer', run: () => renderer?.dispose() },
     // Startup can fail before bootstrap obtains a renderer. Its unused context

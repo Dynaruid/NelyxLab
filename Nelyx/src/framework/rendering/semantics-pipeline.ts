@@ -2,6 +2,10 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Rendering-library semantics fragments from the pinned rendering/object.dart.
 import type { RenderObject, PipelineOwner } from './object.ts';
+import { captureNumericSemanticsBounds } from './object.ts';
+import type { SemanticsGeometryService, SemanticsRect } from '../../hosting/semantics-geometry.ts';
+import type { FrameBuildToken } from '../../ui/types.ts';
+import type { FrameDiagnostics } from '../../ui/frame-diagnostics.ts';
 import {
   SemanticsConfiguration,
   SemanticsNode,
@@ -935,6 +939,77 @@ const geometryPaths = new WeakMap<
   PipelineOwner,
   Map<_RenderObjectSemantics, Map<RenderObject, _SemanticsGeometryPath>>
 >();
+const nativeGeometryFrames = new WeakMap<
+  PipelineOwner,
+  {
+    service: SemanticsGeometryService;
+    token: FrameBuildToken;
+    diagnostics: FrameDiagnostics | undefined;
+  }
+>();
+export function withSemanticsGeometry<T>(
+  owner: PipelineOwner,
+  service: SemanticsGeometryService | undefined,
+  token: FrameBuildToken,
+  diagnostics: FrameDiagnostics | undefined,
+  callback: () => T,
+): T {
+  if (!service) return callback();
+  const previous = nativeGeometryFrames.get(owner);
+  nativeGeometryFrames.set(owner, { service, token, diagnostics });
+  try {
+    return callback();
+  } finally {
+    if (previous) nativeGeometryFrames.set(owner, previous);
+    else nativeGeometryFrames.delete(owner);
+  }
+}
+const semanticsMathHooks = [
+  [Rect, 'fromLTRB'],
+  [Rect, 'fromLTWH'],
+  [Matrix4, 'fromList'],
+  [Matrix4.prototype, 'copyInverse'],
+  [Matrix4.prototype, 'setFrom'],
+  [Matrix4.prototype, 'clone'],
+  [Matrix4.prototype, 'invert'],
+  [Matrix4.prototype, 'storage'],
+  [Matrix4.prototype, 'isZero'],
+  [MatrixUtils, 'getAsTranslation'],
+  [MatrixUtils, 'multiplyInPlace'],
+  [MatrixUtils, 'transformRect'],
+  [MatrixUtils, '_safeTransformRect'],
+  [MatrixUtils, '_accumulate'],
+  [MatrixUtils, '_min4'],
+  [MatrixUtils, '_max4'],
+  [Rect.prototype, 'intersect'],
+  [Rect.prototype, 'shift'],
+  [Rect.prototype, 'isEmpty'],
+  ...['left', 'top', 'right', 'bottom'].map((name) => [Rect.prototype, name] as const),
+] as const;
+const semanticsMathPrototypes = new WeakSet<object>();
+const semanticsMathDescriptors = semanticsMathHooks.map(([target, name]) => {
+  let current: object | null = target,
+    descriptor: PropertyDescriptor | undefined;
+  while (current && !descriptor) {
+    semanticsMathPrototypes.add(current);
+    descriptor = Object.getOwnPropertyDescriptor(current, name);
+    if (!descriptor) current = Object.getPrototypeOf(current);
+  }
+  return descriptor;
+});
+function numericSemanticsMath(): boolean {
+  return semanticsMathHooks.every(([target, name], i) => {
+    let current: object | null = target,
+      descriptor: PropertyDescriptor | undefined;
+    while (current && !descriptor) {
+      if (!semanticsMathPrototypes.has(current)) return false;
+      descriptor = Object.getOwnPropertyDescriptor(current, name);
+      if (!descriptor) current = Object.getPrototypeOf(current);
+    }
+    const expected = semanticsMathDescriptors[i];
+    return descriptor?.value === expected?.value && descriptor?.get === expected?.get;
+  });
+}
 class _SemanticsGeometry {
   constructor(
     readonly paintClipRect: Rect | null,
@@ -1000,6 +1075,59 @@ class _SemanticsGeometry {
       if (paths && (i === 1 || node.children.length > 1))
         paths.set(node, { transform: transform.clone(), paint, semantic });
     }
+    const native = parentRender.owner ? nativeGeometryFrames.get(parentRender.owner) : undefined;
+    if (
+      native &&
+      numericSemanticsMath() &&
+      Object.getPrototypeOf(transform) === Matrix4.prototype &&
+      (parentTransform === null || Object.getPrototypeOf(parentTransform) === Matrix4.prototype) &&
+      [paint, semantic, parentPaintClip, parentSemanticsClip].every(
+        (rect) => rect === null || Object.getPrototypeOf(rect) === Rect.prototype,
+      )
+    ) {
+      // Snapshot numeric inputs before the standard bounds getter. No custom
+      // hook is evaluated by native or retried after a failure.
+      const tuple = (r: Rect | null): SemanticsRect | null =>
+        r === null ? null : [r.left, r.top, r.right, r.bottom];
+      const query = {
+        transform: [...transform.storage],
+        parentTransform: parentTransform ? [...parentTransform.storage] : null,
+        paint: tuple(paint),
+        semantic: tuple(semantic),
+        parentPaint: tuple(parentPaintClip),
+        parentSemantic: tuple(parentSemanticsClip),
+      };
+      const finite = [
+        query.transform,
+        query.parentTransform,
+        query.paint,
+        query.semantic,
+        query.parentPaint,
+        query.parentSemantic,
+      ].every((values) => values === null || values.every(Number.isFinite));
+      if (finite) {
+        const bounds = captureNumericSemanticsBounds(child.renderObject);
+        if (bounds !== undefined) {
+          const local = rectValue(bounds),
+            result = native.service.project(
+              native.token,
+              [{ ...query, bounds: [local.left, local.top, local.right, local.bottom] }],
+              native.diagnostics,
+            )[0]!;
+          const rect = (r: SemanticsRect | null) =>
+            r === null ? null : Rect.fromLTRB(r[0], r[1], r[2], r[3]);
+          return new _SemanticsGeometry(
+            rect(result.paint),
+            rect(result.semantic),
+            Matrix4.fromList(result.transform),
+            rect(result.rect)!,
+            result.hidden,
+          );
+        }
+      }
+    }
+    if (native?.diagnostics)
+      native.diagnostics.recordDuration(native.token, 'semantics-geometry-fallback', 0, 1);
     semantic ??= this.intersect(paint, parentSemanticsClip);
     paint = this.intersect(paint, parentPaintClip);
     if (paint !== null || semantic !== null) {
