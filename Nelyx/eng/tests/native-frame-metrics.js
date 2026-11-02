@@ -622,9 +622,35 @@ export function analyseNativeMotionIntervals(trace, windows) {
       intervals.push(after[10] - before[10]);
     }
   }
+  // Count copied content over the complete declared motion duration. Using
+  // only the sum of observed intervals hides a stalled/empty window and the
+  // time before its first or after its last copy. Half-open windows also avoid
+  // counting a copy twice when two motion windows touch.
+  const segments = windows.map(({ begin, end }) => {
+    const copies = surfaces.filter((row) => row[10] > begin && row[10] <= end),
+      contentUpdates = new Set(copies.map((row) => row[4])).size,
+      durationMs = end - begin;
+    for (const row of copies)
+      requireValue(
+        [1, 2, 3, 7, 8, 9].every((field) => row[field] === copies[0][field]),
+        'Motion surface scope changed',
+      );
+    return {
+      durationMs,
+      surfaceUpdates: copies.length,
+      contentUpdates,
+      fps: (contentUpdates * 1000) / durationMs,
+    };
+  });
+  const durationMs = segments.reduce((sum, segment) => sum + segment.durationMs, 0),
+    contentUpdates = segments.reduce((sum, segment) => sum + segment.contentUpdates, 0);
   return {
     scope: 'surface-updates-within-explicit-motion-windows',
     windows: windows.length,
+    durationMs,
+    contentUpdates,
+    fps: (contentUpdates * 1000) / durationMs,
+    segments,
     intervals: distribution(intervals),
     displayed: 'unobserved',
     performanceAccepted: false,

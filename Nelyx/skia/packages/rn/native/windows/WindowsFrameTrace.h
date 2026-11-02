@@ -20,6 +20,8 @@ struct WindowsFrameTraceEntry {
 // 14 proposal begin, 15 Arrange end, 16 WinUI Commit end,
 // 17 native Commit/completion end, 18 DwmFlush end (surface=transaction).
 // 19 rejected proposal: USER32 retains its actual extent (surface=transaction).
+// 20/21 opt-in native producer worker begin/end; wall time, not GPU timestamps.
+// 22..26 producer import/submit/wait/finish/context wall, width=microseconds.
 // Display pixels are observed separately by the desktop-capture fixture.
 class WindowsFrameTrace final {
 public:

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "gpu_context.h"
+#include <algorithm>
 #include <mutex>
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include <unordered_map>
 #include "include/core/SkData.h"
@@ -165,15 +167,21 @@ bool GpuContext::canExportDmaBufFrame() {std::lock_guard lock(impl->mutex);impl-
 std::shared_ptr<const Win32Frame> GpuContext::renderWin32Frame(Win32TextureTarget target,std::function<void(SkCanvas*)> draw,
     const std::vector<std::shared_ptr<skgpu::graphite::Recording>>& recordings) {
   std::shared_ptr<const Win32Frame> frame;
+  const auto began=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
   {
     std::lock_guard lock(impl->mutex);
     skgpu::graphite::RecorderOptions options;options.fGpuBudgetInBytes=32*1024*1024;
     options.fImageProvider=sk_make_sp<UploadProvider>();
     frame=impl->device->renderWin32Frame(impl->context()->makeRecorder(options),target,std::move(draw),recordings,true);
   }
+  const auto submitted=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
+  if(target.timing)target.timing->contextMs=std::max(0.,std::chrono::duration<double,std::milli>(submitted-began).count()-target.timing->importMs-target.timing->submitMs);
   // GPU latency must not hold up JS recorder/resource work on this Context.
   frame->awaitProducer();
+  const auto completed=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
+  if(target.timing)target.timing->waitMs=std::chrono::duration<double,std::milli>(completed-submitted).count();
   {std::lock_guard lock(impl->mutex);frame->finishProducer();}
+  if(target.timing)target.timing->finishMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-completed).count();
   return frame;
 }
 }

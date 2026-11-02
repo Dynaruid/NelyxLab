@@ -659,6 +659,93 @@ test(
 );
 
 test(
+  'multi-child updates preserve positional state, custom key moves and slots across key transitions',
+  { timeout },
+  () => {
+    const slot = {},
+      nextSlot = {},
+      a = new Branch(),
+      b = new Branch(),
+      f = tree(new Branch([a, b], { slot }));
+    try {
+      f.flush();
+      const [first, second] = f.root.children;
+      f.update(new Branch([a, new Branch(), new Branch()], { slot: nextSlot }));
+      assert.equal(f.root.children[0], first);
+      assert.equal(first.updates, 0, 'Identical widgets must not receive an update');
+      assert.equal(f.root.children[1], second);
+      assert.equal(second.updates, 1);
+      assert(f.root.children.every((child) => child.slot === nextSlot));
+      const retired = [...f.root.children];
+      f.update(
+        new Branch([
+          new Branch([], { key: new EqualKey('a') }),
+          new Branch([], { key: new EqualKey('b') }),
+        ]),
+      );
+      assert(retired.every((child) => child.unmounts === 1));
+      const [keyedA, keyedB] = f.root.children;
+      f.update(
+        new Branch(
+          [
+            new Branch([], { key: new EqualKey('b') }),
+            new Branch(),
+            new Branch([], { key: new EqualKey('a') }),
+          ],
+          { slot },
+        ),
+      );
+      assert.equal(f.root.children[0], keyedB);
+      assert.equal(f.root.children[2], keyedA);
+      assert(f.root.children.every((child) => child.slot === slot));
+      f.update(new Branch([]));
+      assert.equal(keyedA.unmounts, 1);
+      assert.equal(keyedB.unmounts, 1);
+      assert.deepEqual(f.errors, []);
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
+  'duplicate custom sibling keys fail before updates and failed multi-child mounts retire new children',
+  { timeout },
+  () => {
+    const f = tree(new Branch([new Branch(), new Branch()]));
+    try {
+      f.flush();
+      const previous = [...f.root.children];
+      assert.throws(
+        () =>
+          f.root.reconcile(previous, [
+            new Branch(),
+            new Branch([], { key: new EqualKey('same') }),
+            new Branch([], { key: new EqualKey('same') }),
+          ]),
+        { code: 'duplicate-key' },
+      );
+      assert(previous.every((child) => child.updates === 0 && child.active));
+      const key = new GlobalKey('multi-failed-mount');
+      assert.throws(
+        () =>
+          f.root.reconcile(previous, [
+            new Branch(),
+            new Branch(),
+            new Branch([], { key, failMount: true }),
+          ]),
+        /child mount failed/,
+      );
+      assert.equal(key.currentElement, undefined);
+      assert(previous.every((child) => child.active && child.unmounts === 0));
+      assert.equal(f.owner.globalKeyCount, 0);
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
   'singleton GlobalKey retake keeps the child and reserves its final parent',
   { timeout },
   () => {

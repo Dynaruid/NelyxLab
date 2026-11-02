@@ -34,6 +34,24 @@ export interface PathSnapshot {
   readonly fillType: PathFillType;
   readonly operations: readonly PathVerbRecord[];
 }
+const capturedPaths = new WeakSet<PathSnapshot>(),
+  pathRecordCounts = new WeakMap<PathSnapshot, number>();
+/** @internal Public freezing does not establish a deeply validated path. */
+export function isCapturedPathSnapshot(value: PathSnapshot): boolean {
+  return capturedPaths.has(value);
+}
+/** @internal Expanded wire work for immutable internal values, never caller identities. */
+export function pathRecordCount(value: PathSnapshot): number {
+  const owned = capturedPaths.has(value),
+    cached = owned ? pathRecordCounts.get(value) : undefined;
+  if (cached !== undefined) return cached;
+  const count = value.operations.reduce(
+    (total, item) => total + (item.verb === 'addRRect' ? 2 : 1),
+    0,
+  );
+  if (owned) pathRecordCounts.set(value, count);
+  return count;
+}
 /** Per-app engine geometry queries; independent of GPU frame admission. */
 export interface PathQueryService {
   contains(path: PathSnapshot, point: Offset): boolean;
@@ -241,6 +259,7 @@ function ellipseArc(
 }
 /** Validate untrusted frame values and copy all nested arrays before admission. */
 export function freezePath(value: PathSnapshot): PathSnapshot {
+  if (capturedPaths.has(value)) return value;
   invariant(
     value &&
       typeof value === 'object' &&
@@ -254,24 +273,36 @@ export function freezePath(value: PathSnapshot): PathSnapshot {
     invariant(item && typeof item === 'object', 'invalid-path', 'Invalid path operation');
     captured.push(operation(item.verb, item.values));
   }
-  return Object.freeze({ fillType: fillType(value.fillType), operations: Object.freeze(captured) });
+  const snapshot = Object.freeze({
+    fillType: fillType(value.fillType),
+    operations: Object.freeze(captured),
+  });
+  capturedPaths.add(snapshot);
+  return snapshot;
 }
 /** Mutable CPU value recorder. Engine geometry queries use an explicit per-app service. */
 export class Path {
   private currentFillType: PathFillType = 'nonZero';
   private operations: PathVerbRecord[] = [];
+  private captured: PathSnapshot | undefined;
   static from(source: Path): Path {
     invariant(source instanceof Path, 'invalid-path', 'Path.from requires Path');
     const result = new Path();
-    result.currentFillType = source.fillType;
-    result.operations = [...source.snapshot().operations];
+    result.currentFillType = fillType(source.fillType);
+    // A subclass may supply mutable external operations. Capture those before
+    // the new Path can admit its own immutable snapshot.
+    result.operations = [...freezePath(source.snapshot()).operations];
     return result;
   }
   get fillType(): PathFillType {
     return this.currentFillType;
   }
   set fillType(value: PathFillType) {
-    this.currentFillType = fillType(value);
+    const next = fillType(value);
+    if (next !== this.currentFillType) {
+      this.currentFillType = next;
+      this.captured = undefined;
+    }
   }
   private append(verb: PathVerbName, values: readonly number[]): void {
     const captured = operation(verb, values);
@@ -281,6 +312,7 @@ export class Path {
       'Path operation budget exceeded',
     );
     this.operations.push(captured);
+    this.captured = undefined;
   }
   moveTo(x: number, y: number): void {
     this.append('moveTo', [x, y]);
@@ -318,6 +350,7 @@ export class Path {
   reset(): void {
     this.operations = [];
     this.currentFillType = 'nonZero';
+    this.captured = undefined;
   }
   private rectangle(verb: 'addRect' | 'addOval', rect: Rect): void {
     invariant(rect, 'invalid-path', 'Missing path rectangle');
@@ -348,6 +381,7 @@ export class Path {
       'Path operation budget exceeded',
     );
     this.operations.push(...rows);
+    this.captured = undefined;
   }
   /** @dartParam startAngle double
    * @dartParam sweepAngle double */
@@ -366,6 +400,7 @@ export class Path {
       'Path operation budget exceeded',
     );
     this.operations.push(...rows);
+    this.captured = undefined;
   }
   addRRect(rect: RRect): void {
     this.append('addRRect', captureRRect(rect).values);
@@ -387,12 +422,17 @@ export class Path {
     }
     if (captured.length && close) captured.push(operation('close', []));
     this.operations.push(...captured);
+    this.captured = undefined;
   }
   snapshot(): PathSnapshot {
-    return Object.freeze({
+    if (this.captured) return this.captured;
+    const snapshot = Object.freeze({
       fillType: this.currentFillType,
       operations: Object.freeze([...this.operations]),
     });
+    capturedPaths.add(snapshot);
+    this.captured = snapshot;
+    return snapshot;
   }
   contains(point: Offset, queries: PathQueryService): boolean {
     invariant(

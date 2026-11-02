@@ -29,6 +29,11 @@ export type FrameDiagnosticStage =
   | 'boundary-visits'
   | 'boundary-recordings'
   | 'boundary-reuses'
+  | 'composition-updates'
+  | 'composition-visits'
+  | 'composition-reuses'
+  | 'composition-scope-misses'
+  | 'composition-structure-misses'
   | 'dirty-layout'
   | 'input-queue'
   | 'input-dispatch';

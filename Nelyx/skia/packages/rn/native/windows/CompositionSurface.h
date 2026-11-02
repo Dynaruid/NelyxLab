@@ -28,7 +28,9 @@ public:
     uint64_t consumer=0;
     bool updated=false,staged=false,retired=false;
     std::optional<bool> resolution;
-    void render(){frame=renderer({texture.get(),fence.get(),consumer},{},recordings);recordings.clear();renderer={};}
+    nelyx::vulkan::Win32ProducerTiming timing;
+    bool observeTiming=false;
+    void render(){frame=renderer({texture.get(),fence.get(),consumer,observeTiming?&timing:nullptr},{},recordings);recordings.clear();renderer={};}
     void retire(){
       HANDLE event=CreateEventW(nullptr,FALSE,FALSE,nullptr);
       if(!event)throw std::runtime_error("Windows copy completion event unavailable");

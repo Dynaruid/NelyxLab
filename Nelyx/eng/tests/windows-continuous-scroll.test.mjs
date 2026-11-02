@@ -23,7 +23,7 @@ test(
     verifyWindowsRuntime(checked.directory);
     // Each page owns one process, an uninterrupted wheel stream and native-only
     // screen sampling. No UIA/JS reads pace input or wait for each scroll frame.
-    for (const page of ['material', 'list', 'cupertino']) {
+    for (const page of ['material', 'list', 'cupertino', 'mixed']) {
       const result = spawnSync(
         'powershell.exe',
         [

@@ -4,12 +4,23 @@
 import { invariant } from '../../foundation/errors.ts';
 import { RenderProxyBox } from './boxes.ts';
 import { LayerHandle, AnnotatedRegionLayer, AnnotationType } from './layer.ts';
-import type { RenderBox, RenderObject } from './object.ts';
+import { RenderBox } from './object.ts';
+import type { RenderObject } from './object.ts';
+import type { Size, Offset } from '../../ui/geometry.ts';
 import type { PaintingContext } from '../painting/context.ts';
+const defaultSizeGetter = Object.getOwnPropertyDescriptor(RenderBox.prototype, 'size')!.get;
 export class RenderAnnotatedRegion<T extends {}> extends RenderProxyBox {
   private annotation: T;
   private bounded: boolean;
   private readonly retained = new LayerHandle<AnnotatedRegionLayer<T>>();
+  private annotationSnapshot:
+    | {
+        layer: AnnotatedRegionLayer<T>;
+        value: T;
+        size: Size | null;
+        offset: Offset;
+      }
+    | undefined;
   readonly annotationType: AnnotationType<T>;
   constructor(options: {
     readonly value: T;
@@ -71,10 +82,35 @@ export class RenderAnnotatedRegion<T extends {}> extends RenderProxyBox {
     return true;
   }
   override paint(context: PaintingContext): void {
-    const layer = new AnnotatedRegionLayer(this.annotation, {
-        annotationType: this.annotationType,
-        size: this.bounded ? this.size : null,
-      }),
+    const size = this.bounded ? this.size : null,
+      previous = this.annotationSnapshot,
+      stable =
+        previous &&
+        this.retained.layer === previous.layer &&
+        !previous.layer.debugDisposed &&
+        Object.getPrototypeOf(this) === RenderAnnotatedRegion.prototype &&
+        !Object.hasOwn(this, 'size') &&
+        Object.getOwnPropertyDescriptor(RenderBox.prototype, 'size')?.get === defaultSizeGetter &&
+        !Object.getOwnPropertyDescriptor(RenderProxyBox.prototype, 'size') &&
+        previous.value === this.annotation &&
+        (size === null
+          ? previous.size === null
+          : previous.size !== null &&
+            Object.is(size.width, previous.size.width) &&
+            Object.is(size.height, previous.size.height)) &&
+        Object.getPrototypeOf(previous.layer) === AnnotatedRegionLayer.prototype &&
+        Object.getOwnPropertyDescriptor(previous.layer, 'value')?.value === previous.value &&
+        Object.getOwnPropertyDescriptor(previous.layer, 'annotationType')?.value ===
+          this.annotationType &&
+        Object.getOwnPropertyDescriptor(previous.layer, 'size')?.value === previous.size &&
+        Object.getOwnPropertyDescriptor(previous.layer, 'offset')?.value === previous.offset &&
+        Object.getOwnPropertyDescriptor(previous.layer, 'opaque')?.value === false;
+    const layer = stable
+        ? previous.layer
+        : new AnnotatedRegionLayer(this.annotation, {
+            annotationType: this.annotationType,
+            size,
+          }),
       hold = new LayerHandle(layer);
     try {
       context.pushLayer(
@@ -84,6 +120,13 @@ export class RenderAnnotatedRegion<T extends {}> extends RenderProxyBox {
         this.paintBounds,
       );
       this.retained.layer = layer;
+      if (!stable)
+        this.annotationSnapshot = {
+          layer,
+          value: this.annotation,
+          size: layer.size,
+          offset: layer.offset,
+        };
     } finally {
       hold.dispose();
     }
@@ -92,14 +135,20 @@ export class RenderAnnotatedRegion<T extends {}> extends RenderProxyBox {
     try {
       super.detach();
     } finally {
-      if (!this.attached) this.retained.dispose();
+      if (!this.attached) {
+        this.retained.dispose();
+        this.annotationSnapshot = undefined;
+      }
     }
   }
   override dispose(): void {
     try {
       super.dispose();
     } finally {
-      if (this.debugDisposed) this.retained.dispose();
+      if (this.debugDisposed) {
+        this.retained.dispose();
+        this.annotationSnapshot = undefined;
+      }
     }
   }
 }

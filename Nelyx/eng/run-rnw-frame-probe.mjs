@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { refreshSampleWindowsSdk } from './run-sample-windows.mjs';
 
 /** Patch only the existing runner, holding its original source in RAM. */
-export async function withRnwFrameFixture(runner, work) {
+export async function withRnwFrameFixture(runner, work, { detailedWork = true } = {}) {
   runner = fs.realpathSync(runner);
   const appFile = path.join(runner, 'App.tsx'),
     original = fs.readFileSync(appFile),
@@ -20,7 +20,12 @@ export async function withRnwFrameFixture(runner, work) {
       imported +
         original
           .toString()
-          .replace(marker, 'onReady={(application) => { installRnwFrameProbe(application); }}'),
+          .replace(
+            marker,
+            detailedWork
+              ? 'onReady={(application) => { installRnwFrameProbe(application); }}'
+              : 'onReady={(application) => { installRnwFrameProbe(application, {work: false}); }}',
+          ),
     );
   try {
     for (const name of [
@@ -50,7 +55,7 @@ export async function withRnwFrameFixture(runner, work) {
   }
 }
 
-export async function runRnwFrameProbe(root, { signal } = {}) {
+export async function runRnwFrameProbe(root, { signal, detailedWork = true } = {}) {
   root = fs.realpathSync(root);
   const app = path.join(root, 'sample/nelyx-testbed-app-2'),
     runner = path.join(app, 'windows/runner'),
@@ -214,72 +219,76 @@ export async function runRnwFrameProbe(root, { signal } = {}) {
     });
   try {
     if (signal?.aborted) throw Error('RNW diagnostic aborted before launch');
-    await withRnwFrameFixture(runner, async () => {
-      await run([
-        'build',
-        '--app',
-        '../..',
-        '--target',
-        'windows',
-        '--engine',
-        'hermes',
-        '--hermes-mode',
-        'bytecode',
-        '--hermes-profile',
-        'optimized',
-        '--configuration',
-        'Release',
-      ]);
-      const locator = JSON.parse(
-          fs.readFileSync(path.join(app, '.nelyx/windows/last-package.json'), 'utf8'),
-        ),
-        manifestFile = path.join(locator.directory, 'nelyx-package.json'),
-        manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8')),
-        hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-      if (
-        manifest.hermesExecutionMode !== 'bytecode' ||
-        manifest.hermesCompilerProfile !== 'optimized' ||
-        manifest.configuration !== 'Release'
-      )
-        throw Error('RNW diagnostic requires Hermes bytecode / optimized / Release');
-      console.log(
-        'NELYX_RNW_FRAME_PACKAGE ' +
-          JSON.stringify({
-            manifestSha256: hash(manifestFile),
-            exeSha256: hash(path.join(locator.directory, manifest.executable)),
-            bundleSha256: hash(path.join(locator.directory, manifest.bundle)),
-            nativeInputsSha256: manifest.nativeInputsSha256,
-            sdkInputsSha256: manifest.sdkInputsSha256,
-            appInputsSha256: manifest.appInputsSha256,
-          }),
-      );
-      await run(['run', '--app', '../..', '--target', 'windows'], true);
-      if (
-        !latest ||
-        !latest.joinedFrames ||
-        latest.errors ||
-        latest.invalid ||
-        latest.invalidSource ||
-        latest.overwrittenSource ||
-        !latest.observationClosed ||
-        latest.nativeOutcomeCounts?.[5] ||
-        invalidReports ||
-        !shutdown.bindingsClosed ||
-        !shutdown.acknowledged
-      )
-        throw Error('RNW frame probe did not produce valid joined observations');
-      console.log(
-        'NELYX_RNW_FRAME_RESULT ' +
-          rounded({
-            ...latest,
-            slowFrames: latest.slowFrames.slice(0, 3).map(compactFrame),
-            latestFrame: compactFrame(latest.latestFrame),
-            reports,
-            shutdown,
-            normalClose: true,
-          }),
-      );
-    });
+    await withRnwFrameFixture(
+      runner,
+      async () => {
+        await run([
+          'build',
+          '--app',
+          '../..',
+          '--target',
+          'windows',
+          '--engine',
+          'hermes',
+          '--hermes-mode',
+          'bytecode',
+          '--hermes-profile',
+          'optimized',
+          '--configuration',
+          'Release',
+        ]);
+        const locator = JSON.parse(
+            fs.readFileSync(path.join(app, '.nelyx/windows/last-package.json'), 'utf8'),
+          ),
+          manifestFile = path.join(locator.directory, 'nelyx-package.json'),
+          manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8')),
+          hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+        if (
+          manifest.hermesExecutionMode !== 'bytecode' ||
+          manifest.hermesCompilerProfile !== 'optimized' ||
+          manifest.configuration !== 'Release'
+        )
+          throw Error('RNW diagnostic requires Hermes bytecode / optimized / Release');
+        console.log(
+          'NELYX_RNW_FRAME_PACKAGE ' +
+            JSON.stringify({
+              manifestSha256: hash(manifestFile),
+              exeSha256: hash(path.join(locator.directory, manifest.executable)),
+              bundleSha256: hash(path.join(locator.directory, manifest.bundle)),
+              nativeInputsSha256: manifest.nativeInputsSha256,
+              sdkInputsSha256: manifest.sdkInputsSha256,
+              appInputsSha256: manifest.appInputsSha256,
+            }),
+        );
+        await run(['run', '--app', '../..', '--target', 'windows'], true);
+        if (
+          !latest ||
+          !latest.joinedFrames ||
+          latest.errors ||
+          latest.invalid ||
+          latest.invalidSource ||
+          latest.overwrittenSource ||
+          !latest.observationClosed ||
+          latest.nativeOutcomeCounts?.[5] ||
+          invalidReports ||
+          !shutdown.bindingsClosed ||
+          !shutdown.acknowledged
+        )
+          throw Error('RNW frame probe did not produce valid joined observations');
+        console.log(
+          'NELYX_RNW_FRAME_RESULT ' +
+            rounded({
+              ...latest,
+              slowFrames: latest.slowFrames.slice(0, 3).map(compactFrame),
+              latestFrame: compactFrame(latest.latestFrame),
+              reports,
+              shutdown,
+              normalClose: true,
+            }),
+        );
+      },
+      { detailedWork },
+    );
   } finally {
     process.removeListener('SIGINT', stop);
     process.removeListener('SIGTERM', stop);

@@ -71,6 +71,10 @@ const fields = new Set([
   'dither',
 ]);
 const capturedPaints = new WeakSet<PaintSnapshot>();
+/** @internal Only the validator owns immutable paint metadata. */
+export function isCapturedPaintSnapshot(value: PaintSnapshot): boolean {
+  return capturedPaints.has(value);
+}
 function scalar(value: number, label: string): number {
   invariant(
     typeof value === 'number' &&

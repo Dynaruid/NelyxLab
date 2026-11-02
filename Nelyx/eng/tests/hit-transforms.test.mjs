@@ -13,6 +13,12 @@ import {
 } from '@nelyx/core/ui/geometry';
 import { RenderBox, RenderObject, BoxParentData } from '@nelyx/core/framework/rendering/object';
 import { MouseRegion } from '@nelyx/core/framework/widgets/mouse-region';
+import { Listener } from '@nelyx/core/framework/widgets/listener';
+import {
+  RenderPointerListener,
+  HitTestBehavior,
+} from '@nelyx/core/framework/rendering/pointer-listener';
+import { RenderMouseRegion } from '@nelyx/core/framework/rendering/mouse-region';
 import { Padding, SizedBox } from '@nelyx/core/framework/widgets/basic';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { fixture } from '../../../packages/material/tests/root-fixture.mjs';
@@ -158,6 +164,94 @@ test(
       assert.deepEqual(hovered, [new Offset(1, 1), new Offset(2, 2)]);
       assert.deepEqual(exited, [new Offset(3, 3)]);
     } finally {
+      Object.defineProperty(HitTestEntry.prototype, 'transform', descriptor);
+      f.close();
+    }
+  },
+);
+
+test(
+  'wheel dispatch skips only known empty handlers and preserves custom and legacy observations',
+  { timeout },
+  () => {
+    const f = fixture(),
+      signals = [],
+      legacy = [],
+      descriptor = Object.getOwnPropertyDescriptor(HitTestEntry.prototype, 'transform'),
+      originalHandler = RenderMouseRegion.prototype.handleEvent;
+    const active = (event) => signals.push(event.localPosition);
+    let child = new Listener(new SizedBox(20, 20), {
+      onPointerSignal: active,
+      behavior: HitTestBehavior.opaque,
+    });
+    for (let depth = 0; depth < 4; depth++)
+      child = new Padding(EdgeInsets.all(1), new MouseRegion(new Listener(child)));
+    const empty = new Set();
+    let reads = 0,
+      callbackReads = 0,
+      customCalls = 0;
+    const wheel = () =>
+      f.root.pointer({
+        kind: 'wheel',
+        pointer: 91,
+        device: 'mouse',
+        buttons: 0,
+        x: 5,
+        y: 5,
+        deltaX: 0,
+        deltaY: 4,
+        timestamp: f.root.context.clock.now(),
+        viewportGeneration: 1,
+      });
+    try {
+      f.set(child);
+      const pending = [f.root.pipeline.root],
+        listeners = [];
+      while (pending.length) {
+        const render = pending.pop();
+        if (render instanceof RenderPointerListener && render.onPointerSignal === undefined) {
+          empty.add(render);
+          listeners.push(render);
+        } else if (render instanceof RenderMouseRegion) empty.add(render);
+        pending.push(...render.children);
+      }
+      assert.equal(empty.size, 8);
+      Object.defineProperty(HitTestEntry.prototype, 'transform', {
+        ...descriptor,
+        get() {
+          const value = descriptor.get.call(this);
+          if (value !== null && empty.has(this.target)) reads++;
+          return value;
+        },
+      });
+      wheel();
+      assert.equal(reads, 0);
+      assert.deepEqual(signals, [new Offset(1, 1)]);
+      const listener = listeners[0];
+      listener.onPointer = (event) => legacy.push([event.kind, event.x, event.y]);
+      wheel();
+      assert.equal(reads, 1, 'The legacy callback still receives a transformed wheel');
+      assert.deepEqual(legacy, [['wheel', 4, 4]]);
+      listener.onPointer = undefined;
+      Object.defineProperty(listener, 'onPointerSignal', {
+        configurable: true,
+        get() {
+          callbackReads++;
+          return () => customCalls++;
+        },
+      });
+      wheel();
+      assert.equal(callbackReads, 1, 'The fast check must not read a virtual callback');
+      assert.equal(customCalls, 1);
+      RenderMouseRegion.prototype.handleEvent = function (event, entry) {
+        customCalls++;
+        originalHandler.call(this, event, entry);
+      };
+      wheel();
+      assert.equal(customCalls, 6, 'All four replaced prototype handlers remain observable');
+      assert.equal(signals.length, 4);
+    } finally {
+      RenderMouseRegion.prototype.handleEvent = originalHandler;
       Object.defineProperty(HitTestEntry.prototype, 'transform', descriptor);
       f.close();
     }

@@ -85,7 +85,7 @@ struct SemanticsComponent:winrt::implements<SemanticsComponent,winrt::Windows::F
   }
   void finishUpdates(){if(state_->closed||!state_->mounted)return;if(pendingFocus_){const auto previous=*pendingFocus_;pendingFocus_.reset();syncFocus(previous);}if(pendingMetadata_){const auto previous=std::move(*pendingMetadata_);pendingMetadata_.reset();notifyMetadata(previous);}}
   void props(SemanticsProps const& value){packet_=value.packet.Copy();if(state_->mounted)apply();}
-  void emitter(RN::EventEmitter value){emitter_=value;if(!failure_.empty())error();}
+  void emitter(RN::EventEmitter value){if(state_->closed&&failure_.empty())return;emitter_=value;if(!failure_.empty()){error();if(state_->closed)emitter_=nullptr;}}
   winrt::Windows::Foundation::IInspectable automation(winrt::Windows::Foundation::IInspectable const& base){
     require(!state_->closed&&base,UIA_E_ELEMENTNOTAVAILABLE);checked(base.as<IUnknown>()->QueryInterface(IID_PPV_ARGS(&state_->base)));checked(state_->base.As(&state_->fragment));
     peer_=Microsoft::WRL::Make<SemanticsPeer>();require(peer_!=nullptr,E_OUTOFMEMORY);peer_->initialize(state_);ComPtr<IAgileObject> agile;ComPtr<IMarshal> marshal;require(peer_.As(&agile)==E_NOINTERFACE&&peer_.As(&marshal)==E_NOINTERFACE,E_UNEXPECTED);winrt::Windows::Foundation::IInspectable result{nullptr};checked(peer_->QueryInterface(winrt::guid_of<winrt::Windows::Foundation::IInspectable>(),winrt::put_abi(result)));return result;
@@ -101,6 +101,11 @@ private:
   void retireText()noexcept{if(state_->document){try{state_->document->retire();}catch(...){}state_->document.reset();}state_->text.Reset();}
   void apply(){
     if(packet_.IsNull())return;auto next=readCoreSemanticsSnapshot(packet_);const auto view=view_.get();require(static_cast<bool>(view),UIA_E_ELEMENTNOTAVAILABLE);const auto context=view.ReactContext();const RN::ReactPropertyBag properties(context.Properties());
+    // Fabric can finish an already queued text snapshot after native close has
+    // sealed UI admission. Retire this peer before borrowing its paragraph
+    // context; failed/invalid active sessions still use the ordinary error path.
+    const auto session=properties.Get(RNSkia::WindowsCompositionSessionProperty());
+    if(session&&*session){const auto phase=(*session)->status().phase;if(phase=="closing"||phase=="closed"){close();return;}}
     if(state_->snapshot){const auto& old=*state_->snapshot;require(old.id==next.id&&old.source==next.source&&old.owner==next.owner&&old.surface==next.surface);require(next.commit>=old.commit);}
     if(!state_->mapping.active){const auto root=properties.Get(Nelyx::WindowsInput::TextInputRootProperty());const auto resolver=properties.Get(Nelyx::WindowsInput::TextInputSurfaceResolverProperty());require(root&&*root&&resolver&&*resolver);state_->root=*root;state_->mapping=(*resolver)(context,next.surface,next.owner);const auto weak=get_weak();
       if(state_->mapping.watchRetirement)unwatch_=state_->mapping.watchRetirement([weak](std::string const& reason){if(auto self=weak.get())self->fail(reason);});
@@ -108,7 +113,7 @@ private:
       state_->activate=[weak]{if(auto self=weak.get())return self->dispatch("activate",{});return false;};
     }
     if(!unregisterFocus_){require(static_cast<bool>(state_->mapping.registerFocusProxy),UIA_E_INVALIDOPERATION);unregisterFocus_=state_->mapping.registerFocusProxy(view.Tag());}
-    if(next.paragraph){const auto session=properties.Get(RNSkia::WindowsCompositionSessionProperty());require(session&&*session);ParagraphScreenMapping mapping;mapping.context=std::static_pointer_cast<RNSkia::RNSkPlatformContext>((*session)->uiPlatform());mapping.active=state_->mapping.active;mapping.revision=[root=state_->root]{const auto live=root.lock();return live?live->coordinateRevision():std::nullopt;};
+    if(next.paragraph){require(session&&*session);ParagraphScreenMapping mapping;mapping.context=std::static_pointer_cast<RNSkia::RNSkPlatformContext>((*session)->uiPlatform());mapping.active=state_->mapping.active;mapping.revision=[root=state_->root]{const auto live=root.lock();return live?live->coordinateRevision():std::nullopt;};
       mapping.screenBox=[convert=state_->mapping.screenRect,frame=next.frame](LogicalBox const& box)->std::optional<ScreenBox>{const auto value=convert(box,frame);if(!value)return std::nullopt;return ScreenBox{double(value->left),double(value->top),double(value->right-value->left),double(value->bottom-value->top)};};
       mapping.viewPoint=[convert=state_->mapping.viewPoint,frame=next.frame](double x,double y)->std::optional<LogicalPoint>{const auto rx=std::round(x),ry=std::round(y);if(!std::isfinite(rx)||!std::isfinite(ry)||rx<LONG_MIN||rx>LONG_MAX||ry<LONG_MIN||ry>LONG_MAX)return std::nullopt;const auto point=convert({static_cast<LONG>(rx),static_cast<LONG>(ry)},GXFPF_NEAREST,frame);if(!point||point->outside)return std::nullopt;return LogicalPoint{point->x,point->y};};attachParagraphQueries(next,std::move(mapping));
     }

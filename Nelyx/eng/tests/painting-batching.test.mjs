@@ -13,10 +13,21 @@ import {
   FollowerLayer,
 } from '@nelyx/core/framework/rendering/layer';
 import { Paint } from '@nelyx/core/ui/paint';
+import { Path } from '@nelyx/core/ui/path';
+import { paintCommandRecordCount, paintFrameLimits } from '@nelyx/core/ui/frame';
 import { Picture } from '@nelyx/core/ui/picture';
 import { Gradient, ImageShader } from '@nelyx/core/ui/shader';
 import { FramePictureService } from '@nelyx/core/hosting/pictures';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
+import { captureTransform } from '@nelyx/core/ui/geometry';
+import { AnnotatedRegion } from '@nelyx/core/framework/widgets/annotated-region';
+import { Align, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { RenderAnnotatedRegion } from '@nelyx/core/framework/rendering/annotated-region';
+import {
+  retainedCompositions,
+  recordedLayerPictures,
+} from '../../dist/framework/painting/recorded-composition-cache.js';
+import { fixture as rootFixture } from '../../../packages/material/tests/root-fixture.mjs';
 const timeout = 1_200_000,
   bounds = { x: 0, y: 0, width: 800, height: 600 };
 function fixture({ beforeCompile } = {}) {
@@ -67,6 +78,288 @@ function siblings(context, count = 20) {
     context.restore();
   }
 }
+
+test(
+  'hidden recordings retire CPU comparison metadata while old frames keep their holds',
+  { timeout },
+  () => {
+    const f = fixture();
+    let hold;
+    try {
+      f.context.rect({ x: 1, y: 2, width: 3, height: 4 }, 0xff123456);
+      f.context.compose(f.root, bounds, f.pictures);
+      const body = f.root.firstChild;
+      hold = new LayerHandle(body);
+      assert.equal(retainedCompositions.get(f.root)?.body, body);
+      assert.equal(recordedLayerPictures.has(body), true);
+      f.root.removeAllChildren();
+      assert.equal(body.debugDisposed, false);
+      assert.equal(retainedCompositions.has(f.root), false);
+      assert.equal(
+        recordedLayerPictures.has(body),
+        true,
+        'a live caller-owned recording may still move',
+      );
+      assert.equal(f.retired.length, 0, 'the exported frame owns its independent native hold');
+      hold.dispose();
+      hold = undefined;
+      assert.equal(body.debugDisposed, true);
+      assert.equal(recordedLayerPictures.has(body), false);
+      assert.equal(f.retired.length, 0);
+    } finally {
+      hold?.dispose();
+      f.close();
+    }
+  },
+);
+
+test(
+  'disposed child recordings release comparison graphs even when their Layer is retained by callers',
+  { timeout },
+  () => {
+    const context = new PaintingContext(null, bounds, true);
+    let layer;
+    try {
+      layer = context._recordChildLayer((child) => child.rect(bounds, 0xff123456), bounds);
+      assert.equal(recordedLayerPictures.has(layer), true);
+      layer.dispose();
+      assert.equal(recordedLayerPictures.has(layer), false);
+      assert.equal(layer.debugDisposed, true);
+    } finally {
+      if (layer && !layer.debugDisposed) layer.dispose();
+      context.dispose();
+    }
+  },
+);
+
+test(
+  'moving private state scopes keep their attached assembly and old frame while coordinates advance',
+  { timeout },
+  () => {
+    for (const nested of [false, true]) {
+      const f = fixture(),
+        contexts = [],
+        type = new AnnotationType('moving-state'),
+        value = {},
+        annotation = new AnnotatedRegionLayer(value, {
+          annotationType: type,
+          size: { width: 10, height: 10 },
+        }),
+        handle = new LayerHandle(annotation),
+        destination = new ContainerLayer(),
+        destinationHandle = new LayerHandle(destination),
+        readBody = () => (nested ? destination.firstChild : f.root.firstChild);
+      f.root.attach({});
+      const paint = (x) => {
+        const context = new PaintingContext(null, bounds, true);
+        contexts.push(context);
+        const record = (inside) => {
+          inside.save();
+          inside.translate(x, 0);
+          inside.rect({ x: 0, y: 0, width: 10, height: 10 }, 0xff123456);
+          inside.addLayer(annotation);
+          inside.restore();
+        };
+        if (nested) context.pushLayer(destination, record, { x: 0, y: 0 }, bounds);
+        else record(context);
+        context.compose(f.root, bounds, f.pictures);
+        return context;
+      };
+      try {
+        paint(3);
+        const previous = paint(7),
+          body = readBody(),
+          oldCommands = [...previous.commands],
+          compiled = f.compiled.length;
+        assert.equal(f.root.find(type, { x: 8, y: 1 }), value);
+        let detached = 0;
+        const originalDetach = annotation.detach;
+        annotation.detach = function () {
+          detached++;
+          return originalDetach.call(this);
+        };
+        const current = paint(19);
+        assert.equal(readBody(), body);
+        assert.equal(detached, 0);
+        assert.equal(f.compiled.length, compiled);
+        assert.deepEqual(previous.commands, oldCommands);
+        assert.notDeepEqual(current.commands, oldCommands);
+        assert.equal(f.root.find(type, { x: 20, y: 1 }), value);
+        assert.equal(f.root.find(type, { x: 8, y: 1 }), null);
+        const after = paint(31);
+        assert.equal(readBody(), body);
+        assert.equal(f.compiled.length, compiled);
+        assert.equal(f.root.find(type, { x: 32, y: 1 }), value);
+        assert(
+          after.commands.some((command) => command.op === 'transform' && command.matrix[4] === 31),
+        );
+      } finally {
+        for (const context of contexts) context.dispose();
+        f.close();
+        handle.dispose();
+        destinationHandle.dispose();
+      }
+    }
+  },
+);
+
+test(
+  'ordinary annotations retain their layer while value, sizing and external accessors stay live',
+  { timeout },
+  () => {
+    const f = rootFixture(),
+      type = new AnnotationType('stable-render-annotation'),
+      value = { label: 'first' };
+    const tree = (width, current = value, sized = true) =>
+      new Align(
+        new SizedBox(
+          width,
+          30,
+          new AnnotatedRegion(new SizedBox(1, 1), { value: current, annotationType: type, sized }),
+        ),
+      );
+    const find = () => {
+      const pending = [f.root.pipeline.root];
+      while (pending.length) {
+        const render = pending.pop();
+        if (render instanceof RenderAnnotatedRegion) return render;
+        pending.push(...render.children);
+      }
+      throw Error('Missing annotation renderer');
+    };
+    try {
+      f.set(tree(50));
+      const render = find(),
+        layer = render.layer,
+        body = layer.firstChild;
+      f.frame();
+      assert.equal(render.layer, layer);
+      assert.equal(layer.firstChild, body);
+      value.label = 'live';
+      f.frame();
+      assert.equal(render.layer.find(type, { x: 1, y: 1 }).label, 'live');
+      let reads = 0;
+      Object.defineProperty(layer, 'value', {
+        configurable: true,
+        get() {
+          reads++;
+          return value;
+        },
+      });
+      f.frame();
+      assert.notEqual(render.layer, layer);
+      assert.equal(reads, 0, 'A foreign getter keeps the original fresh-layer path');
+      const next = render.layer;
+      f.set(tree(70));
+      assert.notEqual(render.layer, next);
+      assert.equal(render.layer.size.width, 70);
+      f.set(tree(70, value, false));
+      assert.equal(render.layer.size, null);
+      const updated = { label: 'updated' };
+      f.set(tree(70, updated, false));
+      assert.equal(render.layer.find(type, { x: 200, y: 200 }), updated);
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
+  'compiled transforms repaint before state extraction and shared transforms with different replacements fall back',
+  { timeout },
+  () => {
+    const f = fixture(),
+      contexts = [];
+    const paint = (first, second) => {
+      const context = new PaintingContext(null, bounds, true);
+      contexts.push(context);
+      for (const x of [first, second]) {
+        context.save();
+        context.transform(x);
+        context.rect({ x: 0, y: 0, width: 10, height: 10 }, 0xff123456);
+        context.restore();
+      }
+      context.compose(f.root, bounds, f.pictures);
+      return context;
+    };
+    const shared = captureTransform([1, 0, 0, 1, 7, 0]),
+      moved = captureTransform([1, 0, 0, 1, 19, 0]),
+      next = captureTransform([1, 0, 0, 1, 31, 0]);
+    try {
+      paint(shared, shared);
+      const original = f.root.firstChild;
+      paint(moved, moved);
+      assert.notEqual(
+        f.root.firstChild,
+        original,
+        'A compiled transform must leave its old picture',
+      );
+      const warm = f.root.firstChild,
+        compiled = f.compiled.length;
+      const current = paint(next, next);
+      assert.equal(f.root.firstChild, warm);
+      assert.equal(f.compiled.length, compiled);
+      const before = [...current.commands];
+      const diverged = paint(next, moved);
+      assert.notEqual(
+        f.root.firstChild,
+        warm,
+        'One shared command cannot represent two new values',
+      );
+      assert.deepEqual(current.commands, before);
+      assert.deepEqual(
+        diverged.commands.filter((c) => c.op === 'transform').map((c) => c.matrix[4]),
+        [31, 19],
+      );
+    } finally {
+      for (const context of contexts) context.dispose();
+      f.close();
+    }
+  },
+);
+
+test(
+  'moving scopes keep variable path work within each picture budget after the same command topology repeats',
+  { timeout },
+  () => {
+    const f = fixture(),
+      paint = new Paint();
+    try {
+      for (const count of [4, 4, 2500, 5]) {
+        const path = new Path(),
+          context = new PaintingContext(null, bounds, true),
+          before = f.compiled.length;
+        path.moveTo(0, 0);
+        for (let index = 0; index < count; index++) path.lineTo(index % 30, index % 20);
+        try {
+          context.save();
+          for (let index = 0; index < 2; index++) {
+            context.save();
+            context.translate(count / 100 + index * 40, 0);
+            context.drawPath(path, paint);
+            context.restore();
+          }
+          context.restore();
+          context.compose(f.root, bounds, f.pictures);
+          if (count === 2500) {
+            const compiled = f.compiled.slice(before);
+            assert.equal(compiled.flat().filter((command) => command.op === 'drawPath').length, 2);
+            assert(compiled.length >= 2, 'Expanded paths must split the previously small batch');
+          }
+          for (const commands of f.compiled.slice(before))
+            assert(
+              commands.reduce((sum, command) => sum + paintCommandRecordCount(command), 0) <=
+                paintFrameLimits.commands,
+            );
+        } finally {
+          context.dispose();
+        }
+      }
+    } finally {
+      f.close();
+    }
+  },
+);
 
 test(
   'replacement recording bodies keep retained descendant depths and annotation geometry',
@@ -580,22 +873,22 @@ test(
       first.dispose();
       const second = paint();
       assert.equal(f.root.firstChild, body);
-      assert.equal(f.compiled.length, 2);
+      assert.equal(f.compiled.length, 1);
       assert.equal(f.compiled[0].filter((command) => 'resource' in command).length, 2);
       paint().dispose();
-      assert.equal(f.compiled.length, 2, 'The retained hierarchy compiles only once');
+      assert.equal(f.compiled.length, 1, 'An identity wrapper reuses the original native leaf');
       second.dispose();
       paint(0xffabcdef).dispose();
       assert.notEqual(f.root.firstChild, body);
-      assert.equal(f.compiled.length, 3);
+      assert.equal(f.compiled.length, 2);
       assert.equal(
         f.compiled[0].find((command) => command.op === 'drawRect').paint.color,
         0xff123456,
       );
       assert.equal(
         f.retired.length,
-        1,
-        'Only the replaced aggregate retires while its original submitted picture stays held',
+        0,
+        'The original submitted picture stays held without a redundant aggregate',
       );
       for (const resource of [image, paragraph]) f.resources.releaseProducer(resource);
       assert.equal(released, 0);
@@ -830,16 +1123,19 @@ test(
       first.dispose();
       callbacks.length = 0;
       paint(40).dispose();
-      assert.notEqual(f.root.firstChild, body);
+      assert.equal(f.root.firstChild, body);
       assert.equal(
         f.compiled.length,
         2,
         'Transform changes around an insertion must not recompile either static picture',
       );
-      assert.deepEqual([...callbacks], [false, true]);
+      assert.deepEqual([...callbacks], [true], 'A state update composes the still attached child');
       assert.equal(f.root.find(type, { x: 45, y: 25 }), value);
       assert.equal(f.root.find(type, { x: 15, y: 25 }), null);
+      callbacks.length = 0;
       paint(60, 0xffabcdef).dispose();
+      assert.notEqual(f.root.firstChild, body, 'Changed drawing still rebuilds the assembly');
+      assert.deepEqual([...callbacks], [false, true]);
       assert.equal(f.compiled.length, 3, 'Only the changed primitive batch needs a new picture');
       assert.equal(
         f.compiled[0].find((command) => command.op === 'drawRect').paint.color,

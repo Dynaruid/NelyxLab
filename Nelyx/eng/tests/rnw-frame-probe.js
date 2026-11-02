@@ -8,7 +8,7 @@ import { readNativeRecordingStats } from './native-frame-metrics.js';
 import { RnwWorkProbe } from './rnw-work-probe.js';
 import { RenderObject, RenderBox } from '@nelyx/core/framework/rendering/object';
 import { RenderSliver } from '@nelyx/core/framework/rendering/sliver';
-import { Element } from '@nelyx/core/framework/widgets/framework';
+import { Element, InheritedElement } from '@nelyx/core/framework/widgets/framework';
 import { SliverMultiBoxAdaptorElement } from '@nelyx/core/framework/widgets/sliver';
 
 export function installRnwFrameProbe(application, options = {}) {
@@ -31,18 +31,39 @@ export function installRnwFrameProbe(application, options = {}) {
     previous = view.frameDiagnostics;
   const work = new RnwWorkProbe(now);
   try {
-    for (const prototype of [RenderObject.prototype, RenderBox.prototype, RenderSliver.prototype])
-      work.wrap(prototype, 'performLayoutInScope', 'wet-layout');
-    work.wrap(RenderBox.prototype, 'query', 'measurement');
-    work.wrap(
-      Element.prototype,
-      'rebuild',
-      'element-rebuild',
-      (element) => element.widget.constructor.name,
-    );
-    work.wrap(SliverMultiBoxAdaptorElement.prototype, 'createChild', 'sliver-create');
-    if (application.text)
-      work.wrap(application.text, 'layout', 'text-layout', () => 'text-service');
+    if (options.work !== false) {
+      for (const prototype of [RenderObject.prototype, RenderBox.prototype, RenderSliver.prototype])
+        work.wrap(prototype, 'performLayoutInScope', 'wet-layout');
+      work.wrap(RenderBox.prototype, 'query', 'measurement');
+      work.wrap(
+        Element.prototype,
+        'rebuild',
+        'element-rebuild',
+        (element) => element.widget.constructor.name,
+      );
+      work.wrap(
+        Element.prototype,
+        'reconcile',
+        'element-reconcile',
+        (_element, [previous, widgets]) =>
+          `${previous.length ? 'update' : 'create'}-${
+            widgets.length <= 1
+              ? 'single'
+              : widgets.some((widget) => widget.key)
+                ? 'keyed'
+                : 'unkeyed'
+          }`,
+      );
+      for (const method of ['mount', 'unmount'])
+        work.wrap(Element.prototype, method, `element-${method}`);
+      work.wrap(Element.prototype, 'getElementForInheritedWidgetOfExactType', 'dependency-lookup');
+      work.wrap(Element.prototype, 'dependOnInheritedElement', 'dependency-register');
+      work.wrap(InheritedElement.prototype, 'removeDependent', 'dependency-remove');
+      work.wrap(InheritedElement.prototype, 'notifyClients', 'dependency-notify');
+      work.wrap(SliverMultiBoxAdaptorElement.prototype, 'createChild', 'sliver-create');
+      if (application.text)
+        work.wrap(application.text, 'layout', 'text-layout', () => 'text-service');
+    }
   } catch (error) {
     work.dispose();
     throw error;
@@ -61,11 +82,16 @@ export function installRnwFrameProbe(application, options = {}) {
     overwritten += source.overwritten;
     invalidSource += source.invalid;
     for (const sample of source.samples) {
+      if (activeCallback && sample.stage === 'input-dispatch') {
+        activeCallback.inputEvents++;
+        activeCallback.inputWall += sample.duration;
+      }
       const row = records.source(sample);
       if (row && activeCallback && (!row.callback || activeCallback.wall > row.callback.wall))
         row.callback = activeCallback;
     }
-    for (const entry of api.drainFrameTrace()) if (entry.stage <= 5) records.native(entry);
+    for (const entry of api.drainFrameTrace())
+      if (entry.stage <= 5 || (entry.stage >= 20 && entry.stage <= 26)) records.native(entry);
   };
   const emit = () => {
     try {
@@ -123,10 +149,26 @@ export function installRnwFrameProbe(application, options = {}) {
             begin: began,
             end: ended,
             wall: ended - began,
+            inputEvents: 0,
+            inputWall: 0,
             work: work.finish(),
           };
           drain();
+          const observed = activeCallback;
           activeCallback = undefined;
+          // Measure the following checkpoint separately. This includes native
+          // polling and queued jobs, not isolated React or GC CPU time.
+          if (typeof globalThis.queueMicrotask === 'function') {
+            const checkpoint = now();
+            globalThis.queueMicrotask(() => {
+              if (!live) return;
+              try {
+                observed.checkpointDelay = now() - checkpoint;
+              } catch {
+                errors++;
+              }
+            });
+          }
         } catch {
           work.finish();
           activeCallback = undefined;

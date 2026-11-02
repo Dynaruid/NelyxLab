@@ -1267,25 +1267,29 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
         }
         return next;
       }
-      const keys = new KeyMap<boolean>();
+      // Most multi-child groups have positional children. Allocate key indexes
+      // only when a key is encountered; retain Key.equals/hash and the complete
+      // duplicate-key preflight before updating any child.
+      let keys: KeyMap<boolean> | undefined;
       for (const widget of widgets)
         if (widget.key) {
-          if (keys.has(widget.key))
+          if (keys?.has(widget.key))
             invariant(
               false,
               'duplicate-key',
               `Duplicate sibling key in ${this.widget.constructor.name}`,
             );
-          keys.set(widget.key, true);
+          (keys ??= new KeyMap<boolean>()).set(widget.key, true);
         }
-      const keyed = new KeyMap<Element>();
-      for (const child of previous) if (child.widget.key) keyed.set(child.widget.key, child);
+      let keyed: KeyMap<Element> | undefined;
+      for (const child of previous)
+        if (child.widget.key) (keyed ??= new KeyMap<Element>()).set(child.widget.key, child);
       const remaining = new Set(previous);
       for (let index = 0; index < widgets.length; index++) {
         const widget = widgets[index]!;
         if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
         const slot = this.slotForChild(index, next.at(-1));
-        let child = widget.key ? keyed.get(widget.key) : previous[index];
+        let child = widget.key ? keyed?.get(widget.key) : previous[index];
         if (!child || !remaining.has(child) || !Widget.canUpdate(child.widget, widget))
           child = undefined;
         if (child) remaining.delete(child);

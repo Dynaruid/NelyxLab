@@ -140,4 +140,11 @@ export class RenderMouseRegion extends RenderProxyBox implements MouseTrackerAnn
     return hit && this._opaque;
   }
 }
+const defaultMouseRegionHandleEvent = RenderMouseRegion.prototype.handleEvent;
+/** @internal This handler only consumes hover; virtual replacements still dispatch. */
+export function hasDefaultMouseRegionHandler(target: RenderObject): boolean {
+  return (
+    target instanceof RenderMouseRegion && target.handleEvent === defaultMouseRegionHandleEvent
+  );
+}
 RenderProxyBox._registerGeometryLayoutSemantics(RenderMouseRegion.prototype);

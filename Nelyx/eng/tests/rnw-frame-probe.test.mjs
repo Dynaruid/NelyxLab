@@ -12,6 +12,34 @@ import { withRnwFrameFixture, runRnwFrameProbe } from '../run-rnw-frame-probe.mj
 
 const timeout = 1_200_000;
 test(
+  'RNW reconciliation labels observe arguments without retaining child arrays',
+  { timeout },
+  () => {
+    const target = {
+        reconcile(previous, widgets) {
+          return widgets;
+        },
+      },
+      probe = new RnwWorkProbe(() => 0),
+      widgets = [{ key: null }, { key: null }];
+    probe.wrap(
+      target,
+      'reconcile',
+      'reconcile',
+      (_element, [previous, next]) => `${previous.length}:${next.length}`,
+    );
+    try {
+      probe.begin();
+      assert.equal(target.reconcile([], widgets), widgets);
+      const group = probe.finish().reconcile;
+      assert.deepEqual(group.names, { '0:2': [1, 0, 0, 0] });
+      assert.equal(group.count, 1);
+    } finally {
+      probe.dispose();
+    }
+  },
+);
+test(
   'RNW work clock and label failures preserve the original return or exception',
   { timeout },
   () => {
@@ -173,6 +201,87 @@ const native = (other = {}) => ({
   clockUncertainty: 0.1,
   ...other,
 });
+test(
+  'RNW callback cadence keeps source callback work separate from intervening work',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords();
+    for (const [frame, begin] of [
+      [6, 100],
+      [7, 113],
+    ]) {
+      const row = records.source(sample({ frame }));
+      row.callback = { id: frame, begin, end: begin + 8, wall: 8 };
+      row.timing = { tick: 102, frameStart: 100, queueDelay: 3 };
+      records.native(native({ frameSequence: frame }));
+      records.native(native({ frameSequence: frame, stage: 2, nativeTimestamp: 1040 }));
+    }
+    const report = records.report({ offsetToJs: -1000, uncertainty: 0.1 });
+    assert.equal(report.retainedMeans['owned-callback'], 8);
+    assert.equal(report.retainedMeans['source-callback-interval'], 13);
+    assert.equal(report.retainedMeans['source-callback-between'], 5);
+    assert.equal(report.retainedMeans['clock-wake-lateness'], 2);
+    assert.equal(report.retainedMeans['clock-dispatch-queue'], 3);
+    assert.equal(report.retainedMeans['recent-input-callback-interval'], 13);
+    const stale = records.source(sample({ frame: 8 }));
+    stale.callback = { id: 8, begin: 1000, end: 1008, wall: 8 };
+    records.native(native({ frameSequence: 8, nativeTimestamp: 2000 }));
+    records.native(native({ frameSequence: 8, stage: 2, nativeTimestamp: 2001 }));
+    const after = records.report({ offsetToJs: -1000, uncertainty: 0.1 });
+    assert.equal(after.retainedDistributions['owned-callback'].n, 3);
+    assert.equal(after.retainedDistributions['recent-input-callback'].n, 2);
+  },
+);
+
+test(
+  'RNW producer worker timing separates queues from work without counting outcomes twice',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords();
+    records.source(sample());
+    for (const [stage, nativeTimestamp] of [
+      [0, 1010],
+      [20, 1012],
+      [21, 1017],
+      [1, 1020],
+      [2, 1021],
+    ])
+      records.native(native({ stage, nativeTimestamp }));
+    records.native(native({ stage: 20, frameSequence: 99, nativeTimestamp: 900 }));
+    for (let stage = 22; stage <= 26; stage++)
+      records.native(
+        native({ stage, nativeTimestamp: 1017, width: (stage - 20) * 1000, height: 0 }),
+      );
+    const report = records.report({ offsetToJs: -1000, uncertainty: 0.1 });
+    for (const [name, expected] of [
+      ['submitted-to-worker', 2],
+      ['native-producer-worker', 5],
+      ['worker-to-ui-producer', 3],
+    ])
+      assert.deepEqual(report.retainedDistributions[name], {
+        n: 1,
+        p50: expected,
+        p95: expected,
+        max: expected,
+      });
+    assert.deepEqual(report.nativeOutcomeCounts, [1, 1, 1, 0, 0, 0]);
+    for (const [index, name] of [
+      'producer-import',
+      'producer-replay-submit',
+      'producer-completion-wait',
+      'producer-finish',
+      'producer-context',
+    ].entries())
+      assert.deepEqual(report.retainedDistributions[name], {
+        n: 1,
+        p50: index + 2,
+        p95: index + 2,
+        max: index + 2,
+      });
+    assert.equal(report.invalid, 0);
+    assert.equal(report.gpuExecution, 'unobserved; submitted-to-producer includes queue and work');
+  },
+);
 
 test(
   'RNW scalar joins require the same owner, viewport, context, surface, frame and input',
@@ -201,6 +310,70 @@ test(
     assert.equal(report.performanceAccepted, false);
     assert.equal(report.displayed, 'unobserved');
     assert.deepEqual(report.nativeOutcomeCounts, [7, 0, 1, 1, 0, 0]);
+    assert.deepEqual(report.retainedDistributions.paint, { n: 1, p50: 2, p95: 2, max: 2 });
+    assert.deepEqual(report.retainedWorkCounts.paint, { n: 1, p50: 3, p95: 3, max: 3 });
+    assert.deepEqual(report.retainedDistributions['submitted-to-surface'], {
+      n: 1,
+      p50: 5,
+      p95: 5,
+      max: 5,
+    });
+  },
+);
+
+test(
+  'RNW work totals remain bounded and retain earlier composition hits after idle frame eviction',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords(1);
+    records.source(sample({ stage: 'composition-updates', count: 2 }));
+    records.source(sample({ frame: 7, stage: 'composition-updates', count: 0 }));
+    records.source(sample({ frame: 8, stage: 'external-work', count: 99 }));
+    const report = records.report({});
+    assert.equal(report.retainedFrames, 1);
+    assert.deepEqual(report.cumulativeWorkCounts, {
+      'composition-updates': { samples: 2, nonzero: 1, total: 2, max: 2 },
+    });
+    records.source(sample({ frame: 9, stage: 'composition-updates', count: 1 }));
+    assert.equal(
+      report.cumulativeWorkCounts['composition-updates'].total,
+      2,
+      'Published totals are independent snapshots',
+    );
+  },
+);
+
+test(
+  'RNW input work remains part of one callback even when several frame rows share that callback',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords(),
+      callback = { id: 1, wall: 12, inputWall: 5, inputEvents: 2 };
+    for (const frame of [6, 7]) {
+      const row = records.source(sample({ frame }));
+      row.callback = callback;
+      records.native(native({ frameSequence: frame }));
+      records.native(native({ frameSequence: frame, stage: 2, nativeTimestamp: 1015 }));
+    }
+    const report = records.report(null);
+    assert.deepEqual(report.retainedDistributions['owned-callback'], {
+      n: 1,
+      p50: 12,
+      p95: 12,
+      max: 12,
+    });
+    assert.deepEqual(report.retainedDistributions['owned-input-dispatch'], {
+      n: 1,
+      p50: 5,
+      p95: 5,
+      max: 5,
+    });
+    assert.deepEqual(report.retainedDistributions['owned-callback-outside-input'], {
+      n: 1,
+      p50: 7,
+      p95: 7,
+      max: 7,
+    });
   },
 );
 

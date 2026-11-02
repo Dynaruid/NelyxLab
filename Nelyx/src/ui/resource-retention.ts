@@ -3,6 +3,16 @@
 import type { ResourceId, PaintCommand } from './types.ts';
 /** Shared ID encoding; resource ownership must not import frame/paint assembly. */
 export function resourceKey(resource: ResourceId): string {
+  if (capturedIds.has(resource)) {
+    const cached = resourceKeys.get(resource);
+    if (cached !== undefined) return cached;
+    const key = JSON.stringify([resource.id, resource.generation]);
+    // copyResourceId also accepts typed external values. Only immutable scalar
+    // identifiers can cache serialization; caller identities are always reread.
+    if (typeof resource.id === 'string' && typeof resource.generation === 'number')
+      resourceKeys.set(resource, key);
+    return key;
+  }
   return JSON.stringify([resource.id, resource.generation]);
 }
 export interface ResourceHold {
@@ -13,6 +23,7 @@ const factories = new WeakMap<ResourceId, { retain: ResourceRetainer; owner: obj
   commandHolds = new WeakMap<PaintCommand, readonly ResourceHold[]>(),
   frameHolds = new WeakMap<readonly ResourceId[], readonly ResourceHold[]>();
 const capturedIds = new WeakSet<ResourceId>();
+const resourceKeys = new WeakMap<ResourceId, string>();
 /** @internal Only literal immutable IDs created at the resource capture boundary. */
 export function isCapturedResourceId(resource: ResourceId): boolean {
   return capturedIds.has(resource);

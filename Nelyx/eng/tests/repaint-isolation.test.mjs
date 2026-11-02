@@ -31,6 +31,7 @@ import {
   scrollbarRegisterEmptyPainterSemantics,
 } from '../../dist/framework/widgets/scrollbar-painter-source-adapter.js';
 import '@nelyx/core/framework/widgets/scrollbar';
+import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 const timeout = 1_200_000;
 class Painter extends CustomPainter {
   count = 0;
@@ -46,6 +47,61 @@ class Painter extends CustomPainter {
     return false;
   }
 }
+
+test(
+  'a dirty boundary updates extracted transforms in place while still executing its painter',
+  { timeout },
+  () => {
+    const f = fixture();
+    let render;
+    class Leaf extends LeafRenderObjectWidget {
+      createRenderObject() {
+        return (render = new (class extends RenderRepaintBoundary {
+          offset = 2;
+          paints = 0;
+          paintContents(context) {
+            this.paints++;
+            context.save();
+            context.translate(this.offset, 0);
+            context.rect({ x: 0, y: 0, width: 10, height: 10 }, 0xff123456);
+            context.restore();
+          }
+        })());
+      }
+    }
+    try {
+      const first = f.set(new Leaf()),
+        before = structuredClone(first);
+      render.offset = 7;
+      render.markNeedsPaint();
+      f.frame();
+      const layer = render.retained.layer,
+        body = layer.firstChild,
+        paints = render.paints,
+        diagnostics = new FrameDiagnostics(f.root.context.clock);
+      for (const offset of [19, 0, 31]) {
+        render.offset = offset;
+        render.markNeedsPaint();
+        const commands = f.frame({ frameDiagnostics: diagnostics });
+        assert.equal(render.retained.layer, layer);
+        assert.equal(layer.firstChild, body);
+        assert(
+          commands.some((command) => command.op === 'transform' && command.matrix[4] === offset) ||
+            offset === 0,
+        );
+      }
+      assert.equal(render.paints, paints + 3);
+      assert.deepEqual(first, before);
+      assert(
+        diagnostics
+          .drain()
+          .samples.some((sample) => sample.stage === 'composition-updates' && sample.count > 0),
+      );
+    } finally {
+      f.close();
+    }
+  },
+);
 
 test(
   'a retained leaf owns its paint contents, refreshes pixels and retries a failed recording',

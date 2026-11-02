@@ -191,4 +191,15 @@ export class RenderPointerListener extends RenderProxyBoxWithHitTestBehavior {
     );
   }
 }
+const defaultPointerListenerHandleEvent = RenderPointerListener.prototype.handleEvent;
+/** @internal Only an ordinary absent field proves a signal handler is empty. */
+export function hasEmptyPointerSignalHandler(target: RenderObject): boolean {
+  if (
+    !(target instanceof RenderPointerListener) ||
+    target.handleEvent !== defaultPointerListenerHandleEvent
+  )
+    return false;
+  const signal = Object.getOwnPropertyDescriptor(target, 'onPointerSignal');
+  return !!signal && 'value' in signal && signal.value == null;
+}
 RenderProxyBox._registerGeometryLayoutSemantics(RenderPointerListener.prototype);

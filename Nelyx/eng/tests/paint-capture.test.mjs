@@ -9,8 +9,10 @@ import {
 } from '@nelyx/core/ui/frame';
 import { Canvas } from '@nelyx/core/ui/canvas';
 import { PaintingContext } from '@nelyx/core/framework/painting/context';
-import { captureTransform } from '@nelyx/core/ui/geometry';
+import { captureTransform, identity } from '@nelyx/core/ui/geometry';
 import { Paint, freezePaint } from '@nelyx/core/ui/paint';
+import { Path, freezePath, pathRecordCount } from '@nelyx/core/ui/path';
+import { RRect } from '@nelyx/core/ui/rrect';
 import { ImageShader } from '@nelyx/core/ui/shader';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
 import {
@@ -20,6 +22,305 @@ import {
   releaseFrameResources,
 } from '../../dist/ui/resource-retention.js';
 const timeout = 1_200_000;
+
+test(
+  'closed path commands reuse scalar values while changed styles, external paints and recording hooks stay live',
+  { timeout },
+  () => {
+    for (const Base of [Canvas, PaintingContext]) {
+      const path = new Path(),
+        paint = new Paint(),
+        first = new Base(),
+        second = new Base(),
+        observed = [];
+      path.addRect({ x: 0, y: 0, width: 8, height: 9 });
+      class Custom extends Base {
+        record(command) {
+          observed.push(command);
+          command.marker = observed.length;
+          super.record(command);
+        }
+      }
+      const custom = new Custom();
+      try {
+        for (const canvas of [first, second]) {
+          canvas.drawPath(path, paint);
+          canvas.drawShadow(path, 0xff000000, 2, false, 2);
+          canvas.clipPath(path);
+        }
+        for (let index = 0; index < 3; index++)
+          assert.equal(first.commands[index], second.commands[index]);
+        paint.color = 0xff654321;
+        second.drawPath(path, paint);
+        assert.notEqual(second.commands.at(-1), first.commands[0]);
+        assert.equal(first.commands[0].paint.color, 0xff000000);
+        second.drawShadow(path, 0xff000000, 3, true, 1.5);
+        assert.equal(second.commands.at(-1).elevation, 3);
+        assert.equal(first.commands[1].devicePixelRatio, 2);
+        second.clipPath(path, { clipOp: 'difference', doAntiAlias: false });
+        assert.equal(second.commands.at(-1).clipOp, 'difference');
+        assert.equal(first.commands[2].doAntiAlias, true);
+        let color = 0xff123456;
+        const external = Object.freeze({
+          ...paint.snapshot(),
+          get color() {
+            return color;
+          },
+        });
+        class ExternalPaint extends Paint {
+          snapshot() {
+            return external;
+          }
+        }
+        second.drawPath(path, new ExternalPaint());
+        color = 0xffabcdef;
+        second.drawPath(path, new ExternalPaint());
+        assert.equal(second.commands.at(-2).paint.color, 0xff123456);
+        assert.equal(second.commands.at(-1).paint.color, color);
+        for (let index = 0; index < 2; index++) {
+          custom.drawPath(path, paint);
+          custom.drawShadow(path, 0xff000000, 2, false, 2);
+          custom.clipPath(path);
+        }
+        assert(observed.every((command) => !Object.isFrozen(command)));
+        assert.notEqual(observed[0], observed[3]);
+        assert.deepEqual(
+          custom.commands.map((command) => command.marker),
+          [1, 2, 3, 4, 5, 6],
+        );
+        first.dispose();
+        assert.throws(() => first.drawShadow(path, -1, 2, false, 2), /closed canvas/);
+        assert.throws(() => first.clipPath(path, { clipOp: 'invalid' }), /closed canvas/);
+      } finally {
+        first.dispose();
+        second.dispose();
+        custom.dispose();
+      }
+    }
+  },
+);
+
+test('repeated path draws with an image shader keep independent command holds', { timeout }, () => {
+  const registry = new ResourceRegistry(),
+    image = { id: 'path-shader', generation: 1, kind: 'image' },
+    first = new Canvas(),
+    second = new Canvas(),
+    path = new Path();
+  let retired = 0;
+  registry.register(image, () => retired++);
+  registry.bindResource(image);
+  const shader = new ImageShader(
+      image,
+      'clamp',
+      'clamp',
+      [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    ),
+    paint = new Paint({ shader });
+  path.addRect({ x: 0, y: 0, width: 8, height: 9 });
+  try {
+    first.drawPath(path, paint);
+    second.drawPath(path, paint);
+    assert.notEqual(first.commands[0], second.commands[0]);
+    assert.notEqual(first.commands[0].paint.shader.image, second.commands[0].paint.shader.image);
+    shader.dispose();
+    registry.releaseProducer(image);
+    first.dispose();
+    assert.equal(retired, 0);
+    second.dispose();
+    assert.equal(retired, 1);
+  } finally {
+    first.dispose();
+    second.dispose();
+    if (!shader.debugDisposed) shader.dispose();
+    registry.dispose();
+  }
+});
+
+test(
+  'owned path snapshots survive independent drawings and every path mutation captures fresh wire work',
+  { timeout },
+  () => {
+    const path = new Path(),
+      first = new Canvas(),
+      second = new Canvas(),
+      paint = new Paint(),
+      rect = { x: 0, y: 0, width: 20, height: 10 };
+    try {
+      path.addRRect(RRect.fromLTRBXY(0, 0, 20, 10, 2, 3));
+      const original = path.snapshot();
+      assert.equal(path.snapshot(), original);
+      assert.equal(freezePath(original), original);
+      assert.equal(pathRecordCount(original), 2);
+      first.drawPath(path, paint);
+      second.drawShadow(path, 0xff000000, 2, false, 2);
+      assert.equal(first.commands[0].path, original);
+      assert.equal(second.commands[0].path, original);
+      first.dispose();
+      for (const mutate of [
+        () => path.moveTo(2, 3),
+        () => path.relativeMoveTo(1, 2),
+        () => path.lineTo(4, 5),
+        () => path.relativeLineTo(2, 1),
+        () => path.quadraticBezierTo(1, 2, 3, 4),
+        () => path.relativeQuadraticBezierTo(1, 2, 3, 4),
+        () => path.cubicTo(1, 2, 3, 4, 5, 6),
+        () => path.relativeCubicTo(1, 2, 3, 4, 5, 6),
+        () => path.conicTo(1, 2, 3, 4, 0.5),
+        () => path.relativeConicTo(1, 2, 3, 4, 0.5),
+        () => path.close(),
+        () => path.addRect(rect),
+        () => path.addOval(rect),
+        () => path.addRRect(RRect.fromLTRBXY(0, 0, 10, 10, 2, 2)),
+        () => path.addArc(rect, 0, Math.PI),
+        () => path.arcTo(rect, 0, Math.PI / 2, false),
+        () =>
+          path.addPolygon(
+            [
+              { x: 1, y: 2 },
+              { x: 4, y: 5 },
+            ],
+            true,
+          ),
+        () => {
+          path.fillType = 'evenOdd';
+        },
+        () => path.reset(),
+      ]) {
+        const before = path.snapshot(),
+          frozen = JSON.stringify(before);
+        mutate();
+        const after = path.snapshot();
+        assert.notEqual(after, before);
+        assert.equal(path.snapshot(), after);
+        assert.equal(JSON.stringify(before), frozen);
+        assert.equal(
+          pathRecordCount(after),
+          after.operations.reduce((sum, item) => sum + (item.verb === 'addRRect' ? 2 : 1), 0),
+        );
+      }
+      const empty = path.snapshot();
+      assert.throws(() => path.lineTo(Infinity, 0), /SkScalar/);
+      assert.equal(path.snapshot(), empty, 'A rejected mutation preserves the preceding snapshot');
+      assert.equal(second.commands[0].path, original);
+      assert.equal(original.operations.length, 1);
+    } finally {
+      first.dispose();
+      second.dispose();
+    }
+  },
+);
+
+test(
+  'external frozen paths and subclass snapshots remain independently validated and copied',
+  { timeout },
+  () => {
+    let x = 3,
+      reads = 0;
+    const values = [0, 0],
+      operation = {
+        verb: 'lineTo',
+        get values() {
+          reads++;
+          return [x, values[1]];
+        },
+      },
+      external = Object.freeze({ fillType: 'nonZero', operations: Object.freeze([operation]) });
+    const before = freezePath(external);
+    x = 7;
+    const after = freezePath(external);
+    assert.equal(reads, 2);
+    assert.equal(before.operations[0].values[0], 3);
+    assert.equal(after.operations[0].values[0], 7);
+    class CustomPath extends Path {
+      snapshot() {
+        return external;
+      }
+    }
+    const copied = Path.from(new CustomPath()),
+      captured = copied.snapshot();
+    x = Infinity;
+    assert.throws(() => freezePath(external), /SkScalar/);
+    assert.equal(copied.snapshot(), captured);
+    assert.equal(captured.operations[0].values[0], 7);
+    const mutable = { fillType: 'nonZero', operations: [{ verb: 'lineTo', values: [0, 0] }] };
+    assert.equal(pathRecordCount(mutable), 1);
+    mutable.operations[0] = { verb: 'addRRect', values: [0, 0, 20, 10, 2, 2, 2, 2, 2, 2, 2, 2] };
+    assert.equal(pathRecordCount(mutable), 2, 'Unowned wire metadata is reread');
+  },
+);
+
+test(
+  'identity child edges omit only the default transform command and preserve canvas scopes and hooks',
+  { timeout },
+  () => {
+    const context = new PaintingContext(),
+      customArguments = [],
+      recording = [];
+    class TransformHook extends PaintingContext {
+      transform(matrix) {
+        customArguments.push(matrix);
+        super.transform(matrix);
+      }
+    }
+    class RecordHook extends PaintingContext {
+      record(command) {
+        recording.push(command);
+        super.record(command);
+      }
+    }
+    const transformHook = new TransformHook(),
+      recordHook = new RecordHook(),
+      child = {
+        paint(canvas) {
+          assert.equal(canvas.getSaveCount(), 2);
+          canvas.clip({ x: 2, y: 3, width: 10, height: 15 });
+        },
+      };
+    try {
+      context.paintChild(child, identity);
+      assert.deepEqual(
+        context.commands.map((command) => command.op),
+        ['save', 'clip', 'restore'],
+      );
+      assert.equal(context.getSaveCount(), 1);
+      for (const matrix of [captureTransform([1, 0, 0, 1, 0, 0]), identity.map((v) => v)]) {
+        context.paintChild(child, matrix);
+        assert.equal(
+          context.commands.at(-3).op,
+          'transform',
+          'Only the framework identity is omitted',
+        );
+      }
+      const failed = Error('paint failed');
+      assert.throws(
+        () =>
+          context.paintChild(
+            {
+              paint() {
+                throw failed;
+              },
+            },
+            identity,
+          ),
+        (error) => error === failed,
+      );
+      assert.equal(context.getSaveCount(), 1, 'A failed child still restores its parent scope');
+      transformHook.paintChild(child, identity);
+      assert.deepEqual(customArguments, [identity]);
+      recordHook.paintChild(child, identity);
+      assert.equal(recording[1].op, 'transform');
+      assert.notEqual(
+        recording[1].matrix,
+        identity,
+        'A custom recorder retains its independent argument',
+      );
+    } finally {
+      context.dispose();
+      transformHook.dispose();
+      recordHook.dispose();
+    }
+  },
+);
 
 test(
   'borrowed recording capture keeps its source and multiple admitted frames independently live',

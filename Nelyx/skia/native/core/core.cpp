@@ -10,7 +10,9 @@
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPoint3.h"
 #include "include/utils/SkShadowUtils.h"
-#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+// The Windows shadow repair uses private headers from its matching supplier.
+// Other platforms ship a public Skia SDK and keep its standard shadow path.
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
 #include "include/core/SkBlurTypes.h"
 #include "include/core/SkMaskFilter.h"
 #include "include/utils/SkPaintFilterCanvas.h"
@@ -23,7 +25,7 @@
 #include <unordered_map>
 
 namespace nelyx::skia_core {
-#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
 namespace {
 bool drawStableShadow(SkCanvas& canvas,const SkPath& path,const SkDrawShadowRec& rec) {
   if(!canvas.recorder())return false;
@@ -99,7 +101,7 @@ void drawShadow(SkCanvas& canvas,const SkPath& path,SkColor color,float elevatio
   SkShadowUtils::ComputeTonalColors(SkColorSetA(color,0.039f*alpha),SkColorSetA(color,0.25f*alpha),&ambient,&spot);
   uint32_t flags=SkShadowFlags::kDirectionalLight_ShadowFlag;if(transparentOccluder)flags|=SkShadowFlags::kTransparentOccluder_ShadowFlag;
   const auto height=SkPoint3::Make(0,0,dpr*elevation),light=SkPoint3::Make(0,-1,1);
-#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
   if(alpha&&elevation>0&&drawStableShadow(canvas,path,{height,light,800.0f/600.0f,ambient,spot,flags}))return;
 #endif
   SkShadowUtils::DrawShadow(&canvas,path,height,light,800.0f/600.0f,ambient,spot,flags);
@@ -117,7 +119,7 @@ void drawPicture(SkCanvas& canvas,const sk_sp<SkPicture>& picture) {
   // playback outside the safe integer clip range; this does not crop content.
   // Flatten them into recording parents too, preserving nested replay.
   const bool unbounded=!isSafePictureCull(cull);
-#if defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
   if(canvas.recorder()){
     SkAutoCanvasRestore restore(&canvas,true);ShadowReplayCanvas replay(canvas);
     if(unbounded)picture->playback(&replay);else replay.drawPicture(picture);return;

@@ -24,10 +24,15 @@ struct DmaBufDeviceOptions { std::vector<uint64_t> modifiers; };
 struct Win32DeviceOptions { std::array<uint8_t,8> adapterLuid{}; };
 // Borrowed native COM inputs. The import retains these objects; no JSI/View
 // owner is permitted in the native frame. D3D must have completed waitValue.
+struct Win32ProducerTiming {
+  double importMs=0,submitMs=0,waitMs=0,finishMs=0,contextMs=0;
+};
 struct Win32TextureTarget {
   ID3D11Texture2D* texture=nullptr;
   ID3D11Fence* fence=nullptr;
   uint64_t waitValue=0;
+  // Optional native-only output, borrowed for the synchronous render call.
+  Win32ProducerTiming* timing=nullptr;
 };
 class Win32Frame final {
  public:

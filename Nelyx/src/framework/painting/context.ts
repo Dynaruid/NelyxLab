@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { Canvas } from '../../ui/canvas.ts';
 import type { TransformMatrix } from '../../ui/geometry.ts';
+import { identity } from '../../ui/geometry.ts';
 import type { RenderObject } from '../rendering/object.ts';
 import type { Offset } from '../../ui/geometry.ts';
 import type { Rect, PaintCommand } from '../../ui/types.ts';
@@ -21,8 +22,16 @@ import { Matrix4 } from '../../math/matrix4.ts';
 import { Rect as SourceRect } from '../../ui/rect.ts';
 import { MatrixUtils } from './matrix-utils.ts';
 import { RecordedCompositionLayer } from './recorded-layer.ts';
+import type { RecordedTransformReplacement } from './recorded-layer.ts';
 import { partitionPictureBatch } from './picture-batching.ts';
-import type { PictureBatchPart } from './picture-batching.ts';
+import { retainedCompositions, recordedLayerPictures } from './recorded-composition-cache.ts';
+import type {
+  CompositionCommand,
+  CompositionStructure,
+  CompositionPart,
+  CompositionBatch,
+  RetainedComposition,
+} from './recorded-composition-cache.ts';
 import { invariant } from '../../foundation/errors.ts';
 import {
   paintCommandRecordCount,
@@ -30,44 +39,6 @@ import {
   isCapturedPaintCommand,
 } from '../../ui/frame.ts';
 import { resourceOwner } from '../../ui/resource-retention.ts';
-interface CompositionEntry {
-  readonly mark: number;
-  readonly layer: Layer;
-  readonly parent: ContainerLayer | null;
-}
-interface CompositionStructure {
-  readonly layer: Layer;
-  readonly parent: ContainerLayer | null;
-  readonly children: readonly Layer[] | null;
-  readonly picture: Picture | null;
-}
-interface CompositionCommand {
-  readonly value: PaintCommand;
-  readonly resourceOwner: object | null;
-  readonly shaderOwner: object | null;
-}
-interface CompositionPicture {
-  readonly layer: PictureLayer;
-  readonly picture: Picture;
-  readonly parent: ContainerLayer;
-}
-interface CompositionPart extends PictureBatchPart {
-  readonly picture: CompositionPicture | null;
-}
-interface CompositionBatch {
-  readonly commands: readonly CompositionCommand[] | null;
-  readonly parts: readonly CompositionPart[];
-}
-interface RetainedComposition {
-  readonly body: ContainerLayer;
-  readonly bounds: Rect;
-  readonly commands: readonly CompositionCommand[] | null;
-  readonly pictures: readonly CompositionBatch[];
-  readonly entries: readonly CompositionEntry[];
-  readonly structure: readonly CompositionStructure[];
-}
-const retainedCompositions = new WeakMap<ContainerLayer, RetainedComposition>();
-const recordedLayerPictures = new WeakMap<ContainerLayer, readonly CompositionBatch[]>();
 // Captured commands and their resource bindings are immutable. Weak identity
 // metadata follows the recording's lifetime and never keeps an owner alive on
 // its own; frozen external commands still have to cross Canvas admission.
@@ -217,6 +188,11 @@ export interface PaintDiagnosticCounts {
   boundaryVisits: number;
   boundaryRecordings: number;
   boundaryReuses: number;
+  compositionUpdates?: number;
+  compositionVisits?: number;
+  compositionReuses?: number;
+  compositionScopeMisses?: number;
+  compositionStructureMisses?: number;
 }
 export class PaintingContext extends Canvas {
   private static readonly capturedRecord = PaintingContext.prototype.record;
@@ -250,7 +226,13 @@ export class PaintingContext extends Canvas {
     if (this.diagnosticCounts) this.diagnosticCounts.paintChildCalls++;
     this.save();
     try {
-      this.transform(transform);
+      // Retain save depth and custom recording/transform protocols.
+      if (
+        transform !== identity ||
+        !this.recordsSynchronously ||
+        this.transform !== Canvas.prototype.transform
+      )
+        this.transform(transform);
       child.paint(this);
     } finally {
       this.restore();
@@ -589,20 +571,33 @@ export class PaintingContext extends Canvas {
     bounds: Rect,
     pictures: PictureResourceProvider | null = null,
   ): void {
+    this.composeInto(root, bounds, pictures, true);
+  }
+  private composeInto(
+    root: ContainerLayer,
+    bounds: Rect,
+    pictures: PictureResourceProvider | null,
+    exportScene: boolean,
+  ): void {
     if (!(this.recordsLayers && !this.assembled && !this.debugDisposed))
       invariant(false, 'closed-layer-recording', 'Layer recording has ended');
     const cached = retainedCompositions.get(root),
-      reuse =
+      valid =
         cached &&
         cached.commands !== null &&
         !cached.body.debugDisposed &&
         root.firstChild === cached.body &&
         root.lastChild === cached.body &&
         sameBounds(cached.bounds, bounds) &&
-        cached.commands.length === this.commands.length &&
-        cached.commands.every((command, index) =>
-          sameCompositionCommand(command, this.commands[index]!),
-        ) &&
+        cached.commands.length === this.commands.length;
+    const counts = this.diagnosticCounts;
+    if (counts) {
+      counts.compositionVisits = (counts.compositionVisits ?? 0) + 1;
+      if (!valid) counts.compositionScopeMisses = (counts.compositionScopeMisses ?? 0) + 1;
+    }
+    const sameStructure = () => {
+      const matches =
+        !!cached &&
         cached.entries.length === this.entries.length &&
         cached.entries.every(
           (entry, index) =>
@@ -621,10 +616,55 @@ export class PaintingContext extends Canvas {
                 entry.picture === entry.layer.picture &&
                 !entry.picture.debugDisposed)),
         );
+      if (counts && !matches)
+        counts.compositionStructureMisses = (counts.compositionStructureMisses ?? 0) + 1;
+      return matches;
+    };
+    let reuse =
+        !!valid &&
+        cached.commands!.every((command, index) =>
+          sameCompositionCommand(command, this.commands[index]!),
+        ) &&
+        sameStructure(),
+      refreshed: readonly CompositionCommand[] | null = null;
+    if (!reuse && valid && sameStructure() && cached.body instanceof RecordedCompositionLayer) {
+      const replacements = new Map<PaintCommand, RecordedTransformReplacement>(),
+        snapshots = [...cached.commands!];
+      let compatible = true;
+      for (let index = 0; compatible && index < this.commands.length; index++) {
+        const before = cached.commands![index]!,
+          after = this.commands[index]!;
+        if (sameCompositionCommand(before, after)) continue;
+        const snapshot = captureCompositionCommand(after);
+        if (before.value.op !== 'transform' || after.op !== 'transform' || !snapshot) {
+          compatible = false;
+          break;
+        }
+        replacements.set(before.value, { value: after, count: 0 });
+        snapshots[index] = snapshot;
+      }
+      // Shared command identities may occur at several source positions. Every
+      // occurrence must request the same value and exist outside compiled Pictures.
+      for (let index = 0; compatible && index < this.commands.length; index++) {
+        const before = cached.commands![index]!.value,
+          replacement = replacements.get(before);
+        if (!replacement) continue;
+        if (!sameSnapshot(replacement.value, this.commands[index]!)) compatible = false;
+        else replacements.set(before, { value: replacement.value, count: replacement.count + 1 });
+      }
+      if (compatible && cached.body._replaceTransforms(replacements)) {
+        reuse = true;
+        refreshed = snapshots;
+        if (this.diagnosticCounts)
+          this.diagnosticCounts.compositionUpdates =
+            (this.diagnosticCounts.compositionUpdates ?? 0) + 1;
+      }
+    }
     retainedCompositions.delete(root);
+    if (counts && reuse) counts.compositionReuses = (counts.compositionReuses ?? 0) + 1;
     const commands = reuse ? null : [...this.commands],
       body = reuse
-        ? cached.body
+        ? cached!.body
         : this.finishLayer(bounds, cached?.pictures ?? [], cached?.body._depth ?? 0),
       errors: unknown[] = [];
     let appended = !!reuse,
@@ -640,14 +680,19 @@ export class PaintingContext extends Canvas {
         appended = true;
       }
       next = reuse
-        ? cached
+        ? refreshed
+          ? { ...cached!, commands: refreshed }
+          : cached!
         : captureComposition(body, bounds, commands!, this.pictureBatches, this.entries);
+      if (!reuse) recordedLayerPictures.set(body, this.pictureBatches);
       this.rollback(0);
-      this.exporting = true;
-      try {
-        root._buildSceneInto(new SceneBuilder(pictures), this);
-      } finally {
-        this.exporting = false;
+      if (exportScene) {
+        this.exporting = true;
+        try {
+          root._buildSceneInto(new SceneBuilder(pictures), this);
+        } finally {
+          this.exporting = false;
+        }
       }
     } catch (error) {
       errors.push(error);
@@ -718,6 +763,50 @@ export class PaintingContext extends Canvas {
     }
     return picture!;
   }
+  /** @internal Boundary and effect owners share the same private recording proof. */
+  _recordLayerContents(
+    layer: ContainerLayer,
+    painter: (context: PaintingContext) => void,
+    childPaintBounds: Rect = { x: 0, y: 0, width: 0, height: 0 },
+  ): void {
+    if (
+      layer.append === ContainerLayer.prototype.append &&
+      layer.removeAllChildren === ContainerLayer.prototype.removeAllChildren
+    ) {
+      const recording = new PaintingContext(null, childPaintBounds, true, this.diagnosticCounts),
+        errors: unknown[] = [];
+      try {
+        painter(recording);
+        // The same composition proof applies inside a retained clip/effect.
+        // Its parent keeps ownership before temporary recording holds retire.
+        recording.composeInto(layer, childPaintBounds, null, false);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        recording.dispose();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length)
+        throw new AggregateError(errors, 'Nested composition and retirement failed');
+      return;
+    }
+    const previous =
+        layer.firstChild === layer.lastChild && layer.firstChild instanceof ContainerLayer
+          ? layer.firstChild
+          : null,
+      child = this._recordChildLayer(painter, childPaintBounds, previous);
+    let appended = false;
+    try {
+      layer.removeAllChildren();
+      layer.append(child);
+      appended = true;
+    } finally {
+      if (!appended) child.dispose();
+    }
+  }
   /** Record the child before replacing old content, so a failed painter preserves it. */
   pushLayer<T extends ContainerLayer>(
     layer: T,
@@ -726,25 +815,9 @@ export class PaintingContext extends Canvas {
     childPaintBounds: Rect = { x: 0, y: 0, width: 0, height: 0 },
   ): T {
     if (this.recordsLayers) {
-      const previous =
-          layer.firstChild === layer.lastChild && layer.firstChild instanceof ContainerLayer
-            ? layer.firstChild
-            : null,
-        child = this._recordChildLayer(
-          (context) => painter(context, offset),
-          childPaintBounds,
-          previous,
-        );
-      let appended = false;
-      try {
-        layer.removeAllChildren();
-        layer.append(child);
-        appended = true;
-        this.addLayer(layer);
-        return layer;
-      } finally {
-        if (!appended) child.dispose();
-      }
+      this._recordLayerContents(layer, (recording) => painter(recording, offset), childPaintBounds);
+      this.addLayer(layer);
+      return layer;
     }
     const picture = PaintingContext._recordPicture(
       (context) => painter(context, offset),

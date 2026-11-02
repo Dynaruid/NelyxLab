@@ -163,6 +163,10 @@ test(
     const result = analyseNativeMotionIntervals(trace, windows);
     assert.equal(result.intervals.n, 4);
     assert.equal(result.intervals.max, 16);
+    assert.equal(result.durationMs, 64);
+    assert.equal(result.contentUpdates, 4);
+    assert.equal(result.fps, 62.5);
+    assert(result.segments.every((segment) => segment.fps === 62.5));
     assert.equal(result.displayed, 'unobserved');
     assert.equal(result.performanceAccepted, false);
     assert.throws(
@@ -179,6 +183,49 @@ test(
     );
     new Float64Array(trace.surfaces)[11] = 3;
     assert.throws(() => analyseNativeMotionIntervals(trace, windows), /sequence/);
+  },
+);
+
+test(
+  'surface FPS includes stalled motion and excludes duplicate content and quiet gaps',
+  { timeout },
+  () => {
+    const trace = fixture();
+    trace.surfaces = pack(
+      [0, 10, 20, 1000, 1010].map((time, index) => [
+        index + 1,
+        1,
+        2,
+        1,
+        index < 3 ? 10 : 11,
+        0,
+        1,
+        2,
+        974,
+        929,
+        time,
+      ]),
+    );
+    const result = analyseNativeMotionIntervals(trace, [
+      { begin: 0, end: 100 },
+      { begin: 1000, end: 1100 },
+      { begin: 2000, end: 2100 },
+    ]);
+    assert.equal(result.durationMs, 300);
+    assert.equal(result.contentUpdates, 2);
+    assert.equal(result.fps, 2000 / 300);
+    assert.deepEqual(
+      result.segments.map((row) => row.fps),
+      [10, 10, 0],
+    );
+    const adjacent = analyseNativeMotionIntervals(trace, [
+      { begin: 0, end: 10 },
+      { begin: 10, end: 20 },
+    ]);
+    assert.equal(
+      adjacent.segments.reduce((sum, row) => sum + row.surfaceUpdates, 0),
+      2,
+    );
   },
 );
 

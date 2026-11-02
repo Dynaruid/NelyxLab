@@ -45,7 +45,7 @@ export class RnwWorkProbe {
             group.count++;
             if (!parent) group.total += wall;
             group.max = Math.max(group.max, wall);
-            let name = String(label(this)).slice(0, 80);
+            let name = String(label(this, args)).slice(0, 80);
             if (!Object.hasOwn(group.names, name) && Object.keys(group.names).length >= 23)
               name = 'other';
             const row = (group.names[name] ??= [0, 0, 0, 0]);

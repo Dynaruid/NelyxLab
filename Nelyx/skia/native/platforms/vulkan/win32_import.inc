@@ -201,7 +201,10 @@ std::shared_ptr<const Win32Frame> renderWin32Frame(std::shared_ptr<Device> owner
     [data](uint64_t value){data->retire(value);},[data](){return data->released.load();},[data](){return data->retain();},
     [data](){data->awaitProducer();},[data](){data->finishProducer();}));
   try {
+    const auto began=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
     importWin32Frame(*data);
+    const auto imported=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
+    if(target.timing)target.timing->importMs=std::chrono::duration<double,std::milli>(imported-began).count();
     VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};allocation.commandPool=data->pool;allocation.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;allocation.commandBufferCount=2;
     VkCommandBuffer commands[2]{};checked(api.get<PFN_vkAllocateCommandBuffers>("vkAllocateCommandBuffers")(api.device,&allocation,commands),"Windows import command buffer");auto command=commands[0];
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -243,6 +246,7 @@ std::shared_ptr<const Win32Frame> renderWin32Frame(std::shared_ptr<Device> owner
     api.get<PFN_vkCmdPipelineBarrier>("vkCmdPipelineBarrier")(command,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,0,0,nullptr,0,nullptr,1,&barrier);
     checked(api.get<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(command),"Windows release end");
     submitWin32(*data,command,0,data->signal,false,true,"Windows EXTERNAL release submission");
+    if(target.timing)target.timing->submitMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-imported).count();
     winReplayWidth=data->width;winReplayHeight=data->height;return frame;
   } catch(...) {
     if(!data->mustRetain.load()) {

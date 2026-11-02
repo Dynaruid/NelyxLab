@@ -37,6 +37,7 @@ import {
 } from '../../ui/matrix4.ts';
 import type { Matrix4Storage } from '../../ui/matrix4.ts';
 import type { Canvas } from '../../ui/canvas.ts';
+import { forgetRecordedComposition } from '../painting/recorded-composition-cache.ts';
 
 function failures(errors: unknown[], message: string): void {
   if (errors.length === 1) throw errors[0];
@@ -344,6 +345,7 @@ export abstract class Layer {
     if (!(this.references === 0 && this.parent === null))
       invariant(false, 'owned-layer', 'Release LayerHandles and remove the layer before disposal');
     this.dead = true;
+    forgetRecordedComposition(this);
     this.currentOwner = null;
     this.changeCompositionCallbackCount(-this.callbacks.size);
     this.callbacks.clear();
@@ -404,6 +406,7 @@ export class PictureLayer extends Layer {
     if (!(value === null || (value instanceof Picture && !value.debugDisposed)))
       invariant(false, 'invalid-layer-picture', 'PictureLayer requires a live Picture');
     if (value === this.value) return;
+    forgetRecordedComposition(this);
     const old = this.value;
     this.value = value;
     this.markNeedsAddToScene();
@@ -485,6 +488,7 @@ export class ContainerLayer extends Layer {
       if (!(node !== child)) invariant(false, 'layer-cycle', 'Layer append would create a cycle');
     }
     child._retain();
+    forgetRecordedComposition(this);
     child._parent = this;
     child._previous = this.last;
     if (this.last) this.last._next = child;
@@ -510,6 +514,7 @@ export class ContainerLayer extends Layer {
     this.assertMutable();
     if (!(child.parent === this)) invariant(false, 'foreign-child-layer', 'Layer is not a child');
     const errors: unknown[] = [];
+    forgetRecordedComposition(this);
     if (child.previousSibling) child.previousSibling._next = child.nextSibling;
     else this.first = child.nextSibling;
     if (child.nextSibling) child.nextSibling._previous = child.previousSibling;

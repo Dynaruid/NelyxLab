@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { RenderConstrainedBox } from './boxes.ts';
 import { PaintingContext } from '../painting/context.ts';
-import { LayerHandle, OffsetLayer, ContainerLayer } from './layer.ts';
+import { LayerHandle, OffsetLayer } from './layer.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { PictureRasterizer } from '../../ui/picture.ts';
 import type { Image } from '../../ui/image.ts';
@@ -90,23 +90,14 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
       contentsVersion = this.paintContentsVersion;
     if (this.contentsVersion !== this.paintContentsVersion || !this.retained.layer) {
       if (diagnostics) diagnostics.boundaryRecordings++;
-      const old = this.retained.layer,
-        previous =
-          old?.firstChild === old?.lastChild && old?.firstChild instanceof ContainerLayer
-            ? old.firstChild
-            : null;
-      const child = context._recordChildLayer(
-          (recording) => this.paintContents(recording),
-          { x: 0, y: 0, ...this.size },
-          previous,
-        ),
-        layer = old ?? new OffsetLayer(),
+      const layer = this.retained.layer ?? new OffsetLayer(),
         next = new LayerHandle(layer);
-      let appended = false;
       try {
-        layer.removeAllChildren();
-        layer.append(child);
-        appended = true;
+        context._recordLayerContents(layer, (recording) => this.paintContents(recording), {
+          x: 0,
+          y: 0,
+          ...this.size,
+        });
         if (this.owner && !context.recordsLayers && !layer.attached) layer.attach(this.owner);
         this.retained.layer = layer;
         this.contentsVersion = contentsVersion;
@@ -121,7 +112,6 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
         this.nestedBoundaries = nested;
       } finally {
         next.dispose();
-        if (!appended) child.dispose();
       }
     } else {
       if (diagnostics) diagnostics.boundaryReuses++;

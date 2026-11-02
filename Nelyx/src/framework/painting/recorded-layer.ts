@@ -5,7 +5,7 @@ import { invariant } from '../../foundation/errors.ts';
 import { ContainerLayer, Layer } from '../rendering/layer.ts';
 import type { AnnotationResult } from '../rendering/layer.ts';
 import type { SceneBuilder } from '../../ui/scene.ts';
-import { freezePaintCommand } from '../../ui/frame.ts';
+import { freezePaintCommand, isCapturedPaintCommand } from '../../ui/frame.ts';
 import { releaseCommandResources } from '../../ui/resource-retention.ts';
 import type { PaintCommand } from '../../ui/types.ts';
 import {
@@ -34,6 +34,10 @@ const none: readonly PaintCommand[] = Object.freeze([]);
 const save: readonly PaintCommand[] = Object.freeze([freezePaintCommand({ op: 'save' })]);
 const restore: readonly PaintCommand[] = Object.freeze([freezePaintCommand({ op: 'restore' })]);
 const noTransforms: readonly Matrix4Storage[] = Object.freeze([]);
+export interface RecordedTransformReplacement {
+  readonly value: PaintCommand;
+  readonly count: number;
+}
 const scope = (parent: Scope | null): Scope => ({
   parent,
   commands: [],
@@ -203,6 +207,62 @@ export class RecordedCompositionLayer extends ContainerLayer {
       node.closes = node.scene.length > 0;
     }
     this.sealed = true;
+  }
+  /** @internal Replace only transforms proven to occur entirely in this
+   * private state program. A transform inside a compiled Picture must repaint.
+   * Older Scene commands own immutable snapshots, never these mutable lists. */
+  _replaceTransforms(
+    replacements: ReadonlyMap<PaintCommand, RecordedTransformReplacement>,
+  ): boolean {
+    this.assertMutable();
+    if (!this.sealed || !replacements.size) return false;
+    for (const [before, replacement] of replacements)
+      if (
+        before.op !== 'transform' ||
+        replacement.value.op !== 'transform' ||
+        !isCapturedPaintCommand(before) ||
+        !isCapturedPaintCommand(replacement.value) ||
+        !Number.isSafeInteger(replacement.count) ||
+        replacement.count <= 0
+      )
+        return false;
+    const counts = new Map<PaintCommand, number>(),
+      updates: Array<{ node: Scope; commands: PaintCommand[]; scene: readonly PaintCommand[] }> =
+        [];
+    for (const node of this.scopes) {
+      let changed = false;
+      const commands = node.commands.map((command) => {
+        const replacement = replacements.get(command);
+        if (!replacement) return command;
+        counts.set(command, (counts.get(command) ?? 0) + 1);
+        changed = true;
+        return replacement.value;
+      });
+      if (changed)
+        updates.push({
+          node,
+          commands,
+          scene: Object.freeze(
+            commands.filter((command) => command.op !== 'transform' || !isIdentity(command.matrix)),
+          ),
+        });
+    }
+    for (const [before, replacement] of replacements)
+      if (counts.get(before) !== replacement.count) return false;
+    // Complete proof and allocation before changing any live scope.
+    for (const { node, commands, scene } of updates) {
+      for (let index = 0; index < commands.length; index++) node.commands[index] = commands[index]!;
+      node.scene = scene;
+      node.closes = scene.length > 0;
+    }
+    for (const node of this.scopes) {
+      node.transforms = null;
+      node.transformCache = undefined;
+    }
+    for (let index = 0; index < this.states.length; index++)
+      this.states[index] = replacements.get(this.states[index]!)?.value ?? this.states[index]!;
+    this.markNeedsAddToScene();
+    return true;
   }
   /** Detach observers retain the old transform after sibling unlinking. */
   private containsChild(child: Layer): boolean {

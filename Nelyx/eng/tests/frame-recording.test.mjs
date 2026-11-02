@@ -9,6 +9,7 @@ import {
   freezeFrame,
   captureBorrowedFrame,
   disposeFrame,
+  isCapturedFrameResourceList,
 } from '@nelyx/core/ui/frame';
 import { Paint } from '@nelyx/core/ui/paint';
 import { ImageShader } from '@nelyx/core/ui/shader';
@@ -19,6 +20,8 @@ import {
   bindResourceRetainer,
   releaseCommandResources,
   resourceOwner,
+  resourceKey,
+  copyResourceId,
 } from '../../dist/ui/resource-retention.js';
 const timeout = 1_200_000,
   metrics = {
@@ -59,6 +62,100 @@ function resource(id = 'recording-image') {
     },
   };
 }
+
+test(
+  'resource keys capture only owned scalar IDs while external getters and nested serialization remain live',
+  { timeout },
+  () => {
+    let reads = 0,
+      name = 'first';
+    const foreign = Object.freeze({
+      get id() {
+        reads++;
+        return name;
+      },
+      generation: 1,
+    });
+    assert.equal(resourceKey(foreign), '["first",1]');
+    name = 'second';
+    assert.equal(resourceKey(foreign), '["second",1]');
+    assert.equal(reads, 2);
+    const captured = copyResourceId(foreign);
+    name = 'third';
+    assert.equal(resourceKey(captured), '["second",1]');
+    assert.equal(resourceKey(captured), '["second",1]');
+    assert.equal(reads, 3);
+    const nested = {
+        value: 1,
+        toJSON() {
+          return this.value;
+        },
+      },
+      unvalidated = copyResourceId({ id: nested, generation: 1 });
+    assert.equal(resourceKey(unvalidated), '[1,1]');
+    nested.value = 2;
+    assert.equal(resourceKey(unvalidated), '[2,1]');
+  },
+);
+
+test(
+  'captured unique frame resources preserve independent leases, foreign preflight and external duplicate admission',
+  { timeout },
+  () => {
+    const registry = new ResourceRegistry(),
+      foreign = new ResourceRegistry(),
+      id = { id: 'owned', generation: 1 },
+      other = { id: 'foreign', generation: 1 },
+      rect = { x: 0, y: 0, width: 1, height: 1 };
+    let retired = 0,
+      first,
+      second,
+      frame,
+      invalid;
+    registry.register(id, () => retired++);
+    foreign.register(other, () => {});
+    try {
+      const captured = registry.captureResource(id);
+      frame = freezeFrame(token(1), [
+        { op: 'image', resource: captured, rect },
+        { op: 'image', resource: captured, rect },
+      ]);
+      assert(isCapturedFrameResourceList(frame.resources));
+      assert.equal(frame.resources.length, 1);
+      first = registry.acquire(frame.resources);
+      const duplicates = Object.freeze([frame.resources[0], frame.resources[0]]);
+      assert(!isCapturedFrameResourceList(duplicates));
+      second = registry.acquire(duplicates);
+      assert.equal(registry.retainedReferenceCount(id), 3);
+      assert.equal(second.resources.length, 1);
+      assert.notEqual(first.resources[0], second.resources[0]);
+      assert.equal(resourceOwner(first.resources[0]), null);
+      registry.releaseProducer(id);
+      first.returnBy('caller');
+      first = undefined;
+      assert.equal(retired, 0);
+      second.returnBy('caller');
+      second = undefined;
+      assert.equal(retired, 1);
+      invalid = freezeFrame(token(2), [
+        { op: 'image', resource: { id: 'missing', generation: 1 }, rect },
+        { op: 'image', resource: foreign.captureResource(other), rect },
+      ]);
+      assert.throws(
+        () => registry.acquire(invalid.resources),
+        (error) => error.code === 'foreign-resource',
+      );
+      assert.equal(foreign.retainedReferenceCount(other), 1);
+    } finally {
+      first?.returnBy('caller');
+      second?.returnBy('caller');
+      disposeFrameIf(frame);
+      disposeFrameIf(invalid);
+      registry.dispose();
+      foreign.dispose();
+    }
+  },
+);
 
 test(
   'one completed recording moves immutable image/shader commands and their existing holds without a second capture',
@@ -266,7 +363,7 @@ test(
   () => {
     const registry = new ResourceRegistry(),
       a = { id: 'image-index-failure', generation: 1, kind: 'image' },
-      stringify = JSON.stringify,
+      get = Map.prototype.get,
       retain = registry.retainProducer;
     let admitted = 0,
       failures = 0,
@@ -280,20 +377,20 @@ test(
       return hold;
     };
     try {
-      JSON.stringify = function (...args) {
+      Map.prototype.get = function (...args) {
         if (failIndex) {
           failIndex = false;
           failures++;
           throw 0;
         }
-        return stringify.apply(this, args);
+        return get.apply(this, args);
       };
       assert.throws(
         () => Image.fromResource(registry, a, 2, 3),
         (error) => error === 0,
       );
     } finally {
-      JSON.stringify = stringify;
+      Map.prototype.get = get;
     }
     try {
       assert.equal(admitted, 1);

@@ -18,7 +18,7 @@ import { RenderSemanticsGestureHandler } from '../../dist/framework/rendering/se
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { Matrix4 } from '@nelyx/core/math/matrix4';
-import { bounds as projectBounds, intersect } from '@nelyx/core/ui/geometry';
+import { bounds as projectBounds, intersect, multiply, translate } from '@nelyx/core/ui/geometry';
 import { RenderObject, RenderBox, PipelineOwner } from '@nelyx/core/framework/rendering/object';
 import { existingPipelineSemantics } from '../../dist/framework/rendering/semantics-pipeline.js';
 import { existingSemanticsFor } from '../../dist/framework/rendering/semantics-pipeline.js';
@@ -53,6 +53,93 @@ import {
   InkFeature,
 } from '../../../packages/material/dist/internal/material/material-ink-owner.js';
 const timeout = 1_200_000;
+test(
+  'input geometry keeps live child index reads and one custom children snapshot',
+  { timeout },
+  () => {
+    const f = fixture(),
+      renders = new Map(),
+      reads = [],
+      commits = [];
+    let change;
+    class Probe extends RenderProxyBox {
+      constructor(name) {
+        super();
+        this.name = name;
+      }
+      get coreEditingGeometry() {
+        reads.push(this.name);
+        change?.(this.name);
+        return null;
+      }
+      didCommitTextInputGeometry() {
+        commits.push(this.name);
+      }
+    }
+    class Branch extends RenderObjectWidget {
+      constructor(name) {
+        super();
+        this.name = name;
+      }
+      get childWidgets() {
+        return [new SizedBox(20, 20)];
+      }
+      createRenderObject() {
+        const render = new Probe(this.name);
+        renders.set(this.name, render);
+        return render;
+      }
+    }
+    let parent, own;
+    try {
+      f.set(new Row(['first', 'removed', 'last'].map((name) => new Branch(name))));
+      parent = renders.get('first').parent;
+      own = Object.getOwnPropertyDescriptor(parent, 'children');
+      const children = [...parent.children],
+        snapshot = new Proxy(children, {
+          get(target, key, receiver) {
+            if (key === 'length' || /^\d+$/.test(String(key))) reads.push(String(key));
+            return Reflect.get(target, key, receiver);
+          },
+        });
+      Object.defineProperty(parent, 'children', {
+        configurable: true,
+        get() {
+          reads.push('children');
+          return snapshot;
+        },
+      });
+      change = (name) => {
+        if (name === 'first') children.splice(1, 1);
+      };
+      reads.length = commits.length = 0;
+      f.root.pipeline.root
+        .commitTextInputGeometries({
+          owner: f.root.context.owner,
+          metrics: f.root.context.readMetrics(),
+        })
+        .commit();
+      assert.deepEqual(reads, [
+        'children',
+        'length',
+        '0',
+        'first',
+        'length',
+        '1',
+        'last',
+        'length',
+      ]);
+      assert.deepEqual(commits, ['first', 'last']);
+    } finally {
+      change = undefined;
+      if (parent) {
+        if (own) Object.defineProperty(parent, 'children', own);
+        else delete parent.children;
+      }
+      f.close();
+    }
+  },
+);
 
 test(
   'unvisited offstage layouts do not defeat size-only deferral and publish fresh content when shown',
@@ -3135,7 +3222,7 @@ test(
           ...this.size,
           caret: { x: 0, y: 0, width: 1, height: 20 },
           caretBaseline: { x: 0, y: 15 },
-          selectionRects: [],
+          selectionRects: [{ x: 2, y: 3, width: 6, height: 15 }],
         };
       }
     }
@@ -3197,6 +3284,13 @@ test(
           const geometry = editor.readTextInputGeometry(frame.owner, frame.metrics);
           assert(geometry);
           assert.deepEqual(geometry.transform, editor.getTransformTo(null));
+          const project = (rect) =>
+            projectBounds(multiply(geometry.transform, translate(rect.x, rect.y)), rect);
+          assert.deepEqual(geometry.bounds, project({ x: 0, y: 0, ...editor.size }));
+          assert.deepEqual(geometry.caret, project({ x: 0, y: 0, width: 1, height: 20 }));
+          assert.deepEqual(geometry.selectionRects, [
+            project({ x: 2, y: 3, width: 6, height: 15 }),
+          ]);
         }
       }
       for (const matrix of [

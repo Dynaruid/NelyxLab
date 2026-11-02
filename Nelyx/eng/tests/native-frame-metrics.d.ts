@@ -98,6 +98,16 @@ export declare function analyseNativeMotionIntervals(
 ): {
   readonly scope: 'surface-updates-within-explicit-motion-windows';
   readonly windows: number;
+  readonly durationMs: number;
+  readonly contentUpdates: number;
+  /** Copied content frames / full motion duration; scanout remains unobserved. */
+  readonly fps: number;
+  readonly segments: readonly {
+    readonly durationMs: number;
+    readonly surfaceUpdates: number;
+    readonly contentUpdates: number;
+    readonly fps: number;
+  }[];
   readonly intervals: Distribution;
   readonly displayed: 'unobserved';
   readonly performanceAccepted: false;

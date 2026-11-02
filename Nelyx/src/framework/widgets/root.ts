@@ -34,6 +34,8 @@ import { PaintingBinding } from '../painting/binding.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from '../rendering/phase.ts';
 import { FrameScheduler } from '../scheduler/scheduler.ts';
 import { MouseTracker } from '../rendering/mouse-tracker.ts';
+import { hasEmptyPointerSignalHandler } from '../rendering/pointer-listener.ts';
+import { hasDefaultMouseRegionHandler } from '../rendering/mouse-region.ts';
 import { PointerRouter } from '../gestures/pointer-router.ts';
 import {
   pointerEventFromTransport,
@@ -456,11 +458,26 @@ export class FrameworkRoot implements ViewController {
         const transport = this.legacyPointerEvent(event);
         if (transport) this.mouseTracker.updateWithEvent(transport, result?.path);
       },
-      shouldDispatchToTarget: (_event, entry) =>
-        !(entry.target instanceof RenderObject) ||
-        (entry.target.owner === this.pipeline &&
-          (entry.target.handleEvent !== RenderObject.prototype.handleEvent ||
-            entry.target.onPointer !== undefined)),
+      shouldDispatchToTarget: (event, entry) => {
+        const target = entry.target;
+        if (!(target instanceof RenderObject)) return true;
+        if (target.owner !== this.pipeline) return false;
+        if (
+          event instanceof PointerSignalEvent &&
+          Object.getPrototypeOf(entry) === SourceHitTestEntry.prototype &&
+          !Object.hasOwn(entry, 'transform') &&
+          (hasDefaultMouseRegionHandler(target) || hasEmptyPointerSignalHandler(target))
+        ) {
+          const legacy = Object.getOwnPropertyDescriptor(target, 'onPointer');
+          // Accessors and custom source entries retain their observation order.
+          // Skip only a proven no-op before expanding its lazy event transform.
+          if (legacy && 'value' in legacy && legacy.value === undefined) return false;
+        }
+        return (
+          target.handleEvent !== RenderObject.prototype.handleEvent ||
+          target.onPointer !== undefined
+        );
+      },
       dispatchToTarget: (event, entry) => {
         entry.target.handleEvent(event, entry);
         if (
@@ -663,7 +680,17 @@ export class FrameworkRoot implements ViewController {
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
       this.scheduler.phase = 'paint';
       const paintCounts = diagnostics
-        ? { paintChildCalls: 0, boundaryVisits: 0, boundaryRecordings: 0, boundaryReuses: 0 }
+        ? {
+            paintChildCalls: 0,
+            boundaryVisits: 0,
+            boundaryRecordings: 0,
+            boundaryReuses: 0,
+            compositionUpdates: 0,
+            compositionVisits: 0,
+            compositionReuses: 0,
+            compositionScopeMisses: 0,
+            compositionStructureMisses: 0,
+          }
         : undefined;
       painting = new PaintingContext(null, null, true, paintCounts);
       render._finishPaintInvalidationBatch();
@@ -695,6 +722,21 @@ export class FrameworkRoot implements ViewController {
         diagnostics.record(scene.token, 'boundary-visits', now, paintCounts.boundaryVisits);
         diagnostics.record(scene.token, 'boundary-recordings', now, paintCounts.boundaryRecordings);
         diagnostics.record(scene.token, 'boundary-reuses', now, paintCounts.boundaryReuses);
+        diagnostics.record(scene.token, 'composition-updates', now, paintCounts.compositionUpdates);
+        diagnostics.record(scene.token, 'composition-visits', now, paintCounts.compositionVisits);
+        diagnostics.record(scene.token, 'composition-reuses', now, paintCounts.compositionReuses);
+        diagnostics.record(
+          scene.token,
+          'composition-scope-misses',
+          now,
+          paintCounts.compositionScopeMisses,
+        );
+        diagnostics.record(
+          scene.token,
+          'composition-structure-misses',
+          now,
+          paintCounts.compositionStructureMisses,
+        );
       }
       geometryCommit = render.commitTextInputGeometries({
         owner: scene.token.owner,

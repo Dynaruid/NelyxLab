@@ -78,6 +78,69 @@ test(
 );
 
 test(
+  'updated recorded transforms match direct pixels and leave earlier frame values immutable',
+  { timeout },
+  async () => {
+    const f = await engineFixture(),
+      surface = f.ck.MakeSurface(64, 64),
+      root = new ContainerLayer(),
+      contexts = [],
+      paint = new Paint({ color: 0xffff0000 });
+    const pixels = (commands) => {
+      f.library.replay(surface.getCanvas(), {
+        commands: [{ op: 'clear', color: 0xff000000 }, ...commands],
+      });
+      surface.flush();
+      const image = surface.makeImageSnapshot();
+      try {
+        return Buffer.from(
+          image.readPixels(0, 0, {
+            width: 64,
+            height: 64,
+            colorType: f.ck.ColorType.RGBA_8888,
+            alphaType: f.ck.AlphaType.Unpremul,
+            colorSpace: f.ck.ColorSpace.SRGB,
+          }),
+        );
+      } finally {
+        image.delete();
+      }
+    };
+    let previous, previousPixels, warm;
+    try {
+      for (const [index, x] of [2, 9, 19, 0, 31].entries()) {
+        const context = new PaintingContext(null, bounds, true),
+          reference = new Canvas();
+        contexts.push(context);
+        try {
+          for (const canvas of [context, reference]) {
+            canvas.save();
+            canvas.clipRect({ x: 0, y: 0, width: 50, height: 50 });
+            canvas.translate(x, 0);
+            canvas.drawRect({ x: 0, y: 4, width: 12, height: 12 }, paint);
+            canvas.restore();
+          }
+          context.compose(root, bounds);
+          assert.deepEqual(pixels(context.commands), pixels(reference.commands));
+          if (previous) assert.deepEqual(pixels(previous.commands), previousPixels);
+          if (index === 1) warm = root.firstChild;
+          if (index >= 2) assert.equal(root.firstChild, warm);
+          previous = context;
+          previousPixels = pixels(context.commands);
+        } finally {
+          reference.dispose();
+        }
+      }
+    } finally {
+      for (const context of contexts) context.dispose();
+      root.dispose();
+      surface.dispose();
+      await f.close();
+    }
+  },
+);
+
+test(
   'an unchanged picture exposes current pixels beyond its old estimated bounds after viewport growth',
   { timeout },
   async () => {

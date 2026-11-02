@@ -1,8 +1,10 @@
 # 스크롤 잔끊김 개선 — 공통 엔진 비용 검토와 남은 작업
 
-작성·갱신: **2026-11-02 KST** · 상태: **PAUSED / PARTIAL — 현재 주사율·일반 사용 60fps 기준으로 계획 갱신, 구현·실행 미재개**
+작성·갱신: **2026-11-02 KST** · 상태: **CLOSED / SUPERSEDED BY work3.md — 구현·수락 PARTIAL, RNW 60fps·최대화 Gallery liveness 미수락 유지**
 
-[work.md](work.md)의 미완료 항목 30개와 최신 중단 지점(§10.11)을 이관한 뒤, Doroti의 공통 엔진 개선과 현재 Nelyx 소스를 비교해 우선순위를 수정했다. **먼저 공통 Widget 생성·갱신·해제의 반복 작업과 할당을 줄이고, paint 파이프라인·Gallery 분할은 근거가 남을 때 조건부로 재검토한다.** 이후 잔여 작업의 실행·상태 갱신은 이 문서를 기준으로 한다. 소스 비교, 완료 검사, 후보별 측정·철회 이력은 원문에 남긴다. 이번 갱신은 소스·문서 검토와 계획 수정이며 빌드·앱 실행·성능 측정은 수행하지 않았다.
+> **2026-11-02 후속 계획:** 현재 작업계획은 [work3.md](work3.md)다. 이 문서의 §6에 기록한 미커밋 후보·제품 식별·실패·철회·`performanceAccepted=false`는 그대로 보존한다. 아래의 재개 순서는 당시 계획이며, 이후 실행은 work3.md를 우선한다. 후속 계획 작성만으로 구현·성능 수락을 완료 처리하지 않는다.
+
+[work.md](work.md)의 미완료 항목 30개와 최신 중단 지점(§10.11)을 이관한 뒤, Doroti의 공통 엔진 개선과 현재 Nelyx 소스를 비교해 우선순위를 수정했다. **먼저 공통 Widget 생성·갱신·해제의 반복 작업과 할당을 줄이고, paint 파이프라인·Gallery 분할은 근거가 남을 때 조건부로 재검토한다.** 이 문서에서 수행한 실행 결과와 잔여 범위는 **§6**에 보존하며, 이후 잔여 작업의 실행·상태 갱신은 work3.md를 기준으로 한다. 소스 비교, 완료 검사, 후보별 측정·철회 이력은 원문에 남긴다. §1.1은 재개 전의 이관 기록이다.
 
 **사용자 수락 기준 변경(2026-11-02): 모니터 설정은 변경하지 않는다. 현재 설정의 일반 사용에서 60fps 이상이면 수용하고, lazy load 중의 일시적 jitter는 허용한다.** 아래 실행·수락 계획은 이 기준을 우선한다. 이전의 60Hz 강제 검증·고주사율 매 주기 deadline 충족·cold 긴 frame 제거는 완료 조건에서 제외한다.
 
@@ -30,7 +32,7 @@
 
 ### 1.2 재개 순서
 
-1. §5의 일반 명령으로 원복된 앱 입력을 감지해 **probe 없는 Hermes bytecode / optimized / Release 제품**을 다시 빌드한다. source→dist/설치본→SDK acknowledgement·package manifest→실행 EXE·bytecode, 최신 locator와 앱 입력을 새로 확인한다.
+1. §5의 일반 명령으로 §6의 **probe 없는 Hermes bytecode / optimized / Release 제품**을 확인한다. source→dist/설치본→SDK acknowledgement·package manifest→실행 EXE·bytecode, 최신 locator와 앱 입력을 다시 검증하고 입력이 바뀌었으면 자동 재빌드를 확인한다.
 2. **모니터 주사율·해상도·배율·동적 주사율 설정을 변경하지 않는다.** 현재 주사율·DPI와 실제 앱 frame cadence를 읽을 수 있는 범위에서 기록하고, 같은 제품 조건의 기존 기준을 우선 재사용한다. 추가 비교가 필요한 대표 장면만 새 프로세스 **3회** 측정하며 빌드·다른 검사를 timed phase와 겹치지 않는다. 목표는 현재 설정에서 일반 사용 **60fps 이상**이며, 모니터 최대 주사율을 모두 채우도록 요구하지 않는다. 이 요청을 앱의 60fps cap 신설로 해석하지 않는다.
 3. 일반 스크롤·hover/focus의 지속 갱신이 60fps 아래로 떨어지는 구간부터 조사한다. 필요한 경우 Element rebuild·layout/text·native recording-finish와 의존성 처리·reconciliation·캐시 이동·capture의 기여를 연결한다. lazy load로 새 child를 만드는 동안의 일시적 jitter는 별도 관찰값으로 남기고 해소를 필수 작업으로 요구하지 않는다. 이미 완료한 RNW frame 연결은 재사용하고 개별 GC pause·독립 GPU 시간 등 미관찰 범위를 명시한다.
 4. **P0A를 먼저 수행한다.** 실제로 반복되는 공통 엔진 비용을 골라 작은 변경별로 비교한다. Doroti에 있던 선형 의존성 저장소나 중복 AsyncLocal 범위가 Nelyx에도 있다고 가정하지 않는다. 키 없는 다중 자식의 임시 KeyMap, 중복 의존성 처리, 캐시 bookkeeping·닫힌 명령의 잔여 할당이 조사 후보이며 구현·이득은 아직 미확정이다.
@@ -89,7 +91,7 @@ Doroti의 의존성 비교 10,240→20회, 중첩 할당 27,200→5,440 bytes, 6
 - [ ] idle/시작·재접촉, warm 왕복 no-hover, warm 버튼·TextField hover/focus를 일반 사용 장면으로 확인한다. cold 첫 섹션 진입·lazy load 구간은 별도로 식별해 일시적 jitter를 허용한다. 두 열은 왼쪽/오른쪽 및 pointer 이동을 포함하고 ListView·Cupertino를 회귀 장면으로 둔다.
 - [ ] 기존 trace를 확장해 input→dispatch, build, layout, paint, compose, capture, geometry, semantics, post-frame hit-test, packet/validation/Picture compile/Graphite recording, GPU·publish·retirement를 동일 frame identity로 연결한다. host가 기록하지 않는 단계는 먼저 작은 계측을 추가한다.
 - [ ] 시간뿐 아니라 dirty node 수, boundary 방문·재기록 수, command/packet bytes, mailbox 깊이·입력 나이, pending frame 나이, native credit, paragraph/Picture 생성·cache miss·GC를 기록한다. GC pause를 관찰할 수 없는 실행은 `unobserved`로 둔다.
-- [ ] 기본은 저비용 bounded RAM 표본, 느린 프레임에서만 상세 수집이다. source 내부 함수 monkey patch 진단의 오버헤드를 구분하고 최종 판정은 계측을 끈 동일 제품에서 한다.
+- [x] 기본은 저비용 bounded RAM 표본, 느린 프레임에서만 상세 수집이다. source 내부 함수 monkey patch 진단의 오버헤드를 구분하고 최종 판정은 계측을 끈 동일 제품에서 한다.
 
 완료 조건: Hermes bytecode에서 주 재현 장면별 기준 trial 3회로 어느 구간이 긴 frame 또는 제출 공백과 함께 발생했는지 설명할 수 있다. 이 기준 실행은 P7의 변경 전후 비교에 재사용하며 같은 조건을 불필요하게 다시 측정하지 않는다. 기존 Static AOT 수치를 bytecode 기준값으로 승계하거나 AOT 비교를 다시 실행하지 않는다. 모든 원인을 한 수치로 뭉치지 않는다. [`profile-gallery-scroll.mjs`](Nelyx/eng/profile-gallery-scroll.mjs)는 실제 sample Widget을 쓰는 **Node/CanvasKit CPU 진단**이므로 코드 기여 분석에만 사용하고 Hermes native 성능 수락으로 쓰지 않는다.
 
@@ -188,7 +190,7 @@ Doroti의 의존성 비교 10,240→20회, 중첩 할당 27,200→5,440 bytes, 6
 의존: P0/P0A/P4의 수행·판단, P1 잔여/P2/P3/P5/P6의 진입 여부·채택/철회 기록. 조건부 미진입을 구현 완료로 표시하지 않는다. 대상: 실제 Testbed, 기존 tests·SDK 공급·README·현재 문서.
 
 - [ ] 물리 트랙패드 시작·연속·반전·재접촉, 두 열 사이 pointer 이동, Button hover/press, 편집 중 스크롤 후 입력·한국어 IME, minimize/restore·close를 확인한다. 자동 OS wheel은 물리 트랙패드 확인과 별도로 기록한다.
-- [ ] 계측을 끈 일반 명령에서 사용자 체감을 확인하고, 남은 문제는 장면·입력·단계별로 PARTIAL/notVerified를 유지한다. 사용 방법이 바뀐 경우에만 기존 한/영 README를 갱신한다.
+- [x] 계측을 끈 일반 명령에서 사용자 체감을 확인하고, 남은 문제는 장면·입력·단계별로 PARTIAL/notVerified를 유지한다. 사용 방법이 바뀐 경우에만 기존 한/영 README를 갱신한다.
 
 ## 4. 측정·수락 기준
 
@@ -227,7 +229,7 @@ FPS는 일반 사용의 연속 이동 구간에서 관측한 실제 갱신 수/�
 
 ## 5. 실행 명령과 검증 경계
 
-최신 중단 지점은 bytecode 진단 제품에서 앱 소스를 원복한 상태다. 먼저 일반 명령이 변경된 앱 입력을 감지해 probe 없는 제품을 재빌드하는지 확인한다.
+현재 locator는 §6의 probe 없는 일반 bytecode 제품을 가리킨다. 일반 명령은 최신 앱·SDK 입력을 검증해 같은 제품을 재사용하며, 입력이 바뀌었으면 실행 전에 자동 재빌드한다.
 
 ```powershell
 npm.cmd run run:windows --workspace @nelyx/testbed-2
@@ -284,3 +286,55 @@ git diff --check
 특히 [`frame-visual-commit.test.mjs`](Nelyx/eng/tests/frame-visual-commit.test.mjs)의 unobserved admission 이후 explicit redraw, [`frame-backpressure.test.mjs`](Nelyx/eng/tests/frame-backpressure.test.mjs)의 forced/deferred 요청과 lease·busy 경합, [`repaint-isolation.test.mjs`](Nelyx/eng/tests/repaint-isolation.test.mjs)의 nested repaint, [`optional-sliver-work.test.mjs`](Nelyx/eng/tests/optional-sliver-work.test.mjs)의 deadline·선택 작업을 변경 계약에 맞게 보강한다. GPU/shadow를 바꾸면 `test:native-shadows`, native 공급·ABI를 바꾸면 해당 공급 검사도 추가한다. source test·빌드 통과를 물리 입력·표시 성능 PASS로 바꾸지 않는다.
 
 [`copilot-instructions.md`](.github/copilot-instructions.md)의 임시 산출물·검증 로그·독립 설치본 누적 금지를 따른다. `Nelyx/docs/plans/`, `Nelyx/docs/migrations/`를 만들지 않으며 과거 archive를 새 checkpoint 저장소로 사용하지 않는다. baseline도 제품 전체 사본을 계속 쌓는 방식 대신 실행 중 비교 후 필요한 요약만 남긴다.
+
+## 6. 실행 상태 — 2026-11-02
+
+**현재 판정은 미완료다.** 공통 비용 후보는 구현·회귀 검사 상태이며, 실제 RNW 일반 사용 60fps를 충족하지 않아 성능 개선으로 최종 채택하지 않았다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 트랙패드·실제 한국어 IME·scanout `notVerified`를 유지한다.
+
+| 현재 일반 제품 | 식별 |
+| --- | --- |
+| 작업 트리 | HEAD `b2a9b70a49848224af13c0e281e7a84ce2abed15`, 변경은 미커밋·성능 미수락 후보 |
+| 실행 | `npm.cmd run run:windows --workspace @nelyx/testbed-2`, Hermes bytecode / optimized / Release, HBC 99 |
+| compiler policy | `windows-hermes-94aa5e1d-no-cfg-v1` |
+| package manifest | `e40950929ba44af59fa70c2bfcb1503e0f5040667b457c48cb5bfbcce4de98dd` |
+| EXE | `8d0789050a3edf481d60ee61f4180fef26f1abc17147ed3de192ae45479a8666` |
+| bytecode bundle | `2612e8d3fd082a963b2d5cb8b1be80c4344367e0f901a042f1f7f5ef831f48e8` |
+| native / SDK inputs | `264631e86c363796511abc2d6de4920050c32cea3ef8b2b73c8a6ebacb81badd` / `91800de8aefc10219e276c2bf1d7c56d1e07f96a22046e413058de068a5cbcca` |
+| 원본 App source | `92d045b43f1316023328f5f2f0922f94e8f7395b9f499e29a84983eabb261bfb` |
+
+- **최종 일반 FPS:** source probe·상세 native 로그·GDI 캡처를 끄고 2560×1459 physical / DPI 192에서 관찰했다. 입력 페이지 최대화/focus의 두 10초 구간은 `457 / 10.0235s = 45.59`, `416 / 10.0285s = 41.48 surface FPS`다. Gallery 최대화 좌열(pointer X 40%)은 두 5초 구간 `55.17 / 51.54`, 우열(X 80%)은 `50.28 / 51.36 surface FPS`였다. Gallery는 pointer motion을 포함했다. 모두 packet-defined 좁은 반전이며 전체 범위 성능·3쌍 수락 비교가 아니다. 모두 exit 0이지만 60fps 기준은 미달이다.
+- **현재 제품의 기능·종료:** 입력 페이지에서 Unicode `Work2 한글` 입력 → OS wheel로 메시지 12까지 전체 이동 → 처음 복귀 → 재클릭 없이 ` after` 입력 → 전송·횟수 1 → 최소화/복원 시 값·상태 보존 → 초기화·Gallery 복귀·정상 종료를 확인했다. 별도 실제 OS wheel/close 회귀도 Material·ListView·Cupertino·입력 네 페이지 모두 exit 0, native drain 확인, hide `1.75–2.16ms`, close `181.88–272.36ms`로 통과했다. 이 회귀의 창 크기는 974×929 physical이며 native 로그·GDI 관찰을 켠 기능 검사다.
+- **남은 최대화 liveness 실패:** 같은 현재 제품의 Gallery 우열(X 약 66.7%)에서 maximize/restore/maximize와 GDI 관찰을 더한 확장 검사는 선택 픽셀 영역의 최대 `751.40ms` 정지로 실패했다. native close exit 0·drain·hide `1.99ms`는 통과했다. 선택 영역의 정지와 전체 surface 정지 원인은 아직 분리하지 못했으며, 근거 없이 lazy jitter로 제외하지 않는다. 기존 창 크기의 네 페이지 통과와 이 실패를 구별한다.
+- **최종 공통 회귀:** `test:paint-recording`, `test:scroll-engine` 290/290, `test:windows-animation` 28/28(bytecode), `test:native-paint-replay` 69/69, `test:windows-semantics` 12/12, RNW/FPS 29/29, 타입 검사와 공급 6/6이 통과했다. native supplier를 갱신한 뒤 실제 Windows 라이브러리의 direct/retained 그림자 연속성도 DPR 1/1.25/1.5/2에서 통과했다. Picture 64-entry / 32MiB, optional child 16 / Element 2,048, Gallery capacity 2와 CPU pending 1/native recording 2를 확대하지 않았다.
+- **최종 Web/Android:** 같은 Core의 Web bundle `fb411567…`에서 Chrome catalog 49개·컨트롤·route/상태 검사가 통과했다. Android 재공급 시 Windows 그림자 보정의 private Skia 헤더 요구가 공개 SDK 빌드를 막는 것을 발견해 해당 보정을 Windows 경로로 한정했다. Android는 기존 Skia shadow 경로를 유지하며, Temurin 21.0.11로 최신 Release/x86_64 APK `bf20078f3ce1526452fc5d9159e85fd86c9a31e8b98fc7800e58c48e8279c6ac`를 다시 빌드했다. API 30 read-only 에뮬레이터에서 첫/마지막 편집기 입력·전송·전체 범위 복귀·값 보존·Home/복원 동일 PID·초기화·Back과 실제 화면을 확인했다. 임시 XML·화면·스크립트와 검증용 emulator-5580은 finally에서 정리했으며 기존 emulator-5554는 유지했다. 플랫폼 성능·물리 입력·한국어 IME 수락으로 확장하지 않는다.
+- **최종 공급·정리:** 현재 Windows package/runtime 검증이 통과하고 일반 bytecode에 RNW probe marker가 없음을 확인했다. 추가한 recording metadata module은 root와 Windows/Web/Android 설치본의 SHA가 같으며 lint·format·diff 검사를 통과했다. 이번 중간 native 입력 `8a3ad1…`는 JSON 참조 0과 작업 소유·경로를 확인해 삭제했다. 작업 임시 디렉터리·스크립트·supply·dist staging과 실행 중인 Testbed·검증용 화면 키보드·작업 Metro worker는 남지 않았다.
+- **다음 필수 작업:** 지속적인 RNW 60fps 미달과 최대화 Gallery의 위 liveness 실패를 해결한 뒤 §4.1의 전체 범위·hover/focus 장면과 대표 기준/후보 3쌍으로 재판정한다. 실제 한국어 조합도 계속 미관찰이다. 반복문 geometry·compiler 후보를 다시 켜거나 큐·캐시 예산을 늘려 실패를 가리지 않는다.
+
+아래는 이번 실행의 후보·진단·철회 기록이다. probe 제품의 timing을 위 일반 제품의 성능 수락으로 사용하지 않는다.
+
+- 착수 시 일반 명령으로 probe 없는 bytecode / optimized / Release 제품(bundle `c65deb…`, EXE `f98909…`, SDK `c507e4…`, native `ec2335…`)의 실행·정상 종료를 확인했다. 현재 모니터 설정은 변경하지 않았다.
+- FPS 관찰을 보강했다. native 장면은 명시한 이동 구간의 전체 시간과 실제 copied content 수를 사용하고 정지 구간·중복 콘텐츠·갱신 없는 구간을 구분한다. 일반 RNW OS wheel 검사에는 native surface counter 관찰을 추가했다. 제출·callback·캡처 표본 수를 표시 FPS로 사용하지 않는다. 계산 회귀 13/13 통과.
+- 변경 전 Gallery 새 프로세스 3회는 같은 host `b6f9fc…` / VM `de3140…` / 2560×1459 physical / DPI 192 / 보고된 165Hz에서 정상 종료했다. warm no-hover / button-hover / field-focus surface FPS의 trial 중앙값은 `79.94 / 79.48 / 75.49`다. 이 제품은 direct native 진단이며 실제 RNW 일반 제품 검증을 대신하지 않는다.
+- P0A 후보는 다중 자식의 KeyMap을 첫 키를 만날 때 만들도록 제한했다. 키 검증의 선행 순서·사용자 equality/hash·GlobalKey·slot·update·실패 cleanup 경로는 유지한다. Core 287/287, paint 155/155, RNW/FPS 25/25, 공급 6/6과 타입 검사를 통과하고 일반 제품에 공급했다. 최종 채택 비교는 남았다.
+- 입력·버튼 전체 범위 기준도 3회 수집했다. 그러나 **실제 RNW 최대화/focus·10초 OS wheel**은 화면 캡처·상세 로그를 끈 상태에서도 `38.03 / 36.99 surface FPS`라 수락 미달이다. direct native의 60fps 이상을 RNW 일반 사용 수락으로 확장하지 않는다. P4를 포함한 실제 RNW 추가 비용을 조사 중이다.
+- 입력 페이지를 기존 OS wheel/close 회귀에 추가하면서, 정상 native drain 이후 늦은 React semantics packet이 닫힌 JS platform을 빌리는 오류를 발견했다. native close 시작 시 해당 peer를 먼저 퇴역시키고 정상 active 오류 전달은 유지하도록 수정했다. 일반 재빌드/종료와 Windows semantics 12/12가 통과했으며, 최종 네 페이지 close 회귀도 위 현재 상태처럼 통과했다.
+- 일반 제품에서 한글 문자열 입력·전체 OS wheel 왕복·재클릭 없는 후속 입력·전송·횟수 1·최소화/복원·정상 종료를 확인했다. Unicode 문자열 입력은 실제 한국어 IME 조합 검증과 구분한다. 도구의 `Hangul` 키가 지원되지 않아 실제 조합은 `notVerified`다.
+- 초기 Core의 Web build `de0132…`에서 Chrome의 49개 catalog·컨트롤·route/상태 검사가 통과했다. Android Release/x86_64 APK `667993…`는 API 30의 read-only 에뮬레이터에서 첫·마지막 편집기 입력·전송, 횟수 1, 전체 범위 왕복 뒤 값 보존, Home/복원 시 같은 PID·편집 값 보존, 초기화·Gallery/Back 복귀를 통과했다. 임시 XML·스크립트·화면과 에뮬레이터는 finally에서 정리했다. 최종 공통 후보 제품의 재공급·검증은 위 현재 상태를 따른다.
+- 추가 RNW 진단의 JS callback 중앙값/p95는 약 `18.88/36.23ms`였고 UI 큐 지연은 작았다. identity paint 명령 생략 후보는 `39.76/37.80 surface FPS`, composition scope 계획 재사용을 더한 후보는 `40.46/35.93`으로 아직 수락 미달이다. 각 수치는 probe·GDI 캡처·상세 로그를 끈 실제 RNW의 두 10초 이동 구간이며 3쌍 수락 비교는 아니다. cache 재사용만으로 성능 향상을 확정하지 않는다.
+- 닫힌 Path의 snapshot·wire record 수와 resource 없는 draw/clip/shadow 명령을 내부 소유 값에 한해 재사용했다. Path mutator·외부 frozen/getter·subclass 복사·image shader 독립 hold·custom record·closed Canvas 검사를 통과했다. 같은 native host/VM의 변경 전후 3회에서 frame당 할당 중앙값은 traverse/no-hover/button/focus 각각 `1,063,075→936,866 / 1,076,421→961,278 / 1,097,834→975,338 / 1,207,351→1,082,658 bytes`로 감소했다. surface FPS는 `72.17→70.98 / 64.78→56.77 / 64.01→63.87 / 61.32→61.56`으로 일관된 개선이 아니며, 빠른 개별 이동 구간의 60fps 미만도 남았다. 실제 RNW는 `41.08/41.13 surface FPS`여서 아직 성능 수락하지 않는다.
+- RNW 기본 Babel의 class/super/spread lowering과 direct native의 기존 native Hermes frontend 차이를 비교했다. 동일 RNW compiler/HBC 99 제품에서 화면·그림자, 12개 편집기 전체 왕복 뒤 재클릭 없는 `Frontend 한글 after` 입력과 정상 종료는 통과했지만 `44.52/42.07 surface FPS`였다. 임시 Metro 설정은 finally에서 원복했으며 기본 변환기 교체를 성능 개선으로 채택하지 않았다.
+- Path 후보의 RNW 진단은 같은 identity로 제출/producer/surface/retirement 831개를 연결했고 오류·실패·supersede는 0이었다. retained 표본의 owned callback 중앙값/p95는 `18.08/35.74ms`, input geometry `2.28/3.29ms`, geometry publication `1.40/1.82ms`, native submit 전체 `1.69/2.15ms`였다. 별도 native Hermes PC sampling에서는 입력 geometry 순회와 Layer detach/callback 경로가 관찰됐다. 표본 가중치는 CPU 밀리초나 RNW FPS로 환산하지 않는다.
+- recorded Layer의 자식 제거를 위치 정보와 비어 있는 슬롯으로 처리하는 후보는 픽셀/retirement를 포함한 31개 검사를 통과했지만 실제 RNW `41.88/39.37 surface FPS`로 이득이 불분명해 철회했다. 별도 composition scope 계획 캐시도 철회하고 기존 전체 planning 경로를 복원했다.
+- pinned compiler에서 CFG 최적화를 계속 제외하고 인라이닝만 켜는 후보는 실제 Core curve·행렬 bytecode 회귀 3개를 통과했지만 일반 RNW `42.32/38.69 surface FPS`로 개선이 없어 철회했다. workspace 정책을 기존 `windows-hermes-94aa5e1d-no-cfg-v1`으로 복원하고 해당 정책의 진단 빌드·정상 종료를 확인했다. native frontend는 이미 for-of를 보존하므로 별도 for-of 보존 변환기를 추가하려던 후보도 철회했다.
+- captured resource ID의 key와 frame의 고유 resource 목록을 재사용하는 후보는 외부 getter·독립 lease·foreign owner 선행 검사·index 실패 cleanup 검사를 통과했다. 추가 RNW 진단에서는 798개 frame의 제출/producer/surface/retirement를 연결했고 오류·실패·supersede는 0, 정상 종료였다. callback 중앙값/p95 `18.82/36.40ms`, 그 안의 입력 dispatch `2.11/8.05ms`, 입력 이외 `15.62/33.42ms`로 입력 비용과 나머지 비용을 분리했다. 진단 제품의 OS wheel `35.81/36.15 surface FPS`는 일반 제품 수락값으로 사용하지 않는다.
+- P4에서 기본 MouseRegion과 signal callback이 없는 기본 Listener의 wheel no-op dispatch만 생략하는 후보는 legacy callback·사용자 getter·prototype handler 교체·기존 local 좌표 검사 16/16을 통과했다. 원본 App과 기존 bytecode 정책의 일반 명령 재빌드·정상 종료는 통과했지만 `41.20/38.21 surface FPS`로 아직 개선을 수락하지 않는다.
+- P5의 조건부 추가 후보로 private state program의 transform만 바뀔 때 접속을 유지하는 경로를 구현했다. 같은 명령의 모든 occurrence가 Picture 외부 state에 있고 동일한 새 값을 요구할 때만 적용한다. Root만 적용한 일반 제품은 `41.30/39.26 surface FPS`였고, 중첩 clip/effect와 기본 annotation 재사용까지 확장한 제품은 `43.49/39.99`였다. 진단에서 root/중첩 composition은 대부분 이미 재사용하지만 repaint boundary 약 2개가 매 frame 새 body를 만드는 것을 확인해 boundary 갱신에도 같은 검증을 적용했다. native Picture 하나를 감싼 identity Layer는 중복 compile을 피하며 기존 독립 hold를 유지한다. 외부 accessor·custom append/remove·Picture 내부 transform·공유 transform 충돌은 보수 경로다. paint 전체 166/166과 RNW 진단 15/15가 통과했다.
+- boundary 확장 후 원본 App SHA `92d045…`와 기존 정책의 일반 명령으로 재공급/재빌드한 RNW(EXE `697235…`)는 최대화/focus 두 10초 구간에서 `45.00/43.09 surface FPS`, 정상 close exit 0이었다. 동일 2560×1459/DPI 192/165Hz이며 여전히 수락 미달이다. 추가 진단의 934개 source frame 중 transform 재사용은 770회, 제출/producer/surface/retirement는 914개씩이고 실패·supersede·오류는 0이었다. 이동 끝 retained 표본의 paint 중앙값은 직전 `3.37→2.45ms`, compose `2.38→2.36ms`, owned callback `17.60→17.04ms`였다. 이 두 10초 OS wheel은 packet-defined 좁은 반전이며 전체 페이지 성능 비교나 3쌍 수락 비교가 아니다.
+- native 제출→producer의 약 11ms를 worker 대기·producer worker wall·UI 복귀 대기로 분리했다. 실제 RNW 832개 frame의 정상 종료/오류 0인 추가 진단에서 중앙값은 각각 `0.019 / 10.746 / 0.086ms`였다. source callback은 `16.84ms`, producer→surface는 `0.53ms`다. worker 작업이 큰 기여로 남으므로 큐를 늘리지 않고 Vulkan import·replay/submit·완료 대기·cleanup을 나누는 opt-in native 숫자 계측을 공급 중이다. 같은 frame identity와 기존 bounded RAM을 사용하며 GPU timestamp나 독립 GPU 실행 시간으로 해석하지 않는다.
+- 위 계측을 native supplier `8a3ad1…`와 RNW에 공급한 진단은 901개 frame의 정상 종료/오류 0이었다. 이동 끝 retained 표본의 중앙값은 import `1.722ms`, replay/submit `0.806ms`, 완료 대기 `8.199ms`, cleanup `0.105ms`, context/recorder 준비 `0.073ms`다. 독립 GPU 시간은 계속 미관찰이다. 새로운 raster cache·import cache나 예산 확대는 아직 적용하지 않았다.
+- 입력 geometry의 기본 child visitor만 반복문으로 실행하는 후보는 live child 배열 변경·custom visitor의 실패 후 재시도·sibling visibility를 포함한 검사를 통과했지만, 일반 제품은 `44.58/41.99 surface FPS`, 후속 RNW geometry 중앙값은 `2.38ms`여서 이득이 없었다. **NOT_ADOPTED / 소스 원복 완료.** callback 평균·기여 callback 간격의 진단을 추가했으나 between 값에는 idle/caret·다른 callback·폐기 작업이 포함되므로 clock 대기 시간으로 단정하지 않는다.
+- pinned bytecode compiler의 CFG 정리를 SSA 변환 전에 한 번만 실행하는 별도 후보도 일반 제품 `44.80/42.36 surface FPS`로 이득이 없어 **NOT_ADOPTED / 소스·compiler 정책 원복 완료**다. 알려진 무한 루프 제어와 실제 Core curve/affine의 bytecode 회귀를 포함한 5/5는 통과했다. 정책이 다른 기존 package의 실행 거부를 확인했고, 명시한 bytecode / optimized / Release 재빌드 뒤 일반 명령으로 비교했다. 이후 기존 `windows-hermes-94aa5e1d-no-cfg-v1` 정책으로 RNW 진단 빌드를 다시 공급했다.
+- 원복 뒤 RNW 진단에서 timer wake lateness 중앙값/p95는 `0.333/0.647ms`, JS dispatch queue는 `5.955/33.290ms`, owned callback은 `17.199/35.489ms`였다. native 900개 frame의 제출/producer/surface/retirement가 일치하고 실패·supersede·오류 0, 정상 종료였다. timer 정밀도 변경 근거가 없어 clock·credit 정책은 유지한다. native 완료 대기 중앙값 `7.719ms`는 worker wall 구간이며 독립 GPU 시간은 미관찰이다. 입력 후 100ms 이내 제출에 기여한 callback도 분리했지만 관찰 공백·다른 작업을 포함하므로 FPS·순수 idle로 사용하지 않는다.
+- recording 비교 metadata는 구조 변경·빈 root·disposal 때 해당 recording에서 해제하도록 보강했다. 이전 frame의 독립 hold와 이동 가능한 live child recording은 유지하며, 다음 compose에서 조상 구조를 다시 검증한다. source 일반 제품에 남은 공통 변경은 **실험 후보 / 성능 미수락**이며 60fps 달성·3쌍 비교 없이 최종 채택으로 올리지 않는다.
+- RNW 진단에는 입력 dispatch와 콜백 뒤 microtask까지의 간격, paint/recording/reuse 횟수를 구분해 추가했다. microtask 간격은 native polling·queued job을 포함하며 독립 React/GC CPU 시간으로 환산하지 않는다. 닫기 클릭이 적용되지 않아 마지막 retained 표본이 idle/caret 구간을 포함한 실행은 이동 구간의 전후 timing 비교에서 제외한다. 추가 direct native 실행은 foreground 확보 실패로 이동 표본 없이 종료돼 성능 비교에서 제외했고 임시 fixture를 정리했다.
+- `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 트랙패드·실제 한국어 IME·scanout `notVerified`를 유지한다. 일반 제품 기능·종료 및 Web/Android 재검증을 성능 수락으로 올리지 않으며, 위 다음 필수 작업이 남았다.

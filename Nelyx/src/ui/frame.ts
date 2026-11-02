@@ -1,7 +1,7 @@
 import { finite, generation } from '../foundation/numbers.ts';
 import { invariant } from '../foundation/errors.ts';
 import { freezePaint } from './paint.ts';
-import { freezePath } from './path.ts';
+import { freezePath, pathRecordCount } from './path.ts';
 import { freezeRRect } from './rrect-data.ts';
 import { paintEffectRecordCount } from './paint-effects-wire.ts';
 import {
@@ -144,10 +144,7 @@ export const paintFrameLimits = Object.freeze({ commands: 4096, bytes: 512 * 102
 export function paintCommandRecordCount(command: PaintCommand): number {
   const pathRecords =
     command.op === 'drawPath' || command.op === 'clipPath' || command.op === 'drawShadow'
-      ? command.path.operations.reduce(
-          (count, item) => count + (item.verb === 'addRRect' ? 2 : 1),
-          0,
-        )
+      ? pathRecordCount(command.path)
       : 0;
   return (
     (command.op === 'drawImageRect' || command.op === 'drawImageNine'
@@ -349,6 +346,11 @@ function freezePaintCommandValue(command: PaintCommand): PaintCommand {
   }
 }
 const capturedCommands = new WeakSet<PaintCommand>();
+const capturedResourceLists = new WeakSet<readonly ResourceId[]>();
+/** @internal Only completed frame admission establishes unique immutable IDs. */
+export function isCapturedFrameResourceList(resources: readonly ResourceId[]): boolean {
+  return capturedResourceLists.has(resources);
+}
 /** Internal identity check; freezing an external object alone does not validate its fields. */
 export function isCapturedPaintCommand(command: PaintCommand): boolean {
   return capturedCommands.has(command);
@@ -614,6 +616,7 @@ function captureFrame(
       resources: Object.freeze([...admission.resources.values()]),
       estimatedBytes: admission.estimatedBytes,
     });
+    capturedResourceLists.add(result.resources);
     ownFrameResources(result.resources, captured);
   } catch (error) {
     errors.push(error);

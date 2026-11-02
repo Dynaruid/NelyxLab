@@ -1,6 +1,7 @@
 import { generation } from '../foundation/numbers.ts';
 import { invariant } from '../foundation/errors.ts';
 import type { ResourceDescriptor, ResourceId } from '../ui/types.ts';
+import { isCapturedFrameResourceList } from '../ui/frame.ts';
 import {
   resourceKey,
   releaseFrameResources,
@@ -401,13 +402,16 @@ export class ResourceRegistry {
           'foreign-resource',
           'Resource belongs to another registry',
         );
-      const unique = [...new Map(resources.map((r) => [resourceKey(r), r])).values()];
+      const captured = isCapturedFrameResourceList(resources),
+        unique = captured
+          ? resources
+          : [...new Map(resources.map((r) => [resourceKey(r), r])).values()];
       const entries = unique.map((r) => {
         const entry = this.entries.get(resourceKey(r));
         invariant(
           entry &&
             (entry.producer || entry.owners > 0) &&
-            (resourceOwner(r) === null || resourceOwner(r) === this),
+            (captured || resourceOwner(r) === null || resourceOwner(r) === this),
           'stale-resource',
           `missing or foreign resource ${r.id}`,
         );

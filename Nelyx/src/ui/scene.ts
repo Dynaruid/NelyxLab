@@ -35,6 +35,7 @@ interface LayerInsertion {
 class LayerRecording {
   private references = 1;
   private readonly needsScope: boolean;
+  private readonly nativeLeaf: readonly PaintCommand[] | null;
   private nativePicture:
     | { readonly owner: PictureResourceProvider; readonly picture: Picture }
     | undefined;
@@ -64,6 +65,14 @@ class LayerRecording {
         changesState = true;
     }
     this.needsScope = changesState;
+    this.nativeLeaf =
+      insertions.length === 0 &&
+      canvas.commands.length === 1 &&
+      canvas.commands[0]!.op === 'drawPicture'
+        ? canvas.commands
+        : canvas.commands.length === 0 && insertions.length === 1
+          ? insertions[0]!.recording.nativeLeaf
+          : null;
   }
   retain(): LayerRecording {
     if (!(this.references > 0))
@@ -132,6 +141,12 @@ class LayerRecording {
   }
   private drawNative(canvas: Canvas, owner: PictureResourceProvider): void {
     invariant(this.references > 0, 'disposed-engine-recording', 'Engine recording has retired');
+    // Identity wrappers around one native leaf already have an immutable
+    // recording. Preserve its independent holds without compiling a duplicate.
+    if (this.nativeLeaf) {
+      canvas.addCommands(this.nativeLeaf);
+      return;
+    }
     // A retained recording is immutable. Compile its state and child pictures
     // once through the existing bounded app owner instead of flattening the
     // same hierarchy into every scrolling frame. CPU-only consumers still

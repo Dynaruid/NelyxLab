@@ -5,8 +5,9 @@ import { isCapturedTransform } from './geometry.ts';
 import { matrix4Identity, matrix4FromAffine, captureMatrix4, multiplyMatrix4 } from './matrix4.ts';
 import { finite } from '../foundation/numbers.ts';
 import { invariant } from '../foundation/errors.ts';
-import { Paint } from './paint.ts';
-import { Path, pathOperationLimit } from './path.ts';
+import { Paint, isCapturedPaintSnapshot } from './paint.ts';
+import { Path, pathOperationLimit, isCapturedPathSnapshot } from './path.ts';
+import type { PathSnapshot } from './path.ts';
 import { RRect } from './rrect.ts';
 import { captureRRect } from './rrect-data.ts';
 import { freezePaintCommand } from './frame.ts';
@@ -24,6 +25,11 @@ export class Canvas {
   // One resource-free command per owned immutable matrix. Weak keys retire
   // with the render/scene storage; submitted recordings keep their own values.
   private static readonly transformCommands = new WeakMap<readonly number[], PaintCommand>();
+  // One latest resource-free command of each kind per owned path snapshot.
+  // Weak keys follow retained recordings; changing styles do not grow a cache.
+  private static readonly pathCommands = new WeakMap<PathSnapshot, PaintCommand>();
+  private static readonly shadowCommands = new WeakMap<PathSnapshot, PaintCommand>();
+  private static readonly clipCommands = new WeakMap<PathSnapshot, PaintCommand>();
   readonly commands: PaintCommand[] = [];
   private dead = false;
   constructor(
@@ -106,9 +112,32 @@ export class Canvas {
     devicePixelRatio = 1,
   ): void {
     if (!(path instanceof Path)) invariant(false, 'invalid-path', 'drawShadow requires Path');
+    const snapshot = path.snapshot();
+    if (!this.dead && this.recordsSynchronously && isCapturedPathSnapshot(snapshot)) {
+      let command = Canvas.shadowCommands.get(snapshot);
+      if (
+        command?.op !== 'drawShadow' ||
+        !Object.is(command.color, color) ||
+        !Object.is(command.elevation, elevation) ||
+        command.transparentOccluder !== transparentOccluder ||
+        !Object.is(command.devicePixelRatio, devicePixelRatio)
+      ) {
+        command = freezePaintCommand({
+          op: 'drawShadow',
+          path: snapshot,
+          color,
+          elevation,
+          transparentOccluder,
+          devicePixelRatio,
+        });
+        Canvas.shadowCommands.set(snapshot, command);
+      }
+      this.record(command);
+      return;
+    }
     this.record({
       op: 'drawShadow',
-      path: path.snapshot(),
+      path: snapshot,
       color,
       elevation,
       transparentOccluder,
@@ -391,15 +420,48 @@ export class Canvas {
   }
   drawPath(path: Path, paint: Paint): void {
     if (!(path instanceof Path)) invariant(false, 'invalid-path', 'drawPath requires Path');
-    this.record({ op: 'drawPath', path: path.snapshot(), paint: paint.snapshot() });
+    const snapshot = path.snapshot(),
+      style = paint.snapshot();
+    if (
+      !this.dead &&
+      this.recordsSynchronously &&
+      isCapturedPathSnapshot(snapshot) &&
+      isCapturedPaintSnapshot(style) &&
+      style.shader?.kind !== 'image'
+    ) {
+      let command = Canvas.pathCommands.get(snapshot);
+      if (command?.op !== 'drawPath' || command.paint !== style) {
+        command = freezePaintCommand({ op: 'drawPath', path: snapshot, paint: style });
+        Canvas.pathCommands.set(snapshot, command);
+      }
+      this.record(command);
+      return;
+    }
+    this.record({ op: 'drawPath', path: snapshot, paint: style });
   }
   clipPath(path: Path, options: ClipOptions = {}): void {
     if (!(path instanceof Path)) invariant(false, 'invalid-path', 'clipPath requires Path');
+    const snapshot = path.snapshot(),
+      clipOp = options.clipOp ?? 'intersect',
+      doAntiAlias = options.doAntiAlias ?? true;
+    if (!this.dead && this.recordsSynchronously && isCapturedPathSnapshot(snapshot)) {
+      let command = Canvas.clipCommands.get(snapshot);
+      if (
+        command?.op !== 'clipPath' ||
+        command.clipOp !== clipOp ||
+        command.doAntiAlias !== doAntiAlias
+      ) {
+        command = freezePaintCommand({ op: 'clipPath', path: snapshot, clipOp, doAntiAlias });
+        Canvas.clipCommands.set(snapshot, command);
+      }
+      this.record(command);
+      return;
+    }
     this.record({
       op: 'clipPath',
-      path: path.snapshot(),
-      clipOp: options.clipOp ?? 'intersect',
-      doAntiAlias: options.doAntiAlias ?? true,
+      path: snapshot,
+      clipOp,
+      doAntiAlias,
     });
   }
 }

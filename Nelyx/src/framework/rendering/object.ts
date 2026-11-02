@@ -23,6 +23,7 @@ import {
   intersect,
   fullTransform,
   captureTransform,
+  isCapturedTransform,
 } from '../../ui/geometry.ts';
 import {
   matrix4Identity,
@@ -102,8 +103,13 @@ function captureInputGeometry(
   previous: CommittedInputGeometry | undefined,
   transformToView: (render: RenderObject) => TransformMatrix,
 ): Pick<CommittedInputGeometry, 'key' | 'value'> | undefined {
-  const matrix = fullTransform(transformToView(render)),
-    project = (rect: Rect) => bounds(multiply(matrix, translate(rect.x, rect.y)), rect),
+  const painted = transformToView(render),
+    matrix = fullTransform(painted),
+    // Owned affine transforms need no 4x4 multiply for every local rectangle.
+    // Keep the complete matrix in the OS packet, and retain the established
+    // projection/validation path for virtual or caller-owned storage.
+    projection = painted.length === 6 && isCapturedTransform(painted) ? painted : matrix,
+    project = (rect: Rect) => bounds(multiply(projection, translate(rect.x, rect.y)), rect),
     full = project({ x: 0, y: 0, width: core.width, height: core.height });
   let clip = intersect(full, {
     x: 0,
@@ -117,14 +123,22 @@ function captureInputGeometry(
   if (clip.width === 0 || clip.height === 0) return undefined;
   for (let child = render, parent = render.parent; parent; child = parent, parent = parent.parent) {
     const local = parent.describeApproximatePaintClip(child);
-    if (local)
+    if (local) {
+      const paintedParent = transformToView(parent),
+        parentMatrix = fullTransform(paintedParent);
       clip = intersect(
         clip,
         bounds(
-          multiply(fullTransform(transformToView(parent)), translate(local.x, local.y)),
+          multiply(
+            paintedParent.length === 6 && isCapturedTransform(paintedParent)
+              ? paintedParent
+              : parentMatrix,
+            translate(local.x, local.y),
+          ),
           local,
         ),
       );
+    }
     if (clip.width === 0 || clip.height === 0) return undefined;
   }
   const caret = project(core.caret),
