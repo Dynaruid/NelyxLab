@@ -61,6 +61,21 @@ export interface Skia {
   nelyxMakePath?(packet: ArrayBuffer): SkPath;
   /** Internal optional numeric capability; custom/Web backends can omit it. */
   nelyxInputGeometryVersion?(): number;
+  /** Explicit, single-owner experiment; absent from ordinary execution. */
+  nelyxNativeServiceAuditBegin?(ownerGeneration: number): string;
+  nelyxNativeServiceAuditEnd?(): void;
+  nelyxRetainedInputGeometryVersion?(): number;
+  nelyxReportInputGeometryStatus?(json: string): void;
+  nelyxRetainedInputGeometrySession?(
+    session: number,
+    generation: number,
+  ): {
+    prepare(packet: ArrayBuffer): ArrayBuffer;
+    commit(revision: number): void;
+    discard(revision: number): void;
+    stats(): ArrayBuffer;
+    close(): void;
+  };
   nelyxInputGeometrySession?(
     session: number,
     generation: number,

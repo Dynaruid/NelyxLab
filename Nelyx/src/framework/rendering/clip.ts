@@ -964,3 +964,23 @@ RenderProxyBox._registerGeometryLayoutSemantics(
   RenderPhysicalModel.prototype,
   RenderPhysicalShape.prototype,
 );
+// Only the default numeric approximation is callback-free. Custom clippers
+// with their own approximation keep the original TS visitation and call count.
+const numericClipApproximation = CustomClipper.prototype.getApproximateClipRect;
+RenderProxyBox._registerInputGeometryHooks(
+  RenderCustomClip.prototype,
+  (node) => {
+    const clipping = Object.getOwnPropertyDescriptor(node, 'clipping'),
+      current = Object.getOwnPropertyDescriptor(node, 'current');
+    if (!clipping || !('value' in clipping) || !current || !('value' in current)) return false;
+    if (clipping.value === 'none' || current.value === null) return true;
+    let at: object | null = current.value,
+      descriptor: PropertyDescriptor | undefined;
+    while (at && !descriptor) {
+      descriptor = Object.getOwnPropertyDescriptor(at, 'getApproximateClipRect');
+      at = Object.getPrototypeOf(at);
+    }
+    return descriptor?.value === numericClipApproximation;
+  },
+  false,
+);

@@ -86,8 +86,10 @@ import type {
   InputGeometryEditor,
   InputGeometryProjection,
   InputGeometryFrame,
+  InputGeometryCandidate,
 } from '../../hosting/input-geometry.ts';
 const numericGeometryObjects = new WeakSet<object>();
+const numericGeometryGuards = new WeakMap<object, (node: RenderObject) => boolean>();
 const numericSemanticsPrototypes = new WeakSet<object>();
 const numericOffsetGetters = ['dx', 'dy'].map(
   (name) => Object.getOwnPropertyDescriptor(NumericGeometryOffset.prototype, name)!.get,
@@ -886,6 +888,9 @@ interface ChildEntry {
   next: RenderObject | undefined;
 }
 const emptyRenderChildren: readonly RenderObject[] = Object.freeze([]);
+const renderChildSnapshots = new WeakSet<readonly RenderObject[]>([emptyRenderChildren]);
+const renderChildIterator = Array.prototype[Symbol.iterator];
+const renderChildReverse = Array.prototype.reverse;
 /** Canonical child links and projection. Empty render objects allocate no
  * store; unary wrappers use the store itself as their sole link, with no Map
  * backing table or separate ChildEntry. Only real siblings promote to a Map. */
@@ -983,12 +988,25 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     'applyPaintTransformForBoxChild',
     'requireParagraph',
     'sameLocalEditingGeometry',
+    'child',
+    'childFor',
+    'offstage',
+    'skipCount',
+    'resolvedPadding',
+    'paddingValue',
+    'beforePadding',
+    'calculatePaintOffset',
   ] as const;
   private static readonly inputGeometryHooks = new Map<string, Set<unknown>>();
   /** @internal Capture implementation identities at module evaluation, never
    * trust freeze, a constructor name or the current mutable prototype alone. */
-  static _registerInputGeometryHooks(prototype: object): void {
-    numericSemanticsPrototypes.add(prototype);
+  static _registerInputGeometryHooks(
+    prototype: object,
+    eligible?: (node: RenderObject) => boolean,
+    includeSemantics = true,
+  ): void {
+    if (includeSemantics) numericSemanticsPrototypes.add(prototype);
+    if (eligible) numericGeometryGuards.set(prototype, eligible);
     for (const name of RenderObject.inputGeometryHookNames) {
       const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
       if (!descriptor) continue;
@@ -1002,23 +1020,34 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   static _registerSemanticsGeometryPrototype(...prototypes: readonly object[]): void {
     for (const prototype of prototypes) numericSemanticsPrototypes.add(prototype);
   }
-  private supportsNumericInputGeometry(): boolean {
+  private supportsNumericInputGeometry(
+    limits: { readonly nodes: number; readonly editors: number } = {
+      nodes: inputGeometryProtocol.nodes,
+      editors: inputGeometryProtocol.editors,
+    },
+    onFallback?: (reason: string) => void,
+  ): boolean {
+    const reject = (reason: string): false => {
+      onFallback?.(reason);
+      return false;
+    };
     const prototypes = new Map<object, boolean>();
+    const guards = new Map<object, readonly ((node: RenderObject) => boolean)[]>();
     let count = 0,
       editors = 0;
     const check = (node: RenderObject, depth: number): boolean => {
-      if (!numericGeometryObjects.has(node)) return false;
+      if (!numericGeometryObjects.has(node)) return reject('foreign-render-object');
       if (node.pipelineOwner && node.inputGeometrySubtreeWork === 0) return true;
       if (
-        ++count > inputGeometryProtocol.nodes ||
+        ++count > limits.nodes ||
         depth > inputGeometryProtocol.depth ||
-        (node.inputGeometryProvider && ++editors > inputGeometryProtocol.editors)
+        (node.inputGeometryProvider && ++editors > limits.editors)
       )
-        return false;
+        return reject('numeric-budget');
       const prototype = Object.getPrototypeOf(node);
-      if (prototype !== node.inputGeometryPrototype) return false;
+      if (prototype !== node.inputGeometryPrototype) return reject('changed-prototype');
       for (const name of RenderObject.inputGeometryHookNames)
-        if (Object.hasOwn(node, name)) return false;
+        if (Object.hasOwn(node, name)) return reject('own-hook:' + name);
       let standard = prototypes.get(prototype);
       if (standard === undefined) {
         standard = true;
@@ -1034,25 +1063,33 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
             !RenderObject.inputGeometryHooks.get(name)?.has(descriptor.get ?? descriptor.value)
           ) {
             standard = false;
+            onFallback?.('render-hook:' + name);
             break;
           }
         }
         prototypes.set(prototype, standard);
+        const checks: ((node: RenderObject) => boolean)[] = [];
+        for (let at: object | null = prototype; at; at = Object.getPrototypeOf(at)) {
+          const guard = numericGeometryGuards.get(at);
+          if (guard) checks.push(guard);
+        }
+        guards.set(prototype, checks);
       }
       if (!standard) return false;
+      if (guards.get(prototype)!.some((guard) => !guard(node))) return reject('guarded-input');
       if (node.inputGeometryProvider) {
         // The standard warm editor snapshot performs no backend glyph query.
         // Cold/reentrant/custom providers keep their original TS ordering.
         const cached = Object.getOwnPropertyDescriptor(node, 'localEditingGeometry');
-        if (!cached || !('value' in cached) || !cached.value) return false;
+        if (!cached || !('value' in cached) || !cached.value) return reject('cold-provider');
       }
       const parentData = Object.getOwnPropertyDescriptor(node, 'parentData');
-      if (parentData && !('value' in parentData)) return false;
+      if (parentData && !('value' in parentData)) return reject('custom-parent-data');
       const data = parentData?.value as ParentData | undefined;
       if (data) {
         for (const name of ['layoutOffset', 'paintOffset', 'index', 'keepAlive']) {
           const descriptor = Object.getOwnPropertyDescriptor(data, name);
-          if (descriptor && !('value' in descriptor)) return false;
+          if (descriptor && !('value' in descriptor)) return reject('custom-parent-data');
           if (name === 'paintOffset' && descriptor) {
             const point = descriptor.value as NumericGeometryOffset;
             if (
@@ -1065,10 +1102,11 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
                     numericOffsetGetters[i],
               )
             )
-              return false;
+              return reject('custom-parent-data');
             for (const key of ['horizontal', 'vertical']) {
               const lane = Object.getOwnPropertyDescriptor(point, key);
-              if (!lane || !('value' in lane) || typeof lane.value !== 'number') return false;
+              if (!lane || !('value' in lane) || typeof lane.value !== 'number')
+                return reject('custom-parent-data');
             }
           }
         }
@@ -1079,7 +1117,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
             offset = Object.getOwnPropertyDescriptor(current, 'offset');
             current = Object.getPrototypeOf(current);
           }
-          if (offset?.get !== RenderObject.inputGeometryBoxOffsetGetter) return false;
+          if (offset?.get !== RenderObject.inputGeometryBoxOffsetGetter)
+            return reject('custom-parent-data');
         }
       }
       // Only a registered visitor may be invoked by this side-effect-free
@@ -1092,7 +1131,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     };
     // A subtree commit has unproved ancestors outside this walk. Keep its
     // complete existing TS path instead of evaluating those hooks early.
-    return check(this, 1) && this.parent === undefined;
+    return check(this, 1) && (this.parent === undefined || reject('subtree-root'));
   }
   private static readonly paintBoundaryOwners = new Map<
     Function,
@@ -1277,6 +1316,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       const children: RenderObject[] = [];
       for (let child = store.first; child; child = store.get(child)!.next) children.push(child);
       store.snapshot = children.length ? Object.freeze(children) : emptyRenderChildren;
+      renderChildSnapshots.add(store.snapshot);
     }
     return store.snapshot;
   }
@@ -1748,6 +1788,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         this.entries.set(children[index]!, children[index - 1], children[index + 1]);
       for (const child of children) this.updateSiblings(child);
       this.entries.snapshot = Object.freeze(children);
+      renderChildSnapshots.add(this.entries.snapshot);
       for (const child of previous)
         if (childSet ? !childSet.has(child) : child !== children[0]) {
           if (isContainerParentData(child.parentData)) {
@@ -2328,8 +2369,20 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     const diagnostic = frame.geometryDiagnostics,
       trace = diagnostic?.diagnostics,
       extractBegan = trace?.now();
+    let geometryVisits = 0,
+      geometryProviders = 0,
+      geometryAncestors = 0;
+    let numericFallbackReason: string | undefined;
     const numeric =
-      frame.inputGeometry && this.supportsNumericInputGeometry() ? frame.inputGeometry : undefined;
+      frame.inputGeometry &&
+      this.supportsNumericInputGeometry(frame.inputGeometry.limits, (reason) => {
+        numericFallbackReason ??= reason;
+      })
+        ? frame.inputGeometry
+        : undefined;
+    if (frame.inputGeometry && !numeric) frame.inputGeometry.reset?.();
+    let numericBatch: ReturnType<NonNullable<InputGeometryService['begin']>> | undefined;
+    let numericCandidate: InputGeometryCandidate | undefined;
     const numericNodes: InputGeometryNode[] = [],
       numericEditors: InputGeometryEditor[] = [],
       nodeIndices = new Map<RenderObject, number>(),
@@ -2346,14 +2399,16 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         parentIndex = parent ? numericNode(parent) : -1,
         local = parent ? parent.childTransform(render) : render.localTransform,
         clip = parent ? parent.describeApproximatePaintClip(render) : null,
-        index = numericNodes.length;
-      numericNodes.push({ parent: parentIndex, local, clip });
+        batch = (numericBatch ??= numeric?.begin?.(frame)),
+        index = batch ? batch.node(render, parentIndex, local, clip) : numericNodes.length;
+      if (!numericBatch) numericNodes.push({ parent: parentIndex, local, clip });
       nodeIndices.set(render, index);
       return index;
     };
     const displayedInCommit = (render: RenderObject): boolean => {
       const cached = displayed.get(render);
       if (cached !== undefined) return cached;
+      if (trace) geometryAncestors++;
       const parent = render.parent,
         visible =
           render.inputGeometryNodeDisplayed(displayDescriptors) &&
@@ -2368,6 +2423,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     const paintTransformToView = (render: RenderObject): TransformMatrix => {
       const cached = transforms.get(render);
       if (cached) return cached;
+      if (trace) geometryAncestors++;
       const parent = render.parent,
         matrix = parent
           ? multiply(paintTransformToView(parent), parent.childTransform(render))
@@ -2403,6 +2459,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       else committedInputGeometries.delete(render);
     };
     const visit = (render: RenderObject): void => {
+      if (trace) geometryVisits++;
       if (render.attached && render.inputGeometrySubtreeWork === 0) return;
       const previous = committedInputGeometries.get(render),
         before = parentDisplayed;
@@ -2410,6 +2467,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       try {
         const visible =
           parentDisplayed && (!render.inputGeometryProvider || displayedInCommit(render));
+        if (trace && visible && render.inputGeometryProvider) geometryProviders++;
         const core = visible ? render.coreEditingGeometry : null;
         if (core !== null || previous !== undefined) updateGeometry(render, core, previous);
         else committedInputGeometries.delete(render);
@@ -2420,52 +2478,80 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         parentDisplayed = before;
       }
     };
-    visit(this);
-    if (trace)
-      trace.record(
-        diagnostic!.token,
-        numeric ? 'input-geometry-extract' : 'input-geometry-fallback',
-        extractBegan!,
-        numericEditors.length,
-        numericNodes.length * inputGeometryProtocol.nodeWords * 8,
-      );
-    if (numeric && pending.length) {
-      const selections = numericEditors.reduce(
-        (sum, editor) => sum + editor.core.selectionRects.length,
-        0,
-      );
-      const projections =
-        selections <= inputGeometryProtocol.selections
-          ? numeric.project(frame, numericNodes, numericEditors)
-          : undefined;
-      const applyBegan = trace?.now();
-      const captured = pending.map(({ render, core, previous, editor }) =>
-        core
-          ? projections
-            ? projections[editor]
-              ? finishInputGeometry(core, frame, previous, projections[editor]!)
-              : undefined
-            : captureInputGeometry(render, core, frame, previous, transformToView)
-          : undefined,
-      );
-      // Publication remains inside the existing frame scope. Native errors
-      // propagate; no partial application or retry through custom TS hooks.
-      const current =
-        this.inputGeometryRevision === revision &&
-        this.paintVersion === paintVersion &&
-        this.attached &&
-        !this.needsLayout;
-      for (let i = 0; i < pending.length; i++) {
-        const value = captured[i],
-          render = pending[i]!.render;
-        // A reentrant newer commit owns its entries. An old calculation may
-        // neither replace them nor silence discard notifications.
-        if (!current) continue;
-        if (value) committedInputGeometries.set(render, { scope, root, paintVersion, ...value });
-        else committedInputGeometries.delete(render);
+    try {
+      visit(this);
+      if (trace) {
+        trace.record(diagnostic!.token, 'input-geometry-visits', extractBegan!, geometryVisits);
+        trace.record(
+          diagnostic!.token,
+          'input-geometry-providers',
+          extractBegan!,
+          geometryProviders,
+        );
+        trace.record(
+          diagnostic!.token,
+          'input-geometry-ancestor-visits',
+          extractBegan!,
+          geometryAncestors,
+        );
       }
       if (trace)
-        trace.record(diagnostic!.token, 'input-geometry-apply', applyBegan!, pending.length);
+        trace.record(
+          diagnostic!.token,
+          numeric ? 'input-geometry-extract' : 'input-geometry-fallback',
+          extractBegan!,
+          numericEditors.length,
+          numericBatch ? 0 : numericNodes.length * inputGeometryProtocol.nodeWords * 8,
+        );
+      if (!numeric && hasInputGeometry)
+        frame.inputGeometry?.noteFallback?.(numericFallbackReason ?? 'unsupported-render-path');
+      if (numeric && pending.length) {
+        const selections = numericEditors.reduce(
+          (sum, editor) => sum + editor.core.selectionRects.length,
+          0,
+        );
+        const projections = numericBatch
+          ? (numericCandidate = numericBatch.prepare(numericEditors)).projections
+          : selections <= inputGeometryProtocol.selections
+            ? numeric.project(frame, numericNodes, numericEditors)
+            : undefined;
+        const applyBegan = trace?.now();
+        const captured = pending.map(({ render, core, previous, editor }) =>
+          core
+            ? projections
+              ? projections[editor]
+                ? finishInputGeometry(core, frame, previous, projections[editor]!)
+                : undefined
+              : captureInputGeometry(render, core, frame, previous, transformToView)
+            : undefined,
+        );
+        // Publication remains inside the existing frame scope. Native errors
+        // propagate; no partial application or retry through custom TS hooks.
+        const current =
+          this.inputGeometryRevision === revision &&
+          this.paintVersion === paintVersion &&
+          this.attached &&
+          !this.needsLayout;
+        for (let i = 0; i < pending.length; i++) {
+          const value = captured[i],
+            render = pending[i]!.render;
+          // A reentrant newer commit owns its entries. An old calculation may
+          // neither replace them nor silence discard notifications.
+          if (!current) continue;
+          if (value) committedInputGeometries.set(render, { scope, root, paintVersion, ...value });
+          else committedInputGeometries.delete(render);
+        }
+        if (trace)
+          trace.record(diagnostic!.token, 'input-geometry-apply', applyBegan!, pending.length);
+      }
+      if (!pending.length) {
+        numericBatch?.discard();
+        numeric?.reset?.();
+      }
+    } catch (error) {
+      const errors: unknown[] = [error];
+      if (numericBatch) attempt(errors, () => numericBatch!.discard());
+      throwFailures(errors, 'Input geometry preparation failed');
     }
     const notify = () => {
       const errors: unknown[] = [];
@@ -2477,7 +2563,22 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       token: scope.token,
       hasInputGeometry,
       commit() {
-        if (scope.aborted) return;
+        if (scope.aborted || scope.committed) return;
+        let accepted = true;
+        try {
+          if (numericCandidate) accepted = numericCandidate.commit();
+        } catch (error) {
+          scope.aborted = true;
+          const errors: unknown[] = [error];
+          if (numericCandidate) attempt(errors, () => numericCandidate!.discard());
+          attempt(errors, notify);
+          throwFailures(errors, 'Input geometry commit failed');
+        }
+        if (!accepted) {
+          scope.aborted = true;
+          notify();
+          return;
+        }
         scope.committed = true;
         notify();
       },
@@ -2485,7 +2586,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         if (scope.aborted) return;
         scope.aborted = true;
         scope.committed = false;
-        notify();
+        const errors: unknown[] = [];
+        if (numericCandidate) attempt(errors, () => numericCandidate!.discard());
+        attempt(errors, notify);
+        throwFailures(errors, 'Input geometry discard failed');
       },
     };
   }
@@ -3668,19 +3772,53 @@ export abstract class RenderBox<
   hitTest(position: Offset, result: HitTestEntry[], toLocal: TransformMatrix = identity): boolean {
     if (!this.hasSize)
       invariant(false, 'missing-hit-test-size', 'Hit testing requires a laid-out size');
-    if (!contains({ x: 0, y: 0, ...this.size }, position)) return false;
+    const size = this.size;
+    if (
+      size === this.measuredSize
+        ? !(
+            position.x >= 0 &&
+            position.y >= 0 &&
+            position.x < size.width &&
+            position.y < size.height
+          )
+        : !contains({ x: 0, y: 0, ...size }, position)
+    )
+      return false;
     let hit = false;
-    for (const child of [...this.children].reverse()) {
-      const matrix = inversePaintTransform(this.childTransform(child));
-      if (
-        child instanceof RenderBox &&
-        matrix &&
-        child.hitTest(transform(matrix, position), result, multiply(matrix, toLocal))
-      ) {
-        hit = true;
-        break;
+    const source = this.children;
+    // Owned child lists are immutable snapshots. Reverse indexing preserves
+    // paint order and a hit callback's old membership without another array.
+    // External lists and iterator replacements keep their snapshot protocol.
+    if (
+      renderChildSnapshots.has(source) &&
+      Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)?.value ===
+        renderChildIterator &&
+      Object.getOwnPropertyDescriptor(Array.prototype, 'reverse')?.value === renderChildReverse
+    ) {
+      for (let index = source.length - 1; index >= 0; index--) {
+        const child = source[index]!,
+          matrix = inversePaintTransform(this.childTransform(child));
+        if (
+          child instanceof RenderBox &&
+          matrix &&
+          child.hitTest(transform(matrix, position), result, multiply(matrix, toLocal))
+        ) {
+          hit = true;
+          break;
+        }
       }
-    }
+    } else
+      for (const child of [...source].reverse()) {
+        const matrix = inversePaintTransform(this.childTransform(child));
+        if (
+          child instanceof RenderBox &&
+          matrix &&
+          child.hitTest(transform(matrix, position), result, multiply(matrix, toLocal))
+        ) {
+          hit = true;
+          break;
+        }
+      }
     if (this.hitTestSelf(position)) {
       result.push({ target: this, transform: toLocal });
       hit = true;

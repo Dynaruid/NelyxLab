@@ -4,6 +4,7 @@
 #include "windows/WindowsKeyboardInput.h"
 #include "WindowsKeyboardState.h"
 #include "MouseCursor.h"
+#include "WindowsSurfaceStatusPolicy.h"
 #include "windows/WindowsPrecisionTrackpad.h"
 #include <NativeModules.h>
 #include <JSValueComposition.h>
@@ -33,7 +34,7 @@ struct WindowsSkiaViewOptions {
 };
 struct WindowsSkiaProps : winrt::implements<WindowsSkiaProps,winrt::Microsoft::ReactNative::IComponentProps> {
   WindowsSkiaProps(winrt::Microsoft::ReactNative::ViewProps const&,winrt::Microsoft::ReactNative::IComponentProps const& previous) {
-    if(previous){auto old=previous.as<WindowsSkiaProps>();nativeId=old->nativeId;opaque=old->opaque;highBitDepth=old->highBitDepth;mouseCursor=old->mouseCursor;windowViewport=old->windowViewport;}
+    if(previous){auto old=previous.as<WindowsSkiaProps>();nativeId=old->nativeId;opaque=old->opaque;highBitDepth=old->highBitDepth;mouseCursor=old->mouseCursor;windowViewport=old->windowViewport;windowsSurfaceStatusMode=old->windowsSurfaceStatusMode;}
   }
   void SetProp(uint32_t,winrt::hstring const& name,winrt::Microsoft::ReactNative::IJSValueReader const& value) noexcept {
     using winrt::Microsoft::ReactNative::ReadValue;
@@ -42,9 +43,11 @@ struct WindowsSkiaProps : winrt::implements<WindowsSkiaProps,winrt::Microsoft::R
     else if(name==L"highBitDepth")ReadValue(value,highBitDepth);
     else if(name==L"mouseCursor")ReadValue(value,mouseCursor);
     else if(name==L"windowViewport")ReadValue(value,windowViewport);
+    else if(name==L"windowsSurfaceStatusMode"){ReadValue(value,windowsSurfaceStatusMode);if(windowsSurfaceStatusMode.empty())windowsSurfaceStatusMode="continuous";}
   }
   std::string nativeId;
   std::string mouseCursor="basic";
+  std::string windowsSurfaceStatusMode="continuous";
   bool opaque=false,highBitDepth=false,windowViewport=false;
 };
 class WindowsSkiaViewState final : public std::enable_shared_from_this<WindowsSkiaViewState> {
@@ -56,6 +59,7 @@ class WindowsSkiaViewState final : public std::enable_shared_from_this<WindowsSk
     std::shared_ptr<RNSkView> view;
     std::shared_ptr<WindowsCompositionSession::ViewTicket> ticket;
     WindowsSurfaceStatus status;
+    WindowsSurfaceStatusPolicy statusPolicy;
     std::map<uint32_t,PointerSample> pressedPointers;
     std::map<uint32_t,PointerSample> hoverPointers;
     std::unique_ptr<WindowsKeyboardInput> keyboard;
@@ -119,12 +123,14 @@ public:
   }
   void props(WindowsSkiaProps const& props) {
     requireUi();if(!data||data->failed||data->closing)return;if(props.highBitDepth)throw std::runtime_error("Windows SkiaView supports BGRA8/sRGB only");
+    if(props.windowsSurfaceStatusMode!="continuous"&&props.windowsSurfaceStatusMode!="lifecycle")throw std::runtime_error("Windows surface status mode must be continuous or lifecycle");
+    const bool modeChanged=data->statusPolicy.mode(props.windowsSurfaceStatusMode=="lifecycle");
     if(props.nativeId.empty()){data->inputRetiring=true;notifyInputSurface();closeBinding();if(data->status.nativeId){data->status.nativeId=0;++data->status.viewGeneration;}data->inputRetiring=false;emit("unbound","");return;}
     uint64_t id{};auto parsed=std::from_chars(props.nativeId.data(),props.nativeId.data()+props.nativeId.size(),id);
     if(parsed.ec!=std::errc{}||parsed.ptr!=props.nativeId.data()+props.nativeId.size()||!id||id>9007199254740991ULL)
       throw std::runtime_error("Windows SkiaView nativeID must be a positive safe integer");
     if(data->status.nativeId!=id){data->inputRetiring=true;notifyInputSurface();closeBinding();data->status.nativeId=id;++data->status.viewGeneration;data->inputRetiring=false;}
-    configureWindowViewport(props.windowViewport);bindIfReady();notifyInputSurface();
+    configureWindowViewport(props.windowViewport);bindIfReady();notifyInputSurface();if(modeChanged)replayStatus();
   }
   void configureWindowViewport(bool enabled){
     if(enabled==bool(data->unwatchViewport))return;
@@ -175,7 +181,7 @@ public:
     if(data->pendingLayout){const auto metrics=*data->pendingLayout;const auto revision=data->pendingLayoutRevision;data->pendingLayout.reset();applyLayout(metrics,revision);}
   }
   bool pointerGeometryReady()const{return data&&data->status.surfaceGeneration==data->status.layoutRevision&&data->presentedGeneration==data->status.surfaceGeneration;}
-  void emitter(winrt::Microsoft::ReactNative::EventEmitter value) {requireUi();if(!data)return;data->emitter=std::move(value);if(data->failed)emit("failed",data->status.reason);else if(data->status.bound)emit("bound","");}
+  void emitter(winrt::Microsoft::ReactNative::EventEmitter value) {requireUi();if(!data)return;data->emitter=std::move(value);data->statusPolicy.resetConsumer();replayStatus();}
   bool ownsWindowViewport()const{return data&&data->windowViewport;}
   auto windowPointer()const{return session->windowPointer;}
   void wheel(winrt::Microsoft::ReactNative::Composition::Input::PointerRoutedEventArgs const& args) {
@@ -355,7 +361,7 @@ private:
   void requireUi() const {if(std::this_thread::get_id()!=owner)throw std::runtime_error("Windows SkiaView requires its UI owner");}
   void closeBinding() {
     if(!data)return;auto precision=std::move(data->precision);data->status.precisionAvailable=false;if(precision)precision->cancel();precision.reset();
-    if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
+    if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;data->statusPolicy.resetConsumer();keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
     data->view->setFrameScheduler({});data->view->stopContent();
     data->surface->setPresented({});data->surface->setResizeCancelled({});data->surface->setRequestRedraw({});data->surface->setCanPresent({});
     session->resize->retire(data->status.nativeId);
@@ -384,17 +390,32 @@ private:
     requireUi();if(!data||data->failed)return;const bool visible=shown&&data->status.width>0&&data->status.height>0;if(data->status.visible==visible)return;
     data->status.visible=visible;if(!visible){cancelPointers();keyboardFocus(false);finishResize();}else{bindIfReady();if(data->view)data->view->requestRedraw();}emit("visibility","");
   }
+  bool hasPresentedContent()const{
+    if(!data||data->failed||data->closing)return false;const auto& status=data->status;
+    return status.bound&&status.width>0&&status.height>0&&data->presentedGeneration!=0&&data->presentedGeneration==status.surfaceGeneration&&status.presentedSurfaceGeneration==status.surfaceGeneration&&status.presentedWidth==status.width&&status.presentedHeight==status.height;
+  }
+  void replayStatus(){
+    if(!data||!data->emitter)return;
+    if(data->failed){emit("failed",data->status.reason);return;}
+    if(data->closing)return;
+    if(data->status.bound){emit("bound","");if(hasPresentedContent())emit("frame","");}
+  }
   void emit(std::string phase,std::string reason) {
     if(!data)return;auto& status=data->status;status.phase=std::move(phase);status.reason=std::move(reason);
+    const bool diagnostic=session&&windowsFrameDiagnosticsEnabled(),frame=status.phase=="frame";
+    const double began=diagnostic?windowsMonotonicMilliseconds():0;
+    if(diagnostic){session->frameTrace.statusCounters[0].fetch_add(1,std::memory_order_relaxed);if(frame)session->frameTrace.statusCounters[6].fetch_add(1,std::memory_order_relaxed);}
     using namespace winrt::Microsoft::ReactNative;
-    if(data->emitter){auto payload=std::make_shared<JSValueObject>(JSValueObject{
+    const bool deliver=data->emitter&&(status.phase!="frame"||(!data->closing&&!data->failed&&data->statusPolicy.frame(status.viewGeneration,status.surfaceGeneration,hasPresentedContent())));
+    if(deliver){auto payload=std::make_shared<JSValueObject>(JSValueObject{
       {"phase",status.phase},{"reason",status.reason},{"nativeId",double(status.nativeId)},{"reactTag",double(status.reactTag)},
       {"viewGeneration",double(status.viewGeneration)},{"surfaceGeneration",double(status.surfaceGeneration)},{"frames",double(status.frames)},
       {"logicalWidth",status.logicalWidth},{"logicalHeight",status.logicalHeight},{"width",status.width},{"height",status.height},{"scale",status.scale},
-      {"layoutRevision",double(status.layoutRevision)},{"resizePending",status.layoutRevision!=status.surfaceGeneration||data->resizeAwaiting},{"pointerGeometryReady",pointerGeometryReady()},{"bound",status.bound},{"visible",status.visible},{"preparing",session&&session->preparingWindow()},{"precisionAvailable",status.precisionAvailable},{"framePipelineVersion",2},{"pointerVersion",1},{"keyboardVersion",2},{"visibilityVersion",1},{"windowViewport",data->windowViewport}});
+      {"layoutRevision",double(status.layoutRevision)},{"resizePending",status.layoutRevision!=status.surfaceGeneration||data->resizeAwaiting},{"pointerGeometryReady",pointerGeometryReady()},{"bound",status.bound},{"visible",status.visible},{"preparing",session&&session->preparingWindow()},{"precisionAvailable",status.precisionAvailable},{"framePipelineVersion",2},{"pointerVersion",1},{"keyboardVersion",2},{"visibilityVersion",1},{"surfaceStatusVersion",1},{"windowsSurfaceStatusMode",data->statusPolicy.lifecycle()?"lifecycle":"continuous"},{"windowViewport",data->windowViewport}});
       // Fabric expects one object, not CallJSFunction's argument array. Own
       // its bytes until the emitter evaluates the writer on the JS owner.
-      data->emitter.DispatchEvent(L"windowsSurfaceStatus",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});}
+      data->emitter.DispatchEvent(L"windowsSurfaceStatus",[payload,trace=diagnostic?session:nullptr](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);if(trace)trace->frameTrace.statusCounters[2].fetch_add(1,std::memory_order_relaxed);});
+      if(diagnostic){session->frameTrace.statusCounters[1].fetch_add(1,std::memory_order_relaxed);session->frameTrace.statusCounters[3].fetch_add(uint64_t((windowsMonotonicMilliseconds()-began)*1000),std::memory_order_relaxed);if(frame)session->frameTrace.statusCounters[7].fetch_add(1,std::memory_order_relaxed);}}
     const auto snapshot=status;notifyInputSurface();if(options.observeStatus)options.observeStatus(snapshot);
   }
   const std::thread::id owner;

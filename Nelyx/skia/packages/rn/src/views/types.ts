@@ -62,6 +62,8 @@ export interface ISkiaViewApi {
 export interface SkiaBaseViewProps extends ViewProps {
   /** Windows: this canvas owns the full HWND client viewport, including resize metrics. */
   windowViewport?: boolean;
+  /** Windows only. Public views retain continuous notifications by default. */
+  windowsSurfaceStatusMode?: 'continuous' | 'lifecycle';
   /** Actual native canvas cursor kind, supplied by the app-owned SDK port. */
   mouseCursor?: string;
   onNativeMouseEvent?: (event: NativeSyntheticEvent<NativeMouseEvent>) => void;
@@ -159,6 +161,8 @@ export interface AppleSurfaceStatus {
   readonly pointerGeometryReady?: boolean;
 }
 export interface WindowsSurfaceStatus {
+  readonly surfaceStatusVersion?: 1;
+  readonly windowsSurfaceStatusMode?: 'continuous' | 'lifecycle';
   readonly preparing: boolean;
   readonly framePipelineVersion: 2;
   readonly pointerVersion: 1;

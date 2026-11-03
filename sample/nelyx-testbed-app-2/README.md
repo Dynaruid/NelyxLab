@@ -129,6 +129,43 @@ The `gallery-all-text-hover-burst` diagnosis dispatches four hover packets per s
 
 The GPU defaults to the hardware adapter attached to the primary display. Set `NELYX_WINDOWS_GPU_VENDOR` before launch to select a vendor explicitly, such as `4098` for AMD.
 
+### Use C++ modules interactively
+
+Close Testbed windows, then run from the repository root. Use the window yourself with a mouse, trackpad or keyboard, and close it when finished.
+
+```powershell
+npm.cmd run run:windows:cpp
+```
+
+The default `all` mode selects **retained input geometry, Path/Paint and clip batching, Scene composition, and Semantics geometry** together. Gallery and Input & Button Scroll show `C++ all` in their titles. Open **입력·버튼 스크롤** (Input & Button Scroll), edit a field and scroll to exercise retained editor geometry. Unsupported work, including public custom hooks, keeps its existing TS fallback.
+
+Select one module or a TS control in the same interactive launcher:
+
+```powershell
+npm.cmd run run:windows:cpp -- --module=path
+npm.cmd run run:windows:cpp -- --module=retained
+npm.cmd run run:windows:cpp -- --module=snapshot
+npm.cmd run run:windows:cpp -- --module=ts
+```
+
+Accepted modules are `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, and `ts`. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2` also launches the default mode. Interactive mode injects no input, imposes no display-size or automatic-close limit, and collects actual native work counts. After closing, inspect `modules`, `native`, `fallback`, and `inputGeometry` in `NATIVE_MODULE_RESULT` for independent native/SDK counts and cleanup. `observed` means native work occurred in this owner; `notObserved` means no native work was proven. `fallbackOnly` means only TS fallback was observed for that module and returns exit 2. These results do not establish a performance improvement or full C++ coverage.
+
+The command builds an interactive package with the current native/SDK supply, restores App source, and then opens the window. To return to the ordinary default App afterwards, run `npm.cmd run run:windows --workspace @nelyx/testbed-2`.
+
+### Repeat C++ candidate experiments
+
+Prepare a native supplier matching the current source, close Testbed windows, then run from the repository root. The current comparison helper requires a maximized client area of 2560×1459 physical pixels at DPI 192 and rejects other conditions.
+
+```powershell
+npm.cmd run test:native-service-audit
+npm.cmd run experiment:native-services -- --trials=3 --functional
+npm.cmd run run:windows --workspace @nelyx/testbed-2
+```
+
+The comparison uses one Release bytecode package to select a TS control, snapshot input geometry, Path, clip/Paint, Scene composition, or Semantics geometry. Each mode runs Gallery's two columns followed by Mixed in three fresh owners. `--functional` also checks actual key input, Korean IME, Gallery return and clean shutdown for each candidate. SDK counts must agree with independent C++ work counts and native QPC buckets inside each input interval. Counter overhead is included; physical input and scanout acceptance remain separate.
+
+A required input interval with no native work stays `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`, and the command exits 2. Work from startup or another scene cannot qualify that interval. App source is restored automatically, but the current Release output remains the experiment package: use the final ordinary run command to rebuild it. The ordinary App keeps these candidates disabled by default. See [work5.md](../../work5.md) for results and adoption decisions.
+
 ### Development session
 
 ```powershell

@@ -39,6 +39,8 @@ import type { NelyxGraphiteContext } from '@nelyx/skia-native/renderer';
 
 export interface ReactNativeSurfaceProps {
   readonly initializePlatformServices?: boolean;
+  /** Experimental CPU geometry service; choose once per surface owner. */
+  readonly nativeInputGeometry?: false | 'snapshot' | 'retained';
   /** One transferred port per effect owner; replacing it requires a remount. */
   readonly platformMessages?: PlatformMessagePort;
   readonly useDefaultBinaryMessenger?: boolean;
@@ -481,6 +483,10 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
           api: Skia,
           context,
           owner: viewOwner,
+          inputGeometry:
+            props.nativeInputGeometry === 'retained'
+              ? 'retained'
+              : props.nativeInputGeometry === 'snapshot',
           assets,
           configuration,
           resolveSource: (source) => assetImage.resolveAssetSource(source),

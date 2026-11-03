@@ -198,6 +198,190 @@ std::vector<double> Session::evaluate(std::span<const double> packet) {
   auto result=input_geometry::evaluate(packet,owner_); revision_=packet[4]; return result;
 }
 }
+
+namespace nelyx::input_geometry {
+struct RetainedSession::State {
+  struct Node {
+    bool live = false, clipped = false;
+    std::uint64_t generation = 0, parentGeneration = 0;
+    int parent = -1;
+    Matrix local, world;
+    Rect clip{}, projectedClip{};
+    double localRevision = 0, resolvedLocal = -1, resolvedParent = -1,
+      worldRevision = 0, visited = -1, clipLocal = -1, clipParent = -1;
+  };
+  Owner owner;
+  double revision = 0, pending = 0, attempt = 0;
+  bool changed = false;
+  std::vector<Node> committed, staged;
+  std::size_t live = 0, pendingLive = 0, peak = 0, upserts = 0,
+    worlds = 0, clips = 0;
+  explicit State(Owner value) : owner(value), committed(retained::maxNodes) {}
+  std::size_t bytes() const {
+    return sizeof(State) + (committed.capacity()+staged.capacity())*sizeof(Node);
+  }
+};
+namespace {
+struct NumericHandle { std::size_t slot; std::uint64_t generation; };
+NumericHandle numericHandle(double value) {
+  if (!integer(value, static_cast<double>(retained::maxNodes), maxInteger)) reject();
+  const auto handle=static_cast<std::uint64_t>(value);
+  return {static_cast<std::size_t>(handle%retained::maxNodes),handle/retained::maxNodes};
+}
+}
+RetainedSession::RetainedSession(Owner owner) {
+  ownerValid(owner); state_=std::make_unique<State>(owner);
+}
+RetainedSession::~RetainedSession() = default;
+bool RetainedSession::current(double revision) const noexcept {
+  return state_ && state_->pending==revision && revision>0;
+}
+std::size_t RetainedSession::retainedBytes() const noexcept {
+  return state_ ? state_->bytes() : 0;
+}
+void RetainedSession::close() noexcept { state_.reset(); }
+void RetainedSession::commit(double revision) {
+  if (!current(revision)) throw std::invalid_argument("Stale retained-geometry commit");
+  auto& s=*state_;
+  if (s.changed) s.committed.swap(s.staged);
+  s.staged.clear(); s.live=s.pendingLive; s.revision=revision; s.pending=0;
+}
+void RetainedSession::discard(double revision) {
+  if (!current(revision)) throw std::invalid_argument("Stale retained-geometry discard");
+  state_->staged.clear(); state_->pending=0;
+}
+std::vector<double> RetainedSession::stats() const {
+  if (!state_) return {0,0,0,0,0,1,0,0,0,0};
+  const auto& s=*state_;
+  return {double(s.live),s.pending ? double(s.pendingLive) : 0,double(s.bytes()),
+    double(s.peak),s.revision,0,s.pending,double(s.upserts),double(s.worlds),double(s.clips)};
+}
+std::vector<double> RetainedSession::prepare(std::span<const double> p) {
+  if (!state_) throw std::runtime_error("Retained geometry session closed");
+  auto& s=*state_;
+  if (s.pending) throw std::runtime_error("Retained geometry already has a candidate");
+  const bool timing=p.size()>14 && p[14]==1;
+  const auto began=timing ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  if (p.size()<retained::headerWords || p.size()>maxBytes/8 ||
+      p[0]!=retained::magic || p[1]!=retained::version ||
+      p[2]!=s.owner.session || p[3]!=s.owner.generation ||
+      !integer(p[4],1,maxInteger) || p[4]<=s.revision || p[15]!=s.revision ||
+      !integer(p[5],0,maxInteger) || !integer(p[6],-1,maxInteger) ||
+      !std::isfinite(p[7]) || p[7]<=0 || !std::isfinite(p[8]) || p[8]<0 ||
+      !std::isfinite(p[9]) || p[9]<0 || p[13]!=p.size() ||
+      (p[14]!=0 && p[14]!=1) || p[18]!=0 || p[19]!=0) reject();
+  const auto updates=count(p[10],retained::maxNodes), editors=count(p[11],retained::maxEditors),
+    selections=count(p[12],retained::maxSelections), removals=count(p[16],retained::maxNodes),
+    live=count(p[17],retained::maxNodes);
+  const auto removeAt=retained::headerWords+updates*retained::nodeWords,
+    editorAt=removeAt+removals, selectionAt=editorAt+editors*editorWords,
+    outputAt=headerWords+editors*resultWords, outputWords=outputAt+selections*4;
+  if (p.size()!=selectionAt+selections*4 || (editors && !live)) reject();
+  // Reserve 512KiB for numeric TS metadata and its staging. Include
+  // both VM/native input/output copies and worst-case staging capacity before
+  // allocating. The existing per-snapshot limits remain smaller where relevant.
+  const auto stateBytes=sizeof(State)+2*retained::maxNodes*sizeof(State::Node),
+    peakBytes=stateBytes+2*(p.size()+outputWords)*sizeof(double)+512*1024;
+  if (peakBytes>maxBytes) throw std::length_error("Retained geometry aggregate byte budget");
+  s.changed=updates!=0 || removals!=0;
+  if (s.changed) s.staged=s.committed;
+  auto& nodes=s.changed ? s.staged : s.committed;
+  try {
+    std::array<bool,retained::maxNodes> removed{}, updated{};
+    for (std::size_t i=0;i<removals;++i) {
+      const auto h=numericHandle(p[removeAt+i]); auto& node=nodes[h.slot];
+      if (removed[h.slot] || !node.live || node.generation!=h.generation) reject();
+      removed[h.slot]=true; node.live=false;
+    }
+    for (std::size_t i=0;i<updates;++i) {
+      const auto* input=p.data()+retained::headerWords+i*retained::nodeWords;
+      const auto h=numericHandle(input[0]); auto& node=nodes[h.slot];
+      if (updated[h.slot] || (node.live ? node.generation!=h.generation : h.generation!=node.generation+1)) reject();
+      updated[h.slot]=true;
+      const auto* n=input+1;
+      if ((n[1]!=6 && n[1]!=16) || (n[18]!=0 && n[18]!=1) ||
+          (n[23]!=0 && n[23]!=1) || (n[0]==-1 && n[18]!=0)) reject();
+      for (std::size_t j=0;j<16;++j)
+        if (!std::isfinite(n[2+j]) || (n[1]==6 && j>=6 && n[2+j]!=0)) reject();
+      validRect(n+19);
+      if (n[18]==0 && (n[19]!=0 || n[20]!=0 || n[21]!=0 || n[22]!=0)) reject();
+      node.live=true; node.generation=h.generation; node.parent=-1; node.parentGeneration=0;
+      if (n[0]!=-1) { const auto parent=numericHandle(n[0]); node.parent=int(parent.slot); node.parentGeneration=parent.generation; }
+      node.local.affine=n[1]==6; node.local.owned=n[23]==1;
+      std::copy_n(n+2,16,node.local.v.begin());
+      node.clipped=n[18]==1; node.clip=rect(n+19); node.localRevision=p[4];
+      node.visited=-1;
+    }
+    std::size_t actualLive=0;
+    for (std::size_t i=0;i<nodes.size();++i) if (nodes[i].live) {
+      ++actualLive; std::size_t depth=1;
+      for (int parent=nodes[i].parent;parent>=0;parent=nodes[std::size_t(parent)].parent) {
+        if (++depth>maxDepth || std::size_t(parent)>=nodes.size() || !nodes[std::size_t(parent)].live) reject();
+      }
+      if (nodes[i].parent>=0 && nodes[std::size_t(nodes[i].parent)].generation!=nodes[i].parentGeneration) reject();
+    }
+    if (actualLive!=live) reject();
+    std::size_t nextSelection=0;
+    for (std::size_t i=0;i<editors;++i) {
+      const auto* e=p.data()+editorAt+i*editorWords; const auto h=numericHandle(e[0]);
+      if (!nodes[h.slot].live || nodes[h.slot].generation!=h.generation ||
+          !integer(e[1],0,maxInteger) || !std::isfinite(e[2]) || e[2]<0 ||
+          !std::isfinite(e[3]) || e[3]<0 || !std::isfinite(e[8]) || !std::isfinite(e[9]) || e[10]!=nextSelection) reject();
+      validRect(e+4); nextSelection+=count(e[11],maxEditorSelections);
+      if (nextSelection>selections) reject();
+    }
+    if (nextSelection!=selections) reject();
+    for (std::size_t i=0;i<selections;++i) validRect(p.data()+selectionAt+i*4);
+    const auto validated=timing ? std::chrono::steady_clock::now() : began;
+    if (s.attempt>=maxInteger) throw std::overflow_error("Retained geometry cache revision exhausted");
+    const auto computation=++s.attempt;
+    std::size_t worlds=0, clips=0;
+    const auto resolve=[&](auto&& self,std::size_t index)->Matrix {
+      auto& node=nodes[index];
+      if (node.visited==computation) return node.world;
+      double parentRevision=-1; Matrix parent;
+      if (node.parent>=0) { parent=self(self,std::size_t(node.parent)); parentRevision=nodes[std::size_t(node.parent)].worldRevision; }
+      if (node.resolvedLocal!=node.localRevision || node.resolvedParent!=parentRevision) {
+        node.world=node.parent<0 ? multiply(node.local,identity()) : multiply(parent,node.local);
+        node.worldRevision=computation; node.resolvedLocal=node.localRevision; node.resolvedParent=parentRevision; ++worlds;
+      }
+      node.visited=computation; return node.world;
+    };
+    std::vector<double> out(outputWords,0);
+    std::copy_n(p.begin(),headerWords,out.begin()); out[0]=resultMagic; out[1]=version;
+    out[10]=0; out[13]=double(outputWords); out[14]=out[15]=0;
+    for (std::size_t i=0;i<editors;++i) {
+      const auto* e=p.data()+editorAt+i*editorWords; auto* r=out.data()+headerWords+i*resultWords;
+      const auto index=numericHandle(e[0]).slot, start=std::size_t(e[10]), length=std::size_t(e[11]);
+      r[1]=double(i); r[2]=e[1]; r[33]=e[10]; r[34]=e[11];
+      const auto matrix=resolve(resolve,index), complete=full(matrix);
+      const auto fullBounds=project(matrix,{0,0,e[2],e[3]});
+      auto clip=intersect(fullBounds,{0,0,p[8],p[9]}); bool empty=clip.w==0 || clip.h==0;
+      for (auto child=index; !empty && nodes[child].parent>=0; child=std::size_t(nodes[child].parent)) {
+        auto& edge=nodes[child];
+        if (!edge.clipped) continue;
+        const auto parent=std::size_t(edge.parent); resolve(resolve,parent);
+        if (edge.clipLocal!=edge.localRevision || edge.clipParent!=nodes[parent].worldRevision) {
+          edge.projectedClip=project(nodes[parent].world,edge.clip);
+          edge.clipLocal=edge.localRevision; edge.clipParent=nodes[parent].worldRevision; ++clips;
+        }
+        clip=intersect(clip,edge.projectedClip); empty=clip.w==0 || clip.h==0;
+      }
+      if (empty) continue;
+      const auto caret=project(matrix,rect(e+4)); const auto& v=complete.v;
+      auto bx=v[0]*e[8]+v[4]*e[9]+v[12], by=v[1]*e[8]+v[5]*e[9]+v[13];
+      const auto bw=v[3]*e[8]+v[7]*e[9]+v[15]; if (bw!=1) { bx/=bw; by/=bw; }
+      bool valid=finite(fullBounds)&&finite(clip)&&finite(caret)&&std::isfinite(bx)&&std::isfinite(by);
+      for (std::size_t n=0;n<length;++n) { const auto selection=project(matrix,rect(p.data()+selectionAt+(start+n)*4)); valid=valid&&finite(selection); write(out.data()+outputAt+(start+n)*4,selection); }
+      if (!valid) { std::fill_n(out.data()+outputAt+start*4,length*4,0); continue; }
+      r[0]=1; std::copy(complete.v.begin(),complete.v.end(),r+3); write(r+19,fullBounds); write(r+23,clip); write(r+27,caret); r[31]=bx; r[32]=by;
+    }
+    if (timing) { out[14]=std::chrono::duration<double,std::milli>(validated-began).count(); out[15]=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-validated).count(); }
+    s.pending=p[4]; s.pendingLive=live; s.upserts=updates; s.worlds=worlds; s.clips=clips; s.peak=std::max(s.peak,peakBytes);
+    return out;
+  } catch (...) { s.staged.clear(); throw; }
+}
+}
 #if defined(_MSC_VER)
 #pragma float_control(pop)
 #endif

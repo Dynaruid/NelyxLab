@@ -37,8 +37,14 @@ import { PaintingBinding } from '../painting/binding.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from '../rendering/phase.ts';
 import { FrameScheduler } from '../scheduler/scheduler.ts';
 import { MouseTracker } from '../rendering/mouse-tracker.ts';
-import { hasEmptyPointerSignalHandler } from '../rendering/pointer-listener.ts';
-import { hasDefaultMouseRegionHandler } from '../rendering/mouse-region.ts';
+import {
+  hasEmptyPointerSignalHandler,
+  hasEmptyPointerHoverHandler,
+} from '../rendering/pointer-listener.ts';
+import {
+  hasDefaultMouseRegionHandler,
+  hasEmptyMouseHoverHandler,
+} from '../rendering/mouse-region.ts';
 import { PointerRouter } from '../gestures/pointer-router.ts';
 import {
   pointerEventFromTransport,
@@ -147,6 +153,7 @@ class RenderHitTestBuilder extends HitTestResult {
     }
   }
 }
+const defaultPointerHoverTransform = PointerHoverEvent.prototype.transformed;
 export interface WidgetApplicationOptions {
   readonly id: string;
   readonly background?: number;
@@ -466,10 +473,15 @@ export class FrameworkRoot implements ViewController {
         if (!(target instanceof RenderObject)) return true;
         if (target.owner !== this.pipeline) return false;
         if (
-          event instanceof PointerSignalEvent &&
           Object.getPrototypeOf(entry) === SourceHitTestEntry.prototype &&
           !Object.hasOwn(entry, 'transform') &&
-          (hasDefaultMouseRegionHandler(target) || hasEmptyPointerSignalHandler(target))
+          ((event instanceof PointerSignalEvent &&
+            (hasDefaultMouseRegionHandler(target) || hasEmptyPointerSignalHandler(target))) ||
+            (Object.getPrototypeOf(event) === PointerHoverEvent.prototype &&
+              !Object.hasOwn(event, 'transformed') &&
+              Object.getOwnPropertyDescriptor(PointerHoverEvent.prototype, 'transformed')?.value ===
+                defaultPointerHoverTransform &&
+              (hasEmptyPointerHoverHandler(target) || hasEmptyMouseHoverHandler(target))))
         ) {
           const legacy = Object.getOwnPropertyDescriptor(target, 'onPointer');
           // Accessors and custom source entries retain their observation order.
@@ -687,6 +699,7 @@ export class FrameworkRoot implements ViewController {
       this.scheduler.phase = 'paint';
       const paintCounts = diagnostics
         ? {
+            clock: () => diagnostics.now(),
             paintChildCalls: 0,
             boundaryVisits: 0,
             boundaryRecordings: 0,
@@ -732,6 +745,35 @@ export class FrameworkRoot implements ViewController {
         diagnostics.record(scene.token, 'boundary-reuses', now, paintCounts.boundaryReuses);
         diagnostics.record(scene.token, 'composition-updates', now, paintCounts.compositionUpdates);
         diagnostics.record(scene.token, 'composition-visits', now, paintCounts.compositionVisits);
+        diagnostics.recordDuration(
+          scene.token,
+          'composition-match',
+          painting.diagnosticCounts?.compositionMatchMs ?? 0,
+        );
+        diagnostics.record(
+          scene.token,
+          'paint-commands',
+          now,
+          painting.diagnosticCounts?.commands ?? 0,
+        );
+        diagnostics.record(
+          scene.token,
+          'composition-command-visits',
+          now,
+          painting.diagnosticCounts?.compositionCommandVisits ?? 0,
+        );
+        diagnostics.record(
+          scene.token,
+          'composition-structure-visits',
+          now,
+          painting.diagnosticCounts?.compositionStructureVisits ?? 0,
+        );
+        diagnostics.record(
+          scene.token,
+          'composition-transform-updates',
+          now,
+          painting.diagnosticCounts?.compositionTransformUpdates ?? 0,
+        );
         diagnostics.record(scene.token, 'composition-reuses', now, paintCounts.compositionReuses);
         diagnostics.record(
           scene.token,
@@ -849,6 +891,7 @@ export class FrameworkRoot implements ViewController {
           this.cancelSemanticsWake();
           this.semanticsDeferred = false;
           if (!reuse) this.sourceSemanticsSnapshot.invalidate();
+          const flushBegan = diagnostics?.now();
           withSemanticsGeometry(
             this.pipeline,
             this.context.semanticsGeometry,
@@ -856,6 +899,7 @@ export class FrameworkRoot implements ViewController {
             diagnostics,
             () => this.pipeline.flushSemantics(),
           );
+          if (diagnostics) diagnostics.record(scene.token, 'semantics-flush', flushBegan!);
           if (reuse && semanticsPipeline?.hasPendingChanges) {
             reuse = false;
             this.sourceSemanticsSnapshot.invalidate();
@@ -867,13 +911,18 @@ export class FrameworkRoot implements ViewController {
             snapshot = cached!.snapshot;
             nodes = cached!.nodes;
           } else {
+            const snapshotBegan = diagnostics?.now();
             candidate = this.sourceSemanticsSnapshot.capture(render, render.localTransform, {
               owner: scene.token.owner,
               metrics,
               inputGeometryToken: geometryCommit.token,
             });
+            if (diagnostics) diagnostics.record(scene.token, 'semantics-snapshot', snapshotBegan!);
+            const freezeBegan = diagnostics?.now();
             snapshot = freezeSemantics(candidate.nodes);
             nodes = flattenSemantics(snapshot);
+            if (diagnostics)
+              diagnostics.record(scene.token, 'semantics-freeze', freezeBegan!, nodes.length);
           }
           // Editable snapshots are never reused: their paragraph/geometry fences
           // still belong to a captured frame. Retain their scope so motion can
@@ -1031,7 +1080,14 @@ export class FrameworkRoot implements ViewController {
       this.pipeline._flushPaintRetirements();
       finishDiagnostic?.('semantics');
       this.scheduler.addPostFrameCallback(() => {
-        if (!this.closed) this.mouseTracker.updateAllDevices();
+        if (!this.closed) {
+          const began = diagnostics?.now();
+          try {
+            this.mouseTracker.updateAllDevices();
+          } finally {
+            if (diagnostics) diagnostics.record(scene.token, 'mouse-tracking', began!);
+          }
+        }
       });
     } catch (error) {
       this.cancelSemanticsWake();

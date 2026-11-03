@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "nelyx_skia/semantics_geometry.h"
+#include "JsiNativeServiceAudit.h"
 #include <cstring>
 #include <jsi/jsi.h>
 #include <memory>
@@ -12,6 +13,7 @@ class JsiSemanticsGeometry final
   using Runtime = facebook::jsi::Runtime;
   using Value = facebook::jsi::Value;
   nelyx::semantics_geometry::Session session_;
+  NativeServiceAudit::Session audit_{2};
   const std::thread::id thread_ = std::this_thread::get_id();
   bool executing_ = false;
 
@@ -34,6 +36,7 @@ public:
                                "Semantics geometry requires its owner thread");
           if (name == "close") {
             self->session_.close();
+            self->audit_.close();
             return Value::undefined();
           }
           if (self->executing_)
@@ -45,6 +48,7 @@ public:
           } operation{self->executing_};
           std::vector<double> output;
           double revision = 0;
+          std::uint64_t queries=0;
           if (name == "stats")
             output = self->session_.stats();
           else {
@@ -61,6 +65,7 @@ public:
             std::memcpy(owned.data(), buffer.data(rt), bytes);
             revision = owned[4];
             output = self->session_.evaluate(owned);
+            queries=static_cast<std::uint64_t>(owned[10]);
           }
           auto array = rt.global()
                            .getPropertyAsFunction(rt, "Float64Array")
@@ -73,6 +78,7 @@ public:
             throw jsi::JSError(rt, "Semantics geometry allocation changed its "
                                    "owner/revision/buffer");
           std::memcpy(buffer.data(rt), output.data(), output.size() * 8);
+          if(name=="evaluate") NativeServiceAudit::record({{5,1},{6,queries}});
           return buffer;
         });
   }

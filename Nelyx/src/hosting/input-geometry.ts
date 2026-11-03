@@ -2,7 +2,16 @@
 import { invariant } from '../foundation/errors.ts';
 import type { Disposable } from '../foundation/disposable.ts';
 import type { TransformMatrix } from '../ui/geometry.ts';
-import { isCapturedTransform } from '../ui/geometry.ts';
+import {
+  isCapturedTransform,
+  multiply,
+  identity,
+  bounds,
+  intersect,
+  translate,
+  fullTransform,
+  transform,
+} from '../ui/geometry.ts';
 import type { CoreEditingGeometry, Rect, ViewMetrics, ViewOwner } from '../ui/types.ts';
 import type { Matrix4Storage } from '../ui/matrix4.ts';
 import type { FrameDiagnostics } from '../ui/frame-diagnostics.ts';
@@ -51,11 +60,130 @@ export interface InputGeometryFrame {
   };
 }
 export interface InputGeometryService extends Disposable {
+  readonly limits?: { readonly nodes: number; readonly editors: number };
+  /** Optional streaming producer: no full numeric node table is built in TS. */
+  begin?(frame: InputGeometryFrame): InputGeometryBatch;
+  /** Retract numeric metadata when the source contract or surface is replaced. */
+  reset?(): void;
+  /** Explicit diagnostics only; numeric metadata, never resources. */
+  stats?(): readonly number[];
+  noteFallback?(reason: string): void;
+  execution?(): {
+    readonly mode: 'retained';
+    readonly ownerGeneration: number;
+    readonly sessionsCreated: number;
+    readonly committedFrames: number;
+    readonly fallbackFrames: number;
+    readonly fallbackReasons: Readonly<Record<string, number>>;
+    readonly closed: boolean;
+  };
   project(
     frame: InputGeometryFrame,
     nodes: readonly InputGeometryNode[],
     editors: readonly InputGeometryEditor[],
   ): readonly (InputGeometryProjection | null)[];
+}
+export interface InputGeometryCandidate {
+  readonly projections: readonly (InputGeometryProjection | null)[];
+  commit(): boolean;
+  discard(): void;
+}
+export interface InputGeometryBatch {
+  node(key: object, parent: number, local: TransformMatrix, clip: Rect | null): number;
+  prepare(editors: readonly InputGeometryEditor[]): InputGeometryCandidate;
+  discard(): void;
+}
+export const retainedInputGeometryProtocol = Object.freeze({
+  version: 1,
+  magic: 0x4e4c5247,
+  headerWords: 20,
+  nodeWords: 25,
+  slots: 1024,
+  nodes: 512,
+  editors: 64,
+  selections: 8192,
+});
+
+/** @internal Numeric-only fallback for a known budget miss AFTER source hooks
+ * were captured. It never revisits RenderObjects or user getters. */
+export function projectInputGeometry(
+  frame: InputGeometryFrame,
+  nodes: readonly InputGeometryNode[],
+  editors: readonly InputGeometryEditor[],
+): readonly (InputGeometryProjection | null)[] {
+  const matrices: TransformMatrix[] = [];
+  for (const node of nodes)
+    matrices.push(
+      node.parent < 0
+        ? multiply(node.local, identity)
+        : multiply(matrices[node.parent]!, node.local),
+    );
+  return editors.map(({ node, core }) => {
+    const matrix = matrices[node]!,
+      full = fullTransform(matrix),
+      projection = matrix.length === 6 && isCapturedTransform(matrix) ? matrix : full,
+      project = (rect: Rect) => bounds(multiply(projection, translate(rect.x, rect.y)), rect),
+      whole = project({ x: 0, y: 0, width: core.width, height: core.height });
+    let clip = intersect(whole, {
+      x: 0,
+      y: 0,
+      width: frame.metrics.logicalWidth,
+      height: frame.metrics.logicalHeight,
+    });
+    if (clip.width === 0 || clip.height === 0) return null;
+    for (let child = node; nodes[child]!.parent >= 0; child = nodes[child]!.parent) {
+      const edge = nodes[child]!;
+      if (edge.clip) {
+        const parent = matrices[edge.parent]!;
+        clip = intersect(
+          clip,
+          bounds(
+            multiply(
+              parent.length === 6 && isCapturedTransform(parent) ? parent : fullTransform(parent),
+              translate(edge.clip.x, edge.clip.y),
+            ),
+            edge.clip,
+          ),
+        );
+      }
+      if (clip.width === 0 || clip.height === 0) return null;
+    }
+    const caret = project(core.caret),
+      selectionRects = core.selectionRects.map(project),
+      caretBaseline = transform(full, core.caretBaseline);
+    if (
+      ![whole, clip, caret, ...selectionRects].every((rect) =>
+        [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite),
+      ) ||
+      !Number.isFinite(caretBaseline.x) ||
+      !Number.isFinite(caretBaseline.y)
+    )
+      return null;
+    return { transform: full, bounds: whole, clip, caret, caretBaseline, selectionRects };
+  });
+}
+
+/** Reuse the existing complete result validator without recreating node data. */
+export function decodeRetainedInputGeometry(
+  packet: Float64Array,
+  output: Float64Array,
+): readonly (InputGeometryProjection | null)[] {
+  const p = retainedInputGeometryProtocol,
+    editors = packet[11]!,
+    editorAt = p.headerWords + packet[10]! * p.nodeWords + packet[16]!,
+    metadata = new Float64Array(
+      inputGeometryProtocol.headerWords + editors * inputGeometryProtocol.editorWords,
+    );
+  metadata.set(packet.subarray(0, inputGeometryProtocol.headerWords));
+  metadata[0] = inputGeometryProtocol.magic;
+  metadata[1] = inputGeometryProtocol.version;
+  metadata[10] = 0;
+  metadata[15] = 0;
+  metadata.set(
+    packet.subarray(editorAt, editorAt + editors * inputGeometryProtocol.editorWords),
+    inputGeometryProtocol.headerWords,
+  );
+  return decodeInputGeometry(metadata, output);
 }
 const writeRect = (out: number[], rect: Rect) => out.push(rect.x, rect.y, rect.width, rect.height);
 export function encodeInputGeometry(

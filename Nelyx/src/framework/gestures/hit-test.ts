@@ -4,7 +4,7 @@ import type { PointerEvent } from './events.ts';
 import type { Offset } from '../../ui/offset.ts';
 import { captureTransform, multiply, translate } from '../../ui/geometry.ts';
 import type { TransformMatrix } from '../../ui/geometry.ts';
-import { matrix4Identity } from '../../ui/matrix4.ts';
+import { matrix4Identity, captureMatrix4 } from '../../ui/matrix4.ts';
 import type { Matrix4Storage } from '../../ui/matrix4.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { describeIdentity } from '../../foundation/diagnostics-identity.ts';
@@ -97,6 +97,9 @@ class LegacyTransformPart extends TransformPart {
     return this.captured.multiply(rhs);
   }
 }
+// Captured matrices are immutable. Repeated hit tests can share the exact
+// identity product without retaining the render tree or mutable caller input.
+const hitIdentityProducts = new WeakMap<object, Matrix4Storage>();
 class MatrixTransformPart extends TransformPart {
   readonly matrix: TransformMatrix;
   private identityProduct: Matrix4Storage | undefined;
@@ -107,6 +110,8 @@ class MatrixTransformPart extends TransformPart {
   multiply(rhs: TransformMatrix): TransformMatrix {
     if (rhs !== matrix4Identity) return multiply(this.matrix, rhs);
     if (this.identityProduct) return this.identityProduct;
+    const shared = hitIdentityProducts.get(this.matrix);
+    if (shared) return (this.identityProduct = shared);
     // The part already captured finite values. Multiplication by the owned
     // identity only expands affine storage and normalizes -0 via initial +0.
     // Keep the source's 16-lane entry representation without a general product.
@@ -132,7 +137,9 @@ class MatrixTransformPart extends TransformPart {
               1,
             ]
           : m.map((value) => 0 + value);
-    return (this.identityProduct = Object.freeze(values) as Matrix4Storage);
+    const product = captureMatrix4(values);
+    hitIdentityProducts.set(this.matrix, product);
+    return (this.identityProduct = product);
   }
 }
 class OffsetTransformPart extends TransformPart {

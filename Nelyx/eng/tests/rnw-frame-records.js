@@ -1,5 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Bounded scalar joins for the opt-in, actual RNW diagnostic fixture.
+// Compare each endpoint with its own contemporaneous extent. Lazy slivers can
+// revise estimates downward as well as upward during a cold traversal.
+export function summarizeScrollRange(values, extent) {
+  const samples = values.length,
+    extentChanged = values.some((row) => Math.abs(row[3] - extent) >= 0.5);
+  return {
+    samples,
+    min: samples ? Math.min(...values.map((row) => row[1])) : null,
+    max: samples ? Math.max(...values.map((row) => row[1])) : null,
+    minimumExtent: samples ? Math.min(...values.map((row) => row[3])) : null,
+    maximumExtent: samples ? Math.max(...values.map((row) => row[3])) : null,
+    finalExtent: values.at(-1)?.[3] ?? null,
+    extentChanged,
+    endpoints:
+      samples > 10 &&
+      values.some((row) => row[1] <= row[2] + 0.5) &&
+      values.some((row) => row[1] >= row[3] - 0.5) &&
+      !extentChanged,
+  };
+}
 const integer = (v) => Number.isSafeInteger(v) && v >= 0;
 const key = (v) => [v.owner, v.viewport, v.context, v.surface, v.frame, v.input].join(':');
 const validIdentity = (v) =>
@@ -14,6 +34,13 @@ const countedWork = new Set([
   'composition-reuses',
   'composition-scope-misses',
   'composition-structure-misses',
+  'paint-commands',
+  'composition-command-visits',
+  'composition-structure-visits',
+  'composition-transform-updates',
+  'input-geometry-visits',
+  'input-geometry-providers',
+  'input-geometry-ancestor-visits',
   'scene-paths',
   'scene-path-native',
   'scene-path-verbs',
@@ -191,11 +218,24 @@ export class RnwFrameRecords {
     this.slow.sort((a, b) => this.score(b) - this.score(a));
     this.slow.length = Math.min(6, this.slow.length);
   }
-  report(clock) {
+  report(clock, nativeWindow) {
+    if (
+      nativeWindow &&
+      (!Number.isFinite(nativeWindow.begin) ||
+        !Number.isFinite(nativeWindow.end) ||
+        nativeWindow.begin > nativeWindow.end)
+    )
+      throw Error('Invalid native source observation window');
+    const rows = [...this.rows.values()].filter(
+      (row) =>
+        !nativeWindow ||
+        (row.native[0]?.[0] >= nativeWindow.begin && row.native[2]?.[0] <= nativeWindow.end),
+    );
     for (const row of this.rows.values()) this.remember(row);
     const distributions = {},
       means = {},
       workCounts = {},
+      callbackWork = Object.create(null),
       callbacks = new Map(),
       movingCallbacks = new Map(),
       values = new Map(),
@@ -207,7 +247,7 @@ export class RnwFrameRecords {
         rows.push(value);
       }
     };
-    for (const row of this.rows.values()) {
+    for (const row of rows) {
       if (!row.native[0] || !row.native[2]) continue;
       if (row.callback) {
         callbacks.set(row.callback.id, row.callback);
@@ -243,6 +283,22 @@ export class RnwFrameRecords {
         if (row.native[stage]) add(name, row.native[stage][3] / 1000);
     }
     for (const value of callbacks.values()) {
+      for (const [name, group] of Object.entries(value.work ?? {})) {
+        const total = (callbackWork[name] ??= {
+          callbacks: 0,
+          count: 0,
+          total: 0,
+          names: Object.create(null),
+        });
+        total.callbacks++;
+        total.count += group.count;
+        total.total += group.total;
+        for (const [label, entry] of Object.entries(group.names)) {
+          const named = (total.names[label] ??= [0, 0, 0, 0]);
+          for (let i = 0; i < 3; i++) named[i] += entry[i];
+          named[3] = Math.max(named[3], entry[3]);
+        }
+      }
       add('owned-callback', value.wall);
       add('owned-callback-to-microtask', value.checkpointDelay);
       if (Number.isFinite(value.inputWall)) {
@@ -251,6 +307,43 @@ export class RnwFrameRecords {
       }
     }
     const ordered = [...callbacks.values()].sort((a, b) => a.begin - b.begin);
+    const surfaces = rows
+        .filter((row) => row.native[2])
+        .sort((a, b) => a.native[2][0] - b.native[2][0]),
+      previousSurfaces = new Map(),
+      surfaceIntervals = [];
+    let skippedSurfacePairs = 0;
+    for (const row of surfaces) {
+      const value = row.native[2],
+        cohort = [
+          row.identity.owner,
+          row.identity.viewport,
+          row.identity.context,
+          row.identity.surface,
+          value[2],
+        ].join(':'),
+        previous = previousSurfaces.get(cohort);
+      if (previous) {
+        // A sampled/counter jump is an observation omission, never one slow frame.
+        if (value[1] === previous[1] + 1 && value[0] >= previous[0])
+          surfaceIntervals.push(value[0] - previous[0]);
+        else skippedSurfacePairs++;
+      }
+      previousSurfaces.set(cohort, value);
+    }
+    surfaceIntervals.sort((a, b) => a - b);
+    const surfaceInterval = {
+      n: surfaceIntervals.length,
+      p50: surfaceIntervals[Math.floor(surfaceIntervals.length * 0.5)] ?? null,
+      p95: surfaceIntervals[Math.floor(surfaceIntervals.length * 0.95)] ?? null,
+      p99: surfaceIntervals[Math.floor(surfaceIntervals.length * 0.99)] ?? null,
+      max: surfaceIntervals.at(-1) ?? null,
+      above33_3ms: surfaceIntervals.filter((value) => value > 33.3).length,
+      above50ms: surfaceIntervals.filter((value) => value > 50).length,
+      skippedPairs: skippedSurfacePairs,
+      scope:
+        'retained source-probe native surface timestamps for consecutive submission ids in one owner/view/backing; includes idle and endpoints; missing submissions excluded, scanout unobserved',
+    };
     for (let index = 1; index < ordered.length; index++) {
       add('source-callback-interval', ordered[index].begin - ordered[index - 1].begin);
       add('source-callback-between', ordered[index].begin - ordered[index - 1].end);
@@ -313,10 +406,22 @@ export class RnwFrameRecords {
       nativeSamples: this.nativeSamples,
       nativeOutcomeCounts: [...this.nativeOutcomeCounts],
       joinedFrames: this.joined,
-      retainedFrames: this.rows.size,
+      retainedFrames: rows.length,
+      ...(nativeWindow
+        ? {
+            sourceWindow: {
+              ...nativeWindow,
+              frames: rows.length,
+              scope:
+                'retained distributions, means, work counts and intervals include only frames submitted and surface-updated inside this native QPC window; cumulative totals, slow frames and latest frame retain their original scope',
+            },
+          }
+        : {}),
       retainedDistributions: distributions,
       retainedMeans: means,
       retainedWorkCounts: workCounts,
+      retainedCallbackWork: callbackWork,
+      surfaceInterval,
       cumulativeWorkCounts: Object.fromEntries(
         Object.entries(this.workTotals).map(([name, value]) => [name, { ...value }]),
       ),

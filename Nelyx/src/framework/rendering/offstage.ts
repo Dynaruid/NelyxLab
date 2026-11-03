@@ -91,3 +91,4 @@ export class RenderOffstage extends RenderProxyBox {
   }
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderOffstage.prototype);
+RenderProxyBox._registerInputGeometryHooks(RenderOffstage.prototype, undefined, false);

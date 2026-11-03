@@ -86,6 +86,11 @@ private:
     api.setProperty(runtime,"frameClockVersion",2);
     api.setProperty(runtime,"inputTraceEnabled",windowsInputTraceEnabled());
     api.setProperty(runtime,"frameDiagnosticsEnabled",windowsFrameDiagnosticsEnabled());
+    api.setProperty(runtime,"recordSurfaceStatusHandler",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"recordSurfaceStatusHandler"),1,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
+        auto self=weak.lock();if(!self||!windowsFrameDiagnosticsEnabled()||!self->options.composition)return jsi::Value::undefined();self->requireOwner();
+        if(count==1&&args[0].isNumber()&&std::isfinite(args[0].getNumber())&&args[0].getNumber()>=0&&args[0].getNumber()<=1200000){auto& counters=self->options.composition->frameTrace.statusCounters;counters[4].fetch_add(1,std::memory_order_relaxed);counters[5].fetch_add(uint64_t(args[0].getNumber()*1000),std::memory_order_relaxed);}return jsi::Value::undefined();
+      }));
     // Explicit diagnostic execution only; bounded numeric reports go to the
     // owning launcher's stderr, never a persistent log or a display receipt.
     api.setProperty(runtime,"writeFrameDiagnostics",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"writeFrameDiagnostics"),1,
@@ -138,6 +143,7 @@ private:
         jsi::Object status(rt);status.setProperty(rt,"abi",1);status.setProperty(rt,"platform","windows");status.setProperty(rt,"runtimeGeneration",static_cast<double>(self->generation));
         status.setProperty(rt,"phase",self->closed.load()?"closed":self->retained?"failed":"active");status.setProperty(rt,"deviceCreations",static_cast<double>(self->deviceCreations.load()));
         status.setProperty(rt,"pendingAsync",static_cast<double>(self->services?self->services->pendingAsync():0));
+        if(windowsFrameDiagnosticsEnabled()&&self->options.composition){const auto& counters=self->options.composition->frameTrace.statusCounters;jsi::Array values(rt,counters.size());for(size_t i=0;i<counters.size();++i)values.setValueAtIndex(rt,i,double(counters[i].load(std::memory_order_relaxed)));status.setProperty(rt,"surfaceStatusCounters",std::move(values));}
         status.setProperty(rt,"uiFailure",jsi::String::createFromUtf8(rt,self->services?self->services->uiFailureReason():""));
         status.setProperty(rt,"frameClock",jsi::String::createFromUtf8(rt,self->frameClock?self->frameClock->source():"closed"));status.setProperty(rt,"pendingFrames",static_cast<double>(self->frameCallbacks.size()));status.setProperty(rt,"frameTicks",static_cast<double>(self->frameTicks));
         if(self->options.composition){auto value=self->options.composition->status();

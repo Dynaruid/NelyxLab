@@ -337,3 +337,25 @@ export class RenderSliverPadding extends RenderSliverEdgeInsetsPadding {
     properties.add(new EnumProperty('textDirection', this.textDirection, { defaultValue: null }));
   }
 }
+RenderSliver._registerInputGeometryHooks(RenderSliverEdgeInsetsPadding.prototype, undefined, false);
+const numericPaddingGetters = ['left', 'top', 'right', 'bottom'].map(
+  (name) => Object.getOwnPropertyDescriptor(EdgeInsets.prototype, name)!.get,
+);
+RenderSliver._registerInputGeometryHooks(
+  RenderSliverPadding.prototype,
+  (node) => {
+    const padding = Object.getOwnPropertyDescriptor(node, '_resolvedPadding')?.value;
+    return (
+      padding !== null &&
+      padding !== undefined &&
+      Object.getPrototypeOf(padding) === EdgeInsets.prototype &&
+      ['left', 'top', 'right', 'bottom'].every(
+        (name, index) =>
+          !Object.hasOwn(padding, name) &&
+          Object.getOwnPropertyDescriptor(EdgeInsets.prototype, name)?.get ===
+            numericPaddingGetters[index],
+      )
+    );
+  },
+  false,
+);

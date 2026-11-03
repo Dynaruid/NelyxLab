@@ -21,6 +21,7 @@ export type Matrix4Storage = readonly [
   number,
 ];
 const capturedMatrices = new WeakSet<object>();
+const matrixProducts = new WeakMap<object, { right: Matrix4Storage; value: Matrix4Storage }>();
 /** @internal Only storage captured here is deeply immutable and validated. */
 export function isCapturedMatrix4(value: readonly number[]): boolean {
   return capturedMatrices.has(value);
@@ -64,6 +65,9 @@ export function matrix4FromAffine(value: Matrix2D): Matrix4Storage {
 }
 /** Full 4x4 composition; z components remain available to subsequent transforms. */
 export function multiplyMatrix4(a: Matrix4Storage, b: Matrix4Storage): Matrix4Storage {
+  const owned = capturedMatrices.has(a) && capturedMatrices.has(b),
+    cached = owned ? matrixProducts.get(a) : undefined;
+  if (cached?.right === b) return cached.value;
   const values = Array<number>(16);
   for (let column = 0; column < 16; column += 4) {
     const b0 = b[column]!,
@@ -76,7 +80,9 @@ export function multiplyMatrix4(a: Matrix4Storage, b: Matrix4Storage): Matrix4St
       values[column + row] =
         0 + a[row]! * b0 + a[row + 4]! * b1 + a[row + 8]! * b2 + a[row + 12]! * b3;
   }
-  return freezeValues(values);
+  const value = freezeValues(values);
+  if (owned) matrixProducts.set(a, { right: b, value });
+  return value;
 }
 /** Double-precision pivoting; a small nonzero determinant is not treated as singular. */
 export function inverseMatrix4(matrix: Matrix4Storage): Matrix4Storage | null {

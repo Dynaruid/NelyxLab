@@ -3,10 +3,14 @@
 // wrapping is diagnostic overhead, never a cpu baseline or normal app path.
 import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
-import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
+import {
+  createInputGeometryService,
+  createRetainedInputGeometryService,
+} from '@nelyx/skia-native/input-geometry';
 import { createSceneCompositionService } from '@nelyx/skia-native/scene-composition';
 import { createSemanticsGeometryService } from '@nelyx/skia-native/semantics-geometry';
 import { verifyRnwSceneApi } from './rnw-scene-api.js';
+import { verifyRetainedGeometryApi } from './rnw-retained-geometry-api.js';
 import { RnwFrameRecords } from './rnw-frame-records.js';
 import { readNativeRecordingStats } from './native-frame-metrics.js';
 import { RnwWorkProbe } from './rnw-work-probe.js';
@@ -32,9 +36,18 @@ export function installRnwFrameProbe(application, options = {}) {
     clock = application.services.clock,
     request = clock.request,
     submit = GraphiteRenderer.prototype.submit,
+    poll = GraphiteRenderer.prototype.pollNotifications,
     close = application.dispose,
     previous = view.frameDiagnostics;
   const work = new RnwWorkProbe(now);
+  const pollWork = {
+    calls: 0,
+    empty: 0,
+    results: 0,
+    insideOwned: 0,
+    insideWall: 0,
+    outsideWall: 0,
+  };
   let nativeCallFailures = 0,
     nativeCallMethods = 0;
   const nativeCallTotals = Object.create(null),
@@ -72,11 +85,11 @@ export function installRnwFrameProbe(application, options = {}) {
   let nextScroll = 0;
   const scrolls = () => {
     const root = view.controller?.root?.renderObjects?.[0],
-      stack = root ? [root] : [],
+      stack = root ? [{ node: root, painted: true }] : [],
       values = [];
     let visited = 0;
     while (stack.length && visited++ < 8192) {
-      const node = stack.pop();
+      const { node, painted } = stack.pop();
       if (node instanceof RenderViewportBase) {
         let id = scrollIds.get(node);
         if (id === undefined) {
@@ -84,14 +97,19 @@ export function installRnwFrameProbe(application, options = {}) {
           scrollIds.set(node, id);
         }
         const offset = node.offset;
+        const center = node.localToGlobal({ x: node.size.width / 2, y: node.size.height / 2 });
         values.push([
           id,
           offset.pixels,
           Number.isFinite(offset.minScrollExtent) ? offset.minScrollExtent : null,
           Number.isFinite(offset.maxScrollExtent) ? offset.maxScrollExtent : null,
+          center.x,
+          node.size.width,
+          painted ? 1 : 0,
         ]);
       }
-      stack.push(...node.children);
+      for (const child of node.children)
+        stack.push({ node: child, painted: painted && node.paintsChild(child) });
     }
     return { values, truncated: stack.length > 0 };
   };
@@ -103,7 +121,9 @@ export function installRnwFrameProbe(application, options = {}) {
   const inputGeometry =
     suppliedGeometry ??
     (globalThis.SkiaApi && options.inputGeometry !== false
-      ? createInputGeometryService(globalThis.SkiaApi, view.owner, () => {})
+      ? (options.inputGeometry === 'retained'
+          ? createRetainedInputGeometryService
+          : createInputGeometryService)(globalThis.SkiaApi, view.owner, () => {})
       : undefined);
   const context = view.controller?.context;
   const previousGeometry = context?.inputGeometry;
@@ -134,7 +154,17 @@ export function installRnwFrameProbe(application, options = {}) {
   const inputGeometryApi = {
     available: !!inputGeometry,
     productionEnabled: !!suppliedGeometry,
-    executed: false,
+    // A direct one-editor API smoke is independent of real-page coverage.
+    apiSmokeExecuted: false,
+    ...(options.inputGeometry === 'retained'
+      ? {
+          retainedApi: verifyRetainedGeometryApi(
+            globalThis.SkiaApi,
+            view.owner,
+            view.currentMetrics,
+          ),
+        }
+      : {}),
   };
   try {
     if (options.sceneBatch) {
@@ -233,12 +263,12 @@ export function installRnwFrameProbe(application, options = {}) {
     if (options.sceneApi) sceneApi = verifyRnwSceneApi(globalThis.SkiaApi);
     if (inputGeometry) {
       const metrics = view.currentMetrics;
-      const result = inputGeometry.project(
-        { owner: view.owner, metrics },
-        [{ parent: -1, local: [1, 0, 0, 1, 0, 0], clip: null }],
-        [
+      const frame = { owner: view.owner, metrics },
+        batch = inputGeometry.begin?.(frame),
+        node = batch ? batch.node({}, -1, [1, 0, 0, 1, 0, 0], null) : 0,
+        editors = [
           {
-            node: 0,
+            node,
             core: {
               coordinates: 'editable-local',
               epoch: 1,
@@ -250,7 +280,15 @@ export function installRnwFrameProbe(application, options = {}) {
             },
           },
         ],
-      );
+        candidate = batch?.prepare(editors),
+        result = candidate
+          ? candidate.projections
+          : inputGeometry.project(
+              frame,
+              [{ parent: -1, local: [1, 0, 0, 1, 0, 0], clip: null }],
+              editors,
+            );
+      candidate?.discard();
       if (
         result.length !== 1 ||
         (metrics.logicalWidth > 0 &&
@@ -258,7 +296,7 @@ export function installRnwFrameProbe(application, options = {}) {
           (!result[0] || result[0].transform.length !== 16 || result[0].bounds.x !== 0))
       )
         throw Error('RNW installed input geometry API returned a different projection');
-      inputGeometryApi.executed = true;
+      inputGeometryApi.apiSmokeExecuted = true;
     }
   } catch (error) {
     closeGeometry();
@@ -306,6 +344,20 @@ export function installRnwFrameProbe(application, options = {}) {
     };
   };
   try {
+    if (options.pointerWork) {
+      const controller = view.controller;
+      work.wrap(controller, 'pointer', 'pointer-total', () => 'transport');
+      work.wrap(controller, 'pointerHitTest', 'pointer-hit', () =>
+        work.active?.stack.get('pointer-total') ? 'input' : 'post-frame',
+      );
+      work.wrap(
+        controller.gestureBinding,
+        'enqueuePointerEvent',
+        'pointer-binding',
+        () => 'binding',
+      );
+      work.wrap(controller.gestureBinding, 'dispatchEvent', 'pointer-handlers', () => 'dispatch');
+    }
     if (options.work !== false) {
       for (const prototype of [RenderObject.prototype, RenderBox.prototype, RenderSliver.prototype])
         work.wrap(prototype, 'performLayoutInScope', 'wet-layout');
@@ -352,6 +404,9 @@ export function installRnwFrameProbe(application, options = {}) {
     timer,
     overwritten = 0,
     invalidSource = 0;
+  const directScrolls = [];
+  let directScrollAt = -Infinity,
+    sourceReportedAt = 0;
   view.frameDiagnostics = diagnostics;
   const drain = () => {
     const source = diagnostics.drain();
@@ -368,6 +423,17 @@ export function installRnwFrameProbe(application, options = {}) {
     }
     for (const entry of api.drainFrameTrace())
       if (entry.stage <= 5 || (entry.stage >= 20 && entry.stage <= 26)) records.native(entry);
+    if (options.scrolls && now() - directScrollAt >= 100 && view.currentMetrics) {
+      directScrollAt = now();
+      directScrolls.push({
+        nativeMs: api.getMonotonicTime(),
+        owner: view.owner.generation,
+        viewport: view.currentMetrics.viewportGeneration,
+        surface: view.currentMetrics.nativeSurfaceGeneration,
+        scrolls: scrolls(),
+      });
+      if (directScrolls.length > 16) directScrolls.shift();
+    }
   };
   const emit = () => {
     try {
@@ -375,11 +441,24 @@ export function installRnwFrameProbe(application, options = {}) {
       const before = now(),
         native = api.getMonotonicTime(),
         after = now();
-      const report = records.report({
-        offsetToJs: (before + after) / 2 - native,
-        uncertainty: (after - before) / 2,
-      });
+      const report = records.report(
+        {
+          offsetToJs: (before + after) / 2 - native,
+          uncertainty: (after - before) / 2,
+        },
+        options.sourceWindows ? { begin: sourceReportedAt, end: native } : undefined,
+      );
+      sourceReportedAt = native;
       report.inputGeometry = geometrySupport();
+      if (inputGeometry?.stats) report.retainedInputGeometry = inputGeometry.stats();
+      if (inputGeometry?.execution)
+        report.retainedInputGeometryExecution = inputGeometry.execution();
+      if (options.scrolls) report.directScrolls = directScrolls.slice();
+      report.retirementPoll = {
+        ...pollWork,
+        scope:
+          'poll calls inside owned callback overlap its wall; outside includes native-delivered retirement callbacks and other callers; an empty poll alone does not prove unnecessary scheduling',
+      };
       report.nativeMetadata = nativeServices.map(({ name, native }) => {
         const stats = Array.from(new Float64Array(native.stats()));
         if (stats.length !== 6 || stats.some((value) => !Number.isSafeInteger(value) || value < 0))
@@ -401,6 +480,8 @@ export function installRnwFrameProbe(application, options = {}) {
         const status = api.getStatus?.() ?? {};
         report.lifetimes = {
           nativeMs: native,
+          logicalWidth: view.currentMetrics?.logicalWidth,
+          scale: view.currentMetrics?.scale,
           pictures: context?.pictures?.debugStats,
           accounted: context?.resources?.accountedTotals,
           nativeSlots: report.latestFrame?.slots,
@@ -412,6 +493,7 @@ export function installRnwFrameProbe(application, options = {}) {
               'gpuCreatedOnJs',
               'pendingAsync',
               'pendingFrames',
+              'surfaceStatusCounters',
             ]
               .filter((name) => status[name] !== undefined)
               .map((name) => [name, status[name]]),
@@ -440,6 +522,7 @@ export function installRnwFrameProbe(application, options = {}) {
             end: row.callback.end,
             nativeMs: row.native[2]?.[0] ?? row.native[0]?.[0],
             nativeView: row.native[2]?.[2] ?? row.native[0]?.[2],
+            nativeSubmission: row.native[2]?.[1],
           }));
       report.scope =
         'actual RNW; owned View callback wall excludes native dispatch/poll and following JS checkpoint; a preexisting callback may be unobserved; opt-in wrappers and native thread observations';
@@ -594,6 +677,25 @@ export function installRnwFrameProbe(application, options = {}) {
   };
   clock.request = wrappedRequest;
   GraphiteRenderer.prototype.submit = wrappedSubmit;
+  const wrappedPoll = function (...args) {
+    const start = work.timestamp(),
+      inside = work.active !== null;
+    try {
+      const result = poll.apply(this, args);
+      pollWork.empty += result === 0 ? 1 : 0;
+      pollWork.results += result;
+      return result;
+    } finally {
+      const wall = work.timestamp() - start;
+      pollWork.calls++;
+      pollWork.insideOwned += inside ? 1 : 0;
+      if (Number.isFinite(wall) && wall >= 0) {
+        if (inside) pollWork.insideWall += wall;
+        else pollWork.outsideWall += wall;
+      } else errors++;
+    }
+  };
+  GraphiteRenderer.prototype.pollNotifications = wrappedPoll;
   const dispose = () => {
     if (!live) return;
     live = false;
@@ -605,6 +707,8 @@ export function installRnwFrameProbe(application, options = {}) {
     if (clock.request === wrappedRequest) clock.request = request;
     if (GraphiteRenderer.prototype.submit === wrappedSubmit)
       GraphiteRenderer.prototype.submit = submit;
+    if (GraphiteRenderer.prototype.pollNotifications === wrappedPoll)
+      GraphiteRenderer.prototype.pollNotifications = poll;
     if (view.frameDiagnostics === diagnostics) view.frameDiagnostics = previous;
     if (application.dispose === wrappedClose) application.dispose = close;
   };

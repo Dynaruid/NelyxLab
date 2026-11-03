@@ -17,13 +17,15 @@ test(
     const app = path.join(root, 'sample/nelyx-testbed-app-2'),
       runner = path.join(app, 'windows/runner'),
       locator = path.join(app, '.nelyx/windows/native-inputs.json');
-    if (!fs.existsSync(locator)) {
+    if (!process.env.NELYX_WINDOWS_NATIVE_INPUTS && !fs.existsSync(locator)) {
       t.skip('Prepare the Windows renderer supplier first');
       return;
     }
     const input = verifyWindowsInputs({
         runner,
-        input: JSON.parse(fs.readFileSync(locator, 'utf8')).input,
+        input:
+          process.env.NELYX_WINDOWS_NATIVE_INPUTS ??
+          JSON.parse(fs.readFileSync(locator, 'utf8')).input,
       }),
       binding = path.join(runner, 'node_modules/@nelyx/skia-rn');
     verifyNativeSourceInputs(binding);

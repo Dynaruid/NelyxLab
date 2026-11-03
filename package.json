@@ -18,6 +18,11 @@
     "Nelyx/sdk/tooling/static-aot"
   ],
   "scripts": {
+    "test:native-service-audit": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-service-experiment.test.mjs Nelyx/eng/tests/native-service-activation.test.mjs",
+    "experiment:native-services": "node Nelyx/eng/run-native-service-experiments.mjs",
+    "run:windows:cpp": "node Nelyx/eng/run-native-modules.mjs",
+    "test:native-module-mode": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-module-mode.test.mjs Nelyx/eng/tests/native-service-experiment.test.mjs Nelyx/eng/tests/native-service-activation.test.mjs",
+    "test:retained-input-geometry": "node --experimental-transform-types --test --test-timeout=1200000 Nelyx/eng/tests/retained-input-geometry.test.mjs Nelyx/eng/tests/native-service-activation.test.mjs",
     "test:input-geometry": "node --test --test-timeout=1200000 Nelyx/eng/tests/input-geometry-native.test.mjs Nelyx/eng/tests/input-geometry-integration.test.mjs",
     "test:scene-batch": "node --test --test-timeout=1200000 Nelyx/eng/tests/scene-batch-native.test.mjs Nelyx/eng/tests/scene-batch.test.mjs",
     "test:numeric-services": "node --test --test-timeout=1200000 Nelyx/eng/tests/numeric-services-native.test.mjs",
@@ -80,7 +85,7 @@
     "test:skia-paragraph-queries": "node --test --test-timeout=1200000 Nelyx/eng/tests/skia-paragraph-queries.test.mjs",
     "test:windows-input-island": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-island.test.mjs",
     "test:windows-input-surface": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-surface.test.mjs",
-    "test:windows-input-service": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-service.test.mjs Nelyx/eng/tests/windows-input-view.test.mjs Nelyx/eng/tests/windows-input-default.test.mjs Nelyx/eng/tests/windows-native-surface.test.mjs Nelyx/eng/tests/windows-key-queue.test.mjs",
+    "test:windows-input-service": "node --test --test-timeout=1200000 Nelyx/eng/tests/windows-input-service.test.mjs Nelyx/eng/tests/windows-input-view.test.mjs Nelyx/eng/tests/windows-input-default.test.mjs Nelyx/eng/tests/windows-native-surface.test.mjs Nelyx/eng/tests/windows-key-queue.test.mjs Nelyx/eng/tests/windows-surface-status.test.mjs",
     "test:application": "node --test --test-timeout=1200000 Nelyx/eng/tests/application-package.test.mjs",
     "test:layout-constraints": "node --test --test-timeout=1200000 Nelyx/eng/tests/constraints.test.mjs Nelyx/eng/tests/flex-layout.test.mjs",
     "test:color-values": "node --test --test-timeout=1200000 Nelyx/eng/tests/color-values.test.mjs",

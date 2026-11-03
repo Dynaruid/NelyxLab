@@ -100,6 +100,8 @@ test(
         'paint',
         'compose',
         'input-geometry',
+        'semantics-flush',
+        'mouse-tracking',
         'post-frame',
         'capture',
         'geometry-publish',

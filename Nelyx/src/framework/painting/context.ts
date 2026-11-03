@@ -184,6 +184,8 @@ function captureComposition(
 }
 /** Frame-local primitive recording and render-child paint scope; no GPU ownership. */
 export interface PaintDiagnosticCounts {
+  clock?(): number;
+  compositionMatchMs?: number;
   paintChildCalls: number;
   boundaryVisits: number;
   boundaryRecordings: number;
@@ -193,6 +195,10 @@ export interface PaintDiagnosticCounts {
   compositionReuses?: number;
   compositionScopeMisses?: number;
   compositionStructureMisses?: number;
+  commands?: number;
+  compositionCommandVisits?: number;
+  compositionStructureVisits?: number;
+  compositionTransformUpdates?: number;
 }
 export class PaintingContext extends Canvas {
   private static readonly capturedRecord = PaintingContext.prototype.record;
@@ -215,6 +221,8 @@ export class PaintingContext extends Canvas {
     if (!(!this.recordsLayers || !this.assembled || this.exporting))
       invariant(false, 'closed-layer-recording', 'Layer recording has ended');
     super.record(command);
+    if (this.diagnosticCounts)
+      this.diagnosticCounts.commands = (this.diagnosticCounts.commands ?? 0) + 1;
   }
   protected override get recordsSynchronously(): boolean {
     return this.record === PaintingContext.capturedRecord;
@@ -593,6 +601,7 @@ export class PaintingContext extends Canvas {
         sameBounds(cached.bounds, bounds) &&
         cached.commands.length === this.commands.length;
     const counts = this.diagnosticCounts;
+    const matchingBegan = counts?.clock?.();
     if (counts) {
       counts.compositionVisits = (counts.compositionVisits ?? 0) + 1;
       if (!valid) counts.compositionScopeMisses = (counts.compositionScopeMisses ?? 0) + 1;
@@ -601,14 +610,19 @@ export class PaintingContext extends Canvas {
       const matches =
         !!cached &&
         cached.entries.length === this.entries.length &&
-        cached.entries.every(
-          (entry, index) =>
+        cached.entries.every((entry, index) => {
+          if (counts)
+            counts.compositionStructureVisits = (counts.compositionStructureVisits ?? 0) + 1;
+          return (
             entry.mark === this.entries[index]!.mark &&
             entry.layer === this.entries[index]!.handle.layer &&
-            entry.parent === entry.layer.parent,
-        ) &&
-        cached.structure.every(
-          (entry) =>
+            entry.parent === entry.layer.parent
+          );
+        }) &&
+        cached.structure.every((entry) => {
+          if (counts)
+            counts.compositionStructureVisits = (counts.compositionStructureVisits ?? 0) + 1;
+          return (
             !entry.layer.debugDisposed &&
             entry.parent === entry.layer.parent &&
             (entry.children === null ||
@@ -616,17 +630,22 @@ export class PaintingContext extends Canvas {
             (entry.picture === null ||
               (entry.layer instanceof PictureLayer &&
                 entry.picture === entry.layer.picture &&
-                !entry.picture.debugDisposed)),
-        );
+                !entry.picture.debugDisposed))
+          );
+        });
       if (counts && !matches)
         counts.compositionStructureMisses = (counts.compositionStructureMisses ?? 0) + 1;
       return matches;
     };
+    const sameCommand = counts
+      ? (before: CompositionCommand, after: PaintCommand) => {
+          counts.compositionCommandVisits = (counts.compositionCommandVisits ?? 0) + 1;
+          return sameCompositionCommand(before, after);
+        }
+      : sameCompositionCommand;
     let reuse =
         !!valid &&
-        cached.commands!.every((command, index) =>
-          sameCompositionCommand(command, this.commands[index]!),
-        ) &&
+        cached.commands!.every((command, index) => sameCommand(command, this.commands[index]!)) &&
         sameStructure(),
       refreshed: readonly CompositionCommand[] | null = null;
     if (!reuse && valid && sameStructure() && cached.body instanceof RecordedCompositionLayer) {
@@ -636,7 +655,7 @@ export class PaintingContext extends Canvas {
       for (let index = 0; compatible && index < this.commands.length; index++) {
         const before = cached.commands![index]!,
           after = this.commands[index]!;
-        if (sameCompositionCommand(before, after)) continue;
+        if (sameCommand(before, after)) continue;
         const snapshot = captureCompositionCommand(after);
         if (before.value.op !== 'transform' || after.op !== 'transform' || !snapshot) {
           compatible = false;
@@ -657,11 +676,17 @@ export class PaintingContext extends Canvas {
       if (compatible && cached.body._replaceTransforms(replacements)) {
         reuse = true;
         refreshed = snapshots;
+        if (counts)
+          counts.compositionTransformUpdates =
+            (counts.compositionTransformUpdates ?? 0) +
+            [...replacements.values()].reduce((total, entry) => total + entry.count, 0);
         if (this.diagnosticCounts)
           this.diagnosticCounts.compositionUpdates =
             (this.diagnosticCounts.compositionUpdates ?? 0) + 1;
       }
     }
+    if (matchingBegan !== undefined && counts?.clock)
+      counts.compositionMatchMs = (counts.compositionMatchMs ?? 0) + counts.clock() - matchingBegan;
     retainedCompositions.delete(root);
     if (counts && reuse) counts.compositionReuses = (counts.compositionReuses ?? 0) + 1;
     const commands = reuse ? null : [...this.commands],

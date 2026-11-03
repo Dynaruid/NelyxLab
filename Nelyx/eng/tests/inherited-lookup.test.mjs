@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { InheritedWidget } from '@nelyx/core/framework/widgets/framework';
+import { InheritedWidget, InheritedElement } from '@nelyx/core/framework/widgets/framework';
 import { Builder, Row, SizedBox } from '@nelyx/core/framework/widgets/basic';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { ValueKey } from '@nelyx/core/foundation/key';
@@ -18,6 +18,55 @@ class DataScope extends InheritedWidget {
   }
 }
 class OtherScope extends DataScope {}
+
+test(
+  'inherited notifications keep original membership while re-registration changes the next order and aspects',
+  { timeout },
+  () => {
+    const widget = new DataScope('value', new SizedBox());
+    const inherited = new InheritedElement(widget),
+      calls = [];
+    let mutate = true;
+    const dependent = (name) => ({
+      active: true,
+      dependenciesChanged() {
+        calls.push(name);
+      },
+    });
+    const a = dependent('a'),
+      b = dependent('b'),
+      c = dependent('c'),
+      d = dependent('d');
+    a.dependenciesChanged = () => {
+      calls.push('a');
+      if (!mutate) return;
+      mutate = false;
+      inherited.removeDependent(b);
+      inherited.addDependent(b, 'new-aspect');
+      inherited.addDependent(d);
+    };
+    try {
+      inherited.addDependent(a);
+      inherited.addDependent(b, 'old-aspect');
+      inherited.addDependent(c);
+      inherited.notifyClients(widget);
+      assert.deepEqual(calls, ['a', 'b', 'c']);
+      assert.deepEqual([...inherited.dependents.get(b)], ['new-aspect']);
+      calls.length = 0;
+      inherited.notifyClients(widget);
+      assert.deepEqual(calls, ['a', 'c', 'b', 'd']);
+      inherited.addDependent(b);
+      inherited.addDependent(b, 'ignored-after-unconditional');
+      assert.equal(inherited.dependents.get(b), null);
+      c.active = false;
+      calls.length = 0;
+      inherited.notifyClients(widget);
+      assert.deepEqual(calls, ['a', 'b', 'd']);
+    } finally {
+      inherited.dependents.clear();
+    }
+  },
+);
 class DynamicScope extends DataScope {
   constructor(token, child) {
     super('dynamic', child);

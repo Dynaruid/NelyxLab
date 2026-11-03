@@ -129,6 +129,43 @@ All Components의 indexed section 목록에는 `childPolicy: {mode: 'bounded', c
 
 GPU 기본값은 주 모니터에 연결된 하드웨어 adapter입니다. 실행 전에 `NELYX_WINDOWS_GPU_VENDOR`를 설정해 제조사를 선택할 수 있습니다. 예를 들어 AMD는 `4098`입니다.
 
+### C++ 모듈을 직접 실행
+
+Testbed 창을 닫고 저장소 루트에서 실행합니다. 창이 열리면 사용자가 직접 마우스·트랙패드·키보드로 조작하고 닫습니다.
+
+```powershell
+npm.cmd run run:windows:cpp
+```
+
+기본 `all`은 **retained 입력 좌표 + Path/Paint·clip + Scene composition + Semantics geometry**를 함께 선택합니다. Gallery와 입력·버튼 스크롤 제목의 `C++ all` 표시로 선택을 확인할 수 있습니다. `입력·버튼 스크롤`을 열어 편집기 입력·스크롤을 확인하면 retained 좌표 경로에도 실제 수요가 생깁니다. 공개 custom hook 등 지원 범위 밖의 작업은 기존 TS fallback을 유지합니다.
+
+모듈 하나만 켜거나 같은 수동 실행에서 TS control을 선택할 수 있습니다.
+
+```powershell
+npm.cmd run run:windows:cpp -- --module=path
+npm.cmd run run:windows:cpp -- --module=retained
+npm.cmd run run:windows:cpp -- --module=snapshot
+npm.cmd run run:windows:cpp -- --module=ts
+```
+
+`--module` 값은 `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `ts`입니다. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2`도 같은 기본 모드를 실행합니다. 수동 모드는 자동 입력·종료·해상도 제한 없이 실행하며 native 실제 작업 수만 집계합니다. 창을 닫으면 `NATIVE_MODULE_RESULT`의 `modules`, `native`, `fallback`, `inputGeometry`로 독립 native 집계와 SDK 집계·정리를 확인합니다. `observed`는 해당 owner에서 native 작업을 관측했다는 뜻이며, `notObserved`는 native 작업을 확인하지 못했다는 뜻입니다. `fallbackOnly`는 TS fallback만 관측한 모듈이며 exit 2를 반환합니다. 이 수치를 성능 향상이나 전체 작업의 C++ 처리 보증으로 쓰지 않습니다.
+
+명령은 현재 native/SDK 공급으로 수동 package를 빌드하고 App 원문을 자동 복구한 뒤 실행합니다. 실행 후 일반 기본 App으로 돌아가려면 `npm.cmd run run:windows --workspace @nelyx/testbed-2`를 사용하세요.
+
+### C++ 성능 후보 재실험
+
+현재 source와 일치하는 native supplier를 준비하고 Testbed 창을 닫은 뒤 저장소 루트에서 실행합니다. 현재 비교 helper는 최대화한 client 영역 2560×1459 physical / DPI 192를 요구하며 다른 조건은 거부합니다.
+
+```powershell
+npm.cmd run test:native-service-audit
+npm.cmd run experiment:native-services -- --trials=3 --functional
+npm.cmd run run:windows --workspace @nelyx/testbed-2
+```
+
+비교 명령은 한 Release bytecode package에서 TS control·snapshot input geometry·Path·clip/Paint·Scene composition·Semantics geometry를 각각 선택합니다. 각 mode의 fresh owner 3회에서 Gallery 두 열 → Mixed를 측정하고, `--functional`은 후보별 실제 키 입력·한글 IME·Gallery 복귀·정상 종료도 검사합니다. SDK 집계와 독립 C++ 작업 수, 입력 시간 안의 native QPC bucket을 대조합니다. 계수 비용이 포함된 비교이며 물리 입력·scanout 성능 수락은 별도입니다.
+
+작업 수 0인 필수 입력 구간은 `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`로 남고 명령은 exit 2로 종료합니다. 다른 장면이나 startup의 작업으로 통과시키지 않습니다. App source는 자동 복구되지만 현재 Release 출력은 실험 package이므로 마지막 일반 실행 명령으로 재빌드하세요. 일반 App은 이 후보들을 기본 활성화하지 않습니다. 결과와 미채택 근거는 [work5.md](../../work5.md)에 있습니다.
+
 ### 개발 세션
 
 ```powershell

@@ -23,6 +23,12 @@ Import exact subpaths from `@nelyx/sdk`. Supported target names are `windows`, `
 
 Public exports are listed in [package.json](package.json). The [Web surface component](../../sample/nelyx-testbed-app-2/web/runner/App.tsx) shows how the runner connects `main().definition` to `ApplicationSurface`.
 
+Windows `ApplicationSurface` defaults to `windowsSurfaceStatusMode="lifecycle"`: it receives the first valid update of each backing and lifecycle transitions. It requires surface-status protocol 1, so resupply and rebuild the native host together with the SDK. Public `SkiaGraphiteView` keeps continuous callbacks by default. `ApplicationSurface` also accepts `windowsSurfaceStatusMode="continuous"` for delivery comparisons; surface callbacks acknowledge native updates, not display scanout.
+
+RN `ApplicationSurface` offers experimental `nativeInputGeometry="retained"` for C++ editor-coordinate preparation. Omit it or pass `false` for the default TS path; `'snapshot'` selects the older independent candidate. Choose once per mounted owner and remount to switch. Custom render hooks retain TS behavior. This option does not enable a native hit-test index. Supply matching rebuilt native inputs, renderer and SDK; current runtime validation is limited to Windows. Performance adoption is recorded in the repository's [work5.md](../../work5.md).
+
+Explicit C++ service requests fail startup when their native capability is missing. Windows launches report selected candidates, native geometry commits and TS fallback reasons separately. Repository cadence checks require matching SDK/native counts and at least 95% native coverage for the warm Mixed comparison; choosing an option or finding its API is insufficient. See `npm.cmd run test:retained-input-geometry` for the actual Gallery → Mixed regression and activation failure cases.
+
 ## Configuration and providers
 
 Declare application settings in the root `package.json` under `nelyx`. For example:

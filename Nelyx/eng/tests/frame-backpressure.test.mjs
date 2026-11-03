@@ -8,6 +8,7 @@ import { freezeFrame, FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { RenderBox, BoxParentData } from '@nelyx/core/framework/rendering/object';
 const timeout = 1_200_000;
 const metrics = {
   logicalWidth: 100,
@@ -20,6 +21,73 @@ const metrics = {
   nativeContextGeneration: 1,
   nativeSurfaceGeneration: 1,
 };
+
+test(
+  'each mailbox packet sees geometry changed by the preceding hit callback before another frame builds',
+  { timeout },
+  async () => {
+    const f = fixture(),
+      seen = [],
+      retained = [];
+    class Box extends RenderBox {
+      constructor(name) {
+        super();
+        this.name = name;
+        this.size = { width: 100, height: 100 };
+      }
+      hitTestSelf() {
+        return !!this.onPointer;
+      }
+    }
+    const root = new Box('root'),
+      bottom = new Box('bottom'),
+      top = new Box('top');
+    try {
+      root.setChildren([bottom, top]);
+      top.onPointer = (event) => {
+        seen.push(['top', event.timestamp]);
+        assert(top.parentData instanceof BoxParentData);
+        top.parentData.offset = { x: 200, y: 0 };
+      };
+      bottom.onPointer = (event) => seen.push(['bottom', event.timestamp]);
+      f.view.controller = {
+        pointer(event) {
+          assert.equal(f.builds, 0, 'Both queries must be in the same pre-build drain');
+          const path = [];
+          root.hitTest({ x: event.x, y: event.y }, path);
+          retained.push(path);
+          path[0]?.target.onPointer?.(event);
+          f.view.requestFrame();
+        },
+        dispose() {},
+      };
+      for (const timestamp of [10, 11])
+        f.view.queuePointer({
+          kind: 'wheel',
+          pointer: 1,
+          device: 'mouse',
+          buttons: 0,
+          x: 5,
+          y: 5,
+          timestamp,
+          viewportGeneration: 1,
+          deltaY: 1,
+        });
+      assert.deepEqual(seen, []);
+      f.tick();
+      assert.deepEqual(seen, [
+        ['top', 10],
+        ['bottom', 11],
+      ]);
+      assert.equal(retained[0][0].target, top);
+      assert.equal(retained[1][0].target, bottom);
+      assert.equal(f.builds, 1);
+    } finally {
+      root.dispose();
+      await f.session.dispose();
+    }
+  },
+);
 function fixture({ scene, observeInput } = {}) {
   const callbacks = new Map(),
     notifications = [],

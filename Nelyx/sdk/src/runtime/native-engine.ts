@@ -17,7 +17,10 @@ import type {
 import { NativeTextLayoutService } from '@nelyx/skia-native/text';
 import { createFramePictureBackend } from '@nelyx/skia-native/pictures';
 import { createRasterizationBackend } from '@nelyx/skia-native/rasterization';
-import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
+import {
+  createInputGeometryService,
+  createRetainedInputGeometryService,
+} from '@nelyx/skia-native/input-geometry';
 import { createSceneCompositionService } from '@nelyx/skia-native/scene-composition';
 import { createSemanticsGeometryService } from '@nelyx/skia-native/semantics-geometry';
 import type { Skia } from '@nelyx/skia-native/skia/types/Skia';
@@ -48,7 +51,7 @@ export interface NativeEngineOptions {
   readonly context: NelyxGraphiteContext;
   readonly owner: ViewOwner;
   /** @internal Unadopted geometry candidate. Production keeps the TS path. */
-  readonly inputGeometry?: boolean;
+  readonly inputGeometry?: boolean | 'retained';
   readonly sceneComposition?: boolean;
   readonly semanticsGeometry?: boolean;
   /** @internal Independently measured scene candidates. */
@@ -72,9 +75,12 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     programs = createRuntimeShaderCache(api);
   let text: NativeTextLayoutService | undefined,
     renderer: GraphiteRenderer | undefined,
-    closed = false;
+    closed = false,
+    unavailableService: string | undefined;
   const ensure = () => {
     if (closed) throw new Error('Native engine owner closed');
+    if (unavailableService)
+      throw new Error('Requested C++ capability is unavailable: ' + unavailableService);
     options.assertOpen();
   };
   const image = (key: string) => {
@@ -95,15 +101,28 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     picture: (key) => pictures.picture(key),
   };
   const pictures = createFramePictureBackend(api, resources, () => context.nelyxIdentity());
-  const inputGeometry = options.inputGeometry
-    ? createInputGeometryService(api, owner, ensure)
-    : undefined;
+  const inputGeometry =
+    options.inputGeometry === 'retained'
+      ? createRetainedInputGeometryService(api, owner, ensure)
+      : options.inputGeometry
+        ? createInputGeometryService(api, owner, ensure)
+        : undefined;
   const sceneComposition = options.sceneComposition
     ? createSceneCompositionService(api, owner, ensure)
     : undefined;
   const semanticsGeometry = options.semanticsGeometry
     ? createSemanticsGeometryService(api, owner, ensure)
     : undefined;
+  unavailableService =
+    options.inputGeometry === 'retained' && !api.nelyxReportInputGeometryStatus
+      ? 'retained-input-geometry-status'
+      : options.inputGeometry && !inputGeometry
+        ? 'input-geometry'
+        : options.sceneComposition && !sceneComposition
+          ? 'scene-composition'
+          : options.semanticsGeometry && !semanticsGeometry
+            ? 'semantics-geometry'
+            : undefined;
   const services: NativeEnginePorts = {
     ...(semanticsGeometry ? { semanticsGeometry } : {}),
     ...(sceneComposition ? { sceneComposition } : {}),
@@ -112,6 +131,22 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
       create() {
         ensure();
         if (renderer) throw new Error('Native renderer already has an owner');
+        api.nelyxReportInputGeometryStatus?.(
+          JSON.stringify({
+            schema: 1,
+            kind: 'request',
+            ownerGeneration: owner.generation,
+            inputGeometry:
+              options.inputGeometry === 'retained'
+                ? 'retained'
+                : options.inputGeometry
+                  ? 'snapshot'
+                  : 'ts',
+            sceneComposition: !!options.sceneComposition,
+            semanticsGeometry: !!options.semanticsGeometry,
+            sceneBatch: options.sceneBatch ?? 'none',
+          }),
+        );
         return (renderer = new GraphiteRenderer(
           api,
           () => context,

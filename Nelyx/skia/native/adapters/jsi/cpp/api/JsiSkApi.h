@@ -6,6 +6,7 @@
 
 #include "JsiSkNativeObjects.h"
 #include "JsiInputGeometry.h"
+#include "JsiRetainedInputGeometry.h"
 #include "JsiSceneComposition.h"
 #include "JsiSemanticsGeometry.h"
 #include "nelyx_skia/scene_build.h"
@@ -169,6 +170,27 @@ public:
   }
 
   double nelyxInputGeometryVersion() { return nelyx::input_geometry::version; }
+  JSI_HOST_FUNCTION(nelyxNativeServiceAuditBegin) {
+    if(count!=1||!arguments[0].isNumber())throw jsi::JSError(runtime,"Native audit requires an owner generation");
+    return jsi::String::createFromUtf8(runtime,NativeServiceAudit::begin(arguments[0].getNumber()));
+  }
+  JSI_HOST_FUNCTION(nelyxNativeServiceAuditEnd) {
+    if(count!=0)throw jsi::JSError(runtime,"Native audit end takes no arguments");
+    NativeServiceAudit::end();return jsi::Value::undefined();
+  }
+  double nelyxRetainedInputGeometryVersion() { return nelyx::input_geometry::retained::version; }
+  JSI_HOST_FUNCTION(nelyxReportInputGeometryStatus) {
+    if(count!=1||!arguments[0].isString())throw jsi::JSError(runtime,"Expected one numeric geometry status report");
+    const auto json=arguments[0].getString(runtime).utf8(runtime);
+    if(json.size()>4096||json.find_first_of("\r\n")!=std::string::npos)throw jsi::JSError(runtime,"Invalid geometry status report");
+    JsiRetainedInputGeometry::report(json);return jsi::Value::undefined();
+  }
+  JSI_HOST_FUNCTION(nelyxRetainedInputGeometrySession) {
+    if (count!=2 || !arguments[0].isNumber() || !arguments[1].isNumber())
+      throw jsi::JSError(runtime,"Retained geometry requires a numeric session/owner");
+    return jsi::Object::createFromHostObject(runtime,std::make_shared<JsiRetainedInputGeometry>(
+      nelyx::input_geometry::Owner{arguments[0].getNumber(),arguments[1].getNumber()}));
+  }
   double nelyxScenePacketVersion() { return nelyx::scene_packet::version; }
   double nelyxSceneCompositionVersion() { return 1; }
   double nelyxSemanticsGeometryVersion() { return 1; }
@@ -261,6 +283,9 @@ public:
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
     installMethod(runtime,prototype,"nelyxInputGeometryVersion",&JsiSkApi::nelyxInputGeometryVersion);
+    installHostMethod(runtime,prototype,"nelyxNativeServiceAuditBegin",&JsiSkApi::nelyxNativeServiceAuditBegin);
+    installHostMethod(runtime,prototype,"nelyxNativeServiceAuditEnd",&JsiSkApi::nelyxNativeServiceAuditEnd);
+    installMethod(runtime,prototype,"nelyxRetainedInputGeometryVersion",&JsiSkApi::nelyxRetainedInputGeometryVersion);
     installMethod(runtime,prototype,"nelyxScenePacketVersion",&JsiSkApi::nelyxScenePacketVersion);
     installMethod(runtime,prototype,"nelyxSceneCompositionVersion",&JsiSkApi::nelyxSceneCompositionVersion);
     installMethod(runtime,prototype,"nelyxSemanticsGeometryVersion",&JsiSkApi::nelyxSemanticsGeometryVersion);
@@ -268,6 +293,8 @@ public:
     installHostMethod(runtime,prototype,"nelyxSceneCompositionSession",&JsiSkApi::nelyxSceneCompositionSession);
     installHostMethod(runtime,prototype,"nelyxMakePath",&JsiSkApi::nelyxMakePath);
     installHostMethod(runtime,prototype,"nelyxInputGeometrySession",&JsiSkApi::nelyxInputGeometrySession);
+    installHostMethod(runtime,prototype,"nelyxRetainedInputGeometrySession",&JsiSkApi::nelyxRetainedInputGeometrySession);
+    installHostMethod(runtime,prototype,"nelyxReportInputGeometryStatus",&JsiSkApi::nelyxReportInputGeometryStatus);
     installHostMethod(runtime, prototype, "getNativeDevice",
                       &JsiSkApi::getNativeDevice);
     installHostMethod(runtime, prototype, "Font", &JsiSkApi::Font);

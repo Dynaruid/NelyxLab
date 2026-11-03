@@ -42,6 +42,7 @@ export const SkiaGraphiteView = ({
   onLinuxSurfaceStatus,
   onAppleSurfaceStatus,
   onWindowsSurfaceStatus,
+  windowsSurfaceStatusMode = 'continuous',
   ref,
   ...viewProps
 }: SkiaGraphiteViewProps) => {
@@ -150,15 +151,35 @@ export const SkiaGraphiteView = ({
           : {})}
       {...((Platform.OS as string) === 'windows'
         ? {
+            windowsSurfaceStatusMode,
             onWindowsSurfaceStatus: (
               event: Parameters<NonNullable<SkiaGraphiteViewProps['onWindowsSurfaceStatus']>>[0],
             ) => {
               const status = event.nativeEvent;
               if (status.nativeId !== nativeId && status.phase !== 'failed') return;
-              windows.current.status = status;
-              windows.current.bound =
-                status.bound && status.phase !== 'failed' && status.phase !== 'closed';
-              onWindowsSurfaceStatus?.(event);
+              const diagnostics = (
+                globalThis as typeof globalThis & {
+                  NelyxWindowsHost?: {
+                    frameDiagnosticsEnabled?: boolean;
+                    recordSurfaceStatusHandler?: (wall: number) => void;
+                  };
+                }
+              ).NelyxWindowsHost;
+              const began = diagnostics?.frameDiagnosticsEnabled ? performance.now() : undefined;
+              try {
+                windows.current.status = status;
+                windows.current.bound =
+                  status.bound && status.phase !== 'failed' && status.phase !== 'closed';
+                onWindowsSurfaceStatus?.(event);
+              } finally {
+                if (began !== undefined) {
+                  try {
+                    diagnostics?.recordSurfaceStatusHandler?.(performance.now() - began);
+                  } catch {
+                    // Diagnostic failure must not replace the subscriber's exception.
+                  }
+                }
+              }
             },
           }
         : onWindowsSurfaceStatus

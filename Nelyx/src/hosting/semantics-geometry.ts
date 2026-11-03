@@ -22,6 +22,8 @@ export interface SemanticsGeometryResult {
   readonly hidden: boolean;
 }
 export interface SemanticsGeometryService extends Disposable {
+  /** Optional experiment accounting; does not change the TS fallback. */
+  noteFallback?(): void;
   project(
     token: FrameBuildToken,
     queries: readonly SemanticsGeometryQuery[],

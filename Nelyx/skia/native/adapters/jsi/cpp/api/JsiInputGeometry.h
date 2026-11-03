@@ -2,6 +2,7 @@
 #pragma once
 #include <jsi/jsi.h>
 #include "nelyx_skia/input_geometry.h"
+#include "JsiNativeServiceAudit.h"
 #include <cstring>
 #include <chrono>
 #include <memory>
@@ -14,6 +15,7 @@ class JsiInputGeometry final : public facebook::jsi::HostObject,
   using Runtime = facebook::jsi::Runtime;
   using Value = facebook::jsi::Value;
   nelyx::input_geometry::Session session_;
+  NativeServiceAudit::Session audit_{0};
   const std::thread::id thread_ = std::this_thread::get_id();
   void ensureThread() const {
     if (thread_ != std::this_thread::get_id()) throw std::runtime_error("Input geometry requires its owner thread");
@@ -41,6 +43,7 @@ class JsiInputGeometry final : public facebook::jsi::HostObject,
     if (result.size(runtime)!=output.size()*sizeof(double) || !session_.isCurrent(owned[4]))
       throw jsi::JSError(runtime,"Input geometry result allocation changed its buffer/session");
     std::memcpy(result.data(runtime),output.data(),output.size()*sizeof(double));
+    NativeServiceAudit::record({{0,1},{1,static_cast<std::uint64_t>(owned[11])}});
     return result;
   }
 public:
@@ -53,7 +56,7 @@ public:
     return jsi::Function::createFromHostFunction(runtime,property,name=="evaluate" ? 1 : 0,
       [self,name](Runtime& rt,const Value&,const Value* arguments,size_t count)->Value {
         if (name=="evaluate") return self->evaluate(rt,arguments,count);
-        self->ensureThread(); self->session_.close(); return Value::undefined();
+        self->ensureThread(); self->session_.close(); self->audit_.close(); return Value::undefined();
       });
   }
   std::vector<facebook::jsi::PropNameID> getPropertyNames(Runtime& runtime) override {

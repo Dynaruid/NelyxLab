@@ -7,9 +7,50 @@ import {
   matrix4FromAffine,
   transformMatrix4Point,
 } from '@nelyx/core/ui/matrix4';
-import { bounds, transform } from '@nelyx/core/ui/geometry';
+import { bounds, transform, inversePaintTransform } from '@nelyx/core/ui/geometry';
 import { Matrix4 } from '@nelyx/core/math/matrix4';
 const timeout = 1_200_000;
+
+test(
+  'owned 4x4 products reuse exact arithmetic and retain one latest right input',
+  { timeout },
+  () => {
+    const a = captureMatrix4([1, -0, 0, 0.001, 0.25, 2, 0, 0, 0, 0, 1, 0, 13, -17, 0, 1]),
+      b = captureMatrix4([-0, 1, 0, 0, 2, 0, 0, 0.002, 0, 0, 1, 0, -7, 11, 0, 1]),
+      expected = multiplyMatrix4([...a], [...b]),
+      first = multiplyMatrix4(a, b);
+    assert.deepEqual(first, expected);
+    assert.equal(multiplyMatrix4(a, b), first);
+    const other = captureMatrix4([...b].map((v, i) => (i === 12 ? 41 : v)));
+    assert.notEqual(multiplyMatrix4(a, other), first);
+    assert.deepEqual(first, expected);
+    assert.deepEqual(multiplyMatrix4(a, b), expected);
+    const external = [...b],
+      held = multiplyMatrix4(a, external);
+    external[12] = 71;
+    assert.notDeepEqual(multiplyMatrix4(a, external), held);
+    assert.notEqual(multiplyMatrix4(a, Object.freeze([...b])), first);
+    assert.throws(() => multiplyMatrix4(captureMatrix4(Array(16).fill(1e308)), b), /finite/);
+  },
+);
+
+test(
+  'owned 4x4 paint inverses retain XY isolation and reread external storage',
+  { timeout },
+  () => {
+    const values = [2, 0.25, 7, 0.001, -0.5, 3, 9, -0.002, 4, 5, 6, 8, 13, -17, 11, 1],
+      captured = captureMatrix4(values),
+      first = inversePaintTransform(captured);
+    assert.equal(inversePaintTransform(captured), first);
+    assert.deepEqual(first, inversePaintTransform([...values]));
+    const held = inversePaintTransform(values);
+    values[12] = 41;
+    assert.notDeepEqual(inversePaintTransform(values), held);
+    assert.notEqual(inversePaintTransform(Object.freeze([...values])), held);
+    assert.equal(inversePaintTransform(captureMatrix4(Array(16).fill(0))), null);
+    assert.deepEqual(inversePaintTransform(captured), first);
+  },
+);
 
 test(
   'source Matrix4 products preserve IEEE lanes, self aliasing and private borrowed storage',

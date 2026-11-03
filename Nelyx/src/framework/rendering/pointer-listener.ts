@@ -192,6 +192,18 @@ export class RenderPointerListener extends RenderProxyBoxWithHitTestBehavior {
   }
 }
 const defaultPointerListenerHandleEvent = RenderPointerListener.prototype.handleEvent;
+/** @internal Inspect ordinary data fields without invoking a custom callback getter. */
+export function hasEmptyPointerHoverHandler(target: RenderObject): boolean {
+  if (
+    Object.getPrototypeOf(target) !== RenderPointerListener.prototype ||
+    Object.hasOwn(target, 'handleEvent') ||
+    Object.getOwnPropertyDescriptor(RenderPointerListener.prototype, 'handleEvent')?.value !==
+      defaultPointerListenerHandleEvent
+  )
+    return false;
+  const hover = Object.getOwnPropertyDescriptor(target, 'onPointerHover');
+  return !!hover && 'value' in hover && hover.value == null;
+}
 /** @internal Only an ordinary absent field proves a signal handler is empty. */
 export function hasEmptyPointerSignalHandler(target: RenderObject): boolean {
   if (

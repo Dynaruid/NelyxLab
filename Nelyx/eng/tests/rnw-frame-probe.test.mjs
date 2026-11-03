@@ -5,12 +5,38 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { GraphiteRenderer } from '@nelyx/skia-native/renderer';
-import { RnwFrameRecords } from './rnw-frame-records.js';
+import { RnwFrameRecords, summarizeScrollRange } from './rnw-frame-records.js';
 import { RnwWorkProbe } from './rnw-work-probe.js';
 import { installRnwFrameProbe } from './rnw-frame-probe.js';
 import { withRnwFrameFixture, runRnwFrameProbe } from '../run-rnw-frame-probe.mjs';
 
 const timeout = 1_200_000;
+test(
+  'full-range evidence rejects lazy extent growth, shrinkage and missing endpoints',
+  { timeout },
+  () => {
+    const rows = Array.from({ length: 12 }, (_, i) => [1, i === 0 ? 0 : 100, 0, 100]);
+    assert.equal(summarizeScrollRange(rows, 100).endpoints, true);
+    const shrunk = rows.map((row) => [...row]);
+    shrunk[0][3] = 146;
+    const cold = summarizeScrollRange(shrunk, 146);
+    assert.equal(cold.extentChanged, true);
+    assert.equal(cold.finalExtent, 100);
+    assert.equal(cold.endpoints, false);
+    const grown = rows.map((row) => [...row]);
+    grown.at(-1)[3] = 146;
+    assert.equal(summarizeScrollRange(grown, 100).extentChanged, true);
+    assert.equal(
+      summarizeScrollRange(
+        rows.map((row) => [row[0], Math.min(row[1], 99), row[2], row[3]]),
+        100,
+      ).endpoints,
+      false,
+    );
+    assert.equal(summarizeScrollRange(rows.slice(0, 2), 100).endpoints, false);
+    assert.equal(summarizeScrollRange([], 100).endpoints, false);
+  },
+);
 test(
   'RNW reconciliation labels observe arguments without retaining child arrays',
   { timeout },
@@ -202,6 +228,46 @@ const native = (other = {}) => ({
   ...other,
 });
 test(
+  'source windows exclude preparation, unfinished frames and work crossing the input deadline',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords();
+    for (const [frame, begin, end, duration] of [
+      [6, 900, 950, 50],
+      [7, 1000, 1015, 2],
+      [8, 1100, 1150, 4],
+      [9, 1190, 1250, 90],
+      [10, 1200, undefined, 200],
+    ]) {
+      records.source(sample({ frame, duration, end: 10 + duration }));
+      records.source(sample({ frame, stage: 'paint-visits', count: frame - 5 }));
+      records.native(native({ frameSequence: frame, submission: frame, nativeTimestamp: begin }));
+      if (end !== undefined)
+        records.native(
+          native({ frameSequence: frame, submission: frame, stage: 2, nativeTimestamp: end }),
+        );
+    }
+    const window = records.report(null, { begin: 1000, end: 1200 });
+    assert.equal(window.retainedFrames, 2);
+    assert.equal(window.retainedMeans.paint, 3);
+    assert.equal(window.retainedWorkCounts['paint-visits'].n, 2);
+    assert.equal(window.retainedWorkCounts['paint-visits'].p50, 3);
+    assert.equal(window.surfaceInterval.n, 1);
+    assert.equal(window.surfaceInterval.max, 135);
+    assert.equal(window.sourceWindow.frames, 2);
+    assert.equal(window.cumulativeWorkCounts['paint-visits'].total, 15);
+    assert.deepEqual(window.nativeOutcomeCounts, [5, 0, 4, 0, 0, 0]);
+    assert.equal(records.report().retainedFrames, 5);
+    assert.equal(records.report().retainedMeans.paint, 36.5);
+    for (const bounds of [
+      { begin: 2, end: 1 },
+      { begin: NaN, end: 1 },
+      { begin: 1, end: Infinity },
+    ])
+      assert.throws(() => records.report(null, bounds), /Invalid native source observation/);
+  },
+);
+test(
   'RNW callback cadence keeps source callback work separate from intervening work',
   { timeout },
   () => {
@@ -282,6 +348,32 @@ test(
     assert.equal(report.gpuExecution, 'unobserved; submitted-to-producer includes queue and work');
   },
 );
+test(
+  'surface intervals require consecutive native submissions and do not count an overwritten sample as a stall',
+  { timeout },
+  () => {
+    const records = new RnwFrameRecords();
+    for (const [frame, submission, at] of [
+      [6, 1, 1000],
+      [7, 2, 1016],
+      [8, 8, 1200],
+      [9, 9, 1260],
+    ]) {
+      records.source(sample({ frame }));
+      records.native(native({ frameSequence: frame, submission, nativeTimestamp: at - 1 }));
+      records.native(native({ frameSequence: frame, submission, stage: 2, nativeTimestamp: at }));
+    }
+    const report = records.report().surfaceInterval;
+    assert.equal(report.n, 2);
+    assert.equal(report.p50, 60);
+    assert.equal(report.p95, 60);
+    assert.equal(report.p99, 60);
+    assert.equal(report.max, 60);
+    assert.equal(report.above33_3ms, 1);
+    assert.equal(report.above50ms, 1);
+    assert.equal(report.skippedPairs, 1);
+  },
+);
 
 test(
   'RNW scalar joins require the same owner, viewport, context, surface, frame and input',
@@ -348,7 +440,15 @@ test(
   { timeout },
   () => {
     const records = new RnwFrameRecords(),
-      callback = { id: 1, wall: 12, inputWall: 5, inputEvents: 2 };
+      callback = {
+        id: 1,
+        wall: 12,
+        inputWall: 5,
+        inputEvents: 2,
+        work: {
+          'pointer-hit': { count: 2, total: 3, names: { input: [2, 3, 3, 2] } },
+        },
+      };
     for (const frame of [6, 7]) {
       const row = records.source(sample({ frame }));
       row.callback = callback;
@@ -374,6 +474,15 @@ test(
       p95: 7,
       max: 7,
     });
+    const work = report.retainedCallbackWork['pointer-hit'];
+    assert.equal(work.callbacks, 1);
+    assert.equal(work.count, 2);
+    assert.equal(work.total, 3);
+    assert.deepEqual(work.names.input, [2, 3, 3, 2]);
+    assert.equal(
+      Object.keys(records.report(null, { begin: 1016, end: 1020 }).retainedCallbackWork).length,
+      0,
+    );
   },
 );
 

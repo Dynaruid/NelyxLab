@@ -1126,6 +1126,7 @@ class _SemanticsGeometry {
         }
       }
     }
+    native?.service.noteFallback?.();
     if (native?.diagnostics)
       native.diagnostics.recordDuration(native.token, 'semantics-geometry-fallback', 0, 1);
     semantic ??= this.intersect(paint, parentSemanticsClip);

@@ -48,8 +48,18 @@ bool drawStableShadow(SkCanvas& canvas,const SkPath& path,const SkDrawShadowRec&
   const auto blur=[&](const SkPath& outline,SkColor color,SkScalar radius,SkScalar strokeWidth){
     if(!SkColorGetA(color))return;
     SkPaint paint;paint.setAntiAlias(true);paint.setColor(color);
-    if(strokeWidth>0){paint.setStyle(SkPaint::kStrokeAndFill_Style);paint.setStrokeWidth(strokeWidth);}
     paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle,SkBlurMask::ConvertRadiusToSigma(radius),false));
+    SkRRect rounded;SkRect rect;
+    const bool rrect=!outline.isInverseFillType()&&(outline.isRRect(&rounded)||(outline.isRect(&rect)&&(rounded.setRect(rect),true)));
+    const auto radii=rounded.getSimpleRadii();
+    // SkCanvas only attempts Graphite's analytic blur for filled primitives.
+    // A circular-corner RRect's stroke-and-fill is exactly its outset; an
+    // elliptical corner's offset is not another ellipse, so keep that path.
+    if(rrect&&(strokeWidth<=0||rounded.isRect()||((rounded.isSimple()||rounded.isOval())&&radii.x()==radii.y()))){
+      if(strokeWidth>0)rounded.outset(strokeWidth*.5f,strokeWidth*.5f);
+      canvas.drawRRect(rounded,paint);return;
+    }
+    if(strokeWidth>0){paint.setStyle(SkPaint::kStrokeAndFill_Style);paint.setStrokeWidth(strokeWidth);}
     canvas.drawPath(outline,paint);
   };
   const auto ambientOutset=SkDrawShadowMetrics::AmbientBlurRadius(rec.fZPlaneParams.fZ);

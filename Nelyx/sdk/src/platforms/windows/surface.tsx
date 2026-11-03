@@ -22,6 +22,8 @@ import { createWindowsFrameScheduler } from './frame-clock.ts';
 export interface ApplicationSurfaceProps extends ReactNativeSurfaceProps {
   /** The surface covers the full native window; its host supplies resize metrics directly. */
   readonly windowViewport?: boolean;
+  /** Explicit native delivery selection; SDK-owned surfaces default to lifecycle. */
+  readonly windowsSurfaceStatusMode?: 'continuous' | 'lifecycle';
 }
 const Surface = createReactNativeSurface<ApplicationSurfaceProps>({
   target: 'windows',
@@ -53,6 +55,7 @@ const Surface = createReactNativeSurface<ApplicationSurfaceProps>({
       verifyWindowsNativeHost,
       isWindowsNativeHostClosing,
       props.windowViewport === true,
+      props.windowsSurfaceStatusMode ?? 'lifecycle',
     ),
 });
 /** Fabric owns the native surface; shared RN services own AppSession and bounded Graphite leases. */

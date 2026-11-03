@@ -37,6 +37,69 @@ const timeout = 1_200_000,
   target = { handleEvent() {} };
 
 test(
+  'hit traversal observes setter-free prototype changes and an earlier callback mutation',
+  { timeout },
+  () => {
+    class Box extends RenderBox {
+      constructor(name) {
+        super();
+        this.name = name;
+        this.size = { width: 20, height: 20 };
+      }
+      hitTestSelf() {
+        return !!this.onPointer;
+      }
+    }
+    const root = new Box('root'),
+      leaf = new Box('leaf');
+    const calls = [],
+      original = Object.getOwnPropertyDescriptor(RenderBox.prototype, 'hitTest');
+    try {
+      root.setChildren([leaf]);
+      leaf.onPointer = () => {};
+      const query = () => {
+        const path = [];
+        root.hitTest({ x: 1, y: 1 }, path);
+        return path;
+      };
+      assert.equal(query()[0].target, leaf);
+      RenderBox.prototype.hitTest = function (...args) {
+        calls.push(this.name);
+        return original.value.apply(this, args);
+      };
+      assert.equal(query()[0].target, leaf);
+      assert.deepEqual(calls, ['root', 'leaf']);
+      // Same tree, size, point and numeric state; no layout/paint setter fires.
+      Object.defineProperty(leaf, 'size', {
+        configurable: true,
+        get() {
+          calls.push('size');
+          return { width: 0, height: 0 };
+        },
+      });
+      assert.equal(query().length, 0);
+      assert.equal(calls.at(-1), 'size');
+      delete leaf.size;
+      const first = query();
+      leaf.onPointer = () => {
+        leaf.onPointer = undefined;
+      };
+      leaf.onPointer();
+      assert.equal(query().length, 0);
+      assert.equal(
+        first[0].target,
+        leaf,
+        'Previously admitted streams retain their old target path',
+      );
+    } finally {
+      Object.defineProperty(RenderBox.prototype, 'hitTest', original);
+      delete leaf.size;
+      root.dispose();
+    }
+  },
+);
+
+test(
   'stationary post-layout mouse checks retain fresh transforms and target order',
   { timeout },
   () => {
@@ -164,6 +227,231 @@ test(
       assert.deepEqual(hovered, [new Offset(1, 1), new Offset(2, 2)]);
       assert.deepEqual(exited, [new Offset(3, 3)]);
     } finally {
+      Object.defineProperty(HitTestEntry.prototype, 'transform', descriptor);
+      f.close();
+    }
+  },
+);
+
+test(
+  'box hit testing retains reverse snapshots, custom lists, size getters and iterator hooks',
+  { timeout },
+  () => {
+    const visits = [],
+      reads = [];
+    let mutate;
+    class Box extends RenderBox {
+      constructor(name) {
+        super();
+        this.name = name;
+        this.size = { width: 20, height: 20 };
+      }
+      hitTestSelf() {
+        visits.push(this.name);
+        mutate?.(this);
+        return false;
+      }
+    }
+    const parent = new Box('parent'),
+      a = new Box('a'),
+      b = new Box('b'),
+      c = new Box('c'),
+      d = new Box('d'),
+      iterator = Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator),
+      reverse = Object.getOwnPropertyDescriptor(Array.prototype, 'reverse');
+    const hit = () => parent.hitTest({ x: 1, y: 1 }, []);
+    try {
+      parent.setChildren([a, b, c]);
+      mutate = (node) => {
+        if (node !== c) return;
+        mutate = undefined;
+        parent.remove(b);
+        parent.insert(d, c);
+      };
+      hit();
+      assert.deepEqual(visits, ['c', 'b', 'a', 'parent']);
+      visits.length = 0;
+      hit();
+      assert.deepEqual(visits, ['d', 'c', 'a', 'parent']);
+      Object.defineProperty(parent, 'size', {
+        configurable: true,
+        get() {
+          reads.push('size');
+          return {
+            get width() {
+              reads.push('width');
+              return 20;
+            },
+            get height() {
+              reads.push('height');
+              return 20;
+            },
+          };
+        },
+      });
+      parent.hitTest(
+        {
+          get x() {
+            reads.push('x');
+            return 1;
+          },
+          get y() {
+            reads.push('y');
+            return 1;
+          },
+        },
+        [],
+      );
+      assert.deepEqual(reads.slice(0, 7), ['size', 'width', 'height', 'x', 'y', 'x', 'y']);
+      delete parent.size;
+      const external = [a, c];
+      external[Symbol.iterator] = function* () {
+        reads.push('iterate');
+        yield a;
+        yield c;
+      };
+      Object.defineProperty(parent, 'children', { configurable: true, get: () => external });
+      visits.length = 0;
+      hit();
+      assert.deepEqual(visits, ['c', 'a', 'parent']);
+      assert.equal(reads.filter((x) => x === 'iterate').length, 1);
+      delete parent.children;
+      let iterations = 0,
+        reversals = 0;
+      Array.prototype[Symbol.iterator] = function () {
+        if (this.length === 3) iterations++;
+        return iterator.value.call(this);
+      };
+      Array.prototype.reverse = function () {
+        if (this.length === 3) reversals++;
+        return reverse.value.call(this);
+      };
+      hit();
+      assert.equal(
+        iterations,
+        2,
+        'A replaced iterator retains both snapshot and dispatch iteration',
+      );
+      assert.equal(reversals, 1, 'A replaced reverse operation remains observable');
+    } finally {
+      Object.defineProperty(Array.prototype, Symbol.iterator, iterator);
+      Object.defineProperty(Array.prototype, 'reverse', reverse);
+      delete parent.size;
+      delete parent.children;
+      parent.dispose();
+      b.dispose();
+    }
+  },
+);
+
+test(
+  'hover dispatch leaves empty listeners lazy and preserves live callbacks, tracking and overrides',
+  { timeout },
+  () => {
+    const f = fixture(),
+      hovered = [],
+      legacy = [],
+      entered = [],
+      exited = [],
+      descriptor = Object.getOwnPropertyDescriptor(HitTestEntry.prototype, 'transform'),
+      originalHandler = RenderMouseRegion.prototype.handleEvent,
+      originalTransform = PointerHoverEvent.prototype.transformed;
+    let child = new Listener(new SizedBox(20, 20), {
+      onPointerHover: (event) => hovered.push(event.localPosition),
+      behavior: HitTestBehavior.opaque,
+    });
+    for (let depth = 0; depth < 4; depth++)
+      child = new Padding(
+        EdgeInsets.all(1),
+        new MouseRegion(new Listener(child), {
+          onEnter: (event) => entered.push(event.localPosition.dx),
+          onExit: (event) => exited.push(event.localPosition.dx),
+        }),
+      );
+    const listeners = [];
+    let reads = 0,
+      callbackReads = 0,
+      customCalls = 0;
+    const hover = () =>
+      f.root.pointer({
+        kind: 'hover',
+        pointer: 91,
+        device: 'mouse',
+        buttons: 0,
+        x: 5,
+        y: 5,
+        timestamp: f.root.context.clock.now(),
+        viewportGeneration: 1,
+      });
+    try {
+      f.set(child);
+      const pending = [f.root.pipeline.root];
+      while (pending.length) {
+        const render = pending.pop();
+        if (render instanceof RenderPointerListener && render.onPointerHover === undefined)
+          listeners.push(render);
+        pending.push(...render.children);
+      }
+      assert.equal(listeners.length, 4);
+      Object.defineProperty(HitTestEntry.prototype, 'transform', {
+        ...descriptor,
+        get() {
+          const value = descriptor.get.call(this);
+          if (value !== null && listeners.includes(this.target)) reads++;
+          return value;
+        },
+      });
+      hover();
+      assert.equal(reads, 0, 'Empty listener dispatch must not expand an event transform');
+      assert.deepEqual(hovered, [new Offset(1, 1)]);
+      assert.deepEqual(entered, [4, 3, 2, 1]);
+      const listener = listeners[0];
+      listener.onPointer = (event) => legacy.push([event.kind, event.x, event.y]);
+      hover();
+      assert.equal(reads, 1);
+      assert.deepEqual(legacy, [['hover', 4, 4]]);
+      listener.onPointer = undefined;
+      Object.defineProperty(listener, 'onPointerHover', {
+        configurable: true,
+        get() {
+          callbackReads++;
+          return () => customCalls++;
+        },
+      });
+      hover();
+      assert.equal(callbackReads, 1, 'Checking eligibility must not invoke a callback getter');
+      assert.equal(customCalls, 1);
+      RenderMouseRegion.prototype.handleEvent = function (event, entry) {
+        customCalls++;
+        originalHandler.call(this, event, entry);
+      };
+      hover();
+      assert.equal(customCalls, 6, 'All four replaced mouse handlers remain observable');
+      PointerHoverEvent.prototype.transformed = function (matrix) {
+        return originalTransform.call(this, matrix);
+      };
+      const before = reads;
+      hover();
+      assert.equal(
+        reads - before,
+        4,
+        'A replaced event transform keeps the full dispatch protocol',
+      );
+      assert.equal(hovered.length, 5);
+      f.root.pointer({
+        kind: 'leave',
+        pointer: 91,
+        device: 'mouse',
+        buttons: 0,
+        x: 5,
+        y: 5,
+        timestamp: f.root.context.clock.now(),
+        viewportGeneration: 1,
+      });
+      assert.deepEqual(exited, [1, 2, 3, 4]);
+    } finally {
+      RenderMouseRegion.prototype.handleEvent = originalHandler;
+      PointerHoverEvent.prototype.transformed = originalTransform;
       Object.defineProperty(HitTestEntry.prototype, 'transform', descriptor);
       f.close();
     }
@@ -860,6 +1148,30 @@ test(
     }
   },
 );
+test('repeated hit tests share only captured immutable identity products', { timeout }, () => {
+  const captured = captureTransform([1, -0, 0, 1, -0, 17]),
+    external = [1, 0, 0, 1, 13, 17],
+    read = (matrix) => {
+      const result = new Builder(),
+        entry = new HitTestEntry(target);
+      result.push(matrix);
+      result.add(entry);
+      result.pop();
+      return entry.transform;
+    },
+    first = read(captured);
+  assert.equal(read(captured), first);
+  assert.equal(captureTransform(first), first, 'Event admission must not copy an owned hit matrix');
+  assert.deepEqual(first, multiply([...captured], [...matrix4Identity]));
+  assert(Object.isFrozen(first));
+  const held = read(external);
+  external[4] = 41;
+  assert.equal(held[12], 13);
+  assert.equal(read(external)[12], 41);
+  assert.notEqual(read(Object.freeze([...external])), held);
+  assert.equal(read(captured), first, 'Later hit tests cannot overwrite a retained event matrix');
+});
+
 test(
   'a deferred first entry preserves immediate nested overflow failure and the caller pop protocol',
   { timeout },

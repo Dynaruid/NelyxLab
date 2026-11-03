@@ -7,8 +7,19 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { verifyWindowsPackage } from '../../sdk/tooling/cli/src/windows-runner.mjs';
 import { startWindowsProcess } from '../../sdk/tooling/cli/src/windows-process.mjs';
+import {
+  verifyGeometryActivation,
+  geometryActivationCollector,
+} from './native-service-activation.js';
+import {
+  verifyNativeServiceExperiment,
+  verifyNativeModuleMode,
+} from './native-service-experiment.js';
 
 const timeout = 1_200_000,
+  inputGeometry = process.env.NELYX_WINDOWS_MIXED_INPUT_GEOMETRY ?? 'ts',
+  experiment = process.env.NELYX_WINDOWS_MIXED_EXPERIMENT,
+  nativeModules = process.env.NELYX_WINDOWS_MIXED_NATIVE_MODULES,
   root = path.resolve(import.meta.dirname, '../../..'),
   trials = process.env.NELYX_WINDOWS_MIXED_TRIALS
     ? process.env.NELYX_WINDOWS_MIXED_TRIALS.split(',').map(Number)
@@ -20,22 +31,45 @@ if (
 )
   throw Error('NELYX_WINDOWS_MIXED_TRIALS must select distinct owners 1..4');
 function helper(pid, buttonRange) {
+  return runHelper(
+    [
+      '-File',
+      path.join(import.meta.dirname, 'windows-mixed-input.ps1'),
+      '-AppPid',
+      String(pid),
+      '-KoreanIme',
+      ...(buttonRange ? ['-ButtonRange'] : []),
+    ],
+    'MIXED_INPUT ',
+  );
+}
+function galleryReturn(pid, executable) {
+  return runHelper(
+    [
+      '-File',
+      path.join(import.meta.dirname, 'windows-continuous-scroll.ps1'),
+      '-Executable',
+      executable,
+      '-TargetProcessId',
+      String(pid),
+      '-Page',
+      'material',
+      '-Maximized',
+      '-BothColumns',
+      '-MouseMotion',
+      '-InputDurationMs',
+      '5000',
+    ],
+    'CONTINUOUS_SCROLL ',
+  );
+}
+function runHelper(args, prefix) {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        path.join(import.meta.dirname, 'windows-mixed-input.ps1'),
-        '-AppPid',
-        String(pid),
-        '-KoreanIme',
-        ...(buttonRange ? ['-ButtonRange'] : []),
-      ],
-      { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...args], {
+      cwd: root,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let output = '';
     const consume = (data) => {
       output = (output + data.toString()).slice(-256 * 1024);
@@ -50,13 +84,13 @@ function helper(pid, buttonRange) {
     child.once('close', (code) => {
       clearTimeout(timer);
       process.stdout.write(output);
-      if (code !== 0) reject(Error('Actual mixed input helper exited ' + code));
+      if (code !== 0) reject(Error('Actual Windows input helper exited ' + code));
       else {
-        const line = output.split(/\r?\n/).find((line) => line.startsWith('MIXED_INPUT '));
-        if (!line) reject(Error('Actual mixed input report missing'));
+        const line = output.split(/\r?\n/).find((line) => line.startsWith(prefix));
+        if (!line) reject(Error('Actual Windows input report missing: ' + prefix));
         else {
           try {
-            resolve(JSON.parse(line.slice('MIXED_INPUT '.length)));
+            resolve(JSON.parse(line.slice(prefix.length)));
           } catch (error) {
             reject(error);
           }
@@ -84,7 +118,10 @@ test(
     const checked = verifyWindowsPackage(locator.directory);
     for (const trial of trials) {
       const buttonRange = trial === 4;
-      let native = '';
+      const geometryActivation = geometryActivationCollector();
+      let native = '',
+        errorTail = '',
+        allocationFailure;
       const child = startWindowsProcess(
         path.join(checked.directory, checked.manifest.executable),
         [],
@@ -96,12 +133,31 @@ test(
             NELYX_TRACKPAD_DIAGNOSTICS: '1',
             NELYX_WINDOWS_FRAME_DIAGNOSTICS: '1',
           },
-          onOutput: (data) => {
+          onOutput: (data, stream) => {
+            geometryActivation.observe(data, stream);
+            const errors = errorTail + data;
+            allocationFailure ??= /Could not create UploadInstance|allocator stage=/.exec(
+              errors,
+            )?.[0];
+            errorTail = errors.slice(-128);
             native = (native + data).slice(-64 * 1024);
           },
         },
       );
       try {
+        if (trial === 1) {
+          // Keep both Gallery columns' lazy resources in this same owner before
+          // exercising the eager mixed page. A fresh mixed-only owner misses
+          // the allocation pressure seen in ordinary Gallery -> mixed use.
+          const gallery = await galleryReturn(
+            child.pid,
+            path.join(checked.directory, checked.manifest.executable),
+          );
+          assert.equal(gallery.checks.length, 4);
+          assert(
+            gallery.checks.every((row) => row.changesDuringInput >= 10 && row.maximumGapMs <= 350),
+          );
+        }
         const report = await helper(child.pid, buttonRange);
         assert.equal(report.fields, 12);
         assert.equal(report.buttons, 36);
@@ -113,12 +169,66 @@ test(
           ).length,
           3,
         );
+        if (trial === 1) {
+          // Do not resize or restart the owner here: that would purge the
+          // warmed scratch and hide a mixed -> Gallery resource regression.
+          const gallery = await galleryReturn(
+            child.pid,
+            path.join(checked.directory, checked.manifest.executable),
+          );
+          assert.equal(gallery.checks.length, 4);
+          assert(
+            gallery.checks.every((row) => row.changesDuringInput >= 10 && row.maximumGapMs <= 350),
+          );
+          assert(
+            !native.includes('rnw-frame-probe'),
+            'Mixed/Gallery regression excludes the source frame probe',
+          );
+          console.log(
+            'MIXED_GALLERY_RETURN',
+            JSON.stringify({
+              pid: child.pid,
+              maximumGapsMs: gallery.checks.map((row) => row.maximumGapMs),
+              scope: `${nativeModules ? 'interactive native-module package' : experiment ? 'explicit native-service experiment package' : 'ordinary package'}, both Gallery columns after actual mixed input/IME in the same owner; native diagnostics and desktop capture enabled; not ordinary FPS`,
+            }),
+          );
+        }
         const close = await child.stop();
         assert.equal(close.exitCode, 0);
         assert.equal(close.forced, false);
         assert.match(native, /closed views=0 consumers=0 gpuDrained=1 inputRetired=1/);
         assert.doesNotMatch(native, /REACT_ERROR|close-failed|text-input-failed/);
-        console.log('MIXED_OWNER_PASS', { trial, buttonRange, pid: child.pid, close });
+        const inputGeometryActivation = nativeModules
+          ? verifyNativeModuleMode(geometryActivation.finish(), { mode: nativeModules })
+          : experiment
+            ? verifyNativeServiceExperiment(geometryActivation.finish(), { mode: experiment })
+            : verifyGeometryActivation(
+                geometryActivation.finish(),
+                // Cold edits deliberately use TS. The warm cadence comparison has
+                // the separate 95% native coverage requirement.
+                {
+                  mode: inputGeometry,
+                  requireEditors: inputGeometry === 'retained',
+                  minimumCoverage: 0,
+                },
+              );
+        if (nativeModules === 'all')
+          assert(
+            Object.values(inputGeometryActivation.modules).every((value) => value === 'observed'),
+            'The full Gallery/Mixed input regression must exercise every requested native module',
+          );
+        assert.equal(
+          allocationFailure,
+          undefined,
+          'Native allocations/uploads must succeed throughout the owner',
+        );
+        console.log('MIXED_OWNER_PASS', {
+          trial,
+          buttonRange,
+          pid: child.pid,
+          close,
+          inputGeometryActivation,
+        });
       } finally {
         await child.stop();
         process.stdout.write(

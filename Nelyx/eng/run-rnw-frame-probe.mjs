@@ -40,6 +40,7 @@ export async function withRnwFrameFixture(
       'native-frame-metrics.js',
       'rnw-work-probe.js',
       'rnw-scene-api.js',
+      'rnw-retained-geometry-api.js',
     ])
       fs.copyFileSync(path.join(import.meta.dirname, 'tests', name), path.join(directory, name));
     fs.writeFileSync(appFile, patched);
@@ -73,12 +74,15 @@ export async function runRnwFrameProbe(
     onResult,
     trials = 1,
     reuseManifestSha256,
+    nativeInputs,
   } = {},
 ) {
   if (!Number.isInteger(trials) || trials < 1 || trials > 3)
     throw Error('RNW diagnostic requires one to three fresh owners');
   if (reuseManifestSha256 !== undefined && !/^[a-f0-9]{64}$/.test(reuseManifestSha256))
     throw Error('Reusing a diagnostic requires its exact current manifest SHA-256');
+  if (reuseManifestSha256 && nativeInputs)
+    throw Error('A reused package cannot also select different native build inputs');
   root = fs.realpathSync(root);
   const app = path.join(root, 'sample/nelyx-testbed-app-2'),
     runner = path.join(app, 'windows/runner'),
@@ -277,6 +281,7 @@ export async function runRnwFrameProbe(
           'optimized',
           '--configuration',
           'Release',
+          ...(nativeInputs ? ['--native-inputs', path.resolve(nativeInputs)] : []),
         ]);
       const locator = JSON.parse(
           fs.readFileSync(path.join(app, '.nelyx/windows/last-package.json'), 'utf8'),

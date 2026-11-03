@@ -141,6 +141,18 @@ export class RenderMouseRegion extends RenderProxyBox implements MouseTrackerAnn
   }
 }
 const defaultMouseRegionHandleEvent = RenderMouseRegion.prototype.handleEvent;
+/** @internal Enter/exit tracking is independent of an absent hover callback. */
+export function hasEmptyMouseHoverHandler(target: RenderObject): boolean {
+  if (
+    Object.getPrototypeOf(target) !== RenderMouseRegion.prototype ||
+    Object.hasOwn(target, 'handleEvent') ||
+    Object.getOwnPropertyDescriptor(RenderMouseRegion.prototype, 'handleEvent')?.value !==
+      defaultMouseRegionHandleEvent
+  )
+    return false;
+  const hover = Object.getOwnPropertyDescriptor(target, 'onHover');
+  return !!hover && 'value' in hover && hover.value == null;
+}
 /** @internal This handler only consumes hover; virtual replacements still dispatch. */
 export function hasDefaultMouseRegionHandler(target: RenderObject): boolean {
   return (

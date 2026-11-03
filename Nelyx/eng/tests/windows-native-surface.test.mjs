@@ -3,6 +3,93 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWindowsNativeSurfaceProps } from '../../sdk/dist/platforms/windows/native-surface.js';
 const timeout = 1_200_000;
+test(
+  'SDK surfaces explicitly negotiate lifecycle1 and reject stale capabilities before admission',
+  { timeout },
+  () => {
+    assert.equal(fixture().props.windowsSurfaceStatusMode, 'lifecycle');
+    for (const metadata of [
+      { surfaceStatusVersion: undefined },
+      { surfaceStatusVersion: 0 },
+      { surfaceStatusVersion: 2 },
+      { windowsSurfaceStatusMode: undefined },
+      { windowsSurfaceStatusMode: 'continuous' },
+    ]) {
+      const f = fixture();
+      f.send(metadata);
+      assert.equal(f.frames.length, 0);
+      assert.match(f.errors[0].message, /surface status lifecycle1/);
+    }
+  },
+);
+test(
+  'late frame receipts after unbind or native close cannot reopen first-content readiness',
+  { timeout },
+  () => {
+    let closing = false,
+      content = 0;
+    const props = createWindowsNativeSurfaceProps(
+      {
+        ready() {},
+        visibility() {},
+        failed(error) {
+          throw error;
+        },
+        firstContentReady() {
+          content++;
+        },
+      },
+      () => {},
+      () => closing,
+    );
+    const send = (changes) => props.onWindowsSurfaceStatus({ nativeEvent: status(changes) });
+    send({});
+    send({ phase: 'frame', frames: 1 });
+    assert.equal(content, 1);
+    send({ phase: 'unbound', bound: false });
+    send({ phase: 'frame', frames: 2 });
+    assert.equal(content, 1);
+    send({});
+    closing = true;
+    send({ phase: 'frame', frames: 3 });
+    assert.equal(content, 1);
+  },
+);
+test(
+  'explicit continuous SDK qualification still requires the matching native delivery capability',
+  { timeout },
+  () => {
+    let content = 0;
+    const errors = [];
+    const props = createWindowsNativeSurfaceProps(
+      {
+        ready() {},
+        visibility() {},
+        failed(error) {
+          errors.push(error);
+        },
+        firstContentReady() {
+          content++;
+        },
+      },
+      () => {},
+      () => false,
+      false,
+      'continuous',
+    );
+    assert.equal(props.windowsSurfaceStatusMode, 'continuous');
+    const send = (changes) =>
+      props.onWindowsSurfaceStatus({
+        nativeEvent: status({ windowsSurfaceStatusMode: 'continuous', ...changes }),
+      });
+    send({});
+    send({ phase: 'frame', frames: 1 });
+    send({ phase: 'frame', frames: 2 });
+    assert.equal(content, 2);
+    send({ windowsSurfaceStatusMode: 'lifecycle' });
+    assert.equal(errors.length, 1);
+  },
+);
 
 test(
   'full-window surfaces explicitly require native viewport ownership while embedded surfaces keep Fabric layout',
@@ -123,6 +210,8 @@ const status = (changes = {}) => ({
   pointerVersion: 1,
   keyboardVersion: 2,
   visibilityVersion: 1,
+  surfaceStatusVersion: 1,
+  windowsSurfaceStatusMode: 'lifecycle',
   ...changes,
 });
 function fixture() {
@@ -141,6 +230,7 @@ function fixture() {
     },
   );
   return {
+    props,
     frames,
     visibility,
     errors,

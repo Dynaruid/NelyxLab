@@ -88,6 +88,7 @@ export abstract class RenderShiftedBox extends RenderBox {
     );
   }
 }
+RenderBox._registerInputGeometryHooks(RenderShiftedBox.prototype, undefined, false);
 
 export interface RenderAligningShiftedBoxOptions {
   readonly alignment?: AlignmentGeometry;

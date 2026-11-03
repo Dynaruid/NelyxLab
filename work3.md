@@ -10,6 +10,8 @@
 
 §1~§8은 1차 입력 geometry C++/JSI 구현의 계약·실행·철회 기록이다. 대표 화면이 TS fallback이어서 C++ kernel의 실제 성능을 비교하지 못한 결과를 보존한다. 입력 geometry 기본 주입은 계속 꺼 두고, 새 후보는 캡처된 숫자·명령을 넘기는 경계부터 구현했다. D0~D6 결과는 §10, 후속 최종 결과는 §12에 보존한다.
 
+**2026-11-03 실행 증거 재감사:** 초기 입력 geometry의 `available=true / executed=true`는 직접 API smoke 성공이며 대표 화면 C++ 적용 증거가 아니다. §8.1의 일반 비교는 실제 TS fallback이다. Path/paint/Scene/Semantics의 §12.1 source 진단은 당시 tool result 원문과 실제 JSI→C++ 경계를 대조했으나, `work`는 TS 측 stage 항목 집계이고 독립 C++ 내부 counter와 다르다. 특히 Path/clip/paint 집계는 native submit 전에 기록한다. 성공한 source 진단의 C++ 실행 근거를 다른 package의 각 일반 FPS 실행까지 확대하지 않는다. 과거 모든 FPS 표본에 새 기준의 실행 증거가 있다고 보증하지 않으며, 기존 평균·증감률은 C++ 자체 성능의 확정값으로 재사용하지 않는다. 상세 재분류는 [work5.md §15](work5.md#15-이전-c-실험-실행-증거-재감사)에 기록한다. 기존 실패·미수락·기본 비활성 판정과 수치는 보존한다.
+
 ## 1. 출발점과 해결할 문제
 
 ### 1.1 현재 근거

@@ -160,13 +160,13 @@ export function inverse(matrix: TransformMatrix): TransformMatrix | null {
   return [d / det, -b / det, -c / det, a / det, (c * y - d * x) / det, (b * x - a * y) / det];
 }
 export function inversePaintTransform(matrix: TransformMatrix): TransformMatrix | null {
-  if (matrix.length !== 6) return inverseMatrix4(removePerspectiveMatrix4(matrix));
   // Only owned, validated immutable matrices may reuse their inverse. Caller
   // arrays (even frozen ones) keep the existing reread/copy behavior.
-  if (!capturedAffines.has(matrix)) return inverse(matrix);
-  if (paintInverses.has(matrix)) return paintInverses.get(matrix)!;
-  const result = inverse(matrix);
-  if (result !== null && !result.every(Number.isFinite)) return result;
+  const owned = matrix.length === 6 ? capturedAffines.has(matrix) : isCapturedMatrix4(matrix);
+  if (owned && paintInverses.has(matrix)) return paintInverses.get(matrix)!;
+  const result =
+    matrix.length === 6 ? inverse(matrix) : inverseMatrix4(removePerspectiveMatrix4(matrix));
+  if (!owned || (result !== null && !result.every(Number.isFinite))) return result;
   const captured = result === null ? null : captureTransform(result);
   paintInverses.set(matrix, captured);
   return captured;

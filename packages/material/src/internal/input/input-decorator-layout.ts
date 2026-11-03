@@ -572,3 +572,4 @@ export class RenderInputDecoration extends RenderBox {
     ).size.height;
   }
 }
+RenderBox._registerInputGeometryHooks(RenderInputDecoration.prototype, undefined, false);

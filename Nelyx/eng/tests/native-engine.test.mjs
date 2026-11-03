@@ -27,7 +27,7 @@ const metrics = {
   nativeContextGeneration: 7,
   nativeSurfaceGeneration: 1,
 };
-function fixture() {
+function fixture(numericOptions = {}) {
   const events = [],
     notifications = [],
     callbacks = new Map();
@@ -70,6 +70,7 @@ function fixture() {
   };
   const api = { Color: (value) => value },
     engine = createNativeEngineServices({
+      ...numericOptions,
       api,
       context,
       owner,
@@ -150,6 +151,35 @@ function fixture() {
   };
 }
 
+test(
+  'explicit C++ options refuse startup when their capability or execution reporter is absent',
+  { timeout },
+  async () => {
+    for (const numericOptions of [
+      { inputGeometry: true },
+      { inputGeometry: 'retained' },
+      { sceneComposition: true },
+      { semanticsGeometry: true },
+    ]) {
+      const f = fixture(numericOptions),
+        registry = new ResourceRegistry();
+      try {
+        assert.throws(
+          () => f.services.renderer.create(registry),
+          /Requested C\+\+ capability is unavailable/,
+        );
+      } finally {
+        await f.engine.dispose();
+        registry.dispose();
+      }
+      assert.deepEqual(
+        f.events,
+        ['close', 'reset', 'context'],
+        'Failed startup still retires its unused native context',
+      );
+    }
+  },
+);
 test(
   'actual native Engine picture ports require the shared packet, reuse its producer and wait for the admitted lease',
   { timeout },

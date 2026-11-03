@@ -30,6 +30,7 @@ const SkiaView = register('SkiaView', () =>
       highBitDepth: true,
       mouseCursor: true,
       windowViewport: true,
+      windowsSurfaceStatusMode: true,
       onWindowsSurfaceStatus: true,
       onWindowsWheel: true,
       onWindowsPointer: true,

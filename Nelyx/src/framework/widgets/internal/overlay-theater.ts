@@ -101,6 +101,7 @@ class RenderTheater extends RenderStack {
   }
 }
 RenderStack._registerGeometryLayoutSemantics(RenderTheater.prototype);
+RenderStack._registerInputGeometryHooks(RenderTheater.prototype, undefined, false);
 export class OverlayTheater extends RenderObjectWidget {
   constructor(
     readonly children: readonly Widget[],

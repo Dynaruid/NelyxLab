@@ -8,8 +8,10 @@ export function createWindowsNativeSurfaceProps(
   verifyHost: () => unknown,
   isClosing: () => boolean = () => false,
   windowViewport = false,
+  windowsSurfaceStatusMode: 'continuous' | 'lifecycle' = 'lifecycle',
 ) {
   let failed = false,
+    active = false,
     viewGeneration = 0,
     surfaceGeneration = 0,
     reactTag = 0,
@@ -21,6 +23,7 @@ export function createWindowsNativeSurfaceProps(
   };
   return {
     windowViewport,
+    windowsSurfaceStatusMode,
     onWindowsSurfaceStatus(event: NativeSyntheticEvent<WindowsSurfaceStatus>) {
       if (failed) return;
       const status = event.nativeEvent;
@@ -32,6 +35,10 @@ export function createWindowsNativeSurfaceProps(
       // never republishes metrics or requests another frame through visibility.
       if (status.phase === 'frame') {
         if (
+          active &&
+          !isClosing() &&
+          status.surfaceStatusVersion === 1 &&
+          status.windowsSurfaceStatusMode === windowsSurfaceStatusMode &&
           status.nativeId === nativeId &&
           status.reactTag === reactTag &&
           status.viewGeneration === viewGeneration &&
@@ -42,6 +49,15 @@ export function createWindowsNativeSurfaceProps(
         return;
       }
       if (!['layout', 'bound', 'unbound', 'closed', 'visibility'].includes(status.phase)) return;
+      if (
+        status.surfaceStatusVersion !== 1 ||
+        status.windowsSurfaceStatusMode !== windowsSurfaceStatusMode
+      ) {
+        reject(
+          'Windows native surface status lifecycle1 is required; resupply and rebuild the matching host',
+        );
+        return;
+      }
       if (status.framePipelineVersion !== 2) {
         reject(
           'Windows native frame pipeline2 is required; resupply and rebuild the matching host',
@@ -125,6 +141,7 @@ export function createWindowsNativeSurfaceProps(
       surfaceGeneration = status.surfaceGeneration;
       reactTag = status.reactTag;
       nativeId = status.nativeId;
+      active = status.bound && status.phase !== 'closed';
       const sized = status.bound && status.width > 0 && status.height > 0;
       binding.visibility(status.visible && sized, status.preparing === true && sized);
       if (status.phase === 'visibility') return;

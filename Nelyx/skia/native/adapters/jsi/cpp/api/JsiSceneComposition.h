@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "nelyx_skia/scene_composition.h"
+#include "JsiNativeServiceAudit.h"
 #include <cstring>
 #include <jsi/jsi.h>
 #include <memory>
@@ -12,6 +13,7 @@ class JsiSceneComposition final
   using Runtime = facebook::jsi::Runtime;
   using Value = facebook::jsi::Value;
   nelyx::scene_composition::Session session_;
+  NativeServiceAudit::Session audit_{1};
   const std::thread::id thread_ = std::this_thread::get_id();
   bool executing_ = false;
 
@@ -35,6 +37,7 @@ public:
                                "Scene composition requires its owner thread");
           if (name == "close") {
             self->session_.close();
+            self->audit_.close(self->session_.retainedBytes());
             return Value::undefined();
           }
           // A JS result constructor/getter can reenter this HostObject while
@@ -50,9 +53,10 @@ public:
           if (name == "commit" || name == "discard") {
             if (count != 1 || !arguments[0].isNumber())
               throw jsi::JSError(rt, "Scene composition requires a revision");
-            if (name == "commit")
+            if (name == "commit") {
               self->session_.commit(arguments[0].getNumber());
-            else
+              NativeServiceAudit::record({{3,1}});
+            } else
               self->session_.discard(arguments[0].getNumber());
             return Value::undefined();
           }
@@ -87,6 +91,7 @@ public:
               throw jsi::JSError(rt, "Scene composition allocation changed its "
                                      "owner/revision/buffer");
             std::memcpy(buffer.data(rt), output.data(), output.size() * 8);
+            if(name=="prepare") NativeServiceAudit::record({{2,1},{4,(output.size()-16)/3}});
             return buffer;
           } catch (...) {
             if (name == "prepare" && self->session_.current(revision))

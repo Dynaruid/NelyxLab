@@ -232,7 +232,8 @@ std::shared_ptr<const Win32Frame> renderWin32Frame(std::shared_ptr<Device> owner
       skgpu::graphite::InsertRecordingInfo insert;insert.fRecording=data->recordings[index].get();insert.fTargetSurface=data->surface.get();
       if(index+1==data->recordings.size())insert.fTargetTextureState=&finalState;
       const auto status=context->insertRecording(insert);
-      if(!status)throw std::runtime_error("Windows Graphite replay rejected status="+std::to_string(static_cast<int>(static_cast<skgpu::graphite::InsertStatus::V>(status)))+": "+status.message()+allocator->replayFailure());
+      if(!status)throw std::runtime_error("Windows Graphite replay rejected status="+std::to_string(static_cast<int>(static_cast<skgpu::graphite::InsertStatus::V>(status)))+": "+status.message()+allocator->replayFailure()+
+        " budgeted="+std::to_string(context->currentBudgetedBytes())+" purgeable="+std::to_string(context->currentPurgeableBytes())+" recording="+std::to_string(index)+"/"+std::to_string(data->recordings.size())+" target="+std::to_string(data->width)+"x"+std::to_string(data->height));
     }
     if(!context->submit())throw std::runtime_error("Windows Graphite submit unconfirmed");
     // Graphite uses this same queue. The final release fence includes all prior

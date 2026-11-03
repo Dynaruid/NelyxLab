@@ -68,6 +68,8 @@ import { CupertinoGallery, CupertinoGalleryValues } from './cupertino-gallery.ts
 import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
 import { ListViewPage } from './list-view.ts';
 import { MixedScrollPage } from './mixed-scroll.ts';
+import { nativeModuleLabel } from './native-module-mode.ts';
+import type { NativeModuleMode } from './native-module-mode.ts';
 
 const available = demos.filter((demo) => demo.status !== 'planned').length;
 const seeds = [0xff6750a4, 0xff006c4c, 0xff0061a4, 0xff9c4230] as const;
@@ -89,7 +91,10 @@ const column = (...children: Widget[]): Widget =>
 const inset = (value: number, child: Widget): Widget => new Padding(EdgeInsets.all(value), child);
 
 export class ComponentsGallery extends StatefulWidget {
-  constructor(readonly initialText = '안녕하세요, Nelyx!') {
+  constructor(
+    readonly initialText = '안녕하세요, Nelyx!',
+    readonly nativeModuleMode?: NativeModuleMode,
+  ) {
     super();
   }
   createState(): State<ComponentsGallery> {
@@ -239,7 +244,7 @@ class GalleryState extends State<ComponentsGallery> {
           () =>
             new MixedScrollPage(() => {
               void this.navigator.pop();
-            }),
+            }, this.widget.nativeModuleMode),
           '/mixed-scroll',
         ),
       )
@@ -367,9 +372,10 @@ class GalleryState extends State<ComponentsGallery> {
       { crossAlign: 'stretch' },
     );
     const title =
-      this.category === 'all'
+      (this.category === 'all'
         ? 'Components'
-        : categories.find((group) => group.id === this.category)!.title;
+        : categories.find((group) => group.id === this.category)!.title) +
+      nativeModuleLabel(this.widget.nativeModuleMode);
     const themeButton = () =>
       new TextFieldTapRegion(
         new IconButton({

@@ -4,6 +4,7 @@
 #include "JsiSkPicture.h"
 #include "JsiSkImageFilter.h"
 #include "nelyx_skia/scene_build.h"
+#include "JsiNativeServiceAudit.h"
 #include <array>
 #include <cstring>
 #include <limits>
@@ -22,6 +23,7 @@ inline void replayDisplayList(jsi::Runtime& runtime,SkCanvas* canvas,const jsi::
   std::vector<double> data(size/8);std::memcpy(data.data(),buffer.data(runtime),size);
   if(data[0]!=0x4e4c444c||(data[1]!=1&&data[1]!=2)||data[2]<0||data[2]>65536||data[2]!=std::floor(data[2])||data[3]!=handleCount)reject();
   const bool batch=data[1]==2;
+  std::uint64_t numericClips=0;
   nelyx::scene_packet::Tables numeric;
   std::vector<SkPath> paths;std::vector<std::shared_ptr<SkPaint>> paints;
   if(batch){
@@ -59,6 +61,7 @@ inline void replayDisplayList(jsi::Runtime& runtime,SkCanvas* canvas,const jsi::
     for(size_t i=0;i<arity[op];++i)if(!std::isfinite(p[i])||std::abs(p[i])>std::numeric_limits<float>::max())reject();
     if(op==0||op==20){if(++depth>4096)reject();}else if(op==1&&--depth<0)reject();
     if(op==8||op==9||op==11){if((p[1]!=0&&p[1]!=1)||(p[2]!=0&&p[2]!=1))reject();}
+    if(batch&&(op==23||op==24))++numericClips;
     switch(op){
       case 0:commands.emplace_back([canvas]{canvas->save();});break;
       case 1:commands.emplace_back([canvas]{canvas->restore();});break;
@@ -99,5 +102,6 @@ inline void replayDisplayList(jsi::Runtime& runtime,SkCanvas* canvas,const jsi::
   if(at!=data.size()||depth!=0)reject();
   if(ready)ready();
   for(auto& command:commands)command();
+  if(batch) NativeServiceAudit::record({{7,1},{8,paths.size()},{9,paints.size()},{10,numericClips}});
 }
 }
