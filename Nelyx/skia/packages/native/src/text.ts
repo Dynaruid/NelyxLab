@@ -3,6 +3,10 @@ import type { SkImage, SkPaint } from './skia/types/Drawing.ts';
 import type { SkHostRect } from './skia/types/Rect.ts';
 import type { Skia } from './skia/types/Skia.ts';
 import type { SkParagraph } from './skia/types/Paragraph/Paragraph.ts';
+import type {
+  ParagraphTransactionOperation,
+  ParagraphTransactionResult,
+} from './skia/types/Paragraph/ParagraphBuilder.ts';
 import { TextDirection } from './skia/types/Paragraph/ParagraphStyle.ts';
 import type { SkTypeface } from './skia/types/Typeface/Typeface.ts';
 import type { SkTypefaceFontProvider } from './skia/types/Paragraph/TypefaceFontProvider.ts';
@@ -95,6 +99,34 @@ export class NativeTextLayoutService implements TextLayoutService {
   private readonly providers: ParagraphFontProviders<NativeFont, SkTypefaceFontProvider>;
   private failed = false;
   private readonly uncertain: unknown[] = [];
+  private nativeTransactions = false;
+  private transactionWork = { textTransactions: 0, textOperations: 0, textBytes: 0, cacheHits: 0 };
+  setNativeParagraphTransactions(enabled: boolean): void {
+    invariant(!this.failed, 'text-retirement-failed', 'Paragraph native retirement failed');
+    if (enabled) {
+      invariant(
+        this.api.ParagraphBuilder.nelyxTextTransactionVersion?.() === 1 &&
+          typeof this.api.ParagraphBuilder.nelyxBuildAndLayout === 'function',
+        'native-text-transaction-capability',
+        'Requested native text transaction capability missing; rebuild the native supplier',
+      );
+      invariant(
+        !this.nativeTransactions,
+        'native-text-transaction-owner',
+        'Text transactions already enabled',
+      );
+      this.transactionWork = { textTransactions: 0, textOperations: 0, textBytes: 0, cacheHits: 0 };
+    }
+    this.nativeTransactions = enabled;
+  }
+  nativeParagraphTransactionExecution() {
+    return Object.freeze({
+      ...this.transactionWork,
+      enabled: this.nativeTransactions,
+      tsFallbacks: 0,
+      fallbackReasons: {},
+    });
+  }
   get debugStats() {
     const entries = [...this.entries.values()],
       producers = entries.reduce(
@@ -163,7 +195,10 @@ export class NativeTextLayoutService implements TextLayoutService {
       cached = this.layoutCache.reuse(cacheKey, (retained) =>
         this.textBudget.admit(snapshot, request, retained, this.layoutCache),
       );
-    if (cached) return cached;
+    if (cached) {
+      if (this.nativeTransactions) this.transactionWork.cacheHits++;
+      return cached;
+    }
     const primaryFamily = catalog.fonts.find((value) => value.source === font)?.family;
     invariant(
       primaryFamily !== undefined,
@@ -209,12 +244,19 @@ export class NativeTextLayoutService implements TextLayoutService {
     };
     let builder: ReturnType<Skia['ParagraphBuilder']['Make']> | undefined;
     let paragraph: NativeParagraph | undefined;
+    let transaction: ParagraphTransactionResult | undefined;
     try {
       paintResources = new TextPaintResources(this.registry, snapshot);
-      builder = this.api.ParagraphBuilder.Make(
-        nativeParagraphStyle(this.api, snapshot, primaryFamily, fonts.families),
-        fonts.provider,
-      );
+      const paragraphStyle = nativeParagraphStyle(
+          this.api,
+          snapshot,
+          primaryFamily,
+          fonts.families,
+        ),
+        operations: ParagraphTransactionOperation[] | undefined = this.nativeTransactions
+          ? []
+          : undefined;
+      if (!operations) builder = this.api.ParagraphBuilder.Make(paragraphStyle, fonts.provider);
       const paint = (value: PaintSnapshot): SkPaint => {
         const result = own(this.api.Paint());
         configurePaint(this.api, result, value);
@@ -222,19 +264,30 @@ export class NativeTextLayoutService implements TextLayoutService {
         return result;
       };
       const push = (style: TextRunStyle) => {
-        const native = nativeTextStyle(this.api, snapshot, style, primaryFamily, fonts.families);
-        builder!.pushStyle(
-          native,
-          style.foreground ? paint(style.foreground) : undefined,
-          style.background ? paint(style.background) : undefined,
-        );
+        const native = nativeTextStyle(this.api, snapshot, style, primaryFamily, fonts.families),
+          foreground = style.foreground ? paint(style.foreground) : undefined,
+          background = style.background ? paint(style.background) : undefined;
+        if (operations)
+          operations.push({
+            kind: 0,
+            style: native,
+            ...(foreground ? { foreground } : {}),
+            ...(background ? { background } : {}),
+          });
+        else builder!.pushStyle(native, foreground, background);
       };
       buildStyledText(snapshot, {
         push,
-        pop: () => builder!.pop(),
-        addText: (text) => builder!.addText(text),
-        addPlaceholder: (p) =>
-          builder!.addPlaceholder(
+        pop: () => {
+          if (operations) operations.push({ kind: 1 });
+          else builder!.pop();
+        },
+        addText: (text) => {
+          if (operations) operations.push({ kind: 2, text });
+          else builder!.addText(text);
+        },
+        addPlaceholder: (p) => {
+          const values: [number, number, number, number, number] = [
             p.width,
             p.height,
             ['baseline', 'aboveBaseline', 'belowBaseline', 'top', 'bottom', 'middle'].indexOf(
@@ -242,24 +295,66 @@ export class NativeTextLayoutService implements TextLayoutService {
             ),
             p.baseline === 'ideographic' ? 1 : 0,
             p.baselineOffset,
-          ),
+          ];
+          if (operations) operations.push({ kind: 3, placeholder: values });
+          else builder!.addPlaceholder(...values);
+        },
       });
-      paragraph = builder.build() as NativeParagraph;
-      builder.dispose();
-      builder = undefined;
+      if (operations) {
+        transaction = this.api.ParagraphBuilder.nelyxBuildAndLayout!(
+          paragraphStyle,
+          fonts.provider,
+          operations,
+          snapshot.width,
+        );
+        paragraph = transaction.paragraph as NativeParagraph;
+        invariant(
+          transaction.operations === operations.length &&
+            Number.isSafeInteger(transaction.textBytes) &&
+            transaction.textBytes >= 0 &&
+            transaction.textBytes <= 16384 &&
+            transaction.metrics.length === 9 &&
+            transaction.lines.length <= textLimits.lines &&
+            transaction.boxes.length % 5 === 0 &&
+            transaction.boxes.length <= textLimits.placeholders * 5,
+          'native-text-transaction-result',
+          'Malformed native text transaction result',
+        );
+        this.transactionWork.textTransactions++;
+        this.transactionWork.textOperations += transaction.operations;
+        this.transactionWork.textBytes += transaction.textBytes;
+      } else {
+        paragraph = builder!.build() as NativeParagraph;
+        builder!.dispose();
+        builder = undefined;
+      }
       releaseTemporary();
       invariant(
         typeof paragraph.nelyxTextMetrics === 'function',
         'native-patch',
         'Nelyx paragraph geometry patch is required',
       );
-      paragraph.layout(snapshot.width);
-      const native = paragraph.nelyxTextMetrics(),
-        lines = paragraph.getLineMetrics();
+      if (!transaction) paragraph.layout(snapshot.width);
+      const native = transaction?.metrics ?? paragraph.nelyxTextMetrics(),
+        lines = transaction?.lines ?? paragraph.getLineMetrics();
       const resource = this.registry.allocateId(
           `${this.owner.id}:${this.owner.generation}:paragraph`,
         ),
-        boxes = paragraph.getRectsForPlaceholders();
+        boxes = transaction
+          ? Array.from({ length: transaction.boxes.length / 5 }, (_, index) => {
+              const values = transaction!.boxes,
+                offset = index * 5;
+              return {
+                rect: {
+                  x: values[offset]!,
+                  y: values[offset + 1]!,
+                  width: values[offset + 2]!,
+                  height: values[offset + 3]!,
+                },
+                direction: values[offset + 4]!,
+              };
+            })
+          : paragraph.getRectsForPlaceholders();
       let placeholderBoxes: ReturnType<typeof freezeTextRect>[],
         placeholderDirections: ('ltr' | 'rtl')[];
       try {
@@ -268,11 +363,11 @@ export class NativeTextLayoutService implements TextLayoutService {
           box.direction === TextDirection.RTL ? 'rtl' : 'ltr',
         );
       } finally {
-        boxes.forEach((box) => (box.rect as SkHostRect).dispose());
+        if (!transaction) boxes.forEach((box) => (box.rect as SkHostRect).dispose());
       }
       const layout = freezeTextLayout(resource, snapshot, {
-        width: paragraph.getMaxWidth(),
-        height: paragraph.getHeight(),
+        width: transaction ? native[7]! : paragraph.getMaxWidth(),
+        height: transaction ? native[8]! : paragraph.getHeight(),
         alphabeticBaseline: native[0]!,
         ideographicBaseline: native[1]!,
         minIntrinsicWidth: native[2]!,

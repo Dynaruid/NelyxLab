@@ -18,6 +18,9 @@
     "Nelyx/sdk/tooling/static-aot"
   ],
   "scripts": {
+    "test:native-engine-candidates": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-flex-layout.test.mjs Nelyx/eng/tests/native-engine-experiment.test.mjs",
+    "test:gallery-full-range": "node --test --test-timeout=1200000 Nelyx/eng/tests/gallery-range.test.mjs Nelyx/eng/tests/backing-experiment.test.mjs",
+    "measure:windows-full-range": "node Nelyx/eng/run-rnw-cadence.mjs --full-range --scene=gallery",
     "test:native-service-audit": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-service-experiment.test.mjs Nelyx/eng/tests/native-service-activation.test.mjs",
     "experiment:native-services": "node Nelyx/eng/run-native-service-experiments.mjs",
     "run:windows:cpp": "node Nelyx/eng/run-native-modules.mjs",

@@ -45,6 +45,7 @@ import { BoxDecoration } from '../painting/box-decoration.ts';
 import { BorderRadius } from '../painting/border-radius.ts';
 import { ImageConfiguration } from '../painting/image-configuration.ts';
 import { valueEquals } from '../painting/value-equality.ts';
+import { flexLayoutProtocol } from '../../hosting/flex-layout.ts';
 export class RenderProxyBox extends RenderBox {
   protected override get childCountLimit(): number {
     return 1;
@@ -922,12 +923,14 @@ interface FlexChildMeasure {
   baseline: number | null;
   x: number;
   y: number;
+  nativeGroup?: number;
 }
 interface FlexMeasure {
   size: Size;
   used: number;
   baseline: number | null;
   children: FlexChildMeasure[];
+  nativePositions?: readonly number[];
 }
 const dryFlexChild: ChildLayouter = (child, constraints) => child.getDryLayout(constraints);
 const wetFlexChild: ChildLayouter = (child, constraints) => {
@@ -1206,6 +1209,64 @@ export class RenderFlex extends RenderBox {
     checkDirections = true,
   ): FlexMeasure {
     const snapshot = this.children;
+    let native =
+      layout === wetFlexChild && baseline === wetFlexBaseline
+        ? RenderObject._flexLayoutFor(this)
+        : undefined;
+    if (native) {
+      const customFields = [
+        'axis',
+        'gap',
+        'legacyItems',
+        'mainSizing',
+        'crossAlignment',
+        'mainAlignment',
+        'textFlow',
+        'verticalFlow',
+        'baselineType',
+      ].some((name) => {
+        const descriptor = Object.getOwnPropertyDescriptor(this, name);
+        return !descriptor || !('value' in descriptor);
+      });
+      const reason = customFields
+        ? 'custom-flex-state'
+        : this.crossAlignment === 'baseline'
+          ? 'baseline'
+          : snapshot.length > flexLayoutProtocol.maxChildren
+            ? 'child-budget'
+            : Object.getPrototypeOf(this) !== RenderFlex.prototype ||
+                nativeFlexHooks.some(
+                  ([name, method]) =>
+                    Object.getOwnPropertyDescriptor(this, name) !== undefined ||
+                    Object.getOwnPropertyDescriptor(RenderFlex.prototype, name)?.value !== method,
+                )
+              ? 'custom-flex-hook'
+              : snapshot.some((child, index) => {
+                    let prototype: object | null = child;
+                    let size: PropertyDescriptor | undefined;
+                    while (prototype && !size) {
+                      size = Object.getOwnPropertyDescriptor(prototype, 'size');
+                      prototype = Object.getPrototypeOf(prototype);
+                    }
+                    if (size?.get !== nativeFlexSizeGetter) return true;
+                    const parentData = Object.getOwnPropertyDescriptor(child, 'parentData');
+                    if (parentData && !('value' in parentData)) return true;
+                    const value = this.legacyItems[index] ?? parentData?.value;
+                    return (
+                      !value ||
+                      !['flex', 'fit'].every((name) => {
+                        const descriptor = Object.getOwnPropertyDescriptor(value, name);
+                        return descriptor !== undefined && 'value' in descriptor;
+                      })
+                    );
+                  })
+                ? 'custom-flex-parent-data'
+                : undefined;
+      if (reason) {
+        native.noteFallback(reason);
+        native = undefined;
+      }
+    }
     if (checkDirections)
       invariant(
         this.textFlow !== null ||
@@ -1257,8 +1318,10 @@ export class RenderFlex extends RenderBox {
       value.size = size;
       value.constraints = inner;
       value.baseline = base;
-      used += this.main(size);
-      cross = Math.max(cross, this.cross(size));
+      if (!native) {
+        used += this.main(size);
+        cross = Math.max(cross, this.cross(size));
+      }
       if (base !== null) {
         ascent = Math.max(ascent ?? base, base);
         const childDescent = this.cross(size) - base;
@@ -1275,16 +1338,80 @@ export class RenderFlex extends RenderBox {
         'unbounded-flex',
         'Unbounded flex requires mainAxisSize min and loose fits',
       );
-      if (canFlex && item.flex) totalFlex += item.flex;
-      else measureChild(value, childConstraints(0, Infinity));
+      if (canFlex && item.flex) {
+        totalFlex += item.flex;
+        if (native) value.nativeGroup = 2;
+      } else {
+        if (native) value.nativeGroup = 1;
+        measureChild(value, childConstraints(0, Infinity));
+      }
     }
-    const spacePerFlex = totalFlex ? Math.max(0, maxMain - used) / totalFlex : 0;
+    const nativePacket = native
+      ? (phase: 0 | 1) => {
+          const packet = new Float64Array(flexLayoutProtocol.header + children.length * 3);
+          packet.set([
+            flexLayoutProtocol.magic,
+            flexLayoutProtocol.version,
+            phase,
+            children.length,
+            this.axis === 'horizontal' ? 1 : 0,
+            this.mainSizing === 'max' ? 1 : 0,
+            ['start', 'end', 'center', 'stretch'].indexOf(this.crossAlignment),
+            ['start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly'].indexOf(
+              this.mainAlignment,
+            ),
+            (this.axis === 'horizontal' ? this.textFlow === 'rtl' : this.verticalFlow === 'up')
+              ? 1
+              : 0,
+            (this.axis === 'horizontal' ? this.verticalFlow === 'up' : this.textFlow === 'rtl')
+              ? 1
+              : 0,
+            this.gap,
+            constraints.minWidth,
+            constraints.maxWidth,
+            constraints.minHeight,
+            constraints.maxHeight,
+            totalFlex,
+          ]);
+          children.forEach((value, index) =>
+            packet.set(
+              [
+                value.size?.width ?? 0,
+                value.size?.height ?? 0,
+                value.size ? value.nativeGroup! : 0,
+              ],
+              flexLayoutProtocol.header + index * 3,
+            ),
+          );
+          return packet;
+        }
+      : undefined;
+    const spacePerFlex = native
+      ? native.run(nativePacket!(0))[0]!
+      : totalFlex
+        ? Math.max(0, maxMain - used) / totalFlex
+        : 0;
     for (const value of children) {
       const item = value.item;
       if (canFlex && item.flex) {
         const max = spacePerFlex * item.flex;
         measureChild(value, childConstraints(item.fit === 'tight' ? max : 0, max));
       }
+    }
+    if (native) {
+      const result = native.run(nativePacket!(1));
+      invariant(
+        result[4] === children.length && (result[3] === 0 || result[3] === 1),
+        'native-flex-result',
+        'Invalid native Flex placement',
+      );
+      return {
+        size: { width: result[0]!, height: result[1]! },
+        used: result[2]!,
+        baseline: null,
+        children,
+        nativePositions: result,
+      };
     }
     if (ascent !== null) cross = Math.max(cross, ascent + descent!);
     return {
@@ -1315,6 +1442,13 @@ export class RenderFlex extends RenderBox {
     }
   }
   private positionChildren(measured: FlexMeasure): boolean {
+    if (measured.nativePositions) {
+      measured.children.forEach((value, index) => {
+        value.x = measured.nativePositions![5 + index * 2]!;
+        value.y = measured.nativePositions![6 + index * 2]!;
+      });
+      return measured.nativePositions[3] === 1;
+    }
     const horizontal = this.axis === 'horizontal',
       flipMain = horizontal ? this.textFlow === 'rtl' : this.verticalFlow === 'up',
       flipCross = horizontal ? this.verticalFlow === 'up' : this.textFlow === 'rtl',
@@ -1463,6 +1597,19 @@ export class RenderFlex extends RenderBox {
     } else super.paint(context);
   }
 }
+const nativeFlexHooks = [
+  'measure',
+  'positionChildren',
+  'distribution',
+  'main',
+  'cross',
+  'axisSize',
+  'item',
+  'performLayout',
+].map(
+  (name) => [name, Object.getOwnPropertyDescriptor(RenderFlex.prototype, name)!.value] as const,
+);
+const nativeFlexSizeGetter = Object.getOwnPropertyDescriptor(RenderBox.prototype, 'size')!.get;
 export class RelativeRect {
   constructor(
     readonly left: number,

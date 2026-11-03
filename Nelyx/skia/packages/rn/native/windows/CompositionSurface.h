@@ -30,7 +30,9 @@ public:
     std::optional<bool> resolution;
     nelyx::vulkan::Win32ProducerTiming timing;
     bool observeTiming=false;
-    void render(){frame=renderer({texture.get(),fence.get(),consumer,observeTiming?&timing:nullptr},{},recordings);recordings.clear();renderer={};}
+    std::shared_ptr<nelyx::vulkan::Win32BackingSlot> backing;
+    nelyx::vulkan::Win32BackingResult backingResult;
+    void render(){frame=renderer({texture.get(),fence.get(),consumer,observeTiming?&timing:nullptr,backing,&backingResult},{},recordings);recordings.clear();renderer={};}
     void retire(){
       HANDLE event=CreateEventW(nullptr,FALSE,FALSE,nullptr);
       if(!event)throw std::runtime_error("Windows copy completion event unavailable");
@@ -61,6 +63,8 @@ private:
     winrt::com_ptr<IDCompositionVisual> nativeVisual;bool nativeAttached=false;
     winrt::com_ptr<ID3D11Texture2D> texture,target;
     winrt::com_ptr<ID3D11Fence> fence;
+    std::shared_ptr<nelyx::vulkan::Win32BackingSlot> backing;
+    uint64_t backingGeneration=0;
     std::shared_ptr<const nelyx::vulkan::Win32Frame> frame;
     Admitter admit;
     std::function<bool()> ready;
@@ -70,7 +74,7 @@ private:
     bool failed=false,registered=false;
     ~Payload(){
       if(nativeAttached){const auto removed=device->data->rootVisual->RemoveVisual(nativeVisual.get());if(FAILED(removed)||FAILED(device->data->rootDevice->Commit()))device->poisoned.store(true);}
-      frame.reset();admit={};ready={};target=nullptr;texture=nullptr;fence=nullptr;staged={};brush=nullptr;surface={};nativeVisual=nullptr;
+      frame.reset();admit={};ready={};target=nullptr;texture=nullptr;fence=nullptr;backing.reset();staged={};brush=nullptr;surface={};nativeVisual=nullptr;
       if(event)CloseHandle(event);
       if(registered){device->targetBytes-=targetBytes;--device->surfaces;}
     }
@@ -114,14 +118,16 @@ public:
   uint64_t committedFrames() const{return committed.load();}
   bool failed() const{return failure.load();}
   Renderer admit(uint32_t count){requireOwner();if(!data->ready())throw std::runtime_error("Composition surface admission is closed");return data->admit(count);}
-  std::shared_ptr<Prepared> prepare(uint32_t width,uint32_t height,Recordings recordings,Renderer admitted={}){
+  std::shared_ptr<Prepared> prepare(uint32_t width,uint32_t height,Recordings recordings,Renderer admitted={},uint64_t generation=0){
     requireOwner();if(busy||(!admitted&&!data->ready()))return {};
     if(!width||!height||width>4096||height>4096)throw std::runtime_error("Invalid native recording dimensions");
     if(!data->texture||textureWide!=width||textureHigh!=height){
       data->texture=nullptr;data->fence=nullptr;data->consumer=0;createTarget(width,height);
     }
+    if(!data->backing||data->backingGeneration!=generation){data->backing=std::make_shared<nelyx::vulkan::Win32BackingSlot>();data->backingGeneration=generation;}
     auto packet=std::make_shared<Prepared>();packet->texture=data->texture;packet->fence=data->fence;
     packet->renderer=admitted?std::move(admitted):data->admit(1);packet->recordings=std::move(recordings);packet->width=width;packet->height=height;packet->consumer=data->consumer;
+    packet->backing=data->backing;
     busy=true;return packet;
   }
   // UI owner only: no CPU fence wait, no Graphite replay, no JSI callbacks.
@@ -173,7 +179,7 @@ public:
     bool begun=false;
     try {
       if(!data->texture)createTarget(width,height);
-      data->frame=data->admit(1)({data->texture.get(),data->fence.get(),data->consumer},std::move(draw),recordings);
+      data->frame=data->admit(1)({data->texture.get(),data->fence.get(),data->consumer,nullptr,data->backing},std::move(draw),recordings);
       if(!data->frame || data->frame->width!=width || data->frame->height!=height || data->frame->producerFenceValue!=data->consumer+1)
         throw std::runtime_error("Composition native producer frame identity differs");
       surface=drawingSurface(width,height);
@@ -247,6 +253,7 @@ private:
     winrt::check_hresult(device.device->CreateTexture2D(&description,nullptr,texture.put()));
     winrt::check_hresult(device.device->CreateFence(0,D3D11_FENCE_FLAG_SHARED,__uuidof(ID3D11Fence),fence.put_void()));
     data->texture=std::move(texture);data->fence=std::move(fence);
+    data->backing=std::make_shared<nelyx::vulkan::Win32BackingSlot>();
     textureWide=width;textureHigh=height;
   }
   const std::thread::id owner;

@@ -3,12 +3,14 @@ import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
 import { widgetApplication } from '@nelyx/core/framework/widgets/root';
 import { ComponentsGallery } from './gallery.ts';
 import type { NativeModuleMode } from './native-module-mode.ts';
+import type { GalleryRangeObservation } from './gallery-range.ts';
 export interface ApplicationState {
   readonly initialText: string;
 }
 export interface ApplicationOptions {
   readonly accessibilityEnabled?: boolean;
   readonly nativeModuleMode?: NativeModuleMode;
+  readonly galleryRange?: GalleryRangeObservation;
 }
 export function createApplicationState(): ApplicationState {
   return { initialText: '안녕하세요, Nelyx!' };
@@ -22,6 +24,7 @@ export function defineApplication(
     defaultFont: 'sample-font',
     accessibilityEnabled: options.accessibilityEnabled ?? true,
     semanticsUpdateInterval: 300,
-    createRoot: () => new ComponentsGallery(state.initialText, options.nativeModuleMode),
+    createRoot: () =>
+      new ComponentsGallery(state.initialText, options.nativeModuleMode, options.galleryRange),
   });
 }

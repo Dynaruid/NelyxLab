@@ -14,6 +14,8 @@
 #include <dxgi1_2.h>
 #include <wrl/client.h>
 #include <unordered_set>
+#include <cstdlib>
+#include "win32_backing_audit.h"
 #else
 #include <dlfcn.h>
 #include <X11/Xlib.h>
@@ -449,6 +451,14 @@ bool Device::canImportWin32Texture() const {
   return false;
 #endif
 }
+bool Device::beginWin32BackingAudit(double owner){
+#ifdef _WIN32
+  if(!canImportWin32Texture()||impl->winFrames.outstanding())throw std::runtime_error("Backing audit requires an open, quiescent Windows native owner");
+  impl->winBackingAudit.begin(owner,impl->winReuse,impl->winAllocations.load(),impl->winBytes.load());return impl->winReuse;
+#else
+  throw std::runtime_error("Windows imported backing capability unavailable");
+#endif
+}
 bool Device::win32ImportPoisoned() const {
 #ifdef _WIN32
   return impl->winPoisoned.load();
@@ -519,6 +529,8 @@ void Device::drain(){
 #ifdef _WIN32
   if(impl->winPoisoned.load())throw std::runtime_error("Windows imported frame completion is unconfirmed; owner retained");
   if(!impl->winFrames.closeAndWait())throw std::runtime_error("Windows imported frame leases remain after bounded drain");
+  impl->clearWin32Backings();
+  impl->winBackingAudit.end(impl->winAllocations.load(),impl->winBytes.load());
 #endif
 #if defined(__linux__)
   // Native window/producer quiescence precedes this creator-owner call. Only

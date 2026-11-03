@@ -27,12 +27,21 @@ struct Win32DeviceOptions { std::array<uint8_t,8> adapterLuid{}; };
 struct Win32ProducerTiming {
   double importMs=0,submitMs=0,waitMs=0,finishMs=0,contextMs=0;
 };
+// One native presentation owner's generation. It retains only import backing,
+// never a recording, JS object, frame fence value, or active frame lease.
+class Win32BackingSlot final {
+  friend class Device;
+  std::shared_ptr<void> backing;
+};
+struct Win32BackingResult { unsigned operation=0,mode=0; };
 struct Win32TextureTarget {
   ID3D11Texture2D* texture=nullptr;
   ID3D11Fence* fence=nullptr;
   uint64_t waitValue=0;
   // Optional native-only output, borrowed for the synchronous render call.
   Win32ProducerTiming* timing=nullptr;
+  std::shared_ptr<Win32BackingSlot> backing;
+  Win32BackingResult* backingResult=nullptr;
 };
 class Win32Frame final {
  public:
@@ -103,6 +112,7 @@ class Device : public std::enable_shared_from_this<Device> {
     const std::vector<std::shared_ptr<skgpu::graphite::Recording>>& recordings={},bool deferCompletion=false);
   uint32_t outstandingWin32Frames() const;
   bool win32ImportPoisoned() const;
+  bool beginWin32BackingAudit(double owner);
   void retire();
   void drain();
  private:

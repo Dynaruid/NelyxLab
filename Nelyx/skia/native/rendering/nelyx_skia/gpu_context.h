@@ -37,6 +37,8 @@ public:
   virtual sk_sp<SkImage> importTexture(uint64_t) { unsupportedInterop(); return nullptr; }
   virtual sk_sp<SkSurface> importSurface(uint64_t) { unsupportedInterop(); return nullptr; }
   virtual uint64_t exportTexture(sk_sp<SkImage>) { return unsupportedInterop(); }
+  virtual unsigned win32BackingVersion() const { return 0; }
+  virtual bool beginWin32BackingAudit(double) { throw std::runtime_error("Windows imported backing capability unavailable"); }
   static sk_sp<SkColorSpace> viewColorSpace(bool p3) {
     return p3 ? SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, SkNamedGamut::kDisplayP3)
               : SkColorSpace::MakeSRGB();

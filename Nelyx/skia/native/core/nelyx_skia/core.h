@@ -31,6 +31,8 @@ void drawImageRect(SkCanvas& canvas, const sk_sp<SkImage>& image, const SkRect& 
 std::unique_ptr<skia::textlayout::Paragraph> buildParagraph(skia::textlayout::ParagraphBuilder& builder);
 void layoutParagraph(skia::textlayout::Paragraph& paragraph, float width);
 void paintParagraph(skia::textlayout::Paragraph& paragraph, SkCanvas& canvas, float x, float y);
+/** Immutable backend commands for a sealed frame; no paragraph/query owner is retained. */
+sk_sp<SkPicture> sealParagraph(skia::textlayout::Paragraph& paragraph, float x, float y);
 // Per-owner CPU program cache. Shaders/recordings retain independent Skia references.
 class RuntimeProgramCache {
  public:

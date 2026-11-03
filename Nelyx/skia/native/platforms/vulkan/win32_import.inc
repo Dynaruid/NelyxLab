@@ -8,6 +8,31 @@ std::atomic<uint64_t> winBytes{};
 uint32_t winReplayWidth=0,winReplayHeight=0;
 std::mutex winMutex;
 std::unordered_set<IUnknown*> winTextures,winFences;
+const bool winReuse=[](){const char* value=std::getenv("NELYX_WINDOWS_BACKING_REUSE");if(!value||!*value||std::strcmp(value,"0")==0)return false;if(std::strcmp(value,"1")==0)return true;throw std::runtime_error("Invalid NELYX_WINDOWS_BACKING_REUSE selection");}();
+Win32BackingAudit winBackingAudit;
+std::vector<std::weak_ptr<Win32BackingSlot>> winBackingSlots;
+struct ImportedBacking {
+  std::shared_ptr<Device> device;
+  Impl* state;
+  Microsoft::WRL::ComPtr<IUnknown> identity;
+  VkImage image{};VkDeviceMemory memory{};VkDeviceSize bytes{};
+  uint32_t width=0,height=0;
+  ImportedBacking(std::shared_ptr<Device> owner,Impl* state):device(std::move(owner)),state(state){}
+  ~ImportedBacking(){
+    if(image)state->api.get<PFN_vkDestroyImage>("vkDestroyImage")(state->api.device,image,nullptr);
+    if(memory){state->api.get<PFN_vkFreeMemory>("vkFreeMemory")(state->api.device,memory,nullptr);
+      state->winBytes-=bytes;--state->winAllocations;
+      state->winBackingAudit.record(3,state->winAllocations.load(),state->winBytes.load());}
+  }
+};
+void clearWin32Backings(){
+  std::lock_guard lock(winMutex);
+  for(const auto& weak:winBackingSlots)if(auto slot=weak.lock()){
+    if(slot->backing&&slot->backing.use_count()!=1)throw std::runtime_error("Imported backing still has a frame lease");
+    slot->backing.reset();
+  }
+  winBackingSlots.clear();
+}
 static constexpr VkImageUsageFlags winUsage=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT|
   VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 static void winHr(HRESULT result,const char* action) {
@@ -20,6 +45,9 @@ struct WinHandle {
 };
 struct WinFrameData {
   std::shared_ptr<Device> device;
+  std::shared_ptr<Win32BackingSlot> backingSlot;
+  std::shared_ptr<ImportedBacking> backing;
+  bool backingReused=false;
   Impl* state;
   Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
   Microsoft::WRL::ComPtr<ID3D11Fence> sharedFence;
@@ -45,7 +73,7 @@ struct WinFrameData {
   std::mutex closeMutex;
   FrameLeaseGate::Lease lease;
   WinFrameData(std::shared_ptr<Device> device,Impl* state,Win32TextureTarget target)
-    :device(std::move(device)),state(state),texture(target.texture),sharedFence(target.fence) {
+    :device(std::move(device)),backingSlot(target.backing),state(state),texture(target.texture),sharedFence(target.fence) {
     if(!texture || !sharedFence || target.waitValue>UINT64_MAX-2)throw std::runtime_error("Complete Windows texture/fence and bounded fence value required");
     D3D11_TEXTURE2D_DESC description{};texture->GetDesc(&description);
     constexpr auto shared=D3D11_RESOURCE_MISC_SHARED|D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
@@ -82,11 +110,13 @@ struct WinFrameData {
     if(submitted){state->api.get<PFN_vkDestroyFence>("vkDestroyFence")(state->api.device,submitted,nullptr);submitted={};}
     if(pool){state->api.get<PFN_vkDestroyCommandPool>("vkDestroyCommandPool")(state->api.device,pool,nullptr);pool={};}
     if(semaphore){state->api.get<PFN_vkDestroySemaphore>("vkDestroySemaphore")(state->api.device,semaphore,nullptr);semaphore={};}
+    if(backing){image={};memory={};bytes=0;backing.reset();}
     if(image){state->api.get<PFN_vkDestroyImage>("vkDestroyImage")(state->api.device,image,nullptr);image={};}
     if(memory){state->api.get<PFN_vkFreeMemory>("vkFreeMemory")(state->api.device,memory,nullptr);memory={};
-      state->winBytes-=bytes;--state->winAllocations;bytes=0;}
+      state->winBytes-=bytes;--state->winAllocations;bytes=0;
+      state->winBackingAudit.record(3,state->winAllocations.load(),state->winBytes.load());}
     {std::lock_guard lock(state->winMutex);if(registered){state->winTextures.erase(textureIdentity.Get());state->winFences.erase(fenceIdentity.Get());registered=false;}}
-    texture.Reset();sharedFence.Reset();textureIdentity.Reset();fenceIdentity.Reset();d3d.Reset();
+    backingSlot.reset();texture.Reset();sharedFence.Reset();textureIdentity.Reset();fenceIdentity.Reset();d3d.Reset();
     // Gate observes retirement only after actual Vulkan and native COM release.
     released.store(true);lease.reset();
   }
@@ -124,6 +154,23 @@ struct WinFrameData {
   ~WinFrameData(){if(!released.load())cleanup();}
 };
 void importWin32Frame(WinFrameData& data) {
+  if(winReuse){
+    if(!data.backingSlot)throw std::runtime_error("Requested imported backing reuse requires a native surface generation slot");
+    std::lock_guard lock(winMutex);
+    bool known=false;
+    std::erase_if(winBackingSlots,[](const auto& slot){return slot.expired();});
+    for(const auto& weak:winBackingSlots)if(weak.lock()==data.backingSlot){known=true;break;}
+    if(!known){if(winBackingSlots.size()>=64)throw std::runtime_error("Imported backing slot budget exceeds64");winBackingSlots.push_back(data.backingSlot);}
+    if(data.backingSlot->backing){
+      const auto cached=std::static_pointer_cast<ImportedBacking>(data.backingSlot->backing);
+      if(cached->state!=this||cached->identity.Get()!=data.textureIdentity.Get()||cached->width!=data.width||cached->height!=data.height)
+        throw std::runtime_error("Imported backing device/texture/generation identity changed without retiring its slot");
+      data.backing=cached;data.image=cached->image;data.memory=cached->memory;data.bytes=cached->bytes;
+      data.backingReused=true;
+      winBackingAudit.record(2,winAllocations.load(),winBytes.load());
+    }
+  }
+  if(!data.backing){
   VkExternalMemoryImageCreateInfo external{VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};external.handleTypes=VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
   VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};image.pNext=&external;image.imageType=VK_IMAGE_TYPE_2D;
   image.format=VK_FORMAT_B8G8R8A8_UNORM;image.extent={data.width,data.height,1};image.mipLevels=1;image.arrayLayers=1;
@@ -146,11 +193,24 @@ void importWin32Frame(WinFrameData& data) {
   imported.pNext=&dedicated;imported.handleType=VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;imported.handle=memoryHandle.value;
   VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};allocation.pNext=&imported;allocation.allocationSize=requirements.size;allocation.memoryTypeIndex=type;
   {std::lock_guard lock(winMutex);
+    if(winReuse)for(const auto& weak:winBackingSlots){
+      if(winAllocations.load()<3&&winBytes.load()<=64*1024*1024&&requirements.size<=64*1024*1024-winBytes.load())break;
+      if(auto slot=weak.lock();slot&&slot->backing&&slot->backing.use_count()==1)slot->backing.reset();
+    }
     const auto live=winBytes.load();if(live>64*1024*1024 || requirements.size>64*1024*1024-live)throw std::runtime_error("Windows imported memory budget exceeds 64MiB");
+    if(winAllocations.load()>=3)throw std::runtime_error("Windows imported backing count exceeds3");
     checked(api.get<PFN_vkAllocateMemory>("vkAllocateMemory")(api.device,&allocation,nullptr,&data.memory),"Windows texture memory import");
     data.bytes=requirements.size;winBytes+=data.bytes;++winAllocations;
+    winBackingAudit.record(1,winAllocations.load(),winBytes.load());
   }
   checked(api.get<PFN_vkBindImageMemory>("vkBindImageMemory")(api.device,data.image,data.memory,0),"Windows imported memory binding");
+  if(winReuse){
+    auto backing=std::make_shared<ImportedBacking>(data.device,this);backing->identity=data.textureIdentity;
+    backing->width=data.width;backing->height=data.height;backing->image=data.image;backing->memory=data.memory;backing->bytes=data.bytes;
+    data.backing=backing;
+    std::lock_guard lock(winMutex);data.backingSlot->backing=std::move(backing);
+  }
+  }
   VkSemaphoreCreateInfo semaphore{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};checked(api.get<PFN_vkCreateSemaphore>("vkCreateSemaphore")(api.device,&semaphore,nullptr,&data.semaphore),"Windows imported semaphore");
   WinHandle fenceHandle;winHr(data.sharedFence->CreateSharedHandle(nullptr,GENERIC_ALL,nullptr,&fenceHandle.value),"Windows shared fence NT handle");
   VkImportSemaphoreWin32HandleInfoKHR fence{VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR};
@@ -203,6 +263,7 @@ std::shared_ptr<const Win32Frame> renderWin32Frame(std::shared_ptr<Device> owner
   try {
     const auto began=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
     importWin32Frame(*data);
+    if(target.backingResult&&winBackingAudit.enabled())*target.backingResult={data->backingReused?2u:1u,winReuse?1u:0u};
     const auto imported=target.timing?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
     if(target.timing)target.timing->importMs=std::chrono::duration<double,std::milli>(imported-began).count();
     VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};allocation.commandPool=data->pool;allocation.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;allocation.commandBufferCount=2;
@@ -210,7 +271,7 @@ std::shared_ptr<const Win32Frame> renderWin32Frame(std::shared_ptr<Device> owner
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     checked(api.get<PFN_vkBeginCommandBuffer>("vkBeginCommandBuffer")(command,&begin),"Windows acquire begin");
     VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};barrier.image=data->image;
-    barrier.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};barrier.oldLayout=VK_IMAGE_LAYOUT_UNDEFINED;barrier.newLayout=VK_IMAGE_LAYOUT_GENERAL;
+    barrier.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};barrier.oldLayout=data->backingReused?VK_IMAGE_LAYOUT_GENERAL:VK_IMAGE_LAYOUT_UNDEFINED;barrier.newLayout=VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcQueueFamilyIndex=VK_QUEUE_FAMILY_EXTERNAL;barrier.dstQueueFamilyIndex=graphics;barrier.dstAccessMask=VK_ACCESS_MEMORY_READ_BIT|VK_ACCESS_MEMORY_WRITE_BIT;
     api.get<PFN_vkCmdPipelineBarrier>("vkCmdPipelineBarrier")(command,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,0,0,nullptr,0,nullptr,1,&barrier);
     checked(api.get<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(command),"Windows acquire end");

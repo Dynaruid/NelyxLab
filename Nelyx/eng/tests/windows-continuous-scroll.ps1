@@ -1,7 +1,9 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino','mixed')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[ValidateRange(20,2000)][int]$WheelPacketsPerLeg=80,[ValidateRange(3000,20000)][int]$InputDurationMs=3000,[ValidateRange(0,2147483647)][int]$TargetProcessId=0,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$Maximized,[switch]$FocusEditor,[switch]$CadenceOnly,[switch]$CaptionActivation,[ValidateRange(0.1,0.9)][double]$InputXFraction=(2.0/3.0),[switch]$BothColumns,[switch]$Unprimed,[ValidateRange(0,100000)][double]$RangeExtent=0,[ValidateRange(1500,4000)][int]$RangeLegDurationMs=4000,[switch]$ExistingPage,[switch]$ReturnToGallery,[switch]$PrepareOnly,[ValidateRange(0,256)][double]$RangeExtraExtent=0)
+param([Parameter(Mandatory=$true)][string]$Executable,[ValidateSet('list','material','cupertino','mixed')][string]$Page='list',[ValidateRange(1,120)][int]$WheelDelta=15,[ValidateRange(20,2000)][int]$WheelPacketsPerLeg=80,[ValidateRange(3000,20000)][int]$InputDurationMs=3000,[ValidateRange(0,2147483647)][int]$TargetProcessId=0,[switch]$MouseMotion,[switch]$WindowTransitions,[switch]$Maximized,[switch]$FocusEditor,[switch]$CadenceOnly,[switch]$CaptionActivation,[ValidateRange(0.1,0.9)][double]$InputXFraction=(2.0/3.0),[switch]$BothColumns,[switch]$Unprimed,[ValidateRange(0,100000)][double]$RangeExtent=0,[ValidateRange(1500,4000)][int]$RangeLegDurationMs=4000,[switch]$ExistingPage,[switch]$ReturnToGallery,[switch]$PrepareOnly,[ValidateRange(0,256)][double]$RangeExtraExtent=0,[switch]$FullRange,[switch]$RangeDiagnostics)
 $ErrorActionPreference = 'Stop'
 if($RangeExtent -gt 0 -and ($Unprimed -or $InputDurationMs % $RangeLegDurationMs -ne 0)){throw 'Full-range input requires priming and complete fixed-duration legs'}
 if($PrepareOnly -and $TargetProcessId -eq 0){throw 'PrepareOnly requires an explicitly owned existing process'}
+if($FullRange -and ($Page -ne 'material' -or -not $CadenceOnly -or $RangeExtent -gt 0 -or $Unprimed)){throw 'FullRange requires Material, CadenceOnly, and the opt-in complete Gallery protocol'}
+if($RangeDiagnostics -and -not $FullRange){throw 'RangeDiagnostics requires FullRange'}
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 Add-Type @'
 using System;
@@ -125,6 +127,49 @@ public static class NelyxContinuousScroll {
     while(clock.Elapsed.TotalMilliseconds<1500){RequireInput(window);if(clock.Elapsed.TotalMilliseconds>=next){if(SendInput(1,input,Marshal.SizeOf<Input>())!=1)throw new Exception("OS close workload injection failed");next=clock.Elapsed.TotalMilliseconds+4;}Thread.Sleep(1);}
     PostMessageW(window,0x10,IntPtr.Zero,IntPtr.Zero);
   }
+  public static double WheelPixelsPerUnit() {
+    uint units;if(!SystemParametersInfoW(0x68,0,out units,0)||units==0||units>120)throw new Exception("Full range requires finite wheel line units");
+    return units*16.0/120.0;
+  }
+  static void Target(IntPtr window,double fraction) {
+    Rect rect;Point origin=new Point();if(!GetClientRect(window,out rect)||!ClientToScreen(window,ref origin))throw new Exception("Range client unavailable");
+    SetCursorPos(origin.X+(int)(rect.Right*fraction),origin.Y+rect.Bottom*2/3);RequireInput(window);
+  }
+  public static int WheelLogical(IntPtr window,double fraction,double pixels) {
+    Target(window,fraction);int total=checked((int)Math.Round(pixels/WheelPixelsPerUnit())),sent=0;
+    while(sent!=total){RequireInput(window);int delta=Math.Sign(total-sent)*Math.Min(120,Math.Abs(total-sent));var input=new[]{new Input {Type=0,Mouse=new Mouse {Data=unchecked((uint)-delta),Flags=0x800}}};
+      if(SendInput(1,input,Marshal.SizeOf<Input>())!=1)throw new Exception("Partial range warmup input");sent+=delta;Thread.Sleep(4);}
+    return sent;
+  }
+  public sealed class SurfacePoint { public double Qpc,Frame;public long Count; }
+  public sealed class Sweep {
+    public double NativeBeginMs,NativeEndMs,TravelMs,InputMs,SurfaceFPS,PhysicalWidth,PhysicalHeight,Dpi;
+    public int Packets,MaxPacket,WheelUnits;public long SurfaceUpdates,MissedSurfaceObservations;
+    public List<SurfacePoint> Surfaces=new List<SurfacePoint>();
+  }
+  public static Sweep SweepDown(IntPtr window,double fraction,double distance,double viewport) {
+    if(Double.IsNaN(distance)||Double.IsInfinity(distance)||distance<=0||Double.IsNaN(viewport)||Double.IsInfinity(viewport)||viewport<=0)throw new Exception("Invalid full range distance");
+    Target(window,fraction);var result=new Sweep();Rect rect;GetClientRect(window,out rect);result.PhysicalWidth=rect.Right;result.PhysicalHeight=rect.Bottom;result.Dpi=GetDpiForWindow(window);
+    int total=checked((int)Math.Ceiling(distance/WheelPixelsPerUnit())),sent=0;
+    double travel=Math.Ceiling(distance/viewport*1000.0),duration=travel+500;
+    if(duration>1100000)throw new Exception("Full range exceeds the 20 minute owner budget");
+    var begin=ReadSurfaceCount(window);var previous=begin;var clock=Stopwatch.StartNew();result.NativeBeginMs=Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency;
+    while(clock.Elapsed.TotalMilliseconds<duration){
+      RequireInput(window);Rect current;GetClientRect(window,out current);if(current.Right!=rect.Right||current.Bottom!=rect.Bottom||GetDpiForWindow(window)!=result.Dpi)throw new Exception("Full range DPI/client changed");
+      int desired=(int)Math.Floor(Math.Min(1,clock.Elapsed.TotalMilliseconds/travel)*total);
+      while(sent<desired&&clock.Elapsed.TotalMilliseconds<duration){int delta=Math.Min(120,desired-sent);RequireInput(window);
+        var input=new[]{new Input {Type=0,Mouse=new Mouse {Data=unchecked((uint)-delta),Flags=0x800}}};
+        if(SendInput(1,input,Marshal.SizeOf<Input>())!=1)throw new Exception("Partial timed full range input");
+        sent+=delta;result.Packets++;result.MaxPacket=Math.Max(result.MaxPacket,delta);
+      }
+      Thread.Sleep(1);
+    }
+    result.NativeEndMs=Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency;
+    previous=ReadSurfaceCount(window);if(previous.View!=begin.View||previous.Surface!=begin.Surface)throw new Exception("Full range surface owner changed");
+    result.InputMs=result.NativeEndMs-result.NativeBeginMs;result.TravelMs=travel;result.WheelUnits=sent;
+    result.SurfaceUpdates=previous.Count-begin.Count;result.SurfaceFPS=result.SurfaceUpdates*1000.0/result.InputMs;
+    if(sent!=total)throw new Exception("Timed full range did not deliver its original schedule");return result;
+  }
   public static Result Run(IntPtr window,int direction,int magnitude,int packetsPerLeg,int durationMs,int intervalMs,bool motion,bool capture,double inputXFraction,bool prime,double rangeExtent,int rangeLegMs) {
     Rect rect; Point origin=new Point();
     if(GetForegroundWindow()!=window||!GetClientRect(window,out rect)||!ClientToScreen(window,ref origin))throw new Exception("Own foreground client unavailable");
@@ -196,6 +241,7 @@ try {
   $start.WorkingDirectory=Split-Path -LiteralPath $Executable
   $start.UseShellExecute=$false; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
   if($CadenceOnly){$start.EnvironmentVariables.Remove('NELYX_TRACKPAD_DIAGNOSTICS');$start.EnvironmentVariables.Remove('NELYX_WINDOWS_FRAME_DIAGNOSTICS')}else{$start.EnvironmentVariables['NELYX_TRACKPAD_DIAGNOSTICS']='1';$start.EnvironmentVariables['NELYX_WINDOWS_FRAME_DIAGNOSTICS']='1'}
+  if($RangeDiagnostics){$start.EnvironmentVariables['NELYX_WINDOWS_FRAME_DIAGNOSTICS']='1'}
   $start.EnvironmentVariables['NELYX_WINDOWS_INPUT_TRACE']='1'
   if($ownsApplication){$application=[Diagnostics.Process]::Start($start);$stdout=$application.StandardOutput.ReadToEndAsync();$stderr=$application.StandardError.ReadToEndAsync()}else{
     $application=[Diagnostics.Process]::GetProcessById($TargetProcessId)
@@ -233,6 +279,8 @@ try {
   if($BothColumns -and $Page -ne 'material'){throw 'Both columns requires Material Gallery'}
   if($PrepareOnly){Write-Output ('CONTINUOUS_PREPARED '+(@{nativeMs=[Diagnostics.Stopwatch]::GetTimestamp()*1000.0/[Diagnostics.Stopwatch]::Frequency}|ConvertTo-Json -Compress));return}
   $fractions=if($BothColumns){@(0.4,(2.0/3.0))}else{@($InputXFraction)}
+  $fullRangeResult=$null
+  if($FullRange){. (Join-Path $PSScriptRoot 'windows-gallery-range.ps1');$fullRangeResult=Invoke-GalleryFullRange;$checks=$fullRangeResult.checks}else{
   foreach($fraction in $fractions){
   foreach($direction in $(if($Page -eq 'list'){@(1,-1)}else{@(-1,1)})){
     if([NelyxContinuousScroll]::GetForegroundWindow() -ne $window){[NelyxContinuousScroll]::SetForegroundWindow($window)|Out-Null;Start-Sleep -Milliseconds 150}
@@ -246,10 +294,11 @@ try {
     if($observation.MaximumGapMs -gt 350){Write-Output ('STALLED_CHANGES '+($observation.Changes|ConvertTo-Json -Compress))}
   }
   }
+  }
   $lastInjectedPointer=New-Object NelyxContinuousScroll+Point;[NelyxContinuousScroll]::GetCursorPos([ref]$lastInjectedPointer)|Out-Null
   if($ReturnToGallery){if($Page -ne 'mixed'){throw 'ReturnToGallery requires mixed page'};$back=Find-Action 'mixed-scroll-back';if($null -eq $back){throw 'Mixed back action missing'};([Windows.Automation.InvokePattern]$back.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)).Invoke();Start-Sleep -Milliseconds 500}
-  if(-not $ownsApplication){Write-Output ('CONTINUOUS_SCROLL '+(@{page=$Page;checks=$checks;qualification='attached-diagnostic-only';scope='existing owner may enable source probes; native surface observations are not a normal-product FPS qualification'}|ConvertTo-Json -Depth 6 -Compress));return}
-  [NelyxContinuousScroll]::CloseAfterInput($window);$closing=[Diagnostics.Stopwatch]::StartNew()
+  if(-not $ownsApplication){Write-Output ('CONTINUOUS_SCROLL '+(@{page=$Page;checks=$checks;galleryWarmup=$fullRangeResult.warmup;qualification='attached-diagnostic-only';scope='existing owner may enable source probes; native surface observations are not a normal-product FPS qualification'}|ConvertTo-Json -Depth 16 -Compress));return}
+  if($FullRange){[NelyxContinuousScroll]::PostMessageW($window,0x10,[IntPtr]::Zero,[IntPtr]::Zero)|Out-Null}else{[NelyxContinuousScroll]::CloseAfterInput($window)};$closing=[Diagnostics.Stopwatch]::StartNew()
   while([NelyxContinuousScroll]::IsWindowVisible($window) -and $closing.ElapsedMilliseconds -lt 15000){Start-Sleep -Milliseconds 5};$hiddenMs=$closing.Elapsed.TotalMilliseconds
   while([NelyxContinuousScroll]::IsWindow($window) -and $closing.ElapsedMilliseconds -lt 15000){Start-Sleep -Milliseconds 5};$windowCloseMs=$closing.Elapsed.TotalMilliseconds
   if(-not $application.WaitForExit([Math]::Max(1,15000-[int]$closing.ElapsedMilliseconds))){throw 'Close did not complete within 15 seconds'}
@@ -259,7 +308,10 @@ try {
   $geometryActivationLines=@($output -split "`n" | Where-Object {$_ -match 'NELYX_INPUT_GEOMETRY_STATUS |NELYX_RETAINED_GEOMETRY_NATIVE '})
   $receipt=@{page=$Page;checks=$checks;desktopPixels=if($CadenceOnly){'unobserved'}else{'sampled'};closeMs=$closeMs;hiddenMs=$hiddenMs;windowCloseMs=$windowCloseMs;exitCode=$application.ExitCode;drained=if($CadenceOnly){'unobserved'}else{$drained};scope='actual package native surface counter during continuous OS wheel; desktop sampling is optional; scanout unobserved'}
   $receipt.nativeInputGeometryEvidence=$geometryActivationLines
-  Write-Output ('CONTINUOUS_SCROLL '+($receipt|ConvertTo-Json -Depth 6 -Compress))
+  $receipt.backingEvidence=@($output -split "`n" | Where-Object {$_ -match 'NELYX_INPUT_GEOMETRY_STATUS |NELYX_WIN32_BACKING_USAGE |NELYX_WIN32_BACKING_BINS '})
+$receipt.nativeServiceEvidence=@($output -split "`n" | Where-Object {$_ -match 'NELYX_INPUT_GEOMETRY_STATUS |NELYX_RETAINED_GEOMETRY_NATIVE |NELYX_NATIVE_SERVICE_USAGE |NELYX_NATIVE_SERVICE_BINS |NELYX_NATIVE_ENGINE_USAGE |NELYX_NATIVE_ENGINE_BINS '})
+  $receipt.galleryWarmup=$fullRangeResult.warmup
+  Write-Output ('CONTINUOUS_SCROLL '+($receipt|ConvertTo-Json -Depth 16 -Compress))
   Write-Output ($output -split "`n" | Where-Object {$_ -match 'NELYX_WINDOWS_FRAME|close-|closed |APP_STOP|ERROR|failed|resize-timeout'})
   if($application.ExitCode -ne 0 -or (-not $CadenceOnly -and -not $drained)){throw 'Native close/drain failed'}
   if($output -match 'REACT_ERROR|close-failed|resize-failed'){throw 'Native interaction or close reported an error'}

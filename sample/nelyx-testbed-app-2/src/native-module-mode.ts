@@ -7,6 +7,10 @@ export type NativeModuleMode =
   | 'paint'
   | 'composition'
   | 'semantics'
+  | 'backing'
+  | 'text'
+  | 'layout'
+  | 'frame'
   | 'ts';
 
 export function nativeModuleLabel(mode?: NativeModuleMode): string {

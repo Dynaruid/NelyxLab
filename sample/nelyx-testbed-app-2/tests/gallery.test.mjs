@@ -41,9 +41,110 @@ const { ComponentsGallery } = await import('../src/gallery.ts');
 const { ListViewPage } = await import('../src/list-view.ts');
 const { MixedScrollPage } = await import('../src/mixed-scroll.ts');
 const { demos } = await import('../src/catalog.ts');
+const { GalleryRangeObservation } = await import('../src/gallery-range.ts');
 const { cupertinoDemos } = await import('../src/cupertino-catalog.ts');
 FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
 const timeout = 1_200_000;
+
+test(
+  'opt-in range coverage observes submitted lazy layouts and image readiness, then revokes a changed environment',
+  { timeout },
+  async () => {
+    const boundaryCount = (fixture) => {
+      let count = 0;
+      const pending = [fixture.root.pipeline.root];
+      while (pending.length) {
+        const node = pending.pop();
+        if (node.constructor.name === 'RenderRepaintBoundary') count++;
+        pending.push(...node.children);
+      }
+      return count;
+    };
+    const ordinary = await gallery({ withImages: true });
+    let ordinaryBoundaries;
+    try {
+      const metrics = ordinary.root.context.readMetrics();
+      Object.assign(metrics, {
+        logicalWidth: 1280,
+        physicalWidth: 1280,
+        logicalHeight: 730,
+        physicalHeight: 730,
+        viewportGeneration: metrics.viewportGeneration + 1,
+      });
+      ordinary.frame();
+      ordinaryBoundaries = boundaryCount(ordinary);
+    } finally {
+      await ordinary.close();
+    }
+    const range = new GalleryRangeObservation(),
+      f = await gallery({ withImages: true, range });
+    let frame = 0;
+    const sample = async () => {
+      await new Promise(setImmediate);
+      f.frame();
+      const captured = range.capture(f.root.context.readMetrics(), ++frame, frame * 16, 1);
+      range.submitted(captured);
+      return range.snapshot();
+    };
+    try {
+      const metrics = f.root.context.readMetrics();
+      Object.assign(metrics, {
+        logicalWidth: 1280,
+        physicalWidth: 1280,
+        logicalHeight: 730,
+        physicalHeight: 730,
+        viewportGeneration: metrics.viewportGeneration + 1,
+      });
+      await sample();
+      assert.equal(
+        boundaryCount(f),
+        ordinaryBoundaries,
+        'Observation must not change paint boundaries',
+      );
+      assert.equal(Object.keys(range.snapshot().columns).length, 2);
+      assert(
+        Object.values(range.snapshot().columns).some(
+          (column) => column.loaded.length < column.ids.length,
+        ),
+      );
+      for (const controller of galleryControllers(f)) {
+        for (let step = 0; step < 30; step++) {
+          await sample();
+          const position = controller.position;
+          if (position.pixels >= position.maxScrollExtent) break;
+          controller.jumpTo(
+            Math.min(position.maxScrollExtent, position.pixels + position.viewportDimension * 0.6),
+          );
+          assert(step < 29);
+        }
+      }
+      await sample();
+      const ready = range.snapshot();
+      assert.deepEqual(ready.resourceErrors, []);
+      for (const column of Object.values(ready.columns)) {
+        assert.equal(column.loaded.length, column.ids.length);
+        assert.deepEqual(column.measured, column.ids);
+        assert(column.visible.includes(column.ids.at(-1)));
+      }
+      const stale = range.capture(metrics, ++frame, frame * 16, 1);
+      Object.assign(metrics, {
+        logicalWidth: 1250,
+        physicalWidth: 1250,
+        viewportGeneration: metrics.viewportGeneration + 1,
+      });
+      await sample();
+      range.submitted(stale);
+      const changed = range.snapshot();
+      assert.notEqual(changed.configuration, ready.configuration);
+      assert(
+        Object.values(changed.columns).some((column) => column.loaded.length < column.ids.length),
+      );
+    } finally {
+      await f.close();
+      range.dispose();
+    }
+  },
+);
 
 test(
   'a button hover animates its actual shadow without rebuilding or relaying out the sliver on each tick',
@@ -656,7 +757,12 @@ function sweep(fixture, inspect) {
     }
   }
 }
-async function gallery({ withImages = false, withPictures = false, onParagraphLayout } = {}) {
+async function gallery({
+  withImages = false,
+  withPictures = false,
+  onParagraphLayout,
+  range,
+} = {}) {
   const fixture = await engineFixture({ fonts: true });
   if (onParagraphLayout) {
     const layout = fixture.library.layout.bind(fixture.library);
@@ -869,7 +975,7 @@ async function gallery({ withImages = false, withPictures = false, onParagraphLa
     context.editing.dispose();
   };
   try {
-    fixture.set(new ComponentsGallery());
+    fixture.set(new ComponentsGallery(undefined, undefined, range));
   } catch (error) {
     await fixture.close();
     throw error;

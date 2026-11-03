@@ -15,6 +15,8 @@ import {
   verifyNativeServiceExperiment,
   verifyNativeModuleMode,
 } from './native-service-experiment.js';
+import { engineModes, verifyNativeEngineExperiment } from './native-engine-experiment.js';
+import { withoutBackingEvidence, verifyBackingExperiment } from './backing-experiment.js';
 
 const timeout = 1_200_000,
   inputGeometry = process.env.NELYX_WINDOWS_MIXED_INPUT_GEOMETRY ?? 'ts',
@@ -43,7 +45,7 @@ function helper(pid, buttonRange) {
     'MIXED_INPUT ',
   );
 }
-function galleryReturn(pid, executable) {
+function galleryReturn(pid, executable, windowTransitions = false) {
   return runHelper(
     [
       '-File',
@@ -57,6 +59,7 @@ function galleryReturn(pid, executable) {
       '-Maximized',
       '-BothColumns',
       '-MouseMotion',
+      ...(windowTransitions ? ['-WindowTransitions'] : []),
       '-InputDurationMs',
       '5000',
     ],
@@ -152,6 +155,7 @@ test(
           const gallery = await galleryReturn(
             child.pid,
             path.join(checked.directory, checked.manifest.executable),
+            true,
           );
           assert.equal(gallery.checks.length, 4);
           assert(
@@ -198,20 +202,43 @@ test(
         assert.equal(close.forced, false);
         assert.match(native, /closed views=0 consumers=0 gpuDrained=1 inputRetired=1/);
         assert.doesNotMatch(native, /REACT_ERROR|close-failed|text-input-failed/);
-        const inputGeometryActivation = nativeModules
-          ? verifyNativeModuleMode(geometryActivation.finish(), { mode: nativeModules })
-          : experiment
-            ? verifyNativeServiceExperiment(geometryActivation.finish(), { mode: experiment })
-            : verifyGeometryActivation(
-                geometryActivation.finish(),
-                // Cold edits deliberately use TS. The warm cadence comparison has
-                // the separate 95% native coverage requirement.
-                {
-                  mode: inputGeometry,
-                  requireEditors: inputGeometry === 'retained',
-                  minimumCoverage: 0,
-                },
-              );
+        const evidence = geometryActivation.finish(),
+          inputGeometryActivation = nativeModules
+            ? verifyNativeModuleMode(evidence, {
+                mode: nativeModules,
+                fullRange: engineModes.includes(nativeModules) || nativeModules === 'backing',
+              })
+            : experiment
+              ? verifyNativeServiceExperiment(withoutBackingEvidence(evidence), {
+                  mode: experiment,
+                  requireNativeWork: !engineModes.includes(experiment) && experiment !== 'backing',
+                })
+              : verifyGeometryActivation(
+                  evidence,
+                  // Cold edits deliberately use TS. The warm cadence comparison has
+                  // the separate 95% native coverage requirement.
+                  {
+                    mode: inputGeometry,
+                    requireEditors: inputGeometry === 'retained',
+                    minimumCoverage: 0,
+                  },
+                );
+        const candidate = nativeModules || experiment;
+        let engine;
+        if (engineModes.includes(candidate)) {
+          engine = verifyNativeEngineExperiment(evidence, {
+            mode: candidate,
+            manual: !!nativeModules,
+          });
+          assert.equal(engine.observed, true, 'The functional owner must execute the candidate');
+          assert.equal(engine.closed, true);
+        }
+        if (candidate === 'backing' || candidate === 'all') {
+          engine = verifyBackingExperiment(evidence, {
+            mode: 'backing',
+            manual: !!nativeModules,
+          });
+        }
         if (nativeModules === 'all')
           assert(
             Object.values(inputGeometryActivation.modules).every((value) => value === 'observed'),
@@ -222,13 +249,17 @@ test(
           undefined,
           'Native allocations/uploads must succeed throughout the owner',
         );
-        console.log('MIXED_OWNER_PASS', {
-          trial,
-          buttonRange,
-          pid: child.pid,
-          close,
-          inputGeometryActivation,
-        });
+        console.log(
+          'MIXED_OWNER_PASS',
+          JSON.stringify({
+            trial,
+            buttonRange,
+            pid: child.pid,
+            close,
+            inputGeometryActivation,
+            engine,
+          }),
+        );
       } finally {
         await child.stop();
         process.stdout.write(

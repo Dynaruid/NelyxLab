@@ -1,10 +1,26 @@
 import type { SkJSIInstance } from '../JsiInstance.ts';
 import type { SkPaint } from '../Drawing.ts';
 
-import type { SkParagraph } from './Paragraph.ts';
+import type { SkParagraph, LineMetrics } from './Paragraph.ts';
 import type { SkParagraphStyle } from './ParagraphStyle.ts';
 import type { SkTextStyle, TextBaseline } from './TextStyle.ts';
 import type { SkTypefaceFontProvider } from './TypefaceFontProvider.ts';
+
+export type ParagraphTransactionOperation =
+  | { kind: 0; style: SkTextStyle; foreground?: SkPaint; background?: SkPaint }
+  | { kind: 1 }
+  | { kind: 2; text: string }
+  | { kind: 3; placeholder: readonly [number, number, number, number, number] };
+export interface ParagraphTransactionResult {
+  paragraph: SkParagraph;
+  /** Existing seven text metrics followed by width and height. */
+  metrics: number[];
+  lines: LineMetrics[];
+  /** x, y, width, height and direction per placeholder; no host rect wrappers. */
+  boxes: number[];
+  operations: number;
+  textBytes: number;
+}
 
 export interface ParagraphBuilderFactory {
   /** Nelyx font-variation binding revision; absent in older native suppliers. */
@@ -15,6 +31,13 @@ export interface ParagraphBuilderFactory {
   nelyxTextBoxVersion?(): number;
   /** API2: positive-infinite layout width, complete line metrics, UTF16 visible-line lookup and soft-hyphen policy. */
   nelyxParagraphApiVersion?(): number;
+  nelyxTextTransactionVersion?(): number;
+  nelyxBuildAndLayout?(
+    style: SkParagraphStyle,
+    provider: SkTypefaceFontProvider,
+    operations: readonly ParagraphTransactionOperation[],
+    width: number,
+  ): ParagraphTransactionResult;
   /**
    * Creates a new ParagraphBuilder object from custom fonts.
    * @param paragraphStyle Initial paragraph style

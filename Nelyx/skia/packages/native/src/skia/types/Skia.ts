@@ -37,6 +37,9 @@ import type { SkottieFactory } from './Skottie.ts';
  * Declares the interface for the native Skia API
  */
 export interface Skia {
+  nelyxFlexLayoutVersion?(): number;
+  nelyxFrameSegmentVersion?(): number;
+  nelyxFlexLayout?(packet: ArrayBuffer): number[];
   nelyxSemanticsGeometryVersion?(): number;
   nelyxSemanticsGeometrySession?(
     session: number,
@@ -66,6 +69,8 @@ export interface Skia {
   nelyxNativeServiceAuditEnd?(): void;
   nelyxRetainedInputGeometryVersion?(): number;
   nelyxReportInputGeometryStatus?(json: string): void;
+  nelyxWin32BackingVersion?(): number;
+  nelyxWin32BackingAuditBegin?(owner: number): boolean;
   nelyxRetainedInputGeometrySession?(
     session: number,
     generation: number,

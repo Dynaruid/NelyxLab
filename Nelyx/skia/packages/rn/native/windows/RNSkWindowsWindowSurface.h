@@ -105,7 +105,7 @@ private:
   void startNext(){
     const auto& frame=plan->frames.at(plan->next);
     trace(0);
-    auto packet=attachment->surface->prepare(frame.width,frame.height,{frame.recording},plan->render);
+    auto packet=attachment->surface->prepare(frame.width,frame.height,{frame.recording},plan->render,frame.generation);
     if(!packet)throw std::runtime_error("Windows native frame lost its admitted producer");
     packet->observeTiming=windowsFrameDiagnosticsEnabled();
     auto weak=weak_from_this();auto dispatch=platform;auto sessionOwner=session;
@@ -115,6 +115,7 @@ private:
       const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;
       if(began)sessionOwner->frameTrace.add(identity,traceView,traceSurface,20,packet->width,packet->height);
       try{packet->render();}catch(std::exception const& error){failure=error.what();}catch(...){failure="Windows producer native HRESULT failure";}
+      if(packet->backingResult.operation)sessionOwner->frameTrace.add(identity,traceView,traceSurface,27,packet->backingResult.operation,packet->backingResult.mode);
       if(began)sessionOwner->frameTrace.add(identity,traceView,traceSurface,21,packet->width,packet->height);
       if(began){const double phases[]={packet->timing.importMs,packet->timing.submitMs,packet->timing.waitMs,packet->timing.finishMs,packet->timing.contextMs};for(uint32_t index=0;index<5;++index)sessionOwner->frameTrace.add(identity,traceView,traceSurface,22+index,static_cast<uint32_t>(std::clamp(phases[index]*1000.,0.,double(UINT32_MAX))),0);}
       if(began)windowsFrameDiagnosticDelay("gpu-producer",began,windowsMonotonicMilliseconds());

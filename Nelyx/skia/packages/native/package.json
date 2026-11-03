@@ -26,6 +26,11 @@
     "native-manifest.json"
   ],
   "exports": {
+    "./flex-layout": {
+      "types": "./dist/flex-layout.d.ts",
+      "react-native": "./src/flex-layout.ts",
+      "default": "./dist/flex-layout.js"
+    },
     "./semantics-geometry": {
       "types": "./dist/semantics-geometry.d.ts",
       "react-native": "./src/semantics-geometry.ts",

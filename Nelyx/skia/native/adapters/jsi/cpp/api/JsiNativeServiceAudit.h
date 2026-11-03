@@ -30,6 +30,9 @@ public:
   // snapshot calls/editors, compose prepares/commits/ranges, semantics calls/
   // queries, successful numeric replays/unique paths/unique paints/clip ops.
   using Counts = std::array<std::uint64_t, 11>;
+  // Flex plans/children/placements, text transactions/operations/UTF8 bytes,
+  // frame seals/admissions/retirements/encoded bytes. Separate legacy metrics.
+  using EngineCounts = std::array<std::uint64_t,10>;
 private:
   struct State {
     std::string mode;
@@ -38,6 +41,9 @@ private:
     Counts total{};
     std::array<std::array<std::uint64_t,4>,3> sessions{};
     std::map<std::uint64_t,Counts> bins;
+    EngineCounts engineTotal{};
+    std::map<std::uint64_t,EngineCounts> engineBins;
+    std::array<uint64_t,4> engineMemory{};
     bool overflow=false, timed=true;
   };
   inline static thread_local std::unique_ptr<State> state_;
@@ -73,7 +79,7 @@ public:
     const std::string mode=configured?configured:"";
     const char* manual=std::getenv("NELYX_NATIVE_SERVICE_MANUAL");
     const bool interactive=manual&&std::strcmp(manual,"1")==0;
-    if(mode!="ts"&&mode!="snapshot"&&mode!="path"&&mode!="paint"&&mode!="composition"&&mode!="semantics"&&mode!="all"&&mode!="retained")
+    if(mode!="ts"&&mode!="snapshot"&&mode!="path"&&mode!="paint"&&mode!="composition"&&mode!="semantics"&&mode!="all"&&mode!="retained"&&mode!="backing"&&mode!="text"&&mode!="layout"&&mode!="frame"&&mode!="physics")
       throw std::runtime_error("Choose an explicit NELYX_NATIVE_SERVICE_EXPERIMENT");
     if((mode=="all"||mode=="retained")&&!interactive)
       throw std::runtime_error("Combined/retained service audit requires manual mode");
@@ -93,6 +99,18 @@ public:
     }
     for(const auto& [index,count]:values){state_->total.at(index)+=count;found->second.at(index)+=count;}
   }
+  static void recordEngine(std::initializer_list<std::pair<std::size_t,std::uint64_t>> values){
+    if(!state_)return;
+    if(!state_->timed){for(const auto& [index,count]:values)state_->engineTotal.at(index)+=count;return;}
+    const auto second=static_cast<std::uint64_t>(now()/1000.0);
+    auto found=state_->engineBins.find(second);
+    if(found==state_->engineBins.end()){
+      if(state_->engineBins.size()>=1200){state_->overflow=true;return;}
+      found=state_->engineBins.emplace(second,EngineCounts{}).first;
+    }
+    for(const auto& [index,count]:values){state_->engineTotal.at(index)+=count;found->second.at(index)+=count;}
+  }
+  static void engineMemory(uint64_t live,uint64_t bytes,uint64_t peak,uint64_t peakBytes){if(state_)state_->engineMemory={live,bytes,peak,peakBytes};}
   class Session {
     std::uint64_t epoch_=0;
     std::size_t kind_;
@@ -125,6 +143,16 @@ public:
       if(++count==16){chunk<<"]}";log(chunk.str());start();}
     }
     if(count){chunk<<"]}";log(chunk.str());}
+    if(state_->mode=="all"||state_->mode=="text"||state_->mode=="layout"||state_->mode=="frame"||state_->mode=="physics"){
+      std::ostringstream engine;engine.precision(17);
+      engine<<"NELYX_NATIVE_ENGINE_USAGE {\"schema\":1,\"mode\":\""<<state_->mode<<"\",\"ownerGeneration\":"<<state_->owner
+        <<",\"beganQpcMs\":"<<state_->began<<",\"endedQpcMs\":"<<now()<<",\"closed\":true,\"overflow\":"<<(state_->overflow?"true":"false")
+        <<",\"timing\":\""<<(state_->timed?"qpc-buckets":"counters-only")<<"\",\"binCount\":"<<state_->engineBins.size()<<",\"totals\":";
+      array(engine,state_->engineTotal);engine<<",\"memory\":";array(engine,state_->engineMemory);engine<<'}';log(engine.str());
+      index=count=0;const auto engineStart=[&]{chunk.str("");chunk.clear();chunk<<"NELYX_NATIVE_ENGINE_BINS {\"schema\":1,\"index\":"<<index++<<",\"rows\":[";count=0;};
+      engineStart();for(const auto& [second,counts]:state_->engineBins){if(count)chunk<<',';chunk<<'['<<second;for(auto value:counts)chunk<<','<<value;chunk<<']';if(++count==16){chunk<<"]}";log(chunk.str());engineStart();}}
+      if(count){chunk<<"]}";log(chunk.str());}
+    }
     state_.reset();
   }
 };

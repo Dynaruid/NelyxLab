@@ -4,6 +4,7 @@
 import { createInputGeometryService } from '@nelyx/skia-native/input-geometry';
 import { createSceneCompositionService } from '@nelyx/skia-native/scene-composition';
 import { createSemanticsGeometryService } from '@nelyx/skia-native/semantics-geometry';
+import { createFlexLayoutService } from '@nelyx/skia-native/flex-layout';
 
 export function installNativeServiceExperiment(application, options = {}) {
   const api = globalThis.SkiaApi,
@@ -52,6 +53,37 @@ export function installNativeServiceExperiment(application, options = {}) {
     context[name] = service;
     return service;
   };
+  const engineReaders = new Map(),
+    engineCleanups = [];
+  if (mode === 'text' || mode === 'all') {
+    if (
+      !context.text.setNativeParagraphTransactions ||
+      !context.text.nativeParagraphTransactionExecution
+    )
+      throw Error('Requested native text transaction SDK capability missing');
+    context.text.setNativeParagraphTransactions(true);
+    engineReaders.set('text', () => context.text.nativeParagraphTransactionExecution());
+    engineCleanups.push(() => context.text.setNativeParagraphTransactions(false));
+  }
+  if (mode === 'layout' || mode === 'all') {
+    const pipeline = view.controller.pipeline;
+    if (!pipeline || pipeline.flexLayout)
+      throw Error('Native Flex requires an otherwise TS layout pipeline');
+    const service = createFlexLayoutService(api, ensure);
+    pipeline.flexLayout = service;
+    engineReaders.set('layout', () => service.execution());
+    engineCleanups.push(() => {
+      delete pipeline.flexLayout;
+      service.dispose();
+    });
+  }
+  if (mode === 'frame' || mode === 'all') {
+    const renderer = view.options.renderer;
+    if (!renderer.setNativeFrameSegments || !renderer.nativeFrameSegmentExecution)
+      throw Error('Requested native frame segment SDK capability missing');
+    renderer.setNativeFrameSegments(true);
+    engineReaders.set('frame', () => renderer.nativeFrameSegmentExecution());
+  }
   if (mode === 'snapshot') {
     const service = install('inputGeometry', createInputGeometryService(api, view.owner, ensure)),
       project = service.project;
@@ -122,9 +154,20 @@ export function installNativeServiceExperiment(application, options = {}) {
     resources.sceneBatch = mode;
   }
   if (
-    !['ts', 'snapshot', 'retained', 'path', 'paint', 'composition', 'semantics', 'all'].includes(
-      mode,
-    )
+    ![
+      'ts',
+      'snapshot',
+      'retained',
+      'path',
+      'paint',
+      'composition',
+      'semantics',
+      'all',
+      'backing',
+      'text',
+      'layout',
+      'frame',
+    ].includes(mode)
   )
     throw Error('Unknown native experiment mode');
   if (!manual && (mode === 'all' || mode === 'retained'))
@@ -139,16 +182,66 @@ export function installNativeServiceExperiment(application, options = {}) {
       }),
     );
   const close = application.dispose;
-  let closed = false;
+  let closed = false,
+    engineClosing;
+  const retireServices = () => {
+    for (const { name, service } of services.splice(0)) {
+      delete context[name];
+      service.dispose();
+    }
+    if (previousBatch === undefined) delete resources.sceneBatch;
+    else resources.sceneBatch = previousBatch;
+  };
   application.dispose = function (...args) {
+    if (engineReaders.size) {
+      if (engineClosing) return engineClosing;
+      const finish = (success) => {
+        const parts = [...engineReaders].map(([name, read]) => [name, read()]);
+        if (mode === 'all') {
+          const fallbackReasons = {};
+          let tsFallbacks = 0;
+          sdk.engine = { selected: [...engineReaders.keys()].sort() };
+          for (const [name, part] of parts) {
+            const { fallbackReasons: reasons, tsFallbacks: count = 0, ...work } = part;
+            Object.assign(sdk.engine, work);
+            tsFallbacks += count;
+            for (const [reason, value] of Object.entries(reasons))
+              fallbackReasons[name + ':' + reason] = value;
+          }
+          Object.assign(sdk.engine, { tsFallbacks, fallbackReasons });
+        } else sdk.engine = { ...parts[0][1] };
+        sdk.engine.closed =
+          success && parts.every(([name, part]) => name !== 'frame' || part.closed === true);
+        for (const cleanup of engineCleanups.splice(0).reverse()) cleanup();
+        sdk.closed = success;
+        api.nelyxReportInputGeometryStatus(
+          JSON.stringify({ ...sdk, kind: manual ? 'manual' : 'experiment' }),
+        );
+        api.nelyxNativeServiceAuditEnd();
+        application.dispose = close;
+      };
+      let result;
+      try {
+        retireServices();
+        result = close.apply(this, args);
+      } catch (error) {
+        finish(false);
+        throw error;
+      }
+      engineClosing = Promise.resolve(result).then(
+        () => {
+          finish(true);
+        },
+        (error) => {
+          finish(false);
+          throw error;
+        },
+      );
+      return engineClosing;
+    }
     if (!closed) {
       closed = true;
-      for (const { name, service } of services) {
-        delete context[name];
-        service.dispose();
-      }
-      if (previousBatch === undefined) delete resources.sceneBatch;
-      else resources.sceneBatch = previousBatch;
+      retireServices();
       sdk.closed = true;
       api.nelyxReportInputGeometryStatus(
         JSON.stringify({ ...sdk, kind: manual ? 'manual' : 'experiment' }),

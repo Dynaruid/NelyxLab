@@ -3,6 +3,16 @@ import type { SkCanvas } from './skia/types/Drawing.ts';
 export const displayListVersion = 1;
 export interface DisplayListTarget {
   nelyxReplayDisplayList(packet: ArrayBuffer, handles: readonly unknown[]): void;
+  nelyxSealDisplayList?(packet: ArrayBuffer, handles: readonly unknown[]): { dispose(): void };
+  nelyxAdmitFrameSegment?(segment: { dispose(): void }): void;
+}
+export interface FrameSegmentWork {
+  frameSeals: number;
+  frameAdmissions: number;
+  frameBytes: number;
+  tsFallbacks: number;
+  fallbackReasons: Record<string, number>;
+  closed: boolean;
 }
 export interface DisplayListCanvas extends SkCanvas {
   nelyxFlush(): void;

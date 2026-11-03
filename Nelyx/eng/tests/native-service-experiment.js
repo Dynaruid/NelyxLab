@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { verifyGeometryActivation } from './native-service-activation.js';
+import { engineModes, verifyNativeEngineExperiment } from './native-engine-experiment.js';
+import { withoutBackingEvidence, verifyBackingExperiment } from './backing-experiment.js';
 export const experimentModes = ['ts', 'snapshot', 'path', 'paint', 'composition', 'semantics'];
-export const nativeModuleModes = ['all', 'retained', ...experimentModes];
+export const fullRangeModes = [...experimentModes, 'backing', 'text', 'layout', 'frame'];
+export const nativeModuleModes = ['all', 'retained', ...fullRangeModes];
 export const nativeServiceMetrics = [
   'snapshotCalls',
   'snapshotEditors',
@@ -18,16 +21,39 @@ export const nativeServiceMetrics = [
 export function verifyNativeServiceExperiment(lines, options) {
   return verifyNativeServices(lines, options, false);
 }
-export function verifyNativeModuleMode(lines, { mode }) {
-  return verifyNativeServices(lines, { mode, requireNativeWork: false }, true);
+export function verifyNativeModuleMode(lines, { mode, fullRange = false }) {
+  const result = verifyNativeServices(
+    withoutBackingEvidence(lines),
+    { mode, fullRange, requireNativeWork: false },
+    true,
+  );
+  if (engineModes.includes(mode)) {
+    result.engine = verifyNativeEngineExperiment(lines, {
+      mode,
+      manual: true,
+      requireTimedWork: false,
+    });
+    if (mode === 'all') Object.assign(result.modules, result.engine.modules);
+    else
+      result.modules[mode] = result.engine.observed
+        ? 'observed'
+        : result.engine.fallback.count
+          ? 'fallbackOnly'
+          : 'notObserved';
+  }
+  if (mode === 'all' || mode === 'backing') {
+    result.backing = verifyBackingExperiment(lines, { mode: 'backing', requireTimedWork: false });
+    result.modules.backing = result.backing.reused > 0 ? 'observed' : 'notObserved';
+  }
+  return result;
 }
 function verifyNativeServices(
   lines,
-  { mode, checks = [], requireTimedWork = true, requireNativeWork = true },
+  { mode, checks = [], requireTimedWork = true, requireNativeWork = true, fullRange = false },
   manual,
 ) {
   if (
-    !(manual ? nativeModuleModes : experimentModes).includes(mode) ||
+    !(manual ? nativeModuleModes : fullRangeModes).includes(mode) ||
     !Array.isArray(lines) ||
     lines.length > 128 ||
     lines.some((line) => typeof line !== 'string' || line.length > 5000)
@@ -41,12 +67,17 @@ function verifyNativeServices(
     requests = status.filter((x) => x.kind === 'request'),
     reports = status.filter((x) => x.kind === (manual ? 'manual' : 'experiment')),
     selections = status.filter((x) => x.kind === 'manual-selection'),
+    galleryRange = status.filter((x) => x.kind === 'gallery-range-manual'),
     headers = read('NELYX_NATIVE_SERVICE_USAGE '),
     chunks = read('NELYX_NATIVE_SERVICE_BINS '),
     retained = manual && ['all', 'retained'].includes(mode),
     valid = (x) => Number.isSafeInteger(x) && x >= 0;
   if (
-    status.length !== (manual ? (retained ? 4 : 3) : 2) ||
+    status.length !== (manual ? (retained ? 4 : 3) + Number(fullRange) : 2) ||
+    galleryRange.length !== Number(manual && fullRange) ||
+    (fullRange &&
+      (galleryRange[0]?.schema !== 1 ||
+        galleryRange[0]?.ownerGeneration !== requests[0]?.ownerGeneration)) ||
     requests.length !== 1 ||
     reports.length !== 1 ||
     headers.length !== 1 ||
@@ -142,6 +173,10 @@ function verifyNativeServices(
       composition: [2, 3, 4],
       semantics: [5, 6],
       retained: [],
+      backing: [],
+      text: [],
+      layout: [],
+      frame: [7],
       all: [2, 3, 4, 5, 6, 7, 8, 9, 10],
     }[mode],
     services = mode === 'all' ? [1, 2] : [{ snapshot: 0, composition: 1, semantics: 2 }[mode]];
@@ -229,6 +264,7 @@ function verifyNativeServices(
     work ? 'observed' : fallback ? 'fallbackOnly' : 'notObserved';
   return {
     mode,
+    ...(manual && fullRange ? { galleryRange: galleryRange[0] } : {}),
     ...(manual
       ? {
           inputGeometry: geometry,

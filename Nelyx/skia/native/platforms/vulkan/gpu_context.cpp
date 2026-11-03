@@ -164,6 +164,7 @@ std::shared_ptr<const DmaBufFrame> GpuContext::exportDmaBufFrame(uint32_t width,
   return impl->device->exportDmaBufFrame(impl->context()->makeRecorder(options),width,height,draw,recordings);
 }
 bool GpuContext::canExportDmaBufFrame() {std::lock_guard lock(impl->mutex);impl->context();return impl->device->canExportDmaBufFrame();}
+bool GpuContext::beginWin32BackingAudit(double owner){std::lock_guard lock(impl->mutex);impl->context();return impl->device->beginWin32BackingAudit(owner);}
 std::shared_ptr<const Win32Frame> GpuContext::renderWin32Frame(Win32TextureTarget target,std::function<void(SkCanvas*)> draw,
     const std::vector<std::shared_ptr<skgpu::graphite::Recording>>& recordings) {
   std::shared_ptr<const Win32Frame> frame;

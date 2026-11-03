@@ -137,7 +137,7 @@ Testbed 창을 닫고 저장소 루트에서 실행합니다. 창이 열리면 �
 npm.cmd run run:windows:cpp
 ```
 
-기본 `all`은 **retained 입력 좌표 + Path/Paint·clip + Scene composition + Semantics geometry**를 함께 선택합니다. Gallery와 입력·버튼 스크롤 제목의 `C++ all` 표시로 선택을 확인할 수 있습니다. `입력·버튼 스크롤`을 열어 편집기 입력·스크롤을 확인하면 retained 좌표 경로에도 실제 수요가 생깁니다. 공개 custom hook 등 지원 범위 밖의 작업은 기존 TS fallback을 유지합니다.
+기본 `all`은 **retained 입력 좌표 + Path/Paint·clip + Scene composition + Semantics geometry + Flex layout + text transaction + frame segment + Windows backing 재사용**을 함께 선택합니다. `npm.cmd run run:windows:cpp -- --module=all`도 같은 명령입니다. Gallery와 입력·버튼 스크롤 제목의 `C++ all` 표시로 선택을 확인할 수 있습니다. `입력·버튼 스크롤`을 열어 편집기 입력·스크롤을 확인하면 retained 좌표 경로에도 실제 수요가 생깁니다. 공개 custom hook 등 지원 범위 밖의 작업은 사유를 집계하는 TS fallback입니다. Snapshot 입력 좌표는 retained의 대안이며 별도 모드로 선택합니다.
 
 모듈 하나만 켜거나 같은 수동 실행에서 TS control을 선택할 수 있습니다.
 
@@ -145,10 +145,18 @@ npm.cmd run run:windows:cpp
 npm.cmd run run:windows:cpp -- --module=path
 npm.cmd run run:windows:cpp -- --module=retained
 npm.cmd run run:windows:cpp -- --module=snapshot
+npm.cmd run run:windows:cpp -- --module=backing
+npm.cmd run run:windows:cpp -- --module=layout
+npm.cmd run run:windows:cpp -- --module=text
+npm.cmd run run:windows:cpp -- --module=frame
 npm.cmd run run:windows:cpp -- --module=ts
 ```
 
-`--module` 값은 `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `ts`입니다. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2`도 같은 기본 모드를 실행합니다. 수동 모드는 자동 입력·종료·해상도 제한 없이 실행하며 native 실제 작업 수만 집계합니다. 창을 닫으면 `NATIVE_MODULE_RESULT`의 `modules`, `native`, `fallback`, `inputGeometry`로 독립 native 집계와 SDK 집계·정리를 확인합니다. `observed`는 해당 owner에서 native 작업을 관측했다는 뜻이며, `notObserved`는 native 작업을 확인하지 못했다는 뜻입니다. `fallbackOnly`는 TS fallback만 관측한 모듈이며 exit 2를 반환합니다. 이 수치를 성능 향상이나 전체 작업의 C++ 처리 보증으로 쓰지 않습니다.
+`--module` 값은 `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `backing`, `layout`, `text`, `frame`, `ts`입니다. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2`도 같은 기본 모드를 실행합니다. 수동 모드는 자동 입력·종료·해상도 제한 없이 실행하며 native 실제 작업 수만 집계합니다. 창을 닫으면 `NATIVE_MODULE_RESULT`의 `modules`, `native`, `fallback`, `inputGeometry`, `engine`으로 독립 native 집계와 SDK 집계·정리를 확인합니다. `observed`는 해당 owner에서 native 작업을 관측했다는 뜻이며, `notObserved`는 native 작업을 확인하지 못했다는 뜻입니다. `fallbackOnly`는 TS fallback만 관측한 모듈이며 exit 2를 반환합니다. 이 수치를 성능 향상이나 전체 작업의 C++ 처리 보증으로 쓰지 않습니다.
+
+`backing`은 Windows N4 실험을 선택하며 전체 구간 coverage 관측도 설치합니다. 같은 native surface 세대의 Vulkan image/memory를 유지하고 frame별 fence·완료 검사는 수행합니다. `all`에서도 함께 활성화합니다. 결과의 `backing`에서 native/SDK create·reuse 집계, 3개 / 64 MiB 상한, drain 후 live backing 0을 확인합니다.
+
+`layout`(N1)은 표준 Flex의 숫자 배분·배치를 C++로 계산하며 TS child layout callback을 유지합니다. dry/intrinsic/baseline·custom hook은 사유를 집계하는 TS fallback입니다. `text`(N2)는 기존 cache miss에서 paragraph 구성·layout·metrics 조회를 묶습니다. `frame`(N3)은 닫힌 command segment를 봉인하고 변경 가능한 자원을 snapshot하여 GPU recording 완료까지 native lease를 유지합니다. 세 모드는 coverage 관측을 포함하고 시작 시 해당 native capability를 요구하며, `engine`에 실제 작업·fallback·회수 결과를 보고합니다. Frame segment 상한은 metadata의 계산된 비용이며 전체 GPU·process 메모리 측정치는 아닙니다. 세 모드는 `all`에서도 함께 활성화하며 각 모듈의 결과를 독립 검증합니다. 일반 App의 기본값은 TS입니다.
 
 명령은 현재 native/SDK 공급으로 수동 package를 빌드하고 App 원문을 자동 복구한 뒤 실행합니다. 실행 후 일반 기본 App으로 돌아가려면 `npm.cmd run run:windows --workspace @nelyx/testbed-2`를 사용하세요.
 
@@ -165,6 +173,31 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 비교 명령은 한 Release bytecode package에서 TS control·snapshot input geometry·Path·clip/Paint·Scene composition·Semantics geometry를 각각 선택합니다. 각 mode의 fresh owner 3회에서 Gallery 두 열 → Mixed를 측정하고, `--functional`은 후보별 실제 키 입력·한글 IME·Gallery 복귀·정상 종료도 검사합니다. SDK 집계와 독립 C++ 작업 수, 입력 시간 안의 native QPC bucket을 대조합니다. 계수 비용이 포함된 비교이며 물리 입력·scanout 성능 수락은 별도입니다.
 
 작업 수 0인 필수 입력 구간은 `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`로 남고 명령은 exit 2로 종료합니다. 다른 장면이나 startup의 작업으로 통과시키지 않습니다. App source는 자동 복구되지만 현재 Release 출력은 실험 package이므로 마지막 일반 실행 명령으로 재빌드하세요. 일반 App은 이 후보들을 기본 활성화하지 않습니다. 결과와 미채택 근거는 [work5.md](../../work5.md)에 있습니다.
+
+### All components 전체 예열·전체 구간 측정
+
+Testbed 창을 닫고 자동 실행 중에는 물리 입력을 쉬게 둡니다. 후보 비교와 같은 최대화 client 2560×1459 / DPI 192 조건을 사용합니다.
+
+```powershell
+npm.cmd run test:gallery-full-range
+npm.cmd run measure:windows-full-range -- --trials=3 --diagnostic-after
+# N4 후보 비교: 입력 구간 안의 독립 QPC 작업 audit 포함
+npm.cmd run experiment:native-services -- --full-range --modes=ts,backing --trials=3 --diagnostic-after
+# N1/N2/N3 비교와 mode별 별도 Gallery/Mixed/IME 회귀
+npm.cmd run experiment:native-services -- --full-range --modes=ts,layout,text,frame --trials=3 --diagnostic-after --functional
+# cadence를 반복하지 않고 기능 회귀 owner만 실행
+npm.cmd run experiment:native-services -- --full-range --modes=ts,layout,text,frame --functional-only
+# 자동 입력·측정 없이 사용자가 직접 조작하며 coverage 관측
+npm.cmd run run:windows:cpp -- --module=path --full-range
+```
+
+자동 실행의 fresh owner마다 양 열의 현재 catalog section을 겹치는 OS wheel 이동으로 전부 방문하고 layout, bundled font 등록, 이미지의 유효 첫 frame을 확인한 뒤 두 열을 최상단으로 되돌립니다. 예열은 최대 3회이며, 이후 각 열의 실제 top→bottom을 초당 약 1 viewport로 이동합니다. bounded section cache와 editor keep-alive 정책을 사용합니다. coverage 누락, 환경 변경, partial input, 원래 입력 시간 뒤의 bottom 도달은 실패입니다.
+
+`GALLERY_RANGE_TRIAL`은 예열 coverage·extent·submitted geometry와 정확한 native surface trace의 간격·section별 통계를 보고합니다. 독립 surface counter와 trace 수도 대조합니다. `--diagnostic-after`는 CPU stage·paragraph cache·native producer timing을 수집하는 별도 owner를 선택 mode마다 1개 추가하며, 그 수치는 기준 3 owners cadence 요약에서 제외합니다. 자동 명령은 `finally`에서 일반 App 소스를 복구하고 현재 bytecode package를 다시 빌드합니다. 보고는 bounded RAM/stdout만 사용하며 surface 갱신을 물리 표시의 부드러움 수락으로 쓰지 않습니다.
+
+`--functional`은 선택 mode마다 별도 owner에서 창 전환, Gallery 두 열, Mixed의 한글 IME·undo 편집, Gallery 복귀와 native drain을 검사합니다. `--functional-only`는 cadence 없이 이 회귀만 실행합니다. 두 명령 모두 종료 시 일반 App을 복구·재빌드합니다.
+
+수동 모드에서는 **양쪽 열을 모두** 끝까지 방문→둘 다 top 복귀→각 열 top→bottom 순서로 확인합니다. `NATIVE_MODULE_RESULT.galleryRange`는 마지막 수동 coverage snapshot이며 자동 완료 gate·timing 판정은 실행하지 않습니다. `--full-range`는 coverage 관측, `--module`은 native 후보 선택입니다. 현재 결과와 후보 선택은 [work6.md](../../work6.md)에 기록합니다.
 
 ### 개발 세션
 

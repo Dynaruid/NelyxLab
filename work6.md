@@ -1,20 +1,20 @@
 # 추가 C++ 엔진 후보와 All components 전체 구간 스크롤 검증
 
-작성: **2026-11-03 KST** · 상태: **DESIGN_ONLY / 소스 검토·계획 작성 완료 / 구현·새 측정 미실행**
+작성·실행: **2026-11-03 KST** · 상태: **IMPLEMENTED_AND_VERIFIED / 사용자 요청의 C++ all 통합·실제 실행·기능 회귀·일반 App 복구 완료 / 일반 App 기본 TS·NO_ADOPTION·제품 PARTIAL 유지**
 
 **새 C++ 후보는 레이아웃 subtree 처리, 텍스트 구성·측정, 프레임 봉인·자원 입장, Windows GPU backing 재사용으로 넓힌다.** 기존 geometry·Path/Paint·Scene·Semantics 후보와 구분해 하나씩 평가한다. 실제 지배 병목인지는 아래의 새 전체 구간 기준에서 먼저 확인한다.
 
 **주 성능 검증은 Material Gallery의 `All components`에서 양쪽 열의 lazy load를 끝까지 예열한 뒤, 각 열의 최상단에서 실제 최하단까지 이동하는 것으로 바꾼다.** 기존 5초짜리 좁은 왕복 결과는 이 전체 구간 결과를 대신하지 않는다. 전체 로딩 완료·시작점·종료점·중간 섹션 coverage를 함께 확인한다.
 
-[work5.md](work5.md)는 기존 구현·재실험·수동 C++ 모드의 기록으로 유지한다. 이 문서의 새 후보와 검증 방법은 아직 구현하지 않았다. 기존 일반 기본값 **TS**, 후보 **NO_ADOPTION**, 제품 **PARTIAL**, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 이어받는다.
+[work5.md](work5.md)는 기존 구현·재실험·수동 C++ 모드의 기록으로 유지한다. 전체 구간 완료 gate·비교 도구와 Windows N4를 구현·비교한 뒤, 사용자가 **N1·N2·N3까지 구현**하도록 범위를 추가했다. 이 세 후보는 개별 선택·실행 검증을 갖춰 추가하며, 기본 채택은 별도 성능·정확성 판단으로 남긴다. N5는 이번 추가 요청 범위에 넣지 않는다. 현재 결과·검증 범위·후보별 결정은 §12–13에 모은다. 일반 기본값 **TS**, 후보 **NO_ADOPTION**, 제품 **PARTIAL**, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다.
 
 ## 1. 현재 확인한 출발점
 
-- 작성 시 HEAD는 `6505484c46333313cd1660cbc236299d325b9a99`, 작업 트리는 clean이었다. 이번에는 소스와 문서만 읽었으며 설치본·실행 제품 identity를 새로 인증하지 않았다.
+- 설계 작성 시 HEAD는 `6505484c46333313cd1660cbc236299d325b9a99`였다. 이번 구현은 clean HEAD `69377bcd1f5b81d32d8951ade7f2e406ce9c7cf0`에서 시작했다. 현재 공급·실행 identity는 §13에서 별도로 확인한다.
 - [work5 §14](work5.md)의 retained 비교는 실제 C++ 실행이 있었지만 Mixed 평균이 **49.314698→40.292055 surface FPS**로 약 18.30% 낮았다. TS eligibility·변경 생산·전송·결과 반영을 포함한 경로의 결과다.
 - work5 §16의 재실험도 snapshot·Path·clip/Paint·Scene·Semantics를 모두 기본 채택하지 않았다. Native 실행 사실과 전체 경로의 순이득은 별도 조건이다. 새 후보의 근거로 기존 kernel 성능만 재사용하지 않는다.
 - work5 §17에는 `npm.cmd run run:windows:cpp`와 개별 module 선택이 이미 있다. 수동 결과의 `observed`는 native 작업 확인이며 FPS 향상의 증거가 아니다.
-- [현재 cadence](Nelyx/eng/run-rnw-cadence.mjs)는 Gallery 좌/우에 각 방향 **5초**를 전달한다. [OS wheel helper](Nelyx/eng/tests/windows-continuous-scroll.ps1)도 기본 보고를 `packet-defined reversals`로 표시한다. 이미 있는 `RangeExtent` 경로는 전달받은 extent를 이동하는 기능이며, 모든 섹션의 로딩·측정 완료를 인증하지 않는다.
+- 기존 [cadence](Nelyx/eng/run-rnw-cadence.mjs)의 짧은 왕복은 Gallery 좌/우에 각 방향 **5초**를 전달한다. [OS wheel helper](Nelyx/eng/tests/windows-continuous-scroll.ps1)의 기존 `RangeExtent`도 전달받은 extent를 이동하는 기능이다. 새 `--full-range` 경로는 이와 별개로 모든 섹션의 준비·측정과 실제 top→bottom을 확인한다.
 
 따라서 첫 작업은 새 C++ 모듈의 일괄 구현이 아니라 **검증 범위 확대와 전체 구간의 병목 재귀속**이다. 과거 수치와 새 전체 구간 수치를 같은 실험으로 합치지 않는다.
 
@@ -59,7 +59,7 @@ Extent 안정 확인은 예를 들어 **100ms 간격의 3개 bounded 관측**과
 
 ### 3.2 예열 완료 gate
 
-아래 진단 항목은 **새 내부 관측 계약의 제안이며 아직 구현되지 않았다.** 기존 controller·index·resource 수명에서 읽는 opt-in 상태로 제공하고 제품 UI에 개발자 체크리스트를 추가하지 않는다.
+아래 gate는 [GalleryRangeObservation](sample/nelyx-testbed-app-2/src/gallery-range.ts)과 [verifier](Nelyx/eng/tests/gallery-range-contract.js)에 구현했다. 기존 controller·index·resource 수명에서 읽는 opt-in 상태이며, 유효한 submitted frame에서만 완료를 기록한다. 일반 UI에는 관측 표식을 설치하지 않는다.
 
 | 항목 | 통과 조건 |
 | --- | --- |
@@ -71,7 +71,7 @@ Extent 안정 확인은 예를 들어 **100ms 간격의 3개 bounded 관측**과
 | 시작 위치 | 양쪽 실제 offset이 각각 `minScrollExtent`에서 **0.5 logical px 이내** |
 | 실제 끝 확인 | 예열 중 각 열의 마지막 section을 실제 layout·유효 frame에서 확인 |
 
-`measurement(index)`, `totalExtent`는 이미 있지만 Gallery private scroll owner의 coverage·초기 자원 상태를 함께 내보내는 완료 gate는 없다. 새 도구가 이 증거를 만들기 전에는 현재 cadence를 `fully-loaded`로 부르지 않는다.
+`measurement(index)`, `totalExtent`와 section별 실제 geometry·image frame·등록된 bundled font를 함께 확인한다. 폭·환경·owner·index 조건이 바뀌면 완료 상태를 철회한다. 기존 짧은 cadence에는 이 gate를 소급 적용하지 않는다.
 
 ### 3.3 주 측정: 최상단 → 최하단
 
@@ -172,7 +172,9 @@ work5의 Scene 후보는 합성 range를 C++에서 만들면서 TS source lookup
 
 ## 8. N4 — Windows GPU backing과 frame lease의 수명 분리
 
-**이미 C++인 부분을 다른 소유 구조로 바꾸는 후보다.** [win32_import.inc](Nelyx/skia/native/platforms/vulkan/win32_import.inc)는 frame별 import 과정에서 Vulkan image/memory·command buffer·surface/recorder 등을 준비하고 producer/consumer fence를 관리한다. 매번의 생성 비용과 같은 backing 재등장 여부를 새 전체 구간에서 확인한다. 과거 import wall을 새 제품의 측정값으로 쓰지 않는다.
+**이미 C++인 부분의 소유 구조를 바꾸는 독립 후보를 구현했다.** [win32_import.inc](Nelyx/skia/native/platforms/vulkan/win32_import.inc)는 같은 native surface 세대의 D3D texture identity·device·크기가 일치하면 Vulkan image/memory만 재사용한다. frame별 semaphore·command pool·fence·Graphite wrapper/recording·lease는 새로 처리하며 producer 완료와 consumer ACK를 유지한다. 새 전체 구간의 실제 import/reuse 작업과 wall은 §13에서 비교한다.
+
+같은 image를 다시 acquire할 때는 이전 외부 소유권 반환의 `GENERAL` layout에서 시작한다. 최초 import는 `UNDEFINED`에서 시작한다. 이는 [Vulkan 외부 image 접근 규칙](https://docs.vulkan.org/spec/latest/chapters/resources.html)과 [image barrier 계약](https://docs.vulkan.org/refpages/latest/refpages/source/VkImageMemoryBarrier.html)에 따른다. 수명 검사는 [device memory 규칙](https://docs.vulkan.org/spec/latest/chapters/memory.html)을 포함하며 완료가 불명확한 자원을 해제하지 않는다.
 
 제안은 아래 두 수명을 분리하는 것이다.
 
@@ -199,7 +201,7 @@ work5의 Scene 후보는 합성 range를 C++에서 만들면서 TS source lookup
 
 ## 10. 구현 위치와 실행 순서
 
-새 class·API 이름과 protocol은 아직 없다. 아래는 구현할 경우의 소스 경계이며 실제 capability를 추가할 때 실행 audit와 fallback 보고도 함께 추가한다.
+전체 구간은 `GalleryRangeObservation`, `run-gallery-range.mjs`, `windows-gallery-range.ps1`로 구현했다. N4 capability는 `nelyxWin32BackingVersion()` / `nelyxWin32BackingAuditBegin(owner)`이며 SDK producer-result와 독립 native QPC audit를 함께 대조한다. 아래 구조 후보는 관문을 통과한 경우에만 진행한다.
 
 | 단계 | 수정할 위치·작업 | 종료 조건 |
 | --- | --- | --- |
@@ -210,7 +212,7 @@ work5의 Scene 후보는 합성 range를 C++에서 만들면서 TS source lookup
 | W6-4 선택적 후속 | 남은 비용에 따라 다른 후보나 N5 진입 | 수요·지원 계약·순이득이 없으면 비진입 |
 | W6-5 최종 확인 | 채택 조합 공급·전체 구간 재검증·기능 회귀·일반 App 복구·정리 | 후보별 채택과 전체 제품 수락을 구분한 짧은 현재 상태 |
 
-N1/N2/N3의 순수 kernel은 기존 `Nelyx/skia/native/core/`에 두고 JSI는 기존 adapter의 얇은 경계로 제공한다. N4는 기존 Windows Vulkan/platform 코드에서 다룬다. canonical source만 원본으로 편집하고 generated 사본은 기존 공급 도구로 갱신한다. 새 DLL·별도 VM·Wasm toolchain을 필수로 추가하지 않는다. Web/custom backend의 기존 TS 경로를 유지한다.
+현재 N1의 순수 숫자 kernel과 N3의 paragraph 봉인은 기존 `Nelyx/skia/native/core/`에 뒀다. N2는 기존 adapter의 paragraph/style 변환기를 재사용해 native builder·layout·metrics를 한 transaction으로 묶으며, N3의 display-list 검증·native segment/recording owner 연결도 기존 JSI adapter 안에 둔다. 별도 공통 style 변환기나 segment cache를 중복 구현하지 않았다. N4는 기존 Windows Vulkan/platform 코드에서 다룬다. canonical source만 원본으로 편집하고 generated 사본은 기존 공급 도구로 갱신한다. 새 DLL·별도 VM·Wasm toolchain을 필수로 추가하지 않는다. Web/custom backend의 기존 TS 경로를 유지한다.
 
 공통 경계는 TS Number에 맞는 `double`과 기존 행렬/숫자 의미를 유지하고 `fast-math`로 결과를 바꾸지 않는다. owner·session·node/resource generation·layout/frame revision을 검사한다. 각 모듈의 node/depth/bytes·입출력 복사·staging/scratch/capacity 상한을 schema와 함께 먼저 확정하고 allocation 전에 검증한다. JSI 입력은 native 소유로 복사하며 반환 뒤 JS buffer 포인터·JS 함수·Runtime 참조를 보유하지 않는다. 잘못된 protocol·공급 불일치와 정상 custom fallback은 별도 결과다.
 
@@ -226,7 +228,7 @@ N1/N2/N3의 순수 kernel은 기존 `Nelyx/skia/native/core/`에 두고 JSI는 �
 
 ### 11.2 정확성과 실제 제품
 
-변경 영역에 맞게 기존 검사를 선택한다. 아래는 **현재 존재하는 검사 이름이며 이번 작성에서 실행하지 않았다.** 새 모듈·전체 구간 verifier의 검사는 구현과 함께 등록한다.
+변경 영역에 맞게 기존 검사를 선택한다. 아래는 관련 검사이며 실제 실행 결과는 §13에 구분한다. 새 전체 구간·N4 audit 검사는 `test:gallery-full-range`에 등록했다.
 
 ```powershell
 # layout / text
@@ -244,11 +246,11 @@ npm.cmd run test:native-module-mode
 
 Geometry를 함께 수정하면 저장소 규칙대로 `test:input-geometry`와 `test:retained-input-geometry`를 둘 다 실행한다. 실제 Gallery→Mixed의 재클릭 없는 입력·전체 범위 왕복·한글 commit/undo·화면 밖 editor 복귀, 버튼 상태, shadow, DPI/resize·minimize/restore·close/drain을 유지한다. 실제 normal command와 최신 공급 제품으로 확인한다.
 
-현재의 `experiment:native-services -- --trials=3 --functional`은 기존 audit 회귀로 유지한다. **그 명령을 수정 없이 실행한 결과만으로 새 fully-loaded 전체 구간 검증을 통과했다고 쓰지 않는다.** 기존 cadence/experiment/manual launcher에 새 coverage protocol과 native 선택·실행 audit를 연결한 뒤 지원하는 새 명령 형식을 문서화한다. 아직 없는 full-range 옵션을 현재 실행 가능한 명령처럼 제시하지 않는다.
+기존 `experiment:native-services -- --trials=3 --functional`은 기존 audit 회귀로 유지한다. **그 명령을 수정 없이 실행한 결과만으로 새 fully-loaded 전체 구간 검증을 통과했다고 쓰지 않는다.** 전체 구간 자동 gate는 `measure:windows-full-range`, 후보 비교는 `experiment:native-services -- --full-range`로 실행한다.
 
-사용자 직접 확인의 현재 실행 명령은 다음과 같다. 자동 전체 로딩 완료 gate는 아직 없으며, 수동 확인은 §3의 순서로 수행한다.
+현재 실행 명령은 다음과 같다. 수동 확인은 §3의 순서로 수행하며 자동 timing gate와 구분한다.
 
-현재 C++ preview의 `all`은 work5에서 구현한 기존 모듈 묶음이다. **새 N1–N5는 아직 포함되지 않는다.** 새 후보는 구현과 capability·선택 보고·실행 audit를 추가한 뒤 개별 모드로 연결한다.
+현재 C++ preview의 `all`은 retained 입력 좌표·Path/Paint·clip·Scene·Semantics와 **layout·text·frame·backing**을 함께 선택한다. 새 후보를 따로 확인하려면 `--module=layout|text|frame|backing`으로 선택한다. Snapshot 입력 좌표는 retained의 대안으로 별도 모드이며 N5 선택 모드는 없다. 요청한 capability가 없는 공급본은 시작 시 실패한다. 통합 실행의 현재 검증은 §14에 기록한다.
 
 ```powershell
 # 일반 TS 제품
@@ -256,6 +258,26 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 
 # 기존 C++ preview: 표시 모드는 선택값, 종료 집계로 실제 작업 확인
 npm.cmd run run:windows:cpp
+
+# 전체 예열·양 열 top→bottom TS 기준과 별도 진단
+npm.cmd run measure:windows-full-range -- --trials=3 --diagnostic-after
+
+# 동일 bytecode의 TS/N4 교차 3쌍 + 모드별 별도 진단 owner
+npm.cmd run experiment:native-services -- --full-range --modes=ts,backing --trials=3 --diagnostic-after
+
+# N4 수동 preview: full-range coverage 관측도 설치
+npm.cmd run run:windows:cpp -- --module=backing
+
+# N1/N2/N3 실제 모드와 교차 3쌍·별도 진단·기능 회귀
+npm.cmd run experiment:native-services -- --full-range --modes=ts,text,layout,frame --trials=3 --diagnostic-after --functional
+
+# cadence 없이 기능 회귀만 재실행
+npm.cmd run experiment:native-services -- --full-range --modes=ts,text,layout,frame --functional-only
+
+# N1/N2/N3 수동 preview: 자동 입력 없이 종료 시 native 집계 확인
+npm.cmd run run:windows:cpp -- --module=layout
+npm.cmd run run:windows:cpp -- --module=text
+npm.cmd run run:windows:cpp -- --module=frame
 ```
 
 ### 11.3 채택과 종료
@@ -267,14 +289,130 @@ npm.cmd run run:windows:cpp
 - coverage/히스토그램·audit 집계는 bounded RAM으로 관리하고 현재 결과만 이 문서에 짧게 남긴다. 임시 fixture·App patch·staging·소유 process는 성공/실패/중단 모두 `finally`에서 복구·정리한다. 과거 package/SDK 사본·로그·receipt·checkpoint/history JSON을 누적하지 않는다.
 - 현재 dist만 유지하며 `Nelyx/docs/plans/`·`Nelyx/docs/migrations/`를 생성하지 않는다. 기존 사용자 cache/emulator와 과거 삭제 차단 항목을 임의로 정리하지 않는다. 문서 작성 단계에서 기존 C++ 후보를 기본 활성화하거나 제품 캐시 예산을 바꾸지 않는다.
 
-## 12. 현재 상태와 다음 시작점
+## 12. 구현·검증 상태
 
-| 항목 | 상태 |
+| 항목 | 현재 상태 |
 | --- | --- |
-| 기존 C++ 구현·재실험과 새 영역 대조 | 완료 |
-| lazy load 완료 후 양 열 top→bottom 검증 설계 | 완료 |
-| N1–N5와 우선순위·중단 기준 설계 | 완료 |
-| 완료 gate·새 전체 구간 runner·새 C++ 모듈 구현 | 미실행 |
-| 새 전체 구간 제품 공급·측정·수락 | 미실행 |
+| 전체 section 준비·extent·환경·submitted frame 관측과 실패 gate | 구현, 계약·실제 Gallery 회귀 통과 |
+| OS wheel 양 열 top→bottom·native surface trace/counter 대조 | TS/N4와 새 TS/N1/N2/N3의 각 교차 3쌍 모두 coverage 통과 |
+| N4 imported backing | 실제 native 재사용·종료 회수 통과, **NO_ADOPTION** |
+| N1 Flex 숫자 단계 | 제약 배분·root 크기·배치 kernel, 실제 C++/TS 12 조건 일치·양 열 native 이동 작업 확인, **NO_ADOPTION** |
+| N2 text transaction | builder 구성·layout·metrics 묶음, 실제 Testbed miss·양 열 native 이동 작업 확인, **NO_ADOPTION** |
+| N3 frame segment | native 봉인·자원 snapshot·recording lease·GPU 후 회수, 양 열 native 이동 작업·실제 종료 균형 확인, **NO_ADOPTION** |
+| N5 animation/physics | 비진입. 이번 추가 구현 범위 아님 |
+| 추가 세 후보의 3쌍 비교 | 완료, 상세 수치와 범위는 §13.3 |
+| 입력·창 전환 | TS/text/layout/frame의 각 fresh owner에서 Gallery → Mixed 한글 IME/undo → Gallery 복귀·정상 drain 통과 |
+| 일반 App 최종 실행·정리 | 평소 명령의 TS 시작·공급 identity·실제 키 입력/한글 IME·exit 0 확인, fixture·소유 process·이번 이전 준비본 정리 완료 |
 
-다음 작업은 **W6-0: All components의 모든 대상 section을 예열하고 각 열의 실제 최상단→최하단을 증명하는 도구부터 구현**하는 것이다. 그 기준에서 병목을 다시 나눈 뒤, N4/N2의 독립 후보와 N1/N3의 구조 변경을 근거에 따라 선택한다.
+N1은 **한 Flex의 순수 숫자 두 단계**부터 구현한다. TS는 nonflex→flex child layout의 순서와 callback을 유지하고 C++는 그 사이의 배분, 마지막 size/offset 계산을 맡는다. dry/intrinsic/baseline·custom Flex hook은 TS 경로다. subtree 전체·Stack/Wrap까지 이관한 것으로 표시하지 않는다. N2는 기존 TS paragraph cache를 공유하고 별도 native cache를 추가하지 않는다. N3는 한 frame의 닫힌 segment를 native로 소유하고 GPU recording의 수명에 연결하며, TS의 Widget/capture와 registry의 논리 예산은 유지한다.
+
+## 13. 현재 검증 결과
+
+### 13.1 N4 전체 구간 비교
+
+중립 `KeyedSubtree` 표식을 사용한 Release / Hermes bytecode / optimized의 동일 package에서 `ts→backing`, `backing→ts`, `ts→backing` 순서로 fresh owners 3쌍을 측정했다. client **2560×1459 physical / DPI 192**다. 모든 owner가 예열 1회(9.78–10.10초), 양 열 각각 expected/loaded/measured/표시 **7/7/7/7**, 전체 catalog 14 section을 통과했다. 독립 native surface counter와 trace row 차이는 모든 leg에서 **0**이었다.
+
+| 열·모드 | 전체 입력 surface FPS 3회 | 평균 | 실제 첫 이동→bottom 평균 |
+| --- | --- | --- | --- |
+| primary TS | 54.746 / 50.917 / 54.679 | **53.447** | 57.116 |
+| primary N4 | 54.962 / 54.117 / 53.676 | **54.252** (+1.50%) | 58.027 |
+| secondary TS | 42.993 / 43.376 / 45.932 | **44.100** | 50.594 |
+| secondary N4 | 44.379 / 43.972 / 43.723 | **44.025** (-0.17%) | 50.826 |
+
+primary의 실제 extent는 `0→2236.57200050354`, secondary는 `0→1390.5`, viewport 높이는 둘 다 515.5 logical px다. 전체 입력은 각각 약 4.84초/3.20초이며 첫 이동 대기 33–47ms와 bottom 뒤의 457–483ms를 포함한다. 실제 이동 중 최대 surface 간격은 TS **100.51/69.16ms**, N4 **103.91/65.22ms**(primary/secondary)였다. 끝점 대기를 평균에서 임의로 빼지 않고 두 범위를 함께 보고한다.
+
+N4의 owner별 native create/reuse/destroy는 **2/732/2, 2/729/2, 2/723/2**였다. TS는 **731/0/731, 707/0/707, 727/0/727**이었다. 독립 SDK producer-result 집계와 일치했고 모든 종료에서 live backing/bytes가 0이었다. 실제 이동 안에 완전히 포함된 QPC bucket의 N4 reuse는 primary **178/177/173**, secondary **101/102/101**로 각 leg의 native 실행을 확인했다. 두 모드 모두 peak는 1 backing / **15,790,448 bytes**, TS fallback 0이었다. N4 miss도 기존 C++ import를 사용한다.
+
+별도 진단 owner는 TS/N4 각각 1개이며 cadence 평균에 넣지 않았다. TS→N4 import 준비 평균은 primary **1.798→0.082ms/frame**, secondary **1.912→0.082ms/frame**였지만 producer wait는 **2.938→3.253 / 3.291→3.543ms/frame**였다. 이는 host wall이고 독립 GPU 시간·scanout은 관측하지 않았다. 전체 경로의 일관된 개선이 없어 **N4 기본 미채택**이며 60 surface FPS·체감 부드러움 수락도 없다.
+
+TS 진단의 description/key는 열당 합계 **1.094/1.002ms**, layout 전체는 **15.427/16.264ms**(23/21 calls, 19/17 cache misses)였다. capture는 평균 **0.135/0.140ms**, transfer는 약 **0.003ms/frame**였다. layout의 최대 **46.99/35.06ms**도 남아 있다. 서로 겹치는 stage·section wall을 더하지 않는다. 이 수치는 N1/N2/N3 추가 구현 전 제품의 진단이며 새 공급의 성능으로 재사용하지 않는다.
+
+이 비교의 native inputs는 `10a1fb291e03a5a3c7c2426f212f7da28a7dc0013282f6122e6a5c51f19e446d`, SDK inputs는 `12241056deaa5a96f3d02eb844117a0943dc1635c5f981a031a018d40db723a1`, manifest는 `7fda45c516a2e66b1deb0a7d5a7b14454765d2810b281cd92a973a4cdbea3efc`, bytecode는 `928702c846a28fbabeb9ef383e9a5f18c5c66d28c8106ee8191a4cd35854d983`이었다. 추가 후보 공급은 별도 identity로 다시 확인한다.
+
+### 13.2 회귀·실패 범위
+
+- 추가 N1/N2/N3 공급 뒤 Gallery **33 PASS / 1 SKIP**, scroll engine **292 PASS**, native paint/resource **71 PASS**, layout constraints **7 PASS**, engine/manual module/audit **13 PASS**, 전체 구간/audit **7 PASS**, 입력 geometry·retained geometry·원본 paragraph query·전달된 native shadow **11 PASS**를 확인했다. 전체 type check와 package boundary 검사도 통과했다. 반복 집계에 겹치는 테스트를 하나의 총합으로 더하지 않는다.
+- 전체 구간/audit의 7개에는 전달된 Windows archive를 직접 link한 실제 D3D/Vulkan pixel·consumer ACK·외부 texture 거부·세대 교체·idle backing 축출·drain 검사가 포함된다(각 모드 16 frames, N4 create 7/reuse 9, peak 3/114,688 bytes). 같은 executable은 shared core의 paragraph 봉인에 대해 DPR 1.25/2 × width 80/170/+∞의 6조건에서 한글·emoji·결합 문자·BiDi·style·placeholder·ellipsis·clip의 direct/sealed 512×256 GPU pixels를 정확히 비교했다. 이 shared core 검사와 실제 N2 JSI 실행을 구분한다. Native shadow는 DPR 1/1.25/1.5/2에서 통과했다.
+- 새 N1 kernel은 실제 C++/TS 비교 12 조건에서 child constraints·순서·size/offset/overflow가 정확히 일치했다. 새 engine verifier는 startup-only·SDK 불일치·fallback 불일치·미회수 frame을 거부했다. 이 소스 검사를 Testbed 실제 native 실행으로 치환하지 않는다.
+- 초기 표식의 추가 RepaintBoundary는 제거했고 그 이전 FPS/CPU 수치는 사용하지 않는다. 측정 전에 차단된 환경/identity 오류와 복구 build 중 source 변경 오류도 제품 표본에서 제외했다. 최종 N4 cadence 3쌍 후 진단 1회는 눌린 마우스 버튼을 감지해 실패했으며, 진단만 별도 재실행해 통과했다. 매 실행의 일반 App 소스·임시 fixture는 복구·삭제됐다.
+- 새 공급의 일반 App 복구·실행 identity는 §13.4에 기록한다. 앞 N4 단계의 App hash를 현재 최종 제품으로 재사용하지 않는다.
+
+### 13.3 N1/N2/N3 전체 구간 비교
+
+현재 native 공급은 `a21fe7850ce00f00c5d255dcf1f26ba4e0507d03711c5216c95212aac9df9e32`다. 하나의 optimized Release Hermes bytecode package에서 TS/text/layout/frame을 각각 fresh owner 3회 실행했고 두 번째 회차는 순서를 뒤집었다. 뒤이어 mode별 진단 owner 1개를 따로 실행했다. 12개 cadence owner와 4개 진단 owner 모두 현재 catalog의 양 열 7+7 sections·실제 extent·폰트·이미지·top 복귀·원래 입력 구간 안 bottom·독립 surface trace/counter 일치를 통과했다. 환경은 N4 비교와 같은 2560×1459 / DPI 192, viewport 515.5·각 열 width 492이며 extent도 같다. 앞 N4 cohort와 새 공급 수치를 하나의 before/after 쌍으로 섞지 않는다.
+
+| 모드 | primary 평균 surface FPS | secondary 평균 surface FPS | 각 열 TS 대비 | 결정 |
+| --- | ---: | ---: | --- | --- |
+| TS control | 52.592 | 42.513 | 기준 | 기본 유지 |
+| N1 `layout` | 52.641 | 41.784 | +0.09% / −1.71% | NO_ADOPTION |
+| N2 `text` | 54.070 | 43.778 | +2.81% / +2.98% | NO_ADOPTION |
+| N3 `frame` | 52.935 | 42.565 | +0.65% / +0.12% | NO_ADOPTION |
+
+평균은 최초/endpoint 대기를 포함한 원래 입력 시간의 surface counter다. 세 후보 모두 지속 60 FPS를 충족하지 않으며 N2의 작은 평균 차이도 물리 표시·체감 개선의 수락이 아니다. 새 후보에서 실제 이동 간격의 최댓값은 primary 약 80–101ms, secondary 약 68–87ms였다. 별도 CPU 진단을 이 3회 평균에 넣지 않았다.
+
+- **N1:** cadence owner당 native plan/placement는 197/203/200쌍, 두 단계 child 숫자 방문은 948/980/964였다. 원래 이동 시간 안에 완전히 포함된 QPC bucket의 child 방문은 매 회 primary 156 / secondary 56이며 SDK와 native 총계가 일치했다. 이 장면에서 TS fallback은 0이다. 첫 지원 범위는 한 Flex의 순수 숫자 두 단계이며, §5의 장기 subtree session·dirty delta·Stack/Wrap 구현이나 한 번의 subtree JSI 계약을 달성한 것으로 쓰지 않는다. 왕복·지원 판정까지 포함한 이득이 없어 이 범위에서 확장을 멈추고 기본 채택하지 않는다.
+- **N2:** 매 cadence owner에서 native paragraph transaction 218회 / op 651개 / UTF-8 2,246 bytes였다. 완전히 포함된 이동 bucket의 실제 transaction은 primary 19 / secondary 15였다. cache hit는 native 생성 수에 넣지 않았고 fallback 0, SDK/native 집계가 일치했다. 기존 TS cache·font catalog·paragraph/query identity를 공유하며 별도 native intern/cache·section 전체 batch는 추가하지 않았다. 진단의 text layout 합계는 TS 24.664/15.640ms → text 16.802/14.732ms였지만 별도 owner 1회이며, description/key 준비는 여전히 TS에서 약 1ms/열이다. 이 국소 수치를 전체 제품 속도 이득으로 확대하지 않는다.
+- **N3:** cadence native seal=admit=실제 retirement는 각각 699/697/704로 균형을 이뤘고 SDK seal/admit/encoded bytes와 일치했다. 완전한 이동 bucket의 admission은 primary 224/168/168, secondary 94/95/95로 실제 작업을 확인했다. fallback 0, peak 2 segments / charged metadata 98,192 bytes, drain 뒤 live 0 / bytes 0이었다. metadata 비용 계산은 encoded bytes + commands×256 + handles×64이며 실제 process/GPU 전체 메모리 측정치가 아니다. 한 frame의 closed segment와 native recording lease를 구현했으며 frame 사이 segment cache/reuse·TS capture/registry 제거를 주장하지 않는다. 진단 capture 평균은 TS 약 0.136/0.137ms → frame 0.140/0.148ms, submit 평균은 약 1.467/1.395ms → 1.561/1.537ms로 총경로 이득을 확인하지 못했다.
+
+N1/N2는 transaction 밖에서 새 native 객체를 붙잡지 않는다. N3는 mutable Paint/Rect/RRect/Matrix와 paragraph picture를 봉인하고 native resource hold를 recording과 GPU 작업에 연결한다. JS wrapper의 명시적 dispose만으로 GPU hold를 풀지 않으며 native drain에서 실제 회수 수와 남은 객체를 확인했다. 개별 선택과 사용자 요청에 따른 `all` 통합 선택을 제공한다.
+
+### 13.4 개별 후보 단계의 기능 회귀와 일반 App
+
+TS/text/layout/frame에서 각각 별도 fresh owner 1개로 maximize/restore/minimize/restore, 양 열 Gallery, eager Mixed의 12 fields·36 buttons, OS wheel 왕복 뒤 refocus 없는 정확한 키 입력, 실제 한글 IME 조합·확정·undo, 같은 owner의 Gallery 양 열 복귀를 검사했다. 네 owner 모두 exit 0 / forced=false, allocation·text-input·React 오류 없음, `views=0 consumers=0 gpuDrained=1 inputRetired=1`로 종료했다. 후보별 실제 native 작업·SDK 집계·fallback/회수도 verifier를 통과했다. Gallery 복귀 최대 관측 gap은 네 mode에서 약 50–98ms였다. 진단·desktop capture를 켠 기능 회귀이며 일반 cadence나 물리 키보드·트랙패드 수락으로 쓰지 않는다. N4는 앞의 native generation/ACK/drain 검사 범위이며 이 네 owner의 창 전환 검증을 N4 결과로 확장하지 않는다.
+
+기능 회귀 package identity는 native `a21fe785…9e32`, SDK `69b102c3…2e4a`, manifest `7d077cd6…0493`, HBC `7a034781…83b4`였다. 이는 §13.3의 cadence/별도 진단 fixture를 다시 빌드한 **기능 회귀 전용** package이며 그 성능 수치를 대표하지 않는다.
+
+`finally` 복구 후 `npm.cmd run run:windows --workspace @nelyx/testbed-2`로 일반 App을 실제 실행했다. App 원문은 Git HEAD와 byte 단위로 같고 임시 fixture가 없다. 시작 보고는 `inputGeometry=ts`, `sceneComposition=false`, `semanticsGeometry=false`, `sceneBatch=none`이다. source map의 현재 TS 입력과 설치된 SDK **9 packages**의 내용이 일치하고, Skia native/RN의 canonical/generated/install **181 files**도 각각 일치한다.
+
+| 개별 후보 단계 일반 App 항목 (최신 통합 공급은 §14) | SHA-256 |
+| --- | --- |
+| Native inputs | `a21fe7850ce00f00c5d255dcf1f26ba4e0507d03711c5216c95212aac9df9e32` |
+| Installed SDK inputs | `69b102c3787022b082fd49d0fb8cef0edff0d8ea774cb20920a3661d45312e4a` |
+| Ordinary App inputs | `17946713fd2d59c09d8e872429237bb5aa69d738829610077199315d87e338fd` |
+| Package manifest | `53ae704cfc14e835ebf45ef6ba12b996c1f0a059ffd56db38e6ce08f761fee85` |
+| NelyxRNHost.exe | `89218bcd7622aaa37e8506a9033d4da44ae0f8e9d2ac9f07fd94648c9c5dace4` |
+| Ordinary optimized Release Hermes bytecode | `d8ba273e3439a06db0d877b7aa10451dea166037deda3ec2912c733ee46a3ede` |
+
+평소 명령으로 연 일반 App에서도 OS wheel 왕복 뒤 refocus 없는 키 입력 3회, 12 fields·36 buttons, 전송·횟수·초기화, 실제 한글 IME 조합·확정·undo와 Gallery 복귀를 통과했다. 각 키의 Core value receipt 최댓값은 145.50ms였으며 물리 키보드 latency 수락이 아니다. 마지막 창을 정상 닫은 뒤 CLI는 `nelyx.run/v2 exitCode=0`으로 종료했다. 일반 실행에는 실험·frame/input 진단 환경 변수를 넣지 않았다.
+
+임시 `.rnw-*` fixture와 소유 Testbed process가 남지 않았고 App 원문을 복구했다. 현재 dist·Windows SDK archive는 package별 하나이며 별도 로그·receipt·history 출력은 남기지 않았다. 이번 작업에서 만든 이전 N4 준비본 `10a1fb29…446d`는 현재 runner의 참조가 없고 현재 입력이 `a21fe785…9e32`임을 preview로 확인한 뒤 해당 폴더 하나만 정리했다. 기존 사용자 native cache와 다른 대상 공급은 건드리지 않았다.
+
+이 문서의 첫 구현 범위는 종료한다. N1의 장기 subtree session과 N2의 추가 intern/batch, N3의 frame 간 reuse는 구현 완료로 표시하지 않는다. 총경로 이득이 확인되지 않아 이번 범위를 기본 채택하지 않고 추가 구조 확장은 별도 근거가 생길 때 다룬다. 최종 제품은 **PARTIAL**, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 새 후보는 Windows bytecode의 위 범위에서만 검증했으며 Static AOT·Web·Android native 실행과 물리 표시·입력의 수락을 추가하지 않는다.
+
+## 14. 사용자 요청 — C++ all에 새 후보 통합
+
+사용자가 전체 C++ 활성화를 요청해 기본 `npm.cmd run run:windows:cpp`와 명시적 `--module=all`에서 기존 모듈에 N1 Flex·N2 text transaction·N3 frame segment·N4 backing을 함께 켜도록 수정했다. 일반 App의 TS 기본값과 앞의 성능 미채택 판단은 유지한다. `all`은 지원되는 native 경로를 함께 선택하는 것이며 Widget/Element·사용자 callback·지원 밖 동작까지 C++로 재작성했다는 뜻이 아니다.
+
+`all`에도 bounded Gallery 관측과 backing audit을 설치하고 종료 시 engine 3개와 backing을 독립 검증한다. 모듈 하나의 작업으로 다른 모듈을 `observed`로 표시하지 않는다. 새 모듈 선택 누락·SDK/native 불일치·frame 미회수·backing 미회수는 실패다. 봉인된 frame의 실제 admission/replay에서도 native Path/Paint·clip 작업을 집계한다. 외부 Scene/Semantics session은 기존 순서로 닫고 renderer/GPU drain 뒤에 frame retirement와 engine 보고를 확정한다.
+
+현재 구현·단위 회귀·Windows supplier 재빌드와 실제 기본 명령의 통합 Testbed, 별도 fresh owner의 Gallery → Mixed → Gallery 기능 회귀, 일반 App 복구·실행·정리가 완료됐다.
+
+통합 공급의 native 입력은 `4d361037655c25510fab1e1282755b99a5acca1ad05f29394d50a095e97c74c0`, 설치 SDK 입력은 `fc79f86467e919febb7e971f52cb4e76aa678783da5e0d497e481da56fe6c81d`다. 기본 명령이 만든 수동 package의 manifest는 `d30d9c83f69b844eb7bd4886b28713e4b95f4ea17f3305dfdd8a49bf3a544b62`, executable은 `3b3fb6a6ccc706a2891d9e13f107f3d08561275d7bf003d078b62ecab1e30dc9`였다. source map과 Skia native/RN 각각의 canonical/generated/install 181 files가 일치했다.
+
+| 통합 검증 | 기본 명령의 실제 창 | 별도 fresh owner 기능 회귀 |
+| --- | --- | --- |
+| 실제 native 실행 보고 | inputGeometry/path/paint/clip/composition/semantics/layout/text/frame/backing 모두 `observed` | 같은 10개 항목 모두 `observed` |
+| Flex plan/placement · child 숫자 방문 | 193쌍 · 2,526 | 246쌍 · 2,798 |
+| native text transaction | 158 | 175 |
+| frame seal = admit = retirement | 979 = 979 = 979 | 3,543 = 3,543 = 3,543 |
+| frame peak / charged metadata | 2 / 167,896 bytes | 2 / 186,744 bytes |
+| backing create/reuse/destroy | 2 / 977 / 2 | 4 / 3,539 / 4 |
+| backing peak | 1 / 15,790,448 bytes | 1 / 15,790,448 bytes |
+| 종료 | exit 0 / forced=false / frame·backing live 0 | exit 0 / forced=false / frame·backing live 0 |
+
+기본 명령의 실제 창에서 12 fields·36 buttons, OS wheel 왕복 뒤 refocus 없는 키 입력, 한글 IME 조합·확정·undo를 통과했다. 첫 입력 시도는 `foregroundOwned=false`로 중단됐고 재시도에서 통과했다. 창 소유권 실패를 성공 표본으로 바꾸지 않았다. 수동 owner 전체의 작업 수이며 startup·탐색도 포함한다. 자동 cadence나 물리 표시의 성능 증거가 아니다.
+
+별도 fresh owner에서는 최대화/복원/최소화/복원 → Gallery 양 열 → Mixed 실제 편집/IME → 같은 owner의 Gallery 양 열 복귀를 통과했다. 복귀의 최대 관측 gap은 72.46/55.07/90.98/96.80ms였고, `views=0 consumers=0 gpuDrained=1 inputRetired=1`로 닫혔다. retained geometry의 cold-provider fallback은 1회였고 Semantics fallback 2,188회를 별도 보고했으며 새 engine 세 모듈의 fallback은 0이었다. 각 모듈의 관측과 fallback을 따로 유지하며 100% C++ 처리라고 표시하지 않는다.
+
+새 회귀는 module/audit **7 PASS**, engine 후보 **6 PASS**, paint/resource/lifetime **71 PASS**, 실제 통합 Windows 기능 **1 PASS**다. `all`의 engine/backing 보고 누락과 SDK/native 작업 수 불일치를 거부하고, 같은 모듈의 native 작업이 없으면 다른 모듈의 작업으로 가리지 않는다. 현재 통합은 수동 C++ 선택 기능이며 앞의 개별 후보 3쌍 수치를 통합 모드의 성능으로 재사용하지 않는다.
+
+마지막으로 평소 `npm.cmd run run:windows --workspace @nelyx/testbed-2`가 일반 App을 다시 빌드·실행했다. 시작 보고는 TS / Scene·Semantics 후보 false / sceneBatch none이었고, 12 fields·36 buttons의 스크롤·전송·횟수·초기화·복귀를 확인한 뒤 exit 0으로 닫았다. 일반 App의 마지막 확인은 ActionsOnly이며 한글 IME 증거는 앞의 통합 C++ 두 owner 결과다.
+
+| 최종 일반 App | SHA-256 |
+| --- | --- |
+| App inputs | `5f50b5ed0f59e0c23ede113ad07ef06bc4d58d29622d5d7091c52f5f8401a1b2` |
+| Package manifest | `f2d34308bc0e6b9f5306454d908b323d22dced7533f7dc17048303d94f2f2212` |
+| Executable | `3b3fb6a6ccc706a2891d9e13f107f3d08561275d7bf003d078b62ecab1e30dc9` |
+| Ordinary optimized Release Hermes bytecode | `d8ba273e3439a06db0d877b7aa10451dea166037deda3ec2912c733ee46a3ede` |
+
+현재 설치 SDK 9 packages와 원본·source map 입력이 일치하고 Windows SDK archive는 각각 현재 1개만 유지한다. App 원문은 HEAD와 byte 단위로 같고 `.rnw-*` fixture·소유 Testbed process가 없다. 이전 준비본 `a21fe785…9e32`는 현재 runner의 참조가 없고 선택된 입력이 `4d361037…74c0`임을 preview로 확인한 후 해당 폴더 하나만 정리했다. 기존 다른 native cache는 유지했다. 변경 소스의 lint/format과 diff 검사가 통과했으며 별도 검증 로그·receipt는 남기지 않았다.

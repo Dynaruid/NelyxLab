@@ -27,6 +27,14 @@ public:
   std::shared_ptr<const Win32Frame> renderWin32Frame(Win32TextureTarget,std::function<void(SkCanvas*)> draw,
     const std::vector<std::shared_ptr<skgpu::graphite::Recording>>& recordings={});
   void close();
+  unsigned win32BackingVersion() const override {
+#ifdef _WIN32
+    return 1;
+#else
+    return 0;
+#endif
+  }
+  bool beginWin32BackingAudit(double owner) override;
 private:
   struct Impl;
   std::unique_ptr<Impl> impl;

@@ -10,6 +10,7 @@
 #include "JsiSceneComposition.h"
 #include "JsiSemanticsGeometry.h"
 #include "nelyx_skia/scene_build.h"
+#include "nelyx_skia/flex_layout.h"
 #include <cstring>
 
 #include "rnskia/RNSkPlatformContext.h"
@@ -178,6 +179,22 @@ public:
     if(count!=0)throw jsi::JSError(runtime,"Native audit end takes no arguments");
     NativeServiceAudit::end();return jsi::Value::undefined();
   }
+  double nelyxWin32BackingVersion(){return getContext()->getGpuContext().win32BackingVersion();}
+  double nelyxFlexLayoutVersion(){return 1;}
+  double nelyxFrameSegmentVersion(){return 1;}
+  JSI_HOST_FUNCTION(nelyxFlexLayout){
+    if(count!=1)throw jsi::JSError(runtime,"Flex layout requires one owned numeric packet");
+    auto buffer=arguments[0].getObject(runtime).getArrayBuffer(runtime);const auto bytes=buffer.size(runtime);
+    if(bytes<16*8||bytes>(16+2048*3)*8||bytes%8)throw jsi::JSError(runtime,"Flex layout packet budget/alignment");
+    std::vector<double> input(bytes/8);std::memcpy(input.data(),buffer.data(runtime),bytes);
+    const auto result=nelyx::flex_layout::run(input);
+    NativeServiceAudit::recordEngine({{input[2]==0?0u:2u,1},{1,static_cast<uint64_t>(input[3])}});
+    return RNJsi::JSIConverter<std::vector<double>>::toJSI(runtime,result);
+  }
+  JSI_HOST_FUNCTION(nelyxWin32BackingAuditBegin){
+    if(count!=1||!arguments[0].isNumber())throw jsi::JSError(runtime,"Backing audit requires an owner generation");
+    return jsi::Value(getContext()->getGpuContext().beginWin32BackingAudit(arguments[0].getNumber()));
+  }
   double nelyxRetainedInputGeometryVersion() { return nelyx::input_geometry::retained::version; }
   JSI_HOST_FUNCTION(nelyxReportInputGeometryStatus) {
     if(count!=1||!arguments[0].isString())throw jsi::JSError(runtime,"Expected one numeric geometry status report");
@@ -295,6 +312,11 @@ public:
     installHostMethod(runtime,prototype,"nelyxInputGeometrySession",&JsiSkApi::nelyxInputGeometrySession);
     installHostMethod(runtime,prototype,"nelyxRetainedInputGeometrySession",&JsiSkApi::nelyxRetainedInputGeometrySession);
     installHostMethod(runtime,prototype,"nelyxReportInputGeometryStatus",&JsiSkApi::nelyxReportInputGeometryStatus);
+    installHostMethod(runtime,prototype,"nelyxWin32BackingAuditBegin",&JsiSkApi::nelyxWin32BackingAuditBegin);
+    installMethod(runtime,prototype,"nelyxFlexLayoutVersion",&JsiSkApi::nelyxFlexLayoutVersion);
+    installMethod(runtime,prototype,"nelyxFrameSegmentVersion",&JsiSkApi::nelyxFrameSegmentVersion);
+    installHostMethod(runtime,prototype,"nelyxFlexLayout",&JsiSkApi::nelyxFlexLayout);
+    installMethod(runtime,prototype,"nelyxWin32BackingVersion",&JsiSkApi::nelyxWin32BackingVersion);
     installHostMethod(runtime, prototype, "getNativeDevice",
                       &JsiSkApi::getNativeDevice);
     installHostMethod(runtime, prototype, "Font", &JsiSkApi::Font);

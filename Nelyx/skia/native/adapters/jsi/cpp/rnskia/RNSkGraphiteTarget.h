@@ -79,13 +79,16 @@ class RNSkGraphiteRecording {
     // Contains no platform/JS/View callbacks. A native imported frame retains
     // its Device separately; release the recording before its native recorder.
     std::shared_ptr<skgpu::graphite::Recorder> recorder;
+    // Numeric closed segments and native resources outlive GPU replay. Release
+    // recordings first, then holds, then their recorder/GPU owner.
+    std::vector<std::shared_ptr<void>> frameSegments;
     std::unique_ptr<skgpu::graphite::Recording> recording;
   };
 public:
   RNSkGraphiteRecording(std::shared_ptr<RNSkGraphiteRecorder> recorder,
                         std::unique_ptr<skgpu::graphite::Recording> recording,
                         const RNSkGraphiteTargetInfo &target)
-      : _recorder(std::move(recorder)), _native(std::make_shared<NativeReplay>(NativeReplay{_recorder->recorder,std::move(recording)})),
+      : _recorder(std::move(recorder)), _native(std::make_shared<NativeReplay>(NativeReplay{_recorder->recorder,{},std::move(recording)})),
         _target(target) {}
   RNSkGraphiteRecording(const RNSkGraphiteRecording&)=delete;
   RNSkGraphiteRecording& operator=(const RNSkGraphiteRecording&)=delete;
@@ -95,12 +98,13 @@ public:
     return {_native,_native->recording.get()};
   }
   void nelyxHold(std::shared_ptr<NelyxGraphiteSlot> slot){_nelyxSlot=std::move(slot);}
+  void nelyxHoldFrameSegment(std::shared_ptr<void> segment,NelyxFrameIdentity identity){if(!_native->frameSegments.empty())throw std::runtime_error("A native recording already owns its frame segment");_native->frameSegments.push_back(std::move(segment));_sealedIdentity=identity;}
   bool nelyxManaged() const {return _nelyxSlot!=nullptr;}
   bool nelyxRetired() const {return _nelyxSlot&&_nelyxSlot->retired.load();}
   void nelyxMarkRetired(){if(_nelyxSlot)_nelyxSlot->retired.store(true);}
-  bool nelyxClaim(const std::shared_ptr<NelyxGraphiteAdmission>& state,uint64_t submission=0){if(!_nelyxSlot || _nelyxSlot->state!=state || _nelyxSlot->submitted.exchange(true))return false;_nelyxSlot->submission=submission;return true;}
+  bool nelyxClaim(const std::shared_ptr<NelyxGraphiteAdmission>& state,uint64_t submission=0){if(!_native->frameSegments.empty()&&(_identity.owner!=_sealedIdentity.owner||_identity.frame!=_sealedIdentity.frame||_identity.viewport!=_sealedIdentity.viewport))return false;if(!_nelyxSlot || _nelyxSlot->state!=state || _nelyxSlot->submitted.exchange(true))return false;_nelyxSlot->submission=submission;return true;}
   uint64_t nelyxSubmission() const {return _nelyxSlot?_nelyxSlot->submission:0;}
-  void nelyxSetIdentity(NelyxFrameIdentity value){if(_nelyxSlot&&_nelyxSlot->submitted.load())throw std::runtime_error("Native frame identity is already immutable");_identity=value;}
+  void nelyxSetIdentity(NelyxFrameIdentity value){if(_nelyxSlot&&_nelyxSlot->submitted.load())throw std::runtime_error("Native frame identity is already immutable");if(!_native->frameSegments.empty()&&(value.owner!=_sealedIdentity.owner||value.viewport!=_sealedIdentity.viewport||value.frame!=_sealedIdentity.frame))throw std::runtime_error("Native sealed frame generation/revision differs");_identity=value;}
   NelyxFrameIdentity nelyxIdentity() const{auto value=_identity;if(_nelyxSlot){value.context=_nelyxSlot->state->identity;value.submission=_nelyxSlot->submission;}return value;}
 
 
@@ -147,6 +151,7 @@ public:
 
 private:
   NelyxFrameIdentity _identity;
+  NelyxFrameIdentity _sealedIdentity;
   std::shared_ptr<NelyxGraphiteSlot> _nelyxSlot; // Destroyed after the recorder/recording.
   // Declared before the recording so that the recording is released first.
   std::shared_ptr<RNSkGraphiteRecorder> _recorder;
@@ -187,6 +192,7 @@ public:
     _nelyxPixelDensity.store(static_cast<float>(density));_nelyxReservedTarget=target;_nelyx->reserved=true;return 0;
   }
   void nelyxCancel(){std::lock_guard<std::mutex> lock(_nelyx->mutex);_nelyx->reserved=false;}
+  void nelyxCheckSegmentContext(double identity,double surface){std::lock_guard<std::mutex> lock(_nelyx->mutex);if(!_nelyx->reserved||_nelyx->closed||identity!=double(_nelyx->identity)||(_nelyxReservedTarget.surfaceGeneration&&surface!=double(_nelyxReservedTarget.surfaceGeneration)))throw std::runtime_error("Native frame segment context/surface generation differs");}
   std::vector<double> nelyxStats(){std::lock_guard<std::mutex> lock(_nelyx->mutex);return {static_cast<double>(_nelyx->identity),_nelyx->reserved?1.0:0.0,static_cast<double>(_nelyx->recordings),static_cast<double>(_nelyx->queued),static_cast<double>(_nelyx->consuming)};}
   std::vector<double> nelyxNotifications(){
     std::lock_guard<std::mutex> lock(_nelyx->mutex);std::vector<double> values;values.reserve(_nelyx->notifications.size()*3);

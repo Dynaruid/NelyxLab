@@ -15,17 +15,24 @@ import { refreshSampleWindowsSdk } from './run-sample-windows.mjs';
 import { withNativeServiceExperimentFixture } from './tests/native-service-experiment-fixture.mjs';
 import { geometryActivationCollector } from './tests/native-service-activation.js';
 import { nativeModuleModes, verifyNativeModuleMode } from './tests/native-service-experiment.js';
+import { withGalleryRangeFixture } from './tests/gallery-range-fixture.mjs';
 
 export function nativeModuleOption(args) {
+  if (args.filter((x) => x === '--full-range').length > 1)
+    throw Error('Use --full-range only once');
+  args = args.filter((x) => x !== '--full-range');
   if (!args.length) return 'all';
   if (args.length !== 1 || !args[0].startsWith('--module='))
-    throw Error('Use --module=all|retained|snapshot|path|paint|composition|semantics|ts');
+    throw Error(
+      'Use --module=all|retained|snapshot|path|paint|composition|semantics|backing|text|layout|frame|ts',
+    );
   const mode = args[0].slice('--module='.length);
   if (!nativeModuleModes.includes(mode)) throw Error('Unknown native module: ' + mode);
   return mode;
 }
 
-export async function runNativeModules({ root, mode }) {
+export async function runNativeModules({ root, mode, fullRange = false }) {
+  fullRange ||= ['all', 'backing', 'text', 'layout', 'frame'].includes(mode);
   if (!nativeModuleModes.includes(mode)) throw Error('Unknown native module: ' + mode);
   const app = path.join(root, 'sample/nelyx-testbed-app-2'),
     runner = path.join(app, 'windows/runner'),
@@ -59,7 +66,7 @@ export async function runNativeModules({ root, mode }) {
     );
     let expectedAppInputs;
     const expectedSdkInputs = windowsBuildInputs(runner);
-    await withNativeServiceExperimentFixture(
+    await (fullRange ? withGalleryRangeFixture : withNativeServiceExperimentFixture)(
       runner,
       () => {
         expectedAppInputs = windowsAppBuildInputs(app);
@@ -123,7 +130,11 @@ export async function runNativeModules({ root, mode }) {
     );
     if (mode === 'all')
       console.log(
-        'Selected: retained input geometry, Path + Paint/clip, Scene composition, Semantics geometry.',
+        'Selected: retained input geometry, Path + Paint/clip, Scene composition, Semantics geometry, Flex layout, text transactions, frame segments, Windows backing reuse.',
+      );
+    if (fullRange)
+      console.log(
+        'Full range manual observation: keep All components and the same window/theme. Visit every section in BOTH columns, return BOTH to the top, then scroll each column from top to bottom. Closing prints coverage only; use measure:windows-full-range for the automatic gate and timed legs.',
       );
     const collector = geometryActivationCollector();
     let tail = '';
@@ -132,6 +143,7 @@ export async function runNativeModules({ root, mode }) {
       env: {
         ...process.env,
         NELYX_NATIVE_SERVICE_EXPERIMENT: mode,
+        NELYX_WINDOWS_BACKING_REUSE: mode === 'backing' || mode === 'all' ? '1' : '0',
         NELYX_NATIVE_SERVICE_MANUAL: '1',
         NELYX_WINDOWS_FRAME_DIAGNOSTICS: '',
         NELYX_TRACKPAD_DIAGNOSTICS: '',
@@ -165,7 +177,8 @@ export async function runNativeModules({ root, mode }) {
       throw Error('Interactive Testbed did not close cleanly: ' + JSON.stringify(close));
     if (hash(path.join(checked.directory, 'nelyx-package.json')) !== locator.manifestSha256)
       throw Error('Interactive package changed while the window was open');
-    const evidence = verifyNativeModuleMode(collector.finish(), { mode });
+    const lines = collector.finish();
+    const evidence = verifyNativeModuleMode(lines, { mode, fullRange });
     console.log(
       'NATIVE_MODULE_RESULT',
       JSON.stringify({
@@ -191,6 +204,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     await runNativeModules({
       root: path.resolve(import.meta.dirname, '../..'),
       mode: nativeModuleOption(process.argv.slice(2)),
+      fullRange: process.argv.includes('--full-range'),
     });
   } catch (error) {
     console.error(String(error));

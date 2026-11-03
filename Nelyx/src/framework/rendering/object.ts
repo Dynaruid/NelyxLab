@@ -407,6 +407,8 @@ class _LocalSemanticsHandle extends SemanticsHandle {
   }
 }
 export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
+  /** Optional owner-scoped experiment, absent in the ordinary TS pipeline. */
+  flexLayout?: import('../../hosting/flex-layout.ts').FlexLayoutService;
   private currentRoot: RenderObject | undefined;
   private dead = false;
   private changingRoot = false;
@@ -954,6 +956,10 @@ const activeLayoutCallbacks: { root: RenderObject; owner: PipelineOwner }[] = []
 const layoutQueries: { readonly render: RenderBox<RenderObject>; readonly key: string }[] = [];
 /** Shared render ownership/tree contract. Geometry belongs to RenderBox or a specialized renderer. */
 export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
+  /** @internal Bypass public owner getters while selecting a pure numeric phase. */
+  static _flexLayoutFor(node: RenderObject) {
+    return node.pipelineOwner?.flexLayout;
+  }
   private readonly inputGeometryPrototype =
     (numericGeometryObjects.add(this), Object.getPrototypeOf(this));
   private inputGeometryRevision = 0;

@@ -460,6 +460,41 @@ export function replayFrame(
 }
 /** Owns bounded native submissions and returns leases after actual GPU retirement. */
 export class GraphiteRenderer implements Renderer {
+  private frameSegments: import('./display-list.ts').FrameSegmentWork | undefined;
+  private frameSegmentsEnabled = false;
+  setNativeFrameSegments(enabled: boolean): void {
+    if (this.closed || this.failed) throw Error('Native frame segment owner is closed or failed');
+    if (enabled) {
+      const native = this.context() as Partial<DisplayListTarget>;
+      if (
+        this.api.nelyxFrameSegmentVersion?.() !== 1 ||
+        !this.resources.nativeDisplayLists ||
+        !native.nelyxSealDisplayList ||
+        !native.nelyxAdmitFrameSegment
+      )
+        throw Error(
+          'Requested native frame segment capability missing; rebuild the native supplier',
+        );
+      if (this.frameSegments) throw Error('Native frame segments already configured');
+      this.frameSegments = {
+        frameSeals: 0,
+        frameAdmissions: 0,
+        frameBytes: 0,
+        tsFallbacks: 0,
+        fallbackReasons: {},
+        closed: false,
+      };
+    }
+    this.frameSegmentsEnabled = enabled;
+  }
+  nativeFrameSegmentExecution() {
+    return this.frameSegments
+      ? Object.freeze({
+          ...this.frameSegments,
+          fallbackReasons: { ...this.frameSegments.fallbackReasons },
+        })
+      : undefined;
+  }
   readonly capabilities: RendererCapabilities;
   private metrics: ViewMetrics | undefined;
   private closed = false;
@@ -644,6 +679,7 @@ export class GraphiteRenderer implements Renderer {
           this.resources,
           this.runtimePrograms,
           diagnostics,
+          this.frameSegmentsEnabled ? this.frameSegments : undefined,
         );
       else replayFrame(this.api, canvas, frame, this.resources, this.runtimePrograms);
       diagnosticAt = diagnostics?.now();
@@ -741,6 +777,7 @@ export class GraphiteRenderer implements Renderer {
       for (const lease of this.unknown) if (!lease.released) lease.returnBy('caller');
       this.unknown = [];
       this.events.drain();
+      if (this.frameSegments) this.frameSegments.closed = true;
     })().then(resolve, reject);
     return closing;
   }

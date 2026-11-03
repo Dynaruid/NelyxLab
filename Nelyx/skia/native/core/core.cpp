@@ -4,6 +4,8 @@
 #include <cstring>
 #include <stdexcept>
 #include <vector>
+#include <limits>
+#include "include/core/SkPictureRecorder.h"
 #include "include/core/SkMatrix.h"
 #include "include/core/SkM44.h"
 #include "include/core/SkColorFilter.h"
@@ -143,6 +145,13 @@ void drawImageRect(SkCanvas& canvas,const sk_sp<SkImage>& image,const SkRect& so
 std::unique_ptr<skia::textlayout::Paragraph> buildParagraph(skia::textlayout::ParagraphBuilder& builder) {auto result=builder.Build();if(!result)throw std::runtime_error("paragraph build failed");return result;}
 void layoutParagraph(skia::textlayout::Paragraph& paragraph,float width) {if(std::isnan(width)||width<0||(std::isfinite(width)&&width>16777216))throw std::runtime_error("invalid paragraph width");ParagraphAccess access(paragraph);ParagraphQuerySource::willLayout(paragraph);paragraph.layout(width);ParagraphQuerySource::didLayout(paragraph);}
 void paintParagraph(skia::textlayout::Paragraph& paragraph,SkCanvas& canvas,float x,float y) {ParagraphAccess access(paragraph);paragraph.paint(&canvas,x,y);}
+sk_sp<SkPicture> sealParagraph(skia::textlayout::Paragraph& paragraph,float x,float y){
+  SkPictureRecorder recorder;const auto limit=std::numeric_limits<float>::max()/4;
+  // An unbounded cull with no R-tree retains ink, shadows and partially visible
+  // glyphs. drawPicture replays this class directly through the current clip.
+  auto* canvas=recorder.beginRecording(SkRect::MakeLTRB(-limit,-limit,limit,limit),nullptr);
+  paintParagraph(paragraph,*canvas,x,y);return recorder.finishRecordingAsPicture();
+}
 static uint32_t u32(const uint8_t* bytes) {uint32_t result;std::memcpy(&result,bytes,4);return result;}
 static float f32(const uint8_t* bytes) {float result;std::memcpy(&result,bytes,4);if(!std::isfinite(result))throw std::runtime_error("non-finite frame value");return result;}
 static void validateRounded(const uint8_t* first,const uint8_t* second) {

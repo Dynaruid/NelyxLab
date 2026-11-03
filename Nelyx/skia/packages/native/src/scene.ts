@@ -10,6 +10,7 @@ import type { Skia } from './skia/types/Skia.ts';
 import type { SkPaint } from './skia/types/Drawing.ts';
 import type { GraphiteResources } from './renderer.ts';
 import type { DisplayListTarget } from './display-list.ts';
+import type { FrameSegmentWork } from './display-list.ts';
 import { displayListVersion } from './display-list.ts';
 import { configurePaint } from './paint.ts';
 import { applyPaintEffects } from './paint-effects.ts';
@@ -33,6 +34,7 @@ class ScenePacket {
     commands: number,
     private readonly frame: PaintFrame,
     readonly batch: boolean,
+    private readonly segments?: FrameSegmentWork,
   ) {
     this.used = batch ? 16 : 4;
     this.data = new Float64Array(Math.min(2 * 1024 * 1024, Math.max(32, 4 + commands * 8)));
@@ -207,12 +209,32 @@ class ScenePacket {
           at += row.length;
         }
       out.set(this.data.subarray(16, this.used), at);
-      target.nelyxReplayDisplayList(out.buffer, this.handles);
-    } else
-      target.nelyxReplayDisplayList(
-        this.data.buffer.slice(0, this.used * 8) as ArrayBuffer,
-        this.handles,
-      );
+      this.replay(target, out.buffer);
+    } else this.replay(target, this.data.buffer.slice(0, this.used * 8) as ArrayBuffer);
+  }
+  private replay(target: DisplayListTarget, bytes: ArrayBuffer): void {
+    if (!this.segments) {
+      target.nelyxReplayDisplayList(bytes, this.handles);
+      return;
+    }
+    if (!target.nelyxSealDisplayList || !target.nelyxAdmitFrameSegment)
+      throw Error('Requested native frame segment capability missing on the recording target');
+    if (bytes.byteLength > 512 * 1024 || this.commands > 4096 || this.handles.length > 4096) {
+      this.segments.tsFallbacks++;
+      this.segments.fallbackReasons['segment-metadata-budget'] =
+        (this.segments.fallbackReasons['segment-metadata-budget'] ?? 0) + 1;
+      target.nelyxReplayDisplayList(bytes, this.handles);
+      return;
+    }
+    const segment = target.nelyxSealDisplayList(bytes, this.handles);
+    this.segments.frameSeals++;
+    this.segments.frameBytes += bytes.byteLength;
+    try {
+      target.nelyxAdmitFrameSegment(segment);
+      this.segments.frameAdmissions++;
+    } finally {
+      segment.dispose();
+    }
   }
   get byteLength(): number {
     return (this.used + this.tableWords) * 8;
@@ -253,6 +275,7 @@ export function submitNativeScene(
   resources: GraphiteResources,
   programs = resources.runtimePrograms,
   diagnostics?: FrameDiagnostics,
+  segments?: FrameSegmentWork,
 ): void {
   let diagnosticAt = diagnostics?.now();
   let pathsCount = 0,
@@ -265,7 +288,7 @@ export function submitNativeScene(
     batchPaints = mode === 'paint' || mode === 'all';
   if (mode && api.nelyxScenePacketVersion?.() !== 2)
     throw Error('Native scene2 binding required; rebuild the native supplier');
-  const packet = new ScenePacket(frame.commands.length, frame, !!mode),
+  const packet = new ScenePacket(frame.commands.length, frame, !!mode || !!segments, segments),
     temporary: unknown[] = [],
     errors: unknown[] = [];
   const own = <T>(value: T): T => {

@@ -137,7 +137,7 @@ Close Testbed windows, then run from the repository root. Use the window yoursel
 npm.cmd run run:windows:cpp
 ```
 
-The default `all` mode selects **retained input geometry, Path/Paint and clip batching, Scene composition, and Semantics geometry** together. Gallery and Input & Button Scroll show `C++ all` in their titles. Open **입력·버튼 스크롤** (Input & Button Scroll), edit a field and scroll to exercise retained editor geometry. Unsupported work, including public custom hooks, keeps its existing TS fallback.
+The default `all` mode selects **retained input geometry, Path/Paint and clip batching, Scene composition, Semantics geometry, Flex layout, text transactions, frame segments, and Windows backing reuse** together. `npm.cmd run run:windows:cpp -- --module=all` is equivalent. Gallery and Input & Button Scroll show `C++ all` in their titles. Open **입력·버튼 스크롤** (Input & Button Scroll), edit a field and scroll to exercise retained editor geometry. Unsupported work, including public custom hooks, keeps its counted TS fallback. Snapshot input geometry is an alternative to retained geometry and has its own mode.
 
 Select one module or a TS control in the same interactive launcher:
 
@@ -145,10 +145,18 @@ Select one module or a TS control in the same interactive launcher:
 npm.cmd run run:windows:cpp -- --module=path
 npm.cmd run run:windows:cpp -- --module=retained
 npm.cmd run run:windows:cpp -- --module=snapshot
+npm.cmd run run:windows:cpp -- --module=backing
+npm.cmd run run:windows:cpp -- --module=layout
+npm.cmd run run:windows:cpp -- --module=text
+npm.cmd run run:windows:cpp -- --module=frame
 npm.cmd run run:windows:cpp -- --module=ts
 ```
 
-Accepted modules are `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, and `ts`. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2` also launches the default mode. Interactive mode injects no input, imposes no display-size or automatic-close limit, and collects actual native work counts. After closing, inspect `modules`, `native`, `fallback`, and `inputGeometry` in `NATIVE_MODULE_RESULT` for independent native/SDK counts and cleanup. `observed` means native work occurred in this owner; `notObserved` means no native work was proven. `fallbackOnly` means only TS fallback was observed for that module and returns exit 2. These results do not establish a performance improvement or full C++ coverage.
+Accepted modules are `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `backing`, `layout`, `text`, `frame`, and `ts`. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2` also launches the default mode. Interactive mode injects no input, imposes no display-size or automatic-close limit, and collects actual native work counts. After closing, inspect `modules`, `native`, `fallback`, `inputGeometry`, and `engine` in `NATIVE_MODULE_RESULT` for independent native/SDK counts and cleanup. `observed` means native work occurred in this owner; `notObserved` means no native work was proven. `fallbackOnly` means only TS fallback was observed for that module and returns exit 2. These results do not establish a performance improvement or full C++ coverage.
+
+`backing` selects the Windows N4 experiment and includes full-range coverage observation. It retains Vulkan image/memory for the same native surface generation while keeping frame fences and completion checks. It is also enabled in `all`. Its `backing` report checks native/SDK create/reuse totals, the 3-object / 64 MiB bound, and zero live backing after drain.
+
+`layout` (N1) computes the numeric allocation and placement phases of a standard Flex in C++, preserving TS child layout callbacks. Dry/intrinsic/baseline work and custom hooks use the counted TS fallback. `text` (N2) groups paragraph construction, layout and metric reads on existing cache misses. `frame` (N3) seals a closed command segment, snapshots mutable resources and keeps its native lease through GPU recording completion. These three modes include coverage observation, require matching native capabilities at startup, and report actual work, fallback and cleanup in `engine`. Frame segment bounds cover charged metadata; they do not measure total GPU or process memory. All three are enabled in `all`, whose result checks each module independently. The ordinary App keeps the TS defaults.
 
 The command builds an interactive package with the current native/SDK supply, restores App source, and then opens the window. To return to the ordinary default App afterwards, run `npm.cmd run run:windows --workspace @nelyx/testbed-2`.
 
@@ -165,6 +173,31 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 The comparison uses one Release bytecode package to select a TS control, snapshot input geometry, Path, clip/Paint, Scene composition, or Semantics geometry. Each mode runs Gallery's two columns followed by Mixed in three fresh owners. `--functional` also checks actual key input, Korean IME, Gallery return and clean shutdown for each candidate. SDK counts must agree with independent C++ work counts and native QPC buckets inside each input interval. Counter overhead is included; physical input and scanout acceptance remain separate.
 
 A required input interval with no native work stays `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`, and the command exits 2. Work from startup or another scene cannot qualify that interval. App source is restored automatically, but the current Release output remains the experiment package: use the final ordinary run command to rebuild it. The ordinary App keeps these candidates disabled by default. See [work5.md](../../work5.md) for results and adoption decisions.
+
+### Fully warmed All components scrolling
+
+Close Testbed windows and leave physical input idle during the automatic run. This uses the same maximized 2560×1459 client at DPI 192 as the candidate comparison.
+
+```powershell
+npm.cmd run test:gallery-full-range
+npm.cmd run measure:windows-full-range -- --trials=3 --diagnostic-after
+# Optional N4 candidate comparison, with independent QPC work audit:
+npm.cmd run experiment:native-services -- --full-range --modes=ts,backing --trials=3 --diagnostic-after
+# N1/N2/N3 comparison and a separate Gallery/Mixed/IME regression per mode:
+npm.cmd run experiment:native-services -- --full-range --modes=ts,layout,text,frame --trials=3 --diagnostic-after --functional
+# Run only those functional owners, without repeating cadence trials:
+npm.cmd run experiment:native-services -- --full-range --modes=ts,layout,text,frame --functional-only
+# Manual coverage observation, without injected input or automatic timing:
+npm.cmd run run:windows:cpp -- --module=path --full-range
+```
+
+Each fresh automatic owner visits every current catalog section in both columns with overlapping OS-wheel steps, verifies layout, bundled fonts and the image's first valid frame, and returns both columns to the top. Up to three warmup passes are allowed. Each column then travels from its actual top to bottom at about one viewport per second. The bounded section cache and editor keep-alive policy stay in use. Missing coverage, changed configuration, partial input and a bottom reached after the original input window fail the run.
+
+`GALLERY_RANGE_TRIAL` reports warmup coverage, extents, submitted geometry, exact native surface trace intervals and section statistics. The native trace is checked against the independent surface counter. `--diagnostic-after` adds one separate owner per selected mode with CPU stage, paragraph-cache and native producer timing; its numbers are excluded from the three-owner cadence summary. The automatic commands restore the ordinary App source and rebuild its current bytecode package in `finally`. Reports use bounded RAM/stdout. Surface updates do not establish physical-display smoothness.
+
+`--functional` adds a separate owner per selected mode for window transitions, both Gallery columns, Mixed editing with Korean IME and undo, return to Gallery, and native drain. `--functional-only` runs that regression without cadence trials. Both commands restore and rebuild the ordinary App afterwards.
+
+In manual mode, visit all sections in **both** columns, return both to the top, then scroll each from top to bottom. `NATIVE_MODULE_RESULT.galleryRange` reports the final manual coverage snapshot; it does not run the automatic completion or timing gates. `--full-range` observes coverage; `--module` selects the native candidate. See [work6.md](../../work6.md) for current results and candidate decisions.
 
 ### Development session
 
