@@ -45,12 +45,32 @@ std::shared_ptr<const Frame> Engine::frameSnapshot(uint32_t view, uint32_t gener
   const auto it = frames.find(id); require(it != frames.end(), wire::statuses::stale);
   return std::make_shared<const Frame>(it->second);
 }
+std::shared_ptr<const MeasurementRequest> Engine::measurementSnapshot(uint32_t view, uint32_t generation) {
+  auto& s = *state_; std::lock_guard lock(s.mutex);
+  require(view && view < s.views.size() && s.views[view] && s.views[view]->generation == generation,
+    wire::statuses::invalidHandle);
+  const auto& v = *s.views[view];const auto pending=v.measurement();
+  if (!pending) return nullptr;
+  auto request = std::make_shared<MeasurementRequest>(*pending);
+  request->preparation = v.measurePreparation();
+  return request;
+}
 
+std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t view,uint32_t generation) {
+  auto& s=*state_;std::lock_guard lock(s.mutex);
+  if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation)return nullptr;
+  const auto& v=*s.views[view];if(v.closed||!v.published)return nullptr;
+  auto result=std::make_shared<InteractionSnapshot>();result->frame=*v.published;result->document=v.document;
+  result->focus=v.focusNode;result->session=v.focusSession;result->metrics=v.metrics;
+  for(const auto& entry:v.editors)result->editors.emplace(entry.first,entry.second->value);return result;
+}
 namespace {
 constexpr uint32_t capabilities = wire::capabilities::protocol | wire::capabilities::headlessScene |
-  wire::capabilities::scroll | wire::capabilities::motion;
+  wire::capabilities::scroll | wire::capabilities::motion | wire::capabilities::layoutQueries |
+  wire::capabilities::editing | wire::capabilities::semantics;
 void exact(Reader r, size_t count) { require(r.length == count); }
 void invalidate(View& v, uint32_t reason) {
+  v.cancelQuery(reason);
   v.cancelInput(reason);
   // A control fence ended the old streams. The next valid metrics/source may
   // begin a standalone OS-resolved wheel update without a synthetic Begin.
@@ -75,7 +95,7 @@ Input readInput(Reader r) {
 }
 void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t flags, const DrawItem* item = nullptr) {
   writeHandle(w, p, n.id); w.u32(p + 8, n.kind); writeHandle(w, p + 12, n.parent);
-  w.u32(p + 20, flags);
+  w.u32(p + 20, flags | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u));
   w.f64(p + 24, item ? item->x : n.properties.x); w.f64(p + 32, item ? item->y : n.properties.y);
   w.f64(p + 40, n.properties.width); w.f64(p + 48, n.properties.height);
   w.f64(p + 56, o ? o->offset : 0); w.f64(p + 64, o ? o->velocity : 0);
@@ -84,6 +104,12 @@ void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t fla
   w.u32(p + wire::nodeFields::color, n.color); w.u32(p + wire::nodeFields::order, n.order);
   w.f64(p + wire::nodeFields::radius, n.radius); w.f64(p + wire::nodeFields::fontSize, n.fontSize);
   writeHandle(w, p + wire::nodeFields::resource, n.resource ? n.resource->id : Handle{});
+  w.f64(p + wire::nodeFields::baseline, n.baseline); w.u64(p + wire::nodeFields::layoutRevision, n.layoutRevision);
+  w.u32(p + wire::nodeFields::textDirection, n.textDirection);
+  w.f64(p + wire::nodeFields::requestedOffset,o?o->requested:0);
+  w.f64(p + wire::nodeFields::preparedMinimum,n.coverage.minimum);
+  w.f64(p + wire::nodeFields::preparedMaximum,n.coverage.maximum);
+  w.u64(p + wire::nodeFields::coverageRevision,n.coverage.revision);
   if (item) {
     w.f64(p + wire::nodeFields::clipX, item->clip.x); w.f64(p + wire::nodeFields::clipY, item->clip.y);
     w.f64(p + wire::nodeFields::clipWidth, item->clip.width); w.f64(p + wire::nodeFields::clipHeight, item->clip.height);
@@ -101,6 +127,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   View* view = nullptr;
   std::shared_ptr<View> retained;
   const Frame* frame = nullptr;
+  Handle editTarget;
   std::vector<Event> events;
   try {
     require(packet.length >= wire::headerBytes && packet.length <= wire::limits::packetBytes);
@@ -184,6 +211,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
             require(!v.closed && !s.closing && !s.closed && s.views[viewId] == retained,
               wire::statuses::closed);
             require(resourceRevision == s.resourceRevision, wire::statuses::busy);
+            v.installEditors(installed.document);
             v.document = std::move(installed.document); s.resources = std::move(installed.resources);
             ++s.resourceRevision; v.transactionWork += count;
             status = wire::statuses::accepted; resultEpoch = v.document->epoch;
@@ -216,10 +244,74 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       } else if (opcode == wire::opcodes::contentStep) {
         exact(body, 8); require(body.u32(0) > 0 && body.u32(0) <= wire::limits::contentPerStep && body.u32(4) == 0);
         v.contentStep(body.u32(0));
+      } else if (opcode == wire::opcodes::measureRequest) {
+        exact(body, 0);
+        require(v.measurement().has_value(), wire::statuses::notFound);
+      } else if (opcode == wire::opcodes::measureResult) {
+        require(body.length>=80);
+        Measurement value{body.f64(40), body.f64(48), body.f64(56), body.f64(64), body.f64(72)};
+        std::optional<MeasurementRequest> pending;
+        if(v.preparing&&v.preparing->id==body.u64(0)&&v.preparing->layout&&v.preparing->layout->waiting())pending=v.preparing->layout->request();
+        else if(v.query&&v.query->preparation==body.u64(0)&&v.query->work&&v.query->work->waiting())pending=v.query->work->request();
+        require(pending&&pending->node->id==handle(body,32),wire::statuses::stale);
+        if(body.length>80){
+          require(body.length>=128&&pending&&pending->node->kind==wire::kinds::editable&&pending->node->editing&&
+            pending->node->editing->revision==body.u64(80)&&body.u32(124)==0,wire::statuses::stale);
+          const auto rectCount=body.u32(120);require(rectCount<=wire::limits::selectionRects&&body.length==128+size_t(rectCount)*32,wire::statuses::budgetExceeded);
+          const auto rect=[&](size_t offset){TextRect r{body.f64(offset),body.f64(offset+8),body.f64(offset+16),body.f64(offset+24)};
+            require(r.width>=0&&r.height>=0,wire::statuses::invalidValue);return r;};
+          std::vector<TextRect> boxes;boxes.reserve(rectCount);for(uint32_t i=0;i<rectCount;++i)boxes.push_back(rect(128+i*32));
+          value.geometry=std::make_shared<TextGeometry>(s.ledger,body.u64(80),rect(88),std::move(boxes));
+        }else require(!pending||pending->node->kind!=wire::kinds::editable,wire::statuses::malformed);
+        if(v.query&&v.query->work&&body.u64(0)==v.query->preparation){
+          require(body.u64(8)==v.query->metrics.epoch&&body.u64(16)==v.query->metrics.device,wire::statuses::stale);
+          v.query->work->measured(body.u64(24),handle(body,32),value);
+        }else{
+        require(v.preparing && v.preparing->layout && body.u64(0) == v.preparing->id &&
+          body.u64(8) == v.preparing->metrics.epoch && body.u64(16) == v.preparing->metrics.device,
+          wire::statuses::stale);
+        v.preparing->layout->measured(body.u64(24), handle(body, 32),value);}
+      } else if (opcode == wire::opcodes::layoutQuery) {
+        status=v.startQuery(body,id);
+      } else if (opcode == wire::opcodes::layoutQueryResult) {
+        exact(body,0);require(v.query&&v.query->id==id,id<=v.lastQuery?wire::statuses::resultExpired:wire::statuses::notFound);
+        status=v.query->status;
+      } else if (opcode == wire::opcodes::layoutQueryCancel) {
+        exact(body,0);require(v.query&&v.query->id==id,wire::statuses::notFound);v.cancelQuery(wire::statuses::canceled);
+      } else if (opcode == wire::opcodes::layoutSnapshot) {
+        exact(body, 0); require(bool(v.active), wire::statuses::notFound);
+      } else if (opcode == wire::opcodes::fontRevision) {
+        exact(body, 16);
+        require(body.u64(0) > v.fontRevision && body.u64(8) == v.lastInput, wire::statuses::stale);
+        v.fontRevision = body.u64(0); invalidate(v, wire::statuses::stale);
+      } else if(opcode==wire::opcodes::focus){
+        exact(body,24);v.setFocus(handle(body,0),body.u64(8),body.u64(16));
+      } else if(opcode==wire::opcodes::edit){
+        v.applyEdit(body);editTarget=handle(body,0);
+      } else if(opcode==wire::opcodes::editSnapshot){
+        exact(body,8);require(v.document&&v.document->contains(handle(body,0))&&v.editors.contains(handle(body,0).key()),wire::statuses::invalidHandle);
+        editTarget=handle(body,0);
+      } else if(opcode==wire::opcodes::semanticsSnapshot){
+        exact(body,0);require(v.published.has_value(),wire::statuses::notFound);frame=&*v.published;
+      } else if(opcode==wire::opcodes::semanticsAction){
+        v.semanticAction(body);
+      } else if(opcode==wire::opcodes::focusAt||opcode==wire::opcodes::activateAt){
+        exact(body,24);require(body.u64(0)==v.publication,wire::statuses::stale);
+        const auto node=v.interactionTarget(body.f64(8),body.f64(16));require(bool(node),wire::statuses::notFound);
+        if(opcode==wire::opcodes::focusAt)v.setFocus(node,body.u64(0),0);
+        else {Writer action(32);writeHandle(action,0,node);action.u64(8,body.u64(0));action.u32(16,wire::semanticsActions::activate);
+          v.semanticAction({action.bytes.data(),action.bytes.size()});}
+      } else if(opcode==wire::opcodes::pollInteractionEvents){
+        exact(body,0);while(!v.interactionEvents.empty()&&events.size()<wire::limits::eventsPerPoll){events.push_back(v.interactionEvents.front());v.interactionEvents.pop_front();}
       } else if (opcode == wire::opcodes::preparationResult) {
         exact(body, 24);
+        if(v.query&&v.query->work&&body.u64(0)==v.query->preparation){
+          require(body.u64(8)==v.query->metrics.epoch&&body.u64(16)==v.query->metrics.device,wire::statuses::stale);
+          v.cancelQuery(wire::statuses::failed);
+        }else{
         require(body.u64(8) == v.metrics.epoch && body.u64(16) == v.metrics.device, wire::statuses::stale);
         v.failPreparation(body.u64(0), wire::statuses::failed);
+        }
       } else if (opcode == wire::opcodes::preparationScene) {
         exact(body, 0); require(v.preparing && v.preparing->ready, wire::statuses::notFound);
       } else if (opcode == wire::opcodes::providerReady) {
@@ -247,6 +339,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         if ((!v.visible && visible) || (!v.focused && focused))
           for (auto& stream : v.streams) stream.denied = false;
         if (!visible || !focused) v.cancelInput(wire::statuses::canceled);
+        if(!visible||!focused)v.setFocus({},0,v.focusSession);
         if (!v.visible && visible) { v.requestContent(); v.dirty = true; v.hasTime = false; }
         v.visible = visible; v.focused = focused;
         if (flags & 4u) v.dirty = true;
@@ -277,26 +370,62 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     }
   } catch (const Error& error) { status = error.status; frame = nullptr; }
 
+  const auto measureStorage=status==wire::statuses::ok&&opcode==wire::opcodes::measureRequest&&view?view->measurement():std::optional<MeasurementRequest>{};
+  const MeasurementRequest* measure=measureStorage?&*measureStorage:nullptr;
+  const Document* measureDocument=measure&&view->query&&view->query->preparation==view->measurePreparation()?
+    view->query->document.get():measure&&view->preparing?view->preparing->document.get():nullptr;
   const Document* rows = frame ? frame->scene->document.get() :
+    editTarget&&view?view->document.get():
+    status == wire::statuses::ok && opcode == wire::opcodes::layoutSnapshot && view ? view->active->document.get() :
+    measureDocument ? measureDocument :
     opcode == wire::opcodes::inspect && view ? view->document.get() :
     status == wire::statuses::ok && opcode == wire::opcodes::preparationScene && view && view->preparing ?
       view->preparing->document.get() : nullptr;
+  std::vector<const Node*> rowNodes;
+  if (rows && !frame) {
+    if(editTarget)rowNodes.push_back(&rows->get(editTarget));
+    else if (measure) rowNodes.push_back(measure->node.get());
+    else for (const auto& slot : rows->nodes) if (slot.value) rowNodes.push_back(slot.value.get());
+  }
   struct Blob { uint32_t type; Handle id; Reader data; };
   std::vector<Blob> blobs; size_t blobBytes = 0;
-  if (rows && opcode == wire::opcodes::preparationScene) {
+  std::vector<std::vector<uint8_t>> ownedBlobs;
+  const auto addOwned=[&](uint32_t type,Handle node,Writer bytes){ownedBlobs.push_back(std::move(bytes.bytes));
+    const auto& data=ownedBlobs.back();blobs.push_back({type,node,{data.data(),data.size()}});};
+  const auto interactionBlobs=[&](const Node& n){
+    if(n.semantics){const auto& a=*n.semantics;Writer bytes(24+a.label.size()+a.hint.size());
+      bytes.u32(0,a.role);bytes.u32(4,a.flags);bytes.u32(8,a.actions);bytes.u32(12,uint32_t(a.label.size()));bytes.u32(16,uint32_t(a.hint.size()));
+      std::memcpy(bytes.bytes.data()+24,a.label.data(),a.label.size());std::memcpy(bytes.bytes.data()+24+a.label.size(),a.hint.data(),a.hint.size());addOwned(3,n.id,std::move(bytes));
+    }
+    auto editing=n.editing;
+    if(editTarget||(opcode==wire::opcodes::semanticsSnapshot&&view)){const auto found=view->editors.find(n.id.key());if(found!=view->editors.end())editing=found->second->value;}
+    if(editing){const auto& e=*editing;const auto encoded=utf8(e.text);Writer bytes(48+encoded.size());
+      bytes.u64(0,e.revision);bytes.u64(8,e.serial);bytes.u32(16,uint32_t(e.base));bytes.u32(20,uint32_t(e.extent));
+      bytes.u32(24,uint32_t(e.composingStart));bytes.u32(28,uint32_t(e.composingEnd));bytes.u32(32,n.editFlags);bytes.u32(36,n.maximumLength);bytes.u32(40,uint32_t(encoded.size()));
+      std::memcpy(bytes.bytes.data()+48,encoded.data(),encoded.size());addOwned(4,n.id,std::move(bytes));
+      if(n.textGeometry&&n.textGeometry->revision==e.revision){const auto& geometry=*n.textGeometry;Writer g(48+geometry.selection.size()*32);
+        g.u64(0,geometry.revision);g.u32(40,uint32_t(geometry.selection.size()));
+        const auto rect=[&](size_t offset,const TextRect& r){g.f64(offset,r.x);g.f64(offset+8,r.y);g.f64(offset+16,r.width);g.f64(offset+24,r.height);};
+        rect(8,geometry.caret);for(size_t i=0;i<geometry.selection.size();++i)rect(48+i*32,geometry.selection[i]);addOwned(5,n.id,std::move(g));
+      }
+    }
+  };
+  if(frame)for(const auto& item:frame->items)interactionBlobs(rows->get(item.node));
+  else if(rows)for(const auto* node:rowNodes)interactionBlobs(*node);
+  if (rows && (opcode == wire::opcodes::preparationScene || measure)) {
     std::set<uint64_t> resources;
-    for (const auto& slot : rows->nodes) if (slot.value) {
-      const auto& n = *slot.value;
+    for (const auto* node : rowNodes) {
+      const auto& n = *node;
       if (n.text) blobs.push_back({1, n.id, {reinterpret_cast<const uint8_t*>(n.text->value.data()), n.text->value.size()}});
       if (n.resource && resources.insert(n.resource->id.key()).second)
         blobs.push_back({2, n.resource->id, {n.resource->bytes.data(), n.resource->bytes.size()}});
     }
-    for (const auto& blob : blobs) blobBytes += 24 + (blob.data.length + 7) / 8 * 8;
-    if (wire::headerBytes + wire::stateBytes + rows->count * wire::nodeBytes + blobBytes > wire::limits::packetBytes) {
-      status = wire::statuses::budgetExceeded; rows = nullptr; blobs.clear(); blobBytes = 0;
-    }
   }
-  const auto rowCount = rows ? rows->count : 0;
+  for (const auto& blob : blobs) blobBytes += 24 + (blob.data.length + 7) / 8 * 8;
+  if(wire::headerBytes+wire::stateBytes+(frame?frame->items.size():rowNodes.size())*wire::nodeBytes+events.size()*wire::eventBytes+blobBytes>wire::limits::packetBytes){
+    status=wire::statuses::budgetExceeded;rows=nullptr;rowNodes.clear();blobs.clear();blobBytes=0;frame=nullptr;
+  }
+  const auto rowCount = rows ? (frame ? frame->items.size() : rowNodes.size()) : 0;
   Writer response(wire::headerBytes + wire::stateBytes + rowCount * wire::nodeBytes +
     events.size() * wire::eventBytes + blobBytes);
   response.u32(wire::headerFields::magic, wire::magic); response.u16(wire::headerFields::major, wire::abiMajor); response.u16(wire::headerFields::minor, wire::abiMinor);
@@ -304,7 +433,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   response.u16(wire::headerFields::status, uint16_t(status)); response.u32(wire::headerFields::length, uint32_t(response.bytes.size()));
   response.u32(wire::headerFields::session, s.session); response.u32(wire::headerFields::app, s.app); response.u32(wire::headerFields::view, viewId);
   response.u32(wire::headerFields::generation, generation); response.u64(wire::headerFields::id, id); response.u64(wire::headerFields::base, resultEpoch);
-  response.u32(wire::headerFields::count, rowCount);
+  response.u32(wire::headerFields::count, uint32_t(rowCount));
   const auto b = wire::headerBytes;
   response.u64(b + wire::stateFields::reservedBytes, s.ledger->bytes); response.u64(b + wire::stateFields::resourceBytes, s.ledger->resourceBytes);
   response.u64(b + wire::stateFields::nodeBlocks, s.ledger->nodes); response.u32(b + wire::stateFields::eventCount, uint32_t(events.size()));
@@ -342,6 +471,30 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.u64(b + wire::stateFields::transactionWork, v.transactionWork);
     response.u64(b + wire::stateFields::contentWork, v.contentWork);
     response.u64(b + wire::stateFields::preparationDocument, v.preparing ? v.preparing->document->epoch : 0);
+    const auto pending=v.measurement();
+    response.u64(b + wire::stateFields::measureRequest,pending?pending->id:0);
+    response.u64(b + wire::stateFields::measurePreparation,v.measurePreparation());
+    response.u64(b + wire::stateFields::measureDocument,pending&&v.query&&v.query->preparation==v.measurePreparation()?
+      v.query->document->epoch:pending&&v.preparing?v.preparing->document->epoch:0);
+    if(v.query){const auto& q=*v.query;
+      response.u64(b+wire::stateFields::queryId,q.id);response.u64(b+wire::stateFields::queryDocument,q.document->epoch);
+      response.u64(b+wire::stateFields::queryMetrics,q.metrics.epoch);response.u64(b+wire::stateFields::queryFont,q.font);
+      response.u32(b+wire::stateFields::queryStatus,q.status);response.u32(b+wire::stateFields::queryMode,q.mode);
+      response.f64(b+wire::stateFields::queryWidth,q.value.width);response.f64(b+wire::stateFields::queryHeight,q.value.height);
+      response.f64(b+wire::stateFields::queryBaseline,q.value.baseline);response.f64(b+wire::stateFields::queryValue,q.value.value);
+    }
+    response.u64(b + wire::stateFields::layoutWork, v.layoutWork);
+    response.u64(b + wire::stateFields::layoutReused, v.layoutReused);
+    response.u64(b + wire::stateFields::layoutDocument, v.active ? v.active->document->epoch : 0);
+    response.u64(b + wire::stateFields::layoutMetrics, v.active ? v.active->metrics.epoch : 0);
+    response.u64(b + wire::stateFields::fontRevision, v.fontRevision);
+    response.u64(b + wire::stateFields::coverageRequests,v.coverageRequests);
+    response.u64(b + wire::stateFields::coverageDeferred,v.coverageDeferred);
+    response.u64(b + wire::stateFields::coverageClamps,v.coverageClamps);
+    response.u64(b + wire::stateFields::coverageHandoffs,v.coverageHandoffs);
+    writeHandle(response,b+wire::stateFields::focusNode,v.focusNode);response.u64(b+wire::stateFields::focusSession,v.focusSession);
+    response.u32(b+wire::stateFields::interactionCount,uint32_t(v.interactionEvents.size()));
+    response.u64(b+wire::stateFields::editingWork,v.editingWork);response.u64(b+wire::stateFields::semanticsWork,v.semanticsWork);response.u64(b+wire::stateFields::queryWork,v.queryWork);
     response.u32(b + wire::stateFields::providerPending,
       v.preparing && v.preparing->ready && !v.preparing->providerReady ? 1 : 0);
     double deadline = 0;
@@ -358,25 +511,29 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     const bool drawable = n.properties.width > 0 && n.properties.height > 0 && item.clip.width > 0 &&
       item.clip.height > 0 && item.x < item.clip.x + item.clip.width && item.y < item.clip.y + item.clip.height &&
       item.x + n.properties.width > item.clip.x && item.y + n.properties.height > item.clip.y;
-    nodeRow(response, cursor, n, &frame->properties[n.id.slot], drawable ? 16u : 0u, &item);
+    nodeRow(response, cursor, n, &frame->properties[n.id.slot], (drawable ? 16u : 0u)|(frame->focusNode==n.id?256u:0u), &item);
     cursor += wire::nodeBytes;
   }
-  if (rows && !frame) for (const auto& slot : rows->nodes) if (slot.value) {
+  if (rows && !frame) for (const auto* node : rowNodes) {
     const Property* property = nullptr;
     Property current;
     uint32_t nodeFlags = 0;
     if (view) {
-      const auto it = view->overlays.find(slot.value->id.key());
+      if(view->focusNode==node->id)nodeFlags|=256u;
+      const auto it = view->overlays.find(node->id.key());
       if (it != view->overlays.end()) {
         const auto& o = it->second;
-        current = {o.node, o.offset, o.velocity, o.opacity, o.revision, o.motion}; property = &current;
+        current = {o.node, o.offset, o.velocity, o.opacity, o.revision, o.motion,o.requested,o.deferred}; property = &current;
         if (o.ballistic) nodeFlags |= 8u;
       }
-      if (view->active && view->active->document->contains(slot.value->id)) nodeFlags |= 1u;
-      if (view->published && view->published->scene->document->contains(slot.value->id)) nodeFlags |= 2u;
-      for (const auto& stream : view->streams) if (stream.active && stream.target == slot.value->id) nodeFlags |= 4u;
+      if (view->active && view->active->document->contains(node->id)) nodeFlags |= 1u;
+      if (view->published && view->published->scene->document->contains(node->id)) nodeFlags |= 2u;
+      for (const auto& stream : view->streams) if (stream.active && stream.target == node->id) nodeFlags |= 4u;
     }
-    nodeRow(response, cursor, *slot.value, property, nodeFlags); cursor += wire::nodeBytes;
+    if (measure && !measure->bounded) nodeFlags |= 32u;
+    nodeRow(response, cursor, *node, property, nodeFlags);
+    if (measure) response.f64(cursor + wire::nodeFields::width, measure->width);
+    cursor += wire::nodeBytes;
   }
   for (const auto& e : events) {
     response.u32(cursor, e.kind); response.u32(cursor + 4, e.status);

@@ -26,18 +26,96 @@
 #include "modules/skparagraph/include/TypefaceFontProvider.h"
 #include "modules/skunicode/include/SkUnicode_icu.h"
 #include <map>
+#include "nelyx_skia/paragraph_queries.h"
 
 namespace nelyx::v2::windows {
 struct Prepared {
+  struct EditorParagraph {
+    std::shared_ptr<skia_core::ParagraphQuerySource> source;
+    skia_core::ParagraphQueryIdentity identity;
+    uint64_t ticket=0;
+    std::vector<int> characters,words,lines;
+  };
   uint64_t id, metrics, device;
   std::map<uint64_t, sk_sp<SkPicture>> pictures;
   uint64_t bytes = 0;
+  std::shared_ptr<int> context=std::make_shared<int>(1);
+  std::map<uint64_t,EditorParagraph> editors;
 };
 class ContentProvider {
   sk_sp<skia::textlayout::FontCollection> fonts;
   sk_sp<SkUnicode> unicode;
+  struct CachedParagraph {
+    std::shared_ptr<const TextData> text;
+    double size, width;
+    uint32_t color;
+    uint32_t direction;
+    std::unique_ptr<skia::textlayout::Paragraph> paragraph;
+  };
+  std::map<uint64_t, CachedParagraph> measured;
+  uint64_t measurePreparation = 0;
+  bool lineMetricsUtf16=true;
+  std::unique_ptr<skia::textlayout::Paragraph> paragraphFor(const Node& n, double width) {
+    const auto old = measured.find(n.id.key());
+    if (old != measured.end() && old->second.text == n.text && old->second.size == n.fontSize &&
+        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection) {
+      auto paragraph = std::move(old->second.paragraph); measured.erase(old); return paragraph;
+    }
+    using namespace skia::textlayout;
+    TextStyle style; style.setFontFamilies({SkString("NelyxDefault"),SkString("NelyxArabic"),SkString("NelyxHebrew"),SkString("NelyxEmoji")}); style.setFontSize(float(n.fontSize));style.setColor(n.color);
+    ParagraphStyle paragraphStyle;paragraphStyle.setTextStyle(style);
+    paragraphStyle.setTextDirection(n.textDirection ? TextDirection::kRtl : TextDirection::kLtr);
+    auto builder = ParagraphBuilder::make(paragraphStyle,fonts,unicode);
+    auto text = n.text ? n.text->value : std::string{};
+    if(n.kind==wire::kinds::editable){
+      if(n.editing&&(n.editFlags&wire::editFlags::password)){auto masked=n.editing->text;for(auto& c:masked)if(c!=u'\r'&&c!=u'\n')c=u'\u2022';text=utf8(masked);}
+      if(text.empty())text="\xe2\x80\x8b";
+    }
+    builder->addText(text.c_str(),text.size());
+    auto paragraph = builder->Build(); paragraph->layout(float(width)); ++paragraphLayouts;
+    return paragraph;
+  }
  public:
   std::atomic<uint64_t> paragraphs{0}, images{0}, pictures{0};
+  std::atomic<uint64_t> measurements{0}, paragraphLayouts{0};
+  void discardMeasurements() { measured.clear(); }
+  Measurement measure(const MeasurementRequest& request) {
+    ++measurements;
+    if (measurePreparation != request.preparation) { measured.clear(); measurePreparation = request.preparation; }
+    const auto& n = *request.node;
+    if (n.kind == wire::kinds::image) {
+      if (!n.resource) throw std::runtime_error("Intrinsic image resource missing");
+      auto image = SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(n.resource->bytes.data(),n.resource->bytes.size()));
+      if (!image) throw std::runtime_error("Intrinsic image decode failed");
+      return {double(image->width()), double(image->height()), double(image->width()), double(image->width()), -1};
+    }
+    auto paragraph = paragraphFor(n, request.bounded ? request.width : INFINITY);
+    double width = request.width;
+    if (!request.bounded) { width = std::ceil(paragraph->getMaxIntrinsicWidth()); paragraph->layout(float(width)); ++paragraphLayouts; }
+    Measurement result{width, paragraph->getHeight(), paragraph->getMinIntrinsicWidth(),
+      paragraph->getMaxIntrinsicWidth(), paragraph->getAlphabeticBaseline()};
+    if(n.editing){
+      using namespace skia::textlayout;
+      const auto& e=*n.editing;std::vector<TextRect> selection;
+      for(const auto& box:paragraph->getRectsForRange(size_t(std::min(e.base,e.extent)),size_t(std::max(e.base,e.extent)),RectHeightStyle::kMax,RectWidthStyle::kTight))
+        selection.push_back({box.rect.left(),box.rect.top(),box.rect.width(),box.rect.height()});
+      require(selection.size()<=wire::limits::selectionRects,wire::statuses::budgetExceeded);
+      TextRect caret{0,0,1,std::max(1.0,n.fontSize*1.2)};size_t position=size_t(e.extent);bool trailing=false;
+      if(position==e.text.size()&&position){--position;if(e.text[position]>=0xdc00&&e.text[position]<=0xdfff&&position)--position;trailing=true;}
+      Paragraph::GlyphInfo glyph;
+      if(!e.text.empty()&&paragraph->getGlyphInfoAtUTF16Offset(position,&glyph)){
+        const auto& r=glyph.fGraphemeLayoutBounds;const bool rtl=glyph.fDirection==TextDirection::kRtl;
+        caret={trailing!=rtl?r.right():r.left(),r.top(),1,std::max(double(r.height()),caret.height)};
+      }
+      if(e.extent==int32_t(e.text.size())&&!e.text.empty()&&e.text.back()==u'\n'){
+        std::vector<LineMetrics> lines;paragraph->getLineMetrics(lines);if(!lines.empty()){
+          const auto& line=lines.back();caret={line.fLeft,line.fBaseline-line.fAscent,1,line.fHeight};}
+      }
+      result.geometry=std::make_shared<TextGeometry>(n.lease.ledger,e.revision,caret,std::move(selection));
+    }
+    measured.insert_or_assign(n.id.key(), CachedParagraph{n.text,n.fontSize,width,n.color,n.textDirection,std::move(paragraph)});
+    return result;
+  }
   ContentProvider(const std::string& font, const std::string& icu) {
     nelyx::font_services::initialize(icu);
     static std::once_flag codecs;std::call_once(codecs,[]{SkCodecs::Register(SkWebpDecoder::Decoder());});
@@ -46,27 +124,48 @@ class ContentProvider {
     if (!face) throw std::runtime_error("Native font decode failed");
     auto provider = sk_make_sp<skia::textlayout::TypefaceFontProvider>();
     provider->registerTypeface(face, SkString("NelyxDefault"));
+    const auto directory = font.substr(0,font.find_last_of("/\\")+1);
+    for (const auto& fallback : {std::pair{"NotoNaskhArabic-Regular.ttf","NelyxArabic"},
+        std::pair{"NotoSansHebrew.ttf","NelyxHebrew"},std::pair{"NotoColorEmoji.ttf","NelyxEmoji"}}) {
+      auto fallbackFace = manager->makeFromData(SkData::MakeFromFileName((directory+fallback.first).c_str()));
+      if (!fallbackFace) throw std::runtime_error("Native fallback font decode failed");
+      provider->registerTypeface(fallbackFace,SkString(fallback.second));
+    }
     fonts = sk_make_sp<skia::textlayout::FontCollection>();
     fonts->setAssetFontManager(provider); fonts->setDefaultFontManager(manager);
     unicode = SkUnicodes::ICU::Make();
     if (!unicode) throw std::runtime_error("Native Unicode provider failed");
+    const std::string probeText="\xed\x95\x9c\xea\xb8\x80\nA\xf0\x9f\x98\x80\ne\xcc\x81";
+    Node probe(std::make_shared<Ledger>());probe.fontSize=18;probe.text=std::make_shared<TextData>(probe.lease.ledger,Reader{reinterpret_cast<const uint8_t*>(probeText.data()),probeText.size()});
+    auto paragraph=paragraphFor(probe,300);std::vector<skia::textlayout::LineMetrics> metrics;paragraph->getLineMetrics(metrics);
+    if(metrics.size()!=3||(metrics[1].fStartIndex!=3&&metrics[1].fStartIndex!=7))throw std::runtime_error("Native paragraph line index unit is incompatible");
+    lineMetricsUtf16=metrics[1].fStartIndex==3;
   }
   std::shared_ptr<const Prepared> prepare(const Preparation& p) {
-    auto result = std::make_shared<Prepared>(Prepared{p.id,p.metrics.epoch,p.metrics.device,{}});
+    auto result = std::make_shared<Prepared>();result->id=p.id;result->metrics=p.metrics.epoch;result->device=p.metrics.device;
     using namespace skia::textlayout;
     for (const auto& slot : p.document->nodes) if (slot.value) {
       const auto& n = *slot.value;
       SkPictureRecorder recorder;
       auto* canvas = recorder.beginRecording(SkRect::MakeWH(float(std::max(1.0,n.properties.width)),float(std::max(1.0,n.properties.height))));
       SkPaint paint; paint.setAntiAlias(true);
-      if (n.kind == wire::kinds::paragraph) {
-        TextStyle style; style.setFontFamilies({SkString("NelyxDefault")}); style.setFontSize(float(n.fontSize));style.setColor(n.color);
-        ParagraphStyle paragraphStyle;paragraphStyle.setTextStyle(style);paragraphStyle.setMaxLines(8);
-        auto builder = ParagraphBuilder::make(paragraphStyle,fonts,unicode);
-        const auto text = n.text ? n.text->value : std::string{};
-        builder->addText(text.c_str(),text.size());
-        auto paragraph = builder->Build();paragraph->layout(float(std::max(1.0,n.properties.width)));
+      if (n.kind == wire::kinds::paragraph || n.kind==wire::kinds::editable) {
+        auto paragraph = paragraphFor(n, n.properties.width);
         paragraph->paint(canvas,0,0);++paragraphs;
+        if(n.editing&&n.editing->text.size()<=4096&&!(n.editFlags&wire::editFlags::password)){
+          Prepared::EditorParagraph record;record.identity={"native-hermes:root",std::to_string(n.id.key()),n.text->value,1,n.id.generation,uint32_t(n.editing->text.size())};
+          auto shared=std::shared_ptr<Paragraph>(std::move(paragraph));record.source=skia_core::ParagraphQuerySource::create(shared,result->context,n.text->value);
+          skia_core::ParagraphQuerySource::didLayout(*shared);record.ticket=record.source->bind(record.identity);
+          const auto& text=n.editing->text;
+          unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kGraphemes,[&](auto position,auto){record.characters.push_back(position);});
+          unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kWords,[&](auto position,auto){record.words.push_back(position);});
+          std::vector<LineMetrics> lines;shared->getLineMetrics(lines);record.lines.push_back(0);
+          for(const auto& line:lines){const auto bytes=std::min(line.fEndIncludingNewline,n.text->value.size());const int offset=lineMetricsUtf16?int(line.fEndIncludingNewline):int(utf16({reinterpret_cast<const uint8_t*>(n.text->value.data()),bytes}).size());
+            if(offset>record.lines.back())record.lines.push_back(offset);}
+          if(record.characters.empty())record.characters.push_back(0);if(record.words.empty())record.words.push_back(0);
+          if(record.lines.back()!=int(text.size()))record.lines.push_back(int(text.size()));
+          result->editors.emplace(n.id.key(),std::move(record));
+        }
       } else if (n.kind == wire::kinds::image) {
         if(!n.resource)throw std::runtime_error("Native image resource missing");
         auto image=SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(n.resource->bytes.data(),n.resource->bytes.size()));
@@ -80,6 +179,7 @@ class ContentProvider {
       result->bytes+=picture->approximateBytesUsed();if(result->bytes>32*1024*1024)throw std::runtime_error("Native prepared scene budget exceeded");
       result->pictures.emplace(n.id.key(),std::move(picture));++pictures;
     }
+    discardMeasurements();
     return result;
   }
   ~ContentProvider(){if(fonts)fonts->clearCaches();}
@@ -120,7 +220,12 @@ class RenderProvider {
       const auto found=prepared.pictures.find(item.node.key());if(found==prepared.pictures.end())throw std::runtime_error("Native prepared generation missing");
       canvas->save();canvas->clipRect(SkRect::MakeXYWH(float(item.clip.x),float(item.clip.y),float(item.clip.width),float(item.clip.height)));
       canvas->translate(float(item.x),float(item.y));SkPaint alpha;alpha.setAlphaf(float(item.opacity));
-      canvas->drawPicture(found->second,nullptr,&alpha);canvas->restore();
+      const auto geometry=frame.focusNode==n.id?n.textGeometry:nullptr;
+      const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);paint.setAlphaf(paint.getAlphaf()*float(item.opacity));canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
+      if(geometry)for(const auto& r:geometry->selection)rect(r,0x663582f6);
+      canvas->drawPicture(found->second,nullptr,&alpha);
+      if(geometry&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
+      canvas->restore();
     }
     canvas->restore();device->present(recorder.get(),surface.get());++draws;return true;
     }catch(const nelyx::vulkan::SurfaceChanged&){

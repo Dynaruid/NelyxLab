@@ -4,6 +4,7 @@
 #include "../windows/TextInputStore.h"
 #include "../windows/TextInputContext.h"
 namespace Nelyx::NativeHermes {
+using Microsoft::WRL::ComPtr;
 namespace WI=WindowsInput;
 struct EditorCommand{
   std::string kind,id;uint64_t generation=0,revision=0,request=0,operation=0,focusEpoch=0;std::wstring text;WI::Selection selection;size_t maximum=65536;

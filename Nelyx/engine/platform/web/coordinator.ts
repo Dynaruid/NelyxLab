@@ -120,6 +120,7 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     stopped.add(Number(value.role));
     stats({ [Number(value.role) === 1 ? 'contentClosed' : 'renderClosed']: value.counters });
   } else if (
+    kind === 'preparation-error' ||
     kind === 'render-stats' ||
     kind === 'content-stats' ||
     kind === 'delay-started' ||
@@ -246,6 +247,10 @@ const contentOps = new Set<number>([
   p.opcodes.transaction,
   p.opcodes.queryResult,
   p.opcodes.acknowledge,
+  p.opcodes.fontRevision,
+  p.opcodes.layoutQuery,
+  p.opcodes.layoutQueryResult,
+  p.opcodes.layoutQueryCancel,
 ]);
 function complete(message: Record<string, unknown>): void {
   const ticket = Number(message.id),
@@ -276,8 +281,8 @@ function route(port: ClientPort, message: { kind: string; id: number; bytes: Arr
     !(message.bytes instanceof ArrayBuffer) ||
     message.bytes.byteLength < p.headerBytes ||
     message.bytes.byteLength > p.limits.packetBytes ||
-    pending.size >= 32 ||
-    pendingBytes + message.bytes.byteLength > p.limits.packetBytes * 4
+    pending.size >= (port === scope ? 32 : 24) ||
+    pendingBytes + message.bytes.byteLength > p.limits.packetBytes * (port === scope ? 4 : 3)
   ) {
     send(port, {
       kind: 'packet-result',
@@ -292,6 +297,13 @@ function route(port: ClientPort, message: { kind: string; id: number; bytes: Arr
   if (ticket > 0xffff_ffff) throw new Error('Host transport ID exhausted');
   pending.set(ticket, { port, id: message.id, bytes: bytes.length, op });
   pendingBytes += bytes.length;
+  if (
+    port !== scope &&
+    [p.opcodes.edit, p.opcodes.focus, p.opcodes.semanticsAction].includes(op as 30)
+  ) {
+    scope.postMessage({ kind: 'ui-packet', id: ticket, bytes: message.bytes }, [message.bytes]);
+    return;
+  }
   if (profile === 'single-worker') {
     try {
       const result = (contentOps.has(op) ? content! : render!).packet(bytes);
@@ -352,6 +364,7 @@ scope.addEventListener('message', (event) => {
   void (async () => {
     if (message.kind === 'initialize') await initialize(message);
     else if (message.kind === 'packet') route(scope, message);
+    else if (message.kind === 'ui-result') complete(message);
     else if (message.kind === 'port') {
       const port = message.port as MessagePort;
       ports.add(port);

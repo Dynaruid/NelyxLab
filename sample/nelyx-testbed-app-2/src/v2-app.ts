@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { EngineClient, protocol as p, createPacketTransport, commands } from '@nelyx/core/v2';
+import { EngineClient, protocol as p, createPacketTransport, WidgetHost } from '@nelyx/core/v2';
 import type { PacketEndpoint } from '@nelyx/core/v2';
 import { engineV2Scene } from './v2-scene.ts';
 
@@ -38,20 +38,42 @@ async function start(
   notify: (value: Record<string, unknown>) => void,
 ): Promise<void> {
   const client = await EngineClient.connect(createPacketTransport(endpoint, 10000), {
-    requiredCapabilities: p.capabilities.surface,
+    requiredCapabilities:
+      p.capabilities.surface |
+      p.capabilities.layoutQueries |
+      p.capabilities.editing |
+      p.capabilities.semantics,
     timeoutMs: 10000,
   });
   const view = await client.openView(1);
   const scene = engineV2Scene(image),
-    changes = scene.commands;
-  const accepted = await view.commit(changes);
-  const active = await view.awaitActivated(accepted.document, 2000);
+    widgets = new WidgetHost(view, {
+      onError: (error) => notify({ kind: 'app-error', message: String(error) }),
+    });
+  await widgets.mount(scene.root);
+  const active = await view.awaitActivated(view.documentEpoch, 2000);
+  const intrinsic = await view.intrinsic(scene.header.currentNode!, 'maxWidth');
+  const listIntrinsic = await view.intrinsic(scene.content.currentNode!, 'maxHeight', 538);
+  const dry = await view.dryLayout(
+    scene.header.currentNode!,
+    { kind: 'finite', min: 0, max: 810 },
+    { kind: 'finite', min: 0, max: 100 },
+  );
+  await scene.editor.refresh();
   notify({
     kind: 'app-ready',
     document: String(active.activeDocument),
-    commands: changes.length,
+    commands: widgets.counters.commands,
     engineWork: String(active.transactionWork),
     fallbacks: 0,
+    widgets: { ...widgets.counters },
+    query: {
+      intrinsic: intrinsic.value,
+      contentHeight: listIntrinsic.value,
+      width: dry.width,
+      height: dry.height,
+    },
+    queryWork: String((await view.request(p.opcodes.inspect)).queryWork),
   });
   environment.__v2Delay = (milliseconds) => {
     const until = Date.now() + Math.min(2000, Math.max(0, milliseconds));
@@ -59,21 +81,23 @@ async function start(
     while (Date.now() < until) {}
     notify({ kind: 'app-delay-end', time: Date.now() });
   };
-  environment.__v2Dispose = () => client.close();
-  let updates = 0,
-    updating = false;
+  environment.__v2Dispose = async () => {
+    await widgets.close();
+    await client.close();
+  };
+  let updating = false;
   environment.__v2Update = async () => {
     if (updating) return;
     updating = true;
     try {
-      const accepted = await view.commit([
-        commands.text(scene.header, `Nelyx Engine v2 · ${++updates}`, 30, 0xffffffff),
-      ]);
-      const active = await view.awaitActivated(accepted.document, 2000);
+      const before = widgets.counters.commands;
+      scene.counter.currentState!.increment();
+      await widgets.flush();
+      const active = await view.awaitActivated(view.documentEpoch, 2000);
       notify({
         kind: 'app-updated',
         document: String(active.activeDocument),
-        commands: 1,
+        commands: widgets.counters.commands - before,
         engineWork: String(active.transactionWork),
         fallbacks: 0,
       });

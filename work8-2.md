@@ -1,12 +1,60 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 2부: 렌더링·플랫폼·API 이식
 
-작성·심화 검토·부분 구현: **2026-11-04 KST** · 상태: **PARTIAL / Windows·두 Web host·화면·owner 연결 / 전체 backend·물리 입력·성능 미완료**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PARTIAL / intrinsic·dry query, Widget, native editing·semantics 연결 / 전체 backend·물리 입력·성능 미완료**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · **2부** · [3부](work8-3.md)
 
 원문 범위: **§8–14**. 전체 설계의 절 번호와 W8 단계 식별자를 유지한다.
 
-**연결 현황:** Windows HWND/Hermes/Skia와 두 Web profile의 공식 CanvasKit/OffscreenCanvas·owner·실제 장면을 연결했다. [1부 실행 현황](work8-1.md#연결-실행-현황)의 증거와 제한을 따른다. 공개 shaped glyph 전달은 장면의 한글/Latin·7 font size에서 paragraph paint와 CPU 픽셀 동등성을 확인했다. 전체 font fallback/RTL/emoji·편집 geometry/API 의미와 아래 전체 layout/Widget·Android 이식은 남았다.
+**현재 구현:** Windows와 두 Web host에 C++ layout·비동기 intrinsic/dry query·편집 document와 게시 scene 기반 semantics를 연결했다. Testbed는 v2 Widget/State/Key와 diff로 선언하며 표준 자식 layout을 TS로 되돌리지 않는다. Web은 Main의 DOM 입력/ARIA, Windows는 UI owner의 TSF/UIA를 사용한다. **2부 전체는 PARTIAL**이며 전체 Flutter/Material/Cupertino API, lazy builder·anchor, Android와 실제 IME/reader·성능 수락은 남는다.
+
+## 이번 작업의 구현·검증 현황
+
+사용자의 `work8-2.md 작업해줘` 이후 `intrinsic/dry layout, Widget·편집·접근성 구성해줘` 요청을 반영했다. 아래는 현재 구현 범위이며, 1부의 초기 고정 배치 실행 기록과 구별한다.
+
+| 범위 | 구현·확인 위치와 현재 경계 |
+| --- | --- |
+| C++ layout | [layout continuation](Nelyx/engine/core/layout/layout.cpp). Box·Flex·Stack·Wrap·Grid·ScrollViewport와 box 자식의 선형 Sliver, paragraph/image/editable 측정. Flex 배분/fit·주축 정렬·cross start/center/end/stretch/baseline·padding/gap·Grid 행 높이·Wrap 줄 배치. Wrap/Grid stretch/baseline·Grid 주축 정렬/확장, box 계열 비기본 정렬·text/image 자체 padding은 `capabilityMissing` |
+| Intrinsic/dry | [별도 query continuation](Nelyx/engine/core/layout/query.cpp). Dry는 실제 `LayoutWork`를 같은 제약으로 실행하고 활성 scene/cache/property를 수정하지 않음. Min/max width/height는 Flex의 flex 비율·gap·cross 축 배분과 baseline, Box/Stack·Wrap·Grid·text/image를 처리. Query 시작 시 document/편집 값·metrics·font를 고정하며 측정 token은 scene 준비와 분리. 크기를 결정할 수 없는 viewport/sliver·expand query는 명시적으로 거부. Flutter 전체 intrinsic 호환을 뜻하지 않음 |
+| Widget/Element | [v2 Widget 계층](Nelyx/runtime/engine-client/widgets.ts). Stateless/Stateful/InheritedWidget·State·ValueKey/GlobalKey·재부모화·의존성, Box/Row/Column/Stack/Wrap/Grid/ScrollView/Text/Image/EditableText/Button/Semantics. 마지막 ACK를 native diff의 기준으로 유지하고 NACK·반복 ACK/query 유실 뒤 동일 transaction 결과를 해결한 다음 최신 diff를 전송. 승인된 제거 뒤 dispose/handle generation 재사용. 기존 v1 RenderObject/Material/Cupertino resolver 전체 이식은 남음 |
+| 편집 document | [C++ 편집 모델](Nelyx/engine/core/interaction/editing.cpp). UTF-16 text/selection/composing·revision·read-only/multiline/password·길이 제한, revision이 있는 programmatic replace와 undo/redo. Composition 시작 통지만 먼저 온 경우도 하나의 undo 묶음으로 보존. View당 editor 64개, 각 UTF-8 64 KiB·history 방향당 32개/1 MiB. 편집은 App document epoch를 만들지 않고 별도 edit serial로 조상 layout을 무효화 |
+| 게시 text geometry | 같은 Content paragraph의 caret/selection rectangle을 revision과 함께 준비하고 frame이 보유. 최신 비시각 편집 값이 이전 게시 paragraph보다 앞서면 geometry를 반환하지 않음. App/DOM/UIA가 옛 좌표를 새 text revision으로 다시 표시하지 않음. 현재 caret는 정적 표시이며 blink·모든 bidi/affinity·키 이동 조합의 호환은 미완료 |
+| 접근성·입력 host | [공통 focus/action](Nelyx/engine/core/interaction/interaction.cpp), [Web DOM/ARIA](Nelyx/sdk/src/runtime/engine-v2-interaction.ts), [Windows TSF/UIA](Nelyx/engine/platform/windows/interaction.hpp). Focus session·게시 ID·node 세대·enabled/action mask를 검사. App action/event mailbox와 Render event를 분리. Web의 App edit/focus/action도 Main 큐를 거치며 입력용 전송 여유를 예약. 같은 geometry에서 publication만 진행한 trusted DOM focus/action은 최대 3회 재조회. Windows는 실제 TSF context·UIA Fragment/Value/Text/Invoke와 Core paragraph query를 재사용하고 pointer caret/선택을 게시 문단의 glyph/grapheme hit에 연결 |
+| 제약·실패 | 부모의 실제 finite/unbounded 범위와 node 제약을 결합. 유한한 부모가 없는 expand/유연 길이 배분, 비유한 최종 크기, 제공되지 않은 baseline을 거부. 최대 64 continuation 작업/step·129 stack entry·131,072 작업/준비. 측정 대기 중 App callback/전역 lock 대기를 하지 않음 |
+| 파생 결과·invalidation | 승인 document를 수정하지 않고 별도 geometry document를 완성한 뒤 기존 provider/activation gate 사용. Layout 관련 변경과 옛/새 부모의 조상 revision만 무효화하고 paint/opacity/motion-only 변경은 layout cache를 유지. 활성 scene의 성공한 cache만 재사용하며 실패/취소 branch는 게시하지 않음. 프레임마다 자식 트리를 재구축·정렬하지 않고 immutable adjacency 재사용 |
+| Text/image provider | `measureRequest/measureResult`와 preparation·metrics·device·request·node 세대 검사. 요청 1개를 처리한 뒤 continuation 재개. Paragraph 폭/높이·최소/최대 intrinsic 폭·alphabetic baseline, image 원래 크기를 반환. Text 측정 paragraph를 Content paint 기록에 재사용하며 Render는 layout하지 않음. `fontRevision`은 새 준비와 cache 무효화에 사용하고 동적 font 등록 서비스는 아직 없음 |
+| 공개 geometry | [Core codec/client](Nelyx/runtime/engine-client/client.ts)의 `commands.layout`, `commands.coverage`, `measurementBody`, `EngineViewClient.layoutSnapshot()`. Snapshot node의 좌표는 부모 기준이며 `layoutDocument/layoutMetrics`가 해당 geometry의 버전. Host의 최신 `document/metrics`와 구별. ACK만 받은 새 document의 geometry를 완료 처리하지 않음 |
+| 다국어 전달 | 고정 NotoSansKR·NotoNaskhArabic·NotoSansHebrew·NotoColorEmoji와 각 license를 공급. Web은 manifest 파일 hash를 run의 font ID로 사용하고 Content/Render의 같은 font를 검증. Web의 지원 font 밖 unresolved glyph는 명시적 준비 실패. RTL direction·가짜 bold/italic·color emoji glyph 기록 재생. 동적 font 교체·locale·rich text·모든 emoji/fallback 조합의 완료를 뜻하지 않음 |
+| Public paragraph 의미 | [UTF-16 adapter](Nelyx/engine/render/canvaskit-web/paragraph.ts). 고정 npm 0.41.0/full의 실제 `getLineNumberAt`은 타입 선언과 달리 UTF-8 byte offset으로 동작함을 probe. 실행 시 단위를 재검사하고 UTF-16 scalar boundary를 변환. 문서 끝의 visible-line `null`과 별도의 caret line·빈 줄·trailing newline을 구별. `unscaledAscent=false`, `softHyphenSwitch=false`를 capability로 보고하고 대체 의미로 위장하지 않음 |
+| 준비 범위 | [공통 scheduler](Nelyx/engine/core/scheduler/scheduler.cpp)의 coverage revision·visual/requested offset·coalesced `NeedChildren`. 미준비 경계에서는 ancestor handoff를 하지 않음. Engine-driven 활성 stream의 최신 목표 1개/한 viewport만 보관하고 반전/end/cancel/hide에서 폐기. 복구 추종은 **min(2,400 px/s, 4 viewport/s)**·tick당 최대 1/60초로 제한. Phase 없는 wheel은 미적용 목표를 보관하지 않음. 미준비 programmatic 목적지는 `contentUnavailable` terminal. 실제 lazy builder·key/index/list generation·anchor 교정 연결은 미완료 |
+| 자원·공급 보완 | Core ledger에 layout 작업·결과·파생 node를 합산. Web font 입력 16 MiB/owner, Picture+glyph 전송 32 MiB/batch, 중복/과대 import 거부·취소 후보 회수. 준비 실패는 기존 scene을 유지하는 terminal로 처리. Builder가 font/license 입력도 source identity에 포함하고 빌드 중 source 변경을 거부. 별도 provider/CanvasKit/GPU heap을 포함한 전체 peak 예산 gate는 남음 |
+| 실제 Testbed | [Widget 장면](sample/nelyx-testbed-app-2/src/v2-scene.ts)의 12행과 문단 32개·editor·접근성 버튼. C++ Flex/ScrollViewport가 content 높이/extent를 계산하고 시작 시 실제 Column intrinsic 높이 **1498**과 paragraph dry query를 실행. SDK 명령과 native `transactionWork`를 대조하며 layout/query/editing/semantics 실제 작업과 TS fallback 0을 검사 |
+
+현재 source와 공급으로 다음 검사를 통과했다. 모든 test timeout은 20분이다.
+
+| 검사 | 결과 |
+| --- | --- |
+| `npm.cmd run test:engine-v2` | Native·single-worker·threaded **117/117**. Intrinsic/dry의 scene 불변성·별도 측정 token/late reply, 편집 revision/composing/undo·disabled/세대 폐기, Widget Key/reparent/의존성·NACK·반복 ACK/query 유실·native callback 및 기존 protocol/layout/input/수명 회귀 |
+| `npm.cmd run test:engine-v2:glyphs` | **3/3**. 한글/Latin 21 + RTL/fallback/color emoji/결합 문자 4, **25 corpus 픽셀 차이 0**. UTF-16/UTF-8 단위와 editable의 caret/selection·빈 text/trailing newline·glyph 단일 전송 회귀 |
+| `npm.cmd run test:engine-v2:actors` | **2/2**. Zero-size 후 wake와 provider 실패 뒤 기존 active scene 보존·다음 document 복구·ledger 0 |
+| `npm.cmd run test:engine-v2:hosts` | **5/5**. Windows 4 OS owner, 두 Web profile, 실제 query/Widget·App/Content 50/100/200 ms 지연·scroll 보존·resize/zero-size/restore·idle·close·공급/선택 실패. 초기 SDK 명령 **490 = C++ transactionWork 490**, title diff 뒤 **491**, TS fallback **0**. Native 초기 layoutWork **294**·paragraph **32**·queryWork **4**. 초기 편집/action 0은 수요 없는 control이며 별도 UIA 작업에서 **editingWork/semanticsWork > 0**을 요구. UIA text/UTF-16 value·grapheme 이동·게시 범위·실제 HWND pointer 주입으로 caret 위치 1·focus/Invoke와 Web composing/undo·App 점유 중 Core 편집·Widget 갱신 후 값 보존을 확인. Web은 SwiftShader 기능 검사로 hardware FPS 증거가 아님 |
+| 기존 입력 geometry 회귀 | `test:input-geometry` **2/2**, `test:retained-input-geometry` **7/7**. 기존 Gallery/Material/Mixed 편집기·활성화 실패 경계를 유지 |
+| 빌드·정적 검사 | `build:engine-v2`의 공개 Core/SDK·Windows host·두 Wasm/worker 공급, 전체 workspace `check:types`, Web adapter 타입, `lint`, 전체 **1,832** JS/TS 파일 `format:check`, schema 생성본·`git diff --check` 통과 |
+| 공급·정리·문서 | 현재 manifest **33개 파일/4 font**의 source/file hash 확인. Staging/previous 출력과 검증 임시는 finally 정리. 문서 8개의 로컬 링크 **290개/앵커 130개** 확인. Core/SDK 영문·한국어 README와 현재 work 문서에 API·지원 한계·실행 방법을 반영 |
+
+실행 명령은 [1부](work8-1.md#실행-방법)와 [Core README](Nelyx/README.ko.md#실험용-v2-엔진-protocol)를 따른다. 위 합계 **136개 검사**는 각 범위의 기능 검증이다. 실제 scanout·물리 IME/reader·trackpad·전체 제품 FPS/지연 수락을 뜻하지 않는다.
+
+**남은 필수 범위:** 지원 밖 intrinsic/layout·전체 invalidation/API 호환, transform/path/shadow/effect·native extension/AppDrivenBoundary, Material/Cupertino·전체 Widget lifecycle/resolver, 실제 lazy builder/anchor·메모리 합산, IME 조합 중 App의 강제 commit/cancel·모든 bidi/keyboard/clipboard 경로, EditContext character bounds·Android InputConnection/접근성·최소 surface/ABI, 전체 reader/재연결/device 복구·SDK 일반 runner. Windows의 임의 paragraph query는 현재 4096 UTF-16 units 이내이며 그 밖의 단위 이동은 document 단위로 승격되고 range geometry는 unavailable이다. Web은 명시적인 `dom-textarea/aria` profile이고 실제 IME 후보창 geometry·서체 차이를 물리 입력으로 수락하지 않았다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/성능 `notVerified`를 유지한다.
+
+### 새 API 사용과 정합성 경계
+
+`await view.dryLayout(node, horizontal, vertical)`와 `await view.intrinsic(node, 'minWidth'|'maxWidth'|'minHeight'|'maxHeight', oppositeExtent)`는 query의 document/metrics/font와 결과를 반환한다. View당 진행 중 query는 1개이며 취소/timeout·metrics/font/device 변경이 terminal을 만든다. Content가 provider 결과를 받아 진행하고 App callback을 layout 중 호출하지 않는다. 의미는 [Flutter getDryLayout 계약](https://api.flutter.dev/flutter/rendering/RenderBox/getDryLayout.html)과 [Flex intrinsic 구현](https://github.com/flutter/flutter/blob/master/packages/flutter/lib/src/rendering/flex.dart)을 대조했다.
+
+`WidgetHost.mount(widget)`/`update(widget)`/`flush()`는 App의 선언과 승인된 native 상태를 구별한다. `GlobalKey.currentNode`로 node를 찾되 현재 표시 좌표는 `layoutSnapshot()` 또는 world 좌표의 `semanticsSnapshot()`과 그 버전으로 조회한다. `State.setState`는 변경을 합치며 입력/접근성 callback은 별도 App mailbox로 전달된다. `WidgetHost.close()`는 polling·controller·State를 정리한 뒤 view를 닫고, surface/engine close는 provider hold를 먼저 drain한다.
+
+`EditingController.initialText`는 최초 seed다. 부착 이후 값은 `refresh()`/편집 event로 받고 `edit({kind:'replace',revision,text,base,extent,policy})`로 조건부 수정한다. 같은 handle의 text seed 변경은 거부한다. Selection/composing은 UTF-16 scalar boundary를 검사하며 revision이나 focus session이 맞지 않는 명령은 적용하지 않는다. Platform 입력용 `update`를 App port에서 보내지 않는다. OS/browser가 조합 종료를 확인하기 전 App replacement는 `busy`/명시적 거부로 끝내며 임의로 조합을 덮어쓰지 않는다.
+
+접근성은 최신 text/selection을 비시각적으로 제공할 수 있으나 bounds/range/caret는 대응하는 게시 paragraph가 준비되어야 한다. Windows UIA 읽기는 retained paragraph에 비차단 query를 하며 UI thread에서 다시 shaping하거나 App 응답을 기다리지 않는다. Web DOM은 native 입력/ARIA carrier이고 C++ scene의 node 크기·clip을 사용한다. 이 연결 검사는 실제 한국어 IME·clipboard 권한·Narrator/스크린리더·display 수락과 구별한다.
 
 ## 8. C++ render node·레이아웃·텍스트
 
@@ -32,14 +80,14 @@ Font 등록·fallback 변경·text scale·DPI·locale 변화는 관련 paragraph
 
 Core의 text 모듈은 paragraph provider 계약과 의존 관계를 정의한다. Web은 C++가 요청한 text/style/width/font revision의 bounded batch를 adapter에 넘기고 metrics·selection geometry·준비된 text resource를 돌려받는다. 대기 중 전역 lock을 보유하거나 App Runtime callback을 호출하지 않는다. 결과가 없으면 Content 작업을 재개 가능한 상태로 반환하며, 다른 epoch의 결과를 현재 geometry에 설치하지 않는다.
 
-Mutable paragraph는 Content text provider에 남기고 render 쪽에는 준비된 immutable text paint record와 명시적인 font/resource hold를 전달한다. Web threaded에서는 Content/Render worker에 각각 같은 npm CanvasKit 배포본의 instance를 둔다. 현재 고정 font 장면의 텍스트는 public shaped glyph run과 같은 hash의 font로 전달하고 비텍스트는 공개 `serialize()`/`MakePicture()`를 사용한다. Single-worker에서는 같은 CanvasKit instance의 준비된 resource ID를 재사용한다. 전체 text API 이식과 font/image/glyph 보존·실패·메모리 상한은 [§12.2.6](#1226-enginecanvaskit-adapter와-retained-자원)을 따른다. Paint 중 paragraph를 다시 layout하거나 mutable 객체를 worker 간 공유하지 않는다.
+Mutable paragraph는 Content text provider에 남기고 render 쪽에는 준비된 immutable text paint record와 명시적인 font/resource hold를 전달한다. Web threaded에서는 Content/Render worker에 각각 같은 npm CanvasKit 배포본의 instance를 둔다. 현재 선언된 네 font의 텍스트는 public shaped glyph run·font hash와 함께 전달하고 비텍스트는 공개 `serialize()`/`MakePicture()`를 사용한다. Single-worker에서는 같은 CanvasKit instance의 준비된 resource ID를 재사용한다. 전체 text API 이식과 font/image/glyph 보존·실패·메모리 상한은 [§12.2.6](#1226-enginecanvaskit-adapter와-retained-자원)을 따른다. Paint 중 paragraph를 다시 layout하거나 mutable 객체를 worker 간 공유하지 않는다.
 
 현재 [전용 paragraph patch](Nelyx/skia/eng/source-build/canvaskit-paragraph.patch)의 차이는 npm으로 전환하기 전에 다음과 같이 다룬다. **공개 API 존재와 의미 호환은 별개의 검사다.**
 
 | 기존 전용 기능/가정 | npm 원본을 사용하는 v2의 이식 계약 |
 | --- | --- |
 | `nelyxParagraphApiVersion` 강제 | Nelyx 전용 export를 요구하지 않고 고정 npm 배포본의 공개 메서드·실제 결과를 검사 |
-| `nelyxLineNumberAtUTF16` | npm `0.41.0` 타입은 공개 `getLineNumberAt`의 입력을 UTF-16 offset으로 명시한다. 채택 바이너리의 결과·범위 밖/줄 끝/caret 의미를 corpus로 확인하고 기존 UTF-8 변환을 그대로 복사하지 않음. 한국어·surrogate pair·결합 문자·RTL 확인 |
+| `nelyxLineNumberAtUTF16` | 타입은 UTF-16으로 명시하지만 고정 0.41.0/full 실제 binary는 UTF-8 byte index로 동작. 시작 probe와 UTF-16 scalar-boundary 변환을 구현하고 한국어·surrogate pair·결합 문자·빈 줄·문서 끝을 검사. 단순 타입 검사를 의미 호환으로 세지 않음 |
 | `unscaledAscent` 추가 field | 공개 metrics로 정확히 계산 가능한 범위를 확인. `ascent`를 복사해 동일 의미라고 표시하지 않고, 지원 불가 의미는 API 이식표에 명시 |
 | `renderSoftHyphens` switch | 공개 API 조합·원문/표시문 index mapping으로 `manual/hidden`의 줄바꿈·표시·selection 의미를 재현할 수 있는지 확인. 속성을 전달하고 무시된 것을 지원으로 세지 않음 |
 
@@ -265,9 +313,9 @@ Web port의 첫 gate는 W8-01에서 두 engine profile의 headless 코어 compil
 
 - C++는 node/layout·가시 항목·transform/clip/opacity·frame 선택을 결정한다. Adapter는 버전이 있는 resource 변경 batch와 frame packet을 받아 공개 CanvasKit API로 준비/재생한다. Resource bytes는 변경 때 보내고 준비된 Picture/path/paint/image ID를 재사용한다. JS adapter에 두 번째 render tree·scroll physics·layout 권위를 만들지 않는다.
 - Engine linear-memory offset을 CanvasKit의 포인터로 전달하지 않는다. 원시 값·복사한 byte packet·module-local resource ID로 연결하고 CanvasKit 할당/객체는 해당 instance의 공개 release/`delete()` API로 회수한다. Engine의 shared heap과 CanvasKit heap·worker별 복제된 font/cache·직렬화 staging bytes를 ledger에 합산한다.
-- Content의 CanvasKit paragraph/Picture는 같은 worker에 남긴다. Threaded에서 전달할 immutable paint record는 같은 npm 버전/variant의 공개 API로 준비하고 Render의 import·font/glyph/image 보존을 확인한 뒤 `ActivationReady`로 넘긴다. 현재 고정 font 텍스트는 `getShapedLines()`의 glyph/position 복사본과 같은 hash의 NotoSansKR를 사용하고, 비텍스트는 Picture 직렬화/`MakePicture()`를 사용한다. Raw SKP를 native/Web 공통 wire ABI나 버전을 넘는 영구 cache로 취급하지 않는다. 직렬화 실패·decode 실패·bytes 초과는 명시적 scene/resource 실패로 끝내고 기존 유효 scene을 유지한다.
+- Content의 CanvasKit paragraph/Picture는 같은 worker에 남긴다. Threaded에서 전달할 immutable paint record는 같은 npm 버전/variant의 공개 API로 준비하고 Render의 import·font/glyph/image 보존을 확인한 뒤 `ActivationReady`로 넘긴다. 현재 텍스트는 `getShapedLines()`의 glyph/position 복사본과 공급 manifest hash가 같은 NotoSansKR·Arabic·Hebrew·Emoji font를 사용하고, 비텍스트는 Picture 직렬화/`MakePicture()`를 사용한다. Raw SKP를 native/Web 공통 wire ABI나 버전을 넘는 영구 cache로 취급하지 않는다. 직렬화 실패·decode 실패·bytes 초과는 명시적 scene/resource 실패로 끝내고 기존 유효 scene을 유지한다.
 - `serialize()` 결과의 Uint8Array를 엔진/CanvasKit HEAP와 무관한 transferable이라고 가정하지 않는다. Buffer 소유 범위를 확인하고 필요한 경우 bounded standalone ArrayBuffer로 복사한 뒤 transfer한다. Serializer가 참조한 Picture/font/image는 bytes 준비 완료까지 유지하고, 수신 확인·취소·late 결과의 release도 `PreparationId`/resource generation으로 한 번만 처리한다.
-- 공식 0.41.0/full 실행 probe에서 10,414,588 bytes font가 10,415,184 bytes text Picture에 복제되는 것을 확인하여 현재 텍스트는 glyph record로 전달한다. 별도 두 CanvasKit instance의 paragraph/glyph paint는 한글·Latin·혼합 문자열 × 7 font size, 21 corpus에서 CPU 픽셀 차이 0이었다. 이는 고정 font 장면의 증거이며 전체 fallback·RTL·emoji·rich text·전용 paragraph API 의미의 gate는 남아 있다. W8-02의 전체 필수 corpus가 통과하지 않으면 gate를 닫지 않고 공개 API 기반 준비 형식을 확장한다. Draw 중 paragraph를 다시 layout해 미준비 자원을 숨기는 방식으로 통과시키지 않는다.
+- 공식 0.41.0/full 실행 probe에서 10,414,588 bytes font가 10,415,184 bytes text Picture에 복제되는 것을 확인하여 현재 텍스트는 glyph record로 전달한다. 별도 두 CanvasKit instance의 paragraph/glyph paint는 한글·Latin·혼합 문자열 × 7 font size, 21 corpus에서 CPU 픽셀 차이 0이었다. 이번에 RTL·Arabic/Hebrew fallback·color emoji·결합 문자 4개를 더한 25 corpus의 픽셀 차이도 0이었다. 이는 선언한 font/corpus의 증거이며 전체 fallback·rich text·동적 font 교체·전용 paragraph API 전체 의미의 gate는 남아 있다. W8-02의 전체 필수 corpus가 통과하지 않으면 gate를 닫지 않고 공개 API 기반 준비 형식을 확장한다. Draw 중 paragraph를 다시 layout해 미준비 자원을 숨기는 방식으로 통과시키지 않는다.
 - Engine owner도 browser task에 반환해 JS adapter·CanvasKit 초기화/작업·credit 통지가 실행될 수 있어야 한다. Threaded C++의 무한 blocking loop 때문에 같은 worker의 adapter가 실행되지 않는 구조를 피한다. Content provider 지연 중 Render는 이미 준비된 CanvasKit resource로 진행한다.
 - Frame마다 engine→JS packet 수/bytes·CanvasKit 호출 수·resource 생성/재사용·복사/직렬화·provider 대기·순수 엔진/adapter/GPU 점유를 나누어 확인한다. npm 사용은 공급 단순화의 결정이며, 이전 단일 module 안과 같거나 더 빠르다는 성능 주장은 검증 전에는 하지 않는다.
 

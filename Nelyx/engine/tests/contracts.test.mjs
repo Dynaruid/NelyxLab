@@ -21,6 +21,9 @@ import {
   decodeUtf8,
 } from '../../runtime/engine-client/index.ts';
 import { FrictionSimulation } from '../../src/framework/physics/friction-simulation.ts';
+import { layoutContracts } from './layout-contracts.mjs';
+import { coverageContracts } from './coverage-contracts.mjs';
+import { interactionContracts } from './interaction-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
@@ -198,6 +201,9 @@ function accounting(state) {
   assert.ok(state.queued <= p.limits.inputPackets);
   assert.ok(state.holds <= p.limits.frames);
 }
+layoutContracts({ using, timeout, h });
+coverageContracts({ using, timeout, h });
+interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {
   test(
     `${profile}: text validation rolls back paint and preparation blobs retain their document`,

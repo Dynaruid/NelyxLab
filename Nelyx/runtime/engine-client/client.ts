@@ -1,5 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { body, packet, response, transaction, uint32, uint64 } from './codec.ts';
+import {
+  body,
+  packet,
+  response,
+  transaction,
+  uint32,
+  uint64,
+  layoutQueryBody,
+  editBody,
+  focusBody,
+  semanticActionBody,
+  writeHandle,
+} from './codec.ts';
 import type { EngineResponse, PacketOwner } from './codec.ts';
 import { protocol as p } from './schema.ts';
 
@@ -210,6 +222,8 @@ export class EngineClient {
   }
 }
 export class EngineViewClient {
+  private querying = false;
+  private queryId = 0n;
   private epoch = 0n;
   private nextId = 0n;
   private inFlight: Uint8Array | undefined;
@@ -238,6 +252,130 @@ export class EngineViewClient {
     const result = await this.client.send(packet(opcode, this.owner, data, id));
     if (result.closed) this.sessionClosed();
     return result;
+  }
+  /** Last activated layout, with its document and metrics epochs. Acceptance
+   * of a newer transaction does not make these coordinates current. */
+  async layoutSnapshot(): Promise<EngineResponse> {
+    return checked(await this.request(p.opcodes.layoutSnapshot));
+  }
+  async semanticsSnapshot(): Promise<EngineResponse> {
+    return checked(await this.request(p.opcodes.semanticsSnapshot));
+  }
+  async editSnapshot(
+    node: import('./codec.ts').NodeHandle,
+  ): Promise<import('./codec.ts').EditingSnapshot> {
+    const r = checked(
+      await this.request(
+        p.opcodes.editSnapshot,
+        body(8, (v) => writeHandle(v, 0, node)),
+      ),
+    );
+    if (!r.nodes[0]?.editing) throw new EngineError(p.statuses.notFound, 'Editor snapshot missing');
+    return r.nodes[0].editing;
+  }
+  async edit(
+    node: import('./codec.ts').NodeHandle,
+    value: import('./codec.ts').EditingUpdate,
+  ): Promise<import('./codec.ts').EditingSnapshot> {
+    const r = checked(await this.request(p.opcodes.edit, editBody(node, value)));
+    if (!r.nodes[0]?.editing) throw new EngineError(p.statuses.notFound, 'Editor snapshot missing');
+    return r.nodes[0].editing;
+  }
+  async focus(
+    node: import('./codec.ts').NodeHandle | null,
+    publication: bigint,
+    session = 0n,
+  ): Promise<EngineResponse> {
+    return checked(await this.request(p.opcodes.focus, focusBody(node, publication, session)));
+  }
+  async semanticAction(
+    node: import('./codec.ts').NodeHandle,
+    publication: bigint,
+    action: keyof typeof p.semanticsActions,
+    session = 0n,
+  ): Promise<EngineResponse> {
+    return checked(
+      await this.request(
+        p.opcodes.semanticsAction,
+        semanticActionBody(node, publication, action, session),
+      ),
+    );
+  }
+  async pollInteractionEvents(): Promise<EngineResponse> {
+    return checked(await this.request(p.opcodes.pollInteractionEvents));
+  }
+  async queryLayout(
+    node: import('./codec.ts').NodeHandle,
+    kind: import('./codec.ts').LayoutQueryKind,
+    horizontal: import('./codec.ts').AxisBound,
+    vertical: import('./codec.ts').AxisBound,
+    timeoutMs = p.limits.commandTimeoutMs,
+  ): Promise<import('./codec.ts').EngineLayoutQuery> {
+    this.ensureOpen();
+    if (this.querying)
+      throw new EngineError(p.statuses.busy, 'One layout query may be pending per view');
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > p.limits.commandTimeoutMs)
+      throw new RangeError('Invalid layout query timeout');
+    this.querying = true;
+    let completed = false,
+      id = 0n;
+    try {
+      const state = checked(await this.request(p.opcodes.inspect));
+      this.queryId = uint64(
+        (state.layoutQuery && state.layoutQuery.id > this.queryId
+          ? state.layoutQuery.id
+          : this.queryId) + 1n,
+      );
+      id = this.queryId;
+      let result = checked(
+        await this.request(
+          p.opcodes.layoutQuery,
+          layoutQueryBody(node, kind, horizontal, vertical),
+          id,
+        ),
+        [p.statuses.ok, p.statuses.pending],
+      );
+      const end = Date.now() + timeoutMs;
+      while (result.status === p.statuses.pending && Date.now() < end) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 8));
+        this.ensureOpen();
+        result = checked(await this.request(p.opcodes.layoutQueryResult, new Uint8Array(), id), [
+          p.statuses.ok,
+          p.statuses.pending,
+        ]);
+      }
+      if (result.status === p.statuses.pending)
+        throw new EngineError(p.statuses.timedOut, 'Layout query timed out', result);
+      if (!result.layoutQuery || result.layoutQuery.id !== id)
+        throw new EngineError(p.statuses.failed, 'Layout query identity differs');
+      completed = true;
+      return result.layoutQuery;
+    } finally {
+      if (!completed && id && !this.closed)
+        await this.request(p.opcodes.layoutQueryCancel, new Uint8Array(), id).catch(() => {});
+      this.querying = false;
+    }
+  }
+  dryLayout(
+    node: import('./codec.ts').NodeHandle,
+    horizontal: import('./codec.ts').AxisBound,
+    vertical: import('./codec.ts').AxisBound,
+  ) {
+    return this.queryLayout(node, 'dry', horizontal, vertical);
+  }
+  intrinsic(
+    node: import('./codec.ts').NodeHandle,
+    kind: Exclude<import('./codec.ts').LayoutQueryKind, 'dry'>,
+    extent: number | 'unbounded' = 'unbounded',
+  ) {
+    const other: import('./codec.ts').AxisBound =
+      extent === 'unbounded' ? { kind: 'unbounded' } : { kind: 'finite', min: 0, max: extent };
+    return this.queryLayout(
+      node,
+      kind,
+      kind === 'minWidth' || kind === 'maxWidth' ? { kind: 'unbounded' } : other,
+      kind === 'minWidth' || kind === 'maxWidth' ? other : { kind: 'unbounded' },
+    );
   }
   async commit(changes: readonly Uint8Array[]): Promise<EngineResponse> {
     this.ensureOpen();

@@ -4,10 +4,15 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <exception>
 #include <vector>
 
 namespace nelyx::v2 {
-struct Error { uint32_t status; };
+struct Error : std::exception {
+  uint32_t status;
+  explicit Error(uint32_t value):status(value){}
+  const char* what()const noexcept override{return "Engine protocol/layout error";}
+};
 inline void require(bool test, uint32_t status = wire::statuses::malformed) {
   if (!test) throw Error{status};
 }
@@ -34,6 +39,7 @@ struct Reader {
     for (unsigned i = 0; i < 8; ++i) value |= uint64_t(data[p + i]) << (i * 8);
     return value;
   }
+  int32_t i32(size_t p)const {const auto bits=u32(p);int32_t value;std::memcpy(&value,&bits,4);return value;}
   double f64(size_t p) const {
     const auto bits = u64(p); double value;
     static_assert(sizeof(value) == sizeof(bits) && std::numeric_limits<double>::is_iec559);

@@ -4,8 +4,8 @@
   "abiMinor": 0,
   "magic": 844647502,
   "headerBytes": 64,
-  "stateBytes": 336,
-  "nodeBytes": 160,
+  "stateBytes": 544,
+  "nodeBytes": 216,
   "eventBytes": 40,
   "inputBytes": 120,
   "limits": {
@@ -30,7 +30,17 @@
     "scrollCommands": 64,
     "observerPackets": 64,
     "commandTimeoutMs": 2000,
-    "textBytes": 65536
+    "textBytes": 65536,
+    "layoutOperations": 131072,
+    "coveragePixelsPerSecond": 2400,
+    "coverageViewportsPerSecond": 4,
+    "editors": 64,
+    "semanticsNodes": 256,
+    "semanticsTextBytes": 4096,
+    "editHistory": 32,
+    "editHistoryBytes": 1048576,
+    "interactionEvents": 64,
+    "selectionRects": 256
   },
   "opcodes": {
     "hello": 1,
@@ -54,7 +64,22 @@
     "preparationResult": 19,
     "closeSession": 20,
     "preparationScene": 21,
-    "providerReady": 22
+    "providerReady": 22,
+    "measureRequest": 23,
+    "measureResult": 24,
+    "layoutSnapshot": 25,
+    "fontRevision": 26,
+    "layoutQuery": 27,
+    "layoutQueryResult": 28,
+    "layoutQueryCancel": 29,
+    "focus": 30,
+    "edit": 31,
+    "editSnapshot": 32,
+    "semanticsSnapshot": 33,
+    "semanticsAction": 34,
+    "pollInteractionEvents": 35,
+    "focusAt": 36,
+    "activateAt": 37
   },
   "commands": {
     "create": 1,
@@ -70,7 +95,11 @@
     "motion": 11,
     "constraints": 12,
     "paint": 13,
-    "text": 14
+    "text": 14,
+    "layout": 15,
+    "coverage": 16,
+    "editor": 17,
+    "semantics": 18
   },
   "kinds": {
     "box": 1,
@@ -125,7 +154,11 @@
     "viewClosed": 7,
     "motionTerminal": 8,
     "inputOverflow": 9,
-    "publicationCanceled": 10
+    "publicationCanceled": 10,
+    "needChildren": 11,
+    "focusChanged": 12,
+    "editingChanged": 13,
+    "semanticAction": 14
   },
   "phases": {
     "begin": 1,
@@ -154,7 +187,10 @@
     "scroll": 4,
     "motion": 8,
     "contentIndependent": 16,
-    "surface": 32
+    "surface": 32,
+    "layoutQueries": 64,
+    "editing": 128,
+    "semantics": 256
   },
   "headerFields": {
     "magic": 0,
@@ -220,7 +256,35 @@
     "contentWork": 296,
     "contentOwner": 304,
     "renderOwner": 312,
-    "preparationDocument": 320
+    "preparationDocument": 320,
+    "measureRequest": 328,
+    "layoutWork": 336,
+    "layoutReused": 344,
+    "layoutDocument": 352,
+    "layoutMetrics": 360,
+    "fontRevision": 368,
+    "coverageRequests": 376,
+    "coverageDeferred": 384,
+    "coverageClamps": 392,
+    "coverageHandoffs": 400,
+    "queryId": 408,
+    "queryDocument": 416,
+    "queryMetrics": 424,
+    "queryFont": 432,
+    "queryStatus": 440,
+    "queryMode": 444,
+    "queryWidth": 448,
+    "queryHeight": 456,
+    "queryBaseline": 464,
+    "queryValue": 472,
+    "measurePreparation": 480,
+    "measureDocument": 488,
+    "focusNode": 496,
+    "focusSession": 504,
+    "interactionCount": 512,
+    "editingWork": 520,
+    "semanticsWork": 528,
+    "queryWork": 536
   },
   "nodeFields": {
     "node": 0,
@@ -244,7 +308,14 @@
     "clipX": 128,
     "clipY": 136,
     "clipWidth": 144,
-    "clipHeight": 152
+    "clipHeight": 152,
+    "baseline": 160,
+    "layoutRevision": 168,
+    "textDirection": 176,
+    "requestedOffset": 184,
+    "preparedMinimum": 192,
+    "preparedMaximum": 200,
+    "coverageRevision": 208
   },
   "inputFields": {
     "sequence": 0,
@@ -341,11 +412,11 @@
   },
   "textFields": {
     "color": 0,
-    "reserved": 4,
     "fontSize": 8,
     "length": 16,
     "reservedTail": 20,
-    "bytes": 24
+    "bytes": 24,
+    "direction": 4
   },
   "blobFields": {
     "type": 0,
@@ -354,5 +425,129 @@
     "length": 16,
     "reservedTail": 20,
     "bytes": 24
+  },
+  "layoutMainAlign": {
+    "start": 0,
+    "center": 1,
+    "end": 2,
+    "spaceBetween": 3,
+    "spaceAround": 4,
+    "spaceEvenly": 5
+  },
+  "layoutCrossAlign": {
+    "start": 0,
+    "center": 1,
+    "end": 2,
+    "stretch": 3,
+    "baseline": 4
+  },
+  "layoutFields": {
+    "enabled": 0,
+    "direction": 4,
+    "mainSize": 8,
+    "mainAlign": 12,
+    "crossAlign": 16,
+    "fit": 20,
+    "columns": 24,
+    "reserved": 28,
+    "flex": 32,
+    "gap": 40,
+    "runGap": 48,
+    "left": 56,
+    "top": 64,
+    "right": 72,
+    "bottom": 80
+  },
+  "measureFields": {
+    "preparation": 0,
+    "metrics": 8,
+    "device": 16,
+    "request": 24,
+    "node": 32,
+    "width": 40,
+    "height": 48,
+    "minimum": 56,
+    "maximum": 64,
+    "baseline": 72
+  },
+  "coverageFields": {
+    "revision": 0,
+    "minimum": 8,
+    "maximum": 16,
+    "enabled": 24,
+    "reserved": 28
+  },
+  "layoutQueries": {
+    "dry": 0,
+    "minWidth": 1,
+    "maxWidth": 2,
+    "minHeight": 3,
+    "maxHeight": 4
+  },
+  "queryFields": {
+    "node": 0,
+    "mode": 8,
+    "reserved": 12,
+    "horizontal": 16,
+    "vertical": 40
+  },
+  "editKinds": {
+    "update": 0,
+    "replace": 1,
+    "selection": 2,
+    "undo": 3,
+    "redo": 4
+  },
+  "compositionPolicies": {
+    "preserve": 0,
+    "commit": 1,
+    "cancel": 2
+  },
+  "editFlags": {
+    "readOnly": 1,
+    "multiline": 2,
+    "password": 4,
+    "disabled": 8
+  },
+  "semanticsRoles": {
+    "none": 0,
+    "group": 1,
+    "button": 2,
+    "text": 3,
+    "textField": 4,
+    "checkbox": 5,
+    "slider": 6,
+    "link": 7
+  },
+  "semanticsFlags": {
+    "disabled": 1,
+    "hidden": 2,
+    "checked": 4,
+    "selected": 8,
+    "focusable": 16,
+    "readOnly": 32
+  },
+  "semanticsActions": {
+    "activate": 1,
+    "focus": 2,
+    "setValue": 4,
+    "setSelection": 8,
+    "increment": 16,
+    "decrement": 32
+  },
+  "editFields": {
+    "node": 0,
+    "session": 8,
+    "revision": 16,
+    "kind": 24,
+    "policy": 28,
+    "base": 32,
+    "extent": 36,
+    "composingStart": 40,
+    "composingEnd": 44,
+    "length": 48,
+    "reserved": 52,
+    "publication": 56,
+    "bytes": 64
   }
 }

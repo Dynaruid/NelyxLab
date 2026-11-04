@@ -77,5 +77,6 @@ export async function boot(
       typeof SharedArrayBuffer !== 'undefined' &&
       (provider.ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.buffer instanceof SharedArrayBuffer,
     counters: { ...provider.counters },
+    textCapabilities: provider.textCapabilities,
   });
 }

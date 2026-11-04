@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { body, protocol as p } from '../../../runtime/engine-client/index.ts';
+import { body, protocol as p, measurementBody } from '../../../runtime/engine-client/index.ts';
 import type { EngineResponse } from '../../../runtime/engine-client/index.ts';
 import { CanvasKitProvider } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures } from '../../render/canvaskit-web/provider.ts';
@@ -42,6 +42,7 @@ export class ContentActor {
   private step(): void {
     this.scheduled = false;
     if (this.stopped) return;
+    let attempt: { id: bigint; metrics: bigint; device: bigint } | undefined;
     try {
       const state = request(
         this.module,
@@ -50,29 +51,66 @@ export class ContentActor {
         body(8, (v) => v.setUint32(0, p.limits.contentPerStep, true)),
       );
       if (state.status !== p.statuses.ok || state.closed) return;
-      if (state.preparationReady && state.preparation !== this.last) {
+      if (!state.preparation) this.provider.discardMeasurements();
+      if (state.measureRequest) {
+        const measurement = request(this.module, this.engine, p.opcodes.measureRequest);
+        if (measurement.status !== p.statuses.ok) {
+          this.kick();
+          return;
+        }
+        attempt = {
+          id: measurement.measurePreparation,
+          metrics: measurement.metrics,
+          device: measurement.device,
+        };
+        const result = request(
+          this.module,
+          this.engine,
+          p.opcodes.measureResult,
+          measurementBody(measurement, this.provider.measure(measurement)),
+        );
+        if (![p.statuses.ok, p.statuses.stale].includes(result.status as 0))
+          throw new Error('Provider metrics rejected: ' + result.status);
+        this.kick();
+      } else if (state.preparationReady && state.preparation !== this.last) {
         const scene = request(this.module, this.engine, p.opcodes.preparationScene);
         if (scene.status !== p.statuses.ok)
           throw new Error('Preparation snapshot rejected (' + scene.status + ')');
         this.last = scene.preparation;
+        attempt = { id: scene.preparation, metrics: scene.metrics, device: scene.device };
         const packet = this.provider.prepare(scene, this.sharedOwner);
         this.post({ kind: 'prepared', packet }, this.sharedOwner ? [] : preparedTransfers(packet));
-        this.post({ kind: 'content-stats', counters: { ...this.provider.counters } });
-      } else if (!state.preparationReady && state.preparation) this.kick();
+        this.post({
+          kind: 'content-stats',
+          counters: { ...this.provider.counters },
+          textCapabilities: this.provider.textCapabilities,
+        });
+      } else if (
+        (!state.preparationReady && state.preparation) ||
+        state.layoutQuery?.status === p.statuses.pending
+      )
+        this.kick();
     } catch (error) {
       const state = request(this.module, this.engine, p.opcodes.inspect);
-      if (state.preparation)
+      this.provider.discardMeasurements();
+      const failed = attempt ?? {
+        id: state.measurePreparation || state.preparation,
+        metrics: state.metrics,
+        device: state.device,
+      };
+      if (failed.id)
         request(
           this.module,
           this.engine,
           p.opcodes.preparationResult,
           body(24, (v) => {
-            v.setBigUint64(0, state.preparation, true);
-            v.setBigUint64(8, state.metrics, true);
-            v.setBigUint64(16, state.device, true);
+            v.setBigUint64(0, failed.id, true);
+            v.setBigUint64(8, failed.metrics, true);
+            v.setBigUint64(16, failed.device, true);
           }),
         );
-      this.post({ kind: 'provider-error', message: failure(error) });
+      this.post({ kind: 'preparation-error', message: failure(error) });
+      this.kick();
     }
   }
   packet(bytes: Uint8Array): Uint8Array {
@@ -81,7 +119,15 @@ export class ContentActor {
       p.headerFields.opcode,
       true,
     );
-    if ([p.opcodes.transaction, p.opcodes.openView].includes(opcode as 2)) this.kick();
+    if (
+      [
+        p.opcodes.transaction,
+        p.opcodes.openView,
+        p.opcodes.fontRevision,
+        p.opcodes.layoutQuery,
+      ].includes(opcode as 2)
+    )
+      this.kick();
     return result;
   }
   stop(): void {
@@ -153,8 +199,10 @@ export class RenderActor {
       state.preparation !== packet.preparation ||
       state.metrics !== packet.metrics ||
       state.device !== packet.device
-    )
+    ) {
+      this.provider.retireExcept(state.activePreparation, this.candidate);
       return;
+    }
     try {
       this.provider.import(packet);
     } catch (error) {
@@ -169,7 +217,7 @@ export class RenderActor {
         }),
       );
       this.provider.retireExcept(state.activePreparation, this.candidate);
-      this.post({ kind: 'provider-error', message: failure(error) });
+      this.post({ kind: 'preparation-error', message: failure(error) });
       return;
     }
     const result = request(
@@ -184,6 +232,7 @@ export class RenderActor {
     );
     if (result.status === p.statuses.ok) {
       this.candidate = packet.preparation;
+      this.provider.retireExcept(state.activePreparation, this.candidate);
       this.kick();
     } else this.provider.retireExcept(state.activePreparation, this.candidate);
   }
@@ -194,9 +243,16 @@ export class RenderActor {
       true,
     );
     if (
-      ![p.opcodes.inspect, p.opcodes.hello, p.opcodes.pollEvents, p.opcodes.queryResult].includes(
-        op as 14,
-      )
+      ![
+        p.opcodes.inspect,
+        p.opcodes.hello,
+        p.opcodes.pollEvents,
+        p.opcodes.queryResult,
+        p.opcodes.semanticsSnapshot,
+        p.opcodes.editSnapshot,
+        p.opcodes.pollInteractionEvents,
+        p.opcodes.layoutSnapshot,
+      ].includes(op as 14)
     )
       this.kick();
     return result;

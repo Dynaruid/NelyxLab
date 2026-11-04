@@ -57,6 +57,11 @@ Web: `http://127.0.0.1:8192/isolated/`는 COOP/COEP가 있는 `auto → threaded
 
 검증 명령은 `npm.cmd run test:engine-v2`, `npm.cmd run test:engine-v2:glyphs`, `npm.cmd run test:engine-v2:actors`, 현재 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`다. 일반 App의 engine 기본값은 유지하고 v2는 위 별도 명령으로 실행한다. 나머지 W8-00 API 의미/Android ABI 확정, 최소 Android surface, 표준 layout/Widget/Key/편집/semantics·coverage와 전체 gesture 이식은 계속 진행할 범위다. 설계 근거는 [Emscripten runtime 수명](https://emscripten.org/docs/api_reference/emscripten.h.html), [Vulkan WSI 재구성](https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/04_Swap_chain_recreation.html), [CanvasKit 공개 타입](https://github.com/google/skia/blob/main/modules/canvaskit/npm_build/types/index.d.ts)과 설치된 고정 공급 source/API를 대조했다. 기존 `performanceAccepted=false`, `resizePerformanceAccepted=false`, work7의 물리 재확인 대기를 유지한다.
 
+
+### 2부 작업 이후의 현재 상태
+
+C++ layout continuation·text/image 측정·baseline·layout cache·별도 geometry snapshot과 intrinsic/dry query를 추가했다. 현재 Testbed는 v2 Widget/State/Key와 ACK 기준 diff로 선언하고 12행과 문단 32개를 C++/Content에서 처리한다. Native editing document·undo/composing·게시 caret/selection과 Windows TSF/UIA·Web DOM/ARIA를 연결했으며 전체 API/제품 이식은 PARTIAL이다. 네 font의 RTL/fallback/color emoji·line-index adapter와 coverage 코어도 포함한다. 구현/검증 수치·제약·미완료 항목은 **[2부 현황](work8-2.md#이번-작업의-구현검증-현황)**을 현재 기준으로 따른다. 위 1부 최초 연결 수치는 당시 고정 배치 장면의 기록이다.
+
 ### 공통 코어 구현
 
 **1부 전체와 W8-00/01/03의 gate는 PARTIAL이다.** 아래 공통 코어와 실제 host 연결을 구현했으나 전체 기능표/플랫폼 이식은 남았다. 최초 headless 작업의 시작 HEAD는 `0e0379f`다.
@@ -74,13 +79,13 @@ Web: `http://127.0.0.1:8192/isolated/`는 COOP/COEP가 있는 `auto → threaded
 | [Wasm binding](Nelyx/engine/bindings/wasm.cpp), [TS adapter](Nelyx/runtime/engine-client/wasm.ts) | 별도 non-shared/shared-memory 빌드·module 소유 해제·memory growth 뒤 HEAP 재취득·출력 packet 복사. JS buffer/다른 module 포인터를 보관하지 않음 |
 | [CMake](Nelyx/engine/CMakeLists.txt), [빌드](Nelyx/engine/tools/build.mjs), [계약 검사](Nelyx/engine/tests/contracts.test.mjs) | Windows x64 MSVC와 Emscripten **4.0.22**의 Native/single-worker/threaded headless 실행. Current `engine/dist`만 공급하고 staging/이전 dist/검증 임시는 finally에서 제거 |
 
-Headless 검사는 cooperative 호출로 실행하고 `contentIndependent=false`를 보고한다. 실제 Windows/threaded host는 provider READY와 서로 다른 owner를 연결한 뒤 surface/independent capability를 제공한다. CreateNode의 13개 종류 인식을 표준 layout·paint·편집 전체 구현으로 세지 않는다. 고정 배치 geometry를 C++가 보유하며 `appControlled`/raw observer·전체 tap/pinch·키/편집 event·motion graph 이식은 남았다.
+Headless 검사는 cooperative 호출로 실행하고 `contentIndependent=false`를 보고한다. 실제 Windows/threaded host는 provider READY와 서로 다른 owner를 연결한 뒤 surface/independent capability를 제공한다. CreateNode의 13개 종류 인식을 표준 layout·paint·편집 전체 구현으로 세지 않는다. 지원 primitive의 C++ layout과 intrinsic/dry query·편집/semantics 연결을 제공하며, 지원 밖 조합·`appControlled`/raw observer·전체 tap/pinch·keyboard/IME·motion graph 이식은 남았다.
 
 ### 이번에 고정한 값
 
 | 항목 | canonical 값/정책 |
 | --- | --- |
-| Wire | ABI major 2/minor 0, schema fingerprint, 64-byte header·16-byte 명령 TLV·336-byte 진단 state·160-byte node row·120-byte 입력. `float64`는 finite/절댓값 ≤ 1e12. Constraints `finite/unbounded/expand`, extent `finite/estimated/unbounded`를 별도 tag로 표현 |
+| Wire | ABI major 2/minor 0, schema fingerprint, 64-byte header·16-byte 명령 TLV·416-byte 진단 state·216-byte node row·120-byte 입력. `float64`는 finite/절댓값 ≤ 1e12. Constraints `finite/unbounded/expand`, extent `finite/estimated/unbounded`를 별도 tag로 표현 |
 | Tree/transaction | view 최대 8·node/view 4096·깊이 128·명령 4096·packet 1 MiB. Handle은 view 안의 slot+generation, 최종 그래프를 검증하며 overflow/wrap은 거부 |
 | 입력 | **session 합산 256 = update 224 + boundary 예약 32**. 살아 있는 view 수로 view admission quota를 나누고 tick은 view당 32 packet. 포화 stream은 명시적으로 취소하며 received = consumed + canceled + rejected + queued, duplicate는 별도 |
 | Content/scene | step당 최대 64 slot. 진행 중/ready 후보 합계 1·최신 다음 document 수요 1·active scene 1. 새 commit만으로 진행 중인 호환 준비를 취소하지 않음 |

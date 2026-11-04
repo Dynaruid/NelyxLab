@@ -1,6 +1,6 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 3부: 구현 순서·검증·완료 기준
 
-작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PARTIAL / Windows·두 Web host·화면·owner 연결 / 전체 backend·물리 입력·성능 미완료**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PARTIAL / intrinsic·dry query·Widget·편집·접근성 연결 / 전체 backend·물리 입력·성능 미완료**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · [2부](work8-2.md) · **3부**
 
@@ -8,7 +8,7 @@
 
 ## 15. 소스 구조와 의존 방향
 
-다음은 **전체 소스 구조의 설계안**이다. `engine`의 core/protocol·scene·input·scheduler·bindings·tests, `runtime/engine-client`, `render/canvaskit-web`·`platform/windows`·`platform/web`를 구현했다. 고정 배치 장면과 실제 host를 연결했으며 표준 layout/text/framework 등의 독립 모듈과 전체 기능 이식은 남았다.
+다음은 **전체 소스 구조의 설계안**이다. `engine`의 core/protocol·scene·input·scheduler·layout·interaction·bindings·tests, `runtime/engine-client`의 v2 Widget·codec/client, `render/canvaskit-web`·`platform/windows`·`platform/web`를 구현했다. Intrinsic/dry query·편집/semantics와 Windows TSF/UIA·Web DOM/ARIA를 실제 Testbed에 연결했다. 전체 framework/Material/Cupertino·lazy builder/anchor·Android/API 호환은 남았다.
 
 ```text
 Nelyx/
@@ -266,9 +266,9 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | 3부 문서 재검토 | 현재 source/타입·공식 Flutter/Emscripten/HTML 계약 대조. 제약/finite·준비 시도·NACK·Web READY/resize/credit·DOM 입력·bundle 선택·검증 단계 보강 |
 | 구현 순서·최소 수직 구현·백엔드 완료·후속 제품 전환 | 플랫폼/두 Web profile별 필수 범위·기능표·독립/협력 실행 gate·기능 지원과 성능 수락 구분 |
 | 문서의 링크·구조·공백 검사 | 현재 문서 8개에서 로컬 링크 275개/앵커 126개 및 공백 검사 통과 |
-| 새 engine/runtime·ABI·Wasm 공급·CLI 구현 | C++/C ABI·TS 공개 Core/SDK, Windows host·두 browser profile·공식 CanvasKit·App/worker/assets·현재 공급·실행 명령. 69개 코어 계약과 4개 host 통합 검사·1개 zero-size owner 회귀·21 corpus glyph 픽셀 비교 |
+| 새 engine/runtime·ABI·Wasm 공급·CLI 구현 | C++/C ABI·공개 Core/SDK·intrinsic/dry query·Widget/State/Key diff·native editing/semantics·Windows TSF/UIA·Web DOM/ARIA와 실제 Testbed. 코어 계약·실제 UIA/DOM 편집·glyph geometry/pixel·owner·입력 geometry 회귀를 검사. 최신 수치와 한계는 [2부 현황](work8-2.md#이번-작업의-구현검증-현황) 참조 |
 | W8-00/01 전체 gate | PARTIAL. ABI/수치·실제 owner transport·현재 공급 구현. 전체 public API 의미·Android ABI·일반 Widget resolver/runner 이식은 남음 |
-| W8-02/03 실제 surface·독립 실행 | Windows와 Web 두 profile의 고정 배치 box/text/image/clip·input·App/Content 50/100/200 ms 지연·resize/복구·close 통과. Android·전체 gesture/coverage와 통합 기능표는 미완료 |
+| W8-02/03 실제 surface·독립 실행 | Windows와 Web 두 profile의 고정 배치 box/text/image/clip·input·App/Content 50/100/200 ms 지연·resize/복구·close 통과. Coverage 코어 추가. Android·전체 gesture·lazy builder/anchor와 통합 기능표는 미완료 |
 | 새 성능 측정·앱 빌드/실행·물리 트랙패드 확인 | 현재 v2 host/App 빌드·실행·자동 input·화면 확인. FPS/제품 성능·물리 trackpad는 미검증 |
 | 일반 App 기본값·기존 후보 판정 | 변경 없음: TS / NO_ADOPTION |
 | 기존 제품 수락 | PARTIAL, `performanceAccepted=false`, `resizePerformanceAccepted=false` 유지 |
@@ -298,7 +298,7 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | GPU 미관측 credit·숨김/복귀·DOM 입력 조건 누락 | Port별 credit/안전한 release·lifecycle/fence·EditContext 없는 편집·main의 activation 정책 ([§6.2](work8-1.md#62-상한과-frame-교체)/[6.3](work8-1.md#63-metrics숨김복구의-진행-조건)/[10.2](work8-2.md#102-편집-document)/[16.4](#164-web-비격리-배포와-profile-검증표)) |
 | Host flag만 v2이고 앱 module은 v1일 수 있음·앞 단계 검사가 뒤 단계에 의존 | 빌드 resolver/bundle major 검사·W8-03 최소 route/coverage와 W8-05/06 확장 경계 명시 ([§13.2](work8-2.md#132-점진-이식의-경계)/[16](#16-구현-순서와-단계별-완료-조건)) |
 
-다음 단계는 [1부 현황](work8-1.md#연결-실행-현황)의 미완료 API/기능표·Android 최소 port와 표준 layout/Widget·gesture·coverage 이식이다. 현재 고정 배치 연결을 전체 W8 완료로 세지 않는다. 기존 제품의 물리 재확인 대기와 성능 수락은 유지한다.
+다음 단계는 [2부 현황](work8-2.md#이번-작업의-구현검증-현황)에 남긴 전체 public API/기능표·Material/Cupertino·lazy builder/anchor·IME/reader와 Android 최소 port 이식이다. 현재 Widget Testbed 연결을 전체 W8 완료로 세지 않는다. 기존 제품의 물리 재확인 대기와 성능 수락은 유지한다.
 
 ---
 

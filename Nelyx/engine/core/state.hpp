@@ -2,6 +2,9 @@
 #pragma once
 #include "scene/document.hpp"
 #include "input/physics.hpp"
+#include "layout/layout.hpp"
+#include "layout/query.hpp"
+#include "interaction/editing.hpp"
 #include <deque>
 #include <map>
 #include <optional>
@@ -15,6 +18,7 @@ struct Scene {
   std::shared_ptr<const Document> document;
   Metrics metrics;
   uint64_t epoch = 0, preparation = 0;
+  std::shared_ptr<const LayoutOutput> layout;
 };
 struct Preparation {
   std::shared_ptr<const Document> document;
@@ -23,6 +27,21 @@ struct Preparation {
   uint32_t cursor = 1;
   bool ready = false;
   bool providerReady = true;
+  bool managedLayout = false;
+  uint64_t fontRevision = 1;
+  std::shared_ptr<LayoutWork> layout;
+};
+struct LayoutQuery {
+  Lease lease;
+  uint64_t id=0,preparation=0,font=0;
+  uint32_t mode=0,status=wire::statuses::pending;
+  Metrics metrics;
+  Handle node;
+  std::shared_ptr<const Document> document;
+  std::unique_ptr<LayoutQueryWork> work;
+  QueryValue value;
+  std::vector<uint8_t> bytes;
+  explicit LayoutQuery(const std::shared_ptr<Ledger>& ledger):lease(ledger,sizeof(LayoutQuery)+64){}
 };
 struct Event {
   uint32_t kind, status;
@@ -59,11 +78,17 @@ struct Overlay {
   double opacity = 1, motionStart = 1, motionTarget = 1, motionSeconds = 0, motionElapsed = 0;
   uint64_t motionRevision = 0;
   bool motionDone = false;
+  double requested = 0;
+  bool deferred = false, needSent = false;
+  uint32_t deferredStream = 0;
+  uint64_t coverageRevision = 0;
 };
 struct Property {
   Handle node;
   double offset = 0, velocity = 0, opacity = 1;
   uint64_t revision = 0, motion = 0;
+  double requested = 0;
+  bool deferred = false;
 };
 struct Rect { double x = 0, y = 0, width = 0, height = 0; };
 struct DrawItem {
@@ -72,11 +97,19 @@ struct DrawItem {
   Rect clip;
 };
 struct Frame {
+  Handle focusNode;
+  uint64_t focusSession=0;
   uint64_t id = 0, device = 0, propertyEpoch = 0;
   std::shared_ptr<const Scene> scene;
   std::vector<Property> properties;
   std::vector<DrawItem> items;
   bool released = false, published = false, canceled = false, gpuObserved = false;
+};
+struct InteractionSnapshot {
+  Frame frame;
+  std::shared_ptr<const Document> document;
+  std::map<uint64_t,std::shared_ptr<const EditingValue>> editors;
+  Handle focus;uint64_t session=0;Metrics metrics;
 };
 struct ScrollCommand {
   uint64_t id, after, revision;
@@ -96,6 +129,12 @@ struct View {
   Metrics metrics;
   std::shared_ptr<const Document> document, demand;
   std::unique_ptr<Preparation> preparing;
+  std::unique_ptr<LayoutQuery> query;
+  uint64_t lastQuery=0;
+  std::map<uint64_t,std::shared_ptr<EditingDocument>> editors;
+  std::deque<Event> interactionEvents;
+  Handle focusNode;
+  uint64_t focusSession=0,nextFocus=0,editClock=0,editingWork=0,semanticsWork=0,queryWork=0;
   std::shared_ptr<const Scene> active;
   std::optional<Frame> published;
   uint64_t nextPreparation = 0, nextScene = 0, propertyEpoch = 0;
@@ -112,6 +151,8 @@ struct View {
   uint64_t lastCommand = 0;
   uint64_t failedDocument = 0;
   uint64_t transactionWork = 0, contentWork = 0;
+  uint64_t fontRevision = 1, layoutWork = 0, layoutReused = 0;
+  uint64_t coverageRequests = 0, coverageDeferred = 0, coverageClamps = 0, coverageHandoffs = 0;
   bool transactionActive = false, providerRequired = false;
   uint64_t received = 0, consumed = 0, canceled = 0, rejected = 0, duplicates = 0;
   uint64_t lastInput = 0, consumedThrough = 0, ticks = 0, submitted = 0, activated = 0;
@@ -136,13 +177,27 @@ struct View {
   void cancelInput(uint32_t reason);
   void requestContent();
   void contentStep(uint32_t quota);
+  uint32_t startQuery(Reader,uint64_t);
+  void queryStep(uint32_t);
+  void cancelQuery(uint32_t);
+  std::optional<MeasurementRequest> measurement() const;
+  uint64_t measurePreparation() const;
+  void installEditors(const std::shared_ptr<const Document>&);
+  std::shared_ptr<const Document> editingDocument() const;
+  void interaction(Event);
+  void setFocus(Handle,uint64_t publication,uint64_t expectedSession);
+  void applyEdit(Reader);
+  void semanticAction(Reader);
+  Handle interactionTarget(double,double) const;
   void failPreparation(uint64_t id, uint32_t reason);
   void enqueue(Input packet);
   void tick(double now);
   void activate();
   uint32_t scroll(Reader data, uint64_t id);
   void finishCommand(uint64_t id, uint32_t status);
-  void applyDelta(Handle node, double delta);
+  void applyDelta(Handle node, double delta, uint32_t stream = 0);
+  void needContent(const Node&, Overlay&, uint32_t stream);
+  void advanceDeferred(double dt);
   uint32_t takeFrame();
   void releaseFrame(uint64_t id, uint64_t device, bool gpuObserved, bool failed);
   void publish(uint64_t id, uint64_t device, uint64_t surfaceCommit);

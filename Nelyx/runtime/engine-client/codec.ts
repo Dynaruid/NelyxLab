@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { protocol as p } from './schema.ts';
-import { encodeUtf8 } from './utf8.ts';
+import { encodeUtf8, decodeUtf8 } from './utf8.ts';
 export { protocol } from './schema.ts';
 
 export interface NodeHandle {
@@ -28,6 +28,24 @@ export interface NodeProperties {
   readonly extent?: keyof typeof p.extents;
   readonly horizontal?: boolean;
   readonly chaining?: boolean;
+}
+export interface NodeLayout {
+  readonly enabled?: boolean;
+  readonly direction?: 'horizontal' | 'vertical';
+  readonly mainSize?: 'min' | 'max';
+  readonly mainAlign?: keyof typeof p.layoutMainAlign;
+  readonly crossAlign?: keyof typeof p.layoutCrossAlign;
+  readonly flex?: number;
+  readonly fit?: 'tight' | 'loose';
+  readonly gap?: number;
+  readonly runGap?: number;
+  readonly columns?: number;
+  readonly padding?: {
+    readonly left?: number;
+    readonly top?: number;
+    readonly right?: number;
+    readonly bottom?: number;
+  };
 }
 export function uint32(value: number): number {
   if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff)
@@ -110,7 +128,190 @@ function axis(v: DataView, offset: number, bound: AxisBound): void {
   v.setFloat64(offset + 8, finite(minimum), true);
   v.setFloat64(offset + 16, finite(maximum), true);
 }
+export type LayoutQueryKind = keyof typeof p.layoutQueries;
+export function layoutQueryBody(
+  node: NodeHandle,
+  kind: LayoutQueryKind,
+  horizontal: AxisBound,
+  vertical: AxisBound,
+): Uint8Array {
+  return body(64, (v) => {
+    writeHandle(v, 0, node);
+    v.setUint32(8, p.layoutQueries[kind], true);
+    axis(v, 16, horizontal);
+    axis(v, 40, vertical);
+  });
+}
+export interface EngineLayoutQuery {
+  readonly id: bigint;
+  readonly document: bigint;
+  readonly metrics: bigint;
+  readonly font: bigint;
+  readonly status: number;
+  readonly mode: number;
+  readonly width: number;
+  readonly height: number;
+  readonly baseline: number;
+  readonly value: number;
+}
+export interface TextRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+export interface EditingSnapshot {
+  readonly revision: bigint;
+  readonly serial: bigint;
+  readonly text: string;
+  readonly base: number;
+  readonly extent: number;
+  readonly composingStart: number;
+  readonly composingEnd: number;
+  readonly flags: number;
+  readonly maximumLength: number;
+}
+export interface TextGeometry {
+  readonly revision: bigint;
+  readonly caret: TextRect;
+  readonly selection: readonly TextRect[];
+}
+export interface SemanticProperties {
+  readonly role: keyof typeof p.semanticsRoles;
+  readonly label?: string;
+  readonly hint?: string;
+  readonly flags?: number;
+  readonly actions?: number;
+}
+export interface SemanticSnapshot {
+  readonly role: number;
+  readonly label: string;
+  readonly hint: string;
+  readonly flags: number;
+  readonly actions: number;
+}
+export interface EditingUpdate {
+  readonly revision: bigint;
+  readonly session?: bigint;
+  readonly publication?: bigint;
+  readonly kind: keyof typeof p.editKinds;
+  readonly policy?: keyof typeof p.compositionPolicies;
+  readonly text?: string;
+  readonly base?: number;
+  readonly extent?: number;
+  readonly composingStart?: number;
+  readonly composingEnd?: number;
+}
+export function editBody(node: NodeHandle, value: EditingUpdate): Uint8Array {
+  const text = encodeUtf8(value.text ?? '', p.limits.textBytes);
+  const result = body(64 + Math.ceil(text.length / 8) * 8, (v) => {
+    writeHandle(v, 0, node);
+    v.setBigUint64(8, uint64(value.session ?? 0n), true);
+    v.setBigUint64(16, uint64(value.revision), true);
+    v.setUint32(24, p.editKinds[value.kind], true);
+    v.setUint32(28, p.compositionPolicies[value.policy ?? 'preserve'], true);
+    [
+      value.base ?? 0,
+      value.extent ?? 0,
+      value.composingStart ?? -1,
+      value.composingEnd ?? -1,
+    ].forEach((n, i) => {
+      if (!Number.isInteger(n) || n < -1 || n > p.limits.textBytes)
+        throw new RangeError('Invalid UTF-16 editing range');
+      v.setInt32(32 + i * 4, n, true);
+    });
+    v.setUint32(48, text.length, true);
+    v.setBigUint64(56, uint64(value.publication ?? 0n), true);
+  });
+  result.set(text, 64);
+  return result;
+}
+export function focusBody(node: NodeHandle | null, publication: bigint, session = 0n): Uint8Array {
+  return body(24, (v) => {
+    writeHandle(v, 0, node ?? { slot: 0, generation: 0 });
+    v.setBigUint64(8, uint64(publication), true);
+    v.setBigUint64(16, uint64(session), true);
+  });
+}
+export function semanticActionBody(
+  node: NodeHandle,
+  publication: bigint,
+  action: keyof typeof p.semanticsActions,
+  session = 0n,
+): Uint8Array {
+  return body(32, (v) => {
+    writeHandle(v, 0, node);
+    v.setBigUint64(8, uint64(publication), true);
+    v.setUint32(16, p.semanticsActions[action], true);
+    v.setBigUint64(24, uint64(session), true);
+  });
+}
 export const commands = {
+  editor(node: NodeHandle, flags = 0, maximumLength: number = p.limits.textBytes): Uint8Array {
+    return command(
+      p.commands.editor,
+      node,
+      body(8, (v) => {
+        v.setUint32(0, uint32(flags), true);
+        v.setUint32(4, uint32(maximumLength), true);
+      }),
+    );
+  },
+  semantics(node: NodeHandle, value: SemanticProperties | null): Uint8Array {
+    const label = encodeUtf8(value?.label ?? '', p.limits.semanticsTextBytes),
+      hint = encodeUtf8(value?.hint ?? '', p.limits.semanticsTextBytes);
+    const bytes = body(24 + Math.ceil((label.length + hint.length) / 8) * 8, (v) => {
+      v.setUint32(0, value ? p.semanticsRoles[value.role] : 0, true);
+      v.setUint32(4, uint32(value?.flags ?? 0), true);
+      v.setUint32(8, uint32(value?.actions ?? 0), true);
+      v.setUint32(12, label.length, true);
+      v.setUint32(16, hint.length, true);
+    });
+    bytes.set(label, 24);
+    bytes.set(hint, 24 + label.length);
+    return command(p.commands.semantics, node, bytes);
+  },
+  /** Prepared visual offsets, distinct from the logical content extent. */
+  coverage(
+    node: NodeHandle,
+    revision: bigint,
+    range: { readonly minimum: number; readonly maximum: number } | null,
+  ): Uint8Array {
+    return command(
+      p.commands.coverage,
+      node,
+      body(32, (v) => {
+        v.setBigUint64(0, uint64(revision), true);
+        v.setFloat64(8, finite(range?.minimum ?? 0), true);
+        v.setFloat64(16, finite(range?.maximum ?? 0), true);
+        v.setUint32(24, range ? 1 : 0, true);
+      }),
+    );
+  },
+  layout(node: NodeHandle, value: NodeLayout = {}): Uint8Array {
+    return command(
+      p.commands.layout,
+      node,
+      body(88, (v) => {
+        v.setUint32(0, value.enabled === false ? 0 : 1, true);
+        v.setUint32(4, value.direction === 'vertical' ? 1 : 0, true);
+        v.setUint32(8, value.mainSize === 'max' ? 1 : 0, true);
+        v.setUint32(12, p.layoutMainAlign[value.mainAlign ?? 'start'], true);
+        v.setUint32(16, p.layoutCrossAlign[value.crossAlign ?? 'start'], true);
+        v.setUint32(20, value.fit === 'loose' ? 1 : 0, true);
+        v.setUint32(24, uint32(value.columns ?? 2), true);
+        [
+          value.flex ?? 0,
+          value.gap ?? 0,
+          value.runGap ?? 0,
+          value.padding?.left ?? 0,
+          value.padding?.top ?? 0,
+          value.padding?.right ?? 0,
+          value.padding?.bottom ?? 0,
+        ].forEach((scalar, i) => v.setFloat64(32 + i * 8, finite(scalar), true));
+      }),
+    );
+  },
   paint(node: NodeHandle, color: number, radius = 0): Uint8Array {
     return command(
       p.commands.paint,
@@ -121,10 +322,17 @@ export const commands = {
       }),
     );
   },
-  text(node: NodeHandle, text: string, fontSize = 18, color = 0xff172033): Uint8Array {
+  text(
+    node: NodeHandle,
+    text: string,
+    fontSize = 18,
+    color = 0xff172033,
+    options: { readonly direction?: 'ltr' | 'rtl' } = {},
+  ): Uint8Array {
     const bytes = encodeUtf8(text, p.limits.textBytes);
     const data = body(24 + Math.ceil(bytes.length / 8) * 8, (v) => {
       v.setUint32(0, uint32(color), true);
+      v.setUint32(4, options.direction === 'rtl' ? 1 : 0, true);
       v.setFloat64(8, finite(fontSize), true);
       v.setUint32(16, bytes.length, true);
     });
@@ -303,6 +511,10 @@ export function inputBody(value: InputPacket): Uint8Array {
   });
 }
 export interface EngineNodeSnapshot {
+  readonly editing: EditingSnapshot | null;
+  readonly textGeometry: TextGeometry | null;
+  readonly semantics: SemanticSnapshot | null;
+  readonly hasFocus: boolean;
   readonly node: NodeHandle;
   readonly kind: number;
   readonly parent: NodeHandle;
@@ -321,6 +533,16 @@ export interface EngineNodeSnapshot {
   readonly radius: number;
   readonly fontSize: number;
   readonly resource: NodeHandle;
+  readonly baseline: number;
+  readonly layoutRevision: bigint;
+  readonly textDirection: number;
+  readonly requestedOffset: number;
+  readonly deferred: boolean;
+  readonly preparedCoverage: {
+    readonly minimum: number;
+    readonly maximum: number;
+    readonly revision: bigint;
+  } | null;
   readonly clip: {
     readonly x: number;
     readonly y: number;
@@ -342,6 +564,14 @@ export interface EngineEvent {
   readonly node: NodeHandle;
 }
 export interface EngineResponse {
+  readonly focus: { readonly node: NodeHandle; readonly session: bigint } | null;
+  readonly interactionCount: number;
+  readonly editingWork: bigint;
+  readonly semanticsWork: bigint;
+  readonly queryWork: bigint;
+  readonly layoutQuery: EngineLayoutQuery | null;
+  readonly measurePreparation: bigint;
+  readonly measureDocument: bigint;
   readonly status: number;
   readonly opcode: number;
   readonly owner: PacketOwner;
@@ -398,6 +628,16 @@ export interface EngineResponse {
   readonly renderOwner: bigint;
   readonly renderWake: boolean;
   readonly preparationDocument: bigint;
+  readonly measureRequest: bigint;
+  readonly layoutWork: bigint;
+  readonly layoutReused: bigint;
+  readonly layoutDocument: bigint;
+  readonly layoutMetrics: bigint;
+  readonly fontRevision: bigint;
+  readonly coverageRequests: bigint;
+  readonly coverageDeferred: bigint;
+  readonly coverageClamps: bigint;
+  readonly coverageHandoffs: bigint;
   readonly blobs: readonly EngineBlob[];
   readonly nodes: readonly EngineNodeSnapshot[];
   readonly events: readonly EngineEvent[];
@@ -422,7 +662,7 @@ export function response(bytes: Uint8Array): EngineResponse {
   if (
     rows > p.limits.nodes ||
     eventCount > p.limits.eventsPerPoll ||
-    blobCount > p.limits.nodes + p.limits.resources ||
+    blobCount > p.limits.nodes * 4 + p.limits.resources ||
     p.headerBytes + p.stateBytes + rows * p.nodeBytes + eventCount * p.eventBytes + blobBytes !==
       bytes.length
   )
@@ -436,6 +676,10 @@ export function response(bytes: Uint8Array): EngineResponse {
     const f = (offset: number) => finite(v.getFloat64(cursor + offset, true));
     nodes.push(
       Object.freeze({
+        editing: null,
+        textGeometry: null,
+        semantics: null,
+        hasFocus: !!(v.getUint32(cursor + 20, true) & 256),
         node: readHandle(v, cursor),
         kind: v.getUint32(cursor + 8, true),
         parent: readHandle(v, cursor + 12),
@@ -454,6 +698,19 @@ export function response(bytes: Uint8Array): EngineResponse {
         radius: f(p.nodeFields.radius),
         fontSize: f(p.nodeFields.fontSize),
         resource: readHandle(v, cursor + p.nodeFields.resource),
+        baseline: f(p.nodeFields.baseline),
+        layoutRevision: v.getBigUint64(cursor + p.nodeFields.layoutRevision, true),
+        textDirection: v.getUint32(cursor + p.nodeFields.textDirection, true),
+        requestedOffset: f(p.nodeFields.requestedOffset),
+        deferred: !!(v.getUint32(cursor + 20, true) & 64),
+        preparedCoverage:
+          v.getUint32(cursor + 20, true) & 128
+            ? Object.freeze({
+                minimum: f(p.nodeFields.preparedMinimum),
+                maximum: f(p.nodeFields.preparedMaximum),
+                revision: v.getBigUint64(cursor + p.nodeFields.coverageRevision, true),
+              })
+            : null,
         clip: Object.freeze({
           x: f(p.nodeFields.clipX),
           y: f(p.nodeFields.clipY),
@@ -481,7 +738,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       length = v.getUint32(cursor + 16, true);
     const stride = 24 + Math.ceil(length / 8) * 8;
     if (
-      ![1, 2].includes(type) ||
+      ![1, 2, 3, 4, 5].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
       v.getUint32(cursor + 20, true)
@@ -497,9 +754,118 @@ export function response(bytes: Uint8Array): EngineResponse {
     cursor += stride;
   }
   if (cursor !== bytes.length) throw new Error('Engine blob table length mismatch');
+  const enriched = nodes.map((node) => {
+    let editing: EditingSnapshot | null = null,
+      textGeometry: TextGeometry | null = null,
+      semantics: SemanticSnapshot | null = null;
+    for (const blob of blobs) {
+      if (
+        blob.handle.slot !== node.node.slot ||
+        blob.handle.generation !== node.node.generation ||
+        blob.type < 3
+      )
+        continue;
+      const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+        size = blob.bytes.length;
+      const rect = (o: number): TextRect => {
+        const r = {
+          x: finite(d.getFloat64(o, true)),
+          y: finite(d.getFloat64(o + 8, true)),
+          width: finite(d.getFloat64(o + 16, true)),
+          height: finite(d.getFloat64(o + 24, true)),
+        };
+        if (r.width < 0 || r.height < 0) throw new Error('Invalid text geometry');
+        return Object.freeze(r);
+      };
+      if (blob.type === 3) {
+        if (
+          semantics ||
+          size < 24 ||
+          d.getUint32(20, true) ||
+          d.getUint32(0, true) > 7 ||
+          d.getUint32(4, true) & ~63 ||
+          d.getUint32(8, true) & ~63
+        )
+          throw new Error('Invalid semantics blob');
+        const label = d.getUint32(12, true),
+          hint = d.getUint32(16, true);
+        if (
+          label > p.limits.semanticsTextBytes ||
+          hint > p.limits.semanticsTextBytes ||
+          size !== 24 + label + hint
+        )
+          throw new Error('Invalid semantics text');
+        semantics = Object.freeze({
+          role: d.getUint32(0, true),
+          flags: d.getUint32(4, true),
+          actions: d.getUint32(8, true),
+          label: decodeUtf8(blob.bytes.subarray(24, 24 + label)),
+          hint: decodeUtf8(blob.bytes.subarray(24 + label)),
+        });
+      } else if (blob.type === 4) {
+        if (editing || size < 48 || d.getUint32(44, true) || size !== 48 + d.getUint32(40, true))
+          throw new Error('Invalid editing blob');
+        editing = Object.freeze({
+          revision: d.getBigUint64(0, true),
+          serial: d.getBigUint64(8, true),
+          text: decodeUtf8(blob.bytes.subarray(48)),
+          base: d.getInt32(16, true),
+          extent: d.getInt32(20, true),
+          composingStart: d.getInt32(24, true),
+          composingEnd: d.getInt32(28, true),
+          flags: d.getUint32(32, true),
+          maximumLength: d.getUint32(36, true),
+        });
+      } else {
+        if (
+          textGeometry ||
+          size < 48 ||
+          d.getUint32(44, true) ||
+          d.getUint32(40, true) > p.limits.selectionRects ||
+          size !== 48 + d.getUint32(40, true) * 32
+        )
+          throw new Error('Invalid text geometry blob');
+        const selection = Array.from({ length: d.getUint32(40, true) }, (_, i) =>
+          rect(48 + i * 32),
+        );
+        textGeometry = Object.freeze({
+          revision: d.getBigUint64(0, true),
+          caret: rect(8),
+          selection: Object.freeze(selection),
+        });
+      }
+    }
+    return Object.freeze({ ...node, editing, textGeometry, semantics });
+  });
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
   return Object.freeze({
+    focus: u64(p.stateFields.focusSession)
+      ? Object.freeze({
+          node: readHandle(v, b + p.stateFields.focusNode),
+          session: u64(p.stateFields.focusSession),
+        })
+      : null,
+    interactionCount: u32(p.stateFields.interactionCount),
+    editingWork: u64(p.stateFields.editingWork),
+    semanticsWork: u64(p.stateFields.semanticsWork),
+    queryWork: u64(p.stateFields.queryWork),
+    layoutQuery: u64(p.stateFields.queryId)
+      ? Object.freeze({
+          id: u64(p.stateFields.queryId),
+          document: u64(p.stateFields.queryDocument),
+          metrics: u64(p.stateFields.queryMetrics),
+          font: u64(p.stateFields.queryFont),
+          status: u32(p.stateFields.queryStatus),
+          mode: u32(p.stateFields.queryMode),
+          width: finite(v.getFloat64(b + p.stateFields.queryWidth, true)),
+          height: finite(v.getFloat64(b + p.stateFields.queryHeight, true)),
+          baseline: finite(v.getFloat64(b + p.stateFields.queryBaseline, true)),
+          value: finite(v.getFloat64(b + p.stateFields.queryValue, true)),
+        })
+      : null,
+    measurePreparation: u64(p.stateFields.measurePreparation),
+    measureDocument: u64(p.stateFields.measureDocument),
     status: v.getUint16(p.headerFields.status, true),
     opcode: v.getUint16(p.headerFields.opcode, true) & 0x7fff,
     owner: Object.freeze({
@@ -559,9 +925,54 @@ export function response(bytes: Uint8Array): EngineResponse {
     contentOwner: u64(p.stateFields.contentOwner),
     renderOwner: u64(p.stateFields.renderOwner),
     preparationDocument: u64(p.stateFields.preparationDocument),
+    measureRequest: u64(p.stateFields.measureRequest),
+    layoutWork: u64(p.stateFields.layoutWork),
+    layoutReused: u64(p.stateFields.layoutReused),
+    layoutDocument: u64(p.stateFields.layoutDocument),
+    layoutMetrics: u64(p.stateFields.layoutMetrics),
+    fontRevision: u64(p.stateFields.fontRevision),
+    coverageRequests: u64(p.stateFields.coverageRequests),
+    coverageDeferred: u64(p.stateFields.coverageDeferred),
+    coverageClamps: u64(p.stateFields.coverageClamps),
+    coverageHandoffs: u64(p.stateFields.coverageHandoffs),
     renderWake: !!(flags & 128),
     blobs: Object.freeze(blobs),
-    nodes: Object.freeze(nodes),
+    nodes: Object.freeze(enriched),
     events: Object.freeze(events),
+  });
+}
+export interface ProviderMeasurement {
+  readonly geometry?: TextGeometry;
+  readonly width: number;
+  readonly height: number;
+  readonly minimum: number;
+  readonly maximum: number;
+  /** Alphabetic baseline, or -1 for a non-text leaf. */
+  readonly baseline: number;
+}
+export function measurementBody(request: EngineResponse, value: ProviderMeasurement): Uint8Array {
+  const node = request.nodes[0];
+  if (!request.measureRequest || !node || request.nodes.length !== 1)
+    throw new Error('No outstanding engine measurement');
+  const g = value.geometry;
+  if (g && g.selection.length > p.limits.selectionRects)
+    throw new RangeError('Selection rectangle budget');
+  return body(g ? 128 + g.selection.length * 32 : 80, (v) => {
+    v.setBigUint64(0, request.measurePreparation || request.preparation, true);
+    v.setBigUint64(8, request.metrics, true);
+    v.setBigUint64(16, request.device, true);
+    v.setBigUint64(24, request.measureRequest, true);
+    writeHandle(v, 32, node.node);
+    [value.width, value.height, value.minimum, value.maximum, value.baseline].forEach((scalar, i) =>
+      v.setFloat64(40 + i * 8, finite(scalar), true),
+    );
+    if (g) {
+      v.setBigUint64(80, uint64(g.revision), true);
+      const rect = (o: number, r: TextRect) =>
+        [r.x, r.y, r.width, r.height].forEach((n, i) => v.setFloat64(o + i * 8, finite(n), true));
+      rect(88, g.caret);
+      v.setUint32(120, g.selection.length, true);
+      g.selection.forEach((r, i) => rect(128 + i * 32, r));
+    }
   });
 }

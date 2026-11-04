@@ -1,37 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include "../protocol/wire.hpp"
+#include "../memory.hpp"
 #include <array>
 #include <memory>
 #include <atomic>
 #include <string>
 
 namespace nelyx::v2 {
-struct Ledger {
-  std::atomic<uint64_t> bytes{0}, resourceBytes{0}, nodes{0};
-  uint32_t queuedInputs = 0, updateInputs = 0, activeViews = 0;
-};
-struct Lease {
-  std::shared_ptr<Ledger> ledger;
-  uint64_t bytes;
-  bool resource;
-  Lease(std::shared_ptr<Ledger> owner, uint64_t count, bool isResource = false)
-      : ledger(std::move(owner)), bytes(count), resource(isResource) {
-    const auto reserve = [](std::atomic<uint64_t>& used, uint64_t amount, uint64_t limit) {
-      auto value = used.load();
-      for (;;) {
-        require(amount <= limit - value, wire::statuses::budgetExceeded);
-        if (used.compare_exchange_weak(value, value + amount)) return;
-      }
-    };
-    reserve(ledger->bytes, bytes, wire::limits::sessionBytes);
-    if (resource) try { reserve(ledger->resourceBytes, bytes, wire::limits::resourceBytes); }
-      catch (...) { ledger->bytes -= bytes; throw; }
-  }
-  ~Lease() { ledger->bytes -= bytes; if (resource) ledger->resourceBytes -= bytes; }
-  Lease(const Lease&) = delete;
-  Lease& operator=(const Lease&) = delete;
-};
+struct EditingValue;
+struct TextGeometry;
+struct SemanticData;
 struct Resource {
   Lease lease;
   Handle id;
@@ -49,6 +27,11 @@ struct Motion {
   uint64_t id = 0, baseRevision = 0;
   double target = 1, seconds = 0;
 };
+struct LayoutStyle {
+  uint32_t enabled = 0, direction = 0, mainSize = 0, mainAlign = 0, crossAlign = 0, fit = 0, columns = 2;
+  double flex = 0, gap = 0, runGap = 0, left = 0, top = 0, right = 0, bottom = 0;
+};
+struct Coverage { uint64_t revision = 0; double minimum = 0, maximum = 0; bool enabled = false; };
 struct TextData {
   Lease lease;
   std::string value;
@@ -63,7 +46,17 @@ struct Node {
   Properties properties;
   Axis horizontal, vertical;
   Motion motion;
+  LayoutStyle layout;
+  Coverage coverage;
+  uint64_t layoutRevision = 0;
+  double baseline = -1;
+  uint64_t editSerial=0;
+  uint32_t editFlags=0,maximumLength=wire::limits::textBytes;
+  std::shared_ptr<const EditingValue> editing;
+  std::shared_ptr<const TextGeometry> textGeometry;
+  std::shared_ptr<const SemanticData> semantics;
   uint32_t color = 0;
+  uint32_t textDirection = 0;
   double radius = 0, fontSize = 18;
   std::shared_ptr<const TextData> text;
   std::shared_ptr<const Resource> resource;
@@ -72,7 +65,9 @@ struct Node {
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent),
       kind(n.kind), order(n.order), policy(n.policy), properties(n.properties),
-      horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), color(n.color), radius(n.radius),
+      horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
+      layoutRevision(n.layoutRevision), baseline(n.baseline), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
+      editing(n.editing),textGeometry(n.textGeometry),semantics(n.semantics),color(n.color), textDirection(n.textDirection), radius(n.radius),
       fontSize(n.fontSize), text(n.text), resource(n.resource) {
     ++lease.ledger->nodes;
   }
@@ -88,11 +83,13 @@ struct Document {
   uint32_t count = 0;
   uint32_t highWater = 0;
   std::vector<Slot<Node>> nodes;
+  std::vector<std::vector<Handle>> children;
   explicit Document(const std::shared_ptr<Ledger>& ledger)
-      : lease(ledger, sizeof(Document) + (wire::limits::nodes + 1) * sizeof(Slot<Node>)),
-        nodes(wire::limits::nodes + 1) {}
+      : lease(ledger, sizeof(Document) + (wire::limits::nodes + 1) *
+          (sizeof(Slot<Node>) + sizeof(std::vector<Handle>) + 4 * sizeof(Handle))),
+        nodes(wire::limits::nodes + 1), children(wire::limits::nodes + 1) {}
   Document(const Document& d) : lease(d.lease.ledger, d.lease.bytes),
-      epoch(d.epoch), count(d.count), highWater(d.highWater), nodes(d.nodes) {}
+      epoch(d.epoch), count(d.count), highWater(d.highWater), nodes(d.nodes), children(d.children) {}
   const Node& get(Handle h) const {
     require(h.slot > 0 && h.slot < nodes.size() && nodes[h.slot].value &&
       nodes[h.slot].value->id == h, wire::statuses::invalidHandle);

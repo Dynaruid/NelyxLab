@@ -6,12 +6,15 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
 import { chromium } from 'playwright';
-import { packet, protocol } from '@nelyx/core/v2';
+import { packet, protocol, response, body, writeHandle } from '@nelyx/core/v2';
 import { engineRoot, timeout, sourceIdentity } from '../tools/build.mjs';
 import { createHostServer } from '../tools/serve.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const execute = promisify(execFile);
 before(
   () => {
     const directory = path.join(engineRoot, 'dist'),
@@ -98,6 +101,51 @@ class NativeProbe {
     }
   }
 }
+test(
+  'Windows published Widgets expose UIA text, paragraph bounds, focus, editing and invoke',
+  { timeout },
+  async () => {
+    const host = new NativeProbe();
+    try {
+      const app = JSON.parse(
+        (
+          await host.until((line) => line.startsWith('V2_APP ') && line.includes('app-ready'))
+        ).slice(7),
+      );
+      assert.ok(
+        BigInt(app.queryWork) > 0n && app.widgets.builds > 0 && app.widgets.fallbacks === 0,
+      );
+      const result = await execute(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-STA',
+          '-File',
+          path.join(engineRoot, 'tests/windows-interaction.ps1'),
+          '-ProcessId',
+          String(host.child.pid),
+        ],
+        { timeout, windowsHide: true, encoding: 'utf8' },
+      );
+      const value = JSON.parse(result.stdout.trim());
+      assert.equal(value.utf16Length, 4);
+      assert.equal(value.graphemesMoved, 2);
+      assert.equal(value.pointerCaret, 1);
+      assert.ok(value.rectangles > 0);
+      const work = await host.waitStats((s) => s.nativeCommands === app.commands + 1);
+      assert.ok(work.editingWork > 0 && work.semanticsWork > 0 && work.queryWork > 0);
+      assert.equal(app.query.contentHeight, 1498);
+      console.log('V2_NATIVE_INTERACTION ' + JSON.stringify(value));
+      host.send('close');
+      await host.until(
+        (line) => line.startsWith('V2_CLOSED ') && line.includes('"reservedBytes":0'),
+      );
+    } finally {
+      await host.close();
+    }
+  },
+);
 test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async () => {
   const host = new NativeProbe();
   try {
@@ -115,6 +163,7 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
       4,
     );
     assert.ok(state.paragraphs > 0 && state.images > 0 && state.frames > 0);
+    assert.ok(state.layoutWork > 0, 'The actual Testbed executes C++ layout');
     assert.equal(state.fallbacks, 0);
     host.send('wheel 80');
     await sleep(60);
@@ -242,8 +291,13 @@ for (const [route, expected] of [
         content = state.stats['content-stats'];
       assert.equal(String(state.app.commands), state.app.engineWork);
       assert.equal(state.app.fallbacks, 0);
+      assert.ok(BigInt(state.app.queryWork) > 0n && state.app.widgets.builds > 0);
+      assert.equal(state.app.query.contentHeight, 1498);
       assert.ok(render.counters.draws > 0);
       assert.ok(content.counters.paragraphs > 0 && content.counters.images > 0);
+      assert.ok(render.state.layoutWork > 0n, 'The actual Testbed executes C++ layout');
+      assert.ok(content.counters.measurements > 0);
+      assert.equal(content.textCapabilities.lineIndexUnit, 'utf8');
       assert.equal(render.gl.version, 2);
       if (route === 'isolated') {
         assert.notEqual(state.stats.content.thread, state.stats.render.thread);
@@ -385,7 +439,7 @@ for (const [route, expected] of [
         await page.evaluate(
           () => window.__v2.appEvents.find((e) => e.kind === 'app-updated').engineWork,
         ),
-        '278',
+        String(state.app.commands + 1),
       );
       assert.equal(
         await page.evaluate(() => window.__v2.surface.diagnostics['render-stats'].scrollOffsets[0]),
@@ -459,6 +513,102 @@ for (const [route, expected] of [
         await page.evaluate(() => window.__v2.surface.diagnostics['render-stats'].counters.draws),
         idle,
       );
+      const field = page.getByRole('textbox', { name: '입력' });
+      await field.fill('A😀한글');
+      const handle = await field.getAttribute('data-nelyx-node');
+      const [slot, generation] = handle.split(':').map(Number);
+      const readEditor = async () =>
+        response(
+          new Uint8Array(
+            await page.evaluate(
+              async (bytes) =>
+                Array.from(await window.__v2.surface.host.exchange(new Uint8Array(bytes))),
+              Array.from(
+                packet(
+                  protocol.opcodes.editSnapshot,
+                  { session: 1, app: 1, view: 1, generation: 1 },
+                  body(8, (v) => writeHandle(v, 0, { slot, generation })),
+                ),
+              ),
+            ),
+          ),
+        );
+      let edited;
+      for (let i = 0; i < 30; ++i) {
+        edited = await readEditor();
+        if (edited.nodes[0]?.editing?.text === 'A😀한글') break;
+        await page.waitForTimeout(20);
+      }
+      assert.equal(edited.nodes[0].editing.text, 'A😀한글');
+      assert.ok(edited.editingWork > 0n);
+      const during = await page.evaluate(async () => {
+        const app = window.__v2.app,
+          events = window.__v2.appEvents,
+          previous = events.filter((e) => e.kind === 'app-delay-start').at(-1)?.time;
+        app.postMessage({ kind: 'delay', milliseconds: 200 });
+        const end = performance.now() + 2000;
+        while (
+          events.filter((e) => e.kind === 'app-delay-start').at(-1)?.time === previous &&
+          performance.now() < end
+        )
+          await new Promise((r) => setTimeout(r, 2));
+        const element = document.querySelector('[data-nelyx-v2-semantics] textarea');
+        element.setSelectionRange(element.value.length, element.value.length);
+        element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        const prefix = element.value;
+        for (const part of ['ㅎ', '한']) {
+          element.value = prefix + part;
+          element.setSelectionRange(element.value.length, element.value.length);
+          element.dispatchEvent(
+            new InputEvent('input', {
+              bubbles: true,
+              inputType: 'insertCompositionText',
+              data: part,
+              isComposing: true,
+            }),
+          );
+        }
+        element.dispatchEvent(
+          new CompositionEvent('compositionend', { bubbles: true, data: '한' }),
+        );
+        return events.filter((e) => e.kind === 'app-delay-start').at(-1)?.time;
+      });
+      for (let i = 0; i < 30; ++i) {
+        edited = await readEditor();
+        if (
+          edited.nodes[0]?.editing?.text === 'A😀한글한' &&
+          edited.nodes[0].editing.composingStart === -1
+        )
+          break;
+        await page.waitForTimeout(10);
+      }
+      assert.equal(edited.nodes[0].editing.text, 'A😀한글한');
+      assert.equal(edited.nodes[0].editing.composingStart, -1);
+      const ended = await page.evaluate(
+        () => window.__v2.appEvents.filter((e) => e.kind === 'app-delay-end').at(-1)?.time ?? 0,
+      );
+      assert.ok(ended < during, 'Core editing progresses while the App worker is busy');
+      await field.evaluate((element) =>
+        element.dispatchEvent(
+          new InputEvent('beforeinput', {
+            inputType: 'historyUndo',
+            bubbles: true,
+            cancelable: true,
+          }),
+        ),
+      );
+      for (let i = 0; i < 30; ++i) {
+        edited = await readEditor();
+        if (edited.nodes[0]?.editing?.text === 'A😀한글') break;
+        await page.waitForTimeout(20);
+      }
+      assert.equal(edited.nodes[0].editing.text, 'A😀한글', 'Composition is one Core undo group');
+      await page.getByRole('button', { name: 'Update title', exact: true }).click();
+      await page.waitForFunction(
+        () => window.__v2.surface.diagnostics['render-stats'].state.activeDocument >= 3n,
+      );
+      assert.equal(await field.inputValue(), 'A😀한글', 'Widget rebuild preserves native editing');
+      assert.equal((await readEditor()).nodes[0].editing.text, 'A😀한글');
       const closed = await page.evaluate(() => window.__v2.close());
       assert.equal(closed.reservedBytes, 0);
       assert.equal(closed.workersStopped, true);
@@ -467,12 +617,14 @@ for (const [route, expected] of [
         assert.equal(closed.provider.liveSurfaces, 0);
         assert.equal(closed.provider.fontBytes, 0);
         assert.equal(closed.provider.liveContexts, 0);
+        assert.equal(closed.provider.liveParagraphs, 0);
       } else
         for (const owner of ['contentClosed', 'renderClosed']) {
           assert.equal(closed.provider[owner].livePictures, 0);
           assert.equal(closed.provider[owner].liveSurfaces, 0);
           assert.equal(closed.provider[owner].fontBytes, 0);
           assert.equal(closed.provider[owner].liveContexts, 0);
+          assert.equal(closed.provider[owner].liveParagraphs, 0);
         }
       assert.deepEqual(errors, []);
       console.log(

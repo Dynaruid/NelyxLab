@@ -11,11 +11,6 @@ static Rect intersect(Rect a, Rect b) {
 }
 void View::makeDrawItems(Frame& f) const {
   const auto& d = *f.scene->document;
-  std::vector<std::vector<const Node*>> children(d.highWater + 1);
-  for (const auto& slot : d.nodes) if (slot.value) children[slot.value->parent.slot].push_back(slot.value.get());
-  for (auto& list : children) std::stable_sort(list.begin(), list.end(), [](const Node* a, const Node* b) {
-    return a->order == b->order ? a->id.slot < b->id.slot : a->order < b->order;
-  });
   std::function<void(const Node&,double,double,double,Rect)> visit;
   visit = [&](const Node& n, double x, double y, double alpha, Rect clip) {
     const auto& o = f.properties[n.id.slot];
@@ -27,10 +22,10 @@ void View::makeDrawItems(Frame& f) const {
     if (n.kind == wire::kinds::scrollViewport) {
       if (n.properties.flags & 1u) childX -= o.offset; else childY -= o.offset;
     }
-    for (auto* child : children[n.id.slot]) visit(*child, childX, childY, alpha, clip);
+    for (const auto child : d.children[n.id.slot]) visit(d.get(child), childX, childY, alpha, clip);
   };
   f.items.reserve(d.count);
-  for (auto* n : children[0]) visit(*n, 0, 0, 1, {0, 0, f.scene->metrics.width, f.scene->metrics.height});
+  for (const auto n : d.children[0]) visit(d.get(n), 0, 0, 1, {0, 0, f.scene->metrics.width, f.scene->metrics.height});
 }
 Handle View::target(double x, double y) const {
   if (!published) return {};

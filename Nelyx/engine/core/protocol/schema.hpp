@@ -2,13 +2,13 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 3624346553u;
+inline constexpr uint32_t schema = 3853830922u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
-inline constexpr uint32_t stateBytes = 336u;
-inline constexpr uint32_t nodeBytes = 160u;
+inline constexpr uint32_t stateBytes = 544u;
+inline constexpr uint32_t nodeBytes = 216u;
 inline constexpr uint32_t eventBytes = 40u;
 inline constexpr uint32_t inputBytes = 120u;
 namespace limits {
@@ -34,6 +34,16 @@ inline constexpr uint32_t scrollCommands = 64u;
 inline constexpr uint32_t observerPackets = 64u;
 inline constexpr uint32_t commandTimeoutMs = 2000u;
 inline constexpr uint32_t textBytes = 65536u;
+inline constexpr uint32_t layoutOperations = 131072u;
+inline constexpr uint32_t coveragePixelsPerSecond = 2400u;
+inline constexpr uint32_t coverageViewportsPerSecond = 4u;
+inline constexpr uint32_t editors = 64u;
+inline constexpr uint32_t semanticsNodes = 256u;
+inline constexpr uint32_t semanticsTextBytes = 4096u;
+inline constexpr uint32_t editHistory = 32u;
+inline constexpr uint32_t editHistoryBytes = 1048576u;
+inline constexpr uint32_t interactionEvents = 64u;
+inline constexpr uint32_t selectionRects = 256u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -58,6 +68,21 @@ inline constexpr uint32_t preparationResult = 19u;
 inline constexpr uint32_t closeSession = 20u;
 inline constexpr uint32_t preparationScene = 21u;
 inline constexpr uint32_t providerReady = 22u;
+inline constexpr uint32_t measureRequest = 23u;
+inline constexpr uint32_t measureResult = 24u;
+inline constexpr uint32_t layoutSnapshot = 25u;
+inline constexpr uint32_t fontRevision = 26u;
+inline constexpr uint32_t layoutQuery = 27u;
+inline constexpr uint32_t layoutQueryResult = 28u;
+inline constexpr uint32_t layoutQueryCancel = 29u;
+inline constexpr uint32_t focus = 30u;
+inline constexpr uint32_t edit = 31u;
+inline constexpr uint32_t editSnapshot = 32u;
+inline constexpr uint32_t semanticsSnapshot = 33u;
+inline constexpr uint32_t semanticsAction = 34u;
+inline constexpr uint32_t pollInteractionEvents = 35u;
+inline constexpr uint32_t focusAt = 36u;
+inline constexpr uint32_t activateAt = 37u;
 }
 namespace commands {
 inline constexpr uint32_t create = 1u;
@@ -74,6 +99,10 @@ inline constexpr uint32_t motion = 11u;
 inline constexpr uint32_t constraints = 12u;
 inline constexpr uint32_t paint = 13u;
 inline constexpr uint32_t text = 14u;
+inline constexpr uint32_t layout = 15u;
+inline constexpr uint32_t coverage = 16u;
+inline constexpr uint32_t editor = 17u;
+inline constexpr uint32_t semantics = 18u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -129,6 +158,10 @@ inline constexpr uint32_t viewClosed = 7u;
 inline constexpr uint32_t motionTerminal = 8u;
 inline constexpr uint32_t inputOverflow = 9u;
 inline constexpr uint32_t publicationCanceled = 10u;
+inline constexpr uint32_t needChildren = 11u;
+inline constexpr uint32_t focusChanged = 12u;
+inline constexpr uint32_t editingChanged = 13u;
+inline constexpr uint32_t semanticAction = 14u;
 }
 namespace phases {
 inline constexpr uint32_t begin = 1u;
@@ -158,6 +191,9 @@ inline constexpr uint32_t scroll = 4u;
 inline constexpr uint32_t motion = 8u;
 inline constexpr uint32_t contentIndependent = 16u;
 inline constexpr uint32_t surface = 32u;
+inline constexpr uint32_t layoutQueries = 64u;
+inline constexpr uint32_t editing = 128u;
+inline constexpr uint32_t semantics = 256u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -224,6 +260,34 @@ inline constexpr uint32_t contentWork = 296u;
 inline constexpr uint32_t contentOwner = 304u;
 inline constexpr uint32_t renderOwner = 312u;
 inline constexpr uint32_t preparationDocument = 320u;
+inline constexpr uint32_t measureRequest = 328u;
+inline constexpr uint32_t layoutWork = 336u;
+inline constexpr uint32_t layoutReused = 344u;
+inline constexpr uint32_t layoutDocument = 352u;
+inline constexpr uint32_t layoutMetrics = 360u;
+inline constexpr uint32_t fontRevision = 368u;
+inline constexpr uint32_t coverageRequests = 376u;
+inline constexpr uint32_t coverageDeferred = 384u;
+inline constexpr uint32_t coverageClamps = 392u;
+inline constexpr uint32_t coverageHandoffs = 400u;
+inline constexpr uint32_t queryId = 408u;
+inline constexpr uint32_t queryDocument = 416u;
+inline constexpr uint32_t queryMetrics = 424u;
+inline constexpr uint32_t queryFont = 432u;
+inline constexpr uint32_t queryStatus = 440u;
+inline constexpr uint32_t queryMode = 444u;
+inline constexpr uint32_t queryWidth = 448u;
+inline constexpr uint32_t queryHeight = 456u;
+inline constexpr uint32_t queryBaseline = 464u;
+inline constexpr uint32_t queryValue = 472u;
+inline constexpr uint32_t measurePreparation = 480u;
+inline constexpr uint32_t measureDocument = 488u;
+inline constexpr uint32_t focusNode = 496u;
+inline constexpr uint32_t focusSession = 504u;
+inline constexpr uint32_t interactionCount = 512u;
+inline constexpr uint32_t editingWork = 520u;
+inline constexpr uint32_t semanticsWork = 528u;
+inline constexpr uint32_t queryWork = 536u;
 }
 namespace nodeFields {
 inline constexpr uint32_t node = 0u;
@@ -248,6 +312,13 @@ inline constexpr uint32_t clipX = 128u;
 inline constexpr uint32_t clipY = 136u;
 inline constexpr uint32_t clipWidth = 144u;
 inline constexpr uint32_t clipHeight = 152u;
+inline constexpr uint32_t baseline = 160u;
+inline constexpr uint32_t layoutRevision = 168u;
+inline constexpr uint32_t textDirection = 176u;
+inline constexpr uint32_t requestedOffset = 184u;
+inline constexpr uint32_t preparedMinimum = 192u;
+inline constexpr uint32_t preparedMaximum = 200u;
+inline constexpr uint32_t coverageRevision = 208u;
 }
 namespace inputFields {
 inline constexpr uint32_t sequence = 0u;
@@ -344,11 +415,11 @@ inline constexpr uint32_t radius = 8u;
 }
 namespace textFields {
 inline constexpr uint32_t color = 0u;
-inline constexpr uint32_t reserved = 4u;
 inline constexpr uint32_t fontSize = 8u;
 inline constexpr uint32_t length = 16u;
 inline constexpr uint32_t reservedTail = 20u;
 inline constexpr uint32_t bytes = 24u;
+inline constexpr uint32_t direction = 4u;
 }
 namespace blobFields {
 inline constexpr uint32_t type = 0u;
@@ -357,5 +428,129 @@ inline constexpr uint32_t handle = 8u;
 inline constexpr uint32_t length = 16u;
 inline constexpr uint32_t reservedTail = 20u;
 inline constexpr uint32_t bytes = 24u;
+}
+namespace layoutMainAlign {
+inline constexpr uint32_t start = 0u;
+inline constexpr uint32_t center = 1u;
+inline constexpr uint32_t end = 2u;
+inline constexpr uint32_t spaceBetween = 3u;
+inline constexpr uint32_t spaceAround = 4u;
+inline constexpr uint32_t spaceEvenly = 5u;
+}
+namespace layoutCrossAlign {
+inline constexpr uint32_t start = 0u;
+inline constexpr uint32_t center = 1u;
+inline constexpr uint32_t end = 2u;
+inline constexpr uint32_t stretch = 3u;
+inline constexpr uint32_t baseline = 4u;
+}
+namespace layoutFields {
+inline constexpr uint32_t enabled = 0u;
+inline constexpr uint32_t direction = 4u;
+inline constexpr uint32_t mainSize = 8u;
+inline constexpr uint32_t mainAlign = 12u;
+inline constexpr uint32_t crossAlign = 16u;
+inline constexpr uint32_t fit = 20u;
+inline constexpr uint32_t columns = 24u;
+inline constexpr uint32_t reserved = 28u;
+inline constexpr uint32_t flex = 32u;
+inline constexpr uint32_t gap = 40u;
+inline constexpr uint32_t runGap = 48u;
+inline constexpr uint32_t left = 56u;
+inline constexpr uint32_t top = 64u;
+inline constexpr uint32_t right = 72u;
+inline constexpr uint32_t bottom = 80u;
+}
+namespace measureFields {
+inline constexpr uint32_t preparation = 0u;
+inline constexpr uint32_t metrics = 8u;
+inline constexpr uint32_t device = 16u;
+inline constexpr uint32_t request = 24u;
+inline constexpr uint32_t node = 32u;
+inline constexpr uint32_t width = 40u;
+inline constexpr uint32_t height = 48u;
+inline constexpr uint32_t minimum = 56u;
+inline constexpr uint32_t maximum = 64u;
+inline constexpr uint32_t baseline = 72u;
+}
+namespace coverageFields {
+inline constexpr uint32_t revision = 0u;
+inline constexpr uint32_t minimum = 8u;
+inline constexpr uint32_t maximum = 16u;
+inline constexpr uint32_t enabled = 24u;
+inline constexpr uint32_t reserved = 28u;
+}
+namespace layoutQueries {
+inline constexpr uint32_t dry = 0u;
+inline constexpr uint32_t minWidth = 1u;
+inline constexpr uint32_t maxWidth = 2u;
+inline constexpr uint32_t minHeight = 3u;
+inline constexpr uint32_t maxHeight = 4u;
+}
+namespace queryFields {
+inline constexpr uint32_t node = 0u;
+inline constexpr uint32_t mode = 8u;
+inline constexpr uint32_t reserved = 12u;
+inline constexpr uint32_t horizontal = 16u;
+inline constexpr uint32_t vertical = 40u;
+}
+namespace editKinds {
+inline constexpr uint32_t update = 0u;
+inline constexpr uint32_t replace = 1u;
+inline constexpr uint32_t selection = 2u;
+inline constexpr uint32_t undo = 3u;
+inline constexpr uint32_t redo = 4u;
+}
+namespace compositionPolicies {
+inline constexpr uint32_t preserve = 0u;
+inline constexpr uint32_t commit = 1u;
+inline constexpr uint32_t cancel = 2u;
+}
+namespace editFlags {
+inline constexpr uint32_t readOnly = 1u;
+inline constexpr uint32_t multiline = 2u;
+inline constexpr uint32_t password = 4u;
+inline constexpr uint32_t disabled = 8u;
+}
+namespace semanticsRoles {
+inline constexpr uint32_t none = 0u;
+inline constexpr uint32_t group = 1u;
+inline constexpr uint32_t button = 2u;
+inline constexpr uint32_t text = 3u;
+inline constexpr uint32_t textField = 4u;
+inline constexpr uint32_t checkbox = 5u;
+inline constexpr uint32_t slider = 6u;
+inline constexpr uint32_t link = 7u;
+}
+namespace semanticsFlags {
+inline constexpr uint32_t disabled = 1u;
+inline constexpr uint32_t hidden = 2u;
+inline constexpr uint32_t checked = 4u;
+inline constexpr uint32_t selected = 8u;
+inline constexpr uint32_t focusable = 16u;
+inline constexpr uint32_t readOnly = 32u;
+}
+namespace semanticsActions {
+inline constexpr uint32_t activate = 1u;
+inline constexpr uint32_t focus = 2u;
+inline constexpr uint32_t setValue = 4u;
+inline constexpr uint32_t setSelection = 8u;
+inline constexpr uint32_t increment = 16u;
+inline constexpr uint32_t decrement = 32u;
+}
+namespace editFields {
+inline constexpr uint32_t node = 0u;
+inline constexpr uint32_t session = 8u;
+inline constexpr uint32_t revision = 16u;
+inline constexpr uint32_t kind = 24u;
+inline constexpr uint32_t policy = 28u;
+inline constexpr uint32_t base = 32u;
+inline constexpr uint32_t extent = 36u;
+inline constexpr uint32_t composingStart = 40u;
+inline constexpr uint32_t composingEnd = 44u;
+inline constexpr uint32_t length = 48u;
+inline constexpr uint32_t reserved = 52u;
+inline constexpr uint32_t publication = 56u;
+inline constexpr uint32_t bytes = 64u;
 }
 }

@@ -11,6 +11,15 @@ import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-st
 export const engineRoot = path.resolve(import.meta.dirname, '..');
 export const timeout = 1_200_000;
 const pin = '4.0.22';
+const fallbackFonts = [
+  {
+    file: 'NotoNaskhArabic-Regular.ttf',
+    license: 'NotoNaskhArabic-Regular.ttf.LICENSE.txt',
+    family: 'NelyxArabic',
+  },
+  { file: 'NotoSansHebrew.ttf', license: 'NotoSansHebrew-OFL.txt', family: 'NelyxHebrew' },
+  { file: 'NotoColorEmoji.ttf', license: 'NotoColorEmoji.ttf.LICENSE.txt', family: 'NelyxEmoji' },
+];
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
@@ -144,13 +153,29 @@ export function sourceIdentity() {
     ),
     '../sdk/src/runtime/engine-v2.ts',
     '../sdk/src/runtime/engine-v2-browser.ts',
+    '../sdk/src/runtime/engine-v2-interaction.ts',
+    ...['windows', 'windows-hermes'].flatMap((dir) =>
+      tree(path.resolve(engineRoot, '../sdk/native', dir)).map(
+        (file) => '../sdk/native/' + dir + '/' + file,
+      ),
+    ),
     ...tree(path.resolve(engineRoot, '../skia/native/platforms/vulkan')).map(
       (file) => '../skia/native/platforms/vulkan/' + file,
     ),
     '../skia/native/platforms/windows/font_services.cpp',
     '../skia/native/rendering/font_services.h',
+    '../skia/native/core/paragraph_queries.cpp',
+    '../skia/native/core/nelyx_skia/paragraph_queries.h',
     '../../sample/nelyx-testbed-app-2/src/v2-app.ts',
     '../../sample/nelyx-testbed-app-2/src/v2-scene.ts',
+    '../../sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf',
+    '../../sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt',
+    '../../sample/nelyx-testbed-app-2/assets/component-image.webp',
+    ...fallbackFonts.flatMap((font) =>
+      [font.file, font.license].map(
+        (file) => '../sdk/tooling/cli/templates/nelyx-app/assets/' + file,
+      ),
+    ),
   ];
   return createHash('sha256')
     .update(
@@ -176,6 +201,16 @@ async function browserAssets(supply, supplier) {
   copy(path.join(ck, 'LICENSE'), 'canvaskit/LICENSE');
   copy(path.join(repo, 'sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf'), 'assets/font.ttf');
   copy(path.join(repo, 'sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt'), 'assets/OFL.txt');
+  for (const font of fallbackFonts) {
+    copy(
+      path.resolve(engineRoot, '../sdk/tooling/cli/templates/nelyx-app/assets', font.file),
+      'assets/' + font.file,
+    );
+    copy(
+      path.resolve(engineRoot, '../sdk/tooling/cli/templates/nelyx-app/assets', font.license),
+      'assets/' + font.license,
+    );
+  }
   copy(
     path.join(repo, 'sample/nelyx-testbed-app-2/assets/component-image.webp'),
     'assets/image.webp',
@@ -204,6 +239,7 @@ async function browserAssets(supply, supplier) {
   }
 }
 async function main() {
+  const sourceSha256 = sourceIdentity();
   const hosts = !process.argv.includes('--headless');
   const supplier = hosts ? suppliers() : undefined;
   if (hosts) {
@@ -237,13 +273,15 @@ async function main() {
       fs.readFileSync(path.join(engineRoot, 'schema/protocol.json'), 'utf8'),
     );
     const schema = createHash('sha256').update(JSON.stringify(canonical)).digest().readUInt32LE();
+    if (sourceIdentity() !== sourceSha256)
+      throw new Error('Engine sources changed during the build; rebuild the current source');
     fs.writeFileSync(
       path.join(supply, 'engine-manifest.json'),
       JSON.stringify(
         {
           schema: 'nelyx.engine.v2.supply/1',
           qualification: hosts ? 'host-integration-candidate' : 'headless-contracts-only',
-          sourceSha256: sourceIdentity(),
+          sourceSha256,
           abi: { major: 2, schema },
           toolchains,
           profiles: hosts
@@ -262,6 +300,15 @@ async function main() {
               }
             : undefined,
           hermes: hosts ? supplier.revision : undefined,
+          fonts: hosts
+            ? [
+                { path: 'assets/font.ttf', family: 'NelyxDefault' },
+                ...fallbackFonts.map((font) => ({
+                  path: 'assets/' + font.file,
+                  family: font.family,
+                })),
+              ]
+            : undefined,
           files: tree(supply)
             .sort()
             .map((file) => ({ path: file, sha256: sha256(path.join(supply, file)) })),

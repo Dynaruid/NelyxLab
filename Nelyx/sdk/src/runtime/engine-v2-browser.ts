@@ -9,6 +9,7 @@ import {
 } from '@nelyx/core/v2';
 import type { EngineResponse, InputPacket, PacketEndpoint } from '@nelyx/core/v2';
 import type { EngineV2Host } from './engine-v2.ts';
+import { EngineV2BrowserInteraction } from './engine-v2-interaction.ts';
 
 export type EngineWebProfile = 'auto' | 'single-worker' | 'threaded';
 export interface EngineBrowserSurface {
@@ -112,6 +113,9 @@ export async function createBrowserEngineV2Surface(
     close() {},
   };
   const transport = createPacketTransport(endpoint, 10000);
+  const interaction = new EngineV2BrowserInteraction(canvas, transport.exchange, (message) =>
+    options.onError?.(message),
+  );
   const receive = (event: MessageEvent<Record<string, unknown>>) => {
     const message = event.data;
     if (message.kind === 'ready') resolveReady(message);
@@ -119,8 +123,22 @@ export async function createBrowserEngineV2Surface(
       diagnostics = { ...diagnostics, ...(message.value as object) };
       const state = (diagnostics['render-stats'] as { state?: EngineResponse } | undefined)?.state;
       if (state) latest = state;
+      if (state?.publication) interaction.update();
+      diagnostics = {
+        ...diagnostics,
+        interaction: { profile: interaction.profile, ...interaction.counters },
+      };
       options.onStats?.(diagnostics);
       worker.postMessage({ kind: 'stats-ack' });
+    } else if (message.kind === 'ui-packet') {
+      const bytes = message.bytes as ArrayBuffer;
+      void interaction.gateway(new Uint8Array(bytes)).then(
+        (result) =>
+          worker.postMessage({ kind: 'ui-result', id: message.id, bytes: result.buffer }, [
+            result.buffer as ArrayBuffer,
+          ]),
+        (error) => worker.postMessage({ kind: 'ui-result', id: message.id, error: String(error) }),
+      );
     } else if (message.kind === 'content-control') {
       const value = message.value as Record<string, unknown>;
       diagnostics = { ...diagnostics, [String(value.kind)]: value };
@@ -350,6 +368,11 @@ export async function createBrowserEngineV2Surface(
   canvas.style.touchAction = 'none';
   canvas.tabIndex = 0;
   canvas.addEventListener('wheel', wheel, { passive: false });
+  const overlayWheel = (event: WheelEvent) => {
+    const target = event.target as Element | null;
+    if (target?.closest('[data-nelyx-v2-semantics]')) wheel(event);
+  };
+  document.addEventListener('wheel', overlayWheel, { passive: false });
   canvas.addEventListener('pointerdown', down);
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', end);
@@ -393,12 +416,14 @@ export async function createBrowserEngineV2Surface(
       window.removeEventListener('focus', visibility);
       window.removeEventListener('blur', visibility);
       canvas.removeEventListener('wheel', wheel);
+      document.removeEventListener('wheel', overlayWheel);
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', end);
       canvas.removeEventListener('pointercancel', end);
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
+        await interaction.close();
         worker.postMessage({ kind: 'close' });
         const state = await Promise.race([
           closingResult,

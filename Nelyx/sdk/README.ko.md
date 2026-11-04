@@ -12,7 +12,7 @@
 
 `createBrowserEngineV2Surface(canvas, { root: new URL('/engine/', location.href), profile: 'auto' })`로 공급된 worker runtime을 새 canvas에 연결합니다. 현재 engine dist 전체를 `root`에서 제공해야 합니다. 반환 surface는 packet host·App port·진단·비동기 `close()`를 제공합니다. Main은 bounded input/viewport를 전달하고 C++가 scene 좌표·scroll·hit-test를 소유합니다. `auto`는 격리/shared memory가 있으면 threaded, 없으면 single-worker를 선택합니다. 명시 capability 누락·공급 오류는 v1 fallback 없이 시작 실패로 처리합니다. Close는 provider/worker를 drain하며 다음 session은 새 canvas가 필요합니다.
 
-자체 Windows host와 두 Web profile에서 고정 배치 Testbed 장면을 실행합니다. 빌드/실행 명령은 [Core 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요. 전체 Widget/layout/편집/gesture·Android 이식은 PARTIAL입니다. [실행 현황](../../work8-1.md#연결-실행-현황)에 기능 증거와 물리 입력·성능 수락을 구분했습니다.
+자체 Windows host와 두 Web profile에서 v2 Widget/State/Key·C++ layout/intrinsic/dry query·편집 document·semantics를 사용하는 Testbed를 실행합니다. Web surface는 `dom-textarea/aria` 입력 carrier와 게시 geometry 기반 peer를 만들고 App의 edit/focus/action도 같은 Main 큐에서 순서대로 처리합니다. App port는 24 request/3 MiB까지 사용하고 전체 32 request/4 MiB 중 나머지를 Main 입력에 예약합니다. Windows는 STA UI owner의 실제 TSF context·UIA Fragment/Value/Text/Invoke를 연결합니다. 빌드/실행과 API는 [Core 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요. 전체 Widget/Material/Cupertino·gesture·Android 이식과 물리 IME/reader·성능은 PARTIAL입니다. [실행 현황](../../work8-2.md#이번-작업의-구현검증-현황)에 지원 범위와 검증 경계를 기록했습니다.
 
 ## 앱 API
 

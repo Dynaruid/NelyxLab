@@ -9,7 +9,7 @@ using namespace nelyx::v2;
 extern "C" {
 uint32_t nelyx_engine_abi_major(void) { return wire::abiMajor; }
 uint32_t nelyx_engine_schema(void) { return wire::schema; }
-uint32_t nelyx_engine_capabilities(void) { return 15; }
+uint32_t nelyx_engine_capabilities(void) { return 15 | wire::capabilities::layoutQueries | wire::capabilities::editing | wire::capabilities::semantics; }
 uint32_t nelyx_engine_create(const nelyx_engine_options* o, nelyx_engine** output) {
   if (!output) return wire::statuses::malformed;
   *output = nullptr;
