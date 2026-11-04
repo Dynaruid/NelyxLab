@@ -6,6 +6,12 @@
 
 전체 앱 예는 [Testbed 가이드](../../sample/nelyx-testbed-app-2/README.ko.md), 새 앱 생성은 [CLI](tooling/cli/README.ko.md)를 참고하세요.
 
+## 실험용 v2 packet port
+
+`@nelyx/sdk/engine-v2`는 `connectEngineV2Host(host, options)`를 제공합니다. v2 packet transport와 `engine: 'v2'`·`abiMajor`·`schema`를 가진 `identity`를 전달합니다. Facade의 bundle/host 검사 뒤 C++ handshake가 요청한 capability를 검사합니다. 빌드 명령·ACK 재시도·활성화·close/drain은 [Core v2 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요.
+
+Packet port는 host 개발용입니다. `createBrowserEngineV2Surface()` 소스 진입점에 worker/profile/input/close 처리를 추가하고 Windows·CanvasKit host 소스를 작성했습니다. 실행할 bundle/asset 공급·host compile/link·실제 화면·Content/Render 독립 실행은 미검증이며 사용자 요청으로 **PAUSED / PARTIAL** 상태로 중단했습니다. 일반 runner·Widget 앱·CLI engine 선택도 미완료입니다. 미완성 surface 경로를 사용하기 전에 [중간 마무리와 재개 절차](../../work8-1.md#중간-마무리--사용자-외출로-명시-중단)를 확인하세요.
+
 ## 앱 API
 
 `@nelyx/sdk`의 정확한 하위 경로에서 import합니다. 대상 이름은 `windows`, `android`, `ios`, `macos`, `linux`, `web`입니다.

@@ -6,6 +6,12 @@
 
 Start with the [Testbed guide](../../sample/nelyx-testbed-app-2/README.md) for a complete application or the [CLI](tooling/cli/README.md) to create a new one.
 
+## Experimental v2 packet port
+
+`@nelyx/sdk/engine-v2` exports `connectEngineV2Host(host, options)`. Supply a v2 packet transport with an `identity` containing `engine: 'v2'`, `abiMajor`, and `schema`. The facade checks bundle/host identity, then the C++ handshake checks requested capabilities. The [Core v2 guide](../README.md#experimental-v2-engine-protocol) covers build commands, ACK retry, activation, and close/drain.
+
+The packet port supports host development. A `createBrowserEngineV2Surface()` source entrypoint now adds worker/profile/input/close handling, alongside Windows and CanvasKit host sources. Its runnable bundle/assets, host compilation, actual screens, and independent Content/Render execution remain unverified. Work is **PAUSED / PARTIAL** at the user's request; current runners, Widget applications, and CLI engine selection remain incomplete. Follow the [resume notes](../../work8-1.md#중간-마무리--사용자-외출로-명시-중단) before using the unfinished surface path.
+
 ## Application APIs
 
 Import exact subpaths from `@nelyx/sdk`. Supported target names are `windows`, `android`, `ios`, `macos`, `linux`, and `web`.

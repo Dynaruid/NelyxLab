@@ -131,7 +131,7 @@ function compile(config, options) {
   const parsed = ts.parseJsonConfigFileContent(
     json.config,
     ts.sys,
-    sdk,
+    path.dirname(file),
     { ...options, noEmitOnError: true, inlineSources: true },
     file,
   );
@@ -167,6 +167,7 @@ function finalizeOutput(directory) {
 
 try {
   compile('tsconfig.build.json', { outDir: staged });
+  if (name === 'core') compile('runtime/tsconfig.json', { outDir: path.join(staged, 'v2') });
   finalizeOutput(staged);
   // Restore source-map paths after the generated tree moves from staging to dist.
   const visit = (directory) => {

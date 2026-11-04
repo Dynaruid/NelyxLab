@@ -1,0 +1,10 @@
+{
+  "extends": "../../../tsconfig.build.json",
+  "compilerOptions": {
+    "rootDir": "../../..",
+    "outDir": "../../dist/types",
+    "lib": ["ES2022", "DOM", "WebWorker"],
+    "noEmit": true
+  },
+  "include": ["*.ts", "../../render/canvaskit-web/*.ts", "../../../runtime/engine-client/**/*.ts"]
+}

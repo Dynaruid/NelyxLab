@@ -1,10 +1,12 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 2부: 렌더링·플랫폼·API 이식
 
-작성·심화 검토: **2026-11-04 KST** · 상태: **DESIGN / 구현 미착수 / 성능·물리 입력 미검증**
+작성·심화 검토·부분 구현: **2026-11-04 KST** · 상태: **PAUSED / PARTIAL / host·CanvasKit 소스 작성 / 실제 화면·성능·물리 입력 미검증**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · **2부** · [3부](work8-3.md)
 
 원문 범위: **§8–14**. 전체 설계의 절 번호와 W8 단계 식별자를 유지한다.
+
+**중단 현황:** Windows HWND/Hermes/Skia host와 Web owner/공식 CanvasKit adapter 소스를 작성했으나 host build·실제 surface 검증 전 사용자의 외출 요청으로 중단했다. 아래 계약 전체가 구현됐다는 의미가 아니다. [1부 중간 마무리](work8-1.md#중간-마무리--사용자-외출로-명시-중단)의 소스 목록·미검증·재개 순서를 따른다. 특히 공개 shaped glyph run 전달 초안은 font 복제 비용을 줄이기 위한 후보이며 paragraph paint와의 픽셀 동등성 검증이 남아 있다.
 
 ## 8. C++ render node·레이아웃·텍스트
 

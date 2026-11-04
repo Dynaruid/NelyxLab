@@ -6,6 +6,16 @@
 
 For installation and the sample, start with the [project guide](../README.md).
 
+## Experimental v2 engine protocol
+
+`@nelyx/core/v2` exports the C++ engine's packet codec, commands, `EngineClient`, and `createWasmTransport`. The canonical protocol is [engine/schema/protocol.json](engine/schema/protocol.json); run `node Nelyx/engine/tools/generate-schema.mjs --check` from the repository root to check generated C++/TS agreement. `npm.cmd run build:core` builds this subpath together with the existing Core exports.
+
+From the repository root, `npm.cmd run test:engine-v2` compiles and executes the common contracts on Windows x64 and both Node-hosted Wasm profiles. `npm.cmd run build:engine-v2` keeps the current headless native library/driver and separate `single-worker`/`threaded` artifacts in `Nelyx/engine/dist`. Wasm builds require an activated [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) **4.0.22**, found through `EMSDK` or the user cache's `.cache/tooling/emsdk`. Tests use a 20-minute timeout and remove their temporary builds; the supply builder removes staging and the previous output.
+
+This entrypoint requires a v2 packet port. Current application runners do not supply a v2 Widget renderer. Windows host, browser surface, official CanvasKit adapter, and Content/Render owner bootstrap sources are in progress; host compilation, browser bundles/assets, actual screens, and independent execution remain unverified. Work is **PAUSED / PARTIAL** at the user's request. The builder still supplies headless profiles (`contentIndependent=false`). The previous engine dist remains with an older schema; do not use it with the current Core. Rebuild it from source when work resumes. Follow [work8-1](../work8-1.md#중간-마무리--사용자-외출로-명시-중단) for the resume steps. Standard layout, full gestures, and browser deployment remain incomplete.
+
+The client keeps accepted document epochs separate from scene activation. After an ACK timeout, use `queryCommitResult()` or `retryCommit()` with the retained bytes; a timeout does not undo an accepted change. Close returns `busy` while provider frames are held: the host must release those holds before completing close. `reservedBytes` measures internal reservations, not process RSS or unconnected GPU/provider heaps.
+
 ## Modules
 
 Import APIs from explicit subpaths. Core has no aggregate root API.

@@ -7,6 +7,7 @@
   "files": [
     "dist",
     "src",
+    "runtime/engine-client",
     "README.md",
     "LICENSE.md",
     "licenses",
@@ -14,6 +15,10 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./v2": {
+      "types": "./dist/v2/engine-client/index.d.ts",
+      "default": "./dist/v2/engine-client/index.js"
+    },
     "./hosting/pointer-targets": {
       "types": "./dist/hosting/pointer-targets.d.ts",
       "default": "./dist/hosting/pointer-targets.js"
@@ -2117,7 +2122,7 @@
   },
   "scripts": {
     "build": "node eng/build-packages.mjs core",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "check": "tsc -p tsconfig.build.json --noEmit && tsc -p runtime/tsconfig.json --noEmit"
   },
   "license": "BSD-3-Clause"
 }

@@ -18,6 +18,8 @@
     "Nelyx/sdk/tooling/static-aot"
   ],
   "scripts": {
+    "build:engine-v2": "node Nelyx/engine/tools/build.mjs",
+    "test:engine-v2": "node --experimental-transform-types --test --test-timeout=1200000 Nelyx/engine/tests/contracts.test.mjs",
     "test:native-engine-candidates": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-flex-layout.test.mjs Nelyx/eng/tests/native-engine-experiment.test.mjs",
     "test:gallery-full-range": "node --test --test-timeout=1200000 Nelyx/eng/tests/gallery-range.test.mjs Nelyx/eng/tests/backing-experiment.test.mjs",
     "measure:windows-full-range": "node Nelyx/eng/run-rnw-cadence.mjs --full-range --scene=gallery",
@@ -108,19 +110,21 @@
     "experiment:native-scroll": "node Nelyx/eng/run-scroll-experiments.mjs"
   },
   "devDependencies": {
+    "@react-native/metro-babel-transformer": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
     "@types/node": "24.10.1",
-    "oxlint": "1.90.0",
-    "react-dom": "19.2.0",
-    "react-native-web": "0.21.3",
-    "@typescript/native": "npm:typescript@7.0.2",
-    "typescript": "npm:@typescript/typescript6@6.0.2",
-    "react": "19.2.0",
-    "react-native": "0.83.10",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
-    "@react-native/metro-config": "0.83.10",
-    "@react-native/metro-babel-transformer": "0.83.10",
-    "oxfmt": "0.75.0"
+    "@typescript/native": "npm:typescript@7.0.2",
+    "esbuild": "0.25.12",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
+    "playwright": "1.64.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-web": "0.21.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
   },
   "engines": {
     "node": ">=24.3.0"
