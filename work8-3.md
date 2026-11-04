@@ -42,7 +42,7 @@ sample/nelyx-testbed-app-2/ # 동일 기능·동일 입력으로 제품 비교
 
 의존 방향은 TS framework→engine-client→ABI, engine core→abstract ports, platform/render adapter→해당 OS/Skia다. Core는 SDK·RN·JSI·Win32를 import하지 않는다. 기존 `Nelyx/skia/native/core`의 검증된 계산·자원 코드를 옮기거나 연결할 수 있지만, 새 엔진의 스케줄·render model을 Skia adapter의 부속 서비스로 넣지 않는다.
 
-소스 생성·공급은 canonical 파일 한 곳에서 수행하고 generated/install 사본을 직접 수정하지 않는다. 신규 npm package 수와 공개 export 재배치는 W8-01에서 확정하되, 내부 경계를 만들기 위해 앱의 import 전체를 무조건 바꾸지는 않는다. `v2`는 엔진 설계 세대이며 이 문서가 npm publish나 버전 승격을 수행하지 않는다.
+소스 생성·공급은 canonical 파일 한 곳에서 수행하고 generated/install 사본을 직접 수정하지 않는다. 신규 npm package 수와 공개 export 재배치는 W8-01에서 확정하되, 내부 경계를 만들기 위해 앱의 import 전체를 무조건 바꾸지는 않는다. [§13.2](work8-2.md#132-점진-이식의-경계)의 engine 선택과 TS module 해석을 같은 빌드 설정에 연결하고 bundle/host의 major·schema를 함께 검사한다. `v2`는 엔진 설계 세대이며 이 문서가 npm publish나 버전 승격을 수행하지 않는다.
 
 ## 16. 구현 순서와 단계별 완료 조건
 
@@ -51,18 +51,20 @@ sample/nelyx-testbed-app-2/ # 동일 기능·동일 입력으로 제품 비교
 | 단계 | 작업과 산출물 | 완료 조건 |
 | --- | --- | --- |
 | W8-00 | C++ 백엔드의 모듈·소유권·ABI·대상별 빌드 범위 확정, 기존 소스·공급·API 이식표 작성 | [§1.4](work8-1.md#14-첫-백엔드-완료에-포함할-대상)/[16.2](#162-이식-범위를-잃지-않는-방법)의 필수 범위와 [§16.3](#163-구현-전에-값정책을-고정할-결정표)의 결정표 고정. npm CanvasKit 버전/variant와 [§8.2](work8-2.md#82-text-service) 전용 API 대체·의도한 차이 명시 |
-| W8-01 | 독립 engine core·C ABI·transaction·handle·resource ledger·가짜 clock/renderer 구축 | Native와 threaded/non-shared headless Wasm에서 같은 protocol/실패 계약 통과. ACK 유실·중복 ID·승인 뒤 실패·예산 초과·멱등 회수 확인 |
-| W8-02 | Windows 자체 host의 고정 배치 box·text·image·clip, 두 Web profile·npm CanvasKit adapter·자동 loader·최소 Android port | 실제 surface·입력·정상 종료. 두 engine+공식 CanvasKit module 연결·공개 text API·Picture/font/image 전달·canvas affinity·[§16.4](#164-web-비격리-배포와-profile-검증표) 초기 배포 검사 확인 |
-| W8-03 | Retained scene·scheduler·frame credit·native input/scroll/motion 모듈 구현 | 실제 surface/게시 snapshot·완료/drain 연결. [§16.1](#161-백엔드-연결을-확인하는-최소-수직-구현)의 profile별 독립/협력 실행·연속 input/commit·busy에서 bounded 진행, starvation/lost wake 없음 |
-| W8-04 | Native render node·표준 layout·paragraph·invalidation·scene activation 구현 | Intrinsic/baseline·텍스트 차등·metrics/extent 변경. 새 scene이 scroll/motion을 되감지 않으며 실패 후 다음 수정으로 복구 |
-| W8-05 | TS Widget/Element reconciler·render transaction·list builder/coverage 이식 | Key/State/의존성·reparent·부분 실패·가변 높이·반전·준비 지연·메모리 한도 유지 |
-| W8-06 | Hit-test·focus·native editing document·semantics 연결 | Gallery 두 열→Mixed 편집→Gallery 복귀, 한국어 composing/undo·키·접근성 action과 종료 정합성 |
+| W8-01 | 독립 engine core·C ABI·transaction·handle·resource ledger·가짜 clock/renderer, TS entrypoint/resolver 계약 구축 | Native와 threaded/non-shared headless Wasm에서 같은 protocol/실패 계약 통과. Unbounded codec·그래프 검증·ACK 유실·중복 ID·준비 시도/승인 뒤 실패·예산 초과·멱등 회수 확인. Bundle/host major·schema 불일치 거부 |
+| W8-02 | Windows 자체 host의 고정 배치 box·text·image·clip, 두 Web profile·npm CanvasKit adapter·자동 loader·최소 Android port | 실제 surface·최소 입력·정상 종료. Owner별 비동기 READY·두 engine+공식 CanvasKit 연결·공개 text API·Picture/font/image 전달·canvas 이전/resize·provider credit/게시 stage·[§16.4](#164-web-비격리-배포와-profile-검증표) 초기 배포 검사 확인 |
+| W8-03 | Retained scene·scheduler·frame credit·native input/scroll/motion·최소 게시 hit-test/route·고정 coverage 처리 구현 | 실제 surface/게시 snapshot·완료/drain·hide/zero-size/restore 연결. [§16.1](#161-백엔드-연결을-확인하는-최소-수직-구현)의 profile별 독립/협력 실행·연속 input/commit·busy에서 bounded 진행, starvation/lost wake 없음 |
+| W8-04 | Native render node·표준 layout·paragraph·invalidation·scene activation 구현 | Unbounded/expand·intrinsic/baseline·텍스트 차등·metrics/extent 변경·같은 document 재준비의 late 결과 검사. 새 scene이 scroll/motion을 되감지 않으며 실패 후 다음 수정으로 복구 |
+| W8-05 | TS Widget/Element reconciler·render transaction·list builder/coverage 이식 | Key/State/의존성·reparent·NACK 뒤 최신 diff/handle/dispose 정합성·가변 높이·반전·준비 지연·메모리 한도 유지 |
+| W8-06 | 전체 hit-test·focus·native editing document·semantics·Web DOM 편집/platform action 연결 | Gallery 두 열→Mixed 편집→Gallery 복귀, 한국어 composing/undo·키·clipboard·접근성 action과 종료 정합성. EditContext 없는 경로와 trusted browser event 조건도 확인 |
 | W8-07 | 표준 control·motion·overlay/navigation·Material/Cupertino 이식 | 필수 기능/API 표의 실제 지원 범위 확인. 표준 control이 매 frame JS paint나 appControlled로 돌아가지 않음 |
 | W8-08 | 두 Web profile의 통합 기능과 Android 최소 port·공통 계약, 대상별 graphics 복구 검증 | [§1.4](work8-1.md#14-첫-백엔드-완료에-포함할-대상)/[16.4](#164-web-비격리-배포와-profile-검증표)의 필수 범위·실제 백엔드 작업·기능 회귀 확인. Android 전체 제품과 물리 입력/IME/접근성은 별도 상태 |
 | W8-09 | Testbed에서 C++ 백엔드 통합 기능·작업 집계·TS fallback·수명 검증 | [§18.1](#181-엔진-v2-c-백엔드-완료-기준)의 구현/실행/정합성 조건 확인. 최종 공급 gate는 W8-10 뒤 닫고 미지원·미검증/후속 제품 평가를 구분 |
 | W8-10 | 백엔드 package·SDK·CLI·template·README 공급 정리 | Native/두 Wasm profile의 실제 설치·실행 identity 일치. V2 명시 선택·Web auto/강제 profile과 비격리 배포 사용법 제공 |
 
 W8-02는 고정 constraints/배치의 최소 node·text provider와 host를 연결하며 완전한 layout/Widget 이식 완료를 주장하지 않는다. W8-04가 표준 layout 의미·invalidation을 완성하고 W8-05 이후가 앱의 builder/State를 연결한다. W8-03의 caret는 준비된 record의 blink overlay 검사이며 실제 편집은 W8-06에서 구현한다.
+
+단계 의존성을 구별한다. W8-02는 최소 입력 packet/생성·변경 연결을 검사하고, W8-03은 입력을 받을 최소 route·게시 snapshot과 미리 만든 coverage/지연 fixture를 포함한다. 따라서 W8-06의 전체 hit-test·편집이나 W8-05의 TS list builder를 기다려야 scroll 검사를 시작할 수 있는 순환을 만들지 않는다. W8-05/06에서는 같은 계약을 실제 가변 목록·전체 입력 대상으로 확대한다.
 
 W8-08의 platform 확대는 Windows 통합 검증과 일부 독립 진행할 수 있지만 platform 미검증을 통합 PASS로 묶지 않는다. 기본값 전환·v1 제거와 체감·성능 평가는 백엔드 공급 이후 [§18.2](#182-후속-제품-기본값-전환과-v1-정리)의 후속 제품 단계에서 판단한다.
 
@@ -76,6 +78,7 @@ W8-08의 platform 확대는 Windows 통합 검증과 일부 독립 진행할 수
 - Native/Wasm의 capability·실제 작업 집계와 TS 요청이 일치하고, 요구 기능을 v1 TS 경로로 대체하지 않는다.
 - Input·frame credit·content-ready가 해당 native owner에서 처리되고, 제출·완료·취소·stale 결과가 정확하게 종료된다.
 - Resize·view close·실패 rollback에서 handle·resource·GPU 참조가 drain된다.
+- 같은 document의 metrics/font/device 재준비를 `PreparationId`로 구별하고, skipped epoch를 기다리는 명령·late provider 결과가 정확한 terminal과 회수로 끝난다.
 
 App/Content의 50/100/200ms 지연, 연속 producer/commit, renderer busy 실험은 scheduler·motion 모듈의 **필수 기능 검사**다. 실행 profile별 판정은 다음과 같다.
 
@@ -95,16 +98,17 @@ App/Content의 50/100/200ms 지연, 연속 producer/commit, renderer busy 실험
 
 | 기능 | 필수 확인 장면/실패 경계 | 구현 단계 |
 | --- | --- | --- |
-| TS 선언·State/Key·의존성 | 같은 Key의 상태 보존·reparent·dispose·상속 값 변경·NACK 재동기화 | W8-05 |
-| Layout·text | Box/Flex/Stack/Wrap/Grid·bounded/unbounded constraints·intrinsic/baseline·다국어/emoji·fallback font 교체·DPI/text scale | W8-04 |
+| Protocol·선언 설치 | 최종 그래프 cycle/소속·중복 ID·NACK/승인 뒤 실패·같은 epoch 재준비·skipped epoch 명령·terminal/회수 | W8-01/03/04 |
+| TS 선언·State/Key·의존성 | 같은 Key의 상태 보존·reparent·dispose·상속 값 변경·NACK 뒤 최신 diff/handle 재동기화 | W8-05 |
+| Layout·text | Box/Flex/Stack/Wrap/Grid·bounded/unbounded/expand 제약·유한한 최종 박스·extent 상태·intrinsic/baseline·다국어/emoji·fallback font 교체·DPI/text scale | W8-04 |
 | Paint·자원 | image decode 실패/교체·clip/transform·opacity·shadow·필수 effect·동일 자원 공유/회수·device loss | W8-02/04/08 |
 | 입력·scroll/motion | 양 열·nested scroll·반전/종료·programmatic 충돌·실제 extent와 coverage 경계·[§16.1](#161-백엔드-연결을-확인하는-최소-수직-구현)의 profile별 지연/진행 | W8-03/05 |
 | List/sliver | 가변 높이·anchor·빠른 방향 변경·느린/실패 builder·stale NeedChildren·bounded retention | W8-05 |
-| Focus·편집 | Mixed 12 fields/36 buttons·재클릭 없는 키·한국어 composing/commit/undo·selection/clipboard·scroll 중 caret | W8-06 |
+| Focus·편집 | Mixed 12 fields/36 buttons·재클릭 없는 키·한국어 composing/commit/undo·selection/clipboard·scroll 중 caret·Web DOM 입력/권한·trusted event | W8-06 |
 | Semantics | 실제 OS/browser proxy 질의·action·focus/value revision·게시 전후 bounds·삭제 node 거부 | W8-06/08 |
 | Controls·navigation | W8-00 필수 API 목록·hover/focus/pressed·Material/Cupertino·overlay/modal·route 종료·입력 차단 | W8-07 |
-| 다중 view·수명 | 두 view의 quota·독립 close·resize/hide/zero-size·reload·late 완료·실패 종료/drain | W8-03/06/09 |
-| 공급·개발 실행 | assets/font/image/shader 공급·현재 package 설치·engine/두 Web profile 선택·실행 identity·[§16.4](#164-web-비격리-배포와-profile-검증표) 비격리 성공/명시 요구 실패 | W8-02/10 |
+| 다중 view·수명 | 두 view의 quota·독립 close·resize/hide/zero-size와 idle 복귀·reload·late 완료·복구 중 종료/drain | W8-03/06/08/09 |
+| 공급·개발 실행 | assets/font/image/shader 공급·현재 package 설치·bundle/host 일치·engine/두 Web profile 선택·실행 identity·[§16.4](#164-web-비격리-배포와-profile-검증표) 비격리 성공/명시 요구 실패 | W8-01/02/10 |
 
 각 항목은 필수 여부·예상 owner/capability·확인 위치와 함께 `notStarted`, `implemented`, `sourceVerified`, `runtimeVerified`, `unsupported`를 **대상별** 기록한다. 물리 입력·체감·성능 검증은 별도 열로 둔다. 필수 항목에 `runtimeVerified`가 없는 경우 그 대상의 백엔드 gate는 미완료다. Progress는 이 루트 work 문서의 짧은 현황에만 반영하고 별도 plans/migrations/checkpoint 기록을 누적하지 않는다.
 
@@ -113,12 +117,12 @@ App/Content의 50/100/200ms 지연, 연속 producer/commit, renderer busy 실험
 | 결정 | 고정할 내용 | 확정 기한 |
 | --- | --- | --- |
 | 대상·필수 API | [§1.4](work8-1.md#14-첫-백엔드-완료에-포함할-대상)의 OS/ABI·두 필수 Web profile과 공통 최소 환경·[§16.2](#162-이식-범위를-잃지-않는-방법)의 필수 export/장면과 의도한 API 차이 | W8-00 종료 전 |
-| ABI/schema | Canonical schema 경로·생성기·version 협상·wire endian/문자열·handle·error/terminal·release API | W8-01 검증 전 |
+| ABI/schema·TS 해석 | Canonical schema 경로·생성기·version 협상·C struct와 wire 분리·정수/float 폭·문자열·unbounded/expand/extent 표현·handle/ID 소진·PreparationId·error/terminal·release API·v1/v2 entrypoint/resolver | W8-01 검증 전 |
 | 자원·큐 상한 | Node/depth·transaction bytes·256 input의 슬롯 분할·App/observer/edit/result 큐·scene/retired bytes·session/device 합산 | W8-01 검증 전 |
 | 실패·재시도 | 결과 창/ACK 하한·timeout·bounded resource retry·base conflict 재동기화·reload/host 실패 종료 | W8-01 검증 전 |
-| Scheduler·scroll | Tick/content task quota·single-worker 재개 경계와 최대 동기 점유 관측·wake 경합·clock/time 단위·physics 오차·deferred catch-up 속도·gesture/command/anchor 충돌 | W8-03 검증 전 |
-| 게시·geometry | Port별 publication stage/관측 신호·snapshot 보유 한도·metrics 전환/입력 rebase·Web DOM 기본 조작 정책 | W8-02 최소 경로, W8-06 통합 전 |
-| Graphics/Wasm 공급 | Native Skia 공급·engine별 toolchain/flags/manifest·npm CanvasKit 버전/variant/integrity·공개 API 대체·module별 heap/worker·Picture/font/image 전달·auto/배포 실패 분류 | W8-02 종료 전 |
+| Scheduler·scroll·수명 | Tick/content task quota·single-worker 재개 경계와 최대 동기 점유 관측·wake 경합·clock/time 단위·physics 오차·deferred catch-up 속도·gesture/command/anchor 충돌·skipped epoch·hide/zero-size/restore | W8-03 검증 전 |
+| 게시·geometry | Port별 publication stage/관측 신호·제출/GPU/publication credit의 차이·snapshot 보유 한도·metrics 전환/입력 fence·canvas backing resize·Web DOM 기본 조작/activation 정책 | W8-02 최소 경로, W8-06 통합 전 |
+| Graphics/Wasm 공급 | Native Skia 공급·engine별 toolchain/flags/manifest·npm CanvasKit 버전/variant/integrity·공개 API 대체·module별 heap/worker·비동기 owner/provider READY·Picture/font/image 전달·auto/배포 실패 분류 | W8-02 종료 전 |
 
 표의 값이 아직 미정이라는 사실을 구현자가 임의로 추측해 채운 것으로 숨기지 않는다. 해당 단계에서 canonical 상수/타입과 계약 검사로 고정한 뒤 다음 의존 단계로 넘어간다. 지금 문서의 제안 값은 검증된 최적값이나 기존 제품보다 큰 예산을 허용한 결정이 아니다.
 
@@ -135,9 +139,13 @@ App/Content의 50/100/200ms 지연, 연속 producer/commit, renderer busy 실험
 | 비격리 환경에서 `threaded` 또는 `contentIndependent` 필수 요구 | 명확한 capability 오류로 시작 실패. 부분 view·pending Promise·worker 누수 없음 |
 | 공통 Worker가 CSP로 차단되거나 OffscreenCanvas/worker WebGL2가 없음 | 해당 최소 환경 부족으로 실패. COOP/COEP 누락과 다른 원인을 보고 |
 | 선택된 profile의 파일 누락·HTTP/해시/ABI/cohort 오류·초기화 예외 | 공급/시작 오류로 실패. 다른 profile로 바꿔 잘못된 공급을 숨기지 않음 |
+| Threaded worker pool/owner/provider 지연·실패·재시작 | 실제 Content/Render realm에서 engine·로컬 CanvasKit/adapter READY 확인. 동기 join 교착·다른 owner로 draw proxy·시작 전 입력/document admission·이전 worker 상태 승계 없음 |
 | npm CanvasKit의 고정 JS/Wasm·공개 paragraph API | 두 engine profile에서 같은 npm 원본/variant를 사용. 전용 `nelyxParagraphApiVersion` 없이 [§8.2](work8-2.md#82-text-service)의 text/caret/soft-hyphen corpus와 공개 지원 범위 확인 |
 | Threaded Content→Render의 Picture/text/font/image 전달 | 같은 CanvasKit npm build 사이의 직렬화/복원·바이트 상한·resource 수명·정확한 glyph/paint 확인. Module-local handle 교차 사용 없음 |
 | Canvas 이전/context 생성 실패·재시도·옛 worker의 late 메시지 | 실패 terminal·port/worker 정리·세대 차단. 필요시 새 canvas/view로 시작하며 이전 engine 중복 실행 없음 |
+| 이전 뒤 CSS/DPR/backing resize·zero-size→restore | Main은 CSS/metrics만 전달하고 Render가 OffscreenCanvas/surface를 갱신. HTML placeholder의 width/height 대입·DOM software fallback 의존 없음. 같은 metrics의 게시/입력과 App commit 없는 복귀 확인 |
+| GPU 완료를 공개하지 않는 provider의 flush/게시 | 제출 credit·안전한 provider release·관측 수준을 구별. `flush`/메시지를 GPU fence나 실제 표시로 기록하지 않으며 엔진 hold 상한과 종료 회수 확인 |
+| EditContext 없음·실제 copy/paste/focus·activation/권한 거부 | 같은 document revision의 DOM 입력으로 필수 편집 성공. Main의 게시 정책과 worker 검증 일치·조합 중복/취소·실패 terminal 확인. 임의 worker 메시지를 trusted 입력으로 간주하지 않음 |
 | 두 profile의 resize·hide/resume·context loss·reload/close | 같은 profile에서 복구/실패·resource credit·게시 geometry·drain 정합성 확인 |
 
 W8-02는 이 표의 초기 선택·공급·작은 화면을 확인하고, W8-03은 [§16.1](#161-백엔드-연결을-확인하는-최소-수직-구현) scheduler를, W8-08은 두 profile에서 [§16.2](#162-이식-범위를-잃지-않는-방법)의 전체 필수 장면과 복구를 확인한다. 격리된 개발 서버만 성공하거나 threaded만 실행한 결과로 Web 백엔드를 완료하지 않는다.
@@ -176,6 +184,16 @@ Node 검사는 저장소 지침대로 **20분 timeout**, 즉 `--test-timeout=120
 
 Native/Wasm 계약 검사는 같은 입력 corpus를 사용한다. Layout/physics의 double 오차·text metrics/font 조건을 비교 전에 고정하고, 의도한 API 차이·platform font 차이를 명시한다. 필수 잘못된 packet·순서·동시성 interleaving·포화·OOM/device loss를 한정된 결정적 fixture로 검사한다. 지원 toolchain에서는 sanitizer로 use-after-free/data race를 확인하되 source 검사나 sanitizer 통과를 실제 host 실행으로 대신하지 않는다. Native 검사에도 20분 실행 한도를 적용한다.
 
+재검토에서 추가한 필수 실패 경계도 같은 단계의 검사에 포함한다.
+
+| 경계 | 필요한 결과 |
+| --- | --- |
+| Unbounded/expand·추정/무한 extent·NaN/Infinity 오입력 | 의미 태그 왕복과 부모 제약 결합 보존. 최종 박스/좌표는 finite, 잘못된 packet은 NACK/layout 실패 |
+| Create/reparent/destroy transaction NACK | 기존 document/scene 보존·staging hold 회수·TS State/Key/handle/dispose 정합성. 최신 선언의 다음 diff로 복구 |
+| 같은 epoch의 font/metrics/device 재준비·skipped epoch 명령 | 준비 시도별 terminal 한 번·late 결과 분리/해제·후속 호환 scene에서 명령 실행 또는 명시적 취소 |
+| Data 포화 중 focus/metrics/close fence·idle/hide/zero-size 복귀 | 이전 stream 종료와 packet accounting 보존·App 응답 없는 redraw/종료·마지막 metrics의 게시 |
+| Bundle/host major 또는 schema 불일치 | 첫 document 승인 전 시작 실패. V1 framework가 연결된 채 v2 실행으로 보고되지 않음 |
+
 Web의 thread/memory·owner·선택 사유와 실제 C++ layout/scroll/compose 작업 수를 profile별로 대조한다. CanvasKit의 공개 graphics/text 호출은 선택한 provider 실행으로 별도 집계하며 v1 TS layout/paint fallback과 구분한다. Single-worker를 v1 TS fallback으로 집계하거나, threaded 미실행을 non-shared의 성공으로 감추지 않는다.
 
 ### 17.3 후속 제품 성능 비교 — 백엔드 완료와 별도 평가
@@ -198,7 +216,7 @@ Web의 thread/memory·owner·선택 사유와 실제 C++ layout/scroll/compose �
 
 ### 17.4 공급과 정리
 
-현재 canonical source·engine ABI·runtime/compiler·Skia vendor·native library/Wasm·SDK·설치본·실행 package의 identity를 연결한다. V2 선택과 실제 native node/layout/scroll/compose 작업을 장면 안에서 확인한다. Native 작업 0·관측 누락·v1 fallback은 실행/성능 판정 실패 또는 명시적인 control이며 성공이 아니다.
+현재 canonical source·engine ABI·runtime/compiler·Skia vendor·native library/Wasm·SDK·설치본·실행 package와 TS bundle/module graph의 identity를 연결한다. V2 선택과 실제 native node/layout/scroll/compose 작업을 장면 안에서 확인한다. Native 작업 0·관측 누락·v1 fallback은 실행/성능 판정 실패 또는 명시적인 control이며 성공이 아니다.
 
 Web package에는 두 engine profile의 현재 공급물·공통 npm CanvasKit 자산·배포 index를 포함하고 module/profile별 실행 identity를 연결한다. npm 버전·variant·lock integrity·배포 byte identity와 자체 engine ABI를 따로 확인한다. 이는 과거 dist 사본 보관과 다르며, 정리 과정에서 필수 non-shared 공급을 삭제하지 않는다. SDK/template·문서는 기본 `auto`와 비격리 지원 조건·강제 선택·공개 API 차이·시작 실패 사유를 함께 제공한다.
 
@@ -243,8 +261,9 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | UI API·custom extension·편집/접근성·가상화·Web 경계 | 게시 관측 수준·입력 route·편집 revision·coverage 정책·worker/context 조건 구체화 |
 | Web COOP/COEP 부재 지원 설계 | Non-shared single-worker를 필수 범위로 변경. 별도 빌드·기본 auto·capability/공급 오류 구분·Content 점유 제한·실제 비격리 검사 정의 |
 | Web CanvasKit 공급 방침 | npm 공식 배포본 사용으로 변경. 자체 engine/CanvasKit module 분리·retained adapter·전용 text API 이식·Picture 전달의 초기 검증 gate 정의 |
+| 3부 문서 재검토 | 현재 source/타입·공식 Flutter/Emscripten/HTML 계약 대조. 제약/finite·준비 시도·NACK·Web READY/resize/credit·DOM 입력·bundle 선택·검증 단계 보강 |
 | 구현 순서·최소 수직 구현·백엔드 완료·후속 제품 전환 | 플랫폼/두 Web profile별 필수 범위·기능표·독립/협력 실행 gate·기능 지원과 성능 수락 구분 |
-| 문서의 로컬 링크·코드 블록·공백 검사 | 통과 |
+| 문서의 링크·구조·공백 검사 | 목차 포함 로컬 링크 152건·앵커 106건, §1–19·W8-00–10 순서·표 열 수·코드 블록·`git diff --check` 통과 |
 | 새 engine/runtime·ABI·Wasm 공급·CLI 구현 | 미착수 |
 | 새 성능 측정·앱 빌드/실행·물리 트랙패드 확인 | 이번 작업에서 수행하지 않음 |
 | 일반 App 기본값·기존 후보 판정 | 변경 없음: TS / NO_ADOPTION |
@@ -268,6 +287,12 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | Single-thread에도 Content 독립 실행을 요구하는 모순 | Owner 책임과 물리 thread 분리·협력적 scheduler·동기 점유 제한·profile별 검사/성능 공개 ([§4.1](work8-1.md#41-네-개의-주요-owner)/[6.1](work8-1.md#61-엔진이-계속-움직일-수-있는-조건)/[12.2.4](work8-2.md#1224-single-worker-scheduler와-전송)/[16.1](#161-백엔드-연결을-확인하는-최소-수직-구현)/[17.3](#173-후속-제품-성능-비교--백엔드-완료와-별도-평가)) |
 | Header 검사·광범위한 catch로 잘못된 공급을 숨김 | 실제 context probe·시작 전 capability 선택·명시 요구/공급 오류 실패·session 고정과 canvas 수명 ([§12.2.3](work8-2.md#1223-자동-선택과-시작-실패)/[16.4](#164-web-비격리-배포와-profile-검증표)) |
 | 지원 범위를 줄이면 완료로 보일 위험 | 대상별 필수 범위·API/기능표·미정 결정 기한·필수 unsupported 차단 ([§1.4](work8-1.md#14-첫-백엔드-완료에-포함할-대상)/[16](#16-구현-순서와-단계별-완료-조건)/[18.1](#181-엔진-v2-c-백엔드-완료-기준)) |
+| 모든 숫자의 finite 요구와 unbounded/expand·scroll extent 의미 충돌 | 상한/extent 상태와 실제 박스·좌표 분리·명시적 wire 표현·Flutter 근거·codec/layout 실패 검사 ([§5.2](work8-1.md#52-서로-다른-버전을-한-숫자로-합치지-않는다)/[8.1](work8-2.md#81-native-render-model)) |
+| 같은 document 재준비·skipped epoch 대기의 수명 불명 | PreparationId·의존 revision·시도별 terminal·명령의 epoch 하한과 timeout ([§5.4](work8-1.md#54-승인후속-실패재시도의-terminal)/[7.4](work8-1.md#74-새-콘텐츠가-이전-스크롤로-되돌리지-않게-한다)) |
+| Native NACK와 TS reconciler 상태가 따로 진행 | 최종 그래프/소속 검증·ACK된 선언과 최신 앱 선언 분리·handle/callback 세대·State/dispose 회귀 ([§5.1](work8-1.md#51-ts가-보내는-것은-render-node의-변경이다)/[16.2](#162-이식-범위를-잃지-않는-방법)) |
+| Thread가 있어도 JS provider·surface가 준비되지 않을 수 있음 | Owner별 realm/READY·비동기 pool 시작·CanvasKit 별도 context/게시 계약·OffscreenCanvas resize와 실패 경로 ([§12.2.3](work8-2.md#1223-자동-선택과-시작-실패)/[12.2.5](work8-2.md#1225-canvas게시dom-서비스)) |
+| GPU 미관측 credit·숨김/복귀·DOM 입력 조건 누락 | Port별 credit/안전한 release·lifecycle/fence·EditContext 없는 편집·main의 activation 정책 ([§6.2](work8-1.md#62-상한과-frame-교체)/[6.3](work8-1.md#63-metrics숨김복구의-진행-조건)/[10.2](work8-2.md#102-편집-document)/[16.4](#164-web-비격리-배포와-profile-검증표)) |
+| Host flag만 v2이고 앱 module은 v1일 수 있음·앞 단계 검사가 뒤 단계에 의존 | 빌드 resolver/bundle major 검사·W8-03 최소 route/coverage와 W8-05/06 확장 경계 명시 ([§13.2](work8-2.md#132-점진-이식의-경계)/[16](#16-구현-순서와-단계별-완료-조건)) |
 
 다음 구현 요청의 시작점은 **W8-00 → W8-01 → W8-02 → W8-03**이다. C++ 백엔드의 경계·코어·연결·실행부터 구현하며, 기존 성능 비교의 반복이나 물리 입력 확인을 기다리는 일로 착수를 대체하지 않는다.
 

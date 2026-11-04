@@ -17,6 +17,7 @@ Content Engine에 node arena와 부모/자식 관계, 제약·baseline·intrinsi
 - 조상 제약이나 자식 크기에 의존하는 실제 변경 경로를 계산하고 영향 없는 branch를 재방문하지 않는다.
 - Flex의 숫자 부분만 호출한 뒤 TS가 각 child를 다시 layout하는 구조를 v2 표준 경로로 사용하지 않는다.
 - Intrinsic·baseline·dry layout의 의미와 cycle 방지·실패 원자성을 함께 구현한다. 이 부분을 생략한 제한 demo를 framework 전체 이식으로 세지 않는다.
+- Unbounded/expand 제약은 [§5.2](work8-1.md#52-서로-다른-버전을-한-숫자로-합치지-않는다)의 명시적 표현으로 받고 실제 node 의미에 따라 해석한다. 유한한 부모 제약과 결합할 수 없는 expand·음수/뒤집힌 제약·비유한 최종 박스 크기는 명시적 layout 실패다. 논리적 scroll extent와 실제 크기/좌표의 검사를 구별하고 Infinity를 큰 수로 치환하지 않는다.
 - Scroll의 transform 변경은 layout dirty와 구별한다. 새 sliver coverage·가변 높이 측정·sticky header 등 콘텐츠 계산이 필요할 때만 Content Engine에 작업을 요청한다.
 
 Derived layout/paint 결과는 작업의 document/metrics·입력 revision에 귀속한다. 준비 중 실패한 일부 metrics/display list를 기존 scene이나 다음 작업의 유효 cache로 게시하지 않는다. 작업 시작 뒤 새로 발생한 dirty revision을 이전 작업의 완료로 지우지 않으며, 실패한 branch는 유효한 이전 결과를 보유하거나 다음 수정에서 다시 준비한다.
@@ -36,7 +37,7 @@ Mutable paragraph는 Content text provider에 남기고 render 쪽에는 준비�
 | 기존 전용 기능/가정 | npm 원본을 사용하는 v2의 이식 계약 |
 | --- | --- |
 | `nelyxParagraphApiVersion` 강제 | Nelyx 전용 export를 요구하지 않고 고정 npm 배포본의 공개 메서드·실제 결과를 검사 |
-| `nelyxLineNumberAtUTF16` | 공개 `getLineNumberAt` 등으로 구현하되 실제 offset 단위를 corpus로 확인. 기존 UTF-8 변환을 그대로 복사하지 않음. 한국어·surrogate pair·결합 문자·RTL·줄 끝/caret 확인 |
+| `nelyxLineNumberAtUTF16` | npm `0.41.0` 타입은 공개 `getLineNumberAt`의 입력을 UTF-16 offset으로 명시한다. 채택 바이너리의 결과·범위 밖/줄 끝/caret 의미를 corpus로 확인하고 기존 UTF-8 변환을 그대로 복사하지 않음. 한국어·surrogate pair·결합 문자·RTL 확인 |
 | `unscaledAscent` 추가 field | 공개 metrics로 정확히 계산 가능한 범위를 확인. `ascent`를 복사해 동일 의미라고 표시하지 않고, 지원 불가 의미는 API 이식표에 명시 |
 | `renderSoftHyphens` switch | 공개 API 조합·원문/표시문 index mapping으로 `manual/hidden`의 줄바꿈·표시·selection 의미를 재현할 수 있는지 확인. 속성을 전달하고 무시된 것을 지원으로 세지 않음 |
 
@@ -90,6 +91,8 @@ Layout·텍스트·scene 준비와 render thread가 같은 mutable Skia 객체�
 
 GPU upload·shader 준비도 render owner의 bounded 작업으로 예약하고 기존 motion 제출과 공정하게 나눈다. Driver 내부의 동기 compile/allocation 비용이 모두 취소 가능하거나 독립 thread에서 안전하다고 약속하지 않는다. 실제 점유는 계측하며 GPU API가 허용하지 않는 객체 공유로 우회하지 않는다. Device loss에서는 이전 GPU handle을 무효화하고 살아 있는 CPU document/기록에서 자원을 재구축한다. 옛 device의 late 완료가 새 credit·publication 상태를 변경할 수 없다.
 
+준비 결과와 provider 응답은 `PreparationId`·의존 revision·device generation을 검사하고, 취소된 시도에 도착한 font/image/text 결과도 한 번만 해제한다. CanvasKit `flush()`는 제출/flush 경계이며 GPU 완료나 외부 backing 재사용 허가로 취급하지 않는다. Provider 소유 객체는 마지막 engine 참조 뒤 해당 공개 release API의 안전성 계약으로 반환하고, 외부 backing/texture를 직접 재사용하려면 별도의 완료·소유권 이전 근거가 필요하다. Web의 GPU 완료가 미관측이어도 JS wrapper GC에 수명 관리를 맡기거나 해제를 생략하지 않는다([CanvasKit 객체 해제](https://skia.org/docs/user/modules/quickstart/)).
+
 ## 10. Hit test·편집·접근성의 정합성
 
 ### 10.1 화면과 같은 property를 사용한다
@@ -107,6 +110,8 @@ Hit-test index의 node·clip·transform·scroll 참조는 해당 게시 frame의
 
 Platform UI는 마지막 게시 통지를 설치한 뒤 새 입력 packet에 그 `PublicationId`와 metrics를 붙인다. 일반 target/route의 판정자는 compositor이며 packet이 지정한 snapshot으로 hit test한다. UI의 IME·접근성 proxy도 같은 snapshot을 읽고 별도 권위 geometry를 만들지 않는다. 새 게시 이전에 수집한 입력을 새 snapshot으로 재해석하지 않으며, 진행 중 stream은 latch/capture한 node의 generation과 좌표 변환을 사용한다.
 
+Web에서 trusted event 중 즉시 처리해야 하는 focus/clipboard 등의 platform action은 [§12.2.5](#1225-canvas게시dom-서비스)의 읽기 전용 게시 정책을 main에 미리 전달한다. 이는 일반 gesture 판정자를 main으로 옮기는 계약이 아니며, compositor는 같은 snapshot/대상·명령 generation을 대조한다. 불일치한 platform action의 취소/복구와 오류도 숨기지 않는다.
+
 Snapshot은 마지막 게시용 1개와 admitted input/진행 stream·GPU/platform이 실제 참조하는 세대만 제한적으로 보유한다. Host의 snapshot lease는 교체 설치와 기존 packet/stream 소비가 끝난 뒤 회수해 수집과 retirement 사이의 race를 막는다. 이미 회수했거나 metrics가 맞지 않는 snapshot의 입력은 정의한 rebase 또는 cancel로 끝내며 임의의 새 target으로 보내지 않는다. Modal·view 폐쇄는 admission fence로 이전 route의 추가 동작을 막고 cancel을 전달한다. Node가 새 document에서 사라졌지만 이전 화면에 남아 있는 경우에도 callback을 재사용 slot으로 보내지 않는다. Publication·input 교차, 두 열·nested scroll·고정 header·회전/scale·singular transform을 검사한다.
 
 ### 10.2 편집 document
@@ -116,6 +121,8 @@ Native text-input service가 focus session별 **문서 값·selection·composing
 Windows TSF·Android InputConnection 등 동기 질의가 필요한 platform 서비스는 해당 UI owner의 native document를 읽는다. JS를 동기 호출하지 않는다. Content Engine에는 순서 있는 edit transaction/immutable document revision을 전달해 paragraph·caret·selection layout을 준비한다. 다른 thread가 같은 문자열을 동시에 수정하지 않는다.
 
 Web의 DOM/EditContext 연결은 browser main thread의 platform service가 같은 document revision 계약을 구현한다. 이 서비스는 browser 편집 이벤트를 순서 있게 전달하고 engine layout 결과로 후보창·selection geometry를 갱신한다. OS native text store와 동일한 C++ 객체를 DOM에서 직접 사용한다고 가정하지 않으며, app worker의 응답을 browser 편집 이벤트의 동기 조건으로 두지 않는다.
+
+Web의 `EditContext`는 feature probe로 선택하며, 없을 때도 필수 편집 기능을 수행할 DOM 입력 경로를 제공한다. 선택한 경로 하나가 입력 document를 쓰고, `beforeinput/input`·composition·selection을 중복 적용하지 않는다. 엔진/앱 값 반영과 사용자 입력을 구분하고 composing 중 재설정으로 조합을 끊지 않는다. Clipboard·focus의 main-thread 실행 조건은 [§12.2.5](#1225-canvas게시dom-서비스)에서 함께 고정한다. EditContext 미지원만으로 필수 Web 편집을 완료 분모에서 빼지 않는다.
 
 기본 입력 formatter는 선언형 native 규칙으로 제공한다. 사용자 JS 검증은 비동기 결과와 명시적 수정 transaction으로 처리한다. 매 키의 동기 JS 반환이 반드시 필요한 확장은 앱 의존 편집 경계로 표시하고, 그 비용·조합 취소 의미를 분리한다.
 
@@ -217,13 +224,17 @@ Web에서도 공통 node·layout·text provider·scroll·scene 코어를 Wasm으
 | `single-worker` | 격리 여부와 관계없이 non-shared 빌드를 선택. 재현·호환성 검사에도 사용 |
 | `threaded` | 모든 threaded capability와 해당 공급을 요구. 부족하면 이유를 반환하고 시작 실패 |
 
-1. 먼저 공통 worker bootstrap/메시지 왕복과 main/실제 engine runtime worker의 `crossOriginIsolated === true`를 확인한다. 미격리면 SAB 생성/공유 probe·threaded 자산 로딩을 건너뛰고 single-worker를 선택한다. 격리되면 SAB 가용성·공유 Wasm memory/atomics·공유 메시지 왕복을 확인하며 전역 객체의 존재만으로 성공을 판정하지 않는다. 공통 graphics probe는 임시 canvas에서 하고 실제 view canvas에 미리 context를 만들지 않는다. Probe 자원 정리·thread pool 준비·canvas 이전 순서도 W8-02에서 검증한다.
+1. 선택 전에는 profile 중립 bootstrap worker의 메시지 왕복·공통 최소 환경과 main/bootstrap의 실제 isolation 상태를 확인한다. `single-worker` 명시 요청에는 SAB/thread probe가 필요 없다. `auto/threaded`에서 격리된 경우에만 SAB·공유 Wasm memory/atomics·공유 메시지 왕복을 probe하고 전역 객체 존재만으로 판정하지 않는다. 미격리 `auto`는 threaded 자산을 로드하지 않고 single-worker를 선택하며, 명시적 threaded는 capability 오류다. 공통 graphics probe는 임시 canvas에서 하고 실제 view canvas에 미리 context를 만들지 않는다. 선택한 실제 engine owner의 환경도 초기화 시 재확인한다.
 2. 격리 판정은 header 문자열의 유무보다 실제 실행 context를 따른다. Header가 있어도 embedding/Permissions-Policy 등으로 isolation이 안 되면 `auto`는 single-worker다. COOP/COEP가 모두 없는 일반 정적 호스팅도 필수 성공 대상이다([cross-origin isolation 조건](https://developer.mozilla.org/en-US/docs/Web/API/Window/crossOriginIsolated)).
 3. 자동 대체는 session 생성·실제 canvas 이전·document 승인 전에 확인한 capability 부족에만 적용한다. HTTP/해시/ABI 오류·잘못된 worker URL·Wasm 초기화 예외·OOM을 통째로 잡아 fallback하지 않는다. 공통 Worker/CSP·OffscreenCanvas/WebGL2 부족이나 요청한 필수 capability 부족은 명시적 시작 오류다.
 4. `requestedProfile`, `selectedProfile`, `selectionReason`, engine/CanvasKit 각각의 실제 memory 종류·owner 배치·기능 capability·artifact identity를 SDK에 보고한다. `auto`가 non-shared를 선택하는 것은 허용된 v2 profile 선택이다. 앱이 `contentIndependent`를 필수로 요구하면 그 환경에서 실패해야 한다.
 5. 선택은 session 동안 고정한다. Threaded↔non-shared live heap/handle 이식은 하지 않는다. 시작 실패 뒤 재시도는 이전 worker/port를 정리하고 새 session/view 세대에서 수행한다. Canvas 이전/context 생성 후에는 같은 canvas를 되돌려 재사용할 수 있다고 가정하지 않는다.
 
 선택한 profile에서도 배포에 남아 있는 COEP/CSP·자산 CORS/CORP·MIME·HTTPS가 필요한 API의 조건을 적용한다. Non-shared는 shared-memory 요구를 없애는 실행 방식이며 자산 접근 권한을 바꾸지 않는다.
+
+초기화는 `CapabilitiesChecked → ProfileSelected → EngineOwnersReady → ProvidersReady → ViewReady`의 비동기 단계와 단계별 timeout/실패 terminal을 갖는다. 실제 canvas 이전·context 생성은 선택과 owner 준비 뒤에 수행하고, `ViewReady` 전에는 입력 admission·document 승인을 열지 않는다. 모든 READY에는 session/owner generation·ABI·profile·실제 module identity를 붙인다. 선택 뒤 실제 owner의 isolation 불일치나 provider/pthread 초기화 실패는 시작 실패이며 다른 profile로 다시 해석하지 않는다.
+
+Threaded의 pthread worker가 생기는 것과 그 worker의 JS adapter·CanvasKit 준비는 별개다. Emscripten runtime worker에서 만든 JS 객체/Embind handle은 pthread worker의 realm에 자동으로 생기지 않는다. Content/Render 각각에서 adapter와 같은 npm factory를 초기화하고 로컬 instance/resource table의 READY를 기다린다. Render의 JS 호출이 다른 owner로 proxy돼 Content 응답을 기다리지 않는지 W8-02에서 확인한다. Thread pool을 미리 준비하거나 event loop로 반환해 시작하며, `pthread_create` 직후 동기 join/응답 대기로 초기화를 막지 않는다([Emscripten pthread 시작 제약](https://emscripten.org/docs/porting/pthreads.html#special-considerations)). Worker 재사용 시에도 이전 session의 callback·port·CanvasKit resource가 남지 않아야 한다.
 
 #### 12.2.4 Single-worker scheduler와 전송
 
@@ -236,9 +247,15 @@ Web에서도 공통 node·layout·text provider·scroll·scene 코어를 Wasm으
 
 OffscreenCanvas와 Worker 사용 자체를 shared-memory 요구와 묶지 않는다. 격리가 없어도 공통 최소 환경을 통과하면 single-worker가 직접 렌더링한다. 실제 canvas는 context 생성 전에 선택된 render owner로 한 번 이전하고 CanvasKit surface/WebGL2 context는 그 owner에 고정한다. Web의 JS adapter는 같은 render worker에서 CanvasKit 공개 API를 호출하며 browser main이나 App Runtime의 응답을 매 draw의 조건으로 두지 않는다. Canvas 이전과 context 모드의 제한은 [HTML OffscreenCanvas/transfer 계약](https://html.spec.whatwg.org/multipage/canvas.html#dom-canvas-transfercontroltooffscreen)을 따른다. 고정 npm build가 만든 실제 WebGL version·GPU surface를 W8-02에서 확인하며, 자동 software surface 대체를 WebGL2 실행 증거로 세지 않는다.
 
+이전 뒤 browser main은 DOM의 CSS 크기·DPR/viewport를 관측해 `MetricsEpoch`와 backing 크기 요청을 보낸다. **Placeholder가 된 HTML canvas의 `width/height`를 main에서 다시 설정하지 않는다.** OffscreenCanvas backing 크기·CanvasKit surface 재생성은 render owner에서 처리하고 같은 metrics의 첫 유효 frame과 interaction snapshot을 연결한다. Zero-size에서는 surface 생성을 보류하고 양수 크기 복귀 시 깨운다. 실제 OffscreenCanvas가 DOM 없이 surface 생성·실패/정리까지 통과하는지 검사하며, DOM의 `cloneNode/parentNode`를 쓰는 upstream software fallback을 정상 worker 복구로 가정하지 않는다.
+
 Web render tick은 implicit 게시에 필요한 event loop 반환 또는 실제 지원되는 explicit commit을 수행한다. Native의 blocking loop로 draw만 반복하는 것을 화면 갱신으로 인정하지 않는다. Worker rAF 가용성·visibility·idle·hide/resume에 맞게 비동기 예약하고, 필요하면 main에서 bounded tick을 전달한다. Worker 메시지/rAF/WebGL submit은 실제 표시 완료 receipt가 아니다([§10.1](#101-화면과-같은-property를-사용한다)). Context loss는 기존 CPU document에서 같은 profile로 복구하며 thread profile 변경으로 숨기지 않는다.
 
+WebGL context는 npm CanvasKit module이 만든다. 자체 engine의 Emscripten link flag를 바꿔 별도 CanvasKit context의 `explicitSwapControl`이나 commit API가 활성화됐다고 가정하지 않는다. 기본 경로는 고정 provider의 실제 implicit 게시 계약을 따르고, explicit 경로는 수정하지 않은 배포본의 공개 지원이 확인된 경우에만 사용한다([Emscripten WebGL 게시 조건](https://emscripten.org/docs/api_reference/html5.h.html)). Draw 직후 아직 반환 전의 메시지는 제출 단계로만 표시하며 event-loop 반환을 이미 관측한 것으로 기록하지 않는다. Provider별 credit·resource release·게시 stage는 W8-02에서 함께 고정한다.
+
 Browser 기본 조작은 main thread에서 결정해야 한다. Engine 영역의 `touch-action`은 gesture 시작 전에 설치하고, wheel listener의 cancel 가능 여부·페이지 scroll 허용·pointer capture 정책도 게시된 설정으로 처리한다. App/engine worker의 비동기 답을 받은 뒤 이미 진행된 browser pan/zoom을 취소할 수 있다고 가정하지 않는다([W3C Pointer Events](https://www.w3.org/TR/pointerevents3/#the-touch-action-css-property)). DOM focus·IME·clipboard 등은 main-thread adapter capability와 실패 결과를 제공한다. Worker 내부 gesture 성공만으로 DOM focus/편집 성공을 대신하지 않는다.
+
+Trusted event·transient user activation이 필요한 platform 동작은 별도 정책을 둔다. Worker 왕복이 activation을 새로 만들거나 만료/소비를 막는다고 가정하지 않는다([HTML user activation](https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation), [Clipboard 조건](https://w3c.github.io/clipboard-apis/#async-clipboard-api)). Main이 이벤트 중 판단해야 하는 동작에는 게시 snapshot의 읽기 전용 focus/편집 대상·platform action 정책을 미리 설치하고 node/focus session·publication generation을 검증한다. Worker는 같은 대상/명령을 대조하며 별도의 mutable layout/gesture 권위를 만들지 않는다. 허용되지 않은 호출은 permission/activation 실패로 끝내고, 필수 clipboard·focus/IME 동작은 실제 browser 경로를 통과해야 한다. 합성 worker 메시지만으로 이 gate를 닫지 않는다.
 
 Web port의 첫 gate는 W8-01에서 두 engine profile의 headless 코어 compile·protocol 왕복이다. W8-02에서는 npm CanvasKit과 두 engine 공급물의 연결·작은 실제 화면·[§16.4](work8-3.md#164-web-비격리-배포와-profile-검증표) 배포 선택을 확인한다. 이를 native framework 이식이 끝난 뒤까지 미루지 않는다.
 
@@ -247,6 +264,7 @@ Web port의 첫 gate는 W8-01에서 두 engine profile의 headless 코어 compil
 - C++는 node/layout·가시 항목·transform/clip/opacity·frame 선택을 결정한다. Adapter는 버전이 있는 resource 변경 batch와 frame packet을 받아 공개 CanvasKit API로 준비/재생한다. Resource bytes는 변경 때 보내고 준비된 Picture/path/paint/image ID를 재사용한다. JS adapter에 두 번째 render tree·scroll physics·layout 권위를 만들지 않는다.
 - Engine linear-memory offset을 CanvasKit의 포인터로 전달하지 않는다. 원시 값·복사한 byte packet·module-local resource ID로 연결하고 CanvasKit 할당/객체는 해당 instance의 공개 release/`delete()` API로 회수한다. Engine의 shared heap과 CanvasKit heap·worker별 복제된 font/cache·직렬화 staging bytes를 ledger에 합산한다.
 - Content의 CanvasKit paragraph/Picture는 같은 worker에 남긴다. Threaded에서 전달할 text paint record는 같은 npm 버전/variant 사이의 공개 Picture 직렬화로 준비하고, Render의 `MakePicture()` 성공·font/glyph/emoji·image 보존을 확인한 뒤 `ActivationReady`로 넘긴다. Raw SKP를 native/Web 공통 wire ABI나 버전을 넘는 영구 cache로 취급하지 않는다. 직렬화 실패·decode 실패·bytes 초과는 명시적 scene/resource 실패로 끝내고 기존 유효 scene을 유지한다.
+- `serialize()` 결과의 Uint8Array를 엔진/CanvasKit HEAP와 무관한 transferable이라고 가정하지 않는다. Buffer 소유 범위를 확인하고 필요한 경우 bounded standalone ArrayBuffer로 복사한 뒤 transfer한다. Serializer가 참조한 Picture/font/image는 bytes 준비 완료까지 유지하고, 수신 확인·취소·late 결과의 release도 `PreparationId`/resource generation으로 한 번만 처리한다.
 - `serialize()`/`MakePicture()`의 API 존재는 현재 npm 타입에서 확인했지만 이 font/resource 전달 경로는 아직 실행 검증 전이다. W8-02에서 필수 text/image corpus가 통과하지 않으면 공급 gate를 닫지 않고 공개 API 기반 준비 형식을 다시 설계한다. Draw 중 paragraph를 다시 layout해 미준비 자원을 숨기는 방식으로 통과시키지 않는다.
 - Engine owner도 browser task에 반환해 JS adapter·CanvasKit 초기화/작업·credit 통지가 실행될 수 있어야 한다. Threaded C++의 무한 blocking loop 때문에 같은 worker의 adapter가 실행되지 않는 구조를 피한다. Content provider 지연 중 Render는 이미 준비된 CanvasKit resource로 진행한다.
 - Frame마다 engine→JS packet 수/bytes·CanvasKit 호출 수·resource 생성/재사용·복사/직렬화·provider 대기·순수 엔진/adapter/GPU 점유를 나누어 확인한다. npm 사용은 공급 단순화의 결정이며, 이전 단일 module 안과 같거나 더 빠르다는 성능 주장은 검증 전에는 하지 않는다.
@@ -278,6 +296,8 @@ W8-02에서 Android의 같은 최소 scene 실행도 확인해 window/event loop
 ### 13.2 점진 이식의 경계
 
 V1과 v2는 build/run 시작 시 engine major를 선택하는 **별도 실행 제품**으로 비교한다. 한 view의 일부 widget은 v1 RenderObject, 나머지는 v2 native tree로 조용히 섞지 않는다. 이식 중 필요한 TS 경계는 v2 protocol 안의 명시적 AppDrivenBoundary로 한정한다.
+
+Engine 선택은 host option뿐 아니라 **빌드 시 TS framework/engine-client·Material/Cupertino의 실제 module 해석**에도 연결한다. 공개 import 경로를 유지하더라도 v1 구현과 v2 client가 한 bundle/module cache에 섞이지 않게 entrypoint/resolver·package export 정책을 W8-01에 고정한다. App bundle은 engine major·schema·필수 capability를 선언하고 host handshake에서 불일치를 거부한다. Runner flag만 v2로 바꾼 v1 bundle을 v2 연결 성공으로 세지 않는다. API 의미가 달라 같은 코드를 공유할 수 없는 부분은 명시적인 v2 이식/adapter로 드러내고, 같은 Testbed 장면의 기능을 기준으로 비교한다.
 
 첫 이식은 primitive→paragraph/image→표준 control→scroll/list→editable→overlay/navigation→확정한 Material/Cupertino API 순서다. W8-00에서 현재 export·Testbed 사용 목록으로 필수 이식 범위를 고정한다. 지원하지 않는 control은 명시적인 미지원 결과를 내고, v1 fallback으로 화면을 채운 것을 v2 완료로 세지 않는다. 공개 import 경로는 가능한 범위에서 유지하지만 의미가 달라지는 API는 migration 목록과 타입으로 드러낸다.
 

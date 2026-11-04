@@ -70,6 +70,8 @@
 
 초안·이전 심화 검토의 기준 HEAD는 `fc1331997e4f4de61f59e1f61cf127c2125406da`이고, 당시 시작 변경은 untracked `work8.md` 하나였다. COOP/COEP 추가 검토는 `44f048cb626372395b1af3767113c709317c0c94`의 깨끗한 작업 트리에서 시작해 관련 Web 소스·공급과 공식 문서를 대조했다. 이번 작업에서 실행한 성능 측정 결과는 없다.
 
+3부 문서 재검토는 **`1c8c3251b9dbd470fae2df6bfbd9e90dc62cb40f`의 깨끗한 작업 트리**를 기준으로 수행했다. 현재 constraints·framework/runtime·CanvasKit loader/타입·runner 명령과 공식 platform 문서를 다시 대조했으며, 아래 보강은 구현 계약의 수정이다. 새 엔진의 실행 결과를 추가한 것은 아니다.
+
 | 근거 | 확인한 사실 | v2에서 바꿀 책임 |
 | --- | --- | --- |
 | [ViewRuntime](Nelyx/src/hosting/runtime.ts)의 `queuePointer`, `schedulePump`, `buildPending`, `pump` | JS owner가 입력 drain·scene build·pending frame·renderer 입장을 연결 | 엔진 입력 소비와 compositor frame 생산을 App Runtime에서 분리 |
@@ -181,6 +183,10 @@ Transaction 처리 순서는 다음과 같다.
 
 `DocumentAccepted`는 layout 완료·화면 활성화·표시 성공을 의미하지 않는다. 후속 transaction의 base는 승인된 document epoch이며, active scene이 아직 이전 document를 보여줄 수 있다는 점을 API에 드러낸다.
 
+검증은 transaction의 **최종 그래프**에 대해 단일 부모·순환 없음·view/session 소속·node 종류별 child/property 제약·살아 있는 resource generation을 확인한다. 명령 중간에 필요한 handle도 순서대로 검증하며, detach/move/destroy 조합으로 cycle·교차 view 참조·해제된 resource를 숨길 수 없다. 실패하면 document·handle 할당·resource hold·callback 등록을 함께 미적용으로 끝낸다.
+
+TS reconciler도 마지막 ACK된 선언/handle과 전송 중 변경·최신 앱 선언을 구분한다. NACK 시 승인되지 않은 native handle을 재사용하지 않고 ACK된 base에서 최신 선언의 diff를 다시 만든다. 이 재동기화가 앱 `State`나 이미 실행한 사용자 callback을 되돌린다는 뜻은 아니다. 로컬 Element dispose와 native node/게시 route 회수를 구별하고, 늦은 이벤트는 callback generation으로 거부한다. 생성·reparent·삭제가 포함된 NACK에서도 State/Key·dispose 횟수와 native 수명이 어긋나지 않는지 W8-05에서 확인한다.
+
 ### 5.2 서로 다른 버전을 한 숫자로 합치지 않는다
 
 | 식별자 | 의미 |
@@ -189,6 +195,7 @@ Transaction 처리 순서는 다음과 같다.
 | `DocumentEpoch / TransactionId` | 승인된 콘텐츠 선언과 변경 순서 |
 | `NodeId = slot + generation` | destroy 뒤 slot을 재사용해도 이전 node와 구별되는 핸들. 단순 detach/reparent는 identity를 유지 |
 | `MetricsEpoch` | viewport·DPI·text scale 등 layout 환경 |
+| `PreparationId` | 같은 document를 metrics/font/resource/device 변경으로 다시 준비하는 개별 시도. 시작 때 의존 revision을 고정 |
 | `SceneEpoch` | layout·text·display list가 함께 준비된 콘텐츠 snapshot |
 | `InputSequence / ScrollRevision` | native 입력 소비와 scroll 상태 변경 |
 | `PropertyEpoch / MotionId` | scene 위에서 평가한 property snapshot과 개별 motion의 수명 |
@@ -197,7 +204,11 @@ Transaction 처리 순서는 다음과 같다.
 | `DocumentId / EditRevision / FocusSessionId` | 편집 문서·내용 변경·IME 접속 수명. render document epoch와 구분 |
 | `DeviceGeneration / ResourceGeneration` | GPU 복구·자원 교체 |
 
-64-bit ID를 JS Number로 무제한 확장하지 않는다. Wire format은 고정 endian·고정 폭 정수와 명시적인 offset/count/stride를 사용하고, JS에서는 두 `uint32` 또는 검증된 BigInt 표현으로 전달한다. Float는 finite·범위·단위를 검사한다. 명령 bytes·node 수·깊이·문자열·자원 참조의 상한을 allocation 전에 검증한다.
+64-bit ID를 JS Number로 무제한 확장하지 않는다. Wire format은 고정 endian·고정 폭 정수와 명시적인 offset/count/stride를 사용하고, JS에서는 두 `uint32` 또는 검증된 BigInt 표현으로 전달한다. 일반 float는 finite·범위·단위를 검사한다. 명령 bytes·node 수·깊이·문자열·자원 참조의 상한을 allocation 전에 검증한다. ID는 session/view 소속과 함께 검증하며 generation/sequence가 소진되면 명시적으로 세대를 교체하거나 실패한다. Wraparound로 이전 ID를 다시 유효하게 만들지 않는다.
+
+**제약의 ‘상한 없음’과 실제 크기의 finite 검사를 구별한다.** Flutter도 [BoxConstraints](https://api.flutter.dev/flutter/rendering/BoxConstraints-class.html)의 기본 상한에는 `double.infinity`를 쓰고, [최종 RenderBox 크기](https://api.flutter.dev/flutter/rendering/RenderBox/debugAssertDoesMeetConstraints.html)는 `isFinite`로 검사한다. 현재 Nelyx의 [BoxConstraints](Nelyx/src/framework/rendering/constraints.ts)도 `Infinity`로 unbounded/expand를 표현한다. V2 wire에는 `finite / unbounded / expand`처럼 의미가 명시된 축별 표현을 두어 숫자 Infinity를 직접 전달할 필요가 없게 한다. 적용 가능한 min/max 관계·expand 해석을 검사하고 최종 박스 크기·그리기/입력 좌표는 유한값으로 제한한다. NaN·일반 좌표의 Infinity·매우 큰 수를 무한의 대용으로 쓰는 처리는 거부한다.
+
+Scroll의 논리적 extent도 별도 계약이다. Flutter의 [maxScrollExtent](https://api.flutter.dev/flutter/widgets/ScrollMetrics/maxScrollExtent.html)는 unbounded일 수 있으므로 모든 ‘geometry’ 필드에 finite 검사를 일괄 적용하지 않는다. V2는 finite/estimated/unbounded extent의 값과 상태를 구별하고 실제 `pixels`·가시 coverage·paint 영역은 유한하게 유지한다. 필수 이식 범위의 extent 의미와 정확한 tag/필드를 W8-00/01에 고정하며, Native/두 Wasm codec의 왕복·잘못된 조합을 같은 corpus로 검사한다.
 
 ### 5.3 취소·coalescing·재진입
 
@@ -213,12 +224,14 @@ Transaction 처리 순서는 다음과 같다.
 | --- | --- |
 | `DocumentRejected(reason, currentEpoch)` | 선언은 미적용. Base 충돌이면 현재 승인 상태와 재동기화한 뒤 새 diff를 만든다. 같은 실패 delta를 무한 재전송하지 않음 |
 | `DocumentAccepted(epoch)` | 선언 설치 완료. App은 ACK된 선언을 새 base로 삼음. 화면에 나타났다는 뜻은 아님 |
-| `SceneReady / SceneActivated` | 각각 CPU 준비 완료와 compositor 채택. 필수 자원 준비는 [§9.4](work8-2.md#94-cpu-준비와-활성화-가능한-자원을-구분한다), host 게시 여부는 [§10.1](work8-2.md#101-화면과-같은-property를-사용한다)에서 따로 확인 |
+| `SceneReady / ActivationReady / SceneActivated` | 각각 CPU 준비 완료·필수 자원 준비 완료·compositor 채택. 자원 준비는 [§9.4](work8-2.md#94-cpu-준비와-활성화-가능한-자원을-구분한다), host 게시 여부는 [§10.1](work8-2.md#101-화면과-같은-property를-사용한다)에서 따로 확인 |
 | `SceneSkipped(supersededBy)` | 최신 document에 합쳐져 해당 중간 scene을 만들지 않음. 후속 epoch로 연결하며 승인된 mutation을 잃지 않음 |
 | `SceneFailed(reason, epoch)` | 승인 뒤 layout·자원 준비 등이 실패. 기존 유효 scene을 유지하고 명시적 오류를 통지. 다음 수정 transaction은 실패 epoch 이후의 승인된 document를 기준으로 작성 |
 | `ViewClosed / SessionLost(reason)` | 대상 세대가 종료돼 대기를 끝냄. SessionLost 이후에는 새 session에서 선언 전체를 재설치하며 이전 명령을 재생하지 않음 |
 
-승인 뒤의 실패를 뒤늦은 NACK·묵시적 rollback으로 처리하지 않는다. 복구 가능한 자원 지연은 bounded retry, 결정적인 layout 오류는 새 수정 요청, 복구 불가능한 engine 오류는 session 종료로 구분한다. 각 승인 epoch의 scene 결과는 활성화·대체·실패·session 종료 중 하나로 수렴하고, `awaitActivated` 같은 대기는 영원히 pending으로 남지 않는다.
+승인 뒤의 실패를 뒤늦은 NACK·묵시적 rollback으로 처리하지 않는다. 복구 가능한 자원 지연은 bounded retry, 결정적인 layout 오류는 새 수정 요청, 복구 불가능한 engine 오류는 session 종료로 구분한다. 각 승인 epoch의 scene 결과는 활성화·대체·실패·view/session 종료 중 하나로 수렴하고, `awaitActivated` 같은 대기는 영원히 pending으로 남지 않는다.
+
+Document 결과와 준비 시도의 결과를 구별한다. 같은 `DocumentEpoch`도 metrics/font/device 복구로 여러 번 준비될 수 있으므로 비동기 결과에는 `PreparationId`와 고정한 의존 revision을 붙인다. 각 시도는 활성화·대체/취소·실패·view/session 종료 중 terminal 하나로 끝난다. `SceneReady`·`ActivationReady`는 중간 상태다. 새 시도의 late 결과로 이전 terminal을 다시 열거나 새 시도의 자원/credit을 회수하지 않는다. 문서의 활성화 대기는 `atLeastDocumentEpoch`인지 특정 시도인지 구별하며, superseded 연결·ViewClosed·실패도 반환한다.
 
 ACK timeout이면 `(AppGeneration, ViewGeneration, TransactionId)`의 결과를 조회하거나 **동일 payload·동일 ID**로만 재시도한다. 다른 payload의 ID 재사용은 오류다. 엔진은 bounded 결과 창과 ACK된 하한을 유지한다. 창보다 오래된 ID는 `ResultExpired`를 반환해 재동기화하며 다시 적용하지 않는다. Promise 취소·호출자 timeout만으로 이미 승인된 변경을 취소했다고 간주하지 않는다.
 
@@ -226,6 +239,7 @@ ACK timeout이면 `(AppGeneration, ViewGeneration, TransactionId)`의 결과를 
 
 - 초기화에서 ABI major/minor·schema·capability·renderer/port identity를 교환한다. Major 불일치·알 수 없는 필수 명령/기능은 거부하고, optional 확장은 길이가 있어야 건너뛸 수 있게 한다.
 - 공개 C ABI에는 고정 폭 값·크기가 명시된 struct·opaque handle만 둔다. STL·JSI 타입·C++ 예외를 경계 밖으로 내보내지 않는다. Buffer를 할당한 모듈의 release API로 해제하고 에러 문자열의 소유 기간도 명시한다.
+- In-process C struct와 wire bytes는 같은 메모리 배치라고 가정하지 않는다. Padding·alignment·pointer 폭·enum/bool 배치에 의존한 `memcpy` 직렬화를 피하고, wire endian·문자열 encoding·alignment·offset/count 산술과 공통 정수/float 폭을 schema에서 고정한다. ABI struct의 `size/version`과 wire byte length는 각각 검증한다.
 - Native binding은 반환 전 입력을 엔진 소유 buffer로 복사하거나 명시적으로 소유권을 넘긴다. Wasm 메시지의 transferable buffer는 송신 측의 접근을 끝낸 뒤 전달한다. Shared memory는 slot 소유권·발행/회수 순서를 정의한다.
 - Wasm linear memory의 offset을 외부 native 포인터처럼 쓰지 않는다. App/main↔engine은 두 Web profile 모두 비동기 packet 계약을 사용하고, non-shared profile은 엔진 소유 HEAP 자체 대신 별도 ArrayBuffer에 복사한 packet을 transfer한다. Shared transport는 threaded의 선택적 최적화이며 공통 ABI의 필수 조건이 아니다.
 - Memory 확장 뒤 cached typed-array view가 유효하다고 가정하지 않고 다시 얻는다([Emscripten memory growth](https://emscripten.org/docs/tools_reference/settings_reference.html#allow-memory-growth)). Payload bytes·offset/count 곱셈·문자열 길이를 복사와 allocation 전에 검사한다.
@@ -254,16 +268,26 @@ Web single-worker에서는 이 tick과 Content 작업을 유한한 단위로 나
 
 ### 6.2 상한과 frame 교체
 
-초기 계약은 view당 **준비 중/활성화 대기 scene 후보 합계 1개, active scene 1개, GPU 작업 중 frame 최대 2개**로 시작한다. 다음 content 수요는 scene 복제 없이 최신 목표만 보관하고, session/device 전체의 합산 한도도 둔다. Content document와 공유 block·retired resource까지 별도 합산하며, 숫자만 같다고 v1과 같은 메모리 비용이라고 주장하지 않는다. GPU가 더 적은 작업만 지원하면 실제 credit을 따른다.
+초기 계약은 view당 **준비 중/활성화 대기 scene 후보 합계 1개, active scene 1개, 엔진이 추적하는 제출 중 frame/hold 최대 2개**로 시작한다. 다음 content 수요는 scene 복제 없이 최신 목표만 보관하고, session/device 전체의 합산 한도도 둔다. Content document와 공유 block·retired resource까지 별도 합산하며, 숫자만 같다고 v1과 같은 메모리 비용이라고 주장하지 않는다. GPU가 더 적은 작업만 지원하면 실제 credit을 따른다. 이 상한을 browser/driver 내부의 실제 GPU queue 깊이까지 관측·제한했다는 뜻으로 사용하지 않는다.
 
-- 미제출 frame은 최신 property 상태로 대체할 수 있다. 이미 제출한 recording·texture·fence는 완료 전에 재사용하거나 해제하지 않는다.
+- 미제출 frame은 최신 property 상태로 대체할 수 있다. 이미 제출한 recording·texture·fence는 port/provider의 안전한 회수 조건 전에 재사용하거나 해제하지 않는다. Native 외부 backing의 완료 대기와 provider가 내부 GPU 참조를 보유하는 공개 release 계약은 구분한다.
 - `submissionAccepted`, `gpuComplete`, `publicationIssued`, 관측 가능한 `surfaceCommitted`, `retired`, 외부 display 관측을 별개 사건으로 기록한다. 지원되지 않는 단계는 `unobserved`이며 GPU 완료나 JS 메시지로 채우지 않는다.
 - 오래된 scene의 GPU 작업이 끝나도 최신 metrics의 surface를 덮지 못한다. Stale frame은 drain 후 폐기한다.
 - Forced redraw와 명시적인 frame callback은 독립 수요다. 같은 paint version이나 `present=unobserved`만으로 억제하지 않는다.
 - 입력·motion·콘텐츠 변경이 없는 idle에서는 clock·GPU 작업을 멈춘다. Hide에서는 motion 정책을 정지/재개 계약에 따라 처리하고 입력 stream을 종료한다.
 - Clock의 예측 deadline은 scheduling 정보다. Scanout이나 실제 표시 시각으로 기록하지 않는다.
 
-GPU credit과 host publication slot은 별도로 회수한다. GPU가 빨리 끝나도 UI dispatcher 앞에 surface 교체 요청을 무제한 쌓지 않으며, 게시 전 요청은 최신 유효 상태 1개로 합친다. 합쳐진 각 요청도 취소/대체 결과와 hold 회수를 마친다. Wake 예약은 pending bit로 합치고, consumer가 비운 뒤 새 일이 생긴 경합에서는 다시 예약해 lost wake를 방지한다.
+Render 제출 credit과 host publication slot은 별도로 회수한다. GPU 완료가 관측되는 port도 UI dispatcher 앞에 surface 교체 요청을 무제한 쌓지 않으며, 게시 전 요청은 최신 유효 상태 1개로 합친다. 합쳐진 각 요청도 취소/대체 결과와 hold 회수를 마친다. Wake 예약은 pending bit로 합치고, consumer가 비운 뒤 새 일이 생긴 경합에서는 다시 예약해 lost wake를 방지한다.
+
+Port별로 실제 GPU 완료 신호와 제출/게시를 다시 받을 수 있는 신호를 구분한다. Web provider가 GPU fence를 공개하지 않으면 `flush()`·rAF·메시지 반환으로 `gpuComplete`를 만들어 내지 않는다. 제출 credit·provider 객체의 안전한 release 조건·미관측 GPU 완료를 별도로 보고하고 [§9.4](work8-2.md#94-cpu-준비와-활성화-가능한-자원을-구분한다)의 수명을 따른다. 이 경우 최대 2개는 엔진 소유 packet/hold의 상한이며 물리 GPU in-flight 수의 보장이 아니다.
+
+### 6.3 Metrics·숨김·복구의 진행 조건
+
+Visibility·surface 크기·device 상태와 session 수명을 구별한다. 숨김/zero-size에서는 새 정상 frame 제출과 반복 clock을 중지하되 close·취소·ACK/credit·resource 해제는 계속 처리한다. 다시 보이거나 유효 크기로 바뀌면 App commit이 없어도 최신 metrics와 최신 승인 document로 준비/강제 redraw를 예약한다. Motion의 pause/resume·경과 시간 처리는 정책으로 고정하며 숨긴 시간을 무조건 적분해 재개 순간 이동시키지 않는다.
+
+Metrics 변경은 `DocumentEpoch`를 올리지 않고 새 준비 수요와 `MetricsEpoch`를 만든다. 진행 시도와 최신 후속 수요를 제한하고 stale 결과는 게시하지 않는다. 연속 resize 중에는 기존 front의 metrics와 입력 rebase/cancel 정책을 드러내며, 맞지 않는 scene을 활성화해 진행률을 채우지 않는다. **마지막 metrics 변경 뒤에는 호환 scene의 준비·게시가 quota에 따라 진행돼야 한다.** 준비가 실패하면 bounded retry/명시적 실패 terminal로 끝내며 대기를 무한히 남기지 않는다. 연속 resize의 별도 성능 수락은 그대로 남긴다.
+
+Device/context loss에서는 옛 device의 제출을 실패/취소하고 옛 완료를 새 credit과 분리한다. CPU document/resource에서 같은 profile로 복구하거나 명시적 실패로 끝낸다. Hide→zero-size→resize→restore, loss 중 close, idle 중 복구를 W8-03/08에서 검사하고, 종료 진행을 frame tick이나 JS 응답의 재개 조건에 묶지 않는다.
 
 ## 7. 입력·제스처·스크롤을 엔진 상태로 만든다
 
@@ -276,6 +300,8 @@ Native ingress부터 compositor 소비 전까지의 합산 한도는 우선 기�
 Start/end/cancel·키·버튼·focus·metrics 경계는 순서를 보존한다. Compositor가 원래 sample을 순차 적용한 뒤 화면용 최신 property를 합칠 수는 있지만, 다른 target의 wheel을 먼저 더하거나 반전·velocity 정보를 잃는 합산은 하지 않는다. 포화 상태의 명시적인 stream cancel·입력 실패와 accounting을 정의하며 조용한 유실을 허용하지 않는다.
 
 예약 슬롯까지 차면 ingress는 해당 stream의 admission을 닫고, 미소비 sequence 범위와 cancel/failure를 예약된 control 상태에 기록한다. 이는 큐 제한을 우회하는 별도 무제한 큐가 아니다. Native 소비·명시적 취소·admission 거부·대기 수의 합이 ingress 수신 수와 맞아야 하며 중복 packet은 별도 집계한다. Close·focus loss·credit·metrics 같은 제어 신호는 bounded mailbox의 최신 세대/종료 상태로도 전달해 data 포화가 종료를 막지 않게 한다.
+
+별도 control mailbox에도 적용 경계의 input sequence/fence를 붙인다. 최신 metrics·focus 상태를 합치는 과정에서 반드시 수행해야 할 이전 stream cancel·focus session 종료를 없애지 않는다. 경계 이전 packet은 당시 snapshot/metrics로 소비하거나 취소하고, 경계 이후 packet만 새 상태로 받는다. Data 포화 중 focus 왕복·metrics 교체·close가 교차하는 경우에도 accounting과 terminal을 검사한다.
 
 ### 7.2 표준 gesture와 사용자 코드
 
@@ -304,6 +330,8 @@ Scroll position은 compositor가 권위를 가진다. App transaction은 묵시�
 새 scene은 layout 시점의 `baseScrollRevision`과 처리한 명령 ID를 포함한다. Activation에서는 현재 compositor offset을 content 좌표에 적용하고, layout이 요청한 anchor 보정은 해당 revision 관계를 확인해 한 번만 반영한다. 단순히 JS가 마지막으로 본 offset을 scene과 함께 복사해 최신 입력을 되감거나 delta를 두 번 더하지 않는다.
 
 `ScrollTo/AnimateTo`는 대상 `NodeId`, command ID, `afterDocumentEpoch`, base scroll revision, gesture 충돌 정책을 가진다. 기본 정책은 사용자 gesture 시작 시 대기 중/진행 중 programmatic 명령을 cancel하고, 활성 gesture 중 들어온 programmatic 명령은 `rejectedBusy`로 끝내는 것이다. 앱의 명시적 `interruptGesture`만 현재 gesture를 cancel하고 적용한다. 아직 활성화되지 않은 node의 명령은 한도 안에서 activation을 기다리되 node 삭제·scene 실패·session 종료에는 terminal을 낸다. Node당 대기 목표는 최신 1개이며 대체된 명령에도 cancel을 반환한다. 적용 결과에는 scroll revision과 처리한 input sequence를 붙이고 적용 완료와 화면 게시 완료를 구별한다.
+
+`afterDocumentEpoch`는 **해당 epoch 이상을 반영한 호환 scene**이라는 하한이다. 중간 scene이 skipped됐으면 그 후속 scene에서 같은 node generation을 확인해 실행하며 정확히 그 epoch의 scene만 영원히 기다리지 않는다. 대상 삭제·대체/실패·view close와 bounded activation timeout은 명시적 결과로 끝낸다. 현재 scroll revision과 충돌한 명령도 선언한 reject/rebase 정책을 적용하며 오래된 offset을 묵시적으로 복원하지 않는다.
 
 Extent 변경은 `ExtentRevision`과 anchor key/화면 내 위치를 포함한다. Base scroll revision이 지난 보정값을 현재 offset에 그대로 더하지 않는다. 현재 anchor로 재계산하거나 재준비하며 새 범위의 clamp도 한 번만 적용한다. Nested scroll의 잔여 delta는 같은 sample에서 명시한 ancestor chain에 한 번만 넘긴다. 준비 범위 부족을 실제 content extent의 끝으로 오인해 ancestor로 보내지 않는다.
 
