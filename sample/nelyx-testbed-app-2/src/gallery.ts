@@ -362,7 +362,15 @@ class GalleryState extends State<ComponentsGallery> {
       const view = ListView.builder({
         extentIndex,
         metricRevision: theme,
-        childPolicy: { mode: 'bounded', capacity: 2, preparation: 'disabled' },
+        childPolicy: {
+          mode: 'bounded',
+          capacity: 2,
+          preparation: ['all', 'scroll', 'section-lifetime'].includes(
+            this.widget.nativeModuleMode ?? '',
+          )
+            ? 'observed-budget'
+            : 'disabled',
+        },
         controller,
         primary: false,
         padding: EdgeInsets.fromLTRB(0, 0, 0, 20),

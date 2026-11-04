@@ -30,6 +30,11 @@ import type {
 import { ResourceRegistry } from './resources.ts';
 import type { ResourceLease } from './resources.ts';
 export interface Renderer extends Disposable {
+  /** Explicit latest-input admission candidate, selected before the first frame. */
+  readonly latestInputAdmission?: boolean;
+  captureInputWatermark?: (() => number) | undefined;
+  hasUndeliveredInput?(watermark: number): boolean;
+  setQueuedInputCount?: ((pending: number) => void) | undefined;
   readonly capabilities: RendererCapabilities;
   /** Optional backpressure hint. One CPU frame waits while capacity is full;
    * newer state replaces it when credit returns. Submit owns lease transfer. */
@@ -151,6 +156,10 @@ export interface ViewOptions {
   readonly frameDiagnostics?: FrameDiagnostics;
 }
 export class ViewRuntime implements Disposable {
+  private readonly creditWork = { wakes: 0, attempts: 0, submissions: 0, blockedInput: 0 };
+  get nativeCreditExecution() {
+    return { ...this.creditWork };
+  }
   readonly owner: ViewOwner;
   /** Optional owner-controlled CPU trace; disabled in ordinary execution. */
   frameDiagnostics: FrameDiagnostics | undefined;
@@ -169,6 +178,7 @@ export class ViewRuntime implements Disposable {
   private inputTimestamp: number | undefined;
   private readonly pointerMailbox: PointerEvent[] = [];
   private drainingPointers = false;
+  private drainingPointerCount = 0;
   private frameTiming: import('../foundation/clock.ts').FrameTiming | undefined;
   private dirty = false;
   private visible = true;
@@ -177,6 +187,8 @@ export class ViewRuntime implements Disposable {
   private closePromise: Promise<void> | undefined;
   private uncertain: ResourceLease[] = [];
   private rendererBinding: Disposable | undefined;
+  private creditBinding: Disposable | undefined;
+  private inputAdmissionWatermark: number | undefined;
   private observedSubmissions = new Map<number, FrameBuildToken>();
   readonly scene: (context: SceneContext) => SceneFrameSource;
   constructor(
@@ -223,6 +235,19 @@ export class ViewRuntime implements Disposable {
         );
         this.rendererBinding = options.renderer.observe((event) => this.rendererEvent(event));
       }
+      if (options.renderer.latestInputAdmission) {
+        invariant(
+          options.renderer.captureInputWatermark && options.renderer.hasUndeliveredInput,
+          'missing-input-watermark',
+          'Native frame selection requires bounded input watermark support',
+        );
+        invariant(
+          session.clock.observeCredit,
+          'missing-native-credit',
+          'Native frame selection requires credit wake support',
+        );
+        this.creditBinding = session.clock.observeCredit(() => this.resumeOnCredit());
+      }
     } catch (error) {
       this.state = 'failed';
       this.cancelDeferredFrames();
@@ -230,6 +255,7 @@ export class ViewRuntime implements Disposable {
       for (const cleanup of [
         () => this.task?.dispose(),
         () => this.rendererBinding?.dispose(),
+        () => this.creditBinding?.dispose(),
         () => this.controller?.dispose(),
       ])
         try {
@@ -298,28 +324,38 @@ export class ViewRuntime implements Disposable {
       )
         return;
     }
-    this.pointerMailbox.push(
-      Object.freeze({
-        ...event,
-        ...(event.globalPosition
-          ? { globalPosition: Object.freeze({ ...event.globalPosition }) }
-          : {}),
-        ...(event.globalDelta ? { globalDelta: Object.freeze({ ...event.globalDelta }) } : {}),
-        ...(event.localTransform
-          ? {
-              localTransform: Object.freeze([
-                ...event.localTransform,
-              ]) as typeof event.localTransform,
-            }
-          : {}),
-      }),
-    );
+    const packet = Object.freeze({
+      ...event,
+      ...(event.globalPosition
+        ? { globalPosition: Object.freeze({ ...event.globalPosition }) }
+        : {}),
+      ...(event.globalDelta ? { globalDelta: Object.freeze({ ...event.globalDelta }) } : {}),
+      ...(event.localTransform
+        ? {
+            localTransform: Object.freeze([...event.localTransform]) as typeof event.localTransform,
+          }
+        : {}),
+    });
+    if (this.options.renderer.setQueuedInputCount) {
+      if (
+        this.state !== 'open' ||
+        !this.visible ||
+        packet.viewportGeneration !== this.metrics.viewportGeneration
+      )
+        return;
+      this.options.renderer.setQueuedInputCount(
+        this.pointerMailbox.length + this.drainingPointerCount + 1,
+      );
+    }
+    this.pointerMailbox.push(packet);
     this.observeInput('queued', event);
     this.schedulePump();
   }
   private flushPointerInput(): void {
     if (this.drainingPointers) return;
     this.drainingPointers = true;
+    let failed = false,
+      failure: unknown;
     try {
       let passes = 0;
       while (this.pointerMailbox.length) {
@@ -329,11 +365,34 @@ export class ViewRuntime implements Disposable {
           'Reentrant input remained pending after 30 batches',
         );
         const batch = this.pointerMailbox.splice(0);
-        for (const event of batch) this.dispatchPointer(event);
+        this.drainingPointerCount = batch.length;
+        for (const event of batch) {
+          this.drainingPointerCount--;
+          this.options.renderer.setQueuedInputCount?.(
+            this.state === 'open' ? this.pointerMailbox.length + this.drainingPointerCount : 0,
+          );
+          this.dispatchPointer(event);
+        }
       }
-    } finally {
-      this.drainingPointers = false;
+    } catch (error) {
+      failed = true;
+      failure = error;
     }
+    this.drainingPointers = false;
+    this.drainingPointerCount = 0;
+    try {
+      this.options.renderer.setQueuedInputCount?.(
+        this.state === 'open' ? this.pointerMailbox.length : 0,
+      );
+    } catch (cleanup) {
+      if (failed)
+        throw new AggregateError(
+          [failure, cleanup],
+          'Input dispatch and shared accounting release failed',
+        );
+      throw cleanup;
+    }
+    if (failed) throw failure;
   }
   dispatchPointer(event: PointerEvent): void {
     this.flushPointerInput();
@@ -462,6 +521,7 @@ export class ViewRuntime implements Disposable {
     );
     this.flushPointerInput();
     this.metrics = next;
+    this.inputAdmissionWatermark = undefined;
     this.options.renderer.updateMetrics(this.metrics);
     this.clearPending();
     this.requestFrame();
@@ -543,6 +603,7 @@ export class ViewRuntime implements Disposable {
   }
   setVisible(visible: boolean): void {
     if (this.state !== 'open') return;
+    if (visible !== this.visible) this.inputAdmissionWatermark = undefined;
     if (!visible) this.flushPointerInput();
     if (visible && !this.visible && this.options.renderer.canBuildFrame) {
       this.clearPending();
@@ -707,6 +768,7 @@ export class ViewRuntime implements Disposable {
           );
       }
       if (result.status === 'accepted') {
+        this.inputAdmissionWatermark = undefined;
         if (this.state === 'open') this.controller?.frameSubmitted?.(item.frame.token);
       } else if (result.status === 'unknown') {
         this.uncertain.push(item.lease);
@@ -744,6 +806,48 @@ export class ViewRuntime implements Disposable {
     }
     /* oxlint-enable no-unsafe-finally */
   }
+  private waitingForNativeInput(): boolean {
+    const renderer = this.options.renderer;
+    const watermark = this.inputAdmissionWatermark ?? renderer.captureInputWatermark!();
+    const pending = renderer.hasUndeliveredInput!(watermark);
+    // A continuous producer may always have newer packets. Once blocked, keep
+    // this barrier through GPU busy/rebuilds until a frame is actually accepted.
+    // The frame still drains JS input and builds from the latest delivered state.
+    if (pending) this.inputAdmissionWatermark = watermark;
+    return pending;
+  }
+  private resumeOnCredit(): void {
+    this.creditWork.wakes++;
+    if (
+      this.state !== 'open' ||
+      !this.visible ||
+      this.forcedFrame ||
+      !this.pending ||
+      this.submitting ||
+      this.drainingPointers
+    )
+      return;
+    if (this.waitingForNativeInput()) {
+      this.creditWork.blockedInput++;
+      return;
+    }
+    // This wake retries admission only. Animation callbacks keep their real
+    // compositor tick; new CPU work has no inherited optional-work deadline.
+    const timing = this.frameTiming;
+    this.frameTiming = undefined;
+    try {
+      this.flushPointerInput();
+      if (this.state !== 'open' || !this.visible) return;
+      if (this.buildPending(false) === false) return;
+      this.creditWork.attempts++;
+      const result = this.pump();
+      if (result?.status === 'accepted') this.creditWork.submissions++;
+      if (result?.status === 'unknown')
+        throw new Error('Renderer submission failed: ' + result.reason);
+    } finally {
+      this.frameTiming = timing;
+    }
+  }
   private schedulePump(): void {
     if (
       !this.task &&
@@ -765,6 +869,7 @@ export class ViewRuntime implements Disposable {
           // and owner work overlapped. Already dispatched input, forced geometry
           // and unknown/custom scene owners retain replace-before-submit.
           if (
+            !this.options.renderer.latestInputAdmission &&
             !forced &&
             this.pending &&
             (this.dirty || this.pointerMailbox.length > 0 || this.deferredFrames.size > 0) &&
@@ -783,6 +888,14 @@ export class ViewRuntime implements Disposable {
           this.flushDeferredFrames();
           this.task = undefined;
           if (this.state !== 'open' || (!this.visible && !forced)) return;
+          if (
+            !forced &&
+            this.options.renderer.latestInputAdmission &&
+            this.waitingForNativeInput()
+          ) {
+            this.schedulePump();
+            return;
+          }
           if (this.buildPending(forced) !== false) {
             const result = this.pump();
             if (result?.status === 'unknown')
@@ -819,8 +932,12 @@ export class ViewRuntime implements Disposable {
   beginClose(): void {
     if (this.state === 'closing' || this.state === 'closed') return;
     this.state = 'closing';
+    this.inputAdmissionWatermark = undefined;
+    this.creditBinding?.dispose();
+    this.creditBinding = undefined;
     this.cancelDeferredFrames();
     this.pointerMailbox.length = 0;
+    this.options.renderer.setQueuedInputCount?.(0);
     const task = this.task;
     this.task = undefined;
     task?.dispose();
@@ -840,7 +957,17 @@ export class ViewRuntime implements Disposable {
     this.task = undefined;
     this.pointerMailbox.length = 0;
     this.cancelDeferredFrames();
-
+    try {
+      this.options.renderer.setQueuedInputCount?.(0);
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      this.creditBinding?.dispose();
+      this.creditBinding = undefined;
+    } catch (error) {
+      errors.push(error);
+    }
     try {
       task?.dispose();
     } catch (error) {

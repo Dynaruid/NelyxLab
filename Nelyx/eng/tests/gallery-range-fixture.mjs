@@ -4,7 +4,13 @@ import path from 'node:path';
 export async function withGalleryRangeFixture(
   runner,
   work,
-  { diagnostic = false, nativeServices = false, manualMode, backingAudit = false } = {},
+  {
+    diagnostic = false,
+    nativeServices = false,
+    manualMode,
+    backingAudit = false,
+    scrollModules = false,
+  } = {},
 ) {
   runner = fs.realpathSync(runner);
   const file = path.join(runner, 'App.tsx'),
@@ -12,11 +18,12 @@ export async function withGalleryRangeFixture(
   const bootstrap = 'main(undefined, { accessibilityEnabled })';
   if (
     original.toString().split(bootstrap).length !== 2 ||
-    original.toString().split('onReady={() => {}}').length !== 2
+    original.toString().split('onReady={() => {}}').length !== 2 ||
+    (scrollModules && !original.toString().includes('export default function App() {'))
   )
     throw Error('Gallery range requires the original runner bootstrap');
   const directory = fs.mkdtempSync(path.join(runner, '.rnw-gallery-range-'));
-  nativeServices ||= !!manualMode;
+  nativeServices ||= !!manualMode || scrollModules;
   backingAudit ||= manualMode === 'backing' || manualMode === 'all';
   let source =
     (nativeServices
@@ -28,8 +35,15 @@ export async function withGalleryRangeFixture(
     original
       .toString()
       .replace(
+        'export default function App() {',
+        'export default function App() {' +
+          (scrollModules
+            ? `\n  const nativeModuleMode = (globalThis as { NelyxWindowsHost: { nativeModuleMode: import('../../src/native-module-mode.ts').NativeModuleMode } }).NelyxWindowsHost.nativeModuleMode;\n`
+            : ''),
+      )
+      .replace(
         bootstrap,
-        `main(undefined, { accessibilityEnabled, galleryRange${manualMode ? ', nativeModuleMode: ' + JSON.stringify(manualMode) : ''} })`,
+        `main(undefined, { accessibilityEnabled, galleryRange${scrollModules ? ', nativeModuleMode' : manualMode ? ', nativeModuleMode: ' + JSON.stringify(manualMode) : ''} })`,
       )
       .replace(
         'onReady={() => {}}',
@@ -39,6 +53,21 @@ export async function withGalleryRangeFixture(
     source = source.replace(
       '        windowViewport',
       '        nativeInputGeometry="retained"\n        windowViewport',
+    );
+  if (['all', 'scroll', 'scroll-frame'].includes(manualMode))
+    source = source.replace(
+      '        windowViewport',
+      '        nativeScrollFrame\n        windowViewport',
+    );
+  if (['all', 'scroll', 'scroll-input'].includes(manualMode))
+    source = source.replace(
+      '        windowViewport',
+      '        nativeScrollInput\n        windowViewport',
+    );
+  if (scrollModules)
+    source = source.replace(
+      '        windowViewport',
+      '        nativeScrollFrame={["scroll", "scroll-frame"].includes(nativeModuleMode)}\n        nativeScrollInput={["scroll", "scroll-input"].includes(nativeModuleMode)}\n        windowViewport',
     );
   const patched = Buffer.from(source);
   try {

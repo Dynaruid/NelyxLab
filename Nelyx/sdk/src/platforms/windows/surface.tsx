@@ -34,7 +34,7 @@ const Surface = createReactNativeSurface<ApplicationSurfaceProps>({
   isClosing: isWindowsNativeHostClosing,
   assetServices: { acquire: acquireWindowsAssets, service: windowsAssetService },
   visibility: () => windowsBackend().native.AppState,
-  frameScheduler: createWindowsFrameScheduler,
+  frameScheduler: (nativeCredit) => createWindowsFrameScheduler(undefined, nativeCredit),
   interaction: (owner) => new WindowsInteraction(owner),
   interactionControls: createWindowsSemanticsTree(windowsBackend),
   openInput(interaction, view, metrics, onError) {

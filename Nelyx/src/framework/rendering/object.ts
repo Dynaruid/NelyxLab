@@ -24,6 +24,8 @@ import {
   fullTransform,
   captureTransform,
   isCapturedTransform,
+  adoptPaintTranslationProduct,
+  isOwnedPointerPosition,
 } from '../../ui/geometry.ts';
 import {
   matrix4Identity,
@@ -275,7 +277,12 @@ export function assertParentDataOffsetMutation(): void {
       'Measurement cannot change child offsets',
     );
 }
+const pointerBoxParentData = new WeakSet<object>();
 export class BoxParentData extends ParentData {
+  constructor() {
+    super();
+    pointerBoxParentData.add(this);
+  }
   private position: Offset = Object.freeze({ x: 0, y: 0 });
   get offset(): Offset {
     return this.position;
@@ -409,6 +416,7 @@ class _LocalSemanticsHandle extends SemanticsHandle {
 export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   /** Optional owner-scoped experiment, absent in the ordinary TS pipeline. */
   flexLayout?: import('../../hosting/flex-layout.ts').FlexLayoutService;
+  pointerTargets?: import('../../hosting/pointer-targets.ts').PointerTargetsService;
   private currentRoot: RenderObject | undefined;
   private dead = false;
   private changingRoot = false;
@@ -891,6 +899,7 @@ interface ChildEntry {
 }
 const emptyRenderChildren: readonly RenderObject[] = Object.freeze([]);
 const renderChildSnapshots = new WeakSet<readonly RenderObject[]>([emptyRenderChildren]);
+const renderBoxTranslations = new WeakSet<object>();
 const renderChildIterator = Array.prototype[Symbol.iterator];
 const renderChildReverse = Array.prototype.reverse;
 /** Canonical child links and projection. Empty render objects allocate no
@@ -959,6 +968,9 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** @internal Bypass public owner getters while selecting a pure numeric phase. */
   static _flexLayoutFor(node: RenderObject) {
     return node.pipelineOwner?.flexLayout;
+  }
+  static _pointerTargetsFor(node: RenderObject) {
+    return node.pipelineOwner?.pointerTargets;
   }
   private readonly inputGeometryPrototype =
     (numericGeometryObjects.add(this), Object.getPrototypeOf(this));
@@ -2205,7 +2217,28 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     // two temporary affine arrays while retaining that exact IEEE result.
     const matrix = captureTransform([1, 0, 0, 1, 0 + x, 0 + y]);
     child.boxTranslation = { x, y, matrix };
+    renderBoxTranslations.add(child.boxTranslation);
     return matrix;
+  }
+  protected static adoptPointerTranslation(
+    child: RenderObject,
+    x: number,
+    y: number,
+    inverseOffset: readonly [number, number],
+    right: TransformMatrix,
+    values: TransformMatrix,
+  ): TransformMatrix {
+    let forward: TransformMatrix = identity;
+    if (x !== 0 || y !== 0) {
+      let cached = child.boxTranslation;
+      if (!cached || !Object.is(cached.x, x) || !Object.is(cached.y, y)) {
+        cached = { x, y, matrix: captureTransform([1, 0, 0, 1, 0 + x, 0 + y]) };
+        child.boxTranslation = cached;
+        renderBoxTranslations.add(cached);
+      }
+      forward = cached.matrix;
+    }
+    return adoptPaintTranslationProduct(forward, inverseOffset, right, values);
   }
   /** Compose complete paint transforms, including sibling coordinate conversion within one tree. */
   getTransformTo(target: RenderObject | null = null): Matrix4Storage {
@@ -3372,6 +3405,396 @@ export type TextBaseline = 'alphabetic' | 'ideographic';
 export abstract class RenderBox<
   Child extends RenderObject = RenderBox<RenderObject>,
 > extends RenderObject {
+  private static readonly pointerInstances = new WeakSet<object>();
+  private static readonly pointerDataPrototypes = new Set<object>([
+    BoxParentData.prototype,
+    ContainerBoxParentData.prototype,
+    ParentData.prototype,
+  ]);
+  private static readonly pointerContracts = new Map<
+    Function,
+    { self: Function; behavior?: Function; child?: Function; translucent?: () => unknown }
+  >([[RenderBox.prototype.hitTest, { self: RenderBox.prototype.hitTestSelf }]]);
+  private static readonly pointerGetters: Readonly<Record<string, Function | undefined>> =
+    Object.fromEntries(
+      [
+        ['size', RenderBox.prototype],
+        ['hasSize', RenderBox.prototype],
+        ['semantics', RenderBox.prototype],
+        ['children', RenderBox.prototype],
+        ['parent', RenderObject.prototype],
+        ['owner', RenderObject.prototype],
+        ['localTransform', RenderObject.prototype],
+      ].map(([name, prototype]) => [
+        name,
+        Object.getOwnPropertyDescriptor(prototype, name as string)!.get,
+      ]),
+    );
+  private static readonly pointerChildTransform = Object.getOwnPropertyDescriptor(
+    RenderObject.prototype,
+    'childTransform',
+  )!.value;
+  private static readonly pointerBaseChildren = Object.getOwnPropertyDescriptor(
+    RenderObject.prototype,
+    'children',
+  )!.get;
+  private static readonly pointerOffset = Object.getOwnPropertyDescriptor(
+    BoxParentData.prototype,
+    'offset',
+  )!.get;
+  /** Standard modules register pure behavior hooks, never custom user hooks. */
+  static _registerPointerBehavior(
+    hit: Function,
+    self: Function,
+    behavior: Function,
+    child: Function,
+    translucent: () => unknown,
+  ): void {
+    this.pointerContracts.set(hit, { self, behavior, child, translucent });
+  }
+  private static pointerDescriptorLookup() {
+    const prototypes = new Map<object, Map<string, PropertyDescriptor | null>>();
+    const inherited = (
+      prototype: object | null,
+      key: string,
+      data: boolean,
+    ): PropertyDescriptor | undefined => {
+      if (
+        !prototype ||
+        !(data
+          ? RenderBox.pointerDataPrototypes.has(prototype)
+          : numericSemanticsPrototypes.has(prototype))
+      )
+        return;
+      let properties = prototypes.get(prototype);
+      if (!properties) prototypes.set(prototype, (properties = new Map()));
+      const cached = properties.get(key);
+      if (cached !== undefined) return cached ?? undefined;
+      const found =
+        Object.getOwnPropertyDescriptor(prototype, key) ??
+        inherited(Object.getPrototypeOf(prototype), key, data);
+      properties.set(key, found ?? null);
+      return found;
+    };
+    return (value: object, key: string, data = false) =>
+      Object.getOwnPropertyDescriptor(value, key) ??
+      inherited(Object.getPrototypeOf(value), key, data);
+  }
+  /** Batch only a pure single-child prefix. No later sibling geometry or
+   * custom callback is snapshotted. Unwind calls the current live self hooks. */
+  private static nativePointerPrefix(
+    root: RenderBox<RenderObject>,
+    position: Offset,
+    result: HitTestEntry[],
+    toLocal: TransformMatrix,
+    service: import('../../hosting/pointer-targets.ts').PointerTargetsService,
+  ): boolean | undefined {
+    const descriptor = RenderBox.pointerDescriptorLookup(),
+      rows: number[][] = [],
+      nodes: { node: RenderBox<RenderObject>; translucent: (() => unknown) | undefined }[] = [];
+    let node = root,
+      dx = 0,
+      dy = 0;
+    const offset = (child: RenderBox<RenderObject>): readonly [number, number] | undefined => {
+      if (
+        !RenderBox.pointerInstances.has(child) ||
+        !numericSemanticsPrototypes.has(Object.getPrototypeOf(child)) ||
+        descriptor(child, 'localTransform')?.get !== RenderBox.pointerGetters.localTransform
+      )
+        return;
+      const data = Object.getOwnPropertyDescriptor(child, 'parentData');
+      if (data && !('value' in data)) return;
+      if (!data?.value) return [0, 0];
+      if (
+        !pointerBoxParentData.has(data.value) ||
+        descriptor(data.value, 'offset', true)?.get !== RenderBox.pointerOffset
+      )
+        return;
+      const value = Object.getOwnPropertyDescriptor(data.value, 'position');
+      if (!value || !('value' in value) || !value.value || !Object.isFrozen(value.value)) return;
+      const x = Object.getOwnPropertyDescriptor(value.value, 'x'),
+        y = Object.getOwnPropertyDescriptor(value.value, 'y');
+      if (
+        !x ||
+        !y ||
+        !('value' in x) ||
+        !('value' in y) ||
+        !Number.isFinite(x.value) ||
+        !Number.isFinite(y.value)
+      )
+        return;
+      if (x.value !== 0 || y.value !== 0) {
+        const cached = Object.getOwnPropertyDescriptor(child, 'boxTranslation');
+        if (cached && !('value' in cached)) return;
+        if (cached?.value) {
+          if (!renderBoxTranslations.has(cached.value)) return;
+          for (const key of ['x', 'y', 'matrix']) {
+            const value = Object.getOwnPropertyDescriptor(cached.value, key);
+            if (!value || !('value' in value)) return;
+          }
+        }
+      }
+      return [x.value, y.value];
+    };
+    for (let depth = 0; depth < 32; depth++) {
+      if (
+        !RenderBox.pointerInstances.has(node) ||
+        !numericSemanticsPrototypes.has(Object.getPrototypeOf(node))
+      )
+        break;
+      if (descriptor(node, 'children')?.get !== RenderBox.pointerGetters.children) break;
+      // Reject leaves and branches before collecting the numeric protocol.
+      // The delegating getter and its base implementation are both proven pure.
+      const children = node.children;
+      if (
+        !renderChildSnapshots.has(children) ||
+        children.length !== 1 ||
+        !(children[0] instanceof RenderBox)
+      )
+        break;
+      const hit = descriptor(node, 'hitTest'),
+        contract = hit && 'value' in hit && RenderBox.pointerContracts.get(hit.value);
+      if (
+        !contract ||
+        descriptor(node, 'childTransform')?.value !== RenderBox.pointerChildTransform ||
+        descriptor(node, 'parent')?.get !== RenderBox.pointerGetters.parent ||
+        descriptor(node, 'size')?.get !== RenderBox.pointerGetters.size ||
+        descriptor(node, 'hasSize')?.get !== RenderBox.pointerGetters.hasSize ||
+        (contract.behavior &&
+          (!contract.translucent || descriptor(node, 'child')?.get !== contract.child))
+      )
+        break;
+      const size = Object.getOwnPropertyDescriptor(node, 'measuredSize');
+      if (!size || !('value' in size) || !size.value || !Object.isFrozen(size.value)) break;
+      const width = Object.getOwnPropertyDescriptor(size.value, 'width'),
+        height = Object.getOwnPropertyDescriptor(size.value, 'height');
+      if (
+        !width ||
+        !height ||
+        !('value' in width) ||
+        !('value' in height) ||
+        !Number.isFinite(width.value) ||
+        !Number.isFinite(height.value)
+      )
+        break;
+      const child = children[0],
+        next = offset(child);
+      if (!next) break;
+      const id = rows.length + 1;
+      rows.push([id, id - 1, width.value, height.value, dx, dy, contract.behavior ? 3 : 0, 0]);
+      nodes.push({ node, translucent: contract.translucent });
+      node = child;
+      [dx, dy] = next;
+    }
+    if (nodes.length < 2) {
+      service.noteFallback('short-or-custom-prefix');
+      return;
+    }
+    rows.push([rows.length + 1, rows.length, 0, 0, dx, dy, 4, 0]);
+    const value = service.prefix!(root, rows, position.x, position.y, toLocal);
+    if (!value) return;
+    // The TS path computes and caches the edge into a rejected child before
+    // testing its bounds. A miss response omits that edge, so let the original
+    // traversal preserve its one-product cache and live self-hook references.
+    if (!value.terminal) {
+      service.noteFallback('bounds-miss-reference');
+      return;
+    }
+    const matrices: TransformMatrix[] = [toLocal];
+    for (let i = 1; i < value.steps.length; i++) {
+      const target = i < nodes.length ? nodes[i]!.node : node,
+        step = value.steps[i]!,
+        row = rows[i]!;
+      matrices.push(
+        RenderBox.adoptPointerTranslation(
+          target,
+          row[4]!,
+          row[5]!,
+          step.inverseTranslation,
+          matrices[i - 1]!,
+          step.transform,
+        ),
+      );
+    }
+    let hit = false,
+      entered = value.steps.length;
+    if (value.terminal) {
+      const last = value.steps[--entered]!;
+      hit = node.hitTest(last.position, result, matrices[entered]!);
+    }
+    for (let i = entered - 1; i >= 0; i--) {
+      const current = nodes[i]!,
+        step = value.steps[i]!,
+        point = i === 0 ? position : step.position,
+        matrix = matrices[i]!;
+      if (current.translucent) {
+        hit = hit || current.node.hitTestSelf(point);
+        if (
+          hit ||
+          (current.node as RenderBox<RenderObject> & { readonly behavior: unknown }).behavior ===
+            current.translucent()
+        )
+          result.push({ target: current.node, transform: matrix });
+      } else {
+        hit = !!hit;
+        if (current.node.hitTestSelf(point)) {
+          result.push({ target: current.node, transform: matrix });
+          hit = true;
+        }
+      }
+    }
+    return hit;
+  }
+  static _nativePointerQuery(
+    root: RenderBox<RenderObject>,
+    position: Offset,
+    result: HitTestEntry[],
+    toLocal: TransformMatrix,
+  ): boolean | undefined {
+    const service = RenderObject._pointerTargetsFor(root);
+    if (!service) return;
+    const fallback = (reason: string) => {
+      service.noteFallback(reason);
+      return undefined;
+    };
+    // The ordinary size getter enforces live layout dependency rules. Do not
+    // bypass them for descendants while a layout/measurement callback is active.
+    if (activeLayout || layoutQueries.length) return fallback('layout-query');
+    if (!isOwnedPointerPosition(position)) return fallback('foreign-position');
+    const px = Object.getOwnPropertyDescriptor(position, 'x'),
+      py = Object.getOwnPropertyDescriptor(position, 'y');
+    if (
+      !px ||
+      !py ||
+      !('value' in px) ||
+      !('value' in py) ||
+      ![px.value, py.value].every(Number.isFinite) ||
+      toLocal.length !== 6 ||
+      !isCapturedTransform(toLocal) ||
+      !toLocal.every(Number.isFinite)
+    )
+      return fallback('projective-or-nonfinite');
+    if (
+      Object.getPrototypeOf(RenderBox.prototype) !== RenderObject.prototype ||
+      Object.getOwnPropertyDescriptor(RenderObject.prototype, 'children')?.get !==
+        RenderBox.pointerBaseChildren
+    )
+      return fallback('base-children-protocol');
+    if (
+      Object.getOwnPropertyDescriptor(Array.prototype, Symbol.iterator)?.value !==
+        renderChildIterator ||
+      Object.getOwnPropertyDescriptor(Array.prototype, 'reverse')?.value !== renderChildReverse
+    )
+      return fallback('array-protocol');
+    if (service.prefix)
+      return RenderBox.nativePointerPrefix(root, position, result, toLocal, service);
+    if (!numericSemanticsPrototypes.has(Object.getPrototypeOf(root)))
+      return fallback('unregistered-prototype');
+    const rows: number[][] = [],
+      targets: RenderBox<RenderObject>[] = [],
+      getters = Object.entries(RenderBox.pointerGetters),
+      descriptor = RenderBox.pointerDescriptorLookup();
+    const visit = (node: RenderObject, parent: number, depth: number): boolean => {
+      if (
+        !(node instanceof RenderBox) ||
+        !RenderBox.pointerInstances.has(node) ||
+        !numericSemanticsPrototypes.has(Object.getPrototypeOf(node)) ||
+        depth > 32 ||
+        targets.length >= 128
+      )
+        return false;
+      const hit = descriptor(node, 'hitTest'),
+        self = descriptor(node, 'hitTestSelf'),
+        contract = hit && 'value' in hit && RenderBox.pointerContracts.get(hit.value);
+      if (
+        !contract ||
+        self?.value !== contract.self ||
+        descriptor(node, 'childTransform')?.value !== RenderBox.pointerChildTransform
+      )
+        return false;
+      for (const [key, getter] of getters) if (descriptor(node, key)?.get !== getter) return false;
+      const size = Object.getOwnPropertyDescriptor(node, 'measuredSize'),
+        pointer = descriptor(node, 'onPointer'),
+        semantics = Object.getOwnPropertyDescriptor(node, 'semanticProperties');
+      if (
+        !size ||
+        !('value' in size) ||
+        !size.value ||
+        !Object.isFrozen(size.value) ||
+        (pointer && !('value' in pointer)) ||
+        (semantics && !('value' in semantics))
+      )
+        return false;
+      const width = Object.getOwnPropertyDescriptor(size.value, 'width'),
+        height = Object.getOwnPropertyDescriptor(size.value, 'height');
+      if (
+        !width ||
+        !height ||
+        !('value' in width) ||
+        !('value' in height) ||
+        ![width.value, height.value].every(Number.isFinite)
+      )
+        return false;
+      let dx = 0,
+        dy = 0,
+        behavior = 0;
+      if (parent) {
+        const data = Object.getOwnPropertyDescriptor(node, 'parentData');
+        if (data && !('value' in data)) return false;
+        if (data?.value && !pointerBoxParentData.has(data.value)) return false;
+        if (data?.value instanceof BoxParentData) {
+          if (descriptor(data.value, 'offset', true)?.get !== RenderBox.pointerOffset) return false;
+          const offset = Object.getOwnPropertyDescriptor(data.value, 'position');
+          if (!offset || !('value' in offset) || !offset.value || !Object.isFrozen(offset.value))
+            return false;
+          const x = Object.getOwnPropertyDescriptor(offset.value, 'x'),
+            y = Object.getOwnPropertyDescriptor(offset.value, 'y');
+          if (
+            !x ||
+            !y ||
+            !('value' in x) ||
+            !('value' in y) ||
+            ![x.value, y.value].every(Number.isFinite)
+          )
+            return false;
+          dx = x.value;
+          dy = y.value;
+        }
+      }
+      if (contract.behavior) {
+        if (descriptor(node, 'child')?.get !== contract.child) return false;
+        if (descriptor(node, 'behavior')?.get !== contract.behavior) return false;
+        const value = Object.getOwnPropertyDescriptor(node, 'behaviorValue');
+        if (!value || !('value' in value) || !value.value || !Object.isFrozen(value.value))
+          return false;
+        const index = Object.getOwnPropertyDescriptor(value.value, 'index');
+        if (!index || !('value' in index) || ![0, 1, 2].includes(index.value)) return false;
+        behavior = index.value === 0 ? 3 : index.value;
+      }
+      const id = targets.length + 1;
+      targets.push(node);
+      rows.push([
+        id,
+        parent,
+        width.value,
+        height.value,
+        dx,
+        dy,
+        behavior,
+        Number(!!(pointer?.value || semantics?.value)),
+      ]);
+      const children = node.children;
+      if (!renderChildSnapshots.has(children)) return false;
+      for (let i = 0; i < children.length; i++)
+        if (!visit(children[i]!, id, depth + 1)) return false;
+      return true;
+    };
+    if (!visit(root, 0, 0)) return fallback('live-hook-or-geometry');
+    const value = service.query(root, rows, px.value, py.value, toLocal);
+    for (const entry of value.path)
+      result.push({ target: targets[entry.id - 1]!, transform: entry.transform });
+    return value.hit;
+  }
   private static readonly geometryLayoutSemantics = new WeakSet<object>();
   private static readonly defaultLayoutGetters = {
     children: Object.getOwnPropertyDescriptor(RenderBox.prototype, 'children')!.get!,
@@ -3440,6 +3863,7 @@ export abstract class RenderBox<
   /** Non-box child protocols supply a runtime token as generic types erase. */
   constructor(options: { readonly childType?: abstract new (...args: never[]) => Child } = {}) {
     super();
+    RenderBox.pointerInstances.add(this);
     this.childType = options.childType ?? RenderBox;
   }
   override get children(): readonly Child[] {
@@ -3790,6 +4214,10 @@ export abstract class RenderBox<
         : !contains({ x: 0, y: 0, ...size }, position)
     )
       return false;
+    // Keep the entry's existing bounds admission before proving an entire
+    // native subtree. Off-point siblings need no descendant support scan.
+    const native = RenderBox._nativePointerQuery(this, position, result, toLocal);
+    if (native !== undefined) return native;
     let hit = false;
     const source = this.children;
     // Owned child lists are immutable snapshots. Reverse indexing preserves

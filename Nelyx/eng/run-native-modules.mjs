@@ -23,16 +23,22 @@ export function nativeModuleOption(args) {
   args = args.filter((x) => x !== '--full-range');
   if (!args.length) return 'all';
   if (args.length !== 1 || !args[0].startsWith('--module='))
-    throw Error(
-      'Use --module=all|retained|snapshot|path|paint|composition|semantics|backing|text|layout|frame|ts',
-    );
+    throw Error('Use --module=' + nativeModuleModes.join('|'));
   const mode = args[0].slice('--module='.length);
   if (!nativeModuleModes.includes(mode)) throw Error('Unknown native module: ' + mode);
   return mode;
 }
 
-export async function runNativeModules({ root, mode, fullRange = false }) {
-  fullRange ||= ['all', 'backing', 'text', 'layout', 'frame'].includes(mode);
+export async function runNativeModules({ root, mode, fullRange = false, buildOnly = false }) {
+  fullRange ||= [
+    'all',
+    'backing',
+    'text',
+    'layout',
+    'frame',
+    'scroll',
+    'section-lifetime',
+  ].includes(mode);
   if (!nativeModuleModes.includes(mode)) throw Error('Unknown native module: ' + mode);
   const app = path.join(root, 'sample/nelyx-testbed-app-2'),
     runner = path.join(app, 'windows/runner'),
@@ -123,6 +129,7 @@ export async function runNativeModules({ root, mode, fullRange = false }) {
         app: manifest.appInputsSha256,
       }),
     );
+    if (buildOnly) return checked;
     console.log(
       'Native module mode: ' +
         mode +
@@ -130,7 +137,7 @@ export async function runNativeModules({ root, mode, fullRange = false }) {
     );
     if (mode === 'all')
       console.log(
-        'Selected: retained input geometry, Path + Paint/clip, Scene composition, Semantics geometry, Flex layout, text transactions, frame segments, Windows backing reuse.',
+        'Selected: retained input geometry, Path + Paint/clip, Scene composition, Semantics geometry, Flex layout, text transactions, frame segments, Windows backing reuse, experimental input batches, credit resume, pointer targets and section lifetime.',
       );
     if (fullRange)
       console.log(
@@ -143,6 +150,7 @@ export async function runNativeModules({ root, mode, fullRange = false }) {
       env: {
         ...process.env,
         NELYX_NATIVE_SERVICE_EXPERIMENT: mode,
+        NELYX_WINDOWS_SCROLL_INPUT: ['all', 'scroll', 'scroll-input'].includes(mode) ? '1' : '0',
         NELYX_WINDOWS_BACKING_REUSE: mode === 'backing' || mode === 'all' ? '1' : '0',
         NELYX_NATIVE_SERVICE_MANUAL: '1',
         NELYX_WINDOWS_FRAME_DIAGNOSTICS: '',

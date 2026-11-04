@@ -11,6 +11,11 @@ export type NativeModuleMode =
   | 'text'
   | 'layout'
   | 'frame'
+  | 'scroll-input'
+  | 'scroll-frame'
+  | 'pointer-targets'
+  | 'section-lifetime'
+  | 'scroll'
   | 'ts';
 
 export function nativeModuleLabel(mode?: NativeModuleMode): string {

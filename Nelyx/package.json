@@ -14,6 +14,14 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./hosting/pointer-targets": {
+      "types": "./dist/hosting/pointer-targets.d.ts",
+      "default": "./dist/hosting/pointer-targets.js"
+    },
+    "./hosting/section-lifetime": {
+      "types": "./dist/hosting/section-lifetime.d.ts",
+      "default": "./dist/hosting/section-lifetime.js"
+    },
     "./hosting/flex-layout": {
       "types": "./dist/hosting/flex-layout.d.ts",
       "default": "./dist/hosting/flex-layout.js"

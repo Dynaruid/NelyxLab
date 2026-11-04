@@ -277,7 +277,10 @@ export class BuildOwner {
   private viewWorkBudgetValue: ViewWorkBudget | undefined;
   /** @internal Created only by an explicitly bounded sliver in this View. */
   get viewWorkBudget(): ViewWorkBudget {
-    return (this.viewWorkBudgetValue ??= new ViewWorkBudget(this.services.resources));
+    return (this.viewWorkBudgetValue ??= new ViewWorkBudget(
+      this.services.resources,
+      this.services.owner.generation,
+    ));
   }
   /** @internal Legacy trees incur no tracking tables or subtree scans. */
   get maybeViewWorkBudget(): ViewWorkBudget | undefined {

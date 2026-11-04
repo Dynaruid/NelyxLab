@@ -41,6 +41,8 @@ export interface ReactNativeSurfaceProps {
   readonly initializePlatformServices?: boolean;
   /** Experimental CPU geometry service; choose once per surface owner. */
   readonly nativeInputGeometry?: false | 'snapshot' | 'retained';
+  readonly nativeScrollFrame?: boolean;
+  readonly nativeScrollInput?: boolean;
   /** One transferred port per effect owner; replacing it requires a remount. */
   readonly platformMessages?: PlatformMessagePort;
   readonly useDefaultBinaryMessenger?: boolean;
@@ -132,7 +134,7 @@ export interface ReactNativeSurfaceAdapter<Props extends ReactNativeSurfaceProps
   readonly assetServices: Pick<ReturnType<typeof createNativeAssetServices>, 'acquire' | 'service'>;
   readonly environment: ReturnType<typeof createReactNativeEnvironment>;
   visibility(): ReactNativeAppStatePort;
-  frameScheduler?(): SurfaceFrameScheduler;
+  frameScheduler?(nativeCredit?: boolean): SurfaceFrameScheduler;
   interaction(owner: ViewOwner): NativeInteraction;
   readonly interactionControls?: import('react').ComponentType<ReactNativeSemanticsControlsProps>;
   readonly requiresNativeBinding?: boolean;
@@ -477,12 +479,23 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
           return;
         }
         const context = native.getContext() as NelyxGraphiteContext;
+        if (props.nativeScrollInput) {
+          const host = (
+            globalThis as {
+              NelyxWindowsHost?: { scrollInputVersion?: number; scrollInputSelected?: boolean };
+            }
+          ).NelyxWindowsHost;
+          if (host?.scrollInputVersion !== 1 || !host.scrollInputSelected)
+            throw new Error('Requested scroll-input capability missing or not selected');
+        }
         owner.metrics = { ...metrics, nativeContextGeneration: context.nelyxIdentity() };
         const assetImage = adapter.backend().native.Image;
         const engine = (owner.engine = createNativeEngineServices({
           api: Skia,
           context,
           owner: viewOwner,
+          latestInputAdmission: props.nativeScrollFrame === true,
+          inputBatches: props.nativeScrollInput === true,
           inputGeometry:
             props.nativeInputGeometry === 'retained'
               ? 'retained'
@@ -500,7 +513,7 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
             poll: () => engine.pollNotifications(),
             onError: (error) => fail(owner, error),
           },
-          adapter.frameScheduler?.() ?? {
+          adapter.frameScheduler?.(props.nativeScrollFrame === true) ?? {
             request: (callback) => requestAnimationFrame(() => callback()),
             cancel: (id) => cancelAnimationFrame(id),
           },

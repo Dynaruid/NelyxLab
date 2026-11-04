@@ -98,8 +98,10 @@ function InvokeId([string]$id) {
   $element=FindId $id
   ([Windows.Automation.InvokePattern]$element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)).Invoke()
   Start-Sleep -Milliseconds 450
+  $previousStage=$script:stage;$script:stage='focus-after-'+$id
   $focused=[Windows.Automation.AutomationElement]::FocusedElement
   Write-Output ('MIXED_FOCUS '+(@{action=$id;focusedId=$focused.Current.AutomationId;focusedName=$focused.Current.Name}|ConvertTo-Json -Compress))
+  $script:stage=$previousStage
 }
 function Value([string]$id) {
   $element=FindId $id $false
@@ -332,6 +334,8 @@ try {
 } catch {
   $failure=$_.Exception.Message
   $failureStack=$_.ScriptStackTrace
+  $failureDetails=@();$failureException=$_.Exception
+  while($failureException -and $failureDetails.Count -lt 4){$failureDetails+=@{type=$failureException.GetType().FullName;hresult=$failureException.HResult;message=$failureException.Message};$failureException=$failureException.InnerException}
   $visibleText=@()
   try {
     $remaining=$root.FindAll($scope,[Windows.Automation.Condition]::TrueCondition)
@@ -340,7 +344,7 @@ try {
       if($label){$visibleText+=$label.Substring(0,[Math]::Min($label.Length,512))}
     }
   } catch {}
-  Write-Output ('MIXED_INPUT_FAILURE '+(@{stage=$stage;message=$failure;stack=$failureStack;visibleText=$visibleText;foregroundOwned=[MixedInput]::GetForegroundWindow() -eq $window;scrollPointOwned=$ownedPoint -and [MixedInput]::GetAncestor([MixedInput]::WindowFromPoint($ownedPoint),2) -eq $window}|ConvertTo-Json -Depth 4 -Compress))
+  Write-Output ('MIXED_INPUT_FAILURE '+(@{stage=$stage;message=$failure;exceptions=$failureDetails;stack=$failureStack;visibleText=$visibleText;foregroundOwned=[MixedInput]::GetForegroundWindow() -eq $window;scrollPointOwned=$ownedPoint -and [MixedInput]::GetAncestor([MixedInput]::WindowFromPoint($ownedPoint),2) -eq $window}|ConvertTo-Json -Depth 5 -Compress))
   throw
 } finally {
   if($hangulToggled -and [MixedInput]::GetForegroundWindow() -eq $window){Key 0x15}

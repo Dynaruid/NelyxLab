@@ -6,6 +6,7 @@
 #include "WindowsFrameTrace.h"
 #include "WindowsResizeCoordinator.h"
 #include "WindowsWindowPointer.h"
+#include "windows/WindowsScrollCoordinator.h"
 #include <ReactPropertyBag.h>
 #include <algorithm>
 #include <map>
@@ -18,6 +19,7 @@ class WindowsCompositionConsumer;
 class WindowsCompositionSession final : public std::enable_shared_from_this<WindowsCompositionSession> {
 public:
   std::shared_ptr<WindowsWindowPointer> windowPointer;
+  const std::shared_ptr<WindowsScrollCoordinator> scroll=std::make_shared<WindowsScrollCoordinator>();
   using Completion=std::function<void(std::string)>;
   using ShutdownDispatcher=std::function<void(Completion)>;
   struct ViewTicket {uint64_t id,token;std::atomic<bool> active{true};};

@@ -42,6 +42,8 @@ private:
     std::array<std::array<std::uint64_t,4>,3> sessions{};
     std::map<std::uint64_t,Counts> bins;
     EngineCounts engineTotal{};
+    std::array<uint64_t,8> scrollTotal{};
+    std::map<uint64_t,std::array<uint64_t,8>> scrollBins;
     std::map<std::uint64_t,EngineCounts> engineBins;
     std::array<uint64_t,4> engineMemory{};
     bool overflow=false, timed=true;
@@ -79,7 +81,7 @@ public:
     const std::string mode=configured?configured:"";
     const char* manual=std::getenv("NELYX_NATIVE_SERVICE_MANUAL");
     const bool interactive=manual&&std::strcmp(manual,"1")==0;
-    if(mode!="ts"&&mode!="snapshot"&&mode!="path"&&mode!="paint"&&mode!="composition"&&mode!="semantics"&&mode!="all"&&mode!="retained"&&mode!="backing"&&mode!="text"&&mode!="layout"&&mode!="frame"&&mode!="physics")
+    if(mode!="ts"&&mode!="snapshot"&&mode!="path"&&mode!="paint"&&mode!="composition"&&mode!="semantics"&&mode!="all"&&mode!="retained"&&mode!="backing"&&mode!="text"&&mode!="layout"&&mode!="frame"&&mode!="physics"&&mode!="scroll-input"&&mode!="scroll-frame"&&mode!="pointer-targets"&&mode!="section-lifetime"&&mode!="scroll")
       throw std::runtime_error("Choose an explicit NELYX_NATIVE_SERVICE_EXPERIMENT");
     if((mode=="all"||mode=="retained")&&!interactive)
       throw std::runtime_error("Combined/retained service audit requires manual mode");
@@ -111,6 +113,13 @@ public:
     for(const auto& [index,count]:values){state_->engineTotal.at(index)+=count;found->second.at(index)+=count;}
   }
   static void engineMemory(uint64_t live,uint64_t bytes,uint64_t peak,uint64_t peakBytes){if(state_)state_->engineMemory={live,bytes,peak,peakBytes};}
+  static void recordScroll(std::initializer_list<std::pair<size_t,uint64_t>> values){
+    if(!state_)return;
+    for(const auto& [index,count]:values)state_->scrollTotal.at(index)+=count;
+    if(!state_->timed)return;
+    const auto second=uint64_t(now()/1000.);if(!state_->scrollBins.contains(second)&&state_->scrollBins.size()>=1200){state_->overflow=true;return;}
+    auto& row=state_->scrollBins[second];for(const auto& [index,count]:values)row.at(index)+=count;
+  }
   class Session {
     std::uint64_t epoch_=0;
     std::size_t kind_;
@@ -152,6 +161,11 @@ public:
       index=count=0;const auto engineStart=[&]{chunk.str("");chunk.clear();chunk<<"NELYX_NATIVE_ENGINE_BINS {\"schema\":1,\"index\":"<<index++<<",\"rows\":[";count=0;};
       engineStart();for(const auto& [second,counts]:state_->engineBins){if(count)chunk<<',';chunk<<'['<<second;for(auto value:counts)chunk<<','<<value;chunk<<']';if(++count==16){chunk<<"]}";log(chunk.str());engineStart();}}
       if(count){chunk<<"]}";log(chunk.str());}
+    }
+    if(state_->mode=="all"||state_->mode=="scroll"||state_->mode=="scroll-input"||state_->mode=="scroll-frame"||state_->mode=="pointer-targets"||state_->mode=="section-lifetime"){
+      std::ostringstream scroll;scroll.precision(17);scroll<<"NELYX_NATIVE_SCROLL_USAGE {\"schema\":1,\"mode\":\""<<state_->mode<<"\",\"ownerGeneration\":"<<state_->owner<<",\"beganQpcMs\":"<<state_->began<<",\"endedQpcMs\":"<<now()<<",\"overflow\":"<<(state_->overflow?"true":"false")<<",\"timing\":\""<<(state_->timed?"qpc-buckets":"counters-only")<<"\",\"totals\":";array(scroll,state_->scrollTotal);scroll<<'}';log(scroll.str());
+      index=count=0;const auto begin=[&]{chunk.str("");chunk.clear();chunk<<"NELYX_NATIVE_SCROLL_BINS {\"schema\":1,\"index\":"<<index++<<",\"rows\":[";count=0;};begin();
+      for(const auto& [second,values]:state_->scrollBins){if(count)chunk<<',';chunk<<'['<<second;for(auto value:values)chunk<<','<<value;chunk<<']';if(++count==16){chunk<<"]}";log(chunk.str());begin();}}if(count){chunk<<"]}";log(chunk.str());}
     }
     state_.reset();
   }

@@ -17,6 +17,7 @@ import {
 } from './native-service-experiment.js';
 import { engineModes, verifyNativeEngineExperiment } from './native-engine-experiment.js';
 import { withoutBackingEvidence, verifyBackingExperiment } from './backing-experiment.js';
+import { scrollModes, verifyNativeScrollActivation } from './native-scroll-activation.js';
 
 const timeout = 1_200_000,
   inputGeometry = process.env.NELYX_WINDOWS_MIXED_INPUT_GEOMETRY ?? 'ts',
@@ -68,11 +69,15 @@ function galleryReturn(pid, executable, windowTransitions = false) {
 }
 function runHelper(args, prefix) {
   return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...args], {
-      cwd: root,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      'powershell.exe',
+      ['-Mta', '-NoProfile', '-ExecutionPolicy', 'Bypass', ...args],
+      {
+        cwd: root,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
     let output = '';
     const consume = (data) => {
       output = (output + data.toString()).slice(-256 * 1024);
@@ -158,6 +163,14 @@ test(
             true,
           );
           assert.equal(gallery.checks.length, 4);
+          console.log(
+            'MIXED_GALLERY_CADENCE',
+            JSON.stringify({
+              stage: 'before',
+              mode: nativeModules || experiment || 'ts',
+              gaps: gallery.checks.map((row) => row.maximumGapMs),
+            }),
+          );
           assert(
             gallery.checks.every((row) => row.changesDuringInput >= 10 && row.maximumGapMs <= 350),
           );
@@ -181,6 +194,14 @@ test(
             path.join(checked.directory, checked.manifest.executable),
           );
           assert.equal(gallery.checks.length, 4);
+          console.log(
+            'MIXED_GALLERY_CADENCE',
+            JSON.stringify({
+              stage: 'return',
+              mode: nativeModules || experiment || 'ts',
+              gaps: gallery.checks.map((row) => row.maximumGapMs),
+            }),
+          );
           assert(
             gallery.checks.every((row) => row.changesDuringInput >= 10 && row.maximumGapMs <= 350),
           );
@@ -206,23 +227,28 @@ test(
           inputGeometryActivation = nativeModules
             ? verifyNativeModuleMode(evidence, {
                 mode: nativeModules,
-                fullRange: engineModes.includes(nativeModules) || nativeModules === 'backing',
+                fullRange:
+                  engineModes.includes(nativeModules) ||
+                  ['backing', 'scroll', 'section-lifetime'].includes(nativeModules),
               })
-            : experiment
-              ? verifyNativeServiceExperiment(withoutBackingEvidence(evidence), {
-                  mode: experiment,
-                  requireNativeWork: !engineModes.includes(experiment) && experiment !== 'backing',
-                })
-              : verifyGeometryActivation(
-                  evidence,
-                  // Cold edits deliberately use TS. The warm cadence comparison has
-                  // the separate 95% native coverage requirement.
-                  {
-                    mode: inputGeometry,
-                    requireEditors: inputGeometry === 'retained',
-                    minimumCoverage: 0,
-                  },
-                );
+            : scrollModes.includes(experiment)
+              ? verifyNativeScrollActivation(evidence, { mode: experiment })
+              : experiment
+                ? verifyNativeServiceExperiment(withoutBackingEvidence(evidence), {
+                    mode: experiment,
+                    requireNativeWork:
+                      !engineModes.includes(experiment) && experiment !== 'backing',
+                  })
+                : verifyGeometryActivation(
+                    evidence,
+                    // Cold edits deliberately use TS. The warm cadence comparison has
+                    // the separate 95% native coverage requirement.
+                    {
+                      mode: inputGeometry,
+                      requireEditors: inputGeometry === 'retained',
+                      minimumCoverage: 0,
+                    },
+                  );
         const candidate = nativeModules || experiment;
         let engine;
         if (engineModes.includes(candidate)) {
@@ -239,10 +265,12 @@ test(
             manual: !!nativeModules,
           });
         }
-        if (nativeModules === 'all')
+        if (['all', 'scroll'].includes(nativeModules))
           assert(
-            Object.values(inputGeometryActivation.modules).every((value) => value === 'observed'),
-            'The full Gallery/Mixed input regression must exercise every requested native module',
+            Object.entries(inputGeometryActivation.modules).every(
+              ([name, value]) => name === 'scroll-input' || value === 'observed',
+            ),
+            'Gallery/Mixed OS-wheel control must exercise the demanded modules; DirectManipulation requires physical contact separately',
           );
         assert.equal(
           allocationFailure,
@@ -262,6 +290,19 @@ test(
         );
       } finally {
         await child.stop();
+        if (scrollModes.includes(nativeModules || experiment)) {
+          try {
+            const result = verifyNativeScrollActivation(geometryActivation.finish(), {
+              mode: nativeModules || experiment,
+            });
+            console.log(
+              'MIXED_SCROLL_EXECUTION',
+              JSON.stringify({ modules: result.modules, native: result.native, sdk: result.sdk }),
+            );
+          } catch (error) {
+            console.error('MIXED_SCROLL_EVIDENCE_FAILURE', String(error));
+          }
+        }
         process.stdout.write(
           native
             .split(/\r?\n/)

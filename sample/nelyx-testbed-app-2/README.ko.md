@@ -149,14 +149,27 @@ npm.cmd run run:windows:cpp -- --module=backing
 npm.cmd run run:windows:cpp -- --module=layout
 npm.cmd run run:windows:cpp -- --module=text
 npm.cmd run run:windows:cpp -- --module=frame
+npm.cmd run run:windows:cpp -- --module=scroll-input
+npm.cmd run run:windows:cpp -- --module=scroll-frame
+npm.cmd run run:windows:cpp -- --module=pointer-targets
+npm.cmd run run:windows:cpp -- --module=section-lifetime
+npm.cmd run run:windows:cpp -- --module=scroll
 npm.cmd run run:windows:cpp -- --module=ts
 ```
 
-`--module` 값은 `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `backing`, `layout`, `text`, `frame`, `ts`입니다. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2`도 같은 기본 모드를 실행합니다. 수동 모드는 자동 입력·종료·해상도 제한 없이 실행하며 native 실제 작업 수만 집계합니다. 창을 닫으면 `NATIVE_MODULE_RESULT`의 `modules`, `native`, `fallback`, `inputGeometry`, `engine`으로 독립 native 집계와 SDK 집계·정리를 확인합니다. `observed`는 해당 owner에서 native 작업을 관측했다는 뜻이며, `notObserved`는 native 작업을 확인하지 못했다는 뜻입니다. `fallbackOnly`는 TS fallback만 관측한 모듈이며 exit 2를 반환합니다. 이 수치를 성능 향상이나 전체 작업의 C++ 처리 보증으로 쓰지 않습니다.
+`--module` 값은 `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `backing`, `layout`, `text`, `frame`, `scroll-input`, `scroll-frame`, `pointer-targets`, `section-lifetime`, `scroll`, `ts`입니다. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2`도 같은 기본 모드를 실행합니다. 수동 모드는 자동 입력·종료·해상도 제한 없이 실행하며 native 실제 작업 수만 집계합니다. 창을 닫으면 `NATIVE_MODULE_RESULT`의 `modules`, `native`, `fallback`, `inputGeometry`, `engine`으로 독립 native 집계와 SDK 집계·정리를 확인합니다. `observed`는 해당 owner에서 native 작업을 관측했다는 뜻이며, `notObserved`는 native 작업을 확인하지 못했다는 뜻입니다. `fallbackOnly`는 TS fallback만 관측한 모듈이며 exit 2를 반환합니다. 이 수치를 성능 향상이나 전체 작업의 C++ 처리 보증으로 쓰지 않습니다.
 
 `backing`은 Windows N4 실험을 선택하며 전체 구간 coverage 관측도 설치합니다. 같은 native surface 세대의 Vulkan image/memory를 유지하고 frame별 fence·완료 검사는 수행합니다. `all`에서도 함께 활성화합니다. 결과의 `backing`에서 native/SDK create·reuse 집계, 3개 / 64 MiB 상한, drain 후 live backing 0을 확인합니다.
 
 `layout`(N1)은 표준 Flex의 숫자 배분·배치를 C++로 계산하며 TS child layout callback을 유지합니다. dry/intrinsic/baseline·custom hook은 사유를 집계하는 TS fallback입니다. `text`(N2)는 기존 cache miss에서 paragraph 구성·layout·metrics 조회를 묶습니다. `frame`(N3)은 닫힌 command segment를 봉인하고 변경 가능한 자원을 snapshot하여 GPU recording 완료까지 native lease를 유지합니다. 세 모드는 coverage 관측을 포함하고 시작 시 해당 native capability를 요구하며, `engine`에 실제 작업·fallback·회수 결과를 보고합니다. Frame segment 상한은 metadata의 계산된 비용이며 전체 GPU·process 메모리 측정치는 아닙니다. 세 모드는 `all`에서도 함께 활성화하며 각 모듈의 결과를 독립 검증합니다. 일반 App의 기본값은 TS입니다.
+
+`scroll-input`은 실제 DirectManipulation poll과 순서 있는 입력 batch, `scroll-frame`은 실제 native credit에 의한 재개, `pointer-targets`는 순수한 단일 자식 경로의 bounds·translation을 묶어 계산한 뒤 현재 TS boundary·self hook을 호출하는 질의, `section-lifetime`은 기존 Element 예산 안의 optional 보존·퇴출·준비 결정을 선택합니다. `scroll`은 네 후보를 함께 선택하며 `all`에도 실험 연결이 포함됩니다. 지원 밖의 pointer hook은 현재 TS 동작을 유지합니다. 현재 **NO_ADOPTION 실험**이며 OS-wheel 비교에서 일관된 이득을 입증하지 못했고 물리 터치패드 timing은 미검증입니다. 실패한 gate와 현재 범위는 [work7](../../work7.md#11-2026-11-04-구현-진행)을 확인하세요. 작업 0은 `notObserved` 또는 `fallbackOnly`로 남습니다.
+
+W7 전체 구간 비교는 fresh owner를 사용하며 작업 0의 실패를 보존합니다. OS wheel로 DirectManipulation 경로를 수락하지 않습니다.
+
+```powershell
+npm.cmd run experiment:native-scroll -- --trials=3 --modes=ts,scroll-frame,pointer-targets,section-lifetime,scroll-input,scroll --functional
+```
 
 명령은 현재 native/SDK 공급으로 수동 package를 빌드하고 App 원문을 자동 복구한 뒤 실행합니다. 실행 후 일반 기본 App으로 돌아가려면 `npm.cmd run run:windows --workspace @nelyx/testbed-2`를 사용하세요.
 

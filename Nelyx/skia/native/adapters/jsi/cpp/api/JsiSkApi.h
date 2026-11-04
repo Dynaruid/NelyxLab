@@ -6,11 +6,13 @@
 
 #include "JsiSkNativeObjects.h"
 #include "JsiInputGeometry.h"
+#include "JsiPointerTargets.h"
 #include "JsiRetainedInputGeometry.h"
 #include "JsiSceneComposition.h"
 #include "JsiSemanticsGeometry.h"
 #include "nelyx_skia/scene_build.h"
 #include "nelyx_skia/flex_layout.h"
+#include "nelyx_skia/section_lifetime.h"
 #include <cstring>
 
 #include "rnskia/RNSkPlatformContext.h"
@@ -181,6 +183,21 @@ public:
   }
   double nelyxWin32BackingVersion(){return getContext()->getGpuContext().win32BackingVersion();}
   double nelyxFlexLayoutVersion(){return 1;}
+  double nelyxSectionLifetimeVersion(){return 1;}
+  double nelyxPointerTargetsVersion(){return 2;}
+  JSI_HOST_FUNCTION(nelyxPointerTargetsSession){
+    if(count!=1||!arguments[0].isNumber())throw jsi::JSError(runtime,"Pointer session requires owner generation");
+    return jsi::Object::createFromHostObject(runtime,std::make_shared<JsiPointerTargets>(arguments[0].getNumber()));
+  }
+  JSI_HOST_FUNCTION(nelyxSectionLifetime){
+    if(count!=1)throw jsi::JSError(runtime,"Section lifetime requires one numeric transaction");
+    auto buffer=arguments[0].getObject(runtime).getArrayBuffer(runtime);const auto bytes=buffer.size(runtime);
+    if(bytes<16*8||bytes>(16+17*8)*8||bytes%8)throw jsi::JSError(runtime,"Section lifetime byte budget/alignment");
+    std::vector<double> input(bytes/8);std::memcpy(input.data(),buffer.data(runtime),bytes);
+    const auto values=nelyx::section_lifetime::run(input);
+    NativeServiceAudit::recordScroll({{3,1},{4,uint64_t(values[4])},{5,values[1]?1u:0u},{6,values[2]?1u:0u},{7,values[3]?1u:0u}});
+    return RNJsi::JSIConverter<std::vector<double>>::toJSI(runtime,values);
+  }
   double nelyxFrameSegmentVersion(){return 1;}
   JSI_HOST_FUNCTION(nelyxFlexLayout){
     if(count!=1)throw jsi::JSError(runtime,"Flex layout requires one owned numeric packet");
@@ -314,6 +331,10 @@ public:
     installHostMethod(runtime,prototype,"nelyxReportInputGeometryStatus",&JsiSkApi::nelyxReportInputGeometryStatus);
     installHostMethod(runtime,prototype,"nelyxWin32BackingAuditBegin",&JsiSkApi::nelyxWin32BackingAuditBegin);
     installMethod(runtime,prototype,"nelyxFlexLayoutVersion",&JsiSkApi::nelyxFlexLayoutVersion);
+    installMethod(runtime,prototype,"nelyxSectionLifetimeVersion",&JsiSkApi::nelyxSectionLifetimeVersion);
+    installMethod(runtime,prototype,"nelyxPointerTargetsVersion",&JsiSkApi::nelyxPointerTargetsVersion);
+    installHostMethod(runtime,prototype,"nelyxPointerTargetsSession",&JsiSkApi::nelyxPointerTargetsSession);
+    installHostMethod(runtime,prototype,"nelyxSectionLifetime",&JsiSkApi::nelyxSectionLifetime);
     installMethod(runtime,prototype,"nelyxFrameSegmentVersion",&JsiSkApi::nelyxFrameSegmentVersion);
     installHostMethod(runtime,prototype,"nelyxFlexLayout",&JsiSkApi::nelyxFlexLayout);
     installMethod(runtime,prototype,"nelyxWin32BackingVersion",&JsiSkApi::nelyxWin32BackingVersion);

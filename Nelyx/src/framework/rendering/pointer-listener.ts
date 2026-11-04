@@ -2,7 +2,8 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Flutter rendering/proxy_box.dart, with Nelyx's logical render hit-test builder.
 import { RenderProxyBox } from './boxes.ts';
-import type { RenderBox, RenderObject, HitTestEntry } from './object.ts';
+import { RenderBox } from './object.ts';
+import type { RenderObject, HitTestEntry } from './object.ts';
 import type { HitTestEntry as SourceHitTestEntry } from '../gestures/hit-test.ts';
 import {
   PointerDownEvent,
@@ -94,6 +95,8 @@ export abstract class RenderProxyBoxWithHitTestBehavior extends RenderProxyBox {
   ): boolean {
     invariant(this.hasSize, 'missing-hit-test-size', 'Hit testing requires layout');
     if (!contains({ x: 0, y: 0, ...this.size }, position)) return false;
+    const native = RenderBox._nativePointerQuery(this, position, result, toLocal);
+    if (native !== undefined) return native;
     let hit = false;
     const child = this.child;
     if (child) {
@@ -215,3 +218,12 @@ export function hasEmptyPointerSignalHandler(target: RenderObject): boolean {
   return !!signal && 'value' in signal && signal.value == null;
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderPointerListener.prototype);
+RenderBox._registerSemanticsGeometryPrototype(RenderProxyBoxWithHitTestBehavior.prototype);
+RenderBox._registerPointerBehavior(
+  RenderProxyBoxWithHitTestBehavior.prototype.hitTest,
+  Object.getOwnPropertyDescriptor(RenderProxyBoxWithHitTestBehavior.prototype, 'hitTestSelf')!
+    .value,
+  Object.getOwnPropertyDescriptor(RenderProxyBoxWithHitTestBehavior.prototype, 'behavior')!.get!,
+  Object.getOwnPropertyDescriptor(RenderProxyBox.prototype, 'child')!.get!,
+  () => HitTestBehavior.translucent,
+);

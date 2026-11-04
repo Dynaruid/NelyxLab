@@ -34,6 +34,9 @@ struct RNSkAsyncResult {
 using RNSkAsyncCompletion = std::function<void(RNSkAsyncResult)>;
 
 class RNSkPlatformContext {
+  std::mutex _admissionMutex;
+  std::function<void()> _admissionWake;
+  std::function<void()> _submissionObserved;
 public:
   /**
    * Constructor
@@ -43,6 +46,14 @@ public:
       : _pixelDensity(pixelDensity), _callInvoker(nelyx::host::RuntimeScheduler::adapt(std::move(callInvoker))) {}
 
   virtual ~RNSkPlatformContext() = default;
+
+  // Native-only signal. The host coalesces dispatch onto its JS owner; no JSI
+  // callback or runtime is retained by a recording or GPU worker.
+  void setAdmissionWake(std::function<void()> wake,std::function<void()> submitted={}) { std::lock_guard lock(_admissionMutex); _admissionWake=std::move(wake);_submissionObserved=std::move(submitted); }
+  void notifySubmission()noexcept{try{std::function<void()> callback;{std::lock_guard lock(_admissionMutex);callback=_submissionObserved;}if(callback)callback();}catch(...) {}}
+  void notifyAdmission() noexcept {
+    try { std::function<void()> wake; {std::lock_guard lock(_admissionMutex);wake=_admissionWake;} if(wake)wake(); } catch(...) { }
+  }
 
   // Platform adapter selects the backend before any Graphite initialization.
   virtual nelyx::gpu::Context &getGpuContext() = 0;

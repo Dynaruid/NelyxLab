@@ -460,6 +460,11 @@ export function replayFrame(
 }
 /** Owns bounded native submissions and returns leases after actual GPU retirement. */
 export class GraphiteRenderer implements Renderer {
+  latestInputAdmission = false;
+  captureInputWatermark: (() => number) | undefined;
+  hasUndeliveredInput: (watermark: number) => boolean = () => false;
+  setQueuedInputCount: ((pending: number) => void) | undefined;
+  retireInput: (() => void) | undefined;
   private frameSegments: import('./display-list.ts').FrameSegmentWork | undefined;
   private frameSegmentsEnabled = false;
   setNativeFrameSegments(enabled: boolean): void {
@@ -744,6 +749,9 @@ export class GraphiteRenderer implements Renderer {
     this.closed = true;
     this.events.stop();
     void (async () => {
+      this.retireInput?.();
+      this.retireInput = undefined;
+      this.setQueuedInputCount = undefined;
       {
         (this.context() as NelyxGraphiteContext).nelyxClose();
         const deadline = this.retirement.now() + 5000;

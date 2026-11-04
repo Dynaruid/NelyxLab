@@ -1,3 +1,15 @@
+interface WindowsPointerBatch {
+  readonly protocol: 2;
+  readonly batchId: number;
+  readonly nativeId: number;
+  readonly viewGeneration: number;
+  readonly packets: readonly WindowsPointerEvent[];
+}
+interface WindowsBatchHost {
+  readonly scrollInputVersion: number;
+  readonly scrollInputSelected: boolean;
+  acknowledgeInputBatch(id: number, count: number): void;
+}
 // SPDX-License-Identifier: BSD-3-Clause
 import type { GestureResponderEvent, PointerEvent as NativePointerEvent } from 'react-native';
 import type { ViewRuntime } from '@nelyx/core/hosting/runtime';
@@ -31,10 +43,11 @@ export function nativeInputProps(
   readNativeId?: () => number | undefined,
   androidPointerConstants?: unknown,
 ): Record<string, unknown> {
-  let lastInputSequence = 0;
+  let lastInputSequence = 0,
+    batchDispatch = false;
   const trace = target === 'windows' ? windowsInputTraceSink() : undefined;
   const deliver = (view: ViewRuntime, event: PointerEvent) => {
-    const queued = typeof view.queuePointer === 'function';
+    const queued = !batchDispatch && typeof view.queuePointer === 'function';
     if (queued) view.queuePointer(event);
     else view.dispatchPointer(event);
     trace?.(
@@ -107,8 +120,8 @@ export function nativeInputProps(
       viewportGeneration: view.currentMetrics.viewportGeneration,
     });
   };
-  if (target === 'windows')
-    return {
+  if (target === 'windows') {
+    const props = {
       onWindowsKey(event: Parameters<WindowsKeyConnection['key']>[0]) {
         const view = readView();
         if (!view) return;
@@ -132,9 +145,37 @@ export function nativeInputProps(
         if (!view) return;
         windowsKeyboardRoute(view)?.text(event);
       },
-      onWindowsPointer(event: { nativeEvent: WindowsPointerEvent }) {
+      onWindowsPointer(event: { nativeEvent: WindowsPointerEvent | WindowsPointerBatch }) {
         const view = readView(),
           native = event.nativeEvent;
+        if (native.protocol === 2) {
+          const host = (globalThis as { NelyxWindowsHost?: WindowsBatchHost }).NelyxWindowsHost;
+          if (
+            !host ||
+            host.scrollInputVersion !== 1 ||
+            !host.scrollInputSelected ||
+            !host.acknowledgeInputBatch ||
+            !Number.isSafeInteger(native.batchId) ||
+            native.batchId < 1 ||
+            !Array.isArray(native.packets) ||
+            !native.packets.length ||
+            native.packets.length > 256
+          )
+            throw new Error('Invalid or unavailable native precision batch');
+          if (batchDispatch) throw new Error('Reentrant native precision batch');
+          try {
+            batchDispatch = true;
+            if (
+              readNativeId?.() === native.nativeId &&
+              readNativeViewGeneration?.() === native.viewGeneration
+            )
+              for (const packet of native.packets) props.onWindowsPointer({ nativeEvent: packet });
+          } finally {
+            batchDispatch = false;
+            host.acknowledgeInputBatch(native.batchId, native.packets.length);
+          }
+          return;
+        }
         trace?.(
           11,
           native.surfaceGeneration,
@@ -249,6 +290,8 @@ export function nativeInputProps(
         });
       },
     };
+    return props;
+  }
   const mouse = {
     onNativeMouseEvent(event: { nativeEvent: NativeMouseEvent }) {
       const view = readView(),

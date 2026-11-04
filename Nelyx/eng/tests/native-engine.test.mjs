@@ -181,6 +181,55 @@ test(
   },
 );
 test(
+  'native frame selection requires a received-input watermark and forwards its fixed boundary',
+  { timeout },
+  async () => {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, 'NelyxWindowsHost');
+    try {
+      for (const host of [
+        undefined,
+        { hasPendingInput: () => true },
+        { inputAdmissionVersion: 1, captureInputWatermark: () => 17 },
+      ]) {
+        globalThis.NelyxWindowsHost = host;
+        const f = fixture({ latestInputAdmission: true }),
+          registry = new ResourceRegistry();
+        try {
+          assert.throws(() => f.services.renderer.create(registry), /watermark capability missing/);
+        } finally {
+          await f.engine.dispose();
+          registry.dispose();
+        }
+      }
+      const checked = [];
+      globalThis.NelyxWindowsHost = {
+        inputAdmissionVersion: 1,
+        captureInputWatermark: () => 17,
+        hasPendingInputThrough(mark) {
+          checked.push(mark);
+          return mark === 17;
+        },
+      };
+      const f = fixture({ latestInputAdmission: true }),
+        registry = new ResourceRegistry();
+      try {
+        const renderer = f.services.renderer.create(registry);
+        assert.equal(renderer.captureInputWatermark(), 17);
+        assert.equal(renderer.hasUndeliveredInput(17), true);
+        assert.equal(renderer.hasUndeliveredInput(16), false);
+        assert.deepEqual(checked, [17, 16]);
+      } finally {
+        await f.engine.dispose();
+        registry.dispose();
+      }
+    } finally {
+      if (previous) Object.defineProperty(globalThis, 'NelyxWindowsHost', previous);
+      else delete globalThis.NelyxWindowsHost;
+    }
+  },
+);
+
+test(
   'actual native Engine picture ports require the shared packet, reuse its producer and wait for the admitted lease',
   { timeout },
   async () => {

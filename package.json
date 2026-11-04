@@ -103,7 +103,9 @@
     "test:native-shadows": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-shadow.test.mjs",
     "probe:native-memory": "node Nelyx/eng/run-native-memory.mjs",
     "format": "oxfmt --write \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json",
-    "format:check": "oxfmt --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json"
+    "format:check": "oxfmt --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json",
+    "test:native-scroll": "node --test --test-timeout=1200000 Nelyx/eng/tests/scroll-coordinator.test.mjs Nelyx/eng/tests/pointer-targets.test.mjs Nelyx/eng/tests/native-scroll-activation.test.mjs Nelyx/eng/tests/windows-precision.test.mjs Nelyx/eng/tests/frame-backpressure.test.mjs Nelyx/eng/tests/react-native-frame-clock.test.mjs Nelyx/eng/tests/windows-input-default.test.mjs",
+    "experiment:native-scroll": "node Nelyx/eng/run-scroll-experiments.mjs"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

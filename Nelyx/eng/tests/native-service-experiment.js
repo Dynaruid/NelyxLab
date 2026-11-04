@@ -2,9 +2,17 @@
 import { verifyGeometryActivation } from './native-service-activation.js';
 import { engineModes, verifyNativeEngineExperiment } from './native-engine-experiment.js';
 import { withoutBackingEvidence, verifyBackingExperiment } from './backing-experiment.js';
+import { verifyNativeScrollActivation } from './native-scroll-activation.js';
 export const experimentModes = ['ts', 'snapshot', 'path', 'paint', 'composition', 'semantics'];
 export const fullRangeModes = [...experimentModes, 'backing', 'text', 'layout', 'frame'];
-export const nativeModuleModes = ['all', 'retained', ...fullRangeModes];
+export const scrollModuleModes = [
+  'scroll-input',
+  'scroll-frame',
+  'pointer-targets',
+  'section-lifetime',
+  'scroll',
+];
+export const nativeModuleModes = ['all', 'retained', ...fullRangeModes, ...scrollModuleModes];
 export const nativeServiceMetrics = [
   'snapshotCalls',
   'snapshotEditors',
@@ -44,6 +52,10 @@ export function verifyNativeModuleMode(lines, { mode, fullRange = false }) {
   if (mode === 'all' || mode === 'backing') {
     result.backing = verifyBackingExperiment(lines, { mode: 'backing', requireTimedWork: false });
     result.modules.backing = result.backing.reused > 0 ? 'observed' : 'notObserved';
+  }
+  if (scrollModuleModes.includes(mode) || mode === 'all') {
+    result.scroll = verifyNativeScrollActivation(lines, { mode });
+    Object.assign(result.modules, result.scroll.modules);
   }
   return result;
 }
@@ -177,6 +189,11 @@ function verifyNativeServices(
       text: [],
       layout: [],
       frame: [7],
+      'scroll-input': [],
+      'scroll-frame': [],
+      'pointer-targets': [],
+      'section-lifetime': [],
+      scroll: [],
       all: [2, 3, 4, 5, 6, 7, 8, 9, 10],
     }[mode],
     services = mode === 'all' ? [1, 2] : [{ snapshot: 0, composition: 1, semantics: 2 }[mode]];

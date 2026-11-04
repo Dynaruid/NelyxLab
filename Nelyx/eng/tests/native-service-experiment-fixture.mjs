@@ -36,6 +36,16 @@ export async function withNativeServiceExperimentFixture(runner, work, { manualM
         '        nativeInputGeometry="retained"\n        windowViewport',
       );
   }
+  if (['all', 'scroll', 'scroll-frame'].includes(manualMode))
+    source = source.replace(
+      '        windowViewport',
+      '        nativeScrollFrame\n        windowViewport',
+    );
+  if (['all', 'scroll', 'scroll-input'].includes(manualMode))
+    source = source.replace(
+      '        windowViewport',
+      '        nativeScrollInput\n        windowViewport',
+    );
   const patched = Buffer.from(source);
   try {
     fs.copyFileSync(

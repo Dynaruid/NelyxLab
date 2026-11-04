@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
+import { stripTypeScriptTypes } from 'node:module';
 import {
   galleryColumns,
   verifyGalleryWarmup,
@@ -12,6 +14,55 @@ import {
 } from './gallery-range-contract.js';
 import { withGalleryRangeFixture } from './gallery-range-fixture.mjs';
 const timeout = 1_200_000;
+test(
+  'scroll fixture reads the admitted host at render time and permits module evaluation before native registration',
+  { timeout },
+  async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nelyx-scroll-startup-'));
+    const file = path.join(root, 'App.tsx'),
+      original =
+        '// onReady={() => {}}\nexport default function App() { return main(undefined, { accessibilityEnabled }); }';
+    try {
+      fs.writeFileSync(file, original);
+      await withGalleryRangeFixture(
+        root,
+        async () => {
+          const source = fs
+            .readFileSync(file, 'utf8')
+            .split('\n')
+            .filter((line) => !line.startsWith('import '))
+            .join('\n');
+          const scope = vm.createContext({
+            GalleryRangeObservation: class {},
+            accessibilityEnabled: true,
+            main: (_unused, options) => options,
+          });
+          vm.runInContext(
+            stripTypeScriptTypes(source).replace('export default function App', 'function App'),
+            scope,
+          );
+          for (const mode of [
+            'ts',
+            'scroll-frame',
+            'pointer-targets',
+            'section-lifetime',
+            'scroll-input',
+            'scroll',
+          ]) {
+            scope.NelyxWindowsHost = { nativeModuleMode: mode };
+            assert.equal(vm.runInContext('App()', scope).nativeModuleMode, mode);
+          }
+        },
+        { scrollModules: true },
+      );
+      assert.equal(fs.readFileSync(file, 'utf8'), original);
+      assert.deepEqual(fs.readdirSync(root), ['App.tsx']);
+    } finally {
+      assert.equal(path.dirname(fs.realpathSync(root)), fs.realpathSync(os.tmpdir()));
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
 const expected = galleryColumns([{ id: 'a' }, { id: 'b' }, { id: 'text-fields' }, { id: 'image' }]);
 function fixture() {
   const snapshot = {

@@ -19,6 +19,29 @@ export interface Offset {
   readonly x: number;
   readonly y: number;
 }
+let pointerPositionOwners = 0,
+  ownedPointerPositions = new WeakSet<object>();
+/** @internal Only live pointer services need provenance. Weak markers never
+ * retain points; unknown caller objects, including Proxies, stay in TS. */
+export function retainPointerPositionCapture(): () => void {
+  pointerPositionOwners++;
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    if (--pointerPositionOwners === 0) ownedPointerPositions = new WeakSet();
+  };
+}
+/** @internal Mutable fresh numeric point, preserving hit callback identity. */
+export function createPointerPosition(x: number, y: number): Offset {
+  const value = { x, y };
+  if (pointerPositionOwners) ownedPointerPositions.add(value);
+  return value;
+}
+/** @internal WeakSet membership does not execute caller Proxy traps. */
+export function isOwnedPointerPosition(value: Offset): boolean {
+  return ownedPointerPositions.has(value);
+}
 export interface Insets {
   readonly left: number;
   readonly top: number;
@@ -144,11 +167,15 @@ export function translate(x: number, y: number): Matrix2D {
   return [1, 0, 0, 1, x, y];
 }
 export function transform(matrix: TransformMatrix, point: Offset): Offset {
-  if (matrix.length === 16) return transformMatrix4Point(matrix, point);
-  return {
-    x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],
-    y: matrix[1] * point.x + matrix[3] * point.y + matrix[5],
-  };
+  const value =
+    matrix.length === 16
+      ? transformMatrix4Point(matrix, point)
+      : {
+          x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],
+          y: matrix[1] * point.x + matrix[3] * point.y + matrix[5],
+        };
+  if (pointerPositionOwners) ownedPointerPositions.add(value);
+  return value;
 }
 export function inverse(matrix: Matrix2D): Matrix2D | null;
 export function inverse(matrix: TransformMatrix): TransformMatrix | null;
@@ -170,6 +197,47 @@ export function inversePaintTransform(matrix: TransformMatrix): TransformMatrix 
   const captured = result === null ? null : captureTransform(result);
   paintInverses.set(matrix, captured);
   return captured;
+}
+/** @internal Admit a native translation result to the same one-product and
+ * inverse caches used by the TS path, without repeating its arithmetic. */
+export function adoptPaintTranslationProduct(
+  forward: TransformMatrix,
+  inverseOffset: readonly [number, number],
+  right: TransformMatrix,
+  values: TransformMatrix,
+): TransformMatrix {
+  let inverse = paintInverses.get(forward);
+  if (!inverse) {
+    inverse = captureTransform([1, -0, -0, 1, ...inverseOffset]);
+    paintInverses.set(forward, inverse);
+  }
+  invariant(
+    Object.is(inverse[4], inverseOffset[0]) && Object.is(inverse[5], inverseOffset[1]),
+    'native-transform-disagreement',
+    'Native inverse differs from the current owned translation',
+  );
+  const a = inverse as Matrix2D,
+    b = right as Matrix2D;
+  const cached = affineProducts.get(a);
+  const existing =
+    identityAffines.has(a) && unsignedZeroAffines.has(b)
+      ? b
+      : identityAffines.has(b) && unsignedZeroAffines.has(a)
+        ? a
+        : cached?.right === b
+          ? cached.value
+          : undefined;
+  if (existing) {
+    invariant(
+      values.every((n, i) => Object.is(n, existing[i])),
+      'native-transform-disagreement',
+      'Native product differs from the current owned transform',
+    );
+    return existing;
+  }
+  const value = values as Matrix2D;
+  affineProducts.set(a, { right: b, value });
+  return value;
 }
 export function contains(rect: Rect, point: Offset): boolean {
   return (

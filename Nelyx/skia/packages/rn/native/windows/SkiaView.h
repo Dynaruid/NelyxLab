@@ -70,6 +70,7 @@ class WindowsSkiaViewState final : public std::enable_shared_from_this<WindowsSk
     std::optional<winrt::Microsoft::ReactNative::LayoutMetrics> desiredLayout,pendingLayout;
     bool resizeAwaiting=false;
     std::shared_ptr<WindowsPrecisionTrackpad> precision;
+    winrt::Microsoft::ReactNative::JSValueArray precisionBatch;
     uint64_t nextKeyboardProxy=0;
     std::map<int64_t,std::pair<uint64_t,uint64_t>> keyboardProxies;
     bool keyboardFocused=false;
@@ -110,7 +111,27 @@ public:
   }
   bool hasCursorHover()const{requireUi();return data&&!data->failed&&data->status.bound&&data->status.visible&&!data->hoverPointers.empty();}
   std::shared_ptr<WindowsPrecisionTrackpad> precisionTrackpad()const{requireUi();return data?data->precision:nullptr;}
-  void setPrecisionTrackpad(std::shared_ptr<WindowsPrecisionTrackpad> const& value){requireUi();if(data){if(data->precision&&data->precision!=value)throw std::logic_error("A live Skia surface already owns its precision input");data->precision=value;data->status.precisionAvailable=bool(value);emit("input-ready",value?"":"DirectManipulation unavailable; native wheel fallback");}}
+  void setPrecisionTrackpad(std::shared_ptr<WindowsPrecisionTrackpad> const& value){requireUi();if(data){if(data->precision&&data->precision!=value)throw std::logic_error("A live Skia surface already owns its precision input");
+    if(windowsScrollInputSelected()){
+      if(!value)throw std::runtime_error("Requested scroll-input DirectManipulation capability unavailable");
+      auto weak=weak_from_this();auto precision=std::weak_ptr<WindowsPrecisionTrackpad>(value);
+      session->scroll->add(data->status.reactTag,{
+        [precision,weak]{try{if(auto value=precision.lock())value->pollFrame();}catch(const std::exception& error){if(auto self=weak.lock())self->fail(error.what());}catch(...){if(auto self=weak.lock())self->fail("Coordinated precision update failed");}},
+        [weak]{if(auto self=weak.lock())self->flushPrecisionBatch();},
+        [precision]{auto value=precision.lock();return value&&value->pollActive();}});
+      value->coordinate([scroll=session->scroll]{scroll->requestInput();});
+    }
+    data->precision=value;data->status.precisionAvailable=bool(value);emit("input-ready",value?"":"DirectManipulation unavailable; native wheel fallback");}}
+  void flushPrecisionBatch(){
+    requireUi();if(!data||data->precisionBatch.empty())return;
+    using namespace winrt::Microsoft::ReactNative;
+    const auto count=data->precisionBatch.size(),id=session->scroll->seal(count,data->status.reactTag);
+    auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",2},{"batchId",double(id)},{"nativeId",double(data->status.nativeId)},
+      {"viewGeneration",double(data->status.viewGeneration)},{"surfaceGeneration",double(data->status.surfaceGeneration)},
+      {"deliveredQpc",windowsMonotonicMilliseconds()},{"packets",JSValue(std::move(data->precisionBatch))}});
+    data->precisionBatch.clear();
+    data->emitter.DispatchEvent(L"windowsPointer",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});
+  }
   void precision(WindowsPrecisionEvent const& event){
     requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="inertiaCancel")){windowsInputTrace(WindowsInputStage::PrecisionSurfaceDrop,data?data->status.reactTag:0,event.origin.generation,0,windowsInputKind(event.kind),!data?1:data->failed?2:!data->status.bound?3:!data->emitter?4:5,true);if(windowsPrecisionDiagnosticsEnabled())windowsPrecisionDiagnostic("surface-rejected kind="+event.kind);return;}
     using namespace winrt::Microsoft::ReactNative;
@@ -119,6 +140,14 @@ public:
       {"deltaX",event.deltaX},{"deltaY",event.deltaY},{"scale",event.scale},{"rotation",0},{"timestamp",event.timestamp},{"sequence",double(++data->inputSequence)},
       {"surfaceGeneration",double(event.origin.generation)}});
     windowsInputTrace(WindowsInputStage::NativeInput,data->status.reactTag,event.origin.generation,data->inputSequence,windowsInputKind(event.kind),event.deltaY,event.kind!="panZoomUpdate");
+    if(windowsScrollInputSelected()){
+      if(session->scroll->status()[6]+data->precisionBatch.size()>=256)throw std::runtime_error("Native precision packet budget exhausted");
+      if(event.kind!="panZoomUpdate")flushPrecisionBatch();
+      session->scroll->stagePacket(data->status.reactTag);
+      data->precisionBatch.emplace_back(JSValue(std::move(*payload)));
+      if(event.kind!="panZoomUpdate")flushPrecisionBatch();
+      return;
+    }
     data->emitter.DispatchEvent(L"windowsPointer",[payload,kind=event.kind,sequence=data->inputSequence,view=data->status.reactTag,surface=event.origin.generation](IJSValueWriter const& writer) noexcept {if(windowsPrecisionDiagnosticsEnabled()&&(kind!="panZoomUpdate"||sequence%32==0))windowsPrecisionDiagnostic("payload-written kind="+kind+" sequence="+std::to_string(sequence));WriteValue(writer,*payload);windowsInputTrace(WindowsInputStage::PayloadWritten,view,surface,sequence,windowsInputKind(kind));});
   }
   void props(WindowsSkiaProps const& props) {
@@ -185,6 +214,7 @@ public:
   bool ownsWindowViewport()const{return data&&data->windowViewport;}
   auto windowPointer()const{return session->windowPointer;}
   void wheel(winrt::Microsoft::ReactNative::Composition::Input::PointerRoutedEventArgs const& args) {
+    flushPrecisionBatch();
     if(!data||ownsWindowViewport())return;
     if(wheelPoint(args.GetCurrentPoint(static_cast<int64_t>(data->status.reactTag))))args.Handled(true);
   }
@@ -254,6 +284,7 @@ public:
   }
   void leavePointers() {cancelPointers();leaveHoverPointers();}
   void keyboardFocus(bool focused){
+    flushPrecisionBatch();
     requireUi();if(!data)return;
     if(data->observedKeyboard){if(focused&&data->status.bound)data->observedKeyboard->focus(data->keyboardOwner,[weak=weak_from_this()](ObservedKeyboardState::FocusStamp const& stamp,uint32_t key,uint32_t scan,uint32_t repeat){if(auto self=weak.lock())self->consumedKeyUp(stamp,key,scan,repeat);});else data->observedKeyboard->blur(data->keyboardOwner);}
     if(!focused){data->keyboard->reset();++data->keyGeneration;}
@@ -313,6 +344,7 @@ private:
   }
   uint64_t nextKeySequence(){const auto value=++data->keySequence;if(value>9007199254740991ULL)throw std::runtime_error("Windows keyboard sequence exhausted");return value;}
   void emitKeyboard(const WindowsKeyPacket& packet){
+    flushPrecisionBatch();
     if(!data||data->failed||!data->keyboardFocused||!data->status.bound||!data->emitter)return;
     data->observedKeyboard->observe(data->keyboardOwner,packet.keyCode,packet.scanCode,packet.up);
     using namespace winrt::Microsoft::ReactNative;
@@ -323,12 +355,14 @@ private:
     data->emitter.DispatchEvent(L"windowsKey",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});
   }
   void emitText(uint32_t point,WindowsCharacterObservation const& observation){
+    flushPrecisionBatch();
     if(!data||data->failed||!data->keyboardFocused||!data->status.bound||!data->emitter)return;
     using namespace winrt::Microsoft::ReactNative;
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"sequence",double(nextKeySequence())},{"viewGeneration",double(data->status.viewGeneration)},{"characterCodePoint",double(point)},{"repeatCount",double(observation.repeatCount)},{"focusEpoch",double(observation.focusEpoch)}});
     data->emitter.DispatchEvent(L"windowsText",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});
   }
   void emitPointer(std::string const& kind,uint32_t id,uint32_t buttons,PointerSample const& sample) {
+    flushPrecisionBatch();
     if(!data||!data->emitter)return;
     using namespace winrt::Microsoft::ReactNative;
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"kind",kind},{"device",sample.device},
@@ -361,6 +395,7 @@ private:
   void requireUi() const {if(std::this_thread::get_id()!=owner)throw std::runtime_error("Windows SkiaView requires its UI owner");}
   void closeBinding() {
     if(!data)return;auto precision=std::move(data->precision);data->status.precisionAvailable=false;if(precision)precision->cancel();precision.reset();
+    flushPrecisionBatch();session->scroll->remove(data->status.reactTag);session->scroll->retireInputOwner(data->status.reactTag);
     if(data->unwatchViewport){data->unwatchViewport();data->unwatchViewport={};}data->windowViewport=false;data->resizeAwaiting=false;data->presentedGeneration=0;data->statusPolicy.resetConsumer();keyboardFocus(false);leavePointers();if(!data->view)return;data->status.bound=false;
     data->view->setFrameScheduler({});data->view->stopContent();
     data->surface->setPresented({});data->surface->setResizeCancelled({});data->surface->setRequestRedraw({});data->surface->setCanPresent({});
@@ -401,6 +436,7 @@ private:
     if(data->status.bound){emit("bound","");if(hasPresentedContent())emit("frame","");}
   }
   void emit(std::string phase,std::string reason) {
+    flushPrecisionBatch();
     if(!data)return;auto& status=data->status;status.phase=std::move(phase);status.reason=std::move(reason);
     const bool diagnostic=session&&windowsFrameDiagnosticsEnabled(),frame=status.phase=="frame";
     const double began=diagnostic?windowsMonotonicMilliseconds():0;

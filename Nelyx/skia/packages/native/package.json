@@ -26,6 +26,16 @@
     "native-manifest.json"
   ],
   "exports": {
+    "./pointer-targets": {
+      "types": "./dist/pointer-targets.d.ts",
+      "react-native": "./src/pointer-targets.ts",
+      "default": "./dist/pointer-targets.js"
+    },
+    "./section-lifetime": {
+      "types": "./dist/section-lifetime.d.ts",
+      "react-native": "./src/section-lifetime.ts",
+      "default": "./dist/section-lifetime.js"
+    },
     "./flex-layout": {
       "types": "./dist/flex-layout.d.ts",
       "react-native": "./src/flex-layout.ts",

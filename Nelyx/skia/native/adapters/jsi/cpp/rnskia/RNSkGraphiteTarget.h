@@ -51,10 +51,11 @@ struct NelyxGraphiteAdmission {
   uint64_t lastSubmission=0;
   std::unordered_set<uint64_t> pendingSubmissions;
   std::deque<std::pair<uint64_t,uint32_t>> notifications;
+  std::function<void()> credit;
 };
 struct NelyxGraphiteSlot {
   explicit NelyxGraphiteSlot(std::shared_ptr<NelyxGraphiteAdmission> value):state(std::move(value)) {}
-  ~NelyxGraphiteSlot(){std::lock_guard<std::mutex> lock(state->mutex);--state->recordings;}
+  ~NelyxGraphiteSlot(){ {std::lock_guard<std::mutex> lock(state->mutex);--state->recordings;} if(state->credit)state->credit(); }
   std::shared_ptr<NelyxGraphiteAdmission> state;
   std::atomic<bool> submitted{false};
   std::atomic<bool> retired{false};
@@ -175,6 +176,7 @@ public:
   explicit RNSkGraphiteTarget(std::shared_ptr<RNSkPlatformContext> context)
       : _context(std::move(context)) {
     static std::atomic<uint64_t> nextIdentity{1};_nelyx->identity=nextIdentity++;
+    _nelyx->credit=[weak=std::weak_ptr<RNSkPlatformContext>(_context)]{if(auto context=weak.lock())context->notifyAdmission();};
   }
   double nelyxIdentity(){return static_cast<double>(_nelyx->identity);}
   void nelyxConfigure(){std::lock_guard<std::mutex> lock(_nelyx->mutex);if(_nelyx->closed)throw std::runtime_error("Nelyx target closed");_nelyx->enabled=true;}
@@ -203,8 +205,10 @@ public:
     uint64_t count=0;for(const auto& recording:recordings)if(recording->nelyxManaged())++count;
     if(!count)return;
     if(!gpuConfirmed&&!_context->getGpuContext().retireWork())throw std::runtime_error("Nelyx GPU retirement fence failed");
-    std::lock_guard<std::mutex> lock(_nelyx->mutex);_nelyx->consuming-=count;
+    {std::lock_guard<std::mutex> lock(_nelyx->mutex);_nelyx->consuming-=count;
     for(const auto& recording:recordings){recording->nelyxMarkRetired();if(const auto submission=recording->nelyxSubmission())_nelyx->notifications.emplace_back(submission,0);}
+    }
+    _context->notifyAdmission();
   }
   void nelyxClose(){
     std::function<void()> close;std::deque<std::shared_ptr<RNSkGraphiteRecording>> released;
@@ -333,6 +337,7 @@ public:
       _queue.push_back(std::move(recording));
       requestFrame = _requestFrame;
     }
+    if(submission)_context->notifySubmission();
     if (requestFrame) {
       requestFrame();
     }

@@ -7,6 +7,7 @@
 #include "windows/WindowsMonotonic.h"
 #include "windows/WindowsInputTrace.h"
 #include <map>
+#include <cstdlib>
 
 namespace RNSkia {
 struct WindowsSkiaHostOptions {
@@ -50,7 +51,9 @@ public:
     if(options.composition)options.composition->prepareJsClose(); // recoverable while UI leases remain
     const auto began=windowsFrameDiagnosticsEnabled()?windowsMonotonicMilliseconds():0.;windowsFrameDiagnostic("bindings-close-begin");
     try {
-      frameClock->stop();frameCallbacks.clear();frameArmed=false;
+      frameClock->stop();frameCallbacks.clear();creditCallbacks.clear();frameArmed=false;
+      if(options.composition&&windowsScrollInputSelected())options.composition->scroll->close();
+      scope->getPlatformContext()->setAdmissionWake({});
       scope->close(runtime);scope.reset();services.reset();
       if(options.composition)options.composition->finishJsClose();
       shutdownHandler.reset();closed.store(true);
@@ -71,19 +74,84 @@ private:
     services->initializeIcu(options.icuUri);
     auto ports=services->ports([weak=weak_from_this()](){auto self=weak.lock();if(!self)throw std::runtime_error("Windows device owner expired");++self->deviceCreations;return self->options.createDevice();},options.screenshot,options.reportError);
     scope=std::make_shared<RNSkVulkanRuntime>(runtime,std::move(invoker),options.density,std::move(ports),[services=services](){services->close();});
+    scope->getPlatformContext()->setAdmissionWake([weak=weak_from_this(),scheduler=context.CallInvoker(),queued=creditQueued,enabled=creditEnabled,scroll=options.composition?options.composition->scroll:nullptr]{
+      if(!enabled->load())return;
+      if(scroll)scroll->noteCredit(false);
+      if(queued->exchange(true))return;
+      scheduler->invokeAsync([weak,queued](jsi::Runtime& rt){queued->store(false);if(auto self=weak.lock())self->deliverCredit(rt);});
+    },[scroll=options.composition?options.composition->scroll:nullptr]{if(scroll)scroll->noteSubmission();});
     if(options.composition)options.composition->bind(scope,generation,
       [weak=weak_from_this(),scheduler=context.CallInvoker()](auto complete){
         scheduler->invokeAsync([weak,complete=std::move(complete)](jsi::Runtime&) mutable {
           if(auto self=weak.lock())self->requestShutdown(std::move(complete));else complete("Windows runtime owner expired");
         });});
-    frameClock=std::make_unique<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker(),requestedAt=frameRequestedAt](std::string failure,CompositorFrameTiming timing){
+    frameClock=std::make_shared<CompositorFrameClock>([weak=weak_from_this(),scheduler=context.CallInvoker(),requestedAt=frameRequestedAt,scroll=options.composition?options.composition->scroll:nullptr,coordinated=windowsScrollInputSelected()](std::string failure,CompositorFrameTiming timing){
       const auto tick=timing.wake;
       windowsInputTrace(WindowsInputStage::ClockReady,0,0,0,0,failure.empty()?0:1);
       if(windowsFrameDiagnosticsEnabled())windowsFrameDiagnosticDelay("clock-wait",requestedAt->load(),tick);
-      scheduler->invokeAsync([weak,timing,failure=std::move(failure)](jsi::Runtime& rt){if(auto self=weak.lock())self->deliverFrames(rt,failure,timing);});
+      auto dispatch=[weak,scheduler,timing,failure=std::move(failure)]{scheduler->invokeAsync([weak,timing,failure](jsi::Runtime& rt){if(auto self=weak.lock())self->deliverFrames(rt,failure,timing);});};
+      if(scroll&&coordinated)scroll->ready(std::move(dispatch));else dispatch();
     });
+    if(options.composition&&windowsScrollInputSelected())options.composition->scroll->configure(
+      [dispatcher=context.UIDispatcher()](std::function<void()> callback){dispatcher.Post(std::move(callback));},
+      [clock=frameClock]{clock->request();});
     jsi::Object api(runtime);auto weak=weak_from_this();
     api.setProperty(runtime,"frameClockVersion",2);
+    api.setProperty(runtime,"scrollFrameVersion",1);
+    api.setProperty(runtime,"scrollInputVersion",1);
+    api.setProperty(runtime,"scrollInputSelected",windowsScrollInputSelected());
+    api.setProperty(runtime,"inputMailbox",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"inputMailbox"),3,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {
+        auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Input mailbox owner expired");self->requireOwner();
+        if(count!=3)throw jsi::JSError(rt,"Input mailbox requires operation/id/count");
+        for(size_t i=0;i<3;++i)if(!args[i].isNumber()||!std::isfinite(args[i].getNumber())||args[i].getNumber()<0||args[i].getNumber()>9007199254740991.||std::floor(args[i].getNumber())!=args[i].getNumber())throw jsi::JSError(rt,"Invalid input mailbox transaction");
+        auto scroll=self->options.composition->scroll;const auto op=args[0].getNumber(),id=args[1].getNumber(),pending=args[2].getNumber();
+        if(op==0&&id==0&&pending==0)return jsi::Value(double(scroll->openMailbox()));
+        if(op==1&&id>0&&pending<=256)scroll->updateMailbox(uint64_t(id),size_t(pending));
+        else if(op==2&&id>0&&pending==0)scroll->closeMailbox(uint64_t(id));
+        else throw jsi::JSError(rt,"Unknown input mailbox operation");return jsi::Value::undefined();
+      }));
+    char nativeModule[64]{};const auto nativeModuleLength=GetEnvironmentVariableA("NELYX_NATIVE_SERVICE_EXPERIMENT",nativeModule,sizeof(nativeModule));
+    if(nativeModuleLength>=sizeof(nativeModule))throw jsi::JSError(runtime,"Invalid native module selection");
+    api.setProperty(runtime,"nativeModuleMode",jsi::String::createFromUtf8(runtime,nativeModuleLength?nativeModule:"ts"));
+    api.setProperty(runtime,"beginScrollAudit",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"beginScrollAudit"),2,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {
+        auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Scroll audit owner expired");self->requireOwner();
+        if(count!=2||!args[0].isNumber()||!args[1].isBool())throw jsi::JSError(rt,"Scroll audit requires generation/manual flag");self->options.composition->scroll->beginAudit(args[0].getNumber(),args[1].getBool());return jsi::Value::undefined();
+      }));
+    api.setProperty(runtime,"endScrollAudit",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"endScrollAudit"),0,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value {auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Scroll audit owner expired");self->requireOwner();self->options.composition->scroll->endAudit();return jsi::Value::undefined();}));
+    api.setProperty(runtime,"acknowledgeInputBatch",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"acknowledgeInputBatch"),2,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {
+        auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Input batch owner expired");self->requireOwner();
+        if(count!=2)throw jsi::JSError(rt,"Input batch ACK requires id/count");
+        for(size_t i=0;i<2;++i)if(!args[i].isNumber()||!std::isfinite(args[i].getNumber())||args[i].getNumber()<1||args[i].getNumber()>9007199254740991.||std::floor(args[i].getNumber())!=args[i].getNumber())throw jsi::JSError(rt,"Invalid input batch ACK");
+        self->options.composition->scroll->acknowledge(uint64_t(args[0].getNumber()),size_t(args[1].getNumber()));return jsi::Value::undefined();
+      }));
+    api.setProperty(runtime,"inputAdmissionVersion",1);
+    api.setProperty(runtime,"captureInputWatermark",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"captureInputWatermark"),0,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value*,size_t count)->jsi::Value {auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Input batch owner expired");self->requireOwner();if(count)throw jsi::JSError(rt,"Input watermark capture takes no arguments");return jsi::Value(double(self->options.composition->scroll->captureInputWatermark()));}));
+    api.setProperty(runtime,"hasPendingInputThrough",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"hasPendingInputThrough"),1,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Input batch owner expired");self->requireOwner();if(count!=1||!args[0].isNumber()||!std::isfinite(args[0].getNumber())||args[0].getNumber()<0||args[0].getNumber()>9007199254740991.||std::floor(args[0].getNumber())!=args[0].getNumber())throw jsi::JSError(rt,"Invalid native input watermark");return jsi::Value(self->options.composition->scroll->pendingThrough(uint64_t(args[0].getNumber())));}));
+    api.setProperty(runtime,"hasPendingInput",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"hasPendingInput"),0,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value {auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Input batch owner expired");return jsi::Value(self->options.composition->scroll->pending());}));
+    api.setProperty(runtime,"getScrollStatus",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"getScrollStatus"),0,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value {
+        auto self=weak.lock();if(!self||!self->options.composition)throw jsi::JSError(rt,"Scroll owner expired");self->requireOwner();
+        const auto counts=self->options.composition->scroll->status();const auto mailbox=self->options.composition->scroll->mailboxStatus();jsi::Array values(rt,13);for(size_t i=0;i<counts.size();++i)values.setValueAtIndex(rt,i,double(counts[i]));values.setValueAtIndex(rt,8,double(self->creditWakes));values.setValueAtIndex(rt,9,double(self->creditCallbacks.size()));values.setValueAtIndex(rt,10,double(self->options.composition->scroll->retiredCount()));values.setValueAtIndex(rt,11,double(mailbox[0]));values.setValueAtIndex(rt,12,double(mailbox[1]));return values;
+      }));
+    api.setProperty(runtime,"subscribeCredit",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"subscribeCredit"),1,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {
+        auto self=weak.lock();if(!self||!self->isActive())throw jsi::JSError(rt,"Credit owner expired");self->requireOwner();
+        if(count!=1||!args[0].isObject()||!args[0].getObject(rt).isFunction(rt)||self->creditCallbacks.size()>=64||self->nextCredit>=9007199254740991ULL)throw jsi::JSError(rt,"Invalid credit subscription");
+        auto id=++self->nextCredit;self->creditCallbacks.emplace(id,args[0].getObject(rt).getFunction(rt));self->creditEnabled->store(true);return jsi::Value(double(id));
+      }));
+    api.setProperty(runtime,"cancelCredit",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"cancelCredit"),1,
+      [weak](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value {
+        auto self=weak.lock();if(!self)throw jsi::JSError(rt,"Credit owner expired");self->requireOwner();
+        if(count!=1||!args[0].isNumber()||!std::isfinite(args[0].getNumber())||args[0].getNumber()<1||args[0].getNumber()>9007199254740991.||std::floor(args[0].getNumber())!=args[0].getNumber())throw jsi::JSError(rt,"Invalid credit cancellation");
+        self->creditCallbacks.erase(uint64_t(args[0].getNumber()));if(self->creditCallbacks.empty())self->creditEnabled->store(false);return jsi::Value::undefined();
+      }));
     api.setProperty(runtime,"inputTraceEnabled",windowsInputTraceEnabled());
     api.setProperty(runtime,"frameDiagnosticsEnabled",windowsFrameDiagnosticsEnabled());
     api.setProperty(runtime,"recordSurfaceStatusHandler",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"recordSurfaceStatusHandler"),1,
@@ -128,7 +196,7 @@ private:
         if(!self->isActive()||count!=1||!args[0].isObject()||!args[0].getObject(rt).isFunction(rt)||self->frameCallbacks.size()>=4096||self->nextFrame>=9007199254740991ULL)throw jsi::JSError(rt,"Windows frame request requires an active owner and callback within admission");
         const auto id=++self->nextFrame;self->frameCallbacks.emplace(id,args[0].getObject(rt).getFunction(rt));
         windowsInputTrace(WindowsInputStage::FrameRequested,0,0,id,0,double(self->frameCallbacks.size()));
-        if(!self->frameArmed){try{if(windowsFrameDiagnosticsEnabled())self->frameRequestedAt->store(windowsMonotonicMilliseconds());self->frameClock->request();self->frameArmed=true;}catch(std::exception const& error){self->frameCallbacks.erase(id);throw jsi::JSError(rt,error.what());}}
+        if(!self->frameArmed){try{if(windowsFrameDiagnosticsEnabled())self->frameRequestedAt->store(windowsMonotonicMilliseconds());if(self->options.composition&&windowsScrollInputSelected())self->options.composition->scroll->request();else self->frameClock->request();self->frameArmed=true;}catch(std::exception const& error){self->frameCallbacks.erase(id);throw jsi::JSError(rt,error.what());}}
         return jsi::Value(static_cast<double>(id));
       }));
     api.setProperty(runtime,"cancelFrame",jsi::Function::createFromHostFunction(runtime,jsi::PropNameID::forAscii(runtime,"cancelFrame"),1,
@@ -190,6 +258,12 @@ private:
     try{callback.call(runtime,std::move(acknowledge));}
     catch(const std::exception& error){options.composition->fail(error.what());retainUnconfirmed(shared_from_this());if(!shutdownAcknowledged){shutdownAcknowledged=true;complete(error.what());}}
   }
+  void deliverCredit(facebook::jsi::Runtime& rt){
+    requireOwner();if(!canDeliverFrames())return;++creditWakes;
+    if(options.composition)options.composition->scroll->noteCredit(true);
+    std::vector<uint64_t> batch;for(const auto& item:creditCallbacks)batch.push_back(item.first);
+    for(auto id:batch){if(!canDeliverFrames())break;auto found=creditCallbacks.find(id);if(found!=creditCallbacks.end()){auto callback=found->second.getFunction(rt);callback.call(rt);}}
+  }
   void deliverFrames(facebook::jsi::Runtime& rt,const std::string& failure,CompositorFrameTiming frame){
     requireOwner();if(!canDeliverFrames())return;frameArmed=false;++frameTicks;
     windowsInputTrace(WindowsInputStage::JsFrameBegin,0,0,frameTicks,double(frameCallbacks.size()),failure.empty()?0:1);
@@ -224,8 +298,12 @@ private:
   std::shared_ptr<WindowsRuntimeServices> services;
   std::shared_ptr<RNSkVulkanRuntime> scope;
   std::unique_ptr<facebook::jsi::Function> shutdownHandler;
-  std::unique_ptr<CompositorFrameClock> frameClock;
+  std::shared_ptr<CompositorFrameClock> frameClock;
   std::map<uint64_t,facebook::jsi::Function> frameCallbacks;
+  std::map<uint64_t,facebook::jsi::Function> creditCallbacks;
+  uint64_t nextCredit=0,creditWakes=0;
+  const std::shared_ptr<std::atomic<bool>> creditQueued=std::make_shared<std::atomic<bool>>(false);
+  const std::shared_ptr<std::atomic<bool>> creditEnabled=std::make_shared<std::atomic<bool>>(false);
   uint64_t nextFrame=0,frameTicks=0;bool frameArmed=false;
   // The clock worker holds only this independent numeric observation, never
   // a strong reference that could retire the JS/GPU owner on that worker.

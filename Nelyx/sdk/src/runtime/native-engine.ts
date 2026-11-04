@@ -46,6 +46,8 @@ export type NativeEnginePorts = Pick<
   | 'semanticsGeometry'
 >;
 export interface NativeEngineOptions {
+  readonly latestInputAdmission?: boolean;
+  readonly inputBatches?: boolean;
   readonly api: Skia;
   /** Ownership transfers here; the renderer retires this same context. */
   readonly context: NelyxGraphiteContext;
@@ -76,6 +78,7 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
   let text: NativeTextLayoutService | undefined,
     renderer: GraphiteRenderer | undefined,
     closed = false,
+    inputMailbox: { close(): void } | undefined,
     unavailableService: string | undefined;
   const ensure = () => {
     if (closed) throw new Error('Native engine owner closed');
@@ -147,13 +150,55 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
             sceneBatch: options.sceneBatch ?? 'none',
           }),
         );
-        return (renderer = new GraphiteRenderer(
-          api,
-          () => context,
-          owner,
-          resources,
-          options.retirement,
-        ));
+        renderer = new GraphiteRenderer(api, () => context, owner, resources, options.retirement);
+        renderer.latestInputAdmission = options.latestInputAdmission === true;
+        if (options.inputBatches) {
+          const host = (
+            globalThis as {
+              NelyxWindowsHost?: {
+                inputMailbox?(operation: number, id: number, pending: number): number | undefined;
+              };
+            }
+          ).NelyxWindowsHost;
+          if (!host?.inputMailbox)
+            throw new Error('Requested shared native input accounting missing');
+          const port = host.inputMailbox.bind(host),
+            id = port(0, 0, 0);
+          if (!Number.isSafeInteger(id) || id! < 1)
+            throw new Error('Invalid native input mailbox owner');
+          renderer.setQueuedInputCount = (count) => {
+            port(1, id!, count);
+          };
+          inputMailbox = {
+            close() {
+              port(2, id!, 0);
+            },
+          };
+          renderer.retireInput = () => {
+            inputMailbox?.close();
+            inputMailbox = undefined;
+          };
+        }
+        if (renderer.latestInputAdmission) {
+          const host = (
+            globalThis as {
+              NelyxWindowsHost?: {
+                inputAdmissionVersion?: number;
+                captureInputWatermark?(): number;
+                hasPendingInputThrough?(watermark: number): boolean;
+              };
+            }
+          ).NelyxWindowsHost;
+          if (
+            host?.inputAdmissionVersion !== 1 ||
+            !host.captureInputWatermark ||
+            !host.hasPendingInputThrough
+          )
+            throw new Error('Requested native input watermark capability missing');
+          renderer.captureInputWatermark = () => host.captureInputWatermark!();
+          renderer.hasUndeliveredInput = (watermark) => host.hasPendingInputThrough!(watermark);
+        }
+        return renderer;
       },
     },
     text: {
@@ -220,6 +265,13 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
     { name: 'scene-composition', run: () => sceneComposition?.dispose() },
     { name: 'input-geometry', run: () => inputGeometry?.dispose() },
     { name: 'renderer', run: () => renderer?.dispose() },
+    {
+      name: 'input-mailbox',
+      run: () => {
+        inputMailbox?.close();
+        inputMailbox = undefined;
+      },
+    },
     // Startup can fail before bootstrap obtains a renderer. Its unused context
     // still has an owner and must not depend on VM finalizers for retirement.
     {

@@ -10,6 +10,65 @@ import {
 } from '../../sdk/dist/platforms/windows/frame-clock.js';
 const timeout = 1_200_000;
 test(
+  'native credit polls retirement once, preserves real frame callbacks, and suppresses late close wakes',
+  { timeout },
+  () => {
+    let wake,
+      polls = 0,
+      credits = 0,
+      frames = 0,
+      disposed = 0;
+    const callbacks = [];
+    const clock = createSurfaceFrameClock(
+      {
+        pending: () => true,
+        poll: () => polls++,
+        onError: (e) => {
+          throw e;
+        },
+      },
+      {
+        subscribeCredit(callback) {
+          wake = callback;
+          return {
+            dispose() {
+              disposed++;
+            },
+          };
+        },
+        request(callback) {
+          callbacks.push(callback);
+          return callbacks.length;
+        },
+        cancel() {},
+      },
+    );
+    const subscription = clock.observeCredit(() => credits++);
+    clock.request(() => frames++);
+    wake();
+    assert.equal(polls, 1);
+    assert.equal(credits, 1);
+    assert.equal(frames, 0);
+    subscription.dispose();
+    wake();
+    assert.equal(credits, 1);
+    clock.dispose();
+    wake();
+    for (const callback of callbacks) callback();
+    assert.equal(polls, 2);
+    assert.equal(frames, 0);
+    assert.equal(disposed, 1);
+    assert.throws(
+      () =>
+        createWindowsFrameScheduler(
+          () => ({ frameClockVersion: 2, requestFrame() {}, cancelFrame() {} }),
+          true,
+        ),
+      /capability missing/,
+    );
+  },
+);
+test(
   'native prediction, timer fallback and late dispatch keep distinct work limits',
   { timeout },
   () => {

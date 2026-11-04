@@ -88,7 +88,7 @@ test(
     }
   },
 );
-function fixture({ scene, observeInput } = {}) {
+function fixture({ scene, observeInput, nativeCredit = false } = {}) {
   const callbacks = new Map(),
     notifications = [],
     submissions = [],
@@ -102,6 +102,18 @@ function fixture({ scene, observeInput } = {}) {
     releaseAfterHint = false,
     failSubmission = false;
   const clock = {
+    ...(nativeCredit
+      ? {
+          observeCredit(callback) {
+            credit = callback;
+            return {
+              dispose() {
+                credit = undefined;
+              },
+            };
+          },
+        }
+      : {}),
     request(callback) {
       const id = ++next;
       callbacks.set(id, callback);
@@ -112,6 +124,7 @@ function fixture({ scene, observeInput } = {}) {
       };
     },
   };
+  let credit;
   const tick = (timing) => {
     const batch = [...callbacks.values()];
     callbacks.clear();
@@ -173,6 +186,8 @@ function fixture({ scene, observeInput } = {}) {
     },
     clock,
   );
+  renderer.latestInputAdmission = nativeCredit;
+  renderer.captureInputWatermark = () => 0;
   const view = session.attach({
     id: 'pressure',
     generation: 1,
@@ -192,6 +207,10 @@ function fixture({ scene, observeInput } = {}) {
     submissions,
     errors,
     tick,
+    credit() {
+      renderer.pollNotifications();
+      credit?.();
+    },
     get builds() {
       return builds;
     },
@@ -212,6 +231,168 @@ function fixture({ scene, observeInput } = {}) {
     },
   };
 }
+
+test(
+  'shared input accounting includes detached packets and reentrant input, then retires on close',
+  { timeout },
+  async () => {
+    const f = fixture(),
+      counts = [],
+      seen = [];
+    const event = (timestamp) => ({
+      kind: 'wheel',
+      pointer: 1,
+      device: 'mouse',
+      buttons: 0,
+      x: 1,
+      y: 1,
+      deltaY: 1,
+      timestamp,
+      viewportGeneration: 1,
+    });
+    f.renderer.setQueuedInputCount = (pending) => counts.push(pending);
+    f.view.controller = {
+      pointer(packet) {
+        seen.push(packet.timestamp);
+        if (packet.timestamp === 1) f.view.queuePointer(event(3));
+      },
+      dispose() {},
+    };
+    try {
+      f.view.queuePointer(event(1));
+      f.view.queuePointer(event(2));
+      f.tick();
+      assert.deepEqual(seen, [1, 2, 3]);
+      assert.deepEqual(counts, [1, 2, 1, 2, 1, 0, 0]);
+      f.view.queuePointer(event(4));
+      await f.session.dispose();
+      assert.equal(counts.at(-1), 0);
+      assert.deepEqual(f.errors, []);
+    } finally {
+      await f.session.dispose();
+    }
+  },
+);
+
+test(
+  'native credit retries the latest pending frame without dispatching an animation tick or reusing its deadline',
+  { timeout },
+  async () => {
+    const timings = [],
+      f = fixture({
+        nativeCredit: true,
+        scene(context, value) {
+          timings.push(context.token.timing);
+          return [{ op: 'clear', color: value }];
+        },
+      });
+    let animation = 0,
+      undelivered = false;
+    f.renderer.hasUndeliveredInput = () => undelivered;
+    f.view.controller = {
+      pointer() {
+        f.value = 9;
+        f.view.requestFrame();
+      },
+      dispose() {},
+    };
+    try {
+      f.deny = true;
+      f.view.requestFrame();
+      f.tick({ tick: 10, dispatch: 10, queueDelay: 0, clockUncertainty: 0, observedDeadline: 20 });
+      assert.equal(f.builds, 1);
+      f.view.requestFrameAt(0, () => animation++);
+      f.view.queuePointer({
+        kind: 'wheel',
+        pointer: 1,
+        device: 'mouse',
+        buttons: 0,
+        x: 5,
+        y: 5,
+        deltaY: 2,
+        timestamp: 12,
+        viewportGeneration: 1,
+      });
+      f.deny = false;
+      undelivered = true;
+      f.credit();
+      assert.equal(f.submissions.length, 0, 'Undispatched native input blocks the old CPU frame');
+      undelivered = false;
+      f.credit();
+      assert.equal(f.submissions.at(-1).color, 9);
+      assert.equal(animation, 0);
+      assert.equal(timings.at(-1), undefined);
+      f.tick({ tick: 30, dispatch: 30, queueDelay: 0, clockUncertainty: 0 });
+      assert.equal(animation, 1);
+      await f.session.dispose();
+      assert.doesNotThrow(() => f.credit());
+      assert.deepEqual(f.errors, []);
+    } finally {
+      await f.session.dispose();
+    }
+  },
+);
+
+test(
+  'continuous native ingress cannot move a blocked frame watermark before admission',
+  { timeout },
+  async () => {
+    const f = fixture({ nativeCredit: true });
+    let received = 0,
+      dispatched = 0;
+    f.renderer.captureInputWatermark = () => received;
+    f.renderer.hasUndeliveredInput = (watermark = received) => dispatched < watermark;
+    try {
+      f.deny = true;
+      f.view.requestFrame();
+      f.tick();
+      assert.equal(f.builds, 1);
+      received = 1;
+      f.credit(); // Latch packet 1 while its Fabric delivery is pending.
+      assert.equal(f.submissions.length, 0);
+      dispatched = 1;
+      received = 2; // The native queue never becomes empty during contact.
+      f.value = 1;
+      f.view.requestFrame();
+      f.credit(); // GPU still busy; keep the same input barrier.
+      dispatched = 2;
+      received = 3;
+      f.value = 2;
+      f.view.requestFrame();
+      f.deny = false;
+      f.credit();
+      assert.equal(
+        f.submissions.at(-1)?.color,
+        2,
+        'Submit during contact, including latest delivered input',
+      );
+      f.notifications.push(7, f.submissions.at(-1).id, 0);
+      f.renderer.pollNotifications();
+      for (let i = 3; i <= 8; i++) {
+        f.view.requestFrame();
+        f.tick(); // Capture the next undelivered packet on the scheduled path.
+        assert.equal(f.submissions.length, i - 2);
+        dispatched = i;
+        received = i + 1;
+        f.value = i;
+        f.view.requestFrame();
+        f.tick();
+        assert.equal(f.submissions.at(-1)?.color, i);
+        assert.equal(
+          f.submissions.length,
+          i - 1,
+          'Each acknowledged watermark advances before release',
+        );
+        f.notifications.push(7, f.submissions.at(-1).id, 0);
+        f.renderer.pollNotifications();
+      }
+      assert.equal(f.renderer.hasUndeliveredInput(), true);
+      assert.deepEqual(f.errors, []);
+    } finally {
+      await f.session.dispose();
+    }
+  },
+);
 
 test(
   'native snap observations are opt-in and preserve the ordinary recording and redraw path',

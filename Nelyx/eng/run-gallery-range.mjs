@@ -26,8 +26,13 @@ import {
 } from './tests/native-service-experiment.js';
 import { verifyBackingExperiment, withoutBackingEvidence } from './tests/backing-experiment.js';
 import { engineModes, verifyNativeEngineExperiment } from './tests/native-engine-experiment.js';
+import { scrollModes, verifyNativeScrollActivation } from './tests/native-scroll-activation.js';
 
-export async function runGalleryRangeCadence({ nativeExperiment = false } = {}) {
+export async function runGalleryRangeCadence({
+  nativeExperiment = false,
+  scrollExperiment = false,
+} = {}) {
+  nativeExperiment ||= scrollExperiment;
   const root = path.resolve(import.meta.dirname, '../..'),
     app = path.join(root, 'sample/nelyx-testbed-app-2'),
     runner = path.join(app, 'windows/runner'),
@@ -44,7 +49,9 @@ export async function runGalleryRangeCadence({ nativeExperiment = false } = {}) 
     trials < 1 ||
     trials > 3 ||
     new Set(modes).size !== modes.length ||
-    modes.some((mode) => !fullRangeModes.includes(mode)) ||
+    modes.some(
+      (mode) => !(scrollExperiment ? ['ts', ...scrollModes] : fullRangeModes).includes(mode),
+    ) ||
     (!nativeExperiment && (modes.length !== 1 || modes[0] !== 'ts')) ||
     option('input-geometry', 'ts') !== 'ts' ||
     !['gallery', 'all'].includes(option('scene', 'gallery')) ||
@@ -122,6 +129,7 @@ export async function runGalleryRangeCadence({ nativeExperiment = false } = {}) 
       {
         diagnostic: diagnosticAfter ? 'host' : diagnostic,
         nativeServices: nativeExperiment,
+        scrollModules: scrollExperiment,
         backingAudit: modes.includes('backing'),
       },
     );
@@ -216,6 +224,7 @@ export async function runGalleryRangeCadence({ nativeExperiment = false } = {}) 
             env: {
               ...process.env,
               NELYX_NATIVE_SERVICE_EXPERIMENT: nativeExperiment ? mode : '',
+              NELYX_WINDOWS_SCROLL_INPUT: ['scroll', 'scroll-input'].includes(mode) ? '1' : '0',
               NELYX_WINDOWS_BACKING_REUSE: mode === 'backing' ? '1' : '0',
               NELYX_NATIVE_SERVICE_MANUAL: '',
               NELYX_WINDOWS_INPUT_TRACE_FULL: '',
@@ -273,20 +282,57 @@ export async function runGalleryRangeCadence({ nativeExperiment = false } = {}) 
         throw Error('Full range window, environment, or close differs');
       const observations = report.galleryWarmup?.observations;
       verifyGalleryWarmup(observations, expected);
-      const legs = report.checks.map((row) => ({
-        ...row,
-        scene: 'gallery',
-        coverage: verifyGalleryLeg(row.observation, observations[0], row, expected),
-        nativeSurface: summarizeGallerySurfaces(row.observation, row, expected),
-      }));
-      const evidence = nativeExperiment
-        ? verifyNativeServiceExperiment(withoutBackingEvidence(report.nativeServiceEvidence), {
+      let legs;
+      try {
+        legs = report.checks.map((row) => ({
+          ...row,
+          scene: 'gallery',
+          coverage: verifyGalleryLeg(row.observation, observations[0], row, expected),
+          nativeSurface: summarizeGallerySurfaces(row.observation, row, expected),
+        }));
+      } catch (error) {
+        console.error(
+          'GALLERY_RANGE_COVERAGE_FAIL',
+          JSON.stringify({
+            trial,
             mode,
-            checks: legs,
-            requireTimedWork: false,
-            requireNativeWork: false,
-          })
-        : undefined;
+            message: error.message,
+            checks: report.checks.map((row) => {
+              const snapshot = row.observation,
+                name = snapshot?.leg?.column;
+              return {
+                column: row.column,
+                nativeBeginMs: row.nativeBeginMs,
+                nativeEndMs: row.nativeEndMs,
+                partialDelivery: row.partialDelivery,
+                foregroundLost: row.foregroundLost,
+                latePackets: row.latePackets,
+                maxPacket: row.maxPacket,
+                configuration: snapshot?.configuration,
+                expectedConfiguration: observations[0].configuration,
+                resourceErrors: snapshot?.resourceErrors,
+                leg: snapshot?.leg,
+                columnState: snapshot?.columns?.[name],
+                warmupColumn: observations[0].columns[name],
+                surfaceOverflow: snapshot?.surfaceOverflow,
+                unmappedSurfaces: snapshot?.unmappedSurfaces,
+                surfaceRows: snapshot?.nativeSurfaces?.length,
+              };
+            }),
+          }),
+        );
+        throw error;
+      }
+      const evidence = scrollModes.includes(mode)
+        ? verifyNativeScrollActivation(report.nativeServiceEvidence, { mode, checks: legs })
+        : nativeExperiment
+          ? verifyNativeServiceExperiment(withoutBackingEvidence(report.nativeServiceEvidence), {
+              mode,
+              checks: legs,
+              requireTimedWork: false,
+              requireNativeWork: false,
+            })
+          : undefined;
       const backing = modes.includes('backing')
         ? verifyBackingExperiment(report.backingEvidence, {
             mode: mode === 'backing' ? 'backing' : 'ts',
@@ -394,34 +440,47 @@ export async function runGalleryRangeCadence({ nativeExperiment = false } = {}) 
           }),
         );
       }
+    const functionalFailures = [];
     if (functional)
       for (const mode of modes) {
         abort.signal.throwIfAborted();
         if (hash(manifestFile) !== locator.manifestSha256)
           throw Error('Full range package changed before functional owner');
         console.log('GALLERY_RANGE_FUNCTIONAL_BEGIN', JSON.stringify({ mode }));
-        await run(
-          process.execPath,
-          [
-            '--test',
-            '--test-timeout=1200000',
-            path.join(import.meta.dirname, 'tests/windows-mixed-input.test.mjs'),
-          ],
-          {
-            cwd: root,
-            env: {
-              ...process.env,
-              NELYX_WINDOWS_MIXED_TRIALS: '1',
-              NELYX_WINDOWS_MIXED_EXPERIMENT: mode,
-              NELYX_WINDOWS_MIXED_NATIVE_MODULES: '',
-              NELYX_NATIVE_SERVICE_EXPERIMENT: mode,
-              NELYX_NATIVE_SERVICE_MANUAL: '',
-              NELYX_WINDOWS_BACKING_REUSE: mode === 'backing' ? '1' : '0',
+        try {
+          await run(
+            process.execPath,
+            [
+              '--test',
+              '--test-timeout=1200000',
+              path.join(import.meta.dirname, 'tests/windows-mixed-input.test.mjs'),
+            ],
+            {
+              cwd: root,
+              env: {
+                ...process.env,
+                NELYX_WINDOWS_MIXED_TRIALS: '1',
+                NELYX_WINDOWS_MIXED_EXPERIMENT: mode,
+                NELYX_WINDOWS_MIXED_NATIVE_MODULES: '',
+                NELYX_NATIVE_SERVICE_EXPERIMENT: mode,
+                NELYX_WINDOWS_SCROLL_INPUT: ['scroll', 'scroll-input'].includes(mode) ? '1' : '0',
+                NELYX_NATIVE_SERVICE_MANUAL: '',
+                NELYX_WINDOWS_BACKING_REUSE: mode === 'backing' ? '1' : '0',
+              },
             },
-          },
-        );
+          );
+        } catch (error) {
+          functionalFailures.push(error);
+          console.error(
+            'GALLERY_RANGE_FUNCTIONAL_FAIL',
+            JSON.stringify({ mode, message: error.message }),
+          );
+          continue;
+        }
         console.log('GALLERY_RANGE_FUNCTIONAL_PASS', JSON.stringify({ mode }));
       }
+    if (functionalFailures.length)
+      throw new AggregateError(functionalFailures, 'Gallery/Mixed functional owners failed');
     if (results.some((row) => row.qualification === 'FAIL_NO_NATIVE_WORK_IN_SOME_LEGS'))
       process.exitCode = 2;
   } catch (error) {

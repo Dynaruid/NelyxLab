@@ -19,4 +19,6 @@ export interface FrameTiming {
 }
 export interface FrameClock {
   request(callback: (timing?: FrameTiming) => void): Disposable;
+  /** Admission changed. No animation tick or deadline is implied. */
+  observeCredit?(callback: () => void): Disposable;
 }

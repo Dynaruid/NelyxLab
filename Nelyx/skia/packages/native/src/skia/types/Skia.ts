@@ -38,6 +38,12 @@ import type { SkottieFactory } from './Skottie.ts';
  */
 export interface Skia {
   nelyxFlexLayoutVersion?(): number;
+  nelyxSectionLifetimeVersion?(): number;
+  nelyxSectionLifetime?(packet: ArrayBuffer): number[];
+  nelyxPointerTargetsVersion?(): number;
+  nelyxPointerTargetsSession?(
+    generation: number,
+  ): import('../../pointer-targets.ts').NativePointerTargetsSession;
   nelyxFrameSegmentVersion?(): number;
   nelyxFlexLayout?(packet: ArrayBuffer): number[];
   nelyxSemanticsGeometryVersion?(): number;

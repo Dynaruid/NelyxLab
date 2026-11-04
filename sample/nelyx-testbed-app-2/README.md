@@ -149,14 +149,27 @@ npm.cmd run run:windows:cpp -- --module=backing
 npm.cmd run run:windows:cpp -- --module=layout
 npm.cmd run run:windows:cpp -- --module=text
 npm.cmd run run:windows:cpp -- --module=frame
+npm.cmd run run:windows:cpp -- --module=scroll-input
+npm.cmd run run:windows:cpp -- --module=scroll-frame
+npm.cmd run run:windows:cpp -- --module=pointer-targets
+npm.cmd run run:windows:cpp -- --module=section-lifetime
+npm.cmd run run:windows:cpp -- --module=scroll
 npm.cmd run run:windows:cpp -- --module=ts
 ```
 
-Accepted modules are `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `backing`, `layout`, `text`, `frame`, and `ts`. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2` also launches the default mode. Interactive mode injects no input, imposes no display-size or automatic-close limit, and collects actual native work counts. After closing, inspect `modules`, `native`, `fallback`, `inputGeometry`, and `engine` in `NATIVE_MODULE_RESULT` for independent native/SDK counts and cleanup. `observed` means native work occurred in this owner; `notObserved` means no native work was proven. `fallbackOnly` means only TS fallback was observed for that module and returns exit 2. These results do not establish a performance improvement or full C++ coverage.
+Accepted modules are `all`, `retained`, `snapshot`, `path`, `paint`, `composition`, `semantics`, `backing`, `layout`, `text`, `frame`, `scroll-input`, `scroll-frame`, `pointer-targets`, `section-lifetime`, `scroll`, and `ts`. `npm.cmd run run:windows:cpp --workspace @nelyx/testbed-2` also launches the default mode. Interactive mode injects no input, imposes no display-size or automatic-close limit, and collects actual native work counts. After closing, inspect `modules`, `native`, `fallback`, `inputGeometry`, and `engine` in `NATIVE_MODULE_RESULT` for independent native/SDK counts and cleanup. `observed` means native work occurred in this owner; `notObserved` means no native work was proven. `fallbackOnly` means only TS fallback was observed for that module and returns exit 2. These results do not establish a performance improvement or full C++ coverage.
 
 `backing` selects the Windows N4 experiment and includes full-range coverage observation. It retains Vulkan image/memory for the same native surface generation while keeping frame fences and completion checks. It is also enabled in `all`. Its `backing` report checks native/SDK create/reuse totals, the 3-object / 64 MiB bound, and zero live backing after drain.
 
 `layout` (N1) computes the numeric allocation and placement phases of a standard Flex in C++, preserving TS child layout callbacks. Dry/intrinsic/baseline work and custom hooks use the counted TS fallback. `text` (N2) groups paragraph construction, layout and metric reads on existing cache misses. `frame` (N3) seals a closed command segment, snapshots mutable resources and keeps its native lease through GPU recording completion. These three modes include coverage observation, require matching native capabilities at startup, and report actual work, fallback and cleanup in `engine`. Frame segment bounds cover charged metadata; they do not measure total GPU or process memory. All three are enabled in `all`, whose result checks each module independently. The ordinary App keeps the TS defaults.
+
+`scroll-input` coordinates real DirectManipulation polling and ordered input batches; `scroll-frame` resumes pending work on real native credit; `pointer-targets` batches bounds and translation work along a pure single-child prefix, then calls the live TS boundary and self hooks; `section-lifetime` decides optional retention, eviction and preparation within the existing Element budget. `scroll` selects all four, and `all` also wires these experiments. Unsupported pointer hooks keep their live TS behavior. These are **unadopted experiments**: the current OS-wheel comparison did not prove a consistent gain; physical trackpad timing remains unverified. See [work7](../../work7.md#11-2026-11-04-구현-진행) for failed gates and current scope. A zero-work module remains `notObserved` or `fallbackOnly`.
+
+The W7 whole-range comparison uses fresh owners and preserves zero-work failures. OS wheel input cannot qualify the DirectManipulation path:
+
+```powershell
+npm.cmd run experiment:native-scroll -- --trials=3 --modes=ts,scroll-frame,pointer-targets,section-lifetime,scroll-input,scroll --functional
+```
 
 The command builds an interactive package with the current native/SDK supply, restores App source, and then opens the window. To return to the ordinary default App afterwards, run `npm.cmd run run:windows --workspace @nelyx/testbed-2`.
 

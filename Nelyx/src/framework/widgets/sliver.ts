@@ -241,7 +241,18 @@ export class SliverMultiBoxAdaptorElement
     const element = this.childElement(child),
       budget = this.owner.viewWorkBudget;
     budget.withChild(this, element, this.requestBudgetLayout, () => {});
-    return budget.retain(element, this.retentionCapacity);
+    if (!budget.sectionLifetime) return budget.retain(element, this.retentionCapacity);
+    const render = this.renderObject,
+      c = render.constraints,
+      data = child.parentData as SliverMultiBoxAdaptorParentData;
+    return budget.retain(element, this.retentionCapacity, {
+      position: data.layoutOffset ?? 0,
+      current: c.scrollOffset + c.viewportMainAxisExtent / 2,
+      direction:
+        this.previousScroll === undefined || c.scrollOffset >= this.previousScroll ? 1 : -1,
+      evictable: () => child.parent === render && data.keptAlive && !data.keepAlive,
+      retire: () => this.removeChild(child),
+    });
   }
   isRetainedChild(child: RenderBox): boolean {
     return (

@@ -4,6 +4,8 @@ import type { ResourceRegistry } from '../../hosting/resources.ts';
 import { textLimits } from '../../ui/text.ts';
 import type { Element } from './framework.ts';
 import type { FrameTiming } from '../../foundation/clock.ts';
+import { sectionLifetimeProtocol as sectionProtocol } from '../../hosting/section-lifetime.ts';
+import type { SectionLifetimeService } from '../../hosting/section-lifetime.ts';
 
 /** Opt-in State retention. Dormant rows deactivate; user timers remain the
  * State's responsibility and framework tickers resume with elapsed wall time. */
@@ -51,6 +53,9 @@ export function normalizeSliverChildPolicy(
 }
 export const viewChildBudgetLimits = Object.freeze({ perSliver: 8, children: 16, elements: 2048 });
 interface ChildRecord {
+  id: number;
+  section?: { position: number; retire(): void; evictable(): boolean };
+  nativeRetirement?: SectionLifetimeService | undefined;
   readonly owner: Element;
   readonly requestLayout: () => void;
   root: Element | undefined;
@@ -73,6 +78,9 @@ export interface OptionalChildCandidate {
 /** Non-owning bookkeeping over the canonical Element/adaptor owners.
  * Counts follow actual mount/unmount/activation; no subtree census or leases. */
 export class ViewWorkBudget {
+  sectionLifetime: SectionLifetimeService | undefined;
+  private nextSection = 0;
+  private sectionRevision = 0;
   private readonly membership = new WeakMap<Element, ChildRecord>();
   private readonly records = new Set<ChildRecord>();
   private readonly optional = new Set<ChildRecord>();
@@ -92,7 +100,10 @@ export class ViewWorkBudget {
   private chargedElements = 0;
   private peakChargedElements = 0;
   private atomicOverruns = 0;
-  constructor(private readonly resources: ResourceRegistry) {}
+  constructor(
+    private readonly resources: ResourceRegistry,
+    private readonly generation = 1,
+  ) {}
   get debugStats() {
     return Object.freeze({
       trackedElements: this.tracked,
@@ -128,6 +139,9 @@ export class ViewWorkBudget {
         this.optional.delete(previous);
         this.records.delete(previous);
         previous.charged = false;
+        const retirement = previous.nativeRetirement;
+        previous.nativeRetirement = undefined;
+        retirement?.applied(0, 1, 0);
       }
     }
     if (next) {
@@ -184,6 +198,7 @@ export class ViewWorkBudget {
     if (!record || record.owner !== parent || record.root !== previous) record = undefined;
     if (!record) {
       record = {
+        id: ++this.nextSection,
         owner: parent,
         requestLayout,
         root: undefined,
@@ -228,6 +243,7 @@ export class ViewWorkBudget {
   required(root: Element, consumed = true): void {
     const record = this.record(root);
     if (!record) return;
+    record.nativeRetirement = undefined;
     if (consumed) {
       if (record.charged) this.retainedHits++;
       if (record.preparedRoot === root) {
@@ -270,7 +286,17 @@ export class ViewWorkBudget {
     record.requestLayout();
     return true;
   }
-  retain(root: Element, capacity: number = viewChildBudgetLimits.perSliver): boolean {
+  retain(
+    root: Element,
+    capacity: number = viewChildBudgetLimits.perSliver,
+    section?: {
+      position: number;
+      current: number;
+      direction: number;
+      retire(): void;
+      evictable(): boolean;
+    },
+  ): boolean {
     const record = this.record(root);
     if (
       !record ||
@@ -281,6 +307,89 @@ export class ViewWorkBudget {
     )
       return false;
     if (record.charged) return true;
+    if (this.sectionLifetime && section) {
+      record.section = section;
+      const records = [record, ...this.optional];
+      const packet = new Float64Array(
+        sectionProtocol.header + records.length * sectionProtocol.row,
+      );
+      packet.set([
+        sectionProtocol.magic,
+        1,
+        0,
+        this.generation,
+        ++this.sectionRevision,
+        records.length,
+        capacity,
+        this.optional.size,
+        this.chargedElements,
+        Number(this.pressure),
+        section.current,
+        section.direction,
+        0,
+        0,
+        0,
+        0,
+      ]);
+      records.forEach((value, i) =>
+        packet.set(
+          [
+            value.id,
+            Number(value.owner === record.owner),
+            value.section?.position ?? 0,
+            value.elements,
+            0,
+            Number(value.charged),
+            Number(value.section?.evictable() ?? false),
+            Number(!value.retiring && !value.evictionRequested),
+          ],
+          sectionProtocol.header + i * sectionProtocol.row,
+        ),
+      );
+      const revision = this.sectionRevision,
+        result = this.sectionLifetime.run(packet);
+      if (revision !== this.sectionRevision || result[1] !== record.id) return false;
+      let evicted = 0;
+      if (result[2]) {
+        const victim = records.find((value) => value.id === result[2]);
+        invariant(
+          victim &&
+            victim !== record &&
+            victim.owner === record.owner &&
+            victim.section?.evictable(),
+          'invalid-section-victim',
+          'Native section victim must be optional in the current layout scope',
+        );
+        victim.nativeRetirement = this.sectionLifetime;
+        victim.section!.retire();
+        evicted = Number(victim.elements === 0);
+        // GlobalKey/deferred retirement can keep real Elements alive. Never
+        // replace their charge with a speculative native eviction count.
+        if (
+          !evicted ||
+          revision !== this.sectionRevision ||
+          record.retiring ||
+          record.elements === 0
+        ) {
+          return false;
+        }
+      }
+      const owned = [...this.optional].filter((value) => value.owner === record.owner).length;
+      if (
+        this.pressure ||
+        owned >= capacity ||
+        this.optional.size >= viewChildBudgetLimits.children ||
+        this.chargedElements + record.elements > viewChildBudgetLimits.elements
+      ) {
+        return false;
+      }
+      record.charged = true;
+      this.optional.add(record);
+      this.chargedElements += record.elements;
+      this.peakChargedElements = Math.max(this.peakChargedElements, this.chargedElements);
+      this.sectionLifetime.applied(1, 0, 0);
+      return true;
+    }
     const owned = [...this.optional].filter((value) => value.owner === record.owner).length;
     if (
       this.pressure ||
@@ -392,17 +501,71 @@ export class ViewWorkBudget {
       now() + candidate.estimatedMs + 4 + timing!.queueDelay + timing!.clockUncertainty <=
         deadline!;
     let selected: OptionalChildCandidate | undefined;
+    if (this.sectionLifetime && this.candidates.size) {
+      const candidates = [...this.candidates.values()]
+        .filter(
+          (candidate) =>
+            candidate.valid() &&
+            candidate.elements > 0 &&
+            candidate.elements <= 2048 &&
+            Number.isFinite(candidate.estimatedMs) &&
+            candidate.estimatedMs >= 0,
+        )
+        .slice(0, 16);
+      if (candidates.length) {
+        const packet = new Float64Array(
+          sectionProtocol.header + candidates.length * sectionProtocol.row,
+        );
+        packet.set([
+          sectionProtocol.magic,
+          1,
+          1,
+          this.generation,
+          ++this.sectionRevision,
+          candidates.length,
+          8,
+          this.optional.size,
+          this.chargedElements,
+          Number(this.pressure),
+          0,
+          1,
+          now(),
+          deadline!,
+          timing!.queueDelay,
+          timing!.clockUncertainty,
+        ]);
+        candidates.forEach((candidate, i) =>
+          packet.set(
+            [
+              i + 1,
+              1,
+              0,
+              candidate.elements,
+              candidate.estimatedMs,
+              [...this.optional].filter((record) => record.owner === candidate.owner).length +
+                8 -
+                (candidate.capacity ?? 8),
+              0,
+              1,
+            ],
+            sectionProtocol.header + i * sectionProtocol.row,
+          ),
+        );
+        const decision = this.sectionLifetime.run(packet);
+        if (decision[3]) selected = candidates[decision[3]! - 1];
+      }
+    }
     for (const [owner, candidate] of this.candidates) {
       if (!candidate.valid()) {
         this.cancelOwner(owner);
         continue;
       }
-      if (fits(candidate)) {
+      if (!this.sectionLifetime && fits(candidate)) {
         selected = candidate;
         break;
       }
     }
-    if (!selected || this.lastPreparationTick === timing!.tick) return;
+    if (!selected || !fits(selected) || this.lastPreparationTick === timing!.tick) return;
     this.lastPreparationTick = timing!.tick;
     this.candidates.delete(selected.owner);
     const started = now(),
@@ -421,6 +584,7 @@ export class ViewWorkBudget {
       }
       const elapsed = now() - started;
       this.preparedPasses++;
+      this.sectionLifetime?.applied(0, 0, 1);
       this.preparationMs += elapsed;
       if (elapsed > 2) this.preparationOverruns++;
     }

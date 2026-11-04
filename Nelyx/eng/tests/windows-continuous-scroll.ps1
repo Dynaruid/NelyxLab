@@ -309,7 +309,7 @@ try {
   $receipt=@{page=$Page;checks=$checks;desktopPixels=if($CadenceOnly){'unobserved'}else{'sampled'};closeMs=$closeMs;hiddenMs=$hiddenMs;windowCloseMs=$windowCloseMs;exitCode=$application.ExitCode;drained=if($CadenceOnly){'unobserved'}else{$drained};scope='actual package native surface counter during continuous OS wheel; desktop sampling is optional; scanout unobserved'}
   $receipt.nativeInputGeometryEvidence=$geometryActivationLines
   $receipt.backingEvidence=@($output -split "`n" | Where-Object {$_ -match 'NELYX_INPUT_GEOMETRY_STATUS |NELYX_WIN32_BACKING_USAGE |NELYX_WIN32_BACKING_BINS '})
-$receipt.nativeServiceEvidence=@($output -split "`n" | Where-Object {$_ -match 'NELYX_INPUT_GEOMETRY_STATUS |NELYX_RETAINED_GEOMETRY_NATIVE |NELYX_NATIVE_SERVICE_USAGE |NELYX_NATIVE_SERVICE_BINS |NELYX_NATIVE_ENGINE_USAGE |NELYX_NATIVE_ENGINE_BINS '})
+$receipt.nativeServiceEvidence=@($output -split "`n" | Where-Object {$_ -match 'NELYX_INPUT_GEOMETRY_STATUS |NELYX_RETAINED_GEOMETRY_NATIVE |NELYX_NATIVE_SERVICE_USAGE |NELYX_NATIVE_SERVICE_BINS |NELYX_NATIVE_ENGINE_USAGE |NELYX_NATIVE_ENGINE_BINS |NELYX_NATIVE_SCROLL_USAGE |NELYX_NATIVE_SCROLL_BINS |NELYX_SCROLL_HOST_USAGE |NELYX_SCROLL_HOST_BINS '})
   $receipt.galleryWarmup=$fullRangeResult.warmup
   Write-Output ('CONTINUOUS_SCROLL '+($receipt|ConvertTo-Json -Depth 16 -Compress))
   Write-Output ($output -split "`n" | Where-Object {$_ -match 'NELYX_WINDOWS_FRAME|close-|closed |APP_STOP|ERROR|failed|resize-timeout'})

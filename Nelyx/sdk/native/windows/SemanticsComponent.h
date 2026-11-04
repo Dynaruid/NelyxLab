@@ -95,7 +95,11 @@ struct SemanticsComponent:winrt::implements<SemanticsComponent,winrt::Windows::F
 private:
   void retireFocusProxy()noexcept{
     pendingFocus_.reset();if(!unregisterFocus_)return;
-    try{const auto view=view_.get();const auto nativeRoot=Nelyx::WindowsInput::inputComponentRoot(view);const auto root=state_->root.lock();if(nativeRoot&&nativeRoot.GetFocusedComponent()==view&&root&&winrt::Microsoft::UI::Input::InputFocusController::GetForIsland(root->island()).HasFocus()&&state_->mapping.active&&state_->mapping.active()&&state_->mapping.focusCanvas)state_->mapping.focusCanvas();}catch(...){}
+    // Fabric clears Parent before delivering Unmounted. Remember only a weak
+    // root while mounted so a detached focused peer can return its own focus
+    // to the still-live canvas. Never claim another target or activate an island.
+    try{const auto view=view_.get();const auto currentRoot=Nelyx::WindowsInput::inputComponentRoot(view);const auto nativeRoot=currentRoot?currentRoot:focusRoot_.get();const auto root=state_->root.lock();if(nativeRoot&&nativeRoot.GetFocusedComponent()==view&&root&&winrt::Microsoft::UI::Input::InputFocusController::GetForIsland(root->island()).HasFocus()&&state_->mapping.active&&state_->mapping.active()&&state_->mapping.focusCanvas)state_->mapping.focusCanvas();}catch(...){}
+    focusRoot_={};
     try{unregisterFocus_();}catch(...){}unregisterFocus_={};
   }
   void retireText()noexcept{if(state_->document){try{state_->document->retire();}catch(...){}state_->document.reset();}state_->text.Reset();}
@@ -112,7 +116,7 @@ private:
       state_->focus=[weak]{if(auto self=weak.get()){const auto view=self->view_.get();if(view)RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::Focus,view.Tag(),0,0,4,0,true);return view&&self->state_->mapping.focusSurface&&self->state_->mapping.focusSurface()&&self->dispatch("focus",{})&&view.TryFocus(RN::FocusState::Programmatic);}return false;};
       state_->activate=[weak]{if(auto self=weak.get())return self->dispatch("activate",{});return false;};
     }
-    if(!unregisterFocus_){require(static_cast<bool>(state_->mapping.registerFocusProxy),UIA_E_INVALIDOPERATION);unregisterFocus_=state_->mapping.registerFocusProxy(view.Tag());}
+    if(!unregisterFocus_){require(static_cast<bool>(state_->mapping.registerFocusProxy),UIA_E_INVALIDOPERATION);unregisterFocus_=state_->mapping.registerFocusProxy(view.Tag());const auto nativeRoot=Nelyx::WindowsInput::inputComponentRoot(view);if(nativeRoot)focusRoot_=winrt::make_weak(nativeRoot);}
     if(next.paragraph){require(session&&*session);ParagraphScreenMapping mapping;mapping.context=std::static_pointer_cast<RNSkia::RNSkPlatformContext>((*session)->uiPlatform());mapping.active=state_->mapping.active;mapping.revision=[root=state_->root]{const auto live=root.lock();return live?live->coordinateRevision():std::nullopt;};
       mapping.screenBox=[convert=state_->mapping.screenRect,frame=next.frame](LogicalBox const& box)->std::optional<ScreenBox>{const auto value=convert(box,frame);if(!value)return std::nullopt;return ScreenBox{double(value->left),double(value->top),double(value->right-value->left),double(value->bottom-value->top)};};
       mapping.viewPoint=[convert=state_->mapping.viewPoint,frame=next.frame](double x,double y)->std::optional<LogicalPoint>{const auto rx=std::round(x),ry=std::round(y);if(!std::isfinite(rx)||!std::isfinite(ry)||rx<LONG_MIN||rx>LONG_MAX||ry<LONG_MIN||ry>LONG_MAX)return std::nullopt;const auto point=convert({static_cast<LONG>(rx),static_cast<LONG>(ry)},GXFPF_NEAREST,frame);if(!point||point->outside)return std::nullopt;return LogicalPoint{point->x,point->y};};attachParagraphQueries(next,std::move(mapping));
@@ -163,7 +167,7 @@ private:
   }
   void fail(std::string reason)noexcept{if(state_->closed)return;failure_=std::move(reason);error();close();}
   void error()noexcept{if(!emitter_)return;try{auto value=std::make_shared<RN::JSValueObject>(RN::JSValueObject{{"message",failure_}});emitter_.DispatchEvent(L"coreSemanticsError",[value](RN::IJSValueWriter const& writer)noexcept{RN::WriteValue(writer,*value);});}catch(...){} }
-  winrt::weak_ref<RN::ComponentView> view_;std::shared_ptr<SemanticsPeerState> state_;ComPtr<SemanticsPeer> peer_;RN::JSValue packet_;RN::EventEmitter emitter_{nullptr};std::string failure_;std::function<void()> unwatch_,unregisterFocus_;std::optional<bool> pendingFocus_;std::optional<CoreSemanticsMetadata> pendingMetadata_;
+  winrt::weak_ref<RN::ComponentView> view_;winrt::weak_ref<RN::Composition::RootComponentView> focusRoot_;std::shared_ptr<SemanticsPeerState> state_;ComPtr<SemanticsPeer> peer_;RN::JSValue packet_;RN::EventEmitter emitter_{nullptr};std::string failure_;std::function<void()> unwatch_,unregisterFocus_;std::optional<bool> pendingFocus_;std::optional<CoreSemanticsMetadata> pendingMetadata_;
   RN::ComponentView::Mounted_revoker mounted_;RN::ComponentView::Unmounted_revoker unmounted_;RN::ComponentView::Destroying_revoker destroying_;
 };
 REACT_MODULE(NelyxWindowsSemantics)

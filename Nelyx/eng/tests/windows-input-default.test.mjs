@@ -15,6 +15,92 @@ import { engineFixture } from '../../../packages/material/tests/engine-fixture.m
 
 const timeout = 1_200_000,
   turn = () => new Promise((resolve) => setImmediate(resolve));
+test(
+  'sealed native batches preserve each callback and delta, retire stale views, and ACK even a handler failure',
+  { timeout },
+  () => {
+    const old = globalThis.NelyxWindowsHost,
+      seen = [],
+      acks = [],
+      view = {
+        currentMetrics: { nativeSurfaceGeneration: 9, viewportGeneration: 1 },
+        dispatchPointer(event) {
+          seen.push(event);
+          if (event.deltaY === 99) throw Error('handler');
+        },
+        queuePointer() {
+          assert.fail('Selected native batches cannot add a second 256-packet mailbox');
+        },
+      };
+    try {
+      globalThis.NelyxWindowsHost = {
+        scrollInputVersion: 1,
+        scrollInputSelected: true,
+        getMonotonicTime: () => performance.now(),
+        acknowledgeInputBatch: (id, count) => acks.push([id, count]),
+      };
+      const props = nativeInputProps(
+          'windows',
+          () => view,
+          undefined,
+          () => 7,
+          () => 3,
+        ),
+        packet = (sequence, kind, deltaY = 0) => ({
+          protocol: 1,
+          kind,
+          pointer: 1,
+          device: 'trackpad',
+          buttons: 0,
+          x: 1,
+          y: 2,
+          surfaceGeneration: 9,
+          timestamp: sequence,
+          sequence,
+          panX: 0,
+          panY: deltaY,
+          deltaX: 0,
+          deltaY,
+          scale: 1,
+          rotation: 0,
+        }),
+        batch = (id, packets, viewGeneration = 7) => ({
+          nativeEvent: { protocol: 2, batchId: id, nativeId: 3, viewGeneration, packets },
+        });
+      props.onWindowsPointer(
+        batch(1, [
+          packet(1, 'panZoomStart'),
+          packet(2, 'panZoomUpdate', -2),
+          packet(3, 'panZoomUpdate', 3),
+          packet(4, 'panZoomEnd'),
+        ]),
+      );
+      assert.deepEqual(
+        seen.map((x) => [x.kind, x.deltaY]),
+        [
+          ['panZoomStart', 0],
+          ['panZoomUpdate', -2],
+          ['panZoomUpdate', 3],
+          ['panZoomEnd', 0],
+        ],
+      );
+      props.onWindowsPointer(batch(2, [packet(5, 'panZoomStart')], 8));
+      assert.equal(seen.length, 4);
+      assert.throws(
+        () => props.onWindowsPointer(batch(3, [packet(6, 'panZoomUpdate', 99)])),
+        /handler/,
+      );
+      assert.deepEqual(acks, [
+        [1, 4],
+        [2, 1],
+        [3, 1],
+      ]);
+    } finally {
+      if (old === undefined) delete globalThis.NelyxWindowsHost;
+      else globalThis.NelyxWindowsHost = old;
+    }
+  },
+);
 const deferred = () => {
   let resolve;
   const promise = new Promise((done) => {

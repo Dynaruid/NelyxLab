@@ -12,6 +12,9 @@ export interface WindowsFrameReceipt {
   readonly timingSource?: 'dwm-predicted' | 'timer-fallback';
 }
 interface WindowsFrameApi {
+  readonly scrollFrameVersion?: number;
+  subscribeCredit?(callback: () => void): number;
+  cancelCredit?(id: number): void;
   readonly frameClockVersion: 2;
   requestFrame(callback: (failure?: string, timing?: WindowsFrameReceipt) => void): number;
   getMonotonicTime?(): number;
@@ -120,6 +123,7 @@ export function captureWindowsFrameTiming(
 /** RNW's UI-post RAF is unpaced. Each surface uses the owned compositor clock. */
 export function createWindowsFrameScheduler(
   readApi: () => unknown = currentApi,
+  nativeCredit = false,
 ): SurfaceFrameScheduler {
   const api = readApi() as WindowsFrameApi;
   if (
@@ -131,6 +135,8 @@ export function createWindowsFrameScheduler(
     throw new Error('Windows compositor frame clock2 requires matching rebuilt native inputs');
   const request = api.requestFrame,
     cancel = api.cancelFrame;
+  if (nativeCredit && (api.scrollFrameVersion !== 1 || !api.subscribeCredit || !api.cancelCredit))
+    throw new Error('Requested scroll-frame capability missing; rebuild native inputs');
   const verify = () => {
     if (
       readApi() !== api ||
@@ -141,6 +147,29 @@ export function createWindowsFrameScheduler(
       throw new Error('Windows compositor frame owner changed; runtime restart required');
   };
   return {
+    ...(nativeCredit
+      ? {
+          subscribeCredit(callback: () => void) {
+            verify();
+            const subscribe = api.subscribeCredit!,
+              cancelSubscription = api.cancelCredit!;
+            let live = true;
+            const id = subscribe.call(api, () => {
+              if (live) {
+                verify();
+                callback();
+              }
+            });
+            return {
+              dispose() {
+                if (!live) return;
+                live = false;
+                cancelSubscription.call(api, id);
+              },
+            };
+          },
+        }
+      : {}),
     request(callback, onError) {
       verify();
       return request.call(api, (failure, timing) => {

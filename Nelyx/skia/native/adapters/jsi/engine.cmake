@@ -29,4 +29,11 @@ function(nelyx_add_vulkan_jsi_engine target)
     "${NELYX_BINDING_CPP}/rnskia" "${NELYX_BINDING_CPP}/utils"
     "${NELYX_BINDING_CORE}" "${NELYX_BINDING_GPU}" "${NELYX_BINDING_VULKAN}"
     "${NELYX_BINDING_HOST}" "${NELYX_BINDING_PLATFORM}")
+  # Numeric pointer/section transactions are inline in the JSI compilation
+  # units too. Preserve Number arithmetic there, including signed zero.
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /fp:strict)
+  else()
+    target_compile_options(${target} PRIVATE -fno-fast-math -ffp-contract=off)
+  endif()
 endfunction()

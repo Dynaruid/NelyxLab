@@ -12,7 +12,92 @@ import {
 import { verifyGeometryActivation } from './native-service-activation.js';
 import { withNativeServiceExperimentFixture } from './native-service-experiment-fixture.mjs';
 import { withGalleryRangeFixture } from './gallery-range-fixture.mjs';
+import {
+  mergeNativeEngineReports,
+  installNativeServiceExperiment,
+} from './rnw-native-experiment.js';
+import { createPointerPosition, isOwnedPointerPosition } from '@nelyx/core/ui/geometry';
 const timeout = 1_200_000;
+
+test(
+  'failed all startup retires an already opened pointer service and both audits',
+  { timeout },
+  () => {
+    const previousApi = globalThis.SkiaApi,
+      previousHost = globalThis.NelyxWindowsHost,
+      events = [],
+      pipeline = {},
+      budget = {},
+      dispose = () => {},
+      application = {
+        dispose,
+        view: {
+          owner: { id: 'startup', generation: 1 },
+          controller: {
+            context: { inputGeometry: { execution: () => ({ mode: 'retained' }) }, text: {} },
+            pipeline,
+            buildOwner: { viewWorkBudget: budget },
+          },
+          options: { renderer: { resources: {}, latestInputAdmission: true } },
+        },
+      };
+    globalThis.SkiaApi = {
+      nelyxNativeServiceAuditBegin: () => 'all',
+      nelyxNativeServiceAuditEnd: () => events.push('audit-end'),
+      nelyxPointerTargetsVersion: () => 2,
+      nelyxPointerTargetsSession: () => ({ close: () => events.push('pointer-close') }),
+      nelyxSectionLifetimeVersion: () => 1,
+      nelyxSectionLifetime: () => [],
+    };
+    globalThis.NelyxWindowsHost = {
+      getScrollStatus: () => [],
+      beginScrollAudit: () => events.push('host-begin'),
+      endScrollAudit: () => events.push('host-end'),
+      scrollInputVersion: 1,
+      scrollInputSelected: true,
+      scrollFrameVersion: 1,
+    };
+    try {
+      assert.throws(
+        () => installNativeServiceExperiment(application, { manual: true, expectedMode: 'all' }),
+        /text transaction SDK capability missing/,
+      );
+      assert.equal(isOwnedPointerPosition(createPointerPosition(1, 2)), false);
+      assert.equal(pipeline.pointerTargets, undefined);
+      assert.equal(budget.sectionLifetime, undefined);
+      assert.equal(application.dispose, dispose);
+      assert.deepEqual(events, ['host-begin', 'pointer-close', 'host-end', 'audit-end']);
+    } finally {
+      pipeline.pointerTargets?.dispose();
+      globalThis.SkiaApi = previousApi;
+      globalThis.NelyxWindowsHost = previousHost;
+    }
+  },
+);
+test(
+  'all report merges nested scroll evidence without inventing legacy fallback fields or losing frame retirement',
+  { timeout },
+  () => {
+    const scroll = { selected: { pointer: true }, pointer: { tsFallbacks: 12, closed: true } },
+      parts = [
+        ['layout', { flexPlans: 2, tsFallbacks: 1, fallbackReasons: { custom: 1 } }],
+        [
+          'frame',
+          { frameSeals: 3, closed: true, tsFallbacks: 2, fallbackReasons: { boundary: 2 } },
+        ],
+        ['scroll', { scroll }],
+      ];
+    const report = mergeNativeEngineReports(parts, 'all', true);
+    assert.deepEqual(report.selected, ['frame', 'layout']);
+    assert.equal(report.scroll, scroll);
+    assert.equal(report.tsFallbacks, 3);
+    assert.deepEqual(report.fallbackReasons, { 'layout:custom': 1, 'frame:boundary': 2 });
+    assert.equal(report.closed, true);
+    parts[1][1].closed = false;
+    assert.equal(mergeNativeEngineReports(parts, 'all', true).closed, false);
+    assert.equal(mergeNativeEngineReports(parts, 'all', false).closed, false);
+  },
+);
 const engineWork = {
   selected: ['frame', 'layout', 'text'],
   flexPlans: 2,
@@ -160,17 +245,89 @@ const request = {
   },
   selection = { schema: 1, kind: 'manual-selection', mode: 'all', ownerGeneration: 7 },
   line = (name, value) => name + ' ' + JSON.stringify(value),
-  observations = (overrides = {}) => [
-    line('NELYX_INPUT_GEOMETRY_STATUS', overrides.request ?? request),
-    line('NELYX_INPUT_GEOMETRY_STATUS', selection),
-    line('NELYX_INPUT_GEOMETRY_STATUS', overrides.sdk ?? sdk),
-    line('NELYX_NATIVE_SERVICE_USAGE', overrides.header ?? header),
-    line('NELYX_INPUT_GEOMETRY_STATUS', overrides.execution ?? execution),
-    ...(overrides.retained === false
-      ? []
-      : [line('NELYX_RETAINED_GEOMETRY_NATIVE', overrides.retained ?? retained)]),
-    ...extraObservations(overrides),
-  ];
+  observations = (overrides = {}) => {
+    const zero = overrides.zeroScroll,
+      pointer = {
+        strategy: 'linear-prefix',
+        prefixQueries: zero ? 0 : 2,
+        prefixNodes: zero ? 0 : 2,
+        queries: zero ? 0 : 2,
+        visited: zero ? 0 : 4,
+        bytes: zero ? 0 : 320,
+        tsFallbacks: 0,
+        closed: true,
+      },
+      section = {
+        decisions: zero ? 0 : 3,
+        visited: zero ? 0 : 6,
+        retain: zero ? 0 : 2,
+        evict: zero ? 0 : 1,
+        prepare: 0,
+        appliedRetain: zero ? 0 : 2,
+        appliedEvict: zero ? 0 : 1,
+        appliedPrepare: 0,
+      },
+      scroll = {
+        selected: { input: true, frame: true, pointer: true, section: true },
+        pointer,
+        section,
+        credit: {
+          wakes: zero ? 0 : 3,
+          attempts: zero ? 0 : 2,
+          submissions: zero ? 0 : 2,
+          blockedInput: 0,
+        },
+        host: zero ? Array(13).fill(0) : [2, 4, 2, 4, 2, 3, 0, 0, 3, 0, 0, 0, 0],
+        closed: true,
+      },
+      reported = overrides.sdk ?? sdk;
+    return [
+      line('NELYX_INPUT_GEOMETRY_STATUS', overrides.request ?? request),
+      line('NELYX_INPUT_GEOMETRY_STATUS', selection),
+      line(
+        'NELYX_INPUT_GEOMETRY_STATUS',
+        overrides.scroll === false
+          ? reported
+          : { ...reported, engine: { ...reported.engine, scroll } },
+      ),
+      line('NELYX_NATIVE_SERVICE_USAGE', overrides.header ?? header),
+      line('NELYX_INPUT_GEOMETRY_STATUS', overrides.execution ?? execution),
+      ...(overrides.retained === false
+        ? []
+        : [line('NELYX_RETAINED_GEOMETRY_NATIVE', overrides.retained ?? retained)]),
+      ...extraObservations(overrides),
+      ...(overrides.scroll === false
+        ? []
+        : [
+            line('NELYX_NATIVE_SCROLL_USAGE', {
+              schema: 1,
+              ownerGeneration: 7,
+              mode: 'all',
+              beganQpcMs: 1000,
+              endedQpcMs: 2000,
+              timing: 'counters-only',
+              overflow: false,
+              totals: zero ? Array(8).fill(0) : [2, 4, 128, 3, 6, 2, 1, 0],
+            }),
+            line('NELYX_SCROLL_HOST_USAGE', {
+              schema: 1,
+              ownerGeneration: 7,
+              beganQpcMs: 1000,
+              endedQpcMs: 2000,
+              timing: 'counters-only',
+              overflow: false,
+              binCount: 0,
+              pendingPackets: 0,
+              pendingBatches: 0,
+              retiredPackets: 0,
+              pendingStaged: 0,
+              pendingJsPackets: 0,
+              mailboxOwners: 0,
+              totals: zero ? Array(8).fill(0) : [2, 4, 2, 4, 2, 3, 3, 3],
+            }),
+          ]),
+    ];
+  };
 
 test(
   'interactive mode rejects stale/mismatched native evidence and distinguishes work from no demand',
@@ -200,7 +357,15 @@ test(
         'text',
         'frame',
         'backing',
+        'scroll-input',
+        'scroll-frame',
+        'pointer-targets',
+        'section-lifetime',
       ].sort(),
+    );
+    assert.throws(
+      () => verifyNativeModuleMode(observations({ scroll: false }), { mode: 'all' }),
+      /Missing\/duplicate native scroll/,
     );
     assert.throws(
       () => verifyNativeModuleMode(observations({ engineNative: false }), { mode: 'all' }),
@@ -280,6 +445,7 @@ test(
       retained: false,
       engineTotals: Array(10).fill(0),
       backingReused: 0,
+      zeroScroll: true,
     });
     assert(
       Object.values(verifyNativeModuleMode(empty, { mode: 'all' }).modules).every(
@@ -304,7 +470,17 @@ test(
       );
     try {
       fs.writeFileSync(app, original);
-      for (const mode of ['all', 'layout', 'text', 'frame']) {
+      for (const mode of [
+        'all',
+        'layout',
+        'text',
+        'frame',
+        'scroll-input',
+        'scroll-frame',
+        'pointer-targets',
+        'section-lifetime',
+        'scroll',
+      ]) {
         await assert.rejects(
           () =>
             withGalleryRangeFixture(
@@ -314,6 +490,14 @@ test(
                 assert(source.includes('nativeModuleMode: ' + JSON.stringify(mode)));
                 assert(source.includes('manual: true, expectedMode: ' + JSON.stringify(mode)));
                 assert(source.includes('installGalleryRange(application, galleryRange'));
+                assert.equal(
+                  source.includes('nativeScrollInput\n'),
+                  ['all', 'scroll', 'scroll-input'].includes(mode),
+                );
+                assert.equal(
+                  source.includes('nativeScrollFrame\n'),
+                  ['all', 'scroll', 'scroll-frame'].includes(mode),
+                );
                 if (mode === 'all') {
                   assert(source.includes('backingAudit: true'));
                   assert(source.includes('nativeInputGeometry="retained"'));

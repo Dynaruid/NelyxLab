@@ -80,6 +80,9 @@ public:
     }
   }
   bool ownsWheel()const{return available&&origin.has_value()&&(running||inertia);}
+  void coordinate(std::function<void()> request){disarm();requestFramePoll=std::move(request);if(needsUpdate())arm();}
+  bool pollActive()const{return available&&armed;}
+  void pollFrame(){if(pollActive())update();}
   unsigned diagnosticFlags()const noexcept{return unsigned(available)|(unsigned(running)<<1)|(unsigned(inertia)<<2)|(unsigned(interacting)<<3)|(unsigned(resetting)<<4)|(unsigned(armed)<<5)|(unsigned(origin.has_value())<<6);}
 private:
   WindowsPrecisionTrackpad(HWND window,Map map,Emit emit):window(window),root(GetAncestor(window,GA_ROOT)),map(std::move(map)),emit(std::move(emit)),pointer(++nextPointer){}
@@ -106,12 +109,13 @@ private:
   void failure(char const* operation,HRESULT result)noexcept{windowsInputTrace(WindowsInputStage::PrecisionState,0,0,pointer,double(int32_t(result)),diagnosticFlags(),true);trace(operation,result);disable();}
   void resize(){RECT rect{};if(!GetClientRect(window,&rect))throw std::runtime_error("Precision viewport bounds unavailable");if(rect.right>0&&rect.bottom>0)winrt::check_hresult(viewport->SetViewportRect(&rect));}
   void arm(){if(!armed&&available){
+    if(requestFramePoll){armed=true;requestFramePoll();return;}
     // Flutter requests 14ms so ordinary Win32 timer granularity yields about
     // 16ms input updates instead of often rounding a 16ms request to 32ms.
     if(!SetTimer(window,reinterpret_cast<UINT_PTR>(this),14,nullptr))throw std::runtime_error("Precision input timer unavailable");
     armed=true;windowsInputTrace(WindowsInputStage::FrameRequested,0,origin?origin->generation:0,pointer,1,diagnosticFlags());
   }}
-  void disarm()noexcept{if(armed){KillTimer(window,reinterpret_cast<UINT_PTR>(this));armed=false;}}
+  void disarm()noexcept{if(armed){if(!requestFramePoll)KillTimer(window,reinterpret_cast<UINT_PTR>(this));armed=false;}}
   bool needsUpdate()const{return interacting||running||inertia||resetting;}
   bool prepareContact(){
     // Drain the old synthesized reset before SetContact can synchronously
@@ -210,6 +214,7 @@ private:
   winrt::com_ptr<Handler> handler;DWORD cookie=0;
   std::optional<WindowsPrecisionPoint> origin;
   bool attached=false,rootAttached=false,available=false,running=false,inertia=false,interacting=false,resetting=false,armed=false;
+  std::function<void()> requestFramePoll;
   double initialScale=1,initialX=0,initialY=0,lastX=0,lastY=0,lastDeltaX=0,lastDeltaY=0;
   DIRECTMANIPULATION_STATUS lastStatus=DIRECTMANIPULATION_BUILDING;uint64_t ticks=0,contents=0,emitted=0,resetSerial=0;
   inline static std::atomic<uint32_t> nextPointer{1u<<30};

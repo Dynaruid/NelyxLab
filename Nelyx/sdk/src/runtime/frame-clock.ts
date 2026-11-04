@@ -4,6 +4,7 @@ import type { FrameClock, FrameTiming } from '@nelyx/core/foundation/clock';
 export interface SurfaceFrameScheduler {
   request(callback: (timing?: FrameTiming) => void, onError?: (error: unknown) => void): number;
   cancel(id: number): void;
+  subscribeCredit?(callback: () => void): { dispose(): void };
 }
 /** Frame and retirement polling belong to one surface owner, including late-callback suppression. */
 export function createSurfaceFrameClock(
@@ -14,6 +15,21 @@ export function createSurfaceFrameClock(
     notification: number | undefined,
     pollFailed = false;
   const frames = new Set<{ id: number; live: boolean }>();
+  const creditListeners = new Set<() => void>();
+  const credit = scheduler.subscribeCredit?.(() => {
+    if (!live || pollFailed) return;
+    try {
+      options.poll();
+      const batch = [...creditListeners];
+      for (const callback of batch) {
+        if (!live) break;
+        if (creditListeners.has(callback)) callback();
+      }
+    } catch (error) {
+      pollFailed = true;
+      options.onError(error);
+    }
+  });
   function schedule() {
     if (!live || pollFailed || notification !== undefined || !options.pending()) return;
     notification = scheduler.request(
@@ -38,6 +54,19 @@ export function createSurfaceFrameClock(
     );
   }
   return {
+    ...(credit
+      ? {
+          observeCredit(callback: () => void) {
+            if (!live) throw new Error('Surface frame clock is closed');
+            creditListeners.add(callback);
+            return {
+              dispose: () => {
+                creditListeners.delete(callback);
+              },
+            };
+          },
+        }
+      : {}),
     request(callback) {
       if (!live) throw new Error('Surface frame clock is closed');
       const frame = { id: 0, live: true };
@@ -93,12 +122,18 @@ export function createSurfaceFrameClock(
     dispose() {
       if (!live) return;
       live = false;
+      creditListeners.clear();
       const polling = notification;
       notification = undefined;
       const pending = [...frames];
       frames.clear();
       for (const frame of pending) frame.live = false;
       const errors: unknown[] = [];
+      try {
+        credit?.dispose();
+      } catch (error) {
+        errors.push(error);
+      }
       if (polling !== undefined)
         try {
           scheduler.cancel(polling);
