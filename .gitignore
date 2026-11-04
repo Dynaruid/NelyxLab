@@ -106,6 +106,7 @@ _ReSharper*/
 **/.pnpm-store/
 
 # CMake and native build-system output
+**/.cmake/
 **/CMakeFiles/
 **/CMakeCache.txt
 **/cmake_install.cmake
