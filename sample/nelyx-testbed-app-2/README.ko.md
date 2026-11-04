@@ -163,7 +163,7 @@ npm.cmd run run:windows:cpp -- --module=ts
 
 `layout`(N1)은 표준 Flex의 숫자 배분·배치를 C++로 계산하며 TS child layout callback을 유지합니다. dry/intrinsic/baseline·custom hook은 사유를 집계하는 TS fallback입니다. `text`(N2)는 기존 cache miss에서 paragraph 구성·layout·metrics 조회를 묶습니다. `frame`(N3)은 닫힌 command segment를 봉인하고 변경 가능한 자원을 snapshot하여 GPU recording 완료까지 native lease를 유지합니다. 세 모드는 coverage 관측을 포함하고 시작 시 해당 native capability를 요구하며, `engine`에 실제 작업·fallback·회수 결과를 보고합니다. Frame segment 상한은 metadata의 계산된 비용이며 전체 GPU·process 메모리 측정치는 아닙니다. 세 모드는 `all`에서도 함께 활성화하며 각 모듈의 결과를 독립 검증합니다. 일반 App의 기본값은 TS입니다.
 
-`scroll-input`은 실제 DirectManipulation poll과 순서 있는 입력 batch, `scroll-frame`은 실제 native credit에 의한 재개, `pointer-targets`는 순수한 단일 자식 경로의 bounds·translation을 묶어 계산한 뒤 현재 TS boundary·self hook을 호출하는 질의, `section-lifetime`은 기존 Element 예산 안의 optional 보존·퇴출·준비 결정을 선택합니다. `scroll`은 네 후보를 함께 선택하며 `all`에도 실험 연결이 포함됩니다. 지원 밖의 pointer hook은 현재 TS 동작을 유지합니다. 현재 **NO_ADOPTION 실험**이며 OS-wheel 비교에서 일관된 이득을 입증하지 못했고 물리 터치패드 timing은 미검증입니다. 실패한 gate와 현재 범위는 [work7](../../work7.md#11-2026-11-04-구현-진행)을 확인하세요. 작업 0은 `notObserved` 또는 `fallbackOnly`로 남습니다.
+`scroll-input`은 실제 DirectManipulation poll과 순서 있는 입력 batch, `scroll-frame`은 실제 native credit에 의한 재개, `pointer-targets`는 순수한 단일 자식 경로의 bounds·translation을 묶어 계산한 뒤 현재 TS boundary·self hook을 호출하는 질의, `section-lifetime`은 기존 Element 예산 안의 optional 보존·퇴출·준비 결정을 선택합니다. `scroll`은 네 후보를 함께 선택하며 `all`에도 실험 연결이 포함됩니다. 지원 밖의 pointer hook은 현재 TS 동작을 유지합니다. 현재 **NO_ADOPTION 실험**이며 OS-wheel 비교에서 일관된 이득을 입증하지 못했고 물리 터치패드 timing은 미검증입니다. 실패한 gate와 현재 범위는 [work7](../../history/26/11/04/work7-summary.md#구현과-실행-검증)을 확인하세요. 작업 0은 `notObserved` 또는 `fallbackOnly`로 남습니다.
 
 W7 전체 구간 비교는 fresh owner를 사용하며 작업 0의 실패를 보존합니다. OS wheel로 DirectManipulation 경로를 수락하지 않습니다.
 
@@ -185,7 +185,7 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 
 비교 명령은 한 Release bytecode package에서 TS control·snapshot input geometry·Path·clip/Paint·Scene composition·Semantics geometry를 각각 선택합니다. 각 mode의 fresh owner 3회에서 Gallery 두 열 → Mixed를 측정하고, `--functional`은 후보별 실제 키 입력·한글 IME·Gallery 복귀·정상 종료도 검사합니다. SDK 집계와 독립 C++ 작업 수, 입력 시간 안의 native QPC bucket을 대조합니다. 계수 비용이 포함된 비교이며 물리 입력·scanout 성능 수락은 별도입니다.
 
-작업 수 0인 필수 입력 구간은 `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`로 남고 명령은 exit 2로 종료합니다. 다른 장면이나 startup의 작업으로 통과시키지 않습니다. App source는 자동 복구되지만 현재 Release 출력은 실험 package이므로 마지막 일반 실행 명령으로 재빌드하세요. 일반 App은 이 후보들을 기본 활성화하지 않습니다. 결과와 미채택 근거는 [work5.md](../../work5.md)에 있습니다.
+작업 수 0인 필수 입력 구간은 `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`로 남고 명령은 exit 2로 종료합니다. 다른 장면이나 startup의 작업으로 통과시키지 않습니다. App source는 자동 복구되지만 현재 Release 출력은 실험 package이므로 마지막 일반 실행 명령으로 재빌드하세요. 일반 App은 이 후보들을 기본 활성화하지 않습니다. 결과와 미채택 근거는 [work5.md](../../history/26/11/03/work5-summary.md)에 있습니다.
 
 ### All components 전체 예열·전체 구간 측정
 
@@ -210,7 +210,7 @@ npm.cmd run run:windows:cpp -- --module=path --full-range
 
 `--functional`은 선택 mode마다 별도 owner에서 창 전환, Gallery 두 열, Mixed의 한글 IME·undo 편집, Gallery 복귀와 native drain을 검사합니다. `--functional-only`는 cadence 없이 이 회귀만 실행합니다. 두 명령 모두 종료 시 일반 App을 복구·재빌드합니다.
 
-수동 모드에서는 **양쪽 열을 모두** 끝까지 방문→둘 다 top 복귀→각 열 top→bottom 순서로 확인합니다. `NATIVE_MODULE_RESULT.galleryRange`는 마지막 수동 coverage snapshot이며 자동 완료 gate·timing 판정은 실행하지 않습니다. `--full-range`는 coverage 관측, `--module`은 native 후보 선택입니다. 현재 결과와 후보 선택은 [work6.md](../../work6.md)에 기록합니다.
+수동 모드에서는 **양쪽 열을 모두** 끝까지 방문→둘 다 top 복귀→각 열 top→bottom 순서로 확인합니다. `NATIVE_MODULE_RESULT.galleryRange`는 마지막 수동 coverage snapshot이며 자동 완료 gate·timing 판정은 실행하지 않습니다. `--full-range`는 coverage 관측, `--module`은 native 후보 선택입니다. 현재 결과와 후보 선택은 [work6.md](../../history/26/11/03/work6-summary.md)에 기록합니다.
 
 ### 개발 세션
 
