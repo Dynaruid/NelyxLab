@@ -10,7 +10,9 @@
 
 `@nelyx/sdk/engine-v2`는 `connectEngineV2Host(host, options)`를 제공합니다. v2 packet transport와 `engine: 'v2'`·`abiMajor`·`schema`를 가진 `identity`를 전달합니다. Facade의 bundle/host 검사 뒤 C++ handshake가 요청한 capability를 검사합니다. 빌드 명령·ACK 재시도·활성화·close/drain은 [Core v2 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요.
 
-Packet port는 host 개발용입니다. `createBrowserEngineV2Surface()` 소스 진입점에 worker/profile/input/close 처리를 추가하고 Windows·CanvasKit host 소스를 작성했습니다. 실행할 bundle/asset 공급·host compile/link·실제 화면·Content/Render 독립 실행은 미검증이며 사용자 요청으로 **PAUSED / PARTIAL** 상태로 중단했습니다. 일반 runner·Widget 앱·CLI engine 선택도 미완료입니다. 미완성 surface 경로를 사용하기 전에 [중간 마무리와 재개 절차](../../work8-1.md#중간-마무리--사용자-외출로-명시-중단)를 확인하세요.
+`createBrowserEngineV2Surface(canvas, { root: new URL('/engine/', location.href), profile: 'auto' })`로 공급된 worker runtime을 새 canvas에 연결합니다. 현재 engine dist 전체를 `root`에서 제공해야 합니다. 반환 surface는 packet host·App port·진단·비동기 `close()`를 제공합니다. Main은 bounded input/viewport를 전달하고 C++가 scene 좌표·scroll·hit-test를 소유합니다. `auto`는 격리/shared memory가 있으면 threaded, 없으면 single-worker를 선택합니다. 명시 capability 누락·공급 오류는 v1 fallback 없이 시작 실패로 처리합니다. Close는 provider/worker를 drain하며 다음 session은 새 canvas가 필요합니다.
+
+자체 Windows host와 두 Web profile에서 고정 배치 Testbed 장면을 실행합니다. 빌드/실행 명령은 [Core 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요. 전체 Widget/layout/편집/gesture·Android 이식은 PARTIAL입니다. [실행 현황](../../work8-1.md#연결-실행-현황)에 기능 증거와 물리 입력·성능 수락을 구분했습니다.
 
 ## 앱 API
 

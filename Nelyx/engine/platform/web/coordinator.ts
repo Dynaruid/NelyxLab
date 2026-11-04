@@ -30,7 +30,26 @@ let contentThread = 0,
   renderThread = 0,
   attached = false;
 const ports = new Set<MessagePort>();
+let telemetryRevision = 0,
+  sentRevision = 0;
+let failed = false;
 const post = (value: Record<string, unknown>) => scope.postMessage(value);
+function failHost(message: string, stack?: string): void {
+  if (failed) return;
+  failed = true;
+  closing = true;
+  content?.stop();
+  void render
+    ?.stop()
+    .then(() => provider?.close())
+    .catch(() => {});
+  module?.PThread?.terminateAllThreads();
+  for (const request of pending.values())
+    send(request.port, { kind: 'packet-result', id: request.id, error: message });
+  pending.clear();
+  pendingBytes = 0;
+  post({ kind: 'error', message, stack });
+}
 function stats(value: Record<string, unknown>): void {
   telemetry = {
     ...telemetry,
@@ -38,8 +57,10 @@ function stats(value: Record<string, unknown>): void {
     selectedProfile: profile,
     contentIndependent: profile === 'threaded',
   };
+  ++telemetryRevision;
   if (!telemetryPending) {
     telemetryPending = true;
+    sentRevision = telemetryRevision;
     post({ kind: 'stats', value: telemetry });
   }
 }
@@ -52,8 +73,15 @@ function send(
 }
 function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = []): void {
   const kind = value.kind;
+  if (
+    closing &&
+    kind !== 'owner-stopped' &&
+    kind !== 'provider-error' &&
+    kind !== 'nelyx-v2-owner-error'
+  )
+    return;
   if (kind === 'provider-error' || kind === 'nelyx-v2-owner-error') {
-    post({ kind: 'error', message: value.message, role: value.role });
+    failHost(String(value.message));
     return;
   }
   if (kind === 'owner-ready') {
@@ -97,6 +125,8 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     kind === 'delay-started' ||
     kind === 'delay-ended'
   ) {
+    if (kind === 'delay-started' || kind === 'delay-ended')
+      post({ kind: 'content-control', value });
     stats({ [String(kind)]: value });
   }
 }
@@ -318,6 +348,7 @@ async function shutdown(): Promise<void> {
 }
 scope.addEventListener('message', (event) => {
   const message = event.data;
+  if (closing && message.kind !== 'close') return;
   void (async () => {
     if (message.kind === 'initialize') await initialize(message);
     else if (message.kind === 'packet') route(scope, message);
@@ -334,20 +365,19 @@ scope.addEventListener('message', (event) => {
       else renderWorker?.postMessage({ kind: 'v2-viewport', viewport });
     } else if (message.kind === 'stats-ack') {
       telemetryPending = false;
+      if (telemetryRevision > sentRevision) {
+        telemetryPending = true;
+        sentRevision = telemetryRevision;
+        post({ kind: 'stats', value: telemetry });
+      }
     } else if (message.kind === 'delay-content') {
       if (content) {
         const start = performance.now(),
           ms = Math.min(2000, Math.max(0, message.milliseconds));
-        stats({ delayStarted: start });
+        actorMessage({ kind: 'delay-started', start, milliseconds: ms });
         while (performance.now() - start < ms) {}
-        stats({ delayEnded: performance.now() });
+        actorMessage({ kind: 'delay-ended', end: performance.now() });
       } else contentWorker?.postMessage({ kind: 'v2-delay', milliseconds: message.milliseconds });
     } else if (message.kind === 'close') await shutdown();
-  })().catch((error) =>
-    post({
-      kind: 'error',
-      message: failure(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    }),
-  );
+  })().catch((error) => failHost(failure(error), error instanceof Error ? error.stack : undefined));
 });

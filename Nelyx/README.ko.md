@@ -10,11 +10,15 @@
 
 `@nelyx/core/v2`는 C++ 엔진의 packet codec·명령·`EngineClient`·`createWasmTransport`를 제공합니다. 원본 계약은 [engine/schema/protocol.json](engine/schema/protocol.json)이며 저장소 루트의 `node Nelyx/engine/tools/generate-schema.mjs --check`로 C++/TS 생성본 일치를 검사합니다. `npm.cmd run build:core`가 기존 Core export와 이 subpath를 함께 빌드합니다.
 
-저장소 루트에서 `npm.cmd run test:engine-v2`로 Windows x64와 두 Node-hosted Wasm profile의 공통 계약을 컴파일·실행합니다. `npm.cmd run build:engine-v2`는 현재 headless native library/driver와 별도 `single-worker`/`threaded` 공급만 `Nelyx/engine/dist`에 남깁니다. Wasm에는 활성화한 [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) **4.0.22**가 필요하며 `EMSDK` 또는 사용자 cache의 `.cache/tooling/emsdk`에서 찾습니다. 검사는 20분 timeout과 임시 빌드 finally 정리를 사용하고, 공급 빌드도 staging·이전 dist를 제거합니다.
+저장소 루트에서 `npm.cmd run build:engine-v2`를 실행합니다. 공개 Core/SDK를 먼저 빌드하고 HWND/Hermes/Skia host, 두 engine Wasm profile, worker/App bundle, 수정하지 않은 공식 CanvasKit **0.41.0/full** 자산을 현재 `Nelyx/engine/dist`에 공급합니다. Wasm에는 [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) **4.0.22**가 필요하며 `EMSDK` 또는 사용자 cache의 `.cache/tooling/emsdk`에서 찾습니다. Windows는 고정된 local Skia/Hermes 공급을 사용하고 누락·불일치를 거부합니다. 교체 후 staging·이전 출력을 제거합니다.
 
-이 진입점에는 v2 packet port가 필요하며 현재 일반 runner의 v2 Widget renderer는 미완료입니다. Windows host·browser surface·공식 CanvasKit adapter·Content/Render owner bootstrap 소스를 작성하던 중 사용자 요청으로 **PAUSED / PARTIAL** 상태로 중단했습니다. Host compile/link·browser bundle/asset 공급·실제 화면과 독립 실행은 아직 미검증입니다. 공급 builder는 여전히 headless 전용(`contentIndependent=false`)입니다. 이전 schema의 engine dist가 남아 있으므로 현재 Core와 함께 사용하지 말고 재개 시 소스에서 다시 빌드해야 합니다. [work8-1 중간 마무리](../work8-1.md#중간-마무리--사용자-외출로-명시-중단)의 재개 절차를 따릅니다. 표준 layout·전체 gesture·실제 browser 배포는 미완료입니다.
+- Windows: `npm.cmd run run:engine-v2:windows`. Wheel 또는 왼쪽 pointer drag로 스크롤하고 `Ctrl+U`로 App 선언을 갱신합니다. 창을 닫으면 provider를 drain하고 owner를 join합니다.
+- Web: `npm.cmd run run:engine-v2:web` 후 `http://127.0.0.1:8192/isolated/`에서 threaded 자동 선택, `/plain/`에서 비격리 single-worker 자동 선택을 확인합니다. `?profile=threaded`는 격리가 필요하며 명시 요구·자산/ABI 오류는 TS renderer 전환 없이 실패합니다. 정적 배포는 현재 dist 전체와 격리 route의 worker/asset에 일관된 COOP/COEP headers를 제공해야 합니다.
+- 검사: `npm.cmd run test:engine-v2`(공통 계약 69개), `npm.cmd run test:engine-v2:actors`(zero-size owner 일정), `npm.cmd run test:engine-v2:glyphs`(paragraph/glyph 픽셀 21 corpus), 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`(통합 4개). 검사는 20분 timeout과 임시 출력 finally 정리를 사용합니다.
 
-Client는 승인 document와 scene 활성화를 구별합니다. ACK timeout 뒤에는 보관한 bytes의 `queryCommitResult()` 또는 `retryCommit()`을 사용하며 이미 승인된 변경을 취소한 것으로 간주하지 않습니다. Provider frame hold가 남으면 close는 `busy`를 반환하므로 host가 먼저 회수해야 합니다. `reservedBytes`는 내부 reservation이며 process RSS나 아직 연결하지 않은 GPU/provider heap이 아닙니다.
+Windows/threaded Web은 독립 Content/Render owner를 연결합니다. Single-worker는 협력 실행이며 `contentIndependent=false`입니다. 실제 고정 배치 Testbed 장면을 지원하고 전체 Widget/layout/편집/gesture·Android는 **PARTIAL**입니다. 기능 화면·자동 input을 물리 trackpad/FPS 수락으로 세지 않습니다. [현재 범위와 증거](../work8-1.md#연결-실행-현황)를 참고하세요.
+
+Client는 승인 document와 scene 활성화를 구별합니다. ACK timeout 뒤에는 보관한 bytes의 `queryCommitResult()` 또는 `retryCommit()`을 사용하며 이미 승인된 변경을 취소한 것으로 간주하지 않습니다. Provider frame hold가 남으면 close는 `busy`를 반환하므로 host가 먼저 회수해야 합니다. `reservedBytes`는 내부 reservation이며 process RSS나 별도 GPU/provider heap의 합계가 아닙니다.
 
 ## 모듈
 

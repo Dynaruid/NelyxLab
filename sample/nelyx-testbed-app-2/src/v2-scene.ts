@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { commands as c } from '../../../Nelyx/runtime/engine-client/index.ts';
-import type { NodeHandle } from '../../../Nelyx/runtime/engine-client/index.ts';
+import { commands as c } from '@nelyx/core/v2';
+import type { NodeHandle } from '@nelyx/core/v2';
 
 /** The first engine-v2 Testbed scene uses explicit fixed-layout declarations.
  * Widget/Element and general layout migration remain a separate stage. */
-export function engineV2Scene(image: Uint8Array): Uint8Array[] {
+export function engineV2Scene(image: Uint8Array) {
   const changes: Uint8Array[] = [];
   let next = 0;
   const childCounts = new Map<number, number>();
@@ -47,7 +47,7 @@ export function engineV2Scene(image: Uint8Array): Uint8Array[] {
   };
   const root = node('stack', null, 0, 0, 960, 720, 0xfff4f6fa);
   node('box', root, 24, 20, 864, 88, 0xff10203b, 20);
-  text(root, 46, 28, 810, 45, 'Nelyx Engine v2', 30, 0xffffffff);
+  const header = text(root, 46, 28, 810, 45, 'Nelyx Engine v2', 30, 0xffffffff);
   text(root, 48, 72, 810, 28, 'C++ scene · Native / CanvasKit · 독립 스크롤', 15, 0xffadc5e8);
   const scroll = node('scrollViewport', root, 24, 132, 538, 480);
   changes.push(c.properties(scroll, { x: 24, y: 132, width: 538, height: 480, maximum: 1120 }));
@@ -79,5 +79,5 @@ export function engineV2Scene(image: Uint8Array): Uint8Array[] {
     c.bindResource(picture, { slot: 1, generation: 1 }),
   );
   text(root, 590, 559, 284, 67, 'Clip · Image · Paragraph\nWheel / pointer drag', 16, 0xff596a83);
-  return changes;
+  return { commands: changes, header };
 }

@@ -16,7 +16,12 @@ export interface EngineBrowserSurface {
   readonly selectedProfile: 'single-worker' | 'threaded';
   readonly selectionReason: string;
   readonly diagnostics: Record<string, unknown>;
-  readonly inputStats: { collected: number; dispatched: number; rejected: number };
+  readonly inputStats: {
+    collected: number;
+    dispatched: number;
+    rejected: number;
+    canceledStreams: number;
+  };
   createAppPort(): MessagePort;
   delayContent(milliseconds: number): void;
   input(
@@ -78,7 +83,11 @@ export async function createBrowserEngineV2Surface(
     selectedProfile: selected,
     selectionReason: reason,
   };
-  const inputStats = { collected: 0, dispatched: 0, rejected: 0 };
+  const inputStats = { collected: 0, dispatched: 0, rejected: 0, canceledStreams: 0 };
+  let contentDelayPending = false,
+    canceling = false,
+    restarting = false,
+    needsBegin = false;
   let resolveReady: (value: Record<string, unknown>) => void = () => {},
     rejectReady: (error: Error) => void = () => {};
   const ready = new Promise<Record<string, unknown>>((resolve, reject) => {
@@ -112,6 +121,11 @@ export async function createBrowserEngineV2Surface(
       if (state) latest = state;
       options.onStats?.(diagnostics);
       worker.postMessage({ kind: 'stats-ack' });
+    } else if (message.kind === 'content-control') {
+      const value = message.value as Record<string, unknown>;
+      diagnostics = { ...diagnostics, [String(value.kind)]: value };
+      if (value.kind === 'delay-ended') contentDelayPending = false;
+      options.onStats?.(diagnostics);
     } else if (message.kind === 'closed') resolveClose(message.state as Record<string, unknown>);
     else if (message.kind === 'error' || message.kind === 'runtime-error') {
       const error = new Error(String(message.message));
@@ -175,6 +189,28 @@ export async function createBrowserEngineV2Surface(
     if (timer !== undefined) clearTimeout(timer);
   }
   const owner = { session: 1, app: 1, view: 1, generation: 1 };
+  type InputValue = Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'>;
+  const sendInput = async (value: InputValue): Promise<EngineResponse> => {
+    const state = response(
+      await transport.exchange(
+        packet(
+          p.opcodes.input,
+          owner,
+          inputBody({
+            ...value,
+            sequence: ++sequence,
+            metrics: latest!.metrics,
+            target: { slot: 0, generation: 0 },
+            stream: 1,
+            time: performance.now() / 1000,
+          }),
+        ),
+      ),
+    );
+    if (state.status !== p.statuses.ok) throw new Error('Engine input rejected: ' + state.status);
+    latest = state;
+    return state;
+  };
   const input = async (
     value: Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'>,
   ): Promise<boolean> => {
@@ -183,37 +219,44 @@ export async function createBrowserEngineV2Surface(
       closed ||
       !latest ||
       latest.closed ||
+      canceling ||
+      restarting ||
       pendingInputs >= 24 ||
       latest.sessionQueued + pendingInputs >= (value.phase === 'update' ? 224 : 256)
     ) {
       ++inputStats.rejected;
+      if (!closed && latest && !latest.closed && !canceling && !restarting) {
+        canceling = true;
+        needsBegin = true;
+        ++pendingInputs;
+        void sendInput({ ...value, phase: 'cancel', dx: 0, dy: 0, velocity: 0 })
+          .then(() => {
+            ++inputStats.canceledStreams;
+          })
+          .catch(() => {})
+          .finally(() => {
+            canceling = false;
+            --pendingInputs;
+          });
+      }
       return false;
     }
     ++pendingInputs;
     try {
-      const state = response(
-        await transport.exchange(
-          packet(
-            p.opcodes.input,
-            owner,
-            inputBody({
-              ...value,
-              sequence: ++sequence,
-              metrics: latest.metrics,
-              target: { slot: 0, generation: 0 },
-              stream: 1,
-              time: performance.now() / 1000,
-            }),
-          ),
-        ),
-      );
-      latest = state;
+      if (needsBegin && value.phase !== 'begin') {
+        restarting = true;
+        await sendInput({ ...value, phase: 'begin', dx: 0, dy: 0, velocity: 0 });
+        restarting = false;
+      }
+      needsBegin = false;
+      await sendInput(value);
       ++inputStats.dispatched;
       return true;
     } catch {
       ++inputStats.rejected;
       return false;
     } finally {
+      restarting = false;
       --pendingInputs;
     }
   };
@@ -227,9 +270,12 @@ export async function createBrowserEngineV2Surface(
   };
   const resize = new ResizeObserver(update);
   resize.observe(canvas);
-  document.addEventListener('visibilitychange', update);
-  window.addEventListener('focus', update);
-  window.addEventListener('blur', update);
+  const visibility = () => {
+    if (!closed) worker.postMessage({ kind: 'viewport', viewport: viewport() });
+  };
+  document.addEventListener('visibilitychange', visibility);
+  window.addEventListener('focus', visibility);
+  window.addEventListener('blur', visibility);
   const wheel = (event: WheelEvent) => {
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -329,6 +375,10 @@ export async function createBrowserEngineV2Surface(
     },
     delayContent(milliseconds) {
       if (closed) throw new Error('Engine surface closed');
+      if (contentDelayPending) throw new Error('Content delay is already pending');
+      if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds > 2000)
+        throw new Error('Content delay must be within 0..2000 ms');
+      contentDelayPending = true;
       worker.postMessage({
         kind: 'delay-content',
         milliseconds: Math.min(2000, Math.max(0, milliseconds)),
@@ -339,9 +389,9 @@ export async function createBrowserEngineV2Surface(
       closed = true;
       resize.disconnect();
       if (resizeFrame) cancelAnimationFrame(resizeFrame);
-      document.removeEventListener('visibilitychange', update);
-      window.removeEventListener('focus', update);
-      window.removeEventListener('blur', update);
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('focus', visibility);
+      window.removeEventListener('blur', visibility);
       canvas.removeEventListener('wheel', wheel);
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointermove', move);

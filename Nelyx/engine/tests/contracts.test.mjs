@@ -18,6 +18,7 @@ import {
   EngineClient,
   EngineError,
   resolveEngineV2,
+  decodeUtf8,
 } from '../../runtime/engine-client/index.ts';
 import { FrictionSimulation } from '../../src/framework/physics/friction-simulation.ts';
 
@@ -198,6 +199,75 @@ function accounting(state) {
   assert.ok(state.holds <= p.limits.frames);
 }
 for (const profile of ['native', 'single-worker', 'threaded']) {
+  test(
+    `${profile}: text validation rolls back paint and preparation blobs retain their document`,
+    { timeout },
+    () =>
+      using(profile, async (f) => {
+        await f.start([
+          c.create(h(1), 'paragraph'),
+          c.properties(h(1), { width: 250, height: 60 }),
+          c.text(h(1), '한국어 A😀', 18, 0xff172033),
+        ]);
+        const before = await f.inspect(),
+          bad = c.text(h(1), 'x');
+        bad[40] = 0xc0;
+        assert.equal(
+          (await f.commit([c.paint(h(1), 0xffff0000), bad])).status,
+          p.statuses.invalidValue,
+        );
+        const after = await f.inspect();
+        assert.equal(after.document, before.document);
+        assert.equal(after.nodes[0].color, 0xff172033);
+        assert.equal(after.nodeBlocks, before.nodeBlocks);
+        await f.commit([c.text(h(1), '다음 text', 21, 0xff334455)]);
+        await f.step();
+        const preparation = await f.send(p.opcodes.preparationScene);
+        assert.equal(preparation.status, p.statuses.ok);
+        assert.equal(preparation.preparationDocument, f.epoch);
+        assert.equal(decodeUtf8(preparation.blobs.find((b) => b.type === 1).bytes), '다음 text');
+        await f.tick();
+        const frame = await f.present();
+        assert.equal(frame.nodes[0].fontSize, 21);
+        assert.equal(frame.nodes[0].color, 0xff334455);
+      }),
+  );
+  test(
+    `${profile}: published C++ geometry routes scrolling through transforms and ancestor clipping`,
+    { timeout },
+    () =>
+      using(profile, async (f) => {
+        await f.start([
+          c.create(h(1), 'stack'),
+          c.properties(h(1), { width: 300, height: 200 }),
+          c.create(h(2), 'scrollViewport'),
+          c.properties(h(2), { x: 50, y: 20, width: 120, height: 100, maximum: 500 }),
+          c.attach(h(2), h(1), 0),
+          c.create(h(3), 'stack'),
+          c.properties(h(3), { width: 120, height: 600 }),
+          c.attach(h(3), h(2), 0),
+          c.create(h(4), 'paragraph'),
+          c.properties(h(4), { x: 6, y: 10, width: 100, height: 30 }),
+          c.text(h(4), 'text'),
+          c.attach(h(4), h(3), 0),
+        ]);
+        await f.input('update', 25, { target: h(0, 0), source: 'wheelUnknown', x: 80, y: 60 });
+        await f.tick();
+        const frame = await f.present();
+        const scroll = frame.nodes.find((n) => n.node.slot === 2),
+          text = frame.nodes.find((n) => n.node.slot === 4);
+        assert.equal(scroll.offset, 25);
+        assert.equal(text.x, 56);
+        assert.equal(text.y, 5);
+        assert.deepEqual(text.clip, { x: 50, y: 20, width: 120, height: 100 });
+        await f.input('update', 20, { target: h(0, 0), source: 'wheelUnknown', x: 190, y: 60 });
+        await f.tick();
+        const state = await f.inspect();
+        assert.equal(state.nodes.find((n) => n.node.slot === 2).offset, 25);
+        assert.equal(state.canceled, 1n);
+        accounting(state);
+      }),
+  );
   test(
     `${profile}: ABI, generations, malformed packets, optional extension and uint64 IDs`,
     { timeout },

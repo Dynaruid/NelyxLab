@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {
-  EngineClient,
-  protocol as p,
-  createPacketTransport,
-} from '../../../Nelyx/runtime/engine-client/index.ts';
-import type { PacketEndpoint } from '../../../Nelyx/runtime/engine-client/index.ts';
+import { EngineClient, protocol as p, createPacketTransport, commands } from '@nelyx/core/v2';
+import type { PacketEndpoint } from '@nelyx/core/v2';
 import { engineV2Scene } from './v2-scene.ts';
 
 type NativePort = {
@@ -12,11 +8,29 @@ type NativePort = {
   asset(name: string): ArrayBuffer;
   notify(message: string): void;
 };
+// Structural worker ports keep the shared App bundle independent of DOM/RN types.
+type AppPort = {
+  start(): void;
+  postMessage(value: unknown, transfer: ArrayBuffer[]): void;
+  addEventListener(kind: 'message', callback: (event: { data: unknown }) => void): void;
+  removeEventListener(kind: 'message', callback: (event: { data: unknown }) => void): void;
+  close(): void;
+};
+type AppWorker = {
+  postMessage(value: unknown): void;
+  addEventListener(
+    kind: 'message',
+    callback: (event: {
+      data: { kind: string; port: AppPort; root: string; milliseconds: number };
+    }) => void,
+  ): void;
+};
 const environment = globalThis as unknown as {
   NelyxV2Native?: NativePort;
   __v2Resolve?: (id: number, bytes: ArrayBuffer, error?: string) => void;
   __v2Delay?: (ms: number) => void;
   __v2Dispose?: () => Promise<void>;
+  __v2Update?: () => Promise<void>;
 };
 async function start(
   endpoint: PacketEndpoint,
@@ -28,7 +42,8 @@ async function start(
     timeoutMs: 10000,
   });
   const view = await client.openView(1);
-  const changes = engineV2Scene(image);
+  const scene = engineV2Scene(image),
+    changes = scene.commands;
   const accepted = await view.commit(changes);
   const active = await view.awaitActivated(accepted.document, 2000);
   notify({
@@ -45,6 +60,27 @@ async function start(
     notify({ kind: 'app-delay-end', time: Date.now() });
   };
   environment.__v2Dispose = () => client.close();
+  let updates = 0,
+    updating = false;
+  environment.__v2Update = async () => {
+    if (updating) return;
+    updating = true;
+    try {
+      const accepted = await view.commit([
+        commands.text(scene.header, `Nelyx Engine v2 · ${++updates}`, 30, 0xffffffff),
+      ]);
+      const active = await view.awaitActivated(accepted.document, 2000);
+      notify({
+        kind: 'app-updated',
+        document: String(active.activeDocument),
+        commands: 1,
+        engineWork: String(active.transactionWork),
+        fallbacks: 0,
+      });
+    } finally {
+      updating = false;
+    }
+  };
 }
 if (environment.NelyxV2Native) {
   const callbacks = new Set<(message: unknown) => void>();
@@ -70,18 +106,18 @@ if (environment.NelyxV2Native) {
     (value) => native.notify(JSON.stringify(value)),
   ).catch((error) => native.notify(JSON.stringify({ kind: 'app-error', message: String(error) })));
 } else {
-  const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
-  scope.addEventListener('message', (event: MessageEvent) => {
+  const scope = globalThis as unknown as AppWorker;
+  scope.addEventListener('message', (event) => {
     if (event.data.kind === 'start') {
-      const port = event.data.port as MessagePort;
+      const port = event.data.port;
       port.start();
       void (async () => {
-        const result = await fetch(new URL('assets/image.webp', event.data.root));
+        const result = await fetch(new URL('assets/image.webp', event.data.root).href);
         if (!result.ok) throw new Error('App image asset failed');
         const endpoint: PacketEndpoint = {
           post: (value, transfer) => port.postMessage(value, transfer),
           subscribe(callback) {
-            const receive = (e: MessageEvent<unknown>) => callback(e.data);
+            const receive = (e: { data: unknown }) => callback(e.data);
             port.addEventListener('message', receive);
             return () => port.removeEventListener('message', receive);
           },
@@ -92,6 +128,10 @@ if (environment.NelyxV2Native) {
         );
       })().catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
     } else if (event.data.kind === 'delay') environment.__v2Delay?.(event.data.milliseconds);
+    else if (event.data.kind === 'update')
+      void environment
+        .__v2Update?.()
+        .catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
     else if (event.data.kind === 'close') void environment.__v2Dispose?.();
   });
 }

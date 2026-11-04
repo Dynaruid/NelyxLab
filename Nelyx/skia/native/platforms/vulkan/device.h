@@ -6,6 +6,7 @@
 #include <array>
 #include <functional>
 #include <vector>
+#include <stdexcept>
 
 class SkSurface;
 class SkCanvas;
@@ -13,9 +14,11 @@ struct ID3D11Texture2D;
 struct ID3D11Fence;
 namespace skgpu::graphite { class Context; class Recorder; class Recording; }
 namespace nelyx::vulkan {
+// Recoverable WSI invalidation. GPU/device loss remains a fatal error.
+class SurfaceChanged final : public std::runtime_error { public: using std::runtime_error::runtime_error; };
 enum class WindowKind { None, Win32, Xlib, Wayland };
 // Borrowed handles stay live on the caller's UI owner until checked renderer close.
-struct WindowTarget { WindowKind kind=WindowKind::None; uint64_t display=0,window=0; };
+struct WindowTarget { WindowKind kind=WindowKind::None; uint64_t display=0,window=0; uint32_t uiThread=0; };
 // Single-plane ARGB8888 modifiers advertised by the owning display. This does
 // not create a WSI window or allow a software/other-renderer fallback.
 struct DmaBufDeviceOptions { std::vector<uint64_t> modifiers; };

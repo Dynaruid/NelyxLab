@@ -19,6 +19,11 @@
   ],
   "scripts": {
     "build:engine-v2": "node Nelyx/engine/tools/build.mjs",
+    "run:engine-v2:web": "node Nelyx/engine/tools/serve.mjs",
+    "run:engine-v2:windows": "node Nelyx/engine/tools/run-windows.mjs",
+    "test:engine-v2:hosts": "node --test --test-timeout=1200000 Nelyx/engine/tests/hosts.test.mjs",
+    "test:engine-v2:glyphs": "node --experimental-transform-types --test --test-timeout=1200000 Nelyx/engine/tests/glyphs.test.mjs",
+    "test:engine-v2:actors": "node --experimental-transform-types --test --test-timeout=1200000 Nelyx/engine/tests/actors.test.mjs",
     "test:engine-v2": "node --experimental-transform-types --test --test-timeout=1200000 Nelyx/engine/tests/contracts.test.mjs",
     "test:native-engine-candidates": "node --test --test-timeout=1200000 Nelyx/eng/tests/native-flex-layout.test.mjs Nelyx/eng/tests/native-engine-experiment.test.mjs",
     "test:gallery-full-range": "node --test --test-timeout=1200000 Nelyx/eng/tests/gallery-range.test.mjs Nelyx/eng/tests/backing-experiment.test.mjs",

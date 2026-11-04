@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Nelyx Engine v2 Testbed</title>
+    <style>
+      html,body{margin:0;background:#e9edf4;font:14px system-ui;color:#172033}header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:#fff}button{border:1px solid #cad4e3;background:#f6f8fb;border-radius:6px;padding:7px 12px;cursor:pointer}#status{flex:1}canvas{display:block;width:960px;height:720px;max-width:100vw;outline:0}#error{color:#b02020;white-space:pre-wrap;padding:0 20px}
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Engine v2</strong><span id="status">Starting owners…</span
+      ><button id="update">Update content</button><button id="app-delay">App 200 ms</button
+      ><button id="content-delay">Content 200 ms</button><button id="close">Close</button>
+    </header>
+    <canvas aria-label="Nelyx engine v2 scene"></canvas>
+    <p id="error" role="alert"></p>
+    <script src="web/main.js"></script>
+  </body>
+</html>

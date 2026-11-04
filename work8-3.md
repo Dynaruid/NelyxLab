@@ -1,6 +1,6 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 3부: 구현 순서·검증·완료 기준
 
-작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PAUSED / PARTIAL / host·CanvasKit·owner thread 소스 연결 중 / 실제 화면 미검증**
+작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PARTIAL / Windows·두 Web host·화면·owner 연결 / 전체 backend·물리 입력·성능 미완료**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · [2부](work8-2.md) · **3부**
 
@@ -8,7 +8,7 @@
 
 ## 15. 소스 구조와 의존 방향
 
-다음은 **전체 소스 구조의 설계안**이다. 이후 1부 실행에서 `engine`의 core/protocol·scene·input·scheduler·bindings·tests와 `runtime/engine-client`를 추가했다. 후속 실행에서 `render/canvaskit-web`·`platform/windows`·`platform/web` 소스 초안을 작성했으며 실제 host 실행 전 중단했다. 나머지 layout/text/framework 등의 독립 모듈은 계속 설계 범위다.
+다음은 **전체 소스 구조의 설계안**이다. `engine`의 core/protocol·scene·input·scheduler·bindings·tests, `runtime/engine-client`, `render/canvaskit-web`·`platform/windows`·`platform/web`를 구현했다. 고정 배치 장면과 실제 host를 연결했으며 표준 layout/text/framework 등의 독립 모듈과 전체 기능 이식은 남았다.
 
 ```text
 Nelyx/
@@ -252,7 +252,7 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 
 ## 19. 작성 시점의 상태
 
-**PAUSED / PARTIAL:** 2026-11-04 사용자의 외출 요청으로 큰 빌드·앱 실행을 중단했다. 자동 재개하지 않는다. 최신 소스와 정확한 재개 절차는 [1부 중간 마무리](work8-1.md#중간-마무리--사용자-외출로-명시-중단)에 있다. 아래 기존 검사 수·hash는 직전 baseline이며 최종 host 변경의 실행 증거가 아니다.
+**PARTIAL / 연결 실행 확인:** 사용자의 재개 요청으로 Windows와 두 Web profile의 최소 고정 배치 host·화면·owner 연결을 구현·검증했다. 전체 백엔드 gate와 물리 입력/성능은 별도다. 최신 실행·수치·미완료 범위는 [1부 연결 실행 현황](work8-1.md#연결-실행-현황)에 있다.
 
 | 항목 | 현재 상태 |
 | --- | --- |
@@ -265,11 +265,11 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | Web CanvasKit 공급 방침 | npm 공식 배포본 사용으로 변경. 자체 engine/CanvasKit module 분리·retained adapter·전용 text API 이식·Picture 전달의 초기 검증 gate 정의 |
 | 3부 문서 재검토 | 현재 source/타입·공식 Flutter/Emscripten/HTML 계약 대조. 제약/finite·준비 시도·NACK·Web READY/resize/credit·DOM 입력·bundle 선택·검증 단계 보강 |
 | 구현 순서·최소 수직 구현·백엔드 완료·후속 제품 전환 | 플랫폼/두 Web profile별 필수 범위·기능표·독립/협력 실행 gate·기능 지원과 성능 수락 구분 |
-| 문서의 링크·구조·공백 검사 | 초기 분할 검사 152 링크/106 앵커. 이번 활성 문서/README 8개에서 로컬 링크 257건·앵커 117건 및 `git diff --check` 통과 |
-| 새 engine/runtime·ABI·Wasm 공급·CLI 구현 | C++/C ABI·TS client/SDK subpath와 Native/두 Wasm 63개 baseline 계약 검사 통과. 후속 Windows/Web host·owner READY·CanvasKit·SDK surface 소스 작성. 최종 schema의 C++/Wasm 회귀·host compile/link·bundle/asset 공급·Widget·CLI 선택은 미완료. 이전 schema의 engine/dist 삭제는 자동 승인 검토에서 차단되어 재빌드/정리 대기 |
-| W8-00/01 전체 gate | PARTIAL. Canonical 수치/ABI와 headless 실패·수명 검사는 구현. 필수 public API/CanvasKit 의미·Android ABI·cohort 확정 및 실제 owner transport/runner 연결은 [1부 잔여 작업](work8-1.md#검증과-남은-작업) 참조 |
-| W8-02/03 실제 surface·독립 실행 | PAUSED / 소스 작성 중 / 실제 실행 미검증. Headless profile의 `contentIndependent=false` 유지. Provider 연결 때 surface/independent capability를 설정하도록 추가했으나 아직 실행 결과가 아님 |
-| 새 성능 측정·앱 빌드/실행·물리 트랙패드 확인 | 이번 작업에서 수행하지 않음 |
+| 문서의 링크·구조·공백 검사 | 현재 문서 8개에서 로컬 링크 275개/앵커 126개 및 공백 검사 통과 |
+| 새 engine/runtime·ABI·Wasm 공급·CLI 구현 | C++/C ABI·TS 공개 Core/SDK, Windows host·두 browser profile·공식 CanvasKit·App/worker/assets·현재 공급·실행 명령. 69개 코어 계약과 4개 host 통합 검사·1개 zero-size owner 회귀·21 corpus glyph 픽셀 비교 |
+| W8-00/01 전체 gate | PARTIAL. ABI/수치·실제 owner transport·현재 공급 구현. 전체 public API 의미·Android ABI·일반 Widget resolver/runner 이식은 남음 |
+| W8-02/03 실제 surface·독립 실행 | Windows와 Web 두 profile의 고정 배치 box/text/image/clip·input·App/Content 50/100/200 ms 지연·resize/복구·close 통과. Android·전체 gesture/coverage와 통합 기능표는 미완료 |
+| 새 성능 측정·앱 빌드/실행·물리 트랙패드 확인 | 현재 v2 host/App 빌드·실행·자동 input·화면 확인. FPS/제품 성능·물리 trackpad는 미검증 |
 | 일반 App 기본값·기존 후보 판정 | 변경 없음: TS / NO_ADOPTION |
 | 기존 제품 수락 | PARTIAL, `performanceAccepted=false`, `resizePerformanceAccepted=false` 유지 |
 | v2 성능·물리 입력 수락 | notVerified |
@@ -298,7 +298,7 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | GPU 미관측 credit·숨김/복귀·DOM 입력 조건 누락 | Port별 credit/안전한 release·lifecycle/fence·EditContext 없는 편집·main의 activation 정책 ([§6.2](work8-1.md#62-상한과-frame-교체)/[6.3](work8-1.md#63-metrics숨김복구의-진행-조건)/[10.2](work8-2.md#102-편집-document)/[16.4](#164-web-비격리-배포와-profile-검증표)) |
 | Host flag만 v2이고 앱 module은 v1일 수 있음·앞 단계 검사가 뒤 단계에 의존 | 빌드 resolver/bundle major 검사·W8-03 최소 route/coverage와 W8-05/06 확장 경계 명시 ([§13.2](work8-2.md#132-점진-이식의-경계)/[16](#16-구현-순서와-단계별-완료-조건)) |
 
-다음 **재개 요청 이후** [1부의 중간 마무리](work8-1.md#중간-마무리--사용자-외출로-명시-중단)와 현재 C++/TS 변경을 확인하고 **최종 schema 회귀 → host 빌드/공급 → 실제 화면/owner 실행·drain**을 진행한다. 전체 단계는 W8-00/01 잔여 → W8-02 → W8-03을 유지한다. 기존 성능 비교나 물리 입력 확인을 그 구현의 착수 조건으로 두지 않는다.
+다음 단계는 [1부 현황](work8-1.md#연결-실행-현황)의 미완료 API/기능표·Android 최소 port와 표준 layout/Widget·gesture·coverage 이식이다. 현재 고정 배치 연결을 전체 W8 완료로 세지 않는다. 기존 제품의 물리 재확인 대기와 성능 수락은 유지한다.
 
 ---
 

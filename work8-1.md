@@ -1,6 +1,6 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 1부: 구조·상태·입력 계약
 
-작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PAUSED / PARTIAL / host·CanvasKit·owner thread 소스 연결 중 / 실제 화면 미검증**
+작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PARTIAL / Windows·두 Web host·화면·owner 연결 / 전체 backend·물리 입력·성능 미완료**
 
 [전체 목차](work8.md) · **1부** · [2부](work8-2.md) · [3부](work8-3.md)
 
@@ -18,32 +18,48 @@
 
 ## 이번 실행의 구현·검증 상태
 
-### 중간 마무리 — 사용자 외출로 명시 중단
+### 연결 실행 현황
 
-**2026-11-04: PAUSED / PARTIAL.** 사용자의 `host·CanvasKit·독립 thread·화면 연결도 해줘` 요청으로 아래 소스를 추가하던 중 `나 외출해야해서 슬슬 중간 마무리 해줘` 요청을 받았다. 큰 빌드·앱 실행을 시작하지 않고 중간 정리했다. 재개 요청 전에는 자동으로 이어서 실행하지 않는다.
+**2026-11-04 KST: 재개 / Windows와 두 Web profile의 고정 배치 장면 연결.** 외출에 따른 중단 이후 사용자의 `이제 이어서 해줘` 요청으로 재개했다. 아래 host·CanvasKit·독립 owner·화면 연결을 구현했다. **W8 전체 백엔드는 PARTIAL**이며 전체 Widget·표준 layout·편집·Android port의 완료를 뜻하지 않는다.
 
-| 이번 추가 | 중단 시점의 범위와 증거 |
+| 경로 | 구현과 확인 범위 |
 | --- | --- |
-| 공통 코어 | Mutex로 공유 상태를 보호하고 transaction staging은 lock 밖으로 이동. Paint/UTF-8 text·provider 준비/승인·실제 draw 순서/clip/scroll 좌표와 게시 snapshot hit-test를 추가. Native/두 Wasm의 기존 **63개 계약 검사 통과**는 이 변경 중간 시점의 결과이며 마지막 `preparationDocument` 필드 추가 뒤에는 재실행하지 않음 |
-| Windows | [host.cpp](Nelyx/engine/platform/windows/host.cpp), [Skia provider](Nelyx/engine/platform/windows/skia_provider.hpp)에 HWND·Hermes App·Content/Render `std::thread`·SkParagraph/Picture·Vulkan Graphite 표면 경로를 작성. CMake의 opt-in Windows target 추가. **Host target compile/link·실행·화면·정상 종료는 아직 미검증** |
-| Web | [pthread bootstrap](Nelyx/engine/bindings/browser_owners.cpp), [owner](Nelyx/engine/platform/web/owner.ts), [coordinator](Nelyx/engine/platform/web/coordinator.ts), [actors](Nelyx/engine/platform/web/actors.ts), [CanvasKit provider](Nelyx/engine/render/canvaskit-web/provider.ts) 초안. Single-worker와 shared engine/두 pthread owner, 별도 CanvasKit heap, READY·메시지·OffscreenCanvas·release/게시 경로. **Browser host 빌드·번들·실제 두 profile 실행은 미완료** |
-| SDK/Testbed | [브라우저 surface API](Nelyx/sdk/src/runtime/engine-v2-browser.ts), bounded packet port, [고정 배치 장면](sample/nelyx-testbed-app-2/src/v2-scene.ts), [App entry](sample/nelyx-testbed-app-2/src/v2-app.ts). 실제 runner/HTML/server 및 배포 asset 공급은 아직 없음. 일반 App의 v2 실행 완료로 세지 않음 |
-| 공식 CanvasKit 조사 | 설치된 npm **0.41.0/full** 공개 API로 실제 Node paragraph·Picture probe 실행. `ParagraphStyle` 생성자 사용 필요 확인. NotoSansKR 10,414,588 bytes에서 text Picture 10,415,184 bytes로 font 복제가 커서 threaded text는 공개 shaped glyph run 전달 초안을 추가. **Glyph replay 픽셀 동등성·fallback/RTL/emoji·worker WebGL2 화면은 미검증** |
-| 가벼운 마무리 검사 | **Core build, Web adapter·공통 client·SDK TypeScript, schema 생성본 일치, 변경 JS/TS lint·format, `git diff --check` 통과.** SDK 배포물 재빌드는 미수행. 아래 직전 전체 workspace·기존 geometry 결과를 현재 최종 변경의 재검증으로 해석하지 않음 |
+| 공통 C++ | 동시 dispatch 잠금, lock 밖 transaction staging·provider 준비, paint/UTF-8 text, 준비 document/provider 승인, C++ world 좌표·ancestor clip·게시 snapshot hit-test. Native/두 Wasm **69개 계약 검사 통과** |
+| Windows | [HWND/Hermes host](Nelyx/engine/platform/windows/host.cpp)와 [Skia provider](Nelyx/engine/platform/windows/skia_provider.hpp). UI·Hermes App·Content·Render **서로 다른 4 OS thread**. SkParagraph/Picture·WebP CPU 준비와 Vulkan Graphite 표면. RTX 4060 Laptop GPU로 실제 장면·입력·resize/minimize/restore·종료 확인. `Ctrl+U`로 App 선언을 갱신하고 wheel/왼쪽 pointer drag로 스크롤 |
+| Web threaded | [pthread bootstrap](Nelyx/engine/bindings/browser_owners.cpp), [owner](Nelyx/engine/platform/web/owner.ts), [coordinator](Nelyx/engine/platform/web/coordinator.ts). 별도 App Worker·engine coordinator·실제 Content/Render pthread, shared engine heap과 owner별 non-shared 공식 CanvasKit heap. READY와 실제 owner ID 확인 후 `contentIndependent=true` |
+| Web single-worker | 별도 non-shared engine binary·App Worker·한 engine/CanvasKit owner에서 Content/Render 협력 실행. 비격리 배포의 기본 auto 선택. `contentIndependent=false`를 유지하고 Content 동기 점유 뒤 회복을 확인 |
+| 공식 CanvasKit | 수정하지 않은 npm **0.41.0/full JS·Wasm**, 실제 OffscreenCanvas/WebGL2·Picture/Image/Paragraph. Single-worker는 local Picture, threaded 비텍스트는 public Picture serialize/import, 텍스트는 같은 hash의 고정 font와 public shaped glyph run 전달. Render에서 paragraph를 다시 layout하지 않음 |
+| SDK·Testbed | [브라우저 surface API](Nelyx/sdk/src/runtime/engine-v2-browser.ts), [고정 배치 장면](sample/nelyx-testbed-app-2/src/v2-scene.ts), [App](sample/nelyx-testbed-app-2/src/v2-app.ts), [Web 진입점](Nelyx/engine/platform/web/main.ts). 새로 빌드한 공개 `@nelyx/sdk/engine-v2`·`@nelyx/core/v2`를 bundle에서 사용. 초기 SDK 명령 **277 = 실제 C++ transactionWork 277**, text 갱신 뒤 **278**, fallback **0**을 각 장면에서 대조 |
+| 현재 공급 | [builder](Nelyx/engine/tools/build.mjs)가 Core/SDK를 먼저 빌드하고 Windows host·두 engine·worker/App·공식 CanvasKit·font/license·image·ICU·Hermes DLL과 ABI/전체 file hash/source identity manifest를 공급. 이전 schema dist와 임시/staging/이전 출력은 교체·finally 정리. Native runner는 source·file hash가 다르면 시작 실패 |
 
-**현재 실행 공급:** `tools/build.mjs`는 여전히 headless 공급만 만든다. Windows host CMake option과 Web browser target을 공급 빌드에 전달하고, worker/App bundle·공식 CanvasKit 원본·font/image/ICU/Hermes DLL·identity manifest를 묶는 작업이 남았다. **이전 schema의 `engine/dist`가 남아 있으며 현재 Core와 함께 사용하면 안 된다.** 해당 dist의 정확한 경로·manifest hash를 검증한 뒤 삭제를 요청했으나 자동 승인 검토가 `blocked by policy`로 거부하여 삭제하지 않았다. 재개 시 공급 builder로 현재 소스에서 재생성하고 이전 출력을 정리한다. 새 host 실행 명령이나 실제 화면 성공을 아직 제공하지 않는다. 새 파일 다수가 untracked 상태이므로 재개 시 `git clean`으로 제거하지 않는다.
+#### 실행 방법
 
-재개 순서는 다음과 같다.
+저장소 루트에서 빌드한 뒤 원하는 host를 실행한다. Emscripten **4.0.22**는 `EMSDK` 또는 사용자 cache의 `.cache/tooling/emsdk`를 사용한다. Windows는 기존 `Nelyx/skia/vendor/inputs/windows-x64`와 `.nelyx/windows-hermes`의 고정 cohort를 hash로 확인하며 공급 누락 시 실패한다.
 
-1. 현재 `git diff`·이 절·소스의 TODO를 읽는다. `node Nelyx/engine/tools/generate-schema.mjs --check`와 Core/Web/SDK 타입을 확인한 뒤 기존 63개 계약 검사를 **최종 schema로** 다시 실행한다. 현재 wire state **336 bytes**, node row **160 bytes**, text 상한 **65,536 bytes**다.
-2. 공급 builder의 host options·pinned Skia/Hermes 확인·asset hash/ABI manifest·esbuild worker/App bundle·최소 HTML/server를 완성한다. Windows target은 기존 `Nelyx/skia/vendor/inputs/windows-x64`와 `.nelyx/windows-hermes`를 사용하고 native capability 공급 오류는 실패시킨다.
-3. Windows host를 compile/link한 뒤 실제 Hermes/SkParagraph·Vulkan image 업로드·표면을 확인한다. OpenView 이후 metrics 경합/불필요 epoch 갱신, queue 처리량/idle wake, provider 실패·닫기 drain·thread join과 예외 exit code를 점검한다. App SDK 명령 수와 C++ `transactionWork`가 맞고 fallback 0인지 실제 장면에서 확인한다.
-4. Web의 격리 `auto → threaded`, 비격리 `auto → single-worker`, 비격리 forced-threaded 실패를 실제 브라우저에서 확인한다. Glyph replay 픽셀 비교, 오래된 준비/metrics 폐기, canvas resize/hide/zero/restore, provider import 실패 terminal, overflow stream cancel, READY 실패 worker 정리와 종료 ledger/provider 0을 보강·검증한다.
-5. 실제 화면과 입력을 확인한 후 App/Content **50/100/200 ms** 지연 중 input·scroll·publication 진행/회복을 profile별 검사한다. Native/threaded의 실제 서로 다른 owner ID를 확인하며 single-worker의 Content 점유는 독립 실행으로 표시하지 않는다. 기존 두 input-geometry 회귀·package identity·문서 링크를 마지막에 다시 확인한다. 물리 trackpad/FPS·전체 Widget/layout/편집·Android는 별도 미완료 범위로 유지한다.
+```powershell
+npm.cmd run build:engine-v2
+npm.cmd run run:engine-v2:windows
+# 별도 터미널에서 Web을 실행할 때
+npm.cmd run run:engine-v2:web
+```
 
-### 직전 headless 기반 구현
+Web: `http://127.0.0.1:8192/isolated/`는 COOP/COEP가 있는 `auto → threaded`, `/plain/`은 비격리 `auto → single-worker`다. `?profile=single-worker|threaded`로 강제할 수 있으며 비격리 forced-threaded·요구 capability 누락·schema/asset hash 오류는 시작 실패다. Asset/초기화 오류를 다른 profile이나 TS renderer로 숨기지 않는다. Worker·transfer 가능한 OffscreenCanvas·worker WebGL2가 필요하다. 정적 배포는 현재 `engine/dist` 전체를 보존하고, 격리 route에서는 모든 worker/asset에 일관된 headers를 제공해야 한다. 정상 close 뒤 canvas 재사용 대신 새 canvas/session을 만든다.
 
-**1부 전체와 W8-00/01/03의 완료 판정은 PARTIAL이다.** 최초 headless 작업의 시작 HEAD는 `0e0379f`, 당시 작업 트리는 깨끗했다. 아래 표와 63개 baseline은 그 기반 구현의 기록이다. 위의 미완료 host 추가가 이 결과를 실제 renderer·표면 검증으로 확장하지 않는다.
+#### 검증과 수락 경계
+
+- [host 검사](Nelyx/engine/tests/hosts.test.mjs) **4개**: Native와 두 Web 실행·초기 작업/선언 집계·App/Content 50/100/200 ms 지연·실제 offset/frame 진행·content commit 뒤 scroll 보존·resize/zero/minimize/restore·idle·close, zero-size 시작/복귀·WebGL2 불가·forced-threaded/불일치/손상 공급 거부. Native는 지연 시작 때 UI에 입력을 예약하고 지연 중 C++ frame 합성 입장을 확인한다. GPU/WSI 완료 시점의 busy 여부는 별도로 보고하며 50 ms 안 GPU 완료/FPS를 수락하지 않는다. Web threaded는 Content 점유 중에도 flush·게시가 진행하고, single-worker는 App 점유 중 진행 및 Content 점유 뒤 회복한다. 각 검사 timeout은 **20분**이다.
+- SDK/Main 전송 32 request/4 MiB, input admission 24 pending과 core 256 cap. 포화 시 예약된 Cancel을 보내고 다음 stream을 Begin으로 재개한다. 40개 동시 input으로 거부/Cancel·회복을 확인했다. Telemetry는 미회신 1개로 coalesce한다.
+- [owner scheduler 검사](Nelyx/engine/tests/actors.test.mjs) **1개**: 실제 C++ Wasm에서 zero-size 수요가 있더라도 Content step은 한 번 후 멈추고, non-zero metrics와 host wake 뒤 준비를 재개한다. Main visibility/focus는 rAF 정지를 기다리지 않고 전달한다. Render는 public GrDirectContext/WebGL2 handle 하나를 resize 사이에 재사용하고 close에서 명시적으로 해제한다.
+- [glyph 검사](Nelyx/engine/tests/glyphs.test.mjs) **1개/21 corpus**: 한글·Latin·혼합 문자열과 장면의 7 font size에서 분리된 두 공식 CanvasKit instance의 paragraph paint와 public glyph record를 CPU 픽셀 비교하여 차이 **0**. Slight hinting을 맞췄다. NotoSansKR 10,414,588 bytes가 text Picture 10,415,184 bytes에 복제되는 probe를 확인하여 glyph 전달을 사용한다. 전체 fallback·RTL·emoji·rich text·전용 paragraph API 의미의 이식은 미완료다.
+- Native 종료는 UI가 HWND를 유지한 채 provider drain·실제 thread join 후 core ledger 0·정상 exit를 확인한다. Web 종료는 owner stop·Picture/surface/GPU context/font hold 0·core ledger 0 뒤 pthread workers와 App Worker를 종료한다. Vulkan out-of-date는 해당 frame을 실패 회수한 뒤 최신 metrics로 재구성하며 GPU/device loss를 성공으로 처리하지 않는다.
+- Native GPU submit/WSI resource fence와 Web flush/publication을 구별한다. Web `gpuComplete='unobserved'`, 모든 실제 scanout은 `unobserved`다. Headless Chromium은 **SwiftShader WebGL2**로 기능 검증했다. 표시된 Chromium 창에서는 **AMD Radeon 780M/D3D11**의 threaded 화면·wheel·content 갱신·close를 직접 확인했다. Windows 일반 실행 명령에서도 화면·OS 주입 wheel/왼쪽 drag·Ctrl+U·정상 close를 직접 확인했다. 이는 hardware FPS/지연의 성능 증거가 아니다. 자동 input/화면 검사는 물리 trackpad/FPS·제품 성능 수락을 대신하지 않는다.
+- Core/SDK build·전체 workspace 타입·Web adapter 타입·기존 input-geometry **2개**와 retained-input-geometry **7개**를 통과했다. Gallery → Mixed 및 활성화 실패 회귀를 유지하며 이를 v2 전체 Gallery 이식 완료로 세지 않는다. 생성본·lint/format·현재 supply source/file hash·공개 Core/SDK의 세 headless 공급 호출/ledger 0, package dry-run의 Core v2 파일 28개·SDK v2 파일 8개를 확인했다. 현재 supply는 manifest 제외 27개 파일이다. 문서 8개의 로컬 링크 275개/앵커 126개를 확인했다.
+
+검증 명령은 `npm.cmd run test:engine-v2`, `npm.cmd run test:engine-v2:glyphs`, `npm.cmd run test:engine-v2:actors`, 현재 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`다. 일반 App의 engine 기본값은 유지하고 v2는 위 별도 명령으로 실행한다. 나머지 W8-00 API 의미/Android ABI 확정, 최소 Android surface, 표준 layout/Widget/Key/편집/semantics·coverage와 전체 gesture 이식은 계속 진행할 범위다. 설계 근거는 [Emscripten runtime 수명](https://emscripten.org/docs/api_reference/emscripten.h.html), [Vulkan WSI 재구성](https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/04_Swap_chain_recreation.html), [CanvasKit 공개 타입](https://github.com/google/skia/blob/main/modules/canvaskit/npm_build/types/index.d.ts)과 설치된 고정 공급 source/API를 대조했다. 기존 `performanceAccepted=false`, `resizePerformanceAccepted=false`, work7의 물리 재확인 대기를 유지한다.
+
+### 공통 코어 구현
+
+**1부 전체와 W8-00/01/03의 gate는 PARTIAL이다.** 아래 공통 코어와 실제 host 연결을 구현했으나 전체 기능표/플랫폼 이식은 남았다. 최초 headless 작업의 시작 HEAD는 `0e0379f`다.
 
 | 구현한 경로 | 현재 기능과 확인 범위 |
 | --- | --- |
@@ -58,9 +74,7 @@
 | [Wasm binding](Nelyx/engine/bindings/wasm.cpp), [TS adapter](Nelyx/runtime/engine-client/wasm.ts) | 별도 non-shared/shared-memory 빌드·module 소유 해제·memory growth 뒤 HEAP 재취득·출력 packet 복사. JS buffer/다른 module 포인터를 보관하지 않음 |
 | [CMake](Nelyx/engine/CMakeLists.txt), [빌드](Nelyx/engine/tools/build.mjs), [계약 검사](Nelyx/engine/tests/contracts.test.mjs) | Windows x64 MSVC와 Emscripten **4.0.22**의 Native/single-worker/threaded headless 실행. Current `engine/dist`만 공급하고 staging/이전 dist/검증 임시는 finally에서 제거 |
 
-기반 검사는 **cooperative headless dispatcher** 호출로 실행했다. 현재 소스에는 공유 상태 잠금과 provider 연결 경로가 추가됐지만 실제 동시 owner 실행은 아직 검증하지 않았다. Content 준비의 고정 배치 constraints 검사를 표준 layout으로 세지 않는다. `CreateNode`에서 13개 종류를 인식해도 해당 종류의 layout·paint·편집 구현 완료가 아니다. Headless `takeFrame` rows는 GPU 재생이나 화면 갱신의 증거가 아니다.
-
-Threaded Wasm의 headless 검사는 shared heap compile/instantiate까지만 확인했다. 이후 추가한 owner bootstrap은 실행 미검증이다. **Headless 경로는 계속 `contentIndependent=false`, qualification `headless-contracts-only`, renderer `unconnected`**다. 새 surface/independent capability는 실제 provider 연결 때만 설정하도록 작성했으며 아직 실측한 capability 보고가 아니다. `appControlled`와 raw observer는 `capabilityMissing`으로 거부한다. Standard tap/pinch·키/버튼/편집 event·전체 motion graph를 scroll 성공으로 대신하지 않는다.
+Headless 검사는 cooperative 호출로 실행하고 `contentIndependent=false`를 보고한다. 실제 Windows/threaded host는 provider READY와 서로 다른 owner를 연결한 뒤 surface/independent capability를 제공한다. CreateNode의 13개 종류 인식을 표준 layout·paint·편집 전체 구현으로 세지 않는다. 고정 배치 geometry를 C++가 보유하며 `appControlled`/raw observer·전체 tap/pinch·키/편집 event·motion graph 이식은 남았다.
 
 ### 이번에 고정한 값
 
@@ -72,27 +86,12 @@ Threaded Wasm의 headless 검사는 shared heap compile/instantiate까지만 확
 | Content/scene | step당 최대 64 slot. 진행 중/ready 후보 합계 1·최신 다음 document 수요 1·active scene 1. 새 commit만으로 진행 중인 호환 준비를 취소하지 않음 |
 | Frame/publication | view당 engine hold 2, 최대 8 view이므로 session 최대 16. Provider release와 관측된 GPU 완료를 구별하고 게시 대기 최신 1. Close는 미회수 provider hold를 보존하며 session close는 drain 전 `busy` |
 | Result/event/command | view당 결과 32개 및 payload 1 MiB·event 256개/poll 32개·대기 scroll command 64개/최대 2초. Overflow는 view 종료, pending 명령은 `nextDeadline`로 timer 수요를 드러냄 |
-| Memory | session 내부 reservation 64 MiB·resource 32 MiB·resource slot 1024. 공유 node/resource는 마지막 hold까지 유지. 진단 `reservedBytes`는 RSS가 아니며, 아직 연결하지 않은 CanvasKit/GPU/provider heap을 계측한 값도 아님 |
-| Package/선택 | 새 npm package 없이 core/SDK의 명시 subpath 추가. 일반 App의 engine 선택·기본 import는 기존 경로를 유지. CLI의 v2 선택·Widget resolver·실제 host 공급은 후속 작업 |
+| Memory | session 내부 reservation 64 MiB·resource 32 MiB·resource slot 1024. 공유 node/resource는 마지막 hold까지 유지. 진단 `reservedBytes`는 RSS가 아니며, CanvasKit/GPU/provider heap을 합산한 값도 아님 |
+| Package/선택 | 새 npm package 없이 core/SDK의 명시 subpath 추가. 일반 App의 engine 선택·기본 import는 기존 경로를 유지. 별도 v2 host runner/현재 공급 제공. 일반 Widget resolver·제품 기본값 전환은 후속 작업 |
 
 ### 검증과 남은 작업
 
-다음 검증 수와 hash는 **직전 headless 기반의 기록**이다. 현재 중단 시점과 재개 절차는 [중간 마무리](#중간-마무리--사용자-외출로-명시-중단)를 우선한다. 아래 옛 supply hash는 최신 소스 identity가 아니다.
-
-저장소 루트에서 `npm.cmd run test:engine-v2`를 실행한다. 각 검사는 20분 timeout을 사용하며 필요한 현재 Native/두 Wasm만 임시 빌드하고 종료 시 삭제한다. `EMSDK`가 없으면 사용자 cache의 `.cache/tooling/emsdk`를 찾고 정확한 **4.0.22**를 요구한다. 현재 headless 공급을 남기는 명령은 `npm.cmd run build:engine-v2`다. 실행 상태와 패키지 진입점은 기존 Core/SDK README에도 반영했다.
-
-- Native와 두 Node-hosted Wasm profile에서 **63개 계약 검사 통과**: ABI·malformed/범위·그래프/resource rollback·ACK 유실·준비 실패/late 결과·연속 producer/commit·busy·포화 accounting·scroll 보존·physics 차등·motion terminal·역순 게시·다중 view·close/drain·제어 fence 뒤 wheel 재개/게시 metrics 일치·전송 buffer 이전·heap growth.
-- `npm.cmd run test:input-geometry` **2개**, `npm.cmd run test:retained-input-geometry` **7개** 통과. 기존 Gallery → Mixed와 활성화 실패 회귀를 유지했다. 이는 v2 실제 Testbed 실행 결과가 아니다.
-- Core/SDK build·`npm.cmd run check:types` 전체 workspace·생성본/변경 JS·TS lint/format·`git diff --check` 통과. Current 공급 **8개 파일 hash**와 C++ 소스 identity `716e4d946cf3ad8c…`가 일치하며, 빌드된 Core/SDK export로 세 공급물을 실제 호출해 document 활성화 뒤 내부 ledger 0까지 확인했다. 활성 문서/README 8개의 로컬 링크 257개·앵커 117개도 통과했다. 실제 Window/브라우저 surface·Android·물리 입력·성능 수락은 **notVerified**다.
-
-계속할 순서는 다음과 같다. 범위를 줄이거나 필수 항목을 `unsupported`로 바꾸어 gate를 닫지 않는다.
-
-1. **W8-00 잔여:** Testbed/public export별 필수 API 목록, Android 최소 ABI, Native cohort, 공식 CanvasKit 버전/variant·전용 text API 대체의 실제 의미를 고정한다. 현재 npm `0.41.0`을 설계의 출발점으로 유지하며 v2 provider 검증 완료로 표시하지 않는다.
-2. **W8-01 잔여:** 실제 native owner별 bounded transport와 Web app/main↔engine worker 메시지·READY·오류/종료를 연결한다. Canonical text/문자열·callback·추가 provider/event 한도를 필요한 API와 함께 확장하고 bundle/host resolver를 runner 설정에 연결한다.
-3. **W8-02:** Windows 자체 host·두 Web profile의 공식 CanvasKit/OffscreenCanvas·자동/강제 loader·실제 격리/비격리 배포·최소 Android surface를 연결한다. Headless compile/Node 실행은 이 gate의 대체가 아니다.
-4. **W8-03/04/05/06:** 실제 owner thread·surface credit/게시 snapshot과 지연 회귀, 표준 physics/gesture·coverage/anchor, 표준 layout/text·Widget/State/Key와 편집/semantics 이식을 완성한다. 현재 fixed declaration·friction/opacity/최소 route는 전체 기능 완료가 아니다.
-
-백엔드 전체·기존 제품의 `PARTIAL`, `performanceAccepted=false`, `resizePerformanceAccepted=false`와 work7의 물리 재확인 대기는 그대로다.
+최신 검증·실행 명령·미완료 범위는 [연결 실행 현황](#연결-실행-현황)을 따른다. 전체 backend·기존 제품은 계속 PARTIAL이다. 최소 고정 배치 host의 화면/독립 실행 검사를 전체 Widget·Android·물리 입력·성능 검증으로 확장하지 않는다.
 
 ## 1. 설계의 기준과 결정
 

@@ -10,7 +10,9 @@ Start with the [Testbed guide](../../sample/nelyx-testbed-app-2/README.md) for a
 
 `@nelyx/sdk/engine-v2` exports `connectEngineV2Host(host, options)`. Supply a v2 packet transport with an `identity` containing `engine: 'v2'`, `abiMajor`, and `schema`. The facade checks bundle/host identity, then the C++ handshake checks requested capabilities. The [Core v2 guide](../README.md#experimental-v2-engine-protocol) covers build commands, ACK retry, activation, and close/drain.
 
-The packet port supports host development. A `createBrowserEngineV2Surface()` source entrypoint now adds worker/profile/input/close handling, alongside Windows and CanvasKit host sources. Its runnable bundle/assets, host compilation, actual screens, and independent Content/Render execution remain unverified. Work is **PAUSED / PARTIAL** at the user's request; current runners, Widget applications, and CLI engine selection remain incomplete. Follow the [resume notes](../../work8-1.md#중간-마무리--사용자-외출로-명시-중단) before using the unfinished surface path.
+`createBrowserEngineV2Surface(canvas, { root: new URL('/engine/', location.href), profile: 'auto' })` connects the supplied worker runtime to a fresh canvas. Serve the whole current engine dist at `root`. The returned surface provides a packet host, an App port, diagnostics, and asynchronous `close()`. The Main thread forwards bounded input and viewport updates; C++ owns scene coordinates, scrolling, and hit-testing. `auto` selects threaded when isolation/shared memory is available and single-worker otherwise. A missing explicit capability or broken supply fails startup; it does not enable a v1 fallback. Close drains providers and workers, and a new session requires a new canvas.
+
+The standalone Windows host and both Web profiles render the fixed-layout Testbed scene; the [Core guide](../README.md#experimental-v2-engine-protocol) has build/run commands. Full Widget/layout/editing/gesture and Android migration remain PARTIAL. The [execution notes](../../work8-1.md#연결-실행-현황) separate functional evidence from physical input and performance acceptance.
 
 ## Application APIs
 

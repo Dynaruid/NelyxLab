@@ -14,6 +14,7 @@
 #include "include/core/SkSurface.h"
 #include "include/core/SkFontMgr.h"
 #include "include/core/SkTypeface.h"
+#include "include/codec/SkWebpDecoder.h"
 #include "include/gpu/graphite/Context.h"
 #include "include/gpu/graphite/Recorder.h"
 #include "include/gpu/graphite/Surface.h"
@@ -39,6 +40,7 @@ class ContentProvider {
   std::atomic<uint64_t> paragraphs{0}, images{0}, pictures{0};
   ContentProvider(const std::string& font, const std::string& icu) {
     nelyx::font_services::initialize(icu);
+    static std::once_flag codecs;std::call_once(codecs,[]{SkCodecs::Register(SkWebpDecoder::Decoder());});
     auto manager = nelyx::font_services::manager();
     auto face = manager->makeFromData(SkData::MakeFromFileName(font.c_str()));
     if (!face) throw std::runtime_error("Native font decode failed");
@@ -94,16 +96,17 @@ class RenderProvider {
   uint32_t width=0,height=0;
  public:
   uint64_t draws=0;
-  explicit RenderProvider(uint64_t window) {
-    device=std::make_shared<nelyx::vulkan::Device>(window);
+  RenderProvider(uint64_t window,uint32_t uiThread) {
+    device=std::make_shared<nelyx::vulkan::Device>(nelyx::vulkan::WindowTarget{nelyx::vulkan::WindowKind::Win32,0,window,uiThread});
     skgpu::graphite::RecorderOptions options;options.fGpuBudgetInBytes=32*1024*1024;options.fImageProvider=sk_make_sp<UploadProvider>();
     recorder=device->context()->makeRecorder(options);if(!recorder)throw std::runtime_error("Vulkan Graphite recorder unavailable");
   }
   std::string driver()const{return device->description();}
-  void draw(const Frame& frame,const Prepared& prepared) {
+  bool draw(const Frame& frame,const Prepared& prepared) {
+    try {
     const auto scale=frame.scene->metrics.scale;
     const auto w=uint32_t(std::llround(frame.scene->metrics.width*scale)),h=uint32_t(std::llround(frame.scene->metrics.height*scale));
-    if(!w||!h)return;
+    if(!w||!h)return false;
     if(w>8192||h>8192||uint64_t(w)*h>16*1024*1024)throw std::runtime_error("Native surface size budget exceeded");
     if(w!=width||h!=height){
       surface.reset();device->resizeWindow(recorder.get(),w,h);
@@ -119,7 +122,10 @@ class RenderProvider {
       canvas->translate(float(item.x),float(item.y));SkPaint alpha;alpha.setAlphaf(float(item.opacity));
       canvas->drawPicture(found->second,nullptr,&alpha);canvas->restore();
     }
-    canvas->restore();device->present(recorder.get(),surface.get());++draws;
+    canvas->restore();device->present(recorder.get(),surface.get());++draws;return true;
+    }catch(const nelyx::vulkan::SurfaceChanged&){
+      surface.reset();device->releaseWindow(recorder.get());width=height=0;return false;
+    }
   }
   void close(){if(!device)return;device->retire();surface.reset();device->releaseWindow(recorder.get());recorder.reset();device->drain();device.reset();}
   ~RenderProvider(){try{close();}catch(...){device.reset();}}

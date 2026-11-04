@@ -1,6 +1,6 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획
 
-작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PAUSED / PARTIAL / host·CanvasKit·owner thread 소스 연결 중 / 실제 화면 미검증**
+작성·심화 검토·구현: **2026-11-04 KST** · 상태: **PARTIAL / Windows·두 Web host·화면·owner 연결 / 전체 backend·물리 입력·성능 미완료**
 
 설계·구축 계획을 아래 **3부**로 나누었다. 기존 절 번호(§1–19)와 구현 단계(W8-00–10)를 유지한다.
 
@@ -16,4 +16,4 @@
 
 공통 C++ 백엔드 구축과 TypeScript UI Runtime·SDK 연결이 주목표다. Web은 threaded/non-shared single-worker 두 engine 공급과 수정하지 않은 npm 공식 CanvasKit을 사용하도록 설계한다. 백엔드 완료와 제품의 물리 입력·체감·성능 수락은 구분한다.
 
-문서 분할 뒤 1부 작업에서 C++ 코어·C ABI·TS/SDK 명시 진입점과 Native/두 Wasm headless 계약 검사를 추가했다. 후속 요청으로 Windows host·공식 CanvasKit·owner thread·SDK 브라우저 surface와 고정 장면의 소스를 작성하던 중 사용자의 외출 요청으로 **중단했다**. Host compile/link·browser bundle/asset 공급·실제 화면·독립 실행은 미검증이다. 재개 요청 전에는 실행을 이어가지 않는다. 정확한 변경 범위·검증 경계·재개 순서는 [1부 중간 마무리](work8-1.md#중간-마무리--사용자-외출로-명시-중단)에 남겼다. 이전 schema의 엔진 dist는 삭제가 자동 승인 검토에서 차단되어 남아 있으므로 재사용하지 않는다. 현재 공급 builder는 여전히 headless 전용이다. Headless 실행의 `contentIndependent=false`를 실제 owner 실행 결과로 바꾸지 않는다. 기존 제품의 `PARTIAL`, `performanceAccepted=false`, `resizePerformanceAccepted=false`와 v2 실제 surface·성능·물리 입력의 `notVerified`, 선행 [work7의 물리 재확인 대기](history/26/11/04/work7-summary.md)를 유지한다.
+공통 C++ 코어·C ABI·TS/SDK 진입점과 Windows 자체 host·공식 CanvasKit을 사용하는 두 Web profile을 연결했다. 실제 고정 배치 장면에서 작업 집계·화면·독립 owner/협력 실행·입력·지연·resize/복구·close를 확인했다. 공개 Core/SDK export와 현재 engine/dist를 빌드하고 실행하는 명령·증거·범위는 [1부 연결 실행 현황](work8-1.md#연결-실행-현황)에 있다. 전체 Widget/layout/편집·Android와 전체 W8 gate는 PARTIAL이다. 기존 `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/성능 `notVerified`와 [work7의 물리 재확인 대기](history/26/11/04/work7-summary.md)는 유지한다.

@@ -31,9 +31,10 @@ uint32_t nelyx_engine_abi_major(void);
 uint32_t nelyx_engine_schema(void);
 uint32_t nelyx_engine_capabilities(void);
 uint32_t nelyx_engine_create(const nelyx_engine_options*, nelyx_engine**);
-/* Headless cooperative dispatcher: callers serialize operations. Host owner
- * threads must use bounded messages; this API does not create OS threads. Input
- * bytes are read/copied before returning; no JS/JSI pointer is retained. */
+/* Concurrent dispatch is synchronized; transaction staging and external provider
+ * work do not hold the shared-state lock. Hosts use bounded owner mailboxes;
+ * this API does not create OS threads. Input bytes are read/copied before
+ * returning; no JS/JSI pointer is retained. Destroy requires exclusive lifetime. */
 uint32_t nelyx_engine_dispatch(nelyx_engine*, const uint8_t*, uint32_t, nelyx_engine_buffer*);
 uint32_t nelyx_engine_connect_provider(nelyx_engine*, uint32_t independent, uint64_t content_owner, uint64_t render_owner);
 void nelyx_engine_buffer_release(nelyx_engine_buffer*);

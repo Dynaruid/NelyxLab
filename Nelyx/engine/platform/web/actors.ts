@@ -58,8 +58,7 @@ export class ContentActor {
         const packet = this.provider.prepare(scene, this.sharedOwner);
         this.post({ kind: 'prepared', packet }, this.sharedOwner ? [] : preparedTransfers(packet));
         this.post({ kind: 'content-stats', counters: { ...this.provider.counters } });
-      } else if (!state.preparationReady && (state.preparation || state.pendingDocument))
-        this.kick();
+      } else if (!state.preparationReady && state.preparation) this.kick();
     } catch (error) {
       const state = request(this.module, this.engine, p.opcodes.inspect);
       if (state.preparation)
@@ -99,6 +98,7 @@ export class RenderActor {
   private viewport: Viewport = { width: 0, height: 0, scale: 1, visible: true, focused: true };
   private cppMetrics = '';
   private last: EngineResponse | undefined;
+  private offsets: number[] = [];
   constructor(
     private module: BrowserModule,
     private engine: number,
@@ -108,9 +108,11 @@ export class RenderActor {
   attach(canvas: OffscreenCanvas, viewport: Viewport): void {
     this.provider.attach(canvas);
     this.viewport = viewport;
-    this.provider.resize(viewport.width, viewport.height, viewport.scale);
+    // Probe the actual owner WebGL2 surface even if the DOM starts at zero size.
+    this.provider.resize(Math.max(1, viewport.width), Math.max(1, viewport.height), viewport.scale);
   }
   update(viewport: Viewport): void {
+    if (this.stopped) return;
     this.viewport = viewport;
     const state = request(this.module, this.engine, p.opcodes.inspect);
     if (state.status !== p.statuses.ok || state.closed) return;
@@ -153,7 +155,23 @@ export class RenderActor {
       state.device !== packet.device
     )
       return;
-    this.provider.import(packet);
+    try {
+      this.provider.import(packet);
+    } catch (error) {
+      request(
+        this.module,
+        this.engine,
+        p.opcodes.preparationResult,
+        body(24, (v) => {
+          v.setBigUint64(0, packet.preparation, true);
+          v.setBigUint64(8, packet.metrics, true);
+          v.setBigUint64(16, packet.device, true);
+        }),
+      );
+      this.provider.retireExcept(state.activePreparation, this.candidate);
+      this.post({ kind: 'provider-error', message: failure(error) });
+      return;
+    }
     const result = request(
       this.module,
       this.engine,
@@ -208,6 +226,9 @@ export class RenderActor {
     if (state.status !== p.statuses.ok || state.closed) return;
     const frame = request(this.module, this.engine, p.opcodes.takeFrame);
     if (frame.status === p.statuses.ok) {
+      this.offsets = frame.nodes
+        .filter((n) => n.kind === p.kinds.scrollViewport)
+        .map((n) => n.offset);
       let drawn = false;
       try {
         this.provider.draw(frame, this.viewport.width, this.viewport.height, this.viewport.scale);
@@ -255,9 +276,7 @@ export class RenderActor {
     this.post({
       kind: 'render-stats',
       state,
-      scrollOffsets: frame.nodes
-        .filter((n) => n.kind === p.kinds.scrollViewport)
-        .map((n) => n.offset),
+      scrollOffsets: this.offsets,
       counters: { ...this.provider.counters },
       gl: this.provider.gl,
       events: events.events,

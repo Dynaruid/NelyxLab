@@ -230,7 +230,10 @@ struct Device::Impl {
 #ifdef _WIN32
     if(borrowedWindow){
       const auto window=reinterpret_cast<HWND>(borrowedWindow);DWORD process=0;
-      if(!IsWindow(window)||GetWindowThreadProcessId(window,&process)!=GetCurrentThreadId()||process!=GetCurrentProcessId())throw std::runtime_error("Vulkan borrowed HWND must be live on this process/UI owner");
+      // An explicit UI owner permits a separate rendering thread. The host
+      // retains the HWND until that rendering owner has drained and joined.
+      const auto expectedOwner=target.uiThread?target.uiThread:GetCurrentThreadId();
+      if(!IsWindow(window)||GetWindowThreadProcessId(window,&process)!=expectedOwner||process!=GetCurrentProcessId())throw std::runtime_error("Vulkan borrowed HWND must be live on this process/UI owner");
       instanceExtensions={VK_KHR_SURFACE_EXTENSION_NAME,VK_KHR_WIN32_SURFACE_EXTENSION_NAME,VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME};
     }
 #else
@@ -363,9 +366,9 @@ struct Device::Impl {
     if(swapchain&&extent.width==width&&extent.height==height)return;
     releaseWindow(recorder);if(!width||!height)return;
     VkSurfaceCapabilitiesKHR caps{};checked(api.get<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>("vkGetPhysicalDeviceSurfaceCapabilitiesKHR")(physical,windowSurface,&caps),"vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
-    if(width<caps.minImageExtent.width||width>caps.maxImageExtent.width||height<caps.minImageExtent.height||height>caps.maxImageExtent.height)throw std::runtime_error("Vulkan window dimensions outside surface limits");
+    if(width<caps.minImageExtent.width||width>caps.maxImageExtent.width||height<caps.minImageExtent.height||height>caps.maxImageExtent.height)throw SurfaceChanged("Vulkan window dimensions outside current surface limits");
     extent=caps.currentExtent.width==UINT32_MAX?VkExtent2D{width,height}:caps.currentExtent;
-    if(extent.width!=width||extent.height!=height)throw std::runtime_error("Vulkan surface metrics changed before reconfigure");
+    if(extent.width!=width||extent.height!=height)throw SurfaceChanged("Vulkan surface metrics changed before reconfigure");
     uint32_t count=0;auto getFormats=api.get<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>("vkGetPhysicalDeviceSurfaceFormatsKHR");checked(getFormats(physical,windowSurface,&count,nullptr),"surface formats");std::vector<VkSurfaceFormatKHR> formats(count);checked(getFormats(physical,windowSurface,&count,formats.data()),"surface formats");
     auto found=std::find_if(formats.begin(),formats.end(),[](const auto& value){return (value.format==VK_FORMAT_B8G8R8A8_UNORM||value.format==VK_FORMAT_R8G8B8A8_UNORM)&&value.colorSpace==VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;});
     if(found==formats.end())throw std::runtime_error("Vulkan RGBA/BGRA UNORM window surface unavailable");
@@ -392,6 +395,7 @@ struct Device::Impl {
     if(!swapchain||!offscreen)throw std::runtime_error("Vulkan window surface unavailable");
     uint32_t index=0;checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&acquireFence),"reset acquire fence");
     auto acquired=api.get<PFN_vkAcquireNextImageKHR>("vkAcquireNextImageKHR")(api.device,swapchain,1000000000ull,VK_NULL_HANDLE,acquireFence,&index);
+    if(acquired==VK_ERROR_OUT_OF_DATE_KHR)throw SurfaceChanged("Vulkan swapchain changed before acquisition");
     if(acquired!=VK_SUCCESS&&acquired!=VK_SUBOPTIMAL_KHR)checked(acquired,"vkAcquireNextImageKHR");
     checked(api.get<PFN_vkWaitForFences>("vkWaitForFences")(api.device,1,&acquireFence,VK_TRUE,5000000000ull),"Vulkan acquire fence");
     auto& image=windowImages.at(index);waitPresent(image);
@@ -409,6 +413,7 @@ struct Device::Impl {
       VkSwapchainPresentFenceInfoEXT fences{VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT};fences.swapchainCount=1;fences.pFences=&image.presented;
       VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};present.pNext=&fences;present.waitSemaphoreCount=1;present.pWaitSemaphores=&image.rendered;present.swapchainCount=1;present.pSwapchains=&swapchain;present.pImageIndices=&index;
       image.pending=true;const auto result=api.get<PFN_vkQueuePresentKHR>("vkQueuePresentKHR")(queue,&present);waitPresent(image);
+      if(result==VK_ERROR_OUT_OF_DATE_KHR)throw SurfaceChanged("Vulkan swapchain changed before presentation");
       if(result!=VK_SUCCESS&&result!=VK_SUBOPTIMAL_KHR)checked(result,"vkQueuePresentKHR");
     }catch(...){
       // Before submission the image has no presentation request; return its acquisition.

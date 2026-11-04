@@ -1,12 +1,12 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 2부: 렌더링·플랫폼·API 이식
 
-작성·심화 검토·부분 구현: **2026-11-04 KST** · 상태: **PAUSED / PARTIAL / host·CanvasKit 소스 작성 / 실제 화면·성능·물리 입력 미검증**
+작성·심화 검토·부분 구현: **2026-11-04 KST** · 상태: **PARTIAL / Windows·두 Web host·화면·owner 연결 / 전체 backend·물리 입력·성능 미완료**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · **2부** · [3부](work8-3.md)
 
 원문 범위: **§8–14**. 전체 설계의 절 번호와 W8 단계 식별자를 유지한다.
 
-**중단 현황:** Windows HWND/Hermes/Skia host와 Web owner/공식 CanvasKit adapter 소스를 작성했으나 host build·실제 surface 검증 전 사용자의 외출 요청으로 중단했다. 아래 계약 전체가 구현됐다는 의미가 아니다. [1부 중간 마무리](work8-1.md#중간-마무리--사용자-외출로-명시-중단)의 소스 목록·미검증·재개 순서를 따른다. 특히 공개 shaped glyph run 전달 초안은 font 복제 비용을 줄이기 위한 후보이며 paragraph paint와의 픽셀 동등성 검증이 남아 있다.
+**연결 현황:** Windows HWND/Hermes/Skia와 두 Web profile의 공식 CanvasKit/OffscreenCanvas·owner·실제 장면을 연결했다. [1부 실행 현황](work8-1.md#연결-실행-현황)의 증거와 제한을 따른다. 공개 shaped glyph 전달은 장면의 한글/Latin·7 font size에서 paragraph paint와 CPU 픽셀 동등성을 확인했다. 전체 font fallback/RTL/emoji·편집 geometry/API 의미와 아래 전체 layout/Widget·Android 이식은 남았다.
 
 ## 8. C++ render node·레이아웃·텍스트
 
@@ -32,7 +32,7 @@ Font 등록·fallback 변경·text scale·DPI·locale 변화는 관련 paragraph
 
 Core의 text 모듈은 paragraph provider 계약과 의존 관계를 정의한다. Web은 C++가 요청한 text/style/width/font revision의 bounded batch를 adapter에 넘기고 metrics·selection geometry·준비된 text resource를 돌려받는다. 대기 중 전역 lock을 보유하거나 App Runtime callback을 호출하지 않는다. 결과가 없으면 Content 작업을 재개 가능한 상태로 반환하며, 다른 epoch의 결과를 현재 geometry에 설치하지 않는다.
 
-Mutable paragraph는 Content text provider에 남기고 render 쪽에는 준비된 immutable text paint record와 명시적인 font/resource hold를 전달한다. Web threaded에서는 Content/Render worker에 각각 같은 npm CanvasKit 배포본의 instance를 두고, Content에서 만든 text Picture를 공개 `serialize()`/`MakePicture()`로 넘기는 경로를 W8-02에서 검증한다. Single-worker에서는 같은 CanvasKit instance의 준비된 resource ID를 재사용할 수 있다. 직렬화 결과·font/image·glyph 보존과 실패·메모리 상한은 [§12.2.6](#1226-enginecanvaskit-adapter와-retained-자원)을 따른다. Paint 중 paragraph를 다시 layout하거나 mutable 객체를 worker 간 공유하지 않는다.
+Mutable paragraph는 Content text provider에 남기고 render 쪽에는 준비된 immutable text paint record와 명시적인 font/resource hold를 전달한다. Web threaded에서는 Content/Render worker에 각각 같은 npm CanvasKit 배포본의 instance를 둔다. 현재 고정 font 장면의 텍스트는 public shaped glyph run과 같은 hash의 font로 전달하고 비텍스트는 공개 `serialize()`/`MakePicture()`를 사용한다. Single-worker에서는 같은 CanvasKit instance의 준비된 resource ID를 재사용한다. 전체 text API 이식과 font/image/glyph 보존·실패·메모리 상한은 [§12.2.6](#1226-enginecanvaskit-adapter와-retained-자원)을 따른다. Paint 중 paragraph를 다시 layout하거나 mutable 객체를 worker 간 공유하지 않는다.
 
 현재 [전용 paragraph patch](Nelyx/skia/eng/source-build/canvaskit-paragraph.patch)의 차이는 npm으로 전환하기 전에 다음과 같이 다룬다. **공개 API 존재와 의미 호환은 별개의 검사다.**
 
@@ -265,9 +265,9 @@ Web port의 첫 gate는 W8-01에서 두 engine profile의 headless 코어 compil
 
 - C++는 node/layout·가시 항목·transform/clip/opacity·frame 선택을 결정한다. Adapter는 버전이 있는 resource 변경 batch와 frame packet을 받아 공개 CanvasKit API로 준비/재생한다. Resource bytes는 변경 때 보내고 준비된 Picture/path/paint/image ID를 재사용한다. JS adapter에 두 번째 render tree·scroll physics·layout 권위를 만들지 않는다.
 - Engine linear-memory offset을 CanvasKit의 포인터로 전달하지 않는다. 원시 값·복사한 byte packet·module-local resource ID로 연결하고 CanvasKit 할당/객체는 해당 instance의 공개 release/`delete()` API로 회수한다. Engine의 shared heap과 CanvasKit heap·worker별 복제된 font/cache·직렬화 staging bytes를 ledger에 합산한다.
-- Content의 CanvasKit paragraph/Picture는 같은 worker에 남긴다. Threaded에서 전달할 text paint record는 같은 npm 버전/variant 사이의 공개 Picture 직렬화로 준비하고, Render의 `MakePicture()` 성공·font/glyph/emoji·image 보존을 확인한 뒤 `ActivationReady`로 넘긴다. Raw SKP를 native/Web 공통 wire ABI나 버전을 넘는 영구 cache로 취급하지 않는다. 직렬화 실패·decode 실패·bytes 초과는 명시적 scene/resource 실패로 끝내고 기존 유효 scene을 유지한다.
+- Content의 CanvasKit paragraph/Picture는 같은 worker에 남긴다. Threaded에서 전달할 immutable paint record는 같은 npm 버전/variant의 공개 API로 준비하고 Render의 import·font/glyph/image 보존을 확인한 뒤 `ActivationReady`로 넘긴다. 현재 고정 font 텍스트는 `getShapedLines()`의 glyph/position 복사본과 같은 hash의 NotoSansKR를 사용하고, 비텍스트는 Picture 직렬화/`MakePicture()`를 사용한다. Raw SKP를 native/Web 공통 wire ABI나 버전을 넘는 영구 cache로 취급하지 않는다. 직렬화 실패·decode 실패·bytes 초과는 명시적 scene/resource 실패로 끝내고 기존 유효 scene을 유지한다.
 - `serialize()` 결과의 Uint8Array를 엔진/CanvasKit HEAP와 무관한 transferable이라고 가정하지 않는다. Buffer 소유 범위를 확인하고 필요한 경우 bounded standalone ArrayBuffer로 복사한 뒤 transfer한다. Serializer가 참조한 Picture/font/image는 bytes 준비 완료까지 유지하고, 수신 확인·취소·late 결과의 release도 `PreparationId`/resource generation으로 한 번만 처리한다.
-- `serialize()`/`MakePicture()`의 API 존재는 현재 npm 타입에서 확인했지만 이 font/resource 전달 경로는 아직 실행 검증 전이다. W8-02에서 필수 text/image corpus가 통과하지 않으면 공급 gate를 닫지 않고 공개 API 기반 준비 형식을 다시 설계한다. Draw 중 paragraph를 다시 layout해 미준비 자원을 숨기는 방식으로 통과시키지 않는다.
+- 공식 0.41.0/full 실행 probe에서 10,414,588 bytes font가 10,415,184 bytes text Picture에 복제되는 것을 확인하여 현재 텍스트는 glyph record로 전달한다. 별도 두 CanvasKit instance의 paragraph/glyph paint는 한글·Latin·혼합 문자열 × 7 font size, 21 corpus에서 CPU 픽셀 차이 0이었다. 이는 고정 font 장면의 증거이며 전체 fallback·RTL·emoji·rich text·전용 paragraph API 의미의 gate는 남아 있다. W8-02의 전체 필수 corpus가 통과하지 않으면 gate를 닫지 않고 공개 API 기반 준비 형식을 확장한다. Draw 중 paragraph를 다시 layout해 미준비 자원을 숨기는 방식으로 통과시키지 않는다.
 - Engine owner도 browser task에 반환해 JS adapter·CanvasKit 초기화/작업·credit 통지가 실행될 수 있어야 한다. Threaded C++의 무한 blocking loop 때문에 같은 worker의 adapter가 실행되지 않는 구조를 피한다. Content provider 지연 중 Render는 이미 준비된 CanvasKit resource로 진행한다.
 - Frame마다 engine→JS packet 수/bytes·CanvasKit 호출 수·resource 생성/재사용·복사/직렬화·provider 대기·순수 엔진/adapter/GPU 점유를 나누어 확인한다. npm 사용은 공급 단순화의 결정이며, 이전 단일 module 안과 같거나 더 빠르다는 성능 주장은 검증 전에는 하지 않는다.
 

@@ -16,12 +16,15 @@ endif()
 if(EMSCRIPTEN)
   if(NELYX_ENGINE_THREADED)
     target_compile_options(nelyx_engine_v2 PUBLIC -pthread)
-    target_link_options(nelyx_engine_v2 PUBLIC -pthread -sPTHREAD_POOL_SIZE=0)
+    target_link_options(nelyx_engine_v2 PUBLIC -pthread)
   endif()
   add_executable(nelyx_engine_wasm bindings/wasm.cpp)
   target_link_libraries(nelyx_engine_wasm PRIVATE nelyx_engine_v2)
   set_target_properties(nelyx_engine_wasm PROPERTIES OUTPUT_NAME engine SUFFIX .mjs)
   target_compile_options(nelyx_engine_wasm PRIVATE -fexceptions)
+  if(NELYX_ENGINE_THREADED)
+    target_link_options(nelyx_engine_wasm PRIVATE -sPTHREAD_POOL_SIZE=0)
+  endif()
   target_link_options(nelyx_engine_wasm PRIVATE --no-entry -fexceptions
     -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,worker,node
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=268435456

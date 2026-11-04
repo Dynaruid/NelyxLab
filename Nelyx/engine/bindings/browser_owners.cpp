@@ -36,7 +36,9 @@ uint32_t nelyx_host_start(void* engine, uint32_t role, const char* adapter, cons
 }
 void nelyx_host_exit() {
 #ifdef __EMSCRIPTEN_PTHREADS__
-  pthread_exit(nullptr);
+  // Emscripten's async callback boundary handles the pthread 'unwind'. Calling
+  // pthread_exit directly from an ordinary JS setTimeout leaks that exception.
+  emscripten_async_call([](void*){pthread_exit(nullptr);},nullptr,0);
 #endif
 }
 }

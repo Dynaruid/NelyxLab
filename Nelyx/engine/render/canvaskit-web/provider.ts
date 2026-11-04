@@ -5,6 +5,7 @@ import type {
   Surface,
   TypefaceFontProvider,
   Typeface,
+  GrDirectContext,
 } from 'canvaskit-wasm';
 import { decodeUtf8, protocol as p } from '../../../runtime/engine-client/index.ts';
 import type { EngineResponse, EngineNodeSnapshot } from '../../../runtime/engine-client/index.ts';
@@ -42,6 +43,8 @@ export class CanvasKitProvider {
   private typeface: Typeface;
   private surface: Surface | null = null;
   private canvas: OffscreenCanvas | undefined;
+  private context: GrDirectContext | null = null;
+  private contextHandle = 0;
   readonly tables = new Map<bigint, Map<string, Picture>>();
   readonly counters = {
     paragraphs: 0,
@@ -52,6 +55,7 @@ export class CanvasKitProvider {
     serializedBytes: 0,
     livePictures: 0,
     liveSurfaces: 0,
+    liveContexts: 0,
     fontBytes: 0,
     sourceBytes: 0,
     heapBytes: 0,
@@ -96,7 +100,14 @@ export class CanvasKitProvider {
       wasmBinary: wasm,
       locateFile: () => new URL(manifest.canvasKit.wasm, root).href,
     });
-    if (!ck.MakePicture || !ck.ParagraphBuilder.MakeFromFontProvider || !ck.MakeWebGLCanvasSurface)
+    if (
+      !ck.MakePicture ||
+      !ck.ParagraphBuilder.MakeFromFontProvider ||
+      !ck.GetWebGLContext ||
+      !ck.MakeWebGLContext ||
+      !ck.MakeOnScreenGLSurface ||
+      !ck.deleteContext
+    )
       throw new Error('Official CanvasKit public capability missing');
     return new CanvasKitProvider(ck, font);
   }
@@ -288,6 +299,7 @@ export class CanvasKitProvider {
               throw new Error('Prepared glyph position budget/length');
             const font = new this.ck.Font(this.typeface, run.size);
             font.setSubpixel(true);
+            font.setHinting(this.ck.FontHinting.Slight);
             font.setEmbolden(run.bold);
             if (run.italic) font.setSkewX(-0.25);
             const transforms = new Float32Array(run.glyphs.length * 4);
@@ -328,6 +340,8 @@ export class CanvasKitProvider {
   draw(frame: EngineResponse, width: number, height: number, scale: number): void {
     this.resize(width, height, scale);
     if (!this.surface) return;
+    if (this.canvas?.getContext('webgl2')?.isContextLost())
+      throw new Error('Worker WebGL2 context lost; create a new session');
     const table = this.tables.get(frame.activePreparation);
     if (!table) throw new Error('Active scene has no prepared provider resources');
     const target = this.surface.getCanvas();
@@ -353,9 +367,23 @@ export class CanvasKitProvider {
       this.counters.liveSurfaces = 0;
       canvas.width = pixelWidth;
       canvas.height = pixelHeight;
-      this.surface = this.ck.MakeWebGLCanvasSurface(canvas, this.ck.ColorSpace.SRGB, {
-        majorVersion: 2,
-      });
+      // Own one public GrDirectContext for the entire Render owner. The canvas
+      // convenience helper creates another context on each resize and has a
+      // software-surface fallback; this port requires WebGL2 explicitly.
+      if (!this.context) {
+        this.contextHandle = this.ck.GetWebGLContext(canvas, { majorVersion: 2 });
+        if (!this.contextHandle) throw new Error('Worker WebGL2 context unavailable');
+        this.context = this.ck.MakeWebGLContext(this.contextHandle);
+        if (!this.context) throw new Error('CanvasKit GPU context unavailable');
+        this.context.setResourceCacheLimitBytes(32 * 1024 * 1024);
+        this.counters.liveContexts = 1;
+      }
+      this.surface = this.ck.MakeOnScreenGLSurface(
+        this.context,
+        pixelWidth,
+        pixelHeight,
+        this.ck.ColorSpace.SRGB,
+      );
       if (!this.surface) throw new Error('Worker WebGL2 CanvasKit surface unavailable');
       const gl = canvas.getContext('webgl2');
       if (!gl) throw new Error('CanvasKit did not create WebGL2');
@@ -409,5 +437,15 @@ export class CanvasKitProvider {
     this.typeface.delete();
     this.counters.fontBytes = 0;
     this.counters.sourceBytes = 0;
+    if (this.context) {
+      this.context.releaseResourcesAndAbandonContext();
+      this.context.delete();
+      this.context = null;
+    }
+    if (this.contextHandle) {
+      this.ck.deleteContext(this.contextHandle);
+      this.contextHandle = 0;
+    }
+    this.counters.liveContexts = 0;
   }
 }
