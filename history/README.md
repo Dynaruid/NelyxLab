@@ -4,6 +4,26 @@
 
 이력의 PASS·PARTIAL·NO_ADOPTION·notVerified·공급 식별은 **당시 범위**이며 현재 제품의 재검증 결과가 아니다. 같은 `workN.md` 이름을 재사용한 문서도 날짜와 주제로 구분한다.
 
+## 2026-11-05 현재 후속 계획
+
+현재 진행 문서는 [work9 — 엔진 v2 잔여 구현·네이티브 데스크톱 호스트 전환](../work9.md)이다. Work8 계열 5개는 아래 날짜별 요약에 **CLOSED / SUPERSEDED** 상태로 보존하고 루트 원문을 삭제했다. 현재 계획과 RN 소스 선별 재사용 방침은 work9에서 관리한다.
+
+문서 종료와 구현 완료는 구분한다. 전체 API gate **FAIL / PARTIAL**, 물리 입력/display **notVerified**, 성능 acceptance 두 값 **false**를 work9로 이월했다. 아래 10월의 work8/work9 이력은 이름이 같아도 다른 작업이다.
+
+## 2026-11-05 보관한 work8 문서
+
+원문에 적힌 설계·작성일을 기준으로 요약 5개를 배치했다. 1·2·3부와 목차의 11월 5일 구현/종료를 최초 설계일과 구별하고, 2a는 작성일인 11월 5일에 둔다. [보관 목차](26/11/04/work8-summary.md)는 문서별 범위와 work9 이월을 연결한다.
+
+| 원문 | 배치 기준일·근거 | 요약 | 종료·미완료 상태 |
+| --- | --- | --- | --- |
+| `work8.md` | 2026-11-04 설계, 11-05 갱신·종료 | [전체 구조·종료·이월](26/11/04/work8-summary.md) | CLOSED/SUPERSEDED, 전체 API FAIL·구현 PARTIAL |
+| `work8-1.md` | 2026-11-04 설계·최초 연결, 11-05 갱신 | [구조·상태·입력 계약](26/11/04/work8-1-summary.md) | 공통 core·실제 host 구간 구현, 전체 gate PARTIAL |
+| `work8-2.md` | 2026-11-04 설계, 11-05 구현·종료 | [layout·렌더링·플랫폼·API](26/11/04/work8-2-summary.md) | Windows/Web 구간 구현, 전체 API/플랫폼 PARTIAL |
+| `work8-2a.md` | 2026-11-05 작성·구현·소스 비교 | [최종 API·검증·npm·Flutter 비교](26/11/05/work8-2a-summary.md) | API gate FAIL, npm 원인 미확정, P1–P5 이월 |
+| `work8-3.md` | 2026-11-04 설계, 11-05 갱신·종료 | [W8 단계·Web/제품 평가·완료 기준](26/11/04/work8-3-summary.md) | W8-00–10 전체 PARTIAL, 제품 전환 미수락 |
+
+최종 구현 수치는 2a 기록을 우선하며 과거 구간 수치를 합산하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/display `notVerified`를 보존했다. 이번 보관은 문서·링크·삭제 범위 검사이고 제품 빌드·runtime·API audit·성능 재검증은 수행하지 않았다.
+
 ## 2026-11-04 보관한 문서
 
 요청된 루트 원문 7개를 각각 요약했다. 기존 10월 30일 `work-summary.md`는 선행 기록이므로 이번 `work.md` 요약과 별도로 유지한다.
@@ -18,7 +38,7 @@
 | `work6.md` | 2026-11-03 작성·실행 | [전체 구간 검증·N1~N4](26/11/03/work6-summary.md) | 후보 구현·all 통합·검증 완료, 기본 TS·NO_ADOPTION |
 | `work7.md` | 11-03 분석, **11-04 계획 재작성·구현** | [scroll 입력·frame 재개・starvation](26/11/04/work7-summary.md) | 수정 자동 회귀 scoped-pass, **물리 재확인 대기/PARTIAL** |
 
-7개 문서 모두 기존 `performanceAccepted=false`·`resizePerformanceAccepted=false`를 보존한다. 이번 보관은 요약·링크·삭제 범위의 문서 검사이며 빌드·runtime·물리 입력·표시 성능 수락을 추가하지 않는다. 후속 루트 `work8.md`는 별도 설계 문서로 유지한다.
+7개 문서 모두 기존 `performanceAccepted=false`·`resizePerformanceAccepted=false`를 보존한다. 이번 보관은 요약·링크·삭제 범위의 문서 검사이며 빌드·runtime·물리 입력·표시 성능 수락을 추가하지 않는다. 당시 후속 루트 `work8.md`는 이후 위의 11월 5일 보관 요약으로 이관했고 현재 계획은 `work9.md`다.
 
 ## 이전 이력
 

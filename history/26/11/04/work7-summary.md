@@ -63,6 +63,6 @@ source-map inventory·설치 fingerprint·archive/lock integrity, native 공급 
 
 원문 §11.4의 중간 native 캐시 두 개는 당시 자동 승인 검토가 **blocked by policy**로 삭제를 거부해 보존했다. `sample/nelyx-testbed-app-2/.nelyx/windows-native/` 바로 아래의 `870db316ea43a53cba5c4896cd214d63423f4d6c6b311c7a219fda1206c3fc2c`, `b4052d41ede5db8c6f4748568ce51fd42b0439250392182f535946433e0c6e0f`이며 이번 문서 보관에서 삭제하지 않았다.
 
-남은 확인은 **같은 `npm.cmd run run:windows:cpp -- --module=scroll`의 실제 두 손가락 접촉 중 갱신·반전·관성·재접촉과 체감**, 일반 사용 60fps·scanout·resize다. Android/Web runtime 수락도 추가하지 않았다. **NO_ADOPTION·제품 PARTIAL·물리 재확인 대기**를 유지하며 다음 설계인 루트 `work8.md`의 검토가 이 잔여 작업의 완료를 뜻하지 않는다.
+남은 확인은 **같은 `npm.cmd run run:windows:cpp -- --module=scroll`의 실제 두 손가락 접촉 중 갱신·반전·관성·재접촉과 체감**, 일반 사용 60fps·scanout·resize다. Android/Web runtime 수락도 추가하지 않았다. **NO_ADOPTION·제품 PARTIAL·물리 재확인 대기**를 유지하며 당시 후속 설계였던 `work8.md`의 검토가 이 잔여 작업의 완료를 뜻하지 않는다.
 
-[이력 목록](../../../README.md) · [선행 전체 구간·N1~N4](../03/work6-summary.md) · [후속 설계](../../../../work8.md)
+[이력 목록](../../../README.md) · [선행 전체 구간·N1~N4](../03/work6-summary.md) · [후속 설계](work8-summary.md)

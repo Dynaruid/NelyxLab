@@ -12,7 +12,7 @@
 
 `createBrowserEngineV2Surface(canvas, { root: new URL('/engine/', location.href), profile: 'auto' })`로 공급된 worker runtime을 새 canvas에 연결합니다. 현재 engine dist 전체를 `root`에서 제공해야 합니다. 반환 surface는 packet host·App port·진단·비동기 `close()`를 제공합니다. Main은 bounded input/viewport를 전달하고 C++가 scene 좌표·scroll·hit-test를 소유합니다. `auto`는 격리/shared memory가 있으면 threaded, 없으면 single-worker를 선택합니다. 명시 capability 누락·공급 오류는 v1 fallback 없이 시작 실패로 처리합니다. Close는 provider/worker를 drain하며 다음 session은 새 canvas가 필요합니다.
 
-자체 Windows host와 두 Web profile에서 v2 Widget/State/Key·C++ layout/intrinsic/dry query·편집 document·semantics를 사용하는 Testbed를 실행합니다. Web surface는 `dom-textarea/aria` 입력 carrier와 게시 geometry 기반 peer를 만들고 App의 edit/focus/action도 같은 Main 큐에서 순서대로 처리합니다. App port는 24 request/3 MiB까지 사용하고 전체 32 request/4 MiB 중 나머지를 Main 입력에 예약합니다. Windows는 STA UI owner의 실제 TSF context·UIA Fragment/Value/Text/Invoke를 연결합니다. 빌드/실행과 API는 [Core 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요. 전체 Widget/Material/Cupertino·gesture·Android 이식과 물리 IME/reader·성능은 PARTIAL입니다. [실행 현황](../../work8-2.md#이번-작업의-구현검증-현황)에 지원 범위와 검증 경계를 기록했습니다.
+자체 Windows host와 두 Web profile에서 v2 Widget/State/Key·C++ layout/intrinsic/dry query·편집 document·semantics를 사용하는 Testbed를 실행합니다. Web surface는 `dom-textarea/aria` 입력 carrier와 게시 geometry 기반 peer를 만들고 App의 edit/focus/action도 같은 Main 큐에서 순서대로 처리합니다. App port는 24 request/3 MiB까지 사용하고 전체 32 request/4 MiB 중 나머지를 Main 입력에 예약합니다. Windows는 STA UI owner의 실제 TSF context·UIA Fragment/Value/Text/Invoke를 연결합니다. 빌드/실행과 API는 [Core 안내](../README.ko.md#실험용-v2-엔진-protocol)를 참고하세요. 전체 Widget/Material/Cupertino·gesture·Android 이식과 물리 IME/reader·성능은 PARTIAL입니다. [work8 실행 기록](../../history/26/11/04/work8-2-summary.md#이번-작업의-구현검증-현황)에 당시 검증 경계를 보존하고, [work9.md](../../work9.md)에서 잔여 작업과 새 host 계획을 관리합니다.
 
 ### 일반 v2 프로젝트
 
@@ -36,7 +36,7 @@ Windows는 App dispose를 최대 3초 기다리고 App owner에 250 ms 종료 �
 
 빌드·실행은 Core/host ABI·protocol schema·공급 source identity와 선언한 모든 파일의 hash를 검사합니다. 자산 이름·파일 경로는 선언한 root 안으로 제한하고 App 자산 합계는 32 MiB입니다. 빌드 실패는 이전 bundle을 보존합니다. Package에는 현재 engine과 그 license·App이 포함되며 Testbed entry나 저장소 자산 조회가 필요하지 않습니다. 생성한 프로젝트는 고정 버전의 TypeScript compiler를 자체 dev dependency로 설치합니다.
 
-Widget은 `@nelyx/core/v2`·`@nelyx/material/v2`·`@nelyx/cupertino/v2`에서 import합니다. 기존 foundation 값/Notifier/Key·physics 계산·curve·선별한 geometry/painting 값·Material 색은 원래 공개 import 경로의 구현을 공유합니다. Runner의 `routing`은 선택한 import를 기록하고 네 패키지의 실제 입력 파일을 검사합니다. 직접 경로의 미이식 구현과 별도 Core 복사본도 거부합니다. App-ready의 `execution`은 native ACK·fallback 거부 횟수와 이유를 보고하며 종전의 고정 fallback 수치를 제거했습니다. 이 허용을 기존 Widget 전체의 생성자·동작 호환으로 세지 않습니다. [API 대조와 현재 한계](../../work8-2a.md)가 이식 완료 기준입니다.
+Widget은 `@nelyx/core/v2`·`@nelyx/material/v2`·`@nelyx/cupertino/v2`에서 import합니다. 기존 foundation 값/Notifier/Key·physics 계산·curve·선별한 geometry/painting 값·Material 색은 원래 공개 import 경로의 구현을 공유합니다. Runner의 `routing`은 선택한 import를 기록하고 네 패키지의 실제 입력 파일을 검사합니다. 직접 경로의 미이식 구현과 별도 Core 복사본도 거부합니다. App-ready의 `execution`은 native ACK·fallback 거부 횟수와 이유를 보고하며 종전의 고정 fallback 수치를 제거했습니다. 이 허용을 기존 Widget 전체의 생성자·동작 호환으로 세지 않습니다. 이식 완료 기준과 남은 작업은 [work9 API 계획](../../work9-2.md#8-기존-공개-api-호환-작업)을 따릅니다. 종료 시점 근거는 [work8 기록](../../history/26/11/05/work8-2a-summary.md#현재-구현-현황)에 보존합니다.
 
 ## 앱 API
 
