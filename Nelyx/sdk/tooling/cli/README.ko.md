@@ -22,6 +22,10 @@ npm --prefix MyApp/web/runner run dev
 
 [시작 템플릿](templates/nelyx-app/README.ko.md)이 공통 앱과 플랫폼 runner를 제공합니다. 루트 `package.json`의 `nelyx`에서 설정하며, 자세한 내용은 [SDK 가이드](../../README.ko.md#설정과-provider)에 있습니다.
 
+## 자체 v2 엔진
+
+C++ v2 엔진의 일반 앱은 `nelyx create MyApp --engine v2 --packages <archive-directory>`로 만들고 `MyApp/`에서 설치합니다. [SDK 일반 v2 프로젝트 안내](../../README.ko.md#일반-v2-프로젝트)에 entry/자산·검증한 engine 공급·Web/Windows build/run/dev·독립 package 사용을 설명했습니다. 이 경로는 `nelyx.v2.json`과 `dist/v2-<target>`을 사용합니다.
+
 ## 공급과 설치
 
 Archive 디렉터리에는 Core·SDK·Skia-native·Skia-RN·Skia-Web·Metro·CLI·Static AOT tooling과 선택한 Material·Cupertino 패키지가 각각 하나씩 필요합니다. 서로 호환되는 한 묶음을 사용하세요.

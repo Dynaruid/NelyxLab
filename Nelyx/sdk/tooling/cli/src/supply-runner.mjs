@@ -103,6 +103,9 @@ function references(directory, required = Object.keys(names), fallback = {}) {
 export function packageReferences(directory) {
   return references(directory);
 }
+export function engineV2PackageReferences(directory) {
+  return references(directory, ['core', 'sdk', 'cli', 'metro', 'static-aot']);
+}
 /** Copy explicitly supplied archives into the consuming app before installation. */
 export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent = false }) {
   app = fs.realpathSync(app);

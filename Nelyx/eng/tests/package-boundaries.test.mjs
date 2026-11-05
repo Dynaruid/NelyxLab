@@ -7,6 +7,67 @@ import test from 'node:test';
 import { auditPackageBoundaries } from '../package-boundaries.mjs';
 
 test(
+  'Core v2 owns its runtime source and canonical value imports without admitting another owner',
+  { timeout: 1_200_000 },
+  () => {
+    const parent = fs.realpathSync(os.tmpdir()),
+      root = fs.mkdtempSync(path.join(parent, 'nelyx-v2-boundary-'));
+    const write = (file, value) => {
+      fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+      fs.writeFileSync(path.join(root, file), value);
+    };
+    try {
+      write('package.json', JSON.stringify({ workspaces: ['packages/core'] }));
+      write(
+        'packages/core/package.json',
+        JSON.stringify({
+          name: '@nelyx/core',
+          exports: {
+            './v2': {
+              types: './dist/v2/engine-client/index.d.ts',
+              default: './dist/v2/engine-client/index.js',
+            },
+            './foundation/key': {
+              types: './dist/foundation/key.d.ts',
+              default: './dist/foundation/key.js',
+            },
+          },
+        }),
+      );
+      write('packages/core/src/foundation/key.ts', 'export class ValueKey {}');
+      write('packages/core/runtime/engine-client/index.ts', "export * from './widgets.ts';");
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "export {ValueKey} from '@nelyx/core/foundation/key';",
+      );
+      assert.deepEqual(auditPackageBoundaries(root).errors, []);
+      write('packages/escape.ts', 'export const outside = 1;');
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "import {outside} from '../../../escape.ts';export const escaped = outside;",
+      );
+      assert.ok(
+        auditPackageBoundaries(root).errors.some((error) =>
+          error.startsWith('Relative import escapes owner'),
+        ),
+      );
+      write(
+        'packages/core/src/foundation/key.ts',
+        "export {ValueKey} from '@nelyx/core/foundation/key';",
+      );
+      assert.ok(
+        auditPackageBoundaries(root).errors.some((error) =>
+          error.startsWith('Internal self-package import'),
+        ),
+      );
+    } finally {
+      assert.equal(path.dirname(path.resolve(root)), parent);
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 3 });
+    }
+  },
+);
+
+test(
   'Element/focus and resource/frame owners have no runtime import cycle',
   { timeout: 1_200_000 },
   () => {

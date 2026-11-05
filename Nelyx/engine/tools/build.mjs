@@ -154,6 +154,12 @@ export function sourceIdentity() {
     '../sdk/src/runtime/engine-v2.ts',
     '../sdk/src/runtime/engine-v2-app.ts',
     '../sdk/tooling/cli/src/engine-v2-runner.mjs',
+    '../sdk/tooling/cli/src/engine-v2-data-api.mjs',
+    '../sdk/tooling/cli/src/supply-runner.mjs',
+    ...tree(path.resolve(engineRoot, '../src')).map((file) => '../src/' + file),
+    ...tree(path.resolve(engineRoot, '../../packages/material/src')).map(
+      (file) => '../../packages/material/src/' + file,
+    ),
     '../sdk/tooling/cli/src/main.mjs',
     '../sdk/tooling/cli/package.json',
     '../sdk/src/runtime/engine-v2-browser.ts',

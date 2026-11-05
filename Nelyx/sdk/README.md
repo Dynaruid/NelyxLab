@@ -14,6 +14,30 @@ Start with the [Testbed guide](../../sample/nelyx-testbed-app-2/README.md) for a
 
 The standalone Windows host and both Web profiles run the Testbed with v2 Widgets/State/Keys, C++ layout and intrinsic/dry queries, editing documents and semantics. Browser surfaces install a `dom-textarea/aria` input carrier and peers using published geometry; App edit/focus/action requests share the Main input queue. App ports admit 24 requests/3 MiB, reserving the rest of the total 32 requests/4 MiB for Main input. Windows connects real TSF contexts and UIA Fragment/Value/Text/Invoke on its STA UI owner. The [Core guide](../README.md#experimental-v2-engine-protocol) covers build/run commands and APIs. Full Widget/Material/Cupertino, gesture and Android migration, physical IME/reader and performance remain PARTIAL; see the [execution notes and limits](../../work8-2.md#이번-작업의-구현검증-현황).
 
+### General v2 projects
+
+Create a standalone project from the matching Core, SDK, CLI, Metro and Static AOT package archives. Add `--designs material,cupertino` and their archives when needed. Install once at the app root:
+
+```powershell
+nelyx create MyApp --engine v2 --packages <archive-directory>
+npm.cmd --prefix MyApp install --workspaces=false
+cd MyApp
+npx --no-install nelyx build --engine v2 --target web --engine-inputs <current-engine-dist>
+npx --no-install nelyx run --engine v2 --target web --port 8192
+```
+
+`nelyx.v2.json` declares `schema: "nelyx.app.v2/1"`, `engine: "v2"`, a relative `entry`, and an `assets` map from logical names to relative source files. The optional `supply` selects the engine directory; `--engine-inputs` overrides it. Export `defineEngineV2App({build, ready, dispose})` from the entry. `build(context)` returns a v2 Widget and can await `context.asset(name)`; `context.view` exposes the versioned packet client. `dispose` runs before Widgets, providers and the engine drain.
+
+Repeated close requests share one result. A failed App `dispose` still drains Widgets and the transport, reports the original error, and lets the host drain its providers/Core before returning a failed close result.
+
+Windows waits up to three seconds for App disposal and gives the App owner 250 ms to exit. If evaluated JavaScript keeps running, the host requests a Hermes async break, joins the owner and drains the engine as a failed session. This interrupts JavaScript loops; it does not authorize freeing resources still held by a native/GPU consumer.
+
+Build output defaults to `dist/v2-web` or `dist/v2-windows`. Use `--target windows` for the standalone Hermes/Skia HWND host. `dev` builds and runs, including a custom `--output`. `doctor` verifies the selected supplier; `prepare` builds the App bundle. `pack --engine v2 --target web` creates `dist/v2-web-package`, including the verified engine supplier. `run --engine v2 --target web --package dist/v2-web-package` runs that portable package. The server exposes `/isolated/` for automatic threaded selection and `/plain/` for the functional single-worker profile. Android, Apple and Linux v2 hosts are not supplied.
+
+Build and launch verify Core/host ABI, protocol schema, supplier source identity and every declared file hash. Asset names and file paths stay within their declared roots; aggregate App assets are limited to 32 MiB. A failed build preserves the previous bundle. Package output includes the current supplier, its licenses and the application; it requires no Testbed entry or repository asset lookup.
+
+Import Widgets from `@nelyx/core/v2`, `@nelyx/material/v2` and `@nelyx/cupertino/v2`. Canonical foundation values/notifiers/keys, physics calculations, curves, selected geometry/painting values and Material colors can retain their original public imports. The runner checks their implementation graph and rejects unported render/Widget imports. This admission does not establish full legacy Widget/constructor/behavior compatibility. The [API audit and current limits](../../work8-2.md#현재-재개-현황) remain the migration gate.
+
 ## Application APIs
 
 Import exact subpaths from `@nelyx/sdk`. Supported target names are `windows`, `android`, `ios`, `macos`, `linux`, and `web`.

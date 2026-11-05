@@ -49,7 +49,7 @@ struct Prepared {
 };
 class ContentProvider {
   std::shared_ptr<Ledger> ledger;
-  std::unique_ptr<ExternalLease> fontMemory,cacheMemory;
+  std::shared_ptr<ExternalLease> fontMemory,cacheMemory;
   sk_sp<skia::textlayout::FontCollection> fonts;
   sk_sp<SkUnicode> unicode;
   struct CachedParagraph {
@@ -86,11 +86,13 @@ class ContentProvider {
  public:
   std::atomic<uint64_t> paragraphs{0}, images{0}, pictures{0};
   std::atomic<uint64_t> measurements{0}, paragraphLayouts{0};
+  std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
   void discardMeasurements() { measured.clear(); }
   Measurement measure(const MeasurementRequest& request) {
     ++measurements;
     if (measurePreparation != request.preparation) { measured.clear(); measurePreparation = request.preparation; }
     const auto& n = *request.node;
+    auto measurementMemory=std::make_shared<ExternalLease>(ledger,1,2,65536+(n.text?n.text->value.size()*256:0));
     if (n.kind == wire::kinds::image) {
       if (!n.resource) throw std::runtime_error("Intrinsic image resource missing");
       auto image = SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(n.resource->bytes.data(),n.resource->bytes.size()));
@@ -121,14 +123,14 @@ class ContentProvider {
       }
       result.geometry=std::make_shared<TextGeometry>(n.lease.ledger,e.revision,caret,std::move(selection));
     }
-    measured.insert_or_assign(n.id.key(), CachedParagraph{std::make_shared<ExternalLease>(ledger,1,2,65536+n.text->value.size()*256),n.text,n.fontSize,width,n.color,n.textDirection,std::move(paragraph)});
+    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,width,n.color,n.textDirection,std::move(paragraph)});
     return result;
   }
   ContentProvider(const std::string& font, const std::string& icu,std::shared_ptr<Ledger> book):ledger(std::move(book)) {
     const auto fontDirectory=std::filesystem::path(font).parent_path();uint64_t fontBytes=std::filesystem::file_size(font);
     for(const auto name:{"NotoNaskhArabic-Regular.ttf","NotoSansHebrew.ttf","NotoColorEmoji.ttf"})fontBytes+=std::filesystem::file_size(fontDirectory/name);
-    fontMemory=std::make_unique<ExternalLease>(ledger,1,2,fontBytes*3+std::filesystem::file_size(icu));
-    cacheMemory=std::make_unique<ExternalLease>(ledger,1,2,8*1024*1024);
+    fontMemory=std::make_shared<ExternalLease>(ledger,1,2,fontBytes*3+std::filesystem::file_size(icu));
+    cacheMemory=std::make_shared<ExternalLease>(ledger,1,2,8*1024*1024);
     SkGraphics::SetResourceCacheTotalByteLimit(4*1024*1024);SkGraphics::SetFontCacheLimit(4*1024*1024);
     nelyx::font_services::initialize(icu);
     static std::once_flag codecs;std::call_once(codecs,[]{SkCodecs::Register(SkWebpDecoder::Decoder());});
@@ -157,9 +159,12 @@ class ContentProvider {
   std::shared_ptr<const Prepared> prepare(const Preparation& p) {
     ExternalLease staging(ledger,1,4,wire::limits::resourceBytes);
     auto result = std::make_shared<Prepared>();result->id=p.id;result->metrics=p.metrics.epoch;result->device=p.metrics.device;
+    result->memory.push_back(fontMemory);result->memory.push_back(cacheMemory);
     using namespace skia::textlayout;
     for (const auto& slot : p.document->nodes) if (slot.value) {
       const auto& n = *slot.value;
+      const auto& style=n.graphics;if(style.path||style.shadowColor||style.strokeColor||style.blur||style.transform.a!=1||style.transform.b||style.transform.c||style.transform.d!=1||style.transform.tx||style.transform.ty)++graphicsRecords;
+      if(n.extensionSize.x>0)++nativeExtensions;
       if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));result->paths.emplace(n.id.key(),graphicsPath(*n.graphics.path));}
       SkPictureRecorder recorder;
       const auto& g=n.graphics;const double padding=4*g.shadowSigma+g.strokeWidth+2;
@@ -249,7 +254,7 @@ class RenderProvider {
       canvas->setMatrix(SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1));
       const auto& n=frame.scene->document->get(item.node);
       if(n.kind==wire::kinds::clip||n.kind==wire::kinds::scrollViewport){const auto path=prepared.paths.find(n.id.key());
-        if(path!=prepared.paths.end())canvas->clipPath(path->second,true);
+        if(path!=prepared.paths.end()){canvas->clipRect(SkRect::MakeWH(float(n.properties.width),float(n.properties.height)),true);canvas->clipPath(path->second,true);}
         else canvas->clipRRect(SkRRect::MakeRectXY(SkRect::MakeWH(float(n.properties.width),float(n.properties.height)),float(n.radius),float(n.radius)),true);}
       const auto& property=frame.properties[n.id.slot];
       if(property.opacity<1||n.graphics.blur>0){SkPaint layer;layer.setAlphaf(float(property.opacity));

@@ -8,3 +8,4 @@ export * from './widgets.ts';
 export * from './lists.ts';
 export * from './navigation.ts';
 export * from './graphics.ts';
+export * from './composition.ts';

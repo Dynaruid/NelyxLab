@@ -5,7 +5,7 @@ import { ContentActor, RenderActor } from './actors.ts';
 import type { Viewport } from './actors.ts';
 import { failure } from './common.ts';
 import type { BrowserModule } from './common.ts';
-import {ProviderBudget} from './memory.ts';
+import { ProviderBudget } from './memory.ts';
 
 export async function boot(
   module: BrowserModule,
@@ -14,7 +14,7 @@ export async function boot(
   root: string,
 ): Promise<void> {
   const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
-  const provider = await CanvasKitProvider.load(root,new ProviderBudget(module,engine,role));
+  const provider = await CanvasKitProvider.load(root, new ProviderBudget(module, engine, role));
   const post = (value: Record<string, unknown>, transfer: ArrayBuffer[] = []) =>
     scope.postMessage({ kind: 'nelyx-v2-owner', role, ...value }, transfer);
   const actor =
@@ -47,9 +47,13 @@ export async function boot(
           actor.attach(message.canvas!, message.viewport!);
           post({ kind: 'render-attached', gl: provider.gl, counters: { ...provider.counters } });
         } else if (message.kind === 'v2-prepared' && actor instanceof RenderActor) {
-          try{actor.prepared(message.packet!);}finally{post({kind:'prepared-released',preparation:message.packet!.preparation});}
-        } else if(message.kind==='v2-release-prepared'){
-          provider.releasePacket((message as unknown as {preparation:bigint}).preparation);
+          try {
+            actor.prepared(message.packet!);
+          } finally {
+            post({ kind: 'prepared-released', preparation: message.packet!.preparation });
+          }
+        } else if (message.kind === 'v2-release-prepared') {
+          provider.releasePacket((message as unknown as { preparation: bigint }).preparation);
         } else if (message.kind === 'v2-delay') {
           const ms = Math.min(2000, Math.max(0, message.milliseconds ?? 0)),
             start = performance.now();

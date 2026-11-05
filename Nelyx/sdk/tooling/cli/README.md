@@ -22,6 +22,10 @@ The destination must be empty. Application names start with an uppercase letter 
 
 The [starter template](templates/nelyx-app/README.md) owns the shared app and platform runners. Configure it through root `package.json` → `nelyx`; see the [SDK guide](../../README.md#configuration-and-providers).
 
+## Standalone v2 engine
+
+For the standalone C++ v2 engine, use `nelyx create MyApp --engine v2 --packages <archive-directory>` and install at `MyApp/`. The [SDK v2 project guide](../../README.md#general-v2-projects) covers entry/assets, verified engine inputs, Web/Windows build/run/dev and portable packages. This route uses `nelyx.v2.json` and `dist/v2-<target>`.
+
 ## Supply and install
 
 The archive directory needs one archive each for Core, SDK, Skia-native, Skia-RN, Skia-Web, Metro, CLI, and Static AOT tooling, plus the selected Material/Cupertino packages. Keep one compatible package set in that directory.

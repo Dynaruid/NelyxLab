@@ -120,11 +120,11 @@ void View::pointer(Input p) {
         if(distance>=1){s.pinched=other.pinched=true;s.pinchDistance=other.pinchDistance=distance;
           other.pan=s.pan=false;gesture(h,wire::gestureKinds::pinchStart,p.sequence,(s.x+other.x)/2,(s.y+other.y)/2,1);}break;}
     if(n.control.kind==wire::controlKinds::rangeSlider){
-      const auto local=p.snapshot->local(h,p.x,p.y);const double value=n.control.minimum+((local?local->x:0)-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum);
+      const auto local=p.snapshot->local(h,p.x,p.y);const double value=n.control.minimum+((local?local->x:0)-6)/std::max(1.0,p.snapshot->scene->document->get(h).properties.width-12)*(n.control.maximum-n.control.minimum);
       s.secondThumb=std::abs(value-o.second)<std::abs(value-o.value);}
     if(n.control.kind==wire::controlKinds::slider||n.control.kind==wire::controlKinds::rangeSlider){
 
-      const auto local=p.snapshot->local(h,p.x,p.y);controlValue(h,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
+      const auto local=p.snapshot->local(h,p.x,p.y);controlValue(h,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,p.snapshot->scene->document->get(h).properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
   }
   if(!s.active||!s.pointer||!document->contains(s.target)||!active->document->contains(s.target)||
       !published->allows(s.target)||document->get(s.target).control.disabled||
@@ -148,10 +148,10 @@ void View::pointer(Input p) {
       s.pan=true;o.pressed=slider;dirty=true;gesture(s.target,wire::gestureKinds::panStart,p.sequence,p.x,p.y);}
     if(s.pan){
       if(slider){
-        const auto local=p.snapshot->local(s.target,p.x,p.y);controlValue(s.target,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
+        const auto local=p.snapshot->local(s.target,p.x,p.y);controlValue(s.target,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,p.snapshot->scene->document->get(s.target).properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
       else if(n.gestures&wire::gestures::scrollbar){if(s.scroll){const auto& viewport=active->document->get(s.scroll);const auto& props=viewport.properties;
-        applyDelta(s.scroll,-dy*(props.maximum-props.minimum)/std::max(1.0,n.properties.height));}}
-      else if(s.scroll){revealPending=false;const auto delta=p.snapshot->delta(s.scroll,dx,dy);applyDelta(s.scroll,(active->document->get(s.scroll).properties.flags&1u)?delta.x:delta.y,p.stream);}
+        const auto local=p.snapshot->delta(s.target,dx,dy);applyDelta(s.scroll,-local.y*(props.maximum-props.minimum)/std::max(1.0,n.properties.height),0,p.snapshot.get());}}
+      else if(s.scroll){revealPending=false;const auto delta=p.snapshot->delta(s.scroll,dx,dy);applyDelta(s.scroll,(active->document->get(s.scroll).properties.flags&1u)?delta.x:delta.y,p.stream,p.snapshot.get());}
       if(n.gestures&(wire::gestures::panX|wire::gestures::panY))gesture(s.target,wire::gestureKinds::panUpdate,p.sequence,p.x,p.y,
         (n.gestures&wire::gestures::panX)?-dx:-dy);
     }

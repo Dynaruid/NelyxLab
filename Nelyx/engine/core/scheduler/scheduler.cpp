@@ -107,7 +107,7 @@ void View::contentStep(uint32_t quota) {
       const auto reused = p.layout->reused();
       const bool complete = p.layout->step(quota);
       layoutWork += p.layout->work() - before; layoutReused += p.layout->reused() - reused;
-      if (complete) { p.document = p.layout->document(); p.ready = true; }
+      if (complete) { auto geometry=p.layout->document();validateGraphics(*geometry);p.document=std::move(geometry);p.ready = true; }
     } catch (const Error& error) { failPreparation(p.id, error.status); }
       catch (const std::bad_alloc&) { failPreparation(p.id, wire::statuses::budgetExceeded); }
     return;
@@ -250,6 +250,14 @@ void View::activate() {
   const auto epoch = next(nextScene);
   auto scene = std::make_shared<Scene>(Scene{p.document, p.metrics, epoch, p.id,
     p.layout ? p.layout->output() : nullptr});
+  try{
+    Lease scratch(lease.ledger,sizeof(Frame)+(p.document->highWater+1)*sizeof(Property)+p.document->count*(sizeof(DrawItem)+sizeof(ClipShape)));
+    Frame check;check.scene=scene;check.properties.resize(p.document->highWater+1);
+    for(const auto& slot:p.document->nodes)if(slot.value){const auto& n=*slot.value;auto& property=check.properties[n.id.slot];property.opacity=1;
+      const auto old=overlays.find(n.id.key());property.offset=activationOffset(*this,*p.document,n,old==overlays.end()?0:old->second.offset);}
+    makeDrawItems(check);
+  }catch(const Error& error){failPreparation(p.id,error.status);return;}
+    catch(const std::bad_alloc&){failPreparation(p.id,wire::statuses::budgetExceeded);return;}
   // Preserve compositor state by full node generation. A new declaration never
   // restores an App-observed scroll offset.
   for (auto it = overlays.begin(); it != overlays.end();) {
@@ -348,12 +356,14 @@ void View::needContent(const Node& n, Overlay& o, uint32_t stream) {
   interaction({wire::events::needChildren,wire::statuses::contentUnavailable,n.coverage.revision,
     active->document->epoch,stream,n.id});
 }
-void View::applyDelta(Handle h, double delta, uint32_t stream) {
+void View::applyDelta(Handle h, double delta, uint32_t stream,const Frame* snapshot) {
   if (!active) return;
+  const auto* geometry=snapshot?snapshot:published.get();std::optional<Point> remainder;
   for (uint32_t depth = 0; h && depth <= wire::limits::depth; ++depth) {
     if (!active->document->contains(h)) return;
     const auto& n = active->document->get(h);
     if (n.kind == wire::kinds::scrollViewport) {
+      if(remainder){if(!geometry)return;const auto local=geometry->delta(h,remainder->x,remainder->y);delta=(n.properties.flags&1u)?local.x:local.y;if(std::abs(delta)<1e-12)return;}
       auto& o = overlays.at(h.key());
       if (o.deferred && (o.requested-o.offset)*delta < 0) {
         o.deferred = false; o.requested = o.offset; o.needSent = false;
@@ -380,6 +390,8 @@ void View::applyDelta(Handle h, double delta, uint32_t stream) {
       }
       delta -= applied;
       if (delta == 0 || !(n.properties.flags & 2u) || n.properties.extent != wire::extents::finite) return;
+      if(!geometry)return;const auto item=std::find_if(geometry->items.begin(),geometry->items.end(),[&](const auto& candidate){return candidate.node==h;});if(item==geometry->items.end())return;
+      const bool horizontal=(n.properties.flags&1u)!=0;remainder=Point{delta*(horizontal?item->world.a:item->world.c),delta*(horizontal?item->world.b:item->world.d)};
       ++coverageHandoffs;
     }
     h = n.parent;
@@ -496,7 +508,7 @@ void View::processInput(Input p) {
     const auto& node = active->document->get(stream.target);
     const auto delta=p.snapshot->delta(stream.target,p.dx,p.dy);
     applyDelta(stream.target, (node.properties.flags & 1u) ? delta.x : delta.y,
-      p.source == wire::sources::engineDriven ? p.stream : 0);
+      p.source == wire::sources::engineDriven ? p.stream : 0,p.snapshot.get());
     o.velocity = p.velocity;
   } else if (p.phase == wire::phases::end || p.phase == wire::phases::cancel) {
     stream.active = false;

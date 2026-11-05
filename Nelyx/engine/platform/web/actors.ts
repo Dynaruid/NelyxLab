@@ -91,6 +91,11 @@ export class ContentActor {
       )
         this.kick();
     } catch (error) {
+      if (error instanceof Error && 'fatalMemory' in error) {
+        this.stopped = true;
+        this.post({ kind: 'provider-error', message: failure(error) });
+        return;
+      }
       const state = request(this.module, this.engine, p.opcodes.inspect);
       this.provider.discardMeasurements();
       const failed = attempt ?? {

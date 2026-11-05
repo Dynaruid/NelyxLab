@@ -118,7 +118,8 @@
     "listItem": 20,
     "gesture": 21,
     "control": 22,
-    "graphics": 23
+    "graphics": 23,
+    "nativeExtension": 24
   },
   "kinds": {
     "box": 1,
@@ -256,7 +257,8 @@
     "rawObserver": 4096,
     "appControlled": 8192,
     "graphics": 16384,
-    "memoryBudget": 32768
+    "memoryBudget": 32768,
+    "nativeExtensions": 65536
   },
   "headerFields": {
     "magic": 0,
@@ -639,5 +641,15 @@
     "reserved": 52,
     "publication": 56,
     "bytes": 64
+  },
+  "graphicsFlags": {
+    "evenOdd": 1,
+    "hasPath": 2
+  },
+  "extensions": {
+    "sparkline": 1
+  },
+  "nodeFlags": {
+    "nativeExtension": 256
   }
 }

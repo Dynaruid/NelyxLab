@@ -48,6 +48,7 @@ struct Node {
   uint32_t kind = 0, order = 0, policy = 0;
   Properties properties;
   GraphicsStyle graphics;
+  Point extensionSize;
   Axis horizontal, vertical;
   Motion motion;
   LayoutStyle layout;
@@ -74,7 +75,7 @@ struct Node {
     ++lease.ledger->nodes;
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent),
-      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),
+      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),extensionSize(n.extensionSize),
       horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
       layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
@@ -123,4 +124,5 @@ struct Installed {
   Resources resources;
 };
 Installed transact(const std::shared_ptr<const Document>&, const Resources&, Reader, uint32_t);
+void validateGraphics(const Document&);
 }

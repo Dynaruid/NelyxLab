@@ -120,6 +120,7 @@ export const protocol = {
     'gesture': 21,
     'control': 22,
     'graphics': 23,
+    'nativeExtension': 24,
   },
   'kinds': {
     'box': 1,
@@ -258,6 +259,7 @@ export const protocol = {
     'appControlled': 8192,
     'graphics': 16384,
     'memoryBudget': 32768,
+    'nativeExtensions': 65536,
   },
   'headerFields': {
     'magic': 0,
@@ -641,5 +643,15 @@ export const protocol = {
     'publication': 56,
     'bytes': 64,
   },
-  'schema': 1705971718,
+  'graphicsFlags': {
+    'evenOdd': 1,
+    'hasPath': 2,
+  },
+  'extensions': {
+    'sparkline': 1,
+  },
+  'nodeFlags': {
+    'nativeExtension': 256,
+  },
+  'schema': 2587795476,
 } as const;

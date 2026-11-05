@@ -19,12 +19,17 @@ import type {
 } from './codec.ts';
 import { EngineError } from './client.ts';
 import type { EngineViewClient } from './client.ts';
+import { Key, sameKey as equalKey } from '@nelyx/core/foundation/key';
+export { Key, LocalKey, UniqueKey, ValueKey, ObjectKey, KeyMap } from '@nelyx/core/foundation/key';
 
-export class ValueKey {
-  constructor(readonly value: string | number) {}
-}
-export class GlobalKey<T extends State = State> {
+export class GlobalKey<T extends State = State> extends Key {
   /** @internal */ element: Element | undefined;
+  equals(other: Key): boolean {
+    return this === other;
+  }
+  override get hashCode(): unknown {
+    return this;
+  }
   get currentState(): T | null {
     return (this.element?.active ? this.element.state : null) as T | null;
   }
@@ -32,7 +37,6 @@ export class GlobalKey<T extends State = State> {
     return this.element?.active ? firstNode(this.element) : null;
   }
 }
-export type Key = ValueKey | GlobalKey;
 export abstract class Widget {
   constructor(readonly key?: Key) {}
 }
@@ -105,8 +109,29 @@ export class ImageResource {
     this.bytes = bytes.slice();
   }
 }
+export class Directionality extends InheritedWidget {
+  constructor(
+    readonly direction: 'ltr' | 'rtl',
+    child: Widget,
+  ) {
+    super(child);
+  }
+  updateShouldNotify(old: Directionality): boolean {
+    return old.direction !== this.direction;
+  }
+  static of(context: BuildContext): 'ltr' | 'rtl' {
+    return context.dependOn(Directionality)?.direction ?? 'ltr';
+  }
+}
 export interface NodeOptions {
-  readonly graphics?:GraphicsOptions;
+  /** Explicit App geometry boundary: all descendant nodes must declare both finite sizes. */
+  readonly appDrivenGeometry?: boolean;
+  readonly nativeSparkline?: {
+    readonly width: number;
+    readonly height: number;
+    readonly values: readonly number[];
+  };
+  readonly graphics?: GraphicsOptions;
   readonly onScrollTerminal?: (event: EngineEvent) => void;
   readonly onRawInput?: (sample: RawInputSample) => void;
   readonly onRawGap?: (first: bigint, last: bigint) => void;
@@ -160,6 +185,9 @@ export class NodeWidget extends Widget {
   }
   resolveTextColor(_context: BuildContext): number {
     return this.text?.color ?? 0;
+  }
+  resolveTextDirection(_context: BuildContext): 'ltr' | 'rtl' {
+    return this.text?.direction ?? 'ltr';
   }
 }
 export class Box extends NodeWidget {
@@ -219,6 +247,7 @@ export class GestureDetector extends NodeWidget {
   }
 }
 export class Text extends NodeWidget {
+  private readonly explicitDirection: boolean;
   constructor(
     value: string,
     options: NodeOptions & {
@@ -233,6 +262,10 @@ export class Text extends NodeWidget {
       color: options.textColor ?? 0xff172033,
       direction: options.direction ?? 'ltr',
     });
+    this.explicitDirection = options.direction !== undefined;
+  }
+  resolveTextDirection(context: BuildContext): 'ltr' | 'rtl' {
+    return this.explicitDirection ? this.text!.direction : Directionality.of(context);
   }
 }
 export class Image extends NodeWidget {
@@ -354,7 +387,7 @@ function id(h: NodeHandle): string {
   return `${h.slot}:${h.generation}`;
 }
 function sameKey(a: Key | undefined, b: Key | undefined): boolean {
-  return a === b || (a instanceof ValueKey && b instanceof ValueKey && a.value === b.value);
+  return equalKey(a ?? null, b ?? null);
 }
 function compatible(e: Element, w: Widget): boolean {
   return (
@@ -462,9 +495,11 @@ export class WidgetHost {
     void Promise.resolve()
       .then(() => {
         this.scheduled = false;
-        return this.flush();
+        if (!this.closed) return this.flush();
       })
-      .catch((error) => this.options.onError?.(error));
+      .catch((error) => {
+        if (!this.closed) this.options.onError?.(error);
+      });
   }
   private allocate(): NodeHandle {
     const h = this.free.pop();
@@ -576,17 +611,25 @@ export class WidgetHost {
   }
   private records(root: Element): Map<string, NativeRecord> {
     const records = new Map<string, NativeRecord>();
-    const visit = (e: Element, parent: NodeHandle | null): NodeHandle[] => {
+    const visit = (e: Element, parent: NodeHandle | null, appGeometry = false): NodeHandle[] => {
       if (!(e.widget instanceof NodeWidget))
-        return e.children.flatMap((child) => visit(child, parent));
+        return e.children.flatMap((child) => visit(child, parent, appGeometry));
       const node = e.widget,
         h = e.handle!,
-        children = e.children.flatMap((child) => visit(child, h)),
         o = node.resolveOptions(e.context!);
+      appGeometry ||= !!o.appDrivenGeometry;
+      if (
+        appGeometry &&
+        (!Number.isFinite(o.properties?.width) || !Number.isFinite(o.properties?.height))
+      )
+        throw new Error(
+          'AppDrivenBoundary requires explicit finite width and height on every node',
+        );
+      const children = e.children.flatMap((child) => visit(child, h, appGeometry));
       const config = [
         c.properties(h, o.properties ?? {}),
         c.paint(h, o.color ?? 0, o.radius ?? 0),
-        c.layout(h, o.layout === false ? { enabled: false } : (o.layout ?? {})),
+        c.layout(h, appGeometry || o.layout === false ? { enabled: false } : (o.layout ?? {})),
         c.constraints(
           h,
           o.horizontal ?? { kind: 'unbounded' },
@@ -596,13 +639,22 @@ export class WidgetHost {
       if (node.text)
         config.push(
           c.text(h, node.text.value, node.text.size, node.resolveTextColor(e.context!), {
-            direction: node.text.direction,
+            direction: node.resolveTextDirection(e.context!),
           }),
         );
       if (node.editor) config.push(c.editor(h, node.editorFlags, node.maximumLength));
       config.push(c.semantics(h, o.semantics ?? null));
       if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
-      config.push(c.graphics(h,o.graphics));
+      config.push(c.graphics(h, o.graphics));
+      if (o.nativeSparkline)
+        config.push(
+          c.nativeExtension(
+            h,
+            o.nativeSparkline.width,
+            o.nativeSparkline.height,
+            o.nativeSparkline.values,
+          ),
+        );
       config.push(c.listItem(h, o.listItem ?? null));
       config.push(c.gesture(h, o.gestures ?? 0), c.control(h, o.control ?? null));
       config.push(
@@ -865,20 +917,25 @@ export class WidgetHost {
         }
       }
       const state = await this.view.pollInteractionEvents();
+      if (this.closed) return;
       for (const sample of state.gestureRequests) {
         const record = this.accepted.get(id(sample.node));
         const decision = record?.node.options.appControlled;
         if (!decision) continue;
         void Promise.resolve()
-          .then(() => decision(sample))
-          .then((accept) => this.view.replyGesture(sample, !!accept))
+          .then(() => (this.closed ? undefined : decision(sample)))
+          .then((accept) => (this.closed ? undefined : this.view.replyGesture(sample, !!accept)))
           .catch((error) => {
-            if (!(error instanceof EngineError) || error.status !== p.statuses.stale)
+            if (
+              !this.closed &&
+              (!(error instanceof EngineError) || error.status !== p.statuses.stale)
+            )
               this.options.onError?.(error);
           });
       }
       if (this.rawSubscribed) {
         const raw = await this.view.pollRaw();
+        if (this.closed) return;
         for (const sample of raw.rawInputs)
           if (!this.closed) this.accepted.get(id(sample.node))?.node.options.onRawInput?.(sample);
         for (const gap of raw.events)
@@ -907,9 +964,10 @@ export class WidgetHost {
               y: event.y,
               value: eventValue(event.detail),
             });
-        } else if (event.kind === p.events.editingChanged && record.node.editor)
-          record.node.editor.publish(await this.view.editSnapshot(event.node));
-        else if (event.kind === p.events.semanticAction) {
+        } else if (event.kind === p.events.editingChanged && record.node.editor) {
+          const editing = await this.view.editSnapshot(event.node);
+          if (!this.closed) record.node.editor.publish(editing);
+        } else if (event.kind === p.events.semanticAction) {
           const action = Object.entries(p.semanticsActions).find(
             ([, v]) => BigInt(v) === event.detail,
           )?.[0] as keyof typeof p.semanticsActions | undefined;
@@ -924,7 +982,9 @@ export class WidgetHost {
     if (this.closed) return;
     this.eventTimer = setTimeout(() => {
       void this.pollEvents()
-        .catch((error) => this.options.onError?.(error))
+        .catch((error) => {
+          if (!this.closed) this.options.onError?.(error);
+        })
         .finally(() => this.pollSoon());
     }, 16);
   }

@@ -1,8 +1,54 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 2부: 렌더링·플랫폼·API 이식
 
-설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL — 그래픽·전체 API/runner·통합 예산 구현 도중 사용자 요청으로 중단**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **재개 / PARTIAL — 그래픽·일반 runner·통합 예산 구간 검증, 전체 기존 API 호환 미완료**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · **2부** · [3부](work8-3.md)
+
+[구현·잔여 범위·npm 비정상 종료 재검토](work8-2a.md): 현재 소스의 API gate 재확인, 검사 증거의 한계와 남은 작업을 별도로 정리했다.
+
+## 현재 재개 현황
+
+사용자의 `이어서 해줘` 요청으로 2026-11-05 재개했다. API 기준은 **기존 공개 API 전체의 생성자·동작 호환**으로 확인했다. 그래픽·일반 프로젝트 runner·통합 예산의 아래 구간을 구현하고 실행했으며, **전체 기존 API 이식은 미완료**다. 아래 중단 기록과 이전 공급 수치는 과거 상태다.
+
+| 구간 | 이번 구현과 확인 범위 |
+| --- | --- |
+| 그래픽·geometry | Affine/path/rounded clip·stroke/shadow·계층 opacity/blur를 Native Skia와 공식 CanvasKit retained 기록에 연결. 합성 matrix/bounds 상한은 transaction·layout·활성화 전에 검사하고 실패 시 기존 scene을 보존. 명시적 빈 clip path는 입력·paint를 모두 차단. 중첩 scroll의 잔여 거리를 조상 축·scale로 변환하며 slider/pointer·TSF/UIA·DOM carrier도 게시 좌표를 사용. Curve hit는 0.25 단위의 bounded 평탄화로 raster 경계와 완전 동일하다는 수락은 아님 |
+| 정적 확장·App 경계 | [NativeSparkline](Nelyx/runtime/engine-client/graphics.ts)의 2–256개 정규화 표본을 같은 C++/Wasm transaction에서 path로 생성. Capability와 node flag로 실제 사용을 보고. 크기만 바꾸는 property 변경은 새 확장 선언 없이 거부. `AppDrivenBoundary`는 Stateless/Inherited 하위까지 finite width/height를 강제하고 native child layout을 끔. 임의 RenderObject의 동기 hook 자동 호환·사용자 정의 intrinsic/baseline 계약 전체는 아직 없음 |
+| 통합 예산 | [단일 ledger](Nelyx/engine/core/memory.hpp)의 총 **384 MiB/GPU 예약 128 MiB** 한도에 Core 논리 자원·engine/CanvasKit heap·Native font/paragraph/image/Picture·surface 교체 중첩·effect layer·전송/staging을 합산. Engine heap 안의 Core 비용은 max로 중복 제거. Windows는 Hermes heap/external buffer도 App packet/turn 경계에서 합산. App packet port의 계정 쓰기는 거부. 예산 거부는 계정을 rollback하며 실제 provider backing 거부 뒤 기존 surface의 사용과 close 회수를 확인 |
+| 일반 프로젝트 | [SDK bootstrap](Nelyx/sdk/src/runtime/engine-v2-app.ts)·[CLI](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs)의 `--engine v2` create/doctor/prepare/build/run/dev/pack, `nelyx.v2.json` entry/asset·명시 공급·ABI/schema/file hash·손상 거부. Native `--app`이 일반 bundle/asset을 로드하고 App dispose → Widget → provider/Core 순서로 drain. Dispose 오류는 원래 원인을 보고하며, 반환하지 않는 JS는 Hermes async break로 중단한 뒤 owner를 join하고 실패 종료. 두 Web profile의 일반 shell과 supplier를 포함한 portable package도 실행. 별도 경로의 dev 출력과 CLI 옵션·design dependency 선택을 보완. Android/Apple/Linux host와 정식 generation reload/hot reload는 남음 |
+| 기존 값 API·composition | Foundation Key/Notifier는 원래 구현과 생성자를 공유하고, v2 State reconciliation이 custom equality/type token·ObjectKey/UniqueKey를 보존. 원래 listener 수명·오류 의미로 ValueListenableBuilder를 연결. Foundation·physics 계산·curve·선별 geometry/painting 값·Material 색의 원래 공개 import를 일반 runner에서 허용하되 의존 graph에 미이식 Widget/RenderObject가 들어오면 거부. Padding/Align/SizedBox/Flexible/Opacity 등 추가 composition은 **v2 생성자**이며 기존 Widget 전체 호환으로 세지 않음 |
+
+### 이번 재개의 검증
+
+| 검사 | 결과와 경계 |
+| --- | --- |
+| `test:engine-v2` | **211/211**. 세 profile의 affine/clip/path·실패 원자성·빈 path·정적 extension·회전/scale 중첩 handoff·통합 계정 rollback·composition/App 경계·원래 Key/Notifier의 reconciliation을 포함. 종료 뒤 늦은 poll 오류·예약 build를 취소하고 활성 session의 오류는 계속 보고하는 회귀도 세 profile에서 실행 |
+| `test:engine-v2:hosts` | **5/5**. 실제 Testbed의 **SDK 명령 1210 = C++ transactionWork 1210**, TS fallback **0**, graphics record **14**, native extension **1**. Windows TSF/UIA·Core 편집/동작, 두 Web profile·50/100/200 ms App/Content 지연·resize/복구·close 회귀. Hermes heap/external buffer **9,777,233 bytes**와 단일 ledger peak **194,302,823 bytes**를 한 실행에서 관측. Native 종료 memoryTotal **0**. Web GPU 검사는 SwiftShader 기능 증거이며 hardware 성능 수락이 아님 |
+| `test:engine-v2:runner` | 일반 소비자의 Native·plain·isolated **3/3**, dispose 오류의 원인 전달·중복 close의 단일 terminal·provider/Core drain **3/3**. Native의 무한 JS dispose loop도 실제 실행해 **1/1**, 3초 dispose 대기·250 ms owner 종료 유예 후 Hermes 중단 → join → memoryTotal 0·실패 exit를 확인. 실제 entry/asset·디자인 control·geometry/graphics·C++ 명령 집계·통합 계정·UIA/ARIA·App dispose·손상/v1 import 거부(공개 import·직접 source 참조 모두)·이전 bundle 보존. 추가 archive 소비자 **1/1**: 현재 Core/SDK/CLI/Metro/Static AOT를 임시에 pack → 원래 CLI create → npm 설치 → 설치 파일 동일성·TS 타입 검사 → **설치된 CLI** build/pack → supplier 포함 Web package의 실제 publication·drain. Junction 소비자와 실제 archive 설치 증거를 구별하며 둘 다 finally 정리 |
+| glyph·actor·graphic | **3/3 + 3/3 + 2/2**. 기존 25 corpus 픽셀 차이 0·UTF-16/편집 geometry·owner 일정/실패 복구. 실제 CanvasKit CPU surface에서 path/rounded clip/rotation/subtree opacity/stroke/shadow/blur 픽셀과 자원 회수 검사. 실제 C++ Wasm ledger를 쓰는 provider의 거대 backing admission 거부·기존 surface 보존·provider heap/GPU/staging 0 회수. Web engine heap 자체는 worker 종료 전까지 살아 있으므로 그 값을 0이라고 표시하지 않음 |
+| 기존 입력·paragraph | `test:input-geometry` **2/2**, `test:retained-input-geometry` **7/7**, `test:skia-paragraph-queries` **1/1**. Gallery/Material/Mixed·custom hook·활성화 실패와 원래 paragraph ticket 계약 유지 |
+| 빌드·정적 검사 | 공개 Core/Material/Cupertino/SDK·Windows host·두 Wasm 공급 빌드, 전체 workspace 타입·CLI 선언·Web adapter 타입, lint/format/schema·공백 검사. Package ownership은 실제 `runtime/engine-client` source·canonical foundation 공유·다른 owner 탈출 거부를 검사하며 회귀 **5/5**, 현재 graph **967 source/7669 runtime edge**, design cycle **0**. JS/TS format **1851파일**, 문서 **10개/로컬 링크 356개/앵커 160개** 확인. 전체 API audit의 실패는 아래 미완료 gate로 별도 보존 |
+
+기능 검사 합계는 **242개**이며 package ownership 회귀는 별도다. 공급은 **33파일/4 font**, ABI major **2**/schema **2587795476**, source SHA-256 `1f959c6e09f3868361e2d0d71c797029e1c5d8140930ff89272660af4b1137fc`. 현재 source/file hash를 함께 확인하며 예전 공급·staging·독립 설치본·로그를 보관하지 않는다.
+
+재개 중 archive 검사에서 `npm install` 프로세스가 출력 없이 **0xC0000409**로 두 번 종료했다. 단독 실행은 통과했으나 suite 안에서 반복되어, 외부 소비자의 자식 프로세스에서 부모 npm lifecycle/workspace·test channel 환경을 분리하고 각 소비자의 번들 compiler를 finally에서 종료하도록 검사 환경을 보완했다. 이후 **최종 소스/공급의 runner 전체 8/8**이 설치·타입·설치 CLI build/pack·Web publication·close까지 통과했다. npm 비정상 종료의 정확한 원인은 확정하지 않았으며 이전 실패도 보존한다.
+
+Native 정상 종료 회귀에서 Testbed의 dispose 누락과 종료 뒤 poll의 `mailbox full/closed` 오류가 App 실패로 보고되는 경합도 재현했다. Testbed까지 App dispose → transport abort → provider/Core drain 순서로 맞추고, 닫힌 WidgetHost의 늦은 poll/raw/edit·예약 build/App gesture reply를 차단했다. 무조건 오류를 숨기지 않도록 활성 session 오류의 보고를 함께 검사했고, 최종 host 검사와 Testbed `app-disposed`·memoryTotal 0 확인을 통과했다.
+
+**예산의 경계:** Native CPU/GPU는 보수적 reservation이고 RSS/실제 VRAM이 아니다. 공식 CanvasKit·Hermes 내부 growth는 API/turn 경계에서 관측하며 초과는 session 실패다. 브라우저 App 및 host adapter의 JS heap과 불투명한 provider/driver의 순간 peak는 이 장부로 측정·선제 차단하지 못한다. 전체 process/GPU peak hard cap 완료로 세지 않는다. Native/두 Web 전체 그래픽 pixel corpus·물리 IME/reader·trackpad·scanout·FPS/resize 성능 수락도 남으며 `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display `notVerified`를 유지한다.
+
+### 전체 기존 API 호환의 남은 작업
+
+`npm.cmd run audit:engine-v2:api`는 **exit 1 / compatible=false**다. 전체 JSON은 `node Nelyx/engine/tools/api-audit.mjs`, 요약은 `--summary`로 출력하며 파일을 누적 저장하지 않는다. 공개 module별 export·생성자·call·공개 static/instance member/type과 실제 import route를 대조한다. 같은 이름이나 signature만으로 동작 호환을 인정하지 않는다.
+
+| 패키지 | 기존 public subpath | 원래 값 구현 재사용 | 미이식 export | 표면 차이 export |
+| --- | ---: | ---: | ---: | ---: |
+| Core | 525 | 415 | 2617 | 39 |
+| Material | 189 | 3 | 936 | 54 |
+| Cupertino | 44 | 0 | 160 | 34 |
+| SDK | 76 | 0 | 268 | 0 |
+
+수치는 **reexport·type을 포함한 module별 export 발생 횟수**이며 고유 class 수나 완료율이 아니다. 재사용 418개를 제외한 **4108개 발생 항목**이 미이식/차이로 남는다. 다음 구현은 기존 Widget/Element/GlobalKey·context/lifecycle, 표준 layout의 원래 생성자/부모 데이터, 전체 theme/icon/form/route·rich text/font/locale·paint API, SDK의 기존 app/service API를 의미별로 연결하고 원래 호출을 실제 일반 소비자에서 검증하는 작업이다. §13의 원래 동기→비동기 변경안과 사용자가 확인한 기존 동작 호환 요구는 다르므로, cached snapshot이나 이름 alias만으로 이 차이를 지우지 않는다. 임의 동기 RenderObject hook은 명시적 App 경계/정적 engine 확장의 구현·수명 검증이 필요하다.
 
 ## 현재 중단 상태
 
@@ -437,6 +483,8 @@ W8-02에서 Android의 같은 최소 scene 실행도 확인해 window/event loop
 ## 13. 공개 API와 기존 코드의 이식
 
 ### 13.1 보존할 경험과 바꿀 계약
+
+**2026-11-05 범위 확인:** 현재 사용자 기준은 기존 공개 API 전체의 생성자·동작 호환이다. 아래 표는 초기 설계의 변경안이며, 동기 API를 비동기 snapshot으로 바꾸거나 같은 이름을 제공한 것만으로 호환 완료를 인정하지 않는다. 현재 이식 차이와 미검증 계약은 [전체 API gate](#전체-기존-api-호환의-남은-작업)에 보존한다.
 
 | 현재 작성 방식/기능 | v2 방향 |
 | --- | --- |

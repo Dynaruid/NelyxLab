@@ -8,7 +8,7 @@ inline constexpr uint32_t coreCapabilities = wire::capabilities::protocol | wire
   wire::capabilities::scroll | wire::capabilities::motion | wire::capabilities::layoutQueries |
   wire::capabilities::editing | wire::capabilities::semantics | wire::capabilities::lazyList |
   wire::capabilities::gestures | wire::capabilities::controls |
-  wire::capabilities::rawObserver | wire::capabilities::appControlled | wire::capabilities::graphics | wire::capabilities::memoryBudget;
+  wire::capabilities::rawObserver | wire::capabilities::appControlled | wire::capabilities::graphics | wire::capabilities::memoryBudget | wire::capabilities::nativeExtensions;
 struct Ledger;
 struct Preparation;
 struct Frame;

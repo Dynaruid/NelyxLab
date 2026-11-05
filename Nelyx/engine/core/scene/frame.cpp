@@ -3,6 +3,16 @@
 #include <algorithm>
 #include <functional>
 namespace nelyx::v2 {
+void validateGraphics(const Document& geometry) {
+  std::function<void(const Node&,Affine)> visit;
+  visit=[&](const Node& node,Affine parent){
+    if(node.extensionSize.x>0)require(!node.layout.enabled&&node.properties.width==node.extensionSize.x&&node.properties.height==node.extensionSize.y,wire::statuses::invalidValue);
+    const auto world=parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*node.graphics.transform;
+    world.bounds({0,0,node.properties.width,node.properties.height});
+    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world);
+  };
+  for(const auto root:geometry.children[0])visit(geometry.get(root),{});
+}
 void View::makeDrawItems(Frame& f)const {
   const auto& geometry=*f.scene->document;
   std::function<void(const Node&,Affine,double,Rect,uint32_t,uint32_t)> visit;

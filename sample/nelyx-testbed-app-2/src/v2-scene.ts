@@ -15,6 +15,9 @@ import {
   ValueKey,
   StatefulWidget,
   State,
+  PathShape,
+  VectorPath,
+  NativeSparkline,
   protocol as p,
 } from '@nelyx/core/v2';
 import type { Widget, NodeOptions, RawInputSample } from '@nelyx/core/v2';
@@ -62,7 +65,12 @@ export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputS
     build(): Widget {
       return new Stack(
         [
-          new Box([], { ...props(24, 20, 864, 88), color: 0xff10203b, radius: 20 }),
+          new Box([], {
+            ...props(24, 20, 864, 88),
+            color: 0xff10203b,
+            radius: 20,
+            graphics: { shadow: { x: 0, y: 3, sigma: 3, color: 0x44000000 } },
+          }),
           new Text(`Nelyx Engine v2${this.updates ? ` · ${this.updates}` : ''}`, {
             key: header,
             ...props(46, 28, 810, 45),
@@ -77,11 +85,20 @@ export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputS
                 (_, i) =>
                   new Stack(
                     [
-                      new Box([], {
-                        ...props(16, 18, 44, 44),
-                        color: [0xff286ee9, 0xff16a394, 0xff8a56c9, 0xffdd883b][i % 4]!,
-                        radius: 12,
-                      }),
+                      new PathShape(
+                        new VectorPath([
+                          ['move', 0, 22],
+                          ['cubic', 0, 0, 44, 0, 44, 22],
+                          ['cubic', 44, 44, 0, 44, 0, 22],
+                          ['close'],
+                        ]),
+                        {
+                          ...props(16, 18, 44, 44),
+                          color: [0xff286ee9, 0xff16a394, 0xff8a56c9, 0xffdd883b][i % 4]!,
+                          radius: 12,
+                          graphics: { transform: [1, 0.08, -0.08, 1, 2, 0] },
+                        },
+                      ),
                       text(78, 10, 420, 38, `Retained scene ${String(i + 1).padStart(2, '0')}`, 21),
                       text(78, 51, 420, 45, '한국어 텍스트와 네이티브 입력', 16, 0xff596a83),
                     ],
@@ -107,10 +124,9 @@ export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputS
             16,
             0xff586981,
           ),
-          new Box([], {
+          new NativeSparkline([0.1, 0.4, 0.2, 0.75, 0.6, 0.9], 278, 54, {
             ...props(592, 286, 278, 54),
-            color: 0xff286ee9,
-            radius: 14,
+            graphics: { stroke: { width: 3, color: 0xff286ee9 } },
             motion: { id: 1n, opacity: 0.25, seconds: 1.5 },
           }),
           text(610, 293, 240, 35, 'Native opacity motion', 17, 0xffffffff),
@@ -125,7 +141,12 @@ export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputS
                 new Stack(
                   [
                     ...(i === 0
-                      ? [new Clip(new Image(image, props(-4, -2, 52, 52)), props(0, 0, 44, 44))]
+                      ? [
+                          new Clip(new Image(image, props(-4, -2, 52, 52)), {
+                            ...props(0, 0, 44, 44),
+                            radius: 10,
+                          }),
+                        ]
                       : []),
                     text(54, 4, 210, 38, `Lazy row ${i + 1}`, 16),
                   ],

@@ -29,18 +29,28 @@ export interface NodeProperties {
   readonly horizontal?: boolean;
   readonly chaining?: boolean;
 }
-export type AffineMatrix = readonly [number,number,number,number,number,number];
-export type PathSegment = readonly ['move'|'line',number,number] | readonly ['quad',number,number,number,number] |
-  readonly ['cubic',number,number,number,number,number,number] | readonly ['close'];
+export type AffineMatrix = readonly [number, number, number, number, number, number];
+export type PathSegment =
+  | readonly ['move' | 'line', number, number]
+  | readonly ['quad', number, number, number, number]
+  | readonly ['cubic', number, number, number, number, number, number]
+  | readonly ['close'];
 export interface GraphicsOptions {
   readonly transform?: AffineMatrix;
   readonly path?: readonly PathSegment[];
-  readonly fillRule?: 'winding'|'evenOdd';
-  readonly shadow?: {readonly x:number;readonly y:number;readonly sigma:number;readonly color:number};
-  readonly stroke?: {readonly width:number;readonly color:number};
-  readonly blur?:number;
+  readonly fillRule?: 'winding' | 'evenOdd';
+  readonly shadow?: {
+    readonly x: number;
+    readonly y: number;
+    readonly sigma: number;
+    readonly color: number;
+  };
+  readonly stroke?: { readonly width: number; readonly color: number };
+  readonly blur?: number;
 }
-export interface GraphicsSnapshot extends GraphicsOptions { readonly hasPath:boolean; }
+export interface GraphicsSnapshot extends GraphicsOptions {
+  readonly hasPath: boolean;
+}
 export interface NodeLayout {
   readonly enabled?: boolean;
   readonly direction?: 'horizontal' | 'vertical';
@@ -328,19 +338,60 @@ export function semanticActionBody(
   });
 }
 export const commands = {
-  graphics(node:NodeHandle, options:GraphicsOptions={}):Uint8Array {
-    const path=options.path??[];if(path.length>p.limits.pathCommands)throw new RangeError('Path command budget');
-    return command(p.commands.graphics,node,body(104+path.length*56,v=>{
-      (options.transform??[1,0,0,1,0,0]).forEach((x,i)=>v.setFloat64(i*8,finite(x),true));
-      v.setFloat64(48,finite(options.shadow?.x??0),true);v.setFloat64(56,finite(options.shadow?.y??0),true);
-      v.setFloat64(64,finite(options.shadow?.sigma??0),true);v.setUint32(72,uint32(options.shadow?.color??0),true);
-      v.setUint32(76,uint32(options.stroke?.color??0),true);v.setFloat64(80,finite(options.stroke?.width??0),true);
-      v.setFloat64(88,finite(options.blur??0),true);v.setUint32(96,options.fillRule==='evenOdd'?1:0,true);
-      v.setUint32(100,path.length,true);
-      path.forEach((segment,i)=>{const verb={move:1,line:2,quad:3,cubic:4,close:5}[segment[0]];
-        if(!verb)throw new RangeError('Unknown path verb');v.setUint32(104+i*56,verb,true);
-        segment.slice(1).forEach((x,j)=>v.setFloat64(112+i*56+j*8,finite(x as number),true));});
-    }));
+  graphics(node: NodeHandle, options: GraphicsOptions = {}): Uint8Array {
+    const path = options.path ?? [];
+    if (path.length > p.limits.pathCommands) throw new RangeError('Path command budget');
+    return command(
+      p.commands.graphics,
+      node,
+      body(104 + path.length * 56, (v) => {
+        (options.transform ?? [1, 0, 0, 1, 0, 0]).forEach((x, i) =>
+          v.setFloat64(i * 8, finite(x), true),
+        );
+        v.setFloat64(48, finite(options.shadow?.x ?? 0), true);
+        v.setFloat64(56, finite(options.shadow?.y ?? 0), true);
+        v.setFloat64(64, finite(options.shadow?.sigma ?? 0), true);
+        v.setUint32(72, uint32(options.shadow?.color ?? 0), true);
+        v.setUint32(76, uint32(options.stroke?.color ?? 0), true);
+        v.setFloat64(80, finite(options.stroke?.width ?? 0), true);
+        v.setFloat64(88, finite(options.blur ?? 0), true);
+        v.setUint32(
+          96,
+          (options.fillRule === 'evenOdd' ? p.graphicsFlags.evenOdd : 0) |
+            (options.path !== undefined ? p.graphicsFlags.hasPath : 0),
+          true,
+        );
+        v.setUint32(100, path.length, true);
+        path.forEach((segment, i) => {
+          const verb = { move: 1, line: 2, quad: 3, cubic: 4, close: 5 }[segment[0]];
+          if (!verb) throw new RangeError('Unknown path verb');
+          v.setUint32(104 + i * 56, verb, true);
+          segment
+            .slice(1)
+            .forEach((x, j) => v.setFloat64(112 + i * 56 + j * 8, finite(x as number), true));
+        });
+      }),
+    );
+  },
+  nativeExtension(
+    node: NodeHandle,
+    width: number,
+    height: number,
+    values: readonly number[],
+  ): Uint8Array {
+    if (values.length < 2 || values.length > 256)
+      throw new RangeError('Native sparkline requires 2–256 samples');
+    return command(
+      p.commands.nativeExtension,
+      node,
+      body(24 + values.length * 8, (v) => {
+        v.setUint32(0, p.extensions.sparkline, true);
+        v.setUint32(4, values.length, true);
+        v.setFloat64(8, finite(width), true);
+        v.setFloat64(16, finite(height), true);
+        values.forEach((value, index) => v.setFloat64(24 + index * 8, finite(value), true));
+      }),
+    );
   },
   editor(node: NodeHandle, flags = 0, maximumLength: number = p.limits.textBytes): Uint8Array {
     return command(
@@ -677,11 +728,11 @@ export function inputBody(value: InputPacket): Uint8Array {
   });
 }
 export interface EngineNodeSnapshot {
-  readonly graphics:GraphicsSnapshot|null;
-  readonly matrix:AffineMatrix;
-  readonly bounds:TextRect;
-  readonly depth:number;
-  readonly localOpacity:number;
+  readonly graphics: GraphicsSnapshot | null;
+  readonly matrix: AffineMatrix;
+  readonly bounds: TextRect;
+  readonly depth: number;
+  readonly localOpacity: number;
   readonly control: ControlSnapshot | null;
   readonly list: ListSnapshot | null;
   readonly editing: EditingSnapshot | null;
@@ -742,8 +793,17 @@ export interface EngineEvent {
   readonly node: NodeHandle;
 }
 export interface EngineResponse {
-  readonly memory: {readonly total:bigint;readonly peak:bigint;readonly cpu:bigint;readonly gpu:bigint;
-    readonly staging:bigint;readonly engineHeap:bigint;readonly providerHeap:bigint;readonly rejected:bigint;readonly limit:bigint};
+  readonly memory: {
+    readonly total: bigint;
+    readonly peak: bigint;
+    readonly cpu: bigint;
+    readonly gpu: bigint;
+    readonly staging: bigint;
+    readonly engineHeap: bigint;
+    readonly providerHeap: bigint;
+    readonly rejected: bigint;
+    readonly limit: bigint;
+  };
   readonly rawInputs: readonly RawInputSample[];
   readonly gestureRequests: readonly RawInputSample[];
   readonly focus: { readonly node: NodeHandle; readonly session: bigint } | null;
@@ -876,9 +936,17 @@ export function response(bytes: Uint8Array): EngineResponse {
         y: f(32),
         width: f(40),
         height: f(48),
-        matrix:Object.freeze(Array.from({length:6},(_,i)=>f(p.nodeFields.matrix+i*8))) as unknown as AffineMatrix,
-        bounds:Object.freeze({x:f(p.nodeFields.boundsX),y:f(p.nodeFields.boundsY),width:f(p.nodeFields.boundsWidth),height:f(p.nodeFields.boundsHeight)}),
-        depth:v.getUint32(cursor+p.nodeFields.depth,true),localOpacity:f(p.nodeFields.localOpacity),
+        matrix: Object.freeze(
+          Array.from({ length: 6 }, (_, i) => f(p.nodeFields.matrix + i * 8)),
+        ) as unknown as AffineMatrix,
+        bounds: Object.freeze({
+          x: f(p.nodeFields.boundsX),
+          y: f(p.nodeFields.boundsY),
+          width: f(p.nodeFields.boundsWidth),
+          height: f(p.nodeFields.boundsHeight),
+        }),
+        depth: v.getUint32(cursor + p.nodeFields.depth, true),
+        localOpacity: f(p.nodeFields.localOpacity),
         content: Object.freeze({
           x: f(p.nodeFields.contentX),
           y: f(p.nodeFields.contentY),
@@ -1002,7 +1070,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       semantics: SemanticSnapshot | null = null,
       list: ListSnapshot | null = null,
       control: ControlSnapshot | null = null;
-    let graphics:GraphicsSnapshot|null=null;
+    let graphics: GraphicsSnapshot | null = null;
     for (const blob of blobs) {
       if (
         blob.handle.slot !== node.node.slot ||
@@ -1012,19 +1080,50 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
-      if(blob.type===10){
-        if(size<104||d.getUint32(96,true)>3||d.getUint32(100,true)>p.limits.pathCommands||size!==104+d.getUint32(100,true)*56)
+      if (blob.type === 10) {
+        if (
+          size < 104 ||
+          d.getUint32(96, true) > 3 ||
+          d.getUint32(100, true) > p.limits.pathCommands ||
+          size !== 104 + d.getUint32(100, true) * 56
+        )
           throw new Error('Invalid graphics record');
-        const path:PathSegment[]=[];const verbs=['','move','line','quad','cubic','close'] as const;
-        for(let i=0;i<d.getUint32(100,true);++i){const at=104+i*56,verb=d.getUint32(at,true);
-          if(verb<1||verb>5||d.getUint32(at+4,true))throw new Error('Invalid graphics verb');
-          const count=verb<=2?2:verb===3?4:verb===4?6:0;
-          path.push(Object.freeze([verbs[verb],...Array.from({length:count},(_,j)=>finite(d.getFloat64(at+8+j*8,true)))]) as PathSegment);
+        const path: PathSegment[] = [];
+        const verbs = ['', 'move', 'line', 'quad', 'cubic', 'close'] as const;
+        for (let i = 0; i < d.getUint32(100, true); ++i) {
+          const at = 104 + i * 56,
+            verb = d.getUint32(at, true);
+          if (verb < 1 || verb > 5 || d.getUint32(at + 4, true))
+            throw new Error('Invalid graphics verb');
+          const count = verb <= 2 ? 2 : verb === 3 ? 4 : verb === 4 ? 6 : 0;
+          path.push(
+            Object.freeze([
+              verbs[verb],
+              ...Array.from({ length: count }, (_, j) =>
+                finite(d.getFloat64(at + 8 + j * 8, true)),
+              ),
+            ]) as PathSegment,
+          );
         }
-        graphics=Object.freeze({transform:Object.freeze(Array.from({length:6},(_,i)=>finite(d.getFloat64(i*8,true)))) as unknown as AffineMatrix,
-          path:Object.freeze(path),hasPath:!!(d.getUint32(96,true)&2),fillRule:d.getUint32(96,true)&1?'evenOdd':'winding',
-          shadow:Object.freeze({x:d.getFloat64(48,true),y:d.getFloat64(56,true),sigma:d.getFloat64(64,true),color:d.getUint32(72,true)}),
-          stroke:Object.freeze({width:d.getFloat64(80,true),color:d.getUint32(76,true)}),blur:d.getFloat64(88,true)});
+        graphics = Object.freeze({
+          transform: Object.freeze(
+            Array.from({ length: 6 }, (_, i) => finite(d.getFloat64(i * 8, true))),
+          ) as unknown as AffineMatrix,
+          path: Object.freeze(path),
+          hasPath: !!(d.getUint32(96, true) & 2),
+          fillRule: d.getUint32(96, true) & 1 ? 'evenOdd' : 'winding',
+          shadow: Object.freeze({
+            x: finite(d.getFloat64(48, true)),
+            y: finite(d.getFloat64(56, true)),
+            sigma: finite(d.getFloat64(64, true)),
+            color: d.getUint32(72, true),
+          }),
+          stroke: Object.freeze({
+            width: finite(d.getFloat64(80, true)),
+            color: d.getUint32(76, true),
+          }),
+          blur: finite(d.getFloat64(88, true)),
+        });
       }
       const rect = (o: number): TextRect => {
         const r = {
@@ -1156,8 +1255,17 @@ export function response(bytes: Uint8Array): EngineResponse {
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
   return Object.freeze({
-    memory:Object.freeze({total:u64(p.stateFields.memoryTotal),peak:u64(p.stateFields.memoryPeak),cpu:u64(p.stateFields.memoryCpu),gpu:u64(p.stateFields.memoryGpu),
-      staging:u64(p.stateFields.memoryStaging),engineHeap:u64(p.stateFields.engineHeap),providerHeap:u64(p.stateFields.providerHeap),rejected:u64(p.stateFields.memoryRejected),limit:u64(p.stateFields.memoryLimit)}),
+    memory: Object.freeze({
+      total: u64(p.stateFields.memoryTotal),
+      peak: u64(p.stateFields.memoryPeak),
+      cpu: u64(p.stateFields.memoryCpu),
+      gpu: u64(p.stateFields.memoryGpu),
+      staging: u64(p.stateFields.memoryStaging),
+      engineHeap: u64(p.stateFields.engineHeap),
+      providerHeap: u64(p.stateFields.providerHeap),
+      rejected: u64(p.stateFields.memoryRejected),
+      limit: u64(p.stateFields.memoryLimit),
+    }),
     rawInputs: samples(8),
     gestureRequests: samples(9),
     focus: u64(p.stateFields.focusSession)

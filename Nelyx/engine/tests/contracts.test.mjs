@@ -26,7 +26,8 @@ import { coverageContracts } from './coverage-contracts.mjs';
 import { interactionContracts } from './interaction-contracts.mjs';
 import { listContracts } from './list-contracts.mjs';
 import { gestureContracts } from './gesture-contracts.mjs';
-import {graphicsContracts} from './graphics-contracts.mjs';
+import { graphicsContracts } from './graphics-contracts.mjs';
+import { compositionContracts } from './composition-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
@@ -208,6 +209,7 @@ layoutContracts({ using, timeout, h });
 listContracts({ using, timeout, h });
 gestureContracts({ using, timeout, h });
 graphicsContracts({ using, timeout, h });
+compositionContracts({ using, timeout });
 coverageContracts({ using, timeout, h });
 interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {

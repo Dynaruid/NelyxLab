@@ -2,9 +2,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import path from 'node:path';
 import { createApp } from './create-app.mjs';
-import { packageReferences, supplyRunner, readRnlSupply } from './supply-runner.mjs';
+import {
+  packageReferences,
+  engineV2PackageReferences,
+  supplyRunner,
+  readRnlSupply,
+} from './supply-runner.mjs';
 import { devNative } from './native-development.mjs';
-import {engineV2Operation,createEngineV2Project} from './engine-v2-runner.mjs';
+import { engineV2Operation, createEngineV2Project } from './engine-v2-runner.mjs';
 import {
   doctorWindows,
   prepareWindows,
@@ -61,14 +66,33 @@ try {
         'Usage: nelyx create <empty-directory> [--name AppName] [--target web|android|windows|linux|ios|macos] [--designs none|material|cupertino|material,cupertino] [--packages <archive-directory>]',
       );
     for (const key of Object.keys(values))
-      if (!['name', 'target', 'packages', 'designs','engine'].includes(key))
+      if (!['name', 'target', 'packages', 'designs', 'engine'].includes(key))
         throw new Error('Unknown create option: ' + key);
-    const refs = values.packages ? packageReferences(path.resolve(values.packages)) : {};
-    if(values.engine==='v2'){
-      if(values.target&&!['web','windows'].includes(values.target))throw Error('Engine v2 has no '+values.target+' host');
-      console.log(JSON.stringify(createEngineV2Project(destination,{name:values.name,...refs}),null,2));process.exit(0);
+    const refs = values.packages
+      ? (values.engine === 'v2' ? engineV2PackageReferences : packageReferences)(
+          path.resolve(values.packages),
+        )
+      : {};
+    if (values.engine === 'v2') {
+      if (values.target && !['web', 'windows'].includes(values.target))
+        throw Error('Engine v2 has no ' + values.target + ' host');
+      console.log(
+        JSON.stringify(
+          createEngineV2Project(destination, {
+            name: values.name,
+            ...refs,
+            designs:
+              values.designs === undefined || values.designs === 'none'
+                ? []
+                : values.designs.split(','),
+          }),
+          null,
+          2,
+        ),
+      );
+      process.exit(0);
     }
-    if(values.engine!==undefined)throw Error('Create --engine requires v2');
+    if (values.engine !== undefined) throw Error('Create --engine requires v2');
     const target = values.target;
     if (target && !['android', 'web', 'windows', 'linux', 'ios', 'macos'].includes(target))
       throw new Error('Unknown create target');
@@ -118,10 +142,38 @@ try {
     run: ['package'],
     pack: ['package', 'output'],
   };
-  if(values.engine==='v2'){
-    for(const key of Object.keys(values))if(!['app','target','engine','engine-inputs','output','package','host','port','launch'].includes(key))throw Error('Unknown engine v2 option: '+key);
-    const result=await engineV2Operation(operation,{app:path.resolve(values.app??process.cwd()),target,engineInputs:values['engine-inputs'],output:values.output,directory:values.package,host:values.host,port:values.port===undefined?undefined:Number(values.port),arguments:nativeArguments});
-    console.log(JSON.stringify(result,null,2));if(operation==='run'||operation==='dev')process.exitCode=result.exitCode;process.exit(process.exitCode??0);
+  if (values.engine === 'v2') {
+    const v2Allowed = {
+      doctor: [],
+      prepare: ['output'],
+      build: ['output'],
+      run: ['package', ...(target === 'web' ? ['host', 'port'] : [])],
+      dev: ['output', ...(target === 'web' ? ['host', 'port'] : [])],
+      pack: ['package', 'output'],
+    };
+    for (const key of Object.keys(values))
+      if (!['app', 'target', 'engine', 'engine-inputs', ...v2Allowed[operation]].includes(key))
+        throw Error('Unknown engine v2 option: ' + key);
+    if (nativeArguments.length && (target !== 'windows' || !['run', 'dev'].includes(operation)))
+      throw Error('Native arguments require Windows run or dev');
+    if (
+      values.port !== undefined &&
+      (!/^\d+$/.test(values.port) || Number(values.port) < 1 || Number(values.port) > 65535)
+    )
+      throw Error('Port must be an integer between 1 and 65535');
+    const result = await engineV2Operation(operation, {
+      app: path.resolve(values.app ?? process.cwd()),
+      target,
+      engineInputs: values['engine-inputs'],
+      output: values.output,
+      directory: values.package,
+      host: values.host,
+      port: values.port === undefined ? undefined : Number(values.port),
+      arguments: nativeArguments,
+    });
+    console.log(JSON.stringify(result, null, 2));
+    if (operation === 'run' || operation === 'dev') process.exitCode = result.exitCode;
+    process.exit(process.exitCode ?? 0);
   }
   if (target === 'windows') {
     for (const op of ['doctor', 'prepare', 'build', 'run', 'pack']) allowed[op].push('host');

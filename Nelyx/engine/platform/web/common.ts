@@ -18,6 +18,9 @@ export interface BrowserModule extends EngineWasmModule {
 }
 export const owner: PacketOwner = { session: 1, app: 1, view: 1, generation: 1 };
 export const sessionOwner: PacketOwner = { ...owner, view: 0, generation: 0 };
+export class CommittedMemoryError extends Error {
+  readonly fatalMemory = true;
+}
 export function key(handle: { slot: number; generation: number }): string {
   return handle.generation + ':' + handle.slot;
 }
@@ -35,14 +38,29 @@ export function endpoint(port: MessagePort): PacketEndpoint {
 }
 export function exchange(module: BrowserModule, engine: number, bytes: Uint8Array): Uint8Array {
   if (bytes.length > p.limits.packetBytes) throw new Error('Engine packet budget exceeded');
-  const op=bytes.length>=p.headerBytes?new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength).getUint16(p.headerFields.opcode,true):0;
-  const sync=()=>{
-    const data=new Uint8Array(16),view=new DataView(data.buffer);view.setBigUint64(8,BigInt(module.HEAPU8.byteLength),true);
-    const result=exchange(module,engine,packet(p.opcodes.memoryReport,sessionOwner,data));
-    if(new DataView(result.buffer,result.byteOffset,result.byteLength).getUint16(p.headerFields.status,true)!==p.statuses.ok)
-      throw new Error('Committed engine heap exceeds the unified memory budget');
+  const op =
+    bytes.length >= p.headerBytes
+      ? new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(
+          p.headerFields.opcode,
+          true,
+        )
+      : 0;
+  const sync = () => {
+    const data = new Uint8Array(16),
+      view = new DataView(data.buffer);
+    view.setBigUint64(8, BigInt(module.HEAPU8.byteLength), true);
+    const result = exchange(module, engine, packet(p.opcodes.memoryReport, sessionOwner, data));
+    if (
+      new DataView(result.buffer, result.byteOffset, result.byteLength).getUint16(
+        p.headerFields.status,
+        true,
+      ) !== p.statuses.ok
+    )
+      throw new CommittedMemoryError(
+        'Committed engine heap exceeds the unified memory budget; session cannot continue',
+      );
   };
-  if(op!==p.opcodes.memoryReport)sync();
+  if (op !== p.opcodes.memoryReport) sync();
   const input = module._malloc(bytes.length || 1);
   if (!input) throw new Error('Engine packet allocation failed');
   let result = 0;
@@ -58,7 +76,7 @@ export function exchange(module: BrowserModule, engine: number, bytes: Uint8Arra
   } finally {
     if (result) module._nelyx_wasm_release(result);
     module._free(input);
-    if(op!==p.opcodes.memoryReport&&op!==p.opcodes.closeSession)sync();
+    if (op !== p.opcodes.memoryReport && op !== p.opcodes.closeSession) sync();
   }
 }
 export function request(

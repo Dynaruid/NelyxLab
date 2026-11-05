@@ -162,7 +162,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
           motion.seconds == previous.seconds), wire::statuses::idReused);
       edit(h, false)->motion = motion;
     } else if(op==wire::commands::graphics) {
-      require(data.length>=104&&data.u32(96)<=1&&data.u32(100)<=wire::limits::pathCommands&&
+      require(data.length>=104&&data.u32(96)<=3&&data.u32(100)<=wire::limits::pathCommands&&
         data.length==104+size_t(data.u32(100))*56,wire::statuses::invalidValue);
       GraphicsStyle style;
       style.transform={data.f64(0),data.f64(8),data.f64(16),data.f64(24),data.f64(32),data.f64(40)};
@@ -177,10 +177,22 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         for(uint32_t j=0;j<6;++j){command.values[j]=data.f64(at+8+j*8);
           require(std::abs(command.values[j])<=1e6&&(j<coordinates||command.values[j]==0),wire::statuses::invalidValue);}
         commands.push_back(command);}
-      if(!commands.empty())style.path=std::make_shared<GraphicsPath>(current->lease.ledger,std::move(commands),data.u32(96));
+      require(commands.empty()||(data.u32(96)&wire::graphicsFlags::hasPath),wire::statuses::invalidValue);
+      if(data.u32(96)&wire::graphicsFlags::hasPath)style.path=std::make_shared<GraphicsPath>(current->lease.ledger,std::move(commands),data.u32(96)&wire::graphicsFlags::evenOdd);
       const auto& previous=d->get(h);
       require(!style.path||previous.kind==wire::kinds::path||previous.kind==wire::kinds::clip,wire::statuses::invalidValue);
+      if(previous.extensionSize.x>0&&!(data.u32(96)&wire::graphicsFlags::hasPath))style.path=previous.graphics.path;
       edit(h,false)->graphics=std::move(style);
+    } else if(op==wire::commands::nativeExtension){
+      require(data.length>=24&&data.u32(0)==wire::extensions::sparkline,wire::statuses::capabilityMissing);
+      const auto sampleCount=data.u32(4);require(sampleCount>=2&&sampleCount<=256&&data.length==24+size_t(sampleCount)*8,wire::statuses::invalidValue);
+      const double width=data.f64(8),height=data.f64(16);require(width>0&&width<=8192&&height>0&&height<=8192,wire::statuses::invalidValue);
+      auto node=edit(h);require(node->kind==wire::kinds::path,wire::statuses::invalidValue);
+      std::vector<PathCommand> path;path.reserve(sampleCount);
+      for(uint32_t sampleIndex=0;sampleIndex<sampleCount;++sampleIndex){const auto value=data.f64(24+size_t(sampleIndex)*8);require(value>=0&&value<=1,wire::statuses::invalidValue);
+        path.push_back({sampleIndex?2u:1u,{width*sampleIndex/(sampleCount-1),height*(1-value),0,0,0,0}});}
+      node->extensionSize={width,height};node->properties.width=width;node->properties.height=height;node->layout.enabled=0;
+      node->graphics.path=std::make_shared<GraphicsPath>(current->lease.ledger,std::move(path),0);
     } else if (op == wire::commands::paint) {
       require(data.length == 16 && data.u32(4) == 0);
       auto n = edit(h, false); n->color = data.u32(0); n->radius = data.f64(8);
@@ -281,6 +293,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
   }
   require(position == body.length);
   validate(*d);
+  validateGraphics(*d);
   d->epoch = next(current->epoch);
   std::set<uint32_t> invalidated;
   for (const auto slot : dirty) if (d->nodes[slot].value) {

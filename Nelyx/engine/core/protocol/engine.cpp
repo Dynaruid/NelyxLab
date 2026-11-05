@@ -95,7 +95,7 @@ Input readInput(Reader r) {
 }
 void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t flags, const DrawItem* item = nullptr) {
   writeHandle(w, p, n.id); w.u32(p + 8, n.kind); writeHandle(w, p + 12, n.parent);
-  w.u32(p + 20, flags | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u));
+  w.u32(p + 20, flags | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u)|(n.extensionSize.x>0?wire::nodeFlags::nativeExtension:0u));
   w.f64(p + 24, item ? item->x : n.properties.x); w.f64(p + 32, item ? item->y : n.properties.y);
   w.f64(p + 40, n.properties.width); w.f64(p + 48, n.properties.height);
   w.f64(p + 56, o ? o->offset : 0); w.f64(p + 64, o ? o->velocity : 0);
@@ -152,17 +152,17 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     const auto body = packet.slice(wire::headerBytes, packet.length - wire::headerBytes);
     const auto count = packet.u32(wire::headerFields::count);
     require(opcode == wire::opcodes::transaction || count == 0);
-    require(!s.closed || opcode == wire::opcodes::inspect || opcode == wire::opcodes::closeSession,
+    require(!s.closed || opcode == wire::opcodes::inspect || opcode == wire::opcodes::closeSession||opcode==wire::opcodes::memoryReport,
       wire::statuses::closed);
     require(!s.closing || opcode == wire::opcodes::inspect || opcode == wire::opcodes::closeSession ||
       opcode == wire::opcodes::pollEvents || opcode == wire::opcodes::releaseFrame ||
-      opcode == wire::opcodes::closeView, wire::statuses::closed);
+      opcode == wire::opcodes::closeView||opcode==wire::opcodes::memoryReport, wire::statuses::closed);
     if (opcode == wire::opcodes::hello) {
       exact(body, 8); require(viewId == 0 && generation == 0 && body.u32(4) == 0);
       require((body.u32(0) & ~actualCapabilities) == 0, wire::statuses::capabilityMissing);
     } else if(opcode==wire::opcodes::memoryReport){
       exact(body,16);require(!viewId&&!generation,wire::statuses::invalidHandle);
-      s.ledger->report(body.u32(0),body.u32(4),body.u64(8));
+      s.ledger->report(body.u32(0),body.u32(4),body.u64(8),s.closed||s.closing);
     } else if (opcode == wire::opcodes::closeSession) {
       exact(body, 0); require(viewId == 0 && generation == 0);
       s.closing = true;

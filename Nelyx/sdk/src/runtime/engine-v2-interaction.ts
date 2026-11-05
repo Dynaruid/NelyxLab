@@ -40,7 +40,7 @@ export class EngineV2BrowserInteraction {
   readonly counters = { edits: 0, actions: 0, snapshots: 0, peers: 0, rejected: 0 };
   private layer: HTMLDivElement;
   private peers = new Map<string, Peer>();
-  private geometry=new Map<string,HTMLDivElement>();
+  private geometry = new Map<string, HTMLDivElement>();
   private closed = false;
   private syncing = false;
   private wanted = false;
@@ -73,7 +73,6 @@ export class EngineV2BrowserInteraction {
     window.addEventListener('scroll', this.resize, true);
     window.addEventListener('resize', this.resize);
     this.position();
-
   }
   private position(): void {
     const r = this.canvas.getBoundingClientRect();
@@ -111,8 +110,10 @@ export class EngineV2BrowserInteraction {
       const current = scene.nodes.find((n) => key(n.node) === key(peer.node.node));
       if (!current) return null;
       if (
-        action === 'activate' &&
-        ['x', 'y', 'width', 'height'].some((k) => current[k as 'x'] !== peer.node[k as 'x'])
+        (action === 'activate' &&
+          ['x', 'y', 'width', 'height'].some((k) => current[k as 'x'] !== peer.node[k as 'x'])) ||
+        (action === 'activate' &&
+          current.matrix.some((value, index) => value !== peer.node.matrix[index]))
       )
         return null;
       const op = action === 'focus' ? p.opcodes.focus : p.opcodes.semanticsAction;
@@ -359,26 +360,61 @@ export class EngineV2BrowserInteraction {
     if (state.publication < this.publication) return;
     this.publication = state.publication;
     this.position();
-    const byNode=new Map(state.nodes.map(n=>[key(n.node),n]));
-    const geometryWanted=new Set<string>();
-    for(const node of state.nodes){
-      const id=key(node.node);geometryWanted.add(id);
-      let wrapper=this.geometry.get(id);if(!wrapper){wrapper=document.createElement('div');this.geometry.set(id,wrapper);}
-      const parent=byNode.get(key(node.parent)),parentElement=parent?this.geometry.get(key(parent.node))!:this.layer;
-      if(wrapper.parentElement!==parentElement)parentElement.append(wrapper);
-      const a=parent?.matrix??[1,0,0,1,0,0],b=node.matrix,det=a[0]!*a[3]!-a[1]!*a[2]!;
-      const m=Math.abs(det)<1e-12?[0,0,0,0,0,0]:[
-        (a[3]!*b[0]-a[2]!*b[1])/det,(-a[1]!*b[0]+a[0]!*b[1])/det,
-        (a[3]!*b[2]-a[2]!*b[3])/det,(-a[1]!*b[2]+a[0]!*b[3])/det,
-        (a[3]!*(b[4]-a[4]!)-a[2]!*(b[5]-a[5]!))/det,
-        (-a[1]!*(b[4]-a[4]!)+a[0]!*(b[5]-a[5]!))/det];
-      const path=node.graphics?.hasPath?node.graphics.path:undefined;
-      const commands=path?.map(segment=>({move:'M',line:'L',quad:'Q',cubic:'C',close:'Z'})[segment[0]]+' '+segment.slice(1).join(' ')).join(' ');
-      Object.assign(wrapper.style,{position:'absolute',left:'0',top:'0',width:`${node.width}px`,height:`${node.height}px`,
-        transformOrigin:'0 0',transform:`matrix(${m.join(',')})`,pointerEvents:'none',
-        visibility:node.flags&16?'visible':'hidden',
-        clipPath:node.kind===p.kinds.clip||node.kind===p.kinds.scrollViewport
-          ?path?`path(${node.graphics?.fillRule==='evenOdd'?'evenodd':'nonzero'}, "${commands??''}")`:`inset(0 round ${node.radius}px)`:'none'});
+    const byNode = new Map(state.nodes.map((n) => [key(n.node), n]));
+    const geometryWanted = new Set<string>();
+    for (const node of state.nodes) {
+      const id = key(node.node);
+      geometryWanted.add(id);
+      let wrapper = this.geometry.get(id);
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        this.geometry.set(id, wrapper);
+      }
+      const parent = byNode.get(key(node.parent)),
+        parentElement = parent ? this.geometry.get(key(parent.node))! : this.layer;
+      if (wrapper.parentElement !== parentElement) parentElement.append(wrapper);
+      const a = parent?.matrix ?? [1, 0, 0, 1, 0, 0],
+        b = node.matrix,
+        det = a[0]! * a[3]! - a[1]! * a[2]!;
+      const m =
+        Math.abs(det) < 1e-12
+          ? [0, 0, 0, 0, 0, 0]
+          : [
+              (a[3]! * b[0] - a[2]! * b[1]) / det,
+              (-a[1]! * b[0] + a[0]! * b[1]) / det,
+              (a[3]! * b[2] - a[2]! * b[3]) / det,
+              (-a[1]! * b[2] + a[0]! * b[3]) / det,
+              (a[3]! * (b[4] - a[4]!) - a[2]! * (b[5] - a[5]!)) / det,
+              (-a[1]! * (b[4] - a[4]!) + a[0]! * (b[5] - a[5]!)) / det,
+            ];
+      const path = node.graphics?.hasPath ? node.graphics.path : undefined;
+      const commands = path
+        ?.map(
+          (segment) =>
+            ({ move: 'M', line: 'L', quad: 'Q', cubic: 'C', close: 'Z' })[segment[0]] +
+            ' ' +
+            segment.slice(1).join(' '),
+        )
+        .join(' ');
+      Object.assign(wrapper.style, {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: `${node.width}px`,
+        height: `${node.height}px`,
+        transformOrigin: '0 0',
+        transform: `matrix(${m.join(',')})`,
+        pointerEvents: 'none',
+        visibility: node.flags & 16 ? 'visible' : 'hidden',
+        overflow:
+          node.kind === p.kinds.clip || node.kind === p.kinds.scrollViewport ? 'hidden' : 'visible',
+        clipPath:
+          node.kind === p.kinds.clip || node.kind === p.kinds.scrollViewport
+            ? path
+              ? `path(${node.graphics?.fillRule === 'evenOdd' ? 'evenodd' : 'nonzero'}, "${commands ?? ''}")`
+              : `inset(0 round ${node.radius}px)`
+            : 'none',
+      });
     }
     const wanted = new Set<string>();
     const roles = ['none', 'group', 'button', 'text', 'textbox', 'checkbox', 'slider', 'link'];
@@ -456,7 +492,10 @@ export class EngineV2BrowserInteraction {
         top: '0',
         width: `${Math.max(0, node.width)}px`,
         height: `${Math.max(0, node.height)}px`,
-        clipPath: node.kind===p.kinds.path&&node.graphics?.path?`path(${node.graphics.fillRule==='evenOdd'?'evenodd':'nonzero'}, "${node.graphics.path.map(segment=>({move:'M',line:'L',quad:'Q',cubic:'C',close:'Z'})[segment[0]]+' '+segment.slice(1).join(' ')).join(' ')}")`:'none',
+        clipPath:
+          node.kind === p.kinds.path && node.graphics?.path
+            ? `path(${node.graphics.fillRule === 'evenOdd' ? 'evenodd' : 'nonzero'}, "${node.graphics.path.map((segment) => ({ move: 'M', line: 'L', quad: 'Q', cubic: 'C', close: 'Z' })[segment[0]] + ' ' + segment.slice(1).join(' ')).join(' ')}")`
+            : 'none',
         pointerEvents: s.actions && !disabled && right > left && bottom > top ? 'auto' : 'none',
         opacity: '0',
         margin: '0',
@@ -494,7 +533,11 @@ export class EngineV2BrowserInteraction {
         peer.element.remove();
         this.peers.delete(id);
       }
-    for(const [id,wrapper] of this.geometry)if(!geometryWanted.has(id)){wrapper.remove();this.geometry.delete(id);}
+    for (const [id, wrapper] of this.geometry)
+      if (!geometryWanted.has(id)) {
+        wrapper.remove();
+        this.geometry.delete(id);
+      }
     this.counters.peers = this.peers.size;
     this.installFocus(state);
   }

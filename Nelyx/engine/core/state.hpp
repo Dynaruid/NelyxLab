@@ -143,7 +143,7 @@ struct Frame {
     if(node.kind==wire::kinds::path&&(!node.graphics.path||!node.graphics.path->contains(p)))return false;
     for(auto head=item.clipHead;head;head=clips[head-1].parent){const auto& shape=clips[head-1];
       const auto matrix=shape.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
-      if(shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius))return false;}
+      if(!inside(point,shape.bounds)|| (shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius)))return false;}
     return true;
   }
   bool released = false, published = false, canceled = false, gpuObserved = false;
@@ -275,7 +275,7 @@ struct View {
   uint32_t scroll(Reader data, uint64_t id);
   uint32_t listSeek(Reader data, uint64_t id);
   void finishCommand(uint64_t id, uint32_t status);
-  void applyDelta(Handle node, double delta, uint32_t stream = 0);
+  void applyDelta(Handle node, double delta, uint32_t stream = 0,const Frame* snapshot=nullptr);
   void needContent(const Node&, Overlay&, uint32_t stream);
   void advanceDeferred(double dt);
   uint32_t takeFrame();

@@ -15,12 +15,12 @@ import type {
   EngineNodeSnapshot,
   ProviderMeasurement,
 } from '../../../runtime/engine-client/index.ts';
-import { key, script, verified } from '../../platform/web/common.ts';
+import { key, script, verified, CommittedMemoryError } from '../../platform/web/common.ts';
 import { lineIndexUnit, lineNumberAtUTF16, editingGeometry } from './paragraph.ts';
 import type { LineIndexUnit } from './paragraph.ts';
 import { paintControl } from './controls.ts';
-import {makePath,paintShape,canvasMatrix,relativeMatrix} from './graphics.ts';
-import type {ProviderBudget} from '../../platform/web/memory.ts';
+import { makePath, paintShape, canvasMatrix, relativeMatrix } from './graphics.ts';
+import type { ProviderBudget } from '../../platform/web/memory.ts';
 export interface ProviderFont {
   id: string;
   family: string;
@@ -54,15 +54,19 @@ export interface PreparedPictures {
       italic: boolean;
     }[];
   }[];
-  paths: {node:string;segments:readonly import('../../../runtime/engine-client/index.ts').PathSegment[];fillRule:'winding'|'evenOdd'}[];
+  paths: {
+    node: string;
+    segments: readonly import('../../../runtime/engine-client/index.ts').PathSegment[];
+    fillRule: 'winding' | 'evenOdd';
+  }[];
   local?: Map<string, Picture>;
 }
 export class CanvasKitProvider {
-  private packetHolds=new Map<bigint,()=>void>();
-  private backingRelease:(()=>void)|undefined;
-  private cacheRelease:(()=>void)|undefined;
-  private closing=false;
-  private pathTables=new Map<bigint,Map<string,Path>>();
+  private packetHolds = new Map<bigint, () => void>();
+  private backingRelease: (() => void) | undefined;
+  private cacheRelease: (() => void) | undefined;
+  private closing = false;
+  private pathTables = new Map<bigint, Map<string, Path>>();
   private measuredParagraphs = new Map<string, { signature: string; paragraph: Paragraph }>();
   private measurePreparation = 0n;
   private fontProvider: TypefaceFontProvider;
@@ -97,14 +101,16 @@ export class CanvasKitProvider {
     measurements: 0,
     paragraphLayouts: 0,
     liveParagraphs: 0,
-    gpuReservedBytes:0,
-    unifiedMemory:false,
+    gpuReservedBytes: 0,
+    unifiedMemory: false,
+    graphicsRecords: 0,
+    nativeExtensions: 0,
   };
   gl: { version: number; renderer: string } | undefined;
   private constructor(
     readonly ck: CanvasKit,
     font: Uint8Array | ProviderFont[],
-    private budget?:ProviderBudget,
+    private budget?: ProviderBudget,
   ) {
     this.fontProvider = ck.TypefaceFontProvider.Make();
     try {
@@ -139,70 +145,96 @@ export class CanvasKitProvider {
       } finally {
         probe.delete();
       }
+      this.counters.heapBytes = (ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.byteLength;
+      this.syncMemory();
+      this.counters.unifiedMemory = !!budget;
     } catch (error) {
       for (const face of this.typefaces.values()) face.delete();
       this.fontProvider.delete();
       throw error;
     }
-    this.counters.heapBytes = (ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.byteLength;
-    this.syncMemory();this.counters.unifiedMemory=!!budget;
   }
-  private syncMemory():void {
-    this.counters.heapBytes=(this.ck as unknown as {HEAPU8:Uint8Array}).HEAPU8.byteLength;
-    this.budget?.set(1,this.counters.heapBytes);
+  private syncMemory(): void {
+    this.counters.heapBytes = (this.ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.byteLength;
+    try {
+      this.budget?.set(1, this.counters.heapBytes);
+    } catch (error) {
+      throw new CommittedMemoryError(
+        'CanvasKit committed heap exceeded the unified budget: ' + String(error),
+      );
+    }
   }
-  private guarded<T>(bytes:number,run:()=>T):T {
-    this.syncMemory();const release=this.budget?.reserve(4,bytes);
-    try{return run();}finally{try{this.syncMemory();}finally{release?.();}}
+  private guarded<T>(bytes: number, run: () => T): T {
+    this.syncMemory();
+    const release = this.budget?.reserve(4, bytes);
+    try {
+      return run();
+    } finally {
+      try {
+        this.syncMemory();
+      } finally {
+        release?.();
+      }
+    }
   }
-  releasePacket(preparation:bigint):void {this.packetHolds.get(preparation)?.();this.packetHolds.delete(preparation);}
-  static async load(root: string,budget?:ProviderBudget): Promise<CanvasKitProvider> {
-    const release=budget?.reserve(4,48*1024*1024);
-    try{
-    const manifest = (await (
-      await fetch(new URL('engine-manifest.json', root))
-    ).json()) as WebManifest;
-    if (manifest.canvasKit.version !== '0.41.0' || manifest.canvasKit.variant !== 'full')
-      throw new Error('CanvasKit supplier differs');
-    const entry = (name: string) => {
-      const file = manifest.files.find((f) => f.path === name);
-      if (!file) throw new Error('Asset absent from manifest: ' + name);
-      return file;
-    };
-    if (!manifest.fonts?.length || manifest.fonts.length > 8)
-      throw new Error('Declared provider fonts missing');
-    const [js, wasm, ...fonts] = await Promise.all([
-      verified(root, entry(manifest.canvasKit.js)),
-      verified(root, entry(manifest.canvasKit.wasm)),
-      ...manifest.fonts.map((font) => verified(root, entry(font.path), 16 * 1024 * 1024)),
-    ]);
-    await script(js);
-    const factory = (
-      globalThis as unknown as { CanvasKitInit?: (options: unknown) => Promise<CanvasKit> }
-    ).CanvasKitInit;
-    if (!factory) throw new Error('Official CanvasKit factory missing');
-    const ck = await factory({
-      wasmBinary: wasm,
-      locateFile: () => new URL(manifest.canvasKit.wasm, root).href,
-    });
-    if (
-      !ck.MakePicture ||
-      !ck.ParagraphBuilder.MakeFromFontProvider ||
-      !ck.GetWebGLContext ||
-      !ck.MakeWebGLContext ||
-      !ck.MakeOnScreenGLSurface ||
-      !ck.deleteContext
-    )
-      throw new Error('Official CanvasKit public capability missing');
-    return new CanvasKitProvider(
-      ck,
-      manifest.fonts.map((font, i) => ({
-        id: entry(font.path).sha256,
-        family: font.family,
-        bytes: fonts[i]!,
-      })),budget,
-    );
-    }catch(error){release?.();budget?.close();throw error;}finally{release?.();}
+  releasePacket(preparation: bigint): void {
+    this.packetHolds.get(preparation)?.();
+    this.packetHolds.delete(preparation);
+  }
+  static async load(root: string, budget?: ProviderBudget): Promise<CanvasKitProvider> {
+    const release = budget?.reserve(4, 48 * 1024 * 1024);
+    try {
+      const manifest = (await (
+        await fetch(new URL('engine-manifest.json', root))
+      ).json()) as WebManifest;
+      if (manifest.canvasKit.version !== '0.41.0' || manifest.canvasKit.variant !== 'full')
+        throw new Error('CanvasKit supplier differs');
+      const entry = (name: string) => {
+        const file = manifest.files.find((f) => f.path === name);
+        if (!file) throw new Error('Asset absent from manifest: ' + name);
+        return file;
+      };
+      if (!manifest.fonts?.length || manifest.fonts.length > 8)
+        throw new Error('Declared provider fonts missing');
+      const [js, wasm, ...fonts] = await Promise.all([
+        verified(root, entry(manifest.canvasKit.js)),
+        verified(root, entry(manifest.canvasKit.wasm)),
+        ...manifest.fonts.map((font) => verified(root, entry(font.path), 16 * 1024 * 1024)),
+      ]);
+      await script(js);
+      const factory = (
+        globalThis as unknown as { CanvasKitInit?: (options: unknown) => Promise<CanvasKit> }
+      ).CanvasKitInit;
+      if (!factory) throw new Error('Official CanvasKit factory missing');
+      const ck = await factory({
+        wasmBinary: wasm,
+        locateFile: () => new URL(manifest.canvasKit.wasm, root).href,
+      });
+      if (
+        !ck.MakePicture ||
+        !ck.ParagraphBuilder.MakeFromFontProvider ||
+        !ck.GetWebGLContext ||
+        !ck.MakeWebGLContext ||
+        !ck.MakeOnScreenGLSurface ||
+        !ck.deleteContext
+      )
+        throw new Error('Official CanvasKit public capability missing');
+      return new CanvasKitProvider(
+        ck,
+        manifest.fonts.map((font, i) => ({
+          id: entry(font.path).sha256,
+          family: font.family,
+          bytes: fonts[i]!,
+        })),
+        budget,
+      );
+    } catch (error) {
+      release?.();
+      budget?.close();
+      throw error;
+    } finally {
+      release?.();
+    }
   }
   attach(canvas: OffscreenCanvas): void {
     if (this.canvas) throw new Error('Canvas owner already attached');
@@ -263,9 +295,15 @@ export class CanvasKitProvider {
     this.counters.liveParagraphs = 0;
   }
   measure(scene: EngineResponse): ProviderMeasurement {
-    return this.guarded(Math.min(p.limits.resourceBytes,scene.blobs.reduce((n,b)=>n+b.bytes.length*2,0)+1024*1024),()=>this.measureInner(scene));
+    return this.guarded(
+      Math.min(
+        p.limits.resourceBytes,
+        scene.blobs.reduce((n, b) => n + b.bytes.length * 2, 0) + 1024 * 1024,
+      ),
+      () => this.measureInner(scene),
+    );
   }
-  private measureInner(scene:EngineResponse):ProviderMeasurement {
+  private measureInner(scene: EngineResponse): ProviderMeasurement {
     if (!scene.measureRequest || scene.nodes.length !== 1)
       throw new Error('Invalid measurement request');
     if (this.measurePreparation !== (scene.measurePreparation || scene.preparation)) {
@@ -333,13 +371,36 @@ export class CanvasKitProvider {
     }
   }
   prepare(scene: EngineResponse, sharedOwner: boolean): PreparedPictures {
-    const release=this.budget?.reserve(4,p.limits.resourceBytes*2);
-    try{
-      const packet=this.guarded(scene.blobs.reduce((n,b)=>n+b.bytes.length,0),()=>this.prepareInner(scene,sharedOwner));
-      this.packetHolds.set(packet.preparation,release??(()=>{}));return packet;
-    }catch(error){release?.();throw error;}
+    const holds: (() => void)[] = [];
+    let transferred = 0;
+    const release = () => {
+      for (const hold of holds.splice(0)) hold();
+    };
+    const retain = (bytes: number) => {
+      if (transferred + bytes > p.limits.resourceBytes)
+        throw new Error('Prepared transport budget exceeded');
+      const hold = this.budget?.reserve(4, bytes);
+      if (hold) holds.push(hold);
+      transferred += bytes;
+    };
+    try {
+      const packet = this.guarded(
+        p.limits.resourceBytes + scene.blobs.reduce((n, b) => n + b.bytes.length, 0),
+        () => this.prepareInner(scene, sharedOwner, retain),
+      );
+      this.releasePacket(packet.preparation);
+      this.packetHolds.set(packet.preparation, release);
+      return packet;
+    } catch (error) {
+      release();
+      throw error;
+    }
   }
-  private prepareInner(scene:EngineResponse,sharedOwner:boolean):PreparedPictures {
+  private prepareInner(
+    scene: EngineResponse,
+    sharedOwner: boolean,
+    retain: (bytes: number) => void,
+  ): PreparedPictures {
     if (this.measurePreparation !== scene.preparation) this.discardMeasurements();
     const resources = new Map(
       scene.blobs.filter((b) => b.type === 2).map((b) => [key(b.handle), b.bytes]),
@@ -357,12 +418,19 @@ export class CanvasKitProvider {
       paths: [],
     };
     const local = new Map<string, Picture>();
-    const paths=new Map<string,Path>();
+    const paths = new Map<string, Path>();
     let bytes = 0;
     try {
       for (const node of scene.nodes) {
-        if(node.graphics?.hasPath){const segments=node.graphics.path??[],fillRule=node.graphics.fillRule??'winding';
-          paths.set(key(node.node),makePath(this.ck,segments,fillRule));packet.paths.push({node:key(node.node),segments,fillRule});}
+        if (node.graphics) ++this.counters.graphicsRecords;
+        if (node.flags & p.nodeFlags.nativeExtension) ++this.counters.nativeExtensions;
+        if (node.graphics?.hasPath) {
+          const segments = node.graphics.path ?? [],
+            fillRule = node.graphics.fillRule ?? 'winding';
+          retain(128 + segments.length * 64);
+          paths.set(key(node.node), makePath(this.ck, segments, fillRule));
+          packet.paths.push({ node: key(node.node), segments, fillRule });
+        }
 
         const content = node.content ?? { x: 0, y: 0, width: node.width, height: node.height };
         const recorder = new this.ck.PictureRecorder();
@@ -371,10 +439,22 @@ export class CanvasKitProvider {
         let picture: Picture | null = null;
         try {
           const canvas = recorder.beginRecording(
-            this.ck.XYWHRect(-Math.abs(node.graphics?.shadow?.x??0)-(node.graphics?.shadow?.sigma??0)*4-2,
-              -Math.abs(node.graphics?.shadow?.y??0)-(node.graphics?.shadow?.sigma??0)*4-2,
-              Math.max(1,node.width)+Math.abs(node.graphics?.shadow?.x??0)*2+(node.graphics?.shadow?.sigma??0)*8+4,
-              Math.max(1,node.height)+Math.abs(node.graphics?.shadow?.y??0)*2+(node.graphics?.shadow?.sigma??0)*8+4),
+            this.ck.XYWHRect(
+              -Math.abs(node.graphics?.shadow?.x ?? 0) -
+                (node.graphics?.shadow?.sigma ?? 0) * 4 -
+                2,
+              -Math.abs(node.graphics?.shadow?.y ?? 0) -
+                (node.graphics?.shadow?.sigma ?? 0) * 4 -
+                2,
+              Math.max(1, node.width) +
+                Math.abs(node.graphics?.shadow?.x ?? 0) * 2 +
+                (node.graphics?.shadow?.sigma ?? 0) * 8 +
+                4,
+              Math.max(1, node.height) +
+                Math.abs(node.graphics?.shadow?.y ?? 0) * 2 +
+                (node.graphics?.shadow?.sigma ?? 0) * 8 +
+                4,
+            ),
           );
           if (node.kind === p.kinds.paragraph || node.kind === p.kinds.editable) {
             let paragraph;
@@ -404,6 +484,7 @@ export class CanvasKitProvider {
                         throw new Error(
                           'Prepared glyph font is outside the declared provider font set',
                         );
+                      retain(run.glyphs.byteLength + run.positions.byteLength);
                       const glyphs = new Uint16Array(run.glyphs),
                         positions = new Float32Array(run.positions);
                       for (let i = 0; i < positions.length; i += 2) {
@@ -447,7 +528,7 @@ export class CanvasKitProvider {
             } finally {
               image.delete();
             }
-          } else paintShape(this.ck,canvas,node,paths.get(key(node.node)),paint);
+          } else paintShape(this.ck, canvas, node, paths.get(key(node.node)), paint);
           picture = recorder.finishRecordingAsPicture();
           ++this.counters.pictures;
           if (sharedOwner) {
@@ -456,7 +537,8 @@ export class CanvasKitProvider {
           } else if (node.kind !== p.kinds.paragraph && node.kind !== p.kinds.editable) {
             const encoded = picture.serialize();
             if (!encoded) throw new Error('Picture serialization failed');
-            const copy = new Uint8Array(encoded).slice();
+            retain(encoded.byteLength);
+            const copy = encoded.slice();
             bytes += copy.length;
             if (bytes > p.limits.resourceBytes)
               throw new Error('Prepared Picture transfer budget exceeded');
@@ -482,13 +564,13 @@ export class CanvasKitProvider {
           throw new Error('Prepared resource identity reused');
         packet.local = local;
         this.tables.set(packet.preparation, local);
-        this.pathTables.set(packet.preparation,paths);
+        this.pathTables.set(packet.preparation, paths);
         this.counters.livePictures += local.size;
       }
-      if(!sharedOwner)for(const path of paths.values())path.delete();
+      if (!sharedOwner) for (const path of paths.values()) path.delete();
       return packet;
     } catch (error) {
-      for(const path of paths.values())path.delete();
+      for (const path of paths.values()) path.delete();
       for (const picture of local.values()) picture.delete();
       throw error;
     } finally {
@@ -496,18 +578,20 @@ export class CanvasKitProvider {
     }
   }
   import(packet: PreparedPictures): void {
-    this.guarded(p.limits.resourceBytes,()=>this.importInner(packet));
+    this.guarded(p.limits.resourceBytes, () => this.importInner(packet));
   }
-  private importInner(packet:PreparedPictures):void {
+  private importInner(packet: PreparedPictures): void {
     if (this.tables.has(packet.preparation)) return;
     const table = new Map<string, Picture>();
-    const paths=new Map<string,Path>();
+    const paths = new Map<string, Path>();
     let bytes = 0;
     try {
       if (packet.pictures.length + packet.texts.length > p.limits.nodes)
         throw new Error('Prepared node budget exceeded');
-      for(const path of packet.paths??[]){if(paths.has(path.node))throw new Error('Duplicate prepared clip path');
-        paths.set(path.node,makePath(this.ck,path.segments,path.fillRule));}
+      for (const path of packet.paths ?? []) {
+        if (paths.has(path.node)) throw new Error('Duplicate prepared clip path');
+        paths.set(path.node, makePath(this.ck, path.segments, path.fillRule));
+      }
       for (const item of packet.pictures) {
         bytes += item.bytes.byteLength;
         if (table.has(item.node) || bytes > p.limits.resourceBytes)
@@ -569,20 +653,34 @@ export class CanvasKitProvider {
         }
       }
       this.tables.set(packet.preparation, table);
-      this.pathTables.set(packet.preparation,paths);
+      this.pathTables.set(packet.preparation, paths);
       this.counters.livePictures += table.size;
     } catch (error) {
       for (const picture of table.values()) picture.delete();
-      for(const path of paths.values())path.delete();
+      for (const path of paths.values()) path.delete();
       throw error;
     }
   }
   draw(frame: EngineResponse, width: number, height: number, scale: number): void {
-    const layerBytes=frame.nodes.reduce((total,n)=>total+(n.localOpacity<1||(n.graphics?.blur??0)>0?Math.ceil(width*scale)*Math.ceil(height*scale)*4*((n.graphics?.blur??0)>0?3:1):0),0);
-    const release=this.budget?.reserve(3,layerBytes);
-    try{this.guarded(1024*1024,()=>this.drawInner(frame,width,height,scale));}finally{release?.();}
+    const layerBytes = frame.nodes.reduce(
+      (total, n) =>
+        total +
+        (n.localOpacity < 1 || (n.graphics?.blur ?? 0) > 0
+          ? Math.ceil(width * scale) *
+            Math.ceil(height * scale) *
+            4 *
+            ((n.graphics?.blur ?? 0) > 0 ? 3 : 1)
+          : 0),
+      0,
+    );
+    const release = this.budget?.reserve(3, layerBytes);
+    try {
+      this.guarded(1024 * 1024, () => this.drawInner(frame, width, height, scale));
+    } finally {
+      release?.();
+    }
   }
-  private drawInner(frame:EngineResponse,width:number,height:number,scale:number):void {
+  private drawInner(frame: EngineResponse, width: number, height: number, scale: number): void {
     this.resize(width, height, scale);
     if (!this.surface) return;
     if (this.canvas?.getContext('webgl2')?.isContextLost())
@@ -593,25 +691,73 @@ export class CanvasKitProvider {
     target.clear(this.ck.Color(244, 246, 250, 1));
     target.save();
     target.scale(scale, scale);
-    const saves:{count:number;matrix:EngineNodeSnapshot['matrix'];culled:boolean}[]=[];
-    try{for(const item of frame.nodes){
-      while(saves.length>item.depth){const {count}=saves.pop()!;for(let i=0;i<count;++i)target.restore();}
-      const parent=saves.at(-1),relative=relativeMatrix(parent?.matrix??[1,0,0,1,0,0],item.matrix);
-      const culled=!!parent?.culled||!relative||Math.abs(item.matrix[0]*item.matrix[3]-item.matrix[1]*item.matrix[2])<1e-12;
-      target.save();let count=1;
-      if(culled)target.clipRect(this.ck.XYWHRect(0,0,0,0),this.ck.ClipOp.Intersect,false);
-      else target.concat(canvasMatrix(relative!));
-      if(item.kind===p.kinds.clip||item.kind===p.kinds.scrollViewport){
-        const path=this.pathTables.get(frame.activePreparation)?.get(key(item.node));
-        if(path)target.clipPath(path,this.ck.ClipOp.Intersect,true);
-        else target.clipRRect(this.ck.RRectXY(this.ck.XYWHRect(0,0,item.width,item.height),item.radius,item.radius),this.ck.ClipOp.Intersect,true);
+    const saves: { count: number; matrix: EngineNodeSnapshot['matrix']; culled: boolean }[] = [];
+    try {
+      for (const item of frame.nodes) {
+        while (saves.length > item.depth) {
+          const { count } = saves.pop()!;
+          for (let i = 0; i < count; ++i) target.restore();
+        }
+        const parent = saves.at(-1),
+          relative = relativeMatrix(parent?.matrix ?? [1, 0, 0, 1, 0, 0], item.matrix);
+        const culled =
+          !!parent?.culled ||
+          !relative ||
+          Math.abs(item.matrix[0] * item.matrix[3] - item.matrix[1] * item.matrix[2]) < 1e-12;
+        target.save();
+        let count = 1;
+        if (culled) target.clipRect(this.ck.XYWHRect(0, 0, 0, 0), this.ck.ClipOp.Intersect, false);
+        else target.concat(canvasMatrix(relative!));
+        if (item.kind === p.kinds.clip || item.kind === p.kinds.scrollViewport) {
+          const path = this.pathTables.get(frame.activePreparation)?.get(key(item.node));
+          if (path) {
+            target.clipRect(
+              this.ck.XYWHRect(0, 0, item.width, item.height),
+              this.ck.ClipOp.Intersect,
+              true,
+            );
+            target.clipPath(path, this.ck.ClipOp.Intersect, true);
+          } else
+            target.clipRRect(
+              this.ck.RRectXY(
+                this.ck.XYWHRect(0, 0, item.width, item.height),
+                item.radius,
+                item.radius,
+              ),
+              this.ck.ClipOp.Intersect,
+              true,
+            );
+        }
+        if (item.localOpacity < 1 || (item.graphics?.blur ?? 0) > 0) {
+          const paint = new this.ck.Paint();
+          const filter =
+            (item.graphics?.blur ?? 0) > 0
+              ? this.ck.ImageFilter.MakeBlur(
+                  item.graphics!.blur!,
+                  item.graphics!.blur!,
+                  this.ck.TileMode.Decal,
+                  null,
+                )
+              : null;
+          try {
+            paint.setAlphaf(item.localOpacity);
+            if (filter) paint.setImageFilter(filter);
+            target.saveLayer(paint);
+            ++count;
+          } finally {
+            paint.delete();
+            filter?.delete();
+          }
+        }
+        saves.push({ count, matrix: item.matrix, culled });
+        if (!culled) this.drawItem(target, table, item);
       }
-      if(item.localOpacity<1||(item.graphics?.blur??0)>0){const paint=new this.ck.Paint();
-        const filter=(item.graphics?.blur??0)>0?this.ck.ImageFilter.MakeBlur(item.graphics!.blur!,item.graphics!.blur!,this.ck.TileMode.Decal,null):null;
-        try{paint.setAlphaf(item.localOpacity);if(filter)paint.setImageFilter(filter);target.saveLayer(paint);++count;}
-        finally{paint.delete();filter?.delete();}}
-      saves.push({count,matrix:item.matrix,culled});if(!culled)this.drawItem(target,table,item);
-    }}finally{while(saves.length){const {count}=saves.pop()!;for(let i=0;i<count;++i)target.restore();}}
+    } finally {
+      while (saves.length) {
+        const { count } = saves.pop()!;
+        for (let i = 0; i < count; ++i) target.restore();
+      }
+    }
     target.restore();
     this.surface.flush();
     ++this.counters.draws;
@@ -625,44 +771,48 @@ export class CanvasKitProvider {
     if (pixelWidth > 8192 || pixelHeight > 8192 || pixelWidth * pixelHeight > 16 * 1024 * 1024)
       throw new Error('Canvas backing budget exceeded');
     if (!this.surface || canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-      const nextBacking=this.budget?.reserve(3,pixelWidth*pixelHeight*4*3);
-      let installed=false;
-      try{
-      this.surface?.delete();
-      this.surface = null;
-      this.counters.liveSurfaces = 0;
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
-      // Own one public GrDirectContext for the entire Render owner. The canvas
-      // convenience helper creates another context on each resize and has a
-      // software-surface fallback; this port requires WebGL2 explicitly.
-      if (!this.context) {
-        this.cacheRelease=this.budget?.reserve(3,32*1024*1024);
-        this.contextHandle = this.ck.GetWebGLContext(canvas, { majorVersion: 2 });
-        if (!this.contextHandle) throw new Error('Worker WebGL2 context unavailable');
-        this.context = this.ck.MakeWebGLContext(this.contextHandle);
-        if (!this.context) throw new Error('CanvasKit GPU context unavailable');
-        this.context.setResourceCacheLimitBytes(32 * 1024 * 1024);
-        this.counters.liveContexts = 1;
+      const nextBacking = this.budget?.reserve(3, pixelWidth * pixelHeight * 4 * 3);
+      let installed = false;
+      try {
+        this.surface?.delete();
+        this.surface = null;
+        this.counters.liveSurfaces = 0;
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+        // Own one public GrDirectContext for the entire Render owner. The canvas
+        // convenience helper creates another context on each resize and has a
+        // software-surface fallback; this port requires WebGL2 explicitly.
+        if (!this.context) {
+          this.cacheRelease = this.budget?.reserve(3, 32 * 1024 * 1024);
+          this.contextHandle = this.ck.GetWebGLContext(canvas, { majorVersion: 2 });
+          if (!this.contextHandle) throw new Error('Worker WebGL2 context unavailable');
+          this.context = this.ck.MakeWebGLContext(this.contextHandle);
+          if (!this.context) throw new Error('CanvasKit GPU context unavailable');
+          this.context.setResourceCacheLimitBytes(32 * 1024 * 1024);
+          this.counters.liveContexts = 1;
+        }
+        this.surface = this.ck.MakeOnScreenGLSurface(
+          this.context,
+          pixelWidth,
+          pixelHeight,
+          this.ck.ColorSpace.SRGB,
+        );
+        if (!this.surface) throw new Error('Worker WebGL2 CanvasKit surface unavailable');
+        const gl = canvas.getContext('webgl2');
+        if (!gl) throw new Error('CanvasKit did not create WebGL2');
+        const debug = gl.getExtension('WEBGL_debug_renderer_info');
+        this.gl = {
+          version: 2,
+          renderer: String(gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
+        };
+        this.counters.liveSurfaces = 1;
+        this.backingRelease?.();
+        this.backingRelease = nextBacking;
+        installed = true;
+        this.counters.gpuReservedBytes = 32 * 1024 * 1024 + pixelWidth * pixelHeight * 12;
+      } finally {
+        if (!installed) nextBacking?.();
       }
-      this.surface = this.ck.MakeOnScreenGLSurface(
-        this.context,
-        pixelWidth,
-        pixelHeight,
-        this.ck.ColorSpace.SRGB,
-      );
-      if (!this.surface) throw new Error('Worker WebGL2 CanvasKit surface unavailable');
-      const gl = canvas.getContext('webgl2');
-      if (!gl) throw new Error('CanvasKit did not create WebGL2');
-      const debug = gl.getExtension('WEBGL_debug_renderer_info');
-      this.gl = {
-        version: 2,
-        renderer: String(gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
-      };
-      this.counters.liveSurfaces = 1;
-      this.backingRelease?.();this.backingRelease=nextBacking;installed=true;
-      this.counters.gpuReservedBytes=32*1024*1024+pixelWidth*pixelHeight*12;
-      }finally{if(!installed)nextBacking?.();}
     }
   }
   private drawItem(
@@ -692,8 +842,7 @@ export class CanvasKitProvider {
     };
     if (geometry) for (const rect of geometry.selection) paintTextRect(rect, 0x663582f6);
     canvas.drawPicture(picture);
-    if (item.control)
-      paintControl(this.ck, canvas, item.control, item.width, item.height, 1);
+    if (item.control) paintControl(this.ck, canvas, item.control, item.width, item.height, 1);
     if (geometry && item.caretVisible && item.editing?.base === item.editing?.extent)
       paintTextRect(geometry.caret, 0xff172033);
   }
@@ -703,12 +852,13 @@ export class CanvasKitProvider {
         for (const picture of table.values()) picture.delete();
         this.counters.livePictures -= table.size;
         this.tables.delete(id);
-        for(const path of this.pathTables.get(id)?.values()??[])path.delete();
+        for (const path of this.pathTables.get(id)?.values() ?? []) path.delete();
         this.pathTables.delete(id);
       }
   }
   close(): void {
-    if(this.closing)return;this.closing=true;
+    if (this.closing) return;
+    this.closing = true;
     this.discardMeasurements();
     this.retireExcept(-1n);
     this.surface?.delete();
@@ -730,8 +880,13 @@ export class CanvasKitProvider {
       this.contextHandle = 0;
     }
     this.counters.liveContexts = 0;
-    this.backingRelease?.();this.backingRelease=undefined;this.cacheRelease?.();this.cacheRelease=undefined;
-    for(const release of this.packetHolds.values())release();this.packetHolds.clear();
-    this.counters.gpuReservedBytes=0;this.budget?.close();
+    this.backingRelease?.();
+    this.backingRelease = undefined;
+    this.cacheRelease?.();
+    this.cacheRelease = undefined;
+    for (const release of this.packetHolds.values()) release();
+    this.packetHolds.clear();
+    this.counters.gpuReservedBytes = 0;
+    this.budget?.close();
   }
 }

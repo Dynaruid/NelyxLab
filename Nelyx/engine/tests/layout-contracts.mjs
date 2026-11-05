@@ -419,7 +419,7 @@ export function layoutContracts({ using, timeout, h }) {
           await f.tick();
           assert.equal((await f.inspect()).nodes.find((n) => n.node.slot === 1).offset, 70);
           const validDocument = (await snapshot(f)).layoutDocument;
-          await f.commit([
+          const invalid = await f.commit([
             c.create(h(9), 'scrollViewport'),
             c.properties(h(9), { width: 200, height: 100 }),
             c.layout(h(9)),
@@ -427,8 +427,11 @@ export function layoutContracts({ using, timeout, h }) {
             c.properties(h(10), { y: 1e12, width: 200, height: 1e12 }),
             c.attach(h(10), h(9)),
           ]);
-          const invalidExtent = await prepare(f);
-          assert.equal(invalidExtent.failedDocument, invalidExtent.document);
+          assert.equal(
+            invalid.status,
+            p.statuses.invalidValue,
+            'Out-of-range composed coordinates are rejected before preparation',
+          );
           await f.tick();
           assert.equal((await snapshot(f)).layoutDocument, validDocument);
         }),

@@ -14,7 +14,7 @@
 
 - Windows: `npm.cmd run run:engine-v2:windows`. Wheel 또는 왼쪽 pointer drag로 스크롤하고 `Ctrl+U`로 App 선언을 갱신합니다. 창을 닫으면 provider를 drain하고 owner를 join합니다.
 - Web: `npm.cmd run run:engine-v2:web` 후 `http://127.0.0.1:8192/isolated/`에서 threaded 자동 선택, `/plain/`에서 비격리 single-worker 자동 선택을 확인합니다. `?profile=threaded`는 격리가 필요하며 명시 요구·자산/ABI 오류는 TS renderer 전환 없이 실패합니다. 정적 배포는 현재 dist 전체와 격리 route의 worker/asset에 일관된 COOP/COEP headers를 제공해야 합니다.
-- 검사: `npm.cmd run test:engine-v2`(공통 계약 162개), `npm.cmd run test:engine-v2:actors`(owner 일정·caret deadline·provider 실패 복구), `npm.cmd run test:engine-v2:glyphs`(padding 포함 픽셀 25 corpus·UTF-16·편집 geometry), 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`(통합 5개, 실제 UIA/DOM 편집·버튼 포함). 검사는 20분 timeout과 임시 출력 finally 정리를 사용합니다.
+- 검사: `npm.cmd run test:engine-v2`(공통 계약 211개), `npm.cmd run test:engine-v2:actors`(owner 일정·caret deadline·provider 실패 복구), `npm.cmd run test:engine-v2:glyphs`(padding 포함 픽셀 25 corpus·UTF-16·편집 geometry), `npm.cmd run test:engine-v2:graphics`(retained 픽셀·backing admission), 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`·`npm.cmd run test:engine-v2:runner`(host·일반 프로젝트 통합). 검사는 20분 timeout과 임시 출력 finally 정리를 사용합니다.
 
 Windows/threaded Web은 독립 Content/Render owner를 연결합니다. Single-worker는 협력 실행이며 `contentIndependent=false`입니다. Testbed는 v2 Widget/State/Key로 선언하고 C++ layout·intrinsic/dry query·편집 document·semantics를 사용합니다. Arabic/Hebrew fallback·color emoji를 공급합니다. 전체 Widget/Material/Cupertino API·gesture·Android는 **PARTIAL**이며 실제 IME/reader·trackpad/FPS 수락은 별도입니다. [구현과 잔여 범위](../work8-2.md#이번-작업의-구현검증-현황)를 참고하세요.
 
@@ -33,7 +33,7 @@ GlobalKey 재부모화는 `deactivate`/`activate`와 의존성 갱신을 수행�
 
 `EditingController('초깃값')`를 `EditableText`에 부착한 뒤 `refresh()`로 revision을 받고 `edit({kind:'replace',revision,text,base,extent,policy})`로 조건부 수정합니다. Text/selection/composing은 Core가 보유하고 undo/redo를 제공합니다. 같은 handle의 초깃값을 바꾸지 말고 편집 명령을 사용하세요. OS/browser composing 종료 전 App replacement는 거부될 수 있습니다. `semanticsSnapshot()`은 게시 world geometry와 최신 비시각 편집 값을 구별하며, `focus()`/`semanticAction()`은 게시 ID·focus session·node 세대를 검사합니다. Windows는 TSF/UIA, Web은 `dom-textarea/aria`를 연결합니다. 실제 IME 후보창·전체 keyboard/clipboard/reader 조합은 미검증입니다.
 
-`new ListView({generation: 1n, itemCount: 2000, estimatedExtent: 48, itemKey: i => i, itemBuilder: i => new Box([], {properties: {height: 48}})}, {properties: {width: 300, height: 400}})`로 필요한 세로 구간만 생성합니다. 데이터/순서 변경 때 `generation`을 올리고 재배치 때 `findChildIndex`를 제공합니다. C++ 실측 extent·활성화 시점의 key anchor 교정은 준비 중 들어온 입력도 보존합니다. `cacheItems`는 focus/명시 keep-alive를 포함해 8–128개(기본 96)입니다. Async builder는 `placeholder`가 필요하며 동시 4개·2초 timeout으로 제한됩니다. `ListBuildSignal`을 받고 Web fetch에는 `nativeSignal`을 사용할 수 있습니다. Eviction/generation/dispose는 abort하며 늦은 결과를 버립니다. `direction: 'horizontal'`로 수평 목록을 지정합니다. 활성 layout을 관찰한 뒤 `key.currentState.scrollToIndex(index, alignment)`는 먼 목적지를 준비한 후 visual offset을 교체합니다. 반환은 pending command receipt이며 `onScrollTerminal`에서 같은 ID의 완료/취소/timeout을 받습니다. 사용자 입력·generation 변경·2초 준비 timeout은 seek를 종료합니다. 전체 provider/GPU peak 예산 합산은 남습니다.
+`new ListView({generation: 1n, itemCount: 2000, estimatedExtent: 48, itemKey: i => i, itemBuilder: i => new Box([], {properties: {height: 48}})}, {properties: {width: 300, height: 400}})`로 필요한 세로 구간만 생성합니다. 데이터/순서 변경 때 `generation`을 올리고 재배치 때 `findChildIndex`를 제공합니다. C++ 실측 extent·활성화 시점의 key anchor 교정은 준비 중 들어온 입력도 보존합니다. `cacheItems`는 focus/명시 keep-alive를 포함해 8–128개(기본 96)입니다. Async builder는 `placeholder`가 필요하며 동시 4개·2초 timeout으로 제한됩니다. `ListBuildSignal`을 받고 Web fetch에는 `nativeSignal`을 사용할 수 있습니다. Eviction/generation/dispose는 abort하며 늦은 결과를 버립니다. `direction: 'horizontal'`로 수평 목록을 지정합니다. 활성 layout을 관찰한 뒤 `key.currentState.scrollToIndex(index, alignment)`는 먼 목적지를 준비한 후 visual offset을 교체합니다. 반환은 pending command receipt이며 `onScrollTerminal`에서 같은 ID의 완료/취소/timeout을 받습니다. 사용자 입력·generation 변경·2초 준비 timeout은 seek를 종료합니다. Provider/GPU 예약은 session ledger에 합산하며 불투명한 provider/driver 순간 peak는 선제 관측 범위 밖입니다.
 
 이 Core Widget에는 명시적인 `@nelyx/material/v2`, `@nelyx/cupertino/v2`를 사용합니다. 지원 생성자의 button·selection control·slider/progress·editor·surface가 native 상태/paint를 선언합니다. Testbed는 두 패키지와 2,000행 목록을 실행합니다. `NavigatorController`/`Navigator`는 최대 32 route 보존·modal barrier를 제공합니다. 기존 v1 디자인 패키지보다 작은 API이며 전체 form 검증·테마/아이콘/전환·일반 SDK resolver 이식은 남습니다.
 
@@ -48,6 +48,18 @@ Editor의 명시적인 `commit`/`cancel` replacement는 host의 실제 compositi
 `await view.layoutSnapshot()`은 마지막 활성화 layout을 반환합니다. Node 좌표·baseline은 부모 기준이며 `layoutDocument/layoutMetrics`가 해당 geometry의 버전입니다. 새 document 승인이나 host metrics 변경만으로 좌표의 버전을 바꾸지 않습니다. `commands.text(node, value, size, color, {direction: 'rtl'})`로 RTL을 지정합니다. Web 공급 font의 hash를 manifest와 대조하고 worker 사이 glyph run에도 font identity를 유지합니다.
 
 `commands.coverage(scrollNode, revision, {minimum, maximum})`는 논리 extent와 별개로 준비된 **visual offset** 범위를 선언합니다. `NeedChildren`을 coverage revision별로 합칩니다. 활성 engine-driven gesture만 한 viewport 이내의 최신 목표 하나를 보관하고 반전/end/cancel/hide에서 버립니다. Phase 없는 wheel은 지연 목표를 누적하지 않습니다. 추종 속도는 min(2,400 px/s, 4 viewport/s), tick당 최대 적용 시간은 1/60초입니다. 준비 밖 programmatic 목적지는 `contentUnavailable`로 끝납니다. `ListView`는 실제 builder와 native anchor 교정을 연결합니다.
+
+### 그래픽·App geometry·통합 메모리
+
+`Transform(child, [a,b,c,d,tx,ty])`, `ClipRRect`, `ClipPath`, `PathShape(new VectorPath(segments, fillRule))`, `ImageFiltered(child, sigma)`로 affine transform·둥근/path clip·하위 트리 blur를 선언합니다. `NodeOptions.graphics`는 shadow·stroke도 받습니다. Path는 move/line/quad/cubic/close 최대 1,024개, sigma는 0–64입니다. 명시적인 빈 clip path는 모든 픽셀/입력을 가립니다. Paint·입력·접근성은 같은 게시 matrix를 사용하며 곡선 hit-test는 0.25 단위의 bounded 평탄화입니다. Raster 경계의 antialiasing 오차는 별도로 구분합니다.
+
+`NativeSparkline(values, width, height, options)`는 정적으로 컴파일된 C++ 확장입니다. 2–256개 정규화 sample을 엔진이 path로 만들며 App handshake에 `protocol.capabilities.nativeExtensions`를 요구합니다. 유한한 명시 geometry를 사용하며 크기를 바꿀 때 새 확장 선언을 보냅니다. `AppDrivenBoundary(width, height, children)`는 모든 자손에 유한한 width/height를 요구하고 그 경계의 native 자식 layout을 끕니다. App은 엔진 layout/paint 호출 밖에서 완성한 위치를 선언합니다.
+
+신뢰한 host의 단일 ledger가 Core·provider·전송·staging과 GPU 예약을 총 384 MiB/GPU 128 MiB 상한으로 admission합니다. `state.memory`에 total/peak/rejected·engine/CanvasKit committed heap과 분류별 값을 반환하고 engine heap 안의 Core 논리 자원은 중복 합산하지 않습니다. Windows는 App packet/turn 경계에서 Hermes heap·외부 buffer도 provider-heap 계정에 합산합니다. Native CPU·GPU는 보수적 예약량을 포함하며 RSS나 실제 driver VRAM 측정이 아닙니다. 수정하지 않은 공식 CanvasKit의 내부 allocation/growth는 공개 API 경계에서 관측하고 committed heap 초과는 session 실패로 처리합니다. Browser의 App/host adapter JavaScript heap과 불투명한 provider/driver allocation 순간의 peak는 이 장부의 측정 대상이 아닙니다. App port에서 host 메모리 계정을 변경할 수 없습니다.
+
+`Key`·`ValueKey`·`ObjectKey`·`UniqueKey`와 Notifier 계열은 기존 값 import와 `/v2`에서 원래 foundation 구현을 공유합니다. Reconciliation은 사용자 정의 key 동등성·런타임 type token을 보존하고 `ValueListenableBuilder`는 원래 listener 계약으로 구독·해제합니다. 기존 GlobalKey/RenderObject framework와 동기 API 전체를 이식한 것은 아닙니다.
+
+일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. 기존 전체 Widget/RenderObject/디자인/SDK API 호환은 별도 gate이며 `npm.cmd run audit:engine-v2:api`는 누락·변경·미검증 계약이 남아 있으면 실패합니다. 같은 이름의 export만으로 호환 완료가 되지 않습니다.
 
 ## 모듈
 

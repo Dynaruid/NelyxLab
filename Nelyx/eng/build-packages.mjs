@@ -167,7 +167,12 @@ function finalizeOutput(directory) {
 
 try {
   compile('tsconfig.build.json', { outDir: staged });
-  if (name === 'core') compile('runtime/tsconfig.json', { outDir: path.join(staged, 'v2') });
+  if (name === 'core')
+    compile('runtime/tsconfig.json', {
+      outDir: path.join(staged, 'v2'),
+      // Resolve shared value contracts against this build, including a clean first build.
+      paths: { '@nelyx/core/*': [path.join(staged, '*')] },
+    });
   finalizeOutput(staged);
   // Restore source-map paths after the generated tree moves from staging to dist.
   const visit = (directory) => {

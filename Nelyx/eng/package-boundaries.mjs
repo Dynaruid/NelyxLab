@@ -26,6 +26,19 @@ const internalFacades = new Map([
   ],
 ]);
 const slash = (value) => value.replaceAll('\\', '/');
+function ownsSource(owner, target) {
+  return [owner.source, owner.v2 && path.join(owner.v2, 'engine-client')]
+    .filter(Boolean)
+    .some((root) => {
+      const relative = path.relative(root, target);
+      return (
+        relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)
+      );
+    });
+}
+function isV2Source(owner, file) {
+  return !!owner.v2 && ownsSource({ source: path.join(owner.v2, 'engine-client') }, file);
+}
 function walk(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((item) => {
     const file = path.join(directory, item.name);
@@ -37,6 +50,11 @@ function sourceTarget(owner, condition) {
   const target =
     typeof condition === 'string' ? condition : (condition?.types ?? condition?.default);
   if (!target?.startsWith('./dist/') || !/\.(?:d\.ts|js)$/.test(target)) return null;
+  if (owner.v2 && target.startsWith('./dist/v2/'))
+    return path.resolve(
+      owner.v2,
+      target.slice('./dist/v2/'.length).replace(/\.(?:d\.ts|js)$/, '.ts'),
+    );
   return path.resolve(
     owner.source,
     target.slice('./dist/'.length).replace(/\.(?:d\.ts|js)$/, '.ts'),
@@ -78,11 +96,18 @@ function stronglyConnected(graph) {
 export function auditPackageBoundaries(root) {
   root = path.resolve(root);
   const workspace = JSON.parse(fs.readFileSync(path.join(root, 'package.json')));
-  const owners = workspace.workspaces.map((directory) => ({
-    directory,
-    source: path.resolve(root, directory, 'src'),
-    manifest: JSON.parse(fs.readFileSync(path.join(root, directory, 'package.json'))),
-  }));
+  const owners = workspace.workspaces.map((directory) => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, directory, 'package.json')));
+    return {
+      directory,
+      source: path.resolve(root, directory, 'src'),
+      manifest,
+      v2:
+        manifest.name === '@nelyx/core' && manifest.exports?.['./v2']
+          ? path.resolve(root, directory, 'runtime')
+          : undefined,
+    };
+  });
   const checked = owners.filter((owner) =>
     ['@nelyx/core', '@nelyx/material', '@nelyx/cupertino', '@nelyx/tooling-contracts'].includes(
       owner.manifest.name,
@@ -100,8 +125,7 @@ export function auditPackageBoundaries(root) {
         .filter(Boolean),
     );
     for (const target of published) {
-      const relative = path.relative(owner.source, target);
-      if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative))
+      if (!ownsSource(owner, target))
         errors.push('Published target escapes its owner: ' + owner.manifest.name);
       else if (!fs.existsSync(target))
         errors.push('Published source is missing: ' + slash(path.relative(root, target)));
@@ -114,7 +138,10 @@ export function auditPackageBoundaries(root) {
       )
         errors.push('Declaration/runtime owner mismatch: ' + owner.manifest.name + '/' + subpath);
     }
-    for (const file of walk(owner.source)) {
+    const sources = [owner.source, owner.v2 && path.join(owner.v2, 'engine-client')].filter(
+      (directory) => directory && fs.existsSync(directory),
+    );
+    for (const file of sources.flatMap(walk)) {
       files++;
       const relativeFile = slash(path.relative(root, file));
       const syntax = ts.createSourceFile(
@@ -154,13 +181,7 @@ export function auditPackageBoundaries(root) {
         let target;
         if (specifier.startsWith('.')) {
           target = path.resolve(path.dirname(file), specifier);
-          const relative = path.relative(owner.source, target);
-          if (
-            relative === '..' ||
-            relative.startsWith('..' + path.sep) ||
-            path.isAbsolute(relative) ||
-            !specifier.endsWith('.ts')
-          )
+          if (!ownsSource(owner, target) || !specifier.endsWith('.ts'))
             errors.push(
               'Relative import escapes owner or lacks .ts: ' + relativeFile + ' -> ' + specifier,
             );
@@ -207,7 +228,14 @@ export function auditPackageBoundaries(root) {
           if (!entry)
             errors.push('Not an exported direct module: ' + relativeFile + ' -> ' + specifier);
           else target = sourceTarget(other, entry);
-          if (['@nelyx/core', '@nelyx/tooling-contracts'].includes(owner.manifest.name))
+          const sharedValue =
+            other === owner &&
+            isV2Source(owner, file) &&
+            ['@nelyx/core/foundation/key', '@nelyx/core/foundation/notifier'].includes(specifier);
+          if (
+            ['@nelyx/core', '@nelyx/tooling-contracts'].includes(owner.manifest.name) &&
+            !sharedValue
+          )
             errors.push(
               'Common package has an external dependency: ' + relativeFile + ' -> ' + specifier,
             );
@@ -220,7 +248,7 @@ export function auditPackageBoundaries(root) {
             !['@nelyx/core', '@nelyx/cupertino'].includes(match?.[1])
           )
             errors.push('Material runtime dependency: ' + relativeFile + ' -> ' + specifier);
-          if (other === owner)
+          if (other === owner && !sharedValue)
             errors.push(
               'Internal self-package import must use its relative owner: ' +
                 relativeFile +
@@ -241,10 +269,17 @@ export function auditPackageBoundaries(root) {
       };
       for (const statement of syntax.statements) {
         if (ts.isExportDeclaration(statement)) {
-          if (!published.has(file) && !internalFacades.has(relativeFile))
+          if (
+            !published.has(file) &&
+            !internalFacades.has(relativeFile) &&
+            !isV2Source(owner, file)
+          )
             errors.push('Undeclared internal reexport facade: ' + relativeFile);
           else publicFacades++;
-          if (!statement.exportClause || !ts.isNamedExports(statement.exportClause))
+          if (
+            (!statement.exportClause || !ts.isNamedExports(statement.exportClause)) &&
+            !(isV2Source(owner, file) && published.has(file))
+          )
             errors.push('Reexport must name its public symbols: ' + relativeFile);
           if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier))
             processSpecifier(

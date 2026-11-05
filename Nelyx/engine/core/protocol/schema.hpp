@@ -2,7 +2,7 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 1705971718u;
+inline constexpr uint32_t schema = 2587795476u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
@@ -122,6 +122,7 @@ inline constexpr uint32_t listItem = 20u;
 inline constexpr uint32_t gesture = 21u;
 inline constexpr uint32_t control = 22u;
 inline constexpr uint32_t graphics = 23u;
+inline constexpr uint32_t nativeExtension = 24u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -260,6 +261,7 @@ inline constexpr uint32_t rawObserver = 4096u;
 inline constexpr uint32_t appControlled = 8192u;
 inline constexpr uint32_t graphics = 16384u;
 inline constexpr uint32_t memoryBudget = 32768u;
+inline constexpr uint32_t nativeExtensions = 65536u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -642,5 +644,15 @@ inline constexpr uint32_t length = 48u;
 inline constexpr uint32_t reserved = 52u;
 inline constexpr uint32_t publication = 56u;
 inline constexpr uint32_t bytes = 64u;
+}
+namespace graphicsFlags {
+inline constexpr uint32_t evenOdd = 1u;
+inline constexpr uint32_t hasPath = 2u;
+}
+namespace extensions {
+inline constexpr uint32_t sparkline = 1u;
+}
+namespace nodeFlags {
+inline constexpr uint32_t nativeExtension = 256u;
 }
 }

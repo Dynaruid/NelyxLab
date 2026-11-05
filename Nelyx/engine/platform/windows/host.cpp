@@ -3,6 +3,7 @@
 #include <windowsx.h>
 #include <hermes/hermes.h>
 #include <jsi/jsi.h>
+#include <jsi/instrumentation.h>
 #include "../../core/engine.hpp"
 #include "skia_provider.hpp"
 #include "interaction.hpp"
@@ -12,6 +13,7 @@
 #include <iostream>
 #include <sstream>
 #include <functional>
+#include <filesystem>
 
 namespace jsi=facebook::jsi;
 using namespace nelyx::v2;
@@ -23,16 +25,38 @@ static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& d
   if(!data.empty())std::memcpy(w.bytes.data()+wire::headerBytes,data.data(),data.size());return std::move(w.bytes);
 }
 struct Job{uint32_t id;std::vector<uint8_t> bytes;std::shared_ptr<ExternalLease> memory;};
+struct AppHeapAccount {
+  std::shared_ptr<Ledger> ledger;std::atomic<uint64_t>& observed;
+  void update(jsi::Runtime& runtime){
+    const auto info=runtime.instrumentation().getHeapInfo(false);
+    const auto heap=info.find("hermes_heapSize"),external=info.find("hermes_externalBytes");
+    if(heap==info.end()||external==info.end()||heap->second<0||external->second<0)
+      throw std::runtime_error("Hermes App heap accounting is unavailable");
+    const auto bytes=uint64_t(heap->second)+uint64_t(external->second);
+    try{ledger->report(4,1,bytes);}catch(const Error&){throw std::runtime_error("Hermes App heap exceeded the unified memory budget");}
+    observed=bytes;
+  }
+  ~AppHeapAccount(){ledger->report(4,1,0);observed=0;}
+};
+struct AppExitSignal{std::atomic<bool>& exited;~AppExitSignal(){exited=true;}};
+struct AppRuntimeRegistration {
+  std::mutex& gate;facebook::hermes::HermesRuntime*& current;
+  AppRuntimeRegistration(std::mutex& lock,facebook::hermes::HermesRuntime*& slot,facebook::hermes::HermesRuntime* runtime):gate(lock),current(slot){std::lock_guard held(gate);current=runtime;}
+  ~AppRuntimeRegistration(){std::lock_guard held(gate);current=nullptr;}
+};
 class Host {
   Engine core{1,1};HWND window=nullptr;
   std::atomic<bool> stopping{false},contentReady{false},renderReady{false},connected{false},appReady{false};
   std::atomic<bool> failed{false},closed{false};
+  std::atomic<bool> closing{false},disposeRequested{false},appDisposed{false};
   bool probe=false;
   std::atomic<uint32_t> busyOwners{0};
   std::atomic<int32_t> probeDelta{0},appSeek{-1};
   void injectProbeInput(){const auto delta=probeDelta.exchange(0);if(probe&&delta)PostMessageW(window,WM_APP+2,WPARAM(intptr_t(delta)),0);}
   std::atomic<uint32_t> contentThread{0},renderThread{0},appThread{0};uint32_t uiThread=GetCurrentThreadId();
   std::thread contentOwner,renderOwner,appOwner;
+  std::mutex appRuntimeMutex;facebook::hermes::HermesRuntime* appRuntime=nullptr;
+  std::atomic<bool> appExited{false};
   std::mutex jobsMutex,doneMutex,sceneMutex,wakeMutex,metricsMutex;
   std::condition_variable changed,appChanged;
   std::deque<Job> jobs,done;
@@ -47,7 +71,10 @@ class Host {
   std::shared_ptr<const nw::Prepared> candidate;
   std::shared_ptr<const nw::Prepared> publishedPrepared;
   std::string directory;
+  std::string appDirectory;
   std::atomic<uint64_t> rendered{0},paragraphs{0},pictures{0},images{0};
+  std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
+  std::atomic<uint64_t> appHeapBytes{0};
   std::atomic<double> lazyOffset{0};
   std::atomic<double> scrollOffset{0};
   std::atomic<double> publishedWidth{0},publishedHeight{0};
@@ -106,6 +133,7 @@ class Host {
           if(r.u64(wire::headerBytes+wire::stateFields::queryId)&&r.u32(wire::headerBytes+wire::stateFields::queryStatus)==wire::statuses::pending)contentWake=true;
         }
         paragraphs=provider.paragraphs.load();pictures=provider.pictures.load();images=provider.images.load();
+        graphicsRecords=provider.graphicsRecords.load();nativeExtensions=provider.nativeExtensions.load();
         std::unique_lock lock(wakeMutex);changed.wait(lock,[this]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||contentDelay||!jobs.empty();});
       }
       {std::lock_guard lock(sceneMutex);candidate.reset();}
@@ -178,13 +206,19 @@ class Host {
     }catch(const std::exception& error){notifyError(error.what());}
   }
   void appLoop(){
+    AppExitSignal exitSignal{appExited};
     appThread=GetCurrentThreadId();
     try{
       while(!stopping&&!connected)std::this_thread::sleep_for(std::chrono::milliseconds(2));if(stopping)return;
-      auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).build());
+      AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes};
+      auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withAsyncBreakCheckInEval(true).build());
+      AppRuntimeRegistration registration(appRuntimeMutex,appRuntime,runtime.get());
       auto& rt=*runtime;
+      appMemory.update(rt);
       auto native=jsi::Object(rt);
-      native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
+      auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
+      native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
+        appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
         std::lock_guard lock(jobsMutex);if(stopping||jobs.size()+uiJobs.size()>=32||jobBytes+length>4*wire::limits::packetBytes)throw jsi::JSError(r,"V2 native mailbox full/closed");
         auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,length);std::vector<uint8_t> bytes(buffer.data(r),buffer.data(r)+length);const auto op=Reader{bytes.data(),bytes.size()}.u16(12);
@@ -194,27 +228,33 @@ class Host {
         contentWake=true;
         changed.notify_all();return jsi::Value::undefined();}));
       native.setProperty(rt,"asset",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"asset"),1,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t)->jsi::Value{
-        if(args[0].asString(r).utf8(r)!="image")throw jsi::JSError(r,"Unknown native asset");auto bytes=readFile(directory+"/assets/image.webp");auto array=r.global().getPropertyAsFunction(r,"ArrayBuffer").callAsConstructor(r,double(bytes.size())).getObject(r);auto buffer=array.getArrayBuffer(r);std::memcpy(buffer.data(r),bytes.data(),bytes.size());return array;}));
+        const auto name=args[0].asString(r).utf8(r);std::filesystem::path file;
+        if(appDirectory.empty()){if(name!="image")throw jsi::JSError(r,"Unknown native asset");file=directory+"/assets/image.webp";}
+        else{const auto root=std::filesystem::canonical(std::filesystem::path(appDirectory)/"application/assets");file=std::filesystem::canonical(root/name);const auto relative=file.lexically_relative(root);
+          if(relative.empty()||relative.is_absolute()||*relative.begin()==".."||!std::filesystem::is_regular_file(file))throw jsi::JSError(r,"Invalid application asset path");}
+        const auto size=std::filesystem::file_size(file);if(size>wire::limits::resourceBytes)throw jsi::JSError(r,"Application asset budget exceeded");ExternalLease staging(core.memoryLedger(),3,4,size*2);
+        auto bytes=readFile(file.string());auto array=r.global().getPropertyAsFunction(r,"ArrayBuffer").callAsConstructor(r,double(bytes.size())).getObject(r);auto buffer=array.getArrayBuffer(r);std::memcpy(buffer.data(r),bytes.data(),bytes.size());return array;}));
       native.setProperty(rt,"notify",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"notify"),1,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t)->jsi::Value{
-        const auto message=args[0].asString(r).utf8(r);if(message.find("app-delay-start")!=std::string::npos)busyOwners.fetch_or(1);if(message.find("app-delay-end")!=std::string::npos)busyOwners.fetch_and(~1u);std::cout<<"V2_APP "<<message<<std::endl;if(message.find("app-delay-start")!=std::string::npos)injectProbeInput();if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
+        const auto message=args[0].asString(r).utf8(r);if(message.find("app-delay-start")!=std::string::npos)busyOwners.fetch_or(1);if(message.find("app-delay-end")!=std::string::npos)busyOwners.fetch_and(~1u);std::cout<<"V2_APP "<<message<<std::endl;if(message.find("app-delay-start")!=std::string::npos)injectProbeInput();if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
-      const auto source=readFile(directory+"/web/app-native.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"app-native.js");rt.drainMicrotasks();
+      const auto source=readFile(appDirectory.empty()?directory+"/web/app-native.js":appDirectory+"/application/app.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"app-native.js");rt.drainMicrotasks();
       while(!stopping){
+        if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
         if(const auto delay=appDelay.exchange(0)){rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt,double(delay));rt.drainMicrotasks();}
-        if(appUpdate.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
+        if(appUpdate.exchange(false)&&appDirectory.empty()){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
         if(const auto index=appSeek.exchange(-1);index>=0){rt.global().getPropertyAsFunction(rt,"__v2Seek").call(rt,double(index));rt.drainMicrotasks();}
         Job result{};bool has=false;
         {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
-        rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();
+        rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
         std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::milliseconds(2));
       }
     }catch(const std::exception& error){notifyError(error.what());}
   }
  public:
-  Host(std::string directory,bool probe):probe(probe),directory(std::move(directory)){}
+  Host(std::string directory,bool probe,std::string appDirectory={}):probe(probe),directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
   void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();});contentOwner=std::thread([this]{contentLoop();});renderOwner=std::thread([this]{renderLoop();});appOwner=std::thread([this]{appLoop();});}
   bool filter(const MSG& message){return interaction&&interaction->filter(message);}
   bool keydown(WPARAM key){return interaction&&interaction->keydown(key);}
@@ -224,7 +264,7 @@ class Host {
     if(closed)return;
     std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();
     std::deque<Job> accepted;{std::lock_guard lock(jobsMutex);accepted.swap(uiJobs);for(const auto& job:accepted)jobBytes-=job.bytes.size();}
-    for(auto& job:accepted){auto result=interaction->gateway(job.bytes);{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result)});}appChanged.notify_one();}
+    for(auto& job:accepted){auto result=interaction->gateway(job.bytes);auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
     if(interactionDirty.exchange(false)&&interaction){std::shared_ptr<const nw::Prepared> published;{std::lock_guard lock(sceneMutex);published=publishedPrepared;}interaction->sync(std::move(published));}
   }
   void timer(UINT_PTR id){if(interaction)interaction->timer(id);if(id==1)poll();}
@@ -280,11 +320,31 @@ class Host {
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
-    std::cout<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbacks\":0,\"surfaceCommit\":null}"<<std::endl;
+    std::cout<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbacks\":0,\"surfaceCommit\":null}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
   void uiFailure(const std::string& error){notifyError(error);}
-  void close(){if(closed.exchange(true))return;stopping=true;changed.notify_all();appChanged.notify_all();if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();if(interaction){interaction->close();interaction.reset();}std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();callbacks.clear();auto result=call(wire::opcodes::closeSession,{},true);auto r=reader(result);std::cout<<"V2_CLOSED {\"status\":"<<r.u16(14)<<",\"reservedBytes\":"<<r.u64(wire::headerBytes+wire::stateFields::reservedBytes)<<",\"workersJoined\":true}"<<std::endl;}
+  void close(){
+    if(closing.exchange(true))return;
+    if(appReady&&!stopping){
+      disposeRequested=true;appChanged.notify_all();const auto deadline=now()+3;
+      while(!appDisposed&&!stopping&&now()<deadline){ui();std::this_thread::sleep_for(std::chrono::milliseconds(1));}
+      if(!appDisposed&&!stopping){failed=true;std::cerr<<"V2_HOST_ERROR App disposal timeout"<<std::endl;}
+    }
+    closed=true;stopping=true;changed.notify_all();appChanged.notify_all();
+    const auto appDeadline=now()+0.25;
+    while(!appExited&&now()<appDeadline)std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if(!appExited){std::lock_guard lock(appRuntimeMutex);if(appRuntime){failed=true;std::cerr<<"V2_HOST_ERROR Interrupting stalled App JavaScript"<<std::endl;appRuntime->asyncTriggerTimeout();}}
+    if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();
+    if(interaction){interaction->close();interaction.reset();}
+    std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();callbacks.clear();
+    {std::lock_guard lock(sceneMutex);candidate.reset();publishedPrepared.reset();}
+    SkGraphics::PurgeAllCaches();
+    {std::lock_guard lock(jobsMutex);jobs.clear();uiJobs.clear();jobBytes=0;}{std::lock_guard lock(doneMutex);done.clear();}
+    auto result=call(wire::opcodes::closeSession,{},true);auto r=reader(result);const auto memory=core.memoryLedger()->snapshot();
+    if(r.u16(14)||r.u64(wire::headerBytes+wire::stateFields::reservedBytes)||memory.total)failed=true;
+    std::cout<<"V2_CLOSED {\"status\":"<<r.u16(14)<<",\"reservedBytes\":"<<r.u64(wire::headerBytes+wire::stateFields::reservedBytes)<<",\"memoryTotal\":"<<memory.total<<",\"memoryPeak\":"<<memory.peak<<",\"workersJoined\":true}"<<std::endl;
+  }
   ~Host(){close();}
 };
 static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
@@ -310,10 +370,15 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
 }
 int main(int argc,char**argv){
   try{
-    if(argc<2||argc>3||(argc==3&&std::string(argv[2])!="--probe"))throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> [--probe]");SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    if(argc<2)throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> [--probe] [--app <bundle directory>]");
+    bool probe=false;std::string appDirectory;
+    for(int i=2;i<argc;++i){const std::string option=argv[i];if(option=="--probe"&&!probe)probe=true;
+      else if(option=="--app"&&appDirectory.empty()&&i+1<argc)appDirectory=std::filesystem::canonical(argv[++i]).string();
+      else throw std::runtime_error("Unknown or duplicate native host option: "+option);}
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)))throw std::runtime_error("UI COM apartment failed");
     struct Apartment{~Apartment(){CoUninitialize();}}apartment;
-    Host host(argv[1],argc==3);const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineV2Host";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
+    Host host(argv[1],probe,std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineV2Host";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
     const auto dpi=GetDpiForSystem();RECT bounds{0,0,LONG(960*dpi/96),LONG(720*dpi/96)};AdjustWindowRectExForDpi(&bounds,WS_OVERLAPPEDWINDOW,FALSE,0,dpi);
     const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Native Skia",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
     if(!window)throw std::runtime_error("Native HWND creation failed");host.bind(window);host.metrics();SetTimer(window,1,16,nullptr);ShowWindow(window,SW_SHOW);host.metrics();UpdateWindow(window);

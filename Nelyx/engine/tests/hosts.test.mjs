@@ -169,6 +169,13 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
     assert.ok(state.paragraphs > 0 && state.images > 0 && state.frames > 0);
     assert.ok(state.layoutWork > 0, 'The actual Testbed executes C++ layout');
     assert.equal(state.fallbacks, 0);
+    assert.equal(app.nativeExtensions, 1);
+    assert.ok(state.nativeExtensions > 0 && state.graphicsRecords > 0);
+    assert.ok(state.memoryTotal > 0 && state.memoryPeak <= 402653184 && state.memoryGpu > 0);
+    assert.ok(
+      state.appHeapBytes > 0 && state.appHeapBytes < state.memoryTotal,
+      'The actual Hermes heap and external buffers enter the shared ledger',
+    );
     host.send('wheel 80');
     await sleep(60);
     const moved = await host.stats();
@@ -277,8 +284,13 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
   const closed = JSON.parse(host.lines.find((line) => line.startsWith('V2_CLOSED ')).slice(10));
   assert.equal(closed.status, 0);
   assert.equal(closed.reservedBytes, 0);
+  assert.equal(closed.memoryTotal, 0);
+  assert.ok(
+    host.lines.some((line) => line.includes('"kind":"app-disposed"')),
+    'The Testbed App disposes before native providers stop',
+  );
   assert.equal(closed.workersJoined, true);
-  assert.equal(host.child.exitCode, 0);
+  assert.equal(host.child.exitCode, 0, host.lines.join('\n') + '\n' + host.errors);
 });
 
 for (const [route, expected] of [
@@ -328,6 +340,13 @@ for (const [route, expected] of [
       assert.equal(state.app.query.contentHeight, 1498);
       assert.ok(render.counters.draws > 0);
       assert.ok(content.counters.paragraphs > 0 && content.counters.images > 0);
+      assert.equal(state.app.nativeExtensions, 1);
+      assert.ok(content.counters.nativeExtensions > 0 && content.counters.graphicsRecords > 0);
+      assert.ok(
+        render.state.memory.providerHeap > 0n &&
+          render.state.memory.gpu > 0n &&
+          render.state.memory.peak <= render.state.memory.limit,
+      );
       assert.ok(render.state.layoutWork > 0n, 'The actual Testbed executes C++ layout');
       assert.ok(content.counters.measurements > 0);
       assert.equal(content.textCapabilities.lineIndexUnit, 'utf8');

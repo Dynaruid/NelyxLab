@@ -265,6 +265,8 @@ class Interaction {
       const auto after=std::find_if(current->frame.items.begin(),current->frame.items.end(),[&](const auto& item){return item.node==node;});
       const auto& oldNode=observed.frame.scene->document->get(node);const auto& newNode=current->frame.scene->document->get(node);
       if(after==current->frame.items.end()||before->x!=after->x||before->y!=after->y||
+        before->world.a!=after->world.a||before->world.b!=after->world.b||before->world.c!=after->world.c||before->world.d!=after->world.d||
+        oldNode.graphics.path!=newNode.graphics.path||oldNode.radius!=newNode.radius||
         oldNode.properties.width!=newNode.properties.width||oldNode.properties.height!=newNode.properties.height||
         before->clip.x!=after->clip.x||before->clip.y!=after->clip.y||before->clip.width!=after->clip.width||before->clip.height!=after->clip.height)return false;
       body.u64(8,current->frame.id);const auto result=call(opcode,body.bytes);const auto status=Reader{result.data(),result.size()}.u16(14);
@@ -790,6 +792,7 @@ public:
     editors->close();
     semantics->close();
     snapshot.reset();
+    prepared.reset();
     documents.clear();
     forced.clear();
   }

@@ -54,7 +54,9 @@ async function start(
       p.capabilities.gestures |
       p.capabilities.controls |
       p.capabilities.rawObserver |
-      p.capabilities.appControlled,
+      p.capabilities.appControlled |
+      p.capabilities.graphics |
+      p.capabilities.nativeExtensions,
     timeoutMs: 10000,
   });
   const view = await client.openView(1);
@@ -94,12 +96,15 @@ async function start(
     { kind: 'finite', min: 0, max: 100 },
   );
   await scene.editor.refresh();
+  const declarations = await view.layoutSnapshot();
   notify({
     kind: 'app-ready',
     document: String(active.activeDocument),
     commands: widgets.counters.commands,
     engineWork: String(active.transactionWork),
     fallbacks: 0,
+    nativeExtensions: declarations.nodes.filter((node) => node.flags & p.nodeFlags.nativeExtension)
+      .length,
     widgets: { ...widgets.counters },
     lazy: { ...scene.lazy.currentState!.counters, itemCount: 2000 },
     query: {
@@ -116,9 +121,19 @@ async function start(
     while (Date.now() < until) {}
     notify({ kind: 'app-delay-end', time: Date.now() });
   };
-  environment.__v2Dispose = async () => {
-    await widgets.close();
-    await client.close();
+  let disposal: Promise<void> | undefined;
+  environment.__v2Dispose = () => {
+    if (disposal) return disposal;
+    disposal = (async () => {
+      try {
+        await widgets.close();
+      } finally {
+        await client.abort();
+      }
+      notify({ kind: 'app-disposed' });
+    })();
+    void disposal.catch((error) => notify({ kind: 'app-error', message: String(error) }));
+    return disposal;
   };
   environment.__v2Seek = async (index) => {
     const receipt = await scene.lazy.currentState!.scrollToIndex(index);
