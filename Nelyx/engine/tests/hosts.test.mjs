@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { chromium } from 'playwright';
-import { packet, protocol, response, body, writeHandle } from '@nelyx/core/v2';
+import { packet, protocol, response, body, writeHandle, editBody } from '@nelyx/core/v2';
 import { engineRoot, timeout, sourceIdentity } from '../tools/build.mjs';
 import { createHostServer } from '../tools/serve.mjs';
 
@@ -132,9 +132,13 @@ test(
       assert.equal(value.utf16Length, 4);
       assert.equal(value.graphemesMoved, 2);
       assert.equal(value.pointerCaret, 1);
+      assert.equal(value.controls, 3);
+      assert.equal(value.keyboardGraphemes, true);
       assert.ok(value.rectangles > 0);
       const work = await host.waitStats((s) => s.nativeCommands === app.commands + 1);
       assert.ok(work.editingWork > 0 && work.semanticsWork > 0 && work.queryWork > 0);
+      assert.ok(work.gestureWork > 0 && work.controlWork >= 3);
+      assert.ok(app.lazy.built > 0 && app.lazy.peakItems <= 24 && app.lazy.itemCount === 2000);
       assert.equal(app.query.contentHeight, 1498);
       console.log('V2_NATIVE_INTERACTION ' + JSON.stringify(value));
       host.send('close');
@@ -237,6 +241,24 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
     const idle = await host.stats();
     await sleep(80);
     assert.equal((await host.stats()).ticks, idle.ticks, 'Idle Render still ticks');
+    for (let i = 0; i < 6; ++i) {
+      host.send('lazy-wheel 100');
+      await sleep(60);
+    }
+    const lazy = await host.waitStats(
+      (state) => state.lazyOffset > 200 && state.activeDocument > updated.activeDocument,
+    );
+    assert.ok(
+      lazy.nodeCount < 220 && lazy.nativeCommands > updated.nativeCommands && lazy.fallbacks === 0,
+    );
+    console.log(
+      'V2_NATIVE_LAZY ' +
+        JSON.stringify({
+          offset: lazy.lazyOffset,
+          nodes: lazy.nodeCount,
+          commands: lazy.nativeCommands,
+        }),
+    );
     console.log('Native host: ' + JSON.stringify(moved));
   } finally {
     await host.close();
@@ -609,6 +631,185 @@ for (const [route, expected] of [
       );
       assert.equal(await field.inputValue(), 'A😀한글', 'Widget rebuild preserves native editing');
       assert.equal((await readEditor()).nodes[0].editing.text, 'A😀한글');
+      // The App port must await the browser acknowledgement, with immutable retry identity.
+      await field.focus();
+      await field.evaluate((element) =>
+        element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })),
+      );
+      for (let i = 0; i < 30; ++i) {
+        edited = await readEditor();
+        if (edited.nodes[0].editing.composingStart >= 0) break;
+        await page.waitForTimeout(10);
+      }
+      assert.ok(edited.nodes[0].editing.composingStart >= 0);
+      await page.waitForTimeout(50);
+      edited = await readEditor();
+      const forcedPacket = packet(
+        protocol.opcodes.edit,
+        { session: 1, app: 1, view: 1, generation: 1 },
+        editBody(
+          { slot, generation },
+          {
+            kind: 'replace',
+            revision: edited.nodes[0].editing.revision,
+            session: edited.focus.session,
+            text: '확정😀',
+            base: 4,
+            extent: 4,
+            policy: 'commit',
+          },
+        ),
+        701n,
+      );
+      const forced = await page.evaluate(async (bytes) => {
+        const port = window.__v2.surface.createAppPort();
+        port.start();
+        let next = 0;
+        const callbacks = new Map();
+        port.addEventListener('message', (event) => {
+          const done = callbacks.get(event.data.id);
+          if (done) {
+            callbacks.delete(event.data.id);
+            done(event.data.bytes);
+          }
+        });
+        const send = (payload = bytes) =>
+          new Promise((resolve, reject) => {
+            const id = ++next,
+              data = new Uint8Array(payload),
+              timer = setTimeout(
+                () => reject(new Error('App composition command did not settle')),
+                5000,
+              );
+            callbacks.set(id, (value) => {
+              clearTimeout(timer);
+              resolve(value);
+            });
+            port.postMessage({ kind: 'packet', id, bytes: data.buffer }, [data.buffer]);
+          });
+        let settled = false;
+        const pending = send().then((value) => {
+          settled = true;
+          return value;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const waited = !settled;
+        document
+          .querySelector('textarea')
+          .dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+        const result = Array.from(new Uint8Array(await pending)),
+          retry = Array.from(new Uint8Array(await send()));
+        const changed = bytes.slice();
+        changed[changed.length - 1] ^= 1;
+        const reused = Array.from(new Uint8Array(await send(changed)));
+        port.close();
+        return { waited, result, retry, reused };
+      }, Array.from(forcedPacket));
+      assert.equal(forced.waited, true);
+      assert.deepEqual(forced.retry, forced.result);
+      assert.equal(response(new Uint8Array(forced.reused)).status, protocol.statuses.idReused);
+      assert.equal(response(new Uint8Array(forced.result)).status, protocol.statuses.ok);
+      assert.equal((await readEditor()).nodes[0].editing.text, '확정😀');
+      await field.focus();
+      await field.evaluate((element) =>
+        element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })),
+      );
+      for (let i = 0; i < 30; ++i) {
+        edited = await readEditor();
+        if (edited.nodes[0].editing.composingStart >= 0) break;
+        await page.waitForTimeout(10);
+      }
+      await page.waitForTimeout(50);
+      edited = await readEditor();
+      const cancelPacket = packet(
+        protocol.opcodes.edit,
+        { session: 1, app: 1, view: 1, generation: 1 },
+        editBody(
+          { slot, generation },
+          {
+            kind: 'replace',
+            revision: edited.nodes[0].editing.revision,
+            session: edited.focus.session,
+            text: 'no acknowledgement',
+            base: 0,
+            extent: 0,
+            policy: 'cancel',
+          },
+        ),
+        702n,
+      );
+      const expired = await page.evaluate(async (bytes) => {
+        const port = window.__v2.surface.createAppPort();
+        port.start();
+        try {
+          return await new Promise((resolve, reject) => {
+            const timer = setTimeout(
+              () => reject(new Error('Unacknowledged composition did not expire')),
+              5000,
+            );
+            port.addEventListener(
+              'message',
+              (event) => {
+                clearTimeout(timer);
+                if (event.data.error) reject(new Error(event.data.error));
+                else resolve(Array.from(new Uint8Array(event.data.bytes)));
+              },
+              { once: true },
+            );
+            const data = new Uint8Array(bytes);
+            port.postMessage({ kind: 'packet', id: 1, bytes: data.buffer }, [data.buffer]);
+          });
+        } finally {
+          port.close();
+        }
+      }, Array.from(cancelPacket));
+      assert.equal(response(new Uint8Array(expired)).status, protocol.statuses.timedOut);
+      assert.equal(
+        (await readEditor()).nodes[0].editing.text,
+        '확정😀',
+        'No OS acknowledgement means no replacement',
+      );
+      await field.evaluate((element) =>
+        element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })),
+      );
+      for (const name of ['Material selection', 'Cupertino selection']) {
+        const control = page.getByRole('checkbox', { name });
+        await control.click();
+        await page.waitForFunction(
+          (name) =>
+            document.querySelector(`[aria-label="${name}"]`)?.getAttribute('aria-checked') ===
+            'true',
+          name,
+        );
+      }
+      const slider = page.getByRole('slider', { name: 'Slider' });
+      await slider.focus();
+      await slider.press('ArrowRight');
+      await page.waitForFunction(
+        () =>
+          Number(document.querySelector('[role="slider"]')?.getAttribute('aria-valuenow')) > 0.25,
+      );
+      const nativeControl = await page.evaluate(() => {
+        const r = window.__v2.surface.diagnostics['render-stats'];
+        return { gestures: String(r.state.gestureWork), controls: String(r.state.controlWork) };
+      });
+      assert.ok(BigInt(nativeControl.gestures) > 0n && BigInt(nativeControl.controls) >= 3n);
+      await page.evaluate(async () => {
+        const s = window.__v2.surface;
+        for (let i = 0; i < 6; ++i) {
+          await s.input({ phase: 'update', source: 'wheelUnknown', x: 650, y: 420, dy: 100 });
+          await new Promise((r) => setTimeout(r, 60));
+        }
+      });
+      await page.waitForFunction(
+        () => window.__v2.surface.diagnostics['render-stats'].scrollOffsets[1] > 200,
+      );
+      assert.ok(
+        (await page.evaluate(
+          () => window.__v2.surface.diagnostics['render-stats'].state.nodeCount,
+        )) < 220,
+        '2000 lazy rows remain bounded',
+      );
       const closed = await page.evaluate(() => window.__v2.close());
       assert.equal(closed.reservedBytes, 0);
       assert.equal(closed.workersStopped, true);

@@ -47,6 +47,75 @@ export interface NodeLayout {
     readonly bottom?: number;
   };
 }
+export interface ListOptions {
+  readonly generation: bigint;
+  readonly count: number;
+  readonly begin: number;
+  readonly end: number;
+  readonly estimate: number;
+}
+export interface ListSnapshot extends ListOptions {
+  readonly demandBegin: number;
+  readonly demandEnd: number;
+  readonly total: number;
+  readonly preparedBegin: number;
+  readonly preparedEnd: number;
+  readonly items: readonly {
+    readonly node: NodeHandle;
+    readonly index: number;
+    readonly key: bigint;
+    readonly offset: number;
+    readonly extent: number;
+  }[];
+}
+export interface ControlOptions {
+  readonly appearance?: 'filled' | 'outlined' | 'text' | 'elevated' | 'chip';
+  readonly kind: keyof typeof p.controlKinds;
+  readonly disabled?: boolean;
+  readonly foreground?: number;
+  readonly track?: number;
+  readonly revision?: bigint;
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly step?: number;
+  readonly value?: number;
+  readonly second?: number;
+}
+export interface ControlSnapshot {
+  readonly appearance: number;
+  readonly kind: number;
+  readonly disabled: boolean;
+  readonly pressed: boolean;
+  readonly hovered: boolean;
+  readonly foreground: number;
+  readonly track: number;
+  readonly revision: bigint;
+  readonly minimum: number;
+  readonly maximum: number;
+  readonly step: number;
+  readonly value: number;
+  readonly second: number;
+}
+export interface GestureEvent {
+  readonly kind: keyof typeof p.gestureKinds;
+  readonly sequence: bigint;
+  readonly x: number;
+  readonly y: number;
+  readonly value: number;
+}
+export function eventValue(detail: bigint): number {
+  const v = new DataView(new ArrayBuffer(8));
+  v.setBigUint64(0, detail, true);
+  return finite(v.getFloat64(0, true));
+}
+export function keyBody(publication: bigint, code: number, down = true, modifiers = 0): Uint8Array {
+  return body(24, (v) => {
+    v.setBigUint64(0, uint64(publication), true);
+    v.setUint32(8, uint32(code), true);
+    v.setUint32(12, uint32(modifiers), true);
+    v.setUint32(16, down ? 1 : 0, true);
+  });
+}
 export function uint32(value: number): number {
   if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff)
     throw new RangeError('Expected uint32');
@@ -413,6 +482,64 @@ export const commands = {
       body(8, (v) => v.setUint32(0, uint32(flags), true)),
     );
   },
+  list(node: NodeHandle, value: ListOptions | null): Uint8Array {
+    return command(
+      p.commands.list,
+      node,
+      body(32, (v) => {
+        v.setBigUint64(0, uint64(value?.generation ?? 0n), true);
+        v.setUint32(8, uint32(value?.count ?? 0), true);
+        v.setUint32(12, uint32(value?.begin ?? 0), true);
+        v.setUint32(16, uint32(value?.end ?? 0), true);
+        v.setFloat64(24, finite(value?.estimate ?? 0), true);
+      }),
+    );
+  },
+  gesture(node: NodeHandle, mask: number): Uint8Array {
+    return command(
+      p.commands.gesture,
+      node,
+      body(8, (v) => v.setUint32(0, uint32(mask), true)),
+    );
+  },
+  control(node: NodeHandle, value: ControlOptions | null): Uint8Array {
+    return command(
+      p.commands.control,
+      node,
+      body(64, (v) => {
+        v.setUint32(0, p.controlKinds[value?.kind ?? 'none'], true);
+        v.setUint32(
+          4,
+          (value?.disabled ? 1 : 0) |
+            (['filled', 'outlined', 'text', 'elevated', 'chip'].indexOf(
+              value?.appearance ?? 'filled',
+            ) <<
+              1),
+          true,
+        );
+        v.setUint32(8, uint32(value?.foreground ?? 0xff286ee9), true);
+        v.setUint32(12, uint32(value?.track ?? 0xffd0d7e2), true);
+        v.setBigUint64(16, uint64(value?.revision ?? 0n), true);
+        [
+          value?.minimum ?? 0,
+          value?.maximum ?? 1,
+          value?.step ?? 0,
+          value?.value ?? 0,
+          value?.second ?? value?.maximum ?? 1,
+        ].forEach((n, i) => v.setFloat64(24 + i * 8, finite(n), true));
+      }),
+    );
+  },
+  listItem(node: NodeHandle, value: { index: number; key: bigint } | null): Uint8Array {
+    return command(
+      p.commands.listItem,
+      node,
+      body(16, (v) => {
+        v.setUint32(0, uint32(value?.index ?? 0), true);
+        v.setBigUint64(8, uint64(value?.key ?? 0n), true);
+      }),
+    );
+  },
   motion(
     node: NodeHandle,
     id: bigint,
@@ -462,6 +589,8 @@ export function transaction(
   return packet(p.opcodes.transaction, owner, payload, id, base, changes.length);
 }
 export interface InputPacket {
+  readonly pointer?: boolean;
+  readonly hover?: boolean;
   readonly sequence: bigint;
   readonly metrics: bigint;
   readonly target: NodeHandle;
@@ -491,7 +620,11 @@ export function inputBody(value: InputPacket): Uint8Array {
     v.setUint32(24, uint32(value.stream), true);
     v.setUint32(28, p.phases[value.phase], true);
     v.setUint32(32, p.sources[value.source], true);
-    v.setUint32(36, value.sample === undefined ? 0 : 1, true);
+    v.setUint32(
+      36,
+      (value.sample === undefined ? 0 : 1) | (value.pointer ? 2 : 0) | (value.hover ? 4 : 0),
+      true,
+    );
     [
       value.time,
       value.sample ?? 0,
@@ -511,10 +644,13 @@ export function inputBody(value: InputPacket): Uint8Array {
   });
 }
 export interface EngineNodeSnapshot {
+  readonly control: ControlSnapshot | null;
+  readonly list: ListSnapshot | null;
   readonly editing: EditingSnapshot | null;
   readonly textGeometry: TextGeometry | null;
   readonly semantics: SemanticSnapshot | null;
   readonly hasFocus: boolean;
+  readonly caretVisible: boolean;
   readonly node: NodeHandle;
   readonly kind: number;
   readonly parent: NodeHandle;
@@ -524,6 +660,8 @@ export interface EngineNodeSnapshot {
   readonly width: number;
   readonly height: number;
   readonly offset: number;
+  /** Content paint rectangle within the node's border box, in logical units. */
+  readonly content: TextRect;
   readonly velocity: number;
   readonly scrollRevision: bigint;
   readonly opacity: number;
@@ -556,6 +694,8 @@ export interface EngineBlob {
   readonly bytes: Uint8Array;
 }
 export interface EngineEvent {
+  readonly x: number;
+  readonly y: number;
   readonly kind: number;
   readonly status: number;
   readonly id: bigint;
@@ -569,6 +709,8 @@ export interface EngineResponse {
   readonly editingWork: bigint;
   readonly semanticsWork: bigint;
   readonly queryWork: bigint;
+  readonly gestureWork: bigint;
+  readonly controlWork: bigint;
   readonly layoutQuery: EngineLayoutQuery | null;
   readonly measurePreparation: bigint;
   readonly measureDocument: bigint;
@@ -677,9 +819,12 @@ export function response(bytes: Uint8Array): EngineResponse {
     nodes.push(
       Object.freeze({
         editing: null,
+        control: null,
+        list: null,
         textGeometry: null,
         semantics: null,
         hasFocus: !!(v.getUint32(cursor + 20, true) & 256),
+        caretVisible: !!(v.getUint32(cursor + 20, true) & 512),
         node: readHandle(v, cursor),
         kind: v.getUint32(cursor + 8, true),
         parent: readHandle(v, cursor + 12),
@@ -688,6 +833,12 @@ export function response(bytes: Uint8Array): EngineResponse {
         y: f(32),
         width: f(40),
         height: f(48),
+        content: Object.freeze({
+          x: f(p.nodeFields.contentX),
+          y: f(p.nodeFields.contentY),
+          width: f(p.nodeFields.contentWidth),
+          height: f(p.nodeFields.contentHeight),
+        }),
         offset: f(56),
         velocity: f(64),
         scrollRevision: v.getBigUint64(cursor + 72, true),
@@ -729,6 +880,8 @@ export function response(bytes: Uint8Array): EngineResponse {
         epoch: v.getBigUint64(cursor + 16, true),
         detail: v.getBigUint64(cursor + 24, true),
         node: readHandle(v, cursor + 32),
+        x: finite(v.getFloat64(cursor + 40, true)),
+        y: finite(v.getFloat64(cursor + 48, true)),
       }),
     );
   const blobs: EngineBlob[] = [];
@@ -738,7 +891,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       length = v.getUint32(cursor + 16, true);
     const stride = 24 + Math.ceil(length / 8) * 8;
     if (
-      ![1, 2, 3, 4, 5].includes(type) ||
+      ![1, 2, 3, 4, 5, 6, 7].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
       v.getUint32(cursor + 20, true)
@@ -757,7 +910,9 @@ export function response(bytes: Uint8Array): EngineResponse {
   const enriched = nodes.map((node) => {
     let editing: EditingSnapshot | null = null,
       textGeometry: TextGeometry | null = null,
-      semantics: SemanticSnapshot | null = null;
+      semantics: SemanticSnapshot | null = null,
+      list: ListSnapshot | null = null,
+      control: ControlSnapshot | null = null;
     for (const blob of blobs) {
       if (
         blob.handle.slot !== node.node.slot ||
@@ -816,7 +971,7 @@ export function response(bytes: Uint8Array): EngineResponse {
           flags: d.getUint32(32, true),
           maximumLength: d.getUint32(36, true),
         });
-      } else {
+      } else if (blob.type === 5) {
         if (
           textGeometry ||
           size < 48 ||
@@ -833,9 +988,66 @@ export function response(bytes: Uint8Array): EngineResponse {
           caret: rect(8),
           selection: Object.freeze(selection),
         });
+      } else if (blob.type === 6) {
+        if (
+          list ||
+          size < 64 ||
+          d.getUint32(28, true) > p.limits.listChildren ||
+          size !== 64 + d.getUint32(28, true) * 40
+        )
+          throw new Error('Invalid list snapshot');
+        list = Object.freeze({
+          generation: d.getBigUint64(0, true),
+          count: d.getUint32(8, true),
+          begin: d.getUint32(12, true),
+          end: d.getUint32(16, true),
+          demandBegin: d.getUint32(20, true),
+          demandEnd: d.getUint32(24, true),
+          estimate: finite(d.getFloat64(32, true)),
+          total: finite(d.getFloat64(40, true)),
+          preparedBegin: finite(d.getFloat64(48, true)),
+          preparedEnd: finite(d.getFloat64(56, true)),
+          items: Object.freeze(
+            Array.from({ length: d.getUint32(28, true) }, (_, i) => {
+              const at = 64 + i * 40;
+              if (d.getUint32(at + 12, true)) throw new Error('Invalid list row');
+              return Object.freeze({
+                node: readHandle(d, at),
+                index: d.getUint32(at + 8, true),
+                key: d.getBigUint64(at + 16, true),
+                offset: finite(d.getFloat64(at + 24, true)),
+                extent: finite(d.getFloat64(at + 32, true)),
+              });
+            }),
+          ),
+        });
+      } else if (blob.type === 7) {
+        if (
+          control ||
+          size !== 72 ||
+          d.getUint32(20, true) ||
+          d.getUint32(0, true) > p.controlKinds.activity ||
+          d.getUint32(8, true) & ~3
+        )
+          throw new Error('Invalid control snapshot');
+        control = Object.freeze({
+          kind: d.getUint32(0, true),
+          disabled: !!(d.getUint32(4, true) & 1),
+          appearance: d.getUint32(4, true) >>> 1,
+          pressed: !!(d.getUint32(8, true) & 1),
+          hovered: !!(d.getUint32(8, true) & 2),
+          foreground: d.getUint32(12, true),
+          track: d.getUint32(16, true),
+          revision: d.getBigUint64(64, true),
+          minimum: finite(d.getFloat64(24, true)),
+          maximum: finite(d.getFloat64(32, true)),
+          step: finite(d.getFloat64(40, true)),
+          value: finite(d.getFloat64(48, true)),
+          second: finite(d.getFloat64(56, true)),
+        });
       }
     }
-    return Object.freeze({ ...node, editing, textGeometry, semantics });
+    return Object.freeze({ ...node, editing, textGeometry, semantics, list, control });
   });
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
@@ -850,6 +1062,8 @@ export function response(bytes: Uint8Array): EngineResponse {
     editingWork: u64(p.stateFields.editingWork),
     semanticsWork: u64(p.stateFields.semanticsWork),
     queryWork: u64(p.stateFields.queryWork),
+    gestureWork: u64(p.stateFields.gestureWork),
+    controlWork: u64(p.stateFields.controlWork),
     layoutQuery: u64(p.stateFields.queryId)
       ? Object.freeze({
           id: u64(p.stateFields.queryId),

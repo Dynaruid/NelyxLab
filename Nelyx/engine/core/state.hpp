@@ -47,6 +47,7 @@ struct Event {
   uint32_t kind, status;
   uint64_t id = 0, epoch = 0, detail = 0;
   Handle node{};
+  double x=0,y=0;
 };
 struct Result {
   Lease lease;
@@ -68,6 +69,9 @@ struct Stream {
   bool active = false, denied = false;
   Handle target;
   uint32_t source = 0;
+  Handle scroll;
+  double x=0,y=0,startX=0,startY=0,at=0,pinchDistance=0;
+  bool pointer=false,pan=false,pinched=false,longSent=false,secondThumb=false;
 };
 struct Overlay {
   Handle node;
@@ -82,6 +86,8 @@ struct Overlay {
   bool deferred = false, needSent = false;
   uint32_t deferredStream = 0;
   uint64_t coverageRevision = 0;
+  double value=0,second=1;
+  bool pressed=false,hovered=false;
 };
 struct Property {
   Handle node;
@@ -89,6 +95,8 @@ struct Property {
   uint64_t revision = 0, motion = 0;
   double requested = 0;
   bool deferred = false;
+  double value=0,second=1;
+  bool pressed=false,hovered=false,visible=false;
 };
 struct Rect { double x = 0, y = 0, width = 0, height = 0; };
 struct DrawItem {
@@ -97,13 +105,19 @@ struct DrawItem {
   Rect clip;
 };
 struct Frame {
+  Handle modalRoot;
   Handle focusNode;
   uint64_t focusSession=0;
+  bool caretVisible = false;
   uint64_t id = 0, device = 0, propertyEpoch = 0;
   std::shared_ptr<const Scene> scene;
   std::vector<Property> properties;
   std::vector<DrawItem> items;
   bool released = false, published = false, canceled = false, gpuObserved = false;
+  bool allows(Handle node) const {
+    return scene->document->contains(node)&&node.slot<properties.size()&&properties[node.slot].visible&&
+      (!modalRoot||scene->document->descends(node,modalRoot));
+  }
 };
 struct InteractionSnapshot {
   Frame frame;
@@ -135,6 +149,13 @@ struct View {
   std::deque<Event> interactionEvents;
   Handle focusNode;
   uint64_t focusSession=0,nextFocus=0,editClock=0,editingWork=0,semanticsWork=0,queryWork=0;
+  uint64_t gestureWork=0,controlWork=0;
+  Handle caretNode;
+  uint64_t caretRevision = 0;
+  Handle hoverNode,lastTap;
+  double lastTapTime=-1,lastTapX=0,lastTapY=0;
+  double caretDeadline = 0;
+  bool caretVisible = false;
   std::shared_ptr<const Scene> active;
   std::optional<Frame> published;
   uint64_t nextPreparation = 0, nextScene = 0, propertyEpoch = 0;
@@ -188,10 +209,19 @@ struct View {
   void setFocus(Handle,uint64_t publication,uint64_t expectedSession);
   void applyEdit(Reader);
   void semanticAction(Reader);
+  void pointer(Input);
+  void advanceGestures();
+  void key(Reader);
+  void activateControl(Handle);
+  void controlValue(Handle,double,bool second=false);
+  void gesture(Handle,uint32_t,uint64_t,double,double,double=0);
+  Handle pointerTarget(double,double) const;
   Handle interactionTarget(double,double) const;
   void failPreparation(uint64_t id, uint32_t reason);
   void enqueue(Input packet);
   void tick(double now);
+  void advanceCaret();
+  double nextDeadline() const;
   void activate();
   uint32_t scroll(Reader data, uint64_t id);
   void finishCommand(uint64_t id, uint32_t status);

@@ -1,6 +1,6 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획
 
-설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PARTIAL / intrinsic·dry query·Widget·편집·접근성 연결 / 전체 backend·물리 입력·성능 미완료**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL / lazy list·anchor·v2 디자인 control·표준 gesture·IME 종료 교섭 / 전체 API·물리 입력·성능 미완료**
 
 설계·구축 계획을 아래 **3부**로 나누었다. 기존 절 번호(§1–19)와 구현 단계(W8-00–10)를 유지한다.
 
@@ -18,4 +18,8 @@
 
 공통 C++ 코어·C ABI·TS/SDK 진입점과 Windows 자체 host·공식 CanvasKit을 사용하는 두 Web profile을 연결했다. 실제 primitive 장면에서 C++ layout·paragraph 측정·fallback font 전달과 작업 집계·화면·독립 owner/협력 실행·입력·지연·resize/복구·close를 확인했다. 공개 Core/SDK export와 현재 engine/dist를 빌드하고 실행하는 명령·증거·범위는 [1부 연결 실행 현황](work8-1.md#연결-실행-현황)에 있다. 전체 Widget/layout/편집·Android와 전체 W8 gate는 PARTIAL이다. 기존 `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/성능 `notVerified`와 [work7의 물리 재확인 대기](history/26/11/04/work7-summary.md)는 유지한다.
 
-2부의 현재 구현은 C++ intrinsic/dry query·Widget/State/Key diff·native editing document·Windows TSF/UIA·Web DOM/ARIA까지 연결했다. 현재 Testbed와 검증·남은 필수 범위는 [2부 현황](work8-2.md#이번-작업의-구현검증-현황)을 따른다. Material/Cupertino·lazy builder/anchor·Android와 전체 W8 gate는 계속 PARTIAL이다.
+2부의 현재 구현은 C++ intrinsic/dry query·Widget/State/Key diff·native editing document·Windows TSF/UIA·Web DOM/ARIA까지 연결했다. 현재 Testbed와 검증·남은 필수 범위는 [2부 현황](work8-2.md#이번-작업의-구현검증-현황)을 따른다. 명시적 Material/Cupertino v2 control·lazy builder/anchor·표준 pointer·IME 종료 교섭을 추가했다. 전체 API·Android와 W8 gate는 계속 PARTIAL이다.
+
+2026-11-05 재검토에서 layout 조합·leaf padding과 paint/입력 좌표·compositor caret clock·Widget build/dispose 예외 복구를 구현했다. 남은 1·2부 계약은 [잔여 작업 표](work8-2.md#2026-11-05-잔여-작업-재검토)에서 확인한다.
+
+사용자의 외출 요청으로 **PAUSED / PARTIAL** 중간 마무리했다. 완료 검증·현재 공급 identity·잔여 범위·재개 절차는 [2부 중간 마무리](work8-2.md#중간-마무리--paused--partial)에 남겼다. 자동 재개하지 않는다.

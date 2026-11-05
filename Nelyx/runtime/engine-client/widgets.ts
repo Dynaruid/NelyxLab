@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { commands as c, protocol as p } from './codec.ts';
+import { commands as c, protocol as p, eventValue } from './codec.ts';
 import type {
   NodeHandle,
   NodeLayout,
@@ -8,6 +8,11 @@ import type {
   SemanticProperties,
   EditingSnapshot,
   EditingUpdate,
+  ListOptions,
+  EngineResponse,
+  EngineNodeSnapshot,
+  ControlOptions,
+  GestureEvent,
 } from './codec.ts';
 import { EngineError } from './client.ts';
 import type { EngineViewClient } from './client.ts';
@@ -36,6 +41,7 @@ export abstract class StatefulWidget extends Widget {
 }
 export abstract class State<W extends StatefulWidget = StatefulWidget> {
   /** @internal */ element: Element | undefined;
+  /** @internal */ disposed = false;
   get mounted(): boolean {
     return !!this.element;
   }
@@ -51,14 +57,16 @@ export abstract class State<W extends StatefulWidget = StatefulWidget> {
   didUpdateWidget(_old: W): void {}
   didChangeDependencies(): void {}
   deactivate(): void {}
+  activate(): void {}
   dispose(): void {}
   abstract build(context: BuildContext): Widget;
   setState(change: () => void): void {
     if (!this.element) throw new Error('setState after dispose');
+    this.element.host.checkStateChange(this.element);
     const result: unknown = change();
     if (result && typeof (result as PromiseLike<unknown>).then === 'function')
       throw new Error('setState callback must be synchronous');
-    this.element.host.schedule();
+    this.element.host.schedule(this.element);
   }
 }
 export abstract class InheritedWidget extends Widget {
@@ -95,6 +103,14 @@ export class ImageResource {
   }
 }
 export interface NodeOptions {
+  readonly modal?: boolean;
+  readonly gestures?: number;
+  readonly control?: ControlOptions;
+  readonly onGesture?: (event: GestureEvent) => void;
+  readonly onValue?: (value: number, second: number) => void;
+  readonly list?: ListOptions;
+  readonly listItem?: { readonly index: number; readonly key: bigint };
+  readonly onLayout?: (node: EngineNodeSnapshot, snapshot: EngineResponse) => void;
   readonly key?: Key;
   readonly properties?: NodeProperties;
   readonly layout?: NodeLayout | false;
@@ -128,6 +144,13 @@ export class NodeWidget extends Widget {
     readonly maximumLength: number = p.limits.textBytes,
   ) {
     super(options.key);
+  }
+  /** Declarative App-side style resolution; native layout never calls this hook. */
+  resolveOptions(_context: BuildContext): NodeOptions {
+    return this.options;
+  }
+  resolveTextColor(_context: BuildContext): number {
+    return this.text?.color ?? 0;
   }
 }
 export class Box extends NodeWidget {
@@ -176,6 +199,16 @@ export class ScrollView extends NodeWidget {
     super('scrollViewport', [child], options);
   }
 }
+export class GestureDetector extends NodeWidget {
+  constructor(
+    child: Widget,
+    mask: number,
+    onGesture: (event: GestureEvent) => void,
+    options: NodeOptions = {},
+  ) {
+    super('box', [child], { ...options, gestures: mask, onGesture });
+  }
+}
 export class Text extends NodeWidget {
   constructor(
     value: string,
@@ -207,6 +240,7 @@ export class Button extends NodeWidget {
   constructor(label: string, onPressed: () => void, options: NodeOptions = {}) {
     super('box', [new Text(label, { textColor: 0xffffffff })], {
       color: 0xff286ee9,
+      control: { kind: 'button' },
       radius: 8,
       layout: { padding: { left: 12, right: 12, top: 8, bottom: 8 } },
       ...options,
@@ -325,6 +359,8 @@ interface Element {
   host: WidgetHost;
   children: Element[];
   active: boolean;
+  parent?: Element | undefined;
+  initialized?: boolean;
   state?: State;
   context?: BuildContext;
   handle?: NodeHandle;
@@ -349,6 +385,7 @@ export class WidgetHost {
   private root: Widget | undefined;
   private tree: Element | undefined;
   private building = false;
+  private lifecycleElement: Element | undefined;
   private closed = false;
   private scheduled = false;
   private accepted = new Map<string, NativeRecord>();
@@ -367,6 +404,7 @@ export class WidgetHost {
     | { desired: Map<string, NativeRecord>; changes: readonly Uint8Array[] }
     | undefined;
   private running: Promise<void> | undefined;
+  private closing: Promise<void> | undefined;
   private rerun = false;
   private eventTimer: ReturnType<typeof setTimeout> | undefined;
   private polling = false;
@@ -378,6 +416,8 @@ export class WidgetHost {
     destroyed: 0,
     moved: 0,
     fallbacks: 0,
+    gestures: 0,
+    controls: 0,
   };
   constructor(
     readonly view: EngineViewClient,
@@ -397,9 +437,16 @@ export class WidgetHost {
   private ensure(): void {
     if (this.closed) throw new Error('WidgetHost is closed');
   }
-  /** @internal */ schedule(): void {
+  /** @internal */ checkStateChange(source: Element): void {
     this.ensure();
-    if (this.building) throw new Error('setState during build');
+    if (this.building && this.lifecycleElement !== source) throw new Error('setState during build');
+  }
+  /** @internal */ schedule(source?: Element): void {
+    this.ensure();
+    if (this.building) {
+      if (source && this.lifecycleElement === source) return;
+      throw new Error('setState during build');
+    }
     if (this.scheduled) return;
     this.scheduled = true;
     void Promise.resolve()
@@ -412,15 +459,17 @@ export class WidgetHost {
   private allocate(): NodeHandle {
     const h = this.free.pop();
     if (h) return h;
-    if (++this.nextSlot > p.limits.nodes)
+    if (this.nextSlot >= p.limits.nodes)
       throw new EngineError(p.statuses.budgetExceeded, 'Widget node budget');
-    return { slot: this.nextSlot, generation: 1 };
+    return { slot: ++this.nextSlot, generation: 1 };
   }
   private reconcile(
     widget: Widget,
     previous: Element | undefined,
     inherited: readonly InheritedWidget[],
     depth = 0,
+    parent?: Element,
+    reparenting = false,
   ): Element {
     if (depth > p.limits.depth) throw new Error('Widget depth budget');
     const key = widget.key;
@@ -441,11 +490,19 @@ export class WidgetHost {
       }
       if (widget instanceof StatefulWidget) {
         const state = widget.createState();
-        if (state.element) throw new Error('State is already mounted');
+        if (state.element || state.disposed)
+          throw new Error('State is already mounted or disposed');
         element.state = state;
         state.element = element;
       }
     }
+    const reactivate =
+      !!element.context && (reparenting || element.parent !== parent || !element.active);
+    if (reactivate && element.active) {
+      element.active = false;
+      element.state?.deactivate();
+    }
+    element.parent = parent;
     if (this.used.has(element)) throw new Error('Duplicate GlobalKey');
     if (key instanceof GlobalKey) {
       if (this.used.has(this.globals.get(key)!)) throw new Error('Duplicate GlobalKey');
@@ -456,7 +513,7 @@ export class WidgetHost {
     element.active = true;
     this.retired.delete(element);
     const old = element.widget;
-    let dependenciesChanged = !element.context;
+    let dependenciesChanged = !element.context || reactivate;
     for (const [type, before] of element.dependencies) {
       const now = [...inherited].reverse().find((w) => w instanceof type) ?? null;
       if (now !== before && (!now || !before || now.updateShouldNotify(before)))
@@ -473,11 +530,19 @@ export class WidgetHost {
     } else if (widget instanceof StatelessWidget) children = [widget.build(element.context)];
     else if (widget instanceof StatefulWidget) {
       const state = element.state!;
-      if (!('initialized' in element)) {
-        Object.assign(element, { initialized: true });
-        state.initState();
-      } else if (old !== widget) state.didUpdateWidget(old as StatefulWidget);
-      if (dependenciesChanged) state.didChangeDependencies();
+      this.lifecycleElement = element;
+      try {
+        if (!element.initialized) {
+          element.initialized = true;
+          state.initState();
+        } else {
+          if (reactivate) state.activate();
+          if (old !== widget) state.didUpdateWidget(old as StatefulWidget);
+        }
+        if (dependenciesChanged) state.didChangeDependencies();
+      } finally {
+        this.lifecycleElement = undefined;
+      }
       children = [state.build(element.context)];
     } else throw new Error('Unsupported v2 Widget type');
     const localKeys: Key[] = [];
@@ -493,6 +558,8 @@ export class WidgetHost {
         child.key ? oldChildren.find((e) => sameKey(e.widget.key, child.key)) : oldChildren[index],
         inherited,
         depth + 1,
+        element,
+        reactivate,
       ),
     );
     return element;
@@ -505,7 +572,7 @@ export class WidgetHost {
       const node = e.widget,
         h = e.handle!,
         children = e.children.flatMap((child) => visit(child, h)),
-        o = node.options;
+        o = node.resolveOptions(e.context!);
       const config = [
         c.properties(h, o.properties ?? {}),
         c.paint(h, o.color ?? 0, o.radius ?? 0),
@@ -518,19 +585,23 @@ export class WidgetHost {
       ];
       if (node.text)
         config.push(
-          c.text(h, node.text.value, node.text.size, node.text.color, {
+          c.text(h, node.text.value, node.text.size, node.resolveTextColor(e.context!), {
             direction: node.text.direction,
           }),
         );
       if (node.editor) config.push(c.editor(h, node.editorFlags, node.maximumLength));
       config.push(c.semantics(h, o.semantics ?? null));
+      if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
+      config.push(c.listItem(h, o.listItem ?? null));
+      config.push(c.gesture(h, o.gestures ?? 0), c.control(h, o.control ?? null));
+      config.push(c.eventPolicy(h, o.modal ? 4 : 0));
       if (node.kind === 'image') {
         let resource = node.image ? this.resources.get(node.image) : undefined;
         if (node.image && !resource) {
           resource = this.freeResources.pop();
           if (!resource) {
-            if (++this.resourceSlot > p.limits.resources) throw new Error('Widget resource budget');
-            resource = { slot: this.resourceSlot, generation: 1 };
+            if (this.resourceSlot >= p.limits.resources) throw new Error('Widget resource budget');
+            resource = { slot: ++this.resourceSlot, generation: 1 };
           }
           this.resources.set(node.image, resource);
         }
@@ -645,18 +716,61 @@ export class WidgetHost {
       this.building = true;
       this.used.clear();
       let desired: Map<string, NativeRecord>;
+      const saved = new Map(
+        [...this.elements].map((element) => [
+          element,
+          {
+            ...element,
+            dependencies: new Map(element.dependencies),
+          },
+        ]),
+      );
+      const globals = new Map(this.globals),
+        retired = new Set(this.retired),
+        allocations = new Set(this.allocations),
+        free = [...this.free],
+        nextSlot = this.nextSlot,
+        resources = new Map(this.resources),
+        freeResources = [...this.freeResources],
+        resourceSlot = this.resourceSlot;
       try {
-        this.tree = this.reconcile(this.root, this.tree, []);
-        desired = this.records(this.tree);
+        const tree = this.reconcile(this.root, this.tree, []);
+        desired = this.records(tree);
+        this.tree = tree;
         ++this.counters.builds;
+      } catch (error) {
+        const errors: unknown[] = [error];
+        for (const element of this.elements)
+          if (!saved.has(element)) this.disposeElement(element, errors);
+        for (const key of this.globals.keys())
+          if (key.element?.host === this) key.element = undefined;
+        for (const [element, value] of saved) Object.assign(element, value);
+        this.elements = new Set(saved.keys());
+        this.globals = globals;
+        for (const [key, element] of globals) key.element = element;
+        this.retired = retired;
+        this.allocations = allocations;
+        this.free = free;
+        this.nextSlot = nextSlot;
+        this.resources = resources;
+        this.freeResources = freeResources;
+        this.resourceSlot = resourceSlot;
+        if (errors.length > 1) throw new AggregateError(errors, 'Widget build and cleanup failed');
+        throw error;
       } finally {
+        this.lifecycleElement = undefined;
         this.building = false;
       }
+      const lifecycleErrors: unknown[] = [];
       for (const element of this.elements)
         if (!this.used.has(element) && element.active) {
           element.active = false;
-          element.state?.deactivate();
           this.retired.add(element);
+          try {
+            element.state?.deactivate();
+          } catch (error) {
+            lifecycleErrors.push(error);
+          }
         }
       const changes = this.diff(desired);
       if (changes.length) {
@@ -676,17 +790,14 @@ export class WidgetHost {
       }
       this.adopt(desired, changes);
       this.pending = undefined;
+      const errors: unknown[] = lifecycleErrors;
       for (const element of this.retired) {
-        element.state?.dispose();
-        if (element.state) element.state.element = undefined;
-        if (element.widget.key instanceof GlobalKey && element.widget.key.element === element) {
-          element.widget.key.element = undefined;
-          this.globals.delete(element.widget.key);
-        }
+        this.disposeElement(element, errors);
         if (element.handle && this.allocations.delete(element)) this.free.push(element.handle);
         this.elements.delete(element);
       }
       this.retired.clear();
+      if (errors.length) throw new AggregateError(errors, 'Widget disposal failed');
     } while (this.rerun && !this.closed);
   }
   private adopt(desired: Map<string, NativeRecord>, changes: readonly Uint8Array[]): void {
@@ -728,11 +839,36 @@ export class WidgetHost {
     if (this.closed || this.polling) return;
     this.polling = true;
     try {
+      const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
+      if (observers.length) {
+        const snapshot = await this.view.layoutSnapshot();
+        for (const record of observers) {
+          const node = snapshot.nodes.find((n) => id(n.node) === id(record.handle));
+          if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
+        }
+      }
       const state = await this.view.pollInteractionEvents();
       for (const event of state.events) {
+        if (this.closed) break;
         const record = this.accepted.get(id(event.node));
         if (!record) continue;
-        if (event.kind === p.events.editingChanged && record.node.editor)
+        if (event.kind === p.events.controlChanged) {
+          ++this.counters.controls;
+          record.node.options.onValue?.(eventValue(event.detail), event.x);
+        } else if (event.kind === p.events.gesture) {
+          ++this.counters.gestures;
+          const kind = Object.entries(p.gestureKinds).find(
+            ([, value]) => value === event.status,
+          )?.[0] as GestureEvent['kind'] | undefined;
+          if (kind)
+            record.node.options.onGesture?.({
+              kind,
+              sequence: event.id,
+              x: event.x,
+              y: event.y,
+              value: eventValue(event.detail),
+            });
+        } else if (event.kind === p.events.editingChanged && record.node.editor)
           record.node.editor.publish(await this.view.editSnapshot(event.node));
         else if (event.kind === p.events.semanticAction) {
           const action = Object.entries(p.semanticsActions).find(
@@ -753,22 +889,62 @@ export class WidgetHost {
         .finally(() => this.pollSoon());
     }, 16);
   }
-  async close(): Promise<void> {
-    if (this.closed) return;
+  private disposeElement(element: Element, errors: unknown[]): void {
+    const active = element.active;
+    element.active = false;
+    if (active) {
+      try {
+        element.state?.deactivate();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    try {
+      element.state?.dispose();
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      if (element.state) {
+        element.state.element = undefined;
+        element.state.disposed = true;
+      }
+      const key = element.widget.key;
+      if (key instanceof GlobalKey && key.element === element) {
+        key.element = undefined;
+        if (this.globals.get(key) === element) this.globals.delete(key);
+      }
+    }
+  }
+  close(): Promise<void> {
+    if (this.closing) return this.closing;
     this.closed = true;
     if (this.eventTimer !== undefined) clearTimeout(this.eventTimer);
-    await this.running;
-    for (const r of this.accepted.values()) r.node.editor?.detach(this);
-    for (const element of this.elements) {
-      if (element.active) element.state?.deactivate();
-      element.state?.dispose();
-      if (element.state) element.state.element = undefined;
-      if (element.widget.key instanceof GlobalKey && element.widget.key.element === element)
-        element.widget.key.element = undefined;
+    this.closing = this.disposeHost();
+    return this.closing;
+  }
+  private async disposeHost(): Promise<void> {
+    const errors: unknown[] = [];
+    try {
+      await this.running;
+    } catch (error) {
+      errors.push(error);
     }
+    for (const r of this.accepted.values()) r.node.editor?.detach(this);
+    for (const element of this.elements) this.disposeElement(element, errors);
     this.elements.clear();
+    this.retired.clear();
+    this.allocations.clear();
     this.globals.clear();
     this.accepted.clear();
-    await this.view.close();
+    this.resources.clear();
+    this.acceptedResources.clear();
+    this.free.length = this.freeResources.length = 0;
+    this.pending = this.tree = this.root = undefined;
+    try {
+      await this.view.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length) throw new AggregateError(errors, 'WidgetHost close failed');
   }
 }

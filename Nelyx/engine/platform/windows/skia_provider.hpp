@@ -150,11 +150,11 @@ class ContentProvider {
       auto* canvas = recorder.beginRecording(SkRect::MakeWH(float(std::max(1.0,n.properties.width)),float(std::max(1.0,n.properties.height))));
       SkPaint paint; paint.setAntiAlias(true);
       if (n.kind == wire::kinds::paragraph || n.kind==wire::kinds::editable) {
-        auto paragraph = paragraphFor(n, n.properties.width);
-        paragraph->paint(canvas,0,0);++paragraphs;
-        if(n.editing&&n.editing->text.size()<=4096&&!(n.editFlags&wire::editFlags::password)){
+        auto paragraph = paragraphFor(n, n.contentWidth);
+        paragraph->paint(canvas,float(n.contentX),float(n.contentY));++paragraphs;
+        if(n.editing&&!(n.editFlags&wire::editFlags::password)){
           Prepared::EditorParagraph record;record.identity={"native-hermes:root",std::to_string(n.id.key()),n.text->value,1,n.id.generation,uint32_t(n.editing->text.size())};
-          auto shared=std::shared_ptr<Paragraph>(std::move(paragraph));record.source=skia_core::ParagraphQuerySource::create(shared,result->context,n.text->value);
+          auto shared=std::shared_ptr<Paragraph>(std::move(paragraph));record.source=skia_core::ParagraphQuerySource::create(shared,result->context,n.text->value,wire::limits::textBytes);
           skia_core::ParagraphQuerySource::didLayout(*shared);record.ticket=record.source->bind(record.identity);
           const auto& text=n.editing->text;
           unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kGraphemes,[&](auto position,auto){record.characters.push_back(position);});
@@ -164,6 +164,7 @@ class ContentProvider {
             if(offset>record.lines.back())record.lines.push_back(offset);}
           if(record.characters.empty())record.characters.push_back(0);if(record.words.empty())record.words.push_back(0);
           if(record.lines.back()!=int(text.size()))record.lines.push_back(int(text.size()));
+          result->bytes+=(record.characters.size()+record.words.size()+record.lines.size())*sizeof(int);
           result->editors.emplace(n.id.key(),std::move(record));
         }
       } else if (n.kind == wire::kinds::image) {
@@ -171,7 +172,7 @@ class ContentProvider {
         auto image=SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(n.resource->bytes.data(),n.resource->bytes.size()));
         if(!image)throw std::runtime_error("Native image decode failed");
         image=image->makeRasterImage();if(!image)throw std::runtime_error("Native image CPU preparation failed");
-        canvas->drawImageRect(image,SkRect::MakeWH(float(n.properties.width),float(n.properties.height)),SkSamplingOptions(),&paint);++images;
+        canvas->drawImageRect(image,SkRect::MakeXYWH(float(n.contentX),float(n.contentY),float(n.contentWidth),float(n.contentHeight)),SkSamplingOptions(),&paint);++images;
       } else if(n.color>>24) {
         paint.setColor(n.color);canvas->drawRRect(SkRRect::MakeRectXY(SkRect::MakeWH(float(n.properties.width),float(n.properties.height)),float(n.radius),float(n.radius)),paint);
       }
@@ -224,7 +225,30 @@ class RenderProvider {
       const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);paint.setAlphaf(paint.getAlphaf()*float(item.opacity));canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
       if(geometry)for(const auto& r:geometry->selection)rect(r,0x663582f6);
       canvas->drawPicture(found->second,nullptr,&alpha);
-      if(geometry&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
+      if(n.control.kind){const auto& c=n.control;const auto& state=frame.properties[n.id.slot];SkPaint paint;paint.setAntiAlias(true);
+        const auto color=[&](uint32_t argb){paint.setColor(argb);paint.setAlphaf(paint.getAlphaf()*float(item.opacity)*(c.disabled?0.4f:1.f));};
+        const auto round=[&](double x,double y,double w,double h,double r,uint32_t argb){color(argb);canvas->drawRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(float(x),float(y),float(std::max(0.0,w)),float(std::max(0.0,h))),float(r),float(r)),paint);};
+        const auto circle=[&](double x,double y,double r,uint32_t argb){color(argb);canvas->drawCircle(float(x),float(y),float(std::max(0.0,r)),paint);};
+        const double w=n.properties.width,h=n.properties.height,cy=h/2,value=std::clamp((state.value-c.minimum)/(c.maximum-c.minimum),0.0,1.0);
+        if(c.kind==wire::controlKinds::button){if(c.appearance==3)round(0,3,w,h,std::min(12.0,cy),0x33000000);
+          if(c.appearance==1){paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(1.5f);}
+          if(c.appearance!=2)round(0,0,w,h,std::min(12.0,cy),c.foreground);paint.setStyle(SkPaint::kFill_Style);
+          if(state.pressed||state.hovered)round(0,0,w,h,std::min(12.0,cy),state.pressed?0x33000000:0x14000000);}
+        else if(c.kind==wire::controlKinds::toggle&&c.appearance==4)round(0,0,w,h,std::min(12.0,cy),value>0?c.foreground:0xff79747e);
+        else if(c.kind==wire::controlKinds::toggle){const double bh=std::min(32.0,h),bw=std::min(56.0,w),x=(w-bw)/2;
+          round(x,(h-bh)/2,bw,bh,bh/2,value>0?c.foreground:c.track);circle(x+bh/2+(bw-bh)*value,cy,bh*0.375,0xffffffff);}
+        else if(c.kind==wire::controlKinds::radio){circle(w/2,cy,std::min(w,h)*0.45,c.track);if(value>0)circle(w/2,cy,std::min(w,h)*0.28,c.foreground);}
+        else if(c.kind==wire::controlKinds::checkbox){const double size=std::min(w,h)*0.8,x=(w-size)/2,y=(h-size)/2;round(x,y,size,size,3,value>0?c.foreground:c.track);
+          if(value>0){color(0xffffffff);paint.setStrokeWidth(2);canvas->drawLine(float(x+size*.2),float(y+size*.5),float(x+size*.43),float(y+size*.75),paint);canvas->drawLine(float(x+size*.43),float(y+size*.75),float(x+size*.85),float(y+size*.25),paint);}}
+        else if(c.kind==wire::controlKinds::circularProgress||c.kind==wire::controlKinds::activity){color(c.foreground);paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(3);
+          const double radius=std::max(0.0,std::min(w,h)/2-3);canvas->drawArc(SkRect::MakeXYWH(float(w/2-radius),float(cy-radius),float(radius*2),float(radius*2)),float(c.kind==wire::controlKinds::activity?value*360:-90),float(c.kind==wire::controlKinds::activity?240:value*360),false,paint);}
+        else {const double radius=6,span=std::max(0.0,w-2*radius),x=radius+span*value;round(radius,cy-2,span,4,2,c.track);
+          if(c.kind==wire::controlKinds::rangeSlider){const double right=radius+span*std::clamp((state.second-c.minimum)/(c.maximum-c.minimum),value,1.0);
+            round(x,cy-2,right-x,4,2,c.foreground);circle(right,cy,state.pressed?9:7,c.foreground);}
+          else round(radius,cy-2,std::max(0.0,x-radius),4,2,c.foreground);
+          if(c.kind!=wire::controlKinds::progress)circle(x,cy,state.pressed?9:7,c.foreground);}
+      }
+      if(geometry&&frame.caretVisible&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
       canvas->restore();
     }
     canvas->restore();device->present(recorder.get(),surface.get());++draws;return true;

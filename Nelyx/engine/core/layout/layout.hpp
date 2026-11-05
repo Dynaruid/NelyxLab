@@ -21,6 +21,7 @@ struct LayoutBox {
   LayoutConstraints input;
   double width = 0, height = 0, baseline = -1;
   std::shared_ptr<const TextGeometry> textGeometry;
+  std::shared_ptr<const ListGeometry> listGeometry;
   std::vector<Placement> children;
   LayoutBox(const Node &n, LayoutConstraints constraints, size_t count)
       : lease(n.lease.ledger, sizeof(LayoutBox) + count * sizeof(Placement)), node(n.id),

@@ -171,8 +171,10 @@ struct LayoutQueryWork::State {
       const double preferred = w ? n.properties.width : n.properties.height;
       if (preferred > 0)
         v = preferred;
-      v = bounded(v, w ? n.horizontal : n.vertical);
-      finish({v, w ? v : m.width, w ? m.height : v, w ? -1 : m.baseline});
+      v = bounded(preferred > 0 ? preferred : v + padding, w ? n.horizontal : n.vertical);
+      finish({v, w ? v : m.width + s.left + s.right,
+              w ? m.height + s.top + s.bottom : v,
+              w || m.baseline < 0 ? -1 : s.top + m.baseline});
       return;
     }
     if (t.phase == 2) {
@@ -217,6 +219,9 @@ struct LayoutQueryWork::State {
       double value = 0, flex = 0, fraction = 0, ascent = 0, descent = 0;
       const bool mainFlex = n.kind == wire::kinds::flex && !t.crossFlex;
       const bool sumWrap = n.kind == wire::kinds::wrap && !minimum;
+      const bool baselineAligned = !w && s.direction == 0 &&
+          s.crossAlign == wire::layoutCrossAlign::baseline &&
+          (t.crossFlex || n.kind == wire::kinds::box || n.kind == wire::kinds::stack);
       for (size_t i = 0; i < children.size(); ++i) {
         const auto &child = document->get(children[i]);
         const auto v = t.values[i].value;
@@ -229,7 +234,7 @@ struct LayoutQueryWork::State {
           value = std::max(value, v + (n.kind == wire::kinds::stack || n.kind == wire::kinds::box
                                            ? (w ? child.properties.x : child.properties.y)
                                            : 0));
-        if (t.crossFlex && !w && s.crossAlign == wire::layoutCrossAlign::baseline) {
+        if (baselineAligned) {
           require(t.values[i].baseline >= 0, wire::statuses::capabilityMissing);
           ascent = std::max(ascent, t.values[i].baseline);
           descent = std::max(descent, v - t.values[i].baseline);
@@ -241,11 +246,12 @@ struct LayoutQueryWork::State {
         value += s.gap * (children.size() - 1);
       if (n.kind == wire::kinds::grid)
         value = value * s.columns + s.gap * (s.columns - 1);
-      if (t.crossFlex && !w && s.crossAlign == wire::layoutCrossAlign::baseline)
-        value = ascent + descent;
+      if (baselineAligned)
+        value = std::max(value, ascent + descent);
       value = bounded(value + padding, w ? n.horizontal : n.vertical);
       double baseline = -1;
-      if (!w && !t.values.empty() && t.values[0].baseline >= 0)
+      if (baselineAligned && !t.values.empty()) baseline = s.top + ascent;
+      else if (!w && !t.values.empty() && t.values[0].baseline >= 0)
         baseline = s.top + t.values[0].baseline;
       finish({value, w ? value : 0, w ? 0 : value, baseline});
     }

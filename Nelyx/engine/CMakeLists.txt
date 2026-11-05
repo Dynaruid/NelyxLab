@@ -6,7 +6,7 @@ option(NELYX_ENGINE_WINDOWS_HOST "Build the HWND/Hermes/Skia host" OFF)
 add_library(nelyx_engine_v2 STATIC
   core/protocol/engine.cpp core/protocol/transaction.cpp
   core/scheduler/scheduler.cpp core/scene/frame.cpp core/layout/layout.cpp core/layout/query.cpp
-  core/interaction/editing.cpp core/interaction/interaction.cpp bindings/c_api.cpp)
+  core/interaction/editing.cpp core/interaction/interaction.cpp core/interaction/gestures.cpp bindings/c_api.cpp)
 target_compile_features(nelyx_engine_v2 PUBLIC cxx_std_20)
 target_include_directories(nelyx_engine_v2 PUBLIC include)
 if(MSVC)

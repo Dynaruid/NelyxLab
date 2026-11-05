@@ -87,8 +87,8 @@ export async function createBrowserEngineV2Surface(
   const inputStats = { collected: 0, dispatched: 0, rejected: 0, canceledStreams: 0 };
   let contentDelayPending = false,
     canceling = false,
-    restarting = false,
-    needsBegin = false;
+    restarting = false;
+  const needsBegin = new Set<number>();
   let resolveReady: (value: Record<string, unknown>) => void = () => {},
     rejectReady: (error: Error) => void = () => {};
   const ready = new Promise<Record<string, unknown>>((resolve, reject) => {
@@ -207,7 +207,10 @@ export async function createBrowserEngineV2Surface(
     if (timer !== undefined) clearTimeout(timer);
   }
   const owner = { session: 1, app: 1, view: 1, generation: 1 };
-  type InputValue = Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'>;
+  type InputValue = Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'> & {
+    readonly stream?: number;
+  };
+  const liveInputs = new Map<number, InputValue>();
   const sendInput = async (value: InputValue): Promise<EngineResponse> => {
     const state = response(
       await transport.exchange(
@@ -219,7 +222,7 @@ export async function createBrowserEngineV2Surface(
             sequence: ++sequence,
             metrics: latest!.metrics,
             target: { slot: 0, generation: 0 },
-            stream: 1,
+            stream: value.stream ?? 1,
             time: performance.now() / 1000,
           }),
         ),
@@ -229,10 +232,10 @@ export async function createBrowserEngineV2Surface(
     latest = state;
     return state;
   };
-  const input = async (
-    value: Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'>,
-  ): Promise<boolean> => {
+  const input = async (value: InputValue): Promise<boolean> => {
     ++inputStats.collected;
+    const stream = value.stream ?? 1;
+    if (!value.hover) liveInputs.set(stream, value);
     if (
       closed ||
       !latest ||
@@ -243,11 +246,18 @@ export async function createBrowserEngineV2Surface(
       latest.sessionQueued + pendingInputs >= (value.phase === 'update' ? 224 : 256)
     ) {
       ++inputStats.rejected;
+      if (!value.hover) needsBegin.add(stream);
       if (!closed && latest && !latest.closed && !canceling && !restarting) {
         canceling = true;
-        needsBegin = true;
+        const canceled = [...liveInputs.values()];
+        liveInputs.clear();
+        for (const input of canceled) needsBegin.add(input.stream ?? 1);
         ++pendingInputs;
-        void sendInput({ ...value, phase: 'cancel', dx: 0, dy: 0, velocity: 0 })
+        void Promise.all(
+          canceled.map((input) =>
+            sendInput({ ...input, phase: 'cancel', dx: 0, dy: 0, velocity: 0 }),
+          ),
+        )
           .then(() => {
             ++inputStats.canceledStreams;
           })
@@ -261,13 +271,19 @@ export async function createBrowserEngineV2Surface(
     }
     ++pendingInputs;
     try {
-      if (needsBegin && value.phase !== 'begin') {
+      if (needsBegin.has(stream) && (value.phase === 'end' || value.phase === 'cancel')) {
+        liveInputs.delete(stream);
+        needsBegin.delete(stream);
+        return false;
+      }
+      if (needsBegin.has(stream) && !value.hover && value.phase !== 'begin') {
         restarting = true;
         await sendInput({ ...value, phase: 'begin', dx: 0, dy: 0, velocity: 0 });
         restarting = false;
       }
-      needsBegin = false;
+      if (!value.hover) needsBegin.delete(stream);
       await sendInput(value);
+      if (value.phase === 'end' || value.phase === 'cancel') liveInputs.delete(stream);
       ++inputStats.dispatched;
       return true;
     } catch {
@@ -307,22 +323,35 @@ export async function createBrowserEngineV2Surface(
       dy: event.deltaY * unit,
     });
   };
-  let pointer: number | undefined,
-    lastY = 0,
-    lastX = 0,
-    lastTime = 0,
-    velocity = 0;
+  const pointers = new Map<
+    number,
+    { stream: number; x: number; y: number; at: number; velocity: number }
+  >();
+  const isEditor = (event: PointerEvent) =>
+    event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
   const down = (event: PointerEvent) => {
-    if (pointer !== undefined) return;
-    canvas.focus();
-    pointer = event.pointerId;
-    canvas.setPointerCapture(pointer);
+    if (
+      isEditor(event) ||
+      pointers.has(event.pointerId) ||
+      pointers.size >= 15 ||
+      event.button !== 0
+    )
+      return;
+    if (event.target === canvas) canvas.focus();
+    let stream = 2;
+    while ([...pointers.values()].some((value) => value.stream === stream)) ++stream;
+    canvas.setPointerCapture(event.pointerId);
     const rect = canvas.getBoundingClientRect();
-    lastY = event.clientY;
-    lastX = event.clientX;
-    lastTime = performance.now();
-    velocity = 0;
+    pointers.set(event.pointerId, {
+      stream,
+      x: event.clientX,
+      y: event.clientY,
+      at: performance.now(),
+      velocity: 0,
+    });
     void input({
+      stream,
+      pointer: true,
       phase: 'begin',
       source: 'engineDriven',
       x: event.clientX - rect.left,
@@ -332,39 +361,68 @@ export async function createBrowserEngineV2Surface(
     });
   };
   const move = (event: PointerEvent) => {
-    if (pointer !== event.pointerId) return;
+    if (isEditor(event)) return;
+    const pointer = pointers.get(event.pointerId);
     const rect = canvas.getBoundingClientRect(),
-      now = performance.now(),
-      dy = lastY - event.clientY;
-    velocity = dy / Math.max(0.001, (now - lastTime) / 1000);
+      now = performance.now();
+    if (!pointer) {
+      void input({
+        pointer: true,
+        hover: true,
+        phase: 'update',
+        source: 'engineDriven',
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+      return;
+    }
+    const dy = pointer.y - event.clientY;
+    pointer.velocity = dy / Math.max(0.001, (now - pointer.at) / 1000);
     void input({
+      stream: pointer.stream,
+      pointer: true,
       phase: 'update',
       source: 'engineDriven',
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
-      dx: lastX - event.clientX,
+      dx: pointer.x - event.clientX,
       dy,
-      velocity,
+      velocity: pointer.velocity,
       buttons: event.buttons,
       contact: event.pointerId,
     });
-    lastX = event.clientX;
-    lastY = event.clientY;
-    lastTime = now;
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    pointer.at = now;
   };
   const end = (event: PointerEvent) => {
-    if (pointer !== event.pointerId) return;
-    pointer = undefined;
+    const pointer = pointers.get(event.pointerId);
+    if (!pointer) return;
+    pointers.delete(event.pointerId);
     const rect = canvas.getBoundingClientRect();
     void input({
-      phase: event.type === 'pointercancel' ? 'cancel' : 'end',
+      stream: pointer.stream,
+      pointer: true,
+      phase: event.type === 'pointerup' ? 'end' : 'cancel',
       source: 'engineDriven',
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
-      velocity,
+      velocity: performance.now() - pointer.at > 80 ? 0 : pointer.velocity,
       contact: event.pointerId,
     });
   };
+  const leave = () => {
+    if (!pointers.size)
+      void input({
+        pointer: true,
+        hover: true,
+        phase: 'update',
+        source: 'engineDriven',
+        x: -1,
+        y: -1,
+      });
+  };
+  canvas.addEventListener('pointerleave', leave);
   canvas.style.touchAction = 'none';
   canvas.tabIndex = 0;
   canvas.addEventListener('wheel', wheel, { passive: false });
@@ -377,6 +435,17 @@ export async function createBrowserEngineV2Surface(
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('lostpointercapture', end);
+  const overlayPointer = (event: PointerEvent) => {
+    if (!(event.target as Element | null)?.closest('[data-nelyx-v2-semantics]')) return;
+    if (event.type === 'pointerdown') down(event);
+    else if (event.type === 'pointermove') move(event);
+    else end(event);
+  };
+  document.addEventListener('pointerdown', overlayPointer);
+  document.addEventListener('pointermove', overlayPointer);
+  document.addEventListener('pointerup', overlayPointer);
+  document.addEventListener('pointercancel', overlayPointer);
   return {
     host: {
       identity: { engine: 'v2', abiMajor: p.abiMajor, schema: p.schema },
@@ -417,10 +486,17 @@ export async function createBrowserEngineV2Surface(
       window.removeEventListener('blur', visibility);
       canvas.removeEventListener('wheel', wheel);
       document.removeEventListener('wheel', overlayWheel);
+      canvas.removeEventListener('pointerleave', leave);
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', end);
       canvas.removeEventListener('pointercancel', end);
+      canvas.removeEventListener('lostpointercapture', end);
+      document.removeEventListener('pointerdown', overlayPointer);
+      document.removeEventListener('pointermove', overlayPointer);
+      document.removeEventListener('pointerup', overlayPointer);
+      document.removeEventListener('pointercancel', overlayPointer);
+      pointers.clear();
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         await interaction.close();

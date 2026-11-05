@@ -8,8 +8,8 @@ import {
   Image,
   ImageResource,
   Text,
-  Button,
-  EditableText,
+  ListView,
+  ListViewState,
   EditingController,
   GlobalKey,
   ValueKey,
@@ -18,11 +18,19 @@ import {
   protocol as p,
 } from '@nelyx/core/v2';
 import type { Widget, NodeOptions } from '@nelyx/core/v2';
+import { FilledButton, Checkbox, Slider, MaterialApp } from '@nelyx/material/v2';
+import {
+  CupertinoSwitch,
+  CupertinoTextField,
+  CupertinoTheme,
+  CupertinoThemeData,
+} from '@nelyx/cupertino/v2';
 
 /** App declares Widgets; C++ owns layout, editing state and published geometry. */
 export function engineV2Scene(bytes: Uint8Array) {
   const header = new GlobalKey(),
     content = new GlobalKey(),
+    lazy = new GlobalKey<ListViewState>(),
     editor = new EditingController('한국어 A😀'),
     counter = new GlobalKey<TestbedState>(),
     image = new ImageResource(bytes);
@@ -47,6 +55,7 @@ export function engineV2Scene(bytes: Uint8Array) {
   }
   class TestbedState extends State {
     updates = 0;
+    readonly controls = { material: 0, cupertino: 0, slider: 0, gestures: 0 };
     increment() {
       this.setState(() => ++this.updates);
     }
@@ -105,7 +114,48 @@ export function engineV2Scene(bytes: Uint8Array) {
             motion: { id: 1n, opacity: 0.25, seconds: 1.5 },
           }),
           text(610, 293, 240, 35, 'Native opacity motion', 17, 0xffffffff),
-          new Clip(new Image(image, props(-28, -16, 338, 212)), props(590, 366, 282, 142)),
+          new ListView(
+            {
+              generation: 1n,
+              itemCount: 2000,
+              estimatedExtent: 48,
+              cacheItems: 24,
+              itemKey: (i) => `testbed-row-${i}`,
+              itemBuilder: (i) =>
+                new Stack(
+                  [
+                    ...(i === 0
+                      ? [new Clip(new Image(image, props(-4, -2, 52, 52)), props(0, 0, 44, 44))]
+                      : []),
+                    text(54, 4, 210, 38, `Lazy row ${i + 1}`, 16),
+                  ],
+                  {
+                    properties: { width: 282, height: 44 + (i % 3) * 4 },
+                    color: i % 2 ? 0xffe8eef7 : 0xffffffff,
+                  },
+                ),
+            },
+            { key: lazy, ...props(590, 366, 282, 142) },
+          ),
+          new Checkbox(false, () => ++this.controls.material, {
+            ...props(590, 280, 28, 28),
+            semantics: {
+              role: 'checkbox',
+              label: 'Material selection',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+            },
+          }),
+          new CupertinoSwitch(false, () => ++this.controls.cupertino, {
+            ...props(630, 280, 51, 31),
+            semantics: {
+              role: 'checkbox',
+              label: 'Cupertino selection',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+            },
+          }),
+          new Slider(0.25, () => ++this.controls.slider, { ...props(694, 280, 172, 32) }),
           text(
             590,
             519,
@@ -118,8 +168,9 @@ export function engineV2Scene(bytes: Uint8Array) {
           ),
           new Box(
             [
-              new EditableText(editor, {
+              new CupertinoTextField(editor, {
                 ...props(10, 8, 258, 40),
+                layout: { padding: { left: 8, right: 8, top: 4, bottom: 4 } },
                 flags: p.editFlags.multiline,
                 semantics: {
                   role: 'textField',
@@ -135,11 +186,23 @@ export function engineV2Scene(bytes: Uint8Array) {
             ],
             { ...props(590, 580, 278, 56), color: 0xffffffff, radius: 8 },
           ),
-          new Button('Update title', () => this.increment(), { ...props(590, 650, 278, 44) }),
+          new FilledButton('Update title', () => this.increment(), { ...props(590, 650, 278, 44) }),
         ],
-        { ...props(0, 0, 960, 720), color: 0xfff4f6fa },
+        {
+          ...props(0, 0, 960, 720),
+          color: 0xfff4f6fa,
+          gestures: p.gestures.longPress | p.gestures.pinch | p.gestures.panX | p.gestures.panY,
+          onGesture: () => ++this.controls.gestures,
+        },
       );
     }
   }
-  return { root: new Testbed(counter), header, editor, counter, content };
+  return {
+    root: new MaterialApp(new CupertinoTheme(new CupertinoThemeData(), new Testbed(counter))),
+    header,
+    editor,
+    counter,
+    content,
+    lazy,
+  };
 }

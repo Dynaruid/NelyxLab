@@ -38,6 +38,7 @@ class ParagraphAccess final {
 class ParagraphQuerySource final {
  public:
   static std::shared_ptr<ParagraphQuerySource> create(std::shared_ptr<skia::textlayout::Paragraph> paragraph,std::shared_ptr<void> context,std::optional<std::string> originalText);
+  static std::shared_ptr<ParagraphQuerySource> create(std::shared_ptr<skia::textlayout::Paragraph> paragraph,std::shared_ptr<void> context,std::optional<std::string> originalText,uint32_t maximumUnits);
   ~ParagraphQuerySource();
   uint64_t bind(ParagraphQueryIdentity identity);
   void retire();

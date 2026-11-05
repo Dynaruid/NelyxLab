@@ -97,7 +97,10 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const bool changed = previous.x != p.x || previous.y != p.y ||
         previous.width != p.width || previous.height != p.height ||
         ((previous.flags ^ p.flags) & 1u);
-      edit(h, changed)->properties = p;
+      auto node = edit(h, changed);
+      node->properties = p;
+      node->contentX = node->contentY = 0;
+      node->contentWidth = p.width; node->contentHeight = p.height;
     } else if (op == wire::commands::attach || op == wire::commands::move) {
       require(data.length == 16 && data.u32(12) == 0);
       const auto parent = handle(data, 0);
@@ -222,6 +225,35 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         (coverage.revision == previous.coverage.revision && coverage.minimum == previous.coverage.minimum &&
           coverage.maximum == previous.coverage.maximum && coverage.enabled == previous.coverage.enabled), wire::statuses::stale);
       edit(h,false)->coverage = coverage;
+    } else if (op == wire::commands::list) {
+      require(data.length==32&&data.u32(20)==0);
+      ListStyle value{data.u64(0),data.u32(8),data.u32(12),data.u32(16),data.f64(24)};
+      const auto& prior=d->get(h);
+      if(!value.generation){require(!value.count&&!value.begin&&!value.end&&value.estimate==0);edit(h)->list={};continue;}
+      require(prior.kind==wire::kinds::sliver&&value.generation>0&&
+        value.generation>=prior.list.generation&&value.count<=1000000&&
+        value.begin<=value.end&&value.end<=value.count&&
+        value.end-value.begin<=wire::limits::listChildren&&value.estimate>0&&
+        value.estimate*value.count<=1e12,wire::statuses::invalidValue);
+      if(prior.list.generation==value.generation&&prior.list.generation)
+        require(prior.list.count==value.count&&prior.list.estimate==value.estimate,wire::statuses::stale);
+      edit(h)->list=value;
+    } else if (op == wire::commands::listItem) {
+      require(data.length==16&&data.u32(4)==0&&(data.u64(8)>0||data.u32(0)==0));
+      edit(h)->item={data.u32(0),data.u64(8)};
+    } else if (op == wire::commands::gesture) {
+      require(data.length==8&&data.u32(4)==0&&(data.u32(0)&~255u)==0);
+      edit(h,false)->gestures=data.u32(0);
+    } else if (op == wire::commands::control) {
+      require(data.length==64);
+      ControlStyle value{data.u32(0),data.u32(4)&1u,data.u32(8),data.u32(12),data.u64(16),
+        data.f64(24),data.f64(32),data.f64(40),data.f64(48),data.f64(56)};
+      value.appearance=data.u32(4)>>1;
+      require(value.kind<=wire::controlKinds::activity&&value.appearance<=4&&value.minimum<value.maximum&&
+        value.step>=0&&value.value>=value.minimum&&value.value<=value.maximum&&
+        value.second>=value.minimum&&value.second<=value.maximum&&
+        (value.kind!=wire::controlKinds::rangeSlider||value.second>=value.value),wire::statuses::invalidValue);
+      edit(h,false)->control=value;
     } else if (op == wire::commands::constraints) {
       require(data.length == 48);
       auto node = edit(h);

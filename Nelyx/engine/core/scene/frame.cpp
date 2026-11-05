@@ -15,9 +15,11 @@ void View::makeDrawItems(Frame& f) const {
   visit = [&](const Node& n, double x, double y, double alpha, Rect clip) {
     const auto& o = f.properties[n.id.slot];
     x += n.properties.x; y += n.properties.y; alpha *= o.opacity;
+    f.properties[n.id.slot].visible=alpha>0;
     if (n.kind == wire::kinds::clip || n.kind == wire::kinds::scrollViewport)
       clip = intersect(clip, {x, y, n.properties.width, n.properties.height});
     f.items.push_back({n.id, x, y, alpha, clip});
+    if((n.policy&4u)&&alpha>0)f.modalRoot=n.id;
     double childX = x, childY = y;
     if (n.kind == wire::kinds::scrollViewport) {
       if (n.properties.flags & 1u) childX -= o.offset; else childY -= o.offset;
@@ -32,6 +34,7 @@ Handle View::target(double x, double y) const {
   const auto& d = *published->scene->document;
   for (auto it = published->items.rbegin(); it != published->items.rend(); ++it) {
     const auto& n = d.get(it->node);
+    if(it->opacity<=0||!published->allows(n.id))continue;
     const auto hit = [](double px, double py, Rect r) {
       return r.width > 0 && r.height > 0 && px >= r.x && py >= r.y && px < r.x+r.width && py < r.y+r.height;
     };

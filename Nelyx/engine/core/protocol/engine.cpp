@@ -67,9 +67,11 @@ std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t 
 namespace {
 constexpr uint32_t capabilities = wire::capabilities::protocol | wire::capabilities::headlessScene |
   wire::capabilities::scroll | wire::capabilities::motion | wire::capabilities::layoutQueries |
-  wire::capabilities::editing | wire::capabilities::semantics;
+  wire::capabilities::editing | wire::capabilities::semantics | wire::capabilities::lazyList |
+  wire::capabilities::gestures | wire::capabilities::controls;
 void exact(Reader r, size_t count) { require(r.length == count); }
 void invalidate(View& v, uint32_t reason) {
+  v.caretDeadline = 0;
   v.cancelQuery(reason);
   v.cancelInput(reason);
   // A control fence ended the old streams. The next valid metrics/source may
@@ -89,7 +91,7 @@ Input readInput(Reader r) {
   require(p.sequence > 0 && p.metrics > 0 && p.stream > 0 && p.stream <= wire::limits::streams &&
     p.phase >= wire::phases::begin && p.phase <= wire::phases::cancel &&
     p.source >= wire::sources::engineDriven && p.source <= wire::sources::wheelUnknown &&
-    (p.flags & ~1u) == 0 && p.time >= 0 && p.sample >= 0 && p.clock > 0 && p.clock <= 3 &&
+    (p.flags & ~7u) == 0 && (!(p.flags&4u)||(p.flags&2u)) && p.time >= 0 && p.sample >= 0 && p.clock > 0 && p.clock <= 3 &&
     r.u32(wire::inputFields::reserved) == 0, wire::statuses::invalidValue);
   return p;
 }
@@ -110,6 +112,10 @@ void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t fla
   w.f64(p + wire::nodeFields::preparedMinimum,n.coverage.minimum);
   w.f64(p + wire::nodeFields::preparedMaximum,n.coverage.maximum);
   w.u64(p + wire::nodeFields::coverageRevision,n.coverage.revision);
+  w.f64(p + wire::nodeFields::contentX,n.contentX);
+  w.f64(p + wire::nodeFields::contentY,n.contentY);
+  w.f64(p + wire::nodeFields::contentWidth,n.contentWidth);
+  w.f64(p + wire::nodeFields::contentHeight,n.contentHeight);
   if (item) {
     w.f64(p + wire::nodeFields::clipX, item->clip.x); w.f64(p + wire::nodeFields::clipY, item->clip.y);
     w.f64(p + wire::nodeFields::clipWidth, item->clip.width); w.f64(p + wire::nodeFields::clipHeight, item->clip.height);
@@ -332,6 +338,18 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         exact(body, 24); v.publish(body.u64(0), body.u64(8), body.u64(16));
       } else if (opcode == wire::opcodes::scroll) {
         status = v.scroll(body, id);
+      } else if (opcode == wire::opcodes::key) {
+        v.key(body);
+      } else if (opcode == wire::opcodes::controlValue) {
+        exact(body,32);const auto node=handle(body,0);
+        require(v.published&&body.u64(8)==v.publication&&v.published->allows(node)&&
+          v.document->contains(node)&&v.active&&v.active->document->contains(node),wire::statuses::stale);
+        const auto& n=v.active->document->get(node);
+        require((n.control.kind==wire::controlKinds::slider||n.control.kind==wire::controlKinds::rangeSlider)&&
+          !n.control.disabled&&!v.document->get(node).control.disabled,wire::statuses::capabilityMissing);
+        require(body.u32(24)<=1&&body.u32(28)==0&&std::isfinite(body.f64(16))&&body.f64(16)>=n.control.minimum&&
+          body.f64(16)<=n.control.maximum,wire::statuses::invalidValue);
+        v.controlValue(node,body.f64(16),bool(body.u32(24)));
       } else if (opcode == wire::opcodes::visibility) {
         exact(body, 16); const auto flags = body.u32(0);
         require((flags & ~7u) == 0 && body.u32(4) == 0 && body.u64(8) == v.lastInput);
@@ -393,8 +411,35 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   const auto addOwned=[&](uint32_t type,Handle node,Writer bytes){ownedBlobs.push_back(std::move(bytes.bytes));
     const auto& data=ownedBlobs.back();blobs.push_back({type,node,{data.data(),data.size()}});};
   const auto interactionBlobs=[&](const Node& n){
+    const Property* visual=frame&&n.id.slot<frame->properties.size()?&frame->properties[n.id.slot]:nullptr;
+    const auto overlay=view?view->overlays.find(n.id.key()):std::map<uint64_t,Overlay>::const_iterator{};
+    const double controlValue=visual?visual->value:view&&overlay!=view->overlays.end()?overlay->second.value:n.control.value;
+    if(n.control.kind){const auto& c=n.control;Writer data(72);data.u32(0,c.kind);data.u32(4,c.disabled|(c.appearance<<1));
+      const bool pressed=visual?visual->pressed:view&&overlay!=view->overlays.end()&&overlay->second.pressed;
+      const bool hovered=visual?visual->hovered:view&&overlay!=view->overlays.end()&&overlay->second.hovered;
+      data.u32(8,(pressed?1u:0u)|(hovered?2u:0u));data.u32(12,c.foreground);data.u32(16,c.track);
+      data.f64(24,c.minimum);data.f64(32,c.maximum);data.f64(40,c.step);data.f64(48,controlValue);
+      data.f64(56,visual?visual->second:view&&overlay!=view->overlays.end()?overlay->second.second:c.second);
+      data.u64(64,c.revision);addOwned(7,n.id,std::move(data));}
+    if(n.listGeometry){const auto& list=*n.listGeometry;Writer data(64+list.rows.size()*40);
+      data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
+      double offset=0,height=view?view->metrics.height:0;
+      if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
+        height=parent.properties.height;const auto scrollOverlay=view->overlays.find(n.parent.key());
+        if(scrollOverlay!=view->overlays.end())offset=std::max(scrollOverlay->second.offset,scrollOverlay->second.requested)-n.properties.y;}
+      const auto begin=list.indexAt(std::max(0.0,offset-height));
+      data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));
+      data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.style.estimate);
+      data.f64(40,list.total);data.f64(48,list.begin);data.f64(56,list.end);
+      for(size_t i=0;i<list.rows.size();++i){const auto& row=list.rows[i];const auto at=64+i*40;
+        writeHandle(data,at,row.node);data.u32(at+8,row.index);data.u64(at+16,row.key);data.f64(at+24,row.offset);data.f64(at+32,row.extent);}
+      addOwned(6,n.id,std::move(data));}
     if(n.semantics){const auto& a=*n.semantics;Writer bytes(24+a.label.size()+a.hint.size());
-      bytes.u32(0,a.role);bytes.u32(4,a.flags);bytes.u32(8,a.actions);bytes.u32(12,uint32_t(a.label.size()));bytes.u32(16,uint32_t(a.hint.size()));
+      auto semanticFlags=(n.control.kind==wire::controlKinds::toggle||n.control.kind==wire::controlKinds::checkbox||n.control.kind==wire::controlKinds::radio)?
+        (a.flags&~wire::semanticsFlags::checked)|(controlValue>n.control.minimum?wire::semanticsFlags::checked:0u):a.flags;
+      if(n.control.disabled)semanticFlags|=wire::semanticsFlags::disabled;
+      if(frame&&!frame->allows(n.id))semanticFlags|=wire::semanticsFlags::hidden;
+      bytes.u32(0,a.role);bytes.u32(4,semanticFlags);bytes.u32(8,a.actions);bytes.u32(12,uint32_t(a.label.size()));bytes.u32(16,uint32_t(a.hint.size()));
       std::memcpy(bytes.bytes.data()+24,a.label.data(),a.label.size());std::memcpy(bytes.bytes.data()+24+a.label.size(),a.hint.data(),a.hint.size());addOwned(3,n.id,std::move(bytes));
     }
     auto editing=n.editing;
@@ -495,12 +540,10 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     writeHandle(response,b+wire::stateFields::focusNode,v.focusNode);response.u64(b+wire::stateFields::focusSession,v.focusSession);
     response.u32(b+wire::stateFields::interactionCount,uint32_t(v.interactionEvents.size()));
     response.u64(b+wire::stateFields::editingWork,v.editingWork);response.u64(b+wire::stateFields::semanticsWork,v.semanticsWork);response.u64(b+wire::stateFields::queryWork,v.queryWork);
+    response.u64(b+wire::stateFields::gestureWork,v.gestureWork);response.u64(b+wire::stateFields::controlWork,v.controlWork);
     response.u32(b + wire::stateFields::providerPending,
       v.preparing && v.preparing->ready && !v.preparing->providerReady ? 1 : 0);
-    double deadline = 0;
-    for (const auto& entry : v.commands)
-      if (deadline == 0 || entry.second.deadline < deadline) deadline = entry.second.deadline;
-    response.f64(b + wire::stateFields::nextDeadline, deadline);
+    response.f64(b + wire::stateFields::nextDeadline, v.nextDeadline());
     flags |= (v.closed ? 1u : 0u) | (v.visible ? 2u : 0u) | (v.focused ? 4u : 0u) |
       (v.wake() ? 8u : 0u) | (v.preparing && v.preparing->ready ? 16u : 0u) | (v.renderWake() ? 128u : 0u);
   }
@@ -511,7 +554,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     const bool drawable = n.properties.width > 0 && n.properties.height > 0 && item.clip.width > 0 &&
       item.clip.height > 0 && item.x < item.clip.x + item.clip.width && item.y < item.clip.y + item.clip.height &&
       item.x + n.properties.width > item.clip.x && item.y + n.properties.height > item.clip.y;
-    nodeRow(response, cursor, n, &frame->properties[n.id.slot], (drawable ? 16u : 0u)|(frame->focusNode==n.id?256u:0u), &item);
+    nodeRow(response, cursor, n, &frame->properties[n.id.slot], (drawable ? 16u : 0u)|
+      (frame->focusNode==n.id?256u:0u)|(frame->focusNode==n.id&&frame->caretVisible?512u:0u), &item);
     cursor += wire::nodeBytes;
   }
   if (rows && !frame) for (const auto* node : rowNodes) {
@@ -539,6 +583,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.u32(cursor, e.kind); response.u32(cursor + 4, e.status);
     response.u64(cursor + 8, e.id); response.u64(cursor + 16, e.epoch);
     response.u64(cursor + 24, e.detail); writeHandle(response, cursor + 32, e.node);
+    response.f64(cursor+40,e.x);response.f64(cursor+48,e.y);
     cursor += wire::eventBytes;
   }
   for (const auto& blob : blobs) {

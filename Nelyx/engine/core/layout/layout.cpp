@@ -35,6 +35,10 @@ LayoutConstraints resolve(const Node &n, LayoutConstraints c) {
 double inset(double value, double padding) { return std::max(0.0, value - padding); }
 bool horizontal(const Node &n) { return n.layout.direction == 0; }
 bool flow(const Node &n) { return n.kind == wire::kinds::flex || n.kind == wire::kinds::sliver; }
+bool measuredLeaf(const Node &n) {
+  return n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable ||
+         n.kind == wire::kinds::image;
+}
 double main(const LayoutBox &b, bool h) { return h ? b.width : b.height; }
 double cross(const LayoutBox &b, bool h) { return h ? b.height : b.width; }
 void position(Placement &p, bool h, double a, double b) {
@@ -50,6 +54,11 @@ struct LayoutWork::State {
     size_t index = 0, parentIndex = 0;
     std::shared_ptr<LayoutBox> box;
     double innerWidth = 0, innerHeight = 0, totalFlex = 0, flexSpace = 0;
+    std::vector<double> stretch;
+  };
+  struct Run {
+    size_t begin, end;
+    double length = 0, breadth = 0, ascent = 0, descent = 0;
   };
   struct Flatten {
     std::shared_ptr<const LayoutBox> box;
@@ -74,7 +83,8 @@ struct LayoutWork::State {
         std::shared_ptr<const LayoutOutput> old)
       : lease(d->lease.ledger,
               sizeof(State) + (wire::limits::depth + 1) * sizeof(Task) +
-                  (wire::limits::nodes + 1) * (sizeof(Flatten) + sizeof(roots[0]))),
+                  (wire::limits::nodes + 1) *
+                      (sizeof(Flatten) + sizeof(roots[0]) + sizeof(Run) + sizeof(double))),
         source(std::move(d)), previous(std::move(old)),
         result(std::make_shared<LayoutOutput>(source->lease.ledger, scale, font)),
         viewport{0, width, 0, height} {
@@ -131,7 +141,9 @@ struct LayoutWork::State {
       c.minWidth = c.maxWidth = cell;
       c.maxHeight = INFINITY;
     }
-    if (s.crossAlign == wire::layoutCrossAlign::stretch && flow(n)) {
+    if (s.crossAlign == wire::layoutCrossAlign::stretch &&
+        (flow(n) || (n.kind != wire::kinds::wrap && n.kind != wire::kinds::grid &&
+                     n.kind != wire::kinds::scrollViewport))) {
       if (h) {
         require(std::isfinite(c.maxHeight), wire::statuses::invalidValue);
         c.minHeight = c.maxHeight;
@@ -141,6 +153,49 @@ struct LayoutWork::State {
       }
     }
     return c;
+  }
+  // Run discovery and the optional stretch pass use the same finite continuation
+  // as normal child layout, including versioned provider measurements.
+  std::vector<Run> runs(const Task &t, const Node &n) const {
+    std::vector<Run> rows;
+    const bool grid = n.kind == wire::kinds::grid, h = grid || horizontal(n);
+    const double limit = h ? t.innerWidth : t.innerHeight;
+    for (size_t i = 0; i < t.box->children.size(); ++i) {
+      const auto &child = *t.box->children[i].box;
+      if (rows.empty() ||
+          (grid ? i % n.layout.columns == 0
+                : i > rows.back().begin &&
+                      rows.back().length + n.layout.gap + main(child, h) > limit))
+        rows.push_back({i, i});
+      auto &run = rows.back();
+      if (i > run.begin)
+        run.length = scalar(run.length + n.layout.gap);
+      run.length = scalar(run.length + main(child, h));
+      run.breadth = std::max(run.breadth, cross(child, h));
+      run.end = i + 1;
+      if (n.layout.crossAlign == wire::layoutCrossAlign::baseline) {
+        require(h && child.baseline >= 0, wire::statuses::invalidValue);
+        run.ascent = std::max(run.ascent, child.baseline);
+        run.descent = std::max(run.descent, child.height - child.baseline);
+        run.breadth = run.ascent + run.descent;
+      }
+    }
+    return rows;
+  }
+  static void alignment(uint32_t align, size_t count, double free, double &lead, double &gap) {
+    if (align == wire::layoutMainAlign::center)
+      lead = free / 2;
+    else if (align == wire::layoutMainAlign::end)
+      lead = free;
+    else if (align == wire::layoutMainAlign::spaceBetween && count > 1)
+      gap += free / (count - 1);
+    else if (align == wire::layoutMainAlign::spaceAround && count) {
+      gap += free / count;
+      lead = free / count / 2;
+    } else if (align == wire::layoutMainAlign::spaceEvenly && count) {
+      gap += free / (count + 1);
+      lead = free / (count + 1);
+    }
   }
   void finish(Task &t, const Node &n) {
     auto &b = *t.box;
@@ -153,7 +208,35 @@ struct LayoutWork::State {
       b.height = n.properties.height;
       return;
     }
-    if (flow(n)) {
+    if (n.list.generation) {
+      require(n.kind==wire::kinds::sliver&&!h&&s.left==0&&s.right==0&&s.top==0&&s.bottom==0&&
+        s.gap==0&&s.crossAlign==0&&s.mainAlign==0&&!s.mainSize&&
+        b.children.size()<=wire::limits::listChildren,wire::statuses::invalidValue);
+      auto list=std::make_shared<ListGeometry>(source->lease.ledger,n.list);
+      if(previous){const auto& old=previous->boxes[n.id.slot];
+        if(old&&old->node==n.id&&old->listGeometry&&old->listGeometry->style.generation==n.list.generation)
+          list->measured=old->listGeometry->measured;}
+      std::map<uint32_t,uint64_t> present;
+      std::map<uint64_t,uint32_t> keys;
+      for(const auto& child:b.children){const auto item=source->get(child.box->node).item;
+        require(item.key&&item.index<n.list.count&&present.emplace(item.index,item.key).second&&
+          keys.emplace(item.key,item.index).second&&child.box->height>0,wire::statuses::invalidGraph);
+        list->measured[item.index]={item.key,child.box->height};
+        width=std::max(width,child.box->width);}
+      for(auto i=n.list.begin;i<n.list.end;++i)
+        require(present.count(i)>0,wire::statuses::contentUnavailable);
+      while(list->measured.size()>wire::limits::listMetrics){
+        auto first=list->measured.begin(),last=std::prev(list->measured.end());
+        const auto distance=[&](uint32_t i){return i<n.list.begin?n.list.begin-i:i>=n.list.end?i-n.list.end+1:0;};
+        list->measured.erase(distance(first->first)>distance(last->first)?first:last);}
+      for(auto& child:b.children){const auto item=source->get(child.box->node).item;
+        child.x=0;child.y=list->prefix(item.index);
+        list->rows.push_back({child.box->node,item.index,item.key,child.y,child.box->height});}
+      list->total=list->prefix(n.list.count);list->begin=list->prefix(n.list.begin);list->end=list->prefix(n.list.end);
+      b.width=constrain(width,c.minWidth,c.maxWidth);b.height=constrain(list->total,c.minHeight,c.maxHeight);
+      require(b.height==list->total,wire::statuses::invalidValue);
+      b.listGeometry=std::move(list);
+    } else if (flow(n)) {
       double length = 0, breadth = 0, ascent = 0, descent = 0;
       for (const auto &child : b.children) {
         length = scalar(length + main(*child.box, h));
@@ -212,116 +295,101 @@ struct LayoutWork::State {
         position(child, h, lead, offset);
         lead += main(*child.box, h) + gap;
       }
-    } else if (n.kind == wire::kinds::wrap) {
-      require(s.crossAlign <= wire::layoutCrossAlign::end, wire::statuses::capabilityMissing);
-      const double limit = h ? t.innerWidth : t.innerHeight;
-      double cursor = 0, line = 0, across = 0, longest = 0;
-      size_t start = 0, count = 0;
-      struct Run {
-        size_t begin, end;
-        double length, breadth;
-      };
-      std::vector<Run> runs;
-      for (size_t i = 0; i < b.children.size(); ++i) {
-        auto &child = b.children[i];
-        const auto length = main(*child.box, h), breadth = cross(*child.box, h);
-        if (count && cursor + s.gap + length > limit) {
-          runs.push_back({start, i, cursor, line});
-          start = i;
-          count = 0;
-          across = scalar(across + line + s.runGap);
-          cursor = 0;
-          line = 0;
-        }
-        if (count++)
-          cursor += s.gap;
-        position(child, h, cursor, across);
-        cursor = scalar(cursor + length);
-        longest = std::max(longest, cursor);
-        line = std::max(line, breadth);
+    } else if (n.kind == wire::kinds::wrap || n.kind == wire::kinds::grid) {
+      const bool grid = n.kind == wire::kinds::grid, rowHorizontal = grid || h;
+      const auto rows = runs(t, n);
+      double longest = 0, across = rows.empty() ? 0 : s.runGap * (rows.size() - 1);
+      for (const auto &run : rows) {
+        longest = std::max(longest, run.length);
+        across = scalar(across + run.breadth);
       }
-      if (count)
-        runs.push_back({start, b.children.size(), cursor, line});
+      if (grid)
+        longest = t.innerWidth;
       if (s.mainSize) {
+        const double limit = grid ? t.innerHeight : h ? t.innerWidth : t.innerHeight;
         require(std::isfinite(limit), wire::statuses::invalidValue);
-        longest = std::max(longest, limit);
+        if (grid)
+          across = std::max(across, limit);
+        else
+          longest = std::max(longest, limit);
       }
-      width = h ? longest : across + line;
-      height = h ? across + line : longest;
-      const double actualMain =
-          inset(h ? constrain(width + s.left + s.right, c.minWidth, c.maxWidth)
-                  : constrain(height + s.top + s.bottom, c.minHeight, c.maxHeight),
-                h ? s.left + s.right : s.top + s.bottom);
-      double runOffset = 0;
-      for (const auto &run : runs) {
-        const size_t length = run.end - run.begin;
-        const double free = std::max(0.0, actualMain - run.length);
+      width = rowHorizontal ? longest : across;
+      height = rowHorizontal ? across : longest;
+      b.width = constrain(width + s.left + s.right, c.minWidth, c.maxWidth);
+      b.height = constrain(height + s.top + s.bottom, c.minHeight, c.maxHeight);
+      const double actualMain = inset(rowHorizontal ? b.width : b.height,
+                                      rowHorizontal ? s.left + s.right : s.top + s.bottom);
+      double runOffset = 0, runGap = s.runGap;
+      if (grid) {
+        double used = rows.empty() ? 0 : s.runGap * (rows.size() - 1);
+        for (const auto &run : rows)
+          used += run.breadth;
+        alignment(s.mainAlign, rows.size(), std::max(0.0, inset(b.height, s.top + s.bottom) - used),
+                  runOffset, runGap);
+      }
+      for (const auto &run : rows) {
         double lead = 0, gap = s.gap;
-        if (s.mainAlign == 1)
-          lead = free / 2;
-        if (s.mainAlign == 2)
-          lead = free;
-        if (s.mainAlign == 3 && length > 1)
-          gap += free / (length - 1);
-        if (s.mainAlign == 4) {
-          gap += free / length;
-          lead = free / length / 2;
-        }
-        if (s.mainAlign == 5) {
-          gap += free / (length + 1);
-          lead = free / (length + 1);
-        }
+        if (!grid)
+          alignment(s.mainAlign, run.end - run.begin, std::max(0.0, actualMain - run.length),
+                    lead, gap);
         for (size_t i = run.begin; i < run.end; ++i) {
           auto &child = b.children[i];
-          const double offset = s.crossAlign == 1   ? (run.breadth - cross(*child.box, h)) / 2
-                                : s.crossAlign == 2 ? run.breadth - cross(*child.box, h)
-                                                    : 0;
-          position(child, h, lead, runOffset + offset);
-          lead += main(*child.box, h) + gap;
+          const double offset = s.crossAlign == 1   ? (run.breadth - cross(*child.box, rowHorizontal)) / 2
+                                : s.crossAlign == 2 ? run.breadth - cross(*child.box, rowHorizontal)
+                                : s.crossAlign == 4 ? run.ascent - child.box->baseline : 0;
+          position(child, rowHorizontal, lead, runOffset + offset);
+          lead += main(*child.box, rowHorizontal) + gap;
         }
-        runOffset += run.breadth + s.runGap;
-      }
-    } else if (n.kind == wire::kinds::grid) {
-      require(s.crossAlign <= wire::layoutCrossAlign::end, wire::statuses::capabilityMissing);
-      double y = 0, rowHeight = 0;
-      const double cell = std::max(0.0, t.innerWidth - s.gap * (s.columns - 1)) / s.columns;
-      for (size_t i = 0; i < b.children.size(); ++i) {
-        if (i && i % s.columns == 0) {
-          y = scalar(y + rowHeight + s.runGap);
-          rowHeight = 0;
-        }
-        b.children[i].x = (i % s.columns) * (cell + s.gap);
-        b.children[i].y = y;
-        rowHeight = std::max(rowHeight, b.children[i].box->height);
-      }
-      width = t.innerWidth;
-      height = y + rowHeight;
-      for (size_t begin = 0; begin < b.children.size(); begin += s.columns) {
-        const size_t end = std::min(b.children.size(), begin + s.columns);
-        double maximum = 0;
-        for (size_t i = begin; i < end; ++i)
-          maximum = std::max(maximum, b.children[i].box->height);
-        for (size_t i = begin; i < end; ++i)
-          b.children[i].y += (maximum - b.children[i].box->height) * (s.crossAlign == 1   ? 0.5
-                                                                      : s.crossAlign == 2 ? 1
-                                                                                          : 0);
+        runOffset += run.breadth + runGap;
       }
     } else {
+      double ascent = 0, descent = 0;
       for (const auto &child : b.children) {
         const auto &original = source->get(child.box->node).properties;
         width = std::max(width, original.x + child.box->width);
         height = std::max(height, original.y + child.box->height);
+        if (s.crossAlign == wire::layoutCrossAlign::baseline) {
+          require(h && child.box->baseline >= 0, wire::statuses::invalidValue);
+          ascent = std::max(ascent, child.box->baseline);
+          descent = std::max(descent, child.box->height - child.box->baseline);
+        }
       }
+      if (s.crossAlign == wire::layoutCrossAlign::baseline)
+        height = std::max(height, ascent + descent);
       if (n.kind == wire::kinds::scrollViewport) {
         require(std::isfinite(t.innerWidth) && std::isfinite(t.innerHeight),
                 wire::statuses::invalidValue);
         width = t.innerWidth;
         height = t.innerHeight;
+      } else if (s.mainSize) {
+        require(std::isfinite(h ? t.innerWidth : t.innerHeight), wire::statuses::invalidValue);
+        if (h) width = std::max(width, t.innerWidth);
+        else height = std::max(height, t.innerHeight);
       }
     }
     if (!flow(n)) {
       b.width = constrain(width + s.left + s.right, c.minWidth, c.maxWidth);
       b.height = constrain(height + s.top + s.bottom, c.minHeight, c.maxHeight);
+    }
+    if (!flow(n) && n.kind != wire::kinds::wrap && n.kind != wire::kinds::grid &&
+        n.kind != wire::kinds::scrollViewport) {
+      const double innerWidth = inset(b.width, s.left + s.right),
+                   innerHeight = inset(b.height, s.top + s.bottom);
+      double ascent = 0;
+      if (s.crossAlign == wire::layoutCrossAlign::baseline) {
+        require(h, wire::statuses::invalidValue);
+        for (const auto &child : b.children) {
+          require(child.box->baseline >= 0, wire::statuses::invalidValue);
+          ascent = std::max(ascent, child.box->baseline);
+        }
+      }
+      for (auto &child : b.children) {
+        const double freeMain = std::max(0.0, (h ? innerWidth : innerHeight) - main(*child.box, h)),
+                     freeCross = (h ? innerHeight : innerWidth) - cross(*child.box, h);
+        position(child, h, s.mainAlign == 1 ? freeMain / 2 : s.mainAlign == 2 ? freeMain : 0,
+                 s.crossAlign == 1 ? freeCross / 2 : s.crossAlign == 2 ? freeCross
+                 : s.crossAlign == 4 ? ascent - child.box->baseline : 0);
+      }
     }
     for (auto &child : b.children) {
       child.x = scalar(child.x + s.left);
@@ -346,6 +414,13 @@ struct LayoutWork::State {
       n->properties.height = f.box->height;
       n->baseline = f.box->baseline;
       n->textGeometry = f.box->textGeometry;
+      n->listGeometry = f.box->listGeometry;
+      n->contentX = n->layout.enabled && measuredLeaf(*n) ? n->layout.left : 0;
+      n->contentY = n->layout.enabled && measuredLeaf(*n) ? n->layout.top : 0;
+      n->contentWidth = inset(f.box->width, n->layout.enabled && measuredLeaf(*n)
+                                            ? n->layout.left + n->layout.right : 0);
+      n->contentHeight = inset(f.box->height, n->layout.enabled && measuredLeaf(*n)
+                                              ? n->layout.top + n->layout.bottom : 0);
       if (n->layout.enabled && n->kind == wire::kinds::scrollViewport && !f.box->children.empty() &&
           n->properties.extent != wire::extents::unbounded) {
         const auto &child = *f.box->children[0].box;
@@ -357,6 +432,13 @@ struct LayoutWork::State {
                                                   n->layout.right - n->properties.width
                                             : child.height + childPlacement.y + childSource.y +
                                                   n->layout.bottom - n->properties.height));
+        if(child.listGeometry){const auto& list=*child.listGeometry;
+          const double origin=childPlacement.y+childSource.y;
+          require(!(n->properties.flags&1u),wire::statuses::capabilityMissing);
+          n->coverage={source->epoch,list.style.begin==0?0:origin+list.begin,
+            list.style.end==list.style.count?n->properties.maximum:
+              std::max(0.0,origin+list.end-n->properties.height),true};
+          require(n->coverage.minimum<=n->coverage.maximum,wire::statuses::contentUnavailable);}
       }
       derived->nodes[n->id.slot].value = n;
       result->boxes[n->id.slot] = f.box;
@@ -396,15 +478,12 @@ struct LayoutWork::State {
       t.constraints = n.layout.enabled ? resolve(n, t.input) : t.input;
       t.box = std::make_shared<LayoutBox>(n, t.input, children.size());
       const auto &s = n.layout;
-      if (s.enabled && !flow(n) && n.kind != wire::kinds::wrap && n.kind != wire::kinds::grid)
+      if (s.enabled && (measuredLeaf(n) || n.kind == wire::kinds::scrollViewport))
         require(s.mainAlign == 0 && s.crossAlign == 0 && s.mainSize == 0,
                 wire::statuses::capabilityMissing);
-      if (s.enabled && (n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable ||
-                        n.kind == wire::kinds::image))
-        require(s.left == 0 && s.top == 0 && s.right == 0 && s.bottom == 0,
+      if (s.enabled && !flow(n) && n.kind != wire::kinds::wrap && n.kind != wire::kinds::grid)
+        require(s.mainAlign <= wire::layoutMainAlign::end,
                 wire::statuses::capabilityMissing);
-      if (s.enabled && n.kind == wire::kinds::grid)
-        require(s.mainAlign == 0 && s.mainSize == 0, wire::statuses::capabilityMissing);
       t.innerWidth = inset(n.layout.enabled ? t.constraints.maxWidth : n.properties.width,
                            s.enabled ? s.left + s.right : 0);
       t.innerHeight = inset(n.layout.enabled ? t.constraints.maxHeight : n.properties.height,
@@ -414,7 +493,7 @@ struct LayoutWork::State {
         require(children.empty(), wire::statuses::invalidGraph);
         require(n.kind != wire::kinds::image || bool(n.resource), wire::statuses::invalidHandle);
         pending = MeasurementRequest{++requestId, source->nodes[n.id.slot].value,
-                                     t.constraints.maxWidth, std::isfinite(t.constraints.maxWidth)};
+                                     t.innerWidth, std::isfinite(t.innerWidth)};
         if (!pending->bounded)
           pending->width = 0;
         t.phase = 5;
@@ -429,27 +508,61 @@ struct LayoutWork::State {
       const auto m = *measurement;
       measurement.reset();
       pending.reset();
+      const double padWidth = n.layout.left + n.layout.right,
+                   padHeight = n.layout.top + n.layout.bottom;
       if (n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable) {
-        t.box->width = constrain(m.width, t.constraints.minWidth, t.constraints.maxWidth);
-        require(t.box->width == m.width, wire::statuses::invalidValue);
-        t.box->height = constrain(m.height, t.constraints.minHeight, t.constraints.maxHeight);
-        t.box->baseline = m.baseline;
+        t.box->width = constrain(m.width + padWidth, t.constraints.minWidth, t.constraints.maxWidth);
+        require(inset(t.box->width, padWidth) == m.width, wire::statuses::invalidValue);
+        t.box->height = constrain(m.height + padHeight, t.constraints.minHeight, t.constraints.maxHeight);
+        t.box->baseline = m.baseline < 0 ? -1 : n.layout.top + m.baseline;
         if (n.kind == wire::kinds::editable) {
           require(n.editing && m.geometry && m.geometry->revision == n.editing->revision,
                   wire::statuses::stale);
-          t.box->textGeometry = m.geometry;
+          auto caret = m.geometry->caret;
+          caret.x = scalar(caret.x + n.layout.left);
+          caret.y = scalar(caret.y + n.layout.top);
+          auto selection = m.geometry->selection;
+          for (auto &rect : selection) {
+            rect.x = scalar(rect.x + n.layout.left);
+            rect.y = scalar(rect.y + n.layout.top);
+          }
+          t.box->textGeometry = std::make_shared<TextGeometry>(source->lease.ledger,
+              m.geometry->revision, caret, std::move(selection));
         }
       } else {
         require(m.width > 0 && m.height > 0, wire::statuses::invalidValue);
-        double width = n.properties.width > 0 ? n.properties.width : m.width;
-        double height = n.properties.height > 0 ? n.properties.height : m.height;
-        if (n.properties.width > 0 && !n.properties.height)
-          height = width * m.height / m.width;
-        if (n.properties.height > 0 && !n.properties.width)
-          width = height * m.width / m.height;
-        t.box->width = constrain(width, t.constraints.minWidth, t.constraints.maxWidth);
-        t.box->height = constrain(height, t.constraints.minHeight, t.constraints.maxHeight);
+        const double minWidth = inset(t.constraints.minWidth, padWidth),
+                     maxWidth = inset(t.constraints.maxWidth, padWidth),
+                     minHeight = inset(t.constraints.minHeight, padHeight),
+                     maxHeight = inset(t.constraints.maxHeight, padHeight),
+                     aspect = m.width / m.height;
+        double width = m.width, height = m.height;
+        // Preserve the intrinsic aspect ratio until tight or conflicting
+        // constraints require a different box, as in RenderImage's size contract.
+        if (width > maxWidth) { width = maxWidth; height = width / aspect; }
+        if (height > maxHeight) { height = maxHeight; width = height * aspect; }
+        if (width < minWidth) { width = minWidth; height = width / aspect; }
+        if (height < minHeight) { height = minHeight; width = height * aspect; }
+        t.box->width = constrain(width + padWidth, t.constraints.minWidth, t.constraints.maxWidth);
+        t.box->height = constrain(height + padHeight, t.constraints.minHeight, t.constraints.maxHeight);
       }
+      done(t.box);
+      return;
+    }
+    if (t.phase == 4) {
+      while (t.index < children.size()) {
+        const auto index = t.index++;
+        const bool h = n.kind == wire::kinds::grid || horizontal(n);
+        const auto &old = *t.box->children[index].box;
+        if (cross(old, h) == t.stretch[index])
+          continue;
+        LayoutConstraints c{old.width, old.width, old.height, old.height};
+        if (h) c.minHeight = c.maxHeight = t.stretch[index];
+        else c.minWidth = c.maxWidth = t.stretch[index];
+        push(children[index], c, index);
+        return;
+      }
+      finish(t, n);
       done(t.box);
       return;
     }
@@ -480,6 +593,16 @@ struct LayoutWork::State {
           t.flexSpace = std::max(0.0, space - scalar(used));
         }
         t.phase = 3;
+        t.index = 0;
+        return;
+      }
+      if (n.layout.enabled && n.layout.crossAlign == wire::layoutCrossAlign::stretch &&
+          (n.kind == wire::kinds::wrap || n.kind == wire::kinds::grid)) {
+        t.stretch.resize(children.size());
+        for (const auto &run : runs(t, n))
+          for (size_t i = run.begin; i < run.end; ++i)
+            t.stretch[i] = run.breadth;
+        t.phase = 4;
         t.index = 0;
         return;
       }

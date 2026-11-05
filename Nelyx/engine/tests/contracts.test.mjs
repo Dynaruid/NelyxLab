@@ -24,6 +24,8 @@ import { FrictionSimulation } from '../../src/framework/physics/friction-simulat
 import { layoutContracts } from './layout-contracts.mjs';
 import { coverageContracts } from './coverage-contracts.mjs';
 import { interactionContracts } from './interaction-contracts.mjs';
+import { listContracts } from './list-contracts.mjs';
+import { gestureContracts } from './gesture-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
@@ -202,6 +204,8 @@ function accounting(state) {
   assert.ok(state.holds <= p.limits.frames);
 }
 layoutContracts({ using, timeout, h });
+listContracts({ using, timeout, h });
+gestureContracts({ using, timeout, h });
 coverageContracts({ using, timeout, h });
 interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {
@@ -217,6 +221,7 @@ for (const profile of ['native', 'single-worker', 'threaded']) {
         ]);
         const before = await f.inspect(),
           bad = c.text(h(1), 'x');
+        assert.deepEqual(before.nodes[0].content, { x: 0, y: 0, width: 250, height: 60 });
         bad[40] = 0xc0;
         assert.equal(
           (await f.commit([c.paint(h(1), 0xffff0000), bad])).status,

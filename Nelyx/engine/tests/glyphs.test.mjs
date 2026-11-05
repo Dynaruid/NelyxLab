@@ -59,6 +59,7 @@ test(
           { size: 21, text: 'e\u0301 A😀\n한국어', direction: 0 },
         ]);
       for (const { size, text, direction } of cases) {
+        const contentBox = { x: 12, y: 6, width: 444, height: 98 };
         const scene = {
           preparation: 1n,
           preparationDocument: 1n,
@@ -72,6 +73,7 @@ test(
               kind: p.kinds.paragraph,
               width: 470,
               height: 110,
+              content: contentBox,
               fontSize: size,
               color: 0xff172033,
               textDirection: direction,
@@ -107,6 +109,14 @@ test(
         };
         const a = pixels(contentKit, surfaceA),
           b = pixels(renderKit, surfaceB);
+        for (let y = 0; y < contentBox.y; ++y)
+          for (let x = 0; x < 480; ++x)
+            for (let channel = 0; channel < 3; ++channel)
+              assert.equal(
+                a[(y * 480 + x) * 4 + channel],
+                255,
+                'Text paint honors the top padding',
+              );
         let differing = 0;
         for (let i = 0; i < a.length; i += 4)
           if (

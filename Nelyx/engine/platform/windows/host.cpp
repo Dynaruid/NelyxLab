@@ -48,6 +48,7 @@ class Host {
   std::shared_ptr<const nw::Prepared> publishedPrepared;
   std::string directory;
   std::atomic<uint64_t> rendered{0},paragraphs{0},pictures{0},images{0};
+  std::atomic<double> lazyOffset{0};
   std::atomic<double> scrollOffset{0};
   std::atomic<double> publishedWidth{0},publishedHeight{0};
   std::atomic<uint32_t> contentDelay{0},appDelay{0};
@@ -120,6 +121,7 @@ class Host {
       std::shared_ptr<const nw::Prepared> active,next;
       double lastWidth=-1,lastHeight=-1,lastScale=-1;
       bool clock=false;
+      double deadline=0;
       uint64_t lastReportedInput=0,lastReportedDocument=0;
       while(!stopping){
         renderWakeRequested=false;
@@ -142,7 +144,7 @@ class Host {
           auto result=call(wire::opcodes::takeFrame);auto r=reader(result);
           if(r.u16(14)==0){
             const auto id=r.u64(wire::headerBytes+wire::stateFields::submission);auto frame=core.frameSnapshot(1,1,id);
-            for(const auto& item:frame->items)if(frame->scene->document->get(item.node).kind==wire::kinds::scrollViewport)scrollOffset=frame->properties[item.node.slot].offset;
+            bool firstScroll=true;for(const auto& item:frame->items)if(frame->scene->document->get(item.node).kind==wire::kinds::scrollViewport){if(firstScroll){scrollOffset=frame->properties[item.node.slot].offset;firstScroll=false;}else lazyOffset=frame->properties[item.node.slot].offset;}
             if(next&&next->id==frame->scene->preparation){active=std::move(next);next.reset();}
             if(!active||active->id!=frame->scene->preparation)throw std::runtime_error("Native active preparation resource is missing");
             bool drawn=false;
@@ -161,11 +163,14 @@ class Host {
           }
           call(wire::opcodes::pollEvents);
           clock=(sr.u32(wire::headerBytes+wire::stateFields::flags)&128u)!=0;
+          deadline=sr.f64(wire::headerBytes+wire::stateFields::nextDeadline);
           if(sr.u64(wire::headerBytes+wire::stateFields::pendingDocument)){contentWake=true;changed.notify_all();}
         }
         std::unique_lock lock(wakeMutex);
         const auto wake=[this]{return stopping||renderWakeRequested||metricsPending;};
-        if(clock)changed.wait_for(lock,std::chrono::milliseconds(16),wake);else changed.wait(lock,wake);
+        if(clock)changed.wait_for(lock,std::chrono::milliseconds(16),wake);
+        else if(deadline>0)changed.wait_for(lock,std::chrono::duration<double>(std::max(0.001,deadline-now())),wake);
+        else changed.wait(lock,wake);
       }
       active.reset();next.reset();provider.close();
     }catch(const std::exception& error){notifyError(error.what());}
@@ -231,7 +236,8 @@ class Host {
     if(!appReady||stopping)return;
     if(phase==wire::phases::begin&&interaction&&interaction->point(phase,x,y)){interactionPointer=true;return;}
     if(interactionPointer){interaction->point(phase,x,y);if(phase==wire::phases::end||phase==wire::phases::cancel)interactionPointer=false;return;}
-    if(phase!=wire::phases::begin&&!dragging)return;
+    const bool hover=phase==wire::phases::update&&!dragging;
+    if(phase!=wire::phases::begin&&!dragging&&!hover)return;
     auto state=call(wire::opcodes::inspect);auto r=reader(state);if(r.u16(14))return;
     const auto at=now(),dt=std::max(0.001,at-pointerAt);
     const auto dx=phase==wire::phases::update?pointerX-x:0,dy=phase==wire::phases::update?pointerY-y:0;
@@ -241,6 +247,7 @@ class Host {
     if(phase==wire::phases::end||phase==wire::phases::cancel)dragging=false;
     pointerX=x;pointerY=y;pointerAt=at;
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,x);input.f64(64,y);input.f64(72,dx);input.f64(80,dy);input.f64(88,pointerVelocity);input.u32(96,1);input.u32(100,dragging?1:0);input.u32(112,1);
+    input.u32(36,hover?6u:2u);
     call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
   }
   void cancelPointer(){if(dragging)pointer(wire::phases::cancel,pointerX,pointerY);}
@@ -262,15 +269,16 @@ class Host {
       else if(command=="delay-app")appDelay=uint32_t(std::clamp(value,0,2000));
       else if(command=="delay-content"){contentDelay=uint32_t(std::clamp(value,0,2000));changed.notify_all();}
       else if(command=="wheel")wheel(value,260,300);
+      else if(command=="lazy-wheel")wheel(value,650,420);
       else if(command=="stats")stats();
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
-    std::cout<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"fallbacks\":0,\"surfaceCommit\":null}"<<std::endl;
+    std::cout<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbacks\":0,\"surfaceCommit\":null}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
   void uiFailure(const std::string& error){notifyError(error);}
-  void close(){if(closed.exchange(true))return;stopping=true;changed.notify_all();appChanged.notify_all();if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();if(interaction){interaction->close();interaction.reset();}std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();auto result=call(wire::opcodes::closeSession,{},true);auto r=reader(result);std::cout<<"V2_CLOSED {\"status\":"<<r.u16(14)<<",\"reservedBytes\":"<<r.u64(wire::headerBytes+wire::stateFields::reservedBytes)<<",\"workersJoined\":true}"<<std::endl;}
+  void close(){if(closed.exchange(true))return;stopping=true;changed.notify_all();appChanged.notify_all();if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();if(interaction){interaction->close();interaction.reset();}std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();callbacks.clear();auto result=call(wire::opcodes::closeSession,{},true);auto r=reader(result);std::cout<<"V2_CLOSED {\"status\":"<<r.u16(14)<<",\"reservedBytes\":"<<r.u64(wire::headerBytes+wire::stateFields::reservedBytes)<<",\"workersJoined\":true}"<<std::endl;}
   ~Host(){close();}
 };
 static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
@@ -283,7 +291,8 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_KEYDOWN:if(host->keydown(w))return 0;if(w=='U'&&(GetKeyState(VK_CONTROL)&0x8000)){host->update();return 0;}break;
     case WM_CHAR:if(host->character(wchar_t(w)))return 0;break;
     case WM_LBUTTONDOWN:{SetFocus(window);SetCapture(window);const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::begin,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);return 0;}
-    case WM_MOUSEMOVE:if(w&MK_LBUTTON){const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::update,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);}return 0;
+    case WM_MOUSEMOVE:{TRACKMOUSEEVENT track{sizeof(TRACKMOUSEEVENT),TME_LEAVE,window,0};TrackMouseEvent(&track);const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::update,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);}return 0;
+    case WM_MOUSELEAVE:host->pointer(wire::phases::update,-1,-1);return 0;
     case WM_LBUTTONUP:{const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::end,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);if(GetCapture()==window)ReleaseCapture();return 0;}
     case WM_CAPTURECHANGED:case WM_CANCELMODE:host->cancelPointer();return 0;
     case WM_MOUSEWHEEL:{POINT p{GET_X_LPARAM(l),GET_Y_LPARAM(l)};ScreenToClient(window,&p);double scale=GetDpiForWindow(window)/96.0;host->wheel(-GET_WHEEL_DELTA_WPARAM(w)/120.0*48,p.x/scale,p.y/scale);return 0;}

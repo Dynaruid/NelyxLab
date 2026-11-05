@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "../memory.hpp"
+#include "../layout/list.hpp"
+#include "../interaction/controls.hpp"
 #include <array>
 #include <memory>
 #include <atomic>
@@ -48,8 +50,14 @@ struct Node {
   Motion motion;
   LayoutStyle layout;
   Coverage coverage;
+  ListStyle list;
+  ListItem item;
+  uint32_t gestures=0;
+  ControlStyle control;
+  std::shared_ptr<const ListGeometry> listGeometry;
   uint64_t layoutRevision = 0;
   double baseline = -1;
+  double contentX = 0, contentY = 0, contentWidth = 0, contentHeight = 0;
   uint64_t editSerial=0;
   uint32_t editFlags=0,maximumLength=wire::limits::textBytes;
   std::shared_ptr<const EditingValue> editing;
@@ -66,7 +74,9 @@ struct Node {
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent),
       kind(n.kind), order(n.order), policy(n.policy), properties(n.properties),
       horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
-      layoutRevision(n.layoutRevision), baseline(n.baseline), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
+      list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
+      layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
+      contentWidth(n.contentWidth), contentHeight(n.contentHeight), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
       editing(n.editing),textGeometry(n.textGeometry),semantics(n.semantics),color(n.color), textDirection(n.textDirection), radius(n.radius),
       fontSize(n.fontSize), text(n.text), resource(n.resource) {
     ++lease.ledger->nodes;
@@ -98,6 +108,11 @@ struct Document {
   bool contains(Handle h) const {
     return h.slot > 0 && h.slot < nodes.size() && nodes[h.slot].value &&
       nodes[h.slot].value->id == h;
+  }
+  bool descends(Handle child,Handle ancestor) const {
+    for(uint32_t depth=0;child&&depth<=wire::limits::depth;++depth){if(child==ancestor)return true;
+      if(!contains(child))return false;child=get(child).parent;}
+    return false;
   }
 };
 using Resources = std::array<Slot<Resource>, wire::limits::resources + 1>;

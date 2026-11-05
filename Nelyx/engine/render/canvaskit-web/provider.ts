@@ -17,6 +17,7 @@ import type {
 import { key, script, verified } from '../../platform/web/common.ts';
 import { lineIndexUnit, lineNumberAtUTF16, editingGeometry } from './paragraph.ts';
 import type { LineIndexUnit } from './paragraph.ts';
+import { paintControl } from './controls.ts';
 export interface ProviderFont {
   id: string;
   family: string;
@@ -323,6 +324,7 @@ export class CanvasKitProvider {
     let bytes = 0;
     try {
       for (const node of scene.nodes) {
+        const content = node.content ?? { x: 0, y: 0, width: node.width, height: node.height };
         const recorder = new this.ck.PictureRecorder();
         const paint = new this.ck.Paint();
         paint.setAntiAlias(true);
@@ -335,13 +337,13 @@ export class CanvasKitProvider {
             let paragraph;
             try {
               const text = texts.get(key(node.node)) ?? '';
-              paragraph = this.paragraph(node, text, node.width);
+              paragraph = this.paragraph(node, text, content.width);
               if (paragraph.unresolvedCodepoints().length)
                 throw new Error('Declared provider fonts do not cover the paragraph');
               // Exercise public UTF-16 line indexing and retained paragraph painting.
               if (text.length)
                 lineNumberAtUTF16(paragraph, text, 0, this.textCapabilities.lineIndexUnit);
-              canvas.drawParagraph(paragraph, 0, 0);
+              canvas.drawParagraph(paragraph, content.x, content.y);
               ++this.counters.paragraphs;
               if (!sharedOwner) {
                 const record = {
@@ -361,6 +363,10 @@ export class CanvasKitProvider {
                         );
                       const glyphs = new Uint16Array(run.glyphs),
                         positions = new Float32Array(run.positions);
+                      for (let i = 0; i < positions.length; i += 2) {
+                        positions[i]! += content.x;
+                        positions[i + 1]! += content.y;
+                      }
                       bytes += glyphs.byteLength + positions.byteLength;
                       if (glyphs.length > p.limits.textBytes || bytes > p.limits.resourceBytes)
                         throw new Error('Prepared glyph transfer budget exceeded');
@@ -391,7 +397,7 @@ export class CanvasKitProvider {
               canvas.drawImageRect(
                 image,
                 this.ck.XYWHRect(0, 0, image.width(), image.height()),
-                this.ck.XYWHRect(0, 0, node.width, node.height),
+                this.ck.XYWHRect(content.x, content.y, content.width, content.height),
                 paint,
               );
               ++this.counters.images;
@@ -628,7 +634,9 @@ export class CanvasKitProvider {
       canvas.restore();
       paint.delete();
     } else canvas.drawPicture(picture);
-    if (geometry && item.editing?.base === item.editing?.extent)
+    if (item.control)
+      paintControl(this.ck, canvas, item.control, item.width, item.height, item.opacity);
+    if (geometry && item.caretVisible && item.editing?.base === item.editing?.extent)
       paintTextRect(geometry.caret, 0xff172033);
     canvas.restore();
   }

@@ -2,14 +2,14 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 3853830922u;
+inline constexpr uint32_t schema = 4048176343u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
-inline constexpr uint32_t stateBytes = 544u;
-inline constexpr uint32_t nodeBytes = 216u;
-inline constexpr uint32_t eventBytes = 40u;
+inline constexpr uint32_t stateBytes = 560u;
+inline constexpr uint32_t nodeBytes = 248u;
+inline constexpr uint32_t eventBytes = 56u;
 inline constexpr uint32_t inputBytes = 120u;
 namespace limits {
 inline constexpr uint32_t views = 8u;
@@ -44,6 +44,9 @@ inline constexpr uint32_t editHistory = 32u;
 inline constexpr uint32_t editHistoryBytes = 1048576u;
 inline constexpr uint32_t interactionEvents = 64u;
 inline constexpr uint32_t selectionRects = 256u;
+inline constexpr uint32_t caretBlinkMs = 500u;
+inline constexpr uint32_t listMetrics = 1024u;
+inline constexpr uint32_t listChildren = 128u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -83,6 +86,8 @@ inline constexpr uint32_t semanticsAction = 34u;
 inline constexpr uint32_t pollInteractionEvents = 35u;
 inline constexpr uint32_t focusAt = 36u;
 inline constexpr uint32_t activateAt = 37u;
+inline constexpr uint32_t key = 38u;
+inline constexpr uint32_t controlValue = 39u;
 }
 namespace commands {
 inline constexpr uint32_t create = 1u;
@@ -103,6 +108,10 @@ inline constexpr uint32_t layout = 15u;
 inline constexpr uint32_t coverage = 16u;
 inline constexpr uint32_t editor = 17u;
 inline constexpr uint32_t semantics = 18u;
+inline constexpr uint32_t list = 19u;
+inline constexpr uint32_t listItem = 20u;
+inline constexpr uint32_t gesture = 21u;
+inline constexpr uint32_t control = 22u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -162,6 +171,43 @@ inline constexpr uint32_t needChildren = 11u;
 inline constexpr uint32_t focusChanged = 12u;
 inline constexpr uint32_t editingChanged = 13u;
 inline constexpr uint32_t semanticAction = 14u;
+inline constexpr uint32_t gesture = 15u;
+inline constexpr uint32_t controlChanged = 16u;
+}
+namespace gestures {
+inline constexpr uint32_t tap = 1u;
+inline constexpr uint32_t panX = 2u;
+inline constexpr uint32_t panY = 4u;
+inline constexpr uint32_t pinch = 8u;
+inline constexpr uint32_t longPress = 16u;
+inline constexpr uint32_t doubleTap = 32u;
+inline constexpr uint32_t hover = 64u;
+inline constexpr uint32_t scrollbar = 128u;
+}
+namespace gestureKinds {
+inline constexpr uint32_t tap = 1u;
+inline constexpr uint32_t doubleTap = 2u;
+inline constexpr uint32_t longPress = 3u;
+inline constexpr uint32_t panStart = 4u;
+inline constexpr uint32_t panUpdate = 5u;
+inline constexpr uint32_t panEnd = 6u;
+inline constexpr uint32_t pinchStart = 7u;
+inline constexpr uint32_t pinchUpdate = 8u;
+inline constexpr uint32_t pinchEnd = 9u;
+inline constexpr uint32_t hover = 10u;
+inline constexpr uint32_t cancel = 11u;
+}
+namespace controlKinds {
+inline constexpr uint32_t none = 0u;
+inline constexpr uint32_t button = 1u;
+inline constexpr uint32_t toggle = 2u;
+inline constexpr uint32_t radio = 3u;
+inline constexpr uint32_t slider = 4u;
+inline constexpr uint32_t rangeSlider = 5u;
+inline constexpr uint32_t progress = 6u;
+inline constexpr uint32_t checkbox = 7u;
+inline constexpr uint32_t circularProgress = 8u;
+inline constexpr uint32_t activity = 9u;
 }
 namespace phases {
 inline constexpr uint32_t begin = 1u;
@@ -194,6 +240,9 @@ inline constexpr uint32_t surface = 32u;
 inline constexpr uint32_t layoutQueries = 64u;
 inline constexpr uint32_t editing = 128u;
 inline constexpr uint32_t semantics = 256u;
+inline constexpr uint32_t lazyList = 512u;
+inline constexpr uint32_t gestures = 1024u;
+inline constexpr uint32_t controls = 2048u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -288,6 +337,8 @@ inline constexpr uint32_t interactionCount = 512u;
 inline constexpr uint32_t editingWork = 520u;
 inline constexpr uint32_t semanticsWork = 528u;
 inline constexpr uint32_t queryWork = 536u;
+inline constexpr uint32_t gestureWork = 544u;
+inline constexpr uint32_t controlWork = 552u;
 }
 namespace nodeFields {
 inline constexpr uint32_t node = 0u;
@@ -319,6 +370,10 @@ inline constexpr uint32_t requestedOffset = 184u;
 inline constexpr uint32_t preparedMinimum = 192u;
 inline constexpr uint32_t preparedMaximum = 200u;
 inline constexpr uint32_t coverageRevision = 208u;
+inline constexpr uint32_t contentX = 216u;
+inline constexpr uint32_t contentY = 224u;
+inline constexpr uint32_t contentWidth = 232u;
+inline constexpr uint32_t contentHeight = 240u;
 }
 namespace inputFields {
 inline constexpr uint32_t sequence = 0u;

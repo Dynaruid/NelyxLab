@@ -4,9 +4,11 @@
 #include <set>
 namespace nelyx::v2 {
 void View::interaction(Event e) {
-  if (e.kind == wire::events::editingChanged) {
+  if (e.kind == wire::events::editingChanged || e.kind == wire::events::needChildren ||
+      e.kind == wire::events::controlChanged || (e.kind==wire::events::gesture&&
+        (e.status==wire::gestureKinds::panUpdate||e.status==wire::gestureKinds::pinchUpdate||e.status==wire::gestureKinds::hover))) {
     for (auto &old : interactionEvents)
-      if (old.kind == e.kind && old.node == e.node) {
+      if (old.kind == e.kind && old.node == e.node && (e.kind!=wire::events::gesture||old.status==e.status)) {
         old = e;
         return;
       }
@@ -101,6 +103,7 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
   require(expected == 0 || expected == focusSession, wire::statuses::stale);
   if (node) {
     require(visible && focused && published && snapshot == publication &&
+                published->allows(node) &&
                 published->scene->metrics.epoch == metrics.epoch &&
                 published->scene->document->contains(node) && document->contains(node),
             wire::statuses::stale);
@@ -108,7 +111,7 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
     const auto &current = document->get(node);
     const auto disabled = n.editFlags & wire::editFlags::disabled;
     require(
-        !disabled && !(current.editFlags & wire::editFlags::disabled) &&
+        !disabled && !n.control.disabled && !current.control.disabled && !(current.editFlags & wire::editFlags::disabled) &&
             (!current.semantics || !(current.semantics->flags & (wire::semanticsFlags::disabled |
                                                                  wire::semanticsFlags::hidden))) &&
             (!n.semantics || !(n.semantics->flags &
@@ -138,6 +141,7 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
     }
   }
   focusNode = node;
+  caretDeadline = 0; caretNode = {};
   focusSession = node ? next(nextFocus) : 0;
   if (node)
     nextFocus = focusSession;
@@ -194,6 +198,7 @@ void View::semanticAction(Reader bytes) {
   const auto snapshot = bytes.u64(8);
   const uint32_t action = bytes.u32(16);
   require(published && snapshot == publication &&
+              published->allows(node) &&
               published->scene->metrics.epoch == metrics.epoch &&
               published->scene->document->contains(node) && document->contains(node),
           wire::statuses::stale);
@@ -215,6 +220,7 @@ void View::semanticAction(Reader bytes) {
   require(action != wire::semanticsActions::setValue &&
               action != wire::semanticsActions::setSelection,
           wire::statuses::capabilityMissing);
+  if(action==wire::semanticsActions::activate)activateControl(node);
   interaction(
       {wire::events::semanticAction, wire::statuses::ok, snapshot, document->epoch, action, node});
 }
@@ -224,6 +230,7 @@ Handle View::interactionTarget(double x, double y) const {
   const auto &d = *published->scene->document;
   for (auto it = published->items.rbegin(); it != published->items.rend(); ++it) {
     const auto &n = d.get(it->node);
+    if(!published->allows(n.id))continue;
     if (!document->contains(n.id))
       continue;
     const auto &c = it->clip;

@@ -5,6 +5,7 @@ import {
   commands as c,
   protocol as p,
   measurementBody,
+  layoutQueryBody,
 } from '../../runtime/engine-client/index.ts';
 
 export function layoutContracts({ using, timeout, h }) {
@@ -37,6 +38,177 @@ export function layoutContracts({ using, timeout, h }) {
     return state;
   };
   for (const profile of ['native', 'single-worker', 'threaded']) {
+    test(
+      `${profile}: Box and Stack align within their padded native constraints`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            ...node(
+              1,
+              'stack',
+              0,
+              { width: 200, height: 100 },
+              {
+                mainAlign: 'center',
+                crossAlign: 'end',
+                padding: { left: 10, right: 20, top: 5, bottom: 15 },
+              },
+            ),
+            ...node(2, 'box', 1, { width: 30, height: 20 }),
+          ]);
+          let layout = await snapshot(f);
+          assert.equal(layout.nodes[1].x, 80);
+          assert.equal(layout.nodes[1].y, 65);
+          await f.commit([
+            c.layout(h(1), {
+              direction: 'vertical',
+              mainAlign: 'end',
+              crossAlign: 'stretch',
+              padding: { left: 10, right: 20, top: 5, bottom: 15 },
+            }),
+          ]);
+          await f.ready();
+          layout = await snapshot(f);
+          assert.equal(layout.nodes[1].x, 10);
+          assert.equal(layout.nodes[1].y, 65);
+          assert.equal(layout.nodes[1].width, 170);
+        }),
+    );
+    test(
+      `${profile}: Wrap and Grid stretch each run and Grid distributes finite row space`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            ...node(1, 'wrap', 0, { width: 120 }, { gap: 10, runGap: 5, crossAlign: 'stretch' }),
+            ...node(2, 'box', 1, { width: 55, height: 20 }),
+            ...node(3, 'box', 1, { width: 55, height: 30 }),
+            ...node(4, 'box', 1, { width: 55, height: 40 }),
+          ]);
+          let layout = await snapshot(f);
+          assert.equal(layout.nodes[0].height, 75);
+          assert.equal(layout.nodes[1].height, 30);
+          assert.equal(layout.nodes[2].x, 65);
+          assert.equal(layout.nodes[3].y, 35);
+          await f.commit([
+            ...node(
+              5,
+              'grid',
+              0,
+              { width: 120, height: 150 },
+              {
+                columns: 2,
+                gap: 10,
+                runGap: 5,
+                crossAlign: 'stretch',
+                mainAlign: 'spaceBetween',
+                mainSize: 'max',
+              },
+            ),
+            c.move(h(2), h(5), 0),
+            c.move(h(3), h(5), 1),
+            c.move(h(4), h(5), 2),
+          ]);
+          await f.ready();
+          layout = await snapshot(f);
+          assert.equal(layout.nodes.find((n) => n.node.slot === 2).height, 30);
+          assert.equal(layout.nodes.find((n) => n.node.slot === 4).y, 110);
+          const previous = layout.layoutDocument;
+          await f.commit([
+            c.constraints(h(2), { kind: 'unbounded' }, { kind: 'finite', min: 0, max: 20 }),
+          ]);
+          const failed = await prepare(f);
+          assert.equal(failed.failedDocument, failed.document);
+          assert.equal((await snapshot(f)).layoutDocument, previous);
+        }),
+    );
+    test(
+      `${profile}: Wrap and Grid baseline share measured, padded paragraph geometry`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start();
+          await f.commit([
+            ...node(2, 'wrap', 0, { width: 200 }, { gap: 10, crossAlign: 'baseline' }),
+            ...node(
+              3,
+              'paragraph',
+              2,
+              { width: 80 },
+              { padding: { top: 4, bottom: 6, left: 3, right: 7 } },
+            ),
+            c.text(h(3), '한'),
+            ...node(4, 'paragraph', 2, { width: 80 }),
+            c.text(h(4), 'A'),
+          ]);
+          const metrics = (r) => ({
+            width: r.nodes[0].width,
+            height: 20,
+            minimum: 8,
+            maximum: 40,
+            baseline: r.nodes[0].node.slot === 3 ? 15 : 10,
+          });
+          assert.equal((await prepare(f, metrics)).preparationReady, true);
+          await f.tick();
+          let rows = (await snapshot(f)).nodes;
+          const a = rows.find((n) => n.node.slot === 3),
+            b = rows.find((n) => n.node.slot === 4);
+          assert.equal(a.height, 30);
+          assert.equal(a.baseline, 19);
+          assert.deepEqual(a.content, { x: 3, y: 4, width: 70, height: 20 });
+          assert.equal(a.y + a.baseline, b.y + b.baseline);
+          await f.commit([
+            ...node(5, 'grid', 0, { width: 200 }, { columns: 2, gap: 10, crossAlign: 'baseline' }),
+            c.move(h(3), h(5), 0),
+            c.move(h(4), h(5), 1),
+          ]);
+          assert.equal((await prepare(f, metrics)).preparationReady, true);
+          await f.tick();
+          rows = (await snapshot(f)).nodes;
+          const ga = rows.find((n) => n.node.slot === 3),
+            gb = rows.find((n) => n.node.slot === 4);
+          assert.equal(ga.y + ga.baseline, gb.y + gb.baseline);
+          assert.equal(gb.y, 9);
+          await f.commit([
+            ...node(6, 'stack', 0, { width: 200 }, { crossAlign: 'baseline' }),
+            c.properties(h(4), { width: 80, height: 40 }),
+            c.move(h(3), h(6), 0),
+            c.move(h(4), h(6), 1),
+          ]);
+          assert.equal((await prepare(f, metrics)).preparationReady, true);
+          await f.tick();
+          rows = (await snapshot(f)).nodes;
+          assert.equal(
+            rows.find((n) => n.node.slot === 6).height,
+            49,
+            'The natural box includes both maximum ascent and descent',
+          );
+          await f.send(
+            p.opcodes.layoutQuery,
+            layoutQueryBody(
+              h(6),
+              'maxHeight',
+              { kind: 'finite', min: 0, max: 200 },
+              { kind: 'unbounded' },
+            ),
+            { id: 1n },
+          );
+          let intrinsic;
+          for (let i = 0; i < 30; ++i) {
+            const state = await f.step();
+            if (state.measureRequest) {
+              const pending = await f.send(p.opcodes.measureRequest);
+              await f.send(p.opcodes.measureResult, measurementBody(pending, metrics(pending)));
+            }
+            intrinsic = await f.send(p.opcodes.layoutQueryResult, undefined, { id: 1n });
+            if (intrinsic.status !== p.statuses.pending) break;
+          }
+          assert.equal(intrinsic.status, p.statuses.ok);
+          assert.equal(intrinsic.layoutQuery.value, 49);
+          assert.equal(intrinsic.layoutQuery.baseline, 19);
+        }),
+    );
     test(
       `${profile}: C++ Flex owns child constraints, placement, shrink and expand failures`,
       { timeout },

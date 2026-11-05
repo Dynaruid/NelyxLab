@@ -22,9 +22,9 @@ std::shared_ptr<ParagraphQuerySource> sourceFor(uint64_t ticket){
   {std::lock_guard lock(values.mutex);const auto found=values.tickets.find(ticket);if(found!=values.tickets.end())result=found->second.lock();}return result;
 }
 ParagraphQueryBox box(skia::textlayout::TextBox const& value){return {value.rect.left(),value.rect.top(),value.rect.right(),value.rect.bottom(),value.direction==skia::textlayout::TextDirection::kRtl};}
-void identityValid(ParagraphQueryIdentity const& value){
+void identityValid(ParagraphQueryIdentity const& value,uint32_t maximumUnits){
   constexpr uint64_t safe=9007199254740991ULL;
-  if(value.owner.empty()||value.owner.size()>512||value.resource.empty()||value.resource.size()>1024||value.ownerGeneration>safe||value.resourceGeneration>safe||value.units>4096||value.text.size()>16384||value.text.find('\0')!=std::string::npos)throw std::invalid_argument("Invalid Core paragraph query identity");
+  if(value.owner.empty()||value.owner.size()>512||value.resource.empty()||value.resource.size()>1024||value.ownerGeneration>safe||value.resourceGeneration>safe||value.units>maximumUnits||value.text.size()>size_t(maximumUnits)*4||value.text.find('\0')!=std::string::npos)throw std::invalid_argument("Invalid Core paragraph query identity");
   const auto decoded=SkUnicode::convertUtf8ToUtf16(value.text.data(),static_cast<int>(value.text.size()));
   if(decoded.size()!=value.units||(!value.text.empty()&&decoded.empty()))throw std::invalid_argument("Core paragraph query text must match UTF16 units");
 }
@@ -36,24 +36,30 @@ struct ParagraphQuerySource::Impl {
   std::optional<std::string> originalText;
   ParagraphQueryIdentity identity;
   uint64_t ticket=0;bool retired=false,mutated=false,layoutReady=false;
+  uint32_t maximumUnits=4096;
   bool matches(uint64_t expected,void const* owner,ParagraphQueryIdentity const& value)const{
     const auto live=context.lock();return !retired&&!mutated&&layoutReady&&ticket==expected&&paragraph&&owner&&live&&live.get()==owner&&identity==value;
   }
 };
 ParagraphQuerySource::ParagraphQuerySource(std::unique_ptr<Impl> impl):impl_(std::move(impl)){}
 std::shared_ptr<ParagraphQuerySource> ParagraphQuerySource::create(std::shared_ptr<skia::textlayout::Paragraph> paragraph,std::shared_ptr<void> context,std::optional<std::string> originalText){
+  return create(std::move(paragraph),std::move(context),std::move(originalText),4096);
+}
+std::shared_ptr<ParagraphQuerySource> ParagraphQuerySource::create(std::shared_ptr<skia::textlayout::Paragraph> paragraph,std::shared_ptr<void> context,std::optional<std::string> originalText,uint32_t maximumUnits){
+  if(maximumUnits!=4096&&maximumUnits!=65536)throw std::invalid_argument("Unsupported paragraph query budget");
   if(!paragraph||!context)throw std::invalid_argument("A paragraph observation requires actual native owners");
   auto impl=std::make_unique<Impl>();impl->paragraph=std::move(paragraph);impl->context=context;
   // General public Skia paragraphs keep their existing larger text support.
   // Only a Core-budget body may later receive an accessibility query ticket.
-  if(originalText&&originalText->size()<=16384)impl->originalText=std::move(originalText);
+  impl->maximumUnits=maximumUnits;
+  if(originalText&&originalText->size()<=size_t(maximumUnits)*4)impl->originalText=std::move(originalText);
   auto result=std::shared_ptr<ParagraphQuerySource>(new ParagraphQuerySource(std::move(impl)));auto& values=registry();
   {std::lock_guard lock(values.mutex);const auto previous=values.sources.find(result->impl_->paragraph.get());if(previous!=values.sources.end()&&!previous->second.expired())throw std::invalid_argument("Paragraph already has a native query owner");values.sources[result->impl_->paragraph.get()]=result;}
   return result;
 }
 ParagraphQuerySource::~ParagraphQuerySource(){retire();}
 uint64_t ParagraphQuerySource::bind(ParagraphQueryIdentity identity){
-  identityValid(identity);std::lock_guard access(impl_->mutex);
+  identityValid(identity,impl_->maximumUnits);std::lock_guard access(impl_->mutex);
   if(impl_->retired||impl_->mutated||!impl_->layoutReady||impl_->context.expired()||!impl_->originalText||*impl_->originalText!=identity.text)throw std::invalid_argument("Core paragraph source is unlaid, retired, relaid out, or has a different body");
   if(impl_->ticket){if(impl_->identity!=identity)throw std::invalid_argument("Core paragraph ticket owner cannot change");return impl_->ticket;}
   auto self=sourceFor(impl_->paragraph.get());if(self.get()!=this)throw std::runtime_error("Core paragraph query owner is missing");

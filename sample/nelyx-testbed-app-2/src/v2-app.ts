@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { EngineClient, protocol as p, createPacketTransport, WidgetHost } from '@nelyx/core/v2';
+import {
+  EngineClient,
+  EngineError,
+  protocol as p,
+  createPacketTransport,
+  WidgetHost,
+} from '@nelyx/core/v2';
 import type { PacketEndpoint } from '@nelyx/core/v2';
 import { engineV2Scene } from './v2-scene.ts';
 
@@ -42,7 +48,10 @@ async function start(
       p.capabilities.surface |
       p.capabilities.layoutQueries |
       p.capabilities.editing |
-      p.capabilities.semantics,
+      p.capabilities.semantics |
+      p.capabilities.lazyList |
+      p.capabilities.gestures |
+      p.capabilities.controls,
     timeoutMs: 10000,
   });
   const view = await client.openView(1);
@@ -51,7 +60,22 @@ async function start(
       onError: (error) => notify({ kind: 'app-error', message: String(error) }),
     });
   await widgets.mount(scene.root);
-  const active = await view.awaitActivated(view.documentEpoch, 2000);
+  // Cold Web font/provider startup can span multiple bounded activation waits.
+  let active;
+  const startupDeadline = Date.now() + 10000;
+  for (;;) {
+    try {
+      active = await view.awaitActivated(view.documentEpoch, 2000);
+      break;
+    } catch (error) {
+      if (
+        !(error instanceof EngineError) ||
+        error.status !== p.statuses.timedOut ||
+        Date.now() >= startupDeadline
+      )
+        throw error;
+    }
+  }
   const intrinsic = await view.intrinsic(scene.header.currentNode!, 'maxWidth');
   const listIntrinsic = await view.intrinsic(scene.content.currentNode!, 'maxHeight', 538);
   const dry = await view.dryLayout(
@@ -67,6 +91,7 @@ async function start(
     engineWork: String(active.transactionWork),
     fallbacks: 0,
     widgets: { ...widgets.counters },
+    lazy: { ...scene.lazy.currentState!.counters, itemCount: 2000 },
     query: {
       intrinsic: intrinsic.value,
       contentHeight: listIntrinsic.value,

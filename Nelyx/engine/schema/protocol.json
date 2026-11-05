@@ -4,9 +4,9 @@
   "abiMinor": 0,
   "magic": 844647502,
   "headerBytes": 64,
-  "stateBytes": 544,
-  "nodeBytes": 216,
-  "eventBytes": 40,
+  "stateBytes": 560,
+  "nodeBytes": 248,
+  "eventBytes": 56,
   "inputBytes": 120,
   "limits": {
     "views": 8,
@@ -40,7 +40,10 @@
     "editHistory": 32,
     "editHistoryBytes": 1048576,
     "interactionEvents": 64,
-    "selectionRects": 256
+    "selectionRects": 256,
+    "caretBlinkMs": 500,
+    "listMetrics": 1024,
+    "listChildren": 128
   },
   "opcodes": {
     "hello": 1,
@@ -79,7 +82,9 @@
     "semanticsAction": 34,
     "pollInteractionEvents": 35,
     "focusAt": 36,
-    "activateAt": 37
+    "activateAt": 37,
+    "key": 38,
+    "controlValue": 39
   },
   "commands": {
     "create": 1,
@@ -99,7 +104,11 @@
     "layout": 15,
     "coverage": 16,
     "editor": 17,
-    "semantics": 18
+    "semantics": 18,
+    "list": 19,
+    "listItem": 20,
+    "gesture": 21,
+    "control": 22
   },
   "kinds": {
     "box": 1,
@@ -158,7 +167,44 @@
     "needChildren": 11,
     "focusChanged": 12,
     "editingChanged": 13,
-    "semanticAction": 14
+    "semanticAction": 14,
+    "gesture": 15,
+    "controlChanged": 16
+  },
+  "gestures": {
+    "tap": 1,
+    "panX": 2,
+    "panY": 4,
+    "pinch": 8,
+    "longPress": 16,
+    "doubleTap": 32,
+    "hover": 64,
+    "scrollbar": 128
+  },
+  "gestureKinds": {
+    "tap": 1,
+    "doubleTap": 2,
+    "longPress": 3,
+    "panStart": 4,
+    "panUpdate": 5,
+    "panEnd": 6,
+    "pinchStart": 7,
+    "pinchUpdate": 8,
+    "pinchEnd": 9,
+    "hover": 10,
+    "cancel": 11
+  },
+  "controlKinds": {
+    "none": 0,
+    "button": 1,
+    "toggle": 2,
+    "radio": 3,
+    "slider": 4,
+    "rangeSlider": 5,
+    "progress": 6,
+    "checkbox": 7,
+    "circularProgress": 8,
+    "activity": 9
   },
   "phases": {
     "begin": 1,
@@ -190,7 +236,10 @@
     "surface": 32,
     "layoutQueries": 64,
     "editing": 128,
-    "semantics": 256
+    "semantics": 256,
+    "lazyList": 512,
+    "gestures": 1024,
+    "controls": 2048
   },
   "headerFields": {
     "magic": 0,
@@ -284,7 +333,9 @@
     "interactionCount": 512,
     "editingWork": 520,
     "semanticsWork": 528,
-    "queryWork": 536
+    "queryWork": 536,
+    "gestureWork": 544,
+    "controlWork": 552
   },
   "nodeFields": {
     "node": 0,
@@ -315,7 +366,11 @@
     "requestedOffset": 184,
     "preparedMinimum": 192,
     "preparedMaximum": 200,
-    "coverageRevision": 208
+    "coverageRevision": 208,
+    "contentX": 216,
+    "contentY": 224,
+    "contentWidth": 232,
+    "contentHeight": 240
   },
   "inputFields": {
     "sequence": 0,

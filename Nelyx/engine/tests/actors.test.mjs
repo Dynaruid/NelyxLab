@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { engineRoot, timeout } from '../tools/build.mjs';
 import { wasmFactory } from './transports.mjs';
-import { ContentActor } from '../platform/web/actors.ts';
+import { ContentActor, RenderActor } from '../platform/web/actors.ts';
 import { exchange, request } from '../platform/web/common.ts';
 import {
   protocol as p,
@@ -13,8 +13,125 @@ import {
   packet,
   body,
   response,
+  measurementBody,
+  focusBody,
 } from '../../runtime/engine-client/index.ts';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+test(
+  'Render schedules the C++ caret deadline and earlier input preempts its idle timer',
+  { timeout },
+  async () => {
+    const { module } = await wasmFactory(path.join(engineRoot, 'dist/single-worker'));
+    const engine = module._nelyx_wasm_open(1, 1, p.schema, 15),
+      owner = { session: 1, app: 1, view: 1, generation: 1 },
+      h = { slot: 1, generation: 1 },
+      frames = [],
+      messages = [];
+    const provider = {
+      counters: {},
+      attach() {},
+      resize() {},
+      retireExcept() {},
+      draw(frame) {
+        frames.push(frame);
+      },
+    };
+    const actor = new RenderActor(module, engine, provider, (value) => messages.push(value));
+    const waitFor = async (predicate) => {
+      for (let i = 0; i < 30; ++i) {
+        if (predicate()) return;
+        await sleep(10);
+      }
+      assert.fail('Render did not make bounded progress');
+    };
+    try {
+      exchange(module, engine, packet(p.opcodes.openView, owner));
+      request(
+        module,
+        engine,
+        p.opcodes.metrics,
+        body(40, (v) => {
+          v.setBigUint64(0, 2n, true);
+          v.setFloat64(8, 300, true);
+          v.setFloat64(16, 200, true);
+          v.setFloat64(24, 1, true);
+        }),
+      );
+      exchange(
+        module,
+        engine,
+        transaction(owner, 1n, 0n, [
+          commands.create(h, 'editable'),
+          commands.text(h, 'text'),
+          commands.editor(h),
+          commands.properties(h, { width: 100 }),
+          commands.layout(h),
+        ]),
+      );
+      for (let i = 0; i < 30; ++i) {
+        const state = request(
+          module,
+          engine,
+          p.opcodes.contentStep,
+          body(8, (v) => v.setUint32(0, 64, true)),
+        );
+        if (state.measureRequest) {
+          const pending = request(module, engine, p.opcodes.measureRequest);
+          request(
+            module,
+            engine,
+            p.opcodes.measureResult,
+            measurementBody(pending, {
+              width: pending.nodes[0].width,
+              height: 20,
+              minimum: 8,
+              maximum: 32,
+              baseline: 15,
+              geometry: {
+                revision: pending.nodes[0].editing.revision,
+                caret: { x: 0, y: 0, width: 1, height: 20 },
+                selection: [],
+              },
+            }),
+          );
+        }
+        if (state.preparationReady) break;
+      }
+      actor.attach({}, { width: 300, height: 200, scale: 1, visible: true, focused: true });
+      actor.kick();
+      await waitFor(() => messages.some((m) => m.kind === 'render-stats' && m.state.publication));
+      let state = request(module, engine, p.opcodes.inspect);
+      actor.packet(packet(p.opcodes.focus, owner, focusBody(h, state.publication)));
+      await waitFor(() => frames.some((f) => f.nodes[0].caretVisible));
+      await sleep(45);
+      const stable = request(module, engine, p.opcodes.inspect);
+      assert.ok(stable.nextDeadline > performance.now() / 1000);
+      assert.equal(stable.renderWake, false);
+      const priorFrames = frames.length;
+      // A control redraw must replace the pending 500 ms caret timer immediately.
+      actor.packet(
+        packet(
+          p.opcodes.visibility,
+          owner,
+          body(16, (v) => v.setUint32(0, 7, true)),
+        ),
+      );
+      await waitFor(() => frames.length > priorFrames);
+      const ticks = request(module, engine, p.opcodes.inspect).ticks;
+      await sleep(80);
+      state = request(module, engine, p.opcodes.inspect);
+      assert.equal(state.ticks, ticks, 'An idle caret does not poll the engine at 60 Hz');
+      assert.equal(state.layoutWork, stable.layoutWork);
+      assert.equal(
+        messages.some((m) => m.kind === 'provider-error'),
+        false,
+      );
+    } finally {
+      await actor.stop();
+      module._nelyx_engine_destroy(engine);
+    }
+  },
+);
 test(
   'Zero-size Content waits for a host wake and resumes on the actual C++ Wasm core',
   { timeout },

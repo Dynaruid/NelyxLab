@@ -140,6 +140,8 @@ export class RenderActor {
   private running: Promise<void> | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private wanted = false;
+  private wakeAt: number | undefined;
+  private timerAt: number | undefined;
   private candidate = 0n;
   private viewport: Viewport = { width: 0, height: 0, scale: 1, visible: true, focused: true };
   private cppMetrics = '';
@@ -260,17 +262,29 @@ export class RenderActor {
   kick(delay = 0): void {
     if (this.stopped) return;
     this.wanted = true;
-    if (this.timer !== undefined || this.running) return;
-    this.timer = setTimeout(() => {
-      this.timer = undefined;
-      this.wanted = false;
-      this.running = this.frame()
-        .catch((error) => this.post({ kind: 'provider-error', message: failure(error) }))
-        .finally(() => {
-          this.running = undefined;
-          if (this.wanted && !this.stopped) this.kick(16);
-        });
-    }, delay);
+    const at = performance.now() + Math.max(0, delay);
+    this.wakeAt = Math.min(this.wakeAt ?? at, at);
+    if (this.running) return;
+    if (this.timer !== undefined) {
+      if (this.timerAt! <= this.wakeAt) return;
+      clearTimeout(this.timer);
+    }
+    this.timerAt = this.wakeAt;
+    this.timer = setTimeout(
+      () => {
+        this.timer = undefined;
+        this.timerAt = this.wakeAt = undefined;
+        this.wanted = false;
+        this.running = this.frame()
+          .catch((error) => this.post({ kind: 'provider-error', message: failure(error) }))
+          .finally(() => {
+            this.running = undefined;
+            if (this.wanted && !this.stopped)
+              this.kick(Math.max(0, (this.wakeAt ?? performance.now()) - performance.now()));
+          });
+      },
+      Math.max(0, this.timerAt - performance.now()),
+    );
   }
   private async frame(): Promise<void> {
     let state = request(
@@ -340,9 +354,9 @@ export class RenderActor {
       gpuComplete: 'unobserved',
     });
     if (state.pendingDocument) this.post({ kind: 'content-wake' });
-    if (state.renderWake) this.wanted = true;
+    if (state.renderWake) this.kick(16);
     if (state.nextDeadline !== null)
-      this.kick(Math.min(16, Math.max(0, (state.nextDeadline - performance.now() / 1000) * 1000)));
+      this.kick(Math.max(0, (state.nextDeadline - performance.now() / 1000) * 1000));
   }
   async stop(): Promise<void> {
     this.stopped = true;

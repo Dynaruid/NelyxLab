@@ -17,6 +17,7 @@ import {
   WidgetHost,
   State,
   StatefulWidget,
+  StatelessWidget,
   InheritedWidget,
   GlobalKey,
   ValueKey,
@@ -25,6 +26,8 @@ import {
   Column,
   Text,
   Button,
+  Navigator,
+  NavigatorController,
 } from '../../runtime/engine-client/index.ts';
 
 export function interactionContracts({ using, timeout, h }) {
@@ -107,6 +110,308 @@ export function interactionContracts({ using, timeout, h }) {
     return result.layoutQuery;
   };
   for (const profile of ['native', 'single-worker', 'threaded']) {
+    test(
+      `${profile}: compositor caret blinks without App or Content work and stops on selection and blur`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([c.create(h(1), 'box'), c.properties(h(1), { width: 300, height: 200 })]);
+          await f.commit([
+            c.create(h(2), 'editable'),
+            c.text(h(2), 'abcd'),
+            c.editor(h(2)),
+            c.properties(h(2), { width: 100 }),
+            c.layout(h(2)),
+            c.attach(h(2), h(1)),
+          ]);
+          await pump(f);
+          const initial = await f.present(),
+            focus = await f.send(p.opcodes.focus, focusBody(h(2), initial.submission));
+          assert.equal(focus.status, p.statuses.ok);
+          await f.tick(10);
+          let frame = await f.present();
+          assert.equal(frame.nodes.find((n) => n.node.slot === 2).caretVisible, true);
+          const baseline = await f.inspect();
+          assert.equal(baseline.nextDeadline, 10.5);
+          assert.equal(
+            baseline.renderWake,
+            false,
+            'A future caret deadline does not request a frame clock',
+          );
+          await f.tick(10.49);
+          assert.equal((await f.send(p.opcodes.takeFrame)).status, p.statuses.notFound);
+          await f.tick(10.5);
+          frame = await f.present();
+          assert.equal(frame.nodes.find((n) => n.node.slot === 2).caretVisible, false);
+          await f.tick(11);
+          frame = await f.present();
+          assert.equal(frame.nodes.find((n) => n.node.slot === 2).caretVisible, true);
+          const after = await f.inspect();
+          assert.equal(after.layoutWork, baseline.layoutWork);
+          assert.equal(after.contentWork, baseline.contentWork);
+          assert.equal(after.transactionWork, baseline.transactionWork);
+          assert.equal(
+            (
+              await f.send(
+                p.opcodes.edit,
+                editBody(h(2), {
+                  session: focus.focus.session,
+                  kind: 'selection',
+                  revision: 1n,
+                  base: 0,
+                  extent: 2,
+                }),
+              )
+            ).status,
+            p.statuses.ok,
+          );
+          await pump(f);
+          frame = await f.present();
+          assert.equal(frame.nodes.find((n) => n.node.slot === 2).caretVisible, false);
+          assert.equal((await f.inspect()).nextDeadline, null);
+          await f.send(p.opcodes.focus, focusBody(null, 0n, focus.focus.session));
+          await f.tick(12);
+          await f.present();
+          assert.equal((await f.inspect()).nextDeadline, null);
+          assert.equal((await f.inspect()).renderWake, false);
+        }),
+    );
+    test(
+      `${profile}: Widget build failure rolls back allocations and reparenting activates retained State`,
+      { timeout },
+      () =>
+        using(profile, async (f, transport) => {
+          const client = await EngineClient.connect(transport),
+            view = await client.openView(1),
+            key = new GlobalKey(),
+            failedKey = new GlobalKey(),
+            events = [],
+            states = [];
+          class Child extends StatefulWidget {
+            createState() {
+              const state = new ChildState();
+              states.push(state);
+              return state;
+            }
+          }
+          class ChildState extends State {
+            value = 0;
+            initState() {
+              this.setState(() => ++this.value);
+              events.push('init');
+            }
+            deactivate() {
+              events.push('deactivate');
+            }
+            activate() {
+              this.setState(() => ++this.value);
+              events.push('activate');
+            }
+            dispose() {
+              events.push('dispose');
+            }
+            build() {
+              return new Box([], { properties: { width: this.value, height: 10 } });
+            }
+          }
+          class Failing extends StatelessWidget {
+            build() {
+              throw new Error('builder failed');
+            }
+          }
+          const host = new WidgetHost(view, { pollEvents: false });
+          const tree = (move = false, fail = false) =>
+            new Row([
+              new Box(move ? [] : [new Child(key)], { key: new ValueKey('left') }),
+              new Box(move ? [new Child(key)] : [], { key: new ValueKey('right') }),
+              ...(fail ? [new Child(failedKey), new Failing()] : []),
+            ]);
+          await host.mount(tree());
+          const original = key.currentState,
+            handle = key.currentNode,
+            epoch = view.documentEpoch;
+          assert.equal(original.value, 1);
+          await assert.rejects(host.update(tree(false, true)), /builder failed/);
+          assert.equal(view.documentEpoch, epoch);
+          assert.equal(states[1].mounted, false);
+          assert.equal(failedKey.currentState, null);
+          assert.equal(key.currentState, original);
+          assert.deepEqual(key.currentNode, handle);
+          await host.update(tree(true));
+          assert.equal(key.currentState, original);
+          assert.deepEqual(key.currentNode, handle);
+          assert.equal(original.value, 2);
+          assert.equal(events.filter((e) => e === 'activate').length, 1);
+          await host.close();
+          assert.equal(
+            states.every((s) => !s.mounted),
+            true,
+          );
+          assert.equal(events.filter((e) => e === 'dispose').length, 2);
+          await client.close();
+        }),
+    );
+    test(
+      `${profile}: disposal errors still close the native view and cannot resurrect State`,
+      { timeout },
+      () =>
+        using(profile, async (_f, transport) => {
+          const client = await EngineClient.connect(transport),
+            view = await client.openView(1),
+            states = [];
+          class Broken extends StatefulWidget {
+            createState() {
+              const state = new BrokenState();
+              states.push(state);
+              return state;
+            }
+          }
+          class BrokenState extends State {
+            build() {
+              return new Box();
+            }
+            deactivate() {
+              throw new Error('deactivate failed');
+            }
+            dispose() {
+              throw new Error('dispose failed');
+            }
+          }
+          const host = new WidgetHost(view, { pollEvents: false });
+          await host.mount(new Row([new Broken(), new Broken()]));
+          const closing = host.close();
+          assert.equal(host.close(), closing);
+          await assert.rejects(
+            closing,
+            (error) => error instanceof AggregateError && error.errors.length === 4,
+          );
+          assert.equal(
+            states.every((s) => !s.mounted && s.disposed),
+            true,
+          );
+          assert.throws(() => states[0].setState(() => {}), /dispose/);
+          const next = await client.openView(1, 2),
+            nextHost = new WidgetHost(next, { pollEvents: false });
+          class Reused extends StatefulWidget {
+            createState() {
+              return states[0];
+            }
+          }
+          await assert.rejects(nextHost.mount(new Reused()), /disposed/);
+          await nextHost.close();
+          await client.close();
+        }),
+    );
+    test(
+      `${profile}: padded text, image and editing queries retain one paint origin`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([c.create(h(1), 'box'), c.properties(h(1), { width: 300, height: 200 })]);
+          await f.commit([
+            c.create(h(2), 'editable'),
+            c.text(h(2), 'abcd'),
+            c.editor(h(2)),
+            c.properties(h(2), { width: 100 }),
+            c.layout(h(2), { padding: { left: 8, right: 8, top: 4, bottom: 6 } }),
+            c.attach(h(2), h(1)),
+          ]);
+          await pump(f);
+          const before = await f.send(p.opcodes.layoutSnapshot),
+            editor = before.nodes.find((n) => n.node.slot === 2);
+          assert.equal(editor.height, 30);
+          assert.equal(editor.baseline, 19);
+          assert.deepEqual(editor.content, { x: 8, y: 4, width: 84, height: 20 });
+          assert.equal(editor.textGeometry.caret.x, 8);
+          assert.equal(editor.textGeometry.caret.y, 4);
+          assert.equal((await query(f, h(2), 'minWidth', 1n)).value, 100);
+          assert.equal(
+            (await query(f, h(2), 'maxWidth', 2n)).value,
+            100,
+            'Explicit width remains the outer box width',
+          );
+          assert.equal(
+            (await query(f, h(2), 'minHeight', 3n, { kind: 'finite', min: 0, max: 100 })).value,
+            30,
+          );
+          const dry = await query(
+            f,
+            h(2),
+            'dry',
+            4n,
+            { kind: 'finite', min: 0, max: 100 },
+            { kind: 'finite', min: 0, max: 100 },
+          );
+          assert.equal(dry.width, 100);
+          assert.equal(dry.height, 30);
+          assert.equal(dry.baseline, 19);
+          assert.equal(
+            (await f.send(p.opcodes.layoutSnapshot)).layoutDocument,
+            before.layoutDocument,
+          );
+          await f.commit([c.properties(h(2), { width: 0 })]);
+          assert.equal((await query(f, h(2), 'minWidth', 5n)).value, 24);
+          assert.equal((await query(f, h(2), 'maxWidth', 6n)).value, 48);
+          await f.commit([
+            c.create(h(3), 'image'),
+            c.acquireResource(h(1), new Uint8Array([1])),
+            c.bindResource(h(3), h(1)),
+            c.layout(h(3), { padding: { left: 10, right: 10, top: 5, bottom: 5 } }),
+          ]);
+          const imageMeasure = (r) =>
+            r.nodes[0].kind === p.kinds.image
+              ? { width: 80, height: 40, minimum: 80, maximum: 80, baseline: -1 }
+              : measure(r);
+          for (let i = 0; i < 30; ++i) {
+            const state = await f.step();
+            if (state.measureRequest) {
+              const request = await f.send(p.opcodes.measureRequest);
+              assert.equal(
+                (
+                  await f.send(
+                    p.opcodes.measureResult,
+                    measurementBody(request, imageMeasure(request)),
+                  )
+                ).status,
+                p.statuses.ok,
+              );
+            }
+            if (state.preparationReady) {
+              await f.tick();
+              if ((await f.send(p.opcodes.layoutSnapshot)).layoutDocument === f.epoch) break;
+            }
+          }
+          await f.tick();
+          const image = (await f.send(p.opcodes.layoutSnapshot)).nodes.find(
+            (n) => n.node.slot === 3,
+          );
+          assert.equal(image.width, 100);
+          assert.equal(image.height, 50);
+          assert.deepEqual(image.content, { x: 10, y: 5, width: 80, height: 40 });
+          await f.commit([c.properties(h(3), { width: 400 })]);
+          for (let i = 0; i < 30; ++i) {
+            const state = await f.step();
+            if (state.measureRequest) {
+              const pending = await f.send(p.opcodes.measureRequest);
+              await f.send(
+                p.opcodes.measureResult,
+                measurementBody(pending, imageMeasure(pending)),
+              );
+            }
+            if (state.preparationReady) break;
+          }
+          await f.tick();
+          const constrained = (await f.send(p.opcodes.layoutSnapshot)).nodes.find(
+            (n) => n.node.slot === 3,
+          );
+          assert.equal(constrained.width, 300);
+          assert.equal(
+            constrained.height,
+            150,
+            'Parent clamping preserves the padded image aspect ratio',
+          );
+        }),
+    );
     test(
       `${profile}: a composition-start notification preserves its own undo baseline`,
       { timeout },
@@ -608,6 +913,53 @@ export function interactionContracts({ using, timeout, h }) {
         await host.close();
         await client.close();
       }),
+    );
+    test(
+      `${profile}: Navigator retains page State and modal barriers fence hidden routes`,
+      { timeout },
+      () =>
+        using(profile, async (f, transport) => {
+          const client = await EngineClient.connect(transport),
+            view = await client.openView(1),
+            host = new WidgetHost(view, { pollEvents: false });
+          const home = new GlobalKey(),
+            dialog = new GlobalKey();
+          const control = (key, label) =>
+            new Button(label, () => {}, { key, properties: { width: 100, height: 40 } });
+          const navigator = new NavigatorController(control(home, 'home'));
+          await f.resize(300, 200);
+          await host.mount(new Navigator(navigator));
+          await pump(f);
+          await f.present();
+          const original = home.currentNode;
+          const result = navigator.push(control(dialog, 'dialog'), { modal: true });
+          await host.flush();
+          await pump(f);
+          await f.present();
+          let semantics = await view.semanticsSnapshot();
+          assert.ok(
+            semantics.nodes.find((n) => n.semantics?.label === 'home').semantics.flags &
+              p.semanticsFlags.hidden,
+          );
+          assert.equal(home.currentNode.slot, original.slot);
+          assert.ok(dialog.currentNode);
+          navigator.pop('done');
+          assert.equal(await result, 'done');
+          await host.flush();
+          await pump(f);
+          await f.present();
+          semantics = await view.semanticsSnapshot();
+          assert.ok(
+            !(
+              semantics.nodes.find((n) => n.semantics?.label === 'home').semantics.flags &
+              p.semanticsFlags.hidden
+            ),
+          );
+          assert.equal(dialog.currentNode, null);
+          assert.equal(home.currentNode.slot, original.slot);
+          await host.close();
+          await client.close();
+        }),
     );
   }
 }

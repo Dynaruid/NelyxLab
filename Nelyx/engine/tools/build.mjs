@@ -168,6 +168,11 @@ export function sourceIdentity() {
     '../skia/native/core/nelyx_skia/paragraph_queries.h',
     '../../sample/nelyx-testbed-app-2/src/v2-app.ts',
     '../../sample/nelyx-testbed-app-2/src/v2-scene.ts',
+    ...['material', 'cupertino'].flatMap((name) => [
+      `../../packages/${name}/src/v2.ts`,
+      `../../packages/${name}/package.json`,
+      `../../packages/${name}/tsconfig.build.json`,
+    ]),
     '../../sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf',
     '../../sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt',
     '../../sample/nelyx-testbed-app-2/assets/component-image.webp',
@@ -243,7 +248,7 @@ async function main() {
   const hosts = !process.argv.includes('--headless');
   const supplier = hosts ? suppliers() : undefined;
   if (hosts) {
-    for (const target of ['core', 'sdk']) {
+    for (const target of ['core', 'cupertino', 'material', 'sdk']) {
       console.log(
         run(process.execPath, [path.resolve(engineRoot, '../eng/build-packages.mjs'), target]),
       );

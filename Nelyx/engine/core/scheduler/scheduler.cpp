@@ -27,15 +27,19 @@ void View::cancelStream(uint32_t stream, uint32_t reason) {
   }
   if (s.active) event({wire::events::gestureCanceled, reason, lastInput, 0, stream, s.target});
   auto overlay = overlays.find(s.target.key());
-  if (overlay != overlays.end()) { overlay->second.ballistic = false; overlay->second.velocity = 0; }
+  if (overlay != overlays.end()) { overlay->second.ballistic = false; overlay->second.velocity = 0;
+    if(overlay->second.pressed){overlay->second.pressed=false;dirty=true;} }
+  if(s.active&&s.pointer)gesture(s.target,wire::gestureKinds::cancel,lastInput,s.x,s.y);
+  if(s.pinched)for(auto& other:streams)if(&other!=&s&&other.active&&other.target==s.target){other.pinched=false;other.pan=true;}
   for (auto& entry : overlays) if (entry.second.deferredStream == stream) {
     entry.second.deferred = false; entry.second.requested = entry.second.offset; entry.second.deferredStream = 0;
   }
-  s.active = false; s.denied = true;
+  s.active = false; s.pointer=false; s.denied = true;
 }
 void View::cancelInput(uint32_t reason) {
   for (uint32_t i = 1; i <= wire::limits::streams; ++i) cancelStream(i, reason);
   for (auto& entry : overlays) { entry.second.ballistic = false; entry.second.velocity = 0; }
+  hoverNode={};lastTap={};for(auto& entry:overlays)entry.second.hovered=false;
 }
 void View::close(uint32_t reason) {
   if (closed) return;
@@ -158,6 +162,37 @@ uint64_t View::measurePreparation()const {
   if(preparing&&preparing->layout&&preparing->layout->waiting())return preparing->id;
   if(query&&query->work&&query->work->waiting())return query->preparation;return 0;
 }
+static double anchoredOffset(const View& view,const Document& nextDocument,const Node& viewport,double before) {
+  if(!view.active||!view.active->document->contains(viewport.id))return before;
+  const auto& old=*view.active->document;
+  const auto& previousChildren=old.children[viewport.id.slot];
+  const auto& children=nextDocument.children[viewport.id.slot];
+  if(previousChildren.size()!=1||children.size()!=1)return before;
+  const auto& previous=old.get(previousChildren.front());const auto& current=nextDocument.get(children.front());
+  if(!previous.listGeometry||!current.listGeometry)return before;
+  const double at=before-previous.properties.y;
+  const ListRow* anchor=nullptr;const ListRow* replacement=nullptr;double nearest=1e12;bool anchoredVisible=false;
+  for(const auto& row:previous.listGeometry->rows){
+    const bool visible=row.offset+row.extent>at&&row.offset<at+viewport.properties.height;
+    const double distance=std::max({0.0,at-(row.offset+row.extent),row.offset-(at+viewport.properties.height)});
+    for(const auto& candidate:current.listGeometry->rows)if(candidate.key==row.key&&
+        (!anchor||(visible&&!anchoredVisible)||(visible==anchoredVisible&&
+          (distance<nearest||(distance==nearest&&row.offset<anchor->offset))))){
+      anchor=&row;replacement=&candidate;nearest=distance;anchoredVisible=visible;
+    }
+  }
+  if(anchor)return before+(replacement->offset+current.properties.y)-(anchor->offset+previous.properties.y);
+  if(previous.list.generation!=current.list.generation){
+    if(!current.list.count)return 0;
+    for(const auto& row:previous.listGeometry->rows)if(row.offset+row.extent>at){
+      const auto index=std::min(row.index,current.list.count-1);
+      const auto position=current.listGeometry->prefix(index);
+      const auto extent=current.listGeometry->prefix(index+1)-position;
+      return current.properties.y+position+std::clamp(at-row.offset,0.0,std::max(0.0,extent-1));
+    }
+  }
+  return before;
+}
 void View::activate() {
   if (!preparing || !preparing->ready || !preparing->providerReady) return;
   const auto& p = *preparing;
@@ -170,7 +205,7 @@ void View::activate() {
   // A new partial window cannot activate over the user's current viewport.
   for (const auto& slot : p.document->nodes) if (slot.value && slot.value->coverage.enabled) {
     const auto& n = *slot.value; const auto old = overlays.find(n.id.key());
-    const double previous = old == overlays.end() ? 0 : old->second.offset;
+    const double previous = anchoredOffset(*this,*p.document,n,old == overlays.end() ? 0 : old->second.offset);
     const double offset = n.properties.extent == wire::extents::unbounded ? std::max(n.properties.minimum,previous) :
       std::clamp(previous,n.properties.minimum,n.properties.maximum);
     if (offset < n.coverage.minimum || offset > n.coverage.maximum) {
@@ -198,15 +233,25 @@ void View::activate() {
     auto [it, inserted] = overlays.try_emplace(n.id.key());
     auto& o = it->second;
     if (inserted) { o.node = n.id; o.opacity = n.properties.opacity; }
+    if(inserted||!active||!active->document->contains(n.id)||
+       active->document->get(n.id).control.kind!=n.control.kind||
+       active->document->get(n.id).control.revision!=n.control.revision||
+       active->document->get(n.id).control.value!=n.control.value||
+       active->document->get(n.id).control.second!=n.control.second){o.value=n.control.value;o.second=n.control.second;}
     if (n.kind == wire::kinds::scrollViewport) {
-      if (o.coverageRevision != n.coverage.revision) { o.coverageRevision = n.coverage.revision; o.needSent = false; }
+      if (o.coverageRevision != n.coverage.revision || (active&&active->document->contains(n.id)&&
+          (active->document->get(n.id).coverage.minimum!=n.coverage.minimum||
+           active->document->get(n.id).coverage.maximum!=n.coverage.maximum))) {
+        o.coverageRevision = n.coverage.revision; o.needSent = false; }
+      const auto anchored=anchoredOffset(*this,*p.document,n,o.offset);
       const auto offset = n.properties.extent == wire::extents::unbounded ?
-        std::max(n.properties.minimum, o.offset) :
-        std::clamp(o.offset, n.properties.minimum, n.properties.maximum);
+        std::max(n.properties.minimum, anchored) :
+        std::clamp(anchored, n.properties.minimum, n.properties.maximum);
+      const double correction=offset-o.offset;
       if (offset != o.offset) { o.offset = offset; o.revision = next(o.revision); }
       if (o.deferred) {
-        o.requested = n.properties.extent == wire::extents::unbounded ? std::max(n.properties.minimum,o.requested) :
-          std::clamp(o.requested,n.properties.minimum,n.properties.maximum);
+        o.requested = n.properties.extent == wire::extents::unbounded ? std::max(n.properties.minimum,o.requested+correction) :
+          std::clamp(o.requested+correction,n.properties.minimum,n.properties.maximum);
         o.deferred = o.requested != o.offset;
       } else o.requested = o.offset;
     }
@@ -237,7 +282,7 @@ void View::enqueue(Input p) {
   lastInput = p.sequence; ++received;
   auto& stream = streams[p.stream];
   if (closed || !visible || !focused || metrics.width == 0 || metrics.height == 0 ||
-      p.metrics != metrics.epoch || (stream.denied && p.phase != wire::phases::begin)) {
+      p.metrics != metrics.epoch || (stream.denied && p.phase != wire::phases::begin && !(p.flags&4u))) {
     ++rejected; return;
   }
   const auto views = std::max(1u, lease.ledger->activeViews);
@@ -259,6 +304,8 @@ void View::needContent(const Node& n, Overlay& o, uint32_t stream) {
   if (o.needSent) return;
   o.needSent = true; ++coverageRequests;
   event({wire::events::needChildren,wire::statuses::contentUnavailable,n.coverage.revision,
+    active->document->epoch,stream,n.id});
+  interaction({wire::events::needChildren,wire::statuses::contentUnavailable,n.coverage.revision,
     active->document->epoch,stream,n.id});
 }
 void View::applyDelta(Handle h, double delta, uint32_t stream) {
@@ -362,6 +409,7 @@ void View::tick(double now) {
     auto p = input.front(); input.pop_front();
     --lease.ledger->queuedInputs;
     if (p.phase == wire::phases::update) { --updates; --lease.ledger->updateInputs; }
+    if(p.flags&2u){pointer(p);continue;}
     auto& stream = streams[p.stream];
     if (!p.target) p.target = stream.active ? stream.target : target(p.x, p.y);
     if (p.metrics != metrics.epoch || !published || !active ||
@@ -433,6 +481,7 @@ void View::tick(double now) {
   }
   if (visible && active && metrics.width > 0 && metrics.height > 0) for (auto& entry : overlays) {
     auto& o = entry.second;
+    if(active->document->get(o.node).control.kind==wire::controlKinds::activity&&(!published||published->allows(o.node))){o.value=std::fmod(time,1.0);dirty=true;}
     if (o.ballistic) {
       o.elapsed += dt;
       const auto previous = o.offset;
@@ -454,7 +503,53 @@ void View::tick(double now) {
       }
     }
   }
+  advanceGestures();
+  advanceCaret();
   if (dirty) propertyEpoch = next(propertyEpoch);
+}
+void View::advanceCaret() {
+  const bool before = caretVisible;
+  const auto current = editors.find(focusNode.key());
+  const bool eligible = visible && focused && focusNode && active &&
+      metrics.width > 0 && metrics.height > 0 && active->metrics.epoch == metrics.epoch &&
+      active->document->contains(focusNode) && current != editors.end();
+  const Node* node = eligible ? &active->document->get(focusNode) : nullptr;
+  const auto value = eligible ? current->second->value : nullptr;
+  if (!node || !node->textGeometry || !node->editing ||
+      node->textGeometry->revision != value->revision || node->editing->revision != value->revision ||
+      value->base != value->extent) {
+    caretVisible = false; caretDeadline = 0; caretNode = {}; caretRevision = 0;
+  } else if (value->composingStart >= 0) {
+    // A composition owns a steady caret. Only its native end notification may
+    // resume blinking; an App callback is never part of the clock path.
+    caretVisible = true; caretDeadline = 0; caretNode = focusNode; caretRevision = value->revision;
+  } else {
+    const double period = wire::limits::caretBlinkMs / 1000.0;
+    if (caretNode != focusNode || caretRevision != value->revision || caretDeadline == 0) {
+      caretNode = focusNode; caretRevision = value->revision;
+      caretVisible = true; caretDeadline = time + period;
+    } else if (time >= caretDeadline) {
+      const double periods = std::floor((time - caretDeadline) / period) + 1;
+      if (std::fmod(periods, 2.0) != 0) caretVisible = !caretVisible;
+      // Coalesce a late wake to the current phase rather than replaying ticks.
+      caretDeadline = time + period - std::fmod(time - caretDeadline, period);
+    }
+  }
+  if (before != caretVisible) dirty = true;
+}
+double View::nextDeadline() const {
+  double deadline = 0;
+  if (!closed) {
+    for (const auto& entry : commands)
+      if (!deadline || entry.second.deadline < deadline) deadline = entry.second.deadline;
+    if (visible && focused && metrics.width > 0 && metrics.height > 0 && caretDeadline > 0 &&
+        (!deadline || caretDeadline < deadline)) deadline = caretDeadline;
+    if(visible&&focused){if(lastTap&&(!deadline||lastTapTime+0.3<deadline))deadline=lastTapTime+0.3;
+      for(const auto& stream:streams)if(stream.active&&stream.pointer&&!stream.pan&&!stream.pinched&&!stream.longSent&&
+          active&&active->document->contains(stream.target)&&
+          (active->document->get(stream.target).gestures&wire::gestures::longPress)&&(!deadline||stream.at+0.5<deadline))deadline=stream.at+0.5;}
+  }
+  return deadline;
 }
 uint32_t View::takeFrame() {
   if (!visible || metrics.width == 0 || metrics.height == 0 || !active ||
@@ -465,10 +560,12 @@ uint32_t View::takeFrame() {
   const auto id = next(nextSubmission);
   Frame f; f.id = id; f.device = metrics.device; f.scene = active; f.propertyEpoch = propertyEpoch;
   f.focusNode=focusNode;f.focusSession=focusSession;
+  f.caretVisible=caretVisible;
   f.properties.resize(active->document->highWater + 1);
   for (const auto& slot : active->document->nodes) if (slot.value) {
     const auto& o = overlays.at(slot.value->id.key());
     f.properties[o.node.slot] = {o.node, o.offset, o.velocity, o.opacity, o.revision, o.motion,o.requested,o.deferred};
+    auto& property=f.properties[o.node.slot];property.value=o.value;property.second=o.second;property.pressed=o.pressed;property.hovered=o.hovered;
   }
   makeDrawItems(f);
   frames.emplace(id, std::move(f)); nextSubmission = id; ++submitted; dirty = false;
@@ -509,6 +606,11 @@ void View::publish(uint64_t id, uint64_t device, uint64_t commit) {
     it->second.scene->metrics.epoch == metrics.epoch, wire::statuses::stale);
   auto& f = it->second;
   f.published = true; published = f; publication = id; surfaceCommit = commit;
+  if(focusNode&&!published->allows(focusNode))setFocus({},0,focusSession);
+  for(uint32_t stream=1;stream<streams.size();++stream)
+    if(streams[stream].active&&!published->allows(streams[stream].target))cancelStream(stream,wire::statuses::canceled);
+  if(lastTap&&!published->allows(lastTap))lastTap={};
+  if(hoverNode&&!published->allows(hoverNode)){if(overlays.count(hoverNode.key()))overlays.at(hoverNode.key()).hovered=false;hoverNode={};dirty=true;}
   pendingPublication = 0;
   if (f.released) frames.erase(it);
 }
@@ -521,17 +623,21 @@ bool View::wake() const {
         active->document->contains(c.node))) return true;
   }
   if (!visible || metrics.width == 0 || metrics.height == 0) return false;
+  if (caretDeadline > 0 && time >= caretDeadline) return true;
   if (demand || preparing || (dirty && frames.size() < wire::limits::frames)) return true;
   for (const auto& entry : overlays) if (entry.second.ballistic ||
       (entry.second.motion && entry.second.motionElapsed < entry.second.motionSeconds)) return true;
+  if(active)for(const auto& entry:overlays)if(active->document->get(entry.second.node).control.kind==wire::controlKinds::activity&&(!published||published->allows(entry.second.node)))return true;
   return false;
 }
 bool View::renderWake() const {
   if (closed || !visible || metrics.width == 0 || metrics.height == 0) return false;
+  if (caretDeadline > 0 && time >= caretDeadline) return true;
   if (!input.empty() || (preparing && preparing->ready && preparing->providerReady)) return true;
   if (dirty && active && active->metrics.epoch == metrics.epoch && frames.size() < wire::limits::frames) return true;
   for (const auto& entry : overlays) if (entry.second.ballistic ||
     (entry.second.motion && !entry.second.motionDone)) return true;
+  if(active)for(const auto& entry:overlays)if(active->document->get(entry.second.node).control.kind==wire::controlKinds::activity&&(!published||published->allows(entry.second.node)))return true;
   if (active) for (const auto& entry : overlays) if (entry.second.deferred) {
     const auto& o=entry.second; const auto& n=active->document->get(o.node);
     const double goal=n.coverage.enabled?std::clamp(o.requested,n.coverage.minimum,n.coverage.maximum):o.requested;

@@ -8,6 +8,7 @@ import {
   editBody,
   focusBody,
   semanticActionBody,
+  keyBody,
 } from '@nelyx/core/v2';
 import type {
   EngineResponse,
@@ -25,6 +26,7 @@ type Peer = {
   publication: bigint;
   value: EditingSnapshot | null;
   composing: boolean;
+  ending: boolean;
   compositionStart: number;
   session: bigint;
   pending: number;
@@ -47,6 +49,10 @@ export class EngineV2BrowserInteraction {
   private publication = 0n;
   private active: Peer | undefined;
   private applying = false;
+  private forced = new Map<
+    bigint,
+    { bytes: Uint8Array; result: Promise<Uint8Array>; settled: boolean }
+  >();
   private resize: () => void;
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -126,10 +132,58 @@ export class EngineV2BrowserInteraction {
   }
   /** App edit/focus commands enter the same UI queue as trusted DOM events. */
   gateway(bytes: Uint8Array): Promise<Uint8Array> {
+    const header = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+      b = p.headerBytes;
+    if (
+      header.getUint16(p.headerFields.opcode, true) === p.opcodes.edit &&
+      bytes.length >= b + 64 &&
+      header.getUint32(b + 24, true) === p.editKinds.replace &&
+      header.getUint32(b + 28, true) !== p.compositionPolicies.preserve
+    ) {
+      const id = header.getBigUint64(p.headerFields.id, true),
+        prior = this.forced.get(id);
+      if (!id) return this.reply(bytes, p.statuses.invalidValue);
+      if (prior) {
+        if (prior.bytes.length !== bytes.length || prior.bytes.some((v, i) => v !== bytes[i]))
+          return this.reply(bytes, p.statuses.idReused);
+        return prior.result.then((result) => result.slice());
+      }
+      let held = [...this.forced.values()].reduce((sum, value) => sum + value.bytes.length, 0);
+      for (const [key, value] of this.forced)
+        if (
+          (this.forced.size >= 32 || held + bytes.length > p.limits.packetBytes) &&
+          value.settled
+        ) {
+          this.forced.delete(key);
+          held -= value.bytes.length;
+        }
+      if (this.forced.size >= 32 || held + bytes.length > p.limits.packetBytes)
+        return this.reply(bytes, p.statuses.budgetExceeded);
+      const owned = bytes.slice();
+      const entry: { bytes: Uint8Array; result: Promise<Uint8Array>; settled: boolean } = {
+        bytes: owned,
+        result: Promise.resolve(new Uint8Array()),
+        settled: false,
+      };
+      this.forced.set(id, entry);
+      entry.result = this.finishComposition(owned.slice())
+        .then((result) => {
+          if (response(result).status === p.statuses.busy) this.forced.delete(id);
+          return result;
+        })
+        .finally(() => {
+          entry.settled = true;
+        });
+      return entry.result.then((result) => result.slice());
+    }
     return this.enqueue(async () => {
       const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
         op = v.getUint16(p.headerFields.opcode, true),
         b = p.headerBytes;
+      if (op === p.opcodes.edit && bytes.length >= b + 64) {
+        const peer = this.peers.get(`${v.getUint32(b, true)}:${v.getUint32(b + 4, true)}`);
+        if (peer?.ending) return this.reply(bytes, p.statuses.busy);
+      }
       if (
         op === p.opcodes.edit &&
         bytes.length >= b + 64 &&
@@ -158,6 +212,78 @@ export class EngineV2BrowserInteraction {
       }
       return result;
     }, bytes.length);
+  }
+  private async reply(bytes: Uint8Array, status: number): Promise<Uint8Array> {
+    const result = await this.exchange(packet(p.opcodes.inspect, owner)),
+      h = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+      r = new DataView(result.buffer, result.byteOffset, result.byteLength);
+    r.setUint16(p.headerFields.opcode, h.getUint16(p.headerFields.opcode, true) | 0x8000, true);
+    r.setUint16(p.headerFields.status, status, true);
+    r.setBigUint64(p.headerFields.id, h.getBigUint64(p.headerFields.id, true), true);
+    return result;
+  }
+  private async finishComposition(bytes: Uint8Array): Promise<Uint8Array> {
+    await this.tail;
+    const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+      b = p.headerBytes,
+      peer = this.peers.get(`${v.getUint32(b, true)}:${v.getUint32(b + 4, true)}`);
+    if (peer?.ending) return this.reply(bytes, p.statuses.busy);
+    if (!peer?.composing) return this.enqueue(() => this.exchange(bytes), bytes.length);
+    if (
+      !isInput(peer.element) ||
+      !peer.value ||
+      peer.value.revision !== v.getBigUint64(b + 16, true) ||
+      peer.session !== v.getBigUint64(b + 8, true)
+    )
+      return this.reply(bytes, p.statuses.baseConflict);
+    peer.ending = true;
+    let timer: ReturnType<typeof setTimeout> | undefined, end: (() => void) | undefined;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        end = () => resolve();
+        peer.element.addEventListener('compositionend', end, { once: true });
+        timer = setTimeout(() => reject(new Error('Browser composition end timed out')), 1000);
+        peer.element.blur();
+      });
+      await this.tail;
+      if (
+        this.closed ||
+        !peer.session ||
+        peer.session !== v.getBigUint64(b + 8, true) ||
+        peer.composing
+      )
+        return this.reply(bytes, p.statuses.canceled);
+      const result = await this.enqueue(async () => {
+          if (
+            this.closed ||
+            !peer.session ||
+            peer.session !== v.getBigUint64(b + 8, true) ||
+            peer.composing
+          )
+            return this.reply(bytes, p.statuses.canceled);
+          v.setBigUint64(b + 16, peer.value!.revision, true);
+          return this.exchange(bytes);
+        }, bytes.length),
+        state = response(result);
+      if (state.status === p.statuses.ok && state.nodes[0]?.editing)
+        this.installValue(peer, state.nodes[0].editing);
+      return result;
+    } catch {
+      ++this.counters.rejected;
+      return this.reply(bytes, p.statuses.timedOut);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      if (end) peer.element.removeEventListener('compositionend', end);
+      peer.ending = false;
+      if (!this.closed && this.active === peer) {
+        this.applying = true;
+        try {
+          peer.element.focus({ preventScroll: true });
+        } finally {
+          this.applying = false;
+        }
+      }
+    }
   }
   update(): void {
     if (this.closed) return;
@@ -208,7 +334,7 @@ export class EngineV2BrowserInteraction {
       peer.session = focus && key(focus.node) === key(peer.node.node) ? focus.session : 0n;
     if (focus) {
       const peer = this.peers.get(key(focus.node));
-      if (peer && document.activeElement !== peer.element) {
+      if (peer && !peer.ending && document.activeElement !== peer.element) {
         this.applying = true;
         try {
           peer.element.focus({ preventScroll: true });
@@ -259,6 +385,7 @@ export class EngineV2BrowserInteraction {
           publication: state.publication,
           value: null,
           composing: false,
+          ending: false,
           compositionStart: -1,
           session: 0n,
           pending: 0,
@@ -287,6 +414,15 @@ export class EngineV2BrowserInteraction {
           : -1;
       if (s.role === p.semanticsRoles.checkbox)
         element.setAttribute('aria-checked', String(!!(s.flags & p.semanticsFlags.checked)));
+      if (
+        node.control &&
+        (node.control.kind === p.controlKinds.slider ||
+          node.control.kind === p.controlKinds.rangeSlider)
+      ) {
+        element.setAttribute('aria-valuemin', String(node.control.minimum));
+        element.setAttribute('aria-valuemax', String(node.control.maximum));
+        element.setAttribute('aria-valuenow', String(node.control.value));
+      }
       const left = Math.max(node.x, node.clip.x),
         top = Math.max(node.y, node.clip.y),
         right = Math.min(node.x + node.width, node.clip.x + node.clip.width),
@@ -301,7 +437,9 @@ export class EngineV2BrowserInteraction {
         pointerEvents: s.actions && !disabled && right > left && bottom > top ? 'auto' : 'none',
         opacity: '0',
         margin: '0',
-        padding: '0',
+        padding: isInput(element)
+          ? `${node.content.y}px ${Math.max(0, node.width - node.content.x - node.content.width)}px ${Math.max(0, node.height - node.content.y - node.content.height)}px ${node.content.x}px`
+          : '0',
         border: '0',
         resize: 'none',
         overflow: 'hidden',
@@ -360,7 +498,7 @@ export class EngineV2BrowserInteraction {
       );
     });
     element.addEventListener('blur', () => {
-      if (this.applying) return;
+      if (this.applying || peer.ending) return;
       report(
         this.enqueue(async () => {
           if (peer.session) {
@@ -379,11 +517,40 @@ export class EngineV2BrowserInteraction {
             else this.update();
           }),
         );
-      element.addEventListener('click', activate);
+      element.addEventListener('click', (event) => {
+        if (!event.detail) activate();
+      });
       element.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        const code = (
+          {
+            Enter: 13,
+            ' ': 32,
+            ArrowLeft: 37,
+            ArrowRight: 39,
+            ArrowUp: 38,
+            ArrowDown: 40,
+            Home: 36,
+            End: 35,
+          } as Record<string, number>
+        )[e.key];
+        if (code) {
           e.preventDefault();
-          activate();
+          report(
+            this.enqueue(async () => {
+              for (let i = 0; i < 3; ++i) {
+                const state = await this.call(p.opcodes.semanticsSnapshot);
+                const result = response(
+                  await this.exchange(
+                    packet(p.opcodes.key, owner, keyBody(state.publication, code)),
+                  ),
+                );
+                if (result.status === p.statuses.ok) return;
+                if (result.status !== p.statuses.stale)
+                  throw new Error('Native key rejected: ' + result.status);
+              }
+              throw new Error('Native key publication changed repeatedly');
+            }),
+          );
         }
       });
       return;
@@ -473,6 +640,8 @@ export class EngineV2BrowserInteraction {
     window.removeEventListener('resize', this.resize);
     this.layer.remove();
     await this.tail;
+    await Promise.allSettled([...this.forced.values()].map((value) => value.result));
+    this.forced.clear();
     this.peers.clear();
     this.active = undefined;
     this.counters.peers = 0;

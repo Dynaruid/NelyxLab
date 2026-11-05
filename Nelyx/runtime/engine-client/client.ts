@@ -222,6 +222,7 @@ export class EngineClient {
   }
 }
 export class EngineViewClient {
+  private nextEdit = 0n;
   private querying = false;
   private queryId = 0n;
   private epoch = 0n;
@@ -277,7 +278,21 @@ export class EngineViewClient {
     node: import('./codec.ts').NodeHandle,
     value: import('./codec.ts').EditingUpdate,
   ): Promise<import('./codec.ts').EditingSnapshot> {
-    const r = checked(await this.request(p.opcodes.edit, editBody(node, value)));
+    const id = ++this.nextEdit,
+      bytes = editBody(node, value),
+      deadline = Date.now() + p.limits.commandTimeoutMs;
+    let r = await this.request(p.opcodes.edit, bytes, id);
+    while (
+      r.status === p.statuses.busy &&
+      value.kind === 'replace' &&
+      value.policy &&
+      value.policy !== 'preserve' &&
+      Date.now() < deadline
+    ) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 8));
+      r = await this.request(p.opcodes.edit, bytes, id);
+    }
+    checked(r);
     if (!r.nodes[0]?.editing) throw new EngineError(p.statuses.notFound, 'Editor snapshot missing');
     return r.nodes[0].editing;
   }
