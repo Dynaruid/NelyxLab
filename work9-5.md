@@ -1,6 +1,6 @@
 # work9-5 — 후속 5부: iOS·macOS 호스트
 
-작성·검토: **2026-11-05 KST** · 상태: **DEFERRED / 3차·Android/Linux 2차 통합 완료 후 착수 / 구현 미착수·notVerified**
+작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **DEFERRED / 3차·Android/Linux W9-13 기술 완료 후 착수 / 구현 미착수·notVerified**
 
 [전체 목차](work9.md) · [이전: 4부 Android·Linux](work9-4.md)
 
@@ -8,7 +8,11 @@
 
 **착수 순서:** Windows/Web 1차 → Android/Linux 2차(4부) → **iOS/macOS 3차(후속 5부)**다. 이 부의 prototype·toolchain·RN 예외 처리 추출·Apple 배포를 앞선 두 차수의 완료 조건으로 두지 않는다.
 
+착수 조건은 Android와 Linux **모두의 W9-13 기술 완료**다. W9-14의 물리·성능 수락과 기본값 전환은 대상별로 별도 유지한다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
+
 **공통 계약과 완료 조건:** Android 단계에서 마련한 중립 helper와 [2부 §11.2·§11.6–11.7](work9-2.md#112-중립-adapter와-상태-계약)을 대상별로 확장한다. iOS·macOS 각각의 W9-05–11 corpus·[W9-13/14](work9-3.md#123-단계별-범위와-완료-조건)를 실제 Apple 환경에 연결한다. 앞선 플랫폼의 통과나 AppKit의 성공을 UIKit의 성공으로 복사하지 않는다.
+
+두 target 모두 2부 §10의 generation reload·세대 차단·loss/재시작·close 계약을 해당 host/CLI에 적용한다. iOS는 W9-12-B, macOS는 W9-04에서 시작하고 W9-13에서 전체 기능과 통합한다. 기존 Apple runner의 기능을 새 standalone host의 완료 증거로 대신하지 않는다.
 
 ## iOS 호스트
 
@@ -21,6 +25,8 @@
 3. RN delegate adapter에서 선택/자동수정·중복 알림·입력 종료 순서의 OS 처리를 이식한다. UITextField/UITextView 전용 delegate/RCT protocol이 필요한 부분은 Nelyx endpoint에 맞게 다시 구현하거나 비교 사례로 남긴다. Native text control의 자체 layout/selection rect를 Core geometry의 대체값으로 사용하지 않는다.
 4. UIAccessibilityElement/container·text range·custom action·focus를 Core semantics에 연결한다. 입력 carrier와 semantics peer가 같은 항목을 중복 노출하지 않도록 하고 VoiceOver focus·게시 bounds·삭제 node를 확인한다.
 5. CADisplayLink·keyboard/scene observer·delegate·Metal completion과 App/View generation의 수명을 함께 정리한다. RN 전용 teardown marker·JS 이벤트 응답 없이 정상 종료하고 늦은 callback을 거부하는 실제 .app을 검증한다.
+
+UITextInput의 동기 질의·UIKit text/selection 변경 알림·delegate 재진입도 mirror/ACK corpus에 포함한다. Core geometry가 없는 새 revision에 이전 range rect를 현재 값으로 반환하지 않는다. Scene을 닫거나 background로 전환하는 동안 input/keyboard/display callback·surface 세대를 차단하고, 복귀 때 현재 scene/metrics로 재게시한다. 여러 scene의 focus·편집·close가 서로 영향을 주지 않는지 확인한다.
 
 최소 host/입력/편집/semantics·공급은 target별 W9-12-B(iOS)에 포함한다. UIKit/Metal 실행은 실제 iOS 환경에서 확인하며 simulator와 device arm64·signing 조건을 구별한다. macOS AppKit의 성공을 iOS의 성공으로 보고하지 않는다.
 
@@ -38,6 +44,10 @@
 | 편집 | NSView의 NSTextInputClient/NSTextInputContext를 Core document에 연결. marked text·selected/marked range·insertText·명령 key·candidate rect·조합 종료·clipboard를 구현. NSRange의 UTF-16과 게시 paragraph identity를 보존 |
 | 접근성 | NSAccessibility peer의 role/value/action/focus·text range·screen bounds를 같은 semantic snapshot에서 제공. App 동기 응답을 기다리지 않고 최신 비시각 값과 게시 geometry의 차이를 표현 |
 | 수명·공급 | .app bundle의 engine/Hermes/Skia·fonts/ICU·license·rpath·code signing 조건을 고정. App dispose·autorelease/Metal completion·display link 해제·window close의 순서를 검증. 로컬 unsigned 실행과 배포용 signing/notarization은 별도 gate |
+
+두 Apple host의 Metal provider는 drawable/frame credit·pixel format/color space·metrics/device 세대와 GPU completion hold를 명시한다. Drawable 획득 실패/지연·숨김·resize·close에서 유한 대기/취소 정책을 사용하고 UI thread를 막지 않는다. 이전 세대 completion이 새 surface를 게시하거나 해제하지 않으며, 마지막 GPU/OS consumer hold가 끝나기 전에 layer/device/provider를 파괴하지 않는다.
+
+3차 착수 때 iOS 최저 OS·device/simulator ABI와 macOS deployment target·Xcode/SDK/compiler·Hermes/Skia 공급을 **target triple별로** 고정한다. `arm64` 이름이 같아도 iOS device·simulator·macOS binary를 섞지 않는다. 각 일반 앱의 create/build/run/doctor/pack·framework/rpath·signing/entitlement·설치본 identity와 손상 거부를 W9-13에 연결하며 개발 Mac의 source 경로·외부 설치에 의존하지 않는지 확인한다.
 
 macOS 14 이상의 NSView display link를 첫 clock 경로로 검토한다. Display 이동·숨김에 따른 callback 변화와 main run-loop의 resize mode를 반영하고 Render owner에는 버전 있는 frame 수요를 전달한다. API 존재만으로 독립 raster나 frame pacing을 수락하지 않는다. [AppKit macOS 14 Display Link](https://developer.apple.com/documentation/macos-release-notes/appkit-release-notes-for-macos-14), [NSView displayLink](https://developer.apple.com/documentation/appkit/nsview/displaylink(target:selector:))
 

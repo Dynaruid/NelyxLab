@@ -1,12 +1,14 @@
 # work9-2 — 2부: 공개 API·렌더링·입력·Web
 
-작성·검토: **2026-11-05 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
 
 [전체 목차](work9.md) · [이전: 1부](work9-1.md) · [다음: 3부](work9-3.md)
 
 **범위:** 원문 §8–10과 §11의 공통·Web 계약(§11.1–11.3·§11.6–11.7). 기존 공개 API, 렌더링·자원 재사용·frame, 입력·복구와 Web 두 profile을 다룬다. Android 구현은 4부의 2차, iOS 구현은 후속 5부의 3차로 분리한다.
 
 **실행 순서:** Windows/Web 1차는 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따른다. 이후 **[4부의 Android·Linux 2차](work9-4.md) → [후속 5부의 iOS·macOS 3차](work9-5.md)**로 진행하며 후속 플랫폼을 Windows/Web 1차 완료의 선행 조건으로 두지 않는다.
+
+다음 차수 착수는 앞선 차수 전체 대상의 **W9-13 기술 완료**를 기준으로 하며 W9-14의 물리·성능 수락과 구별한다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
 
 ## 8. 기존 공개 API 호환 작업
 
@@ -24,6 +26,20 @@
 임의 동기 JS subclass와 독립 Content owner 사이에 동기 callback을 추가하면 교착·App 지연이 생길 수 있다. **W9-06-A를 W9-00 직후의 선행 검증으로 분리**한다. 기존 구현 위에서 State/GlobalKey/context·동기 controller·custom layout/paint/hit-test의 대표 원래 consumer를 실행해 보존할 상태·실행 위치·ACK 전후 의미를 정한다. 큰 그래픽 확장이나 전체 Widget 이식 전에 이 경계를 확인한다.
 
 보존하지 못한 원래 계약은 API별 미완료로 남기며 public API 변경이 필요하면 변경 대상·이유를 명시한다. 이 경우 독립 기능 개발은 계속할 수 있지만 전체 호환과 제품 기본값 전환은 통과시키지 않는다. UI/Content가 App의 동기 응답을 기다리는 우회나 숨은 TS layout/paint fallback으로 해결하지 않는다. Target별 적용 여부와 원래 공개 표면의 분모를 유지하며 후속 플랫폼 미검증을 Windows/Web의 전체 플랫폼 호환 성공으로 합치지 않는다.
+
+### 8.1 검사 환경과 실행 모델의 선행 판정
+
+W9-00의 target별 program은 **실제 설치 consumer의 export condition·module resolution·`lib/types`·compiler 버전**과 맞춘다. 공통 entry는 Windows와 Web 모두 검사하며 Web의 threaded/single-worker 동작 사례도 분리한다. 플랫폼 전용 entry의 비적용은 원래 공개 계약·조건부 export에 근거를 남기고, 이식이 어렵거나 환경 진단이 난다는 이유로 제외하지 않는다. 원래 표면에서 target별 적용·비적용·미검증의 합계가 빠짐없이 대응해야 하며, `public-api.json`을 현재 v2 구현만으로 재생성해 분모를 줄이지 않는다. 의도적으로 충돌하는 환경 분리와 실제 consumer에서도 재현되는 타입 결함 수정을 구별한다.
+
+W9-06-A는 대표 consumer마다 **원래 호출·동기 반환/즉시 읽기·listener 순서·실행 owner·ACK 전후/거부 시 값·실제 C++ 작업**을 함께 확인한다. 다음 분류를 현재 작업 문서에 남기고 원래 계약을 통과한 범위만 W9-06-B 이식의 근거로 사용한다.
+
+| 실행 분류 | 판정 조건 |
+| --- | --- |
+| Core에서 보존 가능 | 표준 C++ node/연산으로 원래 호출 의미를 보존하고 App/Content 지연 중 준비 scene 진행·실패 rollback을 확인 |
+| 명시 경계가 필요 | Native extension 또는 App 경계의 등록/실행·geometry·수명·관측 한계를 명시. 임의 JS subclass 함수를 자동 native 변환하거나 독립 Content에서 호출할 수 있다고 가정하지 않음. 원래 consumer를 바꿔야 하면 호환 미완료 |
+| 보존 방식 미해결 | 해당 의무와 의존 기능을 미완료로 유지. 실패를 적었다는 이유로 호환 PASS나 W9-06 전체 완료로 올리지 않음. 독립된 host/기능 작업은 가능하되 전체 API·제품 전환 gate는 계속 FAIL |
+
+최소 사례는 State/GlobalKey reparent·BuildContext 조회, scroll/editing의 즉시 읽기·쓰기/취소·재진입, custom intrinsic/layout/paint/hit-test다. Setter 호출 직후의 값·listener와 다음 publication의 값을 따로 검사하고, App 소유 animation callback과 Core motion을 구별한다. 모든 JS animation/custom hook의 App 독립 진행을 약속하지 않는다.
 
 ## 9. 렌더링 표현력·재사용·frame 일정
 
@@ -45,6 +61,10 @@ Windows의 FIFO present는 이미 존재한다. **Present mode와 frame 생산 c
 
 Clock은 고정 16 ms 반복에서 display 수요 기반 일정으로 옮기되 더 이른 input/control wake가 대기를 깨워야 한다. Web threaded에서는 owner에서 실제 사용할 수 있는 worker rAF/프레임 신호를 검증하고, 지원하지 않는 환경의 명시적 timing 경로와 capability를 보고한다. Single-worker의 `contentIndependent=false`와 유한 task/quota를 유지한다.
 
+Host별 frame 수요·credit의 권위자는 하나로 두고 rAF/display callback·input wake·기존 timer가 중복 raster loop를 만들지 않게 한다. Web은 실제 Render worker에서 rAF 등록·취소·숨김/복귀를 확인하며, worker 종류/생성 관계에 따른 지원 여부는 [AnimationFrameProvider 계약](https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html#animation-frames)을 따른다. App의 Ticker/build callback과 Core compositor의 진행을 구별하고 App callback을 매 frame ACK 장벽으로 넣지 않는다.
+
+W9-10-A에서 단조 clock의 단위·기준과 session/frame/publication ID를 정한다. Native QPC, Main/worker의 서로 다른 시간 기준은 변환 근거 없이 빼지 않으며 비교할 수 없는 구간은 미관측으로 남긴다. 같은 입력 구간의 build/content/raster/submit·게시를 연결하고 startup 작업을 포함하지 않는다. Hidden/zero-size에서는 frame 생산을 멈추되 입력 terminal·ACK·자원 release·close는 계속 진행해야 한다.
+
 **순서는 clock·관측과 필수 자원 수명 → 실제 재기록/shaping/decode 재사용 → 측정상 필요한 raster cache/damage다.** W9-10-A의 clock·단계 시간과 W9-09의 hold/예산은 최소 수직 연결부터 확인하고 기능 확장 때 함께 갱신한다. W9-11은 원래 API가 요구하는 animated/외부 콘텐츠 지원과 선택적인 추가 최적화를 나눈다. 기존 API 의무인 기능은 1차에서 구현하거나 미완료로 표시하며, 새 backend·추가 cache 최적화를 전체 API 호환의 근거 없이 필수 선행 단계로 늘리지 않는다.
 
 ## 10. 입력·편집·semantics·가상화와 복구
@@ -55,7 +75,9 @@ Clock은 고정 16 ms 반복에서 display 수요 기반 일정으로 옮기되 
 - Semantics에 traversal/hit-test 순서·scroll 정보·문자열 속성·heading·custom action을 보강하고 Windows UIA, GTK/AT-SPI, AppKit NSAccessibility, Web ARIA, 모바일 peer로 연결한다. 최신 비시각 값과 게시 bounds를 구분하고 UI thread에서 shaping/JS 동기 대기를 하지 않는다.
 - Web `dom-textarea/aria` profile은 유지한다. EditContext character bounds를 추가한다면 별도 capability와 실제 지원 browser 검사를 제공하고 EditContext가 없는 편집 경로도 유지한다.
 - 다중 view quota·독립 close, hide/zero-size/restore, device/context loss와 재생성 중 close를 검증한다. 같은 session 복구를 구현하지 못한 경로는 실패 후 **새 session/surface** 정책을 명시하고 복구 완료로 세지 않는다.
-- **1차 W9-12-A**에서 Windows/Web generation reload·device/context loss·재시작/close를 연결한다. Reload는 파일 감시 → 검증된 새 bundle 준비 → 이전 App dispose → callback/gesture/edit 세대 차단 → 새 App 접속/게시로 정의한다. 준비 실패는 기존 session 유지, 교체 진입 뒤 실패는 명시적 terminal로 처리한다. 상태 보존 hot reload는 별도 기능이며 단순 build/run으로 표시하지 않는다. 모바일 port를 기다리지 않고 현재 CLI/일반 앱으로 확인한다.
+- **1차 W9-12-A**에서 Windows/Web generation reload·device/context loss·재시작/close를 연결한다. Reload는 파일 감시 → 검증된 새 bundle 준비 → 이전 App의 신규 입력/작업 admission 닫기·callback/gesture/edit 세대 차단 → 이전 App dispose/drain → 새 App 접속/게시로 정의한다. 준비 실패는 기존 session 유지, 교체 진입 뒤 실패는 명시적 terminal로 처리한다. 상태 보존 hot reload는 별도 기능이며 단순 build/run으로 표시하지 않는다. 모바일 port를 기다리지 않고 현재 CLI/일반 앱으로 확인한다.
+
+Reload의 **App 세대만 교체하는 경우와 host/session/surface까지 교체하는 경우**를 나누고 각각의 입력 중단 구간·마지막 정상 scene·worker/VM·pending/lease 회수를 정의한다. 이전 세대의 신규 mutation을 막아도 ACK·취소 terminal·소유 자원 release용 경로는 drain까지 유지한다. 파일 변경은 최신 후속 bundle 하나로 합치며 오래된 build 완료가 새 generation을 덮지 않게 한다. 무응답 dispose/worker·실패한 surface 생성·close와 겹친 reload는 유한 deadline 뒤 명시적 실패로 끝내고, 이전 세대의 입력을 새 App에 재생하지 않는다.
 
 ## 11. Web·모바일에서 유지할 범위
 
@@ -107,6 +129,7 @@ Web은 두 engine 빌드와 하나의 고정 공식 npm CanvasKit 공급을 유�
 | --- | --- |
 | 비격리 `/plain/`, `auto` | 공유 메모리 없이 single-worker 선택, 같은 기능 corpus·입력 보존·유한 Content 점유 후 회복·정상 종료 |
 | 격리 `/isolated/`, `auto` | 실제 page/worker probe로 threaded 선택, App/Content 지연 중 준비 scene 진행·정상 종료 |
+| 격리 `/isolated/`, 강제 single-worker | 격리 여부와 무관하게 non-shared engine build·하나의 engine worker를 실제 선택. 같은 기능/close corpus와 `contentIndependent=false` 확인 |
 | 강제 요구·손상 공급 | 비격리의 강제 threaded, capability 부족·잘못된 worker URL·ABI/hash/초기화 실패를 명확히 거부. 다른 renderer로 숨기지 않음 |
 | DOM·surface 수명 | Main의 focus/clipboard/ARIA·게시 geometry, canvas 크기/DPR revision·숨김/복귀·context loss 정책·재생성/close에서 late event 차단 |
 
@@ -115,6 +138,10 @@ Web은 두 engine 빌드와 하나의 고정 공식 npm CanvasKit 공급을 유�
 RN Web은 필요한 focus·composition·selection·keyboard·ARIA/브라우저 차이의 helper와 사례를 고르는 참고 기반이다. 현재 `dom-textarea/aria` carrier·Main의 trusted action·C++ 게시 geometry를 유지하고 React DOM component tree·CSS layout·RN ScrollView/Responder를 v2 canvas의 필수 경로로 도입하지 않는다.
 
 각 helper는 해결할 실제 browser 사례·원본 경로/버전·필요 의존성·Nelyx에서 바꾼 의미를 먼저 적는다. 독립성이 없거나 현재 구현으로 처리하는 helper는 가져오지 않는다. 도입 시 두 Web profile에서 비교하고, Worker 내부 DOM 조작·새 renderer fallback·매 frame React commit이 생기지 않는지 확인한다.
+
+Web의 신규 session은 profile probe를 다시 할 수 있지만 실행 중인 session의 worker/heap/profile은 바꾸지 않는다. Surface 재생성으로 canvas owner를 다시 만들 때는 **새 HTML canvas와 새 OffscreenCanvas**를 준비한다. 이미 이전한 canvas에 `transferControlToOffscreen()`을 다시 호출할 수 있다고 가정하지 않으며, 이전 DOM carrier·listener·worker·CanvasKit/GPU 자원의 종료와 새 세대를 연결한다. [HTML canvas 이전 계약](https://html.spec.whatwg.org/multipage/canvas.html#dom-canvas-transfercontroltooffscreen)
+
+App·engine·CanvasKit JS/Wasm·font/image URL은 같은 bundle identity로 확인한다. Plain/isolated 배포와 하위 base URL에서 MIME·CSP/worker/Wasm 허용·cross-origin 자원 정책·HTTPS 또는 신뢰된 localhost 조건을 검사한다. 오래된 cache/혼합 자원·손상 파일은 명시적 공급 실패로 처리하며, 외부 image/clipboard 권한 거부·취소도 해당 API의 동작과 자원 회수에 포함한다.
 
 플랫폼별 구현은 **[4부의 Android §11.4](work9-4.md#114-android--기존-nelyx-os-코드를-먼저-분리)**와 **[후속 5부의 iOS §11.5](work9-5.md#115-ios--uikit-입력-endpoint와-rn-예외-처리-이식)**로 분리했다. 공통 입력 계약·Web helper·도입 gate와 검증 corpus는 이 부에 유지한다.
 

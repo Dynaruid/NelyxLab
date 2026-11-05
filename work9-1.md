@@ -1,12 +1,14 @@
 # work9-1 — 1부: 범위·기준선·Windows 호스트·공통 경계
 
-작성·검토: **2026-11-05 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
 
 [전체 목차](work9.md) · [다음: 2부](work9-2.md)
 
 **범위:** 원문 §1–4·§7. Windows/Web 우선 범위, work8 기준점, Windows App SDK·RNW 선별 재사용, 최소 공통 embedder 경계를 다룬다.
 
 **실행 순서:** Windows/Web 1차는 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따른다. 이후 **[4부의 Android·Linux 2차](work9-4.md) → [후속 5부의 iOS·macOS 3차](work9-5.md)**로 진행하며 후속 플랫폼을 Windows/Web 1차 완료의 선행 조건으로 두지 않는다.
+
+차수 전환의 **완료는 앞선 차수 모든 대상의 W9-13 기술 gate 통과**를 뜻한다. 물리 입력·성능·기본값 전환은 W9-14의 대상별 별도 판정이며, 그 미수락을 기술 완료나 다음 차수 착수와 혼동하지 않는다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
 
 ## 1. 이번 계획의 결정과 범위
 
@@ -67,7 +69,7 @@ P0에서 보완한 원래 표면 고정·gate 입력·동작 의무·실제 경�
 | --- | --- | --- | --- | --- |
 | Windows | **1차 우선** | **Windows App SDK + C++/WinRT**, AppWindow·DispatcherQueue와 HWND interop | 현재 **Skia Graphite/Vulkan → HWND**를 먼저 유지 | Windows 11 x64를 초기 실행 기준으로 고정. App SDK 전환은 **미착수**, 기존 HWND host 구간만 검증 기록 있음 |
 | Web | **1차 우선** | 기존 Main·App worker·engine worker, 두 실행 profile | 수정하지 않은 공식 npm `canvaskit-wasm@0.41.0/full` | Windows의 Chrome·Edge를 초기 실제 브라우저 검증 대상으로 두고 정확한 버전은 W9-00에서 기록. 두 profile·전체 API·복구는 PARTIAL. 다른 browser/OS는 별도 검증 전 지원 완료로 표시하지 않음 |
-| Linux | **2차 / 4부** | **GTK4**, GtkApplication/GtkApplicationWindow·GLib main context | Render worker의 **Graphite/Vulkan → DMA-BUF → GdkTexture → GTK snapshot** | GTK **4.16 이상**, Linux x86_64, **Wayland와 X11 각각**을 계획. V2 host는 **미착수 / DEFERRED** |
+| Linux | **2차 / 4부** | **GTK4**, GtkApplication/GtkApplicationWindow·GLib main context | Render worker의 **Graphite/Vulkan → DMA-BUF → GdkTexture → GTK snapshot** | GTK **4.22 이상**, Linux x86_64, **Wayland와 X11 각각**을 계획. 접근성 caret·selection 변경 API까지 포함한 최소 버전이며 [4부의 근거](work9-4.md#5-linux--gtk4-호스트)를 따른다. V2 host는 **미착수 / DEFERRED** |
 | macOS | **3차 / 후속 5부** | **AppKit**, NSApplication/NSWindow/NSView, Objective-C++ adapter | **Skia Graphite/Metal → CAMetalLayer** | macOS **14 이상**, arm64를 초기 대상으로 계획. V2 host는 **미착수 / DEFERRED**. x86_64 공급은 별도 target 상태로 관리 |
 | Android | **2차 / 4부** | Kotlin/Java의 Activity/View + native engine. 기존 Nelyx/RN의 OS 연결 코드를 선별 이식 | Native surface와 검증한 Skia 공급 | arm64-v8a 최소 port·InputConnection/접근성·RN 의존성 분리·독립 실행을 이월. **소스 검토 / 구현 미착수 / DEFERRED** |
 | iOS | **3차 / 후속 5부** | **UIKit**의 UIApplication/UIView·UITextInput. RN의 예외 처리·서비스를 선별 이식 | Native Metal surface와 검증한 Skia 공급 | UIKit host·RN 의존성 분리·공급을 이월. AppKit을 iOS에 적용하지 않음. **소스 검토 / 구현 미착수 / DEFERRED** |
@@ -84,17 +86,19 @@ W9-02-A에서는 **작은 App SDK 창 → 실제 C++ scene → 입력 → resize
 
 | 작업 | 고정할 계약·완료 증거 |
 | --- | --- |
-| 시작·배포 | C++ host 실행 프로젝트에서 고정 NuGet을 참조하고 CMake core/provider를 연결. 초기 배포는 **unpackaged/self-contained**로 계획. 선택한 SDK의 앱 로컬 초기화·필수 runtime/CRT·license를 포함하고 깨끗한 소비 환경에서 실행. Framework-dependent를 추가하면 bootstrap/runtime 설치 계약을 별도로 제공 |
+| 시작·배포 | C++ host 실행 프로젝트에서 고정 NuGet을 참조하고 CMake core/provider를 연결. 초기 배포는 **unpackaged/self-contained**로 계획. 실행 프로젝트의 `WindowsAppSDKSelfContained=true`·`WindowsPackageType=None`과 UndockedRegFreeWinRT 초기화 포함 여부를 확인. 현재 Skia/Hermes와 호환되는 CRT 공급·DLL/metadata·license를 포함하고 전역 App SDK runtime·개발용 PATH가 없는 소비 환경에서 실행. Framework-dependent를 추가하면 bootstrap/runtime 설치 계약을 별도로 제공 |
 | UI loop | STA UI thread가 `Microsoft.UI.Dispatching.DispatcherQueueController`·AppWindow·HWND를 소유. 기존 USER32 pump와 통합하고 중첩 resize/modal loop도 검사. `Windows.System` dispatcher와 App SDK dispatcher 타입을 섞지 않음 |
 | 실제 App SDK 사용 | 단순 link나 manifest 이름이 아니라 AppWindow 생성/interop·크기/표시/변경·dispatcher callback·종료를 실제로 실행. Host 보고에 `windows-app-sdk`와 정확한 runtime/package identity 포함 |
 | Surface | 현재 [Vulkan/Graphite provider](Nelyx/engine/platform/windows/skia_provider.hpp)를 Render owner에서 재사용. UI가 HWND와 metrics lifetime을 보장하고 device/scene의 늦은 결과를 세대로 차단. HWND/WSI teardown은 GPU/provider hold drain 뒤 수행 |
 | DPI·resize | Client 물리 px와 engine 논리 단위의 변환을 한 adapter에서 처리. `WM_DPICHANGED`·AppWindow 변경을 하나의 metrics revision으로 합치며, live resize·다중 모니터·최소화·zero-size·restore 때 이전/새 surface의 게시 순서를 검증 |
 | 입력·접근성 | 기존 [TSF/UIA](Nelyx/engine/platform/windows/interaction.hpp)와 clipboard·게시 geometry를 유지. Keyboard/text의 중복 적용, focus/capture 이탈, precision trackpad source/phase와 wheel 구분, 조합 종료 교섭을 새 window 수명에서 재검증 |
-| 종료 | Close 요청은 한 terminal로 합치고 UI pump를 살린 채 App → Widget/client → Content/Render/provider → HWND/AppWindow → dispatcher/runtime 순서로 정리. UI callback을 기다리는 owner를 UI에서 blocking join하지 않음. 원래 오류와 cleanup 오류를 모두 보존 |
+| 종료 | Close 요청은 한 terminal로 합치고 신규 입력/작업 admission을 닫은 뒤 UI pump를 살린 채 App → Widget/client → Content/Render/provider → HWND/AppWindow → dispatcher/runtime 순서로 정리. 마지막 window close도 GPU hold drain 전 HWND 파괴나 `PostQuitMessage`로 이어지지 않게 처리. Queue 종료가 AppWindow를 파괴할 수 있으므로 최외곽 loop owner만 queue를 종료. UI callback을 기다리는 owner를 UI에서 blocking join하지 않으며 원래 오류와 cleanup 오류를 모두 보존 |
 
 App SDK의 창 변경은 UI 호스트 전환이다. **D3D/ANGLE·Composition swapchain 전환은 이번 채택의 전제에 넣지 않는다.** 향후 다른 renderer를 추가할 때는 capability·픽셀·수명·실행 identity를 독립 검증한다.
 
 배포와 dispatcher 수명은 [self-contained 배포](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/self-contained-deploy/deploy-self-contained-apps), [framework-dependent bootstrap](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/deploy-unpackaged-apps), [DispatcherQueue](https://learn.microsoft.com/en-us/windows/apps/develop/dispatcherqueue)를 기준으로 구현한다. Self-contained와 framework-dependent의 초기화 절차를 한 경로에 혼합하지 않는다.
+
+Self-contained 설정을 CMake library에만 추가한 것으로 배포 완료 처리하지 않는다. 실행 프로젝트의 NuGet/MSBuild 출력과 설치본에서 초기화·필수 파일을 확인하고, CRT를 바꿀 때는 Skia/Hermes까지 ABI·allocator 해제 경계를 대조한다. 기존 HWND host의 성공을 새 App SDK host suite에 재사용하지 않고 시작 실패·마지막 창 닫기·시작 도중 종료도 같은 공급으로 검사한다.
 
 ### 4.1 Windows RNW 소스 선별 재사용
 
@@ -137,3 +141,15 @@ Host 계약에는 surface/metrics·frame clock·input·text input·semantics·cl
 UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`PreparationId`/publication·node/resource generation을 보존한다. 1차 Windows와 Web threaded는 **App/Content와 독립된 준비 scene 합성**을 요구한다. Web single-worker는 `contentIndependent=false`와 유한 분할/점유 후 회복을 구분한다. 후속 native host도 같은 독립 합성 계약을 따른다. UI의 실제 게시 adapter를 사용한다는 이유로 Content나 TS에서 매 frame raster하도록 바꾸지 않는다.
 
 각 host 보고는 engine/host/backend·OS/ABI·VM/compiler·Skia·schema·source/asset identity·owner 배치·capability를 함께 제공한다. `native`라는 profile 하나에 서로 다른 OS binary를 덮어쓰지 않고 공급 manifest를 target별로 구별한다. 정확한 manifest version은 W9-00/01에서 정하고 기존 소비자의 불일치는 명확히 거부한다.
+
+### 7.1 호스트 전환에서 보존할 공통 조건
+
+아래는 새 기능을 늘리는 목록이 아니라 [work8의 상태·입력 계약](history/26/11/04/work8-1-summary.md#transactionabi준비-세대)을 새 host/provider에서도 유지하기 위한 회귀 조건이다. 수치 상한은 현재 [canonical protocol](Nelyx/engine/schema/protocol.json)을 사용하며 과거 예산을 새 공급에 그대로 복사하지 않는다.
+
+| 경계 | 유지할 조건·연결 단계 |
+| --- | --- |
+| Transaction·준비 | W9-01/06에서 NACK의 원자 rollback·같은 ID/bytes 재시도·ID 재사용 거부·유실 ACK/결과 만료 후 resync를 유지. `DocumentAccepted`와 준비/게시 성공을 분리하고 승인 뒤 준비 실패·취소도 terminal·자원 회수까지 검사 |
+| 입력·진행 보장 | W9-01/07/10에서 **frame 시작 시 입력 watermark와 유한 quota**로 처리 범위를 고정. 전역 queue가 비기를 기다리지 않고 terminal/control 예약·view 공정성·lost-wake를 보존. 연속 입력과 연속 document 변경을 함께 주어 진행 중 호환 준비의 활성화 및 다음 최신 수요의 진행을 확인 |
+| Snapshot·자원 | Admission snapshot·frame/provider/GPU hold를 정확한 세대와 owner에 묶고 late 결과·취소·close에서 한 번 해제. Engine Wasm과 CanvasKit 사이에는 복사 bytes/각 module의 ID만 전달. Heap 성장 후 옛 typed-array view나 다른 module의 포인터·JSI/UI 객체를 보관하지 않음. W9-01/05/09/12/13에 적용 |
+| 좌표·크기 | W9-05/07에서 constraints의 `finite/unbounded/expand`와 scroll extent의 `finite/estimated/unbounded`를 구별. 최종 layout/paint/hit-test·게시 bounds는 finite이며 NaN/임의 Infinity·overflow를 거부. Perspective/특이 transform의 projection·역변환 불가 시 hit/semantics 정책도 provider와 일치시킴 |
+| Protocol·공급 | W9-05/07/11의 wire 확장 때 schema/필수 capability와 C++·TS·SDK·설치본 producer/consumer를 함께 갱신. 옛 schema·없는 필수 capability·잘못된 크기/자원/세대를 시작 또는 admission에서 거부하고 기존 scene과 ledger를 보존. 단순 source typecheck로 ABI 호환을 승인하지 않음 |

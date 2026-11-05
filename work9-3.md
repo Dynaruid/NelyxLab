@@ -1,6 +1,6 @@
 # work9-3 — 3부: 구현 순서·통합 검증·공급
 
-작성·검토: **2026-11-05 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
 
 [전체 목차](work9.md) · [이전: 2부](work9-2.md) · [다음: 4부 Android·Linux](work9-4.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
@@ -21,16 +21,17 @@
 - Windows host 변경 중 Web 회귀를 늦게 발견하지 않도록 W9-02를 Windows App SDK와 Web 두 profile의 동등한 최소 수직 연결로 나눈다. 공통 계약 변경은 세 실행 경로에서 같은 묶음으로 검증한다.
 - 공통 계층 추출·모바일 RN 분리·GTK/AppKit prototype을 한 선행 단계로 묶지 않는다. 1차에서는 Windows RNW의 필요한 OS handler와 Windows/Web 공통 경계만 최소 분리하고 후속 플랫폼은 해당 차수에서 연결한다.
 - Clock·기본 예산/hold·일반 앱 배포는 초기부터 확인한다. 광범위 cache 최적화는 실제 단계 시간과 재사용 수치를 얻은 뒤 수행하고 reload/복구는 모바일 이식과 분리한다.
+- 필수 animated/외부 콘텐츠는 W9-09-A의 기본 수명·예산과 필요한 paint/interaction이 준비되면 시작한다. W9-09-B의 재사용 최적화 전체를 기능 구현의 선행 조건으로 두지 않는다. 차수 전환은 [§12.5](#125-차수-전환과-완료-판정)의 W9-13 기술 완료를 기준으로 통일한다.
 
 ### 12.2 Windows/Web 1차 실행 순서
 
 | 순서 | 실행 묶음 | 다음 묶음으로 넘어갈 기준 |
 | --- | --- | --- |
-| 1 | **W9-00 → W9-06-A**: 현재 공급·API 입력·동기 실행 모델 | 현재 Windows/Web 기준선과 두 target의 유효한 API 검사 입력 확보. 원래 API의 보존 방식·실패 사례·남은 의무를 확인. 호환 실패를 숨기지 않고 실행 모델의 한계를 기록 |
+| 1 | **W9-00 → W9-06-A**: 현재 공급·API 입력·동기 실행 모델 | 현재 Windows/Web 기준선과 두 target의 유효한 API 검사 입력 확보. [§8.1](work9-2.md#81-검사-환경과-실행-모델의-선행-판정)의 원래 consumer로 보존 가능·명시 경계 필요·미해결을 구분. 통과한 계약만 다음 API 이식의 근거로 삼고 미해결 의무·의존 기능은 미완료로 유지 |
 | 2 | **W9-01 → W9-02-A/B**: 최소 공통 경계와 Windows/Web 실행 | 같은 작은 일반 앱이 App SDK host·Web threaded·single-worker에서 실제 C++ 작업·화면·입력·resize·close를 수행. **W9-09-A/10-A**의 기본 예산·clock/시간 계측, **W9-13의 초기 설치·배포 검사**도 이때 연결 |
 | 3 | **W9-06-B·W9-05 → W9-07**: 원래 API·그래픽·interaction | Widget 수명·기본 render 연결부터 시작해 각 기능에 필요한 paint/text를 보강하고 layout·gesture·scroll·editing·semantics·list까지 같은 consumer/corpus로 확장. 전체 W9-05 완료를 기다려 Widget 수명부터 막지 않음 |
 | 4 | **W9-08**: 두 디자인·SDK 사용 흐름 | Windows와 두 Web profile에서 원래 import·theme·form·overlay·navigation·localization/service 동작. 미이식 항목은 API 의무로 계속 추적 |
-| 5 | **W9-09-B/10-B → W9-11-A**: 재사용·pressure·frame·필수 콘텐츠 | 재사용 전후 pixel/geometry와 실제 작업 수·단계 시간 대조. 원래 API에 필요한 animated/texture/platform view와 수명 확인. 추가 raster cache/damage는 측정 근거가 있을 때만 적용 |
+| 5 | **W9-09-B/10-B·W9-11-A**: 재사용·pressure·frame·필수 콘텐츠 통합 | 재사용 전후 pixel/geometry와 실제 작업 수·단계 시간 대조. 필수 animated/texture/platform view는 W9-09-A와 해당 기능 준비 후 먼저 구현할 수 있으며 이 묶음에서 수명·기능을 최종 통합. 추가 raster cache/damage는 측정 근거가 있을 때만 적용 |
 | 6 | **W9-12-A**: Windows/Web reload·복구 통합 | 최소 host 연결 뒤부터 개발하고 이때 기능 전체와 통합. 준비 실패·교체·context/device loss·새 session 정책·close/late callback·자원 회수 확인 |
 | 7 | **W9-13 → W9-14**: Windows/Web 최종 통합·제품 수락 | 해당 target의 API/동작·전체 설치 조합·두 profile·공급/실행/종료 검증 후 실제 입력·frame/resize 성능과 기본값 전환을 대상별 판정 |
 
@@ -40,21 +41,21 @@
 
 | ID | 차수·작업 | 선행·완료 조건 |
 | --- | --- | --- |
-| W9-00 | **1차** 기준선·공급·API 판정 입력 | 현재 diff/source/dist·원래 공개 표면·Windows/Web의 OS/ABI/toolchain/browser·배포/manifest/capability·corpus 확인. [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용) RNW 후보의 필요 사례·도입/참고 범위·출처/의존성 고정. 현재 공급으로 필요한 core/host/runner 기준선을 확인한 뒤 검사 입력을 target별 정상화. `inputValid=true` 확보와 실제 호환 잔여 목록을 분리. 모바일 원본 고정·GTK/Apple 환경은 후속 |
-| W9-06 | **1차 A** 실행 모델 검증 → **B** 원래 Widget/Element/Render API | A는 W9-00 후 기존 구현에서 State/Key/context·동기 controller/custom hook의 보존 가능 의미를 증명. B는 A와 W9-01/02 후 수명·parent data·NACK/예외·재진입을 구현하고 필요한 W9-05 항목과 기능별 연결. UI/Content의 App 동기 대기·숨은 fallback으로 통과시키지 않음 |
+| W9-00 | **1차** 기준선·공급·API 판정 입력 | 현재 diff/source/dist·원래 공개 표면·Windows/Web의 OS/ABI/toolchain/browser·배포/manifest/capability·corpus 확인. [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용) RNW 후보의 필요 사례·도입/참고 범위·출처/의존성 고정. 현재 공급으로 필요한 core/host/runner 기준선을 확인한 뒤 [§8.1](work9-2.md#81-검사-환경과-실행-모델의-선행-판정)의 실제 consumer 환경으로 검사 입력을 정상화하고 원래 표면의 target별 대응 합계 확인. `inputValid=true` 확보와 실제 호환 잔여 목록을 분리. 모바일 원본 고정·GTK/Apple 환경은 후속 |
+| W9-06 | **1차 A** 실행 모델 검증 → **B** 원래 Widget/Element/Render API | A는 W9-00 후 기존 구현에서 State/Key/context·동기 controller/custom hook의 보존 가능 의미와 실행 분류를 실제 원래 consumer로 확인. 미해결 의무와 의존 기능은 미완료로 유지. B는 A에서 입증한 경계와 W9-01/02 후 수명·parent data·NACK/예외·재진입을 구현하고 필요한 W9-05 항목과 기능별 연결. UI/Content의 App 동기 대기·숨은 fallback으로 통과시키지 않음 |
 | W9-01 | **1차** 최소 embedder·runtime/provider 경계 | W9-00와 W9-06-A의 설계 결과. Windows/Web에 필요한 owner·mailbox·provider·입력/mirror·generation·close와 선택한 RNW OS handler만 최소 분리. 새 Windows 경로의 RN 앱 객체 의존성을 제거하고 기존 ACK/NACK·snapshot/ledger·오류/cleanup 회귀 유지. 모바일 helper 추출이나 후속 OS 구현을 요구하지 않음 |
 | W9-02 | **1차 A** Windows App SDK·**B** Web 수직 연결 | W9-01. A는 실제 AppWindow/dispatcher·Vulkan scene·TSF/UIA·DPI/resize·hide/restore·drain·unpackaged 소비 실행. B는 Chrome·Edge의 두 profile·DOM/ARIA·DPR/resize·실패/close corpus. 작은 공통 앱부터 시작하고 실제 C++ 작업과 host identity 확인 |
 | W9-05 | **1차** Canvas/Paint·rich text/font | W9-01과 W9-06-A. 작은 scene의 protocol/provider부터 확장하고 Windows/Web에서 같은 API·pixel·UTF-16/RTL/placeholder/query·invalidation corpus 실행. W9-06-B/07에 필요한 항목부터 연결해 전체 표현력과 자원 거부/회수까지 완성 |
 | W9-07 | **1차** Layout·scroll/gesture·editing·semantics·list | W9-06-B 및 해당 기능의 W9-05, 실제 peer는 W9-02. Intrinsic/dry/baseline·invalidation·motion·lazy focus·range/action·동기 controller 의미를 공통 core와 Windows UIA/TSF·Web DOM/ARIA에서 확인. GTK/AppKit/모바일 peer는 후속 |
 | W9-08 | **1차** Material/Cupertino·SDK API | W9-06-B/07 및 필요한 W9-05. 원래 constructor/default/theme/icon/form/route/overlay·localization/service/platform API별 사례를 Windows/Web에 연결. 미이식 import 거부를 호환 구현으로 교체하고 원래 공개 분모 유지 |
-| W9-10 | **1차 A** clock·관측 → **B** 전체 frame 일정 | A는 W9-02의 각 host 최소 실행과 함께 display 수요·input wake·idle·숨김/복귀·build/content/raster/submit 시간 관측. B는 기능 확장 후 같은 조건의 frame/credit·지연 중 진행을 통합 검증. GTK/AppKit clock은 해당 후속 host에서 연결 |
+| W9-10 | **1차 A** clock·관측 → **B** 전체 frame 일정 | A는 W9-02의 각 host 최소 실행과 함께 clock 단위/기준·ID 대응·단일 frame 수요/credit·input wake·idle·숨김/복귀·build/content/raster/submit 시간 관측. B는 기능 확장 후 연속 입력 watermark·연속 document 갱신·App/Content 지연 중 준비 scene 진행과 App animation의 한계를 통합 검증. GTK/AppKit clock은 해당 후속 host에서 연결 |
 | W9-09 | **1차 A** 기본 예산/hold → **B** preparation 재사용·pressure | A는 W9-01/02부터 신규 자원·실패/교체/close를 ledger에 연결. B는 W9-05와 W9-10-A 후 실제 병목을 기준으로 Picture/paragraph/image 재사용·무효화·pressure 회복과 재기록/shaping/decode 수 감소 확인. RSS/VRAM 측정 한계 명시 |
-| W9-11 | **1차 A** 원래 API의 animated/외부 콘텐츠·**추가 B** cache/damage | A는 W9-05/09-B/10-A와 필요한 W9-07 후 Windows/Web의 API별 필수 기능·texture/platform view 입력/semantics·수명 검증. 요구 기능 미지원은 호환 gate 실패. B는 측정 근거가 있을 때 적용하고 full redraw pixel·무효화·회수 대조; 근거가 없으면 추가 최적화 보류로 기록 |
-| W9-12 | **1차 A** Windows/Web reload·복구 / **2차 B(Android)** / **3차 B(iOS)** | A는 W9-01/02 후 시작, bundle 준비 실패·세대 교체·device/context loss·재생성/새 session·close를 기능 확장과 통합. B는 [§11](work9-2.md#11-web모바일에서-유지할-범위) M0/M1/M2의 RN 소스 분리·standalone 입력/편집/semantics·surface/clock·설치/drain을 대상별 수행. Android는 Windows/Web 1차 완료 후 4부에서, iOS는 Android/Linux 2차 완료 후 5부에서 진행. M3 Web helper는 A/07에서 독립 수행 |
+| W9-11 | **1차 A** 원래 API의 animated/외부 콘텐츠·**추가 B** cache/damage | A는 필요한 W9-05/07와 W9-09-A/10-A 후 Windows/Web의 API별 필수 기능·texture/platform view 입력/semantics·수명 검증. W9-09-B 전체를 기다리지 않으며 최종 통합에서 재사용과 대조. 요구 기능 미지원은 호환 gate 실패. B는 W9-09-B/10-B 측정 근거가 있을 때 적용하고 full redraw pixel·무효화·회수 대조; 근거가 없으면 추가 최적화 보류로 기록 |
+| W9-12 | **1차 A** Windows/Web reload·복구 / **2차 B(Android)** / **3차 B(iOS)** | A는 W9-01/02 후 시작, bundle 준비 실패·세대 교체·device/context loss·재생성/새 session·close를 기능 확장과 통합. B는 [§11](work9-2.md#11-web모바일에서-유지할-범위) M0/M1/M2의 RN 소스 분리·standalone 입력/편집/semantics·surface/clock·reload/복구·설치/drain을 대상별 수행. Android는 Windows/Web 1차 완료 후 4부에서, iOS는 Android/Linux 2차 완료 후 5부에서 진행. M3 Web helper는 A/07에서 독립 수행 |
 | W9-13 | **대상별** 전체 API·host 통합·배포 | 초기 Windows/Web 설치 검사는 W9-02부터. 1차 최종 판정은 W9-05/06-B/07/08/09/10/11-A/12-A와 W9-02의 전체 corpus, 원래 공개 scope·동작 의무·installed compiler/CLI·두 디자인·전체 Windows/Web package 조합·출처/identity·손상 거부/정리를 요구. W9-03/04/12-B는 1차 선행 조건에서 제외 |
 | W9-14 | **대상별** 물리 입력·성능·기본값 전환 | W9-13을 통과한 대상부터 평소 명령·실제 사용자 입력·동일 측정 조건으로 판정. Windows/Web의 결과와 profile별 한계를 기록하고 후속 플랫폼의 flag를 올리지 않음. V1 정리는 해당 제품 gate 후 사용 경로·제거 목록을 확인하는 별도 단계 |
-| W9-03 | **2차 / 4부 / DEFERRED** GTK4 수직 연결 | Windows/Web 1차 완료 후 Android와 같은 차수로 W9-01의 계약을 사용해 Linux 공급을 고정. DMA-BUF capability/동기화/FD·게시/geometry·IM/AT-SPI·Wayland/X11·일반 앱/drain. Prototype 실패면 Linux gate 미완료 |
-| W9-04 | **3차 / 후속 5부 / DEFERRED** AppKit 수직 연결 | Android/Linux 2차 완료 후 iOS와 같은 차수로 W9-01의 계약을 사용해 Apple 공급을 고정. AppKit/Metal·point/pixel·marked text·NSAccessibility·display/resize·.app 공급/drain을 실제 macOS에서 검증 |
+| W9-03 | **2차 / 4부 / DEFERRED** GTK4 수직 연결 | Windows/Web W9-13 기술 완료 후 Android와 같은 차수로 W9-01의 계약을 사용해 Linux 공급을 고정. GTK 4.22 이상·DMA-BUF capability/동기화/FD·게시/geometry·IM/AT-SPI의 caret/selection 변경·Wayland/X11·일반 앱/reload/loss/drain. Prototype 실패면 Linux gate 미완료 |
+| W9-04 | **3차 / 후속 5부 / DEFERRED** AppKit 수직 연결 | Android/Linux W9-13 기술 완료 후 iOS와 같은 차수로 W9-01의 계약을 사용해 Apple 공급을 고정. AppKit/Metal·point/pixel·marked text·NSAccessibility·display/resize·.app 공급/reload/loss/drain을 실제 macOS에서 검증 |
 
 Windows/Web 1차 이후 **2차는 W9-12-B(Android)·W9-03**, 그다음 **3차는 W9-12-B(iOS)·W9-04**로 진행한다. 각 차수의 API·host·공급 통합 완료 뒤 다음 차수에 착수하고, 물리 입력·성능 수락은 W9-14에서 대상별로 구분한다. 해당 host의 W9-05–11 corpus와 W9-13/14를 다시 연결한다. **후속 host에 Windows/Web의 통과를 그대로 복사하지 않는다.** Windows/Web 1차 기술 완료는 해당 API·host·공급 gate의 통과이며 전체 플랫폼 완료나 물리·성능 수락을 뜻하지 않는다.
 
@@ -72,6 +73,19 @@ Windows/Web 1차 이후 **2차는 W9-12-B(Android)·W9-03**, 그다음 **3차는
 - [ ] W9-14: 실제 Windows/Web 입력·이동/resize 성능을 확인하고 검증한 대상의 기본값 전환 판정.
 - [ ] 2차 / 4부: W9-12-B(Android)·W9-03의 Android·GTK4 구현과 각 대상 W9-05–11 corpus·W9-13/14를 수행. iOS/macOS를 완료 조건에 포함하지 않음.
 - [ ] 3차 / 후속 5부: Android/Linux 2차 통합 완료 후 W9-12-B(iOS)·W9-04의 UIKit·AppKit 구현과 각 대상 W9-05–11 corpus·W9-13/14를 별도 수행.
+
+### 12.5 차수 전환과 완료 판정
+
+**1차 → 2차는 Windows와 Web의 W9-13 기술 완료, 2차 → 3차는 Android와 Linux 각각의 W9-13 기술 완료가 조건이다.** Web은 초기 대상인 Chrome·Edge에서 threaded/single-worker 모두를 포함한다. 문서에서 별도 수식 없이 앞선 차수의 ‘완료’ 또는 ‘통합 완료’라고 한 것은 이 기술 gate를 뜻한다. 물리 입력·성능 수락을 기다리며 독립된 다음 플랫폼 작업을 막지 않는다.
+
+| 판정 | 완료 의미와 상태 기록 |
+| --- | --- |
+| API 검사 입력 유효 | W9-00의 `inputValid=true`. 아직 동작 호환이나 W9-06/13 완료를 뜻하지 않음 |
+| 대상별 기술 완료 | 해당 차수에 적용되는 W9-01/02 또는 W9-03/04/12-B, W9-05–10·11-A·복구/공급과 W9-13의 API/host/설치 gate 통과. 미해결 공통 API를 비적용으로 빼지 않음. 선택적 W9-11-B는 근거 있는 보류가 가능 |
+| 물리 입력·성능 수락 | W9-14에서 실제 대상/profile·입력 source·장면별로 판정. `performanceAccepted`·`resizePerformanceAccepted`와 IME/reader/trackpad·표시 관측을 따로 기록. 기술 완료만으로 false/notVerified를 올리지 않음 |
+| 제품 기본값·기존 경로 정리 | 해당 대상의 W9-13과 W9-14 제품 gate 이후에만 기본값 전환. 기존 host/v1 제거는 사용 경로·제거 목록 확인 후 별도 수행. 다른 플랫폼의 기본값·미완료 상태를 함께 바꾸지 않음 |
+
+W9-12의 A·B(Android)·B(iOS)와 W9-13/14의 상태는 대상별로 유지한다. Windows/Web 완료만으로 W9-12 전체나 전체 플랫폼을 체크하지 않으며, **전체 기술 완료와 전체 제품 수락도 각각** 모든 계획 대상의 해당 gate가 통과해야 한다. 필수 corpus를 실행할 환경이 없으면 미검증/DEFERRED 또는 해당 작업의 차단 사유를 남기고 성공으로 간주하지 않는다.
 
 ## 13. 검증과 판정
 
@@ -98,7 +112,23 @@ Windows/Web 1차 이후 **2차는 W9-12-B(Android)·W9-03**, 그다음 **3차는
 
 같은 장면·현재 공급을 Windows App SDK와 실제 Web browser에 연결해 비교하고 주사율·DPI·해상도는 바꾸지 않는다. Web 결과에는 browser·GPU·profile·격리 여부·tab 가시성을 포함한다. Single-worker의 Content 점유 한계와 입력 보존/회복을 threaded와 구별하며 profile 간 동일 성능을 전제하지 않는다.
 
+비교 시작 전에 평소 실행 명령·Release/optimized/VM cohort·창 크기·콘텐츠/physics·예열/coverage·입력 구간과 관측 방법을 고정한다. 실제 이동 상태가 바뀐 surface frame의 수·간격과 p95/p99/max 지연·지속 정지·CPU/GPU·ledger/process 관측을 구별한다. 같은 화면의 반복 submit은 이동 FPS로 세지 않으며 빌드·다른 성능 검사를 동시에 돌리지 않는다. 미수락 구간과 물리 입력 결과를 평균 수치로 덮지 않는다.
+
 Surface 갱신·GPU 완료·host publication·물리 display/scanout은 각각 기록한다. 관측하지 않은 scanout은 `unobserved`다. 실제 일반 사용의 체감 수락은 관측된 범위로 판정할 수 있으며 모든 내부 시각을 알아야만 사용자 수락을 기록할 수 있는 것은 아니다.
+
+### 변경 범위별 필수 회귀
+
+아래 사례를 관련 단계의 기존 suite에 연결하거나 새 host/adapter 검사로 추가한다. 현재 존재하는 suite가 새 host를 이미 검증한다고 보고하지 않는다.
+
+| 변경 범위 | 필요한 성공·실패 사례 |
+| --- | --- |
+| API 입력·실행 경계 W9-00/06 | Target별 실제 설치 import·overload/member/protected/non-code 대응, 잘못된 export condition·누락·해석 실패·표면 축소의 거부. 동기 getter/setter/listener·재진입·NACK와 실제 C++ 작업 대조 |
+| 공통 wire·owner W9-01/05/07 | 세 실행 경로의 schema/capability 불일치·유실 ACK/재시도·준비 실패/자원 회수. 입력·App 이벤트 포화·연속 document 변경·다중 view에서도 bounded 상태와 frame/terminal 진행 |
+| App SDK W9-02-A | 개발 runtime 없는 앱 로컬 배포·필수 파일 손상/누락의 거부, AppWindow/dispatcher 실제 실행·DPI·TSF/UIA·live resize/최소화·마지막 창 닫기·시작 도중 종료. 기존 HWND host는 별도 control |
+| Web W9-02-B/07/12-A | Chrome·Edge의 두 profile, 격리 환경의 forced single-worker·비격리 강제 threaded 실패, 잘못된 worker/Wasm·권한 거부, base URL/배포 자원, context loss·새 canvas 재시작·reload/close와 late event 차단 |
+| Provider·복구 W9-09–12 | Retained/full redraw pixel·text/clip/hit/semantics, 자원 무효화·예산 거부·pressure·detach/restore·device/context loss·dispose 무응답·close 중 reload. GPU/OS consumer hold·pending·callback이 회수되고 다음 정상 scene이 진행 |
+
+물리 IME/reader/precision trackpad와 GPU 실제 browser 검사는 위 자동 회귀와 별도다. GTK/Android·Apple 관련 사례는 해당 후속 차수의 실제 환경에서 같은 gate에 연결하며 Windows cross-build나 simulator 결과로 device/OS 입력 수락을 대신하지 않는다.
 
 ### 구현 시 사용할 기존 검사 명령
 
@@ -126,7 +156,7 @@ npm.cmd run format:check
 git diff --check
 ```
 
-모든 테스트 timeout은 [저장소 지침](.github/copilot-instructions.md)의 **20분**이다. Geometry 변경은 두 입력 geometry 검사를 함께 실행한다. Linux/macOS·모바일 host 검사와 target별 build/doctor/pack 명령은 아직 없으므로 각 host 단계에서 구현하고 도움말·성공/실패 사례를 함께 추가한다. 현재 `build:engine-v2`나 host suite가 새 OS를 검증한다고 보고하지 않는다.
+모든 테스트 timeout은 [저장소 지침](.github/copilot-instructions.md)의 **20분**이다. Geometry 변경은 두 입력 geometry 검사를 함께 실행한다. 새 Windows App SDK host의 검사·배포 연결과 Linux/macOS·모바일 host 검사·target별 build/doctor/pack 지원은 각 host 단계에서 구현하고 도움말·성공/실패 사례를 함께 추가한다. 현재 `build:engine-v2`나 host suite가 App SDK 또는 새 OS를 검증한다고 보고하지 않는다.
 
 현재 v2 host를 눈으로 확인할 때 쓰는 저장소 명령은 `npm.cmd run run:engine-v2:windows`와 `npm.cmd run run:engine-v2:web`이다. Web 서버의 `/isolated/`·`/plain/`을 각각 확인한다. 이 명령은 현재 Testbed 공급의 실행 경로이며 **App SDK host·원래 API 호환의 완료 증거는 아니다.** 일반 설치 앱의 명령과 배포 검사는 [기존 v2 프로젝트 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)에서 시작하고 W9-02/13에서 새 host에 맞춰 검증·갱신한다.
 
@@ -146,6 +176,8 @@ npm 0xC0000409가 재발할 때만 [기존 한정 조사 절차](history/26/11/0
 
 ### 이번 문서 작업의 검증과 다음 시작점
 
-**2026-11-05 KST / Windows·Web 우선·RNW 선별 재검토:** work9만 수정했다. 기존 W9-00–14 **15단계**와 1차 순서를 유지하고 RNW 0.83.2의 설치 소스·기존 Nelyx Windows helper·공식 구조 설명을 대조해 [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용)의 재사용 후보·의존성·실행 gate를 추가했다. 관련 문서 **14개**의 로컬 링크 **288개**·앵커 참조 **46개**·표 **47개**, 코드 fence·공백·ID/단계 연결과 문서에 적은 루트 npm 명령 **20개**의 존재를 확인했다. `git diff --check`를 통과했다. 시작 시 이미 있던 다른 파일 **13개**의 내용 hash와 work8 원문 **5개**의 삭제 상태를 유지했다.
+**앞선 검토 기록 — 2026-11-05 KST / Windows·Web 우선·RNW 선별 재검토:** 당시 work9만 수정했다. 기존 W9-00–14 **15단계**와 1차 순서를 유지하고 RNW 0.83.2의 설치 소스·기존 Nelyx Windows helper·공식 구조 설명을 대조해 [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용)의 재사용 후보·의존성·실행 gate를 추가했다. 당시 관련 문서 **14개**의 로컬 링크 **288개**·앵커 참조 **46개**·표 **47개**, 코드 fence·공백·ID/단계 연결과 문서에 적은 루트 npm 명령 **20개**의 존재를 확인했다. `git diff --check`를 통과했다. 해당 검토 시작 시 이미 있던 다른 파일 **13개**의 내용 hash와 work8 원문 **5개**의 삭제 상태를 유지했다. 이 수치·dirty 상태는 앞선 실행의 기록이며 현재 검토의 재검증 결과가 아니다.
 
-앞선 work8 이관의 작성일별 요약 5개와 RN 선별 재사용 방침·미완료 경계는 보존했다. 이번에는 RNW 코드 추출을 포함한 제품 소스·공급 변경, 빌드·API audit·runtime·물리 입력·성능 재검증을 수행하지 않았다. **다음 구현 시작점은 W9-00의 현재 공급/기준선·Windows/Web API 검사 입력 정상화와 필요한 RNW 사례/출처 선정이며, 이어 W9-06-A의 동기 실행 모델을 확인한다.**
+**이번 재검토 — 2026-11-06 KST:** 지정한 계획 **6개**만 수정했다. 현재 소스·공식 계약과 대조해 GTK 4.22 최소 버전, API 실행 모델·검사 환경, 기술/제품 gate·의존성, host 초기화/입력/frame·자원/복구·후속 공급 조건을 보완했다. 주요 절 **14개**·W9 단계 **15개**, 로컬 링크 **131개**·앵커 참조 **76개**·표 **21개**·code fence/공백과 루트 npm 명령 **20개**의 존재를 확인했고 `git diff --check`를 통과했다. 제품 소스·공급 변경, 빌드·API audit·runtime·물리 입력·성능 재검증은 수행하지 않았다. 기존 API FAIL·구현 PARTIAL·후속 DEFERRED와 수락 미검증을 유지한다.
+
+**다음 구현 시작점은 W9-00의 현재 공급/기준선·Windows/Web API 검사 입력 정상화와 필요한 RNW 사례/출처 선정이며, 이어 W9-06-A의 동기 실행 모델을 원래 consumer별로 판정한다.**

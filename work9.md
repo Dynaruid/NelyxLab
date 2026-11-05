@@ -1,6 +1,6 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-작성·검토: **2026-11-05 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -17,6 +17,8 @@
 | [후속 5부 — iOS·macOS 호스트](work9-5.md) | §11.5·§6: UIKit/UITextInput·AppKit/Metal·접근성·Apple 공급 | **3차 / Android/Linux 2차 통합 완료 후 / DEFERRED** |
 
 **개발 순서는 Windows/Web(threaded·single-worker) 1차 → Android/Linux 2차(4부) → iOS/macOS 3차(후속 5부)다.** 현재 구현 대상은 Windows/Web이며 Android/Linux는 1차 완료 후, iOS/macOS는 Android/Linux의 API·host·공급 통합 완료 후 착수한다. 후속 플랫폼의 toolchain·prototype·입력 adapter·배포를 앞선 차수의 완료 조건에 포함하지 않는다. 아직 착수하지 않은 대상은 모두 DEFERRED로 유지한다.
+
+차수 전환의 ‘완료’는 **앞선 차수 모든 대상의 W9-13 기술 gate 통과**다. W9-14의 물리 입력·성능 수락·기본값 전환은 대상/profile별로 따로 판정한다. 전체 플랫폼의 기술 완료와 제품 수락도 각각 구분한다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
 
 1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. 실제 구현은 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따라 **W9-00 → W9-06-A → W9-01/02-A/B**부터 진행한다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
 
@@ -58,9 +60,13 @@
 
 [1부 본문으로 이동](work9-1.md#7-공통-embedderruntime-경계)
 
+- [7.1 호스트 전환에서 보존할 공통 조건](work9-1.md#71-호스트-전환에서-보존할-공통-조건)
+
 ## 8. 기존 공개 API 호환 작업
 
 [2부 본문으로 이동](work9-2.md#8-기존-공개-api-호환-작업)
+
+- [8.1 검사 환경과 실행 모델의 선행 판정](work9-2.md#81-검사-환경과-실행-모델의-선행-판정)
 
 ## 9. 렌더링 표현력·재사용·frame 일정
 
@@ -90,11 +96,13 @@
 - [12.2 Windows/Web 1차 실행 순서](work9-3.md#122-windowsweb-1차-실행-순서)
 - [12.3 단계별 범위와 완료 조건](work9-3.md#123-단계별-범위와-완료-조건)
 - [12.4 실행 체크리스트](work9-3.md#124-실행-체크리스트)
+- [12.5 차수 전환과 완료 판정](work9-3.md#125-차수-전환과-완료-판정)
 
 ## 13. 검증과 판정
 
 [3부 본문으로 이동](work9-3.md#13-검증과-판정)
 
+- [변경 범위별 필수 회귀](work9-3.md#변경-범위별-필수-회귀)
 - [구현 시 사용할 기존 검사 명령](work9-3.md#구현-시-사용할-기존-검사-명령)
 
 ## 14. 공급·정리와 문서 운영
@@ -109,4 +117,12 @@
 
 플랫폼 상세 설계 보존, 절·단계 누락/중복, 차수·선행 관계, 로컬 링크·앵커, 표·코드 fence·공백을 확인했다. 제품 소스·공급 변경, 빌드·API audit·runtime·물리 입력·성능 검증은 수행하지 않았다. 분할 전 문서 검토와 work8 실행 기록은 각 본문의 과거 근거로 유지한다.
 
-**다음 구현 시작점:** [W9-00의 현재 공급·Windows/Web 기준선·API 검사 입력 정상화](work9-3.md#123-단계별-범위와-완료-조건), 필요한 RNW 사례·출처 선정, 이어 W9-06-A의 동기 실행 모델 확인.
+## 이번 재검토 반영
+
+**2026-11-06 KST:** 여섯 계획 문서를 현재 CMake·API audit·host/runner·protocol 및 Microsoft·GTK·HTML 공식 계약과 대조했다. Linux 최소 GTK를 **4.22**로 올려 접근성 caret/selection 변경 의무와 맞췄다. W9-13 기술 완료와 W9-14 제품 수락·차수 전환을 구분하고, API 검사 환경/분모·동기 실행 모델의 판정, App SDK 앱 로컬 초기화/종료, 연속 입력/scene 진행·wire/lease 회귀, frame clock·Web profile/새 canvas/reload·후속 플랫폼 공급 조건을 보완했다. 필수 콘텐츠 W9-11-A는 기본 수명 W9-09-A 뒤 시작할 수 있도록 불필요한 재사용 최적화 선행 조건을 해제했다.
+
+원래 주요 절·W9-00–14의 15단계와 Windows/Web → Android/Linux → iOS/macOS 순서를 유지한다. 제품 소스·공급 변경, 빌드·API audit·앱 실행·물리 입력·성능 검증은 이번 요청 범위에 포함하지 않았다. API **FAIL**, 기존 구현 **PARTIAL**, 후속 플랫폼 **DEFERRED**, 두 성능 flag **false**·물리/display **notVerified** 상태를 유지한다.
+
+로컬 링크·앵커·표·code fence/공백, 주요 절 14개·단계 15개와 문서의 npm 명령 존재 여부를 검사하고 `git diff --check`를 통과했다. 상세 검사 범위와 수치는 3부 §14에 기록했다.
+
+**다음 구현 시작점:** [W9-00의 현재 공급·Windows/Web 기준선·API 검사 입력 정상화](work9-3.md#123-단계별-범위와-완료-조건), 필요한 RNW 사례·출처 선정, 이어 [W9-06-A의 원래 consumer별 실행 모델 판정](work9-2.md#81-검사-환경과-실행-모델의-선행-판정).
