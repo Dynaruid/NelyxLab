@@ -19,13 +19,15 @@ import {
 const repo = path.resolve(engineRoot, '../..'),
   supply = path.join(engineRoot, 'dist');
 const fixture = `import {defineEngineV2App} from '@nelyx/sdk/engine-v2';
-import {Stack,Box,Text,Image,ImageResource,Transform,ClipRRect,PathShape,VectorPath,ImageFiltered,ValueListenableBuilder,protocol as p} from '@nelyx/core/v2';
+import {Stack,Box,Text,Image,ImageResource,Transform,ClipRRect,PathShape,VectorPath,ImageFiltered,ValueListenableBuilder,engineFailures,protocol as p} from '@nelyx/core/v2';
 import {FilledButton} from '@nelyx/material/v2';import {CupertinoSwitch} from '@nelyx/cupertino/v2';
 import {Color} from '@nelyx/core/ui/color';import {Colors} from '@nelyx/material/colors';import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
 import {ValueKey} from '@nelyx/core/foundation/key';import {ValueNotifier} from '@nelyx/core/foundation/notifier';
 import {Curves} from '@nelyx/core/framework/animation/curves';import {FrictionSimulation} from '@nelyx/core/framework/physics/friction-simulation';
 const notifier=new ValueNotifier(0xff123456);
 export default defineEngineV2App({requiredCapabilities:p.capabilities.graphics|p.capabilities.controls,async build({asset}){
+ const failures=[Error('first'),Error('second')],compound=engineFailures('cleanup probe',failures) as AggregateError;
+ if(compound.cause!==failures[0]||compound.errors[1]!==failures[1])throw Error('Structured cleanup causes were lost');
  if(Curves.linear.transform(0.25)!==0.25||new FrictionSimulation(0.135,2,3).x(0)!==2)throw Error('Canonical curve/physics value contract changed');
  const image=new ImageResource(await asset('sample.webp'));const background=new Color(Colors.blue.value).value;const insets=EdgeInsets.only({left:4,right:4});return new Stack([
   new Text('Consumer app',{properties:{x:20,y:10,width:250,height:40},fontSize:24}),
@@ -92,6 +94,11 @@ test(
         engineInputs: supply,
       });
       assert.ok(built.modules > 10);
+      assert.equal(built.routing.fallbackPolicy, 'reject-unported');
+      assert.ok(built.routing.packageInputs['@nelyx/core'] > 0);
+      assert.ok(built.routing.packageInputs['@nelyx/material'] > 0);
+      assert.ok(built.routing.packageInputs['@nelyx/cupertino'] > 0);
+      const priorBundle = fs.readFileSync(path.join(built.directory, 'application/app.js'), 'utf8');
       const child = spawn(
         path.join(supply, 'native/NelyxEngineV2Host.exe'),
         [supply, '--app', built.directory, '--probe'],
@@ -113,7 +120,10 @@ test(
             .slice(7),
         );
         assert.equal(ready.engineWork, String(ready.commands));
-        assert.equal(ready.fallbacks, 0);
+        assert.equal(ready.execution.observed, true);
+        assert.equal(ready.execution.acknowledgedCommands, ready.commands);
+        assert.equal(ready.execution.fallbackPolicy, 'reject-unported');
+        assert.equal(ready.execution.rejectedFallbacks, 0);
         assert.ok(BigInt(ready.memory.total) > 0n);
         child.stdin.write('close\n');
         await waitFor(
@@ -176,6 +186,33 @@ test(
       await assert.rejects(
         buildEngineV2Application({ app, target: 'windows', engineInputs: supply }),
         /cannot import|unported implementation/,
+      );
+      fs.writeFileSync(
+        path.join(app, 'src/app.ts'),
+        `import * as values from ${JSON.stringify(path.join(repo, 'packages/material/src/icon-assets.ts'))};globalThis.unported=values;export default {};`,
+      );
+      await assert.rejects(
+        buildEngineV2Application({ app, target: 'windows', engineInputs: supply }),
+        /unported implementation/,
+      );
+      const foreign = path.join(app, 'foreign-core');
+      fs.mkdirSync(path.join(foreign, 'foundation'), { recursive: true });
+      fs.writeFileSync(
+        path.join(foreign, 'package.json'),
+        '{"name":"@nelyx/core","type":"module"}',
+      );
+      fs.writeFileSync(path.join(foreign, 'foundation/numbers.js'), 'export const foreign = true;');
+      fs.writeFileSync(
+        path.join(app, 'src/app.ts'),
+        `import {foreign} from ${JSON.stringify(path.join(foreign, 'foundation/numbers.js'))};globalThis.unported=foreign;export default {};`,
+      );
+      await assert.rejects(
+        buildEngineV2Application({ app, target: 'windows', engineInputs: supply }),
+        /Foreign Core package identity/,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(built.directory, 'application/app.js'), 'utf8'),
+        priorBundle,
       );
       assert.ok(
         fs.existsSync(path.join(built.directory, 'app-manifest.json')),
@@ -248,10 +285,19 @@ for (const [route, profile] of [
 const failedDisposal = (app) =>
   fs.writeFileSync(
     path.join(app, 'src/app.ts'),
-    fixture.replace(
-      'dispose(){notifier.dispose();}',
-      "dispose(){notifier.dispose();throw Error('consumer disposal failure');}",
-    ),
+    fixture
+      .replace('Stack,Box,Text,', 'Stack,Box,StatefulWidget,State,Text,')
+      .replace(
+        'const notifier=',
+        `class FailingChild extends StatefulWidget {createState(){return new FailingState();}}
+class FailingState extends State {build(){return new Box([]);}dispose(){throw Error('widget disposal failure');}}
+const notifier=`,
+      )
+      .replace('return new Stack([', 'return new Stack([new FailingChild(),')
+      .replace(
+        'dispose(){notifier.dispose();}',
+        "dispose(){notifier.dispose();throw Error('consumer disposal failure');}",
+      ),
   );
 test(
   'Native stalled App JavaScript is interrupted before owner join and all owned accounts drain',
@@ -328,6 +374,13 @@ test(
         await waitFor(() => child.exitCode !== null);
         assert.equal(child.exitCode, 1, output + errors);
         assert.match(errors, /consumer disposal failure/);
+        assert.match(errors, /widget disposal failure/);
+        assert.equal(
+          output
+            .split('\n')
+            .filter((line) => line.startsWith('V2_APP ') && line.includes('app-error')).length,
+          1,
+        );
         assert.doesNotMatch(errors, /App disposal timeout/);
         assert.match(output, /"memoryTotal":0/);
       } finally {
@@ -361,7 +414,12 @@ for (const route of ['plain', 'isolated'])
           );
           const result = await page.evaluate(async () => {
             const current = globalThis.__nelyxV2,
-              first = current.close(),
+              surfaceClose = current.surface.close.bind(current.surface);
+            current.surface.close = async () => {
+              await surfaceClose();
+              throw Error('surface cleanup failure');
+            };
+            const first = current.close(),
               same = first === current.close();
             let message;
             try {
@@ -374,10 +432,14 @@ for (const route of ['plain', 'isolated'])
               message,
               closed: current.surface.diagnostics.closed,
               ready: current.ready,
+              appErrors: current.errors,
             };
           });
           assert.equal(result.same, true);
           assert.match(result.message, /consumer disposal failure/);
+          assert.match(result.message, /widget disposal failure/);
+          assert.match(result.message, /surface cleanup failure/);
+          assert.equal(result.appErrors.length, 1);
           assert.equal(result.closed.reservedBytes, 0);
           assert.equal(result.closed.workersStopped, true);
           assert.equal(result.ready, false);
@@ -389,7 +451,7 @@ for (const route of ['plain', 'isolated'])
       }),
   );
 test(
-  'Current package archives create and install a typed consumer with its own CLI and portable Web host',
+  'All design archives install with a local compiler and CLI, then publish and drain Windows and both Web profiles',
   { timeout },
   async () => {
     const parent = fs.realpathSync(os.tmpdir()),
@@ -419,21 +481,49 @@ test(
       )
         delete environment[key];
     }
-    let browser, server;
-    const command = (script, args, cwd = repo) =>
-      execFileSync(process.execPath, [script, ...args], {
-        cwd,
-        encoding: 'utf8',
-        timeout,
-        windowsHide: true,
-        env: environment,
-        maxBuffer: 2 * 1024 * 1024,
-      });
+    let browser, server, child;
+    const command = (script, args, cwd = repo) => {
+      try {
+        return execFileSync(process.execPath, [script, ...args], {
+          cwd,
+          encoding: 'utf8',
+          timeout,
+          windowsHide: true,
+          env: environment,
+          maxBuffer: 2 * 1024 * 1024,
+        });
+      } catch (error) {
+        const diagnostic = {
+          node: fs.realpathSync(process.execPath),
+          nodeVersion: process.version,
+          npm: fs.realpathSync(npm),
+          npmVersion: JSON.parse(
+            fs.readFileSync(path.resolve(path.dirname(npm), '../package.json'), 'utf8'),
+          ).version,
+          script: fs.realpathSync(script),
+          cwd,
+          status: error.status,
+          signal: error.signal,
+          stdoutBytes: Buffer.byteLength(error.stdout ?? ''),
+          stderrBytes: Buffer.byteLength(error.stderr ?? ''),
+          availableMemory: os.freemem(),
+          totalMemory: os.totalmem(),
+          inheritedLifecycle: Object.keys(environment).some((key) =>
+            /^(npm_lifecycle_|node_test_context|node_channel_)/i.test(key),
+          ),
+        };
+        throw new Error('External consumer process failed: ' + JSON.stringify(diagnostic), {
+          cause: error,
+        });
+      }
+    };
     try {
       fs.mkdirSync(archives);
       for (const packageRoot of [
         'Nelyx',
         'Nelyx/sdk',
+        'packages/material',
+        'packages/cupertino',
         'Nelyx/sdk/tooling/metro',
         'Nelyx/sdk/tooling/static-aot',
         'Nelyx/sdk/tooling/cli',
@@ -462,6 +552,8 @@ test(
         'web',
         '--packages',
         archives,
+        '--designs',
+        'material,cupertino',
       ]);
       command(
         npm,
@@ -475,13 +567,17 @@ test(
         ],
         app,
       );
-      assert.equal(
-        fs.lstatSync(path.join(app, 'node_modules/@nelyx/core')).isSymbolicLink(),
-        false,
-      );
+      for (const name of ['core', 'sdk', 'material', 'cupertino', 'cli'])
+        assert.equal(
+          fs.lstatSync(path.join(app, 'node_modules/@nelyx', name)).isSymbolicLink(),
+          false,
+          name,
+        );
       for (const [name, source] of [
         ['core', 'Nelyx/dist/v2/engine-client/index.js'],
         ['sdk', 'Nelyx/sdk/dist/runtime/engine-v2-app.js'],
+        ['material', 'packages/material/dist/v2.js'],
+        ['cupertino', 'packages/cupertino/dist/v2.js'],
       ])
         assert.equal(
           fs.readFileSync(
@@ -490,8 +586,28 @@ test(
           ),
           fs.readFileSync(path.join(repo, source), 'utf8'),
         );
+      fs.mkdirSync(path.join(app, 'assets'));
+      fs.copyFileSync(
+        path.join(repo, 'sample/nelyx-testbed-app-2/assets/component-image.webp'),
+        path.join(app, 'assets/source.webp'),
+      );
+      fs.writeFileSync(
+        path.join(app, 'nelyx.v2.json'),
+        JSON.stringify({
+          schema: 'nelyx.app.v2/1',
+          engine: 'v2',
+          entry: 'src/app.ts',
+          assets: { 'sample.webp': 'assets/source.webp' },
+        }),
+      );
+      fs.writeFileSync(path.join(app, 'src/app.ts'), fixture);
+      const compiler = fs.realpathSync(path.join(app, 'node_modules/typescript/lib/tsc.js'));
+      assert.ok(
+        compiler.startsWith(fs.realpathSync(app) + path.sep),
+        'The compiler belongs to the installed consumer',
+      );
       command(
-        path.join(repo, 'node_modules/typescript/lib/tsc.js'),
+        compiler,
         [
           '--noEmit',
           '--strict',
@@ -516,32 +632,94 @@ test(
       server.listen(0, '127.0.0.1');
       await once(server, 'listening');
       browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage(),
-        errors = [];
-      page.on('pageerror', (error) => errors.push(String(error)));
-      await page.goto(`http://127.0.0.1:${server.address().port}/plain/`);
-      await page.waitForFunction(
-        () => globalThis.__nelyxV2?.ready || globalThis.__nelyxV2?.errors.length,
+      for (const route of ['plain', 'isolated']) {
+        const page = await browser.newPage(),
+          errors = [];
+        page.on('pageerror', (error) => errors.push(String(error)));
+        await page.goto(`http://127.0.0.1:${server.address().port}/${route}/`);
+        await page.waitForFunction(
+          () => globalThis.__nelyxV2?.ready || globalThis.__nelyxV2?.errors.length,
+        );
+        const ready = await page.evaluate(() => ({
+          ready: globalThis.__nelyxV2.ready,
+          errors: globalThis.__nelyxV2.errors,
+          receipt: globalThis.__nelyxV2.receipt,
+        }));
+        assert.equal(ready.ready, true, JSON.stringify(ready));
+        assert.deepEqual(ready.errors, []);
+        assert.equal(ready.receipt.engineWork, String(ready.receipt.commands));
+        assert.equal(ready.receipt.execution.observed, true);
+        assert.equal(ready.receipt.execution.acknowledgedCommands, ready.receipt.commands);
+        assert.equal(ready.receipt.execution.fallbackPolicy, 'reject-unported');
+        assert.equal(ready.receipt.execution.rejectedFallbacks, 0);
+        await page.waitForFunction(
+          () => globalThis.__nelyxV2.surface.diagnostics['render-stats']?.state?.publication > 0n,
+        );
+        assert.equal((await page.evaluate(() => globalThis.__nelyxV2.close())).reservedBytes, 0);
+        assert.deepEqual(errors, []);
+        await page.close();
+      }
+      const nativeArgs = [
+          '--app',
+          app,
+          '--engine',
+          'v2',
+          '--target',
+          'windows',
+          '--engine-inputs',
+          supply,
+        ],
+        nativeBuilt = JSON.parse(command(cli, ['build', ...nativeArgs], app)),
+        nativePacked = JSON.parse(
+          command(cli, ['pack', ...nativeArgs, '--package', nativeBuilt.directory], app),
+        ),
+        nativeBundle = verifyEngineV2Application(nativePacked.directory, 'windows');
+      assert.equal(nativeBundle.manifest.supply, 'engine');
+      child = spawn(
+        path.join(nativePacked.directory, 'engine/native/NelyxEngineV2Host.exe'),
+        [path.join(nativePacked.directory, 'engine'), '--app', nativePacked.directory, '--probe'],
+        // This is the visible application under test. STARTUPINFO SW_HIDE would
+        // override its first ShowWindow and prevent a renderable scene activation.
+        { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false, env: environment },
       );
-      const ready = await page.evaluate(() => ({
-        ready: globalThis.__nelyxV2.ready,
-        errors: globalThis.__nelyxV2.errors,
-        receipt: globalThis.__nelyxV2.receipt,
-      }));
-      assert.equal(ready.ready, true, JSON.stringify(ready));
-      assert.deepEqual(ready.errors, []);
-      assert.equal(ready.receipt.engineWork, String(ready.receipt.commands));
-      assert.equal(ready.receipt.fallbacks, 0);
-      await page.waitForFunction(
-        () => globalThis.__nelyxV2.surface.diagnostics['render-stats']?.state?.publication > 0n,
+      let output = '',
+        nativeErrors = '';
+      child.stdout.on('data', (data) => (output = (output + data).slice(-32000)));
+      child.stderr.on('data', (data) => (nativeErrors = (nativeErrors + data).slice(-8000)));
+      child.on('error', (error) => (nativeErrors += String(error)));
+      await waitFor(
+        () => output.includes('app-ready'),
+        () => nativeErrors || (child.exitCode !== null ? output : null),
       );
-      assert.equal((await page.evaluate(() => globalThis.__nelyxV2.close())).reservedBytes, 0);
-      assert.deepEqual(errors, []);
+      const nativeReady = JSON.parse(
+        output
+          .split('\n')
+          .find((line) => line.startsWith('V2_APP ') && line.includes('app-ready'))
+          .slice(7),
+      );
+      assert.equal(nativeReady.engineWork, String(nativeReady.commands));
+      assert.equal(nativeReady.execution.observed, true);
+      child.stdin.write('close\n');
+      await waitFor(
+        () => child.exitCode !== null,
+        () => nativeErrors || null,
+      );
+      assert.equal(child.exitCode, 0, nativeErrors + output);
+      assert.match(output, /app-disposed/);
+      assert.match(output, /"memoryTotal":0/);
     } finally {
-      await browser?.close();
-      if (server) await new Promise((resolve) => server.close(resolve));
-      assert.equal(path.dirname(path.resolve(directory)), parent);
-      fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3 });
+      try {
+        if (child && child.exitCode === null) {
+          child.kill();
+          await once(child, 'exit');
+        }
+        await browser?.close();
+        if (server) await new Promise((resolve) => server.close(resolve));
+      } finally {
+        stopCompiler();
+        assert.equal(path.dirname(path.resolve(directory)), parent);
+        fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3 });
+      }
     }
   },
 );

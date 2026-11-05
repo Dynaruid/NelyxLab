@@ -1,8 +1,63 @@
-# work8-2a — 엔진 v2 구현·전체 API 호환·npm 비정상 종료 재검토
+# work8-2a — 엔진 v2 API 호환·검증·종료 후속 작업
 
-검토일: **2026-11-05 KST** · 상태: **PARTIAL / 전체 API 호환 gate FAIL / npm 종료 원인 미확정**
+작업 갱신: **2026-11-05 KST** · 상태: **PARTIAL / P0 차단 결함 보완 / 전체 API 호환 gate FAIL / npm 종료 원인 미확정**
 
 [전체 목차](work8.md) · [2부 구현·설계](work8-2.md) · [3부 완료 기준](work8-3.md)
+
+## 현재 구현 현황
+
+사용자의 `work8-2a.md 작업해줘` 요청으로 구현을 재개했다. 시작 HEAD는 `15b85f5`이고 당시 작업 트리는 깨끗했다. 아래 §1–8은 **구현 전 재검토 기록**이며 현재 소스·검증·남은 범위는 이 절이 우선한다. 기존 API 전체를 호환 제품으로 판정하지 않는다.
+
+| 우선 작업 | 반영한 구현과 경계 |
+| --- | --- |
+| 원래 API 범위 고정 | [공개 표면 계약](Nelyx/engine/schema/public-api.json)에 **4개 패키지·834 subpath·4526 code export 발생 항목 + 15 non-code 항목**을 고정했다. Module/symbol 삭제와 overload/member/protected 표면 변경은 실패한다. 이 파일은 검사 결과 이력이 아니라 gate가 읽는 원래 호환 범위의 소스다. 정상 audit는 이를 자동 갱신하지 않는다 |
+| Audit 입력과 대응 | [audit/2](Nelyx/engine/tools/api-audit.mjs)는 선언·runtime 파일·module/reexport 해석·TypeScript 진단을 검사한다. 빈 module과 asset/header/license 경로도 미검증 항목으로 남긴다. 생성자/call overload·generic·readonly/optional·static/instance/protected hook·index signature/type alias 정의·양방향 타입 대입을 기록한다. `any`의 양방향 대입만으로 서로 다른 index 타입을 승인하지 않으며, 이름이 같은 v2 후보와 실제 원래 import route를 구별한다 |
+| 동작 증거 | [실행 사례](Nelyx/engine/tools/api-behavior.mjs)는 `--verify` 호출 안에서 실제 공개 module을 로드한다. 사례마다 overload/member 범위를 명시하며 일부를 검사한 class의 나머지는 `unverified`에 남는다. 사례 파일의 존재·signature·허용 목록만으로 합격시키지 않는다. 명시 route와 일치하는 새 구현도 실제 사례와 모든 의무가 충족돼야 승인 가능하며, 그 gate 자체의 성공/실패 회귀가 있다 |
+| 실제 경로 보고 | `WidgetHost.execution`의 ACK 명령/transaction·App geometry 선언·fallback 거부 횟수/이유를 수집한다. ACK 전에는 `observed=false`다. 종전 `fallbacks=0`/`tsFallbacks=0`을 삭제했다. 미지원 Widget은 TS renderer 실행 없이 거부하며 세 profile에서 **거부 횟수 1**, 이후 정상 작업과 C++ `transactionWork` 대조를 검사한다. App geometry 선언 수는 TS layout/paint fallback 실행 수가 아니다 |
+| 일반 runner graph | [실제 입력 검사](Nelyx/sdk/tooling/cli/src/engine-v2-graph.mjs)가 Core/Material/Cupertino/SDK 입력을 검사한다. `routing`은 선택한 공개 import와 package별 입력 수를 보고한다. 직접 source 경로의 미이식 디자인 구현과 별도 Core 복사본도 거부하며, 실패 시 이전 bundle을 유지한다. Build graph는 runtime 성능 증거가 아니다 |
+| 복합 종료 오류 | [공통 수명 처리](Nelyx/runtime/engine-client/lifecycle.ts)를 SDK/Testbed/client에 연결했다. App·Widget·transport·Web surface 정리를 모두 시도하고, 오류 하나는 원래 객체를, 여러 오류는 순서가 있는 `errors`·첫 `cause`·각 메시지를 보존한다. 중복/재진입 close는 같은 Promise를 반환한다. Packet unsubscribe/endpoint close가 함께 실패해도 admitted 요청을 reject하고 timer를 회수한다 |
+| Native 출력 경합 | 실제 host 검사에서 `V2_STATS` JSON 안에 `V2_INPUT_FRAME`이 끼어드는 실패를 재현했다. 모든 host owner의 출력에 C++20 `osyncstream`을 적용해 한 레코드씩 출력한다. 이 결함은 npm 설치 프로세스의 0xC0000409와 별개다 |
+| Archive 소비자 | Core/SDK/Material/Cupertino/CLI/Metro/Static AOT를 실제 pack/install하는 사례로 확장했다. 두 디자인의 설치 JS 동일성·junction 부재·**설치된 TypeScript와 CLI**·Windows 및 plain/isolated portable package 실행과 drain을 검사한다. 생성 프로젝트에는 고정 TypeScript dev dependency를 추가했다. 전체 기존 API/모든 platform 소비 검증은 아니다 |
+| npm 재발 진단 | 기존 env 분리·compiler 종료·finally 정리를 유지했다. 외부 자식 명령 실패 시 Node/npm real path·version·cwd·status/signal·출력 크기·그 시점의 메모리와 금지 환경 key 유무를 보고한다. Env 값/token·상시 dump·검사 이력 파일은 남기지 않는다 |
+
+### 이번 검증
+
+| 검사 | 결과와 증거의 범위 |
+| --- | --- |
+| `test:engine-v2` | **214/214**. 세 profile에서 ACK 전 `observed=false`·실제 거부 횟수 1·정상 회복 후 C++ 명령 수 대조를 포함 |
+| API gate·수명 | `test:engine-v2:api` **7/7**: 누락/해석 실패·명시 route 성공·미검증 overload·protected/generic/readonly·표면 축소·index/alias·non-code/빈 module. `test:engine-v2:lifecycle` **3/3**: 복합 오류의 cause/순서·재진입 Promise·단일 오류 identity·endpoint 두 실패와 pending 회수 |
+| `test:engine-v2:hosts` | **5/5**. 실제 Testbed ACK 명령 **1210 = C++ transactionWork 1210**, layoutWork **445**·graphics record **14**·native extension **1**. Windows TSF/UIA·50/100/200 ms App/Content 지연·lazy seek·resize/idle·drain, 두 Web profile·시작 실패 회귀. Native ledger 종료 0, provider/render 작업을 확인. Web은 SwiftShader 기능 검사 |
+| `test:engine-v2:runner` | **8/8**, 일반 `npm.cmd` 명령. Native/plain/isolated 일반 앱 3, App+Widget 및 Web surface 복합 실패/중복 close 3, Native 무한 JS dispose 중단 1, **7개 실제 archive의 설치 compiler/CLI·두 디자인·세 host portable 실행 1**. Native에서도 구조화한 `cause`/`errors`를 검사하며, 실패 close 뒤 ledger/provider 회수 확인 |
+| glyph·actor·graphics | **3/3 + 3/3 + 2/2**. 동일 Core/provider 소스의 25 glyph pixel corpus·UTF-16·owner 일정·실제 CanvasKit CPU retained pixel·backing 거부와 회수 |
+| 기존 입력·paragraph | `test:input-geometry` **2/2**, `test:retained-input-geometry` **7/7**, `test:skia-paragraph-queries` **1/1**. 기존 Gallery/Material/Mixed/custom hook·활성화 실패 경계 유지 |
+| 소유권·정적 검사 | Package ownership 회귀 **5/5**, 현재 graph **968 source / 7673 runtime edge / design cycle 0**, design ownership 통과. 전체 workspace·CLI·Web adapter 타입, lint, format **1856파일**, schema·공백 검사 통과. 문서 링크와 최종 공급 hash는 아래에 기록 |
+
+Archive 검사의 첫 Native 실행은 `windowsHide:true`로 GUI를 숨겨 activation timeout으로 실패했다. [ShowWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow)의 첫 호출은 부모의 STARTUPINFO 표시 조건을 따르므로, 실제 GUI를 검사하는 fixture를 기존 일반 Windows 검사와 같은 `windowsHide:false`로 고쳤다. 이후 전체 **8/8**을 확인했다. Hidden-start의 일반 제품 수락이나 npm 종료 결함 해결로 확대하지 않는다.
+
+이번 archive 설치에서 **0xC0000409 재발은 관측하지 않았다.** 최종 공급으로 다시 실행한 전체 runner는 **8/8**, 약 122초였고 archive 사례는 약 80초였다. 시간은 검사 실행 기록이며 제품 성능 수치가 아니다. 이전 두 fast-fail의 parameter/stack은 확보하지 못했으며 npm 근본 원인 미확정을 유지한다. 실패한 검사도 finally로 browser/server/native/설치본·archive를 정리했다.
+
+최종 [공급 manifest](Nelyx/engine/dist/engine-manifest.json)는 **33파일 / 4 font**, ABI major **2** / schema **2587795476**, qualification **host-integration-candidate**다. Source SHA-256은 `c69b2977dced7e94fb1f454b2ae7c9fa653938d6d5b3ad193057f3c70f2608f0`이며 현재 `sourceIdentity()`와 일치하고 공급 file hash 불일치는 **0개**다. 이 공급으로 host **5/5**와 일반 runner **8/8**을 다시 확인했다. 검사 종료 뒤 소유 Native/Node/browser process **0개**, 해당 임시 소비자·archive·API/코어 검사 디렉터리 **0개**, package/engine staging·이전 출력 **0개**다. 문서 **9개·로컬 링크 384개·앵커 156개**와 `git diff --check`를 통과했다. Native stats의 App counter는 마지막 App 보고 시점의 snapshot이며, 전체 입력 구간의 live fallback/성능 계측으로 확대하지 않는다.
+
+전체 API audit의 일반 명령 `npm.cmd run audit:engine-v2:api`는 **exit 1 / inputValid=false / compatible=false**다. 현재 선언을 모두 함께 검사한 엄격한 진단에서는 의존 라이브러리의 Node/RN·DOM/WebGPU 전역 충돌 **81건**, 저장소 자체 선언 진단 **0건**, 원래 scope 불일치 **0건**이다. Workspace 타입 검사는 기존 `skipLibCheck` 설정에서 통과한 별도 검사다. 진단을 숨겨 API gate를 통과시키지 않는다.
+
+| 패키지 | 기존 subpath | missing | signatureChanged | 재사용이지만 동작 미검증 | 일부 동작 검증 | 모든 열거 의무 검증 | non-code 미검증 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Core | 525 | 2617 | 39 | 407 | 7 | 1 | 0 |
+| Material | 189 | 936 | 54 | 3 | 0 | 0 | 2 |
+| Cupertino | 44 | 160 | 34 | 0 | 0 | 0 | 2 |
+| SDK | 76 | 268 | 0 | 0 | 0 | 0 | 11 |
+
+동작 사례 **5개**가 **8개 module별 symbol 발생 항목**의 지정된 의무를 검사한다. 모든 열거 의무를 검사한 한 항목은 `sameKey`이며, 다른 class/함수·reexport까지 검증한 것으로 세지 않는다. 위 수치는 고유 기능 수·기능 완료율이 아니다.
+
+### 남은 작업
+
+P1의 기존 Widget/Element/State/GlobalKey/BuildContext/Inherited/parent-data 계약과 원래 생성자 이식, P2–P3의 전체 layout/scroll/gesture/editing/rich text/paint/custom hook·디자인·SDK API는 미완료다. 현재 runner의 기존 Widget import 거부를 호환 구현으로 바꾸지 않았다. 전체 선언 gate가 적절한 host 환경에서도 진단 없이 해석되는지와 각 원래 경로의 소비자/동작 사례도 남는다.
+
+P4의 Android/Apple/Linux host·generation reload와 전체 package/API/platform 조합, process/GPU의 불투명한 peak 통제는 남는다. P5의 물리 IME/reader/trackpad·display/scanout·성능도 별도 수락이다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display `notVerified`를 유지한다. npm 종료 원인은 미확정이며 아래의 과거 두 실패를 새 통과 기록으로 취소하지 않는다.
+
+다음 재개는 이 절과 현재 diff/source/supply identity를 먼저 확인하고 P1부터 진행한다. API scope 계약 축소·이름 alias·TS fallback으로 완료시키지 않으며, 바뀐 소스에 맞는 공개 패키지/engine만 다시 빌드한다. 검사 임시·이전 공급·archive/설치본은 실행 종료 시 회수한다.
+
+## 구현 전 재검토 기록
 
 ## 1. 판정과 이번 검토 범위
 

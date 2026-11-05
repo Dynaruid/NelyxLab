@@ -19,12 +19,46 @@ import {
   UniqueKey,
   State,
   StatefulWidget,
+  Widget,
   protocol as p,
 } from '../../runtime/engine-client/index.ts';
 import { ValueKey as CanonicalValueKey } from '@nelyx/core/foundation/key';
 import { ValueNotifier as CanonicalValueNotifier } from '@nelyx/core/foundation/notifier';
 export function compositionContracts({ using, timeout }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
+    test(
+      `${profile}: execution observations require native ACKs and count rejected fallback attempts`,
+      { timeout },
+      () =>
+        using(profile, async (f, transport) => {
+          const client = await EngineClient.connect(transport),
+            view = await client.openView(1),
+            host = new WidgetHost(view, { pollEvents: false });
+          class Unsupported extends Widget {}
+          try {
+            assert.equal(host.execution.observed, false);
+            await assert.rejects(host.mount(new Unsupported()), /fallback is forbidden/);
+            assert.equal(host.execution.observed, false);
+            assert.equal(host.execution.rejectedFallbacks, 1);
+            assert.deepEqual(host.execution.rejectionReasons, { unsupportedWidget: 1 });
+            assert.equal((await view.request(p.opcodes.inspect)).transactionWork, 0n);
+            await host.update(new Box([], { properties: { width: 20, height: 20 } }));
+            assert.equal(host.execution.observed, true);
+            assert.equal(
+              BigInt(host.execution.acknowledgedCommands),
+              (await view.request(p.opcodes.inspect)).transactionWork,
+            );
+            assert.equal(
+              host.execution.rejectedFallbacks,
+              1,
+              'Successful later work does not erase a rejection',
+            );
+          } finally {
+            await host.close();
+            await client.abort();
+          }
+        }),
+    );
     test(
       `${profile}: close cancels a pending Widget event poll without hiding active-session errors`,
       { timeout },

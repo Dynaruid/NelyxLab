@@ -15,6 +15,14 @@ import { createHostServer } from '../tools/serve.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const execute = promisify(execFile);
+function assertCppExecution(app) {
+  assert.equal(app.execution.selected, 'engine-v2-cpp');
+  assert.equal(app.execution.fallbackPolicy, 'reject-unported');
+  assert.equal(app.execution.observed, true);
+  assert.ok(app.execution.acknowledgedTransactions > 0);
+  assert.equal(app.execution.acknowledgedCommands, app.commands);
+  assert.equal(app.execution.rejectedFallbacks, 0);
+}
 before(
   () => {
     const directory = path.join(engineRoot, 'dist'),
@@ -112,9 +120,8 @@ test(
           await host.until((line) => line.startsWith('V2_APP ') && line.includes('app-ready'))
         ).slice(7),
       );
-      assert.ok(
-        BigInt(app.queryWork) > 0n && app.widgets.builds > 0 && app.widgets.fallbacks === 0,
-      );
+      assert.ok(BigInt(app.queryWork) > 0n && app.widgets.builds > 0);
+      assertCppExecution(app);
       const result = await execute(
         'powershell.exe',
         [
@@ -168,7 +175,10 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
     );
     assert.ok(state.paragraphs > 0 && state.images > 0 && state.frames > 0);
     assert.ok(state.layoutWork > 0, 'The actual Testbed executes C++ layout');
-    assert.equal(state.fallbacks, 0);
+    assertCppExecution(app);
+    assert.equal(state.appExecutionObserved, true);
+    assert.equal(state.appAcknowledgedCommands, app.commands);
+    assert.equal(state.rejectedFallbacks, 0);
     assert.equal(app.nativeExtensions, 1);
     assert.ok(state.nativeExtensions > 0 && state.graphicsRecords > 0);
     assert.ok(state.memoryTotal > 0 && state.memoryPeak <= 402653184 && state.memoryGpu > 0);
@@ -256,7 +266,9 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
       (state) => state.lazyOffset > 200 && state.activeDocument > updated.activeDocument,
     );
     assert.ok(
-      lazy.nodeCount < 220 && lazy.nativeCommands > updated.nativeCommands && lazy.fallbacks === 0,
+      lazy.nodeCount < 220 &&
+        lazy.nativeCommands > updated.nativeCommands &&
+        lazy.rejectedFallbacks === 0,
     );
     console.log(
       'V2_NATIVE_LAZY ' +
@@ -268,7 +280,7 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
     );
     host.send('seek 1500');
     const sought = await host.waitStats((state) => state.lazyOffset > 70000);
-    assert.ok(sought.nodeCount < 220 && sought.fallbacks === 0);
+    assert.ok(sought.nodeCount < 220 && sought.rejectedFallbacks === 0);
     const raw = JSON.parse(
       (
         await host.until(
@@ -335,7 +347,7 @@ for (const [route, expected] of [
       const render = state.stats['render-stats'],
         content = state.stats['content-stats'];
       assert.equal(String(state.app.commands), state.app.engineWork);
-      assert.equal(state.app.fallbacks, 0);
+      assertCppExecution(state.app);
       assert.ok(BigInt(state.app.queryWork) > 0n && state.app.widgets.builds > 0);
       assert.equal(state.app.query.contentHeight, 1498);
       assert.ok(render.counters.draws > 0);

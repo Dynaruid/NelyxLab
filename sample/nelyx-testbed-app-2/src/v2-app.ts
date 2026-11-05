@@ -5,14 +5,16 @@ import {
   protocol as p,
   createPacketTransport,
   WidgetHost,
+  drainEngineOwners,
+  engineDisposer,
 } from '@nelyx/core/v2';
-import type { PacketEndpoint } from '@nelyx/core/v2';
+import type { PacketEndpoint, EngineExecutionSnapshot } from '@nelyx/core/v2';
 import { engineV2Scene } from './v2-scene.ts';
 
 type NativePort = {
   enqueue(id: number, bytes: ArrayBuffer): void;
   asset(name: string): ArrayBuffer;
-  notify(message: string): void;
+  notify(message: string, execution?: EngineExecutionSnapshot): void;
 };
 // Structural worker ports keep the shared App bundle independent of DOM/RN types.
 type AppPort = {
@@ -102,7 +104,7 @@ async function start(
     document: String(active.activeDocument),
     commands: widgets.counters.commands,
     engineWork: String(active.transactionWork),
-    fallbacks: 0,
+    execution: widgets.execution,
     nativeExtensions: declarations.nodes.filter((node) => node.flags & p.nodeFlags.nativeExtension)
       .length,
     widgets: { ...widgets.counters },
@@ -121,19 +123,22 @@ async function start(
     while (Date.now() < until) {}
     notify({ kind: 'app-delay-end', time: Date.now() });
   };
-  let disposal: Promise<void> | undefined;
-  environment.__v2Dispose = () => {
-    if (disposal) return disposal;
-    disposal = (async () => {
-      try {
-        await widgets.close();
-      } finally {
-        await client.abort();
-      }
+  const dispose = engineDisposer(async () => {
+    try {
+      await drainEngineOwners('Testbed disposal failed', [
+        () => widgets.close(),
+        () => client.abort(),
+      ]);
       notify({ kind: 'app-disposed' });
-    })();
-    void disposal.catch((error) => notify({ kind: 'app-error', message: String(error) }));
-    return disposal;
+    } catch (error) {
+      notify({ kind: 'app-error', message: String(error) });
+      throw error;
+    }
+  });
+  environment.__v2Dispose = () => {
+    const closing = dispose();
+    void closing.catch(() => {});
+    return closing;
   };
   environment.__v2Seek = async (index) => {
     const receipt = await scene.lazy.currentState!.scrollToIndex(index);
@@ -153,7 +158,7 @@ async function start(
         document: String(active.activeDocument),
         commands: widgets.counters.commands - before,
         engineWork: String(active.transactionWork),
-        fallbacks: 0,
+        execution: widgets.execution,
       });
     } finally {
       updating = false;
@@ -181,7 +186,8 @@ if (environment.NelyxV2Native) {
       },
     },
     new Uint8Array(native.asset('image')),
-    (value) => native.notify(JSON.stringify(value)),
+    (value) =>
+      native.notify(JSON.stringify(value), value.execution as EngineExecutionSnapshot | undefined),
   ).catch((error) => native.notify(JSON.stringify({ kind: 'app-error', message: String(error) })));
 } else {
   const scope = globalThis as unknown as AppWorker;

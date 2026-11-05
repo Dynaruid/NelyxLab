@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { EngineTransport } from './client.ts';
 import { protocol as p } from './schema.ts';
+import { engineFailures } from './lifecycle.ts';
 
 export interface PacketEndpoint {
   post(value: unknown, transfer: ArrayBuffer[]): void;
@@ -70,14 +71,21 @@ export function createPacketTransport(endpoint: PacketEndpoint, timeoutMs = 2000
     close() {
       if (closed) return;
       closed = true;
-      unsubscribe();
-      endpoint.close();
+      const errors: unknown[] = [];
+      for (const cleanup of [unsubscribe, () => endpoint.close()]) {
+        try {
+          cleanup();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
       for (const request of pending.values()) {
         clearTimeout(request.timer);
         request.reject(new Error('Packet port closed'));
       }
       pending.clear();
       bytesPending = 0;
+      if (errors.length) throw engineFailures('Packet port close failed', errors);
     },
   };
 }

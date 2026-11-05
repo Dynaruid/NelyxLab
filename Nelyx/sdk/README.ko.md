@@ -28,15 +28,15 @@ npx --no-install nelyx run --engine v2 --target web --port 8192
 
 `nelyx.v2.json`에 `schema: "nelyx.app.v2/1"`·`engine: "v2"`·상대 경로 `entry`와 논리 이름→상대 파일 경로의 `assets` map을 선언합니다. 선택 사항인 `supply`는 engine 디렉터리이며 `--engine-inputs`가 우선합니다. Entry에서 `defineEngineV2App({build, ready, dispose})`를 default export합니다. `build(context)`는 v2 Widget을 반환하고 `context.asset(name)`을 기다릴 수 있으며, `context.view`는 버전이 있는 packet client입니다. `dispose` 다음에 Widget·provider·engine을 drain합니다.
 
-중복 close 요청은 같은 결과를 공유합니다. App의 `dispose`가 실패해도 Widget·transport를 정리하고 원래 오류를 보고하며, host가 provider/Core를 drain한 뒤 실패한 close 결과를 반환합니다.
+중복 close 요청은 같은 결과를 공유합니다. 앞선 정리가 실패해도 App·Widget·transport·browser surface 정리를 모두 시도합니다. 오류 하나는 원래 객체를 유지하고, 여러 오류는 순서가 있는 `errors`·첫 `cause`·native/worker 보고에도 남는 메시지를 가진 `AggregateError`로 반환합니다. Host는 provider/Core를 drain한 뒤 실패한 close 결과를 반환합니다.
 
 Windows는 App dispose를 최대 3초 기다리고 App owner에 250 ms 종료 유예를 줍니다. 평가한 JavaScript가 계속 실행되면 Hermes async break를 요청하고 owner를 join한 뒤 실패 session으로 drain합니다. JavaScript loop를 중단하는 경로이며 native/GPU consumer가 보유한 자원을 바로 해제하는 허가는 아닙니다.
 
 기본 출력은 `dist/v2-web` 또는 `dist/v2-windows`입니다. `--target windows`는 자체 Hermes/Skia HWND host를 사용합니다. `dev`는 `--output`을 포함해 build 후 실행하고, `doctor`는 공급 검증, `prepare`는 App bundle 빌드를 수행합니다. `pack --engine v2 --target web`은 검증한 engine 공급을 포함한 `dist/v2-web-package`를 만듭니다. `run --engine v2 --target web --package dist/v2-web-package`로 이 package를 실행합니다. 서버의 `/isolated/`는 자동 threaded 선택, `/plain/`은 기능이 동작하는 single-worker profile입니다. Android·Apple·Linux v2 host는 아직 공급하지 않습니다.
 
-빌드·실행은 Core/host ABI·protocol schema·공급 source identity와 선언한 모든 파일의 hash를 검사합니다. 자산 이름·파일 경로는 선언한 root 안으로 제한하고 App 자산 합계는 32 MiB입니다. 빌드 실패는 이전 bundle을 보존합니다. Package에는 현재 engine과 그 license·App이 포함되며 Testbed entry나 저장소 자산 조회가 필요하지 않습니다.
+빌드·실행은 Core/host ABI·protocol schema·공급 source identity와 선언한 모든 파일의 hash를 검사합니다. 자산 이름·파일 경로는 선언한 root 안으로 제한하고 App 자산 합계는 32 MiB입니다. 빌드 실패는 이전 bundle을 보존합니다. Package에는 현재 engine과 그 license·App이 포함되며 Testbed entry나 저장소 자산 조회가 필요하지 않습니다. 생성한 프로젝트는 고정 버전의 TypeScript compiler를 자체 dev dependency로 설치합니다.
 
-Widget은 `@nelyx/core/v2`·`@nelyx/material/v2`·`@nelyx/cupertino/v2`에서 import합니다. 기존 foundation 값/Notifier/Key·physics 계산·curve·선별한 geometry/painting 값·Material 색은 원래 공개 import 경로의 구현을 공유합니다. Runner는 의존 구현을 검사하고 미이식 render/Widget import를 거부합니다. 이 허용을 기존 Widget 전체의 생성자·동작 호환으로 세지 않습니다. [API 대조와 현재 한계](../../work8-2.md#현재-재개-현황)가 이식 완료 기준입니다.
+Widget은 `@nelyx/core/v2`·`@nelyx/material/v2`·`@nelyx/cupertino/v2`에서 import합니다. 기존 foundation 값/Notifier/Key·physics 계산·curve·선별한 geometry/painting 값·Material 색은 원래 공개 import 경로의 구현을 공유합니다. Runner의 `routing`은 선택한 import를 기록하고 네 패키지의 실제 입력 파일을 검사합니다. 직접 경로의 미이식 구현과 별도 Core 복사본도 거부합니다. App-ready의 `execution`은 native ACK·fallback 거부 횟수와 이유를 보고하며 종전의 고정 fallback 수치를 제거했습니다. 이 허용을 기존 Widget 전체의 생성자·동작 호환으로 세지 않습니다. [API 대조와 현재 한계](../../work8-2a.md)가 이식 완료 기준입니다.
 
 ## 앱 API
 

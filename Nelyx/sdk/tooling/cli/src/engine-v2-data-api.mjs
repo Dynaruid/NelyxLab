@@ -37,6 +37,14 @@ export function isEngineV2DataApi(name) {
     /^@nelyx\/core\/(foundation\/[^/]+|framework\/physics\/[^/]+)$/.test(name)
   );
 }
+/** The runner and audit use this same original-import selection policy. */
+export function engineV2ImportRoute(name) {
+  return /^@nelyx\/(core|material|cupertino)\/v2$/.test(name) ||
+    name === '@nelyx/sdk/engine-v2' ||
+    isEngineV2DataApi(name)
+    ? name
+    : null;
+}
 /** A reused value API must not pull an old Widget, RenderObject or host into the bundle. */
 export function isEngineV2DataImplementation(relative) {
   return /^(foundation\/|math\/|ui\/(color|color-source-adapter|size|offset|offset-base|rect|radius|rrect|rrect-data|geometry|types|clip|typography|matrix4|math|value-math)(\.js$|\/)|internal\/ui\/color-source-adapter\.js$|framework\/physics\/|framework\/animation\/(curves|bounce)\.js$|framework\/painting\/(alignment|edge-insets|border-radius|color-swatch|basic-types)\.js$|framework\/rendering\/constraints\.js$)/.test(

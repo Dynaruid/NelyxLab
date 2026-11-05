@@ -6,8 +6,16 @@ import {
   createPacketTransport,
   protocol as p,
   resolveEngineV2,
+  drainEngineOwners,
+  engineDisposer,
 } from '@nelyx/core/v2';
-import type { Widget, PacketEndpoint, EngineViewClient, EngineIdentity } from '@nelyx/core/v2';
+import type {
+  Widget,
+  PacketEndpoint,
+  EngineViewClient,
+  EngineIdentity,
+  EngineExecutionSnapshot,
+} from '@nelyx/core/v2';
 export interface EngineV2AppContext {
   readonly view: EngineViewClient;
   asset(name: string): Promise<Uint8Array>;
@@ -27,7 +35,7 @@ type Native = {
   identity: EngineIdentity;
   enqueue(id: number, bytes: ArrayBuffer): void;
   asset(name: string): ArrayBuffer;
-  notify(text: string): void;
+  notify(text: string, execution?: EngineExecutionSnapshot): void;
 };
 /** Shared App-worker/Hermes bootstrap; all framework work enters the same C++ packet port. */
 export function launchEngineV2App(definition: EngineV2App): void {
@@ -53,29 +61,39 @@ export function launchEngineV2App(definition: EngineV2App): void {
         (definition.requiredCapabilities ?? 0),
       timeoutMs: 10000,
     });
-    const view = await client.openView(1),
-      widgets = new WidgetHost(view, {
-        onError: (error) => notify({ kind: 'app-error', message: String(error) }),
-      });
+    let view: EngineViewClient;
+    try {
+      view = await client.openView(1);
+    } catch (error) {
+      await drainEngineOwners('App view startup and cleanup failed', [
+        () => {
+          throw error;
+        },
+        () => client.abort(),
+      ]);
+      throw error;
+    }
+    const widgets = new WidgetHost(view, {
+      onError: (error) => notify({ kind: 'app-error', message: String(error) }),
+    });
     const context = { view, asset, notify };
-    let disposal: Promise<void> | undefined;
+    let starting = true;
+    const dispose = engineDisposer(async () => {
+      await drainEngineOwners('App disposal failed', [
+        () => definition.dispose?.(),
+        () => widgets.close(),
+        () => client.abort(),
+      ]);
+      notify({ kind: 'app-disposed' });
+    });
+    let reportedDisposal = false;
     environment.__v2Dispose = () => {
-      if (disposal) return disposal;
-      disposal = (async () => {
-        try {
-          await definition.dispose?.();
-        } finally {
-          try {
-            await widgets.close();
-          } finally {
-            await client.abort();
-          }
-        }
-        notify({ kind: 'app-disposed' });
-      })();
-      // Native callers pump microtasks without awaiting JS Promises. Report a
-      // failure only after the Widget/transport finally blocks have drained.
-      void disposal.catch((error) => notify({ kind: 'app-error', message: String(error) }));
+      const disposal = dispose();
+      if (!starting && !reportedDisposal) {
+        reportedDisposal = true;
+        // Native callers pump microtasks without awaiting JS Promises.
+        void disposal.catch((error) => notify({ kind: 'app-error', message: String(error) }));
+      }
       return disposal;
     };
     try {
@@ -96,18 +114,23 @@ export function launchEngineV2App(definition: EngineV2App): void {
         }
       }
       await definition.ready?.(context);
+      starting = false;
       notify({
         kind: 'app-ready',
         engine: 'v2',
         document: String(state.activeDocument),
         commands: widgets.counters.commands,
         engineWork: String(state.transactionWork),
-        fallbacks: 0,
+        execution: widgets.execution,
         memory: { total: String(state.memory.total), limit: String(state.memory.limit) },
       });
     } catch (error) {
-      await environment.__v2Dispose().catch(() => {});
-      throw error;
+      await drainEngineOwners('App startup and cleanup failed', [
+        () => {
+          throw error;
+        },
+        dispose,
+      ]);
     }
   };
   const native = environment.NelyxV2Native;
@@ -116,7 +139,8 @@ export function launchEngineV2App(definition: EngineV2App): void {
     environment.__v2Resolve = (id, bytes, error) => {
       for (const callback of callbacks) callback({ kind: 'packet-result', id, bytes, error });
     };
-    const notify = (value: Record<string, unknown>) => native.notify(JSON.stringify(value));
+    const notify = (value: Record<string, unknown>) =>
+      native.notify(JSON.stringify(value), value.execution as EngineExecutionSnapshot | undefined);
     void start(
       {
         post(value) {

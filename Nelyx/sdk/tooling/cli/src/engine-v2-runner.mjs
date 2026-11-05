@@ -8,7 +8,8 @@ import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { build } from 'esbuild';
 import { protocol as p } from '@nelyx/core/v2';
-import { isEngineV2DataApi, isEngineV2DataImplementation } from './engine-v2-data-api.mjs';
+import { engineV2ImportRoute } from './engine-v2-data-api.mjs';
+import { inspectEngineV2Graph } from './engine-v2-graph.mjs';
 const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const inside = (root, file) => {
@@ -118,6 +119,7 @@ export async function buildEngineV2Application(options) {
     backup = staged + '-previous';
   let moved = false;
   try {
+    const importRoutes = new Map();
     const bundle = await build({
       stdin: {
         contents: `import app from ${JSON.stringify(entry)};import {launchEngineV2App} from '@nelyx/sdk/engine-v2';launchEngineV2App(app);`,
@@ -140,9 +142,7 @@ export async function buildEngineV2Application(options) {
               { filter: /^@nelyx\/(core|material|cupertino|sdk)(\/|$)/ },
               (args) => {
                 if (
-                  !/^@nelyx\/(core|material|cupertino)\/v2$/.test(args.path) &&
-                  args.path !== '@nelyx/sdk/engine-v2' &&
-                  !isEngineV2DataApi(args.path) &&
+                  !engineV2ImportRoute(args.path) &&
                   !(
                     args.path === '@nelyx/core/internal/ui/color-source-adapter' &&
                     args.importer.includes('material')
@@ -156,7 +156,10 @@ export async function buildEngineV2Application(options) {
                     ],
                   };
                 try {
-                  return { path: require.resolve(args.path) };
+                  const route = engineV2ImportRoute(args.path) ?? args.path;
+                  const resolved = require.resolve(route);
+                  importRoutes.set(args.path, route);
+                  return { path: resolved };
                 } catch (error) {
                   return { errors: [{ text: String(error) }] };
                 }
@@ -167,23 +170,10 @@ export async function buildEngineV2Application(options) {
       ],
     });
     const coreDirectory = fs.realpathSync(path.resolve(path.dirname(core), '../../..'));
-    for (const source of Object.keys(bundle.metafile.inputs)) {
-      const absolute = path.resolve(source),
-        distribution = path.join(coreDirectory, 'dist'),
-        coreSource = path.join(coreDirectory, 'src'),
-        isDistribution = inside(distribution, absolute),
-        isSource = inside(coreSource, absolute),
-        relative = path
-          .relative(isSource ? coreSource : distribution, absolute)
-          .replaceAll('\\', '/')
-          .replace(/\.ts$/, '.js');
-      if (
-        (isDistribution || isSource) &&
-        !relative.startsWith('v2/') &&
-        !isEngineV2DataImplementation(relative)
-      )
-        throw Error('Reused API includes an unported implementation: ' + relative);
-    }
+    const graph = inspectEngineV2Graph(
+      Object.keys(bundle.metafile.inputs).map((file) => path.resolve(file)),
+      coreDirectory,
+    );
     const assets = settings.assets ?? {};
     let assetBytes = 0;
     for (const [name, relative] of Object.entries(assets)) {
@@ -239,7 +229,10 @@ export async function buildEngineV2Application(options) {
       abi: supply.manifest.abi,
       supplySourceSha256: supply.manifest.sourceSha256,
       supply: supply.root,
-      tsFallbacks: 0,
+      routing: {
+        ...graph,
+        imports: [...importRoutes].map(([original, route]) => ({ original, route })),
+      },
       modules: Object.keys(bundle.metafile.inputs).length,
       files,
     };
@@ -258,7 +251,7 @@ export async function buildEngineV2Application(options) {
       directory: output,
       sourceSha256: manifest.supplySourceSha256,
       modules: manifest.modules,
-      tsFallbacks: 0,
+      routing: manifest.routing,
     };
   } finally {
     if (fs.existsSync(staged)) removeTemporary(staged, parent, '.engine-v2-');
@@ -484,6 +477,7 @@ export function createEngineV2Project(
         },
         devDependencies: {
           '@nelyx/cli': cli,
+          typescript: 'npm:@typescript/typescript6@6.0.2',
           ...(metro ? { '@nelyx/metro': metro } : {}),
           ...(staticAot ? { '@nelyx/static-aot': staticAot } : {}),
         },
@@ -517,6 +511,7 @@ export function createEngineV2Project(
   };
 }
 const browserMain = `import {createBrowserEngineV2Surface,protocol as p} from '@nelyx/sdk/engine-v2';
+import {drainEngineOwners} from '@nelyx/core/v2';
 const root=new URL('.',location.href),error=document.querySelector('#error');
 const current=globalThis.__nelyxV2={ready:false,errors:[]};
 const fail=message=>{error.textContent=message;current.errors.push(message);};
@@ -536,7 +531,12 @@ const fail=message=>{error.textContent=message;current.errors.push(message);};
     app.addEventListener('message',receive);app.postMessage({kind:'close'});
    });
   }catch(error){failure=error;}
-  try{const result=await surface.close();if(failure)throw failure;return result;}
-  finally{app.terminate();current.ready=false;}
+  let result;
+  await drainEngineOwners('App and surface close failed',[
+   ()=>{if(failure)throw failure;},
+   async()=>{result=await surface.close();},
+   ()=>{app.terminate();current.ready=false;}
+  ]);
+  return result;
  })();
 })().catch(error=>fail(String(error)));`;

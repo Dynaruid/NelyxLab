@@ -14,6 +14,8 @@
 #include <sstream>
 #include <functional>
 #include <filesystem>
+#include <cmath>
+#include <syncstream>
 
 namespace jsi=facebook::jsi;
 using namespace nelyx::v2;
@@ -75,6 +77,8 @@ class Host {
   std::atomic<uint64_t> rendered{0},paragraphs{0},pictures{0},images{0};
   std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
   std::atomic<uint64_t> appHeapBytes{0};
+  std::atomic<uint64_t> appAcknowledgedCommands{0},appRejectedFallbacks{0};
+  std::atomic<bool> appExecutionObserved{false};
   std::atomic<double> lazyOffset{0};
   std::atomic<double> scrollOffset{0};
   std::atomic<double> publishedWidth{0},publishedHeight{0};
@@ -87,7 +91,7 @@ class Host {
   std::string control;
   std::vector<uint8_t> call(uint32_t op,const std::vector<uint8_t>& data={},bool session=false){auto bytes=makePacket(op,data,session);return core.dispatch({bytes.data(),bytes.size()});}
   static Reader reader(const std::vector<uint8_t>& bytes){return {bytes.data(),bytes.size()};}
-  void notifyError(const std::string& error){failed=true;std::cerr<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();appChanged.notify_all();PostMessageW(window,WM_CLOSE,0,0);}
+  void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();appChanged.notify_all();PostMessageW(window,WM_CLOSE,0,0);}
   void contentLoop(){
     contentThread=GetCurrentThreadId();CoInitializeEx(nullptr,COINIT_MULTITHREADED);
     try{
@@ -103,7 +107,7 @@ class Host {
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::transaction){interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
           auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
-        if(const auto delay=contentDelay.exchange(0)){busyOwners.fetch_or(2);std::cout<<"V2_CONTENT_DELAY_START "<<delay<<std::endl;injectProbeInput();std::this_thread::sleep_for(std::chrono::milliseconds(delay));busyOwners.fetch_and(~2u);std::cout<<"V2_CONTENT_DELAY_END"<<std::endl;}
+        if(const auto delay=contentDelay.exchange(0)){busyOwners.fetch_or(2);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_START "<<delay<<std::endl;injectProbeInput();std::this_thread::sleep_for(std::chrono::milliseconds(delay));busyOwners.fetch_and(~2u);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_END"<<std::endl;}
         if(connected){Writer quota(8);quota.u32(0,wire::limits::contentPerStep);auto result=call(wire::opcodes::contentStep,quota.bytes);auto r=reader(result);
           uint64_t attempted=r.u64(wire::headerBytes+wire::stateFields::measurePreparation);
           try {
@@ -127,7 +131,7 @@ class Host {
           } catch(const std::exception& error) {
             provider.discardMeasurements();Writer reply(24);reply.u64(0,attempted);
             reply.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));reply.u64(16,r.u64(wire::headerBytes+wire::stateFields::device));
-            call(wire::opcodes::preparationResult,reply.bytes);std::cout<<"V2_PREPARATION_ERROR "<<error.what()<<std::endl;
+            call(wire::opcodes::preparationResult,reply.bytes);std::osyncstream(std::cout)<<"V2_PREPARATION_ERROR "<<error.what()<<std::endl;
           }
           if(r.u16(14)==0 && !(r.u32(wire::headerBytes+wire::stateFields::flags)&16u) && r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
           if(r.u64(wire::headerBytes+wire::stateFields::queryId)&&r.u32(wire::headerBytes+wire::stateFields::queryStatus)==wire::statuses::pending)contentWake=true;
@@ -144,7 +148,7 @@ class Host {
     renderThread=GetCurrentThreadId();
     try{
       nw::RenderProvider provider{uint64_t(uintptr_t(window)),uiThread,core.memoryLedger()};renderReady=true;
-      std::cout<<"V2_RENDERER "<<provider.driver()<<std::endl;
+      std::osyncstream(std::cout)<<"V2_RENDERER "<<provider.driver()<<std::endl;
       while(!stopping&&!contentReady)std::this_thread::sleep_for(std::chrono::milliseconds(2));
       if(stopping)return;
       core.connectProvider(true,contentThread,renderThread);connected=true;appChanged.notify_all();changed.notify_all();
@@ -187,9 +191,9 @@ class Host {
             {std::lock_guard lock(sceneMutex);publishedPrepared=active;}
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
             publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
-            if(probe&&frame->scene->document->epoch>lastReportedDocument){lastReportedDocument=frame->scene->document->epoch;std::cout<<"V2_SCENE_PUBLISHED "<<lastReportedDocument<<std::endl;}
+            if(probe&&frame->scene->document->epoch>lastReportedDocument){lastReportedDocument=frame->scene->document->epoch;std::osyncstream(std::cout)<<"V2_SCENE_PUBLISHED "<<lastReportedDocument<<std::endl;}
             const auto input=r.u64(wire::headerBytes+wire::stateFields::consumedThrough);
-            if(probe&&input>lastReportedInput){lastReportedInput=input;std::cout<<"V2_INPUT_FRAME {\"input\":"<<input<<",\"offset\":"<<scrollOffset<<",\"busyAtCompose\":"<<busyAtCompose<<",\"busyAtCompletion\":"<<busyOwners<<"}"<<std::endl;}
+            if(probe&&input>lastReportedInput){lastReportedInput=input;std::osyncstream(std::cout)<<"V2_INPUT_FRAME {\"input\":"<<input<<",\"offset\":"<<scrollOffset<<",\"busyAtCompose\":"<<busyAtCompose<<",\"busyAtCompletion\":"<<busyOwners<<"}"<<std::endl;}
           }
           call(wire::opcodes::pollEvents);
           clock=(sr.u32(wire::headerBytes+wire::stateFields::flags)&128u)!=0;
@@ -234,8 +238,15 @@ class Host {
           if(relative.empty()||relative.is_absolute()||*relative.begin()==".."||!std::filesystem::is_regular_file(file))throw jsi::JSError(r,"Invalid application asset path");}
         const auto size=std::filesystem::file_size(file);if(size>wire::limits::resourceBytes)throw jsi::JSError(r,"Application asset budget exceeded");ExternalLease staging(core.memoryLedger(),3,4,size*2);
         auto bytes=readFile(file.string());auto array=r.global().getPropertyAsFunction(r,"ArrayBuffer").callAsConstructor(r,double(bytes.size())).getObject(r);auto buffer=array.getArrayBuffer(r);std::memcpy(buffer.data(r),bytes.data(),bytes.size());return array;}));
-      native.setProperty(rt,"notify",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"notify"),1,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t)->jsi::Value{
-        const auto message=args[0].asString(r).utf8(r);if(message.find("app-delay-start")!=std::string::npos)busyOwners.fetch_or(1);if(message.find("app-delay-end")!=std::string::npos)busyOwners.fetch_and(~1u);std::cout<<"V2_APP "<<message<<std::endl;if(message.find("app-delay-start")!=std::string::npos)injectProbeInput();if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
+      native.setProperty(rt,"notify",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"notify"),2,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
+        if(count>1&&args[1].isObject()){
+          const auto execution=args[1].asObject(r);
+          const auto commands=execution.getProperty(r,"acknowledgedCommands").asNumber(),rejected=execution.getProperty(r,"rejectedFallbacks").asNumber();
+          if(!std::isfinite(commands)||commands<0||commands>9007199254740991.0||!std::isfinite(rejected)||rejected<0||rejected>9007199254740991.0)throw jsi::JSError(r,"Invalid App execution counters");
+          appAcknowledgedCommands=uint64_t(commands);appRejectedFallbacks=uint64_t(rejected);
+          appExecutionObserved=execution.getProperty(r,"observed").getBool();
+        }
+        const auto message=args[0].asString(r).utf8(r);if(message.find("app-delay-start")!=std::string::npos)busyOwners.fetch_or(1);if(message.find("app-delay-end")!=std::string::npos)busyOwners.fetch_and(~1u);std::osyncstream(std::cout)<<"V2_APP "<<message<<std::endl;if(message.find("app-delay-start")!=std::string::npos)injectProbeInput();if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
@@ -320,7 +331,7 @@ class Host {
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
-    std::cout<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbacks\":0,\"surfaceCommit\":null}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"surfaceCommit\":null}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
   void uiFailure(const std::string& error){notifyError(error);}
@@ -329,12 +340,12 @@ class Host {
     if(appReady&&!stopping){
       disposeRequested=true;appChanged.notify_all();const auto deadline=now()+3;
       while(!appDisposed&&!stopping&&now()<deadline){ui();std::this_thread::sleep_for(std::chrono::milliseconds(1));}
-      if(!appDisposed&&!stopping){failed=true;std::cerr<<"V2_HOST_ERROR App disposal timeout"<<std::endl;}
+      if(!appDisposed&&!stopping){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR App disposal timeout"<<std::endl;}
     }
     closed=true;stopping=true;changed.notify_all();appChanged.notify_all();
     const auto appDeadline=now()+0.25;
     while(!appExited&&now()<appDeadline)std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    if(!appExited){std::lock_guard lock(appRuntimeMutex);if(appRuntime){failed=true;std::cerr<<"V2_HOST_ERROR Interrupting stalled App JavaScript"<<std::endl;appRuntime->asyncTriggerTimeout();}}
+    if(!appExited){std::lock_guard lock(appRuntimeMutex);if(appRuntime){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR Interrupting stalled App JavaScript"<<std::endl;appRuntime->asyncTriggerTimeout();}}
     if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();
     if(interaction){interaction->close();interaction.reset();}
     std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();callbacks.clear();
@@ -343,7 +354,7 @@ class Host {
     {std::lock_guard lock(jobsMutex);jobs.clear();uiJobs.clear();jobBytes=0;}{std::lock_guard lock(doneMutex);done.clear();}
     auto result=call(wire::opcodes::closeSession,{},true);auto r=reader(result);const auto memory=core.memoryLedger()->snapshot();
     if(r.u16(14)||r.u64(wire::headerBytes+wire::stateFields::reservedBytes)||memory.total)failed=true;
-    std::cout<<"V2_CLOSED {\"status\":"<<r.u16(14)<<",\"reservedBytes\":"<<r.u64(wire::headerBytes+wire::stateFields::reservedBytes)<<",\"memoryTotal\":"<<memory.total<<",\"memoryPeak\":"<<memory.peak<<",\"workersJoined\":true}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_CLOSED {\"status\":"<<r.u16(14)<<",\"reservedBytes\":"<<r.u64(wire::headerBytes+wire::stateFields::reservedBytes)<<",\"memoryTotal\":"<<memory.total<<",\"memoryPeak\":"<<memory.peak<<",\"workersJoined\":true}"<<std::endl;
   }
   ~Host(){close();}
 };
@@ -383,5 +394,5 @@ int main(int argc,char**argv){
     const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Native Skia",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
     if(!window)throw std::runtime_error("Native HWND creation failed");host.bind(window);host.metrics();SetTimer(window,1,16,nullptr);ShowWindow(window,SW_SHOW);host.metrics();UpdateWindow(window);
     MSG message;while(GetMessageW(&message,nullptr,0,0)>0){if(!host.filter(message)){TranslateMessage(&message);DispatchMessageW(&message);}}return host.hasFailed()?1:0;
-  }catch(const std::exception& error){std::cerr<<"V2_HOST_ERROR "<<error.what()<<std::endl;return 1;}
+  }catch(const std::exception& error){std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error.what()<<std::endl;return 1;}
 }

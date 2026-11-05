@@ -14,7 +14,7 @@
 
 - Windows: `npm.cmd run run:engine-v2:windows`. Wheel 또는 왼쪽 pointer drag로 스크롤하고 `Ctrl+U`로 App 선언을 갱신합니다. 창을 닫으면 provider를 drain하고 owner를 join합니다.
 - Web: `npm.cmd run run:engine-v2:web` 후 `http://127.0.0.1:8192/isolated/`에서 threaded 자동 선택, `/plain/`에서 비격리 single-worker 자동 선택을 확인합니다. `?profile=threaded`는 격리가 필요하며 명시 요구·자산/ABI 오류는 TS renderer 전환 없이 실패합니다. 정적 배포는 현재 dist 전체와 격리 route의 worker/asset에 일관된 COOP/COEP headers를 제공해야 합니다.
-- 검사: `npm.cmd run test:engine-v2`(공통 계약 211개), `npm.cmd run test:engine-v2:actors`(owner 일정·caret deadline·provider 실패 복구), `npm.cmd run test:engine-v2:glyphs`(padding 포함 픽셀 25 corpus·UTF-16·편집 geometry), `npm.cmd run test:engine-v2:graphics`(retained 픽셀·backing admission), 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`·`npm.cmd run test:engine-v2:runner`(host·일반 프로젝트 통합). 검사는 20분 timeout과 임시 출력 finally 정리를 사용합니다.
+- 검사: `npm.cmd run test:engine-v2`(공통 계약 214개), `npm.cmd run test:engine-v2:actors`(owner 일정·caret deadline·provider 실패 복구), `npm.cmd run test:engine-v2:glyphs`(padding 포함 픽셀 25 corpus·UTF-16·편집 geometry), `npm.cmd run test:engine-v2:graphics`(retained 픽셀·backing admission), 공급 빌드 후 `npm.cmd run test:engine-v2:hosts`·`npm.cmd run test:engine-v2:runner`(host·일반 프로젝트 통합). `test:engine-v2:api`·`test:engine-v2:lifecycle`은 API gate와 복합 종료 오류를 검사합니다. 검사는 20분 timeout과 임시 출력 finally 정리를 사용합니다.
 
 Windows/threaded Web은 독립 Content/Render owner를 연결합니다. Single-worker는 협력 실행이며 `contentIndependent=false`입니다. Testbed는 v2 Widget/State/Key로 선언하고 C++ layout·intrinsic/dry query·편집 document·semantics를 사용합니다. Arabic/Hebrew fallback·color emoji를 공급합니다. 전체 Widget/Material/Cupertino API·gesture·Android는 **PARTIAL**이며 실제 IME/reader·trackpad/FPS 수락은 별도입니다. [구현과 잔여 범위](../work8-2.md#이번-작업의-구현검증-현황)를 참고하세요.
 
@@ -29,7 +29,7 @@ Text/Image/EditableText에도 같은 계약의 padding을 지정할 수 있습�
 
 같은 v2 subpath의 `WidgetHost`, `StatelessWidget`, `StatefulWidget`, `State`, `InheritedWidget`, `ValueKey`, `GlobalKey`와 `Box`, `Row`, `Column`, `Stack`, `Wrap`, `Grid`, `ScrollView`, `Text`, `Image`, `EditableText`, `Button`, `Semantics`로 장면을 선언합니다. `mount`/`update`/`flush`는 ACK 기준으로 diff하고 Key 재부모화·상태·NACK/ACK 유실을 처리합니다. 표준 자식 layout은 C++에 남습니다. 기존 v1 Widget import를 이 경로에 자동 연결하지 않습니다.
 
-GlobalKey 재부모화는 `deactivate`/`activate`와 의존성 갱신을 수행합니다. 초기화·갱신 lifecycle에서 build 전에 `setState`를 호출할 수 있습니다. Build 실패는 Element 정보·미전송 할당을 복구하며 앱의 임의 부수 효과까지 되돌리지 않습니다. Hook이 예외를 던져도 dispose는 terminal입니다. `WidgetHost.close()`는 모든 State와 native view를 정리한 뒤 hook 오류를 `AggregateError`로 반환합니다. Focus된 collapsed caret는 C++의 500 ms deadline으로 깜박이고 조합 중에는 고정 표시, selection/blur에서는 정지합니다. 게시 frame의 `caretVisible`로 표시 상태를 구별하며 Widget/paragraph를 다시 만들지 않습니다.
+GlobalKey 재부모화는 `deactivate`/`activate`와 의존성 갱신을 수행합니다. 초기화·갱신 lifecycle에서 build 전에 `setState`를 호출할 수 있습니다. Build 실패는 Element 정보·미전송 할당을 복구하며 앱의 임의 부수 효과까지 되돌리지 않습니다. Hook이 예외를 던져도 dispose는 terminal입니다. `WidgetHost.close()`는 모든 State와 native view를 정리한 뒤 하나의 오류는 원래 객체로, 여러 오류는 `AggregateError`로 반환합니다. Focus된 collapsed caret는 C++의 500 ms deadline으로 깜박이고 조합 중에는 고정 표시, selection/blur에서는 정지합니다. 게시 frame의 `caretVisible`로 표시 상태를 구별하며 Widget/paragraph를 다시 만들지 않습니다.
 
 `EditingController('초깃값')`를 `EditableText`에 부착한 뒤 `refresh()`로 revision을 받고 `edit({kind:'replace',revision,text,base,extent,policy})`로 조건부 수정합니다. Text/selection/composing은 Core가 보유하고 undo/redo를 제공합니다. 같은 handle의 초깃값을 바꾸지 말고 편집 명령을 사용하세요. OS/browser composing 종료 전 App replacement는 거부될 수 있습니다. `semanticsSnapshot()`은 게시 world geometry와 최신 비시각 편집 값을 구별하며, `focus()`/`semanticAction()`은 게시 ID·focus session·node 세대를 검사합니다. Windows는 TSF/UIA, Web은 `dom-textarea/aria`를 연결합니다. 실제 IME 후보창·전체 keyboard/clipboard/reader 조합은 미검증입니다.
 
@@ -59,7 +59,9 @@ Editor의 명시적인 `commit`/`cancel` replacement는 host의 실제 compositi
 
 `Key`·`ValueKey`·`ObjectKey`·`UniqueKey`와 Notifier 계열은 기존 값 import와 `/v2`에서 원래 foundation 구현을 공유합니다. Reconciliation은 사용자 정의 key 동등성·런타임 type token을 보존하고 `ValueListenableBuilder`는 원래 listener 계약으로 구독·해제합니다. 기존 GlobalKey/RenderObject framework와 동기 API 전체를 이식한 것은 아닙니다.
 
-일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. 기존 전체 Widget/RenderObject/디자인/SDK API 호환은 별도 gate이며 `npm.cmd run audit:engine-v2:api`는 누락·변경·미검증 계약이 남아 있으면 실패합니다. 같은 이름의 export만으로 호환 완료가 되지 않습니다.
+`WidgetHost.execution`은 ACK를 받은 native 명령/transaction·App geometry 선언·fallback 거부 횟수와 이유를 보고합니다. ACK 전에는 `observed=false`이며, C++ `transactionWork` 및 해당 장면의 실제 layout/paint 작업과 대조합니다. 미지원 Widget은 `fallbackPolicy: 'reject-unported'`로 실패합니다. 빌드 manifest의 `routing`에는 실제 검사한 import graph가 있습니다. 종전의 고정 `fallbacks=0`을 대신하며 성능·display 수락과는 구별합니다.
+
+일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. `npm.cmd run audit:engine-v2:api`는 원래 경로·선언 진단·생성자/member/protected hook과 overload/member 범위를 명시한 실제 동작 사례를 검사합니다. 일부를 검사한 class의 나머지 member와 non-code 공개 export도 미검증으로 남깁니다. 기존 전체 Widget/RenderObject/디자인/SDK API gate는 계속 실패하며 [현재 구현과 한계](../work8-2a.md)를 따릅니다.
 
 ## 모듈
 

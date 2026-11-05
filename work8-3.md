@@ -258,6 +258,8 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 
 ## 19. 작성 시점의 상태
 
+`work8-2a.md` 후속 구현에서 원래 공개 표면을 고정하고 API 입력/overload/member/동작 gate·실제 경로 집계·복합 종료·Native 출력 경합을 보완했다. 두 디자인과 설치 compiler를 포함하도록 archive 검사를 확장했다. 최신 검사·공급·남은 P1–P5는 [2a 현재 현황](work8-2a.md#현재-구현-현황)을 우선한다. 전체 public API gate와 W8는 **PARTIAL**, 성능·물리/display 수락은 기존 경계를 유지한다.
+
 **PARTIAL / 연결 실행 확인:** 사용자의 재개 요청으로 Windows와 두 Web profile의 최소 고정 배치 host·화면·owner 연결을 구현·검증했다. 전체 백엔드 gate와 물리 입력/성능은 별도다. 최신 실행·수치·미완료 범위는 [1부 연결 실행 현황](work8-1.md#연결-실행-현황)에 있다.
 
 | 항목 | 현재 상태 |

@@ -14,6 +14,7 @@ import {
 } from './codec.ts';
 import type { EngineResponse, PacketOwner } from './codec.ts';
 import { protocol as p } from './schema.ts';
+import { drainEngineOwners } from './lifecycle.ts';
 
 export interface EngineTransport {
   /** The port returns standalone bytes, never a live native/Wasm heap view. */
@@ -56,6 +57,7 @@ function checked(
 export class EngineClient {
   readonly owner: PacketOwner;
   private closed = false;
+  private aborting: Promise<void> | undefined;
   private pending = 0;
   private pendingBytes = 0;
   private readonly views = new Set<EngineViewClient>();
@@ -103,7 +105,12 @@ export class EngineClient {
         );
       return client;
     } catch (error) {
-      await client.abort();
+      await drainEngineOwners('Engine connection and cleanup failed', [
+        () => {
+          throw error;
+        },
+        () => client.abort(),
+      ]);
       throw error;
     }
   }
@@ -203,22 +210,24 @@ export class EngineClient {
         result,
       );
     }
-    try {
-      checked(result);
-    } finally {
-      await this.abort();
-    }
+    await drainEngineOwners('Engine close failed', [
+      () => {
+        checked(result);
+      },
+      () => this.abort(),
+    ]);
   }
   /** Forced transport loss. Normal hosts drain their provider before teardown. */
-  async abort(): Promise<void> {
-    if (this.closed) return;
+  abort(): Promise<void> {
+    if (this.aborting) return this.aborting;
     this.closed = true;
     const error = new EngineError(p.statuses.closed, 'Engine session closed');
     for (const reject of this.closing) reject(error);
     this.closing.clear();
     for (const view of this.views) view.sessionClosed();
     this.views.clear();
-    await this.transport.close();
+    this.aborting = Promise.resolve().then(() => this.transport.close());
+    return this.aborting;
   }
 }
 export class EngineViewClient {

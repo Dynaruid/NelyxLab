@@ -18,6 +18,7 @@ import type {
   GraphicsOptions,
 } from './codec.ts';
 import { EngineError } from './client.ts';
+import { engineFailures } from './lifecycle.ts';
 import type { EngineViewClient } from './client.ts';
 import { Key, sameKey as equalKey } from '@nelyx/core/foundation/key';
 export { Key, LocalKey, UniqueKey, ValueKey, ObjectKey, KeyMap } from '@nelyx/core/foundation/key';
@@ -419,6 +420,17 @@ interface NativeRecord {
   readonly children: readonly NodeHandle[];
   readonly config: readonly Uint8Array[];
 }
+export interface EngineExecutionSnapshot {
+  readonly selected: 'engine-v2-cpp';
+  readonly fallbackPolicy: 'reject-unported';
+  /** True only after a transaction ACK, never inferred from the selected option. */
+  readonly observed: boolean;
+  readonly acknowledgedTransactions: number;
+  readonly acknowledgedCommands: number;
+  readonly appGeometryNodes: number;
+  readonly rejectedFallbacks: number;
+  readonly rejectionReasons: Readonly<Record<string, number>>;
+}
 const equalBytes = (a: Uint8Array, b: Uint8Array) =>
   a.length === b.length && a.every((n, i) => n === b[i]);
 
@@ -451,6 +463,9 @@ export class WidgetHost {
   private rerun = false;
   private eventTimer: ReturnType<typeof setTimeout> | undefined;
   private polling = false;
+  private appGeometryNodes = 0;
+  private rejectedFallbacks = 0;
+  private readonly rejectionReasons: Record<string, number> = {};
   readonly counters = {
     builds: 0,
     transactions: 0,
@@ -458,10 +473,21 @@ export class WidgetHost {
     created: 0,
     destroyed: 0,
     moved: 0,
-    fallbacks: 0,
     gestures: 0,
     controls: 0,
   };
+  get execution(): EngineExecutionSnapshot {
+    return Object.freeze({
+      selected: 'engine-v2-cpp',
+      fallbackPolicy: 'reject-unported',
+      observed: this.counters.transactions > 0,
+      acknowledgedTransactions: this.counters.transactions,
+      acknowledgedCommands: this.counters.commands,
+      appGeometryNodes: this.appGeometryNodes,
+      rejectedFallbacks: this.rejectedFallbacks,
+      rejectionReasons: Object.freeze({ ...this.rejectionReasons }),
+    });
+  }
   constructor(
     readonly view: EngineViewClient,
     private readonly options: { onError?: (error: unknown) => void; pollEvents?: boolean } = {},
@@ -589,7 +615,11 @@ export class WidgetHost {
         this.lifecycleElement = undefined;
       }
       children = [state.build(element.context)];
-    } else throw new Error('Unsupported v2 Widget type');
+    } else {
+      ++this.rejectedFallbacks;
+      this.rejectionReasons.unsupportedWidget = (this.rejectionReasons.unsupportedWidget ?? 0) + 1;
+      throw new Error('Unsupported v2 Widget type; TypeScript renderer fallback is forbidden');
+    }
     const localKeys: Key[] = [];
     for (const child of children)
       if (child.key) {
@@ -618,6 +648,7 @@ export class WidgetHost {
         h = e.handle!,
         o = node.resolveOptions(e.context!);
       appGeometry ||= !!o.appDrivenGeometry;
+      if (appGeometry) ++this.appGeometryNodes;
       if (
         appGeometry &&
         (!Number.isFinite(o.properties?.width) || !Number.isFinite(o.properties?.height))
@@ -1044,6 +1075,6 @@ export class WidgetHost {
     } catch (error) {
       errors.push(error);
     }
-    if (errors.length) throw new AggregateError(errors, 'WidgetHost close failed');
+    if (errors.length) throw engineFailures('WidgetHost close failed', errors);
   }
 }
