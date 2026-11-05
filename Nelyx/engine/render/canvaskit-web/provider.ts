@@ -7,6 +7,7 @@ import type {
   Typeface,
   GrDirectContext,
   Paragraph,
+  Path,
 } from 'canvaskit-wasm';
 import { decodeUtf8, protocol as p } from '../../../runtime/engine-client/index.ts';
 import type {
@@ -18,6 +19,8 @@ import { key, script, verified } from '../../platform/web/common.ts';
 import { lineIndexUnit, lineNumberAtUTF16, editingGeometry } from './paragraph.ts';
 import type { LineIndexUnit } from './paragraph.ts';
 import { paintControl } from './controls.ts';
+import {makePath,paintShape,canvasMatrix,relativeMatrix} from './graphics.ts';
+import type {ProviderBudget} from '../../platform/web/memory.ts';
 export interface ProviderFont {
   id: string;
   family: string;
@@ -51,9 +54,15 @@ export interface PreparedPictures {
       italic: boolean;
     }[];
   }[];
+  paths: {node:string;segments:readonly import('../../../runtime/engine-client/index.ts').PathSegment[];fillRule:'winding'|'evenOdd'}[];
   local?: Map<string, Picture>;
 }
 export class CanvasKitProvider {
+  private packetHolds=new Map<bigint,()=>void>();
+  private backingRelease:(()=>void)|undefined;
+  private cacheRelease:(()=>void)|undefined;
+  private closing=false;
+  private pathTables=new Map<bigint,Map<string,Path>>();
   private measuredParagraphs = new Map<string, { signature: string; paragraph: Paragraph }>();
   private measurePreparation = 0n;
   private fontProvider: TypefaceFontProvider;
@@ -88,11 +97,14 @@ export class CanvasKitProvider {
     measurements: 0,
     paragraphLayouts: 0,
     liveParagraphs: 0,
+    gpuReservedBytes:0,
+    unifiedMemory:false,
   };
   gl: { version: number; renderer: string } | undefined;
   private constructor(
     readonly ck: CanvasKit,
     font: Uint8Array | ProviderFont[],
+    private budget?:ProviderBudget,
   ) {
     this.fontProvider = ck.TypefaceFontProvider.Make();
     try {
@@ -133,8 +145,20 @@ export class CanvasKitProvider {
       throw error;
     }
     this.counters.heapBytes = (ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.byteLength;
+    this.syncMemory();this.counters.unifiedMemory=!!budget;
   }
-  static async load(root: string): Promise<CanvasKitProvider> {
+  private syncMemory():void {
+    this.counters.heapBytes=(this.ck as unknown as {HEAPU8:Uint8Array}).HEAPU8.byteLength;
+    this.budget?.set(1,this.counters.heapBytes);
+  }
+  private guarded<T>(bytes:number,run:()=>T):T {
+    this.syncMemory();const release=this.budget?.reserve(4,bytes);
+    try{return run();}finally{try{this.syncMemory();}finally{release?.();}}
+  }
+  releasePacket(preparation:bigint):void {this.packetHolds.get(preparation)?.();this.packetHolds.delete(preparation);}
+  static async load(root: string,budget?:ProviderBudget): Promise<CanvasKitProvider> {
+    const release=budget?.reserve(4,48*1024*1024);
+    try{
     const manifest = (await (
       await fetch(new URL('engine-manifest.json', root))
     ).json()) as WebManifest;
@@ -176,8 +200,9 @@ export class CanvasKitProvider {
         id: entry(font.path).sha256,
         family: font.family,
         bytes: fonts[i]!,
-      })),
+      })),budget,
     );
+    }catch(error){release?.();budget?.close();throw error;}finally{release?.();}
   }
   attach(canvas: OffscreenCanvas): void {
     if (this.canvas) throw new Error('Canvas owner already attached');
@@ -238,6 +263,9 @@ export class CanvasKitProvider {
     this.counters.liveParagraphs = 0;
   }
   measure(scene: EngineResponse): ProviderMeasurement {
+    return this.guarded(Math.min(p.limits.resourceBytes,scene.blobs.reduce((n,b)=>n+b.bytes.length*2,0)+1024*1024),()=>this.measureInner(scene));
+  }
+  private measureInner(scene:EngineResponse):ProviderMeasurement {
     if (!scene.measureRequest || scene.nodes.length !== 1)
       throw new Error('Invalid measurement request');
     if (this.measurePreparation !== (scene.measurePreparation || scene.preparation)) {
@@ -305,6 +333,13 @@ export class CanvasKitProvider {
     }
   }
   prepare(scene: EngineResponse, sharedOwner: boolean): PreparedPictures {
+    const release=this.budget?.reserve(4,p.limits.resourceBytes*2);
+    try{
+      const packet=this.guarded(scene.blobs.reduce((n,b)=>n+b.bytes.length,0),()=>this.prepareInner(scene,sharedOwner));
+      this.packetHolds.set(packet.preparation,release??(()=>{}));return packet;
+    }catch(error){release?.();throw error;}
+  }
+  private prepareInner(scene:EngineResponse,sharedOwner:boolean):PreparedPictures {
     if (this.measurePreparation !== scene.preparation) this.discardMeasurements();
     const resources = new Map(
       scene.blobs.filter((b) => b.type === 2).map((b) => [key(b.handle), b.bytes]),
@@ -319,11 +354,16 @@ export class CanvasKitProvider {
       device: scene.device,
       pictures: [],
       texts: [],
+      paths: [],
     };
     const local = new Map<string, Picture>();
+    const paths=new Map<string,Path>();
     let bytes = 0;
     try {
       for (const node of scene.nodes) {
+        if(node.graphics?.hasPath){const segments=node.graphics.path??[],fillRule=node.graphics.fillRule??'winding';
+          paths.set(key(node.node),makePath(this.ck,segments,fillRule));packet.paths.push({node:key(node.node),segments,fillRule});}
+
         const content = node.content ?? { x: 0, y: 0, width: node.width, height: node.height };
         const recorder = new this.ck.PictureRecorder();
         const paint = new this.ck.Paint();
@@ -331,7 +371,10 @@ export class CanvasKitProvider {
         let picture: Picture | null = null;
         try {
           const canvas = recorder.beginRecording(
-            this.ck.XYWHRect(0, 0, Math.max(1, node.width), Math.max(1, node.height)),
+            this.ck.XYWHRect(-Math.abs(node.graphics?.shadow?.x??0)-(node.graphics?.shadow?.sigma??0)*4-2,
+              -Math.abs(node.graphics?.shadow?.y??0)-(node.graphics?.shadow?.sigma??0)*4-2,
+              Math.max(1,node.width)+Math.abs(node.graphics?.shadow?.x??0)*2+(node.graphics?.shadow?.sigma??0)*8+4,
+              Math.max(1,node.height)+Math.abs(node.graphics?.shadow?.y??0)*2+(node.graphics?.shadow?.sigma??0)*8+4),
           );
           if (node.kind === p.kinds.paragraph || node.kind === p.kinds.editable) {
             let paragraph;
@@ -404,19 +447,7 @@ export class CanvasKitProvider {
             } finally {
               image.delete();
             }
-          } else if (node.color >>> 24) {
-            paint.setColor(this.color(node.color));
-            if (node.radius)
-              canvas.drawRRect(
-                this.ck.RRectXY(
-                  this.ck.XYWHRect(0, 0, node.width, node.height),
-                  node.radius,
-                  node.radius,
-                ),
-                paint,
-              );
-            else canvas.drawRect(this.ck.XYWHRect(0, 0, node.width, node.height), paint);
-          }
+          } else paintShape(this.ck,canvas,node,paths.get(key(node.node)),paint);
           picture = recorder.finishRecordingAsPicture();
           ++this.counters.pictures;
           if (sharedOwner) {
@@ -451,10 +482,13 @@ export class CanvasKitProvider {
           throw new Error('Prepared resource identity reused');
         packet.local = local;
         this.tables.set(packet.preparation, local);
+        this.pathTables.set(packet.preparation,paths);
         this.counters.livePictures += local.size;
       }
+      if(!sharedOwner)for(const path of paths.values())path.delete();
       return packet;
     } catch (error) {
+      for(const path of paths.values())path.delete();
       for (const picture of local.values()) picture.delete();
       throw error;
     } finally {
@@ -462,12 +496,18 @@ export class CanvasKitProvider {
     }
   }
   import(packet: PreparedPictures): void {
+    this.guarded(p.limits.resourceBytes,()=>this.importInner(packet));
+  }
+  private importInner(packet:PreparedPictures):void {
     if (this.tables.has(packet.preparation)) return;
     const table = new Map<string, Picture>();
+    const paths=new Map<string,Path>();
     let bytes = 0;
     try {
       if (packet.pictures.length + packet.texts.length > p.limits.nodes)
         throw new Error('Prepared node budget exceeded');
+      for(const path of packet.paths??[]){if(paths.has(path.node))throw new Error('Duplicate prepared clip path');
+        paths.set(path.node,makePath(this.ck,path.segments,path.fillRule));}
       for (const item of packet.pictures) {
         bytes += item.bytes.byteLength;
         if (table.has(item.node) || bytes > p.limits.resourceBytes)
@@ -529,13 +569,20 @@ export class CanvasKitProvider {
         }
       }
       this.tables.set(packet.preparation, table);
+      this.pathTables.set(packet.preparation,paths);
       this.counters.livePictures += table.size;
     } catch (error) {
       for (const picture of table.values()) picture.delete();
+      for(const path of paths.values())path.delete();
       throw error;
     }
   }
   draw(frame: EngineResponse, width: number, height: number, scale: number): void {
+    const layerBytes=frame.nodes.reduce((total,n)=>total+(n.localOpacity<1||(n.graphics?.blur??0)>0?Math.ceil(width*scale)*Math.ceil(height*scale)*4*((n.graphics?.blur??0)>0?3:1):0),0);
+    const release=this.budget?.reserve(3,layerBytes);
+    try{this.guarded(1024*1024,()=>this.drawInner(frame,width,height,scale));}finally{release?.();}
+  }
+  private drawInner(frame:EngineResponse,width:number,height:number,scale:number):void {
     this.resize(width, height, scale);
     if (!this.surface) return;
     if (this.canvas?.getContext('webgl2')?.isContextLost())
@@ -546,7 +593,25 @@ export class CanvasKitProvider {
     target.clear(this.ck.Color(244, 246, 250, 1));
     target.save();
     target.scale(scale, scale);
-    for (const item of frame.nodes) this.drawItem(target, table, item);
+    const saves:{count:number;matrix:EngineNodeSnapshot['matrix'];culled:boolean}[]=[];
+    try{for(const item of frame.nodes){
+      while(saves.length>item.depth){const {count}=saves.pop()!;for(let i=0;i<count;++i)target.restore();}
+      const parent=saves.at(-1),relative=relativeMatrix(parent?.matrix??[1,0,0,1,0,0],item.matrix);
+      const culled=!!parent?.culled||!relative||Math.abs(item.matrix[0]*item.matrix[3]-item.matrix[1]*item.matrix[2])<1e-12;
+      target.save();let count=1;
+      if(culled)target.clipRect(this.ck.XYWHRect(0,0,0,0),this.ck.ClipOp.Intersect,false);
+      else target.concat(canvasMatrix(relative!));
+      if(item.kind===p.kinds.clip||item.kind===p.kinds.scrollViewport){
+        const path=this.pathTables.get(frame.activePreparation)?.get(key(item.node));
+        if(path)target.clipPath(path,this.ck.ClipOp.Intersect,true);
+        else target.clipRRect(this.ck.RRectXY(this.ck.XYWHRect(0,0,item.width,item.height),item.radius,item.radius),this.ck.ClipOp.Intersect,true);
+      }
+      if(item.localOpacity<1||(item.graphics?.blur??0)>0){const paint=new this.ck.Paint();
+        const filter=(item.graphics?.blur??0)>0?this.ck.ImageFilter.MakeBlur(item.graphics!.blur!,item.graphics!.blur!,this.ck.TileMode.Decal,null):null;
+        try{paint.setAlphaf(item.localOpacity);if(filter)paint.setImageFilter(filter);target.saveLayer(paint);++count;}
+        finally{paint.delete();filter?.delete();}}
+      saves.push({count,matrix:item.matrix,culled});if(!culled)this.drawItem(target,table,item);
+    }}finally{while(saves.length){const {count}=saves.pop()!;for(let i=0;i<count;++i)target.restore();}}
     target.restore();
     this.surface.flush();
     ++this.counters.draws;
@@ -560,6 +625,9 @@ export class CanvasKitProvider {
     if (pixelWidth > 8192 || pixelHeight > 8192 || pixelWidth * pixelHeight > 16 * 1024 * 1024)
       throw new Error('Canvas backing budget exceeded');
     if (!this.surface || canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      const nextBacking=this.budget?.reserve(3,pixelWidth*pixelHeight*4*3);
+      let installed=false;
+      try{
       this.surface?.delete();
       this.surface = null;
       this.counters.liveSurfaces = 0;
@@ -569,6 +637,7 @@ export class CanvasKitProvider {
       // convenience helper creates another context on each resize and has a
       // software-surface fallback; this port requires WebGL2 explicitly.
       if (!this.context) {
+        this.cacheRelease=this.budget?.reserve(3,32*1024*1024);
         this.contextHandle = this.ck.GetWebGLContext(canvas, { majorVersion: 2 });
         if (!this.contextHandle) throw new Error('Worker WebGL2 context unavailable');
         this.context = this.ck.MakeWebGLContext(this.contextHandle);
@@ -591,6 +660,9 @@ export class CanvasKitProvider {
         renderer: String(gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
       };
       this.counters.liveSurfaces = 1;
+      this.backingRelease?.();this.backingRelease=nextBacking;installed=true;
+      this.counters.gpuReservedBytes=32*1024*1024+pixelWidth*pixelHeight*12;
+      }finally{if(!installed)nextBacking?.();}
     }
   }
   private drawItem(
@@ -601,13 +673,6 @@ export class CanvasKitProvider {
     if (!(item.flags & 16) || !item.clip.width || !item.clip.height) return;
     const picture = table.get(key(item.node));
     if (!picture) throw new Error('Prepared node generation missing');
-    canvas.save();
-    canvas.clipRect(
-      this.ck.XYWHRect(item.clip.x, item.clip.y, item.clip.width, item.clip.height),
-      this.ck.ClipOp.Intersect,
-      false,
-    );
-    canvas.translate(item.x, item.y);
     const geometry =
       item.hasFocus && item.textGeometry?.revision === item.editing?.revision
         ? item.textGeometry
@@ -618,7 +683,7 @@ export class CanvasKitProvider {
     ) => {
       const paint = new this.ck.Paint();
       paint.setColor(this.color(color));
-      paint.setAlphaf(((color >>> 24) / 255) * item.opacity);
+      paint.setAlphaf((color >>> 24) / 255);
       try {
         canvas.drawRect(this.ck.XYWHRect(r.x, r.y, r.width, r.height), paint);
       } finally {
@@ -626,19 +691,11 @@ export class CanvasKitProvider {
       }
     };
     if (geometry) for (const rect of geometry.selection) paintTextRect(rect, 0x663582f6);
-    if (item.opacity < 1) {
-      const paint = new this.ck.Paint();
-      paint.setAlphaf(item.opacity);
-      canvas.saveLayer(paint);
-      canvas.drawPicture(picture);
-      canvas.restore();
-      paint.delete();
-    } else canvas.drawPicture(picture);
+    canvas.drawPicture(picture);
     if (item.control)
-      paintControl(this.ck, canvas, item.control, item.width, item.height, item.opacity);
+      paintControl(this.ck, canvas, item.control, item.width, item.height, 1);
     if (geometry && item.caretVisible && item.editing?.base === item.editing?.extent)
       paintTextRect(geometry.caret, 0xff172033);
-    canvas.restore();
   }
   retireExcept(active: bigint, candidate = 0n): void {
     for (const [id, table] of this.tables)
@@ -646,9 +703,12 @@ export class CanvasKitProvider {
         for (const picture of table.values()) picture.delete();
         this.counters.livePictures -= table.size;
         this.tables.delete(id);
+        for(const path of this.pathTables.get(id)?.values()??[])path.delete();
+        this.pathTables.delete(id);
       }
   }
   close(): void {
+    if(this.closing)return;this.closing=true;
     this.discardMeasurements();
     this.retireExcept(-1n);
     this.surface?.delete();
@@ -670,5 +730,8 @@ export class CanvasKitProvider {
       this.contextHandle = 0;
     }
     this.counters.liveContexts = 0;
+    this.backingRelease?.();this.backingRelease=undefined;this.cacheRelease?.();this.cacheRelease=undefined;
+    for(const release of this.packetHolds.values())release();this.packetHolds.clear();
+    this.counters.gpuReservedBytes=0;this.budget?.close();
   }
 }

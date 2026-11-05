@@ -253,6 +253,7 @@ export class RenderActor {
         p.opcodes.semanticsSnapshot,
         p.opcodes.editSnapshot,
         p.opcodes.pollInteractionEvents,
+        p.opcodes.pollRaw,
         p.opcodes.layoutSnapshot,
       ].includes(op as 14)
     )

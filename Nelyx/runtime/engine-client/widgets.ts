@@ -13,6 +13,9 @@ import type {
   EngineNodeSnapshot,
   ControlOptions,
   GestureEvent,
+  RawInputSample,
+  EngineEvent,
+  GraphicsOptions,
 } from './codec.ts';
 import { EngineError } from './client.ts';
 import type { EngineViewClient } from './client.ts';
@@ -103,6 +106,12 @@ export class ImageResource {
   }
 }
 export interface NodeOptions {
+  readonly graphics?:GraphicsOptions;
+  readonly onScrollTerminal?: (event: EngineEvent) => void;
+  readonly onRawInput?: (sample: RawInputSample) => void;
+  readonly onRawGap?: (first: bigint, last: bigint) => void;
+  /** App response required for each sample; one outstanding request/stream, 100 ms timeout. */
+  readonly appControlled?: (sample: RawInputSample) => boolean | PromiseLike<boolean>;
   readonly modal?: boolean;
   readonly gestures?: number;
   readonly control?: ControlOptions;
@@ -382,6 +391,7 @@ const equalBytes = (a: Uint8Array, b: Uint8Array) =>
 
 /** Widget/Element reconciliation runs on App. All standard layout remains in C++ Content. */
 export class WidgetHost {
+  private rawSubscribed = false;
   private root: Widget | undefined;
   private tree: Element | undefined;
   private building = false;
@@ -592,9 +602,12 @@ export class WidgetHost {
       if (node.editor) config.push(c.editor(h, node.editorFlags, node.maximumLength));
       config.push(c.semantics(h, o.semantics ?? null));
       if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
+      config.push(c.graphics(h,o.graphics));
       config.push(c.listItem(h, o.listItem ?? null));
       config.push(c.gesture(h, o.gestures ?? 0), c.control(h, o.control ?? null));
-      config.push(c.eventPolicy(h, o.modal ? 4 : 0));
+      config.push(
+        c.eventPolicy(h, (o.onRawInput ? 1 : 0) | (o.appControlled ? 2 : 0) | (o.modal ? 4 : 0)),
+      );
       if (node.kind === 'image') {
         let resource = node.image ? this.resources.get(node.image) : undefined;
         if (node.image && !resource) {
@@ -789,6 +802,10 @@ export class WidgetHost {
         }
       }
       this.adopt(desired, changes);
+      if (!this.rawSubscribed && [...desired.values()].some((r) => r.node.options.onRawInput)) {
+        await this.view.subscribeRaw();
+        this.rawSubscribed = true;
+      }
       this.pending = undefined;
       const errors: unknown[] = lifecycleErrors;
       for (const element of this.retired) {
@@ -848,11 +865,33 @@ export class WidgetHost {
         }
       }
       const state = await this.view.pollInteractionEvents();
+      for (const sample of state.gestureRequests) {
+        const record = this.accepted.get(id(sample.node));
+        const decision = record?.node.options.appControlled;
+        if (!decision) continue;
+        void Promise.resolve()
+          .then(() => decision(sample))
+          .then((accept) => this.view.replyGesture(sample, !!accept))
+          .catch((error) => {
+            if (!(error instanceof EngineError) || error.status !== p.statuses.stale)
+              this.options.onError?.(error);
+          });
+      }
+      if (this.rawSubscribed) {
+        const raw = await this.view.pollRaw();
+        for (const sample of raw.rawInputs)
+          if (!this.closed) this.accepted.get(id(sample.node))?.node.options.onRawInput?.(sample);
+        for (const gap of raw.events)
+          if (gap.kind === p.events.rawGap)
+            for (const record of this.accepted.values())
+              record.node.options.onRawGap?.(gap.epoch, gap.detail);
+      }
       for (const event of state.events) {
         if (this.closed) break;
         const record = this.accepted.get(id(event.node));
         if (!record) continue;
-        if (event.kind === p.events.controlChanged) {
+        if (event.kind === p.events.scrollTerminal) record.node.options.onScrollTerminal?.(event);
+        else if (event.kind === p.events.controlChanged) {
           ++this.counters.controls;
           record.node.options.onValue?.(eventValue(event.detail), event.x);
         } else if (event.kind === p.events.gesture) {

@@ -17,7 +17,7 @@ import {
   State,
   protocol as p,
 } from '@nelyx/core/v2';
-import type { Widget, NodeOptions } from '@nelyx/core/v2';
+import type { Widget, NodeOptions, RawInputSample } from '@nelyx/core/v2';
 import { FilledButton, Checkbox, Slider, MaterialApp } from '@nelyx/material/v2';
 import {
   CupertinoSwitch,
@@ -27,7 +27,7 @@ import {
 } from '@nelyx/cupertino/v2';
 
 /** App declares Widgets; C++ owns layout, editing state and published geometry. */
-export function engineV2Scene(bytes: Uint8Array) {
+export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputSample) => void) {
   const header = new GlobalKey(),
     content = new GlobalKey(),
     lazy = new GlobalKey<ListViewState>(),
@@ -55,7 +55,7 @@ export function engineV2Scene(bytes: Uint8Array) {
   }
   class TestbedState extends State {
     updates = 0;
-    readonly controls = { material: 0, cupertino: 0, slider: 0, gestures: 0 };
+    readonly controls = { material: 0, cupertino: 0, slider: 0, gestures: 0, raw: 0 };
     increment() {
       this.setState(() => ++this.updates);
     }
@@ -193,6 +193,9 @@ export function engineV2Scene(bytes: Uint8Array) {
           color: 0xfff4f6fa,
           gestures: p.gestures.longPress | p.gestures.pinch | p.gestures.panX | p.gestures.panY,
           onGesture: () => ++this.controls.gestures,
+          onRawInput: (sample) => {
+            if (++this.controls.raw === 1) firstInput?.(sample);
+          },
         },
       );
     }

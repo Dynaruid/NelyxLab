@@ -27,7 +27,7 @@ type AppWorker = {
   addEventListener(
     kind: 'message',
     callback: (event: {
-      data: { kind: string; port: AppPort; root: string; milliseconds: number };
+      data: { kind: string; port: AppPort; root: string; milliseconds: number; index: number };
     }) => void,
   ): void;
 };
@@ -37,6 +37,7 @@ const environment = globalThis as unknown as {
   __v2Delay?: (ms: number) => void;
   __v2Dispose?: () => Promise<void>;
   __v2Update?: () => Promise<void>;
+  __v2Seek?: (index: number) => Promise<void>;
 };
 async function start(
   endpoint: PacketEndpoint,
@@ -51,11 +52,20 @@ async function start(
       p.capabilities.semantics |
       p.capabilities.lazyList |
       p.capabilities.gestures |
-      p.capabilities.controls,
+      p.capabilities.controls |
+      p.capabilities.rawObserver |
+      p.capabilities.appControlled,
     timeoutMs: 10000,
   });
   const view = await client.openView(1);
-  const scene = engineV2Scene(image),
+  const scene = engineV2Scene(image, (sample) =>
+      notify({
+        kind: 'raw-input',
+        sequence: String(sample.sequence),
+        publication: String(sample.publication),
+        native: true,
+      }),
+    ),
     widgets = new WidgetHost(view, {
       onError: (error) => notify({ kind: 'app-error', message: String(error) }),
     });
@@ -109,6 +119,10 @@ async function start(
   environment.__v2Dispose = async () => {
     await widgets.close();
     await client.close();
+  };
+  environment.__v2Seek = async (index) => {
+    const receipt = await scene.lazy.currentState!.scrollToIndex(index);
+    notify({ kind: 'app-seek-requested', id: String(receipt.id), index });
   };
   let updating = false;
   environment.__v2Update = async () => {
@@ -182,5 +196,9 @@ if (environment.NelyxV2Native) {
         .__v2Update?.()
         .catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
     else if (event.data.kind === 'close') void environment.__v2Dispose?.();
+    else if (event.data.kind === 'seek')
+      void environment
+        .__v2Seek?.(event.data.index)
+        .catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
   });
 }

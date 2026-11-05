@@ -111,6 +111,46 @@ export function interactionContracts({ using, timeout, h }) {
   };
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
+      `${profile}: focus reveals nested viewports on both axes and user scrolling is not pinned`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'scrollViewport'),
+            c.properties(h(1), { width: 100, height: 100, maximum: 500, horizontal: true }),
+            c.create(h(2), 'scrollViewport'),
+            c.properties(h(2), { x: 200, width: 100, height: 100, maximum: 500 }),
+            c.attach(h(2), h(1)),
+            c.create(h(3), 'box'),
+            c.properties(h(3), { y: 220, width: 80, height: 30 }),
+            c.attach(h(3), h(2)),
+            c.semantics(h(3), {
+              role: 'button',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus,
+            }),
+          ]);
+          const before = await f.inspect();
+          assert.equal(
+            (await f.send(p.opcodes.focus, focusBody(h(3), before.publication))).status,
+            p.statuses.ok,
+          );
+          await f.tick();
+          let state = await f.inspect();
+          assert.equal(state.nodes.find((n) => n.node.slot === 1).offset, 180);
+          assert.equal(state.nodes.find((n) => n.node.slot === 2).offset, 150);
+          assert.equal(state.contentWork, before.contentWork);
+          assert.equal(state.transactionWork, before.transactionWork);
+          await f.present();
+          await f.input('update', -20, { target: h(2), source: 'wheelUnknown' });
+          await f.tick();
+          state = await f.inspect();
+          assert.equal(state.nodes.find((n) => n.node.slot === 2).offset, 130);
+          await f.tick();
+          assert.equal((await f.inspect()).nodes.find((n) => n.node.slot === 2).offset, 130);
+        }),
+    );
+    test(
       `${profile}: compositor caret blinks without App or Content work and stops on selection and blur`,
       { timeout },
       () =>

@@ -5,6 +5,7 @@
 #include "../../core/engine.hpp"
 #include "../../core/state.hpp"
 #include "skia_provider.hpp"
+#include "clipboard.hpp"
 #include <set>
 
 namespace nelyx::v2::windows {
@@ -95,15 +96,16 @@ class Interaction {
                                    [&](const auto &i) { return i.node == node; });
     if (item == snapshot->frame.items.end())
       return false;
+    const auto local=snapshot->frame.local(node,x,y);if(!local)return false;
     const auto &q = source->second;
     const auto& visual=snapshot->frame.scene->document->get(node);
     const auto hit = skia_core::ParagraphQuerySource::hit(
-        q.ticket, prepared->context.get(), q.identity, float(x - item->x-visual.contentX), float(y - item->y-visual.contentY));
+        q.ticket, prepared->context.get(), q.identity, float(local->x-visual.contentX), float(local->y-visual.contentY));
     if (!hit)
       return false;
     int32_t position = int32_t(hit->position);
     if (hit->hasGlyph && position > int32_t(hit->start) && position < int32_t(hit->end)) {
-      const bool left = x - item->x-visual.contentX < (hit->glyph.left + hit->glyph.right) / 2.;
+      const bool left = local->x-visual.contentX < (hit->glyph.left + hit->glyph.right) / 2.;
       position = int32_t(left != hit->glyph.rtl ? hit->start : hit->end);
     }
     const auto after = std::lower_bound(q.characters.begin(), q.characters.end(), position);
@@ -157,11 +159,11 @@ class Interaction {
           wi::CoreGeometry{{"native-hermes:root", 1},
                            snapshot->metrics.epoch,
                            e.epoch,
-                           {item->x, item->y, n.properties.width, n.properties.height},
+                           {item->bounds.x,item->bounds.y,item->bounds.width,item->bounds.height},
                            {item->clip.x, item->clip.y, item->clip.width, item->clip.height},
-                           {item->x + caret.x, item->y + caret.y, caret.width, caret.height},
-                           item->x + n.contentX,
-                           item->y + n.baseline,
+                           {item->world.bounds({caret.x,caret.y,caret.width,caret.height}).x,item->world.bounds({caret.x,caret.y,caret.width,caret.height}).y,item->world.bounds({caret.x,caret.y,caret.width,caret.height}).width,item->world.bounds({caret.x,caret.y,caret.width,caret.height}).height},
+                           item->world.map({n.contentX,n.baseline}).x,
+                           item->world.map({n.contentX,n.baseline}).y,
                            snapshot->metrics.device};
       c.start = e.start;
       c.end = e.end;
@@ -169,14 +171,15 @@ class Interaction {
         wi::Rect bounds;
         bool first = true;
         for (const auto &r : row) {
+          const auto world=item->world.bounds({n.contentX+r.left,n.contentY+r.top,r.right-r.left,r.bottom-r.top});
           if (first) {
-            bounds = {item->x + n.contentX + r.left, item->y + n.contentY + r.top, r.right - r.left, r.bottom - r.top};
+            bounds = {world.x,world.y,world.width,world.height};
             first = false;
           } else {
-            const double right = std::max(bounds.x + bounds.width, item->x + n.contentX + r.right),
-                         bottom = std::max(bounds.y + bounds.height, item->y + n.contentY + r.bottom);
-            bounds.x = std::min(bounds.x, item->x + n.contentX + r.left);
-            bounds.y = std::min(bounds.y, item->y + n.contentY + r.top);
+            const double right = std::max(bounds.x + bounds.width, world.x+world.width),
+                         bottom = std::max(bounds.y + bounds.height, world.y+world.height);
+            bounds.x = std::min(bounds.x, world.x);
+            bounds.y = std::min(bounds.y, world.y);
             bounds.width = right - bounds.x;
             bounds.height = bottom - bounds.y;
           }
@@ -203,9 +206,8 @@ class Interaction {
       const double scale = GetDpiForWindow(window) / 96.;
       const auto &q = record->second;
       const auto &node = snapshot->frame.scene->document->get(item->node);
-      const auto hit = skia_core::ParagraphQuerySource::hit(
-          q.ticket, prepared->context.get(), q.identity, float(point.x / scale - item->x - node.contentX),
-          float(point.y / scale - item->y - node.contentY));
+      const auto local=snapshot->frame.local(item->node,point.x/scale,point.y/scale);if(!local)return;
+      const auto hit=skia_core::ParagraphQuerySource::hit(q.ticket,prepared->context.get(),q.identity,float(local->x-node.contentX),float(local->y-node.contentY));
       auto c = command(e.id, "hit");
       c.revision = e.revision;
       c.request = e.request;
@@ -498,14 +500,14 @@ public:
       wi::CoreGeometry frame{{"native-hermes:root", 1},
                              f.scene->metrics.epoch,
                              f.id,
-                             {item.x, item.y, node.properties.width, node.properties.height},
+                             {item.bounds.x,item.bounds.y,item.bounds.width,item.bounds.height},
                              {item.clip.x, item.clip.y, item.clip.width, item.clip.height},
                              {},
                              item.x + node.contentX,
                              item.y + node.baseline,
                              f.device};
       if (textGeometry) {
-        frame.caret = {item.x + g->caret.x, item.y + g->caret.y, g->caret.width, g->caret.height};
+        const auto caret=item.world.bounds({g->caret.x,g->caret.y,g->caret.width,g->caret.height});frame.caret={caret.x,caret.y,caret.width,caret.height};
         auto c = command(key(node.id), "geometry");
         c.text = wide(value->second->text);
         c.selection = {value->second->base, value->second->extent};
@@ -578,9 +580,9 @@ public:
             paragraph.geometry = frame;
             paragraph.identity = q.identity;
             paragraph.ticket = q.ticket;
-            paragraph.paintX = item.x + node.contentX;
-            paragraph.paintY = item.y + node.contentY;
-            paragraph.transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+            paragraph.paintX = node.contentX;
+            paragraph.paintY = node.contentY;
+            const auto& m=item.world;paragraph.transform={m.a,m.b,0,0,m.c,m.d,0,0,0,0,1,0,m.tx,m.ty,0,1};
             s.paragraph = paragraph;
           } else {
             t.characters = {0};
@@ -745,41 +747,17 @@ public:
           return true;
         if (start == end)
           return true;
-        if (OpenClipboard(window)) {
-          EmptyClipboard();
-          const auto selected = wide(text.substr(start, end - start));
-          auto memory = GlobalAlloc(GMEM_MOVEABLE, (selected.size() + 1) * sizeof(wchar_t));
-          if (memory) {
-            auto target = GlobalLock(memory);
-            std::memcpy(target, selected.c_str(), (selected.size() + 1) * sizeof(wchar_t));
-            GlobalUnlock(memory);
-            if (!SetClipboardData(CF_UNICODETEXT, memory))
-              GlobalFree(memory);
-          }
-          CloseClipboard();
-        }
+        if (!copyClipboard(window, std::u16string_view(text).substr(start, end - start)))
+          return true;
         if (key == 'C')
           return true;
       }
       std::u16string insert;
       if (control && key == 'V') {
-        if (OpenClipboard(window)) {
-          auto memory = GetClipboardData(CF_UNICODETEXT);
-          if (memory) {
-            const auto source = static_cast<const wchar_t *>(GlobalLock(memory));
-            if (source) {
-              const auto max = std::min<size_t>(GlobalSize(memory) / sizeof(wchar_t),
-                                                wire::limits::textBytes + 1);
-              size_t length = 0;
-              while (length < max && source[length])
-                ++length;
-              if (length < max)
-                insert.assign(reinterpret_cast<const char16_t *>(source), length);
-              GlobalUnlock(memory);
-            }
-          }
-          CloseClipboard();
-        }
+        const auto pasted = pasteClipboard(window, wire::limits::textBytes);
+        if (!pasted)
+          return true;
+        insert = *pasted;
       } else if (key == VK_RETURN) {
         if (!(d.flags & wire::editFlags::multiline))
           return true;

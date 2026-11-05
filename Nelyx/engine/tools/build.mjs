@@ -152,6 +152,10 @@ export function sourceIdentity() {
       (file) => '../runtime/engine-client/' + file,
     ),
     '../sdk/src/runtime/engine-v2.ts',
+    '../sdk/src/runtime/engine-v2-app.ts',
+    '../sdk/tooling/cli/src/engine-v2-runner.mjs',
+    '../sdk/tooling/cli/src/main.mjs',
+    '../sdk/tooling/cli/package.json',
     '../sdk/src/runtime/engine-v2-browser.ts',
     '../sdk/src/runtime/engine-v2-interaction.ts',
     ...['windows', 'windows-hermes'].flatMap((dir) =>

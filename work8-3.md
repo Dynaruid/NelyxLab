@@ -1,8 +1,10 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 3부: 구현 순서·검증·완료 기준
 
-설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL / lazy list·anchor·v2 디자인 control·표준 gesture·IME 종료 교섭 / 전체 API·물리 입력·성능 미완료**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL — 그래픽·API/runner·통합 예산 최신 변경 미검증**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · [2부](work8-2.md) · **3부**
+
+**2026-11-05 17:33 KST:** 사용자의 중간 마무리 요청으로 중단했다. 그래픽/합산 ledger의 중간 코어 193개 통과 이후 provider·접근성·일반 runner 소스가 변경됐으며 최신 전체 build/host 검증과 전체 API 이식은 남아 있다. 현재 dist는 이전 공급이다. [2부 현재 중단 상태](work8-2.md#현재-중단-상태)에 실패·미검증 변경·정확한 재개 순서를 기록했다. 사용자 재개 요청 전 자동 진행하지 않으며 아래 과거 검사 결과를 최신 변경의 통과 증거로 사용하지 않는다.
 
 원문 범위: **§15–19**. 전체 설계의 절 번호와 W8 단계 식별자를 유지한다.
 
@@ -298,10 +300,10 @@ V1 제거·파일 이동·큰 cleanup은 이식 gate 통과 후 대상 목록과
 | GPU 미관측 credit·숨김/복귀·DOM 입력 조건 누락 | Port별 credit/안전한 release·lifecycle/fence·EditContext 없는 편집·main의 activation 정책 ([§6.2](work8-1.md#62-상한과-frame-교체)/[6.3](work8-1.md#63-metrics숨김복구의-진행-조건)/[10.2](work8-2.md#102-편집-document)/[16.4](#164-web-비격리-배포와-profile-검증표)) |
 | Host flag만 v2이고 앱 module은 v1일 수 있음·앞 단계 검사가 뒤 단계에 의존 | 빌드 resolver/bundle major 검사·W8-03 최소 route/coverage와 W8-05/06 확장 경계 명시 ([§13.2](work8-2.md#132-점진-이식의-경계)/[16](#16-구현-순서와-단계별-완료-조건)) |
 
-다음 단계는 [2부 현황](work8-2.md#이번-작업의-구현검증-현황)에 남긴 전체 public API/기능표·디자인 전체 호환·수평/seek와 메모리 합산·gesture arena/raw/appControlled·IME/reader 물리 수락과 Android 최소 port 이식이다. 현재 Widget Testbed 연결을 전체 W8 완료로 세지 않는다. 기존 제품의 물리 재확인 대기와 성능 수락은 유지한다.
+다음 단계는 [2부 현황](work8-2.md#이번-작업의-구현검증-현황)에 남긴 전체 public API/기능표·디자인 전체 호환·provider/GPU peak 메모리 합산·전체 중첩 gesture arena/motion graph·그래픽/text 확장·IME/reader 물리 수락과 Android 최소 port 이식이다. 현재 Widget Testbed 연결을 전체 W8 완료로 세지 않는다. 기존 제품의 물리 재확인 대기와 성능 수락은 유지한다.
 
 ---
 
 이전: [2부 — 렌더링·플랫폼·API 이식](work8-2.md) · [전체 목차](work8.md)
 
-사용자의 외출 요청으로 **PAUSED / PARTIAL** 중단했다. 현재 검증·공급·재개 절차는 [2부 중간 마무리](work8-2.md#중간-마무리--paused--partial)를 따른다. 자동 재개하지 않는다.
+사용자의 두 문서 전체 작업 요청으로 재개했다. 수평 list·먼 index seek, bounded raw observer/App 제어 입력, admitted input snapshot·C ABI capability 정합성, prepared ancestor focus/caret reveal·Windows clipboard 실패 처리를 보완했다. 최신 검증/공급과 잔여 범위는 [2부 재개 현황](work8-2.md#2026-11-05-재개--입력-publication과-list-계약)을 따른다. 전체 W8 완료 선언은 아니다.

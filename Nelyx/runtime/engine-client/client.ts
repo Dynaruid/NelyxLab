@@ -222,6 +222,8 @@ export class EngineClient {
   }
 }
 export class EngineViewClient {
+  private rawGeneration = 0n;
+  private nextScroll = 0n;
   private nextEdit = 0n;
   private querying = false;
   private queryId = 0n;
@@ -258,6 +260,38 @@ export class EngineViewClient {
    * of a newer transaction does not make these coordinates current. */
   async layoutSnapshot(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.layoutSnapshot));
+  }
+  /** Receipt for a bounded, cancellable seek. Its scrollTerminal event reports completion. */
+  async seekList(
+    viewport: import('./codec.ts').NodeHandle,
+    list: import('./codec.ts').NodeHandle,
+    generation: bigint,
+    index: number,
+    alignment = 0,
+  ): Promise<EngineResponse> {
+    if (
+      !Number.isInteger(index) ||
+      index < 0 ||
+      !Number.isFinite(alignment) ||
+      alignment < 0 ||
+      alignment > 1
+    )
+      throw new RangeError('Invalid list seek');
+    return checked(
+      await this.request(
+        p.opcodes.listSeek,
+        body(48, (v) => {
+          writeHandle(v, 0, viewport);
+          writeHandle(v, 8, list);
+          v.setBigUint64(16, uint64(generation), true);
+          v.setUint32(24, index, true);
+          v.setFloat64(32, alignment, true);
+          v.setFloat64(40, p.limits.commandTimeoutMs / 1000, true);
+        }),
+        ++this.nextScroll,
+      ),
+      [p.statuses.pending, p.statuses.ok],
+    );
   }
   async semanticsSnapshot(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.semanticsSnapshot));
@@ -318,6 +352,32 @@ export class EngineViewClient {
   }
   async pollInteractionEvents(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.pollInteractionEvents));
+  }
+  async subscribeRaw(): Promise<EngineResponse> {
+    return checked(
+      await this.request(
+        p.opcodes.subscribeRaw,
+        body(8, (v) => v.setBigUint64(0, ++this.rawGeneration, true)),
+      ),
+    );
+  }
+  async pollRaw(): Promise<EngineResponse> {
+    return checked(await this.request(p.opcodes.pollRaw));
+  }
+  async replyGesture(
+    sample: import('./codec.ts').RawInputSample,
+    accept: boolean,
+  ): Promise<EngineResponse> {
+    return checked(
+      await this.request(
+        p.opcodes.gestureReply,
+        body(24, (v) => {
+          v.setUint32(0, sample.stream, true);
+          v.setUint32(4, accept ? 1 : 0, true);
+          v.setBigUint64(8, sample.sequence, true);
+        }),
+      ),
+    );
   }
   async queryLayout(
     node: import('./codec.ts').NodeHandle,

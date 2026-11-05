@@ -8,7 +8,7 @@ namespace nelyx::v2 {
 namespace {
 uint32_t childLimit(uint32_t kind) {
   switch (kind) {
-    case wire::kinds::paragraph: case wire::kinds::image: case wire::kinds::editable: return 0;
+    case wire::kinds::paragraph: case wire::kinds::image: case wire::kinds::editable: case wire::kinds::path: return 0;
     case wire::kinds::box: case wire::kinds::clip: case wire::kinds::transform:
     case wire::kinds::effect: case wire::kinds::scrollViewport: return 1;
     default: return wire::limits::nodes;
@@ -78,7 +78,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require(h.slot > 0 && h.slot < d->nodes.size() && h.generation > 0 &&
         !d->nodes[h.slot].value && h.generation >= d->nodes[h.slot].generation,
         wire::statuses::invalidHandle);
-      require(kind >= wire::kinds::box && kind <= wire::kinds::editable, wire::statuses::invalidValue);
+      require(kind >= wire::kinds::box && kind <= wire::kinds::path, wire::statuses::invalidValue);
       auto n = std::make_shared<Node>(current->lease.ledger);
       n->id = h; n->kind = kind;
       d->nodes[h.slot] = {h.generation, std::move(n)};
@@ -150,7 +150,6 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       }
     } else if (op == wire::commands::eventPolicy) {
       require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~7u) == 0);
-      require((data.u32(0) & 3u) == 0, wire::statuses::capabilityMissing);
       edit(h, false)->policy = data.u32(0);
     } else if (op == wire::commands::motion) {
       require(data.length == 32);
@@ -162,6 +161,26 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         (motion.baseRevision == previous.baseRevision && motion.target == previous.target &&
           motion.seconds == previous.seconds), wire::statuses::idReused);
       edit(h, false)->motion = motion;
+    } else if(op==wire::commands::graphics) {
+      require(data.length>=104&&data.u32(96)<=1&&data.u32(100)<=wire::limits::pathCommands&&
+        data.length==104+size_t(data.u32(100))*56,wire::statuses::invalidValue);
+      GraphicsStyle style;
+      style.transform={data.f64(0),data.f64(8),data.f64(16),data.f64(24),data.f64(32),data.f64(40)};
+      style.shadowX=data.f64(48);style.shadowY=data.f64(56);style.shadowSigma=data.f64(64);
+      style.shadowColor=data.u32(72);style.strokeColor=data.u32(76);style.strokeWidth=data.f64(80);style.blur=data.f64(88);
+      require(std::abs(style.shadowX)<=8192&&std::abs(style.shadowY)<=8192&&style.shadowSigma>=0&&style.shadowSigma<=64&&
+        style.strokeWidth>=0&&style.strokeWidth<=512&&style.blur>=0&&style.blur<=64,wire::statuses::invalidValue);
+      std::vector<PathCommand> commands;commands.reserve(data.u32(100));
+      for(uint32_t pathIndex=0;pathIndex<data.u32(100);++pathIndex){const size_t at=104+size_t(pathIndex)*56;PathCommand command;command.verb=data.u32(at);
+        require(command.verb>=1&&command.verb<=5&&data.u32(at+4)==0,wire::statuses::invalidValue);
+        const uint32_t coordinates=command.verb<=2?2:command.verb==3?4:command.verb==4?6:0;
+        for(uint32_t j=0;j<6;++j){command.values[j]=data.f64(at+8+j*8);
+          require(std::abs(command.values[j])<=1e6&&(j<coordinates||command.values[j]==0),wire::statuses::invalidValue);}
+        commands.push_back(command);}
+      if(!commands.empty())style.path=std::make_shared<GraphicsPath>(current->lease.ledger,std::move(commands),data.u32(96));
+      const auto& previous=d->get(h);
+      require(!style.path||previous.kind==wire::kinds::path||previous.kind==wire::kinds::clip,wire::statuses::invalidValue);
+      edit(h,false)->graphics=std::move(style);
     } else if (op == wire::commands::paint) {
       require(data.length == 16 && data.u32(4) == 0);
       auto n = edit(h, false); n->color = data.u32(0); n->radius = data.f64(8);

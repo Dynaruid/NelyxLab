@@ -259,6 +259,17 @@ test('Windows HWND, Hermes, Skia and distinct owners drain', { timeout }, async 
           commands: lazy.nativeCommands,
         }),
     );
+    host.send('seek 1500');
+    const sought = await host.waitStats((state) => state.lazyOffset > 70000);
+    assert.ok(sought.nodeCount < 220 && sought.fallbacks === 0);
+    const raw = JSON.parse(
+      (
+        await host.until(
+          (line) => line.startsWith('V2_APP ') && line.includes('"kind":"raw-input"'),
+        )
+      ).slice(7),
+    );
+    assert.ok(BigInt(raw.publication) > 0n && raw.native);
     console.log('Native host: ' + JSON.stringify(moved));
   } finally {
     await host.close();
@@ -809,6 +820,22 @@ for (const [route, expected] of [
           () => window.__v2.surface.diagnostics['render-stats'].state.nodeCount,
         )) < 220,
         '2000 lazy rows remain bounded',
+      );
+      await page.evaluate(() => window.__v2.app.postMessage({ kind: 'seek', index: 1500 }));
+      await page.waitForFunction(
+        () => window.__v2.surface.diagnostics['render-stats'].scrollOffsets[1] > 70000,
+      );
+      assert.ok(
+        (await page.evaluate(
+          () => window.__v2.surface.diagnostics['render-stats'].state.nodeCount,
+        )) < 220,
+      );
+      assert.ok(
+        await page.evaluate(() =>
+          window.__v2.appEvents.some(
+            (event) => event.kind === 'raw-input' && BigInt(event.publication) > 0n,
+          ),
+        ),
       );
       const closed = await page.evaluate(() => window.__v2.close());
       assert.equal(closed.reservedBytes, 0);

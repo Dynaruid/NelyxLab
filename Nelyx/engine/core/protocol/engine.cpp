@@ -21,6 +21,7 @@ struct Engine::State {
 };
 Engine::Engine(uint32_t session, uint32_t app) : state_(std::make_unique<State>(session, app)) {}
 Engine::~Engine() = default;
+std::shared_ptr<Ledger> Engine::memoryLedger()const{return state_->ledger;}
 void Engine::connectProvider(bool independent, uint64_t contentOwner, uint64_t renderOwner) {
   auto& s = *state_; std::lock_guard lock(s.mutex);
   require(contentOwner && renderOwner && (!independent || contentOwner != renderOwner), wire::statuses::invalidValue);
@@ -65,10 +66,7 @@ std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t 
   for(const auto& entry:v.editors)result->editors.emplace(entry.first,entry.second->value);return result;
 }
 namespace {
-constexpr uint32_t capabilities = wire::capabilities::protocol | wire::capabilities::headlessScene |
-  wire::capabilities::scroll | wire::capabilities::motion | wire::capabilities::layoutQueries |
-  wire::capabilities::editing | wire::capabilities::semantics | wire::capabilities::lazyList |
-  wire::capabilities::gestures | wire::capabilities::controls;
+constexpr uint32_t capabilities = coreCapabilities;
 void exact(Reader r, size_t count) { require(r.length == count); }
 void invalidate(View& v, uint32_t reason) {
   v.caretDeadline = 0;
@@ -87,7 +85,7 @@ Input readInput(Reader r) {
   exact(r, wire::inputBytes);
   Input p{r.u64(wire::inputFields::sequence), r.u64(wire::inputFields::metrics), handle(r, wire::inputFields::target), r.u32(wire::inputFields::stream), r.u32(wire::inputFields::phase), r.u32(wire::inputFields::source), r.u32(wire::inputFields::flags),
     r.f64(wire::inputFields::time), r.f64(wire::inputFields::sample), r.f64(wire::inputFields::x), r.f64(wire::inputFields::y), r.f64(wire::inputFields::dx), r.f64(wire::inputFields::dy), r.f64(wire::inputFields::velocity),
-    r.u32(wire::inputFields::clock), r.u32(wire::inputFields::buttons), r.u32(wire::inputFields::modifiers), r.u32(wire::inputFields::device), r.u32(wire::inputFields::contact)};
+    r.u32(wire::inputFields::clock), r.u32(wire::inputFields::buttons), r.u32(wire::inputFields::modifiers), r.u32(wire::inputFields::device), r.u32(wire::inputFields::contact),r.u64(wire::inputFields::publication),{},false};
   require(p.sequence > 0 && p.metrics > 0 && p.stream > 0 && p.stream <= wire::limits::streams &&
     p.phase >= wire::phases::begin && p.phase <= wire::phases::cancel &&
     p.source >= wire::sources::engineDriven && p.source <= wire::sources::wheelUnknown &&
@@ -116,6 +114,14 @@ void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t fla
   w.f64(p + wire::nodeFields::contentY,n.contentY);
   w.f64(p + wire::nodeFields::contentWidth,n.contentWidth);
   w.f64(p + wire::nodeFields::contentHeight,n.contentHeight);
+  const auto matrix=item?item->world:Affine{1,0,0,1,n.properties.x,n.properties.y};
+  const std::array<double,6> values{matrix.a,matrix.b,matrix.c,matrix.d,matrix.tx,matrix.ty};
+  for(size_t i=0;i<values.size();++i)w.f64(p+wire::nodeFields::matrix+i*8,values[i]);
+  const auto bounds=item?item->bounds:Rect{n.properties.x,n.properties.y,n.properties.width,n.properties.height};
+  w.f64(p+wire::nodeFields::boundsX,bounds.x);w.f64(p+wire::nodeFields::boundsY,bounds.y);
+  w.f64(p+wire::nodeFields::boundsWidth,bounds.width);w.f64(p+wire::nodeFields::boundsHeight,bounds.height);
+  w.u32(p+wire::nodeFields::clipHead,item?item->clipHead:0);w.u32(p+wire::nodeFields::depth,item?item->depth:0);
+  w.f64(p+wire::nodeFields::localOpacity,o?o->opacity:n.properties.opacity);
   if (item) {
     w.f64(p + wire::nodeFields::clipX, item->clip.x); w.f64(p + wire::nodeFields::clipY, item->clip.y);
     w.f64(p + wire::nodeFields::clipWidth, item->clip.width); w.f64(p + wire::nodeFields::clipHeight, item->clip.height);
@@ -154,6 +160,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     if (opcode == wire::opcodes::hello) {
       exact(body, 8); require(viewId == 0 && generation == 0 && body.u32(4) == 0);
       require((body.u32(0) & ~actualCapabilities) == 0, wire::statuses::capabilityMissing);
+    } else if(opcode==wire::opcodes::memoryReport){
+      exact(body,16);require(!viewId&&!generation,wire::statuses::invalidHandle);
+      s.ledger->report(body.u32(0),body.u32(4),body.u64(8));
     } else if (opcode == wire::opcodes::closeSession) {
       exact(body, 0); require(viewId == 0 && generation == 0);
       s.closing = true;
@@ -247,6 +256,19 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         v.metrics = metrics; invalidate(v, wire::statuses::stale);
       } else if (opcode == wire::opcodes::input) {
         v.enqueue(readInput(body));
+      } else if (opcode == wire::opcodes::listSeek) {
+        status = v.listSeek(body, id);
+      } else if (opcode == wire::opcodes::subscribeRaw) {
+        exact(body,8);const auto subscription=body.u64(0);
+        require(subscription>0&&subscription>=v.rawGeneration,wire::statuses::stale);
+        if(subscription>v.rawGeneration){v.rawInputs.clear();v.rawGeneration=subscription;
+          v.rawActive=true;v.rawGapFirst=v.rawGapLast=0;}
+      } else if(opcode==wire::opcodes::pollRaw){
+        exact(body,0);
+        if(v.rawGapFirst){events.push_back({wire::events::rawGap,wire::statuses::eventOverflow,
+          v.rawGeneration,v.rawGapFirst,v.rawGapLast});v.rawGapFirst=v.rawGapLast=0;}
+      } else if(opcode==wire::opcodes::gestureReply){
+        v.gestureReply(body);
       } else if (opcode == wire::opcodes::contentStep) {
         exact(body, 8); require(body.u32(0) > 0 && body.u32(0) <= wire::limits::contentPerStep && body.u32(4) == 0);
         v.contentStep(body.u32(0));
@@ -298,7 +320,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         exact(body,8);require(v.document&&v.document->contains(handle(body,0))&&v.editors.contains(handle(body,0).key()),wire::statuses::invalidHandle);
         editTarget=handle(body,0);
       } else if(opcode==wire::opcodes::semanticsSnapshot){
-        exact(body,0);require(v.published.has_value(),wire::statuses::notFound);frame=&*v.published;
+        exact(body,0);require(bool(v.published),wire::statuses::notFound);frame=&*v.published;
       } else if(opcode==wire::opcodes::semanticsAction){
         v.semanticAction(body);
       } else if(opcode==wire::opcodes::focusAt||opcode==wire::opcodes::activateAt){
@@ -411,6 +433,19 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   const auto addOwned=[&](uint32_t type,Handle node,Writer bytes){ownedBlobs.push_back(std::move(bytes.bytes));
     const auto& data=ownedBlobs.back();blobs.push_back({type,node,{data.data(),data.size()}});};
   const auto interactionBlobs=[&](const Node& n){
+    const auto& graph=n.graphics;const auto& m=graph.transform;
+    if(graph.path||graph.shadowColor||graph.strokeColor||graph.blur||m.a!=1||m.b!=0||m.c!=0||m.d!=1||m.tx!=0||m.ty!=0){
+      const bool full=!frame||opcode==wire::opcodes::semanticsSnapshot;
+      const auto count=graph.path&&full?graph.path->commands.size():0;Writer bytes(104+count*56);
+      const std::array<double,6> values{m.a,m.b,m.c,m.d,m.tx,m.ty};
+      for(size_t i=0;i<6;++i)bytes.f64(i*8,values[i]);
+      bytes.f64(48,graph.shadowX);bytes.f64(56,graph.shadowY);bytes.f64(64,graph.shadowSigma);
+      bytes.u32(72,graph.shadowColor);bytes.u32(76,graph.strokeColor);bytes.f64(80,graph.strokeWidth);bytes.f64(88,graph.blur);
+      bytes.u32(96,graph.path?(graph.path->fillRule|2u):0);bytes.u32(100,uint32_t(count));
+      for(size_t i=0;i<count;++i){const auto& c=graph.path->commands[i];bytes.u32(104+i*56,c.verb);
+        for(size_t j=0;j<6;++j)bytes.f64(112+i*56+j*8,c.values[j]);}
+      addOwned(10,n.id,std::move(bytes));
+    }
     const Property* visual=frame&&n.id.slot<frame->properties.size()?&frame->properties[n.id.slot]:nullptr;
     const auto overlay=view?view->overlays.find(n.id.key()):std::map<uint64_t,Overlay>::const_iterator{};
     const double controlValue=visual?visual->value:view&&overlay!=view->overlays.end()?overlay->second.value:n.control.value;
@@ -425,8 +460,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
       double offset=0,height=view?view->metrics.height:0;
       if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
-        height=parent.properties.height;const auto scrollOverlay=view->overlays.find(n.parent.key());
-        if(scrollOverlay!=view->overlays.end())offset=std::max(scrollOverlay->second.offset,scrollOverlay->second.requested)-n.properties.y;}
+        const bool horizontal=(parent.properties.flags&1u)!=0;
+        height=horizontal?parent.properties.width:parent.properties.height;const auto scrollOverlay=view->overlays.find(n.parent.key());
+        if(scrollOverlay!=view->overlays.end())offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);}
       const auto begin=list.indexAt(std::max(0.0,offset-height));
       data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));
       data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.style.estimate);
@@ -457,6 +493,18 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   };
   if(frame)for(const auto& item:frame->items)interactionBlobs(rows->get(item.node));
   else if(rows)for(const auto* node:rowNodes)interactionBlobs(*node);
+  if(status==wire::statuses::ok&&opcode==wire::opcodes::pollRaw&&view){
+    for(uint32_t count=0;!view->rawInputs.empty()&&count<wire::limits::eventsPerPoll;++count){
+      const auto& sample=view->rawInputs.front();Writer bytes(sample.bytes.size());
+      std::copy(sample.bytes.begin(),sample.bytes.end(),bytes.bytes.begin());
+      addOwned(8,sample.node,std::move(bytes));view->rawInputs.pop_front();}}
+  if(status==wire::statuses::ok&&opcode==wire::opcodes::pollInteractionEvents&&view)
+    for(const auto& event:events)if(event.kind==wire::events::gestureDecision){
+      const auto stream=uint32_t(event.detail);
+      if(stream<view->streams.size()&&view->streams[stream].decision==event.id&&view->streams[stream].appPending){
+        const auto sample=rawSample(*view->streams[stream].appPending,event.node,0);
+        Writer bytes(sample.bytes.size());std::copy(sample.bytes.begin(),sample.bytes.end(),bytes.bytes.begin());
+        addOwned(9,event.node,std::move(bytes));}}
   if (rows && (opcode == wire::opcodes::preparationScene || measure)) {
     std::set<uint64_t> resources;
     for (const auto* node : rowNodes) {
@@ -482,6 +530,13 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   const auto b = wire::headerBytes;
   response.u64(b + wire::stateFields::reservedBytes, s.ledger->bytes); response.u64(b + wire::stateFields::resourceBytes, s.ledger->resourceBytes);
   response.u64(b + wire::stateFields::nodeBlocks, s.ledger->nodes); response.u32(b + wire::stateFields::eventCount, uint32_t(events.size()));
+  const auto memory=s.ledger->snapshot();
+  for(const auto [offset,value]:{std::pair{wire::stateFields::memoryTotal,memory.total},
+    {wire::stateFields::memoryPeak,memory.peak},{wire::stateFields::memoryCpu,memory.cpu},
+    {wire::stateFields::memoryGpu,memory.gpu},{wire::stateFields::memoryStaging,memory.staging},
+    {wire::stateFields::engineHeap,memory.engineHeap},{wire::stateFields::providerHeap,memory.providerHeap},
+    {wire::stateFields::memoryRejected,memory.rejected},{wire::stateFields::memoryLimit,uint64_t(wire::limits::unifiedBytes)}})
+    response.u64(b+offset,value);
   response.u32(b + wire::stateFields::sessionQueued, s.ledger->queuedInputs); response.u32(b + wire::stateFields::sessionUpdates, s.ledger->updateInputs);
   response.u32(b + wire::stateFields::capabilities, actualCapabilities);
   response.u32(b + wire::stateFields::blobCount, uint32_t(blobs.size()));
@@ -551,9 +606,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   size_t cursor = b + wire::stateBytes;
   if (frame) for (const auto& item : frame->items) {
     const auto& n = rows->get(item.node);
-    const bool drawable = n.properties.width > 0 && n.properties.height > 0 && item.clip.width > 0 &&
-      item.clip.height > 0 && item.x < item.clip.x + item.clip.width && item.y < item.clip.y + item.clip.height &&
-      item.x + n.properties.width > item.clip.x && item.y + n.properties.height > item.clip.y;
+    // Filters can pull an offscreen child's pixels into view. Do not cull by
+    // the unfiltered border box before the provider's layer/clip processing.
+    const bool drawable=n.properties.width>0&&n.properties.height>0&&item.clip.width>0&&item.clip.height>0;
     nodeRow(response, cursor, n, &frame->properties[n.id.slot], (drawable ? 16u : 0u)|
       (frame->focusNode==n.id?256u:0u)|(frame->focusNode==n.id&&frame->caretVisible?512u:0u), &item);
     cursor += wire::nodeBytes;

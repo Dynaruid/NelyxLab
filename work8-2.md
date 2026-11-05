@@ -1,23 +1,85 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 2부: 렌더링·플랫폼·API 이식
 
-설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL / lazy list·anchor·v2 디자인 control·표준 gesture·IME 종료 교섭 구현 / 전체 API·물리 입력·성능 미완료**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL — 그래픽·전체 API/runner·통합 예산 구현 도중 사용자 요청으로 중단**
 
 [전체 목차](work8.md) · [1부](work8-1.md) · **2부** · [3부](work8-3.md)
+
+## 현재 중단 상태
+
+**2026-11-05 17:33 KST, PAUSED / PARTIAL.** 사용자의 `그래픽 확장, 전체 API/runner 이식, 통합 메모리 예산 구현해줘` 요청으로 아래 작업을 진행하다가 `잠시 중간 마무리하자` 요청으로 중단했다. **구현 중인 소스를 보존했으며 세 요청 전체를 완료한 상태가 아니다.** 사용자 재개 요청 전 자동으로 빌드·검사·구현을 계속하지 않는다.
+
+| 범위 | 보존한 변경과 중단 시점의 경계 |
+| --- | --- |
+| 공통 그래픽 | [geometry](Nelyx/engine/core/scene/geometry.hpp)의 affine/inverse·rounded rect·move/line/quad/cubic/close·winding/evenOdd path, canonical graphics 명령·node snapshot matrix/bounds/depth/localOpacity, [Widget API](Nelyx/runtime/engine-client/graphics.ts)의 Transform/VectorPath/PathShape/ClipPath/ClipRRect/ImageFiltered/AppDrivenBoundary. 입력 hit와 scroll delta를 inverse 좌표로 연결. Path hit는 0.25 단위의 bounded 곡선 평탄화이며 renderer의 analytic raster와 경계가 완전히 동일하다는 수락은 없음 |
+| 그래픽 provider·접근성 | [Native](Nelyx/engine/platform/windows/graphics.hpp)·[CanvasKit](Nelyx/engine/render/canvaskit-web/graphics.ts)의 path/shadow/stroke, retained path·계층 clip/opacity/blur replay를 추가. TSF range/caret·UIA transform·DOM 계층 clip/transform과 focus reveal 보완도 작성. **실제 Native/두 Web pixel·입력·접근성 corpus와 실패/회수 검증은 아직 없음** |
+| 통합 예산 | [Core ledger](Nelyx/engine/core/memory.hpp)에 총 **384 MiB**, GPU 예약 **128 MiB** 상한·peak/rejected·engineHeap/providerHeap/CPU/GPU/staging/transport 계정·원자 rollback·memoryReport를 추가. Wasm Core 논리 자원과 engine committed heap은 max로 합산해 중복을 피함. [Web budget](Nelyx/engine/platform/web/memory.ts), Native provider lease·surface 교체·layer/cache 예약, Web provider heap 관측·staging/전송 hold·surface/layer 예약과 App의 memoryReport 거부를 작성. **실제 peak/close/예산 실패 통합 검증 미완료**. GPU 수치는 owned reservation이며 driver의 실제 VRAM 측정값이 아님. CanvasKit committed heap은 경계에서 관측하므로 내부 allocation 순간까지 강제 차단한 것으로 주장할 수 없음 |
+| 일반 앱·runner | [SDK 앱 bootstrap](Nelyx/sdk/src/runtime/engine-v2-app.ts)의 defineEngineV2App/launchEngineV2App·App context/asset/lifecycle, [CLI](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs)의 `--engine v2` create/doctor/prepare/build/run/dev/pack, nelyx.v2.json entry/자산·공급/앱 hash·ABI/schema 검사·v1 import 거부·일반 Web shell·독립 supplier 포함 package 소스를 추가. CLI의 esbuild 직접 의존성과 package-lock 반영. **구문/실제 소비자/패키지/일반 앱 실행 검증 미완료**. 특히 Native host는 아직 `--app` 인자를 받지 않으므로 새 Windows runner를 실행 성공으로 세지 않음 |
+| 전체 API 이식 | **미완료**. 기존 Material/Cupertino v2 지원 범위 이후의 전체 생성자·테마·아이콘·form·route·rich text/custom layout/paint·전체 public export 의미별 이식표와 구현은 아직 남음. AppDrivenBoundary의 완전한 계약/정적 native extension도 남음. 일반 runner 소스의 추가를 전체 API 이식 완료로 세지 않음 |
+
+### 마지막 검사와 공급
+
+- 중간 소스의 `test:engine-v2` **193/193** 통과: 기존 184개와 세 profile의 affine/rounded/path/singular hit·path 실패 rollback·합산 memoryReport 초과 rollback 9개. **이후 ClipShape 예약량·focus reveal·provider/접근성/runner 등을 수정했으므로 최신 최종 소스의 193개 통과 기록은 아니다.**
+- Web adapter `node node_modules/typescript/lib/tsc.js -p Nelyx/engine/platform/web/tsconfig.json --noEmit`는 해당 시점 통과. SDK check는 이전 Core dist에 matrix/graphics/path 타입이 없어 실패했으며 공개 Core 재빌드 후 다시 검사해야 한다.
+- 임시 Native host 컴파일은 `graphics.hpp`의 `kNormal_SkBlurStyle` 선언 누락으로 실패했다. `SkBlurTypes.h` include를 추가했으나 **재컴파일하지 않았다**. 임시 native build는 finally 정리했다.
+- 현재 `Nelyx/engine/dist`는 이전 **33파일/4 font**, source `44528c2956b2b2a7c3b662769172ceba7c06d467164631b08322f3d820d3ba0a`, ABI major 2/schema **3373625972** 공급 그대로다. 최신 protocol/schema 생성본과 불일치하므로 최신 host/consumer 검증에 사용하지 않는다. 아래 기존 **205개** 검사는 이 이전 공급의 완료 구간 기록이다.
+- 중단 시 `NelyxEngineV2Host`·engine driver·CMake/Ninja/Clang/Emcc 작업 프로세스와 `engine-graphics-*` 임시 build가 없음을 확인했다. 기존 변경·신규 파일을 보존했으며 commit/publish는 하지 않았다. 이번 최신 변경의 전체 타입·lint/format·공급·링크·입력 geometry 회귀는 미완료다.
+
+### 재개할 때의 순서
+
+1. 이 절과 `git status --short`를 먼저 읽는다. 사용자 재개 요청이 있을 때만 진행하며 기존 미커밋 변경을 보존한다.
+2. Native host의 `--app`/앱 bundle·자산 로딩·런타임 identity와 SDK bootstrap을 연결하고 App dispose를 provider/Core 종료 이전에 완료하는 순서를 구현한다. 현재 CLI와 Native의 인자 불일치를 먼저 해결한다.
+3. 그래픽 준비 단계에서 합성 행렬/좌표 상한 실패를 활성화 전에 원자 처리하고 path/clip/opacity/blur·singular·nested scroll/slider·TSF/UIA/DOM bounds의 정합성과 자원 회수를 검사한다. 게시 geometry 변경 중 trusted action 재시도는 matrix/clip 변경도 비교해야 한다. AppDrivenBoundary/정적 native extension의 미완료 계약을 연결한다.
+4. Native/Web provider·전송 hold·surface 교체·취소/실패/close의 통합 budget 계정과 중복 집계를 점검한다. 공식 CanvasKit 내부 heap 성장 순간의 미관측 경계를 유지하고 이를 전체 peak 강제 차단 완료로 위장하지 않는다. 실제 host 장면의 memoryTotal/peak/rejected·잔여 hold를 확인한다.
+5. 전체 API/생성자/행동 이식표와 구현을 계속하고 일반 프로젝트의 create → build → 두 Web/Windows run → dispose → pack → 설치 소비자·손상/불일치 거부를 검증한다. 현재 Testbed 전용 성공과 일반 runner/API 완료를 분리한다.
+6. 최신 Core/Material/Cupertino/SDK와 Native/두 Wasm을 `npm.cmd run build:engine-v2`로 빌드한다. Builder가 source identity를 고정하므로 빌드 중 소스를 수정하지 않는다. 오류 수정 후 현재 공급만 남긴다.
+7. `test:engine-v2`, 현재 공급의 `test:engine-v2:glyphs`, `test:engine-v2:actors`, `test:engine-v2:hosts`와 **두** `test:input-geometry`, `test:retained-input-geometry`를 실행한다. 기존 paragraph query·전체 workspace/Web 타입·schema·lint/format·공백/문서 링크·source/file hash와 finally 정리까지 확인한다. 모든 테스트 timeout은 20분이며 검증 기록/이전 package를 누적하지 않는다.
+
+`performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 IME/reader/trackpad·scanout `notVerified`와 Android 미완료를 유지한다. 아래의 이전 구현 기록은 이 중단 현황보다 우선하지 않는다.
 
 원문 범위: **§8–14**. 전체 설계의 절 번호와 W8 단계 식별자를 유지한다.
 
 **현재 구현:** Windows와 두 Web host에 C++ layout·비동기 intrinsic/dry query·편집 document와 게시 scene 기반 semantics를 연결했다. Testbed는 v2 Widget/State/Key와 diff로 선언하며 표준 자식 layout을 TS로 되돌리지 않는다. Web은 Main의 DOM 입력/ARIA, Windows는 UI owner의 TSF/UIA를 사용한다. **2부 전체는 PARTIAL**이며 명시적인 Material/Cupertino v2 진입점, bounded lazy builder/anchor와 표준 pointer recognizer를 추가했다. 전체 Flutter/Material/Cupertino 호환, Android와 실제 IME/reader·성능 수락은 남는다.
 
+## 2026-11-05 재개 — 입력 publication과 list 계약
+
+사용자의 `work8-1.md`, `work8-2.md` 잔여 검토·전체 작업 요청으로 재개했다. 이전 중단 기록의 source hash·183개 수치는 과거 공급의 기록이다. **두 문서 전체는 계속 PARTIAL**이며 아래 변경과 잔여 표를 구별한다.
+
+| 보완 | 구현과 검증 경계 |
+| --- | --- |
+| 입력 수집 identity | Canonical input에 `publication`을 추가하고 Windows UI·Web Main이 수집한 게시 ID를 전송. Admission이 해당 immutable Frame을 보유하고 후속 publication이 target을 바꾸지 않음. 최신 게시 snapshot과 admitted packet/App 결정이 실제 참조하는 snapshot만 보유하며 bytes를 Core ledger에 합산. Admission 전 이미 회수된 게시 ID는 명시적으로 거부. 과거 frame을 일정 개수 무조건 보관해 image/resource 해제를 늦추지 않음 |
+| Raw observer | Node의 `onRawInput`, `onRawGap` 및 view `subscribeRaw`/`pollRaw`. 원 sample·sequence·clock·게시 ID를 최대 64개 별도 보관하고 32개씩 poll. Overflow는 gap 범위를 반환하고 해당 구독을 종료하며 엔진 scroll은 계속 진행. 재구독은 새 generation으로 명시. 표준 App 이벤트 mailbox와 분리 |
+| App 제어 입력 | Node `appControlled(sample)`에만 sample별 비동기 승인/거부를 요청. Stream당 outstanding 1개·100 ms deadline, 겹친 sample은 명시적 cancel. 승인한 원 sample은 한 번만 적용하며 timeout/취소 뒤 reply는 stale. 이 경계의 독립 진행은 보장하지 않고 다른 표준 stream은 App 응답 없이 진행. 전체 중첩 gesture arena/우선순위 이식은 별도 잔여 |
+| 양축 lazy list | `ListViewOptions.direction`의 vertical/horizontal. Main/cross 측정·실측 extent·coverage·최신 key anchor·demand 구간을 같은 축으로 계산. 항목·async builder·focus/keep-alive 예산 유지 |
+| 먼 index seek | `ListViewState.scrollToIndex(index, alignment)`/`view.seekList`는 command ID가 있는 bounded 준비 요청. 기존 화면을 유지하며 대상 window를 builder가 준비한 뒤 호환 scene 활성화와 offset 변경을 함께 수행. 실제 측정값으로 alignment를 다시 계산하고 user input·대체·generation 변경·close·2초 timeout에 terminal. 반환은 pending receipt이며 표시/scanout 완료가 아님 |
+
+C ABI의 정적 capability 함수가 기존 lazy/gesture/control까지 누락하던 차이도 공통 `coreCapabilities`로 합쳤고 C 소비자·두 Wasm에서 실제 handshake와 대조한다. Focus/새 revision의 준비된 caret는 App/Content 작업 없이 두 축의 기존 prepared ancestor viewport를 reveal한다. User scroll이 그 수요를 취소하며 editor 내부 scroll·먼 focus lazy item의 자동 준비는 남는다.
+
+Windows는 clipboard 복사 성공 전 Cut을 적용하지 않고 read 실패를 빈 Paste로 바꾸지 않는다. Allocation/lock 실패를 반환하고 미이전 memory와 clipboard ownership을 정리한다. 이 소유권 의미는 [Win32 SetClipboardData](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclipboarddata)·[Cut/Copy 예제](https://learn.microsoft.com/en-us/windows/win32/dataxchg/using-the-clipboard)를 대조했다. 최종 실패 회귀는 OS clipboard를 열지 않는 주입 API 검사다.
+
+현재 source로 **코어 184/184 · host 5/5 · glyph 3/3 · actor 3/3 · 기존 입력 geometry 2/2 + 7/7 · 원래 paragraph query 1/1**, 합계 **205개 검사**를 통과했다. 실제 Testbed의 첫 raw sample·유효 publication과 1,500번 index seek의 offset >70,000·node <220을 Windows/두 Web에서 확인했고 TS fallback 0·정상 close/ledger 0을 유지했다. Web hardware FPS 증거가 아닌 SwiftShader 기능 검사다. Native UIA·기존 50/100/200 ms 지연/scroll·resize·idle 검사도 유지했다.
+
+공개 Core/Material/Cupertino/SDK·Windows/두 Wasm을 다시 빌드했다. 현재 공급은 **33개 파일·4 font**, source SHA-256 `44528c2956b2b2a7c3b662769172ceba7c06d467164631b08322f3d820d3ba0a`, ABI major **2**, schema **3373625972**다. Source 및 모든 공급 file hash가 일치한다. 전체 workspace 타입·DOM/WebWorker adapter 타입·lint·1,839파일 format·schema 생성본·공백 검사를 통과했다. 문서 10개의 로컬 링크 **327개/앵커 142개**를 확인했다. 빌드 staging/previous 출력과 검사 임시를 정리했고 작업용 native host/test/server 프로세스는 0개다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 IME/reader/trackpad·scanout은 `notVerified`다.
+
+### 공개 API 대조
+
+현재 package export와 TypeScript의 source export를 직접 열거했다. Legacy subpath 수와 v2 symbol 수는 단위가 다르며 API 동등성의 비율로 계산하지 않는다. **전체 public API·생성자/테마/동작별 이식표는 미완료**다.
+
+| 패키지 | 기존 공개 subpath | v2 export(타입 포함) | 현재 소스와 주요 미이식 경계 |
+| --- | --- | --- | --- |
+| Core | 525 | 88 | [명시적 v2 진입점](Nelyx/runtime/engine-client/index.ts). Primitive Widget·State/Key·layout/편집/semantics·list/navigation·protocol. 기존 RenderObject subclass·custom layout/paint·rich text·animation/gesture 전체 resolver는 미이식 |
+| Material | 189 | 37 | [v2 소스](packages/material/src/v2.ts). Button/chip/선택/slider/progress·TextField·card/dialog/theme/scaffold. 전체 생성자·아이콘 자산·form 검증·route 전환·형태/효과는 미이식 |
+| Cupertino | 44 | 22 | [v2 소스](packages/cupertino/src/v2.ts). Button/선택/slider/activity·TextField·form/list section·dialog/theme/page. 전체 생성자·form 검증·route 전환·플랫폼 동작은 미이식 |
+
 ## 중간 마무리 — PAUSED / PARTIAL
 
-**2026-11-05, 사용자 외출 요청으로 작업 중단. 자동 재개하지 않는다.** 아래 검증을 끝낸 현재 source/dist를 남기고 추가 빌드·검사는 멈췄다. 코드 변경은 commit하지 않은 working tree에 있다.
+**이전 중단 기록:** 2026-11-05 사용자 외출 요청 당시 PAUSED / PARTIAL로 중단했다. 이후의 재개·현재 공급은 위 절을 따른다. 아래 수치는 중단 당시 기록이다.
 
 - 완료한 연결: bounded 세로 lazy list·가변 높이/key anchor·삭제/전체 key 교체/빈 목록 fallback·async 취소, 명시적 Material/Cupertino v2 control·Navigator/modal, 표준 tap/pan/pinch/long/double tap·native control 상태/keyboard, TSF/browser 조합 종료 교섭·요청 재시도, Windows retained grapheme/word/line 이동/삭제. 실제 Testbed의 2,000행 목록과 두 디자인 control에 연결.
 - 검증: 코어 **162/162**, host **5/5**, glyph **3/3**, actor **3/3**, 입력 geometry **2/2 + 7/7**, 원래 paragraph query **1/1** — 합계 **183**. 공개 Core/Material/Cupertino/SDK·native/두 Wasm 빌드, 전체 workspace 타입·DOM/WebWorker adapter 타입·lint/format/schema·공백 및 10문서 323개 로컬 링크/141개 앵커 확인.
-- 공급: 현재 manifest **33개 파일/4 font**, source SHA-256 `50244bde57d9429b02d080a1a11c8fcb8ef15449463cd1231d5f3d3510717a9c`. Source/file hash를 대조했고 staging은 비웠다. 작업용 native host/test 프로세스를 종료했다.
+- 공급: 중단 당시 manifest **33개 파일/4 font**, source SHA-256 `50244bde57d9429b02d080a1a11c8fcb8ef15449463cd1231d5f3d3510717a9c`. Source/file hash를 대조했고 staging은 비웠다. 작업용 native host/test 프로세스를 종료했다.
 - 수락 경계: **전체 디자인 API·gesture/IME는 미완료**다. Raw observer/appControlled·전체 gesture arena/physics/zoom transform, 디자인 전체 생성자/테마/아이콘/form/전환, 모든 bidi affinity/자동 reveal·내부 editor scroll·EditContext character bounds, 수평 list/먼 index seek/전체 provider·GPU peak 예산, 물리 IME/reader·trackpad·Android가 남는다. 성능/resize 수락은 false, 물리/display 수락은 notVerified.
 
-**다음 재개:** 이 절과 아래 잔여 작업 표를 먼저 읽고 `git status --short`로 기존 미커밋 변경을 보존한다. 사용자 재개 요청 뒤에만 source/dist hash를 다시 확인한다. Source를 변경했다면 `npm.cmd run build:engine-v2` 후 `npm.cmd run test:engine-v2:hosts`를 실행하고, 코어 변경에는 `npm.cmd run test:engine-v2`, 입력 geometry 변경에는 기존 두 geometry 검사를 추가한다. 다음 구현 시작점은 위 미완료 범위에서 정하며 현재 183개 기능 검증을 전체 API/물리 수락으로 승격하지 않는다.
+**중단 당시 재개 절차(현재는 위 재개 현황 우선):** 이 절과 아래 잔여 작업 표를 먼저 읽고 `git status --short`로 기존 미커밋 변경을 보존한다. 사용자 재개 요청 뒤에만 source/dist hash를 다시 확인한다. Source를 변경했다면 `npm.cmd run build:engine-v2` 후 `npm.cmd run test:engine-v2:hosts`를 실행하고, 코어 변경에는 `npm.cmd run test:engine-v2`, 입력 geometry 변경에는 기존 두 geometry 검사를 추가한다. 다음 구현 시작점은 위 미완료 범위에서 정하며 당시 183개 기능 검증을 전체 API/물리 수락으로 승격하지 않는다.
 
 ## lazy list·디자인 control·gesture/IME 후속 구현
 
@@ -25,16 +87,16 @@
 
 | 범위 | 현재 구현과 검증 경계 |
 | --- | --- |
-| 실제 lazy list | [ListView](Nelyx/runtime/engine-client/lists.ts)가 가시 demand에 맞는 Widget만 만든다. 최대 1,000,000행, 동시에 128개 자식·1024개 native 높이 기록, 기본 cache 96개. Key/index/generation 검증, 중복 key 거부, placeholder가 있는 async builder·동시 4개·2초 timeout·eviction/generation/dispose의 abort와 stale 결과 폐기, focus/명시 keep-alive를 같은 item 예산으로 처리. 세로 list만 지원하며 멀리 떨어진 index seek와 전체 provider/GPU peak 합산은 남음 |
+| 실제 lazy list | [ListView](Nelyx/runtime/engine-client/lists.ts)가 가시 demand에 맞는 Widget만 만든다. 최대 1,000,000행, 동시에 128개 자식·1024개 native 높이 기록, 기본 cache 96개. Key/index/generation 검증, 중복 key 거부, placeholder가 있는 async builder·동시 4개·2초 timeout·eviction/generation/dispose의 abort와 stale 결과 폐기, focus/명시 keep-alive를 같은 item 예산으로 처리. 초기에는 세로만 지원했으며 재개 절에서 양축/먼 index seek를 보완. 전체 provider/GPU peak 합산은 남음 |
 | Native anchor | [C++ list geometry](Nelyx/engine/core/layout/list.hpp)와 [activation](Nelyx/engine/core/scheduler/scheduler.cpp)이 추정/실측 extent·준비 coverage를 소유한다. 최신 compositor offset에서 보이는 key를 다시 찾아 새 scene의 같은 key 위치에 보정하므로 준비 중 추가 입력을 보존하고 보정을 한 번만 적용한다. 정확한 행 경계에서는 위쪽 비가시 행을 선택하지 않고, anchor 삭제는 가까운 생존 key·전체 key 교체는 제한된 index fallback·빈 목록은 offset 0을 사용한다. 데이터 재배치는 `generation`을 올리고 `findChildIndex`를 제공한다. 미준비 구간은 기존 bounded NeedChildren 정책을 사용 |
 | Material/Cupertino | `@nelyx/material/v2`, `@nelyx/cupertino/v2`를 공개. Theme의 primary 색 해석, button 계열·checkbox/switch/radio/slider·range/progress·text field·card/list section/dialog를 지원한 생성자 형태로 선언하며 Core/native control 상태와 Skia/CanvasKit paint를 사용. 기존 v1 RenderObject/TS renderer를 부르지 않음. 전체 v1 생성자 호환·아이콘 자산·모든 테마/형태/효과·form 검증·전환은 남음 |
 | Navigation/modal | [Navigator](Nelyx/runtime/engine-client/navigation.ts)의 최대 32 route·push/pop 결과·State 보존·modal barrier. Native 게시 scene에서 modal/opacity가 pointer·wheel·focus·key·semantics/UIA/ARIA를 함께 막는다. 전환 motion, 일반 overlay API 전체는 남음 |
-| 표준 gesture/control | [C++ recognizer](Nelyx/engine/core/interaction/gestures.cpp)의 tap/double tap/long press·축 pan·2-contact pinch·hover·scrollbar drag, native control의 pressed/hover/value·slider step/range thumb·Tab/Enter/Space/화살표/Home/End. 500/300 ms deadline, hide/metrics/modal/detach/overflow cancel과 coalesced update. Web 다중 pointer capture와 Windows HWND 입력 연결. Pinch 결과 event는 제공하며 임의 content zoom transform·전체 gesture arena·raw observer/appControlled·전체 physics는 남음 |
+| 표준 gesture/control | [C++ recognizer](Nelyx/engine/core/interaction/gestures.cpp)의 tap/double tap/long press·축 pan·2-contact pinch·hover·scrollbar drag, native control의 pressed/hover/value·slider step/range thumb·Tab/Enter/Space/화살표/Home/End. 500/300 ms deadline, hide/metrics/modal/detach/overflow cancel과 coalesced update. Web 다중 pointer capture와 Windows HWND 입력 연결. Pinch 결과 event는 제공하며 임의 content zoom transform·전체 중첩 gesture arena·전체 physics는 남음. Raw observer/App 제어 입력은 재개 절에서 보완 |
 | IME 강제 replace | `commit`/`cancel` policy는 host가 실제 TSF composition-end 또는 browser `compositionend`를 기다린 뒤 같은 focus session의 최신 revision에 적용한다. Windows는 UI owner에서 비차단 busy/retry, Web은 Main 큐를 막지 않는 종료 교섭. 교섭 중 다른 App 쓰기는 busy로 거부하고 최종 revision은 입력 큐 안에서 검증·갱신한다. 요청 ID/동일 bytes 재시도·bounded cache·1초 종료 대기·실패 terminal을 둠. OS 종료 확인 없이 text를 덮어쓰지 않으며 물리 한국어 조합/cancel 의미와 reader 후보창 수락은 남음 |
 | Windows keyboard | 같은 준비 paragraph의 grapheme/word/line 경계로 Left/Right/Home/End·Backspace/Delete, retained hit geometry로 Up/Down. Padding의 content origin을 pointer hit에도 적용. v2의 명시 paragraph query 한도를 최대 65,536 UTF-16 units/32 MiB provider 예산으로 확장하고 기존 4096 기본 계약은 유지. 모든 bidi visual affinity·preferred-X·editor reveal/내부 scroll·전체 clipboard/IME 매트릭스는 남음 |
 | 실제 Testbed | 기존 12행 intrinsic control 옆에 **2,000행 lazy 목록**, Material checkbox/slider/button, Cupertino switch/text field를 실행. SDK 명령 수와 C++ `transactionWork`, `gestureWork/controlWork`, native 실제 작업·TS fallback 0·bounded node 수를 검사. `activity`를 상시 실행해 idle을 위장하지 않음 |
 
-현재 코어 **162/162**와 glyph **3/3**, actor **3/3**, 기존 입력 geometry **2/2 + 7/7**, 원래 SkParagraph query **1/1**이 통과했다. 공개 패키지·native/Web 공급과 host 검증 수치는 아래 현황을 따른다. 모든 test timeout은 20분이다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/scanout/성능 `notVerified`를 유지한다.
+최초 lazy/control 연결 당시 코어 **162/162**와 glyph **3/3**, actor **3/3**, 기존 입력 geometry **2/2 + 7/7**, 원래 SkParagraph query **1/1**이 통과했다. 공개 패키지·native/Web 공급과 host 검증 수치는 아래 현황을 따른다. 모든 test timeout은 20분이다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/scanout/성능 `notVerified`를 유지한다.
 
 List key 재배치 의미는 [Flutter ListView.builder](https://api.flutter.dev/flutter/widgets/ListView/ListView.builder.html)와 [findChildIndexCallback](https://api.flutter.dev/flutter/widgets/SliverChildBuilderDelegate/findChildIndexCallback.html), Web 입력 수집은 [Pointer Events](https://www.w3.org/TR/pointerevents3/)의 capture/touch-action 경계를 대조했다. 현재 Web profile은 `dom-textarea/aria`이며 [EditContext](https://w3c.github.io/edit-context/) character bounds 구현을 완료로 세지 않는다.
 
@@ -60,22 +122,22 @@ List key 재배치 의미는 [Flutter ListView.builder](https://api.flutter.dev/
 | 자원·공급 보완 | Core ledger에 layout 작업·결과·파생 node를 합산. Web font 입력 16 MiB/owner, Picture+glyph 전송 32 MiB/batch, 중복/과대 import 거부·취소 후보 회수. 준비 실패는 기존 scene을 유지하는 terminal로 처리. Builder가 font/license 입력도 source identity에 포함하고 빌드 중 source 변경을 거부. 별도 provider/CanvasKit/GPU heap을 포함한 전체 peak 예산 gate는 남음 |
 | 실제 Testbed | [Widget 장면](sample/nelyx-testbed-app-2/src/v2-scene.ts)의 12행 intrinsic control·2,000행 lazy 목록·초기 문단 41개·editor·디자인 control. C++ Flex/ScrollViewport가 content 높이/extent를 계산하고 시작 시 실제 Column intrinsic 높이 **1498**과 paragraph dry query를 실행. SDK 명령과 native `transactionWork`를 대조하며 layout/query/editing/semantics 실제 작업과 TS fallback 0을 검사 |
 
-현재 source와 공급으로 다음 검사를 통과했다. 모든 test timeout은 20분이다.
+현재 source/공급의 재개 검증은 위 절을 따르며 다음 표에 합산한다. 모든 test timeout은 20분이다.
 
 | 검사 | 결과 |
 | --- | --- |
-| `npm.cmd run test:engine-v2` | Native·single-worker·threaded **162/162**. Lazy 높이/anchor·bounded/async builder·native gesture/control/modal·Navigator 회귀를 추가. 기존 protocol/query/편집/input/수명 회귀에 padded text/image/editing·run stretch/baseline·Box/Stack 정렬·실패 원자성·이미지 제약/비율·App/Content 작업 없는 caret deadline·Widget build rollback/재활성화/dispose 예외 회귀를 추가 |
+| `npm.cmd run test:engine-v2` | Native·single-worker·threaded **184/184**. 재개의 raw/App 결정·게시 snapshot·양축 seek·focus reveal·clipboard/C ABI 회귀 포함. Lazy 높이/anchor·bounded/async builder·native gesture/control/modal·Navigator 회귀를 추가. 기존 protocol/query/편집/input/수명 회귀에 padded text/image/editing·run stretch/baseline·Box/Stack 정렬·실패 원자성·이미지 제약/비율·App/Content 작업 없는 caret deadline·Widget build rollback/재활성화/dispose 예외 회귀를 추가 |
 | `npm.cmd run test:engine-v2:glyphs` | **3/3**. 한글/Latin 21 + RTL/fallback/color emoji/결합 문자 4, **25 corpus 픽셀 차이 0**. UTF-16/UTF-8 단위와 editable의 caret/selection·빈 text/trailing newline·glyph 단일 전송 회귀 |
 | `npm.cmd run test:engine-v2:actors` | **3/3**. Zero-size 후 wake·provider 실패 복구와 실제 Wasm의 caret deadline 예약·idle polling 중지·더 이른 control wake의 타이머 교체 |
-| `npm.cmd run test:engine-v2:hosts` | **5/5**, 이번 source/공급으로 재실행. Windows 4 OS owner, 두 Web profile, 실제 query/Widget·App/Content 50/100/200 ms 지연·scroll 보존·resize/zero-size/restore·idle·close·공급/선택 실패. 초기 SDK 명령 **1112 = C++ transactionWork 1112**, title diff 뒤 **1113**, TS fallback **0**. Native 초기 node **97**·layoutWork **445**·paragraph **41**·image **1**·queryWork **4**. 초기 편집/action 0은 수요 없는 control이며 별도 UIA 작업에서 **editingWork/semanticsWork > 0**을 요구. Padding을 추가한 실제 editor에서도 UIA text/UTF-16 value·grapheme 이동·게시 범위·HWND pointer 주입의 caret 위치 1·focus/Invoke, 결합 문자+emoji family의 native Backspace·UIA slider·두 디자인 selection control을 확인. Native lazy offset 600에서 128 node를 유지. Web composing/undo·App 점유 중 Core 편집·Widget 갱신 후 값 보존, 조합 종료 대기·같은 bytes 재시도·ID 재사용 거부·확인 없는 cancel timeout을 확인. Web의 실제 pointer/keyboard control과 2,000행 lazy 구간 확장도 실행. Web은 SwiftShader 기능 검사로 hardware FPS 증거가 아님 |
+| `npm.cmd run test:engine-v2:hosts` | **5/5**, 이번 source/공급으로 재실행. Windows 4 OS owner, 두 Web profile, 실제 query/Widget·App/Content 50/100/200 ms 지연·scroll 보존·resize/zero-size/restore·idle·close·공급/선택 실패. 초기 SDK 명령 **1112 = C++ transactionWork 1112**, title diff 뒤 **1113**, TS fallback **0**. Native 초기 node **97**·layoutWork **445**·paragraph **41**·image **1**·queryWork **4**. 초기 편집/action 0은 수요 없는 control이며 별도 UIA 작업에서 **editingWork/semanticsWork > 0**을 요구. Padding을 추가한 실제 editor에서도 UIA text/UTF-16 value·grapheme 이동·게시 범위·HWND pointer 주입의 caret 위치 1·focus/Invoke, 결합 문자+emoji family의 native Backspace·UIA slider·두 디자인 selection control을 확인. 재개 검사에는 첫 raw publication·1,500번 lazy index의 준비 후 이동/회수를 추가. Native lazy offset 600에서 128 node를 유지. Web composing/undo·App 점유 중 Core 편집·Widget 갱신 후 값 보존, 조합 종료 대기·같은 bytes 재시도·ID 재사용 거부·확인 없는 cancel timeout을 확인. Web의 실제 pointer/keyboard control과 2,000행 lazy 구간 확장도 실행. Web은 SwiftShader 기능 검사로 hardware FPS 증거가 아님 |
 | 원래 SkParagraph query 회귀 | `test:skia-paragraph-queries` **1/1**. 기존 4096-unit API의 보유 문단·비차단/재진입·epoch/retirement 경계 유지 |
 | 기존 입력 geometry 회귀 | `test:input-geometry` **2/2**, `test:retained-input-geometry` **7/7**. 기존 Gallery/Material/Mixed 편집기·활성화 실패 경계를 유지 |
 | 빌드·정적 검사 | `build:engine-v2`의 공개 Core/Material/Cupertino/SDK·Windows host·두 Wasm/worker 공급, 전체 workspace `check:types`, Web adapter 타입, `lint`, 전체 **1,839** JS/TS 파일 `format:check`, schema 생성본·`git diff --check` 통과 |
-| 공급·정리·문서 | 현재 manifest **33개 파일/4 font**의 source/file hash 확인. Staging/previous 출력과 검증 임시는 finally 정리. 문서 10개의 로컬 링크 **323개/앵커 141개** 확인. Core 영문·한국어와 디자인 패키지 README에 lazy/anchor·gesture/control·IME 종료 교섭·padding·content rect·caret·lifecycle 사용과 한계를 보완하고 SDK 안내의 기존 연결·미지원 경계를 유지 |
+| 공급·정리·문서 | 현재 manifest **33개 파일/4 font**의 source/file hash 확인. Staging/previous 출력과 검증 임시는 finally 정리. 문서 10개의 로컬 링크 **327개/앵커 142개** 확인. Core 영문·한국어와 디자인 패키지 README에 lazy/anchor·gesture/control·IME 종료 교섭·padding·content rect·caret·lifecycle 사용과 한계를 보완하고 SDK 안내의 기존 연결·미지원 경계를 유지 |
 
-실행 명령은 [1부](work8-1.md#실행-방법)와 [Core README](Nelyx/README.ko.md#실험용-v2-엔진-protocol)를 따른다. 위 v2 기능/입력 합계 **183개 검사**는 각 범위의 기능 검증이며 실제 scanout·물리 IME/reader·trackpad·전체 제품 FPS/지연 수락을 뜻하지 않는다.
+실행 명령은 [1부](work8-1.md#실행-방법)와 [Core README](Nelyx/README.ko.md#실험용-v2-엔진-protocol)를 따른다. 위 v2 기능/입력 합계 **205개 검사**는 각 범위의 기능 검증이며 실제 scanout·물리 IME/reader·trackpad·전체 제품 FPS/지연 수락을 뜻하지 않는다.
 
-**남은 필수 범위:** 지원 밖 intrinsic/layout·전체 invalidation/API 호환, transform/path/shadow/effect·native extension/AppDrivenBoundary, Material/Cupertino·전체 Widget lifecycle/resolver, lazy의 전체 메모리 합산/수평/seek, IME 조합 중 App 교섭의 물리 검증·모든 bidi/keyboard/clipboard 경로, EditContext character bounds·Android InputConnection/접근성·최소 surface/ABI, 전체 reader/재연결/device 복구·SDK 일반 runner. 기존 일반 paragraph query의 기본 한도는 4096 UTF-16 units이며 v2는 명시적인 65,536-unit profile을 사용한다. 비밀번호/미준비 문단의 range geometry는 unavailable이며 fallback 단위 이동을 전체 bidi 완료로 세지 않는다. Web은 명시적인 `dom-textarea/aria` profile이고 실제 IME 후보창 geometry·서체 차이를 물리 입력으로 수락하지 않았다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/성능 `notVerified`를 유지한다.
+**남은 필수 범위:** 지원 밖 intrinsic/layout·전체 invalidation/API 호환, transform/path/shadow/effect·native extension/AppDrivenBoundary, Material/Cupertino·전체 Widget lifecycle/resolver, lazy의 전체 provider/GPU peak 메모리 합산/native item template, IME 조합 중 App 교섭의 물리 검증·모든 bidi/keyboard/clipboard 경로와 editor 내부 scroll·먼 lazy focus 준비, EditContext character bounds·Android InputConnection/접근성·최소 surface/ABI, 전체 reader/재연결/device 복구·SDK 일반 runner. 기존 일반 paragraph query의 기본 한도는 4096 UTF-16 units이며 v2는 명시적인 65,536-unit profile을 사용한다. 비밀번호/미준비 문단의 range geometry는 unavailable이며 fallback 단위 이동을 전체 bidi 완료로 세지 않는다. Web은 명시적인 `dom-textarea/aria` profile이고 실제 IME 후보창 geometry·서체 차이를 물리 입력으로 수락하지 않았다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/성능 `notVerified`를 유지한다.
 
 ### 2026-11-05 잔여 작업 재검토
 
@@ -83,11 +145,11 @@ List key 재배치 의미는 [Flutter ListView.builder](https://api.flutter.dev/
 
 | 남은 작업 | 코드에서 확인한 경계와 완료에 필요한 연결 |
 | --- | --- |
-| W8-00 API·플랫폼 범위 | 일반 Widget/Material/Cupertino export·Testbed 사용 목록에 대응하는 전체 이식표, Android ABI·host cohort 확정. 현재 공개 subpath와 별도 v2 host를 일반 resolver/SDK runner 완료로 세지 않음 |
-| 1부 §7 전체 gesture·motion | wheel/pointer scroll·tap/double tap/long press/pan/pinch/scrollbar·native control·bounded friction·opacity·caret가 연결됨. Raw observer/`appControlled`는 명시 거부. 전체 gesture arena·bouncing/clamping·transform/clip motion graph와 snapshot 수집 identity 계약은 남음 |
+| W8-00 API·플랫폼 범위 | [위 export 대조](#공개-api-대조) 이후 일반 Widget/Material/Cupertino의 생성자/동작·Testbed 사용별 전체 이식표, Android ABI·host cohort 확정. 현재 공개 subpath와 별도 v2 host를 일반 resolver/SDK runner 완료로 세지 않음 |
+| 1부 §7 전체 gesture·motion | 기존 recognizer/control/friction·opacity/caret에 bounded raw observer·App 제어 입력·수집 publication/Frame hold를 추가. 전체 중첩 gesture arena·capture/우선순위 정책·bouncing/clamping·transform/clip motion graph는 남음 |
 | 2부 §8–9 그래픽·text 확장 | 실제 transform/path/rounded clip/shadow/effect, 정적 native extension·AppDrivenBoundary, 동적 font/locale/rich text·전용 paragraph API의 나머지 의미. 같은 property를 draw/hit-test/semantics에 연결하고 Native/두 Web에서 corpus·자원 실패/회수 검사 필요 |
-| 2부 §11 list·메모리 | coverage/NeedChildren에 실제 TS builder·generation·stale/실패·가변 높이 anchor·focus/keep-alive를 구현. 수평/멀리 떨어진 index seek와 provider/CanvasKit/GPU까지 포함한 peak 예산 gate는 남음 |
-| 2부 §10 입력·접근성 | OS 조합 종료를 확인하는 commit/cancel 교섭을 구현. 모든 bidi/키/clipboard·자동 reveal, EditContext character bounds와 전체 reader 경로는 남음. 현재 DOM/TSF/UIA 연결·자동 검사는 물리 한국어 IME/reader 완료가 아님 |
+| 2부 §11 list·메모리 | 기존 bounded builder/anchor에 수평 list와 먼 index의 준비/원자 활성화 seek를 추가. 전체 provider/CanvasKit/GPU heap·temporary upload/backing까지 포함한 peak 예산 gate와 선언형 native item template는 남음 |
+| 2부 §10 입력·접근성 | OS 조합 종료 교섭에 prepared ancestor focus/caret reveal와 Windows clipboard 실패 시 편집 보존을 추가. 모든 bidi/키/clipboard·editor 내부 scroll/먼 lazy focus 준비, EditContext character bounds와 전체 reader 경로는 남음. 현재 DOM/TSF/UIA 연결·자동 검사는 물리 한국어 IME/reader 완료가 아님 |
 | 2부 §12 platform·복구 | Android 최소 surface/입력/close·InputConnection/접근성, reload의 App generation 교체와 이전 callback/편집 수명, 실제 device/context 재생성·loss 중 close. Web의 현재 context loss는 새 session이 필요한 실패로 보고하며 동일 session 복구 완료가 아님 |
 | 2부 §13 framework·공급 | 지원한 v2 Widget/control·modal/navigation·Material/Cupertino subpath 이후의 전체 API·전환·일반 SDK runner/template·설치 소비자 경로의 v2 선택/identity. 현재 v1 기본값을 유지하고 미이식 항목을 fallback 성공으로 세지 않음 |
 

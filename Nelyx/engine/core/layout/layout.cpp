@@ -209,7 +209,7 @@ struct LayoutWork::State {
       return;
     }
     if (n.list.generation) {
-      require(n.kind==wire::kinds::sliver&&!h&&s.left==0&&s.right==0&&s.top==0&&s.bottom==0&&
+      require(n.kind==wire::kinds::sliver&&s.left==0&&s.right==0&&s.top==0&&s.bottom==0&&
         s.gap==0&&s.crossAlign==0&&s.mainAlign==0&&!s.mainSize&&
         b.children.size()<=wire::limits::listChildren,wire::statuses::invalidValue);
       auto list=std::make_shared<ListGeometry>(source->lease.ledger,n.list);
@@ -220,9 +220,9 @@ struct LayoutWork::State {
       std::map<uint64_t,uint32_t> keys;
       for(const auto& child:b.children){const auto item=source->get(child.box->node).item;
         require(item.key&&item.index<n.list.count&&present.emplace(item.index,item.key).second&&
-          keys.emplace(item.key,item.index).second&&child.box->height>0,wire::statuses::invalidGraph);
-        list->measured[item.index]={item.key,child.box->height};
-        width=std::max(width,child.box->width);}
+          keys.emplace(item.key,item.index).second&&main(*child.box,h)>0,wire::statuses::invalidGraph);
+        list->measured[item.index]={item.key,main(*child.box,h)};
+        if(h)height=std::max(height,child.box->height);else width=std::max(width,child.box->width);}
       for(auto i=n.list.begin;i<n.list.end;++i)
         require(present.count(i)>0,wire::statuses::contentUnavailable);
       while(list->measured.size()>wire::limits::listMetrics){
@@ -230,11 +230,13 @@ struct LayoutWork::State {
         const auto distance=[&](uint32_t i){return i<n.list.begin?n.list.begin-i:i>=n.list.end?i-n.list.end+1:0;};
         list->measured.erase(distance(first->first)>distance(last->first)?first:last);}
       for(auto& child:b.children){const auto item=source->get(child.box->node).item;
-        child.x=0;child.y=list->prefix(item.index);
-        list->rows.push_back({child.box->node,item.index,item.key,child.y,child.box->height});}
+        const auto offset=list->prefix(item.index);
+        child.x=h?offset:0;child.y=h?0:offset;
+        list->rows.push_back({child.box->node,item.index,item.key,offset,main(*child.box,h)});}
       list->total=list->prefix(n.list.count);list->begin=list->prefix(n.list.begin);list->end=list->prefix(n.list.end);
-      b.width=constrain(width,c.minWidth,c.maxWidth);b.height=constrain(list->total,c.minHeight,c.maxHeight);
-      require(b.height==list->total,wire::statuses::invalidValue);
+      b.width=constrain(h?list->total:width,c.minWidth,c.maxWidth);
+      b.height=constrain(h?height:list->total,c.minHeight,c.maxHeight);
+      require(main(b,h)==list->total,wire::statuses::invalidValue);
       b.listGeometry=std::move(list);
     } else if (flow(n)) {
       double length = 0, breadth = 0, ascent = 0, descent = 0;
@@ -433,11 +435,12 @@ struct LayoutWork::State {
                                             : child.height + childPlacement.y + childSource.y +
                                                   n->layout.bottom - n->properties.height));
         if(child.listGeometry){const auto& list=*child.listGeometry;
-          const double origin=childPlacement.y+childSource.y;
-          require(!(n->properties.flags&1u),wire::statuses::capabilityMissing);
+          const bool h=(n->properties.flags&1u)!=0;
+          require(h==horizontal(source->get(child.node)),wire::statuses::invalidValue);
+          const double origin=h?childPlacement.x+childSource.x:childPlacement.y+childSource.y;
           n->coverage={source->epoch,list.style.begin==0?0:origin+list.begin,
             list.style.end==list.style.count?n->properties.maximum:
-              std::max(0.0,origin+list.end-n->properties.height),true};
+              std::max(0.0,origin+list.end-(h?n->properties.width:n->properties.height)),true};
           require(n->coverage.minimum<=n->coverage.maximum,wire::statuses::contentUnavailable);}
       }
       derived->nodes[n->id.slot].value = n;

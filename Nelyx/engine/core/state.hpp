@@ -58,12 +58,16 @@ struct Result {
       : lease(ledger, sizeof(Result) + bytes.length), id(value), epoch(0),
         payload(bytes.data, bytes.data + bytes.length) {}
 };
+struct Frame;
 struct Input {
   uint64_t sequence, metrics;
   Handle target;
   uint32_t stream, phase, source, flags;
   double time, sample, x, y, dx, dy, velocity;
   uint32_t clock, buttons, modifiers, device, contact;
+  uint64_t publication = 0;
+  std::shared_ptr<const Frame> snapshot;
+  bool appApproved = false;
 };
 struct Stream {
   bool active = false, denied = false;
@@ -72,6 +76,10 @@ struct Stream {
   Handle scroll;
   double x=0,y=0,startX=0,startY=0,at=0,pinchDistance=0;
   bool pointer=false,pan=false,pinched=false,longSent=false,secondThumb=false;
+  bool appAccepted=false;
+  uint64_t decision=0;
+  double decisionDeadline=0;
+  std::optional<Input> appPending;
 };
 struct Overlay {
   Handle node;
@@ -98,13 +106,17 @@ struct Property {
   double value=0,second=1;
   bool pressed=false,hovered=false,visible=false;
 };
-struct Rect { double x = 0, y = 0, width = 0, height = 0; };
+struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;};
 struct DrawItem {
   Handle node;
   double x = 0, y = 0, opacity = 1;
   Rect clip;
+  Affine world;
+  Rect bounds;
+  uint32_t clipHead=0,depth=0;
 };
 struct Frame {
+  std::shared_ptr<Lease> snapshotLease;
   Handle modalRoot;
   Handle focusNode;
   uint64_t focusSession=0;
@@ -113,6 +125,27 @@ struct Frame {
   std::shared_ptr<const Scene> scene;
   std::vector<Property> properties;
   std::vector<DrawItem> items;
+  std::vector<ClipShape> clips;
+  std::optional<Point> local(Handle node,double x,double y)const {
+    for(const auto& item:items)if(item.node==node){const auto inverse=item.world.inverse();
+      if(inverse)return inverse->map({x,y});return {};}
+    return {};
+  }
+  Point delta(Handle node,double dx,double dy)const {
+    for(const auto& item:items)if(item.node==node){const auto inverse=item.world.inverse();
+      if(inverse){const auto p=inverse->map({dx,dy}),zero=inverse->map({0,0});return {p.x-zero.x,p.y-zero.y};}}
+    return {};
+  }
+  bool hit(const DrawItem& item,double x,double y)const {
+    const auto inverse=item.world.inverse();if(!inverse||!inside({x,y},item.clip))return false;
+    const auto& node=scene->document->get(item.node);const auto p=inverse->map({x,y});
+    if(!inside(p,{0,0,node.properties.width,node.properties.height}))return false;
+    if(node.kind==wire::kinds::path&&(!node.graphics.path||!node.graphics.path->contains(p)))return false;
+    for(auto head=item.clipHead;head;head=clips[head-1].parent){const auto& shape=clips[head-1];
+      const auto matrix=shape.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
+      if(shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius))return false;}
+    return true;
+  }
   bool released = false, published = false, canceled = false, gpuObserved = false;
   bool allows(Handle node) const {
     return scene->document->contains(node)&&node.slot<properties.size()&&properties[node.slot].visible&&
@@ -130,7 +163,13 @@ struct ScrollCommand {
   Handle node;
   double target, duration, deadline, elapsed = 0, start = 0;
   bool interrupt, rebase, started = false;
+  Handle list;
+  uint64_t listGeneration = 0;
+  uint32_t index = 0;
+  double alignment = 0;
 };
+struct RawSample { Handle node; std::array<uint8_t,8+wire::inputBytes> bytes{}; };
+RawSample rawSample(const Input&,Handle,uint64_t generation);
 struct CommandResult {
   uint64_t id;
   std::vector<uint8_t> bytes;
@@ -147,7 +186,11 @@ struct View {
   uint64_t lastQuery=0;
   std::map<uint64_t,std::shared_ptr<EditingDocument>> editors;
   std::deque<Event> interactionEvents;
+  std::deque<RawSample> rawInputs;
+  uint64_t rawGeneration=0,rawGapFirst=0,rawGapLast=0;
+  bool rawActive=false;
   Handle focusNode;
+  bool revealPending=false;
   uint64_t focusSession=0,nextFocus=0,editClock=0,editingWork=0,semanticsWork=0,queryWork=0;
   uint64_t gestureWork=0,controlWork=0;
   Handle caretNode;
@@ -157,7 +200,7 @@ struct View {
   double caretDeadline = 0;
   bool caretVisible = false;
   std::shared_ptr<const Scene> active;
-  std::optional<Frame> published;
+  std::shared_ptr<const Frame> published;
   uint64_t nextPreparation = 0, nextScene = 0, propertyEpoch = 0;
   uint64_t nextSubmission = 0, pendingPublication = 0, publication = 0, surfaceCommit = 0;
   uint64_t lastTransaction = 0, acknowledged = 0, resultBytes = 0;
@@ -182,8 +225,9 @@ struct View {
   bool hasTime = false;
   explicit View(uint32_t generation, const std::shared_ptr<Ledger>& ledger)
       : lease(ledger, sizeof(View) + wire::limits::nodes * (sizeof(Overlay) + 64 +
-          (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem))) +
-          wire::limits::inputPackets * sizeof(Input) + wire::limits::events * sizeof(Event)),
+          (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem)+sizeof(ClipShape))) +
+          wire::limits::inputPackets * sizeof(Input) + wire::limits::events * sizeof(Event)+
+          wire::limits::observerPackets*sizeof(RawSample)),
         generation(generation), document(std::make_shared<Document>(ledger)) { ++lease.ledger->activeViews; }
   ~View() {
     if (!closed) {
@@ -215,15 +259,21 @@ struct View {
   void activateControl(Handle);
   void controlValue(Handle,double,bool second=false);
   void gesture(Handle,uint32_t,uint64_t,double,double,double=0);
-  Handle pointerTarget(double,double) const;
+  void observeRaw(const Input&,Handle);
+  bool appDecision(Input&);
+  void gestureReply(Reader);
+  Handle pointerTarget(double,double,const Frame* snapshot=nullptr) const;
   Handle interactionTarget(double,double) const;
   void failPreparation(uint64_t id, uint32_t reason);
   void enqueue(Input packet);
+  void processInput(Input packet);
   void tick(double now);
   void advanceCaret();
+  void revealFocus();
   double nextDeadline() const;
   void activate();
   uint32_t scroll(Reader data, uint64_t id);
+  uint32_t listSeek(Reader data, uint64_t id);
   void finishCommand(uint64_t id, uint32_t status);
   void applyDelta(Handle node, double delta, uint32_t stream = 0);
   void needContent(const Node&, Overlay&, uint32_t stream);
@@ -233,7 +283,7 @@ struct View {
   void publish(uint64_t id, uint64_t device, uint64_t surfaceCommit);
   bool wake() const;
   bool renderWake() const;
-  Handle target(double x, double y) const;
+  Handle target(double x, double y,const Frame* snapshot=nullptr) const;
   void makeDrawItems(Frame& frame) const;
 };
 }

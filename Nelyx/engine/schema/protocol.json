@@ -4,10 +4,10 @@
   "abiMinor": 0,
   "magic": 844647502,
   "headerBytes": 64,
-  "stateBytes": 560,
-  "nodeBytes": 248,
+  "stateBytes": 632,
+  "nodeBytes": 344,
   "eventBytes": 56,
-  "inputBytes": 120,
+  "inputBytes": 128,
   "limits": {
     "views": 8,
     "nodes": 4096,
@@ -43,7 +43,11 @@
     "selectionRects": 256,
     "caretBlinkMs": 500,
     "listMetrics": 1024,
-    "listChildren": 128
+    "listChildren": 128,
+    "pathCommands": 1024,
+    "pathPoints": 8192,
+    "unifiedBytes": 402653184,
+    "gpuBytes": 134217728
   },
   "opcodes": {
     "hello": 1,
@@ -84,7 +88,12 @@
     "focusAt": 36,
     "activateAt": 37,
     "key": 38,
-    "controlValue": 39
+    "controlValue": 39,
+    "listSeek": 40,
+    "subscribeRaw": 41,
+    "pollRaw": 42,
+    "gestureReply": 43,
+    "memoryReport": 44
   },
   "commands": {
     "create": 1,
@@ -108,7 +117,8 @@
     "list": 19,
     "listItem": 20,
     "gesture": 21,
-    "control": 22
+    "control": 22,
+    "graphics": 23
   },
   "kinds": {
     "box": 1,
@@ -123,7 +133,8 @@
     "effect": 10,
     "scrollViewport": 11,
     "sliver": 12,
-    "editable": 13
+    "editable": 13,
+    "path": 14
   },
   "statuses": {
     "ok": 0,
@@ -169,7 +180,9 @@
     "editingChanged": 13,
     "semanticAction": 14,
     "gesture": 15,
-    "controlChanged": 16
+    "controlChanged": 16,
+    "rawGap": 17,
+    "gestureDecision": 18
   },
   "gestures": {
     "tap": 1,
@@ -239,7 +252,11 @@
     "semantics": 256,
     "lazyList": 512,
     "gestures": 1024,
-    "controls": 2048
+    "controls": 2048,
+    "rawObserver": 4096,
+    "appControlled": 8192,
+    "graphics": 16384,
+    "memoryBudget": 32768
   },
   "headerFields": {
     "magic": 0,
@@ -335,7 +352,16 @@
     "semanticsWork": 528,
     "queryWork": 536,
     "gestureWork": 544,
-    "controlWork": 552
+    "controlWork": 552,
+    "memoryTotal": 560,
+    "memoryPeak": 568,
+    "memoryCpu": 576,
+    "memoryGpu": 584,
+    "memoryStaging": 592,
+    "engineHeap": 600,
+    "providerHeap": 608,
+    "memoryRejected": 616,
+    "memoryLimit": 624
   },
   "nodeFields": {
     "node": 0,
@@ -370,7 +396,15 @@
     "contentX": 216,
     "contentY": 224,
     "contentWidth": 232,
-    "contentHeight": 240
+    "contentHeight": 240,
+    "matrix": 248,
+    "boundsX": 296,
+    "boundsY": 304,
+    "boundsWidth": 312,
+    "boundsHeight": 320,
+    "clipHead": 328,
+    "depth": 332,
+    "localOpacity": 336
   },
   "inputFields": {
     "sequence": 0,
@@ -392,7 +426,8 @@
     "modifiers": 104,
     "device": 108,
     "contact": 112,
-    "reserved": 116
+    "reserved": 116,
+    "publication": 120
   },
   "eventFields": {
     "kind": 0,

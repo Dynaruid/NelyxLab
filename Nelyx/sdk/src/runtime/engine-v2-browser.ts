@@ -209,6 +209,8 @@ export async function createBrowserEngineV2Surface(
   const owner = { session: 1, app: 1, view: 1, generation: 1 };
   type InputValue = Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'> & {
     readonly stream?: number;
+    readonly collectedMetrics?: bigint;
+    readonly collectedTime?: number;
   };
   const liveInputs = new Map<number, InputValue>();
   const sendInput = async (value: InputValue): Promise<EngineResponse> => {
@@ -220,10 +222,11 @@ export async function createBrowserEngineV2Surface(
           inputBody({
             ...value,
             sequence: ++sequence,
-            metrics: latest!.metrics,
+            metrics: value.collectedMetrics ?? latest!.metrics,
+            publication: value.publication ?? latest!.publication,
             target: { slot: 0, generation: 0 },
             stream: value.stream ?? 1,
-            time: performance.now() / 1000,
+            time: value.collectedTime ?? performance.now() / 1000,
           }),
         ),
       ),
@@ -233,6 +236,12 @@ export async function createBrowserEngineV2Surface(
     return state;
   };
   const input = async (value: InputValue): Promise<boolean> => {
+    value = {
+      ...value,
+      publication: latest?.publication ?? 0n,
+      collectedMetrics: latest?.metrics ?? 0n,
+      collectedTime: performance.now() / 1000,
+    };
     ++inputStats.collected;
     const stream = value.stream ?? 1;
     if (!value.hover) liveInputs.set(stream, value);
@@ -255,7 +264,16 @@ export async function createBrowserEngineV2Surface(
         ++pendingInputs;
         void Promise.all(
           canceled.map((input) =>
-            sendInput({ ...input, phase: 'cancel', dx: 0, dy: 0, velocity: 0 }),
+            sendInput({
+              ...input,
+              phase: 'cancel',
+              dx: 0,
+              dy: 0,
+              velocity: 0,
+              publication: latest!.publication,
+              collectedMetrics: latest!.metrics,
+              collectedTime: performance.now() / 1000,
+            }),
           ),
         )
           .then(() => {

@@ -4,20 +4,68 @@
 #include <cstring>
 
 namespace nelyx::v2 {
+RawSample rawSample(const Input& p,Handle node,uint64_t generation) {
+  Writer w(8+wire::inputBytes);w.u64(0,generation);const size_t b=8;
+  w.u64(b,p.sequence);w.u64(b+8,p.metrics);writeHandle(w,b+16,p.target);
+  w.u32(b+24,p.stream);w.u32(b+28,p.phase);w.u32(b+32,p.source);w.u32(b+36,p.flags);
+  w.f64(b+40,p.time);w.f64(b+48,p.sample);w.f64(b+56,p.x);w.f64(b+64,p.y);
+  w.f64(b+72,p.dx);w.f64(b+80,p.dy);w.f64(b+88,p.velocity);
+  w.u32(b+96,p.clock);w.u32(b+100,p.buttons);w.u32(b+104,p.modifiers);w.u32(b+108,p.device);
+  w.u32(b+112,p.contact);w.u64(b+120,p.snapshot?p.snapshot->id:p.publication);
+  RawSample sample;sample.node=node;std::copy(w.bytes.begin(),w.bytes.end(),sample.bytes.begin());return sample;
+}
+void View::observeRaw(const Input& p,Handle h) {
+  if(!rawActive||!p.snapshot)return;
+  const auto& capturedDocument=*p.snapshot->scene->document;
+  for(uint32_t depth=0;h&&depth<=wire::limits::depth;++depth){
+    if(!capturedDocument.contains(h))return;const auto& node=capturedDocument.get(h);
+    if(node.policy&1u){
+      if(rawInputs.size()>=wire::limits::observerPackets){rawActive=false;
+        Reader first{rawInputs.front().bytes.data(),rawInputs.front().bytes.size()};
+        rawGapFirst=first.u64(8);rawGapLast=p.sequence;rawInputs.clear();return;}
+      rawInputs.push_back(rawSample(p,h,rawGeneration));return;
+    }
+    h=node.parent;
+  }
+}
+bool View::appDecision(Input& p) {
+  if(p.appApproved)return true;
+  auto& stream=streams[p.stream];
+  if(!p.target)p.target=stream.active?stream.target:
+    (p.flags&2u?pointerTarget(p.x,p.y,p.snapshot.get()):target(p.x,p.y,p.snapshot.get()));
+  if(!active||!p.snapshot||!published||!document->contains(p.target)||
+      !active->document->contains(p.target)||!published->allows(p.target)||
+      !(active->document->get(p.target).policy&2u))return true;
+  if(stream.decision){++canceled;cancelStream(p.stream,wire::statuses::busy);return false;}
+  if(stream.denied&&p.phase!=wire::phases::begin){++canceled;return false;}
+  stream.target=p.target;stream.decision=p.sequence;stream.decisionDeadline=time+0.1;
+  stream.appPending=p;++consumed;consumedThrough=std::max(consumedThrough,p.sequence);observeRaw(p,p.target);
+  interaction({wire::events::gestureDecision,wire::statuses::pending,p.sequence,
+    p.snapshot->id,p.stream,p.target,p.x,p.y});return false;
+}
+void View::gestureReply(Reader r) {
+  require(r.length==24&&r.u32(4)<=1&&r.u64(16)==0);
+  const auto index=r.u32(0);require(index>0&&index<streams.size(),wire::statuses::invalidValue);
+  auto& stream=streams[index];
+  require(stream.decision==r.u64(8)&&stream.appPending&&!stream.appPending->appApproved&&
+    time<stream.decisionDeadline,wire::statuses::stale);
+  if(!r.u32(4)){cancelStream(index,wire::statuses::canceled);return;}
+  stream.appPending->appApproved=true; // Render tick remains the property writer.
+}
 void View::gesture(Handle node,uint32_t kind,uint64_t sequence,double x,double y,double value) {
   uint64_t bits;std::memcpy(&bits,&value,sizeof(bits));
   interaction({wire::events::gesture,kind,sequence,active?active->document->epoch:0,bits,node,x,y});
 }
-Handle View::pointerTarget(double x,double y) const {
-  if(!published)return {};
-  const auto& d=*published->scene->document;
-  for(auto it=published->items.rbegin();it!=published->items.rend();++it){
-    const auto& n=d.get(it->node);const auto& c=it->clip;
-    if(!published->allows(n.id))continue;
-    if(it->opacity<=0||x<c.x||y<c.y||x>=c.x+c.width||y>=c.y+c.height||
-       x<it->x||y<it->y||x>=it->x+n.properties.width||y>=it->y+n.properties.height)continue;
+Handle View::pointerTarget(double x,double y,const Frame* snapshot) const {
+  const auto* frame=snapshot?snapshot:published.get();
+  if(!frame)return {};
+  const auto& d=*frame->scene->document;
+  for(auto it=frame->items.rbegin();it!=frame->items.rend();++it){
+    const auto& n=d.get(it->node);
+    if(!frame->allows(n.id))continue;
+    if(it->opacity<=0||!frame->hit(*it,x,y))continue;
     for(const Node* node=&n;node;node=node->parent?&d.get(node->parent):nullptr)
-      if((node->policy&4u)||node->gestures||(node->control.kind&&node->control.kind<=wire::controlKinds::rangeSlider)||node->control.kind==wire::controlKinds::checkbox||node->kind==wire::kinds::scrollViewport||
+      if((node->policy&7u)||node->gestures||(node->control.kind&&node->control.kind<=wire::controlKinds::rangeSlider)||node->control.kind==wire::controlKinds::checkbox||node->kind==wire::kinds::scrollViewport||
         (node->semantics&&(node->semantics->actions&wire::semanticsActions::activate)))return node->id;
   }
   return {};
@@ -47,15 +95,15 @@ void View::activateControl(Handle h) {
 void View::pointer(Input p) {
   ++gestureWork;
   auto& s=streams[p.stream];
-  if(!published||!active||p.metrics!=metrics.epoch||published->scene->metrics.epoch!=metrics.epoch){++canceled;return;}
+  if(!p.snapshot||!published||!active||p.metrics!=metrics.epoch||p.snapshot->scene->metrics.epoch!=metrics.epoch){++canceled;return;}
   if(p.flags&4u){
-    const auto h=pointerTarget(p.x,p.y);
+    const auto h=pointerTarget(p.x,p.y,p.snapshot.get());
     if(h!=hoverNode){if(hoverNode&&overlays.count(hoverNode.key()))overlays.at(hoverNode.key()).hovered=false;
       hoverNode=h;if(h&&overlays.count(h.key())){overlays.at(h.key()).hovered=true;gesture(h,wire::gestureKinds::hover,p.sequence,p.x,p.y,1);}dirty=true;}
     ++consumed;consumedThrough=p.sequence;return;
   }
   if(p.phase==wire::phases::begin){
-    const auto h=pointerTarget(p.x,p.y);
+    const auto h=pointerTarget(p.x,p.y,p.snapshot.get());
     if(!h||!document->contains(h)||!active->document->contains(h)||document->get(h).control.disabled||
        (document->get(h).semantics&&(document->get(h).semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled)))){++canceled;return;}
     if(s.active)cancelStream(p.stream,wire::statuses::canceled);
@@ -71,18 +119,18 @@ void View::pointer(Input p) {
         const auto distance=std::hypot(other.x-s.x,other.y-s.y);
         if(distance>=1){s.pinched=other.pinched=true;s.pinchDistance=other.pinchDistance=distance;
           other.pan=s.pan=false;gesture(h,wire::gestureKinds::pinchStart,p.sequence,(s.x+other.x)/2,(s.y+other.y)/2,1);}break;}
-    if(n.control.kind==wire::controlKinds::rangeSlider){const auto item=std::find_if(published->items.begin(),published->items.end(),[&](const auto& value){return value.node==h;});
-      const double value=n.control.minimum+(p.x-item->x-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum);
+    if(n.control.kind==wire::controlKinds::rangeSlider){
+      const auto local=p.snapshot->local(h,p.x,p.y);const double value=n.control.minimum+((local?local->x:0)-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum);
       s.secondThumb=std::abs(value-o.second)<std::abs(value-o.value);}
     if(n.control.kind==wire::controlKinds::slider||n.control.kind==wire::controlKinds::rangeSlider){
-      const auto item=std::find_if(published->items.begin(),published->items.end(),[&](const auto& value){return value.node==h;});
-      controlValue(h,n.control.minimum+(p.x-item->x-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
+
+      const auto local=p.snapshot->local(h,p.x,p.y);controlValue(h,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
   }
   if(!s.active||!s.pointer||!document->contains(s.target)||!active->document->contains(s.target)||
       !published->allows(s.target)||document->get(s.target).control.disabled||
       (document->get(s.target).semantics&&(document->get(s.target).semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden)))){
     ++canceled;cancelStream(p.stream,wire::statuses::canceled);return;}
-  ++consumed;consumedThrough=p.sequence;
+  if(!p.appApproved){++consumed;consumedThrough=std::max(consumedThrough,p.sequence);observeRaw(p,s.target);}
   const auto& n=active->document->get(s.target);auto& o=overlays.at(s.target.key());
   if(p.phase==wire::phases::update){
     const double dx=s.x-p.x,dy=s.y-p.y;s.x=p.x;s.y=p.y;
@@ -99,11 +147,11 @@ void View::pointer(Input p) {
     if(!s.pan&&(slider||(n.gestures&wire::gestures::scrollbar)||std::hypot(p.x-s.startX,p.y-s.startY)>=8)){
       s.pan=true;o.pressed=slider;dirty=true;gesture(s.target,wire::gestureKinds::panStart,p.sequence,p.x,p.y);}
     if(s.pan){
-      if(slider){const auto item=std::find_if(published->items.begin(),published->items.end(),[&](const auto& value){return value.node==s.target;});
-        controlValue(s.target,n.control.minimum+(p.x-item->x-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
+      if(slider){
+        const auto local=p.snapshot->local(s.target,p.x,p.y);controlValue(s.target,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,n.properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
       else if(n.gestures&wire::gestures::scrollbar){if(s.scroll){const auto& viewport=active->document->get(s.scroll);const auto& props=viewport.properties;
         applyDelta(s.scroll,-dy*(props.maximum-props.minimum)/std::max(1.0,n.properties.height));}}
-      else if(s.scroll)applyDelta(s.scroll,(active->document->get(s.scroll).properties.flags&1u)?dx:dy,p.stream);
+      else if(s.scroll){revealPending=false;const auto delta=p.snapshot->delta(s.scroll,dx,dy);applyDelta(s.scroll,(active->document->get(s.scroll).properties.flags&1u)?delta.x:delta.y,p.stream);}
       if(n.gestures&(wire::gestures::panX|wire::gestures::panY))gesture(s.target,wire::gestureKinds::panUpdate,p.sequence,p.x,p.y,
         (n.gestures&wire::gestures::panX)?-dx:-dy);
     }

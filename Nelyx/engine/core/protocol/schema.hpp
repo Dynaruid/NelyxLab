@@ -2,15 +2,15 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 4048176343u;
+inline constexpr uint32_t schema = 1705971718u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
-inline constexpr uint32_t stateBytes = 560u;
-inline constexpr uint32_t nodeBytes = 248u;
+inline constexpr uint32_t stateBytes = 632u;
+inline constexpr uint32_t nodeBytes = 344u;
 inline constexpr uint32_t eventBytes = 56u;
-inline constexpr uint32_t inputBytes = 120u;
+inline constexpr uint32_t inputBytes = 128u;
 namespace limits {
 inline constexpr uint32_t views = 8u;
 inline constexpr uint32_t nodes = 4096u;
@@ -47,6 +47,10 @@ inline constexpr uint32_t selectionRects = 256u;
 inline constexpr uint32_t caretBlinkMs = 500u;
 inline constexpr uint32_t listMetrics = 1024u;
 inline constexpr uint32_t listChildren = 128u;
+inline constexpr uint32_t pathCommands = 1024u;
+inline constexpr uint32_t pathPoints = 8192u;
+inline constexpr uint32_t unifiedBytes = 402653184u;
+inline constexpr uint32_t gpuBytes = 134217728u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -88,6 +92,11 @@ inline constexpr uint32_t focusAt = 36u;
 inline constexpr uint32_t activateAt = 37u;
 inline constexpr uint32_t key = 38u;
 inline constexpr uint32_t controlValue = 39u;
+inline constexpr uint32_t listSeek = 40u;
+inline constexpr uint32_t subscribeRaw = 41u;
+inline constexpr uint32_t pollRaw = 42u;
+inline constexpr uint32_t gestureReply = 43u;
+inline constexpr uint32_t memoryReport = 44u;
 }
 namespace commands {
 inline constexpr uint32_t create = 1u;
@@ -112,6 +121,7 @@ inline constexpr uint32_t list = 19u;
 inline constexpr uint32_t listItem = 20u;
 inline constexpr uint32_t gesture = 21u;
 inline constexpr uint32_t control = 22u;
+inline constexpr uint32_t graphics = 23u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -127,6 +137,7 @@ inline constexpr uint32_t effect = 10u;
 inline constexpr uint32_t scrollViewport = 11u;
 inline constexpr uint32_t sliver = 12u;
 inline constexpr uint32_t editable = 13u;
+inline constexpr uint32_t path = 14u;
 }
 namespace statuses {
 inline constexpr uint32_t ok = 0u;
@@ -173,6 +184,8 @@ inline constexpr uint32_t editingChanged = 13u;
 inline constexpr uint32_t semanticAction = 14u;
 inline constexpr uint32_t gesture = 15u;
 inline constexpr uint32_t controlChanged = 16u;
+inline constexpr uint32_t rawGap = 17u;
+inline constexpr uint32_t gestureDecision = 18u;
 }
 namespace gestures {
 inline constexpr uint32_t tap = 1u;
@@ -243,6 +256,10 @@ inline constexpr uint32_t semantics = 256u;
 inline constexpr uint32_t lazyList = 512u;
 inline constexpr uint32_t gestures = 1024u;
 inline constexpr uint32_t controls = 2048u;
+inline constexpr uint32_t rawObserver = 4096u;
+inline constexpr uint32_t appControlled = 8192u;
+inline constexpr uint32_t graphics = 16384u;
+inline constexpr uint32_t memoryBudget = 32768u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -339,6 +356,15 @@ inline constexpr uint32_t semanticsWork = 528u;
 inline constexpr uint32_t queryWork = 536u;
 inline constexpr uint32_t gestureWork = 544u;
 inline constexpr uint32_t controlWork = 552u;
+inline constexpr uint32_t memoryTotal = 560u;
+inline constexpr uint32_t memoryPeak = 568u;
+inline constexpr uint32_t memoryCpu = 576u;
+inline constexpr uint32_t memoryGpu = 584u;
+inline constexpr uint32_t memoryStaging = 592u;
+inline constexpr uint32_t engineHeap = 600u;
+inline constexpr uint32_t providerHeap = 608u;
+inline constexpr uint32_t memoryRejected = 616u;
+inline constexpr uint32_t memoryLimit = 624u;
 }
 namespace nodeFields {
 inline constexpr uint32_t node = 0u;
@@ -374,6 +400,14 @@ inline constexpr uint32_t contentX = 216u;
 inline constexpr uint32_t contentY = 224u;
 inline constexpr uint32_t contentWidth = 232u;
 inline constexpr uint32_t contentHeight = 240u;
+inline constexpr uint32_t matrix = 248u;
+inline constexpr uint32_t boundsX = 296u;
+inline constexpr uint32_t boundsY = 304u;
+inline constexpr uint32_t boundsWidth = 312u;
+inline constexpr uint32_t boundsHeight = 320u;
+inline constexpr uint32_t clipHead = 328u;
+inline constexpr uint32_t depth = 332u;
+inline constexpr uint32_t localOpacity = 336u;
 }
 namespace inputFields {
 inline constexpr uint32_t sequence = 0u;
@@ -396,6 +430,7 @@ inline constexpr uint32_t modifiers = 104u;
 inline constexpr uint32_t device = 108u;
 inline constexpr uint32_t contact = 112u;
 inline constexpr uint32_t reserved = 116u;
+inline constexpr uint32_t publication = 120u;
 }
 namespace eventFields {
 inline constexpr uint32_t kind = 0u;

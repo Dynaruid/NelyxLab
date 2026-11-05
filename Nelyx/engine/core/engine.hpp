@@ -4,6 +4,12 @@
 #include <memory>
 
 namespace nelyx::v2 {
+inline constexpr uint32_t coreCapabilities = wire::capabilities::protocol | wire::capabilities::headlessScene |
+  wire::capabilities::scroll | wire::capabilities::motion | wire::capabilities::layoutQueries |
+  wire::capabilities::editing | wire::capabilities::semantics | wire::capabilities::lazyList |
+  wire::capabilities::gestures | wire::capabilities::controls |
+  wire::capabilities::rawObserver | wire::capabilities::appControlled | wire::capabilities::graphics | wire::capabilities::memoryBudget;
+struct Ledger;
 struct Preparation;
 struct Frame;
 struct MeasurementRequest;
@@ -12,6 +18,7 @@ class Engine {
  public:
   Engine(uint32_t session, uint32_t app);
   ~Engine();
+  std::shared_ptr<Ledger> memoryLedger() const;
   std::vector<uint8_t> dispatch(Reader packet);
   void connectProvider(bool independent, uint64_t contentOwner, uint64_t renderOwner);
   std::shared_ptr<const Preparation> providerSnapshot(uint32_t view, uint32_t generation);

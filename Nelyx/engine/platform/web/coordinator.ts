@@ -6,6 +6,7 @@ import { ContentActor, RenderActor, preparedTransfers } from './actors.ts';
 import type { Viewport } from './actors.ts';
 import { exchange, failure, script, verified, sessionOwner } from './common.ts';
 import type { BrowserModule } from './common.ts';
+import {ProviderBudget} from './memory.ts';
 
 const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
 type ClientPort = MessagePort | DedicatedWorkerGlobalScope;
@@ -23,6 +24,7 @@ let closing = false,
   telemetryPending = false,
   telemetry: Record<string, unknown> | undefined;
 let pendingBytes = 0;
+let transportBudget:ProviderBudget|undefined;
 const pending = new Map<number, { port: ClientPort; id: number; bytes: number; op: number }>();
 const ready = new Set<number>(),
   stopped = new Set<number>();
@@ -107,12 +109,14 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
   } else if (kind === 'prepared') {
     const packet = value.packet as PreparedPictures;
     if (closing) return;
-    if (render) render.prepared(packet);
+    if (render){try{render.prepared(packet);}finally{provider!.releasePacket(packet.preparation);}}
     else
       renderWorker!.postMessage(
         { kind: 'v2-prepared', packet },
         transfer.length ? transfer : preparedTransfers(packet),
       );
+  } else if(kind==='prepared-released'){
+    contentWorker!.postMessage({kind:'v2-release-prepared',preparation:value.preparation});
   } else if (kind === 'content-wake') {
     if (content) content.kick();
     else contentWorker?.postMessage({ kind: 'v2-wake' });
@@ -202,6 +206,7 @@ async function initialize(message: {
     throw new Error('Selected engine has the wrong memory profile');
   engine = module._nelyx_wasm_open(1, 1, p.schema, 15);
   if (!engine) throw new Error('Engine session initialization failed');
+  transportBudget=new ProviderBudget(module,engine,3);
   if (profile === 'threaded') {
     const adapter = cppString(new URL('web/owner.js', root).href),
       configuration = cppString(root);
@@ -225,7 +230,7 @@ async function initialize(message: {
       module._free(configuration);
     }
   } else {
-    provider = await CanvasKitProvider.load(root);
+    provider = await CanvasKitProvider.load(root,new ProviderBudget(module,engine,1));
     contentThread = renderThread = module._nelyx_host_thread_id();
     content = new ContentActor(module, engine, provider, actorMessage, true);
     render = new RenderActor(module, engine, provider, actorMessage);
@@ -258,6 +263,7 @@ function complete(message: Record<string, unknown>): void {
   if (!request) return;
   pending.delete(ticket);
   pendingBytes -= request.bytes;
+  transportBudget!.set(5,pendingBytes);
   const bytes = message.bytes as ArrayBuffer | undefined,
     error = message.error;
   send(request.port, { kind: 'packet-result', id: request.id, bytes, error }, bytes ? [bytes] : []);
@@ -293,6 +299,8 @@ function route(port: ClientPort, message: { kind: string; id: number; bytes: Arr
   }
   const bytes = new Uint8Array(message.bytes),
     op = new DataView(message.bytes).getUint16(p.headerFields.opcode, true);
+  if(op===p.opcodes.memoryReport){send(port,{kind:'packet-result',id:message.id,error:'Memory reports are host-only'});return;}
+  try{transportBudget!.set(5,pendingBytes+bytes.length);}catch(error){send(port,{kind:'packet-result',id:message.id,error:failure(error)});return;}
   const ticket = ++next;
   if (ticket > 0xffff_ffff) throw new Error('Host transport ID exhausted');
   pending.set(ticket, { port, id: message.id, bytes: bytes.length, op });
@@ -326,6 +334,7 @@ async function shutdown(): Promise<void> {
     pending.delete(id);
   }
   pendingBytes = 0;
+  transportBudget?.close();
   if (content) {
     content.stop();
     await render?.stop();

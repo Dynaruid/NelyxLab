@@ -1,6 +1,8 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획
 
-설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL / lazy list·anchor·v2 디자인 control·표준 gesture·IME 종료 교섭 / 전체 API·물리 입력·성능 미완료**
+설계: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL — 사용자 요청으로 그래픽·전체 API/runner·통합 메모리 작업 중단, 최신 변경 미검증**
+
+**현재 중단:** 2026-11-05 17:33 KST 사용자의 `잠시 중간 마무리하자` 요청으로 구현·빌드·실행을 중단했다. 그래픽·통합 ledger의 중간 코어 검사 **193/193** 이후 provider·접근성·SDK 일반 runner 소스를 추가했으며 이 최신 변경은 통합 검증하지 않았다. **기존 engine/dist는 이전 공급으로 현재 소스와 불일치한다.** 정확한 구현 경계·실패·재개 순서는 [2부 현재 중단 상태](work8-2.md#현재-중단-상태)를 우선한다. 아래의 기존 205개 검사와 공급 hash는 이전 완료 구간의 기록이다. 사용자 재개 요청 전 자동으로 작업하지 않는다.
 
 설계·구축 계획을 아래 **3부**로 나누었다. 기존 절 번호(§1–19)와 구현 단계(W8-00–10)를 유지한다.
 
@@ -22,4 +24,4 @@
 
 2026-11-05 재검토에서 layout 조합·leaf padding과 paint/입력 좌표·compositor caret clock·Widget build/dispose 예외 복구를 구현했다. 남은 1·2부 계약은 [잔여 작업 표](work8-2.md#2026-11-05-잔여-작업-재검토)에서 확인한다.
 
-사용자의 외출 요청으로 **PAUSED / PARTIAL** 중간 마무리했다. 완료 검증·현재 공급 identity·잔여 범위·재개 절차는 [2부 중간 마무리](work8-2.md#중간-마무리--paused--partial)에 남겼다. 자동 재개하지 않는다.
+사용자의 두 문서 잔여 검토·전체 작업 요청으로 2026-11-05 재개했다. 수평 lazy list/먼 index seek·raw observer/App 제어 입력·게시 snapshot 보유·focus/caret ancestor reveal·Windows clipboard 실패 처리를 보완했다. 현재 공급 검증과 전체 미완료 범위는 [2부 재개 현황](work8-2.md#2026-11-05-재개--입력-publication과-list-계약)에 기록한다. 전체 backend/API·Android·물리 입력/성능 수락은 계속 PARTIAL이다.

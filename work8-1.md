@@ -1,8 +1,10 @@
 # Nelyx 엔진 v2 — 공통 C++ 백엔드 설계·구축 계획 — 1부: 구조·상태·입력 계약
 
-설계·최초 연결: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL / Windows·두 Web host·layout·caret·Widget 복구 / 전체 backend·물리 입력·성능 미완료**
+설계·최초 연결: **2026-11-04 KST** · 구현 갱신: **2026-11-05 KST** · 상태: **PAUSED / PARTIAL — 그래픽·API/runner·통합 예산 최신 변경 미검증**
 
 [전체 목차](work8.md) · **1부** · [2부](work8-2.md) · [3부](work8-3.md)
+
+**2026-11-05 17:33 KST 중간 마무리:** 사용자 요청으로 중단했다. Affine/path hit-test·memoryReport 합산의 중간 코어 **193/193** 이후 Native/CanvasKit provider 예산·TSF/UIA/DOM geometry·일반 앱 bootstrap/CLI 소스를 추가했다. 최신 소스 전체의 build/host/회수 검증은 **미실행**이며 `engine/dist`는 이전 schema 공급이다. Native 일반 runner의 `--app` 수신 등 필수 연결도 남았다. [2부 현재 중단 상태](work8-2.md#현재-중단-상태)의 잔여 작업과 재개 절차를 우선하며 아래 이전 통과 기록을 최신 소스의 증거로 사용하지 않는다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/scanout `notVerified`를 유지한다.
 
 원문 범위: **§1–7**. 전체 설계의 절 번호와 W8 단계 식별자를 유지한다.
 
@@ -64,7 +66,7 @@ C++ layout continuation·text/image 측정·baseline·layout cache·별도 geome
 
 2026-11-05 두 문서의 잔여 계약을 재검토해 Box/Stack·Wrap/Grid layout 조합, leaf padding과 paint/입력 좌표, compositor caret deadline, Widget 재활성화·build/dispose 예외 복구를 보완했다. Caret만 움직일 때 App/Content 작업이나 60 Hz idle polling을 요구하지 않으며 더 이른 입력은 예약 타이머를 교체한다. 후속으로 lazy list/key anchor, 표준 tap/pan/pinch/control·modal, 명시적 Material/Cupertino v2 subpath·IME 종료 교섭을 구현했다. Raw observer/appControlled·전체 gesture arena·physics/motion graph·물리 IME/Android·일반 resolver 등은 **[잔여 작업 표](work8-2.md#2026-11-05-잔여-작업-재검토)**에 남아 있다. 1부의 설계 전체를 완료로 변경하지 않는다.
 
-사용자의 외출 요청으로 **PAUSED / PARTIAL** 중단했다. 현재 source/dist·183개 검사와 정확한 재개 절차는 [2부 중간 마무리](work8-2.md#중간-마무리--paused--partial)를 따른다. 자동 재개하지 않는다.
+이전 외출 중단 이후 사용자의 두 문서 전체 작업 요청으로 **2026-11-05 재개**했다. 수평 lazy list·먼 index seek, bounded raw observer·명시적 App 제어 입력과 게시 snapshot 수집/회수 계약을 구현했다. 최신 구현·검증과 전체 미완료 범위는 [2부 재개 현황](work8-2.md#2026-11-05-재개--입력-publication과-list-계약)을 따른다. 아래 설계 전체의 완료 선언은 아니다.
 
 ### 공통 코어 구현
 
@@ -83,7 +85,7 @@ C++ layout continuation·text/image 측정·baseline·layout cache·별도 geome
 | [Wasm binding](Nelyx/engine/bindings/wasm.cpp), [TS adapter](Nelyx/runtime/engine-client/wasm.ts) | 별도 non-shared/shared-memory 빌드·module 소유 해제·memory growth 뒤 HEAP 재취득·출력 packet 복사. JS buffer/다른 module 포인터를 보관하지 않음 |
 | [CMake](Nelyx/engine/CMakeLists.txt), [빌드](Nelyx/engine/tools/build.mjs), [계약 검사](Nelyx/engine/tests/contracts.test.mjs) | Windows x64 MSVC와 Emscripten **4.0.22**의 Native/single-worker/threaded headless 실행. Current `engine/dist`만 공급하고 staging/이전 dist/검증 임시는 finally에서 제거 |
 
-Headless 검사는 cooperative 호출로 실행하고 `contentIndependent=false`를 보고한다. 실제 Windows/threaded host는 provider READY와 서로 다른 owner를 연결한 뒤 surface/independent capability를 제공한다. CreateNode의 13개 종류 인식을 표준 layout·paint·편집 전체 구현으로 세지 않는다. 지원 primitive의 C++ layout과 intrinsic/dry query·편집/semantics 연결을 제공하며, 지원 밖 조합·`appControlled`/raw observer·전체 gesture arena·bidi/keyboard/IME 수락·motion graph 이식은 남았다.
+Headless 검사는 cooperative 호출로 실행하고 `contentIndependent=false`를 보고한다. 실제 Windows/threaded host는 provider READY와 서로 다른 owner를 연결한 뒤 surface/independent capability를 제공한다. CreateNode의 13개 종류 인식을 표준 layout·paint·편집 전체 구현으로 세지 않는다. 지원 primitive의 C++ layout과 intrinsic/dry query·편집/semantics 연결을 제공하며, 지원 밖 조합·전체 중첩 gesture arena·bidi/keyboard/IME 수락·motion graph 이식은 남았다. Raw observer/App 제어 입력과 admission snapshot 보유는 2026-11-05 재개 범위에서 보완했다.
 
 ### 이번에 고정한 값
 

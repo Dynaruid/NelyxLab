@@ -3,6 +3,7 @@
 #include "../memory.hpp"
 #include "../layout/list.hpp"
 #include "../interaction/controls.hpp"
+#include "geometry.hpp"
 #include <array>
 #include <memory>
 #include <atomic>
@@ -46,6 +47,7 @@ struct Node {
   Handle id, parent;
   uint32_t kind = 0, order = 0, policy = 0;
   Properties properties;
+  GraphicsStyle graphics;
   Axis horizontal, vertical;
   Motion motion;
   LayoutStyle layout;
@@ -72,7 +74,7 @@ struct Node {
     ++lease.ledger->nodes;
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent),
-      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties),
+      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),
       horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
       layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),

@@ -10,9 +10,107 @@ import {
   ListViewState,
   GlobalKey,
   Box,
+  body,
+  writeHandle,
 } from '../../runtime/engine-client/index.ts';
 export function listContracts({ using, timeout, h }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
+    for (const horizontal of [false, true])
+      test(
+        `${profile}: ${horizontal ? 'horizontal' : 'vertical'} lazy seek prepares a distant index atomically and cancels on input`,
+        { timeout },
+        () =>
+          using(profile, async (f) => {
+            const row = (i, index) => [
+              c.properties(h(3 + i), {
+                width: horizontal ? 40 + (index % 3) : 100,
+                height: horizontal ? 100 : 40 + (index % 3),
+              }),
+              c.listItem(h(3 + i), { index, key: BigInt(index + 1) }),
+            ];
+            await f.start([
+              c.create(h(1), 'scrollViewport'),
+              c.properties(h(1), { width: 100, height: 100, horizontal }),
+              c.layout(h(1)),
+              c.create(h(2), 'sliver'),
+              c.layout(h(2), { direction: horizontal ? 'horizontal' : 'vertical' }),
+              c.list(h(2), { generation: 1n, count: 50000, begin: 0, end: 8, estimate: 40 }),
+              c.attach(h(2), h(1)),
+              ...Array.from({ length: 8 }, (_, i) => [
+                c.create(h(3 + i), 'box'),
+                ...row(i, i),
+                c.layout(h(3 + i)),
+                c.attach(h(3 + i), h(2), i),
+              ]).flat(),
+            ]);
+            const seek = (index) =>
+              body(48, (v) => {
+                writeHandle(v, 0, h(1));
+                writeHandle(v, 8, h(2));
+                v.setBigUint64(16, 1n, true);
+                v.setUint32(24, index, true);
+                v.setFloat64(32, 0.5, true);
+                v.setFloat64(40, 2, true);
+              });
+            const original = await f.inspect();
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(1000), { id: 1n })).status,
+              p.statuses.pending,
+            );
+            await f.tick();
+            let state = await f.send(p.opcodes.layoutSnapshot);
+            assert.equal(
+              state.nodes.find((n) => n.node.slot === 1).offset,
+              0,
+              'The previous prepared window stays visible',
+            );
+            assert.ok(state.nodes.find((n) => n.node.slot === 2).list.demandBegin > 900);
+            await f.commit([
+              c.list(h(2), { generation: 1n, count: 50000, begin: 998, end: 1006, estimate: 40 }),
+              ...Array.from({ length: 8 }, (_, i) => row(i, 998 + i)).flat(),
+            ]);
+            await f.ready();
+            state = await f.send(p.opcodes.layoutSnapshot);
+            const viewport = state.nodes.find((n) => n.node.slot === 1),
+              list = state.nodes.find((n) => n.node.slot === 2).list;
+            const target = list.items.find((r) => r.index === 1000);
+            assert.equal(viewport.offset, target.offset - (100 - target.extent) * 0.5);
+            assert.ok(viewport.offset > 39000);
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(1000), { id: 1n })).status,
+              p.statuses.ok,
+              'Same bytes retry is idempotent',
+            );
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(1001), { id: 1n })).status,
+              p.statuses.idReused,
+            );
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(40000), { id: 2n })).status,
+              p.statuses.pending,
+            );
+            await f.input('update', 10, { source: 'wheelUnknown', dx: horizontal ? 10 : 0 });
+            await f.tick();
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(40000), { id: 2n })).status,
+              p.statuses.canceled,
+            );
+            assert.equal(
+              (await f.inspect()).nodeCount,
+              original.nodeCount,
+              'Distant seek keeps the bounded native window',
+            );
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(45000), { id: 3n })).status,
+              p.statuses.pending,
+            );
+            await f.tick(3);
+            assert.equal(
+              (await f.send(p.opcodes.listSeek, seek(45000), { id: 3n })).status,
+              p.statuses.timedOut,
+            );
+          }),
+      );
     test(
       `${profile}: native lazy windows preserve a visible key through variable-height anchor changes`,
       { timeout },

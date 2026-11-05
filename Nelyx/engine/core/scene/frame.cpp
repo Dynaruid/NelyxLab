@@ -2,46 +2,38 @@
 #include "../state.hpp"
 #include <algorithm>
 #include <functional>
-
 namespace nelyx::v2 {
-static Rect intersect(Rect a, Rect b) {
-  const auto x = std::max(a.x, b.x), y = std::max(a.y, b.y);
-  return {x, y, std::max(0.0, std::min(a.x + a.width, b.x + b.width) - x),
-    std::max(0.0, std::min(a.y + a.height, b.y + b.height) - y)};
-}
-void View::makeDrawItems(Frame& f) const {
-  const auto& d = *f.scene->document;
-  std::function<void(const Node&,double,double,double,Rect)> visit;
-  visit = [&](const Node& n, double x, double y, double alpha, Rect clip) {
-    const auto& o = f.properties[n.id.slot];
-    x += n.properties.x; y += n.properties.y; alpha *= o.opacity;
-    f.properties[n.id.slot].visible=alpha>0;
-    if (n.kind == wire::kinds::clip || n.kind == wire::kinds::scrollViewport)
-      clip = intersect(clip, {x, y, n.properties.width, n.properties.height});
-    f.items.push_back({n.id, x, y, alpha, clip});
-    if((n.policy&4u)&&alpha>0)f.modalRoot=n.id;
-    double childX = x, childY = y;
-    if (n.kind == wire::kinds::scrollViewport) {
-      if (n.properties.flags & 1u) childX -= o.offset; else childY -= o.offset;
+void View::makeDrawItems(Frame& f)const {
+  const auto& geometry=*f.scene->document;
+  std::function<void(const Node&,Affine,double,Rect,uint32_t,uint32_t)> visit;
+  visit=[&](const Node& node,Affine parent,double alpha,Rect clip,uint32_t head,uint32_t depth){
+    const auto& property=f.properties[node.id.slot];
+    auto world=parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*node.graphics.transform;
+    alpha*=property.opacity;
+    const auto bounds=world.bounds({0,0,node.properties.width,node.properties.height});
+    f.properties[node.id.slot].visible=alpha>0&&world.inverse().has_value();
+    if(node.kind==wire::kinds::clip||node.kind==wire::kinds::scrollViewport){
+      clip=intersect(clip,bounds);
+      f.clips.push_back({world,{0,0,node.properties.width,node.properties.height},node.radius,node.graphics.path,head});
+      head=uint32_t(f.clips.size());
     }
-    for (const auto child : d.children[n.id.slot]) visit(d.get(child), childX, childY, alpha, clip);
+    f.items.push_back({node.id,world.tx,world.ty,alpha,clip,world,bounds,head,depth});
+    if((node.policy&4u)&&alpha>0)f.modalRoot=node.id;
+    if(node.kind==wire::kinds::scrollViewport)
+      world=world*Affine{1,0,0,1,(node.properties.flags&1u)?-property.offset:0,(node.properties.flags&1u)?0:-property.offset};
+    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world,alpha,clip,head,depth+1);
   };
-  f.items.reserve(d.count);
-  for (const auto n : d.children[0]) visit(d.get(n), 0, 0, 1, {0, 0, f.scene->metrics.width, f.scene->metrics.height});
+  f.items.reserve(geometry.count);f.clips.reserve(geometry.count);
+  for(const auto root:geometry.children[0])visit(geometry.get(root),{},1,{0,0,f.scene->metrics.width,f.scene->metrics.height},0,0);
 }
-Handle View::target(double x, double y) const {
-  if (!published) return {};
-  const auto& d = *published->scene->document;
-  for (auto it = published->items.rbegin(); it != published->items.rend(); ++it) {
-    const auto& n = d.get(it->node);
-    if(it->opacity<=0||!published->allows(n.id))continue;
-    const auto hit = [](double px, double py, Rect r) {
-      return r.width > 0 && r.height > 0 && px >= r.x && py >= r.y && px < r.x+r.width && py < r.y+r.height;
-    };
-    if (!hit(x, y, it->clip) || !hit(x, y, {it->x,it->y,n.properties.width,n.properties.height})) continue;
-    for (const Node* current = &n; current; current = current->parent ? &d.get(current->parent) : nullptr)
-      if (current->kind == wire::kinds::scrollViewport) return current->id;
-  }
-  return {};
+Handle View::target(double x,double y,const Frame* snapshot)const {
+  const auto* frame=snapshot?snapshot:published.get();if(!frame)return {};
+  const auto& geometry=*frame->scene->document;
+  for(auto it=frame->items.rbegin();it!=frame->items.rend();++it){
+    const auto& node=geometry.get(it->node);
+    if(it->opacity<=0||!frame->allows(node.id)||!frame->hit(*it,x,y))continue;
+    for(const Node* current=&node;current;current=current->parent?&geometry.get(current->parent):nullptr)
+      if(current->kind==wire::kinds::scrollViewport)return current->id;
+  }return {};
 }
 }

@@ -22,14 +22,14 @@ static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& d
   Writer w(wire::headerBytes+data.size());w.u32(0,wire::magic);w.u16(4,2);w.u32(8,wire::schema);w.u16(12,uint16_t(op));w.u32(16,uint32_t(w.bytes.size()));w.u32(20,1);w.u32(24,1);w.u32(28,session?0:1);w.u32(32,session?0:1);
   if(!data.empty())std::memcpy(w.bytes.data()+wire::headerBytes,data.data(),data.size());return std::move(w.bytes);
 }
-struct Job{uint32_t id;std::vector<uint8_t> bytes;};
+struct Job{uint32_t id;std::vector<uint8_t> bytes;std::shared_ptr<ExternalLease> memory;};
 class Host {
   Engine core{1,1};HWND window=nullptr;
   std::atomic<bool> stopping{false},contentReady{false},renderReady{false},connected{false},appReady{false};
   std::atomic<bool> failed{false},closed{false};
   bool probe=false;
   std::atomic<uint32_t> busyOwners{0};
-  std::atomic<int32_t> probeDelta{0};
+  std::atomic<int32_t> probeDelta{0},appSeek{-1};
   void injectProbeInput(){const auto delta=probeDelta.exchange(0);if(probe&&delta)PostMessageW(window,WM_APP+2,WPARAM(intptr_t(delta)),0);}
   std::atomic<uint32_t> contentThread{0},renderThread{0},appThread{0};uint32_t uiThread=GetCurrentThreadId();
   std::thread contentOwner,renderOwner,appOwner;
@@ -64,16 +64,18 @@ class Host {
   void contentLoop(){
     contentThread=GetCurrentThreadId();CoInitializeEx(nullptr,COINIT_MULTITHREADED);
     try{
-      nw::ContentProvider provider(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat");contentReady=true;changed.notify_all();
+      nw::ContentProvider provider(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger());contentReady=true;changed.notify_all();
       uint64_t last=0;
       while(!stopping){
         Job job{};bool has=false;
         {std::lock_guard lock(jobsMutex);if(!jobs.empty()){job=std::move(jobs.front());jobs.pop_front();jobBytes-=job.bytes.size();has=true;}}
         contentWake=false;
         if(has){auto result=core.dispatch({job.bytes.data(),job.bytes.size()});
+          const auto op=Reader{job.bytes.data(),job.bytes.size()}.u16(12);
+          if(op==wire::opcodes::scroll||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply){renderWakeRequested=true;changed.notify_all();}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::transaction){interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
-          {std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result)});}appChanged.notify_one();}
+          auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
         if(const auto delay=contentDelay.exchange(0)){busyOwners.fetch_or(2);std::cout<<"V2_CONTENT_DELAY_START "<<delay<<std::endl;injectProbeInput();std::this_thread::sleep_for(std::chrono::milliseconds(delay));busyOwners.fetch_and(~2u);std::cout<<"V2_CONTENT_DELAY_END"<<std::endl;}
         if(connected){Writer quota(8);quota.u32(0,wire::limits::contentPerStep);auto result=call(wire::opcodes::contentStep,quota.bytes);auto r=reader(result);
           uint64_t attempted=r.u64(wire::headerBytes+wire::stateFields::measurePreparation);
@@ -113,7 +115,7 @@ class Host {
   void renderLoop(){
     renderThread=GetCurrentThreadId();
     try{
-      nw::RenderProvider provider{uint64_t(uintptr_t(window)),uiThread};renderReady=true;
+      nw::RenderProvider provider{uint64_t(uintptr_t(window)),uiThread,core.memoryLedger()};renderReady=true;
       std::cout<<"V2_RENDERER "<<provider.driver()<<std::endl;
       while(!stopping&&!contentReady)std::this_thread::sleep_for(std::chrono::milliseconds(2));
       if(stopping)return;
@@ -185,9 +187,10 @@ class Host {
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
         std::lock_guard lock(jobsMutex);if(stopping||jobs.size()+uiJobs.size()>=32||jobBytes+length>4*wire::limits::packetBytes)throw jsi::JSError(r,"V2 native mailbox full/closed");
-        std::vector<uint8_t> bytes(buffer.data(r),buffer.data(r)+length);const auto op=Reader{bytes.data(),bytes.size()}.u16(12);
-        if(op==wire::opcodes::edit||op==wire::opcodes::focus||op==wire::opcodes::semanticsAction){uiJobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes)});PostMessageW(window,WM_APP+3,0,0);}
-        else jobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes)});jobBytes+=length;
+        auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,length);std::vector<uint8_t> bytes(buffer.data(r),buffer.data(r)+length);const auto op=Reader{bytes.data(),bytes.size()}.u16(12);
+        if(op==wire::opcodes::memoryReport)throw jsi::JSError(r,"Memory reports are host-only");
+        if(op==wire::opcodes::edit||op==wire::opcodes::focus||op==wire::opcodes::semanticsAction){uiJobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});PostMessageW(window,WM_APP+3,0,0);}
+        else jobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});jobBytes+=length;
         contentWake=true;
         changed.notify_all();return jsi::Value::undefined();}));
       native.setProperty(rt,"asset",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"asset"),1,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t)->jsi::Value{
@@ -201,6 +204,7 @@ class Host {
       while(!stopping){
         if(const auto delay=appDelay.exchange(0)){rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt,double(delay));rt.drainMicrotasks();}
         if(appUpdate.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
+        if(const auto index=appSeek.exchange(-1);index>=0){rt.global().getPropertyAsFunction(rt,"__v2Seek").call(rt,double(index));rt.drainMicrotasks();}
         Job result{};bool has=false;
         {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
@@ -248,12 +252,13 @@ class Host {
     pointerX=x;pointerY=y;pointerAt=at;
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,x);input.f64(64,y);input.f64(72,dx);input.f64(80,dy);input.f64(88,pointerVelocity);input.u32(96,1);input.u32(100,dragging?1:0);input.u32(112,1);
     input.u32(36,hover?6u:2u);
+    input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));
     call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
   }
   void cancelPointer(){if(dragging)pointer(wire::phases::cancel,pointerX,pointerY);}
   void wheel(double delta,double x,double y){
     if(!appReady||stopping)return;auto result=call(wire::opcodes::inspect);auto r=reader(result);if(r.u16(14))return;
-    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
+    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
   }
   void poll(){
     ui();
@@ -270,6 +275,7 @@ class Host {
       else if(command=="delay-content"){contentDelay=uint32_t(std::clamp(value,0,2000));changed.notify_all();}
       else if(command=="wheel")wheel(value,260,300);
       else if(command=="lazy-wheel")wheel(value,650,420);
+      else if(command=="seek")appSeek=std::clamp(value,0,1999);
       else if(command=="stats")stats();
     }
   }

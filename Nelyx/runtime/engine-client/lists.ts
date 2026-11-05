@@ -43,6 +43,7 @@ class BuildCancellation {
 }
 
 export interface ListViewOptions {
+  readonly direction?: 'vertical' | 'horizontal';
   readonly itemCount: number;
   /** Change generation when data, ordering, or extent estimates change. */
   readonly generation: bigint;
@@ -110,9 +111,23 @@ export class ListViewState extends State<ListView> {
   private anchorKey: string | number | undefined;
   private anchorIndex = 0;
   private focusedKey: string | number | undefined;
+  private observed:
+    | { viewport: EngineNodeSnapshot['node']; list: EngineNodeSnapshot['node'] }
+    | undefined;
   private working = 0;
   private requests: Entry[] = [];
   readonly counters = { built: 0, canceled: 0, failed: 0, peakItems: 0, stale: 0 };
+  /** Prepare the destination before changing the visual offset. Read completion from scrollTerminal. */
+  async scrollToIndex(index: number, alignment = 0): Promise<EngineResponse> {
+    if (!this.mounted || !this.observed) throw new Error('List has no activated layout');
+    return this.element!.host.view.seekList(
+      this.observed.viewport,
+      this.observed.list,
+      this.generation,
+      index,
+      alignment,
+    );
+  }
   initState(): void {
     this.reset();
   }
@@ -120,7 +135,8 @@ export class ListViewState extends State<ListView> {
     if (old.items.generation !== this.widget.items.generation) this.reset();
     else if (
       old.items.itemCount !== this.widget.items.itemCount ||
-      old.items.estimatedExtent !== this.widget.items.estimatedExtent
+      old.items.estimatedExtent !== this.widget.items.estimatedExtent ||
+      old.items.direction !== this.widget.items.direction
     )
       throw new Error('List data changes require a new generation');
   }
@@ -141,7 +157,11 @@ export class ListViewState extends State<ListView> {
       Math.max(
         8,
         Math.ceil(
-          ((this.widget.options.properties?.height ?? 600) * 3) / this.widget.items.estimatedExtent,
+          ((this.widget.items.direction === 'horizontal'
+            ? (this.widget.options.properties?.width ?? 600)
+            : (this.widget.options.properties?.height ?? 600)) *
+            3) /
+            this.widget.items.estimatedExtent,
         ),
       ),
     );
@@ -272,7 +292,12 @@ export class ListViewState extends State<ListView> {
     const parent = snapshot.nodes.find(
       (n) => n.node.slot === node.parent.slot && n.node.generation === node.parent.generation,
     );
-    const anchor = list.items.find((r) => r.offset + r.extent > (parent?.offset ?? 0) - node.y);
+    if (parent) this.observed = { viewport: parent.node, list: node.node };
+    const anchor = list.items.find(
+      (r) =>
+        r.offset + r.extent >
+        (parent?.offset ?? 0) - (this.widget.items.direction === 'horizontal' ? node.x : node.y),
+    );
     if (anchor) {
       this.anchorKey = this.widget.items.itemKey(anchor.index);
       this.anchorIndex = anchor.index;
@@ -327,7 +352,7 @@ export class ListViewState extends State<ListView> {
             }),
         ),
         {
-          layout: { direction: 'vertical' },
+          layout: { direction: this.widget.items.direction ?? 'vertical' },
           list: {
             generation: this.generation,
             count: this.widget.items.itemCount,
@@ -338,10 +363,18 @@ export class ListViewState extends State<ListView> {
           onLayout: this.observe,
         },
       ),
-      { ...this.widget.options, key: new ValueKey('viewport') },
+      {
+        ...this.widget.options,
+        properties: {
+          ...this.widget.options.properties,
+          horizontal: this.widget.items.direction === 'horizontal',
+        },
+        key: new ValueKey('viewport'),
+      },
     );
   }
   dispose(): void {
+    this.observed = undefined;
     for (const e of this.entries.values()) e.abort.abort();
     this.entries.clear();
     this.requests.length = 0;

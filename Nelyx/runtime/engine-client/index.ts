@@ -7,3 +7,4 @@ export * from './message-port.ts';
 export * from './widgets.ts';
 export * from './lists.ts';
 export * from './navigation.ts';
+export * from './graphics.ts';

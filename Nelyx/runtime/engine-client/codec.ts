@@ -29,6 +29,18 @@ export interface NodeProperties {
   readonly horizontal?: boolean;
   readonly chaining?: boolean;
 }
+export type AffineMatrix = readonly [number,number,number,number,number,number];
+export type PathSegment = readonly ['move'|'line',number,number] | readonly ['quad',number,number,number,number] |
+  readonly ['cubic',number,number,number,number,number,number] | readonly ['close'];
+export interface GraphicsOptions {
+  readonly transform?: AffineMatrix;
+  readonly path?: readonly PathSegment[];
+  readonly fillRule?: 'winding'|'evenOdd';
+  readonly shadow?: {readonly x:number;readonly y:number;readonly sigma:number;readonly color:number};
+  readonly stroke?: {readonly width:number;readonly color:number};
+  readonly blur?:number;
+}
+export interface GraphicsSnapshot extends GraphicsOptions { readonly hasPath:boolean; }
 export interface NodeLayout {
   readonly enabled?: boolean;
   readonly direction?: 'horizontal' | 'vertical';
@@ -316,6 +328,20 @@ export function semanticActionBody(
   });
 }
 export const commands = {
+  graphics(node:NodeHandle, options:GraphicsOptions={}):Uint8Array {
+    const path=options.path??[];if(path.length>p.limits.pathCommands)throw new RangeError('Path command budget');
+    return command(p.commands.graphics,node,body(104+path.length*56,v=>{
+      (options.transform??[1,0,0,1,0,0]).forEach((x,i)=>v.setFloat64(i*8,finite(x),true));
+      v.setFloat64(48,finite(options.shadow?.x??0),true);v.setFloat64(56,finite(options.shadow?.y??0),true);
+      v.setFloat64(64,finite(options.shadow?.sigma??0),true);v.setUint32(72,uint32(options.shadow?.color??0),true);
+      v.setUint32(76,uint32(options.stroke?.color??0),true);v.setFloat64(80,finite(options.stroke?.width??0),true);
+      v.setFloat64(88,finite(options.blur??0),true);v.setUint32(96,options.fillRule==='evenOdd'?1:0,true);
+      v.setUint32(100,path.length,true);
+      path.forEach((segment,i)=>{const verb={move:1,line:2,quad:3,cubic:4,close:5}[segment[0]];
+        if(!verb)throw new RangeError('Unknown path verb');v.setUint32(104+i*56,verb,true);
+        segment.slice(1).forEach((x,j)=>v.setFloat64(112+i*56+j*8,finite(x as number),true));});
+    }));
+  },
   editor(node: NodeHandle, flags = 0, maximumLength: number = p.limits.textBytes): Uint8Array {
     return command(
       p.commands.editor,
@@ -589,6 +615,8 @@ export function transaction(
   return packet(p.opcodes.transaction, owner, payload, id, base, changes.length);
 }
 export interface InputPacket {
+  /** Host publication installed when this sample was collected. */
+  readonly publication?: bigint;
   readonly pointer?: boolean;
   readonly hover?: boolean;
   readonly sequence: bigint;
@@ -612,8 +640,13 @@ export interface InputPacket {
   readonly device?: number;
   readonly contact?: number;
 }
+export interface RawInputSample extends InputPacket {
+  readonly node: NodeHandle;
+  readonly subscription: bigint;
+}
 export function inputBody(value: InputPacket): Uint8Array {
   return body(p.inputBytes, (v) => {
+    v.setBigUint64(p.inputFields.publication, uint64(value.publication ?? 0n), true);
     v.setBigUint64(0, uint64(value.sequence), true);
     v.setBigUint64(8, uint64(value.metrics), true);
     writeHandle(v, 16, value.target);
@@ -644,6 +677,11 @@ export function inputBody(value: InputPacket): Uint8Array {
   });
 }
 export interface EngineNodeSnapshot {
+  readonly graphics:GraphicsSnapshot|null;
+  readonly matrix:AffineMatrix;
+  readonly bounds:TextRect;
+  readonly depth:number;
+  readonly localOpacity:number;
   readonly control: ControlSnapshot | null;
   readonly list: ListSnapshot | null;
   readonly editing: EditingSnapshot | null;
@@ -704,6 +742,10 @@ export interface EngineEvent {
   readonly node: NodeHandle;
 }
 export interface EngineResponse {
+  readonly memory: {readonly total:bigint;readonly peak:bigint;readonly cpu:bigint;readonly gpu:bigint;
+    readonly staging:bigint;readonly engineHeap:bigint;readonly providerHeap:bigint;readonly rejected:bigint;readonly limit:bigint};
+  readonly rawInputs: readonly RawInputSample[];
+  readonly gestureRequests: readonly RawInputSample[];
   readonly focus: { readonly node: NodeHandle; readonly session: bigint } | null;
   readonly interactionCount: number;
   readonly editingWork: bigint;
@@ -819,6 +861,7 @@ export function response(bytes: Uint8Array): EngineResponse {
     nodes.push(
       Object.freeze({
         editing: null,
+        graphics: null,
         control: null,
         list: null,
         textGeometry: null,
@@ -833,6 +876,9 @@ export function response(bytes: Uint8Array): EngineResponse {
         y: f(32),
         width: f(40),
         height: f(48),
+        matrix:Object.freeze(Array.from({length:6},(_,i)=>f(p.nodeFields.matrix+i*8))) as unknown as AffineMatrix,
+        bounds:Object.freeze({x:f(p.nodeFields.boundsX),y:f(p.nodeFields.boundsY),width:f(p.nodeFields.boundsWidth),height:f(p.nodeFields.boundsHeight)}),
+        depth:v.getUint32(cursor+p.nodeFields.depth,true),localOpacity:f(p.nodeFields.localOpacity),
         content: Object.freeze({
           x: f(p.nodeFields.contentX),
           y: f(p.nodeFields.contentY),
@@ -891,7 +937,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       length = v.getUint32(cursor + 16, true);
     const stride = 24 + Math.ceil(length / 8) * 8;
     if (
-      ![1, 2, 3, 4, 5, 6, 7].includes(type) ||
+      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
       v.getUint32(cursor + 20, true)
@@ -907,12 +953,56 @@ export function response(bytes: Uint8Array): EngineResponse {
     cursor += stride;
   }
   if (cursor !== bytes.length) throw new Error('Engine blob table length mismatch');
+  const samples = (type: number): readonly RawInputSample[] =>
+    Object.freeze(
+      blobs
+        .filter((blob) => blob.type === type)
+        .map((blob) => {
+          if (blob.bytes.length !== 8 + p.inputBytes) throw new Error('Invalid raw input length');
+          const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+            b = 8;
+          const phase = Object.entries(p.phases).find(
+            ([, value]) => value === d.getUint32(b + 28, true),
+          )?.[0] as InputPacket['phase'] | undefined;
+          const source = Object.entries(p.sources).find(
+            ([, value]) => value === d.getUint32(b + 32, true),
+          )?.[0] as InputPacket['source'] | undefined;
+          if (!phase || !source) throw new Error('Invalid raw input enum');
+          const number = (offset: number) => finite(d.getFloat64(b + offset, true));
+          return Object.freeze({
+            node: blob.handle,
+            subscription: d.getBigUint64(0, true),
+            sequence: d.getBigUint64(b, true),
+            metrics: d.getBigUint64(b + 8, true),
+            target: readHandle(d, b + 16),
+            stream: d.getUint32(b + 24, true),
+            phase,
+            source,
+            pointer: !!(d.getUint32(b + 36, true) & 2),
+            hover: !!(d.getUint32(b + 36, true) & 4),
+            time: number(40),
+            sample: number(48),
+            x: number(56),
+            y: number(64),
+            dx: number(72),
+            dy: number(80),
+            velocity: number(88),
+            clock: d.getUint32(b + 96, true),
+            buttons: d.getUint32(b + 100, true),
+            modifiers: d.getUint32(b + 104, true),
+            device: d.getUint32(b + 108, true),
+            contact: d.getUint32(b + 112, true),
+            publication: d.getBigUint64(b + 120, true),
+          });
+        }),
+    );
   const enriched = nodes.map((node) => {
     let editing: EditingSnapshot | null = null,
       textGeometry: TextGeometry | null = null,
       semantics: SemanticSnapshot | null = null,
       list: ListSnapshot | null = null,
       control: ControlSnapshot | null = null;
+    let graphics:GraphicsSnapshot|null=null;
     for (const blob of blobs) {
       if (
         blob.handle.slot !== node.node.slot ||
@@ -922,6 +1012,20 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if(blob.type===10){
+        if(size<104||d.getUint32(96,true)>3||d.getUint32(100,true)>p.limits.pathCommands||size!==104+d.getUint32(100,true)*56)
+          throw new Error('Invalid graphics record');
+        const path:PathSegment[]=[];const verbs=['','move','line','quad','cubic','close'] as const;
+        for(let i=0;i<d.getUint32(100,true);++i){const at=104+i*56,verb=d.getUint32(at,true);
+          if(verb<1||verb>5||d.getUint32(at+4,true))throw new Error('Invalid graphics verb');
+          const count=verb<=2?2:verb===3?4:verb===4?6:0;
+          path.push(Object.freeze([verbs[verb],...Array.from({length:count},(_,j)=>finite(d.getFloat64(at+8+j*8,true)))]) as PathSegment);
+        }
+        graphics=Object.freeze({transform:Object.freeze(Array.from({length:6},(_,i)=>finite(d.getFloat64(i*8,true)))) as unknown as AffineMatrix,
+          path:Object.freeze(path),hasPath:!!(d.getUint32(96,true)&2),fillRule:d.getUint32(96,true)&1?'evenOdd':'winding',
+          shadow:Object.freeze({x:d.getFloat64(48,true),y:d.getFloat64(56,true),sigma:d.getFloat64(64,true),color:d.getUint32(72,true)}),
+          stroke:Object.freeze({width:d.getFloat64(80,true),color:d.getUint32(76,true)}),blur:d.getFloat64(88,true)});
+      }
       const rect = (o: number): TextRect => {
         const r = {
           x: finite(d.getFloat64(o, true)),
@@ -1047,11 +1151,15 @@ export function response(bytes: Uint8Array): EngineResponse {
         });
       }
     }
-    return Object.freeze({ ...node, editing, textGeometry, semantics, list, control });
+    return Object.freeze({ ...node, editing, textGeometry, semantics, list, control, graphics });
   });
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
   return Object.freeze({
+    memory:Object.freeze({total:u64(p.stateFields.memoryTotal),peak:u64(p.stateFields.memoryPeak),cpu:u64(p.stateFields.memoryCpu),gpu:u64(p.stateFields.memoryGpu),
+      staging:u64(p.stateFields.memoryStaging),engineHeap:u64(p.stateFields.engineHeap),providerHeap:u64(p.stateFields.providerHeap),rejected:u64(p.stateFields.memoryRejected),limit:u64(p.stateFields.memoryLimit)}),
+    rawInputs: samples(8),
+    gestureRequests: samples(9),
     focus: u64(p.stateFields.focusSession)
       ? Object.freeze({
           node: readHandle(v, b + p.stateFields.focusNode),

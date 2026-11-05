@@ -141,6 +141,7 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
     }
   }
   focusNode = node;
+  revealPending=bool(node);
   caretDeadline = 0; caretNode = {};
   focusSession = node ? next(nextFocus) : 0;
   if (node)
@@ -185,6 +186,7 @@ void View::applyEdit(Reader bytes) {
   const auto serial = next(editClock);
   const auto value = found->second->apply(command, serial);
   if (value->serial == serial) {
+    if(node==focusNode)revealPending=true;
     editClock = serial;
     ++editingWork;
     requestContent();
@@ -233,10 +235,7 @@ Handle View::interactionTarget(double x, double y) const {
     if(!published->allows(n.id))continue;
     if (!document->contains(n.id))
       continue;
-    const auto &c = it->clip;
-    if (x < c.x || y < c.y || x >= c.x + c.width || y >= c.y + c.height || x < it->x || y < it->y ||
-        x >= it->x + n.properties.width || y >= it->y + n.properties.height)
-      continue;
+    if(!published->hit(*it,x,y))continue;
     if (n.kind == wire::kinds::editable || (n.semantics && n.semantics->actions))
       return n.id;
   }

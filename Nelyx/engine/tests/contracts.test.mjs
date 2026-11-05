@@ -26,6 +26,7 @@ import { coverageContracts } from './coverage-contracts.mjs';
 import { interactionContracts } from './interaction-contracts.mjs';
 import { listContracts } from './list-contracts.mjs';
 import { gestureContracts } from './gesture-contracts.mjs';
+import {graphicsContracts} from './graphics-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
@@ -206,6 +207,7 @@ function accounting(state) {
 layoutContracts({ using, timeout, h });
 listContracts({ using, timeout, h });
 gestureContracts({ using, timeout, h });
+graphicsContracts({ using, timeout, h });
 coverageContracts({ using, timeout, h });
 interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {
@@ -1060,6 +1062,13 @@ for (const profile of ['native', 'single-worker', 'threaded']) {
   );
 }
 test(
+  'Windows clipboard open/allocation/lock/read failures preserve edit intent and release ownership',
+  { timeout, skip: process.platform !== 'win32' },
+  () => {
+    run(path.join(directory, 'native/nelyx_engine_clipboard_test.exe'), []);
+  },
+);
+test(
   'public C ABI accepts a C consumer and releases outputs after session destruction',
   { timeout },
   () => {
@@ -1099,6 +1108,11 @@ test('Wasm returns copied packets across memory growth for each profile', { time
         ),
       );
       const saved = bytes.slice();
+      assert.equal(
+        module._nelyx_engine_capabilities(),
+        response(bytes).capabilities,
+        'C ABI and protocol advertise the same headless capabilities',
+      );
       const heap = module.HEAPU8.buffer;
       const allocation = module._malloc(40 * 1024 * 1024);
       assert.ok(allocation);
