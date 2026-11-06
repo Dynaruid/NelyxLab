@@ -231,7 +231,23 @@ export function auditPackageBoundaries(root) {
           const sharedValue =
             other === owner &&
             isV2Source(owner, file) &&
-            ['@nelyx/core/foundation/key', '@nelyx/core/foundation/notifier'].includes(specifier);
+            (['@nelyx/core/foundation/key', '@nelyx/core/foundation/notifier'].includes(
+              specifier,
+            ) ||
+              (relativeFile === 'Nelyx/runtime/engine-client/original.ts' &&
+                [
+                  '@nelyx/core/framework/widgets/framework',
+                  '@nelyx/core/framework/widgets/basic',
+                  '@nelyx/core/framework/rendering/object',
+                  '@nelyx/core/framework/rendering/boxes',
+                  '@nelyx/core/framework/rendering/constraints',
+                  '@nelyx/core/framework/rendering/paragraph',
+                  '@nelyx/core/framework/painting/text-span',
+                  '@nelyx/core/services/mouse-cursor',
+                  '@nelyx/core/hosting/resources',
+                  '@nelyx/core/hosting/runtime',
+                  '@nelyx/core/ui/types',
+                ].includes(specifier)));
           if (
             ['@nelyx/core', '@nelyx/tooling-contracts'].includes(owner.manifest.name) &&
             !sharedValue

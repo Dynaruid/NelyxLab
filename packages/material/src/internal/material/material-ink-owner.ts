@@ -9,6 +9,22 @@ import type { Canvas } from '@nelyx/core/ui/canvas';
 import type { Color } from '@nelyx/core/ui/color';
 import type { TickerProvider } from '@nelyx/core/framework/animation/ticker';
 import { invariant } from '@nelyx/core/foundation/errors';
+import { registerNativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
+import type { NativePaintEntry } from '@nelyx/core/framework/rendering/object';
+const nativeFeatures = new WeakMap<object, (feature: InkFeature) => NativePaintEntry>();
+const nativeCenters = new WeakSet<object>();
+export function markNativeInkCenter(position: object): void {
+  nativeCenters.add(position);
+}
+export function isNativeInkCenter(position: object): boolean {
+  return nativeCenters.has(position);
+}
+export function registerNativeInkFeature<T extends InkFeature>(
+  prototype: T,
+  reader: (feature: T) => NativePaintEntry,
+): void {
+  nativeFeatures.set(prototype, reader as (feature: InkFeature) => NativePaintEntry);
+}
 /** Material.defaultSplashRadius from the pinned material.dart. @dartType double */
 export const materialDefaultSplashRadius = 35;
 export abstract class MaterialInkController {
@@ -130,6 +146,15 @@ export interface InkFeatureOptions {
   readonly referenceBox: RenderBox;
   readonly onRemoved?: (() => void) | null;
 }
+registerNativeRenderMetadata(MaterialInkRender.prototype, (source) => ({
+  kind: 'ink',
+  absorbHitTest: source.absorbHitTest,
+  entries: source.debugInkFeatures.map((feature) => {
+    const reader = nativeFeatures.get(Object.getPrototypeOf(feature));
+    if (!reader) throw Error('native custom ink feature');
+    return reader(feature);
+  }),
+}));
 export abstract class InkFeature {
   readonly referenceBox: RenderBox;
   readonly onRemoved: (() => void) | null;

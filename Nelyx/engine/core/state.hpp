@@ -43,11 +43,18 @@ struct LayoutQuery {
   std::vector<uint8_t> bytes;
   explicit LayoutQuery(const std::shared_ptr<Ledger>& ledger):lease(ledger,sizeof(LayoutQuery)+64){}
 };
+struct GestureDetails {
+  uint32_t kind=0,stream=0;
+  double timestamp=0,localX=0,localY=0,deltaX=0,deltaY=0,velocityX=0,velocityY=0;
+  double originX=0,originY=0,localOriginX=0,localOriginY=0;
+  uint32_t buttons=0,flags=0;
+};
 struct Event {
   uint32_t kind, status;
   uint64_t id = 0, epoch = 0, detail = 0;
   Handle node{};
   double x=0,y=0;
+  GestureDetails gesture{};
 };
 struct Result {
   Lease lease;
@@ -64,18 +71,28 @@ struct Input {
   Handle target;
   uint32_t stream, phase, source, flags;
   double time, sample, x, y, dx, dy, velocity;
-  uint32_t clock, buttons, modifiers, device, contact;
+  uint32_t clock, buttons, modifiers, device, contact, kind;
   uint64_t publication = 0;
   std::shared_ptr<const Frame> snapshot;
   bool appApproved = false;
 };
 struct Stream {
+  std::array<std::shared_ptr<const Frame>,wire::limits::publicationSnapshots> capturedPublications{};
+  uint64_t captureCursor=0;
   bool active = false, denied = false;
   Handle target;
-  uint32_t source = 0;
+  uint32_t source = 0, kind = 0, buttons = 0;
   Handle scroll;
   double x=0,y=0,startX=0,startY=0,at=0,pinchDistance=0;
   bool pointer=false,pan=false,pinched=false,longSent=false,secondThumb=false;
+  bool tapDownSent=false,tapCanceled=false,tapRejected=false,longCanceled=false,dragCanceled=false;
+  uint32_t dragAxis=0;
+  Affine pointerInverse;
+  bool pointerInverseValid=false;
+  double sampleAt=0,deltaX=0,deltaY=0,velocityX=0,velocityY=0,distanceX=0,distanceY=0,distancePan=0;
+  struct MotionSample { double at=0,x=0,y=0; };
+  std::array<MotionSample,20> motionSamples{};
+  uint32_t motionCount=0;
   bool appAccepted=false;
   uint64_t decision=0;
   double decisionDeadline=0;
@@ -106,7 +123,7 @@ struct Property {
   double value=0,second=1;
   bool pressed=false,hovered=false,visible=false;
 };
-struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;};
+struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;bool oval=false;};
 struct DrawItem {
   Handle node;
   double x = 0, y = 0, opacity = 1;
@@ -114,6 +131,7 @@ struct DrawItem {
   Affine world;
   Rect bounds;
   uint32_t clipHead=0,depth=0;
+  uint32_t flags=0;
 };
 struct Frame {
   std::shared_ptr<Lease> snapshotLease;
@@ -126,6 +144,7 @@ struct Frame {
   std::vector<Property> properties;
   std::vector<DrawItem> items;
   std::vector<ClipShape> clips;
+  bool sameInputGeometry(const Frame& other, Handle node) const;
   std::optional<Point> local(Handle node,double x,double y)const {
     for(const auto& item:items)if(item.node==node){const auto inverse=item.world.inverse();
       if(inverse)return inverse->map({x,y});return {};}
@@ -140,10 +159,14 @@ struct Frame {
     const auto inverse=item.world.inverse();if(!inverse||!inside({x,y},item.clip))return false;
     const auto& node=scene->document->get(item.node);const auto p=inverse->map({x,y});
     if(!inside(p,{0,0,node.properties.width,node.properties.height}))return false;
+    if((node.policy&wire::eventPolicies::roundedHitTest)&&!inside(p,{0,0,node.properties.width,node.properties.height},node.radius))return false;
     if(node.kind==wire::kinds::path&&(!node.graphics.path||!node.graphics.path->contains(p)))return false;
     for(auto head=item.clipHead;head;head=clips[head-1].parent){const auto& shape=clips[head-1];
       const auto matrix=shape.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
-      if(!inside(point,shape.bounds)|| (shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius)))return false;}
+      if(!inside(point,shape.bounds))return false;
+      if(shape.oval){const double deltaX=(point.x-shape.bounds.x)/shape.bounds.width-0.5,deltaY=(point.y-shape.bounds.y)/shape.bounds.height-0.5;
+        if(deltaX*deltaX+deltaY*deltaY>0.25)return false;}
+      else if(shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius))return false;}
     return true;
   }
   bool released = false, published = false, canceled = false, gpuObserved = false;
@@ -196,11 +219,23 @@ struct View {
   Handle caretNode;
   uint64_t caretRevision = 0;
   Handle hoverNode,lastTap;
+  std::array<Handle,wire::limits::nodes> mouseRegions{};
+  uint32_t mouseRegionCount=0;
+  Input mouseSample{};
+  bool mouseKnown=false;
+  bool appFrameRequested=false;
+  uint64_t appFrameSerial=0;
   double lastTapTime=-1,lastTapX=0,lastTapY=0;
+  uint32_t lastTapButtons=0;
+  GestureDetails lastTapDetails;
+  double lastTapDownAt=0;
+  bool lastTapDownSent=false;
   double caretDeadline = 0;
   bool caretVisible = false;
   std::shared_ptr<const Scene> active;
   std::shared_ptr<const Frame> published;
+  std::array<std::shared_ptr<const Frame>, wire::limits::publicationSnapshots> publications{};
+  uint32_t publicationCursor=0;
   uint64_t nextPreparation = 0, nextScene = 0, propertyEpoch = 0;
   uint64_t nextSubmission = 0, pendingPublication = 0, publication = 0, surfaceCommit = 0;
   uint64_t lastTransaction = 0, acknowledged = 0, resultBytes = 0;
@@ -258,14 +293,21 @@ struct View {
   void key(Reader);
   void activateControl(Handle);
   void controlValue(Handle,double,bool second=false);
-  void gesture(Handle,uint32_t,uint64_t,double,double,double=0);
+  void gesture(Handle,uint32_t,uint64_t,double,double,double=0,uint32_t=0,const GestureDetails* =nullptr);
+  GestureDetails gestureDetails(Handle,uint32_t,double,double)const;
+  void canonicalPointer(const Input&,Stream&);
+  void canonicalCancel(Stream&,uint64_t);
+  void advanceCanonicalGestures();
+  void updateMouse(const Input& sample,bool hover=true);
+  void refreshMouse();
+  void finishCanonicalTap(bool);
   void observeRaw(const Input&,Handle);
   bool appDecision(Input&);
   void gestureReply(Reader);
   Handle pointerTarget(double,double,const Frame* snapshot=nullptr) const;
   Handle interactionTarget(double,double) const;
   void failPreparation(uint64_t id, uint32_t reason);
-  void enqueue(Input packet);
+  uint32_t enqueue(Input packet);
   void processInput(Input packet);
   void tick(double now);
   void advanceCaret();

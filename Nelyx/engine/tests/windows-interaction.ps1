@@ -1,5 +1,10 @@
 param([Parameter(Mandatory = $true)][int]$ProcessId)
 $ErrorActionPreference = 'Stop'
+$probeStage = 'initialization'
+trap {
+  [Console]::Error.WriteLine("V2_UIA_FAILURE stage=$probeStage $($_.Exception.ToString())`n$($_.ScriptStackTrace)")
+  exit 1
+}
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -TypeDefinition @'
 using System;
@@ -28,6 +33,7 @@ $rectangles = $text.DocumentRange.GetBoundingRectangles()
 if ($rectangles.Length -eq 0) { throw 'Published paragraph geometry is missing' }
 $editor.SetFocus()
 $replacement = 'A' + [char]::ConvertFromUtf32(0x1f600) + [char]0xd55c
+$probeStage = 'initial-text-value'
 $value.SetValue($replacement)
 for ($attempt = 0; $attempt -lt 30; $attempt++) {
   if ($value.Current.Value -eq $replacement) { break }
@@ -57,6 +63,7 @@ if ($offset -ne 1 -or $selected.GetText(-1) -ne '') { throw 'Native pointer did 
 $family = ((0x1f468,0x1f469,0x1f467,0x1f466 | ForEach-Object { [char]::ConvertFromUtf32($_) }) -join ([string][char]0x200d))
 $combined = 'Ae' + [char]0x301 + $family + 'Z'
 $editor.SetFocus()
+$probeStage = 'combined-text-value'
 $value.SetValue($combined)
 for ($attempt = 0; $attempt -lt 30; $attempt++) {
   $probeRange = $text.DocumentRange.Clone()
@@ -74,6 +81,7 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
   Start-Sleep -Milliseconds 20
 }
 if ($value.Current.Value -ne ('Ae' + [char]0x301 + 'Z')) { throw 'Native Backspace did not remove one emoji family grapheme' }
+$probeStage = 'restored-text-value'
 $value.SetValue($replacement)
 foreach ($controlName in @('Material selection','Cupertino selection')) {
   $controlCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $controlName)
@@ -91,6 +99,7 @@ foreach ($controlName in @('Material selection','Cupertino selection')) {
 $sliderCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Slider')
 $sliderElement = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $sliderCondition)
 $rangeValue = $sliderElement.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
+$probeStage = 'slider-range-value'
 $rangeValue.SetValue(0.75)
 for ($attempt = 0; $attempt -lt 30; $attempt++) { if ($rangeValue.Current.Value -eq 0.75) { break }; Start-Sleep -Milliseconds 20 }
 if ($rangeValue.Current.Value -ne 0.75) { throw 'UIA range action did not change the native slider' }

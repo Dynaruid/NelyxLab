@@ -7,6 +7,8 @@
 #include "../../core/engine.hpp"
 #include "skia_provider.hpp"
 #include "interaction.hpp"
+#include "memory_pressure.hpp"
+#include "../../../skia/native/host/windows/WindowsPrecisionTrackpad.h"
 #include <condition_variable>
 #include <deque>
 #include <fstream>
@@ -16,11 +18,21 @@
 #include <filesystem>
 #include <cmath>
 #include <syncstream>
+#include <iomanip>
+#ifdef NELYX_WINDOWS_APP_SDK
+#include "app_sdk.hpp"
+#endif
 
 namespace jsi=facebook::jsi;
 using namespace nelyx::v2;
 namespace nw=nelyx::v2::windows;
-static double now(){return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+static std::atomic<HWND> consoleWindow{nullptr};
+static BOOL WINAPI closeFromConsole(DWORD event){
+  if(event!=CTRL_C_EVENT&&event!=CTRL_BREAK_EVENT)return FALSE;
+  if(const auto window=consoleWindow.load())PostMessageW(window,WM_CLOSE,0,0);
+  return TRUE;
+}
+static double now(){return nw::qpcSeconds();}
 static std::vector<uint8_t> readFile(const std::string& path){std::ifstream stream(path,std::ios::binary);if(!stream)throw std::runtime_error("File unavailable: "+path);return {std::istreambuf_iterator<char>(stream),{}};}
 static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& data={},bool session=false){
   Writer w(wire::headerBytes+data.size());w.u32(0,wire::magic);w.u16(4,2);w.u32(8,wire::schema);w.u16(12,uint16_t(op));w.u32(16,uint32_t(w.bytes.size()));w.u32(20,1);w.u32(24,1);w.u32(28,session?0:1);w.u32(32,session?0:1);
@@ -47,6 +59,13 @@ struct AppRuntimeRegistration {
   ~AppRuntimeRegistration(){std::lock_guard held(gate);current=nullptr;}
 };
 class Host {
+  struct FrameTiming {nw::DisplayClockSample clock;double started=0,coreMs=0,recordMs=0,submitMs=0,publicationMs=0,completed=0;uint64_t submission=0,document=0,publication=0,input=0;};
+  struct ContentTiming {uint64_t preparation=0,document=0,steps=0,work=0;double started=0,coreMs=0,measureMs=0,recordMs=0,completed=0;bool failed=false;};
+  std::mutex timingMutex;FrameTiming frameTiming;ContentTiming contentTiming;
+  std::string timingJson(){std::lock_guard lock(timingMutex);const auto& t=frameTiming;std::ostringstream out;out<<std::setprecision(17);
+    out<<"\"frameClock\":{\"source\":\""<<(t.clock.observed?"dwm-composition-qpc":(t.clock.sampledAt?"timer-fallback":"unobserved"))<<"\",\"status\":"<<int32_t(t.clock.status)<<",\"periodMs\":"<<t.clock.period*1000<<",\"targetSeconds\":"<<t.clock.target<<",\"monitor\":\""<<t.clock.monitor<<"\",\"monitorSpecific\":false},";
+    out<<"\"timing\":{\"domain\":\"qpc-seconds\",\"qpcFrequency\":"<<nw::qpcFrequency()<<",\"startedAtSeconds\":"<<t.started<<",\"coreElapsedMs\":"<<t.coreMs<<",\"recordAndBackingElapsedMs\":"<<t.recordMs<<",\"submitElapsedMs\":"<<t.submitMs<<",\"publicationElapsedMs\":"<<t.publicationMs<<",\"completedAtSeconds\":"<<t.completed<<",\"submission\":"<<t.submission<<",\"document\":"<<t.document<<",\"publication\":"<<t.publication<<",\"consumedThrough\":"<<t.input<<",\"scanout\":\"unobserved\"},";
+    const auto& c=contentTiming;out<<"\"contentTiming\":{\"domain\":\"qpc-seconds\",\"preparation\":"<<c.preparation<<",\"document\":"<<c.document<<",\"steps\":"<<c.steps<<",\"nativeWorkThrough\":"<<c.work<<",\"startedAtSeconds\":"<<c.started<<",\"coreStepElapsedMs\":"<<c.coreMs<<",\"measurementElapsedMs\":"<<c.measureMs<<",\"recordElapsedMs\":"<<c.recordMs<<",\"completedAtSeconds\":"<<c.completed<<",\"failed\":"<<(c.failed?"true":"false")<<"}";return out.str();}
   Engine core{1,1};HWND window=nullptr;
   std::atomic<bool> stopping{false},contentReady{false},renderReady{false},connected{false},appReady{false};
   std::atomic<bool> failed{false},closed{false};
@@ -66,6 +85,9 @@ class Host {
   std::deque<std::function<void()>> uiCallbacks;
   std::mutex uiMutex;
   std::unique_ptr<nw::Interaction> interaction;
+  std::shared_ptr<RNSkia::WindowsPrecisionTrackpad> precision;
+  uint64_t precisionPackets=0,precisionRejected=0;
+  double precisionAt=0,precisionVelocity=0;
   bool interactionPointer=false;
   std::atomic<bool> interactionDirty{false};
   void postUI(std::function<void()> callback){{std::lock_guard lock(uiMutex);if(uiCallbacks.size()>=256)throw std::runtime_error("UI callback mailbox exceeded");uiCallbacks.push_back(std::move(callback));}PostMessageW(window,WM_APP+3,0,0);}
@@ -76,6 +98,16 @@ class Host {
   std::string appDirectory;
   std::atomic<uint64_t> rendered{0},paragraphs{0},pictures{0},images{0};
   std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
+  std::atomic<uint64_t> reusedPictures{0},reusedParagraphs{0},reusedImages{0},cachedContentBytes{0},paragraphLayouts{0};
+  nw::MemoryPressureMonitor memoryMonitor;
+  bool osPressure=false,forcedPressure=false;
+  std::atomic<bool> memoryPressure{false};
+  std::atomic<uint64_t> pressureEpoch{1},contentPressureEpoch{0},renderPressureEpoch{0};
+  void sampleMemoryPressure() {
+    if(stopping||closing)return;
+    osPressure=memoryMonitor.sample(now());const bool low=osPressure||forcedPressure;
+    if(memoryPressure.exchange(low)!=low){++pressureEpoch;contentWake=true;renderWakeRequested=true;changed.notify_all();}
+  }
   std::atomic<uint64_t> appHeapBytes{0};
   std::atomic<uint64_t> appAcknowledgedCommands{0},appRejectedFallbacks{0};
   std::atomic<bool> appExecutionObserved{false};
@@ -96,49 +128,60 @@ class Host {
     contentThread=GetCurrentThreadId();CoInitializeEx(nullptr,COINIT_MULTITHREADED);
     try{
       nw::ContentProvider provider(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger());contentReady=true;changed.notify_all();
-      uint64_t last=0;
+      uint64_t last=0,handledPressure=0;ContentTiming currentTiming;
       while(!stopping){
+        if(const auto epoch=pressureEpoch.load();epoch!=handledPressure){provider.setMemoryPressure(memoryPressure);handledPressure=epoch;contentPressureEpoch=epoch;}
         Job job{};bool has=false;
         {std::lock_guard lock(jobsMutex);if(!jobs.empty()){job=std::move(jobs.front());jobs.pop_front();jobBytes-=job.bytes.size();has=true;}}
         contentWake=false;
         if(has){auto result=core.dispatch({job.bytes.data(),job.bytes.size()});
           const auto op=Reader{job.bytes.data(),job.bytes.size()}.u16(12);
-          if(op==wire::opcodes::scroll||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply){renderWakeRequested=true;changed.notify_all();}
+          if(op==wire::opcodes::scroll||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::transaction){interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
           auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
         if(const auto delay=contentDelay.exchange(0)){busyOwners.fetch_or(2);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_START "<<delay<<std::endl;injectProbeInput();std::this_thread::sleep_for(std::chrono::milliseconds(delay));busyOwners.fetch_and(~2u);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_END"<<std::endl;}
-        if(connected){Writer quota(8);quota.u32(0,wire::limits::contentPerStep);auto result=call(wire::opcodes::contentStep,quota.bytes);auto r=reader(result);
+        if(connected){const auto stepStarted=now();Writer quota(8);quota.u32(0,wire::limits::contentPerStep);auto result=call(wire::opcodes::contentStep,quota.bytes);auto r=reader(result);
+          const auto preparation=r.u64(wire::headerBytes+wire::stateFields::preparation);
+          if(preparation&&preparation!=currentTiming.preparation){currentTiming={};currentTiming.preparation=preparation;currentTiming.document=r.u64(wire::headerBytes+wire::stateFields::preparationDocument);currentTiming.started=stepStarted;}
+          if(preparation){++currentTiming.steps;currentTiming.coreMs+=(now()-stepStarted)*1000;currentTiming.work=r.u64(wire::headerBytes+wire::stateFields::contentWork);}
           uint64_t attempted=r.u64(wire::headerBytes+wire::stateFields::measurePreparation);
           try {
           if(r.u16(14)==0 && r.u64(wire::headerBytes+wire::stateFields::measureRequest)) {
+            const auto measurementStarted=now();
             auto request=core.measurementSnapshot(1,1);
-            if(request){const auto value=provider.measure(*request);Writer reply(value.geometry?128+value.geometry->selection.size()*32:80);
-              reply.u64(0,request->preparation);reply.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));reply.u64(16,r.u64(wire::headerBytes+wire::stateFields::device));
-              reply.u64(24,request->id);writeHandle(reply,32,request->node->id);
-              reply.f64(40,value.width);reply.f64(48,value.height);reply.f64(56,value.minimum);reply.f64(64,value.maximum);reply.f64(72,value.baseline);
-              if(value.geometry){const auto& g=*value.geometry;reply.u64(80,g.revision);reply.u32(120,uint32_t(g.selection.size()));
+            if(request){const auto value=provider.measure(*request);Writer reply(value.geometry?wire::measurementGeometryBytes+value.geometry->selection.size()*32:wire::measurementBytes);
+              reply.u64(wire::measureFields::preparation,request->preparation);reply.u64(wire::measureFields::metrics,r.u64(wire::headerBytes+wire::stateFields::metrics));reply.u64(wire::measureFields::device,r.u64(wire::headerBytes+wire::stateFields::device));
+              reply.u64(wire::measureFields::request,request->id);writeHandle(reply,wire::measureFields::node,request->node->id);
+              reply.f64(wire::measureFields::width,value.width);reply.f64(wire::measureFields::height,value.height);reply.f64(wire::measureFields::minimum,value.minimum);reply.f64(wire::measureFields::maximum,value.maximum);reply.f64(wire::measureFields::baseline,value.baseline);
+              reply.u32(wire::measureFields::flags,value.didExceedMaxLines?wire::measurementFlags::didExceedMaxLines:0);
+              if(value.geometry){const auto& g=*value.geometry;reply.u64(wire::measureFields::geometryRevision,g.revision);reply.u32(wire::measureFields::selectionCount,uint32_t(g.selection.size()));
                 const auto rect=[&](size_t o,const TextRect& r){reply.f64(o,r.x);reply.f64(o+8,r.y);reply.f64(o+16,r.width);reply.f64(o+24,r.height);};
-                rect(88,g.caret);for(size_t i=0;i<g.selection.size();++i)rect(128+i*32,g.selection[i]);}
+                rect(wire::measureFields::caret,g.caret);for(size_t i=0;i<g.selection.size();++i)rect(wire::measureFields::selection+i*32,g.selection[i]);}
               auto accepted=call(wire::opcodes::measureResult,reply.bytes);const auto status=reader(accepted).u16(14);
-              if(status!=wire::statuses::ok && status!=wire::statuses::stale)throw std::runtime_error("Native provider measurement rejected");
+              if(status!=wire::statuses::ok && status!=wire::statuses::stale)throw std::runtime_error("Native provider measurement rejected status="+std::to_string(status));
             }
+            currentTiming.measureMs+=(now()-measurementStarted)*1000;
           }
           if(r.u16(14)==0&&(r.u32(wire::headerBytes+wire::stateFields::flags)&16u)){
             auto p=core.providerSnapshot(1,1);
-            if(p&&p->id!=last){attempted=p->id;last=p->id;auto prepared=provider.prepare(*p);{std::lock_guard lock(sceneMutex);candidate=std::move(prepared);}renderWakeRequested=true;changed.notify_all();}
+            if(p&&p->id!=last){const auto recordStarted=now();attempted=p->id;last=p->id;auto prepared=provider.prepare(*p);currentTiming.recordMs=(now()-recordStarted)*1000;currentTiming.completed=now();{std::lock_guard lock(sceneMutex);candidate=std::move(prepared);}renderWakeRequested=true;changed.notify_all();}
           }
           } catch(const std::exception& error) {
+            currentTiming.failed=true;
             provider.discardMeasurements();Writer reply(24);reply.u64(0,attempted);
             reply.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));reply.u64(16,r.u64(wire::headerBytes+wire::stateFields::device));
             call(wire::opcodes::preparationResult,reply.bytes);std::osyncstream(std::cout)<<"V2_PREPARATION_ERROR "<<error.what()<<std::endl;
           }
+          if(currentTiming.preparation){std::lock_guard lock(timingMutex);contentTiming=currentTiming;}
           if(r.u16(14)==0 && !(r.u32(wire::headerBytes+wire::stateFields::flags)&16u) && r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
           if(r.u64(wire::headerBytes+wire::stateFields::queryId)&&r.u32(wire::headerBytes+wire::stateFields::queryStatus)==wire::statuses::pending)contentWake=true;
         }
         paragraphs=provider.paragraphs.load();pictures=provider.pictures.load();images=provider.images.load();
         graphicsRecords=provider.graphicsRecords.load();nativeExtensions=provider.nativeExtensions.load();
-        std::unique_lock lock(wakeMutex);changed.wait(lock,[this]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||contentDelay||!jobs.empty();});
+        reusedPictures=provider.reusedPictures.load();reusedParagraphs=provider.reusedParagraphs.load();reusedImages=provider.reusedImages.load();
+        cachedContentBytes=provider.cachedBytes.load();paragraphLayouts=provider.paragraphLayouts.load();
+        std::unique_lock lock(wakeMutex);changed.wait(lock,[this,&handledPressure]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||contentDelay||!jobs.empty()||pressureEpoch!=handledPressure;});
       }
       {std::lock_guard lock(sceneMutex);candidate.reset();}
     }catch(const std::exception& error){notifyError(error.what());}
@@ -156,9 +199,11 @@ class Host {
       double lastWidth=-1,lastHeight=-1,lastScale=-1;
       bool clock=false;
       double deadline=0;
-      uint64_t lastReportedInput=0,lastReportedDocument=0;
+      uint64_t lastReportedInput=0,lastReportedDocument=0,handledPressure=0;
       while(!stopping){
         renderWakeRequested=false;
+        if(const auto epoch=pressureEpoch.load();epoch!=handledPressure){provider.setMemoryPressure(memoryPressure);handledPressure=epoch;renderPressureEpoch=epoch;}
+        const auto frameStarted=now();const auto display=nw::displayClock(window);
         if(metricsPending.exchange(false)){
           auto state=call(wire::opcodes::inspect);auto r=reader(state);
           if(r.u16(14)==0){
@@ -173,9 +218,9 @@ class Host {
         }
         {std::lock_guard lock(sceneMutex);if(candidate){next=std::move(candidate);candidate.reset();}}
         if(next){Writer p(24);p.u64(0,next->id);p.u64(8,next->metrics);p.u64(16,next->device);auto ack=call(wire::opcodes::providerReady,p.bytes);if(reader(ack).u16(14)!=0)next.reset();}
-        Writer tick(8);tick.f64(0,now());auto state=call(wire::opcodes::tick,tick.bytes);auto sr=reader(state);
+        const auto coreStarted=now();Writer tick(8);tick.f64(0,now());auto state=call(wire::opcodes::tick,tick.bytes);auto sr=reader(state);
         if(sr.u16(14)==0){
-          auto result=call(wire::opcodes::takeFrame);auto r=reader(result);
+          auto result=call(wire::opcodes::takeFrame);auto r=reader(result);const auto coreElapsedMs=(now()-coreStarted)*1000;
           if(r.u16(14)==0){
             const auto id=r.u64(wire::headerBytes+wire::stateFields::submission);auto frame=core.frameSnapshot(1,1,id);
             bool firstScroll=true;for(const auto& item:frame->items)if(frame->scene->document->get(item.node).kind==wire::kinds::scrollViewport){if(firstScroll){scrollOffset=frame->properties[item.node.slot].offset;firstScroll=false;}else lazyOffset=frame->properties[item.node.slot].offset;}
@@ -186,8 +231,9 @@ class Host {
             try{drawn=provider.draw(*frame,*active);}catch(...){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);throw;}
             rendered=provider.draws;
             Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(16,drawn?1:0);release.u32(20,drawn?0:1);call(wire::opcodes::releaseFrame,release.bytes);
-            if(!drawn){metricsPending=true;std::unique_lock lock(wakeMutex);changed.wait_for(lock,std::chrono::milliseconds(16),[this]{return stopping.load();});continue;}
-            Writer publication(24);publication.u64(0,id);publication.u64(8,frame->device);call(wire::opcodes::publish,publication.bytes);
+            if(!drawn){metricsPending=true;std::unique_lock lock(wakeMutex);changed.wait_for(lock,std::chrono::duration<double>(display.period),[this]{return stopping.load();});continue;}
+            const auto publicationStarted=now();Writer publication(24);publication.u64(0,id);publication.u64(8,frame->device);const auto published=call(wire::opcodes::publish,publication.bytes);const auto publicationElapsedMs=(now()-publicationStarted)*1000;
+            {const auto state=reader(published);std::lock_guard lock(timingMutex);frameTiming={display,frameStarted,coreElapsedMs,provider.recordAndBackingElapsedMs,provider.submitElapsedMs,publicationElapsedMs,now(),id,frame->scene->document->epoch,state.u64(wire::headerBytes+wire::stateFields::publication),r.u64(wire::headerBytes+wire::stateFields::consumedThrough)};}
             {std::lock_guard lock(sceneMutex);publishedPrepared=active;}
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
             publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
@@ -201,8 +247,8 @@ class Host {
           if(sr.u64(wire::headerBytes+wire::stateFields::pendingDocument)){contentWake=true;changed.notify_all();}
         }
         std::unique_lock lock(wakeMutex);
-        const auto wake=[this]{return stopping||renderWakeRequested||metricsPending;};
-        if(clock)changed.wait_for(lock,std::chrono::milliseconds(16),wake);
+        const auto wake=[this,&handledPressure]{return stopping||renderWakeRequested||metricsPending||pressureEpoch!=handledPressure;};
+        if(clock){const auto display=nw::displayClock(window);const auto target=deadline>0?std::min(display.target,deadline):display.target;changed.wait_for(lock,std::chrono::duration<double>(std::max(0.0,target-now())),wake);}
         else if(deadline>0)changed.wait_for(lock,std::chrono::duration<double>(std::max(0.001,deadline-now())),wake);
         else changed.wait(lock,wake);
       }
@@ -220,7 +266,9 @@ class Host {
       auto& rt=*runtime;
       appMemory.update(rt);
       auto native=jsi::Object(rt);
+      native.setProperty(rt,"operatingSystem","windows");
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
+      native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
@@ -266,7 +314,15 @@ class Host {
   }
  public:
   Host(std::string directory,bool probe,std::string appDirectory={}):probe(probe),directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
-  void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();});contentOwner=std::thread([this]{contentLoop();});renderOwner=std::thread([this]{renderLoop();});appOwner=std::thread([this]{appLoop();});}
+  void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();});
+    precision=RNSkia::WindowsPrecisionTrackpad::create(window,[this](POINT p)->std::optional<RNSkia::WindowsPrecisionPoint>{
+      if(!appReady||stopping||closing||!IsWindowVisible(window)||IsIconic(window))return {};
+      ScreenToClient(window,&p);const auto dpi=GetDpiForWindow(window)/96.0;RECT bounds{};GetClientRect(window,&bounds);
+      if(p.x<0||p.y<0||p.x>=bounds.right||p.y>=bounds.bottom)return {};
+      auto bytes=call(wire::opcodes::inspect);const auto state=reader(bytes);if(state.u16(14))return {};
+      return RNSkia::WindowsPrecisionPoint{p.x/dpi,p.y/dpi,dpi,state.u64(wire::headerBytes+wire::stateFields::metrics)};
+    },[this](const auto& event){precisionInput(event);});
+    contentOwner=std::thread([this]{contentLoop();});renderOwner=std::thread([this]{renderLoop();});appOwner=std::thread([this]{appLoop();});}
   bool filter(const MSG& message){return interaction&&interaction->filter(message);}
   bool keydown(WPARAM key){return interaction&&interaction->keydown(key);}
   bool character(wchar_t unit){return interaction&&interaction->character(unit);}
@@ -302,7 +358,7 @@ class Host {
     if(phase==wire::phases::end||phase==wire::phases::cancel)dragging=false;
     pointerX=x;pointerY=y;pointerAt=at;
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,x);input.f64(64,y);input.f64(72,dx);input.f64(80,dy);input.f64(88,pointerVelocity);input.u32(96,1);input.u32(100,dragging?1:0);input.u32(112,1);
-    input.u32(36,hover?6u:2u);
+    input.u32(36,hover?6u:2u);input.u32(wire::inputFields::kind,wire::pointerKinds::mouse);
     input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));
     call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
   }
@@ -311,8 +367,23 @@ class Host {
     if(!appReady||stopping)return;auto result=call(wire::opcodes::inspect);auto r=reader(result);if(r.u16(14))return;
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
   }
+  bool precisionOwnsWheel()const{return precision&&precision->ownsWheel();}
+  void precisionInput(const RNSkia::WindowsPrecisionEvent& event){
+    if(!appReady||stopping)return;
+    const auto phase=event.kind=="panZoomStart"?wire::phases::begin:event.kind=="panZoomUpdate"?wire::phases::update:event.kind=="inertiaCancel"?wire::phases::cancel:wire::phases::end;
+    auto bytes=call(wire::opcodes::inspect);const auto state=reader(bytes);if(state.u16(14))return;
+    const auto at=now(),elapsed=at-precisionAt;
+    if(phase==wire::phases::begin)precisionVelocity=0;
+    if(phase==wire::phases::update)precisionVelocity=elapsed>0&&elapsed<0.08?-event.deltaY/elapsed:0;
+    if(phase==wire::phases::cancel||elapsed>0.08)precisionVelocity=0;
+    precisionAt=at;
+    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,event.origin.generation);input.u32(24,2);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,event.origin.x);input.f64(64,event.origin.y);input.f64(72,-event.deltaX);input.f64(80,-event.deltaY);input.f64(88,precisionVelocity);input.u32(96,1);input.u32(108,3);input.u32(112,2);input.u64(wire::inputFields::publication,state.u64(wire::headerBytes+wire::stateFields::publication));
+    auto admitted=call(wire::opcodes::input,input.bytes);if(reader(admitted).u16(14))++precisionRejected;else ++precisionPackets;
+    renderWakeRequested=true;changed.notify_all();
+  }
   void poll(){
     ui();
+    sampleMemoryPressure();
     DWORD available=0;const auto pipe=GetStdHandle(STD_INPUT_HANDLE);
     if(PeekNamedPipe(pipe,nullptr,0,nullptr,&available,nullptr)&&available){char data[1024];DWORD read=0;ReadFile(pipe,data,std::min<DWORD>(available,sizeof(data)),&read,nullptr);control.append(data,read);if(control.size()>4096)control.clear();}
     for(size_t end;(end=control.find('\n'))!=std::string::npos;){auto line=control.substr(0,end);control.erase(0,end+1);std::istringstream in(line);std::string command;in>>command;int value=0;in>>value;
@@ -327,16 +398,19 @@ class Host {
       else if(command=="wheel")wheel(value,260,300);
       else if(command=="lazy-wheel")wheel(value,650,420);
       else if(command=="seek")appSeek=std::clamp(value,0,1999);
+      else if(command=="memory-pressure"&&probe){forcedPressure=value!=0;sampleMemoryPressure();}
       else if(command=="stats")stats();
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
-    std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"surfaceCommit\":null}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_INPUT_SOURCE {\"source\":\"precision-trackpad-directmanipulation\",\"available\":"<<(precision?"true":"false")<<",\"admitted\":"<<precisionPackets<<",\"rejected\":"<<precisionRejected<<",\"physicalAcceptance\":\"notVerified\"}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"reusedPictures\":"<<reusedPictures<<",\"reusedParagraphs\":"<<reusedParagraphs<<",\"reusedImages\":"<<reusedImages<<",\"cachedContentBytes\":"<<cachedContentBytes<<",\"paragraphLayouts\":"<<paragraphLayouts<<",\"memoryPressure\":{\"source\":\"windows-resource-notification\",\"osLow\":"<<(osPressure?"true":"false")<<",\"probeLow\":"<<(forcedPressure?"true":"false")<<",\"effectiveLow\":"<<(memoryPressure?"true":"false")<<",\"epoch\":"<<pressureEpoch<<",\"contentEpoch\":"<<contentPressureEpoch<<",\"renderEpoch\":"<<renderPressureEpoch<<",\"gpuCacheLimitBytes\":"<<((memoryPressure?4ull:32ull)*1024*1024)<<"},\"surfaceCommit\":null,"<<timingJson()<<"}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
   void uiFailure(const std::string& error){notifyError(error);}
   void close(){
     if(closing.exchange(true))return;
+    if(precision){precision->cancel();precision.reset();}
     if(appReady&&!stopping){
       disposeRequested=true;appChanged.notify_all();const auto deadline=now()+3;
       while(!appDisposed&&!stopping&&now()<deadline){ui();std::this_thread::sleep_for(std::chrono::milliseconds(1));}
@@ -361,7 +435,9 @@ class Host {
 static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
   auto* host=reinterpret_cast<Host*>(GetWindowLongPtrW(window,GWLP_USERDATA));
   if(message==WM_NCCREATE){host=static_cast<Host*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(window,GWLP_USERDATA,LONG_PTR(host));}
-  try{if(host)switch(message){case WM_SIZE:case WM_SHOWWINDOW:host->metrics();return 0;case WM_SETFOCUS:host->focus(true);return 0;case WM_KILLFOCUS:host->focus(false);return 0;
+  try{if(host)switch(message){case WM_SIZE:case WM_SHOWWINDOW:host->metrics();return 0;
+    case WM_DPICHANGED:{const auto* bounds=reinterpret_cast<const RECT*>(l);SetWindowPos(window,nullptr,bounds->left,bounds->top,bounds->right-bounds->left,bounds->bottom-bounds->top,SWP_NOACTIVATE|SWP_NOZORDER);host->metrics();return 0;}
+    case WM_SETFOCUS:host->focus(true);return 0;case WM_KILLFOCUS:host->focus(false);return 0;
     case WM_APP+3:host->ui();return 0;
     case WM_GETOBJECT:if(l==UiaRootObjectId)return host->object(w,l);break;
     case WM_APP+2:host->probeWheel(int32_t(intptr_t(w)));return 0;
@@ -372,8 +448,8 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_MOUSELEAVE:host->pointer(wire::phases::update,-1,-1);return 0;
     case WM_LBUTTONUP:{const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::end,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);if(GetCapture()==window)ReleaseCapture();return 0;}
     case WM_CAPTURECHANGED:case WM_CANCELMODE:host->cancelPointer();return 0;
-    case WM_MOUSEWHEEL:{POINT p{GET_X_LPARAM(l),GET_Y_LPARAM(l)};ScreenToClient(window,&p);double scale=GetDpiForWindow(window)/96.0;host->wheel(-GET_WHEEL_DELTA_WPARAM(w)/120.0*48,p.x/scale,p.y/scale);return 0;}
-    case WM_ERASEBKGND:return 1;case WM_TIMER:host->timer(w);return 0;case WM_CLOSE:host->close();DestroyWindow(window);return 0;case WM_DESTROY:PostQuitMessage(0);return 0;}
+    case WM_MOUSEWHEEL:{if(host->precisionOwnsWheel())return 0;POINT p{GET_X_LPARAM(l),GET_Y_LPARAM(l)};ScreenToClient(window,&p);double scale=GetDpiForWindow(window)/96.0;host->wheel(-GET_WHEEL_DELTA_WPARAM(w)/120.0*48,p.x/scale,p.y/scale);return 0;}
+    case WM_ERASEBKGND:return 1;case WM_TIMER:host->timer(w);return 0;case WM_APP+4:case WM_CLOSE:host->close();DestroyWindow(window);return 0;case WM_DESTROY:PostQuitMessage(0);return 0;}
   return DefWindowProcW(window,message,w,l);
   }catch(const ::Nelyx::WindowsSemantics::TextError& e){if(host)host->uiFailure("UIA publication rejected HRESULT="+std::to_string(e.result));return 0;}
   catch(const std::exception& e){if(host)host->uiFailure(e.what());return 0;}
@@ -389,10 +465,31 @@ int main(int argc,char**argv){
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)))throw std::runtime_error("UI COM apartment failed");
     struct Apartment{~Apartment(){CoUninitialize();}}apartment;
+#ifdef NELYX_WINDOWS_APP_SDK
+    nw::AppSdkLoop appSdk;
+#endif
     Host host(argv[1],probe,std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineV2Host";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
     const auto dpi=GetDpiForSystem();RECT bounds{0,0,LONG(960*dpi/96),LONG(720*dpi/96)};AdjustWindowRectExForDpi(&bounds,WS_OVERLAPPEDWINDOW,FALSE,0,dpi);
     const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Native Skia",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
-    if(!window)throw std::runtime_error("Native HWND creation failed");host.bind(window);host.metrics();SetTimer(window,1,16,nullptr);ShowWindow(window,SW_SHOW);host.metrics();UpdateWindow(window);
-    MSG message;while(GetMessageW(&message,nullptr,0,0)>0){if(!host.filter(message)){TranslateMessage(&message);DispatchMessageW(&message);}}return host.hasFailed()?1:0;
+    if(!window)throw std::runtime_error("Native HWND creation failed");
+    struct WindowOwner{HWND window;Host& host;~WindowOwner(){host.close();if(IsWindow(window)){SetWindowLongPtrW(window,GWLP_USERDATA,0);DestroyWindow(window);}}}windowOwner{window,host};
+    if(!SetConsoleCtrlHandler(closeFromConsole,TRUE))throw std::runtime_error("Native console close handler failed");
+    consoleWindow=window;
+    struct ConsoleOwner{~ConsoleOwner(){consoleWindow=nullptr;SetConsoleCtrlHandler(closeFromConsole,FALSE);}}consoleOwner;
+    host.bind(window);host.metrics();SetTimer(window,1,16,nullptr);
+#ifdef NELYX_WINDOWS_APP_SDK
+    appSdk.attach(window,[&host]{host.metrics();});
+#else
+    std::osyncstream(std::cout)<<"V2_WINDOWS_HOST {\"host\":\"windows-hwnd\",\"dispatcherCallback\":false}"<<std::endl;
+    ShowWindow(window,SW_SHOW);
+#endif
+    host.metrics();UpdateWindow(window);
+    MSG message;int messageStatus;while((messageStatus=GetMessageW(&message,nullptr,0,0))>0){if(!host.filter(message)){TranslateMessage(&message);DispatchMessageW(&message);}}
+    host.close();
+#ifdef NELYX_WINDOWS_APP_SDK
+    appSdk.shutdown();
+#endif
+    if(messageStatus<0)throw std::runtime_error("Native UI message pump failed");return host.hasFailed()?1:0;
+  }catch(const winrt::hresult_error& error){std::osyncstream(std::cerr)<<"V2_HOST_ERROR Windows HRESULT="<<error.code().value<<" "<<winrt::to_string(error.message())<<std::endl;return 1;
   }catch(const std::exception& error){std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error.what()<<std::endl;return 1;}
 }

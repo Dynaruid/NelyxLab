@@ -7,7 +7,14 @@ import type {
   InkFactoryOptions,
   RectCallback,
 } from './ink-feature.ts';
-import { materialDefaultSplashRadius } from './internal/material/material-ink-owner.ts';
+import {
+  materialDefaultSplashRadius,
+  registerNativeInkFeature,
+  isNativeInkCenter,
+} from './internal/material/material-ink-owner.ts';
+import { isNativeRenderObject } from '@nelyx/core/framework/rendering/object';
+import { nativeShape } from '@nelyx/core/framework/rendering/object';
+import type { NativePaintEntry, NativeShape } from '@nelyx/core/framework/rendering/object';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
@@ -69,6 +76,21 @@ export class InkHighlight extends InteractiveInkFeature {
   }
   get active(): boolean {
     return this.emphasized;
+  }
+  /** @internal Native paint consumes animation values, never App geometry or paint. */
+  nativePaintConfiguration(): NativePaintEntry {
+    if (this.rectCallback) throw Error('native custom ink rectangle');
+    return {
+      kind: 'highlight',
+      reference: this.referenceBox,
+      color: this.color.withAlpha(this.alpha.value).toARGB32(),
+      shape: this.customBorder
+        ? nativeShape(this.customBorder, this.direction)
+        : nativeInkShape(this.border),
+      circular: this.shape === 'circle',
+      radius: this.radius,
+      customClip: this.customBorder !== null,
+    };
   }
   activate(): void {
     if (this.debugDisposed) return;
@@ -278,6 +300,8 @@ export class InkRipple extends InteractiveInkFeature {
   private readonly radiusAnimation: Animation<number>;
   private readonly fadeIn: Animation<number>;
   private readonly fadeOut: Animation<number>;
+  private readonly nativeRadius: number | null;
+  private readonly contained: boolean;
   constructor({
     position,
     textDirection,
@@ -292,13 +316,19 @@ export class InkRipple extends InteractiveInkFeature {
     this.position = position;
     this.direction = textDirection;
     this.border = borderRadius ?? BorderRadius.zero;
+    this.nativeRadius = radius;
+    this.contained = containedInkWell;
+    if (isNativeRenderObject(this.referenceBox) && rectCallback)
+      throw Error('native custom ink rectangle');
     this.clip = clipFor(this.referenceBox, containedInkWell, rectCallback);
     this.targetRadius =
       radius ??
-      (() => {
-        const size = rectCallback?.().size ?? this.referenceBox.size;
-        return new Offset(size.width, size.height).distance / 2;
-      })();
+      (isNativeRenderObject(this.referenceBox)
+        ? 1
+        : (() => {
+            const size = rectCallback?.().size ?? this.referenceBox.size;
+            return new Offset(size.width, size.height).distance / 2;
+          })());
     this.fadeInController = new AnimationController({ duration: 75, vsync: this.controller.vsync });
     this.fadeInController.addListener(() => this.controller.markNeedsPaint());
     this.fadeIn = this.fadeInController.drive(new IntTween({ begin: 0, end: this.color.alpha }));
@@ -335,6 +365,25 @@ export class InkRipple extends InteractiveInkFeature {
     this.radiusController.forward();
     this.fadeInController.forward();
     this.fadeOutController.animateTo(1, { duration: 375 });
+  }
+  /** @internal The native owner resolves the diagonal, center and reference transform. */
+  nativePaintConfiguration(): NativePaintEntry {
+    const alpha = this.fadeInController.isAnimating ? this.fadeIn.value : this.fadeOut.value;
+    return {
+      kind: 'ripple',
+      reference: this.referenceBox,
+      color: this.color.withAlpha(alpha).toARGB32(),
+      shape: this.customBorder
+        ? nativeShape(this.customBorder, this.direction)
+        : nativeInkShape(this.border),
+      contained: this.contained,
+      customClip: this.customBorder !== null,
+      center: isNativeInkCenter(this.position),
+      x: this.position.dx,
+      y: this.position.dy,
+      radius: this.nativeRadius,
+      progress: Curves.ease.transform(this.radiusController.value),
+    };
   }
   override cancel(): void {
     if (this.debugDisposed) return;
@@ -375,3 +424,21 @@ export class InkRipple extends InteractiveInkFeature {
     }
   }
 }
+function nativeInkShape(border: BorderRadius): NativeShape {
+  return {
+    kind: 'rrect',
+    strokeWidth: 0,
+    strokeColor: 0,
+    strokeAlign: -1,
+    radii: [border.topLeft, border.topRight, border.bottomRight, border.bottomLeft].flatMap((r) => [
+      r.x,
+      r.y,
+    ]),
+  };
+}
+registerNativeInkFeature(InkHighlight.prototype, (source) =>
+  InkHighlight.prototype.nativePaintConfiguration.call(source),
+);
+registerNativeInkFeature(InkRipple.prototype, (source) =>
+  InkRipple.prototype.nativePaintConfiguration.call(source),
+);

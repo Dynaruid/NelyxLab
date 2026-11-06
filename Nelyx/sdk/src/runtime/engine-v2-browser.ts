@@ -25,10 +25,79 @@ export interface EngineBrowserSurface {
   };
   createAppPort(): MessagePort;
   delayContent(milliseconds: number): void;
+  /** Requests a bounded cache policy change; diagnostics report actual owner acknowledgement. */
+  setMemoryPressure(low: boolean): void;
   input(
     value: Omit<InputPacket, 'sequence' | 'metrics' | 'target' | 'stream' | 'time'>,
   ): Promise<boolean>;
   close(): Promise<Record<string, unknown>>;
+}
+function createMainFrameClock() {
+  const channel = new MessageChannel();
+  let ticket: number | undefined,
+    animation: number | undefined,
+    closed = false;
+  const stats = {
+    source: 'window-raf',
+    requests: 0,
+    callbacks: 0,
+    cancellations: 0,
+    outstanding: 0,
+  };
+  const cancel = () => {
+    if (animation !== undefined) {
+      cancelAnimationFrame(animation);
+      ++stats.cancellations;
+    }
+    animation = undefined;
+    ticket = undefined;
+    stats.outstanding = 0;
+  };
+  channel.port1.addEventListener('message', (event: MessageEvent) => {
+    if (closed) return;
+    const value = event.data;
+    if (value.kind === 'cancel') {
+      if (value.id === ticket) cancel();
+      return;
+    }
+    if (value.kind !== 'request' || !Number.isSafeInteger(value.id) || value.id <= 0) return;
+    if (ticket !== undefined) {
+      if (ticket !== value.id)
+        channel.port1.postMessage({
+          kind: 'error',
+          id: value.id,
+          message: 'Frame demand credit exceeded',
+        });
+      return;
+    }
+    ticket = value.id;
+    ++stats.requests;
+    stats.outstanding = 1;
+    animation = requestAnimationFrame((time) => {
+      if (closed || ticket !== value.id) return;
+      animation = undefined;
+      ticket = undefined;
+      stats.outstanding = 0;
+      ++stats.callbacks;
+      channel.port1.postMessage({
+        kind: 'frame',
+        id: value.id,
+        time,
+        timeOrigin: performance.timeOrigin,
+      });
+    });
+  });
+  channel.port1.start();
+  return {
+    port: channel.port2,
+    stats,
+    close() {
+      closed = true;
+      cancel();
+      channel.port1.close();
+      channel.port2.close();
+    },
+  };
 }
 export async function createBrowserEngineV2Surface(
   canvas: HTMLCanvasElement,
@@ -74,6 +143,7 @@ export async function createBrowserEngineV2Surface(
   if (required & p.capabilities.contentIndependent && selected !== 'threaded')
     throw new Error('Requested contentIndependent capability is unavailable');
   const worker = new Worker(new URL('web/coordinator.js', options.root));
+  const frameClock = createMainFrameClock();
   let closed = false,
     sequence = 0n,
     pendingInputs = 0,
@@ -83,11 +153,38 @@ export async function createBrowserEngineV2Surface(
     requestedProfile: requested,
     selectedProfile: selected,
     selectionReason: reason,
+    frameClockMain: frameClock.stats,
   };
   const inputStats = { collected: 0, dispatched: 0, rejected: 0, canceledStreams: 0 };
   let contentDelayPending = false,
     canceling = false,
     restarting = false;
+  let requestedPressure = false,
+    pressureRevision = 0,
+    pressureApplied: boolean | undefined,
+    pressurePending: { revision: number; low: boolean } | undefined,
+    pressureFailed = false,
+    pressureTimer: ReturnType<typeof setTimeout> | undefined;
+  const pumpPressure = () => {
+    const low = requestedPressure || document.visibilityState !== 'visible';
+    if (closed || pressureFailed || pressurePending || pressureApplied === low) return;
+    pressurePending = { revision: ++pressureRevision, low };
+    worker.postMessage({
+      kind: 'memory-pressure',
+      revision: pressureRevision,
+      low,
+      source: document.visibilityState !== 'visible' ? 'hidden' : 'host',
+    });
+    pressureTimer = setTimeout(() => {
+      pressureFailed = true;
+      pressurePending = undefined;
+      diagnostics = {
+        ...diagnostics,
+        memoryPressureError: 'Memory pressure owner acknowledgement timed out',
+      };
+      options.onError?.('Memory pressure owner acknowledgement timed out');
+    }, 15000);
+  };
   const needsBegin = new Set<number>();
   let resolveReady: (value: Record<string, unknown>) => void = () => {},
     rejectReady: (error: Error) => void = () => {};
@@ -130,6 +227,16 @@ export async function createBrowserEngineV2Surface(
       };
       options.onStats?.(diagnostics);
       worker.postMessage({ kind: 'stats-ack' });
+    } else if (message.kind === 'memory-pressure') {
+      const pendingPressure = pressurePending;
+      if (!pendingPressure || pendingPressure.revision !== message.revision) return;
+      pressureApplied = pendingPressure.low;
+      pressurePending = undefined;
+      if (pressureTimer !== undefined) clearTimeout(pressureTimer);
+      pressureTimer = undefined;
+      diagnostics = { ...diagnostics, 'memory-pressure': message.value };
+      options.onStats?.(diagnostics);
+      pumpPressure();
     } else if (message.kind === 'ui-packet') {
       const bytes = message.bytes as ArrayBuffer;
       void interaction.gateway(new Uint8Array(bytes)).then(
@@ -167,19 +274,20 @@ export async function createBrowserEngineV2Surface(
     visible: document.visibilityState === 'visible',
     focused: document.hasFocus(),
   });
-  const offscreen = canvas.transferControlToOffscreen();
-  worker.postMessage(
-    {
-      kind: 'initialize',
-      root: options.root.href,
-      profile: selected,
-      canvas: offscreen,
-      viewport: viewport(),
-    },
-    [offscreen],
-  );
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    const offscreen = canvas.transferControlToOffscreen();
+    worker.postMessage(
+      {
+        kind: 'initialize',
+        root: options.root.href,
+        profile: selected,
+        canvas: offscreen,
+        viewport: viewport(),
+        frameClock: frameClock.port,
+      },
+      [offscreen, frameClock.port],
+    );
     await Promise.race([
       ready,
       new Promise<never>((_, reject) => {
@@ -198,6 +306,7 @@ export async function createBrowserEngineV2Surface(
     if (hello.status !== p.statuses.ok || (hello.capabilities & required) !== required)
       throw new Error('Engine surface capability handshake rejected');
   } catch (error) {
+    frameClock.close();
     transport.close();
     worker.terminate();
     worker.removeEventListener('message', receive);
@@ -323,7 +432,10 @@ export async function createBrowserEngineV2Surface(
   const resize = new ResizeObserver(update);
   resize.observe(canvas);
   const visibility = () => {
-    if (!closed) worker.postMessage({ kind: 'viewport', viewport: viewport() });
+    if (!closed) {
+      pumpPressure();
+      worker.postMessage({ kind: 'viewport', viewport: viewport() });
+    }
   };
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('focus', visibility);
@@ -370,6 +482,14 @@ export async function createBrowserEngineV2Surface(
     void input({
       stream,
       pointer: true,
+      kind:
+        event.pointerType === 'mouse'
+          ? 'mouse'
+          : event.pointerType === 'touch'
+            ? 'touch'
+            : event.pointerType === 'pen'
+              ? 'stylus'
+              : 'unknown',
       phase: 'begin',
       source: 'engineDriven',
       x: event.clientX - rect.left,
@@ -386,6 +506,14 @@ export async function createBrowserEngineV2Surface(
     if (!pointer) {
       void input({
         pointer: true,
+        kind:
+          event.pointerType === 'mouse'
+            ? 'mouse'
+            : event.pointerType === 'touch'
+              ? 'touch'
+              : event.pointerType === 'pen'
+                ? 'stylus'
+                : 'unknown',
         hover: true,
         phase: 'update',
         source: 'engineDriven',
@@ -399,6 +527,14 @@ export async function createBrowserEngineV2Surface(
     void input({
       stream: pointer.stream,
       pointer: true,
+      kind:
+        event.pointerType === 'mouse'
+          ? 'mouse'
+          : event.pointerType === 'touch'
+            ? 'touch'
+            : event.pointerType === 'pen'
+              ? 'stylus'
+              : 'unknown',
       phase: 'update',
       source: 'engineDriven',
       x: event.clientX - rect.left,
@@ -421,6 +557,14 @@ export async function createBrowserEngineV2Surface(
     void input({
       stream: pointer.stream,
       pointer: true,
+      kind:
+        event.pointerType === 'mouse'
+          ? 'mouse'
+          : event.pointerType === 'touch'
+            ? 'touch'
+            : event.pointerType === 'pen'
+              ? 'stylus'
+              : 'unknown',
       phase: event.type === 'pointerup' ? 'end' : 'cancel',
       source: 'engineDriven',
       x: event.clientX - rect.left,
@@ -429,24 +573,45 @@ export async function createBrowserEngineV2Surface(
       contact: event.pointerId,
     });
   };
-  const leave = () => {
-    if (!pointers.size)
+  const leave = (event: PointerEvent) => {
+    if (!pointers.size) {
+      const rect = canvas.getBoundingClientRect(),
+        inside =
+          event.clientX >= rect.left &&
+          event.clientX < rect.right &&
+          event.clientY >= rect.top &&
+          event.clientY < rect.bottom,
+        relatedSurface =
+          event.relatedTarget === canvas || interaction.ownsTarget(event.relatedTarget);
       void input({
         pointer: true,
+        kind:
+          event.pointerType === 'mouse'
+            ? 'mouse'
+            : event.pointerType === 'touch'
+              ? 'touch'
+              : event.pointerType === 'pen'
+                ? 'stylus'
+                : 'unknown',
         hover: true,
         phase: 'update',
         source: 'engineDriven',
-        x: -1,
-        y: -1,
+        x: inside && relatedSurface ? event.clientX - rect.left : -1,
+        y: inside && relatedSurface ? event.clientY - rect.top : -1,
       });
+    }
+  };
+  const overlayLeave = (event: PointerEvent) => {
+    if (interaction.ownsTarget(event.target)) leave(event);
   };
   canvas.addEventListener('pointerleave', leave);
+  document.addEventListener('pointerleave', overlayLeave, true);
   canvas.style.touchAction = 'none';
   canvas.tabIndex = 0;
   canvas.addEventListener('wheel', wheel, { passive: false });
   const overlayWheel = (event: WheelEvent) => {
     const target = event.target as Element | null;
-    if (target?.closest('[data-nelyx-v2-semantics]')) wheel(event);
+    if (interaction.ownsTarget(target)) wheel(event);
   };
   document.addEventListener('wheel', overlayWheel, { passive: false });
   canvas.addEventListener('pointerdown', down);
@@ -455,7 +620,7 @@ export async function createBrowserEngineV2Surface(
   canvas.addEventListener('pointercancel', end);
   canvas.addEventListener('lostpointercapture', end);
   const overlayPointer = (event: PointerEvent) => {
-    if (!(event.target as Element | null)?.closest('[data-nelyx-v2-semantics]')) return;
+    if (!interaction.ownsTarget(event.target)) return;
     if (event.type === 'pointerdown') down(event);
     else if (event.type === 'pointermove') move(event);
     else end(event);
@@ -464,6 +629,7 @@ export async function createBrowserEngineV2Surface(
   document.addEventListener('pointermove', overlayPointer);
   document.addEventListener('pointerup', overlayPointer);
   document.addEventListener('pointercancel', overlayPointer);
+  pumpPressure();
   return {
     host: {
       identity: { engine: 'v2', abiMajor: p.abiMajor, schema: p.schema },
@@ -477,6 +643,12 @@ export async function createBrowserEngineV2Surface(
     },
     inputStats,
     input,
+    setMemoryPressure(low) {
+      if (closed || pressureFailed) throw new Error('Engine pressure control is closed');
+      if (typeof low !== 'boolean') throw new TypeError('Memory pressure must be boolean');
+      requestedPressure = low;
+      pumpPressure();
+    },
     createAppPort() {
       if (closed || ++appPorts > 8) throw new Error('App port budget exceeded');
       const channel = new MessageChannel();
@@ -497,6 +669,8 @@ export async function createBrowserEngineV2Surface(
     async close() {
       if (closed) return diagnostics;
       closed = true;
+      if (pressureTimer !== undefined) clearTimeout(pressureTimer);
+      pressurePending = undefined;
       resize.disconnect();
       if (resizeFrame) cancelAnimationFrame(resizeFrame);
       document.removeEventListener('visibilitychange', visibility);
@@ -505,6 +679,7 @@ export async function createBrowserEngineV2Surface(
       canvas.removeEventListener('wheel', wheel);
       document.removeEventListener('wheel', overlayWheel);
       canvas.removeEventListener('pointerleave', leave);
+      document.removeEventListener('pointerleave', overlayLeave, true);
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', end);
@@ -529,6 +704,7 @@ export async function createBrowserEngineV2Surface(
         return state;
       } finally {
         if (timeout !== undefined) clearTimeout(timeout);
+        frameClock.close();
         transport.close();
         worker.removeEventListener('message', receive);
         worker.removeEventListener('error', failed);

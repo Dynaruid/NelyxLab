@@ -8,6 +8,12 @@ import { RootIsolateToken } from '@nelyx/core/ui/root-isolate-token';
 import { PlatformDispatcher } from '@nelyx/core/ui/platform-dispatcher';
 import { BackgroundIsolateBinaryMessenger } from '@nelyx/core/services/background-isolate-binary-messenger';
 
+// Browser peers supply a DOM event; native/worker adapters only require data.
+// Keep the event type local so importing a native SDK entry never installs DOM globals.
+type MessageEvent<T = any> = typeof globalThis extends { MessageEvent: { prototype: infer E } }
+  ? E
+  : { readonly data: T };
+
 /** Cloneable routing identity; the transferred MessagePort grants access. */
 export interface RootPlatformMessageToken {
   readonly owner: string;

@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { build } from 'esbuild';
 import { protocol as p } from '@nelyx/core/v2';
-import { engineV2ImportRoute } from './engine-v2-data-api.mjs';
+import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
 import { inspectEngineV2Graph } from './engine-v2-graph.mjs';
 const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -51,7 +51,14 @@ function outputPath(app, value) {
     throw Error('Output must not be a symbolic link');
   return result;
 }
-export function verifyEngineV2Supply(directory, target) {
+export function engineV2WindowsHost(value = 'windows-hwnd') {
+  if (!['windows-hwnd', 'windows-app-sdk'].includes(value))
+    throw Error('Unknown engine v2 Windows host: ' + value);
+  return value === 'windows-app-sdk'
+    ? { host: value, profile: value, executable: 'windows-app-sdk/NelyxEngineAppSdkHost.exe' }
+    : { host: value, profile: 'native', executable: 'native/NelyxEngineV2Host.exe' };
+}
+export function verifyEngineV2Supply(directory, target, windowsHost) {
   const root = fs.realpathSync(directory),
     manifest = read(path.join(root, 'engine-manifest.json'));
   if (
@@ -62,7 +69,7 @@ export function verifyEngineV2Supply(directory, target) {
     throw Error('Engine v2 supply ABI/schema differs from installed Core');
   if (
     !(target === 'windows'
-      ? manifest.profiles?.native
+      ? manifest.profiles?.[engineV2WindowsHost(windowsHost).profile]
       : manifest.profiles?.threaded && manifest.profiles?.['single-worker'])
   )
     throw Error('Requested engine v2 host capability is missing');
@@ -73,6 +80,18 @@ export function verifyEngineV2Supply(directory, target) {
     if (seen.has(file.path) || hash(input(root, file.path)) !== file.sha256)
       throw Error('Engine v2 supply identity mismatch: ' + file.path);
     seen.add(file.path);
+  }
+  if (target === 'windows') {
+    const selected = engineV2WindowsHost(windowsHost);
+    if (
+      !seen.has(selected.executable) ||
+      (selected.host === 'windows-app-sdk' &&
+        (manifest.profiles[selected.profile].host !== selected.host ||
+          manifest.profiles[selected.profile].deployment !== 'unpackaged-self-contained' ||
+          !seen.has('windows-app-sdk/Microsoft.UI.Windowing.dll') ||
+          !seen.has('windows-app-sdk/Microsoft.WindowsAppRuntime.dll')))
+    )
+      throw Error('Requested engine v2 host runtime/identity is missing: ' + selected.host);
   }
   return { root, manifest };
 }
@@ -91,6 +110,7 @@ export async function buildEngineV2Application(options) {
   const supply = verifyEngineV2Supply(
     path.resolve(app, options.engineInputs ?? settings.supply ?? '__missing_engine_supply__'),
     target,
+    settings.windowsHost,
   );
   const require = createRequire(path.join(app, 'package.json')),
     core = require.resolve('@nelyx/core/v2');
@@ -143,9 +163,23 @@ export async function buildEngineV2Application(options) {
               (args) => {
                 if (
                   !engineV2ImportRoute(args.path) &&
+                  !engineV2OriginalAppRoute(args.path) &&
+                  !(
+                    /^@nelyx\/core\/(?:internal\/(?:(foundation|ui|math)\/[^/]+|framework\/(painting|widgets)\/[^/]+)|services\/(?:system-sound|haptic-feedback|predictive-back-event))$/.test(
+                      args.path,
+                    ) && /[/\\](material|cupertino)[/\\](dist|src)[/\\]/.test(args.importer)
+                  ) &&
                   !(
                     args.path === '@nelyx/core/internal/ui/color-source-adapter' &&
                     args.importer.includes('material')
+                  ) &&
+                  !(
+                    args.path === '@nelyx/cupertino/internal/scrollbar-style-source-adapter' &&
+                    /[/\\]material[/\\](dist|src)[/\\]/.test(args.importer)
+                  ) &&
+                  !(
+                    args.path === '@nelyx/core/internal/framework/widgets/ticker-scheduler' &&
+                    /[/\\]v2[/\\]engine-client[/\\]original-scroll\.js$/.test(args.importer)
                   )
                 )
                   return {
@@ -156,7 +190,10 @@ export async function buildEngineV2Application(options) {
                     ],
                   };
                 try {
-                  const route = engineV2ImportRoute(args.path) ?? args.path;
+                  const route =
+                    engineV2ImportRoute(args.path) ??
+                    engineV2OriginalAppRoute(args.path) ??
+                    args.path;
                   const resolved = require.resolve(route);
                   importRoutes.set(args.path, route);
                   return { path: resolved };
@@ -226,6 +263,9 @@ export async function buildEngineV2Application(options) {
       schema: 'nelyx.app.v2.bundle/1',
       engine: 'v2',
       target,
+      ...(target === 'windows'
+        ? { windowsHost: engineV2WindowsHost(settings.windowsHost).host }
+        : {}),
       abi: supply.manifest.abi,
       supplySourceSha256: supply.manifest.sourceSha256,
       supply: supply.root,
@@ -240,6 +280,8 @@ export async function buildEngineV2Application(options) {
       path.join(staged, 'app-manifest.json'),
       JSON.stringify(manifest, null, 2) + '\n',
     );
+    if (options.canPublish && !options.canPublish())
+      return { engine: 'v2', target, obsolete: true };
     if (fs.existsSync(output)) {
       fs.renameSync(output, backup);
       moved = true;
@@ -270,7 +312,11 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
     manifest.engine !== 'v2'
   )
     throw Error('Application engine/target identity differs');
-  const supply = verifyEngineV2Supply(engineInputs ?? path.resolve(root, manifest.supply), target);
+  const supply = verifyEngineV2Supply(
+    engineInputs ?? path.resolve(root, manifest.supply),
+    target,
+    manifest.windowsHost,
+  );
   if (
     manifest.abi.major !== p.abiMajor ||
     manifest.abi.schema !== p.schema ||
@@ -282,9 +328,10 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
       throw Error('Application bundle identity mismatch: ' + file.path);
   return { root, manifest, supply };
 }
-export function createEngineV2Server(bundle) {
+export function createEngineV2Server(bundleOrReader, { development } = {}) {
   return http.createServer((request, response) => {
     try {
+      let bundle = typeof bundleOrReader === 'function' ? bundleOrReader() : bundleOrReader;
       const url = new URL(request.url, 'http://localhost'),
         isolated = url.pathname.startsWith('/isolated/');
       if (!isolated && !url.pathname.startsWith('/plain/')) {
@@ -292,8 +339,28 @@ export function createEngineV2Server(bundle) {
         response.end();
         return;
       }
-      const name = decodeURIComponent(url.pathname.slice(isolated ? 10 : 7)) || 'index.html',
-        root =
+      let name = decodeURIComponent(url.pathname.slice(isolated ? 10 : 7)) || 'index.html';
+      if (development && name === '__nelyx_dev') {
+        development.connect(request, response);
+        return;
+      }
+      if (development && name === '__nelyx_dev/closed') {
+        development.acknowledge(request, response);
+        return;
+      }
+      let generation = development?.generation;
+      if (development && name.startsWith('__nelyx_gen/')) {
+        const match = /^__nelyx_gen\/([1-9][0-9]*)\/(.+)$/.exec(name);
+        bundle = match && development.bundleFor(Number(match[1]));
+        if (!bundle) {
+          response.writeHead(410);
+          response.end('Application generation expired');
+          return;
+        }
+        generation = Number(match[1]);
+        name = match[2];
+      }
+      const root =
           name === 'index.html' || name.startsWith('application/')
             ? bundle.root
             : bundle.supply.root,
@@ -322,7 +389,23 @@ export function createEngineV2Server(bundle) {
             }
           : {}),
       });
-      fs.createReadStream(file).pipe(response);
+      if (development && name === 'index.html') {
+        const configuration =
+          '<script>globalThis.__nelyxDevelopment=' + JSON.stringify({ generation }) + ';</script>';
+        response.end(
+          fs
+            .readFileSync(file, 'utf8')
+            .replace('</head>', configuration + '</head>')
+            .replace(
+              'src="application/main.js"',
+              'src="' +
+                (isolated ? '/isolated/' : '/plain/') +
+                '__nelyx_gen/' +
+                generation +
+                '/application/main.js"',
+            ),
+        );
+      } else fs.createReadStream(file).pipe(response);
     } catch {
       response.writeHead(404);
       response.end('Asset unavailable');
@@ -340,12 +423,20 @@ export async function engineV2Operation(operation, options) {
       supply = verifyEngineV2Supply(
         path.resolve(app, options.engineInputs ?? settings.supply ?? '__missing_engine_supply__'),
         options.target,
+        settings.windowsHost,
       );
-    return { engine: 'v2', target: options.target, sourceSha256: supply.manifest.sourceSha256 };
+    return {
+      engine: 'v2',
+      target: options.target,
+      ...(options.target === 'windows'
+        ? { windowsHost: engineV2WindowsHost(settings.windowsHost).host }
+        : {}),
+      sourceSha256: supply.manifest.sourceSha256,
+    };
   }
   if (operation === 'dev') {
-    directory = (await buildEngineV2Application(options)).directory;
-    operation = 'run';
+    const { runEngineV2Development } = await import('./engine-v2-development.mjs');
+    return runEngineV2Development(options);
   }
   const bundle = verifyEngineV2Application(
     directory,
@@ -356,7 +447,10 @@ export async function engineV2Operation(operation, options) {
     if (options.target === 'windows')
       return await new Promise((resolve, reject) => {
         const child = spawn(
-          path.join(bundle.supply.root, 'native/NelyxEngineV2Host.exe'),
+          path.join(
+            bundle.supply.root,
+            engineV2WindowsHost(bundle.manifest.windowsHost).executable,
+          ),
           [bundle.supply.root, '--app', bundle.root, ...(options.arguments ?? [])],
           { stdio: 'inherit', windowsHide: false },
         );
@@ -512,19 +606,20 @@ export function createEngineV2Project(
 }
 const browserMain = `import {createBrowserEngineV2Surface,protocol as p} from '@nelyx/sdk/engine-v2';
 import {drainEngineOwners} from '@nelyx/core/v2';
-const root=new URL('.',location.href),error=document.querySelector('#error');
+const baseRoot=new URL('.',location.href),development=globalThis.__nelyxDevelopment;
+const root=development?new URL('__nelyx_gen/'+development.generation+'/',baseRoot):baseRoot,error=document.querySelector('#error');
 const current=globalThis.__nelyxV2={ready:false,errors:[]};
 const fail=message=>{error.textContent=message;current.errors.push(message);};
 (async()=>{
  const surface=await createBrowserEngineV2Surface(document.querySelector('canvas'),{root,profile:new URL(location.href).searchParams.get('profile')??'auto',onError:fail});
- current.surface=surface;const app=new Worker(new URL('application/app.js',root));current.app=app;
- app.addEventListener('message',event=>{if(event.data.kind==='app-ready'){current.ready=true;current.receipt=event.data;}else if(event.data.kind==='app-error')fail(event.data.message);});
+ current.surface=surface;const app=new Worker(new URL('application/app.js',root));current.app=app;let appDisposed=false;
+ app.addEventListener('message',event=>{if(event.data.kind==='app-ready'){current.ready=true;current.receipt=event.data;}else if(event.data.kind==='app-error')fail(event.data.message);else if(event.data.kind==='app-disposed')appDisposed=true;});
  app.addEventListener('error',event=>fail(event.message));const port=surface.createAppPort();
  app.postMessage({kind:'start',root:root.href,port,identity:{engine:'v2',abiMajor:p.abiMajor,schema:p.schema}},[port]);
  let closing;
  current.close=()=>closing??=(async()=>{
   let failure;try{
-   await new Promise((resolve,reject)=>{
+   if(!appDisposed)await new Promise((resolve,reject)=>{
     const cleanup=()=>{clearTimeout(timer);app.removeEventListener('message',receive);};
     const receive=event=>{if(event.data.kind==='app-disposed'){cleanup();resolve();}else if(event.data.kind==='app-error'){cleanup();reject(Error(event.data.message));}};
     const timer=setTimeout(()=>{cleanup();reject(Error('App disposal timeout'));},3000);
@@ -539,4 +634,23 @@ const fail=message=>{error.textContent=message;current.errors.push(message);};
   ]);
   return result;
  })();
+ if(development){
+  const events=new EventSource(new URL('__nelyx_dev',baseRoot));let reloading=false,client,drained;
+  current.development={generation:development.generation,lastError:null};
+  const drain=()=>drained??=(async()=>{current.reloading=true;const closed=await current.close();console.log('NELYX_V2_RELOAD_CLOSED '+JSON.stringify({generation:development.generation,closed:{reservedBytes:closed.reservedBytes,workersStopped:closed.workersStopped,providers:closed.provider?.contentClosed?[closed.provider.contentClosed,closed.provider.renderClosed]:[closed.provider]}}));return closed;})();
+  const reload=async()=>{if(reloading)return;reloading=true;await drain();events.close();location.reload();};
+  events.onmessage=event=>{void(async()=>{
+   const value=JSON.parse(event.data);
+   if(value.kind==='connected'){client=value.client;if(value.generation>development.generation)await reload();return;}
+   if(value.kind==='build-failed'){current.development.lastError=value.message;console.error('NELYX_V2_BUILD_FAILED '+value.message);return;}
+   if(value.kind==='replacement-failed'){events.close();fail(value.message);return;}
+   if(value.kind==='replacing'||value.kind==='stopping'){
+    let error;try{await drain();}catch(failure){error=String(failure);fail('Generation drain failed: '+error);}
+    const result=await fetch(new URL('__nelyx_dev/closed',baseRoot),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client,ticket:value.ticket,...(error?{error:error.slice(0,256)}:{})})});
+    if(!result.ok)throw Error('Generation drain acknowledgement rejected');return;
+   }
+   if(value.kind==='published'&&value.generation>development.generation)await reload();
+  })().catch(error=>fail(String(error)));};
+  addEventListener('pagehide',()=>events.close(),{once:true});
+ }
 })().catch(error=>fail(String(error)));`;

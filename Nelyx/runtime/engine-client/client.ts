@@ -265,10 +265,45 @@ export class EngineViewClient {
     if (result.closed) this.sessionClosed();
     return result;
   }
-  /** Last activated layout, with its document and metrics epochs. Acceptance
-   * of a newer transaction does not make these coordinates current. */
+  /** Last activated layout, with parent-local coordinates and document/metrics
+   * epochs. Composed transforms and property overlays belong to the published
+   * frame. Acceptance of a newer transaction does not advance this snapshot. */
   async layoutSnapshot(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.layoutSnapshot));
+  }
+  /** Starts a Content-owned scroll; scrollTerminal carries its completion. */
+  startScroll(
+    node: import('./codec.ts').NodeHandle,
+    target: number,
+    durationMs = 0,
+  ): {
+    readonly id: bigint;
+    readonly receipt: Promise<EngineResponse>;
+  } {
+    this.ensureOpen();
+    if (
+      !Number.isFinite(target) ||
+      Math.abs(target) > 1e12 ||
+      !Number.isFinite(durationMs) ||
+      durationMs < 0 ||
+      durationMs > p.limits.commandTimeoutMs - 100
+    )
+      throw new RangeError('Invalid native scroll target or duration');
+    const id = ++this.nextScroll;
+    return {
+      id,
+      receipt: this.request(
+        p.opcodes.scroll,
+        body(56, (value) => {
+          writeHandle(value, 0, node);
+          value.setFloat64(24, target, true);
+          value.setFloat64(32, durationMs / 1000, true);
+          value.setFloat64(40, p.limits.commandTimeoutMs / 1000, true);
+          value.setUint32(48, 3, true);
+        }),
+        id,
+      ).then((result) => checked(result, [p.statuses.pending, p.statuses.ok])),
+    };
   }
   /** Receipt for a bounded, cancellable seek. Its scrollTerminal event reports completion. */
   async seekList(
@@ -278,6 +313,16 @@ export class EngineViewClient {
     index: number,
     alignment = 0,
   ): Promise<EngineResponse> {
+    return this.startListSeek(viewport, list, generation, index, alignment).receipt;
+  }
+  startListSeek(
+    viewport: import('./codec.ts').NodeHandle,
+    list: import('./codec.ts').NodeHandle,
+    generation: bigint,
+    index: number,
+    alignment = 0,
+  ): { readonly id: bigint; readonly receipt: Promise<EngineResponse> } {
+    this.ensureOpen();
     if (
       !Number.isInteger(index) ||
       index < 0 ||
@@ -286,8 +331,10 @@ export class EngineViewClient {
       alignment > 1
     )
       throw new RangeError('Invalid list seek');
-    return checked(
-      await this.request(
+    const id = ++this.nextScroll;
+    return {
+      id,
+      receipt: this.request(
         p.opcodes.listSeek,
         body(48, (v) => {
           writeHandle(v, 0, viewport);
@@ -297,10 +344,9 @@ export class EngineViewClient {
           v.setFloat64(32, alignment, true);
           v.setFloat64(40, p.limits.commandTimeoutMs / 1000, true);
         }),
-        ++this.nextScroll,
-      ),
-      [p.statuses.pending, p.statuses.ok],
-    );
+        id,
+      ).then((result) => checked(result, [p.statuses.pending, p.statuses.ok])),
+    };
   }
   async semanticsSnapshot(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.semanticsSnapshot));

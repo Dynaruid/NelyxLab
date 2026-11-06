@@ -170,8 +170,14 @@ try {
   if (name === 'core')
     compile('runtime/tsconfig.json', {
       outDir: path.join(staged, 'v2'),
-      // Resolve shared value contracts against this build, including a clean first build.
-      paths: { '@nelyx/core/*': [path.join(staged, '*')] },
+      // Explicit declaration extensions also resolve in NodeNext ESM mode.
+      // Never fall back to the previously published Core during this build.
+      paths: {
+        '@nelyx/core/internal/framework/widgets/ticker-scheduler': [
+          path.join(staged, 'framework/widgets/ticker-scheduler.d.ts'),
+        ],
+        '@nelyx/core/*': [path.join(staged, '*.d.ts')],
+      },
     });
   finalizeOutput(staged);
   // Restore source-map paths after the generated tree moves from staging to dist.

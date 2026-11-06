@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { engineV2ImportRoute } from '../../sdk/tooling/cli/src/engine-v2-data-api.mjs';
+import { stableApiSurface, recordComputedMemberName } from './api-scope.mjs';
 
 const repository = path.resolve(import.meta.dirname, '../../..');
 const defaultPackages = ['Nelyx', 'packages/material', 'packages/cupertino', 'Nelyx/sdk'];
@@ -22,30 +23,181 @@ const select = (value, conditions) => {
   return null;
 };
 const publicName = (pkg, subpath) => pkg + (subpath === '.' ? '' : subpath.slice(1));
-const surfaceHash = (entry, root) =>
+const isV2Module = (pkg, module) =>
+  module.subpath === pkg.v2 ||
+  module.subpath.startsWith(pkg.v2 + '/') ||
+  module.subpath.startsWith(pkg.v2 + '-');
+
+/** Applicability follows the original platform/backend entry, never v2 support. */
+export function engineV2ApiTarget(module, target) {
+  if (!['windows', 'web'].includes(target)) throw new Error('Unknown API target: ' + target);
+  const platform = module.match(
+    /@nelyx\/sdk\/(?:platforms|native)\/(windows|web|android|ios|linux|macos)(?:\/|$)/,
+  );
+  if (platform)
+    return {
+      applicable: platform[1] === target,
+      reason: 'original platform entry: ' + platform[1],
+    };
+  const provider = module.match(
+    /@nelyx\/sdk\/providers\/(windows|web|android|ios|linux|macos)\.json$/,
+  );
+  if (provider)
+    return {
+      applicable: provider[1] === target,
+      reason: 'original provider asset: ' + provider[1],
+    };
+  if (module.startsWith('@nelyx/sdk/backends/browser/'))
+    return { applicable: target === 'web', reason: 'original browser backend' };
+  if (module.startsWith('@nelyx/sdk/backends/react-native/apple-'))
+    return { applicable: false, reason: 'original Apple backend; deferred target' };
+  if (/^@nelyx\/sdk\/backends\/(?:react-native|native-hermes)\//.test(module))
+    return { applicable: target === 'windows', reason: 'original native backend' };
+  return { applicable: true, reason: 'shared original public entry' };
+}
+
+/** Resolve actual public imports in a consumer, with no ambient declaration suppression. */
+export function checkEngineV2ApiTarget({ root, modules, target, compiler = ts }) {
+  const applicable = modules.filter((module) => engineV2ApiTarget(module.name, target).applicable);
+  const filename = path.join(root, '__nelyx_api_consumer__.mts');
+  const text = applicable
+    .filter((module) => module.code)
+    .map(
+      (module, index) =>
+        `import * as api${index} from ${JSON.stringify(module.name)}; export {api${index}};`,
+    )
+    .join('\n');
+  const options = {
+    noEmit: true,
+    strict: true,
+    skipLibCheck: false,
+    types: [],
+    lib: target === 'web' ? ['lib.es2022.d.ts', 'lib.dom.d.ts'] : ['lib.es2022.d.ts'],
+    jsx: compiler.JsxEmit.ReactJSX,
+    target: compiler.ScriptTarget.ES2022,
+    module: compiler.ModuleKind.NodeNext,
+    moduleResolution: compiler.ModuleResolutionKind.NodeNext,
+    customConditions: target === 'web' ? ['browser'] : [],
+  };
+  const host = compiler.createCompilerHost(options),
+    getSourceFile = host.getSourceFile.bind(host);
+  host.getSourceFile = (file, language, onError, create) =>
+    path.resolve(file) === filename
+      ? compiler.createSourceFile(file, text, language, true)
+      : getSourceFile(file, language, onError, create);
+  const program = compiler.createProgram([filename], options, host);
+  const errors = compiler
+    .getPreEmitDiagnostics(program)
+    .filter((item) => item.category === compiler.DiagnosticCategory.Error)
+    .map((item) => ({
+      code: 'TS' + item.code,
+      message: compiler.flattenDiagnosticMessageText(item.messageText, ' '),
+      ...(item.file
+        ? {
+            file:
+              item.file.fileName +
+              ':' +
+              (item.file.getLineAndCharacterOfPosition(item.start ?? 0).line + 1),
+          }
+        : {}),
+    }));
+  for (const module of applicable.filter((module) => module.code)) {
+    const resolved = compiler.resolveModuleName(
+      module.name,
+      filename,
+      options,
+      host,
+      undefined,
+      undefined,
+      compiler.ModuleKind.ESNext,
+    ).resolvedModule;
+    if (
+      !resolved ||
+      !fs.existsSync(module.file) ||
+      fs.realpathSync(resolved.resolvedFileName) !== fs.realpathSync(module.file)
+    )
+      errors.push({
+        code: 'consumerResolution',
+        message: 'Public import does not resolve to its declared entry: ' + module.name,
+      });
+  }
+  return {
+    target,
+    compiler: compiler.version,
+    moduleResolution: 'NodeNext',
+    conditions: options.customConditions,
+    lib: options.lib,
+    types: options.types,
+    skipLibCheck: false,
+    inputValid: errors.length === 0,
+    errors,
+    modules: modules.map((module) => ({
+      module: module.name,
+      ...engineV2ApiTarget(module.name, target),
+    })),
+    counts: {
+      total: modules.length,
+      applicable: applicable.length,
+      notApplicable: modules.length - applicable.length,
+      unverified: 0,
+    },
+  };
+}
+const overriddenAssets = new WeakMap();
+const assetBytes = (entry) => overriddenAssets.get(entry) ?? fs.readFileSync(entry.original);
+const projectJson = (actual, shape) => {
+  if (!shape || typeof shape !== 'object' || Array.isArray(shape)) return actual;
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return actual;
+  return Object.fromEntries(
+    Object.keys(shape).map((key) => [
+      key,
+      Object.hasOwn(actual, key)
+        ? projectJson(actual[key], shape[key])
+        : { missingOriginalKey: key },
+    ]),
+  );
+};
+const surfaceHash = (entry, root, stable = false, { unions = true, jsonShape } = {}) =>
   createHash('sha256')
     .update(
       entry.kind === 'asset'
-        ? fs.readFileSync(entry.original)
-        : JSON.stringify(entry.original, (_key, value) =>
-            typeof value === 'string'
-              ? value.replaceAll(root.replaceAll('\\', '/'), '<root>').replaceAll(root, '<root>')
-              : value,
+        ? stable && jsonShape
+          ? JSON.stringify(projectJson(JSON.parse(assetBytes(entry).toString('utf8')), jsonShape))
+          : assetBytes(entry)
+        : JSON.stringify(
+            stable ? stableApiSurface(entry.original, { unions }) : entry.original,
+            (_key, value) =>
+              typeof value === 'string'
+                ? value.replaceAll(root.replaceAll('\\', '/'), '<root>').replaceAll(root, '<root>')
+                : value,
           ),
     )
     .digest('hex');
 
 /** Canonical compatibility input, not a test receipt. Updating it changes API scope. */
-export function engineV2OriginalSurface(result, root = repository) {
+export function engineV2OriginalSurface(result, root = repository, { stable = false } = {}) {
   return {
-    schema: 'nelyx.api.original/1',
+    schema: stable ? 'nelyx.api.original/3' : 'nelyx.api.original/1',
+    ...(stable ? { normalization: 'computed-symbol-identity-and-unions-v2' } : {}),
     packages: result.packages.map((pkg) => ({
       package: pkg.package,
-      modules: pkg.modules.map((module) => ({
-        module: module.module,
-        kind: module.kind,
-        exports: module.entries.map((entry) => [entry.name, surfaceHash(entry, root)]),
-      })),
+      modules: pkg.modules.map((module) => {
+        const asset = module.entries.find(
+          (entry) => entry.kind === 'asset' && entry.module.endsWith('/package.json'),
+        );
+        const jsonShape =
+          stable && asset ? JSON.parse(assetBytes(asset).toString('utf8')) : undefined;
+        return {
+          module: module.module,
+          kind: module.kind,
+          ...(jsonShape ? { jsonShape } : {}),
+          exports: module.entries.map((entry) => [
+            entry.name,
+            surfaceHash(entry, root),
+            ...(stable ? [surfaceHash(entry, root, true, { jsonShape })] : []),
+          ]),
+        };
+      }),
     })),
   };
 }
@@ -58,6 +210,9 @@ export async function auditEngineV2Api({
   contracts,
   resolveRoute = engineV2ImportRoute,
   scope,
+  targets = root === repository ? ['windows', 'web'] : [],
+  declarationOverrides,
+  assetOverrides,
 } = {}) {
   root = fs.realpathSync(root);
   const errors = [],
@@ -118,14 +273,30 @@ export async function auditEngineV2Api({
     module: ts.ModuleKind.NodeNext,
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
   };
+  const inventoryHost = ts.createCompilerHost(options);
+  if (declarationOverrides?.size) {
+    const getSourceFile = inventoryHost.getSourceFile.bind(inventoryHost);
+    inventoryHost.getSourceFile = (file, language, onError, create) =>
+      declarationOverrides.has(path.resolve(file))
+        ? ts.createSourceFile(file, declarationOverrides.get(path.resolve(file)), language, true)
+        : getSourceFile(file, language, onError, create);
+  }
   const program = ts.createProgram(
       packages.flatMap((pkg) =>
-        pkg.modules.filter((module) => module.code).map((module) => module.file),
+        pkg.modules
+          .filter(
+            (module) => module.code && (!isV2Module(pkg, module) || module.subpath === pkg.v2),
+          )
+          .map((module) => module.file),
       ),
       options,
+      inventoryHost,
     ),
     checker = program.getTypeChecker();
+  // This program preserves the pinned inventory's representation. Platform input
+  // validity is checked by real imports in separate, explicitly typed consumers.
   for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+    if (targets.length) continue;
     if (diagnostic.category !== ts.DiagnosticCategory.Error) continue;
     const position =
       diagnostic.file && diagnostic.start !== undefined
@@ -156,6 +327,7 @@ export async function auditEngineV2Api({
     const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
     return declaration && checker.getTypeOfSymbolAtLocation(symbol, declaration);
   };
+  const computedMembers = [];
   const members = (type) =>
     type
       .getProperties()
@@ -174,22 +346,27 @@ export async function auditEngineV2Api({
         )
           return [];
         const type = symbolType(property);
-        return [
-          {
-            name: property.name,
-            visibility: flags & ts.ModifierFlags.Protected ? 'protected' : 'public',
-            optional: !!(property.flags & ts.SymbolFlags.Optional),
-            readonly: !!(flags & ts.ModifierFlags.Readonly),
-            type: type ? checker.typeToString(type, undefined, typeFlags) : null,
-            calls:
-              type
-                ?.getCallSignatures()
-                .map((signature) => checker.signatureToString(signature, undefined, typeFlags)) ??
-              [],
-            getter: declarations.some(ts.isGetAccessorDeclaration),
-            setter: declarations.some(ts.isSetAccessorDeclaration),
-          },
-        ];
+        const member = {
+          name: property.name,
+          visibility: flags & ts.ModifierFlags.Protected ? 'protected' : 'public',
+          optional: !!(property.flags & ts.SymbolFlags.Optional),
+          readonly: !!(flags & ts.ModifierFlags.Readonly),
+          type: type ? checker.typeToString(type, undefined, typeFlags) : null,
+          calls:
+            type
+              ?.getCallSignatures()
+              .map((signature) => checker.signatureToString(signature, undefined, typeFlags)) ?? [],
+          getter: declarations.some(ts.isGetAccessorDeclaration),
+          setter: declarations.some(ts.isSetAccessorDeclaration),
+        };
+        if (property.name.startsWith('__@')) {
+          const declaration = declarations.find(
+            (item) => item.name && ts.isComputedPropertyName(item.name),
+          );
+          if (declaration)
+            computedMembers.push({ member, expression: declaration.name.expression });
+        }
+        return [member];
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   const shape = (symbol) => {
@@ -242,6 +419,7 @@ export async function auditEngineV2Api({
   const require = createRequire(path.join(root, 'package.json'));
   const obligationsOf = (surface) => {
     if (!surface) return [];
+    surface = stableApiSurface(surface);
     const obligations = [
       ...surface.constructors.map((_, index) => `construct:${index}`),
       ...surface.calls.map((_, index) => `call:${index}`),
@@ -267,7 +445,7 @@ export async function auditEngineV2Api({
       ]),
     );
     const modules = pkg.modules
-      .filter((module) => module.subpath !== pkg.v2)
+      .filter((module) => !isV2Module(pkg, module))
       .map((module) => {
         const symbols = exportsOf(module),
           route = resolveRoute(module.name),
@@ -379,6 +557,84 @@ export async function auditEngineV2Api({
       entries: modules.flatMap((module) => module.entries),
     };
   });
+  if (assetOverrides?.size)
+    for (const entry of results.flatMap((pkg) => pkg.entries))
+      if (entry.kind === 'asset' && assetOverrides.has(path.resolve(entry.original)))
+        overriddenAssets.set(entry, assetOverrides.get(path.resolve(entry.original)));
+  // Resolve computed-name provenance only after all raw shapes are captured.
+  // Compiler global symbol allocation must not perturb the legacy fingerprints.
+  for (const { member, expression } of computedMembers) {
+    if (!(checker.getTypeAtLocation(expression).flags & ts.TypeFlags.UniqueESSymbol)) continue;
+    let symbol = checker.getSymbolAtLocation(expression);
+    if (!symbol) {
+      fail('computedSymbol', 'No declaration identity for ' + member.name);
+      continue;
+    }
+    symbol = unalias(symbol);
+    const declarations = symbol.declarations ?? [];
+    const library =
+      declarations.length &&
+      declarations.every((item) => program.isSourceFileDefaultLibrary(item.getSourceFile()));
+    let identity;
+    if (!library) {
+      const file = declarations[0]?.getSourceFile().fileName;
+      const actual = file && fs.realpathSync(file);
+      const pkg =
+        actual &&
+        packages.find((pkg) => {
+          const relative = path.relative(fs.realpathSync(pkg.absolute), actual);
+          return (
+            relative &&
+            relative !== '..' &&
+            !relative.startsWith('..' + path.sep) &&
+            !path.isAbsolute(relative)
+          );
+        });
+      if (!pkg) {
+        fail('computedSymbol', 'No portable declaration package for ' + member.name);
+        continue;
+      }
+      const relative = path
+        .relative(fs.realpathSync(pkg.absolute), actual)
+        .replaceAll('\\', '/')
+        .replace(/^dist\//, '')
+        .replace(/\.d\.[cm]?ts$/, '');
+      const qualified = checker.getFullyQualifiedName(symbol);
+      const suffix = qualified.startsWith('"')
+        ? qualified.slice(qualified.indexOf('"', 1) + 1)
+        : '.' + qualified;
+      identity = '__@unique:"' + pkg.name + '/' + relative + '"' + suffix;
+    }
+    recordComputedMemberName(
+      member,
+      library ? member.name.replace(/@\d+$/, '') : identity,
+      library
+        ? member.name.replace(/@\d+$/, '')
+        : '__@unique:' + checker.getFullyQualifiedName(symbol),
+    );
+  }
+  for (const entry of results.flatMap((pkg) => pkg.entries))
+    if (entry.original && entry.kind !== 'asset' && entry.kind !== 'module') {
+      entry.obligations = obligationsOf(entry.original);
+      entry.unverified = [...entry.obligations];
+    }
+  if (!targets.length) {
+    const additional = packages.flatMap((pkg) =>
+      pkg.modules
+        .filter((module) => module.code && isV2Module(pkg, module) && module.subpath !== pkg.v2)
+        .map((module) => module.file),
+    );
+    if (additional.length)
+      for (const diagnostic of ts.getPreEmitDiagnostics(
+        ts.createProgram(additional, options, inventoryHost),
+      ))
+        if (diagnostic.category === ts.DiagnosticCategory.Error)
+          fail(
+            'TS' + diagnostic.code,
+            ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '),
+            diagnostic.file?.fileName,
+          );
+  }
   const cases = [];
   if (verify) {
     contracts ??= (await import('./api-behavior.mjs')).engineV2ApiContracts;
@@ -454,7 +710,13 @@ export async function auditEngineV2Api({
   }
   if (scope) {
     if (
-      scope.schema !== 'nelyx.api.original/1' ||
+      !['nelyx.api.original/1', 'nelyx.api.original/2', 'nelyx.api.original/3'].includes(
+        scope.schema,
+      ) ||
+      (scope.schema === 'nelyx.api.original/2' &&
+        scope.normalization !== 'computed-symbol-identity-v1') ||
+      (scope.schema === 'nelyx.api.original/3' &&
+        scope.normalization !== 'computed-symbol-identity-and-unions-v2') ||
       !Array.isArray(scope.packages) ||
       !scope.packages.length ||
       scope.packages.some(
@@ -473,9 +735,10 @@ export async function auditEngineV2Api({
               module.exports.some(
                 (item) =>
                   !Array.isArray(item) ||
-                  item.length !== 2 ||
+                  item.length !== (scope.schema === 'nelyx.api.original/1' ? 2 : 3) ||
                   typeof item[0] !== 'string' ||
-                  !/^[a-f0-9]{64}$/.test(item[1]),
+                  !/^[a-f0-9]{64}$/.test(item[1]) ||
+                  (scope.schema !== 'nelyx.api.original/1' && !/^[a-f0-9]{64}$/.test(item[2])),
               ),
           ),
       )
@@ -496,21 +759,44 @@ export async function auditEngineV2Api({
           }
           if (original.kind !== module.kind)
             fail('originalSurfaceChanged', 'Public module kind changed: ' + original.module);
-          for (const [name, hash] of original.exports) {
+          for (const [name, hash, stableHash] of original.exports) {
             const entry = module.entries.find((entry) => entry.name === name);
             if (!entry) fail('missingOriginalExport', original.module + '#' + name);
             else if (
               entry.original &&
               (entry.kind !== 'asset' || fs.existsSync(entry.original)) &&
-              surfaceHash(entry, root) !== hash
+              surfaceHash(entry, root, !!stableHash, {
+                unions: scope.schema === 'nelyx.api.original/3',
+                jsonShape: original.jsonShape,
+              }) !== (stableHash ?? hash)
             )
               fail('originalSurfaceChanged', original.module + '#' + name);
           }
         }
       }
   }
+  const targetInputs = targets.map((target) =>
+    checkEngineV2ApiTarget({
+      root,
+      modules: packages.flatMap((pkg) => pkg.modules.filter((module) => module.subpath !== pkg.v2)),
+      target,
+    }),
+  );
+  for (const input of targetInputs) {
+    const applicable = new Set(
+      input.modules.filter((module) => module.applicable).map((module) => module.module),
+    );
+    const entries = results.flatMap((pkg) => pkg.entries);
+    input.counts.occurrences = {
+      total: entries.length,
+      applicable: entries.filter((entry) => applicable.has(entry.module)).length,
+      notApplicable: entries.filter((entry) => !applicable.has(entry.module)).length,
+      unverified: 0,
+    };
+    for (const error of input.errors) errors.push({ ...error, target: input.target });
+  }
   return {
-    schema: 'nelyx.api.v2.audit/2',
+    schema: 'nelyx.api.v2.audit/3',
     inputValid: errors.length === 0,
     compatible:
       errors.length === 0 &&
@@ -529,6 +815,7 @@ export async function auditEngineV2Api({
       subpaths: scope.packages.reduce((sum, pkg) => sum + (pkg?.modules?.length ?? 0), 0),
     },
     cases,
+    targetInputs,
     packages: results,
   };
 }
@@ -541,6 +828,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
             ...result,
             errors: result.errors.slice(0, 8),
             errorCount: result.errors.length,
+            targetInputs: result.targetInputs.map(({ modules, errors, ...input }) => ({
+              ...input,
+              errorCount: errors.length,
+              errors: errors.slice(0, 5),
+            })),
             packages: result.packages.map(({ entries, modules, ...pkg }) => ({
               ...pkg,
               nonCodeSubpaths: modules.filter((module) => module.kind === 'asset').length,

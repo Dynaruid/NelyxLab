@@ -1,15 +1,6 @@
 import type { CanvasKit } from 'canvaskit-wasm';
-export interface CanvasKitManifest {
-  readonly schema: 'nelyx.canvaskit/v1';
-  readonly adapterAbi: 1;
-  readonly version: 'm153-nelyx-paragraph.1';
-  readonly paragraphApiVersion: 1;
-  readonly files: readonly {
-    readonly id: 'canvaskit.js' | 'canvaskit.wasm';
-    readonly path: string;
-    readonly sha256: string;
-  }[];
-}
+import type { CanvasKitManifest } from './canvaskit-manifest.ts';
+export type { CanvasKitManifest } from './canvaskit-manifest.ts';
 const runtimes = new Map<string, Promise<CanvasKit>>();
 export const sha256 = async (bytes: Uint8Array) =>
   Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes))), (byte) =>

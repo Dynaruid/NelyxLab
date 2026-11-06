@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{B508D6BC-B0AA-4CB3-B4D8-531C1BE1F7C8}</ProjectGuid>
+    <ProjectName>NelyxEngineAppSdkHost</ProjectName>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>10.0.22000.0</WindowsTargetPlatformMinVersion>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <AppxPackage>false</AppxPackage>
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTGenerateWindowsMetadata>false</CppWinRTGenerateWindowsMetadata>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <EngineRoot>$(MSBuildThisFileDirectory)..\..\..\</EngineRoot>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <TargetName>NelyxEngineAppSdkHost</TargetName>
+    <IntDir>$(NelyxAppSdkIntermediate)\</IntDir>
+    <OutDir>$(NelyxAppSdkOutput)\</OutDir>
+  </PropertyGroup>
+  <ItemGroup><SkiaLibrary Include="$(NelyxSkiaSupplier)\libraries\*.lib" /></ItemGroup>
+  <PropertyGroup><NelyxSkiaLibraries>@(SkiaLibrary)</NelyxSkiaLibraries></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>NELYX_WINDOWS_APP_SDK;UNICODE;_UNICODE;NOMINMAX;SK_GRAPHITE;SK_VULKAN;SK_USE_INTERNAL_VULKAN_HEADERS;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_WIN32_WINNT=0x0A00;JSI_USE_HERMES;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(EngineRoot)include;$(EngineRoot)..\skia\native\core;$(NelyxSkiaSupplier)\headers;$(NelyxHermesRoot)\source\API;$(NelyxHermesRoot)\source\API\jsi;$(NelyxHermesRoot)\source\public;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>$(NelyxEngineLibrary);$(NelyxSkiaLibraries);$(NelyxHermesRoot)\build\lib\hermesvm.lib;$(NelyxHermesRoot)\build\jsi\jsi.lib;user32.lib;gdi32.lib;dwrite.lib;ole32.lib;oleaut32.lib;uuid.lib;usp10.lib;shell32.lib;advapi32.lib;shlwapi.lib;opengl32.lib;windowscodecs.lib;UIAutomationCore.lib;windowsapp.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="$(EngineRoot)platform\windows\host.cpp" />
+    <ClCompile Include="$(EngineRoot)..\skia\native\core\paragraph_queries.cpp" />
+    <ClCompile Include="$(EngineRoot)..\skia\native\platforms\vulkan\device.cpp" />
+    <ClCompile Include="$(EngineRoot)..\skia\native\platforms\windows\font_services.cpp" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260508005" />
+    <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.250303.1" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="ValidateEngineInputs" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(NelyxEngineLibrary)')" Text="Build the current CMake engine library before the App SDK executable." />
+    <Error Condition="'$(NelyxAppSdkOutput)' == '' or '$(NelyxAppSdkIntermediate)' == ''" Text="Explicit temporary output paths are required." />
+  </Target>
+</Project>

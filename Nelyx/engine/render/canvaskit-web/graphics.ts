@@ -7,6 +7,99 @@ import type {
   AffineMatrix,
 } from '../../../runtime/engine-client/index.ts';
 import { protocol as p } from '../../../runtime/engine-client/index.ts';
+import type { NativePaintSnapshot } from '../../../runtime/engine-client/native-paint.ts';
+function nativePaintShape(ck: CanvasKit, entry: NativePaintSnapshot, delta = 0): Float32Array {
+  let x = 0,
+    y = 0,
+    w = entry.width,
+    h = entry.height;
+  if (entry.shape.kind === 'circle') {
+    const d = Math.min(w, h);
+    x = (w - d) / 2;
+    y = (h - d) / 2;
+    w = h = d;
+  }
+  return Float32Array.from([
+    x - delta,
+    y - delta,
+    x + w + delta,
+    y + h + delta,
+    ...entry.shape.radii.map((radius) => Math.max(0, radius + delta)),
+  ]);
+}
+export function paintNative(
+  ck: CanvasKit,
+  canvas: Canvas,
+  node: EngineNodeSnapshot,
+  paint: Paint,
+): void {
+  if (!node.nativePaint) return;
+  canvas.save();
+  try {
+    if (node.nativePaint.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
+      canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
+    for (const entry of node.nativePaint) {
+      canvas.save();
+      try {
+        canvas.concat(canvasMatrix(entry.transform));
+        paint.setColor(color(ck, entry.color));
+        paint.setStyle(ck.PaintStyle.Fill);
+        if (entry.kind === 'border') {
+          if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
+            paint.setColor(color(ck, entry.shape.strokeColor));
+            paint.setStyle(ck.PaintStyle.Stroke);
+            paint.setStrokeWidth(entry.shape.strokeWidth);
+            canvas.drawRRect(
+              nativePaintShape(ck, entry, (entry.shape.strokeWidth * entry.shape.strokeAlign) / 2),
+              paint,
+            );
+            paint.setStyle(ck.PaintStyle.Fill);
+          }
+        } else if (entry.kind === 'physical') canvas.drawRRect(nativePaintShape(ck, entry), paint);
+        else {
+          if (
+            (entry.kind === 'highlight' && entry.customClip) ||
+            (entry.kind === 'ripple' && entry.contained)
+          )
+            canvas.clipRRect(nativePaintShape(ck, entry), ck.ClipOp.Intersect, true);
+          if (entry.kind === 'ripple' || entry.circular)
+            canvas.drawCircle(entry.cx, entry.cy, entry.resolvedRadius, paint);
+          else canvas.drawRRect(nativePaintShape(ck, entry), paint);
+        }
+      } finally {
+        canvas.restore();
+      }
+    }
+  } finally {
+    canvas.restore();
+  }
+}
+export function paintNativeShadow(
+  ck: CanvasKit,
+  canvas: Canvas,
+  node: EngineNodeSnapshot,
+  path: Path | undefined,
+  scale: number,
+): void {
+  const entry = node.nativePaint?.find((item) => item.kind === 'physical');
+  if (!entry || !path || !entry.elevation || !(entry.shadowColor! >>> 24)) return;
+  const argb = entry.shadowColor!,
+    alpha = argb >>> 24,
+    rgb = [(argb >>> 16) & 255, (argb >>> 8) & 255, argb & 255] as const,
+    tonal = ck.computeTonalColors({
+      ambient: ck.Color(...rgb, Math.trunc(Math.fround(0.039) * alpha) / 255),
+      spot: ck.Color(...rgb, Math.trunc(0.25 * alpha) / 255),
+    });
+  canvas.drawShadow(
+    path,
+    [0, 0, Math.fround(Math.fround(scale) * Math.fround(entry.elevation))],
+    [0, -1, 1],
+    Math.fround(800 / 600),
+    tonal.ambient,
+    tonal.spot,
+    4 | (entry.color >>> 24 !== 255 ? 1 : 0),
+  );
+}
 export function canvasMatrix(m: AffineMatrix, scale = 1): number[] {
   return [
     m[0] * scale,
@@ -22,14 +115,14 @@ export function canvasMatrix(m: AffineMatrix, scale = 1): number[] {
 }
 export function relativeMatrix(parent: AffineMatrix, child: AffineMatrix): AffineMatrix | null {
   const determinant = parent[0] * parent[3] - parent[1] * parent[2];
-  if (Math.abs(determinant) < 1e-12) return null;
+  if (!Number.isFinite(determinant) || determinant === 0) return null;
   const a = parent[3] / determinant,
     b = -parent[1] / determinant,
     c = -parent[2] / determinant,
     d = parent[0] / determinant;
   const x = child[4] - parent[4],
     y = child[5] - parent[5];
-  return [
+  const result: AffineMatrix = [
     a * child[0] + c * child[1],
     b * child[0] + d * child[1],
     a * child[2] + c * child[3],
@@ -37,6 +130,7 @@ export function relativeMatrix(parent: AffineMatrix, child: AffineMatrix): Affin
     a * x + c * y,
     b * x + d * y,
   ];
+  return result.every(Number.isFinite) ? result : null;
 }
 export function makePath(
   ck: CanvasKit,

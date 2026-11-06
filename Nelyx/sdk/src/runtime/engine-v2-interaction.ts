@@ -83,6 +83,10 @@ export class EngineV2BrowserInteraction {
       height: `${r.height}px`,
     });
   }
+  /** The canvas and its published DOM peers share one platform input surface. */
+  ownsTarget(target: EventTarget | null): boolean {
+    return !this.closed && target instanceof Node && this.layer.contains(target);
+  }
   private enqueue<T>(work: () => Promise<T>, bytes = 0): Promise<T> {
     if (this.closed || this.queued >= 32 || this.queuedBytes + bytes > p.limits.packetBytes * 4)
       return Promise.reject(new Error('Browser interaction mailbox full/closed'));

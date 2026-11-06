@@ -1,0 +1,78 @@
+{
+  "schema": "nelyx.windows-app-sdk.supply/1",
+  "version": "1.8.260508005",
+  "architecture": "x64",
+  "windowsSdk": "10.0.26100.0",
+  "packages": [
+    {
+      "package": "Microsoft.Web.WebView2/1.0.3179.45",
+      "sha512": "3pokSH5CnN0G6rGhGFo1y87inxYhNxBQ2Vdf0wlvBj99KHxQJormjDACmqRnFeUsmuNFIhWwfAL1ztq7wD5qRA==",
+      "archiveSha512": "AqvMjM6eGVbfvi4k/dTOYlqz4f8BOcm6mr7SZDOxnxZw9RNrpxwq+R8pjd5QeynZ3MZfCQ5d2bXrzsIZvk6A6Q=="
+    },
+    {
+      "package": "Microsoft.Windows.CppWinRT/2.0.250303.1",
+      "sha512": "9ofajkdPu3wuic60KKXAyCgCCGMXTlyd8KEnCzY5hVwqS8o17zwDLrJElFRx7vEf/Tr/QF2uDNDYdsYlg6TKCw==",
+      "archiveSha512": "rfnscFmliz4OsAV95SkAaS9YMFrui6cI0mXSc6gRJ5eL65vyWZsAhVthtyXU5usGIGtmiX6urvGuyDlI1gvCkw=="
+    },
+    {
+      "package": "Microsoft.Windows.SDK.BuildTools/10.0.26100.4654",
+      "sha512": "2mgcOlj/t2RfSyyw+pVESfO+Tk1RkfQzto9Vrq42M1lUQIfQEwbi8QLha9GXWIOj+TFzeHIEJckIoF25mgiM8A==",
+      "archiveSha512": "kXdAbJ9Vu1gFheVpgqdxFqbamlponIVeVEnnkIzuvLkcaGrQOoJwaZSRcrhwICgc1UZCoPUE4FWZKxHWTW4s3Q=="
+    },
+    {
+      "package": "Microsoft.Windows.SDK.BuildTools.MSIX/1.7.20250829.1",
+      "sha512": "IMdvRmCIZnBS5GkYnv0po1bcx6U1OF39pqA4TphQ9evDzpCRoSE19/PkDvlUNNrBavTsLIEJgd/TAIFner75ow==",
+      "archiveSha512": "OoKxwzDL1nbqM5rBpB5h05wXsvmKff31Or5KBxjJiKfiUP9rSeqhC8FqZBJQZHOW75Ffn559MuM+J5C3Ulwa0g=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK/1.8.260508005",
+      "sha512": "+aA+zrvqJKgsn/1TPOSR0Uy7dkMO5jI/+cDWPu2pWmXe4KQxYkR8gQFY9IrfbgCxxSd/yl1zMcAKD/4HBbNqaw==",
+      "archiveSha512": "6kov2fFAk6g0Ius6KiJfq6XJ3tYkc9qx4bAz9i4tN2juQMiruz/mI2rvbc4CTTAITtwwFrCOucmXdf86wIVWog=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.AI/1.8.76",
+      "sha512": "Ayn9QybcwzH+c8eQlE7dm2oO3Jrcn2uohLcsHJpCbLOAfcisjzwtSBe0oyulbaJ86R4eDSX3RDS25tsjGpIqyQ==",
+      "archiveSha512": "tPjftJt5dZHBaJEDWNpLeHNhulhf+JNTYD1KPlapcRrP48TdXPEz0EEr9NLC7ba66jPquvHCfsTWYJCZe2Bgmw=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.Base/1.8.251216001",
+      "sha512": "PS1wriuFknz3W2F2P/e6RvOTM35w89Lsj/f0QmUEPrJjKnc+jM0JLX1vfdytI14y1gNRUTm9uclwP0aH/SVU5w==",
+      "archiveSha512": "zzCRDsJNk6MlzZexe17+h+EDCtF5NfOaKodmkX6tsCB63ETlu4/Mp60fI20lsv+7G5ShF7BZlsvVBcevCbD6uw=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.DWrite/1.8.25122902",
+      "sha512": "zFNn07i7Cyz62Y8FnPQAyzeZK7ww3m9t42i9pzy4C04pNbyUDQ4fG7pB6VSh6n4EyFuYtuFQuDzt4mKmXFrkrg==",
+      "archiveSha512": "5oKIKDYnc8ENNRCKb8D8jbNB0b2GLtq9rzVlnWUFpSvulW51zzsIdOZ8NW0H5WXI/cmJt4pquHOYyV3HVPaWUw=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.Foundation/1.8.260505001",
+      "sha512": "41SSoEn3sKKCAVPA/w18zVJwV1C7aDEkPS2f6Zyp19m27tDEmteEp0XS3Ln3b0ElYR4FfPEPvIDbJPSA9vePGw==",
+      "archiveSha512": "HZRcocFQ3RNMFGED0nwfZaNyDW/TFiLaGtLjH1pCTqD7shMLc8MJMOMe5vGj4u57t8vBCtmoos5+uQ6VV7NNvg=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.InteractiveExperiences/1.8.260430001",
+      "sha512": "fTPCnQb3ZarMh9khlEfbLDllcZzK0tSP+2S6W/T4cPyLLSAmARm8Gd3AC5kqubnDjzTvG+1lNZ1bZGFsIHplJQ==",
+      "archiveSha512": "aJFZ9Br4YNFXXUDbNpro7UYKokgqvi0mKBDKkkREUq+YZyITLGGNbVgH2W+PedlApovxEY+PfJNrh4yAGjOVeg=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.ML/1.8.2197",
+      "sha512": "6Bc1SOLd5HicY3GbF+zr76YBfH4iZOKeEGxTK/lHKAK2ExZTWavOADxB2CKSi/irF4dWSngUdRFopWPmckJ6fA==",
+      "archiveSha512": "VcO+QwtwdEWOErcCKopeR0haSa4sUG09GP1ptTaVBpfwTaQ/VKCHDtijLmx3ndWeTqwwILarLKWVMJHoPmGjUw=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.Runtime/1.8.260508005",
+      "sha512": "2JqXzA4heHSkkaXJNyEvYtpv2wsEUMhwQzgXmZsFmYSkUXSdeVc6hdHcWoBK1SY9l1Sjd1brLt7h16kIpgh2kA==",
+      "archiveSha512": "wKz1Gu/q2hguUx8+/4zmHe69wHo1soM6OmN1/Rt0AicRhfrgWcWMk6PaLlh786oBu41jq9GPTRG60qMt0UR5Og=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.Widgets/1.8.251231004",
+      "sha512": "bIWqQYR8DCoB1SoPOMil5AtgtkTn438wJTdpsHgyO/6o7Eh7PMP5BzrR0KbDsFqy+4LhPWQ4vtwko5k93fECcA==",
+      "archiveSha512": "PzZZVN7gMty4Goaz4zjpvQOXYdQqAPD3AbRbUJIXJ8CmiHqHjPqJ52J3fR8vJnK5zrN6xBZa2KymbRyn8UTLPw=="
+    },
+    {
+      "package": "Microsoft.WindowsAppSDK.WinUI/1.8.260505002",
+      "sha512": "/hGl6EOmo8aeJR2bYbOmGhOicnJK4EY+u+cQI+jm8H1uXThfMX32DsfKOt9LkOcu8AKX3j5FpiBay8ObUSytIw==",
+      "archiveSha512": "itxying9CV+u4LeUboGdnt1lJ4Mtec1bMha7Wv0RegxdQxO97P3TSC9ag3Rw+euruRvUrUxqGy80riRXik6BOQ=="
+    }
+  ]
+}

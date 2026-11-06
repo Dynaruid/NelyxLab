@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include "frame_clock.hpp"
 #include "../../core/state.hpp"
 #include "graphics.hpp"
+#include "native_paint.hpp"
 #include "../../../skia/native/platforms/vulkan/device.h"
 #include "../../../skia/native/rendering/font_services.h"
 #include "include/core/SkCanvas.h"
@@ -14,6 +16,7 @@
 #include "include/core/SkRRect.h"
 #include "include/core/SkSurface.h"
 #include "include/core/SkFontMgr.h"
+#include "include/core/SkFontArguments.h"
 #include "include/core/SkTypeface.h"
 #include "include/core/SkGraphics.h"
 #include <filesystem>
@@ -58,20 +61,56 @@ class ContentProvider {
     double size, width;
     uint32_t color;
     uint32_t direction;
+    std::shared_ptr<const ParagraphData> options;
     std::unique_ptr<skia::textlayout::Paragraph> paragraph;
   };
   std::map<uint64_t, CachedParagraph> measured;
+  struct CachedPicture {
+    std::shared_ptr<const Node> node;
+    std::vector<std::shared_ptr<ExternalLease>> memory;
+    sk_sp<SkPicture> picture;
+    std::optional<SkPath> path;
+    uint64_t metrics=0,device=0,font=0,bytes=0;
+  };
+  std::map<uint64_t,std::shared_ptr<const CachedPicture>> recorded;
+  bool pressure=false;
+  static bool samePaint(const Node& a,const Node& b) {
+    const auto& x=a.graphics;const auto& y=b.graphics;
+    return a.kind==b.kind&&a.color==b.color&&a.radius==b.radius&&a.fontSize==b.fontSize&&
+      a.textDirection==b.textDirection&&a.text==b.text&&a.paragraph==b.paragraph&&a.resource==b.resource&&
+      a.properties.width==b.properties.width&&a.properties.height==b.properties.height&&
+      a.contentX==b.contentX&&a.contentY==b.contentY&&a.contentWidth==b.contentWidth&&a.contentHeight==b.contentHeight&&
+      a.resolvedPaint==b.resolvedPaint&&x.path==y.path&&x.shadowX==y.shadowX&&x.shadowY==y.shadowY&&x.shadowSigma==y.shadowSigma&&
+      x.shadowColor==y.shadowColor&&x.strokeColor==y.strokeColor&&x.strokeWidth==y.strokeWidth;
+  }
   uint64_t measurePreparation = 0;
   bool lineMetricsUtf16=true;
   std::unique_ptr<skia::textlayout::Paragraph> paragraphFor(const Node& n, double width) {
     const auto old = measured.find(n.id.key());
     if (old != measured.end() && old->second.text == n.text && old->second.size == n.fontSize &&
-        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection) {
+        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection&&old->second.options==n.paragraph) {
       auto paragraph = std::move(old->second.paragraph); measured.erase(old); return paragraph;
     }
     using namespace skia::textlayout;
     TextStyle style; style.setFontFamilies({SkString("NelyxDefault"),SkString("NelyxArabic"),SkString("NelyxHebrew"),SkString("NelyxEmoji")}); style.setFontSize(float(n.fontSize));style.setColor(n.color);
+    const nelyx::v2::ParagraphOptions defaults;const auto& options=n.paragraph?n.paragraph->value:defaults;
+    if(n.paragraph){
+      const SkFontArguments::VariationPosition::Coordinate weight{SkSetFourByteTag('w','g','h','t'),float(options.fontWeight)};
+      SkFontArguments arguments;arguments.setVariationDesignPosition({&weight,1});
+      style.setFontArguments(arguments);style.setFontStyle(SkFontStyle(int(options.fontWeight),SkFontStyle::kNormal_Width,SkFontStyle::kUpright_Slant));
+    }
+    style.setLocale(SkString(options.locale.data(),options.locale.size()));
+    style.setLetterSpacing(float(options.letterSpacing));style.setWordSpacing(float(options.wordSpacing));
+    style.setHalfLeading((options.flags&wire::paragraphFlags::halfLeading)!=0);
+    if(options.height>=0){style.setHeightOverride(true);style.setHeight(float(options.height));}
     ParagraphStyle paragraphStyle;paragraphStyle.setTextStyle(style);
+    if(n.paragraph){paragraphStyle.turnHintingOff();paragraphStyle.setReplaceTabCharacters(true);paragraphStyle.setApplyRoundingHack(false);paragraphStyle.setRenderSoftHyphens((options.flags&wire::paragraphFlags::manualHyphens)!=0);}
+    const TextAlign alignments[]={TextAlign::kStart,TextAlign::kEnd,TextAlign::kLeft,TextAlign::kRight,TextAlign::kCenter,TextAlign::kJustify};
+    paragraphStyle.setTextAlign(alignments[options.align]);
+    if(options.maxLines)paragraphStyle.setMaxLines(options.maxLines);
+    if(!options.ellipsis.empty())paragraphStyle.setEllipsis(SkString(options.ellipsis.data(),options.ellipsis.size()));
+    paragraphStyle.setTextHeightBehavior(static_cast<TextHeightBehavior>(
+      ((options.flags&wire::paragraphFlags::disableFirstAscent)?1:0)|((options.flags&wire::paragraphFlags::disableLastDescent)?2:0)));
     paragraphStyle.setTextDirection(n.textDirection ? TextDirection::kRtl : TextDirection::kLtr);
     auto builder = ParagraphBuilder::make(paragraphStyle,fonts,unicode);
     auto text = n.text ? n.text->value : std::string{};
@@ -87,6 +126,12 @@ class ContentProvider {
   std::atomic<uint64_t> paragraphs{0}, images{0}, pictures{0};
   std::atomic<uint64_t> measurements{0}, paragraphLayouts{0};
   std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
+  std::atomic<uint64_t> reusedPictures{0},reusedParagraphs{0},reusedImages{0},cachedBytes{0};
+  void trimCache() { recorded.clear();cachedBytes=0;discardMeasurements(); }
+  void setMemoryPressure(bool low) {
+    pressure=low;
+    if(low){trimCache();fonts->clearCaches();SkGraphics::PurgeAllCaches();}
+  }
   void discardMeasurements() { measured.clear(); }
   Measurement measure(const MeasurementRequest& request) {
     ++measurements;
@@ -101,9 +146,10 @@ class ContentProvider {
     }
     auto paragraph = paragraphFor(n, request.bounded ? request.width : INFINITY);
     double width = request.width;
-    if (!request.bounded) { width = std::ceil(paragraph->getMaxIntrinsicWidth()); paragraph->layout(float(width)); ++paragraphLayouts; }
+    if (!request.bounded) { width = n.paragraph?paragraph->getMaxIntrinsicWidth():std::ceil(paragraph->getMaxIntrinsicWidth()); paragraph->layout(float(width)); ++paragraphLayouts; }
     Measurement result{width, paragraph->getHeight(), paragraph->getMinIntrinsicWidth(),
       paragraph->getMaxIntrinsicWidth(), paragraph->getAlphabeticBaseline()};
+    result.didExceedMaxLines=paragraph->didExceedMaxLines();
     if(n.editing){
       using namespace skia::textlayout;
       const auto& e=*n.editing;std::vector<TextRect> selection;
@@ -123,7 +169,7 @@ class ContentProvider {
       }
       result.geometry=std::make_shared<TextGeometry>(n.lease.ledger,e.revision,caret,std::move(selection));
     }
-    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,width,n.color,n.textDirection,std::move(paragraph)});
+    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,width,n.color,n.textDirection,n.paragraph,std::move(paragraph)});
     return result;
   }
   ContentProvider(const std::string& font, const std::string& icu,std::shared_ptr<Ledger> book):ledger(std::move(book)) {
@@ -160,19 +206,40 @@ class ContentProvider {
     ExternalLease staging(ledger,1,4,wire::limits::resourceBytes);
     auto result = std::make_shared<Prepared>();result->id=p.id;result->metrics=p.metrics.epoch;result->device=p.metrics.device;
     result->memory.push_back(fontMemory);result->memory.push_back(cacheMemory);
+    std::map<uint64_t,std::shared_ptr<const CachedPicture>> nextRecorded;
+    uint64_t nextCachedBytes=0;
     using namespace skia::textlayout;
     for (const auto& slot : p.document->nodes) if (slot.value) {
       const auto& n = *slot.value;
+      const auto previous=recorded.find(n.id.key());
+      if(!n.editing&&previous!=recorded.end()) {
+        const auto& cached=*previous->second;
+        if(cached.metrics==p.metrics.epoch&&cached.device==p.metrics.device&&cached.font==p.fontRevision&&samePaint(n,*cached.node)) {
+          result->pictures.emplace(n.id.key(),cached.picture);
+          if(cached.path)result->paths.emplace(n.id.key(),*cached.path);
+          result->memory.insert(result->memory.end(),cached.memory.begin(),cached.memory.end());
+          result->bytes+=cached.picture->approximateBytesUsed();
+          if(result->bytes>32*1024*1024)throw std::runtime_error("Native prepared scene budget exceeded");
+          if(cached.bytes<=16*1024*1024-nextCachedBytes) {
+            nextRecorded.emplace(n.id.key(),previous->second);nextCachedBytes+=cached.bytes;
+          }
+          ++reusedPictures;if(n.kind==wire::kinds::paragraph)++reusedParagraphs;
+          if(n.kind==wire::kinds::image)++reusedImages;
+          continue;
+        }
+      }
+      const auto memoryBegin=result->memory.size();
       const auto& style=n.graphics;if(style.path||style.shadowColor||style.strokeColor||style.blur||style.transform.a!=1||style.transform.b||style.transform.c||style.transform.d!=1||style.transform.tx||style.transform.ty)++graphicsRecords;
       if(n.extensionSize.x>0)++nativeExtensions;
       if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));result->paths.emplace(n.id.key(),graphicsPath(*n.graphics.path));}
       SkPictureRecorder recorder;
       const auto& g=n.graphics;const double padding=4*g.shadowSigma+g.strokeWidth+2;
-      auto* canvas=recorder.beginRecording(SkRect::MakeXYWH(float(-padding-std::abs(g.shadowX)),float(-padding-std::abs(g.shadowY)),
-        float(std::max(1.0,n.properties.width)+2*padding+2*std::abs(g.shadowX)),float(std::max(1.0,n.properties.height)+2*padding+2*std::abs(g.shadowY))));
+      auto* canvas=recorder.beginRecording(SkRect::MakeXYWH(float(std::min(0.0,n.contentX)-padding-std::abs(g.shadowX)),float(std::min(0.0,n.contentY)-padding-std::abs(g.shadowY)),
+        float(std::max({1.0,n.properties.width,n.contentX+n.contentWidth})-std::min(0.0,n.contentX)+2*padding+2*std::abs(g.shadowX)),float(std::max({1.0,n.properties.height,n.contentY+n.contentHeight})-std::min(0.0,n.contentY)+2*padding+2*std::abs(g.shadowY))));
       SkPaint paint; paint.setAntiAlias(true);
       if (n.kind == wire::kinds::paragraph || n.kind==wire::kinds::editable) {
         auto textMemory=std::make_shared<ExternalLease>(ledger,1,2,65536+n.text->value.size()*256);
+        result->memory.push_back(textMemory);
         auto paragraph = paragraphFor(n, n.contentWidth);
         paragraph->paint(canvas,float(n.contentX),float(n.contentY));++paragraphs;
         if(n.editing&&!(n.editFlags&wire::editFlags::password)){
@@ -189,7 +256,6 @@ class ContentProvider {
           if(record.lines.back()!=int(text.size()))record.lines.push_back(int(text.size()));
           result->bytes+=(record.characters.size()+record.words.size()+record.lines.size())*sizeof(int);
           result->editors.emplace(n.id.key(),std::move(record));
-          result->memory.push_back(std::move(textMemory));
         }
       } else if (n.kind == wire::kinds::image) {
         if(!n.resource)throw std::runtime_error("Native image resource missing");
@@ -198,13 +264,26 @@ class ContentProvider {
         result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,uint64_t(image->width())*image->height()*4+n.resource->bytes.size()));
         image=image->makeRasterImage();if(!image)throw std::runtime_error("Native image CPU preparation failed");
         canvas->drawImageRect(image,SkRect::MakeXYWH(float(n.contentX),float(n.contentY),float(n.contentWidth),float(n.contentHeight)),SkSamplingOptions(),&paint);++images;
-      } else {const auto path=result->paths.find(n.id.key());paintShape(canvas,n,path==result->paths.end()?nullptr:&path->second,paint);}
+      } else {const auto path=result->paths.find(n.id.key());paintShape(canvas,n,path==result->paths.end()?nullptr:&path->second,paint);paintNative(canvas,n,paint);}
       auto picture=recorder.finishRecordingAsPicture();if(!picture)throw std::runtime_error("Native picture preparation failed");
       result->bytes+=picture->approximateBytesUsed();if(result->bytes>32*1024*1024)throw std::runtime_error("Native prepared scene budget exceeded");
       result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,picture->approximateBytesUsed()));
-      result->pictures.emplace(n.id.key(),std::move(picture));++pictures;
+      result->pictures.emplace(n.id.key(),picture);++pictures;
+      uint64_t held=sizeof(CachedPicture);
+      for(size_t index=memoryBegin;index<result->memory.size();++index)held+=result->memory[index]->bytes;
+      // One bounded generation of immutable CPU records. Active/queued scenes
+      // share the leases; deleting a cache entry cannot invalidate their work.
+      if(!pressure&&!n.editing&&held<=16*1024*1024-nextCachedBytes) {
+        auto cached=std::make_shared<CachedPicture>();cached->node=slot.value;cached->picture=std::move(picture);
+        cached->metrics=p.metrics.epoch;cached->device=p.metrics.device;cached->font=p.fontRevision;cached->bytes=held;
+        cached->memory.assign(result->memory.begin()+memoryBegin,result->memory.end());
+        cached->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,sizeof(CachedPicture)));
+        const auto path=result->paths.find(n.id.key());if(path!=result->paths.end())cached->path=path->second;
+        nextRecorded.emplace(n.id.key(),std::move(cached));nextCachedBytes+=held;
+      }
     }
     discardMeasurements();
+    recorded=std::move(nextRecorded);cachedBytes=nextCachedBytes;
     return result;
   }
   ~ContentProvider(){if(fonts)fonts->clearCaches();}
@@ -223,6 +302,7 @@ class RenderProvider {
   uint32_t width=0,height=0;
  public:
   uint64_t draws=0;
+  double recordAndBackingElapsedMs=0,submitElapsedMs=0;
   RenderProvider(uint64_t window,uint32_t uiThread,std::shared_ptr<Ledger> book):ledger(std::move(book)) {
     cacheMemory=std::make_unique<ExternalLease>(ledger,2,3,32*1024*1024);
     device=std::make_shared<nelyx::vulkan::Device>(nelyx::vulkan::WindowTarget{nelyx::vulkan::WindowKind::Win32,0,window,uiThread});
@@ -230,8 +310,16 @@ class RenderProvider {
     recorder=device->context()->makeRecorder(options);if(!recorder)throw std::runtime_error("Vulkan Graphite recorder unavailable");
   }
   std::string driver()const{return device->description();}
+  void setMemoryPressure(bool low) {
+    const size_t budget=(low?4:32)*1024*1024;
+    recorder->setMaxBudgetedBytes(budget);device->context()->setMaxBudgetedBytes(budget);
+    if(low){recorder->freeGpuResources();device->context()->freeGpuResources();}
+    // Keep the conservative GPU reservation: in-use resources and driver
+    // allocations are not proven to disappear when a cache limit is reduced.
+  }
   bool draw(const Frame& frame,const Prepared& prepared) {
     try {
+    const auto started=qpcSeconds();
     const auto scale=frame.scene->metrics.scale;
     const auto w=uint32_t(std::llround(frame.scene->metrics.width*scale)),h=uint32_t(std::llround(frame.scene->metrics.height*scale));
     if(!w||!h)return false;
@@ -243,7 +331,8 @@ class RenderProvider {
       if(!surface)throw std::runtime_error("Native GPU surface unavailable");width=w;height=h;backingMemory=std::move(nextMemory);
     }
     uint64_t layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
-      if(frame.properties[n.id.slot].opacity<1||n.graphics.blur>0)layerBytes+=uint64_t(w)*h*4*(n.graphics.blur>0?3:1);}
+      if(frame.properties[n.id.slot].opacity<1||n.graphics.blur>0)layerBytes+=uint64_t(w)*h*4*(n.graphics.blur>0?3:1);
+      if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;}
     ExternalLease layers(ledger,2,3,layerBytes);
     auto* canvas=surface->getCanvas();canvas->clear(0xfff4f6fa);canvas->save();canvas->scale(float(scale),float(scale));
     std::vector<int> saves;
@@ -253,9 +342,21 @@ class RenderProvider {
       const auto& m=item.world;
       canvas->setMatrix(SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1));
       const auto& n=frame.scene->document->get(item.node);
-      if(n.kind==wire::kinds::clip||n.kind==wire::kinds::scrollViewport){const auto path=prepared.paths.find(n.id.key());
-        if(path!=prepared.paths.end()){canvas->clipRect(SkRect::MakeWH(float(n.properties.width),float(n.properties.height)),true);canvas->clipPath(path->second,true);}
-        else canvas->clipRRect(SkRRect::MakeRectXY(SkRect::MakeWH(float(n.properties.width),float(n.properties.height)),float(n.radius),float(n.radius)),true);}
+      {const auto path=prepared.paths.find(n.id.key());paintNativeShadow(canvas,n,path==prepared.paths.end()?nullptr:&path->second,scale);}
+      if((n.kind==wire::kinds::clip&&(!n.clipStyle||n.clipStyle->behavior!=wire::clipBehaviors::none))||n.kind==wire::kinds::scrollViewport||(item.flags&wire::nodeFlags::clipsChildren)){
+        const auto path=prepared.paths.find(n.id.key());const auto bounds=SkRect::MakeWH(float(n.properties.width),float(n.properties.height));
+        const bool antiAlias=!(item.flags&wire::nodeFlags::hardEdgeClip);
+        if(n.physicalPaint()&&path!=prepared.paths.end())canvas->clipPath(path->second,antiAlias);
+        else if((item.flags&wire::nodeFlags::rectangularClip)||(!n.clipStyle&&!antiAlias))canvas->clipRect(bounds,false);
+        else if(n.clipStyle){const auto& clip=*n.clipStyle;
+          if(clip.shape==wire::clipShapes::rect)canvas->clipRect(bounds,antiAlias);
+          else if(clip.shape==wire::clipShapes::oval)canvas->clipRRect(SkRRect::MakeOval(bounds),antiAlias);
+          else{SkVector radii[4];for(size_t i=0;i<4;++i)radii[i]={float(clip.radii[i*2]),float(clip.radii[i*2+1])};
+            SkRRect rounded;rounded.setRectRadii(bounds,radii);canvas->clipRRect(rounded,antiAlias);}}
+        else if(path!=prepared.paths.end()){canvas->clipRect(bounds,antiAlias);canvas->clipPath(path->second,antiAlias);}
+        else canvas->clipRRect(SkRRect::MakeRectXY(bounds,float(n.radius),float(n.radius)),antiAlias);
+        if(item.flags&wire::nodeFlags::clipSaveLayer)canvas->saveLayer(&bounds,nullptr);
+      }
       const auto& property=frame.properties[n.id.slot];
       if(property.opacity<1||n.graphics.blur>0){SkPaint layer;layer.setAlphaf(float(property.opacity));
         if(n.graphics.blur>0)layer.setImageFilter(SkImageFilters::Blur(float(n.graphics.blur),float(n.graphics.blur),SkTileMode::kDecal,nullptr));
@@ -293,7 +394,8 @@ class RenderProvider {
       if(geometry&&frame.caretVisible&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
     }
     while(!saves.empty()){canvas->restoreToCount(saves.back());saves.pop_back();}
-    canvas->restore();device->present(recorder.get(),surface.get());++draws;return true;
+    canvas->restore();const auto recorded=qpcSeconds();recordAndBackingElapsedMs=(recorded-started)*1000;
+    device->present(recorder.get(),surface.get());submitElapsedMs=(qpcSeconds()-recorded)*1000;++draws;return true;
     }catch(const nelyx::vulkan::SurfaceChanged&){
       surface.reset();device->releaseWindow(recorder.get());backingMemory.reset();width=height=0;return false;
     }

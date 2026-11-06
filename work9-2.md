@@ -1,6 +1,6 @@
 # work9-2 — 2부: 공개 API·렌더링·입력·Web
 
-작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / API 검사 입력 정상화·입력 회귀 구현 / 전체 호환 PARTIAL**
 
 [전체 목차](work9.md) · [이전: 1부](work9-1.md) · [다음: 3부](work9-3.md)
 
@@ -121,7 +121,7 @@ OS 동기 API에 반환할 값, Core 승인 전 mirror 변경의 허용 범위, 
 
 ### 11.3 Web — 기존 DOM·Worker host 유지
 
-Web은 두 engine 빌드와 하나의 고정 공식 npm CanvasKit 공급을 유지한다. 실제 page/worker capability를 한 번 확인해 session profile을 고정한다. **COOP/COEP가 없으면 `auto → single-worker`로 화면·입력·정상 종료가 동작해야 한다.** 명시 threaded 요구·Worker/CSP/OffscreenCanvas/WebGL2 부족·공급/ABI/hash/초기화 오류는 원인별 시작 실패다. [기존 배포 검증표](history/26/11/04/work8-3-summary.md#164-web-비격리-배포와-profile-검증표)
+Web은 두 engine 빌드와 하나의 고정 owned `m153-nelyx-paragraph.1 / API 1` CanvasKit 공급을 유지한다. npm 의존성은 타입 선언에 사용하며 선택된 runtime의 manifest·hash·실제 API가 다르면 시작을 거부한다. 실제 page/worker capability를 한 번 확인해 session profile을 고정한다. **COOP/COEP가 없으면 `auto → single-worker`로 화면·입력·정상 종료가 동작해야 한다.** 명시 threaded 요구·Worker/CSP/OffscreenCanvas/WebGL2 부족·공급/ABI/hash/초기화 오류는 원인별 시작 실패다. [기존 배포 검증표](history/26/11/04/work8-3-summary.md#164-web-비격리-배포와-profile-검증표)
 
 **W9-02-B는 Windows App SDK 연결과 같은 차수의 필수 단계**다. 동일한 작은 일반 앱을 Windows와 두 Web profile에서 실행하고 C++ 작업·게시·편집·resize·hide/restore·close를 대조한다. 초기 실제 browser 대상은 Windows Chrome·Edge이며 제품 browser/version·GPU·devicePixelRatio·worker capability를 기록한다. Headless Chromium의 성공을 이 두 실제 browser의 물리 입력·GPU 성능 결과로 대신하지 않는다.
 
@@ -176,3 +176,22 @@ Hermes/JSI는 별도로 고정한 VM/ABI 공급으로 사용할 수 있다. 이�
 | Web profile | Plain/isolated 두 profile의 같은 편집·focus·ARIA corpus, 실제 trusted clipboard/권한 거부·composition 종료 교섭. DOM carrier/Worker 종료 뒤 late event 차단 |
 
 각 검사는 OS/ABI·device 또는 simulator/emulator·IME/browser·입력 source·공급 identity를 명시한다. 위 항목은 **앞으로 통과해야 할 조건**이며 소스 검토·모의 callback·synthetic key 성공을 물리 IME/reader·scanout·성능 수락으로 올리지 않는다.
+## 현재 API·입력 구현 — 2026-11-06 KST
+
+Windows/Web 공개 입력은 실제 NodeNext consumer에서 각각 해석한다. Windows는 ES2022, Web은 ES2022/DOM/browser condition이며 모두 `skipLibCheck=false`다. Compiler **6.0.3**, workspace alias `@typescript/typescript6@6.0.2`, 선언 진단·오류 **0**, `inputValid=true`다. 원래 **4 package·834 subpath·4541 hash**를 보존했고 추가 entry 포함 실제 **836 subpath·4544 항목**을 검사한다. Windows 적용/비적용은 **802/34**, Web은 **788/48**이다.
+
+[API audit](Nelyx/engine/tools/api-audit.mjs)의 original/3은 설치 경로와 compiler symbol 번호를 안정화하고 union 순서만 정규화한다. Well-known/unique symbol 출처, literal, overload/intersection 순서·member/protected 변경과 원래 package JSON 값은 계속 구별한다. 회귀 **21/21**, strict audit는 오류 0·`compatible=false`·exit **1**이다. 작은 데이터 사례·서명·import 허용만으로 전체 동작을 승인하지 않는다.
+
+[OriginalWidgetHost](Nelyx/runtime/engine-client/original.ts)는 명시적 `@nelyx/sdk/engine-v2-original` 경로에서 canonical BuildOwner/Element/State/Inherited/GlobalKey를 App에 유지한다. 표준 RenderObject는 설정만 전달하고 C++가 layout을 수행한다. 원래 key/context identity·즉시 setState·NACK 후 App 값 및 native scene 보존·ACK 뒤 dispose·viewport reader 선택 갱신을 연결했다. Render metadata의 TS layout/query/paint/hit-test와 미이식 hook/service는 명시적으로 거부한다. 동기 geometry/custom hook과 전체 Widget/디자인은 미완료다. 원래 ListView/ScrollController는 세로 고정 extent·유한 bounded 목록부터 연결했다. 즉시 listener 재진입·먼 pixel seek·native animation terminal·detach를 Native 통합 1개로 확인하고, 실제 HWND 앱에서도 20,007→20,027px 이동과 행 표시를 확인했다(C++ 5,245 = SDK ACK 5,245, TS layout fallback 0). 전체 controller/scroll API의 호환 완료로 올리지 않는다.
+
+현재 ConstrainedBox·Padding·ColoredBox, RTL/up Flex·Align/Center·비 positioned Stack·plain Text와 basic ClipRect·affine Transform을 연결했다. Text는 정렬 6종·RTL·locale·nowrap·maxLines/ellipsis·height/0 이상 간격·leading/height behavior·manual/hidden hyphen를 지원하며 provider가 실제 일반 굵기 **400** font를 소유한다. C++는 intrinsic box·paragraph paint 폭·자연 높이·overflow를 구분한다. 변수 글꼴 기본 굵기 100 재사용, nowrap 폭, raster hinting, Native 측정 응답의 옛 크기를 실제 대조로 수정했다. 사용자 font·다른 굵기/italic·음수 간격·rich span/strut·전체 text query는 미완료다.
+
+공급 `90649c3d…`(ABI **2**, schema **4122515473**)에서 Core **283/283**, 원래 bridge **42/42**, canonical CanvasKit pixel 포함 graphics **6/6**, glyph **3/3**, geometry **2/2·7/7**, 전체 host **17/17**, 독립 설치/local strict compiler 포함 runner **19/19**, 개발 재시작 **7/7**을 통과했다. 정렬·RTL·height/spacing·resize를 쓰는 실제 원래 앱 소비자는 HWND/App SDK/Web 두 profile **4/4**이며 Native는 geometry·semantics, Web은 glyph pixel도 확인한다. 실제 Testbed **C++ 1251 = SDK ACK 1251**, TS fallback **0**이다. 전체 API·물리/성능 수락으로 확대하지 않는다.
+
+입력은 동일 document의 게시 관측/capture를 각각 **8개**로 제한하며, 대기 중 begin/up도 현재와 동일한 대상·조상 geometry가 입증될 때만 수락한다. 이동·가림·만료·App document 교체·wheel 퇴역·terminal/close와 제거한 자원 회수를 검사했다. 앞선 HWND UIA E_UNEXPECTED와 headless plain 간헐 실패는 원인 미확정으로 남긴다. 같은-document 재준비의 stale 경합은 별도 재현·수정 범위다.
+
+수요 clock은 Native DWM composition QPC와 Web worker rAF/pthread Main rAF를 사용한다. Content cache는 한 세대·**16 MiB**이며 Native **95**·Web **96** 재사용과 추가 image decode **0**, pressure/eviction 뒤 active hold 보존을 확인했다. 개발 runner는 candidate 검증·세대별 자산·이전 App/VM/worker/provider drain을 수행한다. 실제 OS low-memory 신호, 상태 보존 reload·loss 복구·전체 frame 일정/성능·per-monitor scanout은 미완료다.
+
+현재 owned m153 paragraph runtime의 manifest/hash·API 1과 Native/Web manual/hidden hyphen을 연결했다. Cache가 비어 있는 첫 문단의 생성 hyphen font 참조와 ready callback 이후 SDK/native 집계의 stale 관측도 실제 네 앱 경로에서 재현·수정했다. 마지막 전체 검증 공급의 host **17/17**, 독립 설치 포함 runner **19/19**, 개발 재시작 **7/7**을 확인했다. Native 두 host에서 clip·원점/중심 회전·flip·한글/이모지를 직접 확인했다. 표준 clip 계열과 원래 ListView/ScrollController의 일부를 연결했으며 scroll·gesture/control·디자인 등 고수준 API를 계속 개발한다. 기초 reference 4개를 제거하고 기능마다 전체 suite를 반복하는 절차를 중단했다. 기능 통합 1개와 필요한 빌드·실제 앱 연결을 우선한다. 앞선 공급 `7a2922c8…`(schema **4120097723**)의 빌드·source identity와 원래 버튼/gesture/목록 통합 **3/3**을 확인했다. Tap/long-press·drag details에 이어 CupertinoButton의 원래 theme·State/controller·semantics, Opacity/기본 장식과 App frame clock을 연결했다. 실제 App SDK에서 세 버튼·disable·Tab/Enter와 AnimationController의 opacity 1→0.5→1, **C++ 788 = SDK ACK 788**, fallback 0을 관측했다. 직전 기능 검증 `9fa78a98…` 공급에서 같은 Web 버튼 소비·hover 유지/이탈과 opacity 실제 pixel·종료 대표 통합 **1/1**을 두 profile에서 확인했다(C++/SDK ACK 각각 794/795, fallback 0). 원래 목록 controller의 외부·내부 교체도 연결해 같은 position/offset과 attach/detach callback을 유지하며 Native 대표 통합 **1/1**을 확인했다(C++ 6285 = SDK ACK 6285). Material 및 전체 focus/semantics·OS cursor는 미완료다. 보조 버튼·double-tap details·scale/force·전체 arena/overflow hit 계약은 미완료다. 위 전체 회귀 수치는 앞선 `90649c3d…` 공급의 기록이다. 최신 공급·실패·잔여 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다. Android/Linux·iOS/macOS는 DEFERRED, 물리 IME/reader/trackpad·display/scanout과 성능 두 flag는 미수락이다.
+
+**외출 일시정지 — 2026-11-06 KST:** 사용자 요청으로 PAUSED / PARTIAL. Material의 native shape·border·highlight/ripple와 font weight 설정을 연결 중이며 실제 Material 앱은 아직 통과하지 않았다. 마지막 전체 빌드 공급은 `68b9fdc1…` / schema **486707000**, 이후 MediaQuery·진단/CLI 변경과 형식 정리로 현재 source identity가 달라졌다. 현재 소스로 rebuild한 뒤 대표 통합부터 재개한다. 진행 중 빌드·실행 창·임시 앱은 정리했다. 상세 상태와 복사할 명령은 [3부 재개 기록](work9-3.md#외출-일시정지-기록)을 따른다.

@@ -90,6 +90,56 @@ import type {
   InputGeometryFrame,
   InputGeometryCandidate,
 } from '../../hosting/input-geometry.ts';
+const nativeRenderOwners = new WeakMap<RenderObject, object>();
+export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
+export type { NativeShape, NativePaintEntry, NativeRenderMetadata } from './native-paint.ts';
+const nativeRenderInvalidators = new WeakMap<RenderObject, () => void>();
+/** @internal A canonical configuration adapter can defer geometry to its native owner. */
+export function isNativeRenderObject(render: RenderObject): boolean {
+  return nativeRenderOwners.has(render);
+}
+let nativeRenderConfiguration: ((operation: string) => never) | undefined;
+/** @internal Configuration callbacks may create metadata, never run the TS render pipeline. */
+export function withNativeRenderConfiguration<T>(
+  action: () => T,
+  rejected: (operation: string) => never,
+): T {
+  const previous = nativeRenderConfiguration;
+  nativeRenderConfiguration = rejected;
+  try {
+    return action();
+  } finally {
+    nativeRenderConfiguration = previous;
+  }
+}
+/** @internal A native bridge may use canonical render objects as App configuration only. */
+export function claimNativeRenderObject(
+  render: RenderObject,
+  owner: object,
+  invalidated?: () => void,
+): void {
+  const previous = nativeRenderOwners.get(render);
+  invariant(
+    !previous || previous === owner,
+    'foreign-native-render',
+    'Render object belongs to another native bridge',
+  );
+  invariant(
+    !render.attached && !(render instanceof RenderBox && render.hasSize),
+    'native-render-already-laid-out',
+    'Native metadata cannot adopt an attached or TS-laid-out render object',
+  );
+  nativeRenderOwners.set(render, owner);
+  if (invalidated) nativeRenderInvalidators.set(render, invalidated);
+}
+function assertAppRenderOperation(render: RenderObject, operation: string): void {
+  nativeRenderConfiguration?.(operation);
+  invariant(
+    !nativeRenderOwners.has(render),
+    'native-render-operation',
+    `Synchronous ${operation} is unavailable for native-owned render metadata; a TS renderer fallback is forbidden`,
+  );
+}
 const numericGeometryObjects = new WeakSet<object>();
 const numericGeometryGuards = new WeakMap<object, (node: RenderObject) => boolean>();
 const numericSemanticsPrototypes = new WeakSet<object>();
@@ -1491,6 +1541,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     options: LayoutOptions,
     perform?: () => void,
   ): void {
+    assertAppRenderOperation(this, 'layout');
     assertOutsideRenderPaint();
     if (
       !(
@@ -2005,6 +2056,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate layout',
       );
+    nativeRenderInvalidators.get(this)?.();
     const errors = this.invalidateLayout(undefined, undefined);
     if (errors) throwFailures(errors, 'Layout invalidation failed');
   }
@@ -2053,6 +2105,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate paint',
       );
+    nativeRenderInvalidators.get(this)?.();
     let owner: PipelineOwner | undefined,
       contents = true;
     let batch = this.paintCoalesces ? this.pipelineOwner?._paintInvalidationBatch : null;
@@ -2242,6 +2295,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   /** Compose complete paint transforms, including sibling coordinate conversion within one tree. */
   getTransformTo(target: RenderObject | null = null): Matrix4Storage {
+    assertAppRenderOperation(this, 'geometry');
     if (target === this) return matrix4Identity;
     let from: RenderObject = this,
       fromMatrix: TransformMatrix = identity;
@@ -2305,6 +2359,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       );
   }
   paint(context: PaintingContext): void {
+    assertAppRenderOperation(this, 'paint');
     for (const child of this.children) this.paintChild(context, child);
   }
   protected paintChild(context: PaintingContext, child: RenderObject): void {
@@ -4066,6 +4121,7 @@ export abstract class RenderBox<
     this.nextConstraintKey = 0;
   }
   private query<T extends Size | number | null>(key: string, compute: () => T): T {
+    assertAppRenderOperation(this, 'layout query');
     if (this.dead) invariant(false, 'disposed-render-object', 'Measurement after dispose');
     this.registerLayoutQuery();
     const kind = key.split(':', 1)[0];
@@ -4200,6 +4256,7 @@ export abstract class RenderBox<
     return !!(this.onPointer || this.semantics);
   }
   hitTest(position: Offset, result: HitTestEntry[], toLocal: TransformMatrix = identity): boolean {
+    assertAppRenderOperation(this, 'hit-test');
     if (!this.hasSize)
       invariant(false, 'missing-hit-test-size', 'Hit testing requires a laid-out size');
     const size = this.size;

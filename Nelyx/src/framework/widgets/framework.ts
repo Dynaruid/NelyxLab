@@ -48,6 +48,34 @@ import { OwnerTransaction } from '../../runtime/owner-transaction.ts';
 import { DependencyScope } from '../../runtime/dependency-scope.ts';
 import { DepthQueue } from '../../runtime/depth-queue.ts';
 
+const nativeWidgetAdapters = new WeakMap<
+  BuildOwner,
+  Map<string, (widget: Widget, context: BuildContext) => Widget>
+>();
+/** Owner-scoped native configuration adapters; ordinary framework owners are unchanged. */
+export function registerNativeWidgetAdapter(
+  owner: BuildOwner,
+  name: string,
+  adapter: (widget: Widget, context: BuildContext) => Widget,
+): void {
+  let adapters = nativeWidgetAdapters.get(owner);
+  if (!adapters) nativeWidgetAdapters.set(owner, (adapters = new Map()));
+  if (adapters.has(name)) throw Error('Native widget adapter is already registered: ' + name);
+  adapters.set(name, adapter);
+}
+export function unregisterNativeWidgetAdapters(owner: BuildOwner): void {
+  nativeWidgetAdapters.delete(owner);
+}
+export function buildNativeWidget(
+  context: BuildContext,
+  name: string,
+  widget: Widget,
+): Widget | undefined {
+  return context instanceof Element
+    ? nativeWidgetAdapters.get(context.owner)?.get(name)?.(widget, context)
+    : undefined;
+}
+
 export abstract class Widget extends DiagnosticableTree {
   constructor(readonly key: Key | null = null) {
     super();

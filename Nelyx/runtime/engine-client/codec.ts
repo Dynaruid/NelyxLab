@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { protocol as p } from './schema.ts';
 import { encodeUtf8, decodeUtf8 } from './utf8.ts';
+import { paragraphOptionsBytes, readParagraphOptions } from './paragraph.ts';
+import { clipStyleBytes, readClipStyle } from './clip.ts';
+import { nativePaintBody, readNativePaint } from './native-paint.ts';
+import type { NativePaintOptions, NativePaintSnapshot } from './native-paint.ts';
+import type { ClipStyleOptions, ClipStyleSnapshot } from './clip.ts';
+export type { ClipStyleOptions, ClipStyleSnapshot, ClipRadii } from './clip.ts';
+import type { ParagraphOptions, ParagraphSnapshot } from './paragraph.ts';
+export type { ParagraphOptions, ParagraphSnapshot } from './paragraph.ts';
 export { protocol } from './schema.ts';
 
 export interface NodeHandle {
@@ -37,6 +45,9 @@ export type PathSegment =
   | readonly ['close'];
 export interface GraphicsOptions {
   readonly transform?: AffineMatrix;
+  /** Transform pivot resolved by Content from the final layout size. */
+  readonly origin?: { readonly x: number; readonly y: number };
+  readonly alignment?: { readonly x: number; readonly y: number };
   readonly path?: readonly PathSegment[];
   readonly fillRule?: 'winding' | 'evenOdd';
   readonly shadow?: {
@@ -53,6 +64,21 @@ export interface GraphicsSnapshot extends GraphicsOptions {
 }
 export interface NodeLayout {
   readonly enabled?: boolean;
+  /** Proxy/padding nodes preserve deflated incoming minima; stack expand also tightens maxima. */
+  readonly childConstraints?: keyof typeof p.layoutChildConstraints;
+  /** Clamp additional bounds into incoming constraints, as canonical ConstrainedBox does. */
+  readonly enforceBounds?: boolean;
+  readonly reverseMain?: boolean;
+  readonly reverseCross?: boolean;
+  readonly alignment?: { readonly x: number; readonly y: number };
+  /** Align/Center sizing: fill finite axes unless a child-size factor is supplied. */
+  readonly alignmentSizing?: boolean;
+  readonly widthFactor?: number;
+  readonly heightFactor?: number;
+  readonly shrinkUnboundedMain?: boolean;
+  readonly expandEmpty?: boolean;
+  readonly clipOverflow?: boolean;
+  readonly paragraphSizing?: boolean;
   readonly direction?: 'horizontal' | 'vertical';
   readonly mainSize?: 'min' | 'max';
   readonly mainAlign?: keyof typeof p.layoutMainAlign;
@@ -124,6 +150,25 @@ export interface GestureEvent {
   readonly x: number;
   readonly y: number;
   readonly value: number;
+  readonly details?: GestureDetails;
+}
+export interface GestureDetails {
+  readonly pointerKind: NonNullable<InputPacket['kind']>;
+  readonly stream: number;
+  /** Engine monotonic seconds, after host clock conversion. */
+  readonly timestamp: number;
+  readonly localX: number;
+  readonly localY: number;
+  readonly deltaX: number;
+  readonly deltaY: number;
+  readonly velocityX: number;
+  readonly velocityY: number;
+  readonly originX: number;
+  readonly originY: number;
+  readonly localOriginX: number;
+  readonly localOriginY: number;
+  readonly buttons: number;
+  readonly flags: number;
 }
 export function eventValue(detail: bigint): number {
   const v = new DataView(new ArrayBuffer(8));
@@ -338,13 +383,29 @@ export function semanticActionBody(
   });
 }
 export const commands = {
+  nativePaint(node: NodeHandle, entries?: readonly NativePaintOptions[]) {
+    return command(
+      p.commands.nativePaint,
+      node,
+      entries ? nativePaintBody(entries) : new Uint8Array(0),
+    );
+  },
+  clipStyle(node: NodeHandle, options: ClipStyleOptions | null = null): Uint8Array {
+    return command(
+      p.commands.clipStyle,
+      node,
+      options ? clipStyleBytes(options) : new Uint8Array(0),
+    );
+  },
   graphics(node: NodeHandle, options: GraphicsOptions = {}): Uint8Array {
     const path = options.path ?? [];
     if (path.length > p.limits.pathCommands) throw new RangeError('Path command budget');
+    if (options.transform && options.transform.length !== 6)
+      throw new RangeError('Expected a six-value affine transform');
     return command(
       p.commands.graphics,
       node,
-      body(104 + path.length * 56, (v) => {
+      body(p.graphicsBytes + path.length * p.graphicsPathBytes, (v) => {
         (options.transform ?? [1, 0, 0, 1, 0, 0]).forEach((x, i) =>
           v.setFloat64(i * 8, finite(x), true),
         );
@@ -356,19 +417,31 @@ export const commands = {
         v.setFloat64(80, finite(options.stroke?.width ?? 0), true);
         v.setFloat64(88, finite(options.blur ?? 0), true);
         v.setUint32(
-          96,
+          p.graphicsFields.flags,
           (options.fillRule === 'evenOdd' ? p.graphicsFlags.evenOdd : 0) |
-            (options.path !== undefined ? p.graphicsFlags.hasPath : 0),
+            (options.path !== undefined ? p.graphicsFlags.hasPath : 0) |
+            (options.origin ? p.graphicsFlags.hasOrigin : 0) |
+            (options.alignment ? p.graphicsFlags.hasAlignment : 0),
           true,
         );
-        v.setUint32(100, path.length, true);
+        v.setUint32(p.graphicsFields.pathCount, path.length, true);
+        v.setFloat64(p.graphicsFields.originX, finite(options.origin?.x ?? 0), true);
+        v.setFloat64(p.graphicsFields.originY, finite(options.origin?.y ?? 0), true);
+        v.setFloat64(p.graphicsFields.alignmentX, finite(options.alignment?.x ?? 0), true);
+        v.setFloat64(p.graphicsFields.alignmentY, finite(options.alignment?.y ?? 0), true);
         path.forEach((segment, i) => {
           const verb = { move: 1, line: 2, quad: 3, cubic: 4, close: 5 }[segment[0]];
           if (!verb) throw new RangeError('Unknown path verb');
-          v.setUint32(104 + i * 56, verb, true);
+          v.setUint32(p.graphicsBytes + i * p.graphicsPathBytes, verb, true);
           segment
             .slice(1)
-            .forEach((x, j) => v.setFloat64(112 + i * 56 + j * 8, finite(x as number), true));
+            .forEach((x, j) =>
+              v.setFloat64(
+                p.graphicsBytes + 8 + i * p.graphicsPathBytes + j * 8,
+                finite(x as number),
+                true,
+              ),
+            );
         });
       }),
     );
@@ -438,7 +511,7 @@ export const commands = {
     return command(
       p.commands.layout,
       node,
-      body(88, (v) => {
+      body(p.layoutBytes, (v) => {
         v.setUint32(0, value.enabled === false ? 0 : 1, true);
         v.setUint32(4, value.direction === 'vertical' ? 1 : 0, true);
         v.setUint32(8, value.mainSize === 'max' ? 1 : 0, true);
@@ -446,6 +519,20 @@ export const commands = {
         v.setUint32(16, p.layoutCrossAlign[value.crossAlign ?? 'start'], true);
         v.setUint32(20, value.fit === 'loose' ? 1 : 0, true);
         v.setUint32(24, uint32(value.columns ?? 2), true);
+        v.setUint32(
+          28,
+          p.layoutChildConstraints[value.childConstraints ?? 'loose'] |
+            (value.enforceBounds ? p.layoutConstraintFlags.enforceBounds : 0) |
+            (value.reverseMain ? p.layoutConstraintFlags.reverseMain : 0) |
+            (value.reverseCross ? p.layoutConstraintFlags.reverseCross : 0) |
+            (value.alignment ? p.layoutConstraintFlags.alignment : 0) |
+            (value.alignmentSizing ? p.layoutConstraintFlags.alignmentSizing : 0) |
+            (value.shrinkUnboundedMain ? p.layoutConstraintFlags.shrinkUnboundedMain : 0) |
+            (value.expandEmpty ? p.layoutConstraintFlags.expandEmpty : 0) |
+            (value.clipOverflow ? p.layoutConstraintFlags.clipOverflow : 0) |
+            (value.paragraphSizing ? p.layoutConstraintFlags.paragraphSizing : 0),
+          true,
+        );
         [
           value.flex ?? 0,
           value.gap ?? 0,
@@ -454,6 +541,10 @@ export const commands = {
           value.padding?.top ?? 0,
           value.padding?.right ?? 0,
           value.padding?.bottom ?? 0,
+          value.alignment?.x ?? 0,
+          value.alignment?.y ?? 0,
+          value.widthFactor ?? -1,
+          value.heightFactor ?? -1,
         ].forEach((scalar, i) => v.setFloat64(32 + i * 8, finite(scalar), true));
       }),
     );
@@ -484,6 +575,9 @@ export const commands = {
     });
     data.set(bytes, 24);
     return command(p.commands.text, node, data);
+  },
+  paragraphOptions(node: NodeHandle, value: ParagraphOptions | null): Uint8Array {
+    return command(p.commands.paragraphOptions, node, paragraphOptionsBytes(value));
   },
   create(node: NodeHandle, kind: keyof typeof p.kinds): Uint8Array {
     return command(
@@ -690,6 +784,7 @@ export interface InputPacket {
   readonly modifiers?: number;
   readonly device?: number;
   readonly contact?: number;
+  readonly kind?: keyof typeof p.pointerKinds;
 }
 export interface RawInputSample extends InputPacket {
   readonly node: NodeHandle;
@@ -697,6 +792,7 @@ export interface RawInputSample extends InputPacket {
 }
 export function inputBody(value: InputPacket): Uint8Array {
   return body(p.inputBytes, (v) => {
+    v.setUint32(p.inputFields.kind, p.pointerKinds[value.kind ?? 'unknown'], true);
     v.setBigUint64(p.inputFields.publication, uint64(value.publication ?? 0n), true);
     v.setBigUint64(0, uint64(value.sequence), true);
     v.setBigUint64(8, uint64(value.metrics), true);
@@ -728,7 +824,10 @@ export function inputBody(value: InputPacket): Uint8Array {
   });
 }
 export interface EngineNodeSnapshot {
+  readonly nativePaint: readonly NativePaintSnapshot[] | null;
+  readonly paragraph: ParagraphSnapshot | null;
   readonly graphics: GraphicsSnapshot | null;
+  readonly clipStyle: ClipStyleSnapshot | null;
   readonly matrix: AffineMatrix;
   readonly bounds: TextRect;
   readonly depth: number;
@@ -749,7 +848,8 @@ export interface EngineNodeSnapshot {
   readonly width: number;
   readonly height: number;
   readonly offset: number;
-  /** Content paint rectangle within the node's border box, in logical units. */
+  /** Provider content layout rectangle in logical units. Paragraph layout may
+   * extend beyond its constrained border box. */
   readonly content: TextRect;
   readonly velocity: number;
   readonly scrollRevision: bigint;
@@ -783,6 +883,7 @@ export interface EngineBlob {
   readonly bytes: Uint8Array;
 }
 export interface EngineEvent {
+  readonly gesture?: GestureDetails;
   readonly x: number;
   readonly y: number;
   readonly kind: number;
@@ -827,6 +928,12 @@ export interface EngineResponse {
   readonly preparation: bigint;
   readonly metrics: bigint;
   readonly property: bigint;
+  /** Latest Core viewport observation; it is independent of the activated layout. */
+  readonly viewport: {
+    readonly width: number;
+    readonly height: number;
+    readonly scale: number;
+  } | null;
   readonly consumedThrough: bigint;
   readonly received: bigint;
   readonly consumed: bigint;
@@ -921,7 +1028,10 @@ export function response(bytes: Uint8Array): EngineResponse {
     nodes.push(
       Object.freeze({
         editing: null,
+        paragraph: null,
         graphics: null,
+        clipStyle: null,
+        nativePaint: null,
         control: null,
         list: null,
         textGeometry: null,
@@ -985,9 +1095,41 @@ export function response(bytes: Uint8Array): EngineResponse {
       }),
     );
   }
-  for (let i = 0; i < eventCount; ++i, cursor += p.eventBytes)
+  for (let i = 0; i < eventCount; ++i, cursor += p.eventBytes) {
+    const flags = v.getUint32(cursor + p.eventFields.gestureFlags, true);
+    if (flags & ~15) throw Error('Invalid gesture detail flags');
+    let gesture: GestureDetails | undefined;
+    if (flags & p.gestureDetailFlags.valid) {
+      const pointerKind = Object.entries(p.pointerKinds).find(
+        ([, value]) => value === v.getUint32(cursor + p.eventFields.pointerKind, true),
+      )?.[0] as GestureDetails['pointerKind'] | undefined;
+      const stream = v.getUint32(cursor + p.eventFields.stream, true),
+        timestamp = finite(v.getFloat64(cursor + p.eventFields.timestamp, true));
+      if (!pointerKind || stream > p.limits.streams || timestamp < 0)
+        throw Error('Invalid gesture detail identity');
+      const f = (field: keyof typeof p.eventFields) =>
+        finite(v.getFloat64(cursor + p.eventFields[field], true));
+      gesture = Object.freeze({
+        pointerKind,
+        stream,
+        timestamp,
+        flags,
+        buttons: v.getUint32(cursor + p.eventFields.buttons, true),
+        localX: f('localX'),
+        localY: f('localY'),
+        deltaX: f('deltaX'),
+        deltaY: f('deltaY'),
+        velocityX: f('velocityX'),
+        velocityY: f('velocityY'),
+        originX: f('originX'),
+        originY: f('originY'),
+        localOriginX: f('localOriginX'),
+        localOriginY: f('localOriginY'),
+      });
+    }
     events.push(
       Object.freeze({
+        ...(gesture ? { gesture } : {}),
         kind: v.getUint32(cursor, true),
         status: v.getUint32(cursor + 4, true),
         id: v.getBigUint64(cursor + 8, true),
@@ -998,6 +1140,7 @@ export function response(bytes: Uint8Array): EngineResponse {
         y: finite(v.getFloat64(cursor + 48, true)),
       }),
     );
+  }
   const blobs: EngineBlob[] = [];
   for (let i = 0; i < blobCount; ++i) {
     if (cursor + 24 > bytes.length) throw new Error('Truncated engine blob');
@@ -1005,7 +1148,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       length = v.getUint32(cursor + 16, true);
     const stride = 24 + Math.ceil(length / 8) * 8;
     if (
-      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(type) ||
+      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
       v.getUint32(cursor + 20, true)
@@ -1035,7 +1178,10 @@ export function response(bytes: Uint8Array): EngineResponse {
           const source = Object.entries(p.sources).find(
             ([, value]) => value === d.getUint32(b + 32, true),
           )?.[0] as InputPacket['source'] | undefined;
-          if (!phase || !source) throw new Error('Invalid raw input enum');
+          const kind = Object.entries(p.pointerKinds).find(
+            ([, value]) => value === d.getUint32(b + p.inputFields.kind, true),
+          )?.[0] as NonNullable<InputPacket['kind']> | undefined;
+          if (!phase || !source || !kind) throw new Error('Invalid raw input enum');
           const number = (offset: number) => finite(d.getFloat64(b + offset, true));
           return Object.freeze({
             node: blob.handle,
@@ -1060,6 +1206,7 @@ export function response(bytes: Uint8Array): EngineResponse {
             modifiers: d.getUint32(b + 104, true),
             device: d.getUint32(b + 108, true),
             contact: d.getUint32(b + 112, true),
+            kind,
             publication: d.getBigUint64(b + 120, true),
           });
         }),
@@ -1070,7 +1217,10 @@ export function response(bytes: Uint8Array): EngineResponse {
       semantics: SemanticSnapshot | null = null,
       list: ListSnapshot | null = null,
       control: ControlSnapshot | null = null;
-    let graphics: GraphicsSnapshot | null = null;
+    let nativePaint: readonly NativePaintSnapshot[] | null = null;
+    let graphics: GraphicsSnapshot | null = null,
+      clipStyle: ClipStyleSnapshot | null = null,
+      paragraph: ParagraphSnapshot | null = null;
     for (const blob of blobs) {
       if (
         blob.handle.slot !== node.node.slot ||
@@ -1080,18 +1230,48 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if (blob.type === 13) {
+        if (nativePaint) throw Error('Duplicate native paint snapshot');
+        nativePaint = readNativePaint(blob.bytes);
+      }
+      if (blob.type === 12) {
+        if (clipStyle || node.kind !== p.kinds.clip)
+          throw Error('Invalid duplicate or non-clip style');
+        clipStyle = readClipStyle(blob.bytes);
+        continue;
+      }
+      if (blob.type === 11) {
+        if (paragraph) throw Error('Duplicate paragraph options');
+        paragraph = readParagraphOptions(blob.bytes);
+        continue;
+      }
       if (blob.type === 10) {
         if (
-          size < 104 ||
-          d.getUint32(96, true) > 3 ||
-          d.getUint32(100, true) > p.limits.pathCommands ||
-          size !== 104 + d.getUint32(100, true) * 56
+          size < p.graphicsBytes ||
+          d.getUint32(p.graphicsFields.flags, true) > 15 ||
+          d.getUint32(p.graphicsFields.pathCount, true) > p.limits.pathCommands ||
+          size !==
+            p.graphicsBytes + d.getUint32(p.graphicsFields.pathCount, true) * p.graphicsPathBytes
         )
           throw new Error('Invalid graphics record');
+        const flags = d.getUint32(p.graphicsFields.flags, true),
+          origin = Object.freeze({
+            x: finite(d.getFloat64(p.graphicsFields.originX, true)),
+            y: finite(d.getFloat64(p.graphicsFields.originY, true)),
+          }),
+          alignment = Object.freeze({
+            x: finite(d.getFloat64(p.graphicsFields.alignmentX, true)),
+            y: finite(d.getFloat64(p.graphicsFields.alignmentY, true)),
+          });
+        if (
+          (!(flags & p.graphicsFlags.hasOrigin) && (origin.x || origin.y)) ||
+          (!(flags & p.graphicsFlags.hasAlignment) && (alignment.x || alignment.y))
+        )
+          throw new Error('Invalid graphics pivot flags');
         const path: PathSegment[] = [];
         const verbs = ['', 'move', 'line', 'quad', 'cubic', 'close'] as const;
-        for (let i = 0; i < d.getUint32(100, true); ++i) {
-          const at = 104 + i * 56,
+        for (let i = 0; i < d.getUint32(p.graphicsFields.pathCount, true); ++i) {
+          const at = p.graphicsBytes + i * p.graphicsPathBytes,
             verb = d.getUint32(at, true);
           if (verb < 1 || verb > 5 || d.getUint32(at + 4, true))
             throw new Error('Invalid graphics verb');
@@ -1106,6 +1286,8 @@ export function response(bytes: Uint8Array): EngineResponse {
           );
         }
         graphics = Object.freeze({
+          ...(flags & p.graphicsFlags.hasOrigin ? { origin } : {}),
+          ...(flags & p.graphicsFlags.hasAlignment ? { alignment } : {}),
           transform: Object.freeze(
             Array.from({ length: 6 }, (_, i) => finite(d.getFloat64(i * 8, true))),
           ) as unknown as AffineMatrix,
@@ -1142,7 +1324,7 @@ export function response(bytes: Uint8Array): EngineResponse {
           d.getUint32(20, true) ||
           d.getUint32(0, true) > 7 ||
           d.getUint32(4, true) & ~63 ||
-          d.getUint32(8, true) & ~63
+          d.getUint32(8, true) & ~127
         )
           throw new Error('Invalid semantics blob');
         const label = d.getUint32(12, true),
@@ -1250,10 +1432,32 @@ export function response(bytes: Uint8Array): EngineResponse {
         });
       }
     }
-    return Object.freeze({ ...node, editing, textGeometry, semantics, list, control, graphics });
+    return Object.freeze({
+      ...node,
+      editing,
+      textGeometry,
+      semantics,
+      list,
+      control,
+      graphics,
+      nativePaint,
+      clipStyle,
+      paragraph,
+    });
   });
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
+  const viewportWidth = finite(v.getFloat64(b + p.stateFields.viewportWidth, true)),
+    viewportHeight = finite(v.getFloat64(b + p.stateFields.viewportHeight, true)),
+    viewportScale = finite(v.getFloat64(b + p.stateFields.viewportScale, true));
+  if (
+    viewportWidth < 0 ||
+    viewportHeight < 0 ||
+    viewportScale < 0 ||
+    viewportScale > 16 ||
+    (!viewportScale && (viewportWidth || viewportHeight || u64(p.stateFields.metrics)))
+  )
+    throw new Error('Invalid engine viewport observation');
   return Object.freeze({
     memory: Object.freeze({
       total: u64(p.stateFields.memoryTotal),
@@ -1311,6 +1515,9 @@ export function response(bytes: Uint8Array): EngineResponse {
     scene: u64(p.stateFields.scene),
     preparation: u64(p.stateFields.preparation),
     metrics: u64(p.stateFields.metrics),
+    viewport: viewportScale
+      ? Object.freeze({ width: viewportWidth, height: viewportHeight, scale: viewportScale })
+      : null,
     property: u64(p.stateFields.property),
     consumedThrough: u64(p.stateFields.consumedThrough),
     received: u64(p.stateFields.received),
@@ -1373,6 +1580,7 @@ export function response(bytes: Uint8Array): EngineResponse {
 }
 export interface ProviderMeasurement {
   readonly geometry?: TextGeometry;
+  readonly didExceedMaxLines?: boolean;
   readonly width: number;
   readonly height: number;
   readonly minimum: number;
@@ -1387,22 +1595,30 @@ export function measurementBody(request: EngineResponse, value: ProviderMeasurem
   const g = value.geometry;
   if (g && g.selection.length > p.limits.selectionRects)
     throw new RangeError('Selection rectangle budget');
-  return body(g ? 128 + g.selection.length * 32 : 80, (v) => {
-    v.setBigUint64(0, request.measurePreparation || request.preparation, true);
-    v.setBigUint64(8, request.metrics, true);
-    v.setBigUint64(16, request.device, true);
-    v.setBigUint64(24, request.measureRequest, true);
-    writeHandle(v, 32, node.node);
-    [value.width, value.height, value.minimum, value.maximum, value.baseline].forEach((scalar, i) =>
-      v.setFloat64(40 + i * 8, finite(scalar), true),
-    );
-    if (g) {
-      v.setBigUint64(80, uint64(g.revision), true);
-      const rect = (o: number, r: TextRect) =>
-        [r.x, r.y, r.width, r.height].forEach((n, i) => v.setFloat64(o + i * 8, finite(n), true));
-      rect(88, g.caret);
-      v.setUint32(120, g.selection.length, true);
-      g.selection.forEach((r, i) => rect(128 + i * 32, r));
-    }
-  });
+  return body(
+    g ? p.measurementGeometryBytes + g.selection.length * 32 : p.measurementBytes,
+    (v) => {
+      v.setBigUint64(0, request.measurePreparation || request.preparation, true);
+      v.setBigUint64(8, request.metrics, true);
+      v.setBigUint64(16, request.device, true);
+      v.setBigUint64(24, request.measureRequest, true);
+      writeHandle(v, 32, node.node);
+      [value.width, value.height, value.minimum, value.maximum, value.baseline].forEach(
+        (scalar, i) => v.setFloat64(40 + i * 8, finite(scalar), true),
+      );
+      v.setUint32(
+        p.measureFields.flags,
+        value.didExceedMaxLines ? p.measurementFlags.didExceedMaxLines : 0,
+        true,
+      );
+      if (g) {
+        v.setBigUint64(p.measureFields.geometryRevision, uint64(g.revision), true);
+        const rect = (o: number, r: TextRect) =>
+          [r.x, r.y, r.width, r.height].forEach((n, i) => v.setFloat64(o + i * 8, finite(n), true));
+        rect(p.measureFields.caret, g.caret);
+        v.setUint32(p.measureFields.selectionCount, g.selection.length, true);
+        g.selection.forEach((r, i) => rect(p.measureFields.selection + i * 32, r));
+      }
+    },
+  );
 }

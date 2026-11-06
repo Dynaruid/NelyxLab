@@ -27,6 +27,54 @@ import { ValueNotifier as CanonicalValueNotifier } from '@nelyx/core/foundation/
 export function compositionContracts({ using, timeout }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
+      `${profile}: Widget layout observers wait for first activation without hiding explicit snapshot errors`,
+      { timeout },
+      () =>
+        using(profile, async (f, transport) => {
+          const client = await EngineClient.connect(transport),
+            view = await client.openView(1),
+            observations = [],
+            host = new WidgetHost(view, { pollEvents: false });
+          try {
+            await host.mount(
+              new Box([], {
+                properties: { width: 20, height: 10 },
+                onLayout: (node, snapshot) => observations.push({ node, snapshot }),
+              }),
+            );
+            assert.equal(
+              (await view.request(p.opcodes.layoutSnapshot)).status,
+              p.statuses.notFound,
+            );
+            await assert.rejects(
+              view.layoutSnapshot(),
+              (error) => error.status === p.statuses.notFound,
+            );
+            await host.pollEvents();
+            assert.equal(
+              observations.length,
+              0,
+              'No synthetic or stale layout is returned before activation',
+            );
+            await f.resize(100, 80);
+            await f.ready();
+            await f.present();
+            await host.pollEvents();
+            assert.equal(observations.length, 1);
+            assert.ok(
+              observations[0].snapshot.activeDocument > 0n && observations[0].node.width > 0,
+            );
+            assert.equal(
+              BigInt(host.execution.acknowledgedCommands),
+              observations[0].snapshot.transactionWork,
+            );
+          } finally {
+            await host.close();
+            await client.abort();
+          }
+        }),
+    );
+    test(
       `${profile}: execution observations require native ACKs and count rejected fallback attempts`,
       { timeout },
       () =>

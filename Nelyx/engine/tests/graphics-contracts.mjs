@@ -5,6 +5,210 @@ import { commands as c, protocol as p, body } from '../../runtime/engine-client/
 export function graphicsContracts({ using, timeout, h }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
+      `${profile}: clip styles preserve canonical default hit shapes, Clip.none, saveLayer and atomic malformed rejection`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          let frame = await f.start([
+            c.create(h(1), 'clip'),
+            c.properties(h(1), { x: 10, y: 10, width: 100, height: 60 }),
+            c.clipStyle(h(1), {
+              shape: 'rrect',
+              behavior: 'antiAlias',
+              radii: [30, 20, 10, 15, 30, 20, 10, 15],
+            }),
+            c.create(h(2), 'box'),
+            c.properties(h(2), { width: 150, height: 100 }),
+            c.attach(h(2), h(1)),
+            c.control(h(2), { kind: 'toggle' }),
+            c.gesture(h(2), p.gestures.tap),
+          ]);
+          assert.ok(frame.capabilities & p.capabilities.clipStyles);
+          assert.deepEqual(frame.nodes[0].clipStyle, {
+            shape: 'rrect',
+            behavior: 'antiAlias',
+            radii: [30, 20, 10, 15, 30, 20, 10, 15],
+          });
+          const tap = async (x, y, publishes = true) => {
+            await f.input('begin', 0, { pointer: true, target: h(0, 0), x, y });
+            await f.tick();
+            await f.input('end', 0, { pointer: true, target: h(0, 0), x, y });
+            await f.tick();
+            if (publishes) await f.present();
+          };
+          await tap(11, 11);
+          assert.equal(
+            (await f.inspect()).nodes[1].control.value,
+            1,
+            'Default RenderClipRRect hits its proxy rectangle without a custom clipper',
+          );
+          await f.commit([c.clipStyle(h(1), { shape: 'oval', behavior: 'none' })]);
+          await f.ready();
+          frame = await f.present();
+          assert.equal(frame.nodes[0].flags & p.nodeFlags.clipsChildren, 0);
+          assert.deepEqual(
+            frame.nodes[1].clip,
+            { x: 0, y: 0, width: 300, height: 200 },
+            'Clip.none preserves uncut painting bounds',
+          );
+          await tap(11, 11, false);
+          assert.equal(
+            (await f.inspect()).nodes[1].control.value,
+            1,
+            'Oval hit shape remains active with Clip.none',
+          );
+          await tap(60, 40);
+          assert.equal((await f.inspect()).nodes[1].control.value, 0);
+          await tap(130, 40, false);
+          assert.equal(
+            (await f.inspect()).nodes[1].control.value,
+            0,
+            'Proxy input still rejects a child outside its own size',
+          );
+          await f.commit([
+            c.clipStyle(h(1), { shape: 'oval', behavior: 'antiAliasWithSaveLayer' }),
+          ]);
+          await f.ready();
+          frame = await f.present();
+          assert.ok(frame.nodes[0].flags & p.nodeFlags.clipSaveLayer);
+          assert.ok(frame.nodes[0].flags & p.nodeFlags.clipsChildren);
+          await f.commit([
+            c.clipStyle(h(1), {
+              shape: 'rrect',
+              behavior: 'hardEdge',
+              radii: [30, 30, 30, 30, 30, 30, 30, 30],
+            }),
+          ]);
+          await f.ready();
+          frame = await f.present();
+          assert.ok(frame.nodes[0].flags & p.nodeFlags.hardEdgeClip);
+          assert.equal(
+            frame.nodes[0].flags & p.nodeFlags.rectangularClip,
+            0,
+            'Hard-edge rrect painting must retain its shape',
+          );
+          const before = await f.inspect();
+          for (const mutate of [
+            (v) => v.setUint32(16, 4, true),
+            (v) => v.setUint32(20, 3, true),
+            (v) => v.setUint32(24, 1, true),
+            (v) => v.setFloat64(32, -1, true),
+            (v) => v.setFloat64(32, 1, true),
+            (v) => v.setFloat64(40, NaN, true),
+          ]) {
+            const bad = c.clipStyle(h(1), {});
+            mutate(new DataView(bad.buffer, bad.byteOffset, bad.byteLength));
+            assert.equal(
+              (await f.commit([c.paint(h(2), 0xffabcdef), bad])).status,
+              p.statuses.invalidValue,
+            );
+            assert.equal((await f.inspect()).document, before.document);
+            assert.equal((await f.inspect()).nodes[1].color, before.nodes[1].color);
+          }
+          assert.equal((await f.commit([c.clipStyle(h(2), {})])).status, p.statuses.invalidValue);
+          await f.commit([c.clipStyle(h(1)), c.paint(h(1), 0, 24)]);
+          await f.ready();
+          frame = await f.present();
+          assert.equal(frame.nodes[0].clipStyle, null);
+          await tap(11, 11, false);
+          assert.equal(
+            (await f.inspect()).nodes[1].control.value,
+            0,
+            'Reset restores the raw v2 rounded hit contract',
+          );
+          await f.commit([c.clipStyle(h(1), { shape: 'rect' })]);
+          await f.ready();
+          await f.present();
+          await tap(11, 11);
+          assert.equal((await f.inspect()).nodes[1].control.value, 1);
+        }),
+    );
+    test(
+      `${profile}: layout-dependent transform pivots share clip and input geometry and reject malformed flags atomically`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          let frame = await f.start([
+            c.create(h(1), 'clip'),
+            c.properties(h(1), { x: 50, y: 30, width: 100, height: 60 }),
+            c.graphics(h(1), {
+              transform: [-1, 0, 0, -1, 0, 0],
+              origin: { x: 5, y: 7 },
+              alignment: { x: 0, y: 0 },
+            }),
+            c.create(h(2), 'box'),
+            c.properties(h(2), { width: 30, height: 20 }),
+            c.attach(h(2), h(1)),
+            c.control(h(2), { kind: 'toggle' }),
+            c.gesture(h(2), p.gestures.tap),
+          ]);
+          assert.deepEqual(frame.nodes[0].matrix, [-1, 0, 0, -1, 160, 104]);
+          assert.deepEqual(frame.nodes[0].graphics.origin, { x: 5, y: 7 });
+          assert.deepEqual(frame.nodes[0].graphics.alignment, { x: 0, y: 0 });
+          const tap = async (x, y, publishes = true) => {
+            await f.input('begin', 0, { pointer: true, target: h(0, 0), x, y });
+            await f.tick();
+            await f.input('end', 0, { pointer: true, target: h(0, 0), x, y });
+            await f.tick();
+            if (publishes) await f.present();
+          };
+          await tap(145, 94);
+          assert.equal((await f.inspect()).nodes[1].control.value, 1);
+          await tap(65, 40, false);
+          assert.equal((await f.inspect()).nodes[1].control.value, 1);
+          assert.equal(
+            (await f.commit([c.properties(h(1), { x: 50, y: 30, width: 140, height: 80 })])).status,
+            p.statuses.accepted,
+          );
+          await f.ready();
+          frame = await f.present();
+          assert.deepEqual(frame.nodes[0].matrix, [-1, 0, 0, -1, 200, 124]);
+          await tap(145, 94, false);
+          assert.equal(
+            (await f.inspect()).nodes[1].control.value,
+            1,
+            'Old published coordinates cannot hit the resized pivot',
+          );
+          await tap(185, 114);
+          assert.equal((await f.inspect()).nodes[1].control.value, 0);
+          const before = await f.inspect();
+          for (const mutate of [
+            (v) => v.setUint32(16 + p.graphicsFields.flags, 16, true),
+            (v) => v.setFloat64(16 + p.graphicsFields.originX, 1, true),
+            (v) => v.setFloat64(16 + p.graphicsFields.alignmentY, 1, true),
+            (v) => v.setFloat64(16 + p.graphicsFields.originY, NaN, true),
+          ]) {
+            const bad = c.graphics(h(1));
+            mutate(new DataView(bad.buffer, bad.byteOffset, bad.byteLength));
+            assert.equal(
+              (await f.commit([c.paint(h(2), 0xffabcdef), bad])).status,
+              p.statuses.invalidValue,
+            );
+            assert.equal((await f.inspect()).document, before.document);
+            assert.equal((await f.inspect()).nodes[1].color, before.nodes[1].color);
+          }
+          await f.commit([c.graphics(h(1), { transform: [1e-7, 0, 0, 1e-7, 0, 0] })]);
+          await f.ready();
+          frame = await f.present();
+          assert.ok(frame.nodes[0].bounds.width > 0);
+          await tap(50.000001, 30.000001);
+          assert.equal(
+            (await f.inspect()).nodes[1].control.value,
+            1,
+            'Small invertible transforms retain source hit semantics',
+          );
+          await f.commit([c.graphics(h(1))]);
+          await f.ready();
+          frame = await f.present();
+          assert.deepEqual(frame.nodes[0].matrix, [1, 0, 0, 1, 50, 30]);
+          assert.equal(
+            frame.nodes[0].graphics,
+            null,
+            'Reset clears pivot presence as well as values',
+          );
+        }),
+    );
+    test(
       `${profile}: transformed nested handoff converts residual distances between ancestor axes`,
       { timeout },
       () =>

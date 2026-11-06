@@ -22,6 +22,8 @@ void View::finishCommand(uint64_t id, uint32_t status) {
 }
 void View::cancelStream(uint32_t stream, uint32_t reason) {
   auto& s = streams.at(stream);
+  if(s.active&&s.pointer)canonicalCancel(s,lastInput);
+  s.capturedPublications.fill(nullptr);
   s.appPending.reset();
   for (auto it = input.begin(); it != input.end();) {
     if (it->stream != stream) { ++it; continue; }
@@ -47,7 +49,7 @@ void View::cancelInput(uint32_t reason) {
     if(current->second.list)finishCommand(current->first,reason);}
   for (uint32_t i = 1; i <= wire::limits::streams; ++i) cancelStream(i, reason);
   for (auto& entry : overlays) { entry.second.ballistic = false; entry.second.velocity = 0; }
-  hoverNode={};lastTap={};for(auto& entry:overlays)entry.second.hovered=false;
+  hoverNode={};lastTap={};mouseRegionCount=0;mouseKnown=false;for(auto& entry:overlays)entry.second.hovered=false;
 }
 void View::close(uint32_t reason) {
   if (closed) return;
@@ -58,7 +60,7 @@ void View::close(uint32_t reason) {
   if (demand) event({wire::events::skipped, reason, 0, demand->epoch});
   closed = true;
   --lease.ledger->activeViews;
-  preparing.reset(); demand.reset(); document.reset(); active.reset(); published.reset();
+  preparing.reset(); demand.reset(); document.reset(); active.reset(); published.reset();publications.fill(nullptr);
   query.reset();editors.clear();interactionEvents.clear();rawInputs.clear();rawActive=false;focusNode={};focusSession=0;
   overlays.clear(); results.clear(); commandResults.clear(); resultBytes = 0;
   for (auto it = frames.begin(); it != frames.end();) {
@@ -322,16 +324,36 @@ void View::activate() {
   event({wire::events::activated, wire::statuses::ok, p.id, p.document->epoch, epoch});
   preparing.reset();
 }
-void View::enqueue(Input p) {
-  if (p.sequence <= lastInput) { ++duplicates; return; }
+uint32_t View::enqueue(Input p) {
+  if (p.sequence <= lastInput) { ++duplicates; return wire::statuses::ok; }
   lastInput = p.sequence; ++received;
   auto& stream = streams[p.stream];
-  if(p.publication){if(published&&published->id==p.publication)p.snapshot=published;}
+  if(p.publication){for(const auto& snapshot:publications)if(snapshot&&snapshot->id==p.publication){p.snapshot=snapshot;break;}}
   else p.snapshot=published;
+  if(!p.snapshot&&p.publication&&(p.flags&2u)&&!(p.flags&4u)&&p.phase!=wire::phases::begin&&
+      stream.active&&stream.pointer&&stream.source==p.source){
+    for(const auto& snapshot:stream.capturedPublications)if(snapshot&&snapshot->id==p.publication){p.snapshot=snapshot;break;}
+  }
+  bool geometryCurrent=true;
+  if(p.snapshot&&published&&p.snapshot->scene!=published->scene){
+    geometryCurrent=false;
+    if(p.flags&2u){
+      if(p.phase==wire::phases::begin||(p.flags&4u)||!stream.active||!stream.pointer){
+        const auto target=pointerTarget(p.x,p.y,p.snapshot.get());
+        geometryCurrent=target&&target==pointerTarget(p.x,p.y,published.get())&&
+          p.snapshot->sameInputGeometry(*published,target);
+      }else if(stream.active&&stream.pointer&&stream.source==p.source){
+        geometryCurrent=std::any_of(stream.capturedPublications.begin(),stream.capturedPublications.end(),
+          [&](const auto& snapshot){return snapshot==p.snapshot;});
+        if(!geometryCurrent)geometryCurrent=published->allows(stream.target)&&
+          p.snapshot->sameInputGeometry(*published,stream.target);
+      }
+    }
+  }
   if (closed || !visible || !focused || metrics.width == 0 || metrics.height == 0 ||
-      p.metrics != metrics.epoch || (p.publication&&!p.snapshot) ||
+      p.metrics != metrics.epoch || (p.publication&&!p.snapshot) || !geometryCurrent ||
       (stream.denied && p.phase != wire::phases::begin && !(p.flags&4u))) {
-    ++rejected; return;
+    ++rejected; return wire::statuses::stale;
   }
   const auto views = std::max(1u, lease.ledger->activeViews);
   if (lease.ledger->queuedInputs >= wire::limits::inputPackets ||
@@ -341,12 +363,13 @@ void View::enqueue(Input p) {
     cancelStream(p.stream, wire::statuses::budgetExceeded);
     ++rejected;
     event({wire::events::inputOverflow, wire::statuses::budgetExceeded, p.sequence, 0, p.stream});
-    return;
+    return wire::statuses::budgetExceeded;
   }
   if (p.phase == wire::phases::begin) stream.denied = false;
   input.push_back(p);
   ++lease.ledger->queuedInputs;
   if (p.phase == wire::phases::update) { ++updates; ++lease.ledger->updateInputs; }
+  return wire::statuses::ok;
 }
 void View::needContent(const Node& n, Overlay& o, uint32_t stream) {
   if (o.needSent) return;
@@ -528,6 +551,8 @@ void View::tick(double now) {
   require(now >= 0 && (!hasTime || now >= time), wire::statuses::invalidValue);
   const double dt = hasTime && visible ? now - time : 0;
   time = now; hasTime = true; ++ticks;
+  if(appFrameRequested&&visible){appFrameRequested=false;
+    interaction({wire::events::appFrame,wire::statuses::ok,++appFrameSerial,document?document->epoch:0,0,{},now,0});}
   for(uint32_t i=1;i<streams.size();++i){auto& stream=streams[i];
     if(stream.decision&&time>=stream.decisionDeadline){cancelStream(i,wire::statuses::timedOut);continue;}
     if(stream.appPending&&stream.appPending->appApproved){auto packet=std::move(*stream.appPending);
@@ -686,6 +711,10 @@ double View::nextDeadline() const {
     if (visible && focused && metrics.width > 0 && metrics.height > 0 && caretDeadline > 0 &&
         (!deadline || caretDeadline < deadline)) deadline = caretDeadline;
     if(visible&&focused){if(lastTap&&(!deadline||lastTapTime+0.3<deadline))deadline=lastTapTime+0.3;
+      if(lastTap&&!lastTapDownSent&&(lastTapDetails.flags&wire::gestureDetailFlags::valid)&&(!deadline||lastTapDownAt+0.1<deadline))deadline=lastTapDownAt+0.1;
+      for(const auto& stream:streams)if(stream.active&&stream.pointer&&!stream.tapCanceled&&!stream.tapDownSent&&active&&active->document->contains(stream.target)&&
+        (active->document->get(stream.target).policy&wire::eventPolicies::canonicalGestures)&&(active->document->get(stream.target).gestures&wire::gestures::tap)&&
+        (!deadline||stream.at+0.1<deadline))deadline=stream.at+0.1;
       for(const auto& stream:streams)if(stream.decision&&(!deadline||stream.decisionDeadline<deadline))deadline=stream.decisionDeadline;
       for(const auto& stream:streams)if(stream.active&&stream.pointer&&!stream.pan&&!stream.pinched&&!stream.longSent&&
           active&&active->document->contains(stream.target)&&
@@ -750,7 +779,21 @@ void View::publish(uint64_t id, uint64_t device, uint64_t commit) {
   auto snapshot=std::make_shared<Frame>(f);
   snapshot->snapshotLease=std::make_shared<Lease>(lease.ledger,sizeof(Frame)+
     snapshot->properties.size()*sizeof(Property)+snapshot->items.size()*sizeof(DrawItem)+snapshot->clips.size()*sizeof(ClipShape));
+  // Same-document preparation can replace edited/shaped content without moving
+  // a clicked control. Keep its bounded admission window, with target/ancestor
+  // checks above. App document replacement still retires the complete window,
+  // releasing removed resources; admitted captures retain their own leases.
+  if(published&&published->scene->document->epoch!=snapshot->scene->document->epoch)
+    publications.fill(nullptr);
   f.published = true;snapshot->published=true;published = std::move(snapshot);
+  refreshMouse();
+  publications[publicationCursor++%wire::limits::publicationSnapshots]=published;
+  for(auto& stream:streams)if(stream.active&&stream.pointer){
+    for(const auto& captured:stream.capturedPublications)if(captured){
+      if(captured->scene==published->scene)stream.capturedPublications[stream.captureCursor++%wire::limits::publicationSnapshots]=published;
+      break;
+    }
+  }
   publication = id; surfaceCommit = commit;
   if(focusNode&&!published->allows(focusNode))setFocus({},0,focusSession);
   for(uint32_t stream=1;stream<streams.size();++stream)

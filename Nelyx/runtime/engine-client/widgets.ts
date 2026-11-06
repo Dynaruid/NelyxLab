@@ -16,10 +16,13 @@ import type {
   RawInputSample,
   EngineEvent,
   GraphicsOptions,
+  ParagraphOptions,
+  ClipStyleOptions,
 } from './codec.ts';
 import { EngineError } from './client.ts';
 import { engineFailures } from './lifecycle.ts';
 import type { EngineViewClient } from './client.ts';
+import type { NativePaintOptions } from './native-paint.ts';
 import { Key, sameKey as equalKey } from '@nelyx/core/foundation/key';
 export { Key, LocalKey, UniqueKey, ValueKey, ObjectKey, KeyMap } from '@nelyx/core/foundation/key';
 
@@ -125,6 +128,10 @@ export class Directionality extends InheritedWidget {
   }
 }
 export interface NodeOptions {
+  /** Canonical semantics annotations that merge into the nearest semantic container. */
+  readonly semanticsMergeIntoParent?: boolean;
+  readonly nativePaint?: readonly NativePaintOptions[];
+  readonly paragraph?: ParagraphOptions;
   /** Explicit App geometry boundary: all descendant nodes must declare both finite sizes. */
   readonly appDrivenGeometry?: boolean;
   readonly nativeSparkline?: {
@@ -133,12 +140,22 @@ export interface NodeOptions {
     readonly values: readonly number[];
   };
   readonly graphics?: GraphicsOptions;
+  readonly clipStyle?: ClipStyleOptions;
   readonly onScrollTerminal?: (event: EngineEvent) => void;
   readonly onRawInput?: (sample: RawInputSample) => void;
   readonly onRawGap?: (first: bigint, last: bigint) => void;
   /** App response required for each sample; one outstanding request/stream, 100 ms timeout. */
   readonly appControlled?: (sample: RawInputSample) => boolean | PromiseLike<boolean>;
   readonly modal?: boolean;
+  /** Canonical RenderBox hit policy; omitted preserves the data API's existing hit geometry. */
+  readonly pointerHitTest?: 'proxy' | 'self' | 'deferToChild' | 'translucent';
+  readonly canonicalGestures?: boolean;
+  readonly dragStartDown?: boolean;
+  readonly freePan?: boolean;
+  readonly dragThreshold?: boolean;
+  readonly mouseRegion?: { readonly opaque: boolean };
+  readonly roundedHitTest?: boolean;
+  readonly onFocusChanged?: (focused: boolean) => void;
   readonly gestures?: number;
   readonly control?: ControlOptions;
   readonly onGesture?: (event: GestureEvent) => void;
@@ -154,7 +171,7 @@ export interface NodeOptions {
   readonly color?: number;
   readonly radius?: number;
   readonly semantics?: SemanticProperties;
-  readonly onAction?: (action: keyof typeof p.semanticsActions) => void;
+  readonly onAction?: (action: keyof typeof p.semanticsActions, event?: EngineEvent) => void;
   readonly motion?: {
     readonly id: bigint;
     readonly revision?: bigint;
@@ -490,7 +507,15 @@ export class WidgetHost {
   }
   constructor(
     readonly view: EngineViewClient,
-    private readonly options: { onError?: (error: unknown) => void; pollEvents?: boolean } = {},
+    private readonly options: {
+      onError?: (error: unknown) => void;
+      pollEvents?: boolean;
+      /** Core observations share the existing bounded event poll. */
+      onState?: (state: EngineResponse) => void;
+      onAppFrame?: (timestampSeconds: number) => void;
+      /** Published only after adoption of a known native ACK, including ACK recovery. */
+      onExecution?: (execution: EngineExecutionSnapshot) => void;
+    } = {},
   ) {}
   async mount(root: Widget): Promise<void> {
     if (this.root) throw new Error('WidgetHost is already mounted');
@@ -673,10 +698,15 @@ export class WidgetHost {
             direction: node.resolveTextDirection(e.context!),
           }),
         );
+      if (node.kind === 'paragraph') config.push(c.paragraphOptions(h, o.paragraph ?? null));
+      else if (o.paragraph) throw Error('Paragraph options require a native paragraph node');
+      if (node.kind === 'clip') config.push(c.clipStyle(h, o.clipStyle ?? null));
+      else if (o.clipStyle) throw Error('Clip styles require a native clip node');
       if (node.editor) config.push(c.editor(h, node.editorFlags, node.maximumLength));
       config.push(c.semantics(h, o.semantics ?? null));
       if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
       config.push(c.graphics(h, o.graphics));
+      config.push(c.nativePaint(h, o.nativePaint));
       if (o.nativeSparkline)
         config.push(
           c.nativeExtension(
@@ -689,7 +719,23 @@ export class WidgetHost {
       config.push(c.listItem(h, o.listItem ?? null));
       config.push(c.gesture(h, o.gestures ?? 0), c.control(h, o.control ?? null));
       config.push(
-        c.eventPolicy(h, (o.onRawInput ? 1 : 0) | (o.appControlled ? 2 : 0) | (o.modal ? 4 : 0)),
+        c.eventPolicy(
+          h,
+          (o.onRawInput ? p.eventPolicies.observeRaw : 0) |
+            (o.appControlled ? p.eventPolicies.appControlled : 0) |
+            (o.modal ? p.eventPolicies.modal : 0) |
+            (o.pointerHitTest ? p.eventPolicies.canonicalHitTest : 0) |
+            (o.canonicalGestures ? p.eventPolicies.canonicalGestures : 0) |
+            (o.dragStartDown ? p.eventPolicies.dragStartDown : 0) |
+            (o.freePan ? p.eventPolicies.freePan : 0) |
+            (o.dragThreshold ? p.eventPolicies.dragThreshold : 0) |
+            (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
+            (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
+            (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
+            (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
+            (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
+            (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0),
+        ),
       );
       if (node.kind === 'image') {
         let resource = node.image ? this.resources.get(node.image) : undefined;
@@ -934,6 +980,13 @@ export class WidgetHost {
     this.accepted = desired;
     this.acceptedResources = resources;
     for (const r of desired.values()) r.node.editor?.attach(this, r.handle);
+    if (changes.length) {
+      try {
+        this.options.onExecution?.(this.execution);
+      } catch (error) {
+        this.options.onError?.(error);
+      }
+    }
   }
   async pollEvents(): Promise<void> {
     if (this.closed || this.polling) return;
@@ -941,14 +994,28 @@ export class WidgetHost {
     try {
       const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
       if (observers.length) {
-        const snapshot = await this.view.layoutSnapshot();
-        for (const record of observers) {
-          const node = snapshot.nodes.find((n) => id(n.node) === id(record.handle));
-          if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
-        }
+        const snapshot = await this.view.request(p.opcodes.layoutSnapshot);
+        // Mount acknowledgement can precede the first activated layout, in
+        // particular during cold native-DPR browser startup. Keep polling
+        // terminal/input events without reporting normal preparation as an error.
+        if (
+          snapshot.status !== p.statuses.ok &&
+          !(
+            snapshot.status === p.statuses.notFound &&
+            snapshot.activeDocument === 0n &&
+            !snapshot.closed
+          )
+        )
+          throw new EngineError(snapshot.status, 'Widget layout observation failed', snapshot);
+        if (snapshot.status === p.statuses.ok)
+          for (const record of observers) {
+            const node = snapshot.nodes.find((n) => id(n.node) === id(record.handle));
+            if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
+          }
       }
       const state = await this.view.pollInteractionEvents();
       if (this.closed) return;
+      this.options.onState?.(state);
       for (const sample of state.gestureRequests) {
         const record = this.accepted.get(id(sample.node));
         const decision = record?.node.options.appControlled;
@@ -976,9 +1043,14 @@ export class WidgetHost {
       }
       for (const event of state.events) {
         if (this.closed) break;
+        if (event.kind === p.events.appFrame) {
+          this.options.onAppFrame?.(event.x);
+          continue;
+        }
         const record = this.accepted.get(id(event.node));
         if (!record) continue;
         if (event.kind === p.events.scrollTerminal) record.node.options.onScrollTerminal?.(event);
+        else if (event.kind === p.events.focusChanged) record.node.options.onFocusChanged?.(true);
         else if (event.kind === p.events.controlChanged) {
           ++this.counters.controls;
           record.node.options.onValue?.(eventValue(event.detail), event.x);
@@ -994,6 +1066,7 @@ export class WidgetHost {
               x: event.x,
               y: event.y,
               value: eventValue(event.detail),
+              ...(event.gesture ? { details: event.gesture } : {}),
             });
         } else if (event.kind === p.events.editingChanged && record.node.editor) {
           const editing = await this.view.editSnapshot(event.node);
@@ -1002,7 +1075,7 @@ export class WidgetHost {
           const action = Object.entries(p.semanticsActions).find(
             ([, v]) => BigInt(v) === event.detail,
           )?.[0] as keyof typeof p.semanticsActions | undefined;
-          if (action) record.node.options.onAction?.(action);
+          if (action) record.node.options.onAction?.(action, event);
         }
       }
     } finally {

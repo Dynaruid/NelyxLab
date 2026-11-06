@@ -20,6 +20,8 @@ struct LayoutBox {
   uint64_t editSerial;
   LayoutConstraints input;
   double width = 0, height = 0, baseline = -1;
+  double textWidth = -1, textHeight = -1, textOffsetX = 0;
+  bool contentOverflow = false;
   std::shared_ptr<const TextGeometry> textGeometry;
   std::shared_ptr<const ListGeometry> listGeometry;
   std::vector<Placement> children;
@@ -37,6 +39,7 @@ struct MeasurementRequest {
 struct Measurement {
   double width = 0, height = 0, minimum = 0, maximum = 0, baseline = -1;
   std::shared_ptr<const TextGeometry> geometry = nullptr;
+  bool didExceedMaxLines = false;
 };
 struct LayoutOutput {
   Lease lease;

@@ -12,10 +12,15 @@ double scalar(double value) {
 double constrain(double value, double minimum, double maximum) {
   return scalar(std::clamp(value, minimum, maximum));
 }
-void local(Axis axis, double &minimum, double &maximum) {
+void local(Axis axis, double &minimum, double &maximum, bool enforce) {
   if (axis.tag == wire::bounds::expand) {
     require(std::isfinite(maximum), wire::statuses::invalidValue);
     minimum = maximum;
+  } else if (enforce) {
+    const double low = std::clamp(axis.min, minimum, maximum);
+    if (axis.tag == wire::bounds::finite)
+      maximum = std::clamp(axis.max, minimum, maximum);
+    minimum = low;
   } else {
     minimum = std::max(minimum, axis.min);
     if (axis.tag == wire::bounds::finite)
@@ -24,8 +29,9 @@ void local(Axis axis, double &minimum, double &maximum) {
   }
 }
 LayoutConstraints resolve(const Node &n, LayoutConstraints c) {
-  local(n.horizontal, c.minWidth, c.maxWidth);
-  local(n.vertical, c.minHeight, c.maxHeight);
+  const bool enforce = n.layout.constraintFlags & wire::layoutConstraintFlags::enforceBounds;
+  local(n.horizontal, c.minWidth, c.maxWidth, enforce);
+  local(n.vertical, c.minHeight, c.maxHeight, enforce);
   if (n.properties.width > 0)
     c.minWidth = c.maxWidth = constrain(n.properties.width, c.minWidth, c.maxWidth);
   if (n.properties.height > 0)
@@ -116,6 +122,15 @@ struct LayoutWork::State {
     const bool h = horizontal(n);
     if (!s.enabled)
       return c;
+    const auto policy = s.constraintFlags & wire::layoutConstraintFlags::childMask;
+    if (policy == wire::layoutChildConstraints::inherit) {
+      c.minWidth = inset(t.constraints.minWidth, s.left + s.right);
+      c.minHeight = inset(t.constraints.minHeight, s.top + s.bottom);
+    } else if (policy == wire::layoutChildConstraints::expand) {
+      require(std::isfinite(c.maxWidth) && std::isfinite(c.maxHeight), wire::statuses::invalidValue);
+      c.minWidth = c.maxWidth;
+      c.minHeight = c.maxHeight;
+    }
     if (flow(n)) {
       double maximum = INFINITY, minimum = 0;
       if (flex) {
@@ -208,7 +223,18 @@ struct LayoutWork::State {
       b.height = n.properties.height;
       return;
     }
-    if (n.list.generation) {
+    if(s.constraintFlags&wire::layoutConstraintFlags::alignmentSizing){
+      require(n.kind==wire::kinds::box&&b.children.size()<=1,wire::statuses::invalidGraph);
+      const double childWidth=b.children.empty()?0:b.children.front().box->width;
+      const double childHeight=b.children.empty()?0:b.children.front().box->height;
+      width=s.widthFactor>=0?scalar(childWidth*s.widthFactor):
+        std::isfinite(c.maxWidth)?c.maxWidth:childWidth;
+      height=s.heightFactor>=0?scalar(childHeight*s.heightFactor):
+        std::isfinite(c.maxHeight)?c.maxHeight:childHeight;
+    } else if((s.constraintFlags&wire::layoutConstraintFlags::expandEmpty)&&b.children.empty()){
+      const bool bounded=std::isfinite(c.maxWidth)&&std::isfinite(c.maxHeight);
+      width=bounded?c.maxWidth:c.minWidth; height=bounded?c.maxHeight:c.minHeight;
+    } else if (n.list.generation) {
       require(n.kind==wire::kinds::sliver&&s.left==0&&s.right==0&&s.top==0&&s.bottom==0&&
         s.gap==0&&s.crossAlign==0&&s.mainAlign==0&&!s.mainSize&&
         b.children.size()<=wire::limits::listChildren,wire::statuses::invalidValue);
@@ -255,8 +281,9 @@ struct LayoutWork::State {
         breadth = ascent + descent;
       const double available = h ? t.innerWidth : t.innerHeight;
       if (s.mainSize) {
-        require(std::isfinite(available), wire::statuses::invalidValue);
-        length = std::max(length, available);
+        if(std::isfinite(available))length = std::max(length, available);
+        else require((s.constraintFlags&wire::layoutConstraintFlags::shrinkUnboundedMain)&&t.totalFlex==0,
+          wire::statuses::invalidValue);
       }
       width = h ? length : breadth;
       height = h ? breadth : length;
@@ -272,10 +299,14 @@ struct LayoutWork::State {
       const auto count = b.children.size();
       const double free = std::max(0.0, finalMain - used - (count ? (count - 1) * s.gap : 0));
       double lead = 0, gap = s.gap;
+      const bool reverseMain=s.constraintFlags&wire::layoutConstraintFlags::reverseMain;
+      const bool reverseCross=s.constraintFlags&wire::layoutConstraintFlags::reverseCross;
+      if(s.mainAlign==0&&reverseMain)lead=free;
       if (s.mainAlign == 1)
         lead = free / 2;
       if (s.mainAlign == 2)
-        lead = free;
+        lead = reverseMain?0:free;
+      if(s.mainAlign==3&&count<2&&reverseMain)lead=free;
       if (s.mainAlign == 3 && count > 1)
         gap += free / (count - 1);
       if (s.mainAlign == 4 && count) {
@@ -286,12 +317,14 @@ struct LayoutWork::State {
         gap += free / (count + 1);
         lead = free / (count + 1);
       }
-      for (auto &child : b.children) {
-        double offset = 0;
+      for(size_t index=0;index<count;++index){
+        auto& child=b.children[reverseMain?count-1-index:index];
+        const double freeCross=finalCross-cross(*child.box,h);
+        double offset = reverseCross?freeCross:0;
         if (s.crossAlign == 1)
           offset = (finalCross - cross(*child.box, h)) / 2;
         if (s.crossAlign == 2)
-          offset = finalCross - cross(*child.box, h);
+          offset = reverseCross?0:freeCross;
         if (s.crossAlign == 4)
           offset = ascent - child.box->baseline;
         position(child, h, lead, offset);
@@ -386,6 +419,11 @@ struct LayoutWork::State {
         }
       }
       for (auto &child : b.children) {
+        if(s.constraintFlags&wire::layoutConstraintFlags::alignment){
+          child.x=scalar((innerWidth-child.box->width)*(s.alignmentX+1)/2);
+          child.y=scalar((innerHeight-child.box->height)*(s.alignmentY+1)/2);
+          continue;
+        }
         const double freeMain = std::max(0.0, (h ? innerWidth : innerHeight) - main(*child.box, h)),
                      freeCross = (h ? innerHeight : innerWidth) - cross(*child.box, h);
         position(child, h, s.mainAlign == 1 ? freeMain / 2 : s.mainAlign == 2 ? freeMain : 0,
@@ -403,6 +441,7 @@ struct LayoutWork::State {
   void advance() {
     if (flattening) {
       if (flatten.empty()) {
+        resolveNativePaint(*derived);
         complete = true;
         return;
       }
@@ -418,11 +457,13 @@ struct LayoutWork::State {
       n->textGeometry = f.box->textGeometry;
       n->listGeometry = f.box->listGeometry;
       n->contentX = n->layout.enabled && measuredLeaf(*n) ? n->layout.left : 0;
+      n->contentX = scalar(n->contentX + f.box->textOffsetX);
       n->contentY = n->layout.enabled && measuredLeaf(*n) ? n->layout.top : 0;
-      n->contentWidth = inset(f.box->width, n->layout.enabled && measuredLeaf(*n)
+      n->contentWidth = f.box->textWidth >= 0 ? f.box->textWidth : inset(f.box->width, n->layout.enabled && measuredLeaf(*n)
                                             ? n->layout.left + n->layout.right : 0);
-      n->contentHeight = inset(f.box->height, n->layout.enabled && measuredLeaf(*n)
+      n->contentHeight = f.box->textHeight >= 0 ? f.box->textHeight : inset(f.box->height, n->layout.enabled && measuredLeaf(*n)
                                               ? n->layout.top + n->layout.bottom : 0);
+      n->contentOverflow = f.box->contentOverflow;
       if (n->layout.enabled && n->kind == wire::kinds::scrollViewport && !f.box->children.empty() &&
           n->properties.extent != wire::extents::unbounded) {
         const auto &child = *f.box->children[0].box;
@@ -496,7 +537,7 @@ struct LayoutWork::State {
         require(children.empty(), wire::statuses::invalidGraph);
         require(n.kind != wire::kinds::image || bool(n.resource), wire::statuses::invalidHandle);
         pending = MeasurementRequest{++requestId, source->nodes[n.id.slot].value,
-                                     t.innerWidth, std::isfinite(t.innerWidth)};
+                                     t.innerWidth, std::isfinite(t.innerWidth)&&(!n.paragraph||n.paragraph->value.wraps())};
         if (!pending->bounded)
           pending->width = 0;
         t.phase = 5;
@@ -514,9 +555,22 @@ struct LayoutWork::State {
       const double padWidth = n.layout.left + n.layout.right,
                    padHeight = n.layout.top + n.layout.bottom;
       if (n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable) {
-        t.box->width = constrain(m.width + padWidth, t.constraints.minWidth, t.constraints.maxWidth);
-        require(inset(t.box->width, padWidth) == m.width, wire::statuses::invalidValue);
+        const bool paragraphSizing=n.layout.constraintFlags&wire::layoutConstraintFlags::paragraphSizing;
+        t.box->width = constrain((paragraphSizing?m.maximum:m.width) + padWidth, t.constraints.minWidth, t.constraints.maxWidth);
+        require(paragraphSizing || inset(t.box->width, padWidth) == m.width, wire::statuses::invalidValue);
         t.box->height = constrain(m.height + padHeight, t.constraints.minHeight, t.constraints.maxHeight);
+        t.box->contentOverflow = m.didExceedMaxLines || m.height > inset(t.box->height, padHeight) ||
+          (paragraphSizing&&n.paragraph&&!n.paragraph->value.wraps()&&m.maximum>inset(t.box->width,padWidth));
+        if(paragraphSizing){
+          t.box->textWidth=m.width;t.box->textHeight=m.height;
+          const ParagraphOptions defaults;
+          const auto& options=n.paragraph?n.paragraph->value:defaults;
+          // TextPainter computes its width before RenderParagraph constrains
+          // the box. A non-wrapping paragraph retains its intrinsic paint width.
+          const double painterWidth=options.wraps()?inset(t.box->width,padWidth):
+            std::max(inset(t.constraints.minWidth,padWidth),m.maximum);
+          t.box->textOffsetX=scalar(options.alignment(n.textDirection)*(painterWidth-m.width));
+        }
         t.box->baseline = m.baseline < 0 ? -1 : n.layout.top + m.baseline;
         if (n.kind == wire::kinds::editable) {
           require(n.editing && m.geometry && m.geometry->revision == n.editing->revision,

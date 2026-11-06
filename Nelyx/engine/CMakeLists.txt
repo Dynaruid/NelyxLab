@@ -5,8 +5,8 @@ option(NELYX_ENGINE_BROWSER_HOST "Build the classic browser owner runtime" OFF)
 option(NELYX_ENGINE_WINDOWS_HOST "Build the HWND/Hermes/Skia host" OFF)
 add_library(nelyx_engine_v2 STATIC
   core/protocol/engine.cpp core/protocol/transaction.cpp
-  core/scheduler/scheduler.cpp core/scene/frame.cpp core/layout/layout.cpp core/layout/query.cpp
-  core/interaction/editing.cpp core/interaction/interaction.cpp core/interaction/gestures.cpp bindings/c_api.cpp)
+  core/scheduler/scheduler.cpp core/scene/frame.cpp core/scene/native_paint.cpp core/layout/layout.cpp core/layout/query.cpp
+  core/interaction/editing.cpp core/interaction/interaction.cpp core/interaction/gestures.cpp core/interaction/canonical_gestures.cpp core/interaction/mouse_regions.cpp bindings/c_api.cpp)
 target_compile_features(nelyx_engine_v2 PUBLIC cxx_std_20)
 target_include_directories(nelyx_engine_v2 PUBLIC include)
 if(MSVC)
@@ -78,6 +78,6 @@ else()
     file(GLOB skia_libraries "${NELYX_SKIA_SUPPLIER}/libraries/*.lib")
     target_link_libraries(NelyxEngineV2Host PRIVATE nelyx_engine_v2 ${skia_libraries}
       "${NELYX_HERMES_ROOT}/build/lib/hermesvm.lib" "${NELYX_HERMES_ROOT}/build/jsi/jsi.lib"
-      user32 gdi32 dwrite ole32 oleaut32 uuid usp10 shell32 advapi32 shlwapi opengl32 windowscodecs UIAutomationCore)
+      user32 gdi32 dwrite ole32 oleaut32 uuid usp10 shell32 advapi32 shlwapi opengl32 windowscodecs UIAutomationCore runtimeobject dwmapi)
   endif()
 endif()

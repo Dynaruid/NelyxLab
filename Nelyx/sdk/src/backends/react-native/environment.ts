@@ -11,7 +11,8 @@ export function createReactNativeEnvironment(getBackend: () => ReactNativeEnviro
   return {
     now: () => (globalThis as unknown as { performance: { now(): number } }).performance.now(),
     frame: (callback: () => void) => requestAnimationFrame(callback),
-    defer: (callback: () => void, milliseconds: number) => setTimeout(callback, milliseconds),
+    defer: (callback: () => void, milliseconds: number): ReturnType<typeof setTimeout> =>
+      setTimeout(callback, milliseconds),
     nextFrame: () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
     get scale() {
       return getBackend().native.PixelRatio.get();

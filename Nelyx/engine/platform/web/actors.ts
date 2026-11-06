@@ -5,6 +5,8 @@ import { CanvasKitProvider } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures } from '../../render/canvaskit-web/provider.ts';
 import { exchange, request, failure } from './common.ts';
 import type { BrowserModule } from './common.ts';
+import { DemandFrameClock } from './frame-clock.ts';
+import type { FrameClockSample } from './frame-clock.ts';
 
 export type Viewport = {
   width: number;
@@ -27,6 +29,14 @@ export class ContentActor {
   private stopped = false;
   private last = 0n;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private timingPreparation = 0n;
+  private timing = {
+    startedAtMs: 0,
+    steps: 0,
+    layoutStepElapsedMs: 0,
+    measurementElapsedMs: 0,
+    recordElapsedMs: 0,
+  };
   constructor(
     private module: BrowserModule,
     private engine: number,
@@ -44,6 +54,7 @@ export class ContentActor {
     if (this.stopped) return;
     let attempt: { id: bigint; metrics: bigint; device: bigint } | undefined;
     try {
+      const startedAtMs = performance.now();
       const state = request(
         this.module,
         this.engine,
@@ -51,6 +62,18 @@ export class ContentActor {
         body(8, (v) => v.setUint32(0, p.limits.contentPerStep, true)),
       );
       if (state.status !== p.statuses.ok || state.closed) return;
+      if (state.preparation !== this.timingPreparation) {
+        this.timingPreparation = state.preparation;
+        this.timing = {
+          startedAtMs,
+          steps: 0,
+          layoutStepElapsedMs: 0,
+          measurementElapsedMs: 0,
+          recordElapsedMs: 0,
+        };
+      }
+      ++this.timing.steps;
+      this.timing.layoutStepElapsedMs += performance.now() - startedAtMs;
       if (!state.preparation) this.provider.discardMeasurements();
       if (state.measureRequest) {
         const measurement = request(this.module, this.engine, p.opcodes.measureRequest);
@@ -63,27 +86,41 @@ export class ContentActor {
           metrics: measurement.metrics,
           device: measurement.device,
         };
+        const measurementStart = performance.now();
         const result = request(
           this.module,
           this.engine,
           p.opcodes.measureResult,
           measurementBody(measurement, this.provider.measure(measurement)),
         );
+        this.timing.measurementElapsedMs += performance.now() - measurementStart;
         if (![p.statuses.ok, p.statuses.stale].includes(result.status as 0))
           throw new Error('Provider metrics rejected: ' + result.status);
         this.kick();
       } else if (state.preparationReady && state.preparation !== this.last) {
+        const recordStart = performance.now();
         const scene = request(this.module, this.engine, p.opcodes.preparationScene);
         if (scene.status !== p.statuses.ok)
           throw new Error('Preparation snapshot rejected (' + scene.status + ')');
         this.last = scene.preparation;
         attempt = { id: scene.preparation, metrics: scene.metrics, device: scene.device };
         const packet = this.provider.prepare(scene, this.sharedOwner);
+        this.timing.recordElapsedMs = performance.now() - recordStart;
         this.post({ kind: 'prepared', packet }, this.sharedOwner ? [] : preparedTransfers(packet));
         this.post({
           kind: 'content-stats',
           counters: { ...this.provider.counters },
           textCapabilities: this.provider.textCapabilities,
+          timing: {
+            domain: 'owner-performance',
+            timeOriginMs: performance.timeOrigin,
+            ...this.timing,
+            completedAtMs: performance.now(),
+            preparation: scene.preparation,
+            document: scene.document,
+            nativeContentWork: scene.contentWork,
+            nativeLayoutWork: scene.layoutWork,
+          },
         });
       } else if (
         (!state.preparationReady && state.preparation) ||
@@ -143,22 +180,31 @@ export class ContentActor {
 export class RenderActor {
   private stopped = false;
   private running: Promise<void> | undefined;
-  private timer: ReturnType<typeof setTimeout> | undefined;
+  private clock: DemandFrameClock;
   private wanted = false;
   private wakeAt: number | undefined;
-  private timerAt: number | undefined;
   private candidate = 0n;
   private viewport: Viewport = { width: 0, height: 0, scale: 1, visible: true, focused: true };
   private cppMetrics = '';
   private last: EngineResponse | undefined;
   private offsets: number[] = [];
+  private publishedTiming: Record<string, unknown> | undefined;
   constructor(
     private module: BrowserModule,
     private engine: number,
     private provider: CanvasKitProvider,
     private post: ActorPost,
-  ) {}
-  attach(canvas: OffscreenCanvas, viewport: Viewport): void {
+  ) {
+    this.clock = new DemandFrameClock(
+      (sample) => this.beginFrame(sample),
+      (error) => this.post({ kind: 'provider-error', message: failure(error) }),
+    );
+  }
+  get clockSnapshot(): FrameClockSample {
+    return this.clock.snapshot;
+  }
+  attach(canvas: OffscreenCanvas, viewport: Viewport, clockPort?: MessagePort): void {
+    if (clockPort) this.clock.connect(clockPort);
     this.provider.attach(canvas);
     this.viewport = viewport;
     // Probe the actual owner WebGL2 surface even if the DOM starts at zero size.
@@ -197,7 +243,12 @@ export class RenderActor {
         v.setBigUint64(8, current.lastInput, true);
       }),
     );
-    this.kick();
+    if (!viewport.visible || viewport.width <= 0 || viewport.height <= 0) {
+      this.clock.cancel();
+      this.wanted = false;
+      this.wakeAt = undefined;
+      this.report(request(this.module, this.engine, p.opcodes.inspect), this.clock.snapshot);
+    } else this.kick();
   }
   prepared(packet: PreparedPictures): void {
     if (this.stopped) return;
@@ -266,33 +317,32 @@ export class RenderActor {
     return result;
   }
   kick(delay = 0): void {
-    if (this.stopped) return;
+    if (
+      this.stopped ||
+      !this.viewport.visible ||
+      this.viewport.width <= 0 ||
+      this.viewport.height <= 0
+    )
+      return;
     this.wanted = true;
     const at = performance.now() + Math.max(0, delay);
     this.wakeAt = Math.min(this.wakeAt ?? at, at);
     if (this.running) return;
-    if (this.timer !== undefined) {
-      if (this.timerAt! <= this.wakeAt) return;
-      clearTimeout(this.timer);
-    }
-    this.timerAt = this.wakeAt;
-    this.timer = setTimeout(
-      () => {
-        this.timer = undefined;
-        this.timerAt = this.wakeAt = undefined;
-        this.wanted = false;
-        this.running = this.frame()
-          .catch((error) => this.post({ kind: 'provider-error', message: failure(error) }))
-          .finally(() => {
-            this.running = undefined;
-            if (this.wanted && !this.stopped)
-              this.kick(Math.max(0, (this.wakeAt ?? performance.now()) - performance.now()));
-          });
-      },
-      Math.max(0, this.timerAt - performance.now()),
-    );
+    this.clock.request(this.wakeAt);
   }
-  private async frame(): Promise<void> {
+  private beginFrame(sample: FrameClockSample): void {
+    this.wakeAt = undefined;
+    this.wanted = false;
+    this.running = this.frame(sample)
+      .catch((error) => this.post({ kind: 'provider-error', message: failure(error) }))
+      .finally(() => {
+        this.running = undefined;
+        if (this.wanted && !this.stopped)
+          this.kick(Math.max(0, (this.wakeAt ?? performance.now()) - performance.now()));
+      });
+  }
+  private async frame(clock: FrameClockSample): Promise<void> {
+    const startedAtMs = performance.now();
     let state = request(
       this.module,
       this.engine,
@@ -300,14 +350,21 @@ export class RenderActor {
       body(8, (v) => v.setFloat64(0, performance.now() / 1000, true)),
     );
     if (state.status !== p.statuses.ok || state.closed) return;
+    const tickEndMs = performance.now();
+    let drawElapsedMs = 0,
+      publicationElapsedMs = 0,
+      submission: bigint | null = null;
     const frame = request(this.module, this.engine, p.opcodes.takeFrame);
     if (frame.status === p.statuses.ok) {
+      submission = frame.submission;
       this.offsets = frame.nodes
         .filter((n) => n.kind === p.kinds.scrollViewport)
         .map((n) => n.offset);
       let drawn = false;
       try {
+        const drawStart = performance.now();
         this.provider.draw(frame, this.viewport.width, this.viewport.height, this.viewport.scale);
+        drawElapsedMs = performance.now() - drawStart;
         drawn = true;
         // Provider flush is submission, with its public resource-retention
         // contract. No GPU-complete receipt is invented for WebGL.
@@ -320,6 +377,7 @@ export class RenderActor {
             v.setBigUint64(8, frame.device, true);
           }),
         );
+        const publicationStart = performance.now();
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
         if (!this.stopped)
           state = request(
@@ -331,6 +389,7 @@ export class RenderActor {
               v.setBigUint64(8, frame.device, true);
             }),
           );
+        publicationElapsedMs = performance.now() - publicationStart;
         if (this.candidate === frame.activePreparation) this.candidate = 0n;
         this.provider.retireExcept(frame.activePreparation, this.candidate);
       } finally {
@@ -349,25 +408,52 @@ export class RenderActor {
     }
     this.last = state;
     const events = request(this.module, this.engine, p.opcodes.pollEvents);
+    if (submission !== null)
+      this.publishedTiming = {
+        domain: 'owner-performance',
+        timeOriginMs: performance.timeOrigin,
+        startedAtMs,
+        tickElapsedMs: tickEndMs - startedAtMs,
+        drawAndSubmitElapsedMs: drawElapsedMs,
+        publicationElapsedMs,
+        completedAtMs: performance.now(),
+        submission,
+        document: state.activeDocument,
+        publication: state.publication,
+        metrics: state.metrics,
+        consumedThrough: state.consumedThrough,
+        build: 'unobserved',
+        scanout: 'unobserved',
+      };
+    this.report(state, clock, events.events);
+    if (state.pendingDocument) this.post({ kind: 'content-wake' });
+    if (state.renderWake) this.kick(this.clock.source === 'timer-fallback' ? 16 : 0);
+    if (state.nextDeadline !== null)
+      this.kick(Math.max(0, (state.nextDeadline - performance.now() / 1000) * 1000));
+  }
+  private report(
+    state: EngineResponse,
+    frameClock: FrameClockSample,
+    events: EngineResponse['events'] = [],
+  ): void {
+    this.last = state;
     this.post({
       kind: 'render-stats',
       state,
       scrollOffsets: this.offsets,
       counters: { ...this.provider.counters },
       gl: this.provider.gl,
-      events: events.events,
-      publicationStage: 'publicationIssued',
+      events,
+      publicationStage: state.publication ? 'publicationIssued' : 'unobserved',
       gpuComplete: 'unobserved',
+      frameClock,
+      timing: this.publishedTiming ?? null,
     });
-    if (state.pendingDocument) this.post({ kind: 'content-wake' });
-    if (state.renderWake) this.kick(16);
-    if (state.nextDeadline !== null)
-      this.kick(Math.max(0, (state.nextDeadline - performance.now() / 1000) * 1000));
   }
   async stop(): Promise<void> {
     this.stopped = true;
-    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.clock.close();
     await this.running;
-    this.post({ kind: 'render-stopped', state: this.last });
+    this.post({ kind: 'render-stopped', state: this.last, frameClock: this.clock.snapshot });
   }
 }

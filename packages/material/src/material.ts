@@ -42,6 +42,7 @@ import { BorderRadius, BorderRadiusGeometry } from '@nelyx/core/framework/painti
 import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { ShapeBorderClipper } from '@nelyx/core/framework/rendering/shape-border-clipper';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
+import { registerNativeRenderMetadata, nativeShape } from '@nelyx/core/framework/rendering/object';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { ClipPath } from '@nelyx/core/framework/widgets/clip';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
@@ -550,3 +551,11 @@ function borderPaint(
   const painter = new ShapePainter(shape, context.maybeDependOn(Directionality)?.direction ?? null);
   return new CustomPaint(child, foreground ? { foregroundPainter: painter } : { painter });
 }
+registerNativeRenderMetadata(AnimatedShapePainter.prototype, (source) => ({
+  kind: 'border',
+  shape: source.border.value ? nativeShape(source.border.value, source.direction) : null,
+}));
+registerNativeRenderMetadata(ShapePainter.prototype, (source) => ({
+  kind: 'border',
+  shape: nativeShape(source.border, source.direction),
+}));

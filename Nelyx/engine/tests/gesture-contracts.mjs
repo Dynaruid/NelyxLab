@@ -7,12 +7,163 @@ import {
   keyBody,
   eventValue,
   body,
+  editBody,
+  writeHandle,
   EngineClient,
   WidgetHost,
   Box,
 } from '../../runtime/engine-client/index.ts';
 export function gestureContracts({ using, timeout, h }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
+    test(
+      `${profile}: collected pointer clicks survive same-document preparation and expire at the bounded admission window`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { x: 10, y: 10, width: 40, height: 30 }),
+            c.control(h(1), { kind: 'checkbox' }),
+            c.create(h(2), 'editable'),
+            c.properties(h(2), { x: 120, y: 10, width: 40, height: 30 }),
+            c.text(h(2), 'a'),
+            c.editor(h(2)),
+            c.create(h(3), 'scrollViewport'),
+            c.properties(h(3), { width: 100, height: 100, maximum: 100 }),
+            c.attach(h(1), h(3)),
+          ]);
+          const reprepare = async () => {
+            const state = await f.send(
+              p.opcodes.editSnapshot,
+              body(8, (v) => writeHandle(v, 0, h(2))),
+            );
+            const editing = state.nodes[0].editing;
+            assert.equal(
+              (
+                await f.send(
+                  p.opcodes.edit,
+                  editBody(h(2), {
+                    kind: 'replace',
+                    revision: editing.revision,
+                    text: editing.text + 'a',
+                  }),
+                )
+              ).status,
+              p.statuses.ok,
+            );
+            await f.ready();
+            await f.present();
+          };
+          const collected = (await f.inspect()).publication;
+          await reprepare();
+          for (const [phase, hover] of [
+            ['update', true],
+            ['begin', false],
+            ['end', false],
+          ]) {
+            assert.equal(
+              (
+                await f.input(phase, 0, {
+                  pointer: true,
+                  hover,
+                  x: 20,
+                  y: 20,
+                  publication: collected,
+                })
+              ).status,
+              p.statuses.ok,
+            );
+          }
+          // A real fast click may enqueue both boundaries before the first tick
+          // has created its capture. Admission must preserve their queue order.
+          await f.tick();
+          let state = await f.inspect();
+          assert.equal(state.nodes.find((n) => n.node.slot === 1).control.value, 1);
+          assert.equal(state.controlWork, 1n);
+          assert.equal(state.rejected, 0n);
+          const beforeScroll = state.publication;
+          await f.input('update', 10, { source: 'wheelUnknown', target: h(3) });
+          await f.tick();
+          await reprepare();
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: beforeScroll }))
+              .status,
+            p.statuses.stale,
+            'A same-document target still under the point cannot reuse changed local geometry',
+          );
+          // A target can remain under the point while its local coordinate space changes.
+          const old = state.publication;
+          await f.commit([c.properties(h(1), { x: 10, y: 10, width: 60, height: 30 })]);
+          await f.ready();
+          await f.present();
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: old })).status,
+            p.statuses.stale,
+          );
+          state = await f.inspect();
+          assert.equal(state.controlWork, 1n);
+          // The same eight-slot admission bound also expires unchanged old targets.
+          const expired = state.publication;
+          for (let i = 0; i < p.limits.publicationSnapshots; ++i) {
+            await reprepare();
+          }
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: expired }))
+              .status,
+            p.statuses.stale,
+          );
+          const current = (await f.inspect()).publication;
+          for (const phase of ['begin', 'end']) {
+            assert.equal(
+              (await f.input(phase, 0, { pointer: true, x: 20, y: 20, publication: current }))
+                .status,
+              p.statuses.ok,
+            );
+            await f.tick();
+          }
+          assert.equal((await f.inspect()).controlWork, 2n);
+        }),
+    );
+    test(
+      `${profile}: stale pointer begins reject changed ancestor transforms and a newly covering control`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { x: 10, width: 100, height: 100 }),
+            c.create(h(2), 'box'),
+            c.properties(h(2), { width: 40, height: 30 }),
+            c.control(h(2), { kind: 'checkbox' }),
+            c.attach(h(2), h(1)),
+            c.create(h(3), 'box'),
+            c.properties(h(3), { x: 150, width: 40, height: 30 }),
+            c.control(h(3), { kind: 'checkbox' }),
+          ]);
+          let old = (await f.inspect()).publication;
+          await f.commit([
+            c.properties(h(1), { x: 20, width: 100, height: 100 }),
+            c.properties(h(2), { x: -10, width: 40, height: 30 }),
+          ]);
+          await f.ready();
+          await f.present();
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: old })).status,
+            p.statuses.stale,
+          );
+          old = (await f.inspect()).publication;
+          await f.commit([c.properties(h(3), { x: 10, width: 40, height: 30 })]);
+          await f.ready();
+          await f.present();
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: old })).status,
+            p.statuses.stale,
+          );
+          const state = await f.inspect();
+          assert.equal(state.controlWork, 0n);
+          assert.equal(state.rejected, 2n);
+        }),
+    );
     test(
       `${profile}: Widget callbacks consume bounded raw samples and approve native pointer actions`,
       { timeout },
@@ -213,6 +364,94 @@ export function gestureContracts({ using, timeout, h }) {
             'Retired snapshots are explicitly rejected',
           );
           assert.ok(state.reservedBytes > 0n);
+        }),
+    );
+    test(
+      `${profile}: admitted pointer release uses collected geometry after a new layout is published`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { x: 10, y: 10, width: 80, height: 40 }),
+            c.control(h(1), { kind: 'button' }),
+            c.semantics(h(1), {
+              role: 'button',
+              label: 'captured',
+              actions: p.semanticsActions.activate,
+            }),
+          ]);
+          await f.input('begin', 0, { pointer: true, x: 30, y: 30 });
+          await f.tick();
+          await f.present();
+          const collected = (await f.inspect()).publication;
+          await f.commit([c.properties(h(1), { x: 150, y: 10, width: 80, height: 40 })]);
+          await f.ready();
+          assert.equal(
+            (await f.input('end', 0, { pointer: true, x: 30, y: 30, publication: collected }))
+              .status,
+            p.statuses.ok,
+          );
+          await f.present();
+          await f.tick();
+          const events = (await f.send(p.opcodes.pollInteractionEvents)).events;
+          assert.equal(
+            events.filter(
+              (event) => event.kind === p.events.semanticAction && event.node.slot === 1,
+            ).length,
+            1,
+            'The admitted release must activate the control at the collected position',
+          );
+          assert.equal((await f.inspect()).controlWork, 1n);
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 30, y: 30, publication: collected }))
+              .status,
+            p.statuses.stale,
+            'A fresh packet cannot reuse the retired layout',
+          );
+        }),
+    );
+    test(
+      `${profile}: an active pointer retains bounded collected publications until its terminal, then releases them`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { x: 10, y: 10, width: 80, height: 40 }),
+            c.control(h(1), { kind: 'button' }),
+            c.semantics(h(1), {
+              role: 'button',
+              label: 'captured',
+              actions: p.semanticsActions.activate,
+            }),
+          ]);
+          await f.input('begin', 0, { pointer: true, x: 30, y: 30 });
+          await f.tick();
+          await f.present();
+          const collected = (await f.inspect()).publication;
+          await f.commit([c.properties(h(1), { x: 150, y: 10, width: 80, height: 40 })]);
+          await f.ready();
+          await f.present();
+          const held = (await f.inspect()).reservedBytes;
+          assert.equal(
+            (await f.input('end', 0, { pointer: true, x: 30, y: 30, publication: collected }))
+              .status,
+            p.statuses.ok,
+          );
+          await f.tick();
+          await f.present();
+          const state = await f.inspect();
+          assert.equal(state.controlWork, 1n);
+          assert.ok(
+            state.reservedBytes < held,
+            'Terminal releases the retired captured scene and snapshot holds',
+          );
+          assert.equal(
+            (await f.input('begin', 0, { pointer: true, x: 30, y: 30, publication: collected }))
+              .status,
+            p.statuses.stale,
+          );
         }),
     );
     test(

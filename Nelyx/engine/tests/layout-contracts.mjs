@@ -39,6 +39,65 @@ export function layoutContracts({ using, timeout, h }) {
   };
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
+      `${profile}: layout policies reject incompatible kinds, malformed factors and old payloads atomically`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([...node(1, 'box', 0, { width: 100, height: 80 })]);
+          const before = await f.inspect();
+          for (const [options, status] of [
+            [{ reverseMain: true }, p.statuses.capabilityMissing],
+            [{ alignmentSizing: true }, p.statuses.capabilityMissing],
+            [{ alignment: { x: 0, y: 0 }, widthFactor: 2 }, p.statuses.invalidValue],
+            [
+              { alignment: { x: 0, y: 0 }, alignmentSizing: true, childConstraints: 'inherit' },
+              p.statuses.capabilityMissing,
+            ],
+            [
+              { alignment: { x: 0, y: 0 }, alignmentSizing: true, widthFactor: -0.5 },
+              p.statuses.invalidValue,
+            ],
+            [{ expandEmpty: true }, p.statuses.capabilityMissing],
+            [{ clipOverflow: true }, p.statuses.capabilityMissing],
+            [{ paragraphSizing: true }, p.statuses.capabilityMissing],
+          ])
+            assert.equal((await f.commit([c.layout(h(1), options)])).status, status);
+          const unknown = c.layout(h(1), {});
+          new DataView(unknown.buffer, unknown.byteOffset, unknown.byteLength).setUint32(
+            16 + p.layoutFields.constraintFlags,
+            2048,
+            true,
+          );
+          assert.equal((await f.commit([unknown])).status, p.statuses.invalidValue);
+          const old = c.layout(h(1), {}).slice(0, 104);
+          new DataView(old.buffer, old.byteOffset, old.byteLength).setUint32(
+            4,
+            old.byteLength,
+            true,
+          );
+          assert.notEqual((await f.commit([old])).status, p.statuses.accepted);
+          const after = await f.inspect();
+          assert.equal(after.document, before.document);
+          assert.equal(after.activeDocument, before.activeDocument);
+          assert.equal(
+            (
+              await f.commit([
+                c.layout(h(1), {
+                  alignment: { x: 0.5, y: -0.5 },
+                  alignmentSizing: true,
+                  widthFactor: 2,
+                  heightFactor: 3,
+                }),
+              ])
+            ).status,
+            p.statuses.accepted,
+          );
+          await f.ready();
+          await f.present();
+          assert.equal((await f.inspect()).failedDocument, 0n);
+        }),
+    );
+    test(
       `${profile}: Box and Stack align within their padded native constraints`,
       { timeout },
       () =>

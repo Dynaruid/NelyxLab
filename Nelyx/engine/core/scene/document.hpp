@@ -4,6 +4,9 @@
 #include "../layout/list.hpp"
 #include "../interaction/controls.hpp"
 #include "geometry.hpp"
+#include "paragraph.hpp"
+#include "clip.hpp"
+#include "native_paint.hpp"
 #include <array>
 #include <memory>
 #include <atomic>
@@ -31,8 +34,9 @@ struct Motion {
   double target = 1, seconds = 0;
 };
 struct LayoutStyle {
-  uint32_t enabled = 0, direction = 0, mainSize = 0, mainAlign = 0, crossAlign = 0, fit = 0, columns = 2;
+  uint32_t enabled = 0, direction = 0, mainSize = 0, mainAlign = 0, crossAlign = 0, fit = 0, columns = 2, constraintFlags = 0;
   double flex = 0, gap = 0, runGap = 0, left = 0, top = 0, right = 0, bottom = 0;
+  double alignmentX = 0, alignmentY = 0, widthFactor = -1, heightFactor = -1;
 };
 struct Coverage { uint64_t revision = 0; double minimum = 0, maximum = 0; bool enabled = false; };
 struct TextData {
@@ -48,6 +52,12 @@ struct Node {
   uint32_t kind = 0, order = 0, policy = 0;
   Properties properties;
   GraphicsStyle graphics;
+  std::optional<ClipStyle> clipStyle;
+  std::shared_ptr<const NativePaint> nativePaint,resolvedPaint;
+  const NativePaintEntry* physicalPaint()const {
+    if(resolvedPaint)for(const auto& entry:resolvedPaint->entries)if(entry.kind==1)return &entry;
+    return nullptr;
+  }
   Point extensionSize;
   Axis horizontal, vertical;
   Motion motion;
@@ -61,6 +71,7 @@ struct Node {
   uint64_t layoutRevision = 0;
   double baseline = -1;
   double contentX = 0, contentY = 0, contentWidth = 0, contentHeight = 0;
+  bool contentOverflow = false;
   uint64_t editSerial=0;
   uint32_t editFlags=0,maximumLength=wire::limits::textBytes;
   std::shared_ptr<const EditingValue> editing;
@@ -70,18 +81,19 @@ struct Node {
   uint32_t textDirection = 0;
   double radius = 0, fontSize = 18;
   std::shared_ptr<const TextData> text;
+  std::shared_ptr<const ParagraphData> paragraph;
   std::shared_ptr<const Resource> resource;
   explicit Node(const std::shared_ptr<Ledger>& ledger) : lease(ledger, sizeof(Node)) {
     ++lease.ledger->nodes;
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent),
-      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),extensionSize(n.extensionSize),
+      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),clipStyle(n.clipStyle),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),extensionSize(n.extensionSize),
       horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
       layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
-      contentWidth(n.contentWidth), contentHeight(n.contentHeight), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
+      contentWidth(n.contentWidth), contentHeight(n.contentHeight), contentOverflow(n.contentOverflow), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
       editing(n.editing),textGeometry(n.textGeometry),semantics(n.semantics),color(n.color), textDirection(n.textDirection), radius(n.radius),
-      fontSize(n.fontSize), text(n.text), resource(n.resource) {
+      fontSize(n.fontSize), text(n.text), paragraph(n.paragraph), resource(n.resource) {
     ++lease.ledger->nodes;
   }
   ~Node() { --lease.ledger->nodes; }

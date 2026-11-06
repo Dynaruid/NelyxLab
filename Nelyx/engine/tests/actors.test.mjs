@@ -6,6 +6,7 @@ import { engineRoot, timeout } from '../tools/build.mjs';
 import { wasmFactory } from './transports.mjs';
 import { ContentActor, RenderActor } from '../platform/web/actors.ts';
 import { exchange, request } from '../platform/web/common.ts';
+import { DemandFrameClock } from '../platform/web/frame-clock.ts';
 import {
   protocol as p,
   commands,
@@ -17,6 +18,166 @@ import {
   focusBody,
 } from '../../runtime/engine-client/index.ts';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+test(
+  'Frame demand preempts an idle deadline, coalesces callbacks and blocks late callbacks after close',
+  { timeout },
+  () => {
+    const originalRequest = globalThis.requestAnimationFrame,
+      originalCancel = globalThis.cancelAnimationFrame;
+    const callbacks = new Map(),
+      samples = [],
+      errors = [];
+    let next = 0;
+    globalThis.requestAnimationFrame = (callback) => {
+      callbacks.set(++next, callback);
+      return next;
+    };
+    globalThis.cancelAnimationFrame = (id) => callbacks.delete(id);
+    const clock = new DemandFrameClock(
+      (sample) => samples.push(sample),
+      (error) => errors.push(error),
+    );
+    try {
+      clock.request(performance.now() + 60000);
+      clock.request();
+      clock.request();
+      clock.request();
+      assert.equal(callbacks.size, 1);
+      assert.equal(clock.snapshot.outstanding, 1);
+      const [id, callback] = callbacks.entries().next().value;
+      callbacks.delete(id);
+      callback(performance.now());
+      assert.equal(samples.length, 1);
+      assert.equal(samples[0].source, 'worker-raf');
+      clock.request();
+      const late = callbacks.values().next().value;
+      clock.close();
+      assert.equal(callbacks.size, 0);
+      assert.equal(clock.snapshot.outstanding, 0);
+      late(performance.now());
+      assert.equal(samples.length, 1);
+      assert.deepEqual(errors, []);
+    } finally {
+      clock.close();
+      if (originalRequest) globalThis.requestAnimationFrame = originalRequest;
+      else delete globalThis.requestAnimationFrame;
+      if (originalCancel) globalThis.cancelAnimationFrame = originalCancel;
+      else delete globalThis.cancelAnimationFrame;
+    }
+  },
+);
+test(
+  'Unsupported worker rAF reports a timer clock, while other clock failures remain explicit',
+  { timeout },
+  async () => {
+    const originalRequest = globalThis.requestAnimationFrame,
+      originalCancel = globalThis.cancelAnimationFrame;
+    const errors = [];
+    let clock;
+    try {
+      globalThis.cancelAnimationFrame = () => {};
+      globalThis.requestAnimationFrame = () => {
+        throw new DOMException('Unsupported worker', 'NotSupportedError');
+      };
+      const sample = new Promise((resolve) => {
+        clock = new DemandFrameClock(resolve, (error) => errors.push(error));
+        clock.request();
+      });
+      assert.equal((await sample).source, 'timer-fallback');
+      assert.equal(clock.snapshot.fallbackReason, 'worker-raf-not-supported');
+      clock.close();
+      const error = Error('broken clock');
+      globalThis.requestAnimationFrame = () => {
+        throw error;
+      };
+      clock = new DemandFrameClock(
+        () => assert.fail('Unexpected fallback'),
+        (error) => errors.push(error),
+      );
+      clock.request();
+      assert.deepEqual(errors, [error]);
+      assert.equal(clock.snapshot.outstanding, 0);
+    } finally {
+      clock?.close();
+      if (originalRequest) globalThis.requestAnimationFrame = originalRequest;
+      else delete globalThis.requestAnimationFrame;
+      if (originalCancel) globalThis.cancelAnimationFrame = originalCancel;
+      else delete globalThis.cancelAnimationFrame;
+    }
+  },
+);
+test(
+  'A Main frame signal carries its own time origin, uses one credit, and ignores a canceled generation',
+  { timeout },
+  async () => {
+    const originalRequest = globalThis.requestAnimationFrame,
+      originalCancel = globalThis.cancelAnimationFrame;
+    const channel = new MessageChannel(),
+      samples = [],
+      errors = [],
+      requests = [];
+    let clock;
+    let resolveFirst, resolveSecond;
+    const first = new Promise((resolve) => (resolveFirst = resolve)),
+      second = new Promise((resolve) => (resolveSecond = resolve));
+    try {
+      globalThis.requestAnimationFrame = () => {
+        throw new DOMException('Unsupported pthread', 'NotSupportedError');
+      };
+      globalThis.cancelAnimationFrame = () => {};
+      channel.port1.addEventListener('message', (event) => {
+        if (event.data.kind !== 'request') return;
+        requests.push(event.data.id);
+        if (requests.length === 1)
+          channel.port1.postMessage({
+            kind: 'frame',
+            id: event.data.id,
+            time: 100,
+            timeOrigin: performance.timeOrigin + 50,
+          });
+        else resolveSecond(event.data.id);
+      });
+      channel.port1.start();
+      clock = new DemandFrameClock(
+        (sample) => {
+          samples.push(sample);
+          resolveFirst(sample);
+        },
+        (error) => errors.push(error),
+      );
+      clock.connect(channel.port2);
+      clock.request();
+      clock.request();
+      const sample = await first;
+      assert.equal(requests.length, 1);
+      assert.equal(sample.source, 'main-raf');
+      assert.equal(sample.callbackTimestampMs, 100);
+      assert.equal(sample.callbackTimeOriginMs, performance.timeOrigin + 50);
+      assert.equal(sample.predictedTargetMs, null);
+      clock.request();
+      const ticket = await second;
+      clock.cancel();
+      channel.port1.postMessage({
+        kind: 'frame',
+        id: ticket,
+        time: 116,
+        timeOrigin: performance.timeOrigin + 50,
+      });
+      await sleep(5);
+      assert.equal(samples.length, 1);
+      assert.equal(clock.snapshot.outstanding, 0);
+      assert.deepEqual(errors, []);
+    } finally {
+      clock?.close();
+      channel.port1.close();
+      channel.port2.close();
+      if (originalRequest) globalThis.requestAnimationFrame = originalRequest;
+      else delete globalThis.requestAnimationFrame;
+      if (originalCancel) globalThis.cancelAnimationFrame = originalCancel;
+      else delete globalThis.cancelAnimationFrame;
+    }
+  },
+);
 test(
   'Render schedules the C++ caret deadline and earlier input preempts its idle timer',
   { timeout },

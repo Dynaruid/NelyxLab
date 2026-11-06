@@ -69,6 +69,7 @@ namespace {
 constexpr uint32_t capabilities = coreCapabilities;
 void exact(Reader r, size_t count) { require(r.length == count); }
 void invalidate(View& v, uint32_t reason) {
+  v.publications.fill(nullptr);
   v.caretDeadline = 0;
   v.cancelQuery(reason);
   v.cancelInput(reason);
@@ -85,17 +86,17 @@ Input readInput(Reader r) {
   exact(r, wire::inputBytes);
   Input p{r.u64(wire::inputFields::sequence), r.u64(wire::inputFields::metrics), handle(r, wire::inputFields::target), r.u32(wire::inputFields::stream), r.u32(wire::inputFields::phase), r.u32(wire::inputFields::source), r.u32(wire::inputFields::flags),
     r.f64(wire::inputFields::time), r.f64(wire::inputFields::sample), r.f64(wire::inputFields::x), r.f64(wire::inputFields::y), r.f64(wire::inputFields::dx), r.f64(wire::inputFields::dy), r.f64(wire::inputFields::velocity),
-    r.u32(wire::inputFields::clock), r.u32(wire::inputFields::buttons), r.u32(wire::inputFields::modifiers), r.u32(wire::inputFields::device), r.u32(wire::inputFields::contact),r.u64(wire::inputFields::publication),{},false};
+    r.u32(wire::inputFields::clock), r.u32(wire::inputFields::buttons), r.u32(wire::inputFields::modifiers), r.u32(wire::inputFields::device), r.u32(wire::inputFields::contact),r.u32(wire::inputFields::kind),r.u64(wire::inputFields::publication),{},false};
   require(p.sequence > 0 && p.metrics > 0 && p.stream > 0 && p.stream <= wire::limits::streams &&
     p.phase >= wire::phases::begin && p.phase <= wire::phases::cancel &&
     p.source >= wire::sources::engineDriven && p.source <= wire::sources::wheelUnknown &&
     (p.flags & ~7u) == 0 && (!(p.flags&4u)||(p.flags&2u)) && p.time >= 0 && p.sample >= 0 && p.clock > 0 && p.clock <= 3 &&
-    r.u32(wire::inputFields::reserved) == 0, wire::statuses::invalidValue);
+    p.kind <= wire::pointerKinds::trackpad, wire::statuses::invalidValue);
   return p;
 }
 void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t flags, const DrawItem* item = nullptr) {
   writeHandle(w, p, n.id); w.u32(p + 8, n.kind); writeHandle(w, p + 12, n.parent);
-  w.u32(p + 20, flags | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u)|(n.extensionSize.x>0?wire::nodeFlags::nativeExtension:0u));
+  w.u32(p + 20, flags | (item?item->flags:0u) | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u)|(n.extensionSize.x>0?wire::nodeFlags::nativeExtension:0u));
   w.f64(p + 24, item ? item->x : n.properties.x); w.f64(p + 32, item ? item->y : n.properties.y);
   w.f64(p + 40, n.properties.width); w.f64(p + 48, n.properties.height);
   w.f64(p + 56, o ? o->offset : 0); w.f64(p + 64, o ? o->velocity : 0);
@@ -255,7 +256,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
           wire::statuses::invalidValue);
         v.metrics = metrics; invalidate(v, wire::statuses::stale);
       } else if (opcode == wire::opcodes::input) {
-        v.enqueue(readInput(body));
+        status=v.enqueue(readInput(body));
       } else if (opcode == wire::opcodes::listSeek) {
         status = v.listSeek(body, id);
       } else if (opcode == wire::opcodes::subscribeRaw) {
@@ -276,20 +277,22 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         exact(body, 0);
         require(v.measurement().has_value(), wire::statuses::notFound);
       } else if (opcode == wire::opcodes::measureResult) {
-        require(body.length>=80);
+        require(body.length>=wire::measurementBytes&&body.u32(wire::measureFields::flags)<=1&&body.u32(wire::measureFields::reserved)==0);
         Measurement value{body.f64(40), body.f64(48), body.f64(56), body.f64(64), body.f64(72)};
+        value.didExceedMaxLines=(body.u32(wire::measureFields::flags)&wire::measurementFlags::didExceedMaxLines)!=0;
         std::optional<MeasurementRequest> pending;
         if(v.preparing&&v.preparing->id==body.u64(0)&&v.preparing->layout&&v.preparing->layout->waiting())pending=v.preparing->layout->request();
         else if(v.query&&v.query->preparation==body.u64(0)&&v.query->work&&v.query->work->waiting())pending=v.query->work->request();
         require(pending&&pending->node->id==handle(body,32),wire::statuses::stale);
-        if(body.length>80){
-          require(body.length>=128&&pending&&pending->node->kind==wire::kinds::editable&&pending->node->editing&&
-            pending->node->editing->revision==body.u64(80)&&body.u32(124)==0,wire::statuses::stale);
-          const auto rectCount=body.u32(120);require(rectCount<=wire::limits::selectionRects&&body.length==128+size_t(rectCount)*32,wire::statuses::budgetExceeded);
+        require(!value.didExceedMaxLines||pending->node->kind==wire::kinds::paragraph||pending->node->kind==wire::kinds::editable,wire::statuses::invalidValue);
+        if(body.length>wire::measurementBytes){
+          require(body.length>=wire::measurementGeometryBytes&&pending->node->kind==wire::kinds::editable&&pending->node->editing&&
+            pending->node->editing->revision==body.u64(wire::measureFields::geometryRevision)&&body.u32(wire::measureFields::geometryReserved)==0,wire::statuses::stale);
+          const auto rectCount=body.u32(wire::measureFields::selectionCount);require(rectCount<=wire::limits::selectionRects&&body.length==wire::measurementGeometryBytes+size_t(rectCount)*32,wire::statuses::budgetExceeded);
           const auto rect=[&](size_t offset){TextRect r{body.f64(offset),body.f64(offset+8),body.f64(offset+16),body.f64(offset+24)};
             require(r.width>=0&&r.height>=0,wire::statuses::invalidValue);return r;};
-          std::vector<TextRect> boxes;boxes.reserve(rectCount);for(uint32_t i=0;i<rectCount;++i)boxes.push_back(rect(128+i*32));
-          value.geometry=std::make_shared<TextGeometry>(s.ledger,body.u64(80),rect(88),std::move(boxes));
+          std::vector<TextRect> boxes;boxes.reserve(rectCount);for(uint32_t i=0;i<rectCount;++i)boxes.push_back(rect(wire::measureFields::selection+i*32));
+          value.geometry=std::make_shared<TextGeometry>(s.ledger,body.u64(wire::measureFields::geometryRevision),rect(wire::measureFields::caret),std::move(boxes));
         }else require(!pending||pending->node->kind!=wire::kinds::editable,wire::statuses::malformed);
         if(v.query&&v.query->work&&body.u64(0)==v.query->preparation){
           require(body.u64(8)==v.query->metrics.epoch&&body.u64(16)==v.query->metrics.device,wire::statuses::stale);
@@ -350,6 +353,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         v.preparing->providerReady = true;
       } else if (opcode == wire::opcodes::tick) {
         exact(body, 8); v.tick(body.f64(0));
+      } else if (opcode == wire::opcodes::requestAppFrame) {
+        exact(body,0);v.appFrameRequested=true;v.dirty=true;
       } else if (opcode == wire::opcodes::takeFrame) {
         exact(body, 0); status = v.takeFrame();
         if (status == wire::statuses::ok) frame = &v.frames.at(v.nextSubmission);
@@ -433,17 +438,24 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   const auto addOwned=[&](uint32_t type,Handle node,Writer bytes){ownedBlobs.push_back(std::move(bytes.bytes));
     const auto& data=ownedBlobs.back();blobs.push_back({type,node,{data.data(),data.size()}});};
   const auto interactionBlobs=[&](const Node& n){
+    if(n.clipStyle)addOwned(12,n.id,clipStyleBytes(*n.clipStyle));
+    if(n.resolvedPaint||n.nativePaint)addOwned(13,n.id,nativePaintBytes(*(n.resolvedPaint?n.resolvedPaint:n.nativePaint)));
+    if(n.paragraph)addOwned(11,n.id,paragraphBytes(n.paragraph->value));
     const auto& graph=n.graphics;const auto& m=graph.transform;
-    if(graph.path||graph.shadowColor||graph.strokeColor||graph.blur||m.a!=1||m.b!=0||m.c!=0||m.d!=1||m.tx!=0||m.ty!=0){
+    if(graph.path||graph.origin||graph.alignment||graph.shadowColor||graph.strokeColor||graph.blur||m.a!=1||m.b!=0||m.c!=0||m.d!=1||m.tx!=0||m.ty!=0){
       const bool full=!frame||opcode==wire::opcodes::semanticsSnapshot;
-      const auto count=graph.path&&full?graph.path->commands.size():0;Writer bytes(104+count*56);
+      const auto count=graph.path&&full?graph.path->commands.size():0;Writer bytes(wire::graphicsBytes+count*wire::graphicsPathBytes);
       const std::array<double,6> values{m.a,m.b,m.c,m.d,m.tx,m.ty};
       for(size_t i=0;i<6;++i)bytes.f64(i*8,values[i]);
       bytes.f64(48,graph.shadowX);bytes.f64(56,graph.shadowY);bytes.f64(64,graph.shadowSigma);
       bytes.u32(72,graph.shadowColor);bytes.u32(76,graph.strokeColor);bytes.f64(80,graph.strokeWidth);bytes.f64(88,graph.blur);
-      bytes.u32(96,graph.path?(graph.path->fillRule|2u):0);bytes.u32(100,uint32_t(count));
-      for(size_t i=0;i<count;++i){const auto& c=graph.path->commands[i];bytes.u32(104+i*56,c.verb);
-        for(size_t j=0;j<6;++j)bytes.f64(112+i*56+j*8,c.values[j]);}
+      bytes.u32(wire::graphicsFields::flags,(graph.path?(graph.path->fillRule|wire::graphicsFlags::hasPath):0)|
+        (graph.origin?wire::graphicsFlags::hasOrigin:0)|(graph.alignment?wire::graphicsFlags::hasAlignment:0));
+      bytes.u32(wire::graphicsFields::pathCount,uint32_t(count));
+      if(graph.origin){bytes.f64(wire::graphicsFields::originX,graph.origin->x);bytes.f64(wire::graphicsFields::originY,graph.origin->y);}
+      if(graph.alignment){bytes.f64(wire::graphicsFields::alignmentX,graph.alignment->x);bytes.f64(wire::graphicsFields::alignmentY,graph.alignment->y);}
+      for(size_t i=0;i<count;++i){const auto& c=graph.path->commands[i];bytes.u32(wire::graphicsBytes+i*wire::graphicsPathBytes,c.verb);
+        for(size_t j=0;j<6;++j)bytes.f64(wire::graphicsBytes+8+i*wire::graphicsPathBytes+j*8,c.values[j]);}
       addOwned(10,n.id,std::move(bytes));
     }
     const Property* visual=frame&&n.id.slot<frame->properties.size()?&frame->properties[n.id.slot]:nullptr;
@@ -555,6 +567,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.u64(b + wire::stateFields::scene, v.active ? v.active->epoch : 0);
     response.u64(b + wire::stateFields::preparation, v.preparing ? v.preparing->id : 0);
     response.u64(b + wire::stateFields::metrics, v.metrics.epoch); response.u64(b + wire::stateFields::property, v.propertyEpoch);
+    response.f64(b + wire::stateFields::viewportWidth, v.metrics.width);
+    response.f64(b + wire::stateFields::viewportHeight, v.metrics.height);
+    response.f64(b + wire::stateFields::viewportScale, v.metrics.scale);
     response.u64(b + wire::stateFields::consumedThrough, v.consumedThrough); response.u64(b + wire::stateFields::received, v.received);
     response.u64(b + wire::stateFields::consumed, v.consumed); response.u64(b + wire::stateFields::canceled, v.canceled);
     response.u64(b + wire::stateFields::rejected, v.rejected); response.u64(b + wire::stateFields::duplicates, v.duplicates);
@@ -639,6 +654,15 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.u64(cursor + 8, e.id); response.u64(cursor + 16, e.epoch);
     response.u64(cursor + 24, e.detail); writeHandle(response, cursor + 32, e.node);
     response.f64(cursor+40,e.x);response.f64(cursor+48,e.y);
+    const auto& g=e.gesture;
+    response.u32(cursor+wire::eventFields::pointerKind,g.kind);response.u32(cursor+wire::eventFields::stream,g.stream);
+    response.f64(cursor+wire::eventFields::timestamp,g.timestamp);
+    response.f64(cursor+wire::eventFields::localX,g.localX);response.f64(cursor+wire::eventFields::localY,g.localY);
+    response.f64(cursor+wire::eventFields::deltaX,g.deltaX);response.f64(cursor+wire::eventFields::deltaY,g.deltaY);
+    response.f64(cursor+wire::eventFields::velocityX,g.velocityX);response.f64(cursor+wire::eventFields::velocityY,g.velocityY);
+    response.f64(cursor+wire::eventFields::originX,g.originX);response.f64(cursor+wire::eventFields::originY,g.originY);
+    response.f64(cursor+wire::eventFields::localOriginX,g.localOriginX);response.f64(cursor+wire::eventFields::localOriginY,g.localOriginY);
+    response.u32(cursor+wire::eventFields::buttons,g.buttons);response.u32(cursor+wire::eventFields::gestureFlags,g.flags);
     cursor += wire::eventBytes;
   }
   for (const auto& blob : blobs) {

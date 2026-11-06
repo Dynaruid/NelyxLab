@@ -707,6 +707,53 @@ test(
       assert.equal(child.exitCode, 0, nativeErrors + output);
       assert.match(output, /app-disposed/);
       assert.match(output, /"memoryTotal":0/);
+      fs.writeFileSync(path.join(app, 'src/app.ts'), originalFixture);
+      command(
+        compiler,
+        [
+          '--noEmit',
+          '--strict',
+          '--skipLibCheck',
+          'false',
+          '--module',
+          'NodeNext',
+          '--target',
+          'ES2022',
+          'src/app.ts',
+        ],
+        app,
+      );
+      const originalBuilt = JSON.parse(command(cli, ['build', ...cliArgs], app));
+      assert.equal(originalBuilt.routing.appModel, 'original-elements');
+      await new Promise((resolve) => server.close(resolve));
+      server = createEngineV2Server(verifyEngineV2Application(originalBuilt.directory, 'web'));
+      server.listen(0, '127.0.0.1');
+      await once(server, 'listening');
+      const originalPage = await browser.newPage();
+      await originalPage.goto(`http://127.0.0.1:${server.address().port}/isolated/`);
+      await originalPage.waitForFunction(
+        () => globalThis.__nelyxV2?.ready || globalThis.__nelyxV2?.errors.length,
+      );
+      const originalReady = await originalPage.evaluate(() => ({
+        ready: globalThis.__nelyxV2.ready,
+        errors: globalThis.__nelyxV2.errors,
+        receipt: globalThis.__nelyxV2.receipt,
+      }));
+      assert.deepEqual(originalReady.errors, [], JSON.stringify(originalReady));
+      assert.equal(originalReady.ready, true);
+      assert.equal(originalReady.receipt.execution.appModel, 'original-elements');
+      assert.equal(originalReady.receipt.execution.tsLayoutFallbacks, 0);
+      assert.equal(originalReady.receipt.engineWork, String(originalReady.receipt.commands));
+      await originalPage.waitForFunction(
+        () => globalThis.__nelyxV2.surface.diagnostics['render-stats']?.state?.publication > 0n,
+      );
+      await assertOriginalPixels(originalPage);
+      await assertOriginalResize(originalPage);
+      assert.equal(
+        (await originalPage.evaluate(() => globalThis.__nelyxV2.close())).reservedBytes,
+        0,
+      );
+      await originalPage.close();
     } finally {
       try {
         if (child && child.exitCode === null) {
@@ -723,6 +770,415 @@ test(
     }
   },
 );
+test(
+  'An explicitly selected App SDK app packs its local runtime and CRT, runs with a clean PATH, and refuses damaged supply',
+  { timeout },
+  () =>
+    consumer(async (app) => {
+      const settings = JSON.parse(fs.readFileSync(path.join(app, 'nelyx.v2.json'), 'utf8'));
+      fs.writeFileSync(
+        path.join(app, 'nelyx.v2.json'),
+        JSON.stringify({ ...settings, windowsHost: 'windows-app-sdk' }),
+      );
+      const built = await buildEngineV2Application({
+        app,
+        target: 'windows',
+        engineInputs: supply,
+      });
+      const packed = await engineV2Operation('pack', {
+        app,
+        target: 'windows',
+        directory: built.directory,
+      });
+      const bundle = verifyEngineV2Application(packed.directory, 'windows');
+      assert.equal(bundle.manifest.windowsHost, 'windows-app-sdk');
+      assert.equal(bundle.supply.manifest.profiles['windows-app-sdk'].version, '1.8.260508005');
+      const runtimeRoot = path.join(packed.directory, 'engine/windows-app-sdk');
+      const child = spawn(
+        path.join(runtimeRoot, 'NelyxEngineAppSdkHost.exe'),
+        [bundle.supply.root, '--app', packed.directory, '--probe'],
+        {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: false,
+          env: {
+            ...process.env,
+            PATH: path.join(process.env.SystemRoot, 'System32') + ';' + process.env.SystemRoot,
+          },
+        },
+      );
+      let output = '',
+        errors = '';
+      child.stdout.on('data', (bytes) => (output = (output + bytes).slice(-32000)));
+      child.stderr.on('data', (bytes) => (errors = (errors + bytes).slice(-8000)));
+      child.on('error', (error) => (errors += String(error)));
+      try {
+        await waitFor(
+          () => output.includes('app-ready') && output.includes('V2_SCENE_PUBLISHED 1'),
+          () => errors || (child.exitCode !== null ? output : null),
+        );
+        const ready = JSON.parse(
+          output
+            .split('\n')
+            .find((line) => line.startsWith('V2_APP ') && line.includes('app-ready'))
+            .slice(7),
+        );
+        assert.equal(ready.execution.observed, true);
+        assert.equal(ready.execution.acknowledgedCommands, ready.commands);
+        assert.equal(ready.engineWork, String(ready.commands));
+        assert.match(output, /"host":"windows-app-sdk"/);
+        const modules = JSON.parse(
+          execFileSync(
+            'powershell.exe',
+            [
+              '-NoProfile',
+              '-NonInteractive',
+              '-File',
+              path.join(engineRoot, 'tests/windows-app-sdk-modules.ps1'),
+              '-ProcessId',
+              String(child.pid),
+              '-AppSdkRoot',
+              runtimeRoot,
+            ],
+            { timeout, windowsHide: true, encoding: 'utf8' },
+          ),
+        );
+        assert.equal(modules.appLocal, true);
+        console.log('V2_APP_LOCAL_RUNTIME ' + JSON.stringify(modules));
+        child.stdin.write('close\n');
+        await waitFor(
+          () => child.exitCode !== null,
+          () => errors || null,
+        );
+        assert.equal(child.exitCode, 0, output + errors);
+        assert.match(output, /V2_WINDOWS_DISPATCHER_CLOSED/);
+        assert.match(output, /"memoryTotal":0/);
+      } finally {
+        if (child.exitCode === null) {
+          child.kill();
+          await once(child, 'exit');
+        }
+      }
+      fs.unlinkSync(path.join(runtimeRoot, 'Microsoft.UI.Windowing.dll'));
+      assert.throws(
+        () => verifyEngineV2Application(packed.directory, 'windows'),
+        /ENOENT|identity mismatch/,
+      );
+    }),
+);
+
+const originalFixture = `import {defineOriginalEngineV2App} from '@nelyx/sdk/engine-v2-original';
+import type {EngineV2AppContext} from '@nelyx/sdk/engine-v2-original';
+import {State,StatefulWidget,InheritedWidget} from '@nelyx/core/framework/widgets/framework';
+import type {BuildContext,Widget} from '@nelyx/core/framework/widgets/framework';
+import {GlobalKey} from '@nelyx/core/framework/widgets/global-key';
+import {SizedBox,Padding,Row,Expanded,ColoredBox,Align,Stack,Text,Transform} from '@nelyx/core/framework/widgets/basic';
+import {ClipRRect as OriginalClipRRect} from '@nelyx/core/framework/widgets/clip';
+import {TextStyle} from '@nelyx/core/framework/painting/text-style';
+import {TextHeightBehavior,FontWeight} from '@nelyx/core/ui/typography';
+import {protocol as p} from '@nelyx/core/v2';
+import type {EngineResponse} from '@nelyx/core/v2';
+let context:EngineV2AppContext,disposes=0;const key=new GlobalKey<CounterState>('native-original');
+function matches(cpp:EngineResponse,width:number){const blue=cpp.nodes.find(n=>n.color===0xff2468ac),root=cpp.nodes.find(n=>n.kind===p.kinds.stack&&n.parent.slot===0);if(!blue||!root)return false;const parent=(node:EngineResponse['nodes'][number]|undefined)=>cpp.nodes.find(n=>n.node.slot===node?.parent.slot&&n.node.generation===node?.parent.generation),transform=parent(blue),clip=parent(transform),blueBox=parent(clip);return transform?.kind===p.kinds.transform&&transform.graphics?.transform?.[0]===-1&&transform.graphics.alignment?.x===0&&clip?.kind===p.kinds.clip&&clip.clipStyle?.shape==='rrect'&&clip.clipStyle.behavior==='antiAliasWithSaveLayer'&&clip.clipStyle.radii.every(r=>r===8)&&cpp.nodes.some(n=>n.color===0xff62ba81&&n.width===width-50&&n.height===50&&n.x===0)&&blueBox?.x===width-50&&cpp.nodes.some(n=>n.kind===p.kinds.box&&n.parent.slot===root.node.slot&&n.width===width&&n.height===60)&&cpp.nodes.some(n=>n.kind===p.kinds.paragraph&&n.fontSize===10&&n.width===45&&n.height===12&&n.baseline>0&&n.semantics?.label==='한 A😀'&&n.textDirection===1&&n.paragraph?.textAlign==='center'&&n.paragraph.maxLines===1&&n.paragraph.ellipsis==='…'&&n.paragraph.locale==='ko'&&n.paragraph.height===1.5&&n.paragraph.letterSpacing===0.5&&n.paragraph.wordSpacing===1&&n.paragraph.halfLeading&&n.paragraph.applyHeightToFirstAscent===false&&n.paragraph.applyHeightToLastDescent===false);}
+class Theme extends InheritedWidget{readonly value=7;constructor(child:Widget){super(child);}updateShouldNotify(){return false;}}
+class Counter extends StatefulWidget{createState(){return new CounterState();}}
+class CounterState extends State{count=0;width=120;generation=0;ready=false;cold=true;initState(){this.setState(()=>++this.count);if(this.count!==1)throw Error('Original state did not update immediately');}
+build(ctx:BuildContext){if(ctx.dependOn(Theme).value!==7||ctx!==this.context)throw Error('Original context identity changed');const metrics=ctx.services.readMetrics();this.width=Math.max(120,metrics.logicalWidth/4+20);this.generation=metrics.viewportGeneration;if(this.ready)void this.verifyViewport(this.generation,this.width,metrics.logicalWidth,metrics.logicalHeight);if(this.cold)return new SizedBox(12,60,new Text('😀\u00ad😀\u00ad😀',{fontSize:14,color:0xffabcdef}));return new Align(new SizedBox(this.width,60,new Stack([new Padding({left:10,top:5,right:10,bottom:5},new Row([new SizedBox(30,20,new OriginalClipRRect(Transform.flip(new ColoredBox({color:0xff2468ac}),{flipX:true}),{borderRadius:8,clipBehavior:'antiAliasWithSaveLayer'})),new Expanded(new ColoredBox({color:0xff62ba81,child:new Align(new SizedBox(45,12,new Text('한 A😀',{direction:'rtl',textAlign:'center',maxLines:1,overflow:'ellipsis',locale:'ko',textHeightBehavior:new TextHeightBehavior({applyHeightToFirstAscent:false,applyHeightToLastDescent:false,leadingDistribution:'proportional'}),style:new TextStyle({fontSize:10,color:0xffabcdef,fontWeight:FontWeight.normal,height:1.5,letterSpacing:0.5,wordSpacing:1,leadingDistribution:'even'})})),{alignment:{x:-1,y:1}})}))],{mainAxisSize:'max',crossAxisAlignment:'stretch',textDirection:'rtl',verticalDirection:'up'})),new SizedBox(10,10,new ColoredBox({color:0xffff9900}))],{alignment:{x:2,y:0},clipBehavior:'hardEdge'})),{widthFactor:1,heightFactor:1});}
+private async verifyViewport(generation:number,width:number,logicalWidth:number,logicalHeight:number){try{for(let attempt=0;attempt<30&&this.mounted&&this.generation===generation;++attempt){const cpp=await context.view.request(p.opcodes.layoutSnapshot);if(cpp.status===p.statuses.ok&&cpp.layoutMetrics===BigInt(generation)&&matches(cpp,width)){context.notify({kind:'original-resize-native',generation,width,logicalWidth,logicalHeight,commands:String(cpp.transactionWork),layout:String(cpp.layoutWork)});return;}await new Promise(resolve=>setTimeout(resolve,100));}if(this.mounted&&this.generation===generation)throw Error('Original resize did not activate matching C++ geometry');}catch(error){if(this.mounted)context.notify({kind:'app-error',message:String(error)});}}
+dispose(){if(++disposes!==1)throw Error('Original State disposed twice');context.notify({kind:'original-state-disposed',disposes});}}
+export default defineOriginalEngineV2App({build(ctx){context=ctx;return new Theme(new Counter(key));},async ready(ctx){const state=key.currentState;if(!state?.mounted||state.count!==1||key.currentContext!==state.context)throw Error('Original lifecycle identity changed');let cpp=await ctx.view.layoutSnapshot();const cold=cpp.nodes.find(n=>n.kind===p.kinds.paragraph);if(cold?.width!==12||cold.paragraph?.hyphens!=='manual'||cpp.layoutWork===0n)throw Error('Initial native soft-hyphen preparation was not observed');ctx.notify({kind:'original-cold-ready',commands:String(cpp.transactionWork),layout:String(cpp.layoutWork)});state.setState(()=>{state.cold=false;});for(let attempt=0;attempt<30;++attempt){cpp=await ctx.view.request(p.opcodes.layoutSnapshot);if(cpp.status===p.statuses.ok&&matches(cpp,state.width))break;await new Promise(resolve=>setTimeout(resolve,100));}if(!matches(cpp,state.width)||cpp.layoutWork===0n)throw Error('Native original layout was not observed');state.ready=true;ctx.notify({kind:'original-api-ready',commands:String(cpp.transactionWork),layout:String(cpp.layoutWork),tsLayoutFallbacks:0});}});`;
+async function assertOriginalPixels(page, width) {
+  const rect = await page.locator('canvas').boundingBox();
+  assert.ok(rect);
+  width ??= Math.max(120, rect.width / 4 + 20);
+  const png = await page.screenshot();
+  const pixels = await page.evaluate(
+    async ({ base64, x, y, offsets }) => {
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext('2d');
+        context.drawImage(bitmap, 0, 0);
+        const samples = offsets.map(([dx, dy]) => [
+          ...context.getImageData(Math.round(x + dx), Math.round(y + dy), 1, 1).data,
+        ]);
+        const glyphs = context.getImageData(Math.round(x + 10), Math.round(y + 43), 45, 12).data;
+        let glyphPixels = 0;
+        for (let i = 0; i < glyphs.length; i += 4)
+          if (glyphs[i] !== 98 || glyphs[i + 1] !== 186 || glyphs[i + 2] !== 129) ++glyphPixels;
+        return { samples, glyphPixels };
+      } finally {
+        bitmap.close();
+      }
+    },
+    {
+      base64: png.toString('base64'),
+      x: rect.x,
+      y: rect.y,
+      offsets: [
+        [width - 20, 15],
+        [15, 15],
+        [width - 15, 15],
+        [width + 5, 15],
+        [rect.width - 1, 15],
+        [(width - 10) * 1.5 + 5, 30],
+      ],
+    },
+  );
+  assert.deepEqual(
+    pixels.samples.slice(0, 3),
+    [
+      [36, 104, 172, 255],
+      [98, 186, 129, 255],
+      [36, 104, 172, 255],
+    ],
+    'Canonical ColoredBox becomes actual C++/CanvasKit pixels',
+  );
+  assert.deepEqual(
+    pixels.samples[3],
+    pixels.samples[4],
+    'Pixels beyond the resized box match the clear canvas',
+  );
+  assert.deepEqual(
+    pixels.samples[5],
+    pixels.samples[4],
+    'The overflowing second Stack child is clipped on the actual WebGL2 surface',
+  );
+  assert.notDeepEqual(pixels.samples[3], [98, 186, 129, 255]);
+  assert.ok(
+    pixels.glyphPixels > 0,
+    'Original Korean, Latin and emoji text paints actual font pixels',
+  );
+}
+async function assertOriginalResize(page) {
+  await page.evaluate(() => {
+    globalThis.__originalResize = undefined;
+    globalThis.__nelyxV2.app.addEventListener('message', (event) => {
+      if (event.data.kind === 'original-resize-native') globalThis.__originalResize = event.data;
+    });
+  });
+  await page.setViewportSize({ width: 520, height: 370 });
+  await page.waitForFunction(
+    () =>
+      globalThis.__nelyxV2.errors.length ||
+      (globalThis.__originalResize?.logicalWidth === 520 &&
+        globalThis.__originalResize.logicalHeight === 370 &&
+        globalThis.__nelyxV2.surface.diagnostics['render-stats']?.state?.layoutMetrics ===
+          BigInt(globalThis.__originalResize.generation)),
+    {},
+    { timeout: 30000 },
+  );
+  const resized = await page.evaluate(() => ({
+    value: globalThis.__originalResize,
+    errors: globalThis.__nelyxV2.errors,
+  }));
+  assert.deepEqual(resized.errors, []);
+  assert.equal(resized.value.width, 150);
+  assert.ok(BigInt(resized.value.commands) > 0n && BigInt(resized.value.layout) > 0n);
+  await assertOriginalPixels(page, resized.value.width);
+}
+for (const windowsHost of ['windows-hwnd', 'windows-app-sdk'])
+  test(
+    `Original App consumer uses canonical State and actual C++ layout on ${windowsHost}`,
+    { timeout },
+    () =>
+      consumer(async (app) => {
+        fs.writeFileSync(path.join(app, 'src/app.ts'), originalFixture);
+        const settings = JSON.parse(fs.readFileSync(path.join(app, 'nelyx.v2.json'), 'utf8'));
+        fs.writeFileSync(
+          path.join(app, 'nelyx.v2.json'),
+          JSON.stringify({ ...settings, windowsHost }),
+        );
+        const built = await buildEngineV2Application({
+          app,
+          target: 'windows',
+          engineInputs: supply,
+        });
+        assert.equal(built.routing.appModel, 'original-elements');
+        assert.ok(built.routing.canonicalAppInputs > 0);
+        const child = spawn(
+          path.join(
+            supply,
+            windowsHost === 'windows-app-sdk'
+              ? 'windows-app-sdk/NelyxEngineAppSdkHost.exe'
+              : 'native/NelyxEngineV2Host.exe',
+          ),
+          [supply, '--app', built.directory, '--probe'],
+          { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false },
+        );
+        let output = '',
+          errors = '';
+        child.stdout.on('data', (bytes) => {
+          output = (output + bytes).slice(-32000);
+        });
+        child.stderr.on('data', (bytes) => {
+          errors = (errors + bytes).slice(-8000);
+        });
+        child.on('error', (error) => {
+          errors += String(error);
+        });
+        try {
+          await waitFor(
+            () => output.includes('app-ready') && output.includes('original-api-ready'),
+            () => (errors ? errors + '\n' + output : child.exitCode !== null ? output : null),
+          );
+          const ready = JSON.parse(
+            output
+              .split('\n')
+              .find((line) => line.startsWith('V2_APP ') && line.includes('app-ready'))
+              .slice(7),
+          );
+          assert.equal(ready.execution.appModel, 'original-elements');
+          assert.equal(ready.execution.compatibility, 'partial');
+          assert.equal(ready.execution.tsLayoutFallbacks, 0);
+          assert.equal(ready.execution.appGeometryNodes, 0);
+          assert.equal(ready.execution.rejectedFallbacks, 0);
+          assert.equal(ready.engineWork, String(ready.commands));
+          assert.ok(ready.commands > 0);
+          child.stdin.write('resize 800\n');
+          await waitFor(
+            () =>
+              output
+                .split('\n')
+                .some(
+                  (line) =>
+                    line.startsWith('V2_APP ') &&
+                    line.includes('original-resize-native') &&
+                    JSON.parse(line.slice(7)).logicalWidth === 800,
+                ),
+            () => errors || (child.exitCode !== null ? output : null),
+          );
+          child.stdin.write('close\n');
+          await waitFor(
+            () => child.exitCode !== null,
+            () => errors || null,
+          );
+          assert.equal(child.exitCode, 0, output + errors);
+          assert.match(output, /original-state-disposed/);
+          assert.match(output, /"memoryTotal":0/);
+        } finally {
+          if (child.exitCode === null) {
+            child.kill();
+            await once(child, 'exit');
+          }
+        }
+      }),
+  );
+for (const [route, profile] of [
+  ['plain', 'single-worker'],
+  ['isolated', 'threaded'],
+])
+  test(
+    `Original App consumer publishes canonical State and native colored boxes in ${route}`,
+    { timeout },
+    () =>
+      consumer(async (app) => {
+        fs.writeFileSync(path.join(app, 'src/app.ts'), originalFixture);
+        const built = await buildEngineV2Application({ app, target: 'web', engineInputs: supply }),
+          server = createEngineV2Server(verifyEngineV2Application(built.directory, 'web'));
+        assert.equal(built.routing.appModel, 'original-elements');
+        let browser;
+        server.listen(0, '127.0.0.1');
+        await once(server, 'listening');
+        try {
+          browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 400, height: 330 } }),
+            errors = [];
+          page.on('pageerror', (error) => errors.push(String(error)));
+          await page.goto(`http://127.0.0.1:${server.address().port}/${route}/`);
+          await page.waitForFunction(
+            () => globalThis.__nelyxV2?.ready || globalThis.__nelyxV2?.errors.length,
+            {},
+            { timeout: 30000 },
+          );
+          const current = await page.evaluate(() => ({
+            ready: globalThis.__nelyxV2.ready,
+            errors: globalThis.__nelyxV2.errors,
+            profile: globalThis.__nelyxV2.surface?.selectedProfile,
+            receipt: globalThis.__nelyxV2.receipt,
+          }));
+          assert.deepEqual(current.errors, [], JSON.stringify(current));
+          assert.equal(current.ready, true);
+          assert.equal(current.profile, profile);
+          assert.equal(current.receipt.execution.appModel, 'original-elements');
+          assert.equal(current.receipt.execution.tsLayoutFallbacks, 0);
+          assert.equal(current.receipt.execution.appGeometryNodes, 0);
+          assert.equal(current.receipt.engineWork, String(current.receipt.commands));
+          assert.ok(current.receipt.commands > 0);
+          await page.waitForFunction(
+            () => globalThis.__nelyxV2.surface.diagnostics['render-stats']?.state?.publication > 0n,
+          );
+          await assertOriginalPixels(page);
+          await assertOriginalResize(page);
+          const closed = await page.evaluate(() => globalThis.__nelyxV2.close());
+          assert.equal(closed.reservedBytes, 0);
+          assert.deepEqual(errors, []);
+        } finally {
+          await browser?.close();
+          await new Promise((resolve) => server.close(resolve));
+        }
+      }),
+  );
+
+for (const route of ['plain', 'isolated'])
+  for (const phase of ['services', 'build', 'widget'])
+    test(
+      `Original App ${phase} startup failure drains ${route} without waiting for an already completed disposal`,
+      { timeout },
+      () =>
+        consumer(async (app) => {
+          const message = 'original-' + phase + '-startup-failure';
+          fs.writeFileSync(
+            path.join(app, 'src/app.ts'),
+            `import {defineOriginalEngineV2App} from '@nelyx/sdk/engine-v2-original';import {SizedBox,Text} from '@nelyx/core/framework/widgets/basic';export default defineOriginalEngineV2App({${phase === 'services' ? `services:{get platformServices(){throw Error('${message}');}} as any,` : ''}build(){${phase === 'build' ? `throw Error('${message}');` : phase === 'widget' ? `return new Text('${message}',{overflow:'fade'});` : 'return new SizedBox(20,10);'}}});`,
+          );
+          const built = await buildEngineV2Application({
+              app,
+              target: 'web',
+              engineInputs: supply,
+            }),
+            server = createEngineV2Server(verifyEngineV2Application(built.directory, 'web'));
+          let browser;
+          server.listen(0, '127.0.0.1');
+          await once(server, 'listening');
+          try {
+            browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage();
+            await page.goto(`http://127.0.0.1:${server.address().port}/${route}/`);
+            await page.waitForFunction(
+              () => globalThis.__nelyxV2?.errors.length,
+              {},
+              { timeout: 30000 },
+            );
+            const result = await page.evaluate(async () => {
+              const current = globalThis.__nelyxV2,
+                first = current.close(),
+                same = first === current.close();
+              const closed = await first;
+              return { same, closed, errors: current.errors, ready: current.ready };
+            });
+            assert.equal(result.same, true);
+            assert.equal(result.ready, false);
+            assert.equal(result.closed.reservedBytes, 0);
+            assert.equal(result.closed.workersStopped, true);
+            assert.ok(
+              result.errors.some((error) =>
+                error.includes(
+                  phase === 'widget' ? 'Original native bridge rejects paragraph-style' : message,
+                ),
+              ),
+              JSON.stringify(result.errors),
+            );
+            assert.ok(result.errors.every((error) => !error.includes('disposal timeout')));
+          } finally {
+            await browser?.close();
+            await new Promise((resolve) => server.close(resolve));
+          }
+        }),
+    );
+
 async function waitFor(predicate, error) {
   const end = Date.now() + 20000;
   while (Date.now() < end) {

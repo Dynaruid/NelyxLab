@@ -26,9 +26,12 @@ struct Affine {
   }
   std::optional<Affine> inverse()const {
     const double determinant=a*d-b*c;
-    if(!std::isfinite(determinant)||std::abs(determinant)<1e-12)return {};
-    return Affine{d/determinant,-b/determinant,-c/determinant,a/determinant,
+    if(!std::isfinite(determinant)||determinant==0)return {};
+    const Affine value{d/determinant,-b/determinant,-c/determinant,a/determinant,
       (c*ty-d*tx)/determinant,(b*tx-a*ty)/determinant};
+    for(const auto x:{value.a,value.b,value.c,value.d,value.tx,value.ty})
+      if(!std::isfinite(x))return {};
+    return value;
   }
   Rect bounds(Rect r)const {
     const std::array<Point,4> points{map({r.x,r.y}),map({r.x+r.width,r.y}),
@@ -90,8 +93,15 @@ struct GraphicsPath {
 };
 struct GraphicsStyle {
   Affine transform;
+  std::optional<Point> origin,alignment;
   double shadowX=0,shadowY=0,shadowSigma=0,strokeWidth=0,blur=0;
   uint32_t shadowColor=0,strokeColor=0;
   std::shared_ptr<const GraphicsPath> path;
+  Affine effective(double width,double height)const {
+    if(!origin&&!alignment)return transform;
+    const double x=(origin?origin->x:0)+(alignment?(alignment->x+1)*width/2:0);
+    const double y=(origin?origin->y:0)+(alignment?(alignment->y+1)*height/2:0);
+    return Affine{1,0,0,1,x,y}*transform*Affine{1,0,0,1,-x,-y};
+  }
 };
 }

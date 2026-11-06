@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import { StatelessWidget, Widget, Element } from './framework.ts';
+import { StatelessWidget, Widget, Element, buildNativeWidget } from './framework.ts';
 import type { BuildContext, WidgetOptions } from './framework.ts';
 import type { Key } from '../../foundation/key.ts';
 import type { Clip } from '../../ui/clip.ts';
@@ -236,6 +236,8 @@ export abstract class ScrollView extends StatelessWidget {
     });
   }
   build(context: BuildContext): Widget {
+    const native = buildNativeWidget(context, 'scroll-view', this);
+    if (native !== undefined) return native;
     const slivers = this.buildSlivers(context),
       axisDirection = this.getDirection(context),
       effectivePrimary =

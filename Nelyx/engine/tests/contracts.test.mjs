@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildProfiles, timeout, run } from '../tools/build.mjs';
 import { nativeTransport, wasmFactory } from './transports.mjs';
 import {
@@ -28,16 +29,55 @@ import { listContracts } from './list-contracts.mjs';
 import { gestureContracts } from './gesture-contracts.mjs';
 import { graphicsContracts } from './graphics-contracts.mjs';
 import { compositionContracts } from './composition-contracts.mjs';
+import { originalContracts } from './original-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
 const factories = new Map();
+const profiles = process.env.NELYX_ENGINE_V2_TEST_PROFILES?.split(',') ?? [
+  'native',
+  'single-worker',
+  'threaded',
+];
 before(
   async () => {
+    assert.ok(
+      profiles.length && profiles.every((p) => ['native', 'single-worker', 'threaded'].includes(p)),
+    );
+    if (process.env.NELYX_ENGINE_V2_PREBUILT) {
+      const supply = path.resolve(process.env.NELYX_ENGINE_V2_PREBUILT),
+        manifest = JSON.parse(fs.readFileSync(path.join(supply, 'engine-manifest.json'), 'utf8'));
+      assert.equal(manifest.abi.major, p.abiMajor);
+      assert.equal(manifest.abi.schema, p.schema);
+      for (const entry of manifest.files) {
+        if (!/^(native\/nelyx_engine_driver|(?:single-worker|threaded)\/engine\.)/.test(entry.path))
+          continue;
+        assert.equal(
+          createHash('sha256')
+            .update(fs.readFileSync(path.join(supply, entry.path)))
+            .digest('hex'),
+          entry.sha256,
+        );
+      }
+      if (profiles.includes('native'))
+        factories.set('native', () => nativeTransport(path.join(supply, 'native')));
+      for (const profile of profiles.filter((value) => value !== 'native')) {
+        const factory = await wasmFactory(path.join(supply, profile));
+        factories.set(profile, factory.create);
+        factories.set(profile + ':module', factory.module);
+      }
+      console.log(
+        'Using prebuilt protocol-compatible engine ' +
+          manifest.sourceSha256 +
+          '; C++ source changes require a rebuild.',
+      );
+      return;
+    }
     directory = fs.mkdtempSync(path.join(parent, 'nelyx-engine-v2-'));
-    buildProfiles(directory);
-    factories.set('native', () => nativeTransport(path.join(directory, 'native')));
-    for (const profile of ['single-worker', 'threaded']) {
+    buildProfiles(directory, profiles);
+    if (profiles.includes('native'))
+      factories.set('native', () => nativeTransport(path.join(directory, 'native')));
+    for (const profile of profiles.filter((value) => value !== 'native')) {
       const factory = await wasmFactory(path.join(directory, profile));
       factories.set(profile, factory.create);
       factories.set(profile + ':module', factory.module);
@@ -168,7 +208,7 @@ function fixture(transport) {
     await resize(300, 200);
     assert.equal((await commit(changes)).status, p.statuses.accepted);
     await ready();
-    await present();
+    return present();
   };
   return {
     send,
@@ -210,6 +250,7 @@ listContracts({ using, timeout, h });
 gestureContracts({ using, timeout, h });
 graphicsContracts({ using, timeout, h });
 compositionContracts({ using, timeout });
+originalContracts({ using, timeout });
 coverageContracts({ using, timeout, h });
 interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {
@@ -1060,6 +1101,56 @@ for (const profile of ['native', 'single-worker', 'threaded']) {
         await f.tick();
         assert.equal((await f.inspect()).nodes[0].offset, 15);
         accounting(await f.inspect());
+      }),
+  );
+  test(
+    `${profile}: delayed input retains collected publication geometry, expires explicitly, and releases its lease`,
+    { timeout },
+    () =>
+      using(profile, async (f) => {
+        await f.start();
+        const collected = (await f.inspect()).publication;
+        for (let index = 0; index < p.limits.publicationSnapshots - 1; ++index) {
+          await f.input('update', 1, { source: 'wheelUnknown' });
+          await f.tick();
+          await f.present();
+        }
+        const before = await f.inspect();
+        const admitted = await f.input('update', 11, {
+          source: 'wheelUnknown',
+          publication: collected,
+        });
+        assert.equal(admitted.status, p.statuses.ok);
+        // Publish another frame before consuming the input. Eviction of the history
+        // slot must not invalidate the snapshot leased by this admitted packet.
+        await f.send(
+          p.opcodes.visibility,
+          body(16, (v) => {
+            v.setUint32(0, 7, true);
+            v.setBigUint64(8, f.sequence, true);
+          }),
+        );
+        await f.present();
+        await f.tick();
+        assert.equal((await f.inspect()).nodes[0].offset, before.nodes[0].offset + 11);
+        await f.present();
+        const expired = await f.input('update', 100, {
+          source: 'wheelUnknown',
+          publication: collected,
+        });
+        assert.equal(
+          expired.status,
+          p.statuses.stale,
+          'An expired publication must never acknowledge discarded input as admitted',
+        );
+        assert.equal(expired.rejected, before.rejected + 1n);
+        accounting(expired);
+        await f.resize(310, 210);
+        assert.equal(
+          (await f.input('update', 5, { source: 'wheelUnknown', publication: before.publication }))
+            .status,
+          p.statuses.stale,
+        );
       }),
   );
 }

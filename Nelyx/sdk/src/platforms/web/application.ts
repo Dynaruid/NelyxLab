@@ -5,7 +5,7 @@ import type { ViewOwner } from '@nelyx/core/ui/types';
 import type { PlatformMessagePort } from '@nelyx/core/hosting/platform-messages';
 import type { ComposedApplication } from '../../runtime/bootstrap.ts';
 import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
-import type { CanvasKitManifest } from '../../backends/browser/canvaskit.ts';
+import type { CanvasKitManifest } from '../../backends/browser/canvaskit-manifest.ts';
 import { createProviderRegistry } from '../../runtime/providers.ts';
 import { bootstrapApplication } from '../../runtime/bootstrap.ts';
 import { createWebServices } from '../../backends/browser/services.ts';

@@ -1264,7 +1264,8 @@ export class ColoredBox extends SourceSingleChildRenderObjectWidget {
     properties.add(new DiagnosticsProperty('isAntiAlias', this.isAntiAlias));
   }
 }
-class RenderColoredBox extends RenderProxyBox {
+/** @internal Shared canonical configuration identity for the native App bridge. */
+export class RenderColoredBox extends RenderProxyBox {
   constructor(
     private currentColor: number,
     private antiAlias: boolean,

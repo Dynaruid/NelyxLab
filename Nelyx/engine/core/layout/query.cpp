@@ -121,7 +121,7 @@ struct LayoutQueryWork::State {
       if (n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable ||
           n.kind == wire::kinds::image) {
         pending = MeasurementRequest{++nextRequest, document->nodes[n.id.slot].value,
-                                     w ? 0 : extent, !w && std::isfinite(extent)};
+                                     w ? 0 : extent, !w && std::isfinite(extent)&&(!n.paragraph||n.paragraph->value.wraps())};
         t.phase = 5;
         return;
       }
@@ -248,6 +248,10 @@ struct LayoutQueryWork::State {
         value = value * s.columns + s.gap * (s.columns - 1);
       if (baselineAligned)
         value = std::max(value, ascent + descent);
+      if(s.constraintFlags&wire::layoutConstraintFlags::alignmentSizing){
+        const double factor=w?s.widthFactor:s.heightFactor;
+        if(factor>=0)value=finiteSize(value*factor);
+      }
       value = bounded(value + padding, w ? n.horizontal : n.vertical);
       double baseline = -1;
       if (baselineAligned && !t.values.empty()) baseline = s.top + ascent;

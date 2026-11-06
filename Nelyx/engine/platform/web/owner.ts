@@ -28,8 +28,11 @@ export async function boot(
       bytes?: ArrayBuffer;
       packet?: PreparedPictures;
       canvas?: OffscreenCanvas;
+      frameClock?: MessagePort;
       viewport?: Viewport;
       milliseconds?: number;
+      low?: boolean;
+      revision?: number;
     };
     if (!message.kind?.startsWith('v2-')) return;
     void (async () => {
@@ -44,7 +47,7 @@ export async function boot(
         } else if (message.kind === 'v2-viewport' && actor instanceof RenderActor) {
           actor.update(message.viewport!);
         } else if (message.kind === 'v2-attach' && actor instanceof RenderActor) {
-          actor.attach(message.canvas!, message.viewport!);
+          actor.attach(message.canvas!, message.viewport!, message.frameClock);
           post({ kind: 'render-attached', gl: provider.gl, counters: { ...provider.counters } });
         } else if (message.kind === 'v2-prepared' && actor instanceof RenderActor) {
           try {
@@ -62,10 +65,24 @@ export async function boot(
             /* Intentional bounded Content-owner stall for acceptance. */
           }
           post({ kind: 'delay-ended', end: performance.now() });
+        } else if (message.kind === 'v2-memory-pressure') {
+          if (typeof message.low !== 'boolean' || !Number.isSafeInteger(message.revision))
+            throw new Error('Invalid memory pressure control');
+          provider.setMemoryPressure(message.low);
+          post({
+            kind: 'memory-pressure',
+            low: message.low,
+            revision: message.revision,
+            counters: { ...provider.counters },
+          });
         } else if (message.kind === 'v2-stop') {
           await actor.stop();
           provider.close();
-          post({ kind: 'owner-stopped', counters: { ...provider.counters } });
+          post({
+            kind: 'owner-stopped',
+            counters: { ...provider.counters },
+            frameClock: actor instanceof RenderActor ? actor.clockSnapshot : undefined,
+          });
           setTimeout(() => module._nelyx_host_exit(), 0);
         }
       } catch (error) {

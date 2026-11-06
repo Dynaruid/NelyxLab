@@ -17,6 +17,20 @@ import { processTransform3d } from './Matrix4.ts';
 import type { SkMaskFilter } from './MaskFilter.ts';
 import type { SkColorFilter } from './ColorFilter/ColorFilter.ts';
 
+// This shared facade includes a Web-only operation. Native consumers have no
+// DOM constructors, so its source is unavailable without introducing DOM globals.
+type CanvasImageSource = typeof globalThis extends {
+  HTMLImageElement: { prototype: infer Image };
+  SVGImageElement: { prototype: infer Svg };
+  HTMLVideoElement: { prototype: infer Video };
+  HTMLCanvasElement: { prototype: infer Canvas };
+  ImageBitmap: { prototype: infer Bitmap };
+  OffscreenCanvas: { prototype: infer Offscreen };
+  VideoFrame: { prototype: infer Frame };
+}
+  ? Image | Svg | Video | Canvas | Bitmap | Offscreen | Frame
+  : never;
+
 // Canvas.ts
 
 export enum ClipOp {

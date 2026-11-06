@@ -1,3 +1,4 @@
+import { canvasKitTestSupply } from './canvaskit-supply.mjs';
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,13 +14,13 @@ import {
   caretLineAtUTF16,
 } from '../render/canvaskit-web/paragraph.ts';
 const require = createRequire(import.meta.url),
-  ckRoot = path.dirname(require.resolve('canvaskit-wasm/package.json'));
-const init = require(path.join(ckRoot, 'bin/full/canvaskit.js'));
+  { js: canvasKitJS, wasm: canvasKitWasm } = canvasKitTestSupply();
+const init = require(canvasKitJS);
 test(
   'Public glyph transfer matches Korean, Latin, RTL fallback and color emoji paragraph pixels',
   { timeout },
   async () => {
-    const wasmBinary = fs.readFileSync(path.join(ckRoot, 'bin/full/canvaskit.wasm'));
+    const wasmBinary = fs.readFileSync(canvasKitWasm);
     const contentKit = await init({ wasmBinary }),
       renderKit = await init({ wasmBinary });
     assert.notEqual(contentKit.HEAPU8.buffer, renderKit.HEAPU8.buffer);
@@ -43,6 +44,7 @@ test(
       render = new CanvasKitProvider(renderKit, fonts);
     const surfaceA = contentKit.MakeSurface(480, 120),
       surfaceB = renderKit.MakeSurface(480, 120);
+    let textPictureProbeBytes = 0;
     try {
       const cases = [15, 16, 17, 18, 21, 23, 30]
         .flatMap((size) =>
@@ -82,6 +84,11 @@ test(
           ],
         };
         content.prepare(scene, true);
+        if (!textPictureProbeBytes) {
+          const probe = content.tables.get(1n).get('1:1').serialize();
+          assert.ok(probe, 'The pinned public binary supports Picture serialization');
+          textPictureProbeBytes = probe.length;
+        }
         const streamed = content.prepare(scene, false);
         render.import(streamed);
         for (const [kit, surface, provider] of [
@@ -134,7 +141,7 @@ test(
         content.retireExcept(0n);
         render.retireExcept(0n);
       }
-      assert.ok(content.counters.textPictureProbeBytes > font.length);
+      assert.ok(textPictureProbeBytes > font.length);
       assert.ok(content.counters.glyphBytes < 65536);
       assert.equal(content.textCapabilities.lineIndexUnit, 'utf8');
     } finally {
@@ -148,11 +155,11 @@ test(
   },
 );
 test(
-  'The pinned public paragraph binary has a verified UTF-16 adapter and distinct caret semantics',
+  'The selected owned paragraph binary exposes UTF-16 lookup and unscaled ascent',
   { timeout },
   async () => {
     const ck = await init({
-      wasmBinary: fs.readFileSync(path.join(ckRoot, 'bin/full/canvaskit.wasm')),
+      wasmBinary: fs.readFileSync(canvasKitWasm),
     });
     const font = ck.TypefaceFontProvider.Make();
     font.registerFont(
@@ -193,7 +200,9 @@ test(
             () => lineNumberAtUTF16(paragraph, text, text.length + 1, unit),
             RangeError,
           );
-          assert.equal('unscaledAscent' in paragraph.getLineMetrics()[0], false);
+          assert.equal(ck.nelyxParagraphApiVersion(), 1);
+          assert.equal('unscaledAscent' in paragraph.getLineMetrics()[0], true);
+          assert.equal(typeof paragraph.nelyxLineNumberAtUTF16, 'function');
         } finally {
           paragraph?.delete();
           builder.delete();
@@ -209,7 +218,7 @@ test(
   { timeout },
   async () => {
     const ck = await init({
-      wasmBinary: fs.readFileSync(path.join(ckRoot, 'bin/full/canvaskit.wasm')),
+      wasmBinary: fs.readFileSync(canvasKitWasm),
     });
     const fonts = [
       {

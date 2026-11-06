@@ -6,7 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import ts from 'typescript';
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
+import { buildAppSdkHost } from './app-sdk.mjs';
+import { checkWebRuntime } from '../../skia/eng/prepare-web-runtime.mjs';
 
 export const engineRoot = path.resolve(import.meta.dirname, '..');
 export const timeout = 1_200_000;
@@ -32,6 +35,22 @@ export function run(command, args, options = {}) {
       `${command} failed: ${result.error ?? result.status}\n${result.stdout ?? ''}${result.stderr ?? ''}`,
     );
   return result.stdout.trim();
+}
+function checkBrowserTypes() {
+  const file = path.join(engineRoot, 'platform/web/tsconfig.json'),
+    config = ts.readConfigFile(file, ts.sys.readFile);
+  if (config.error) throw Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(file)),
+    program = ts.createProgram(parsed.fileNames, { ...parsed.options, noEmit: true }),
+    diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
+  if (diagnostics.length)
+    throw Error(
+      ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+        getCurrentDirectory: ts.sys.getCurrentDirectory,
+        getCanonicalFileName: (file) => file,
+        getNewLine: () => '\n',
+      }),
+    );
 }
 export function buildProfiles(
   directory,
@@ -137,6 +156,8 @@ function suppliers() {
 export function sourceIdentity() {
   const sources = [
     'CMakeLists.txt',
+    '../../package.json',
+    '../../package-lock.json',
     'tests/native-driver.cpp',
     '../package.json',
     '../tsconfig.build.json',
@@ -154,6 +175,7 @@ export function sourceIdentity() {
     '../sdk/src/runtime/engine-v2.ts',
     '../sdk/src/runtime/engine-v2-app.ts',
     '../sdk/tooling/cli/src/engine-v2-runner.mjs',
+    '../sdk/tooling/cli/src/engine-v2-development.mjs',
     '../sdk/tooling/cli/src/engine-v2-data-api.mjs',
     '../sdk/tooling/cli/src/engine-v2-graph.mjs',
     '../sdk/tooling/cli/src/supply-runner.mjs',
@@ -165,6 +187,12 @@ export function sourceIdentity() {
     '../sdk/tooling/cli/package.json',
     '../sdk/src/runtime/engine-v2-browser.ts',
     '../sdk/src/runtime/engine-v2-interaction.ts',
+    ...tree(path.resolve(engineRoot, '../sdk/src')).map((file) => '../sdk/src/' + file),
+    '../skia/packages/native/src/skia/types/Drawing.ts',
+    '../skia/packages/web/native-manifest.json',
+    '../skia/eng/prepare-web-runtime.mjs',
+    '../skia/eng/source-build/canvaskit.lock.json',
+    '../skia/eng/source-build/canvaskit-paragraph.patch',
     ...['windows', 'windows-hermes'].flatMap((dir) =>
       tree(path.resolve(engineRoot, '../sdk/native', dir)).map(
         (file) => '../sdk/native/' + dir + '/' + file,
@@ -174,6 +202,9 @@ export function sourceIdentity() {
       (file) => '../skia/native/platforms/vulkan/' + file,
     ),
     '../skia/native/platforms/windows/font_services.cpp',
+    '../skia/native/host/windows/WindowsPrecisionTrackpad.h',
+    '../skia/native/host/windows/WindowsMonotonic.h',
+    '../skia/native/host/windows/WindowsInputTrace.h',
     '../skia/native/rendering/font_services.h',
     '../skia/native/core/paragraph_queries.cpp',
     '../skia/native/core/nelyx_skia/paragraph_queries.h',
@@ -202,19 +233,18 @@ export function sourceIdentity() {
     )
     .digest('hex');
 }
-async function browserAssets(supply, supplier) {
+async function browserAssets(supply, supplier, runtime) {
   const copy = (from, to) => {
     const target = path.join(supply, to);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(from, target);
   };
   const repo = path.resolve(engineRoot, '../..');
-  const ck = path.join(repo, 'node_modules/canvaskit-wasm');
-  if (JSON.parse(fs.readFileSync(path.join(ck, 'package.json'))).version !== '0.41.0')
-    throw new Error('Expected official CanvasKit 0.41.0');
   for (const file of ['canvaskit.js', 'canvaskit.wasm'])
-    copy(path.join(ck, 'bin/full', file), 'canvaskit/' + file);
-  copy(path.join(ck, 'LICENSE'), 'canvaskit/LICENSE');
+    copy(path.join(runtime.directory, file), 'canvaskit/' + file);
+  copy(path.join(runtime.directory, 'LICENSE_SKIA'), 'canvaskit/LICENSE');
+  copy(path.join(runtime.directory, 'package.json'), 'canvaskit/package.json');
+  copy(path.join(runtime.directory, 'native-manifest.json'), 'canvaskit/native-manifest.json');
   copy(path.join(repo, 'sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf'), 'assets/font.ttf');
   copy(path.join(repo, 'sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt'), 'assets/OFL.txt');
   for (const font of fallbackFonts) {
@@ -257,6 +287,8 @@ async function browserAssets(supply, supplier) {
 async function main() {
   const sourceSha256 = sourceIdentity();
   const hosts = !process.argv.includes('--headless');
+  const webRuntime = hosts ? checkWebRuntime() : undefined;
+  if (hosts) checkBrowserTypes();
   const supplier = hosts ? suppliers() : undefined;
   if (hosts) {
     for (const target of ['core', 'cupertino', 'material', 'sdk']) {
@@ -284,7 +316,16 @@ async function main() {
       ))
         fs.copyFileSync(path.join(builds, profile, file), path.join(supply, profile, file));
     }
-    if (hosts) await browserAssets(supply, supplier);
+    if (hosts) await browserAssets(supply, supplier, webRuntime);
+    const windowsAppSdk =
+      hosts && process.platform === 'win32'
+        ? buildAppSdkHost({
+            engineRoot,
+            library: path.join(builds, 'native/nelyx_engine_v2.lib'),
+            intermediate: path.join(staged, 'app-sdk-intermediate'),
+            output: path.join(supply, 'windows-app-sdk'),
+          })
+        : undefined;
     const canonical = JSON.parse(
       fs.readFileSync(path.join(engineRoot, 'schema/protocol.json'), 'utf8'),
     );
@@ -302,15 +343,32 @@ async function main() {
           toolchains,
           profiles: hosts
             ? {
-                native: { contentIndependent: true, renderer: 'Skia-Graphite-Vulkan' },
+                native: {
+                  host: 'windows-hwnd',
+                  os: 'windows',
+                  architecture: 'x64',
+                  contentIndependent: true,
+                  renderer: 'Skia-Graphite-Vulkan',
+                },
+                ...(windowsAppSdk
+                  ? {
+                      'windows-app-sdk': {
+                        ...windowsAppSdk,
+                        contentIndependent: true,
+                        renderer: 'Skia-Graphite-Vulkan',
+                      },
+                    }
+                  : {}),
                 threaded: { contentIndependent: true, renderer: 'CanvasKit-WebGL2' },
                 'single-worker': { contentIndependent: false, renderer: 'CanvasKit-WebGL2' },
               }
             : undefined,
           canvasKit: hosts
             ? {
-                version: '0.41.0',
-                variant: 'full',
+                version: webRuntime.version,
+                variant: 'owned-full',
+                paragraphApiVersion: 1,
+                sourceManifest: 'canvaskit/native-manifest.json',
                 js: 'canvaskit/canvaskit.js',
                 wasm: 'canvaskit/canvaskit.wasm',
               }

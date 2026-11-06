@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import fs from 'node:fs';
 import path from 'node:path';
-import { isEngineV2DataImplementation } from './engine-v2-data-api.mjs';
+import {
+  isEngineV2DataImplementation,
+  isEngineV2OriginalAppImplementation,
+} from './engine-v2-data-api.mjs';
 
 /** Inspect actual bundle inputs, including direct paths and a second package copy. */
 export function inspectEngineV2Graph(inputs, coreDirectory) {
@@ -29,6 +32,18 @@ export function inspectEngineV2Graph(inputs, coreDirectory) {
     for (const directory of visited) cache.set(directory, owner);
     return owner;
   };
+  const originalApp = inputs.some((source) => {
+    if (!fs.existsSync(source)) return false;
+    const absolute = fs.realpathSync(source),
+      owner = ownerOf(absolute);
+    return (
+      owner?.name === '@nelyx/sdk' &&
+      /^((dist|src)\/runtime\/engine-v2-original\.(js|ts))$/.test(
+        path.relative(owner.directory, absolute).replaceAll('\\', '/'),
+      )
+    );
+  });
+  let canonicalAppInputs = 0;
   for (const source of inputs) {
     if (!fs.existsSync(source)) continue; // esbuild's synthetic stdin has no file.
     const absolute = fs.realpathSync(source),
@@ -44,20 +59,36 @@ export function inspectEngineV2Graph(inputs, coreDirectory) {
       allowed =
         relative.startsWith('dist/v2/') ||
         relative.startsWith('runtime/engine-client/') ||
-        isEngineV2DataImplementation(implementation);
+        isEngineV2DataImplementation(implementation) ||
+        (originalApp && isEngineV2OriginalAppImplementation(implementation));
+      if (
+        allowed &&
+        originalApp &&
+        isEngineV2OriginalAppImplementation(implementation) &&
+        !isEngineV2DataImplementation(implementation)
+      )
+        ++canonicalAppInputs;
     } else if (owner.name === '@nelyx/sdk') {
-      allowed = /^runtime\/engine-v2(?:-app|-browser|-interaction)?\.js$/.test(implementation);
+      allowed =
+        implementation === 'backends/browser/platform.js' ||
+        /^runtime\/engine-v2(?:-app|-browser|-interaction|-original)?\.js$/.test(implementation);
     } else {
       allowed =
         implementation === 'v2.js' ||
+        originalApp ||
         (owner.name === '@nelyx/material' &&
           /^(colors|material-color|generated\/colors\/colors.generated)\.js$/.test(implementation));
     }
     if (!allowed)
       throw Error(
-        `Reused API includes an unported implementation: ${owner.name}/${implementation}`,
+        `Engine v2 cannot import an unported implementation: ${owner.name}/${implementation}`,
       );
     counts[owner.name] = (counts[owner.name] ?? 0) + 1;
   }
-  return Object.freeze({ fallbackPolicy: 'reject-unported', packageInputs: Object.freeze(counts) });
+  return Object.freeze({
+    fallbackPolicy: 'reject-unported',
+    appModel: originalApp ? 'original-elements' : 'v2-widgets',
+    canonicalAppInputs,
+    packageInputs: Object.freeze(counts),
+  });
 }

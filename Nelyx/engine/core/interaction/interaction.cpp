@@ -4,11 +4,15 @@
 #include <set>
 namespace nelyx::v2 {
 void View::interaction(Event e) {
-  if (e.kind == wire::events::editingChanged || e.kind == wire::events::needChildren ||
+  if (e.kind == wire::events::appFrame || e.kind == wire::events::editingChanged || e.kind == wire::events::needChildren ||
       e.kind == wire::events::controlChanged || (e.kind==wire::events::gesture&&
-        (e.status==wire::gestureKinds::panUpdate||e.status==wire::gestureKinds::pinchUpdate||e.status==wire::gestureKinds::hover))) {
+        (e.status==wire::gestureKinds::panUpdate||e.status==wire::gestureKinds::pinchUpdate||e.status==wire::gestureKinds::hover||e.status==wire::gestureKinds::mouseHover))) {
     for (auto &old : interactionEvents)
       if (old.kind == e.kind && old.node == e.node && (e.kind!=wire::events::gesture||old.status==e.status)) {
+        if(e.kind==wire::events::gesture&&e.status==wire::gestureKinds::panUpdate&&
+          (e.gesture.flags&wire::gestureDetailFlags::valid)&&(old.gesture.flags&wire::gestureDetailFlags::valid)&&e.gesture.stream==old.gesture.stream){
+          e.gesture.deltaX+=old.gesture.deltaX;e.gesture.deltaY+=old.gesture.deltaY;
+        }
         old = e;
         return;
       }
@@ -223,8 +227,12 @@ void View::semanticAction(Reader bytes) {
               action != wire::semanticsActions::setSelection,
           wire::statuses::capabilityMissing);
   if(action==wire::semanticsActions::activate)activateControl(node);
-  interaction(
-      {wire::events::semanticAction, wire::statuses::ok, snapshot, document->epoch, action, node});
+  Event event{wire::events::semanticAction, wire::statuses::ok, snapshot, document->epoch, action, node};
+  if((current.policy&wire::eventPolicies::canonicalGestures)&&published){
+    for(const auto& item:published->items)if(item.node==node){const auto point=item.world.map({n.properties.width/2,n.properties.height/2});
+      event.x=point.x;event.y=point.y;event.gesture=gestureDetails(node,0,point.x,point.y);break;}
+  }
+  interaction(event);
 }
 Handle View::interactionTarget(double x, double y) const {
   if (!published)

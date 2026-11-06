@@ -1,0 +1,48 @@
+{
+  "schema": "nelyx.windows-os-sources/1",
+  "reused": [
+    {
+      "file": "Nelyx/skia/native/host/windows/WindowsPrecisionTrackpad.h",
+      "sha256": "51352cdc601741218a974a56601f7fdb646f6212a97f55d65063a8871fbe02dd",
+      "usage": "standalone OS callbacks; no React runtime",
+      "license": "Nelyx/licenses/FlutterEngine-LICENSE.md"
+    },
+    {
+      "file": "Nelyx/skia/native/host/windows/WindowsMonotonic.h",
+      "sha256": "f7364f5e12ebe01141a5deff875f8f5ed85a53932824fe3e660a01725c8a94dc",
+      "usage": "standalone OS callbacks; no React runtime",
+      "license": "Nelyx/LICENSE.md"
+    },
+    {
+      "file": "Nelyx/skia/native/host/windows/WindowsInputTrace.h",
+      "sha256": "2d5766248f21dd3e58779e39f14cdd3fa6c3d920b4db0ac2785b44cffbc5eb2f",
+      "usage": "standalone OS callbacks; no React runtime",
+      "license": "Nelyx/LICENSE.md"
+    }
+  ],
+  "reference": {
+    "repository": "https://github.com/microsoft/react-native-windows",
+    "package": "react-native-windows",
+    "version": "0.83.2",
+    "integrity": "sha512-Zm/oS/YUK19Ba1G814HD+sSmmEMR/gQuhVb/TCpM+fqlqAKukF/XyNVoC/8CFboGCfj1+7AvKW267p9jiyKnbw==",
+    "usage": "reference and regression cases only; no RNW source copied or linked",
+    "files": [
+      {
+        "file": "Microsoft.ReactNative/Utils/KeyboardUtils.cpp",
+        "sha256": "23c8531e26b14ee539dcf89426c97da8571791aa57e5d7e90e411e698e5ff2bd"
+      },
+      {
+        "file": "Microsoft.ReactNative/Fabric/Composition/CompositionEventHandler.cpp",
+        "sha256": "536b1853daec22328ced0e19a4bec4240b277ea95641a45b9e90e8386268ab35"
+      },
+      {
+        "file": "Microsoft.ReactNative/Fabric/Composition/CompositionDynamicAutomationProvider.cpp",
+        "sha256": "fe4b173b35414634dd3796559941f6d914933a56c9d5b64baf4fde5a19c99144"
+      },
+      {
+        "file": "Microsoft.ReactNative/Modules/ClipboardModule.cpp",
+        "sha256": "556a92aa9f4b3d3c4d16c1de4a5708f755b28a3adcf3dd7dfc6262501fac6e4a"
+      }
+    ]
+  }
+}

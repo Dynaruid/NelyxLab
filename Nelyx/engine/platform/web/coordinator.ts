@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { protocol as p, packet, response } from '../../../runtime/engine-client/index.ts';
-import { CanvasKitProvider } from '../../render/canvaskit-web/provider.ts';
+import { CanvasKitProvider, canvasKitSupply } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures, WebManifest } from '../../render/canvaskit-web/provider.ts';
 import { ContentActor, RenderActor, preparedTransfers } from './actors.ts';
 import type { Viewport } from './actors.ts';
@@ -35,6 +35,9 @@ const ports = new Set<MessagePort>();
 let telemetryRevision = 0,
   sentRevision = 0;
 let failed = false;
+let pressureRequest:
+  | { revision: number; low: boolean; source: string; owners: Map<number, Record<string, unknown>> }
+  | undefined;
 const post = (value: Record<string, unknown>) => scope.postMessage(value);
 function failHost(message: string, stack?: string): void {
   if (failed) return;
@@ -86,7 +89,26 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     failHost(String(value.message));
     return;
   }
-  if (kind === 'owner-ready') {
+  if (kind === 'memory-pressure') {
+    const request = pressureRequest;
+    if (!request || value.revision !== request.revision || value.low !== request.low) return;
+    const role = Number(value.role);
+    if (role !== 1 && role !== 2) throw new Error('Invalid pressure owner');
+    request.owners.set(role, value);
+    if (request.owners.size === 2) {
+      post({
+        kind: 'memory-pressure',
+        revision: request.revision,
+        value: {
+          revision: request.revision,
+          low: request.low,
+          source: request.source,
+          owners: [...request.owners.values()],
+        },
+      });
+      pressureRequest = undefined;
+    }
+  } else if (kind === 'owner-ready') {
     const role = Number(value.role),
       thread = Number(value.thread);
     if (value.heapShared !== true || value.providerShared !== false)
@@ -95,10 +117,12 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     if (role === 1) contentThread = thread;
     else renderThread = thread;
     if (role === 2) {
-      renderWorker!.postMessage({ kind: 'v2-attach', canvas: initialCanvas, viewport }, [
-        initialCanvas!,
-      ]);
+      renderWorker!.postMessage(
+        { kind: 'v2-attach', canvas: initialCanvas, viewport, frameClock: initialClock },
+        initialClock ? [initialCanvas!, initialClock] : [initialCanvas!],
+      );
       initialCanvas = undefined;
+      initialClock = undefined;
     }
     stats({ [role === 1 ? 'content' : 'render']: value });
     maybeReady();
@@ -127,7 +151,10 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     else contentWorker?.postMessage({ kind: 'v2-wake' });
   } else if (kind === 'owner-stopped') {
     stopped.add(Number(value.role));
-    stats({ [Number(value.role) === 1 ? 'contentClosed' : 'renderClosed']: value.counters });
+    stats({
+      [Number(value.role) === 1 ? 'contentClosed' : 'renderClosed']: value.counters,
+      ...(Number(value.role) === 2 ? { renderClockClosed: value.frameClock } : {}),
+    });
   } else if (
     kind === 'preparation-error' ||
     kind === 'render-stats' ||
@@ -141,6 +168,7 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
   }
 }
 let initialCanvas: OffscreenCanvas | undefined;
+let initialClock: MessagePort | undefined;
 let announced = false;
 function maybeReady(): void {
   if (announced || !attached || ready.size !== 2) return;
@@ -161,7 +189,7 @@ function maybeReady(): void {
     contentOwner: contentThread,
     renderOwner: renderThread,
     contentIndependent: profile === 'threaded',
-    canvasKit: '0.41.0/full',
+    canvasKit: canvasKitSupply.version + '/' + canvasKitSupply.variant,
     memoryShared:
       typeof SharedArrayBuffer !== 'undefined' && module.HEAPU8.buffer instanceof SharedArrayBuffer,
   });
@@ -177,12 +205,14 @@ async function initialize(message: {
   root: string;
   profile: string;
   canvas: OffscreenCanvas;
+  frameClock?: MessagePort;
   viewport: Viewport;
 }): Promise<void> {
   root = message.root;
   profile = message.profile;
   viewport = message.viewport;
   initialCanvas = message.canvas;
+  initialClock = message.frameClock;
   const manifest = (await (
     await fetch(new URL('engine-manifest.json', root))
   ).json()) as WebManifest;
@@ -239,8 +269,9 @@ async function initialize(message: {
     contentThread = renderThread = module._nelyx_host_thread_id();
     content = new ContentActor(module, engine, provider, actorMessage, true);
     render = new RenderActor(module, engine, provider, actorMessage);
-    render.attach(initialCanvas, viewport);
+    render.attach(initialCanvas, viewport, initialClock);
     initialCanvas = undefined;
+    initialClock = undefined;
     ready.add(1);
     ready.add(2);
     attached = true;
@@ -376,6 +407,7 @@ async function shutdown(): Promise<void> {
     state: {
       reservedBytes: 0,
       workersStopped: true,
+      frameClock: render?.clockSnapshot ?? telemetry?.renderClockClosed,
       provider: provider ? { ...provider.counters } : telemetry,
     },
   });
@@ -398,6 +430,44 @@ scope.addEventListener('message', (event) => {
       viewport = message.viewport;
       if (render) render.update(viewport);
       else renderWorker?.postMessage({ kind: 'v2-viewport', viewport });
+    } else if (message.kind === 'memory-pressure') {
+      if (
+        typeof message.low !== 'boolean' ||
+        !Number.isSafeInteger(message.revision) ||
+        message.revision <= 0 ||
+        pressureRequest
+      )
+        throw new Error('Memory pressure control credit/value rejected');
+      if (provider) {
+        provider.setMemoryPressure(message.low);
+        post({
+          kind: 'memory-pressure',
+          revision: message.revision,
+          value: {
+            revision: message.revision,
+            low: message.low,
+            source: message.source,
+            owners: [{ role: 'combined', counters: { ...provider.counters } }],
+          },
+        });
+      } else {
+        pressureRequest = {
+          revision: message.revision,
+          low: message.low,
+          source: String(message.source),
+          owners: new Map(),
+        };
+        contentWorker?.postMessage({
+          kind: 'v2-memory-pressure',
+          low: message.low,
+          revision: message.revision,
+        });
+        renderWorker?.postMessage({
+          kind: 'v2-memory-pressure',
+          low: message.low,
+          revision: message.revision,
+        });
+      }
     } else if (message.kind === 'stats-ack') {
       telemetryPending = false;
       if (telemetryRevision > sentRevision) {

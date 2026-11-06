@@ -1,6 +1,6 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 1차 구현 진행 / PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -22,7 +22,7 @@
 
 1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. 실제 구현은 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따라 **W9-00 → W9-06-A → W9-01/02-A/B**부터 진행한다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
 
-**이월 상태:** 전체 공개 API gate는 **FAIL**, 새 App SDK host는 미착수, 기존 engine/host 구현은 **PARTIAL**이다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 IME/reader/trackpad·display/scanout `notVerified`를 유지한다. Windows/Web 1차 완료와 전체 플랫폼 완료는 별도 판정이다.
+**현재 상태:** Windows/Web 공개 입력은 **`inputValid=true`**, 전체 동작은 **`compatible=false / FAIL`**이다. App SDK·reload·수요 clock·cache/pressure와 원래 Element/State·viewport·RTL/up layout·plain Text 정렬/RTL/style·owned paragraph/hyphen을 부분 연결했다. 공급 `90649c3d…`에서 Core **283/283**, graphics **6/6**, host **17/17**, 독립 설치 포함 runner **19/19**, 개발 재시작 **7/7**을 통과했다. 실제 Testbed **C++ 1251 = SDK ACK 1251**, TS fallback **0**이다. 전체 Widget/controller/custom hook·동기 geometry·rich text/graphics/design·필수 콘텐츠/복구는 미완료다. 성능 두 flag **false**, 물리 IME/reader/trackpad·display/scanout **notVerified**, 후속 플랫폼 DEFERRED를 유지한다. 최신 공급과 실패·잔여 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다.
 
 ## 원문 절 목차
 
@@ -125,4 +125,6 @@
 
 로컬 링크·앵커·표·code fence/공백, 주요 절 14개·단계 15개와 문서의 npm 명령 존재 여부를 검사하고 `git diff --check`를 통과했다. 상세 검사 범위와 수치는 3부 §14에 기록했다.
 
-**다음 구현 시작점:** [W9-00의 현재 공급·Windows/Web 기준선·API 검사 입력 정상화](work9-3.md#123-단계별-범위와-완료-조건), 필요한 RNW 사례·출처 선정, 이어 [W9-06-A의 원래 consumer별 실행 모델 판정](work9-2.md#81-검사-환경과-실행-모델의-선행-판정).
+**현재 구현 진행 — 2026-11-06 KST / PAUSED / PARTIAL:** 1~3부를 계속 구현한다. 마지막 전체 검증 공급 `90649c3d…`(ABI 2/schema **4122515473**)은 owned m153 paragraph runtime·첫 생성 glyph font·ready callback 이후 집계와 basic ClipRect·affine Transform을 포함한다. Core **283/283**, graphics **6/6**, host **17/17**, 독립 설치 포함 runner **19/19**, 개발 재시작 **7/7**을 확인했다. Native 두 host에서 clip·원점/중심 회전·flip·한글/이모지 표시도 직접 확인했다. 표준 clip 계열과 원래 ListView/ScrollController의 일부를 연결했다. 기초 reference 4개를 제거했고 고수준 scroll·gesture/control·디자인 API 개발을 우선한다. 기능 통합 1개와 필요한 빌드·실제 앱 연결로 검증을 제한하며 전체 suite 반복을 중단했다. 앞선 공급 `7a2922c8…`(schema **4120097723**)은 CupertinoButton의 원래 theme·State/controller와 App frame clock까지 연결했고 전체 빌드·source identity와 버튼/gesture/목록 통합 **3/3**을 확인했다. 실제 App SDK에서 세 버튼·disable·Tab/Enter와 원래 AnimationController의 opacity 1→0.5→1, **C++ 788 = SDK ACK 788**, fallback 0을 확인했다. 직전 기능 검증 공급 `9fa78a98…`에서 Web 두 profile의 버튼·hover·opacity 실제 pixel·종료와 원래 목록 controller 교체의 선택 통합 **2/2**를 확인했다. 전체 디자인과 focus/semantics 잔여는 미완료다. 전체 회귀 수치는 앞선 `90649c3d…` 공급의 기록이다. 상세 증거와 잔여 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다.
+
+**외출 일시정지:** 사용자 요청으로 PAUSED / PARTIAL. Material native paint/ink·weight를 구현 중이며 source/dist 재일치와 실제 Material 소비 검증이 남았다. 진행 중 실행은 정리했다. [재개 기록과 명령](work9-3.md#외출-일시정지-기록)부터 이어간다.

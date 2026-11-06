@@ -1,6 +1,6 @@
 # work9-1 — 1부: 범위·기준선·Windows 호스트·공통 경계
 
-작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 우선 계획, 신규 구현 미착수, 기존 구현 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows 호스트·공급 구현 진행 / PARTIAL**
 
 [전체 목차](work9.md) · [다음: 2부](work9-2.md)
 
@@ -12,7 +12,7 @@
 
 ## 1. 이번 계획의 결정과 범위
 
-**1차 개발·완료 대상은 Windows와 Web이다.** Windows는 Windows App SDK + C++/WinRT host로 전환하고 현재 Graphite/Vulkan renderer를 재사용한다. Web은 기존 DOM·Worker·공식 npm CanvasKit host에서 **threaded와 non-shared single-worker를 함께** 개발한다. 공통 기능은 Windows와 두 Web profile에 같은 사례를 연결해 진행한다.
+**1차 개발·완료 대상은 Windows와 Web이다.** Windows는 Windows App SDK + C++/WinRT host로 전환하고 현재 Graphite/Vulkan renderer를 재사용한다. Web은 기존 DOM·Worker host에서 **threaded와 non-shared single-worker를 함께** 개발한다. 현재 paragraph 의미 보존에는 고정한 owned m153 CanvasKit 공급을 사용하고 npm 의존성은 타입 선언에 사용한다. 공통 기능은 Windows와 두 Web profile에 같은 사례를 연결해 진행한다.
 
 **Windows/Web 1차 다음은 [4부의 Android·Linux 2차](work9-4.md)이며, 그다음은 [후속 5부의 iOS·macOS 3차](work9-5.md)다.** 플랫폼별 설계·미완료 항목은 보존하고 해당 차수에서 toolchain·prototype·입력 adapter·배포를 진행한다. 후속 플랫폼과 모바일 RN 소스 추출은 Windows/Web 1차 완료의 선행 조건으로 두지 않는다. Web의 브라우저 helper도 실제 재현 사례가 있을 때만 선별한다. 채택 범위·의존성 제거·입력 상태 계약·실행 검증은 [§11](work9-2.md#11-web모바일에서-유지할-범위)을 따른다.
 
@@ -67,8 +67,8 @@ P0에서 보완한 원래 표면 고정·gate 입력·동작 의무·실제 경�
 
 | 대상 | 개발 차수 | 호스트·UI owner | 그래픽 연결의 계획 | 필수 범위와 현재 상태 |
 | --- | --- | --- | --- | --- |
-| Windows | **1차 우선** | **Windows App SDK + C++/WinRT**, AppWindow·DispatcherQueue와 HWND interop | 현재 **Skia Graphite/Vulkan → HWND**를 먼저 유지 | Windows 11 x64를 초기 실행 기준으로 고정. App SDK 전환은 **미착수**, 기존 HWND host 구간만 검증 기록 있음 |
-| Web | **1차 우선** | 기존 Main·App worker·engine worker, 두 실행 profile | 수정하지 않은 공식 npm `canvaskit-wasm@0.41.0/full` | Windows의 Chrome·Edge를 초기 실제 브라우저 검증 대상으로 두고 정확한 버전은 W9-00에서 기록. 두 profile·전체 API·복구는 PARTIAL. 다른 browser/OS는 별도 검증 전 지원 완료로 표시하지 않음 |
+| Windows | **1차 우선** | **Windows App SDK + C++/WinRT**, AppWindow·DispatcherQueue와 HWND interop | 현재 **Skia Graphite/Vulkan → HWND**를 유지 | Windows 11 x64. App SDK 실행 프로젝트·고정 앱 로컬 공급·입력 연결 구현, 최종 종료/배포 회귀 진행. 기존 HWND는 별도 control |
+| Web | **1차 우선** | 기존 Main·App worker·engine worker, 두 실행 profile | 고정 owned `m153-nelyx-paragraph.1 / API 1`, npm CanvasKit은 타입 선언 | Windows의 Chrome·Edge를 초기 실제 브라우저 검증 대상으로 두고 정확한 버전은 W9-00에서 기록. 두 profile·전체 API·복구는 PARTIAL. 다른 browser/OS는 별도 검증 전 지원 완료로 표시하지 않음 |
 | Linux | **2차 / 4부** | **GTK4**, GtkApplication/GtkApplicationWindow·GLib main context | Render worker의 **Graphite/Vulkan → DMA-BUF → GdkTexture → GTK snapshot** | GTK **4.22 이상**, Linux x86_64, **Wayland와 X11 각각**을 계획. 접근성 caret·selection 변경 API까지 포함한 최소 버전이며 [4부의 근거](work9-4.md#5-linux--gtk4-호스트)를 따른다. V2 host는 **미착수 / DEFERRED** |
 | macOS | **3차 / 후속 5부** | **AppKit**, NSApplication/NSWindow/NSView, Objective-C++ adapter | **Skia Graphite/Metal → CAMetalLayer** | macOS **14 이상**, arm64를 초기 대상으로 계획. V2 host는 **미착수 / DEFERRED**. x86_64 공급은 별도 target 상태로 관리 |
 | Android | **2차 / 4부** | Kotlin/Java의 Activity/View + native engine. 기존 Nelyx/RN의 OS 연결 코드를 선별 이식 | Native surface와 검증한 Skia 공급 | arm64-v8a 최소 port·InputConnection/접근성·RN 의존성 분리·독립 실행을 이월. **소스 검토 / 구현 미착수 / DEFERRED** |
@@ -133,7 +133,7 @@ Nelyx/engine/
   platform/android/             # 2차 중립 Kotlin/Java·JNI 입력/서비스·surface adapter
   platform/ios/                 # 3차 중립 Objective-C++·UIKit/UITextInput·Metal adapter
   render/skia-native/           # 공통 Picture/paragraph/image 준비·retained replay
-  render/canvaskit-web/          # 기존 공식 npm CanvasKit provider
+  render/canvaskit-web/          # manifest/hash를 검증한 owned CanvasKit provider
 ```
 
 Host 계약에는 surface/metrics·frame clock·input·text input·semantics·clipboard/services·wake·resource release·close를 포함한다. HWND/GObject/Objective-C 객체와 toolkit allocator를 공통 core/wire에 넣지 않는다. CPU Picture/paragraph 준비와 platform GPU presenter를 분리하고, OS별 font/ICU 결과를 공통 text corpus로 확인한다.
@@ -153,3 +153,16 @@ UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`
 | Snapshot·자원 | Admission snapshot·frame/provider/GPU hold를 정확한 세대와 owner에 묶고 late 결과·취소·close에서 한 번 해제. Engine Wasm과 CanvasKit 사이에는 복사 bytes/각 module의 ID만 전달. Heap 성장 후 옛 typed-array view나 다른 module의 포인터·JSI/UI 객체를 보관하지 않음. W9-01/05/09/12/13에 적용 |
 | 좌표·크기 | W9-05/07에서 constraints의 `finite/unbounded/expand`와 scroll extent의 `finite/estimated/unbounded`를 구별. 최종 layout/paint/hit-test·게시 bounds는 finite이며 NaN/임의 Infinity·overflow를 거부. Perspective/특이 transform의 projection·역변환 불가 시 hit/semantics 정책도 provider와 일치시킴 |
 | Protocol·공급 | W9-05/07/11의 wire 확장 때 schema/필수 capability와 C++·TS·SDK·설치본 producer/consumer를 함께 갱신. 옛 schema·없는 필수 capability·잘못된 크기/자원/세대를 시작 또는 admission에서 거부하고 기존 scene과 ledger를 보존. 단순 source typecheck로 ABI 호환을 승인하지 않음 |
+## 현재 구현·검증 — 2026-11-06 KST
+
+1차 Windows/Web 작업을 진행 중이다. [실행 프로젝트](Nelyx/engine/platform/windows/app-sdk/NelyxEngineAppSdkHost.vcxproj)는 고정 App SDK **1.8.260508005**, C++/WinRT **2.0.250303.1**, Windows SDK **10.0.26100.0**, `/MD`를 사용하고 현재 CMake core·Skia/Hermes를 연결한다. 실제 AppWindow HWND interop·ResizeClient/Show/Changed·Microsoft.UI dispatcher callback을 실행하며 Vulkan renderer는 Render owner에 유지한다. NuGet 14개 package의 content/archive SHA-512와 license는 [고정 공급](Nelyx/engine/platform/windows/app-sdk/supply.json)에 연결한다.
+
+`windows-app-sdk` profile과 CLI 설정 `nelyx.v2.json`의 `windowsHost`를 추가했다. 기본 `windows-hwnd`와 새 후보를 구분하고 누락 runtime·identity를 거부한다. 앱 로컬 App SDK·Hermes·MSVC CRT를 공급하며 실제 로드된 DLL/CRT가 package 내부에 있는지 clean PATH 소비 검사로 확인했다. AppWindow.Closing의 WM_CLOSE 재진입은 drain 전용 WM_APP 메시지로 수정했다. 전체 host **13/13**, 설치·배포 runner **9/9**가 통과했다. 이후 추가한 reload·시작 중 close와 console 종료 수정의 현재 공급 재검증은 3부에서 계속 기록한다. 전체 API·제품 gate의 완료를 뜻하지 않는다.
+
+기존 Nelyx `WindowsPrecisionTrackpad.h`의 DirectManipulation OS helper를 중립 좌표/packet callback으로 재사용했다. 별도 stream·source 계측, wheel 중복 억제, 취소/resize/close를 연결하며 RN 앱 객체·Fabric·JSI 전달 객체를 추가하지 않았다. [Windows 출처](Nelyx/engine/schema/windows-os-sources.json)는 실제 재사용 Nelyx 파일과 RNW **0.83.2**의 참고 사례/파일 hash를 구분한다. **RNW 코드를 복사·link한 것으로 보고하지 않는다.** `V2_INPUT_SOURCE`의 0은 물리 입력 관측으로 승격하지 않는다.
+
+Windows 11 x64에서 검증 중이다. 실제 브라우저는 Chrome **156.0.8078.80**, Edge **156.0.4314.58**, 대조 Chromium **156.0.8078.4**다. Headful WebGL2에서 **AMD Radeon 780M / ANGLE D3D11**, native Graphite/Vulkan에서 **NVIDIA GeForce RTX 4060 Laptop GPU**를 관측했다. 첫 Web matrix에서 Chrome plain 입력 세대 경합을 발견해 Core의 bounded publication snapshot admission을 수정했다. 최종 재검증은 [3부](work9-3.md#현재-구현검증과-잔여-작업)에 기록한다.
+
+실행 명령은 `npm.cmd run build:engine-v2` 다음 `npm.cmd run run:engine-v2:windows-app-sdk`다. 일반 설치 앱은 [SDK 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)의 `windowsHost` 설정을 따른다. 마지막 전체 검증 공급 `90649c3d…`(ABI 2/schema **4122515473**)은 owned m153 문단 공급·Text 정렬/RTL/style·hyphen과 basic ClipRect·affine Transform을 포함하며, host **17/17**, 독립 archive/local strict compiler 포함 runner **19/19**와 원래 API 소비자 **4/4**를 통과했다. 해당 Native/Web Testbed의 **C++ 1251 = SDK ACK 1251**, TS fallback **0**을 확인했다. Native 두 host에서 clip·원점/중심 회전·flip·한글/이모지를 직접 확인했다(C++ 586 = SDK ACK 586, fallback 0, 종료 memoryTotal 0). 표준 clip 계열과 원래 ListView/ScrollController의 일부를 연결했다. 이후 scroll·gesture/control·디자인 등 고수준 API를 우선 개발하고 기능마다 전체 suite를 반복하지 않는다. 앞선 공급 `7a2922c8…`(schema **4120097723**)은 원래 CupertinoButton과 App frame clock까지 연결했고 빌드·source identity와 버튼/gesture/목록 통합 **3/3**을 확인했다. 실제 App SDK에서 plain/filled/tinted·disable·Tab/Enter와 원래 AnimationController의 opacity 1→0.5→1, **C++ 788 = SDK ACK 788**, fallback 0·종료 memoryTotal 0을 확인했다. 전체 host/runner는 반복하지 않았다. 직전 기능 검증 `9fa78a98…` 공급은 Web 두 profile의 같은 버튼·hover·animation pixel·종료 대표 통합 **1/1**을 통과했다(C++/SDK ACK 각각 794/795, fallback 0). 원래 목록 controller의 외부·내부 교체도 연결해 같은 position/offset과 attach/detach callback을 유지하며 Native 대표 통합 **1/1**을 확인했다(C++ 6285 = SDK ACK 6285). 최신 상태·앞선 실패는 [3부](work9-3.md#현재-구현검증과-잔여-작업)에 기록한다. W9-01/02는 PARTIAL, 후속 플랫폼은 DEFERRED다. 물리 입력·전체 API·전체 frame 일정/성능·scanout은 별도 미완료다.
+
+**외출 일시정지 — 2026-11-06 KST:** 사용자 요청으로 PAUSED / PARTIAL. Material의 native shape·border·highlight/ripple와 font weight 설정을 연결 중이며 실제 Material 앱은 아직 통과하지 않았다. 마지막 전체 빌드 공급은 `68b9fdc1…` / schema **486707000**, 이후 MediaQuery·진단/CLI 변경과 형식 정리로 현재 source identity가 달라졌다. 현재 소스로 rebuild한 뒤 대표 통합부터 재개한다. 진행 중 빌드·실행 창·임시 앱은 정리했다. 상세 상태와 복사할 명령은 [3부 재개 기록](work9-3.md#외출-일시정지-기록)을 따른다.

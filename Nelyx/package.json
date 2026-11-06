@@ -15,6 +15,10 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./v2/original": {
+      "types": "./dist/v2/engine-client/original.d.ts",
+      "default": "./dist/v2/engine-client/original.js"
+    },
     "./v2": {
       "types": "./dist/v2/engine-client/index.d.ts",
       "default": "./dist/v2/engine-client/index.js"
