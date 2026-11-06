@@ -339,6 +339,7 @@ class FocusBoundaryState extends State<FocusBoundary> {
       [this.widget.source.child],
       {
         key: new ObjectKey(node),
+        layout: { childConstraints: 'inherit' },
         nativeFocus: {
           enabled: node.canRequestFocus,
           skipTraversal: node.skipTraversal,

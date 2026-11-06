@@ -25,6 +25,7 @@ import {
   makePath,
   paintShape,
   paintNative,
+  nativePaintOutset,
   paintNativeShadow,
   canvasMatrix,
   relativeMatrix,
@@ -729,18 +730,16 @@ export class CanvasKitProvider {
         if (node.flags & p.nodeFlags.nativeExtension) ++this.counters.nativeExtensions;
 
         const content = node.content ?? { x: 0, y: 0, width: node.width, height: node.height };
-        const nativeOutset = (node.nativePaint ?? []).reduce(
-          (maximum, entry) =>
-            entry.kind === 'circle'
-              ? Math.max(
-                  maximum,
-                  entry.resolvedRadius +
-                    entry.shape.strokeWidth -
-                    Math.min(node.width, node.height) / 2,
-                )
-              : maximum,
-          0,
-        );
+        const nativeOutset =
+          (node.nativePaint ?? []).reduce(
+            (maximum, entry) =>
+              Math.max(
+                maximum,
+                nativePaintOutset(entry, node.width, node.height, scene.viewport?.scale ?? 1),
+              ),
+            0,
+          ) +
+          (node.graphics?.blur ?? 0) * 4;
         const recording = {
           x:
             Math.min(0, content.x) -
@@ -873,7 +872,7 @@ export class CanvasKitProvider {
             }
           } else {
             paintShape(this.ck, canvas, node, paths.get(key(node.node)), paint);
-            paintNative(this.ck, canvas, node, paint);
+            paintNative(this.ck, canvas, node, paint, scene.viewport?.scale ?? 1);
           }
           picture = recorder.finishRecordingAsPicture();
           ++this.counters.pictures;
@@ -1126,6 +1125,8 @@ export class CanvasKitProvider {
           relative = relativeMatrix(parent?.matrix ?? [1, 0, 0, 1, 0, 0], item.matrix);
         const culled =
           !!parent?.culled ||
+          !item.clip.width ||
+          !item.clip.height ||
           !relative ||
           item.matrix[0] * item.matrix[3] - item.matrix[1] * item.matrix[2] === 0;
         target.save();

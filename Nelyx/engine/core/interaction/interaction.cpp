@@ -285,9 +285,13 @@ void View::semanticAction(Reader bytes) {
     setFocus(node, snapshot, bytes.u64(24));
     return;
   }
-  require(action != wire::semanticsActions::setValue &&
-              action != wire::semanticsActions::setSelection,
-          wire::statuses::capabilityMissing);
+  require(action != wire::semanticsActions::setSelection, wire::statuses::capabilityMissing);
+  if(action==wire::semanticsActions::setValue){
+    const double value=bytes.f64(24);const auto& range=current.semantics->range;const auto& before=n.semantics->range;
+    require(range.enabled&&before.enabled&&!range.readOnly&&!before.readOnly,wire::statuses::capabilityMissing);
+    require(value>=range.minimum&&value<=range.maximum&&value>=before.minimum&&value<=before.maximum,wire::statuses::invalidValue);
+    Event event{wire::events::semanticAction,wire::statuses::ok,snapshot,document->epoch,action,node};event.x=value;interaction(event);return;
+  }
   if(action==wire::semanticsActions::activate)activateControl(node);
   Event event{wire::events::semanticAction, wire::statuses::ok, snapshot, document->epoch, action, node};
   if((current.policy&wire::eventPolicies::canonicalGestures)&&published){

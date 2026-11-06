@@ -91,11 +91,48 @@ import type {
   InputGeometryCandidate,
 } from '../../hosting/input-geometry.ts';
 const nativeRenderOwners = new WeakMap<RenderObject, object>();
+export interface NativePublishedGeometry {
+  readonly owner: object;
+  readonly snapshot: object;
+  readonly publication: bigint;
+  readonly size: Size;
+  readonly transform: Matrix4Storage;
+  readonly layer?: {
+    readonly kind: 'leader' | 'follower';
+    readonly linked: boolean;
+    readonly showWhenUnlinked: boolean;
+    readonly transform: Matrix4Storage | null;
+    readonly linkedOffset: Offset;
+  };
+}
+const nativeGeometryReaders = new WeakMap<
+  RenderObject,
+  () => NativePublishedGeometry | undefined
+>();
+/** @internal Read a published native observation; this never requests App layout. */
+export function nativePublishedGeometry(render: RenderObject): NativePublishedGeometry | undefined {
+  return nativeGeometryReaders.get(render)?.();
+}
+/** @internal Only the native render owner can supply its published observations. */
+export function bindNativePublishedGeometry(
+  render: RenderObject,
+  owner: object,
+  read: () => NativePublishedGeometry | undefined,
+): void {
+  invariant(
+    nativeRenderOwners.get(render) === owner,
+    'foreign-native-geometry',
+    'Geometry belongs to the native render owner',
+  );
+  nativeGeometryReaders.set(render, read);
+}
 export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
+export { nativeSemanticsRange } from './semantics-transport.ts';
 export type {
   NativeShape,
   NativePaintEntry,
   NativePaintGeometry,
+  NativePaintScalar,
   NativeRenderMetadata,
 } from './native-paint.ts';
 const nativeRenderInvalidators = new WeakMap<RenderObject, () => void>();
@@ -130,7 +167,7 @@ export function claimNativeRenderObject(
     'Render object belongs to another native bridge',
   );
   invariant(
-    !render.attached && !(render instanceof RenderBox && render.hasSize),
+    !render.attached && (!!previous || !(render instanceof RenderBox && render.hasSize)),
     'native-render-already-laid-out',
     'Native metadata cannot adopt an attached or TS-laid-out render object',
   );

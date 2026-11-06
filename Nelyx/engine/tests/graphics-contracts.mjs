@@ -1,9 +1,123 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commands as c, protocol as p, body } from '../../runtime/engine-client/index.ts';
+import { commands as c, protocol as p, body, response } from '../../runtime/engine-client/index.ts';
 export function graphicsContracts({ using, timeout, h }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
+    test(
+      `${profile}: native switch paint resolves track, thumb, RTL, clip and shadow with atomic malformed rollback`,
+      { timeout },
+      () =>
+        using(profile, async (f, transport) => {
+          const shape = {
+              kind: 'stadium',
+              radii: Array(8).fill(0),
+              strokeWidth: 0,
+              strokeColor: 0,
+              strokeAlign: 0,
+            },
+            geometry = {
+              kind: 'switchThumb',
+              trackWidth: 52,
+              trackHeight: 32,
+              thumbWidth: 16,
+              thumbHeight: 16,
+              position: 0,
+            },
+            paint = (position = 0, rtl = false) => ({
+              kind: 'shape',
+              color: 0xff123456,
+              shape,
+              geometry: { ...geometry, position, rtl },
+            });
+          let frame = await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { width: 80, height: 48 }),
+            c.nativePaint(h(1), [paint()]),
+            c.semantics(h(1), {
+              role: 'switchControl',
+              label: 'controlled switch',
+              flags: p.semanticsFlags.checked,
+              actions: p.semanticsActions.activate,
+            }),
+          ]);
+          assert.ok(frame.capabilities & p.capabilities.canonicalSwitch);
+          frame = await f.send(p.opcodes.semanticsSnapshot);
+          const thumb = frame.nodes[0].nativePaint[0];
+          assert.deepEqual(
+            [thumb.width, thumb.height, ...thumb.transform],
+            [16, 16, 1, 0, 0, 1, 22, 16],
+          );
+          assert.equal(
+            frame.nodes[0].control,
+            null,
+            'TypeScript retains the controlled value policy',
+          );
+          await f.commit([c.nativePaint(h(1), [paint(1)])]);
+          await f.ready();
+          await f.present();
+          frame = await f.send(p.opcodes.semanticsSnapshot);
+          assert.equal(frame.nodes[0].nativePaint[0].transform[4], 42);
+          await f.commit([
+            c.nativePaint(h(1), [
+              paint(1, true),
+              { ...paint(), kind: 'clip', geometry: { ...geometry, kind: 'switchTrack' } },
+              { ...paint(), kind: 'shadow', blurSigma: 2, spread: 1, x: 0, y: 2 },
+            ]),
+          ]);
+          await f.ready();
+          await f.present();
+          frame = await f.send(p.opcodes.semanticsSnapshot);
+          assert.equal(frame.nodes[0].nativePaint[0].transform[4], 22);
+          assert.deepEqual(
+            frame.nodes[0].nativePaint.map((e) => e.kind),
+            ['shape', 'clip', 'shadow'],
+          );
+          const before = await f.inspect();
+          for (const mutate of [
+            (v) => v.setUint32(256, 6, true),
+            (v) => v.setUint32(260, 2, true),
+            (v) => v.setFloat64(264, 0, true),
+            (v) => v.setFloat64(280, 0, true),
+            (v) => v.setFloat64(304, NaN, true),
+            (v) => v.setFloat64(304, 5, true),
+            (v) => v.setFloat64(320, 2, true),
+            (v) => v.setFloat64(328, 513, true),
+          ]) {
+            const bad = c.nativePaint(h(1), [paint()]);
+            mutate(
+              new DataView(
+                bad.buffer,
+                bad.byteOffset + 16 + p.nativePaintHeaderBytes,
+                p.nativePaintBytes,
+              ),
+            );
+            const rejected = await f.commit([c.paint(h(1), 0xffabcdef), bad]);
+            assert.equal(rejected.status, p.statuses.invalidValue);
+            const after = await f.inspect();
+            assert.equal(after.document, before.document);
+            assert.equal(after.nodes[0].color, before.nodes[0].color);
+            assert.equal(
+              response(await transport.exchange(rejected.bytes)).status,
+              p.statuses.invalidValue,
+            );
+            assert.equal(
+              (await f.inspect()).reservedBytes,
+              after.reservedBytes,
+              'An identical NACK retry does not retain another staged paint',
+            );
+          }
+          await f.send(p.opcodes.closeView);
+          const closed = await f.send(p.opcodes.closeSession, new Uint8Array(), {
+            owner: { session: 1, app: 1, view: 0, generation: 0 },
+          });
+          assert.equal(
+            closed.reservedBytes,
+            0n,
+            'Paint, snapshot and bounded NACK history leases drain on close',
+          );
+        }),
+    );
     test(
       `${profile}: clip styles preserve canonical default hit shapes, Clip.none, saveLayer and atomic malformed rejection`,
       { timeout },

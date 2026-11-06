@@ -30,7 +30,13 @@ import type { PointerDownEvent, PointerPanZoomStartEvent } from '../gestures/eve
 import { RenderSemanticsGestureHandler } from '../rendering/semantics-gesture-handler.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import type { RenderBox } from '../rendering/object.ts';
-import { StatefulWidget, State, Element, RenderObjectWidget } from './framework.ts';
+import {
+  StatefulWidget,
+  State,
+  Element,
+  RenderObjectWidget,
+  buildNativeWidget,
+} from './framework.ts';
 import type { Widget, BuildContext } from './framework.ts';
 import { Listener } from './listener.ts';
 export type GestureRecognizerType<T extends GestureRecognizer = GestureRecognizer> = abstract new (
@@ -247,6 +253,8 @@ export class RawGestureDetectorState extends State<RawGestureDetector> {
     this.semanticsDelegate.assignSemantics(render);
   };
   override build(_context: BuildContext): Widget {
+    const native = buildNativeWidget(_context, 'raw-gesture-detector', this.widget);
+    if (native !== undefined) return native;
     const behavior = this.widget.behavior ?? this.defaultBehavior;
     let result: Widget = new Listener(this.widget.child, {
       onPointerDown: this.handlePointerDown,

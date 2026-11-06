@@ -544,6 +544,8 @@ export function installOriginalScrolling(
   fail: Fail,
   error: (error: unknown) => void,
 ): {
+  readonly scheduler: FrameScheduler;
+  now(): number;
   frame(at: number): void;
   visible(value: boolean): void;
   postFrame(callback: () => void): void;
@@ -551,14 +553,12 @@ export function installOriginalScrolling(
 } {
   let coreOrigin: number | undefined,
     appOrigin = 0;
-  const scheduler = new FrameScheduler(
-    { now: () => (typeof performance === 'undefined' ? Date.now() : performance.now()) },
-    () => {
-      void view.request(p.opcodes.requestAppFrame).catch((cause) => {
-        if (!scheduler.disposed) error(cause);
-      });
-    },
-  );
+  const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
+  const scheduler = new FrameScheduler({ now }, () => {
+    void view.request(p.opcodes.requestAppFrame).catch((cause) => {
+      if (!scheduler.disposed) error(cause);
+    });
+  });
   registerTickerScheduler(owner, scheduler);
   registerNativeWidgetAdapter(owner, 'scroll-view', (widget, context) => {
     if (Object.getPrototypeOf(widget) !== ListView.prototype)
@@ -633,6 +633,8 @@ export function installOriginalScrolling(
     return primary && controller ? PrimaryScrollController.none({ child: result }) : result;
   });
   return {
+    scheduler,
+    now,
     postFrame: (callback) => {
       scheduler.addPostFrameCallback(() => callback());
       scheduler.requestFrame();

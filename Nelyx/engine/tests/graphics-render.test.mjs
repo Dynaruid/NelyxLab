@@ -1,4 +1,5 @@
 import { canvasKitTestSupply } from './canvaskit-supply.mjs';
+import './material-slider-render.mjs';
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +26,14 @@ import {
   Text,
   ClipRect,
   Transform,
+  Padding,
 } from '@nelyx/core/framework/widgets/basic';
+import {
+  CompositedTransformTarget,
+  CompositedTransformFollower,
+} from '@nelyx/core/framework/widgets/composited-transform';
+import { LayerLink } from '@nelyx/core/framework/rendering/layer';
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import {
   ClipRect as CanonicalClipRect,
@@ -62,7 +70,7 @@ class HyphenText extends Text {
 
 for (const profile of ['single-worker', 'threaded'])
   test(
-    `Original C++ text, alignment, RTL and conditional clips produce actual CanvasKit pixels (${profile})`,
+    `Original C++ text, alignment, RTL, links and conditional clips produce actual CanvasKit pixels (${profile})`,
     { timeout },
     async () => {
       assert.equal(
@@ -308,6 +316,51 @@ for (const profile of ['single-worker', 'threaded'])
         );
         assert.deepEqual(aligned.pixel(65, 20), [255, 0, 0]);
         assert.deepEqual(aligned.pixel(50, 20), [244, 246, 250]);
+        const link = new LayerLink();
+        const linkedTree = (left = 10, linked = true, showWhenUnlinked = false) =>
+          new Stack(
+            [
+              linked
+                ? new Padding(
+                    { left, top: 10 },
+                    new CompositedTransformTarget(child(20, 10, 0xff0000ff), { link }),
+                  )
+                : new SizedBox(1, 1),
+              new Padding(
+                { left: 60, top: 50 },
+                new CompositedTransformFollower(child(8, 6, 0xffff0000), {
+                  link,
+                  showWhenUnlinked,
+                  targetAnchor: Alignment.bottomRight,
+                  offset: { x: 2, y: 3 },
+                }),
+              ),
+            ],
+            {
+              textDirection: 'ltr',
+              alignment: Alignment.topLeft,
+              fit: 'loose',
+              clipBehavior: 'none',
+            },
+          );
+        const linked = await paint(linkedTree());
+        assert.deepEqual(
+          linked.pixel(34, 25),
+          [255, 0, 0],
+          'Content positions follower replay at its leader anchor',
+        );
+        assert.deepEqual(
+          linked.pixel(64, 54),
+          [244, 246, 250],
+          'The unlinked layout position does not paint while linked',
+        );
+        const movedLink = await paint(linkedTree(25));
+        assert.deepEqual(movedLink.pixel(49, 25), [255, 0, 0]);
+        assert.deepEqual(movedLink.pixel(34, 25), [244, 246, 250]);
+        const hiddenLink = await paint(linkedTree(25, false));
+        assert.deepEqual(hiddenLink.pixel(64, 54), [244, 246, 250]);
+        const unlinked = await paint(linkedTree(25, false, true));
+        assert.deepEqual(unlinked.pixel(64, 54), [255, 0, 0]);
         const rtl = await paint(
           new SizedBox(
             100,

@@ -33,6 +33,13 @@ import type { DragStartDetails, DragUpdateDetails } from '../gestures/drag-detai
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import type { RenderBox, RenderObject, HitTestEntry } from '../rendering/object.ts';
+import {
+  isNativeRenderObject,
+  nativePublishedGeometry,
+  registerNativeRenderMetadata,
+} from '../rendering/object.ts';
+import { inverseMatrix4, multiplyMatrix4 } from '../../ui/matrix4.ts';
+import type { Matrix4Storage } from '../../ui/matrix4.ts';
 import { BoxConstraints } from '../rendering/constraints.ts';
 import { Semantics } from './semantics.ts';
 import { Directionality, MediaQuery } from './app-data.ts';
@@ -697,6 +704,13 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
         options.policy !== 'cupertino' ||
         Math.abs(point.x - this.center(size)) < options.geometry.thumbHitRadius,
       this.surfaceKey,
+      options.policy === 'cupertino'
+        ? {
+            position: this.direction === 'rtl' ? 1 - this.target() : this.target(),
+            inset: options.geometry.trackInset,
+            radius: options.geometry.thumbHitRadius,
+          }
+        : undefined,
     );
   }
 }
@@ -706,11 +720,16 @@ class SliderSurface extends SingleChildRenderObjectWidget {
     readonly geometry: SliderGeometry,
     readonly accepts: (position: Offset, size: Size) => boolean,
     key: GlobalKey,
+    readonly hitRegion?: {
+      readonly position: number;
+      readonly inset: number;
+      readonly radius: number;
+    },
   ) {
     super(child, { key });
   }
   createRenderObject(): SliderSurfaceRender {
-    return new SliderSurfaceRender(this.geometry, this.accepts);
+    return new SliderSurfaceRender(this.geometry, this.accepts, this.hitRegion);
   }
   updateRenderObject(_context: BuildContext, render: RenderObject): void {
     invariant(
@@ -720,6 +739,7 @@ class SliderSurface extends SingleChildRenderObjectWidget {
     );
     render.geometry = this.geometry;
     render.accepts = this.accepts;
+    render.hitRegion = this.hitRegion;
     render.markNeedsLayout();
   }
 }
@@ -727,8 +747,43 @@ class SliderSurfaceRender extends RenderProxyBox {
   constructor(
     public geometry: SliderGeometry,
     public accepts: (position: Offset, size: Size) => boolean,
+    public hitRegion?: {
+      readonly position: number;
+      readonly inset: number;
+      readonly radius: number;
+    },
   ) {
     super();
+  }
+  override get hasSize(): boolean {
+    return isNativeRenderObject(this) ? nativePublishedGeometry(this) !== undefined : super.hasSize;
+  }
+  override get size(): Size {
+    if (!isNativeRenderObject(this)) return super.size;
+    const geometry = nativePublishedGeometry(this);
+    invariant(
+      geometry,
+      'unpublished-slider-geometry',
+      'Slider geometry requires a current native publication',
+    );
+    return geometry.size;
+  }
+  protected override set size(value: Size) {
+    super.size = value;
+  }
+  override getTransformTo(target: RenderObject | null = null): Matrix4Storage {
+    if (!isNativeRenderObject(this)) return super.getTransformTo(target);
+    const source = nativePublishedGeometry(this),
+      destination = target && nativePublishedGeometry(target);
+    invariant(
+      source && (!target || destination?.snapshot === source.snapshot),
+      'unpublished-slider-transform',
+      'Slider transforms require the same current native publication',
+    );
+    if (!destination) return source.transform;
+    const inverse = inverseMatrix4(destination.transform);
+    invariant(inverse, 'singular-slider-transform', 'Native transform target must be invertible');
+    return multiplyMatrix4(inverse, source.transform);
   }
   protected override computeMinIntrinsicWidth(_height: number): number {
     return this.geometry.width;
@@ -768,3 +823,38 @@ class SliderSurfaceRender extends RenderProxyBox {
     return this.accepts(position, this.size) && super.hitTest(position, result, toLocal);
   }
 }
+registerNativeRenderMetadata(SliderSurfaceRender.prototype, (source) => ({
+  kind: 'sizedSurface',
+  width: source.geometry.width,
+  height: source.geometry.height,
+  expandWidth: source.geometry.expand,
+  ...(source.hitRegion
+    ? {
+        hitRegion: {
+          kind: 'hitRegion',
+          color: 0,
+          shape: {
+            kind: 'rrect',
+            radii: Array(8).fill(0),
+            strokeWidth: 0,
+            strokeAlign: -1,
+            strokeColor: 0,
+          },
+          geometry: {
+            kind: 'linear',
+            rect: [
+              source.hitRegion.position,
+              0,
+              0,
+              1,
+              source.hitRegion.inset * (1 - 2 * source.hitRegion.position) -
+                source.hitRegion.radius,
+              0,
+              source.hitRegion.radius * 2,
+              0,
+            ],
+          },
+        },
+      }
+    : {}),
+}));

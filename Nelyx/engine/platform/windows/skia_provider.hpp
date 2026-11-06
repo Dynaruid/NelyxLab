@@ -234,9 +234,9 @@ class ContentProvider {
       if(n.extensionSize.x>0)++nativeExtensions;
       if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));result->paths.emplace(n.id.key(),graphicsPath(*n.graphics.path));}
       SkPictureRecorder recorder;
-      const auto& g=n.graphics;double padding=4*g.shadowSigma+g.strokeWidth+2;
-      if(n.resolvedPaint)for(const auto& e:n.resolvedPaint->entries)if(e.kind==7)
-        padding=std::max(padding,e.resolvedRadius+e.strokeWidth-std::min(n.properties.width,n.properties.height)/2+2);
+      const auto& g=n.graphics;double padding=4*(g.shadowSigma+g.blur)+g.strokeWidth+2;
+      if(n.resolvedPaint)for(const auto& e:n.resolvedPaint->entries)
+        padding=std::max(padding,nativePaintOutset(e,n.properties.width,n.properties.height,p.metrics.scale)+2);
       auto* canvas=recorder.beginRecording(SkRect::MakeXYWH(float(std::min(0.0,n.contentX)-padding-std::abs(g.shadowX)),float(std::min(0.0,n.contentY)-padding-std::abs(g.shadowY)),
         float(std::max({1.0,n.properties.width,n.contentX+n.contentWidth})-std::min(0.0,n.contentX)+2*padding+2*std::abs(g.shadowX)),float(std::max({1.0,n.properties.height,n.contentY+n.contentHeight})-std::min(0.0,n.contentY)+2*padding+2*std::abs(g.shadowY))));
       SkPaint paint; paint.setAntiAlias(true);
@@ -267,7 +267,7 @@ class ContentProvider {
         result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,uint64_t(image->width())*image->height()*4+n.resource->bytes.size()));
         image=image->makeRasterImage();if(!image)throw std::runtime_error("Native image CPU preparation failed");
         canvas->drawImageRect(image,SkRect::MakeXYWH(float(n.contentX),float(n.contentY),float(n.contentWidth),float(n.contentHeight)),SkSamplingOptions(),&paint);++images;
-      } else {const auto path=result->paths.find(n.id.key());paintShape(canvas,n,path==result->paths.end()?nullptr:&path->second,paint);paintNative(canvas,n,paint);}
+      } else {const auto path=result->paths.find(n.id.key());paintShape(canvas,n,path==result->paths.end()?nullptr:&path->second,paint);paintNative(canvas,n,paint,p.metrics.scale);}
       auto picture=recorder.finishRecordingAsPicture();if(!picture)throw std::runtime_error("Native picture preparation failed");
       result->bytes+=picture->approximateBytesUsed();if(result->bytes>32*1024*1024)throw std::runtime_error("Native prepared scene budget exceeded");
       result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,picture->approximateBytesUsed()));
@@ -345,6 +345,7 @@ class RenderProvider {
       const auto& m=item.world;
       canvas->setMatrix(SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1));
       const auto& n=frame.scene->document->get(item.node);
+      if(!item.clip.width||!item.clip.height)canvas->clipRect(SkRect::MakeEmpty());
       {const auto path=prepared.paths.find(n.id.key());paintNativeShadow(canvas,n,path==prepared.paths.end()?nullptr:&path->second,scale);}
       if((n.kind==wire::kinds::clip&&(!n.clipStyle||n.clipStyle->behavior!=wire::clipBehaviors::none))||n.kind==wire::kinds::scrollViewport||(item.flags&wire::nodeFlags::clipsChildren)){
         const auto path=prepared.paths.find(n.id.key());const auto bounds=SkRect::MakeWH(float(n.properties.width),float(n.properties.height));

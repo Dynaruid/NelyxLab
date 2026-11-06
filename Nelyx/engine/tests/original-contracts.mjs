@@ -4,6 +4,12 @@ import assert from 'node:assert/strict';
 import { OriginalWidgetHost } from '../../runtime/engine-client/original.ts';
 import { CupertinoButton } from '@nelyx/cupertino/button';
 import { CupertinoTheme, CupertinoThemeData } from '@nelyx/cupertino/theme';
+import { CupertinoSwitch } from '@nelyx/cupertino/switch';
+import { CupertinoSlider } from '@nelyx/cupertino/slider';
+import { SliderControl } from '@nelyx/core/framework/widgets/slider-control';
+import { Switch } from '@nelyx/material/switch';
+import { Theme } from '@nelyx/material/theme';
+import { ThemeData } from '@nelyx/material/theme-data';
 import { ControlInteraction } from '@nelyx/core/framework/widgets/control-interaction';
 import { WidgetState, WidgetStatesController } from '@nelyx/core/framework/widgets/widget-state';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
@@ -71,6 +77,7 @@ import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { FontWeight, TextDecoration } from '@nelyx/core/ui/typography';
+import { Color } from '@nelyx/core/ui/color';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
@@ -79,7 +86,17 @@ import { Curves } from '@nelyx/core/framework/animation/curves';
 import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
 import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
 import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
-import { TapDownDetails, TapUpDetails } from '@nelyx/core/framework/gestures/tap';
+import {
+  TapDownDetails,
+  TapUpDetails,
+  TapGestureRecognizer,
+} from '@nelyx/core/framework/gestures/tap';
+import { HorizontalDragGestureRecognizer } from '@nelyx/core/framework/gestures/monodrag';
+import { PointerDownEvent } from '@nelyx/core/framework/gestures/events';
+import {
+  RawGestureDetector,
+  GestureRecognizerFactoryWithHandlers,
+} from '@nelyx/core/framework/widgets/raw-gesture-detector';
 import { DragStartBehavior } from '@nelyx/core/framework/gestures/recognizer';
 import {
   DragDownDetails,
@@ -107,6 +124,515 @@ class HyphenText extends Text {
   }
 }
 export function originalContracts({ using, timeout }) {
+  test(
+    'native: original Slider State and CupertinoSlider retain controlled callbacks, published geometry and thumb-only hit admission',
+    { timeout },
+    () =>
+      using('native', async (f, transport) => {
+        const client = await EngineClient.connect(transport),
+          view = await client.openView(1),
+          errors = [],
+          calls = [];
+        const host = new OriginalWidgetHost(view, {
+          pollEvents: false,
+          platform: { kind: 'native', operatingSystem: 'windows' },
+          onError: (error) => errors.push(error),
+        });
+        const previousFlutterError = FlutterError.onError;
+        FlutterError.onError = (details) => errors.push(details.exception);
+        const interactions = [],
+          poll = view.pollInteractionEvents.bind(view);
+        view.pollInteractionEvents = async () => {
+          const state = await poll();
+          interactions.push(...state.events.filter((event) => event.kind === p.events.gesture));
+          return state;
+        };
+        let context;
+        const control = (value = 20, disabled = false) =>
+          new Directionality(
+            'ltr',
+            new SliderControl({
+              value,
+              min: 10,
+              max: 30,
+              divisions: 4,
+              policy: 'material',
+              adjustmentUnit: 0.05,
+              label: 'Slider probe',
+              geometry: {
+                width: 160,
+                height: 48,
+                trackInset: 10,
+                thumbHitRadius: 20,
+                minDragExtent: 0,
+                expand: true,
+              },
+              onChanged: disabled ? null : (value) => calls.push(['change', value]),
+              onChangeStart: (value) => calls.push(['start', value]),
+              onChangeEnd: (value) => calls.push(['end', value]),
+              builder: (ctx) => {
+                context = ctx;
+                return new ColoredBox({ color: 0xff123456 });
+              },
+            }),
+          );
+        const prepare = async () => {
+          for (let attempt = 0; attempt < 20; ++attempt) {
+            await host.flush();
+            const state = await f.inspect();
+            if (
+              state.contentWake ||
+              state.preparation ||
+              state.document !== state.activeDocument ||
+              state.layoutMetrics !== state.metrics
+            )
+              await f.ready();
+            else await f.tick();
+            if ((await f.inspect()).renderWake) await f.present();
+            await host.pollEvents();
+            const frame = await view.semanticsSnapshot();
+            if (
+              frame.publication &&
+              frame.publishedMetrics === frame.metrics &&
+              frame.publishedDevice === frame.device &&
+              frame.publishedDocument === frame.document
+            )
+              return frame;
+          }
+          const s = await view.semanticsSnapshot();
+          throw Error(
+            'Source Slider did not publish current state: ' +
+              JSON.stringify(
+                {
+                  document: s.document,
+                  active: s.activeDocument,
+                  published: s.publishedDocument,
+                  metrics: s.metrics,
+                  publishedMetrics: s.publishedMetrics,
+                  device: s.device,
+                  publishedDevice: s.publishedDevice,
+                  preparation: s.preparation,
+                  preparationReady: s.preparationReady,
+                  renderWake: s.renderWake,
+                  frames: s.frames,
+                  publication: s.publication,
+                  layoutMetrics: s.layoutMetrics,
+                  failedDocument: s.failedDocument,
+                  errors,
+                },
+                (_key, value) => (typeof value === 'bigint' ? String(value) : value),
+              ),
+          );
+        };
+        const peer = (frame) =>
+          frame.nodes.find((n) => n.semantics?.role === p.semanticsRoles.slider);
+        const click = async (x, y) => {
+          await f.input('begin', 0, { pointer: true, kind: 'mouse', buttons: 1, x, y });
+          await f.input('end', 0, { pointer: true, kind: 'mouse', buttons: 0, x, y });
+          await f.tick();
+          await host.pollEvents();
+        };
+        let render;
+        try {
+          await f.resize(300, 200);
+          await host.mount(control());
+          render = context.findRenderObject();
+          assert.equal(
+            render.hasSize,
+            false,
+            'Unpublished native geometry is never supplied by TS layout',
+          );
+          assert.throws(
+            () => render.size,
+            (error) => error.code === 'unpublished-slider-geometry',
+          );
+          let frame = await prepare();
+          assert.deepEqual(render.size, { width: 300, height: 48 });
+          assert.equal(render.hasSize, true);
+          assert.equal(peer(frame).control, null);
+          assert.equal(peer(frame).semantics.value, '50%');
+          assert.deepEqual(peer(frame).semantics.range, {
+            minimum: 10,
+            maximum: 30,
+            value: 20,
+            smallChange: 5,
+            largeChange: 0,
+            readOnly: false,
+          });
+          await click(290, 24);
+          assert.deepEqual(
+            calls,
+            [
+              ['start', 20],
+              ['change', 30],
+              ['end', 30],
+            ],
+            JSON.stringify(
+              {
+                interactions,
+                geometry: render.hasSize,
+                nodes: frame.nodes.map((n) => ({
+                  node: n.node,
+                  parent: n.parent,
+                  width: n.width,
+                  height: n.height,
+                  bounds: n.bounds,
+                  semantics: n.semantics,
+                  color: n.color,
+                })),
+              },
+              (_key, value) => (typeof value === 'bigint' ? String(value) : value),
+            ),
+          );
+          frame = await prepare();
+          assert.equal(
+            peer(frame).semantics.range.value,
+            20,
+            'Controlled update refusal stays in Source State',
+          );
+          calls.length = 0;
+          await view.semanticAction(peer(frame).node, frame.publication, 'setValue', 0n, 23);
+          await host.pollEvents();
+          assert.deepEqual(
+            calls,
+            [
+              ['start', 20],
+              ['change', 25],
+              ['end', 25],
+            ],
+            'Range requests are quantized by original Source State',
+          );
+          await f.resize(400, 200);
+          await host.pollEvents();
+          assert.equal(render.hasSize, false, 'Old metrics cannot answer a Source geometry read');
+          assert.throws(
+            () => render.globalToLocal({ x: 20, y: 20 }),
+            (error) => error.code === 'unpublished-slider-transform',
+          );
+          frame = await prepare();
+          assert.deepEqual(render.size, { width: 400, height: 48 });
+          await host.update(control(25, true));
+          frame = await prepare();
+          calls.length = 0;
+          assert.equal(peer(frame).semantics.range.readOnly, true);
+          await click(390, 24);
+          assert.deepEqual(calls, []);
+          await assert.rejects(
+            view.semanticAction(peer(frame).node, frame.publication, 'setValue', 0n, 20),
+            (error) =>
+              error instanceof EngineError && error.status === p.statuses.capabilityMissing,
+          );
+          await host.update(new SizedBox(1, 1));
+          await prepare();
+          const apple = (disabled = false) =>
+            new Directionality(
+              'ltr',
+              new CupertinoTheme(
+                new CupertinoThemeData(),
+                new CupertinoSlider({
+                  value: 0.5,
+                  divisions: 4,
+                  onChanged: disabled ? null : (value) => calls.push(['change', value]),
+                  onChangeStart: (value) => calls.push(['start', value]),
+                  onChangeEnd: (value) => calls.push(['end', value]),
+                }),
+              ),
+            );
+          await host.update(apple());
+          frame = await prepare();
+          calls.length = 0;
+          const slider = peer(frame),
+            region = frame.nodes
+              .flatMap((n) => n.nativePaint ?? [])
+              .find((e) => e.kind === 'hitRegion');
+          assert.deepEqual([slider.width, slider.height], [176, 44]);
+          assert.deepEqual([region.width, region.height, region.transform[4]], [44, 44, 66]);
+          const thumb = frame.nodes
+            .flatMap((n) => n.nativePaint ?? [])
+            .find((e) => e.kind === 'shape' && e.color === 0xffffffff && e.width === 28);
+          assert.deepEqual(
+            [thumb.transform[4], thumb.transform[5], thumb.width, thumb.height],
+            [74, 8, 28, 28],
+          );
+          assert.equal(
+            frame.nodes.flatMap((n) => n.nativePaint ?? []).filter((e) => e.kind === 'shadow')
+              .length,
+            3,
+          );
+          await click(slider.bounds.x + 10, slider.bounds.y + 22);
+          assert.deepEqual(
+            calls,
+            [],
+            'Cupertino track clicks cannot bypass the Source thumb hit policy',
+          );
+          const x = slider.bounds.x + 88,
+            y = slider.bounds.y + 22;
+          await f.input('begin', 0, { pointer: true, kind: 'mouse', buttons: 1, x, y });
+          await f.tick();
+          await host.pollEvents();
+          await f.input('update', 0, { pointer: true, kind: 'mouse', buttons: 1, x: x + 32, y });
+          await f.tick();
+          await host.pollEvents();
+          await f.input('update', 0, { pointer: true, kind: 'mouse', buttons: 1, x: x + 68, y });
+          await f.tick();
+          await host.pollEvents();
+          await f.input('end', 0, { pointer: true, kind: 'mouse', buttons: 0, x: x + 68, y });
+          await f.tick();
+          await host.pollEvents();
+          assert.equal(calls[0]?.[0], 'start');
+          assert.equal(calls.at(-1)?.[0], 'end');
+          assert.ok(
+            calls.some(
+              ([kind, value]) => kind === 'change' && value > 0.5 && Number.isInteger(value * 4),
+            ),
+            JSON.stringify(calls),
+          );
+          frame = await prepare();
+          assert.equal(peer(frame).semantics.range.value, 0.5);
+          await host.update(apple(true));
+          frame = await prepare();
+          calls.length = 0;
+          await click(x, y);
+          assert.deepEqual(calls, []);
+          const state = await f.inspect();
+          assert.ok(state.gestureWork > 0n);
+          assert.equal(
+            state.controlWork,
+            0n,
+            'Native control state cannot replace Source Slider State',
+          );
+          assert.equal(state.transactionWork, BigInt(host.counters.commands));
+          assert.equal(host.execution.tsLayoutFallbacks, 0);
+          assert.equal(host.execution.appGeometryNodes, 0);
+          assert.deepEqual(errors, []);
+        } catch (error) {
+          const describe = (value) =>
+            String(value?.stack ?? value) +
+            (value?.errors ? '\n' + value.errors.map(describe).join('\n') : '');
+          if (errors.length) throw Error(errors.map(describe).join('\n'), { cause: error });
+          throw error;
+        } finally {
+          FlutterError.onError = previousFlutterError;
+          await host.close();
+          await client.abort();
+        }
+        assert.equal(render.hasSize, false);
+        assert.throws(
+          () => render.size,
+          (error) => error.code === 'unpublished-slider-geometry',
+        );
+      }),
+  );
+  test(
+    'native: original RawGestureDetector rejects custom recognition before native commit and recovers with owned recognizer disposal',
+    { timeout },
+    () =>
+      using('native', async (f, transport) => {
+        const client = await EngineClient.connect(transport),
+          view = await client.openView(1),
+          reports = [],
+          host = new OriginalWidgetHost(view, {
+            pollEvents: false,
+            onError: (error) => reports.push(error),
+          }),
+          previous = FlutterError.onError;
+        let mode = 'canonical',
+          callbacks = 0,
+          filterCalls = 0;
+        const recognizers = [];
+        class Probe extends StatelessWidget {
+          build(context) {
+            const type =
+              mode === 'velocity' ? HorizontalDragGestureRecognizer : TapGestureRecognizer;
+            return new RawGestureDetector(new SizedBox(80, 40), {
+              key: new GlobalObjectKey(mode),
+              gestures: new Map([
+                [
+                  type,
+                  new GestureRecognizerFactoryWithHandlers(
+                    type,
+                    () => {
+                      const options = { binding: context.owner.gestureBinding };
+                      if (mode === 'buttons')
+                        options.allowedButtonsFilter = () => {
+                          filterCalls++;
+                          return true;
+                        };
+                      if (mode === 'devices')
+                        options.supportedDevices = new Set([PointerDeviceKind.mouse]);
+                      if (mode === 'velocity')
+                        options.velocityTrackerBuilder = () => {
+                          throw Error('Custom velocity must never execute');
+                        };
+                      const recognizer = new type(options);
+                      recognizers.push(recognizer);
+                      return recognizer;
+                    },
+                    (recognizer) => {
+                      recognizer.onTap = () => callbacks++;
+                      if (mode === 'app-recognition')
+                        recognizer.addPointer(new PointerDownEvent({ pointer: 1, buttons: 1 }));
+                    },
+                  ),
+                ],
+              ]),
+            });
+          }
+        }
+        try {
+          FlutterError.onError = () => {};
+          await f.resize(100, 80);
+          await host.mount(new Probe());
+          assert.equal(recognizers[0].isDisposed, false);
+          for (const variant of ['buttons', 'devices', 'velocity', 'app-recognition']) {
+            mode = variant;
+            const before = await f.inspect();
+            await assert.rejects(
+              host.update(new Probe()),
+              variant === 'app-recognition'
+                ? /App-gesture-recognition/
+                : /custom-raw-gesture-configuration/,
+            );
+            const after = await f.inspect();
+            assert.equal(after.document, before.document);
+            assert.equal(after.transactionWork, before.transactionWork);
+            assert.equal(callbacks, 0);
+            assert.equal(filterCalls, 0);
+            await host.update(new SizedBox(1, 1));
+            assert.ok(recognizers.every((recognizer) => recognizer.isDisposed));
+          }
+          mode = 'recovered';
+          await host.update(new Probe());
+          assert.equal(recognizers.at(-1).isDisposed, false);
+          assert.equal(host.execution.tsLayoutFallbacks, 0);
+          assert.equal(host.execution.appGeometryNodes, 0);
+          assert.equal(host.execution.rejectedFallbacks, 4);
+          assert.equal((await f.inspect()).transactionWork, BigInt(host.counters.commands));
+        } finally {
+          FlutterError.onError = previous;
+          await host.close();
+          await client.abort();
+        }
+        assert.ok(recognizers.every((recognizer) => recognizer.isDisposed));
+      }),
+  );
+  test(
+    'native: original switches retain controlled values, TypeScript styles and disable/retirement fencing',
+    { timeout },
+    () =>
+      using('native', async (f, transport) => {
+        const client = await EngineClient.connect(transport),
+          view = await client.openView(1),
+          errors = [],
+          changes = [];
+        const host = new OriginalWidgetHost(view, {
+          pollEvents: false,
+          platform: { kind: 'native', operatingSystem: 'windows' },
+          onError: (error) => errors.push(error),
+        });
+        const tree = (apple, disabled = false, color = 0xff112233) =>
+          new Directionality(
+            'ltr',
+            apple
+              ? new CupertinoTheme(
+                  new CupertinoThemeData(),
+                  new CupertinoSwitch({
+                    value: false,
+                    onChanged: disabled ? null : (value) => changes.push(value),
+                    semanticLabel: 'Switch probe',
+                    inactiveTrackColor: new Color(color),
+                  }),
+                )
+              : new Theme(
+                  new ThemeData(),
+                  new Switch({
+                    value: false,
+                    onChanged: disabled ? null : (value) => changes.push(value),
+                    semanticLabel: 'Switch probe',
+                    inactiveTrackColor: new Color(color),
+                  }),
+                ),
+          );
+        const prepare = async () => {
+          await host.flush();
+          const state = await f.inspect();
+          if (state.preparation || state.document !== state.activeDocument) await f.ready();
+          else await f.tick();
+          if ((await f.inspect()).renderWake) await f.present();
+          await host.pollEvents();
+          return view.semanticsSnapshot();
+        };
+        const peer = (frame) => frame.nodes.find((n) => n.semantics?.label === 'Switch probe');
+        try {
+          await f.resize(300, 200);
+          await host.mount(new SizedBox(1, 1));
+          for (const apple of [false, true]) {
+            await host.update(new SizedBox(1, 1));
+            await prepare();
+            await host.update(tree(apple));
+            let frame = await prepare();
+            const target = peer(frame),
+              before = changes.length;
+            assert.equal(target.semantics.role, p.semanticsRoles.switchControl);
+            assert.equal(target.control, null);
+            await view.semanticAction(target.node, frame.publication, 'activate');
+            await host.pollEvents();
+            assert.deepEqual(changes.slice(before), [true]);
+            frame = await prepare();
+            assert.equal(
+              peer(frame).semantics.flags & p.semanticsFlags.checked,
+              0,
+              'A rejected controlled update keeps the original value',
+            );
+            await host.update(tree(apple, false, 0xff556677));
+            frame = await prepare();
+            assert.ok(
+              frame.nodes.flatMap((n) => n.nativePaint ?? []).some((e) => e.color === 0xff556677),
+              'A TypeScript style change reaches C++ paint without native design policy',
+            );
+            const x = peer(frame).bounds.x + peer(frame).width / 2,
+              y = peer(frame).bounds.y + peer(frame).height / 2;
+            await f.input('begin', 0, { pointer: true, kind: 'mouse', buttons: 1, x, y });
+            await f.tick();
+            await host.pollEvents();
+            await host.update(tree(apple, true));
+            frame = await prepare();
+            assert.ok(peer(frame).semantics.flags & p.semanticsFlags.disabled);
+            await f.input('end', 0, { pointer: true, kind: 'mouse', buttons: 0, x, y });
+            await f.tick();
+            await host.pollEvents();
+            assert.equal(
+              changes.length,
+              before + 1,
+              'Disable while held cannot commit a controlled value',
+            );
+            await host.update(tree(apple));
+            frame = await prepare();
+            await f.input('begin', 0, { pointer: true, kind: 'mouse', buttons: 1, x, y });
+            await f.tick();
+            await host.pollEvents();
+            await host.update(new SizedBox(1, 1));
+            await prepare();
+            await f.input('end', 0, { pointer: true, kind: 'mouse', buttons: 0, x, y });
+            await f.tick();
+            await host.pollEvents();
+            assert.equal(
+              changes.length,
+              before + 1,
+              'Retired Switch callbacks cannot run from late terminals',
+            );
+          }
+          const state = await f.inspect();
+          assert.equal(state.transactionWork, BigInt(host.counters.commands));
+          assert.equal(host.execution.tsLayoutFallbacks, 0);
+          assert.equal(host.execution.appGeometryNodes, 0);
+          assert.deepEqual(errors, []);
+        } finally {
+          await host.close();
+          await client.abort();
+        }
+      }),
+  );
   test(
     'native: original Focus retains published geometry and key callbacks across GlobalKey moves and retirement',
     { timeout },

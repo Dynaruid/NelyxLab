@@ -144,7 +144,10 @@ void View::pointer(Input p) {
 
       const auto local=p.snapshot->local(h,p.x,p.y);controlValue(h,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,p.snapshot->scene->document->get(h).properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
   }
-  if(!s.active||!s.pointer||!document->contains(s.target)||!active->document->contains(s.target)||
+  // A begin outside an enabled hit target has no recognizer to cancel. Its later
+  // samples remain inert; poisoning that stream would reject a valid disabled drag.
+  if(!s.active||!s.pointer){++canceled;return;}
+  if(!document->contains(s.target)||!active->document->contains(s.target)||
       !published->allows(s.target)||document->get(s.target).control.disabled||
       (document->get(s.target).semantics&&(document->get(s.target).semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden)))){
     ++canceled;cancelStream(p.stream,wire::statuses::canceled);return;}

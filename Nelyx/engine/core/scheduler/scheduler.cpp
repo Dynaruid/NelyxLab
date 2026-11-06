@@ -140,7 +140,16 @@ void View::contentStep(uint32_t quota) {
       catch (const Error& error) { failPreparation(p.id, error.status); }
       catch (const std::bad_alloc&) { failPreparation(p.id, wire::statuses::budgetExceeded); }
     }
-    else p.ready = true;
+    else {
+      try {
+        if(std::any_of(p.document->nodes.begin(),p.document->nodes.end(),[](const auto& slot){return slot.value&&slot.value->nativePaint;})){
+          auto geometry=std::make_shared<Document>(*p.document);
+          resolveNativePaint(*geometry);validateGraphics(*geometry);p.document=std::move(geometry);
+        }
+        p.ready = true;
+      } catch(const Error& error){failPreparation(p.id,error.status);}
+        catch(const std::bad_alloc&){failPreparation(p.id,wire::statuses::budgetExceeded);}
+    }
   }
 }
 uint32_t View::startQuery(Reader bytes,uint64_t id) {
@@ -253,13 +262,26 @@ void View::activate() {
   auto scene = std::make_shared<Scene>(Scene{p.document, p.metrics, epoch, p.id,
     p.layout ? p.layout->output() : nullptr});
   try{
-    Lease scratch(lease.ledger,sizeof(Frame)+(p.document->highWater+1)*sizeof(Property)+p.document->count*(sizeof(DrawItem)+sizeof(ClipShape)));
+    Lease scratch(lease.ledger,sizeof(Frame)+(p.document->highWater+1)*sizeof(Property)+p.document->count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)));
     Frame check;check.scene=scene;check.properties.resize(p.document->highWater+1);
     for(const auto& slot:p.document->nodes)if(slot.value){const auto& n=*slot.value;auto& property=check.properties[n.id.slot];property.opacity=1;
       const auto old=overlays.find(n.id.key());property.offset=activationOffset(*this,*p.document,n,old==overlays.end()?0:old->second.offset);}
     makeDrawItems(check);
   }catch(const Error& error){failPreparation(p.id,error.status);return;}
     catch(const std::bad_alloc&){failPreparation(p.id,wire::statuses::budgetExceeded);return;}
+  // Canonical Source controls may remove every recognizer while their retained
+  // render node stays alive. Retire its capture only after the replacement has
+  // passed preparation validation; paint-only documents keep the same stream.
+  for(uint32_t index=1;index<streams.size();++index){
+    const auto& stream=streams[index];
+    if(!stream.active||!stream.pointer||!p.document->contains(stream.target)||
+       !active||!active->document->contains(stream.target))continue;
+    const auto& before=active->document->get(stream.target);
+    const auto& after=p.document->get(stream.target);
+    if((before.policy&wire::eventPolicies::canonicalGestures)&&before.gestures&&
+       (!(after.policy&wire::eventPolicies::canonicalGestures)||!after.gestures))
+      cancelStream(index,wire::statuses::canceled);
+  }
   // Preserve compositor state by full node generation. A new declaration never
   // restores an App-observed scroll offset.
   for (auto it = overlays.begin(); it != overlays.end();) {
@@ -338,7 +360,17 @@ uint32_t View::enqueue(Input p) {
   if(p.snapshot&&published&&p.snapshot->scene!=published->scene){
     geometryCurrent=false;
     if(p.flags&2u){
-      if(p.phase==wire::phases::begin||(p.flags&4u)||!stream.active||!stream.pointer){
+      const Input* queuedBegin=nullptr;
+      if(p.phase!=wire::phases::begin&&!(p.flags&4u))
+        for(auto it=input.rbegin();it!=input.rend();++it)if(it->stream==p.stream&&(it->flags&2u)&&!(it->flags&4u)){
+          if(it->phase==wire::phases::begin){queuedBegin=&*it;break;}
+          if(it->phase==wire::phases::end||it->phase==wire::phases::cancel)break;
+        }
+      if(queuedBegin&&queuedBegin->source==p.source&&queuedBegin->snapshot){
+        const auto target=pointerTarget(queuedBegin->x,queuedBegin->y,queuedBegin->snapshot.get());
+        geometryCurrent=target&&target==pointerTarget(queuedBegin->x,queuedBegin->y,published.get())&&
+          queuedBegin->snapshot->sameInputGeometry(*published,target)&&p.snapshot->sameInputGeometry(*published,target);
+      }else if(p.phase==wire::phases::begin||(p.flags&4u)||!stream.active||!stream.pointer){
         const auto target=pointerTarget(p.x,p.y,p.snapshot.get());
         geometryCurrent=target&&target==pointerTarget(p.x,p.y,published.get())&&
           p.snapshot->sameInputGeometry(*published,target);
@@ -640,7 +672,7 @@ void View::revealFocus() {
     if(editor==editors.end()||!node.textGeometry||node.textGeometry->revision!=editor->second->value->revision)return;
     const auto& caret=node.textGeometry->caret;local={caret.x,caret.y,caret.width,caret.height};
   }
-  Lease scratch(lease.ledger,sizeof(Frame)+(geometry.highWater+1)*sizeof(Property)+geometry.count*(sizeof(DrawItem)+sizeof(ClipShape)));
+  Lease scratch(lease.ledger,sizeof(Frame)+(geometry.highWater+1)*sizeof(Property)+geometry.count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)));
   Frame frame;frame.scene=active;frame.properties.resize(geometry.highWater+1);
   for(const auto& [key,o]:overlays){auto& property=frame.properties[o.node.slot];
     property.node=o.node;property.offset=o.offset;property.opacity=o.opacity;}
@@ -778,13 +810,13 @@ void View::publish(uint64_t id, uint64_t device, uint64_t commit) {
   auto& f = it->second;
   auto snapshot=std::make_shared<Frame>(f);
   snapshot->snapshotLease=std::make_shared<Lease>(lease.ledger,sizeof(Frame)+
-    snapshot->properties.size()*sizeof(Property)+snapshot->items.size()*sizeof(DrawItem)+snapshot->clips.size()*sizeof(ClipShape));
-  // Same-document preparation can replace edited/shaped content without moving
-  // a clicked control. Keep its bounded admission window, with target/ancestor
-  // checks above. App document replacement still retires the complete window,
-  // releasing removed resources; admitted captures retain their own leases.
+    snapshot->properties.size()*sizeof(Property)+snapshot->items.size()*sizeof(DrawItem)+snapshot->clips.size()*sizeof(ClipShape)+snapshot->hitRegions.size()*sizeof(HitRegionShape));
+  // Paint-only App documents must not retire packets collected before capture
+  // exists. Retain the same bounded window only while it shares input geometry;
+  // enqueue still validates the exact hit target and its complete ancestor path.
+  // Snapshots with no compatible target release their resources immediately.
   if(published&&published->scene->document->epoch!=snapshot->scene->document->epoch)
-    publications.fill(nullptr);
+    for(auto& previous:publications)if(previous&&!previous->sharesInputGeometry(*snapshot))previous.reset();
   f.published = true;snapshot->published=true;published = std::move(snapshot);
   refreshMouse();
   publications[publicationCursor++%wire::limits::publicationSnapshots]=published;

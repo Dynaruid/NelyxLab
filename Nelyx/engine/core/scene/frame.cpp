@@ -3,12 +3,8 @@
 #include <algorithm>
 #include <functional>
 namespace nelyx::v2 {
-bool Frame::sameInputGeometry(const Frame& other, Handle node)const {
-  if(device!=other.device||scene->metrics.epoch!=other.scene->metrics.epoch)return false;
-  const auto sameRect=[](Rect a,Rect b){return a.x==b.x&&a.y==b.y&&a.width==b.width&&a.height==b.height;};
-  for(uint32_t depth=0;node&&depth<=wire::limits::depth;++depth){
-    if(!scene->document->contains(node)||!other.scene->document->contains(node))return false;
-    const auto& a=scene->document->get(node);const auto& b=other.scene->document->get(node);
+namespace {
+bool sameInputNode(const Node& a,const Node& b) {
     const auto ap=a.physicalPaint(),bp=b.physicalPaint();
     if(bool(ap)!=bool(bp)||(ap&&!sameNativePaintHit(*ap,*bp)))return false;
     if(a.parent!=b.parent||a.kind!=b.kind||((a.policy^b.policy)&(120u|wire::eventPolicies::roundedHitTest))||a.properties.width!=b.properties.width||
@@ -16,20 +12,53 @@ bool Frame::sameInputGeometry(const Frame& other, Handle node)const {
       ((a.kind==wire::kinds::clip||a.kind==wire::kinds::path)&&
         (a.radius!=b.radius||a.graphics.path!=b.graphics.path||a.clipStyle!=b.clipStyle))||
       ((a.policy&wire::eventPolicies::roundedHitTest)&&a.radius!=b.radius))return false;
+    return true;
+}
+bool sameInputItem(const DrawItem& a,const DrawItem& b) {
+  const auto& x=a.world;const auto& y=b.world;
+  return a.clip.x==b.clip.x&&a.clip.y==b.clip.y&&a.clip.width==b.clip.width&&a.clip.height==b.clip.height&&
+    x.a==y.a&&x.b==y.b&&x.c==y.c&&x.d==y.d&&x.tx==y.tx&&x.ty==y.ty;
+}
+}
+bool Frame::sameInputGeometry(const Frame& other, Handle node)const {
+  if(device!=other.device||scene->metrics.epoch!=other.scene->metrics.epoch)return false;
+  for(uint32_t depth=0;node&&depth<=wire::limits::depth;++depth){
+    if(!scene->document->contains(node)||!other.scene->document->contains(node))return false;
+    const auto& a=scene->document->get(node);const auto& b=other.scene->document->get(node);
+    if(!sameInputNode(a,b))return false;
     const auto left=std::find_if(items.begin(),items.end(),[&](const auto& item){return item.node==node;});
     const auto right=std::find_if(other.items.begin(),other.items.end(),[&](const auto& item){return item.node==node;});
-    if(left==items.end()||right==other.items.end()||!sameRect(left->clip,right->clip))return false;
-    const auto& x=left->world;const auto& y=right->world;
-    if(x.a!=y.a||x.b!=y.b||x.c!=y.c||x.d!=y.d||x.tx!=y.tx||x.ty!=y.ty)return false;
+    if(left==items.end()||right==other.items.end()||!sameInputItem(*left,*right))return false;
     node=a.parent;
   }
   return !node;
 }
+bool Frame::sharesInputGeometry(const Frame& other)const {
+  if(device!=other.device||scene->metrics.epoch!=other.scene->metrics.epoch)return false;
+  // Draw items are parent-first. Compare each node/ancestor once rather than
+  // doing a full target/ancestor scan for every possible input target.
+  std::array<const DrawItem*,wire::limits::nodes+1> nextItems{};
+  std::array<bool,wire::limits::nodes+1> matching{};
+  for(const auto& item:other.items)nextItems[item.node.slot]=&item;
+  for(const auto& item:items){
+    const auto& a=scene->document->get(item.node);
+    const auto* next=nextItems[item.node.slot];
+    if(!next||next->node!=item.node||(a.parent&&!matching[a.parent.slot])||
+        !sameInputItem(item,*next)||!sameInputNode(a,other.scene->document->get(item.node)))continue;
+    matching[item.node.slot]=true;
+    if(other.allows(item.node)&&((a.policy&7u)||a.gestures||a.control.kind||a.kind==wire::kinds::scrollViewport||
+        (a.semantics&&(a.semantics->actions&wire::semanticsActions::activate))))return true;
+  }
+  return false;
+}
 void validateGraphics(const Document& geometry) {
+  std::array<Affine,wire::limits::nodes+1> matrices;
   std::function<void(const Node&,Affine)> visit;
   visit=[&](const Node& node,Affine parent){
     if(node.extensionSize.x>0)require(!node.layout.enabled&&node.properties.width==node.extensionSize.x&&node.properties.height==node.extensionSize.y,wire::statuses::invalidValue);
-    const auto world=parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*node.graphics.effective(node.properties.width,node.properties.height);
+    const auto leader=node.layerLink.leader;
+    const auto world=nodeTransform(node,parent,leader?&geometry.get(leader):nullptr,leader?&matrices[leader.slot]:nullptr);
+    matrices[node.id.slot]=world;
     world.bounds({0,0,node.properties.width,node.properties.height});
     for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world);
   };
@@ -37,18 +66,25 @@ void validateGraphics(const Document& geometry) {
 }
 void View::makeDrawItems(Frame& f)const {
   const auto& geometry=*f.scene->document;
-  std::function<void(const Node&,Affine,double,Rect,uint32_t,uint32_t)> visit;
-  visit=[&](const Node& node,Affine parent,double alpha,Rect clip,uint32_t head,uint32_t depth){
+  std::array<const DrawItem*,wire::limits::nodes+1> leaders{};
+  std::function<void(const Node&,Affine,double,Rect,uint32_t,uint32_t,uint32_t,bool)> visit;
+  visit=[&](const Node& node,Affine parent,double alpha,Rect clip,uint32_t head,uint32_t depth,uint32_t hitHead,bool hidden){
     const auto& property=f.properties[node.id.slot];
-    auto world=parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*node.graphics.effective(node.properties.width,node.properties.height);
+    const auto& link=node.layerLink;
+    const auto leader=link.leader?leaders[link.leader.slot]:nullptr;
+    auto world=nodeTransform(node,parent,leader?&geometry.get(link.leader):nullptr,leader?&leader->world:nullptr);
     alpha*=property.opacity;
+    hidden|=link.role==2&&!leader&&!link.showWhenUnlinked;
+    if(hidden){alpha=0;clip={};}
     const auto bounds=world.bounds({0,0,node.properties.width,node.properties.height});
-    f.properties[node.id.slot].visible=(alpha>0||(node.policy&wire::eventPolicies::canonicalHitTest))&&world.inverse().has_value();
+    f.properties[node.id.slot].visible=!hidden&&(alpha>0||(node.policy&wire::eventPolicies::canonicalHitTest))&&world.inverse().has_value();
     bool overflowClip=(node.layout.constraintFlags&wire::layoutConstraintFlags::clipOverflow)&&node.contentOverflow;
     if((node.layout.constraintFlags&wire::layoutConstraintFlags::clipOverflow)&&!overflowClip)
       for(const auto child:geometry.children[node.id.slot]){const auto& p=geometry.get(child).properties;
         if(p.x<0||p.y<0||p.x+p.width>node.properties.width||p.y+p.height>node.properties.height){overflowClip=true;break;}}
     const auto physical=node.physicalPaint();
+    if(node.resolvedPaint)for(const auto& entry:node.resolvedPaint->entries)if(entry.kind==wire::nativePaintKinds::hitRegion){
+      f.hitRegions.push_back({world*entry.transform,{0,0,entry.width,entry.height},hitHead});hitHead=uint32_t(f.hitRegions.size());}
     const bool styledClip=node.kind==wire::kinds::clip&&node.clipStyle.has_value();
     const bool clips=(physical&&physical->clip!=0)||(node.kind==wire::kinds::clip&&(!styledClip||node.clipStyle->behavior!=wire::clipBehaviors::none))||node.kind==wire::kinds::scrollViewport||overflowClip;
     if(clips)clip=intersect(clip,bounds);
@@ -64,14 +100,24 @@ void View::makeDrawItems(Frame& f)const {
     const bool saveLayer=clips&&!overflowClip&&((physical&&physical->clip==3)||(styledClip&&node.clipStyle->behavior==wire::clipBehaviors::antiAliasWithSaveLayer));
     f.items.push_back({node.id,world.tx,world.ty,alpha,clip,world,bounds,head,depth,
       (clips?wire::nodeFlags::clipsChildren:0u)|(hardEdge?wire::nodeFlags::hardEdgeClip:0u)|
-      (overflowClip?wire::nodeFlags::rectangularClip:0u)|(saveLayer?wire::nodeFlags::clipSaveLayer:0u)});
+      (overflowClip?wire::nodeFlags::rectangularClip:0u)|(saveLayer?wire::nodeFlags::clipSaveLayer:0u),hitHead});
+    if(link.role==2&&leader){auto& item=f.items.back();
+      item.linkedOffset=layerOffset(node,geometry.get(link.leader));
+      // An offscreen unlinked origin may exceed world bounds even though its
+      // linked scene is valid. Observation must never invalidate that frame.
+      const Affine base{parent.a,parent.b,parent.c,parent.d,
+        parent.a*node.properties.x+parent.c*node.properties.y+parent.tx,
+        parent.b*node.properties.x+parent.d*node.properties.y+parent.ty};
+      item.layerTransform=world.relativeTo(base);
+    }
+    if(link.role==1)leaders[node.id.slot]=&f.items.back();
     if((node.policy&4u)&&alpha>0)f.modalRoot=node.id;
     if(node.kind==wire::kinds::scrollViewport)
       world=world*Affine{1,0,0,1,(node.properties.flags&1u)?-property.offset:0,(node.properties.flags&1u)?0:-property.offset};
-    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world,alpha,clip,head,depth+1);
+    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world,alpha,clip,head,depth+1,hitHead,hidden);
   };
-  f.items.reserve(geometry.count);f.clips.reserve(geometry.count);
-  for(const auto root:geometry.children[0])visit(geometry.get(root),{},1,{0,0,f.scene->metrics.width,f.scene->metrics.height},0,0);
+  f.items.reserve(geometry.count);f.clips.reserve(geometry.count);f.hitRegions.reserve(geometry.count);
+  for(const auto root:geometry.children[0])visit(geometry.get(root),{},1,{0,0,f.scene->metrics.width,f.scene->metrics.height},0,0,0,false);
 }
 Handle View::target(double x,double y,const Frame* snapshot)const {
   const auto* frame=snapshot?snapshot:published.get();if(!frame)return {};

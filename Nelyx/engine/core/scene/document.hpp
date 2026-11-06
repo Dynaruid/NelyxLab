@@ -46,12 +46,18 @@ struct TextData {
     : lease(owner, sizeof(TextData) + data.length),
       value(reinterpret_cast<const char*>(data.data), data.length) {}
 };
+struct LayerLinkStyle {
+  uint32_t role=0;bool showWhenUnlinked=false;
+  Handle leader;
+  Point offset,leaderAnchor,followerAnchor;
+};
 struct Node {
   Lease lease;
   Handle id, parent;
   uint32_t kind = 0, order = 0, policy = 0;
   Properties properties;
   GraphicsStyle graphics;
+  LayerLinkStyle layerLink;
   std::optional<ClipStyle> clipStyle;
   std::shared_ptr<const NativePaint> nativePaint,resolvedPaint;
   const NativePaintEntry* physicalPaint()const {
@@ -87,7 +93,7 @@ struct Node {
     ++lease.ledger->nodes;
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent),
-      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),clipStyle(n.clipStyle),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),extensionSize(n.extensionSize),
+      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),layerLink(n.layerLink),clipStyle(n.clipStyle),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),extensionSize(n.extensionSize),
       horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
       layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
@@ -98,6 +104,20 @@ struct Node {
   }
   ~Node() { --lease.ledger->nodes; }
 };
+inline Point layerOffset(const Node& node,const Node& leader) {
+  const auto& link=node.layerLink;const auto& source=leader.properties;
+  return {(link.leaderAnchor.x+1)*source.width/2-(link.followerAnchor.x+1)*node.properties.width/2+link.offset.x,
+    (link.leaderAnchor.y+1)*source.height/2-(link.followerAnchor.y+1)*node.properties.height/2+link.offset.y};
+}
+inline Affine nodeTransform(const Node& node,Affine parent,const Node* leader=nullptr,const Affine* leaderWorld=nullptr) {
+  const auto local=node.graphics.effective(node.properties.width,node.properties.height);
+  const auto& link=node.layerLink;
+  if(link.role==2&&leader&&leaderWorld&&parent.inverse()){
+    const auto offset=layerOffset(node,*leader);
+    return *leaderWorld*Affine{1,0,0,1,offset.x,offset.y}*local;
+  }
+  return parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*local;
+}
 template<class T> struct Slot {
   uint32_t generation = 1;
   std::shared_ptr<const T> value;

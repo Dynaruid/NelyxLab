@@ -1,6 +1,6 @@
 # work9-3 — 3부: 구현 순서·통합 검증·공급
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows·Web 1차 중간 정리 / PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / 사용자 요청 일시중지 / Windows·Web 1차 PARTIAL**
 
 [전체 목차](work9.md) · [이전: 2부](work9-2.md) · [다음: 4부 Android·Linux](work9-4.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
@@ -62,7 +62,7 @@ Windows/Web 1차 이후 **2차는 W9-12-B(Android)·W9-03**, 그다음 **3차는
 
 ### 12.4 실행 체크리스트
 
-- [x] W9-00: 현재 Windows/Web 기준선·고정 공급·원래 API 검사 입력 정상화, RNW 후보의 필요 사례·출처/의존성 고정. 전체 동작 호환과 후속 기능 회귀는 아래 미완료 단계로 유지.
+- [x] W9-00: 기준선·고정 공급·RNW 출처의 선행 결과를 유지. Ink 공개 helper 추가와 타입 출력 순서를 구별해 원래 분모/hash를 보존한 API 입력 gate를 복구하고 최신 source/dist·설치 identity를 확인했다. 전체 동작 호환은 미완료다.
 - [ ] W9-06-A: 원래 Widget 수명·동기 controller/custom hook의 실행 모델과 미보존 계약 확인.
 - [ ] W9-01/02-A/B: 최소 공통 경계·App SDK·Web 두 profile의 같은 일반 앱 실행과 초기 설치 검증.
 - [ ] W9-09-A/10-A: 최소 실행부터 예산/hold·clock·단계 시간 관측 연결.
@@ -96,7 +96,7 @@ W9-12의 A·B(Android)·B(iOS)와 W9-13/14의 상태는 대상별로 유지한�
 
 | Gate | 차수·통과에 필요한 증거 | 현재 판정 |
 | --- | --- | --- |
-| 원래 공개 표면·동작 | **1차 Windows/Web**, 후속 대상은 별도. 원래 scope·overload/member/protected/non-code·target별 선언 해석과 installed runtime 동작. 입력·표면·동작을 각각 판정 | **inputValid=true / compatible=false**. 두 target 진단 0·원래 분모/hash 보존. 명시적 부분 bridge의 canonical Element/State→C++ 연결 통과. 전체 Widget·controller·custom hook·동기 geometry 미완료 |
+| 원래 공개 표면·동작 | **1차 Windows/Web**, 후속 대상은 별도. 원래 scope·overload/member/protected/non-code·target별 선언 해석과 installed runtime 동작. 입력·표면·동작을 각각 판정 | **inputValid=true / compatible=false**. 원래 분모/hash와 두 target 선언 해석 유지, 표면 오류 0. 전체 동작 의무는 미완료이며 부분 bridge·Switch 회귀의 성공을 전체 호환으로 확대하지 않음 |
 | 디자인 구현 경계 | **모든 차수** 두 패키지의 TypeScript Widget/State/theme·callback/controller 실행, 공통 C++ 연산과 package/build/link 경계. [§8.2](work9-2.md#82-디자인-패키지의-typescript-구현-유지)의 스타일 변경·controlled update/NACK·dispose 사례 | **계획 고정 / 구현 검증 미완료**. 기존 partial paint/control helper도 디자인 정책을 복제하지 않는지 재검토. 이번 문서 변경으로 runtime PASS를 추가하지 않음 |
 | Windows App SDK | **1차** 실제 App SDK 창/dispatcher·Skia 실행·TSF/UIA·입력/resize/종료·배포 identity | **구현 구간 PASS / 전체 PARTIAL**. AppWindow/dispatcher·Vulkan·자동 TSF/UIA·resize/hide/restore·앱 로컬 배포 통과. 원래 API·물리 입력·최종 통합 별도 |
 | Web | **1차** Windows Chrome·Edge의 두 profile·같은 기능 corpus·비격리 auto·강제 요구/공급 실패·DPR/숨김·재생성/close | **구현 구간 PASS / 전체 PARTIAL**. 실제 Chrome/Edge headful 두 profile의 기존 corpus·실패/close matrix 통과. 원래 API·전체 기능 통합은 미완료 |
@@ -215,52 +215,61 @@ npm 0xC0000409가 재발할 때만 [기존 한정 조사 절차](history/26/11/0
 **앞선 공통 계약 검토 당시의 구현 시작점은 W9-00의 공급/기준선·API 입력과 RNW 출처 선정이었다. 이후 구현의 현재 상태와 미완료 범위는 아래 기록, 다음 구현의 디자인 소유권은 1부 §1.1·2부 §8.2를 따른다.**
 ## 현재 구현·검증과 잔여 작업
 
-**2026-11-06 KST / PAUSED / Windows·Web 1차 PARTIAL.** 사용자의 “일단 중간 마무리” 요청으로 작업을 중단했다. 자동 재개하지 않는다. 현재 source/dist는 **`95fdfa430d85c605c84bb12435f886ee600f1405e48609b4d2a4c641f7ba9a2f`**, ABI **2**, schema **2901560100**으로 일치한다. Switch 연결을 포함한 Core·두 디자인·SDK·Native·Wasm 두 profile·Windows HWND/App SDK 두 host의 전체 빌드와 Web provider 타입 검사는 통과했지만, 대표 Web 입력 검증이 실패했으므로 현재 공급을 기능 검증 완료로 취급하지 않는다.
+**2026-11-06 KST / PAUSED / Windows·Web 1차 PARTIAL.** 사용자의 외출 전 중간 마무리 요청으로 새 작업을 멈췄다. 원래 Material Slider의 기본 paint·Source layer 관측에 이어 drag 중 recognizer 제거 시 C++ capture가 남는 문제를 수정했다. 현재 source/dist는 **`7b340f71e75da8f6d14f9bc297b28445ed8194a524d22c1b1d5995eb87c1fcc7`**, ABI **2**, schema **2695739774**로 일치한다. Core·두 디자인·SDK와 Native·두 Wasm·HWND/App SDK host를 전체 빌드했다. Label/TextPainter·value indicator·custom shape를 포함한 전체 Slider 계약, 일반 동기 geometry/custom hook과 전체 layer API는 미완료다. 새 Web capture/키보드 사례는 작성·정적 검사만 했고 실제 browser 검사는 수행하지 않았다. 사용자 재개 요청 전 자동 실행하지 않으며 Native UI의 앞선 물리 Esc 중단 경계도 유지한다.
 
-### 현재 연결한 기능
+### 이번 수정과 보존한 책임
 
-- 원래 Widget/Element/State/Inherited/GlobalKey·metrics와 표준 Flex/Align/Center/Stack·plain Text·clip/affine Transform을 부분 연결했다. 고정 extent ListView는 C++ lazy list·canonical controller/position과 외부→내부 controller 교체·offset/attach/detach를 유지한다. 기본 tap/long press·drag details, 원래 AnimationController와 post-frame callback은 App에 남고 native frame은 App을 기다리지 않는다.
-- Material Text/Filled/tonal/Outlined/Elevated와 CupertinoButton은 원래 State·theme·controller를 유지한다. 기본 shape/border/shadow·highlight/InkRipple과 boolean/tristate Checkbox·Radio의 check/dash/원 geometry는 C++가 계산하고 Native/Web provider가 그린다. Paragraph fontFamily는 최대 256 UTF-8 bytes, weight는 100–900이며 Web variation wrapper는 16개 LRU와 항목당 64 KiB 예약을 사용한다. 대상·조상 geometry가 같은 paint 문서 교체에서 pointer up/cancel을 8개 게시 상한 안에 보존한다.
-- **이번 focus/keyboard 연결:** 원래 FocusState/FocusNode·Actions/Shortcuts·Radio registry를 그대로 사용한다. C++는 native focus owner와 실제 semantic peer를 구별하며, Radio의 안쪽 Semantics와 Material 버튼의 바깥 Semantics를 모두 연결한다. Source callback은 올바른 focus 경로에서 실행하고 native 전달 중 불필요한 중간 root focus를 만들지 않는다. Main은 이전 focus 관측으로 새 focus를 덮어쓰지 않는다.
-- FocusNode rect/offset/size는 관측한 게시 문서·metrics·device와 일치하는 C++ transform/크기를 읽는다. 회전에서는 원래 diagonal-corner 의미를 유지한다. 게시 전·알려진 stale geometry는 거부하며 TS layout을 실행하지 않는다. 이 연결을 임의 RenderBox/custom hook의 동기 geometry 완료로 확대하지 않는다.
-- Key down/up/repeat와 modifiers를 bounded mailbox로 복사해 원래 source 키 처리에 전달한다. Focus 요청은 unfocused session 0도 정확하게 비교하여 오래된 요청이 새 사용자 focus를 덮어쓰지 못한다. Navigation/activation과 검증한 Shortcut 범위이며 scan/layout/raw message·전체 character/IME 계약은 미완료다. Windows Alt+F4의 OS 종료 경로는 유지한다.
-- Windows UIA의 mixed/Indeterminate·RadioButton/SelectionItem·그룹 Selection과 Native/Web의 게시 peer focus를 연결했다. C++/SDK JSI CMake의 누락 Flex source와 정상 Windows 공급 갱신의 Core 두 emit program도 수정했다.
+- **클릭 누락:** App의 hover/press paint 문서 교체가 수집 publication을 capture 생성 전에 폐기했다. 호환 input target이 남은 snapshot만 기존 **8개 상한** 안에 보존하고 admission에서 정확한 hit target·대상/조상 좌표를 다시 확인한다. Parent-first 비교는 각 snapshot의 node/ancestor를 한 번씩 처리한다. 첫 tick 전 begin/update/end는 대기 중인 begin을 기준으로 수집 좌표를 보존한다. 이동·가림·만료·wheel 퇴역·terminal/close와 제거 자원 회수의 기존 거부 회귀를 유지한다.
+- **반대 방향 drag:** DOM 기록에서 역방향 첫 이동 뒤 HTML `dragstart` → `pointercancel`을 확인했다. Canvas/비편집 semantic peer의 기본 selection/touch drag와 엔진 surface의 HTML drag 기본 동작을 막고 close 때 listener를 해제한다. DOM input/textarea의 selection/touch 기본 동작은 유지한다. 대기 시간 증가나 입력 재시도로 통과시키지 않았다.
+- **Windows/paint:** Switch role 10의 배열 index·범위와 정적 native paint의 준비 좌표 해석을 수정했다. 두 provider의 Picture 경계는 변위·stroke·shadow blur를 포함한다. 원래 TypeScript State/theme·animation·controlled 값/commit·callback을 유지하며 C++에 디자인 상태 기계를 추가하지 않았다.
+- **Slider Source geometry:** 실제 `SliderControlState`가 마지막 게시 snapshot의 size·globalToLocal을 읽는다. 미게시·다른 metrics/device·dispose 뒤 읽기는 거부하며 TS layout을 실행하지 않는다. 공통 preferred size/가용 폭과 선형 paint·hit-only 영역을 Content에서 해석하고 움직이는 thumb의 기존 capture를 보존한다. Focus wrapper의 느슨한 child constraints가 tight surface 크기를 0으로 만들던 문제도 수정했다. 이 연결을 일반적인 fresh 동기 layout/geometry 호환으로 확대하지 않는다.
+- **Raw gesture 수명:** View 소유 binding·arena·기존 clock에 원래 factory/recognizer/team을 유지하고 canonical Tap/Horizontal/Vertical/Pan callback을 native detail에 연결했다. App 인식 실행·custom buttons/devices/timers/velocity·지원하지 않는 recognizer/semantics/team 설정은 명시적으로 거부한다. 거부 후 문서/명령 수 보존·recognizer dispose와 정상 tree 복귀를 검사했다. 전체 RawGestureDetector 확장 지점의 호환은 미완료다.
+- **CupertinoSlider·semantics:** 원래 Source의 값·divisions·callback·RTL·thumb hit 정책·theme/animation을 유지하고 track/thumb·세 shadow를 TypeScript painter metadata로 공급한다. 공통 semantics에 표시 value·증감 value·숫자 range/readOnly와 setValue 요청을 연결했으며 숫자 확정/quantization은 Source가 수행한다. Native control 상태 변경은 **0**이다. Windows packet·Web ARIA 연결을 추가했지만 실제 Native reader 결과는 미검증이다.
+- **Material Slider 기본 paint:** 원래 `MaterialSliderRender`의 사각/둥근/gapped track·Round/Handle thumb·overlay·tick·secondary track을 metadata로 연결했다. Theme/animation·controlled 값과 callback·pressed width/gap은 Source가 유지한다. 사용자 지정 활성/비활성 thumb 반지름의 위치 차이를 실제 Source pixel 대조로 찾아, 중심 계산의 기본 disabled preferred size와 track paint의 실제 enabled preferred size를 각각 보존했다. 라벨·값 표시기·custom shape·debug shadow override는 아직 연결하지 않았다.
+- **공통 paint 프로그램:** 디자인 이름·색·상태 기계 없이 최종 width/height·반복 index의 산술/비교/분기와 clip save/restore·순서 있는 elevation shadow를 해석한다. Node당 선언 **32개·식 512개·출력 2048개**, 문서 해석당 **262144 연산**을 제한한다. 가시성 조건을 먼저 평가해 조밀한 대량 tick을 건너뛰고 DAG 순서·NaN·reserved·scope·derived divide/예산 실패를 검사한다. 실패한 준비는 마지막 게시 프레임을 보존하고 정상 문서로 복구하며 scratch/출력 예약을 close에서 회수한다.
+- **Disabled drag:** 활성 대상 없이 시작한 pointer의 후속 이동은 인식 없이 버린다. 첫 이동에서 stream을 취소 상태로 만들어 나머지 입력을 stale로 거부하던 문제를 수정했다. 명시적인 overflow·퇴역/cancel의 기존 거부와 재활성화 회귀는 유지한다.
+- **Drag 중 비활성화:** Source가 모든 canonical recognizer를 제거해도 동일 render node의 capture가 다음 입력까지 남던 문제를 수정했다. 새 준비의 geometry/paint 검증이 성공한 뒤 한 번만 capture를 취소한다. Paint-only 활성화·transaction NACK·accepted preparation 실패는 기존 capture와 게시 scene을 보존한다. 퇴역 capture의 후속 update/end는 기존 stale 거부를 유지하고 새 begin은 정상 인식한다. Source 키 repeat·modifier·RTL 방향키·semantic 증감/setValue·범위 거부·tapOnly/slideOnly/slideThumb와 두 디자인의 비활성화/복구를 Native/두 Wasm에서 검사했다. TypeScript State·controlled 값·callback 정책을 C++로 옮기지 않았다.
+- **공통 layer link:** 원래 CompositedTransformTarget/Follower의 Source 링크를 View 소유 handle로 연결했다. C++가 anchor·offset·분기 사이 affine 합성과 Core scroll의 이동을 계산하며 paint·pointer target·semantics가 같은 좌표를 사용한다. Unlink의 숨김은 후손의 hit/semantics와 두 provider의 빈 clip에 함께 반영하고 held capture를 한 번만 취소한다. 중복 leader·다른 View의 링크 공유·잘못된 handle/paint 순서·NaN을 거부하며 문서/명령·NACK 재시도/예약과 close 후 링크 소유권 해제를 확인했다.
+- **Source layer 관측:** 실제 LeaderLayer/FollowerLayer·LayerHandle identity와 LayerLink.leader/leaderSize, getLastTransform/getCurrentTransform/applyTransform을 완료한 native 게시에 연결했다. 80-byte 관측 blob의 역할·flag·handle·finite 값과 중복을 검사한다. 큰 상대 변환은 유한 값으로 전달하되 기존 world 좌표 상한은 유지하며, 역변환 불가 관측은 null이다. 첫 게시 전 layer는 null이고 ACK만으로 변환·showWhenUnlinked·composition callback을 앞당기지 않는다. 12회 ACK 지연과 같은 C++ 문서의 JS link identity 교체, unlink의 기존 leaderSize/configuration과 identity fallback을 확인했다. Callback은 같은 게시의 leader/follower 갱신 뒤 한 번 발생한다. View close는 mirror를 detach하고 외부 handle이 남아도 View 참조를 해제한다. 일반 Source LayerHandle의 protected mutation hook도 보존했다. 직접 native layer 수정·App SceneBuilder·annotation 검색·Source rasterization은 연결하지 않았으며 전체 layer/custom API와 실제 표시기 paint는 남는다.
+- **라벨의 현재 경계:** 실제 Material Slider label을 요청하면 필요한 `synchronous-App-text-layout`을 명시적으로 거부한다. 유효한 기존 animation을 먼저 완료한 뒤 실패 전후 native 문서·명령 수 보존과 라벨 없는 정상 tree 복구를 검사했다. 이 거부/복구 검사는 TextPainter·value indicator 구현 완료를 뜻하지 않는다. Source의 동기 layout 호출 계약을 보존하는 공통 text 경계 구현이 다음 작업이다.
+- **API 입력 복구:** InkHighlight/InkRipple의 공개 `nativePaintConfiguration()`을 클래스 내부 static reader 등록으로 옮겨 두 import 경로의 실제 표면 추가 **4건**을 제거했다. 나머지 **16건**은 mapped type 출력의 plain property 순서 차이다. Commit **`2f77d4227adb31d36dcc9b321f997a47fae0dea7`**의 Core/runtime·SkiaNative·두 디자인·SDK를 일관된 입력으로 메모리에서 emit해 **1148개 선언**을 복원했다. 먼저 원래 scope의 **모든 고정 hash**가 일치함을 검사하고, 이후 고유한 plain property만 정렬해 대조한다. 원래 scope/hash를 재생성하지 않았다. Literal·readonly/optional·중복 이름·method/call overload·intersection·protected/member·symbol·non-code 변경 거부를 유지하며 잘못된 원본 복원은 fail-closed로 거부한다.
+- **Wire·공급:** Engine source identity에 Material과 Cupertino 전체 `src`를 포함한다. 공통 geometry/range·layer link/관측·paint 프로그램은 ABI major 2를 유지하며 schema와 필수 `canonicalSlider`/`layerLinks`/`paintPrograms` capability를 producer/consumer와 함께 갱신했다. Native/두 Wasm·SDK를 같은 공급으로 빌드하고 이전 schema/없는 capability·malformed 거부를 유지한다. 기존 Windows runner의 Core/SDK 설치본을 실제 갱신하고 앞서 갱신한 Material·Cupertino·CLI와도 대조했다.
 
-### 앞선 focus/선택 공급의 검증
+### 현재 공급의 검증
 
-아래 성공 결과는 **`c4be00de…` / schema 3147956808**의 범위다. 새 Switch 공급의 재검증 결과로 복사하지 않는다.
-
-| 범위 | 결과와 한계 |
+| 범위 | 실제 결과와 한계 |
 | --- | --- |
-| Material 대표 Web 소비 | `original-material-browser.test.mjs` **1/1**, single-worker/threaded 모두 통과. 버튼·disabled·hover·ink·boolean/tristate·Radio 선택/해제·ARIA·방향키 wrap/disabled skip·그룹 Tab/Shift+Tab·Control+K와 Source focus callback/게시 좌표를 검사 |
-| 실제 작업·종료 | **C++ 2852 = SDK ACK 2852 / C++ 2833 = SDK ACK 2833**. 각 key work **26**, focus work **28**, gesture work **113**. checks/mixes/choices/shortcuts **2/3/5/1**, App geometry·TS layout·rejected fallback **0**, workersStopped=true·reservedBytes **0** |
-| 실제 Web pixel | 기존 opacity **[68,136,204,255] → [156,191,227,255] → [68,136,204,255]**, mark/radio·ink 표시를 유지. Headless Chromium 결과이며 물리 입력·scanout·cadence 수락은 아님 |
-| 선택 계약 | **14/14**. Native/두 Wasm의 focus owner/peer 양방향 연결·정확한 session·key 복사/invalid repeat 거부·disable/rollback, 기존 modal·editing/composition/UTF-16/undo·semantics action 회귀. Native 원래 Focus는 회전 geometry·GlobalKey 이동·이동 뒤 blur/refocus·semantics callback 순서·down/repeat/up·disable/퇴역을 확인. Cupertino 통합은 native focus 전달 시 Source 경로가 한 번만 변경되는 것도 검사. Fake renderer/측정 기반 기능 증거 |
-| 공통 경계 | Source focus **6/6**, package boundary **5/5**, 필수 input geometry **2/2**, retained geometry **7/7**, design ownership **PASS-scoped**. 전체 Core/API/host/runner suite는 기능마다 반복하지 않음 |
+| 앞선 전체 API | `ce7d7818…` 단계의 audit: 원래 **4 package·834 subpath·4541 hash** 유지. 실제 **836 subpath·4572 항목**, Windows 적용/비적용 **802/34**, Web **788/48**, 두 target 선언 진단·표면 오류 **0**, 데이터 behavior case **5/5**. Raw build의 원래 공개 매개변수 이름도 유지했다. **inputValid=true / compatible=false / strict exit 1**이며 전체 동작 의무는 미완료다. 이번 제품 변경은 C++ capture 수명이며 TS/API 표면 변경은 없다. |
+| API 검사 자체 | 앞선 API 도구 수정의 `test:engine-v2:api` **19/19**를 유지하고 이번 실제 전체 audit를 재실행했다. 검증된 원본 없이 순서 차이를 승인하지 않으며 literal·readonly/required·잘못된 원본 복원은 거부한다. 전체 동작 gate의 성공을 뜻하지 않는다. |
+| 공통 C++/wire | 현재 정상 `npm.cmd run test:engine-v2` **328/328**. 새 6개 계약은 Native/두 Wasm의 recognizer 제거·정상 준비 후 capture 취소·paint/NACK/준비 실패 보존과 실제 Source Slider keyboard/semantic/interaction/disable 복구를 검사한다. SDK ACK/C++ 명령 수 일치, gesture/key/semantic 작업 발생, native control work·TS fallback·App geometry 0도 확인했다. 기존 paint·layer·Raw·라벨 거부/복구와 수명 계약도 통과했다. Native 표시·물리 입력 증거는 아니다. |
+| 앞선 layer Web 소비 | `ce7d7818…`에서 `original-layer-browser.test.mjs` **1/1**, headless Chromium 두 profile 모두 통과. Source State의 leader 이동·제거·복구에 WebGL pixel·pointer target·ARIA와 App worker의 layer getter가 함께 바뀌었다. 두 profile 모두 **C++ 292 = SDK ACK 292**, gesture **27**, control work·fallback·App geometry·입력 거부 **0**, collected/dispatched **27/27**, workersStopped=true·reservedBytes **0**이다. 현재 C++ 수정 뒤 browser 재검사는 미수행이다. |
+| 앞선 Slider Web 소비·새 미검증 | `ce7d7818…`에서 기존 `original-slider-browser.test.mjs` **2/2**. 두 profile의 Cupertino는 **C++ 706 = SDK ACK 706**·gesture **103**, Material은 **852 = 852 / 850 = 850**·gesture **121**, control work·fallback·App geometry·입력 거부·종료 예약 **0**이다. 현재 파일에는 Source onChanged가 drag 중 스스로 비활성화하는 fixture·capture 퇴역/새 begin·Material DOM 방향키 사례를 추가했으나 **실제 실행 전**이다. 기존 disabled begin과 달리 퇴역 capture의 후속 stale 거부를 명시적으로 검사하도록 작성했으며 성공으로 보고하지 않는다. |
+| 앞선 디자인 Web 회귀 | `ce7d7818…`의 `original-material-browser.test.mjs` **1/1**, 두 profile 모두 통과. 버튼·Ink/opacity·선택/Radio·Shortcut/Focus·Switch/RTL/disabled·clip/shadow를 검사했다. **C++ 3565 = SDK ACK 3565 / 3550 = 3550**, gesture 각 **174**, key **32**, focus **36**, fallback·App geometry·입력 거부·종료 예약 **0**이다. 현재 공급의 재검사는 미수행이다. |
+| Geometry·UIA·정적 | 입력 geometry **2/2**, retained geometry **7/7**로 실제 Mixed editor·활성화 실패 회귀를 재검사했다. 전체 `check:types`·`lint`·`format:check` PASS. Package/browser provider 타입 검사도 전체 build에 포함한다. 비시각 Windows UIA provider **1/1**은 앞선 Slider 공급에서 수행했으며 실제 Native layer/reader 수락과 구별한다. CLI 타입·경계 검사와 Ink owner도 앞선 수정의 검증 범위다. |
+| 앞선 Source layer 회귀 | `ce7d7818…`의 `recorded-composition.test.mjs`·`matrix-composition.test.mjs` **18/18**. 실제 CanvasKit pixels·scope·annotation·detach/handle 수명과 protected mutation hook을 검사했다. 일반 Source retain/release의 사용자 override와 실패 시 reference count를 보존한다. 이번에는 Source layer 코드를 바꾸지 않았다. |
+| 앞선 Pixel/provider | `ce7d7818…`의 실제 CanvasKit graphics **8/8**. 두 profile마다 Material Source shape paint의 **12개 구성**을 대조했다. 기본/현대식·pressed·discrete/RTL·disabled·좁은 폭·padding·사각 track·서로 다른 thumb 반지름을 포함한다. Fractional SkScalar edge 차이는 최대 channel **1**, 다른 channel **32개 이하**다. Reference의 TS layout/paint는 대조용이며 제품 fallback이 아니다. Glyph·layer·clip/rotation/opacity·shadow/blur·reuse/ownership/backing/retained Picture도 검사했다. Web thumb **[51,170,119,255]**, Material 아래 shadow **[237,239,242,255]**·Cupertino **[242,244,248,255]**, 배경 **[244,246,250,255]**다. 현재 capture 수정 뒤 graphics/browser 재검사는 미수행이며 scanout·cadence·물리 수락과 구별한다. |
 
-**평소 Windows 공급:** 앞선 `c4be00de…` 단계에서 `npm.cmd run run:windows --workspace @nelyx/testbed-2`가 사용하는 기존 runner의 **CLI/Core/SDK 3개**를 갱신하고 source/dist/installed 입력과 source seal을 확인했다. 중단 정리의 읽기 검사에서 세 패키지의 현재 source seal은 모두 유효하고, 기존 설치본은 **CLI만 일치·Core/SDK 불일치**임을 확인했다. 새 Switch 공급으로 기존 runner를 다시 갱신하지 않았다. 새 독립 설치본을 만들거나 창을 실행하지 않았다.
+### 공급과 정리
 
-### 중단 시 Switch 상태와 재개 조건
+앞선 `ce7d7818…` 단계에서 평소 `npm.cmd run run:windows --workspace @nelyx/testbed-2`가 사용하는 기존 Windows runner에 `NELYX_PREPARE_PACKAGES=core,sdk`로 archive/lock 참조를 갱신하고 `npm.cmd install --workspaces=false --ignore-scripts --no-audit --no-fund`로 실제 **2 package**를 교체했다. 이번 C++ capture 수정은 TS/SDK 제품 코드를 바꾸지 않았으며 불필요한 재설치를 하지 않았다. 중간 마무리 때 Core **657 module·2628 dist 파일**, SDK **119 module·476 dist 파일**, Cupertino **64 module·256 dist 파일**, Material **259 module·1036 dist 파일**, CLI **74 source 파일**을 current/installed 간 다시 대조했고 emit 패키지의 source map 입력 검사와 SDK 한국어/영어 안내 일치도 확인했다. 현재 Engine manifest **348개 파일** hash와 source/dist identity도 일치했다. RNW 앱 bundle/native 빌드·창 실행은 수행하지 않았다. 최신 standalone HWND/App SDK는 위 engine 공급의 빌드 결과다.
 
-- 원래 Material Switch·CupertinoSwitch의 State·theme·animation·controlled value는 유지한다. Source SwitchPainter가 track/thumb·reaction·outline·Cupertino clip/shadow/on-off label 설정을 전달하고 C++가 최종 좌표를 계산하도록 부분 연결했다. Shape/shadow/clip primitive, 336-byte paint wire, `canonicalSwitch` capability와 switch semantic role을 추가했다. Thumb image/icon은 명시적으로 미지원이며 Slider는 아직 연결하지 않았다.
-- 첫 대표 Web 실행은 Material Switch click·Space·오른쪽 drag와 thumb 크기/위치·pixel 변화를 통과했지만 반대 방향 drag의 `switches=4`를 기다리다 실패했다. 후속 두 실행은 더 앞선 Checkbox 클릭에서 `checks=1` callback을 받지 못해 실패했다. 마지막 관측은 App 오류 없이 `checks=0`·SDK ACK 3019·fallback 0이며, 입력 성공이나 C++/SDK 집계 대조 통과를 뜻하지 않는다. 원인은 아직 확정하지 않았다. Cupertino·RTL Switch 단계와 두 profile 전체 완료/drain 성공도 현재 공급에서 승인하지 않았다.
-- **재개 시 먼저 수정할 코드:** `Nelyx/engine/platform/windows/interaction.hpp`의 semantic `roles[]`는 아직 0–9만 갖고 새 switch role은 10이다. 해당 index 누락과 범위 처리를 보완한 뒤 rebuild한다. 현재 Windows Switch UIA 경로를 실행해 성공으로 취급하지 않는다.
-- 새 Switch의 native geometry/paint malformed rollback·drag cancel/disable/퇴역 계약, 원래 Material/Cupertino 대표 회귀, lint/format과 필수 input geometry **2개 명령**은 아직 검증하지 않았다. 앞선 공급의 14/14·2/2·7/7을 새 schema 결과로 쓰지 않는다.
-- 테스트는 자체 finally에서 server·browser·임시 앱을 닫았다. 중단 정리에서 해당 테스트/host 잔류 process와 `engine-controls-web-*` 임시 폴더가 없고 engine staging cache도 비어 있음을 확인했다. 임시 Source-state debug listener를 제거하고 실패 상태를 출력하는 bounded 진단만 남겼다. 현재 dist 하나를 유지하며 추가 빌드·런타임 검증·설치 갱신은 중단했다.
+검증용 server·browser·임시 앱과 build 디렉터리는 각 검사 finally에서 회수했다. 검사 process·임시 앱/API/semantics 폴더·build/pack staging 잔류는 0이다. 현재 dist만 유지하며 이전 공급·receipt/로그·checkpoint/archive·추가 설치본을 보관하지 않는다. 계획 6개의 로컬 링크 **151개**·앵커 참조 **91개**와 code fence 검사를 통과했고 `git diff --check`도 통과했다. 다음 구현은 현재 source/dist·설치 상태를 기준으로 변경한 범위만 빌드/검증한다.
 
-마무리 정리는 여섯 문서의 로컬 링크/앵커 **177개**, schema 생성 일치, 정리한 테스트 두 파일의 구문/format과 `git diff --check`를 확인했다. 이는 새 Switch 기능·전체 source lint/format·Native/UI 검증을 대체하지 않는다.
+### 다음 실행 순서
 
-재개는 먼저 `git status --short`·위 source/dist identity와 [§8.2](work9-2.md#82-디자인-패키지의-typescript-구현-유지)의 TypeScript 디자인 소유권을 확인한다. 기존 control/paint helper가 공통 연산·geometry만 담당하고 디자인 State/theme/controlled value 정책을 복제하지 않는지 검토한 뒤 Windows role index와 paint 문서 교체 중 pointer admission/capture·Source drag 전달을 조사한다. 입력 누락을 재시도나 대기 시간 증가로 숨기지 않는다. 필요한 수정을 한 뒤 C++/wire 변경 여부에 맞춰 위 빌드 원칙을 적용하고 대표 Web·필요한 Native/두 Wasm 계약을 실행한다. Geometry 변경의 `npm.cmd run test:input-geometry`·`npm.cmd run test:retained-input-geometry`를 수행하고 성공 범위 뒤 기존 Windows runner의 필요한 패키지만 갱신한다. Native GUI는 아래 사용자 중단 경계를 유지한다.
+**PAUSED 재개 조건:** 사용자 재개 요청 뒤 먼저 현재 source/dist identity와 설치 source-map 입력을 확인한다. 추가한 browser 검사는 아직 실행하지 않았으므로 아래 명령이 첫 확인이다. 이 구간이 통과한 뒤 현재 공급의 graphics·기존 layer/Material Web 회귀를 확인하고 다음 구현으로 이어간다. 제품 소스가 바뀌지 않았다면 이미 통과한 전체 build/Core 검사를 다시 시작하지 않는다.
 
-**앞선 공급의 증거:** `90649c3d…`의 Core **283/283**·graphics **6/6**·host **17/17**·설치 runner **19/19**·reload **7/7**과 API `inputValid=true / compatible=false`는 선행 기준이다. 이번 전체 suite 재실행으로 표시하지 않는다. `b1e6c519…`에서 Material 버튼의 실제 App SDK 표시·입력·정상 drain을 확인했으며 최신 focus/선택 컨트롤 Native UI의 증거로 복사하지 않는다. `747a069d…`에서 비시각 UIA provider·Native CMake corpus, 실제 graphics **2/2**, installed Native Hermes **1/1**을 확인했다. 현재 변경된 Source focus와 이전 provider/설치 증거를 구별한다.
+```powershell
+node --experimental-transform-types --test --test-timeout=1200000 --test-concurrency=1 Nelyx/engine/tests/original-slider-browser.test.mjs
+```
 
-**Native UI 중단 경계:** 사용자가 Checkbox 관측 중 물리 Escape로 Computer Use를 중단했다. 당시 소유 프로세스·임시 앱을 회수했고 강제 종료를 정상 drain으로 기록하지 않았다. 사용자 UI 재개 전 추가 Computer Use를 자동 실행하지 않는다. 이번 검증은 shell·비시각 Native 계약과 headless Web이며 최신 Native 선택/focus 표시·사용자 입력·외부 reader는 **notVerified**다.
+TextPainter의 동기 `layout` 반환과 현재 Promise 기반 App→Content packet 전송을 대조했다. 비격리 single-worker에는 공유 메모리 경로가 없으므로 threaded만의 동기 RPC로 두 profile의 원래 계약 보존을 입증할 수 없다. 이 실행 모델은 W9-06-A의 미해결 의무로 유지하며 stale cache·숨은 TS shaping·Source callback 재실행으로 성공 처리하지 않는다.
 
-### 현재 잔여와 다음 순서
+1. **Material Slider·확장 계약:** 기본 track/overlay/thumb/tick의 실제 소비와 공통 leader/follower 합성·읽기 전용 Source 객체/getter는 연결했다. 다음은 동기 TextPainter 호출 계약을 보존하는 공통 text/layout 경계와 label/value indicator paint를 구현하고 Slider/Cupertino의 추가 interaction·keyboard/semantics·disable 중 capture·custom shape/NACK 사례를 넓히는 것이다. 현재 라벨 없는 canonical paint나 layer 관측을 전체 Slider/Layer 완료 조건으로 축소하지 않는다. 일반 동기 geometry/custom hook·전체 recognizer/team/layer 트리/SceneBuilder·annotation/raster 확장 지점 의무를 유지한다. 기본 control의 C++ Slider로 원래 State를 대체하지 않는다.
+2. Focus/shortcut의 전체 physical/raw/character·IME·lifecycle, lazy focus/reader·전체 semantics·UIA toggleable Radio 해제, cursor/플랫폼 서비스와 디자인의 padded hit target·custom shape/ink가 남는다.
+3. 가변 extent·reverse/padding/restoration·추가 physics, rich/selectable text·font fallback/italic/strut, graphics/reuse/frame, 필수 콘텐츠와 상태 보존 reload/loss/low-memory 복구를 이어간다.
+4. 전체 원래 API/설치 소비와 W9-13 기술 gate 뒤 W9-14의 대상별 물리·성능·기본값 전환을 따로 판정한다. 기존 host/v1 제거를 앞당기지 않는다.
 
-1. **TypeScript 디자인 소유권을 유지하며 Switch의 role index·입력 누락·반대 방향 drag와 새 paint 계약**을 먼저 해결하고 현재 공급을 검증한다. 그 뒤 원래 TypeScript Slider·나머지 고수준 디자인 API를 공통 paint·gesture/geometry·controller 경계에 연결한다. 컴포넌트별 C++ 재구현은 진행하지 않는다. Padded tap target·custom shape/rect·다른 ink factory와 전체 디자인 호환은 미완료다.
-2. Focus/shortcut의 전체 physical/raw/character·IME·lifecycle 경합, lazy focus/reader·전체 semantics와 UIA toggleable Radio 해제, OS cursor·플랫폼 서비스가 남는다. 현재 FocusNode mirror를 일반 동기 geometry/custom hook 완료로 취급하지 않는다.
-3. 가변 extent·reverse/padding/restoration·추가 physics, rich/selectable text·font fallback/italic/strut, graphics/reuse/frame 일정, 필수 콘텐츠와 상태 보존 reload/loss/low-memory 복구를 이어간다.
-4. 최종 원래 API/설치 소비와 W9-13 기술 gate를 통과한 뒤 W9-14의 대상별 물리·성능·기본값 전환을 별도로 판정한다. 기본 Windows host 변경·기존 host/v1 제거를 앞당기지 않는다.
+**Native UI 경계:** 앞선 사용자의 물리 Escape로 중단한 Computer Use를 재개하지 않았다. 최신 Native 선택/focus/Switch 표시·사용자 입력·외부 reader는 **notVerified**다. 강제 종료를 정상 drain으로 바꾸지 않는다. 후속 Native UI 자동 조작은 사용자 UI 재개 경계를 따른다.
 
-W9-06/07/08/13/14는 미완료다. 성능 두 flag는 **false**, 물리 IME/reader/trackpad·display/scanout은 **notVerified**, Android/Linux·iOS/macOS는 **DEFERRED**다. 앞선 차수의 W9-13 기술 완료와 W9-14 물리/성능 수락을 구별하는 §12.5를 유지한다.
+W9-00 입력 gate는 복구했다. W9-06/07/08/13/14와 전체 Windows/Web 기술 gate는 미완료다. 성능 두 flag는 **false**, 물리 IME/reader/trackpad·display/scanout은 **notVerified**, Android/Linux·iOS/macOS는 **DEFERRED**다. 목표는 사용자 요청으로 **PAUSED / PARTIAL**이며 완료가 아니다. 재개 요청 전 자동 실행하지 않는다.

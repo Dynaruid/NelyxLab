@@ -400,11 +400,12 @@ export class EngineViewClient {
     publication: bigint,
     action: keyof typeof p.semanticsActions,
     session = 0n,
+    value?: number,
   ): Promise<EngineResponse> {
     return checked(
       await this.request(
         p.opcodes.semanticsAction,
-        semanticActionBody(node, publication, action, session),
+        semanticActionBody(node, publication, action, session, value),
       ),
     );
   }

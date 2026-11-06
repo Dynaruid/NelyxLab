@@ -306,8 +306,10 @@ class Interaction {
       return;
     }
     if(action.kind=="set-range-value"&&action.value){
-      Writer b(32);writeHandle(b,0,node);b.u64(8,action.commit);b.f64(16,*action.value);
-      publishedAction(wire::opcodes::controlValue,std::move(b),node,*observed);wake();return;
+      Writer b(32);writeHandle(b,0,node);b.u64(8,action.commit);
+      const bool source=!observed->frame.scene->document->get(node).control.kind;
+      if(source){b.u32(16,wire::semanticsActions::setValue);b.f64(24,*action.value);}else b.f64(16,*action.value);
+      publishedAction(source?wire::opcodes::semanticsAction:wire::opcodes::controlValue,std::move(b),node,*observed);wake();return;
     }
     Writer b(32);
     writeHandle(b, 0, node);
@@ -518,7 +520,7 @@ public:
         c.geometry = frame;
         editors->execute(std::move(c));
       }
-      const auto a = current.semantics;
+      const auto a = node.semantics;
       if (!a || (a->flags & wire::semanticsFlags::hidden))
         continue;
       nh::SemanticPacket packet;
@@ -530,9 +532,10 @@ public:
       s.surface = next->metrics.device;
       s.frame = frame;
       s.bounds = frame.bounds;
-      static const char *roles[] = {"group",      "group",  "button", "text",
-                                    "text-field", "button", "group",  "button", "button", "group"};
-      s.role = roles[a->role];
+      static constexpr const char *roles[] = {"group", "group", "button", "text",
+          "text-field", "button", "group", "button", "button", "group", "button"};
+      static_assert(std::size(roles) == wire::semanticsRoles::switchControl + 1);
+      s.role = a->role < std::size(roles) ? roles[a->role] : "group";
       packet.isLink = a->role == wire::semanticsRoles::link;
       packet.isSlider = a->role == wire::semanticsRoles::slider;
       packet.isRadio = a->role == wire::semanticsRoles::radio;
@@ -542,6 +545,11 @@ public:
         range.smallChange=node.control.step>0?node.control.step:(node.control.maximum-node.control.minimum)/20;
         range.largeChange=(node.control.maximum-node.control.minimum)/5;range.readOnly=node.control.disabled;
         packet.range=range;}
+      else if(packet.isSlider&&a->range.enabled){nh::SemanticRange range;
+        range.min=a->range.minimum;range.max=a->range.maximum;range.value=a->range.value;
+        range.smallChange=a->range.smallChange;range.largeChange=a->range.largeChange;
+        range.readOnly=a->range.readOnly;packet.range=range;}
+      if(!a->value.empty()||a->range.enabled)packet.value=wide(a->value);
       packet.name = wide(a->label);
       packet.tooltip = wide(a->hint);
       packet.automationId = wide(s.id);

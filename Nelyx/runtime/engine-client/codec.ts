@@ -79,6 +79,8 @@ export interface NodeLayout {
   readonly expandEmpty?: boolean;
   readonly clipOverflow?: boolean;
   readonly paragraphSizing?: boolean;
+  readonly preferredSize?: boolean;
+  readonly expandPreferredWidth?: boolean;
   readonly direction?: 'horizontal' | 'vertical';
   readonly mainSize?: 'min' | 'max';
   readonly mainAlign?: keyof typeof p.layoutMainAlign;
@@ -325,11 +327,26 @@ export interface SemanticProperties {
   readonly hint?: string;
   readonly flags?: number;
   readonly actions?: number;
+  readonly value?: string;
+  readonly increasedValue?: string;
+  readonly decreasedValue?: string;
+  readonly range?: {
+    readonly minimum: number;
+    readonly maximum: number;
+    readonly value: number;
+    readonly smallChange?: number;
+    readonly largeChange?: number;
+    readonly readOnly?: boolean;
+  };
 }
 export interface SemanticSnapshot {
   readonly role: number;
   readonly label: string;
   readonly hint: string;
+  readonly value?: string;
+  readonly increasedValue?: string;
+  readonly decreasedValue?: string;
+  readonly range?: NonNullable<SemanticProperties['range']>;
   readonly flags: number;
   readonly actions: number;
 }
@@ -387,15 +404,54 @@ export function semanticActionBody(
   publication: bigint,
   action: keyof typeof p.semanticsActions,
   session = 0n,
+  value?: number,
 ): Uint8Array {
   return body(32, (v) => {
     writeHandle(v, 0, node);
     v.setBigUint64(8, uint64(publication), true);
     v.setUint32(16, p.semanticsActions[action], true);
-    v.setBigUint64(24, uint64(session), true);
+    if (action === 'setValue') v.setFloat64(24, finite(value ?? NaN), true);
+    else v.setBigUint64(24, uint64(session), true);
   });
 }
+export interface LayerLinkOptions {
+  readonly kind: 'leader' | 'follower';
+  readonly leader?: NodeHandle | null;
+  readonly showWhenUnlinked?: boolean;
+  readonly offset?: { readonly x: number; readonly y: number };
+  readonly leaderAnchor?: { readonly x: number; readonly y: number };
+  readonly followerAnchor?: { readonly x: number; readonly y: number };
+}
 export const commands = {
+  layerLink(node: NodeHandle, options?: LayerLinkOptions): Uint8Array {
+    return command(
+      p.commands.layerLink,
+      node,
+      options
+        ? body(p.layerLinkBytes, (v) => {
+            v.setUint32(0, options.kind === 'leader' ? 1 : 2, true);
+            v.setUint32(
+              4,
+              options.kind === 'follower' && options.showWhenUnlinked !== false ? 1 : 0,
+              true,
+            );
+            writeHandle(v, 8, options.leader ?? { slot: 0, generation: 0 });
+            const values =
+              options.kind === 'leader'
+                ? [0, 0, 0, 0, 0, 0]
+                : [
+                    options.offset?.x ?? 0,
+                    options.offset?.y ?? 0,
+                    options.leaderAnchor?.x ?? -1,
+                    options.leaderAnchor?.y ?? -1,
+                    options.followerAnchor?.x ?? -1,
+                    options.followerAnchor?.y ?? -1,
+                  ];
+            values.forEach((value, index) => v.setFloat64(16 + index * 8, finite(value), true));
+          })
+        : new Uint8Array(),
+    );
+  },
   nativePaint(node: NodeHandle, entries?: readonly NativePaintOptions[]) {
     return command(
       p.commands.nativePaint,
@@ -490,17 +546,36 @@ export const commands = {
     );
   },
   semantics(node: NodeHandle, value: SemanticProperties | null): Uint8Array {
-    const label = encodeUtf8(value?.label ?? '', p.limits.semanticsTextBytes),
-      hint = encodeUtf8(value?.hint ?? '', p.limits.semanticsTextBytes);
-    const bytes = body(24 + Math.ceil((label.length + hint.length) / 8) * 8, (v) => {
-      v.setUint32(0, value ? p.semanticsRoles[value.role] : 0, true);
-      v.setUint32(4, uint32(value?.flags ?? 0), true);
-      v.setUint32(8, uint32(value?.actions ?? 0), true);
-      v.setUint32(12, label.length, true);
-      v.setUint32(16, hint.length, true);
-    });
-    bytes.set(label, 24);
-    bytes.set(hint, 24 + label.length);
+    const text = [
+      value?.label,
+      value?.hint,
+      value?.value,
+      value?.increasedValue,
+      value?.decreasedValue,
+    ].map((s) => encodeUtf8(s ?? '', p.limits.semanticsTextBytes));
+    const range = value?.range;
+    const bytes = body(
+      p.semanticsBytes + Math.ceil(text.reduce((n, s) => n + s.length, 0) / 8) * 8,
+      (v) => {
+        v.setUint32(0, value ? p.semanticsRoles[value.role] : 0, true);
+        v.setUint32(4, uint32(value?.flags ?? 0), true);
+        v.setUint32(8, uint32(value?.actions ?? 0), true);
+        [12, 16, 20, 72, 76].forEach((at, i) => v.setUint32(at, text[i]!.length, true));
+        v.setUint32(24, range ? 1 | (range.readOnly ? 2 : 0) : 0, true);
+        [
+          range?.minimum ?? 0,
+          range?.maximum ?? 0,
+          range?.value ?? 0,
+          range?.smallChange ?? 0,
+          range?.largeChange ?? 0,
+        ].forEach((n, i) => v.setFloat64(32 + i * 8, finite(n), true));
+      },
+    );
+    let at = p.semanticsBytes;
+    for (const part of text) {
+      bytes.set(part, at);
+      at += part.length;
+    }
     return command(p.commands.semantics, node, bytes);
   },
   /** Prepared visual offsets, distinct from the logical content extent. */
@@ -543,7 +618,9 @@ export const commands = {
             (value.shrinkUnboundedMain ? p.layoutConstraintFlags.shrinkUnboundedMain : 0) |
             (value.expandEmpty ? p.layoutConstraintFlags.expandEmpty : 0) |
             (value.clipOverflow ? p.layoutConstraintFlags.clipOverflow : 0) |
-            (value.paragraphSizing ? p.layoutConstraintFlags.paragraphSizing : 0),
+            (value.paragraphSizing ? p.layoutConstraintFlags.paragraphSizing : 0) |
+            (value.preferredSize ? p.layoutConstraintFlags.preferredSize : 0) |
+            (value.expandPreferredWidth ? p.layoutConstraintFlags.expandPreferredWidth : 0),
           true,
         );
         [
@@ -836,7 +913,16 @@ export function inputBody(value: InputPacket): Uint8Array {
     ].forEach((scalar, i) => v.setUint32(96 + i * 4, uint32(scalar), true));
   });
 }
+export interface LayerCompositionSnapshot {
+  readonly kind: 'leader' | 'follower';
+  readonly leader: NodeHandle;
+  readonly linked: boolean;
+  readonly showWhenUnlinked: boolean;
+  readonly transform: AffineMatrix | null;
+  readonly linkedOffset: { readonly x: number; readonly y: number };
+}
 export interface EngineNodeSnapshot {
+  readonly layerComposition: LayerCompositionSnapshot | null;
   readonly nativePaint: readonly NativePaintSnapshot[] | null;
   readonly paragraph: ParagraphSnapshot | null;
   readonly graphics: GraphicsSnapshot | null;
@@ -1037,7 +1123,7 @@ export function response(bytes: Uint8Array): EngineResponse {
   if (
     rows > p.limits.nodes ||
     eventCount > p.limits.eventsPerPoll ||
-    blobCount > p.limits.nodes * 4 + p.limits.resources ||
+    blobCount > p.limits.nodes * p.limits.nodeBlobs + p.limits.resources ||
     p.headerBytes + p.stateBytes + rows * p.nodeBytes + eventCount * p.eventBytes + blobBytes !==
       bytes.length
   )
@@ -1055,6 +1141,7 @@ export function response(bytes: Uint8Array): EngineResponse {
         paragraph: null,
         graphics: null,
         clipStyle: null,
+        layerComposition: null,
         nativePaint: null,
         control: null,
         list: null,
@@ -1178,7 +1265,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       length = v.getUint32(cursor + 16, true);
     const stride = 24 + Math.ceil(length / 8) * 8;
     if (
-      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(type) ||
+      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, p.layerCompositionBlob].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
       v.getUint32(cursor + 20, true)
@@ -1248,6 +1335,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       list: ListSnapshot | null = null,
       control: ControlSnapshot | null = null;
     let nativePaint: readonly NativePaintSnapshot[] | null = null;
+    let layerComposition: LayerCompositionSnapshot | null = null;
     let graphics: GraphicsSnapshot | null = null,
       clipStyle: ClipStyleSnapshot | null = null,
       paragraph: ParagraphSnapshot | null = null;
@@ -1260,6 +1348,41 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if (blob.type === p.layerCompositionBlob) {
+        if (layerComposition || size !== p.layerCompositionBytes)
+          throw Error('Invalid layer composition snapshot');
+        const observation = (at: number) => {
+          const value = d.getFloat64(at, true);
+          if (!Number.isFinite(value)) throw RangeError('Invalid layer composition scalar');
+          return value;
+        };
+        const role = d.getUint32(0, true),
+          flags = d.getUint32(4, true),
+          leader = readHandle(d, 8),
+          matrix = Array.from({ length: 6 }, (_, i) => observation(16 + i * 8)),
+          x = observation(64),
+          y = observation(72);
+        if (
+          (role !== 1 && role !== 2) ||
+          flags & ~7 ||
+          (flags & 2 && !(flags & 1)) ||
+          !!leader.slot !== !!leader.generation ||
+          !!leader.slot !== !!(flags & 1) ||
+          (role === 1 && flags) ||
+          (!(flags & 2) && matrix.some((v) => v !== 0)) ||
+          (!(flags & 1) && (x !== 0 || y !== 0))
+        )
+          throw Error('Invalid layer composition values');
+        layerComposition = Object.freeze({
+          kind: role === 1 ? 'leader' : 'follower',
+          leader,
+          linked: !!(flags & 1),
+          showWhenUnlinked: !!(flags & p.layerCompositionFlags.showWhenUnlinked),
+          transform: flags & 2 ? (Object.freeze(matrix) as unknown as AffineMatrix) : null,
+          linkedOffset: Object.freeze({ x, y }),
+        });
+        continue;
+      }
       if (blob.type === 13) {
         if (nativePaint) throw Error('Duplicate native paint snapshot');
         nativePaint = readNativePaint(blob.bytes);
@@ -1350,33 +1473,72 @@ export function response(bytes: Uint8Array): EngineResponse {
       if (blob.type === 3) {
         if (
           semantics ||
-          size < 24 ||
-          d.getUint32(20, true) ||
+          size < p.semanticsBytes ||
+          d.getUint32(28, true) ||
           d.getUint32(0, true) > p.semanticsRoles.switchControl ||
           d.getUint32(4, true) & ~127 ||
           d.getUint32(8, true) & ~127
         )
-          throw new Error('Invalid semantics blob');
+          throw Error('Invalid semantics blob');
         if (
           d.getUint32(4, true) & p.semanticsFlags.mixed &&
           (d.getUint32(0, true) !== p.semanticsRoles.checkbox ||
             d.getUint32(4, true) & p.semanticsFlags.checked)
         )
-          throw new Error('Invalid mixed semantics');
-        const label = d.getUint32(12, true),
-          hint = d.getUint32(16, true);
+          throw Error('Invalid mixed semantics');
+        const lengths = [12, 16, 20, 72, 76].map((at) => d.getUint32(at, true)),
+          flags = d.getUint32(24, true);
         if (
-          label > p.limits.semanticsTextBytes ||
-          hint > p.limits.semanticsTextBytes ||
-          size !== 24 + label + hint
+          lengths.some((n) => n > p.limits.semanticsTextBytes) ||
+          size !== p.semanticsBytes + lengths.reduce((a, b) => a + b, 0) ||
+          flags > 3 ||
+          flags === 2
         )
-          throw new Error('Invalid semantics text');
+          throw Error('Invalid semantics text or range');
+        let cursor = p.semanticsBytes;
+        const text = lengths.map((length) => {
+          const value = decodeUtf8(blob.bytes.subarray(cursor, cursor + length));
+          cursor += length;
+          return value;
+        });
+        const [minimum, maximum, value, smallChange, largeChange] = [32, 40, 48, 56, 64].map((at) =>
+          finite(d.getFloat64(at, true)),
+        ) as [number, number, number, number, number];
+        if (
+          flags
+            ? minimum > maximum ||
+              value < minimum ||
+              value > maximum ||
+              smallChange < 0 ||
+              largeChange < 0
+            : minimum !== 0 ||
+              maximum !== 0 ||
+              value !== 0 ||
+              smallChange !== 0 ||
+              largeChange !== 0
+        )
+          throw Error('Invalid semantic numeric range');
         semantics = Object.freeze({
           role: d.getUint32(0, true),
           flags: d.getUint32(4, true),
           actions: d.getUint32(8, true),
-          label: decodeUtf8(blob.bytes.subarray(24, 24 + label)),
-          hint: decodeUtf8(blob.bytes.subarray(24 + label)),
+          label: text[0]!,
+          hint: text[1]!,
+          ...(text[2] ? { value: text[2] } : {}),
+          ...(text[3] ? { increasedValue: text[3] } : {}),
+          ...(text[4] ? { decreasedValue: text[4] } : {}),
+          ...(flags
+            ? {
+                range: Object.freeze({
+                  minimum,
+                  maximum,
+                  value,
+                  smallChange,
+                  largeChange,
+                  readOnly: !!(flags & 2),
+                }),
+              }
+            : {}),
         });
       } else if (blob.type === 4) {
         if (editing || size < 48 || d.getUint32(44, true) || size !== 48 + d.getUint32(40, true))
@@ -1477,6 +1639,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       control,
       graphics,
       nativePaint,
+      layerComposition,
       clipStyle,
       paragraph,
     });

@@ -33,6 +33,13 @@ struct Affine {
       if(!std::isfinite(x))return {};
     return value;
   }
+  std::optional<Affine> relativeTo(const Affine& parent)const {
+    const auto p=parent.inverse();if(!p)return {};
+    const Affine value{p->a*a+p->c*b,p->b*a+p->d*b,p->a*c+p->c*d,p->b*c+p->d*d,
+      p->a*tx+p->c*ty+p->tx,p->b*tx+p->d*ty+p->ty};
+    for(const auto x:{value.a,value.b,value.c,value.d,value.tx,value.ty})if(!std::isfinite(x))return {};
+    return value;
+  }
   Rect bounds(Rect r)const {
     const std::array<Point,4> points{map({r.x,r.y}),map({r.x+r.width,r.y}),
       map({r.x,r.y+r.height}),map({r.x+r.width,r.y+r.height})};

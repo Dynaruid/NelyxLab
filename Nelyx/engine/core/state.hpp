@@ -125,6 +125,7 @@ struct Property {
   bool pressed=false,hovered=false,visible=false;
 };
 struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;bool oval=false;};
+struct HitRegionShape {Affine world;Rect bounds;uint32_t parent=0;};
 struct DrawItem {
   Handle node;
   double x = 0, y = 0, opacity = 1;
@@ -133,6 +134,9 @@ struct DrawItem {
   Rect bounds;
   uint32_t clipHead=0,depth=0;
   uint32_t flags=0;
+  uint32_t hitHead=0;
+  std::optional<Affine> layerTransform{};
+  Point linkedOffset{};
 };
 struct Frame {
   std::shared_ptr<Lease> snapshotLease;
@@ -145,7 +149,9 @@ struct Frame {
   std::vector<Property> properties;
   std::vector<DrawItem> items;
   std::vector<ClipShape> clips;
+  std::vector<HitRegionShape> hitRegions;
   bool sameInputGeometry(const Frame& other, Handle node) const;
+  bool sharesInputGeometry(const Frame& other) const;
   std::optional<Point> local(Handle node,double x,double y)const {
     for(const auto& item:items)if(item.node==node){const auto inverse=item.world.inverse();
       if(inverse)return inverse->map({x,y});return {};}
@@ -162,6 +168,9 @@ struct Frame {
     if(!inside(p,{0,0,node.properties.width,node.properties.height}))return false;
     if((node.policy&wire::eventPolicies::roundedHitTest)&&!inside(p,{0,0,node.properties.width,node.properties.height},node.radius))return false;
     if(node.kind==wire::kinds::path&&(!node.graphics.path||!node.graphics.path->contains(p)))return false;
+    for(auto head=item.hitHead;head;head=hitRegions[head-1].parent){const auto& region=hitRegions[head-1];
+      const auto matrix=region.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
+      if(!inside(point,region.bounds)||point.x<=region.bounds.x||point.x>=region.bounds.x+region.bounds.width)return false;}
     for(auto head=item.clipHead;head;head=clips[head-1].parent){const auto& shape=clips[head-1];
       const auto matrix=shape.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
       if(!inside(point,shape.bounds))return false;

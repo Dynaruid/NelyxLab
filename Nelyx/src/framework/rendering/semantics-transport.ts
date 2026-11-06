@@ -69,6 +69,13 @@ type Mutable<Value> = { -readonly [Key in keyof Value]: Value[Key] };
 const nodeProperties = new WeakMap<SemanticsNode, SemanticsTransportProperties>();
 const renderRanges = new WeakMap<RenderObject, NonNullable<HostNode['numericRange']>>();
 const renderRangeActions = new WeakMap<RenderObject, NonNullable<HostNode['rangeActions']>>();
+/** @internal Configuration-only observation for a native semantics owner. */
+export function nativeSemanticsRange(render: RenderObject): {
+  readonly range: HostNode['numericRange'];
+  readonly actions: HostNode['rangeActions'];
+} {
+  return { range: renderRanges.get(render), actions: renderRangeActions.get(render) };
+}
 export function setSemanticsTransportRange(
   render: RenderObject,
   value: HostNode['numericRange'] | null,

@@ -81,14 +81,32 @@ async function report(page, which, count) {
       { timeout: 15000 },
     )
     .catch(async (error) => {
+      const native = await publication(page);
       const observed = await page.evaluate(() => ({
         states: globalThis.__controlEvents
           .filter((e) => e.kind === 'original-gesture-state')
           .slice(-3),
         events: globalThis.__controlEvents.slice(-8),
         errors: globalThis.__nelyxV2.errors,
+        inputs: globalThis.__nelyxV2.surface.inputStats,
+        pointers: globalThis.__controlPointers,
       }));
-      throw new Error(`Expected ${which}=${count}: ${JSON.stringify(observed)}`, { cause: error });
+      throw new Error(
+        `Expected ${which}=${count}: ${JSON.stringify({
+          ...observed,
+          native: {
+            received: String(native.received),
+            consumed: String(native.consumed),
+            rejected: String(native.rejected),
+            canceled: String(native.canceled),
+            gestureWork: String(native.gestureWork),
+            document: String(native.document),
+            activeDocument: String(native.activeDocument),
+            publication: String(native.publication),
+          },
+        })}`,
+        { cause: error },
+      );
     });
   return page.evaluate(() => {
     const events = globalThis.__controlEvents;
@@ -166,6 +184,32 @@ test(
           assert.equal(ready.profile, profile);
           await page.evaluate(() => {
             globalThis.__controlEvents = [];
+            globalThis.__controlPointers = [];
+            for (const type of [
+              'pointerdown',
+              'pointermove',
+              'pointerup',
+              'pointercancel',
+              'lostpointercapture',
+              'dragstart',
+              'selectstart',
+            ])
+              document.addEventListener(
+                type,
+                (e) => {
+                  const values = globalThis.__controlPointers;
+                  values.push({
+                    type,
+                    x: e.clientX,
+                    y: e.clientY,
+                    buttons: e.buttons,
+                    target: e.target.getAttribute('aria-label') ?? e.target.tagName,
+                    selection: document.getSelection()?.toString().slice(0, 80),
+                  });
+                  if (values.length > 24) values.shift();
+                },
+                true,
+              );
             __nelyxV2.app.addEventListener('message', (event) => {
               if (
                 [
@@ -616,6 +660,13 @@ test(
           assert.equal(current.execution.tsLayoutFallbacks, 0);
           assert.equal(current.execution.appGeometryNodes, 0);
           assert.equal(current.execution.rejectedFallbacks, 0);
+          const inputs = await page.evaluate(() => __nelyxV2.surface.inputStats);
+          assert.equal(
+            inputs.rejected,
+            0,
+            'Paint and DOM capture transitions preserve every input',
+          );
+          assert.equal(inputs.collected, inputs.dispatched);
           const closed = await page.evaluate(() => __nelyxV2.close());
           assert.equal(closed.reservedBytes, 0);
           assert.equal(closed.workersStopped, true);

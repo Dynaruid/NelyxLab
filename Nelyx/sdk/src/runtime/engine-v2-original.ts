@@ -44,6 +44,9 @@ export function defineOriginalEngineV2App(definition: OriginalEngineV2App): Engi
       p.capabilities.canonicalSelection |
       p.capabilities.canonicalFocus |
       p.capabilities.canonicalSwitch |
+      p.capabilities.canonicalSlider |
+      p.capabilities.layerLinks |
+      p.capabilities.paintPrograms |
       (definition.requiredCapabilities ?? 0),
     async build(context) {
       return new OriginalRoot(

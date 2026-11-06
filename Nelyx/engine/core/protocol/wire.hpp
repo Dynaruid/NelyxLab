@@ -40,12 +40,16 @@ struct Reader {
     return value;
   }
   int32_t i32(size_t p)const {const auto bits=u32(p);int32_t value;std::memcpy(&value,&bits,4);return value;}
-  double f64(size_t p) const {
+  double finiteF64(size_t p) const {
     const auto bits = u64(p); double value;
     static_assert(sizeof(value) == sizeof(bits) && std::numeric_limits<double>::is_iec559);
     std::memcpy(&value, &bits, 8);
-    require(std::isfinite(value) && std::abs(value) <= 1e12, wire::statuses::invalidValue);
+    require(std::isfinite(value), wire::statuses::invalidValue);
     return value;
+  }
+  double f64(size_t p) const {
+    const auto value=finiteF64(p);
+    require(std::abs(value)<=1e12,wire::statuses::invalidValue);return value;
   }
   Reader slice(size_t p, size_t n) const { range(p, n); return {data + p, n}; }
 };

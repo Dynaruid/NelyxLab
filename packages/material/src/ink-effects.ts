@@ -14,7 +14,7 @@ import {
 } from './internal/material/material-ink-owner.ts';
 import { isNativeRenderObject } from '@nelyx/core/framework/rendering/object';
 import { nativeShape } from '@nelyx/core/framework/rendering/object';
-import type { NativePaintEntry, NativeShape } from '@nelyx/core/framework/rendering/object';
+import type { NativeShape } from '@nelyx/core/framework/rendering/object';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
@@ -77,20 +77,22 @@ export class InkHighlight extends InteractiveInkFeature {
   get active(): boolean {
     return this.emphasized;
   }
-  /** @internal Native paint consumes animation values, never App geometry or paint. */
-  nativePaintConfiguration(): NativePaintEntry {
-    if (this.rectCallback) throw Error('native custom ink rectangle');
-    return {
-      kind: 'highlight',
-      reference: this.referenceBox,
-      color: this.color.withAlpha(this.alpha.value).toARGB32(),
-      shape: this.customBorder
-        ? nativeShape(this.customBorder, this.direction)
-        : nativeInkShape(this.border),
-      circular: this.shape === 'circle',
-      radius: this.radius,
-      customClip: this.customBorder !== null,
-    };
+  static {
+    // Native metadata is an internal reader, preserving the public class surface.
+    registerNativeInkFeature(InkHighlight.prototype, (source) => {
+      if (source.rectCallback) throw Error('native custom ink rectangle');
+      return {
+        kind: 'highlight',
+        reference: source.referenceBox,
+        color: source.color.withAlpha(source.alpha.value).toARGB32(),
+        shape: source.customBorder
+          ? nativeShape(source.customBorder, source.direction)
+          : nativeInkShape(source.border),
+        circular: source.shape === 'circle',
+        radius: source.radius,
+        customClip: source.customBorder !== null,
+      };
+    });
   }
   activate(): void {
     if (this.debugDisposed) return;
@@ -366,24 +368,27 @@ export class InkRipple extends InteractiveInkFeature {
     this.fadeInController.forward();
     this.fadeOutController.animateTo(1, { duration: 375 });
   }
-  /** @internal The native owner resolves the diagonal, center and reference transform. */
-  nativePaintConfiguration(): NativePaintEntry {
-    const alpha = this.fadeInController.isAnimating ? this.fadeIn.value : this.fadeOut.value;
-    return {
-      kind: 'ripple',
-      reference: this.referenceBox,
-      color: this.color.withAlpha(alpha).toARGB32(),
-      shape: this.customBorder
-        ? nativeShape(this.customBorder, this.direction)
-        : nativeInkShape(this.border),
-      contained: this.contained,
-      customClip: this.customBorder !== null,
-      center: isNativeInkCenter(this.position),
-      x: this.position.dx,
-      y: this.position.dy,
-      radius: this.nativeRadius,
-      progress: Curves.ease.transform(this.radiusController.value),
-    };
+  static {
+    registerNativeInkFeature(InkRipple.prototype, (source) => {
+      const alpha = source.fadeInController.isAnimating
+        ? source.fadeIn.value
+        : source.fadeOut.value;
+      return {
+        kind: 'ripple',
+        reference: source.referenceBox,
+        color: source.color.withAlpha(alpha).toARGB32(),
+        shape: source.customBorder
+          ? nativeShape(source.customBorder, source.direction)
+          : nativeInkShape(source.border),
+        contained: source.contained,
+        customClip: source.customBorder !== null,
+        center: isNativeInkCenter(source.position),
+        x: source.position.dx,
+        y: source.position.dy,
+        radius: source.nativeRadius,
+        progress: Curves.ease.transform(source.radiusController.value),
+      };
+    });
   }
   override cancel(): void {
     if (this.debugDisposed) return;
@@ -436,9 +441,3 @@ function nativeInkShape(border: BorderRadius): NativeShape {
     ]),
   };
 }
-registerNativeInkFeature(InkHighlight.prototype, (source) =>
-  InkHighlight.prototype.nativePaintConfiguration.call(source),
-);
-registerNativeInkFeature(InkRipple.prototype, (source) =>
-  InkRipple.prototype.nativePaintConfiguration.call(source),
-);

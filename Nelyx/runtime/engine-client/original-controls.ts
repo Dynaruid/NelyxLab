@@ -12,11 +12,16 @@ import { RenderMouseRegion } from '@nelyx/core/framework/rendering/mouse-region'
 import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
+import { nativeSemanticsRange } from '@nelyx/core/framework/rendering/object';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { Offset } from '@nelyx/core/ui/offset';
 import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
-import { PointerEnterEvent, PointerExitEvent } from '@nelyx/core/framework/gestures/events';
+import {
+  PointerEnterEvent,
+  PointerExitEvent,
+  PointerHoverEvent,
+} from '@nelyx/core/framework/gestures/events';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import type { NodeOptions } from './widgets.ts';
@@ -60,6 +65,9 @@ const semanticFields = new Set([
   'onFocus',
   'onIncrease',
   'onDecrease',
+  'value',
+  'increasedValue',
+  'decreasedValue',
 ]);
 function invoke(callback: (() => void) | null | undefined): void {
   try {
@@ -155,10 +163,27 @@ export function originalControlConfiguration(
   } catch {
     return fail('native-render-configuration');
   }
+  if (metadata?.kind === 'paint')
+    return {
+      options: { layout: { childConstraints: 'inherit', enforceBounds: true } },
+      paint: metadata.entries,
+    };
   if (metadata?.kind === 'inputPadding') {
     if (metadata.width || metadata.height) return fail('padded-button-hit-test');
     return { options: {} };
   }
+  if (metadata?.kind === 'sizedSurface')
+    return {
+      options: {
+        layout: {
+          childConstraints: 'inherit',
+          preferredSize: true,
+          expandPreferredWidth: metadata.expandWidth,
+        },
+        properties: { width: metadata.width, height: metadata.height },
+      },
+      ...(metadata.hitRegion ? { paint: [metadata.hitRegion] } : {}),
+    };
   if (metadata?.kind === 'ink')
     return {
       options: { pointerHitTest: metadata.absorbHitTest ? 'self' : 'proxy' },
@@ -205,14 +230,18 @@ export function originalControlConfiguration(
   }
   if (prototype === RenderMouseRegion.prototype) {
     const source = render as RenderMouseRegion;
-    if (source.onHover) return fail('mouse-hover-details');
     return {
       options: {
         pointerHitTest: source.hitTestBehavior === 'opaque' ? 'self' : source.hitTestBehavior,
         mouseRegion: { opaque: source.opaque },
         canonicalGestures: true,
         onGesture: (event) => {
-          if (event.kind !== 'mouseEnter' && event.kind !== 'mouseExit') return;
+          if (
+            event.kind !== 'mouseEnter' &&
+            event.kind !== 'mouseExit' &&
+            event.kind !== 'mouseHover'
+          )
+            return;
           const details = event.details ?? fail('native-mouse-details');
           const eventOptions = {
             position: new Offset(event.x, event.y),
@@ -224,7 +253,9 @@ export function originalControlConfiguration(
           invoke(() => {
             if (source.debugDisposed) return;
             if (event.kind === 'mouseEnter') source.onEnter?.(new PointerEnterEvent(eventOptions));
-            else source.onExit?.(new PointerExitEvent(eventOptions));
+            else if (event.kind === 'mouseExit')
+              source.onExit?.(new PointerExitEvent(eventOptions));
+            else source.onHover?.(new PointerHoverEvent(eventOptions));
           });
         },
       },
@@ -265,6 +296,8 @@ export function originalControlConfiguration(
     if (properties.onFocus) actions |= p.semanticsActions.focus;
     if (properties.onIncrease) actions |= p.semanticsActions.increment;
     if (properties.onDecrease) actions |= p.semanticsActions.decrement;
+    const range = nativeSemanticsRange(render);
+    if (range.actions) actions |= p.semanticsActions.setValue;
     const role =
       properties.role === SemanticsRole.radioGroup
         ? 'radioGroup'
@@ -291,12 +324,35 @@ export function originalControlConfiguration(
           actions,
           label: properties.label ?? '',
           hint: properties.hint ?? '',
+          ...(properties.value != null ? { value: properties.value } : {}),
+          ...(properties.increasedValue != null
+            ? { increasedValue: properties.increasedValue }
+            : {}),
+          ...(properties.decreasedValue != null
+            ? { decreasedValue: properties.decreasedValue }
+            : {}),
+          ...(range.range
+            ? {
+                range: {
+                  minimum: range.range.min,
+                  maximum: range.range.max,
+                  value: range.range.value,
+                  smallChange: range.range.smallChange ?? 0,
+                  largeChange: range.range.largeChange ?? 0,
+                  readOnly: !range.actions || properties.enabled === false || !!properties.readOnly,
+                },
+              }
+            : {}),
         },
         semanticsMergeIntoParent: !source.container && !source.explicitChildNodes,
         onFocusChanged: (focused) => {
           if (focused) invoke(properties.onFocus);
         },
-        onAction: (action) =>
+        onAction: (action, event) => {
+          if (action === 'setValue' && range.actions && event) {
+            invoke(() => range.actions!.setValue(event.x));
+            return;
+          }
           invoke(
             action === 'activate'
               ? properties.onTap
@@ -309,7 +365,8 @@ export function originalControlConfiguration(
                     : action === 'decrement'
                       ? properties.onDecrease
                       : null,
-          ),
+          );
+        },
       },
       suppressChildren: source.excludeSemantics,
       mergeText: !source.explicitChildNodes && !source.excludeSemantics,

@@ -483,13 +483,17 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       for(size_t i=0;i<list.rows.size();++i){const auto& row=list.rows[i];const auto at=64+i*40;
         writeHandle(data,at,row.node);data.u32(at+8,row.index);data.u64(at+16,row.key);data.f64(at+24,row.offset);data.f64(at+32,row.extent);}
       addOwned(6,n.id,std::move(data));}
-    if(n.semantics){const auto& a=*n.semantics;Writer bytes(24+a.label.size()+a.hint.size());
+    if(n.semantics){const auto& a=*n.semantics;Writer bytes(wire::semanticsBytes+a.label.size()+a.hint.size()+a.value.size()+a.increasedValue.size()+a.decreasedValue.size());
       auto semanticFlags=(n.control.kind==wire::controlKinds::toggle||n.control.kind==wire::controlKinds::checkbox||n.control.kind==wire::controlKinds::radio)?
         (a.flags&~wire::semanticsFlags::checked)|(controlValue>n.control.minimum?wire::semanticsFlags::checked:0u):a.flags;
       if(n.control.disabled)semanticFlags|=wire::semanticsFlags::disabled;
       if(frame&&!frame->allows(n.id))semanticFlags|=wire::semanticsFlags::hidden;
       bytes.u32(0,a.role);bytes.u32(4,semanticFlags);bytes.u32(8,a.actions);bytes.u32(12,uint32_t(a.label.size()));bytes.u32(16,uint32_t(a.hint.size()));
-      std::memcpy(bytes.bytes.data()+24,a.label.data(),a.label.size());std::memcpy(bytes.bytes.data()+24+a.label.size(),a.hint.data(),a.hint.size());addOwned(3,n.id,std::move(bytes));
+      bytes.u32(20,uint32_t(a.value.size()));bytes.u32(24,a.range.enabled?(a.range.readOnly?3u:1u):0u);
+      bytes.f64(32,a.range.minimum);bytes.f64(40,a.range.maximum);bytes.f64(48,a.range.value);bytes.f64(56,a.range.smallChange);bytes.f64(64,a.range.largeChange);
+      bytes.u32(72,uint32_t(a.increasedValue.size()));bytes.u32(76,uint32_t(a.decreasedValue.size()));
+      size_t at=wire::semanticsBytes;for(const auto* part:{&a.label,&a.hint,&a.value,&a.increasedValue,&a.decreasedValue}){
+        std::memcpy(bytes.bytes.data()+at,part->data(),part->size());at+=part->size();}addOwned(3,n.id,std::move(bytes));
     }
     auto editing=n.editing;
     if(editTarget||(opcode==wire::opcodes::semanticsSnapshot&&view)){const auto found=view->editors.find(n.id.key());if(found!=view->editors.end())editing=found->second->value;}
@@ -504,7 +508,18 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       }
     }
   };
-  if(frame)for(const auto& item:frame->items)interactionBlobs(rows->get(item.node));
+  if(frame)for(const auto& item:frame->items){const auto& node=rows->get(item.node);interactionBlobs(node);
+    if(node.layerLink.role){Writer data(wire::layerCompositionBytes);
+      data.u32(0,node.layerLink.role);data.u32(4,(node.layerLink.leader?wire::layerCompositionFlags::linked:0u)|
+        (item.layerTransform?wire::layerCompositionFlags::hasTransform:0u)|
+        (node.layerLink.role==2&&node.layerLink.showWhenUnlinked?wire::layerCompositionFlags::showWhenUnlinked:0u));
+      writeHandle(data,8,node.layerLink.leader);
+      if(item.layerTransform){const auto& m=*item.layerTransform;const std::array<double,6> values{m.a,m.b,m.c,m.d,m.tx,m.ty};
+        for(size_t i=0;i<values.size();++i)data.f64(16+i*8,values[i]);}
+      data.f64(64,item.linkedOffset.x);data.f64(72,item.linkedOffset.y);
+      addOwned(wire::layerCompositionBlob,node.id,std::move(data));
+    }
+  }
   else if(rows)for(const auto* node:rowNodes)interactionBlobs(*node);
   if(status==wire::statuses::ok&&opcode==wire::opcodes::pollRaw&&view){
     for(uint32_t count=0;!view->rawInputs.empty()&&count<wire::limits::eventsPerPoll;++count){

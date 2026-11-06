@@ -18,6 +18,7 @@ import type {
   GraphicsOptions,
   ParagraphOptions,
   ClipStyleOptions,
+  LayerLinkOptions,
 } from './codec.ts';
 import { EngineError } from './client.ts';
 import { engineFailures } from './lifecycle.ts';
@@ -128,6 +129,7 @@ export class Directionality extends InheritedWidget {
   }
 }
 export interface NodeOptions {
+  readonly layerLink?: LayerLinkOptions | (() => LayerLinkOptions);
   readonly nativeFocus?: { readonly enabled: boolean; readonly skipTraversal: boolean };
   readonly canonicalKeyboard?: boolean;
   readonly onKey?: (event: EngineEvent) => void;
@@ -714,6 +716,7 @@ export class WidgetHost {
       if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
       config.push(c.graphics(h, o.graphics));
       config.push(c.nativePaint(h, o.nativePaint));
+      config.push(c.layerLink(h, typeof o.layerLink === 'function' ? o.layerLink() : o.layerLink));
       if (o.nativeSparkline)
         config.push(
           c.nativeExtension(

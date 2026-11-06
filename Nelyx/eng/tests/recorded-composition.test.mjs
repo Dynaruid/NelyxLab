@@ -33,6 +33,33 @@ const timeout = 1_200_000,
   bounds = { x: 0, y: 0, width: 64, height: 64 };
 
 test(
+  'Source Layer handle retention preserves a custom protected mutation guard',
+  { timeout },
+  () => {
+    class GuardedLayer extends ContainerLayer {
+      blocked = false;
+      assertMutable() {
+        if (this.blocked) throw Error('Source layer policy denied mutation');
+        super.assertMutable();
+      }
+    }
+    const layer = new GuardedLayer();
+    try {
+      layer._retain();
+      layer.blocked = true;
+      assert.throws(() => layer._retain(), /Source layer policy/);
+      assert.equal(layer.debugHandleCount, 1);
+      assert.throws(() => layer._release(), /Source layer policy/);
+      assert.equal(layer.debugHandleCount, 1);
+    } finally {
+      layer.blocked = false;
+      while (layer.debugHandleCount) layer._release();
+    }
+    assert.equal(layer.debugDisposed, true);
+  },
+);
+
+test(
   'recorded scope transforms are live before sealing and reuse immutable work afterward without capturing caller matrices',
   { timeout },
   () => {

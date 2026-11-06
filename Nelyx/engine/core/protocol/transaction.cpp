@@ -64,6 +64,14 @@ void validate(Document& d) {
     const auto& first = d.get(a); const auto& second = d.get(b);
     return first.order == second.order ? a.slot < b.slot : first.order < second.order;
   });
+  std::array<bool,wire::limits::nodes+1> leaders{};
+  std::function<void(Handle)> visit=[&](Handle id){const auto& n=d.get(id);const auto& link=n.layerLink;
+    if(link.role==1)leaders[id.slot]=true;
+    if(link.role==2&&link.leader){const auto& leader=d.get(link.leader);
+      require(leader.layerLink.role==1&&leaders[link.leader.slot],wire::statuses::invalidGraph);}
+    for(const auto child:d.children[id.slot])visit(child);
+  };
+  for(const auto root:d.children[0])visit(root);
 }
 }
 Installed transact(const std::shared_ptr<const Document>& current, const Resources& resources,
@@ -258,6 +266,20 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       n->textDirection = data.u32(4);
       require(n->fontSize > 0 && n->fontSize <= 512, wire::statuses::invalidValue);
       if (!n->text || n->text->value != text) n->text = std::make_shared<TextData>(current->lease.ledger, value);
+    } else if(op==wire::commands::layerLink){
+      const auto& previous=d->get(h);
+      if(!data.length){edit(h,false)->layerLink={};continue;}
+      require(previous.kind==wire::kinds::box,wire::statuses::capabilityMissing);
+      require(data.length==wire::layerLinkBytes);
+      LayerLinkStyle link{data.u32(0),bool(data.u32(4)),handle(data,8),
+        {data.f64(16),data.f64(24)},{data.f64(32),data.f64(40)},{data.f64(48),data.f64(56)}};
+      require(link.role>=1&&link.role<=2&&data.u32(4)<=1,wire::statuses::invalidValue);
+      require(bool(link.leader.slot)==bool(link.leader.generation),wire::statuses::invalidHandle);
+      for(const auto value:{link.offset.x,link.offset.y,link.leaderAnchor.x,link.leaderAnchor.y,link.followerAnchor.x,link.followerAnchor.y})
+        require(std::abs(value)<=1e12,wire::statuses::invalidValue);
+      if(link.role==1)require(!link.showWhenUnlinked&&!link.leader&&!link.offset.x&&!link.offset.y&&
+        !link.leaderAnchor.x&&!link.leaderAnchor.y&&!link.followerAnchor.x&&!link.followerAnchor.y,wire::statuses::invalidValue);
+      edit(h,false)->layerLink=link;
     } else if(op==wire::commands::clipStyle){
       require(d->get(h).kind==wire::kinds::clip,wire::statuses::invalidValue);
       if(!data.length){edit(h,false)->clipStyle.reset();continue;}
@@ -278,19 +300,25 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       auto node=edit(h,false);require(node->kind==wire::kinds::editable,wire::statuses::invalidValue);
       node->editFlags=data.u32(0);node->maximumLength=data.u32(4);
     } else if(op==wire::commands::semantics){
-      require(data.length>=24&&data.u32(20)==0);
-      const auto role=data.u32(0),semanticFlags=data.u32(4),actions=data.u32(8),labelLength=data.u32(12),hintLength=data.u32(16);
+      require(data.length>=wire::semanticsBytes&&data.u32(28)==0);
+      const auto role=data.u32(0),semanticFlags=data.u32(4),actions=data.u32(8),rangeFlags=data.u32(24);
+      const std::array<uint32_t,5> lengths{data.u32(12),data.u32(16),data.u32(20),data.u32(72),data.u32(76)};
+      size_t total=0;for(const auto textLength:lengths){require(textLength<=wire::limits::semanticsTextBytes,wire::statuses::invalidValue);total+=textLength;}
       require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~127u)==0&&(actions&~127u)==0&&
-        labelLength<=wire::limits::semanticsTextBytes&&hintLength<=wire::limits::semanticsTextBytes&&
-        24+((labelLength+hintLength+7)/8)*8==data.length,wire::statuses::invalidValue);
+        rangeFlags<=3&&rangeFlags!=2&&wire::semanticsBytes+(total+7)/8*8==data.length,wire::statuses::invalidValue);
       require(!(semanticFlags&wire::semanticsFlags::mixed)||(role==wire::semanticsRoles::checkbox&&!(semanticFlags&wire::semanticsFlags::checked)),wire::statuses::invalidValue);
-      const auto label=data.slice(24,labelLength),hint=data.slice(24+labelLength,hintLength);
-      require(validUtf8(label)&&validUtf8(hint),wire::statuses::invalidValue);
-      for(size_t j=24+labelLength+hintLength;j<data.length;++j)require(data.data[j]==0);
+      std::array<std::string,5> text;size_t cursor=wire::semanticsBytes;
+      for(size_t textIndex=0;textIndex<text.size();++textIndex){const auto part=data.slice(cursor,lengths[textIndex]);require(validUtf8(part),wire::statuses::invalidValue);
+        text[textIndex]=std::string(reinterpret_cast<const char*>(part.data),part.length);cursor+=part.length;}
+      for(size_t j=cursor;j<data.length;++j)require(data.data[j]==0);
+      SemanticRangeData range{bool(rangeFlags&1u),bool(rangeFlags&2u),data.f64(32),data.f64(40),data.f64(48),data.f64(56),data.f64(64)};
+      if(range.enabled)require(range.minimum<=range.maximum&&range.value>=range.minimum&&range.value<=range.maximum&&range.smallChange>=0&&range.largeChange>=0,wire::statuses::invalidValue);
+      else require(range.minimum==0&&range.maximum==0&&range.value==0&&range.smallChange==0&&range.largeChange==0,wire::statuses::invalidValue);
+      require(!range.enabled||!(actions&wire::semanticsActions::setValue)||!range.readOnly,wire::statuses::invalidValue);
       auto node=edit(h,false);
-      if(role==0){require(semanticFlags==0&&actions==0&&labelLength==0&&hintLength==0);node->semantics.reset();}
+      if(role==0){require(semanticFlags==0&&actions==0&&total==0&&!range.enabled);node->semantics.reset();}
       else node->semantics=std::make_shared<SemanticData>(current->lease.ledger,role,semanticFlags,actions,
-        std::string(reinterpret_cast<const char*>(label.data),label.length),std::string(reinterpret_cast<const char*>(hint.data),hint.length));
+        std::move(text[0]),std::move(text[1]),std::move(text[2]),std::move(text[3]),std::move(text[4]),range);
     } else if (op == wire::commands::layout) {
       require(data.length == wire::layoutBytes);
       LayoutStyle s{data.u32(0), data.u32(4), data.u32(8), data.u32(12), data.u32(16),
@@ -298,7 +326,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         data.f64(56), data.f64(64), data.f64(72), data.f64(80),
         data.f64(88), data.f64(96), data.f64(104), data.f64(112)};
       require(s.enabled <= 1 && s.direction <= 1 && s.mainSize <= 1 && s.mainAlign <= 5 &&
-        s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 2047 &&
+        s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 8191 &&
         (s.constraintFlags & wire::layoutConstraintFlags::childMask) <= 2 &&
         s.flex >= 0 && s.flex <= 1e6 && s.gap >= 0 && s.runGap >= 0 &&
         s.left >= 0 && s.top >= 0 && s.right >= 0 && s.bottom >= 0 &&
@@ -319,6 +347,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require(!(layoutFlags&wire::layoutConstraintFlags::expandEmpty)||kind==wire::kinds::stack,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::clipOverflow)||kind==wire::kinds::stack||kind==wire::kinds::flex||kind==wire::kinds::paragraph,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::paragraphSizing)||kind==wire::kinds::paragraph,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::preferredSize)||(kind==wire::kinds::box&&s.enabled),wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::expandPreferredWidth)||(layoutFlags&wire::layoutConstraintFlags::preferredSize),wire::statuses::invalidValue);
       edit(h)->layout = s;
     } else if (op == wire::commands::coverage) {
       require(data.length == 32 && data.u32(24) <= 1 && data.u32(28) == 0);

@@ -13,23 +13,65 @@ export interface NativeShape {
   readonly strokeAlign: number;
   readonly strokeColor: number;
 }
+/** Pure geometry expressions evaluated by Content after native layout. */
+export type NativePaintScalar =
+  | number
+  | {
+      readonly op:
+        | 'width'
+        | 'height'
+        | 'index'
+        | 'add'
+        | 'subtract'
+        | 'multiply'
+        | 'divide'
+        | 'min'
+        | 'max'
+        | 'clamp'
+        | 'less'
+        | 'lessEqual'
+        | 'greater'
+        | 'greaterEqual'
+        | 'equal'
+        | 'select';
+      readonly args?: readonly NativePaintScalar[];
+    };
 /** Intrinsic source configuration; final placement is resolved by Content. */
-export interface NativePaintGeometry {
-  readonly kind:
-    | 'switchTrack'
-    | 'switchThumb'
-    | 'switchReaction'
-    | 'switchOnLabel'
-    | 'switchOffLabel';
-  readonly trackWidth: number;
-  readonly trackHeight: number;
-  readonly thumbWidth?: number;
-  readonly thumbHeight?: number;
-  readonly extension?: number;
-  readonly position?: number;
-  readonly rtl?: boolean;
-  readonly inset?: number;
-}
+export type NativePaintGeometry =
+  | {
+      readonly kind:
+        | 'switchTrack'
+        | 'switchThumb'
+        | 'switchReaction'
+        | 'switchOnLabel'
+        | 'switchOffLabel';
+      readonly trackWidth: number;
+      readonly trackHeight: number;
+      readonly thumbWidth?: number;
+      readonly thumbHeight?: number;
+      readonly extension?: number;
+      readonly position?: number;
+      readonly rtl?: boolean;
+      readonly inset?: number;
+    }
+  | {
+      readonly kind: 'linear';
+      /** x/y/width/height factors, then offsets, in the Content-owned reference box. */
+      readonly rect: readonly [number, number, number, number, number, number, number, number];
+    }
+  | {
+      readonly kind: 'program';
+      readonly rect: readonly [
+        NativePaintScalar,
+        NativePaintScalar,
+        NativePaintScalar,
+        NativePaintScalar,
+      ];
+      readonly radii?: readonly NativePaintScalar[];
+      readonly visible?: NativePaintScalar;
+      readonly color?: NativePaintScalar;
+      readonly repeat?: number;
+    };
 export interface NativePaintEntry {
   readonly kind:
     | 'physical'
@@ -41,7 +83,11 @@ export interface NativePaintEntry {
     | 'circle'
     | 'shape'
     | 'shadow'
-    | 'clip';
+    | 'clip'
+    | 'hitRegion'
+    | 'elevationShadow'
+    | 'save'
+    | 'restore';
   readonly reference?: RenderBox;
   readonly color: number;
   readonly shape: NativeShape;
@@ -60,9 +106,17 @@ export interface NativePaintEntry {
   readonly geometry?: NativePaintGeometry;
   readonly blurSigma?: number;
   readonly spread?: number;
+  readonly transparentOccluder?: boolean;
 }
 export type NativeRenderMetadata =
   | { readonly kind: 'paint'; readonly entries: readonly NativePaintEntry[] }
+  | {
+      readonly kind: 'sizedSurface';
+      readonly width: number;
+      readonly height: number;
+      readonly expandWidth: boolean;
+      readonly hitRegion?: NativePaintEntry;
+    }
   | { readonly kind: 'inputPadding'; readonly width: number; readonly height: number }
   | {
       readonly kind: 'ink';

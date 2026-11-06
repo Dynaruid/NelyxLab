@@ -3,11 +3,48 @@ import ts from 'typescript';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-// Reconstruct the selected portable-environment and additive-v2 declaration inputs.
+// Read the original declaration cohort into memory. Mixing selected old files
+// with today's dependent runtime can no longer typecheck after API expansion.
 // No historical package, SDK tree, or emitted file is copied or retained.
-export function originalApiDeclarations(root, revision = '2f77d42') {
-  const original = new Map();
-  for (const file of [
+export function originalApiDeclarations(
+  root,
+  revision = '2f77d4227adb31d36dcc9b321f997a47fae0dea7',
+) {
+  const cohort = revision,
+    options = { cwd: root, windowsHide: true, timeout: 1_200_000, maxBuffer: 64 * 1024 * 1024 },
+    files = execFileSync('git', ['ls-tree', '-r', '--name-only', cohort], {
+      ...options,
+      encoding: 'utf8',
+    })
+      .trim()
+      .split('\n')
+      .filter(
+        (file) =>
+          /^(?:Nelyx\/(?:src|runtime|sdk\/src|skia\/packages\/native\/src)|packages\/(?:material|cupertino)\/src)\//.test(
+            file,
+          ) && /\.[cm]?tsx?$/.test(file),
+      ),
+    bytes = execFileSync('git', ['cat-file', '--batch'], {
+      ...options,
+      input: files.map((file) => cohort + ':' + file).join('\n') + '\n',
+    }),
+    original = new Map();
+  let cursor = 0;
+  for (const file of files) {
+    const end = bytes.indexOf(10, cursor),
+      header = bytes
+        .subarray(cursor, end)
+        .toString('utf8')
+        .match(/^[a-f0-9]+ blob (\d+)$/);
+    if (end < cursor || !header) throw Error('Original source object is unavailable: ' + file);
+    const size = Number(header[1]);
+    original.set(
+      path.resolve(root, file),
+      bytes.subarray(end + 1, end + 1 + size).toString('utf8'),
+    );
+    cursor = end + 2 + size;
+  }
+  const selected = [
     'Nelyx/src/framework/rendering/object.ts',
     'Nelyx/src/framework/widgets/basic.ts',
     'Nelyx/runtime/engine-client/codec.ts',
@@ -18,17 +55,9 @@ export function originalApiDeclarations(root, revision = '2f77d42') {
     'Nelyx/sdk/src/backends/react-native/environment.ts',
     'Nelyx/sdk/src/platforms/web/application.ts',
     'Nelyx/sdk/src/runtime/worker-messages.ts',
-  ])
-    original.set(
-      path.resolve(root, file),
-      execFileSync('git', ['show', revision + ':' + file], {
-        cwd: root,
-        encoding: 'utf8',
-        windowsHide: true,
-        timeout: 1_200_000,
-      }),
-    );
-  const declarations = new Map();
+  ];
+  const declarations = new Map(),
+    emitted = new Set();
   const rewriteImports = (context) => {
     const factory = context.factory;
     const rewrite = (specifier) => {
@@ -87,10 +116,18 @@ export function originalApiDeclarations(root, revision = '2f77d42') {
     ['Nelyx', 'tsconfig.build.json'],
     ['Nelyx', 'runtime/tsconfig.json'],
     ['Nelyx/skia/packages/native', 'tsconfig.build.json'],
+    ['packages/cupertino', 'tsconfig.build.json'],
+    ['packages/material', 'tsconfig.build.json'],
     ['Nelyx/sdk', 'tsconfig.build.json'],
   ]) {
     const configFile = path.join(root, directory, configuration);
-    const config = ts.readConfigFile(configFile, ts.sys.readFile);
+    const config = ts.readConfigFile(configFile, () =>
+      execFileSync(
+        'git',
+        ['show', cohort + ':' + path.relative(root, configFile).replaceAll('\\', '/')],
+        { ...options, encoding: 'utf8' },
+      ),
+    );
     const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(configFile), {
       noEmit: false,
       emitDeclarationOnly: true,
@@ -105,7 +142,9 @@ export function originalApiDeclarations(root, revision = '2f77d42') {
     };
     const program = ts.createProgram(
       parsed.fileNames.filter(
-        (file) => !file.replaceAll('\\', '/').endsWith('/runtime/engine-client/original.ts'),
+        (file) =>
+          original.has(path.resolve(file)) &&
+          !file.replaceAll('\\', '/').endsWith('/runtime/engine-client/original.ts'),
       ),
       parsed.options,
       host,
@@ -127,8 +166,10 @@ export function originalApiDeclarations(root, revision = '2f77d42') {
         if (
           file.endsWith('.d.ts') &&
           sources?.some((source) => original.has(path.resolve(source.fileName)))
-        )
+        ) {
           declarations.set(path.resolve(file), data);
+          for (const source of sources) emitted.add(path.resolve(source.fileName));
+        }
       },
       undefined,
       true,
@@ -136,7 +177,7 @@ export function originalApiDeclarations(root, revision = '2f77d42') {
     );
     if (result.emitSkipped) throw Error('Original declaration reconstruction failed');
   }
-  if (declarations.size !== original.size)
+  if (selected.some((file) => !emitted.has(path.resolve(root, file))))
     throw Error('Original declaration reconstruction was incomplete');
   return declarations;
 }
@@ -148,9 +189,9 @@ export function recordComputedMemberName(member, name, previousName = name) {
   computedMemberNames.set(member, { name, previousName });
 }
 const normalizedTypes = new Map();
-function normalizedType(text, kind) {
-  if (!text.includes('|')) return text;
-  const cacheKey = kind + ':' + text;
+function normalizedType(text, kind, properties = false, unions = true) {
+  if (!properties && !text.includes('|')) return text;
+  const cacheKey = kind + ':' + properties + ':' + unions + ':' + text;
   if (normalizedTypes.has(cacheKey)) return normalizedTypes.get(cacheKey);
   const prefix =
     kind === 'signature'
@@ -169,7 +210,30 @@ function normalizedType(text, kind) {
   );
   if (source.parseDiagnostics.length) return text;
   const render = (node) => {
-    if (ts.isUnionTypeNode(node)) return node.types.map(render).sort().join(' | ');
+    if (unions && ts.isUnionTypeNode(node)) return node.types.map(render).sort().join(' | ');
+    if (
+      properties &&
+      ts.isTypeLiteralNode(node) &&
+      node.members.length &&
+      node.members.every(
+        (member) =>
+          ts.isPropertySignature(member) &&
+          (ts.isIdentifier(member.name) ||
+            ts.isStringLiteral(member.name) ||
+            ts.isNumericLiteral(member.name)),
+      )
+    ) {
+      const names = node.members.map((member) => member.name.text);
+      if (new Set(names).size === names.length)
+        return (
+          '{ ' +
+          [...node.members]
+            .sort((a, b) => a.name.text.localeCompare(b.name.text))
+            .map(render)
+            .join(' ') +
+          ' }'
+        );
+    }
     let result = '',
       cursor = node.getStart(source);
     ts.forEachChild(node, (child) => {
@@ -184,7 +248,10 @@ function normalizedType(text, kind) {
   normalizedTypes.set(cacheKey, result);
   return result;
 }
-export function stableApiSurface(surface, { previousNames = false, unions = true } = {}) {
+export function stableApiSurface(
+  surface,
+  { previousNames = false, unions = true, properties = false } = {},
+) {
   const result = JSON.parse(
     JSON.stringify(surface, function (key, value) {
       const names = computedMemberNames.get(this);
@@ -202,11 +269,11 @@ export function stableApiSurface(surface, { previousNames = false, unions = true
       value.sort((a, b) => a.name.localeCompare(b.name));
     for (const [key, child] of Object.entries(value)) {
       if (
-        unions &&
+        (unions || properties) &&
         typeof child === 'string' &&
         ['type', 'key', 'value', 'definition'].includes(key)
       )
-        value[key] = normalizedType(child, 'type');
+        value[key] = normalizedType(child, 'type', properties, unions);
       else if (
         unions &&
         Array.isArray(child) &&
@@ -214,7 +281,12 @@ export function stableApiSurface(surface, { previousNames = false, unions = true
       )
         value[key] = child.map((item) =>
           typeof item === 'string'
-            ? normalizedType(item, key === 'typeParameters' ? 'parameter' : 'signature')
+            ? normalizedType(
+                item,
+                key === 'typeParameters' ? 'parameter' : 'signature',
+                properties,
+                unions,
+              )
             : item,
         );
       else sort(child);

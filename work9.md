@@ -1,6 +1,6 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows·Web 1차 중간 정리 / PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / 사용자 요청 일시중지 / Windows·Web 1차 PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -22,7 +22,7 @@
 
 1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. 실제 구현은 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따라 **W9-00 → W9-06-A → W9-01/02-A/B**부터 진행한다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
 
-**현재 상태:** Windows/Web 공개 입력은 **`inputValid=true`**, 전체 동작은 **`compatible=false / FAIL`**이다. App SDK·reload·수요 clock·cache/pressure와 원래 Element/State·viewport·RTL/up layout·plain Text 정렬/RTL/style·owned paragraph/hyphen을 부분 연결했다. 공급 `90649c3d…`에서 Core **283/283**, graphics **6/6**, host **17/17**, 독립 설치 포함 runner **19/19**, 개발 재시작 **7/7**을 통과했다. 실제 Testbed **C++ 1251 = SDK ACK 1251**, TS fallback **0**이다. 전체 Widget/controller/custom hook·동기 geometry·rich text/graphics/design·필수 콘텐츠/복구는 미완료다. 성능 두 flag **false**, 물리 IME/reader/trackpad·display/scanout **notVerified**, 후속 플랫폼 DEFERRED를 유지한다. 최신 공급과 실패·잔여 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다.
+**현재 상태 — 사용자 요청으로 PAUSED / PARTIAL:** 최신 공급 **`7b340f71…` / ABI 2·schema 2695739774**에 Slider drag 중 모든 canonical recognizer를 제거해도 남던 C++ capture를 수정했다. 유효한 새 준비에서 한 번만 해제하며 paint 교체·NACK·준비 실패는 기존 capture를 보존한다. 전체 Core **328/328**, geometry **2/2·7/7**, types·lint·format을 통과했다. 현재 source/dist·manifest **348파일**과 기존 Windows runner의 Core/SDK·두 디자인·CLI를 대조했다. 추가한 Web의 drag 중 비활성화·키보드 사례는 **미실행**이다. 앞선 `ce7d7818…`의 graphics **8/8**, Source 회귀 **18/18**·Web **4/4**, API `inputValid=true / compatible=false / strict exit 1`과 구분한다. 동기 TextPainter·label/value indicator·일반 geometry/custom·전체 API와 W9-13/14는 미완료이며 두 성능 flag false·물리/display notVerified·후속 플랫폼 DEFERRED를 유지한다. 사용자 재개 요청 전 자동 실행하지 않는다. [중간 마무리와 재개 명령](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
 
 ## 원문 절 목차
 
@@ -121,10 +121,10 @@
 
 **2026-11-06 KST:** 여섯 계획 문서를 현재 CMake·API audit·host/runner·protocol 및 Microsoft·GTK·HTML 공식 계약과 대조했다. Linux 최소 GTK를 **4.22**로 올려 접근성 caret/selection 변경 의무와 맞췄다. W9-13 기술 완료와 W9-14 제품 수락·차수 전환을 구분하고, API 검사 환경/분모·동기 실행 모델의 판정, App SDK 앱 로컬 초기화/종료, 연속 입력/scene 진행·wire/lease 회귀, frame clock·Web profile/새 canvas/reload·후속 플랫폼 공급 조건을 보완했다. 필수 콘텐츠 W9-11-A는 기본 수명 W9-09-A 뒤 시작할 수 있도록 불필요한 재사용 최적화 선행 조건을 해제했다.
 
-원래 주요 절·W9-00–14의 15단계와 Windows/Web → Android/Linux → iOS/macOS 순서를 유지한다. 제품 소스·공급 변경, 빌드·API audit·앱 실행·물리 입력·성능 검증은 이번 요청 범위에 포함하지 않았다. API **FAIL**, 기존 구현 **PARTIAL**, 후속 플랫폼 **DEFERRED**, 두 성능 flag **false**·물리/display **notVerified** 상태를 유지한다.
+원래 주요 절·W9-00–14의 15단계와 Windows/Web → Android/Linux → iOS/macOS 순서를 유지한다. 이 앞선 문서 재검토 단계에서는 제품 소스·공급 변경, 빌드·API audit·앱 실행·물리 입력·성능 검증을 수행하지 않았다. 이후 구현의 결과는 아래와 3부의 현재 상태에 구분한다. API **FAIL**, 구현 **PARTIAL**, 후속 플랫폼 **DEFERRED**, 두 성능 flag **false**·물리/display **notVerified** 경계는 유지한다.
 
 로컬 링크·앵커·표·code fence/공백, 주요 절 14개·단계 15개와 문서의 npm 명령 존재 여부를 검사하고 `git diff --check`를 통과했다. 상세 검사 범위와 수치는 3부 §14에 기록했다.
 
-**현재 구현 진행 — 2026-11-06 KST / PAUSED / PARTIAL:** 사용자 요청으로 중간 정리했으며 자동 재개하지 않는다. 앞선 `c4be00de…` 공급의 Material 선택·FocusNode/Shortcut·Radio 그룹 키보드는 두 Web profile과 선택 계약 **14/14**, geometry **2/2·7/7**을 통과했다. 새 Switch 연결의 source/dist는 `95fdfa43…` / ABI 2·schema **2901560100**으로 일치하고 전체 빌드는 통과했지만, 대표 Web 검증에서 입력 누락·반대 방향 drag가 미해결이다. 기존 Windows 설치 runner는 새 공급으로 갱신하지 않았다.
+**현재 구현 상태 — 2026-11-06 KST / PAUSED / PARTIAL:** 원래 Slider paint·Source layer 관측에 이어 drag 중 recognizer 제거 시 C++ capture를 해제하도록 수정했다. 현재 `7b340f71…`의 Native/두 Wasm·Windows 두 host build와 정상 Core **328/328**·geometry **2/2·7/7**를 통과했다. 기존 Windows runner의 설치 TS 패키지/CLI는 현재 source/dist와 일치하며 RNW bundle/native 재빌드·창 실행은 하지 않았다. 추가한 Web capture/키보드 검사는 미실행이다.
 
-재개 첫 작업은 Windows switch semantic role 배열 index 누락과 입력 실패 원인 수정·현재 공급 재검증이다. Slider·나머지 디자인/서비스·콘텐츠/복구와 전체 API·W9-13/14는 남아 있다. 소유 검증 process·임시 앱은 회수했고 실제 Native UI는 이전 물리 Esc 중단을 유지한다. 사용자 UI 재개 전 추가 Computer Use를 자동 실행하지 않는다. [현재 구현·공급·검증 경계와 다음 작업](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
+원래 분모/hash를 유지한 API 입력 gate는 복구했으며 전체 호환은 미완료다. 사용자의 외출 전 중간 마무리 요청으로 목표를 일시중지했고 재개 요청 전 자동 실행하지 않는다. 다음은 미실행 Web 검증과 동기 TextPainter·label/value indicator·전체 API 연결이다. Native UI Computer Use의 앞선 물리 Esc 중단도 유지한다. 전체 API·W9-13/14 완료나 물리·성능 수락으로 올리지 않는다. [현재 공급·검증 경계와 재개 명령](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.

@@ -51,10 +51,15 @@ import { OriginalNativeRender } from './original-native-node.ts';
 import { installOriginalGestures } from './original-gesture.ts';
 import { originalControlConfiguration } from './original-controls.ts';
 import { OriginalFocusBridge } from './original-focus.ts';
+import { OriginalGeometryBridge } from './original-geometry.ts';
+import { OriginalLayers } from './original-layers.ts';
 import { TextDecoration } from '@nelyx/core/ui/typography';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import type { FoundationPlatformEnvironment } from '@nelyx/core/foundation/platform';
+import type { Disposable } from '@nelyx/core/foundation/disposable';
+import { GestureBinding, SamplingClock } from '@nelyx/core/framework/gestures/binding';
+import { restrictNativeGestureRecognition } from '@nelyx/core/framework/gestures/recognizer';
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -117,6 +122,10 @@ export class OriginalWidgetHost {
   private readonly reasons: Record<string, number> = {};
   private readonly scrolling: ReturnType<typeof installOriginalScrolling>;
   private readonly focusing: OriginalFocusBridge;
+  private readonly geometry: OriginalGeometryBridge;
+  private readonly layers: OriginalLayers;
+  private readonly appGestures: GestureBinding;
+  private readonly gestureBindingLease: Disposable;
 
   constructor(
     readonly view: EngineViewClient,
@@ -126,15 +135,30 @@ export class OriginalWidgetHost {
     this.native = new WidgetHost(view, {
       ...options,
       onState: (state) => {
+        this.geometry.observeState(state);
+        this.layers.observeState(state);
         this.observeMetrics(state);
         this.scrolling.visible(state.visible);
         this.focusing.observeState(state);
       },
-      onPublication: (state) => this.focusing.observePublication(state),
+      onPublication: (state) => {
+        this.geometry.observePublication(state);
+        this.layers.observePublication(state);
+        this.focusing.observePublication(state);
+      },
       onAfterEvents: () => this.focusing.finishPoll(),
       onExecution: () => options.onExecution?.(this.execution),
       onAppFrame: (at) => this.scrolling.frame(at),
     });
+    this.geometry = new OriginalGeometryBridge(
+      this,
+      (render) => this.keys.get(render)?.currentNode ?? null,
+    );
+    this.layers = new OriginalLayers(
+      this,
+      (reason) => this.unsupported(reason),
+      (render) => this.keys.get(render)?.currentNode ?? null,
+    );
     if (!options.services) {
       const resources = (this.resources = new ResourceRegistry()),
         owner = view.owner;
@@ -197,6 +221,20 @@ export class OriginalWidgetHost {
       (reason) => this.unsupported(reason),
       (error) => options.onError?.(error),
     );
+    this.appGestures = new GestureBinding({
+      implicitViewId: view.owner.view,
+      gestureArena: this.owner.gestures,
+      scheduler: this.scrolling.scheduler,
+      clock: new SamplingClock(this.scrolling.now, this.scrolling.now),
+      devicePixelRatioForView: (id) =>
+        id === view.owner.view && !this.closed ? (this.metrics?.scale ?? null) : null,
+      beforeDispatch: () => this.unsupported('App-pointer-dispatch'),
+      hitTestInView: () => this.unsupported('App-gesture-hit-test'),
+    });
+    restrictNativeGestureRecognition(this.appGestures, () =>
+      this.unsupported('App-gesture-recognition'),
+    );
+    this.gestureBindingLease = this.owner.bindGestureBinding(this.appGestures);
     this.focusing = new OriginalFocusBridge(
       this.owner,
       view,
@@ -405,7 +443,8 @@ export class OriginalWidgetHost {
     if (!(render instanceof RenderBox)) return this.unsupported('non-box-render-object');
     const prototype: unknown = Object.getPrototypeOf(render),
       paragraph = prototype === RenderParagraph.prototype;
-    const control = originalControlConfiguration(render, (reason) => this.unsupported(reason));
+    const control = originalControlConfiguration(render, (reason) => this.unsupported(reason)),
+      layer = this.layers.configuration(render);
     if (render.onPointer || (render.semantics && !paragraph && !control))
       return this.unsupported('render-pointer-or-semantics-hook');
     if (
@@ -433,6 +472,8 @@ export class OriginalWidgetHost {
       options = { ...options, ...control.options };
       if (render instanceof RenderConstrainedBox)
         options = { ...options, ...bounds(render.additionalConstraints) };
+    } else if (layer) {
+      options = { ...options, ...layer };
     } else if (prototype === RenderRepaintBoundary.prototype) {
       options = {
         layout: { childConstraints: 'inherit', enforceBounds: true },
@@ -640,6 +681,7 @@ export class OriginalWidgetHost {
       };
     } else return this.unsupported('custom-or-unported-render-object:' + render.constructor.name);
     claimNativeRenderObject(render, this, () => this.schedule());
+    this.geometry.bind(render);
     let key = this.keys.get(render);
     if (!key) this.keys.set(render, (key = new GlobalKey()));
     if (control?.paint)
@@ -761,6 +803,8 @@ export class OriginalWidgetHost {
       this.building = true;
       this.bridgeFailure = undefined;
       try {
+        this.geometry.observeState(state);
+        this.layers.observeState(state);
         this.observeMetrics(state);
         scene = withNativeRenderConfiguration(
           () => {
@@ -775,6 +819,7 @@ export class OriginalWidgetHost {
             // Canonical builders may catch their own exceptions and build an
             // ErrorWidget. An unported bridge operation still rejects admission.
             if (this.bridgeFailure) throw this.bridgeFailure;
+            this.layers.prepare(this.root.renderObjects);
             const count = { value: 0 };
             return new Stack(
               this.root.renderObjects.map((render) => this.node(render, count)),
@@ -786,13 +831,22 @@ export class OriginalWidgetHost {
           },
           (operation) => this.unsupported('synchronous-render-' + operation),
         );
+      } catch (error) {
+        this.layers.reject();
+        throw error;
       } finally {
         this.building = false;
       }
-      if (this.nativeMounted) await this.native.update(scene);
-      else {
-        this.nativeMounted = true;
-        await this.native.mount(scene);
+      try {
+        if (this.nativeMounted) await this.native.update(scene);
+        else {
+          this.nativeMounted = true;
+          await this.native.mount(scene);
+        }
+        this.layers.accept(this.view.documentEpoch);
+      } catch (error) {
+        this.layers.reject();
+        throw error;
       }
       // App desired values remain immediate on NACK. Inactive Elements are
       // finalized only after a known native ACK (or terminal close), never early.
@@ -803,9 +857,13 @@ export class OriginalWidgetHost {
     if (this.closing) return this.closing;
     this.closed = true;
     this.focusing.close();
+    this.geometry.close();
     this.closing = drainEngineOwners('OriginalWidgetHost close failed', [
       () => this.running,
+      () => this.layers.close(),
       () => this.root?.unmount(),
+      () => this.appGestures.dispose(),
+      () => this.gestureBindingLease.dispose(),
       () => this.owner.dispose(),
       () => this.scrolling.close(),
       () => this.native.close(),

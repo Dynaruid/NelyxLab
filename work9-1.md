@@ -1,6 +1,6 @@
 # work9-1 — 1부: 범위·기준선·Windows 호스트·공통 경계
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows 호스트·공급 중간 정리 / PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / 사용자 요청 일시중지 / Windows 호스트·공급 PARTIAL**
 
 [전체 목차](work9.md) · [다음: 2부](work9-2.md)
 
@@ -181,8 +181,8 @@ UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`
 
 Windows 11 x64에서 검증 중이다. 실제 브라우저는 Chrome **156.0.8078.80**, Edge **156.0.4314.58**, 대조 Chromium **156.0.8078.4**다. Headful WebGL2에서 **AMD Radeon 780M / ANGLE D3D11**, native Graphite/Vulkan에서 **NVIDIA GeForce RTX 4060 Laptop GPU**를 관측했다. 첫 Web matrix에서 Chrome plain 입력 세대 경합을 발견해 Core의 bounded publication snapshot admission을 수정했다. 최종 재검증은 [3부](work9-3.md#현재-구현검증과-잔여-작업)에 기록한다.
 
-실행 명령은 `npm.cmd run build:engine-v2` 다음 `npm.cmd run run:engine-v2:windows-app-sdk`다. 일반 설치 앱은 [SDK 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)의 `windowsHost` 설정을 따른다. 앞선 `c4be00de…` / schema **3147956808**에서 Material 버튼·boolean/tristate Checkbox·Radio와 focus/shortcut·그룹 키보드를 연결했고 Web 대표 소비의 C++/SDK ACK **2852/2833** 일치·fallback 0을 확인했다. 새 Switch 공급은 `95fdfa43…` / ABI **2**·schema **2901560100**이며 source/dist 일치와 전체 빌드만 통과했다. 새 대표 입력 검증은 실패했고 기존 Windows 설치본은 갱신하지 않았다.
+실행 명령은 `npm.cmd run build:engine-v2` 다음 `npm.cmd run run:engine-v2:windows-app-sdk`다. 일반 설치 앱은 [SDK 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)의 `windowsHost` 설정을 따른다. 현재 공급은 **`7b340f71…` / ABI 2·schema 2695739774**이며 drag 중 canonical recognizer 제거 시 capture를 해제하는 공통 C++ 수정을 포함한다. HWND/App SDK·Native/두 Wasm 전체 build와 정상 Core **328/328**·geometry **2/2·7/7**를 통과했다. 추가 Web capture/키보드 사례는 미실행이다. 앞선 **`ce7d7818…`**의 graphics **8/8**·Source 회귀 **18/18**, 두 Web profile의 Slider **2/2**·layer **1/1**·기존 Material/Switch **1/1**, Material Slider의 **C++ 852 = SDK ACK 852 / 850 = 850**·CupertinoSlider **706 = 706**은 이전 공급 검증으로 보존한다. 현재 Native 실제 표시·입력·외부 reader 결과로 확대하지 않는다.
 
 정상 Windows 공급 갱신은 Core의 두 emit program을 함께 검사한다. 선행 갱신 회귀 **17/17**과 installed Native Hermes **1/1**, 이전 공급의 host **17/17**·설치 runner **19/19**를 현재 전체 suite 재실행으로 복사하지 않는다. 앞선 focus 공급의 Source focus/세대/편집/semantics 선택 계약은 **14/14**다. 현재 설치 SDK identity와 구체적인 검증 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다.
 
-**PAUSED / PARTIAL.** 사용자의 중간 정리 요청으로 중단했으며 이번 계획 수정으로 구현을 자동 재개하지 않는다. 재개 시 §1.1의 TypeScript 디자인 소유권을 기존 control/paint helper와 대조하고 Windows Switch semantic role 배열 index 누락·Checkbox 클릭/반대 방향 Switch drag의 입력 실패를 해결한다. Slider·나머지 서비스/콘텐츠/복구는 남는다. 최신 Native 표시·입력은 물리 Esc 중단으로 notVerified이며 사용자 UI 재개 전 Computer Use를 자동 실행하지 않는다. W9-01/02·전체 API·W9-13/14는 미완료, 물리/성능·scanout은 미수락, 후속 플랫폼은 DEFERRED다.
+**PAUSED / PARTIAL — 사용자 외출 요청으로 중간 마무리.** 앞선 단계에서 기존 Windows runner의 Core/SDK를 실제 설치 갱신했으며, 이번 C++ 수정 뒤에도 설치 Core/SDK·Material·Cupertino·CLI의 파일/입력이 현재 TS source/dist와 일치한다. 앱 실행·RNW bundle/native 재빌드는 수행하지 않았다. 앞선 전체 audit는 `inputValid=true / compatible=false`, 두 target 선언 진단·표면 오류 0이며 원래 분모/hash를 유지한다. 다음은 추가한 Web capture/키보드 검증과 동기 TextPainter·label/value indicator·확장 계약이다. Layer 관측·게시 geometry·canonical Raw는 부분 구현이며 전체 API/서비스/콘텐츠/복구가 남는다. Native UI의 물리 Esc 중단과 사용자 재개 요청 전 자동 실행 금지, W9-13/14·두 성능 flag false·물리/scanout notVerified·후속 플랫폼 DEFERRED를 유지한다. 재개 명령과 공급 경계는 3부에 남겼다.

@@ -94,6 +94,10 @@ State의 App 값은 즉시 바뀌고 native NACK에서도 원하는 값을 유�
 
 원래 FocusNode·Actions/Shortcuts도 App 트리에 유지합니다. C++ focus owner와 실제 semantic peer를 연결하고 정확한 focus session으로 오래된 요청을 거부합니다. FocusNode rect/offset/size는 현재 관측한 게시 document·metrics·device의 C++ geometry를 읽으며 게시 전이나 알려진 stale 상태에서는 실패합니다. 임의 RenderBox의 동기 layout/geometry나 전체 API 호환을 제공하는 것은 아닙니다. Web의 Control+K 같은 source Shortcut과 비시각 Native의 callback 순서·GlobalKey 이동·키 down/repeat/up을 검증했습니다. 전체 scan/layout/raw keyboard·character/IME·reader 계약은 미완료입니다.
 
+원래 `CupertinoSlider`와 라벨 없는 Material `Slider`는 Source State의 controlled 값·divisions·callback·RTL·disabled 동작을 유지하고 C++ geometry·gesture·paint에 연결합니다. Material의 canonical 사각/둥근/gapped track·원형/handle thumb·overlay·tick은 Source theme·animation 값을 사용하며 예산이 제한된 paint 식을 최종 Content layout 크기로 해석합니다. Label/TextPainter·값 표시기·custom shape·debug shadow override와 전체 Slider/Raw 확장 계약은 미완료입니다. 내부 Slider surface의 size/globalToLocal은 마지막으로 관측한 유효한 게시 geometry만 읽으며 일반적인 동기 layout 질의를 제공하지 않습니다. 원래 RawGestureDetector의 canonical tap·수평/수직/pan factory와 View 소유 team을 부분 연결했으며 custom recognizer·buttons/devices/timers/velocity/semantics/team 설정은 거부합니다.
+
+원래 `CompositedTransformTarget`·`CompositedTransformFollower`는 View 소유 `LayerLink`의 anchor·offset·unlink 표시를 C++ 합성 좌표에 연결합니다. 연결된 자식의 paint·pointer target·semantics가 같은 게시 좌표를 사용하고 Core scroll에서도 함께 이동합니다. Canonical Source `.layer` 객체·`LayerLink.leader/leaderSize`·`FollowerLayer.getLastTransform()`·`RenderFollowerLayer.getCurrentTransform()`은 완료한 native 게시 결과를 관측하며 ACK만으로 합성 상태를 앞당기지 않습니다. 첫 게시 전 `.layer`는 null이며 unlinked/관측 불가 follower 변환은 null, `getCurrentTransform()`은 기존 identity fallback을 반환합니다. LayerHandle은 Source 객체 identity를 유지하고 View를 닫을 때 mirror를 detach하며 외부 handle이 남아 있어도 View 참조를 해제합니다. Native Source layer는 관측용 mirror이며 직접 layer 수정·App SceneBuilder 합성·annotation 검색·Source rasterization은 연결하지 않았습니다. 일반 동기 layout 질의와 전체 custom/layer API는 미완료입니다. 중복 leader·다른 View의 링크 공유·잘못된 handle/paint 순서는 거부합니다. 이 부분 지원은 Native 물리 표시·reader 검증을 뜻하지 않습니다.
+
 ## 앱 API
 
 `@nelyx/sdk`의 정확한 하위 경로에서 import합니다. 대상 이름은 `windows`, `android`, `ios`, `macos`, `linux`, `web`입니다.

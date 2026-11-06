@@ -30,6 +30,12 @@ import { gestureContracts } from './gesture-contracts.mjs';
 import { graphicsContracts } from './graphics-contracts.mjs';
 import { compositionContracts } from './composition-contracts.mjs';
 import { originalContracts } from './original-contracts.mjs';
+import { sliderContracts } from './slider-contracts.mjs';
+import { layerContracts } from './layer-contracts.mjs';
+import { originalLayerContracts } from './original-layer-contracts.mjs';
+import { paintProgramContracts } from './paint-program-contracts.mjs';
+import { originalMaterialSliderContracts } from './original-material-slider-contracts.mjs';
+import { originalSliderInteractionContracts } from './original-slider-interaction-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
@@ -251,6 +257,12 @@ gestureContracts({ using, timeout, h });
 graphicsContracts({ using, timeout, h });
 compositionContracts({ using, timeout });
 originalContracts({ using, timeout });
+sliderContracts({ using, timeout, h });
+layerContracts({ using, timeout, h });
+originalLayerContracts({ using, timeout });
+paintProgramContracts({ using, timeout, h });
+originalMaterialSliderContracts({ using, timeout });
+originalSliderInteractionContracts({ using, timeout });
 coverageContracts({ using, timeout, h });
 interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {
@@ -339,7 +351,7 @@ for (const profile of ['native', 'single-worker', 'threaded']) {
         assert.equal(hello.contentIndependent, false);
         const missing = await f.send(
           p.opcodes.hello,
-          body(8, (v) => v.setUint32(0, 1 << 20, true)),
+          body(8, (v) => v.setUint32(0, 0x80000000, true)),
           { owner: globalOwner },
         );
         assert.equal(missing.status, p.statuses.capabilityMissing);

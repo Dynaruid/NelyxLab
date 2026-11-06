@@ -616,7 +616,12 @@ export class EngineV2BrowserInteraction {
             : String(!!(s.flags & p.semanticsFlags.checked)),
         );
       else element.removeAttribute('aria-checked');
-      if (
+      if (s.range) {
+        element.setAttribute('aria-valuemin', String(s.range.minimum));
+        element.setAttribute('aria-valuemax', String(s.range.maximum));
+        element.setAttribute('aria-valuenow', String(s.range.value));
+        element.setAttribute('aria-readonly', String(!!s.range.readOnly));
+      } else if (
         node.control &&
         (node.control.kind === p.controlKinds.slider ||
           node.control.kind === p.controlKinds.rangeSlider)
@@ -624,7 +629,13 @@ export class EngineV2BrowserInteraction {
         element.setAttribute('aria-valuemin', String(node.control.minimum));
         element.setAttribute('aria-valuemax', String(node.control.maximum));
         element.setAttribute('aria-valuenow', String(node.control.value));
+        element.removeAttribute('aria-readonly');
+      } else {
+        for (const name of ['aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-readonly'])
+          element.removeAttribute(name);
       }
+      if (s.value !== undefined) element.setAttribute('aria-valuetext', s.value);
+      else element.removeAttribute('aria-valuetext');
       const left = Math.max(node.bounds.x, node.clip.x),
         top = Math.max(node.bounds.y, node.clip.y),
         right = Math.min(node.bounds.x + node.bounds.width, node.clip.x + node.clip.width),
@@ -640,6 +651,8 @@ export class EngineV2BrowserInteraction {
             ? `path(${node.graphics.fillRule === 'evenOdd' ? 'evenodd' : 'nonzero'}, "${node.graphics.path.map((segment) => ({ move: 'M', line: 'L', quad: 'Q', cubic: 'C', close: 'Z' })[segment[0]] + ' ' + segment.slice(1).join(' ')).join(' ')}")`
             : 'none',
         pointerEvents: s.actions && !disabled && right > left && bottom > top ? 'auto' : 'none',
+        userSelect: isInput(element) ? 'text' : 'none',
+        touchAction: isInput(element) ? 'auto' : 'none',
         opacity: '0',
         margin: '0',
         padding: isInput(element)

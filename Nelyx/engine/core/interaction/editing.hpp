@@ -50,13 +50,18 @@ private:
   void remember(std::deque<std::shared_ptr<const EditingValue>> &,
                 std::shared_ptr<const EditingValue>);
 };
+struct SemanticRangeData {
+  bool enabled=false,readOnly=false;
+  double minimum=0,maximum=0,value=0,smallChange=0,largeChange=0;
+};
 struct SemanticData {
   Lease lease;
   uint32_t role = 0, flags = 0, actions = 0;
-  std::string label, hint;
+  std::string label, hint, value, increasedValue, decreasedValue;
+  SemanticRangeData range;
   SemanticData(const std::shared_ptr<Ledger> &ledger, uint32_t r, uint32_t f, uint32_t a,
-               std::string name, std::string description)
-      : lease(ledger, sizeof(SemanticData) + name.size() + description.size()), role(r), flags(f),
-        actions(a), label(std::move(name)), hint(std::move(description)) {}
+               std::string name, std::string description, std::string displayed, std::string increased, std::string decreased, SemanticRangeData numeric)
+      : lease(ledger, sizeof(SemanticData) + name.size() + description.size() + displayed.size() + increased.size() + decreased.size()), role(r), flags(f),
+        actions(a), label(std::move(name)), hint(std::move(description)), value(std::move(displayed)), increasedValue(std::move(increased)), decreasedValue(std::move(decreased)), range(numeric) {}
 };
 } // namespace nelyx::v2

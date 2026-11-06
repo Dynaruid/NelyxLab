@@ -180,8 +180,10 @@ export function sourceIdentity() {
     '../sdk/tooling/cli/src/engine-v2-graph.mjs',
     '../sdk/tooling/cli/src/supply-runner.mjs',
     ...tree(path.resolve(engineRoot, '../src')).map((file) => '../src/' + file),
-    ...tree(path.resolve(engineRoot, '../../packages/material/src')).map(
-      (file) => '../../packages/material/src/' + file,
+    ...['material', 'cupertino'].flatMap((name) =>
+      tree(path.resolve(engineRoot, '../../packages', name, 'src')).map(
+        (file) => `../../packages/${name}/src/` + file,
+      ),
     ),
     '../sdk/tooling/cli/src/main.mjs',
     '../sdk/tooling/cli/package.json',

@@ -158,7 +158,7 @@ export class SwitchPainter extends CustomPainter {
       throw Error('Native Switch thumb image/icon requires the resource/paragraph bridge');
     const thumb = this.thumbSize(),
       t = o.colorPosition;
-    const geometry: Omit<NativePaintGeometry, 'kind'> = {
+    const geometry: Omit<Exclude<NativePaintGeometry, { kind: 'linear' | 'program' }>, 'kind'> = {
       trackWidth: c.trackWidth,
       trackHeight: c.trackHeight,
       thumbWidth: thumb.width,

@@ -47,6 +47,7 @@ import type { Disposable } from '@nelyx/core/foundation/disposable';
 import {
   RenderBox,
   RelayoutWhenSystemFontsChangeMixin,
+  registerNativeRenderMetadata,
 } from '@nelyx/core/framework/rendering/object';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
@@ -76,6 +77,7 @@ import {
 import { sliderThemeFieldNames } from './generated/slider/slider-theme-fields.generated.ts';
 import { materialSliderDefaults } from './internal/slider/slider-defaults.ts';
 import { RectangularSliderValueIndicatorShape } from './slider-shapes.ts';
+import { nativeMaterialSliderPaint } from './internal/slider/native-paint.ts';
 export interface SliderOptions extends WidgetOptions {
   /** @dartType double */ readonly value: number;
   readonly onChanged: ((value: number) => void) | null;
@@ -680,6 +682,15 @@ class SliderPaintWidget extends LeafRenderObjectWidget {
 abstract class SliderRenderBase extends RenderBox {}
 class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRenderBase) {
   private painter: TextPainter;
+  static {
+    registerNativeRenderMetadata(MaterialSliderRender.prototype, (source) =>
+      nativeMaterialSliderPaint({
+        ...source.model,
+        ...source.paintThemes(),
+        enableProgress: source.model.owner.enableAnimation.value,
+      }),
+    );
+  }
   constructor(public model: SliderPaintModel) {
     super();
     this.painter = new TextPainter({}, model.textContext);
@@ -776,12 +787,9 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
       activationAnimation: always ? stoppedOne : m.owner.indicatorAnimation,
     });
   }
-  override paint(context: PaintingContext): void {
+  private paintThemes(): { trackTheme: SliderThemeData; thumbTheme: SliderThemeData } {
     const m = this.model,
       t = m.theme,
-      discrete = m.divisions !== null,
-      rect = this.rect(),
-      center = this.center(rect),
       thumb = t.thumbSize?.resolve(emptyWidgetStateSet()),
       pressed = emptyWidgetStateSet();
     pressed.add(WidgetState.pressed);
@@ -793,9 +801,29 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
       if (width > 0) width = pressedWidth;
       if (gap > 0) gap -= delta / 2;
     }
+    return {
+      trackTheme: t.copyWith({ trackGap: gap }),
+      thumbTheme:
+        width != null && thumb
+          ? t.copyWith({
+              thumbSize: new WidgetStatePropertyAll(
+                sizeType,
+                captureSourceSize(new Size(width, thumb.height)),
+              ),
+            })
+          : t,
+    };
+  }
+  override paint(context: PaintingContext): void {
+    const m = this.model,
+      t = m.theme,
+      discrete = m.divisions !== null,
+      rect = this.rect(),
+      center = this.center(rect),
+      { trackTheme, thumbTheme } = this.paintThemes();
     t.trackShape!.paint(context, Offset.zero, {
       parentBox: this,
-      sliderTheme: t.copyWith({ trackGap: gap }),
+      sliderTheme: trackTheme,
       enableAnimation: m.owner.enableAnimation,
       textDirection: m.visual.direction,
       thumbCenter: center,
@@ -838,15 +866,7 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
     }
     t.thumbShape!.paint(context, center, {
       ...options,
-      sliderTheme:
-        width != null && thumb
-          ? t.copyWith({
-              thumbSize: new WidgetStatePropertyAll(
-                sizeType,
-                captureSourceSize(new Size(width, thumb.height)),
-              ),
-            })
-          : t,
+      sliderTheme: thumbTheme,
     });
   }
 }

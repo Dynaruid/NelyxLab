@@ -27,6 +27,7 @@ import { Velocity } from '@nelyx/core/framework/gestures/velocity-tracker';
 import { OriginalNativeNode } from './original-native-node.ts';
 import type { EngineEvent, GestureEvent, GestureDetails } from './codec.ts';
 import { protocol as p } from './schema.ts';
+import { installOriginalRawGestures } from './original-raw-gesture.ts';
 
 const tapNames = ['onTap', 'onTapDown', 'onTapUp', 'onTapMove', 'onTapCancel'];
 const longNames = [
@@ -58,6 +59,7 @@ const admitted = new Set([
 ]);
 /** Canonical details are constructed from Content-owned published coordinates and recognizer state. */
 export function installOriginalGestures(owner: BuildOwner, fail: (reason: string) => never): void {
+  installOriginalRawGestures(owner, fail);
   registerNativeWidgetAdapter(owner, 'gesture-detector', (widget, context) => {
     if (Object.getPrototypeOf(widget) !== GestureDetector.prototype)
       return fail('custom-gesture-detector');

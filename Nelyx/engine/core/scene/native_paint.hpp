@@ -11,13 +11,22 @@ struct NativePaintEntry {
   Affine transform;
   uint32_t geometry=0,geometryFlags=0;
   double trackWidth=0,trackHeight=0,thumbWidth=0,thumbHeight=0,extension=0,position=0,inset=0,blurSigma=0,spread=0;
+  std::array<double,8> linear{};
+  std::array<uint32_t,14> expressions{};
+  double repeat=0;
+};
+struct NativePaintExpression {
+  uint32_t op=0,a=0,b=0,c=0;
+  double value=0;
+  bool varying=false;
 };
 struct NativePaint {
   Lease lease;
   bool resolved=false;
   std::vector<NativePaintEntry> entries;
-  NativePaint(const std::shared_ptr<Ledger>& ledger,size_t count):
-    lease(ledger,sizeof(NativePaint)+count*sizeof(NativePaintEntry)),entries(count){}
+  std::vector<NativePaintExpression> expressions;
+  NativePaint(const std::shared_ptr<Ledger>& ledger,size_t count,size_t expressionCount=0):
+    lease(ledger,sizeof(NativePaint)+count*sizeof(NativePaintEntry)+expressionCount*sizeof(NativePaintExpression)),entries(count),expressions(expressionCount){}
 };
 struct Document;
 std::shared_ptr<const NativePaint> readNativePaint(const std::shared_ptr<Ledger>&,Reader);

@@ -65,7 +65,7 @@ export function layoutContracts({ using, timeout, h }) {
           const unknown = c.layout(h(1), {});
           new DataView(unknown.buffer, unknown.byteOffset, unknown.byteLength).setUint32(
             16 + p.layoutFields.constraintFlags,
-            2048,
+            8192,
             true,
           );
           assert.equal((await f.commit([unknown])).status, p.statuses.invalidValue);

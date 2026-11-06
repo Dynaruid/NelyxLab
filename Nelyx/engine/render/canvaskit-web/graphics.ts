@@ -8,6 +8,56 @@ import type {
 } from '../../../runtime/engine-client/index.ts';
 import { protocol as p } from '../../../runtime/engine-client/index.ts';
 import type { NativePaintSnapshot } from '../../../runtime/engine-client/native-paint.ts';
+/** Recording bounds include displaced paint and blur, while input-only regions never paint. */
+export function nativePaintOutset(
+  entry: NativePaintSnapshot,
+  width: number,
+  height: number,
+  scale = 1,
+): number {
+  if (
+    entry.kind === 'hitRegion' ||
+    entry.kind === 'clip' ||
+    entry.kind === 'save' ||
+    entry.kind === 'restore'
+  )
+    return 0;
+  const circle =
+    entry.kind === 'circle' ||
+    entry.kind === 'ripple' ||
+    (entry.kind === 'highlight' && entry.circular);
+  const padding =
+    (entry.shape.strokeWidth * (1 + Math.abs(entry.shape.strokeAlign))) / 2 +
+    (entry.kind === 'shadow'
+      ? 4 * (entry.blurSigma ?? 0)
+      : entry.kind === 'elevationShadow'
+        ? 4 * scale * (entry.elevation ?? 0) + 2
+        : 0);
+  const radius = entry.resolvedRadius + padding;
+  const x = circle ? entry.cx - radius : -padding,
+    y = circle ? entry.cy - radius : -padding;
+  const right = circle ? entry.cx + radius : entry.width + padding,
+    bottom = circle ? entry.cy + radius : entry.height + padding;
+  const [a, b, c, d, tx, ty] = entry.transform;
+  let left = Infinity,
+    top = Infinity,
+    r = -Infinity,
+    bt = -Infinity;
+  for (const [px, py] of [
+    [x, y],
+    [right, y],
+    [x, bottom],
+    [right, bottom],
+  ]) {
+    const xx = a * px! + c * py! + tx,
+      yy = b * px! + d * py! + ty;
+    left = Math.min(left, xx);
+    top = Math.min(top, yy);
+    r = Math.max(r, xx);
+    bt = Math.max(bt, yy);
+  }
+  return Math.max(0, -left, -top, r - width, bt - height);
+}
 function nativePaintShape(ck: CanvasKit, entry: NativePaintSnapshot, delta = 0): Float32Array {
   let x = 0,
     y = 0,
@@ -32,6 +82,7 @@ export function paintNative(
   canvas: Canvas,
   node: EngineNodeSnapshot,
   paint: Paint,
+  scale = 1,
 ): void {
   if (!node.nativePaint) return;
   canvas.save();
@@ -39,11 +90,22 @@ export function paintNative(
     if (node.nativePaint.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
       canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
     for (const entry of node.nativePaint) {
+      if (entry.kind === 'hitRegion') continue;
+      if (entry.kind === 'save') {
+        canvas.save();
+        continue;
+      }
+      if (entry.kind === 'restore') {
+        canvas.restore();
+        continue;
+      }
       if (entry.kind === 'clip') {
-        const rect=nativePaintShape(ck,entry);
-        rect[0]!+=entry.transform[4];rect[2]!+=entry.transform[4];
-        rect[1]!+=entry.transform[5];rect[3]!+=entry.transform[5];
-        canvas.clipRRect(rect,ck.ClipOp.Intersect,true);
+        const rect = nativePaintShape(ck, entry);
+        rect[0]! += entry.transform[4];
+        rect[2]! += entry.transform[4];
+        rect[1]! += entry.transform[5];
+        rect[3]! += entry.transform[5];
+        canvas.clipRRect(rect, ck.ClipOp.Intersect, true);
         continue;
       }
       canvas.save();
@@ -75,12 +137,49 @@ export function paintNative(
             );
             paint.setStyle(ck.PaintStyle.Fill);
           }
+        } else if (entry.kind === 'elevationShadow') {
+          if (entry.elevation! > 0 && entry.color >>> 24) {
+            const builder = new ck.PathBuilder();
+            let path: Path | null = null;
+            try {
+              builder.addRRect(nativePaintShape(ck, entry), false);
+              path = builder.detach();
+              const alpha = entry.color >>> 24,
+                rgb = [
+                  (entry.color >>> 16) & 255,
+                  (entry.color >>> 8) & 255,
+                  entry.color & 255,
+                ] as const;
+              const tonal = ck.computeTonalColors({
+                ambient: ck.Color(...rgb, Math.trunc(Math.fround(0.039) * alpha) / 255),
+                spot: ck.Color(...rgb, Math.trunc(0.25 * alpha) / 255),
+              });
+              canvas.drawShadow(
+                path,
+                [0, 0, Math.fround(Math.fround(scale) * Math.fround(entry.elevation!))],
+                [0, -1, 1],
+                Math.fround(800 / 600),
+                tonal.ambient,
+                tonal.spot,
+                4 | (entry.transparentOccluder ? 1 : 0),
+              );
+            } finally {
+              path?.delete();
+              builder.delete();
+            }
+          }
         } else if (entry.kind === 'shadow') {
-          const filter=entry.blurSigma!>0?ck.MaskFilter.MakeBlur(ck.BlurStyle.Normal,entry.blurSigma!,true):null;
+          const filter =
+            entry.blurSigma! > 0
+              ? ck.MaskFilter.MakeBlur(ck.BlurStyle.Normal, entry.blurSigma!, true)
+              : null;
           try {
             paint.setMaskFilter(filter);
-            canvas.drawRRect(nativePaintShape(ck,entry),paint);
-          } finally {paint.setMaskFilter(null);filter?.delete();}
+            canvas.drawRRect(nativePaintShape(ck, entry), paint);
+          } finally {
+            paint.setMaskFilter(null);
+            filter?.delete();
+          }
         } else if (entry.kind === 'mark') {
           const path = makePath(
             ck,

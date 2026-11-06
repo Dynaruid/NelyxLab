@@ -2,7 +2,7 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 2901560100u;
+inline constexpr uint32_t schema = 2695739774u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
@@ -15,13 +15,25 @@ inline constexpr uint32_t layoutBytes = 120u;
 inline constexpr uint32_t graphicsBytes = 136u;
 inline constexpr uint32_t graphicsPathBytes = 56u;
 inline constexpr uint32_t clipStyleBytes = 80u;
+inline constexpr uint32_t layerLinkBytes = 64u;
+inline constexpr uint32_t layerCompositionBytes = 80u;
+inline constexpr uint32_t layerCompositionBlob = 14u;
 inline constexpr uint32_t paragraphBytes = 64u;
 inline constexpr uint32_t measurementBytes = 88u;
 inline constexpr uint32_t measurementGeometryBytes = 136u;
-inline constexpr uint32_t nativePaintBytes = 336u;
+inline constexpr uint32_t nativePaintHeaderBytes = 16u;
+inline constexpr uint32_t nativePaintExpressionBytes = 24u;
+inline constexpr uint32_t nativePaintBytes = 464u;
+inline constexpr uint32_t semanticsBytes = 80u;
+namespace layerCompositionFlags {
+inline constexpr uint32_t linked = 1u;
+inline constexpr uint32_t hasTransform = 2u;
+inline constexpr uint32_t showWhenUnlinked = 4u;
+}
 namespace limits {
 inline constexpr uint32_t views = 8u;
 inline constexpr uint32_t nodes = 4096u;
+inline constexpr uint32_t nodeBlobs = 12u;
 inline constexpr uint32_t depth = 128u;
 inline constexpr uint32_t commands = 4096u;
 inline constexpr uint32_t packetBytes = 1048576u;
@@ -64,6 +76,9 @@ inline constexpr uint32_t pathPoints = 8192u;
 inline constexpr uint32_t unifiedBytes = 402653184u;
 inline constexpr uint32_t gpuBytes = 134217728u;
 inline constexpr uint32_t nativePaintEntries = 32u;
+inline constexpr uint32_t nativePaintExpressions = 512u;
+inline constexpr uint32_t nativePaintDraws = 2048u;
+inline constexpr uint32_t nativePaintOperations = 262144u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -140,6 +155,7 @@ inline constexpr uint32_t nativeExtension = 24u;
 inline constexpr uint32_t paragraphOptions = 25u;
 inline constexpr uint32_t clipStyle = 26u;
 inline constexpr uint32_t nativePaint = 27u;
+inline constexpr uint32_t layerLink = 28u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -312,6 +328,9 @@ inline constexpr uint32_t canonicalMaterial = 16777216u;
 inline constexpr uint32_t canonicalSelection = 33554432u;
 inline constexpr uint32_t canonicalFocus = 67108864u;
 inline constexpr uint32_t canonicalSwitch = 134217728u;
+inline constexpr uint32_t canonicalSlider = 268435456u;
+inline constexpr uint32_t layerLinks = 536870912u;
+inline constexpr uint32_t paintPrograms = 1073741824u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -627,6 +646,8 @@ inline constexpr uint32_t shrinkUnboundedMain = 128u;
 inline constexpr uint32_t expandEmpty = 256u;
 inline constexpr uint32_t clipOverflow = 512u;
 inline constexpr uint32_t paragraphSizing = 1024u;
+inline constexpr uint32_t preferredSize = 2048u;
+inline constexpr uint32_t expandPreferredWidth = 4096u;
 }
 namespace layoutFields {
 inline constexpr uint32_t enabled = 0u;
@@ -859,6 +880,10 @@ inline constexpr uint32_t circle = 7u;
 inline constexpr uint32_t shape = 8u;
 inline constexpr uint32_t shadow = 9u;
 inline constexpr uint32_t clip = 10u;
+inline constexpr uint32_t hitRegion = 11u;
+inline constexpr uint32_t elevationShadow = 12u;
+inline constexpr uint32_t save = 13u;
+inline constexpr uint32_t restore = 14u;
 }
 namespace nativePaintGeometryKinds {
 inline constexpr uint32_t none = 0u;
@@ -867,6 +892,27 @@ inline constexpr uint32_t switchThumb = 2u;
 inline constexpr uint32_t switchReaction = 3u;
 inline constexpr uint32_t switchOnLabel = 4u;
 inline constexpr uint32_t switchOffLabel = 5u;
+inline constexpr uint32_t linear = 6u;
+inline constexpr uint32_t program = 7u;
+}
+namespace nativePaintOperations {
+inline constexpr uint32_t constant = 0u;
+inline constexpr uint32_t width = 1u;
+inline constexpr uint32_t height = 2u;
+inline constexpr uint32_t index = 3u;
+inline constexpr uint32_t add = 4u;
+inline constexpr uint32_t subtract = 5u;
+inline constexpr uint32_t multiply = 6u;
+inline constexpr uint32_t divide = 7u;
+inline constexpr uint32_t min = 8u;
+inline constexpr uint32_t max = 9u;
+inline constexpr uint32_t clamp = 10u;
+inline constexpr uint32_t less = 11u;
+inline constexpr uint32_t lessEqual = 12u;
+inline constexpr uint32_t greater = 13u;
+inline constexpr uint32_t greaterEqual = 14u;
+inline constexpr uint32_t equal = 15u;
+inline constexpr uint32_t select = 16u;
 }
 namespace paragraphFields {
 inline constexpr uint32_t fontFamilyLength = 20u;

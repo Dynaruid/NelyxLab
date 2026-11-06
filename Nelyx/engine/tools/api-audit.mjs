@@ -6,7 +6,11 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { engineV2ImportRoute } from '../../sdk/tooling/cli/src/engine-v2-data-api.mjs';
-import { stableApiSurface, recordComputedMemberName } from './api-scope.mjs';
+import {
+  stableApiSurface,
+  recordComputedMemberName,
+  originalApiDeclarations,
+} from './api-scope.mjs';
 
 const repository = path.resolve(import.meta.dirname, '../../..');
 const defaultPackages = ['Nelyx', 'packages/material', 'packages/cupertino', 'Nelyx/sdk'];
@@ -157,7 +161,12 @@ const projectJson = (actual, shape) => {
     ]),
   );
 };
-const surfaceHash = (entry, root, stable = false, { unions = true, jsonShape } = {}) =>
+const surfaceHash = (
+  entry,
+  root,
+  stable = false,
+  { unions = true, properties = false, jsonShape } = {},
+) =>
   createHash('sha256')
     .update(
       entry.kind === 'asset'
@@ -165,7 +174,7 @@ const surfaceHash = (entry, root, stable = false, { unions = true, jsonShape } =
           ? JSON.stringify(projectJson(JSON.parse(assetBytes(entry).toString('utf8')), jsonShape))
           : assetBytes(entry)
         : JSON.stringify(
-            stable ? stableApiSurface(entry.original, { unions }) : entry.original,
+            stable ? stableApiSurface(entry.original, { unions, properties }) : entry.original,
             (_key, value) =>
               typeof value === 'string'
                 ? value.replaceAll(root.replaceAll('\\', '/'), '<root>').replaceAll(root, '<root>')
@@ -213,6 +222,7 @@ export async function auditEngineV2Api({
   targets = root === repository ? ['windows', 'web'] : [],
   declarationOverrides,
   assetOverrides,
+  originalDeclarations = root === repository ? () => originalApiDeclarations(root) : undefined,
 } = {}) {
   root = fs.realpathSync(root);
   const errors = [],
@@ -775,6 +785,60 @@ export async function auditEngineV2Api({
         }
       }
   }
+  let scopeNormalization;
+  if (
+    !declarationOverrides &&
+    originalDeclarations &&
+    scope?.schema === 'nelyx.api.original/3' &&
+    errors.some((error) => error.code === 'originalSurfaceChanged')
+  ) {
+    try {
+      const baseline = await auditEngineV2Api({
+        root,
+        directories,
+        scope,
+        targets,
+        declarationOverrides: originalDeclarations(),
+        assetOverrides,
+        originalDeclarations: undefined,
+      });
+      if (!baseline.inputValid)
+        throw Error('Reconstructed declarations do not match the pinned original hashes');
+      const originals = new Map(
+          baseline.packages
+            .flatMap((pkg) => pkg.entries)
+            .map((entry) => [entry.module + '#' + entry.name, entry]),
+        ),
+        current = new Map(
+          results
+            .flatMap((pkg) => pkg.entries)
+            .map((entry) => [entry.module + '#' + entry.name, entry]),
+        );
+      let matched = 0;
+      for (let at = errors.length - 1; at >= 0; --at) {
+        const error = errors[at],
+          before = originals.get(error.message),
+          after = current.get(error.message);
+        if (
+          error.code === 'originalSurfaceChanged' &&
+          ['type', 'value'].includes(before?.kind) &&
+          before.kind === after?.kind &&
+          surfaceHash(before, root, true, { properties: true }) ===
+            surfaceHash(after, root, true, { properties: true })
+        ) {
+          errors.splice(at, 1);
+          ++matched;
+        }
+      }
+      scopeNormalization = {
+        matched,
+        originalHashesPreserved: true,
+        proof: 'reconstructed-original-declarations',
+      };
+    } catch (error) {
+      fail('originalScopeReconstruction', String(error).slice(0, 500));
+    }
+  }
   const targetInputs = targets.map((target) =>
     checkEngineV2ApiTarget({
       root,
@@ -810,6 +874,7 @@ export async function auditEngineV2Api({
       cases.every((item) => item.passed),
     note: 'Original module/export occurrences, including protected hooks and non-code exports. Candidates are not import routes; signatures, aliases, allowlists and existing test files alone never approve behavior.',
     errors,
+    ...(scopeNormalization ? { scopeNormalization } : {}),
     originalScope: Array.isArray(scope?.packages) && {
       packages: scope.packages.length,
       subpaths: scope.packages.reduce((sum, pkg) => sum + (pkg?.modules?.length ?? 0), 0),

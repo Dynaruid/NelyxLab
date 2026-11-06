@@ -12,12 +12,17 @@
   "graphicsBytes": 136,
   "graphicsPathBytes": 56,
   "clipStyleBytes": 80,
+  "layerLinkBytes": 64,
+  "layerCompositionBytes": 80,
+  "layerCompositionBlob": 14,
+  "layerCompositionFlags": {"linked":1,"hasTransform":2,"showWhenUnlinked":4},
   "paragraphBytes": 64,
   "measurementBytes": 88,
   "measurementGeometryBytes": 136,
   "limits": {
     "views": 8,
     "nodes": 4096,
+    "nodeBlobs": 12,
     "depth": 128,
     "commands": 4096,
     "packetBytes": 1048576,
@@ -59,7 +64,10 @@
     "pathPoints": 8192,
     "unifiedBytes": 402653184,
     "gpuBytes": 134217728,
-    "nativePaintEntries": 32
+    "nativePaintEntries": 32,
+    "nativePaintExpressions": 512,
+    "nativePaintDraws": 2048,
+    "nativePaintOperations": 262144
   },
   "opcodes": {
     "hello": 1,
@@ -135,7 +143,8 @@
     "nativeExtension": 24,
     "paragraphOptions": 25,
     "clipStyle": 26,
-    "nativePaint": 27
+    "nativePaint": 27,
+    "layerLink": 28
   },
   "kinds": {
     "box": 1,
@@ -307,7 +316,10 @@
     "canonicalMaterial": 16777216,
     "canonicalSelection": 33554432,
     "canonicalFocus": 67108864,
-    "canonicalSwitch": 134217728
+    "canonicalSwitch": 134217728,
+    "canonicalSlider": 268435456,
+    "layerLinks": 536870912,
+    "paintPrograms": 1073741824
   },
   "headerFields": {
     "magic": 0,
@@ -622,7 +634,9 @@
     "shrinkUnboundedMain": 128,
     "expandEmpty": 256,
     "clipOverflow": 512,
-    "paragraphSizing": 1024
+    "paragraphSizing": 1024,
+    "preferredSize": 2048,
+    "expandPreferredWidth": 4096
   },
   "layoutFields": {
     "enabled": 0,
@@ -844,7 +858,9 @@
     "vertical": 4,
     "semantic": 8
   },
-  "nativePaintBytes": 336,
+  "nativePaintHeaderBytes": 16,
+  "nativePaintExpressionBytes": 24,
+  "nativePaintBytes": 464,
   "nativePaintKinds": {
     "physical": 1,
     "border": 2,
@@ -855,7 +871,11 @@
     "circle": 7,
     "shape": 8,
     "shadow": 9,
-    "clip": 10
+    "clip": 10,
+    "hitRegion": 11,
+    "elevationShadow": 12,
+    "save": 13,
+    "restore": 14
   },
   "nativePaintGeometryKinds": {
     "none": 0,
@@ -863,10 +883,32 @@
     "switchThumb": 2,
     "switchReaction": 3,
     "switchOnLabel": 4,
-    "switchOffLabel": 5
+    "switchOffLabel": 5,
+    "linear": 6,
+    "program": 7
+  },
+  "nativePaintOperations": {
+    "constant": 0,
+    "width": 1,
+    "height": 2,
+    "index": 3,
+    "add": 4,
+    "subtract": 5,
+    "multiply": 6,
+    "divide": 7,
+    "min": 8,
+    "max": 9,
+    "clamp": 10,
+    "less": 11,
+    "lessEqual": 12,
+    "greater": 13,
+    "greaterEqual": 14,
+    "equal": 15,
+    "select": 16
   },
   "paragraphFields": {
     "fontFamilyLength": 20,
     "fontWeight": 24
-  }
+  },
+  "semanticsBytes": 80
 }

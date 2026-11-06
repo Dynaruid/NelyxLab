@@ -32,6 +32,10 @@ LayoutConstraints resolve(const Node &n, LayoutConstraints c) {
   const bool enforce = n.layout.constraintFlags & wire::layoutConstraintFlags::enforceBounds;
   local(n.horizontal, c.minWidth, c.maxWidth, enforce);
   local(n.vertical, c.minHeight, c.maxHeight, enforce);
+  if(n.layout.constraintFlags&wire::layoutConstraintFlags::preferredSize){
+    c.minWidth=c.maxWidth=constrain((n.layout.constraintFlags&wire::layoutConstraintFlags::expandPreferredWidth)&&std::isfinite(c.maxWidth)?c.maxWidth:n.properties.width,c.minWidth,c.maxWidth);
+    c.minHeight=c.maxHeight=constrain(n.properties.height,c.minHeight,c.maxHeight);return c;
+  }
   if (n.properties.width > 0)
     c.minWidth = c.maxWidth = constrain(n.properties.width, c.minWidth, c.maxWidth);
   if (n.properties.height > 0)

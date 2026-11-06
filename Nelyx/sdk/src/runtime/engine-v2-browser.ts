@@ -457,7 +457,7 @@ export async function createBrowserEngineV2Surface(
     number,
     { stream: number; x: number; y: number; at: number; velocity: number }
   >();
-  const isEditor = (event: PointerEvent) =>
+  const isEditor = (event: Event) =>
     event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
   const down = (event: PointerEvent) => {
     if (
@@ -607,6 +607,12 @@ export async function createBrowserEngineV2Surface(
   canvas.addEventListener('pointerleave', leave);
   document.addEventListener('pointerleave', overlayLeave, true);
   canvas.style.touchAction = 'none';
+  canvas.style.userSelect = 'none';
+  const nativeDrag = (event: DragEvent) => {
+    if (!isEditor(event) && (event.target === canvas || interaction.ownsTarget(event.target)))
+      event.preventDefault();
+  };
+  document.addEventListener('dragstart', nativeDrag);
   canvas.tabIndex = 0;
   canvas.addEventListener('wheel', wheel, { passive: false });
   const overlayWheel = (event: WheelEvent) => {
@@ -685,6 +691,7 @@ export async function createBrowserEngineV2Surface(
       canvas.removeEventListener('pointerup', end);
       canvas.removeEventListener('pointercancel', end);
       canvas.removeEventListener('lostpointercapture', end);
+      document.removeEventListener('dragstart', nativeDrag);
       document.removeEventListener('pointerdown', overlayPointer);
       document.removeEventListener('pointermove', overlayPointer);
       document.removeEventListener('pointerup', overlayPointer);

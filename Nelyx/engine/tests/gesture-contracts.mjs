@@ -17,6 +17,191 @@ import {
 export function gestureContracts({ using, timeout, h }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
+      `${profile}: removing canonical recognizers retires capture after valid preparation and preserves it on failure`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { width: 100, height: 40 }),
+            c.eventPolicy(
+              h(1),
+              p.eventPolicies.canonicalGestures |
+                p.eventPolicies.canonicalHitTest |
+                p.eventPolicies.hitTestSelf,
+            ),
+            c.gesture(h(1), p.gestures.tap | p.gestures.panX),
+          ]);
+          const capture = async () => !!((await f.inspect()).nodes[0].flags & 4),
+            canceled = async () =>
+              (await f.send(p.opcodes.pollInteractionEvents)).events.filter(
+                (event) =>
+                  event.kind === p.events.gesture && event.status === p.gestureKinds.cancel,
+              );
+          await f.input('begin', 0, {
+            pointer: true,
+            kind: 'mouse',
+            buttons: 1,
+            x: 15,
+            y: 15,
+          });
+          await f.tick();
+          await f.input('update', 0, {
+            pointer: true,
+            kind: 'mouse',
+            buttons: 1,
+            x: 35,
+            y: 15,
+          });
+          await f.tick();
+          assert.equal(await capture(), true);
+          assert.equal((await canceled()).length, 0);
+          await f.commit([c.paint(h(1), 0xff123456)]);
+          await f.ready();
+          await f.present();
+          assert.equal(await capture(), true, 'Paint-only activation preserves capture');
+          assert.equal((await canceled()).length, 0);
+          const before = await f.inspect();
+          const rejected = await f.commit([c.gesture(h(1), 0), c.eventPolicy(h(1), 0xffff_ffff)]);
+          assert.notEqual(rejected.status, p.statuses.accepted);
+          assert.equal((await f.inspect()).document, before.document);
+          assert.equal(await capture(), true, 'A NACK does not retire the current recognizer');
+          assert.equal((await canceled()).length, 0);
+          const failed = await f.commit([
+            c.gesture(h(1), 0),
+            c.nativePaint(h(1), [
+              {
+                kind: 'shape',
+                shape: {
+                  kind: 'rrect',
+                  radii: Array(8).fill(0),
+                  strokeWidth: 0,
+                  strokeAlign: 0,
+                  strokeColor: 0,
+                },
+                color: 0xff123456,
+                geometry: { kind: 'program', rect: [{ op: 'divide', args: [1, 0] }, 0, 4, 4] },
+              },
+            ]),
+          ]);
+          assert.equal(failed.status, p.statuses.accepted);
+          let state;
+          for (let attempt = 0; attempt < 20; ++attempt) {
+            state = await f.step();
+            if (state.failedDocument === failed.resultEpoch) break;
+          }
+          assert.equal(state.failedDocument, failed.resultEpoch);
+          assert.equal(state.publishedDocument, before.publishedDocument);
+          assert.equal(await capture(), true, 'Failed preparation preserves the active capture');
+          assert.equal((await canceled()).length, 0);
+          await f.commit([c.nativePaint(h(1))]);
+          await f.ready();
+          await f.present();
+          assert.equal(await capture(), false);
+          assert.equal((await canceled()).length, 1);
+          await f.tick();
+          assert.equal((await canceled()).length, 0, 'Capture has exactly one terminal');
+          await f.commit([c.gesture(h(1), p.gestures.tap | p.gestures.panX)]);
+          await f.ready();
+          await f.present();
+          for (const [phase, buttons] of [
+            ['begin', 1],
+            ['end', 0],
+          ])
+            assert.equal(
+              (
+                await f.input(phase, 0, {
+                  pointer: true,
+                  kind: 'mouse',
+                  buttons,
+                  x: 20,
+                  y: 15,
+                })
+              ).status,
+              p.statuses.ok,
+            );
+          await f.tick();
+          assert.ok(
+            (await f.send(p.opcodes.pollInteractionEvents)).events.some(
+              (event) => event.kind === p.events.gesture && event.status === p.gestureKinds.tap,
+            ),
+            'The retired stream can begin a fresh gesture',
+          );
+          assert.equal(
+            (
+              await f.send(p.opcodes.closeSession, undefined, {
+                owner: { session: 1, app: 1, view: 0, generation: 0 },
+              })
+            ).reservedBytes,
+            0n,
+          );
+        }),
+    );
+    test(
+      `${profile}: collected pointer boundaries survive paint document replacement before capture`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { x: 10, y: 10, width: 40, height: 30 }),
+            c.eventPolicy(
+              h(1),
+              p.eventPolicies.canonicalGestures |
+                p.eventPolicies.canonicalHitTest |
+                p.eventPolicies.hitTestSelf,
+            ),
+            c.gesture(h(1), p.gestures.tap | p.gestures.panX),
+          ]);
+          for (const direction of [1, -1]) {
+            const collected = (await f.inspect()).publication;
+            await f.commit([c.paint(h(1), direction === 1 ? 0xff123456 : 0xff654321)]);
+            await f.ready();
+            await f.present();
+            const x = direction === 1 ? 20 : 40;
+            for (const [phase, at] of [
+              ['begin', x],
+              ['update', x + direction * 8],
+              ['update', x + direction * 40],
+              ['end', x + direction * 40],
+            ]) {
+              assert.equal(
+                (
+                  await f.input(phase, 0, {
+                    pointer: true,
+                    kind: 'mouse',
+                    buttons: phase === 'end' ? 0 : 1,
+                    x: at,
+                    y: 20,
+                    publication: collected,
+                  })
+                ).status,
+                p.statuses.ok,
+                phase + ' retains the admitted collected geometry',
+              );
+            }
+            await f.tick();
+            const events = (await f.send(p.opcodes.pollInteractionEvents)).events;
+            assert.equal(
+              events.filter(
+                (e) => e.kind === p.events.gesture && e.status === p.gestureKinds.panEnd,
+              ).length,
+              1,
+            );
+            assert.ok(
+              events.some(
+                (e) =>
+                  e.kind === p.events.gesture &&
+                  e.status === p.gestureKinds.panUpdate &&
+                  Math.sign(e.gesture.deltaX) === direction,
+              ),
+            );
+            await f.present();
+          }
+          assert.equal((await f.inspect()).rejected, 0n);
+        }),
+    );
+    test(
       `${profile}: collected pointer clicks survive same-document preparation and expire at the bounded admission window`,
       { timeout },
       () =>

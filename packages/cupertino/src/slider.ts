@@ -6,6 +6,12 @@ import { SliderControl } from '@nelyx/core/framework/widgets/slider-control';
 import type { SliderVisualState } from '@nelyx/core/framework/widgets/slider-control';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
+import { registerNativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
+import type {
+  NativePaintEntry,
+  NativePaintGeometry,
+  NativeShape,
+} from '@nelyx/core/framework/rendering/object';
 import type { Canvas } from '@nelyx/core/ui/canvas';
 import type { Size } from '@nelyx/core/ui/geometry';
 import { Color } from '@nelyx/core/ui/color';
@@ -182,3 +188,63 @@ class CupertinoSliderState extends State<CupertinoSlider> {
     });
   }
 }
+registerNativeRenderMetadata(CupertinoSliderPainter.prototype, (source) => {
+  const v = source.visual,
+    visual = v.direction === 'rtl' ? 1 - v.position.value : v.position.value,
+    position = v.direction === 'rtl' ? 1 - v.fraction : v.fraction,
+    center = 22 - 44 * position;
+  const shape: NativeShape = {
+    kind: 'stadium',
+    radii: Array(8).fill(0),
+    strokeWidth: 0,
+    strokeAlign: 0,
+    strokeColor: 0,
+  };
+  const rect = (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+  ): NativePaintGeometry => ({ kind: 'linear', rect: [x, y, w, h, dx, dy, dw, dh] });
+  const entries: NativePaintEntry[] = [];
+  if (visual > 0)
+    entries.push({
+      kind: 'shape',
+      shape,
+      color: (v.direction === 'rtl' ? source.track : source.active).toARGB32(),
+      geometry: rect(0, 0.5, position, 0, 8, -1, center - 8, 2),
+    });
+  if (visual < 1)
+    entries.push({
+      kind: 'shape',
+      shape,
+      color: (v.direction === 'rtl' ? source.active : source.track).toARGB32(),
+      geometry: rect(position, 0.5, 1 - position, 0, center, -1, -center - 8, 2),
+    });
+  const thumb = rect(position, 0.5, 0, 0, center - 14, -14, 28, 28);
+  for (const shadow of new CupertinoThumbPainter({ color: source.thumb }).shadows)
+    entries.push({
+      kind: 'shadow',
+      shape,
+      color: shadow.color,
+      x: shadow.offset.dx,
+      y: shadow.offset.dy,
+      blurSigma: shadow.blurSigma,
+      spread: shadow.spreadRadius,
+      geometry: thumb,
+    });
+  entries.push(
+    {
+      kind: 'shape',
+      shape,
+      color: 0x0a000000,
+      geometry: rect(position, 0.5, 0, 0, center - 14.5, -14.5, 29, 29),
+    },
+    { kind: 'shape', shape, color: source.thumb.toARGB32(), geometry: thumb },
+  );
+  return { kind: 'paint', entries };
+});

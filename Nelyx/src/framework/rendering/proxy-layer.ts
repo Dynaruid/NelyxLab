@@ -3,8 +3,17 @@
 // Adapted from pinned proxy_box.dart leader/follower render objects.
 import { invariant } from '../../foundation/errors.ts';
 import { RenderProxyBox } from './boxes.ts';
-import { LayerHandle, LayerLink, LeaderLayer, FollowerLayer } from './layer.ts';
-import { RenderBox } from './object.ts';
+import {
+  LayerHandle,
+  LayerLink,
+  LeaderLayer,
+  FollowerLayer,
+  withNativeLayerMutation,
+  bindNativeLayerObservation,
+  retireNativeLayerObservation,
+} from './layer.ts';
+import { RenderBox, isNativeRenderObject, nativePublishedGeometry } from './object.ts';
+import type { NativePublishedGeometry } from './object.ts';
 import type { RenderObject, HitTestEntry } from './object.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { BoxConstraints } from './constraints.ts';
@@ -14,6 +23,99 @@ import { matrix4Identity } from '../../ui/matrix4.ts';
 import type { Matrix4Storage } from '../../ui/matrix4.ts';
 import { Alignment } from '../painting/alignment.ts';
 import type { Rect, SemanticsNode } from '../../ui/types.ts';
+
+interface NativeFollowerConfiguration {
+  readonly offset: Offset;
+  readonly leaderAnchor: Alignment;
+  readonly followerAnchor: Alignment;
+}
+interface NativeProxyLayerAdapter {
+  publish(
+    render: RenderObject,
+    connection: LayerLink,
+    configuration?: NativeFollowerConfiguration,
+  ): LeaderLayer | FollowerLayer | null;
+  release(render: RenderObject): void;
+}
+const nativeProxyLayerAdapters = new WeakMap<object, NativeProxyLayerAdapter>(),
+  nativeProxyLayerOwners = new WeakMap<RenderObject, object>();
+/** @internal Observe a completed native composition, never compose on App. */
+export function synchronizeNativeProxyLayer(
+  render: RenderObject,
+  connection: LayerLink,
+  configuration?: NativeFollowerConfiguration,
+): LeaderLayer | FollowerLayer | null {
+  if (!isNativeRenderObject(render) || render.debugDisposed) return null;
+  return (
+    nativeProxyLayerAdapters
+      .get(Object.getPrototypeOf(render))
+      ?.publish(render, connection, configuration) ?? null
+  );
+}
+/** @internal Retire mirrors before their View's Source tree is unmounted. */
+export function releaseNativeProxyLayer(render: RenderObject): void {
+  nativeProxyLayerAdapters.get(Object.getPrototypeOf(render))?.release(render);
+}
+function retireProxyLayer<T extends LeaderLayer | FollowerLayer>(
+  render: RenderObject,
+  retained: LayerHandle<T>,
+): void {
+  const owner = nativeProxyLayerOwners.get(render);
+  if (!owner) {
+    retained.dispose();
+    return;
+  }
+  const layer = retained.layer,
+    errors: unknown[] = [];
+  withNativeLayerMutation(owner, () => {
+    for (const close of [
+      () => {
+        if (layer?.attached) layer.detach();
+      },
+      () => retained.dispose(),
+      () => {
+        if (layer) retireNativeLayerObservation(layer, owner);
+      },
+    ])
+      try {
+        close();
+      } catch (error) {
+        errors.push(error);
+      }
+  });
+  if (!retained.layer) nativeProxyLayerOwners.delete(render);
+  if (errors.length) throw new AggregateError(errors, 'Native layer mirror retirement failed');
+}
+function publishProxyLayer<T extends LeaderLayer | FollowerLayer>(
+  render: RenderObject,
+  retained: LayerHandle<T>,
+  kind: 'leader' | 'follower',
+  create: () => T,
+  configure: (layer: T, geometry: NativePublishedGeometry) => void,
+): T | null {
+  const geometry = nativePublishedGeometry(render);
+  if (!geometry || geometry.layer?.kind !== kind) return null;
+  const previous = nativeProxyLayerOwners.get(render);
+  invariant(
+    !previous || previous === geometry.owner,
+    'foreign-native-layer',
+    'Native layer belongs to another View',
+  );
+  const layer = retained.layer ?? create();
+  nativeProxyLayerOwners.set(render, geometry.owner);
+  withNativeLayerMutation(geometry.owner, () => {
+    bindNativeLayerObservation(layer, geometry.owner, () => {
+      const observed = retained.layer === layer ? nativePublishedGeometry(render) : undefined;
+      return observed?.publication === geometry.publication && observed.layer?.kind === 'follower'
+        ? observed.layer.transform
+        : null;
+    });
+    configure(layer, geometry);
+    if (!layer.attached) layer.attach(geometry.owner);
+    retained.layer = layer;
+  });
+  return layer;
+}
 function link(value: LayerLink): LayerLink {
   invariant(value instanceof LayerLink, 'invalid-layer-link', 'Expected LayerLink');
   return value;
@@ -35,6 +137,29 @@ function anchor(value: Alignment): Alignment {
   return value;
 }
 export class RenderLeaderLayer extends RenderProxyBox {
+  static {
+    nativeProxyLayerAdapters.set(RenderLeaderLayer.prototype, {
+      publish: (render, connection) => {
+        const source = render as RenderLeaderLayer;
+        return publishProxyLayer(
+          source,
+          source.retained,
+          'leader',
+          () => new LeaderLayer({ link: connection }),
+          (layer, geometry) => {
+            layer.link = connection;
+            layer.offset = { x: 0, y: 0 };
+            source.previousLayoutSize = geometry.size;
+            connection.leaderSize = geometry.size;
+          },
+        );
+      },
+      release: (render) => {
+        const source = render as RenderLeaderLayer;
+        retireProxyLayer(source, source.retained);
+      },
+    });
+  }
   private connection: LayerLink;
   private previousLayoutSize: Size | null = null;
   private readonly retained = new LayerHandle<LeaderLayer>();
@@ -88,14 +213,14 @@ export class RenderLeaderLayer extends RenderProxyBox {
     try {
       super.detach();
     } finally {
-      if (!this.attached) this.retained.dispose();
+      if (!this.attached) retireProxyLayer(this, this.retained);
     }
   }
   override dispose(): void {
     try {
       super.dispose();
     } finally {
-      if (this.debugDisposed) this.retained.dispose();
+      if (this.debugDisposed) retireProxyLayer(this, this.retained);
     }
   }
 }
@@ -108,6 +233,42 @@ export interface RenderFollowerLayerOptions {
   readonly child?: RenderBox<RenderObject>;
 }
 export class RenderFollowerLayer extends RenderProxyBox {
+  static {
+    nativeProxyLayerAdapters.set(RenderFollowerLayer.prototype, {
+      publish: (render, connection, configuration) => {
+        const source = render as RenderFollowerLayer;
+        return publishProxyLayer(
+          source,
+          source.retained,
+          'follower',
+          () => new FollowerLayer({ link: connection }),
+          (layer, geometry) => {
+            layer.link = connection;
+            layer.showWhenUnlinked = geometry.layer!.showWhenUnlinked;
+            layer.linkedOffset = geometry.layer!.linkedOffset;
+            if (!geometry.layer!.linked && configuration) {
+              // This is Source configuration for a dangling link, not native placement.
+              // Preserve the same cached leader-size policy as paint() below.
+              const size = connection.leaderSize,
+                leader = size ? configuration.leaderAnchor.alongSize(size) : { x: 0, y: 0 },
+                follower = size
+                  ? configuration.followerAnchor.alongSize(geometry.size)
+                  : { x: 0, y: 0 };
+              layer.linkedOffset = {
+                x: leader.x - follower.x + configuration.offset.x,
+                y: leader.y - follower.y + configuration.offset.y,
+              };
+            }
+            layer.unlinkedOffset = { x: 0, y: 0 };
+          },
+        );
+      },
+      release: (render) => {
+        const source = render as RenderFollowerLayer;
+        retireProxyLayer(source, source.retained);
+      },
+    });
+  }
   private connection: LayerLink;
   private showing: boolean;
   private displacement: Offset;
@@ -315,7 +476,7 @@ export class RenderFollowerLayer extends RenderProxyBox {
     } finally {
       if (!this.attached) {
         this.stopCompositionObservation();
-        this.retained.dispose();
+        retireProxyLayer(this, this.retained);
       }
     }
   }
@@ -325,7 +486,7 @@ export class RenderFollowerLayer extends RenderProxyBox {
     } finally {
       if (this.debugDisposed) {
         this.stopCompositionObservation();
-        this.retained.dispose();
+        retireProxyLayer(this, this.retained);
       }
     }
   }

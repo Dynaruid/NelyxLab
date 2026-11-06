@@ -89,6 +89,72 @@ test(
   },
 );
 test(
+  'Property normalization preserves optional, readonly, literal, duplicate, method and overload obligations',
+  { timeout },
+  () => {
+    const canonical = (definition) => stableApiSurface({ definition }, { properties: true });
+    assert.deepEqual(
+      canonical('{ readonly b?: 2; a: 1; }'),
+      canonical('{ a: 1; readonly b?: 2; }'),
+    );
+    for (const changed of [
+      '{ a: 1; readonly b: 2; }',
+      '{ a: 1; b?: 2; }',
+      '{ a: 3; readonly b?: 2; }',
+    ])
+      assert.notDeepEqual(canonical(changed), canonical('{ a: 1; readonly b?: 2; }'));
+    for (const [left, right] of [
+      ['{ a: 1; a: 2; }', '{ a: 2; a: 1; }'],
+      ['{ f(x: 1): 1; f(x: number): 2; }', '{ f(x: number): 2; f(x: 1): 1; }'],
+      [
+        '{ a: { (x: 1): 1; (x: number): 2; }; b: 2; }',
+        '{ b: 2; a: { (x: number): 2; (x: 1): 1; }; }',
+      ],
+    ])
+      assert.notDeepEqual(canonical(left), canonical(right));
+    assert.notDeepEqual(
+      stableApiSurface({ definition: '{ a: 1; b: 2; }' }),
+      stableApiSurface({ definition: '{ b: 2; a: 1; }' }),
+      'Existing pinned hashes keep the original canonicalization',
+    );
+  },
+);
+test(
+  'Only a hash-verified original declaration reconstruction can approve property-order drift',
+  { timeout },
+  () =>
+    fixture(async ({ audit, pkg, root, write }) => {
+      const original = 'export type Shape = { readonly b?: 2; a: 1; };',
+        reordered = 'export type Shape = { a: 1; readonly b?: 2; };';
+      write('numbers.d.ts', original);
+      const scope = engineV2OriginalSurface(await audit(), root, { stable: true }),
+        declarations = () => new Map([[path.join(pkg, 'numbers.d.ts'), original]]);
+      write('numbers.d.ts', reordered);
+      assert.equal((await audit({ scope })).inputValid, false);
+      const proven = await audit({ scope, originalDeclarations: declarations });
+      assert.equal(proven.inputValid, true, JSON.stringify(proven.errors));
+      assert.equal(proven.scopeNormalization.matched, 1);
+      assert.equal(proven.scopeNormalization.originalHashesPreserved, true);
+      for (const changed of [
+        'export type Shape = { a: 3; readonly b?: 2; };',
+        'export type Shape = { a: 1; b?: 2; };',
+        'export type Shape = { a: 1; readonly b: 2; };',
+      ]) {
+        write('numbers.d.ts', changed);
+        const rejected = await audit({ scope, originalDeclarations: declarations });
+        assert.equal(rejected.inputValid, false);
+        assert.ok(rejected.errors.some((e) => e.code === 'originalSurfaceChanged'));
+      }
+      write('numbers.d.ts', reordered);
+      const unproven = await audit({
+        scope,
+        originalDeclarations: () => new Map([[path.join(pkg, 'numbers.d.ts'), reordered]]),
+      });
+      assert.equal(unproven.inputValid, false);
+      assert.ok(unproven.errors.some((e) => e.code === 'originalScopeReconstruction'));
+    }),
+);
+test(
   'Package JSON scope allows additive v2 exports and still rejects changed original JSON values',
   { timeout },
   () =>
