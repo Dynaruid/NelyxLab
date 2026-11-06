@@ -1,6 +1,6 @@
 # work9-1 — 1부: 범위·기준선·Windows 호스트·공통 경계
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows 호스트·공급 구현 진행 / PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows 호스트·공급 중간 정리 / PARTIAL**
 
 [전체 목차](work9.md) · [다음: 2부](work9-2.md)
 
@@ -18,13 +18,28 @@
 
 **Windows의 RNW 소스 선별 재사용은 1차 개발에 포함한다.** 기존 Nelyx/v2 Windows 구현을 먼저 사용하고 RNW의 필요한 입력·focus·UIA·OS 서비스 처리와 회귀 사례를 보완한다. 파일 전체 복사 여부보다 중립 host에서 독립 실행 가능한 범위를 기준으로 선택한다. 구체적인 후보와 제외 경계는 [§4.1](#41-windows-rnw-소스-선별-재사용)을 따른다.
 
-TypeScript Widget/Element/State·디자인 패키지는 유지하고 C++ core가 layout·editing·gesture·retained scene·compositor를 소유한다. 먼저 현재 Windows/Web의 작은 실행 경로와 원래 API의 실행 모델을 확인하고, 필요한 공통 경계만 추출한 뒤 기능을 확장한다. 여러 OS를 위한 전체 폴더 재배치나 모바일 adapter 추출부터 시작하지 않는다.
+**`packages/cupertino`·`packages/material`은 C++ 엔진을 사용하는 TypeScript 디자인 패키지로 유지한다.** 두 패키지의 구현 언어·Widget/State·theme·컴포넌트 동작을 C++로 옮기는 작업은 계획에 포함하지 않는다. C++ core는 공통 layout·editing·gesture 판정·retained scene·compositor를 소유하며, 디자인 패키지는 TypeScript framework/adapter를 통해 이를 사용한다. 먼저 현재 Windows/Web의 작은 실행 경로와 원래 API의 실행 모델을 확인하고 필요한 공통 경계만 확장한다.
 
 `work8.md`, `work8-1.md`, `work8-2.md`, `work8-2a.md`, `work8-3.md`는 **CLOSED / SUPERSEDED**다. 사용자 요청으로 원문 작성일에 맞춘 history 요약 5개에 설계·실행·실패와 미완료 상태를 보존하고 루트 원문은 삭제했다. [work8 보관 목차](history/26/11/04/work8-summary.md)에서 각 요약으로 이동할 수 있다. 이후 일정·완료 조건·플랫폼 선택은 이 문서가 우선한다.
 
 분할 전 검토에서는 작업 순서와 의존성을 검토해 **work9 문서만 수정**했다. 당시 CMake·API audit·CLI/runner·host 검사와 Windows/Web 공식 문서를 대조했다. 제품 소스·공급은 변경하지 않았고 빌드·기능 테스트·API audit·성능 측정을 새로 실행하지 않았다. 아래 구현 단계와 검증표는 **앞으로 수행할 작업**이다.
 
 Windows/Web 기술 완료, 기존 공개 API 호환, 제품의 물리 입력·체감 성능 수락을 각각 판정한다. **Windows/Web 1차 완료와 전체 플랫폼 완료를 구분**하고 후속 플랫폼은 계속 미완료로 남긴다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 IME/reader/trackpad·display/scanout `notVerified`를 이어받는다.
+
+### 1.1 TypeScript 디자인 패키지와 C++ 엔진의 책임
+
+이 경계는 1~5부의 모든 대상과 W9-06/08/13에 적용한다. **C++ 엔진 사용의 완료 조건은 원래 TypeScript 컴포넌트가 엔진 기능을 사용하는 것이며, 컴포넌트 자체의 C++ 재구현이 아니다.**
+
+| 계층 | 유지할 구현과 책임 |
+| --- | --- |
+| `packages/cupertino`·`packages/material` | TypeScript Widget/State·구성/build·theme/token/default·상태별 색/shape 선택·form/validation·controlled value와 callback·route/overlay/localization·컴포넌트 animation/controller 정책. 원래 import·생성자·확장 지점과 실행 코드를 유지 |
+| TypeScript framework·engine adapter | Canonical Element/State/Key/context를 유지하고 선언형 node·제약/스타일·paint 명령·semantics 의도·자원 참조를 versioned wire로 전달. C++ 결과와 입력/terminal을 원래 TypeScript 객체·callback에 연결 |
+| C++ engine·graphics provider | 전달된 설정으로 최종 layout/좌표·text shaping/편집·hit-test/gesture 판정·scroll/motion 기본 연산·scene/paint 준비·raster/composition·자원 수명을 수행. 디자인의 theme/default·컴포넌트 상태 기계·사용자 callback을 별도로 복제하지 않음 |
+| OS/Web host | Surface·clock·입력/IME·접근성 peer·서비스·배포를 연결. 같은 TypeScript 디자인 패키지를 실행하고 플랫폼별 디자인 Widget 구현을 따로 만들지 않음 |
+
+두 디자인 패키지의 소스/배포는 TypeScript·JS/선언·기존 fonts/icons/shader 등 자산으로 유지한다. 패키지 아래에 C++/Objective-C++ Widget 소스·native build target·엔진 binary를 넣거나 TypeScript class를 C++ Widget의 이름만 남은 wrapper로 바꾸지 않는다. 공통 native 구현과 공급은 engine/provider/host 경계에 둔다.
+
+엔진이 이미 제공하는 기능 안에서 theme·상태별 스타일·callback·컴포넌트 구성을 바꾸거나 새로 조합하는 작업은 TypeScript 패키지/adapter에서 해결한다. 새 공통 engine 연산이 필요한 경우에만 C++/wire/capability를 확장한다. Geometry 계산 helper를 C++에 둘 수 있지만 디자인별 기본값·전환 규칙·State를 그 helper로 이전하지 않는다. 구체적인 연결·검증 기준은 [2부 §8.2](work9-2.md#82-디자인-패키지의-typescript-구현-유지)를 따른다.
 
 ## 2. work8에서 이어받는 기준점
 
@@ -138,6 +153,8 @@ Nelyx/engine/
 
 Host 계약에는 surface/metrics·frame clock·input·text input·semantics·clipboard/services·wake·resource release·close를 포함한다. HWND/GObject/Objective-C 객체와 toolkit allocator를 공통 core/wire에 넣지 않는다. CPU Picture/paragraph 준비와 platform GPU presenter를 분리하고, OS별 font/ICU 결과를 공통 text corpus로 확인한다.
 
+`packages/cupertino`·`packages/material` → TypeScript framework/engine-client → 공통 C ABI/wire → C++ engine/provider 순서로 의존한다. 위 engine 배치는 디자인 패키지를 옮길 목적지가 아니다. Engine은 두 패키지의 theme·Widget/State 구현을 포함하거나 다시 소유하지 않으며, adapter에도 이를 복제하지 않는다. 전송은 owned 값/명령/handle로 제한하고 JS 함수·Widget 객체를 Content/Render owner에서 직접 호출하지 않는다.
+
 UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`PreparationId`/publication·node/resource generation을 보존한다. 1차 Windows와 Web threaded는 **App/Content와 독립된 준비 scene 합성**을 요구한다. Web single-worker는 `contentIndependent=false`와 유한 분할/점유 후 회복을 구분한다. 후속 native host도 같은 독립 합성 계약을 따른다. UI의 실제 게시 adapter를 사용한다는 이유로 Content나 TS에서 매 frame raster하도록 바꾸지 않는다.
 
 각 host 보고는 engine/host/backend·OS/ABI·VM/compiler·Skia·schema·source/asset identity·owner 배치·capability를 함께 제공한다. `native`라는 profile 하나에 서로 다른 OS binary를 덮어쓰지 않고 공급 manifest를 target별로 구별한다. 정확한 manifest version은 W9-00/01에서 정하고 기존 소비자의 불일치는 명확히 거부한다.
@@ -153,6 +170,7 @@ UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`
 | Snapshot·자원 | Admission snapshot·frame/provider/GPU hold를 정확한 세대와 owner에 묶고 late 결과·취소·close에서 한 번 해제. Engine Wasm과 CanvasKit 사이에는 복사 bytes/각 module의 ID만 전달. Heap 성장 후 옛 typed-array view나 다른 module의 포인터·JSI/UI 객체를 보관하지 않음. W9-01/05/09/12/13에 적용 |
 | 좌표·크기 | W9-05/07에서 constraints의 `finite/unbounded/expand`와 scroll extent의 `finite/estimated/unbounded`를 구별. 최종 layout/paint/hit-test·게시 bounds는 finite이며 NaN/임의 Infinity·overflow를 거부. Perspective/특이 transform의 projection·역변환 불가 시 hit/semantics 정책도 provider와 일치시킴 |
 | Protocol·공급 | W9-05/07/11의 wire 확장 때 schema/필수 capability와 C++·TS·SDK·설치본 producer/consumer를 함께 갱신. 옛 schema·없는 필수 capability·잘못된 크기/자원/세대를 시작 또는 admission에서 거부하고 기존 scene과 ledger를 보존. 단순 source typecheck로 ABI 호환을 승인하지 않음 |
+| 디자인 구현 경계 | W9-06/08/13에서 두 TypeScript 패키지의 실제 State/theme/callback 실행과 C++ 공통 연산을 각각 확인. 패키지 내 native target·C++ Widget 복제·adapter의 대체 상태 기계로 원래 구현을 우회하지 않음 |
 ## 현재 구현·검증 — 2026-11-06 KST
 
 1차 Windows/Web 작업을 진행 중이다. [실행 프로젝트](Nelyx/engine/platform/windows/app-sdk/NelyxEngineAppSdkHost.vcxproj)는 고정 App SDK **1.8.260508005**, C++/WinRT **2.0.250303.1**, Windows SDK **10.0.26100.0**, `/MD`를 사용하고 현재 CMake core·Skia/Hermes를 연결한다. 실제 AppWindow HWND interop·ResizeClient/Show/Changed·Microsoft.UI dispatcher callback을 실행하며 Vulkan renderer는 Render owner에 유지한다. NuGet 14개 package의 content/archive SHA-512와 license는 [고정 공급](Nelyx/engine/platform/windows/app-sdk/supply.json)에 연결한다.
@@ -163,6 +181,8 @@ UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`
 
 Windows 11 x64에서 검증 중이다. 실제 브라우저는 Chrome **156.0.8078.80**, Edge **156.0.4314.58**, 대조 Chromium **156.0.8078.4**다. Headful WebGL2에서 **AMD Radeon 780M / ANGLE D3D11**, native Graphite/Vulkan에서 **NVIDIA GeForce RTX 4060 Laptop GPU**를 관측했다. 첫 Web matrix에서 Chrome plain 입력 세대 경합을 발견해 Core의 bounded publication snapshot admission을 수정했다. 최종 재검증은 [3부](work9-3.md#현재-구현검증과-잔여-작업)에 기록한다.
 
-실행 명령은 `npm.cmd run build:engine-v2` 다음 `npm.cmd run run:engine-v2:windows-app-sdk`다. 일반 설치 앱은 [SDK 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)의 `windowsHost` 설정을 따른다. 마지막 전체 검증 공급 `90649c3d…`(ABI 2/schema **4122515473**)은 owned m153 문단 공급·Text 정렬/RTL/style·hyphen과 basic ClipRect·affine Transform을 포함하며, host **17/17**, 독립 archive/local strict compiler 포함 runner **19/19**와 원래 API 소비자 **4/4**를 통과했다. 해당 Native/Web Testbed의 **C++ 1251 = SDK ACK 1251**, TS fallback **0**을 확인했다. Native 두 host에서 clip·원점/중심 회전·flip·한글/이모지를 직접 확인했다(C++ 586 = SDK ACK 586, fallback 0, 종료 memoryTotal 0). 표준 clip 계열과 원래 ListView/ScrollController의 일부를 연결했다. 이후 scroll·gesture/control·디자인 등 고수준 API를 우선 개발하고 기능마다 전체 suite를 반복하지 않는다. 앞선 공급 `7a2922c8…`(schema **4120097723**)은 원래 CupertinoButton과 App frame clock까지 연결했고 빌드·source identity와 버튼/gesture/목록 통합 **3/3**을 확인했다. 실제 App SDK에서 plain/filled/tinted·disable·Tab/Enter와 원래 AnimationController의 opacity 1→0.5→1, **C++ 788 = SDK ACK 788**, fallback 0·종료 memoryTotal 0을 확인했다. 전체 host/runner는 반복하지 않았다. 직전 기능 검증 `9fa78a98…` 공급은 Web 두 profile의 같은 버튼·hover·animation pixel·종료 대표 통합 **1/1**을 통과했다(C++/SDK ACK 각각 794/795, fallback 0). 원래 목록 controller의 외부·내부 교체도 연결해 같은 position/offset과 attach/detach callback을 유지하며 Native 대표 통합 **1/1**을 확인했다(C++ 6285 = SDK ACK 6285). 최신 상태·앞선 실패는 [3부](work9-3.md#현재-구현검증과-잔여-작업)에 기록한다. W9-01/02는 PARTIAL, 후속 플랫폼은 DEFERRED다. 물리 입력·전체 API·전체 frame 일정/성능·scanout은 별도 미완료다.
+실행 명령은 `npm.cmd run build:engine-v2` 다음 `npm.cmd run run:engine-v2:windows-app-sdk`다. 일반 설치 앱은 [SDK 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)의 `windowsHost` 설정을 따른다. 앞선 `c4be00de…` / schema **3147956808**에서 Material 버튼·boolean/tristate Checkbox·Radio와 focus/shortcut·그룹 키보드를 연결했고 Web 대표 소비의 C++/SDK ACK **2852/2833** 일치·fallback 0을 확인했다. 새 Switch 공급은 `95fdfa43…` / ABI **2**·schema **2901560100**이며 source/dist 일치와 전체 빌드만 통과했다. 새 대표 입력 검증은 실패했고 기존 Windows 설치본은 갱신하지 않았다.
 
-**외출 일시정지 — 2026-11-06 KST:** 사용자 요청으로 PAUSED / PARTIAL. Material의 native shape·border·highlight/ripple와 font weight 설정을 연결 중이며 실제 Material 앱은 아직 통과하지 않았다. 마지막 전체 빌드 공급은 `68b9fdc1…` / schema **486707000**, 이후 MediaQuery·진단/CLI 변경과 형식 정리로 현재 source identity가 달라졌다. 현재 소스로 rebuild한 뒤 대표 통합부터 재개한다. 진행 중 빌드·실행 창·임시 앱은 정리했다. 상세 상태와 복사할 명령은 [3부 재개 기록](work9-3.md#외출-일시정지-기록)을 따른다.
+정상 Windows 공급 갱신은 Core의 두 emit program을 함께 검사한다. 선행 갱신 회귀 **17/17**과 installed Native Hermes **1/1**, 이전 공급의 host **17/17**·설치 runner **19/19**를 현재 전체 suite 재실행으로 복사하지 않는다. 앞선 focus 공급의 Source focus/세대/편집/semantics 선택 계약은 **14/14**다. 현재 설치 SDK identity와 구체적인 검증 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다.
+
+**PAUSED / PARTIAL.** 사용자의 중간 정리 요청으로 중단했으며 이번 계획 수정으로 구현을 자동 재개하지 않는다. 재개 시 §1.1의 TypeScript 디자인 소유권을 기존 control/paint helper와 대조하고 Windows Switch semantic role 배열 index 누락·Checkbox 클릭/반대 방향 Switch drag의 입력 실패를 해결한다. Slider·나머지 서비스/콘텐츠/복구는 남는다. 최신 Native 표시·입력은 물리 Esc 중단으로 notVerified이며 사용자 UI 재개 전 Computer Use를 자동 실행하지 않는다. W9-01/02·전체 API·W9-13/14는 미완료, 물리/성능·scanout은 미수락, 후속 플랫폼은 DEFERRED다.

@@ -14,8 +14,28 @@ export interface NativePaintSnapshot extends Omit<NativePaintOptions, 'reference
   readonly cy: number;
   readonly resolvedRadius: number;
   readonly transform: AffineMatrix;
+  readonly points: readonly { readonly x: number; readonly y: number }[];
 }
-const kinds = ['physical', 'border', 'highlight', 'ripple'] as const;
+const kinds = [
+  'physical',
+  'border',
+  'highlight',
+  'ripple',
+  'checkbox',
+  'mark',
+  'circle',
+  'shape',
+  'shadow',
+  'clip',
+] as const;
+const geometryKinds = [
+  'none',
+  'switchTrack',
+  'switchThumb',
+  'switchReaction',
+  'switchOnLabel',
+  'switchOffLabel',
+] as const;
 const shapes = ['rrect', 'stadium', 'circle'] as const;
 const clips = ['none', 'hardEdge', 'antiAlias', 'antiAliasWithSaveLayer'] as const;
 const finite = (n: number) => {
@@ -40,7 +60,8 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
         (entry.center ? 2 : 0) |
         (entry.circular ? 4 : 0) |
         (entry.customClip ? 8 : 0) |
-        (entry.fillParent ? 16 : 0),
+        (entry.fillParent ? 16 : 0) |
+        (entry.dash ? 32 : 0),
       true,
     );
     v.setUint32(at + 8, entry.color, true);
@@ -57,11 +78,25 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
       entry.x ?? 0,
       entry.y ?? 0,
       entry.radius ?? -1,
-      entry.progress ?? 0,
+      entry.progress ?? (entry.kind === 'circle' ? 1 : 0),
       ...entry.shape.radii,
     ];
     if (entry.shape.radii.length !== 8) throw Error('Native shape needs eight corner radii');
     values.forEach((value, i) => v.setFloat64(at + 40 + i * 8, finite(value), true));
+    const geometry = entry.geometry;
+    v.setUint32(at + 256, geometry ? geometryKinds.indexOf(geometry.kind) + 0 : 0, true);
+    v.setUint32(at + 260, geometry?.rtl ? 1 : 0, true);
+    [
+      geometry?.trackWidth ?? 0,
+      geometry?.trackHeight ?? 0,
+      geometry?.thumbWidth ?? 0,
+      geometry?.thumbHeight ?? 0,
+      geometry?.extension ?? 0,
+      geometry?.position ?? 0,
+      geometry?.inset ?? 0,
+      entry.blurSigma ?? 0,
+      entry.spread ?? 0,
+    ].forEach((value, i) => v.setFloat64(at + 264 + i * 8, finite(value), true));
   });
   return bytes;
 }
@@ -83,8 +118,16 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
         kind = kinds[v.getUint32(at, true) - 1],
         shape = shapes[v.getUint32(at + 24, true)],
         clip = clips[v.getUint32(at + 28, true)];
-      if (!kind || !shape || !clip || flags & ~31 || v.getUint32(at + 36, true) || f(248))
+      if (!kind || !shape || !clip || flags & ~63 || v.getUint32(at + 36, true) || f(248))
         throw Error('Invalid native paint entry');
+      if (
+        (flags & 32 && kind !== 'mark') ||
+        (kind === 'mark' && v.getUint32(4, true) && f(144) !== 2 && f(144) !== 3)
+      )
+        throw Error('Invalid native mark');
+      const geometryKind = geometryKinds[v.getUint32(at + 256, true)],
+        geometryFlags = v.getUint32(at + 260, true);
+      if (!geometryKind || geometryFlags > 1) throw Error('Invalid native paint geometry');
       return Object.freeze({
         kind,
         color: v.getUint32(at + 8, true),
@@ -111,6 +154,24 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
         circular: !!(flags & 4),
         customClip: !!(flags & 8),
         fillParent: !!(flags & 16),
+        dash: !!(flags & 32),
+        ...(geometryKind === 'none'
+          ? {}
+          : {
+              geometry: Object.freeze({
+                kind: geometryKind,
+                rtl: !!geometryFlags,
+                trackWidth: f(264),
+                trackHeight: f(272),
+                thumbWidth: f(280),
+                thumbHeight: f(288),
+                extension: f(296),
+                position: f(304),
+                inset: f(312),
+              }),
+            }),
+        blurSigma: f(320),
+        spread: f(328),
         width: f(160),
         height: f(168),
         cx: f(176),
@@ -119,6 +180,13 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
         transform: Object.freeze(
           Array.from({ length: 6 }, (_, i) => f(200 + i * 8)),
         ) as unknown as AffineMatrix,
+        points: Object.freeze(
+          kind === 'mark' && v.getUint32(4, true)
+            ? Array.from({ length: f(144) }, (_, i) =>
+                Object.freeze({ x: f(96 + i * 16), y: f(104 + i * 16) }),
+              )
+            : [],
+        ),
       });
     }),
   );

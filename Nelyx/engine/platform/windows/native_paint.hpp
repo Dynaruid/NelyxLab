@@ -19,15 +19,29 @@ inline void paintNativeShadow(SkCanvas* canvas,const Node& node,const SkPath* pa
 }
 inline void paintNative(SkCanvas* canvas,const Node& node,SkPaint& paint) {
   if(!node.resolvedPaint)return;
-  const bool ink=std::any_of(node.resolvedPaint->entries.begin(),node.resolvedPaint->entries.end(),[](const auto& e){return e.kind>=3;});
+  const bool ink=std::any_of(node.resolvedPaint->entries.begin(),node.resolvedPaint->entries.end(),[](const auto& e){return e.kind==3||e.kind==4;});
   canvas->save();if(ink)canvas->clipRect(SkRect::MakeWH(float(node.properties.width),float(node.properties.height)));
-  for(const auto& e:node.resolvedPaint->entries){canvas->save();
+  for(const auto& e:node.resolvedPaint->entries){
+    if(e.kind==10){auto shape=nativePaintShape(e);shape.offset(float(e.transform.tx),float(e.transform.ty));canvas->clipRRect(shape,true);continue;}
+    canvas->save();
     const auto& m=e.transform;canvas->concat(SkMatrix::MakeAll(float(m.a),float(m.c),float(m.tx),float(m.b),float(m.d),float(m.ty),0,0,1));
     paint.setColor(e.color);paint.setStyle(SkPaint::kFill_Style);
     if(e.kind==2){if(e.strokeWidth>0&&(e.strokeColor>>24)){
       paint.setColor(e.strokeColor);paint.setStrokeWidth(float(e.strokeWidth));paint.setStyle(SkPaint::kStroke_Style);
       canvas->drawRRect(nativePaintShape(e,e.strokeWidth*e.strokeAlign/2),paint);paint.setStyle(SkPaint::kFill_Style);
     }}else if(e.kind==1)canvas->drawRRect(nativePaintShape(e),paint);
+    else if(e.kind==5||e.kind==8){canvas->drawRRect(nativePaintShape(e),paint);
+      if(e.strokeWidth>0&&(e.strokeColor>>24)){paint.setColor(e.strokeColor);paint.setStrokeWidth(float(e.strokeWidth));paint.setStyle(SkPaint::kStroke_Style);
+        canvas->drawRRect(nativePaintShape(e,e.strokeWidth*e.strokeAlign/2),paint);paint.setStyle(SkPaint::kFill_Style);}
+    }else if(e.kind==9){if(e.blurSigma>0)paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle,float(e.blurSigma)));
+      canvas->drawRRect(nativePaintShape(e),paint);paint.setMaskFilter(nullptr);
+    }else if(e.kind==6){SkPathBuilder path;path.moveTo(float(e.radii[0]),float(e.radii[1]));
+      for(size_t i=1;i<size_t(e.radii[6]);++i)path.lineTo(float(e.radii[i*2]),float(e.radii[i*2+1]));
+      paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(float(e.strokeWidth));canvas->drawPath(path.detach(),paint);paint.setStyle(SkPaint::kFill_Style);
+    }else if(e.kind==7){canvas->drawCircle(float(e.cx),float(e.cy),float(e.resolvedRadius),paint);
+      if(e.strokeWidth>0&&(e.strokeColor>>24)){paint.setColor(e.strokeColor);paint.setStrokeWidth(float(e.strokeWidth));paint.setStyle(SkPaint::kStroke_Style);
+        canvas->drawCircle(float(e.cx),float(e.cy),float(std::max(0.0,e.resolvedRadius+e.strokeWidth*e.strokeAlign/2)),paint);paint.setStyle(SkPaint::kFill_Style);}
+    }
     else {if((e.kind==3&&bool(e.flags&8u))||(e.kind==4&&bool(e.flags&1u)))canvas->clipRRect(nativePaintShape(e),true);
       if(e.kind==4||(e.flags&4u))canvas->drawCircle(float(e.cx),float(e.cy),float(e.resolvedRadius),paint);
       else canvas->drawRRect(nativePaintShape(e),paint);

@@ -4,7 +4,7 @@
   "abiMinor": 0,
   "magic": 844647502,
   "headerBytes": 64,
-  "stateBytes": 656,
+  "stateBytes": 704,
   "nodeBytes": 344,
   "eventBytes": 160,
   "inputBytes": 128,
@@ -41,6 +41,7 @@
     "textBytes": 65536,
     "localeBytes": 128,
     "ellipsisBytes": 256,
+    "fontFamilyBytes": 256,
     "layoutOperations": 131072,
     "coveragePixelsPerSecond": 2400,
     "coverageViewportsPerSecond": 4,
@@ -199,7 +200,8 @@
     "controlChanged": 16,
     "rawGap": 17,
     "gestureDecision": 18,
-    "appFrame": 19
+    "appFrame": 19,
+    "key": 20
   },
   "gestures": {
     "tap": 1,
@@ -210,6 +212,11 @@
     "doubleTap": 32,
     "hover": 64,
     "scrollbar": 128
+  },
+  "keyKinds": {
+    "down": 1,
+    "up": 2,
+    "repeat": 3
   },
   "gestureKinds": {
     "tap": 1,
@@ -297,7 +304,10 @@
     "gestureDetails": 2097152,
     "canonicalControls": 4194304,
     "appFrameClock": 8388608,
-    "canonicalMaterial": 16777216
+    "canonicalMaterial": 16777216,
+    "canonicalSelection": 33554432,
+    "canonicalFocus": 67108864,
+    "canonicalSwitch": 134217728
   },
   "headerFields": {
     "magic": 0,
@@ -405,7 +415,13 @@
     "memoryLimit": 624,
     "viewportWidth": 632,
     "viewportHeight": 640,
-    "viewportScale": 648
+    "viewportScale": 648,
+    "publishedDocument": 656,
+    "publishedMetrics": 664,
+    "publishedDevice": 672,
+    "keyWork": 680,
+    "focusWork": 688,
+    "focusPeer": 696
   },
   "nodeFields": {
     "node": 0,
@@ -480,6 +496,7 @@
     "epoch": 16,
     "detail": 24,
     "node": 32,
+    "focusPeer": 56,
     "pointerKind": 56,
     "stream": 60,
     "timestamp": 64,
@@ -712,7 +729,10 @@
     "textField": 4,
     "checkbox": 5,
     "slider": 6,
-    "link": 7
+    "link": 7,
+    "radio": 8,
+    "radioGroup": 9,
+    "switchControl": 10
   },
   "semanticsFlags": {
     "disabled": 1,
@@ -720,7 +740,8 @@
     "checked": 4,
     "selected": 8,
     "focusable": 16,
-    "readOnly": 32
+    "readOnly": 32,
+    "mixed": 64
   },
   "semanticsActions": {
     "activate": 1,
@@ -803,7 +824,11 @@
     "dragThreshold": 1024,
     "mouseRegion": 2048,
     "mouseOpaque": 4096,
-    "roundedHitTest": 8192
+    "roundedHitTest": 8192,
+    "focusOwner": 16384,
+    "focusEnabled": 32768,
+    "skipTraversal": 65536,
+    "canonicalKeyboard": 131072
   },
   "pointerKinds": {
     "unknown": 0,
@@ -819,8 +844,29 @@
     "vertical": 4,
     "semantic": 8
   },
-  "nativePaintBytes": 256,
+  "nativePaintBytes": 336,
+  "nativePaintKinds": {
+    "physical": 1,
+    "border": 2,
+    "highlight": 3,
+    "ripple": 4,
+    "checkbox": 5,
+    "mark": 6,
+    "circle": 7,
+    "shape": 8,
+    "shadow": 9,
+    "clip": 10
+  },
+  "nativePaintGeometryKinds": {
+    "none": 0,
+    "switchTrack": 1,
+    "switchThumb": 2,
+    "switchReaction": 3,
+    "switchOnLabel": 4,
+    "switchOffLabel": 5
+  },
   "paragraphFields": {
+    "fontFamilyLength": 20,
     "fontWeight": 24
   }
 }

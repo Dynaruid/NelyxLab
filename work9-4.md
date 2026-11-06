@@ -10,6 +10,8 @@
 
 **공통 계약과 완료 조건:** [2부 §11.2의 mirror/ACK·입력 수명](work9-2.md#112-중립-adapter와-상태-계약), [§11.6의 M0–M4](work9-2.md#116-도입-순서와-의존성-gate), [§11.7의 공통 corpus](work9-2.md#117-공통-입력수명-검증-corpus)를 Android에 적용한다. Android와 Linux 각각의 W9-05–11 corpus·[W9-13/14](work9-3.md#123-단계별-범위와-완료-조건)를 연결하고 API·host·공급 통합을 마친 뒤 5부에 착수한다. 물리 입력·성능 수락은 대상별로 남긴다.
 
+**디자인 패키지 구현:** Android/Linux에서도 `packages/cupertino`·`packages/material`은 같은 **TypeScript Widget/State·theme·callback·controller·컴포넌트 동작**을 실행한다. [1부 §1.1의 책임](work9-1.md#11-typescript-디자인-패키지와-c-엔진의-책임)과 [2부 §8.2의 연결/검증](work9-2.md#82-디자인-패키지의-typescript-구현-유지)을 그대로 적용한다. C++/JNI/GTK 구현 범위는 공통 engine/provider와 OS adapter이며 두 디자인 패키지의 C++/Kotlin/GTK Widget 재구현을 포함하지 않는다.
+
 두 target 모두 2부 §10의 generation reload·세대 차단·loss/재시작·close 계약을 해당 host/CLI에 적용한다. Android는 W9-12-B, Linux는 W9-03에서 시작하고 W9-13에서 전체 기능과 통합한다. Windows/Web의 복구 통과를 후속 target에 복사하지 않는다.
 
 ## Android 호스트
@@ -22,13 +24,13 @@
 2. Commit/composing/selection/batch/delete와 hardware key를 Core 입력으로 연결한다. UTF-16 길이·`deleteSurroundingTextInCodePoints`의 code-point 수·grapheme 삭제를 구별하고 `newCursorPosition`, nested batch, 오래된 connection과 조합 종료 중 App 변경을 검사한다.
 3. RN의 IME 예외 처리·focus·keyboard inset·Activity/service 로직은 필요한 기능 단위로만 이식한다. Root/tag 조회는 owned Activity/view·engine handle로 바꾸며 ReactHost·ReactContext·UIManager나 RN event dispatch가 필요한 실행 경로를 남기지 않는다.
 4. Semantics는 Core node 세대와 Android accessibility virtual node/action으로 연결한다. RN ViewGroup의 접근성 구현이나 화면에 없는 native text control의 존재로 전체 C++ semantics tree·range/action이 제공된다고 가정하지 않는다.
-5. Native surface·device/resize/background/foreground·close/drain을 연결한다. Frame 수요는 Android Choreographer에서 host clock 계약으로 전달하며 JS/RN frame scheduler를 필요로 하지 않는다. GPU owner와 App/Content 독립성은 기존 native 계약을 적용한다.
+5. Native surface·device/resize/background/foreground·close/drain을 연결한다. Engine frame 수요는 Android Choreographer에서 host clock 계약으로 전달하며 RN frame scheduler를 필요로 하지 않는다. 원래 TypeScript AnimationController/Ticker·컴포넌트 callback은 App에 유지하고 필요한 host frame 시각을 전달한다. GPU owner와 App/Content 독립성은 기존 native 계약을 적용한다.
 
 Surface/ANativeWindow와 JNI reference는 획득·전달·해제 owner와 세대를 명시한다. Surface 파괴 뒤 이전 frame의 제출을 차단하고 새 surface/metrics가 준비된 뒤 게시한다. UI에서 Render/IME callback을 기다리는 blocking join을 넣지 않으며 background·Activity 재생성·종료 때 Choreographer/observer·오래된 InputConnection·pending/lease를 회수한다. OS 동기 질의의 text/selection mirror와 `updateSelection`·후보창 갱신은 같은 focus/edit revision을 사용한다.
 
 초기 대상은 arm64-v8a 최소 scene·입력·InputConnection·접근성·공급/drain이다. Emulator와 실기기·IME별 자동/물리 결과는 각각 기록하며 전체 Testbed·디자인 제품 수락과 구분한다.
 
-2차 착수 시 Android 최저 OS·min/compile/target SDK·NDK/JDK/Gradle·Hermes/Skia의 ABI·필수 native library를 고정한다. RN 없는 일반 앱의 create/build/run/doctor/pack·설치 실패/성공·실행 identity를 W9-12-B/13에 연결한다. 최소 port의 성공 뒤에도 전체 원래 API·디자인·복구 corpus를 마쳐야 Android W9-13 기술 완료다.
+2차 착수 시 Android 최저 OS·min/compile/target SDK·NDK/JDK/Gradle·Hermes/Skia의 ABI·필수 native library를 고정한다. RN 없는 일반 앱의 create/build/run/doctor/pack·설치 실패/성공·실행 identity를 W9-12-B/13에 연결한다. 최소 port의 성공 뒤에도 전체 원래 API·TypeScript 디자인·복구 corpus를 마쳐야 Android W9-13 기술 완료다. 실제 설치 앱에서 두 디자인 패키지의 theme/State·controlled callback·변경 거부/취소·dispose와 C++ 작업을 함께 확인한다. InputConnection carrier·접근성 virtual node는 OS 연결이며 기본 디자인 컴포넌트의 구현을 대신하지 않는다.
 
 ## 5. Linux — GTK4 호스트
 
@@ -54,4 +56,8 @@ DMA-BUF import 성공 때만 GDK consumer로 lease를 넘긴다. Import 실패�
 
 W9-03 착수 때 Linux 배포판/glibc·GLib/GTK·Vulkan loader/driver·libdrm·font/ICU 기준을 고정한다. Wayland/X11 각각 같은 일반 앱의 build/run/doctor/pack·동적 library/rpath·설치본 실행과 손상 거부를 W9-13에 연결한다. 개발 PC에만 있는 library나 환경 변수로 실행된 prototype을 일반 배포 성공으로 세지 않는다.
 
+GTK widget은 surface/texture 게시·입력·접근성 host를 담당한다. Material/Cupertino 화면은 원래 TypeScript 패키지가 구성하고 C++ engine이 그리며, GtkButton/GtkSwitch 등으로 디자인 Widget을 바꿔 전체 호환을 판정하지 않는다. Wayland/X11에서 같은 TypeScript theme·State/callback과 공통 engine의 입력/paint 결과를 검사한다.
+
 `GtkGLArea`는 OpenGL framebuffer를 GTK에 통합하는 별도 방식이다. 현재 Graphite/Vulkan renderer를 그 안에 바로 연결할 수 있다고 가정하지 않는다. DMA-BUF prototype이 실패하면 실패한 capability·환경을 기록하고 Linux gate를 미완료로 유지한다. GL provider 추가는 owner·Skia 공급·기능 동등성을 다시 설계하는 명시적 대안이다. [GtkGLArea 계약](https://docs.gtk.org/gtk4/class.GLArea.html)
+
+Android/Linux W9-13은 TypeScript 디자인/자산과 공통 native engine/provider/host 공급의 분리를 확인한다. 두 디자인 패키지 아래에 native Widget source/target·engine binary를 추가하지 않고, 기존 capability 안의 theme/스타일 변경이 TypeScript 패키지/adapter 갱신으로 반영되는지 검사한다. 명시적 platform view는 W9-11의 별도 계약을 따른다. 이번 경계 수정은 계획만 갱신하며 구현 **DEFERRED / notVerified**와 차수 전환 조건을 유지한다.

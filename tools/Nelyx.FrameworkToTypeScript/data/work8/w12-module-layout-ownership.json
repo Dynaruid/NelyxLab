@@ -313,7 +313,7 @@
       "previousSha256": "42431b997683ccf1f37bad1cc2b9a70b1a98fab8e8c8ff2beb926844dfec6bda",
       "current": {
         "file": "packages/material/src/internal/checkbox/checkbox-painter.ts",
-        "sha256": "71efbafa800a58924043ceb5406e5dc9cd0f94ae5fdedf3ba5d1daf18274512b"
+        "sha256": "9d2e1c106381f09d3a72afe6fd920cc048a1325a5959f6a3478164700116a7f5"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. Runtime/AST checks are separate."
     },
@@ -697,7 +697,7 @@
       "previousSha256": "26f0a55728b4514e5871da18dd207c50f3c9b3d1662a9d4137c96be046fdcee2",
       "current": {
         "file": "packages/material/src/internal/material/material-ink-owner.ts",
-        "sha256": "8f5f5b0c044510aef5b03c2744ac96b0bd5d19b62eeda9501b6aa9956f582e6a"
+        "sha256": "b6ea10e69ab81d23e2505c70b1aa7a1145249fb130acf35bf30d86c0be1fc722"
       },
       "bodyPolicy": "Relative module specifiers relocated and handwritten TS blocks formatted; numeric annotation multiset preserved. W17: canonical ink paint invalidation retains unchanged semantics, with conservative custom-hook fallback. Runtime/AST checks are separate."
     },

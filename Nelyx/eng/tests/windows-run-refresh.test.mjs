@@ -99,21 +99,23 @@ test('CLI template caches neither change SDK identity nor enter npm archives', {
     temp.close();
   }
 });
-function workspace() {
+function workspace(name = 'sdk') {
   const temp = temporary(),
     { root } = temp,
     app = path.join(root, 'sample app'),
     source = path.join(root, 'sdk'),
     runner = path.join(app, 'windows/runner'),
-    installed = path.join(runner, 'node_modules/@nelyx/sdk');
+    installed = path.join(runner, 'node_modules/@nelyx', name);
   json(path.join(root, 'package.json'), { workspaces: ['sdk'] });
   json(path.join(source, 'package.json'), {
-    name: '@nelyx/sdk',
+    name: '@nelyx/' + name,
     version: '1.0.0',
     files: ['src', 'dist', 'native'],
     scripts: { build: 'emit' },
   });
-  json(path.join(runner, 'package.json'), { dependencies: { '@nelyx/sdk': 'file:local.tgz' } });
+  json(path.join(runner, 'package.json'), {
+    dependencies: { ['@nelyx/' + name]: 'file:local.tgz' },
+  });
   json(path.join(source, 'tsconfig.build.json'), {
     compilerOptions: { rootDir: 'src', outDir: 'dist' },
     include: ['src/**/*.ts'],
@@ -291,6 +293,60 @@ test(
         'A new unreferenced TypeScript module must be emitted before supply',
       );
       assert(fs.existsSync(path.join(f.installed, 'dist/new.js')));
+    } finally {
+      f.close();
+    }
+  },
+);
+
+test(
+  'sample refresh includes both Core programs and emits a newly added v2 runtime source',
+  { timeout },
+  async () => {
+    const f = workspace('core'),
+      calls = [];
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(f.source, 'package.json'), 'utf8'));
+      manifest.files.push('runtime');
+      json(path.join(f.source, 'package.json'), manifest);
+      json(path.join(f.source, 'runtime/tsconfig.json'), {
+        extends: '../tsconfig.build.json',
+        compilerOptions: { rootDir: '.', outDir: '../dist/v2' },
+        include: ['engine-client/**/*.ts'],
+      });
+      write(path.join(f.source, 'runtime/engine-client/client.ts'), 'export const wire=1;');
+      const options = {
+        report() {},
+        run: async (_command, args) => {
+          calls.push(args);
+          if (args.includes('build')) {
+            f.emit();
+            for (const name of fs.readdirSync(path.join(f.source, 'runtime/engine-client'))) {
+              const text = fs.readFileSync(
+                  path.join(f.source, 'runtime/engine-client', name),
+                  'utf8',
+                ),
+                js = path.join(f.source, 'dist/v2/engine-client', name.replace(/\.ts$/, '.js'));
+              write(js, text);
+              json(js + '.map', {
+                version: 3,
+                sources: ['../../../runtime/engine-client/' + name],
+                sourcesContent: [text],
+              });
+            }
+          }
+          if (args.includes('install')) f.install();
+        },
+      };
+      assert.deepEqual((await refreshSampleWindowsSdk(f, options)).changed, ['@nelyx/core']);
+      assert.equal(calls.length, 3);
+      calls.length = 0;
+      assert.deepEqual((await refreshSampleWindowsSdk(f, options)).changed, []);
+      assert.equal(calls.length, 0, 'Both emitted programs are current');
+      write(path.join(f.source, 'runtime/engine-client/added.ts'), 'export const added=1;');
+      await refreshSampleWindowsSdk(f, options);
+      assert.equal(calls.length, 3, 'A new unreferenced v2 module requires compile before supply');
+      assert(fs.existsSync(path.join(f.installed, 'dist/v2/engine-client/added.js')));
     } finally {
       f.close();
     }

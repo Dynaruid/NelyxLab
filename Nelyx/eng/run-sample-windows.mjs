@@ -11,11 +11,28 @@ import { verifyPackageSourceInputs } from './package-source-inputs.mjs';
 
 async function verifyEmitInventory(directory) {
   const { default: ts } = await import('typescript'),
-    config = path.join(directory, 'tsconfig.build.json'),
-    read = ts.readConfigFile(config, ts.sys.readFile);
-  if (read.error) throw Error('Cannot read package build configuration: ' + config);
-  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, directory);
-  if (parsed.errors.length) throw Error('Invalid package build configuration: ' + config);
+    manifest = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8')),
+    expected = new Set();
+  // Match build-packages: Core emits both the canonical src tree and its
+  // separate v2 runtime program into the same current dist.
+  for (const relative of [
+    'tsconfig.build.json',
+    ...(manifest.name === '@nelyx/core' ? ['runtime/tsconfig.json'] : []),
+  ]) {
+    const config = path.join(directory, relative),
+      read = ts.readConfigFile(config, ts.sys.readFile);
+    if (read.error) throw Error('Cannot read package build configuration: ' + config);
+    const parsed = ts.parseJsonConfigFileContent(
+      read.config,
+      ts.sys,
+      path.dirname(config),
+      {},
+      config,
+    );
+    if (parsed.errors.length) throw Error('Invalid package build configuration: ' + config);
+    for (const file of parsed.fileNames)
+      if (/\.(?:ts|tsx)$/.test(file) && !file.endsWith('.d.ts')) expected.add(path.resolve(file));
+  }
   const emitted = new Set(),
     visit = (folder) => {
       for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
@@ -28,10 +45,7 @@ async function verifyEmitInventory(directory) {
       }
     };
   visit(path.join(directory, 'dist'));
-  const expected = parsed.fileNames.filter(
-    (file) => /\.(?:ts|tsx)$/.test(file) && !file.endsWith('.d.ts'),
-  );
-  if (expected.length !== emitted.size || expected.some((file) => !emitted.has(path.resolve(file))))
+  if (expected.size !== emitted.size || [...expected].some((file) => !emitted.has(file)))
     throw Error('Package TypeScript source inventory changed: ' + directory);
 }
 

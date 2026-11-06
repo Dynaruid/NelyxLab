@@ -36,7 +36,7 @@ import {
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { Radius } from '@nelyx/core/ui/radius';
 import { Rect as SourceRect } from '@nelyx/core/ui/rect';
-import { TextHeightBehavior } from '@nelyx/core/ui/typography';
+import { TextHeightBehavior, FontWeight } from '@nelyx/core/ui/typography';
 import { webParagraphStyle } from '../../skia/packages/web/src/text-style.ts';
 import { preparedTransfers } from '../platform/web/actors.ts';
 import { engineRoot, timeout, sourceIdentity } from '../tools/build.mjs';
@@ -206,7 +206,7 @@ for (const profile of ['single-worker', 'threaded'])
                 maxLines: options.maxLines ?? 0,
                 ellipsis: options.overflow === 'ellipsis' ? '…' : '',
                 hyphens: options.hyphens ?? 'manual',
-                style: options.style,
+                style: new TextStyle(options.style).toRunStyle(),
                 textHeightBehavior: options.textHeightBehavior,
               },
               'NelyxDefault',
@@ -578,7 +578,8 @@ for (const profile of ['single-worker', 'threaded'])
           visibleText.pixels.slice(0, 12 * 100 * 4),
           'Overflow clipping preserves glyph pixels within the original text box',
         );
-        let finalFrame = visibleText.frame;
+        let finalFrame = visibleText.frame,
+          finalPixels = visibleText.pixels;
         for (const [label, value, extra, width, height, loose] of [
           [
             'ellipsis',
@@ -642,6 +643,24 @@ for (const profile of ['single-worker', 'threaded'])
           ],
           ['emoji', '😀 👩‍💻', {}, 100, 60, false],
           [
+            'medium-fallback',
+            '한 A',
+            {
+              style: { fontSize: 18, fontFamily: 'Missing font 字体', fontWeight: FontWeight.w500 },
+            },
+            100,
+            60,
+            false,
+          ],
+          [
+            'bold-variable',
+            '한 A',
+            { style: { fontSize: 18, fontWeight: FontWeight.w900 } },
+            100,
+            60,
+            false,
+          ],
+          [
             'height-behavior',
             'Alpha\tbeta\n한글',
             {
@@ -696,7 +715,29 @@ for (const profile of ['single-worker', 'threaded'])
             `${profile}/${label}: C++/provider differs from the canonical paragraph adapter`,
           );
           finalFrame = actual.frame;
+          finalPixels = actual.pixels;
         }
+        assert.ok(render.counters.liveFontVariations <= render.counters.fontVariationLimit);
+        render.setMemoryPressure(true);
+        assert.equal(render.counters.liveFontVariations, 0);
+        render.draw(finalFrame, 100, 80, 1);
+        const pressureSnapshot = render.surface.makeImageSnapshot();
+        try {
+          assert.deepEqual(
+            pressureSnapshot.readPixels(0, 0, {
+              width: 100,
+              height: 80,
+              colorType: renderKit.ColorType.RGBA_8888,
+              alphaType: renderKit.AlphaType.Premul,
+              colorSpace: renderKit.ColorSpace.SRGB,
+            }),
+            finalPixels,
+            'Pressure releases variation wrappers while retained glyph pictures remain valid',
+          );
+        } finally {
+          pressureSnapshot.delete();
+        }
+        render.setMemoryPressure(false);
         assert.ok(content.counters.measurements > 0 && content.counters.paragraphLayouts > 0);
         assert.equal(finalFrame.transactionWork, BigInt(host.counters.commands));
         assert.ok(finalFrame.transactionWork > 0n && finalFrame.layoutWork > 0n);

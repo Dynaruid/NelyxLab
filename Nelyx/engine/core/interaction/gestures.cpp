@@ -212,7 +212,17 @@ void View::advanceGestures() {
       (active->document->get(s.target).gestures&wire::gestures::longPress)&&!(active->document->get(s.target).policy&wire::eventPolicies::canonicalGestures)&&time-s.at>=0.5){s.longSent=true;gesture(s.target,wire::gestureKinds::longPress,lastInput,s.x,s.y);}
 }
 void View::key(Reader r) {
-  require(r.length==24&&r.u32(20)==0&&r.u32(16)<=1&&r.u64(0)==publication,wire::statuses::stale);
+  require(r.length==24&&r.u32(20)<=1&&r.u32(16)<=1&&(!r.u32(20)||r.u32(16))&&r.u32(12)<=15&&r.u32(8)<=65535,wire::statuses::invalidValue);
+  require(r.u64(0)==publication,wire::statuses::stale);
+  if(published&&visible&&focused&&published->scene->metrics.epoch==metrics.epoch){
+    Handle keyboard;
+    for(const auto root:published->scene->document->children[0])
+      if(published->scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){keyboard=root;break;}
+    if(keyboard){require(document->contains(keyboard)&&(document->get(keyboard).policy&wire::eventPolicies::canonicalKeyboard),wire::statuses::stale);
+      require(interactionEvents.size()<wire::limits::interactionEvents,wire::statuses::budgetExceeded);
+      interaction({wire::events::key,r.u32(16)?(r.u32(20)?wire::keyKinds::repeat:wire::keyKinds::down):wire::keyKinds::up,
+        publication,focusSession,uint64_t(r.u32(8))|(uint64_t(r.u32(12))<<32),keyboard,time});++keyWork;return;}
+  }
   if(!r.u32(16))return;
   const auto code=r.u32(8),modifiers=r.u32(12);
   if(code==9&&published){std::vector<Handle> choices;

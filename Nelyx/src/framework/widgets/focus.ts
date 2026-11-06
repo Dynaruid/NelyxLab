@@ -85,6 +85,38 @@ export interface FocusAttachmentOptions {
   readonly blur?: () => void;
   readonly reveal?: (options?: TraversalRequestFocusOptions) => void;
 }
+/** @internal An owning native adapter supplies committed geometry and queued OS focus commands. */
+export interface NativeFocusBinding extends Pick<
+  FocusAttachmentOptions,
+  'focus' | 'blur' | 'reveal'
+> {
+  readonly geometry: () => { readonly rect: Rect; readonly offset: Offset };
+}
+const nativeFocusBindings = new WeakMap<
+  FocusNode,
+  { owner: object; binding: NativeFocusBinding }
+>();
+/** @internal Native bindings never change an ordinary FocusNode's attachment or source lifecycle. */
+export function bindNativeFocusNode(
+  node: FocusNode,
+  owner: object,
+  binding: NativeFocusBinding,
+): () => void {
+  const previous = nativeFocusBindings.get(node);
+  invariant(
+    !previous || previous.owner === owner,
+    'foreign-native-focus',
+    'FocusNode belongs to another native owner',
+  );
+  const entry = { owner, binding };
+  nativeFocusBindings.set(node, entry);
+  return () => {
+    if (nativeFocusBindings.get(node) === entry) nativeFocusBindings.delete(node);
+  };
+}
+function focusCommands(node: FocusNode): FocusAttachmentOptions {
+  return nativeFocusBindings.get(node)?.binding ?? state(node).commands;
+}
 export interface FocusScopeNodeOptions extends FocusNodeOptions {
   readonly traversalEdgeBehavior?: TraversalEdgeBehavior;
   readonly directionalTraversalEdgeBehavior?: TraversalEdgeBehavior;
@@ -239,7 +271,7 @@ function request(manager: FocusManager, node: FocusNode, invoke = true, immediat
   if (!(state(node).manager === manager))
     invariant(false, 'foreign-focus-node', 'FocusNode belongs to another View');
   if (!node.canRequestFocus) {
-    if (!invoke) state(node).commands.blur?.();
+    if (!invoke) focusCommands(node).blur?.();
     return;
   }
   m.generation++;
@@ -336,7 +368,7 @@ function detach(node: FocusNode): void {
         for (const parent of previous.ancestors) m.dirty.add(parent);
         m.primary = undefined;
         try {
-          state(previous).commands.blur?.();
+          focusCommands(previous).blur?.();
         } catch (error) {
           errors.push(error);
         }
@@ -633,7 +665,7 @@ export class FocusNode extends ChangeNotifier {
   }
   showOnScreen(options?: TraversalRequestFocusOptions): void {
     const d = state(this);
-    if (d.commands.reveal) d.commands.reveal(options);
+    if (focusCommands(this).reveal) focusCommands(this).reveal!(options);
     else if (isElementContext(d.context) && d.context.active)
       d.context.findRenderObject()?.showOnScreen();
   }
@@ -653,6 +685,8 @@ export class FocusNode extends ChangeNotifier {
     else d.manager.blur(this);
   }
   get rect(): Rect {
+    const native = nativeFocusBindings.get(this);
+    if (native) return native.binding.geometry().rect;
     const render = this.context?.findRenderObject();
     if (!(render instanceof RenderBox && render.hasSize))
       invariant(false, 'missing-focus-geometry', 'Focus geometry requires a laid-out RenderBox');
@@ -662,6 +696,8 @@ export class FocusNode extends ChangeNotifier {
     return Rect.fromLTRB(a.x, a.y, z.x, z.y);
   }
   get offset(): Offset {
+    const native = nativeFocusBindings.get(this);
+    if (native) return native.binding.geometry().offset;
     const render = this.context?.findRenderObject();
     if (!(render instanceof RenderBox && render.hasSize))
       invariant(false, 'missing-focus-geometry', 'Focus offset requires a laid-out RenderBox');
@@ -687,6 +723,7 @@ export class FocusNode extends ChangeNotifier {
     d.commands = {};
     d.context = null;
     d.dead = true;
+    nativeFocusBindings.delete(this);
     try {
       super.dispose();
     } catch (error) {
@@ -961,7 +998,7 @@ export class FocusManager extends ChangeNotifier {
     if (!(state(node).manager === this))
       invariant(false, 'foreign-focus-node', 'FocusNode belongs to another View');
     if (!node.canRequestFocus) {
-      state(node).commands.blur?.();
+      focusCommands(node).blur?.();
       return false;
     }
     request(this, node, false, true);
@@ -1016,13 +1053,13 @@ export class FocusManager extends ChangeNotifier {
           for (const n of [...oldPath, ...newPath]) m.dirty.add(n);
           if (previous)
             try {
-              state(previous).commands.blur?.();
+              focusCommands(previous).blur?.();
             } catch (error) {
               errors.push(error);
             }
           if (invoke)
             try {
-              state(next).commands.focus?.(request);
+              focusCommands(next).focus?.(request);
             } catch (error) {
               errors.push(error);
             }
@@ -1203,7 +1240,7 @@ export class FocusManager extends ChangeNotifier {
     m.primary = undefined;
     if (previous)
       try {
-        state(previous).commands.blur?.();
+        focusCommands(previous).blur?.();
       } catch (error) {
         errors.push(error);
       }

@@ -288,7 +288,6 @@ async function main() {
   const sourceSha256 = sourceIdentity();
   const hosts = !process.argv.includes('--headless');
   const webRuntime = hosts ? checkWebRuntime() : undefined;
-  if (hosts) checkBrowserTypes();
   const supplier = hosts ? suppliers() : undefined;
   if (hosts) {
     for (const target of ['core', 'cupertino', 'material', 'sdk']) {
@@ -296,6 +295,9 @@ async function main() {
         run(process.execPath, [path.resolve(engineRoot, '../eng/build-packages.mjs'), target]),
       );
     }
+    // Provider types consume canonical Core/package declarations emitted above.
+    // Validate them before compiling or promoting the native/Wasm supply.
+    checkBrowserTypes();
   }
   const parent = path.join(engineRoot, '.cache');
   fs.mkdirSync(parent, { recursive: true });

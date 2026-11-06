@@ -7,6 +7,8 @@ import { CupertinoTheme, CupertinoThemeData } from '@nelyx/cupertino/theme';
 import { ControlInteraction } from '@nelyx/core/framework/widgets/control-interaction';
 import { WidgetState, WidgetStatesController } from '@nelyx/core/framework/widgets/widget-state';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
+import { Focus } from '@nelyx/core/framework/widgets/focus-scope';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import {
   EngineClient,
   EngineError,
@@ -68,6 +70,7 @@ import {
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { FontWeight, TextDecoration } from '@nelyx/core/ui/typography';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
@@ -105,6 +108,219 @@ class HyphenText extends Text {
 }
 export function originalContracts({ using, timeout }) {
   test(
+    'native: original Focus retains published geometry and key callbacks across GlobalKey moves and retirement',
+    { timeout },
+    () =>
+      using('native', async (f, transport) => {
+        const client = await EngineClient.connect(transport),
+          view = await client.openView(1),
+          errors = [],
+          keys = [],
+          focusChanges = [],
+          node = new FocusNode(),
+          key = new GlobalKey('native-focus-move'),
+          host = new OriginalWidgetHost(view, {
+            pollEvents: false,
+            platform: { kind: 'native', operatingSystem: 'windows' },
+            onError: (error) => errors.push(error),
+          });
+        let semanticFocus = 0,
+          phase = 'mount';
+        const geometryFailures = [];
+        const seenFocus = [],
+          nativePoll = view.pollInteractionEvents.bind(view);
+        view.pollInteractionEvents = async () => {
+          const state = await nativePoll();
+          seenFocus.push(...state.events.filter((event) => event.kind === p.events.focusChanged));
+          return state;
+        };
+        const tree = (moved = false, enabled = true) => {
+          const focus = Transform.rotate(
+            new Focus(
+              new Semantics({
+                child: new SizedBox(60, 40),
+                button: true,
+                focusable: true,
+                label: 'source transformed control',
+                onFocus: () => {
+                  semanticFocus++;
+                  assert.equal(
+                    node.hasPrimaryFocus,
+                    true,
+                    'Semantics callback follows the source focus update',
+                  );
+                  assert.ok(Number.isFinite(node.rect.left));
+                },
+              }),
+              {
+                key,
+                focusNode: node,
+                canRequestFocus: enabled,
+                onFocusChange: (focused) => {
+                  focusChanges.push(focused);
+                  if (focused) {
+                    try {
+                      assert.ok(Number.isFinite(node.rect.left));
+                    } catch (error) {
+                      geometryFailures.push(phase + ': ' + String(error));
+                    }
+                  }
+                },
+                onKeyEvent: (_node, event) => {
+                  keys.push(event);
+                  return 'handled';
+                },
+              },
+            ),
+            0.2,
+          );
+          return new Row(
+            [
+              new SizedBox(100, 80, moved ? new SizedBox() : focus),
+              new SizedBox(100, 80, moved ? focus : new SizedBox()),
+            ],
+            { mainAxisSize: 'min', crossAxisAlignment: 'start', textDirection: 'ltr' },
+          );
+        };
+        const settle = async (geometry = true) => {
+          for (let attempt = 0; attempt < 10; ++attempt) {
+            await host.flush();
+            let state = await f.inspect();
+            if (state.preparation || state.document !== state.activeDocument) await f.ready();
+            else await f.tick();
+            state = await f.inspect();
+            if (state.renderWake) await f.present();
+            await host.pollEvents();
+            await host.flush();
+            state = await f.inspect();
+            if (
+              state.document === state.publishedDocument &&
+              !state.preparation &&
+              !state.interactionCount
+            ) {
+              await host.pollEvents();
+              if (geometry) {
+                try {
+                  assert.ok(Number.isFinite(node.rect.left));
+                } catch (error) {
+                  if (!String(error).includes('not currently published')) throw error;
+                  continue;
+                }
+              }
+              return view.semanticsSnapshot();
+            }
+          }
+          assert.fail('Source focus metadata and C++ publication must settle');
+        };
+        const checkGeometry = (frame) => {
+          const peer = frame.nodes.find((n) => n.semantics?.flags & p.semanticsFlags.focusable),
+            target = frame.nodes.find((n) => n.node.slot === peer?.parent.slot);
+          assert.ok(target);
+          const [a, b, c, d, x, y] = target.matrix;
+          assert.deepEqual(
+            [node.rect.left, node.rect.top, node.rect.right, node.rect.bottom],
+            [
+              x,
+              y,
+              a * target.width + c * target.height + x,
+              b * target.width + d * target.height + y,
+            ],
+            'FocusNode preserves source diagonal-corner geometry using the published native transform',
+          );
+          assert.deepEqual([node.offset.dx, node.offset.dy], [x, y]);
+          assert.deepEqual(
+            [node.size.width, node.size.height],
+            [node.rect.width, node.rect.height],
+          );
+          return target;
+        };
+        try {
+          await f.resize(300, 200);
+          await host.mount(tree());
+          assert.throws(() => node.rect, /not currently published/);
+          let frame = await settle();
+          const first = checkGeometry(frame),
+            oldX = node.offset.dx;
+          assert.deepEqual(focusChanges, [false]);
+          focusChanges.length = 0;
+          node.requestFocus();
+          await Promise.resolve();
+          await settle();
+          assert.equal(node.hasPrimaryFocus, true);
+          assert.equal(
+            semanticFocus,
+            1,
+            JSON.stringify(
+              {
+                seenFocus,
+                focus: (await f.inspect()).focus,
+                semantics: (await view.semanticsSnapshot()).nodes
+                  .filter((n) => n.semantics)
+                  .map((n) => ({
+                    node: n.node,
+                    parent: n.parent,
+                    semantics: n.semantics,
+                    hasFocus: n.hasFocus,
+                  })),
+              },
+              (_key, value) => (typeof value === 'bigint' ? String(value) : value),
+            ),
+          );
+          assert.deepEqual((await f.inspect()).focus.node, first.node);
+          await host.update(tree(true));
+          phase = 'moved';
+          await host.pollEvents();
+          assert.throws(() => node.rect, /not currently published/);
+          frame = await settle();
+          checkGeometry(frame);
+          assert.equal(node.offset.dx, oldX + 100);
+          assert.equal(node.hasPrimaryFocus, true);
+          await view.focus(null, frame.publication, frame.focus.session, true);
+          await settle();
+          assert.equal(
+            node.hasPrimaryFocus,
+            false,
+            'A moved binding receives the current native blur callback',
+          );
+          node.requestFocus();
+          phase = 'refocus';
+          await settle();
+          assert.equal(node.hasPrimaryFocus, true);
+          assert.equal(semanticFocus, 2);
+          for (const [down, repeat] of [
+            [true, false],
+            [true, true],
+            [false, false],
+          ]) {
+            frame = await view.semanticsSnapshot();
+            await view.request(p.opcodes.key, keyBody(frame.publication, 65, down, 0, repeat));
+            await host.pollEvents();
+            await settle();
+          }
+          assert.deepEqual(
+            keys.map((event) => event.constructor.name),
+            ['KeyDownEvent', 'KeyRepeatEvent', 'KeyUpEvent'],
+          );
+          await host.update(tree(true, false));
+          await settle();
+          assert.equal(node.hasPrimaryFocus, false);
+          assert.equal((await f.inspect()).focus, null);
+          assert.deepEqual(focusChanges, [true, false, true, false]);
+          await host.update(new SizedBox());
+          await settle(false);
+          assert.throws(() => node.rect, /laid-out RenderBox|active Element/);
+          assert.deepEqual(errors, []);
+          assert.deepEqual(geometryFailures, []);
+          assert.equal((await f.inspect()).transactionWork, BigInt(host.counters.commands));
+          assert.equal(host.execution.appGeometryNodes, 0);
+        } finally {
+          await host.close();
+          await client.abort();
+          node.dispose();
+        }
+      }),
+  );
+  test(
     'native: original Cupertino buttons preserve canonical state, theme, activation and frame demand',
     { timeout },
     () =>
@@ -114,6 +330,7 @@ export function originalContracts({ using, timeout }) {
           errors = [],
           states = new WidgetStatesController(),
           focus = new FocusNode(),
+          filledFocus = new FocusNode(),
           host = new OriginalWidgetHost(view, {
             pollEvents: false,
             platform: { kind: 'native', operatingSystem: 'windows' },
@@ -189,6 +406,7 @@ export function originalContracts({ using, timeout }) {
                   }),
                   CupertinoButton.filled({
                     child: new Text('Filled'),
+                    focusNode: filledFocus,
                     onPressed: () => {
                       taps++;
                     },
@@ -247,6 +465,28 @@ export function originalContracts({ using, timeout }) {
           );
           await host.pollEvents();
           assert.equal(taps, 2);
+          await prepare();
+          snapshot = await view.semanticsSnapshot();
+          const manager = focus.context.owner.focus,
+            transfers = [],
+            changed = () => transfers.push(manager.primaryFocus);
+          manager.addListener(changed);
+          try {
+            await view.focus(
+              snapshot.nodes.find((n) => n.semantics?.label === 'Filled').node,
+              snapshot.publication,
+            );
+            await prepare();
+            await prepare();
+            assert.equal(filledFocus.hasPrimaryFocus, true);
+            assert.deepEqual(
+              transfers,
+              [filledFocus],
+              'A native focus transfer notifies the source path once without an intermediate root focus',
+            );
+          } finally {
+            manager.removeListener(changed);
+          }
           await pointer('update', 30, 30, true);
           assert.ok(states.value.contains(WidgetState.hovered));
           await pointer('begin', 30, 30);
@@ -291,6 +531,7 @@ export function originalContracts({ using, timeout }) {
           await client.abort();
           states.dispose();
           focus.dispose();
+          filledFocus.dispose();
         }
       }),
   );
@@ -438,11 +679,12 @@ export function originalContracts({ using, timeout }) {
           }
           class DetailsState extends State {
             pressed = false;
+            shade = 0;
             build() {
               return new Padding(
                 { left: 20, top: 10 },
                 new GestureDetector(
-                  new ColoredBox({ color: this.pressed ? 0xff44cc88 : 0xff4488cc }),
+                  new ColoredBox({ color: this.pressed ? 0xff44cc88 + this.shade : 0xff4488cc }),
                   {
                     onTapDown: (value) => {
                       detailEvents.push(value);
@@ -463,12 +705,18 @@ export function originalContracts({ using, timeout }) {
               );
             }
           }
-          await show(new DetailsProbe());
+          const detailsKey = new GlobalKey('held-original-pointer');
+          await show(new DetailsProbe(detailsKey));
           await pointer('begin', 80);
           await host.flush();
           await f.ready();
           await f.present();
-          await pointer('end', 80);
+          const heldPublication = (await f.inspect()).publication;
+          detailsKey.currentState.setState(() => ++detailsKey.currentState.shade);
+          await host.flush();
+          await f.ready();
+          await f.present();
+          await pointer('end', 80, 'touch', { publication: heldPublication });
           assert.ok(detailEvents[0] instanceof TapDownDetails);
           assert.ok(detailEvents[1] instanceof TapUpDetails);
           assert.equal(detailEvents[0].kind, PointerDeviceKind.touch);
@@ -961,6 +1209,10 @@ export function originalContracts({ using, timeout }) {
                     letterSpacing: 2,
                     wordSpacing: 3,
                     leadingDistribution: 'even',
+                    fontFamily: 'Nelyx 字体',
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.none,
+                    decorationColor: 0xff123456,
                   }),
                 }),
                 { widthFactor: 1, heightFactor: 1 },
@@ -982,6 +1234,8 @@ export function originalContracts({ using, timeout }) {
               [40, 30, -30, 100],
             );
             assert.deepEqual(text.paragraph, {
+              fontFamily: 'Nelyx 字体',
+              fontWeight: 500,
               hyphens: 'manual',
               textAlign: 'center',
               wrap: true,
@@ -1007,7 +1261,7 @@ export function originalContracts({ using, timeout }) {
               (data) => data.setUint32(24, p.limits.textBytes + 1, true),
               (data) => data.setUint32(28, p.limits.localeBytes + 1, true),
               (data) => data.setFloat64(48, -0.5, true),
-              (data) => data.setFloat64(56, -1, true),
+              (data) => data.setFloat64(56, -1e6 - 1, true),
               (data) => data.setUint32(72, 1, true),
               (data) => data.setUint8(80, 0xc0),
               (data) => data.setUint8(82, 1),
@@ -1063,6 +1317,12 @@ export function originalContracts({ using, timeout }) {
               baseline: 15,
             });
             text = frame.nodes.find((n) => n.kind === p.kinds.paragraph);
+            assert.equal(
+              text.paragraph.fontFamily,
+              undefined,
+              'Removed font families reset after update',
+            );
+            assert.equal(text.paragraph.fontWeight, undefined);
             assert.ok(request.nodes[0].flags & 32);
             assert.equal(text.textDirection, 1);
             assert.equal(text.content.x, 0);

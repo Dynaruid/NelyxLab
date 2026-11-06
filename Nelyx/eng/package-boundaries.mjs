@@ -4,6 +4,108 @@ import path from 'node:path';
 import ts from 'typescript';
 import { readShaderAsset } from './shader-assets.mjs';
 
+// The v2 bridge must reuse the published canonical classes. Importing their
+// source implementations would create a second Element/State/render identity.
+// Keep this list explicit per adapter; other self-package imports still fail.
+const canonicalV2Imports = new Map(
+  Object.entries({
+    'original.ts': [
+      'foundation/assertions',
+      'foundation/platform',
+      'framework/painting/text-span',
+      'framework/rendering/boxes',
+      'framework/rendering/clip',
+      'framework/rendering/constraints',
+      'framework/rendering/indexed-semantics',
+      'framework/rendering/object',
+      'framework/rendering/paragraph',
+      'framework/rendering/repaint-boundary',
+      'framework/widgets/app-data',
+      'framework/widgets/basic',
+      'framework/widgets/framework',
+      'hosting/resources',
+      'hosting/runtime',
+      'services/mouse-cursor',
+      'ui/types',
+      'ui/typography',
+    ],
+    'original-controls.ts': [
+      'foundation/assertions',
+      'foundation/flutter-error',
+      'framework/gestures/events',
+      'framework/painting/box-decoration',
+      'framework/painting/circle-border',
+      'framework/painting/rounded-rectangle-border',
+      'framework/rendering/boxes',
+      'framework/rendering/clip',
+      'framework/rendering/custom-paint',
+      'framework/rendering/mouse-region',
+      'framework/rendering/object',
+      'framework/rendering/opacity',
+      'framework/rendering/semantics-annotations',
+      'framework/rendering/shape-border-clipper',
+      'framework/semantics/semantics',
+      'framework/widgets/semantics',
+      'ui/offset',
+      'ui/pointer',
+      'ui/semantics',
+    ],
+    'original-scroll.ts': [
+      'foundation/key',
+      'framework/animation/curves',
+      'framework/animation/ticker',
+      'framework/painting/basic-types',
+      'framework/rendering/sliver-multi-box-adaptor',
+      'framework/rendering/viewport-offset',
+      'framework/scheduler/scheduler',
+      'framework/widgets/app-data',
+      'framework/widgets/framework',
+      'framework/widgets/primary-scroll-controller',
+      'framework/widgets/scroll-activity',
+      'framework/widgets/scroll-context',
+      'framework/widgets/scroll-controller',
+      'framework/widgets/scroll-delegate',
+      'framework/widgets/scroll-physics',
+      'framework/widgets/scroll-position-with-single-context',
+      'framework/widgets/scroll-view',
+      'internal/framework/widgets/ticker-scheduler',
+      'ui/semantics-action',
+    ],
+    'original-gesture.ts': [
+      'foundation/assertions',
+      'foundation/diagnostics',
+      'foundation/flutter-error',
+      'framework/gestures/drag-details',
+      'framework/gestures/long-press',
+      'framework/gestures/recognizer',
+      'framework/gestures/tap',
+      'framework/gestures/velocity-tracker',
+      'framework/rendering/pointer-listener',
+      'framework/widgets/app-data',
+      'framework/widgets/framework',
+      'framework/widgets/gesture-detector',
+      'ui/offset',
+      'ui/pointer',
+    ],
+    'original-native-node.ts': [
+      'framework/rendering/object',
+      'framework/rendering/sliver-multi-box-adaptor',
+      'framework/widgets/framework',
+    ],
+    'original-focus.ts': [
+      'foundation/key',
+      'framework/widgets/framework',
+      'framework/widgets/focus-scope',
+      'framework/widgets/focus',
+      'framework/widgets/actions',
+      'ui/rect',
+      'ui/offset',
+      'ui/input',
+    ],
+    'native-paint.ts': ['framework/rendering/object'],
+  }).map(([file, entries]) => [file, new Set(entries)]),
+);
+
 const internalFacades = new Map([
   [
     'packages/material/src/generated/scrollbar/scrollbar-theme.generated.ts',
@@ -234,20 +336,9 @@ export function auditPackageBoundaries(root) {
             (['@nelyx/core/foundation/key', '@nelyx/core/foundation/notifier'].includes(
               specifier,
             ) ||
-              (relativeFile === 'Nelyx/runtime/engine-client/original.ts' &&
-                [
-                  '@nelyx/core/framework/widgets/framework',
-                  '@nelyx/core/framework/widgets/basic',
-                  '@nelyx/core/framework/rendering/object',
-                  '@nelyx/core/framework/rendering/boxes',
-                  '@nelyx/core/framework/rendering/constraints',
-                  '@nelyx/core/framework/rendering/paragraph',
-                  '@nelyx/core/framework/painting/text-span',
-                  '@nelyx/core/services/mouse-cursor',
-                  '@nelyx/core/hosting/resources',
-                  '@nelyx/core/hosting/runtime',
-                  '@nelyx/core/ui/types',
-                ].includes(specifier)));
+              canonicalV2Imports
+                .get(slash(path.relative(path.join(owner.v2, 'engine-client'), file)))
+                ?.has(match?.[2]));
           if (
             ['@nelyx/core', '@nelyx/tooling-contracts'].includes(owner.manifest.name) &&
             !sharedValue

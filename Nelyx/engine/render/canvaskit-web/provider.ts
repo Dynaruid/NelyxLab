@@ -7,6 +7,7 @@ import type {
   Typeface,
   GrDirectContext,
   Paragraph,
+  ParagraphBuilder,
   ParagraphStyle,
   Path,
 } from 'canvaskit-wasm';
@@ -112,6 +113,7 @@ const textBytes = (text: PreparedText | undefined): number =>
     0,
   ) ?? 0;
 export class CanvasKitProvider {
+  private static readonly fontVariationLimit = 16;
   private packetHolds = new Map<bigint, () => void>();
   private backingRelease: (() => void) | undefined;
   private cacheRelease: (() => void) | undefined;
@@ -124,7 +126,7 @@ export class CanvasKitProvider {
   private measurePreparation = 0n;
   private fontProvider: TypefaceFontProvider;
   private typefaces = new Map<string, Typeface>();
-  private regularTypefaces = new Map<string, Typeface>();
+  private regularTypefaces = new Map<string, { face: Typeface; release: () => void }>();
   private regularProbes = new Map<string, string>();
   private fontAliases = new Map<string, string>();
   private families = new Map<string, string>();
@@ -150,6 +152,8 @@ export class CanvasKitProvider {
     liveSurfaces: 0,
     liveContexts: 0,
     fontBytes: 0,
+    liveFontVariations: 0,
+    fontVariationLimit: CanvasKitProvider.fontVariationLimit,
     sourceBytes: 0,
     heapBytes: 0,
     textPictureProbeBytes: 0,
@@ -190,6 +194,12 @@ export class CanvasKitProvider {
     this.recorded.clear();
     this.counters.cachedContentBytes = 0;
     this.discardMeasurements();
+    for (const entry of this.regularTypefaces.values()) {
+      entry.face.delete();
+      entry.release();
+    }
+    this.regularTypefaces.clear();
+    this.counters.liveFontVariations = 0;
   }
   setMemoryPressure(low: boolean): void {
     this.memoryPressure = this.counters.memoryPressure = low;
@@ -364,29 +374,43 @@ export class CanvasKitProvider {
     if (typeof probe !== 'string' || Array.from(probe).length !== 1 || /[\p{C}\p{Z}]/u.test(probe))
       throw Error('Invalid prepared font variation probe');
     const previous = this.regularTypefaces.get(variationKey);
-    if (previous) return previous;
+    if (previous) {
+      this.regularTypefaces.delete(variationKey);
+      this.regularTypefaces.set(variationKey, previous);
+      return previous.face;
+    }
     const base = this.typefaces.get(id),
       family = this.fontAliases.get(id);
     if (!base || !family || !base.getGlyphIDs(probe)[0])
       throw Error('Prepared font variation probe is outside the installed font');
     // The public paragraph API returns the actual varied typeface. Preserve
     // that instance rather than reconstructing a variable font at its default.
-    const builder = this.ck.ParagraphBuilder.MakeFromFontProvider(
-      new this.ck.ParagraphStyle({
-        textStyle: {
-          fontFamilies: [family],
-          fontSize: 14,
-          fontStyle: {
-            weight: weight as unknown as import('canvaskit-wasm').FontWeight,
-            slant: this.ck.FontSlant.Upright,
-          },
-          fontVariations: [{ axis: 'wght', value: weight }],
-        },
-      }),
-      this.fontProvider,
-    );
-    let paragraph: Paragraph | undefined, selected: Typeface | undefined;
+    if (this.regularTypefaces.size >= CanvasKitProvider.fontVariationLimit) {
+      const oldest = this.regularTypefaces.entries().next().value!;
+      this.regularTypefaces.delete(oldest[0]);
+      oldest[1].face.delete();
+      oldest[1].release();
+      this.counters.liveFontVariations = this.regularTypefaces.size;
+    }
+    const release = this.budget?.reserve(2, 65536) ?? (() => {});
+    let builder: ParagraphBuilder | undefined,
+      paragraph: Paragraph | undefined,
+      selected: Typeface | undefined;
     try {
+      builder = this.ck.ParagraphBuilder.MakeFromFontProvider(
+        new this.ck.ParagraphStyle({
+          textStyle: {
+            fontFamilies: [family],
+            fontSize: 14,
+            fontStyle: {
+              weight: weight as unknown as import('canvaskit-wasm').FontWeight,
+              slant: this.ck.FontSlant.Upright,
+            },
+            fontVariations: [{ axis: 'wght', value: weight }],
+          },
+        }),
+        this.fontProvider,
+      );
       builder.addText(probe);
       paragraph = builder.build();
       paragraph.layout(1024);
@@ -397,14 +421,16 @@ export class CanvasKitProvider {
           else run.typeface?.delete();
         }
       if (!selected) throw Error('Installed font variation could not be prepared');
-      this.regularTypefaces.set(variationKey, selected);
+      this.regularTypefaces.set(variationKey, { face: selected, release });
+      this.counters.liveFontVariations = this.regularTypefaces.size;
       return selected;
     } catch (error) {
       selected?.delete();
+      release();
       throw error;
     } finally {
       paragraph?.delete();
-      builder.delete();
+      builder?.delete();
     }
   }
   private paragraph(node: EngineNodeSnapshot, text: string, width: number): Paragraph {
@@ -446,7 +472,9 @@ export class CanvasKitProvider {
         ? { disableHinting: true, replaceTabCharacters: true, applyRoundingHack: false }
         : {}),
       textStyle: {
-        fontFamilies: this.fontFamilies,
+        fontFamilies: options?.fontFamily
+          ? [options.fontFamily, ...this.fontFamilies]
+          : this.fontFamilies,
         fontSize: node.fontSize,
         ...(options
           ? {
@@ -701,28 +729,44 @@ export class CanvasKitProvider {
         if (node.flags & p.nodeFlags.nativeExtension) ++this.counters.nativeExtensions;
 
         const content = node.content ?? { x: 0, y: 0, width: node.width, height: node.height };
+        const nativeOutset = (node.nativePaint ?? []).reduce(
+          (maximum, entry) =>
+            entry.kind === 'circle'
+              ? Math.max(
+                  maximum,
+                  entry.resolvedRadius +
+                    entry.shape.strokeWidth -
+                    Math.min(node.width, node.height) / 2,
+                )
+              : maximum,
+          0,
+        );
         const recording = {
           x:
             Math.min(0, content.x) -
             Math.abs(node.graphics?.shadow?.x ?? 0) -
             (node.graphics?.shadow?.sigma ?? 0) * 4 -
+            nativeOutset -
             2,
           y:
             Math.min(0, content.y) -
             Math.abs(node.graphics?.shadow?.y ?? 0) -
             (node.graphics?.shadow?.sigma ?? 0) * 4 -
+            nativeOutset -
             2,
           width:
             Math.max(1, node.width, content.x + content.width) -
             Math.min(0, content.x) +
             Math.abs(node.graphics?.shadow?.x ?? 0) * 2 +
             (node.graphics?.shadow?.sigma ?? 0) * 8 +
+            nativeOutset * 2 +
             4,
           height:
             Math.max(1, node.height, content.y + content.height) -
             Math.min(0, content.y) +
             Math.abs(node.graphics?.shadow?.y ?? 0) * 2 +
             (node.graphics?.shadow?.sigma ?? 0) * 8 +
+            nativeOutset * 2 +
             4,
         };
         const recorder = new this.ck.PictureRecorder();
@@ -1283,8 +1327,6 @@ export class CanvasKitProvider {
     this.fontProvider.delete();
     for (const face of this.typefaces.values()) face.delete();
     this.typefaces.clear();
-    for (const face of this.regularTypefaces.values()) face.delete();
-    this.regularTypefaces.clear();
     this.regularProbes.clear();
     this.fontAliases.clear();
     this.families.clear();

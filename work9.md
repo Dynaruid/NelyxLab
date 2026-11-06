@@ -1,6 +1,6 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **ACTIVE / Windows·Web 1차 구현 진행 / PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / Windows·Web 1차 중간 정리 / PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -125,6 +125,6 @@
 
 로컬 링크·앵커·표·code fence/공백, 주요 절 14개·단계 15개와 문서의 npm 명령 존재 여부를 검사하고 `git diff --check`를 통과했다. 상세 검사 범위와 수치는 3부 §14에 기록했다.
 
-**현재 구현 진행 — 2026-11-06 KST / PAUSED / PARTIAL:** 1~3부를 계속 구현한다. 마지막 전체 검증 공급 `90649c3d…`(ABI 2/schema **4122515473**)은 owned m153 paragraph runtime·첫 생성 glyph font·ready callback 이후 집계와 basic ClipRect·affine Transform을 포함한다. Core **283/283**, graphics **6/6**, host **17/17**, 독립 설치 포함 runner **19/19**, 개발 재시작 **7/7**을 확인했다. Native 두 host에서 clip·원점/중심 회전·flip·한글/이모지 표시도 직접 확인했다. 표준 clip 계열과 원래 ListView/ScrollController의 일부를 연결했다. 기초 reference 4개를 제거했고 고수준 scroll·gesture/control·디자인 API 개발을 우선한다. 기능 통합 1개와 필요한 빌드·실제 앱 연결로 검증을 제한하며 전체 suite 반복을 중단했다. 앞선 공급 `7a2922c8…`(schema **4120097723**)은 CupertinoButton의 원래 theme·State/controller와 App frame clock까지 연결했고 전체 빌드·source identity와 버튼/gesture/목록 통합 **3/3**을 확인했다. 실제 App SDK에서 세 버튼·disable·Tab/Enter와 원래 AnimationController의 opacity 1→0.5→1, **C++ 788 = SDK ACK 788**, fallback 0을 확인했다. 직전 기능 검증 공급 `9fa78a98…`에서 Web 두 profile의 버튼·hover·opacity 실제 pixel·종료와 원래 목록 controller 교체의 선택 통합 **2/2**를 확인했다. 전체 디자인과 focus/semantics 잔여는 미완료다. 전체 회귀 수치는 앞선 `90649c3d…` 공급의 기록이다. 상세 증거와 잔여 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다.
+**현재 구현 진행 — 2026-11-06 KST / PAUSED / PARTIAL:** 사용자 요청으로 중간 정리했으며 자동 재개하지 않는다. 앞선 `c4be00de…` 공급의 Material 선택·FocusNode/Shortcut·Radio 그룹 키보드는 두 Web profile과 선택 계약 **14/14**, geometry **2/2·7/7**을 통과했다. 새 Switch 연결의 source/dist는 `95fdfa43…` / ABI 2·schema **2901560100**으로 일치하고 전체 빌드는 통과했지만, 대표 Web 검증에서 입력 누락·반대 방향 drag가 미해결이다. 기존 Windows 설치 runner는 새 공급으로 갱신하지 않았다.
 
-**외출 일시정지:** 사용자 요청으로 PAUSED / PARTIAL. Material native paint/ink·weight를 구현 중이며 source/dist 재일치와 실제 Material 소비 검증이 남았다. 진행 중 실행은 정리했다. [재개 기록과 명령](work9-3.md#외출-일시정지-기록)부터 이어간다.
+재개 첫 작업은 Windows switch semantic role 배열 index 누락과 입력 실패 원인 수정·현재 공급 재검증이다. Slider·나머지 디자인/서비스·콘텐츠/복구와 전체 API·W9-13/14는 남아 있다. 소유 검증 process·임시 앱은 회수했고 실제 Native UI는 이전 물리 Esc 중단을 유지한다. 사용자 UI 재개 전 추가 Computer Use를 자동 실행하지 않는다. [현재 구현·공급·검증 경계와 다음 작업](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.

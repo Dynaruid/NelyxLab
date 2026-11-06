@@ -13,8 +13,35 @@ export interface NativeShape {
   readonly strokeAlign: number;
   readonly strokeColor: number;
 }
+/** Intrinsic source configuration; final placement is resolved by Content. */
+export interface NativePaintGeometry {
+  readonly kind:
+    | 'switchTrack'
+    | 'switchThumb'
+    | 'switchReaction'
+    | 'switchOnLabel'
+    | 'switchOffLabel';
+  readonly trackWidth: number;
+  readonly trackHeight: number;
+  readonly thumbWidth?: number;
+  readonly thumbHeight?: number;
+  readonly extension?: number;
+  readonly position?: number;
+  readonly rtl?: boolean;
+  readonly inset?: number;
+}
 export interface NativePaintEntry {
-  readonly kind: 'physical' | 'border' | 'highlight' | 'ripple';
+  readonly kind:
+    | 'physical'
+    | 'border'
+    | 'highlight'
+    | 'ripple'
+    | 'checkbox'
+    | 'mark'
+    | 'circle'
+    | 'shape'
+    | 'shadow'
+    | 'clip';
   readonly reference?: RenderBox;
   readonly color: number;
   readonly shape: NativeShape;
@@ -29,8 +56,13 @@ export interface NativePaintEntry {
   readonly y?: number;
   readonly radius?: number | null;
   readonly progress?: number;
+  readonly dash?: boolean;
+  readonly geometry?: NativePaintGeometry;
+  readonly blurSigma?: number;
+  readonly spread?: number;
 }
 export type NativeRenderMetadata =
+  | { readonly kind: 'paint'; readonly entries: readonly NativePaintEntry[] }
   | { readonly kind: 'inputPadding'; readonly width: number; readonly height: number }
   | {
       readonly kind: 'ink';

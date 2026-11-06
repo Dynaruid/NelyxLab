@@ -5,7 +5,7 @@ import { FoundationPlatform } from '../../foundation/platform.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { FocusNode, FocusScopeNode } from './focus.ts';
 import type { FocusAttachment, FocusNodeOptions, FocusAttachmentOptions } from './focus.ts';
-import { StatefulWidget, State, StatelessWidget, Element } from './framework.ts';
+import { StatefulWidget, State, StatelessWidget, Element, buildNativeWidget } from './framework.ts';
 import type { Widget, BuildContext, WidgetOptions } from './framework.ts';
 import { InheritedNotifier } from './inherited-notifier.ts';
 import { markFocusScope } from './focus-tree-context.ts';
@@ -32,6 +32,18 @@ class FocusInheritedScope extends InheritedNotifier<FocusNode> {
   }
 }
 const external = new WeakSet<Focus>();
+/** @internal Configuration for an owner-scoped focus adapter; source FocusState remains authoritative on App. */
+export class NativeFocusConfiguration extends StatelessWidget {
+  constructor(
+    readonly node: FocusNode,
+    readonly child: Widget,
+  ) {
+    super();
+  }
+  build(): Widget {
+    return this.child;
+  }
+}
 let nextSemanticsId = 0;
 export class Focus extends StatefulWidget {
   readonly child: Widget;
@@ -389,7 +401,11 @@ class FocusState extends State<Focus> {
   }
   build(): Widget {
     this.attachment!.reparent({ parent: this.widget.parentNode });
-    return this.compose(this.widget.child);
+    const child = this.compose(this.widget.child);
+    return (
+      buildNativeWidget(this.context, 'focus', new NativeFocusConfiguration(this.node, child)) ??
+      child
+    );
   }
   override dispose(): void {
     const errors: unknown[] = [];

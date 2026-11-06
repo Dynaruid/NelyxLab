@@ -40,6 +40,10 @@ export function defineOriginalEngineV2App(definition: OriginalEngineV2App): Engi
       p.capabilities.gestureDetails |
       p.capabilities.canonicalControls |
       p.capabilities.appFrameClock |
+      p.capabilities.canonicalMaterial |
+      p.capabilities.canonicalSelection |
+      p.capabilities.canonicalFocus |
+      p.capabilities.canonicalSwitch |
       (definition.requiredCapabilities ?? 0),
     async build(context) {
       return new OriginalRoot(

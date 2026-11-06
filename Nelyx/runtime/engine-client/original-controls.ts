@@ -15,6 +15,7 @@ import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { Offset } from '@nelyx/core/ui/offset';
 import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
+import { SemanticsRole } from '@nelyx/core/ui/semantics';
 import { PointerEnterEvent, PointerExitEvent } from '@nelyx/core/framework/gestures/events';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
@@ -37,6 +38,9 @@ semanticsProbe.dispose();
 const semanticFields = new Set([
   'enabled',
   'checked',
+  'mixed',
+  'role',
+  'inMutuallyExclusiveGroup',
   'toggled',
   'selected',
   'button',
@@ -118,11 +122,29 @@ export function originalControlConfiguration(
       } catch {
         return fail('native-border-shape');
       }
+      if (metadata?.kind === 'paint') return metadata.entries;
       if (!metadata || metadata.kind !== 'border') return fail('custom-painter');
       return metadata.shape ? [{ kind: 'border', color: 0, shape: metadata.shape }] : [];
     };
     return {
-      options: { pointerHitTest: source.painter ? 'self' : 'proxy' },
+      options: {
+        pointerHitTest: source.painter ? 'self' : 'proxy',
+        ...(!source.children.length
+          ? {
+              layout: { childConstraints: 'inherit', enforceBounds: true },
+              horizontal: {
+                kind: 'finite',
+                min: source.preferredSize.width,
+                max: source.preferredSize.width,
+              },
+              vertical: {
+                kind: 'finite',
+                min: source.preferredSize.height,
+                max: source.preferredSize.height,
+              },
+            }
+          : {}),
+      },
       paint: read(source.painter),
       foreground: read(source.foregroundPainter),
     };
@@ -223,11 +245,18 @@ export function originalControlConfiguration(
     for (const key of Object.keys(properties) as (keyof SemanticsProperties)[])
       if (!semanticFields.has(key) && properties[key] !== semanticsDefaults[key])
         return fail('semantics-property:' + key);
+    if (
+      properties.role != null &&
+      properties.role !== SemanticsRole.none &&
+      properties.role !== SemanticsRole.radioGroup
+    )
+      return fail('semantics-role');
     let flags = 0,
       actions = 0;
     if (properties.enabled === false) flags |= p.semanticsFlags.disabled;
     if (properties.hidden) flags |= p.semanticsFlags.hidden;
     if (properties.checked || properties.toggled) flags |= p.semanticsFlags.checked;
+    if (properties.mixed) flags |= p.semanticsFlags.mixed;
     if (properties.selected) flags |= p.semanticsFlags.selected;
     if (properties.focusable) flags |= p.semanticsFlags.focusable;
     if (properties.readOnly) flags |= p.semanticsFlags.readOnly;
@@ -236,17 +265,24 @@ export function originalControlConfiguration(
     if (properties.onFocus) actions |= p.semanticsActions.focus;
     if (properties.onIncrease) actions |= p.semanticsActions.increment;
     if (properties.onDecrease) actions |= p.semanticsActions.decrement;
-    const role = properties.button
-      ? 'button'
-      : properties.link
-        ? 'link'
-        : properties.textField
-          ? 'textField'
-          : properties.slider
-            ? 'slider'
-            : properties.checked !== null || properties.toggled !== null
-              ? 'checkbox'
-              : 'group';
+    const role =
+      properties.role === SemanticsRole.radioGroup
+        ? 'radioGroup'
+        : properties.inMutuallyExclusiveGroup && properties.checked !== null
+          ? 'radio'
+          : properties.button
+            ? 'button'
+            : properties.link
+              ? 'link'
+              : properties.textField
+                ? 'textField'
+                : properties.slider
+                  ? 'slider'
+                  : properties.toggled !== null
+                    ? 'switchControl'
+                    : properties.checked !== null || properties.mixed
+                      ? 'checkbox'
+                      : 'group';
     return {
       options: {
         semantics: {

@@ -49,7 +49,7 @@ export function engineV2ImportRoute(name) {
 }
 /** Candidate App imports require the explicit original-elements SDK entry in the bundle. */
 export function engineV2OriginalAppRoute(name) {
-  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/mouse-cursor|hosting\/resources)|(?:material|cupertino)\/[^/]+)$/.test(
+  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key)|hosting\/resources)|(?:material|cupertino)\/[^/]+)$/.test(
     name,
   )
     ? name

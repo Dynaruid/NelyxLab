@@ -50,6 +50,107 @@ export class EngineV2BrowserInteraction {
   private publication = 0n;
   private active: Peer | undefined;
   private applying = false;
+  private canonicalKeyboard = false;
+  private focusWork = 0n;
+  private readonly keyboard = (event: KeyboardEvent): void => {
+    if (
+      !this.canonicalKeyboard ||
+      this.closed ||
+      !(event.target === this.canvas || this.ownsTarget(event.target)) ||
+      (event.target instanceof HTMLElement && isInput(event.target))
+    )
+      return;
+    const special: Record<string, number> = {
+      Backspace: 8,
+      Tab: 9,
+      Enter: 13,
+      Shift: 16,
+      Control: 17,
+      Alt: 18,
+      Escape: 27,
+      Space: 32,
+      PageUp: 33,
+      PageDown: 34,
+      End: 35,
+      Home: 36,
+      ArrowLeft: 37,
+      ArrowUp: 38,
+      ArrowRight: 39,
+      ArrowDown: 40,
+      Insert: 45,
+      Delete: 46,
+      MetaLeft: 91,
+      MetaRight: 92,
+      ShiftLeft: 16,
+      ShiftRight: 16,
+      ControlLeft: 17,
+      ControlRight: 17,
+      AltLeft: 18,
+      AltRight: 18,
+      Pause: 19,
+      CapsLock: 20,
+      PrintScreen: 44,
+      ContextMenu: 93,
+      NumpadMultiply: 106,
+      NumpadAdd: 107,
+      NumpadSubtract: 109,
+      NumpadDecimal: 110,
+      NumpadDivide: 111,
+      NumLock: 144,
+      ScrollLock: 145,
+      Semicolon: 186,
+      Equal: 187,
+      Comma: 188,
+      Minus: 189,
+      Period: 190,
+      Slash: 191,
+      Backquote: 192,
+      BracketLeft: 219,
+      Backslash: 220,
+      BracketRight: 221,
+      Quote: 222,
+    };
+    const code =
+      special[event.code] ??
+      special[event.key] ??
+      (/^Key[A-Z]$/.test(event.code)
+        ? event.code.charCodeAt(3)
+        : /^Digit[0-9]$/.test(event.code)
+          ? event.code.charCodeAt(5)
+          : /^Numpad[0-9]$/.test(event.code)
+            ? 96 + Number(event.code.slice(6))
+            : /^F(?:[1-9]|1\d|2[0-4])$/.test(event.code)
+              ? 111 + Number(event.code.slice(1))
+              : 0);
+    if (!code) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const down = event.type === 'keydown',
+      modifiers =
+        Number(event.shiftKey) |
+        (Number(event.ctrlKey) << 1) |
+        (Number(event.altKey) << 2) |
+        (Number(event.metaKey) << 3),
+      repeat = event.repeat;
+    void this.enqueue(async () => {
+      for (let attempt = 0; attempt < 3; ++attempt) {
+        const state = await this.call(p.opcodes.semanticsSnapshot),
+          result = response(
+            await this.exchange(
+              packet(
+                p.opcodes.key,
+                owner,
+                keyBody(state.publication, code, down, modifiers, repeat),
+              ),
+            ),
+          );
+        if (result.status === p.statuses.ok) return;
+        if (result.status !== p.statuses.stale)
+          throw Error('Native canonical key rejected: ' + result.status);
+      }
+      throw Error('Native canonical key publication changed repeatedly');
+    }).catch((error) => this.failed(String(error)));
+  };
   private forced = new Map<
     bigint,
     { bytes: Uint8Array; result: Promise<Uint8Array>; settled: boolean }
@@ -72,6 +173,8 @@ export class EngineV2BrowserInteraction {
     this.resize = () => this.position();
     window.addEventListener('scroll', this.resize, true);
     window.addEventListener('resize', this.resize);
+    window.addEventListener('keydown', this.keyboard, true);
+    window.addEventListener('keyup', this.keyboard, true);
     this.position();
   }
   private position(): void {
@@ -336,16 +439,27 @@ export class EngineV2BrowserInteraction {
     }
   }
   private installFocus(state: EngineResponse): void {
+    if (state.focusWork < this.focusWork) return;
+    this.focusWork = state.focusWork;
     const focus = state.focus;
+    const focusedPeer = focus?.peer ? this.peers.get(key(focus.peer)) : undefined;
     for (const peer of this.peers.values())
-      peer.session = focus && key(focus.node) === key(peer.node.node) ? focus.session : 0n;
+      peer.session = focus && peer === focusedPeer ? focus.session : 0n;
     if (focus) {
-      const peer = this.peers.get(key(focus.node));
+      const peer = focusedPeer;
       if (peer && !peer.ending && document.activeElement !== peer.element) {
         this.applying = true;
         try {
           peer.element.focus({ preventScroll: true });
           this.active = peer;
+        } finally {
+          this.applying = false;
+        }
+      } else if (!peer && this.canonicalKeyboard) {
+        this.applying = true;
+        try {
+          this.canvas.focus({ preventScroll: true });
+          this.active = undefined;
         } finally {
           this.applying = false;
         }
@@ -355,6 +469,7 @@ export class EngineV2BrowserInteraction {
       try {
         this.active.element.blur();
         this.active = undefined;
+        if (this.canonicalKeyboard) this.canvas.focus({ preventScroll: true });
       } finally {
         this.applying = false;
       }
@@ -363,6 +478,8 @@ export class EngineV2BrowserInteraction {
   private install(state: EngineResponse): void {
     if (state.publication < this.publication) return;
     this.publication = state.publication;
+    this.canonicalKeyboard = state.canonicalKeyboard;
+    if (this.canonicalKeyboard) this.canvas.tabIndex = 0;
     this.position();
     const byNode = new Map(state.nodes.map((n) => [key(n.node), n]));
     const geometryWanted = new Set<string>();
@@ -421,7 +538,19 @@ export class EngineV2BrowserInteraction {
       });
     }
     const wanted = new Set<string>();
-    const roles = ['none', 'group', 'button', 'text', 'textbox', 'checkbox', 'slider', 'link'];
+    const roles = [
+      'none',
+      'group',
+      'button',
+      'text',
+      'textbox',
+      'checkbox',
+      'slider',
+      'link',
+      'radio',
+      'radiogroup',
+      'switch',
+    ];
     for (const node of state.nodes) {
       const s = node.semantics;
       if (!s || s.flags & p.semanticsFlags.hidden) continue;
@@ -475,8 +604,18 @@ export class EngineV2BrowserInteraction {
           s.actions & p.semanticsActions.focus)
           ? 0
           : -1;
-      if (s.role === p.semanticsRoles.checkbox)
-        element.setAttribute('aria-checked', String(!!(s.flags & p.semanticsFlags.checked)));
+      if (
+        s.role === p.semanticsRoles.checkbox ||
+        s.role === p.semanticsRoles.radio ||
+        s.role === p.semanticsRoles.switchControl
+      )
+        element.setAttribute(
+          'aria-checked',
+          s.flags & p.semanticsFlags.mixed
+            ? 'mixed'
+            : String(!!(s.flags & p.semanticsFlags.checked)),
+        );
+      else element.removeAttribute('aria-checked');
       if (
         node.control &&
         (node.control.kind === p.controlKinds.slider ||
@@ -709,6 +848,8 @@ export class EngineV2BrowserInteraction {
     this.closed = true;
     window.removeEventListener('scroll', this.resize, true);
     window.removeEventListener('resize', this.resize);
+    window.removeEventListener('keydown', this.keyboard, true);
+    window.removeEventListener('keyup', this.keyboard, true);
     this.layer.remove();
     await this.tail;
     await Promise.allSettled([...this.forced.values()].map((value) => value.result));

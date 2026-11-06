@@ -95,6 +95,7 @@ class ContentProvider {
     TextStyle style; style.setFontFamilies({SkString("NelyxDefault"),SkString("NelyxArabic"),SkString("NelyxHebrew"),SkString("NelyxEmoji")}); style.setFontSize(float(n.fontSize));style.setColor(n.color);
     const nelyx::v2::ParagraphOptions defaults;const auto& options=n.paragraph?n.paragraph->value:defaults;
     if(n.paragraph){
+      if(!options.fontFamily.empty())style.setFontFamilies({SkString(options.fontFamily.c_str()),SkString("NelyxDefault"),SkString("NelyxArabic"),SkString("NelyxHebrew"),SkString("NelyxEmoji")});
       const SkFontArguments::VariationPosition::Coordinate weight{SkSetFourByteTag('w','g','h','t'),float(options.fontWeight)};
       SkFontArguments arguments;arguments.setVariationDesignPosition({&weight,1});
       style.setFontArguments(arguments);style.setFontStyle(SkFontStyle(int(options.fontWeight),SkFontStyle::kNormal_Width,SkFontStyle::kUpright_Slant));
@@ -233,7 +234,9 @@ class ContentProvider {
       if(n.extensionSize.x>0)++nativeExtensions;
       if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));result->paths.emplace(n.id.key(),graphicsPath(*n.graphics.path));}
       SkPictureRecorder recorder;
-      const auto& g=n.graphics;const double padding=4*g.shadowSigma+g.strokeWidth+2;
+      const auto& g=n.graphics;double padding=4*g.shadowSigma+g.strokeWidth+2;
+      if(n.resolvedPaint)for(const auto& e:n.resolvedPaint->entries)if(e.kind==7)
+        padding=std::max(padding,e.resolvedRadius+e.strokeWidth-std::min(n.properties.width,n.properties.height)/2+2);
       auto* canvas=recorder.beginRecording(SkRect::MakeXYWH(float(std::min(0.0,n.contentX)-padding-std::abs(g.shadowX)),float(std::min(0.0,n.contentY)-padding-std::abs(g.shadowY)),
         float(std::max({1.0,n.properties.width,n.contentX+n.contentWidth})-std::min(0.0,n.contentX)+2*padding+2*std::abs(g.shadowX)),float(std::max({1.0,n.properties.height,n.contentY+n.contentHeight})-std::min(0.0,n.contentY)+2*padding+2*std::abs(g.shadowY))));
       SkPaint paint; paint.setAntiAlias(true);

@@ -9,6 +9,7 @@ struct ParagraphOptions {
   double height=-1, letterSpacing=0, wordSpacing=0;
   std::string locale="en", ellipsis;
   uint32_t fontWeight=400;
+  std::string fontFamily;
   bool operator==(const ParagraphOptions&)const=default;
   bool wraps()const{return (flags&wire::paragraphFlags::wrap)!=0;}
   double alignment(uint32_t direction)const{
@@ -25,17 +26,19 @@ struct ParagraphData {
   Lease lease;
   ParagraphOptions value;
   ParagraphData(const std::shared_ptr<Ledger>& ledger,ParagraphOptions options)
-    :lease(ledger,sizeof(ParagraphData)+options.locale.size()+options.ellipsis.size()),value(std::move(options)){}
+    :lease(ledger,sizeof(ParagraphData)+options.locale.size()+options.ellipsis.size()+options.fontFamily.size()),value(std::move(options)){}
 };
 inline Writer paragraphBytes(const ParagraphOptions& value){
-  const size_t locale=(value.locale.size()+7)/8*8,ellipsis=(value.ellipsis.size()+7)/8*8;
-  Writer data(wire::paragraphBytes+locale+ellipsis);
+  const size_t locale=(value.locale.size()+7)/8*8,ellipsis=(value.ellipsis.size()+7)/8*8,family=(value.fontFamily.size()+7)/8*8;
+  Writer data(wire::paragraphBytes+locale+ellipsis+family);
   data.u32(0,value.flags);data.u32(4,value.align);data.u32(8,value.maxLines);
   data.u32(12,uint32_t(value.locale.size()));data.u32(16,uint32_t(value.ellipsis.size()));
+  data.u32(20,uint32_t(value.fontFamily.size()));
   if(value.fontWeight!=400)data.u32(24,value.fontWeight);
   data.f64(32,value.height);data.f64(40,value.letterSpacing);data.f64(48,value.wordSpacing);
   std::memcpy(data.bytes.data()+wire::paragraphBytes,value.locale.data(),value.locale.size());
   std::memcpy(data.bytes.data()+wire::paragraphBytes+locale,value.ellipsis.data(),value.ellipsis.size());
+  std::memcpy(data.bytes.data()+wire::paragraphBytes+locale+ellipsis,value.fontFamily.data(),value.fontFamily.size());
   return data;
 }
 }

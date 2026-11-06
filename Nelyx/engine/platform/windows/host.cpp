@@ -324,7 +324,8 @@ class Host {
     },[this](const auto& event){precisionInput(event);});
     contentOwner=std::thread([this]{contentLoop();});renderOwner=std::thread([this]{renderLoop();});appOwner=std::thread([this]{appLoop();});}
   bool filter(const MSG& message){return interaction&&interaction->filter(message);}
-  bool keydown(WPARAM key){return interaction&&interaction->keydown(key);}
+  bool keydown(WPARAM key,LPARAM detail=0){return interaction&&interaction->keydown(key,detail);}
+  bool keyup(WPARAM key,LPARAM detail){return interaction&&interaction->keyup(key,detail);}
   bool character(wchar_t unit){return interaction&&interaction->character(unit);}
   LRESULT object(WPARAM w,LPARAM l){return interaction?interaction->object(w,l):0;}
   void ui(){
@@ -441,7 +442,8 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_APP+3:host->ui();return 0;
     case WM_GETOBJECT:if(l==UiaRootObjectId)return host->object(w,l);break;
     case WM_APP+2:host->probeWheel(int32_t(intptr_t(w)));return 0;
-    case WM_KEYDOWN:if(host->keydown(w))return 0;if(w=='U'&&(GetKeyState(VK_CONTROL)&0x8000)){host->update();return 0;}break;
+    case WM_SYSKEYDOWN:case WM_KEYDOWN:if(host->keydown(w,l))return 0;if(w=='U'&&(GetKeyState(VK_CONTROL)&0x8000)){host->update();return 0;}break;
+    case WM_SYSKEYUP:case WM_KEYUP:if(host->keyup(w,l))return 0;break;
     case WM_CHAR:if(host->character(wchar_t(w)))return 0;break;
     case WM_LBUTTONDOWN:{SetFocus(window);SetCapture(window);const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::begin,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);return 0;}
     case WM_MOUSEMOVE:{TRACKMOUSEEVENT track{sizeof(TRACKMOUSEEVENT),TME_LEAVE,window,0};TrackMouseEvent(&track);const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::update,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);}return 0;

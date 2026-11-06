@@ -128,6 +128,9 @@ export class Directionality extends InheritedWidget {
   }
 }
 export interface NodeOptions {
+  readonly nativeFocus?: { readonly enabled: boolean; readonly skipTraversal: boolean };
+  readonly canonicalKeyboard?: boolean;
+  readonly onKey?: (event: EngineEvent) => void;
   /** Canonical semantics annotations that merge into the nearest semantic container. */
   readonly semanticsMergeIntoParent?: boolean;
   readonly nativePaint?: readonly NativePaintOptions[];
@@ -155,7 +158,7 @@ export interface NodeOptions {
   readonly dragThreshold?: boolean;
   readonly mouseRegion?: { readonly opaque: boolean };
   readonly roundedHitTest?: boolean;
-  readonly onFocusChanged?: (focused: boolean) => void;
+  readonly onFocusChanged?: (focused: boolean, event?: EngineEvent) => void;
   readonly gestures?: number;
   readonly control?: ControlOptions;
   readonly onGesture?: (event: GestureEvent) => void;
@@ -480,6 +483,8 @@ export class WidgetHost {
   private rerun = false;
   private eventTimer: ReturnType<typeof setTimeout> | undefined;
   private polling = false;
+  private focusHandle = '';
+  private focusCallback: NodeOptions['onFocusChanged'];
   private appGeometryNodes = 0;
   private rejectedFallbacks = 0;
   private readonly rejectionReasons: Record<string, number> = {};
@@ -512,6 +517,8 @@ export class WidgetHost {
       pollEvents?: boolean;
       /** Core observations share the existing bounded event poll. */
       onState?: (state: EngineResponse) => void;
+      onPublication?: (state: EngineResponse) => void;
+      onAfterEvents?: () => void;
       onAppFrame?: (timestampSeconds: number) => void;
       /** Published only after adoption of a known native ACK, including ACK recovery. */
       onExecution?: (execution: EngineExecutionSnapshot) => void;
@@ -732,6 +739,10 @@ export class WidgetHost {
             (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
             (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
             (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
+            (o.nativeFocus ? p.eventPolicies.focusOwner : 0) |
+            (o.nativeFocus?.enabled ? p.eventPolicies.focusEnabled : 0) |
+            (o.nativeFocus?.skipTraversal ? p.eventPolicies.skipTraversal : 0) |
+            (o.canonicalKeyboard ? p.eventPolicies.canonicalKeyboard : 0) |
             (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
             (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
             (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0),
@@ -988,10 +999,25 @@ export class WidgetHost {
       }
     }
   }
+  /** @internal Original Focus runs this callback after its source focus path is current. */
+  notifyFocusPeer(node: NodeHandle): void {
+    if (!this.closed) this.accepted.get(id(node))?.node.options.onFocusChanged?.(true);
+  }
   async pollEvents(): Promise<void> {
     if (this.closed || this.polling) return;
     this.polling = true;
     try {
+      if (this.options.onPublication) {
+        const publication = await this.view.request(p.opcodes.semanticsSnapshot);
+        if (this.closed) return;
+        if (publication.status === p.statuses.ok) this.options.onPublication(publication);
+        else if (publication.status !== p.statuses.notFound)
+          throw new EngineError(
+            publication.status,
+            'Widget publication observation failed',
+            publication,
+          );
+      }
       const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
       if (observers.length) {
         const snapshot = await this.view.request(p.opcodes.layoutSnapshot);
@@ -1047,10 +1073,26 @@ export class WidgetHost {
           this.options.onAppFrame?.(event.x);
           continue;
         }
+        if (event.kind === p.events.focusChanged) {
+          const next =
+              event.status === p.statuses.ok && event.id
+                ? this.accepted.get(id(event.node))
+                : undefined,
+            handle = next ? id(next.handle) : '';
+          if (handle !== this.focusHandle) {
+            (
+              this.accepted.get(this.focusHandle)?.node.options.onFocusChanged ?? this.focusCallback
+            )?.(false, event);
+            this.focusHandle = handle;
+            this.focusCallback = next?.node.options.onFocusChanged;
+            this.focusCallback?.(true, event);
+          }
+          continue;
+        }
         const record = this.accepted.get(id(event.node));
         if (!record) continue;
         if (event.kind === p.events.scrollTerminal) record.node.options.onScrollTerminal?.(event);
-        else if (event.kind === p.events.focusChanged) record.node.options.onFocusChanged?.(true);
+        else if (event.kind === p.events.key) record.node.options.onKey?.(event);
         else if (event.kind === p.events.controlChanged) {
           ++this.counters.controls;
           record.node.options.onValue?.(eventValue(event.detail), event.x);
@@ -1078,6 +1120,7 @@ export class WidgetHost {
           if (action) record.node.options.onAction?.(action, event);
         }
       }
+      this.options.onAfterEvents?.();
     } finally {
       this.polling = false;
     }
@@ -1139,6 +1182,8 @@ export class WidgetHost {
     this.allocations.clear();
     this.globals.clear();
     this.accepted.clear();
+    this.focusCallback = undefined;
+    this.focusHandle = '';
     this.resources.clear();
     this.acceptedResources.clear();
     this.free.length = this.freeResources.length = 0;

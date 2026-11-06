@@ -5,6 +5,7 @@ import {
   commands as c,
   protocol as p,
   keyBody,
+  focusBody,
   eventValue,
   body,
   editBody,
@@ -86,8 +87,14 @@ export function gestureContracts({ using, timeout, h }) {
           await f.tick();
           await reprepare();
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: beforeScroll }))
-              .status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 20,
+                y: 20,
+                publication: beforeScroll,
+              })
+            ).status,
             p.statuses.stale,
             'A same-document target still under the point cannot reuse changed local geometry',
           );
@@ -97,7 +104,14 @@ export function gestureContracts({ using, timeout, h }) {
           await f.ready();
           await f.present();
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: old })).status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 20,
+                y: 20,
+                publication: old,
+              })
+            ).status,
             p.statuses.stale,
           );
           state = await f.inspect();
@@ -108,15 +122,27 @@ export function gestureContracts({ using, timeout, h }) {
             await reprepare();
           }
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: expired }))
-              .status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 20,
+                y: 20,
+                publication: expired,
+              })
+            ).status,
             p.statuses.stale,
           );
           const current = (await f.inspect()).publication;
           for (const phase of ['begin', 'end']) {
             assert.equal(
-              (await f.input(phase, 0, { pointer: true, x: 20, y: 20, publication: current }))
-                .status,
+              (
+                await f.input(phase, 0, {
+                  pointer: true,
+                  x: 20,
+                  y: 20,
+                  publication: current,
+                })
+              ).status,
               p.statuses.ok,
             );
             await f.tick();
@@ -148,7 +174,14 @@ export function gestureContracts({ using, timeout, h }) {
           await f.ready();
           await f.present();
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: old })).status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 20,
+                y: 20,
+                publication: old,
+              })
+            ).status,
             p.statuses.stale,
           );
           old = (await f.inspect()).publication;
@@ -156,7 +189,14 @@ export function gestureContracts({ using, timeout, h }) {
           await f.ready();
           await f.present();
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 20, y: 20, publication: old })).status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 20,
+                y: 20,
+                publication: old,
+              })
+            ).status,
             p.statuses.stale,
           );
           const state = await f.inspect();
@@ -235,7 +275,10 @@ export function gestureContracts({ using, timeout, h }) {
             p.opcodes.subscribeRaw,
             body(8, (v) => v.setBigUint64(0, 2n, true)),
           );
-          await f.input('update', -2, { source: 'wheelUnknown', sample: 0.123 });
+          await f.input('update', -2, {
+            source: 'wheelUnknown',
+            sample: 0.123,
+          });
           await f.tick();
           const sample = (await f.send(p.opcodes.pollRaw)).rawInputs[0];
           assert.equal(sample.subscription, 2n);
@@ -260,14 +303,23 @@ export function gestureContracts({ using, timeout, h }) {
             c.properties(h(1), { width: 100, height: 200, maximum: 1000 }),
             c.eventPolicy(h(1), 2),
             c.create(h(2), 'scrollViewport'),
-            c.properties(h(2), { x: 100, width: 100, height: 200, maximum: 1000 }),
+            c.properties(h(2), {
+              x: 100,
+              width: 100,
+              height: 200,
+              maximum: 1000,
+            }),
           ]);
           await f.input('update', 20, { source: 'wheelUnknown' });
           await f.tick();
           const request = (await f.send(p.opcodes.pollInteractionEvents)).gestureRequests[0];
           assert.equal(request.dy, 20);
           assert.equal((await f.inspect()).nodes[0].offset, 0);
-          await f.input('update', 30, { source: 'wheelUnknown', target: h(2), stream: 2 });
+          await f.input('update', 30, {
+            source: 'wheelUnknown',
+            target: h(2),
+            stream: 2,
+          });
           await f.tick();
           assert.equal((await f.inspect()).nodes.find((n) => n.node.slot === 2).offset, 30);
           const reply = (accept) =>
@@ -324,11 +376,21 @@ export function gestureContracts({ using, timeout, h }) {
             c.create(h(1), 'scrollViewport'),
             c.properties(h(1), { width: 100, height: 200, maximum: 1000 }),
             c.create(h(2), 'scrollViewport'),
-            c.properties(h(2), { x: 100, width: 100, height: 200, maximum: 1000 }),
+            c.properties(h(2), {
+              x: 100,
+              width: 100,
+              height: 200,
+              maximum: 1000,
+            }),
           ]);
           const old = (await f.inspect()).publication;
           await f.commit([
-            c.properties(h(1), { x: 100, width: 100, height: 200, maximum: 1000 }),
+            c.properties(h(1), {
+              x: 100,
+              width: 100,
+              height: 200,
+              maximum: 1000,
+            }),
             c.properties(h(2), { width: 100, height: 200, maximum: 1000 }),
           ]);
           for (let i = 0; i < p.limits.inputPerTick; ++i)
@@ -388,8 +450,14 @@ export function gestureContracts({ using, timeout, h }) {
           await f.commit([c.properties(h(1), { x: 150, y: 10, width: 80, height: 40 })]);
           await f.ready();
           assert.equal(
-            (await f.input('end', 0, { pointer: true, x: 30, y: 30, publication: collected }))
-              .status,
+            (
+              await f.input('end', 0, {
+                pointer: true,
+                x: 30,
+                y: 30,
+                publication: collected,
+              })
+            ).status,
             p.statuses.ok,
           );
           await f.present();
@@ -404,8 +472,14 @@ export function gestureContracts({ using, timeout, h }) {
           );
           assert.equal((await f.inspect()).controlWork, 1n);
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 30, y: 30, publication: collected }))
-              .status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 30,
+                y: 30,
+                publication: collected,
+              })
+            ).status,
             p.statuses.stale,
             'A fresh packet cannot reuse the retired layout',
           );
@@ -435,8 +509,14 @@ export function gestureContracts({ using, timeout, h }) {
           await f.present();
           const held = (await f.inspect()).reservedBytes;
           assert.equal(
-            (await f.input('end', 0, { pointer: true, x: 30, y: 30, publication: collected }))
-              .status,
+            (
+              await f.input('end', 0, {
+                pointer: true,
+                x: 30,
+                y: 30,
+                publication: collected,
+              })
+            ).status,
             p.statuses.ok,
           );
           await f.tick();
@@ -448,10 +528,178 @@ export function gestureContracts({ using, timeout, h }) {
             'Terminal releases the retired captured scene and snapshot holds',
           );
           assert.equal(
-            (await f.input('begin', 0, { pointer: true, x: 30, y: 30, publication: collected }))
-              .status,
+            (
+              await f.input('begin', 0, {
+                pointer: true,
+                x: 30,
+                y: 30,
+                publication: collected,
+              })
+            ).status,
             p.statuses.stale,
           );
+        }),
+    );
+    test(
+      `${profile}: canonical focus owners redirect semantic peers and queue copied keys with exact session fencing`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([
+            c.create(h(1), 'stack'),
+            c.properties(h(1), { width: 300, height: 100 }),
+            c.eventPolicy(h(1), p.eventPolicies.canonicalKeyboard),
+            c.create(h(2), 'box'),
+            c.properties(h(2), { width: 100, height: 100 }),
+            c.attach(h(2), h(1)),
+            c.eventPolicy(h(2), p.eventPolicies.focusOwner | p.eventPolicies.focusEnabled),
+            c.create(h(3), 'box'),
+            c.properties(h(3), { x: 10, y: 10, width: 40, height: 30 }),
+            c.attach(h(3), h(2)),
+            c.semantics(h(3), {
+              role: 'group',
+              label: 'internal focus group',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+            }),
+            c.create(h(5), 'box'),
+            c.properties(h(5), { width: 40, height: 30 }),
+            c.attach(h(5), h(3)),
+            c.semantics(h(5), {
+              role: 'button',
+              label: 'source focus peer',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+            }),
+            c.create(h(4), 'box'),
+            c.properties(h(4), { x: 120, width: 100, height: 100 }),
+            c.attach(h(4), h(1), 1),
+            c.eventPolicy(
+              h(4),
+              p.eventPolicies.focusOwner |
+                p.eventPolicies.focusEnabled |
+                p.eventPolicies.skipTraversal,
+            ),
+            c.create(h(6), 'box'),
+            c.properties(h(6), { x: 220, width: 80, height: 100 }),
+            c.attach(h(6), h(1), 2),
+            c.semantics(h(6), {
+              role: 'button',
+              label: 'semantic parent',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+            }),
+            c.create(h(7), 'box'),
+            c.properties(h(7), { width: 80, height: 100 }),
+            c.attach(h(7), h(6)),
+            c.eventPolicy(h(7), p.eventPolicies.focusOwner | p.eventPolicies.focusEnabled),
+            c.create(h(8), 'box'),
+            c.properties(h(8), { width: 60, height: 40 }),
+            c.attach(h(8), h(7)),
+            c.semantics(h(8), {
+              role: 'group',
+              flags: p.semanticsFlags.focusable,
+              actions: p.semanticsActions.focus,
+            }),
+          ]);
+          let state = await f.inspect();
+          assert.equal(state.publishedDocument, state.document);
+          assert.equal(state.publishedMetrics, state.metrics);
+          assert.equal(state.publishedDevice, state.device);
+          assert.equal(state.canonicalKeyboard, true);
+          assert.equal(
+            (await f.send(p.opcodes.focus, focusBody(h(3), state.publication, 0n, true))).status,
+            p.statuses.ok,
+          );
+          state = await f.send(p.opcodes.semanticsSnapshot);
+          assert.deepEqual(state.focus.node, h(2));
+          assert.deepEqual(state.focus.peer, h(5));
+          assert.deepEqual(
+            state.nodes.filter((n) => n.hasFocus).map((n) => n.node),
+            [h(5)],
+          );
+          assert.equal(
+            state.nodes.find((n) => n.node.slot === 5).hasFocus,
+            true,
+            'The ARIA/UIA peer reflects its canonical focus owner',
+          );
+          const session = state.focus.session;
+          assert.equal(
+            (await f.send(p.opcodes.focus, focusBody(h(4), state.publication, 0n, true))).status,
+            p.statuses.stale,
+            'Expected unfocused is exact, not a wildcard',
+          );
+          assert.deepEqual(
+            (await f.send(p.opcodes.pollInteractionEvents)).events.find(
+              (e) => e.kind === p.events.focusChanged,
+            )?.focusPeer,
+            h(5),
+          );
+          await f.send(p.opcodes.key, keyBody(state.publication, 39, true, 2));
+          await f.send(p.opcodes.key, keyBody(state.publication, 39, false, 2));
+          await f.send(p.opcodes.key, keyBody(state.publication, 39, true, 2, true));
+          const events = (await f.send(p.opcodes.pollInteractionEvents)).events.filter(
+            (e) => e.kind === p.events.key,
+          );
+          assert.deepEqual(
+            events.map((e) => e.status),
+            [p.keyKinds.down, p.keyKinds.up, p.keyKinds.repeat],
+          );
+          assert.ok(
+            events.every(
+              (e) => e.node.slot === 1 && e.epoch === session && e.detail === (39n | (2n << 32n)),
+            ),
+          );
+          assert.equal((await f.inspect()).keyWork, 3n);
+          assert.equal(
+            (await f.send(p.opcodes.key, keyBody(state.publication, 39, true, 16))).status,
+            p.statuses.invalidValue,
+          );
+          assert.equal(
+            (await f.send(p.opcodes.key, keyBody(state.publication, 39, false, 0, true))).status,
+            p.statuses.invalidValue,
+          );
+          state = await f.send(p.opcodes.focus, focusBody(h(6), state.publication, session, true));
+          assert.equal(state.status, p.statuses.ok);
+          assert.deepEqual(state.focus.node, h(7));
+          assert.deepEqual(
+            state.focus.peer,
+            h(6),
+            'Material-style semantic ancestors use their unique focus descendant',
+          );
+          state = await f.send(p.opcodes.semanticsSnapshot);
+          assert.deepEqual(
+            state.nodes.filter((n) => n.hasFocus).map((n) => n.node),
+            [h(6)],
+          );
+          assert.equal(
+            (
+              await f.send(
+                p.opcodes.focus,
+                focusBody(h(4), state.publication, state.focus.session, true),
+              )
+            ).status,
+            p.statuses.ok,
+          );
+          const epoch = (await f.inspect()).document;
+          assert.equal(
+            (await f.commit([c.eventPolicy(h(4), p.eventPolicies.focusEnabled)])).status,
+            p.statuses.invalidValue,
+          );
+          assert.equal((await f.inspect()).document, epoch);
+          await f.commit([c.eventPolicy(h(4), p.eventPolicies.focusOwner)]);
+          state = await f.inspect();
+          assert.equal(
+            state.focus,
+            null,
+            'Disabling the source focus owner retires native focus immediately',
+          );
+          assert.notEqual(
+            state.publishedDocument,
+            state.document,
+            'Pending metadata cannot masquerade as current published geometry',
+          );
+          assert.ok(state.focusWork >= 3n);
         }),
     );
     test(
@@ -488,7 +736,12 @@ export function gestureContracts({ using, timeout, h }) {
           await f.tick();
           frame = await f.present();
           assert.equal(frame.nodes[0].control.value, 0);
-          await f.input('update', 0, { pointer: true, hover: true, x: 50, y: 30 });
+          await f.input('update', 0, {
+            pointer: true,
+            hover: true,
+            x: 50,
+            y: 30,
+          });
           await f.tick();
           assert.equal((await f.inspect()).nodes[0].control.hovered, true);
           assert.equal((await f.inspect()).transactionWork, baseline.transactionWork);
@@ -509,6 +762,45 @@ export function gestureContracts({ using, timeout, h }) {
           await f.tick();
           frame = await f.present();
           assert.equal(frame.nodes[0].control.value, 0.75);
+          await f.commit([
+            c.control(h(1), null),
+            c.semantics(h(1), {
+              role: 'checkbox',
+              label: 'mixed source checkbox',
+              flags: p.semanticsFlags.mixed,
+            }),
+          ]);
+          await f.ready();
+          frame = await f.present();
+          assert.equal(frame.nodes[0].semantics.flags, p.semanticsFlags.mixed);
+          const mixedDocument = frame.document;
+          for (const flags of [
+            p.semanticsFlags.mixed,
+            p.semanticsFlags.mixed | p.semanticsFlags.checked,
+          ]) {
+            assert.equal(
+              (
+                await f.commit([
+                  c.semantics(h(1), {
+                    role: flags === p.semanticsFlags.mixed ? 'radio' : 'checkbox',
+                    flags,
+                  }),
+                ])
+              ).status,
+              p.statuses.invalidValue,
+            );
+            assert.equal(
+              (await f.inspect()).document,
+              mixedDocument,
+              'Malformed mixed semantics must reject atomically',
+            );
+          }
+          for (const role of ['radio', 'radioGroup']) {
+            await f.commit([c.semantics(h(1), { role, label: 'source selection' })]);
+            await f.ready();
+            frame = await f.present();
+            assert.equal(frame.nodes[0].semantics.role, p.semanticsRoles[role]);
+          }
         }),
     );
     test(
@@ -551,9 +843,19 @@ export function gestureContracts({ using, timeout, h }) {
           );
           await f.input('begin', 0, { pointer: true, x: 20, y: 20, stream: 1 });
           await f.tick();
-          await f.input('begin', 0, { pointer: true, x: 100, y: 20, stream: 2 });
+          await f.input('begin', 0, {
+            pointer: true,
+            x: 100,
+            y: 20,
+            stream: 2,
+          });
           await f.tick();
-          await f.input('update', 0, { pointer: true, x: 180, y: 20, stream: 2 });
+          await f.input('update', 0, {
+            pointer: true,
+            x: 180,
+            y: 20,
+            stream: 2,
+          });
           await f.tick();
           events = (await f.send(p.opcodes.pollInteractionEvents)).events;
           assert.ok(

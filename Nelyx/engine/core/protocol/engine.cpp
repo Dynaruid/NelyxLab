@@ -316,7 +316,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         require(body.u64(0) > v.fontRevision && body.u64(8) == v.lastInput, wire::statuses::stale);
         v.fontRevision = body.u64(0); invalidate(v, wire::statuses::stale);
       } else if(opcode==wire::opcodes::focus){
-        exact(body,24);v.setFocus(handle(body,0),body.u64(8),body.u64(16));
+        require(body.length==24||(body.length==32&&body.u32(24)==1&&body.u32(28)==0));
+        v.setFocus(handle(body,0),body.u64(8),body.u64(16),body.length==32);
       } else if(opcode==wire::opcodes::edit){
         v.applyEdit(body);editTarget=handle(body,0);
       } else if(opcode==wire::opcodes::editSnapshot){
@@ -608,24 +609,34 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.u64(b + wire::stateFields::coverageClamps,v.coverageClamps);
     response.u64(b + wire::stateFields::coverageHandoffs,v.coverageHandoffs);
     writeHandle(response,b+wire::stateFields::focusNode,v.focusNode);response.u64(b+wire::stateFields::focusSession,v.focusSession);
+    const auto peer=v.published?canonicalFocusPeer(*v.published->scene->document,v.focusNode):Handle{};
+    writeHandle(response,b+wire::stateFields::focusPeer,v.document&&v.document->contains(peer)?peer:Handle{});
     response.u32(b+wire::stateFields::interactionCount,uint32_t(v.interactionEvents.size()));
     response.u64(b+wire::stateFields::editingWork,v.editingWork);response.u64(b+wire::stateFields::semanticsWork,v.semanticsWork);response.u64(b+wire::stateFields::queryWork,v.queryWork);
     response.u64(b+wire::stateFields::gestureWork,v.gestureWork);response.u64(b+wire::stateFields::controlWork,v.controlWork);
+    response.u64(b+wire::stateFields::publishedDocument,v.published?v.published->scene->document->epoch:0);
+    response.u64(b+wire::stateFields::publishedMetrics,v.published?v.published->scene->metrics.epoch:0);
+    response.u64(b+wire::stateFields::publishedDevice,v.published?v.published->device:0);
+    response.u64(b+wire::stateFields::keyWork,v.keyWork);response.u64(b+wire::stateFields::focusWork,v.focusWork);
     response.u32(b + wire::stateFields::providerPending,
       v.preparing && v.preparing->ready && !v.preparing->providerReady ? 1 : 0);
     response.f64(b + wire::stateFields::nextDeadline, v.nextDeadline());
     flags |= (v.closed ? 1u : 0u) | (v.visible ? 2u : 0u) | (v.focused ? 4u : 0u) |
       (v.wake() ? 8u : 0u) | (v.preparing && v.preparing->ready ? 16u : 0u) | (v.renderWake() ? 128u : 0u);
+    if(v.published)for(const auto root:v.published->scene->document->children[0])
+      if(v.published->scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){flags|=256u;break;}
   }
   response.u32(b + wire::stateFields::flags, flags);
   size_t cursor = b + wire::stateBytes;
+  const auto frameFocus=frame?(opcode==wire::opcodes::semanticsSnapshot&&view?view->focusNode:frame->focusNode):Handle{};
+  const auto framePeer=frame?canonicalFocusPeer(*rows,frameFocus):Handle{};
   if (frame) for (const auto& item : frame->items) {
     const auto& n = rows->get(item.node);
     // Filters can pull an offscreen child's pixels into view. Do not cull by
     // the unfiltered border box before the provider's layer/clip processing.
     const bool drawable=n.properties.width>0&&n.properties.height>0&&item.clip.width>0&&item.clip.height>0;
     nodeRow(response, cursor, n, &frame->properties[n.id.slot], (drawable ? 16u : 0u)|
-      (frame->focusNode==n.id?256u:0u)|(frame->focusNode==n.id&&frame->caretVisible?512u:0u), &item);
+      (n.id==framePeer?256u:0u)|(frame->focusNode==n.id&&frame->caretVisible?512u:0u), &item);
     cursor += wire::nodeBytes;
   }
   if (rows && !frame) for (const auto* node : rowNodes) {
@@ -663,6 +674,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.f64(cursor+wire::eventFields::originX,g.originX);response.f64(cursor+wire::eventFields::originY,g.originY);
     response.f64(cursor+wire::eventFields::localOriginX,g.localOriginX);response.f64(cursor+wire::eventFields::localOriginY,g.localOriginY);
     response.u32(cursor+wire::eventFields::buttons,g.buttons);response.u32(cursor+wire::eventFields::gestureFlags,g.flags);
+    if(e.kind==wire::events::focusChanged)writeHandle(response,cursor+wire::eventFields::focusPeer,e.focusPeer);
     cursor += wire::eventBytes;
   }
   for (const auto& blob : blobs) {

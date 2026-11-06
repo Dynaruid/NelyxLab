@@ -50,6 +50,7 @@ import { installOriginalScrolling } from './original-scroll.ts';
 import { OriginalNativeRender } from './original-native-node.ts';
 import { installOriginalGestures } from './original-gesture.ts';
 import { originalControlConfiguration } from './original-controls.ts';
+import { OriginalFocusBridge } from './original-focus.ts';
 import { TextDecoration } from '@nelyx/core/ui/typography';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
@@ -115,6 +116,7 @@ export class OriginalWidgetHost {
   private readonly defaultFont: ResourceId | undefined;
   private readonly reasons: Record<string, number> = {};
   private readonly scrolling: ReturnType<typeof installOriginalScrolling>;
+  private readonly focusing: OriginalFocusBridge;
 
   constructor(
     readonly view: EngineViewClient,
@@ -126,7 +128,10 @@ export class OriginalWidgetHost {
       onState: (state) => {
         this.observeMetrics(state);
         this.scrolling.visible(state.visible);
+        this.focusing.observeState(state);
       },
+      onPublication: (state) => this.focusing.observePublication(state),
+      onAfterEvents: () => this.focusing.finishPoll(),
       onExecution: () => options.onExecution?.(this.execution),
       onAppFrame: (at) => this.scrolling.frame(at),
     });
@@ -191,6 +196,14 @@ export class OriginalWidgetHost {
       view,
       (reason) => this.unsupported(reason),
       (error) => options.onError?.(error),
+    );
+    this.focusing = new OriginalFocusBridge(
+      this.owner,
+      view,
+      (render) => this.keys.get(render)?.currentNode ?? null,
+      () => !this.running && !this.building && !this.closed,
+      (error) => this.options.onError?.(error),
+      (peer) => this.native.notifyFocusPeer(peer),
     );
   }
   get counters(): WidgetHost['counters'] {
@@ -328,13 +341,9 @@ export class OriginalWidgetHost {
         style.foreground,
         style.background,
         style.shadows,
-        style.decorationColor,
-        style.decorationThickness,
-        style.decorationStyle,
         style.fontFeatures,
         style.fontVariations,
       ].some((value) => value !== null) ||
-      (style.fontFamily !== null && style.fontFamily !== 'CupertinoSystemText') ||
       (style.decoration !== null &&
         (!(style.decoration instanceof TextDecoration) || style.decoration.mask !== 0)) ||
       (style.fontWeight !== null &&
@@ -371,6 +380,9 @@ export class OriginalWidgetHost {
       maxLines: painter.maxLines ?? 0,
       ellipsis: painter.ellipsis ?? '',
       locale: String(painter.locale ?? style.locale ?? 'en'),
+      ...(style.fontFamily === null || style.fontFamily === 'CupertinoSystemText'
+        ? {}
+        : { fontFamily: style.fontFamily }),
       ...(style.fontWeight === null || style.fontWeight.value === 400
         ? {}
         : { fontWeight: style.fontWeight.value }),
@@ -764,7 +776,13 @@ export class OriginalWidgetHost {
             // ErrorWidget. An unported bridge operation still rejects admission.
             if (this.bridgeFailure) throw this.bridgeFailure;
             const count = { value: 0 };
-            return new Stack(this.root.renderObjects.map((render) => this.node(render, count)));
+            return new Stack(
+              this.root.renderObjects.map((render) => this.node(render, count)),
+              {
+                canonicalKeyboard: true,
+                onKey: this.focusing.key,
+              },
+            );
           },
           (operation) => this.unsupported('synchronous-render-' + operation),
         );
@@ -784,6 +802,7 @@ export class OriginalWidgetHost {
   close(): Promise<void> {
     if (this.closing) return this.closing;
     this.closed = true;
+    this.focusing.close();
     this.closing = drainEngineOwners('OriginalWidgetHost close failed', [
       () => this.running,
       () => this.root?.unmount(),

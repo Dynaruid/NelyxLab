@@ -131,6 +131,8 @@ struct Document {
   }
 };
 using Resources = std::array<Slot<Resource>, wire::limits::resources + 1>;
+Handle canonicalFocusOwner(const Document&,Handle);
+Handle canonicalFocusPeer(const Document&,Handle);
 struct Installed {
   std::shared_ptr<const Document> document;
   Resources resources;

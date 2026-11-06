@@ -55,6 +55,7 @@ struct Event {
   Handle node{};
   double x=0,y=0;
   GestureDetails gesture{};
+  Handle focusPeer{};
 };
 struct Result {
   Lease lease;
@@ -215,7 +216,7 @@ struct View {
   Handle focusNode;
   bool revealPending=false;
   uint64_t focusSession=0,nextFocus=0,editClock=0,editingWork=0,semanticsWork=0,queryWork=0;
-  uint64_t gestureWork=0,controlWork=0;
+  uint64_t gestureWork=0,controlWork=0,keyWork=0,focusWork=0;
   Handle caretNode;
   uint64_t caretRevision = 0;
   Handle hoverNode,lastTap;
@@ -285,7 +286,7 @@ struct View {
   void installEditors(const std::shared_ptr<const Document>&);
   std::shared_ptr<const Document> editingDocument() const;
   void interaction(Event);
-  void setFocus(Handle,uint64_t publication,uint64_t expectedSession);
+  void setFocus(Handle,uint64_t publication,uint64_t expectedSession,bool exactSession=false);
   void applyEdit(Reader);
   void semanticAction(Reader);
   void pointer(Input);

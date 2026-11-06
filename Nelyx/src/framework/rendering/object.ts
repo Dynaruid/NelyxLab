@@ -92,7 +92,12 @@ import type {
 } from '../../hosting/input-geometry.ts';
 const nativeRenderOwners = new WeakMap<RenderObject, object>();
 export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
-export type { NativeShape, NativePaintEntry, NativeRenderMetadata } from './native-paint.ts';
+export type {
+  NativeShape,
+  NativePaintEntry,
+  NativePaintGeometry,
+  NativeRenderMetadata,
+} from './native-paint.ts';
 const nativeRenderInvalidators = new WeakMap<RenderObject, () => void>();
 /** @internal A canonical configuration adapter can defer geometry to its native owner. */
 export function isNativeRenderObject(render: RenderObject): boolean {

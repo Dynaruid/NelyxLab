@@ -9,6 +9,8 @@ struct NativePaintEntry {
   std::array<double,8> radii{};
   double width=0,height=0,cx=0,cy=0,resolvedRadius=0;
   Affine transform;
+  uint32_t geometry=0,geometryFlags=0;
+  double trackWidth=0,trackHeight=0,thumbWidth=0,thumbHeight=0,extension=0,position=0,inset=0,blurSigma=0,spread=0;
 };
 struct NativePaint {
   Lease lease;

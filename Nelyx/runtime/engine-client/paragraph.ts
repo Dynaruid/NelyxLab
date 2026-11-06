@@ -3,6 +3,7 @@ import { protocol as p } from './schema.ts';
 import { encodeUtf8, decodeUtf8 } from './utf8.ts';
 
 export interface ParagraphOptions {
+  readonly fontFamily?: string;
   readonly fontWeight?: number;
   readonly hyphens?: 'manual' | 'hidden';
   readonly textAlign?: keyof typeof p.paragraphAlign;
@@ -18,6 +19,7 @@ export interface ParagraphOptions {
   readonly applyHeightToLastDescent?: boolean;
 }
 export interface ParagraphSnapshot {
+  readonly fontFamily?: string;
   readonly fontWeight?: number;
   readonly hyphens: 'manual' | 'hidden';
   readonly textAlign: keyof typeof p.paragraphAlign;
@@ -34,6 +36,7 @@ export interface ParagraphSnapshot {
 }
 const names = Object.keys(p.paragraphAlign) as (keyof typeof p.paragraphAlign)[];
 const allowed = new Set([
+  'fontFamily',
   'fontWeight',
   'hyphens',
   'textAlign',
@@ -61,8 +64,10 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     maxLines = data.getUint32(8, true),
     localeLength = data.getUint32(12, true),
     ellipsisLength = data.getUint32(16, true),
+    familyLength = data.getUint32(20, true),
     localeBytes = aligned(localeLength),
     ellipsisBytes = aligned(ellipsisLength),
+    familyBytes = aligned(familyLength),
     height = finite(data.getFloat64(32, true)),
     letterSpacing = finite(data.getFloat64(40, true)),
     wordSpacing = finite(data.getFloat64(48, true));
@@ -73,8 +78,8 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     !localeLength ||
     localeLength > p.limits.localeBytes ||
     ellipsisLength > p.limits.ellipsisBytes ||
-    bytes.length !== p.paragraphBytes + localeBytes + ellipsisBytes ||
-    data.getUint32(20, true) ||
+    familyLength > p.limits.fontFamilyBytes ||
+    bytes.length !== p.paragraphBytes + localeBytes + ellipsisBytes + familyBytes ||
     data.getUint32(28, true) ||
     (data.getUint32(24, true) &&
       (data.getUint32(24, true) < 100 || data.getUint32(24, true) > 900)) ||
@@ -91,15 +96,26 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
   for (let i = ellipsisLength; i < ellipsisBytes; ++i)
     if (bytes[p.paragraphBytes + localeBytes + i])
       throw Error('Nonzero paragraph ellipsis padding');
+  for (let i = familyLength; i < familyBytes; ++i)
+    if (bytes[p.paragraphBytes + localeBytes + ellipsisBytes + i])
+      throw Error('Nonzero paragraph font family padding');
   const locale = decodeUtf8(bytes.subarray(p.paragraphBytes, p.paragraphBytes + localeLength)),
     ellipsis = decodeUtf8(
       bytes.subarray(
         p.paragraphBytes + localeBytes,
         p.paragraphBytes + localeBytes + ellipsisLength,
       ),
+    ),
+    fontFamily = decodeUtf8(
+      bytes.subarray(
+        p.paragraphBytes + localeBytes + ellipsisBytes,
+        p.paragraphBytes + localeBytes + ellipsisBytes + familyLength,
+      ),
     );
   if (locale.includes('\0')) throw Error('Invalid paragraph locale');
+  if (fontFamily.includes('\0')) throw Error('Invalid paragraph font family');
   return Object.freeze({
+    ...(fontFamily ? { fontFamily } : {}),
     ...(data.getUint32(24, true) ? { fontWeight: data.getUint32(24, true) } : {}),
     hyphens: flags & p.paragraphFlags.manualHyphens ? 'manual' : 'hidden',
     textAlign: names[align]!,
@@ -133,7 +149,10 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
     throw Error('Invalid paragraph hyphens');
   const locale = encodeUtf8(value.locale ?? 'en', p.limits.localeBytes),
     ellipsis = encodeUtf8(value.ellipsis ?? '', p.limits.ellipsisBytes),
-    bytes = new Uint8Array(p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length)),
+    family = encodeUtf8(value.fontFamily ?? '', p.limits.fontFamilyBytes),
+    bytes = new Uint8Array(
+      p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length) + aligned(family.length),
+    ),
     data = new DataView(bytes.buffer),
     maxLines = value.maxLines ?? 0,
     align = p.paragraphAlign[value.textAlign ?? 'start'];
@@ -157,6 +176,7 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
   data.setUint32(8, maxLines, true);
   data.setUint32(12, locale.length, true);
   data.setUint32(16, ellipsis.length, true);
+  data.setUint32(20, family.length, true);
   if (value.fontWeight !== undefined && value.fontWeight !== 400) {
     if (!Number.isInteger(value.fontWeight)) throw Error('Invalid paragraph weight');
     data.setUint32(24, value.fontWeight, true);
@@ -166,6 +186,7 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
   data.setFloat64(48, finite(value.wordSpacing ?? 0), true);
   bytes.set(locale, p.paragraphBytes);
   bytes.set(ellipsis, p.paragraphBytes + aligned(locale.length));
+  bytes.set(family, p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length));
   readParagraphOptions(bytes);
   return bytes;
 }

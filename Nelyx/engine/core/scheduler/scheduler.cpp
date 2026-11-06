@@ -790,7 +790,11 @@ void View::publish(uint64_t id, uint64_t device, uint64_t commit) {
   publications[publicationCursor++%wire::limits::publicationSnapshots]=published;
   for(auto& stream:streams)if(stream.active&&stream.pointer){
     for(const auto& captured:stream.capturedPublications)if(captured){
-      if(captured->scene==published->scene)stream.capturedPublications[stream.captureCursor++%wire::limits::publicationSnapshots]=published;
+      // App-owned ink/press animation replaces documents while the pointer is
+      // held. Retain only the bounded sequence with unchanged target geometry;
+      // the general admission window still retires on document replacement.
+      if(captured->scene==published->scene||captured->sameInputGeometry(*published,stream.target))
+        stream.capturedPublications[stream.captureCursor++%wire::limits::publicationSnapshots]=published;
       break;
     }
   }

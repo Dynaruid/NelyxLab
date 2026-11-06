@@ -2,12 +2,12 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 486707000u;
+inline constexpr uint32_t schema = 2901560100u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
-inline constexpr uint32_t stateBytes = 656u;
+inline constexpr uint32_t stateBytes = 704u;
 inline constexpr uint32_t nodeBytes = 344u;
 inline constexpr uint32_t eventBytes = 160u;
 inline constexpr uint32_t inputBytes = 128u;
@@ -18,7 +18,7 @@ inline constexpr uint32_t clipStyleBytes = 80u;
 inline constexpr uint32_t paragraphBytes = 64u;
 inline constexpr uint32_t measurementBytes = 88u;
 inline constexpr uint32_t measurementGeometryBytes = 136u;
-inline constexpr uint32_t nativePaintBytes = 256u;
+inline constexpr uint32_t nativePaintBytes = 336u;
 namespace limits {
 inline constexpr uint32_t views = 8u;
 inline constexpr uint32_t nodes = 4096u;
@@ -45,6 +45,7 @@ inline constexpr uint32_t commandTimeoutMs = 2000u;
 inline constexpr uint32_t textBytes = 65536u;
 inline constexpr uint32_t localeBytes = 128u;
 inline constexpr uint32_t ellipsisBytes = 256u;
+inline constexpr uint32_t fontFamilyBytes = 256u;
 inline constexpr uint32_t layoutOperations = 131072u;
 inline constexpr uint32_t coveragePixelsPerSecond = 2400u;
 inline constexpr uint32_t coverageViewportsPerSecond = 4u;
@@ -204,6 +205,7 @@ inline constexpr uint32_t controlChanged = 16u;
 inline constexpr uint32_t rawGap = 17u;
 inline constexpr uint32_t gestureDecision = 18u;
 inline constexpr uint32_t appFrame = 19u;
+inline constexpr uint32_t key = 20u;
 }
 namespace gestures {
 inline constexpr uint32_t tap = 1u;
@@ -214,6 +216,11 @@ inline constexpr uint32_t longPress = 16u;
 inline constexpr uint32_t doubleTap = 32u;
 inline constexpr uint32_t hover = 64u;
 inline constexpr uint32_t scrollbar = 128u;
+}
+namespace keyKinds {
+inline constexpr uint32_t down = 1u;
+inline constexpr uint32_t up = 2u;
+inline constexpr uint32_t repeat = 3u;
 }
 namespace gestureKinds {
 inline constexpr uint32_t tap = 1u;
@@ -302,6 +309,9 @@ inline constexpr uint32_t gestureDetails = 2097152u;
 inline constexpr uint32_t canonicalControls = 4194304u;
 inline constexpr uint32_t appFrameClock = 8388608u;
 inline constexpr uint32_t canonicalMaterial = 16777216u;
+inline constexpr uint32_t canonicalSelection = 33554432u;
+inline constexpr uint32_t canonicalFocus = 67108864u;
+inline constexpr uint32_t canonicalSwitch = 134217728u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -410,6 +420,12 @@ inline constexpr uint32_t memoryLimit = 624u;
 inline constexpr uint32_t viewportWidth = 632u;
 inline constexpr uint32_t viewportHeight = 640u;
 inline constexpr uint32_t viewportScale = 648u;
+inline constexpr uint32_t publishedDocument = 656u;
+inline constexpr uint32_t publishedMetrics = 664u;
+inline constexpr uint32_t publishedDevice = 672u;
+inline constexpr uint32_t keyWork = 680u;
+inline constexpr uint32_t focusWork = 688u;
+inline constexpr uint32_t focusPeer = 696u;
 }
 namespace nodeFields {
 inline constexpr uint32_t node = 0u;
@@ -484,6 +500,7 @@ inline constexpr uint32_t id = 8u;
 inline constexpr uint32_t epoch = 16u;
 inline constexpr uint32_t detail = 24u;
 inline constexpr uint32_t node = 32u;
+inline constexpr uint32_t focusPeer = 56u;
 inline constexpr uint32_t pointerKind = 56u;
 inline constexpr uint32_t stream = 60u;
 inline constexpr uint32_t timestamp = 64u;
@@ -717,6 +734,9 @@ inline constexpr uint32_t textField = 4u;
 inline constexpr uint32_t checkbox = 5u;
 inline constexpr uint32_t slider = 6u;
 inline constexpr uint32_t link = 7u;
+inline constexpr uint32_t radio = 8u;
+inline constexpr uint32_t radioGroup = 9u;
+inline constexpr uint32_t switchControl = 10u;
 }
 namespace semanticsFlags {
 inline constexpr uint32_t disabled = 1u;
@@ -725,6 +745,7 @@ inline constexpr uint32_t checked = 4u;
 inline constexpr uint32_t selected = 8u;
 inline constexpr uint32_t focusable = 16u;
 inline constexpr uint32_t readOnly = 32u;
+inline constexpr uint32_t mixed = 64u;
 }
 namespace semanticsActions {
 inline constexpr uint32_t activate = 1u;
@@ -808,6 +829,10 @@ inline constexpr uint32_t dragThreshold = 1024u;
 inline constexpr uint32_t mouseRegion = 2048u;
 inline constexpr uint32_t mouseOpaque = 4096u;
 inline constexpr uint32_t roundedHitTest = 8192u;
+inline constexpr uint32_t focusOwner = 16384u;
+inline constexpr uint32_t focusEnabled = 32768u;
+inline constexpr uint32_t skipTraversal = 65536u;
+inline constexpr uint32_t canonicalKeyboard = 131072u;
 }
 namespace pointerKinds {
 inline constexpr uint32_t unknown = 0u;
@@ -823,7 +848,28 @@ inline constexpr uint32_t horizontal = 2u;
 inline constexpr uint32_t vertical = 4u;
 inline constexpr uint32_t semantic = 8u;
 }
+namespace nativePaintKinds {
+inline constexpr uint32_t physical = 1u;
+inline constexpr uint32_t border = 2u;
+inline constexpr uint32_t highlight = 3u;
+inline constexpr uint32_t ripple = 4u;
+inline constexpr uint32_t checkbox = 5u;
+inline constexpr uint32_t mark = 6u;
+inline constexpr uint32_t circle = 7u;
+inline constexpr uint32_t shape = 8u;
+inline constexpr uint32_t shadow = 9u;
+inline constexpr uint32_t clip = 10u;
+}
+namespace nativePaintGeometryKinds {
+inline constexpr uint32_t none = 0u;
+inline constexpr uint32_t switchTrack = 1u;
+inline constexpr uint32_t switchThumb = 2u;
+inline constexpr uint32_t switchReaction = 3u;
+inline constexpr uint32_t switchOnLabel = 4u;
+inline constexpr uint32_t switchOffLabel = 5u;
+}
 namespace paragraphFields {
+inline constexpr uint32_t fontFamilyLength = 20u;
 inline constexpr uint32_t fontWeight = 24u;
 }
 }

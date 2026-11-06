@@ -8,22 +8,28 @@ namespace nelyx::v2 {
 namespace {
 ParagraphOptions readParagraph(Reader data) {
   require(data.length>=wire::paragraphBytes);
-  const auto localeLength=data.u32(12),ellipsisLength=data.u32(16);
-  require(localeLength>0&&localeLength<=wire::limits::localeBytes&&ellipsisLength<=wire::limits::ellipsisBytes,
+  const auto localeLength=data.u32(12),ellipsisLength=data.u32(16),familyLength=data.u32(20);
+  require(localeLength>0&&localeLength<=wire::limits::localeBytes&&ellipsisLength<=wire::limits::ellipsisBytes&&familyLength<=wire::limits::fontFamilyBytes,
     wire::statuses::budgetExceeded);
-  const size_t localeBytes=(size_t(localeLength)+7)/8*8,ellipsisBytes=(size_t(ellipsisLength)+7)/8*8;
-  require(data.length==wire::paragraphBytes+localeBytes+ellipsisBytes&&data.u32(20)==0&&data.u32(28)==0&&data.u64(56)==0);
+  const size_t localeBytes=(size_t(localeLength)+7)/8*8,ellipsisBytes=(size_t(ellipsisLength)+7)/8*8,familyBytes=(size_t(familyLength)+7)/8*8;
+  require(data.length==wire::paragraphBytes+localeBytes+ellipsisBytes+familyBytes&&data.u32(28)==0&&data.u64(56)==0);
   const auto locale=data.slice(wire::paragraphBytes,localeLength),ellipsis=data.slice(wire::paragraphBytes+localeBytes,ellipsisLength);
-  require(validUtf8(locale)&&validUtf8(ellipsis),wire::statuses::invalidValue);
+  const auto family=data.slice(wire::paragraphBytes+localeBytes+ellipsisBytes,familyLength);
+  require(validUtf8(locale)&&validUtf8(ellipsis)&&validUtf8(family),wire::statuses::invalidValue);
   for(size_t i=localeLength;i<localeBytes;++i)require(data.data[wire::paragraphBytes+i]==0);
   for(size_t i=ellipsisLength;i<ellipsisBytes;++i)require(data.data[wire::paragraphBytes+localeBytes+i]==0);
-  ParagraphOptions value{data.u32(0),data.u32(4),data.u32(8),data.f64(32),data.f64(40),data.f64(48),
-    std::string(reinterpret_cast<const char*>(locale.data),locale.length),std::string(reinterpret_cast<const char*>(ellipsis.data),ellipsis.length)};
+  for(size_t i=familyLength;i<familyBytes;++i)require(data.data[wire::paragraphBytes+localeBytes+ellipsisBytes+i]==0);
+  ParagraphOptions value;
+  value.flags=data.u32(0);value.align=data.u32(4);value.maxLines=data.u32(8);
+  value.height=data.f64(32);value.letterSpacing=data.f64(40);value.wordSpacing=data.f64(48);
+  value.locale=std::string(reinterpret_cast<const char*>(locale.data),locale.length);
+  value.ellipsis=std::string(reinterpret_cast<const char*>(ellipsis.data),ellipsis.length);
   value.fontWeight=data.u32(24)?data.u32(24):400;
+  value.fontFamily=std::string(reinterpret_cast<const char*>(family.data),family.length);
   require(value.fontWeight>=100&&value.fontWeight<=900,wire::statuses::invalidValue);
   require(value.flags<=31&&value.align<=wire::paragraphAlign::justify&&value.maxLines<=wire::limits::textBytes&&
     (value.height==-1||(value.height>=0&&value.height<=1e6))&&value.letterSpacing>=-1e6&&value.letterSpacing<=1e6&&value.wordSpacing>=-1e6&&value.wordSpacing<=1e6&&
-    value.locale.find('\0')==std::string::npos,wire::statuses::invalidValue);
+    value.locale.find('\0')==std::string::npos&&value.fontFamily.find('\0')==std::string::npos,wire::statuses::invalidValue);
   return value;
 }
 uint32_t childLimit(uint32_t kind) {
@@ -169,9 +175,10 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         node->resource = staged[resource.slot].value;
       }
     } else if (op == wire::commands::eventPolicy) {
-      require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~16383u) == 0);
+      require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~262143u) == 0);
       const auto policy=data.u32(0),hit=policy&112u;
       require((!hit||(policy&wire::eventPolicies::canonicalHitTest))&&(!hit||(hit&(hit-1))==0),wire::statuses::invalidValue);
+      require(!(policy&(wire::eventPolicies::focusEnabled|wire::eventPolicies::skipTraversal))||(policy&wire::eventPolicies::focusOwner),wire::statuses::invalidValue);
       edit(h, false)->policy = data.u32(0);
     } else if (op == wire::commands::motion) {
       require(data.length == 32);
@@ -273,9 +280,10 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     } else if(op==wire::commands::semantics){
       require(data.length>=24&&data.u32(20)==0);
       const auto role=data.u32(0),semanticFlags=data.u32(4),actions=data.u32(8),labelLength=data.u32(12),hintLength=data.u32(16);
-      require(role<=wire::semanticsRoles::link&&(semanticFlags&~63u)==0&&(actions&~127u)==0&&
+      require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~127u)==0&&(actions&~127u)==0&&
         labelLength<=wire::limits::semanticsTextBytes&&hintLength<=wire::limits::semanticsTextBytes&&
         24+((labelLength+hintLength+7)/8)*8==data.length,wire::statuses::invalidValue);
+      require(!(semanticFlags&wire::semanticsFlags::mixed)||(role==wire::semanticsRoles::checkbox&&!(semanticFlags&wire::semanticsFlags::checked)),wire::statuses::invalidValue);
       const auto label=data.slice(24,labelLength),hint=data.slice(24+labelLength,hintLength);
       require(validUtf8(label)&&validUtf8(hint),wire::statuses::invalidValue);
       for(size_t j=24+labelLength+hintLength;j<data.length;++j)require(data.data[j]==0);

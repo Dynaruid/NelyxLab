@@ -31,16 +31,36 @@ test(
               types: './dist/foundation/key.d.ts',
               default: './dist/foundation/key.js',
             },
+            './framework/rendering/object': {
+              types: './dist/framework/rendering/object.d.ts',
+              default: './dist/framework/rendering/object.js',
+            },
           },
         }),
       );
       write('packages/core/src/foundation/key.ts', 'export class ValueKey {}');
+      write('packages/core/src/framework/rendering/object.ts', 'export class RenderBox {}');
       write('packages/core/runtime/engine-client/index.ts', "export * from './widgets.ts';");
       write(
         'packages/core/runtime/engine-client/widgets.ts',
         "export {ValueKey} from '@nelyx/core/foundation/key';",
       );
       assert.deepEqual(auditPackageBoundaries(root).errors, []);
+      write(
+        'packages/core/runtime/engine-client/original-controls.ts',
+        "export {RenderBox} from '@nelyx/core/framework/rendering/object';",
+      );
+      assert.deepEqual(auditPackageBoundaries(root).errors, []);
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "export {RenderBox} from '@nelyx/core/framework/rendering/object';",
+      );
+      assert.ok(
+        auditPackageBoundaries(root).errors.some((error) =>
+          error.startsWith('Internal self-package import'),
+        ),
+        'The adapter allowance does not admit canonical render imports in every v2 module',
+      );
       write('packages/escape.ts', 'export const outside = 1;');
       write(
         'packages/core/runtime/engine-client/widgets.ts',

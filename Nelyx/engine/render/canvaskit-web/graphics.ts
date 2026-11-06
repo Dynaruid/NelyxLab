@@ -39,6 +39,13 @@ export function paintNative(
     if (node.nativePaint.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
       canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
     for (const entry of node.nativePaint) {
+      if (entry.kind === 'clip') {
+        const rect=nativePaintShape(ck,entry);
+        rect[0]!+=entry.transform[4];rect[2]!+=entry.transform[4];
+        rect[1]!+=entry.transform[5];rect[3]!+=entry.transform[5];
+        canvas.clipRRect(rect,ck.ClipOp.Intersect,true);
+        continue;
+      }
       canvas.save();
       try {
         canvas.concat(canvasMatrix(entry.transform));
@@ -56,7 +63,58 @@ export function paintNative(
             paint.setStyle(ck.PaintStyle.Fill);
           }
         } else if (entry.kind === 'physical') canvas.drawRRect(nativePaintShape(ck, entry), paint);
-        else {
+        else if (entry.kind === 'checkbox' || entry.kind === 'shape') {
+          canvas.drawRRect(nativePaintShape(ck, entry), paint);
+          if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
+            paint.setColor(color(ck, entry.shape.strokeColor));
+            paint.setStyle(ck.PaintStyle.Stroke);
+            paint.setStrokeWidth(entry.shape.strokeWidth);
+            canvas.drawRRect(
+              nativePaintShape(ck, entry, (entry.shape.strokeWidth * entry.shape.strokeAlign) / 2),
+              paint,
+            );
+            paint.setStyle(ck.PaintStyle.Fill);
+          }
+        } else if (entry.kind === 'shadow') {
+          const filter=entry.blurSigma!>0?ck.MaskFilter.MakeBlur(ck.BlurStyle.Normal,entry.blurSigma!,true):null;
+          try {
+            paint.setMaskFilter(filter);
+            canvas.drawRRect(nativePaintShape(ck,entry),paint);
+          } finally {paint.setMaskFilter(null);filter?.delete();}
+        } else if (entry.kind === 'mark') {
+          const path = makePath(
+            ck,
+            entry.points.map(
+              (point, index) => [index ? 'line' : 'move', point.x, point.y] as const,
+            ),
+            'winding',
+          );
+          try {
+            paint.setStyle(ck.PaintStyle.Stroke);
+            paint.setStrokeWidth(entry.shape.strokeWidth);
+            canvas.drawPath(path, paint);
+          } finally {
+            paint.setStyle(ck.PaintStyle.Fill);
+            path.delete();
+          }
+        } else if (entry.kind === 'circle') {
+          canvas.drawCircle(entry.cx, entry.cy, entry.resolvedRadius, paint);
+          if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
+            paint.setColor(color(ck, entry.shape.strokeColor));
+            paint.setStyle(ck.PaintStyle.Stroke);
+            paint.setStrokeWidth(entry.shape.strokeWidth);
+            canvas.drawCircle(
+              entry.cx,
+              entry.cy,
+              Math.max(
+                0,
+                entry.resolvedRadius + (entry.shape.strokeWidth * entry.shape.strokeAlign) / 2,
+              ),
+              paint,
+            );
+            paint.setStyle(ck.PaintStyle.Fill);
+          }
+        } else {
           if (
             (entry.kind === 'highlight' && entry.customClip) ||
             (entry.kind === 'ripple' && entry.contained)

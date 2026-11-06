@@ -1,6 +1,6 @@
 # work9-2 — 2부: 공개 API·렌더링·입력·Web
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / API 검사 입력 정상화·입력 회귀 구현 / 전체 호환 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / API·고수준 디자인 중간 정리 / 전체 호환 PARTIAL**
 
 [전체 목차](work9.md) · [이전: 1부](work9-1.md) · [다음: 3부](work9-3.md)
 
@@ -14,13 +14,15 @@
 
 사용자 기준인 **원래 import·생성자·동작 호환**을 유지한다. 원래 동기 API를 비동기 snapshot으로 바꾸는 work8 초기 변경안은 호환 완료 조건이 아니다.
 
+[1부 §1.1](work9-1.md#11-typescript-디자인-패키지와-c-엔진의-책임)에 따라 `packages/cupertino`·`packages/material`의 구현은 TypeScript에 유지한다. 아래의 디자인 연결·API 이식은 원래 TypeScript 구현이 C++ 엔진의 공통 연산을 사용하는 작업을 뜻한다.
+
 | 작업 | 구현·검증할 의미 |
 | --- | --- |
 | Gate 입력 | **W9-00에서 먼저 정상화.** [원래 공개 표면](Nelyx/engine/schema/public-api.json)을 유지. 현재 [audit](Nelyx/engine/tools/api-audit.mjs)의 단일 declaration program을 Windows/Web의 target별 program·명시 환경으로 분리하고 원래 entry와 동작 의무를 매핑. `inputValid=true`와 `compatible=true`를 별도 판정. 누락/module/reexport·해석 실패·빈/non-code export를 지우거나 `skipLibCheck`로 FAIL을 없애지 않음 |
 | Widget/P1 | 원래 Widget/Element/State/BuildContext·Inherited·GlobalKey와 Key equality·parent data·init/update/deactivate/activate/dispose. Reparent/NACK/build 예외·listener 재진입·정확한 해제 횟수를 원래 호출로 검사 |
 | RenderObject/custom hook | 원래 intrinsic/baseline/layout/paint/hit-test/protected subclass 계약을 API별로 대응. 표준 node·등록한 native extension·명시 App boundary의 실제 실행과 한계를 검증. `AppDrivenBoundary`나 alias만으로 임의 동기 hook을 호환 처리하지 않음 |
 | 동기 상태 API | ScrollController pixels/jump/animate, editing value/selection, layout geometry의 즉시 읽기·쓰기·listener를 ACK 전후/실패/취소/재진입에서 비교. App의 관측 상태와 C++ 권위 상태를 구별하고 stale cache를 현재 값으로 반환하지 않음 |
-| 디자인/P3 | 전체 Material/Cupertino 생성자/default·theme/typography/icons/shapes·form/control·route/overlay/modal·전환·localization과 SDK app/service/platform API를 원래 사용 사례에 연결 |
+| 디자인/P3 | 두 TypeScript 패키지의 원래 Widget/State·생성자/default·theme/typography/icons/shapes·form/control·route/overlay/modal·전환·localization을 유지한 채 공통 engine 연산에 연결. SDK app/service/platform API도 원래 사용 사례로 검사. C++ 컴포넌트 재구현으로 대체하지 않음 |
 | 실제 소비 | [API 동작 사례](Nelyx/engine/tools/api-behavior.mjs)와 [audit](Nelyx/engine/tools/api-audit.mjs)에 overload/member별 의무를 추가. 부분 검사한 class의 나머지 의무는 그대로 남기고 installed package의 원래 import·compiler·runtime에서 실행 |
 
 임의 동기 JS subclass와 독립 Content owner 사이에 동기 callback을 추가하면 교착·App 지연이 생길 수 있다. **W9-06-A를 W9-00 직후의 선행 검증으로 분리**한다. 기존 구현 위에서 State/GlobalKey/context·동기 controller·custom layout/paint/hit-test의 대표 원래 consumer를 실행해 보존할 상태·실행 위치·ACK 전후 의미를 정한다. 큰 그래픽 확장이나 전체 Widget 이식 전에 이 경계를 확인한다.
@@ -31,21 +33,41 @@
 
 W9-00의 target별 program은 **실제 설치 consumer의 export condition·module resolution·`lib/types`·compiler 버전**과 맞춘다. 공통 entry는 Windows와 Web 모두 검사하며 Web의 threaded/single-worker 동작 사례도 분리한다. 플랫폼 전용 entry의 비적용은 원래 공개 계약·조건부 export에 근거를 남기고, 이식이 어렵거나 환경 진단이 난다는 이유로 제외하지 않는다. 원래 표면에서 target별 적용·비적용·미검증의 합계가 빠짐없이 대응해야 하며, `public-api.json`을 현재 v2 구현만으로 재생성해 분모를 줄이지 않는다. 의도적으로 충돌하는 환경 분리와 실제 consumer에서도 재현되는 타입 결함 수정을 구별한다.
 
-W9-06-A는 대표 consumer마다 **원래 호출·동기 반환/즉시 읽기·listener 순서·실행 owner·ACK 전후/거부 시 값·실제 C++ 작업**을 함께 확인한다. 다음 분류를 현재 작업 문서에 남기고 원래 계약을 통과한 범위만 W9-06-B 이식의 근거로 사용한다.
+W9-06-A는 대표 consumer마다 **원래 호출·동기 반환/즉시 읽기·listener 순서·실행 owner·ACK 전후/거부 시 값·실제 C++ 작업**을 함께 확인한다. TypeScript가 소유하는 컴포넌트 동작과 C++가 수행하는 engine 연산을 구별해 기록한다. 다음 분류를 현재 작업 문서에 남기고 원래 계약을 통과한 범위만 W9-06-B 연결의 근거로 사용한다.
 
 | 실행 분류 | 판정 조건 |
 | --- | --- |
-| Core에서 보존 가능 | 표준 C++ node/연산으로 원래 호출 의미를 보존하고 App/Content 지연 중 준비 scene 진행·실패 rollback을 확인 |
-| 명시 경계가 필요 | Native extension 또는 App 경계의 등록/실행·geometry·수명·관측 한계를 명시. 임의 JS subclass 함수를 자동 native 변환하거나 독립 Content에서 호출할 수 있다고 가정하지 않음. 원래 consumer를 바꿔야 하면 호환 미완료 |
+| TypeScript와 공통 engine으로 보존 가능 | 원래 TypeScript Widget/State·정책은 유지하고 필요한 표준 C++ node/연산으로 연결. 원래 호출 의미와 App/Content 지연 중 준비 scene 진행·실패 rollback을 확인 |
+| 명시 경계가 필요 | Native extension 또는 App 경계의 등록/실행·geometry·수명·관측 한계를 명시. Extension은 engine 연산의 확장이며 디자인 Widget/State/theme를 C++로 이전하는 우회로 사용하지 않음. 임의 JS subclass 함수를 자동 native 변환하거나 독립 Content에서 호출할 수 있다고 가정하지 않음. 원래 consumer를 바꿔야 하면 호환 미완료 |
 | 보존 방식 미해결 | 해당 의무와 의존 기능을 미완료로 유지. 실패를 적었다는 이유로 호환 PASS나 W9-06 전체 완료로 올리지 않음. 독립된 host/기능 작업은 가능하되 전체 API·제품 전환 gate는 계속 FAIL |
 
 최소 사례는 State/GlobalKey reparent·BuildContext 조회, scroll/editing의 즉시 읽기·쓰기/취소·재진입, custom intrinsic/layout/paint/hit-test다. Setter 호출 직후의 값·listener와 다음 publication의 값을 따로 검사하고, App 소유 animation callback과 Core motion을 구별한다. 모든 JS animation/custom hook의 App 독립 진행을 약속하지 않는다.
+
+### 8.2 디자인 패키지의 TypeScript 구현 유지
+
+**Theme와 컴포넌트의 동작을 정하는 코드는 TypeScript에 남긴다.** Engine 연결은 원래 클래스의 build/State/controller·사용자 확장 지점에서 공통 node/연산·paint 설정을 생성하는 방식으로 진행한다. C++의 컴포넌트 사본이나 adapter의 간소화된 대체 Widget로 원래 구현을 우회하지 않는다.
+
+| 기능 | TypeScript 디자인/framework가 결정 | C++ engine이 수행 |
+| --- | --- | --- |
+| Theme·스타일·구성 | ThemeData/Inherited 조회, default·상태별 색/shape/typography·intrinsic 설정·자식 구성 | 전달된 제약/스타일/자원으로 최종 크기·좌표·paragraph/paint 계산 |
+| Control·입력 | Controlled value, enabled·tristate·선택/drag commit·divisions·validation 정책, onChanged와 callback 순서 | 게시 geometry의 hit-test·gesture 인식·capture·key/focus/semantic action 전달. 이벤트/terminal을 세대가 있는 값으로 복사 |
+| Animation·전환 | AnimationController/Ticker·curve/duration 선택·컴포넌트 상태 전환과 listener | 선언한 motion 연산·host clock·준비 scene의 합성/게시. Material/Cupertino의 전환 정책을 engine에 다시 구현하지 않음 |
+| Painter·graphics | 원래 TypeScript painter/shape의 스타일·명령·지원되는 metadata 구성과 자원 선택 | 공통 path/shape/clip/shadow·text/image 처리, 실제 box 기준 geometry·검증·기록/raster·수명 |
+| Form·route·overlay·localization | 검증·navigation/modal 정책·Widget 구성·문구/방향 선택과 App callback | 필요한 layer/clip/transform·focus/입력 차단·semantics/게시와 OS 서비스 연산 |
+
+예를 들어 Material Switch·CupertinoSwitch의 theme, thumb 스타일, controlled value·drag commit 정책과 callback은 원래 TypeScript 구현이 결정한다. C++는 전달받은 크기/진행값의 track/thumb 배치·hit-test·그리기를 수행한다. Slider도 divisions·allowed interaction·onChangeStart/onChanged/onChangeEnd는 TypeScript에 두고 engine의 geometry·gesture 결과를 연결한다. C++가 별도 선택 값을 확정해 원래 callback과 이중 변경을 만들지 않게 한다.
+
+TypeScript에서 스타일/명령을 구성하고 원래 State/controller를 실행하는 일은 정상적인 디자인 패키지 실행이며 TS renderer fallback으로 세지 않는다. 최종 layout/hit-test/raster를 별도 TS 엔진으로 우회하는 경로는 기존 fallback 정책을 적용한다. 원래 custom painter나 동기 subclass hook의 계약을 아직 연결하지 못했다면 W9-06의 미완료로 남기고, 전체 디자인 코드를 C++로 옮겨 해결하지 않는다.
+
+W9-08/13에서는 실제 설치 import가 원래 TypeScript 클래스·State를 실행하는지, theme/사용자 callback·controller 재진입·controlled update 거부/NACK·dispose 순서를 검사한다. 기존 capability 안의 theme/상태별 스타일 변경은 TypeScript 패키지/adapter 공급으로 반영되고 C++의 디자인 기본값 수정이나 native 재컴파일을 요구하지 않아야 한다. 새 engine 연산/ABI가 필요한 변경은 그 이유와 공통 책임을 별도로 확인한다. C++ 실제 작업과 SDK 집계, TypeScript 원래 동작의 보존을 함께 검증해야 완료다.
 
 ## 9. 렌더링 표현력·재사용·frame 일정
 
 [2a의 Flutter 소스 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)를 아래 독립 작업으로 이월한다. 비교 reference는 저장소의 snapshot이며 최신 Flutter 버전이나 동일 기능/성능을 보장하는 기준은 아니다.
 
 아래 공통 corpus의 **1차 provider는 Windows native와 Web 두 profile**이다. GTK/Metal·모바일 provider의 같은 의무는 후속 host 단계에 연결하며 1차 완료를 막는 별도 port 작업으로 앞당기지 않는다.
+
+이 절은 C++ 엔진/provider의 표현력을 확장한다. 디자인 패키지는 TypeScript에서 그 연산과 자원을 구성하며, Canvas/Paint 지원 확대를 Material/Cupertino Widget·theme·전환 구현의 C++ 이전으로 확대하지 않는다.
 
 | 축 | 남은 구현 | 완료 증거 |
 | --- | --- | --- |
@@ -84,6 +106,8 @@ Reload의 **App 세대만 교체하는 경우와 host/session/surface까지 교�
 ### 11.1 채택 방침과 앞선 소스 검토
 
 **Web과 [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용)의 Windows RNW 재사용은 1차 개발이다. Android는 4부의 2차 W9-12-B(Android), iOS는 그다음 후속 5부의 3차 W9-12-B(iOS)로 진행한다.** 모바일 플랫폼 adapter를 만들 때 Nelyx와 RN의 OS 연결 소스를 선별 재사용한다. C++ core가 layout·editing document·gesture 판정·scroll/motion·scene·frame 일정을 계속 소유한다. RN의 전체 앱 실행·렌더러를 필수 기반으로 추가하지 않는다. 이 방침은 구현 계획에 채택했으며 실제 소스 추출·새 host 빌드·실기기 검증은 아직 하지 않았다.
+
+모든 host는 [§8.2](#82-디자인-패키지의-typescript-구현-유지)의 같은 TypeScript 디자인 패키지를 실행한다. OS 입력 carrier·접근성 peer·명시적 platform view는 host/서비스 경계에 두며, 기본 Material/Cupertino 컴포넌트를 플랫폼별 C++/Kotlin/Objective-C++ Widget로 다시 만드는 작업으로 확장하지 않는다.
 
 앞선 소스 검토의 비교 기준은 로컬 설치 **`react-native@0.83.10`**, **`react-native-web@0.21.3`**와 당시 저장소 소스다. 이 버전은 소스 비교의 기준이며 Android/iOS의 기존 runner나 Hermes/JSI 공급을 자동 갱신하는 결정이 아니다. 모바일 소스를 실제 도입할 때 해당 target의 W9-12-B/M0에서 원본 tag/commit·파일 hash·의존성과 runtime/ABI를 다시 확인해 고정한다. Android 도입은 2차, iOS 도입은 3차이며 양쪽 공급을 한 번에 준비하지 않는다. Web helper를 먼저 도입하면 해당 helper의 출처만 그 작업에서 고정한다.
 
@@ -155,7 +179,7 @@ M0–M4는 재사용 범위의 식별자다. **1차 Web의 M3는 모바일 M0–
 | M1 — 중립 계약·helper 추출 | W9-12-B / Android 2차·iOS 3차, W9-01의 공통 계약 사용 | Native DTO/packet·mirror/ACK·focus/connection/reload generation·UI thread·callback/close 계약. 새 standalone adapter는 RN 앱 객체 없이 compile/link 가능하고 기존 v1 wrapper의 기능도 유지 |
 | M2 — 모바일 수직 실행 | W9-12-B / Android 2차·iOS 3차 | 해당 차수의 Android 또는 iOS **각각**의 일반 앱에서 scene·OS 입력/편집·semantics·surface 재생성·close/drain. SDK 요청과 실제 C++ 작업 대조. RN 부재를 runtime 시작/입력 실패로 숨기지 않음 |
 | M3 — Web helper 선별 | W9-07/12-A / 1차·필요한 경우 | 재현된 browser 차이와 필요한 helper만 반영. 출처·의존성, Main의 DOM 소유권·trusted activation·두 profile·geometry·회수 유지. 도입할 helper가 없으면 기존 host 유지로 기록 |
-| M4 — 공급·통합 | W9-13 / 대상별 | 1차는 Windows/Web 및 도입한 RNW/Web helper, 2차는 Android, 3차는 iOS의 dependency/link graph·설치본·앱 entry를 각각 확인. Runtime identity·host/IME/semantics corpus·손상 거부·종료 통과 |
+| M4 — 공급·통합 | W9-13 / 대상별 | 1차는 Windows/Web 및 도입한 RNW/Web helper, 2차는 Android, 3차는 iOS의 dependency/link graph·설치본·앱 entry를 각각 확인. 같은 TypeScript 디자인 구현/자산과 공통 engine 공급의 경계, runtime identity·host/IME/semantics corpus·손상 거부·종료 통과 |
 
 V2 standalone target의 실제 Gradle/CMake·Pod/Xcode link·bundle dependency graph에서 ReactHost/ReactContext·ViewManager/UIManager·Fabric/Yoga·RCTBridgeModule/TurboModule·React DOM renderer 의존성을 검사한다. 소스 이름에서 `React`를 지운 것만으로 분리 성공으로 세지 않는다. 기존 v1 runner나 workspace의 RN 의존성은 이 gate와 구별한다.
 
@@ -192,6 +216,8 @@ Windows/Web 공개 입력은 실제 NodeNext consumer에서 각각 해석한다.
 
 수요 clock은 Native DWM composition QPC와 Web worker rAF/pthread Main rAF를 사용한다. Content cache는 한 세대·**16 MiB**이며 Native **95**·Web **96** 재사용과 추가 image decode **0**, pressure/eviction 뒤 active hold 보존을 확인했다. 개발 runner는 candidate 검증·세대별 자산·이전 App/VM/worker/provider drain을 수행한다. 실제 OS low-memory 신호, 상태 보존 reload·loss 복구·전체 frame 일정/성능·per-monitor scanout은 미완료다.
 
-현재 owned m153 paragraph runtime의 manifest/hash·API 1과 Native/Web manual/hidden hyphen을 연결했다. Cache가 비어 있는 첫 문단의 생성 hyphen font 참조와 ready callback 이후 SDK/native 집계의 stale 관측도 실제 네 앱 경로에서 재현·수정했다. 마지막 전체 검증 공급의 host **17/17**, 독립 설치 포함 runner **19/19**, 개발 재시작 **7/7**을 확인했다. Native 두 host에서 clip·원점/중심 회전·flip·한글/이모지를 직접 확인했다. 표준 clip 계열과 원래 ListView/ScrollController의 일부를 연결했으며 scroll·gesture/control·디자인 등 고수준 API를 계속 개발한다. 기초 reference 4개를 제거하고 기능마다 전체 suite를 반복하는 절차를 중단했다. 기능 통합 1개와 필요한 빌드·실제 앱 연결을 우선한다. 앞선 공급 `7a2922c8…`(schema **4120097723**)의 빌드·source identity와 원래 버튼/gesture/목록 통합 **3/3**을 확인했다. Tap/long-press·drag details에 이어 CupertinoButton의 원래 theme·State/controller·semantics, Opacity/기본 장식과 App frame clock을 연결했다. 실제 App SDK에서 세 버튼·disable·Tab/Enter와 AnimationController의 opacity 1→0.5→1, **C++ 788 = SDK ACK 788**, fallback 0을 관측했다. 직전 기능 검증 `9fa78a98…` 공급에서 같은 Web 버튼 소비·hover 유지/이탈과 opacity 실제 pixel·종료 대표 통합 **1/1**을 두 profile에서 확인했다(C++/SDK ACK 각각 794/795, fallback 0). 원래 목록 controller의 외부·내부 교체도 연결해 같은 position/offset과 attach/detach callback을 유지하며 Native 대표 통합 **1/1**을 확인했다(C++ 6285 = SDK ACK 6285). Material 및 전체 focus/semantics·OS cursor는 미완료다. 보조 버튼·double-tap details·scale/force·전체 arena/overflow hit 계약은 미완료다. 위 전체 회귀 수치는 앞선 `90649c3d…` 공급의 기록이다. 최신 공급·실패·잔여 범위는 [3부](work9-3.md#현재-구현검증과-잔여-작업)를 따른다. Android/Linux·iOS/macOS는 DEFERRED, 물리 IME/reader/trackpad·display/scanout과 성능 두 flag는 미수락이다.
+현재 owned m153 paragraph runtime의 manifest/hash·API 1과 Native/Web hyphen을 연결했다. Cache 없는 첫 glyph의 font와 ready callback 이후 C++/SDK 집계를 수정했으며 선행 공급의 host **17/17**·설치 runner **19/19**·reload **7/7**은 이전 검증 범위다. 표준 clip/affine Transform, 고정 extent ListView/ScrollController 교체, 기본 source gesture와 디자인 버튼을 부분 연결했다.
 
-**외출 일시정지 — 2026-11-06 KST:** 사용자 요청으로 PAUSED / PARTIAL. Material의 native shape·border·highlight/ripple와 font weight 설정을 연결 중이며 실제 Material 앱은 아직 통과하지 않았다. 마지막 전체 빌드 공급은 `68b9fdc1…` / schema **486707000**, 이후 MediaQuery·진단/CLI 변경과 형식 정리로 현재 source identity가 달라졌다. 현재 소스로 rebuild한 뒤 대표 통합부터 재개한다. 진행 중 빌드·실행 창·임시 앱은 정리했다. 상세 상태와 복사할 명령은 [3부 재개 기록](work9-3.md#외출-일시정지-기록)을 따른다.
+**최신 구현 — 2026-11-06 KST / PAUSED / PARTIAL:** 사용자 요청으로 중단했으며 자동 재개하지 않는다. 앞선 `c4be00de…` / schema **3147956808**에서 mixed Checkbox·Radio·FocusNode/Actions/Shortcuts와 semantic peer/session/게시 geometry를 연결했다. 두 Web profile의 방향키·그룹 Tab·Control+K, C++/SDK ACK **2852/2833**·fallback 0·종료 예약 0과 선택 계약 **14/14**는 해당 공급의 성공 범위다. 새 Switch paint·drag/semantics의 source/dist는 `95fdfa43…` / schema **2901560100**으로 일치하고 전체 빌드는 통과했지만 입력 검증이 실패했다. 첫 실행의 Material click·Space·오른쪽 drag 통과를 전체 Switch 완료로 확대하지 않는다.
+
+재개 첫 작업은 §8.2의 TypeScript 디자인 소유권을 기존 control/paint helper와 대조하고 Windows switch role index 누락·반대 방향 drag·앞선 Checkbox 클릭 누락의 원인 수정과 현재 공급 재검증을 수행하는 것이다. Slider·전체 디자인·physical/raw/character/IME·전체 focus/semantics·cursor/service·콘텐츠/복구가 남는다. 동기 custom hook/일반 geometry와 전체 API 호환은 미완료다. 이번 계획 수정으로 구현을 자동 재개하지 않는다. Native UI는 사용자 Esc 중단으로 notVerified, 두 성능 flag false·후속 플랫폼 DEFERRED를 유지한다. [현재 공급·검증과 다음 작업](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.

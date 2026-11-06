@@ -175,12 +175,19 @@ export function eventValue(detail: bigint): number {
   v.setBigUint64(0, detail, true);
   return finite(v.getFloat64(0, true));
 }
-export function keyBody(publication: bigint, code: number, down = true, modifiers = 0): Uint8Array {
+export function keyBody(
+  publication: bigint,
+  code: number,
+  down = true,
+  modifiers = 0,
+  repeat = false,
+): Uint8Array {
   return body(24, (v) => {
     v.setBigUint64(0, uint64(publication), true);
     v.setUint32(8, uint32(code), true);
     v.setUint32(12, uint32(modifiers), true);
     v.setUint32(16, down ? 1 : 0, true);
+    v.setUint32(20, repeat ? 1 : 0, true);
   });
 }
 export function uint32(value: number): number {
@@ -362,11 +369,17 @@ export function editBody(node: NodeHandle, value: EditingUpdate): Uint8Array {
   result.set(text, 64);
   return result;
 }
-export function focusBody(node: NodeHandle | null, publication: bigint, session = 0n): Uint8Array {
-  return body(24, (v) => {
+export function focusBody(
+  node: NodeHandle | null,
+  publication: bigint,
+  session = 0n,
+  exactSession = false,
+): Uint8Array {
+  return body(exactSession ? 32 : 24, (v) => {
     writeHandle(v, 0, node ?? { slot: 0, generation: 0 });
     v.setBigUint64(8, uint64(publication), true);
     v.setBigUint64(16, uint64(session), true);
+    if (exactSession) v.setUint32(24, 1, true);
   });
 }
 export function semanticActionBody(
@@ -883,6 +896,7 @@ export interface EngineBlob {
   readonly bytes: Uint8Array;
 }
 export interface EngineEvent {
+  readonly focusPeer?: NodeHandle;
   readonly gesture?: GestureDetails;
   readonly x: number;
   readonly y: number;
@@ -894,6 +908,7 @@ export interface EngineEvent {
   readonly node: NodeHandle;
 }
 export interface EngineResponse {
+  readonly canonicalKeyboard: boolean;
   readonly memory: {
     readonly total: bigint;
     readonly peak: bigint;
@@ -907,7 +922,16 @@ export interface EngineResponse {
   };
   readonly rawInputs: readonly RawInputSample[];
   readonly gestureRequests: readonly RawInputSample[];
-  readonly focus: { readonly node: NodeHandle; readonly session: bigint } | null;
+  readonly focus: {
+    readonly node: NodeHandle;
+    readonly peer: NodeHandle | null;
+    readonly session: bigint;
+  } | null;
+  readonly publishedDocument: bigint;
+  readonly publishedMetrics: bigint;
+  readonly publishedDevice: bigint;
+  readonly keyWork: bigint;
+  readonly focusWork: bigint;
   readonly interactionCount: number;
   readonly editingWork: bigint;
   readonly semanticsWork: bigint;
@@ -1096,6 +1120,11 @@ export function response(bytes: Uint8Array): EngineResponse {
     );
   }
   for (let i = 0; i < eventCount; ++i, cursor += p.eventBytes) {
+    const focusPeer =
+      v.getUint32(cursor, true) === p.events.focusChanged
+        ? readHandle(v, cursor + p.eventFields.focusPeer)
+        : undefined;
+    if (focusPeer && !!focusPeer.slot !== !!focusPeer.generation) throw Error('Invalid focus peer');
     const flags = v.getUint32(cursor + p.eventFields.gestureFlags, true);
     if (flags & ~15) throw Error('Invalid gesture detail flags');
     let gesture: GestureDetails | undefined;
@@ -1130,6 +1159,7 @@ export function response(bytes: Uint8Array): EngineResponse {
     events.push(
       Object.freeze({
         ...(gesture ? { gesture } : {}),
+        ...(focusPeer?.slot ? { focusPeer } : {}),
         kind: v.getUint32(cursor, true),
         status: v.getUint32(cursor + 4, true),
         id: v.getBigUint64(cursor + 8, true),
@@ -1322,11 +1352,17 @@ export function response(bytes: Uint8Array): EngineResponse {
           semantics ||
           size < 24 ||
           d.getUint32(20, true) ||
-          d.getUint32(0, true) > 7 ||
-          d.getUint32(4, true) & ~63 ||
+          d.getUint32(0, true) > p.semanticsRoles.switchControl ||
+          d.getUint32(4, true) & ~127 ||
           d.getUint32(8, true) & ~127
         )
           throw new Error('Invalid semantics blob');
+        if (
+          d.getUint32(4, true) & p.semanticsFlags.mixed &&
+          (d.getUint32(0, true) !== p.semanticsRoles.checkbox ||
+            d.getUint32(4, true) & p.semanticsFlags.checked)
+        )
+          throw new Error('Invalid mixed semantics');
         const label = d.getUint32(12, true),
           hint = d.getUint32(16, true);
         if (
@@ -1475,6 +1511,7 @@ export function response(bytes: Uint8Array): EngineResponse {
     focus: u64(p.stateFields.focusSession)
       ? Object.freeze({
           node: readHandle(v, b + p.stateFields.focusNode),
+          peer: u32(p.stateFields.focusPeer) ? readHandle(v, b + p.stateFields.focusPeer) : null,
           session: u64(p.stateFields.focusSession),
         })
       : null,
@@ -1484,6 +1521,11 @@ export function response(bytes: Uint8Array): EngineResponse {
     queryWork: u64(p.stateFields.queryWork),
     gestureWork: u64(p.stateFields.gestureWork),
     controlWork: u64(p.stateFields.controlWork),
+    publishedDocument: u64(p.stateFields.publishedDocument),
+    publishedMetrics: u64(p.stateFields.publishedMetrics),
+    publishedDevice: u64(p.stateFields.publishedDevice),
+    keyWork: u64(p.stateFields.keyWork),
+    focusWork: u64(p.stateFields.focusWork),
     layoutQuery: u64(p.stateFields.queryId)
       ? Object.freeze({
           id: u64(p.stateFields.queryId),
@@ -1542,6 +1584,7 @@ export function response(bytes: Uint8Array): EngineResponse {
     closed: !!(flags & 1),
     visible: !!(flags & 2),
     focused: !!(flags & 4),
+    canonicalKeyboard: !!(flags & 256),
     wake: !!(flags & 8),
     preparationReady: !!(flags & 16),
     sharedMemory: !!(flags & 32),

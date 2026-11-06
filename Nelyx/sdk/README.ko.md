@@ -67,7 +67,7 @@ export default defineOriginalEngineV2App({
 
 현재 지원하는 render 설정은 ConstrainedBox·Padding·기본 ColoredBox, Align/Center의 정렬·크기 배율, RTL/up을 포함한 Flex의 크기·간격·Expanded·overflow clip, 비 positioned Stack의 loose/passthrough/expand·수치 정렬·none/hardEdge clip입니다. Flex의 무한 main 제약은 flexible child가 없는 경우에 연결했습니다. Baseline·positioned child·anti-alias clip 등 아직 연결하지 않은 설정과 render object·instance hook·pointer/semantics callback·App 서비스는 명시적으로 실패합니다. 전체 Text·controller·디자인 API의 호환 경로가 아닙니다.
 
-기본 `Text`는 provider의 번들 font cohort로 LTR/RTL·start/end/left/right/center/justify·locale·softWrap/nowrap·maxLines/ellipsis·manual soft hyphen을 연결합니다. 문단 설정의 hidden 모드도 지원합니다. 크기·색상·text scaler·`DefaultTextStyle`, 문단 높이·음수를 포함한 간격·leading/height behavior, tight/loose 크기·기본 text semantics·clip/visible overflow를 지원합니다. 일반 굵기 400의 font·shaping·geometry는 provider가 소유하고 App registry에는 설정 참조만 둡니다. `CupertinoSystemText`도 이 번들 cohort를 사용합니다. 사용자 font/fontId·다른 App 서비스의 font, rich span·다른 굵기/italic·strut·추가 style은 미완료입니다. 동기 text 서비스 질의는 명시적으로 실패합니다.
+기본 `Text`는 provider의 font cohort로 LTR/RTL·start/end/left/right/center/justify·locale·softWrap/nowrap·maxLines/ellipsis·manual soft hyphen을 연결합니다. 문단 설정의 hidden 모드도 지원합니다. 크기·색상·text scaler·`DefaultTextStyle`, 문단 높이·음수를 포함한 간격·leading/height behavior, tight/loose 크기·기본 text semantics·clip/visible overflow를 지원합니다. 굵기 100–900과 단일 `fontFamily` 요청을 전달하며, Native는 사용 가능한 설치 글꼴과 번들 cohort, Web은 선언한 provider 글꼴과 번들 대체 글꼴에서 선택합니다. 같은 요청도 공급된 글꼴에 따라 다른 실제 글꼴을 사용할 수 있습니다. `CupertinoSystemText`는 번들 cohort를 사용합니다. Web의 varied typeface cache는 16개로 제한하고 pressure 때 회수합니다. 사용자 font/fontId·다른 App 서비스의 font, fontFamilyFallback·rich span·italic·strut·추가 style은 미완료입니다. 동기 text 서비스 질의는 명시적으로 실패합니다.
 
 `framework/widgets/basic`의 `ClipRect`와 affine `Transform`(translate·rotate·scale·flip)은 C++ layout과 게시 frame의 geometry를 사용합니다. 원점·방향 정렬은 resize 뒤의 최종 크기를 포함해 Content에서 계산합니다. Singular 변환은 child를 그리지 않습니다. Perspective/3D 행렬·null이 아닌 `filterQuality`·`transformHitTests: false`는 현재 명시적으로 실패합니다.
 
@@ -88,7 +88,11 @@ State의 App 값은 즉시 바뀌고 native NACK에서도 원하는 값을 유�
 `BuildContext.services.readMetrics('logicalWidth', 'scale')`은 마지막으로 수신한 Core viewport의 불변 관측값을 반환합니다. Resize·배율 변경을 관측하면 선택한 필드가 바뀐 Element를 다시 build합니다. 인수를 생략하면 모든 필드를 구독합니다. Physical 크기는 provider와 같은 pixel 반올림을 사용하고, 제공하지 않는 native context/surface generation은 `null`입니다. 이 관측값의 viewport revision과 실제 활성 layout의 revision은 다를 수 있습니다. 동기 RenderBox geometry로 사용하지 마세요.
 
 
-Material native shape/ink와 가변 font weight는 구현 중이며 대표 앱은 아직 통과하지 않았습니다. 현재 소스를 검증할 때 engine 공급을 다시 빌드해야 합니다. [일시정지·재개 기록](../../work9-3.md#외출-일시정지-기록)을 따르세요.
+원래 Material의 `TextButton`, `FilledButton`/tonal, `OutlinedButton`, `ElevatedButton`은 source theme·State·controller를 유지합니다. 기본 rrect/stadium/circle shape·border·physical shadow와 highlight/InkRipple을 C++ geometry 및 Native/Web paint에 연결했습니다. 활성 pointer는 대상·조상 geometry가 같은 App 문서 교체에서도 8개 게시 상한 안에서 up/cancel을 유지합니다. Windows App SDK와 Web 두 profile에서 기본 버튼·disabled·hover·Enter와 실제 animation 표시를 확인했습니다. Padded tap target·custom shape/rect·다른 ink factory와 전체 디자인 API는 미완료입니다. [현재 구현 기록](../../work9-3.md#현재-구현검증과-잔여-작업)을 따르세요.
+
+원래 `Checkbox`의 boolean/tristate와 `Radio`/`RadioGroup`은 source State·theme·Toggleable motion·그룹 callback을 유지합니다. C++가 check/dash·inset·원 중심과 반경을 계산하며 Web 두 profile에서 클릭·Enter/Space·disabled·3상태 왕복·Radio 선택 해제·방향키 이동과 그룹 Tab/Shift+Tab·ARIA·실제 표시를 확인했습니다. 비시각 Windows UIA 검사에서는 mixed 상태와 Radio SelectionItem/그룹 Selection을 확인했습니다. 최신 Native 선택/focus 표시·사용자 입력, UIA toggleable 해제와 전체 선택 컨트롤 API는 미완료/미검증입니다. [현재 범위와 잔여](../../work9-3.md#현재-구현검증과-잔여-작업)를 따르세요.
+
+원래 FocusNode·Actions/Shortcuts도 App 트리에 유지합니다. C++ focus owner와 실제 semantic peer를 연결하고 정확한 focus session으로 오래된 요청을 거부합니다. FocusNode rect/offset/size는 현재 관측한 게시 document·metrics·device의 C++ geometry를 읽으며 게시 전이나 알려진 stale 상태에서는 실패합니다. 임의 RenderBox의 동기 layout/geometry나 전체 API 호환을 제공하는 것은 아닙니다. Web의 Control+K 같은 source Shortcut과 비시각 Native의 callback 순서·GlobalKey 이동·키 down/repeat/up을 검증했습니다. 전체 scan/layout/raw keyboard·character/IME·reader 계약은 미완료입니다.
 
 ## 앱 API
 

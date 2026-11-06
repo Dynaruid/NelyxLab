@@ -488,6 +488,7 @@ public:
         editors->execute(command(focused, "focus"));
     }
     std::vector<nh::SemanticPacket> packets;
+    const auto focusPeer=canonicalFocusPeer(*f.scene->document,next->focus);
     std::map<uint64_t, int> indices;
     for (const auto &item : f.items) {
       const auto &node = f.scene->document->get(item.node);
@@ -530,10 +531,12 @@ public:
       s.frame = frame;
       s.bounds = frame.bounds;
       static const char *roles[] = {"group",      "group",  "button", "text",
-                                    "text-field", "button", "group",  "button"};
+                                    "text-field", "button", "group",  "button", "button", "group"};
       s.role = roles[a->role];
       packet.isLink = a->role == wire::semanticsRoles::link;
       packet.isSlider = a->role == wire::semanticsRoles::slider;
+      packet.isRadio = a->role == wire::semanticsRoles::radio;
+      packet.isRadioGroup = a->role == wire::semanticsRoles::radioGroup;
       if(packet.isSlider&&node.control.kind){nh::SemanticRange range;
         range.min=node.control.minimum;range.max=node.control.maximum;range.value=f.properties[node.id.slot].value;
         range.smallChange=node.control.step>0?node.control.step:(node.control.maximum-node.control.minimum)/20;
@@ -546,10 +549,12 @@ public:
                   !(current.editFlags & wire::editFlags::disabled);
       s.focusable = (a->flags & wire::semanticsFlags::focusable) ||
                     (a->actions & wire::semanticsActions::focus);
-      s.focused = next->focus == node.id;
+      s.focused = node.id==focusPeer;
       s.canActivate = a->actions & wire::semanticsActions::activate;
-      if (a->role == wire::semanticsRoles::checkbox)
+      if (a->role == wire::semanticsRoles::checkbox || a->role == wire::semanticsRoles::switchControl)
         packet.checked = node.control.kind ? f.properties[node.id.slot].value>node.control.minimum : bool(a->flags & wire::semanticsFlags::checked);
+      packet.mixed = a->flags & wire::semanticsFlags::mixed;
+      if (packet.isRadio) packet.selected = bool(a->flags & wire::semanticsFlags::checked);
       if (a->flags & wire::semanticsFlags::selected)
         packet.selected = true;
       auto parent = node.parent;
@@ -690,7 +695,22 @@ public:
     const auto result = editors->keyboardText(c, snapshot->session);
     return result.first != "unavailable";
   }
-  bool keydown(WPARAM key) {
+  bool canonicalKey(WPARAM key,LPARAM detail,bool down) {
+    if(key==VK_F4&&(GetKeyState(VK_MENU)&0x8000))return false;
+    if(!snapshot)return false;
+    bool canonical=false;
+    for(const auto root:snapshot->frame.scene->document->children[0])
+      if(snapshot->frame.scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){canonical=true;break;}
+    if(!canonical)return false;
+    Writer data(24);data.u64(0,snapshot->frame.id);data.u32(8,uint32_t(key));
+    data.u32(12,((GetKeyState(VK_SHIFT)&0x8000)?1u:0u)|((GetKeyState(VK_CONTROL)&0x8000)?2u:0u)|
+      ((GetKeyState(VK_MENU)&0x8000)?4u:0u)|(((GetKeyState(VK_LWIN)|GetKeyState(VK_RWIN))&0x8000)?8u:0u));
+    data.u32(16,down?1:0);data.u32(20,down&&(detail&(LPARAM(1)<<30))?1:0);
+    call(wire::opcodes::key,data.bytes);wake();sync();return true;
+  }
+  bool keyup(WPARAM key,LPARAM detail){return canonicalKey(key,detail,false);}
+  bool keydown(WPARAM key,LPARAM detail=0) {
+    if(canonicalKey(key,detail,true))return true;
     if(snapshot&&(key==VK_TAB||(focused.empty()&&(key==VK_SPACE||key==VK_RETURN||
        key==VK_LEFT||key==VK_RIGHT||key==VK_UP||key==VK_DOWN||key==VK_HOME||key==VK_END)))){
       Writer data(24);data.u64(0,snapshot->frame.id);data.u32(8,uint32_t(key));

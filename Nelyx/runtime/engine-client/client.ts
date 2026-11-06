@@ -389,8 +389,11 @@ export class EngineViewClient {
     node: import('./codec.ts').NodeHandle | null,
     publication: bigint,
     session = 0n,
+    exactSession = false,
   ): Promise<EngineResponse> {
-    return checked(await this.request(p.opcodes.focus, focusBody(node, publication, session)));
+    return checked(
+      await this.request(p.opcodes.focus, focusBody(node, publication, session, exactSession)),
+    );
   }
   async semanticAction(
     node: import('./codec.ts').NodeHandle,

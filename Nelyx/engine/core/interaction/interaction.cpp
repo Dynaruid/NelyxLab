@@ -3,6 +3,56 @@
 #include <algorithm>
 #include <set>
 namespace nelyx::v2 {
+namespace {
+unsigned focusPeerRank(const Node& node) {
+  if(!node.semantics||node.control.disabled||
+    (node.semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden))||
+    !((node.semantics->flags&wire::semanticsFlags::focusable)||(node.semantics->actions&wire::semanticsActions::focus)))return 0;
+  const auto role=node.semantics->role;
+  return role==wire::semanticsRoles::group||role==wire::semanticsRoles::radioGroup?
+    (node.semantics->label.empty()?1u:2u):3u;
+}
+}
+Handle canonicalFocusOwner(const Document& document,Handle node) {
+  const auto& requested=document.get(node);
+  if(!(requested.policy&wire::eventPolicies::focusOwner)&&focusPeerRank(requested)==3){
+    Handle candidate;bool ambiguous=false;
+    const auto visit=[&](const auto& self,Handle at)->void {
+      const auto& child=document.get(at);
+      if((child.policy&wire::eventPolicies::focusOwner)&&(child.policy&wire::eventPolicies::focusEnabled)){
+        if(candidate)ambiguous=true;else candidate=at;
+      }
+      for(const auto next:document.children[at.slot])self(self,next);
+    };
+    visit(visit,node);
+    if(candidate&&!ambiguous)return candidate;
+  }
+  for(auto at=node;at;at=document.get(at).parent)
+    if(document.get(at).policy&wire::eventPolicies::focusOwner)return at;
+  return node;
+}
+Handle canonicalFocusPeer(const Document& document,Handle focus) {
+  if(!focus||!document.contains(focus))return {};
+  if(!(document.get(focus).policy&wire::eventPolicies::focusOwner))return focus;
+  Handle result=focus;unsigned rank=0;
+  const auto visit=[&](const auto& self,Handle at)->void {
+    const auto& node=document.get(at);
+    if(at!=focus&&(node.policy&wire::eventPolicies::focusOwner))return;
+    if(node.control.disabled||(node.semantics&&(node.semantics->flags&
+      (wire::semanticsFlags::disabled|wire::semanticsFlags::hidden))))return;
+    const auto candidate=focusPeerRank(node);
+    if(candidate>rank){result=at;rank=candidate;}
+    for(const auto child:document.children[at.slot])self(self,child);
+  };
+  visit(visit,focus);
+  for(auto at=document.get(focus).parent;at;at=document.get(at).parent){
+    const auto& parent=document.get(at);
+    if((parent.policy&wire::eventPolicies::focusOwner)&&(parent.policy&wire::eventPolicies::focusEnabled))break;
+    const auto candidate=focusPeerRank(parent);
+    if(candidate>rank){result=at;rank=candidate;}
+  }
+  return result;
+}
 void View::interaction(Event e) {
   if (e.kind == wire::events::appFrame || e.kind == wire::events::editingChanged || e.kind == wire::events::needChildren ||
       e.kind == wire::events::controlChanged || (e.kind==wire::events::gesture&&
@@ -52,6 +102,7 @@ void View::installEditors(const std::shared_ptr<const Document> &nextDocument) {
   require(staged.size() <= wire::limits::editors, wire::statuses::budgetExceeded);
   const bool clearFocus =
       focusNode && (!nextDocument->contains(focusNode) ||
+                    ((nextDocument->get(focusNode).policy&wire::eventPolicies::focusOwner)&&!(nextDocument->get(focusNode).policy&wire::eventPolicies::focusEnabled)) ||
                     (nextDocument->get(focusNode).editFlags & wire::editFlags::disabled) ||
                     (nextDocument->get(focusNode).semantics &&
                      (nextDocument->get(focusNode).semantics->flags &
@@ -76,6 +127,7 @@ void View::installEditors(const std::shared_ptr<const Document> &nextDocument) {
                  nextDocument->epoch, publication, focusNode});
     focusNode = {};
     focusSession = 0;
+    ++focusWork;
   }
 }
 std::shared_ptr<const Document> View::editingDocument() const {
@@ -103,14 +155,22 @@ std::shared_ptr<const Document> View::editingDocument() const {
   }
   return result;
 }
-void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
-  require(expected == 0 || expected == focusSession, wire::statuses::stale);
+void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected,bool exactSession) {
+  require(exactSession?expected==focusSession:expected == 0 || expected == focusSession, wire::statuses::stale);
   if (node) {
     require(visible && focused && published && snapshot == publication &&
                 published->allows(node) &&
                 published->scene->metrics.epoch == metrics.epoch &&
                 published->scene->document->contains(node) && document->contains(node),
             wire::statuses::stale);
+    const auto& requested=document->get(node);
+    require(!requested.control.disabled&&!(requested.editFlags&wire::editFlags::disabled)&&
+      (!requested.semantics||!(requested.semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden))),wire::statuses::capabilityMissing);
+    if(published->scene->document->get(node).kind!=wire::kinds::editable){
+      const auto owner=canonicalFocusOwner(*published->scene->document,node);
+      require(canonicalFocusOwner(*document,node)==owner,wire::statuses::stale);
+      node=owner;
+    }
     const auto &n = published->scene->document->get(node);
     const auto &current = document->get(node);
     const auto disabled = n.editFlags & wire::editFlags::disabled;
@@ -120,13 +180,12 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
                                                                  wire::semanticsFlags::hidden))) &&
             (!n.semantics || !(n.semantics->flags &
                                (wire::semanticsFlags::disabled | wire::semanticsFlags::hidden))) &&
-            (n.kind == wire::kinds::editable ||
+            (((n.policy&wire::eventPolicies::focusOwner)&&(n.policy&wire::eventPolicies::focusEnabled)&&(current.policy&wire::eventPolicies::focusEnabled)) || n.kind == wire::kinds::editable ||
              (n.semantics && (n.semantics->actions & wire::semanticsActions::focus))),
         wire::statuses::capabilityMissing);
   } else
     require(!expected || expected == focusSession, wire::statuses::stale);
-  if (node == focusNode)
-    return;
+  if (node == focusNode) {if(node){revealPending=true;dirty=true;}return;}
   if (focusNode) {
     const auto old = editors.find(focusNode.key());
     if (old != editors.end() && old->second->value->composingStart >= 0) {
@@ -145,14 +204,17 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected) {
     }
   }
   focusNode = node;
+  ++focusWork;
   revealPending=bool(node);
   caretDeadline = 0; caretNode = {};
   focusSession = node ? next(nextFocus) : 0;
   if (node)
     nextFocus = focusSession;
   dirty = true;
-  interaction({wire::events::focusChanged, wire::statuses::ok, focusSession,
-               document ? document->epoch : 0, publication, node});
+  Event event{wire::events::focusChanged, wire::statuses::ok, focusSession,
+               document ? document->epoch : 0, publication, node};
+  if(published){const auto peer=canonicalFocusPeer(*published->scene->document,node);if(peer!=node)event.focusPeer=peer;}
+  interaction(event);
 }
 void View::applyEdit(Reader bytes) {
   require(bytes.length >= 64 && bytes.u32(52) == 0);
