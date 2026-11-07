@@ -16,11 +16,14 @@ import type {
   EngineResponse,
   EngineNodeSnapshot,
   ProviderMeasurement,
+  NodeHandle,
+  FontResourceSlice,
 } from '../../../runtime/engine-client/index.ts';
 import { key, script, verified, CommittedMemoryError } from '../../platform/web/common.ts';
 import { lineIndexUnit, lineNumberAtUTF16, editingGeometry } from './paragraph.ts';
 import type { LineIndexUnit } from './paragraph.ts';
 import { paintControl } from './controls.ts';
+import { providerImage, paintImage } from './image.ts';
 import {
   makePath,
   paintShape,
@@ -30,18 +33,61 @@ import {
   canvasMatrix,
   relativeMatrix,
 } from './graphics.ts';
-import type { ProviderBudget } from '../../platform/web/memory.ts';
+import type { ProviderMemoryBudget } from '../../platform/web/memory.ts';
+import type { AppTextInput } from '../../../runtime/engine-client/app-text.ts';
+import {
+  validateParagraphRuns,
+  paragraphPaintOutset,
+} from '../../../runtime/engine-client/paragraph-runs.ts';
+import { validateParagraphPlaceholders } from '../../../runtime/engine-client/paragraph-extras.ts';
+import { readFontCatalog } from '../../../runtime/engine-client/font-catalog.ts';
+import { acquireImageResources } from '../../../runtime/engine-client/image-resource.ts';
+import type { ImageResourceSlice } from '../../../runtime/engine-client/image-resource.ts';
+import type { FontCatalog } from '../../../runtime/engine-client/font-catalog.ts';
 export interface ProviderFont {
   id: string;
   family: string;
   bytes: Uint8Array;
 }
+export interface AppImmutableData {
+  readonly length: number;
+  copyForImage(offset?: number, length?: number): Uint8Array;
+  read(offset: number, length: number): Uint8Array;
+  close(): void;
+}
 export const canvasKitSupply = Object.freeze({
-  version: 'm153-nelyx-paragraph.1',
+  version: 'm153-nelyx-paragraph.5',
   variant: 'owned-full',
   paragraphApiVersion: 1,
+  pictureApiVersion: 2,
+  fontApiVersion: 1,
+  initialMemoryBytes: 128 * 1024 * 1024,
+  maximumMemoryBytes: 256 * 1024 * 1024,
 });
-type ParagraphRuntime = CanvasKit & { nelyxParagraphApiVersion?: () => number };
+type PictureFont = { font: string; coordinates: { axis: number; value: number }[] };
+type ParagraphRuntime = CanvasKit & {
+  nelyxFontApiVersion?: () => number;
+  nelyxMakeFontProvider?: (faces: Typeface[], families: string[]) => TypefaceFontProvider | null;
+  nelyxParagraphApiVersion?: () => number;
+  nelyxPictureApiVersion?: () => number;
+  nelyxSerializePicture?: (
+    picture: Picture,
+    bases: Typeface[],
+    identities: string[],
+  ) => {
+    bytes: Uint8Array;
+    fonts: { source: number; coordinates: { axis: number; value: number }[] }[];
+  } | null;
+  nelyxMakePicture?: (
+    bytes: Uint8Array,
+    bases: Typeface[],
+    coordinates: PictureFont['coordinates'][],
+    identities: string[],
+  ) => Picture | null;
+};
+const pictureFontBytes = (fonts: readonly PictureFont[] | undefined) =>
+  fonts?.reduce((sum, font) => sum + 64 + font.font.length * 2 + font.coordinates.length * 24, 0) ??
+  0;
 
 export interface WebManifest {
   schema: string;
@@ -51,18 +97,30 @@ export interface WebManifest {
     version: string;
     variant: string;
     paragraphApiVersion: number;
+    pictureApiVersion: number;
+    fontApiVersion: number;
+    initialMemoryBytes: number;
+    maximumMemoryBytes: number;
     sourceManifest: string;
     js: string;
     wasm: string;
   };
   fonts: { path: string; family: string }[];
+  appText?: {
+    version: number;
+    bootstrapVersion: number;
+    script: string;
+    quotaBytes: number;
+    fontRevision: number;
+  };
 }
 export interface PreparedPictures {
   preparation: bigint;
   metrics: bigint;
   device: bigint;
   document: bigint;
-  pictures: { node: string; bytes: ArrayBuffer }[];
+  pictures: { node: string; bytes: ArrayBuffer; fonts?: PictureFont[] }[];
+  fontCatalogs?: { resource: NodeHandle; bytes: ArrayBuffer }[];
   texts: {
     node: string;
     width: number;
@@ -93,9 +151,24 @@ type ContentRecord = {
   resource: Uint8Array | undefined;
   picture: Picture | undefined;
   encoded: Uint8Array | undefined;
+  fonts?: PictureFont[];
   text: PreparedText | undefined;
   bytes: number;
   release: () => void;
+};
+export interface AppFontCatalog {
+  readonly provider: TypefaceFontProvider;
+  readonly fallback: readonly string[];
+  readonly families: readonly string[];
+  readonly faces: readonly { readonly id: string; readonly face: Typeface }[];
+  close(): void;
+}
+type ResourceFont = {
+  readonly resource: NodeHandle;
+  readonly bytes: Uint8Array;
+  readonly catalog: AppFontCatalog;
+  readonly release: () => void;
+  holds: number;
 };
 const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined): boolean =>
   a === b || (!!a && !!b && a.length === b.length && a.every((value, index) => value === b[index]));
@@ -132,6 +205,13 @@ export class CanvasKitProvider {
   private fontAliases = new Map<string, string>();
   private families = new Map<string, string>();
   private fontFamilies: string[] = [];
+  private readonly appFonts = new Set<AppFontCatalog>();
+  private fontCatalogSequence = 0;
+  private readonly resourceFonts = new Map<string, ResourceFont>();
+  private readonly paragraphFonts = new WeakMap<Paragraph, () => void>();
+  private readonly tableFonts = new Map<bigint, () => void>();
+  private fontScopes = 0;
+  private readonly immutableBuffers = new Set<AppImmutableData>();
   readonly textCapabilities: {
     lineIndexUnit: LineIndexUnit;
     unscaledAscent: boolean;
@@ -143,11 +223,18 @@ export class CanvasKitProvider {
   private contextHandle = 0;
   readonly tables = new Map<bigint, Map<string, Picture>>();
   readonly counters = {
+    dynamicFontLoads: 0,
+    resourceFontCatalogs: 0,
+    resourceFontBytes: 0,
     paragraphs: 0,
     images: 0,
     pictures: 0,
     imports: 0,
     draws: 0,
+    livePaints: 0,
+    livePaintEntries: 0,
+    orderedParagraphs: 0,
+    foregroundPaints: 0,
     serializedBytes: 0,
     livePictures: 0,
     liveSurfaces: 0,
@@ -159,6 +246,9 @@ export class CanvasKitProvider {
     heapBytes: 0,
     textPictureProbeBytes: 0,
     glyphBytes: 0,
+    fontReferencePictures: 0,
+    fontReferenceImports: 0,
+    fontReferenceBytes: 0,
     measurements: 0,
     paragraphLayouts: 0,
     liveParagraphs: 0,
@@ -172,6 +262,12 @@ export class CanvasKitProvider {
     cachedContentBytes: 0,
     memoryPressure: false,
     gpuCacheLimitBytes: 32 * 1024 * 1024,
+    immutableBufferCopies: 0,
+    immutableBufferCopyBytes: 0,
+    immutableBufferReads: 0,
+    immutableBufferReadBytes: 0,
+    liveImmutableBuffers: 0,
+    liveImmutableBufferBytes: 0,
   };
   private holdPicture(picture: Picture): void {
     const count = this.pictureOwners.get(picture) ?? 0;
@@ -214,10 +310,22 @@ export class CanvasKitProvider {
   private constructor(
     readonly ck: CanvasKit,
     font: Uint8Array | ProviderFont[],
-    private budget?: ProviderBudget,
+    private budget?: ProviderMemoryBudget,
   ) {
     this.fontProvider = ck.TypefaceFontProvider.Make();
     try {
+      const runtime = ck as ParagraphRuntime;
+      if (
+        runtime.nelyxPictureApiVersion?.() !== canvasKitSupply.pictureApiVersion ||
+        !runtime.nelyxSerializePicture ||
+        !runtime.nelyxMakePicture
+      )
+        throw Error('Owned font-reference Picture capability missing');
+      if (
+        runtime.nelyxFontApiVersion?.() !== canvasKitSupply.fontApiVersion ||
+        !runtime.nelyxMakeFontProvider
+      )
+        throw Error('Owned immutable font-collection capability missing');
       for (const input of font instanceof Uint8Array
         ? [{ id: 'default', family: 'NelyxDefault', bytes: font }]
         : font) {
@@ -225,7 +333,6 @@ export class CanvasKitProvider {
         this.counters.fontBytes += input.bytes.length;
         if (this.counters.fontBytes > 16 * 1024 * 1024)
           throw new Error('Provider font budget exceeded');
-        this.fontProvider.registerFont(input.bytes, input.family);
         const face = ck.Typeface.MakeTypefaceFromData(input.bytes.slice().buffer);
         if (!face) throw new Error('Provider font decode failed');
         this.typefaces.set(input.id, face);
@@ -233,6 +340,13 @@ export class CanvasKitProvider {
         this.families.set(face.getFamilyName(), input.id);
         this.fontFamilies.push(input.family);
       }
+      const collection = runtime.nelyxMakeFontProvider!(
+        [...this.typefaces.values()],
+        [...this.fontAliases.values()],
+      );
+      if (!collection) throw Error('Bundled immutable font collection failed');
+      this.fontProvider.delete();
+      this.fontProvider = collection;
       const probeNode = {
         node: { slot: 0, generation: 0 },
         fontSize: 18,
@@ -286,16 +400,114 @@ export class CanvasKitProvider {
     this.packetHolds.get(preparation)?.();
     this.packetHolds.delete(preparation);
   }
-  static async load(root: string, budget?: ProviderBudget): Promise<CanvasKitProvider> {
-    const release = budget?.reserve(4, 48 * 1024 * 1024);
+  createImmutableBuffer(bytes: Uint8Array): AppImmutableData {
+    if (
+      this.closing ||
+      !(bytes instanceof Uint8Array) ||
+      !(bytes.buffer instanceof ArrayBuffer) ||
+      bytes.length > p.limits.resourceBytes
+    )
+      throw Error('Invalid/closed immutable buffer capture');
+    this.syncMemory();
+    const allocation = this.ck.Malloc(Uint8Array, Math.max(1, bytes.length));
+    let dead = false;
     try {
+      if (!allocation.byteOffset) throw Error('CanvasKit immutable buffer allocation failed');
+      (this.ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.set(bytes, allocation.byteOffset);
+      this.syncMemory();
+      const length = bytes.length;
+      const value: AppImmutableData = {
+        length,
+        copyForImage: (offset = 0, size = length) => {
+          if (dead) throw Error('Image source immutable buffer is retired');
+          if (
+            !Number.isSafeInteger(offset) ||
+            !Number.isSafeInteger(size) ||
+            offset < 0 ||
+            size < 0 ||
+            offset > length - size
+          )
+            throw Error('Image source copy is outside its immutable buffer');
+          return new Uint8Array(
+            (this.ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.subarray(
+              allocation.byteOffset + offset,
+              allocation.byteOffset + offset + size,
+            ),
+          );
+        },
+        read: (offset, size) => {
+          if (
+            dead ||
+            !Number.isSafeInteger(offset) ||
+            !Number.isSafeInteger(size) ||
+            offset < 0 ||
+            size < 0 ||
+            size > p.limits.fontChunkBytes ||
+            offset > length ||
+            size > length - offset
+          )
+            throw Error('ImmutableBuffer chunk is outside a live buffer');
+          // Heap growth invalidates old views; always use the current heap.
+          const result = new Uint8Array(
+            (this.ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.subarray(
+              allocation.byteOffset + offset,
+              allocation.byteOffset + offset + size,
+            ),
+          );
+          ++this.counters.immutableBufferReads;
+          this.counters.immutableBufferReadBytes += size;
+          return result;
+        },
+        close: () => {
+          if (dead) return;
+          this.ck.Free(allocation);
+          dead = true;
+          this.immutableBuffers.delete(value);
+          --this.counters.liveImmutableBuffers;
+          this.counters.liveImmutableBufferBytes -= length;
+          this.syncMemory();
+        },
+      };
+      this.immutableBuffers.add(value);
+      ++this.counters.immutableBufferCopies;
+      this.counters.immutableBufferCopyBytes += length;
+      ++this.counters.liveImmutableBuffers;
+      this.counters.liveImmutableBufferBytes += length;
+      return value;
+    } catch (error) {
+      this.ck.Free(allocation);
+      this.syncMemory();
+      throw error;
+    }
+  }
+  syncAppImageMemory(): void {
+    this.syncMemory();
+  }
+  static async load(
+    root: string,
+    budget?: ProviderMemoryBudget,
+    signal?: AbortSignal,
+  ): Promise<CanvasKitProvider> {
+    const downloads: Promise<Uint8Array>[] = [];
+    const controller = new AbortController();
+    const cancel = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', cancel, { once: true });
+    let release: (() => void) | undefined;
+    try {
+      signal?.throwIfAborted();
+      release = budget?.reserve(4, 48 * 1024 * 1024);
       const manifest = (await (
-        await fetch(new URL('engine-manifest.json', root))
+        await fetch(new URL('engine-manifest.json', root), { signal: controller.signal })
       ).json()) as WebManifest;
+      controller.signal.throwIfAborted();
       if (
         manifest.canvasKit.version !== canvasKitSupply.version ||
         manifest.canvasKit.variant !== canvasKitSupply.variant ||
-        manifest.canvasKit.paragraphApiVersion !== canvasKitSupply.paragraphApiVersion
+        manifest.canvasKit.paragraphApiVersion !== canvasKitSupply.paragraphApiVersion ||
+        manifest.canvasKit.pictureApiVersion !== canvasKitSupply.pictureApiVersion ||
+        manifest.canvasKit.fontApiVersion !== canvasKitSupply.fontApiVersion ||
+        manifest.canvasKit.initialMemoryBytes !== canvasKitSupply.initialMemoryBytes ||
+        manifest.canvasKit.maximumMemoryBytes !== canvasKitSupply.maximumMemoryBytes
       )
         throw new Error('CanvasKit supplier differs');
       const entry = (name: string) => {
@@ -305,17 +517,27 @@ export class CanvasKitProvider {
       };
       if (!manifest.fonts?.length || manifest.fonts.length > 8)
         throw new Error('Declared provider fonts missing');
+      const download = (name: string, maximum = 32 * 1024 * 1024) => {
+        const work = verified(root, entry(name), maximum, controller.signal);
+        downloads.push(work);
+        return work;
+      };
       const [js, wasm, source, ...fonts] = await Promise.all([
-        verified(root, entry(manifest.canvasKit.js)),
-        verified(root, entry(manifest.canvasKit.wasm)),
-        verified(root, entry(manifest.canvasKit.sourceManifest)),
-        ...manifest.fonts.map((font) => verified(root, entry(font.path), 16 * 1024 * 1024)),
+        download(manifest.canvasKit.js),
+        download(manifest.canvasKit.wasm),
+        download(manifest.canvasKit.sourceManifest),
+        ...manifest.fonts.map((font) => download(font.path, 16 * 1024 * 1024)),
       ]);
+      controller.signal.throwIfAborted();
       const supplied = JSON.parse(new TextDecoder().decode(source));
       if (
         supplied.schema !== 'nelyx.canvaskit/v1' ||
         supplied.version !== canvasKitSupply.version ||
         supplied.paragraphApiVersion !== canvasKitSupply.paragraphApiVersion ||
+        supplied.pictureApiVersion !== canvasKitSupply.pictureApiVersion ||
+        supplied.fontApiVersion !== canvasKitSupply.fontApiVersion ||
+        supplied.initialMemoryBytes !== canvasKitSupply.initialMemoryBytes ||
+        supplied.maximumMemoryBytes !== canvasKitSupply.maximumMemoryBytes ||
         !supplied.files?.some(
           (file: { id: string; sha256: string }) =>
             file.id === 'canvaskit.js' && file.sha256 === entry(manifest.canvasKit.js).sha256,
@@ -327,17 +549,30 @@ export class CanvasKitProvider {
       )
         throw Error('Owned CanvasKit source manifest differs');
       await script(js);
+      controller.signal.throwIfAborted();
       const factory = (
         globalThis as unknown as { CanvasKitInit?: (options: unknown) => Promise<CanvasKit> }
       ).CanvasKitInit;
       if (!factory) throw new Error('Owned CanvasKit factory missing');
+      // Initial Wasm memory cannot be undone with delete(). Keep its credit on
+      // initialization failure/cancellation until the App worker is terminated.
+      budget?.set(1, canvasKitSupply.initialMemoryBytes);
       const ck = await factory({
         wasmBinary: wasm,
         locateFile: () => new URL(manifest.canvasKit.wasm, root).href,
       });
+      budget?.set(1, (ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.byteLength);
+      // Instantiation itself is not abortable. Do not publish a late result or
+      // claim disposal until the factory has actually settled.
+      controller.signal.throwIfAborted();
       if (
         (ck as ParagraphRuntime).nelyxParagraphApiVersion?.() !==
           canvasKitSupply.paragraphApiVersion ||
+        (ck as ParagraphRuntime).nelyxPictureApiVersion?.() !== canvasKitSupply.pictureApiVersion ||
+        !(ck as ParagraphRuntime).nelyxSerializePicture ||
+        !(ck as ParagraphRuntime).nelyxMakePicture ||
+        (ck as ParagraphRuntime).nelyxFontApiVersion?.() !== canvasKitSupply.fontApiVersion ||
+        !(ck as ParagraphRuntime).nelyxMakeFontProvider ||
         !ck.MakePicture ||
         !ck.ParagraphBuilder.MakeFromFontProvider ||
         !ck.GetWebGLContext ||
@@ -356,10 +591,14 @@ export class CanvasKitProvider {
         budget,
       );
     } catch (error) {
+      controller.abort(error);
+      // One failed download must retire its siblings before staging is freed.
+      await Promise.allSettled(downloads);
       release?.();
       budget?.close();
       throw error;
     } finally {
+      signal?.removeEventListener('abort', cancel);
       release?.();
     }
   }
@@ -434,7 +673,19 @@ export class CanvasKitProvider {
       builder?.delete();
     }
   }
-  private paragraph(node: EngineNodeSnapshot, text: string, width: number): Paragraph {
+  private paragraph(
+    node: EngineNodeSnapshot,
+    text: string,
+    width: number,
+    catalog?: AppFontCatalog,
+  ): Paragraph {
+    const resource = node.fontBinding?.resource,
+      resourceFont = resource ? this.resourceFonts.get(key(resource)) : undefined,
+      selectedCatalog = catalog ?? resourceFont?.catalog;
+    if (resource && !resourceFont)
+      throw Error('Content font resource has not been prepared on this owner');
+    const fontFamilies = selectedCatalog?.fallback ?? this.fontFamilies;
+    if (node.paintPlacement?.unbounded) width = Infinity;
     if (node.kind === p.kinds.editable) {
       if (node.editing?.flags && node.editing.flags & p.editFlags.password)
         text = text.replace(/[^\r\n]/g, '\u2022');
@@ -447,8 +698,13 @@ export class CanvasKitProvider {
       width,
       node.textDirection ?? 0,
       node.paragraph,
+      node.fontBinding && [
+        node.fontBinding.resource,
+        String(node.fontBinding.fontRevision),
+        node.fontBinding.pinned,
+      ],
     ]);
-    const previous = this.measuredParagraphs.get(key(node.node));
+    const previous = catalog ? undefined : this.measuredParagraphs.get(key(node.node));
     if (previous?.signature === signature) {
       this.measuredParagraphs.delete(key(node.node));
       --this.counters.liveParagraphs;
@@ -474,8 +730,8 @@ export class CanvasKitProvider {
         : {}),
       textStyle: {
         fontFamilies: options?.fontFamily
-          ? [options.fontFamily, ...this.fontFamilies]
-          : this.fontFamilies,
+          ? [options.fontFamily, ...fontFamilies]
+          : [...fontFamilies],
         fontSize: node.fontSize,
         ...(options
           ? {
@@ -495,6 +751,26 @@ export class CanvasKitProvider {
         ...(options?.height == null ? {} : { heightMultiplier: options.height }),
       },
       textAlign: align,
+      ...(options?.strut
+        ? {
+            strutStyle: {
+              strutEnabled: true,
+              fontFamilies: [...options.strut.fontFamilies, ...fontFamilies],
+              fontSize: options.strut.fontSize,
+              fontStyle: {
+                weight: options.strut.fontWeight as unknown as import('canvaskit-wasm').FontWeight,
+                slant:
+                  options.strut.fontStyle === 'italic'
+                    ? this.ck.FontSlant.Italic
+                    : this.ck.FontSlant.Upright,
+              },
+              ...(options.strut.height === null ? {} : { heightMultiplier: options.strut.height }),
+              halfLeading: options.strut.halfLeading,
+              leading: options.strut.leading,
+              forceStrutHeight: options.strut.forceStrutHeight,
+            },
+          }
+        : {}),
       ...(options?.maxLines ? { maxLines: options.maxLines } : {}),
       ...(options?.ellipsis ? { ellipsis: options.ellipsis } : {}),
       textHeightBehavior: first
@@ -509,24 +785,395 @@ export class CanvasKitProvider {
     };
     const builder = this.ck.ParagraphBuilder.MakeFromFontProvider(
       new this.ck.ParagraphStyle(paragraphStyle),
-      this.fontProvider,
+      selectedCatalog?.provider ?? this.fontProvider,
     );
     let paragraph: Paragraph | undefined;
     try {
-      builder.addText(text);
+      validateParagraphRuns(text, options?.runs);
+      validateParagraphPlaceholders(text, options?.placeholders);
+      let placeholderIndex = 0;
+      const append = (start: number, end: number) => {
+        let cursor = start;
+        while (
+          placeholderIndex < (options?.placeholders?.length ?? 0) &&
+          options!.placeholders![placeholderIndex]!.offset < end
+        ) {
+          const item = options!.placeholders![placeholderIndex++]!;
+          if (item.offset < cursor) throw Error('Paragraph placeholder range is not contiguous');
+          if (cursor < item.offset) builder.addText(text.slice(cursor, item.offset));
+          builder.addPlaceholder(
+            item.width,
+            item.height,
+            [
+              this.ck.PlaceholderAlignment.Baseline,
+              this.ck.PlaceholderAlignment.AboveBaseline,
+              this.ck.PlaceholderAlignment.BelowBaseline,
+              this.ck.PlaceholderAlignment.Top,
+              this.ck.PlaceholderAlignment.Bottom,
+              this.ck.PlaceholderAlignment.Middle,
+            ][
+              ['baseline', 'aboveBaseline', 'belowBaseline', 'top', 'bottom', 'middle'].indexOf(
+                item.alignment,
+              )
+            ]!,
+            item.baseline === 'ideographic'
+              ? this.ck.TextBaseline.Ideographic
+              : this.ck.TextBaseline.Alphabetic,
+            item.baselineOffset,
+          );
+          cursor = item.offset + 1;
+        }
+        if (cursor < end) builder.addText(text.slice(cursor, end));
+      };
+      if (!options?.runs?.length) append(0, text.length);
+      else
+        for (const run of options.runs) {
+          builder.pushStyle(
+            new this.ck.TextStyle({
+              fontFamilies: [...run.fontFamilies, ...fontFamilies],
+              fontSize: run.fontSize,
+              fontStyle: {
+                weight: run.fontWeight as unknown as import('canvaskit-wasm').FontWeight,
+                slant:
+                  run.fontStyle === 'italic' ? this.ck.FontSlant.Italic : this.ck.FontSlant.Upright,
+              },
+              fontVariations: run.fontVariations?.some((value) => value.axis === 'wght')
+                ? run.fontVariations.map((value) => ({ ...value }))
+                : [{ axis: 'wght', value: run.fontWeight }, ...(run.fontVariations ?? [])],
+              ...(run.fontFeatures
+                ? { fontFeatures: run.fontFeatures.map((value) => ({ ...value })) }
+                : {}),
+              ...(run.shadows
+                ? {
+                    shadows: run.shadows.map((shadow) => ({
+                      color: this.color(shadow.color),
+                      offset: [shadow.offset.x, shadow.offset.y],
+                      blurRadius: shadow.blurSigma,
+                    })),
+                  }
+                : {}),
+              color: this.color(run.color),
+              ...(run.backgroundColor === undefined
+                ? {}
+                : { backgroundColor: this.color(run.backgroundColor) }),
+              locale: run.locale,
+              letterSpacing: run.letterSpacing,
+              wordSpacing: run.wordSpacing,
+              halfLeading: run.halfLeading,
+              ...(run.height === null ? {} : { heightMultiplier: run.height }),
+              decoration: run.decoration,
+              decorationStyle: [
+                this.ck.DecorationStyle.Solid,
+                this.ck.DecorationStyle.Double,
+                this.ck.DecorationStyle.Dotted,
+                this.ck.DecorationStyle.Dashed,
+                this.ck.DecorationStyle.Wavy,
+              ][['solid', 'double', 'dotted', 'dashed', 'wavy'].indexOf(run.decorationStyle)]!,
+              decorationThickness: run.decorationThickness,
+              ...(run.decorationColor === undefined
+                ? {}
+                : { decorationColor: this.color(run.decorationColor) }),
+            }),
+          );
+          try {
+            append(run.start, run.end);
+          } finally {
+            builder.pop();
+          }
+        }
+      if (placeholderIndex !== (options?.placeholders?.length ?? 0))
+        throw Error('Paragraph placeholder was not consumed');
       paragraph = builder.build();
       paragraph.layout(width);
       ++this.counters.paragraphLayouts;
+      if (resourceFont) this.paragraphFonts.set(paragraph, this.holdFontEntries([resourceFont]));
       return paragraph;
     } catch (error) {
-      paragraph?.delete();
+      if (paragraph) this.deleteParagraph(paragraph);
       throw error;
     } finally {
       builder.delete();
     }
   }
+  /** App-owner-only query instance; no surface, scene or render resource escapes. */
+  appParagraph(input: AppTextInput, catalog?: AppFontCatalog): Paragraph {
+    if (catalog && !this.appFonts.has(catalog)) throw Error('App font catalog is foreign/retired');
+    let paragraph: Paragraph | undefined;
+    try {
+      return this.appTextGuard(
+        0,
+        () =>
+          (paragraph = this.paragraph(
+            {
+              node: { slot: 0, generation: 0 },
+              kind: p.kinds.paragraph,
+              fontSize: input.fontSize,
+              color: input.color,
+              textDirection: input.textDirection,
+              paragraph: input.paragraph,
+            } as EngineNodeSnapshot,
+            input.text,
+            input.width,
+            catalog,
+          )),
+      );
+    } catch (error) {
+      paragraph?.delete();
+      throw error;
+    }
+  }
+  appFontFamily(bytes: Uint8Array): string {
+    if (this.closing) throw Error('App paragraph provider is closed');
+    return this.guarded(3 * bytes.length + 65536, () => {
+      const face = this.ck.Typeface.MakeTypefaceFromData(bytes.slice().buffer);
+      if (!face) throw Error('Dynamic CanvasKit font decode failed');
+      ++this.counters.dynamicFontLoads;
+      try {
+        return face.getFamilyName();
+      } finally {
+        face.delete();
+      }
+    });
+  }
+  makeAppFontCatalog(
+    input: FontCatalog,
+    identity = 'app:' + ++this.fontCatalogSequence,
+  ): AppFontCatalog {
+    if (this.closing) throw Error('App paragraph provider is closed');
+    const owned: Typeface[] = [],
+      faces: Typeface[] = [],
+      identifiers: string[] = [],
+      families: string[] = [],
+      replaced = new Set(input.fonts.map((font) => font.family)),
+      release =
+        this.budget?.reserve(2, 8 * 1024 * 1024 + 65536 + input.fonts.length * 1024) ?? (() => {});
+    let provider: TypefaceFontProvider | null = null;
+    try {
+      this.guarded(
+        input.fonts.reduce((size, font) => size + font.bytes.length * 2, 0),
+        () => {
+          for (const font of input.fonts) {
+            const face = this.ck.Typeface.MakeTypefaceFromData(font.bytes.slice().buffer);
+            if (!face) throw Error('Dynamic CanvasKit font decode failed');
+            ++this.counters.dynamicFontLoads;
+            owned.push(face);
+            faces.push(face);
+            identifiers.push(identity + '/' + (owned.length - 1));
+            families.push(font.family);
+          }
+          for (const [id, face] of this.typefaces) {
+            const name = this.fontAliases.get(id)!;
+            if (!replaced.has(name)) {
+              faces.push(face);
+              identifiers.push(id);
+              families.push(name);
+            }
+          }
+          provider = (this.ck as ParagraphRuntime).nelyxMakeFontProvider!(faces, families);
+          if (!provider) throw Error('Dynamic CanvasKit font collection failed');
+        },
+      );
+      const collection = provider!;
+      const catalog: AppFontCatalog = Object.freeze({
+        provider: collection,
+        fallback: Object.freeze([...input.fallback]),
+        families: Object.freeze([...new Set(families)]),
+        faces: Object.freeze(
+          faces.map((face, index) => Object.freeze({ id: identifiers[index]!, face })),
+        ),
+        close: () => {
+          if (!this.appFonts.delete(catalog)) return;
+          collection.delete();
+          for (const face of owned) face.delete();
+          release();
+        },
+      });
+      this.appFonts.add(catalog);
+      return catalog;
+    } catch (error) {
+      (provider as TypefaceFontProvider | null)?.delete();
+      for (const face of owned) face.delete();
+      release();
+      throw error;
+    }
+  }
+  private holdFontEntries(entries: readonly ResourceFont[]): () => void {
+    for (const entry of entries) ++entry.holds;
+    let held = true;
+    return () => {
+      if (!held) return;
+      held = false;
+      for (const entry of entries) {
+        if (!entry.holds) throw Error('Font resource ownership underflow');
+        if (--entry.holds) continue;
+        this.resourceFonts.delete(key(entry.resource));
+        --this.counters.resourceFontCatalogs;
+        this.counters.resourceFontBytes -= entry.bytes.length;
+        try {
+          entry.catalog.close();
+        } finally {
+          entry.release();
+        }
+      }
+    };
+  }
+  private sceneFonts(scene: EngineResponse): ResourceFont[] {
+    const result = new Map<string, ResourceFont>();
+    for (const node of scene.nodes) {
+      const resource = node.fontBinding?.resource;
+      if (!resource || result.has(key(resource))) continue;
+      const entry = this.resourceFonts.get(key(resource));
+      if (!entry) throw Error('Content font resource has not been prepared on this owner');
+      result.set(key(resource), entry);
+    }
+    return [...result.values()];
+  }
+  private installFontResource(
+    resource: NodeHandle,
+    size: number,
+    load: () => Uint8Array,
+  ): ResourceFont {
+    if (
+      this.closing ||
+      !Number.isInteger(resource.slot) ||
+      resource.slot <= 0 ||
+      resource.slot > p.limits.resources ||
+      !Number.isInteger(resource.generation) ||
+      resource.generation <= 0 ||
+      resource.generation > 0xffffffff ||
+      !Number.isInteger(size) ||
+      size < 32 ||
+      size > p.limits.fontCatalogBytes ||
+      this.resourceFonts.has(key(resource))
+    )
+      throw Error('Invalid font resource admission');
+    const release = this.budget?.reserve(2, size + 256) ?? (() => {});
+    let catalog: AppFontCatalog | undefined;
+    try {
+      const bytes = load();
+      if (bytes.length !== size) throw Error('Font resource length changed');
+      catalog = this.makeAppFontCatalog(readFontCatalog(bytes), 'resource:' + key(resource));
+      const entry: ResourceFont = {
+        resource: Object.freeze({ ...resource }),
+        bytes,
+        catalog,
+        release,
+        holds: 0,
+      };
+      this.resourceFonts.set(key(resource), entry);
+      ++this.counters.resourceFontCatalogs;
+      this.counters.resourceFontBytes += bytes.length;
+      return entry;
+    } catch (error) {
+      catalog?.close();
+      release();
+      throw error;
+    }
+  }
+  /** A bounded Core read scope; paragraphs, packets and tables acquire their own holds. */
+  acquireFontResources(
+    scene: EngineResponse,
+    read: (
+      resource: NodeHandle,
+      offset: number,
+      length: number,
+      preparation: bigint,
+    ) => FontResourceSlice,
+  ): () => void {
+    if (this.closing) throw Error('Font resource provider is closed');
+    const resources = new Map<string, NodeHandle>();
+    for (const node of scene.nodes) {
+      const resource = node.fontBinding?.resource;
+      if (resource) resources.set(key(resource), resource);
+    }
+    if (!resources.size) return () => {};
+    const holds: (() => void)[] = [],
+      release = () => {
+        for (const hold of holds.splice(0)) hold();
+      },
+      staging = [...resources.keys()].some((id) => !this.resourceFonts.has(id))
+        ? this.budget?.reserve(4, 4 * p.limits.fontChunkBytes + 65536)
+        : undefined;
+    try {
+      for (const [id, resource] of resources) {
+        let entry = this.resourceFonts.get(id);
+        if (!entry) {
+          const preparation = scene.measurePreparation || scene.preparation,
+            first = read(resource, 0, 32, preparation);
+          if (
+            key(first.resource) !== id ||
+            first.offset !== 0 ||
+            first.bytes.length !== 32 ||
+            first.total < 32 ||
+            first.total > p.limits.fontCatalogBytes
+          )
+            throw Error('Invalid font resource header read');
+          entry = this.installFontResource(resource, first.total, () => {
+            const bytes = new Uint8Array(first.total);
+            bytes.set(first.bytes);
+            for (let offset = 32; offset < bytes.length;) {
+              const length = Math.min(p.limits.fontChunkBytes, bytes.length - offset),
+                part = read(resource, offset, length, preparation);
+              if (
+                key(part.resource) !== id ||
+                part.offset !== offset ||
+                part.total !== bytes.length ||
+                part.bytes.length !== length
+              )
+                throw Error('Font resource chunk identity/length changed');
+              bytes.set(part.bytes, offset);
+              offset += length;
+            }
+            return bytes;
+          });
+        }
+        holds.push(this.holdFontEntries([entry]));
+      }
+      ++this.fontScopes;
+      let held = true;
+      return () => {
+        if (!held) return;
+        held = false;
+        --this.fontScopes;
+        release();
+      };
+    } catch (error) {
+      release();
+      throw error;
+    } finally {
+      staging?.();
+    }
+  }
+  private deleteParagraph(paragraph: Paragraph): void {
+    try {
+      paragraph.delete();
+    } finally {
+      this.paragraphFonts.get(paragraph)?.();
+      this.paragraphFonts.delete(paragraph);
+    }
+  }
+  acquireImageResources(
+    scene: EngineResponse,
+    read: (
+      resource: NodeHandle,
+      offset: number,
+      length: number,
+      preparation: bigint,
+    ) => ImageResourceSlice,
+  ) {
+    if (this.closing) throw Error('Image resource provider is closed');
+    return acquireImageResources(
+      scene,
+      read,
+      (bytes) => this.budget?.reserve(2, bytes) ?? (() => {}),
+    );
+  }
+  appTextGuard<T>(bytes: number, run: () => T): T {
+    if (this.closing) throw Error('App paragraph provider is closed');
+    return this.guarded(bytes, run);
+  }
   discardMeasurements(): void {
-    for (const value of this.measuredParagraphs.values()) value.paragraph.delete();
+    for (const value of this.measuredParagraphs.values()) this.deleteParagraph(value.paragraph);
     this.measuredParagraphs.clear();
     this.counters.liveParagraphs = 0;
   }
@@ -550,7 +1197,7 @@ export class CanvasKitProvider {
     ++this.counters.measurements;
     if (node.kind === p.kinds.image) {
       const data = scene.blobs.find((b) => b.type === 2 && key(b.handle) === key(node.resource));
-      const image = data && this.ck.MakeImageFromEncoded(data.bytes);
+      const image = data && providerImage(this.ck, data.bytes, node);
       if (!image) throw new Error('Intrinsic image decode failed');
       try {
         return {
@@ -589,17 +1236,35 @@ export class CanvasKitProvider {
         minimum: paragraph.getMinIntrinsicWidth(),
         maximum: paragraph.getMaxIntrinsicWidth(),
         baseline: paragraph.getAlphabeticBaseline(),
+        ideographicBaseline: paragraph.getIdeographicBaseline(),
+        ...(node.paragraph?.inlineChildren
+          ? {
+              placeholders: paragraph.getRectsForPlaceholders().map((box) => ({
+                x: box.rect[0]!,
+                y: box.rect[1]!,
+                width: box.rect[2]! - box.rect[0]!,
+                height: box.rect[3]! - box.rect[1]!,
+                direction: (box.dir === this.ck.TextDirection.RTL ? 1 : 0) as 0 | 1,
+              })),
+            }
+          : {}),
         didExceedMaxLines: paragraph.didExceedMaxLines(),
       };
-      this.measuredParagraphs.get(key(node.node))?.paragraph.delete();
+      const previous = this.measuredParagraphs.get(key(node.node));
+      if (previous) this.deleteParagraph(previous.paragraph);
       this.measuredParagraphs.set(key(node.node), {
         signature: JSON.stringify([
           text,
           node.fontSize,
           node.color,
-          width,
+          node.paintPlacement?.unbounded ? Infinity : width,
           node.textDirection ?? 0,
           node.paragraph,
+          node.fontBinding && [
+            node.fontBinding.resource,
+            String(node.fontBinding.fontRevision),
+            node.fontBinding.pinned,
+          ],
         ]),
         paragraph,
       });
@@ -607,11 +1272,12 @@ export class CanvasKitProvider {
       retained = true;
       return result;
     } finally {
-      if (!retained) paragraph.delete();
+      if (!retained) this.deleteParagraph(paragraph);
     }
   }
   prepare(scene: EngineResponse, sharedOwner: boolean): PreparedPictures {
-    const holds: (() => void)[] = [];
+    const fontEntries = this.sceneFonts(scene),
+      holds: (() => void)[] = [this.holdFontEntries(fontEntries)];
     let transferred = 0;
     const release = () => {
       for (const hold of holds.splice(0)) hold();
@@ -631,7 +1297,7 @@ export class CanvasKitProvider {
         1024 * 1024 +
           scene.nodes.length * 256 +
           scene.blobs.reduce((n, b) => n + b.bytes.length * 2, 0),
-        () => this.prepareInner(scene, sharedOwner, retain),
+        () => this.prepareInner(scene, sharedOwner, retain, fontEntries),
       );
       this.releasePacket(packet.preparation);
       this.packetHolds.set(packet.preparation, release);
@@ -645,6 +1311,7 @@ export class CanvasKitProvider {
     scene: EngineResponse,
     sharedOwner: boolean,
     retain: (bytes: number) => void,
+    fontEntries: readonly ResourceFont[],
   ): PreparedPictures {
     if (this.measurePreparation !== scene.preparation) this.discardMeasurements();
     const resources = new Map(
@@ -668,6 +1335,11 @@ export class CanvasKitProvider {
     let nextCachedBytes = 0;
     let bytes = 0;
     try {
+      if (!sharedOwner && fontEntries.length)
+        packet.fontCatalogs = fontEntries.map((entry) => {
+          retain(entry.bytes.length + 32);
+          return { resource: entry.resource, bytes: entry.bytes.slice().buffer };
+        });
       for (const node of scene.nodes) {
         const id = key(node.node),
           text = texts.get(id) ?? '',
@@ -676,7 +1348,7 @@ export class CanvasKitProvider {
             sharedOwner,
             String(scene.metrics),
             String(scene.device),
-            String(scene.fontRevision),
+            String(node.fontBinding?.fontRevision ?? scene.fontRevision),
             node.kind,
             node.width,
             node.height,
@@ -684,10 +1356,17 @@ export class CanvasKitProvider {
             node.radius,
             node.fontSize,
             node.paragraph,
+            node.fontBinding && [
+              node.fontBinding.resource,
+              String(node.fontBinding.fontRevision),
+              node.fontBinding.pinned,
+            ],
+            node.paintPlacement?.unbounded ?? false,
             node.textDirection,
             node.content,
             node.graphics,
             node.nativePaint,
+            node.imagePaint,
             node.editing?.flags ?? 0,
             text,
           ]);
@@ -706,9 +1385,14 @@ export class CanvasKitProvider {
             this.holdPicture(previous.picture);
             local.set(id, previous.picture);
           } else if (previous.encoded) {
-            retain(previous.encoded.byteLength);
-            bytes += previous.encoded.byteLength;
-            packet.pictures.push({ node: id, bytes: previous.encoded.slice().buffer });
+            const size = previous.encoded.byteLength + pictureFontBytes(previous.fonts);
+            retain(size);
+            bytes += size;
+            packet.pictures.push({
+              node: id,
+              bytes: previous.encoded.slice().buffer,
+              ...(previous.fonts ? { fonts: previous.fonts } : {}),
+            });
           } else if (previous.text) {
             const size = textBytes(previous.text);
             retain(size);
@@ -730,44 +1414,69 @@ export class CanvasKitProvider {
         if (node.flags & p.nodeFlags.nativeExtension) ++this.counters.nativeExtensions;
 
         const content = node.content ?? { x: 0, y: 0, width: node.width, height: node.height };
+        const referencedParagraph = !!(
+          node.fontBinding?.resource ||
+          node.paragraph?.runs?.length ||
+          node.paragraph?.strut ||
+          node.paragraph?.placeholders?.length
+        );
         const nativeOutset =
-          (node.nativePaint ?? []).reduce(
-            (maximum, entry) =>
-              Math.max(
-                maximum,
-                nativePaintOutset(entry, node.width, node.height, scene.viewport?.scale ?? 1),
-              ),
-            0,
+          Math.max(
+            paragraphPaintOutset(
+              node.paragraph?.runs,
+              node.fontSize,
+              !!node.paragraph?.strut?.forceStrutHeight ||
+                (node.paragraph?.height != null && node.paragraph.height < 1),
+            ),
+            (node.nativePaint ?? []).reduce(
+              (maximum, entry) =>
+                Math.max(
+                  maximum,
+                  nativePaintOutset(entry, node.width, node.height, scene.viewport?.scale ?? 1),
+                ),
+              0,
+            ),
           ) +
           (node.graphics?.blur ?? 0) * 4;
+        const imageBounds = node.imagePaint?.bounds ?? [0, 0, 0, 0];
         const recording = {
           x:
-            Math.min(0, content.x) -
+            Math.min(0, content.x, imageBounds[0]!) -
             Math.abs(node.graphics?.shadow?.x ?? 0) -
             (node.graphics?.shadow?.sigma ?? 0) * 4 -
             nativeOutset -
             2,
           y:
-            Math.min(0, content.y) -
+            Math.min(0, content.y, imageBounds[1]!) -
             Math.abs(node.graphics?.shadow?.y ?? 0) -
             (node.graphics?.shadow?.sigma ?? 0) * 4 -
             nativeOutset -
             2,
           width:
-            Math.max(1, node.width, content.x + content.width) -
-            Math.min(0, content.x) +
+            Math.max(1, node.width, content.x + content.width, imageBounds[0]! + imageBounds[2]!) -
+            Math.min(0, content.x, imageBounds[0]!) +
             Math.abs(node.graphics?.shadow?.x ?? 0) * 2 +
             (node.graphics?.shadow?.sigma ?? 0) * 8 +
             nativeOutset * 2 +
             4,
           height:
-            Math.max(1, node.height, content.y + content.height) -
-            Math.min(0, content.y) +
+            Math.max(
+              1,
+              node.height,
+              content.y + content.height,
+              imageBounds[1]! + imageBounds[3]!,
+            ) -
+            Math.min(0, content.y, imageBounds[1]!) +
             Math.abs(node.graphics?.shadow?.y ?? 0) * 2 +
             (node.graphics?.shadow?.sigma ?? 0) * 8 +
             nativeOutset * 2 +
             4,
         };
+        const nativePathBytes = (node.nativePaint ?? []).reduce(
+          (bytes, entry) => bytes + (entry.path?.commands.length ?? 0) * 256,
+          0,
+        );
+        if (nativePathBytes) retain(nativePathBytes);
         const recorder = new this.ck.PictureRecorder();
         const paint = new this.ck.Paint();
         paint.setAntiAlias(true);
@@ -790,7 +1499,7 @@ export class CanvasKitProvider {
                 lineNumberAtUTF16(paragraph, text, 0, this.textCapabilities.lineIndexUnit);
               canvas.drawParagraph(paragraph, content.x, content.y);
               ++this.counters.paragraphs;
-              if (!sharedOwner) {
+              if (!sharedOwner && !referencedParagraph) {
                 const record = {
                   node: key(node.node),
                   width: node.width,
@@ -852,27 +1561,25 @@ export class CanvasKitProvider {
                 packet.texts.push(record);
               }
             } finally {
-              paragraph?.delete();
+              if (paragraph) this.deleteParagraph(paragraph);
             }
           } else if (node.kind === p.kinds.image) {
-            const data = resources.get(key(node.resource));
-            if (!data) throw new Error('Image resource missing');
-            const image = this.ck.MakeImageFromEncoded(data);
-            if (!image) throw new Error('Image decode failed');
-            try {
-              canvas.drawImageRect(
-                image,
-                this.ck.XYWHRect(0, 0, image.width(), image.height()),
-                this.ck.XYWHRect(content.x, content.y, content.width, content.height),
-                paint,
-              );
-              ++this.counters.images;
-            } finally {
-              image.delete();
+            if (!node.imagePaint || node.imagePaint.tiles.length) {
+              const data = resources.get(key(node.resource));
+              if (!data) throw new Error('Image resource missing');
+              const image = providerImage(this.ck, data, node);
+              if (!image) throw new Error('Image decode failed');
+              try {
+                paintImage(this.ck, canvas, image, node, paint);
+                ++this.counters.images;
+              } finally {
+                image.delete();
+              }
             }
           } else {
             paintShape(this.ck, canvas, node, paths.get(key(node.node)), paint);
-            paintNative(this.ck, canvas, node, paint, scene.viewport?.scale ?? 1);
+            if (!(node.flags & p.nodeFlags.livePaint))
+              paintNative(this.ck, canvas, node, paint, scene.viewport?.scale ?? 1);
           }
           picture = recorder.finishRecordingAsPicture();
           ++this.counters.pictures;
@@ -880,27 +1587,71 @@ export class CanvasKitProvider {
             this.holdPicture(picture);
             local.set(key(node.node), picture);
             picture = null;
-          } else if (node.kind !== p.kinds.paragraph && node.kind !== p.kinds.editable) {
-            const encoded = picture.serialize();
+          } else if (
+            referencedParagraph ||
+            (node.kind !== p.kinds.paragraph && node.kind !== p.kinds.editable)
+          ) {
+            const origins = referencedParagraph
+                ? node.fontBinding?.resource
+                  ? this.resourceFonts.get(key(node.fontBinding.resource))!.catalog.faces
+                  : [...this.typefaces].map(([id, face]) => ({ id, face }))
+                : [],
+              referenced = referencedParagraph
+                ? (this.ck as ParagraphRuntime).nelyxSerializePicture!(
+                    picture,
+                    origins.map((origin) => origin.face),
+                    origins.map((origin) => origin.id),
+                  )
+                : undefined;
+            if (referenced === null) throw Error('Font-reference Picture serialization failed');
+            const fonts = referenced?.fonts.map((face) => {
+              const font = origins[face.source]?.id;
+              if (!Number.isInteger(face.source) || !font)
+                throw Error('Prepared Picture font is outside the declared provider font set');
+              return { font, coordinates: face.coordinates };
+            });
+            const encoded = referenced?.bytes ?? picture.serialize();
             if (!encoded) throw new Error('Picture serialization failed');
-            retain(encoded.byteLength);
+            retain(encoded.byteLength + pictureFontBytes(fonts));
             const copy = encoded.slice();
-            bytes += copy.length;
+            bytes += copy.length + pictureFontBytes(fonts);
             if (bytes > p.limits.resourceBytes)
               throw new Error('Prepared Picture transfer budget exceeded');
-            packet.pictures.push({ node: key(node.node), bytes: copy.buffer });
+            packet.pictures.push({
+              node: key(node.node),
+              bytes: copy.buffer,
+              ...(fonts ? { fonts } : {}),
+            });
+            if (referenced) {
+              ++this.counters.fontReferencePictures;
+              this.counters.fontReferenceBytes += encoded.length + pictureFontBytes(fonts);
+            }
           }
           const encoded = packet.pictures[pictureStart]?.bytes,
             shaped = packet.texts[textStart],
             entryBytes =
               256 +
+              nativePathBytes +
               signature.length * 2 +
               (resource?.byteLength ?? 0) +
               (encoded?.byteLength ?? 0) +
+              pictureFontBytes(packet.pictures[pictureStart]?.fonts) +
               textBytes(shaped) +
               (sharedOwner && text ? 65536 + text.length * 256 : 0);
           if (!this.memoryPressure && entryBytes <= 16 * 1024 * 1024 - nextCachedBytes) {
-            const release = this.budget?.reserve(2, entryBytes) ?? (() => {});
+            const budgetRelease = this.budget?.reserve(2, entryBytes) ?? (() => {}),
+              fontRelease = this.holdFontEntries(
+                node.fontBinding?.resource
+                  ? [this.resourceFonts.get(key(node.fontBinding.resource))!]
+                  : [],
+              ),
+              release = () => {
+                try {
+                  fontRelease();
+                } finally {
+                  budgetRelease();
+                }
+              };
             let kept = false;
             try {
               const record: ContentRecord = {
@@ -908,6 +1659,9 @@ export class CanvasKitProvider {
                 resource,
                 picture: sharedOwner ? local.get(id) : undefined,
                 encoded: encoded ? new Uint8Array(encoded).slice() : undefined,
+                ...(packet.pictures[pictureStart]?.fonts
+                  ? { fonts: packet.pictures[pictureStart]!.fonts! }
+                  : {}),
                 text: shaped ? copyText(shaped) : undefined,
                 bytes: entryBytes,
                 release,
@@ -937,6 +1691,7 @@ export class CanvasKitProvider {
         packet.local = local;
         this.tables.set(packet.preparation, local);
         this.pathTables.set(packet.preparation, paths);
+        this.tableFonts.set(packet.preparation, this.holdFontEntries(fontEntries));
       }
       if (!sharedOwner) for (const path of paths.values()) path.delete();
       for (const [id, record] of this.recorded)
@@ -977,20 +1732,78 @@ export class CanvasKitProvider {
     if (this.tables.has(packet.preparation)) return;
     const table = new Map<string, Picture>();
     const paths = new Map<string, Path>();
+    const fontEntries: ResourceFont[] = [],
+      fontHolds: (() => void)[] = [],
+      fontIds = new Set<string>(),
+      fontFaces = new Map(this.typefaces);
     let bytes = 0;
     try {
       if (packet.pictures.length + packet.texts.length > p.limits.nodes)
         throw new Error('Prepared node budget exceeded');
+      if ((packet.fontCatalogs?.length ?? 0) > p.limits.resources)
+        throw Error('Prepared font catalog count exceeded');
+      for (const item of packet.fontCatalogs ?? []) {
+        if (!(item.bytes instanceof ArrayBuffer)) throw Error('Invalid prepared font catalog');
+        bytes += item.bytes.byteLength + 32;
+        const id = key(item.resource);
+        if (fontIds.has(id) || bytes > p.limits.resourceBytes)
+          throw Error('Duplicate/oversize prepared font catalog');
+        fontIds.add(id);
+        const input = new Uint8Array(item.bytes);
+        let entry = this.resourceFonts.get(id);
+        if (entry) {
+          if (!sameBytes(entry.bytes, input))
+            throw Error('Prepared font resource identity changed');
+        } else entry = this.installFontResource(item.resource, input.length, () => input.slice());
+        fontHolds.push(this.holdFontEntries([entry]));
+        fontEntries.push(entry);
+        for (const origin of entry.catalog.faces) fontFaces.set(origin.id, origin.face);
+      }
       for (const path of packet.paths ?? []) {
         if (paths.has(path.node)) throw new Error('Duplicate prepared clip path');
         paths.set(path.node, makePath(this.ck, path.segments, path.fillRule));
       }
       for (const item of packet.pictures) {
-        bytes += item.bytes.byteLength;
+        bytes += item.bytes.byteLength + pictureFontBytes(item.fonts);
         if (table.has(item.node) || bytes > p.limits.resourceBytes)
           throw new Error('Duplicate/oversize prepared Picture');
-        const picture = this.ck.MakePicture(item.bytes);
+        if (
+          item.fonts &&
+          (item.fonts.length > 1024 ||
+            item.fonts.some(
+              (font) =>
+                typeof font.font !== 'string' ||
+                !font.font.length ||
+                font.font.length > 128 ||
+                font.coordinates.length > 32 ||
+                font.coordinates.some(
+                  (coordinate) =>
+                    !Number.isInteger(coordinate.axis) ||
+                    coordinate.axis < 0 ||
+                    coordinate.axis > 0xffffffff ||
+                    !Number.isFinite(coordinate.value) ||
+                    Math.abs(coordinate.value) > 1e6,
+                ) ||
+                new Set(font.coordinates.map((coordinate) => coordinate.axis)).size !==
+                  font.coordinates.length,
+            ))
+        )
+          throw Error('Invalid prepared Picture font descriptors');
+        const bases = item.fonts?.map((font) => {
+          const base = fontFaces.get(font.font);
+          if (!base) throw Error('Prepared Picture font identity is not installed');
+          return base;
+        });
+        const picture = item.fonts
+          ? (this.ck as ParagraphRuntime).nelyxMakePicture!(
+              new Uint8Array(item.bytes),
+              bases!,
+              item.fonts.map((font) => font.coordinates),
+              item.fonts.map((font) => font.font),
+            )
+          : this.ck.MakePicture(item.bytes);
         if (!picture) throw new Error('Prepared Picture decode failed');
+        if (item.fonts) ++this.counters.fontReferenceImports;
         this.holdPicture(picture);
         table.set(item.node, picture);
         ++this.counters.imports;
@@ -1075,10 +1888,13 @@ export class CanvasKitProvider {
       }
       this.tables.set(packet.preparation, table);
       this.pathTables.set(packet.preparation, paths);
+      this.tableFonts.set(packet.preparation, this.holdFontEntries(fontEntries));
     } catch (error) {
       for (const picture of table.values()) this.dropPicture(picture);
       for (const path of paths.values()) path.delete();
       throw error;
+    } finally {
+      for (const release of fontHolds) release();
     }
   }
   draw(frame: EngineResponse, width: number, height: number, scale: number): void {
@@ -1096,9 +1912,25 @@ export class CanvasKitProvider {
             : 0)),
       0,
     );
+    const pathBytes = frame.nodes.reduce(
+      (total, node) =>
+        total +
+        (node.flags & p.nodeFlags.livePaint
+          ? (node.nativePaint ?? []).reduce(
+              (sum, entry) => sum + (entry.path?.commands.length ?? 0) * 256,
+              0,
+            ) + 1024
+          : 0),
+      0,
+    );
     const release = this.budget?.reserve(3, layerBytes);
     try {
-      this.guarded(1024 * 1024, () => this.drawInner(frame, width, height, scale));
+      const releasePaths = this.budget?.reserve(2, pathBytes);
+      try {
+        this.guarded(1024 * 1024 + pathBytes, () => this.drawInner(frame, width, height, scale));
+      } finally {
+        releasePaths?.();
+      }
     } finally {
       release?.();
     }
@@ -1114,13 +1946,27 @@ export class CanvasKitProvider {
     target.clear(this.ck.Color(244, 246, 250, 1));
     target.save();
     target.scale(scale, scale);
-    const saves: { count: number; matrix: EngineNodeSnapshot['matrix']; culled: boolean }[] = [];
+    const nodes = new Map(frame.nodes.map((node) => [key(node.node), node]));
+    const saves: {
+      count: number;
+      matrix: EngineNodeSnapshot['matrix'];
+      culled: boolean;
+      item: EngineNodeSnapshot;
+    }[] = [];
+    const finish = (draw: boolean) => {
+      const { count, item, culled } = saves.pop()!;
+      try {
+        if (draw && !culled) this.drawPaint(target, table, nodes, item, scale, true);
+      } finally {
+        for (let i = 0; i < count; ++i) target.restore();
+      }
+    };
     try {
       for (const item of frame.nodes) {
         while (saves.length > item.depth) {
-          const { count } = saves.pop()!;
-          for (let i = 0; i < count; ++i) target.restore();
+          finish(true);
         }
+        if (item.flags & p.nodeFlags.paintResource) continue;
         const parent = saves.at(-1),
           relative = relativeMatrix(parent?.matrix ?? [1, 0, 0, 1, 0, 0], item.matrix);
         const culled =
@@ -1211,16 +2057,14 @@ export class CanvasKitProvider {
             filter?.delete();
           }
         }
-        saves.push({ count, matrix: item.matrix, culled });
-        if (!culled) this.drawItem(target, table, item);
+        saves.push({ count, matrix: item.matrix, culled, item });
+        if (!culled) this.drawItem(target, table, nodes, item, scale);
       }
+      while (saves.length) finish(true);
     } finally {
-      while (saves.length) {
-        const { count } = saves.pop()!;
-        for (let i = 0; i < count; ++i) target.restore();
-      }
+      while (saves.length) finish(false);
+      target.restore();
     }
-    target.restore();
     this.surface.flush();
     ++this.counters.draws;
   }
@@ -1280,7 +2124,9 @@ export class CanvasKitProvider {
   private drawItem(
     canvas: ReturnType<Surface['getCanvas']>,
     table: Map<string, Picture>,
+    nodes: Map<string, EngineNodeSnapshot>,
     item: EngineNodeSnapshot,
+    scale: number,
   ): void {
     if (!(item.flags & 16) || !item.clip.width || !item.clip.height) return;
     const picture = table.get(key(item.node));
@@ -1304,9 +2150,67 @@ export class CanvasKitProvider {
     };
     if (geometry) for (const rect of geometry.selection) paintTextRect(rect, 0x663582f6);
     canvas.drawPicture(picture);
+    this.drawPaint(canvas, table, nodes, item, scale, false);
     if (item.control) paintControl(this.ck, canvas, item.control, item.width, item.height, 1);
     if (geometry && item.caretVisible && item.editing?.base === item.editing?.extent)
       paintTextRect(geometry.caret, 0xff172033);
+  }
+  private drawPaint(
+    canvas: ReturnType<Surface['getCanvas']>,
+    table: Map<string, Picture>,
+    nodes: Map<string, EngineNodeSnapshot>,
+    item: EngineNodeSnapshot,
+    scale: number,
+    foreground: boolean,
+  ): void {
+    if (
+      !(item.flags & p.nodeFlags.livePaint) ||
+      !(item.flags & 16) ||
+      !item.clip.width ||
+      !item.clip.height ||
+      (foreground && !item.nativePaint?.some((entry) => entry.kind === 'children'))
+    )
+      return;
+    const paint = new this.ck.Paint();
+    paint.setAntiAlias(true);
+    try {
+      paintNative(this.ck, canvas, item, paint, scale, foreground, (reference) => {
+        const resource = nodes.get(key(reference)),
+          picture = table.get(key(reference));
+        if (!resource || !picture || !(resource.flags & p.nodeFlags.paintResource))
+          throw Error('Prepared paragraph generation missing');
+        const layered = resource.localOpacity < 1 || (resource.graphics?.blur ?? 0) > 0;
+        if (layered) {
+          const alpha = new this.ck.Paint(),
+            blur = resource.graphics?.blur ?? 0,
+            filter =
+              blur > 0
+                ? this.ck.ImageFilter.MakeBlur(blur, blur, this.ck.TileMode.Decal, null)
+                : null;
+          try {
+            alpha.setAlphaf(resource.localOpacity);
+            if (filter) alpha.setImageFilter(filter);
+            canvas.saveLayer(alpha);
+          } finally {
+            alpha.delete();
+            filter?.delete();
+          }
+        }
+        try {
+          canvas.drawPicture(picture);
+          ++this.counters.orderedParagraphs;
+        } finally {
+          if (layered) canvas.restore();
+        }
+      });
+      if (foreground) ++this.counters.foregroundPaints;
+      else {
+        ++this.counters.livePaints;
+        this.counters.livePaintEntries += item.nativePaint?.length ?? 0;
+      }
+    } finally {
+      paint.delete();
+    }
   }
   retireExcept(active: bigint, candidate = 0n): void {
     for (const [id, table] of this.tables)
@@ -1315,13 +2219,20 @@ export class CanvasKitProvider {
         this.tables.delete(id);
         for (const path of this.pathTables.get(id)?.values() ?? []) path.delete();
         this.pathTables.delete(id);
+        this.tableFonts.get(id)?.();
+        this.tableFonts.delete(id);
       }
   }
   close(): void {
     if (this.closing) return;
+    if (this.fontScopes || this.appFonts.size > this.resourceFonts.size)
+      throw Error('App provider still has live font catalogs/scopes');
+    if (this.immutableBuffers.size) throw Error('App provider still has live immutable buffers');
     this.closing = true;
     this.trimCache();
     this.retireExcept(-1n);
+    for (const release of this.packetHolds.values()) release();
+    this.packetHolds.clear();
     this.surface?.delete();
     this.surface = null;
     this.counters.liveSurfaces = 0;
@@ -1347,8 +2258,6 @@ export class CanvasKitProvider {
     this.backingRelease = undefined;
     this.cacheRelease?.();
     this.cacheRelease = undefined;
-    for (const release of this.packetHolds.values()) release();
-    this.packetHolds.clear();
     this.counters.gpuReservedBytes = 0;
     this.budget?.close();
   }

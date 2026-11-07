@@ -14,6 +14,15 @@ struct Metrics {
   uint64_t epoch = 1, device = 1;
   double width = 0, height = 0, scale = 1;
 };
+struct ResourceUpload {
+  Lease lease;
+  uint64_t token;
+  Handle resource;
+  std::shared_ptr<ResourceStorage> storage;
+  size_t filled=0;
+  ResourceUpload(const std::shared_ptr<Ledger>& ledger,uint64_t id,Handle handle,size_t size)
+    :lease(ledger,sizeof(ResourceUpload)),token(id),resource(handle),storage(std::make_shared<ResourceStorage>(ledger,size)){}
+};
 struct Scene {
   std::shared_ptr<const Document> document;
   Metrics metrics;
@@ -137,6 +146,7 @@ struct DrawItem {
   uint32_t hitHead=0;
   std::optional<Affine> layerTransform{};
   Point linkedOffset{};
+  std::shared_ptr<const NativePaint> paint{};
 };
 struct Frame {
   std::shared_ptr<Lease> snapshotLease;
@@ -145,6 +155,7 @@ struct Frame {
   uint64_t focusSession=0;
   bool caretVisible = false;
   uint64_t id = 0, device = 0, propertyEpoch = 0;
+  uint64_t paintWork=0,paintNodes=0,placementNodes=0;
   std::shared_ptr<const Scene> scene;
   std::vector<Property> properties;
   std::vector<DrawItem> items;
@@ -208,6 +219,12 @@ struct CommandResult {
   std::vector<uint8_t> bytes;
   uint32_t status = wire::statuses::pending;
 };
+struct FontTransition {
+  uint64_t token=0,revision=0,lastInput=0;
+  Handle target;
+  std::shared_ptr<const Resource> resource;
+  uint32_t phase=0,ready=0,failedOwner=0,failedStatus=0;
+};
 struct View {
   Lease lease;
   uint32_t generation;
@@ -234,6 +251,7 @@ struct View {
   Input mouseSample{};
   bool mouseKnown=false;
   bool appFrameRequested=false;
+  double appFrameDeadline=0;
   uint64_t appFrameSerial=0;
   double lastTapTime=-1,lastTapX=0,lastTapY=0;
   uint32_t lastTapButtons=0;
@@ -261,6 +279,17 @@ struct View {
   uint64_t failedDocument = 0;
   uint64_t transactionWork = 0, contentWork = 0;
   uint64_t fontRevision = 1, layoutWork = 0, layoutReused = 0;
+  uint64_t imagePaintWork=0;
+  std::shared_ptr<const Resource> fontResource;
+  std::unique_ptr<ResourceUpload> fontUpload;
+  std::unique_ptr<ResourceUpload> imageUpload;
+  uint64_t lastImageUpload=0;
+  Handle lastImageResource;
+  uint32_t imageUploadStatus=0,imageUploadBytes=0;
+  uint64_t lastFontUpload=0;
+  Handle lastFontResource;
+  uint32_t fontUploadStatus=0,fontUploadBytes=0;
+  FontTransition fontTransition;
   uint64_t coverageRequests = 0, coverageDeferred = 0, coverageClamps = 0, coverageHandoffs = 0;
   bool transactionActive = false, providerRequired = false;
   uint64_t received = 0, consumed = 0, canceled = 0, rejected = 0, duplicates = 0;

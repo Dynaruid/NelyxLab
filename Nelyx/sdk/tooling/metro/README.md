@@ -2,12 +2,15 @@
 
 **English** | [한국어](README.ko.md)
 
+Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. Runner checks resolve the installed compiler through its public package metadata and verify its executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
+
 `@nelyx/metro` provides Metro configuration, asset preparation, Web bundles, and development servers for Nelyx's independent platform runners. Use Node.js **>=24.3.0 <25**. The [CLI](../cli/README.md) owns explicit build and development operations.
 
 ## Modules
 
 | Import | Purpose |
 | --- | --- |
+| `@nelyx/metro/typescript-compiler` | Native TypeScript >=7 compiler checks |
 | `@nelyx/metro/runner-config` | Native runner configuration and dependency-cohort checks |
 | `@nelyx/metro/rn-config` | Native Metro resolution and transforms |
 | `@nelyx/metro/babel-config` | Shared native Babel configuration |

@@ -10,7 +10,13 @@ import { RenderDecoratedBox } from '@nelyx/core/framework/rendering/boxes';
 import { RenderOpacity } from '@nelyx/core/framework/rendering/opacity';
 import { RenderMouseRegion } from '@nelyx/core/framework/rendering/mouse-region';
 import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
+import {
+  PlaceholderSpanIndexSemanticsTag,
+  TextParentData,
+  RenderParagraph,
+} from '@nelyx/core/framework/rendering/paragraph';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { nativeRadioDeselect } from '@nelyx/core/internal/framework/widgets/native-radio-semantics';
 import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
 import { nativeSemanticsRange } from '@nelyx/core/framework/rendering/object';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
@@ -29,6 +35,8 @@ import { protocol as p } from './schema.ts';
 
 export interface OriginalControlConfiguration {
   readonly options: NodeOptions;
+  readonly kind?: 'stack';
+  readonly children?: readonly RenderObject[];
   readonly paint?: readonly NativePaintEntry[];
   readonly foreground?: readonly NativePaintEntry[];
   readonly suppressChildren?: boolean;
@@ -163,6 +171,28 @@ export function originalControlConfiguration(
   } catch {
     return fail('native-render-configuration');
   }
+  if (metadata?.kind === 'overlay') {
+    if (metadata.clip !== 'none' && metadata.clip !== 'hardEdge')
+      return fail('overlay-antialias-clip');
+    if (
+      !Number.isInteger(metadata.skipCount) ||
+      metadata.skipCount < 0 ||
+      metadata.skipCount > render.children.length
+    )
+      return fail('overlay-skip-count');
+    return {
+      kind: 'stack',
+      children: render.children.slice(metadata.skipCount),
+      options: {
+        layout: {
+          childConstraints: 'expand',
+          alignment: metadata.alignment,
+          expandEmpty: true,
+          clipOverflow: metadata.clip === 'hardEdge',
+        },
+      },
+    };
+  }
   if (metadata?.kind === 'paint')
     return {
       options: { layout: { childConstraints: 'inherit', enforceBounds: true } },
@@ -172,6 +202,8 @@ export function originalControlConfiguration(
     if (metadata.width || metadata.height) return fail('padded-button-hit-test');
     return { options: {} };
   }
+  if (metadata?.kind === 'inlineScale')
+    return { options: { layout: { inlineScale: metadata.scale }, pointerHitTest: 'proxy' } };
   if (metadata?.kind === 'sizedSurface')
     return {
       options: {
@@ -273,8 +305,21 @@ export function originalControlConfiguration(
       source.blockUserActions
     )
       return fail('custom-semantics-configuration');
+    const tag = properties.tagForChildren;
+    const inlineTag =
+      tag instanceof PlaceholderSpanIndexSemanticsTag &&
+      Object.getPrototypeOf(tag) === PlaceholderSpanIndexSemanticsTag.prototype &&
+      render.parentData instanceof TextParentData &&
+      render.parentData.span !== null &&
+      render.parent instanceof RenderParagraph &&
+      Object.getPrototypeOf(render.parent) === RenderParagraph.prototype &&
+      render.parent.children[tag.index] === render;
     for (const key of Object.keys(properties) as (keyof SemanticsProperties)[])
-      if (!semanticFields.has(key) && properties[key] !== semanticsDefaults[key])
+      if (
+        !(key === 'tagForChildren' && inlineTag) &&
+        !semanticFields.has(key) &&
+        properties[key] !== semanticsDefaults[key]
+      )
         return fail('semantics-property:' + key);
     if (
       properties.role != null &&
@@ -316,6 +361,9 @@ export function originalControlConfiguration(
                     : properties.checked !== null || properties.mixed
                       ? 'checkbox'
                       : 'group';
+    const deselect = nativeRadioDeselect(properties.onTap);
+    if (role === 'radio' && properties.checked && properties.enabled !== false && deselect)
+      actions |= p.semanticsActions.deselect;
     return {
       options: {
         semantics: {
@@ -349,6 +397,10 @@ export function originalControlConfiguration(
           if (focused) invoke(properties.onFocus);
         },
         onAction: (action, event) => {
+          if (action === 'deselect') {
+            invoke(deselect);
+            return;
+          }
           if (action === 'setValue' && range.actions && event) {
             invoke(() => range.actions!.setValue(event.x));
             return;

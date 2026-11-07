@@ -37,7 +37,16 @@ test(
         ['framework/rendering/object', 'RenderBox'],
         ['framework/rendering/paragraph', 'RenderParagraph'],
         ['framework/painting/text-style', 'TextStyle'],
+        ['services/font-loader', 'FontLoader'],
+        ['ui/fonts', 'loadFontFromList'],
+        ['internal/ui/font-loader-binding', 'bindFontLoader'],
+        ['internal/services/asset-loader-binding', 'bindAssetLoader'],
+        ['internal/ui/immutable-buffer-binding', 'bindImmutableBufferLoader'],
+        ['internal/ui/image-descriptor-binding', 'bindImageDescriptorLoader'],
+        ['internal/ui/frame-resource-list-binding', 'captureFrameResourceList'],
         ['hosting/resources', 'ResourceRegistry'],
+        ['hosting/text-layout-budget', 'TextLayoutBudget'],
+        ['internal/framework/widgets/native-radio-semantics', 'nativeRadioDeselect'],
       ]) {
         fs.writeFileSync(
           path.join(app, 'src/app.ts'),
@@ -52,6 +61,36 @@ test(
           /cannot import/,
         );
       }
+      for (const [file, symbol] of [
+        ['Nelyx/dist/hosting/resources.js', 'ResourceRegistry'],
+        ['Nelyx/dist/ui/image-descriptor-binding.js', 'bindImageDescriptorLoader'],
+        ['Nelyx/sdk/dist/runtime/engine-v2-images.js', 'EngineV2Images'],
+      ]) {
+        fs.writeFileSync(
+          path.join(app, 'src/app.ts'),
+          `import {${symbol}} from ${JSON.stringify(path.join(repo, file).replaceAll('\\', '/'))};import {defineEngineV2App} from '@nelyx/sdk/engine-v2';globalThis.originalConsumer=${symbol};export default defineEngineV2App({build(){throw Error('unreachable');}});`,
+        );
+        await assert.rejects(
+          buildEngineV2Application({
+            app,
+            target: 'windows',
+            engineInputs: path.join(repo, 'Nelyx/engine/dist'),
+          }),
+          /cannot import/,
+        );
+      }
+      fs.writeFileSync(
+        path.join(app, 'src/app.ts'),
+        `import {TextLayoutBudget} from '@nelyx/core/hosting/text-layout-budget';import {defineOriginalEngineV2App} from '@nelyx/sdk/engine-v2-original';globalThis.originalConsumer=TextLayoutBudget;export default defineOriginalEngineV2App({build(){throw Error('unreachable');}});`,
+      );
+      await assert.rejects(
+        buildEngineV2Application({
+          app,
+          target: 'windows',
+          engineInputs: path.join(repo, 'Nelyx/engine/dist'),
+        }),
+        /cannot import/,
+      );
     } finally {
       stop();
       assert.equal(path.dirname(app), parent);

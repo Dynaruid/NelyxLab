@@ -47,6 +47,21 @@ class _SystemFontsNotifier extends Listenable {
   }
 }
 
+/** @internal Native configuration owners use the same Source listener contract
+ * without constructing a second platform-services or TS rendering pipeline. */
+export function createSystemFontsNotifier(): {
+  readonly systemFonts: Listenable;
+  notify(): void;
+  dispose(): void;
+} {
+  const notifier = new _SystemFontsNotifier();
+  return Object.freeze({
+    systemFonts: notifier,
+    notify: () => notifier.notifyListeners(),
+    dispose: () => notifier.retire(),
+  });
+}
+
 /** App-owned painting system messages. Image/codec and shader warm-up members
  * remain separate source obligations; this class does not fabricate those APIs. */
 export class PaintingBinding extends ServicesBinding {

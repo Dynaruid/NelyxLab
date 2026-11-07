@@ -38,6 +38,14 @@ std::shared_ptr<const Preparation> Engine::providerSnapshot(uint32_t view, uint3
   if (!v.preparing || !v.preparing->ready) return nullptr;
   return std::make_shared<const Preparation>(*v.preparing);
 }
+std::shared_ptr<const FontTransition> Engine::fontTransitionSnapshot(uint32_t view,uint32_t generation){
+  auto& s=*state_;std::lock_guard lock(s.mutex);
+  if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation||s.views[view]->closed)return nullptr;
+  const auto& v=*s.views[view];if(!v.fontTransition.token)return nullptr;
+  auto result=std::make_shared<FontTransition>(v.fontTransition);
+  if(result->phase==wire::fontTransitionPhases::committed&&result->revision==v.fontRevision)result->resource=v.fontResource;
+  return result;
+}
 std::shared_ptr<const Frame> Engine::frameSnapshot(uint32_t view, uint32_t generation, uint64_t id) {
   auto& s = *state_; std::lock_guard lock(s.mutex);
   require(view && view < s.views.size() && s.views[view] && s.views[view]->generation == generation,
@@ -68,6 +76,16 @@ std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t 
 namespace {
 constexpr uint32_t capabilities = coreCapabilities;
 void exact(Reader r, size_t count) { require(r.length == count); }
+std::shared_ptr<const Resource> documentFont(const Document* document,Handle resource){
+  if(document)for(const auto& slot:document->nodes)if(slot.value&&slot.value->fontResource&&slot.value->fontResource->id==resource)
+    return slot.value->fontResource;
+  return nullptr;
+}
+std::shared_ptr<const Resource> documentImage(const Document* document,Handle resource){
+  if(document)for(const auto& slot:document->nodes)if(slot.value&&slot.value->resource&&slot.value->resource->id==resource)
+    return slot.value->resource;
+  return nullptr;
+}
 void invalidate(View& v, uint32_t reason) {
   v.publications.fill(nullptr);
   v.caretDeadline = 0;
@@ -96,7 +114,8 @@ Input readInput(Reader r) {
 }
 void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t flags, const DrawItem* item = nullptr) {
   writeHandle(w, p, n.id); w.u32(p + 8, n.kind); writeHandle(w, p + 12, n.parent);
-  w.u32(p + 20, flags | (item?item->flags:0u) | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u)|(n.extensionSize.x>0?wire::nodeFlags::nativeExtension:0u));
+  w.u32(p + 20, flags | (item?item->flags:0u) | (o && o->deferred ? 64u : 0u) | (n.coverage.enabled ? 128u : 0u)|(n.extensionSize.x>0?wire::nodeFlags::nativeExtension:0u)|
+    (n.nativePaint&&n.nativePaint->frameDependent?wire::nodeFlags::livePaint:0u)|(n.paintOwner?wire::nodeFlags::paintResource:0u)|(n.inlineHidden?wire::nodeFlags::inlineHidden:0u));
   w.f64(p + 24, item ? item->x : n.properties.x); w.f64(p + 32, item ? item->y : n.properties.y);
   w.f64(p + 40, n.properties.width); w.f64(p + 48, n.properties.height);
   w.f64(p + 56, o ? o->offset : 0); w.f64(p + 64, o ? o->velocity : 0);
@@ -141,6 +160,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   std::shared_ptr<View> retained;
   const Frame* frame = nullptr;
   Handle editTarget;
+  std::shared_ptr<const Resource> fontRead,imageRead;
+  uint32_t imageReadOffset=0,imageReadLength=0;
+  uint32_t fontReadOffset=0,fontReadLength=0;
   std::vector<Event> events;
   try {
     require(packet.length >= wire::headerBytes && packet.length <= wire::limits::packetBytes);
@@ -195,7 +217,198 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       resultEpoch = v.document ? v.document->epoch : 0;
       require(!v.closed || opcode == wire::opcodes::inspect || opcode == wire::opcodes::pollEvents ||
         opcode == wire::opcodes::closeView || opcode == wire::opcodes::releaseFrame, wire::statuses::closed);
-      if (opcode == wire::opcodes::transaction) {
+      if(opcode==wire::opcodes::fontTransitionBegin){
+        exact(body,8);const auto target=handle(body,0);auto& transition=v.fontTransition;
+        require(id>0,wire::statuses::invalidValue);
+        require(bool(target)||target.generation==0,wire::statuses::invalidHandle);
+        if(id==transition.token){
+          require(target==transition.target,wire::statuses::idReused);
+          require(transition.phase!=wire::fontTransitionPhases::aborted,wire::statuses::stale);
+        }else{
+          require(id>transition.token,wire::statuses::stale);
+          require(transition.phase!=wire::fontTransitionPhases::preparing&&!v.fontUpload&&!v.transactionActive,wire::statuses::busy);
+          std::shared_ptr<const Resource> resource;
+          if(target){require(target.slot<s.resources.size()&&s.resources[target.slot].value&&
+              s.resources[target.slot].value->id==target&&s.resources[target.slot].value->fontCatalog,wire::statuses::invalidHandle);
+            resource=s.resources[target.slot].value;}
+          transition={};transition.token=id;transition.target=target;transition.resource=std::move(resource);
+          transition.phase=wire::fontTransitionPhases::preparing;
+        }
+      }else if(opcode==wire::opcodes::fontTransitionReady){
+        exact(body,8);auto& transition=v.fontTransition;const auto owner=body.u32(0),failure=body.u32(4);
+        require(owner==wire::fontTransitionOwners::app||owner==wire::fontTransitionOwners::content||owner==wire::fontTransitionOwners::render,wire::statuses::invalidValue);
+        require(failure==0||failure==wire::statuses::invalidValue||failure==wire::statuses::budgetExceeded||failure==wire::statuses::closed,wire::statuses::invalidValue);
+        require(id>0&&id==transition.token,wire::statuses::stale);
+        require(transition.phase!=wire::fontTransitionPhases::aborted,wire::statuses::stale);
+        if(transition.phase==wire::fontTransitionPhases::committed)require(!failure&&(transition.ready&owner),wire::statuses::stale);
+        else if(transition.phase==wire::fontTransitionPhases::preparing){
+          if(failure){transition.phase=wire::fontTransitionPhases::failed;transition.failedOwner=owner;
+            transition.failedStatus=failure;transition.resource.reset();}
+          else transition.ready|=owner;
+        }
+      }else if(opcode==wire::opcodes::fontTransitionCommit){
+        exact(body,16);auto& transition=v.fontTransition;const auto revision=body.u64(0),after=body.u64(8);
+        require(id>0&&id==transition.token,wire::statuses::stale);
+        if(transition.phase==wire::fontTransitionPhases::committed){
+          require(revision==transition.revision&&after==transition.lastInput,wire::statuses::idReused);
+        }else{
+          require(transition.phase==wire::fontTransitionPhases::preparing,wire::statuses::stale);
+          require(transition.ready==7,wire::statuses::pending);
+          require(revision>v.fontRevision&&revision<=9007199254740991ull&&after==v.lastInput,wire::statuses::stale);
+          v.fontResource=transition.resource;v.fontRevision=revision;transition.revision=revision;transition.lastInput=after;
+          transition.phase=wire::fontTransitionPhases::committed;transition.resource.reset();invalidate(v,wire::statuses::stale);
+        }
+      }else if(opcode==wire::opcodes::fontTransitionAbort){
+        exact(body,0);auto& transition=v.fontTransition;
+        require(id>0&&id==transition.token&&transition.phase!=wire::fontTransitionPhases::committed,wire::statuses::stale);
+        transition.resource.reset();transition.phase=wire::fontTransitionPhases::aborted;
+      }else if(opcode==wire::opcodes::fontResourceRelease){
+        exact(body,8);const auto target=handle(body,0);
+        require(target.slot>0&&target.slot<s.resources.size()&&target.generation>0,wire::statuses::invalidHandle);
+        auto& slot=s.resources[target.slot];
+        if(slot.value&&slot.value->id==target){
+          require(slot.value->fontCatalog,wire::statuses::invalidHandle);
+          require(target.generation!=UINT32_MAX,wire::statuses::exhausted);
+          slot={target.generation+1,nullptr};++s.resourceRevision;
+        }else require(slot.generation>target.generation,wire::statuses::invalidHandle);
+      }else if(opcode==wire::opcodes::imageUploadBegin){
+        exact(body,16);const auto target=handle(body,0);const auto size=body.u32(8);
+        require(id>0&&body.u32(12)==0&&size>0&&size<=wire::limits::resourceBytes,wire::statuses::invalidValue);
+        require(target.slot>0&&target.slot<s.resources.size()&&target.generation>0,wire::statuses::invalidHandle);
+        if(id==v.lastImageUpload){
+          require(v.imageUploadStatus!=3&&target==v.lastImageResource&&size==v.imageUploadBytes,wire::statuses::idReused);
+        }else{
+          require(id>v.lastImageUpload,wire::statuses::stale);
+          require(!v.imageUpload&&!v.transactionActive,wire::statuses::busy);
+          require(!s.resources[target.slot].value&&target.generation>=s.resources[target.slot].generation,wire::statuses::invalidHandle);
+          auto candidate=std::make_unique<ResourceUpload>(s.ledger,id,target,size);
+          v.imageUpload=std::move(candidate);v.lastImageUpload=id;v.lastImageResource=target;v.imageUploadStatus=1;v.imageUploadBytes=size;
+        }
+      }else if(opcode==wire::opcodes::imageUploadChunk){
+        require(body.length>=8&&v.imageUpload&&v.imageUpload->token==id,wire::statuses::stale);
+        const auto offset=body.u32(0),size=body.u32(4);const auto padded=paragraphAligned(size);
+        require(size>0&&size<=wire::limits::imageChunkBytes&&body.length==8+padded,wire::statuses::invalidValue);
+        for(size_t i=size;i<padded;++i)require(body.data[8+i]==0);
+        auto& upload=*v.imageUpload;const auto total=upload.storage->bytes.size();
+        require(offset<=upload.filled&&offset<=total&&size<=total-offset,wire::statuses::stale);
+        if(offset<upload.filled){
+          require(size<=upload.filled-offset,wire::statuses::stale);
+          require(std::equal(body.data+8,body.data+8+size,upload.storage->bytes.data()+offset),wire::statuses::idReused);
+        }else{
+          // All validation precedes this non-allocating append. No partial write
+          // or old typed-array view can become visible to another owner.
+          std::copy_n(body.data+8,size,upload.storage->bytes.data()+offset);upload.filled+=size;
+        }
+      }else if(opcode==wire::opcodes::imageUploadCommit){
+        exact(body,0);require(id>0&&id==v.lastImageUpload,wire::statuses::stale);
+        if(v.imageUploadStatus!=2){
+          require(v.imageUpload&&v.imageUpload->token==id,wire::statuses::stale);
+          require(!v.transactionActive,wire::statuses::busy);
+          const auto& upload=*v.imageUpload;require(upload.filled==upload.storage->bytes.size(),wire::statuses::pending);
+          const auto target=upload.resource;
+          require(!s.resources[target.slot].value&&target.generation>=s.resources[target.slot].generation,wire::statuses::invalidHandle);
+          auto resource=std::make_shared<Resource>(s.ledger,target,upload.storage,false);
+          s.resources[target.slot]={target.generation,std::move(resource)};++s.resourceRevision;
+          v.imageUpload.reset();v.imageUploadStatus=2;
+        }
+      }else if(opcode==wire::opcodes::imageUploadAbort){
+        exact(body,0);require(id>0&&id==v.lastImageUpload&&v.imageUploadStatus!=2,wire::statuses::stale);
+        v.imageUpload.reset();v.imageUploadStatus=3;
+      }else if(opcode==wire::opcodes::fontUploadBegin){
+        exact(body,16);const auto target=handle(body,0);const auto size=body.u32(8);
+        require(id>0&&body.u32(12)==0&&size>=32&&size<=wire::limits::fontCatalogBytes,wire::statuses::invalidValue);
+        require(target.slot>0&&target.slot<s.resources.size()&&target.generation>0,wire::statuses::invalidHandle);
+        if(id==v.lastFontUpload){
+          require(v.fontUploadStatus!=3&&target==v.lastFontResource&&size==v.fontUploadBytes,wire::statuses::idReused);
+        }else{
+          require(id>v.lastFontUpload,wire::statuses::stale);
+          require(!v.fontUpload&&!v.transactionActive&&v.fontTransition.phase!=wire::fontTransitionPhases::preparing,wire::statuses::busy);
+          require(!s.resources[target.slot].value&&target.generation>=s.resources[target.slot].generation,wire::statuses::invalidHandle);
+          auto candidate=std::make_unique<ResourceUpload>(s.ledger,id,target,size);
+          v.fontUpload=std::move(candidate);v.lastFontUpload=id;v.lastFontResource=target;v.fontUploadStatus=1;v.fontUploadBytes=size;
+        }
+      }else if(opcode==wire::opcodes::fontUploadChunk){
+        require(body.length>=8&&v.fontUpload&&v.fontUpload->token==id,wire::statuses::stale);
+        const auto offset=body.u32(0),size=body.u32(4);const auto padded=paragraphAligned(size);
+        require(size>0&&size<=wire::limits::fontChunkBytes&&body.length==8+padded,wire::statuses::invalidValue);
+        for(size_t i=size;i<padded;++i)require(body.data[8+i]==0);
+        auto& upload=*v.fontUpload;const auto total=upload.storage->bytes.size();
+        require(offset<=upload.filled&&offset<=total&&size<=total-offset,wire::statuses::stale);
+        if(offset<upload.filled){
+          require(size<=upload.filled-offset,wire::statuses::stale);
+          require(std::equal(body.data+8,body.data+8+size,upload.storage->bytes.data()+offset),wire::statuses::idReused);
+        }else{
+          // All validation precedes this non-allocating append. No partial write
+          // or old typed-array view can become visible to another owner.
+          std::copy_n(body.data+8,size,upload.storage->bytes.data()+offset);upload.filled+=size;
+        }
+      }else if(opcode==wire::opcodes::fontUploadCommit){
+        exact(body,0);require(id>0&&id==v.lastFontUpload,wire::statuses::stale);
+        if(v.fontUploadStatus!=2){
+          require(v.fontUpload&&v.fontUpload->token==id,wire::statuses::stale);
+          const auto& upload=*v.fontUpload;require(upload.filled==upload.storage->bytes.size(),wire::statuses::pending);
+          readFontCatalog({upload.storage->bytes.data(),upload.storage->bytes.size()});
+          const auto target=upload.resource;
+          require(!s.resources[target.slot].value&&target.generation>=s.resources[target.slot].generation,wire::statuses::invalidHandle);
+          auto resource=std::make_shared<Resource>(s.ledger,target,upload.storage);
+          s.resources[target.slot]={target.generation,std::move(resource)};++s.resourceRevision;
+          v.fontUpload.reset();v.fontUploadStatus=2;
+        }
+      }else if(opcode==wire::opcodes::fontUploadAbort){
+        exact(body,0);require(id>0&&id==v.lastFontUpload&&v.fontUploadStatus!=2,wire::statuses::stale);
+        v.fontUpload.reset();v.fontUploadStatus=3;
+      }else if(opcode==wire::opcodes::fontResourceRead){
+        require(body.length==24||body.length==32);const auto target=handle(body,0);const auto preparation=body.u64(8);
+        const auto transition=body.length==32?body.u64(24):0;
+        if(transition){
+          require(!preparation&&v.fontTransition.token==transition&&v.fontTransition.target==target,wire::statuses::stale);
+          if(v.fontTransition.phase==wire::fontTransitionPhases::preparing)fontRead=v.fontTransition.resource;
+          else if(v.fontTransition.phase==wire::fontTransitionPhases::committed&&v.fontTransition.revision==v.fontRevision)fontRead=v.fontResource;
+          require(bool(fontRead),wire::statuses::stale);
+        }else if(!preparation){
+          require(target.slot>0&&target.slot<s.resources.size()&&s.resources[target.slot].value&&
+            s.resources[target.slot].value->id==target&&s.resources[target.slot].value->fontCatalog,wire::statuses::invalidHandle);
+          fontRead=s.resources[target.slot].value;
+        }else{
+          if(v.preparing&&v.preparing->id==preparation)fontRead=documentFont(v.preparing->document.get(),target);
+          if(!fontRead&&v.query&&v.query->preparation==preparation)fontRead=documentFont(v.query->document.get(),target);
+          if(!fontRead&&v.active&&v.active->preparation==preparation)fontRead=documentFont(v.active->document.get(),target);
+          if(!fontRead)for(const auto& [key,held]:v.frames)if(held.scene&&held.scene->preparation==preparation){
+            fontRead=documentFont(held.scene->document.get(),target);if(fontRead)break;
+          }
+          require(bool(fontRead),wire::statuses::stale);
+        }
+        fontReadOffset=body.u32(16);fontReadLength=body.u32(20);
+        require(fontReadLength>0&&fontReadLength<=wire::limits::fontChunkBytes&&fontReadOffset<fontRead->bytes.size()&&
+          fontReadLength<=fontRead->bytes.size()-fontReadOffset,wire::statuses::invalidValue);
+      }else if(opcode==wire::opcodes::imageResourceRead){
+        exact(body,24);const auto target=handle(body,0);const auto preparation=body.u64(8);
+        if(!preparation){
+          require(target.slot>0&&target.slot<s.resources.size()&&s.resources[target.slot].value&&
+            s.resources[target.slot].value->id==target&&s.resources[target.slot].value->fontCatalog==false,wire::statuses::invalidHandle);
+          imageRead=s.resources[target.slot].value;
+        }else{
+          if(v.preparing&&v.preparing->id==preparation)imageRead=documentImage(v.preparing->document.get(),target);
+          if(!imageRead&&v.query&&v.query->preparation==preparation)imageRead=documentImage(v.query->document.get(),target);
+          if(!imageRead&&v.active&&v.active->preparation==preparation)imageRead=documentImage(v.active->document.get(),target);
+          if(!imageRead)for(const auto& [key,held]:v.frames)if(held.scene&&held.scene->preparation==preparation){
+            imageRead=documentImage(held.scene->document.get(),target);if(imageRead)break;
+          }
+          require(bool(imageRead),wire::statuses::stale);
+        }
+        imageReadOffset=body.u32(16);imageReadLength=body.u32(20);
+        require(imageReadLength>0&&imageReadLength<=wire::limits::imageChunkBytes&&imageReadOffset<imageRead->bytes.size()&&
+          imageReadLength<=imageRead->bytes.size()-imageReadOffset,wire::statuses::invalidValue);
+      }else if(opcode==wire::opcodes::imageResourceRelease){
+        exact(body,8);const auto target=handle(body,0);
+        require(target.slot>0&&target.slot<s.resources.size()&&target.generation>0,wire::statuses::invalidHandle);
+        auto& slot=s.resources[target.slot];
+        if(slot.value&&slot.value->id==target){
+          require(!slot.value->fontCatalog,wire::statuses::invalidHandle);
+          require(target.generation!=UINT32_MAX,wire::statuses::exhausted);
+          slot={target.generation+1,nullptr};++s.resourceRevision;
+        }else require(slot.generation>target.generation,wire::statuses::invalidHandle);
+      }else if (opcode == wire::opcodes::transaction) {
         require(id > 0, wire::statuses::invalidValue);
         const auto existing = std::find_if(v.results.begin(), v.results.end(),
           [id](const auto& result) { return result->id == id; });
@@ -277,15 +490,28 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         exact(body, 0);
         require(v.measurement().has_value(), wire::statuses::notFound);
       } else if (opcode == wire::opcodes::measureResult) {
-        require(body.length>=wire::measurementBytes&&body.u32(wire::measureFields::flags)<=1&&body.u32(wire::measureFields::reserved)==0);
+        require(body.length>=wire::measurementBytes&&body.u32(wire::measureFields::flags)<=3&&body.u32(wire::measureFields::reserved)==0);
         Measurement value{body.f64(40), body.f64(48), body.f64(56), body.f64(64), body.f64(72)};
+        value.ideographicBaseline=body.f64(wire::measureFields::ideographicBaseline);
         value.didExceedMaxLines=(body.u32(wire::measureFields::flags)&wire::measurementFlags::didExceedMaxLines)!=0;
         std::optional<MeasurementRequest> pending;
         if(v.preparing&&v.preparing->id==body.u64(0)&&v.preparing->layout&&v.preparing->layout->waiting())pending=v.preparing->layout->request();
         else if(v.query&&v.query->preparation==body.u64(0)&&v.query->work&&v.query->work->waiting())pending=v.query->work->request();
         require(pending&&pending->node->id==handle(body,32),wire::statuses::stale);
         require(!value.didExceedMaxLines||pending->node->kind==wire::kinds::paragraph||pending->node->kind==wire::kinds::editable,wire::statuses::invalidValue);
-        if(body.length>wire::measurementBytes){
+        const bool inlineChildren=pending->node->paragraph&&pending->node->paragraph->value.inlineChildren();
+        if(body.u32(wire::measureFields::flags)&wire::measurementFlags::hasPlaceholders){
+          require(inlineChildren&&pending->node->kind==wire::kinds::paragraph&&body.length>=wire::measurementPlaceholderBytes&&
+            body.u32(wire::measureFields::placeholderReserved)==0,wire::statuses::invalidValue);
+          const auto boxCount=body.u32(wire::measureFields::placeholderCount);
+          require(boxCount<=pending->node->paragraph->value.placeholders.size()&&
+            body.length==wire::measurementPlaceholderBytes+size_t(boxCount)*wire::paragraphBoxBytes,wire::statuses::invalidValue);
+          std::vector<ParagraphBox> boxes;boxes.reserve(boxCount);
+          for(uint32_t i=0;i<boxCount;++i){const auto offset=wire::measurementPlaceholderBytes+i*wire::paragraphBoxBytes;
+            ParagraphBox box{body.f64(offset),body.f64(offset+8),body.f64(offset+16),body.f64(offset+24),body.u32(offset+32)};
+            require(box.width>=0&&box.height>=0&&box.direction<=1&&body.u32(offset+36)==0,wire::statuses::invalidValue);boxes.push_back(box);}
+          value.placeholders=std::make_shared<ParagraphGeometry>(s.ledger,std::move(boxes));
+        }else if(body.length>wire::measurementBytes){
           require(body.length>=wire::measurementGeometryBytes&&pending->node->kind==wire::kinds::editable&&pending->node->editing&&
             pending->node->editing->revision==body.u64(wire::measureFields::geometryRevision)&&body.u32(wire::measureFields::geometryReserved)==0,wire::statuses::stale);
           const auto rectCount=body.u32(wire::measureFields::selectionCount);require(rectCount<=wire::limits::selectionRects&&body.length==wire::measurementGeometryBytes+size_t(rectCount)*32,wire::statuses::budgetExceeded);
@@ -293,7 +519,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
             require(r.width>=0&&r.height>=0,wire::statuses::invalidValue);return r;};
           std::vector<TextRect> boxes;boxes.reserve(rectCount);for(uint32_t i=0;i<rectCount;++i)boxes.push_back(rect(wire::measureFields::selection+i*32));
           value.geometry=std::make_shared<TextGeometry>(s.ledger,body.u64(wire::measureFields::geometryRevision),rect(wire::measureFields::caret),std::move(boxes));
-        }else require(!pending||pending->node->kind!=wire::kinds::editable,wire::statuses::malformed);
+        }else require(pending->node->kind!=wire::kinds::editable,wire::statuses::malformed);
+        require(!inlineChildren||bool(value.placeholders),wire::statuses::malformed);
         if(v.query&&v.query->work&&body.u64(0)==v.query->preparation){
           require(body.u64(8)==v.query->metrics.epoch&&body.u64(16)==v.query->metrics.device,wire::statuses::stale);
           v.query->work->measured(body.u64(24),handle(body,32),value);
@@ -312,9 +539,16 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       } else if (opcode == wire::opcodes::layoutSnapshot) {
         exact(body, 0); require(bool(v.active), wire::statuses::notFound);
       } else if (opcode == wire::opcodes::fontRevision) {
-        exact(body, 16);
+        require(body.length==16||body.length==24);
+        require(v.fontTransition.phase!=wire::fontTransitionPhases::preparing,wire::statuses::busy);
         require(body.u64(0) > v.fontRevision && body.u64(8) == v.lastInput, wire::statuses::stale);
-        v.fontRevision = body.u64(0); invalidate(v, wire::statuses::stale);
+        std::shared_ptr<const Resource> resource;
+        if(body.length==24){const auto target=handle(body,16);
+          if(!target)require(target.generation==0);
+          else{require(target.slot<s.resources.size()&&s.resources[target.slot].value&&s.resources[target.slot].value->id==target&&
+              s.resources[target.slot].value->fontCatalog,wire::statuses::invalidHandle);resource=s.resources[target.slot].value;}
+        }
+        v.fontResource=std::move(resource);v.fontRevision = body.u64(0); invalidate(v, wire::statuses::stale);
       } else if(opcode==wire::opcodes::focus){
         require(body.length==24||(body.length==32&&body.u32(24)==1&&body.u32(28)==0));
         v.setFocus(handle(body,0),body.u64(8),body.u64(16),body.length==32);
@@ -355,7 +589,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       } else if (opcode == wire::opcodes::tick) {
         exact(body, 8); v.tick(body.f64(0));
       } else if (opcode == wire::opcodes::requestAppFrame) {
-        exact(body,0);v.appFrameRequested=true;v.dirty=true;
+        if(!body.length){v.appFrameRequested=true;v.dirty=true;}
+        else{exact(body,8);const auto at=body.f64(0);require(at>=0,wire::statuses::invalidValue);v.appFrameDeadline=at;}
       } else if (opcode == wire::opcodes::takeFrame) {
         exact(body, 0); status = v.takeFrame();
         if (status == wire::statuses::ok) frame = &v.frames.at(v.nextSubmission);
@@ -438,9 +673,40 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   std::vector<std::vector<uint8_t>> ownedBlobs;
   const auto addOwned=[&](uint32_t type,Handle node,Writer bytes){ownedBlobs.push_back(std::move(bytes.bytes));
     const auto& data=ownedBlobs.back();blobs.push_back({type,node,{data.data(),data.size()}});};
-  const auto interactionBlobs=[&](const Node& n){
+  if(view&&view->fontTransition.token){const auto& transition=view->fontTransition;Writer data(32);
+    data.u64(0,transition.token);data.u32(8,transition.phase);data.u32(12,transition.ready);
+    data.u32(16,transition.failedOwner);data.u32(20,transition.failedStatus);data.u64(24,transition.revision);
+    addOwned(wire::fontTransitionBlob,transition.target,std::move(data));
+  }
+  if(view&&view->lastFontUpload&&(opcode==wire::opcodes::fontUploadBegin||opcode==wire::opcodes::fontUploadChunk||
+      opcode==wire::opcodes::fontUploadCommit||opcode==wire::opcodes::fontUploadAbort||opcode==wire::opcodes::inspect)){
+    Writer data(24);data.u64(0,view->lastFontUpload);data.u32(8,view->fontUploadBytes);
+    data.u32(12,view->fontUpload?uint32_t(view->fontUpload->filled):view->fontUploadStatus==2?view->fontUploadBytes:0);
+    data.u32(16,view->fontUploadStatus);addOwned(wire::fontUploadBlob,view->lastFontResource,std::move(data));
+  }
+  if(view&&view->lastImageUpload&&(opcode==wire::opcodes::imageUploadBegin||opcode==wire::opcodes::imageUploadChunk||
+      opcode==wire::opcodes::imageUploadCommit||opcode==wire::opcodes::imageUploadAbort||opcode==wire::opcodes::inspect)){
+    Writer data(24);data.u64(0,view->lastImageUpload);data.u32(8,view->imageUploadBytes);
+    data.u32(12,view->imageUpload?uint32_t(view->imageUpload->filled):view->imageUploadStatus==2?view->imageUploadBytes:0);
+    data.u32(16,view->imageUploadStatus);addOwned(wire::imageUploadBlob,view->lastImageResource,std::move(data));
+  }
+  if(status==wire::statuses::ok&&imageRead){
+    Writer data(8+imageReadLength);data.u32(0,imageReadOffset);data.u32(4,uint32_t(imageRead->bytes.size()));
+    std::copy_n(imageRead->bytes.data()+imageReadOffset,imageReadLength,data.bytes.data()+8);
+    addOwned(wire::imageResourceChunkBlob,imageRead->id,std::move(data));
+  }
+  if(status==wire::statuses::ok&&fontRead){
+    Writer data(8+fontReadLength);data.u32(0,fontReadOffset);data.u32(4,uint32_t(fontRead->bytes.size()));
+    std::copy_n(fontRead->bytes.data()+fontReadOffset,fontReadLength,data.bytes.data()+8);
+    addOwned(wire::fontResourceChunkBlob,fontRead->id,std::move(data));
+  }
+  const auto interactionBlobs=[&](const Node& n,const DrawItem* item=nullptr){
+    if(n.imageStyle)addOwned(wire::imagePaintBlob,n.id,imagePaintBytes(*n.imageStyle,n.imagePaint.get()));
+    if(n.fontResource||n.fontPinned||n.fontRevision!=1){Writer data(24);writeHandle(data,0,n.fontResource?n.fontResource->id:Handle{});
+      data.u64(8,n.fontRevision);data.u32(16,n.fontPinned?1u:0u);addOwned(wire::fontBindingBlob,n.id,std::move(data));}
+    if(n.paintPlacement)addOwned(wire::paintPlacementBlob,n.id,paintPlacementBytes(*n.paintPlacement));
     if(n.clipStyle)addOwned(12,n.id,clipStyleBytes(*n.clipStyle));
-    if(n.resolvedPaint||n.nativePaint)addOwned(13,n.id,nativePaintBytes(*(n.resolvedPaint?n.resolvedPaint:n.nativePaint)));
+    if(n.resolvedPaint||n.nativePaint)addOwned(13,n.id,nativePaintBytes(*(item&&item->paint?item->paint:n.resolvedPaint?n.resolvedPaint:n.nativePaint)));
     if(n.paragraph)addOwned(11,n.id,paragraphBytes(n.paragraph->value));
     const auto& graph=n.graphics;const auto& m=graph.transform;
     if(graph.path||graph.origin||graph.alignment||graph.shadowColor||graph.strokeColor||graph.blur||m.a!=1||m.b!=0||m.c!=0||m.d!=1||m.tx!=0||m.ty!=0){
@@ -508,7 +774,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       }
     }
   };
-  if(frame)for(const auto& item:frame->items){const auto& node=rows->get(item.node);interactionBlobs(node);
+  if(frame)for(const auto& item:frame->items){const auto& node=rows->get(item.node);interactionBlobs(node,&item);
     if(node.layerLink.role){Writer data(wire::layerCompositionBytes);
       data.u32(0,node.layerLink.role);data.u32(4,(node.layerLink.leader?wire::layerCompositionFlags::linked:0u)|
         (item.layerTransform?wire::layerCompositionFlags::hasTransform:0u)|
@@ -535,11 +801,18 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         addOwned(9,event.node,std::move(bytes));}}
   if (rows && (opcode == wire::opcodes::preparationScene || measure)) {
     std::set<uint64_t> resources;
+    size_t inlineResourceBytes=0;
     for (const auto* node : rowNodes) {
       const auto& n = *node;
       if (n.text) blobs.push_back({1, n.id, {reinterpret_cast<const uint8_t*>(n.text->value.data()), n.text->value.size()}});
-      if (n.resource && resources.insert(n.resource->id.key()).second)
-        blobs.push_back({2, n.resource->id, {n.resource->bytes.data(), n.resource->bytes.size()}});
+      if (n.resource && resources.insert(n.resource->id.key()).second) {
+        // The preparation holds backing across bounded Content reads.
+        if(n.resource->bytes.size()>wire::limits::imageChunkBytes-inlineResourceBytes){
+          Writer data(8);data.u32(0,uint32_t(n.resource->bytes.size()));
+          addOwned(wire::imageResourceBlob,n.resource->id,std::move(data));
+        }else {inlineResourceBytes+=n.resource->bytes.size();
+          blobs.push_back({2, n.resource->id, {n.resource->bytes.data(), n.resource->bytes.size()}});}
+      }
     }
   }
   for (const auto& blob : blobs) blobBytes += 24 + (blob.data.length + 7) / 8 * 8;
@@ -615,6 +888,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       response.f64(b+wire::stateFields::queryBaseline,q.value.baseline);response.f64(b+wire::stateFields::queryValue,q.value.value);
     }
     response.u64(b + wire::stateFields::layoutWork, v.layoutWork);
+    response.u64(b + wire::stateFields::imagePaintWork,v.imagePaintWork);
+    response.u64(b + wire::stateFields::appFrameWork,v.appFrameSerial);
     response.u64(b + wire::stateFields::layoutReused, v.layoutReused);
     response.u64(b + wire::stateFields::layoutDocument, v.active ? v.active->document->epoch : 0);
     response.u64(b + wire::stateFields::layoutMetrics, v.active ? v.active->metrics.epoch : 0);
@@ -642,6 +917,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       if(v.published->scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){flags|=256u;break;}
   }
   response.u32(b + wire::stateFields::flags, flags);
+  if(frame){response.u64(b+wire::stateFields::framePaintWork,frame->paintWork);response.u64(b+wire::stateFields::framePaintNodes,frame->paintNodes);response.u64(b+wire::stateFields::framePlacementNodes,frame->placementNodes);}
   size_t cursor = b + wire::stateBytes;
   const auto frameFocus=frame?(opcode==wire::opcodes::semanticsSnapshot&&view?view->focusNode:frame->focusNode):Handle{};
   const auto framePeer=frame?canonicalFocusPeer(*rows,frameFocus):Handle{};

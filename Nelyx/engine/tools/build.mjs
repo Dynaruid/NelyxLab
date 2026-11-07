@@ -6,13 +6,30 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import ts from 'typescript';
+import { runTypeScriptCompiler } from '../../sdk/tooling/metro/src/typescript-compiler.cjs';
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
 import { buildAppSdkHost } from './app-sdk.mjs';
 import { checkWebRuntime } from '../../skia/eng/prepare-web-runtime.mjs';
 
 export const engineRoot = path.resolve(import.meta.dirname, '..');
 export const timeout = 1_200_000;
+/** Windows indexers can briefly retain a just-produced directory handle. */
+export async function renameEngineDirectory(
+  from,
+  to,
+  rename = fs.renameSync,
+  delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+) {
+  for (let attempt = 0; ; ++attempt) {
+    try {
+      rename(from, to);
+      return;
+    } catch (error) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 3) throw error;
+      await delay((attempt + 1) * 200);
+    }
+  }
+}
 const pin = '4.0.22';
 const fallbackFonts = [
   {
@@ -37,20 +54,12 @@ export function run(command, args, options = {}) {
   return result.stdout.trim();
 }
 function checkBrowserTypes() {
-  const file = path.join(engineRoot, 'platform/web/tsconfig.json'),
-    config = ts.readConfigFile(file, ts.sys.readFile);
-  if (config.error) throw Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(file)),
-    program = ts.createProgram(parsed.fileNames, { ...parsed.options, noEmit: true }),
-    diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];
-  if (diagnostics.length)
-    throw Error(
-      ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-        getCurrentDirectory: ts.sys.getCurrentDirectory,
-        getCanonicalFileName: (file) => file,
-        getNewLine: () => '\n',
-      }),
-    );
+  const checked = runTypeScriptCompiler(
+    path.resolve(engineRoot, '../..'),
+    ['-p', path.join(engineRoot, 'platform/web/tsconfig.json'), '--pretty', 'false'],
+    '@typescript/native',
+  );
+  if (checked.status !== 0) throw Error(checked.stdout + checked.stderr);
 }
 export function buildProfiles(
   directory,
@@ -165,6 +174,8 @@ export function sourceIdentity() {
     '../sdk/package.json',
     '../sdk/tsconfig.build.json',
     '../eng/build-packages.mjs',
+    '../sdk/tooling/metro/src/typescript-compiler.cjs',
+    '../sdk/tooling/metro/package.json',
     '../sdk/tooling/cli/src/windows-static-hermes.mjs',
     ...['core', 'bindings', 'include', 'schema', 'tools', 'platform', 'render'].flatMap((dir) =>
       tree(path.join(engineRoot, dir)).map((file) => `${dir}/${file}`),
@@ -177,6 +188,7 @@ export function sourceIdentity() {
     '../sdk/tooling/cli/src/engine-v2-runner.mjs',
     '../sdk/tooling/cli/src/engine-v2-development.mjs',
     '../sdk/tooling/cli/src/engine-v2-data-api.mjs',
+    '../sdk/tooling/cli/src/engine-v2-assets.mjs',
     '../sdk/tooling/cli/src/engine-v2-graph.mjs',
     '../sdk/tooling/cli/src/supply-runner.mjs',
     ...tree(path.resolve(engineRoot, '../src')).map((file) => '../src/' + file),
@@ -195,6 +207,7 @@ export function sourceIdentity() {
     '../skia/eng/prepare-web-runtime.mjs',
     '../skia/eng/source-build/canvaskit.lock.json',
     '../skia/eng/source-build/canvaskit-paragraph.patch',
+    '../skia/eng/source-build/canvaskit-picture.cpp',
     ...['windows', 'windows-hermes'].flatMap((dir) =>
       tree(path.resolve(engineRoot, '../sdk/native', dir)).map(
         (file) => '../sdk/native/' + dir + '/' + file,
@@ -269,6 +282,7 @@ async function browserAssets(supply, supplier, runtime) {
   for (const [name, entry, globalName] of [
     ['coordinator', 'platform/web/coordinator.ts'],
     ['owner', 'platform/web/owner.ts', 'NelyxV2Owner'],
+    ['app-text', 'platform/web/app-text.ts', 'NelyxV2AppText'],
     ['main', 'platform/web/main.ts'],
     ['app-worker', '../../sample/nelyx-testbed-app-2/src/v2-app.ts'],
     ['app-native', '../../sample/nelyx-testbed-app-2/src/v2-app.ts'],
@@ -372,12 +386,25 @@ async function main() {
                 version: webRuntime.version,
                 variant: 'owned-full',
                 paragraphApiVersion: 1,
+                pictureApiVersion: 2,
+                fontApiVersion: 1,
+                initialMemoryBytes: 128 * 1024 * 1024,
+                maximumMemoryBytes: 256 * 1024 * 1024,
                 sourceManifest: 'canvaskit/native-manifest.json',
                 js: 'canvaskit/canvaskit.js',
                 wasm: 'canvaskit/canvaskit.wasm',
               }
             : undefined,
           hermes: hosts ? supplier.revision : undefined,
+          appText: hosts
+            ? {
+                version: 12,
+                bootstrapVersion: 1,
+                fontRevision: 1,
+                quotaBytes: 320 * 1024 * 1024,
+                script: 'web/app-text.js',
+              }
+            : undefined,
           fonts: hosts
             ? [
                 { path: 'assets/font.ttf', family: 'NelyxDefault' },
@@ -395,11 +422,11 @@ async function main() {
         2,
       ) + '\n',
     );
-    if (fs.existsSync(final)) fs.renameSync(final, backup);
+    if (fs.existsSync(final)) await renameEngineDirectory(final, backup);
     try {
-      fs.renameSync(supply, final);
+      await renameEngineDirectory(supply, final);
     } catch (error) {
-      if (fs.existsSync(backup)) fs.renameSync(backup, final);
+      if (fs.existsSync(backup)) await renameEngineDirectory(backup, final);
       throw error;
     }
     console.log('Current engine v2 supply: ' + final);

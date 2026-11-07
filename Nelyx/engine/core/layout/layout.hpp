@@ -12,6 +12,7 @@ struct LayoutBox;
 struct Placement {
   std::shared_ptr<const LayoutBox> box;
   double x = 0, y = 0;
+  bool visible = true;
 };
 struct LayoutBox {
   Lease lease;
@@ -19,11 +20,12 @@ struct LayoutBox {
   uint64_t revision;
   uint64_t editSerial;
   LayoutConstraints input;
-  double width = 0, height = 0, baseline = -1;
+  double width = 0, height = 0, baseline = -1, ideographicBaseline = -1;
   double textWidth = -1, textHeight = -1, textOffsetX = 0;
   bool contentOverflow = false;
   std::shared_ptr<const TextGeometry> textGeometry;
   std::shared_ptr<const ListGeometry> listGeometry;
+  std::shared_ptr<const ParagraphData> paragraph;
   std::vector<Placement> children;
   LayoutBox(const Node &n, LayoutConstraints constraints, size_t count)
       : lease(n.lease.ledger, sizeof(LayoutBox) + count * sizeof(Placement)), node(n.id),
@@ -40,6 +42,8 @@ struct Measurement {
   double width = 0, height = 0, minimum = 0, maximum = 0, baseline = -1;
   std::shared_ptr<const TextGeometry> geometry = nullptr;
   bool didExceedMaxLines = false;
+  double ideographicBaseline = -1;
+  std::shared_ptr<const ParagraphGeometry> placeholders = nullptr;
 };
 struct LayoutOutput {
   Lease lease;
@@ -67,6 +71,7 @@ public:
   std::shared_ptr<const LayoutOutput> output() const;
   uint64_t work() const;
   uint64_t reused() const;
+  uint64_t imagePaintWork() const;
 
 private:
   struct State;

@@ -2,6 +2,11 @@
 import { body, packet, protocol as p, response } from '../../../runtime/engine-client/index.ts';
 import { exchange, sessionOwner } from './common.ts';
 import type { BrowserModule } from './common.ts';
+export interface ProviderMemoryBudget {
+  set(kind: number, bytes: number): void;
+  reserve(kind: number, bytes: number): () => void;
+  close(): void;
+}
 /** Host-only, absolute accounts in the shared C++ session ledger. */
 export class ProviderBudget {
   private accounts = [0, 0, 0, 0, 0, 0];

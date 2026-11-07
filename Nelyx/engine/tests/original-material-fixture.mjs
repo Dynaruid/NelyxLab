@@ -38,7 +38,7 @@ class CounterState extends TickerProviderStateMixin<Counter>{
  focusChanged(which:'a'|'b',focused:boolean){const node=which==='a'?this.radioA:this.radioB;this.focusEvents.push({which,focused,...(focused?{rect:[node.rect.left,node.rect.top,node.rect.width,node.rect.height],offset:[node.offset.dx,node.offset.dy]}:{})});if(this.focusEvents.length>20)this.focusEvents.shift();}
  focusManager:any;focusTrace=()=>{const node=this.focusManager.primaryFocus;context.notify({kind:'original-focus-state',primary:node?.debugLabel,scope:node?.constructor.name,plain:node===this.focus,radioA:node===this.radioA,radioB:node===this.radioB,skip:node?.skipTraversal,can:node?.canRequestFocus});};
  change(which:'taps'|'filled'|'tinted'|'outlined'|'elevated'){this.setState(()=>{this[which]++;});if(which==='taps')this.fade.animateTo(this.fade.value>0.75?0.5:1,{duration:180});this.report(which);}
- build(){return new Directionality('ltr',new AppFocus(new Theme(new ThemeData(),new Padding({left:24,top:24},new Column([
+ build(){return new Directionality('ltr',new AppFocus(new Theme(new ThemeData(),new Padding({left:24,top:24,right:0,bottom:0},new Column([
   new Text('Original Material buttons → Native C++',{fontSize:24,color:0xff172033}),
   new SizedBox(undefined,18),
   new Text('plain '+this.taps+' / filled '+this.filled+' / tinted '+this.tinted,{fontSize:23,color:0xff172033}),

@@ -48,6 +48,7 @@ import {
   RenderBox,
   RelayoutWhenSystemFontsChangeMixin,
   registerNativeRenderMetadata,
+  isNativeRenderObject,
 } from '@nelyx/core/framework/rendering/object';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
@@ -77,7 +78,10 @@ import {
 import { sliderThemeFieldNames } from './generated/slider/slider-theme-fields.generated.ts';
 import { materialSliderDefaults } from './internal/slider/slider-defaults.ts';
 import { RectangularSliderValueIndicatorShape } from './slider-shapes.ts';
-import { nativeMaterialSliderPaint } from './internal/slider/native-paint.ts';
+import {
+  nativeMaterialSliderPaint,
+  nativeMaterialSliderIndicator,
+} from './internal/slider/native-paint.ts';
 export interface SliderOptions extends WidgetOptions {
   /** @dartType double */ readonly value: number;
   readonly onChanged: ((value: number) => void) | null;
@@ -425,7 +429,11 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
   renderer(): MaterialSliderRender | null {
     if (!this.live) return null;
     const render = this.surfaceKey.currentContext?.findRenderObject();
-    return render instanceof MaterialSliderRender && render.attached ? render : null;
+    return render instanceof MaterialSliderRender &&
+      !render.debugDisposed &&
+      (render.attached || isNativeRenderObject(render))
+      ? render
+      : null;
   }
   build(context: BuildContext): Widget {
     const widget = this.widget,
@@ -771,6 +779,29 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
       sizeWithOverflow: m.screen.isEmpty ? new Size(this.size.width, this.size.height) : m.screen,
     };
   }
+  nativeIndicator(): ReturnType<typeof nativeMaterialSliderIndicator> {
+    const m = this.model,
+      always = m.theme.showValueIndicator === ShowValueIndicator.alwaysVisible;
+    if (
+      (!this.attached && !isNativeRenderObject(this)) ||
+      this.debugDisposed ||
+      !m.enabled ||
+      m.label === null ||
+      (!always &&
+        (!showWhenDragged(m.theme, m.divisions !== null) || m.owner.indicatorAnimation.isDismissed))
+    )
+      return { kind: 'paint', entries: [] };
+    return nativeMaterialSliderIndicator({
+      ...m,
+      ...this.paintThemes(),
+      enableProgress: m.owner.enableAnimation.value,
+      reference: this,
+      painter: this.painter,
+      activation: always ? 1 : m.owner.indicatorAnimation.value,
+      textScale: m.scale,
+      screenWidth: m.screen.width,
+    });
+  }
   paintIndicator(context: PaintingContext): void {
     const m = this.model,
       always = m.theme.showValueIndicator === ShowValueIndicator.alwaysVisible;
@@ -887,6 +918,12 @@ class SliderIndicator extends LeafRenderObjectWidget {
   }
 }
 class SliderIndicatorRender extends RenderBox {
+  static {
+    registerNativeRenderMetadata(
+      SliderIndicatorRender.prototype,
+      (source) => source.slider.renderer()?.nativeIndicator() ?? { kind: 'paint', entries: [] },
+    );
+  }
   constructor(readonly slider: MaterialSliderState) {
     super();
   }

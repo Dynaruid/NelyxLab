@@ -9,7 +9,14 @@ export const engineV2DataApis = Object.freeze(
     'foundation/notifier',
     'foundation/disposable',
     'foundation/clock',
+    'services/asset-bundle',
+    'services/asset-manifest',
     'ui/color',
+    'ui/immutable-buffer',
+    'ui/image-descriptor',
+    'ui/image-decoder',
+    'ui/codec',
+    'ui/image',
     'ui/size',
     'ui/offset',
     'ui/rect',
@@ -49,7 +56,7 @@ export function engineV2ImportRoute(name) {
 }
 /** Candidate App imports require the explicit original-elements SDK entry in the bundle. */
 export function engineV2OriginalAppRoute(name) {
-  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key)|hosting\/resources)|(?:material|cupertino)\/[^/]+)$/.test(
+  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key|font-loader)|hosting\/resources)|(?:material|cupertino)\/[^/]+)$/.test(
     name,
   )
     ? name
@@ -60,14 +67,14 @@ export function isEngineV2OriginalAppImplementation(relative) {
   return (
     /^(foundation\/|math\/|ui\/|services\/|framework\/)/.test(relative) ||
     /^runtime\/(owner-transaction|dependency-scope|depth-queue)\.js$/.test(relative) ||
-    /^hosting\/(section-lifetime|editor-style|input-geometry|resources|images|flex-layout)\.js$/.test(
+    /^hosting\/(section-lifetime|editor-style|input-geometry|resources|images|flex-layout|text-fonts|text-layout-budget)\.js$/.test(
       relative,
     )
   );
 }
 /** A reused value API must not pull an old Widget, RenderObject or host into the bundle. */
 export function isEngineV2DataImplementation(relative) {
-  return /^(foundation\/|math\/|ui\/(color|color-source-adapter|size|offset|offset-base|rect|radius|rrect|rrect-data|geometry|types|clip|typography|matrix4|math|value-math)(\.js$|\/)|internal\/ui\/color-source-adapter\.js$|framework\/physics\/|framework\/animation\/(curves|bounce)\.js$|framework\/painting\/(alignment|edge-insets|border-radius|color-swatch|basic-types)\.js$|framework\/rendering\/constraints\.js$)/.test(
+  return /^(hosting\/(images|resources)\.js$|foundation\/|math\/|services\/(asset-bundle|asset-loader-binding|asset-manifest|json-serialization|message-codec|message-codecs|value-string)\.js$|ui\/(color|color-source-adapter|size|offset|offset-base|rect|radius|rrect|rrect-data|geometry|types|clip|typography|matrix4|math|value-math|immutable-buffer|immutable-buffer-binding|image|codec|image-descriptor|image-descriptor-binding|image-decoder|resource-retention|frame-resource-list-binding)(\.js$|\/)|internal\/ui\/color-source-adapter\.js$|framework\/physics\/|framework\/animation\/(curves|bounce)\.js$|framework\/painting\/(alignment|edge-insets|border-radius|color-swatch|basic-types)\.js$|framework\/rendering\/constraints\.js$)/.test(
     relative,
   );
 }

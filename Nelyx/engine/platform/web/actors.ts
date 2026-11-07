@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { body, protocol as p, measurementBody } from '../../../runtime/engine-client/index.ts';
+import {
+  body,
+  protocol as p,
+  measurementBody,
+  fontResourceReadBytes,
+  readFontResourceSlice,
+  imageResourceReadBytes,
+  readImageResourceSlice,
+} from '../../../runtime/engine-client/index.ts';
 import type { EngineResponse } from '../../../runtime/engine-client/index.ts';
 import { CanvasKitProvider } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures } from '../../render/canvaskit-web/provider.ts';
@@ -7,6 +15,7 @@ import { exchange, request, failure } from './common.ts';
 import type { BrowserModule } from './common.ts';
 import { DemandFrameClock } from './frame-clock.ts';
 import type { FrameClockSample } from './frame-clock.ts';
+import { FontPreparation } from './font-preparation.ts';
 
 export type Viewport = {
   width: number;
@@ -19,12 +28,14 @@ export type ActorPost = (value: Record<string, unknown>, transfer?: ArrayBuffer[
 export function preparedTransfers(packet: PreparedPictures): ArrayBuffer[] {
   return [
     ...packet.pictures.map((p) => p.bytes),
+    ...(packet.fontCatalogs ?? []).map((font) => font.bytes),
     ...packet.texts.flatMap((p) =>
       p.runs.flatMap((r) => [r.glyphs.buffer as ArrayBuffer, r.positions.buffer as ArrayBuffer]),
     ),
   ];
 }
 export class ContentActor {
+  private readonly fontPreparation: FontPreparation;
   private scheduled = false;
   private stopped = false;
   private last = 0n;
@@ -43,11 +54,65 @@ export class ContentActor {
     private provider: CanvasKitProvider,
     private post: ActorPost,
     private sharedOwner: boolean,
-  ) {}
+  ) {
+    this.fontPreparation = new FontPreparation(module, engine, provider, 'content', post);
+  }
+  checkFonts(): void {
+    this.fontPreparation.check();
+  }
   kick(): void {
     if (this.stopped || this.scheduled) return;
     this.scheduled = true;
     this.timer = setTimeout(() => this.step(), 0);
+  }
+  private resources(scene: EngineResponse): { scene: EngineResponse; release(): void } {
+    const images = this.provider.acquireImageResources(
+      scene,
+      (resource, offset, length, preparation) => {
+        const result = request(
+          this.module,
+          this.engine,
+          p.opcodes.imageResourceRead,
+          imageResourceReadBytes(resource, offset, length, preparation),
+        );
+        if (result.status !== p.statuses.ok)
+          throw Error('Core image resource read rejected: ' + result.status);
+        const slice = readImageResourceSlice(result);
+        if (!slice) throw Error('Core image resource read is missing');
+        return slice;
+      },
+    );
+    try {
+      const fonts = this.provider.acquireFontResources(
+        scene,
+        (resource, offset, length, preparation) => {
+          const result = request(
+            this.module,
+            this.engine,
+            p.opcodes.fontResourceRead,
+            fontResourceReadBytes(resource, offset, length, preparation),
+          );
+          if (result.status !== p.statuses.ok)
+            throw Error('Core font resource read rejected: ' + result.status);
+          const slice = readFontResourceSlice(result);
+          if (!slice) throw Error('Core font resource read is missing');
+          return slice;
+        },
+      );
+      return {
+        scene: images.scene,
+        release: () => {
+          try {
+            fonts();
+          } finally {
+            images.release();
+          }
+        },
+      };
+    } catch (error) {
+      images.release();
+      throw error;
+    }
   }
   private step(): void {
     this.scheduled = false;
@@ -87,12 +152,18 @@ export class ContentActor {
           device: measurement.device,
         };
         const measurementStart = performance.now();
-        const result = request(
-          this.module,
-          this.engine,
-          p.opcodes.measureResult,
-          measurementBody(measurement, this.provider.measure(measurement)),
-        );
+        const resources = this.resources(measurement);
+        let result;
+        try {
+          result = request(
+            this.module,
+            this.engine,
+            p.opcodes.measureResult,
+            measurementBody(measurement, this.provider.measure(resources.scene)),
+          );
+        } finally {
+          resources.release();
+        }
         this.timing.measurementElapsedMs += performance.now() - measurementStart;
         if (![p.statuses.ok, p.statuses.stale].includes(result.status as 0))
           throw new Error('Provider metrics rejected: ' + result.status);
@@ -104,9 +175,24 @@ export class ContentActor {
           throw new Error('Preparation snapshot rejected (' + scene.status + ')');
         this.last = scene.preparation;
         attempt = { id: scene.preparation, metrics: scene.metrics, device: scene.device };
-        const packet = this.provider.prepare(scene, this.sharedOwner);
+        const resources = this.resources(scene);
+        let packet: PreparedPictures;
+        try {
+          packet = this.provider.prepare(resources.scene, this.sharedOwner);
+        } finally {
+          resources.release();
+        }
         this.timing.recordElapsedMs = performance.now() - recordStart;
-        this.post({ kind: 'prepared', packet }, this.sharedOwner ? [] : preparedTransfers(packet));
+        try {
+          this.post(
+            { kind: 'prepared', packet },
+            this.sharedOwner ? [] : preparedTransfers(packet),
+          );
+        } catch (error) {
+          this.provider.releasePacket(packet.preparation);
+          this.provider.retireExcept(scene.activePreparation);
+          throw error;
+        }
         this.post({
           kind: 'content-stats',
           counters: { ...this.provider.counters },
@@ -163,9 +249,21 @@ export class ContentActor {
     );
     if (
       [
+        p.opcodes.fontTransitionBegin,
+        p.opcodes.fontTransitionCommit,
+        p.opcodes.fontTransitionAbort,
+        p.opcodes.fontRevision,
+      ].includes(opcode as 51)
+    ) {
+      this.checkFonts();
+      this.post({ kind: 'font-wake' });
+    }
+    if (
+      [
         p.opcodes.transaction,
         p.opcodes.openView,
         p.opcodes.fontRevision,
+        p.opcodes.fontTransitionCommit,
         p.opcodes.layoutQuery,
       ].includes(opcode as 2)
     )
@@ -174,10 +272,12 @@ export class ContentActor {
   }
   stop(): void {
     this.stopped = true;
+    this.fontPreparation.stop();
     if (this.timer !== undefined) clearTimeout(this.timer);
   }
 }
 export class RenderActor {
+  private readonly fontPreparation: FontPreparation;
   private stopped = false;
   private running: Promise<void> | undefined;
   private clock: DemandFrameClock;
@@ -195,10 +295,14 @@ export class RenderActor {
     private provider: CanvasKitProvider,
     private post: ActorPost,
   ) {
+    this.fontPreparation = new FontPreparation(module, engine, provider, 'render', post);
     this.clock = new DemandFrameClock(
       (sample) => this.beginFrame(sample),
       (error) => this.post({ kind: 'provider-error', message: failure(error) }),
     );
+  }
+  checkFonts(): void {
+    this.fontPreparation.check();
   }
   get clockSnapshot(): FrameClockSample {
     return this.clock.snapshot;
@@ -454,6 +558,7 @@ export class RenderActor {
     this.stopped = true;
     this.clock.close();
     await this.running;
+    this.fontPreparation.stop();
     this.post({ kind: 'render-stopped', state: this.last, frameClock: this.clock.snapshot });
   }
 }

@@ -5,8 +5,55 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { buildProfiles, timeout, run } from '../tools/build.mjs';
+import { buildProfiles, timeout, run, renameEngineDirectory } from '../tools/build.mjs';
 import { nativeTransport, wasmFactory } from './transports.mjs';
+test(
+  'Engine promotion survives transient Windows directory locks and preserves a permanent rename failure',
+  { timeout },
+  async () => {
+    const parent = fs.realpathSync(os.tmpdir()),
+      directory = fs.mkdtempSync(path.join(parent, 'engine-promotion-'));
+    try {
+      const source = path.join(directory, 'supply'),
+        target = path.join(directory, 'dist');
+      fs.mkdirSync(source);
+      fs.writeFileSync(path.join(source, 'current'), 'current');
+      let attempts = 0;
+      await renameEngineDirectory(
+        source,
+        target,
+        (from, to) => {
+          if (++attempts < 3) throw Object.assign(Error('Sharing violation'), { code: 'EPERM' });
+          fs.renameSync(from, to);
+        },
+        async () => {},
+      );
+      assert.equal(attempts, 3);
+      assert.equal(fs.readFileSync(path.join(target, 'current'), 'utf8'), 'current');
+      const permanent = Object.assign(Error('Still locked'), { code: 'EACCES' });
+      attempts = 0;
+      await assert.rejects(
+        renameEngineDirectory(
+          target,
+          source,
+          () => {
+            ++attempts;
+            throw permanent;
+          },
+          async () => {},
+        ),
+        (error) => error === permanent,
+      );
+      assert.equal(attempts, 4);
+      assert.equal(fs.readFileSync(path.join(target, 'current'), 'utf8'), 'current');
+      assert.equal(fs.existsSync(source), false);
+    } finally {
+      assert.equal(path.dirname(path.resolve(directory)), parent);
+      assert.ok(path.basename(directory).startsWith('engine-promotion-'));
+      fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3 });
+    }
+  },
+);
 import {
   protocol as p,
   packet,
@@ -36,6 +83,21 @@ import { originalLayerContracts } from './original-layer-contracts.mjs';
 import { paintProgramContracts } from './paint-program-contracts.mjs';
 import { originalMaterialSliderContracts } from './original-material-slider-contracts.mjs';
 import { originalSliderInteractionContracts } from './original-slider-interaction-contracts.mjs';
+import { paragraphPaintContracts } from './paragraph-paint-contracts.mjs';
+import { paintPathContracts } from './paint-path-contracts.mjs';
+import { livePaintContracts } from './live-paint-contracts.mjs';
+import { orderedPaintContracts } from './ordered-paint-contracts.mjs';
+import { originalRadioContracts } from './original-radio-contracts.mjs';
+import { richParagraphContracts } from './rich-paragraph-contracts.mjs';
+import { paragraphExtrasContracts } from './paragraph-extras-contracts.mjs';
+import { inlineParagraphContracts } from './inline-paragraph-contracts.mjs';
+import { fontResourceContracts } from './font-resource-contracts.mjs';
+import { imageResourceContracts } from './image-resource-contracts.mjs';
+import { imageStyleContracts } from './image-style-contracts.mjs';
+import { imageClockContracts } from './image-clock-contracts.mjs';
+import { originalImageContracts } from './original-image-contracts.mjs';
+import { fontTransitionContracts } from './font-transition-contracts.mjs';
+import { originalInlineContracts } from './original-inline-contracts.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 let directory;
@@ -263,6 +325,21 @@ originalLayerContracts({ using, timeout });
 paintProgramContracts({ using, timeout, h });
 originalMaterialSliderContracts({ using, timeout });
 originalSliderInteractionContracts({ using, timeout });
+paragraphPaintContracts({ using, timeout, h });
+paintPathContracts({ using, timeout, h });
+livePaintContracts({ using, timeout, h });
+orderedPaintContracts({ using, timeout, h });
+richParagraphContracts({ using, timeout, h });
+paragraphExtrasContracts({ using, timeout, h });
+inlineParagraphContracts({ using, timeout, h });
+fontResourceContracts({ using, timeout, h });
+imageResourceContracts({ using, timeout, h });
+imageStyleContracts({ using, timeout, h });
+imageClockContracts({ using, timeout, h });
+originalImageContracts({ using, timeout });
+fontTransitionContracts({ using, timeout, h });
+originalInlineContracts({ using, timeout });
+originalRadioContracts({ using, timeout, h });
 coverageContracts({ using, timeout, h });
 interactionContracts({ using, timeout, h });
 for (const profile of ['native', 'single-worker', 'threaded']) {
@@ -351,7 +428,7 @@ for (const profile of ['native', 'single-worker', 'threaded']) {
         assert.equal(hello.contentIndependent, false);
         const missing = await f.send(
           p.opcodes.hello,
-          body(8, (v) => v.setUint32(0, 0x80000000, true)),
+          body(8, (v) => v.setUint32(0, p.capabilities.surface, true)),
           { owner: globalOwner },
         );
         assert.equal(missing.status, p.statuses.capabilityMissing);
@@ -1166,24 +1243,27 @@ for (const profile of ['native', 'single-worker', 'threaded']) {
       }),
   );
 }
+function nativeProbe(name) {
+  if (!directory) {
+    directory = fs.mkdtempSync(path.join(parent, 'nelyx-engine-v2-'));
+    // The packaged supply omits test executables. Build just these native
+    // consumers when a complete prebuilt run reaches the C ABI/clipboard probes.
+    buildProfiles(directory, ['native']);
+  }
+  return path.join(directory, 'native', name + (process.platform === 'win32' ? '.exe' : ''));
+}
 test(
   'Windows clipboard open/allocation/lock/read failures preserve edit intent and release ownership',
   { timeout, skip: process.platform !== 'win32' },
   () => {
-    run(path.join(directory, 'native/nelyx_engine_clipboard_test.exe'), []);
+    run(nativeProbe('nelyx_engine_clipboard_test'), []);
   },
 );
 test(
   'public C ABI accepts a C consumer and releases outputs after session destruction',
   { timeout },
   () => {
-    run(
-      path.join(
-        directory,
-        'native/nelyx_engine_abi_test' + (process.platform === 'win32' ? '.exe' : ''),
-      ),
-      [],
-    );
+    run(nativeProbe('nelyx_engine_abi_test'), []);
   },
 );
 test(
@@ -1214,7 +1294,7 @@ test('Wasm returns copied packets across memory growth for each profile', { time
       );
       const saved = bytes.slice();
       assert.equal(
-        module._nelyx_engine_capabilities(),
+        module._nelyx_engine_capabilities() >>> 0,
         response(bytes).capabilities,
         'C ABI and protocol advertise the same headless capabilities',
       );

@@ -40,8 +40,12 @@ function fixture(directory) {
   return {
     schema: 'nelyx.canvaskit/v1',
     adapterAbi: 1,
-    version: 'm153-nelyx-paragraph.1',
+    version: 'm153-nelyx-paragraph.5',
     paragraphApiVersion: 1,
+    pictureApiVersion: 2,
+    fontApiVersion: 1,
+    initialMemoryBytes: 128 * 1024 * 1024,
+    maximumMemoryBytes: 256 * 1024 * 1024,
     source: {
       revision: lock.skia.revision,
       lockSha256: hash(lockBytes),
@@ -92,12 +96,16 @@ test(
       const manifest = fixture(directory);
       write(directory, 'native-manifest.json', manifest);
       const result = readWebRuntime({ projectRoot: directory }, directory);
-      assert.equal(result.manifest.version, 'm153-nelyx-paragraph.1');
+      assert.equal(result.manifest.version, 'm153-nelyx-paragraph.5');
       assert.equal(result.runtime.length, 2);
       for (const change of [
         { version: '0.41.0' },
         { schema: 'foreign.canvaskit/v1' },
         { paragraphApiVersion: undefined },
+        { pictureApiVersion: undefined },
+        { fontApiVersion: undefined },
+        { initialMemoryBytes: 32 * 1024 * 1024 },
+        { maximumMemoryBytes: undefined },
       ]) {
         write(directory, 'native-manifest.json', { ...manifest, ...change });
         assert.throws(

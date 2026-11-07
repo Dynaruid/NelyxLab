@@ -7,7 +7,7 @@ import {
 } from './engine-v2-data-api.mjs';
 
 /** Inspect actual bundle inputs, including direct paths and a second package copy. */
-export function inspectEngineV2Graph(inputs, coreDirectory) {
+export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
   const cache = new Map(),
     counts = {};
   const ownerOf = (file) => {
@@ -43,6 +43,40 @@ export function inspectEngineV2Graph(inputs, coreDirectory) {
       )
     );
   });
+  // SDK-owned image lifetime code needs these implementations in a Data App.
+  // That does not admit direct user imports of the private owners or an old
+  // host service. Inspect actual edges, including absolute/relative imports.
+  for (const [source, entry] of Object.entries(metadata)) {
+    if (!fs.existsSync(source)) continue;
+    const sourceOwner = ownerOf(fs.realpathSync(source));
+    if (['@nelyx/core', '@nelyx/sdk'].includes(sourceOwner?.name)) continue;
+    for (const dependency of entry.imports ?? []) {
+      if (dependency.external || !fs.existsSync(dependency.path)) continue;
+      const absolute = fs.realpathSync(dependency.path),
+        owner = ownerOf(absolute);
+      if (!owner) continue;
+      const implementation = path
+        .relative(owner.directory, absolute)
+        .replaceAll('\\', '/')
+        .replace(/^(dist|src)\//, '')
+        .replace(/\.ts$/, '.js');
+      if (
+        (owner.name === '@nelyx/core' &&
+          (/^ui\/(?:immutable-buffer-binding|image-descriptor-binding|frame-resource-list-binding)\.js$/.test(
+            implementation,
+          ) ||
+            implementation === 'hosting/images.js' ||
+            (!originalApp && implementation === 'hosting/resources.js'))) ||
+        (owner.name === '@nelyx/sdk' && implementation === 'runtime/engine-v2-images.js')
+      )
+        throw Error(
+          'Engine v2 cannot import an App owner implementation from user code: ' +
+            owner.name +
+            '/' +
+            implementation,
+        );
+    }
+  }
   let canonicalAppInputs = 0;
   for (const source of inputs) {
     if (!fs.existsSync(source)) continue; // esbuild's synthetic stdin has no file.
@@ -71,7 +105,9 @@ export function inspectEngineV2Graph(inputs, coreDirectory) {
     } else if (owner.name === '@nelyx/sdk') {
       allowed =
         implementation === 'backends/browser/platform.js' ||
-        /^runtime\/engine-v2(?:-app|-browser|-interaction|-original)?\.js$/.test(implementation);
+        /^runtime\/engine-v2(?:-app|-assets|-buffers|-network|-images|-browser|-interaction|-original)?\.js$/.test(
+          implementation,
+        );
     } else {
       allowed =
         implementation === 'v2.js' ||

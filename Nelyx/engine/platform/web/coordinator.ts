@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { protocol as p, packet, response } from '../../../runtime/engine-client/index.ts';
+import {
+  protocol as p,
+  packet,
+  response,
+  appTextServiceVersion,
+  appTextQuotaBytes,
+} from '../../../runtime/engine-client/index.ts';
 import { CanvasKitProvider, canvasKitSupply } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures, WebManifest } from '../../render/canvaskit-web/provider.ts';
 import { ContentActor, RenderActor, preparedTransfers } from './actors.ts';
@@ -25,6 +31,10 @@ let closing = false,
   telemetry: Record<string, unknown> | undefined;
 let pendingBytes = 0;
 let transportBudget: ProviderBudget | undefined;
+let appTextBudget: ProviderBudget | undefined;
+const ownedAppPorts = new Set<MessagePort>();
+const appTextReservations = new Map<MessagePort, () => void>();
+let retiredAppTextReservations = 0;
 const pending = new Map<number, { port: ClientPort; id: number; bytes: number; op: number }>();
 const ready = new Set<number>(),
   stopped = new Set<number>();
@@ -89,7 +99,15 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     failHost(String(value.message));
     return;
   }
-  if (kind === 'memory-pressure') {
+  if (kind === 'font-wake') {
+    if (content && render) {
+      content.checkFonts();
+      render.checkFonts();
+    } else {
+      contentWorker?.postMessage({ kind: 'v2-font-check' });
+      renderWorker?.postMessage({ kind: 'v2-font-check' });
+    }
+  } else if (kind === 'memory-pressure') {
     const request = pressureRequest;
     if (!request || value.revision !== request.revision || value.low !== request.low) return;
     const role = Number(value.role);
@@ -157,6 +175,7 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     });
   } else if (
     kind === 'preparation-error' ||
+    kind === 'font-preparation-error' ||
     kind === 'render-stats' ||
     kind === 'content-stats' ||
     kind === 'delay-started' ||
@@ -242,6 +261,7 @@ async function initialize(message: {
   engine = module._nelyx_wasm_open(1, 1, p.schema, 15);
   if (!engine) throw new Error('Engine session initialization failed');
   transportBudget = new ProviderBudget(module, engine, 3);
+  appTextBudget = new ProviderBudget(module, engine, 6);
   if (profile === 'threaded') {
     const adapter = cppString(new URL('web/owner.js', root).href),
       configuration = cppString(root);
@@ -289,6 +309,9 @@ const contentOps = new Set<number>([
   p.opcodes.queryResult,
   p.opcodes.acknowledge,
   p.opcodes.fontRevision,
+  p.opcodes.fontTransitionBegin,
+  p.opcodes.fontTransitionCommit,
+  p.opcodes.fontTransitionAbort,
   p.opcodes.layoutQuery,
   p.opcodes.layoutQueryResult,
   p.opcodes.layoutQueryCancel,
@@ -379,6 +402,14 @@ async function shutdown(): Promise<void> {
   }
   pendingBytes = 0;
   transportBudget?.close();
+  // The Main surface terminates its registered App workers before sending close.
+  // No App message can return this quota while its committed Wasm heap survives.
+  for (const release of appTextReservations.values()) {
+    release();
+    ++retiredAppTextReservations;
+  }
+  appTextReservations.clear();
+  appTextBudget?.close();
   if (content) {
     content.stop();
     await render?.stop();
@@ -402,11 +433,13 @@ async function shutdown(): Promise<void> {
   module.PThread?.terminateAllThreads();
   for (const port of ports) port.close();
   ports.clear();
+  ownedAppPorts.clear();
   post({
     kind: 'closed',
     state: {
       reservedBytes: 0,
       workersStopped: true,
+      appText: { reservations: 0, retired: retiredAppTextReservations, reservedBytes: 0 },
       frameClock: render?.clockSnapshot ?? telemetry?.renderClockClosed,
       provider: provider ? { ...provider.counters } : telemetry,
     },
@@ -421,10 +454,40 @@ scope.addEventListener('message', (event) => {
     else if (message.kind === 'ui-result') complete(message);
     else if (message.kind === 'port') {
       const port = message.port as MessagePort;
+      if (ports.size >= 8 || !(port instanceof MessagePort))
+        throw Error('App port admission exceeded');
       ports.add(port);
+      if (message.ownedApp === true) ownedAppPorts.add(port);
       port.start();
       port.addEventListener('message', (e) => {
         if (e.data.kind === 'packet') route(port, e.data);
+        else if (e.data.kind === 'app-text-reserve') {
+          try {
+            if (
+              closing ||
+              !announced ||
+              e.data.version !== appTextServiceVersion ||
+              !ownedAppPorts.has(port) ||
+              appTextReservations.has(port)
+            )
+              throw Error('App paragraph reservation requires an available host-owned App worker');
+            const release = appTextBudget!.reserve(2, appTextQuotaBytes);
+            appTextReservations.set(port, release);
+            send(port, {
+              kind: 'app-text-reservation',
+              version: appTextServiceVersion,
+              bytes: appTextQuotaBytes,
+            });
+            stats({
+              appText: {
+                reservations: appTextReservations.size,
+                reservedBytes: appTextReservations.size * appTextQuotaBytes,
+              },
+            });
+          } catch (error) {
+            send(port, { kind: 'app-text-reservation', error: failure(error) });
+          }
+        }
       });
     } else if (message.kind === 'viewport') {
       viewport = message.viewport;

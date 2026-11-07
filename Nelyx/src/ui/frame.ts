@@ -16,6 +16,10 @@ import {
 } from './resource-retention.ts';
 export { resourceKey } from './resource-retention.ts';
 import { GestureSettings } from './gesture-settings.ts';
+import {
+  captureFrameResourceList,
+  capturedFrameResourceList,
+} from './frame-resource-list-binding.ts';
 import { isCapturedTransform } from './geometry.ts';
 import type {
   FrameBuildToken,
@@ -346,10 +350,9 @@ function freezePaintCommandValue(command: PaintCommand): PaintCommand {
   }
 }
 const capturedCommands = new WeakSet<PaintCommand>();
-const capturedResourceLists = new WeakSet<readonly ResourceId[]>();
 /** @internal Only completed frame admission establishes unique immutable IDs. */
 export function isCapturedFrameResourceList(resources: readonly ResourceId[]): boolean {
-  return capturedResourceLists.has(resources);
+  return capturedFrameResourceList(resources);
 }
 /** Internal identity check; freezing an external object alone does not validate its fields. */
 export function isCapturedPaintCommand(command: PaintCommand): boolean {
@@ -616,7 +619,7 @@ function captureFrame(
       resources: Object.freeze([...admission.resources.values()]),
       estimatedBytes: admission.estimatedBytes,
     });
-    capturedResourceLists.add(result.resources);
+    captureFrameResourceList(result.resources);
     ownFrameResources(result.resources, captured);
   } catch (error) {
     errors.push(error);

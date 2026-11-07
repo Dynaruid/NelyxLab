@@ -44,6 +44,8 @@ export async function boot(
           ]);
         } else if (message.kind === 'v2-wake') {
           actor.kick();
+        } else if (message.kind === 'v2-font-check') {
+          actor.checkFonts();
         } else if (message.kind === 'v2-viewport' && actor instanceof RenderActor) {
           actor.update(message.viewport!);
         } else if (message.kind === 'v2-attach' && actor instanceof RenderActor) {

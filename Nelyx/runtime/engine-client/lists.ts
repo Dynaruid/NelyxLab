@@ -4,10 +4,17 @@ import type { EngineNodeSnapshot, EngineResponse } from './codec.ts';
 import { State, StatefulWidget, NodeWidget, ScrollView, Box, Text, ValueKey } from './widgets.ts';
 import type { Widget, NodeOptions } from './widgets.ts';
 
+/** Preserve the host's exact signal type without requiring DOM ambient names
+ * in Native consumers. A host with no declared controller has no native signal. */
+export type ListNativeAbortSignal = typeof globalThis extends {
+  AbortController: new () => { readonly signal: infer Signal };
+}
+  ? Signal
+  : never;
 /** Portable cancellation, including hosts without DOM globals. Use nativeSignal with fetch on Web. */
 export interface ListBuildSignal {
   readonly aborted: boolean;
-  readonly nativeSignal: AbortSignal | undefined;
+  readonly nativeSignal: ListNativeAbortSignal | undefined;
   addEventListener(type: 'abort', listener: () => void, options?: { once?: boolean }): void;
   removeEventListener(type: 'abort', listener: () => void): void;
   throwIfAborted(): void;

@@ -15,6 +15,10 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./internal/framework/widgets/native-radio-semantics": {
+      "types": "./dist/framework/widgets/native-radio-semantics.d.ts",
+      "default": "./dist/framework/widgets/native-radio-semantics.js"
+    },
     "./v2/original": {
       "types": "./dist/v2/engine-client/original.d.ts",
       "default": "./dist/v2/engine-client/original.js"
@@ -774,6 +778,22 @@
     "./services/asset-bundle": {
       "types": "./dist/services/asset-bundle.d.ts",
       "default": "./dist/services/asset-bundle.js"
+    },
+    "./services/font-loader": {
+      "types": "./dist/services/font-loader.d.ts",
+      "default": "./dist/services/font-loader.js"
+    },
+    "./internal/services/asset-loader-binding": {
+      "types": "./dist/services/asset-loader-binding.d.ts",
+      "default": "./dist/services/asset-loader-binding.js"
+    },
+    "./ui/fonts": {
+      "types": "./dist/ui/fonts.d.ts",
+      "default": "./dist/ui/fonts.js"
+    },
+    "./internal/ui/font-loader-binding": {
+      "types": "./dist/ui/font-loader-binding.d.ts",
+      "default": "./dist/ui/font-loader-binding.js"
     },
     "./services/asset-manifest": {
       "types": "./dist/services/asset-manifest.d.ts",
@@ -2122,6 +2142,30 @@
     "./framework/rendering/sliver-section-list": {
       "types": "./dist/framework/rendering/sliver-section-list.d.ts",
       "default": "./dist/framework/rendering/sliver-section-list.js"
+    },
+    "./ui/immutable-buffer": {
+      "types": "./dist/ui/immutable-buffer.d.ts",
+      "default": "./dist/ui/immutable-buffer.js"
+    },
+    "./internal/ui/immutable-buffer-binding": {
+      "types": "./dist/ui/immutable-buffer-binding.d.ts",
+      "default": "./dist/ui/immutable-buffer-binding.js"
+    },
+    "./ui/image-descriptor": {
+      "types": "./dist/ui/image-descriptor.d.ts",
+      "default": "./dist/ui/image-descriptor.js"
+    },
+    "./ui/image-decoder": {
+      "types": "./dist/ui/image-decoder.d.ts",
+      "default": "./dist/ui/image-decoder.js"
+    },
+    "./internal/ui/image-descriptor-binding": {
+      "types": "./dist/ui/image-descriptor-binding.d.ts",
+      "default": "./dist/ui/image-descriptor-binding.js"
+    },
+    "./internal/ui/frame-resource-list-binding": {
+      "types": "./dist/ui/frame-resource-list-binding.d.ts",
+      "default": "./dist/ui/frame-resource-list-binding.js"
     }
   },
   "scripts": {

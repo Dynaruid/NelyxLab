@@ -183,7 +183,7 @@ export function originalMaterialSliderContracts({ using, timeout }) {
           assert.equal(
             host.execution.rejectedFallbacks,
             1,
-            'A label remains an explicit W9-06-A obligation, without a hidden TS text renderer',
+            'A Core embedder without the required App text service rejects a label before commit',
           );
         } catch (error) {
           if (errors.length)

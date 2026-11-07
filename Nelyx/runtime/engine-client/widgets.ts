@@ -24,6 +24,7 @@ import { EngineError } from './client.ts';
 import { engineFailures } from './lifecycle.ts';
 import type { EngineViewClient } from './client.ts';
 import type { NativePaintOptions } from './native-paint.ts';
+import type { ImageStyleOptions } from './image-style.ts';
 import { Key, sameKey as equalKey } from '@nelyx/core/foundation/key';
 export { Key, LocalKey, UniqueKey, ValueKey, ObjectKey, KeyMap } from '@nelyx/core/foundation/key';
 
@@ -129,6 +130,7 @@ export class Directionality extends InheritedWidget {
   }
 }
 export interface NodeOptions {
+  readonly imageStyle?: ImageStyleOptions | null;
   readonly layerLink?: LayerLinkOptions | (() => LayerLinkOptions);
   readonly nativeFocus?: { readonly enabled: boolean; readonly skipTraversal: boolean };
   readonly canonicalKeyboard?: boolean;
@@ -136,6 +138,11 @@ export interface NodeOptions {
   /** Canonical semantics annotations that merge into the nearest semantic container. */
   readonly semanticsMergeIntoParent?: boolean;
   readonly nativePaint?: readonly NativePaintOptions[];
+  readonly paintPlacement?: import('./paint-placement.ts').PaintPlacementOptions;
+  readonly paragraphFont?: Pick<
+    import('./font-resource.ts').FontResourceBinding,
+    'resource' | 'fontRevision'
+  >;
   readonly paragraph?: ParagraphOptions;
   /** Explicit App geometry boundary: all descendant nodes must declare both finite sizes. */
   readonly appDrivenGeometry?: boolean;
@@ -458,6 +465,22 @@ const equalBytes = (a: Uint8Array, b: Uint8Array) =>
 
 /** Widget/Element reconciliation runs on App. All standard layout remains in C++ Content. */
 export class WidgetHost {
+  /** Unacknowledged image producers/snapshots still belong to this App scene. */
+  get hasPendingImageResources(): boolean {
+    return (
+      !!this.uploading ||
+      [...this.uploadedResources].some((resource) => !this.acceptedResources.has(resource))
+    );
+  }
+  /** Exact App references, including an accepted older tree after a NACK. */
+  get retainedImageResources(): ReadonlySet<ImageResource> {
+    const resources = new Set([...this.resources.keys(), ...this.acceptedResources]);
+    if (this.uploading) resources.add(this.uploading.resource);
+    for (const element of this.elements)
+      if (element.widget instanceof NodeWidget && element.widget.image)
+        resources.add(element.widget.image);
+    return resources;
+  }
   private rawSubscribed = false;
   private root: Widget | undefined;
   private tree: Element | undefined;
@@ -473,10 +496,13 @@ export class WidgetHost {
   private allocations = new Set<Element>();
   private free: NodeHandle[] = [];
   private nextSlot = 0;
-  private resourceSlot = 0;
   private resources = new Map<ImageResource, NodeHandle>();
   private acceptedResources = new Set<ImageResource>();
-  private freeResources: NodeHandle[] = [];
+  private uploadedResources = new Set<ImageResource>();
+  private nextImageUpload = 0n;
+  private uploading:
+    | { resource: ImageResource; handle: NodeHandle; token: bigint; bytes: Uint8Array }
+    | undefined;
   private pending:
     | { desired: Map<string, NativeRecord>; changes: readonly Uint8Array[] }
     | undefined;
@@ -521,7 +547,7 @@ export class WidgetHost {
       onState?: (state: EngineResponse) => void;
       onPublication?: (state: EngineResponse) => void;
       onAfterEvents?: () => void;
-      onAppFrame?: (timestampSeconds: number) => void;
+      onAppFrame?: (timestampSeconds: number, serial: bigint) => void;
       /** Published only after adoption of a known native ACK, including ACK recovery. */
       onExecution?: (execution: EngineExecutionSnapshot) => void;
     } = {},
@@ -707,8 +733,13 @@ export class WidgetHost {
             direction: node.resolveTextDirection(e.context!),
           }),
         );
-      if (node.kind === 'paragraph') config.push(c.paragraphOptions(h, o.paragraph ?? null));
+      if (node.kind === 'paragraph')
+        config.push(
+          c.paragraphOptions(h, o.paragraph ?? null),
+          c.paragraphFont(h, o.paragraphFont),
+        );
       else if (o.paragraph) throw Error('Paragraph options require a native paragraph node');
+      else if (o.paragraphFont) throw Error('Paragraph fonts require a native paragraph node');
       if (node.kind === 'clip') config.push(c.clipStyle(h, o.clipStyle ?? null));
       else if (o.clipStyle) throw Error('Clip styles require a native clip node');
       if (node.editor) config.push(c.editor(h, node.editorFlags, node.maximumLength));
@@ -716,6 +747,7 @@ export class WidgetHost {
       if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
       config.push(c.graphics(h, o.graphics));
       config.push(c.nativePaint(h, o.nativePaint));
+      config.push(c.paintPlacement(h, o.paintPlacement));
       config.push(c.layerLink(h, typeof o.layerLink === 'function' ? o.layerLink() : o.layerLink));
       if (o.nativeSparkline)
         config.push(
@@ -754,14 +786,15 @@ export class WidgetHost {
       if (node.kind === 'image') {
         let resource = node.image ? this.resources.get(node.image) : undefined;
         if (node.image && !resource) {
-          resource = this.freeResources.pop();
-          if (!resource) {
-            if (this.resourceSlot >= p.limits.resources) throw new Error('Widget resource budget');
-            resource = { slot: ++this.resourceSlot, generation: 1 };
-          }
+          resource = this.view.allocateResource();
           this.resources.set(node.image, resource);
         }
         config.push(c.bindResource(h, resource ?? null));
+        if (
+          o.imageStyle !== undefined ||
+          this.accepted.get(id(h))?.node.options.imageStyle !== undefined
+        )
+          config.push(c.imageStyle(h, o.imageStyle ?? null));
       }
       if (o.motion)
         config.push(
@@ -780,7 +813,7 @@ export class WidgetHost {
         [...desired.values()].flatMap((r) => (r.node.image ? [r.node.image] : [])),
       );
     for (const resource of wantedResources)
-      if (!this.acceptedResources.has(resource))
+      if (!this.acceptedResources.has(resource) && !this.uploadedResources.has(resource))
         changes.push(c.acquireResource(this.resources.get(resource)!, resource.bytes));
     const topology = new Map<string, string[]>();
     for (const r of this.accepted.values()) topology.set(id(r.handle), r.children.map(id));
@@ -861,11 +894,9 @@ export class WidgetHost {
       this.adopt(pending.desired, pending.changes);
       this.pending = undefined;
     }
-    for (const [resource, handle] of this.resources)
-      if (!this.acceptedResources.has(resource)) {
-        this.resources.delete(resource);
-        this.freeResources.push(handle);
-      }
+    // An ambiguous upload owns its slot and snapshot until replay proves its
+    // terminal. Never recycle a candidate on transport failure alone.
+    if (this.uploading) await this.uploadImage(this.uploading);
     do {
       this.rerun = false;
       if (!this.root) return;
@@ -886,9 +917,7 @@ export class WidgetHost {
         allocations = new Set(this.allocations),
         free = [...this.free],
         nextSlot = this.nextSlot,
-        resources = new Map(this.resources),
-        freeResources = [...this.freeResources],
-        resourceSlot = this.resourceSlot;
+        resources = new Map(this.resources);
       try {
         const tree = this.reconcile(this.root, this.tree, []);
         desired = this.records(tree);
@@ -908,9 +937,9 @@ export class WidgetHost {
         this.allocations = allocations;
         this.free = free;
         this.nextSlot = nextSlot;
+        for (const [resource, handle] of this.resources)
+          if (!resources.has(resource)) this.view.recycleResource(handle, false);
         this.resources = resources;
-        this.freeResources = freeResources;
-        this.resourceSlot = resourceSlot;
         if (errors.length > 1) throw new AggregateError(errors, 'Widget build and cleanup failed');
         throw error;
       } finally {
@@ -928,6 +957,40 @@ export class WidgetHost {
             lifecycleErrors.push(error);
           }
         }
+      const wanted = new Set(
+        [...desired.values()].flatMap((record) => (record.node.image ? [record.node.image] : [])),
+      );
+      for (const [resource, handle] of this.resources)
+        if (!this.acceptedResources.has(resource) && !wanted.has(resource)) {
+          if (this.uploadedResources.has(resource)) {
+            await this.imageRetry(() => this.view.releaseImageResource(handle));
+            this.uploadedResources.delete(resource);
+            this.view.recycleResource(handle, true);
+          } else this.view.recycleResource(handle, false);
+          this.resources.delete(resource);
+        }
+      // Keep ordinary small transactions atomic. Stream when the combined
+      // payload could consume the document packet; no image bytes then enter it.
+      const candidates = [...wanted].filter((resource) => !this.acceptedResources.has(resource));
+      if (
+        candidates.reduce((total, resource) => total + resource.bytes.length, 0) >
+        p.limits.imageChunkBytes
+      ) {
+        for (const resource of candidates) {
+          if (this.closed) throw Error('WidgetHost closed during image upload');
+          if (this.uploadedResources.has(resource)) continue;
+          if (!resource.bytes.length || resource.bytes.length > p.limits.resourceBytes)
+            throw Error('Image resource exceeds the byte budget');
+          const upload = {
+            resource,
+            handle: this.resources.get(resource)!,
+            token: ++this.nextImageUpload,
+            bytes: resource.bytes.slice(),
+          };
+          this.uploading = upload;
+          await this.uploadImage(upload);
+        }
+      }
       const changes = this.diff(desired);
       if (changes.length) {
         this.pending = { desired, changes };
@@ -989,7 +1052,8 @@ export class WidgetHost {
       if (!resources.has(resource)) {
         const h = this.resources.get(resource)!;
         this.resources.delete(resource);
-        this.freeResources.push({ slot: h.slot, generation: h.generation + 1 });
+        this.uploadedResources.delete(resource);
+        this.view.recycleResource(h, true);
       }
     this.accepted = desired;
     this.acceptedResources = resources;
@@ -1001,6 +1065,29 @@ export class WidgetHost {
         this.options.onError?.(error);
       }
     }
+  }
+  private async imageRetry<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof EngineError && error.result && error.status !== p.statuses.timedOut)
+        throw error;
+      return operation();
+    }
+  }
+  private async uploadImage(upload: NonNullable<WidgetHost['uploading']>): Promise<void> {
+    const { resource, handle, token, bytes } = upload,
+      state = await this.imageRetry(() => this.view.beginImageUpload(handle, bytes.length, token));
+    if (state.phase !== 'committed') {
+      for (let offset = state.filled; offset < bytes.length; offset += p.limits.imageChunkBytes) {
+        if (this.closed) throw Error('WidgetHost closed during image upload');
+        const chunk = bytes.subarray(offset, offset + p.limits.imageChunkBytes);
+        await this.imageRetry(() => this.view.appendImageUpload(token, offset, chunk));
+      }
+      await this.imageRetry(() => this.view.finishImageUpload(token, true));
+    }
+    this.uploadedResources.add(resource);
+    this.uploading = undefined;
   }
   /** @internal Original Focus runs this callback after its source focus path is current. */
   notifyFocusPeer(node: NodeHandle): void {
@@ -1073,7 +1160,7 @@ export class WidgetHost {
       for (const event of state.events) {
         if (this.closed) break;
         if (event.kind === p.events.appFrame) {
-          this.options.onAppFrame?.(event.x);
+          this.options.onAppFrame?.(event.x, event.id);
           continue;
         }
         if (event.kind === p.events.focusChanged) {
@@ -1164,23 +1251,50 @@ export class WidgetHost {
       }
     }
   }
-  close(): Promise<void> {
-    if (this.closing) return this.closing;
+  /** @internal Stop event-driven builds before the owner retires scene resources. */
+  async stop(): Promise<void> {
     this.closed = true;
     if (this.eventTimer !== undefined) clearTimeout(this.eventTimer);
+    await this.running;
+  }
+  close(): Promise<void> {
+    if (this.closing) return this.closing;
     this.closing = this.disposeHost();
     return this.closing;
   }
   private async disposeHost(): Promise<void> {
     const errors: unknown[] = [];
     try {
-      await this.running;
+      await this.stop();
     } catch (error) {
       errors.push(error);
+    }
+    if (this.uploading) {
+      const upload = this.uploading;
+      try {
+        const state = await this.imageRetry(() =>
+          this.view.beginImageUpload(upload.handle, upload.bytes.length, upload.token),
+        );
+        if (state.phase === 'committed') this.uploadedResources.add(upload.resource);
+        else await this.imageRetry(() => this.view.finishImageUpload(upload.token, false));
+        this.uploading = undefined;
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    for (const resource of this.uploadedResources) {
+      const handle = this.resources.get(resource)!;
+      try {
+        await this.imageRetry(() => this.view.releaseImageResource(handle));
+        this.view.recycleResource(handle, true);
+      } catch (error) {
+        errors.push(error);
+      }
     }
     for (const r of this.accepted.values()) r.node.editor?.detach(this);
     for (const element of this.elements) this.disposeElement(element, errors);
     this.elements.clear();
+    this.used.clear();
     this.retired.clear();
     this.allocations.clear();
     this.globals.clear();
@@ -1189,7 +1303,8 @@ export class WidgetHost {
     this.focusHandle = '';
     this.resources.clear();
     this.acceptedResources.clear();
-    this.free.length = this.freeResources.length = 0;
+    this.uploadedResources.clear();
+    this.free.length = 0;
     this.pending = this.tree = this.root = undefined;
     try {
       await this.view.close();

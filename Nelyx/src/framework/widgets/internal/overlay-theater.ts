@@ -7,6 +7,7 @@ import type { Widget, BuildContext } from '../framework.ts';
 import { Directionality } from '../app-data.ts';
 import { RenderStack } from '../../rendering/boxes.ts';
 import type { BoxConstraints } from '../../rendering/constraints.ts';
+import { registerNativeRenderMetadata } from '../../rendering/object.ts';
 import type { RenderBox, RenderObject, HitTestEntry } from '../../rendering/object.ts';
 import type { PaintingContext } from '../../painting/context.ts';
 import {
@@ -22,6 +23,14 @@ import type { Offset, TransformMatrix, Size } from '../../../ui/geometry.ts';
 import type { SemanticsNode, Rect } from '../../../ui/types.ts';
 import type { Clip } from '../../../ui/clip.ts';
 class RenderTheater extends RenderStack {
+  static {
+    registerNativeRenderMetadata(RenderTheater.prototype, (source) => ({
+      kind: 'overlay',
+      skipCount: source.skipCount,
+      clip: source.clipBehavior,
+      alignment: source.alignment.resolve(source.textDirection),
+    }));
+  }
   protected override get stackLayoutChildren(): readonly RenderBox<RenderObject>[] {
     return this.children.slice(this.skipCount);
   }

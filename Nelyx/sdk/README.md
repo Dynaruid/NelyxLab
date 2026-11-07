@@ -2,6 +2,8 @@
 
 **English** | [한국어](README.ko.md)
 
+Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. Runner checks resolve the installed compiler through its public package metadata and verify its executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
+
 `@nelyx/sdk` connects the [Core framework](../README.md) to platform applications, rendering surfaces, input, assets, OS services, and host lifetime. Shared application code stays in `src/`; each platform runner supplies registration and build configuration.
 
 Start with the [Testbed guide](../../sample/nelyx-testbed-app-2/README.md) for a complete application or the [CLI](tooling/cli/README.md) to create a new one.
@@ -10,7 +12,7 @@ Start with the [Testbed guide](../../sample/nelyx-testbed-app-2/README.md) for a
 
 `@nelyx/sdk/engine-v2` exports `connectEngineV2Host(host, options)`. Supply a v2 packet transport with an `identity` containing `engine: 'v2'`, `abiMajor`, and `schema`. The facade checks bundle/host identity, then the C++ handshake checks requested capabilities. The [Core v2 guide](../README.md#experimental-v2-engine-protocol) covers build commands, ACK retry, activation, and close/drain.
 
-`createBrowserEngineV2Surface(canvas, { root: new URL('/engine/', location.href), profile: 'auto' })` connects the supplied worker runtime to a fresh canvas. Serve the whole current engine dist at `root`. The returned surface provides a packet host, an App port, diagnostics, and asynchronous `close()`. The Main thread forwards bounded input and viewport updates; C++ owns scene coordinates, scrolling, and hit-testing. `auto` selects threaded when isolation/shared memory is available and single-worker otherwise. A missing explicit capability or broken supply fails startup; it does not enable a v1 fallback. Close drains providers and workers, and a new session requires a new canvas.
+`createBrowserEngineV2Surface(canvas, { root: new URL('/engine/', location.href), profile: 'auto' })` connects the supplied worker runtime to a fresh canvas. Serve the whole current engine dist at `root`. The returned surface provides a packet host, an App port, diagnostics, and asynchronous `close()`. The Main thread forwards bounded input and viewport updates; C++ owns scene coordinates, scrolling, and hit-testing. `auto` selects threaded when isolation/shared memory is available and single-worker otherwise. A missing explicit capability or broken supply fails startup; it does not enable a v1 fallback. Close drains providers and workers, and a new session requires a new canvas. Pass the App worker to `surface.createAppPort(appWorker)` so the surface owns its terminal cleanup. The standard launcher does this automatically. The surface stops registered App workers before returning their host reservations; a port without a registered worker cannot request the synchronous paragraph service.
 
 Hidden pages clear preparation caches and lower the GPU cache limit. An embedder receiving its own memory pressure signal can also call `surface.setMemoryPressure(true)`, then pass `false` when pressure clears. This requests a policy change; `diagnostics['memory-pressure']` reports its application by the actual owners. Active publications remain usable and necessary new scenes still prepare under pressure. The Windows host observes OS low-memory resource notifications directly. Cache reduction does not establish immediate release of the Wasm heap, in-flight GPU resources, or driver memory.
 
@@ -22,7 +24,7 @@ Select the Windows App SDK candidate with `"windowsHost": "windows-app-sdk"` in 
 
 For the repository Testbed, run `npm.cmd run build:engine-v2`, then `npm.cmd run run:engine-v2:windows-app-sdk`. `V2_WINDOWS_HOST` reports the actual host/dispatcher path; `V2_INPUT_SOURCE` reports DirectManipulation input admission/rejection counts. Injected wheel and automated UIA checks do not approve physical precision trackpad behavior.
 
-The full v2 supply build checks a prepared `m153-nelyx-paragraph.1` CanvasKit manifest, file hashes and paragraph API 1. Missing or mismatched inputs fail the build; follow the [owned runtime preparation guide](../skia/eng/source-build/README.md). The npm CanvasKit dependency supplies types. App startup does not download or build vendor inputs.
+The full v2 supply build checks a prepared `m153-nelyx-paragraph.5` CanvasKit manifest, file hashes, paragraph API 1, font-reference Picture API 2 and immutable font-collection API 1. Missing or mismatched inputs fail the build; follow the [owned runtime preparation guide](../skia/eng/source-build/README.md). The npm CanvasKit dependency supplies types. App startup does not download or build vendor inputs.
 
 Create a standalone project from the matching Core, SDK, CLI, Metro and Static AOT package archives. Add `--designs material,cupertino` and their archives when needed. Install once at the app root:
 
@@ -67,7 +69,7 @@ export default defineOriginalEngineV2App({
 
 Supported render configuration currently covers ConstrainedBox, Padding, default ColoredBox, Align/Center alignment and size factors, Flex sizing/spacing/Expanded/overflow clipping with RTL/up directions, and non-positioned Stack with loose/passthrough/expand sizing, numeric alignment and none/hardEdge clipping. Unbounded Flex main constraints are connected when there are no flexible children. Unported settings such as baseline alignment, positioned children and anti-alias clipping, other render objects, instance hooks, pointer/semantics callbacks and unavailable App services fail explicitly. Full Text, controller and design API compatibility remains unfinished.
 
-Plain `Text` uses the provider's font cohort for LTR/RTL, start/end/left/right/center/justify alignment, locale, wrapping, maxLines, ellipsis and manual soft hyphens. Paragraph configuration also supports hidden hyphens. Size, color, scaling, `DefaultTextStyle`, paragraph height, signed spacing, leading/height behavior, tight/loose sizing, basic text semantics and clip/visible overflow are connected. Weights 100–900 and a single `fontFamily` request are forwarded. Native selects from available installed and bundled fonts; Web selects from declared provider fonts with bundled fallbacks. The same family request may select different actual fonts depending on the supplied cohort. `CupertinoSystemText` uses the bundled cohort. Web caches at most 16 varied typefaces and releases them under pressure. Custom fonts/fontId, fonts from other App services, fontFamilyFallback, rich spans, italic, strut and additional styles remain unfinished. Synchronous text service queries fail explicitly.
+Plain `Text` uses the provider's font cohort for LTR/RTL, alignment, locale, wrapping, maxLines, ellipsis and soft hyphens. Size, color, scaling, `DefaultTextStyle`, paragraph height, signed spacing, leading/height behavior, tight/loose sizing, basic text semantics and clip/visible overflow are connected. Weights 100–900 and a single `fontFamily` request retain their existing provider selection: Native can use available installed and bundled fonts; Web uses declared provider fonts with bundled fallbacks. The same request can select different actual fonts across cohorts. `CupertinoSystemText` aliases the bundled default. `RichText` and `Text.rich` also preserve non-interactive canonical `TextSpan` inheritance, per-run size/weight/italic/locale/family lists, solid foreground/background colors, decorations, OpenType features, explicit variations and text shadows. Source still constructs the spans and applies its text scaler; C++ shapes and places the runs. Strut font/height/leading, forced line height and leading distribution are connected. Original `RichText` and `Text.rich` support up to 64 canonical `WidgetSpan` children. Core measures their loose inline constraints, applies the canonical text scale and alphabetic/ideographic baselines, then positions children using Content placeholder boxes. Ellipsis hides omitted subtrees from paint, input and semantics. A forced strut may leave child ink outside the line box; paragraph overflow controls painting and pointer admission stays within the paragraph box. Custom fonts/fontId, interactive/selectable TextSpan and additional paint styles remain unfinished.
 
 `ClipRect` from `framework/widgets/basic` and affine `Transform` (including translate, rotate, scale and flip) use C++ layout and published frame geometry. Content resolves origin and directional alignment against the final size, including after resize. Singular transforms suppress the child. Perspective/3D matrices, non-null `filterQuality` and `transformHitTests: false` currently fail explicitly.
 
@@ -83,18 +85,50 @@ Canonical `CupertinoButton`, `filled` and `tinted` from `@nelyx/cupertino/button
 
 Web treats the canvas and its owned semantic DOM peers as one input surface. Hover survives pointer-capture handoff and exits when the pointer leaves that surface. The representative browser integration covers button activation, hover, actual opacity pixels and resource drain in both single-worker and threaded profiles.
 
+The Original SDK entry supplies synchronous App-owned C++ paragraph queries to canonical `TextPainter.layout()` through its normal `ParagraphContext`. Service version 12 and Content share the builder policy and initial bundled font cohort. Flat and rich runs support immediate metrics and UTF-16 boxes, hits, glyphs, word and line queries. `ParagraphBuilder.addPlaceholder()` and `TextPainter.setPlaceholderDimensions()` preserve all six alignments, alphabetic/ideographic baselines, scale and writing direction. Their fixed placeholder boxes are returned synchronously. Standalone TextPainter queries use supplied dimensions; Original RichText/Text.rich connect automatic child layout to Core. Forced strut can leave ink outside its line box, which painting preserves until a surrounding clip applies. Rich runs preserve printable four-byte OpenType features (up to 64), explicit variation coordinates (up to 64) and text shadows (up to 16) per run. An explicit `wght` axis takes precedence over the derived font weight; shadow offsets and blur extend the Picture recording bounds. The Core `fontResources` capability exposes bounded upload/read primitives on `EngineViewClient`: a catalog admits up to 16 MiB, chunks up to 256 KiB, within the unchanged 1 MiB packet and 32 MiB resource limits. Upload tokens fence retries and cancellation; generation-bound paragraph/scene holders keep older resources readable after producer release. `setFontCatalog` is a Core control that requires the embedder to prepare every provider owner first. Native Content and both Web profiles resolve immutable collections for these resources. Web Content reads catalogs in bounded chunks; independent Render owners prepare their own collections before accepting the Pictures. Picture API 2 matches actual C++ font streams and collection indices to supplied faces, then records source identities and variation coordinates. Equal family names can refer to different font bytes. `beginFontTransition`, owner preparation ACKs, `commitFontTransition` and `abortFontTransition` fence a Core revision change by token and input watermark. Content and Render prepare their actual collections before acknowledging; commit requires App/Content/Render readiness. Cancellation and decode refusal preserve the active revision. `releaseFontResource` retires a producer independently of document transactions. Source recordings pin the resource/revision measured by their App paragraph. The App coordinator retains Core producers until the last Source recording or captured-scene lease. Desired and unacknowledged scenes keep bounded independent holds even after their Canvas is disposed. Fonts and images share one SDK slot allocator across views; commit uncertainty requires a known terminal ACK. Cached TextPainter layout and template metrics refresh when the observed cohort changes.
+
+```ts
+import { defineOriginalEngineV2App } from '@nelyx/sdk/engine-v2-original';
+import { Text } from '@nelyx/core/framework/widgets/basic';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+
+import { FontLoader } from '@nelyx/core/services/font-loader';
+import { rootBundle } from '@nelyx/core/services/asset-bundle';
+
+export default defineOriginalEngineV2App({
+  async build(context) {
+    const loader = new FontLoader('ReviewFont');
+    loader.addFont(rootBundle.load('font.ttf'));
+    await loader.load();
+    return new Text('Example', {
+      direction: 'ltr',
+      style: new TextStyle({ fontFamily: 'ReviewFont' }),
+    });
+  },
+});
+```
+
+Declare `font.ttf` in the app asset manifest. The font owner is ready before `build`; use FontLoader in async build or later callbacks. The optional `fontCatalog` runs first. Call addFont for every asset in a family before calling load once. The protected loadFont hook remains available to subclasses.
+
+App service 12 retains immutable font generations for synchronous queries and recordings, including rollback and retirement at the last holder. `layout(input, revision)` and `snapshot(revision)` select a held cohort, so the previous Source revision remains usable while activation awaits Core. Unknown or retired selections fail; an invalid observed Core revision prevents further Source layout. Older late publications cannot replace a newer observed cohort. After App quota admission, the optional `fontCatalog` runs before user build and Source mount. The Original SDK installs its default FontLoader owner before invoking build. Runtime `context.fonts.replace(catalog)` prepares every owner and returns the committed revision; `replace(null)` restores the bundled catalog. `cancel()` cancels admitted active and queued font loads, while `recover()` resolves an uncertain terminal before another update. One candidate is admitted at a time. A committed cohort change notifies the Original View’s canonical system-font listeners. The existing relayout mixin coalesces callbacks on that View’s scheduler; scope replacement, disposal and closing cancel pending work. Native render objects retain configuration ownership without attaching to a TS PipelineOwner, and existing recordings keep their geometry and font revision. The Source FontLoader addFont/load path and public `loadFontFromList` from `@nelyx/core/ui/fonts` are available through the Original SDK. Call `await loadFontFromList(bytes, { fontFamily: 'ReviewFont' })` for an alias, or omit the options to use the intrinsic family. Omitted, null or empty families are queried from the actual Native/Web C++ decoder after capturing the input and admitting temporary memory. Success publishes the coordinated cohort and its Source notification; malformed fonts, quota refusal and cancellation preserve the prior cohort. Packaged rootBundle loading is connected to the shared App owner. ImageDescriptor/Codec immutable-buffer consumers are connected as scoped below; OS font loading/notifications remain unfinished. Without a configured catalog, Original apps start with the bundled `NelyxDefault`, `NelyxArabic`, `NelyxHebrew` and `NelyxEmoji` family aliases; `CupertinoSystemText` maps to the default. Missing service/version/font identity fails explicitly. Replacing or disposing a painter retires its paragraph through the Source resource registry and actual holders. App service 12 retains one immutable catalog in its pending App stage and exposes bounded copied chunks of the exact bytes decoded by C++. Stage credit covers caller/SDK catalog plus snapshot and bounded transport; finish/rollback retires it. Web keeps a separate 128 MiB initial/256 MiB maximum CanvasKit heap with a host reservation of 320 MiB until worker termination; the session ledger ceiling is 768 MiB, with its 128 MiB GPU ceiling retained.
+
+FontLoader and loadFontFromList append to the current immutable catalog and keep its existing family faces and fallback order. The SDK admits at most 32 active/queued loads and 16 MiB of captured font bytes, reserving App credit before snapshots, bounded reads, catalog composition and transfer. `context.fonts.replace` reports busy while these loads are pending. Closing cancels admitted work and releases its credit; a Source asset future that resolves later retains its original owner and cannot migrate to another App. App service 12 snapshots expose `fontBuffers` and `fontBufferBytes`; foreign and duplicate credit returns fail. Quota admission can reject a load before C++ allocation.
+
+Canonical native paint metadata can carry a `paragraph` resource recorded by `TextPainter.paint(Canvas, offset)`. Content independently measures the copied immutable declarations, checks font revision and geometry, and places the prepared picture using the final parent layout. Threaded Web transfers the C++ Picture with references to the already supplied fonts and their actual variation coordinates; Render restores it without re-layout or embedding another copy of the font files. This preserves backgrounds, decoration paths, glyph positions and paint order. A Canvas recording keeps its paragraph alive after painter disposal. Unbounded paragraph layout remains separate from finite recording bounds. Interleaved and foreground paragraph order, save/restore and rectangular clips remain connected, with widget children drawn at the boundary and each resource painted only through its stream. Arbitrary Canvas/Picture/custom hooks, additional paint styles and general synchronous RenderBox geometry remain unfinished. `execution.appText` compares actual C++ layouts/queries with SDK calls and reports zero TS fallback; `sdkPaintCaptures` counts immutable recording captures. Provider `fontReferencePictures`, `fontReferenceImports` and `fontReferenceBytes` report actual rich Picture transport work.
+
+World-dependent native paint programs and referenced paint paragraphs use C++ frame geometry without App or Content calls. Frame snapshots expose `framePaintWork`, `framePaintNodes` and `framePlacementNodes`; provider `livePaints`/`livePaintEntries` count live stream entries on node entry, while `orderedParagraphs` and `foregroundPaints` count actual inline paragraph and foreground draws. Static paint stays in Content Pictures. A stream containing paragraph references or a child boundary is resolved by Core and drawn by Render; its raw entries share a limit of 65, with the existing expanded-command, path and operation limits retained. Per-frame expression/path budgets and owned memory leases also cover live evaluation. Invalid live expressions fail explicitly and preserve the last publication.
+
 State values change immediately on App and retain their desired values after a native NACK. The existing native scene remains intact; inactive Elements finalize after a known native ACK or terminal close. Original RenderBox synchronous geometry remains unavailable: TS layout/query/hit-test calls fail explicitly. `context.view.layoutSnapshot()` asynchronously returns the last activated layout with parent-local coordinates and document/metrics epochs. Composed transforms and property overlays belong to the published frame's geometry. Execution reports `appModel: 'original-elements'`, `compatibility: 'partial'` and actual native ACK counts.
 
 `BuildContext.services.readMetrics('logicalWidth', 'scale')` returns an immutable observation of the last Core viewport received by App. Observed resize and scale changes rebuild Elements that read the changed fields; omitting fields subscribes to all metrics. Physical sizes use the provider's pixel rounding. Unavailable native context/surface generations remain `null`. The observed viewport revision can differ from the activated layout revision; it does not provide synchronous RenderBox geometry.
 
-
 Canonical Material `TextButton`, `FilledButton`/tonal, `OutlinedButton` and `ElevatedButton` retain their source theme, State and controllers. Default rrect/stadium/circle shapes, borders, physical shadows, highlights and InkRipple use C++ geometry with Native/Web painting. Active pointer up/cancel survives App document replacement with unchanged target/ancestor geometry within an eight-publication bound. Basic activation, disabling, hover, Enter and actual animation output were verified on Windows App SDK and both Web profiles. Padded tap targets, custom shapes/rectangles, other ink factories and the full design API remain unfinished. See the [current implementation record](../../work9-3.md#현재-구현검증과-잔여-작업).
 
-Canonical boolean/tristate `Checkbox` and `Radio`/`RadioGroup` retain source State, themes, Toggleable motion and group callbacks. C++ resolves marks, box insets, circle centers and radii. Both Web profiles cover click, Enter/Space, disabled state, the three-state cycle, Radio deselection, arrow navigation, group Tab/Shift+Tab, ARIA and actual output. Nonvisual Windows UIA checks cover mixed state and Radio SelectionItem/group Selection. Current Native selection/focus display and user input, UIA toggleable deselection and the full selection API remain unfinished or unverified. See the [current scope and remaining work](../../work9-3.md#현재-구현검증과-잔여-작업).
+Canonical boolean/tristate `Checkbox` and `Radio`/`RadioGroup` retain source State, themes, Toggleable motion and group callbacks. C++ resolves marks, box insets, circle centers and radii. Both Web profiles cover click, Enter/Space, disabled state, the three-state cycle, Radio deselection, arrow navigation, group Tab/Shift+Tab, ARIA and actual output. Nonvisual Windows UIA checks cover mixed state, Radio SelectionItem/group Selection and `RemoveFromSelection` on a selected `toggleable` Radio. Deselection sends a distinct request to the Source callback and preserves the selected value until acknowledgment. Normal Radio deselection and disabled, stale-publication or closed requests are rejected; removing an unselected Radio completes without a change. Current Native selection/focus display, user input, external readers and the full selection API remain unfinished or unverified. See the [current scope and remaining work](../../work9-3.md#현재-구현검증과-잔여-작업).
 
 Original FocusNode and Actions/Shortcuts stay in the App tree. C++ associates focus owners with semantic peers and rejects stale requests using exact focus sessions. FocusNode rect/offset/size read C++ geometry for the currently observed published document, metrics and device; missing or known-stale publication fails. Arbitrary RenderBox synchronous layout/geometry and full API compatibility remain unavailable. Tests cover source shortcuts such as Control+K on Web and callback order, GlobalKey moves and key down/repeat/up in nonvisual Native integration. Complete scan/layout/raw keyboard, character/IME and reader contracts remain unfinished.
 
-Original `CupertinoSlider` and unlabelled Material `Slider` retain Source State for controlled values, divisions, callbacks, RTL and disabled input. C++ resolves their geometry, gestures and painting. Material's canonical rectangular/rounded/gapped tracks, round/handle thumbs, overlay and ticks use Source theme and animation values; bounded paint expressions use the final Content layout. Labels/TextPainter, value indicators, custom shapes, the debug shadow override and the full Slider/Raw extension contracts remain unfinished. The internal Slider surface reads size/globalToLocal only from the last observed valid publication; this does not provide general synchronous layout queries. Canonical tap, horizontal/vertical/pan RawGestureDetector factories and View-owned teams are partially connected. Custom recognizers, buttons/devices/timers/velocity/semantics/team settings fail explicitly.
+Original `CupertinoSlider` and Material `Slider` retain Source State for controlled values, divisions, callbacks, RTL and disabled input. C++ resolves their geometry, gestures and painting. Material's canonical rectangular/rounded/gapped tracks, round/handle thumbs, overlay and ticks use Source theme and animation values; bounded paint expressions use the final Content layout. Material labels use the required App text service. With a canonical `Overlay` ancestor, the default `DropSliderValueIndicatorShape` and modern `RoundedRectSliderValueIndicatorShape` (`year2023: false`) use the existing Source indicator policy, State, animation and LayerLink, including the recorded text. Both always-visible and on-drag policies are connected, including the zero-scale animation start. The Drop background uses a single compound path so translucent contour overlap and strokes follow Source painting. C++ reevaluates world-dependent paint and recorded-text placement from each frame's current scroll and LayerLink transforms, while reusing prepared glyphs and Pictures. The tail follows its anchor while the bubble and text retain their own screen correction. The actual Source default Drop scene is covered during App delays in both Web profiles and Content delays in threaded; single-worker recovers after its bounded Content work. Native CPU raster covers the same live paint path; native window, physical input and performance acceptance remain separate. Other indicator/custom shapes, the debug shadow override and the full Slider/Raw extension contracts remain unfinished and fail explicitly when needed. ACKed Original builds request a Core App-frame turn when Source post-frame callbacks are pending. The internal Slider surface reads size/globalToLocal only from the last observed valid publication; this does not provide general synchronous layout queries. Canonical tap, horizontal/vertical/pan RawGestureDetector factories and View-owned teams are partially connected. Custom recognizers, buttons/devices/timers/velocity/semantics/team settings fail explicitly.
 
 Original `CompositedTransformTarget` and `CompositedTransformFollower` connect View-owned `LayerLink` anchors, offsets and unlinked visibility to C++ composition. Child painting, pointer targets and semantics use the same published coordinates and follow Core scrolling. Their canonical Source `.layer` objects, `LayerLink.leader/leaderSize`, `FollowerLayer.getLastTransform()` and `RenderFollowerLayer.getCurrentTransform()` observe completed native publications; ACK alone does not advance composition. Before first publication `.layer` is null. An unlinked or unavailable follower transform returns null, and `getCurrentTransform()` retains its identity fallback. Layer handles retain Source object identity, and closing the View detaches its mirrors and drops View references even when an App retains a handle. Native Source layers are observation mirrors: direct layer mutation, App SceneBuilder composition, annotation search and Source rasterization are not connected. General synchronous layout queries and the full custom/layer API remain unfinished. Duplicate leaders, sharing links across Views, invalid handles and incorrect paint order fail. This partial support does not establish Native physical display or reader acceptance.
 
@@ -102,16 +136,16 @@ Original `CompositedTransformTarget` and `CompositedTransformFollower` connect V
 
 Import exact subpaths from `@nelyx/sdk`. Supported target names are `windows`, `android`, `ios`, `macos`, `linux`, and `web`.
 
-| Module | Purpose |
-| --- | --- |
-| `platforms/<target>/application` | Compose the shared application with a backend |
-| `platforms/<target>/surface` | Present the application surface |
-| `platforms/<native-target>/controls` | Native control integration |
-| `runtime/config` | Read and validate application configuration |
-| `runtime/assets` | Load and validate configured assets |
-| `runtime/providers` | Resolve provider profiles and runtime requirements |
-| `runtime/plugin-port` | Connect application-owned platform plugins |
-| `runtime/worker-messages` | Connect an explicit background message endpoint |
+| Module                               | Purpose                                            |
+| ------------------------------------ | -------------------------------------------------- |
+| `platforms/<target>/application`     | Compose the shared application with a backend      |
+| `platforms/<target>/surface`         | Present the application surface                    |
+| `platforms/<native-target>/controls` | Native control integration                         |
+| `runtime/config`                     | Read and validate application configuration        |
+| `runtime/assets`                     | Load and validate configured assets                |
+| `runtime/providers`                  | Resolve provider profiles and runtime requirements |
+| `runtime/plugin-port`                | Connect application-owned platform plugins         |
+| `runtime/worker-messages`            | Connect an explicit background message endpoint    |
 
 Public exports are listed in [package.json](package.json). The [Web surface component](../../sample/nelyx-testbed-app-2/web/runner/App.tsx) shows how the runner connects `main().definition` to `ApplicationSurface`.
 
@@ -159,6 +193,46 @@ The runner generates `app-config.json` from this configuration. Edit the root pa
 
 ## Assets
 
+V2 SDK apps declare assets in `nelyx.v2.json`. Both App models expose the same packaged bytes through `context.asset(name)` and canonical `rootBundle`/`PlatformAssetBundle`; Original `DefaultAssetBundle.of(context)` uses the App root independently of ImageService and preserves inherited overrides. The CLI generates the canonical binary manifest and its Web JSON/base64 representation, including Nx variants. UTF-8 names and spaces are supported. Structured cache misses bypass the string cache, and failed parsing can retry from fresh bytes.
+
+Importing the canonical buffer API declares its synchronous-copy requirement; the SDK prepares shared App services before build when that requirement is present. Asset reads share those services; Web uses their 128 MiB CanvasKit heap and 320 MiB host reservation. Native obtains file size before allocation. Web uses HEAD metadata or the generated asset index, streams into the admitted size and verifies SHA-256. Ordinary HTTP hosting can omit HEAD and the supplier hash header. The bounded index has its own credit, which is returned at logical close. Failed or cancelled reads return undelivered credit. At most 32 IO requests, 64 admitted buffers and 32 MiB of cumulative admitted data fit within the unchanged App quota; each read reserves `3 * size + 65536` bytes for IO/copies and cached UTF-16 text. Delivered ByteData can escape into caller JS, so its credit stays until the App realm terminates. Clear/evict drops Source cache entries; it cannot reclaim caller bytes. Arbitrary parser results remain caller-managed. Close cancels owned IO and rejects new reads before draining; logical close preserves delivered-byte credit until Native runtime/Web worker teardown. These bounded paths do not complete every AssetBundle API.
+
+Canonical `AssetBundle.loadBuffer()` and `ImmutableBuffer` (also exported from `@nelyx/core/ui/immutable-buffer`) create engine-owned read-only bytes. `fromUint8List()` copies the selected view before returning its Promise; later caller mutation cannot change it. `fromAsset()` uses the packaged App owner, and Native `fromFilePath()` reads a local UTF-8 path. Web file loading fails explicitly. Native stores SkData; Web stores a CanvasKit allocation and the SDK copies upload/readback bytes. Dispose every public buffer. An internal engine holder or in-flight read keeps its allocation and credit until the last holder retires. Close refuses live buffers/readers and failed releases. Each allocation reserves `2 * size + 65536` bytes before copying, with 64 live handles/allocations, 32 MiB of live data and 32 pending IO requests per owner. Buffer-only asset staging returns after capture; escaped mutable ByteData retains its separate realm credit. `debugDisposed` and duplicate/reentrant-dispose guards are available in every build. The added required `loadBuffer` method extends the original structural class signatures; their compatibility review remains open.
+
+```ts
+import { rootBundle } from '@nelyx/core/services/asset-bundle';
+
+export async function assetByteLength(key: string): Promise<number> {
+  const buffer = await rootBundle.loadBuffer(key);
+  try {
+    return buffer.length;
+  } finally {
+    buffer.dispose();
+  }
+}
+```
+
+`NetworkAssetBundle` takes a base URL string and resolves relative keys, queries, fragments and absolute HTTP(S) keys. Each load fetches again; only the platform HTTP stack can cache. Only HTTP 200 succeeds. Native uses asynchronous WinHTTP with gzip/deflate, the OS proxy/TLS policy, five redirects and 30-second IO timeouts. Web uses fetch streaming and the browser CORS, TLS and redirect policies. The shared App owner cancels both startup and runtime IO.
+
+Before starting HTTP, each request admits 512 KiB for owned metadata and callback/transport copies. The shared IO limit is 32. Declared lengths admit storage before reading; unknown or compressed streams grow their `3 * capacity + 65536` byte credit before allocating, and trim to the exact delivered length. The 32 MiB cumulative data limit and App quota still apply. Raw caller bytes keep realm credit; `loadBuffer` returns internal staging after immutable capture. Native retains request credit through its last close callback and borrowed JSI copy. Browser/OS network buffering is outside measured owned memory. Both Data and Original App declarations support Native ES2022 without DOM ambient types; browser surface arguments keep their exact Web types.
+
+```ts
+import { NetworkAssetBundle } from '@nelyx/core/services/asset-bundle';
+
+export async function remoteAssetByteLength(baseUrl: string, key: string): Promise<number> {
+  const buffer = await new NetworkAssetBundle(baseUrl).loadBuffer(key);
+  try {
+    return buffer.length;
+  } finally {
+    buffer.dispose();
+  }
+}
+```
+
+App-ready timing includes service preparation in `buildElapsedMs` and reports `servicesPreparationElapsedMs` separately.
+
+Web App bootstrap contract 1 also cancels the quota wait, service-module request and CanvasKit/font downloads when the App closes or startup fails. A failed provider download aborts its siblings and waits for them before releasing staging credit. WebAssembly initialization cannot be aborted; disposal waits for its result and prevents a late backend from reaching Source build or asset readers. Its committed heap and the fixed 320 MiB host reservation survive logical disposal until actual worker termination. Missing bootstrap capability fails before provider initialization.
+
 - Declare fonts and images in `nelyx.assets`, with stable IDs referenced by the application.
 - Include the license file through `notice.path`; packaging carries declared notices with the assets.
 - Optional `sha256` values pin bytes explicitly. Otherwise tooling calculates hashes in generated runner metadata.
@@ -173,14 +247,41 @@ The application receives its platform services through SDK startup/View contexts
 
 Platform message endpoints belong to the application. A background connection uses an endpoint supplied by the host; creating a Worker or native worker runtime is the host's responsibility. Await connection disposal before terminating its worker.
 
+## Image descriptors and codecs
+
+Both v2 App models bind canonical `ui/image-descriptor` and `ui/image-decoder` before user build. Importing ImageDescriptor requires App image service 2; missing service fails before build. `ImageDescriptor.encoded(buffer)` inspects the actual Skia decoder, while synchronous `raw(buffer, {width, height, rowBytes, pixelFormat})` accepts premultiplied rgba8888/bgra8888 and row padding. A descriptor retains immutable backing independently of the public buffer; codecs retain their descriptor, and returned canonical Images own independent frames through ImageService/ResourceRegistry. Dispose each owned handle. The convenience instantiateImageCodecFromBuffer/WithSize functions take buffer ownership, including failure; instantiateImageCodec(bytes) captures caller bytes before yielding.
+
+```ts
+import {instantiateImageCodec} from '@nelyx/core/ui/image-decoder';
+
+export async function firstImagePixels(encoded: Uint8Array): Promise<Uint8Array | null> {
+  const codec = await instantiateImageCodec(encoded);
+  try {
+    const {image} = await codec.getNextFrame();
+    try { return await image.toByteData(); }
+    finally { image.dispose(); }
+  } finally { codec.dispose(); }
+}
+```
+
+Current decoder controls cover actual Native SkCodec and the existing owned CanvasKit heap: PNG, two-frame GIF order/duration/repetition, RGBA/BGRA, resize, clone/read and cancellation/retirement. The 16 MiB encoded, 8192 dimension, 16 Mi-pixel, 32 descriptor/codec, 64 frame and 64 MiB resident limits admit working memory before pixel allocation. Native descriptors share SkData; Web copies encoded/raw transport within admitted credit. Returned premultiplied rawRgba/rawUnmodified ByteData has separate credit (64 results, 32 MiB total), retained until App realm termination. Image disposal retires its native pixels after the last holder/read.
+
+This v2 path currently rejects floating-point raw/target formats and PNG/straight-alpha readback. Canvas drawing integration and remaining image formats/recovery acceptance are unfinished. Decoder checks do not establish displayed image frames or performance acceptance.
+
+The v2 `ImageResource` path streams large encoded images in 256 KiB chunks within the unchanged 1 MiB packet and 32 MiB resource budgets. `EngineViewClient` exposes `beginImageUpload`, `appendImageUpload`, `finishImageUpload`, `readImageResource` and `releaseImageResource`. A candidate becomes a resource only after complete upload; tokens make identical retries idempotent and reject changed bytes. WidgetHost snapshots large payloads before yielding and retains uncertain uploads until replay resolves the terminal. Content reads are scoped to the preparation or held frame, so producer release and slot reuse cannot replace older image bytes. Native Content records decoded pixels; Web Content loads bounded chunks and passes Pictures to Render. Canonical RawImage uses the separate Scene snapshot contract below. CPU and Web pixel checks do not establish physical display or performance acceptance.
+
+The default Original App bridge now paints canonical `RawImage`/`RenderImage` frames through immutable RGBA Scene resources. App image service 2 is required before the user build. Images and clones from one App share a single admitted snapshot; disposing the caller Image or codec cannot invalidate retained Scene/Picture pixels. Snapshot credit is independent of delivered `toByteData` credit and remains held through accepted older trees, uncertain uploads and final retirement. Core resolves image size/scale, all BoxFit modes, alignment, repeat tiles, RTL flip and nine-patch placement, including paint overflow bounds. Native Skia and CanvasKit consume that placement with opacity, tint/blend, inversion and filter quality; detached Source render objects observe opacity changes through their View scheduler. Canvas integration and the remaining formats/recovery work are unfinished. Native CPU and Web pixels do not establish physical display or performance acceptance.
+
+The default Original App connects the canonical Image widget and MemoryImage, AssetImage, ResizeImage and NetworkImage to the shared ImageService/ImageCache and the same admitted immutable-buffer decoder. Native FileImage uses absolute file:/// URIs; Web local-file IO remains unsupported. Image frames and timers use the View's actual Core timestamps and absolute deadlines, with bounded callbacks and cancellation at eviction/close. TickerMode pauses animated streams without advancing pixels. NetworkImage forwards bounded caller headers, reports received-byte progress and cancels pending reads; the default Original App requires HTTP header service 2 before user build. Native preserves an exact URL with an empty asset key and removes caller Authorization/Cookie headers on a cross-origin redirect. Public asset/file/network ByteData credit survives until realm termination, independently of decoder and Scene credit. Native decoder/IO controls and normal Web pixel checks cover cache reuse, resize, GIF frames and retirement; visibility/recovery, Canvas integration and physical/performance acceptance remain separate.
+
 ## Ownership and lifecycle
 
-| Owner | Responsibility |
-| --- | --- |
-| Core | Widgets, state, layout, hit testing, and logical semantics |
-| SDK TypeScript | Backend composition, input, assets, services, and View lifetime |
-| SDK native host | VM/bootstrap, windows, event loop, and application close |
-| Skia packages | Rendering, paragraphs, images, GPU submission, and retirement |
+| Owner           | Responsibility                                                  |
+| --------------- | --------------------------------------------------------------- |
+| Core            | Widgets, state, layout, hit testing, and logical semantics      |
+| SDK TypeScript  | Backend composition, input, assets, services, and View lifetime |
+| SDK native host | VM/bootstrap, windows, event loop, and application close        |
+| Skia packages   | Rendering, paragraphs, images, GPU submission, and retirement   |
 | Platform runner | Dependencies, registration, Metro/Babel, and native build files |
 
 Release application-owned services and await asynchronous disposal. Closing a View stops new input and frame admission before native/GPU drain. Failed drain retains unconfirmed dependencies; preserve the reported failure when handling shutdown.

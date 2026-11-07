@@ -24,8 +24,8 @@
     "@nelyx/skia-native": "file:../../.nelyx/supply/android/nelyx-skia-native-0.1.0-9c4db45f9df06249b9870efaec8657179fd81d70c1cbceb584e49e87eae4f6bf.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-cfb4ba258781b6e0599fa6b792a088772db9dbe63a08d609f0965c785d21790b.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-6235d89ef17f2f8cb2509607b460913fe4a1baf0108fd3964051ead8d922e036.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-92b7e1ac1a068099d4c8a665736dee574d82b8ba94e5658df812be1a36883bb4.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-e3de80ca4ecf732f7572c7a9172ec3c728893aad8922a36b358b36d8fa2d53db.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",
@@ -33,7 +33,7 @@
     "@react-native-community/cli-platform-android": "20.2.0",
     "@types/react": "19.2.2",
     "@types/node": "24.10.1",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "@nelyx/static-aot": "file:../../.nelyx/supply/android/nelyx-static-aot-0.1.0-de9e35b0578ced02085453094b42297682a0c02b9a3665709a4b49c7b51ba516.tgz"
   }
 }

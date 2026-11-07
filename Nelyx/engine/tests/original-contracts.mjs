@@ -1782,7 +1782,7 @@ export function originalContracts({ using, timeout }) {
             const before = await f.inspect(),
               encoded = c.paragraphOptions(text.node, { locale: 'ko', ellipsis: '~' });
             for (const mutate of [
-              (data) => data.setUint32(16, 32, true),
+              (data) => data.setUint32(16, 64, true),
               (data) => data.setUint32(20, 6, true),
               (data) => data.setUint32(24, p.limits.textBytes + 1, true),
               (data) => data.setUint32(28, p.limits.localeBytes + 1, true),
@@ -2044,14 +2044,32 @@ export function originalContracts({ using, timeout }) {
               [query.layoutQuery.width, query.layoutQuery.height, query.layoutQuery.baseline],
               [60, 40, 16],
             );
+            await host.update(
+              new Text('styled', {
+                style: new TextStyle({
+                  backgroundColor: 0xff123456,
+                  fontStyle: 'italic',
+                  decoration: TextDecoration.underline,
+                }),
+              }),
+            );
+            frame = await activate();
+            const styled = frame.nodes.find((n) => n.kind === p.kinds.paragraph).paragraph.runs[0];
+            assert.deepEqual(
+              [styled.backgroundColor, styled.fontStyle, styled.decoration],
+              [0xff123456, 'italic', 1],
+            );
             const before = await f.inspect();
             for (const options of [
               { overflow: 'fade' },
               { textWidthBasis: 'longestLine' },
               { fontSize: 0 },
-              { style: new TextStyle({ backgroundColor: 0xff000000 }) },
+              { style: new TextStyle({ fontStyle: 'italic', textBaseline: 'ideographic' }) },
             ])
-              await assert.rejects(host.update(new Text('unported', options)), /paragraph/);
+              await assert.rejects(
+                host.update(new Text('unported', options)),
+                /paragraph|App-text-style/,
+              );
             assert.equal((await f.inspect()).transactionWork, before.transactionWork);
             await host.update(tree('recovered'));
             frame = await activate();

@@ -1,6 +1,6 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-06 KST** · 상태: **PAUSED / 사용자 요청 일시중지 / Windows·Web 1차 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **IN_PROGRESS / 사용자 요청 재개 / Windows·Web 1차 PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -8,13 +8,13 @@
 
 ## 분할 문서
 
-| 문서 | 범위 | 작업 차수 |
-| --- | --- | --- |
-| [1부 — 범위·기준선·Windows 호스트·공통 경계](work9-1.md) | §1–4·§7: 우선 범위·work8 기준점·Windows App SDK·RNW 선별 재사용·최소 embedder | Windows/Web 1차 기반 |
-| [2부 — 공개 API·렌더링·입력·Web](work9-2.md) | §8–11의 공통·Web 계약: API 호환·Widget/디자인·graphics/text·frame·입력·Web 두 profile·OS 코드 재사용. Android/iOS 상세 구현은 4·5부 | Windows/Web 1차 기능 |
-| [3부 — 구현 순서·통합 검증·공급](work9-3.md) | §12–14: 실행 묶음·W9 단계/체크리스트·API/host/물리·성능 gate·공급/정리 | Windows/Web 1차 통합·판정 |
-| [4부 — Android·Linux 호스트](work9-4.md) | §11.4·§5: Android standalone·InputConnection/접근성·RN 분리, GTK4/DMA-BUF·IM/AT-SPI·배포 | **2차 / Windows/Web 1차 완료 후 / DEFERRED** |
-| [후속 5부 — iOS·macOS 호스트](work9-5.md) | §11.5·§6: UIKit/UITextInput·AppKit/Metal·접근성·Apple 공급 | **3차 / Android/Linux 2차 통합 완료 후 / DEFERRED** |
+| 문서                                                     | 범위                                                                                                                                | 작업 차수                                           |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| [1부 — 범위·기준선·Windows 호스트·공통 경계](work9-1.md) | §1–4·§7: 우선 범위·work8 기준점·Windows App SDK·RNW 선별 재사용·최소 embedder                                                       | Windows/Web 1차 기반                                |
+| [2부 — 공개 API·렌더링·입력·Web](work9-2.md)             | §8–11의 공통·Web 계약: API 호환·Widget/디자인·graphics/text·frame·입력·Web 두 profile·OS 코드 재사용. Android/iOS 상세 구현은 4·5부 | Windows/Web 1차 기능                                |
+| [3부 — 구현 순서·통합 검증·공급](work9-3.md)             | §12–14: 실행 묶음·W9 단계/체크리스트·API/host/물리·성능 gate·공급/정리                                                              | Windows/Web 1차 통합·판정                           |
+| [4부 — Android·Linux 호스트](work9-4.md)                 | §11.4·§5: Android standalone·InputConnection/접근성·RN 분리, GTK4/DMA-BUF·IM/AT-SPI·배포                                            | **2차 / Windows/Web 1차 완료 후 / DEFERRED**        |
+| [후속 5부 — iOS·macOS 호스트](work9-5.md)                | §11.5·§6: UIKit/UITextInput·AppKit/Metal·접근성·Apple 공급                                                                          | **3차 / Android/Linux 2차 통합 완료 후 / DEFERRED** |
 
 **개발 순서는 Windows/Web(threaded·single-worker) 1차 → Android/Linux 2차(4부) → iOS/macOS 3차(후속 5부)다.** 현재 구현 대상은 Windows/Web이며 Android/Linux는 1차 완료 후, iOS/macOS는 Android/Linux의 API·host·공급 통합 완료 후 착수한다. 후속 플랫폼의 toolchain·prototype·입력 adapter·배포를 앞선 차수의 완료 조건에 포함하지 않는다. 아직 착수하지 않은 대상은 모두 DEFERRED로 유지한다.
 
@@ -22,7 +22,7 @@
 
 1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. 실제 구현은 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따라 **W9-00 → W9-06-A → W9-01/02-A/B**부터 진행한다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
 
-**현재 상태 — 사용자 요청으로 PAUSED / PARTIAL:** 최신 공급 **`7b340f71…` / ABI 2·schema 2695739774**에 Slider drag 중 모든 canonical recognizer를 제거해도 남던 C++ capture를 수정했다. 유효한 새 준비에서 한 번만 해제하며 paint 교체·NACK·준비 실패는 기존 capture를 보존한다. 전체 Core **328/328**, geometry **2/2·7/7**, types·lint·format을 통과했다. 현재 source/dist·manifest **348파일**과 기존 Windows runner의 Core/SDK·두 디자인·CLI를 대조했다. 추가한 Web의 drag 중 비활성화·키보드 사례는 **미실행**이다. 앞선 `ce7d7818…`의 graphics **8/8**, Source 회귀 **18/18**·Web **4/4**, API `inputValid=true / compatible=false / strict exit 1`과 구분한다. 동기 TextPainter·label/value indicator·일반 geometry/custom·전체 API와 W9-13/14는 미완료이며 두 성능 flag false·물리/display notVerified·후속 플랫폼 DEFERRED를 유지한다. 사용자 재개 요청 전 자동 실행하지 않는다. [중간 마무리와 재개 명령](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
+**현재 상태 — IN_PROGRESS / Windows·Web 1차 PARTIAL:** 공급 **`7df40776…` / ABI 2·schema 1967912362 / App service 12**에서 canonical root/PlatformAssetBundle과 두 SDK App 모델의 공통 asset 소유권을 연결했다. Native C++ **7읽기·52 bytes = SDK**, Original/data 두 profile의 **65/17명령 = SDK**, HTTP metadata/index·취소·실제 actor 종료 뒤 예약 **0**을 검증했다. Source FontLoader·공개 UI load·불변 recording 수명을 유지하며 Core **382/382**, 통합 **44/44**, Source/수명 **46/46**, geometry **2/2·7/7**, 도구/API/supply **32/32** PASS다. TypeScript **7.0.2**, CanvasKit **128/256 MiB**, App **320 MiB**, ledger **768 MiB/GPU 128 MiB**를 유지한다. Web 서비스 bootstrap 취소·실패·늦은 실제 Wasm 초기화 **28조건**도 통과했다. Native/Web loadBuffer·ImmutableBuffer와 NetworkAssetBundle의 비동기 HTTP·마지막 holder/callback 회수도 검증했다. Native 성공 HTTP 16요청(redirect 포함)의 89 bytes는 SDK 전달 86 + 3 bytes와 일치한다. Data/Original Native 선언은 DOM 없이 TypeScript 7 strict 검사를 통과했다. 다음은 ImageDescriptor/Codec buffer 소비·OS font 알림과 기존 클래스 타입 호환성이다. 전체 API **inputValid=true / compatible=false**, Native 창·물리/display/scanout **notVerified**, 성능 flag **false**, W9-13/14 미완료·후속 **DEFERRED**다. [현재 증거와 다음 실행](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
 
 ## 원문 절 목차
 
@@ -125,6 +125,4 @@
 
 로컬 링크·앵커·표·code fence/공백, 주요 절 14개·단계 15개와 문서의 npm 명령 존재 여부를 검사하고 `git diff --check`를 통과했다. 상세 검사 범위와 수치는 3부 §14에 기록했다.
 
-**현재 구현 상태 — 2026-11-06 KST / PAUSED / PARTIAL:** 원래 Slider paint·Source layer 관측에 이어 drag 중 recognizer 제거 시 C++ capture를 해제하도록 수정했다. 현재 `7b340f71…`의 Native/두 Wasm·Windows 두 host build와 정상 Core **328/328**·geometry **2/2·7/7**를 통과했다. 기존 Windows runner의 설치 TS 패키지/CLI는 현재 source/dist와 일치하며 RNW bundle/native 재빌드·창 실행은 하지 않았다. 추가한 Web capture/키보드 검사는 미실행이다.
-
-원래 분모/hash를 유지한 API 입력 gate는 복구했으며 전체 호환은 미완료다. 사용자의 외출 전 중간 마무리 요청으로 목표를 일시중지했고 재개 요청 전 자동 실행하지 않는다. 다음은 미실행 Web 검증과 동기 TextPainter·label/value indicator·전체 API 연결이다. Native UI Computer Use의 앞선 물리 Esc 중단도 유지한다. 전체 API·W9-13/14 완료나 물리·성능 수락으로 올리지 않는다. [현재 공급·검증 경계와 재개 명령](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
+**현재 구현 상태 — 2026-11-07 KST / IN_PROGRESS / PARTIAL:** Root/PlatformAssetBundle·NetworkAssetBundle·공통 SDK asset IO·App service 12 credit·Web bootstrap 1 취소/종료·ImmutableBuffer와 Source font/cohort 수명을 연결했다. 현재 공급·검증 수치는 위 요약과 [3부의 현재 상태](work9-3.md#현재-구현검증과-잔여-작업)를 따른다. 전체 API·Native 창/물리/성능·W9-13/14는 미완료이며 Android/Linux·iOS/macOS는 DEFERRED다.

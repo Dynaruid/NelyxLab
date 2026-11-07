@@ -236,7 +236,11 @@ for (const hostKind of ['windows-hwnd', 'windows-app-sdk']) {
       assert.equal(state.rejectedFallbacks, 0);
       assert.equal(app.nativeExtensions, 1);
       assert.ok(state.nativeExtensions > 0 && state.graphicsRecords > 0);
-      assert.ok(state.memoryTotal > 0 && state.memoryPeak <= 402653184 && state.memoryGpu > 0);
+      assert.ok(
+        state.memoryTotal > 0 &&
+          state.memoryPeak <= protocol.limits.unifiedBytes &&
+          state.memoryGpu > 0,
+      );
       assert.ok(
         state.appHeapBytes > 0 && state.appHeapBytes < state.memoryTotal,
         'The actual Hermes heap and external buffers enter the shared ledger',
@@ -391,7 +395,9 @@ for (const hostKind of ['windows-hwnd', 'windows-app-sdk']) {
       const recovered = await host.waitStats(
         (s) => s.activeDocument > normal.activeDocument && s.cachedContentBytes > 0,
       );
-      assert.ok(recovered.memoryPeak <= 402653184 && recovered.rejectedFallbacks === 0);
+      assert.ok(
+        recovered.memoryPeak <= protocol.limits.unifiedBytes && recovered.rejectedFallbacks === 0,
+      );
       console.log(
         'V2_MEMORY_PRESSURE ' +
           JSON.stringify({
@@ -1372,20 +1378,35 @@ test(
         'asset',
         'paragraph-metadata',
         'paragraph-capability',
+        'picture-metadata',
+        'picture-capability',
+        'font-metadata',
+        'font-version',
+        'font-capability',
       ]) {
         const page = await browser.newPage();
-        if (failure === 'paragraph-metadata')
+        if (failure.endsWith('-metadata'))
           await page.route('**/engine-manifest.json', async (route) => {
             const result = await route.fetch(),
               manifest = await result.json();
-            manifest.canvasKit.paragraphApiVersion = 0;
+            if (failure === 'picture-metadata') manifest.canvasKit.pictureApiVersion = 0;
+            else if (failure === 'font-metadata') manifest.canvasKit.fontApiVersion = 0;
+            else manifest.canvasKit.paragraphApiVersion = 0;
             await route.fulfill({ json: manifest });
           });
-        if (failure === 'paragraph-capability') {
+        if (failure.endsWith('-capability') || failure === 'font-version') {
           const js = Buffer.concat([
               fs.readFileSync(path.join(engineRoot, 'dist/canvaskit/canvaskit.js')),
               Buffer.from(
-                '\nvar __nelyxOriginalFactory=CanvasKitInit;CanvasKitInit=async function(options){var module=await __nelyxOriginalFactory(options);module.nelyxParagraphApiVersion=undefined;return module;};\n',
+                '\nvar __nelyxOriginalFactory=CanvasKitInit;CanvasKitInit=async function(options){var module=await __nelyxOriginalFactory(options);module.' +
+                  (failure === 'picture-capability'
+                    ? 'nelyxMakePicture'
+                    : failure === 'font-capability'
+                      ? 'nelyxMakeFontProvider'
+                      : failure === 'font-version'
+                        ? 'nelyxFontApiVersion'
+                        : 'nelyxParagraphApiVersion') +
+                  '=undefined;return module;};\n',
               ),
             ]),
             digest = (bytes) => createHash('sha256').update(bytes).digest('hex'),
@@ -1429,9 +1450,9 @@ test(
             ? /isolation/
             : failure === 'schema'
               ? /schema mismatch/
-              : failure === 'paragraph-metadata'
+              : failure.endsWith('-metadata')
                 ? /CanvasKit supplier differs/
-                : failure === 'paragraph-capability'
+                : failure.endsWith('-capability') || failure === 'font-version'
                   ? /Owned CanvasKit paragraph\/graphics capability missing/
                   : /identity\/size mismatch/,
         );

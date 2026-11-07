@@ -10,6 +10,7 @@ import { build } from 'esbuild';
 import { protocol as p } from '@nelyx/core/v2';
 import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
 import { inspectEngineV2Graph } from './engine-v2-graph.mjs';
+import { applicationAssetKey, writeAssetManifests } from './engine-v2-assets.mjs';
 const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const inside = (root, file) => {
@@ -180,6 +181,56 @@ export async function buildEngineV2Application(options) {
                   !(
                     args.path === '@nelyx/core/internal/framework/widgets/ticker-scheduler' &&
                     /[/\\]v2[/\\]engine-client[/\\]original-scroll\.js$/.test(args.importer)
+                  ) &&
+                  !(
+                    [
+                      '@nelyx/core/internal/services/asset-loader-binding',
+                      '@nelyx/core/internal/ui/immutable-buffer-binding',
+                    ].includes(args.path) &&
+                    fs.existsSync(args.importer) &&
+                    fs.realpathSync(args.importer) ===
+                      fs.realpathSync(
+                        path.join(
+                          path.dirname(require.resolve('@nelyx/sdk/engine-v2')),
+                          'engine-v2-app.js',
+                        ),
+                      )
+                  ) &&
+                  !(
+                    [
+                      '@nelyx/core/internal/ui/image-descriptor-binding',
+                      '@nelyx/core/internal/ui/immutable-buffer-binding',
+                      '@nelyx/core/hosting/images',
+                      '@nelyx/core/hosting/resources',
+                    ].includes(args.path) &&
+                    fs.existsSync(args.importer) &&
+                    [
+                      'engine-v2-images.js',
+                      ...(args.path === '@nelyx/core/internal/ui/image-descriptor-binding'
+                        ? ['engine-v2-app.js']
+                        : []),
+                    ].some(
+                      (file) =>
+                        fs.realpathSync(args.importer) ===
+                        fs.realpathSync(
+                          path.join(path.dirname(require.resolve('@nelyx/sdk/engine-v2')), file),
+                        ),
+                    )
+                  ) &&
+                  !(
+                    args.path === '@nelyx/core/internal/framework/widgets/native-radio-semantics' &&
+                    fs.existsSync(args.importer) &&
+                    fs.realpathSync(args.importer) ===
+                      fs.realpathSync(path.join(path.dirname(core), 'original-controls.js'))
+                  ) &&
+                  !(
+                    [
+                      '@nelyx/core/hosting/text-layout-budget',
+                      '@nelyx/core/hosting/text-fonts',
+                    ].includes(args.path) &&
+                    fs.existsSync(args.importer) &&
+                    fs.realpathSync(args.importer) ===
+                      fs.realpathSync(path.join(path.dirname(core), 'original-text.js'))
                   )
                 )
                   return {
@@ -210,23 +261,51 @@ export async function buildEngineV2Application(options) {
     const graph = inspectEngineV2Graph(
       Object.keys(bundle.metafile.inputs).map((file) => path.resolve(file)),
       coreDirectory,
+      bundle.metafile.inputs,
     );
     const assets = settings.assets ?? {};
+    if (
+      !assets ||
+      typeof assets !== 'object' ||
+      Array.isArray(assets) ||
+      Object.keys(assets).length > 256
+    )
+      throw Error('Invalid application asset catalog/count');
     let assetBytes = 0;
+    const assetNames = new Map();
     for (const [name, relative] of Object.entries(assets)) {
-      if (
-        !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(name) ||
-        name.split('/').some((part) => !part || part === '..')
-      )
-        throw Error('Invalid application asset name: ' + name);
+      applicationAssetKey(name);
+      const canonicalName = name.toLowerCase();
+      if (['assetmanifest.bin', 'assetmanifest.bin.json'].includes(canonicalName.split('/')[0]))
+        throw Error('Application asset manifest keys are generated');
+      const parts = name.split('/');
+      for (let count = 1; count <= parts.length; ++count) {
+        const prefix = parts.slice(0, count).join('/'),
+          folded = prefix.toLowerCase(),
+          known = assetNames.get(folded);
+        if (known !== undefined && known !== prefix)
+          throw Error('Application asset paths collide: ' + name);
+        assetNames.set(folded, prefix);
+      }
       const source = input(app, relative);
-      assetBytes += fs.statSync(source).size;
-      if (assetBytes > p.limits.resourceBytes)
+      if (assetBytes + fs.statSync(source).size > p.limits.resourceBytes)
         throw Error('Application assets exceed session resource budget');
       const destination = path.join(staged, 'application/assets', name);
+      if (fs.existsSync(destination)) throw Error('Application asset paths collide: ' + name);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.copyFileSync(source, destination);
+      assetBytes += fs.statSync(destination).size;
+      if (assetBytes > p.limits.resourceBytes)
+        throw Error('Application assets changed beyond session resource budget');
     }
+    const { StandardMessageCodec } = await import(
+      pathToFileURL(require.resolve('@nelyx/core/services/message-codecs'))
+    );
+    writeAssetManifests(
+      path.join(staged, 'application/assets'),
+      Object.keys(assets),
+      StandardMessageCodec,
+    );
     const main = await build({
       stdin: {
         contents: browserMain,
@@ -382,6 +461,12 @@ export function createEngineV2Server(bundleOrReader, { development } = {}) {
           }[path.extname(file)] ?? 'application/octet-stream',
         'Cache-Control': 'no-store',
         'Cross-Origin-Resource-Policy': 'same-origin',
+        ...(name.startsWith('application/assets/')
+          ? {
+              'Content-Length': fs.statSync(file).size,
+              'X-Nelyx-Asset-Sha256': allowed.find((entry) => entry.path === name).sha256,
+            }
+          : {}),
         ...(isolated
           ? {
               'Cross-Origin-Opener-Policy': 'same-origin',
@@ -389,6 +474,10 @@ export function createEngineV2Server(bundleOrReader, { development } = {}) {
             }
           : {}),
       });
+      if (request.method === 'HEAD') {
+        response.end();
+        return;
+      }
       if (development && name === 'index.html') {
         const configuration =
           '<script>globalThis.__nelyxDevelopment=' + JSON.stringify({ generation }) + ';</script>';
@@ -571,7 +660,7 @@ export function createEngineV2Project(
         },
         devDependencies: {
           '@nelyx/cli': cli,
-          typescript: 'npm:@typescript/typescript6@6.0.2',
+          typescript: '7.0.2',
           ...(metro ? { '@nelyx/metro': metro } : {}),
           ...(staticAot ? { '@nelyx/static-aot': staticAot } : {}),
         },
@@ -614,7 +703,7 @@ const fail=message=>{error.textContent=message;current.errors.push(message);};
  const surface=await createBrowserEngineV2Surface(document.querySelector('canvas'),{root,profile:new URL(location.href).searchParams.get('profile')??'auto',onError:fail});
  current.surface=surface;const app=new Worker(new URL('application/app.js',root));current.app=app;let appDisposed=false;
  app.addEventListener('message',event=>{if(event.data.kind==='app-ready'){current.ready=true;current.receipt=event.data;}else if(event.data.kind==='app-error')fail(event.data.message);else if(event.data.kind==='app-disposed')appDisposed=true;});
- app.addEventListener('error',event=>fail(event.message));const port=surface.createAppPort();
+ app.addEventListener('error',event=>fail(event.message));const port=surface.createAppPort(app);
  app.postMessage({kind:'start',root:root.href,port,identity:{engine:'v2',abiMajor:p.abiMajor,schema:p.schema}},[port]);
  let closing;
  current.close=()=>closing??=(async()=>{
@@ -630,7 +719,7 @@ const fail=message=>{error.textContent=message;current.errors.push(message);};
   await drainEngineOwners('App and surface close failed',[
    ()=>{if(failure)throw failure;},
    async()=>{result=await surface.close();},
-   ()=>{app.terminate();current.ready=false;}
+   ()=>{current.ready=false;}
   ]);
   return result;
  })();

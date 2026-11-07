@@ -8,6 +8,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
@@ -58,13 +59,15 @@ def fetch(root, entry):
 
 
 def prepare(root, archive, dependency_inputs=None):
-    if sha(archive) != LOCK['skia']['archiveSha256']:
+    if archive and sha(archive) != LOCK['skia']['archiveSha256']:
         raise ValueError('Skia source archive hash mismatch')
     marker = root / 'nelyx-source.json'
     if marker.exists():
         if json.loads(marker.read_text()) != LOCK['skia']:
             raise ValueError('Existing source identity differs')
     else:
+        if not archive:
+            raise ValueError('A locked source archive is required for a new build root')
         if root.exists() and any(root.iterdir()):
             raise ValueError('Choose an empty source directory')
         root.mkdir(parents=True, exist_ok=True)
@@ -101,10 +104,24 @@ def prepare(root, archive, dependency_inputs=None):
     if sha(patch_file) != LOCK['patch']['sha256']:
         raise ValueError('Binding patch identity differs')
     actual = {item['path']: sha(root / item['path']) for item in LOCK['patch']['files']}
-    if all(actual[item['path']] == item['before'] for item in LOCK['patch']['files']):
-        run(['patch', '-p1', '--batch', '--forward', '-i', str(patch_file)], root)
+    if any(actual[item['path']] not in (item['before'], item['after']) for item in LOCK['patch']['files']):
+        raise ValueError('Unexpected binding source contents; no source was reset')
+    # A current owned root may already contain earlier hunks. Apply only files
+    # at their exact locked before hash; never reset or patch unknown contents.
+    sections = re.split(r'(?m)(?=^--- a/)', patch_file.read_text())
+    patches = {section.splitlines()[0][6:]: section for section in sections if section.startswith('--- a/')}
+    if set(patches) != {item['path'] for item in LOCK['patch']['files']}:
+        raise ValueError('Patch file inventory differs from the source lock')
+    for item in LOCK['patch']['files']:
+        if actual[item['path']] == item['before']:
+            subprocess.run(['patch', '-p1', '--batch', '--forward'], cwd=root,
+                           input=patches[item['path']], text=True, check=True)
     if any(sha(root / item['path']) != item['after'] for item in LOCK['patch']['files']):
         raise ValueError('Unexpected binding source contents; no source was reset')
+    binding = LOCK['pictureBinding']
+    if sha(HERE / binding['path']) != binding['sha256']:
+        raise ValueError('Picture binding source identity differs')
+    shutil.copyfile(HERE / binding['path'], inside(root, 'modules/canvaskit/nelyx_picture_bindings.cpp'))
     pending = []
     for entry in LOCK['dependencies']:
         shared = (dependency_inputs / entry['path']).resolve() if dependency_inputs else None
@@ -150,6 +167,8 @@ def build(root, jobs):
     for item in LOCK['patch']['files']:
         if sha(root / item['path']) != item['after']:
             raise ValueError('Patched source changed')
+    if sha(root / 'modules/canvaskit/nelyx_picture_bindings.cpp') != LOCK['pictureBinding']['sha256']:
+        raise ValueError('Picture binding source changed')
     output = inside(root, 'out/nelyx-canvaskit')
     env = {**os.environ, 'BUILD_DIR': str(output), 'NELYX_NINJA_JOBS': str(jobs)}
     # compile.sh's cleanup only targets *.a in this verified owned output directory.
@@ -157,7 +176,9 @@ def build(root, jobs):
     files = [{'id': name, 'path': name, 'sha256': sha(output / name)}
              for name in ['canvaskit.js', 'canvaskit.wasm']]
     manifest = {'schema': 'nelyx.canvaskit/v1', 'adapterAbi': 1,
-                'version': 'm153-nelyx-paragraph.1', 'paragraphApiVersion': 1,
+                'version': 'm153-nelyx-paragraph.5', 'paragraphApiVersion': 1, 'pictureApiVersion': 2, 'fontApiVersion': 1,
+                'initialMemoryBytes': 128 * 1024 * 1024,
+                'maximumMemoryBytes': 256 * 1024 * 1024,
                 'source': {'revision': LOCK['skia']['revision'],
                            'lockSha256': sha(HERE / 'canvaskit.lock.json'),
                            'patchSha256': LOCK['patch']['sha256']}, 'files': files}
@@ -187,8 +208,7 @@ if __name__ == '__main__':
     if build_root == Path('/') or len(build_root.parts) < 3:
         parser.error('Select a dedicated nested build directory')
     if arguments.phase == 'prepare':
-        if not arguments.archive:
-            parser.error('prepare requires --archive')
-        prepare(build_root, arguments.archive.resolve(), arguments.dependency_inputs.resolve() if arguments.dependency_inputs else None)
+        prepare(build_root, arguments.archive.resolve() if arguments.archive else None,
+                arguments.dependency_inputs.resolve() if arguments.dependency_inputs else None)
     else:
         build(build_root, arguments.jobs)

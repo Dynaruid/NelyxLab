@@ -6,6 +6,7 @@
 #include <jsi/instrumentation.h>
 #include "../../core/engine.hpp"
 #include "skia_provider.hpp"
+#include "app_text_jsi.hpp"
 #include "interaction.hpp"
 #include "memory_pressure.hpp"
 #include "../../../skia/native/host/windows/WindowsPrecisionTrackpad.h"
@@ -34,11 +35,12 @@ static BOOL WINAPI closeFromConsole(DWORD event){
 }
 static double now(){return nw::qpcSeconds();}
 static std::vector<uint8_t> readFile(const std::string& path){std::ifstream stream(path,std::ios::binary);if(!stream)throw std::runtime_error("File unavailable: "+path);return {std::istreambuf_iterator<char>(stream),{}};}
-static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& data={},bool session=false){
+static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& data={},bool session=false,uint64_t requestId=0){
   Writer w(wire::headerBytes+data.size());w.u32(0,wire::magic);w.u16(4,2);w.u32(8,wire::schema);w.u16(12,uint16_t(op));w.u32(16,uint32_t(w.bytes.size()));w.u32(20,1);w.u32(24,1);w.u32(28,session?0:1);w.u32(32,session?0:1);
-  if(!data.empty())std::memcpy(w.bytes.data()+wire::headerBytes,data.data(),data.size());return std::move(w.bytes);
+  w.u64(40,requestId);if(!data.empty())std::memcpy(w.bytes.data()+wire::headerBytes,data.data(),data.size());return std::move(w.bytes);
 }
 struct Job{uint32_t id;std::vector<uint8_t> bytes;std::shared_ptr<ExternalLease> memory;};
+struct PreparedFont {uint64_t token;std::shared_ptr<const Resource> resource;std::shared_ptr<nw::ParagraphProvider> fonts;};
 struct AppHeapAccount {
   std::shared_ptr<Ledger> ledger;std::atomic<uint64_t>& observed;
   void update(jsi::Runtime& runtime){
@@ -94,6 +96,7 @@ class Host {
   size_t jobBytes=0;
   std::shared_ptr<const nw::Prepared> candidate;
   std::shared_ptr<const nw::Prepared> publishedPrepared;
+  std::shared_ptr<const PreparedFont> fontCandidate;
   std::string directory;
   std::string appDirectory;
   std::atomic<uint64_t> rendered{0},paragraphs{0},pictures{0},images{0};
@@ -121,7 +124,7 @@ class Host {
   bool dragging=false;double pointerX=0,pointerY=0,pointerAt=0,pointerVelocity=0;
   std::atomic<bool> metricsPending{false};bool focused=true,visible=true;
   std::string control;
-  std::vector<uint8_t> call(uint32_t op,const std::vector<uint8_t>& data={},bool session=false){auto bytes=makePacket(op,data,session);return core.dispatch({bytes.data(),bytes.size()});}
+  std::vector<uint8_t> call(uint32_t op,const std::vector<uint8_t>& data={},bool session=false,uint64_t requestId=0){auto bytes=makePacket(op,data,session,requestId);return core.dispatch({bytes.data(),bytes.size()});}
   static Reader reader(const std::vector<uint8_t>& bytes){return {bytes.data(),bytes.size()};}
   void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();appChanged.notify_all();PostMessageW(window,WM_CLOSE,0,0);}
   void contentLoop(){
@@ -137,11 +140,26 @@ class Host {
         if(has){auto result=core.dispatch({job.bytes.data(),job.bytes.size()});
           const auto op=Reader{job.bytes.data(),job.bytes.size()}.u16(12);
           if(op==wire::opcodes::scroll||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
+          if(op==wire::opcodes::fontTransitionBegin||op==wire::opcodes::fontTransitionReady||
+            op==wire::opcodes::fontTransitionCommit||op==wire::opcodes::fontTransitionAbort){renderWakeRequested=true;changed.notify_all();}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::transaction){interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
           auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
         if(const auto delay=contentDelay.exchange(0)){busyOwners.fetch_or(2);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_START "<<delay<<std::endl;injectProbeInput();std::this_thread::sleep_for(std::chrono::milliseconds(delay));busyOwners.fetch_and(~2u);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_END"<<std::endl;}
-        if(connected){const auto stepStarted=now();Writer quota(8);quota.u32(0,wire::limits::contentPerStep);auto result=call(wire::opcodes::contentStep,quota.bytes);auto r=reader(result);
+        if(connected){
+          if(const auto stage=core.fontTransitionSnapshot(1,1)){
+            if(stage->phase==wire::fontTransitionPhases::preparing&&!(stage->ready&wire::fontTransitionOwners::content)){
+              Writer reply(8);reply.u32(0,wire::fontTransitionOwners::content);
+              try{
+                auto fonts=provider.prepareFont(stage->resource);
+                {std::lock_guard lock(sceneMutex);fontCandidate=std::make_shared<PreparedFont>(PreparedFont{stage->token,stage->resource,std::move(fonts)});}
+              }catch(const std::exception& error){reply.u32(4,wire::statuses::invalidValue);std::osyncstream(std::cout)<<"V2_FONT_PREPARATION_ERROR "<<error.what()<<std::endl;}
+              call(wire::opcodes::fontTransitionReady,reply.bytes,false,stage->token);renderWakeRequested=true;changed.notify_all();
+            }else if(stage->phase!=wire::fontTransitionPhases::preparing){
+              {std::lock_guard lock(sceneMutex);fontCandidate.reset();}provider.trimFontCache();
+            }
+          }
+          const auto stepStarted=now();Writer quota(8);quota.u32(0,wire::limits::contentPerStep);auto result=call(wire::opcodes::contentStep,quota.bytes);auto r=reader(result);
           const auto preparation=r.u64(wire::headerBytes+wire::stateFields::preparation);
           if(preparation&&preparation!=currentTiming.preparation){currentTiming={};currentTiming.preparation=preparation;currentTiming.document=r.u64(wire::headerBytes+wire::stateFields::preparationDocument);currentTiming.started=stepStarted;}
           if(preparation){++currentTiming.steps;currentTiming.coreMs+=(now()-stepStarted)*1000;currentTiming.work=r.u64(wire::headerBytes+wire::stateFields::contentWork);}
@@ -150,11 +168,17 @@ class Host {
           if(r.u16(14)==0 && r.u64(wire::headerBytes+wire::stateFields::measureRequest)) {
             const auto measurementStarted=now();
             auto request=core.measurementSnapshot(1,1);
-            if(request){const auto value=provider.measure(*request);Writer reply(value.geometry?wire::measurementGeometryBytes+value.geometry->selection.size()*32:wire::measurementBytes);
+            if(request){const auto value=provider.measure(*request);Writer reply(value.geometry?wire::measurementGeometryBytes+value.geometry->selection.size()*32:
+              value.placeholders?wire::measurementPlaceholderBytes+value.placeholders->boxes.size()*wire::paragraphBoxBytes:wire::measurementBytes);
               reply.u64(wire::measureFields::preparation,request->preparation);reply.u64(wire::measureFields::metrics,r.u64(wire::headerBytes+wire::stateFields::metrics));reply.u64(wire::measureFields::device,r.u64(wire::headerBytes+wire::stateFields::device));
               reply.u64(wire::measureFields::request,request->id);writeHandle(reply,wire::measureFields::node,request->node->id);
               reply.f64(wire::measureFields::width,value.width);reply.f64(wire::measureFields::height,value.height);reply.f64(wire::measureFields::minimum,value.minimum);reply.f64(wire::measureFields::maximum,value.maximum);reply.f64(wire::measureFields::baseline,value.baseline);
-              reply.u32(wire::measureFields::flags,value.didExceedMaxLines?wire::measurementFlags::didExceedMaxLines:0);
+              reply.f64(wire::measureFields::ideographicBaseline,value.ideographicBaseline);
+              reply.u32(wire::measureFields::flags,(value.didExceedMaxLines?wire::measurementFlags::didExceedMaxLines:0)|
+                (value.placeholders?wire::measurementFlags::hasPlaceholders:0));
+              if(value.placeholders){const auto& boxes=value.placeholders->boxes;reply.u32(wire::measureFields::placeholderCount,uint32_t(boxes.size()));
+                for(size_t i=0;i<boxes.size();++i){const auto offset=wire::measurementPlaceholderBytes+i*wire::paragraphBoxBytes;const auto& box=boxes[i];
+                  reply.f64(offset,box.x);reply.f64(offset+8,box.y);reply.f64(offset+16,box.width);reply.f64(offset+24,box.height);reply.u32(offset+32,box.direction);}}
               if(value.geometry){const auto& g=*value.geometry;reply.u64(wire::measureFields::geometryRevision,g.revision);reply.u32(wire::measureFields::selectionCount,uint32_t(g.selection.size()));
                 const auto rect=[&](size_t o,const TextRect& r){reply.f64(o,r.x);reply.f64(o+8,r.y);reply.f64(o+16,r.width);reply.f64(o+24,r.height);};
                 rect(wire::measureFields::caret,g.caret);for(size_t i=0;i<g.selection.size();++i)rect(wire::measureFields::selection+i*32,g.selection[i]);}
@@ -183,7 +207,7 @@ class Host {
         cachedContentBytes=provider.cachedBytes.load();paragraphLayouts=provider.paragraphLayouts.load();
         std::unique_lock lock(wakeMutex);changed.wait(lock,[this,&handledPressure]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||contentDelay||!jobs.empty()||pressureEpoch!=handledPressure;});
       }
-      {std::lock_guard lock(sceneMutex);candidate.reset();}
+      {std::lock_guard lock(sceneMutex);candidate.reset();fontCandidate.reset();}
     }catch(const std::exception& error){notifyError(error.what());}
     CoUninitialize();
   }
@@ -202,6 +226,13 @@ class Host {
       uint64_t lastReportedInput=0,lastReportedDocument=0,handledPressure=0;
       while(!stopping){
         renderWakeRequested=false;
+        {std::shared_ptr<const PreparedFont> prepared;{std::lock_guard lock(sceneMutex);prepared=fontCandidate;}
+          if(prepared)if(const auto stage=core.fontTransitionSnapshot(1,1);stage&&stage->token==prepared->token&&
+              stage->phase==wire::fontTransitionPhases::preparing&&!(stage->ready&wire::fontTransitionOwners::render)){
+            if(stage->resource!=prepared->resource||(stage->resource&&!prepared->fonts))throw std::runtime_error("Native Render font preparation identity differs");
+            Writer reply(8);reply.u32(0,wire::fontTransitionOwners::render);call(wire::opcodes::fontTransitionReady,reply.bytes,false,stage->token);
+            contentWake=true;changed.notify_all();
+          }}
         if(const auto epoch=pressureEpoch.load();epoch!=handledPressure){provider.setMemoryPressure(memoryPressure);handledPressure=epoch;renderPressureEpoch=epoch;}
         const auto frameStarted=now();const auto display=nw::displayClock(window);
         if(metricsPending.exchange(false)){
@@ -261,14 +292,28 @@ class Host {
     try{
       while(!stopping&&!connected)std::this_thread::sleep_for(std::chrono::milliseconds(2));if(stopping)return;
       AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes};
+      nw::AppParagraphs appText(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger(),
+        appDirectory.empty()?directory+"/assets":appDirectory+"/application/assets",appDirectory.empty());
       auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withAsyncBreakCheckInEval(true).build());
       AppRuntimeRegistration registration(appRuntimeMutex,appRuntime,runtime.get());
       auto& rt=*runtime;
       appMemory.update(rt);
       auto native=jsi::Object(rt);
       native.setProperty(rt,"operatingSystem","windows");
+      nw::installAppText(rt,native,appText);
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
       native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
+      // The built-in scene predates the SDK entry. Keep its one image request
+      // behind the same preallocation credit until the App runtime terminates.
+      if(appDirectory.empty())native.setProperty(rt,"asset",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"asset"),1,
+        [&appText,owner=uint64_t(0)](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)mutable->jsi::Value{
+          if(count!=1||!args[0].isString())throw jsi::JSError(r,"Invalid bundled asset request");
+          if(!owner)owner=appText.open();const auto key=args[0].asString(r).utf8(r);const auto size=appText.assetSize(owner,key);
+          const auto credit=appText.reserveAssetBytes(owner,size);
+          try{const auto bytes=appText.readAsset(owner,credit,key);auto array=r.global().getPropertyAsFunction(r,"ArrayBuffer").callAsConstructor(r,double(bytes.size())).getObject(r);
+            auto buffer=array.getArrayBuffer(r);std::memcpy(buffer.data(r),bytes.data(),bytes.size());appText.finishAssetLoad(owner,credit,true);return array;}
+          catch(...){appText.finishAssetLoad(owner,credit,false);throw;}
+        }));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
@@ -279,13 +324,6 @@ class Host {
         else jobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});jobBytes+=length;
         contentWake=true;
         changed.notify_all();return jsi::Value::undefined();}));
-      native.setProperty(rt,"asset",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"asset"),1,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t)->jsi::Value{
-        const auto name=args[0].asString(r).utf8(r);std::filesystem::path file;
-        if(appDirectory.empty()){if(name!="image")throw jsi::JSError(r,"Unknown native asset");file=directory+"/assets/image.webp";}
-        else{const auto root=std::filesystem::canonical(std::filesystem::path(appDirectory)/"application/assets");file=std::filesystem::canonical(root/name);const auto relative=file.lexically_relative(root);
-          if(relative.empty()||relative.is_absolute()||*relative.begin()==".."||!std::filesystem::is_regular_file(file))throw jsi::JSError(r,"Invalid application asset path");}
-        const auto size=std::filesystem::file_size(file);if(size>wire::limits::resourceBytes)throw jsi::JSError(r,"Application asset budget exceeded");ExternalLease staging(core.memoryLedger(),3,4,size*2);
-        auto bytes=readFile(file.string());auto array=r.global().getPropertyAsFunction(r,"ArrayBuffer").callAsConstructor(r,double(bytes.size())).getObject(r);auto buffer=array.getArrayBuffer(r);std::memcpy(buffer.data(r),bytes.data(),bytes.size());return array;}));
       native.setProperty(rt,"notify",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"notify"),2,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         if(count>1&&args[1].isObject()){
           const auto execution=args[1].asObject(r);

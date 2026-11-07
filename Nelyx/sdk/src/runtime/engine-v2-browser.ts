@@ -6,12 +6,18 @@ import {
   response,
   inputBody,
   createPacketTransport,
+  drainEngineOwners,
+  capabilityMask,
 } from '@nelyx/core/v2';
 import type { EngineResponse, InputPacket, PacketEndpoint } from '@nelyx/core/v2';
 import type { EngineV2Host } from './engine-v2.ts';
 import { EngineV2BrowserInteraction } from './engine-v2-interaction.ts';
 
 export type EngineWebProfile = 'auto' | 'single-worker' | 'threaded';
+/** Preserve exact browser instances while keeping the shared Data App entry
+ * usable by Native consumers that declare only ES2022 ambient libraries. */
+type BrowserInstance<Name extends string> =
+  typeof globalThis extends Record<Name, { prototype: infer Instance }> ? Instance : never;
 export interface EngineBrowserSurface {
   readonly host: EngineV2Host;
   readonly selectedProfile: 'single-worker' | 'threaded';
@@ -23,7 +29,8 @@ export interface EngineBrowserSurface {
     rejected: number;
     canceledStreams: number;
   };
-  createAppPort(): MessagePort;
+  /** Registers an App worker for terminal cleanup before its host reservations retire. */
+  createAppPort(app?: BrowserInstance<'Worker'>): BrowserInstance<'MessagePort'>;
   delayContent(milliseconds: number): void;
   /** Requests a bounded cache policy change; diagnostics report actual owner acknowledgement. */
   setMemoryPressure(low: boolean): void;
@@ -100,9 +107,9 @@ function createMainFrameClock() {
   };
 }
 export async function createBrowserEngineV2Surface(
-  canvas: HTMLCanvasElement,
+  canvas: BrowserInstance<'HTMLCanvasElement'>,
   options: {
-    root: URL;
+    root: BrowserInstance<'URL'>;
     profile?: EngineWebProfile;
     requiredCapabilities?: number;
     onStats?(value: Record<string, unknown>): void;
@@ -139,7 +146,7 @@ export async function createBrowserEngineV2Surface(
         ? 'isolated-shared-memory'
         : 'shared-memory-unavailable'
       : 'explicit-profile';
-  const required = options.requiredCapabilities ?? p.capabilities.surface;
+  const required = capabilityMask(options.requiredCapabilities ?? p.capabilities.surface);
   if (required & p.capabilities.contentIndependent && selected !== 'threaded')
     throw new Error('Requested contentIndependent capability is unavailable');
   const worker = new Worker(new URL('web/coordinator.js', options.root));
@@ -149,6 +156,8 @@ export async function createBrowserEngineV2Surface(
     pendingInputs = 0,
     latest: EngineResponse | undefined,
     appPorts = 0;
+  const appWorkers = new Set<Worker>();
+  let closing: Promise<Record<string, unknown>> | undefined;
   let diagnostics: Record<string, unknown> = {
     requestedProfile: requested,
     selectedProfile: selected,
@@ -303,7 +312,7 @@ export async function createBrowserEngineV2Surface(
         ),
       ),
     );
-    if (hello.status !== p.statuses.ok || (hello.capabilities & required) !== required)
+    if (hello.status !== p.statuses.ok || (hello.capabilities & required) >>> 0 !== required)
       throw new Error('Engine surface capability handshake rejected');
   } catch (error) {
     frameClock.close();
@@ -655,10 +664,20 @@ export async function createBrowserEngineV2Surface(
       requestedPressure = low;
       pumpPressure();
     },
-    createAppPort() {
-      if (closed || ++appPorts > 8) throw new Error('App port budget exceeded');
+    createAppPort(app) {
+      if (closed || appPorts >= 8) throw new Error('App port budget exceeded');
+      if (app && (!(app instanceof Worker) || appWorkers.has(app)))
+        throw new Error('App worker ownership is invalid or already registered');
       const channel = new MessageChannel();
-      worker.postMessage({ kind: 'port', port: channel.port2 }, [channel.port2]);
+      try {
+        worker.postMessage({ kind: 'port', port: channel.port2, ownedApp: !!app }, [channel.port2]);
+      } catch (error) {
+        channel.port1.close();
+        channel.port2.close();
+        throw error;
+      }
+      ++appPorts;
+      if (app) appWorkers.add(app);
       return channel.port1;
     },
     delayContent(milliseconds) {
@@ -672,51 +691,63 @@ export async function createBrowserEngineV2Surface(
         milliseconds: Math.min(2000, Math.max(0, milliseconds)),
       });
     },
-    async close() {
-      if (closed) return diagnostics;
-      closed = true;
-      if (pressureTimer !== undefined) clearTimeout(pressureTimer);
-      pressurePending = undefined;
-      resize.disconnect();
-      if (resizeFrame) cancelAnimationFrame(resizeFrame);
-      document.removeEventListener('visibilitychange', visibility);
-      window.removeEventListener('focus', visibility);
-      window.removeEventListener('blur', visibility);
-      canvas.removeEventListener('wheel', wheel);
-      document.removeEventListener('wheel', overlayWheel);
-      canvas.removeEventListener('pointerleave', leave);
-      document.removeEventListener('pointerleave', overlayLeave, true);
-      canvas.removeEventListener('pointerdown', down);
-      canvas.removeEventListener('pointermove', move);
-      canvas.removeEventListener('pointerup', end);
-      canvas.removeEventListener('pointercancel', end);
-      canvas.removeEventListener('lostpointercapture', end);
-      document.removeEventListener('dragstart', nativeDrag);
-      document.removeEventListener('pointerdown', overlayPointer);
-      document.removeEventListener('pointermove', overlayPointer);
-      document.removeEventListener('pointerup', overlayPointer);
-      document.removeEventListener('pointercancel', overlayPointer);
-      pointers.clear();
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await interaction.close();
-        worker.postMessage({ kind: 'close' });
-        const state = await Promise.race([
-          closingResult,
-          new Promise<never>((_, reject) => {
-            timeout = setTimeout(() => reject(new Error('Surface close timed out')), 15000);
-          }),
-        ]);
-        diagnostics = { ...diagnostics, closed: state };
-        return state;
-      } finally {
-        if (timeout !== undefined) clearTimeout(timeout);
-        frameClock.close();
-        transport.close();
-        worker.removeEventListener('message', receive);
-        worker.removeEventListener('error', failed);
-        worker.terminate();
-      }
+    close() {
+      return (closing ??= (async () => {
+        closed = true;
+        if (pressureTimer !== undefined) clearTimeout(pressureTimer);
+        pressurePending = undefined;
+        resize.disconnect();
+        if (resizeFrame) cancelAnimationFrame(resizeFrame);
+        document.removeEventListener('visibilitychange', visibility);
+        window.removeEventListener('focus', visibility);
+        window.removeEventListener('blur', visibility);
+        canvas.removeEventListener('wheel', wheel);
+        document.removeEventListener('wheel', overlayWheel);
+        canvas.removeEventListener('pointerleave', leave);
+        document.removeEventListener('pointerleave', overlayLeave, true);
+        canvas.removeEventListener('pointerdown', down);
+        canvas.removeEventListener('pointermove', move);
+        canvas.removeEventListener('pointerup', end);
+        canvas.removeEventListener('pointercancel', end);
+        canvas.removeEventListener('lostpointercapture', end);
+        document.removeEventListener('dragstart', nativeDrag);
+        document.removeEventListener('pointerdown', overlayPointer);
+        document.removeEventListener('pointermove', overlayPointer);
+        document.removeEventListener('pointerup', overlayPointer);
+        document.removeEventListener('pointercancel', overlayPointer);
+        pointers.clear();
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          let state: Record<string, unknown> | undefined;
+          await drainEngineOwners('Surface owner cleanup failed', [
+            () => interaction.close(),
+            ...Array.from(appWorkers, (app) => () => {
+              app.terminate();
+              appWorkers.delete(app);
+            }),
+            async () => {
+              if (appWorkers.size)
+                throw Error('App workers did not stop before host reservation cleanup');
+              worker.postMessage({ kind: 'close' });
+              state = await Promise.race([
+                closingResult,
+                new Promise<never>((_, reject) => {
+                  timeout = setTimeout(() => reject(new Error('Surface close timed out')), 15000);
+                }),
+              ]);
+            },
+          ]);
+          diagnostics = { ...diagnostics, closed: state };
+          return state!;
+        } finally {
+          if (timeout !== undefined) clearTimeout(timeout);
+          frameClock.close();
+          transport.close();
+          worker.removeEventListener('message', receive);
+          worker.removeEventListener('error', failed);
+          worker.terminate();
+        }
+      })());
     },
   };
 }

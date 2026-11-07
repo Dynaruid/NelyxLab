@@ -1,5 +1,6 @@
 import { canvasKitTestSupply } from './canvaskit-supply.mjs';
 import './material-slider-render.mjs';
+import './material-indicator-render.mjs';
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -933,7 +934,52 @@ for (const sharedOwner of [true, false])
         render.resize = () => {};
         cold.surface = renderKit.MakeSurface(300, 60);
         cold.resize = () => {};
+        const layoutsBeforeMeasurement = content.counters.paragraphLayouts;
+        content.measure({
+          ...scene,
+          measureRequest: 1n,
+          measurePreparation: 1n,
+          nodes: [scene.nodes[0]],
+          blobs: [scene.blobs[0]],
+        });
+        assert.equal(content.counters.paragraphLayouts, layoutsBeforeMeasurement + 1);
         paint();
+        assert.equal(
+          content.counters.paragraphLayouts,
+          layoutsBeforeMeasurement + 1,
+          'Preparing the measured paragraph reuses the same font identity and C++ layout',
+        );
+        const unprepared = {
+            ...scene,
+            preparation: 2n,
+            measurePreparation: 2n,
+            measureRequest: 1n,
+            fontRevision: 2n,
+            nodes: [
+              {
+                ...scene.nodes[0],
+                fontBinding: { resource: h(50), fontRevision: 2n, pinned: false },
+              },
+            ],
+            blobs: [scene.blobs[0]],
+          },
+          layoutsBeforeRejection = content.counters.paragraphLayouts,
+          cachedBeforeRejection = content.counters.cachedContentBytes;
+        assert.throws(() => content.measure(unprepared), /font resource has not been prepared/);
+        assert.throws(
+          () => content.prepare(unprepared, sharedOwner),
+          /font resource has not been prepared/,
+        );
+        assert.equal(
+          content.counters.paragraphLayouts,
+          layoutsBeforeRejection,
+          'An unprepared font cannot silently shape with the bundled cohort',
+        );
+        assert.equal(
+          content.counters.cachedContentBytes,
+          cachedBeforeRejection,
+          'Rejected font work preserves the previous records',
+        );
         const before = { ...content.counters };
         scene.nodes[2].color = 0xff2266cc;
         compareCold(paint());

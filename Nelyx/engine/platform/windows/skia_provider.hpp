@@ -4,6 +4,8 @@
 #include "../../core/state.hpp"
 #include "graphics.hpp"
 #include "native_paint.hpp"
+#include "paragraph_provider.hpp"
+#include "image_provider.hpp"
 #include "../../../skia/native/platforms/vulkan/device.h"
 #include "../../../skia/native/rendering/font_services.h"
 #include "include/core/SkCanvas.h"
@@ -52,9 +54,24 @@ struct Prepared {
 };
 class ContentProvider {
   std::shared_ptr<Ledger> ledger;
-  std::shared_ptr<ExternalLease> fontMemory,cacheMemory;
-  sk_sp<skia::textlayout::FontCollection> fonts;
-  sk_sp<SkUnicode> unicode;
+  ParagraphProvider paragraphProvider;
+  struct FontOwner {std::weak_ptr<const Resource> resource;std::shared_ptr<ParagraphProvider> provider;};
+  std::map<uint64_t,FontOwner> fontOwners;
+  std::shared_ptr<ParagraphProvider> fontFor(const Node& n){
+    std::erase_if(fontOwners,[](const auto& entry){return entry.second.resource.expired();});
+    if(!n.fontResource)return nullptr;
+    if(!n.fontResource->fontCatalog)throw std::runtime_error("Native paragraph font resource has a foreign kind");
+    const auto key=n.fontResource->id.key();const auto found=fontOwners.find(key);
+    if(found!=fontOwners.end()){
+      if(found->second.resource.lock()!=n.fontResource)throw std::runtime_error("Native paragraph font identity was reused");
+      return found->second.provider;
+    }
+    const auto& bytes=n.fontResource->bytes;const auto catalog=readFontCatalog({bytes.data(),bytes.size()});
+    uint64_t decoded=0;std::shared_ptr<ParagraphProvider> candidate;
+    try{candidate=std::make_shared<ParagraphProvider>(paragraphProvider,catalog,ledger,1,&decoded);}
+    catch(...){fontLoads+=decoded;throw;}fontLoads+=decoded;
+    fontOwners.emplace(key,FontOwner{n.fontResource,candidate});return candidate;
+  }
   struct CachedParagraph {
     std::shared_ptr<ExternalLease> memory;
     std::shared_ptr<const TextData> text;
@@ -62,6 +79,7 @@ class ContentProvider {
     uint32_t color;
     uint32_t direction;
     std::shared_ptr<const ParagraphData> options;
+    std::shared_ptr<const Resource> fontResource;
     std::unique_ptr<skia::textlayout::Paragraph> paragraph;
   };
   std::map<uint64_t, CachedParagraph> measured;
@@ -76,73 +94,56 @@ class ContentProvider {
   bool pressure=false;
   static bool samePaint(const Node& a,const Node& b) {
     const auto& x=a.graphics;const auto& y=b.graphics;
-    return a.kind==b.kind&&a.color==b.color&&a.radius==b.radius&&a.fontSize==b.fontSize&&
+    return bool(a.paintPlacement&&a.paintPlacement->unbounded)==bool(b.paintPlacement&&b.paintPlacement->unbounded)&&a.kind==b.kind&&a.color==b.color&&a.radius==b.radius&&a.fontSize==b.fontSize&&
       a.textDirection==b.textDirection&&a.text==b.text&&a.paragraph==b.paragraph&&a.resource==b.resource&&
+      a.fontResource==b.fontResource&&a.fontRevision==b.fontRevision&&a.imageStyle==b.imageStyle&&a.imagePaint==b.imagePaint&&
       a.properties.width==b.properties.width&&a.properties.height==b.properties.height&&
       a.contentX==b.contentX&&a.contentY==b.contentY&&a.contentWidth==b.contentWidth&&a.contentHeight==b.contentHeight&&
       a.resolvedPaint==b.resolvedPaint&&x.path==y.path&&x.shadowX==y.shadowX&&x.shadowY==y.shadowY&&x.shadowSigma==y.shadowSigma&&
       x.shadowColor==y.shadowColor&&x.strokeColor==y.strokeColor&&x.strokeWidth==y.strokeWidth;
   }
   uint64_t measurePreparation = 0;
-  bool lineMetricsUtf16=true;
   std::unique_ptr<skia::textlayout::Paragraph> paragraphFor(const Node& n, double width) {
+    if(n.paintPlacement&&n.paintPlacement->unbounded)width=INFINITY;
     const auto old = measured.find(n.id.key());
     if (old != measured.end() && old->second.text == n.text && old->second.size == n.fontSize &&
-        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection&&old->second.options==n.paragraph) {
+        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection&&old->second.options==n.paragraph&&old->second.fontResource==n.fontResource) {
       auto paragraph = std::move(old->second.paragraph); measured.erase(old); return paragraph;
     }
-    using namespace skia::textlayout;
-    TextStyle style; style.setFontFamilies({SkString("NelyxDefault"),SkString("NelyxArabic"),SkString("NelyxHebrew"),SkString("NelyxEmoji")}); style.setFontSize(float(n.fontSize));style.setColor(n.color);
-    const nelyx::v2::ParagraphOptions defaults;const auto& options=n.paragraph?n.paragraph->value:defaults;
-    if(n.paragraph){
-      if(!options.fontFamily.empty())style.setFontFamilies({SkString(options.fontFamily.c_str()),SkString("NelyxDefault"),SkString("NelyxArabic"),SkString("NelyxHebrew"),SkString("NelyxEmoji")});
-      const SkFontArguments::VariationPosition::Coordinate weight{SkSetFourByteTag('w','g','h','t'),float(options.fontWeight)};
-      SkFontArguments arguments;arguments.setVariationDesignPosition({&weight,1});
-      style.setFontArguments(arguments);style.setFontStyle(SkFontStyle(int(options.fontWeight),SkFontStyle::kNormal_Width,SkFontStyle::kUpright_Slant));
-    }
-    style.setLocale(SkString(options.locale.data(),options.locale.size()));
-    style.setLetterSpacing(float(options.letterSpacing));style.setWordSpacing(float(options.wordSpacing));
-    style.setHalfLeading((options.flags&wire::paragraphFlags::halfLeading)!=0);
-    if(options.height>=0){style.setHeightOverride(true);style.setHeight(float(options.height));}
-    ParagraphStyle paragraphStyle;paragraphStyle.setTextStyle(style);
-    if(n.paragraph){paragraphStyle.turnHintingOff();paragraphStyle.setReplaceTabCharacters(true);paragraphStyle.setApplyRoundingHack(false);paragraphStyle.setRenderSoftHyphens((options.flags&wire::paragraphFlags::manualHyphens)!=0);}
-    const TextAlign alignments[]={TextAlign::kStart,TextAlign::kEnd,TextAlign::kLeft,TextAlign::kRight,TextAlign::kCenter,TextAlign::kJustify};
-    paragraphStyle.setTextAlign(alignments[options.align]);
-    if(options.maxLines)paragraphStyle.setMaxLines(options.maxLines);
-    if(!options.ellipsis.empty())paragraphStyle.setEllipsis(SkString(options.ellipsis.data(),options.ellipsis.size()));
-    paragraphStyle.setTextHeightBehavior(static_cast<TextHeightBehavior>(
-      ((options.flags&wire::paragraphFlags::disableFirstAscent)?1:0)|((options.flags&wire::paragraphFlags::disableLastDescent)?2:0)));
-    paragraphStyle.setTextDirection(n.textDirection ? TextDirection::kRtl : TextDirection::kLtr);
-    auto builder = ParagraphBuilder::make(paragraphStyle,fonts,unicode);
     auto text = n.text ? n.text->value : std::string{};
     if(n.kind==wire::kinds::editable){
       if(n.editing&&(n.editFlags&wire::editFlags::password)){auto masked=n.editing->text;for(auto& c:masked)if(c!=u'\r'&&c!=u'\n')c=u'\u2022';text=utf8(masked);}
       if(text.empty())text="\xe2\x80\x8b";
     }
-    builder->addText(text.c_str(),text.size());
-    auto paragraph = builder->Build(); paragraph->layout(float(width)); ++paragraphLayouts;
+    const auto owner=fontFor(n);auto& fonts=owner?*owner:paragraphProvider;
+    auto paragraph=fonts.build(text,n.fontSize,n.color,n.textDirection,
+      n.paragraph?&n.paragraph->value:nullptr,width);++paragraphLayouts;
     return paragraph;
   }
  public:
+  std::shared_ptr<ParagraphProvider> prepareFont(const std::shared_ptr<const Resource>& resource){
+    Node node(ledger);node.fontResource=resource;return fontFor(node);
+  }
+  void trimFontCache(){std::erase_if(fontOwners,[](const auto& entry){return entry.second.resource.expired();});}
   std::atomic<uint64_t> paragraphs{0}, images{0}, pictures{0};
   std::atomic<uint64_t> measurements{0}, paragraphLayouts{0};
+  std::atomic<uint64_t> fontLoads{0};
   std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
   std::atomic<uint64_t> reusedPictures{0},reusedParagraphs{0},reusedImages{0},cachedBytes{0};
-  void trimCache() { recorded.clear();cachedBytes=0;discardMeasurements(); }
+  void trimCache() { recorded.clear();cachedBytes=0;discardMeasurements();std::erase_if(fontOwners,[](const auto& entry){return entry.second.resource.expired();}); }
   void setMemoryPressure(bool low) {
     pressure=low;
-    if(low){trimCache();fonts->clearCaches();SkGraphics::PurgeAllCaches();}
+    if(low){trimCache();paragraphProvider.fonts->clearCaches();SkGraphics::PurgeAllCaches();}
   }
   void discardMeasurements() { measured.clear(); }
   Measurement measure(const MeasurementRequest& request) {
     ++measurements;
     if (measurePreparation != request.preparation) { measured.clear(); measurePreparation = request.preparation; }
     const auto& n = *request.node;
-    auto measurementMemory=std::make_shared<ExternalLease>(ledger,1,2,65536+(n.text?n.text->value.size()*256:0));
+    auto measurementMemory=std::make_shared<ExternalLease>(ledger,1,2,65536+(n.text?n.text->value.size()*256:0)+(n.paragraph?n.paragraph->value.metadataBytes():0));
     if (n.kind == wire::kinds::image) {
       if (!n.resource) throw std::runtime_error("Intrinsic image resource missing");
-      auto image = SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(n.resource->bytes.data(),n.resource->bytes.size()));
-      if (!image) throw std::runtime_error("Intrinsic image decode failed");
+      auto image = providerImage(n);
       return {double(image->width()), double(image->height()), double(image->width()), double(image->width()), -1};
     }
     auto paragraph = paragraphFor(n, request.bounded ? request.width : INFINITY);
@@ -151,6 +152,12 @@ class ContentProvider {
     Measurement result{width, paragraph->getHeight(), paragraph->getMinIntrinsicWidth(),
       paragraph->getMaxIntrinsicWidth(), paragraph->getAlphabeticBaseline()};
     result.didExceedMaxLines=paragraph->didExceedMaxLines();
+    result.ideographicBaseline=paragraph->getIdeographicBaseline();
+    if(n.paragraph&&n.paragraph->value.inlineChildren()){
+      std::vector<ParagraphBox> boxes;
+      for(const auto& box:paragraph->getRectsForPlaceholders())boxes.push_back({box.rect.x(),box.rect.y(),box.rect.width(),box.rect.height(),box.direction==skia::textlayout::TextDirection::kRtl?1u:0u});
+      result.placeholders=std::make_shared<ParagraphGeometry>(n.lease.ledger,std::move(boxes));
+    }
     if(n.editing){
       using namespace skia::textlayout;
       const auto& e=*n.editing;std::vector<TextRect> selection;
@@ -170,43 +177,18 @@ class ContentProvider {
       }
       result.geometry=std::make_shared<TextGeometry>(n.lease.ledger,e.revision,caret,std::move(selection));
     }
-    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,width,n.color,n.textDirection,n.paragraph,std::move(paragraph)});
+    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,(n.paintPlacement&&n.paintPlacement->unbounded)?INFINITY:width,n.color,n.textDirection,n.paragraph,n.fontResource,std::move(paragraph)});
     return result;
   }
-  ContentProvider(const std::string& font, const std::string& icu,std::shared_ptr<Ledger> book):ledger(std::move(book)) {
-    const auto fontDirectory=std::filesystem::path(font).parent_path();uint64_t fontBytes=std::filesystem::file_size(font);
-    for(const auto name:{"NotoNaskhArabic-Regular.ttf","NotoSansHebrew.ttf","NotoColorEmoji.ttf"})fontBytes+=std::filesystem::file_size(fontDirectory/name);
-    fontMemory=std::make_shared<ExternalLease>(ledger,1,2,fontBytes*3+std::filesystem::file_size(icu));
-    cacheMemory=std::make_shared<ExternalLease>(ledger,1,2,8*1024*1024);
-    SkGraphics::SetResourceCacheTotalByteLimit(4*1024*1024);SkGraphics::SetFontCacheLimit(4*1024*1024);
-    nelyx::font_services::initialize(icu);
+  ContentProvider(const std::string& font,const std::string& icu,std::shared_ptr<Ledger> book)
+      :ledger(std::move(book)),paragraphProvider(font,icu,ledger,1) {
     static std::once_flag codecs;std::call_once(codecs,[]{SkCodecs::Register(SkWebpDecoder::Decoder());});
-    auto manager = nelyx::font_services::manager();
-    auto face = manager->makeFromData(SkData::MakeFromFileName(font.c_str()));
-    if (!face) throw std::runtime_error("Native font decode failed");
-    auto provider = sk_make_sp<skia::textlayout::TypefaceFontProvider>();
-    provider->registerTypeface(face, SkString("NelyxDefault"));
-    const auto directory = font.substr(0,font.find_last_of("/\\")+1);
-    for (const auto& fallback : {std::pair{"NotoNaskhArabic-Regular.ttf","NelyxArabic"},
-        std::pair{"NotoSansHebrew.ttf","NelyxHebrew"},std::pair{"NotoColorEmoji.ttf","NelyxEmoji"}}) {
-      auto fallbackFace = manager->makeFromData(SkData::MakeFromFileName((directory+fallback.first).c_str()));
-      if (!fallbackFace) throw std::runtime_error("Native fallback font decode failed");
-      provider->registerTypeface(fallbackFace,SkString(fallback.second));
-    }
-    fonts = sk_make_sp<skia::textlayout::FontCollection>();
-    fonts->setAssetFontManager(provider); fonts->setDefaultFontManager(manager);
-    unicode = SkUnicodes::ICU::Make();
-    if (!unicode) throw std::runtime_error("Native Unicode provider failed");
-    const std::string probeText="\xed\x95\x9c\xea\xb8\x80\nA\xf0\x9f\x98\x80\ne\xcc\x81";
-    Node probe(std::make_shared<Ledger>());probe.fontSize=18;probe.text=std::make_shared<TextData>(probe.lease.ledger,Reader{reinterpret_cast<const uint8_t*>(probeText.data()),probeText.size()});
-    auto paragraph=paragraphFor(probe,300);std::vector<skia::textlayout::LineMetrics> metrics;paragraph->getLineMetrics(metrics);
-    if(metrics.size()!=3||(metrics[1].fStartIndex!=3&&metrics[1].fStartIndex!=7))throw std::runtime_error("Native paragraph line index unit is incompatible");
-    lineMetricsUtf16=metrics[1].fStartIndex==3;
+    paragraphLayouts=paragraphProvider.layouts;
   }
   std::shared_ptr<const Prepared> prepare(const Preparation& p) {
     ExternalLease staging(ledger,1,4,wire::limits::resourceBytes);
     auto result = std::make_shared<Prepared>();result->id=p.id;result->metrics=p.metrics.epoch;result->device=p.metrics.device;
-    result->memory.push_back(fontMemory);result->memory.push_back(cacheMemory);
+    result->memory.push_back(paragraphProvider.fontMemory);result->memory.push_back(paragraphProvider.cacheMemory);
     std::map<uint64_t,std::shared_ptr<const CachedPicture>> nextRecorded;
     uint64_t nextCachedBytes=0;
     using namespace skia::textlayout;
@@ -215,7 +197,7 @@ class ContentProvider {
       const auto previous=recorded.find(n.id.key());
       if(!n.editing&&previous!=recorded.end()) {
         const auto& cached=*previous->second;
-        if(cached.metrics==p.metrics.epoch&&cached.device==p.metrics.device&&cached.font==p.fontRevision&&samePaint(n,*cached.node)) {
+        if(cached.metrics==p.metrics.epoch&&cached.device==p.metrics.device&&cached.font==n.fontRevision&&samePaint(n,*cached.node)) {
           result->pictures.emplace(n.id.key(),cached.picture);
           if(cached.path)result->paths.emplace(n.id.key(),*cached.path);
           result->memory.insert(result->memory.end(),cached.memory.begin(),cached.memory.end());
@@ -230,6 +212,10 @@ class ContentProvider {
         }
       }
       const auto memoryBegin=result->memory.size();
+      if(n.kind==wire::kinds::paragraph||n.kind==wire::kinds::editable)if(const auto fonts=fontFor(n)){
+        result->memory.push_back(fonts->fontMemory);result->memory.push_back(fonts->cacheMemory);
+      }
+      if(n.resolvedPaint&&!n.resolvedPaint->paths.empty())result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.resolvedPaint->paths.size()*256+1024));
       const auto& style=n.graphics;if(style.path||style.shadowColor||style.strokeColor||style.blur||style.transform.a!=1||style.transform.b||style.transform.c||style.transform.d!=1||style.transform.tx||style.transform.ty)++graphicsRecords;
       if(n.extensionSize.x>0)++nativeExtensions;
       if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));result->paths.emplace(n.id.key(),graphicsPath(*n.graphics.path));}
@@ -237,11 +223,14 @@ class ContentProvider {
       const auto& g=n.graphics;double padding=4*(g.shadowSigma+g.blur)+g.strokeWidth+2;
       if(n.resolvedPaint)for(const auto& e:n.resolvedPaint->entries)
         padding=std::max(padding,nativePaintOutset(e,n.properties.width,n.properties.height,p.metrics.scale)+2);
-      auto* canvas=recorder.beginRecording(SkRect::MakeXYWH(float(std::min(0.0,n.contentX)-padding-std::abs(g.shadowX)),float(std::min(0.0,n.contentY)-padding-std::abs(g.shadowY)),
-        float(std::max({1.0,n.properties.width,n.contentX+n.contentWidth})-std::min(0.0,n.contentX)+2*padding+2*std::abs(g.shadowX)),float(std::max({1.0,n.properties.height,n.contentY+n.contentHeight})-std::min(0.0,n.contentY)+2*padding+2*std::abs(g.shadowY))));
+      if(n.paragraph)padding=std::max(padding,n.paragraph->value.paintOutset(n.fontSize)+2);
+      const auto imageBounds=n.imagePaint?n.imagePaint->bounds:Rect{};
+      const auto left=std::min({0.0,n.contentX,imageBounds.x}),top=std::min({0.0,n.contentY,imageBounds.y});
+      auto* canvas=recorder.beginRecording(SkRect::MakeXYWH(float(left-padding-std::abs(g.shadowX)),float(top-padding-std::abs(g.shadowY)),
+        float(std::max({1.0,n.properties.width,n.contentX+n.contentWidth,imageBounds.x+imageBounds.width})-left+2*padding+2*std::abs(g.shadowX)),float(std::max({1.0,n.properties.height,n.contentY+n.contentHeight,imageBounds.y+imageBounds.height})-top+2*padding+2*std::abs(g.shadowY))));
       SkPaint paint; paint.setAntiAlias(true);
       if (n.kind == wire::kinds::paragraph || n.kind==wire::kinds::editable) {
-        auto textMemory=std::make_shared<ExternalLease>(ledger,1,2,65536+n.text->value.size()*256);
+        auto textMemory=std::make_shared<ExternalLease>(ledger,1,2,65536+n.text->value.size()*256+(n.paragraph?n.paragraph->value.metadataBytes():0));
         result->memory.push_back(textMemory);
         auto paragraph = paragraphFor(n, n.contentWidth);
         paragraph->paint(canvas,float(n.contentX),float(n.contentY));++paragraphs;
@@ -250,10 +239,10 @@ class ContentProvider {
           auto shared=std::shared_ptr<Paragraph>(std::move(paragraph));record.source=skia_core::ParagraphQuerySource::create(shared,result->context,n.text->value,wire::limits::textBytes);
           skia_core::ParagraphQuerySource::didLayout(*shared);record.ticket=record.source->bind(record.identity);
           const auto& text=n.editing->text;
-          unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kGraphemes,[&](auto position,auto){record.characters.push_back(position);});
-          unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kWords,[&](auto position,auto){record.words.push_back(position);});
+          paragraphProvider.unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kGraphemes,[&](auto position,auto){record.characters.push_back(position);});
+          paragraphProvider.unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kWords,[&](auto position,auto){record.words.push_back(position);});
           std::vector<LineMetrics> lines;shared->getLineMetrics(lines);record.lines.push_back(0);
-          for(const auto& line:lines){const auto bytes=std::min(line.fEndIncludingNewline,n.text->value.size());const int offset=lineMetricsUtf16?int(line.fEndIncludingNewline):int(utf16({reinterpret_cast<const uint8_t*>(n.text->value.data()),bytes}).size());
+          for(const auto& line:lines){const auto bytes=std::min(line.fEndIncludingNewline,n.text->value.size());const int offset=paragraphProvider.lineMetricsUtf16?int(line.fEndIncludingNewline):int(utf16({reinterpret_cast<const uint8_t*>(n.text->value.data()),bytes}).size());
             if(offset>record.lines.back())record.lines.push_back(offset);}
           if(record.characters.empty())record.characters.push_back(0);if(record.words.empty())record.words.push_back(0);
           if(record.lines.back()!=int(text.size()))record.lines.push_back(int(text.size()));
@@ -261,13 +250,15 @@ class ContentProvider {
           result->editors.emplace(n.id.key(),std::move(record));
         }
       } else if (n.kind == wire::kinds::image) {
-        if(!n.resource)throw std::runtime_error("Native image resource missing");
-        auto image=SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(n.resource->bytes.data(),n.resource->bytes.size()));
-        if(!image)throw std::runtime_error("Native image decode failed");
-        result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,uint64_t(image->width())*image->height()*4+n.resource->bytes.size()));
-        image=image->makeRasterImage();if(!image)throw std::runtime_error("Native image CPU preparation failed");
-        canvas->drawImageRect(image,SkRect::MakeXYWH(float(n.contentX),float(n.contentY),float(n.contentWidth),float(n.contentHeight)),SkSamplingOptions(),&paint);++images;
-      } else {const auto path=result->paths.find(n.id.key());paintShape(canvas,n,path==result->paths.end()?nullptr:&path->second,paint);paintNative(canvas,n,paint,p.metrics.scale);}
+        if(!n.imageStyle||(n.imagePaint&&!n.imagePaint->tiles.empty())){
+          auto image=providerImage(n);
+          const auto raw=readRasterImage({n.resource->bytes.data(),n.resource->bytes.size()});
+          result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,raw?65536:uint64_t(image->width())*image->height()*4+n.resource->bytes.size()));
+          image=image->makeRasterImage();if(!image)throw std::runtime_error("Native image CPU preparation failed");
+          paintImage(canvas,n,image,paint);++images;
+        }else if(!n.imagePaint)throw std::runtime_error("Core image placement missing");
+      } else {const auto path=result->paths.find(n.id.key());paintShape(canvas,n,path==result->paths.end()?nullptr:&path->second,paint);
+        if(!n.nativePaint||!n.nativePaint->frameDependent)paintNative(canvas,n,paint,p.metrics.scale);}
       auto picture=recorder.finishRecordingAsPicture();if(!picture)throw std::runtime_error("Native picture preparation failed");
       result->bytes+=picture->approximateBytesUsed();if(result->bytes>32*1024*1024)throw std::runtime_error("Native prepared scene budget exceeded");
       result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,picture->approximateBytesUsed()));
@@ -278,7 +269,7 @@ class ContentProvider {
       // share the leases; deleting a cache entry cannot invalidate their work.
       if(!pressure&&!n.editing&&held<=16*1024*1024-nextCachedBytes) {
         auto cached=std::make_shared<CachedPicture>();cached->node=slot.value;cached->picture=std::move(picture);
-        cached->metrics=p.metrics.epoch;cached->device=p.metrics.device;cached->font=p.fontRevision;cached->bytes=held;
+        cached->metrics=p.metrics.epoch;cached->device=p.metrics.device;cached->font=n.fontRevision;cached->bytes=held;
         cached->memory.assign(result->memory.begin()+memoryBegin,result->memory.end());
         cached->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,sizeof(CachedPicture)));
         const auto path=result->paths.find(n.id.key());if(path!=result->paths.end())cached->path=path->second;
@@ -289,8 +280,85 @@ class ContentProvider {
     recorded=std::move(nextRecorded);cachedBytes=nextCachedBytes;
     return result;
   }
-  ~ContentProvider(){if(fonts)fonts->clearCaches();}
 };
+// The same prepared-frame traversal serves Native GPU presentation and the
+// CPU raster control, including inline resources, foreground and layer exits.
+inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared& prepared,double scale,NativePaintCounts& paintCounts) {
+    canvas->clear(0xfff4f6fa);SkAutoCanvasRestore frameRestore(canvas,true);canvas->scale(float(scale),float(scale));
+    const auto drawPaint=[&](const DrawItem& item,bool foreground){const auto& n=frame.scene->document->get(item.node);
+      if(!item.clip.width||!item.clip.height)return;
+      SkPaint paint;paint.setAntiAlias(true);paintFrameNative(canvas,n,item,paint,scale,foreground,[&](Handle reference){
+        const auto& resource=frame.scene->document->get(reference);const auto found=prepared.pictures.find(reference.key());
+        if(resource.paintOwner!=item.node||found==prepared.pictures.end())throw std::runtime_error("Native prepared paragraph generation missing");
+        SkPaint alpha;alpha.setAlphaf(float(frame.properties[reference.slot].opacity));
+        if(resource.graphics.blur>0)alpha.setImageFilter(SkImageFilters::Blur(float(resource.graphics.blur),float(resource.graphics.blur),SkTileMode::kDecal,nullptr));
+        canvas->drawPicture(found->second,nullptr,&alpha);
+      },&paintCounts);
+    };
+    struct Saved {int count;const DrawItem* item;};std::vector<Saved> saves;
+    const auto finish=[&]{const auto saved=saves.back();saves.pop_back();drawPaint(*saved.item,true);canvas->restoreToCount(saved.count);};
+    for(const auto& item:frame.items){
+      while(saves.size()>item.depth)finish();
+      const auto& n=frame.scene->document->get(item.node);if(n.paintOwner)continue;
+      const int saved=canvas->getSaveCount();canvas->save();saves.push_back({saved,&item});
+      const auto& m=item.world;
+      canvas->setMatrix(SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1));
+      if(!item.clip.width||!item.clip.height)canvas->clipRect(SkRect::MakeEmpty());
+      {const auto path=prepared.paths.find(n.id.key());paintNativeShadow(canvas,n,path==prepared.paths.end()?nullptr:&path->second,scale);}
+      if((n.kind==wire::kinds::clip&&(!n.clipStyle||n.clipStyle->behavior!=wire::clipBehaviors::none))||n.kind==wire::kinds::scrollViewport||(item.flags&wire::nodeFlags::clipsChildren)){
+        const auto path=prepared.paths.find(n.id.key());const auto bounds=SkRect::MakeWH(float(n.properties.width),float(n.properties.height));
+        const bool antiAlias=!(item.flags&wire::nodeFlags::hardEdgeClip);
+        if(n.physicalPaint()&&path!=prepared.paths.end())canvas->clipPath(path->second,antiAlias);
+        else if((item.flags&wire::nodeFlags::rectangularClip)||(!n.clipStyle&&!antiAlias))canvas->clipRect(bounds,false);
+        else if(n.clipStyle){const auto& clip=*n.clipStyle;
+          if(clip.shape==wire::clipShapes::rect)canvas->clipRect(bounds,antiAlias);
+          else if(clip.shape==wire::clipShapes::oval)canvas->clipRRect(SkRRect::MakeOval(bounds),antiAlias);
+          else{SkVector radii[4];for(size_t i=0;i<4;++i)radii[i]={float(clip.radii[i*2]),float(clip.radii[i*2+1])};
+            SkRRect rounded;rounded.setRectRadii(bounds,radii);canvas->clipRRect(rounded,antiAlias);}}
+        else if(path!=prepared.paths.end()){canvas->clipRect(bounds,antiAlias);canvas->clipPath(path->second,antiAlias);}
+        else canvas->clipRRect(SkRRect::MakeRectXY(bounds,float(n.radius),float(n.radius)),antiAlias);
+        if(item.flags&wire::nodeFlags::clipSaveLayer)canvas->saveLayer(&bounds,nullptr);
+      }
+      const auto& property=frame.properties[n.id.slot];
+      if(property.opacity<1||n.graphics.blur>0){SkPaint layer;layer.setAlphaf(float(property.opacity));
+        if(n.graphics.blur>0)layer.setImageFilter(SkImageFilters::Blur(float(n.graphics.blur),float(n.graphics.blur),SkTileMode::kDecal,nullptr));
+        canvas->saveLayer(nullptr,&layer);}
+      if(!item.clip.width||!item.clip.height)continue;
+      const auto found=prepared.pictures.find(item.node.key());if(found==prepared.pictures.end())throw std::runtime_error("Native prepared generation missing");
+      const auto geometry=frame.focusNode==n.id?n.textGeometry:nullptr;
+      const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
+      if(geometry)for(const auto& r:geometry->selection)rect(r,0x663582f6);
+      // Opacity and blur already wrap the subtree above. A default paint here
+      // adds an isolation layer and changes overlapping strut glyph rounding.
+      canvas->drawPicture(found->second);
+      drawPaint(item,false);
+      if(n.control.kind){const auto& c=n.control;const auto& state=frame.properties[n.id.slot];SkPaint paint;paint.setAntiAlias(true);
+        const auto color=[&](uint32_t argb){paint.setColor(argb);paint.setAlphaf(paint.getAlphaf()*(c.disabled?0.4f:1.f));};
+        const auto round=[&](double x,double y,double w,double h,double r,uint32_t argb){color(argb);canvas->drawRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(float(x),float(y),float(std::max(0.0,w)),float(std::max(0.0,h))),float(r),float(r)),paint);};
+        const auto circle=[&](double x,double y,double r,uint32_t argb){color(argb);canvas->drawCircle(float(x),float(y),float(std::max(0.0,r)),paint);};
+        const double w=n.properties.width,h=n.properties.height,cy=h/2,value=std::clamp((state.value-c.minimum)/(c.maximum-c.minimum),0.0,1.0);
+        if(c.kind==wire::controlKinds::button){if(c.appearance==3)round(0,3,w,h,std::min(12.0,cy),0x33000000);
+          if(c.appearance==1){paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(1.5f);}
+          if(c.appearance!=2)round(0,0,w,h,std::min(12.0,cy),c.foreground);paint.setStyle(SkPaint::kFill_Style);
+          if(state.pressed||state.hovered)round(0,0,w,h,std::min(12.0,cy),state.pressed?0x33000000:0x14000000);}
+        else if(c.kind==wire::controlKinds::toggle&&c.appearance==4)round(0,0,w,h,std::min(12.0,cy),value>0?c.foreground:0xff79747e);
+        else if(c.kind==wire::controlKinds::toggle){const double bh=std::min(32.0,h),bw=std::min(56.0,w),x=(w-bw)/2;
+          round(x,(h-bh)/2,bw,bh,bh/2,value>0?c.foreground:c.track);circle(x+bh/2+(bw-bh)*value,cy,bh*0.375,0xffffffff);}
+        else if(c.kind==wire::controlKinds::radio){circle(w/2,cy,std::min(w,h)*0.45,c.track);if(value>0)circle(w/2,cy,std::min(w,h)*0.28,c.foreground);}
+        else if(c.kind==wire::controlKinds::checkbox){const double size=std::min(w,h)*0.8,x=(w-size)/2,y=(h-size)/2;round(x,y,size,size,3,value>0?c.foreground:c.track);
+          if(value>0){color(0xffffffff);paint.setStrokeWidth(2);canvas->drawLine(float(x+size*.2),float(y+size*.5),float(x+size*.43),float(y+size*.75),paint);canvas->drawLine(float(x+size*.43),float(y+size*.75),float(x+size*.85),float(y+size*.25),paint);}}
+        else if(c.kind==wire::controlKinds::circularProgress||c.kind==wire::controlKinds::activity){color(c.foreground);paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(3);
+          const double radius=std::max(0.0,std::min(w,h)/2-3);canvas->drawArc(SkRect::MakeXYWH(float(w/2-radius),float(cy-radius),float(radius*2),float(radius*2)),float(c.kind==wire::controlKinds::activity?value*360:-90),float(c.kind==wire::controlKinds::activity?240:value*360),false,paint);}
+        else {const double radius=6,span=std::max(0.0,w-2*radius),x=radius+span*value;round(radius,cy-2,span,4,2,c.track);
+          if(c.kind==wire::controlKinds::rangeSlider){const double right=radius+span*std::clamp((state.second-c.minimum)/(c.maximum-c.minimum),value,1.0);
+            round(x,cy-2,right-x,4,2,c.foreground);circle(right,cy,state.pressed?9:7,c.foreground);}
+          else round(radius,cy-2,std::max(0.0,x-radius),4,2,c.foreground);
+          if(c.kind!=wire::controlKinds::progress)circle(x,cy,state.pressed?9:7,c.foreground);}
+      }
+      if(geometry&&frame.caretVisible&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
+    }
+    while(!saves.empty())finish();
+}
 class UploadProvider final : public skgpu::graphite::ImageProvider {
   sk_sp<SkImage> findOrCreate(skgpu::graphite::Recorder* recorder,const SkImage* image,SkImage::RequiredProperties properties) override {
     return SkImages::TextureFromImage(recorder,image,properties);
@@ -305,6 +373,7 @@ class RenderProvider {
   uint32_t width=0,height=0;
  public:
   uint64_t draws=0;
+  NativePaintCounts paintCounts;
   double recordAndBackingElapsedMs=0,submitElapsedMs=0;
   RenderProvider(uint64_t window,uint32_t uiThread,std::shared_ptr<Ledger> book):ledger(std::move(book)) {
     cacheMemory=std::make_unique<ExternalLease>(ledger,2,3,32*1024*1024);
@@ -333,72 +402,14 @@ class RenderProvider {
       surface=SkSurfaces::RenderTarget(recorder.get(),SkImageInfo::Make(w,h,kRGBA_8888_SkColorType,kPremul_SkAlphaType));
       if(!surface)throw std::runtime_error("Native GPU surface unavailable");width=w;height=h;backingMemory=std::move(nextMemory);
     }
-    uint64_t layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
+    uint64_t pathBytes=0,layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
+      if(item.paint)pathBytes+=item.paint->paths.size()*256+1024;
       if(frame.properties[n.id.slot].opacity<1||n.graphics.blur>0)layerBytes+=uint64_t(w)*h*4*(n.graphics.blur>0?3:1);
       if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;}
+    ExternalLease pathMemory(ledger,2,2,pathBytes);
     ExternalLease layers(ledger,2,3,layerBytes);
-    auto* canvas=surface->getCanvas();canvas->clear(0xfff4f6fa);canvas->save();canvas->scale(float(scale),float(scale));
-    std::vector<int> saves;
-    for(const auto& item:frame.items){
-      while(saves.size()>item.depth){canvas->restoreToCount(saves.back());saves.pop_back();}
-      const int saved=canvas->getSaveCount();canvas->save();saves.push_back(saved);
-      const auto& m=item.world;
-      canvas->setMatrix(SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1));
-      const auto& n=frame.scene->document->get(item.node);
-      if(!item.clip.width||!item.clip.height)canvas->clipRect(SkRect::MakeEmpty());
-      {const auto path=prepared.paths.find(n.id.key());paintNativeShadow(canvas,n,path==prepared.paths.end()?nullptr:&path->second,scale);}
-      if((n.kind==wire::kinds::clip&&(!n.clipStyle||n.clipStyle->behavior!=wire::clipBehaviors::none))||n.kind==wire::kinds::scrollViewport||(item.flags&wire::nodeFlags::clipsChildren)){
-        const auto path=prepared.paths.find(n.id.key());const auto bounds=SkRect::MakeWH(float(n.properties.width),float(n.properties.height));
-        const bool antiAlias=!(item.flags&wire::nodeFlags::hardEdgeClip);
-        if(n.physicalPaint()&&path!=prepared.paths.end())canvas->clipPath(path->second,antiAlias);
-        else if((item.flags&wire::nodeFlags::rectangularClip)||(!n.clipStyle&&!antiAlias))canvas->clipRect(bounds,false);
-        else if(n.clipStyle){const auto& clip=*n.clipStyle;
-          if(clip.shape==wire::clipShapes::rect)canvas->clipRect(bounds,antiAlias);
-          else if(clip.shape==wire::clipShapes::oval)canvas->clipRRect(SkRRect::MakeOval(bounds),antiAlias);
-          else{SkVector radii[4];for(size_t i=0;i<4;++i)radii[i]={float(clip.radii[i*2]),float(clip.radii[i*2+1])};
-            SkRRect rounded;rounded.setRectRadii(bounds,radii);canvas->clipRRect(rounded,antiAlias);}}
-        else if(path!=prepared.paths.end()){canvas->clipRect(bounds,antiAlias);canvas->clipPath(path->second,antiAlias);}
-        else canvas->clipRRect(SkRRect::MakeRectXY(bounds,float(n.radius),float(n.radius)),antiAlias);
-        if(item.flags&wire::nodeFlags::clipSaveLayer)canvas->saveLayer(&bounds,nullptr);
-      }
-      const auto& property=frame.properties[n.id.slot];
-      if(property.opacity<1||n.graphics.blur>0){SkPaint layer;layer.setAlphaf(float(property.opacity));
-        if(n.graphics.blur>0)layer.setImageFilter(SkImageFilters::Blur(float(n.graphics.blur),float(n.graphics.blur),SkTileMode::kDecal,nullptr));
-        canvas->saveLayer(nullptr,&layer);}
-      if(!item.clip.width||!item.clip.height)continue;
-      const auto found=prepared.pictures.find(item.node.key());if(found==prepared.pictures.end())throw std::runtime_error("Native prepared generation missing");
-      SkPaint alpha;
-      const auto geometry=frame.focusNode==n.id?n.textGeometry:nullptr;
-      const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
-      if(geometry)for(const auto& r:geometry->selection)rect(r,0x663582f6);
-      canvas->drawPicture(found->second,nullptr,&alpha);
-      if(n.control.kind){const auto& c=n.control;const auto& state=frame.properties[n.id.slot];SkPaint paint;paint.setAntiAlias(true);
-        const auto color=[&](uint32_t argb){paint.setColor(argb);paint.setAlphaf(paint.getAlphaf()*(c.disabled?0.4f:1.f));};
-        const auto round=[&](double x,double y,double w,double h,double r,uint32_t argb){color(argb);canvas->drawRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(float(x),float(y),float(std::max(0.0,w)),float(std::max(0.0,h))),float(r),float(r)),paint);};
-        const auto circle=[&](double x,double y,double r,uint32_t argb){color(argb);canvas->drawCircle(float(x),float(y),float(std::max(0.0,r)),paint);};
-        const double w=n.properties.width,h=n.properties.height,cy=h/2,value=std::clamp((state.value-c.minimum)/(c.maximum-c.minimum),0.0,1.0);
-        if(c.kind==wire::controlKinds::button){if(c.appearance==3)round(0,3,w,h,std::min(12.0,cy),0x33000000);
-          if(c.appearance==1){paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(1.5f);}
-          if(c.appearance!=2)round(0,0,w,h,std::min(12.0,cy),c.foreground);paint.setStyle(SkPaint::kFill_Style);
-          if(state.pressed||state.hovered)round(0,0,w,h,std::min(12.0,cy),state.pressed?0x33000000:0x14000000);}
-        else if(c.kind==wire::controlKinds::toggle&&c.appearance==4)round(0,0,w,h,std::min(12.0,cy),value>0?c.foreground:0xff79747e);
-        else if(c.kind==wire::controlKinds::toggle){const double bh=std::min(32.0,h),bw=std::min(56.0,w),x=(w-bw)/2;
-          round(x,(h-bh)/2,bw,bh,bh/2,value>0?c.foreground:c.track);circle(x+bh/2+(bw-bh)*value,cy,bh*0.375,0xffffffff);}
-        else if(c.kind==wire::controlKinds::radio){circle(w/2,cy,std::min(w,h)*0.45,c.track);if(value>0)circle(w/2,cy,std::min(w,h)*0.28,c.foreground);}
-        else if(c.kind==wire::controlKinds::checkbox){const double size=std::min(w,h)*0.8,x=(w-size)/2,y=(h-size)/2;round(x,y,size,size,3,value>0?c.foreground:c.track);
-          if(value>0){color(0xffffffff);paint.setStrokeWidth(2);canvas->drawLine(float(x+size*.2),float(y+size*.5),float(x+size*.43),float(y+size*.75),paint);canvas->drawLine(float(x+size*.43),float(y+size*.75),float(x+size*.85),float(y+size*.25),paint);}}
-        else if(c.kind==wire::controlKinds::circularProgress||c.kind==wire::controlKinds::activity){color(c.foreground);paint.setStyle(SkPaint::kStroke_Style);paint.setStrokeWidth(3);
-          const double radius=std::max(0.0,std::min(w,h)/2-3);canvas->drawArc(SkRect::MakeXYWH(float(w/2-radius),float(cy-radius),float(radius*2),float(radius*2)),float(c.kind==wire::controlKinds::activity?value*360:-90),float(c.kind==wire::controlKinds::activity?240:value*360),false,paint);}
-        else {const double radius=6,span=std::max(0.0,w-2*radius),x=radius+span*value;round(radius,cy-2,span,4,2,c.track);
-          if(c.kind==wire::controlKinds::rangeSlider){const double right=radius+span*std::clamp((state.second-c.minimum)/(c.maximum-c.minimum),value,1.0);
-            round(x,cy-2,right-x,4,2,c.foreground);circle(right,cy,state.pressed?9:7,c.foreground);}
-          else round(radius,cy-2,std::max(0.0,x-radius),4,2,c.foreground);
-          if(c.kind!=wire::controlKinds::progress)circle(x,cy,state.pressed?9:7,c.foreground);}
-      }
-      if(geometry&&frame.caretVisible&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
-    }
-    while(!saves.empty()){canvas->restoreToCount(saves.back());saves.pop_back();}
-    canvas->restore();const auto recorded=qpcSeconds();recordAndBackingElapsedMs=(recorded-started)*1000;
+    drawPreparedFrame(surface->getCanvas(),frame,prepared,scale,paintCounts);
+    const auto recorded=qpcSeconds();recordAndBackingElapsedMs=(recorded-started)*1000;
     device->present(recorder.get(),surface.get());submitElapsedMs=(qpcSeconds()-recorded)*1000;++draws;return true;
     }catch(const nelyx::vulkan::SurfaceChanged&){
       surface.reset();device->releaseWindow(recorder.get());backingMemory.reset();width=height=0;return false;

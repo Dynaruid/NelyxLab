@@ -19,8 +19,12 @@ function sourceIdentity(manifest) {
   if (
     manifest.schema !== 'nelyx.canvaskit/v1' ||
     manifest.adapterAbi !== 1 ||
-    manifest.version !== 'm153-nelyx-paragraph.1' ||
+    manifest.version !== 'm153-nelyx-paragraph.5' ||
     manifest.paragraphApiVersion !== 1 ||
+    manifest.pictureApiVersion !== 2 ||
+    manifest.fontApiVersion !== 1 ||
+    manifest.initialMemoryBytes !== 128 * 1024 * 1024 ||
+    manifest.maximumMemoryBytes !== 256 * 1024 * 1024 ||
     manifest.source?.revision !== lock.skia.revision ||
     manifest.source.lockSha256 !== sha(fs.readFileSync(lockFile)) ||
     manifest.source.patchSha256 !== lock.patch.sha256

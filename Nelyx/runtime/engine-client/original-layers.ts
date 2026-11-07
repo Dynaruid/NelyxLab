@@ -7,6 +7,8 @@ import {
 } from '@nelyx/core/framework/rendering/proxy-layer';
 import type { LayerLink, Layer } from '@nelyx/core/framework/rendering/layer';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
+import { nativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
+import { RenderStack } from '@nelyx/core/framework/rendering/boxes';
 import type { NodeHandle, EngineResponse } from './codec.ts';
 import type { NodeOptions } from './widgets.ts';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
@@ -78,7 +80,13 @@ export class OriginalLayers {
         if (leaders.has(source.link)) this.fail('duplicate-layer-leader');
         leaders.set(source.link, source);
       }
-      for (const child of render.children) visit(child, depth + 1);
+      const metadata =
+        render instanceof RenderStack && Object.getPrototypeOf(render) !== RenderStack.prototype
+          ? nativeRenderMetadata(render)
+          : undefined;
+      const children =
+        metadata?.kind === 'overlay' ? render.children.slice(metadata.skipCount) : render.children;
+      for (const child of children) visit(child, depth + 1);
     };
     for (const root of roots) visit(root, 0);
     this.leaders = leaders;

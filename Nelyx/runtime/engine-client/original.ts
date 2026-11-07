@@ -10,10 +10,25 @@ import { RenderColoredBox } from '@nelyx/core/framework/widgets/basic';
 import {
   RenderBox,
   claimNativeRenderObject,
+  bindNativeSystemFonts,
   withNativeRenderConfiguration,
 } from '@nelyx/core/framework/rendering/object';
-import type { RenderObject } from '@nelyx/core/framework/rendering/object';
+import type { RenderObject, NativePaintEntry } from '@nelyx/core/framework/rendering/object';
+import type { SystemFontsRelayoutContext } from '@nelyx/core/framework/rendering/object';
+import { PaintingBinding, createSystemFontsNotifier } from '@nelyx/core/framework/painting/binding';
+import type { NativePaintOptions } from './native-paint.ts';
 import { RenderParagraph } from '@nelyx/core/framework/rendering/paragraph';
+import { RenderImage } from '@nelyx/core/framework/rendering/image';
+import { BoxConstraints as ImageConstraints } from '@nelyx/core/framework/rendering/constraints';
+import type { ValueListenable } from '@nelyx/core/foundation/notifier';
+import type { OriginalImageSource, OriginalImageSceneLease } from './original-images.ts';
+export type {
+  OriginalImageSource,
+  OriginalImageSceneLease,
+  OriginalImageClock,
+} from './original-images.ts';
+import { AppImageClock } from './app-image-clock.ts';
+import type { AppImageClockSnapshot } from './app-image-clock.ts';
 import { RenderRepaintBoundary } from '@nelyx/core/framework/rendering/repaint-boundary';
 import { RenderIndexedSemantics } from '@nelyx/core/framework/rendering/indexed-semantics';
 import {
@@ -22,8 +37,6 @@ import {
   RenderClipOval,
   RenderClipPath,
 } from '@nelyx/core/framework/rendering/clip';
-import { TextSpan } from '@nelyx/core/framework/painting/text-span';
-import { MouseCursor } from '@nelyx/core/services/mouse-cursor';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
 import {
   RenderConstrainedBox,
@@ -44,7 +57,7 @@ import { GlobalKey, NodeWidget, Stack, WidgetHost } from './widgets.ts';
 import type { EngineExecutionSnapshot, NodeOptions } from './widgets.ts';
 import type { EngineViewClient } from './client.ts';
 import { protocol as p } from './schema.ts';
-import type { AxisBound, EngineResponse, ParagraphOptions } from './codec.ts';
+import type { AxisBound, EngineResponse } from './codec.ts';
 import { drainEngineOwners } from './lifecycle.ts';
 import { installOriginalScrolling } from './original-scroll.ts';
 import { OriginalNativeRender } from './original-native-node.ts';
@@ -53,13 +66,18 @@ import { originalControlConfiguration } from './original-controls.ts';
 import { OriginalFocusBridge } from './original-focus.ts';
 import { OriginalGeometryBridge } from './original-geometry.ts';
 import { OriginalLayers } from './original-layers.ts';
-import { TextDecoration } from '@nelyx/core/ui/typography';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import type { FoundationPlatformEnvironment } from '@nelyx/core/foundation/platform';
 import type { Disposable } from '@nelyx/core/foundation/disposable';
 import { GestureBinding, SamplingClock } from '@nelyx/core/framework/gestures/binding';
 import { restrictNativeGestureRecognition } from '@nelyx/core/framework/gestures/recognizer';
+import { AppTextLayoutService } from './original-text.ts';
+import type { AppParagraphFontLease } from './original-text.ts';
+import { originalSpanInput } from './original-spans.ts';
+export { AppTextLayoutService } from './original-text.ts';
+import type { AppTextBackend, AppTextExecution } from './app-text.ts';
+import { OriginalFontOwner } from './original-fonts.ts';
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -68,12 +86,21 @@ export interface OriginalWidgetHostOptions {
   readonly pollEvents?: boolean;
   /** Explicit App services. Missing native services fail when read. */
   readonly services?: ViewControllerContext;
+  /** Host-owned synchronous C++ paragraph queries on this App owner. */
+  readonly appText?: AppTextBackend;
+  /** Shared App owner; canonical images and text use the same registry. */
+  readonly appImages?: OriginalImageSource;
+  /** The common SDK closes a shared App backend after every service drains. */
+  readonly ownsAppText?: boolean;
 }
 export interface OriginalWidgetExecution extends EngineExecutionSnapshot {
+  readonly imageClock?: AppImageClockSnapshot;
   readonly appModel: 'original-elements';
   readonly compatibility: 'partial';
   readonly tsLayoutFallbacks: 0;
   readonly synchronousGeometry: 'unavailable';
+  readonly appText?: AppTextExecution;
+  readonly fonts?: OriginalFontOwner['execution'];
 }
 function axis(min: number, max: number): AxisBound {
   if (min === Infinity && max === Infinity) return { kind: 'expand' };
@@ -103,6 +130,7 @@ export class OriginalWidgetHost {
   private readonly native: WidgetHost;
   private readonly owner: BuildOwner;
   private readonly keys = new WeakMap<RenderObject, GlobalKey>();
+  private readonly paintKeys = new WeakMap<RenderObject, [GlobalKey[], GlobalKey[]]>();
   private root: Element | undefined;
   private desired: OriginalWidget | undefined;
   private nativeMounted = false;
@@ -119,6 +147,24 @@ export class OriginalWidgetHost {
   private deviceEpoch = 0n;
   private readonly resources: ResourceRegistry | undefined;
   private readonly defaultFont: ResourceId | undefined;
+  private readonly textService: AppTextLayoutService | undefined;
+  private readonly fontOwner: OriginalFontOwner | undefined;
+  private readonly fontNotifications = createSystemFontsNotifier();
+  private readonly fontScope: SystemFontsRelayoutContext | null;
+  private readonly fontsLive = () => !this.closed;
+  private sceneFonts = new Map<bigint, AppParagraphFontLease>();
+  private pendingSceneFonts: Map<bigint, AppParagraphFontLease> | undefined;
+  private capturingFonts: Map<bigint, AppParagraphFontLease> | undefined;
+  private readonly imageLeases = new Map<string, OriginalImageSceneLease>();
+  private readonly imageClock: AppImageClock | undefined;
+  private readonly imageClockLease: Disposable | undefined;
+  private desiredImages = new Set<string>();
+  private capturingImages: Set<string> | undefined;
+  private readonly imageOpacity = new Map<
+    RenderImage,
+    { value: ValueListenable<number>; release(): void }
+  >();
+  private capturingImageRenders: Set<RenderImage> | undefined;
   private readonly reasons: Record<string, number> = {};
   private readonly scrolling: ReturnType<typeof installOriginalScrolling>;
   private readonly focusing: OriginalFocusBridge;
@@ -131,6 +177,10 @@ export class OriginalWidgetHost {
     readonly view: EngineViewClient,
     private readonly options: OriginalWidgetHostOptions = {},
   ) {
+    if (options.services && (options.appText || options.appImages))
+      throw Error(
+        'Explicit App services and the default App paragraph backend are mutually exclusive',
+      );
     if (options.platform) FoundationPlatform.configure(options.platform);
     this.native = new WidgetHost(view, {
       ...options,
@@ -148,7 +198,10 @@ export class OriginalWidgetHost {
       },
       onAfterEvents: () => this.focusing.finishPoll(),
       onExecution: () => options.onExecution?.(this.execution),
-      onAppFrame: (at) => this.scrolling.frame(at),
+      onAppFrame: (at, serial) => {
+        this.scrolling.frame(at);
+        this.imageClock?.frame(at, serial);
+      },
     });
     this.geometry = new OriginalGeometryBridge(
       this,
@@ -160,11 +213,10 @@ export class OriginalWidgetHost {
       (render) => this.keys.get(render)?.currentNode ?? null,
     );
     if (!options.services) {
-      const resources = (this.resources = new ResourceRegistry()),
+      const resources = (this.resources = options.appImages?.resources ?? new ResourceRegistry()),
         owner = view.owner;
-      // A configuration reference to the provider-owned, immutable bundled font
-      // cohort. App owns this descriptor, never a typeface or measured paragraph.
-      // Content still has to shape it and report actual geometry before activation.
+      // App's catalog descriptor starts bundled. Each measured paragraph keeps
+      // its own immutable cohort binding; this descriptor owns no native face.
       const font = resources.allocateId(
         `engine-v2-fonts:${owner.session}:${owner.app}:${owner.view}:${owner.generation}`,
       );
@@ -173,21 +225,35 @@ export class OriginalWidgetHost {
     }
     const unavailableText = (operation: string): never =>
       this.unsupported('synchronous-App-text-' + operation);
-    const text: TextLayoutService = Object.freeze({
-      layout: () => unavailableText('layout'),
-      range: () => unavailableText('range'),
-      hit: () => unavailableText('hit'),
-      fontFamily: (font: ResourceId) => {
-        if (!this.ownsDefaultFont(font)) return this.unsupported('foreign-provider-font');
-        return 'NelyxDefault';
-      },
-    });
+    if (options.appText)
+      this.fontOwner = new OriginalFontOwner(view, options.appText, (revision) => {
+        this.observeFonts(revision);
+      });
+    const text: TextLayoutService =
+      options.appText && this.resources && this.defaultFont
+        ? (this.textService = new AppTextLayoutService(
+            options.appText,
+            this.resources,
+            this.defaultFont,
+            (reason) => this.unsupported(reason),
+            (revision) => this.fontOwner!.retain(revision),
+            options.ownsAppText ?? true,
+          ))
+        : Object.freeze({
+            layout: () => unavailableText('layout'),
+            range: () => unavailableText('range'),
+            hit: () => unavailableText('hit'),
+            fontFamily: (font: ResourceId) => {
+              if (!this.ownsDefaultFont(font)) return this.unsupported('foreign-provider-font');
+              return 'NelyxDefault';
+            },
+          });
     const available = {
       platformServices: undefined,
       // ClipPath probes this optional service while creating configuration.
       // Custom path clippers remain rejected before any App query can run.
       paths: undefined,
-      images: undefined,
+      images: options.appImages?.service,
       binaryMessenger: undefined,
       resources: this.resources,
       defaultFont: this.defaultFont,
@@ -209,10 +275,17 @@ export class OriginalWidgetHost {
           return this.unsupported('App-service:' + String(key));
         },
       }) as unknown as ViewControllerContext);
+    const systemFonts = options.services
+      ? options.services.platformServices instanceof PaintingBinding
+        ? options.services.platformServices.systemFonts
+        : null
+      : this.fontNotifications.systemFonts;
     this.owner = new BuildOwner(
       services,
       () => this.schedule(),
       (callback) => this.scrolling.postFrame(callback),
+      {},
+      systemFonts,
     );
     installOriginalGestures(this.owner, (reason) => this.unsupported(reason));
     this.scrolling = installOriginalScrolling(
@@ -221,6 +294,11 @@ export class OriginalWidgetHost {
       (reason) => this.unsupported(reason),
       (error) => options.onError?.(error),
     );
+    this.fontScope = systemFonts ? { systemFonts, scheduler: this.scrolling.scheduler } : null;
+    if (options.appImages) {
+      this.imageClock = new AppImageClock(view, (error) => options.onError?.(error));
+      this.imageClockLease = options.appImages.bindClock(this.imageClock);
+    }
     this.appGestures = new GestureBinding({
       implicitViewId: view.owner.view,
       gestureArena: this.owner.gestures,
@@ -255,6 +333,9 @@ export class OriginalWidgetHost {
       compatibility: 'partial',
       tsLayoutFallbacks: 0,
       synchronousGeometry: 'unavailable',
+      ...(this.textService ? { appText: this.textService.execution } : {}),
+      ...(this.fontOwner ? { fonts: this.fontOwner.execution } : {}),
+      ...(this.imageClock ? { imageClock: this.imageClock.execution } : {}),
       rejectedFallbacks: native.rejectedFallbacks + this.rejected,
       rejectionReasons: Object.freeze({ ...native.rejectionReasons, ...this.reasons }),
     });
@@ -273,11 +354,33 @@ export class OriginalWidgetHost {
     this.desired = root;
     return this.flush();
   }
+  /** Explicit bridge control. Public Source FontLoader integration is separate. */
+  updateFontCatalog(catalog: Uint8Array | null): Promise<number> {
+    this.ensure();
+    if (!this.fontOwner) return Promise.reject(Error('Original App font service is unavailable'));
+    return this.fontOwner.update(catalog).finally(() => this.options.onExecution?.(this.execution));
+  }
+  /** Canonical FontLoader backend; the coordinator owns bounded queued copies. */
+  loadFont(bytes: Uint8Array, family?: string): Promise<void> {
+    this.ensure();
+    if (!this.fontOwner) return Promise.reject(Error('Original App font service is unavailable'));
+    return this.fontOwner
+      .loadFont(bytes, family)
+      .finally(() => this.options.onExecution?.(this.execution));
+  }
+  cancelFontUpdate(): void {
+    this.fontOwner?.cancel();
+  }
+  async recoverFontUpdate(): Promise<number | undefined> {
+    this.ensure();
+    return this.fontOwner?.recover();
+  }
   private ensure(): void {
     if (this.closed) throw Error('OriginalWidgetHost is closed');
   }
   private observeMetrics(state: EngineResponse): void {
     if (this.closed || this.options.services) return;
+    this.observeFonts(state.fontRevision);
     if (!state.viewport || state.status !== p.statuses.ok)
       throw Error('Original App viewport is unavailable');
     if (state.metrics < this.metricsEpoch || state.device < this.deviceEpoch) return;
@@ -308,6 +411,14 @@ export class OriginalWidgetHost {
     this.metricsEpoch = state.metrics;
     this.deviceEpoch = state.device;
     this.owner._viewMetricsChanged(previous, next);
+  }
+  private observeFonts(revision: bigint): void {
+    const before = this.textService?.fontRevision;
+    this.textService?.observeFontRevision(revision);
+    if (before !== this.textService?.fontRevision) {
+      this.fontNotifications.notify();
+      if (this.desired) this.schedule();
+    }
   }
   /** Explicit observation for hosts that disable automatic event polling. */
   pollEvents(): Promise<void> {
@@ -347,90 +458,9 @@ export class OriginalWidgetHost {
       this.resources?.has(font) === true
     );
   }
-  private paragraph(render: RenderParagraph): NonNullable<NodeWidget['text']> {
-    const config = render.config,
-      span = config.span,
-      style = config.style,
-      painter = config.painterOptions ?? {},
-      paragraph = config.paragraphOptions ?? {};
-    if (!this.ownsDefaultFont(config.font)) return this.unsupported('foreign-provider-font');
-    if (
-      Object.getPrototypeOf(span) !== TextSpan.prototype ||
-      !(span instanceof TextSpan) ||
-      span.children !== null ||
-      span.style !== null ||
-      span.recognizer !== null ||
-      span.semanticsLabel !== null ||
-      span.semanticsIdentifier !== null ||
-      span.locale !== null ||
-      span.spellOut !== null ||
-      span.mouseCursor !== MouseCursor.defer ||
-      span.onEnter ||
-      span.onExit ||
-      config.placeholderCount ||
-      render.registrar ||
-      render.children.length
-    )
-      return this.unsupported('rich-or-selectable-paragraph');
-    if (
-      [
-        style.backgroundColor,
-        style.fontFamilyFallback,
-        style.foreground,
-        style.background,
-        style.shadows,
-        style.fontFeatures,
-        style.fontVariations,
-      ].some((value) => value !== null) ||
-      (style.decoration !== null &&
-        (!(style.decoration instanceof TextDecoration) || style.decoration.mask !== 0)) ||
-      (style.fontWeight !== null &&
-        (style.fontWeight.value < 100 || style.fontWeight.value > 900)) ||
-      (style.fontStyle !== null && style.fontStyle !== 'normal') ||
-      (style.textBaseline !== null && style.textBaseline !== 'alphabetic') ||
-      painter.strutStyle != null ||
-      (painter.hyphens !== undefined && !['manual', 'hidden'].includes(painter.hyphens)) ||
-      (paragraph.overflow !== undefined &&
-        !['clip', 'visible', 'ellipsis'].includes(paragraph.overflow)) ||
-      (paragraph.textWidthBasis !== undefined && paragraph.textWidthBasis !== 'parent')
-    )
-      return this.unsupported('paragraph-style');
-    const size = config.scaler.scale(style.fontSize ?? 18);
-    if (!(Number.isFinite(size) && size > 0 && size <= 512))
-      return this.unsupported('paragraph-font-size');
-    return {
-      value: span.text ?? '',
-      size,
-      color: style.color ?? 0xffe8eef8,
-      direction: painter.textDirection ?? 'ltr',
-    };
-  }
-  private paragraphOptions(render: RenderParagraph): ParagraphOptions {
-    const config = render.config,
-      style = config.style,
-      painter = config.painterOptions ?? {},
-      paragraph = config.paragraphOptions ?? {},
-      behavior = painter.textHeightBehavior;
-    return {
-      hyphens: painter.hyphens ?? 'manual',
-      textAlign: painter.textAlign ?? 'start',
-      wrap: paragraph.softWrap !== false || paragraph.overflow === 'ellipsis',
-      maxLines: painter.maxLines ?? 0,
-      ellipsis: painter.ellipsis ?? '',
-      locale: String(painter.locale ?? style.locale ?? 'en'),
-      ...(style.fontFamily === null || style.fontFamily === 'CupertinoSystemText'
-        ? {}
-        : { fontFamily: style.fontFamily }),
-      ...(style.fontWeight === null || style.fontWeight.value === 400
-        ? {}
-        : { fontWeight: style.fontWeight.value }),
-      ...(style.height === null ? {} : { height: style.height }),
-      letterSpacing: style.letterSpacing ?? 0,
-      wordSpacing: style.wordSpacing ?? 0,
-      halfLeading: (style.leadingDistribution ?? behavior?.leadingDistribution) === 'even',
-      applyHeightToFirstAscent: behavior?.applyHeightToFirstAscent ?? true,
-      applyHeightToLastDescent: behavior?.applyHeightToLastDescent ?? true,
-    };
+  private paragraph(render: RenderParagraph): ReturnType<typeof originalSpanInput> {
+    if (!this.ownsDefaultFont(render.config.font)) return this.unsupported('foreign-provider-font');
+    return originalSpanInput(render, (reason) => this.unsupported(reason));
   }
   private node(
     render: RenderObject,
@@ -464,11 +494,13 @@ export class OriginalWidgetHost {
     let kind: NodeWidget['kind'] = 'box';
     let options: NodeOptions = { layout: { childConstraints: 'inherit' } };
     let text: NodeWidget['text'];
+    let image: NodeWidget['image'];
     if (prototype === OriginalNativeRender.prototype) {
       const source = render as OriginalNativeRender;
       kind = source.kind;
       options = source.options;
     } else if (control) {
+      kind = control.kind ?? 'box';
       options = { ...options, ...control.options };
       if (render instanceof RenderConstrainedBox)
         options = { ...options, ...bounds(render.additionalConstraints) };
@@ -651,20 +683,83 @@ export class OriginalWidgetHost {
           clipOverflow: stack.clipBehavior === 'hardEdge',
         },
       };
+    } else if (prototype === RenderImage.prototype) {
+      const source = render as RenderImage,
+        value = source.image;
+      if (!this.options.appImages) return this.unsupported('App-image-owner-unavailable');
+      if (source.matchTextDirection && source.textDirection === null)
+        return this.unsupported('image-missing-text-direction');
+      this.observeImageOpacity(source);
+      if (value) {
+        // Validate every Image's exact registry and dimensions, even when an
+        // immutable frame snapshot is already shared by other render nodes.
+        const captured = this.options.appImages.capture(value),
+          key = captured.key;
+        let lease = this.imageLeases.get(key);
+        if (lease) captured.release();
+        else {
+          lease = captured;
+          this.imageLeases.set(key, lease);
+        }
+        this.capturingImages!.add(key);
+        image = lease.resource;
+      }
+      const alignment = source.alignment.resolve(source.textDirection),
+        center = source.centerSlice;
+      kind = 'image';
+      options = {
+        ...bounds(ImageConstraints.tightFor(source.width, source.height)),
+        pointerHitTest: 'self',
+        layout: { enforceBounds: true },
+        imageStyle: {
+          width: value?.width ?? 0,
+          height: value?.height ?? 0,
+          widthSpecified: source.width !== null,
+          heightSpecified: source.height !== null,
+          scale: source.scale,
+          opacity: source.opacity?.value ?? 1,
+          fit: source.fit,
+          alignment: { x: alignment.x, y: alignment.y },
+          repeat: source.repeat,
+          flip: source.matchTextDirection && source.textDirection === 'rtl',
+          invert: source.invertColors,
+          antialias: source.isAntiAlias,
+          color: source.color,
+          colorBlendMode: source.colorBlendMode ?? 'srcIn',
+          blendMode: source.blendMode,
+          filterQuality: source.filterQuality,
+          centerSlice: center
+            ? { left: center.left, top: center.top, right: center.right, bottom: center.bottom }
+            : null,
+        },
+      };
     } else if (paragraph) {
       const source = render as RenderParagraph;
-      text = this.paragraph(source);
+      const input = this.paragraph(source);
+      const { height, ...paragraphOptions } = input.paragraph;
+      text = {
+        value: input.text,
+        size: input.fontSize,
+        color: input.color,
+        direction: input.textDirection ? 'rtl' : 'ltr',
+      };
       const semantics = source.semantics;
       if (
         semantics &&
-        (semantics.role !== 'text' ||
-          semantics.name !== text.value ||
+        ((semantics.role !== 'text' && semantics.role !== 'group') ||
+          semantics.name !== text.value.replaceAll('\ufffc', ' ') ||
           Object.keys(semantics).some((key) => !['id', 'role', 'name', 'enabled'].includes(key)))
       )
         return this.unsupported('paragraph-semantics');
       kind = 'paragraph';
       options = {
-        paragraph: this.paragraphOptions(source),
+        paragraph: {
+          ...paragraphOptions,
+          ...(height === null ? {} : { height }),
+          wrap:
+            source.paragraphOptions.softWrap !== false ||
+            source.paragraphOptions.overflow === 'ellipsis',
+        },
         layout: {
           paragraphSizing: true,
           clipOverflow: source.paragraphOptions.overflow !== 'visible',
@@ -672,7 +767,7 @@ export class OriginalWidgetHost {
         ...(semantics
           ? {
               semantics: {
-                role: 'text',
+                role: semantics.role === 'group' ? 'group' : 'text',
                 label: semantics.name,
                 flags: semantics.enabled === false ? p.semanticsFlags.disabled : 0,
               },
@@ -681,36 +776,113 @@ export class OriginalWidgetHost {
       };
     } else return this.unsupported('custom-or-unported-render-object:' + render.constructor.name);
     claimNativeRenderObject(render, this, () => this.schedule());
+    if (this.fontScope) bindNativeSystemFonts(render, this, this.fontScope, this.fontsLive);
     this.geometry.bind(render);
     let key = this.keys.get(render);
     if (!key) this.keys.set(render, (key = new GlobalKey()));
-    if (control?.paint)
-      options = {
-        ...options,
-        nativePaint: control.paint.map(({ reference, ...entry }) => ({
-          ...entry,
-          ...(reference ? { reference: () => this.keys.get(reference)?.currentNode ?? null } : {}),
-        })),
-      };
     const data = render.parentData;
     if (data instanceof FlexParentData)
       options = { ...options, layout: { ...options.layout, flex: data.flex, fit: data.fit } };
-    let children = render.children.map((child) =>
+    let children = (control?.children ?? render.children).map((child) =>
       this.node(child, count, depth + 1, semanticsSuppressed || !!control?.suppressChildren),
     );
-    if (control?.foreground?.length) {
-      kind = 'stack';
-      children.push(
-        new NodeWidget('box', [], {
-          layout: false,
-          pointerHitTest: 'deferToChild',
-          nativePaint: control.foreground.map(({ reference: _, ...entry }) => ({
-            ...entry,
-            fillParent: true,
-          })),
-        }),
-      );
-    }
+    const emptyShape = {
+      kind: 'rrect' as const,
+      radii: Array<number>(8).fill(0),
+      strokeWidth: 0,
+      strokeColor: 0,
+      strokeAlign: 0,
+    };
+    let paintKeys = this.paintKeys.get(render);
+    if (!paintKeys) this.paintKeys.set(render, (paintKeys = [[], []]));
+    const sequence = (
+      entries: readonly NativePaintEntry[],
+      plane: 0 | 1,
+    ): readonly NativePaintOptions[] => {
+      let paragraphIndex = 0;
+      return entries.map((entry) => {
+        if (entry.kind !== 'paragraph') {
+          const { reference, paragraph: _, ...paint } = entry;
+          return {
+            ...paint,
+            ...(reference
+              ? { reference: () => this.keys.get(reference)?.currentNode ?? null }
+              : {}),
+          };
+        }
+        if (
+          !entry.paragraph ||
+          !this.textService ||
+          (entry.clip && entry.clip !== 'none') ||
+          (entry.geometry && entry.geometry.kind !== 'program')
+        )
+          return this.unsupported('paragraph-paint-configuration');
+        if (
+          entry.geometry?.kind === 'program' &&
+          (entry.geometry.radii ||
+            entry.geometry.visible !== undefined ||
+            entry.geometry.color !== undefined ||
+            entry.geometry.repeat !== undefined)
+        )
+          return this.unsupported('paragraph-paint-program');
+        if (++count.value >= p.limits.nodes) return this.unsupported('render-tree-budget');
+        const captured = this.textService.capturePaint(entry.paragraph),
+          { input, fontBinding, ...expected } = captured,
+          { height, ...paragraph } = input.paragraph,
+          key =
+            paintKeys![plane][paragraphIndex] ??
+            (paintKeys![plane][paragraphIndex] = new GlobalKey());
+        if (fontBinding && !this.capturingFonts!.has(fontBinding.fontRevision)) {
+          const lease = this.textService.retainPaintFont(entry.paragraph);
+          if (lease) this.capturingFonts!.set(fontBinding.fontRevision, lease);
+        }
+        paragraphIndex++;
+        children.push(
+          new NodeWidget(
+            'paragraph',
+            [],
+            {
+              key,
+              layout: { paintChild: true },
+              pointerHitTest: 'deferToChild',
+              horizontal: { kind: 'finite', min: captured.width, max: captured.width },
+              paragraph: { ...paragraph, ...(height === null ? {} : { height }) },
+              ...(fontBinding ? { paragraphFont: fontBinding } : {}),
+              paintPlacement: {
+                ...expected,
+                ...(entry.reference
+                  ? { reference: () => this.keys.get(entry.reference!)?.currentNode ?? null }
+                  : {}),
+                rect:
+                  entry.geometry?.kind === 'program'
+                    ? entry.geometry.rect
+                    : [entry.x ?? 0, entry.y ?? 0, captured.width, captured.height],
+              },
+            },
+            {
+              value: input.text,
+              size: input.fontSize,
+              color: input.color,
+              direction: input.textDirection ? 'rtl' : 'ltr',
+            },
+          ),
+        );
+        return { kind: 'paragraph', reference: () => key.currentNode, color: 0, shape: emptyShape };
+      });
+    };
+    if (control?.paint || control?.foreground?.length)
+      options = {
+        ...options,
+        nativePaint: [
+          ...sequence(control.paint ?? [], 0),
+          ...(control.foreground?.length
+            ? [
+                { kind: 'children' as const, color: 0, shape: emptyShape },
+                ...sequence(control.foreground, 1),
+              ]
+            : []),
+        ],
+      };
     if (control?.mergeText && options.semantics) {
       const labels: string[] = [];
       let actions = options.semantics.actions ?? 0,
@@ -740,6 +912,7 @@ export class OriginalWidgetHost {
           node.children.map((child) => absorb(child as NodeWidget)),
           remaining,
           node.text,
+          node.image,
         );
       };
       children = children.map(absorb);
@@ -777,6 +950,7 @@ export class OriginalWidgetHost {
         key,
       },
       text,
+      image,
     );
   }
   flush(): Promise<void> {
@@ -800,6 +974,12 @@ export class OriginalWidgetHost {
       const state = await this.view.request(p.opcodes.inspect);
       if (this.closed) return;
       let scene: Stack;
+      const capturedFonts = new Map<bigint, AppParagraphFontLease>();
+      const capturedImages = new Set<string>(),
+        previousImageObservers = new Set(this.imageOpacity.keys());
+      this.capturingFonts = capturedFonts;
+      this.capturingImages = capturedImages;
+      this.capturingImageRenders = new Set();
       this.building = true;
       this.bridgeFailure = undefined;
       try {
@@ -832,11 +1012,34 @@ export class OriginalWidgetHost {
           (operation) => this.unsupported('synchronous-render-' + operation),
         );
       } catch (error) {
-        this.layers.reject();
-        throw error;
+        this.capturingImageRenders = undefined;
+        const errors: unknown[] = [error];
+        for (const cleanup of [
+          () => this.layers.reject(),
+          () => this.releaseFontScenes(capturedFonts),
+          () => this.pruneImageScenes(),
+          () => this.pruneImageOpacity(previousImageObservers),
+        ])
+          try {
+            cleanup();
+          } catch (failure) {
+            errors.push(failure);
+          }
+        if (errors.length === 1) throw error;
+        throw new AggregateError(errors, 'Original image/font capture failed');
       } finally {
         this.building = false;
+        this.capturingFonts = undefined;
+        this.capturingImages = undefined;
       }
+      this.pruneImageOpacity(this.capturingImageRenders!);
+      this.capturingImageRenders = undefined;
+      const previousFonts = this.sceneFonts,
+        pendingFonts = this.pendingSceneFonts,
+        builds = this.native.counters.builds;
+      this.sceneFonts = capturedFonts;
+      this.desiredImages = capturedImages;
+      const errors: unknown[] = [];
       try {
         if (this.nativeMounted) await this.native.update(scene);
         else {
@@ -845,29 +1048,160 @@ export class OriginalWidgetHost {
         }
         this.layers.accept(this.view.documentEpoch);
       } catch (error) {
-        this.layers.reject();
-        throw error;
+        errors.push(error);
+        try {
+          this.layers.reject();
+        } catch (failure) {
+          errors.push(failure);
+        }
+      } finally {
+        // Native may first resolve an older ambiguous document, or may already
+        // be sending the previous root from an event-driven flush. Keep those
+        // producers until that work reaches a known ACK/NACK. Only two scenes
+        // survive between flushes: latest desired and (if different) pending.
+        const pending = this.view.hasPendingTransaction || this.native.hasPendingImageResources;
+        this.pendingSceneFonts = pending
+          ? this.native.counters.builds > builds
+            ? capturedFonts
+            : (pendingFonts ?? previousFonts)
+          : undefined;
+        try {
+          this.releaseFontScenes(
+            ...[previousFonts, pendingFonts].filter(
+              (fonts): fonts is Map<bigint, AppParagraphFontLease> =>
+                !!fonts && fonts !== this.sceneFonts && fonts !== this.pendingSceneFonts,
+            ),
+          );
+        } catch (error) {
+          errors.push(error);
+        }
+        try {
+          this.pruneImageScenes();
+        } catch (error) {
+          errors.push(error);
+        }
       }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length)
+        throw new AggregateError(errors, 'Original scene admission/retirement failed');
       // App desired values remain immediate on NACK. Inactive Elements are
       // finalized only after a known native ACK (or terminal close), never early.
       this.owner.finalizeTree();
+      // Source addPostFrameCallback does not itself schedule a frame. Wake Core
+      // only for pending lifecycle work; an ordinary ACK needs no extra frame.
+      this.scrolling.finishBuild();
     } while (this.rerun && !this.closed);
+  }
+  private releaseFontScenes(...scenes: Map<bigint, AppParagraphFontLease>[]): void {
+    const errors: unknown[] = [];
+    for (const scene of new Set(scenes))
+      for (const [revision, lease] of scene) {
+        scene.delete(revision);
+        try {
+          lease.release();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+    if (errors.length) throw new AggregateError(errors, 'Captured font retirement failed');
+  }
+  private observeImageOpacity(render: RenderImage): void {
+    this.capturingImageRenders!.add(render);
+    const value = render.opacity,
+      previous = this.imageOpacity.get(render);
+    if (previous?.value === value) return;
+    if (previous) {
+      previous.release();
+      this.imageOpacity.delete(render);
+    }
+    if (!value) return;
+    const changed = () => {
+      if (!this.closed && this.imageOpacity.get(render)?.value === value) this.schedule();
+    };
+    try {
+      value.addListener(changed);
+    } catch (error) {
+      try {
+        value.removeListener(changed);
+      } catch (cleanup) {
+        throw new AggregateError([error, cleanup], 'Image opacity observation failed');
+      }
+      throw error;
+    }
+    this.imageOpacity.set(render, { value, release: () => value.removeListener(changed) });
+  }
+  private pruneImageOpacity(keep: ReadonlySet<RenderImage>): void {
+    const errors: unknown[] = [];
+    for (const [render, value] of this.imageOpacity)
+      if (!keep.has(render)) {
+        this.imageOpacity.delete(render);
+        try {
+          value.release();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+    if (errors.length) throw new AggregateError(errors, 'Image opacity retirement failed');
+  }
+  private pruneImageScenes(closing = false): void {
+    const errors: unknown[] = [];
+    const retained = this.native.retainedImageResources;
+    for (const [key, lease] of this.imageLeases)
+      if ((closing || !this.desiredImages.has(key)) && !retained.has(lease.resource)) {
+        this.imageLeases.delete(key);
+        try {
+          lease.release();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+    if (closing && this.imageLeases.size)
+      errors.push(Error('Captured images still have native App references'));
+    if (errors.length) throw new AggregateError(errors, 'Captured image retirement failed');
   }
   close(): Promise<void> {
     if (this.closing) return this.closing;
     this.closed = true;
+    this.fontOwner?.cancel();
     this.focusing.close();
     this.geometry.close();
     this.closing = drainEngineOwners('OriginalWidgetHost close failed', [
       () => this.running,
+      () => this.native.stop(),
+      () => this.fontOwner?.stop(),
       () => this.layers.close(),
       () => this.root?.unmount(),
+      () => this.pruneImageOpacity(new Set()),
       () => this.appGestures.dispose(),
       () => this.gestureBindingLease.dispose(),
       () => this.owner.dispose(),
+      () => this.imageClockLease?.dispose(),
+      () => this.imageClock?.close(),
+      () => this.fontNotifications.dispose(),
       () => this.scrolling.close(),
+      () => {
+        if (this.options.appImages) {
+          if (this.defaultFont) this.resources?.releaseProducer(this.defaultFont);
+        } else this.resources?.dispose();
+      },
+      () => {
+        if (
+          (this.view.hasPendingTransaction || this.native.hasPendingImageResources) &&
+          (this.sceneFonts.size || this.pendingSceneFonts?.size)
+        )
+          throw Error('Captured font ownership awaits the pending document terminal');
+        this.releaseFontScenes(
+          this.sceneFonts,
+          ...(this.pendingSceneFonts ? [this.pendingSceneFonts] : []),
+        );
+        this.pendingSceneFonts = undefined;
+      },
+      () => this.fontOwner?.close(),
+      () => this.textService?.close(),
       () => this.native.close(),
-      () => this.resources?.dispose(),
+      () => {
+        this.pruneImageScenes(true);
+      },
       () => {
         this.root = undefined;
         this.desired = undefined;

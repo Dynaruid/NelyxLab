@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { spawn, execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { stop as stopCompiler } from 'esbuild';
+import { resolveTypeScriptCompiler } from '../../sdk/tooling/metro/src/typescript-compiler.cjs';
 import { engineRoot, timeout, sourceIdentity } from '../tools/build.mjs';
 import {
   createEngineV2Project,
@@ -83,6 +84,35 @@ async function consumer(run) {
     fs.rmSync(app, { recursive: true, force: true, maxRetries: 3 });
   }
 }
+test(
+  'Font revision registry remains restricted to the canonical Original text adapter',
+  { timeout },
+  () =>
+    consumer(async (app) => {
+      for (const target of ['windows', 'web']) {
+        fs.writeFileSync(
+          path.join(app, 'src/app.ts'),
+          "import {registerTextFontRevision} from '@nelyx/core/hosting/text-fonts';globalThis.registry=registerTextFontRevision;export default {};",
+        );
+        await assert.rejects(
+          buildEngineV2Application({ app, target, engineInputs: supply }),
+          /cannot import/,
+        );
+        fs.writeFileSync(
+          path.join(app, 'src/original-text.js'),
+          "export {registerTextFontRevision} from '@nelyx/core/hosting/text-fonts';",
+        );
+        fs.writeFileSync(
+          path.join(app, 'src/app.ts'),
+          "import {registerTextFontRevision} from './original-text.js';globalThis.registry=registerTextFontRevision;export default {};",
+        );
+        await assert.rejects(
+          buildEngineV2Application({ app, target, engineInputs: supply }),
+          /cannot import/,
+        );
+      }
+    }),
+);
 test(
   'External consumer entry, assets, native App lifecycle and portable package share supplier identity',
   { timeout },
@@ -601,7 +631,7 @@ test(
         }),
       );
       fs.writeFileSync(path.join(app, 'src/app.ts'), fixture);
-      const compiler = fs.realpathSync(path.join(app, 'node_modules/typescript/lib/tsc.js'));
+      const compiler = resolveTypeScriptCompiler(app).entry;
       assert.ok(
         compiler.startsWith(fs.realpathSync(app) + path.sep),
         'The compiler belongs to the installed consumer',

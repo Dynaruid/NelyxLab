@@ -10,9 +10,9 @@ int main(void) {
   if (nelyx_engine_create(&options, &engine) != 10 || engine) return 1;
   options.size = sizeof(options); options.abi_major = 3;
   if (nelyx_engine_create(&options, &engine) != 11 || engine) return 2;
-  options.abi_major = 2; options.required_capabilities = 1u << 31;
+  options.abi_major = 2; options.required_capabilities = 1u << 5;
   if (nelyx_engine_create(&options, &engine) != 12 || engine) return 3;
-  options.required_capabilities = 1 | (1u << 9) | (1u << 10) | (1u << 11) | (1u << 12) | (1u << 13);
+  options.required_capabilities = 1 | (1u << 9) | (1u << 10) | (1u << 11) | (1u << 12) | (1u << 13) | (1u << 31);
   if (nelyx_engine_create(&options, &engine) || !engine) return 4;
   buffer.version = 2;
   if (nelyx_engine_dispatch(engine, NULL, 0, &buffer) != 10 || buffer.data) return 5;

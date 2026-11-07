@@ -4,12 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import './execution-model.test.mjs';
 import { stableApiSurface } from '../tools/api-scope.mjs';
 import {
   auditEngineV2Api,
   engineV2OriginalSurface,
   engineV2ApiTarget,
+  checkEngineV2ApiTarget,
 } from '../tools/api-audit.mjs';
 const timeout = 1_200_000;
 test(
@@ -34,6 +36,10 @@ async function fixture(run) {
   const write = (name, text) => fs.writeFileSync(path.join(pkg, name), text);
   try {
     fs.mkdirSync(pkg, { recursive: true });
+    const native = path.dirname(
+      createRequire(import.meta.url).resolve('@typescript/native/package.json'),
+    );
+    fs.symlinkSync(native, path.join(root, 'node_modules/typescript'), 'junction');
     fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
     const manifest = {
       name: '@nelyx/core',
@@ -60,6 +66,33 @@ async function fixture(run) {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3 });
   }
 }
+test(
+  'Native TS 7 rejects a different public declaration even when the expected file is loaded indirectly',
+  { timeout },
+  () =>
+    fixture(({ root, pkg, write, manifest }) => {
+      write('other.d.ts', "import './numbers.js';export declare const other: number;");
+      manifest.exports['./foundation/numbers'].types = './other.d.ts';
+      write('package.json', JSON.stringify(manifest));
+      const result = checkEngineV2ApiTarget({
+        root,
+        target: 'windows',
+        modules: [
+          {
+            name: '@nelyx/core/foundation/numbers',
+            code: true,
+            file: path.join(pkg, 'numbers.d.ts'),
+          },
+        ],
+      });
+      assert.equal(result.compiler, '7.0.2');
+      assert.equal(result.inputValid, false);
+      assert.ok(
+        result.errors.some((error) => error.code === 'consumerResolution'),
+        JSON.stringify(result.errors),
+      );
+    }),
+);
 test(
   'Scope union normalization preserves literals, overload order and intersection order',
   { timeout },
@@ -154,6 +187,86 @@ test(
       assert.ok(unproven.errors.some((e) => e.code === 'originalScopeReconstruction'));
     }),
 );
+test(
+  'A proven class extension preserves every pinned obligation but cannot approve structural compatibility or behavior',
+  { timeout },
+  () =>
+    fixture(async ({ audit, pkg, root, write }) => {
+      const original =
+          'export declare class Holder { constructor(value: number); readonly value: number; protected step(value: number): number; read(value: string): string; }',
+        extended = original.replace(
+          'read(value: string): string;',
+          'read(value: string): string; loadBuffer(key: string): Promise<Uint8Array>;',
+        );
+      write('numbers.d.ts', original);
+      write(
+        'numbers.js',
+        'export class Holder { constructor(value){this.value=value;} step(value){return value;} read(value){return value;} loadBuffer(){return Promise.resolve(new Uint8Array());} }',
+      );
+      const scope = engineV2OriginalSurface(await audit(), root, { stable: true }),
+        declarations = () => new Map([[path.join(pkg, 'numbers.d.ts'), original]]);
+      write('numbers.d.ts', extended);
+      assert.equal(
+        (await audit({ scope })).inputValid,
+        false,
+        'An extension needs a hash-verified original reconstruction',
+      );
+      const current = await audit(),
+        entry = current.packages[0].entries.find((value) => value.name === 'Holder');
+      const proven = await audit({
+        scope,
+        originalDeclarations: declarations,
+        verify: true,
+        contracts: [
+          {
+            id: 'current-holder',
+            exports: [
+              {
+                module: '@nelyx/core/foundation/numbers',
+                name: 'Holder',
+                covers: entry.obligations,
+              },
+            ],
+            run({ replacement }) {
+              const { Holder } = replacement('@nelyx/core/foundation/numbers');
+              assert.equal(new Holder(2).read('value'), 'value');
+            },
+          },
+        ],
+      });
+      assert.equal(proven.inputValid, true, JSON.stringify(proven.errors));
+      assert.equal(proven.cases[0].passed, true);
+      assert.equal(
+        proven.compatible,
+        false,
+        'A passing current-surface behavior case cannot approve the original structural type',
+      );
+      const changed = proven.packages[0].entries.find((value) => value.name === 'Holder');
+      assert.equal(changed.status, 'signatureChanged');
+      assert.equal(changed.signatureMatches, false);
+      assert.equal(changed.assignable, false);
+      assert.deepEqual(changed.originalSurfaceExtension.added, ['instance:0:loadBuffer']);
+      assert.equal(changed.originalSurfaceExtension.structuralCompatibility, 'notApproved');
+      assert.deepEqual(
+        engineV2OriginalSurface(await audit({ declarationOverrides: declarations() }), root, {
+          stable: true,
+        }),
+        scope,
+        'Original hashes and denominator remain unchanged',
+      );
+      for (const invalid of [
+        extended.replace('readonly value', 'value'),
+        extended.replace('protected step(value: number): number;', ''),
+        extended.replace('read(value: string)', "read(value: 'narrow')"),
+      ]) {
+        write('numbers.d.ts', invalid);
+        const result = await audit({ scope, originalDeclarations: declarations });
+        assert.equal(result.inputValid, false);
+        assert.ok(result.errors.some((value) => value.code === 'originalSurfaceChanged'));
+      }
+    }),
+);
+
 test(
   'Package JSON scope allows additive v2 exports and still rejects changed original JSON values',
   { timeout },

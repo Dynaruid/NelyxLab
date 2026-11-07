@@ -4,6 +4,15 @@ import { encodeUtf8, decodeUtf8 } from './utf8.ts';
 import { paragraphOptionsBytes, readParagraphOptions } from './paragraph.ts';
 import { clipStyleBytes, readClipStyle } from './clip.ts';
 import { nativePaintBody, readNativePaint } from './native-paint.ts';
+import { paintPlacementBytes, readPaintPlacement } from './paint-placement.ts';
+import type { PaintPlacementOptions } from './paint-placement.ts';
+import { readFontBinding } from './font-resource.ts';
+import type { FontResourceBinding } from './font-resource.ts';
+import { readFontTransition } from './font-transition.ts';
+import { imageStyleBytes, readImagePaint } from './image-style.ts';
+import type { ImageStyleOptions, ImagePaintSnapshot } from './image-style.ts';
+import type { FontTransitionState } from './font-transition.ts';
+export type { PaintPlacementOptions } from './paint-placement.ts';
 import type { NativePaintOptions, NativePaintSnapshot } from './native-paint.ts';
 import type { ClipStyleOptions, ClipStyleSnapshot } from './clip.ts';
 export type { ClipStyleOptions, ClipStyleSnapshot, ClipRadii } from './clip.ts';
@@ -79,8 +88,12 @@ export interface NodeLayout {
   readonly expandEmpty?: boolean;
   readonly clipOverflow?: boolean;
   readonly paragraphSizing?: boolean;
+  /** A paragraph recording does not affect its parent's layout or hit geometry. */
+  readonly paintChild?: boolean;
   readonly preferredSize?: boolean;
   readonly expandPreferredWidth?: boolean;
+  /** Canonical inline wrapper: scale the child's coordinates and layout size. */
+  readonly inlineScale?: number;
   readonly direction?: 'horizontal' | 'vertical';
   readonly mainSize?: 'min' | 'max';
   readonly mainAlign?: keyof typeof p.layoutMainAlign;
@@ -196,6 +209,12 @@ export function uint32(value: number): number {
   if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff)
     throw new RangeError('Expected uint32');
   return value;
+}
+/** JavaScript bitwise OR produces a signed int32 when bit 31 is selected. */
+export function capabilityMask(value: number): number {
+  if (!Number.isInteger(value) || value < -0x80000000 || value > 0xffffffff)
+    throw new RangeError('Invalid capability mask');
+  return value >>> 0;
 }
 export function uint64(value: bigint): bigint {
   if (typeof value !== 'bigint' || value < 0n || value > 0xffff_ffff_ffff_ffffn)
@@ -423,6 +442,9 @@ export interface LayerLinkOptions {
   readonly followerAnchor?: { readonly x: number; readonly y: number };
 }
 export const commands = {
+  imageStyle(node: NodeHandle, options: ImageStyleOptions | null): Uint8Array {
+    return command(p.commands.imageStyle, node, imageStyleBytes(options));
+  },
   layerLink(node: NodeHandle, options?: LayerLinkOptions): Uint8Array {
     return command(
       p.commands.layerLink,
@@ -620,7 +642,9 @@ export const commands = {
             (value.clipOverflow ? p.layoutConstraintFlags.clipOverflow : 0) |
             (value.paragraphSizing ? p.layoutConstraintFlags.paragraphSizing : 0) |
             (value.preferredSize ? p.layoutConstraintFlags.preferredSize : 0) |
-            (value.expandPreferredWidth ? p.layoutConstraintFlags.expandPreferredWidth : 0),
+            (value.expandPreferredWidth ? p.layoutConstraintFlags.expandPreferredWidth : 0) |
+            (value.paintChild ? p.layoutConstraintFlags.paintChild : 0) |
+            (value.inlineScale !== undefined ? p.layoutConstraintFlags.inlineScale : 0),
           true,
         );
         [
@@ -635,6 +659,7 @@ export const commands = {
           value.alignment?.y ?? 0,
           value.widthFactor ?? -1,
           value.heightFactor ?? -1,
+          value.inlineScale ?? 1,
         ].forEach((scalar, i) => v.setFloat64(32 + i * 8, finite(scalar), true));
       }),
     );
@@ -665,6 +690,28 @@ export const commands = {
     });
     data.set(bytes, 24);
     return command(p.commands.text, node, data);
+  },
+  paintPlacement(node: NodeHandle, value?: PaintPlacementOptions): Uint8Array {
+    return command(
+      p.commands.paintPlacement,
+      node,
+      value ? paintPlacementBytes(value) : new Uint8Array(),
+    );
+  },
+  paragraphFont(
+    node: NodeHandle,
+    value?: { readonly resource: NodeHandle | null; readonly fontRevision: bigint },
+  ): Uint8Array {
+    return command(
+      p.commands.paragraphFont,
+      node,
+      value
+        ? body(16, (v) => {
+            writeHandle(v, 0, value.resource ?? { slot: 0, generation: 0 });
+            v.setBigUint64(8, uint64(value.fontRevision), true);
+          })
+        : new Uint8Array(),
+    );
   },
   paragraphOptions(node: NodeHandle, value: ParagraphOptions | null): Uint8Array {
     return command(p.commands.paragraphOptions, node, paragraphOptionsBytes(value));
@@ -922,9 +969,12 @@ export interface LayerCompositionSnapshot {
   readonly linkedOffset: { readonly x: number; readonly y: number };
 }
 export interface EngineNodeSnapshot {
+  readonly imagePaint: ImagePaintSnapshot | null;
+  readonly fontBinding: FontResourceBinding | null;
   readonly layerComposition: LayerCompositionSnapshot | null;
   readonly nativePaint: readonly NativePaintSnapshot[] | null;
   readonly paragraph: ParagraphSnapshot | null;
+  readonly paintPlacement?: PaintPlacementOptions | null;
   readonly graphics: GraphicsSnapshot | null;
   readonly clipStyle: ClipStyleSnapshot | null;
   readonly matrix: AffineMatrix;
@@ -1018,6 +1068,9 @@ export interface EngineResponse {
   readonly publishedDevice: bigint;
   readonly keyWork: bigint;
   readonly focusWork: bigint;
+  readonly framePaintWork: bigint;
+  readonly framePaintNodes: bigint;
+  readonly framePlacementNodes: bigint;
   readonly interactionCount: number;
   readonly editingWork: bigint;
   readonly semanticsWork: bigint;
@@ -1055,6 +1108,7 @@ export interface EngineResponse {
   readonly pendingDocument: bigint;
   readonly reservedBytes: bigint;
   readonly resourceBytes: bigint;
+  readonly fontTransition: FontTransitionState | null;
   readonly nodeBlocks: bigint;
   readonly submission: bigint;
   readonly publication: bigint;
@@ -1091,6 +1145,8 @@ export interface EngineResponse {
   readonly preparationDocument: bigint;
   readonly measureRequest: bigint;
   readonly layoutWork: bigint;
+  readonly imagePaintWork: bigint;
+  readonly appFrameWork: bigint;
   readonly layoutReused: bigint;
   readonly layoutDocument: bigint;
   readonly layoutMetrics: bigint;
@@ -1138,6 +1194,8 @@ export function response(bytes: Uint8Array): EngineResponse {
     nodes.push(
       Object.freeze({
         editing: null,
+        imagePaint: null,
+        fontBinding: null,
         paragraph: null,
         graphics: null,
         clipStyle: null,
@@ -1265,7 +1323,31 @@ export function response(bytes: Uint8Array): EngineResponse {
       length = v.getUint32(cursor + 16, true);
     const stride = 24 + Math.ceil(length / 8) * 8;
     if (
-      ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, p.layerCompositionBlob].includes(type) ||
+      ![
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        p.layerCompositionBlob,
+        p.paintPlacementBlob,
+        p.fontUploadBlob,
+        p.fontResourceChunkBlob,
+        p.fontBindingBlob,
+        p.fontTransitionBlob,
+        p.imageUploadBlob,
+        p.imageResourceChunkBlob,
+        p.imageResourceBlob,
+        p.imagePaintBlob,
+      ].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
       v.getUint32(cursor + 20, true)
@@ -1334,6 +1416,9 @@ export function response(bytes: Uint8Array): EngineResponse {
       semantics: SemanticSnapshot | null = null,
       list: ListSnapshot | null = null,
       control: ControlSnapshot | null = null;
+    let imagePaint: ImagePaintSnapshot | null = null;
+    let paintPlacement: PaintPlacementOptions | null = null;
+    let fontBinding: FontResourceBinding | null = null;
     let nativePaint: readonly NativePaintSnapshot[] | null = null;
     let layerComposition: LayerCompositionSnapshot | null = null;
     let graphics: GraphicsSnapshot | null = null,
@@ -1348,6 +1433,15 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if (blob.type === p.imagePaintBlob) {
+        if (imagePaint || node.kind !== p.kinds.image) throw Error('Duplicate/foreign image paint');
+        imagePaint = readImagePaint(blob.bytes);
+      }
+      if (blob.type === p.fontBindingBlob) {
+        if (fontBinding || (node.kind !== p.kinds.paragraph && node.kind !== p.kinds.editable))
+          throw Error('Duplicate/foreign paragraph font binding');
+        fontBinding = readFontBinding(blob.bytes);
+      }
       if (blob.type === p.layerCompositionBlob) {
         if (layerComposition || size !== p.layerCompositionBytes)
           throw Error('Invalid layer composition snapshot');
@@ -1381,6 +1475,11 @@ export function response(bytes: Uint8Array): EngineResponse {
           transform: flags & 2 ? (Object.freeze(matrix) as unknown as AffineMatrix) : null,
           linkedOffset: Object.freeze({ x, y }),
         });
+        continue;
+      }
+      if (blob.type === p.paintPlacementBlob) {
+        if (paintPlacement) throw Error('Duplicate paragraph paint placement');
+        paintPlacement = readPaintPlacement(blob.bytes);
         continue;
       }
       if (blob.type === 13) {
@@ -1477,7 +1576,7 @@ export function response(bytes: Uint8Array): EngineResponse {
           d.getUint32(28, true) ||
           d.getUint32(0, true) > p.semanticsRoles.switchControl ||
           d.getUint32(4, true) & ~127 ||
-          d.getUint32(8, true) & ~127
+          d.getUint32(8, true) & ~255
         )
           throw Error('Invalid semantics blob');
         if (
@@ -1486,6 +1585,13 @@ export function response(bytes: Uint8Array): EngineResponse {
             d.getUint32(4, true) & p.semanticsFlags.checked)
         )
           throw Error('Invalid mixed semantics');
+        if (
+          d.getUint32(8, true) & p.semanticsActions.deselect &&
+          (d.getUint32(0, true) !== p.semanticsRoles.radio ||
+            !(d.getUint32(4, true) & p.semanticsFlags.checked) ||
+            !(d.getUint32(8, true) & p.semanticsActions.activate))
+        )
+          throw Error('Invalid deselection semantics');
         const lengths = [12, 16, 20, 72, 76].map((at) => d.getUint32(at, true)),
           flags = d.getUint32(24, true);
         if (
@@ -1630,6 +1736,11 @@ export function response(bytes: Uint8Array): EngineResponse {
         });
       }
     }
+    if (
+      fontBinding?.pinned &&
+      (!paintPlacement || fontBinding.fontRevision !== paintPlacement.fontRevision)
+    )
+      throw Error('Pinned paragraph font revision differs from its recording');
     return Object.freeze({
       ...node,
       editing,
@@ -1639,6 +1750,9 @@ export function response(bytes: Uint8Array): EngineResponse {
       control,
       graphics,
       nativePaint,
+      imagePaint,
+      paintPlacement,
+      fontBinding,
       layerComposition,
       clipStyle,
       paragraph,
@@ -1658,6 +1772,7 @@ export function response(bytes: Uint8Array): EngineResponse {
   )
     throw new Error('Invalid engine viewport observation');
   return Object.freeze({
+    fontTransition: readFontTransition(blobs),
     memory: Object.freeze({
       total: u64(p.stateFields.memoryTotal),
       peak: u64(p.stateFields.memoryPeak),
@@ -1689,6 +1804,9 @@ export function response(bytes: Uint8Array): EngineResponse {
     publishedDevice: u64(p.stateFields.publishedDevice),
     keyWork: u64(p.stateFields.keyWork),
     focusWork: u64(p.stateFields.focusWork),
+    framePaintWork: u64(p.stateFields.framePaintWork),
+    framePaintNodes: u64(p.stateFields.framePaintNodes),
+    framePlacementNodes: u64(p.stateFields.framePlacementNodes),
     layoutQuery: u64(p.stateFields.queryId)
       ? Object.freeze({
           id: u64(p.stateFields.queryId),
@@ -1770,6 +1888,8 @@ export function response(bytes: Uint8Array): EngineResponse {
     preparationDocument: u64(p.stateFields.preparationDocument),
     measureRequest: u64(p.stateFields.measureRequest),
     layoutWork: u64(p.stateFields.layoutWork),
+    imagePaintWork: u64(p.stateFields.imagePaintWork),
+    appFrameWork: u64(p.stateFields.appFrameWork),
     layoutReused: u64(p.stateFields.layoutReused),
     layoutDocument: u64(p.stateFields.layoutDocument),
     layoutMetrics: u64(p.stateFields.layoutMetrics),
@@ -1786,6 +1906,7 @@ export function response(bytes: Uint8Array): EngineResponse {
 }
 export interface ProviderMeasurement {
   readonly geometry?: TextGeometry;
+  readonly placeholders?: readonly ParagraphBox[];
   readonly didExceedMaxLines?: boolean;
   readonly width: number;
   readonly height: number;
@@ -1793,16 +1914,27 @@ export interface ProviderMeasurement {
   readonly maximum: number;
   /** Alphabetic baseline, or -1 for a non-text leaf. */
   readonly baseline: number;
+  readonly ideographicBaseline?: number;
+}
+export interface ParagraphBox extends TextRect {
+  readonly direction: 0 | 1;
 }
 export function measurementBody(request: EngineResponse, value: ProviderMeasurement): Uint8Array {
   const node = request.nodes[0];
   if (!request.measureRequest || !node || request.nodes.length !== 1)
     throw new Error('No outstanding engine measurement');
   const g = value.geometry;
+  const placeholders = value.placeholders;
   if (g && g.selection.length > p.limits.selectionRects)
     throw new RangeError('Selection rectangle budget');
+  if (placeholders && (g || placeholders.length > p.limits.paragraphPlaceholders))
+    throw new RangeError('Invalid placeholder geometry');
   return body(
-    g ? p.measurementGeometryBytes + g.selection.length * 32 : p.measurementBytes,
+    g
+      ? p.measurementGeometryBytes + g.selection.length * 32
+      : placeholders
+        ? p.measurementPlaceholderBytes + placeholders.length * p.paragraphBoxBytes
+        : p.measurementBytes,
     (v) => {
       v.setBigUint64(0, request.measurePreparation || request.preparation, true);
       v.setBigUint64(8, request.metrics, true);
@@ -1812,9 +1944,15 @@ export function measurementBody(request: EngineResponse, value: ProviderMeasurem
       [value.width, value.height, value.minimum, value.maximum, value.baseline].forEach(
         (scalar, i) => v.setFloat64(40 + i * 8, finite(scalar), true),
       );
+      v.setFloat64(
+        p.measureFields.ideographicBaseline,
+        finite(value.ideographicBaseline ?? -1),
+        true,
+      );
       v.setUint32(
         p.measureFields.flags,
-        value.didExceedMaxLines ? p.measurementFlags.didExceedMaxLines : 0,
+        (value.didExceedMaxLines ? p.measurementFlags.didExceedMaxLines : 0) |
+          (placeholders ? p.measurementFlags.hasPlaceholders : 0),
         true,
       );
       if (g) {
@@ -1824,6 +1962,18 @@ export function measurementBody(request: EngineResponse, value: ProviderMeasurem
         rect(p.measureFields.caret, g.caret);
         v.setUint32(p.measureFields.selectionCount, g.selection.length, true);
         g.selection.forEach((r, i) => rect(p.measureFields.selection + i * 32, r));
+      }
+      if (placeholders) {
+        v.setUint32(p.measureFields.placeholderCount, placeholders.length, true);
+        placeholders.forEach((r, i) => {
+          const offset = p.measurementPlaceholderBytes + i * p.paragraphBoxBytes;
+          if (r.direction !== 0 && r.direction !== 1)
+            throw new RangeError('Invalid placeholder direction');
+          [r.x, r.y, r.width, r.height].forEach((n, j) =>
+            v.setFloat64(offset + j * 8, finite(n), true),
+          );
+          v.setUint32(offset + 32, r.direction, true);
+        });
       }
     },
   );

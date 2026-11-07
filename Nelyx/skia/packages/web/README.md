@@ -10,7 +10,7 @@ Assets are checked against declared hashes. Frames retain resource leases until 
 
 ## Prepare the runtime
 
-The package uses the source-built `m153-nelyx-paragraph.1` CanvasKit runtime with Nelyx paragraph API1. Its manifest identifies the required source revision, patch, and JavaScript/Wasm files. The npm CanvasKit dependency supplies public type declarations.
+The package uses the source-built `m153-nelyx-paragraph.5` CanvasKit runtime with Nelyx paragraph API1, font-reference Picture API2 and immutable font-collection API1. Picture API2 identifies supplied faces by exact C++ font streams and collection indices, preserving source identities and variation coordinates across owners. It rejects substituted references even when the other face has the same family name. The manifest identifies the required source revision, patch, and JavaScript/Wasm files. The npm CanvasKit dependency supplies public type declarations. Each instance keeps the supplier 128 MiB initial linear heap and has an explicit 256 MiB maximum.
 
 Follow the [source-build recipe](../../eng/source-build/README.md#vendor-build-recipes), then supply its output from the repository root:
 

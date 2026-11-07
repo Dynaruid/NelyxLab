@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commands as c, protocol as p, body, response } from '../../runtime/engine-client/index.ts';
+import {
+  commands as c,
+  protocol as p,
+  body,
+  response,
+  appTextQuotaBytes,
+} from '../../runtime/engine-client/index.ts';
 export function graphicsContracts({ using, timeout, h }) {
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
@@ -529,13 +535,16 @@ export function graphicsContracts({ using, timeout, h }) {
             );
           const mib = 1024 * 1024;
           await report(0, 0, 32 * mib);
-          await report(1, 1, 64 * mib);
-          await report(2, 1, 64 * mib);
+          await report(1, 1, 128 * mib);
+          await report(2, 1, 128 * mib);
+          await report(6, 2, appTextQuotaBytes);
           await report(1, 2, 48 * mib);
           await report(2, 3, 100 * mib);
           const before = await f.inspect();
-          assert.equal(before.memory.total, 308n * BigInt(mib));
-          assert.equal((await report(1, 4, 100 * mib)).status, p.statuses.budgetExceeded);
+          assert.equal(before.memory.total, 436n * BigInt(mib) + BigInt(appTextQuotaBytes));
+          assert.equal(before.memory.limit, BigInt(p.limits.unifiedBytes));
+          const exceedsRemaining = p.limits.unifiedBytes - Number(before.memory.total) + 1;
+          assert.equal((await report(1, 4, exceedsRemaining)).status, p.statuses.budgetExceeded);
           const after = await f.inspect();
           assert.equal(after.memory.total, before.memory.total);
           assert.equal(after.memory.rejected, before.memory.rejected + 1n);
@@ -546,6 +555,7 @@ export function graphicsContracts({ using, timeout, h }) {
             [2, 1],
             [1, 2],
             [2, 3],
+            [6, 2],
           ])
             await report(owner, kind, 0);
           assert.equal((await f.inspect()).memory.total, (await f.inspect()).reservedBytes);

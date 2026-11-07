@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import ts from 'typescript';
 import fs from 'node:fs';
+import { runTypeScriptCompiler } from '../../sdk/tooling/metro/src/typescript-compiler.cjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
@@ -61,79 +62,113 @@ export function engineV2ApiTarget(module, target) {
 }
 
 /** Resolve actual public imports in a consumer, with no ambient declaration suppression. */
-export function checkEngineV2ApiTarget({ root, modules, target, compiler = ts }) {
-  const applicable = modules.filter((module) => engineV2ApiTarget(module.name, target).applicable);
-  const filename = path.join(root, '__nelyx_api_consumer__.mts');
-  const text = applicable
-    .filter((module) => module.code)
-    .map(
-      (module, index) =>
-        `import * as api${index} from ${JSON.stringify(module.name)}; export {api${index}};`,
-    )
-    .join('\n');
-  const options = {
-    noEmit: true,
-    strict: true,
-    skipLibCheck: false,
-    types: [],
-    lib: target === 'web' ? ['lib.es2022.d.ts', 'lib.dom.d.ts'] : ['lib.es2022.d.ts'],
-    jsx: compiler.JsxEmit.ReactJSX,
-    target: compiler.ScriptTarget.ES2022,
-    module: compiler.ModuleKind.NodeNext,
-    moduleResolution: compiler.ModuleResolutionKind.NodeNext,
-    customConditions: target === 'web' ? ['browser'] : [],
-  };
-  const host = compiler.createCompilerHost(options),
-    getSourceFile = host.getSourceFile.bind(host);
-  host.getSourceFile = (file, language, onError, create) =>
-    path.resolve(file) === filename
-      ? compiler.createSourceFile(file, text, language, true)
-      : getSourceFile(file, language, onError, create);
-  const program = compiler.createProgram([filename], options, host);
-  const errors = compiler
-    .getPreEmitDiagnostics(program)
-    .filter((item) => item.category === compiler.DiagnosticCategory.Error)
-    .map((item) => ({
-      code: 'TS' + item.code,
-      message: compiler.flattenDiagnosticMessageText(item.messageText, ' '),
-      ...(item.file
-        ? {
-            file:
-              item.file.fileName +
-              ':' +
-              (item.file.getLineAndCharacterOfPosition(item.start ?? 0).line + 1),
-          }
-        : {}),
-    }));
-  for (const module of applicable.filter((module) => module.code)) {
-    const resolved = compiler.resolveModuleName(
-      module.name,
+export function checkEngineV2ApiTarget({
+  root,
+  modules,
+  target,
+  compilerRoot = root,
+  compilerPackage = path.resolve(compilerRoot) === repository ? '@typescript/native' : 'typescript',
+}) {
+  const applicable = modules.filter((module) => engineV2ApiTarget(module.name, target).applicable),
+    directory = fs.mkdtempSync(path.join(root, '.nelyx-api-')),
+    filename = path.join(directory, 'consumer.mts'),
+    project = path.join(directory, 'tsconfig.json'),
+    options = {
+      noEmit: true,
+      strict: true,
+      skipLibCheck: false,
+      types: [],
+      lib: target === 'web' ? ['ES2022', 'DOM'] : ['ES2022'],
+      jsx: 'react-jsx',
+      target: 'ES2022',
+      module: 'NodeNext',
+      moduleResolution: 'NodeNext',
+      customConditions: target === 'web' ? ['browser'] : [],
+    },
+    errors = [],
+    files = new Set(),
+    resolutions = new Map();
+  let compilerVersion = 'unavailable';
+  try {
+    fs.writeFileSync(
       filename,
-      options,
-      host,
-      undefined,
-      undefined,
-      compiler.ModuleKind.ESNext,
-    ).resolvedModule;
-    if (
-      !resolved ||
-      !fs.existsSync(module.file) ||
-      fs.realpathSync(resolved.resolvedFileName) !== fs.realpathSync(module.file)
-    )
-      errors.push({
-        code: 'consumerResolution',
-        message: 'Public import does not resolve to its declared entry: ' + module.name,
-      });
+      applicable
+        .filter((module) => module.code)
+        .map(
+          (module, index) =>
+            'import * as api' +
+            index +
+            ' from ' +
+            JSON.stringify(module.name) +
+            '; export {api' +
+            index +
+            '};',
+        )
+        .join('\n'),
+    );
+    fs.writeFileSync(project, JSON.stringify({ compilerOptions: options, files: [filename] }));
+    const checked = runTypeScriptCompiler(
+      compilerRoot,
+      ['-p', project, '--pretty', 'false', '--listFiles', '--traceResolution', '--singleThreaded'],
+      compilerPackage,
+    );
+    compilerVersion = checked.version;
+    let resolving;
+    for (const line of (checked.stdout + '\n' + checked.stderr).split(/\r?\n/)) {
+      const begin = /^======== Resolving module '(.+)' from '(.+)'\. ========$/.exec(line),
+        resolved = /^======== Module name '(.+)' was successfully resolved to '(.+?)'/.exec(line);
+      if (begin)
+        resolving = {
+          name: begin[1],
+          direct:
+            fs.existsSync(begin[2]) && fs.realpathSync(begin[2]) === fs.realpathSync(filename),
+        };
+      else if (resolved && resolving?.direct && resolving.name === resolved[1])
+        resolutions.set(resolved[1], fs.realpathSync(resolved[2]));
+      const error = /^(.*?)(?:\((\d+),(\d+)\))?:?\s*error TS(\d+):\s*(.*)$/.exec(line);
+      if (error)
+        errors.push({
+          code: 'TS' + error[4],
+          message: error[5],
+          ...(error[1] ? { file: error[1] + (error[2] ? ':' + error[2] : '') } : {}),
+        });
+      else if (line.trim() && fs.existsSync(line.trim())) files.add(fs.realpathSync(line.trim()));
+    }
+    if (checked.status !== 0 && !errors.length)
+      errors.push({ code: 'nativeCompilerFailed', message: checked.stdout + checked.stderr });
+    for (const module of applicable.filter((module) => module.code))
+      if (
+        !fs.existsSync(module.file) ||
+        !files.has(fs.realpathSync(module.file)) ||
+        resolutions.get(module.name) !== fs.realpathSync(module.file)
+      )
+        errors.push({
+          code: 'consumerResolution',
+          message: 'Public import does not resolve to its declared entry: ' + module.name,
+        });
+  } catch (error) {
+    errors.push({ code: 'compilerUnavailable', message: String(error) });
+  } finally {
+    try {
+      if (
+        path.dirname(path.resolve(directory)) !== path.resolve(root) ||
+        !path.basename(directory).startsWith('.nelyx-api-')
+      )
+        errors.push({ code: 'consumerCleanup', message: 'Unexpected API consumer cleanup target' });
+      else fs.rmSync(directory, { recursive: true, force: true });
+    } catch (error) {
+      errors.push({ code: 'consumerCleanup', message: String(error) });
+    }
   }
   return {
     target,
-    compiler: compiler.version,
+    compiler: compilerVersion,
     moduleResolution: 'NodeNext',
     conditions: options.customConditions,
-    lib: options.lib,
-    types: options.types,
+    lib: target === 'web' ? ['lib.es2022.d.ts', 'lib.dom.d.ts'] : ['lib.es2022.d.ts'],
+    types: [],
     skipLibCheck: false,
-    inputValid: errors.length === 0,
+    inputValid: !errors.length,
     errors,
     modules: modules.map((module) => ({
       module: module.name,
@@ -147,6 +182,7 @@ export function checkEngineV2ApiTarget({ root, modules, target, compiler = ts })
     },
   };
 }
+
 const overriddenAssets = new WeakMap();
 const assetBytes = (entry) => overriddenAssets.get(entry) ?? fs.readFileSync(entry.original);
 const projectJson = (actual, shape) => {
@@ -705,10 +741,6 @@ export async function auditEngineV2Api({
       }
     }
   }
-  for (const pkg of results) {
-    pkg.counts = {};
-    for (const entry of pkg.entries) pkg.counts[entry.status] = (pkg.counts[entry.status] ?? 0) + 1;
-  }
   if (!scope && root === fs.realpathSync(repository)) {
     try {
       scope = JSON.parse(
@@ -815,6 +847,7 @@ export async function auditEngineV2Api({
             .map((entry) => [entry.module + '#' + entry.name, entry]),
         );
       let matched = 0;
+      const extensions = [];
       for (let at = errors.length - 1; at >= 0; --at) {
         const error = errors[at],
           before = originals.get(error.message),
@@ -828,12 +861,61 @@ export async function auditEngineV2Api({
         ) {
           errors.splice(at, 1);
           ++matched;
+          continue;
+        }
+        // A class extension is a compatibility change, not an invalid original
+        // input, only after every pinned member/constructor/index has been
+        // reconstructed and matched exactly. It can never approve behavior or
+        // structural compatibility: the entry remains signatureChanged even if
+        // a current-surface behavior case passed. No original hash is replaced.
+        const previous = before?.original,
+          next = after?.original;
+        if (
+          error.code !== 'originalSurfaceChanged' ||
+          before?.kind !== 'value' ||
+          after?.kind !== 'value' ||
+          !previous?.constructors.length ||
+          previous.instances.length !== next?.instances.length
+        )
+          continue;
+        const added = [];
+        const project = (oldMembers, newMembers, prefix) => {
+          const names = new Set(oldMembers.map((member) => member.name));
+          return newMembers.filter((member) => {
+            if (names.has(member.name)) return true;
+            added.push(prefix + member.name);
+            return false;
+          });
+        };
+        const projected = {
+          ...next,
+          members: project(previous.members, next.members, 'static:'),
+          instances: next.instances.map((members, index) =>
+            project(previous.instances[index], members, `instance:${index}:`),
+          ),
+        };
+        if (
+          added.length &&
+          surfaceHash(before, root, true, { properties: true }) ===
+            surfaceHash({ ...after, original: projected }, root, true, { properties: true })
+        ) {
+          errors.splice(at, 1);
+          after.status = 'signatureChanged';
+          after.signatureMatches = false;
+          after.assignable = false;
+          after.originalSurfaceExtension = {
+            added,
+            pinnedOriginalSha256: surfaceHash(before, root, true),
+            structuralCompatibility: 'notApproved',
+          };
+          extensions.push({ export: error.message, ...after.originalSurfaceExtension });
         }
       }
       scopeNormalization = {
         matched,
         originalHashesPreserved: true,
         proof: 'reconstructed-original-declarations',
+        ...(extensions.length ? { extensions } : {}),
       };
     } catch (error) {
       fail('originalScopeReconstruction', String(error).slice(0, 500));
@@ -858,6 +940,10 @@ export async function auditEngineV2Api({
       unverified: 0,
     };
     for (const error of input.errors) errors.push({ ...error, target: input.target });
+  }
+  for (const pkg of results) {
+    pkg.counts = {};
+    for (const entry of pkg.entries) pkg.counts[entry.status] = (pkg.counts[entry.status] ?? 0) + 1;
   }
   return {
     schema: 'nelyx.api.v2.audit/3',

@@ -1,7 +1,7 @@
 import { generation } from '../foundation/numbers.ts';
 import { invariant } from '../foundation/errors.ts';
 import type { ResourceDescriptor, ResourceId } from '../ui/types.ts';
-import { isCapturedFrameResourceList } from '../ui/frame.ts';
+import { capturedFrameResourceList as isCapturedFrameResourceList } from '../ui/frame-resource-list-binding.ts';
 import {
   resourceKey,
   releaseFrameResources,

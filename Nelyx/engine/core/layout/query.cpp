@@ -108,6 +108,11 @@ struct LayoutQueryWork::State {
       return;
     }
     if (t.phase == 0) {
+      if(n.kind==wire::kinds::image&&n.imageStyle){
+        if(minimum&&!(n.imageStyle->flags&(wire::imageFlags::widthSpecified|wire::imageFlags::heightSpecified))){finish({});return;}
+        LayoutConstraints c;if(std::isfinite(t.extent)){if(w)c.minHeight=c.maxHeight=t.extent;else c.minWidth=c.maxWidth=t.extent;}
+        t.dry=std::make_unique<LayoutWork>(document,n.id,c,scale,font);return;
+      }
       const double preferred = w ? n.properties.width : n.properties.height;
       if ((preferred > 0 &&
            (w || (n.kind != wire::kinds::paragraph && n.kind != wire::kinds::editable))) ||

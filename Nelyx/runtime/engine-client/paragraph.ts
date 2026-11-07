@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { protocol as p } from './schema.ts';
 import { encodeUtf8, decodeUtf8 } from './utf8.ts';
+import { paragraphRunBytes, readParagraphRuns } from './paragraph-runs.ts';
+import type { ParagraphRun } from './paragraph-runs.ts';
+export type { ParagraphRun } from './paragraph-runs.ts';
+import { paragraphExtrasBytes, readParagraphExtras } from './paragraph-extras.ts';
+import type { ParagraphStrut, ParagraphPlaceholder } from './paragraph-extras.ts';
 
 export interface ParagraphOptions {
+  /** Core measures and places the ordered WidgetSpan children. */
+  readonly inlineChildren?: boolean;
+  readonly strut?: ParagraphStrut;
+  readonly placeholders?: readonly ParagraphPlaceholder[];
+  readonly runs?: readonly ParagraphRun[];
   readonly fontFamily?: string;
   readonly fontWeight?: number;
   readonly hyphens?: 'manual' | 'hidden';
@@ -19,6 +29,10 @@ export interface ParagraphOptions {
   readonly applyHeightToLastDescent?: boolean;
 }
 export interface ParagraphSnapshot {
+  readonly inlineChildren?: boolean;
+  readonly strut?: ParagraphStrut;
+  readonly placeholders?: readonly ParagraphPlaceholder[];
+  readonly runs?: readonly ParagraphRun[];
   readonly fontFamily?: string;
   readonly fontWeight?: number;
   readonly hyphens: 'manual' | 'hidden';
@@ -36,6 +50,10 @@ export interface ParagraphSnapshot {
 }
 const names = Object.keys(p.paragraphAlign) as (keyof typeof p.paragraphAlign)[];
 const allowed = new Set([
+  'inlineChildren',
+  'strut',
+  'placeholders',
+  'runs',
   'fontFamily',
   'fontWeight',
   'hyphens',
@@ -72,18 +90,16 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     letterSpacing = finite(data.getFloat64(40, true)),
     wordSpacing = finite(data.getFloat64(48, true));
   if (
-    flags > 31 ||
+    flags > 63 ||
     align > p.paragraphAlign.justify ||
     maxLines > p.limits.textBytes ||
     !localeLength ||
     localeLength > p.limits.localeBytes ||
     ellipsisLength > p.limits.ellipsisBytes ||
     familyLength > p.limits.fontFamilyBytes ||
-    bytes.length !== p.paragraphBytes + localeBytes + ellipsisBytes + familyBytes ||
-    data.getUint32(28, true) ||
+    bytes.length < p.paragraphBytes + localeBytes + ellipsisBytes + familyBytes ||
     (data.getUint32(24, true) &&
       (data.getUint32(24, true) < 100 || data.getUint32(24, true) > 900)) ||
-    data.getBigUint64(56, true) ||
     !(height === -1 || (height >= 0 && height <= 1e6)) ||
     letterSpacing < -1e6 ||
     letterSpacing > 1e6 ||
@@ -114,7 +130,21 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     );
   if (locale.includes('\0')) throw Error('Invalid paragraph locale');
   if (fontFamily.includes('\0')) throw Error('Invalid paragraph font family');
+  const extrasOffset = p.paragraphBytes + localeBytes + ellipsisBytes + familyBytes,
+    extras = readParagraphExtras(
+      bytes.subarray(extrasOffset),
+      data.getUint32(56, true),
+      data.getUint32(60, true),
+    ),
+    runs = readParagraphRuns(
+      bytes.subarray(extrasOffset + extras.length),
+      data.getUint32(28, true),
+    );
   return Object.freeze({
+    ...(flags & p.paragraphFlags.inlineChildren ? { inlineChildren: true } : {}),
+    ...(extras.strut ? { strut: extras.strut } : {}),
+    ...(extras.placeholders ? { placeholders: extras.placeholders } : {}),
+    ...(runs.length ? { runs } : {}),
     ...(fontFamily ? { fontFamily } : {}),
     ...(data.getUint32(24, true) ? { fontWeight: data.getUint32(24, true) } : {}),
     hyphens: flags & p.paragraphFlags.manualHyphens ? 'manual' : 'hidden',
@@ -136,6 +166,7 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
   for (const key of Object.keys(value))
     if (!allowed.has(key)) throw Error('Unknown paragraph option: ' + key);
   for (const key of [
+    'inlineChildren',
     'wrap',
     'halfLeading',
     'applyHeightToFirstAscent',
@@ -147,11 +178,18 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
     throw Error('Invalid paragraph alignment');
   if (value.hyphens !== undefined && value.hyphens !== 'manual' && value.hyphens !== 'hidden')
     throw Error('Invalid paragraph hyphens');
-  const locale = encodeUtf8(value.locale ?? 'en', p.limits.localeBytes),
+  const runs = paragraphRunBytes(value.runs ?? []),
+    extras = paragraphExtrasBytes(value.strut, value.placeholders),
+    locale = encodeUtf8(value.locale ?? 'en', p.limits.localeBytes),
     ellipsis = encodeUtf8(value.ellipsis ?? '', p.limits.ellipsisBytes),
     family = encodeUtf8(value.fontFamily ?? '', p.limits.fontFamilyBytes),
     bytes = new Uint8Array(
-      p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length) + aligned(family.length),
+      p.paragraphBytes +
+        aligned(locale.length) +
+        aligned(ellipsis.length) +
+        aligned(family.length) +
+        extras.bytes.length +
+        runs.length,
     ),
     data = new DataView(bytes.buffer),
     maxLines = value.maxLines ?? 0,
@@ -168,6 +206,7 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
     (value.wrap === false ? 0 : p.paragraphFlags.wrap) |
       (value.hyphens === 'hidden' ? 0 : p.paragraphFlags.manualHyphens) |
       (value.halfLeading ? p.paragraphFlags.halfLeading : 0) |
+      (value.inlineChildren ? p.paragraphFlags.inlineChildren : 0) |
       (value.applyHeightToFirstAscent === false ? p.paragraphFlags.disableFirstAscent : 0) |
       (value.applyHeightToLastDescent === false ? p.paragraphFlags.disableLastDescent : 0),
     true,
@@ -177,6 +216,9 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
   data.setUint32(12, locale.length, true);
   data.setUint32(16, ellipsis.length, true);
   data.setUint32(20, family.length, true);
+  data.setUint32(28, value.runs?.length ?? 0, true);
+  data.setUint32(56, extras.strutLength, true);
+  data.setUint32(60, value.placeholders?.length ?? 0, true);
   if (value.fontWeight !== undefined && value.fontWeight !== 400) {
     if (!Number.isInteger(value.fontWeight)) throw Error('Invalid paragraph weight');
     data.setUint32(24, value.fontWeight, true);
@@ -187,6 +229,10 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
   bytes.set(locale, p.paragraphBytes);
   bytes.set(ellipsis, p.paragraphBytes + aligned(locale.length));
   bytes.set(family, p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length));
+  const extrasOffset =
+    p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length) + aligned(family.length);
+  bytes.set(extras.bytes, extrasOffset);
+  bytes.set(runs, extrasOffset + extras.bytes.length);
   readParagraphOptions(bytes);
   return bytes;
 }

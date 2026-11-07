@@ -2,12 +2,15 @@
 
 [English](README.md) | **한국어**
 
+소비자 프로젝트는 **TypeScript >=7.0.0**을 사용하며 생성 runner는 **7.0.2**로 고정합니다. Runner 검사는 설치된 compiler의 공개 package metadata와 실제 실행 버전을 확인합니다. 생성 설정은 폐지된 `baseUrl` 없이 상대 paths와 명시한 app root를 사용합니다.
+
 `@nelyx/metro`는 Nelyx의 독립 플랫폼 runner를 위한 Metro 설정, 자산 준비, Web 번들과 개발 서버를 제공합니다. Node.js **>=24.3.0 <25**를 사용합니다. 명시적인 빌드·개발 작업은 [CLI](../cli/README.ko.md)가 담당합니다.
 
 ## 모듈
 
 | Import | 용도 |
 | --- | --- |
+| `@nelyx/metro/typescript-compiler` | Native TypeScript >=7 compiler 검사 |
 | `@nelyx/metro/runner-config` | 네이티브 runner 설정과 의존성 cohort 검사 |
 | `@nelyx/metro/rn-config` | 네이티브 Metro 해석·변환 |
 | `@nelyx/metro/babel-config` | 공통 네이티브 Babel 설정 |

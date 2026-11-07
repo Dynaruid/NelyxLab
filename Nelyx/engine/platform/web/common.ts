@@ -84,8 +84,9 @@ export function request(
   engine: number,
   op: number,
   data: Uint8Array = new Uint8Array(0),
+  id = 0n,
 ): EngineResponse {
-  return response(exchange(module, engine, packet(op, owner, data)));
+  return response(exchange(module, engine, packet(op, owner, data, id)));
 }
 export async function sha256(bytes: Uint8Array): Promise<string> {
   const hash = await crypto.subtle.digest('SHA-256', bytes.slice());
@@ -95,12 +96,15 @@ export async function verified(
   root: string,
   file: { path: string; sha256: string },
   maximum = 32 * 1024 * 1024,
+  signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const result = await fetch(new URL(file.path, root));
+  signal?.throwIfAborted();
+  const result = await fetch(new URL(file.path, root), { signal: signal ?? null });
   if (!result.ok) throw new Error('Asset HTTP ' + result.status + ': ' + file.path);
   const bytes = new Uint8Array(await result.arrayBuffer());
   if (bytes.length > maximum || (await sha256(bytes)) !== file.sha256)
     throw new Error('Asset identity/size mismatch: ' + file.path);
+  signal?.throwIfAborted();
   return bytes;
 }
 export async function script(bytes: Uint8Array): Promise<void> {

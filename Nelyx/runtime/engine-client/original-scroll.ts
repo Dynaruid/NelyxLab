@@ -27,6 +27,7 @@ import { Axis, AxisDirection } from '@nelyx/core/framework/painting/basic-types'
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import type { ViewportAnimationOptions } from '@nelyx/core/framework/rendering/viewport-offset';
 import { FrameScheduler } from '@nelyx/core/framework/scheduler/scheduler';
+import type { FrameCallback } from '@nelyx/core/framework/scheduler/scheduler';
 import {
   registerTickerScheduler,
   unregisterTickerScheduler,
@@ -41,6 +42,25 @@ import { protocol as p } from './schema.ts';
 import { OriginalNativeRender, OriginalNativeNode } from './original-native-node.ts';
 
 type Fail = (reason: string) => never;
+/** Track passive Source callbacks only for this native configuration owner. */
+class NativeFrameScheduler extends FrameScheduler {
+  private pendingPostFrame = false;
+  override addPostFrameCallback(
+    callback: FrameCallback,
+    options: { readonly debugLabel?: string } = {},
+  ): void {
+    super.addPostFrameCallback(callback, options);
+    // Persistent callbacks still belong to the frame currently being drained.
+    if (this.phase !== 'persistent') this.pendingPostFrame = true;
+  }
+  override endFrame(): void {
+    this.pendingPostFrame = false;
+    super.endFrame();
+  }
+  finishBuild(): void {
+    if (this.pendingPostFrame) this.requestFrame();
+  }
+}
 interface Host {
   view: EngineViewClient;
   fail: Fail;
@@ -549,12 +569,13 @@ export function installOriginalScrolling(
   frame(at: number): void;
   visible(value: boolean): void;
   postFrame(callback: () => void): void;
+  finishBuild(): void;
   close(): void;
 } {
   let coreOrigin: number | undefined,
     appOrigin = 0;
   const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
-  const scheduler = new FrameScheduler({ now }, () => {
+  const scheduler = new NativeFrameScheduler({ now }, () => {
     void view.request(p.opcodes.requestAppFrame).catch((cause) => {
       if (!scheduler.disposed) error(cause);
     });
@@ -634,6 +655,7 @@ export function installOriginalScrolling(
   });
   return {
     scheduler,
+    finishBuild: () => scheduler.finishBuild(),
     now,
     postFrame: (callback) => {
       scheduler.addPostFrameCallback(() => callback());

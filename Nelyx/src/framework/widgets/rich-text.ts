@@ -13,6 +13,7 @@ import {
 } from '../rendering/paragraph.ts';
 import type { RichParagraphConfiguration } from '../rendering/paragraph.ts';
 import type { RenderBox } from '../rendering/object.ts';
+import { registerNativeRenderMetadata } from '../rendering/object.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { SelectionRegistrar } from '../rendering/selection.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
@@ -322,6 +323,12 @@ class AutoScaleInlineWidget extends SingleChildRenderObjectWidget {
   }
 }
 class RenderScaledInlineWidget extends RenderProxyBox {
+  static {
+    registerNativeRenderMetadata(RenderScaledInlineWidget.prototype, (source) => ({
+      kind: 'inlineScale',
+      scale: source.scale,
+    }));
+  }
   private readonly retained = new LayerHandle<TransformLayer>();
   constructor(
     private _alignment: PlaceholderAlignment,

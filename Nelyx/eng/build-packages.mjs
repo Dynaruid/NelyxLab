@@ -2,6 +2,7 @@ import ts from 'typescript';
 import fs from 'node:fs';
 import path from 'node:path';
 import { shaderAssetImports } from './shader-assets.mjs';
+import { runTypeScriptCompiler } from '../sdk/tooling/metro/src/typescript-compiler.cjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const name = process.argv[2] ?? 'core';
 // Package ownership comes from workspace manifests, not a fixed core/SDK list.
@@ -126,6 +127,26 @@ function declarationImportPaths(context) {
   return (node) => ts.visitNode(node, visit);
 }
 function compile(config, options) {
+  // Native TS 7 admits the actual project before the compatibility API performs
+  // the existing shader/declaration AST transforms and emit.
+  const nativeConfig = path.join(staged, 'native-check.json');
+  try {
+    fs.writeFileSync(
+      nativeConfig,
+      JSON.stringify({
+        extends: path.join(sdk, config),
+        compilerOptions: { ...options, noEmit: true },
+      }),
+    );
+    const checked = runTypeScriptCompiler(
+      root,
+      ['-p', nativeConfig, '--pretty', 'false'],
+      '@typescript/native',
+    );
+    if (checked.status !== 0) throw Error(checked.stdout + checked.stderr);
+  } finally {
+    if (fs.existsSync(nativeConfig)) fs.unlinkSync(nativeConfig);
+  }
   const file = path.join(sdk, config),
     json = ts.readConfigFile(file, ts.sys.readFile);
   const parsed = ts.parseJsonConfigFileContent(
@@ -173,6 +194,9 @@ try {
       // Explicit declaration extensions also resolve in NodeNext ESM mode.
       // Never fall back to the previously published Core during this build.
       paths: {
+        '@nelyx/core/internal/framework/widgets/native-radio-semantics': [
+          path.join(staged, 'framework/widgets/native-radio-semantics.d.ts'),
+        ],
         '@nelyx/core/internal/framework/widgets/ticker-scheduler': [
           path.join(staged, 'framework/widgets/ticker-scheduler.d.ts'),
         ],

@@ -73,6 +73,7 @@ struct LayoutWork::State {
   struct Flatten {
     std::shared_ptr<const LayoutBox> box;
     double x = 0, y = 0;
+    bool hidden = false;
   };
   Lease lease;
   std::shared_ptr<const Document> source;
@@ -89,6 +90,8 @@ struct LayoutWork::State {
   Handle queryRoot;
   bool flattening = false, complete = false;
   uint64_t operations = 0, reused = 0, requestId = 0;
+  uint64_t imageWork=0;
+  uint32_t imageTiles=0;
   State(std::shared_ptr<const Document> d, double width, double height, double scale, uint64_t font,
         std::shared_ptr<const LayoutOutput> old)
       : lease(d->lease.ledger,
@@ -121,11 +124,17 @@ struct LayoutWork::State {
       stack.back().box->children[index].box = std::move(box);
   }
   LayoutConstraints childConstraints(const Node &n, const Task &t, const Node &child, bool flex) {
+    if(child.layout.constraintFlags&wire::layoutConstraintFlags::paintChild)return {};
     LayoutConstraints c{0, t.innerWidth, 0, t.innerHeight};
     const auto &s = n.layout;
     const bool h = horizontal(n);
     if (!s.enabled)
       return c;
+    if(s.constraintFlags&wire::layoutConstraintFlags::inlineScale){
+      c.maxWidth=t.innerWidth/s.inlineScale;
+      require(!std::isnan(c.maxWidth),wire::statuses::invalidValue);
+      c.maxHeight=INFINITY;return c;
+    }
     const auto policy = s.constraintFlags & wire::layoutConstraintFlags::childMask;
     if (policy == wire::layoutChildConstraints::inherit) {
       c.minWidth = inset(t.constraints.minWidth, s.left + s.right);
@@ -227,6 +236,17 @@ struct LayoutWork::State {
       b.height = n.properties.height;
       return;
     }
+    if(s.constraintFlags&wire::layoutConstraintFlags::inlineScale){
+      require(b.children.size()<=1,wire::statuses::invalidGraph);
+      if(!b.children.empty()){
+        const auto& child=*b.children.front().box;
+        width=scalar(child.width*s.inlineScale);height=scalar(child.height*s.inlineScale);
+        if(child.baseline>=0)b.baseline=scalar(child.baseline*s.inlineScale);
+        if(child.ideographicBaseline>=0)b.ideographicBaseline=scalar(child.ideographicBaseline*s.inlineScale);
+      }
+      b.width=constrain(width,c.minWidth,c.maxWidth);b.height=constrain(height,c.minHeight,c.maxHeight);
+      return;
+    }
     if(s.constraintFlags&wire::layoutConstraintFlags::alignmentSizing){
       require(n.kind==wire::kinds::box&&b.children.size()<=1,wire::statuses::invalidGraph);
       const double childWidth=b.children.empty()?0:b.children.front().box->width;
@@ -235,7 +255,7 @@ struct LayoutWork::State {
         std::isfinite(c.maxWidth)?c.maxWidth:childWidth;
       height=s.heightFactor>=0?scalar(childHeight*s.heightFactor):
         std::isfinite(c.maxHeight)?c.maxHeight:childHeight;
-    } else if((s.constraintFlags&wire::layoutConstraintFlags::expandEmpty)&&b.children.empty()){
+    } else if((s.constraintFlags&wire::layoutConstraintFlags::expandEmpty)&&std::none_of(b.children.begin(),b.children.end(),[&](const auto& child){return !(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild);})){
       const bool bounded=std::isfinite(c.maxWidth)&&std::isfinite(c.maxHeight);
       width=bounded?c.maxWidth:c.minWidth; height=bounded?c.maxHeight:c.minHeight;
     } else if (n.list.generation) {
@@ -384,6 +404,7 @@ struct LayoutWork::State {
     } else {
       double ascent = 0, descent = 0;
       for (const auto &child : b.children) {
+        if(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild)continue;
         const auto &original = source->get(child.box->node).properties;
         width = std::max(width, original.x + child.box->width);
         height = std::max(height, original.y + child.box->height);
@@ -418,11 +439,13 @@ struct LayoutWork::State {
       if (s.crossAlign == wire::layoutCrossAlign::baseline) {
         require(h, wire::statuses::invalidValue);
         for (const auto &child : b.children) {
+          if(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild)continue;
           require(child.box->baseline >= 0, wire::statuses::invalidValue);
           ascent = std::max(ascent, child.box->baseline);
         }
       }
       for (auto &child : b.children) {
+        if(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild)continue;
         if(s.constraintFlags&wire::layoutConstraintFlags::alignment){
           child.x=scalar((innerWidth-child.box->width)*(s.alignmentX+1)/2);
           child.y=scalar((innerHeight-child.box->height)*(s.alignmentY+1)/2);
@@ -436,16 +459,21 @@ struct LayoutWork::State {
       }
     }
     for (auto &child : b.children) {
+      if(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild){child.x=child.y=0;continue;}
       child.x = scalar(child.x + s.left);
       child.y = scalar(child.y + s.top);
       if (b.baseline < 0 && child.box->baseline >= 0)
         b.baseline = child.y + child.box->baseline;
+      if (b.ideographicBaseline < 0 && child.box->ideographicBaseline >= 0)
+        b.ideographicBaseline = child.y + child.box->ideographicBaseline;
     }
   }
   void advance() {
     if (flattening) {
       if (flatten.empty()) {
+        resolvePaintPlacements(*derived,result->fontRevision);
         resolveNativePaint(*derived);
+        validateGraphics(*derived);
         complete = true;
         return;
       }
@@ -458,6 +486,8 @@ struct LayoutWork::State {
       n->properties.width = f.box->width;
       n->properties.height = f.box->height;
       n->baseline = f.box->baseline;
+      n->inlineHidden = f.hidden;
+      if(f.box->paragraph)n->paragraph=f.box->paragraph;
       n->textGeometry = f.box->textGeometry;
       n->listGeometry = f.box->listGeometry;
       n->contentX = n->layout.enabled && measuredLeaf(*n) ? n->layout.left : 0;
@@ -468,6 +498,14 @@ struct LayoutWork::State {
       n->contentHeight = f.box->textHeight >= 0 ? f.box->textHeight : inset(f.box->height, n->layout.enabled && measuredLeaf(*n)
                                               ? n->layout.top + n->layout.bottom : 0);
       n->contentOverflow = f.box->contentOverflow;
+      if(n->imageStyle){
+        const auto placement=imagePlacement(*n->imageStyle,n->properties.width,n->properties.height);
+        require(placement.count<=wire::limits::imageTiles-imageTiles,wire::statuses::budgetExceeded);imageTiles+=placement.count;
+        if(!n->imagePaint||n->imagePaint->style!=*n->imageStyle||n->imagePaint->width!=n->properties.width||n->imagePaint->height!=n->properties.height){
+          n->imagePaint=std::make_shared<ImagePaint>(n->lease.ledger,*n->imageStyle,n->properties.width,n->properties.height,placement);
+          if(n->resource)imageWork+=1+placement.count;
+        }
+      }
       if (n->layout.enabled && n->kind == wire::kinds::scrollViewport && !f.box->children.empty() &&
           n->properties.extent != wire::extents::unbounded) {
         const auto &child = *f.box->children[0].box;
@@ -491,7 +529,7 @@ struct LayoutWork::State {
       derived->nodes[n->id.slot].value = n;
       result->boxes[n->id.slot] = f.box;
       for (const auto &child : f.box->children)
-        flatten.push_back({child.box, child.x, child.y});
+        flatten.push_back({child.box, child.x, child.y, f.hidden||!child.visible});
       return;
     }
     if (stack.empty()) {
@@ -538,6 +576,15 @@ struct LayoutWork::State {
                             s.enabled ? s.top + s.bottom : 0);
       if (n.layout.enabled && (n.kind == wire::kinds::paragraph ||
                                n.kind == wire::kinds::editable || n.kind == wire::kinds::image)) {
+        if(n.kind==wire::kinds::image&&n.imageStyle&&!n.resource){
+          t.box->width=constrain(t.constraints.minWidth,t.constraints.minWidth,t.constraints.maxWidth);
+          t.box->height=constrain(t.constraints.minHeight,t.constraints.minHeight,t.constraints.maxHeight);
+          done(t.box);return;
+        }
+        if(n.paragraph&&n.paragraph->value.inlineChildren()){
+          require(n.kind==wire::kinds::paragraph&&children.size()==n.paragraph->value.placeholders.size(),wire::statuses::invalidGraph);
+          t.phase=6;return;
+        }
         require(children.empty(), wire::statuses::invalidGraph);
         require(n.kind != wire::kinds::image || bool(n.resource), wire::statuses::invalidHandle);
         pending = MeasurementRequest{++requestId, source->nodes[n.id.slot].value,
@@ -549,6 +596,26 @@ struct LayoutWork::State {
       }
       t.phase = 1;
       return;
+    }
+    if(t.phase==6){
+      if(t.index<children.size()){
+        const auto index=t.index++;
+        push(children[index],{0,t.innerWidth,0,INFINITY},index);return;
+      }
+      auto options=n.paragraph->value;
+      for(size_t i=0;i<children.size();++i){
+        const auto& child=*t.box->children[i].box;auto& item=options.placeholders[i];
+        require(child.width<=16777216&&child.height<=16777216,wire::statuses::invalidValue);
+        item.width=child.width;item.height=child.height;
+        const double baseline=item.baseline?child.ideographicBaseline:child.baseline;
+        item.baselineOffset=item.alignment==0&&baseline>=0?baseline:child.height;
+      }
+      t.box->paragraph=std::make_shared<ParagraphData>(source->lease.ledger,std::move(options));
+      auto measured=std::make_shared<Node>(n);measured->paragraph=t.box->paragraph;
+      pending=MeasurementRequest{++requestId,std::move(measured),t.innerWidth,
+        std::isfinite(t.innerWidth)&&n.paragraph->value.wraps()};
+      if(!pending->bounded)pending->width=0;
+      t.phase=5;return;
     }
     if (t.phase == 5) {
       if (!measurement)
@@ -576,6 +643,16 @@ struct LayoutWork::State {
           t.box->textOffsetX=scalar(options.alignment(n.textDirection)*(painterWidth-m.width));
         }
         t.box->baseline = m.baseline < 0 ? -1 : n.layout.top + m.baseline;
+        t.box->ideographicBaseline = m.ideographicBaseline < 0 ? -1 : n.layout.top + m.ideographicBaseline;
+        if(n.paragraph&&n.paragraph->value.inlineChildren()){
+          require(m.placeholders&&m.placeholders->boxes.size()<=t.box->children.size(),wire::statuses::invalidValue);
+          for(size_t i=0;i<t.box->children.size();++i){
+            auto& child=t.box->children[i];child.visible=i<m.placeholders->boxes.size();
+            if(!child.visible)continue;
+            const auto& rect=m.placeholders->boxes[i];
+            child.x=scalar(n.layout.left+t.box->textOffsetX+rect.x);child.y=scalar(n.layout.top+rect.y);
+          }
+        }
         if (n.kind == wire::kinds::editable) {
           require(n.editing && m.geometry && m.geometry->revision == n.editing->revision,
                   wire::statuses::stale);
@@ -597,7 +674,8 @@ struct LayoutWork::State {
                      minHeight = inset(t.constraints.minHeight, padHeight),
                      maxHeight = inset(t.constraints.maxHeight, padHeight),
                      aspect = m.width / m.height;
-        double width = m.width, height = m.height;
+        const double scale=n.imageStyle?n.imageStyle->scale:1;
+        double width = m.width/scale, height = m.height/scale;
         // Preserve the intrinsic aspect ratio until tight or conflicting
         // constraints require a different box, as in RenderImage's size contract.
         if (width > maxWidth) { width = maxWidth; height = width / aspect; }
@@ -703,12 +781,23 @@ void LayoutWork::measured(uint64_t id, Handle node, Measurement value) {
   scalar(value.minimum);
   scalar(value.maximum);
   scalar(value.baseline);
+  scalar(value.ideographicBaseline);
   require(value.width >= 0 && value.height >= 0 && value.minimum >= 0 &&
-              value.maximum >= value.minimum && value.baseline >= -1 &&
+              value.maximum >= value.minimum && value.baseline >= -1 && value.ideographicBaseline >= -1 &&
               ((s.pending->node->kind != wire::kinds::paragraph &&
                 s.pending->node->kind != wire::kinds::editable) ||
                (value.baseline >= 0 && (!s.pending->bounded || value.width == s.pending->width))),
           wire::statuses::invalidValue);
+  const auto& paragraph=s.pending->node->paragraph;
+  if(paragraph&&paragraph->value.inlineChildren()){
+    require(value.placeholders&&value.placeholders->boxes.size()<=paragraph->value.placeholders.size(),wire::statuses::invalidValue);
+    for(size_t i=0;i<value.placeholders->boxes.size();++i){
+      const auto& box=value.placeholders->boxes[i];const auto& expected=paragraph->value.placeholders[i];
+      scalar(box.x);scalar(box.y);scalar(box.width);scalar(box.height);
+      const auto near=[](double a,double b){return std::abs(a-b)<=std::max(1e-4,std::abs(b)*1e-6);};
+      require(box.width>=0&&box.height>=0&&box.direction<=1&&near(box.width,expected.width)&&near(box.height,expected.height),wire::statuses::invalidValue);
+    }
+  }else require(!value.placeholders,wire::statuses::invalidValue);
   s.measurement = value;
 }
 std::shared_ptr<const Document> LayoutWork::document() const {
@@ -721,4 +810,5 @@ std::shared_ptr<const LayoutOutput> LayoutWork::output() const {
 }
 uint64_t LayoutWork::work() const { return state_->operations; }
 uint64_t LayoutWork::reused() const { return state_->reused; }
+uint64_t LayoutWork::imagePaintWork() const {return state_->imageWork;}
 } // namespace nelyx::v2

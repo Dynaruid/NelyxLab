@@ -131,11 +131,32 @@ export { nativeSemanticsRange } from './semantics-transport.ts';
 export type {
   NativeShape,
   NativePaintEntry,
+  NativePaintPath,
+  NativePaintPathSegment,
   NativePaintGeometry,
   NativePaintScalar,
   NativeRenderMetadata,
 } from './native-paint.ts';
 const nativeRenderInvalidators = new WeakMap<RenderObject, () => void>();
+const nativeFontsBindings = new WeakMap<
+  RenderObject,
+  (scope: SystemFontsRelayoutContext, isLive: () => boolean) => void
+>();
+/** @internal Font notifications reuse the canonical mixin's frame/cancel path.
+ * Native-owned configuration remains detached from every TS PipelineOwner. */
+export function bindNativeSystemFonts(
+  render: RenderObject,
+  owner: object,
+  scope: SystemFontsRelayoutContext,
+  isLive: () => boolean,
+): void {
+  invariant(
+    nativeRenderOwners.get(render) === owner && !render.debugDisposed && !render.attached,
+    'foreign-native-font-owner',
+    'Native font notifications require the live configuration owner',
+  );
+  nativeFontsBindings.get(render)?.(scope, isLive);
+}
 /** @internal A canonical configuration adapter can defer geometry to its native owner. */
 export function isNativeRenderObject(render: RenderObject): boolean {
   return nativeRenderOwners.has(render);
@@ -2847,8 +2868,16 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
     private fontScope: SystemFontsRelayoutContext | null = null;
     private fontClosing: Disposable | undefined;
     private pendingFonts: { scope: SystemFontsRelayoutContext; id?: number } | null = null;
+    private nativeFontsLive: (() => boolean) | undefined;
     constructor(...args: any[]) {
       super(...args);
+      nativeFontsBindings.set(this, (scope, isLive) => {
+        if (this.fontScope === scope && this.nativeFontsLive === isLive) return;
+        this.cancelFontsUpdate();
+        this.removeFontsListener();
+        this.nativeFontsLive = isLive;
+        this.installFontsListener(scope);
+      });
     }
     systemFontsDidChange(): void {
       this.markNeedsLayout();
@@ -2864,14 +2893,19 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
           if (this.pendingFonts !== pending) return;
           this.pendingFonts = null;
           if (FoundationBuildMode.debug) {
-            if (!(this.attached || this.debugDisposed))
+            if (!(this.attached || this.nativeFontsLive !== undefined || this.debugDisposed))
               invariant(
                 false,
                 'detached-font-update',
                 'System font callback requires an attached or disposed render object',
               );
           }
-          if (this.attached && this.fontScope === scope) this.systemFontsDidChange();
+          if (
+            (this.attached || this.nativeFontsLive?.()) &&
+            !this.debugDisposed &&
+            this.fontScope === scope
+          )
+            this.systemFontsDidChange();
         });
       } catch (error) {
         if (this.pendingFonts === pending) this.pendingFonts = null;
@@ -2886,6 +2920,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
     private removeFontsListener(): void {
       const scope = this.fontScope;
       this.fontScope = null;
+      this.nativeFontsLive = undefined;
       const closing = this.fontClosing;
       this.fontClosing = undefined;
       try {
@@ -2893,6 +2928,14 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
       } finally {
         closing?.dispose();
       }
+    }
+    private installFontsListener(scope: SystemFontsRelayoutContext): void {
+      this.fontScope = scope;
+      scope.systemFonts.addListener(this.scheduleSystemFontsUpdate);
+      this.fontClosing = scope.scheduler.observeDispose(() => {
+        this.cancelFontsUpdate();
+        this.removeFontsListener();
+      });
     }
     override attach(owner: PipelineOwner): void {
       super.attach(owner);
@@ -2911,14 +2954,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
       if (this.fontScope === owner.systemFonts) return;
       this.removeFontsListener();
       const scope = owner.systemFonts;
-      if (scope) {
-        this.fontScope = scope;
-        scope.systemFonts.addListener(this.scheduleSystemFontsUpdate);
-        this.fontClosing = scope.scheduler.observeDispose(() => {
-          this.cancelFontsUpdate();
-          this.removeFontsListener();
-        });
-      }
+      if (scope) this.installFontsListener(scope);
     }
     override detach(): void {
       if (this.fontScope?.scheduler.disposed || this.owner?.debugDisposed) this.cancelFontsUpdate();
@@ -2936,7 +2972,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
     protected override clearCachedLayoutData(): void {
       super.clearCachedLayoutData();
       // RenderObject's failure recovery can call its base detach directly.
-      if (!this.attached && this.fontScope) {
+      if (!this.attached && this.fontScope && !this.nativeFontsLive) {
         this.cancelFontsUpdate();
         this.removeFontsListener();
       }
@@ -2946,6 +2982,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
         super.dispose();
       } finally {
         if (this.debugDisposed) {
+          nativeFontsBindings.delete(this);
           this.cancelFontsUpdate();
           this.removeFontsListener();
         }

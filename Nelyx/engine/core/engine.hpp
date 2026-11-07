@@ -8,12 +8,13 @@ inline constexpr uint32_t coreCapabilities = wire::capabilities::protocol | wire
   wire::capabilities::scroll | wire::capabilities::motion | wire::capabilities::layoutQueries |
   wire::capabilities::editing | wire::capabilities::semantics | wire::capabilities::lazyList |
   wire::capabilities::gestures | wire::capabilities::controls |
-  wire::capabilities::rawObserver | wire::capabilities::appControlled | wire::capabilities::graphics | wire::capabilities::memoryBudget | wire::capabilities::nativeExtensions | wire::capabilities::paragraphLayout | wire::capabilities::paragraphStyles | wire::capabilities::clipStyles | wire::capabilities::canonicalHitTest | wire::capabilities::gestureDetails | wire::capabilities::canonicalControls | wire::capabilities::appFrameClock | wire::capabilities::canonicalMaterial | wire::capabilities::canonicalSelection | wire::capabilities::canonicalFocus | wire::capabilities::canonicalSwitch | wire::capabilities::canonicalSlider | wire::capabilities::layerLinks | wire::capabilities::paintPrograms;
+  wire::capabilities::rawObserver | wire::capabilities::appControlled | wire::capabilities::graphics | wire::capabilities::memoryBudget | wire::capabilities::nativeExtensions | wire::capabilities::paragraphLayout | wire::capabilities::paragraphStyles | wire::capabilities::clipStyles | wire::capabilities::canonicalHitTest | wire::capabilities::gestureDetails | wire::capabilities::canonicalControls | wire::capabilities::appFrameClock | wire::capabilities::canonicalMaterial | wire::capabilities::canonicalSelection | wire::capabilities::canonicalFocus | wire::capabilities::canonicalSwitch | wire::capabilities::canonicalSlider | wire::capabilities::layerLinks | wire::capabilities::paintPrograms | wire::capabilities::fontResources;
 struct Ledger;
 struct Preparation;
 struct Frame;
 struct MeasurementRequest;
 struct InteractionSnapshot;
+struct FontTransition;
 class Engine {
  public:
   Engine(uint32_t session, uint32_t app);
@@ -25,6 +26,7 @@ class Engine {
   std::shared_ptr<const MeasurementRequest> measurementSnapshot(uint32_t view, uint32_t generation);
   std::shared_ptr<const Frame> frameSnapshot(uint32_t view, uint32_t generation, uint64_t id);
   std::shared_ptr<const InteractionSnapshot> interactionSnapshot(uint32_t view,uint32_t generation);
+  std::shared_ptr<const FontTransition> fontTransitionSnapshot(uint32_t view,uint32_t generation);
  private:
   struct State;
   std::unique_ptr<State> state_;

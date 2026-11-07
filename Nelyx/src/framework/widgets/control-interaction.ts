@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Shared Nelyx control ownership; consumes the source-derived Core state/focus/gesture APIs.
 import { StatefulWidget, Element } from './framework.ts';
+import { inheritToggleableRadioSemantics } from './native-radio-semantics.ts';
 import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
 import { TickerProviderStateMixin } from './ticker-provider.ts';
 import { AnimationController } from '../animation/animation-controller.ts';
@@ -364,6 +365,7 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
             }
           : null,
     });
+    inheritToggleableRadioSemantics(options.semantics, semantics.properties.onTap);
     const actions = new Map<IntentType, ActionHandle>([
       [ActivateIntent, this.activateAction],
       [ButtonActivateIntent, this.buttonAction],

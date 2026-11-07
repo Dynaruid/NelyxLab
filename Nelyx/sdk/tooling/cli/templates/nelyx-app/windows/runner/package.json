@@ -36,7 +36,7 @@
     "@react-native-community/cli-platform-ios": "20.0.0",
     "@react-native-windows/find-dotnet-tools": "0.0.0",
     "@types/react": "19.2.2",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "@nelyx/cli": "0.10.0"
   }
 }

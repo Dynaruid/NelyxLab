@@ -7,7 +7,7 @@ namespace {
 bool sameInputNode(const Node& a,const Node& b) {
     const auto ap=a.physicalPaint(),bp=b.physicalPaint();
     if(bool(ap)!=bool(bp)||(ap&&!sameNativePaintHit(*ap,*bp)))return false;
-    if(a.parent!=b.parent||a.kind!=b.kind||((a.policy^b.policy)&(120u|wire::eventPolicies::roundedHitTest))||a.properties.width!=b.properties.width||
+    if(a.parent!=b.parent||a.paintOwner!=b.paintOwner||a.inlineHidden!=b.inlineHidden||a.kind!=b.kind||((a.policy^b.policy)&(120u|wire::eventPolicies::roundedHitTest))||a.properties.width!=b.properties.width||
       a.properties.height!=b.properties.height||a.properties.flags!=b.properties.flags||
       ((a.kind==wire::kinds::clip||a.kind==wire::kinds::path)&&
         (a.radius!=b.radius||a.graphics.path!=b.graphics.path||a.clipStyle!=b.clipStyle))||
@@ -60,40 +60,70 @@ void validateGraphics(const Document& geometry) {
     const auto world=nodeTransform(node,parent,leader?&geometry.get(leader):nullptr,leader?&matrices[leader.slot]:nullptr);
     matrices[node.id.slot]=world;
     world.bounds({0,0,node.properties.width,node.properties.height});
-    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world);
+    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),childTransform(node,world));
   };
   for(const auto root:geometry.children[0])visit(geometry.get(root),{});
 }
 void View::makeDrawItems(Frame& f)const {
   const auto& geometry=*f.scene->document;
+  // References may point at descendants. Capture current compositor geometry
+  // before evaluating paint; neither App nor Content participates in this pass.
+  Lease matrixLease(lease.ledger,geometry.framePaintGeometry?(geometry.highWater+1)*(sizeof(Affine)+sizeof(std::optional<Affine>)):0);
+  PaintMatrices matrices(geometry.framePaintGeometry?geometry.highWater+1:0);
+  std::vector<std::optional<Affine>> placements(matrices.size());
+  if(geometry.framePaintGeometry){
+    std::function<void(const Node&,Affine)> capture=[&](const Node& node,Affine parent){
+      const auto leader=node.layerLink.leader;
+      auto world=nodeTransform(node,parent,leader?&geometry.get(leader):nullptr,leader?&matrices[leader.slot]:nullptr);
+      matrices[node.id.slot]=world;
+      if(node.kind==wire::kinds::scrollViewport){const auto offset=f.properties[node.id.slot].offset;
+        world=world*Affine{1,0,0,1,(node.properties.flags&1u)?-offset:0,(node.properties.flags&1u)?0:-offset};}
+      for(const auto child:geometry.children[node.id.slot])capture(geometry.get(child),childTransform(node,world));
+    };
+    for(const auto root:geometry.children[0])capture(geometry.get(root),{});
+    // Paint paragraphs are leaves and references cannot descend through one.
+    // Resolve them before any parent stream consumes their current matrices.
+    for(const auto& slot:geometry.nodes)if(slot.value&&livePaintPlacement(*slot.value)){
+      const auto& node=*slot.value;const auto parent=matrices[node.parent.slot];
+      if(parent.inverse()){
+        auto& placement=placements[node.id.slot];placement=resolvePaintPlacement(node,geometry,matrices,parent,f.paintWork);++f.placementNodes;
+        matrices[node.id.slot]=nodeTransform(node,parent,nullptr,nullptr,&*placement);
+      }
+    }
+  }
   std::array<const DrawItem*,wire::limits::nodes+1> leaders{};
   std::function<void(const Node&,Affine,double,Rect,uint32_t,uint32_t,uint32_t,bool)> visit;
   visit=[&](const Node& node,Affine parent,double alpha,Rect clip,uint32_t head,uint32_t depth,uint32_t hitHead,bool hidden){
     const auto& property=f.properties[node.id.slot];
     const auto& link=node.layerLink;
     const auto leader=link.leader?leaders[link.leader.slot]:nullptr;
-    auto world=nodeTransform(node,parent,leader?&geometry.get(link.leader):nullptr,leader?&leader->world:nullptr);
+    const auto placement=geometry.framePaintGeometry?placements[node.id.slot]:std::optional<Affine>{};
+    auto world=nodeTransform(node,parent,leader?&geometry.get(link.leader):nullptr,leader?&leader->world:nullptr,placement?&*placement:nullptr);
+    if(geometry.framePaintGeometry)matrices[node.id.slot]=world;
     alpha*=property.opacity;
-    hidden|=link.role==2&&!leader&&!link.showWhenUnlinked;
+    hidden|=node.inlineHidden||(link.role==2&&!leader&&!link.showWhenUnlinked);
     if(hidden){alpha=0;clip={};}
     const auto bounds=world.bounds({0,0,node.properties.width,node.properties.height});
-    f.properties[node.id.slot].visible=!hidden&&(alpha>0||(node.policy&wire::eventPolicies::canonicalHitTest))&&world.inverse().has_value();
+    f.properties[node.id.slot].visible=!node.paintOwner&&!hidden&&(alpha>0||(node.policy&wire::eventPolicies::canonicalHitTest))&&world.inverse().has_value();
     bool overflowClip=(node.layout.constraintFlags&wire::layoutConstraintFlags::clipOverflow)&&node.contentOverflow;
-    if((node.layout.constraintFlags&wire::layoutConstraintFlags::clipOverflow)&&!overflowClip)
+    if(node.kind!=wire::kinds::paragraph&&(node.layout.constraintFlags&wire::layoutConstraintFlags::clipOverflow)&&!overflowClip)
       for(const auto child:geometry.children[node.id.slot]){const auto& p=geometry.get(child).properties;
         if(p.x<0||p.y<0||p.x+p.width>node.properties.width||p.y+p.height>node.properties.height){overflowClip=true;break;}}
     const auto physical=node.physicalPaint();
     if(node.resolvedPaint)for(const auto& entry:node.resolvedPaint->entries)if(entry.kind==wire::nativePaintKinds::hitRegion){
       f.hitRegions.push_back({world*entry.transform,{0,0,entry.width,entry.height},hitHead});hitHead=uint32_t(f.hitRegions.size());}
+    // Paragraph admission uses its box even when forced strut lets children
+    // paint beyond it. The hit clip does not set the paint-clipping flags.
+    const bool paragraphHit=node.kind==wire::kinds::paragraph&&!node.paintOwner;
     const bool styledClip=node.kind==wire::kinds::clip&&node.clipStyle.has_value();
     const bool clips=(physical&&physical->clip!=0)||(node.kind==wire::kinds::clip&&(!styledClip||node.clipStyle->behavior!=wire::clipBehaviors::none))||node.kind==wire::kinds::scrollViewport||overflowClip;
     if(clips)clip=intersect(clip,bounds);
-    if(physical||node.kind==wire::kinds::clip||node.kind==wire::kinds::scrollViewport||overflowClip){
+    if(physical||node.kind==wire::kinds::clip||node.kind==wire::kinds::scrollViewport||overflowClip||paragraphHit){
       // Canonical default rect/rrect/path clippers hit their proxy rectangle;
       // Oval clips its hit geometry even when painting uses Clip.none.
       const bool defaultShape=styledClip&&!overflowClip;
-      f.clips.push_back({world,{0,0,node.properties.width,node.properties.height},overflowClip||defaultShape?0:node.radius,
-        defaultShape?nullptr:node.graphics.path,head,defaultShape&&node.clipStyle->shape==wire::clipShapes::oval});
+      f.clips.push_back({world,{0,0,node.properties.width,node.properties.height},overflowClip||defaultShape||paragraphHit?0:node.radius,
+        defaultShape||paragraphHit?nullptr:node.graphics.path,head,defaultShape&&node.clipStyle->shape==wire::clipShapes::oval});
       head=uint32_t(f.clips.size());
     }
     const bool hardEdge=overflowClip||(physical&&physical->clip==1)||(styledClip&&node.clipStyle->behavior==wire::clipBehaviors::hardEdge);
@@ -110,11 +140,14 @@ void View::makeDrawItems(Frame& f)const {
         parent.b*node.properties.x+parent.d*node.properties.y+parent.ty};
       item.layerTransform=world.relativeTo(base);
     }
+    if(node.nativePaint&&node.nativePaint->frameDependent&&world.inverse()){
+      f.items.back().paint=resolveNodePaint(node,geometry,matrices,f.paintWork);++f.paintNodes;
+    }
     if(link.role==1)leaders[node.id.slot]=&f.items.back();
     if((node.policy&4u)&&alpha>0)f.modalRoot=node.id;
     if(node.kind==wire::kinds::scrollViewport)
       world=world*Affine{1,0,0,1,(node.properties.flags&1u)?-property.offset:0,(node.properties.flags&1u)?0:-property.offset};
-    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),world,alpha,clip,head,depth+1,hitHead,hidden);
+    for(const auto child:geometry.children[node.id.slot])visit(geometry.get(child),childTransform(node,world),alpha,clip,head,depth+1,hitHead,hidden);
   };
   f.items.reserve(geometry.count);f.clips.reserve(geometry.count);f.hitRegions.reserve(geometry.count);
   for(const auto root:geometry.children[0])visit(geometry.get(root),{},1,{0,0,f.scene->metrics.width,f.scene->metrics.height},0,0,0,false);

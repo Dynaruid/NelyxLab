@@ -8,6 +8,10 @@ import type {
 } from '@nelyx/core/framework/rendering/object';
 import type { SliderVisualState } from '@nelyx/core/framework/widgets/slider-control';
 import { Color } from '@nelyx/core/ui/color';
+import { Canvas } from '@nelyx/core/ui/canvas';
+import { Offset } from '@nelyx/core/ui/offset';
+import type { TextPainter } from '@nelyx/core/framework/painting/text-painter';
+import type { RenderBox } from '@nelyx/core/framework/rendering/object';
 import { debugDisableShadows } from '@nelyx/core/framework/painting/debug';
 import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
@@ -18,6 +22,8 @@ import {
   RoundSliderOverlayShape,
   RoundSliderThumbShape,
   HandleThumbShape,
+  RoundedRectSliderValueIndicatorShape,
+  DropSliderValueIndicatorShape,
   RoundedRectSliderTrackShape,
   RectangularSliderTrackShape,
   GappedSliderTrackShape,
@@ -90,12 +96,9 @@ export function nativeMaterialSliderPaint(source: Source): NativeRenderMetadata 
     throw Error('Native Material Slider custom overlay shape');
   if (!exact(tick, RoundSliderTickMarkShape.prototype) && tick !== SliderTickMarkShape.noTickMark)
     throw Error('Native Material Slider custom tick shape');
-  if (source.label !== null)
-    throw Error('Native Material Slider label requires the TextPainter bridge');
   if (roundThumb && FoundationBuildMode.debug && debugDisableShadows)
     throw Error('Native Material Slider debug shadow override');
   const mix = (from: Color | null, to: Color | null) => Color.lerp(from, to, a)!.toARGB32();
-  const thumbSize = thumb!.getPreferredSize(enabled, discrete);
   const configuredHeight = t.trackHeight ?? 0,
     trackHeight =
       t.activeTrackColor!.toARGB32() === 0 && t.inactiveTrackColor!.toARGB32() === 0
@@ -110,18 +113,10 @@ export function nativeMaterialSliderPaint(source: Source): NativeRenderMetadata 
       right = max(inset, rawRight);
     return { left, right, width: sub(right, left) };
   };
-  // MaterialSliderRender.rect() uses the shape's default isEnabled=false;
-  // track.paint() separately uses the actual enabled state. Preserve both Source calls.
-  const { left, right, width } = bounds(false),
-    cy = div(h, 2),
+  // The track paint uses the actual enabled state, while Source rect() defaults to false.
+  const { left, width } = bounds(false),
+    { cx, cy } = nativeSliderCenter(source),
     top = sub(cy, trackHeight / 2);
-  const padding = track!.isRounded ? trackHeight : 0,
-    position = rtl ? 1 - v.position.value : v.position.value;
-  const proposed = discrete
-    ? add(add(left, mul(position, sub(width, padding))), padding / 2)
-    : add(left, mul(position, width));
-  const thumbInset = padding > thumbSize.width / 2 ? padding / 2 : 0;
-  const cx = expression('clamp', proposed, add(left, thumbInset), sub(right, thumbInset));
   const entries: NativePaintEntry[] = [];
   const rect = (
     x: Scalar,
@@ -318,6 +313,155 @@ export function nativeMaterialSliderPaint(source: Source): NativeRenderMetadata 
       color,
       Array(8).fill(Math.min(size.width, size.height) / 2),
     );
+  }
+  return { kind: 'paint', entries };
+}
+
+/** Same Source thumb/track policy for the overlay and the control recording. */
+function nativeSliderCenter(source: Source) {
+  const t = source.theme,
+    discrete = source.divisions !== null,
+    thumb = t.thumbShape!.getPreferredSize(false, discrete),
+    overlay = t.overlayShape!.getPreferredSize(false, discrete),
+    inset = t.padding === null ? Math.max(thumb.width / 2, overlay.width / 2) : 0,
+    rawRight = sub(w, t.padding === null ? Math.max(thumb.width, overlay.width) - inset : 0),
+    left = min(inset, rawRight),
+    right = max(inset, rawRight),
+    width = sub(right, left),
+    trackHeight =
+      t.activeTrackColor!.toARGB32() === 0 && t.inactiveTrackColor!.toARGB32() === 0
+        ? 0
+        : (t.trackHeight ?? 0),
+    padding = t.trackShape!.isRounded ? trackHeight : 0,
+    position =
+      source.visual.direction === 'rtl'
+        ? 1 - source.visual.position.value
+        : source.visual.position.value,
+    proposed = discrete
+      ? add(add(left, mul(position, sub(width, padding))), padding / 2)
+      : add(left, mul(position, width)),
+    thumbWidth = t.thumbShape!.getPreferredSize(source.enabled, discrete).width,
+    thumbInset = padding > thumbWidth / 2 ? padding / 2 : 0;
+  return {
+    cx: expression('clamp', proposed, add(left, thumbInset), sub(right, thumbInset)),
+    cy: div(h, 2),
+  };
+}
+/** The pinned indicator command composition stays in TypeScript.
+ * Content resolves dimensions, local-to-global overflow and paragraph placement. */
+export function nativeMaterialSliderIndicator(
+  source: Source & {
+    readonly painter: TextPainter;
+    readonly reference: RenderBox;
+    readonly activation: number;
+    readonly textScale: number;
+    readonly screenWidth: number;
+  },
+): NativeRenderMetadata {
+  const t = source.theme,
+    a = source.activation;
+  const drop = exact(t.valueIndicatorShape, DropSliderValueIndicatorShape.prototype);
+  if (!drop && !exact(t.valueIndicatorShape, RoundedRectSliderValueIndicatorShape.prototype))
+    throw Error('Native Material Slider value indicator shape is not connected');
+  if (a === 0) return { kind: 'paint', entries: [] };
+  if (!(a > 0 && a <= 1) || !(source.screenWidth > 0))
+    throw Error('Invalid Slider indicator activation/viewport');
+  const { cx, cy } = nativeSliderCenter(source),
+    painter = source.painter,
+    rectangleWidth = (Math.max(drop ? 20 : 16, painter.width) + (drop ? 8 : 20)) * a,
+    rectangleHeight = drop ? 28 : 32,
+    globalCenter = expression('worldX', cx, cy),
+    overflowLeft = max(0, sub(rectangleWidth / 2 + 8, globalCenter)),
+    overflowRight = max(0, sub(rectangleWidth / 2, sub(source.screenWidth - 8, globalCenter))),
+    difference = sub(overflowLeft, overflowRight),
+    shift =
+      rectangleWidth < source.screenWidth
+        ? difference
+        : expression(
+            'select',
+            gt(difference, 0),
+            sub(overflowLeft, 8 * source.textScale),
+            add(mul(overflowRight, -1), 8 * source.textScale),
+          ),
+    x = add(cx, mul(sub(shift, rectangleWidth / 2), a)),
+    y = sub(cy, 16 + (drop ? 34 : 42) * a),
+    entries: NativePaintEntry[] = [];
+  const radius = (Math.min(rectangleWidth, rectangleHeight) / 2) * a;
+  const rect = (color: number, strokeWidth = 0): NativePaintEntry => ({
+    kind: drop ? 'path' : 'shape',
+    reference: source.reference,
+    shape: { ...shape, strokeWidth, strokeColor: color },
+    color: strokeWidth ? 0 : color,
+    ...(drop
+      ? {
+          path: {
+            commands: [
+              ['move', cx, sub(cy, 16)],
+              ['line', sub(cx, 10 * a), sub(cy, 16 + 10 * a)],
+              ['line', add(cx, 10 * a), sub(cy, 16 + 10 * a)],
+              ['close'],
+              [
+                'rrect',
+                x,
+                y,
+                rectangleWidth * a,
+                rectangleHeight * a,
+                radius,
+                radius,
+                radius,
+                radius,
+                radius,
+                radius,
+                radius,
+                radius,
+              ],
+            ],
+          },
+        }
+      : {}),
+    geometry: {
+      kind: 'program',
+      rect: drop ? [0, 0, w, h] : [x, y, rectangleWidth * a, rectangleHeight * a],
+      ...(drop ? {} : { radii: Array(8).fill(16 * a) }),
+    },
+  });
+  // The original path strokes before filling; the fill covers its inner stroke half.
+  if (t.valueIndicatorStrokeColor) entries.push(rect(t.valueIndicatorStrokeColor.toARGB32(), a));
+  entries.push(rect(t.valueIndicatorColor!.toARGB32()));
+  const canvas = new Canvas();
+  try {
+    painter.paint(canvas, Offset.zero);
+    for (const command of canvas.commands) {
+      if (command.op !== 'paragraph') throw Error('Slider label recording is not a paragraph');
+      const layout = painter._layoutSnapshot(),
+        paragraphWidth = Number.isFinite(layout.width) ? layout.width : layout.maxIntrinsicWidth;
+      entries.push({
+        kind: 'paragraph',
+        paragraph: command.resource,
+        reference: source.reference,
+        shape,
+        color: 0,
+        geometry: {
+          kind: 'program',
+          rect: [
+            add(cx, mul(add(sub(shift, painter.width / 2), command.x), a)),
+            add(
+              sub(cy, 16),
+              a *
+                (-8 -
+                  rectangleHeight +
+                  rectangleHeight / (drop ? 1.75 : 2.3) -
+                  painter.height / 2 +
+                  command.y),
+            ),
+            paragraphWidth * a,
+            painter.height * a,
+          ],
+        },
+      });
+    }
+  } finally {
+    canvas.dispose();
   }
   return { kind: 'paint', entries };
 }

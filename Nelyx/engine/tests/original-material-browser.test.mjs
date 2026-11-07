@@ -7,7 +7,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { chromium } from 'playwright';
 import { stop } from 'esbuild';
-import { packet, response, protocol as p } from '@nelyx/core/v2';
+import { packet, response, semanticActionBody, protocol as p } from '@nelyx/core/v2';
 import { sourceIdentity, timeout } from '../tools/build.mjs';
 import {
   createEngineV2Project,
@@ -536,6 +536,49 @@ test(
           assert.ok(current.state.focusEvents.some((e) => e.which === 'a' && !e.focused));
           assert.ok(current.state.focusEvents.some((e) => e.which === 'b' && e.focused));
           assert.equal(await disabledChoice.getAttribute('aria-checked'), 'false');
+          const semantic = async (label, action) => {
+            let target;
+            // Match the DOM adapter's bounded publication refresh. A stale
+            // request has not admitted an action and must keep the same peer.
+            for (let attempt = 0; attempt < 3; ++attempt) {
+              const frame = await publication(page),
+                peer = frame.nodes.find((node) => node.semantics?.label === label);
+              assert.ok(peer);
+              if (target) assert.deepEqual(peer.node, target);
+              target = peer.node;
+              const bytes = await page.evaluate(
+                async (bytes) =>
+                  Array.from(await __nelyxV2.surface.host.exchange(new Uint8Array(bytes))),
+                Array.from(
+                  packet(
+                    p.opcodes.semanticsAction,
+                    owner,
+                    semanticActionBody(peer.node, frame.publication, action),
+                  ),
+                ),
+              );
+              const result = response(new Uint8Array(bytes));
+              if (result.status !== p.statuses.stale) return result;
+            }
+            throw Error('Radio semantic publication changed repeatedly');
+          };
+          assert.equal(
+            (await semantic('Choice A', 'deselect')).status,
+            p.statuses.capabilityMissing,
+          );
+          assert.equal((await semantic('Choice B', 'activate')).status, p.statuses.ok);
+          current = await report(page, 'choices', 6);
+          assert.equal(current.state.choice, 'b');
+          assert.equal(await choiceB.getAttribute('aria-checked'), 'true');
+          assert.equal((await semantic('Choice B', 'deselect')).status, p.statuses.ok);
+          current = await report(page, 'choices', 7);
+          assert.equal(current.state.choice, null);
+          assert.equal(await choiceA.getAttribute('aria-checked'), 'false');
+          assert.equal(await choiceB.getAttribute('aria-checked'), 'false');
+          assert.equal(
+            (await semantic('Choice B', 'deselect')).status,
+            p.statuses.capabilityMissing,
+          );
           const toggle = page.getByRole('switch', { name: 'Enable feature', exact: true }),
             disabledToggle = page.getByRole('switch', { name: 'Disabled switch', exact: true }),
             apple = page.getByRole('switch', { name: 'Apple switch', exact: true }),

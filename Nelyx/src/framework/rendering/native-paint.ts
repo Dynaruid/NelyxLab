@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { RenderBox } from './object.ts';
+import type { ResourceId } from '../../ui/types.ts';
 import { StadiumBorder } from '../painting/stadium-border.ts';
 import { RoundedRectangleBorder } from '../painting/rounded-rectangle-border.ts';
 import { CircleBorder } from '../painting/circle-border.ts';
@@ -33,9 +34,23 @@ export type NativePaintScalar =
         | 'greater'
         | 'greaterEqual'
         | 'equal'
-        | 'select';
+        | 'select'
+        | 'worldX'
+        | 'worldY';
       readonly args?: readonly NativePaintScalar[];
     };
+/** Bounded path commands; Content resolves every scalar before provider painting. */
+export type NativePaintPathSegment<T = NativePaintScalar> =
+  | readonly ['move' | 'line', T, T]
+  | readonly ['quad' | 'rect', T, T, T, T]
+  | readonly ['cubic', T, T, T, T, T, T]
+  | readonly ['conic', T, T, T, T, T]
+  | readonly ['rrect', T, T, T, T, T, T, T, T, T, T, T, T]
+  | readonly ['close'];
+export interface NativePaintPath<T = NativePaintScalar> {
+  readonly fillRule?: 'nonZero' | 'evenOdd';
+  readonly commands: readonly NativePaintPathSegment<T>[];
+}
 /** Intrinsic source configuration; final placement is resolved by Content. */
 export type NativePaintGeometry =
   | {
@@ -87,7 +102,12 @@ export interface NativePaintEntry {
     | 'hitRegion'
     | 'elevationShadow'
     | 'save'
-    | 'restore';
+    | 'restore'
+    | 'path'
+    | 'paragraph';
+  readonly path?: NativePaintPath;
+  /** App-owned Source resource. The bridge copies immutable input, never its private paragraph. */
+  readonly paragraph?: ResourceId;
   readonly reference?: RenderBox;
   readonly color: number;
   readonly shape: NativeShape;
@@ -109,7 +129,14 @@ export interface NativePaintEntry {
   readonly transparentOccluder?: boolean;
 }
 export type NativeRenderMetadata =
+  | { readonly kind: 'inlineScale'; readonly scale: number }
   | { readonly kind: 'paint'; readonly entries: readonly NativePaintEntry[] }
+  | {
+      readonly kind: 'overlay';
+      readonly skipCount: number;
+      readonly clip: 'none' | 'hardEdge' | 'antiAlias' | 'antiAliasWithSaveLayer';
+      readonly alignment: { readonly x: number; readonly y: number };
+    }
   | {
       readonly kind: 'sizedSurface';
       readonly width: number;

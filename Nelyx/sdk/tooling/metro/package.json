@@ -13,6 +13,10 @@
     "LICENSE.md"
   ],
   "exports": {
+    "./typescript-compiler": {
+      "types": "./src/typescript-compiler.d.cts",
+      "default": "./src/typescript-compiler.cjs"
+    },
     "./installed-supply": {
       "types": "./src/installed-supply.d.cts",
       "default": "./src/installed-supply.cjs"

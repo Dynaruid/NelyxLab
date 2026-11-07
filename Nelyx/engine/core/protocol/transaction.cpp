@@ -6,34 +6,9 @@
 
 namespace nelyx::v2 {
 namespace {
-ParagraphOptions readParagraph(Reader data) {
-  require(data.length>=wire::paragraphBytes);
-  const auto localeLength=data.u32(12),ellipsisLength=data.u32(16),familyLength=data.u32(20);
-  require(localeLength>0&&localeLength<=wire::limits::localeBytes&&ellipsisLength<=wire::limits::ellipsisBytes&&familyLength<=wire::limits::fontFamilyBytes,
-    wire::statuses::budgetExceeded);
-  const size_t localeBytes=(size_t(localeLength)+7)/8*8,ellipsisBytes=(size_t(ellipsisLength)+7)/8*8,familyBytes=(size_t(familyLength)+7)/8*8;
-  require(data.length==wire::paragraphBytes+localeBytes+ellipsisBytes+familyBytes&&data.u32(28)==0&&data.u64(56)==0);
-  const auto locale=data.slice(wire::paragraphBytes,localeLength),ellipsis=data.slice(wire::paragraphBytes+localeBytes,ellipsisLength);
-  const auto family=data.slice(wire::paragraphBytes+localeBytes+ellipsisBytes,familyLength);
-  require(validUtf8(locale)&&validUtf8(ellipsis)&&validUtf8(family),wire::statuses::invalidValue);
-  for(size_t i=localeLength;i<localeBytes;++i)require(data.data[wire::paragraphBytes+i]==0);
-  for(size_t i=ellipsisLength;i<ellipsisBytes;++i)require(data.data[wire::paragraphBytes+localeBytes+i]==0);
-  for(size_t i=familyLength;i<familyBytes;++i)require(data.data[wire::paragraphBytes+localeBytes+ellipsisBytes+i]==0);
-  ParagraphOptions value;
-  value.flags=data.u32(0);value.align=data.u32(4);value.maxLines=data.u32(8);
-  value.height=data.f64(32);value.letterSpacing=data.f64(40);value.wordSpacing=data.f64(48);
-  value.locale=std::string(reinterpret_cast<const char*>(locale.data),locale.length);
-  value.ellipsis=std::string(reinterpret_cast<const char*>(ellipsis.data),ellipsis.length);
-  value.fontWeight=data.u32(24)?data.u32(24):400;
-  value.fontFamily=std::string(reinterpret_cast<const char*>(family.data),family.length);
-  require(value.fontWeight>=100&&value.fontWeight<=900,wire::statuses::invalidValue);
-  require(value.flags<=31&&value.align<=wire::paragraphAlign::justify&&value.maxLines<=wire::limits::textBytes&&
-    (value.height==-1||(value.height>=0&&value.height<=1e6))&&value.letterSpacing>=-1e6&&value.letterSpacing<=1e6&&value.wordSpacing>=-1e6&&value.wordSpacing<=1e6&&
-    value.locale.find('\0')==std::string::npos&&value.fontFamily.find('\0')==std::string::npos,wire::statuses::invalidValue);
-  return value;
-}
-uint32_t childLimit(uint32_t kind) {
-  switch (kind) {
+uint32_t childLimit(const Node& node) {
+  if(node.kind==wire::kinds::paragraph&&node.paragraph&&node.paragraph->value.inlineChildren())return wire::limits::paragraphPlaceholders;
+  switch (node.kind) {
     case wire::kinds::paragraph: case wire::kinds::image: case wire::kinds::editable: case wire::kinds::path: return 0;
     case wire::kinds::box: case wire::kinds::clip: case wire::kinds::transform:
     case wire::kinds::effect: case wire::kinds::scrollViewport: return 1;
@@ -41,18 +16,55 @@ uint32_t childLimit(uint32_t kind) {
   }
 }
 void validate(Document& d) {
+  for(const auto& slot:d.nodes)if(slot.value){const auto& n=*slot.value;
+    if(n.imageStyle){require(n.kind==wire::kinds::image&&n.layout.enabled&&bool(n.resource)==bool(n.imageStyle->width),wire::statuses::invalidGraph);
+      if(n.resource)if(const auto raw=readRasterImage({n.resource->bytes.data(),n.resource->bytes.size()}))
+        require(raw->width==n.imageStyle->width&&raw->height==n.imageStyle->height,wire::statuses::invalidValue);
+    }
+  }
   uint32_t semantics=0,editors=0;
+  d.framePaintGeometry=false;
   std::vector<uint32_t> children(d.nodes.size(), 0);
+  Lease ownerScratch(d.lease.ledger,d.nodes.size()*sizeof(Handle));
+  std::vector<Handle> paintOwners(d.nodes.size());
+  for(const auto& slot:d.nodes)if(slot.value&&slot.value->nativePaint)
+    for(const auto& entry:slot.value->nativePaint->entries)if(entry.kind==wire::nativePaintKinds::paragraph){
+      const auto& target=d.get(entry.reference);
+      require(target.parent==slot.value->id&&target.paintPlacement&&!target.nativePaint,wire::statuses::invalidGraph);
+      paintOwners[target.id.slot]=slot.value->id;
+    }
+  for(auto& slot:d.nodes)if(slot.value&&slot.value->paintOwner!=paintOwners[slot.value->id.slot]){
+    auto node=std::make_shared<Node>(*slot.value);node->paintOwner=paintOwners[node->id.slot];slot.value=std::move(node);
+  }
   for (auto& list : d.children) list.clear();
   std::set<std::pair<uint64_t, uint32_t>> order;
   for (const auto& slot : d.nodes) if (slot.value) {
     const Node* n = slot.value.get();
+    if(n->paragraph&&(!n->paragraph->value.runs.empty()||!n->paragraph->value.placeholders.empty())){
+      require(n->kind==wire::kinds::paragraph&&bool(n->text),wire::statuses::invalidValue);
+      forParagraphRuns(n->text->value,n->paragraph->value,[](const auto&,size_t,size_t){});
+      validateParagraphPlaceholders(n->text->value,n->paragraph->value);
+    }
+    d.framePaintGeometry|=(n->nativePaint&&n->nativePaint->frameDependent)||livePaintPlacement(*n);
+    const bool paintChild=n->layout.constraintFlags&wire::layoutConstraintFlags::paintChild;
+    require(paintChild==bool(n->paintPlacement),wire::statuses::invalidValue);
+    if(paintChild){
+      require(!n->paragraph||!n->paragraph->value.inlineChildren(),wire::statuses::invalidGraph);
+      require(n->kind==wire::kinds::paragraph&&n->layout.enabled&&n->parent&&!n->semantics&&!n->gestures&&!n->control.kind&&!n->layerLink.role&&
+        !(n->policy&~(wire::eventPolicies::canonicalHitTest|wire::eventPolicies::deferToChild))&&
+        (n->policy&wire::eventPolicies::deferToChild)&&n->properties.x==0&&n->properties.y==0&&n->layout.constraintFlags==wire::layoutConstraintFlags::paintChild&&
+        n->layout.left==0&&n->layout.top==0&&n->layout.right==0&&n->layout.bottom==0,wire::statuses::invalidValue);
+      if(n->paintPlacement->reference)for(Handle at=n->paintPlacement->reference;at;at=d.get(at).parent)require(!d.get(at).paintPlacement,wire::statuses::invalidValue);
+      const auto& parent=d.get(n->parent);
+      require((parent.kind==wire::kinds::box||parent.kind==wire::kinds::stack)&&
+        !(parent.layout.constraintFlags&(wire::layoutConstraintFlags::alignmentSizing|wire::layoutConstraintFlags::inlineScale)),wire::statuses::capabilityMissing);
+    }
     if(n->semantics)require(++semantics<=wire::limits::semanticsNodes,wire::statuses::budgetExceeded);
     if(n->kind==wire::kinds::editable)require(++editors<=wire::limits::editors,wire::statuses::budgetExceeded);
     d.children[n->parent.slot].push_back(n->id);
     if (n->parent) {
       const auto& parent = d.get(n->parent);
-      require(++children[parent.id.slot] <= childLimit(parent.kind), wire::statuses::invalidGraph);
+      if(!paintChild)require(++children[parent.id.slot] <= childLimit(parent), wire::statuses::invalidGraph);
       require(order.emplace(parent.id.key(), n->order).second, wire::statuses::invalidGraph);
     }
     uint32_t depth = 0;
@@ -64,6 +76,12 @@ void validate(Document& d) {
     const auto& first = d.get(a); const auto& second = d.get(b);
     return first.order == second.order ? a.slot < b.slot : first.order < second.order;
   });
+  for(const auto& slot:d.nodes)if(slot.value&&slot.value->paragraph&&slot.value->paragraph->value.inlineChildren()){
+    const auto& n=*slot.value;
+    require(n.kind==wire::kinds::paragraph&&n.layout.enabled&&
+      d.children[n.id.slot].size()==n.paragraph->value.placeholders.size(),wire::statuses::invalidGraph);
+    for(const auto child:d.children[n.id.slot])require(!d.get(child).paintPlacement,wire::statuses::invalidGraph);
+  }
   std::array<bool,wire::limits::nodes+1> leaders{};
   std::function<void(Handle)> visit=[&](Handle id){const auto& n=d.get(id);const auto& link=n.layerLink;
     if(link.role==1)leaders[id.slot]=true;
@@ -179,8 +197,20 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       if (!resource) { require(resource.generation == 0); node->resource.reset(); }
       else {
         require(resource.slot < staged.size() && staged[resource.slot].value &&
-          staged[resource.slot].value->id == resource, wire::statuses::invalidHandle);
+          staged[resource.slot].value->id == resource&&!staged[resource.slot].value->fontCatalog, wire::statuses::invalidHandle);
         node->resource = staged[resource.slot].value;
+      }
+    } else if(op==wire::commands::paragraphFont){
+      auto node=edit(h);require(node->kind==wire::kinds::paragraph,wire::statuses::invalidValue);
+      if(data.length==0){node->fontPinned=false;node->fontResource.reset();node->fontRevision=1;}
+      else{
+        require(data.length==16&&data.u64(8)>0,wire::statuses::invalidValue);const auto resource=handle(data,0);
+        if(!resource){require(resource.generation==0);node->fontResource.reset();}
+        else{
+          require(resource.slot<staged.size()&&staged[resource.slot].value&&staged[resource.slot].value->id==resource&&
+            staged[resource.slot].value->fontCatalog,wire::statuses::invalidHandle);node->fontResource=staged[resource.slot].value;
+        }
+        node->fontPinned=true;node->fontRevision=data.u64(8);
       }
     } else if (op == wire::commands::eventPolicy) {
       require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~262143u) == 0);
@@ -227,6 +257,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require(!style.path||previous.kind==wire::kinds::path||previous.kind==wire::kinds::clip,wire::statuses::invalidValue);
       if(previous.extensionSize.x>0&&!(data.u32(96)&wire::graphicsFlags::hasPath))style.path=previous.graphics.path;
       edit(h,false)->graphics=std::move(style);
+    } else if(op==wire::commands::paintPlacement){
+      auto node=edit(h);node->paintPlacement=data.length?readPaintPlacement(current->lease.ledger,data):nullptr;node->paintTransform={};
     } else if(op==wire::commands::nativePaint){
       auto node=edit(h,false);node->nativePaint=data.length?readNativePaint(current->lease.ledger,data):nullptr;
       node->resolvedPaint.reset();
@@ -280,6 +312,13 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       if(link.role==1)require(!link.showWhenUnlinked&&!link.leader&&!link.offset.x&&!link.offset.y&&
         !link.leaderAnchor.x&&!link.leaderAnchor.y&&!link.followerAnchor.x&&!link.followerAnchor.y,wire::statuses::invalidValue);
       edit(h,false)->layerLink=link;
+    } else if(op==wire::commands::imageStyle){
+      const auto& previous=d->get(h);require(previous.kind==wire::kinds::image,wire::statuses::invalidValue);
+      auto style=readImageStyle(data);
+      const bool layout=bool(style)!=bool(previous.imageStyle)||(style&&previous.imageStyle&&
+        (style->scale!=previous.imageStyle->scale||style->width!=previous.imageStyle->width||style->height!=previous.imageStyle->height||
+          ((style->flags^previous.imageStyle->flags)&(wire::imageFlags::widthSpecified|wire::imageFlags::heightSpecified))));
+      auto node=edit(h,layout);if(node->imageStyle!=style){node->imageStyle=style;node->imagePaint.reset();}
     } else if(op==wire::commands::clipStyle){
       require(d->get(h).kind==wire::kinds::clip,wire::statuses::invalidValue);
       if(!data.length){edit(h,false)->clipStyle.reset();continue;}
@@ -304,9 +343,11 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const auto role=data.u32(0),semanticFlags=data.u32(4),actions=data.u32(8),rangeFlags=data.u32(24);
       const std::array<uint32_t,5> lengths{data.u32(12),data.u32(16),data.u32(20),data.u32(72),data.u32(76)};
       size_t total=0;for(const auto textLength:lengths){require(textLength<=wire::limits::semanticsTextBytes,wire::statuses::invalidValue);total+=textLength;}
-      require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~127u)==0&&(actions&~127u)==0&&
+      require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~127u)==0&&(actions&~255u)==0&&
         rangeFlags<=3&&rangeFlags!=2&&wire::semanticsBytes+(total+7)/8*8==data.length,wire::statuses::invalidValue);
       require(!(semanticFlags&wire::semanticsFlags::mixed)||(role==wire::semanticsRoles::checkbox&&!(semanticFlags&wire::semanticsFlags::checked)),wire::statuses::invalidValue);
+      require(!(actions&wire::semanticsActions::deselect)||(role==wire::semanticsRoles::radio&&
+        (semanticFlags&wire::semanticsFlags::checked)&&(actions&wire::semanticsActions::activate)),wire::statuses::invalidValue);
       std::array<std::string,5> text;size_t cursor=wire::semanticsBytes;
       for(size_t textIndex=0;textIndex<text.size();++textIndex){const auto part=data.slice(cursor,lengths[textIndex]);require(validUtf8(part),wire::statuses::invalidValue);
         text[textIndex]=std::string(reinterpret_cast<const char*>(part.data),part.length);cursor+=part.length;}
@@ -324,9 +365,9 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       LayoutStyle s{data.u32(0), data.u32(4), data.u32(8), data.u32(12), data.u32(16),
         data.u32(20), data.u32(24), data.u32(28), data.f64(32), data.f64(40), data.f64(48),
         data.f64(56), data.f64(64), data.f64(72), data.f64(80),
-        data.f64(88), data.f64(96), data.f64(104), data.f64(112)};
+        data.f64(88), data.f64(96), data.f64(104), data.f64(112),data.f64(120)};
       require(s.enabled <= 1 && s.direction <= 1 && s.mainSize <= 1 && s.mainAlign <= 5 &&
-        s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 8191 &&
+        s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 32767 &&
         (s.constraintFlags & wire::layoutConstraintFlags::childMask) <= 2 &&
         s.flex >= 0 && s.flex <= 1e6 && s.gap >= 0 && s.runGap >= 0 &&
         s.left >= 0 && s.top >= 0 && s.right >= 0 && s.bottom >= 0 &&
@@ -335,7 +376,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const auto layoutFlags=s.constraintFlags;
       const bool proxy=kind==wire::kinds::box||kind==wire::kinds::stack||kind==wire::kinds::clip||kind==wire::kinds::transform;
       require(!layoutFlags||s.enabled,wire::statuses::capabilityMissing);
-      require(!(layoutFlags&7u)||proxy,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::childMask)||proxy,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::enforceBounds)||proxy||kind==wire::kinds::image,wire::statuses::capabilityMissing);
       require(!(layoutFlags&(wire::layoutConstraintFlags::reverseMain|wire::layoutConstraintFlags::reverseCross|
         wire::layoutConstraintFlags::shrinkUnboundedMain))||kind==wire::kinds::flex,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignment)||proxy,wire::statuses::capabilityMissing);
@@ -346,9 +388,14 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require((layoutFlags&wire::layoutConstraintFlags::alignmentSizing)||(s.widthFactor==-1&&s.heightFactor==-1),wire::statuses::invalidValue);
       require(!(layoutFlags&wire::layoutConstraintFlags::expandEmpty)||kind==wire::kinds::stack,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::clipOverflow)||kind==wire::kinds::stack||kind==wire::kinds::flex||kind==wire::kinds::paragraph,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::paintChild)||kind==wire::kinds::paragraph,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::paragraphSizing)||kind==wire::kinds::paragraph,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::preferredSize)||(kind==wire::kinds::box&&s.enabled),wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::expandPreferredWidth)||(layoutFlags&wire::layoutConstraintFlags::preferredSize),wire::statuses::invalidValue);
+      require(!(layoutFlags&wire::layoutConstraintFlags::inlineScale)||
+        (kind==wire::kinds::box&&layoutFlags==wire::layoutConstraintFlags::inlineScale&&
+          s.left==0&&s.top==0&&s.right==0&&s.bottom==0&&s.mainSize==0&&s.mainAlign==0&&s.crossAlign==0&&s.inlineScale>=0),wire::statuses::capabilityMissing);
+      require((layoutFlags&wire::layoutConstraintFlags::inlineScale)||s.inlineScale==1,wire::statuses::invalidValue);
       edit(h)->layout = s;
     } else if (op == wire::commands::coverage) {
       require(data.length == 32 && data.u32(24) <= 1 && data.u32(28) == 0);
@@ -396,6 +443,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     } else require((flags & 1u) != 0, wire::statuses::incompatible);
   }
   require(position == body.length);
+  for(const auto& slot:d->nodes)if(slot.value&&slot.value->fontPinned)
+    require(slot.value->paintPlacement&&slot.value->paintPlacement->fontRevision==slot.value->fontRevision,wire::statuses::invalidValue);
   validate(*d);
   validateGraphics(*d);
   d->epoch = next(current->epoch);

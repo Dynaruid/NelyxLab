@@ -2,7 +2,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { spawnSync } from 'node:child_process';
 const load = createRequire(import.meta.url),
   { createRunnerTypeScriptConfig } = load('@nelyx/metro/runner-config');
 const config = createRunnerTypeScriptConfig({
@@ -15,10 +14,8 @@ fs.writeFileSync(
   new URL('tsconfig.generated.json', import.meta.url),
   JSON.stringify(config, null, 2) + '\n',
 );
-const result = spawnSync(
-  process.execPath,
-  [load.resolve('typescript/bin/tsc'), '-p', 'tsconfig.generated.json'],
-  { cwd: import.meta.dirname, stdio: 'inherit', windowsHide: true },
-);
-if (result.error) throw result.error;
-process.exitCode = result.status ?? 1;
+const { runTypeScriptCompiler } = load('@nelyx/metro/typescript-compiler');
+const result = runTypeScriptCompiler(import.meta.dirname, ['-p', 'tsconfig.generated.json']);
+process.stdout.write(result.stdout);
+process.stderr.write(result.stderr);
+process.exitCode = result.status;

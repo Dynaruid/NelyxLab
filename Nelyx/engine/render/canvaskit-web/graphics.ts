@@ -5,6 +5,7 @@ import type {
   EngineNodeSnapshot,
   PathSegment,
   AffineMatrix,
+  NodeHandle,
 } from '../../../runtime/engine-client/index.ts';
 import { protocol as p } from '../../../runtime/engine-client/index.ts';
 import type { NativePaintSnapshot } from '../../../runtime/engine-client/native-paint.ts';
@@ -19,7 +20,8 @@ export function nativePaintOutset(
     entry.kind === 'hitRegion' ||
     entry.kind === 'clip' ||
     entry.kind === 'save' ||
-    entry.kind === 'restore'
+    entry.kind === 'restore' ||
+    entry.kind === 'children'
   )
     return 0;
   const circle =
@@ -27,17 +29,28 @@ export function nativePaintOutset(
     entry.kind === 'ripple' ||
     (entry.kind === 'highlight' && entry.circular);
   const padding =
-    (entry.shape.strokeWidth * (1 + Math.abs(entry.shape.strokeAlign))) / 2 +
+    (entry.kind === 'path'
+      ? 2 * entry.shape.strokeWidth
+      : (entry.shape.strokeWidth * (1 + Math.abs(entry.shape.strokeAlign))) / 2) +
     (entry.kind === 'shadow'
       ? 4 * (entry.blurSigma ?? 0)
       : entry.kind === 'elevationShadow'
         ? 4 * scale * (entry.elevation ?? 0) + 2
         : 0);
   const radius = entry.resolvedRadius + padding;
-  const x = circle ? entry.cx - radius : -padding,
-    y = circle ? entry.cy - radius : -padding;
-  const right = circle ? entry.cx + radius : entry.width + padding,
-    bottom = circle ? entry.cy + radius : entry.height + padding;
+  const pathBounds = entry.kind === 'path' ? entry.pathBounds : undefined;
+  const x = pathBounds ? pathBounds.x - padding : circle ? entry.cx - radius : -padding,
+    y = pathBounds ? pathBounds.y - padding : circle ? entry.cy - radius : -padding;
+  const right = pathBounds
+      ? pathBounds.x + pathBounds.width + padding
+      : circle
+        ? entry.cx + radius
+        : entry.width + padding,
+    bottom = pathBounds
+      ? pathBounds.y + pathBounds.height + padding
+      : circle
+        ? entry.cy + radius
+        : entry.height + padding;
   const [a, b, c, d, tx, ty] = entry.transform;
   let left = Infinity,
     top = Infinity,
@@ -77,19 +90,84 @@ function nativePaintShape(ck: CanvasKit, entry: NativePaintSnapshot, delta = 0):
     ...entry.shape.radii.map((radius) => Math.max(0, radius + delta)),
   ]);
 }
+function nativePaintPath(ck: CanvasKit, entry: NativePaintSnapshot): Path {
+  if (!entry.path || entry.path.commands.length > p.limits.pathCommands)
+    throw Error('Missing or oversized native path');
+  const builder = new ck.PathBuilder();
+  try {
+    builder.setFillType(
+      entry.path.fillRule === 'evenOdd' ? ck.FillType.EvenOdd : ck.FillType.Winding,
+    );
+    for (const command of entry.path.commands) {
+      const values = command.slice(1).map((value) => {
+        if (typeof value !== 'number' || !Number.isFinite(value))
+          throw Error('Unresolved native path');
+        return value;
+      });
+      switch (command[0]) {
+        case 'move':
+          builder.moveTo(values[0]!, values[1]!);
+          break;
+        case 'line':
+          builder.lineTo(values[0]!, values[1]!);
+          break;
+        case 'quad':
+          builder.quadTo(values[0]!, values[1]!, values[2]!, values[3]!);
+          break;
+        case 'cubic':
+          builder.cubicTo(values[0]!, values[1]!, values[2]!, values[3]!, values[4]!, values[5]!);
+          break;
+        case 'close':
+          builder.close();
+          break;
+        case 'conic':
+          builder.conicTo(values[0]!, values[1]!, values[2]!, values[3]!, values[4]!);
+          break;
+        case 'rect':
+          builder.addRect(ck.XYWHRect(values[0]!, values[1]!, values[2]!, values[3]!), false);
+          break;
+        case 'rrect':
+          builder.addRRect(
+            Float32Array.from([
+              values[0]!,
+              values[1]!,
+              values[0]! + values[2]!,
+              values[1]! + values[3]!,
+              ...values.slice(4),
+            ]),
+            false,
+          );
+          break;
+      }
+    }
+    return builder.detach();
+  } finally {
+    builder.delete();
+  }
+}
 export function paintNative(
   ck: CanvasKit,
   canvas: Canvas,
   node: EngineNodeSnapshot,
   paint: Paint,
   scale = 1,
+  foreground = false,
+  paragraph?: (node: NodeHandle) => void,
 ): void {
   if (!node.nativePaint) return;
+  const boundary = node.nativePaint.findIndex((entry) => entry.kind === 'children');
+  if (foreground && boundary < 0) return;
+  const entries = foreground
+    ? node.nativePaint.slice(boundary + 1)
+    : boundary < 0
+      ? node.nativePaint
+      : node.nativePaint.slice(0, boundary);
+  const saved = canvas.getSaveCount();
   canvas.save();
   try {
-    if (node.nativePaint.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
+    if (entries.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
       canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
-    for (const entry of node.nativePaint) {
+    for (const entry of entries) {
       if (entry.kind === 'hitRegion') continue;
       if (entry.kind === 'save') {
         canvas.save();
@@ -113,7 +191,32 @@ export function paintNative(
         canvas.concat(canvasMatrix(entry.transform));
         paint.setColor(color(ck, entry.color));
         paint.setStyle(ck.PaintStyle.Fill);
-        if (entry.kind === 'border') {
+        if (entry.kind === 'paragraph') {
+          if (!paragraph) throw Error('Prepared paragraph paint resolver is unavailable');
+          paragraph(entry.reference);
+        } else if (entry.kind === 'path') {
+          const path = nativePaintPath(ck, entry);
+          try {
+            const pathPaint = new ck.Paint();
+            try {
+              pathPaint.setAntiAlias(true);
+              if (entry.color >>> 24) {
+                pathPaint.setColor(color(ck, entry.color));
+                canvas.drawPath(path, pathPaint);
+              }
+              if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
+                pathPaint.setColor(color(ck, entry.shape.strokeColor));
+                pathPaint.setStyle(ck.PaintStyle.Stroke);
+                pathPaint.setStrokeWidth(entry.shape.strokeWidth);
+                canvas.drawPath(path, pathPaint);
+              }
+            } finally {
+              pathPaint.delete();
+            }
+          } finally {
+            path.delete();
+          }
+        } else if (entry.kind === 'border') {
           if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
             paint.setColor(color(ck, entry.shape.strokeColor));
             paint.setStyle(ck.PaintStyle.Stroke);
@@ -228,7 +331,7 @@ export function paintNative(
       }
     }
   } finally {
-    canvas.restore();
+    canvas.restoreToCount(saved);
   }
 }
 export function paintNativeShadow(

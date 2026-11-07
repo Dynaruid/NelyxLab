@@ -10,6 +10,7 @@ import type {
   TextLayoutQueryReference,
 } from '../../ui/types.ts';
 import type { ResourceRegistry } from '../../hosting/resources.ts';
+import { textFontRevision } from '../../hosting/text-fonts.ts';
 import type { Offset } from '../../ui/geometry.ts';
 import { Offset as OffsetValue } from '../../ui/offset.ts';
 import { TextPosition, TextAffinity } from '../../ui/text-position.ts';
@@ -147,6 +148,15 @@ class TextPainterLayoutCache {
 /** One measured paragraph per painter, bounded by live RenderParagraphs. Frame leases outlive eviction. */
 export class TextPainter {
   private current: TextLayout | undefined;
+  private selectedFontRevision: number | undefined;
+  private refreshFontRevision(): void {
+    this.live();
+    const revision = textFontRevision(this.textService);
+    if (revision === this.selectedFontRevision) return;
+    this.clearTemplate();
+    this.markNeedsLayout();
+    this.selectedFontRevision = revision;
+  }
   private get paintOffsetX(): number {
     return this.cache?.paintOffset ?? 0;
   }
@@ -245,7 +255,11 @@ export class TextPainter {
     return this.laidOut();
   }
   get _needsLayout(): boolean {
-    return this.cache === undefined || this.needsRelayout;
+    return (
+      this.cache === undefined ||
+      this.needsRelayout ||
+      this.selectedFontRevision !== (this.context ? textFontRevision(this.context.text) : undefined)
+    );
   }
   get _paintOffset(): number {
     this.laidOut();
@@ -583,6 +597,7 @@ export class TextPainter {
     return paragraph;
   }
   private layoutInline({ minWidth = 0, maxWidth = Infinity }: TextPainterLayoutOptions): void {
+    this.refreshFontRevision();
     this.live();
     if (
       !(!Number.isNaN(minWidth) && !Number.isNaN(maxWidth) && minWidth >= 0 && minWidth <= maxWidth)
@@ -932,6 +947,7 @@ export class TextPainter {
     }
   }
   get preferredLineHeight(): number {
+    this.refreshFontRevision();
     return this.layoutTemplate().height;
   }
   private caretMetrics(position: TextPosition): {

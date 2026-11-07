@@ -50,7 +50,7 @@ void (async () => {
     } else if (event.data.kind === 'app-error') fail(event.data.message);
   });
   app.addEventListener('error', (event) => fail(event.message));
-  const port = surface.createAppPort();
+  const port = surface.createAppPort(app);
   app.postMessage({ kind: 'start', root: root.href, port }, [port]);
   document
     .querySelector('#app-delay')!
@@ -65,7 +65,6 @@ void (async () => {
     try {
       return await surface.close();
     } finally {
-      app.terminate();
       current.ready = false;
       status.textContent = 'Closed';
     }

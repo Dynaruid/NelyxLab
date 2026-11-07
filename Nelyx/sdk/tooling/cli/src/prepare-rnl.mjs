@@ -221,7 +221,7 @@ fs.writeFileSync(
       version: '0.0.1',
       private: true,
       workspaces: manifest.packages.map((folder) => `packages/@lucid-softworks/${folder}`),
-      devDependencies: { typescript: '5.9.3', '@react-native-community/cli-types': '20.0.0' },
+      devDependencies: { typescript: '7.0.2', '@react-native-community/cli-types': '20.0.0' },
     },
     null,
     2,

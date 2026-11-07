@@ -1,9 +1,24 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type { ResourceId } from '../ui/types.ts';
+import type { ResourceId, TextLayoutService } from '../ui/types.ts';
 import type { ResourceRegistry, ResourceLease } from './resources.ts';
 import { invariant } from '../foundation/errors.ts';
 import { resourceKey, copyResourceId } from '../ui/resource-retention.ts';
 import { textInputSerializationIsPlain } from '../ui/text-input-data.ts';
+const textFontRevisions = new WeakMap<TextLayoutService, () => number>();
+/** @internal Font-cohort admission without changing the original service surface.
+ * The weak key owns the callback; closed owners keep their fail-closed reader. */
+export function registerTextFontRevision(service: TextLayoutService, read: () => number): void {
+  invariant(
+    !textFontRevisions.has(service),
+    'duplicate-font-revision-owner',
+    'Text font revision owner is already registered',
+  );
+  textFontRevisions.set(service, read);
+}
+/** @internal Legacy services retain their existing cache policy. */
+export function textFontRevision(service: TextLayoutService): number | undefined {
+  return textFontRevisions.get(service)?.();
+}
 export interface ParagraphFont {
   readonly resource: ResourceId;
   readonly family: string;

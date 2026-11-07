@@ -59,8 +59,13 @@ void View::close(uint32_t reason) {
     preparing->id, preparing->document->epoch});
   if (demand) event({wire::events::skipped, reason, 0, demand->epoch});
   closed = true;
+  if(fontUpload){fontUpload.reset();fontUploadStatus=3;}
+  if(imageUpload){imageUpload.reset();imageUploadStatus=3;}
+  if(fontTransition.phase==wire::fontTransitionPhases::preparing){
+    fontTransition.resource.reset();fontTransition.phase=wire::fontTransitionPhases::aborted;
+  }
   --lease.ledger->activeViews;
-  preparing.reset(); demand.reset(); document.reset(); active.reset(); published.reset();publications.fill(nullptr);
+  preparing.reset(); demand.reset(); document.reset(); active.reset(); published.reset();publications.fill(nullptr);fontResource.reset();
   query.reset();editors.clear();interactionEvents.clear();rawInputs.clear();rawActive=false;focusNode={};focusSession=0;
   overlays.clear(); results.clear(); commandResults.clear(); resultBytes = 0;
   for (auto it = frames.begin(); it != frames.end();) {
@@ -97,7 +102,7 @@ void View::contentStep(uint32_t quota) {
     p->providerReady = !providerRequired;
     p->fontRevision = fontRevision;
     preparing = std::move(p); demand.reset(); nextPreparation = id;
-    try{preparing->document=editingDocument();}
+    try{preparing->document=fontDocument(editingDocument(),fontResource,fontRevision);}
     catch(const Error& e){failPreparation(id,e.status);return;}
     catch(const std::bad_alloc&){failPreparation(id,wire::statuses::budgetExceeded);return;}
   }
@@ -109,7 +114,7 @@ void View::contentStep(uint32_t quota) {
       const auto reused = p.layout->reused();
       const bool complete = p.layout->step(quota);
       layoutWork += p.layout->work() - before; layoutReused += p.layout->reused() - reused;
-      if (complete) { auto geometry=p.layout->document();validateGraphics(*geometry);p.document=std::move(geometry);p.ready = true; }
+      if (complete) { auto geometry=p.layout->document();validateGraphics(*geometry);imagePaintWork+=p.layout->imagePaintWork();p.document=std::move(geometry);p.ready = true; }
     } catch (const Error& error) { failPreparation(p.id, error.status); }
       catch (const std::bad_alloc&) { failPreparation(p.id, wire::statuses::budgetExceeded); }
     return;
@@ -163,7 +168,7 @@ uint32_t View::startQuery(Reader bytes,uint64_t id) {
   require(h.tag!=wire::bounds::expand&&v.tag!=wire::bounds::expand,wire::statuses::invalidValue);
   auto candidate=std::make_unique<LayoutQuery>(lease.ledger);
   candidate->id=id;candidate->preparation=next(nextPreparation);candidate->node=node;candidate->mode=mode;
-  candidate->metrics=metrics;candidate->font=fontRevision;candidate->document=editingDocument();
+  candidate->metrics=metrics;candidate->font=fontRevision;candidate->document=fontDocument(editingDocument(),fontResource,fontRevision);
   candidate->bytes.assign(bytes.data,bytes.data+bytes.length);
   LayoutConstraints c{h.min,h.tag==wire::bounds::finite?h.max:INFINITY,v.min,v.tag==wire::bounds::finite?v.max:INFINITY};
   candidate->work=std::make_unique<LayoutQueryWork>(candidate->document,node,mode,c,metrics.scale,fontRevision);
@@ -583,7 +588,8 @@ void View::tick(double now) {
   require(now >= 0 && (!hasTime || now >= time), wire::statuses::invalidValue);
   const double dt = hasTime && visible ? now - time : 0;
   time = now; hasTime = true; ++ticks;
-  if(appFrameRequested&&visible){appFrameRequested=false;
+  const bool appDue=appFrameDeadline>0&&now>=appFrameDeadline;
+  if((appFrameRequested||appDue)&&visible&&metrics.width>0&&metrics.height>0){appFrameRequested=false;if(appDue)appFrameDeadline=0;
     interaction({wire::events::appFrame,wire::statuses::ok,++appFrameSerial,document?document->epoch:0,0,{},now,0});}
   for(uint32_t i=1;i<streams.size();++i){auto& stream=streams[i];
     if(stream.decision&&time>=stream.decisionDeadline){cancelStream(i,wire::statuses::timedOut);continue;}
@@ -738,6 +744,7 @@ void View::advanceCaret() {
 double View::nextDeadline() const {
   double deadline = 0;
   if (!closed) {
+    if(visible&&metrics.width>0&&metrics.height>0&&appFrameDeadline>0)deadline=appFrameDeadline;
     for (const auto& entry : commands)
       if (!deadline || entry.second.deadline < deadline) deadline = entry.second.deadline;
     if (visible && focused && metrics.width > 0 && metrics.height > 0 && caretDeadline > 0 &&
@@ -849,6 +856,7 @@ bool View::wake() const {
         active->document->contains(c.node))) return true;
   }
   if (!visible || metrics.width == 0 || metrics.height == 0) return false;
+  if(appFrameRequested||(appFrameDeadline>0&&time>=appFrameDeadline))return true;
   if (caretDeadline > 0 && time >= caretDeadline) return true;
   if (demand || preparing || (dirty && frames.size() < wire::limits::frames)) return true;
   for (const auto& entry : overlays) if (entry.second.ballistic ||
@@ -858,6 +866,7 @@ bool View::wake() const {
 }
 bool View::renderWake() const {
   if (closed || !visible || metrics.width == 0 || metrics.height == 0) return false;
+  if(appFrameRequested||(appFrameDeadline>0&&time>=appFrameDeadline))return true;
   for(const auto& stream:streams)if(stream.appPending&&stream.appPending->appApproved)return true;
   if (caretDeadline > 0 && time >= caretDeadline) return true;
   if (!input.empty() || (preparing && preparing->ready && preparing->providerReady)) return true;

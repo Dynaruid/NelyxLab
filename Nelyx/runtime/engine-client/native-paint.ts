@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type { NativePaintEntry, NativePaintScalar } from '@nelyx/core/framework/rendering/object';
+import type {
+  NativePaintEntry,
+  NativePaintScalar,
+  NativePaintPath,
+} from '@nelyx/core/framework/rendering/object';
 import type { NodeHandle, AffineMatrix } from './codec.ts';
 import { protocol as p } from './schema.ts';
-export interface NativePaintOptions extends Omit<NativePaintEntry, 'reference'> {
+export interface NativePaintOptions extends Omit<
+  NativePaintEntry,
+  'reference' | 'paragraph' | 'kind'
+> {
+  readonly kind: NativePaintEntry['kind'] | 'children';
   readonly reference?: NodeHandle | (() => NodeHandle | null);
   readonly fillParent?: boolean;
 }
@@ -15,6 +23,12 @@ export interface NativePaintSnapshot extends Omit<NativePaintOptions, 'reference
   readonly resolvedRadius: number;
   readonly transform: AffineMatrix;
   readonly points: readonly { readonly x: number; readonly y: number }[];
+  readonly pathBounds?: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
 }
 const kinds = [
   'physical',
@@ -31,6 +45,9 @@ const kinds = [
   'elevationShadow',
   'save',
   'restore',
+  'path',
+  'paragraph',
+  'children',
 ] as const;
 const geometryKinds = [
   'none',
@@ -49,7 +66,8 @@ const finite = (n: number) => {
   return n;
 };
 const noExpression = 0xffffffff;
-const operationArity = [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 3];
+const operationArity = [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 3, 2, 2];
+const pathArity = [0, 2, 2, 4, 6, 0, 5, 4, 12];
 class Expressions {
   readonly nodes: { op: number; args: number[]; value: number }[] = [];
   private readonly objects = new WeakMap<object, number>();
@@ -82,6 +100,31 @@ class Expressions {
 export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Array {
   if (entries.length > p.limits.nativePaintEntries) throw RangeError('Native paint entry budget');
   const expressions = new Expressions();
+  const commands: { verb: number; refs: number[] }[] = [];
+  const paths = entries.map((entry) => {
+    if (entry.kind !== 'path') {
+      if (entry.path) throw Error('Path commands require a path paint entry');
+      return;
+    }
+    const path = entry.path;
+    if (
+      !path?.commands.length ||
+      (path.fillRule && !['nonZero', 'evenOdd'].includes(path.fillRule))
+    )
+      throw Error('Invalid native paint path');
+    const start = commands.length;
+    for (const command of path.commands) {
+      const verb = p.nativePaintPathVerbs[command[0]];
+      if (!verb || command.length !== pathArity[verb]! + 1)
+        throw Error('Invalid native paint path command');
+      if (commands.length >= p.limits.pathCommands) throw RangeError('Native paint path budget');
+      commands.push({
+        verb,
+        refs: command.slice(1).map((v) => expressions.add(v as NativePaintScalar)),
+      });
+    }
+    return { start, count: commands.length - start, fillRule: path.fillRule === 'evenOdd' ? 1 : 0 };
+  });
   const programs = entries.map((entry) => {
     const g = entry.geometry;
     if (g?.kind !== 'program') return;
@@ -102,21 +145,30 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
   });
   const expressionAt = p.nativePaintHeaderBytes + entries.length * p.nativePaintBytes;
   const bytes = new Uint8Array(
-      expressionAt + expressions.nodes.length * p.nativePaintExpressionBytes,
+      expressionAt +
+        expressions.nodes.length * p.nativePaintExpressionBytes +
+        commands.length * p.nativePaintPathCommandBytes,
     ),
     v = new DataView(bytes.buffer);
   v.setUint32(0, entries.length, true);
   v.setUint32(8, expressions.nodes.length, true);
+  v.setUint32(16, commands.length, true);
   expressions.nodes.forEach((node, index) => {
     const at = expressionAt + index * p.nativePaintExpressionBytes;
     v.setUint32(at, node.op, true);
     node.args.forEach((arg, i) => v.setUint32(at + 4 + i * 4, arg, true));
     v.setFloat64(at + 16, node.value, true);
   });
+  const pathAt = expressionAt + expressions.nodes.length * p.nativePaintExpressionBytes;
+  commands.forEach((command, index) => {
+    const at = pathAt + index * p.nativePaintPathCommandBytes;
+    v.setUint32(at, command.verb, true);
+    command.refs.forEach((ref, i) => v.setUint32(at + 8 + i * 4, ref, true));
+  });
   entries.forEach((entry, index) => {
     const at = p.nativePaintHeaderBytes + index * p.nativePaintBytes,
       reference = typeof entry.reference === 'function' ? entry.reference() : entry.reference;
-    if (entry.kind === 'ripple' || entry.kind === 'highlight') {
+    if (entry.kind === 'ripple' || entry.kind === 'highlight' || entry.kind === 'paragraph') {
       if (!reference) throw Error('Native ink reference is not mounted');
     }
     v.setUint32(at, kinds.indexOf(entry.kind) + 1, true);
@@ -176,6 +228,12 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
       program.refs.forEach((ref, i) => v.setUint32(at + 400 + i * 4, ref, true));
       v.setFloat64(at + 456, program.repeat, true);
     }
+    const path = paths[index];
+    if (path) {
+      v.setUint32(at + 464, path.start, true);
+      v.setUint32(at + 468, path.count, true);
+      v.setUint32(at + 472, path.fillRule, true);
+    }
   });
   return bytes;
 }
@@ -188,10 +246,13 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
     v.getUint32(4, true) > 1 ||
     v.getUint32(8, true) > p.limits.nativePaintExpressions ||
     v.getUint32(12, true) ||
+    v.getUint32(16, true) > p.limits.pathCommands ||
+    v.getUint32(20, true) ||
     bytes.length !==
       p.nativePaintHeaderBytes +
         count * p.nativePaintBytes +
-        v.getUint32(8, true) * p.nativePaintExpressionBytes
+        v.getUint32(8, true) * p.nativePaintExpressionBytes +
+        v.getUint32(16, true) * p.nativePaintPathCommandBytes
   )
     throw Error('Invalid native paint snapshot');
   const expressions: NativePaintScalar[] = [];
@@ -218,6 +279,21 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
         : value,
     );
   }
+  const pathAt = expressionAt + expressions.length * p.nativePaintExpressionBytes;
+  const pathNames = Object.keys(p.nativePaintPathVerbs) as (keyof typeof p.nativePaintPathVerbs)[];
+  const paths = Array.from({ length: v.getUint32(16, true) }, (_, i) => {
+    const at = pathAt + i * p.nativePaintPathCommandBytes,
+      verb = v.getUint32(at, true);
+    if (!verb || verb >= pathArity.length || v.getUint32(at + 4, true))
+      throw Error('Invalid native paint path command');
+    const values = Array.from({ length: pathArity[verb]! }, (_, j) => {
+      if (v.getUint32(4, true)) return finite(v.getFloat64(at + 8 + j * 8, true));
+      const ref = v.getUint32(at + 8 + j * 4, true);
+      if (ref >= expressions.length) throw Error('Invalid native path expression');
+      return expressions[ref]!;
+    });
+    return Object.freeze([pathNames[verb - 1]!, ...values]) as NativePaintPath['commands'][number];
+  });
   return Object.freeze(
     Array.from({ length: count }, (_, index) => {
       const at = p.nativePaintHeaderBytes + index * p.nativePaintBytes,
@@ -236,9 +312,28 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
       const geometryKind = geometryKinds[v.getUint32(at + 256, true)],
         geometryFlags = v.getUint32(at + 260, true);
       if (!geometryKind || geometryFlags > 1) throw Error('Invalid native paint geometry');
+      const pathStart = v.getUint32(at + 464, true),
+        pathCount = v.getUint32(at + 468, true),
+        fillRule = v.getUint32(at + 472, true);
+      if (
+        v.getUint32(at + 476, true) ||
+        fillRule > 1 ||
+        pathStart + pathCount > paths.length ||
+        (kind === 'path' ? !pathCount : pathStart || pathCount || fillRule)
+      )
+        throw Error('Invalid native paint path range');
       return Object.freeze({
         kind,
         color: v.getUint32(at + 8, true),
+        ...(kind === 'path'
+          ? {
+              path: Object.freeze({
+                fillRule: fillRule ? ('evenOdd' as const) : ('nonZero' as const),
+                commands: Object.freeze(paths.slice(pathStart, pathStart + pathCount)),
+              }),
+              pathBounds: Object.freeze({ x: f(480), y: f(488), width: f(496), height: f(504) }),
+            }
+          : {}),
         shadowColor: v.getUint32(at + 12, true),
         reference: Object.freeze({
           slot: v.getUint32(at + 16, true),

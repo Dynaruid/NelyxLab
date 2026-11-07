@@ -15,6 +15,7 @@ import {
   body,
   response,
   measurementBody,
+  acquireImageResources,
   focusBody,
 } from '../../runtime/engine-client/index.ts';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -316,6 +317,16 @@ test(
       {
         counters: {},
         discardMeasurements() {},
+        acquireFontResources() {
+          return () => {};
+        },
+        acquireImageResources(scene) {
+          return acquireImageResources(
+            scene,
+            () => assert.fail('This control has no streamed image resource'),
+            () => assert.fail('This control needs no image staging credit'),
+          );
+        },
         prepare(scene) {
           ++prepared;
           return {
@@ -377,6 +388,16 @@ test(
       {
         counters: {},
         discardMeasurements() {},
+        acquireFontResources() {
+          return () => {};
+        },
+        acquireImageResources(scene) {
+          return acquireImageResources(
+            scene,
+            () => assert.fail('This failure control uses an inline image'),
+            () => assert.fail('This failure control needs no image staging credit'),
+          );
+        },
         measure() {
           throw new Error('Injected image decode failure');
         },

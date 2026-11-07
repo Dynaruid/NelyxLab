@@ -5,6 +5,7 @@ import {
   response,
   transaction,
   uint32,
+  capabilityMask,
   uint64,
   layoutQueryBody,
   editBody,
@@ -15,6 +16,35 @@ import {
 import type { EngineResponse, PacketOwner } from './codec.ts';
 import { protocol as p } from './schema.ts';
 import { drainEngineOwners } from './lifecycle.ts';
+import {
+  fontUploadBeginBytes,
+  fontUploadChunkBytes,
+  fontResourceReadBytes,
+  readFontUpload,
+  readFontResourceSlice,
+} from './font-resource.ts';
+import {
+  fontTransitionResourceBytes,
+  fontTransitionReadyBytes,
+  fontTransitionCommitBytes,
+} from './font-transition.ts';
+import type { FontTransitionOwner, FontTransitionState } from './font-transition.ts';
+import type { FontUploadState, FontResourceSlice } from './font-resource.ts';
+import { ResourceSlots } from './resource-slots.ts';
+import {
+  imageUploadBeginBytes,
+  imageUploadChunkBytes,
+  imageResourceReadBytes,
+  readImageUpload,
+  readImageResourceSlice,
+} from './image-resource.ts';
+import type { ImageUploadState, ImageResourceSlice } from './image-resource.ts';
+const resourceSlots = new WeakMap<EngineClient, ResourceSlots>();
+function slotsFor(client: EngineClient): ResourceSlots {
+  const slots = resourceSlots.get(client);
+  if (!slots) throw new EngineError(p.statuses.closed, 'SDK resource session closed');
+  return slots;
+}
 
 export interface EngineTransport {
   /** The port returns standalone bytes, never a live native/Wasm heap view. */
@@ -60,6 +90,10 @@ export class EngineClient {
   private aborting: Promise<void> | undefined;
   private pending = 0;
   private pendingBytes = 0;
+  private actualCapabilities = 0;
+  get capabilities(): number {
+    return this.actualCapabilities;
+  }
   private readonly views = new Set<EngineViewClient>();
   private readonly closing = new Set<(error: Error) => void>();
   private constructor(
@@ -74,6 +108,7 @@ export class EngineClient {
       view: 0,
       generation: 0,
     });
+    resourceSlots.set(this, new ResourceSlots());
   }
   static async connect(
     transport: EngineTransport,
@@ -89,7 +124,7 @@ export class EngineClient {
       throw new RangeError('Invalid engine transport timeout');
     const client = new EngineClient(transport, options.session ?? 1, options.app ?? 1, timeoutMs);
     try {
-      const required = uint32(options.requiredCapabilities ?? p.capabilities.protocol);
+      const required = capabilityMask(options.requiredCapabilities ?? p.capabilities.protocol);
       const result = await client.send(
         packet(
           p.opcodes.hello,
@@ -98,7 +133,8 @@ export class EngineClient {
         ),
       );
       checked(result);
-      if ((result.capabilities & required) !== required)
+      client.actualCapabilities = result.capabilities;
+      if ((result.capabilities & required) >>> 0 !== required)
         throw new EngineError(
           p.statuses.capabilityMissing,
           'Required engine v2 capability is absent',
@@ -226,6 +262,8 @@ export class EngineClient {
     this.closing.clear();
     for (const view of this.views) view.sessionClosed();
     this.views.clear();
+    resourceSlots.get(this)?.clear();
+    resourceSlots.delete(this);
     this.aborting = Promise.resolve().then(() => this.transport.close());
     return this.aborting;
   }
@@ -251,6 +289,286 @@ export class EngineViewClient {
   }
   get hasPendingTransaction(): boolean {
     return this.inFlight !== undefined;
+  }
+  /** @internal A reservation; upload/transaction ACK still owns Core admission. */
+  allocateResource(): import('./codec.ts').NodeHandle {
+    this.ensureOpen();
+    return slotsFor(this.client).allocate(this);
+  }
+  /** @internal Call only after known rejection (false) or producer release (true). */
+  recycleResource(resource: import('./codec.ts').NodeHandle, released: boolean): void {
+    slotsFor(this.client).recycle(this, resource, released);
+  }
+  /** @internal Quarantine a slot contradicted by a raw Core producer. */
+  discardResource(resource: import('./codec.ts').NodeHandle): void {
+    slotsFor(this.client).discard(this, resource);
+  }
+  private requireFontResources(): void {
+    if (!(this.client.capabilities & p.capabilities.fontResources))
+      throw new EngineError(
+        p.statuses.capabilityMissing,
+        'Required Core font resource capability is absent',
+      );
+  }
+  async beginImageUpload(
+    resource: import('./codec.ts').NodeHandle,
+    total: number,
+    token: bigint,
+  ): Promise<ImageUploadState> {
+    const state = readImageUpload(
+      checked(
+        await this.request(
+          p.opcodes.imageUploadBegin,
+          imageUploadBeginBytes(resource, total),
+          token,
+        ),
+      ),
+    );
+    if (
+      !state ||
+      state.token !== token ||
+      state.resource.slot !== resource.slot ||
+      state.resource.generation !== resource.generation ||
+      state.total !== total
+    )
+      throw Error('Image upload receipt identity differs');
+    return state;
+  }
+  async appendImageUpload(
+    token: bigint,
+    offset: number,
+    bytes: Uint8Array,
+  ): Promise<ImageUploadState> {
+    const state = readImageUpload(
+      checked(
+        await this.request(p.opcodes.imageUploadChunk, imageUploadChunkBytes(offset, bytes), token),
+      ),
+    );
+    if (
+      !state ||
+      state.token !== token ||
+      state.phase !== 'uploading' ||
+      state.filled < offset + bytes.length
+    )
+      throw Error('Image upload append receipt differs');
+    return state;
+  }
+  async finishImageUpload(token: bigint, commit: boolean): Promise<ImageUploadState> {
+    if (typeof commit !== 'boolean') throw Error('Invalid image upload terminal');
+    const state = readImageUpload(
+      checked(
+        await this.request(
+          commit ? p.opcodes.imageUploadCommit : p.opcodes.imageUploadAbort,
+          undefined,
+          token,
+        ),
+      ),
+    );
+    if (!state || state.token !== token || state.phase !== (commit ? 'committed' : 'aborted'))
+      throw Error('Image upload terminal receipt differs');
+    return state;
+  }
+  async readImageResource(
+    resource: import('./codec.ts').NodeHandle,
+    offset: number,
+    length: number,
+    preparation = 0n,
+  ): Promise<ImageResourceSlice> {
+    const slice = readImageResourceSlice(
+      checked(
+        await this.request(
+          p.opcodes.imageResourceRead,
+          imageResourceReadBytes(resource, offset, length, preparation),
+        ),
+      ),
+    );
+    if (
+      !slice ||
+      slice.resource.slot !== resource.slot ||
+      slice.resource.generation !== resource.generation ||
+      slice.offset !== offset ||
+      slice.bytes.length !== length
+    )
+      throw Error('Image resource read identity differs');
+    return slice;
+  }
+  async releaseImageResource(resource: import('./codec.ts').NodeHandle): Promise<void> {
+    checked(
+      await this.request(
+        p.opcodes.imageResourceRelease,
+        body(8, (data) => writeHandle(data, 0, resource)),
+      ),
+    );
+  }
+  async beginFontUpload(
+    resource: import('./codec.ts').NodeHandle,
+    total: number,
+    token: bigint,
+  ): Promise<FontUploadState> {
+    this.requireFontResources();
+    const result = checked(
+        await this.request(p.opcodes.fontUploadBegin, fontUploadBeginBytes(resource, total), token),
+      ),
+      state = readFontUpload(result);
+    if (
+      !state ||
+      state.token !== token ||
+      state.resource.slot !== resource.slot ||
+      state.resource.generation !== resource.generation ||
+      state.total !== total
+    )
+      throw Error('Font upload receipt identity differs');
+    return state;
+  }
+  async appendFontUpload(
+    token: bigint,
+    offset: number,
+    bytes: Uint8Array,
+  ): Promise<FontUploadState> {
+    this.requireFontResources();
+    const result = checked(
+        await this.request(p.opcodes.fontUploadChunk, fontUploadChunkBytes(offset, bytes), token),
+      ),
+      state = readFontUpload(result);
+    if (
+      !state ||
+      state.token !== token ||
+      state.phase !== 'uploading' ||
+      state.filled < offset + bytes.length
+    )
+      throw Error('Font upload append receipt differs');
+    return state;
+  }
+  async finishFontUpload(token: bigint, commit: boolean): Promise<FontUploadState> {
+    this.requireFontResources();
+    if (typeof commit !== 'boolean') throw Error('Invalid font upload terminal');
+    const result = checked(
+        await this.request(
+          commit ? p.opcodes.fontUploadCommit : p.opcodes.fontUploadAbort,
+          undefined,
+          token,
+        ),
+      ),
+      state = readFontUpload(result);
+    if (!state || state.token !== token || state.phase !== (commit ? 'committed' : 'aborted'))
+      throw Error('Font upload terminal receipt differs');
+    return state;
+  }
+  async readFontResource(
+    resource: import('./codec.ts').NodeHandle,
+    offset: number,
+    length: number,
+    preparation = 0n,
+    transition = 0n,
+  ): Promise<FontResourceSlice> {
+    this.requireFontResources();
+    const result = checked(
+        await this.request(
+          p.opcodes.fontResourceRead,
+          fontResourceReadBytes(resource, offset, length, preparation, transition),
+        ),
+      ),
+      slice = readFontResourceSlice(result);
+    if (
+      !slice ||
+      slice.resource.slot !== resource.slot ||
+      slice.resource.generation !== resource.generation ||
+      slice.offset !== offset ||
+      slice.bytes.length !== length
+    )
+      throw Error('Font resource read identity differs');
+    return slice;
+  }
+  private fontTransitionReceipt(result: EngineResponse, token: bigint): FontTransitionState {
+    const state = checked(result).fontTransition;
+    if (!state || state.token !== token) throw Error('Font transition receipt identity differs');
+    return state;
+  }
+  async beginFontTransition(
+    resource: import('./codec.ts').NodeHandle | null,
+    token: bigint,
+  ): Promise<FontTransitionState> {
+    this.requireFontResources();
+    const state = this.fontTransitionReceipt(
+      await this.request(
+        p.opcodes.fontTransitionBegin,
+        fontTransitionResourceBytes(resource),
+        token,
+      ),
+      token,
+    );
+    if (
+      state.resource?.slot !== resource?.slot ||
+      state.resource?.generation !== resource?.generation
+    )
+      throw Error('Font transition resource receipt differs');
+    return state;
+  }
+  async fontTransitionReady(
+    token: bigint,
+    owner: FontTransitionOwner,
+    failure = 0,
+  ): Promise<FontTransitionState> {
+    this.requireFontResources();
+    return this.fontTransitionReceipt(
+      await this.request(
+        p.opcodes.fontTransitionReady,
+        fontTransitionReadyBytes(owner, failure),
+        token,
+      ),
+      token,
+    );
+  }
+  async commitFontTransition(
+    token: bigint,
+    revision: bigint,
+    afterInput = 0n,
+  ): Promise<FontTransitionState> {
+    this.requireFontResources();
+    const state = this.fontTransitionReceipt(
+      await this.request(
+        p.opcodes.fontTransitionCommit,
+        fontTransitionCommitBytes(revision, afterInput),
+        token,
+      ),
+      token,
+    );
+    if (state.phase !== 'committed' || state.fontRevision !== revision)
+      throw Error('Font transition commit receipt differs');
+    return state;
+  }
+  async abortFontTransition(token: bigint): Promise<FontTransitionState> {
+    this.requireFontResources();
+    const state = this.fontTransitionReceipt(
+      await this.request(p.opcodes.fontTransitionAbort, undefined, token),
+      token,
+    );
+    if (state.phase !== 'aborted') throw Error('Font transition abort receipt differs');
+    return state;
+  }
+  async releaseFontResource(resource: import('./codec.ts').NodeHandle): Promise<void> {
+    this.requireFontResources();
+    checked(
+      await this.request(p.opcodes.fontResourceRelease, fontTransitionResourceBytes(resource)),
+    );
+  }
+  /** Core binding only; the embedder must prepare every provider owner first. */
+  async setFontCatalog(
+    fontRevision: bigint,
+    resource: import('./codec.ts').NodeHandle | null,
+    afterInput = 0n,
+  ): Promise<EngineResponse> {
+    this.requireFontResources();
+    return checked(
+      await this.request(
+        p.opcodes.fontRevision,
+        body(24, (value) => {
+          value.setBigUint64(0, uint64(fontRevision), true);
+          value.setBigUint64(8, uint64(afterInput), true);
+          writeHandle(value, 16, resource ?? { slot: 0, generation: 0 });
+        }),
+      ),
+    );
   }
   private ensureOpen(): void {
     if (this.closed) throw new EngineError(p.statuses.closed, 'Engine view closed');

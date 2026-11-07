@@ -24,9 +24,11 @@ and patch. Keep a single owned source/build directory for the selected runtime.
 the dependency revisions and the exact before/after patch hashes. Emscripten 4.0.7
 is installed inside that build root; shell profiles and global activation are not
 changed. The patch exposes unscaled ascent, UTF-16 line lookup and the soft-hyphen
-switch. It also restores the supplier's omitted CanvasKit build target and uses
+switch. The locked `canvaskit-picture.cpp` binding serializes Pictures with bounded font references and actual variation coordinates. Picture API2 matches the exact font stream and collection index against supplied base faces, rather than an intrinsic family name. The C++ paint stream embeds each source identity; the receiving owner verifies it before cloning the supplied face and restoring the Picture. Its font API1 builds immutable TypefaceFontProvider collections from existing decoded faces, so fallback replacement shares the bundled faces. It also restores the supplier's omitted CanvasKit build target and uses
 Skia's bundled raw-pointer fallback because this standalone DEPS has no
 partition_alloc input. Rendering, font and codec features stay enabled.
+The supplier keeps its 128 MiB initial linear heap and has an explicit 256 MiB
+maximum per instance. Separate App, Content and Render owners retain separate heaps.
 
 Use a persistent Linux/WSL directory; `/tmp` can disappear when WSL stops. From
 the repository root in Linux/WSL, run each phase with the 20-minute limit:
@@ -36,8 +38,13 @@ timeout --kill-after=10s 1190s python3 Nelyx/skia/eng/source-build/build-canvask
 timeout --kill-after=10s 1190s python3 Nelyx/skia/eng/source-build/build-canvaskit.py build --root <same-directory> --jobs 4
 ```
 
+An existing verified owned source root can run `prepare` without `--archive`.
+Only exact locked before/after files are accepted; current files are retained and
+new hunks apply only to their verified before contents. Use `--dependency-inputs`
+only for matching pinned Git inputs, which remain identity-checked.
+
 The result is `out/nelyx-canvaskit`. Its manifest uses the owned
-`m153-nelyx-paragraph.1` identity, distinct from npm CanvasKit 0.41.0. A successful
+`m153-nelyx-paragraph.5` identity, distinct from npm CanvasKit 0.41.0. A successful
 build is not runtime acceptance. Select that directory explicitly with
 `NELYX_WEB_RUNTIME_ROOT` for Web builds and the paragraph/browser checks, and
 preserve their manifest hashes when supplying a candidate. Prepare the package

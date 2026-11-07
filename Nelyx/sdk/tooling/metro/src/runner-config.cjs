@@ -309,7 +309,7 @@ function createRunnerTypeScriptConfig(options) {
       if (!inside(file, directory) || !fs.existsSync(file))
         throw new Error('Missing public type entry: ' + name + '/' + subpath);
       paths[name + subpath.slice(1)] = [
-        path.relative(cohort.runnerRoot, file).replaceAll('\\', '/'),
+        './' + path.relative(cohort.runnerRoot, file).replaceAll('\\', '/'),
       ];
     }
   }
@@ -323,12 +323,12 @@ function createRunnerTypeScriptConfig(options) {
       jsx: 'react-jsx',
       strict: true,
       noEmit: true,
+      rootDir: appRoot,
       resolveJsonModule: true,
       allowImportingTsExtensions: true,
       skipLibCheck: true,
       lib: ['ES2022', 'DOM'],
       types: ['node'],
-      baseUrl: '.',
       paths,
     },
     include: [

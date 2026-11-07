@@ -35,17 +35,71 @@ test(
               types: './dist/framework/rendering/object.d.ts',
               default: './dist/framework/rendering/object.js',
             },
+            './hosting/text-fonts': {
+              types: './dist/hosting/text-fonts.d.ts',
+              default: './dist/hosting/text-fonts.js',
+            },
+            './internal/framework/widgets/native-radio-semantics': {
+              types: './dist/framework/widgets/native-radio-semantics.d.ts',
+              default: './dist/framework/widgets/native-radio-semantics.js',
+            },
           },
         }),
       );
       write('packages/core/src/foundation/key.ts', 'export class ValueKey {}');
       write('packages/core/src/framework/rendering/object.ts', 'export class RenderBox {}');
+      write(
+        'packages/core/src/hosting/text-fonts.ts',
+        'export function registerTextFontRevision(){}',
+      );
+      write(
+        'packages/core/src/framework/widgets/native-radio-semantics.ts',
+        'export function nativeRadioDeselect(){return null;}',
+      );
       write('packages/core/runtime/engine-client/index.ts', "export * from './widgets.ts';");
       write(
         'packages/core/runtime/engine-client/widgets.ts',
         "export {ValueKey} from '@nelyx/core/foundation/key';",
       );
       assert.deepEqual(auditPackageBoundaries(root).errors, []);
+      write(
+        'packages/core/runtime/engine-client/original-text.ts',
+        "export {registerTextFontRevision} from '@nelyx/core/hosting/text-fonts';",
+      );
+      assert.deepEqual(auditPackageBoundaries(root).errors, []);
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "export {registerTextFontRevision} from '@nelyx/core/hosting/text-fonts';",
+      );
+      assert.ok(
+        auditPackageBoundaries(root).errors.some((error) =>
+          error.startsWith('Internal self-package import'),
+        ),
+        'Only the App text adapter shares the canonical font revision registry',
+      );
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "export {ValueKey} from '@nelyx/core/foundation/key';",
+      );
+      write(
+        'packages/core/runtime/engine-client/original-controls.ts',
+        "export {nativeRadioDeselect} from '@nelyx/core/internal/framework/widgets/native-radio-semantics';",
+      );
+      assert.deepEqual(auditPackageBoundaries(root).errors, []);
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "export {nativeRadioDeselect} from '@nelyx/core/internal/framework/widgets/native-radio-semantics';",
+      );
+      assert.ok(
+        auditPackageBoundaries(root).errors.some((error) =>
+          error.startsWith('Internal self-package import'),
+        ),
+        'Radio metadata is shared only with its canonical adapter',
+      );
+      write(
+        'packages/core/runtime/engine-client/widgets.ts',
+        "export {ValueKey} from '@nelyx/core/foundation/key';",
+      );
       write(
         'packages/core/runtime/engine-client/original-controls.ts',
         "export {RenderBox} from '@nelyx/core/framework/rendering/object';",

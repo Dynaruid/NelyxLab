@@ -95,7 +95,7 @@ function createWebRunnerTypeScriptConfig({ runnerRoot, appRoot }) {
         if (!inside(file, directory) || !fs.existsSync(file))
           throw new Error('Missing Web public type');
         paths[name + subpath.slice(1)] = [
-          path.relative(cohort.runnerRoot, file).replaceAll('\\', '/'),
+          './' + path.relative(cohort.runnerRoot, file).replaceAll('\\', '/'),
         ];
       }
   }
@@ -111,12 +111,12 @@ function createWebRunnerTypeScriptConfig({ runnerRoot, appRoot }) {
       jsx: 'react-jsx',
       strict: true,
       noEmit: true,
+      rootDir: appRoot,
       resolveJsonModule: true,
       allowImportingTsExtensions: true,
       skipLibCheck: true,
       lib: ['ES2022', 'DOM'],
       types: ['node'],
-      baseUrl: '.',
       paths,
     },
     include: ['main.ts', 'App.tsx', '../../src/**/*.ts'],

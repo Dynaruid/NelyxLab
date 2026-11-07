@@ -314,7 +314,7 @@ class Interaction {
     Writer b(32);
     writeHandle(b, 0, node);
     b.u64(8, action.commit);
-    b.u32(16, wire::semanticsActions::activate);
+    b.u32(16, action.kind=="deselect"?wire::semanticsActions::deselect:wire::semanticsActions::activate);
     publishedAction(wire::opcodes::semanticsAction,std::move(b),node,*observed);
     wake();
   }
@@ -539,6 +539,7 @@ public:
       packet.isLink = a->role == wire::semanticsRoles::link;
       packet.isSlider = a->role == wire::semanticsRoles::slider;
       packet.isRadio = a->role == wire::semanticsRoles::radio;
+      packet.canDeselect = a->actions & wire::semanticsActions::deselect;
       packet.isRadioGroup = a->role == wire::semanticsRoles::radioGroup;
       if(packet.isSlider&&node.control.kind){nh::SemanticRange range;
         range.min=node.control.minimum;range.max=node.control.maximum;range.value=f.properties[node.id.slot].value;

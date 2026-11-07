@@ -2,16 +2,16 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 2695739774u;
+inline constexpr uint32_t schema = 2844160510u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
-inline constexpr uint32_t stateBytes = 704u;
+inline constexpr uint32_t stateBytes = 744u;
 inline constexpr uint32_t nodeBytes = 344u;
 inline constexpr uint32_t eventBytes = 160u;
 inline constexpr uint32_t inputBytes = 128u;
-inline constexpr uint32_t layoutBytes = 120u;
+inline constexpr uint32_t layoutBytes = 128u;
 inline constexpr uint32_t graphicsBytes = 136u;
 inline constexpr uint32_t graphicsPathBytes = 56u;
 inline constexpr uint32_t clipStyleBytes = 80u;
@@ -19,12 +19,32 @@ inline constexpr uint32_t layerLinkBytes = 64u;
 inline constexpr uint32_t layerCompositionBytes = 80u;
 inline constexpr uint32_t layerCompositionBlob = 14u;
 inline constexpr uint32_t paragraphBytes = 64u;
-inline constexpr uint32_t measurementBytes = 88u;
-inline constexpr uint32_t measurementGeometryBytes = 136u;
-inline constexpr uint32_t nativePaintHeaderBytes = 16u;
+inline constexpr uint32_t paragraphRunBytes = 112u;
+inline constexpr uint32_t paragraphStrutBytes = 48u;
+inline constexpr uint32_t paragraphPlaceholderBytes = 40u;
+inline constexpr uint32_t measurementBytes = 96u;
+inline constexpr uint32_t measurementGeometryBytes = 144u;
+inline constexpr uint32_t measurementPlaceholderBytes = 104u;
+inline constexpr uint32_t paragraphBoxBytes = 40u;
+inline constexpr uint32_t nativePaintHeaderBytes = 24u;
 inline constexpr uint32_t nativePaintExpressionBytes = 24u;
-inline constexpr uint32_t nativePaintBytes = 464u;
+inline constexpr uint32_t nativePaintBytes = 512u;
+inline constexpr uint32_t nativePaintPathCommandBytes = 112u;
 inline constexpr uint32_t semanticsBytes = 80u;
+inline constexpr uint32_t paintPlacementBytes = 48u;
+inline constexpr uint32_t paintPlacementBlob = 15u;
+inline constexpr uint32_t fontUploadBlob = 16u;
+inline constexpr uint32_t fontResourceChunkBlob = 17u;
+inline constexpr uint32_t fontBindingBlob = 18u;
+inline constexpr uint32_t fontTransitionBlob = 19u;
+inline constexpr uint32_t imageUploadBlob = 20u;
+inline constexpr uint32_t imageResourceChunkBlob = 21u;
+inline constexpr uint32_t imageResourceBlob = 22u;
+inline constexpr uint32_t imageStyleBytes = 112u;
+inline constexpr uint32_t imagePaintBytes = 176u;
+inline constexpr uint32_t imagePaintBlob = 23u;
+inline constexpr uint32_t rasterImageMagic = 1230133326u;
+inline constexpr uint32_t rasterImageHeaderBytes = 32u;
 namespace layerCompositionFlags {
 inline constexpr uint32_t linked = 1u;
 inline constexpr uint32_t hasTransform = 2u;
@@ -33,7 +53,7 @@ inline constexpr uint32_t showWhenUnlinked = 4u;
 namespace limits {
 inline constexpr uint32_t views = 8u;
 inline constexpr uint32_t nodes = 4096u;
-inline constexpr uint32_t nodeBlobs = 12u;
+inline constexpr uint32_t nodeBlobs = 14u;
 inline constexpr uint32_t depth = 128u;
 inline constexpr uint32_t commands = 4096u;
 inline constexpr uint32_t packetBytes = 1048576u;
@@ -58,6 +78,12 @@ inline constexpr uint32_t textBytes = 65536u;
 inline constexpr uint32_t localeBytes = 128u;
 inline constexpr uint32_t ellipsisBytes = 256u;
 inline constexpr uint32_t fontFamilyBytes = 256u;
+inline constexpr uint32_t paragraphRuns = 256u;
+inline constexpr uint32_t paragraphRunFamilies = 8u;
+inline constexpr uint32_t paragraphRunFeatures = 64u;
+inline constexpr uint32_t paragraphRunVariations = 64u;
+inline constexpr uint32_t paragraphRunShadows = 16u;
+inline constexpr uint32_t paragraphPlaceholders = 64u;
 inline constexpr uint32_t layoutOperations = 131072u;
 inline constexpr uint32_t coveragePixelsPerSecond = 2400u;
 inline constexpr uint32_t coverageViewportsPerSecond = 4u;
@@ -73,12 +99,17 @@ inline constexpr uint32_t listMetrics = 1024u;
 inline constexpr uint32_t listChildren = 128u;
 inline constexpr uint32_t pathCommands = 1024u;
 inline constexpr uint32_t pathPoints = 8192u;
-inline constexpr uint32_t unifiedBytes = 402653184u;
+inline constexpr uint32_t unifiedBytes = 805306368u;
 inline constexpr uint32_t gpuBytes = 134217728u;
-inline constexpr uint32_t nativePaintEntries = 32u;
+inline constexpr uint32_t nativePaintEntries = 65u;
 inline constexpr uint32_t nativePaintExpressions = 512u;
 inline constexpr uint32_t nativePaintDraws = 2048u;
 inline constexpr uint32_t nativePaintOperations = 262144u;
+inline constexpr uint32_t fontCatalogBytes = 16777216u;
+inline constexpr uint32_t fontChunkBytes = 262144u;
+inline constexpr uint32_t imageChunkBytes = 262144u;
+inline constexpr uint32_t imageTiles = 4096u;
+inline constexpr uint32_t appImageCallbacks = 64u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -126,6 +157,22 @@ inline constexpr uint32_t pollRaw = 42u;
 inline constexpr uint32_t gestureReply = 43u;
 inline constexpr uint32_t memoryReport = 44u;
 inline constexpr uint32_t requestAppFrame = 45u;
+inline constexpr uint32_t fontUploadBegin = 46u;
+inline constexpr uint32_t fontUploadChunk = 47u;
+inline constexpr uint32_t fontUploadCommit = 48u;
+inline constexpr uint32_t fontUploadAbort = 49u;
+inline constexpr uint32_t fontResourceRead = 50u;
+inline constexpr uint32_t fontTransitionBegin = 51u;
+inline constexpr uint32_t fontTransitionReady = 52u;
+inline constexpr uint32_t fontTransitionCommit = 53u;
+inline constexpr uint32_t fontTransitionAbort = 54u;
+inline constexpr uint32_t fontResourceRelease = 55u;
+inline constexpr uint32_t imageUploadBegin = 56u;
+inline constexpr uint32_t imageUploadChunk = 57u;
+inline constexpr uint32_t imageUploadCommit = 58u;
+inline constexpr uint32_t imageUploadAbort = 59u;
+inline constexpr uint32_t imageResourceRead = 60u;
+inline constexpr uint32_t imageResourceRelease = 61u;
 }
 namespace commands {
 inline constexpr uint32_t create = 1u;
@@ -156,6 +203,9 @@ inline constexpr uint32_t paragraphOptions = 25u;
 inline constexpr uint32_t clipStyle = 26u;
 inline constexpr uint32_t nativePaint = 27u;
 inline constexpr uint32_t layerLink = 28u;
+inline constexpr uint32_t paintPlacement = 29u;
+inline constexpr uint32_t paragraphFont = 30u;
+inline constexpr uint32_t imageStyle = 31u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -331,6 +381,7 @@ inline constexpr uint32_t canonicalSwitch = 134217728u;
 inline constexpr uint32_t canonicalSlider = 268435456u;
 inline constexpr uint32_t layerLinks = 536870912u;
 inline constexpr uint32_t paintPrograms = 1073741824u;
+inline constexpr uint32_t fontResources = 2147483648u;
 }
 namespace headerFields {
 inline constexpr uint32_t magic = 0u;
@@ -445,6 +496,11 @@ inline constexpr uint32_t publishedDevice = 672u;
 inline constexpr uint32_t keyWork = 680u;
 inline constexpr uint32_t focusWork = 688u;
 inline constexpr uint32_t focusPeer = 696u;
+inline constexpr uint32_t framePaintWork = 704u;
+inline constexpr uint32_t framePaintNodes = 712u;
+inline constexpr uint32_t framePlacementNodes = 720u;
+inline constexpr uint32_t imagePaintWork = 728u;
+inline constexpr uint32_t appFrameWork = 736u;
 }
 namespace nodeFields {
 inline constexpr uint32_t node = 0u;
@@ -648,6 +704,8 @@ inline constexpr uint32_t clipOverflow = 512u;
 inline constexpr uint32_t paragraphSizing = 1024u;
 inline constexpr uint32_t preferredSize = 2048u;
 inline constexpr uint32_t expandPreferredWidth = 4096u;
+inline constexpr uint32_t paintChild = 8192u;
+inline constexpr uint32_t inlineScale = 16384u;
 }
 namespace layoutFields {
 inline constexpr uint32_t enabled = 0u;
@@ -669,6 +727,7 @@ inline constexpr uint32_t alignmentX = 88u;
 inline constexpr uint32_t alignmentY = 96u;
 inline constexpr uint32_t widthFactor = 104u;
 inline constexpr uint32_t heightFactor = 112u;
+inline constexpr uint32_t inlineScale = 120u;
 }
 namespace measureFields {
 inline constexpr uint32_t preparation = 0u;
@@ -683,14 +742,18 @@ inline constexpr uint32_t maximum = 64u;
 inline constexpr uint32_t baseline = 72u;
 inline constexpr uint32_t flags = 80u;
 inline constexpr uint32_t reserved = 84u;
-inline constexpr uint32_t geometryRevision = 88u;
-inline constexpr uint32_t caret = 96u;
-inline constexpr uint32_t selectionCount = 128u;
-inline constexpr uint32_t geometryReserved = 132u;
-inline constexpr uint32_t selection = 136u;
+inline constexpr uint32_t ideographicBaseline = 88u;
+inline constexpr uint32_t geometryRevision = 96u;
+inline constexpr uint32_t caret = 104u;
+inline constexpr uint32_t selectionCount = 136u;
+inline constexpr uint32_t geometryReserved = 140u;
+inline constexpr uint32_t selection = 144u;
+inline constexpr uint32_t placeholderCount = 96u;
+inline constexpr uint32_t placeholderReserved = 100u;
 }
 namespace measurementFlags {
 inline constexpr uint32_t didExceedMaxLines = 1u;
+inline constexpr uint32_t hasPlaceholders = 2u;
 }
 namespace paragraphAlign {
 inline constexpr uint32_t start = 0u;
@@ -706,6 +769,7 @@ inline constexpr uint32_t halfLeading = 2u;
 inline constexpr uint32_t disableFirstAscent = 4u;
 inline constexpr uint32_t disableLastDescent = 8u;
 inline constexpr uint32_t manualHyphens = 16u;
+inline constexpr uint32_t inlineChildren = 32u;
 }
 namespace coverageFields {
 inline constexpr uint32_t revision = 0u;
@@ -776,6 +840,7 @@ inline constexpr uint32_t setSelection = 8u;
 inline constexpr uint32_t increment = 16u;
 inline constexpr uint32_t decrement = 32u;
 inline constexpr uint32_t longPress = 64u;
+inline constexpr uint32_t deselect = 128u;
 }
 namespace editFields {
 inline constexpr uint32_t node = 0u;
@@ -834,6 +899,9 @@ inline constexpr uint32_t clipsChildren = 1024u;
 inline constexpr uint32_t hardEdgeClip = 2048u;
 inline constexpr uint32_t rectangularClip = 4096u;
 inline constexpr uint32_t clipSaveLayer = 8192u;
+inline constexpr uint32_t livePaint = 16384u;
+inline constexpr uint32_t paintResource = 32768u;
+inline constexpr uint32_t inlineHidden = 65536u;
 }
 namespace eventPolicies {
 inline constexpr uint32_t observeRaw = 1u;
@@ -869,6 +937,16 @@ inline constexpr uint32_t horizontal = 2u;
 inline constexpr uint32_t vertical = 4u;
 inline constexpr uint32_t semantic = 8u;
 }
+namespace nativePaintPathVerbs {
+inline constexpr uint32_t move = 1u;
+inline constexpr uint32_t line = 2u;
+inline constexpr uint32_t quad = 3u;
+inline constexpr uint32_t cubic = 4u;
+inline constexpr uint32_t close = 5u;
+inline constexpr uint32_t conic = 6u;
+inline constexpr uint32_t rect = 7u;
+inline constexpr uint32_t rrect = 8u;
+}
 namespace nativePaintKinds {
 inline constexpr uint32_t physical = 1u;
 inline constexpr uint32_t border = 2u;
@@ -884,6 +962,9 @@ inline constexpr uint32_t hitRegion = 11u;
 inline constexpr uint32_t elevationShadow = 12u;
 inline constexpr uint32_t save = 13u;
 inline constexpr uint32_t restore = 14u;
+inline constexpr uint32_t path = 15u;
+inline constexpr uint32_t paragraph = 16u;
+inline constexpr uint32_t children = 17u;
 }
 namespace nativePaintGeometryKinds {
 inline constexpr uint32_t none = 0u;
@@ -913,9 +994,63 @@ inline constexpr uint32_t greater = 13u;
 inline constexpr uint32_t greaterEqual = 14u;
 inline constexpr uint32_t equal = 15u;
 inline constexpr uint32_t select = 16u;
+inline constexpr uint32_t worldX = 17u;
+inline constexpr uint32_t worldY = 18u;
 }
 namespace paragraphFields {
 inline constexpr uint32_t fontFamilyLength = 20u;
 inline constexpr uint32_t fontWeight = 24u;
+}
+namespace fontTransitionOwners {
+inline constexpr uint32_t app = 1u;
+inline constexpr uint32_t content = 2u;
+inline constexpr uint32_t render = 4u;
+}
+namespace fontTransitionPhases {
+inline constexpr uint32_t preparing = 1u;
+inline constexpr uint32_t committed = 2u;
+inline constexpr uint32_t aborted = 3u;
+inline constexpr uint32_t failed = 4u;
+}
+namespace imageFlags {
+inline constexpr uint32_t canonical = 1u;
+inline constexpr uint32_t widthSpecified = 2u;
+inline constexpr uint32_t heightSpecified = 4u;
+inline constexpr uint32_t flip = 8u;
+inline constexpr uint32_t invert = 16u;
+inline constexpr uint32_t antialias = 32u;
+inline constexpr uint32_t tint = 64u;
+inline constexpr uint32_t center = 128u;
+}
+namespace imageBlendModes {
+inline constexpr uint32_t clear = 0u;
+inline constexpr uint32_t src = 1u;
+inline constexpr uint32_t dst = 2u;
+inline constexpr uint32_t srcOver = 3u;
+inline constexpr uint32_t dstOver = 4u;
+inline constexpr uint32_t srcIn = 5u;
+inline constexpr uint32_t dstIn = 6u;
+inline constexpr uint32_t srcOut = 7u;
+inline constexpr uint32_t dstOut = 8u;
+inline constexpr uint32_t srcATop = 9u;
+inline constexpr uint32_t dstATop = 10u;
+inline constexpr uint32_t xor_ = 11u;
+inline constexpr uint32_t plus = 12u;
+inline constexpr uint32_t modulate = 13u;
+inline constexpr uint32_t screen = 14u;
+inline constexpr uint32_t overlay = 15u;
+inline constexpr uint32_t darken = 16u;
+inline constexpr uint32_t lighten = 17u;
+inline constexpr uint32_t colorDodge = 18u;
+inline constexpr uint32_t colorBurn = 19u;
+inline constexpr uint32_t hardLight = 20u;
+inline constexpr uint32_t softLight = 21u;
+inline constexpr uint32_t difference = 22u;
+inline constexpr uint32_t exclusion = 23u;
+inline constexpr uint32_t multiply = 24u;
+inline constexpr uint32_t hue = 25u;
+inline constexpr uint32_t saturation = 26u;
+inline constexpr uint32_t color = 27u;
+inline constexpr uint32_t luminosity = 28u;
 }
 }

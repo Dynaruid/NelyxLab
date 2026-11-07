@@ -8,6 +8,7 @@ import { ResourceRegistry } from './resources.ts';
 import { Image } from '../ui/image.ts';
 import type { ImageByteReader } from '../ui/image.ts';
 import { Codec, FrameInfo } from '../ui/codec.ts';
+import { imageServiceDecoder } from '../ui/image-descriptor-binding.ts';
 export const imageLimits = Object.freeze({
   encodedBytes: 16 * 1024 * 1024,
   dimension: 8192,
@@ -358,6 +359,13 @@ class HostedCodec extends Codec {
     }
   }
 }
+const codecOwners = new WeakMap<ImageService, (native: NativeImageCodec) => Codec>();
+/** @internal Admit a descriptor-created codec through the same resource/drain owner. */
+export function adoptImageCodec(owner: ImageService, native: NativeImageCodec): Codec {
+  const admit = codecOwners.get(owner);
+  if (!admit) throw Error('Foreign image codec owner');
+  return admit(native);
+}
 export class ImageService implements Disposable {
   private closed = false;
   private closing: Promise<void> | undefined;
@@ -375,7 +383,9 @@ export class ImageService implements Disposable {
     private readonly backend: ImageBackend,
     private readonly frameClock: FrameClock,
     private readonly time: ImageTiming,
-  ) {}
+  ) {
+    codecOwners.set(this, (native) => this.adopt(native));
+  }
   /** Extend this owner's drain to asynchronous processing of its decoded images. */
   trackImageOperation<T>(operation: Promise<T>): Promise<T> {
     this.assertOpen();
@@ -431,6 +441,16 @@ export class ImageService implements Disposable {
       'invalid-image-target',
       'getTargetSize must be a function',
     );
+    const decoder = imageServiceDecoder(this);
+    if (decoder) {
+      // Native owners admit and capture synchronously; a private framework copy
+      // before admission would evade that App's immutable buffer credit.
+      try {
+        return this.track(decoder(bytes, snapshot));
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
     const copy = new Uint8Array(bytes);
     return this.track(
       Promise.resolve()
@@ -438,40 +458,42 @@ export class ImageService implements Disposable {
           this.assertOpen();
           return this.backend.instantiateCodec(copy, snapshot);
         })
-        .then((native) => {
-          try {
-            this.assertOpen();
-            let codec: HostedCodec;
-            codec = new HostedCodec(
-              native,
-              this.resources,
-              () => this.codecs.delete(codec),
-              (frame, error) => {
-                this.failedFrames.push(frame);
-                this.stopErrors.push(error);
-                this.stop();
-              },
-            );
-            this.codecs.add(codec);
-            this.codecDrains.add(codec.drained);
-            void codec.drained.then(
-              () => this.codecDrains.delete(codec.drained),
-              () => {},
-            );
-            return codec;
-          } catch (error) {
-            try {
-              native.dispose();
-            } catch (cleanup) {
-              this.failedNative.push(native);
-              this.stopErrors.push(cleanup);
-              throw new AggregateError([error, cleanup], 'Codec creation and retirement failed');
-            }
-            throw error;
-          }
-        }),
+        .then((native) => this.adopt(native)),
     );
   }
+  private adopt(native: NativeImageCodec): Codec {
+    try {
+      this.assertOpen();
+      let codec: HostedCodec;
+      codec = new HostedCodec(
+        native,
+        this.resources,
+        () => this.codecs.delete(codec),
+        (frame, error) => {
+          this.failedFrames.push(frame);
+          this.stopErrors.push(error);
+          this.stop();
+        },
+      );
+      this.codecs.add(codec);
+      this.codecDrains.add(codec.drained);
+      void codec.drained.then(
+        () => this.codecDrains.delete(codec.drained),
+        () => {},
+      );
+      return codec;
+    } catch (error) {
+      try {
+        native.dispose();
+      } catch (cleanup) {
+        this.failedNative.push(native);
+        this.stopErrors.push(cleanup);
+        throw new AggregateError([error, cleanup], 'Codec creation and retirement failed');
+      }
+      throw error;
+    }
+  }
+
   private load(
     read: (signal: ImageCancellation, onProgress: ImageReadProgressListener) => Promise<Uint8Array>,
   ): ImageReadRequest {

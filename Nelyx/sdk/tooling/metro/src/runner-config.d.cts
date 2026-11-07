@@ -33,11 +33,11 @@ export declare function createRunnerTypeScriptConfig(options: RnRunnerOptions): 
     jsx: 'react-jsx';
     strict: true;
     noEmit: true;
+    rootDir: string;
     allowImportingTsExtensions: true;
     skipLibCheck: true;
     lib: string[];
     types: string[];
-    baseUrl: '.';
     paths: Record<string, string[]>;
   };
   include: string[];

@@ -652,12 +652,17 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
     constraints: BoxConstraints,
     _baseline: TextBaseline,
   ): number {
-    return this.geometry(constraints, true).alphabeticBaseline;
+    const geometry = this.geometry(constraints, true);
+    return _baseline === 'ideographic' ? geometry.ideographicBaseline : geometry.alphabeticBaseline;
   }
   protected override computeDistanceToActualBaseline(_baseline: TextBaseline): number | null {
     if (this.paragraph)
       this.paragraph = this.layoutCanonical(this.constraints, this.paintDimensions);
-    return this.paragraph?.alphabeticBaseline ?? null;
+    return (
+      (_baseline === 'ideographic'
+        ? this.paragraph?.ideographicBaseline
+        : this.paragraph?.alphabeticBaseline) ?? null
+    );
   }
   protected override performLayout(constraints: BoxConstraints): Size {
     this.invalidateSelectionLayout();
